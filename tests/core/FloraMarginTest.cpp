@@ -186,7 +186,7 @@ TEST_F(FloraMarginTest, GiantSpansVerticalChunksNoSeam) {
 
     ChunkManager cm;
     ObjectTemplateManager otm(&cm, nullptr);
-    ASSERT_TRUE(otm.loadTemplate("resources/templates/" + kGiant + ".voxel"))
+    ASSERT_TRUE(otm.loadTemplate("resources/templates/nature/" + kGiant + ".voxel"))
         << "shipped giant template missing — run gen_tree.py --batch tools/tree_library.json";
     const VoxelTemplate* g = otm.getTemplate(kGiant);
     ASSERT_NE(g, nullptr);

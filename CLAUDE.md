@@ -404,7 +404,14 @@ Multi-scene game definitions use a `"scenes"` array instead of a top-level `"wor
 
 ## Object Templates
 
-Files in `resources/templates/` — spawnable via **T** (static) / **Shift+T** (dynamic physics) or MCP `spawn_template`.
+Files in `resources/templates/<category>/` — **the library taxonomy (2026-08-07):**
+`weapons/ items/ furniture/ nature/ architecture/ imported/ test/ generated/`.
+**[`docs/AssetLibrary.md`](docs/AssetLibrary.md) is the canonical guide** — layout rules
+(stems UNIQUE library-wide, no root strays), the generated index
+(`template_catalog.json`, rebuilt+validated by `python tools/asset_index.py [--validate]`),
+the aesthetic contract, and the add-an-asset recipes. Engine scan is recursive; templates
+resolve by stem or relative path (`items/torch`). Spawnable via **T** (static) /
+**Shift+T** (dynamic physics) or MCP `spawn_template`.
 
 > **HARD RULE — detail assets use sub-voxel resolution, NEVER full cubes.** Chunk voxels
 > come in three sizes: cube (1 unit), subcube (1/3), microcube (1/9); full cubes are for

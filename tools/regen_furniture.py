@@ -13,7 +13,7 @@ Targets (canon, metres):
 import json
 import os
 
-TEMPLATES = "resources/templates"
+TEMPLATES = "resources/templates/furniture"   # category taxonomy (2026-08-07)
 
 
 def decomp(p):

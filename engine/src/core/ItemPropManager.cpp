@@ -182,14 +182,21 @@ std::vector<KinematicVoxel> ItemPropManager::voxelsFromTemplate(const VoxelTempl
 const VoxelTemplate* ItemPropManager::resolveItemTemplate(const std::string& templateFile) const {
     if (!m_templates || templateFile.empty()) return nullptr;
 
-    const std::string stem = fs::path(templateFile).stem().string();
-    if (const auto* t = m_templates->getTemplate(stem)) return t;
+    // Resolve by EXACT path: the registry key is the relative path without
+    // extension ("items/torch"), NEVER the bare stem — the startup scan
+    // preloads root-level templates by stem, and a legacy root file with the
+    // same stem used to silently substitute for the item's real model
+    // (found 2026-08-06: root BlockSmith relics shadowed items/lantern etc.).
+    std::string key = templateFile;
+    std::replace(key.begin(), key.end(), '\\', '/');
+    if (const auto dot = key.rfind(".voxel"); dot != std::string::npos) key.erase(dot);
 
-    // On-demand load: the startup scan only covers resources/templates/ root.
+    if (const auto* t = m_templates->getTemplate(key)) return t;
+
     std::string path = "resources/templates/" + templateFile;
     if (fs::path(path).extension().empty()) path += ".voxel";
-    if (fs::exists(path) && m_templates->loadTemplate(path))
-        return m_templates->getTemplate(stem);
+    if (fs::exists(path) && m_templates->loadTemplate(path, key))
+        return m_templates->getTemplate(key);
 
     LOG_WARN("ItemPropManager", "Template '{}' not found (tried '{}')", templateFile, path);
     return nullptr;

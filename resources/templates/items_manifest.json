@@ -29,15 +29,95 @@
       0.0185
     ]
   },
-  "candlestick": {
-    "cells": 146,
+  "bottle_wine": {
+    "cells": 188,
+    "dims_units": [
+      0.0617,
+      0.2469,
+      0.0617
+    ],
+    "file": "items/bottle_wine.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0309,
+      0.1049,
+      0.0309
+    ]
+  },
+  "bow": {
+    "cells": 307,
     "dims_units": [
       0.1358,
-      0.2099,
-      0.1111
+      1.3951,
+      0.0123
+    ],
+    "file": "weapons/bow.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.1173,
+      0.6975,
+      0.0062
+    ]
+  },
+  "bowl": {
+    "cells": 133,
+    "dims_units": [
+      0.1605,
+      0.0494,
+      0.1605
+    ],
+    "file": "items/bowl.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0802,
+      0.0185,
+      0.0802
+    ]
+  },
+  "candle": {
+    "cells": 55,
+    "dims_units": [
+      0.037,
+      0.0864,
+      0.037
+    ],
+    "file": "items/candle.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0185,
+      0.0309,
+      0.0185
+    ]
+  },
+  "candlestick": {
+    "cells": 122,
+    "dims_units": [
+      0.0864,
+      0.2222,
+      0.0864
     ],
     "file": "items/candlestick.voxel",
-    "grid": 81
+    "grid": 81,
+    "grip_point_units": [
+      0.0432,
+      0.0556,
+      0.0432
+    ]
+  },
+  "crossbow": {
+    "cells": 487,
+    "dims_units": [
+      0.4321,
+      0.5556,
+      0.0617
+    ],
+    "file": "weapons/crossbow.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.216,
+      0.1296,
+      0.0432
+    ]
   },
   "dagger": {
     "cells": 234,
@@ -52,6 +132,111 @@
       0.0556,
       0.0679,
       0.0185
+    ]
+  },
+  "fork": {
+    "cells": 21,
+    "dims_units": [
+      0.037,
+      0.1605,
+      0.0123
+    ],
+    "file": "items/fork.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0185,
+      0.0432,
+      0.0062
+    ]
+  },
+  "frying_pan": {
+    "cells": 167,
+    "dims_units": [
+      0.284,
+      0.0247,
+      0.1605
+    ],
+    "file": "items/frying_pan.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.2407,
+      0.0185,
+      0.0802
+    ]
+  },
+  "goblet": {
+    "cells": 116,
+    "dims_units": [
+      0.0864,
+      0.1358,
+      0.0864
+    ],
+    "file": "items/goblet.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0432,
+      0.0556,
+      0.0432
+    ]
+  },
+  "jug": {
+    "cells": 1110,
+    "dims_units": [
+      0.1728,
+      0.2469,
+      0.1605
+    ],
+    "file": "items/jug.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.1667,
+      0.142,
+      0.0802
+    ]
+  },
+  "knife_table": {
+    "cells": 21,
+    "dims_units": [
+      0.0247,
+      0.1852,
+      0.0123
+    ],
+    "file": "items/knife_table.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0062,
+      0.0432,
+      0.0062
+    ]
+  },
+  "ladle": {
+    "cells": 47,
+    "dims_units": [
+      0.0864,
+      0.1852,
+      0.0864
+    ],
+    "file": "items/ladle.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0432,
+      0.1296,
+      0.0432
+    ]
+  },
+  "lantern": {
+    "cells": 162,
+    "dims_units": [
+      0.0617,
+      0.1481,
+      0.0617
+    ],
+    "file": "items/lantern.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0309,
+      0.1296,
+      0.0309
     ]
   },
   "mace": {
@@ -84,6 +269,21 @@
       0.0679
     ]
   },
+  "oil_lamp": {
+    "cells": 532,
+    "dims_units": [
+      0.2346,
+      0.0988,
+      0.1605
+    ],
+    "file": "items/oil_lamp.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0062,
+      0.0556,
+      0.0802
+    ]
+  },
   "pickaxe": {
     "cells": 304,
     "dims_units": [
@@ -99,6 +299,21 @@
       0.0185
     ]
   },
+  "plate": {
+    "cells": 457,
+    "dims_units": [
+      0.2593,
+      0.0247,
+      0.2593
+    ],
+    "file": "items/plate.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.1296,
+      0.0062,
+      0.1296
+    ]
+  },
   "potion": {
     "cells": 134,
     "dims_units": [
@@ -108,6 +323,21 @@
     ],
     "file": "items/potion.voxel",
     "grid": 81
+  },
+  "quiver": {
+    "cells": 836,
+    "dims_units": [
+      0.0864,
+      0.4444,
+      0.0864
+    ],
+    "file": "weapons/quiver.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0432,
+      0.179,
+      0.0432
+    ]
   },
   "rug_oriental": {
     "cells": 2916,
@@ -172,6 +402,21 @@
       0.0432,
       0.8704,
       0.0062
+    ]
+  },
+  "spoon": {
+    "cells": 35,
+    "dims_units": [
+      0.0617,
+      0.1358,
+      0.0617
+    ],
+    "file": "items/spoon.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0309,
+      0.0432,
+      0.0309
     ]
   },
   "staff_arcane": {
@@ -262,6 +507,36 @@
       0.0802,
       0.0926,
       0.0309
+    ]
+  },
+  "tankard": {
+    "cells": 240,
+    "dims_units": [
+      0.1111,
+      0.0988,
+      0.0864
+    ],
+    "file": "items/tankard.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.1049,
+      0.0432,
+      0.0432
+    ]
+  },
+  "throwing_knife": {
+    "cells": 19,
+    "dims_units": [
+      0.0247,
+      0.1605,
+      0.0123
+    ],
+    "file": "weapons/throwing_knife.voxel",
+    "grid": 81,
+    "grip_point_units": [
+      0.0062,
+      0.0309,
+      0.0062
     ]
   },
   "tome": {

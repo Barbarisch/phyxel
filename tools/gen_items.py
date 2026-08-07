@@ -35,7 +35,7 @@ GRID = 81                      # cells per cube edge (1 cell = 1/81 unit)
 ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), ".."))
 OUT_WEAPONS = os.path.join(ROOT, "resources", "templates", "weapons")
 OUT_ITEMS = os.path.join(ROOT, "resources", "templates", "items")
-OUT_ROOT = os.path.join(ROOT, "resources", "templates")  # legacy in-place remodels
+OUT_TEST = os.path.join(ROOT, "resources", "templates", "test")
 MANIFEST = os.path.join(ROOT, "resources", "templates", "items_manifest.json")
 CATALOG = os.path.join(ROOT, "resources", "templates", "template_catalog.json")
 
@@ -68,6 +68,24 @@ CATALOG_META = {
     "rug_oriental": ("Oriental Rug", "A hand-knotted oriental rug, one fine cell thick.", "rug", ["item", "rug", "decor", "projected-surface"]),
     "rug_test":     ("Rug (Projection Test)", "Surface-projection test rug.", "rug", ["item", "rug", "test"]),
     "sign_prancing_pony": ("Sign: The Prancing Pony", "A thin hanging tavern sign board.", "sign", ["item", "sign", "decor", "tavern"]),
+    "lantern":      ("Hooded Lantern", "A steel-framed glass lantern with a carry ring.", "light", ["item", "lantern", "light", "dungeon"]),
+    "oil_lamp":     ("Oil Lamp", "A squat clay oil lamp with a wick flame.", "light", ["item", "lamp", "light", "house"]),
+    "candle":       ("Candle", "A bare wax candle stub, lit.", "light", ["item", "candle", "light", "table"]),
+    "tankard":      ("Tankard", "A stave-built ale tankard with steel bands.", "tableware", ["item", "tankard", "mug", "tavern", "drink"]),
+    "goblet":       ("Goblet", "A pewter goblet of wine.", "tableware", ["item", "goblet", "tavern", "drink"]),
+    "plate":        ("Plate", "A turned wooden dinner plate.", "tableware", ["item", "plate", "tavern", "kitchen"]),
+    "bowl":         ("Bowl", "A turned wooden bowl.", "tableware", ["item", "bowl", "tavern", "kitchen"]),
+    "jug":          ("Clay Jug", "A bulged clay jug with a strap handle.", "tableware", ["item", "jug", "tavern", "kitchen"]),
+    "bottle_wine":  ("Wine Bottle", "A slim green glass bottle, corked.", "tableware", ["item", "bottle", "wine", "tavern"]),
+    "fork":         ("Fork", "A steel three-tine fork.", "cutlery", ["item", "fork", "cutlery", "tavern"]),
+    "knife_table":  ("Table Knife", "A wood-handled table knife.", "cutlery", ["item", "knife", "cutlery", "tavern"]),
+    "spoon":        ("Spoon", "A steel spoon.", "cutlery", ["item", "spoon", "cutlery", "tavern"]),
+    "frying_pan":   ("Frying Pan", "An iron skillet.", "kitchen", ["item", "pan", "kitchen", "tavern"]),
+    "ladle":        ("Ladle", "An iron serving ladle.", "kitchen", ["item", "ladle", "kitchen", "tavern"]),
+    "bow":          ("Longbow", "A curved yew longbow with a wrapped grip.", "bow", ["weapon", "bow", "ranged"]),
+    "crossbow":     ("Crossbow", "A steel-prod crossbow.", "crossbow", ["weapon", "crossbow", "ranged"]),
+    "quiver":       ("Quiver", "A leather quiver of arrows.", "quiver", ["item", "quiver", "ranged", "arrows"]),
+    "throwing_knife": ("Throwing Knife", "A balanced steel throwing knife.", "knife", ["weapon", "knife", "ranged", "thrown"]),
 }
 
 # Palette — materials are physics/texture carriers, tints are the color detail.
@@ -480,6 +498,315 @@ def gen_wand():
 
 
 # --------------------------------------------------------------------------
+# Lighting items
+# --------------------------------------------------------------------------
+
+def gen_lantern():
+    # Hooded candle lantern (~16 cm tall, 6 cm across): compact 5x5 steel
+    # frame, 3-wide glass panes, candle + glow, domed cap, small carry ring.
+    m = Model("lantern", "item")
+    m.fill(-2, 2, 0, 0, -2, 2, METAL, T_IRON_DARK)      # base plate 5x5
+    for (px, pz) in ((-2, -2), (-2, 2), (2, -2), (2, 2)):
+        m.fill(px, px, 1, 6, pz, pz, METAL, T_IRON_DARK)  # corner posts
+    for y in range(1, 7):                                # glass panes 3-wide
+        for a in range(-1, 2):
+            m.v(a, y, -2, GLASS, None)
+            m.v(a, y, 2, GLASS, None)
+            m.v(-2, y, a, GLASS, None)
+            m.v(2, y, a, GLASS, None)
+    m.v(0, 1, 0, WOOD, T_CANDLE)                         # candle stub
+    m.fill(0, 0, 2, 3, 0, 0, GLOW, "#ffc860")            # flame core
+    m.fill(-2, 2, 7, 7, -2, 2, METAL, T_IRON_DARK)       # cap plate
+    m.fill(-1, 1, 8, 8, -1, 1, METAL, T_IRON)            # dome
+    m.v(0, 9, 0, METAL, T_IRON)
+    m.v(-1, 10, 0, METAL, T_IRON)                        # carry ring
+    m.v(1, 10, 0, METAL, T_IRON)
+    m.v(0, 11, 0, METAL, T_IRON)
+    m.mark_grip(0, 10, 0)
+    return m, OUT_ITEMS
+
+
+def gen_oil_lamp():
+    # Table oil lamp (~22 cm long): genie-lamp profile — shaded clay body,
+    # tapering spout with a wick flame, loop handle, small lid knob.
+    m = Model("oil_lamp", "item")
+    def shaded_disc(y, r):
+        for x in range(-r, r + 1):
+            for z in range(-r, r + 1):
+                d2 = x * x + z * z
+                if d2 <= r * r + 1:
+                    t = "#b57c4e" if d2 <= (r - 1) * (r - 1) else "#8a5a34"
+                    m.v(x, y, z, WOOD, t)
+    for y, r in enumerate((4, 5, 6, 6, 5, 3)):
+        shaded_disc(y, r)
+    m.v(0, 6, 0, WOOD, "#8a5a34")                       # lid knob
+    m.v(0, 7, 0, GOLD, None)
+    for i in range(6):                                   # tapering spout
+        y = 3 + i // 3
+        m.fill(6 + i, 6 + i, y, y + (1 if i < 4 else 0), 0, 0, WOOD, "#a06a3e")
+    m.v(12, 5, 0, GLOW, "#ffb050")                       # wick flame
+    m.v(12, 6, 0, GLOW, "#ffd070")
+    for y in range(2, 7):                                # handle loop
+        m.v(-6, y, 0, WOOD, "#8a5a34")
+    m.v(-5, 7, 0, WOOD, "#8a5a34")
+    m.v(-4, 7, 0, WOOD, "#8a5a34")
+    m.v(-5, 1, 0, WOOD, "#8a5a34")
+    m.mark_grip(-6, 4, 0)
+    return m, OUT_ITEMS
+
+
+def gen_candle():
+    # Bare candle stub (~8 cm) with flame — scatter lighting for tables.
+    m = Model("candle", "item")
+    m.fill(-1, 1, 0, 5, -1, 1, WOOD, T_CANDLE)
+    m.v(0, 6, 0, GLOW, "#ffdf90")
+    m.mark_grip(0, 2, 0)
+    return m, OUT_ITEMS
+
+
+# --------------------------------------------------------------------------
+# Tavern tableware
+# --------------------------------------------------------------------------
+
+def gen_tankard():
+    # Stave tankard (~11 cm): wooden staves, two steel bands, D handle.
+    m = Model("tankard", "item")
+    for y in range(0, 8):
+        band = y in (1, 6)
+        m.disc(0, 0, y, 3, METAL if band else WOOD,
+               T_IRON if band else T_WOOD_PALE)
+    m.disc(0, 0, 7, 2, WOOD, "#6a4a2a")                # ale surface recess
+    for y in range(1, 7):
+        m.v(5, y, 0, WOOD, T_WOOD_DARK)                # handle spine
+    m.v(4, 1, 0, WOOD, T_WOOD_DARK)
+    m.v(4, 6, 0, WOOD, T_WOOD_DARK)
+    m.mark_grip(5, 3, 0)
+    return m, OUT_ITEMS
+
+
+def gen_goblet():
+    # Slim pewter goblet (~14 cm): small shaded foot, 1-cell stem with a knop,
+    # thin-walled flaring cup with a wine surface. Walls are RINGS, not solid
+    # discs — solid cup discs read as a blocky lump.
+    m = Model("goblet", "item")
+    def ring(y, r, mat, tint):
+        for x in range(-r, r + 1):
+            for z in range(-r, r + 1):
+                d2 = x * x + z * z
+                if (r - 1) * (r - 1) < d2 <= r * r + 1:
+                    m.v(x, y, z, mat, tint)
+    m.disc(0, 0, 0, 2, METAL, T_STEEL_DARK)             # foot
+    m.v(0, 1, 0, METAL, T_STEEL)
+    for y in range(2, 6):                                # stem
+        m.v(0, y, 0, METAL, T_STEEL)
+    m.fill(0, 0, 3, 3, 0, 0, METAL, T_STEEL_EDGE)        # knop glint
+    m.disc(0, 0, 6, 2, METAL, T_STEEL)                   # cup bottom
+    ring(7, 2, METAL, T_STEEL)
+    ring(8, 2, METAL, T_STEEL)
+    ring(9, 3, METAL, T_STEEL)
+    ring(10, 3, METAL, T_STEEL_EDGE)                     # rim highlight
+    m.disc(0, 0, 9, 1, WOOD, "#5a1a20")                  # wine surface
+    m.mark_grip(0, 4, 0)
+    return m, OUT_ITEMS
+
+
+def gen_plate():
+    # Wooden dinner plate (~24 cm) — wide with concentric shading and a raised
+    # rim so it reads as a plate, not a flat slab ("looks like a single voxel"
+    # feedback on the first pass: too small + one uniform tint).
+    m = Model("plate", "item")
+    R = 10
+    for x in range(-R, R + 1):
+        for z in range(-R, R + 1):
+            d2 = x * x + z * z
+            if d2 > R * R + 2:
+                continue
+            if d2 <= 16:
+                t = "#e2d3b0"            # bright eating well
+            elif d2 <= 49:
+                t = "#cdb98e"            # mid ring
+            else:
+                t = "#a5825a"            # outer band
+            m.v(x, 0, z, WOOD, t)
+    for x in range(-R, R + 1):
+        for z in range(-R, R + 1):
+            d2 = x * x + z * z
+            if 64 <= d2 <= R * R + 2:
+                m.v(x, 1, z, WOOD, "#8a6a44")   # raised rim
+    m.mark_grip(0, 0, 0)
+    return m, OUT_ITEMS
+
+
+def gen_bowl():
+    # Turned wooden bowl (~12 cm).
+    m = Model("bowl", "item")
+    m.disc(0, 0, 0, 3, WOOD, T_WOOD_DARK)
+    for y in range(1, 4):
+        r = 3 + y
+        for x in range(-r, r + 1):
+            for z in range(-r, r + 1):
+                d2 = x * x + z * z
+                if (r - 1) * (r - 1) <= d2 <= r * r:
+                    m.v(x, y, z, WOOD, T_WOOD_PALE)
+    m.mark_grip(0, 1, 0)
+    return m, OUT_ITEMS
+
+
+def gen_jug():
+    # Clay jug (~22 cm): bulged body, narrow neck, strap handle.
+    m = Model("jug", "item")
+    profile = (3, 5, 6, 6, 5, 4, 3, 2, 2, 3)
+    for y, r in enumerate(profile):
+        m.disc(0, 0, y * 2, r, WOOD, "#a06a3c")
+        m.disc(0, 0, y * 2 + 1, r, WOOD, "#a06a3c")
+    for y in range(8, 16):
+        m.v(7, y, 0, WOOD, "#8a5a30")                   # handle
+    m.v(6, 16, 0, WOOD, "#8a5a30")
+    m.v(5, 16, 0, WOOD, "#8a5a30")
+    m.mark_grip(7, 11, 0)
+    return m, OUT_ITEMS
+
+
+def gen_bottle_wine():
+    # Slim green glass bottle (~24 cm) with cork.
+    m = Model("bottle_wine", "item")
+    for y in range(0, 12):
+        m.disc(0, 0, y, 2, GLASS, "#2a5a30")
+    for y in range(12, 18):
+        m.column(0, 0, y, y, 1, GLASS, "#2a5a30")
+    m.column(0, 0, 18, 19, 1, WOOD, T_WOOD_PALE)        # cork
+    m.mark_grip(0, 8, 0)
+    return m, OUT_ITEMS
+
+
+def gen_fork():
+    m = Model("fork", "item")
+    for y in range(0, 9):
+        m.v(0, y, 0, METAL, T_STEEL)                    # handle
+    m.fill(-1, 1, 9, 9, 0, 0, METAL, T_STEEL)           # bridge
+    for x in (-1, 0, 1):
+        m.fill(x, x, 10, 12, 0, 0, METAL, T_STEEL_EDGE) # tines
+    m.mark_grip(0, 3, 0)
+    return m, OUT_ITEMS
+
+
+def gen_knife_table():
+    m = Model("knife_table", "item")
+    for y in range(0, 7):
+        m.v(0, y, 0, WOOD, T_WOOD_DARK)                 # handle
+    for y in range(7, 15):
+        m.v(0, y, 0, METAL, T_STEEL)
+        if y < 13:
+            m.v(1, y, 0, METAL, T_STEEL_EDGE)           # edge side
+    m.mark_grip(0, 3, 0)
+    return m, OUT_ITEMS
+
+
+def gen_spoon():
+    m = Model("spoon", "item")
+    for y in range(0, 9):
+        m.v(0, y, 0, METAL, T_STEEL)
+    m.disc(0, 0, 9, 2, METAL, T_STEEL)                  # bowl (flat oval)
+    m.disc(0, 0, 10, 2, METAL, T_STEEL_DARK)            # bowl hollow shade
+    m.mark_grip(0, 3, 0)
+    return m, OUT_ITEMS
+
+
+def gen_frying_pan():
+    # Iron skillet (~14 cm dish + handle).
+    m = Model("frying_pan", "item")
+    m.disc(0, 0, 0, 6, METAL, T_IRON_DARK)
+    for x in range(-6, 7):
+        for z in range(-6, 7):
+            d2 = x * x + z * z
+            if 25 <= d2 <= 36:
+                m.v(x, 1, z, METAL, T_IRON_DARK)        # wall ring
+    for i in range(10):
+        m.v(7 + i, 1, 0, METAL, T_IRON)                 # handle
+    m.mark_grip(13, 1, 0)
+    return m, OUT_ITEMS
+
+
+def gen_ladle():
+    m = Model("ladle", "item")
+    for y in range(0, 14):
+        m.v(0, y, 0, METAL, T_IRON)                     # handle
+    m.v(0, 14, 0, METAL, T_IRON)
+    m.disc(0, 0, 0, 2, METAL, T_IRON_DARK)              # cup bottom (at base)
+    for x in range(-3, 4):
+        for z in range(-3, 4):
+            d2 = x * x + z * z
+            if 4 <= d2 <= 9:
+                m.v(x, 1, z, METAL, T_IRON_DARK)        # cup wall
+    m.mark_grip(0, 10, 0)
+    return m, OUT_ITEMS
+
+
+# --------------------------------------------------------------------------
+# Ranged weapons (models + held data; firing mechanics are combat-system work)
+# --------------------------------------------------------------------------
+
+def gen_bow():
+    # Longbow (~1.4 u): curved limbs, wrapped grip, string.
+    m = Model("bow", "item")
+    H = 113
+    mid = H // 2
+    for y in range(H):
+        t = (y - mid) / float(mid)                      # -1..1 along the stave
+        x = int(round(9 * (1.0 - t * t)))               # parabolic curve
+        thick = 1 if abs(t) > 0.75 else 2
+        for w in range(thick):
+            m.v(x + w, y, 0, WOOD, T_WOOD_DARK if abs(t) < 0.15 else T_WOOD_PALE)
+        m.v(0, y, 0, WOOD, "#d8cfc0") if x > 0 else None  # string plane
+    for y in range(mid - 6, mid + 7):                   # grip wrap
+        m.v(9, y, 0, WOOD, T_LEATHER)
+        m.v(10, y, 0, WOOD, T_LEATHER)
+    m.mark_grip(9, mid, 0)
+    return m, OUT_WEAPONS
+
+
+def gen_crossbow():
+    # Crossbow (~0.6 u stock): wood stock, steel prod (bow) across the front,
+    # string, trigger lump. Held pointing up like other items; the attack
+    # anim orients it.
+    m = Model("crossbow", "item")
+    m.fill(-1, 1, 0, 44, -1, 1, WOOD, T_WOOD_DARK)      # stock (vertical)
+    m.fill(-1, 1, 12, 14, -3, -2, WOOD, T_WOOD_DARK)    # trigger lump
+    for i in range(16):                                  # prod: curved steel
+        drop = int(round(3 * (i / 15.0) ** 2))
+        for s in (1, -1):
+            m.v(s * (2 + i), 42 - drop, 0, METAL, T_STEEL)
+    m.fill(-17, 17, 39, 39, 1, 1, WOOD, "#d8cfc0")      # string
+    m.fill(-1, 1, 36, 44, 0, 1, WOOD, T_WOOD_PALE)      # arrow groove
+    m.mark_grip(0, 10, 0)
+    return m, OUT_WEAPONS
+
+
+def gen_quiver():
+    # Leather quiver (~0.45 u) with arrow shafts poking out.
+    m = Model("quiver", "item")
+    for y in range(0, 28):
+        m.disc(0, 0, y, 3, WOOD, T_LEATHER if y % 7 else T_LEATHER_DARK)
+    for (ax, az) in ((-1, -1), (1, 0), (0, 1)):
+        m.fill(ax, ax, 28, 34, az, az, WOOD, T_WOOD_PALE)   # shafts
+        m.v(ax, 35, az, WOOD, "#d0d0d0")                    # fletching hint
+    m.mark_grip(0, 14, 0)
+    return m, OUT_WEAPONS
+
+
+def gen_throwing_knife():
+    m = Model("throwing_knife", "item")
+    for y in range(0, 5):
+        m.v(0, y, 0, METAL, T_IRON_DARK)                # skeletal handle
+    for y in range(5, 13):
+        m.v(0, y, 0, METAL, T_STEEL)
+        if y < 11:
+            m.v(1, y, 0, METAL, T_STEEL_EDGE)
+    m.mark_grip(0, 2, 0)
+    return m, OUT_WEAPONS
+
+
+# --------------------------------------------------------------------------
 # Props
 # --------------------------------------------------------------------------
 
@@ -531,18 +858,31 @@ def gen_scroll():
 
 
 def gen_candlestick():
+    # Slender brass candlestick (~22 cm): shaded tapering base, thin stem with
+    # a knop, drip pan, dripping candle. Radial tint shading fakes roundness —
+    # at 1.2 cm cells a flat gold disc reads as a blocky slab.
     m = Model("candlestick", "item")
-    # Brass chamberstick: broad base, short stem, drip pan, candle, flame.
-    m.disc(0, 0, 0, 4, GOLD)
-    m.disc(0, 0, 1, 3, GOLD)
-    m.column(0, 0, 2, 6, 1, GOLD)
-    m.disc(0, 0, 7, 2, GOLD)                            # drip pan
-    m.column(0, 0, 8, 14, 1, WOOD, T_CANDLE)            # candle (2-cell)
-    m.v(0, 15, 0, GLOW, "#ffdf90")                      # flame
-    m.v(0, 16, 0, GLOW, "#ffb050")
-    # Finger loop on the base rim.
-    m.fill(4, 6, 1, 1, 0, 0, GOLD)
-    m.fill(6, 6, 1, 3, 0, 0, GOLD)
+    def shaded_disc(y, r):
+        for x in range(-r, r + 1):
+            for z in range(-r, r + 1):
+                d2 = x * x + z * z
+                if d2 <= r * r + 1:
+                    t = "#f0cc60" if d2 <= (r - 1) * (r - 1) else "#a87f2c"
+                    m.v(x, y, z, GOLD, t)
+    shaded_disc(0, 3)
+    shaded_disc(1, 2)
+    m.v(0, 2, 0, GOLD, "#d8b448")
+    for y in range(3, 9):                               # 1-cell stem
+        m.v(0, y, 0, GOLD, "#e2be52" if y != 5 else "#f0cc60")
+    m.fill(-1, 1, 5, 5, -1, 1, GOLD, "#c89c38")         # knop
+    shaded_disc(9, 2)                                    # drip pan
+    for y in range(10, 16):                              # candle, 2-cell
+        m.fill(0, 1, y, y, 0, 1, WOOD, T_CANDLE)
+    m.v(0, 12, -1, WOOD, "#fff8ea")                      # wax drip
+    m.v(0, 11, -1, WOOD, "#fff8ea")
+    m.v(0, 16, 0, GLOW, "#ffdf90")                       # flame
+    m.v(0, 17, 0, GLOW, "#ffb050")
+    m.mark_grip(0, 4, 0)
     return m, OUT_ITEMS
 
 
@@ -591,7 +931,7 @@ def _school_tome(name, cover, spine, surface_tex):
     m.fill(0, W - 1, H - 1, H - 1, 0, D - 1, WOOD, cover)      # top cover
     m.fill(0, 0, 0, H - 1, 0, D - 1, WOOD, spine)              # spine
     m.fill(W - 1, W - 1, 1, H - 2, D // 2 - 1, D // 2 + 1, GOLD, None)  # clasp
-    return m, OUT_ROOT
+    return m, OUT_ITEMS
 
 
 def gen_tome_arcane():
@@ -626,18 +966,18 @@ def _flat_projected(name, tex, axis, w_cells, h_cells, out_dir, grid=27,
 def gen_rug_oriental():
     # In-place remodel: was 1/3-cube thick; now one 27-cell (3.7 cm).
     return _flat_projected("rug_oriental", "rug_oriental", "y", 54, 54,
-                           OUT_ROOT, rim="#c9b18a")
+                           OUT_ITEMS, rim="#c9b18a")
 
 
 def gen_rug_test():
     return _flat_projected("rug_test", "surface_test", "y", 40, 40,
-                           OUT_ROOT, rim="#c9b18a")
+                           OUT_TEST, rim="#c9b18a")
 
 
 def gen_sign_prancing_pony():
     # In-place remodel: hanging tavern sign board, one cell thick.
     return _flat_projected("sign_prancing_pony", "sign_prancing_pony", "z",
-                           54, 40, OUT_ROOT, rim="#5a4632")
+                           54, 40, OUT_ITEMS, rim="#5a4632")
 
 
 def gen_rug_woven():
@@ -674,6 +1014,13 @@ ALL = [
     gen_wand,
     gen_tome, gen_scroll, gen_candlestick, gen_potion,
     gen_rug_woven,
+    # Lighting set
+    gen_lantern, gen_oil_lamp, gen_candle,
+    # Tavern tableware
+    gen_tankard, gen_goblet, gen_plate, gen_bowl, gen_jug, gen_bottle_wine,
+    gen_fork, gen_knife_table, gen_spoon, gen_frying_pan, gen_ladle,
+    # Ranged weapons (models; firing = combat-system follow-up)
+    gen_bow, gen_crossbow, gen_quiver, gen_throwing_knife,
     # In-place remodels of legacy assets (feedback 2026-08-06: "too thick" /
     # blocky): overwrite the original files so every reference keeps working.
     gen_pickaxe, gen_torch,

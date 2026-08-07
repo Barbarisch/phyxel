@@ -34,23 +34,47 @@ void ObjectTemplateManager::loadTemplates(const std::string& directoryPath) {
         return;
     }
 
-    for (const auto& entry : fs::directory_iterator(directoryPath)) {
-        if (entry.is_regular_file()) {
-            auto ext = entry.path().extension().string();
-            if (ext == ".voxel") {
-                loadTemplate(entry.path().string());
-            } else if (ext == ".txt") {
-                // Backward compatibility: load legacy .txt templates with deprecation warning
-                LOG_WARN_FMT("ObjectTemplateManager",
-                    "Template '" << entry.path().filename().string()
-                    << "' uses legacy .txt extension — rename to .voxel");
-                loadTemplate(entry.path().string());
-            }
+    // RECURSIVE scan over the category taxonomy (furniture/, nature/, items/,
+    // weapons/, ...). STEMS are the reference key (world DBs, flora, and
+    // FurnitureCatalog store stems), so stems must be UNIQUE across the whole
+    // library: a duplicate stem is a loud COLLISION and the second file is
+    // skipped — never a silent overwrite (the silent-substitution bug class
+    // of 2026-08-06). Subdirectory templates also get a relative-path alias
+    // ("items/torch") matching resolveItemTemplate's path-qualified keys.
+    size_t loaded = 0, collisions = 0;
+    for (const auto& entry : fs::recursive_directory_iterator(directoryPath)) {
+        if (!entry.is_regular_file()) continue;
+        const auto ext = entry.path().extension().string();
+        if (ext != ".voxel" && ext != ".txt") continue;
+        if (ext == ".txt") {
+            LOG_WARN_FMT("ObjectTemplateManager",
+                "Template '" << entry.path().filename().string()
+                << "' uses legacy .txt extension — rename to .voxel");
+        }
+
+        const std::string stem = entry.path().stem().string();
+        if (m_templates.count(stem) || m_aliases.count(stem)) {
+            LOG_ERROR_FMT("ObjectTemplateManager", "STEM COLLISION: '" << stem
+                          << "' already registered — skipping "
+                          << entry.path().string()
+                          << " (stems must be unique across the template library)");
+            ++collisions;
+            continue;
+        }
+
+        if (loadTemplate(entry.path().string())) {
+            ++loaded;
+            std::string rel = fs::relative(entry.path(), directoryPath).generic_string();
+            if (const auto dot = rel.rfind(ext); dot != std::string::npos) rel.erase(dot);
+            if (rel != stem && !m_templates.count(rel)) m_aliases[rel] = stem;
         }
     }
+    LOG_INFO_FMT("ObjectTemplateManager", "Template scan: " << loaded << " loaded from "
+                 << directoryPath << (collisions ? (", " + std::to_string(collisions)
+                 + " STEM COLLISIONS (skipped)") : std::string()));
 }
 
-bool ObjectTemplateManager::loadTemplate(const std::string& filePath) {
+bool ObjectTemplateManager::loadTemplate(const std::string& filePath, const std::string& registryName) {
     std::ifstream file(filePath);
     if (!file.is_open()) {
         LOG_ERROR_FMT("ObjectTemplateManager", "Failed to open template file: " << filePath);
@@ -58,7 +82,7 @@ bool ObjectTemplateManager::loadTemplate(const std::string& filePath) {
     }
 
     auto tmpl = std::make_unique<VoxelTemplate>();
-    tmpl->name = fs::path(filePath).stem().string();
+    tmpl->name = registryName.empty() ? fs::path(filePath).stem().string() : registryName;
     tmpl->sourceFilePath = fs::absolute(filePath).string();
 
     std::string line;
@@ -563,6 +587,12 @@ const VoxelTemplate* ObjectTemplateManager::getTemplate(const std::string& name)
     auto it = m_templates.find(name);
     if (it != m_templates.end()) {
         return it->second.get();
+    }
+    // Relative-path alias ("items/torch" -> stem) from the recursive scan.
+    auto al = m_aliases.find(name);
+    if (al != m_aliases.end()) {
+        it = m_templates.find(al->second);
+        if (it != m_templates.end()) return it->second.get();
     }
     return nullptr;
 }

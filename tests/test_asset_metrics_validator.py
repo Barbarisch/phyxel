@@ -22,7 +22,14 @@ from tools.interaction_pipeline.asset_metrics import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
-TEMPLATES = ROOT / "resources" / "templates"
+TEMPLATES_ROOT = ROOT / "resources" / "templates"
+
+def _tpl(name):
+    """Resolve a template by stem across the category taxonomy (2026-08-07)."""
+    for p in TEMPLATES_ROOT.glob(f"*/{name}.voxel"):
+        return p
+    return TEMPLATES_ROOT / f"{name}.voxel"
+
 
 
 # ---------------------------------------------------------------------------
@@ -31,7 +38,7 @@ TEMPLATES = ROOT / "resources" / "templates"
 
 @pytest.mark.parametrize("name", ["chair_wood", "test_chair"])
 def test_seat_templates_pass_validation(name):
-    metrics = characterize_asset(TEMPLATES / f"{name}.voxel")
+    metrics = characterize_asset(_tpl(name))
     issues = [i for i in validate_asset_metrics(metrics) if i.severity == "error"]
     assert issues == [], f"{name}: unexpected errors {issues}"
     assert any(p.kind == "seat" for p in metrics.interaction_points)
@@ -39,7 +46,7 @@ def test_seat_templates_pass_validation(name):
 
 @pytest.mark.parametrize("name", ["door_wood", "door_wood_wide", "door_metal"])
 def test_door_templates_pass_validation(name):
-    metrics = characterize_asset(TEMPLATES / f"{name}.voxel")
+    metrics = characterize_asset(_tpl(name))
     issues = [i for i in validate_asset_metrics(metrics) if i.severity == "error"]
     assert issues == [], f"{name}: unexpected errors {issues}"
     door = next(p for p in metrics.interaction_points if p.kind == "door_handle")
@@ -116,7 +123,7 @@ def test_gate_rejects_inverted_aabb():
 # ---------------------------------------------------------------------------
 
 def test_door_features_geometry():
-    metrics = characterize_asset(TEMPLATES / "door_wood.voxel")
+    metrics = characterize_asset(TEMPLATES_ROOT / "door_wood.voxel")
     door = next(p for p in metrics.interaction_points if p.kind == "door_handle")
     f = door.features
     # door_wood is 1m wide (X), 2m tall (Y), 1m deep (Z)
@@ -133,7 +140,7 @@ def test_door_features_geometry():
 # ---------------------------------------------------------------------------
 
 def test_asset_provenance_round_trip():
-    metrics = characterize_asset(TEMPLATES / "chair_wood.voxel")
+    metrics = characterize_asset(TEMPLATES_ROOT / "chair_wood.voxel")
     prov = asset_provenance(metrics, "seat_0")
     assert prov["template_name"] == "chair_wood"
     assert prov["kind"] == "seat"
@@ -142,6 +149,6 @@ def test_asset_provenance_round_trip():
 
 
 def test_asset_provenance_missing_point_raises():
-    metrics = characterize_asset(TEMPLATES / "chair_wood.voxel")
+    metrics = characterize_asset(TEMPLATES_ROOT / "chair_wood.voxel")
     with pytest.raises(KeyError):
         asset_provenance(metrics, "nope_0")

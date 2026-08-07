@@ -54,8 +54,8 @@ import random
 import sys
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TEMPLATE_DIR = os.path.join(REPO, "resources", "templates")
-CATALOG = os.path.join(TEMPLATE_DIR, "template_catalog.json")
+TEMPLATE_DIR = os.path.join(REPO, "resources", "templates", "nature")   # category taxonomy (2026-08-07)
+CATALOG = os.path.join(REPO, "resources", "templates", "template_catalog.json")
 
 ARCHETYPES = {
     "oak":    {"log": "Log",       "leaf": "Leaf",       "height": 7},

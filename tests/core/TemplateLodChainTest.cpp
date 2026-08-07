@@ -192,7 +192,7 @@ TEST(TemplateLodChainTest, MajorityMaterialWinsPerCell) {
 // have the numbers next to them.
 TEST(TemplateLodChainTest, RealOakTemplateProducesAFullChain) {
     ObjectTemplateManager mgr(nullptr, nullptr);   // headless: load/parse only, no stamping
-    if (!mgr.loadTemplate("resources/templates/forge_oak_m.voxel"))
+    if (!mgr.loadTemplate("resources/templates/nature/forge_oak_m.voxel"))
         GTEST_SKIP() << "forge_oak_m.voxel not found (run from repo root)";
     const VoxelTemplate* oak = mgr.getTemplate("forge_oak_m");
     ASSERT_NE(oak, nullptr);

@@ -41,8 +41,11 @@ public:
     // Load all templates from resources/templates directory
     void loadTemplates(const std::string& directoryPath);
     
-    // Load a specific template file
-    bool loadTemplate(const std::string& filePath);
+    // Load a specific template file. registryName overrides the registry key
+    // (default: the file stem). Item templates register under their relative
+    // path ("items/torch") so a root-level template with the same stem can
+    // never shadow them — the silent-substitution bug of 2026-08-06.
+    bool loadTemplate(const std::string& filePath, const std::string& registryName = "");
 
     // Get a template by name
     const VoxelTemplate* getTemplate(const std::string& name) const;
@@ -161,6 +164,10 @@ private:
     Core::KinematicVoxelManager* m_kinematicManager = nullptr;  // optional, Phase C0b
     Core::KinematicAnimator*     m_animator         = nullptr;  // optional, Phase C
     std::unordered_map<std::string, std::unique_ptr<VoxelTemplate>> m_templates;
+    /// Relative-path aliases from the recursive library scan
+    /// ("items/torch" -> "torch") so path-qualified references resolve
+    /// without a second lazy load. See loadTemplates.
+    std::unordered_map<std::string, std::string> m_aliases;
 
     // Widest half-footprint (columns) over all loaded templates, clamped [12, kFloraMarginCap].
     // Updated in loadTemplate; consumed by decorateChunk as the planFlora window inflation.

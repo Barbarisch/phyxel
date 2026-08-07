@@ -273,6 +273,42 @@ TEST(ItemPropPhysics, PickupWhileDynamicRemovesBody) {
     EXPECT_EQ(rig.props.count(), 0u);
 }
 
+TEST(ItemPropPhysics, PathQualifiedResolutionDefeatsStemShadowing) {
+    // The 2026-08-06 shadowing bug (red state demonstrated LIVE, not in a
+    // failing run of this test: legacy root-level BlockSmith templates named
+    // lantern/goblet/candlestick/plate/torch silently substituted for the
+    // items/ subdirectory remodels — the "giant blocky lantern"). Contract:
+    // resolveItemTemplate resolves by the RELATIVE PATH key, so a template
+    // registered under the bare stem never shadows "items/<stem>".
+    ObjectTemplateManager mgr(nullptr, nullptr);
+    KinematicVoxelManager kvm;
+    PlacedObjectManager placed(nullptr, &mgr, nullptr);
+    ItemPropManager props;
+    props.setDependencies(&placed, &mgr, &kvm, nullptr);
+
+    // Legacy root-style template registered under the bare stem.
+    auto legacyPath = fs::temp_directory_path() / "_shadow_probe.voxel";
+    { std::ofstream f(legacyPath); f << "C 0 0 0 Stone\n"; }
+    ASSERT_TRUE(mgr.loadTemplate(legacyPath.string()));
+    ASSERT_NE(mgr.getTemplate("_shadow_probe"), nullptr);
+
+    // The item's REAL template lives under resources/templates/items/.
+    const fs::path itemDir = fs::path("resources/templates/items");
+    ASSERT_TRUE(fs::exists(itemDir)) << "test expects repo-root CWD";
+    const fs::path itemPath = itemDir / "_shadow_probe.voxel";
+    { std::ofstream f(itemPath); f << "# grid: 27\nV 0 0 0 Wood\nV 0 1 0 Wood\n"; }
+
+    const auto* resolved = props.resolveItemTemplate("items/_shadow_probe.voxel");
+    fs::remove(itemPath);   // clean up before asserting
+    ASSERT_NE(resolved, nullptr);
+    EXPECT_TRUE(resolved->isFineGrid())
+        << "stem-registered legacy template shadowed the item's real model";
+    EXPECT_EQ(resolved->fineVoxels.size(), 2u);
+    // And the legacy entry is untouched under its own key.
+    EXPECT_NE(mgr.getTemplate("_shadow_probe"), nullptr);
+    EXPECT_FALSE(mgr.getTemplate("_shadow_probe")->isFineGrid());
+}
+
 TEST(ItemPropPhysics, NoDynamicsWorldFallsBackToStatic) {
     // CONTROL: without a wired dynamics world the legacy static path is
     // byte-identical — prop exists, no body, update() is a no-op.

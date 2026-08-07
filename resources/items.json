@@ -294,7 +294,7 @@
       "description": "A test rug demonstrating a planar projected surface texture.",
       "stackable": false,
       "maxStack": 1,
-      "templateFile": "rug_test.voxel",
+      "templateFile": "test/rug_test.voxel",
       "holdable": true,
       "held": {
         "gripBone": "RightHand",
@@ -318,7 +318,7 @@
       "description": "A hand-knotted oriental rug.",
       "stackable": false,
       "maxStack": 1,
-      "templateFile": "rug_oriental.voxel",
+      "templateFile": "items/rug_oriental.voxel",
       "holdable": true,
       "held": {
         "gripBone": "RightHand",
@@ -342,7 +342,7 @@
       "description": "A hanging tavern sign.",
       "stackable": false,
       "maxStack": 1,
-      "templateFile": "sign_prancing_pony.voxel",
+      "templateFile": "items/sign_prancing_pony.voxel",
       "holdable": true,
       "held": {
         "gripBone": "RightHand",
@@ -366,7 +366,7 @@
       "description": "A glowing tome of arcane secrets.",
       "stackable": false,
       "maxStack": 1,
-      "templateFile": "tome_arcane.voxel",
+      "templateFile": "items/tome_arcane.voxel",
       "holdable": true,
       "held": {
         "gripBone": "RightHand",
@@ -390,7 +390,7 @@
       "description": "A grim tome bound in dark leather.",
       "stackable": false,
       "maxStack": 1,
-      "templateFile": "tome_necromantic.voxel",
+      "templateFile": "items/tome_necromantic.voxel",
       "holdable": true,
       "held": {
         "gripBone": "RightHand",
@@ -414,7 +414,7 @@
       "description": "A tome wreathed in ember-light.",
       "stackable": false,
       "maxStack": 1,
-      "templateFile": "tome_fire.voxel",
+      "templateFile": "items/tome_fire.voxel",
       "holdable": true,
       "held": {
         "gripBone": "RightHand",
@@ -957,9 +957,9 @@
         {
           "id": "candle_flame",
           "anchor": [
-            0.068,
-            0.2,
-            0.056
+            0.043,
+            0.204,
+            0.043
           ],
           "light": {
             "color": [
@@ -972,6 +972,502 @@
           }
         }
       ]
+    },
+    {
+      "id": "lantern",
+      "name": "Hooded Lantern",
+      "type": 1,
+      "description": "A steel-framed glass lantern. Lights the way while held or set down.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "items/lantern.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.0432,
+          -0.1543,
+          -0.0432
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      },
+      "effects": [
+        {
+          "id": "lantern_glow",
+          "anchor": [
+            0.031,
+            0.031,
+            0.031
+          ],
+          "light": {
+            "color": [
+              1.0,
+              0.78,
+              0.45
+            ],
+            "intensity": 2.2,
+            "radius": 9.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "oil_lamp",
+      "name": "Oil Lamp",
+      "type": 1,
+      "description": "A clay oil lamp with a burning wick.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "items/oil_lamp.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.0679,
+          -0.0309,
+          -0.0556
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      },
+      "effects": [
+        {
+          "id": "lamp_glow",
+          "anchor": [
+            0.228,
+            0.068,
+            0.08
+          ],
+          "light": {
+            "color": [
+              1.0,
+              0.7,
+              0.35
+            ],
+            "intensity": 1.6,
+            "radius": 6.0
+          }
+        }
+      ]
+    },
+    {
+      "id": "candle",
+      "name": "Candle",
+      "type": 1,
+      "description": "A lit wax candle stub.",
+      "stackable": true,
+      "maxStack": 8,
+      "templateFile": "items/candle.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.0185,
+          -0.0309,
+          -0.0185
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      },
+      "effects": [
+        {
+          "id": "candle_glow",
+          "anchor": [
+            0.02,
+            0.085,
+            0.02
+          ],
+          "light": {
+            "color": [
+              1.0,
+              0.8,
+              0.5
+            ],
+            "intensity": 1.2,
+            "radius": 4.5
+          }
+        }
+      ]
+    },
+    {
+      "id": "tankard",
+      "name": "Tankard",
+      "type": 1,
+      "description": "A stave-built ale tankard.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "items/tankard.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.1049,
+          -0.0432,
+          -0.0432
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "goblet",
+      "name": "Goblet",
+      "type": 1,
+      "description": "A pewter goblet of wine.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "items/goblet.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.0556,
+          -0.0432,
+          -0.0556
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "plate",
+      "name": "Plate",
+      "type": 1,
+      "description": "A turned wooden dinner plate.",
+      "stackable": true,
+      "maxStack": 8,
+      "templateFile": "items/plate.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.0926,
+          -0.0062,
+          -0.0926
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "bowl",
+      "name": "Bowl",
+      "type": 1,
+      "description": "A turned wooden bowl.",
+      "stackable": true,
+      "maxStack": 8,
+      "templateFile": "items/bowl.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.0802,
+          -0.0185,
+          -0.0802
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "jug",
+      "name": "Clay Jug",
+      "type": 1,
+      "description": "A bulged clay jug with a strap handle.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "items/jug.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.1667,
+          -0.142,
+          -0.0802
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "bottle_wine",
+      "name": "Wine Bottle",
+      "type": 1,
+      "description": "A slim corked bottle of wine.",
+      "stackable": true,
+      "maxStack": 4,
+      "templateFile": "items/bottle_wine.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.0309,
+          -0.1049,
+          -0.0309
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "fork",
+      "name": "Fork",
+      "type": 1,
+      "description": "A steel three-tine fork.",
+      "stackable": true,
+      "maxStack": 16,
+      "templateFile": "items/fork.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.0185,
+          -0.0432,
+          -0.0062
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "knife_table",
+      "name": "Table Knife",
+      "type": 1,
+      "description": "A wood-handled table knife.",
+      "stackable": true,
+      "maxStack": 16,
+      "templateFile": "items/knife_table.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.0062,
+          -0.0432,
+          -0.0062
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "spoon",
+      "name": "Spoon",
+      "type": 1,
+      "description": "A steel spoon.",
+      "stackable": true,
+      "maxStack": 16,
+      "templateFile": "items/spoon.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.0309,
+          -0.0432,
+          -0.0309
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "frying_pan",
+      "name": "Frying Pan",
+      "type": 2,
+      "description": "An iron skillet. Surprisingly effective.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "items/frying_pan.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.2407,
+          -0.0185,
+          -0.0802
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      },
+      "toolType": 3,
+      "equipSlot": 1,
+      "damage": 5.0,
+      "speed": 1.0,
+      "maxDurability": 250,
+      "reach": 1.8,
+      "attackAnimation": "melee_attack_horizontal"
+    },
+    {
+      "id": "ladle",
+      "name": "Ladle",
+      "type": 1,
+      "description": "An iron serving ladle.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "items/ladle.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.0432,
+          -0.1296,
+          -0.0432
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "bow",
+      "name": "Longbow",
+      "type": 2,
+      "description": "A curved yew longbow. (Firing lands with the ranged-combat system.)",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "weapons/bow.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.1173,
+          -0.6975,
+          -0.0062
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      },
+      "equipSlot": 1,
+      "damage": 6.0,
+      "speed": 1.0,
+      "maxDurability": 180,
+      "reach": 1.5,
+      "attackAnimation": "melee_attack_horizontal"
+    },
+    {
+      "id": "crossbow",
+      "name": "Crossbow",
+      "type": 2,
+      "description": "A steel-prod crossbow. (Firing lands with the ranged-combat system.)",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "weapons/crossbow.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.216,
+          -0.1296,
+          -0.0432
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      },
+      "equipSlot": 1,
+      "damage": 9.0,
+      "speed": 0.6,
+      "maxDurability": 220,
+      "reach": 1.5,
+      "attackAnimation": "melee_attack_horizontal"
+    },
+    {
+      "id": "quiver",
+      "name": "Quiver",
+      "type": 1,
+      "description": "A leather quiver of arrows.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "weapons/quiver.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.0432,
+          -0.179,
+          -0.0432
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "throwing_knife",
+      "name": "Throwing Knife",
+      "type": 2,
+      "description": "A balanced steel throwing knife.",
+      "stackable": true,
+      "maxStack": 8,
+      "templateFile": "weapons/throwing_knife.voxel",
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.0062,
+          -0.0309,
+          -0.0062
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      },
+      "equipSlot": 1,
+      "damage": 3.0,
+      "speed": 1.6,
+      "maxDurability": 90,
+      "reach": 1.2,
+      "attackAnimation": "melee_attack_horizontal"
     }
   ]
 }

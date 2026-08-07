@@ -8761,15 +8761,32 @@ static CharScalarMetrics computeCharScalarMetrics(Phyxel::Scene::AnimatedVoxelCh
     return m;
 }
 
+/// Resolve a template-library file by name across the category taxonomy
+/// (resources/templates/<category>/<name>; library reorg 2026-08-07).
+/// Checks the library root first (index json etc.), then each category dir.
+static fs::path findLibraryFile(const std::string& fileName) {
+    const fs::path roots[] = {fs::path("resources/templates"),
+                              fs::current_path() / "resources" / "templates"};
+    for (const auto& root : roots) {
+        std::error_code ec;
+        if (!fs::exists(root, ec)) continue;
+        if (fs::path direct = root / fileName; fs::exists(direct, ec)) return direct;
+        for (fs::directory_iterator dir(root, ec); !ec && dir != fs::directory_iterator(); ++dir) {
+            if (!dir->is_directory()) continue;
+            if (fs::path cand = dir->path() / fileName; fs::exists(cand, ec)) return cand;
+        }
+    }
+    return {};
+}
+
 /// Try cwd-relative then current_path-relative paths for the sidecar.
 /// Returns parsed JSON on success; null json on miss.
 static nlohmann::json loadAssetMetricsSidecar(const std::string& templateName) {
     fs::path candidates[] = {
-        fs::path("resources/templates") / (templateName + ".metrics.json"),
-        fs::current_path() / "resources" / "templates" / (templateName + ".metrics.json"),
+        findLibraryFile(templateName + ".metrics.json"),
     };
     for (const auto& p : candidates) {
-        if (!fs::exists(p)) continue;
+        if (p.empty() || !fs::exists(p)) continue;
         try {
             std::ifstream in(p);
             return nlohmann::json::parse(in);
@@ -16040,9 +16057,12 @@ void Application::processAPICommands() {
                                 }
                             }
 
-                            // Write to templates dir/<name>.voxel
+                            // Write into the generated/ category dir — the library
+                            // root must stay free of strays (taxonomy 2026-08-07;
+                            // curate into a real category before pipelines use it).
                             auto& assets = Core::AssetManager::instance();
-                            std::string filepath = assets.resolveTemplate(name + ".voxel");
+                            std::string filepath = assets.resolveTemplate("generated/" + name + ".voxel");
+                            fs::create_directories(fs::path(filepath).parent_path());
                             std::ofstream file(filepath);
                             if (file.is_open()) {
                                 for (const auto& line : lines) {
@@ -17933,17 +17953,10 @@ void Application::switchToEditorMode(const std::string& filePath) {
                                 auto keyEnd = content.find('"', keyStart + 1);
                                 if (keyEnd != std::string::npos) {
                                     std::string templateName = content.substr(keyStart + 1, keyEnd - keyStart - 1);
-                                    // Resolve template file path (.voxel preferred, .txt fallback)
-                                    fs::path templatePath = fs::path("resources/templates") / (templateName + ".voxel");
-                                    if (!fs::exists(templatePath)) {
-                                        templatePath = fs::path("resources/templates") / (templateName + ".txt");
-                                    }
-                                    if (!fs::exists(templatePath)) {
-                                        // Try absolute from workspace
-                                        templatePath = fs::current_path() / "resources" / "templates" / (templateName + ".voxel");
-                                    }
-                                    if (!fs::exists(templatePath)) {
-                                        templatePath = fs::current_path() / "resources" / "templates" / (templateName + ".txt");
+                                    // Resolve across the library taxonomy (.voxel preferred, .txt fallback)
+                                    fs::path templatePath = findLibraryFile(templateName + ".voxel");
+                                    if (templatePath.empty()) {
+                                        templatePath = findLibraryFile(templateName + ".txt");
                                     }
                                     if (fs::exists(templatePath)) {
                                         resetEditorScene();

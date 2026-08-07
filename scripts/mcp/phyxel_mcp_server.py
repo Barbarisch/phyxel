@@ -6594,14 +6594,21 @@ async def _launch_asset_editor(args: dict) -> dict:
     if not abs_path.is_absolute():
         abs_path = PROJECT_ROOT / template_path
     if not abs_path.exists():
-        # Try resources/templates/
-        candidate = PROJECT_ROOT / "resources" / "templates" / template_path
+        # Try resources/templates/ — including the category taxonomy dirs
+        # (furniture/, nature/, items/...; library reorg 2026-08-07).
+        tpl_root = PROJECT_ROOT / "resources" / "templates"
+        candidate = tpl_root / template_path
         if candidate.exists():
             abs_path = candidate
-        elif (candidate.with_suffix(".voxel")).exists():
+        elif candidate.with_suffix(".voxel").exists():
             abs_path = candidate.with_suffix(".voxel")
         else:
-            return {"error": f"Template not found: {template_path}"}
+            stem = Path(template_path).stem
+            matches = list(tpl_root.glob(f"*/{stem}.voxel"))
+            if matches:
+                abs_path = matches[0]
+            else:
+                return {"error": f"Template not found: {template_path}"}
 
     # Kill any existing asset editor — tracked or orphaned from a previous MCP session
     await _kill_process_on_port(port)

@@ -438,22 +438,32 @@ def main():
     if args.image and not args.enhance_prompt:
         args.enhance_prompt = True
 
-    # Determine output directory early (needed for --list and --search)
+    # Determine output directory early (needed for --list and --search).
+    # Generated assets land in the generated/ category dir (library taxonomy
+    # 2026-08-07) — the templates ROOT must stay free of strays so stems can
+    # never shadow each other. The catalog stays at the library root.
     if args.output_dir:
         output_dir = args.output_dir
     else:
         output_dir = os.path.join(
-            os.path.dirname(os.path.dirname(__file__)), "resources", "templates"
+            os.path.dirname(os.path.dirname(__file__)), "resources", "templates",
+            "generated"
         )
+
+    # The shared catalog lives at the LIBRARY root regardless of which
+    # category dir receives the generated files.
+    catalog_dir = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)), "resources", "templates"
+    )
 
     # Handle --list
     if args.list:
-        catalog_list(output_dir)
+        catalog_list(catalog_dir)
         return
 
     # Handle --search
     if args.search:
-        catalog = load_catalog(output_dir)
+        catalog = load_catalog(catalog_dir)
         query = args.search.lower()
         found = {k: v for k, v in catalog.items()
                  if query in k.lower() or query in v.get("prompt", "").lower()}
@@ -532,9 +542,9 @@ def main():
     if os.path.exists(template_path) and not args.force:
         cubes, subcubes, microcubes = count_template_primitives(template_path)
         # Ensure it's in the catalog even if it was generated before catalog existed
-        catalog = load_catalog(output_dir)
+        catalog = load_catalog(catalog_dir)
         if args.name not in catalog:
-            catalog_add(output_dir, args.name, args.prompt, args.model, args.material,
+            catalog_add(catalog_dir, args.name, args.prompt, args.model, args.material,
                         args.size, cubes, subcubes, microcubes)
         if args.json:
             print(json.dumps({
@@ -578,7 +588,7 @@ def main():
             sys.exit(1)
 
         cubes, subcubes, microcubes = count_template_primitives(template_path)
-        catalog_add(output_dir, args.name, args.prompt, args.model, args.material,
+        catalog_add(catalog_dir, args.name, args.prompt, args.model, args.material,
                     args.size, cubes, subcubes, microcubes,
                     cost=phyxel_result.cost)
         result_info = {
@@ -651,7 +661,7 @@ def main():
             "door_facing": args.door_facing,
             "windows": args.windows,
         }
-    catalog_add(output_dir, args.name, args.prompt, args.model, args.material,
+    catalog_add(catalog_dir, args.name, args.prompt, args.model, args.material,
                 args.size, cubes, subcubes, microcubes, building_meta=building_meta)
 
     # Output result

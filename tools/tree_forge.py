@@ -450,7 +450,7 @@ def bake(preset, height, seed=0, tier="forest", name=None, out=None, display_nam
     name = name or f"forge_{preset}_{height}_s{seed}"
     repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if out is None:
-        out = os.path.join(outdir or os.path.join(repo, "resources", "templates"), f"{name}.voxel")
+        out = os.path.join(outdir or os.path.join(repo, "resources", "templates", "nature"), f"{name}.voxel")
     gen = f"tree_forge.py --preset {preset} --height {height} --seed {seed} --tier {tier}"
     gen += "".join(f" --{k} {overrides[k]}" for k in sorted(overrides) if k == "attractors")
     extra = {k: v for k, v in overrides.items() if k != "attractors"}
@@ -492,7 +492,7 @@ def main(argv=None):
     ap.add_argument("--batch", default=None, metavar="MANIFEST.json",
                     help="bake a library: [{name, preset, height, seed, tier, ...overrides}, ...] "
                          "(see tools/forge_library.json)")
-    ap.add_argument("--outdir", default=None, help="output directory (default resources/templates)")
+    ap.add_argument("--outdir", default=None, help="output directory (default resources/templates/nature)")
     args = ap.parse_args(argv)
 
     if args.batch:

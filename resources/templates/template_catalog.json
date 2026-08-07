@@ -1,23 +1,27 @@
 {
   "altar": {
-    "bounds": {
-      "d": 1,
-      "h": 2,
-      "w": 1
-    },
     "category": "furniture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A stone altar with a wide base, four corner uprights, a flat top surface, and a glowing offering above.",
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
     "display_name": "Stone Altar",
     "facing": "+Z",
+    "file": "furniture/altar.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Stone",
       "glow"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "ritual",
     "subcubes": 23,
     "tags": [
@@ -34,25 +38,30 @@
     "version": 1
   },
   "anvil": {
-    "bounds": {
-      "d": 1,
-      "h": 1,
-      "w": 1
-    },
     "category": "furniture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A blacksmith's iron anvil with a wide base, narrow waist, flat working face, and front horn.",
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
     "display_name": "Anvil",
     "facing": "+Z",
+    "file": "furniture/anvil.voxel",
+    "fine_voxels": 0,
     "materials": [
+      "Log",
       "Metal"
     ],
     "method": "hand-authored (/model skill, 1 round)",
-    "microcubes": 0,
+    "metrics_sidecar": true,
+    "microcubes": 48,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "microcube",
     "subcategory": "work_surface",
-    "subcubes": 19,
+    "subcubes": 0,
     "tags": [
       "anvil",
       "blacksmith",
@@ -63,22 +72,47 @@
       "crafting",
       "dungeon"
     ],
-    "total": 19,
+    "total": 48,
     "version": 1
   },
+  "armchair": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
+    "file": "furniture/armchair.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Bricks",
+      "Log"
+    ],
+    "microcubes": 175,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 175
+  },
   "axe": {
-    "category": "weapon",
+    "category": "weapons",
     "created": "2026-04-21T00:00:00.000000+00:00",
-    "cubes": 5,
+    "cubes": 0,
     "description": "A simple axe \u2014 wood handle with a metal head, 2\u00d74\u00d71 cubes.",
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
     "display_name": "Axe",
     "file": "weapons/axe.voxel",
-    "material": "Metal",
+    "fine_voxels": 0,
     "materials": [
-      "Wood",
-      "Metal"
+      "Metal",
+      "Wood"
     ],
-    "microcubes": 0,
+    "microcubes": 25,
+    "resolution_class": "microcube",
     "subcategory": "melee",
     "subcubes": 0,
     "tags": [
@@ -87,19 +121,36 @@
       "combat",
       "one-handed"
     ],
-    "total": 5
+    "total": 25
   },
   "axe_battle": {
-    "category": "weapon",
+    "category": "weapons",
     "cubes": 0,
     "description": "A two-handed twin-bladed battle axe.",
+    "dims_units": [
+      0.4321,
+      1.4444,
+      0.037
+    ],
     "display_name": "Battle Axe",
     "file": "weapons/axe_battle.voxel",
     "fine_grid": 81,
     "fine_voxels": 1438,
+    "grip_point_units": [
+      0.216,
+      0.1543,
+      0.0185
+    ],
+    "item_ids": [
+      "battle_axe"
+    ],
+    "materials": [
+      "Steel",
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 1.4444,
+    "resolution_class": "fine-81",
     "subcategory": "axe",
     "subcubes": 0,
     "tags": [
@@ -112,16 +163,33 @@
     "version": 1
   },
   "axe_hand": {
-    "category": "weapon",
+    "category": "weapons",
     "cubes": 0,
     "description": "A one-handed bearded axe.",
+    "dims_units": [
+      0.2099,
+      0.5926,
+      0.037
+    ],
     "display_name": "Hand Axe",
     "file": "weapons/axe_hand.voxel",
     "fine_grid": 81,
     "fine_voxels": 492,
+    "grip_point_units": [
+      0.0309,
+      0.0926,
+      0.0185
+    ],
+    "item_ids": [
+      "iron_axe"
+    ],
+    "materials": [
+      "Steel",
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 0.5926,
+    "resolution_class": "fine-81",
     "subcategory": "axe",
     "subcubes": 0,
     "tags": [
@@ -133,27 +201,290 @@
     "total": 492,
     "version": 1
   },
+  "back_bar": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      3.0,
+      2.0,
+      1.0
+    ],
+    "file": "furniture/back_bar.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Glass",
+      "WoodWalnut"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 744,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 744
+  },
+  "bar_stool": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/bar_stool.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Log",
+      "WoodWalnut"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 48,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 48
+  },
+  "barony_apple": {
+    "category": "imported",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "imported/barony_apple.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Bricks",
+      "Log",
+      "LogSpruce"
+    ],
+    "microcubes": 22,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 22
+  },
+  "barony_arcanechair": {
+    "category": "imported",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "imported/barony_arcanechair.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Bricks",
+      "Cobblestone",
+      "Dirt",
+      "LeafAutumn",
+      "Log",
+      "LogSpruce",
+      "Metal",
+      "StoneBricks"
+    ],
+    "microcubes": 62,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 62
+  },
+  "barony_bomb": {
+    "category": "imported",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "imported/barony_bomb.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Cobblestone",
+      "LogBirch",
+      "LogSpruce"
+    ],
+    "microcubes": 56,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 56
+  },
+  "barony_bread": {
+    "category": "imported",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "imported/barony_bread.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "LeafAutumn",
+      "Log",
+      "Sandstone",
+      "Thatch",
+      "Wood"
+    ],
+    "microcubes": 35,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 35
+  },
+  "barony_bunkbed": {
+    "category": "imported",
+    "cubes": 0,
+    "dims_units": [
+      2.0,
+      2.0,
+      1.0
+    ],
+    "file": "imported/barony_bunkbed.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Bricks",
+      "Dirt",
+      "Glass",
+      "Gravel",
+      "Log",
+      "LogBirch",
+      "LogSpruce",
+      "Metal",
+      "StoneBricks"
+    ],
+    "microcubes": 1036,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 1036
+  },
+  "barony_campfire": {
+    "category": "imported",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      2.0
+    ],
+    "file": "imported/barony_campfire.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "LogSpruce"
+    ],
+    "microcubes": 90,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 90
+  },
+  "barony_chair": {
+    "category": "imported",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
+    "file": "imported/barony_chair.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Dirt",
+      "LogSpruce"
+    ],
+    "microcubes": 70,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 70
+  },
+  "barony_chest": {
+    "category": "imported",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "imported/barony_chest.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Dirt",
+      "LogSpruce",
+      "StoneBricks"
+    ],
+    "microcubes": 185,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 185
+  },
+  "barony_column": {
+    "category": "imported",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      4.0,
+      1.0
+    ],
+    "file": "imported/barony_column.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Bricks",
+      "Dirt",
+      "Gold",
+      "LeafAutumn",
+      "Log",
+      "LogSpruce",
+      "Thatch",
+      "Wood"
+    ],
+    "microcubes": 2080,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 2080
+  },
+  "barony_fountain": {
+    "category": "imported",
+    "cubes": 0,
+    "dims_units": [
+      2.0,
+      2.0,
+      2.0
+    ],
+    "file": "imported/barony_fountain.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Dirt",
+      "Gold",
+      "LeafAutumn",
+      "LeafSpruce",
+      "Log",
+      "LogSpruce",
+      "StoneBricks"
+    ],
+    "microcubes": 438,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 438
+  },
   "barrel": {
-    "bounds": {
-      "d": 1,
-      "h": 1,
-      "w": 1
-    },
     "category": "furniture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A wooden storage barrel with a metal hoop band at the belly. Rounded silhouette via cross-shaped top/bottom caps.",
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
     "display_name": "Wooden Barrel",
     "facing": "+Z",
+    "file": "furniture/barrel.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Wood",
-      "Metal"
+      "Metal",
+      "WoodWalnut"
     ],
     "method": "hand-authored (/model skill, 3 rounds)",
-    "microcubes": 0,
+    "metrics_sidecar": true,
+    "microcubes": 168,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "microcube",
     "subcategory": "container",
-    "subcubes": 19,
+    "subcubes": 0,
     "tags": [
       "barrel",
       "storage",
@@ -163,31 +494,36 @@
       "house",
       "common"
     ],
-    "total": 19,
+    "total": 168,
     "version": 3
   },
   "bed_single": {
-    "bounds": {
-      "d": 2,
-      "h": 2,
-      "w": 1
-    },
     "category": "furniture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A medieval single bed with wooden frame, mattress, and pillow. Headboard at back (+Z), footboard at front.",
+    "dims_units": [
+      1.0,
+      1.0,
+      2.0
+    ],
     "display_name": "Single Bed",
     "facing": "+Z (foot of bed faces viewer)",
+    "file": "furniture/bed_single.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Wood",
-      "Sand"
+      "Linen",
+      "WoodWalnut",
+      "Wool"
     ],
     "method": "hand-authored (/model skill, 1 round)",
-    "microcubes": 0,
+    "metrics_sidecar": true,
+    "microcubes": 438,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "microcube",
     "seat_height": 0.667,
     "subcategory": "bed",
-    "subcubes": 47,
+    "subcubes": 0,
     "tags": [
       "bed",
       "sleep",
@@ -197,30 +533,92 @@
       "house",
       "common"
     ],
-    "total": 47,
+    "total": 438,
     "version": 1
   },
+  "bedroll_test": {
+    "category": "test",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      2.0
+    ],
+    "file": "test/bedroll_test.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "Wood"
+    ],
+    "microcubes": 0,
+    "resolution_class": "subcube",
+    "subcubes": 6,
+    "total": 6
+  },
+  "bellows": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      2.0
+    ],
+    "file": "furniture/bellows.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Metal",
+      "WoodWalnut"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 70,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 70
+  },
+  "bench_great": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      2.0,
+      2.0,
+      2.0
+    ],
+    "file": "furniture/bench_great.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Wood"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 0,
+    "resolution_class": "subcube",
+    "subcubes": 96,
+    "total": 96
+  },
   "bench_wood": {
-    "bounds": {
-      "d": 1,
-      "h": 1,
-      "w": 2
-    },
     "category": "furniture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A simple wooden bench, 2 cubes wide with no backrest and four corner legs.",
+    "dims_units": [
+      2.0,
+      1.0,
+      1.0
+    ],
     "display_name": "Wooden Bench",
     "facing": "+Z",
+    "file": "furniture/bench_wood.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Wood"
+      "WoodWalnut"
     ],
     "method": "hand-authored (/model skill, 1 round)",
-    "microcubes": 0,
+    "metrics_sidecar": true,
+    "microcubes": 64,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "microcube",
     "seat_height": 0.667,
     "subcategory": "seating",
-    "subcubes": 26,
+    "subcubes": 0,
     "tags": [
       "bench",
       "seat",
@@ -230,31 +628,60 @@
       "inn",
       "common"
     ],
-    "total": 26,
+    "total": 64,
     "version": 1
   },
+  "book_stack": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/book_stack.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Bricks",
+      "Gold",
+      "Log",
+      "Sandstone"
+    ],
+    "microcubes": 126,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 126
+  },
   "bookshelf": {
-    "bounds": {
-      "d": 1,
-      "h": 2,
-      "w": 1
-    },
     "category": "furniture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A tall wooden bookshelf, 2 cubes high, with three rows of books visible from the front.",
+    "dims_units": [
+      1.0,
+      3.0,
+      1.0
+    ],
     "display_name": "Bookshelf",
     "facing": "+Z (spine of books faces viewer)",
+    "file": "furniture/bookshelf.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Wood",
       "Bricks",
-      "Sand"
+      "Gold",
+      "Leaf",
+      "Log",
+      "Metal",
+      "Sandstone",
+      "WoodWalnut"
     ],
     "method": "hand-authored (/model skill, 1 round)",
-    "microcubes": 0,
+    "metrics_sidecar": true,
+    "microcubes": 525,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "microcube",
     "subcategory": "storage",
-    "subcubes": 45,
+    "subcubes": 0,
     "tags": [
       "bookshelf",
       "books",
@@ -264,28 +691,166 @@
       "inn",
       "common"
     ],
-    "total": 45,
+    "total": 525,
+    "version": 1
+  },
+  "bottle": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/bottle.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Glass",
+      "WoodWalnut"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 3,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 3
+  },
+  "bottle_wine": {
+    "category": "items",
+    "cubes": 0,
+    "description": "A slim green glass bottle, corked.",
+    "dims_units": [
+      0.0617,
+      0.2469,
+      0.0617
+    ],
+    "display_name": "Wine Bottle",
+    "file": "items/bottle_wine.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 188,
+    "grip_point_units": [
+      0.0309,
+      0.1049,
+      0.0309
+    ],
+    "item_ids": [
+      "bottle_wine"
+    ],
+    "materials": [
+      "Glass",
+      "Wood"
+    ],
+    "method": "gen_items",
+    "microcubes": 0,
+    "resolution_class": "fine-81",
+    "subcategory": "tableware",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "bottle",
+      "wine",
+      "tavern"
+    ],
+    "total": 188,
+    "version": 1
+  },
+  "bow": {
+    "category": "weapons",
+    "cubes": 0,
+    "description": "A curved yew longbow with a wrapped grip.",
+    "dims_units": [
+      0.1358,
+      1.3951,
+      0.0123
+    ],
+    "display_name": "Longbow",
+    "file": "weapons/bow.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 307,
+    "grip_point_units": [
+      0.1173,
+      0.6975,
+      0.0062
+    ],
+    "item_ids": [
+      "bow"
+    ],
+    "materials": [
+      "Wood"
+    ],
+    "method": "gen_items",
+    "microcubes": 0,
+    "resolution_class": "fine-81",
+    "subcategory": "bow",
+    "subcubes": 0,
+    "tags": [
+      "weapon",
+      "bow",
+      "ranged"
+    ],
+    "total": 307,
+    "version": 1
+  },
+  "bowl": {
+    "category": "items",
+    "cubes": 0,
+    "description": "A turned wooden bowl.",
+    "dims_units": [
+      0.1605,
+      0.0494,
+      0.1605
+    ],
+    "display_name": "Bowl",
+    "file": "items/bowl.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 133,
+    "grip_point_units": [
+      0.0802,
+      0.0185,
+      0.0802
+    ],
+    "item_ids": [
+      "bowl"
+    ],
+    "materials": [
+      "Wood"
+    ],
+    "method": "gen_items",
+    "microcubes": 0,
+    "resolution_class": "fine-81",
+    "subcategory": "tableware",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "bowl",
+      "tavern",
+      "kitchen"
+    ],
+    "total": 133,
     "version": 1
   },
   "brazier": {
-    "bounds": {
-      "d": 1,
-      "h": 1,
-      "w": 1
-    },
     "category": "furniture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A standing metal fire brazier with four corner legs, a bowl rim, and glowing fire inside.",
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
     "display_name": "Brazier",
     "facing": "+Z",
+    "file": "furniture/brazier.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Metal",
       "glow"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "light_source",
     "subcubes": 13,
     "tags": [
@@ -302,25 +867,113 @@
     "total": 13,
     "version": 1
   },
+  "burgomaster": {
+    "category": "architecture",
+    "cubes": 1023,
+    "dims_units": [
+      18.0,
+      12.0,
+      16.0
+    ],
+    "file": "architecture/burgomaster.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Cobblestone",
+      "Stone",
+      "StoneBricks",
+      "Wood"
+    ],
+    "microcubes": 0,
+    "resolution_class": "subcube",
+    "subcubes": 5688,
+    "total": 6711
+  },
+  "burgomaster_furnished": {
+    "category": "architecture",
+    "cubes": 2778,
+    "dims_units": [
+      32.0,
+      18.0,
+      26.0
+    ],
+    "file": "architecture/burgomaster_furnished.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Cobblestone",
+      "Stone",
+      "StoneBricks",
+      "Wood"
+    ],
+    "microcubes": 1192,
+    "resolution_class": "microcube",
+    "subcubes": 15695,
+    "total": 19665
+  },
+  "burgomaster_grand": {
+    "category": "architecture",
+    "cubes": 2778,
+    "dims_units": [
+      32.0,
+      18.0,
+      26.0
+    ],
+    "file": "architecture/burgomaster_grand.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Cobblestone",
+      "Stone",
+      "StoneBricks",
+      "Wood"
+    ],
+    "microcubes": 1192,
+    "resolution_class": "microcube",
+    "subcubes": 15695,
+    "total": 19665
+  },
+  "burgomaster_v2": {
+    "category": "architecture",
+    "cubes": 1165,
+    "dims_units": [
+      18.0,
+      9.0,
+      16.0
+    ],
+    "file": "architecture/burgomaster_v2.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Cobblestone",
+      "Stone",
+      "StoneBricks",
+      "Wood"
+    ],
+    "microcubes": 2136,
+    "resolution_class": "microcube",
+    "subcubes": 3540,
+    "total": 6841
+  },
   "bush_flower": {
-    "bounds": {
-      "d": 1,
-      "h": 1,
-      "w": 1
-    },
     "category": "nature",
     "created": "2026-05-17T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A decorative flowering bush with leaf foliage and glowing flower blooms at the corners.",
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
     "display_name": "Flowering Bush",
     "facing": "+Z",
+    "file": "nature/bush_flower.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Leaf",
-      "glow"
+      "LeafAutumn"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "shrubs",
     "subcubes": 18,
     "tags": [
@@ -343,15 +996,21 @@
     "created": "2026-07-04T02:21:27.824107+00:00",
     "cubes": 3,
     "description": "Procedural bush tree, height 2, fullness 0.85, seed 62.",
+    "dims_units": [
+      5.0,
+      3.0,
+      5.0
+    ],
     "display_name": "Glowing Bush (Blue)",
-    "material": "glow_blue",
+    "file": "nature/bush_glow_blue.voxel",
+    "fine_voxels": 0,
     "materials": [
       "glow_blue"
     ],
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 2.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 366,
     "tags": [
@@ -369,15 +1028,21 @@
     "created": "2026-07-04T02:21:27.812056+00:00",
     "cubes": 1,
     "description": "Procedural bush tree, height 2, fullness 0.85, seed 61.",
+    "dims_units": [
+      6.0,
+      4.0,
+      4.0
+    ],
     "display_name": "Glowing Bush (Green)",
-    "material": "glow_green",
+    "file": "nature/bush_glow_green.voxel",
+    "fine_voxels": 0,
     "materials": [
       "glow_green"
     ],
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 2.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 494,
     "tags": [
@@ -395,15 +1060,21 @@
     "created": "2026-06-14T23:36:44.944504+00:00",
     "cubes": 21,
     "description": "Procedural bush tree, height 2, fullness 0.85, seed 22.",
+    "dims_units": [
+      5.0,
+      5.0,
+      6.0
+    ],
     "display_name": "Leafy Bush (Medium)",
-    "material": "Leaf",
+    "file": "nature/bush_leafy_m.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Leaf"
     ],
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 2.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 788,
     "tags": [
@@ -421,15 +1092,21 @@
     "created": "2026-06-14T23:36:44.928322+00:00",
     "cubes": 9,
     "description": "Procedural bush tree, height 2, fullness 0.85, seed 21.",
+    "dims_units": [
+      6.0,
+      4.0,
+      6.0
+    ],
     "display_name": "Leafy Bush (Small)",
-    "material": "Leaf",
+    "file": "nature/bush_leafy_s.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Leaf"
     ],
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 2.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 634,
     "tags": [
@@ -447,15 +1124,22 @@
     "created": "2026-06-14T23:36:44.954945+00:00",
     "cubes": 8,
     "description": "Procedural bush tree, height 2, fullness 0.85, seed 30.",
+    "dims_units": [
+      6.0,
+      4.0,
+      5.0
+    ],
     "display_name": "Round Bush",
-    "material": "Leaf",
+    "file": "nature/bush_round.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Leaf"
     ],
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 2.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 506,
     "tags": [
@@ -468,25 +1152,29 @@
     "total": 514
   },
   "campfire": {
-    "bounds": {
-      "d": 1,
-      "h": 2,
-      "w": 1
-    },
-    "category": "environment",
+    "category": "furniture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A campfire with a stone ring, crossed logs, and glowing embers with rising flame.",
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
     "display_name": "Campfire",
     "facing": "+Z",
+    "file": "furniture/campfire.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Stone",
       "Wood",
       "glow"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "light_source",
     "subcubes": 11,
     "tags": [
@@ -501,26 +1189,89 @@
     "total": 11,
     "version": 1
   },
+  "candelabra": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/candelabra.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Gold",
+      "Sand",
+      "glow"
+    ],
+    "microcubes": 16,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 16
+  },
+  "candle": {
+    "category": "items",
+    "cubes": 0,
+    "description": "A bare wax candle stub, lit.",
+    "dims_units": [
+      0.037,
+      0.0864,
+      0.037
+    ],
+    "display_name": "Candle",
+    "file": "items/candle.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 55,
+    "grip_point_units": [
+      0.0185,
+      0.0309,
+      0.0185
+    ],
+    "item_ids": [
+      "candle"
+    ],
+    "materials": [
+      "Wood",
+      "glow"
+    ],
+    "method": "gen_items",
+    "microcubes": 0,
+    "resolution_class": "fine-81",
+    "subcategory": "light",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "candle",
+      "light",
+      "table"
+    ],
+    "total": 55,
+    "version": 1
+  },
   "candle_holder": {
-    "bounds": {
-      "d": 1,
-      "h": 1,
-      "w": 1
-    },
     "category": "furniture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A metal candle holder with a cross-shaped base, a sand candle, and a glowing flame.",
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
     "display_name": "Candle Holder",
     "facing": "+Z",
+    "file": "furniture/candle_holder.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Metal",
       "Sand",
       "glow"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "light_source",
     "subcubes": 7,
     "tags": [
@@ -537,17 +1288,56 @@
     "total": 7,
     "version": 1
   },
+  "candle_stand": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
+    "file": "furniture/candle_stand.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Metal",
+      "WoodWalnut",
+      "glow"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 36,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 36
+  },
   "candlestick": {
-    "category": "item",
+    "category": "items",
     "cubes": 0,
     "description": "A brass chamberstick with a lit candle.",
+    "dims_units": [
+      0.0864,
+      0.2222,
+      0.0864
+    ],
     "display_name": "Candlestick",
     "file": "items/candlestick.voxel",
     "fine_grid": 81,
-    "fine_voxels": 146,
+    "fine_voxels": 122,
+    "grip_point_units": [
+      0.0432,
+      0.0556,
+      0.0432
+    ],
+    "item_ids": [
+      "candlestick"
+    ],
+    "materials": [
+      "Gold",
+      "Wood",
+      "glow"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 0.2099,
+    "resolution_class": "fine-81",
     "subcategory": "light",
     "subcubes": 0,
     "tags": [
@@ -557,30 +1347,53 @@
       "tavern",
       "house"
     ],
-    "total": 146,
+    "total": 122,
     "version": 1
   },
+  "chair": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/chair.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "WoodWalnut"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 40,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 40
+  },
   "chair_wood": {
-    "bounds": {
-      "d": 1,
-      "h": 2,
-      "w": 1
-    },
     "category": "furniture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A simple wooden chair with a full seat, four corner legs, and a three-plank backrest.",
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
     "display_name": "Wooden Chair",
     "facing": "+Z",
+    "file": "furniture/chair_wood.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Wood"
+      "WoodWalnut"
     ],
     "method": "hand-authored (/model skill, 1 round)",
-    "microcubes": 0,
+    "metrics_sidecar": true,
+    "microcubes": 138,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "microcube",
     "seat_height": 0.667,
     "subcategory": "seating",
-    "subcubes": 24,
+    "subcubes": 0,
     "tags": [
       "chair",
       "seat",
@@ -590,30 +1403,55 @@
       "inn",
       "common"
     ],
-    "total": 24,
+    "total": 138,
     "version": 1
   },
+  "chandelier": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/chandelier.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Metal",
+      "WoodWalnut",
+      "glow"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 37,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 37
+  },
   "chest_closed": {
-    "bounds": {
-      "d": 1,
-      "h": 1,
-      "w": 1
-    },
     "category": "furniture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A wooden storage chest with metal clasp, lid closed. Clasp faces front (+Z).",
+    "dims_units": [
+      2.0,
+      1.0,
+      1.0
+    ],
     "display_name": "Chest (Closed)",
     "facing": "+Z (clasp faces viewer)",
+    "file": "furniture/chest_closed.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Wood",
-      "Metal"
+      "Metal",
+      "WoodWalnut"
     ],
     "method": "hand-authored (/model skill, 1 round)",
-    "microcubes": 0,
+    "metrics_sidecar": true,
+    "microcubes": 249,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "microcube",
     "subcategory": "container",
-    "subcubes": 26,
+    "subcubes": 0,
     "tags": [
       "chest",
       "loot",
@@ -623,29 +1461,33 @@
       "treasure",
       "common"
     ],
-    "total": 26,
+    "total": 249,
     "version": 1
   },
   "chest_open": {
-    "bounds": {
-      "d": 1,
-      "h": 2,
-      "w": 1
-    },
     "category": "furniture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A wooden storage chest with the lid open, revealing a glowing interior. Companion to chest_closed.",
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
     "display_name": "Chest (Open)",
     "facing": "+Z",
+    "file": "furniture/chest_open.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Wood",
       "Metal",
+      "Wood",
       "glow"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "container",
     "subcubes": 21,
     "tags": [
@@ -661,24 +1503,85 @@
     "total": 21,
     "version": 1
   },
+  "chest_test": {
+    "category": "test",
+    "cubes": 18,
+    "dims_units": [
+      3.0,
+      2.0,
+      3.0
+    ],
+    "file": "test/chest_test.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Wood"
+    ],
+    "microcubes": 0,
+    "resolution_class": "cube",
+    "subcubes": 0,
+    "total": 18
+  },
+  "chopping_block": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/chopping_block.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Log",
+      "WoodWalnut"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 95,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 95
+  },
+  "counter": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      2.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/counter.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "WoodWalnut"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 210,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 210
+  },
   "crate_wood": {
-    "bounds": {
-      "d": 1,
-      "h": 1,
-      "w": 1
-    },
     "category": "furniture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 1,
     "description": "A solid wooden shipping crate. Wood plank texture reads as slatted sides.",
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
     "display_name": "Wooden Crate",
     "facing": "+Z",
+    "file": "furniture/crate_wood.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Wood"
+      "WoodWalnut"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "cube",
     "subcategory": "container",
     "subcubes": 0,
     "tags": [
@@ -693,17 +1596,72 @@
     "total": 1,
     "version": 1
   },
+  "crossbow": {
+    "category": "weapons",
+    "cubes": 0,
+    "description": "A steel-prod crossbow.",
+    "dims_units": [
+      0.4321,
+      0.5556,
+      0.0617
+    ],
+    "display_name": "Crossbow",
+    "file": "weapons/crossbow.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 487,
+    "grip_point_units": [
+      0.216,
+      0.1296,
+      0.0432
+    ],
+    "item_ids": [
+      "crossbow"
+    ],
+    "materials": [
+      "Steel",
+      "Wood"
+    ],
+    "method": "gen_items",
+    "microcubes": 0,
+    "resolution_class": "fine-81",
+    "subcategory": "crossbow",
+    "subcubes": 0,
+    "tags": [
+      "weapon",
+      "crossbow",
+      "ranged"
+    ],
+    "total": 487,
+    "version": 1
+  },
   "dagger": {
-    "category": "weapon",
+    "category": "weapons",
     "cubes": 0,
     "description": "A slim thrusting dagger.",
+    "dims_units": [
+      0.1111,
+      0.4198,
+      0.037
+    ],
     "display_name": "Dagger",
     "file": "weapons/dagger.voxel",
     "fine_grid": 81,
     "fine_voxels": 234,
+    "grip_point_units": [
+      0.0556,
+      0.0679,
+      0.0185
+    ],
+    "item_ids": [
+      "dagger"
+    ],
+    "materials": [
+      "Steel",
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 0.4198,
+    "resolution_class": "fine-81",
     "subcategory": "dagger",
     "subcubes": 0,
     "tags": [
@@ -715,13 +1673,80 @@
     "total": 234,
     "version": 1
   },
+  "desk": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      2.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/desk.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Gold",
+      "Log",
+      "WoodWalnut"
+    ],
+    "microcubes": 212,
+    "resolution_class": "microcube",
+    "subcubes": 4,
+    "total": 216
+  },
+  "door_grand": {
+    "category": "architecture",
+    "cubes": 0,
+    "dims_units": [
+      2.0,
+      3.0,
+      1.0
+    ],
+    "file": "architecture/door_grand.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Gold",
+      "Log",
+      "Wood"
+    ],
+    "microcubes": 1242,
+    "resolution_class": "microcube",
+    "subcubes": 8,
+    "total": 1250
+  },
+  "door_iron": {
+    "category": "architecture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
+    "file": "architecture/door_iron.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Gold",
+      "Metal",
+      "Wood"
+    ],
+    "microcubes": 324,
+    "resolution_class": "microcube",
+    "subcubes": 6,
+    "total": 330
+  },
   "door_metal": {
     "category": "architecture",
     "created": "2026-04-21T00:00:00.000000+00:00",
     "cubes": 2,
     "description": "A single metal door, 1 wide \u00d7 2 tall. Hinge at X=0.",
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
     "display_name": "Metal Door",
     "facing": "+X (door swings along X)",
+    "file": "architecture/door_metal.voxel",
+    "fine_voxels": 0,
     "interactions": [
       {
         "id": "handle_0",
@@ -734,11 +1759,12 @@
         "type": "door_handle"
       }
     ],
-    "material": "Metal",
     "materials": [
       "Metal"
     ],
+    "metrics_sidecar": true,
     "microcubes": 0,
+    "resolution_class": "cube",
     "subcategory": "door",
     "subcubes": 0,
     "tags": [
@@ -750,13 +1776,40 @@
     ],
     "total": 2
   },
+  "door_plank": {
+    "category": "architecture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
+    "file": "architecture/door_plank.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Gold",
+      "Log",
+      "Wood"
+    ],
+    "microcubes": 350,
+    "resolution_class": "microcube",
+    "subcubes": 4,
+    "total": 354
+  },
   "door_wood": {
     "category": "architecture",
     "created": "2026-04-21T00:00:00.000000+00:00",
-    "cubes": 2,
+    "cubes": 0,
     "description": "A standard single wooden door, 1 wide \u00d7 2 tall. Hinge at X=0.",
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
     "display_name": "Wooden Door",
     "facing": "+X (door swings along X)",
+    "file": "architecture/door_wood.voxel",
+    "fine_voxels": 0,
     "interactions": [
       {
         "id": "handle_0",
@@ -769,13 +1822,16 @@
         "type": "door_handle"
       }
     ],
-    "material": "Wood",
     "materials": [
+      "Gold",
+      "Log",
       "Wood"
     ],
-    "microcubes": 0,
+    "metrics_sidecar": true,
+    "microcubes": 2,
+    "resolution_class": "microcube",
     "subcategory": "door",
-    "subcubes": 0,
+    "subcubes": 18,
     "tags": [
       "door",
       "wood",
@@ -784,15 +1840,22 @@
       "exterior",
       "common"
     ],
-    "total": 2
+    "total": 20
   },
   "door_wood_wide": {
     "category": "architecture",
     "created": "2026-04-21T00:00:00.000000+00:00",
-    "cubes": 4,
+    "cubes": 0,
     "description": "A double wooden door, 2 wide \u00d7 2 tall. Hinge at X=0.",
+    "dims_units": [
+      2.0,
+      2.0,
+      1.0
+    ],
     "display_name": "Wide Wooden Door",
     "facing": "+X (door swings along X)",
+    "file": "architecture/door_wood_wide.voxel",
+    "fine_voxels": 0,
     "interactions": [
       {
         "id": "handle_0",
@@ -805,13 +1868,16 @@
         "type": "door_handle"
       }
     ],
-    "material": "Wood",
     "materials": [
+      "Gold",
+      "Log",
       "Wood"
     ],
-    "microcubes": 0,
+    "metrics_sidecar": true,
+    "microcubes": 2,
+    "resolution_class": "microcube",
     "subcategory": "door",
-    "subcubes": 0,
+    "subcubes": 36,
     "tags": [
       "door",
       "wood",
@@ -821,26 +1887,68 @@
       "tavern",
       "common"
     ],
-    "total": 4
+    "total": 38
+  },
+  "drawer_test": {
+    "category": "test",
+    "cubes": 6,
+    "dims_units": [
+      3.0,
+      1.0,
+      2.0
+    ],
+    "file": "test/drawer_test.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Wood"
+    ],
+    "microcubes": 0,
+    "resolution_class": "cube",
+    "subcubes": 0,
+    "total": 6
+  },
+  "dresser": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/dresser.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Gold",
+      "Log",
+      "WoodWalnut"
+    ],
+    "microcubes": 171,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 171
   },
   "fern": {
-    "bounds": {
-      "d": 1,
-      "h": 1,
-      "w": 1
-    },
     "category": "nature",
     "created": "2026-05-17T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A low spreading fern with wide ground-level fronds and a rising central frond.",
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
     "display_name": "Fern",
     "facing": "+Z",
+    "file": "nature/fern.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Leaf"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "ground_cover",
     "subcubes": 11,
     "tags": [
@@ -858,26 +1966,31 @@
     "version": 1
   },
   "fireplace": {
-    "bounds": {
-      "d": 1,
-      "h": 2,
-      "w": 3
-    },
     "category": "furniture",
     "created": "2026-05-16T00:00:00.000000+00:00",
-    "cubes": 5,
+    "cubes": 0,
     "description": "A stone fireplace with two pillars, a stone mantelpiece, hearth floor, and glowing fire inside.",
+    "dims_units": [
+      2.0,
+      2.0,
+      1.0
+    ],
     "display_name": "Stone Fireplace",
     "facing": "+Z (opening faces viewer)",
+    "file": "furniture/fireplace.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Stone",
+      "Bricks",
+      "Log",
       "glow"
     ],
     "method": "hand-authored (/model skill, 1 round)",
-    "microcubes": 0,
+    "metrics_sidecar": true,
+    "microcubes": 596,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "microcube",
     "subcategory": "hearth",
-    "subcubes": 19,
+    "subcubes": 0,
     "tags": [
       "fireplace",
       "fire",
@@ -889,27 +2002,914 @@
       "house",
       "tavern"
     ],
-    "total": 24,
+    "total": 596,
     "version": 1
   },
+  "forge_acacia_l": {
+    "category": "nature",
+    "cubes": 17,
+    "dims_units": [
+      17.0,
+      15.0,
+      17.0
+    ],
+    "file": "nature/forge_acacia_l.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 7074,
+    "resolution_class": "microcube",
+    "subcubes": 6791,
+    "total": 13882
+  },
+  "forge_acacia_m": {
+    "category": "nature",
+    "cubes": 9,
+    "dims_units": [
+      14.0,
+      13.0,
+      15.0
+    ],
+    "file": "nature/forge_acacia_m.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 5562,
+    "resolution_class": "microcube",
+    "subcubes": 4028,
+    "total": 9599
+  },
+  "forge_autumn_l": {
+    "category": "nature",
+    "cubes": 23,
+    "dims_units": [
+      15.0,
+      18.0,
+      14.0
+    ],
+    "file": "nature/forge_autumn_l.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "LeafAutumn",
+      "Log"
+    ],
+    "microcubes": 10937,
+    "resolution_class": "microcube",
+    "subcubes": 9275,
+    "total": 20235
+  },
+  "forge_autumn_m": {
+    "category": "nature",
+    "cubes": 10,
+    "dims_units": [
+      12.0,
+      15.0,
+      12.0
+    ],
+    "file": "nature/forge_autumn_m.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "LeafAutumn",
+      "Log"
+    ],
+    "microcubes": 13347,
+    "resolution_class": "microcube",
+    "subcubes": 5388,
+    "total": 18745
+  },
+  "forge_birch_l": {
+    "category": "nature",
+    "cubes": 18,
+    "dims_units": [
+      12.0,
+      18.0,
+      12.0
+    ],
+    "file": "nature/forge_birch_l.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "LeafBirch",
+      "LogBirch"
+    ],
+    "microcubes": 7074,
+    "resolution_class": "microcube",
+    "subcubes": 6473,
+    "total": 13565
+  },
+  "forge_birch_m": {
+    "category": "nature",
+    "cubes": 8,
+    "dims_units": [
+      10.0,
+      13.0,
+      10.0
+    ],
+    "file": "nature/forge_birch_m.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "LeafBirch",
+      "LogBirch"
+    ],
+    "microcubes": 9307,
+    "resolution_class": "microcube",
+    "subcubes": 3491,
+    "total": 12806
+  },
+  "forge_bush_glow_blue": {
+    "category": "nature",
+    "cubes": 0,
+    "dims_units": [
+      4.0,
+      3.0,
+      4.0
+    ],
+    "file": "nature/forge_bush_glow_blue.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Log",
+      "glow_blue"
+    ],
+    "microcubes": 1138,
+    "resolution_class": "microcube",
+    "subcubes": 321,
+    "total": 1459
+  },
+  "forge_bush_glow_green": {
+    "category": "nature",
+    "cubes": 0,
+    "dims_units": [
+      4.0,
+      4.0,
+      4.0
+    ],
+    "file": "nature/forge_bush_glow_green.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Log",
+      "glow_green"
+    ],
+    "microcubes": 1134,
+    "resolution_class": "microcube",
+    "subcubes": 356,
+    "total": 1490
+  },
+  "forge_bush_m": {
+    "category": "nature",
+    "cubes": 0,
+    "dims_units": [
+      5.0,
+      4.0,
+      6.0
+    ],
+    "file": "nature/forge_bush_m.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 1890,
+    "resolution_class": "microcube",
+    "subcubes": 625,
+    "total": 2515
+  },
+  "forge_bush_s": {
+    "category": "nature",
+    "cubes": 0,
+    "dims_units": [
+      4.0,
+      4.0,
+      4.0
+    ],
+    "file": "nature/forge_bush_s.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 1404,
+    "resolution_class": "microcube",
+    "subcubes": 371,
+    "total": 1775
+  },
+  "forge_dead_m": {
+    "category": "nature",
+    "cubes": 6,
+    "dims_units": [
+      11.0,
+      12.0,
+      12.0
+    ],
+    "file": "nature/forge_dead_m.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Log"
+    ],
+    "microcubes": 965,
+    "resolution_class": "microcube",
+    "subcubes": 827,
+    "total": 1798
+  },
+  "forge_dead_s": {
+    "category": "nature",
+    "cubes": 6,
+    "dims_units": [
+      8.0,
+      10.0,
+      6.0
+    ],
+    "file": "nature/forge_dead_s.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Log"
+    ],
+    "microcubes": 567,
+    "resolution_class": "microcube",
+    "subcubes": 589,
+    "total": 1162
+  },
+  "forge_elder_oak_xl": {
+    "category": "nature",
+    "cubes": 4491,
+    "dims_units": [
+      29.0,
+      34.0,
+      29.0
+    ],
+    "file": "nature/forge_elder_oak_xl.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "LogRedwood"
+    ],
+    "microcubes": 33213,
+    "resolution_class": "microcube",
+    "subcubes": 30928,
+    "total": 68632
+  },
+  "forge_elder_oak_xxl": {
+    "category": "nature",
+    "cubes": 13788,
+    "dims_units": [
+      41.0,
+      49.0,
+      42.0
+    ],
+    "file": "nature/forge_elder_oak_xxl.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "LogRedwood"
+    ],
+    "microcubes": 50494,
+    "resolution_class": "microcube",
+    "subcubes": 57981,
+    "total": 122263
+  },
+  "forge_enchanted_oak": {
+    "category": "nature",
+    "cubes": 2142,
+    "dims_units": [
+      23.0,
+      28.0,
+      23.0
+    ],
+    "file": "nature/forge_enchanted_oak.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "enchanted_log"
+    ],
+    "microcubes": 22610,
+    "resolution_class": "microcube",
+    "subcubes": 20403,
+    "total": 45155
+  },
+  "forge_enchanted_oak_s": {
+    "category": "nature",
+    "cubes": 585,
+    "dims_units": [
+      16.0,
+      18.0,
+      16.0
+    ],
+    "file": "nature/forge_enchanted_oak_s.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "enchanted_log"
+    ],
+    "microcubes": 14376,
+    "resolution_class": "microcube",
+    "subcubes": 9306,
+    "total": 24267
+  },
+  "forge_fir_l": {
+    "category": "nature",
+    "cubes": 16,
+    "dims_units": [
+      8.0,
+      17.0,
+      7.0
+    ],
+    "file": "nature/forge_fir_l.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "LeafSpruce",
+      "LogPine"
+    ],
+    "microcubes": 5422,
+    "resolution_class": "microcube",
+    "subcubes": 2522,
+    "total": 7960
+  },
+  "forge_fir_m": {
+    "category": "nature",
+    "cubes": 4,
+    "dims_units": [
+      6.0,
+      12.0,
+      6.0
+    ],
+    "file": "nature/forge_fir_m.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "LeafSpruce",
+      "LogPine"
+    ],
+    "microcubes": 3206,
+    "resolution_class": "microcube",
+    "subcubes": 1236,
+    "total": 4446
+  },
+  "forge_hearth": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
+    "file": "furniture/forge_hearth.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Metal",
+      "Stone",
+      "glow"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 528,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 528
+  },
+  "forge_jungle_l": {
+    "category": "nature",
+    "cubes": 84,
+    "dims_units": [
+      19.0,
+      22.0,
+      18.0
+    ],
+    "file": "nature/forge_jungle_l.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "LeafJungle",
+      "LogJungle"
+    ],
+    "microcubes": 14405,
+    "resolution_class": "microcube",
+    "subcubes": 16978,
+    "total": 31467
+  },
+  "forge_jungle_m": {
+    "category": "nature",
+    "cubes": 31,
+    "dims_units": [
+      15.0,
+      17.0,
+      14.0
+    ],
+    "file": "nature/forge_jungle_m.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "LeafJungle",
+      "LogJungle"
+    ],
+    "microcubes": 10866,
+    "resolution_class": "microcube",
+    "subcubes": 7400,
+    "total": 18297
+  },
+  "forge_oak_hero": {
+    "category": "nature",
+    "cubes": 27,
+    "dims_units": [
+      16.0,
+      18.0,
+      16.0
+    ],
+    "file": "nature/forge_oak_hero.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 20095,
+    "resolution_class": "microcube",
+    "subcubes": 13693,
+    "total": 33815
+  },
+  "forge_oak_l": {
+    "category": "nature",
+    "cubes": 29,
+    "dims_units": [
+      16.0,
+      20.0,
+      16.0
+    ],
+    "file": "nature/forge_oak_l.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 9600,
+    "resolution_class": "microcube",
+    "subcubes": 10898,
+    "total": 20527
+  },
+  "forge_oak_m": {
+    "category": "nature",
+    "cubes": 10,
+    "dims_units": [
+      13.0,
+      15.0,
+      12.0
+    ],
+    "file": "nature/forge_oak_m.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 14261,
+    "resolution_class": "microcube",
+    "subcubes": 5289,
+    "total": 19560
+  },
+  "forge_oak_sparse": {
+    "category": "nature",
+    "cubes": 9,
+    "dims_units": [
+      12.0,
+      13.0,
+      10.0
+    ],
+    "file": "nature/forge_oak_sparse.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 6345,
+    "resolution_class": "microcube",
+    "subcubes": 4051,
+    "total": 10405
+  },
+  "forge_palm_l": {
+    "category": "nature",
+    "cubes": 0,
+    "dims_units": [
+      10.0,
+      14.0,
+      10.0
+    ],
+    "file": "nature/forge_palm_l.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "LogPalm"
+    ],
+    "microcubes": 1636,
+    "resolution_class": "microcube",
+    "subcubes": 114,
+    "total": 1750
+  },
+  "forge_palm_m": {
+    "category": "nature",
+    "cubes": 0,
+    "dims_units": [
+      9.0,
+      11.0,
+      9.0
+    ],
+    "file": "nature/forge_palm_m.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "LogPalm"
+    ],
+    "microcubes": 1125,
+    "resolution_class": "microcube",
+    "subcubes": 128,
+    "total": 1253
+  },
+  "forge_pine_l": {
+    "category": "nature",
+    "cubes": 30,
+    "dims_units": [
+      12.0,
+      21.0,
+      11.0
+    ],
+    "file": "nature/forge_pine_l.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "LeafSpruce",
+      "LogPine"
+    ],
+    "microcubes": 7496,
+    "resolution_class": "microcube",
+    "subcubes": 5832,
+    "total": 13358
+  },
+  "forge_pine_m": {
+    "category": "nature",
+    "cubes": 5,
+    "dims_units": [
+      9.0,
+      15.0,
+      9.0
+    ],
+    "file": "nature/forge_pine_m.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "LeafSpruce",
+      "LogPine"
+    ],
+    "microcubes": 4883,
+    "resolution_class": "microcube",
+    "subcubes": 2571,
+    "total": 7459
+  },
+  "forge_redwood_xl": {
+    "category": "nature",
+    "cubes": 6730,
+    "dims_units": [
+      28.0,
+      49.0,
+      28.0
+    ],
+    "file": "nature/forge_redwood_xl.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "LogRedwood"
+    ],
+    "microcubes": 34983,
+    "resolution_class": "microcube",
+    "subcubes": 40818,
+    "total": 82531
+  },
+  "forge_redwood_xxl": {
+    "category": "nature",
+    "cubes": 21549,
+    "dims_units": [
+      39.0,
+      71.0,
+      41.0
+    ],
+    "file": "nature/forge_redwood_xxl.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "LogRedwood"
+    ],
+    "microcubes": 59079,
+    "resolution_class": "microcube",
+    "subcubes": 79410,
+    "total": 160038
+  },
+  "forge_spruce_l": {
+    "category": "nature",
+    "cubes": 8,
+    "dims_units": [
+      9.0,
+      16.0,
+      9.0
+    ],
+    "file": "nature/forge_spruce_l.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "LeafSpruce",
+      "LogSpruce"
+    ],
+    "microcubes": 4980,
+    "resolution_class": "microcube",
+    "subcubes": 3119,
+    "total": 8107
+  },
+  "forge_spruce_m": {
+    "category": "nature",
+    "cubes": 5,
+    "dims_units": [
+      8.0,
+      11.0,
+      7.0
+    ],
+    "file": "nature/forge_spruce_m.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "LeafSpruce",
+      "LogSpruce"
+    ],
+    "microcubes": 5093,
+    "resolution_class": "microcube",
+    "subcubes": 1484,
+    "total": 6582
+  },
+  "forge_spruce_s": {
+    "category": "nature",
+    "cubes": 4,
+    "dims_units": [
+      6.0,
+      8.0,
+      6.0
+    ],
+    "file": "nature/forge_spruce_s.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "LeafSpruce",
+      "LogSpruce"
+    ],
+    "microcubes": 2126,
+    "resolution_class": "microcube",
+    "subcubes": 744,
+    "total": 2874
+  },
+  "forge_willow_l": {
+    "category": "nature",
+    "cubes": 20,
+    "dims_units": [
+      16.0,
+      17.0,
+      15.0
+    ],
+    "file": "nature/forge_willow_l.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 15417,
+    "resolution_class": "microcube",
+    "subcubes": 15241,
+    "total": 30678
+  },
+  "forge_willow_m": {
+    "category": "nature",
+    "cubes": 5,
+    "dims_units": [
+      13.0,
+      14.0,
+      12.0
+    ],
+    "file": "nature/forge_willow_m.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Leaf",
+      "Log"
+    ],
+    "microcubes": 18414,
+    "resolution_class": "microcube",
+    "subcubes": 8624,
+    "total": 27043
+  },
+  "fork": {
+    "category": "items",
+    "cubes": 0,
+    "description": "A steel three-tine fork.",
+    "dims_units": [
+      0.037,
+      0.1605,
+      0.0123
+    ],
+    "display_name": "Fork",
+    "file": "items/fork.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 21,
+    "grip_point_units": [
+      0.0185,
+      0.0432,
+      0.0062
+    ],
+    "item_ids": [
+      "fork"
+    ],
+    "materials": [
+      "Steel"
+    ],
+    "method": "gen_items",
+    "microcubes": 0,
+    "resolution_class": "fine-81",
+    "subcategory": "cutlery",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "fork",
+      "cutlery",
+      "tavern"
+    ],
+    "total": 21,
+    "version": 1
+  },
+  "four_poster": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      2.0,
+      2.0,
+      2.0
+    ],
+    "file": "furniture/four_poster.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Bricks",
+      "Log",
+      "Sand",
+      "Sandstone",
+      "WoodWalnut"
+    ],
+    "microcubes": 1102,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 1102
+  },
+  "frying_pan": {
+    "category": "items",
+    "cubes": 0,
+    "description": "An iron skillet.",
+    "dims_units": [
+      0.284,
+      0.0247,
+      0.1605
+    ],
+    "display_name": "Frying Pan",
+    "file": "items/frying_pan.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 167,
+    "grip_point_units": [
+      0.2407,
+      0.0185,
+      0.0802
+    ],
+    "item_ids": [
+      "frying_pan"
+    ],
+    "materials": [
+      "Steel"
+    ],
+    "method": "gen_items",
+    "microcubes": 0,
+    "resolution_class": "fine-81",
+    "subcategory": "kitchen",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "pan",
+      "kitchen",
+      "tavern"
+    ],
+    "total": 167,
+    "version": 1
+  },
+  "garden_bed": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      2.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/garden_bed.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Dirt",
+      "Leaf",
+      "Wood"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 382,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 382
+  },
+  "gate_timber": {
+    "category": "architecture",
+    "cubes": 0,
+    "dims_units": [
+      4.0,
+      3.0,
+      1.0
+    ],
+    "file": "architecture/gate_timber.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Gold",
+      "Metal",
+      "Wood"
+    ],
+    "microcubes": 633,
+    "resolution_class": "microcube",
+    "subcubes": 80,
+    "total": 713
+  },
+  "goblet": {
+    "category": "items",
+    "cubes": 0,
+    "description": "A pewter goblet of wine.",
+    "dims_units": [
+      0.0864,
+      0.1358,
+      0.0864
+    ],
+    "display_name": "Goblet",
+    "file": "items/goblet.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 116,
+    "grip_point_units": [
+      0.0432,
+      0.0556,
+      0.0432
+    ],
+    "item_ids": [
+      "goblet"
+    ],
+    "materials": [
+      "Steel",
+      "Wood"
+    ],
+    "method": "gen_items",
+    "microcubes": 0,
+    "resolution_class": "fine-81",
+    "subcategory": "tableware",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "goblet",
+      "tavern",
+      "drink"
+    ],
+    "total": 116,
+    "version": 1
+  },
+  "hanging_sign": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/hanging_sign.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Log",
+      "Metal",
+      "WoodWalnut"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 40,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 40
+  },
   "hedge_section": {
-    "bounds": {
-      "d": 1,
-      "h": 1,
-      "w": 1
-    },
     "category": "nature",
     "created": "2026-05-17T00:00:00.000000+00:00",
     "cubes": 1,
     "description": "A dense trimmed hedge wall section \u2014 a solid cube of leaves. Tile these to build garden walls.",
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
     "display_name": "Hedge Section",
     "facing": "+Z",
+    "file": "nature/hedge_section.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Leaf"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "cube",
     "subcategory": "shrubs",
     "subcubes": 0,
     "tags": [
@@ -926,24 +2926,85 @@
     "total": 1,
     "version": 1
   },
+  "house2": {
+    "category": "architecture",
+    "cubes": 359,
+    "dims_units": [
+      8.0,
+      13.0,
+      8.0
+    ],
+    "file": "architecture/house2.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "StoneBricks",
+      "Wood"
+    ],
+    "microcubes": 0,
+    "resolution_class": "subcube",
+    "subcubes": 1881,
+    "total": 2240
+  },
+  "houseL": {
+    "category": "architecture",
+    "cubes": 392,
+    "dims_units": [
+      12.0,
+      6.0,
+      14.0
+    ],
+    "file": "architecture/houseL.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "StoneBricks",
+      "Wood"
+    ],
+    "microcubes": 1339,
+    "resolution_class": "microcube",
+    "subcubes": 1739,
+    "total": 3470
+  },
+  "house_2story": {
+    "category": "architecture",
+    "cubes": 359,
+    "dims_units": [
+      8.0,
+      13.0,
+      8.0
+    ],
+    "file": "architecture/house_2story.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "StoneBricks",
+      "Wood"
+    ],
+    "microcubes": 0,
+    "resolution_class": "subcube",
+    "subcubes": 1881,
+    "total": 2240
+  },
   "iron_bars": {
-    "bounds": {
-      "d": 1,
-      "h": 2,
-      "w": 1
-    },
     "category": "architecture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A wall section of vertical iron bars, two cubes tall. Use to build prison cells and dungeon cages.",
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
     "display_name": "Iron Bars",
     "facing": "+Z",
+    "file": "architecture/iron_bars.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Metal"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "barrier",
     "subcubes": 12,
     "tags": [
@@ -959,24 +3020,105 @@
     "total": 12,
     "version": 1
   },
+  "jug": {
+    "category": "items",
+    "cubes": 0,
+    "description": "A bulged clay jug with a strap handle.",
+    "dims_units": [
+      0.1728,
+      0.2469,
+      0.1605
+    ],
+    "display_name": "Clay Jug",
+    "file": "items/jug.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 1110,
+    "grip_point_units": [
+      0.1667,
+      0.142,
+      0.0802
+    ],
+    "item_ids": [
+      "jug"
+    ],
+    "materials": [
+      "Wood"
+    ],
+    "method": "gen_items",
+    "microcubes": 0,
+    "resolution_class": "fine-81",
+    "subcategory": "tableware",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "jug",
+      "tavern",
+      "kitchen"
+    ],
+    "total": 1110,
+    "version": 1
+  },
+  "knife_table": {
+    "category": "items",
+    "cubes": 0,
+    "description": "A wood-handled table knife.",
+    "dims_units": [
+      0.0247,
+      0.1852,
+      0.0123
+    ],
+    "display_name": "Table Knife",
+    "file": "items/knife_table.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 21,
+    "grip_point_units": [
+      0.0062,
+      0.0432,
+      0.0062
+    ],
+    "item_ids": [
+      "knife_table"
+    ],
+    "materials": [
+      "Steel",
+      "Wood"
+    ],
+    "method": "gen_items",
+    "microcubes": 0,
+    "resolution_class": "fine-81",
+    "subcategory": "cutlery",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "knife",
+      "cutlery",
+      "tavern"
+    ],
+    "total": 21,
+    "version": 1
+  },
   "ladder": {
-    "bounds": {
-      "d": 1,
-      "h": 2,
-      "w": 1
-    },
-    "category": "furniture",
+    "category": "architecture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A two-cube-tall wooden ladder with left and right rails and two rungs.",
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
     "display_name": "Wooden Ladder",
     "facing": "+Z",
+    "file": "architecture/ladder.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Wood"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "utility",
     "subcubes": 14,
     "tags": [
@@ -992,52 +3134,169 @@
     "total": 14,
     "version": 1
   },
-  "lantern": {
-    "bounds": {
-      "d": 1,
-      "h": 1,
-      "w": 1
-    },
-    "category": "furniture",
-    "created": "2026-05-16T00:00:00.000000+00:00",
+  "ladder_test": {
+    "category": "test",
     "cubes": 0,
-    "description": "A small hanging lantern with four corner metal posts, a top hook, and a glowing interior.",
-    "display_name": "Lantern",
-    "facing": "+Z",
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "test/ladder_test.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Metal",
-      "glow"
+      "Wood"
     ],
-    "method": "hand-authored (/model skill, 1 round)",
     "microcubes": 0,
-    "model": "claude-sonnet-4-6",
-    "subcategory": "light_source",
-    "subcubes": 10,
-    "tags": [
-      "lantern",
-      "light",
-      "hanging",
-      "dungeon",
-      "tavern",
-      "inn",
-      "house",
-      "castle",
-      "common"
+    "resolution_class": "subcube",
+    "subcubes": 8,
+    "total": 8
+  },
+  "ladle": {
+    "category": "items",
+    "cubes": 0,
+    "description": "An iron serving ladle.",
+    "dims_units": [
+      0.0864,
+      0.1852,
+      0.0864
     ],
-    "total": 10,
+    "display_name": "Ladle",
+    "file": "items/ladle.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 47,
+    "grip_point_units": [
+      0.0432,
+      0.1296,
+      0.0432
+    ],
+    "item_ids": [
+      "ladle"
+    ],
+    "materials": [
+      "Steel"
+    ],
+    "method": "gen_items",
+    "microcubes": 0,
+    "resolution_class": "fine-81",
+    "subcategory": "kitchen",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "ladle",
+      "kitchen",
+      "tavern"
+    ],
+    "total": 47,
     "version": 1
   },
+  "lantern": {
+    "category": "items",
+    "cubes": 0,
+    "description": "A steel-framed glass lantern with a carry ring.",
+    "dims_units": [
+      0.0617,
+      0.1481,
+      0.0617
+    ],
+    "display_name": "Hooded Lantern",
+    "file": "items/lantern.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 162,
+    "grip_point_units": [
+      0.0309,
+      0.1296,
+      0.0309
+    ],
+    "item_ids": [
+      "lantern"
+    ],
+    "materials": [
+      "Glass",
+      "Steel",
+      "Wood",
+      "glow"
+    ],
+    "method": "gen_items",
+    "microcubes": 0,
+    "resolution_class": "fine-81",
+    "subcategory": "light",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "lantern",
+      "light",
+      "dungeon"
+    ],
+    "total": 162,
+    "version": 1
+  },
+  "lever_test": {
+    "category": "test",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "test/lever_test.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Metal",
+      "Wood"
+    ],
+    "microcubes": 0,
+    "resolution_class": "subcube",
+    "subcubes": 3,
+    "total": 3
+  },
+  "long_table": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      3.0,
+      1.0,
+      2.0
+    ],
+    "file": "furniture/long_table.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Log",
+      "WoodWalnut"
+    ],
+    "microcubes": 455,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 455
+  },
   "mace": {
-    "category": "weapon",
+    "category": "weapons",
     "cubes": 0,
     "description": "A steel mace with four crushing flanges.",
+    "dims_units": [
+      0.1852,
+      0.7284,
+      0.1852
+    ],
     "display_name": "Flanged Mace",
     "file": "weapons/mace.voxel",
     "fine_grid": 81,
     "fine_voxels": 536,
+    "grip_point_units": [
+      0.0926,
+      0.1049,
+      0.0926
+    ],
+    "item_ids": [
+      "mace"
+    ],
+    "materials": [
+      "Steel",
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 0.7284,
+    "resolution_class": "fine-81",
     "subcategory": "mace",
     "subcubes": 0,
     "tags": [
@@ -1049,17 +3308,55 @@
     "total": 536,
     "version": 1
   },
+  "manor_gen": {
+    "category": "architecture",
+    "cubes": 315,
+    "dims_units": [
+      15.0,
+      5.0,
+      13.0
+    ],
+    "file": "architecture/manor_gen.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Log",
+      "StoneBricks",
+      "Wood"
+    ],
+    "microcubes": 1447,
+    "resolution_class": "microcube",
+    "subcubes": 3056,
+    "total": 4818
+  },
   "maul": {
-    "category": "weapon",
+    "category": "weapons",
     "cubes": 0,
     "description": "A massive two-handed iron-headed maul.",
+    "dims_units": [
+      0.3086,
+      1.3457,
+      0.1358
+    ],
     "display_name": "Maul",
     "file": "weapons/maul.voxel",
     "fine_grid": 81,
     "fine_voxels": 4102,
+    "grip_point_units": [
+      0.1543,
+      0.179,
+      0.0679
+    ],
+    "item_ids": [
+      "maul"
+    ],
+    "materials": [
+      "Gold",
+      "Steel",
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 1.3457,
+    "resolution_class": "fine-81",
     "subcategory": "hammer",
     "subcubes": 0,
     "tags": [
@@ -1072,25 +3369,68 @@
     "total": 4102,
     "version": 1
   },
+  "meat_rail": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      2.0,
+      3.0,
+      1.0
+    ],
+    "file": "furniture/meat_rail.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Log",
+      "Metal"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 70,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 70
+  },
+  "mug": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/mug.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "WoodWalnut"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 1,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 1
+  },
   "mushroom": {
-    "bounds": {
-      "d": 1,
-      "h": 2,
-      "w": 1
-    },
     "category": "nature",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A large dungeon mushroom with a thin wooden stem, a flared cap underside, and a wide sandy cap top.",
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
     "display_name": "Giant Mushroom",
     "facing": "+Z",
+    "file": "nature/mushroom.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Wood",
-      "Sand"
+      "Sand",
+      "Wood"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "vegetation",
     "subcubes": 16,
     "tags": [
@@ -1105,17 +3445,114 @@
     "total": 16,
     "version": 1
   },
+  "nightstand": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/nightstand.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Gold",
+      "Log",
+      "WoodWalnut"
+    ],
+    "microcubes": 98,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 98
+  },
+  "oil_lamp": {
+    "category": "items",
+    "cubes": 0,
+    "description": "A squat clay oil lamp with a wick flame.",
+    "dims_units": [
+      0.2346,
+      0.0988,
+      0.1605
+    ],
+    "display_name": "Oil Lamp",
+    "file": "items/oil_lamp.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 532,
+    "grip_point_units": [
+      0.0062,
+      0.0556,
+      0.0802
+    ],
+    "item_ids": [
+      "oil_lamp"
+    ],
+    "materials": [
+      "Gold",
+      "Wood",
+      "glow"
+    ],
+    "method": "gen_items",
+    "microcubes": 0,
+    "resolution_class": "fine-81",
+    "subcategory": "light",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "lamp",
+      "light",
+      "house"
+    ],
+    "total": 532,
+    "version": 1
+  },
+  "oven_bread": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      2.0,
+      3.0,
+      2.0
+    ],
+    "file": "furniture/oven_bread.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Stone",
+      "glow"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 1908,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 1908
+  },
   "pickaxe": {
-    "category": "weapon",
+    "category": "weapons",
     "cubes": 0,
     "description": "A steel mining pick on an ash haft.",
+    "dims_units": [
+      0.3827,
+      0.5432,
+      0.037
+    ],
     "display_name": "Pickaxe",
     "file": "weapons/pickaxe.voxel",
     "fine_grid": 81,
     "fine_voxels": 304,
+    "grip_point_units": [
+      0.1914,
+      0.1049,
+      0.0185
+    ],
+    "item_ids": [
+      "iron_pickaxe"
+    ],
+    "materials": [
+      "Steel",
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 0.5432,
+    "resolution_class": "fine-81",
     "subcategory": "pickaxe",
     "subcubes": 0,
     "tags": [
@@ -1128,23 +3565,27 @@
     "version": 1
   },
   "pillar_stone": {
-    "bounds": {
-      "d": 1,
-      "h": 1,
-      "w": 1
-    },
     "category": "architecture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A classical stone pillar with a wide base, narrow cross-section shaft, and wide capital, all in one cube.",
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
     "display_name": "Stone Pillar",
     "facing": "+Z",
+    "file": "architecture/pillar_stone.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Stone"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "structural",
     "subcubes": 23,
     "tags": [
@@ -1160,25 +3601,67 @@
     "total": 23,
     "version": 1
   },
+  "plate": {
+    "category": "items",
+    "cubes": 0,
+    "description": "A turned wooden dinner plate.",
+    "dims_units": [
+      0.2593,
+      0.0247,
+      0.2593
+    ],
+    "display_name": "Plate",
+    "file": "items/plate.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 457,
+    "grip_point_units": [
+      0.1296,
+      0.0062,
+      0.1296
+    ],
+    "item_ids": [
+      "plate"
+    ],
+    "materials": [
+      "Wood"
+    ],
+    "method": "gen_items",
+    "microcubes": 0,
+    "resolution_class": "fine-81",
+    "subcategory": "tableware",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "plate",
+      "tavern",
+      "kitchen"
+    ],
+    "total": 457,
+    "version": 1
+  },
   "pot_iron": {
-    "bounds": {
-      "d": 1,
-      "h": 1,
-      "w": 1
-    },
     "category": "furniture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A round iron cauldron with a rounded belly, open rim, and glowing brew inside.",
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
     "display_name": "Iron Cauldron",
     "facing": "+Z",
+    "file": "furniture/pot_iron.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Metal",
       "glow"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "container",
     "subcubes": 19,
     "tags": [
@@ -1196,16 +3679,28 @@
     "version": 1
   },
   "potion": {
-    "category": "item",
+    "category": "items",
     "cubes": 0,
     "description": "A round-bellied glass potion flask.",
+    "dims_units": [
+      0.0864,
+      0.1235,
+      0.0864
+    ],
     "display_name": "Potion Flask",
     "file": "items/potion.voxel",
     "fine_grid": 81,
     "fine_voxels": 134,
+    "item_ids": [
+      "health_potion"
+    ],
+    "materials": [
+      "Glass",
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 0.1235,
+    "resolution_class": "fine-81",
     "subcategory": "potion",
     "subcubes": 0,
     "tags": [
@@ -1217,19 +3712,89 @@
     "total": 134,
     "version": 1
   },
-  "rug_oriental": {
-    "category": "item",
+  "quiver": {
+    "category": "weapons",
     "cubes": 0,
-    "description": "A hand-knotted oriental rug, one fine cell thick.",
-    "display_name": "Oriental Rug",
-    "file": "rug_oriental.voxel",
-    "fine_grid": 27,
-    "fine_voxels": 2916,
+    "description": "A leather quiver of arrows.",
+    "dims_units": [
+      0.0864,
+      0.4444,
+      0.0864
+    ],
+    "display_name": "Quiver",
+    "file": "weapons/quiver.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 836,
+    "grip_point_units": [
+      0.0432,
+      0.179,
+      0.0432
+    ],
+    "item_ids": [
+      "quiver"
+    ],
+    "materials": [
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 2.0,
+    "resolution_class": "fine-81",
+    "subcategory": "quiver",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "quiver",
+      "ranged",
+      "arrows"
+    ],
+    "total": 836,
+    "version": 1
+  },
+  "rug": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      2.0,
+      1.0,
+      2.0
+    ],
+    "file": "furniture/rug.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Wool",
+      "rug_oriental"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 234,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 234
+  },
+  "rug_oriental": {
+    "category": "items",
+    "cubes": 0,
+    "description": "A hand-knotted oriental rug, one fine cell thick.",
+    "dims_units": [
+      2.0,
+      0.037,
+      2.0
+    ],
+    "display_name": "Oriental Rug",
+    "file": "items/rug_oriental.voxel",
+    "fine_grid": 27,
+    "fine_voxels": 2916,
+    "item_ids": [
+      "prop_rug_oriental"
+    ],
+    "materials": [
+      "Wood"
+    ],
+    "method": "gen_items",
+    "microcubes": 0,
+    "resolution_class": "fine-27",
     "subcategory": "rug",
     "subcubes": 0,
+    "surface": "texture=rug_oriental projection=planar axis=y",
     "tags": [
       "item",
       "rug",
@@ -1240,18 +3805,30 @@
     "version": 1
   },
   "rug_test": {
-    "category": "item",
+    "category": "test",
     "cubes": 0,
     "description": "Surface-projection test rug.",
+    "dims_units": [
+      1.4815,
+      0.037,
+      1.4815
+    ],
     "display_name": "Rug (Projection Test)",
-    "file": "rug_test.voxel",
+    "file": "test/rug_test.voxel",
     "fine_grid": 27,
     "fine_voxels": 1600,
+    "item_ids": [
+      "rug_test"
+    ],
+    "materials": [
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 1.4815,
+    "resolution_class": "fine-27",
     "subcategory": "rug",
     "subcubes": 0,
+    "surface": "texture=surface_test projection=planar axis=y",
     "tags": [
       "item",
       "rug",
@@ -1261,18 +3838,30 @@
     "version": 1
   },
   "rug_woven": {
-    "category": "item",
+    "category": "items",
     "cubes": 0,
     "description": "A hand-woven rug with a projected pattern; a loose furnishing, not baked voxels.",
+    "dims_units": [
+      1.4815,
+      0.037,
+      2.0
+    ],
     "display_name": "Woven Rug",
     "file": "items/rug_woven.voxel",
     "fine_grid": 27,
     "fine_voxels": 2160,
+    "item_ids": [
+      "rug_woven"
+    ],
+    "materials": [
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 2.0,
+    "resolution_class": "fine-27",
     "subcategory": "rug",
     "subcubes": 0,
+    "surface": "texture=rug_oriental projection=planar axis=y",
     "tags": [
       "item",
       "rug",
@@ -1283,17 +3872,48 @@
     "total": 2160,
     "version": 1
   },
+  "sconce": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/sconce.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Gold",
+      "Sand",
+      "glow"
+    ],
+    "microcubes": 7,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 7
+  },
   "scroll": {
-    "category": "item",
+    "category": "items",
     "cubes": 0,
     "description": "A rolled parchment scroll with a ribbon.",
+    "dims_units": [
+      0.2716,
+      0.0617,
+      0.0617
+    ],
     "display_name": "Scroll",
     "file": "items/scroll.voxel",
     "fine_grid": 81,
     "fine_voxels": 254,
+    "item_ids": [
+      "scroll"
+    ],
+    "materials": [
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 0.2716,
+    "resolution_class": "fine-81",
     "subcategory": "scroll",
     "subcubes": 0,
     "tags": [
@@ -1305,22 +3925,49 @@
     "total": 254,
     "version": 1
   },
+  "shop_detailed": {
+    "category": "architecture",
+    "cubes": 284,
+    "dims_units": [
+      12.0,
+      7.0,
+      10.0
+    ],
+    "file": "architecture/shop_detailed.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Cobblestone",
+      "Log",
+      "StoneBricks",
+      "Wood"
+    ],
+    "microcubes": 0,
+    "resolution_class": "subcube",
+    "subcubes": 2328,
+    "total": 2612
+  },
   "shrub_flat": {
     "category": "nature",
     "cost": null,
     "created": "2026-04-13T19:36:22.429693+00:00",
     "cubes": 0,
     "description": "A small dense bush, low and wide, flat-topped with thick leafy foliage.",
+    "dims_units": [
+      2.0,
+      1.0,
+      2.0
+    ],
     "display_name": "Flat Shrub",
-    "material": "Leaf",
+    "file": "nature/shrub_flat.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Leaf",
       "Wood"
     ],
+    "metrics_sidecar": true,
     "microcubes": 583,
     "model": "anthropic/claude-sonnet-4-20250514",
     "prompt": "a small dense bush, low and wide, flat-topped with thick leafy foliage and no visible trunk",
-    "size": 2.0,
+    "resolution_class": "microcube",
     "subcategory": "vegetation",
     "subcubes": 25,
     "tags": [
@@ -1338,16 +3985,22 @@
     "created": "2026-04-13T19:36:04.630473+00:00",
     "cubes": 0,
     "description": "A round leafy shrub, low to the ground, roughly spherical foliage with a short trunk.",
+    "dims_units": [
+      3.0,
+      2.0,
+      3.0
+    ],
     "display_name": "Round Shrub",
-    "material": "Leaf",
+    "file": "nature/shrub_round.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Leaf",
       "Wood"
     ],
+    "metrics_sidecar": true,
     "microcubes": 877,
     "model": "anthropic/claude-sonnet-4-20250514",
     "prompt": "a round leafy shrub, low to the ground, roughly spherical blob of foliage with a short stubby trunk",
-    "size": 2.0,
+    "resolution_class": "microcube",
     "subcategory": "vegetation",
     "subcubes": 62,
     "tags": [
@@ -1359,19 +4012,51 @@
     ],
     "total": 939
   },
+  "sideboard": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      2.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/sideboard.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Gold",
+      "Log",
+      "WoodWalnut"
+    ],
+    "microcubes": 436,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 436
+  },
   "sign_prancing_pony": {
-    "category": "item",
+    "category": "items",
     "cubes": 0,
     "description": "A thin hanging tavern sign board.",
+    "dims_units": [
+      2.0,
+      1.4815,
+      0.037
+    ],
     "display_name": "Sign: The Prancing Pony",
-    "file": "sign_prancing_pony.voxel",
+    "file": "items/sign_prancing_pony.voxel",
     "fine_grid": 27,
     "fine_voxels": 2160,
+    "item_ids": [
+      "prop_sign_prancing_pony"
+    ],
+    "materials": [
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 2.0,
+    "resolution_class": "fine-27",
     "subcategory": "sign",
     "subcubes": 0,
+    "surface": "texture=sign_prancing_pony projection=planar axis=z",
     "tags": [
       "item",
       "sign",
@@ -1387,15 +4072,22 @@
     "created": "2026-04-01T02:28:52.486557+00:00",
     "cubes": 0,
     "description": "A simple wooden dining table.",
-    "display_name": "Simple Table",
-    "material": "Wood",
-    "materials": [
-      "Wood"
+    "dims_units": [
+      2.0,
+      1.0,
+      1.0
     ],
+    "display_name": "Simple Table",
+    "file": "furniture/simple_table.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "WoodWalnut"
+    ],
+    "metrics_sidecar": true,
     "microcubes": 263,
     "model": "anthropic/claude-sonnet-4-20250514",
     "prompt": "a simple wooden dining table",
-    "size": 2.0,
+    "resolution_class": "microcube",
     "subcategory": "table",
     "subcubes": 0,
     "tags": [
@@ -1408,16 +4100,33 @@
     "total": 263
   },
   "spear": {
-    "category": "weapon",
+    "category": "weapons",
     "cubes": 0,
     "description": "A long ash spear with a leaf-shaped head.",
+    "dims_units": [
+      0.0864,
+      1.9136,
+      0.0247
+    ],
     "display_name": "Spear",
     "file": "weapons/spear.voxel",
     "fine_grid": 81,
     "fine_voxels": 637,
+    "grip_point_units": [
+      0.0432,
+      0.8704,
+      0.0062
+    ],
+    "item_ids": [
+      "spear"
+    ],
+    "materials": [
+      "Steel",
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 1.9136,
+    "resolution_class": "fine-81",
     "subcategory": "spear",
     "subcubes": 0,
     "tags": [
@@ -1429,17 +4138,73 @@
     "total": 637,
     "version": 1
   },
+  "spoon": {
+    "category": "items",
+    "cubes": 0,
+    "description": "A steel spoon.",
+    "dims_units": [
+      0.0617,
+      0.1358,
+      0.0617
+    ],
+    "display_name": "Spoon",
+    "file": "items/spoon.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 35,
+    "grip_point_units": [
+      0.0309,
+      0.0432,
+      0.0309
+    ],
+    "item_ids": [
+      "spoon"
+    ],
+    "materials": [
+      "Steel"
+    ],
+    "method": "gen_items",
+    "microcubes": 0,
+    "resolution_class": "fine-81",
+    "subcategory": "cutlery",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "spoon",
+      "cutlery",
+      "tavern"
+    ],
+    "total": 35,
+    "version": 1
+  },
   "staff_arcane": {
-    "category": "weapon",
+    "category": "weapons",
     "cubes": 0,
     "description": "A gold-chased staff with a violet crystal.",
+    "dims_units": [
+      0.1111,
+      1.6296,
+      0.1111
+    ],
     "display_name": "Staff of the Arcanum",
     "file": "weapons/staff_arcane.voxel",
     "fine_grid": 81,
     "fine_voxels": 589,
+    "grip_point_units": [
+      0.0556,
+      0.7593,
+      0.0556
+    ],
+    "item_ids": [
+      "staff_arcane"
+    ],
+    "materials": [
+      "Glass",
+      "Steel",
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 1.6296,
+    "resolution_class": "fine-81",
     "subcategory": "staff",
     "subcubes": 0,
     "tags": [
@@ -1452,16 +4217,34 @@
     "version": 1
   },
   "staff_fire": {
-    "category": "weapon",
+    "category": "weapons",
     "cubes": 0,
     "description": "A fire-mage's staff with a caged ember orb.",
+    "dims_units": [
+      0.1111,
+      1.6296,
+      0.1111
+    ],
     "display_name": "Staff of Embers",
     "file": "weapons/staff_fire.voxel",
     "fine_grid": 81,
     "fine_voxels": 589,
+    "grip_point_units": [
+      0.0556,
+      0.7593,
+      0.0556
+    ],
+    "item_ids": [
+      "staff_fire"
+    ],
+    "materials": [
+      "Steel",
+      "Wood",
+      "glow"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 1.6296,
+    "resolution_class": "fine-81",
     "subcategory": "staff",
     "subcubes": 0,
     "tags": [
@@ -1474,16 +4257,34 @@
     "version": 1
   },
   "staff_frost": {
-    "category": "weapon",
+    "category": "weapons",
     "cubes": 0,
     "description": "A frost-mage's staff with a pale blue orb.",
+    "dims_units": [
+      0.1111,
+      1.6296,
+      0.1111
+    ],
     "display_name": "Staff of Rime",
     "file": "weapons/staff_frost.voxel",
     "fine_grid": 81,
     "fine_voxels": 589,
+    "grip_point_units": [
+      0.0556,
+      0.7593,
+      0.0556
+    ],
+    "item_ids": [
+      "staff_frost"
+    ],
+    "materials": [
+      "Steel",
+      "Wood",
+      "glow_blue"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 1.6296,
+    "resolution_class": "fine-81",
     "subcategory": "staff",
     "subcubes": 0,
     "tags": [
@@ -1496,16 +4297,34 @@
     "version": 1
   },
   "staff_nature": {
-    "category": "weapon",
+    "category": "weapons",
     "cubes": 0,
     "description": "A living staff cradling a verdant orb.",
+    "dims_units": [
+      0.1111,
+      1.6296,
+      0.1111
+    ],
     "display_name": "Staff of the Grove",
     "file": "weapons/staff_nature.voxel",
     "fine_grid": 81,
     "fine_voxels": 589,
+    "grip_point_units": [
+      0.0556,
+      0.7593,
+      0.0556
+    ],
+    "item_ids": [
+      "staff_nature"
+    ],
+    "materials": [
+      "Steel",
+      "Wood",
+      "glow_green"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 1.6296,
+    "resolution_class": "fine-81",
     "subcategory": "staff",
     "subcubes": 0,
     "tags": [
@@ -1518,26 +4337,30 @@
     "version": 1
   },
   "stool": {
-    "bounds": {
-      "d": 1,
-      "h": 1,
-      "w": 1
-    },
     "category": "furniture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A simple wooden stool with a full round seat and three legs (tripod). Bar stool style.",
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
     "display_name": "Wooden Stool",
     "facing": "+Z",
+    "file": "furniture/stool.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Wood"
+      "WoodWalnut"
     ],
     "method": "hand-authored (/model skill, 1 round)",
-    "microcubes": 0,
+    "metrics_sidecar": true,
+    "microcubes": 21,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "microcube",
     "seat_height": 0.667,
     "subcategory": "seating",
-    "subcubes": 15,
+    "subcubes": 0,
     "tags": [
       "stool",
       "seat",
@@ -1547,22 +4370,47 @@
       "inn",
       "common"
     ],
-    "total": 15,
+    "total": 21,
     "version": 1
   },
+  "stool_low": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/stool_low.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Wood"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 0,
+    "resolution_class": "subcube",
+    "subcubes": 4,
+    "total": 4
+  },
   "sword": {
-    "category": "weapon",
+    "category": "weapons",
     "created": "2026-04-21T00:00:00.000000+00:00",
     "cubes": 5,
     "description": "A simple sword \u2014 wood handle, metal blade, 1\u00d75\u00d71 cubes.",
+    "dims_units": [
+      1.0,
+      5.0,
+      1.0
+    ],
     "display_name": "Sword",
     "file": "weapons/sword.voxel",
-    "material": "Metal",
+    "fine_voxels": 0,
     "materials": [
-      "Wood",
-      "Metal"
+      "Metal",
+      "Wood"
     ],
     "microcubes": 0,
+    "resolution_class": "cube",
     "subcategory": "melee",
     "subcubes": 0,
     "tags": [
@@ -1574,17 +4422,53 @@
     ],
     "total": 5
   },
+  "sword_fine": {
+    "category": "weapons",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
+    "file": "weapons/sword_fine.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Metal",
+      "Wood"
+    ],
+    "microcubes": 17,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 17
+  },
   "sword_long": {
-    "category": "weapon",
+    "category": "weapons",
     "cubes": 0,
     "description": "A hand-and-a-half longsword with a leather-wrapped grip.",
+    "dims_units": [
+      0.2099,
+      1.2222,
+      0.0617
+    ],
     "display_name": "Longsword",
     "file": "weapons/sword_long.voxel",
     "fine_grid": 81,
     "fine_voxels": 931,
+    "grip_point_units": [
+      0.1049,
+      0.1173,
+      0.0309
+    ],
+    "item_ids": [
+      "iron_sword"
+    ],
+    "materials": [
+      "Steel",
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 1.2222,
+    "resolution_class": "fine-81",
     "subcategory": "sword",
     "subcubes": 0,
     "tags": [
@@ -1597,16 +4481,33 @@
     "version": 1
   },
   "sword_short": {
-    "category": "weapon",
+    "category": "weapons",
     "cubes": 0,
     "description": "A broad one-handed short sword.",
+    "dims_units": [
+      0.1605,
+      0.7531,
+      0.0617
+    ],
     "display_name": "Short Sword",
     "file": "weapons/sword_short.voxel",
     "fine_grid": 81,
     "fine_voxels": 567,
+    "grip_point_units": [
+      0.0802,
+      0.0926,
+      0.0309
+    ],
+    "item_ids": [
+      "short_sword"
+    ],
+    "materials": [
+      "Steel",
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 0.7531,
+    "resolution_class": "fine-81",
     "subcategory": "sword",
     "subcubes": 0,
     "tags": [
@@ -1619,25 +4520,29 @@
     "version": 1
   },
   "table_wood": {
-    "bounds": {
-      "d": 1,
-      "h": 1,
-      "w": 1
-    },
     "category": "furniture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A simple square wooden dining table with a full top slab and four corner legs.",
+    "dims_units": [
+      2.0,
+      1.0,
+      1.0
+    ],
     "display_name": "Wooden Table",
     "facing": "+Z",
+    "file": "furniture/table_wood.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Wood"
+      "WoodWalnut"
     ],
     "method": "hand-authored (/model skill, 1 round)",
-    "microcubes": 0,
+    "metrics_sidecar": true,
+    "microcubes": 128,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "microcube",
     "subcategory": "surface",
-    "subcubes": 17,
+    "subcubes": 0,
     "tags": [
       "table",
       "dining",
@@ -1646,32 +4551,80 @@
       "inn",
       "common"
     ],
-    "total": 17,
+    "total": 128,
+    "version": 1
+  },
+  "tankard": {
+    "category": "items",
+    "cubes": 0,
+    "description": "A stave-built ale tankard with steel bands.",
+    "dims_units": [
+      0.1111,
+      0.0988,
+      0.0864
+    ],
+    "display_name": "Tankard",
+    "file": "items/tankard.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 240,
+    "grip_point_units": [
+      0.1049,
+      0.0432,
+      0.0432
+    ],
+    "item_ids": [
+      "tankard"
+    ],
+    "materials": [
+      "Steel",
+      "Wood"
+    ],
+    "method": "gen_items",
+    "microcubes": 0,
+    "resolution_class": "fine-81",
+    "subcategory": "tableware",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "tankard",
+      "mug",
+      "tavern",
+      "drink"
+    ],
+    "total": 240,
     "version": 1
   },
   "tavern_bar": {
     "category": "furniture",
     "cost": null,
     "created": "2026-04-01T02:39:18.642804+00:00",
-    "cubes": 3,
+    "cubes": 0,
     "description": "A long wooden bar counter, rectangular and waist height.",
-    "display_name": "Tavern Bar Counter",
-    "material": "Wood",
-    "materials": [
-      "Wood"
+    "dims_units": [
+      3.0,
+      2.0,
+      1.0
     ],
-    "microcubes": 1562,
+    "display_name": "Tavern Bar Counter",
+    "file": "furniture/tavern_bar.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Log",
+      "WoodWalnut"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 529,
     "model": "anthropic/claude-sonnet-4-20250514",
     "prompt": "a long wooden bar counter for a tavern, rectangular and waist height",
-    "size": 4.0,
+    "resolution_class": "microcube",
     "subcategory": "counter",
-    "subcubes": 18,
+    "subcubes": 0,
     "tags": [
       "bar",
       "counter",
       "tavern"
     ],
-    "total": 1583
+    "total": 529
   },
   "tavern_table": {
     "category": "furniture",
@@ -1679,15 +4632,22 @@
     "created": "2026-04-01T02:38:53.256860+00:00",
     "cubes": 0,
     "description": "A small rectangular wooden tavern table with four legs.",
-    "display_name": "Tavern Table",
-    "material": "Wood",
-    "materials": [
-      "Wood"
+    "dims_units": [
+      2.0,
+      1.0,
+      1.0
     ],
-    "microcubes": 159,
+    "display_name": "Tavern Table",
+    "file": "furniture/tavern_table.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "WoodWalnut"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 143,
     "model": "anthropic/claude-sonnet-4-20250514",
     "prompt": "a small rectangular wooden tavern table with four legs",
-    "size": 2.0,
+    "resolution_class": "microcube",
     "subcategory": "table",
     "subcubes": 0,
     "tags": [
@@ -1695,7 +4655,7 @@
       "tavern",
       "common"
     ],
-    "total": 159
+    "total": 143
   },
   "tavern_test": {
     "building": {
@@ -1708,13 +4668,19 @@
       "width": 14,
       "windows": 2
     },
-    "category": "building",
+    "category": "test",
     "cost": null,
     "created": "2026-04-01T15:36:35.268770+00:00",
     "cubes": 1168,
     "description": "A medieval stone-walled tavern, 14\u00d718 footprint, 1 story with wood floor and roof.",
+    "dims_units": [
+      16.0,
+      10.0,
+      20.0
+    ],
     "display_name": "Tavern Building",
-    "material": "Stone",
+    "file": "test/tavern_test.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Stone",
       "Wood"
@@ -1722,7 +4688,7 @@
     "microcubes": 0,
     "model": "anthropic/claude-sonnet-4-20250514",
     "prompt": "a medieval tavern building",
-    "size": 18.0,
+    "resolution_class": "cube",
     "subcategory": "tavern",
     "subcubes": 0,
     "tags": [
@@ -1735,9 +4701,17 @@
     "total": 1168
   },
   "test_chair": {
-    "category": "furniture",
+    "category": "test",
+    "cubes": 0,
     "description": "A simple wooden chair with a sit interaction point.",
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
     "display_name": "Wooden Chair",
+    "file": "test/test_chair.voxel",
+    "fine_voxels": 0,
     "interactions": [
       {
         "approach_offset": {
@@ -1755,32 +4729,85 @@
         "type": "seat"
       }
     ],
-    "material": "Wood",
     "materials": [
       "Wood"
     ],
+    "metrics_sidecar": true,
+    "microcubes": 99,
     "prompt": "a simple wooden chair",
-    "size": 1.2,
+    "resolution_class": "microcube",
     "subcategory": "seating",
+    "subcubes": 0,
     "tags": [
       "chair",
       "seat",
       "house",
       "tavern",
       "common"
-    ]
+    ],
+    "total": 99
+  },
+  "throwing_knife": {
+    "category": "weapons",
+    "cubes": 0,
+    "description": "A balanced steel throwing knife.",
+    "dims_units": [
+      0.0247,
+      0.1605,
+      0.0123
+    ],
+    "display_name": "Throwing Knife",
+    "file": "weapons/throwing_knife.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 19,
+    "grip_point_units": [
+      0.0062,
+      0.0309,
+      0.0062
+    ],
+    "item_ids": [
+      "throwing_knife"
+    ],
+    "materials": [
+      "Steel"
+    ],
+    "method": "gen_items",
+    "microcubes": 0,
+    "resolution_class": "fine-81",
+    "subcategory": "knife",
+    "subcubes": 0,
+    "tags": [
+      "weapon",
+      "knife",
+      "ranged",
+      "thrown"
+    ],
+    "total": 19,
+    "version": 1
   },
   "tome": {
-    "category": "item",
+    "category": "items",
     "cubes": 0,
     "description": "A gilt-cornered leather tome with a clasp.",
+    "dims_units": [
+      0.2346,
+      0.0741,
+      0.2963
+    ],
     "display_name": "Leather Tome",
     "file": "items/tome.voxel",
     "fine_grid": 81,
     "fine_voxels": 2530,
+    "item_ids": [
+      "tome_leather"
+    ],
+    "materials": [
+      "Gold",
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 0.2963,
+    "resolution_class": "fine-81",
     "subcategory": "book",
     "subcubes": 0,
     "tags": [
@@ -1794,18 +4821,31 @@
     "version": 1
   },
   "tome_arcane": {
-    "category": "item",
+    "category": "items",
     "cubes": 0,
     "description": "A slim violet tome; cover art projected across the boards.",
+    "dims_units": [
+      0.2346,
+      0.0494,
+      0.2963
+    ],
     "display_name": "Arcane Tome",
-    "file": "tome_arcane.voxel",
+    "file": "items/tome_arcane.voxel",
     "fine_grid": 81,
     "fine_voxels": 1714,
+    "item_ids": [
+      "prop_tome_arcane"
+    ],
+    "materials": [
+      "Gold",
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 0.2963,
+    "resolution_class": "fine-81",
     "subcategory": "book",
     "subcubes": 0,
+    "surface": "texture=tome_arcane projection=planar axis=y",
     "tags": [
       "item",
       "book",
@@ -1817,18 +4857,31 @@
     "version": 1
   },
   "tome_fire": {
-    "category": "item",
+    "category": "items",
     "cubes": 0,
     "description": "A slim ember-red tome with projected cover art.",
+    "dims_units": [
+      0.2346,
+      0.0494,
+      0.2963
+    ],
     "display_name": "Tome of Embers",
-    "file": "tome_fire.voxel",
+    "file": "items/tome_fire.voxel",
     "fine_grid": 81,
     "fine_voxels": 1714,
+    "item_ids": [
+      "prop_tome_fire"
+    ],
+    "materials": [
+      "Gold",
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 0.2963,
+    "resolution_class": "fine-81",
     "subcategory": "book",
     "subcubes": 0,
+    "surface": "texture=tome_fire projection=planar axis=y",
     "tags": [
       "item",
       "book",
@@ -1840,18 +4893,31 @@
     "version": 1
   },
   "tome_necromantic": {
-    "category": "item",
+    "category": "items",
     "cubes": 0,
     "description": "A slim grave-green tome with projected cover art.",
+    "dims_units": [
+      0.2346,
+      0.0494,
+      0.2963
+    ],
     "display_name": "Necromantic Tome",
-    "file": "tome_necromantic.voxel",
+    "file": "items/tome_necromantic.voxel",
     "fine_grid": 81,
     "fine_voxels": 1714,
+    "item_ids": [
+      "prop_tome_necromantic"
+    ],
+    "materials": [
+      "Gold",
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 0.2963,
+    "resolution_class": "fine-81",
     "subcategory": "book",
     "subcubes": 0,
+    "surface": "texture=tome_necromantic projection=planar axis=y",
     "tags": [
       "item",
       "book",
@@ -1862,17 +4928,54 @@
     "total": 1714,
     "version": 1
   },
+  "tool_rack": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/tool_rack.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Metal",
+      "WoodWalnut"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 75,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 75
+  },
   "torch": {
-    "category": "item",
+    "category": "items",
     "cubes": 0,
     "description": "A tar-wrapped torch with a glowing ember crown.",
+    "dims_units": [
+      0.0494,
+      0.3951,
+      0.0494
+    ],
     "display_name": "Torch",
     "file": "items/torch.voxel",
     "fine_grid": 81,
     "fine_voxels": 236,
+    "grip_point_units": [
+      0.0185,
+      0.1049,
+      0.0185
+    ],
+    "item_ids": [
+      "torch"
+    ],
+    "materials": [
+      "Wood",
+      "glow"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 0.3951,
+    "resolution_class": "fine-81",
     "subcategory": "torch",
     "subcubes": 0,
     "tags": [
@@ -1884,25 +4987,29 @@
     "version": 1
   },
   "torch_wall": {
-    "bounds": {
-      "d": 1,
-      "h": 1,
-      "w": 1
-    },
     "category": "furniture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A wall-mounted torch with a metal bracket at the back, a wooden shaft, and a glowing flame.",
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
     "display_name": "Wall Torch",
     "facing": "+Z",
+    "file": "furniture/torch_wall.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Metal",
       "Wood",
       "glow"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "light_source",
     "subcubes": 5,
     "tags": [
@@ -1925,8 +5032,14 @@
     "created": "2026-06-14T23:36:44.858157+00:00",
     "cubes": 0,
     "description": "Procedural acacia tree, height 8, fullness 0.85, seed 15.",
+    "dims_units": [
+      17.0,
+      9.0,
+      15.0
+    ],
     "display_name": "Acacia Tree (Large)",
-    "material": "Leaf",
+    "file": "nature/tree_acacia_l.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Leaf",
       "Log"
@@ -1934,7 +5047,7 @@
     "microcubes": 4,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 8.0,
+    "resolution_class": "microcube",
     "subcategory": "trees",
     "subcubes": 3149,
     "tags": [
@@ -1952,8 +5065,14 @@
     "created": "2026-06-14T23:36:44.832624+00:00",
     "cubes": 0,
     "description": "Procedural acacia tree, height 6, fullness 0.85, seed 14.",
+    "dims_units": [
+      11.0,
+      7.0,
+      11.0
+    ],
     "display_name": "Acacia Tree (Medium)",
-    "material": "Leaf",
+    "file": "nature/tree_acacia_m.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Leaf",
       "Log"
@@ -1961,7 +5080,7 @@
     "microcubes": 2,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 6.0,
+    "resolution_class": "microcube",
     "subcategory": "trees",
     "subcubes": 1475,
     "tags": [
@@ -1974,25 +5093,29 @@
     "total": 1477
   },
   "tree_apple": {
-    "bounds": {
-      "d": 1,
-      "h": 2,
-      "w": 1
-    },
     "category": "nature",
     "created": "2026-05-17T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A two-cube-tall apple tree with a Log trunk, wide Leaf canopy, and three glow apple subcubes nestled in the foliage.",
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
     "display_name": "Apple Tree",
     "facing": "+Z",
+    "file": "nature/tree_apple.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Log",
       "Leaf",
-      "glow"
+      "LeafAutumn",
+      "Log"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "tree",
     "subcubes": 22,
     "tags": [
@@ -2014,8 +5137,14 @@
     "created": "2026-06-14T23:36:44.555169+00:00",
     "cubes": 11,
     "description": "Procedural autumn tree, height 7, fullness 0.85, seed 11.",
+    "dims_units": [
+      13.0,
+      12.0,
+      10.0
+    ],
     "display_name": "Autumn Tree (Medium)",
-    "material": "LeafAutumn",
+    "file": "nature/tree_autumn_m.voxel",
+    "fine_voxels": 0,
     "materials": [
       "LeafAutumn",
       "Log"
@@ -2023,7 +5152,7 @@
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 7.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 4675,
     "tags": [
@@ -2036,24 +5165,28 @@
     "total": 4686
   },
   "tree_birch": {
-    "bounds": {
-      "d": 1,
-      "h": 2,
-      "w": 1
-    },
     "category": "nature",
     "created": "2026-05-17T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A two-cube-tall birch tree with a pale Wood trunk running full height and an oval Leaf canopy.",
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
     "display_name": "Birch Tree",
     "facing": "+Z",
+    "file": "nature/tree_birch.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Wood",
-      "Leaf"
+      "Leaf",
+      "Wood"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "tree",
     "subcubes": 22,
     "tags": [
@@ -2075,8 +5208,14 @@
     "created": "2026-06-14T23:36:44.596797+00:00",
     "cubes": 4,
     "description": "Procedural birch tree, height 10, fullness 0.85, seed 6.",
+    "dims_units": [
+      7.0,
+      14.0,
+      7.0
+    ],
     "display_name": "Birch Tree (Tall)",
-    "material": "LeafBirch",
+    "file": "nature/tree_birch_l.voxel",
+    "fine_voxels": 0,
     "materials": [
       "LeafBirch",
       "LogBirch"
@@ -2084,7 +5223,7 @@
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 10.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 1213,
     "tags": [
@@ -2102,8 +5241,14 @@
     "created": "2026-06-14T23:36:44.575207+00:00",
     "cubes": 3,
     "description": "Procedural birch tree, height 8, fullness 0.85, seed 5.",
+    "dims_units": [
+      6.0,
+      11.0,
+      6.0
+    ],
     "display_name": "Birch Tree (Medium)",
-    "material": "LeafBirch",
+    "file": "nature/tree_birch_m.voxel",
+    "fine_voxels": 0,
     "materials": [
       "LeafBirch",
       "LogBirch"
@@ -2111,7 +5256,7 @@
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 8.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 1117,
     "tags": [
@@ -2129,8 +5274,14 @@
     "created": "2026-06-14T23:36:45.110227+00:00",
     "cubes": 3,
     "description": "Procedural birch tree, height 8, fullness 0.55, seed 33.",
+    "dims_units": [
+      6.0,
+      12.0,
+      5.0
+    ],
     "display_name": "Birch Tree (Sparse)",
-    "material": "LeafBirch",
+    "file": "nature/tree_birch_sparse.voxel",
+    "fine_voxels": 0,
     "materials": [
       "LeafBirch",
       "LogBirch"
@@ -2138,7 +5289,7 @@
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 8.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 992,
     "tags": [
@@ -2151,23 +5302,27 @@
     "total": 995
   },
   "tree_dead": {
-    "bounds": {
-      "d": 1,
-      "h": 2,
-      "w": 1
-    },
     "category": "nature",
     "created": "2026-05-17T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A two-cube-tall bare dead tree with a Wood trunk and six gnarled branch stubs at two heights \u2014 no leaves.",
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
     "display_name": "Dead Tree",
     "facing": "+Z",
+    "file": "nature/tree_dead.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Wood"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "tree",
     "subcubes": 12,
     "tags": [
@@ -2190,15 +5345,21 @@
     "created": "2026-06-14T23:36:44.916589+00:00",
     "cubes": 3,
     "description": "Procedural dead tree, height 7, fullness 0.85, seed 20.",
+    "dims_units": [
+      4.0,
+      8.0,
+      4.0
+    ],
     "display_name": "Dead Tree (Medium)",
-    "material": "LogSpruce",
+    "file": "nature/tree_dead_m.voxel",
+    "fine_voxels": 0,
     "materials": [
       "LogSpruce"
     ],
     "microcubes": 1,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 7.0,
+    "resolution_class": "microcube",
     "subcategory": "trees",
     "subcubes": 116,
     "tags": [
@@ -2216,15 +5377,21 @@
     "created": "2026-06-14T23:36:44.912627+00:00",
     "cubes": 2,
     "description": "Procedural dead tree, height 5, fullness 0.85, seed 19.",
+    "dims_units": [
+      5.0,
+      6.0,
+      4.0
+    ],
     "display_name": "Dead Tree (Small)",
-    "material": "LogSpruce",
+    "file": "nature/tree_dead_s.voxel",
+    "fine_voxels": 0,
     "materials": [
       "LogSpruce"
     ],
     "microcubes": 2,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 5.0,
+    "resolution_class": "microcube",
     "subcategory": "trees",
     "subcubes": 116,
     "tags": [
@@ -2242,8 +5409,14 @@
     "created": "2026-07-04T13:59:51.101963+00:00",
     "cubes": 35730,
     "description": "Procedural elder_oak tree, height 32, fullness 0.85, seed 53.",
+    "dims_units": [
+      42.0,
+      66.0,
+      48.0
+    ],
     "display_name": "Elder Oak (World-Tree)",
-    "material": "Leaf",
+    "file": "nature/tree_elder_oak.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Leaf",
       "Log",
@@ -2252,7 +5425,7 @@
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 32.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 19,
     "tags": [
@@ -2270,8 +5443,14 @@
     "created": "2026-07-04T14:00:00.657169+00:00",
     "cubes": 42041,
     "description": "Procedural elder_oak tree, height 38, fullness 0.85, seed 54.",
+    "dims_units": [
+      49.0,
+      75.0,
+      50.0
+    ],
     "display_name": "Elder Oak (Great World-Tree)",
-    "material": "Leaf",
+    "file": "nature/tree_elder_oak_xl.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Leaf",
       "Log",
@@ -2280,7 +5459,7 @@
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 38.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 5,
     "tags": [
@@ -2298,8 +5477,14 @@
     "created": "2026-07-04T02:20:51.324216+00:00",
     "cubes": 40,
     "description": "Procedural fir tree, height 18, fullness 1.0, seed 45.",
+    "dims_units": [
+      5.0,
+      20.0,
+      5.0
+    ],
     "display_name": "Fir Tree (Tall)",
-    "material": "LeafSpruce",
+    "file": "nature/tree_fir_l.voxel",
+    "fine_voxels": 0,
     "materials": [
       "LeafSpruce",
       "LogSpruce"
@@ -2307,7 +5492,7 @@
     "microcubes": 1,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 18.0,
+    "resolution_class": "microcube",
     "subcategory": "trees",
     "subcubes": 1391,
     "tags": [
@@ -2325,8 +5510,14 @@
     "created": "2026-07-04T02:20:51.296410+00:00",
     "cubes": 11,
     "description": "Procedural fir tree, height 14, fullness 1.0, seed 44.",
+    "dims_units": [
+      5.0,
+      16.0,
+      5.0
+    ],
     "display_name": "Fir Tree (Medium)",
-    "material": "LeafSpruce",
+    "file": "nature/tree_fir_m.voxel",
+    "fine_voxels": 0,
     "materials": [
       "LeafSpruce",
       "LogSpruce"
@@ -2334,7 +5525,7 @@
     "microcubes": 1,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 14.0,
+    "resolution_class": "microcube",
     "subcategory": "trees",
     "subcubes": 784,
     "tags": [
@@ -2352,8 +5543,14 @@
     "created": "2026-06-14T23:36:44.725872+00:00",
     "cubes": 85,
     "description": "Procedural jungle tree, height 12, fullness 0.85, seed 12.",
+    "dims_units": [
+      9.0,
+      15.0,
+      9.0
+    ],
     "display_name": "Jungle Tree (Medium)",
-    "material": "LeafJungle",
+    "file": "nature/tree_jungle_m.voxel",
+    "fine_voxels": 0,
     "materials": [
       "LeafJungle",
       "Log"
@@ -2361,7 +5558,7 @@
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 12.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 2141,
     "tags": [
@@ -2379,8 +5576,14 @@
     "created": "2026-06-14T23:36:44.817781+00:00",
     "cubes": 218,
     "description": "Procedural jungle tree, height 15, fullness 0.85, seed 13.",
+    "dims_units": [
+      11.0,
+      19.0,
+      11.0
+    ],
     "display_name": "Jungle Tree (Giant)",
-    "material": "LeafJungle",
+    "file": "nature/tree_jungle_xl.voxel",
+    "fine_voxels": 0,
     "materials": [
       "LeafJungle",
       "Log"
@@ -2388,7 +5591,7 @@
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 15.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 3909,
     "tags": [
@@ -2401,24 +5604,28 @@
     "total": 4127
   },
   "tree_oak": {
-    "bounds": {
-      "d": 1,
-      "h": 2,
-      "w": 1
-    },
     "category": "nature",
     "created": "2026-05-17T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A two-cube-tall oak tree with a Log trunk, flaring branch stubs, and a wide round Leaf canopy dome.",
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
     "display_name": "Oak Tree",
     "facing": "+Z",
+    "file": "nature/tree_oak.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Log",
-      "Leaf"
+      "Leaf",
+      "Log"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "tree",
     "subcubes": 22,
     "tags": [
@@ -2440,8 +5647,14 @@
     "created": "2026-06-14T23:36:44.480872+00:00",
     "cubes": 19,
     "description": "Procedural oak tree, height 10, fullness 0.85, seed 3.",
+    "dims_units": [
+      16.0,
+      15.0,
+      14.0
+    ],
     "display_name": "Oak Tree (Large)",
-    "material": "Leaf",
+    "file": "nature/tree_oak_l.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Leaf",
       "Log"
@@ -2449,7 +5662,7 @@
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 10.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 6503,
     "tags": [
@@ -2467,8 +5680,14 @@
     "created": "2026-06-14T23:36:45.026241+00:00",
     "cubes": 10,
     "description": "Procedural oak tree, height 9, fullness 1.0, seed 31.",
+    "dims_units": [
+      12.0,
+      11.0,
+      12.0
+    ],
     "display_name": "Oak Tree (Lush)",
-    "material": "Leaf",
+    "file": "nature/tree_oak_lush.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Leaf",
       "Log"
@@ -2476,7 +5695,7 @@
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 9.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 4176,
     "tags": [
@@ -2494,8 +5713,14 @@
     "created": "2026-06-14T23:36:44.374236+00:00",
     "cubes": 11,
     "description": "Procedural oak tree, height 7, fullness 0.85, seed 2.",
+    "dims_units": [
+      12.0,
+      12.0,
+      14.0
+    ],
     "display_name": "Oak Tree (Medium)",
-    "material": "Leaf",
+    "file": "nature/tree_oak_m.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Leaf",
       "Log"
@@ -2503,7 +5728,7 @@
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 7.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 5009,
     "tags": [
@@ -2521,8 +5746,14 @@
     "created": "2026-06-14T23:36:44.295906+00:00",
     "cubes": 7,
     "description": "Procedural oak tree, height 5, fullness 0.85, seed 1.",
+    "dims_units": [
+      9.0,
+      9.0,
+      7.0
+    ],
     "display_name": "Oak Tree (Small)",
-    "material": "Leaf",
+    "file": "nature/tree_oak_s.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Leaf",
       "Log"
@@ -2530,7 +5761,7 @@
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 5.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 1978,
     "tags": [
@@ -2548,8 +5779,14 @@
     "created": "2026-06-14T23:36:45.091562+00:00",
     "cubes": 6,
     "description": "Procedural oak tree, height 6, fullness 0.55, seed 32.",
+    "dims_units": [
+      9.0,
+      10.0,
+      10.0
+    ],
     "display_name": "Oak Tree (Sparse)",
-    "material": "Leaf",
+    "file": "nature/tree_oak_sparse.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Leaf",
       "Log"
@@ -2557,7 +5794,7 @@
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 6.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 3780,
     "tags": [
@@ -2570,24 +5807,28 @@
     "total": 3786
   },
   "tree_palm": {
-    "bounds": {
-      "d": 1,
-      "h": 2,
-      "w": 1
-    },
     "category": "nature",
     "created": "2026-05-17T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A two-cube-tall palm tree with a Log trunk, four drooping frond tips at mid height, and a crown of horizontal fronds.",
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
     "display_name": "Palm Tree",
     "facing": "+Z",
+    "file": "nature/tree_palm.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Log",
-      "Leaf"
+      "Leaf",
+      "Log"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "tree",
     "subcubes": 12,
     "tags": [
@@ -2609,15 +5850,21 @@
     "created": "2026-06-14T23:36:44.865904+00:00",
     "cubes": 0,
     "description": "Procedural palm tree, height 10, fullness 0.85, seed 17.",
+    "dims_units": [
+      2.0,
+      10.0,
+      1.0
+    ],
     "display_name": "Palm Tree (Tall)",
-    "material": "Log",
+    "file": "nature/tree_palm_l.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Log"
     ],
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 10.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 120,
     "tags": [
@@ -2635,15 +5882,21 @@
     "created": "2026-06-14T23:36:44.862145+00:00",
     "cubes": 0,
     "description": "Procedural palm tree, height 8, fullness 0.85, seed 16.",
+    "dims_units": [
+      2.0,
+      8.0,
+      1.0
+    ],
     "display_name": "Palm Tree (Medium)",
-    "material": "Log",
+    "file": "nature/tree_palm_m.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Log"
     ],
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 8.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 96,
     "tags": [
@@ -2656,24 +5909,28 @@
     "total": 96
   },
   "tree_pine": {
-    "bounds": {
-      "d": 1,
-      "h": 3,
-      "w": 1
-    },
     "category": "nature",
     "created": "2026-05-17T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A three-cube-tall pine tree with a Log trunk and three narrowing tiers of Leaf branches forming a triangular silhouette.",
+    "dims_units": [
+      1.0,
+      3.0,
+      1.0
+    ],
     "display_name": "Pine Tree",
     "facing": "+Z",
+    "file": "nature/tree_pine.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Log",
-      "Leaf"
+      "Leaf",
+      "Log"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "tree",
     "subcubes": 27,
     "tags": [
@@ -2694,8 +5951,14 @@
     "created": "2026-07-04T02:20:51.268244+00:00",
     "cubes": 8,
     "description": "Procedural pine tree, height 18, fullness 1.0, seed 43.",
+    "dims_units": [
+      7.0,
+      19.0,
+      7.0
+    ],
     "display_name": "Pine Tree (Tall)",
-    "material": "LeafSpruce",
+    "file": "nature/tree_pine_l.voxel",
+    "fine_voxels": 0,
     "materials": [
       "LeafSpruce",
       "Log"
@@ -2703,7 +5966,7 @@
     "microcubes": 28,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 18.0,
+    "resolution_class": "microcube",
     "subcategory": "trees",
     "subcubes": 1696,
     "tags": [
@@ -2721,8 +5984,14 @@
     "created": "2026-07-04T02:20:51.231061+00:00",
     "cubes": 5,
     "description": "Procedural pine tree, height 12, fullness 1.0, seed 42.",
+    "dims_units": [
+      5.0,
+      13.0,
+      5.0
+    ],
     "display_name": "Pine Tree (Medium)",
-    "material": "LeafSpruce",
+    "file": "nature/tree_pine_m.voxel",
+    "fine_voxels": 0,
     "materials": [
       "LeafSpruce",
       "Log"
@@ -2730,7 +5999,7 @@
     "microcubes": 20,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 12.0,
+    "resolution_class": "microcube",
     "subcategory": "trees",
     "subcubes": 506,
     "tags": [
@@ -2748,8 +6017,14 @@
     "created": "2026-07-04T02:20:51.208924+00:00",
     "cubes": 4,
     "description": "Procedural pine tree, height 10, fullness 1.0, seed 41.",
+    "dims_units": [
+      3.0,
+      11.0,
+      3.0
+    ],
     "display_name": "Pine Tree (Small)",
-    "material": "LeafSpruce",
+    "file": "nature/tree_pine_s.voxel",
+    "fine_voxels": 0,
     "materials": [
       "LeafSpruce",
       "Log"
@@ -2757,7 +6032,7 @@
     "microcubes": 16,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 10.0,
+    "resolution_class": "microcube",
     "subcategory": "trees",
     "subcubes": 291,
     "tags": [
@@ -2775,8 +6050,14 @@
     "created": "2026-07-04T14:00:06.319337+00:00",
     "cubes": 26550,
     "description": "Procedural redwood tree, height 46, fullness 0.85, seed 51.",
+    "dims_units": [
+      41.0,
+      74.0,
+      41.0
+    ],
     "display_name": "Redwood (Broad Giant)",
-    "material": "Leaf",
+    "file": "nature/tree_redwood_l.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Leaf",
       "Log"
@@ -2784,7 +6065,7 @@
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 46.0,
+    "resolution_class": "cube",
     "subcategory": "trees",
     "subcubes": 0,
     "tags": [
@@ -2802,8 +6083,14 @@
     "created": "2026-07-04T14:00:14.191439+00:00",
     "cubes": 38336,
     "description": "Procedural redwood tree, height 56, fullness 0.85, seed 52.",
+    "dims_units": [
+      52.0,
+      88.0,
+      44.0
+    ],
     "display_name": "Redwood (Great Broad Giant)",
-    "material": "Leaf",
+    "file": "nature/tree_redwood_xl.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Leaf",
       "Log"
@@ -2811,7 +6098,7 @@
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 56.0,
+    "resolution_class": "cube",
     "subcategory": "trees",
     "subcubes": 0,
     "tags": [
@@ -2829,8 +6116,14 @@
     "created": "2026-07-04T02:20:51.406365+00:00",
     "cubes": 183,
     "description": "Procedural spruce tree, height 13, fullness 1.0, seed 47.",
+    "dims_units": [
+      11.0,
+      15.0,
+      11.0
+    ],
     "display_name": "Spruce Tree (Crisp, Large)",
-    "material": "LeafSpruce",
+    "file": "nature/tree_spruce_crisp_l.voxel",
+    "fine_voxels": 0,
     "materials": [
       "LeafSpruce",
       "LogSpruce"
@@ -2838,7 +6131,7 @@
     "microcubes": 1,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 13.0,
+    "resolution_class": "microcube",
     "subcategory": "trees",
     "subcubes": 2578,
     "tags": [
@@ -2856,8 +6149,14 @@
     "created": "2026-07-04T02:20:51.352363+00:00",
     "cubes": 38,
     "description": "Procedural spruce tree, height 9, fullness 1.0, seed 46.",
+    "dims_units": [
+      7.0,
+      11.0,
+      7.0
+    ],
     "display_name": "Spruce Tree (Crisp)",
-    "material": "LeafSpruce",
+    "file": "nature/tree_spruce_crisp_m.voxel",
+    "fine_voxels": 0,
     "materials": [
       "LeafSpruce",
       "LogSpruce"
@@ -2865,7 +6164,7 @@
     "microcubes": 1,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 9.0,
+    "resolution_class": "microcube",
     "subcategory": "trees",
     "subcubes": 1012,
     "tags": [
@@ -2883,8 +6182,14 @@
     "created": "2026-06-14T23:36:44.680845+00:00",
     "cubes": 163,
     "description": "Procedural spruce tree, height 13, fullness 0.85, seed 9.",
+    "dims_units": [
+      11.0,
+      15.0,
+      11.0
+    ],
     "display_name": "Spruce Tree (Large)",
-    "material": "LeafSpruce",
+    "file": "nature/tree_spruce_l.voxel",
+    "fine_voxels": 0,
     "materials": [
       "LeafSpruce",
       "LogSpruce"
@@ -2892,7 +6197,7 @@
     "microcubes": 1,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 13.0,
+    "resolution_class": "microcube",
     "subcategory": "trees",
     "subcubes": 2894,
     "tags": [
@@ -2910,8 +6215,14 @@
     "created": "2026-06-14T23:36:44.621980+00:00",
     "cubes": 32,
     "description": "Procedural spruce tree, height 9, fullness 0.85, seed 8.",
+    "dims_units": [
+      7.0,
+      11.0,
+      7.0
+    ],
     "display_name": "Spruce Tree (Medium)",
-    "material": "LeafSpruce",
+    "file": "nature/tree_spruce_m.voxel",
+    "fine_voxels": 0,
     "materials": [
       "LeafSpruce",
       "LogSpruce"
@@ -2919,7 +6230,7 @@
     "microcubes": 1,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 9.0,
+    "resolution_class": "microcube",
     "subcategory": "trees",
     "subcubes": 1130,
     "tags": [
@@ -2937,8 +6248,14 @@
     "created": "2026-06-14T23:36:44.604713+00:00",
     "cubes": 7,
     "description": "Procedural spruce tree, height 6, fullness 0.85, seed 7.",
+    "dims_units": [
+      5.0,
+      8.0,
+      5.0
+    ],
     "display_name": "Spruce Tree (Small)",
-    "material": "LeafSpruce",
+    "file": "nature/tree_spruce_s.voxel",
+    "fine_voxels": 0,
     "materials": [
       "LeafSpruce",
       "LogSpruce"
@@ -2946,7 +6263,7 @@
     "microcubes": 1,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 6.0,
+    "resolution_class": "microcube",
     "subcategory": "trees",
     "subcubes": 464,
     "tags": [
@@ -2959,23 +6276,27 @@
     "total": 472
   },
   "tree_stump": {
-    "bounds": {
-      "d": 1,
-      "h": 1,
-      "w": 1
-    },
     "category": "nature",
     "created": "2026-05-17T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A wide cut tree stump with a full Log base and a slightly narrower cross-section top suggesting a flat cut surface.",
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
     "display_name": "Tree Stump",
     "facing": "+Z",
+    "file": "nature/tree_stump.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Log"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "ground_cover",
     "subcubes": 14,
     "tags": [
@@ -2998,8 +6319,14 @@
     "created": "2026-06-14T23:36:44.908136+00:00",
     "cubes": 80,
     "description": "Procedural willow tree, height 8, fullness 0.85, seed 18.",
+    "dims_units": [
+      9.0,
+      10.0,
+      9.0
+    ],
     "display_name": "Willow Tree",
-    "material": "Leaf",
+    "file": "nature/tree_willow_l.voxel",
+    "fine_voxels": 0,
     "materials": [
       "Leaf",
       "Log"
@@ -3007,7 +6334,7 @@
     "microcubes": 0,
     "model": "procedural/gen_tree.py",
     "prompt": null,
-    "size": 8.0,
+    "resolution_class": "subcube",
     "subcategory": "trees",
     "subcubes": 2303,
     "tags": [
@@ -3019,17 +6346,80 @@
     ],
     "total": 2383
   },
+  "wall_lantern": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/wall_lantern.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Glass",
+      "Metal",
+      "glow"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 24,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 24
+  },
+  "wall_shelf": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
+    "file": "furniture/wall_shelf.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Bricks",
+      "Gold",
+      "Leaf",
+      "Log",
+      "Metal",
+      "Sandstone",
+      "WoodWalnut"
+    ],
+    "microcubes": 276,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 276
+  },
   "wand": {
-    "category": "weapon",
+    "category": "weapons",
     "cubes": 0,
     "description": "A slender wand tipped with a violet gem.",
+    "dims_units": [
+      0.0247,
+      0.3457,
+      0.0247
+    ],
     "display_name": "Wand",
     "file": "weapons/wand.voxel",
     "fine_grid": 81,
     "fine_voxels": 52,
+    "grip_point_units": [
+      0.0062,
+      0.0556,
+      0.0062
+    ],
+    "item_ids": [
+      "wand"
+    ],
+    "materials": [
+      "Glass",
+      "Gold",
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 0.3457,
+    "resolution_class": "fine-81",
     "subcategory": "wand",
     "subcubes": 0,
     "tags": [
@@ -3040,17 +6430,54 @@
     "total": 52,
     "version": 1
   },
+  "wardrobe": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      2.0,
+      1.0
+    ],
+    "file": "furniture/wardrobe.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Metal",
+      "WoodWalnut"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 437,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 437
+  },
   "warhammer": {
-    "category": "weapon",
+    "category": "weapons",
     "cubes": 0,
     "description": "A one-handed warhammer with a back spike.",
+    "dims_units": [
+      0.2716,
+      0.716,
+      0.0864
+    ],
     "display_name": "Warhammer",
     "file": "weapons/warhammer.voxel",
     "fine_grid": 81,
     "fine_voxels": 1239,
+    "grip_point_units": [
+      0.142,
+      0.1173,
+      0.0432
+    ],
+    "item_ids": [
+      "warhammer"
+    ],
+    "materials": [
+      "Steel",
+      "Wood"
+    ],
     "method": "gen_items",
     "microcubes": 0,
-    "size": 0.716,
+    "resolution_class": "fine-81",
     "subcategory": "hammer",
     "subcubes": 0,
     "tags": [
@@ -3063,26 +6490,30 @@
     "version": 1
   },
   "well": {
-    "bounds": {
-      "d": 1,
-      "h": 2,
-      "w": 1
-    },
-    "category": "environment",
+    "category": "architecture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A stone well with three ring layers and a wooden crossbeam at the top.",
+    "dims_units": [
+      2.0,
+      1.0,
+      2.0
+    ],
     "display_name": "Stone Well",
     "facing": "+Z",
+    "file": "architecture/well.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Stone",
-      "Wood"
+      "Cobblestone",
+      "Stone"
     ],
     "method": "hand-authored (/model skill, 1 round)",
-    "microcubes": 0,
+    "metrics_sidecar": true,
+    "microcubes": 453,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "microcube",
     "subcategory": "exterior",
-    "subcubes": 27,
+    "subcubes": 0,
     "tags": [
       "well",
       "water",
@@ -3093,35 +6524,37 @@
       "farm",
       "common"
     ],
-    "total": 27,
+    "total": 453,
     "version": 1
   },
   "wooden_throne": {
-    "bounds": {
-      "d": 2,
-      "h": 4,
-      "w": 4
-    },
     "category": "furniture",
     "cost": null,
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "Medieval king's wooden throne with a tall backrest, side armrests, and a gold crown cap. Hand-authored.",
+    "dims_units": [
+      4.0,
+      4.0,
+      2.0
+    ],
     "display_name": "Wooden Throne",
     "facing": "+Z",
-    "material": "Wood",
+    "file": "furniture/wooden_throne.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Wood",
-      "Gold"
+      "Gold",
+      "WoodWalnut"
     ],
     "method": "hand-authored (/model skill, 3 rounds)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
     "prompt": "a wooden throne for a medieval king",
+    "resolution_class": "subcube",
     "seat_height": 0.667,
-    "size": 3.0,
     "subcategory": "seating",
-    "subcubes": 187,
+    "subcubes": 168,
     "tags": [
       "throne",
       "seat",
@@ -3131,28 +6564,52 @@
       "palace",
       "king"
     ],
-    "total": 187,
+    "total": 168,
     "version": 3
   },
+  "woodpile": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      2.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/woodpile.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Log",
+      "LogBirch"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 660,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 660
+  },
   "workbench": {
-    "bounds": {
-      "d": 1,
-      "h": 1,
-      "w": 1
-    },
     "category": "furniture",
     "created": "2026-05-16T00:00:00.000000+00:00",
     "cubes": 0,
     "description": "A sturdy wooden workbench with a metal vise at the front corner and a lower center shelf.",
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
     "display_name": "Workbench",
     "facing": "+Z (front face with vise faces viewer)",
+    "file": "furniture/workbench.voxel",
+    "fine_voxels": 0,
     "materials": [
-      "Wood",
-      "Metal"
+      "Metal",
+      "WoodWalnut"
     ],
     "method": "hand-authored (/model skill, 1 round)",
+    "metrics_sidecar": true,
     "microcubes": 0,
     "model": "claude-sonnet-4-6",
+    "resolution_class": "subcube",
     "subcategory": "work_surface",
     "subcubes": 18,
     "tags": [

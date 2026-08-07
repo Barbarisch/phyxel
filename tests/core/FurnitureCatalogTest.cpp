@@ -84,17 +84,23 @@ TEST(FurnitureCatalogTest, DetectorFlagsAMissingTemplate) {
 // L2 EXISTENCE on the REAL catalog — every mapped template has a .voxel on disk. CWD-tolerant;
 // skips if resources/ isn't reachable (same convention as DimensionCanonTest).
 TEST(FurnitureCatalogTest, EveryMappedTemplateExistsOnDisk) {
+    // Library taxonomy (2026-08-07): furniture templates live under
+    // furniture/ — probe that path to find the library root, and accept a
+    // mapped template in any category dir the furnisher may draw from.
     const char* roots[] = {"resources/templates/", "../resources/templates/",
                            "../../resources/templates/", "../../../resources/templates/"};
     std::string root;
     for (const char* r : roots) {
-        std::ifstream f(std::string(r) + "barrel.voxel");
+        std::ifstream f(std::string(r) + "furniture/barrel.voxel");
         if (f.good()) { root = r; break; }
     }
     if (root.empty()) GTEST_SKIP() << "resources/templates not reachable from CWD";
     auto onDisk = [&](const std::string& name) {
-        std::ifstream f(root + name + ".voxel");
-        return f.good();
+        for (const char* cat : {"furniture/", "architecture/", "items/", "decor/"}) {
+            std::ifstream f(root + cat + name + ".voxel");
+            if (f.good()) return true;
+        }
+        return false;
     };
     const auto rep = validateFurnitureCoverage(onDisk);
     EXPECT_TRUE(rep.ok()) << "mapped templates with no .voxel on disk:\n" << dump(rep);
