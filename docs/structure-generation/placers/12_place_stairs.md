@@ -1,6 +1,14 @@
 # 12 · place_stairs
 
-> Tier: Closure & roof. Part-1 status: **M** (the realizer never reads `ProgStair`). Schema: [`README.md`](README.md).
+> Tier: Closure & roof. Part-1 status: **D** — this header was stale for weeks (it claimed "the
+> realizer never reads `ProgStair`" long after the realizer built every stair). Current truth
+> (2026-08-07, M2): the realizer plans via the shared `StairPlanner`, HONORS `StairPlan::ok`
+> (failed plan → one alternate-form repair in the same well → else the shell REFUSES; no more
+> silent no-stair / fall-shaft), builds thin-tread flights + mid-landings, cuts the well, and
+> emits GUARD CURBS on the stairwell perimeter (drop-invariant, entry-gated at stacked flight
+> mouths). Still unmet from this spec: mid-flight handrails/newel, spiral/L forms, cellar
+> down-stair, IRC-floor tread depth (MIN_TREAD 2 micro ≈ 0.22 m is below R311.7.5; period figure
+> unsourced). Ledger row 12 is the live status. Schema: [`README.md`](README.md).
 
 ## Job
 Build the **vertical circulation** — stairs between stories and down to a cellar — cutting the stairwell and

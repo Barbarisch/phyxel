@@ -68,10 +68,10 @@ HYPOTHESIS until confirmed in code.
   kinematic Tier-2 projection path (matches the design-doc intent; keeps the medallion; also
   unlocks projected paintings/banners as placed props; touches furniture render/lifecycle). Not a
   1-micro sub-tile bug as originally guessed.
-- **KI-5d — Stairs overlap furniture in some cases.** The furniture pass doesn't reserve the
-  stair footprint + its well/landing; only door clearances are reserved. Fix: thread
-  `StairPlanner` rects into the placer's reservation grid; L2 check: no fixture bbox
-  intersects stair cells.
+- **KI-5d — Stairs overlap furniture — RESOLVED (doc was stale; corrected 2026-08-07).**
+  The reservation shipped: `FurniturePlacer::planStairRects` derives the departing base +
+  arriving well + a 1-cell landing margin from the AssemblyPlan's `StairRecord`s and
+  `furnishFromPlan` reserves them (`StairReservationTest.FurnitureNeverCoversStairCells`).
 - **KI-5e — Generated paths should remove the grass.** Grass blades render through thin
   paving (the blade layer reads the Grass cube under the road — logged as a Phase-2
   follow-up, still open). Fix: paving/path stamping converts the underlying Grass-family

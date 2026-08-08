@@ -34,6 +34,27 @@ bool fitFlight(int H, int runMicro, int maxStep, int& treads, int& T, int& R) {
     return true;
 }
 
+// M2 guard curbs (the falsifiable invariant, generated FROM the invariant): every
+// stairwell-perimeter micro column at the upper floor either presents a small drop
+// (≤ the step-up — e.g. the emergence tread sitting AT floor level) or gets a
+// kGuardHeightMicro curb standing on the floor surface. Computed from the planned
+// solids, so any form — and any future form — is covered by construction.
+void emitPerimeterGuards(StairPlan& p, int WM, int DM, int riseMicro, int maxStepMicro) {
+    auto topSolidAt = [&](int x, int z) {
+        int top = 0;                       // no solid below -> the lower floor at y=0
+        for (const auto& s : p.solids)
+            if (x >= s.x && x < s.x + s.w && z >= s.z && z < s.z + s.d)
+                top = std::max(top, s.y + s.h);
+        return top;
+    };
+    auto curb = [&](int x, int z) {
+        if (riseMicro - topSolidAt(x, z) <= maxStepMicro) return;   // safe landing/tread
+        p.guards.push_back({x, riseMicro, z, 1, kGuardHeightMicro, 1});
+    };
+    for (int x = 0; x < WM; ++x) { curb(x, 0); if (DM > 1) curb(x, DM - 1); }
+    for (int z = 1; z < DM - 1; ++z) { curb(0, z); if (WM > 1) curb(WM - 1, z); }
+}
+
 }  // namespace
 
 StairPlan planStair(int wellW, int wellD, int riseMicro, StairForm form, int maxStepMicro) {
@@ -84,6 +105,7 @@ StairPlan planStair(int wellW, int wellD, int riseMicro, StairForm form, int max
         p.topMicro = riseMicro;
         p.holeX = 0; p.holeZ = 0; p.holeW = WM; p.holeD = DM;   // the shaft opening
         p.ok = (p.maxRiserMicro <= maxStepMicro);
+        if (p.ok) emitPerimeterGuards(p, WM, DM, riseMicro, maxStepMicro);
         return p;
     }
 
@@ -107,6 +129,7 @@ StairPlan planStair(int wellW, int wellD, int riseMicro, StairForm form, int max
     p.topMicro = riseMicro;
     p.holeX = 0; p.holeZ = 0; p.holeW = WM; p.holeD = DM;
     p.ok = (R <= maxStepMicro);
+    if (p.ok) emitPerimeterGuards(p, WM, DM, riseMicro, maxStepMicro);
     return p;
 }
 

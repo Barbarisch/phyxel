@@ -1,5 +1,6 @@
 #include "core/StructureRealizer.h"
 #include "core/StairPlanner.h"
+#include "utils/Logger.h"
 
 #include <algorithm>
 #include <climits>
@@ -419,7 +420,21 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
     // follow-up, the geometry + reachability is the point.
     {
         const int nStory = static_cast<int>(floorTopByStory.size());
+        const int maxStepMicro = kCharacterStepUpMicro;   // shared, not a local literal (M2)
         std::set<long long> seenStairs;
+
+        // Pass 1 — PLAN every stair. M2: honor sp.ok. The old code cut the hole and
+        // painted whatever came back — a failed STRAIGHT plan left a full-well FALL
+        // SHAFT (hole, no treads) and a failed SWITCHBACK silently built nothing while
+        // still recording a StairRecord. Repair ONCE with the alternate form in the
+        // same well (a straight flight fits wells a switchback can't, and vice versa);
+        // if that also fails, the shell REFUSES — a multi-story building without its
+        // stair is invalid, never silently sealed.
+        struct PlannedStair {
+            int a, b; Rect rc; StairForm form; StairPlan sp;
+            int botMicro, topMicro, holeBase;
+        };
+        std::vector<PlannedStair> planned;
         for (const auto& st : program.stories)
             for (const auto& sr : st.stairs) {
                 int a = sr.fromStory, b = sr.toStory;
@@ -438,34 +453,81 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
 
                 // Plan a CLIMBABLE stair. StairPlanner is the shared source of truth with
                 // BuildingProgramValidator, so what we build is exactly what the gate checks.
-                // maxStepMicro = the character's step-up (m_maxStepHeight 4/9 m) on the grid.
-                const int maxStepMicro = 4;
-                StairPlan sp = planStair(rc.w, rc.d, riseMicro,
-                                         stairFormFromString(sr.form), maxStepMicro);
-
-                // (1) cut the stairwell hole through the upper story's floor slab
-                c.fillMicroBox(rc.x * 9 + sp.holeX, holeBase, rc.z * 9 + sp.holeZ,
-                               sp.holeW, topMicro - holeBase, sp.holeD, "");
-
-                // (2) build the planned treads + landings (local micro → offset into the well)
-                for (const auto& s : sp.solids)
-                    c.fillMicroBox(rc.x * 9 + s.x, botMicro + s.y, rc.z * 9 + s.z,
-                                   s.w, s.h, s.d, matFloor);
-
-                // (3) RECORD the flight in the plan at the moment it is built (Claims
-                // Ledger increment 1): furniture reservation, featureAt, and validators
-                // query this record instead of re-planning from ProgStair.
-                StairRecord rec;
-                rec.x = rc.x; rec.z = rc.z; rec.w = rc.w; rec.d = rc.d;
-                rec.fromStory = a; rec.toStory = b;
-                rec.baseY = botMicro / 9;
-                rec.topY = (topMicro + 8) / 9;
-                rec.botWalkMicro = botMicro; rec.topWalkMicro = topMicro;
-                rec.form = sr.form;
-                rec.holeX = rc.x * 9 + sp.holeX; rec.holeZ = rc.z * 9 + sp.holeZ;
-                rec.holeW = sp.holeW; rec.holeD = sp.holeD;
-                plan.stairs.push_back(rec);
+                StairForm form = stairFormFromString(sr.form);
+                StairPlan sp = planStair(rc.w, rc.d, riseMicro, form, maxStepMicro);
+                if (!sp.ok) {
+                    const StairForm alt = (form == StairForm::Switchback)
+                        ? StairForm::Straight : StairForm::Switchback;
+                    StairPlan repaired = planStair(rc.w, rc.d, riseMicro, alt, maxStepMicro);
+                    if (repaired.ok) {
+                        LOG_WARN_FMT("StructureRealizer", "place_stairs: "
+                                     << stairFormToString(form) << " does not fit well "
+                                     << rc.w << "x" << rc.d << " (" << sp.error
+                                     << ") — repaired as " << stairFormToString(alt));
+                        sp = repaired;
+                        form = alt;
+                    } else {
+                        res.ok = false;
+                        res.error = "stair " + std::to_string(a) + "->" + std::to_string(b) +
+                                    " unbuildable in well " + std::to_string(rc.w) + "x" +
+                                    std::to_string(rc.d) + ": " + sp.error +
+                                    " (alternate form: " + repaired.error + ")";
+                        return res;
+                    }
+                }
+                planned.push_back({a, b, rc, form, sp, botMicro, topMicro, holeBase});
             }
+
+        // Pass 2 — PAINT. Guard curbs get an ENTRY GATE: in a stacked well, the NEXT
+        // stair up (b -> b+1) begins at floor b — its entry-level treads (tops within
+        // a step-up of the floor) must stay enterable, exactly like a real stairwell
+        // is railed except at the flight mouths. Curb cells over/beside those treads
+        // (inflated by the agent half-width) are suppressed; every other shaft-edge
+        // column with a > step-up drop keeps its rail.
+        for (const auto& ps : planned) {
+            // (1) cut the stairwell hole through the upper story's floor slab
+            c.fillMicroBox(ps.rc.x * 9 + ps.sp.holeX, ps.holeBase, ps.rc.z * 9 + ps.sp.holeZ,
+                           ps.sp.holeW, ps.topMicro - ps.holeBase, ps.sp.holeD, "");
+
+            // (2) build the planned treads + landings (local micro → offset into the well)
+            for (const auto& s : ps.sp.solids)
+                c.fillMicroBox(ps.rc.x * 9 + s.x, ps.botMicro + s.y, ps.rc.z * 9 + s.z,
+                               s.w, s.h, s.d, matFloor);
+
+            // (2b) M2 guard curbs (entry-gated).
+            const PlannedStair* next = nullptr;
+            for (const auto& q : planned)
+                if (q.a == ps.b) { next = &q; break; }
+            for (const auto& g : ps.sp.guards) {
+                bool entryGate = false;
+                if (next) {
+                    const int wx = ps.rc.x * 9 + g.x - next->rc.x * 9;   // into next's frame
+                    const int wz = ps.rc.z * 9 + g.z - next->rc.z * 9;
+                    for (const auto& s : next->sp.solids) {
+                        if (s.y + s.h > maxStepMicro) continue;   // not an entry-level tread
+                        if (wx >= s.x - 2 && wx < s.x + s.w + 2 &&
+                            wz >= s.z - 2 && wz < s.z + s.d + 2) { entryGate = true; break; }
+                    }
+                }
+                if (entryGate) continue;
+                c.fillMicroBox(ps.rc.x * 9 + g.x, ps.botMicro + g.y, ps.rc.z * 9 + g.z,
+                               g.w, g.h, g.d, matFloor);
+            }
+
+            // (3) RECORD the flight in the plan at the moment it is built (Claims
+            // Ledger increment 1): furniture reservation, featureAt, and validators
+            // query this record instead of re-planning from ProgStair.
+            StairRecord rec;
+            rec.x = ps.rc.x; rec.z = ps.rc.z; rec.w = ps.rc.w; rec.d = ps.rc.d;
+            rec.fromStory = ps.a; rec.toStory = ps.b;
+            rec.baseY = ps.botMicro / 9;
+            rec.topY = (ps.topMicro + 8) / 9;
+            rec.botWalkMicro = ps.botMicro; rec.topWalkMicro = ps.topMicro;
+            rec.form = stairFormToString(ps.form);   // the form actually BUILT (post-repair)
+            rec.holeX = ps.rc.x * 9 + ps.sp.holeX; rec.holeZ = ps.rc.z * 9 + ps.sp.holeZ;
+            rec.holeW = ps.sp.holeW; rec.holeD = ps.sp.holeD;
+            plan.stairs.push_back(rec);
+        }
     }
 
     // ---- pass 4: ceiling slab over the footprint ----

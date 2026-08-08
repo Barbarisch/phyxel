@@ -205,7 +205,9 @@ ValidationReport BuildingProgramValidator::validate(const BuildingProgram& progr
     //       interleaves lanes + a landing, so stacked switchbacks keep their headroom.
     {
         const int floorThicknessMicro = 3;   // realizer floor slab (0.333 m)
-        const int maxStepMicro = std::max(1, (int)std::lround(scale.maxStepRiser * 9.0));
+        // M2: the ONE step-up definition (StairPlanner.h), shared with the realizer —
+        // CharacterScale::maxStepRiser documents the grounding; the grid constant rules.
+        const int maxStepMicro = kCharacterStepUpMicro;
         struct Flight { int a, b; Rect rect; StairForm form; };
         std::vector<Flight> flights;
         for (const auto& s : program.stories)

@@ -35,12 +35,28 @@ enum class StairForm { Straight, Switchback };
 StairForm   stairFormFromString(const std::string& s);   ///< unknown -> Switchback
 std::string stairFormToString(StairForm f);
 
+/// The character's step-up on the micro grid (m_maxStepHeight = 4/9 m; matches
+/// CharacterScale::maxStepRiser and AgentBox::maxStepUpMicro). The ONE definition —
+/// the realizer used to hardcode its own 4 while the validator re-derived it, so a
+/// character-tuning change could silently desync built geometry from the gate (M2).
+constexpr int kCharacterStepUpMicro = 4;
+
+/// Guard band height above a walkable surface: 8 micro ≈ 0.89 m (IRC R312.1.2 —
+/// 36 in minimum guard at open-sided walking surfaces; the medieval balustrade
+/// variant is tracked in docs/structure-generation/GroundingGaps.md).
+constexpr int kGuardHeightMicro = 8;
+
 /// A solid block to fill, in the well's LOCAL micro frame: x in [0, wellW*9),
 /// z in [0, wellD*9), and solid from y=base (the lower walkable) up by height h.
 struct StairSolid { int x, y, z, w, h, d; };
 
 struct StairPlan {
     std::vector<StairSolid> solids;   ///< treads + landings (fill with floor material)
+    std::vector<StairSolid> guards;   ///< M2 guard curbs: the stairwell-perimeter columns at the
+                                      ///< UPPER floor whose drop exceeds the step-up get a
+                                      ///< kGuardHeightMicro rail band (the emergence tread is
+                                      ///< exempt by the same drop rule, so the exit stays open).
+                                      ///< Mid-flight side handrails are still owed (ledger row 12).
     int  holeX = 0, holeZ = 0;        ///< XZ extent (local micro) to cut in the UPPER
     int  holeW = 0, holeD = 0;        ///< floor slab so the flight emerges
     int  maxRiserMicro = 0;           ///< worst riser across flights (gate: ≤ maxStepMicro)
