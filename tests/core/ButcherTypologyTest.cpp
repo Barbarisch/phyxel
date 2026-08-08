@@ -104,8 +104,11 @@ TEST(ButcherTypologyTest, ShamblesRecipeHasBlockAndRailAndAssetsResolve) {
     auto fileExists = [](const std::string& name) {
         for (const char* d : {"resources/templates/", "../resources/templates/",
                               "../../resources/templates/", "../../../resources/templates/"}) {
-            std::ifstream f(std::string(d) + name + ".voxel");
-            if (f.good()) return true;
+            // Asset-library reorg 2026-08-07: templates live in category subdirs.
+            for (const char* cat : {"furniture/", "architecture/", "items/", ""}) {
+                std::ifstream f(std::string(d) + cat + name + ".voxel");
+                if (f.good()) return true;
+            }
         }
         return false;
     };
