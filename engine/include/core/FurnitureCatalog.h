@@ -59,5 +59,14 @@ struct FurnitureCoverageReport {
 FurnitureCoverageReport validateFurnitureCoverage(
     const std::function<bool(const std::string&)>& templateExists = {});
 
+/// Same check SCOPED to the purposes a particular building actually contains — the
+/// asset gate the forge refuses on (M3.5). A croft must not be blocked because the
+/// butcher's meat_rail is unauthored; it must be blocked when ITS OWN rooms need an
+/// asset the engine cannot supply (no substitution, no half-furnished building).
+/// Unknown purposes contribute nothing (the placer falls back to its default recipe).
+FurnitureCoverageReport validateFurnitureCoverageFor(
+    const std::vector<std::string>& purposes,
+    const std::function<bool(const std::string&)>& templateExists = {});
+
 } // namespace Core
 } // namespace Phyxel

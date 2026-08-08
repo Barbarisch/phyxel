@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <set>
 
 #include "core/FurniturePlacer.h"
 
@@ -68,6 +69,28 @@ std::vector<std::string> FurnitureCatalog::mappedTypes() {
     v.reserve(table().size());
     for (const auto& kv : table()) v.push_back(kv.first);
     return v;
+}
+
+FurnitureCoverageReport validateFurnitureCoverageFor(
+    const std::vector<std::string>& purposes,
+    const std::function<bool(const std::string&)>& templateExists) {
+    FurnitureCoverageReport rep;
+    std::set<std::string> seen;   // one finding per (purpose,type), not per room
+    for (const auto& purpose : purposes) {
+        if (!seen.insert(purpose).second) continue;
+        for (const auto& type : FurniturePlacer::requiredFurniture(purpose)) {
+            const std::string tmpl = FurnitureCatalog::templateFor(type);
+            if (tmpl.empty()) {
+                rep.gaps.push_back({purpose, type, "",
+                    purpose + " requires a '" + type + "' but no template is mapped for it"});
+            } else if (templateExists && !templateExists(tmpl)) {
+                rep.gaps.push_back({purpose, type, tmpl,
+                    purpose + " requires a '" + type + "' -> template '" + tmpl +
+                        "' but that asset is not loaded"});
+            }
+        }
+    }
+    return rep;
 }
 
 FurnitureCoverageReport validateFurnitureCoverage(

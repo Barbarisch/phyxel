@@ -10,6 +10,7 @@
 
 #include "StructureBuildDetail.h"
 
+#include "core/AssetRequestLedger.h"
 #include "core/BuildingProgram.h"
 #include "core/BuildingProgramValidator.h"
 #include "core/ChunkManager.h"
@@ -81,8 +82,8 @@ struct StructureForge::Context {
 
 const std::vector<std::string>& StructureForge::stageNames() {
     static const std::vector<std::string> kNames = {
-        "intake", "floorplan", "validate_program", "footprint", "realize",
-        "validate_realized", "place", "furnish", "emit"};
+        "intake", "floorplan", "validate_program", "validate_assets", "footprint",
+        "realize", "validate_realized", "place", "furnish", "emit"};
     return kNames;
 }
 
@@ -95,6 +96,7 @@ nlohmann::json StructureForge::run(const nlohmann::json& params,
         {"intake",            &StructureForge::stageIntake},
         {"floorplan",         &StructureForge::stageFloorplan},
         {"validate_program",  &StructureForge::stageValidateProgram},
+        {"validate_assets",   &StructureForge::stageValidateAssets},
         {"footprint",         &StructureForge::stageFootprint},
         {"realize",           &StructureForge::stageRealize},
         {"validate_realized", &StructureForge::stageValidateRealized},
@@ -242,6 +244,71 @@ StructureForge::StageReport StructureForge::stageValidateProgram(Context& ctx) {
         }
     }
     ctx.msSetup = ctx.pc.lap();
+    return rep;
+}
+
+// ---------------------------------------------------------------------------
+// validate_assets (M3.5) — the ASSET GATE. Every fixture type this building's
+// OWN rooms need must resolve to a real, loadable asset. A gap is recorded as a
+// structured AssetRequest (persisted to resources/asset_requests.json, and
+// returned as response["asset_requests"]) and the build REFUSES.
+//
+// The standing rule: the generator never invents or substitutes an asset, and
+// never ships a half-furnished building. Vocabulary growth is assets-first —
+// demand is discovered ahead of time by tools/asset_requests.py --scan, so a
+// refusal here means someone shipped a recipe before its asset.
+//
+// Runs BEFORE the footprint/realize/place stages, so a refusal never leaves a
+// placed shell behind. Recipes are loaded here (idempotent) because the gate
+// must read the SAME recipe set the furnish pass will.
+// {"allow_missing_assets": true} degrades to a warning (test/debug escape).
+// ---------------------------------------------------------------------------
+StructureForge::StageReport StructureForge::stageValidateAssets(Context& ctx) {
+    StageReport rep;
+    FurniturePlacer::loadRecipesFromFile("resources/furnishing_recipes.json");
+
+    std::vector<std::string> purposes;
+    for (const auto& st : ctx.program.stories)
+        for (const auto& rm : st.rooms) purposes.push_back(rm.purpose);
+    if (purposes.empty()) return rep;
+
+    auto* otm = ctx.deps.templates;
+    std::function<bool(const std::string&)> templateExists;
+    if (otm) templateExists = [otm](const std::string& n) { return otm->getTemplate(n) != nullptr; };
+    // No template manager (headless/tests) => only MAPPING coverage is checkable;
+    // asset existence is unknowable, so it is not asserted (never a false refusal).
+    auto coverage = validateFurnitureCoverageFor(purposes, templateExists);
+    if (coverage.ok()) return rep;
+
+    std::vector<AssetRequest> requests;
+    for (const auto& g : coverage.gaps)
+        requests.push_back({g.type, "furniture", g.purpose, ctx.typ,
+                            g.templateName.empty() ? "unmapped" : "template_missing",
+                            g.message});
+    ctx.response["asset_requests"] = AssetRequestLedger::toJson(requests);
+
+    // Record the demand so it can be burned down (dev builds; a read-only
+    // resources dir just means the response is the only record — never fatal).
+    const nlohmann::json merged = AssetRequestLedger::merge(
+        AssetRequestLedger::load(), requests, ctx.params.value("today", std::string("unknown")));
+    AssetRequestLedger::save(merged);
+
+    for (const auto& g : coverage.gaps)
+        LOG_WARN_FMT("StructureBuild", "asset request: " << g.message);
+
+    if (ctx.params.value("allow_missing_assets", false)) {
+        LOG_WARN_FMT("StructureBuild", "asset gate: " << coverage.gaps.size()
+                     << " unsatisfied request(s) (allow_missing_assets set, building anyway)");
+        return rep;
+    }
+    LOG_WARN_FMT("StructureBuild", "REFUSING build: " << coverage.gaps.size()
+                 << " asset request(s) unsatisfied — author the asset(s) first "
+                    "(tools/asset_requests.py --list)");
+    rep.action = StageReport::Action::Refused;
+    rep.refusal = {{"error", "unsatisfied asset requests: " +
+                             std::to_string(coverage.gaps.size()) +
+                             " fixture type(s) this building needs have no engine asset"},
+                   {"asset_requests", AssetRequestLedger::toJson(requests)}};
     return rep;
 }
 

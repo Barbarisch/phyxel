@@ -9,7 +9,10 @@
 //
 //   intake            parse BuildingProgram, resolve typology + style + position
 //   floorplan         autofillRoomLayout (rooms + doors + windows + stairs)
-//   validate_program  BuildingProgramValidator gate (M1: warn-but-allow)
+//   validate_program  BuildingProgramValidator gate (repair-then-refuse)
+//   validate_assets   every fixture THIS building's rooms need must resolve to a
+//                     real asset — else record AssetRequests and REFUSE (never
+//                     substitute, never half-furnish). Runs before any world edit.
 //   footprint         context-aware overlap removal + object-wise vegetation gate
 //   realize           StructureRealizer::realizeShell -> MicroCanvas + AssemblyPlan
 //   validate_realized L2/L3 gates on the realized canvas (M1: empty anchor)
@@ -66,6 +69,7 @@ private:
     static StageReport stageIntake(Context& ctx);
     static StageReport stageFloorplan(Context& ctx);
     static StageReport stageValidateProgram(Context& ctx);
+    static StageReport stageValidateAssets(Context& ctx);
     static StageReport stageFootprint(Context& ctx);
     static StageReport stageRealize(Context& ctx);
     static StageReport stageValidateRealized(Context& ctx);

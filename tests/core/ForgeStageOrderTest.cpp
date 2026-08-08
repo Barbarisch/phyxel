@@ -18,8 +18,8 @@ using namespace Phyxel::Core;
 
 TEST(ForgeStageOrder, CanonicalStageSequence) {
     const std::vector<std::string> expected = {
-        "intake", "floorplan", "validate_program", "footprint", "realize",
-        "validate_realized", "place", "furnish", "emit"};
+        "intake", "floorplan", "validate_program", "validate_assets", "footprint",
+        "realize", "validate_realized", "place", "furnish", "emit"};
     EXPECT_EQ(StructureForge::stageNames(), expected)
         << "the forge stage order is a public contract (response[\"gates\"] order; "
            "docs/structure-generation stage mapping) - update BOTH if this is intentional";
