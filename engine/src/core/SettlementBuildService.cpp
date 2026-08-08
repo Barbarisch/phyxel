@@ -56,8 +56,9 @@ int settlementTopScan(ChunkManager* cm, int oy, int wx, int wz, bool floraBlind)
 SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& params,
                                                           const Deps& deps) {
     Plan res;
-    res.paths     = std::make_shared<nlohmann::json>(nlohmann::json::object());
-    res.yardProps = std::make_shared<nlohmann::json>(nlohmann::json::object());
+    res.paths       = std::make_shared<nlohmann::json>(nlohmann::json::object());
+    res.yardProps   = std::make_shared<nlohmann::json>(nlohmann::json::object());
+    res.lotFailures = std::make_shared<nlohmann::json>(nlohmann::json::array());
     res.residents = std::make_shared<nlohmann::json>(nlohmann::json::object());
 
     // Bound ONCE and captured BY VALUE into the work units, which outlive this frame.
@@ -425,28 +426,37 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             // Deterministic per-building variation: typology + style (material/roof) + footprint shape.
             // Main-street mode pins the ASSIGNED typology (the plot was sized from it); style/shape
             // still vary per plot.
-            const Core::BuildingVariant var = Core::pickBuildingVariant(
-                static_cast<int>(i),
-                mainStreetMode ? std::vector<std::string>{b.typology} : mix,
-                styles, varietySeed);
+            const auto variantMix =
+                mainStreetMode ? std::vector<std::string>{b.typology} : mix;
+            const Core::BuildingVariant var =
+                Core::pickBuildingVariant(static_cast<int>(i), variantMix, styles, varietySeed);
+            // M3 repair-then-refuse: the plan-time FALLBACK variant for this lot — a
+            // salted re-pick (different typology/style/shape where the mix allows) the
+            // work unit tries once if the first variant's build REFUSES at a forge gate.
+            const Core::BuildingVariant var2 = Core::pickBuildingVariant(
+                static_cast<int>(i) + 7919, variantMix, styles, varietySeed);
             // Natural footprint from the typology canon: long axis = bays * bay_length, short axis =
             // width_max; oriented along the plot's longer side, clamped to the plot, then CENTRED.
             // (Main-street mode: b.footprint IS the natural, street-oriented footprint already —
             // planMainStreetLayout sized the plot from the typology, so no resize here.)
-            int bw = plotW, bd = plotD;
-            if (!mainStreetMode) {
-                if (const Core::RoomProgram* rp = roomReg.get(var.typology)) {
-                    const int natLong  = std::max(1, (int)std::lround(rp->bays * rp->bayLength));
-                    const int natShort = std::max(1, (int)std::lround(rp->widthMax > 0 ? rp->widthMax
-                                                                                       : rp->widthMin));
-                    if (plotW >= plotD) { bw = natLong; bd = natShort; }
-                    else                { bw = natShort; bd = natLong; }
-                    bw = std::min(std::max(1, bw), plotW);
-                    bd = std::min(std::max(1, bd), plotD);
+            auto naturalRect = [&](const Core::BuildingVariant& v) {
+                int w = plotW, d = plotD;
+                if (!mainStreetMode) {
+                    if (const Core::RoomProgram* rp = roomReg.get(v.typology)) {
+                        const int natLong  = std::max(1, (int)std::lround(rp->bays * rp->bayLength));
+                        const int natShort = std::max(1, (int)std::lround(rp->widthMax > 0 ? rp->widthMax
+                                                                                           : rp->widthMin));
+                        if (plotW >= plotD) { w = natLong; d = natShort; }
+                        else                { w = natShort; d = natLong; }
+                        w = std::min(std::max(1, w), plotW);
+                        d = std::min(std::max(1, d), plotD);
+                    }
                 }
-            }
-            const int bx = plotX + (plotW - bw) / 2;   // centre the building in its plot
-            const int bz = plotZ + (plotD - bd) / 2;
+                // centre the building in its plot
+                return std::array<int, 4>{w, d, plotX + (plotW - w) / 2, plotZ + (plotD - d) / 2};
+            };
+            const auto [bw, bd, bx, bz]     = naturalRect(var);
+            const auto [bw2, bd2, bx2, bz2] = naturalRect(var2);
             // Terrain seating happens INSIDE the building unit (post-terrace units); this value
             // is the PLAN estimate used for path anchors + the response echo.
             const int by = (terrain && !seatFlat)
@@ -469,29 +479,41 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 case 'E': front = "x1"; break;
                 default: break;
             }
-            nlohmann::json bp = {
-                {"schema", "v2"}, {"type", "house"}, {"style", var.style}, {"typology", var.typology},
-                {"footprint_shape", var.footprintShape}, {"front", front},
-                {"position", {{"x", bx}, {"y", by}, {"z", bz}}},
-                {"footprint", nlohmann::json::array({bw, bd})},
-                {"substructure", "slab"},
-                {"stories", nlohmann::json::array({nlohmann::json{{"height", 3}}})},
-                {"allow_ungrounded", allowUngrounded}   // settlement gate already ran
+            auto makeBp = [&](const Core::BuildingVariant& v, int w, int d, int x, int z) {
+                return nlohmann::json{
+                    {"schema", "v2"}, {"type", "house"}, {"style", v.style}, {"typology", v.typology},
+                    {"footprint_shape", v.footprintShape}, {"front", front},
+                    {"position", {{"x", x}, {"y", by}, {"z", z}}},
+                    {"footprint", nlohmann::json::array({w, d})},
+                    {"substructure", "slab"},
+                    {"stories", nlohmann::json::array({nlohmann::json{{"height", 3}}})},
+                    {"allow_ungrounded", allowUngrounded}   // settlement gate already ran
+                };
             };
+            nlohmann::json bp  = makeBp(var, bw, bd, bx, bz);
+            nlohmann::json bp2 = makeBp(var2, bw2, bd2, bx2, bz2);
             // [no-frozen-engine] one building = one work unit calling the SAME v2 pipeline the
             // build_structure command uses (no queue-push: the whole queue drains in ONE frame,
             // which is exactly the freeze this replaces). Terrain seating re-samples the graded
             // ground at RUN time (terrace units precede building units).
+            // M3: a REFUSED build (forge gate) re-rolls the lot ONCE with the fallback
+            // variant; a second refusal leaves the lot honestly EMPTY and records it in
+            // plan.lotFailures — a broken building never ships.
             const std::string ph = "building " + std::to_string(i + 1) + "/" +
                                    std::to_string(buildings.size());
-            buildingUnits.push_back({ph, [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, bp, seatInUnit, bw, bd, oy]() mutable {
+            buildingUnits.push_back({ph, [chunkManager, placedObjectManager, objectTemplateManager,
+                                          locationRegistry, npcManager, pushUndo, bp, bp2, seatInUnit,
+                                          bw, bd, bw2, bd2, oy, lotFailures = res.lotFailures,
+                                          lotIndex = static_cast<int>(i),
+                                          typ1 = var.typology, typ2 = var2.typology]() mutable {
                 if (!chunkManager) return;
-                if (seatInUnit) {
-                    const int cx = bp["position"].value("x", 0) + bw / 2;
-                    const int cz = bp["position"].value("z", 0) + bd / 2;
-                    bp["position"]["y"] =
+                auto seat = [&](nlohmann::json& p, int w, int d) {
+                    if (!seatInUnit) return;
+                    const int cx = p["position"].value("x", 0) + w / 2;
+                    const int cz = p["position"].value("z", 0) + d / 2;
+                    p["position"]["y"] =
                         settlementTopScan(chunkManager, oy, cx, cz, /*floraBlind=*/true);
-                }
+                };
                 Core::StructureBuildService::Deps deps;
                 deps.chunkManager  = chunkManager;
                 deps.placedObjects = placedObjectManager ? &*placedObjectManager : nullptr;
@@ -499,9 +521,22 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 deps.locations     = locationRegistry ? &*locationRegistry : nullptr;
                 deps.npcs          = npcManager ? &*npcManager : nullptr;
                 deps.pushUndo      = pushUndo;   // forwarded by the caller (editor: undo snapshot)
-                const auto res = Core::StructureBuildService::buildV2(bp, deps);
-                if (res.contains("error"))
-                    LOG_WARN_FMT("Settlement", "building unit failed: " << res["error"].dump());
+                seat(bp, bw, bd);
+                const auto res1 = Core::StructureBuildService::buildV2(bp, deps);
+                if (!res1.contains("error")) return;
+                LOG_WARN_FMT("Settlement", "lot " << lotIndex << " (" << typ1 << ") refused: "
+                             << res1["error"].dump() << " — re-rolling the variant");
+                seat(bp2, bw2, bd2);
+                const auto res2 = Core::StructureBuildService::buildV2(bp2, deps);
+                if (!res2.contains("error")) return;
+                LOG_WARN_FMT("Settlement", "lot " << lotIndex << " re-roll (" << typ2
+                             << ") ALSO refused: " << res2["error"].dump()
+                             << " — lot left EMPTY (recorded)");
+                if (lotFailures)
+                    lotFailures->push_back({{"lot", lotIndex}, {"typology", typ1},
+                                            {"retry_typology", typ2},
+                                            {"error", res1.value("error", std::string())},
+                                            {"retry_error", res2.value("error", std::string())}});
             }});
             queued.push_back({{"plot", b.plotIndex}, {"position", {{"x", bx}, {"y", by}, {"z", bz}}},
                               {"footprint", nlohmann::json::array({bw, bd})},

@@ -16,10 +16,19 @@
 > StageReport gate protocol: `intake → floorplan → validate_program → footprint → realize →
 > validate_realized → place → furnish → emit`. Every `/api/structure/build` response carries
 > `gates: [{stage, outcome, ms}]`; a refused stage returns its legacy error json verbatim + the
-> trail. Behavior parity with the monolith is pinned by `BuildingHarness.ForgeParityDigests`.
-> M1 is orchestration only: gates are permissive (warn-but-allow unchanged — teeth land at M3),
-> and `furnish` still runs the whole fused block (heavy/light/lighting/clutter split = M4).
-> The realizer's internal placer fusion (this table's concern) is unchanged.
+> trail + `refused_at`. Behavior parity with the monolith is pinned by
+> `BuildingHarness.ForgeParityDigests`.
+> **M3 (2026-08-08): the gates have TEETH — repair-then-refuse.** `validate_program`: error
+> severity gets ONE bounded repair (restore the pre-autofill stories, re-roll the layout with a
+> salted seed — authored rooms never touched), then REFUSES with the structured
+> `validation` report; `{"allow_invalid": true}` is the test/debug escape (mirrors
+> `allow_ungrounded`). `validate_realized`: L3 TraversalProbe over the BUILT canvas
+> (`RealizedStructureValidator::checkShellTraversal`) — every room on every story physically
+> reachable from the entrance room, else refuse. Settlement lots whose build refuses RE-ROLL
+> once with a plan-time fallback variant; a second refusal leaves the lot honestly EMPTY,
+> recorded in `Plan.lotFailures` (`ForgeGateTeethTest`, red-before-green). `furnish` still runs
+> the whole fused block (heavy/light/lighting/clutter split = M4). The realizer's internal
+> placer fusion (this table's concern) is unchanged.
 >
 > **Openings stage decision (recorded):** doors/windows stay planned at FLOORPLAN and carved in
 > REALIZE (they are wall fabric and define the circulation graph the program gate must validate

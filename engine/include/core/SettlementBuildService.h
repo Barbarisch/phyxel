@@ -95,6 +95,11 @@ public:
         std::shared_ptr<nlohmann::json> paths;
         std::shared_ptr<nlohmann::json> yardProps;
         std::shared_ptr<nlohmann::json> residents;
+        /// M3 repair-then-refuse: lots whose build REFUSED and whose one re-rolled
+        /// variant ALSO refused (array of {lot, typology, retry_typology, error,
+        /// retry_error}). Empty = every lot built (possibly on its re-roll). Filled
+        /// by the building units as they run.
+        std::shared_ptr<nlohmann::json> lotFailures;
 
         bool ok() const { return error.is_null(); }
     };

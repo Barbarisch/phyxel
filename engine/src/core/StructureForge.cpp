@@ -49,6 +49,14 @@ struct StructureForge::Context {
     StyleProfile style;
     int ox = 0, oz = 0, reqY = 16;
 
+    // floorplan -> (M3 repair state: the PRE-autofill story list + the seed used.
+    // The program gate's one bounded repair restores this snapshot and re-rolls
+    // the autofill with a salted seed — authored rooms are never touched, and
+    // stories the autofill GREW (typology story count) are regrown consistently.)
+    unsigned floorplanSeed = 1;
+    bool anyAutofill = false;
+    std::vector<ProgStory> preAutofillStories;
+
     // realize ->
     StructureRealizer::ShellResult shell;
 
@@ -105,8 +113,9 @@ nlohmann::json StructureForge::run(const nlohmann::json& params,
         gates.push_back({{"stage", name}, {"outcome", outcome}, {"ms", stageClock.lap()}});
         if (r.action == StageReport::Action::Refused) {
             // Refusal jsons are returned VERBATIM (same error shapes the monolith
-            // produced) + the gates so far for diagnosability.
+            // produced) + the gates so far and the refusing stage for diagnosability.
             nlohmann::json refusal = std::move(r.refusal);
+            refusal["refused_at"] = name;
             refusal["gates"] = gates;
             return refusal;
         }
@@ -165,7 +174,10 @@ StructureForge::StageReport StructureForge::stageFloorplan(Context& ctx) {
     }
     int emptyBefore = 0;
     for (const auto& st : ctx.program.stories) if (st.rooms.empty()) ++emptyBefore;
-    const bool typologyApplied = autofillRoomLayout(ctx.program, seed ? seed : 1u, ctx.rp);
+    ctx.anyAutofill = emptyBefore > 0;
+    if (ctx.anyAutofill) ctx.preAutofillStories = ctx.program.stories;   // M3 repair snapshot
+    ctx.floorplanSeed = seed ? seed : 1u;
+    const bool typologyApplied = autofillRoomLayout(ctx.program, ctx.floorplanSeed, ctx.rp);
     if (emptyBefore > 0) {
         int total = 0;
         for (const auto& st : ctx.program.stories) total += (int)st.rooms.size();
@@ -189,18 +201,46 @@ StructureForge::StageReport StructureForge::stageFloorplan(Context& ctx) {
 }
 
 // ---------------------------------------------------------------------------
-// validate_program — pre-build validation gate (M1: WARN-BUT-ALLOW, exactly the
-// monolith's policy; teeth land in M3 as repair-then-refuse).
+// validate_program — pre-build validation gate. M3: REPAIR-THEN-REFUSE — error
+// severity gets ONE bounded repair (restore the pre-autofill stories and re-roll
+// the layout with a salted seed; authored rooms are never touched), then a
+// still-failing program REFUSES with the structured report. Warnings stay
+// advisory. {"allow_invalid": true} skips ENFORCEMENT (test/debug escape,
+// mirroring allow_ungrounded) — issues are still logged.
 // ---------------------------------------------------------------------------
 StructureForge::StageReport StructureForge::stageValidateProgram(Context& ctx) {
     StageReport rep;
     ValidationReport vr = BuildingProgramValidator::validate(ctx.program, {}, ctx.rp);
-    if (vr.ok())
+    if (vr.ok()) {
         LOG_INFO_FMT("StructureBuild", "program validation: OK"
                      << (ctx.rp ? " [typology " + ctx.typ + "]" : ""));
-    else
-        LOG_WARN_FMT("StructureBuild", "program validation FAILED (warn-but-allow,"
+    } else if (ctx.params.value("allow_invalid", false)) {
+        LOG_WARN_FMT("StructureBuild", "program validation FAILED (allow_invalid set,"
                      " building anyway): " << vr.summary());
+    } else {
+        // One bounded repair: re-roll the engine-authored layout. Only possible
+        // when the layout WAS engine-authored; a hand-authored invalid program
+        // has nothing the engine may legitimately rewrite.
+        if (ctx.anyAutofill) {
+            ctx.program.stories = ctx.preAutofillStories;
+            autofillRoomLayout(ctx.program, ctx.floorplanSeed ^ 0x9E3779B9u, ctx.rp);
+            vr = BuildingProgramValidator::validate(ctx.program, {}, ctx.rp);
+            if (vr.ok()) {
+                LOG_WARN_FMT("StructureBuild", "program validation failed on the first "
+                             "layout; REPAIRED by re-rolling the autofill (salted seed)");
+                rep.action = StageReport::Action::Repaired;
+            }
+        }
+        if (!vr.ok()) {
+            LOG_WARN_FMT("StructureBuild", "REFUSING build: program validation failed"
+                         " (repair-then-refuse): " << vr.summary());
+            rep.action = StageReport::Action::Refused;
+            rep.refusal = {{"error", "program validation failed: " +
+                                     std::to_string(vr.errorCount()) + " error(s)"},
+                           {"validation", vr.toJson()}};
+            return rep;
+        }
+    }
     ctx.msSetup = ctx.pc.lap();
     return rep;
 }
@@ -276,12 +316,31 @@ StructureForge::StageReport StructureForge::stageRealize(Context& ctx) {
 }
 
 // ---------------------------------------------------------------------------
-// validate_realized — L2/L3 gates on the realized canvas. M1: empty anchor
-// stage (the M3 milestone populates it with the TraversalProbe reachability
-// flood + the dormant realized detectors).
+// validate_realized — the L3 gate on the BUILT geometry (M3): a character-box
+// must physically reach every room on every story of the realized canvas
+// (TraversalProbe via RealizedStructureValidator::checkShellTraversal). The
+// program gate proves the PLAN links up; this proves the carves and stairs the
+// realizer actually painted do. No repair here — the realizer already repairs
+// stairs; a failed flood means a geometry defect that must refuse, not ship.
+// {"allow_invalid": true} skips enforcement.
 // ---------------------------------------------------------------------------
-StructureForge::StageReport StructureForge::stageValidateRealized(Context&) {
-    return StageReport{};
+StructureForge::StageReport StructureForge::stageValidateRealized(Context& ctx) {
+    StageReport rep;
+    ValidationReport tv = RealizedStructureValidator::checkShellTraversal(
+        ctx.shell.canvas, ctx.shell.floorTopByStory, ctx.program);
+    if (tv.ok()) return rep;
+    if (ctx.params.value("allow_invalid", false)) {
+        LOG_WARN_FMT("StructureBuild", "realized-shell traversal FAILED (allow_invalid"
+                     " set, building anyway): " << tv.summary());
+        return rep;
+    }
+    LOG_WARN_FMT("StructureBuild", "REFUSING build: realized shell is not traversable: "
+                 << tv.summary());
+    rep.action = StageReport::Action::Refused;
+    rep.refusal = {{"error", "realized shell failed traversal: " +
+                             std::to_string(tv.errorCount()) + " unreachable room(s)"},
+                   {"validation", tv.toJson()}};
+    return rep;
 }
 
 // ---------------------------------------------------------------------------

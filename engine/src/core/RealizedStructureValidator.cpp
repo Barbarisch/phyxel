@@ -6,6 +6,10 @@
 #include <map>
 #include <utility>
 
+#include "core/BuildingProgram.h"
+#include "core/StairPlanner.h"
+#include "core/TraversalProbe.h"
+
 namespace Phyxel {
 namespace Core {
 
@@ -209,6 +213,48 @@ ValidationReport RealizedStructureValidator::checkSignClearance(int boardBottomM
             "hanging sign board bottom (micro-Y " + std::to_string(boardBottomMicroY) + ") is below the "
             "door head (" + std::to_string(doorHeadMicroY) + ") — it obscures the doorway instead of "
             "crowning it; hang it above the lintel");
+    }
+    return rep;
+}
+
+ValidationReport RealizedStructureValidator::checkShellTraversal(
+        const MicroCanvas& canvas, const std::vector<int>& floorTopByStory,
+        const BuildingProgram& program) {
+    ValidationReport rep;
+    if (program.stories.empty() || program.stories[0].rooms.empty()) return rep;
+    glm::ivec3 lo, hi;
+    if (!canvas.microBounds(lo, hi)) {
+        rep.addError("empty_canvas", "realized canvas has no cells to traverse");
+        return rep;
+    }
+    // Same agent the engine grounds characters with (AgentBox mirrors
+    // AnimatedVoxelCharacter; step-up = the ONE shared constant).
+    TraversalProbe probe([&](int x, int y, int z) { return canvas.occupiedMicro(x, y, z); },
+                         AgentBox{2, 16, kCharacterStepUpMicro});
+    // Start at the entrance room's centre on the ground floor (room 0 of story 0 —
+    // the program gate separately guarantees an exterior door reaches it).
+    const Rect& r0 = program.stories[0].rooms[0].rect;
+    const glm::ivec3 start((r0.x + r0.w / 2) * 9 + 4, floorTopByStory.empty() ? 0 : floorTopByStory[0],
+                           (r0.z + r0.d / 2) * 9 + 4);
+    // Whole-canvas bounds: upper-story goals force the BFS through the built stairs.
+    const glm::ivec3 bLo(lo.x - 9, lo.y - 2, lo.z - 9), bHi(hi.x + 9, hi.y + 9, hi.z + 9);
+    for (size_t s = 0; s < program.stories.size() && s < floorTopByStory.size(); ++s) {
+        const int floorY = floorTopByStory[s];
+        for (size_t k = 0; k < program.stories[s].rooms.size(); ++k) {
+            if (s == 0 && k == 0) continue;   // the start room
+            const Rect& rc = program.stories[s].rooms[k].rect;
+            // Goal = ANY standable spot in the room's interior at its floor level
+            // (a centre-point goal can land inside a stairwell shaft — a room whose
+            // centre is the well is still reached at its emergence tread).
+            const glm::ivec3 gLo(rc.x * 9 + 2, floorY - 1, rc.z * 9 + 2);
+            const glm::ivec3 gHi(rc.x1() * 9 - 3, floorY + 1, rc.z1() * 9 - 3);
+            if (!probe.reachable(start, gLo, gHi, bLo, bHi))
+                rep.addError("room_unreachable_realized",
+                             "a character-box cannot physically reach room '" +
+                             program.stories[s].rooms[k].id +
+                             "' on the BUILT shell (blocked opening or unbuilt stair)",
+                             "story " + std::to_string(s));
+        }
     }
     return rep;
 }

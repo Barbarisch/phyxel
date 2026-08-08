@@ -23,6 +23,8 @@
 namespace Phyxel {
 namespace Core {
 
+struct BuildingProgram;
+
 class RealizedStructureValidator {
 public:
     // V1: no hovering roof. For each PERIMETER column (where the wall makes a contiguous floor->top
@@ -81,6 +83,16 @@ public:
                                                int projectionMicro, int minClearanceMicro = 22,
                                                int maxProjectionMicro = 11,
                                                int doorHeadMicroY = INT_MIN);
+
+    // M3 L3 gate (validate_realized): a character-box must physically reach EVERY room on EVERY
+    // story of the REALIZED shell from the entrance room — through the carved doorways and the
+    // built stairs (TraversalProbe over the canvas occupancy). Belt-and-suspenders behind the
+    // topological program gate: that one proves the PLAN links up; this one proves the BUILT
+    // geometry does (catches carve failures, blocked openings, unbuilt flights).
+    // `floorTopByStory` = each story's walkable surface micro-Y (ShellResult.floorTopByStory).
+    static ValidationReport checkShellTraversal(const MicroCanvas& canvas,
+                                                const std::vector<int>& floorTopByStory,
+                                                const BuildingProgram& program);
 
     /// True if `material` is a hard stone-family / granular material implausible for soft furnishings.
     static bool isStoneFamily(const std::string& material);
