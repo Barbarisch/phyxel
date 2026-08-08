@@ -397,8 +397,13 @@ const ParityGolden kParityGoldens[] = {
     {"10-story switchback",          0xdf4d2e6b553654b6ull, 0xfb536b2a73209444ull},
     {"3-story switchback slab",      0x4b482ddfef811815ull, 0x26e4c4daab806951ull},
     {"3-story switchback basement",  0xb10e1058a4ac096bull, 0x8e644210eeaeb31aull},
-    {"2-story straight",             0x8ec6cb127ad87985ull, 0xb1618508ff810571ull},
-    {"3-story straight",             0x04672fc41fff3567ull, 0x9fc45a10a5197658ull},
+    // RE-PINNED after M6: the straight flight's LAST tread now absorbs the run's
+    // integer-division remainder so it reaches the well edge (a climber used to
+    // emerge onto a void gap). Only the two straight-form rows move; every
+    // switchback row and every furnish plan is byte-identical, which is the
+    // evidence that the change is confined to straight stairs.
+    {"2-story straight",             0x23180d6997915ed5ull, 0xb1618508ff810571ull},
+    {"3-story straight",             0x4dda411f8b809e4full, 0x9fc45a10a5197658ull},
     {"2-room connected",             0x0657ed156a9ad0eaull, 0x1d30249fe57607cfull},
     {"gen 7x9 rooms=3 seed1",        0xc99756d522672bc1ull, 0xe30b8af908c557a0ull},
     {"gen 7x9 rooms=4 seed2",        0x34382f9fa617c633ull, 0x0e19f19f2d2cc913ull},

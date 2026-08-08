@@ -1,12 +1,52 @@
 #include "core/RoomProgram.h"
 
 #include <algorithm>
+#include <cctype>
 #include <fstream>
 
 #include "utils/Logger.h"
 
 namespace Phyxel {
 namespace Core {
+
+// ---- M6 access classes -----------------------------------------------------
+// GROUNDED in the vernacular plan types the room programs already cite: the
+// medieval SCREENS PASSAGE is the canonical circulation element (a cross-passage
+// separating hall from service), and the galleried inn (The New Inn, Gloucester)
+// is the canonical upper-floor gallery serving chambers off it. Private = the
+// rooms a person sleeps in; service = the working rooms.
+const char* accessClassName(AccessClass a) {
+    switch (a) {
+        case AccessClass::Circulation: return "circulation";
+        case AccessClass::Private:     return "private";
+        case AccessClass::Service:     return "service";
+        default:                       return "public";
+    }
+}
+
+AccessClass accessClassFor(const std::string& purpose) {
+    std::string p = purpose;
+    std::transform(p.begin(), p.end(), p.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    auto has = [&](const char* k) { return p.find(k) != std::string::npos; };
+
+    // Circulation FIRST: "screens passage" contains neither a room noun nor a
+    // private one, and a "landing" must not fall through to the default.
+    if (has("passage") || has("landing") || has("gallery") || has("screens") ||
+        has("corridor") || has("hallway") || has("stair") || has("lobby") || has("vestibule"))
+        return AccessClass::Circulation;
+    // Private: sleeping rooms. NB "solar" is the medieval private upper chamber.
+    if (has("bedchamber") || has("bedroom") || has("chamber") || has("solar") ||
+        has("garderobe") || has("privy") || has("closet"))
+        return AccessClass::Private;
+    // Service / working rooms.
+    if (has("kitchen") || has("byre") || has("service") || has("store") || has("pantry") ||
+        has("buttery") || has("bakehouse") || has("forge") || has("shambles") ||
+        has("dispensary") || has("cellar") || has("larder") || has("scullery") ||
+        has("stable") || has("workshop"))
+        return AccessClass::Service;
+    return AccessClass::Public;   // hall, taproom, salesroom, living, great chamber...
+}
 
 RoomProgram RoomProgramRegistry::parse(const std::string& name, const nlohmann::json& rec) {
     RoomProgram p;

@@ -85,8 +85,22 @@ TEST(TavernUpstairsTest, AutofillGeneratesUpstairsAndStair) {
     for (const auto& r : p.stories[0].rooms) if (r.purpose == "taproom") groundHasTaproom = true;
     EXPECT_TRUE(groundHasTaproom) << "ground floor lost its taproom";
     ASSERT_FALSE(p.stories[1].rooms.empty()) << "upper floor has no rooms";
-    for (const auto& r : p.stories[1].rooms)
-        EXPECT_EQ(r.purpose, "bedchamber") << "upstairs room is not a guest chamber";
+    // M6 (2026-08-08): the upper floor is a GALLERY serving chambers off it, so it
+    // legitimately contains a circulation room as well as the guest chambers. The old
+    // assertion ("every upstairs room is a bedchamber") encoded the pre-M6 plan, where
+    // chambers were chained door-to-door and a guest walked through another guest's
+    // room. Contract now: every upstairs room is a chamber OR circulation, and there
+    // is at least one of each.
+    int chambers = 0, circulation = 0;
+    for (const auto& r : p.stories[1].rooms) {
+        const AccessClass a = accessClassFor(r.purpose);
+        if (r.purpose == "bedchamber") ++chambers;
+        else if (a == AccessClass::Circulation) ++circulation;
+        else ADD_FAILURE() << "upstairs room '" << r.id << "' is neither a guest chamber "
+                              "nor circulation (purpose=" << r.purpose << ")";
+    }
+    EXPECT_GT(chambers, 0) << "upper floor has no guest chambers";
+    EXPECT_GT(circulation, 0) << "upper floor has no landing/gallery to serve the chambers";
 
     // a connecting stair from story 0 -> 1 exists (the generated circulation).
     bool hasStair = false;

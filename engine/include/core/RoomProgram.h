@@ -20,6 +20,26 @@
 namespace Phyxel {
 namespace Core {
 
+// ---- M6 CIRCULATION GRAMMAR ------------------------------------------------
+// How a room may be ENTERED, which is what makes a floor plan usable rather than
+// merely connected. The rule a real building obeys: you reach a PRIVATE room from
+// circulation or a public room — never by walking through someone else's bedroom.
+//
+// Per-PURPOSE engine data (the passRank/mountFor pattern); room_program.json may
+// override per room with "access".
+enum class AccessClass {
+    Public,       ///< the shared rooms of the house: hall, taproom, salesroom, living
+    Circulation,  ///< exists to be walked through: passage, landing, gallery, screens
+    Private,      ///< a person's own room: bedchamber, solar, chamber
+    Service,      ///< working/storage space: kitchen, byre, store, buttery, pantry
+};
+
+/// Access class for a free-text room purpose (substring-matched like the
+/// furnishing recipes' canonicalPurpose). Unknown purposes read as Public — the
+/// permissive default, so an unclassified room never fabricates a violation.
+AccessClass accessClassFor(const std::string& purpose);
+const char* accessClassName(AccessClass a);
+
 /// One room in a typology, sized by the structural bays it occupies.
 struct RoomSpec {
     std::string id;

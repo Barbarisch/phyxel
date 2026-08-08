@@ -179,20 +179,34 @@ TEST(ShellTraversalGate, GeneratedTavernWhoseEntranceCentreIsTheStairwellPasses)
     auto sh = StructureRealizer::realizeShell(prog, gateStyle());
     ASSERT_TRUE(sh.ok) << sh.error;
 
-    // Sanity: this fixture really does have the trap — room 0's centre is inside
-    // the stair well (otherwise the test would not be exercising the regression).
-    ASSERT_FALSE(prog.stories[0].stairs.empty());
-    const Rect& well = prog.stories[0].stairs[0].rect;
-    const Rect& r0 = prog.stories[0].rooms[0].rect;
-    const int cx = r0.x + r0.w / 2, cz = r0.z + r0.d / 2;
-    EXPECT_TRUE(cx >= well.x && cx < well.x1() && cz >= well.z && cz < well.z1())
-        << "fixture drifted: room 0's centre is no longer in the stair well, so this "
-           "no longer guards the false positive";
-
     auto rep = RealizedStructureValidator::checkShellTraversal(
         sh.canvas, sh.floorTopByStory, prog);
     EXPECT_TRUE(rep.ok())
         << "the traversal gate refused a NAVIGABLE generated tavern: " << rep.summary();
+}
+
+// The false-positive guard proper. The bug was: seeding the traversal flood at a
+// room's geometric CENTRE fails when that centre is the stairwell SHAFT — the
+// agent has nothing to stand on, floods nowhere, and every other room reads
+// "unreachable". The generated tavern used to have that shape; M6 re-sited the
+// well, so this fixture pins it SYNTHETICALLY and cannot drift with the
+// generator: a single-room storey whose centre is deliberately inside the well.
+TEST(ShellTraversalGate, RoomWhoseCentreIsTheStairwellStillPasses) {
+    BuildingProgram prog = twoStoryStair();          // well {2,3,2,4} in a 7x9 room
+    const Rect& well = prog.stories[0].stairs[0].rect;
+    const Rect& r0 = prog.stories[0].rooms[0].rect;
+    const int cx = r0.x + r0.w / 2, cz = r0.z + r0.d / 2;
+    ASSERT_TRUE(cx >= well.x && cx < well.x1() && cz >= well.z && cz < well.z1())
+        << "fixture no longer places room 0's centre inside the well — it would stop "
+           "guarding the centre-seeded-flood false positive";
+
+    auto sh = StructureRealizer::realizeShell(prog, gateStyle());
+    ASSERT_TRUE(sh.ok) << sh.error;
+    auto rep = RealizedStructureValidator::checkShellTraversal(
+        sh.canvas, sh.floorTopByStory, prog);
+    EXPECT_TRUE(rep.ok())
+        << "a navigable building was refused because its room centre is the stair shaft: "
+        << rep.summary();
 }
 
 // ---------------------------------------------------------------------------

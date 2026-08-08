@@ -195,6 +195,66 @@ ValidationReport BuildingProgramValidator::validate(const BuildingProgram& progr
             r.addError("room_unreachable",
                        "room '" + rn + "' cannot be reached from the entrance");
 
+    // ---- M6 CIRCULATION GRAMMAR ------------------------------------------
+    // Connectivity above only proves the rooms are LINKED. A plan can be fully
+    // connected and still unlivable: chambers chained door-to-door, so reaching
+    // the far bedroom means walking through someone else's. The rule a real
+    // building obeys — and the one the user asked for — is that a PRIVATE room
+    // is entered from circulation or a public room, never THROUGH another
+    // private room.
+    //
+    // Test: for each private room, BFS from the exterior with every OTHER
+    // private room blocked. If it becomes unreachable, its only way in was
+    // through a bedroom.
+    {
+        std::map<std::string, AccessClass> access;
+        for (size_t si = 0; si < program.stories.size(); ++si)
+            for (const auto& rm : program.stories[si].rooms)
+                access[node((int)si, rm.id)] = accessClassFor(rm.purpose);
+
+        std::vector<std::string> privates;
+        for (const auto& [n, a] : access)
+            if (a == AccessClass::Private) privates.push_back(n);
+
+        for (const auto& target : privates) {
+            std::set<std::string> seen{"exterior"};
+            std::deque<std::string> bq{"exterior"};
+            bool reached = false;
+            while (!bq.empty() && !reached) {
+                const std::string n = bq.front(); bq.pop_front();
+                for (const auto& m : adj[n]) {
+                    if (m == target) { reached = true; break; }
+                    // Cannot pass THROUGH another private room.
+                    auto it = access.find(m);
+                    if (it != access.end() && it->second == AccessClass::Private) continue;
+                    if (seen.insert(m).second) bq.push_back(m);
+                }
+            }
+            if (!reached && visited.count(target))   // linked, but only via a bedroom
+                r.addError("private_room_through_private",
+                           "private room '" + target + "' can only be reached by walking "
+                           "THROUGH another private room — give it a door onto circulation "
+                           "(a landing/gallery/passage) or a public room",
+                           target);
+        }
+
+        // A floor with several private rooms needs somewhere to circulate: without
+        // a landing/gallery/passage they can only be chained to each other.
+        for (size_t si = 0; si < program.stories.size(); ++si) {
+            int priv = 0, circ = 0;
+            for (const auto& rm : program.stories[si].rooms) {
+                const AccessClass a = accessClassFor(rm.purpose);
+                if (a == AccessClass::Private) ++priv;
+                if (a == AccessClass::Circulation) ++circ;
+            }
+            if (priv > 1 && circ == 0)
+                r.addWarning("no_circulation",
+                             "story " + std::to_string(si) + " has " + std::to_string(priv) +
+                             " private rooms and no circulation room (landing/gallery/passage)",
+                             "story " + std::to_string(si));
+        }
+    }
+
     // ---- stair WALKABILITY gate (physical-usability, via the shared StairPlanner) ----
     // Topological reachability (above) proves a stair *links* two stories; it does NOT
     // prove a character can climb it. Plan each stair with the SAME StairPlanner the

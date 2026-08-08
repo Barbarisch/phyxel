@@ -15,6 +15,32 @@ namespace Core {
 
 namespace {
 
+// M6: width (cubes) of the circulation strip that carries the stair — the upper
+// floor's GALLERY and the stair WELL share it, so the flight always emerges onto
+// circulation instead of into someone's chamber. 2 cubes ≈ 2 m: wide enough for the
+// switchback's two lanes (StairPlanner requires well width >= 2) and for two people
+// to pass, which is what a gallery is for.
+constexpr int kStairStripCubes = 2;
+
+// THE stair well rect — ONE definition, used by generateStoryStairs (to build the
+// flight) and generateUpperChambers (so chamber doors don't open into the shaft).
+// It runs ALONG the long axis inside the circulation strip, at the low corner.
+// Deriving it twice is how the doors ended up opening onto the stairwell void.
+Rect stairWellRect(int W, int D) {
+    const bool lengthIsX = (W >= D);
+    const int longAxis = lengthIsX ? W : D;
+    // INSET the foot of the flight one cube from the gable wall. The exterior wall
+    // band eats the first ~3 micro of the footprint, so a well flush at 0 buries its
+    // bottom treads in the wall and there is no way to reach the foot of the stair —
+    // the storey above becomes unreachable even though the flight is built correctly.
+    // (The pre-M6 well was inset for exactly this reason; dropping it cost a debug
+    // cycle, so the reason is written down here.)
+    const int foot = 1;
+    const int wellRun = std::min(6, std::max(2, longAxis - foot));
+    return lengthIsX ? Rect{foot, 0, wellRun, kStairStripCubes}
+                     : Rect{0, foot, kStairStripCubes, wellRun};
+}
+
 // Shared wall between two rects (axis + coord + overlap span). Mirrors the realizer's sharedWall so
 // the doors land exactly where the realizer carves.
 struct Wall { char axis = 0; int coord = 0, lo = 0, hi = 0; bool ok = false; };
@@ -343,15 +369,96 @@ static void addTypologyWindows(RoomLayout& rl, int W, int D, const WindowSpec& s
 // Upper floors of a multi-story typology = linear guest chambers (full-width slices), so the FIRST
 // slice (room 0, low end of the longer axis) is the stair-landing the flight emerges into — kept big
 // enough to hold the well clear of any interior wall. minBays caps the chamber count to the footprint.
+// M6 CIRCULATION GRAMMAR: the upper floor is a GALLERY serving chambers off it —
+// the galleried-inn arrangement (The New Inn, Gloucester; already cited by the
+// tavern room program), not a row of chambers chained door-to-door.
+//
+// Before M6 this produced a linear slice with a door chain, so reaching the far
+// guest chamber meant walking THROUGH another guest's room — connected, but not
+// livable, and undetected because the only check was "is every room linked".
+//
+// The gallery runs the full LENGTH along one side and holds the stair emergence
+// (kStairStripCubes wide, matching the well siting in generateStoryStairs); every
+// chamber opens off it, so no chamber is ever transited to reach another.
 static RoomLayout generateUpperChambers(int W, int D, const std::string& purpose) {
-    const int length = std::max(W, D);
-    // Wider slices (length/5, 2..4) so room 0 — the stair landing — has floor BESIDE the shaft (the
-    // switchback cuts its whole well from the upper slab), not an all-hole room.
-    const int chambers = std::max(2, std::min(length / 5, 4));
-    RoomProgram up;
-    for (int c = 0; c < chambers; ++c)
-        up.rooms.push_back({"chamber", purpose.empty() ? "bedchamber" : purpose, 1.0});
-    return generateRoomLayoutFromProgram(W, D, up);
+    RoomLayout out;
+    const bool lengthIsX = (W >= D);
+    const int length = lengthIsX ? W : D;
+    const int width  = lengthIsX ? D : W;
+    const std::string chamberPurpose = purpose.empty() ? "bedchamber" : purpose;
+
+    // A gallery needs its own strip PLUS a habitable chamber depth beside it. Too
+    // narrow => fall back to the linear plan (one chamber, so no through-traffic
+    // is possible and the grammar is satisfied trivially).
+    // The gallery must be DEEPER than the stair well it carries, or the shaft spans
+    // its full depth and severs it: the far chambers become unreachable even though
+    // their doors are fine (measured — that is exactly what a 2-deep gallery with a
+    // 2-deep well did). One extra cube leaves a continuous walkway past the shaft,
+    // which is what a gallery beside a stairwell actually is.
+    const int galleryDepth = kStairStripCubes + 1;
+    if (width < galleryDepth + 2 || length < 4) {
+        RoomProgram up;
+        up.rooms.push_back({"chamber", chamberPurpose, 1.0});
+        return generateRoomLayoutFromProgram(W, D, up);
+    }
+
+    auto rectOf = [&](int along, int alongLen, int across, int acrossLen) {
+        return lengthIsX ? Rect{along, across, alongLen, acrossLen}
+                         : Rect{across, along, acrossLen, alongLen};
+    };
+    const Rect well = stairWellRect(W, D);   // shared with generateStoryStairs
+
+    ProgRoom gallery;
+    gallery.id = "landing";
+    gallery.purpose = "landing";            // AccessClass::Circulation
+    gallery.rect = rectOf(0, length, 0, galleryDepth);
+    out.rooms.push_back(gallery);
+
+    // Chambers fill the strip beside the gallery, split along the length.
+    const int chamberDepth = width - galleryDepth;
+    const int n = std::max(2, std::min(length / 5, 4));
+    const int base = length / n, extra = length % n;
+    int pos = 0;
+    for (int i = 0; i < n; ++i) {
+        const int slice = base + (i < extra ? 1 : 0);
+        ProgRoom ch;
+        ch.id = (i == 0) ? "chamber" : ("chamber_" + std::to_string(i));
+        ch.purpose = chamberPurpose;
+        ch.rect = rectOf(pos, slice, galleryDepth, chamberDepth);
+        out.rooms.push_back(ch);
+        // Door from the GALLERY into this chamber. Derive it through shared() —
+        // the same helper the linear chain uses — so the portal lands exactly
+        // where the realizer carves (hand-computed coordinates put the doors in
+        // the wrong plane and left the chambers sealed).
+        const Wall w = shared(gallery.rect, ch.rect);
+        if (w.ok) {
+            // The door must open onto FLOOR, not into the stairwell shaft: the well
+            // is cut out of this same gallery strip, so a naive mid-span door can
+            // land over the void (it did — the chambers were sealed off behind a
+            // hole). Prefer the position furthest from the well's span.
+            const int wellLo = (w.axis == 'x') ? well.z : well.x;
+            const int wellHi = (w.axis == 'x') ? well.z1() : well.x1();
+            int mid = (w.lo + w.hi) / 2;
+            if (mid >= w.hi) mid = w.hi - 1;
+            if (mid >= wellLo && mid < wellHi) {
+                int best = -1, bestDist = -1;
+                for (int c = w.lo; c < w.hi; ++c) {
+                    if (c >= wellLo && c < wellHi) continue;      // over the shaft
+                    const int dist = std::min(std::abs(c - wellLo), std::abs(c - (wellHi - 1)));
+                    if (dist > bestDist) { bestDist = dist; best = c; }
+                }
+                if (best >= 0) mid = best;   // else: chamber wholly over the well (guarded below)
+            }
+            ProgPortal d;
+            d.a = gallery.id; d.b = ch.id;
+            d.kind = "door"; d.width = 1; d.height = 2;
+            if (w.axis == 'x') { d.px = w.coord; d.pz = mid; }
+            else               { d.px = mid;     d.pz = w.coord; }
+            out.portals.push_back(d);
+        }
+        pos += slice;
+    }
+    return out;
 }
 
 // The missing circulation: a switchback stair connecting every consecutive story. The well is a
@@ -361,11 +468,12 @@ static RoomLayout generateUpperChambers(int W, int D, const std::string& purpose
 static void generateStoryStairs(BuildingProgram& program) {
     const int n = static_cast<int>(program.stories.size());
     if (n < 2) return;
-    const bool lengthIsX = (program.footprintW >= program.footprintD);
-    const int wellRun = std::min(6, lengthIsX ? program.footprintD : program.footprintW);  // across-width
-    Rect well;
-    if (lengthIsX) well = {1, 0, 2, wellRun};   // x in [1,3] (clear of x=0 wall + the first interior wall)
-    else           well = {0, 1, wellRun, 2};
+    // M6: the well runs ALONG the long axis inside the kStairStripCubes-wide strip
+    // that the upper floor's GALLERY occupies (generateUpperChambers), so the flight
+    // emerges onto circulation — never into a guest's chamber. Before M6 the well ran
+    // ACROSS the width, which only worked because room 0 happened to span the full
+    // width; with a gallery that would have put the stair head inside a bedroom.
+    const Rect well = stairWellRect(program.footprintW, program.footprintD);
     for (int s = 0; s + 1 < n; ++s) {
         bool authored = false;
         for (const auto& st : program.stories[s].stairs)
@@ -373,7 +481,16 @@ static void generateStoryStairs(BuildingProgram& program) {
         if (authored) continue;
         ProgStair stair;
         stair.fromStory = s; stair.toStory = s + 1; stair.rect = well;
-        stair.kind = "straight"; stair.form = "switchback";
+        // FORM FOLLOWS THE SHAFT. StairPlanner always runs its flights along the
+        // well's Z extent and splits switchback lanes along X, so a LONG NARROW
+        // shaft (the one that fits inside a gallery) gets almost no run from a
+        // switchback — it "fits" by the planner's arithmetic and is miserable in
+        // practice (measured: the climb from the taproom failed). A long narrow
+        // shaft takes a STRAIGHT flight; a compact shaft takes a switchback,
+        // which folds to fit and keeps its headroom when stacked.
+        const int lo = std::min(well.w, well.d), hi = std::max(well.w, well.d);
+        stair.form = (lo > 0 && hi >= lo * 2) ? "straight" : "switchback";
+        stair.kind = stair.form;
         program.stories[s].stairs.push_back(stair);
     }
 }

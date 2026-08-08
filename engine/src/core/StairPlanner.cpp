@@ -122,8 +122,14 @@ StairPlan planStair(int wellW, int wellD, int riseMicro, StairForm form, int max
     for (int i = 0; i < t; ++i) {
         const int top  = std::min(riseMicro, (i + 1) * R);
         const int base = std::max(0, top - std::max(R, 2));                    // THIN tread, open below
-        if (runZ) p.solids.push_back({0,     base, i * T, crossW, top - base, T});       // runs along z
-        else      p.solids.push_back({i * T, base, 0,     T,      top - base, crossW});  // runs along x
+        // The LAST tread absorbs the run's integer-division remainder so the flight
+        // reaches the far edge of the well. Without this the top tread stopped short
+        // (15 treads x 3 micro = 45 in a 54-micro well) and the climber emerged onto
+        // a VOID gap — the whole well is cut out of the upper floor, so there was
+        // nothing to step onto and the storey was unreachable. Measured, not guessed.
+        const int len = (i == t - 1) ? (runM - i * T) : T;
+        if (runZ) p.solids.push_back({0,     base, i * T, crossW, top - base, len});     // runs along z
+        else      p.solids.push_back({i * T, base, 0,     len,    top - base, crossW});  // runs along x
     }
     p.maxRiserMicro = R;
     p.topMicro = riseMicro;
