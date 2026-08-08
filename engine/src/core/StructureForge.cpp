@@ -798,6 +798,9 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
         struct Emitting { std::string type; std::string room; std::string objectId;
                           glm::ivec3 microPos; };
         std::vector<Emitting> emitters;
+        // M7: every placed fixture's TRUE world AABB, for the doorway-clearance scan.
+        std::vector<RealizedStructureValidator::PlacedBox> placedBoxes;
+        nlohmann::json unblockedDoors = nlohmann::json::array();
         int lightsRegistered = 0;
         std::set<std::string> litRooms;   // rooms that got at least one light source
         nlohmann::json darkRooms = nlohmann::json::array();
@@ -918,6 +921,13 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                 // M5: collect light SOURCES for the lighting pass below.
                 if (FurniturePlacer::emitterFor(pl.type).emits)
                     emitters.push_back({pl.type, pl.room, fid, microPos});
+                // M7: record the REGISTERED world bbox (cubes -> micro). This is the
+                // render-accurate extent including the wall-inset micro-spill, which
+                // is exactly the spill the plan-time cell reservation cannot see.
+                if (const auto* obj = placedObjectManager->get(fid))
+                    placedBoxes.push_back({pl.type, pl.room, fid,
+                                           obj->boundingMin * 9,
+                                           (obj->boundingMax + glm::ivec3(1)) * 9});
             }
 
             // ---- place_chimney (#14), M4: its own pass over the story's vented
@@ -1017,6 +1027,41 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                                      {"story", static_cast<int>(si)}});
             }
             litRooms.clear();
+
+            // ---- M7 DOORWAY CLEARANCE: the realized check. Furniture avoids doors
+            // in CUBE cells at plan time, but a piece renders at micro precision and
+            // spills past its reserved footprint, so a piece that "fits" beside a
+            // door can still stand in it. Scan the real placed AABBs against the real
+            // carved openings, and REPAIR by removing the offender — a blocked
+            // doorway is a defect, and a room you cannot walk into is worse than a
+            // room missing a stool.
+            {
+                auto blocked = RealizedStructureValidator::checkDoorwayClearance(
+                    ctx.shell.plan, glm::ivec3(posX, ctx.oy, posZ), placedBoxes);
+                if (!blocked.ok()) {
+                    std::set<std::string> offenders;
+                    for (const auto& is : blocked.issues()) offenders.insert(is.where);
+                    for (auto& b : placedBoxes) {
+                        const std::string key = b.room.empty() ? b.objectId : b.room;
+                        if (!offenders.count(key) || b.objectId.empty()) continue;
+                        // Only the pieces actually overlapping a doorway are removed —
+                        // re-run the check for THIS box alone to avoid evicting a
+                        // room-mate that merely shares the room label.
+                        auto one = RealizedStructureValidator::checkDoorwayClearance(
+                            ctx.shell.plan, glm::ivec3(posX, ctx.oy, posZ), {b});
+                        if (one.ok()) continue;
+                        LOG_WARN_FMT("StructureBuild", "doorway blocked by " << b.type
+                                     << " in '" << b.room << "' — REMOVING it (a blocked "
+                                        "doorway is worse than a missing fixture)");
+                        placedObjectManager->remove(b.objectId);
+                        --fxSpawned;
+                        unblockedDoors.push_back({{"type", b.type}, {"room", b.room}});
+                        b.objectId.clear();
+                        b.lo = b.hi = glm::ivec3(0);   // no longer occupies anything
+                    }
+                }
+            }
+            placedBoxes.clear();
             // Surface items (ItemPlacementPlan.md, 2026-08-07): scatter PICKABLE
             // ITEM PROPS on table tops — per-purpose sets from the recipes
             // ("surface_items"), placed at the table's MEASURED top surface
@@ -1195,6 +1240,8 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
         if (!fluelessRemoved.empty())
             response["flueless_hearths_removed"] = fluelessRemoved; // never ship a flueless hearth
         response["lights_registered"] = lightsRegistered;           // M5 lighting pass
+        if (!unblockedDoors.empty())
+            response["doorway_blockers_removed"] = unblockedDoors;  // M7 clearance repair
         if (!darkRooms.empty()) {
             response["dark_rooms"] = darkRooms;                     // no window, hearth or lamp
             LOG_WARN_FMT("StructureBuild", "place_lights: " << darkRooms.size()

@@ -217,6 +217,52 @@ ValidationReport RealizedStructureValidator::checkSignClearance(int boardBottomM
     return rep;
 }
 
+ValidationReport RealizedStructureValidator::checkDoorwayClearance(
+        const AssemblyPlan& plan, const glm::ivec3& originCubes,
+        const std::vector<PlacedBox>& placed, int agentHalfWidthMicro) {
+    ValidationReport rep;
+    const glm::ivec3 originMicro = originCubes * 9;
+
+    for (const auto& o : plan.openings) {
+        if (o.kind == "window") continue;          // you don't walk through a window
+        // The passage is the union of the opening's CARVED `clear` boxes — recorded
+        // by the realizer as it painted them, so this needs no assumption about which
+        // way the wall faces.
+        glm::ivec3 lo(INT_MAX), hi(INT_MIN);
+        for (const auto& t : o.reveal) {
+            if (t.role != "clear") continue;
+            lo = glm::min(lo, glm::ivec3(t.x, t.y, t.z));
+            hi = glm::max(hi, glm::ivec3(t.x + t.w, t.y + t.h, t.z + t.d));
+        }
+        if (lo.x > hi.x) continue;                 // nothing carved (shouldn't happen)
+        lo += originMicro; hi += originMicro;
+
+        // Widen along the WALL NORMAL so the test covers the APPROACH on both sides,
+        // not just the wall plane: a piece parked in front of a door blocks it as
+        // surely as one standing in it. The normal comes from the realizer's recorded
+        // `alongZ` — inferring it from the carve's shape is ambiguous (an exterior
+        // 1-wide door carves a 9x9 box, and an interior carve is DEEPER through the
+        // wall than it is wide, which inverts a "thinner axis" guess).
+        const int reach = 9 + agentHalfWidthMicro;          // ~1 cube of approach
+        if (o.alongZ) { lo.x -= reach; hi.x += reach; }     // wall faces +/-X
+        else          { lo.z -= reach; hi.z += reach; }
+        // Only the walking envelope matters: from the threshold up to head height.
+        hi.y = std::max(hi.y, lo.y + 16);
+
+        for (const auto& b : placed) {
+            const bool overlap = b.lo.x < hi.x && b.hi.x > lo.x &&
+                                 b.lo.y < hi.y && b.hi.y > lo.y &&
+                                 b.lo.z < hi.z && b.hi.z > lo.z;
+            if (!overlap) continue;
+            rep.addError("doorway_blocked",
+                         "'" + b.type + "' stands in the " + o.kind + "way — a character "
+                         "cannot pass through it",
+                         b.room.empty() ? b.objectId : b.room);
+        }
+    }
+    return rep;
+}
+
 ValidationReport RealizedStructureValidator::checkShellTraversal(
         const MicroCanvas& canvas, const std::vector<int>& floorTopByStory,
         const BuildingProgram& program) {

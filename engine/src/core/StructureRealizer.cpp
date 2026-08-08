@@ -292,6 +292,7 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
             cut.w = p.width; cut.h = p.height; cut.d = 1;
             cut.kind = p.kind;
             cut.infill = (p.kind == "window") ? p.infill : std::string("open");
+            cut.alongZ = alongZ;   // M7: the passage normal, recorded not inferred
             auto rec = [&](int bx, int by, int bz, int bw, int bh, int bd,
                            const std::string& mat, const char* role) {
                 c.fillMicroBox(bx, by, bz, bw, bh, bd, mat);
@@ -392,6 +393,9 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                 // run at door height. (BuildingHarness rooms-reachable caught the sliver.)
                 Seg sw = sharedWall(srooms[p.a], srooms[p.b]);
                 if (sw.ok) {
+                    // M7: an INTERIOR opening's normal comes from the shared wall's
+                    // axis, not from px/pz (a partition at x=4 is not "px==0||px==W").
+                    cut.alongZ = (sw.axis == 'x');
                     for (int k = 0; k < std::max(1, p.width); ++k) {
                         if (sw.axis == 'x')   // wall runs along Z at x=coord; doorway runs along Z
                             rec((sw.coord - 1) * 9, oyBase, (p.pz + k) * 9,

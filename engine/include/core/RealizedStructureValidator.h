@@ -17,6 +17,9 @@
 #include <string>
 #include <vector>
 
+#include <glm/glm.hpp>
+
+#include "core/AssemblyPlan.h"
 #include "core/MicroCanvas.h"
 #include "core/ValidationReport.h"
 
@@ -83,6 +86,23 @@ public:
                                                int projectionMicro, int minClearanceMicro = 22,
                                                int maxProjectionMicro = 11,
                                                int doorHeadMicroY = INT_MIN);
+
+    // M7 doorway clearance (checklist G5/K6): a PLACED fixture must not block a carved
+    // doorway. Furniture avoidance is planned in CUBE cells, but a piece renders at
+    // micro precision and SPILLS past its reserved footprint (the wall-inset
+    // micro-spill), so a piece that "fits" beside a door can still stand in it. This
+    // scans the REALIZED result: the passage is taken from each opening's recorded
+    // `clear` reveal boxes (ground truth — no orientation guessing), widened along the
+    // wall normal so a character actually has room to walk through, and tested against
+    // every placed fixture's true world AABB.
+    struct PlacedBox {
+        std::string type, room, objectId;
+        glm::ivec3 lo{0}, hi{0};   ///< world MICRO, half-open [lo, hi)
+    };
+    static ValidationReport checkDoorwayClearance(const AssemblyPlan& plan,
+                                                  const glm::ivec3& originCubes,
+                                                  const std::vector<PlacedBox>& placed,
+                                                  int agentHalfWidthMicro = 2);
 
     // M3 L3 gate (validate_realized): a character-box must physically reach EVERY room on EVERY
     // story of the REALIZED shell from the entrance room — through the carved doorways and the

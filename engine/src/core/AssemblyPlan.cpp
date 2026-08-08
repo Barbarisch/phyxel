@@ -76,6 +76,7 @@ OpeningCut OpeningCut::fromJson(const nlohmann::json& j) {
     o.w = ji(j, "w"); o.h = ji(j, "h"); o.d = ji(j, "d");
     o.kind = js(j, "kind", "door");
     o.infill = js(j, "infill", "open");
+    o.alongZ = j.value("along_z", false);
     if (j.contains("reveal"))
         for (const auto& e : j["reveal"]) o.reveal.push_back(TrimBox::fromJson(e));
     return o;
@@ -84,7 +85,7 @@ nlohmann::json OpeningCut::toJson() const {
     nlohmann::json rv = nlohmann::json::array();
     for (const auto& t : reveal) rv.push_back(t.toJson());
     return {{"x", x}, {"y", y}, {"z", z}, {"w", w}, {"h", h}, {"d", d},
-            {"kind", kind}, {"infill", infill}, {"reveal", rv}};
+            {"kind", kind}, {"infill", infill}, {"along_z", alongZ}, {"reveal", rv}};
 }
 
 CornerZone CornerZone::fromJson(const nlohmann::json& j) {

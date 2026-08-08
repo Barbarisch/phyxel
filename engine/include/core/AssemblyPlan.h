@@ -77,6 +77,11 @@ struct OpeningCut {
     int w = 0, h = 0, d = 0;
     std::string kind = "door";      ///< door | window | arch
     std::string infill = "open";    ///< open | glass | shutter | boarded
+    bool alongZ = false;            ///< the opening RUNS along Z (wall faces +/-X), so the
+                                    ///< passage normal is X. Recorded by the realizer as it
+                                    ///< carves — the doorway-clearance check must widen along
+                                    ///< the NORMAL, and inferring that from the carve's shape
+                                    ///< is ambiguous (an exterior 1-wide door carves 9x9).
     std::vector<TrimBox> reveal;    ///< realized carve + trim boxes (micro; increment 2)
 
     static OpeningCut fromJson(const nlohmann::json& j);
