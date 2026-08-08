@@ -3,6 +3,8 @@
 #include "core/BuildingProgram.h"
 #include "core/ChunkManager.h"
 #include "core/RealizedStructureValidator.h"
+#include "core/RoomLayout.h"
+#include "core/RoomProgram.h"
 #include "core/StructureBuildService.h"
 #include "core/StructureRealizer.h"
 #include "core/StyleProfile.h"
@@ -147,6 +149,50 @@ TEST(ShellTraversalGate, FilledStairwellFires) {
         sh.canvas, sh.floorTopByStory, prog);
     EXPECT_FALSE(rep.ok())
         << "an entombed stair went undetected — upper story sealed with no diagnostics";
+}
+
+// The REAL generated tavern — the case that exposed a false positive in this
+// gate at L4 (2026-08-08). The tavern's taproom is room 0, and the auto-placed
+// stair well sits at the low end of the long axis, so the taproom's CENTRE is
+// inside the stairwell shaft. Seeding the flood at that centre made the agent
+// unstandable, and the gate reported EVERY other room unreachable — refusing a
+// building that is in fact fully navigable. The start must be a standable spot,
+// not a centre point.
+TEST(ShellTraversalGate, GeneratedTavernWhoseEntranceCentreIsTheStairwellPasses) {
+    RoomProgramRegistry reg;
+    ASSERT_TRUE(reg.loadFromFile("resources/room_program.json") ||
+                reg.loadFromFile("../resources/room_program.json") ||
+                reg.loadFromFile("../../resources/room_program.json") ||
+                reg.loadFromFile("../../../resources/room_program.json"));
+    const RoomProgram* tavern = reg.get("tavern");
+    ASSERT_NE(tavern, nullptr);
+
+    nlohmann::json j;
+    j["name"] = "tavern"; j["style"] = "timber_cottage";
+    j["footprint"] = nlohmann::json::array({7, 12});
+    j["substructure"] = "crawlspace"; j["typology"] = "tavern";
+    j["stories"] = nlohmann::json::array({nlohmann::json{{"height", 3}}});
+    BuildingProgram prog = BuildingProgram::fromJson(j);
+    ASSERT_TRUE(autofillRoomLayout(prog, 1234u, tavern));
+    ASSERT_GE(prog.stories.size(), 2u) << "tavern typology should grow to 2 stories";
+
+    auto sh = StructureRealizer::realizeShell(prog, gateStyle());
+    ASSERT_TRUE(sh.ok) << sh.error;
+
+    // Sanity: this fixture really does have the trap — room 0's centre is inside
+    // the stair well (otherwise the test would not be exercising the regression).
+    ASSERT_FALSE(prog.stories[0].stairs.empty());
+    const Rect& well = prog.stories[0].stairs[0].rect;
+    const Rect& r0 = prog.stories[0].rooms[0].rect;
+    const int cx = r0.x + r0.w / 2, cz = r0.z + r0.d / 2;
+    EXPECT_TRUE(cx >= well.x && cx < well.x1() && cz >= well.z && cz < well.z1())
+        << "fixture drifted: room 0's centre is no longer in the stair well, so this "
+           "no longer guards the false positive";
+
+    auto rep = RealizedStructureValidator::checkShellTraversal(
+        sh.canvas, sh.floorTopByStory, prog);
+    EXPECT_TRUE(rep.ok())
+        << "the traversal gate refused a NAVIGABLE generated tavern: " << rep.summary();
 }
 
 // ---------------------------------------------------------------------------

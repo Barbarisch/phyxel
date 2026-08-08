@@ -231,11 +231,29 @@ ValidationReport RealizedStructureValidator::checkShellTraversal(
     // AnimatedVoxelCharacter; step-up = the ONE shared constant).
     TraversalProbe probe([&](int x, int y, int z) { return canvas.occupiedMicro(x, y, z); },
                          AgentBox{2, 16, kCharacterStepUpMicro});
-    // Start at the entrance room's centre on the ground floor (room 0 of story 0 —
-    // the program gate separately guarantees an exterior door reaches it).
+    // Start somewhere the agent can actually STAND in the entrance room (room 0 of
+    // story 0 — the program gate separately guarantees an exterior door reaches it).
+    // NOT its centre: a room's centre can be the stairwell shaft (the tavern's
+    // taproom centre sits inside the well), and an unstandable start floods
+    // nowhere — reporting every other room "unreachable". Scan the room's interior
+    // for the first standable spot; if there is none, THAT is the finding.
+    const int floor0 = floorTopByStory.empty() ? 0 : floorTopByStory[0];
     const Rect& r0 = program.stories[0].rooms[0].rect;
-    const glm::ivec3 start((r0.x + r0.w / 2) * 9 + 4, floorTopByStory.empty() ? 0 : floorTopByStory[0],
-                           (r0.z + r0.d / 2) * 9 + 4);
+    glm::ivec3 start(0, 0, 0);
+    bool haveStart = false;
+    for (int mx = r0.x * 9 + 2; mx < r0.x1() * 9 - 2 && !haveStart; ++mx)
+        for (int mz = r0.z * 9 + 2; mz < r0.z1() * 9 - 2 && !haveStart; ++mz)
+            if (probe.fits(mx, floor0, mz) && probe.supported(mx, floor0, mz)) {
+                start = glm::ivec3(mx, floor0, mz);
+                haveStart = true;
+            }
+    if (!haveStart) {
+        rep.addError("entrance_room_unstandable",
+                     "no standable spot in entrance room '" + program.stories[0].rooms[0].id +
+                     "' on the built shell — the building cannot be entered at all",
+                     "story 0");
+        return rep;
+    }
     // Whole-canvas bounds: upper-story goals force the BFS through the built stairs.
     const glm::ivec3 bLo(lo.x - 9, lo.y - 2, lo.z - 9), bHi(hi.x + 9, hi.y + 9, hi.z + 9);
     for (size_t s = 0; s < program.stories.size() && s < floorTopByStory.size(); ++s) {
