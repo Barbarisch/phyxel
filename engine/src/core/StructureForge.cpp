@@ -143,10 +143,28 @@ StructureForge::StageReport StructureForge::stageIntake(Context& ctx) {
     // room layout (autofill) and the validation gate. Declared typology wins, else
     // a coarse function default (croft/hall_house/...).
     ctx.roomReg.loadFromFile("resources/room_program.json");
+    // M8 PERIOD AXIS: medieval is the shipped default and lives in the legacy file;
+    // any other era is a DATA PACK under resources/room_programs/<period>.json. No
+    // code change adds an era.
+    const std::string period = ctx.params.value("period", std::string("medieval"));
+    if (period != "medieval")
+        ctx.roomReg.loadPeriodPack("resources/room_programs/" + period + ".json", period);
     ctx.typ = ctx.program.typology.empty()
         ? RoomProgramRegistry::defaultTypologyForFunction(ctx.program.function)
         : ctx.program.typology;
-    ctx.rp = ctx.typ.empty() ? nullptr : ctx.roomReg.get(ctx.typ);
+    ctx.rp = ctx.typ.empty() ? nullptr : ctx.roomReg.get(ctx.typ, period);
+    // An unknown period REFUSES rather than silently building a medieval house and
+    // calling it Victorian — the same no-substitution rule the asset gate enforces.
+    if (!ctx.typ.empty() && !ctx.rp && ctx.roomReg.get(ctx.typ)) {
+        const auto known = ctx.roomReg.periods();
+        rep.action = StageReport::Action::Refused;
+        rep.refusal = {{"error", "no '" + ctx.typ + "' room program for period '" + period +
+                                 "' — author it as a data pack under resources/room_programs/ "
+                                 "(the engine never substitutes another era)"},
+                       {"requested_period", period},
+                       {"known_periods", known}};
+        return rep;
+    }
 
     StyleProfileRegistry styleReg;
     styleReg.loadFromFile("resources/structure_styles.json");

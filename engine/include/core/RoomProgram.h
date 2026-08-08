@@ -12,6 +12,7 @@
 // ============================================================================
 
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -45,6 +46,12 @@ struct RoomSpec {
     std::string id;
     std::string purpose;
     double      bays = 1.0;
+    /// M8: is this room part of what makes the typology WORK? A tavern without a
+    /// taproom is not a tavern. Required rooms are enforced by the program gate;
+    /// optional ones may be dropped when the footprint cannot carry them.
+    /// Defaults TRUE — every room a typology declares today is there on purpose,
+    /// so silence must not quietly demote existing content.
+    bool        required = true;
 };
 
 /// Window-opening generation rule for a typology (JSON key "windows"). ABSENT or
@@ -69,6 +76,12 @@ struct RoomProgram {
     std::string name;
     std::string description;
     std::string source;                      ///< primary citation; "" = flagged UNSOURCED
+    /// M8 PERIOD AXIS. The era whose vernacular this program describes. Medieval
+    /// ships first and is the default, so every existing program keeps its meaning;
+    /// later eras arrive as DATA PACKS (resources/room_programs/<period>.json) with
+    /// their own grounded rooms — a Georgian plan has a corridor and a Victorian one
+    /// a scullery, and neither belongs in a medieval croft. No code change to add one.
+    std::string period = "medieval";
 
     double widthMin = 0.0, widthMax = 0.0;   ///< building width range in cubes (frame/cruck span)
     double bayLength = 0.0;                  ///< structural bay length in cubes
@@ -101,9 +114,33 @@ public:
     bool loadFromFile(const std::string& path);
     bool loadFromJson(const nlohmann::json& j);   // {"programs": {...}} or a flat map
 
+    /// Load an era DATA PACK (resources/room_programs/<period>.json). Programs are
+    /// stamped with `period` and MERGED, so several eras coexist in one registry and
+    /// a build asks for the one it wants. Adding an era is a data change only.
+    bool loadPeriodPack(const std::string& path, const std::string& period);
+
     const RoomProgram* get(const std::string& name) const {
         auto it = m_programs.find(name);
         return it == m_programs.end() ? nullptr : &it->second;
+    }
+
+    /// M8 period-aware lookup. Returns the program only if it belongs to `period`
+    /// ("" = any). NEVER falls back to another era: silently handing a caller a
+    /// medieval croft when it asked for a Victorian one would be exactly the kind
+    /// of quiet substitution this pipeline refuses to make.
+    const RoomProgram* get(const std::string& name, const std::string& period) const {
+        const RoomProgram* p = get(name);
+        if (!p) return nullptr;
+        if (!period.empty() && p->period != period) return nullptr;
+        return p;
+    }
+
+    /// Every period present in the registry (sorted) — so an unknown-period refusal
+    /// can tell the caller what IS available instead of just failing.
+    std::vector<std::string> periods() const {
+        std::set<std::string> s;
+        for (const auto& [_, p] : m_programs) s.insert(p.period);
+        return {s.begin(), s.end()};
     }
     bool contains(const std::string& name) const { return m_programs.count(name) > 0; }
     std::vector<std::string> programs() const {

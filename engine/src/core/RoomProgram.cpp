@@ -55,6 +55,7 @@ RoomProgram RoomProgramRegistry::parse(const std::string& name, const nlohmann::
 
     p.description = rec.value("description", "");
     p.source = rec.value("source", "");
+    p.period = rec.value("period", std::string("medieval"));   // M8 period axis
     p.widthMin = rec.value("width_min", 0.0);
     p.widthMax = rec.value("width_max", 0.0);
     p.bayLength = rec.value("bay_length", 0.0);
@@ -86,6 +87,9 @@ RoomProgram RoomProgramRegistry::parse(const std::string& name, const nlohmann::
             rs.id = r.value("id", "");
             rs.purpose = r.value("purpose", "");
             rs.bays = r.value("bays", 1.0);
+            // M8: absent => REQUIRED. Every room a typology declares today is there
+            // on purpose, so silence must not quietly demote existing content.
+            rs.required = r.value("required", true);
             p.rooms.push_back(rs);
         }
 
@@ -127,6 +131,40 @@ std::string RoomProgramRegistry::defaultTypologyForFunction(const std::string& f
     if (function == "farmhouse" || function == "longhouse")               return "longhouse";
     if (function == "manor" || function == "hall")                        return "manor_hall";
     return "";  // church / tower / etc — no dwelling typology; skip the room gate
+}
+
+bool RoomProgramRegistry::loadPeriodPack(const std::string& path, const std::string& period) {
+    std::ifstream file(path);
+    if (!file.is_open()) return false;          // an absent era pack is not an error
+    nlohmann::json j;
+    try {
+        file >> j;
+    } catch (const std::exception& e) {
+        LOG_WARN_FMT("RoomProgram", "period pack parse error in " << path << ": " << e.what());
+        return false;
+    }
+    const nlohmann::json* table = &j;
+    if (j.is_object() && j.contains("programs") && j["programs"].is_object()) table = &j["programs"];
+    if (!table->is_object()) return false;
+    // The pack's own "period" wins if it declares one; otherwise the caller's label.
+    const std::string packPeriod =
+        (j.is_object() ? j.value("period", period) : period);
+    size_t loaded = 0;
+    for (auto it = table->begin(); it != table->end(); ++it) {
+        const std::string& key = it.key();
+        if (!key.empty() && key[0] == '_') continue;
+        if (!it.value().is_object()) continue;
+        RoomProgram p = parse(key, it.value());
+        if (!it.value().contains("period")) p.period = packPeriod;
+        // Programs are keyed by name; two eras sharing a typology name would collide,
+        // so the era-qualified key keeps them distinct while `get(name)` still finds
+        // the medieval one by its plain name (the default era).
+        m_programs[p.period == "medieval" ? key : (p.period + ":" + key)] = p;
+        ++loaded;
+    }
+    LOG_INFO_FMT("RoomProgram", "Loaded " << loaded << " '" << packPeriod
+                 << "' room programs from " << path);
+    return loaded > 0;
 }
 
 bool RoomProgramRegistry::loadFromFile(const std::string& path) {

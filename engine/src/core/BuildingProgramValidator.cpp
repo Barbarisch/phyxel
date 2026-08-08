@@ -324,6 +324,28 @@ ValidationReport BuildingProgramValidator::validate(const BuildingProgram& progr
         const RoomProgram& rp = *roomProgram;
         const int shortSide = std::min(W, D), longSide = std::max(W, D);
 
+        // M8 REQUIRED ROOMS: a tavern without a taproom is not a tavern. The typology
+        // declares which rooms make it work; optional ones may be dropped when the
+        // footprint cannot carry them, but a missing REQUIRED room means the building
+        // does not do its job and must not ship as that typology.
+        {
+            std::set<std::string> present;
+            for (const auto& st : program.stories)
+                for (const auto& rm : st.rooms) {
+                    present.insert(rm.purpose);
+                    present.insert(rm.id);
+                }
+            for (const auto& rs : rp.rooms) {
+                if (!rs.required) continue;
+                if (present.count(rs.purpose) || present.count(rs.id)) continue;
+                r.addError("required_room_missing",
+                           "the '" + rp.name + "' typology requires a '" +
+                           (rs.purpose.empty() ? rs.id : rs.purpose) +
+                           "' room, and the plan has none — the building cannot do its job",
+                           rs.id);
+            }
+        }
+
         if (rp.widthMax > 0.0 && shortSide > rp.widthMax + 1e-6)
             r.addError("footprint_too_wide",
                        "building width " + std::to_string(shortSide) + " exceeds the '" + rp.name
