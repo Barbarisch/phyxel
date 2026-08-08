@@ -9,6 +9,22 @@
 > Status legend: **[D]** done · **[P]** partial · **[M]** missing. (Today only `FurniturePlacer` is a
 > real standalone placer; everything else is fused in the monolithic `StructureRealizer::realizeShell`
 > and must be split out.)
+>
+> **STRUCTUREFORGE (M1, 2026-08-07): the build ORCHESTRATION is now staged.** The former
+> `StructureBuildService::buildV2` monolith is decomposed into `StructureForge`
+> (`engine/{include,src}/core/StructureForge.{h,cpp}`) — named stages over one context with a
+> StageReport gate protocol: `intake → floorplan → validate_program → footprint → realize →
+> validate_realized → place → furnish → emit`. Every `/api/structure/build` response carries
+> `gates: [{stage, outcome, ms}]`; a refused stage returns its legacy error json verbatim + the
+> trail. Behavior parity with the monolith is pinned by `BuildingHarness.ForgeParityDigests`.
+> M1 is orchestration only: gates are permissive (warn-but-allow unchanged — teeth land at M3),
+> and `furnish` still runs the whole fused block (heavy/light/lighting/clutter split = M4).
+> The realizer's internal placer fusion (this table's concern) is unchanged.
+>
+> **Openings stage decision (recorded):** doors/windows stay planned at FLOORPLAN and carved in
+> REALIZE (they are wall fabric and define the circulation graph the program gate must validate
+> BEFORE realization) — NOT in the heavy furnishing pass. Heavy fixtures negotiate with openings
+> in plan space (reservations against recorded door cells) + the M7 realized clearance check.
 
 ## Part 1 — The placer pipeline (single-function builders, ground-up)
 

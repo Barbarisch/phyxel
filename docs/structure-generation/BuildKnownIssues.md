@@ -5,6 +5,19 @@ Stated here so they aren't lost; fixes are scheduled, not silent.
 
 ## Open
 
+### KI-6 — Object-wise vegetation gate misclassifies WOODEN FURNITURE as trees (observed live 2026-08-07)
+- **Observed** during the M1 StructureForge L4 verification (CharacterTestbed, rebuild on the same
+  lot): `vegetation gate: removing placed tree 'hanging_sign_1' (hanging_sign)` and the same for
+  `fireplace_1`. The object-wise gate decides tree-ness by CONTENT (`isTreeMatterCell` = Log*/Leaf*
+  cells in the bbox), and wooden furniture templates carry Log-material cells — so any
+  `category=="template"` object with wood on the lot is removed as a "tree".
+- **Why it didn't bite here:** the pieces belonged to the structure being rebuilt and would have
+  been cascade-removed anyway. **Where it WILL bite:** a NEIGHBOR building's furniture or sign
+  overhanging the lot edge gets silently deleted as vegetation.
+- **Fix direction (M3/M4 gate work):** exclude objects that have a structure parent (fixtures are
+  parented) and/or check the object's category/metadata before the content test; log line should
+  name the template, not claim "tree".
+
 ### KI-5 batch — USER visual observations, 2026-07-23 (procedural settlement quality)
 
 Reported from live inspection of generated villages. Each gets the standard treatment:
