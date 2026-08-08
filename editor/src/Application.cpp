@@ -12743,6 +12743,13 @@ void Application::registerSettlementCommands() {
                                     const std::string& label) {
             pushUndoSnapshot(chunkManager, snapshotManager.get(), a, b, label);
         };
+        // M5: settlements light their buildings through the same hook.
+        if (renderCoordinator)
+            deps.addPointLight = [this](const glm::vec3& p, const glm::vec3& c,
+                                        float intensity, float radius) {
+                return renderCoordinator->getLightManager()
+                           .addPointLight(p, c, intensity, radius);
+            };
 
         auto plan = Core::SettlementBuildService::plan(cmd.params, deps);
         if (!plan.ok()) { r = plan.error; return; }
@@ -15672,6 +15679,14 @@ void Application::processAPICommands() {
                                              const std::string& label) {
                         pushUndoSnapshot(chunkManager, snapshotManager.get(), a, b, label);
                     };
+                    // M5 place_lights (#18): engine/core cannot depend on graphics/, so
+                    // the lighting pass registers its point lights through this hook.
+                    if (renderCoordinator)
+                        deps.addPointLight = [this](const glm::vec3& p, const glm::vec3& c,
+                                                    float intensity, float radius) {
+                            return renderCoordinator->getLightManager()
+                                       .addPointLight(p, c, intensity, radius);
+                        };
 
                     const std::string stype = cmd.params.value("type", std::string());
                     if (cmd.params.value("schema", std::string()) == "v2") {

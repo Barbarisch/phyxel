@@ -70,6 +70,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
     LocationRegistry* const locationRegistry         = deps.locations;
     NPCManager* const npcManager                     = deps.npcs;
     const auto pushUndo                              = deps.pushUndo;
+    const auto addPointLight                         = deps.addPointLight;   // M5
 
         const auto& p = params;
         const int W = p.value("width", 52), D = p.value("depth", 36);
@@ -502,7 +503,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             const std::string ph = "building " + std::to_string(i + 1) + "/" +
                                    std::to_string(buildings.size());
             buildingUnits.push_back({ph, [chunkManager, placedObjectManager, objectTemplateManager,
-                                          locationRegistry, npcManager, pushUndo, bp, bp2, seatInUnit,
+                                          locationRegistry, npcManager, pushUndo, addPointLight,
+                                          bp, bp2, seatInUnit,
                                           bw, bd, bw2, bd2, oy, lotFailures = res.lotFailures,
                                           lotIndex = static_cast<int>(i),
                                           typ1 = var.typology, typ2 = var2.typology]() mutable {
@@ -521,6 +523,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 deps.locations     = locationRegistry ? &*locationRegistry : nullptr;
                 deps.npcs          = npcManager ? &*npcManager : nullptr;
                 deps.pushUndo      = pushUndo;   // forwarded by the caller (editor: undo snapshot)
+                deps.addPointLight = addPointLight;   // M5: light settlement interiors too
                 seat(bp, bw, bd);
                 const auto res1 = Core::StructureBuildService::buildV2(bp, deps);
                 if (!res1.contains("error")) return;

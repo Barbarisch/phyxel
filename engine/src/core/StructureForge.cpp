@@ -793,6 +793,14 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
         std::vector<VentedHearth> ventedHearths;
         int chimneysBuilt = 0;
         nlohmann::json fluelessRemoved = nlohmann::json::array();
+        // M5 lighting pass state: every placed fixture that EMITS light, collected
+        // during placement and registered as real engine point lights afterwards.
+        struct Emitting { std::string type; std::string room; std::string objectId;
+                          glm::ivec3 microPos; };
+        std::vector<Emitting> emitters;
+        int lightsRegistered = 0;
+        std::set<std::string> litRooms;   // rooms that got at least one light source
+        nlohmann::json darkRooms = nlohmann::json::array();
         // Furniture quality B: data recipes (tier-filtered) + the typology's wealth tier.
         // Idempotent load; unknown purposes still fall back to the hardcoded map. A FAILED
         // load is surfaced loudly (auditor finding): the hardcoded fallback has no tiers and
@@ -907,6 +915,9 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                 // "did every hearth get a flue?" unanswerable.
                 if (FurniturePlacer::isVentedFixture(pl.type))
                     ventedHearths.push_back({pl.type, fid, microPos});
+                // M5: collect light SOURCES for the lighting pass below.
+                if (FurniturePlacer::emitterFor(pl.type).emits)
+                    emitters.push_back({pl.type, pl.room, fid, microPos});
             }
 
             // ---- place_chimney (#14), M4: its own pass over the story's vented
@@ -960,6 +971,52 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                 fluelessRemoved.push_back({{"type", vh.type}, {"reason", why}});
             }
             ventedHearths.clear();
+
+            // ---- place_lights (#18), M5: the LIGHTING pass. Fixtures that emit
+            // (candles, sconces, chandeliers, and the hearth fire itself) were placed
+            // by the furnishing lighting pass; here each becomes a REAL engine point
+            // light at its flame height. Before M5 these were glow-material props:
+            // they self-lit their own voxels and illuminated nothing, so a "lit"
+            // tavern was pitch black at night.
+            for (const auto& em : emitters) {
+                litRooms.insert(em.room);
+                const auto e = FurniturePlacer::emitterFor(em.type);
+                if (!ctx.deps.addPointLight) continue;   // headless: fixtures only
+                const glm::vec3 pos(em.microPos.x / 9.0f + 0.5f,
+                                    (em.microPos.y + e.emitMicroY) / 9.0f,
+                                    em.microPos.z / 9.0f + 0.5f);
+                const int id = ctx.deps.addPointLight(pos, glm::vec3(e.r, e.g, e.b),
+                                                      e.intensity, e.radius);
+                if (id < 0) {
+                    LOG_WARN_FMT("StructureBuild", "place_lights: light capacity reached — "
+                                 << em.type << " in '" << em.room << "' is UNLIT");
+                    continue;
+                }
+                ++lightsRegistered;
+                // Record the id on the fixture so a rebuild/removal can tear the light
+                // down with it. NOTE (StructurePipelineGaps): LightManager lights are
+                // NOT world-persisted, so they do not survive save/load — recorded, not
+                // faked.
+                if (!em.objectId.empty())
+                    placedObjectManager->setMetadata(em.objectId, "light",
+                                                     {{"id", id}, {"type", em.type}});
+            }
+            emitters.clear();
+
+            // Dark-room check (checklist K8): a habitable room wants SOME light —
+            // daylight through a window, a hearth, or a lamp. Reported, not refused:
+            // a windowless store or byre is legitimately dark, and refusing a build
+            // over ambience would be the gate overreaching.
+            for (const auto& rm : story.rooms) {
+                if (litRooms.count(rm.id)) continue;
+                bool hasWindow = false;
+                for (const auto& p : story.portals)
+                    if (p.kind == "window" && (p.a == rm.id || p.b == rm.id)) { hasWindow = true; break; }
+                if (hasWindow) continue;
+                darkRooms.push_back({{"room", rm.id}, {"purpose", rm.purpose},
+                                     {"story", static_cast<int>(si)}});
+            }
+            litRooms.clear();
             // Surface items (ItemPlacementPlan.md, 2026-08-07): scatter PICKABLE
             // ITEM PROPS on table tops — per-purpose sets from the recipes
             // ("surface_items"), placed at the table's MEASURED top surface
@@ -1137,6 +1194,12 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
         response["chimneys_built"] = chimneysBuilt;                 // M4 chimney pass
         if (!fluelessRemoved.empty())
             response["flueless_hearths_removed"] = fluelessRemoved; // never ship a flueless hearth
+        response["lights_registered"] = lightsRegistered;           // M5 lighting pass
+        if (!darkRooms.empty()) {
+            response["dark_rooms"] = darkRooms;                     // no window, hearth or lamp
+            LOG_WARN_FMT("StructureBuild", "place_lights: " << darkRooms.size()
+                         << " room(s) have no window, hearth or lamp");
+        }
         response["fixtures"] = fixturesJson;   // labeled, addressable
         // Honest reporting: pieces the placer could NOT fit (never a silent drop).
         if (!unplaced.empty()) {

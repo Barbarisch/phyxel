@@ -120,11 +120,26 @@ Remaining door work (OPEN):
   flag — engine has rotation but not mirror). Plus a `door_handedness_report` deterministic check.
 - More sizes (very wide gates >3, arched-top doors, portcullis) + per-door art polish.
 
-### Lighting fixtures + emission (none exist as props)
-Need lamp props AND light emission: wall sconce, candelabra, chandelier, floor lantern, hearth/
-fireplace glow. Engine HAS point lights (`/api/add_point_light`), but nothing auto-places a lamp
-prop + a co-located point light. Add lamp templates (glow material + frame) and have the realizer
-drop sconces along halls / a chandelier in big rooms + register point lights at them.
+### Lighting fixtures + emission — ✅ CLOSED 2026-08-08 (StructureForge M5), with caveats
+Was: lamp props existed but were `glow`-material only — `glow` self-lights its own voxels and
+illuminates NOTHING, so structure gen registered zero engine point lights and a "lit" tavern was
+black at night. Now: the furnishing LIGHTING pass places the lamps and a lighting pass registers a
+REAL point light per emitting fixture (candle_stand / wall_lantern / chandelier **and the hearth
+fire**) at its flame height, via a `Deps::addPointLight` callback (engine/core must not link
+graphics/). `response.lights_registered` reports the count; rooms with no window, hearth or lamp
+are reported as `dark_rooms`. L4: a generated tavern registers a chandelier (1.00,0.72,0.42 @ 2.6)
+and a hearth fire (1.00,0.62,0.32 @ 2.0). `LightingPassTest`.
+
+STILL OWED:
+- **Persistence.** `LightManager` lights are NOT world-persisted, so generated lighting does not
+  survive save/load. The light id is recorded in the fixture's `light` metadata so a rebuild can
+  tear it down, but nothing re-creates lights on load. This is an ENGINE gap, not a generator one.
+- **Absolute photometry.** Colour (flame ~1700–1850 K) and RELATIVE brightness (candle ≈ 1 cd by
+  definition; lantern/chandelier by candle count) are grounded. The absolute `intensity` and the
+  hard-cutoff `radius` are ENGINE-UNIT tuning values — the renderer's point light has neither
+  candela units nor inverse-square falloff. Flagged NEEDS-RESEARCH rather than dressed up.
+- Daylight is approximated by "does the room have a window portal", not by a real daylight
+  calculation; no time-of-day gating (lamps burn at noon).
 
 ### Materials / textures (user wants more + better)
 Candidate additions for interiors/manors: dark/stained wood, plaster/stucco wall, wallpaper,

@@ -156,6 +156,33 @@ std::vector<Piece> recipeFor(const std::string& purpose, const std::string& weal
 int FurniturePlacer::passRank(const std::string& type) { return passRankFor(type); }
 bool FurniturePlacer::isVentedFixture(const std::string& type) { return isVentedType(type); }
 
+// M5 place_lights (#18) photometry. GROUNDING, and its limits, stated plainly:
+//  * COLOUR is grounded. A candle flame is ~1850-1900 K (the candle is the historic
+//    basis of the candela); a wood/coal hearth fire reads ~1600-1800 K. Converted to
+//    warm linear RGB: candle-ish (1.00, 0.72, 0.42), fire (1.00, 0.62, 0.32).
+//  * RELATIVE intensity is grounded: 1 candle ~= 1 cd by definition; a lantern of a
+//    few candles and a chandelier of ~8-12 candles scale from that; an open hearth
+//    is brighter still.
+//  * ABSOLUTE intensity + RADIUS are ENGINE-UNIT tuning values, NOT physical: the
+//    renderer's point light takes an arbitrary intensity and a hard cutoff radius,
+//    neither of which maps to candelas or an inverse-square falloff. They are set to
+//    read correctly at the engine's ambient level and are flagged NEEDS-RESEARCH in
+//    GroundingGaps.md rather than dressed up as photometric.
+FurniturePlacer::Emitter FurniturePlacer::emitterFor(const std::string& type) {
+    Emitter e;
+    auto set = [&e](float my, float r, float g, float b, float i, float rad) {
+        e.emits = true; e.emitMicroY = my;
+        e.r = r; e.g = g; e.b = b; e.intensity = i; e.radius = rad;
+    };
+    // Flame height is measured from the fixture's own base: a candle stand burns at
+    // its top, a sconce at its mounted height, a hearth fire just above the floor.
+    if (type == "candle_stand")  set(11.0f, 1.00f, 0.72f, 0.42f, 0.9f,  4.5f);
+    else if (type == "wall_lantern") set(2.0f, 1.00f, 0.74f, 0.46f, 1.4f,  6.0f);
+    else if (type == "chandelier")   set(1.0f, 1.00f, 0.72f, 0.42f, 2.6f, 9.0f);
+    else if (isVentedType(type))     set(2.0f, 1.00f, 0.62f, 0.32f, 2.0f, 7.5f);
+    return e;
+}
+
 CubeSpan placedCubeSpan(int microW, int microD, int rotation, const glm::ivec3& backDir,
                         int extTMicro, int baseCubeX, int baseCubeZ) {
     auto floorDiv9 = [](int a) { int q = a / 9; if (a % 9 != 0 && a < 0) --q; return q; };

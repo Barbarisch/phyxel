@@ -48,6 +48,13 @@ public:
         /// Optional undo hook (the editor snapshots the region before destructive ops).
         std::function<void(const glm::ivec3& minCorner, const glm::ivec3& maxCorner,
                            const std::string& label)> pushUndo;
+        /// M5 place_lights (#18): register a real engine point light for a lamp/hearth
+        /// fixture. A CALLBACK because engine/core must not depend on graphics/ —
+        /// the editor wires it to LightManager::addPointLight. Returns the light id,
+        /// or -1 at capacity. Null (tests/headless) = fixtures are still placed, but
+        /// nothing illuminates; the build reports lights_registered = 0 honestly.
+        std::function<int(const glm::vec3& pos, const glm::vec3& color,
+                          float intensity, float radius)> addPointLight;
     };
 
     /// Full v2 build from build_structure params (expects footprint/stories/...;

@@ -233,6 +233,19 @@ public:
     /// entry may override it with "pass".
     static int passRank(const std::string& type);
 
+    /// M5 place_lights (#18): the light a fixture EMITS, or nullptr-ish (radius 0) if
+    /// it is not a light source. Grounded photometry per fixture — see the table in
+    /// FurniturePlacer.cpp and docs/structure-generation/GroundingGaps.md for the
+    /// values still owed a citation.
+    struct Emitter {
+        bool  emits = false;
+        float emitMicroY = 0;   ///< flame height ABOVE the fixture's base, in micro
+        float r = 1.0f, g = 1.0f, b = 1.0f;   ///< linear colour
+        float intensity = 1.0f;
+        float radius = 1.0f;    ///< world units
+    };
+    static Emitter emitterFor(const std::string& type);
+
     /// M4: true for fixtures that BURN and therefore require a flue to the outside
     /// (fireplace / forge_hearth / oven_bread) — the set place_chimney (#14) must
     /// serve, and the ONE definition the forge's chimney pass shares.

@@ -72,6 +72,10 @@ public:
         /// Optional undo hook (the editor snapshots each region before destructive ops).
         std::function<void(const glm::ivec3& minCorner, const glm::ivec3& maxCorner,
                            const std::string& label)> pushUndo;
+        /// M5: forwarded to each building's StructureBuildService::Deps so settlement
+        /// interiors get real point lights too (engine/core must not link graphics/).
+        std::function<int(const glm::vec3& pos, const glm::vec3& color,
+                          float intensity, float radius)> addPointLight;
     };
 
     /// One deferred phase of the build. `label` is the progress name shown to the user.
