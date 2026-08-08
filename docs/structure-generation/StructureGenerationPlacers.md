@@ -26,9 +26,20 @@
 > (`RealizedStructureValidator::checkShellTraversal`) — every room on every story physically
 > reachable from the entrance room, else refuse. Settlement lots whose build refuses RE-ROLL
 > once with a plan-time fallback variant; a second refusal leaves the lot honestly EMPTY,
-> recorded in `Plan.lotFailures` (`ForgeGateTeethTest`, red-before-green). `furnish` still runs
-> the whole fused block (heavy/light/lighting/clutter split = M4). The realizer's internal
-> placer fusion (this table's concern) is unchanged.
+> recorded in `Plan.lotFailures` (`ForgeGateTeethTest`, red-before-green).
+> **M4 (2026-08-08): FURNISHING PASSES + the chimney pass.** Pieces now place in PASS order —
+> heavy (built-in/vented fixtures) → light (movable furniture) → lighting → clutter — instead of
+> recipe-declaration order, so a hearth claims its wall before a stool can. Pass rank is
+> per-TYPE engine data (`FurniturePlacer::passRank`, like `mountFor`), overridable per recipe
+> entry with `"pass"`; the sort is STABLE so declaration order still decides within a pass and
+> furnishing stays deterministic. `place_chimney` (#14) is no longer emitted inline in the
+> furniture loop: vented hearths are collected and served by a dedicated pass afterwards, which
+> makes "did every hearth get a flue?" answerable — a hearth that cannot be vented is REMOVED
+> and reported (`response.flueless_hearths_removed`), and `response.chimneys_built` reports the
+> pass's real output. `FurnishPassOrderTest`; L4-verified (stack visible above the ridge).
+> NOT done, deliberately: "prefer an exterior wall for vented hearths" is dropped as
+> UNGROUNDED — central chimney stacks are authentic medieval form (lobby-entry houses).
+> The realizer's internal placer fusion (this table's concern) is unchanged.
 >
 > **Openings stage decision (recorded):** doors/windows stay planned at FLOORPLAN and carved in
 > REALIZE (they are wall fabric and define the circulation graph the program gate must validate
