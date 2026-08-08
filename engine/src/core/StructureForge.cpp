@@ -787,6 +787,12 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
         int fxSpawned = 0, fxSkipped = 0, itemsSpawned = 0;
         std::vector<UnplacedFixture> unplaced;  // honest: pieces that didn't fit
         nlohmann::json fixturesJson = nlohmann::json::array();
+        // M4 chimney pass state: hearths that BURN, collected during placement and
+        // served after it (see the chimney pass below).
+        struct VentedHearth { std::string type; std::string objectId; glm::ivec3 microPos; };
+        std::vector<VentedHearth> ventedHearths;
+        int chimneysBuilt = 0;
+        nlohmann::json fluelessRemoved = nlohmann::json::array();
         // Furniture quality B: data recipes (tier-filtered) + the typology's wealth tier.
         // Idempotent load; unknown purposes still fall back to the hardcoded map. A FAILED
         // load is surfaced loudly (auditor finding): the hardcoded fallback has no tiers and
@@ -895,45 +901,65 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                 fx["rotation"] = pl.rotation;
                 fixturesJson.push_back(fx);
 
-                // place_chimney (#14): run a masonry stack from this VENTED hearth
-                // up through the roof, clearing the ridge for draught (>= 2 ft).
-                if ((pl.type == "fireplace" || pl.type == "forge_hearth" ||
-                     pl.type == "oven_bread") &&
-                    roofApexWorldMicro > 0) {
+                // M4: VENTED hearths are collected here and served by the chimney
+                // pass AFTER the story's fixtures are placed — the stack used to be
+                // emitted inline, in the middle of the furniture loop, which made
+                // "did every hearth get a flue?" unanswerable.
+                if (FurniturePlacer::isVentedFixture(pl.type))
+                    ventedHearths.push_back({pl.type, fid, microPos});
+            }
+
+            // ---- place_chimney (#14), M4: its own pass over the story's vented
+            // hearths. Each gets a masonry stack resting on its mantel and clearing
+            // the ridge for draught (>= 2 ft, IRC R1003.9). A hearth that CANNOT be
+            // vented (unknown roof apex, or no room above the mantel) is REMOVED and
+            // reported: a fireplace with no flue is a defect, not a decoration.
+            for (const auto& vh : ventedHearths) {
+                std::string why;
+                if (roofApexWorldMicro <= 0) {
+                    why = "roof apex unknown (canvas microBounds failed)";
+                } else {
+                    // Centre the stack on the hearth's ACTUAL placed bbox so a ROTATED
+                    // hearth still gets its chimney directly overhead (V8).
                     Footprint cfp;
-                    auto fpIt = fixtureFootprints.find(pl.type);
+                    auto fpIt = fixtureFootprints.find(vh.type);
                     if (fpIt != fixtureFootprints.end()) cfp = fpIt->second;
-                    // Center the stack on the hearth's ACTUAL placed footprint (its
-                    // registered world bbox) so a ROTATED hearth still gets its
-                    // chimney directly overhead (V8 chimney_offset_from_hearth).
-                    int ccx = microPos.x + std::max(1, cfp.width) * 9 / 2;
-                    int ccz = microPos.z + std::max(1, cfp.depth) * 9 / 2;
-                    if (const auto* hobj = placedObjectManager->get(fid)) {
+                    int ccx = vh.microPos.x + std::max(1, cfp.width) * 9 / 2;
+                    int ccz = vh.microPos.z + std::max(1, cfp.depth) * 9 / 2;
+                    if (const auto* hobj = placedObjectManager->get(vh.objectId)) {
                         ccx = (hobj->boundingMin.x + hobj->boundingMax.x + 1) * 9 / 2;
                         ccz = (hobj->boundingMin.z + hobj->boundingMax.z + 1) * 9 / 2;
                     }
-                    // The stack RESTS ON the hearth top (mantel), not from the floor
-                    // (V2 checkChimneyOnHearth). Hearth height from its .metrics.json.
+                    // The stack RESTS ON the hearth top (mantel), never diving through
+                    // the firebox (V2 checkChimneyOnHearth). Height from .metrics.json.
                     int hearthH = 9;
-                    {
-                        nlohmann::json hm = detail::loadAssetMetricsSidecar(
-                            FurnitureCatalog::templateFor(pl.type));
-                        if (hm.is_object() && hm.contains("overall_max") &&
-                            hm["overall_max"].is_array() && hm["overall_max"].size() >= 2)
-                            hearthH = std::max(1, (int)std::lround(
-                                hm["overall_max"][1].get<double>() * 9.0));
-                    }
-                    const int baseY = microPos.y + hearthH;   // sit on the hearth top
-                    // ridge clearance >= 2 ft (IRC R1003.9 / 3-2-10, shared constant)
+                    nlohmann::json hm = detail::loadAssetMetricsSidecar(
+                        FurnitureCatalog::templateFor(vh.type));
+                    if (hm.is_object() && hm.contains("overall_max") &&
+                        hm["overall_max"].is_array() && hm["overall_max"].size() >= 2)
+                        hearthH = std::max(1, (int)std::lround(
+                            hm["overall_max"][1].get<double>() * 9.0));
+                    const int baseY = vh.microPos.y + hearthH;
                     const int topY = roofApexWorldMicro +
                         StructureGenerator::kChimneyRidgeClearanceMicro;
-                    if (topY > baseY) {
+                    if (topY <= baseY) {
+                        why = "no room for a stack between the mantel and the ridge clearance";
+                    } else {
                         auto chimney = StructureGenerator::planChimneyStack(
                             ccx, ccz, baseY, topY, "Bricks");
                         StructureGenerator::place(chunkManager, chimney);
+                        ++chimneysBuilt;
                     }
                 }
+                if (why.empty()) continue;
+                LOG_WARN_FMT("StructureBuild", "place_chimney: cannot vent " << vh.type
+                             << " (" << why << ") — REMOVING the hearth rather than "
+                                "leaving it flueless");
+                placedObjectManager->remove(vh.objectId);
+                --fxSpawned;
+                fluelessRemoved.push_back({{"type", vh.type}, {"reason", why}});
             }
+            ventedHearths.clear();
             // Surface items (ItemPlacementPlan.md, 2026-08-07): scatter PICKABLE
             // ITEM PROPS on table tops — per-purpose sets from the recipes
             // ("surface_items"), placed at the table's MEASURED top surface
@@ -1108,6 +1134,9 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
         }
         response["fixtures_spawned"] = fxSpawned;
         response["items_spawned"] = itemsSpawned;   // pickable surface props (2026-08-07)
+        response["chimneys_built"] = chimneysBuilt;                 // M4 chimney pass
+        if (!fluelessRemoved.empty())
+            response["flueless_hearths_removed"] = fluelessRemoved; // never ship a flueless hearth
         response["fixtures"] = fixturesJson;   // labeled, addressable
         // Honest reporting: pieces the placer could NOT fit (never a silent drop).
         if (!unplaced.empty()) {

@@ -36,7 +36,47 @@ struct Piece {
     bool center;
     int count = 1;        ///< recipe "count": place up to N of this piece
     double perArea = 0.0; ///< recipe "per_area": one per N floor cells (scales with room size)
+    int pass = 1;         ///< M4 furnishing pass rank (see passRankFor): 0 heavy, 1 light,
+                          ///< 2 lighting, 3 clutter. Pieces place in pass order, so the
+                          ///< structural fixtures claim their spots BEFORE light furniture.
 };
+
+// ---- M4 FURNISHING PASSES ------------------------------------------------
+// The room is furnished the way a room is actually built out: the heavy, built-in,
+// often VENTED fixtures land first and claim their wall (a hearth cannot be shuffled
+// aside for a stool — it carries a flue through the roof), then the movable furniture
+// packs into what is left, then lighting, then clutter. Before M4 everything placed in
+// recipe-declaration order, so a table listed above a fireplace could take the hearth's
+// wall.
+//
+// Pass rank is per-TYPE engine data (like mountFor), not recipe data, so the hardcoded
+// fallback recipes order correctly too; a recipe may override it with "pass".
+enum PassRank { PASS_HEAVY = 0, PASS_LIGHT = 1, PASS_LIGHTING = 2, PASS_CLUTTER = 3 };
+
+int passRankFromName(const std::string& s) {
+    if (s == "heavy")    return PASS_HEAVY;
+    if (s == "lighting") return PASS_LIGHTING;
+    if (s == "clutter")  return PASS_CLUTTER;
+    return PASS_LIGHT;
+}
+
+/// True for fixtures that BURN and therefore need a flue to the outside — the
+/// subset of heavy fixtures place_chimney (#14) must serve.
+bool isVentedType(const std::string& type) {
+    return type == "fireplace" || type == "forge_hearth" || type == "oven_bread";
+}
+
+int passRankFor(const std::string& type) {
+    // Heavy: vented hearths + built-in millwork that defines the room's function.
+    if (isVentedType(type)) return PASS_HEAVY;
+    if (type == "tavern_bar" || type == "back_bar" || type == "counter" ||
+        type == "meat_rail"  || type == "chopping_block")
+        return PASS_HEAVY;
+    // Lighting (M5 gives this pass its own stage + real point lights).
+    if (type == "candle_stand" || type == "wall_lantern" || type == "chandelier")
+        return PASS_LIGHTING;
+    return PASS_LIGHT;
+}
 
 // Map a room's free-text purpose onto the CANONICAL recipe key (the same substring rules the
 // old hardcoded map used, factored out so the data recipes share them).
@@ -91,20 +131,30 @@ std::vector<Piece> recipeFor(const std::string& purpose, const std::string& weal
     const auto& data = dataRecipes();
     auto it = data.find(canon);
     if (it == data.end() && canon != "default") it = data.find("default");
+    std::vector<Piece> out;
     if (it != data.end()) {
-        std::vector<Piece> out;
         for (const auto& dp : it->second) {
             if (!dp.tiers.empty() && !wealthTier.empty() &&
                 std::find(dp.tiers.begin(), dp.tiers.end(), wealthTier) == dp.tiers.end())
                 continue;   // this piece belongs to richer/poorer households
             out.push_back(dp.piece);
         }
-        return out;
+    } else {
+        out = hardcodedRecipeFor(canon);
+        for (auto& p : out) p.pass = passRankFor(p.type);
     }
-    return hardcodedRecipeFor(canon);
+    // M4: order by pass (heavy -> light -> lighting -> clutter). STABLE, so the
+    // recipe's declaration order still decides within a pass — placement stays
+    // deterministic for a given recipe file.
+    std::stable_sort(out.begin(), out.end(),
+                     [](const Piece& a, const Piece& b) { return a.pass < b.pass; });
+    return out;
 }
 
 } // namespace
+
+int FurniturePlacer::passRank(const std::string& type) { return passRankFor(type); }
+bool FurniturePlacer::isVentedFixture(const std::string& type) { return isVentedType(type); }
 
 CubeSpan placedCubeSpan(int microW, int microD, int rotation, const glm::ivec3& backDir,
                         int extTMicro, int baseCubeX, int baseCubeZ) {
@@ -345,6 +395,11 @@ bool FurniturePlacer::loadRecipesFromFile(const std::string& path) {
             dp.piece.center = e.value("place", std::string("wall")) == "center";
             dp.piece.count = std::max(1, e.value("count", 1));
             dp.piece.perArea = std::max(0.0, e.value("per_area", 0.0));
+            // M4 pass: per-TYPE engine default (passRankFor), overridable per recipe
+            // entry with "pass": "heavy"|"light"|"lighting"|"clutter".
+            dp.piece.pass = e.contains("pass")
+                ? passRankFromName(e.value("pass", std::string("light")))
+                : passRankFor(dp.piece.type);
             // `as:"item"`: this piece REALIZES as a pickable item prop (spawned
             // via ItemPropManager), not a baked template. `item` overrides the
             // item id (default: the type). Placement/reservation is unchanged —

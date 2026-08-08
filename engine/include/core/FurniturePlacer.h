@@ -226,6 +226,18 @@ public:
     /// fix for furniture clipping thin sub-cube walls / sinking into the mid-cube floor. Testable.
     static glm::ivec3 microWorldPos(const FurniturePlacement& p, int extTMicro, int surfaceMicroY);
 
+    /// M4: the furnishing PASS rank of a fixture type — 0 heavy (built-in/vented
+    /// fixtures that shape the room), 1 light (movable furniture), 2 lighting,
+    /// 3 clutter. Pieces are placed in pass order, so a hearth claims its wall
+    /// before a stool can take it. Per-TYPE engine data (like mountFor); a recipe
+    /// entry may override it with "pass".
+    static int passRank(const std::string& type);
+
+    /// M4: true for fixtures that BURN and therefore require a flue to the outside
+    /// (fireplace / forge_hearth / oven_bread) — the set place_chimney (#14) must
+    /// serve, and the ONE definition the forge's chimney pass shares.
+    static bool isVentedFixture(const std::string& type);
+
     /// The furniture a room of this purpose REQUIRES, as fixture-type names (the recipe that
     /// furnish() places). Exposed so the asset-coverage validator can assert each required type
     /// resolves to a real template; uses the SAME purpose-matching as furnish().
