@@ -432,22 +432,50 @@ static RoomLayout generateUpperChambers(int W, int D, const std::string& purpose
         // the wrong plane and left the chambers sealed).
         const Wall w = shared(gallery.rect, ch.rect);
         if (w.ok) {
-            // The door must open onto FLOOR, not into the stairwell shaft: the well
-            // is cut out of this same gallery strip, so a naive mid-span door can
-            // land over the void (it did — the chambers were sealed off behind a
-            // hole). Prefer the position furthest from the well's span.
+            // Two constraints, and getting either wrong is visible from outside.
+            //
+            // (1) NEVER on the shell. The realizer widens a 1-cube door to a
+            //     2-cube carve, so a door on the first or last cell of the
+            //     footprint reaches past the edge and removes the gable — a
+            //     2x2 hole open to the sky. An interior door must keep a clear
+            //     cube of wall on both sides.
+            // (2) The door must open onto FLOOR, not the stairwell shaft. But
+            //     the well only blocks a door if it actually REACHES the wall:
+            //     the gallery is one cube deeper than the well (galleryDepth =
+            //     kStairStripCubes + 1), so the strip adjacent to the chamber
+            //     wall is clear for the well's whole length. Testing the well's
+            //     span WITHOUT that adjacency check rejected every safe cell and
+            //     drove the door onto the gable — which is exactly how the hole
+            //     got there.
+            const int alongExtent = (w.axis == 'x') ? D : W;   // footprint size along the wall
+            // The landing cell: the gallery cube on the far side of the wall.
+            const bool galleryBelow = (w.axis == 'x') ? (gallery.rect.x < w.coord)
+                                                      : (gallery.rect.z < w.coord);
+            const int landingCross = galleryBelow ? w.coord - 1 : w.coord;
+            const bool wellReachesWall =
+                (w.axis == 'x') ? (landingCross >= well.x && landingCross < well.x1())
+                                : (landingCross >= well.z && landingCross < well.z1());
             const int wellLo = (w.axis == 'x') ? well.z : well.x;
             const int wellHi = (w.axis == 'x') ? well.z1() : well.x1();
+            auto usable = [&](int c) {
+                if (c < w.lo || c >= w.hi) return false;
+                if (c < 1 || c > alongExtent - 2) return false;          // (1) off the shell
+                if (wellReachesWall && c >= wellLo && c < wellHi) return false;  // (2) over the void
+                return true;
+            };
             int mid = (w.lo + w.hi) / 2;
             if (mid >= w.hi) mid = w.hi - 1;
-            if (mid >= wellLo && mid < wellHi) {
+            if (!usable(mid)) {   // walk outward from the middle for the nearest usable cell
                 int best = -1, bestDist = -1;
                 for (int c = w.lo; c < w.hi; ++c) {
-                    if (c >= wellLo && c < wellHi) continue;      // over the shaft
-                    const int dist = std::min(std::abs(c - wellLo), std::abs(c - (wellHi - 1)));
-                    if (dist > bestDist) { bestDist = dist; best = c; }
+                    if (!usable(c)) continue;
+                    const int dist = std::abs(c - mid);
+                    if (bestDist < 0 || dist < bestDist) { bestDist = dist; best = c; }
                 }
-                if (best >= 0) mid = best;   // else: chamber wholly over the well (guarded below)
+                if (best < 0) { pos += slice; continue; }   // no legal door: leave it to the
+                                                            // traversal gate rather than punch
+                                                            // a hole in the shell
+                mid = best;
             }
             ProgPortal d;
             d.a = gallery.id; d.b = ch.id;

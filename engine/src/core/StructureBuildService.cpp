@@ -7,6 +7,7 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <map>
 #include <set>
 #include <vector>
@@ -56,6 +57,33 @@ nlohmann::json loadAssetMetricsSidecar(const std::string& templateName) {
         }
     }
     return nullptr;
+}
+
+// MEASURED template extent in world units. One cube = 1 u; a subcube is 1/3, a
+// microcube 1/9, a fine cell 1/fineGridResolution. Mixing tiers in one template
+// is rejected at parse, but this walks them all so it works for any asset.
+bool templateSizeUnits(const VoxelTemplate& tmpl, glm::vec3& outDims) {
+    glm::vec3 lo(std::numeric_limits<float>::max());
+    glm::vec3 hi(std::numeric_limits<float>::lowest());
+    bool any = false;
+    auto add = [&](const glm::vec3& origin, float cell) {
+        lo = glm::min(lo, origin);
+        hi = glm::max(hi, origin + glm::vec3(cell));
+        any = true;
+    };
+    if (tmpl.isFineGrid()) {
+        const float cell = 1.0f / (float)tmpl.fineGridResolution;
+        for (const auto& v : tmpl.fineVoxels) add(glm::vec3(v.pos) * cell, cell);
+    }
+    for (const auto& c : tmpl.cubes) add(glm::vec3(c.relativePos), 1.0f);
+    for (const auto& s : tmpl.subcubes)
+        add(glm::vec3(s.parentRelativePos) + glm::vec3(s.subcubePos) / 3.0f, 1.0f / 3.0f);
+    for (const auto& m : tmpl.microcubes)
+        add(glm::vec3(m.parentRelativePos) + glm::vec3(m.subcubePos) / 3.0f +
+                glm::vec3(m.microcubePos) / 9.0f, 1.0f / 9.0f);
+    if (!any) return false;
+    outDims = hi - lo;
+    return true;
 }
 
 // Shared placement tail: undo snapshot (optional), place, honest-zero check,

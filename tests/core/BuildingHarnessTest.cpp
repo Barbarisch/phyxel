@@ -388,29 +388,35 @@ struct ParityGolden { const char* name; uint64_t canvas; uint64_t plan; };
 // furnish-plan digests unchanged). Regenerate ONLY for an intentional generation
 // change (the failure message prints the new row).
 const ParityGolden kParityGoldens[] = {
-    {"1-story 7x9",                  0xae90dc35f0f2a471ull, 0x5fc3a57fcfc9a7e2ull},
+    {"1-story 7x9",                  0xae90dc35f0f2a471ull, 0x4dfffd48fc537c8aull},
     {"1-story 5x6 small",            0xc608931bd16516a2ull, 0x9e7527836b571790ull},
-    {"1-story 12x14 large",          0x8d8a8a9205f74487ull, 0xa195429179bdd0e5ull},
-    {"2-story switchback",           0x0aaac8195932992aull, 0xb1618508ff810571ull},
-    {"3-story switchback (exemplar)",0x413703fa0f17c9cfull, 0x9fc45a10a5197658ull},
-    {"5-story switchback",           0x5198ba0fe29411d5ull, 0xfa139c03b9f85d34ull},
-    {"10-story switchback",          0xdf4d2e6b553654b6ull, 0xfb536b2a73209444ull},
-    {"3-story switchback slab",      0x4b482ddfef811815ull, 0x26e4c4daab806951ull},
-    {"3-story switchback basement",  0xb10e1058a4ac096bull, 0x8e644210eeaeb31aull},
+    {"1-story 12x14 large",          0x8d8a8a9205f74487ull, 0x136f93c6a1f31beaull},
+    {"2-story switchback",           0xaaac8195932992aull, 0x12d2c002bc737e69ull},
+    {"3-story switchback (exemplar)",0x413703fa0f17c9cfull, 0xbfbf2401966de44dull},
+    {"5-story switchback",           0x5198ba0fe29411d5ull, 0x3ab169a7e6c05549ull},
+    {"10-story switchback",          0xdf4d2e6b553654b6ull, 0x11d05d89206a4208ull},
+    {"3-story switchback slab",      0x4b482ddfef811815ull, 0xe77c75950c570cf0ull},
+    {"3-story switchback basement",  0xb10e1058a4ac096bull, 0x834d54f6a1efaa53ull},
+    // RE-PINNED 2026-08-08 (furnishing only): communal tables place:"row" — ranked
+    // down the room's long axis instead of one centred showpiece — and seating
+    // round-robins over EVERY table instead of crowding the first. Every CANVAS
+    // digest above is unchanged, which is the evidence the change is confined to
+    // furniture: the shell, the stairs and the openings are byte-identical.
+    //
     // RE-PINNED after M6: the straight flight's LAST tread now absorbs the run's
     // integer-division remainder so it reaches the well edge (a climber used to
     // emerge onto a void gap). Only the two straight-form rows move; every
     // switchback row and every furnish plan is byte-identical, which is the
     // evidence that the change is confined to straight stairs.
-    {"2-story straight",             0x23180d6997915ed5ull, 0xb1618508ff810571ull},
-    {"3-story straight",             0x4dda411f8b809e4full, 0x9fc45a10a5197658ull},
+    {"2-story straight",             0x23180d6997915ed5ull, 0x12d2c002bc737e69ull},
+    {"3-story straight",             0x4dda411f8b809e4full, 0xbfbf2401966de44dull},
     {"2-room connected",             0x0657ed156a9ad0eaull, 0x1d30249fe57607cfull},
     {"gen 7x9 rooms=3 seed1",        0xc99756d522672bc1ull, 0xe30b8af908c557a0ull},
     {"gen 7x9 rooms=4 seed2",        0x34382f9fa617c633ull, 0x0e19f19f2d2cc913ull},
     {"gen 10x12 rooms=5 seed3",      0x7a5eb64e0363e36dull, 0xa49d846dafb59f77ull},
     {"gen 9x11 rooms=6 seed4",       0xef989c3e1d1be5aeull, 0xc3cb3272c9b1e654ull},
     {"autofill 8x10 (core seam)",    0xfb91e3a699994fedull, 0xf5dc4bddbda4d7e9ull},
-    {"BAD: 3-story NO stairs",       0x1ca8aca73a8de6b7ull, 0x8b25c8ac88a91357ull},
+    {"BAD: 3-story NO stairs",       0x1ca8aca73a8de6b7ull, 0x1746b964226f5b5bull},
     {"BAD: 2-room sealed kitchen",   0x97857f3014bb6e8aull, 0x52a65ec6c04f1739ull},
     {"BAD: gen doors stripped",      0x44cf45697c2b744aull, 0xa45952388b362d7aull},
 };

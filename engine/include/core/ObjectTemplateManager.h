@@ -83,6 +83,17 @@ public:
      */
     bool spawnTemplateMicro(const std::string& name, const glm::ivec3& worldMicro, int rotation = 0);
 
+    /// Erase exactly the cells spawnTemplateMicro writes for the same pose. Removal
+    /// must undo the placement at the resolution the placement used — clearing whole
+    /// cubes over the bbox instead takes the wall behind the furniture with it.
+    bool eraseTemplateMicro(const std::string& name, const glm::ivec3& worldMicro, int rotation = 0);
+
+private:
+    /// Shared rasterization for spawn/erase so the two can never drift apart.
+    bool spawnOrEraseMicro(const std::string& name, const glm::ivec3& worldMicro,
+                           int rotation, bool erase);
+public:
+
     // Flora decoration: ask the generator to plan biome-appropriate vegetation across a world-
     // column rectangle, then stamp each plant (centering its footprint on the sampled column).
     // All region chunks must already exist so overhang routes into the correct neighbor (no

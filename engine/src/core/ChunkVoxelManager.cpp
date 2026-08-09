@@ -1062,9 +1062,15 @@ bool ChunkVoxelManager::addMicrocube(
         return false;
     }
 
-    // Check if microcube already exists
-    if (getMicrocubeHelper(parentCubePos, subcubePos, microcubePos)) {
-        return false;
+    // Already occupied: REPAINT it rather than refusing. Writing a voxel is a paint
+    // operation — last write wins, the same way a coarser add replaces what it
+    // covers. Refusing here used to be harmless because a subdivided subcube left
+    // its other 26 cells EMPTY; now that refinement preserves them (see below), a
+    // refusal would drop every stack cell after the first in each subcube and
+    // leave the chimney full of gaps instead of the floor full of holes.
+    if (Microcube* existing = getMicrocubeHelper(parentCubePos, subcubePos, microcubePos)) {
+        existing->setMaterialName(material);
+        return true;
     }
 
     // Check if this is the first microcube at this subcube position
@@ -1073,16 +1079,17 @@ bool ChunkVoxelManager::addMicrocube(
         // Check if parent subcube exists and remove it if found
         Subcube* parentSubcube = getSubcubeHelper(parentCubePos, subcubePos);
         if (parentSubcube) {
-            // A finer microcube supersedes the coarser subcube filling the same 1/3 cell — an EXPECTED
-            // operation (e.g. a micro-detailed fixture placed over a subcube structure), not corruption.
-            // Debug-level so it doesn't spam the log; a fixture eating STRUCTURE here is caught by the
-            // realized-world validators (wall-gap / hearth-flush), not by this low-level voxel op.
-            LOG_DEBUG_FMT("ChunkVoxelManager", "microcube supersedes existing subcube at cube ("
-                      << parentCubePos.x << "," << parentCubePos.y << "," << parentCubePos.z
-                      << ") subcube (" << subcubePos.x << "," << subcubePos.y << "," << subcubePos.z
-                      << ") - removing the subcube (finer voxel replaces coarser)");
-            
-            // Remove from maps and vector
+            // A finer microcube supersedes the coarser subcube filling the same 1/3 cell.
+            // SUBDIVIDE it — do not delete it. The subcube fills 27 micro cells; the
+            // incoming microcube claims ONE. Dropping the subcube outright vaporised the
+            // other 26 and left a 1/3-metre void, so any fine detail written over coarse
+            // structure ATE A HOLE THROUGH IT: a chimney stack placed up through a
+            // subcube-thick floor slab blew an opening through the floor (and through the
+            // wall beside it) that was visible from outside the building. The old comment
+            // here claimed the realized-world validators would catch that — they cannot,
+            // because they run on the shell BEFORE anything is placed into the world.
+            const std::string fill = parentSubcube->getMaterialName();
+
             removeSubcubeFromMaps(parentCubePos, subcubePos);
             auto& staticSubcubes = m_getStaticSubcubes();
             for (auto it = staticSubcubes.begin(); it != staticSubcubes.end(); ++it) {
@@ -1091,9 +1098,24 @@ bool ChunkVoxelManager::addMicrocube(
                     break;
                 }
             }
+
+            // Re-materialize the subcube as its 27 micro cells, minus the one the caller
+            // is about to write (created below with the caller's material).
+            auto& staticMicrocubesFill = m_getStaticMicrocubes();
+            const glm::ivec3 parentWorld = m_getWorldOrigin() + parentCubePos;
+            for (int mx = 0; mx < 3; ++mx)
+                for (int my = 0; my < 3; ++my)
+                    for (int mz = 0; mz < 3; ++mz) {
+                        const glm::ivec3 mp(mx, my, mz);
+                        if (mp == microcubePos) continue;      // the caller's cell
+                        auto filler = std::make_unique<Microcube>(parentWorld, subcubePos, mp, fill);
+                        Microcube* fillerPtr = filler.get();
+                        staticMicrocubesFill.push_back(std::move(filler));
+                        addMicrocubeToMaps(parentCubePos, subcubePos, mp, fillerPtr);
+                    }
         }
     }
-    
+
     // Create new microcube
     glm::ivec3 parentWorldPos = m_getWorldOrigin() + parentCubePos;
     auto newMicrocube = std::make_unique<Microcube>(parentWorldPos, subcubePos, microcubePos, material);

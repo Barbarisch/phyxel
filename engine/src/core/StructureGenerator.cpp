@@ -831,6 +831,22 @@ PlacementResult StructureGenerator::place(ChunkManager* chunkManager, const Stru
         auto ins = touched.emplace(chunk, voxel.position);
         if (ins.second) chunk->beginBulkOperation();   // first touch: defer per-voxel collision
         const glm::ivec3 lp = Utils::CoordinateUtils::worldToLocalCoord(voxel.position);
+        // DESTRUCTIVE-WRITE ACCOUNTING: is this cell already occupied by something
+        // coarser (or by another fine cell)? Writing over it does not fail — it
+        // REPLACES — so without this count the damage is invisible to every caller.
+        {
+            bool occupied = chunk->getVoxelStore().solid(lp.z + lp.y * 32 + lp.x * 1024);
+            if (!occupied && voxel.level == VoxelLevel::Microcube)
+                occupied = chunk->getSubcubeAt(lp, voxel.subcubePos) != nullptr ||
+                           chunk->getMicrocubeAt(lp, voxel.subcubePos, voxel.microcubePos) != nullptr;
+            else if (!occupied && voxel.level == VoxelLevel::Subcube)
+                occupied = chunk->getSubcubeAt(lp, voxel.subcubePos) != nullptr;
+            if (occupied) {
+                ++result.displaced;
+                if (result.displacedSample.size() < 32)
+                    result.displacedSample.push_back(voxel.position);
+            }
+        }
         bool ok = false;
         switch (voxel.level) {
         case VoxelLevel::Subcube:

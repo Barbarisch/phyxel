@@ -104,6 +104,14 @@ struct RoomProgram {
     WindowSpec windows;                      ///< window rule; invalid (default) = no windows
 
     std::vector<RoomSpec> rooms;             ///< GROUND-floor rooms + their bay allocation
+
+    /// Trade-sign asset this typology hangs over its entrance — an ItemRegistry
+    /// id (e.g. "prop_sign_prancing_pony"), NOT a furniture template. Empty =
+    /// no sign asset has been authored for this trade yet; the forge then falls
+    /// back to the blank `hanging_sign` board and records an asset request. The
+    /// forge must never pick a sign by name: which sign a trade hangs is data.
+    std::string signItem;
+
     std::map<std::string, std::string> sources;  ///< per-value provenance
 
     bool hasSource(const std::string& key) const { return sources.find(key) != sources.end(); }

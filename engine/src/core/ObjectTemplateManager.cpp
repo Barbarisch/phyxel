@@ -922,8 +922,24 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
     return true;
 }
 
+// ERASE the exact cells spawnTemplateMicro would write, for the same pose. Removal
+// used to go through PlacedObjectManager::clearRegion, which deletes whole CUBES
+// across the object's bbox — so removing a 0.33 m stool standing against a wall took
+// the wall cube with it and punched a hole you could see the interior through. A
+// remove must undo what the place did, at the resolution the place used. Shares the
+// rasterization with spawnTemplateMicro below via spawnOrEraseMicro.
+bool ObjectTemplateManager::eraseTemplateMicro(const std::string& name,
+                                               const glm::ivec3& worldMicro, int rotation) {
+    return spawnOrEraseMicro(name, worldMicro, rotation, /*erase=*/true);
+}
+
 bool ObjectTemplateManager::spawnTemplateMicro(const std::string& name, const glm::ivec3& worldMicro,
                                                int rotation) {
+    return spawnOrEraseMicro(name, worldMicro, rotation, /*erase=*/false);
+}
+
+bool ObjectTemplateManager::spawnOrEraseMicro(const std::string& name, const glm::ivec3& worldMicro,
+                                              int rotation, bool erase) {
     const VoxelTemplate* tmpl = getTemplate(name);
     if (!tmpl) {
         LOG_ERROR_FMT("ObjectTemplateManager", "Template not found: " << name);
@@ -993,8 +1009,11 @@ bool ObjectTemplateManager::spawnTemplateMicro(const std::string& name, const gl
         const glm::ivec3 rem(floorMod(gm.x, 9), floorMod(gm.y, 9), floorMod(gm.z, 9));
         const glm::ivec3 sub(rem.x / 3, rem.y / 3, rem.z / 3);
         const glm::ivec3 mic(rem.x % 3, rem.y % 3, rem.z % 3);
-        if (Chunk* chunk = getOrCreateChunk(cube))
-            chunk->addMicrocube(Utils::CoordinateUtils::worldToLocalCoord(cube), sub, mic, cell.mat);
+        if (Chunk* chunk = getOrCreateChunk(cube)) {
+            const glm::ivec3 lp = Utils::CoordinateUtils::worldToLocalCoord(cube);
+            if (erase) chunk->removeMicrocube(lp, sub, mic);
+            else       chunk->addMicrocube(lp, sub, mic, cell.mat);
+        }
     }
 
     for (Chunk* chunk : modifiedChunks) {

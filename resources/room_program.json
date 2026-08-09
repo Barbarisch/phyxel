@@ -74,6 +74,7 @@
       "description": "Town inn / tavern — ground floor: public taproom (the common room, 2 bays) + kitchen + service/storage end, on the timber-frame bay system. Upper floor: guest chambers (lodging), reached by a generated stair.",
       "width_min": 6, "width_max": 7, "bay_length": 4, "bays": 4, "proportion_max": 3.0,
       "stories": 2, "upper_purpose": "bedchamber",
+      "sign_item": "prop_sign_prancing_pony",
       "windows": { "width": 1, "height": 1, "per_bay": 1.0, "walls": "front" },
       "rooms": [
         { "id": "taproom", "purpose": "taproom", "bays": 2 },
@@ -90,7 +91,8 @@
         "stories": "2 storeys: ground-floor public rooms + upper-floor guest chambers — the standard town-inn lodging form. Attested: The New Inn, Gloucester is a three-storey galleried inn with chambers on the upper floors (Wikipedia). 2 is the conservative town-tavern default; multi-story gen supports more. (Medievalists.net grounds the inn room programme — hall/chambers/kitchen — but not the vertical placement.)",
         "example_for_TYPE_only": "The New Inn, Gloucester (timber-framed galleried courtyard inn, c.1430-50, ~40 chambers; Wikipedia) attests medieval inns as multi-storey galleried buildings with many guest chambers — evidence for the TYPE + the upstairs-lodging direction, NOT for this 4-bay scale (it is a large 7-bay courtyard inn).",
         "windows.count": "STYLIZED by analogy to the hall-house family — no inn-specific window survey (would need Pantin, Medieval Inns, 1961); per_bay 1.0 on the street front (urban shopfront tier more fenestrated than the rural humble tier is a REASONED, unattested step). Shutters only per the 1558 glazing gate (buildingconservation.com); upper-floor chamber windows consistent with domestic upper-floor 'weavers' windows' precedent (Wikipedia Weavers' windows)",
-        "windows.size": "STYLIZED — same 1x1-cube smallest-carvable caveat as croft; middling/shopfront opening dims NEEDS-RESEARCH (Pantin shop-front studies; Schofield & Vince, Medieval Towns)"
+        "windows.size": "STYLIZED — same 1x1-cube smallest-carvable caveat as croft; middling/shopfront opening dims NEEDS-RESEARCH (Pantin shop-front studies; Schofield & Vince, Medieval Towns)",
+        "sign_item": "THAT an inn hangs a sign over its entrance is attested — a 1393 statute of Richard II required ale-sellers to display a sign, and the painted board on an alestake/bracket is the standard form (Wikipedia, Pub names / Alestake). WHICH sign is art direction, NOT a measured value: 'The Prancing Pony' is simply the authored asset (resources/templates/items/sign_prancing_pony.voxel). What IS grounded is the MOUNT — see RealizedStructureValidator::checkSignClearance (>=8 ft board clearance, <=48 in projection, above the door head)."
       }
     },
     "blacksmith": {

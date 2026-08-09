@@ -18,6 +18,7 @@
 #include "core/FurnitureCatalog.h"
 #include "core/FurniturePlacer.h"
 #include "core/ItemPropManager.h"
+#include "core/ItemRegistry.h"
 #include "core/ObjectTemplateManager.h"
 #include "core/PlacedObjectManager.h"
 #include "core/RealizedStructureValidator.h"
@@ -696,6 +697,97 @@ StructureForge::StageReport StructureForge::stagePlace(Context& ctx) {
 }
 
 // ---------------------------------------------------------------------------
+// planSignMount — where a trade-sign board hangs, chosen BY FIT.
+//
+// The grounded projecting-sign code (checkSignClearance) caps how far a sign may
+// jut from the wall at 48 in / 11 micro. A board narrower than that swings on a
+// bracket — the authentic medieval trade-sign form. A board WIDER than that is
+// not thrown away: it mounts flush to the facade, which is an equally real
+// signage form and keeps the painted face square to anyone approaching. Only a
+// roof with no room above the lintel refuses.
+//
+// Board local frame (tools/gen_items.py _flat_projected, axis=z): X = width,
+// Y = height, Z = thickness; the painted face normal is local +-Z.
+// Yaw about +Y maps local +Z -> (sin, 0, cos) and local +X -> (cos, 0, -sin).
+// ---------------------------------------------------------------------------
+StructureForge::SignMount StructureForge::planSignMount(
+        WallSide side, int wallOuterMicro, int alongCenterMicro,
+        int floorMicroY, int doorHeadMicroY, int roofApexMicroY,
+        float boardW, float boardH, float boardT) {
+    SignMount m;
+    // Grounded limits (see RealizedStructureValidator::checkSignClearance).
+    constexpr int kMinClearMicro = 22;   // >= 8 ft above grade
+    // PROJECTION CAP — the MEDIEVAL limit, not the modern one. The validator's
+    // 48-in default is late sign code; a medieval tavern sign is an ALESTAKE, a
+    // pole-and-board projecting over the street, and the period limit on it is
+    // the 1375 City of London ordinance restricting ale-stakes to 7 ft over the
+    // King's highway. 7 ft = 2.13 m = 19 micro. Using the modern 1.22 m here was
+    // a grounding error on my part: it forced the 2 m Prancing Pony board flat
+    // against the facade, when the whole point of an inn sign is that it hangs
+    // OUT so it reads from along the road.
+    constexpr int kMaxProjMicro  = 19;   // <= 7 ft (1375 London ale-stake ordinance)
+
+    const int boardHMicro = std::max(1, (int)std::ceil(boardH * 9.0f));
+    const int minBottom = std::max(floorMicroY + kMinClearMicro, doorHeadMicroY + 1);
+    m.boardBottomMicroY = minBottom;
+    if (roofApexMicroY > 0 && m.boardBottomMicroY + boardHMicro > roofApexMicroY) {
+        m.boardBottomMicroY = roofApexMicroY - boardHMicro;   // tuck under the eave
+        if (m.boardBottomMicroY < minBottom) {
+            m.skipReason = "no room above the door head under the eave "
+                           "(roof apex too low for a clearing sign)";
+            return m;
+        }
+    }
+
+    // Outward normal of the wall the door sits in.
+    const bool onX = (side == WallSide::MinusX || side == WallSide::PlusX);
+    const float nSign = (side == WallSide::MinusX || side == WallSide::MinusZ)
+                        ? -1.0f : 1.0f;
+
+    // FORM BY FIT: bracket first, facade as the bounded repair.
+    const int projProjecting = std::max(1, (int)std::ceil(boardW * 9.0f));
+    const int projFlush      = std::max(1, (int)std::ceil(boardT * 9.0f));
+    float outOffset;   // board center offset from the wall face, along the normal
+    if (projProjecting <= kMaxProjMicro) {
+        m.form = "projecting";
+        m.projectionMicro = projProjecting;
+        outOffset = boardW * 0.5f;          // juts out half its width
+        // local +X -> outward normal
+        switch (side) {
+            case WallSide::PlusX:  m.rotationDeg = 0;   break;
+            case WallSide::MinusZ: m.rotationDeg = 90;  break;
+            case WallSide::MinusX: m.rotationDeg = 180; break;
+            case WallSide::PlusZ:  m.rotationDeg = 270; break;
+        }
+    } else {
+        m.form = "flush";
+        m.projectionMicro = projFlush;
+        outOffset = boardT * 0.5f + 0.01f;  // barely proud of the cladding
+        // local +Z (the painted face) -> outward normal
+        switch (side) {
+            case WallSide::PlusZ:  m.rotationDeg = 0;   break;
+            case WallSide::PlusX:  m.rotationDeg = 90;  break;
+            case WallSide::MinusZ: m.rotationDeg = 180; break;
+            case WallSide::MinusX: m.rotationDeg = 270; break;
+        }
+    }
+
+    // GATE (not a guess): the same validator the furniture board answers to.
+    const ValidationReport sc = RealizedStructureValidator::checkSignClearance(
+        m.boardBottomMicroY, floorMicroY, m.projectionMicro, kMinClearMicro,
+        kMaxProjMicro, doorHeadMicroY);
+    if (!sc.ok()) { m.skipReason = sc.summary(); return m; }
+
+    const float face  = wallOuterMicro / 9.0f;
+    const float along = alongCenterMicro / 9.0f;
+    m.worldPos.y = m.boardBottomMicroY / 9.0f;
+    if (onX) { m.worldPos.x = face + nSign * outOffset; m.worldPos.z = along; }
+    else     { m.worldPos.z = face + nSign * outOffset; m.worldPos.x = along; }
+    m.ok = true;
+    return m;
+}
+
+// ---------------------------------------------------------------------------
 // furnish — v2: the ENGINE decides furniture placement. FurniturePlacer derives
 // what/where/facing/clearance from each room's purpose + door positions —
 // hand-authored program fixtures are IGNORED. Pieces are parented to the
@@ -818,7 +910,16 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
         std::vector<Emitting> emitters;
         // M7: every placed fixture's TRUE world AABB, for the doorway-clearance scan.
         std::vector<RealizedStructureValidator::PlacedBox> placedBoxes;
+        // ...and what it takes to PUT ONE BACK somewhere else. The M7 repair used to
+        // delete a door-blocking piece outright; the Prancing Pony lost a bench, a
+        // stool and a bed that way. A blocked doorway is still worse than a missing
+        // stool, but "slide it clear" beats "throw it away" whenever a clear spot
+        // exists, so the room stays furnished.
+        struct Reseat { std::string tmpl; glm::ivec3 microPos; int rotation; };
+        std::map<std::string, Reseat> reseat;   // objectId -> how to re-place it
         nlohmann::json unblockedDoors = nlohmann::json::array();
+        // Destructive writes by passes that run AFTER the shell was validated.
+        nlohmann::json displacedByPost = nlohmann::json::array();
         int lightsRegistered = 0;
         std::set<std::string> litRooms;   // rooms that got at least one light source
         nlohmann::json darkRooms = nlohmann::json::array();
@@ -942,10 +1043,12 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                 // M7: record the REGISTERED world bbox (cubes -> micro). This is the
                 // render-accurate extent including the wall-inset micro-spill, which
                 // is exactly the spill the plan-time cell reservation cannot see.
-                if (const auto* obj = placedObjectManager->get(fid))
+                if (const auto* obj = placedObjectManager->get(fid)) {
                     placedBoxes.push_back({pl.type, pl.room, fid,
                                            obj->boundingMin * 9,
                                            (obj->boundingMax + glm::ivec3(1)) * 9});
+                    reseat[fid] = {tmpl, microPos, pl.rotation};
+                }
             }
 
             // ---- place_chimney (#14), M4: its own pass over the story's vented
@@ -986,7 +1089,25 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                     } else {
                         auto chimney = StructureGenerator::planChimneyStack(
                             ccx, ccz, baseY, topY, "Bricks");
-                        StructureGenerator::place(chunkManager, chimney);
+                        // A pass running AFTER the shell writes into a building the
+                        // shell-side gates already certified. Every cell it DISPLACES
+                        // is structure it just ate, and nothing downstream re-checks
+                        // the shell — so account for it here rather than discover it
+                        // in a screenshot.
+                        const auto res = StructureGenerator::place(chunkManager, chimney);
+                        if (res.displaced > 0) {
+                            nlohmann::json where = nlohmann::json::array();
+                            for (const auto& p : res.displacedSample)
+                                where.push_back({p.x, p.y, p.z});
+                            LOG_WARN_FMT("StructureBuild", "place_chimney DISPLACED "
+                                         << res.displaced << " existing voxel(s) building the "
+                                         << "stack at (" << ccx / 9 << "," << ccz / 9
+                                         << ") — it is cutting through structure that was "
+                                            "already built");
+                            displacedByPost.push_back({{"pass", "chimney"},
+                                                       {"cells", res.displaced},
+                                                       {"sample", where}});
+                        }
                         ++chimneysBuilt;
                     }
                 }
@@ -1068,12 +1189,95 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                         auto one = RealizedStructureValidator::checkDoorwayClearance(
                             ctx.shell.plan, glm::ivec3(posX, ctx.oy, posZ), {b});
                         if (one.ok()) continue;
+                        // REPAIR, then refuse: try to SLIDE it clear before deleting.
+                        // Candidate offsets walk out from the doorway along both
+                        // horizontal axes in whole cubes; a candidate is accepted
+                        // only if it clears every doorway AND overlaps nothing else
+                        // already placed. Bounded (a few cubes), deterministic, and
+                        // it never moves a piece into another piece.
+                        const auto rs = reseat.find(b.objectId);
+                        bool moved = false;
+                        // The slid piece must stay INSIDE its own room. Without this
+                        // a "2 cubes clear" slide pushed an upstairs bed straight
+                        // through the gable wall, leaving it hanging in mid-air over
+                        // the grass — visible from outside, and a worse defect than
+                        // the blocked doorway it was fixing.
+                        const ProgRoom* homeRoom = nullptr;
+                        for (const auto& rm : story.rooms)
+                            if (rm.id == b.room) { homeRoom = &rm; break; }
+                        if (rs != reseat.end() && homeRoom) {
+                            const glm::ivec3 span = b.hi - b.lo;
+                            const int roomLoX = (posX + homeRoom->rect.x) * 9;
+                            const int roomLoZ = (posZ + homeRoom->rect.z) * 9;
+                            const int roomHiX = roomLoX + homeRoom->rect.w * 9;
+                            const int roomHiZ = roomLoZ + homeRoom->rect.d * 9;
+                            for (int step = 1; step <= 3 && !moved; ++step) {
+                                for (const glm::ivec3& dir : {glm::ivec3(1, 0, 0),
+                                                              glm::ivec3(-1, 0, 0),
+                                                              glm::ivec3(0, 0, 1),
+                                                              glm::ivec3(0, 0, -1)}) {
+                                    const glm::ivec3 d = dir * (step * 9);   // whole cubes
+                                    RealizedStructureValidator::PlacedBox cand = b;
+                                    cand.lo = b.lo + d;
+                                    cand.hi = cand.lo + span;
+                                    // Must stay within its own room's footprint —
+                                    // never slid out through a wall.
+                                    if (cand.lo.x < roomLoX || cand.hi.x > roomHiX ||
+                                        cand.lo.z < roomLoZ || cand.hi.z > roomHiZ)
+                                        continue;
+                                    // Must not walk into another placed fixture.
+                                    bool hits = false;
+                                    for (const auto& o : placedBoxes) {
+                                        if (o.objectId.empty() || o.objectId == b.objectId) continue;
+                                        if (cand.lo.x < o.hi.x && cand.hi.x > o.lo.x &&
+                                            cand.lo.y < o.hi.y && cand.hi.y > o.lo.y &&
+                                            cand.lo.z < o.hi.z && cand.hi.z > o.lo.z) {
+                                            hits = true; break;
+                                        }
+                                    }
+                                    if (hits) continue;
+                                    // Must actually clear the doorway it was blocking.
+                                    if (!RealizedStructureValidator::checkDoorwayClearance(
+                                            ctx.shell.plan, glm::ivec3(posX, ctx.oy, posZ),
+                                            {cand}).ok())
+                                        continue;
+                                    // Commit: re-place the SAME template at the slid pose.
+                                    placedObjectManager->remove(b.objectId);
+                                    const std::string nid = placedObjectManager->placeTemplateMicro(
+                                        rs->second.tmpl, rs->second.microPos + d,
+                                        rs->second.rotation, objectId);
+                                    if (nid.empty()) {      // re-place failed: it stays gone
+                                        LOG_WARN_FMT("StructureBuild", "doorway repair: could not "
+                                                     "re-place " << b.type << " in '" << b.room
+                                                     << "' — it is removed");
+                                        break;
+                                    }
+                                    LOG_INFO_FMT("StructureBuild", "doorway blocked by " << b.type
+                                                 << " in '" << b.room << "' — SLID it "
+                                                 << (step) << " cube(s) clear (a blocked doorway is "
+                                                    "a defect; an empty room is a worse fix)");
+                                    unblockedDoors.push_back({{"type", b.type}, {"room", b.room},
+                                                              {"action", "relocated"},
+                                                              {"cubes", step}});
+                                    b.objectId = nid;
+                                    b.lo = cand.lo;
+                                    b.hi = cand.hi;
+                                    reseat[nid] = {rs->second.tmpl, rs->second.microPos + d,
+                                                   rs->second.rotation};
+                                    moved = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (moved) continue;
                         LOG_WARN_FMT("StructureBuild", "doorway blocked by " << b.type
-                                     << " in '" << b.room << "' — REMOVING it (a blocked "
-                                        "doorway is worse than a missing fixture)");
+                                     << " in '" << b.room << "' — no clear spot within 3 cubes, "
+                                        "REMOVING it (a blocked doorway is worse than a missing "
+                                        "fixture)");
                         placedObjectManager->remove(b.objectId);
                         --fxSpawned;
-                        unblockedDoors.push_back({{"type", b.type}, {"room", b.room}});
+                        unblockedDoors.push_back({{"type", b.type}, {"room", b.room},
+                                                  {"action", "removed"}});
                         b.objectId.clear();
                         b.lo = b.hi = glm::ivec3(0);   // no longer occupies anything
                     }
@@ -1149,8 +1353,50 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                    fn == "bakery" || fn == "store" || fn == "smithy" ||
                    fn == "apothecary" || fn == "herbalist" || fn == "butcher";
         };
-        const bool haveSign = objectTemplateManager &&
-            objectTemplateManager->getTemplate("hanging_sign") != nullptr;
+        // WHICH sign a trade hangs is DATA (RoomProgram::signItem), never a name
+        // chosen here. The asset is a fine-voxel ITEM carrying a real painted
+        // board — `hanging_sign` (a blank furniture board that cannot say
+        // anything) is only the fallback for trades whose sign is not authored
+        // yet, and those record an asset request instead of borrowing another
+        // trade's sign.
+        std::string signItemId = ctx.rp ? ctx.rp->signItem : std::string();
+        const VoxelTemplate* signTmpl = nullptr;
+        if (!signItemId.empty() && itemPropManager) {
+            if (const auto* def = ItemRegistry::instance().getItem(signItemId)) {
+                if (def->holdable && !def->templateFile.empty())
+                    signTmpl = itemPropManager->resolveItemTemplate(def->templateFile);
+            }
+            if (!signTmpl) {
+                LOG_WARN_FMT("StructureBuild", "place_signage: declared sign item '"
+                             << signItemId << "' did not resolve — falling back to the "
+                             "blank board");
+                signItemId.clear();
+            }
+        } else {
+            signItemId.clear();
+        }
+        const bool haveSign = signTmpl || (objectTemplateManager &&
+            objectTemplateManager->getTemplate("hanging_sign") != nullptr);
+        if (!signTmpl && !program.stories.empty() &&
+            isBusiness(program.typology, program.function)) {
+            // Honest demand, not a silent blank: this trade has no sign asset,
+            // so it hangs the nameless board and the gap is RECORDED. Signage is
+            // decorative, so this records rather than refuses (unlike the
+            // fixture gate) — but it is never invented and never borrowed from
+            // another trade.
+            const std::string trade = program.typology.empty() ? program.function
+                                                               : program.typology;
+            const std::vector<AssetRequest> reqs = {
+                {"sign_" + trade, "item", "signage", trade, "unmapped",
+                 "typology '" + trade + "' hangs a trade sign but has no authored "
+                 "sign asset (room_program.json \"sign_item\") — it is showing the "
+                 "blank hanging_sign board"}};
+            AssetRequestLedger::save(AssetRequestLedger::merge(
+                AssetRequestLedger::load(), reqs,
+                ctx.params.value("today", std::string("unknown"))));
+            response["signage_asset_request"] = AssetRequestLedger::toJson(reqs);
+            LOG_WARN_FMT("StructureBuild", "asset request: " << reqs[0].message);
+        }
         if (haveSign && !program.stories.empty() &&
             isBusiness(program.typology, program.function)) {
             const int Wp = std::max(program.footprintW, 1);
@@ -1168,6 +1414,7 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
             // wall side -> rotation (asset front=+Z; rot maps front to the outward
             // normal), the wall's OUTER face micro-coord, the along-wall door center,
             // and the door head height.
+            WallSide side = WallSide::MinusZ;         // default: -Z front wall
             int rotation = 180;                       // default: -Z front wall
             int wallOuterMicro = oz * 9;              // -Z outer face
             int alongCenterMicro = (ox * 9) + (Wp * 9) / 2;
@@ -1176,85 +1423,104 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                 doorHeadMicroY = floorMicroY + std::max(1, door->height) * 9;
                 const int dw = std::max(1, door->width);
                 if (door->px == 0) {              // -X wall
+                    side = WallSide::MinusX;
                     rotation = 90;
                     wallOuterMicro = ox * 9;
                     alongCenterMicro = (oz + door->pz) * 9 + dw * 9 / 2;
                 } else if (door->px == Wp) {      // +X wall
+                    side = WallSide::PlusX;
                     rotation = 270;
                     wallOuterMicro = (ox + Wp) * 9;
                     alongCenterMicro = (oz + door->pz) * 9 + dw * 9 / 2;
                 } else if (door->pz == Dp) {      // +Z wall
+                    side = WallSide::PlusZ;
                     rotation = 0;
                     wallOuterMicro = (oz + Dp) * 9;
                     alongCenterMicro = (ox + door->px) * 9 + dw * 9 / 2;
                 } else {                          // -Z wall (pz==0 or interior fallback)
+                    side = WallSide::MinusZ;
                     rotation = 180;
                     wallOuterMicro = oz * 9;
                     alongCenterMicro = (ox + door->px) * 9 + dw * 9 / 2;
                 }
             }
-            const int SIGN_H = 7, PROJ = 7;   // asset y-extent + board projection (micro)
-            // clear BOTH the 8 ft grade floor AND the door head; clamp under the apex.
-            const int minBottom = std::max(floorMicroY + 22, doorHeadMicroY + 1);
-            int boardBottom = minBottom;
-            std::string skipReason;
-            if (roofApexWorldMicro > 0 && boardBottom + SIGN_H > roofApexWorldMicro) {
-                boardBottom = roofApexWorldMicro - SIGN_H;   // tuck under the eave
-                if (boardBottom < minBottom)
-                    skipReason = "no room above the door head under the eave "
-                                 "(roof apex too low for a clearing sign)";
-            }
-            // VALIDATOR AS A GATE: the sign is placed ONLY if it clears head height,
-            // stays within the projection cap, AND hangs above the lintel.
-            ValidationReport sc;
-            if (skipReason.empty()) {
-                sc = RealizedStructureValidator::checkSignClearance(
-                    boardBottom, floorMicroY, PROJ, /*minClear*/22,
-                    /*maxProj*/11, /*doorHead*/doorHeadMicroY);
-                if (!sc.ok()) skipReason = sc.summary();
-            }
-            if (!skipReason.empty()) {
-                LOG_WARN("StructureBuild", "place_signage: SKIPPED — " + skipReason);
-                response["signage_skipped"] = skipReason;
-            } else {
-                // min-corner of the rotated AABB so the bracket foot is flush on the
-                // wall outer face and the board projects OUTWARD.
-                glm::ivec3 sm(0, boardBottom, 0);
-                switch (rotation) {
-                    case 0:   sm.x = alongCenterMicro; sm.z = wallOuterMicro;     break; // +Z
-                    case 180: sm.x = alongCenterMicro; sm.z = wallOuterMicro - 6; break; // -Z
-                    case 270: sm.x = wallOuterMicro;   sm.z = alongCenterMicro;   break; // +X
-                    case 90:  sm.x = wallOuterMicro - 6; sm.z = alongCenterMicro; break; // -X
-                    default: break;
+            // Board dimensions are MEASURED from the asset, never assumed — the
+            // mount form (bracket vs facade) is decided by whether the real board
+            // fits the grounded projection cap.
+            float boardW = 7.0f / 9.0f, boardH = 7.0f / 9.0f, boardT = 2.0f / 9.0f;
+            if (signTmpl) {
+                glm::vec3 dims(0.0f);
+                if (detail::templateSizeUnits(*signTmpl, dims)) {
+                    boardW = dims.x; boardH = dims.y; boardT = dims.z;
                 }
-                std::string sid = placedObjectManager->placeTemplateMicro(
-                    "hanging_sign", sm, rotation, objectId);
+            }
+            const SignMount mount = planSignMount(
+                side, wallOuterMicro, alongCenterMicro, floorMicroY, doorHeadMicroY,
+                roofApexWorldMicro, boardW, boardH, boardT);
+            if (!mount.ok) {
+                LOG_WARN("StructureBuild", "place_signage: SKIPPED — " + mount.skipReason);
+                response["signage_skipped"] = mount.skipReason;
+            } else {
+                std::string sid;
+                if (signTmpl) {
+                    // The real painted board: a fine-voxel ITEM prop (static-first,
+                    // so a hung sign costs no physics), parented to the structure.
+                    sid = itemPropManager->spawnProp(
+                        signItemId, mount.worldPos, (float)mount.rotationDeg,
+                        /*snapToGround=*/false, /*instanceUuid=*/"",
+                        glm::vec3(0.0f), /*dynamic=*/false);
+                    if (!sid.empty()) {
+                        placedObjectManager->setParent(sid, objectId);
+                        ++itemsSpawned;
+                    }
+                } else {
+                    // Fallback: the blank furniture board on its bracket. Its
+                    // min-corner convention differs from the item's center anchor.
+                    glm::ivec3 sm(0, mount.boardBottomMicroY, 0);
+                    switch (rotation) {
+                        case 0:   sm.x = alongCenterMicro; sm.z = wallOuterMicro;     break;
+                        case 180: sm.x = alongCenterMicro; sm.z = wallOuterMicro - 6; break;
+                        case 270: sm.x = wallOuterMicro;   sm.z = alongCenterMicro;   break;
+                        case 90:  sm.x = wallOuterMicro - 6; sm.z = alongCenterMicro; break;
+                        default: break;
+                    }
+                    sid = placedObjectManager->placeTemplateMicro("hanging_sign", sm,
+                                                                  rotation, objectId);
+                    if (!sid.empty()) ++fxSpawned;
+                }
                 if (!sid.empty()) {
-                    ++fxSpawned;
                     nlohmann::json sj = {
                         {"id", sid}, {"structure", objectId},
-                        {"rotation", rotation},
-                        {"board_bottom_micro_y", boardBottom},
-                        {"clearance_micro", boardBottom - floorMicroY},
-                        {"above_lintel_micro", boardBottom - doorHeadMicroY},
-                        {"projection_micro", PROJ},
+                        {"asset", signTmpl ? signItemId : std::string("hanging_sign")},
+                        {"realized_as", signTmpl ? "item" : "template"},
+                        {"mount", mount.form},
+                        {"rotation", signTmpl ? mount.rotationDeg : rotation},
+                        {"board_bottom_micro_y", mount.boardBottomMicroY},
+                        {"clearance_micro", mount.boardBottomMicroY - floorMicroY},
+                        {"above_lintel_micro", mount.boardBottomMicroY - doorHeadMicroY},
+                        {"projection_micro", mount.projectionMicro},
                         {"over_door", door != nullptr},
                         {"clearance_ok", true}};   // gated: only reached when ok
                     placedObjectManager->setMetadata(sid, "signage", sj);
                     response["signage"] = sj;
-                    LOG_INFO_FMT("StructureBuild", "place_signage: hung sign over "
+                    LOG_INFO_FMT("StructureBuild", "place_signage: hung "
+                                 << (signTmpl ? signItemId : std::string("hanging_sign"))
+                                 << " (" << mount.form << ") over "
                                  << (door ? "entry door" : "front wall")
-                                 << " (clearance " << (boardBottom - floorMicroY)
-                                 << " micro, above lintel " << (boardBottom - doorHeadMicroY)
-                                 << " micro, rot " << rotation << ")");
+                                 << " (clearance " << (mount.boardBottomMicroY - floorMicroY)
+                                 << " micro, above lintel "
+                                 << (mount.boardBottomMicroY - doorHeadMicroY)
+                                 << " micro, rot " << mount.rotationDeg << ")");
                 } else {
-                    LOG_WARN("StructureBuild", "place_signage: placeTemplateMicro failed");
+                    LOG_WARN("StructureBuild", "place_signage: sign spawn failed");
                 }
             }
         }
         response["fixtures_spawned"] = fxSpawned;
         response["items_spawned"] = itemsSpawned;   // pickable surface props (2026-08-07)
         response["chimneys_built"] = chimneysBuilt;                 // M4 chimney pass
+        if (!displacedByPost.empty())
+            response["displaced_existing_voxels"] = displacedByPost;   // destructive-write ledger
         if (!fluelessRemoved.empty())
             response["flueless_hearths_removed"] = fluelessRemoved; // never ship a flueless hearth
         response["lights_registered"] = lightsRegistered;           // M5 lighting pass

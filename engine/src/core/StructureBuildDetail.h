@@ -14,6 +14,7 @@
 #include <nlohmann/json.hpp>
 
 #include "core/StructureBuildService.h"
+#include "core/VoxelTemplate.h"
 
 namespace Phyxel {
 namespace Core {
@@ -55,6 +56,13 @@ PlaceOutcome placeAndRegisterImpl(const StructureResult& structure, const nlohma
 // treated as "no sidecar" — better to allow than to wrongly block.
 // Defined in StructureBuildService.cpp.
 nlohmann::json loadAssetMetricsSidecar(const std::string& templateName);
+
+// MEASURED template extent in world units, across every voxel tier (fine grid,
+// microcubes, subcubes, cubes). Callers that need a real asset's size must read
+// it from the asset — assuming dimensions is how a 2 m sign board ends up
+// planned as a 0.78 m one. False when the template has no geometry.
+// Defined in StructureBuildService.cpp.
+bool templateSizeUnits(const VoxelTemplate& tmpl, glm::vec3& outDims);
 
 } // namespace detail
 } // namespace Core

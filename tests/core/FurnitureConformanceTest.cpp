@@ -100,8 +100,16 @@ TEST(FurnitureConformanceTest, RealLibraryAuditReportsKnownGaps) {
     if (!loaded) GTEST_SKIP() << "resources/object_dimensions.json not reachable from CWD";
 
     auto extentsOf = [](const std::string& tmpl) -> AssetExtents {
-        const char* roots[] = {"resources/templates/", "../resources/templates/",
-                               "../../resources/templates/", "../../../resources/templates/"};
+        // Sidecars live under the CATEGORY taxonomy (docs/AssetLibrary.md, 2026-08-07);
+        // the flat root is the pre-reorg layout that still exists in some build copies.
+        // Search both, or a newly authored asset reads as `no_metrics` purely because
+        // the audit looked in the old place.
+        const char* roots[] = {"resources/templates/", "resources/templates/furniture/",
+                               "resources/templates/items/", "resources/templates/architecture/",
+                               "../resources/templates/", "../resources/templates/furniture/",
+                               "../../resources/templates/", "../../resources/templates/furniture/",
+                               "../../../resources/templates/",
+                               "../../../resources/templates/furniture/"};
         for (const char* r : roots) {
             std::ifstream in(std::string(r) + tmpl + ".metrics.json");
             if (!in.good()) continue;

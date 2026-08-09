@@ -9,22 +9,28 @@
         "type": "back_bar"
       },
       {
+        "type": "tavern_table",
+        "place": "row",
+        "per_area": 15
+      },
+      {
+        "type": "bench",
+        "count": 2,
+        "per_area": 8
+      },
+      {
         "type": "bar_stool",
         "count": 2,
         "per_area": 25
       },
       {
-        "type": "tavern_table",
-        "place": "center",
-        "per_area": 15
-      },
-      {
-        "type": "bench",
-        "per_area": 15
-      },
-      {
         "type": "stool",
         "per_area": 12
+      },
+      {
+        "type": "keg",
+        "count": 2,
+        "per_area": 30
       },
       {
         "type": "fireplace"
@@ -212,7 +218,13 @@
     ],
     "service": [
       {
-        "type": "barrel"
+        "type": "barrel",
+        "count": 2,
+        "per_area": 12
+      },
+      {
+        "type": "keg",
+        "per_area": 16
       },
       {
         "type": "chest"

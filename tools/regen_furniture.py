@@ -98,16 +98,25 @@ class Model:
         return out
 
 
+# Assets this script generates that do NOT live under furniture/. Stems are UNIQUE
+# library-wide (docs/AssetLibrary.md), so writing `well` into furniture/ next to the
+# canonical architecture/well.voxel trips the asset_index stem-collision guard.
+OUT_DIR_OVERRIDE = {
+    "well": "resources/templates/architecture",
+}
+
+
 def write(name, header, body_lines, model, anchors=None):
     (mnx, mny, mnz), (mxx, mxy, mxz) = model.bounds()
     # overall extent in metres: a micro at index p occupies [p/9, (p+1)/9]
     omin = [mnx / 9.0, mny / 9.0, mnz / 9.0]
     omax = [(mxx + 1) / 9.0, (mxy + 1) / 9.0, (mxz + 1) / 9.0]
-    vox_path = os.path.join(TEMPLATES, name + ".voxel")
+    out_dir = OUT_DIR_OVERRIDE.get(name, TEMPLATES)
+    vox_path = os.path.join(out_dir, name + ".voxel")
     with open(vox_path, "w", encoding="utf-8", newline="\n") as f:
         f.write(header.rstrip() + "\n\n")
         f.write("\n".join(body_lines) + "\n")
-    met_path = os.path.join(TEMPLATES, name + ".metrics.json")
+    met_path = os.path.join(out_dir, name + ".metrics.json")
     with open(met_path, "w", encoding="utf-8", newline="\n") as f:
         json.dump({
             "schema_version": "asset_metrics.v1",
@@ -559,6 +568,49 @@ def gen_barrel():
         "# =========================================================="
     )
     write("barrel", header, m.emit_lines([]), m)
+
+
+def gen_keg():
+    # Tapped serving cask (kilderkin) lying on chocks — the taproom's working
+    # cask, distinct from the upright storage `barrel`. Canon 'keg':
+    # 0.42 dia x 0.67 long, cask body 4x4 micro cross-section, 6 long,
+    # lifted 1 micro on two chocks (stillage top 0.111 m). Tap on the +Z face.
+    L, R, CHOCK = 6, 4, 1
+    corners = {(0, 0), (0, R - 1), (R - 1, 0), (R - 1, R - 1)}   # bevel -> rounder
+    m = Model()
+    for x in range(L):
+        for y in range(R):
+            for z in range(R):
+                if (y, z) in corners:
+                    continue                    # bevel the CROSS-SECTION (y,z) — it lies on its side
+                m.cells[(x, CHOCK + y, z)] = "WoodWalnut"
+    for hoop in (1, L - 2):                     # iron hoops near both heads
+        for y in range(R):
+            for z in range(R):
+                if (y, z) in corners:
+                    continue
+                if y in (0, R - 1) or z in (0, R - 1):
+                    m.cells[(hoop, CHOCK + y, z)] = "Metal"
+    for cx in (0, L - 1):                       # chocks: keep it from rolling
+        for z in range(1, R - 1):
+            m.cells[(cx, 0, z)] = "WoodWalnut"
+    m.cells[(L // 2, CHOCK + 1, R - 1)] = "Metal"   # the tap, at the low bilge, front face
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         keg\n"
+        "# display_name: Keg (Tapped Cask)\n"
+        "# description:  A kilderkin ale cask lying on chocks, broached with an iron tap.\n"
+        "# category:     furniture\n"
+        "# subcategory:  storage\n"
+        "# tags:         keg, cask, ale, tavern, taproom, bar, common\n"
+        "# materials:    Wood, Metal\n"
+        "# facing:       +Z\n"
+        "# bounds:       0.67W x 0.56H x 0.44D m (grounded object_dimensions 'keg' — 18-gal kilderkin)\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("keg", header, m.emit_lines([]), m)
 
 
 def gen_bench_wood():
@@ -1133,6 +1185,7 @@ if __name__ == "__main__":
     gen_tavern_table()
     gen_counter()
     gen_barrel()
+    gen_keg()
     gen_bench_wood()
     gen_forge_hearth()
     gen_anvil()

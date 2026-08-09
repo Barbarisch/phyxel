@@ -351,6 +351,27 @@
         "depth": "INFERRED ~0.6 m"
       }
     },
+    "keg": {
+      "category": "furniture",
+      "description": "Tapped serving cask (kilderkin) laid on a stillage behind the bar",
+      "height": 0.53,
+      "length": 0.67,
+      "width": 0.67,
+      "depth": 0.42,
+      "cask_diameter": 0.42,
+      "stillage_top": 0.11,
+      "tol": 0.12,
+      "source": "English brewery cask units — kilderkin = 18 imperial gallons (Wikipedia, English brewery cask units); envelope DERIVED from that volume, not a product spec",
+      "sources": {
+        "volume": "kilderkin = 18 imp gal = 18 x 4.54609 L = 81.83 L = 0.08183 m3 (Wikipedia, English brewery cask units). The kilderkin (half-barrel) is the standard TAPPED serving cask, distinct from the storage 'barrel' archetype.",
+        "diameter": "DERIVED, not measured: cask volume ~= 0.86 * (pi/4) * d^2 * h (0.86 = the taper from bilge to head), holding the 1.6 h:d proportion the sibling 'barrel' archetype measures (0.89 h / 0.56 d = 1.59). Solving 0.08183 = 0.86 * 0.7854 * 1.6 * d^3 gives d = 0.423 m. ARITHMETIC from a cited volume + a measured sibling proportion — flagged DERIVED, not a cooper's spec.",
+        "length": "= the cask's own height, 1.6 x diameter = 0.68 m; it becomes LENGTH (and WIDTH, the placer's across-the-front extent) because a tapped cask lies horizontal (see orientation).",
+        "height": "= cask_diameter 0.42 + stillage_top 0.11 = 0.53 m. This archetype measures the object AS PLACED — cask resting on its chocks — because that is what the conformance audit compares against the emitted geometry.",
+        "depth": "= cask_diameter 0.42 m — the cross-section of a cask lying on its side.",
+        "orientation": "REASONED from the tap, not attested by a cited plan: a cask is broached and served horizontally so the tap sits at the low bilge and sediment settles below it — hence stillage/chocks. The upright form is the STORAGE pose ('barrel'). No medieval taproom plan was sourced for the gantry arrangement.",
+        "stillage_top": "STYLIZED — 1 micro (0.111 m) of chock, the smallest carvable rise that keeps the cask off the floor. No dimensioned stillage source."
+      }
+    },
     "hearth": {
       "category": "fixture",
       "description": "Cooking hearth / fireplace",

@@ -1,0 +1,90 @@
+# ==========================================================
+# ASSET METADATA
+# name:         keg
+# display_name: Keg (Tapped Cask)
+# description:  A kilderkin ale cask lying on chocks, broached with an iron tap.
+# category:     furniture
+# subcategory:  storage
+# tags:         keg, cask, ale, tavern, taproom, bar, common
+# materials:    Wood, Metal
+# facing:       +Z
+# bounds:       0.67W x 0.56H x 0.44D m (grounded object_dimensions 'keg' — 18-gal kilderkin)
+# method:       tools/regen_furniture.py (deterministic, canon-proportioned)
+# ==========================================================
+
+M 0 0 0 0 0 0 0 0 1 WoodWalnut
+M 0 0 0 0 0 0 0 0 2 WoodWalnut
+M 0 0 0 0 0 0 0 1 1 WoodWalnut
+M 0 0 0 0 0 0 0 1 2 WoodWalnut
+M 0 0 0 0 0 0 0 2 0 WoodWalnut
+M 0 0 0 0 0 0 0 2 1 WoodWalnut
+M 0 0 0 0 0 0 0 2 2 WoodWalnut
+M 0 0 0 0 0 1 0 2 0 WoodWalnut
+M 0 0 0 0 1 0 0 0 0 WoodWalnut
+M 0 0 0 0 1 0 0 0 1 WoodWalnut
+M 0 0 0 0 1 0 0 0 2 WoodWalnut
+M 0 0 0 0 1 1 0 0 0 WoodWalnut
+M 0 0 0 0 1 0 0 1 1 WoodWalnut
+M 0 0 0 0 1 0 0 1 2 WoodWalnut
+M 0 0 0 0 0 0 1 1 1 Metal
+M 0 0 0 0 0 0 1 1 2 Metal
+M 0 0 0 0 0 0 1 2 0 Metal
+M 0 0 0 0 0 0 1 2 1 WoodWalnut
+M 0 0 0 0 0 0 1 2 2 WoodWalnut
+M 0 0 0 0 0 1 1 2 0 Metal
+M 0 0 0 0 1 0 1 0 0 Metal
+M 0 0 0 0 1 0 1 0 1 WoodWalnut
+M 0 0 0 0 1 0 1 0 2 WoodWalnut
+M 0 0 0 0 1 1 1 0 0 Metal
+M 0 0 0 0 1 0 1 1 1 Metal
+M 0 0 0 0 1 0 1 1 2 Metal
+M 0 0 0 0 0 0 2 1 1 WoodWalnut
+M 0 0 0 0 0 0 2 1 2 WoodWalnut
+M 0 0 0 0 0 0 2 2 0 WoodWalnut
+M 0 0 0 0 0 0 2 2 1 WoodWalnut
+M 0 0 0 0 0 0 2 2 2 WoodWalnut
+M 0 0 0 0 0 1 2 2 0 WoodWalnut
+M 0 0 0 0 1 0 2 0 0 WoodWalnut
+M 0 0 0 0 1 0 2 0 1 WoodWalnut
+M 0 0 0 0 1 0 2 0 2 WoodWalnut
+M 0 0 0 0 1 1 2 0 0 WoodWalnut
+M 0 0 0 0 1 0 2 1 1 WoodWalnut
+M 0 0 0 0 1 0 2 1 2 WoodWalnut
+M 0 0 0 1 0 0 0 1 1 WoodWalnut
+M 0 0 0 1 0 0 0 1 2 WoodWalnut
+M 0 0 0 1 0 0 0 2 0 WoodWalnut
+M 0 0 0 1 0 0 0 2 1 WoodWalnut
+M 0 0 0 1 0 0 0 2 2 WoodWalnut
+M 0 0 0 1 0 1 0 2 0 Metal
+M 0 0 0 1 1 0 0 0 0 WoodWalnut
+M 0 0 0 1 1 0 0 0 1 WoodWalnut
+M 0 0 0 1 1 0 0 0 2 WoodWalnut
+M 0 0 0 1 1 1 0 0 0 WoodWalnut
+M 0 0 0 1 1 0 0 1 1 WoodWalnut
+M 0 0 0 1 1 0 0 1 2 WoodWalnut
+M 0 0 0 1 0 0 1 1 1 Metal
+M 0 0 0 1 0 0 1 1 2 Metal
+M 0 0 0 1 0 0 1 2 0 Metal
+M 0 0 0 1 0 0 1 2 1 WoodWalnut
+M 0 0 0 1 0 0 1 2 2 WoodWalnut
+M 0 0 0 1 0 1 1 2 0 Metal
+M 0 0 0 1 1 0 1 0 0 Metal
+M 0 0 0 1 1 0 1 0 1 WoodWalnut
+M 0 0 0 1 1 0 1 0 2 WoodWalnut
+M 0 0 0 1 1 1 1 0 0 Metal
+M 0 0 0 1 1 0 1 1 1 Metal
+M 0 0 0 1 1 0 1 1 2 Metal
+M 0 0 0 1 0 0 2 0 1 WoodWalnut
+M 0 0 0 1 0 0 2 0 2 WoodWalnut
+M 0 0 0 1 0 0 2 1 1 WoodWalnut
+M 0 0 0 1 0 0 2 1 2 WoodWalnut
+M 0 0 0 1 0 0 2 2 0 WoodWalnut
+M 0 0 0 1 0 0 2 2 1 WoodWalnut
+M 0 0 0 1 0 0 2 2 2 WoodWalnut
+M 0 0 0 1 0 1 2 2 0 WoodWalnut
+M 0 0 0 1 1 0 2 0 0 WoodWalnut
+M 0 0 0 1 1 0 2 0 1 WoodWalnut
+M 0 0 0 1 1 0 2 0 2 WoodWalnut
+M 0 0 0 1 1 1 2 0 0 WoodWalnut
+M 0 0 0 1 1 0 2 1 1 WoodWalnut
+M 0 0 0 1 1 0 2 1 2 WoodWalnut

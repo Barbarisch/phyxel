@@ -34,6 +34,12 @@ const WallDef WALLS[4] = {{+1, 0}, {-1, 0}, {0, +1}, {0, -1}};
 struct Piece {
     std::string type;
     bool center;
+    bool row = false;     ///< recipe place:"row" — repeated pieces laid down the room's LONG
+                          ///< axis at an even pitch, centred across the short axis. A taproom
+                          ///< or refectory is not a room with one showpiece table pushed to
+                          ///< the middle and the rest jammed against walls; it is RANKS of
+                          ///< communal tables with seating either side. Wall-packing cannot
+                          ///< produce that shape, and in a narrow room it produces nothing.
     int count = 1;        ///< recipe "count": place up to N of this piece
     double perArea = 0.0; ///< recipe "per_area": one per N floor cells (scales with room size)
     int pass = 1;         ///< M4 furnishing pass rank (see passRankFor): 0 heavy, 1 light,
@@ -419,7 +425,9 @@ bool FurniturePlacer::loadRecipesFromFile(const std::string& path) {
             if (!e.is_object() || !e.contains("type")) continue;
             DataPiece dp;
             dp.piece.type = e["type"].get<std::string>();
-            dp.piece.center = e.value("place", std::string("wall")) == "center";
+            const std::string place = e.value("place", std::string("wall"));
+            dp.piece.center = place == "center";
+            dp.piece.row = place == "row";
             dp.piece.count = std::max(1, e.value("count", 1));
             dp.piece.perArea = std::max(0.0, e.value("per_area", 0.0));
             // M4 pass: per-TYPE engine default (passRankFor), overridable per recipe
@@ -811,6 +819,34 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
         // Place a piece at the nearest FREE footprint slot to an anchor cell, facing the room centre.
         // This is the work-triangle clustering primitive (the anvil hugs the forge; the quench hugs
         // the anvil) — a tight functional cluster, not a piece marooned at the room centre.
+        // place:"row" — rank N down the room's LONG axis, centred across the short
+        // axis, at an even pitch. The cells for rep `i` of `n`; rotation faces the
+        // piece across the room so its long side runs with the rank (benches then
+        // flank it). Returns {} when the room is too shallow/narrow for the rank.
+        const bool runAlongZ = rd >= rw;
+        auto rowCellsAt = [&](int rep, int n, Footprint fp, int& outRot)
+                -> std::vector<std::pair<int, int>> {
+            const int width = std::max(1, fp.width), depth = std::max(1, fp.depth);
+            const int runLen   = runAlongZ ? rd : rw;   // along the rank
+            const int crossLen = runAlongZ ? rw : rd;   // across it
+            // The piece's LONG side (width) lies along the run; depth crosses it.
+            if (n < 1 || width > runLen || depth > crossLen) return {};
+            const int pitch = runLen / n;
+            if (pitch < width) return {};               // ranks would overlap
+            const int runStart   = (runAlongZ ? rz : rx) + rep * pitch + (pitch - width) / 2;
+            const int crossStart = (runAlongZ ? rx : rz) + (crossLen - depth) / 2;
+            // Face across the room, toward the nearer long wall's opposite — a
+            // communal table is approached from its long sides.
+            outRot = runAlongZ ? facingIntoRoom(1, 0) : facingIntoRoom(0, 1);
+            std::vector<std::pair<int, int>> cells;
+            for (int a = 0; a < width; ++a)
+                for (int b = 0; b < depth; ++b)
+                    cells.push_back(runAlongZ
+                        ? std::make_pair(crossStart + b, runStart + a)
+                        : std::make_pair(runStart + a, crossStart + b));
+            return cells;
+        };
+
         auto placeNear = [&](std::pair<int, int> anchor, Footprint fp, const std::string& type) -> bool {
             const int width = std::max(1, fp.width), depth = std::max(1, fp.depth);
             int bestX = 0, bestZ = 0, bestD = -1;
@@ -846,6 +882,8 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
                              || roomPurpose.find("anvil") != std::string::npos;
         std::pair<int, int> forgeCell{-1, -1}, anvilCell{-1, -1}, tableCell{-1, -1},
                             barCell{-1, -1};
+        // EVERY table placed in this room, so seating can serve all of them.
+        std::vector<std::pair<int, int>> tableCells;
 
         for (const auto& piece : recipeFor(room.purpose, wealthTier)) {
             const Footprint fp = footprintOf(piece.type);
@@ -885,16 +923,31 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
             // remains it's the reason the bench used to drop. placeNear hugs the table and faces the
             // room centre (== the table), so the bench fronts it. Falls through to wall-packing if the
             // table's surround is full.
-            else if (piece.type == "bench" && tableCell.first >= 0)
-                placed = placeNear(tableCell, fp, piece.type);
+            else if (piece.type == "bench" && !tableCells.empty())
+                // Round-robin over EVERY table, so a rank of four tables gets
+                // seating at all four rather than four benches crowding the first.
+                placed = placeNear(tableCells[rep % tableCells.size()], fp, piece.type);
             // Taverns: stools/chairs pull up to the (nearest recorded) table;
             // bar stools line the bar front — seating belongs AT the furniture
             // it serves, not marooned along a far wall.
-            else if ((piece.type == "stool" || piece.type == "chair") && tableCell.first >= 0)
-                placed = placeNear(tableCell, fp, piece.type);
+            else if ((piece.type == "stool" || piece.type == "chair") && !tableCells.empty())
+                placed = placeNear(tableCells[rep % tableCells.size()], fp, piece.type);
             else if (piece.type == "bar_stool" && barCell.first >= 0)
                 placed = placeNear(barCell, fp, piece.type);
 
+            if (!placed && piece.row) {
+                // Rank down the long axis. Each rep gets its OWN slot, so unlike a
+                // centred piece the reps do not fight over one cell.
+                int rot = 0;
+                auto cells = rowCellsAt(rep, reps, fp, rot);
+                if (!cells.empty()) {
+                    auto span = spanCellsOf(cells, rot, fp);
+                    if (fits(cells) && fits(span)) {
+                        reserve(cells, span, piece.type, rot);
+                        placed = true;
+                    }
+                }
+            }
             if (!placed && piece.center) {
                 auto cells = coverAt(0, fp, 0, /*center=*/true);
                 auto span = spanCellsOf(cells, 0, fp);
@@ -961,10 +1014,13 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
                 // Seating hugs the FIRST placed table (the centred main table —
                 // later per_area reps wall-pack, and anchoring to those dragged
                 // the bench to a wall; bedside tables never anchor seating).
-                else if (tableCell.first < 0 &&
-                         piece.type.find("table") != std::string::npos &&
-                         piece.type.find("bedside") == std::string::npos)
-                    tableCell = {last.worldPos.x - origin.x, last.worldPos.z - origin.z};
+                else if (piece.type.find("table") != std::string::npos &&
+                         piece.type.find("bedside") == std::string::npos) {
+                    const std::pair<int, int> tc{last.worldPos.x - origin.x,
+                                                 last.worldPos.z - origin.z};
+                    tableCells.push_back(tc);
+                    if (tableCell.first < 0) tableCell = tc;
+                }
                 else if (barCell.first < 0 && piece.type == "tavern_bar")
                     barCell = {last.worldPos.x - origin.x, last.worldPos.z - origin.z};
             }

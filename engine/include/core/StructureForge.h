@@ -34,6 +34,7 @@
 #include <string>
 #include <vector>
 
+#include <glm/glm.hpp>
 #include <nlohmann/json.hpp>
 
 #include "core/StructureBuildService.h"
@@ -62,6 +63,45 @@ public:
 
     /// The canonical stage order (names as they appear in response["gates"]).
     static const std::vector<std::string>& stageNames();
+
+    // ------------------------------------------------------------------
+    // Signage (place_signage #47). A trade sign is a fine-voxel ITEM (a real
+    // painted board), spawned through ItemPropManager; which item a typology
+    // hangs is data (`RoomProgram::signItem`), never a name chosen here.
+    // ------------------------------------------------------------------
+
+    /// Which exterior wall the entrance door sits in, named by its OUTWARD normal.
+    enum class WallSide { MinusX, PlusX, MinusZ, PlusZ };
+
+    /// A planned sign pose, in ItemPropManager::spawnProp terms: `worldPos.x/z`
+    /// is the board's horizontal CENTER and `worldPos.y` is where its bottom
+    /// rests (a static prop rests exactly on pos.y).
+    struct SignMount {
+        bool        ok = false;
+        std::string skipReason;      ///< why no sign was hung (never silent)
+        std::string form;            ///< "projecting" (bracket) | "flush" (facade)
+        int         rotationDeg = 0; ///< yaw about +Y
+        glm::vec3   worldPos{0.0f};
+        int         projectionMicro = 0;   ///< how far the board juts from the wall
+        int         boardBottomMicroY = 0;
+    };
+
+    /// Choose the sign's mount BY FIT against the grounded projecting-sign code
+    /// (>= 8 ft clearance, <= 48 in projection, above the door head — enforced by
+    /// RealizedStructureValidator::checkSignClearance).
+    ///
+    /// A board narrow enough to swing on a bracket gets the authentic PROJECTING
+    /// form. A board too wide for the projection cap is not skipped — it mounts
+    /// FLUSH to the facade, which is a real signage form and keeps the painted
+    /// face readable. Only a roof too low for either refuses.
+    ///
+    /// `wallOuterMicro` is the world micro-coordinate of the wall's OUTER face on
+    /// its normal axis; `alongCenterMicro` the door's center on the other axis.
+    /// Board dimensions are in world units, MEASURED from the item template
+    /// (never assumed): `boardW` across the face, `boardH` up, `boardT` thickness.
+    static SignMount planSignMount(WallSide side, int wallOuterMicro, int alongCenterMicro,
+                                   int floorMicroY, int doorHeadMicroY, int roofApexMicroY,
+                                   float boardW, float boardH, float boardT);
 
 private:
     struct Context;   // defined in StructureForge.cpp (heavy members stay internal)

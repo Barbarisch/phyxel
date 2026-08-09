@@ -730,6 +730,8 @@ std::string PlacedObjectManager::placeTemplateMicro(const std::string& templateN
     obj.rotation = rotation;
     obj.boundingMin = bmin;
     obj.boundingMax = bmax;
+    obj.microAnchor = worldMicro;    // so removal can undo EXACTLY this placement
+    obj.placedAtMicro = true;
     obj.createdAt = std::chrono::system_clock::now();
     insertObjectLocked(std::move(obj));
     LOG_INFO_FMT("PlacedObjectManager", "Placed template (micro) '" << templateName << "' as '" << id
@@ -870,12 +872,23 @@ bool PlacedObjectManager::remove(const std::string& idOrUuid) {
         // Item props are never baked into chunks — clearing their bbox would
         // carve air out of whatever terrain the prop rests on.
         if (obj.category != "item") {
-            clearRegion(obj.boundingMin, obj.boundingMax);
+            // ERASE AT THE RESOLUTION IT WAS PLACED AT. A micro-placed fixture is
+            // undone by re-rasterizing its template at the recorded pose and removing
+            // exactly those cells. Falling back to clearRegion deletes whole CUBES
+            // across the bbox, so removing a 0.33 m stool that stands against a wall
+            // took the wall cube with it — the recessed bays you could see the
+            // interior and the chimney through. clearRegion stays only for objects
+            // with no micro anchor (cube-placed templates, legacy records).
+            bool erased = false;
+            if (obj.placedAtMicro && m_templateManager)
+                erased = m_templateManager->eraseTemplateMicro(obj.templateName,
+                                                               obj.microAnchor, obj.rotation);
+            if (!erased) clearRegion(obj.boundingMin, obj.boundingMax);
+            LOG_INFO_FMT("PlacedObjectManager", "Removed '" << removeId << "' ("
+                         << (erased ? "erased its own cells" : "cleared bbox cubes") << ")");
+        } else {
+            LOG_INFO_FMT("PlacedObjectManager", "Removed item prop '" << removeId << "'");
         }
-
-        LOG_INFO_FMT("PlacedObjectManager", "Removed '" << removeId << "' clearing region ("
-                     << obj.boundingMin.x << "," << obj.boundingMin.y << "," << obj.boundingMin.z
-                     << ")-(" << obj.boundingMax.x << "," << obj.boundingMax.y << "," << obj.boundingMax.z << ")");
 
         m_uuidToId.erase(obj.uuid);
         m_objects.erase(removeIt);

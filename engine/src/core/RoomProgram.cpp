@@ -67,6 +67,7 @@ RoomProgram RoomProgramRegistry::parse(const std::string& name, const nlohmann::
     p.wealthTier = rec.value("wealth_tier", std::string("humble"));
     p.entrance = rec.value("entrance", "");
     p.entranceOpposed = rec.value("entrance_opposed", false);
+    p.signItem = rec.value("sign_item", "");   // trade sign asset (item id), "" = none authored
     if (rec.contains("entrance_between") && rec["entrance_between"].is_array())
         for (const auto& r : rec["entrance_between"])
             if (r.is_string()) p.entranceBetween.push_back(r.get<std::string>());

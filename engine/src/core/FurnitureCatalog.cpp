@@ -30,6 +30,10 @@ const std::map<std::string, std::string>& table() {
         {"bed",       "bed_single"},
         {"bench",     "bench_wood"},
         {"barrel",    "barrel"},
+        {"keg",       "keg"},           // TAPPED serving cask on chocks — the working
+                                        // taproom cask (kilderkin). `barrel` is the
+                                        // upright STORAGE cask; they are not the same
+                                        // object and a tavern wants both.
         {"chest",     "chest_closed"},
         {"tavern_bar",   "tavern_bar"},    // the taproom's defining fixture (the serving counter)
         {"tavern_table", "tavern_table"},  // long communal drinking table

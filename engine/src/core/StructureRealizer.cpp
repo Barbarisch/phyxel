@@ -318,7 +318,20 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                 if (p.kind == "door" || p.kind == "window") {
                     const std::string matTrim = style.materialOf("trim",
                         (matExt == "Wood" || matExt == "WoodPlanks") ? "Log" : "WoodPlanks");
-                    const int kJamb = 1, kLintel = 2;
+                    // The portal grid is per-CUBE, so one cube is the smallest window
+                    // the PLAN can express — but the frame is painted at MICRO
+                    // resolution, so the aperture it leaves is a free parameter. Door
+                    // proportions (jamb 1, lintel 2) leave 7x7 micro = a 0.78 m SQUARE,
+                    // which on a chamber wall reads as a doorway-sized hole rather than
+                    // a window. A window gets a heavier frame: jamb 2 / lintel 3 leaves
+                    // 5 wide x 6 tall micro = 0.56 x 0.67 m — a narrow shuttered light,
+                    // taller than it is wide, which is the form the record describes
+                    // (room_program.json windows.size flags the 1-cube opening as KNOWN
+                    // OVERSIZED). Doors keep 1/2: their 0.78 m clear IS grounded (real
+                    // clear openings 0.76-0.81 m) and narrowing it would block passage.
+                    const bool isWindow = (p.kind == "window");
+                    const int kJamb   = isWindow ? 2 : 1;
+                    const int kLintel = isWindow ? 3 : 2;
                     const int w = std::max(1, p.width);
                     const int jambTop = oyTop - kLintel;
                     // ---- finish_forge P3: window INFILL — no more open-air holes (the "ruin"
@@ -328,7 +341,7 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                     // reveal; OPEN = the leaf folded back — two proud panels flanking the opening
                     // on the facade, reveal stays air. Open/closed is a deterministic per-opening
                     // hash (a lived-in street mixes both). Glass = a 1-micro Glass pane, closed.
-                    const bool isWin = (p.kind == "window");
+                    const bool isWin = isWindow;
                     const bool shuttered = isWin && p.infill == "shuttered";
                     const bool glazed    = isWin && p.infill == "glass";
                     // Shutters are JOINERY — plank leaves regardless of wall material (a stone
@@ -357,7 +370,10 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                                 rec(leafX, oyBase, z0 + kJamb, 1, leafH,
                                     (z1 - z0) - 2 * kJamb, glazed ? "Glass" : matLeaf, "leaf");
                             } else if (shuttered) {                           // folded back on the facade
-                                const int panelW = std::max(2, (z1 - z0) / 2);
+                                // A folded leaf is HALF THE APERTURE, not half the cube:
+                                // the pair has to cover the light it closes over, and
+                                // sizing off the cube left flaps wider than the window.
+                                const int panelW = std::max(2, ((z1 - z0) - 2 * kJamb + 1) / 2);
                                 rec(proudX, oyBase, z0 - panelW, 1, leafH, panelW, matLeaf, "leaf");
                                 rec(proudX, oyBase, z1,          1, leafH, panelW, matLeaf, "leaf");
                             }
@@ -379,7 +395,7 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                                 rec(x0 + kJamb, oyBase, leafZ, (x1 - x0) - 2 * kJamb,
                                     leafH, 1, glazed ? "Glass" : matLeaf, "leaf");
                             } else if (shuttered) {
-                                const int panelW = std::max(2, (x1 - x0) / 2);
+                                const int panelW = std::max(2, ((x1 - x0) - 2 * kJamb + 1) / 2);
                                 rec(x0 - panelW, oyBase, proudZ, panelW, leafH, 1, matLeaf, "leaf");
                                 rec(x1,          oyBase, proudZ, panelW, leafH, 1, matLeaf, "leaf");
                             }
@@ -489,9 +505,26 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
         // (inflated by the agent half-width) are suppressed; every other shaft-edge
         // column with a > step-up drop keeps its rail.
         for (const auto& ps : planned) {
-            // (1) cut the stairwell hole through the upper story's floor slab
-            c.fillMicroBox(ps.rc.x * 9 + ps.sp.holeX, ps.holeBase, ps.rc.z * 9 + ps.sp.holeZ,
-                           ps.sp.holeW, ps.topMicro - ps.holeBase, ps.sp.holeD, "");
+            // (1) cut the stairwell hole through the upper story's floor slab —
+            // CLAMPED TO THE INTERIOR. The well sits flush against the exterior wall
+            // on its cross axis (stairWellRect insets only the foot, along the run),
+            // so an unclamped carve cut the wall band away for the whole length of
+            // the shaft: a 135-cell slot at the joist course you could see the
+            // interior through from outside. The shaft is allowed to open the FLOOR,
+            // never the shell.
+            {
+                int hx0 = ps.rc.x * 9 + ps.sp.holeX;
+                int hz0 = ps.rc.z * 9 + ps.sp.holeZ;
+                int hx1 = hx0 + ps.sp.holeW;
+                int hz1 = hz0 + ps.sp.holeD;
+                hx0 = std::max(hx0, extT);
+                hz0 = std::max(hz0, extT);
+                hx1 = std::min(hx1, program.footprintW * 9 - extT);
+                hz1 = std::min(hz1, program.footprintD * 9 - extT);
+                if (hx1 > hx0 && hz1 > hz0)
+                    c.fillMicroBox(hx0, ps.holeBase, hz0, hx1 - hx0,
+                                   ps.topMicro - ps.holeBase, hz1 - hz0, "");
+            }
 
             // (2) build the planned treads + landings (local micro → offset into the well)
             for (const auto& s : ps.sp.solids)

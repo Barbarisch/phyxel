@@ -54,6 +54,14 @@ struct StructureResult {
 struct PlacementResult {
     int placed = 0;
     int failed = 0;
+    /// Cells whose write DISPLACED pre-existing solid material. Placement is
+    /// nominally additive, but a write at a finer tier replaces whatever coarser
+    /// voxel occupied the same space — that is how a pass running AFTER the shell
+    /// (a chimney stack threading a floor slab) can silently eat structure the
+    /// shell-side validators already certified. A destructive write must declare
+    /// itself so a gate can decide whether it broke anything.
+    int displaced = 0;
+    std::vector<glm::ivec3> displacedSample;   ///< first few, for diagnosis (capped)
     std::vector<LocationMarker> locations;
 };
 

@@ -174,6 +174,12 @@ struct PlacedObject {
     int rotation = 0;                ///< Y-axis rotation in degrees (0/90/180/270)
     glm::ivec3 boundingMin{0};       ///< World-space AABB min corner
     glm::ivec3 boundingMax{0};       ///< World-space AABB max corner
+    /// MICRO-precise anchor when the object was placed via placeTemplateMicro.
+    /// Removal re-rasterizes the template at this exact pose and erases only those
+    /// cells; without it, removal falls back to clearing whole CUBES over the bbox,
+    /// which takes the wall behind the furniture with it.
+    glm::ivec3 microAnchor{0};
+    bool placedAtMicro = false;
     std::chrono::system_clock::time_point createdAt;
 
     /// Live interaction points for this instance (seat surfaces, etc.)
