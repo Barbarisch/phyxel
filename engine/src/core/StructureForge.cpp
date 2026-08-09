@@ -954,9 +954,15 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
             // Surfaces that receive item props: the ACTUAL placed pose (micro pos
             // INCLUDING wall inset + rotation), captured at placement — the plan
             // cell alone put items on table edges / hovering beside the table.
+            // Keyed by objectId so a fixture that later MOVES or is REMOVED takes its
+            // tableware with it. Items are spawned at the very end of the stage, but
+            // the pose recorded here was the one captured at placement — when the
+            // doorway repair slid a table aside, its tankards were still scattered
+            // onto the pose it used to have and hung in the air where the table no
+            // longer was.
             struct PlacedSurface {
                 std::string room; std::string type; const VoxelTemplate* tmpl;
-                glm::ivec3 microPos; int rotation;
+                glm::ivec3 microPos; int rotation; std::string objectId;
             };
             std::vector<PlacedSurface> placedSurfaces;
             for (size_t k = 0; k < placements.size(); ++k) {
@@ -1016,7 +1022,7 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                      pl.type.find("counter") != std::string::npos)) {
                     if (const auto* ttm = objectTemplateManager->getTemplate(tmpl))
                         placedSurfaces.push_back({pl.room, pl.type, ttm, microPos,
-                                                  pl.rotation});
+                                                  pl.rotation, fid});
                 }
                 const auto& L = labels[k];
                 nlohmann::json fx = {
@@ -1259,6 +1265,20 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                                     unblockedDoors.push_back({{"type", b.type}, {"room", b.room},
                                                               {"action", "relocated"},
                                                               {"cubes", step}});
+                                    // CARRY WHAT IT HOLDS. A surface fixture keeps its
+                                    // recorded top-surface pose so the tableware
+                                    // scattered onto it at the end of this stage lands
+                                    // on the wood, not where the wood used to be.
+                                    int carried = 0;
+                                    for (auto& ps : placedSurfaces)
+                                        if (ps.objectId == b.objectId) {
+                                            ps.microPos += d;
+                                            ps.objectId = nid;
+                                            ++carried;
+                                        }
+                                    if (carried > 0)
+                                        LOG_INFO_FMT("StructureBuild", "  ...carrying "
+                                                     << carried << " laid surface(s) with it");
                                     b.objectId = nid;
                                     b.lo = cand.lo;
                                     b.hi = cand.hi;
@@ -1274,10 +1294,20 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                                      << " in '" << b.room << "' — no clear spot within 3 cubes, "
                                         "REMOVING it (a blocked doorway is worse than a missing "
                                         "fixture)");
+                        // Deleting a surface fixture deletes what it was going to hold —
+                        // otherwise its tableware spawns onto a table that is not there.
+                        int dropped = 0;
+                        for (auto it = placedSurfaces.begin(); it != placedSurfaces.end();)
+                            if (it->objectId == b.objectId) { it = placedSurfaces.erase(it); ++dropped; }
+                            else ++it;
                         placedObjectManager->remove(b.objectId);
                         --fxSpawned;
                         unblockedDoors.push_back({{"type", b.type}, {"room", b.room},
-                                                  {"action", "removed"}});
+                                                  {"action", "removed"},
+                                                  {"laid_surfaces_dropped", dropped}});
+                        if (dropped > 0)
+                            LOG_WARN_FMT("StructureBuild", "  ...it was a laid surface; "
+                                         << dropped << " item set(s) dropped with it");
                         b.objectId.clear();
                         b.lo = b.hi = glm::ivec3(0);   // no longer occupies anything
                     }
