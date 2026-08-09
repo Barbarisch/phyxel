@@ -581,12 +581,25 @@ StructureForge::StageReport StructureForge::stagePlace(Context& ctx) {
             LOG_INFO_FMT("StructureBuild", "prepare_pad: leveled footprint to y=" << padLevel
                          << " (cut " << cut.size() << ", fill " << fill.voxels.size() << ")");
 
-            // excavate_basement (#34): a basement seats BELOW grade — the ground floor
-            // lands at the surface and the cellar is DUG OUT beneath it. The realizer's
-            // foundation ring becomes the retaining walls; the ground-floor slab is the
-            // cellar ceiling.
-            if (ctx.program.substructure == "basement" && ctx.shell.crawlHeightCubes > 0) {
-                const int depth = ctx.shell.crawlHeightCubes;   // cellar height (cubes)
+            // SEAT THE SUBSTRUCTURE BELOW GRADE (#34). A foundation belongs IN the
+            // ground, not stacked on top of it: dig out what it displaces and let the
+            // ground floor land at the surface, so only the floor layer reads above
+            // grade. This was applied to basements only, which is why every crawlspace
+            // building sat on a visible plinth like a model on a base.
+            //
+            // Same geometry for both substructures — the difference is semantic (a
+            // cellar is occupiable, a crawlspace is not), and a "slab" has zero
+            // substructure height so it is untouched.
+            // Depth comes from what the realizer BUILT: the foundation course's top,
+            // recorded per-cell in the plan. crawlHeightCubes is 0 for a crawlspace —
+            // it measures an occupiable void, not the masonry course — so keying off
+            // it sank basements only and left every crawlspace building on a plinth.
+            int subDepth = ctx.shell.crawlHeightCubes;
+            for (const auto& f : ctx.shell.plan.foundation)
+                subDepth = std::max(subDepth, f.topY);
+            if (subDepth > 0 && (ctx.program.substructure == "basement" ||
+                                 ctx.program.substructure == "crawlspace")) {
+                const int depth = subDepth;                     // substructure height (cubes)
                 ctx.oy = padLevel + 1 - depth;                  // ground floor stays at grade
                 std::vector<glm::ivec3> dig;
                 for (int x = ox; x < ox + W; ++x)
@@ -594,8 +607,9 @@ StructureForge::StageReport StructureForge::stagePlace(Context& ctx) {
                         for (int y = ctx.oy; y <= padLevel; ++y)
                             dig.push_back(glm::ivec3(x, y, z));
                 StructureGenerator::removeVoxels(chunkManager, dig);   // bulk-end rebuilds collision
-                LOG_INFO_FMT("StructureBuild", "excavate_basement: dug cellar " << depth
-                             << " cubes below grade (" << dig.size() << " voxels)");
+                LOG_INFO_FMT("StructureBuild", "excavate_substructure: sank the "
+                             << ctx.program.substructure << " " << depth
+                             << " cubes below grade (" << dig.size() << " voxels dug)");
             }
         }
     }
