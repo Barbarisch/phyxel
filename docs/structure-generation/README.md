@@ -17,6 +17,12 @@ has a validator/gate; nothing physical is invented by the LLM.
 
 ## Reading order
 
+0. **[ChimneyForgePlan.md](ChimneyForgePlan.md)** — ⏭ **NEXT UP (planned 2026-08-09, not built).**
+   The chimney is the only structural element still built AFTER the shell: it is stamped into a
+   finished building and fights it (~600 displaced cells per tavern). Moves hearths to program
+   fixtures sited at floorplan time and paints hearth+stack into the MicroCanvas during realize.
+   Success criterion is instrumented, not eyeballed: **`PlacementResult::displaced == 0`**.
+   Read this first if you are picking the workstream up cold.
 1. **[StructureGenerationV2.md](StructureGenerationV2.md)** — the live design of record (settlements,
    parcels, ground-up buildings, the level stack). Start here for *what & why*.
 2. **[StructureBrief.md](StructureBrief.md)** — the mandatory grounded intake (the ~43-field brief);
