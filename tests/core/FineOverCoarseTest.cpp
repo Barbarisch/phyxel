@@ -67,6 +67,41 @@ TEST(FineOverCoarse, AMicrocubeRefinesASubcubeInsteadOfErasingIt) {
     EXPECT_EQ(woodCells, 26) << "the subdivided cells lost their original material";
 }
 
+// The same contract one tier up: a microcube written into a cell owned by a full
+// CUBE must refine it, not be refused. Refusing dropped the write silently, which
+// is why a chimney stack threading a cube-coarsened floor or roof came out gappy.
+TEST(FineOverCoarse, AMicrocubeRefinesAFullCubeInsteadOfBeingRefused) {
+    Chunk chunk(glm::ivec3(0, 0, 0));
+    chunk.initializeForLoading();
+    const glm::ivec3 cube(6, 6, 6), sub(1, 1, 1), micro(1, 1, 1);
+
+    ASSERT_TRUE(chunk.addCube(cube, "Stone")) << "fixture: cube did not place";
+    // The write must SUCCEED — this is the assertion that was false.
+    ASSERT_TRUE(chunk.addMicrocube(cube, sub, micro, "Bricks"))
+        << "write into a full cube was refused — the stack cell silently vanishes";
+
+    const Microcube* written = chunk.getMicrocubeAt(cube, sub, micro);
+    ASSERT_NE(written, nullptr);
+    EXPECT_EQ(written->getMaterialName(), "Bricks");
+
+    // Volume is conserved: 27 subcube-cells x ... = all 27*... cells present.
+    int filled = 0, stone = 0;
+    for (int sx = 0; sx < 3; ++sx)
+        for (int sy = 0; sy < 3; ++sy)
+            for (int sz = 0; sz < 3; ++sz)
+                for (int mx = 0; mx < 3; ++mx)
+                    for (int my = 0; my < 3; ++my)
+                        for (int mz = 0; mz < 3; ++mz) {
+                            const Microcube* m = chunk.getMicrocubeAt(
+                                cube, glm::ivec3(sx, sy, sz), glm::ivec3(mx, my, mz));
+                            if (!m) continue;
+                            ++filled;
+                            if (m->getMaterialName() == "Stone") ++stone;
+                        }
+    EXPECT_EQ(filled, 729) << "refining the cube lost volume";
+    EXPECT_EQ(stone, 728) << "the refined cells lost the cube's material";
+}
+
 // Refining a SECOND cell of the same subcube must not re-fill or duplicate.
 TEST(FineOverCoarse, RefiningTwiceStaysConsistent) {
     Chunk chunk(glm::ivec3(0, 0, 0));

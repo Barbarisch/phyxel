@@ -927,7 +927,12 @@ StructureResult StructureGenerator::planChimneyStack(int cx, int cz, int baseMic
         for (int dx = -half; dx <= half; ++dx)
             for (int dz = -half; dz <= half; ++dz) {
                 const bool ring = (std::abs(dx) == half || std::abs(dz) == half);  // outer wall
-                if (cap || ring) emit(cx + dx, y, cz + dz);   // else inner 3x3 = flue void
+                if (cap || ring) emit(cx + dx, y, cz + dz);
+                else r.clears.push_back(glm::ivec3(cx + dx, y, cz + dz));
+                // The inner 3x3 is the FLUE and must be AIR. Simply not emitting it
+                // left whatever the stack passed through — floor slab, roof deck —
+                // sitting inside the flue, so the chimney was solid where it crossed
+                // every storey. A flue that does not draw is not a flue.
             }
     }
     return r;

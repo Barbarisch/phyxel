@@ -48,6 +48,11 @@ enum class Facing { North, East, South, West };
 struct StructureResult {
     std::vector<VoxelPlacement>  voxels;
     std::vector<LocationMarker>  locations;
+    /// Cells this structure must leave EMPTY (world MICRO coords). A void is part of
+    /// a design, not an absence: a chimney's flue has to be air all the way up, and
+    /// merely declining to emit it left the floor and roof it threaded sitting inside
+    /// the shaft. Callers clear these after placing `voxels`.
+    std::vector<glm::ivec3>      clears;
 };
 
 /// Result of placing a structure into the world.

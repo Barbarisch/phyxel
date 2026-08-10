@@ -1115,6 +1115,29 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                         // the shell — so account for it here rather than discover it
                         // in a screenshot.
                         const auto res = StructureGenerator::place(chunkManager, chimney);
+                        // Punch the flue AFTER the masonry: the shaft must be air all
+                        // the way up, through every floor slab and the roof deck it
+                        // crosses. `clears` are world MICRO cells; removeMicroCells
+                        // refines any coarser voxel it lands in rather than nuking the
+                        // whole cube (that mistake is what put bays in the walls).
+                        int flueOpened = 0;
+                        for (const auto& mc : chimney.clears) {
+                            const glm::ivec3 cube(mc.x / 9, mc.y / 9, mc.z / 9);
+                            const glm::ivec3 rem(mc.x % 9, mc.y % 9, mc.z % 9);
+                            chunkManager->ensureChunkAt(cube);
+                            if (Chunk* ck = chunkManager->getChunkAtFast(cube)) {
+                                // Refine-then-remove: write the cell (subdividing any
+                                // coarser voxel, preserving the rest), then erase it.
+                                const glm::ivec3 lp =
+                                    Utils::CoordinateUtils::worldToLocalCoord(cube);
+                                const glm::ivec3 sub(rem.x / 3, rem.y / 3, rem.z / 3);
+                                const glm::ivec3 mic(rem.x % 3, rem.y % 3, rem.z % 3);
+                                ck->addMicrocube(lp, sub, mic, "Bricks");
+                                if (ck->removeMicrocube(lp, sub, mic)) ++flueOpened;
+                            }
+                        }
+                        LOG_INFO_FMT("StructureBuild", "place_chimney: opened "
+                                     << flueOpened << " flue cell(s) through the stack");
                         if (res.displaced > 0) {
                             nlohmann::json where = nlohmann::json::array();
                             for (const auto& p : res.displacedSample)

@@ -1057,9 +1057,31 @@ bool ChunkVoxelManager::addMicrocube(
         return false;
     }
     
-    // Reject if a solid cube occupies the parent cube position (store is the presence authority)
+    // A solid CUBE occupies this cell: SUBDIVIDE it, don't refuse. Refusing silently
+    // dropped the write, which is why a chimney stack threading a cube-coarsened
+    // floor or roof came out full of gaps — the ring cells that landed inside a full
+    // cube simply never appeared. Same contract as the subcube case below: refining
+    // changes RESOLUTION, never filled volume, so the cube becomes its 27 micro cells
+    // in the same material and the caller's cell is written over one of them.
     if (voxelStore.solid(kIdx(parentCubePos))) {
-        return false;
+        const std::string fill = voxelStore.material(kIdx(parentCubePos));
+        removeCube(parentCubePos);            // clears the store's presence bit
+        auto& staticMicrosFromCube = m_getStaticMicrocubes();
+        const glm::ivec3 parentWorldFromCube = m_getWorldOrigin() + parentCubePos;
+        for (int sx = 0; sx < 3; ++sx)
+            for (int sy = 0; sy < 3; ++sy)
+                for (int sz = 0; sz < 3; ++sz)
+                    for (int mx2 = 0; mx2 < 3; ++mx2)
+                        for (int my2 = 0; my2 < 3; ++my2)
+                            for (int mz2 = 0; mz2 < 3; ++mz2) {
+                                const glm::ivec3 sp(sx, sy, sz), mp(mx2, my2, mz2);
+                                if (sp == subcubePos && mp == microcubePos) continue;
+                                auto filler = std::make_unique<Microcube>(
+                                    parentWorldFromCube, sp, mp, fill);
+                                Microcube* fp = filler.get();
+                                staticMicrosFromCube.push_back(std::move(filler));
+                                addMicrocubeToMaps(parentCubePos, sp, mp, fp);
+                            }
     }
 
     // Already occupied: REPAINT it rather than refusing. Writing a voxel is a paint
