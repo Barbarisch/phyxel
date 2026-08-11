@@ -5,6 +5,11 @@
 > actionable item). Ordered by (relevance to current pain × maturity). Each entry says what it is,
 > why Phyxel specifically, and the adoption cost. These are **candidates**, not commitments — each
 > would need its own grounded plan + stress test before any code.
+>
+> **This doc is the standing home for external-tech evaluations** — items #1-#7 are the original
+> 2026-07-02 render-technique sweep; later entries are dated individually and may cover any
+> subsystem. Before evaluating a third-party technique/model/library, check here first: it may
+> already have a verdict.
 
 ## 1. Binary greedy meshing — direct hit on the #1 open issue
 
@@ -106,6 +111,25 @@ ray-marching structure (DDA through chunk occupancy) for cascade interval tracin
 point-light system. **Verdict: the most promising *visual-quality* leap; park until render-perf
 (#1/#2) lands — GI on top of an unmerged 412k-face scene compounds the wrong thing.**
 
+> **⚠️ THE PARKING CONDITION HAS EXPIRED (noted 2026-08-11).** The verdict above rests on the
+> unmerged 412k-face scene, and #1 shipped: greedy meshing has been default-ON since 2026-07-07.
+> Nobody revised this entry, so it has been reading as "still blocked" for a month while its own
+> blocker was gone. Re-read it as: **unblocked, unscheduled.**
+>
+> Two things have changed the shape of the decision since it was written:
+> 1. **The premise "flood-fill light looks flattest in interiors" is now only half true.** The bake
+>    was leaking daylight through sub-voxel roofs and inventing daylight at chunk seams; both are
+>    fixed (see `LightingPipeline.md` §2). Interiors are genuinely dark now, so the remaining
+>    interior flatness is the absence of bounce and of real AO — a narrower target than before.
+> 2. **A physical atmosphere now supplies sun, sky, ambient and haze**, and the scene is exposed and
+>    tone-mapped. Any GI work inherits a calibrated radiance pipeline instead of having to invent
+>    one, which removes a large chunk of what made this "high cost".
+>
+> The nearest cheaper alternatives to weigh against it first: a **dedicated per-corner AO channel**
+> (fits in the 16 spare bits of `light2`/`light3`, applies to every light term) and a
+> **multiple-scattering LUT** for the atmosphere, which is separately needed for the blue hour and
+> is pinned by `DISABLED_TwilightZenithIsBlue_NeedsMultipleScattering`.
+
 ## 5. Render graph / frame graph for the Vulkan backend
 
 **What:** declare render passes + resource usage as a DAG; the graph derives barriers, layout
@@ -164,6 +188,63 @@ so this item is now unblocked by that dependency (still not started itself).**
   64 B `DynamicSubcubeInstanceData` likely compresses (quantized rotation, half-float scale) →
   less bandwidth on the debris path at high particle counts.
 
+## 8. MotionBricks — generative character motion (evaluated 2026-08-10) — ❌ DO NOT ADOPT
+
+**What:** NVIDIA GEAR lab, SIGGRAPH 2026. A generative motion model: VQ-VAE motion tokenizer +
+pose model + root model, driven by **"smart primitives"** — locomotion takes
+`(velocity, heading, style)`, object interaction takes **proxy keyframes**, synthesized zero-shot
+with no per-task fine-tuning. Claims 15,000 FPS / 2 ms latency. Trained on ~350k production mocap
+clips (BONES-SEED, [bones.studio/datasets](https://bones.studio/datasets)).
+Links: [site](https://nvlabs.github.io/motionbricks/) ·
+[code](https://github.com/NVlabs/GR00T-WholeBodyControl/tree/main/motionbricks) ·
+[paper](https://research.nvidia.com/labs/gear/motionbricks/pdfs/motionbricks_siggraph_2026.pdf).
+Code Apache 2.0; **weights under the NVIDIA Open Model License** (commercial use permitted with
+attribution, subject to trustworthy-AI requirements). Runtime: Python 3.10+, PyTorch, CUDA GPU,
+MuJoCo; checkpoints ~2.2 GB via Git LFS.
+
+> ⚠️ **The marketing and the release do not match — verified, not inferred.** The site advertises
+> Unreal Engine 5 and animation production. The preview release ships **only the Unitree G1 robot
+> skeleton**: `motionbricks/assets/skeletons/` contains exactly one entry, `g1` (MuJoCo XML + STL),
+> confirmed against the GitHub contents API on 2026-08-10. The human mocap was *retargeted onto G1*
+> for training; there is **no human/SMPL/character rig in the repo**. There is also **no BVH/FBX
+> export, no UE integration, no ONNX/TorchScript, and no C++ runtime** — inference is
+> `python scripts/interactive_demo_g1.py` into MuJoCo, and the output is MuJoCo qpos. The README
+> defers full robotics integration to a future release.
+>
+> Research gotchas for whoever revisits: `research.nvidia.com/labs/gear/motionbricks/` returns
+> **403** to WebFetch, and the paper PDF **exceeds WebFetch's 10 MB limit**. Fetch
+> `raw.githubusercontent.com/NVlabs/GR00T-WholeBodyControl/main/motionbricks/README.md` instead.
+
+**Why Phyxel (and why it fails here):** the appeal was replacing hand-authored `.anim` clips with
+generated locomotion/interaction variety for NPCs. Three blockers:
+
+1. **Runtime integration is out.** Phyxel packages self-contained C++ games
+   (`tools/package_game.py`); a PyTorch + CUDA + 2.2 GB weight dependency contradicts that model,
+   contends with the Vulkan renderer for the GPU, and there is no exported graph to run from C++.
+2. **Offline `.anim` authoring is reachable but not worth it yet.** It would require writing both a
+   qpos→joint-rotation exporter *and* a G1→Phyxel-voxel-rig retargeter from scratch. The precedent
+   for what that costs is the Quaternius fauna import that *did* work — `tools/asset_pipeline/
+   extract_animation.py` + `tools/anim_pipeline/finalize_quadruped.py` → `resources/animated_characters/`.
+   G1 source motion also carries robot artifacts — permanently
+   bent knees, restricted ankles, no spine or finger detail — that read badly on stylized characters.
+3. **Design-key tension** ([`FeatureDesignKeys.md`](FeatureDesignKeys.md)): production mocap realism
+   fights the voxel aesthetic that the FSM + procedural approach
+   ([`CharacterAnimationV2.md`](CharacterAnimationV2.md),
+   [`LessonsLearned_ProceduralAnimation.md`](LessonsLearned_ProceduralAnimation.md)) deliberately targets.
+
+**What IS worth taking — free, no dependency:** the **smart-primitive interface contract** as an API
+shape for the NPC animation layer. `(velocity, heading, style)` for locomotion is exactly what
+NavGrid + A* already produces ([`NavigationArchitecture.md`](NavigationArchitecture.md)) and is a
+cleaner seam than poking FSM states directly; **proxy keyframes** for object interaction is a better
+framing than the bone-constraint calibration in [`InteractionPipeline.md`](InteractionPipeline.md).
+
+**Cost:** prohibitive as a runtime (parallel ML stack + renderer contention); medium as an offline
+authoring pipeline, for output that is currently wrong-skeleton and off-aesthetic.
+**Verdict: bookmark, do not build. Re-check trigger — a release shipping a human-skeleton
+checkpoint AND a standard export path (BVH/FBX or ONNX).** That is the version that makes offline
+clip authoring viable; until then the only actionable item is the interface-shape idea above, which
+stands on its own regardless of the model.
+
 ## Suggested sequencing
 
 1. **Now (separate session, no source conflict):** `ShaderMathRedundancyPlan.md`.
@@ -177,3 +258,6 @@ so this item is now unblocked by that dependency (still not started itself).**
 6. **Hold:** render graph (#5) until pass count forces it.
 7. **Slated (2026-07-09):** ray tracing (#6) — plan in `RayTracingPlan.md`; vegetation wind
    realism — plan in `VegetationWindPlan.md`.
+8. **Rejected (2026-08-10):** MotionBricks (#8) — no work scheduled. Only the smart-primitive
+   *interface shape* survives as an idea for the NPC animation layer; the model itself is
+   re-checkable only on a human-skeleton + standard-export release.
