@@ -249,6 +249,16 @@ struct ItemDefinition {
     bool holdable = false;
     HeldItemInfo held;
 
+    // FIXED: this item is SCENERY when it exists as a world prop — it gets no
+    // pickup point, so no "[E] Take" and no walking off with it. Set it on
+    // dressing a builder placed deliberately: hearth fuel, a nailed-up trade
+    // sign, a rug. Without it every prop is takeable, because
+    // PlacedObjectManager::registerItemProp adds the pickup point to all of
+    // them (which is why an inn sign could be pocketed off its bracket).
+    // Affects the PROP state only — a fixed item still behaves normally if a
+    // script puts one in an inventory.
+    bool fixed = false;
+
     // Declarative effects (particles/lights), active in both item states.
     std::vector<ItemEffectDef> effects;
 
@@ -271,6 +281,7 @@ struct ItemDefinition {
         if (!attackAnimation.empty()) j["attackAnimation"] = attackAnimation;
         if (!weaponFamily.empty()) j["weaponFamily"] = weaponFamily;
         j["holdable"] = holdable;
+        if (fixed) j["fixed"] = fixed;
         if (holdable) j["held"] = held.toJson();
         if (!effects.empty()) {
             j["effects"] = nlohmann::json::array();
@@ -299,6 +310,7 @@ struct ItemDefinition {
 
         // Holdable defaults to "has a voxel model"; authors can override.
         def.holdable = j.value("holdable", !def.templateFile.empty());
+        def.fixed = j.value("fixed", false);   // scenery props: no pickup point
         if (j.contains("held")) def.held = HeldItemInfo::fromJson(j["held"]);
 
         if (j.contains("effects") && j["effects"].is_array()) {

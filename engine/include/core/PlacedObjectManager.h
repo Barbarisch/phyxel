@@ -265,10 +265,13 @@ public:
     /// voxel groups owned by ItemPropManager — so remove() does not clear voxels
     /// for them. Creates a "pickup" interaction point at the bbox center.
     /// metadata["itemId"] links back to the ItemDefinition.
+    /// `fixed` (ItemDefinition::fixed) means SCENERY: no pickup point is created,
+    /// so the prop cannot be carried off. Hearth fuel, a nailed-up trade sign and
+    /// rugs are fixed; a dropped sword is not.
     std::string registerItemProp(const std::string& itemId, const std::string& templateName,
                                  const glm::ivec3& position, int rotation,
                                  const glm::ivec3& bboxMin, const glm::ivec3& bboxMax,
-                                 const std::string& displayName);
+                                 const std::string& displayName, bool fixed = false);
 
     /// Update a DYNAMIC item prop's pose (category "item" only): position,
     /// bounding box, and the synthetic pickup interaction point all move to the

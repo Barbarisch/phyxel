@@ -775,7 +775,7 @@ std::string PlacedObjectManager::registerItemProp(const std::string& itemId,
                                                    const std::string& templateName,
                                                    const glm::ivec3& position, int rotation,
                                                    const glm::ivec3& bboxMin, const glm::ivec3& bboxMax,
-                                                   const std::string& displayName) {
+                                                   const std::string& displayName, bool fixed) {
     std::lock_guard<std::mutex> lock(m_mutex);
 
     std::string id = generateId("item_" + itemId);
@@ -791,8 +791,14 @@ std::string PlacedObjectManager::registerItemProp(const std::string& itemId,
     obj.createdAt = std::chrono::system_clock::now();
     obj.metadata["itemId"] = itemId;
     if (!displayName.empty()) obj.metadata["displayName"] = displayName;
+    // Recorded so the flag survives save/load: the pickup point is rebuilt from
+    // the persisted object, and scenery must stay un-takeable after a reload.
+    if (fixed) obj.metadata["fixed"] = true;
 
-    obj.interactionPoints.push_back(makeItemPickupPoint(obj));
+    // SCENERY gets no pickup point — that is the whole mechanism. (Everything
+    // else that offers "[E] Take" reads the interaction point, so withholding
+    // it here removes the prompt, the ray hit and the pickup path at once.)
+    if (!fixed) obj.interactionPoints.push_back(makeItemPickupPoint(obj));
 
     insertObjectLocked(std::move(obj));
 

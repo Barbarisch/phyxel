@@ -71,6 +71,8 @@ CATALOG_META = {
     "lantern":      ("Hooded Lantern", "A steel-framed glass lantern with a carry ring.", "light", ["item", "lantern", "light", "dungeon"]),
     "oil_lamp":     ("Oil Lamp", "A squat clay oil lamp with a wick flame.", "light", ["item", "lamp", "light", "house"]),
     "candle":       ("Candle", "A bare wax candle stub, lit.", "light", ["item", "candle", "light", "table"]),
+    "firewood":     ("Firewood Billet", "A split billet of stove-length firewood.", "fuel", ["item", "firewood", "log", "fuel", "hearth"]),
+    "flaming_log":  ("Flaming Log", "A charred, ember-cracked log burning in a hearth.", "fuel", ["item", "firewood", "log", "fuel", "hearth", "fire", "light"]),
     "tankard":      ("Tankard", "A stave-built ale tankard with steel bands.", "tableware", ["item", "tankard", "mug", "tavern", "drink"]),
     "goblet":       ("Goblet", "A pewter goblet of wine.", "tableware", ["item", "goblet", "tavern", "drink"]),
     "plate":        ("Plate", "A turned wooden dinner plate.", "tableware", ["item", "plate", "tavern", "kitchen"]),
@@ -116,6 +118,10 @@ T_GILT = "#e0b84c"          # gold trim
 T_PAPER = "#efe6cf"         # parchment
 T_PAPER_EDGE = "#d8c9a4"    # page block edge
 T_CANDLE = "#f2ead6"        # wax
+T_BARK = "#5b4630"          # split-billet bark face
+T_SPLIT = "#c8a877"         # pale riven face (freshly split wood)
+T_CHAR = "#241d18"          # charred billet
+T_EMBER = "#ff7a1e"         # glowing ember
 
 
 class Model:
@@ -920,6 +926,57 @@ def gen_torch():
     return m, OUT_ITEMS
 
 
+def _billet(name, bark_tint, split_tint, embers):
+    """A split firewood billet lying on its side, long axis +Z.
+
+    GROUNDED: split firewood is cut to ~0.33-0.40 m ("stove length", 16 in =
+    0.406 m) and split to ~0.10 m across. Here 28 cells long (0.346 m) x 8
+    across (0.099 m) — inside that band. A billet is RIVEN, not round: the
+    cross-section is a wedge with bark on the outside arc and two flat split
+    faces, which is why this is a half-disc and not a cylinder.
+    `embers` seeds the burning variant's glow along the underside, where a
+    real log burns hottest (the fire is under and between the wood).
+    """
+    m = Model(name, "item")
+    R, LEN = 4, 28
+    for z in range(LEN):
+        # Half-round: bark arc above, flat riven face at y=0 (it lies split-side down).
+        for x in range(-R, R + 1):
+            for y in range(0, R + 1):
+                if (x * x) / float(R * R) + (y * y) / float(R * R) > 1.001:
+                    continue
+                bark = (x * x + y * y) >= (R - 1) * (R - 1)      # outer arc = bark
+                m.v(x, y, z, WOOD, bark_tint if bark else split_tint)
+        # End grain: the cut faces show pale rings, not bark.
+        if z == 0 or z == LEN - 1:
+            for x in range(-R + 1, R):
+                for y in range(0, R):
+                    if (x * x) / float(R * R) + (y * y) / float(R * R) <= 1.001:
+                        m.v(x, y, z, WOOD, split_tint)
+    if embers:
+        # Embers in the underside crevice + a few breaking through the char.
+        for z in range(2, LEN - 2, 3):
+            m.v(-1, 0, z, GLOW, T_EMBER)
+            m.v(1, 0, z, GLOW, T_EMBER)
+        for z in range(4, LEN - 4, 7):
+            m.v(0, 1, z, GLOW, "#ffb050")
+    m.mark_grip(0, 2, LEN // 2)
+    return m, OUT_ITEMS
+
+
+def gen_firewood():
+    # A plain split billet — hearth fuel, stacked but not lit.
+    return _billet("firewood", T_BARK, T_SPLIT, embers=False)
+
+
+def gen_flaming_log():
+    # The burning billet at the heart of the pile: charred outside, embers in
+    # the crevices. Its FLAME (particles) and FIRELIGHT are declarative item
+    # effects in items.json — the same mechanism the torch uses — so a lit
+    # hearth relights itself when the world reloads.
+    return _billet("flaming_log", T_CHAR, "#6b4a2c", embers=True)
+
+
 def _school_tome(name, cover, spine, surface_tex):
     # Thin lying tome (5 cm) with the school's cover art projected across the
     # top/bottom faces. Replaces the legacy subcube bricks ("too thick").
@@ -1016,6 +1073,8 @@ ALL = [
     gen_rug_woven,
     # Lighting set
     gen_lantern, gen_oil_lamp, gen_candle,
+    # Hearth fuel (structure gen dresses fireboxes with these)
+    gen_firewood, gen_flaming_log,
     # Tavern tableware
     gen_tankard, gen_goblet, gen_plate, gen_bowl, gen_jug, gen_bottle_wine,
     gen_fork, gen_knife_table, gen_spoon, gen_frying_pan, gen_ladle,

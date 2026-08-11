@@ -212,14 +212,13 @@
     "file": "furniture/back_bar.voxel",
     "fine_voxels": 0,
     "materials": [
-      "Glass",
       "WoodWalnut"
     ],
     "metrics_sidecar": true,
-    "microcubes": 744,
+    "microcubes": 696,
     "resolution_class": "microcube",
     "subcubes": 0,
-    "total": 744
+    "total": 696
   },
   "bar_stool": {
     "category": "furniture",
@@ -2005,6 +2004,87 @@
     "total": 596,
     "version": 1
   },
+  "firewood": {
+    "category": "items",
+    "cubes": 0,
+    "description": "A split billet of stove-length firewood.",
+    "dims_units": [
+      0.1111,
+      0.0617,
+      0.3457
+    ],
+    "display_name": "Firewood Billet",
+    "file": "items/firewood.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 812,
+    "grip_point_units": [
+      0.0556,
+      0.0309,
+      0.179
+    ],
+    "item_ids": [
+      "firewood"
+    ],
+    "materials": [
+      "Wood"
+    ],
+    "method": "gen_items",
+    "microcubes": 0,
+    "resolution_class": "fine-81",
+    "subcategory": "fuel",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "firewood",
+      "log",
+      "fuel",
+      "hearth"
+    ],
+    "total": 812,
+    "version": 1
+  },
+  "flaming_log": {
+    "category": "items",
+    "cubes": 0,
+    "description": "A charred, ember-cracked log burning in a hearth.",
+    "dims_units": [
+      0.1111,
+      0.0617,
+      0.3457
+    ],
+    "display_name": "Flaming Log",
+    "file": "items/flaming_log.voxel",
+    "fine_grid": 81,
+    "fine_voxels": 812,
+    "grip_point_units": [
+      0.0556,
+      0.0309,
+      0.179
+    ],
+    "item_ids": [
+      "flaming_log"
+    ],
+    "materials": [
+      "Wood",
+      "glow"
+    ],
+    "method": "gen_items",
+    "microcubes": 0,
+    "resolution_class": "fine-81",
+    "subcategory": "fuel",
+    "subcubes": 0,
+    "tags": [
+      "item",
+      "firewood",
+      "log",
+      "fuel",
+      "hearth",
+      "fire",
+      "light"
+    ],
+    "total": 812,
+    "version": 1
+  },
   "forge_acacia_l": {
     "category": "nature",
     "cubes": 17,
@@ -3057,6 +3137,26 @@
     ],
     "total": 1110,
     "version": 1
+  },
+  "keg": {
+    "category": "furniture",
+    "cubes": 0,
+    "dims_units": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "file": "furniture/keg.voxel",
+    "fine_voxels": 0,
+    "materials": [
+      "Metal",
+      "WoodWalnut"
+    ],
+    "metrics_sidecar": true,
+    "microcubes": 76,
+    "resolution_class": "microcube",
+    "subcubes": 0,
+    "total": 76
   },
   "knife_table": {
     "category": "items",

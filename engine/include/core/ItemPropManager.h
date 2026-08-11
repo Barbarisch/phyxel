@@ -4,6 +4,7 @@
 #include <unordered_map>
 #include <vector>
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>   // PropGeometry::orientation
 
 #include "physics/VoxelRigidBody.h"   // Physics::LocalBox (item collision compound)
 
@@ -21,6 +22,7 @@ class PlacedObjectManager;
 class KinematicVoxelManager;
 class ItemEffectSystem;
 struct KinematicVoxel;
+struct ItemDefinition;
 
 // ============================================================================
 // ItemPropManager — holdable items lying in the world ("item props").
@@ -153,6 +155,37 @@ public:
     /// Shared with DynamicFurnitureManager — the single source of truth for
     /// template→kinematic conversion.
     static std::vector<KinematicVoxel> voxelsFromTemplate(const VoxelTemplate& tmpl);
+
+    /// Everything a prop's body and render group are derived from, for ONE item
+    /// at ONE pose. Both the spawn path and the reload path go through this, so
+    /// a restored prop is geometrically identical to the one that was saved —
+    /// they used to be two hand-rolled reconstructions that had drifted (the
+    /// reload path rebuilt from the INTEGER placed-object cell and never
+    /// restored localCOM, so a reloaded torch's flame hung off its own model).
+    struct PropGeometry {
+        std::vector<KinematicVoxel> voxels;
+        std::vector<Physics::LocalBox> boxes;
+        glm::vec3 com{0.0f};        ///< COM in scaled template-local space
+        glm::vec3 localLo{0.0f}, localHi{0.0f};   ///< render AABB relative to COM
+        glm::vec3 basePos{0.0f};    ///< the resolved base point AFTER snapToGround —
+                                    ///< this is the pose to persist, not the request
+        glm::vec3 comWorld{0.0f};   ///< where the COM sits in the world
+        glm::quat orientation{1.0f, 0.0f, 0.0f, 0.0f};
+        glm::mat4 transform{1.0f};
+        float scale = 1.0f;
+        bool  elongated = false;
+        bool  ok = false;
+    };
+    /// `position` is the item's BASE point (its lowest rotated corner rests
+    /// there), matching the spawnProp contract — not the COM.
+    PropGeometry buildPropGeometry(const ItemDefinition& def, const VoxelTemplate& tmpl,
+                                   const glm::vec3& position, float yawDeg,
+                                   bool dynamic, bool snapToGround);
+    /// Record the EXACT pose on the placed object so a reload restores it in
+    /// place. The placed object's own position is an integer cell — fine for
+    /// queries, useless for a 0.11 m billet resting on a hearth floor.
+    void writeExactPose(const std::string& placedObjectId, const glm::vec3& basePos,
+                        float yawDeg);
 
     /// Resolve an ItemDefinition::templateFile ("weapons/sword.voxel") to a
     /// loaded template, loading it on demand from resources/templates/ (the

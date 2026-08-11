@@ -333,7 +333,8 @@
           0
         ],
         "scale": 1.0
-      }
+      },
+      "fixed": true
     },
     {
       "id": "prop_sign_prancing_pony",
@@ -357,7 +358,8 @@
           0
         ],
         "scale": 1.0
-      }
+      },
+      "fixed": true
     },
     {
       "id": "prop_tome_arcane",
@@ -929,7 +931,8 @@
           90
         ],
         "scale": 1.0
-      }
+      },
+      "fixed": true
     },
     {
       "id": "candlestick",
@@ -1468,6 +1471,93 @@
       "maxDurability": 90,
       "reach": 1.2,
       "attackAnimation": "melee_attack_horizontal"
+    },
+    {
+      "id": "firewood",
+      "name": "Firewood Billet",
+      "type": 0,
+      "description": "A split billet of stove-length firewood.",
+      "stackable": true,
+      "maxStack": 16,
+      "templateFile": "items/firewood.voxel",
+      "fixed": true,
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.0556,
+          -0.0309,
+          -0.179
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      }
+    },
+    {
+      "id": "flaming_log",
+      "name": "Flaming Log",
+      "type": 0,
+      "description": "A charred, ember-cracked log burning in a hearth.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "items/flaming_log.voxel",
+      "fixed": true,
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          -0.0556,
+          -0.0309,
+          -0.179
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      },
+      "effects": [
+        {
+          "id": "hearth_fire",
+          "anchor": [
+            0.056,
+            0.075,
+            0.173
+          ],
+          "vfx": {
+            "color": [
+              1.0,
+              0.45,
+              0.12
+            ],
+            "rate": 11,
+            "count": 4,
+            "size": 0.055,
+            "speed": 0.5,
+            "upBias": 1.0,
+            "gravity": 0.7,
+            "lifetime": 0.6,
+            "intensity": 2.6,
+            "posJitter": [
+              0.11,
+              0.03,
+              0.16
+            ]
+          },
+          "light": {
+            "color": [
+              1.0,
+              0.62,
+              0.32
+            ],
+            "intensity": 2.0,
+            "radius": 7.5
+          }
+        }
+      ]
     }
   ]
 }
