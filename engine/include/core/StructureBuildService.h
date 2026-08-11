@@ -10,7 +10,7 @@
 //   BuildingProgram -> autofillRoomLayout(typology) -> validation gate ->
 //   context-aware placement (overlap removal) -> prepare_pad / excavate_basement
 //   -> StructureRealizer (subcube shell) -> place -> register + assembly_plan
-//   metadata -> engine-decided furniture / chimneys / signage.
+//   metadata -> engine-decided furniture / signage (chimneys are SHELL, not furnish).
 //
 // The legacy v1 composite generators (house/tavern/tower, BuildingSpec) are
 // REMOVED; plain house/tavern requests are aliased onto v2 typologies by the

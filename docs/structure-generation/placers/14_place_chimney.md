@@ -1,6 +1,13 @@
 # 14 · place_chimney
 
 > Tier: Closure & roof. Part-1 status: **M**. Schema: [`README.md`](README.md).
+>
+> **WHERE IT LIVES (2026-08-10):** this is no longer a pass over a finished building.
+> Hearths are sited by the **floorplan** (as program fixtures) and the body + stack are
+> painted into the shell's `MicroCanvas` by **`HearthForge`** during realize — see
+> [`../ChimneyForgePlan.md`](../ChimneyForgePlan.md). The flue is canvas AIR carved after
+> the masonry, so floors and the roof deck yield to it and the pass displaces NOTHING.
+> `StructureGenerator::planChimneyStack` (the old stamped stack) is deleted.
 
 ## Job
 Run a **flue from every hearth/oven/forge/furnace up through the roof** — the stack, the flue void, the cap, and

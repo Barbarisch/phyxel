@@ -1,4 +1,5 @@
 #include "core/StructureRealizer.h"
+#include "core/HearthForge.h"
 #include "core/StairPlanner.h"
 #include "utils/Logger.h"
 
@@ -425,6 +426,41 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
             plan.openings.push_back(cut);
         }
 
+        // ---- place_chimney (#14) part 1: the HEARTH BODIES of this story.
+        // A hearth is a BUILT-IN, sited by the floorplan (HearthForge::siteIntoProgram)
+        // and painted HERE, with the shell — not stamped into the finished building by
+        // the furnish pass, which is what used to displace ~600 already-built cells per
+        // tavern. Painted after this story's walls/partitions/openings so the body sits
+        // against a finished wall; the STACK waits until the roof exists (below).
+        {
+            int sx0 = INT_MAX, sz0 = INT_MAX, sx1 = INT_MIN, sz1 = INT_MIN;
+            std::map<std::string, Rect> stRooms;
+            for (const auto& rm : st.rooms) {
+                stRooms[rm.id] = rm.rect;
+                sx0 = std::min(sx0, rm.rect.x);   sz0 = std::min(sz0, rm.rect.z);
+                sx1 = std::max(sx1, rm.rect.x1()); sz1 = std::max(sz1, rm.rect.z1());
+            }
+            const Rect stFootprint{sx0, sz0, sx1 - sx0, sz1 - sz0};
+            for (const auto& fx : st.fixtures) {
+                if (!HearthForge::isVented(fx.type)) continue;   // furniture stays furniture
+                auto rmIt = stRooms.find(fx.room);
+                if (rmIt == stRooms.end()) {
+                    LOG_WARN_FMT("StructureRealizer", "hearth '" << fx.type << "' names room '"
+                                 << fx.room << "', which this story does not have — SKIPPED");
+                    continue;
+                }
+                HearthRecord rec = HearthForge::paintBody(
+                    c, fx, rmIt->second, stFootprint, static_cast<int>(si), wBase,
+                    extT, intT, style);
+                if (rec.stackW <= 0) {
+                    res.ok = false;
+                    res.error = "no hearth geometry for vented fixture type '" + fx.type + "'";
+                    return res;
+                }
+                plan.hearths.push_back(rec);
+            }
+        }
+
         base = wTop;                               // next story's floor sits on this wall top
     }
 
@@ -807,6 +843,44 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
     }
     plan.roof.push_back({bx0, bz0, bx1, bz1, eaveSub / 3, style.roofOf("pitch_deg", 0.0),
                          !roofRanges.empty() ? roofStyle : "flat", matRoof});
+
+    // ---- place_chimney (#14) part 2: the STACKS. Runs last, because a stack has to
+    // clear the RIDGE (>= 2 ft, IRC R1003.9) and the ridge does not exist until the
+    // roof is painted. The apex is read ONCE, before any stack is painted — otherwise
+    // the second chimney would be measured against the first one's cap.
+    {
+        glm::ivec3 cLo, cHi;
+        res.roofApexMicro = c.microBounds(cLo, cHi) ? cHi.y : ceilTopMicro;
+    }
+    if (!plan.hearths.empty()) {
+        const int apex = res.roofApexMicro;
+        for (auto& rec : plan.hearths) {
+            // ROUTING GATE. The stack rises straight from the mantel; where a floor
+            // is in the way, the slab yields (the flue carve). What it must NEVER do
+            // is come up in the MIDDLE of a room upstairs — a chimney against a wall
+            // reads as a breast, one in the middle of the floor is a column through
+            // the room. That is a REFUSAL, not a silent lean.
+            const Rect sc = HearthForge::stackCubeRect(rec);
+            for (size_t si = static_cast<size_t>(rec.story) + 1; si < program.stories.size(); ++si)
+                for (const auto& rm : program.stories[si].rooms) {
+                    const int ox0 = std::max(sc.x, rm.rect.x), ox1 = std::min(sc.x1(), rm.rect.x1());
+                    const int oz0 = std::max(sc.z, rm.rect.z), oz1 = std::min(sc.z1(), rm.rect.z1());
+                    if (ox1 <= ox0 || oz1 <= oz0) continue;              // does not cross this room
+                    if (ox0 == rm.rect.x || ox1 == rm.rect.x1() ||
+                        oz0 == rm.rect.z || oz1 == rm.rect.z1()) continue;   // against a wall: fine
+                    res.ok = false;
+                    res.error = "chimney from the " + rec.type + " in '" + rec.room +
+                                "' would rise through the middle of room '" + rm.id +
+                                "' on story " + std::to_string(si) +
+                                " — re-site the hearth (no silent lean)";
+                    return res;
+                }
+            HearthForge::paintStack(c, rec, apex + HearthForge::kRidgeClearanceMicro);
+        }
+        LOG_INFO_FMT("StructureRealizer", "place_chimney: " << plan.hearths.size()
+                     << " stack(s) painted into the shell, apex " << apex
+                     << " -> cap " << (apex + HearthForge::kRidgeClearanceMicro) << " (micro)");
+    }
 
     res.floorTopByStory = floorTopByStory;   // per-story walkable micro-Y (for the harness / KI-2)
     res.ok = true;

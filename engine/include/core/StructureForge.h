@@ -18,7 +18,9 @@
 //   validate_realized L2/L3 gates on the realized canvas (M1: empty anchor)
 //   place             prepare_pad + grounding/vegetation gates + excavation +
 //                     place + register + habitation metadata
-//   furnish           engine-decided furniture / chimneys / surface items / signage
+//   furnish           engine-decided furniture / surface items / lights / signage
+//                     (NOT chimneys: hearth + stack are built by the SHELL — sited
+//                      in floorplan, painted in realize by HearthForge)
 //   emit              phase timings + response assembly
 //
 // Every response carries "gates": [{stage, outcome, ms}] in stage order; a
@@ -105,6 +107,15 @@ public:
 
 private:
     struct Context;   // defined in StructureForge.cpp (heavy members stay internal)
+
+    /// place_hearths — the floorplan settles every FIXED POINT before any furniture
+    /// pass runs. A hearth is a fixed point: masonry carrying a flue through every
+    /// floor above it and out through the roof, so the shell cannot be realized
+    /// until its pose is known. Sited with the SAME algorithm the furnish pass runs
+    /// (same recipes, footprints, heavy-first order, stair reservations), so the
+    /// built-in the realizer paints lands exactly where furnish reserves it.
+    /// Returns how many hearths were sited across all stories.
+    static int siteHearths(Context& ctx);
 
     static StageReport stageIntake(Context& ctx);
     static StageReport stageFloorplan(Context& ctx);

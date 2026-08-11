@@ -139,6 +139,50 @@ nlohmann::json StairRecord::toJson() const {
             {"hole_x", holeX}, {"hole_z", holeZ}, {"hole_w", holeW}, {"hole_d", holeD}};
 }
 
+HearthRecord HearthRecord::fromJson(const nlohmann::json& j) {
+    HearthRecord h;
+    h.type = js(j, "type", "fireplace");
+    h.room = js(j, "room");
+    h.story = ji(j, "story");
+    h.x = ji(j, "x"); h.z = ji(j, "z"); h.w = ji(j, "w", 1); h.d = ji(j, "d", 1);
+    h.rotation = ji(j, "rotation");
+    h.baseMicroY = ji(j, "base_micro_y");
+    h.mantelMicroY = ji(j, "mantel_micro_y");
+    h.stackTopMicroY = ji(j, "stack_top_micro_y");
+    h.flueX = ji(j, "flue_x"); h.flueZ = ji(j, "flue_z");
+    h.flueW = ji(j, "flue_w"); h.flueD = ji(j, "flue_d");
+    h.stackX = ji(j, "stack_x"); h.stackZ = ji(j, "stack_z");
+    h.stackW = ji(j, "stack_w"); h.stackD = ji(j, "stack_d");
+    h.fireMicroX = ji(j, "fire_micro_x");
+    h.fireMicroY = ji(j, "fire_micro_y");
+    h.fireMicroZ = ji(j, "fire_micro_z");
+    h.material = js(j, "material");
+    h.fuelItem = js(j, "fuel_item");
+    h.fuelLitItem = js(j, "fuel_lit_item");
+    h.fuelCount = ji(j, "fuel_count");
+    h.fuelMicroX = ji(j, "fuel_micro_x");
+    h.fuelMicroY = ji(j, "fuel_micro_y");
+    h.fuelMicroZ = ji(j, "fuel_micro_z");
+    h.fuelSpanMicro = ji(j, "fuel_span_micro");
+    h.fuelRotation = ji(j, "fuel_rotation");
+    return h;
+}
+nlohmann::json HearthRecord::toJson() const {
+    return {{"type", type}, {"room", room}, {"story", story},
+            {"x", x}, {"z", z}, {"w", w}, {"d", d}, {"rotation", rotation},
+            {"base_micro_y", baseMicroY}, {"mantel_micro_y", mantelMicroY},
+            {"stack_top_micro_y", stackTopMicroY},
+            {"flue_x", flueX}, {"flue_z", flueZ}, {"flue_w", flueW}, {"flue_d", flueD},
+            {"stack_x", stackX}, {"stack_z", stackZ}, {"stack_w", stackW}, {"stack_d", stackD},
+            {"fire_micro_x", fireMicroX}, {"fire_micro_y", fireMicroY},
+            {"fire_micro_z", fireMicroZ}, {"material", material},
+            {"fuel_item", fuelItem}, {"fuel_lit_item", fuelLitItem},
+            {"fuel_count", fuelCount},
+            {"fuel_micro_x", fuelMicroX}, {"fuel_micro_y", fuelMicroY},
+            {"fuel_micro_z", fuelMicroZ},
+            {"fuel_span_micro", fuelSpanMicro}, {"fuel_rotation", fuelRotation}};
+}
+
 FixturePlacement FixturePlacement::fromJson(const nlohmann::json& j) {
     FixturePlacement f;
     f.archetype = js(j, "archetype");
@@ -177,6 +221,18 @@ std::string AssemblyPlan::featureAt(const glm::ivec3& p) const {
             if (p.z * 9 + 9 <= t.z || p.z * 9 >= t.z + t.d) continue;
             return "opening";
         }
+    // Hearths + their stacks: built-in masonry that passes THROUGH the wall band,
+    // the floor slabs and the roof deck. It is more specific than any of them, so it
+    // answers first — a cube inside the chimney breast is "hearth", not "floor".
+    for (const auto& h : hearths) {
+        if (p.y * 9 + 9 <= h.baseMicroY || p.y * 9 >= h.stackTopMicroY + 1) continue;
+        const bool inBody = p.y * 9 < h.mantelMicroY &&
+                            p.x >= h.x && p.x < h.x + h.w && p.z >= h.z && p.z < h.z + h.d;
+        const bool inStack = p.y * 9 + 9 > h.mantelMicroY && h.stackW > 0 &&
+                             p.x >= h.stackX / 9 && p.x <= (h.stackX + h.stackW - 1) / 9 &&
+                             p.z >= h.stackZ / 9 && p.z <= (h.stackZ + h.stackD - 1) / 9;
+        if (inBody || inStack) return "hearth";
+    }
     // Quoined corners next — more specific than the wall band they dress.
     for (const auto& q : corners)
         if (p.x == q.x && p.z == q.z && p.y >= q.baseY && p.y < q.topY)
@@ -244,6 +300,7 @@ AssemblyPlan AssemblyPlan::fromJson(const nlohmann::json& j) {
     load("floors",     p.floors,     FloorPatch::fromJson);
     load("openings",   p.openings,   OpeningCut::fromJson);
     load("stairs",     p.stairs,     StairRecord::fromJson);
+    load("hearths",    p.hearths,    HearthRecord::fromJson);
     load("corners",    p.corners,    CornerZone::fromJson);
     load("roof",       p.roof,       RoofPanel::fromJson);
     load("fixtures",   p.fixtures,   FixturePlacement::fromJson);
@@ -257,7 +314,8 @@ nlohmann::json AssemblyPlan::toJson() const {
         return a;
     };
     return {{"foundation", dump(foundation)}, {"walls", dump(walls)}, {"floors", dump(floors)},
-            {"openings", dump(openings)}, {"stairs", dump(stairs)}, {"corners", dump(corners)},
+            {"openings", dump(openings)}, {"stairs", dump(stairs)},
+            {"hearths", dump(hearths)}, {"corners", dump(corners)},
             {"roof", dump(roof)}, {"fixtures", dump(fixtures)}, {"lights", dump(lights)}};
 }
 

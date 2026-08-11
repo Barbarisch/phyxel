@@ -136,6 +136,10 @@ public:
     static int planInteriorThicknessMicro(const AssemblyPlan& plan);
     /// Stair well rects touching `storyIndex` (departing base OR arriving well).
     static std::vector<Rect> planStairRects(const AssemblyPlan& plan, int storyIndex);
+    /// Everything on `storyIndex` that furniture must keep out of: the stair wells
+    /// PLUS the chimney stacks rising from hearths on LOWER stories. A chimney breast
+    /// is masonry the shell built — a bed placed in it would be inside the wall.
+    static std::vector<Rect> planReservedRects(const AssemblyPlan& plan, int storyIndex);
 
     /// Scatter small CLUTTER (mugs, bottles) ON a surface (a table top / shelf). `surface` = the
     /// surface footprint in WORLD cells; `topY` = world Y of the surface top (items sit here, not on
@@ -149,6 +153,19 @@ public:
     /// Rotation so a piece backed against a wall faces INTO the room, given the
     /// INWARD normal (pointing from the wall toward the room centre).
     static int facingIntoRoom(int inwardDx, int inwardDz);
+
+    /// OUTWARD normal of every room edge `piece` (a footprint rect in the same space
+    /// as `room`) abuts — corners get both axes; a piece in the room's interior gets
+    /// (0,0,0). The consumer insets the piece by the wall band along -backDir.
+    static glm::ivec3 backDirFor(const Rect& room, const Rect& piece);
+
+    /// PER-AXIS wall-band inset (micro) for a piece backed onto `backDir`: the full
+    /// exterior thickness where the room edge IS the building's footprint edge, half
+    /// the straddling band on an interior partition (a sconce inset a full 9 micro off
+    /// a 2-micro partition floated ~0.8 m off the wall). `footprint` = the bbox of the
+    /// story's rooms. Writes -1 on an axis with no wall (the legacy sentinel).
+    static void wallInsetsFor(const Rect& room, const Rect& footprint, const glm::ivec3& backDir,
+                              int extTMicro, int intTMicro, int& insetMicroX, int& insetMicroZ);
 
     // ---- MOUNTING (furniture quality B): sconces/racks hang on their wall at a grounded
     // height; a chandelier hangs from the ceiling. Everything else sits on the floor. ----

@@ -17,6 +17,7 @@
 #include "core/DamageSystem.h"
 #include "core/FurnitureCatalog.h"
 #include "core/FurniturePlacer.h"
+#include "core/HearthForge.h"
 #include "core/ItemPropManager.h"
 #include "core/ItemRegistry.h"
 #include "core/ObjectTemplateManager.h"
@@ -34,6 +35,76 @@ namespace Core {
 
 using detail::PhaseClock;
 using detail::PlaceOutcome;
+
+namespace {
+
+// Each fixture type's real cube footprint, from its template's ACTUAL occupied
+// cubes (the metrics `overall_max` is transposed vs the voxels; the rectangle from
+// real extents keeps reservation == render). SHARED by the floorplan's hearth
+// siting and the furnish pass: they run the same placement algorithm, so they must
+// see the same footprints or the hearth moves between being sited and being
+// furnished around.
+std::map<std::string, Footprint> loadFixtureFootprints(ObjectTemplateManager* templates) {
+    std::map<std::string, Footprint> fps;
+    for (const auto& type : FurnitureCatalog::mappedTypes()) {
+        const std::string tmpl = FurnitureCatalog::templateFor(type);
+        if (tmpl.empty()) continue;
+        Footprint fp;
+        bool got = false;
+        const auto* t = templates ? templates->getTemplate(tmpl) : nullptr;
+        if (t) {
+            int mnx = INT_MAX, mnz = INT_MAX, mxx = INT_MIN, mxz = INT_MIN;
+            int uMaxX = 0, uMaxZ = 0, uMaxY = 0;   // max MICRO index (true placed span + height)
+            auto acc = [&](const glm::ivec3& cube, int microX, int microZ, int microY) {
+                mnx = std::min(mnx, cube.x); mxx = std::max(mxx, cube.x);
+                mnz = std::min(mnz, cube.z); mxz = std::max(mxz, cube.z);
+                uMaxX = std::max(uMaxX, microX); uMaxZ = std::max(uMaxZ, microZ);
+                uMaxY = std::max(uMaxY, microY);
+            };
+            for (const auto& c : t->cubes)
+                acc(c.relativePos, c.relativePos.x * 9 + 8, c.relativePos.z * 9 + 8,
+                    c.relativePos.y * 9 + 8);
+            for (const auto& s : t->subcubes)
+                acc(s.parentRelativePos,
+                    s.parentRelativePos.x * 9 + s.subcubePos.x * 3 + 2,
+                    s.parentRelativePos.z * 9 + s.subcubePos.z * 3 + 2,
+                    s.parentRelativePos.y * 9 + s.subcubePos.y * 3 + 2);
+            for (const auto& mc : t->microcubes)
+                acc(mc.parentRelativePos,
+                    mc.parentRelativePos.x * 9 + mc.subcubePos.x * 3 + mc.microcubePos.x,
+                    mc.parentRelativePos.z * 9 + mc.subcubePos.z * 3 + mc.microcubePos.z,
+                    mc.parentRelativePos.y * 9 + mc.subcubePos.y * 3 + mc.microcubePos.y);
+            if (mxx >= mnx) {
+                fp.width = mxx - mnx + 1;
+                fp.depth = mxz - mnz + 1;
+                fp.microW = uMaxX;   // real micro extents (0-anchored templates)
+                fp.microD = uMaxZ;
+                fp.microH = uMaxY + 1;   // micro HEIGHT (ceiling hang needs it)
+                got = true;
+            }
+        }
+        if (!got) {   // fallback: metrics sidecar
+            nlohmann::json m = detail::loadAssetMetricsSidecar(tmpl);
+            if (m.is_object() && m.contains("overall_max") &&
+                m["overall_max"].is_array() && m["overall_max"].size() >= 3) {
+                const double ex = m["overall_max"][0].get<double>();
+                const double ey = m["overall_max"][1].get<double>();
+                const double ez = m["overall_max"][2].get<double>();
+                fp = footprintFromExtents(ex, ez);
+                fp.microH = std::max(1, (int)std::lround(std::ceil(ey * 9.0)));
+                got = true;
+            }
+        }
+        if (got) fps[type] = fp;
+    }
+    // The VENTED built-ins are the forge's geometry, not an asset's: nothing spawns
+    // a hearth template any more, so its footprint must come from what gets PAINTED.
+    for (const char* t : {"fireplace", "forge_hearth", "oven_bread"})
+        fps[t] = HearthForge::footprintOf(t);
+    return fps;
+}
+
+}  // namespace
 
 // The one artifact threaded through the stages. Every member is a former
 // buildV2 local, promoted verbatim; stages read/write exactly what the
@@ -181,8 +252,52 @@ StructureForge::StageReport StructureForge::stageIntake(Context& ctx) {
 }
 
 // ---------------------------------------------------------------------------
+// place_hearths — see the header. The wall thicknesses must be the ones the
+// REALIZER will build with (its converter clamps to [1,9]); an unclamped style
+// value would inset the sited hearth further than the painted one.
+// ---------------------------------------------------------------------------
+int StructureForge::siteHearths(Context& ctx) {
+    const auto footprints = loadFixtureFootprints(ctx.deps.templates);
+    const int extT = StructureRealizer::thicknessMicro(
+        ctx.style.thicknessOf("exterior_wall", 0.333));
+    const int intT = StructureRealizer::thicknessMicro(
+        ctx.style.thicknessOf("interior_wall", 0.222));
+    const std::string wealthTier = ctx.rp ? ctx.rp->wealthTier : "";
+    int sited = 0;
+    // Stories in order, ACCUMULATING each stack's column: an upstairs hearth may not
+    // be sited on top of the stack rising from the one below it. This mirrors
+    // FurniturePlacer::planReservedRects exactly — if the two disagreed, the furnish
+    // pass would furnish around a hearth that is not where the shell built it.
+    std::vector<Rect> stacksBelow;
+    for (size_t si = 0; si < ctx.program.stories.size(); ++si) {
+        auto reserved = HearthForge::stairRectsForStory(ctx.program, static_cast<int>(si));
+        reserved.insert(reserved.end(), stacksBelow.begin(), stacksBelow.end());
+        ProgStory& st = ctx.program.stories[si];
+        sited += HearthForge::siteIntoProgram(st, footprints, extT, intT, reserved, wealthTier);
+
+        int sx0 = INT_MAX, sz0 = INT_MAX, sx1 = INT_MIN, sz1 = INT_MIN;
+        std::map<std::string, Rect> rooms;
+        for (const auto& rm : st.rooms) {
+            rooms[rm.id] = rm.rect;
+            sx0 = std::min(sx0, rm.rect.x);   sz0 = std::min(sz0, rm.rect.z);
+            sx1 = std::max(sx1, rm.rect.x1()); sz1 = std::max(sz1, rm.rect.z1());
+        }
+        const Rect stFootprint{sx0, sz0, sx1 - sx0, sz1 - sz0};
+        for (const auto& fx : st.fixtures) {
+            if (!HearthForge::isVented(fx.type)) continue;
+            auto it = rooms.find(fx.room);
+            if (it == rooms.end()) continue;
+            stacksBelow.push_back(
+                HearthForge::poseOf(fx, it->second, stFootprint, extT, intT).stackCubes);
+        }
+    }
+    return sited;
+}
+
+// ---------------------------------------------------------------------------
 // floorplan — generate_room_layout (#05): auto-fill interiors for any story that
 // authored no rooms. Deterministic in a seed derived from the build position.
+// Then place_hearths: the vented built-ins become PROGRAM fixtures.
 // ---------------------------------------------------------------------------
 StructureForge::StageReport StructureForge::stageFloorplan(Context& ctx) {
     StageReport rep;
@@ -218,6 +333,10 @@ StructureForge::StageReport StructureForge::stageFloorplan(Context& ctx) {
                 {"footprint", {ctx.program.footprintW, ctx.program.footprintD}}};
         }
     }
+    const int hearths = siteHearths(ctx);
+    if (hearths > 0)
+        LOG_INFO_FMT("StructureBuild", "place_hearths: sited " << hearths
+                     << " vented built-in(s) as program fixtures (the shell builds them)");
     return rep;
 }
 
@@ -245,6 +364,7 @@ StructureForge::StageReport StructureForge::stageValidateProgram(Context& ctx) {
         if (ctx.anyAutofill) {
             ctx.program.stories = ctx.preAutofillStories;
             autofillRoomLayout(ctx.program, ctx.floorplanSeed ^ 0x9E3779B9u, ctx.rp);
+            siteHearths(ctx);   // rooms moved -> the built-ins must be re-sited with them
             vr = BuildingProgramValidator::validate(ctx.program, {}, ctx.rp);
             if (vr.ok()) {
                 LOG_WARN_FMT("StructureBuild", "program validation failed on the first "
@@ -645,15 +765,11 @@ StructureForge::StageReport StructureForge::stagePlace(Context& ctx) {
     // Claims Ledger increment 3: derived from the PLAN's recorded walls (what was
     // built), through the same clamped converter — no longer re-derived from style.
     ctx.extTMicro = FurniturePlacer::planExteriorThicknessMicro(ctx.shell.plan);
-    // Roof apex (world micro) for place_chimney (#14): the stack must clear it.
-    {
-        glm::ivec3 cLo, cHi;
-        if (ctx.shell.canvas.microBounds(cLo, cHi))
-            ctx.roofApexWorldMicro = oy * 9 + cHi.y;
-        else
-            LOG_WARN("StructureBuild", "place_chimney: canvas microBounds failed -> "
-                     "roof apex unknown; chimneys will be SKIPPED for this build");
-    }
+    // Roof apex (world micro) for place_signage (#47): a sign tucks under the eave.
+    // Taken from what the REALIZER measured — the ridge before the chimneys were
+    // painted. Re-deriving it from the finished canvas would return the chimney cap
+    // (a stack clears the ridge by design), which is not an eave to tuck under.
+    ctx.roofApexWorldMicro = oy * 9 + ctx.shell.roofApexMicro;
 
     // Snapshot BEFORE the excavation below so undo restores the pre-build terrain.
     glm::ivec3 smin(INT_MAX), smax(INT_MIN);
@@ -804,14 +920,18 @@ StructureForge::SignMount StructureForge::planSignMount(
 // ---------------------------------------------------------------------------
 // furnish — v2: the ENGINE decides furniture placement. FurniturePlacer derives
 // what/where/facing/clearance from each room's purpose + door positions —
-// hand-authored program fixtures are IGNORED. Pieces are parented to the
-// structure so they group and are removed with it. Includes place_chimney (#14),
-// surface item props, and place_signage (#47). (The heavy/light/lighting/clutter
-// pass split is the M4 milestone; M1 moves the block whole.)
+// hand-authored program fixtures are IGNORED, with ONE exception: the VENTED
+// built-ins the floorplan sited, which the shell has already built (the placer
+// still runs them so the room is furnished around the hearth, but nothing is
+// spawned on top of it). Pieces are parented to the structure so they group and
+// are removed with it. Includes surface item props, place_lights (#18) and
+// place_signage (#47). place_chimney (#14) is NOT here any more — see
+// docs/structure-generation/ChimneyForgePlan.md.
 // ---------------------------------------------------------------------------
 StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
     StageReport rep;
-    auto* chunkManager = ctx.deps.chunkManager;
+    // (no chunkManager here any more: this stage stopped writing voxels when the
+    // chimney moved into the shell — it only spawns objects and registers lights.)
     auto* placedObjectManager = ctx.deps.placedObjects;
     auto* objectTemplateManager = ctx.deps.templates;
     auto* itemPropManager = ctx.deps.itemProps;
@@ -843,62 +963,9 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
             response["asset_gaps"] = gaps;
         }
 
-        // Footprint-aware placement: each fixture type's real cube footprint from its
-        // template's ACTUAL occupied cubes (metrics overall_max is transposed vs the
-        // voxels; the rectangle from real extents keeps reservation == render).
-        std::map<std::string, Footprint> fixtureFootprints;
-        for (const auto& type : FurnitureCatalog::mappedTypes()) {
-            const std::string tmpl = FurnitureCatalog::templateFor(type);
-            if (tmpl.empty()) continue;
-            Footprint fp;
-            bool got = false;
-            const auto* t = objectTemplateManager ? objectTemplateManager->getTemplate(tmpl)
-                                                  : nullptr;
-            if (t) {
-                int mnx = INT_MAX, mnz = INT_MAX, mxx = INT_MIN, mxz = INT_MIN;
-                int uMaxX = 0, uMaxZ = 0, uMaxY = 0;   // max MICRO index (true placed span + height)
-                auto acc = [&](const glm::ivec3& cube, int microX, int microZ, int microY) {
-                    mnx = std::min(mnx, cube.x); mxx = std::max(mxx, cube.x);
-                    mnz = std::min(mnz, cube.z); mxz = std::max(mxz, cube.z);
-                    uMaxX = std::max(uMaxX, microX); uMaxZ = std::max(uMaxZ, microZ);
-                    uMaxY = std::max(uMaxY, microY);
-                };
-                for (const auto& c : t->cubes)
-                    acc(c.relativePos, c.relativePos.x * 9 + 8, c.relativePos.z * 9 + 8,
-                        c.relativePos.y * 9 + 8);
-                for (const auto& s : t->subcubes)
-                    acc(s.parentRelativePos,
-                        s.parentRelativePos.x * 9 + s.subcubePos.x * 3 + 2,
-                        s.parentRelativePos.z * 9 + s.subcubePos.z * 3 + 2,
-                        s.parentRelativePos.y * 9 + s.subcubePos.y * 3 + 2);
-                for (const auto& mc : t->microcubes)
-                    acc(mc.parentRelativePos,
-                        mc.parentRelativePos.x * 9 + mc.subcubePos.x * 3 + mc.microcubePos.x,
-                        mc.parentRelativePos.z * 9 + mc.subcubePos.z * 3 + mc.microcubePos.z,
-                        mc.parentRelativePos.y * 9 + mc.subcubePos.y * 3 + mc.microcubePos.y);
-                if (mxx >= mnx) {
-                    fp.width = mxx - mnx + 1;
-                    fp.depth = mxz - mnz + 1;
-                    fp.microW = uMaxX;   // real micro extents (0-anchored templates)
-                    fp.microD = uMaxZ;
-                    fp.microH = uMaxY + 1;   // micro HEIGHT (ceiling hang needs it)
-                    got = true;
-                }
-            }
-            if (!got) {   // fallback: metrics sidecar
-                nlohmann::json m = detail::loadAssetMetricsSidecar(tmpl);
-                if (m.is_object() && m.contains("overall_max") &&
-                    m["overall_max"].is_array() && m["overall_max"].size() >= 3) {
-                    const double ex = m["overall_max"][0].get<double>();
-                    const double ey = m["overall_max"][1].get<double>();
-                    const double ez = m["overall_max"][2].get<double>();
-                    fp = footprintFromExtents(ex, ez);
-                    fp.microH = std::max(1, (int)std::lround(std::ceil(ey * 9.0)));
-                    got = true;
-                }
-            }
-            if (got) fixtureFootprints[type] = fp;
-        }
+        // Footprint-aware placement (the SAME map the floorplan sited hearths with).
+        std::map<std::string, Footprint> fixtureFootprints =
+            loadFixtureFootprints(objectTemplateManager);
         {
             auto bedIt = fixtureFootprints.find("bed");
             LOG_INFO_FMT("StructureBuild", "footprint-aware: loaded "
@@ -911,16 +978,20 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
         int fxSpawned = 0, fxSkipped = 0, itemsSpawned = 0;
         std::vector<UnplacedFixture> unplaced;  // honest: pieces that didn't fit
         nlohmann::json fixturesJson = nlohmann::json::array();
-        // M4 chimney pass state: hearths that BURN, collected during placement and
-        // served after it (see the chimney pass below).
-        struct VentedHearth { std::string type; std::string objectId; glm::ivec3 microPos; };
-        std::vector<VentedHearth> ventedHearths;
-        int chimneysBuilt = 0;
-        nlohmann::json fluelessRemoved = nlohmann::json::array();
+        // place_chimney (#14) is NOT a furnish pass any more. Hearths + their stacks
+        // are built by the SHELL (HearthForge, painted into the MicroCanvas at realize
+        // time), so this stage only reports what the shell built — it never writes
+        // masonry into a finished building, which is what used to displace ~600 cells
+        // per tavern. See docs/structure-generation/ChimneyForgePlan.md.
+        const int chimneysBuilt = static_cast<int>(ctx.shell.plan.hearths.size());
+        int builtinsSkipped = 0;   // vented pieces the placer sited but the shell has
+        int fuelLaid = 0, hearthsLit = 0;   // billet props / hearths burning
         // M5 lighting pass state: every placed fixture that EMITS light, collected
         // during placement and registered as real engine point lights afterwards.
         struct Emitting { std::string type; std::string room; std::string objectId;
-                          glm::ivec3 microPos; };
+                          glm::ivec3 microPos;
+                          bool exact = false;   ///< microPos IS the flame (hearths), not a base
+                        };
         std::vector<Emitting> emitters;
         // M7: every placed fixture's TRUE world AABB, for the doorway-clearance scan.
         std::vector<RealizedStructureValidator::PlacedBox> placedBoxes;
@@ -932,8 +1003,12 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
         struct Reseat { std::string tmpl; glm::ivec3 microPos; int rotation; };
         std::map<std::string, Reseat> reseat;   // objectId -> how to re-place it
         nlohmann::json unblockedDoors = nlohmann::json::array();
-        // Destructive writes by passes that run AFTER the shell was validated.
-        nlohmann::json displacedByPost = nlohmann::json::array();
+        // NOTE: the destructive-write ledger (`displaced_existing_voxels`) is GONE
+        // because its only producer was the chimney pass, and the chimney moved into
+        // the shell (ChimneyForgePlan). No pass writes voxels into a finished building
+        // any more, so an always-empty ledger would just report "clean" forever —
+        // worse than none. If you add a pass that DOES write into placed structure,
+        // bring the ledger back with it: count PlacementResult::displaced and report it.
         int lightsRegistered = 0;
         std::set<std::string> litRooms;   // rooms that got at least one light source
         nlohmann::json darkRooms = nlohmann::json::array();
@@ -981,6 +1056,17 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
             std::vector<PlacedSurface> placedSurfaces;
             for (size_t k = 0; k < placements.size(); ++k) {
                 const auto& pl = placements[k];
+                // VENTED BUILT-INS are already here: the shell painted the hearth and
+                // its flue into the canvas at realize time. The placer still runs them
+                // so the room is furnished AROUND the hearth (its cells stay reserved)
+                // — we simply do not spawn a second, template copy on top of it.
+                if (HearthForge::isVented(pl.type)) {
+                    ++builtinsSkipped;
+                    fixturesJson.push_back({{"structure", objectId}, {"room", pl.room},
+                                            {"type", pl.type}, {"story", (int)si},
+                                            {"kind", "builtin"}});
+                    continue;
+                }
                 std::string tmpl = FurnitureCatalog::templateFor(pl.type);
                 if (tmpl.empty()) { ++fxSkipped; continue; }
                 // MICRO-PRECISE: inset off the wall + sit on the exact walkable surface —
@@ -1051,12 +1137,6 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                 fx["rotation"] = pl.rotation;
                 fixturesJson.push_back(fx);
 
-                // M4: VENTED hearths are collected here and served by the chimney
-                // pass AFTER the story's fixtures are placed — the stack used to be
-                // emitted inline, in the middle of the furniture loop, which made
-                // "did every hearth get a flue?" unanswerable.
-                if (FurniturePlacer::isVentedFixture(pl.type))
-                    ventedHearths.push_back({pl.type, fid, microPos});
                 // M5: collect light SOURCES for the lighting pass below.
                 if (FurniturePlacer::emitterFor(pl.type).emits)
                     emitters.push_back({pl.type, pl.room, fid, microPos});
@@ -1071,98 +1151,51 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                 }
             }
 
-            // ---- place_chimney (#14), M4: its own pass over the story's vented
-            // hearths. Each gets a masonry stack resting on its mantel and clearing
-            // the ridge for draught (>= 2 ft, IRC R1003.9). A hearth that CANNOT be
-            // vented (unknown roof apex, or no room above the mantel) is REMOVED and
-            // reported: a fireplace with no flue is a defect, not a decoration.
-            for (const auto& vh : ventedHearths) {
-                std::string why;
-                if (roofApexWorldMicro <= 0) {
-                    why = "roof apex unknown (canvas microBounds failed)";
-                } else {
-                    // Centre the stack on the hearth's ACTUAL placed bbox so a ROTATED
-                    // hearth still gets its chimney directly overhead (V8).
-                    Footprint cfp;
-                    auto fpIt = fixtureFootprints.find(vh.type);
-                    if (fpIt != fixtureFootprints.end()) cfp = fpIt->second;
-                    int ccx = vh.microPos.x + std::max(1, cfp.width) * 9 / 2;
-                    int ccz = vh.microPos.z + std::max(1, cfp.depth) * 9 / 2;
-                    if (const auto* hobj = placedObjectManager->get(vh.objectId)) {
-                        ccx = (hobj->boundingMin.x + hobj->boundingMax.x + 1) * 9 / 2;
-                        ccz = (hobj->boundingMin.z + hobj->boundingMax.z + 1) * 9 / 2;
-                    }
-                    // The stack RESTS ON the hearth top (mantel), never diving through
-                    // the firebox (V2 checkChimneyOnHearth). Height from .metrics.json.
-                    int hearthH = 9;
-                    nlohmann::json hm = detail::loadAssetMetricsSidecar(
-                        FurnitureCatalog::templateFor(vh.type));
-                    if (hm.is_object() && hm.contains("overall_max") &&
-                        hm["overall_max"].is_array() && hm["overall_max"].size() >= 2)
-                        hearthH = std::max(1, (int)std::lround(
-                            hm["overall_max"][1].get<double>() * 9.0));
-                    const int baseY = vh.microPos.y + hearthH;
-                    const int topY = roofApexWorldMicro +
-                        StructureGenerator::kChimneyRidgeClearanceMicro;
-                    if (topY <= baseY) {
-                        why = "no room for a stack between the mantel and the ridge clearance";
-                    } else {
-                        auto chimney = StructureGenerator::planChimneyStack(
-                            ccx, ccz, baseY, topY, "Bricks");
-                        // A pass running AFTER the shell writes into a building the
-                        // shell-side gates already certified. Every cell it DISPLACES
-                        // is structure it just ate, and nothing downstream re-checks
-                        // the shell — so account for it here rather than discover it
-                        // in a screenshot.
-                        const auto res = StructureGenerator::place(chunkManager, chimney);
-                        // Punch the flue AFTER the masonry: the shaft must be air all
-                        // the way up, through every floor slab and the roof deck it
-                        // crosses. `clears` are world MICRO cells; removeMicroCells
-                        // refines any coarser voxel it lands in rather than nuking the
-                        // whole cube (that mistake is what put bays in the walls).
-                        int flueOpened = 0;
-                        for (const auto& mc : chimney.clears) {
-                            const glm::ivec3 cube(mc.x / 9, mc.y / 9, mc.z / 9);
-                            const glm::ivec3 rem(mc.x % 9, mc.y % 9, mc.z % 9);
-                            chunkManager->ensureChunkAt(cube);
-                            if (Chunk* ck = chunkManager->getChunkAtFast(cube)) {
-                                // Refine-then-remove: write the cell (subdividing any
-                                // coarser voxel, preserving the rest), then erase it.
-                                const glm::ivec3 lp =
-                                    Utils::CoordinateUtils::worldToLocalCoord(cube);
-                                const glm::ivec3 sub(rem.x / 3, rem.y / 3, rem.z / 3);
-                                const glm::ivec3 mic(rem.x % 3, rem.y % 3, rem.z % 3);
-                                ck->addMicrocube(lp, sub, mic, "Bricks");
-                                if (ck->removeMicrocube(lp, sub, mic)) ++flueOpened;
-                            }
-                        }
-                        LOG_INFO_FMT("StructureBuild", "place_chimney: opened "
-                                     << flueOpened << " flue cell(s) through the stack");
-                        if (res.displaced > 0) {
-                            nlohmann::json where = nlohmann::json::array();
-                            for (const auto& p : res.displacedSample)
-                                where.push_back({p.x, p.y, p.z});
-                            LOG_WARN_FMT("StructureBuild", "place_chimney DISPLACED "
-                                         << res.displaced << " existing voxel(s) building the "
-                                         << "stack at (" << ccx / 9 << "," << ccz / 9
-                                         << ") — it is cutting through structure that was "
-                                            "already built");
-                            displacedByPost.push_back({{"pass", "chimney"},
-                                                       {"cells", res.displaced},
-                                                       {"sample", where}});
-                        }
-                        ++chimneysBuilt;
-                    }
+            // ---- LAY THE FIRE. The masonry is the shell's; the wood in it is a
+            // small pile of ITEM PROPS, planned by the realizer (which knows the
+            // firebox span) and dropped here. One billet is the `flaming_log`,
+            // whose declarative item effects carry BOTH the flame particles and
+            // the firelight — the same mechanism the torch uses. That is what
+            // makes a lit hearth relight itself on reload: item props persist
+            // and ItemPropManager::rebuildFromPlacedObjects re-registers their
+            // effects, where a build-time VFX field or point light would not.
+            //
+            // Hearths that burn something other than cordwood (the forge's
+            // charcoal, the oven's embers) have no fuel plan and fall back to the
+            // grounded static emitter below.
+            for (const auto& h : ctx.shell.plan.hearths) {
+                if (h.story != static_cast<int>(si)) continue;
+                const auto billets = HearthForge::fuelBillets(h);
+                if (billets.empty() || !itemPropManager) {
+                    emitters.push_back({h.type, h.room, /*objectId=*/std::string(),
+                                        glm::ivec3(ox * 9 + h.fireMicroX,
+                                                   ctx.oy * 9 + h.fireMicroY,
+                                                   oz * 9 + h.fireMicroZ),
+                                        /*exact=*/true});
+                    continue;
                 }
-                if (why.empty()) continue;
-                LOG_WARN_FMT("StructureBuild", "place_chimney: cannot vent " << vh.type
-                             << " (" << why << ") — REMOVING the hearth rather than "
-                                "leaving it flueless");
-                placedObjectManager->remove(vh.objectId);
-                --fxSpawned;
-                fluelessRemoved.push_back({{"type", vh.type}, {"reason", why}});
+                int laid = 0;
+                for (const auto& fb : billets) {
+                    const glm::vec3 wp((ox * 9 + fb.x + 0.5f) / 9.0f,
+                                       (ctx.oy * 9 + fb.y) / 9.0f,
+                                       (oz * 9 + fb.z + 0.5f) / 9.0f);
+                    const std::string item = fb.lit ? h.fuelLitItem : h.fuelItem;
+                    std::string pid = itemPropManager->spawnProp(
+                        item, wp, static_cast<float>(fb.rotationDeg),
+                        /*snapToGround=*/false, /*instanceUuid=*/"",
+                        glm::vec3(0.0f), /*dynamic=*/false);
+                    if (pid.empty()) continue;
+                    placedObjectManager->setParent(pid, objectId);
+                    placedObjectManager->setMetadata(pid, "fixture", {
+                        {"structure", objectId}, {"room", h.room},
+                        {"kind", "fuel"}, {"type", item}, {"story", (int)si},
+                        {"lit", fb.lit}});
+                    ++laid;
+                    ++itemsSpawned;
+                }
+                fuelLaid += laid;
+                if (laid > 0) ++hearthsLit;   // the lit billet lights itself
             }
-            ventedHearths.clear();
 
             // ---- place_lights (#18), M5: the LIGHTING pass. Fixtures that emit
             // (candles, sconces, chandeliers, and the hearth fire itself) were placed
@@ -1174,9 +1207,16 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                 litRooms.insert(em.room);
                 const auto e = FurniturePlacer::emitterFor(em.type);
                 if (!ctx.deps.addPointLight) continue;   // headless: fixtures only
-                const glm::vec3 pos(em.microPos.x / 9.0f + 0.5f,
-                                    (em.microPos.y + e.emitMicroY) / 9.0f,
-                                    em.microPos.z / 9.0f + 0.5f);
+                // A hearth's flame anchor is MEASURED (the forge knows where the fuel
+                // bed sits inside the firebox it painted), so it is used as-is; a
+                // placed template only knows its own base, so the type's grounded
+                // flame height is added to it and the cell is centred.
+                const glm::vec3 pos = em.exact
+                    ? glm::vec3((em.microPos.x + 0.5f) / 9.0f, (em.microPos.y + 0.5f) / 9.0f,
+                                (em.microPos.z + 0.5f) / 9.0f)
+                    : glm::vec3(em.microPos.x / 9.0f + 0.5f,
+                                (em.microPos.y + e.emitMicroY) / 9.0f,
+                                em.microPos.z / 9.0f + 0.5f);
                 const int id = ctx.deps.addPointLight(pos, glm::vec3(e.r, e.g, e.b),
                                                       e.intensity, e.radius);
                 if (id < 0) {
@@ -1585,11 +1625,16 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
         }
         response["fixtures_spawned"] = fxSpawned;
         response["items_spawned"] = itemsSpawned;   // pickable surface props (2026-08-07)
-        response["chimneys_built"] = chimneysBuilt;                 // M4 chimney pass
-        if (!displacedByPost.empty())
-            response["displaced_existing_voxels"] = displacedByPost;   // destructive-write ledger
-        if (!fluelessRemoved.empty())
-            response["flueless_hearths_removed"] = fluelessRemoved; // never ship a flueless hearth
+        // Built by the SHELL, reported here (ChimneyForgePlan): every hearth the
+        // realizer painted came with its flue, so there is no flueless-hearth repair
+        // to report any more — an unbuildable stack refuses the shell instead.
+        response["chimneys_built"] = chimneysBuilt;
+        response["hearths_builtin"] = builtinsSkipped;
+        // Echo the fire back so a caller can assert it took: billets laid, and
+        // hearths actually burning (a hearth with fuel but no lit billet is a
+        // cold hearth, and the response must not hide that).
+        response["hearth_fuel_props"] = fuelLaid;
+        response["hearths_lit"] = hearthsLit;
         response["lights_registered"] = lightsRegistered;           // M5 lighting pass
         if (!unblockedDoors.empty())
             response["doorway_blockers_removed"] = unblockedDoors;  // M7 clearance repair

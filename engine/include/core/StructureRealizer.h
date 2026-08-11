@@ -35,6 +35,9 @@ public:
         int  floorTopMicro = 0;        ///< micro Y of the walkable finish-floor surface (story 0)
         std::vector<int> floorTopByStory;  ///< micro Y of EACH story's walkable surface (per-story)
         int  crawlHeightCubes = 0;     ///< foundation/crawlspace height below the floor
+        int  roofApexMicro = 0;        ///< the RIDGE (local micro), measured before the chimneys
+                                       ///< were painted — a stack clears the ridge, so reading the
+                                       ///< apex back off the finished canvas would measure the cap
         bool ok = false;
         std::string error;
     };

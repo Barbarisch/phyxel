@@ -903,41 +903,6 @@ int StructureGenerator::removeVoxels(ChunkManager* chunkManager, const std::vect
     return removed;
 }
 
-StructureResult StructureGenerator::planChimneyStack(int cx, int cz, int baseMicroY, int topMicroY,
-                                                     const std::string& material, int capRows) {
-    StructureResult r;
-    if (topMicroY < baseMicroY) return r;
-    // FLOOR-divide world micro -> (cube, subcube, microcube) so it's correct at negative world coords.
-    auto fdiv = [](int a, int b) { int q = a / b, m = a % b; if (m != 0 && (m < 0) != (b < 0)) --q; return q; };
-    auto fmod = [&](int a, int b) { return a - fdiv(a, b) * b; };
-    auto emit = [&](int gx, int gy, int gz) {
-        VoxelPlacement vp;
-        vp.material = material;
-        vp.level = VoxelLevel::Microcube;
-        vp.position = glm::ivec3(fdiv(gx, 9), fdiv(gy, 9), fdiv(gz, 9));
-        const int rx = fmod(gx, 9), ry = fmod(gy, 9), rz = fmod(gz, 9);
-        vp.subcubePos   = glm::ivec3(rx / 3, ry / 3, rz / 3);
-        vp.microcubePos = glm::ivec3(rx % 3, ry % 3, rz % 3);
-        r.voxels.push_back(vp);
-    };
-    const int half = 2;                              // 5-micro (~0.56 m) square stack: cx-2..cx+2
-    const int capBase = topMicroY - std::max(0, capRows) + 1;
-    for (int y = baseMicroY; y <= topMicroY; ++y) {
-        const bool cap = (y >= capBase);             // solid pot at the top (hides the flue from above)
-        for (int dx = -half; dx <= half; ++dx)
-            for (int dz = -half; dz <= half; ++dz) {
-                const bool ring = (std::abs(dx) == half || std::abs(dz) == half);  // outer wall
-                if (cap || ring) emit(cx + dx, y, cz + dz);
-                else r.clears.push_back(glm::ivec3(cx + dx, y, cz + dz));
-                // The inner 3x3 is the FLUE and must be AIR. Simply not emitting it
-                // left whatever the stack passed through — floor slab, roof deck —
-                // sitting inside the flue, so the chimney was solid where it crossed
-                // every storey. A flue that does not draw is not a flue.
-            }
-    }
-    return r;
-}
-
 int StructureGenerator::planPadLevel(std::vector<int> cellTops) {
     if (cellTops.empty()) return 0;
     std::sort(cellTops.begin(), cellTops.end());

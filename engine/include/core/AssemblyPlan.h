@@ -133,6 +133,46 @@ struct StairRecord {
     nlohmann::json toJson() const;
 };
 
+/// A realized HEARTH and its chimney stack — recorded by the realizer's hearth pass
+/// at the moment it paints (like StairRecord). A hearth is a BUILT-IN: it is part of
+/// the shell, not furniture, because it carries a flue through every floor and the
+/// roof. Footprint is in footprint-local cubes; every Y and the flue rect are in
+/// structure-local MICRO (the flue is genuinely sub-cube).
+struct HearthRecord {
+    std::string type;                ///< fireplace | forge_hearth | oven_bread
+    std::string room;                ///< owning room id
+    int story = 0;
+    int x = 0, z = 0, w = 1, d = 1;  ///< reserved footprint (cubes) — furniture keeps out
+    int rotation = 0;                ///< 0/90/180/270; the firebox opens INTO the room
+    int baseMicroY = 0;              ///< hearth base = this story's walkable surface
+    int mantelMicroY = 0;            ///< top of the hearth BODY (where the stack starts)
+    int stackTopMicroY = 0;          ///< top of the chimney cap
+    int flueX = 0, flueZ = 0;        ///< flue void min corner (structure-local micro)
+    int flueW = 0, flueD = 0;        ///< flue void size (micro)
+    int stackX = 0, stackZ = 0;      ///< stack (masonry ring) min corner (micro)
+    int stackW = 0, stackD = 0;      ///< stack size (micro)
+    int fireMicroX = 0, fireMicroY = 0, fireMicroZ = 0;   ///< flame anchor (the light's home)
+    std::string material;
+
+    // FUEL. The burning wood is NOT masonry: it is a small pile of item props
+    // the furnish pass drops into the firebox, so it can carry the flame + the
+    // firelight as declarative item effects (and therefore come back lit when
+    // the world reloads). The realizer plans it — it is the only stage that
+    // knows the firebox's clear span — and records the plan here.
+    // `fuelItem` "" = this hearth burns something that is not cordwood (the
+    // forge's charcoal, the oven's swept embers), which stays painted for now.
+    std::string fuelItem;            ///< inert billet item id ("firewood")
+    std::string fuelLitItem;         ///< the burning one ("flaming_log"); exactly ONE is placed
+    int fuelCount = 0;               ///< billets total, INCLUDING the lit one
+    int fuelMicroX = 0, fuelMicroZ = 0;   ///< pile centre (structure-local micro)
+    int fuelMicroY = 0;              ///< the firebox floor the pile rests on
+    int fuelSpanMicro = 0;           ///< clear width the pile may spread across
+    int fuelRotation = 0;            ///< billet yaw: logs lie ACROSS the opening
+
+    static HearthRecord fromJson(const nlohmann::json& j);
+    nlohmann::json toJson() const;
+};
+
 /// A fixture/furniture placement resolved to a world cell + rotation.
 struct FixturePlacement {
     std::string archetype;          ///< DimensionCanon archetype (chair_dining, ...)
@@ -160,6 +200,7 @@ struct AssemblyPlan {
     std::vector<FloorPatch>       floors;
     std::vector<OpeningCut>       openings;
     std::vector<StairRecord>      stairs;
+    std::vector<HearthRecord>     hearths;
     std::vector<CornerZone>       corners;
     std::vector<RoofPanel>        roof;
     std::vector<FixturePlacement> fixtures;
@@ -171,8 +212,10 @@ struct AssemblyPlan {
     /// "ceiling" | "foundation" | "roof" | "" (open interior/exterior space). A carved
     /// doorway/window cube answers "opening" (from the recorded clear reveal), a
     /// quoined corner cube "quoin" — both are more specific than the wall band they
-    /// sit in. Consumers should ask the anatomy — never sniff voxel materials — so
-    /// "is this a wall?" keeps working whatever the style palette.
+    /// sit in. A hearth/chimney cube answers "hearth" (it is built-in masonry, not
+    /// the floor or wall it passes through). Consumers should ask the anatomy — never
+    /// sniff voxel materials — so "is this a wall?" keeps working whatever the style
+    /// palette.
     std::string featureAt(const glm::ivec3& cubePos) const;
 
     static AssemblyPlan fromJson(const nlohmann::json& j);

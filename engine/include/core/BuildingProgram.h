@@ -76,6 +76,10 @@ struct ProgFixture {
     Rect        rect;
     std::string facing = "south";
     std::string room;            ///< owning room id (optional)
+    int         rotation = 0;    ///< engine rotation (0/90/180/270), front INTO the room. Set by the
+                                 ///< floorplan when it sites a BUILT-IN (a hearth carries a flue, so
+                                 ///< the shell must know its pose before it paints floors + roof);
+                                 ///< derived from `facing` when a hand-authored fixture omits it.
 
     static ProgFixture fromJson(const nlohmann::json& j);
     nlohmann::json toJson() const;

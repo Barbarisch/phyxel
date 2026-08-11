@@ -84,10 +84,21 @@ ProgFixture ProgFixture::fromJson(const nlohmann::json& j) {
     if (j.contains("rect")) f.rect = Rect::fromJson(j["rect"]);
     f.facing = jstr(j, "facing", "south");
     f.room = jstr(j, "room");
+    // Engine rotation convention: 0 -> front +z, 90 -> -x, 180 -> -z, 270 -> +x.
+    // World axes (docs/CoordinateSystem.md): +X = east, +Z = north. So a fixture
+    // FACING north is rotation 0. A hand-authored fixture names a compass facing
+    // instead of a number; map it so both forms reach the realizer as one value.
+    if (j.contains("rotation") && j["rotation"].is_number())
+        f.rotation = ((jint(j, "rotation", 0) % 360) + 360) % 360;
+    else
+        f.rotation = (f.facing == "west")  ? 90
+                   : (f.facing == "south") ? 180
+                   : (f.facing == "east")  ? 270 : 0;
     return f;
 }
 nlohmann::json ProgFixture::toJson() const {
-    return {{"type", type}, {"rect", rect.toJson()}, {"facing", facing}, {"room", room}};
+    return {{"type", type}, {"rect", rect.toJson()}, {"facing", facing}, {"room", room},
+            {"rotation", rotation}};
 }
 
 ProgStory ProgStory::fromJson(const nlohmann::json& j) {

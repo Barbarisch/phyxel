@@ -14,6 +14,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "core/HearthForge.h"          // isVented — the vented set belongs to the forge that vents it
 #include "core/StructureRealizer.h"   // thicknessMicro — the clamped converter the realizer built with
 #include "utils/Logger.h"
 
@@ -67,10 +68,9 @@ int passRankFromName(const std::string& s) {
 }
 
 /// True for fixtures that BURN and therefore need a flue to the outside — the
-/// subset of heavy fixtures place_chimney (#14) must serve.
-bool isVentedType(const std::string& type) {
-    return type == "fireplace" || type == "forge_hearth" || type == "oven_bread";
-}
+/// subset of heavy fixtures HearthForge builds (body + stack) into the shell.
+/// ONE definition, owned by the forge that has to vent them.
+bool isVentedType(const std::string& type) { return HearthForge::isVented(type); }
 
 int passRankFor(const std::string& type) {
     // Heavy: vented hearths + built-in millwork that defines the room's function.
@@ -234,6 +234,14 @@ std::vector<Rect> FurniturePlacer::planStairRects(const AssemblyPlan& plan, int 
     return rects;
 }
 
+std::vector<Rect> FurniturePlacer::planReservedRects(const AssemblyPlan& plan, int storyIndex) {
+    std::vector<Rect> rects = planStairRects(plan, storyIndex);
+    for (const auto& h : plan.hearths)
+        if (h.story < storyIndex && h.stackW > 0)
+            rects.push_back(HearthForge::stackCubeRect(h));
+    return rects;
+}
+
 std::vector<FurniturePlacement> FurniturePlacer::furnishFromPlan(
         const ProgStory& story, int storyIndex,
         const glm::ivec3& origin, int floorY,
@@ -243,7 +251,7 @@ std::vector<FurniturePlacement> FurniturePlacer::furnishFromPlan(
         const std::string& wealthTier) {
     return furnish(story, origin, floorY, footprints, unplaced,
                    planExteriorThicknessMicro(plan), wealthTier,
-                   planStairRects(plan, storyIndex),
+                   planReservedRects(plan, storyIndex),
                    planInteriorThicknessMicro(plan));
 }
 
@@ -354,6 +362,31 @@ FurniturePlacer::FurnitureEdit FurniturePlacer::planEdit(
     }
     e.error = "unknown op: " + op;
     return e;
+}
+
+glm::ivec3 FurniturePlacer::backDirFor(const Rect& room, const Rect& piece) {
+    glm::ivec3 bd(0);
+    if (piece.x == room.x)                       bd.x = -1;
+    else if (piece.x1() - 1 == room.x1() - 1)    bd.x = +1;
+    if (piece.z == room.z)                       bd.z = -1;
+    else if (piece.z1() - 1 == room.z1() - 1)    bd.z = +1;
+    return bd;
+}
+
+void FurniturePlacer::wallInsetsFor(const Rect& room, const Rect& footprint,
+                                    const glm::ivec3& backDir, int extTMicro, int intTMicro,
+                                    int& insetMicroX, int& insetMicroZ) {
+    insetMicroX = insetMicroZ = -1;
+    if (backDir.x != 0) {
+        const bool ext = (backDir.x < 0 && room.x == footprint.x) ||
+                         (backDir.x > 0 && room.x1() == footprint.x1());
+        insetMicroX = ext ? extTMicro : (intTMicro + 1) / 2;
+    }
+    if (backDir.z != 0) {
+        const bool ext = (backDir.z < 0 && room.z == footprint.z) ||
+                         (backDir.z > 0 && room.z1() == footprint.z1());
+        insetMicroZ = ext ? extTMicro : (intTMicro + 1) / 2;
+    }
 }
 
 int FurniturePlacer::facingIntoRoom(int inwardDx, int inwardDz) {
@@ -751,13 +784,9 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
         };
         // backDir = the OUTWARD normal of EVERY room-edge (wall) the footprint abuts (corners + interior
         // partitions included); a piece in the interior -> (0,0,0). The consumer insets off these walls.
+        // ONE definition (backDirFor) — the hearth siting pass resolves the same pose before realize.
         auto backDirOf = [&](int mnx, int mnz, int mxx, int mxz) -> glm::ivec3 {
-            glm::ivec3 bd(0);
-            if (mnx == rx)               bd.x = -1;
-            else if (mxx == rx + rw - 1) bd.x = +1;
-            if (mnz == rz)               bd.z = -1;
-            else if (mxz == rz + rd - 1) bd.z = +1;
-            return bd;
+            return backDirFor(room.rect, Rect{mnx, mnz, mxx - mnx + 1, mxz - mnz + 1});
         };
         // The TRUE cube span a piece occupies once placed (reservation == render): the footprint PLUS the
         // micro-spill from the wall-inset anchor. extTMicro==0 -> legacy (reserve the bare footprint).
@@ -801,18 +830,10 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
             // later via microWorldPos's parameter) must keep the -1 sentinel — baking
             // 0 here poisoned the fallback and embedded furniture INSIDE walls
             // (auditor-caught: MicroPlacementOverlapTest went 0 -> 234 overlaps).
-            if (extTMicro > 0) {
-                if (f.backDir.x != 0) {
-                    const bool extX = (f.backDir.x < 0 && rx == fpMinX) ||
-                                      (f.backDir.x > 0 && rx + rw == fpMaxX1);
-                    f.insetMicroX = extX ? extTMicro : (intTMicro + 1) / 2;
-                }
-                if (f.backDir.z != 0) {
-                    const bool extZ = (f.backDir.z < 0 && rz == fpMinZ) ||
-                                      (f.backDir.z > 0 && rz + rd == fpMaxZ1);
-                    f.insetMicroZ = extZ ? extTMicro : (intTMicro + 1) / 2;
-                }
-            }
+            if (extTMicro > 0)
+                wallInsetsFor(room.rect,
+                              Rect{fpMinX, fpMinZ, fpMaxX1 - fpMinX, fpMaxZ1 - fpMinZ},
+                              f.backDir, extTMicro, intTMicro, f.insetMicroX, f.insetMicroZ);
             out.push_back(f);
         };
 

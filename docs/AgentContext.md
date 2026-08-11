@@ -44,6 +44,17 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   target.) Detect by grepping the built exe for a string literal unique to your edit:
   `grep -c "my marker" build/editor/Debug/phyxel.exe`. Trace obj → lib → exe to find
   where it goes stale.
+- **Stale-OBJECT trap — the nastier sibling (2026-08-10).** Adding a FIELD to a struct in
+  a header (`ShellResult`) did NOT force every dependent TU to recompile, so objects with
+  the old layout linked against objects with the new one. The symptom is NOT "no change":
+  it is an **access violation that looks like memory corruption** — here, `~ShellResult`
+  faulting in `_Tidy_deallocate` on a `std::string` that sits after the inserted field,
+  in EVERY test touching that struct, while the function itself ran to completion. Hours
+  were lost hunting a phantom overrun. Tells: the crash is in a destructor / right after a
+  cross-TU return; moving the new field to the END of the struct "fixes" it. **Cure: after
+  a layout change, `touch` every .cpp that includes the header (`grep -rl Foo.h src tests
+  | xargs touch`) and rebuild** — if the crash vanishes with the field back in its original
+  place, it was staleness, not your code.
 - **The HTTP command queue has a 5s game-loop budget.** Heavy commands (`open_project`,
   large destruction ops) **time out the 5s wait but still complete** — re-query state,
   don't assume failure. (Reducing this for `open_project`'s heavy DB load is an open item.)
@@ -70,6 +81,13 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   genuinely doc-irrelevant change out with `[skip-docs]` in a commit message
   (or `git push --no-verify` to bypass entirely). This exists because skills/docs silently drifted
   behind engine changes (e.g. stale UI guidance).
+- **Evaluating third-party tech? Check [`EngineAdvancesResearch.md`](EngineAdvancesResearch.md)
+  first** — it is the standing home for external technique/model/library evaluations (what it is,
+  why Phyxel, adoption cost, verdict), and the candidate may already have one. Record new
+  evaluations there as a dated entry, **including rejections and the reason** — a written "no"
+  stops the next session re-deriving it. Latest: **MotionBricks — ❌ do not adopt (2026-08-10)**;
+  NVIDIA's generative motion model ships only the Unitree G1 robot skeleton and a Python/PyTorch/
+  MuJoCo runtime (no human rig, no BVH/FBX/ONNX, no C++ path) despite the site's UE5 framing.
 
 ---
 
@@ -125,6 +143,47 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 ---
 
 ## Current workstreams & roadmap (update me at session end)
+
+- **★ CHIMNEY FORGE — SHIPPED 2026-08-10 (`HearthForge`).** The chimney was the last
+  structural element built AFTER the shell: the furnish pass stamped a stack into a
+  finished building, **displacing ~600 already-built cells per tavern** (measured in
+  this repo's own log: 354 + 263 on a 2-hearth tavern). It is now part of the SHELL.
+  - **Pipeline change:** `floorplan` sites the vented built-ins as PROGRAM fixtures
+    (`StructureForge::siteHearths` → `HearthForge::siteIntoProgram`, running the SAME
+    FurniturePlacer algorithm furnish will run, so the poses cannot diverge — pinned by
+    `HearthForgeTest.SitedPoseMatchesTheFurnishPass`); `realize` paints body + stack into
+    the `MicroCanvas`; `furnish` lost the pass entirely (and its `chunkManager`).
+  - **The flue is AIR carved after the masonry**, so floor slabs and the roof deck yield
+    by construction — **displaced == 0, verified live** (no DISPLACED warning on a
+    2-hearth tavern that previously logged 617 cells).
+  - **The flue now reaches the fire.** Every preset carves a throat through the mantel;
+    the old stack sat on a SOLID template mantel, so there was no fire→cap air path at
+    all. `ChimneyIntegrityTest` proves it with a FLOOD FILL on the canvas.
+  - Hearth bodies are GENERATED from grounded presets (`object_dimensions.json` canon),
+    not spawned templates — the `fireplace`/`forge_hearth`/`oven_bread` templates still
+    exist for hand spawning but structure-gen no longer uses them.
+  - Stack columns are reserved for the storey ABOVE (both at siting and furnish time);
+    a stack that would rise through the middle of an upstairs room REFUSES the shell.
+  - `AssemblyPlan::hearths` records each one (mantel / flue rect / measured flame
+    anchor); `featureAt` answers `"hearth"`; the fire light comes from that record.
+  - **FUEL + FIRE (same day, user-directed):** the burning logs are ITEM PROPS now,
+    not painted `Log`/`glow` masonry — `firewood` + `flaming_log` fine-voxel items,
+    count scaled from the firebox depth (3 in a standard fireplace, capped at 4).
+    The flame + firelight are DECLARATIVE ITEM EFFECTS (`items.json` `effects`), the
+    torch mechanism — so a lit hearth RELIGHTS ITSELF on reload, which a build-time
+    VFX field could never do. Exactly one billet is lit: every effect light is a real
+    point light and `MAX_POINT_LIGHTS` is 32.
+    Two engine-wide defects fell out and are fixed: **(a)** every item prop was
+    takeable (`registerItemProp` always added a pickup point — the inn sign and the
+    rugs were pocketable); `ItemDefinition::fixed` now suppresses it. **(b)** item
+    props did NOT reload in place — the reload path rebuilt from the placed object's
+    INTEGER cell and never restored `localCOM`, moving the prop and mis-anchoring its
+    effects (torches and lamps too). Both paths now share
+    `ItemPropManager::buildPropGeometry`, and the exact resting pose persists as
+    metadata. Verified: fire light y 17.7447 before save == 17.7447 after cold restart.
+  - **NEXT (staged, needs a grounded archetype sheet first):** the hearth TYPOLOGY family
+    — a wide hooded INGLENOOK in stone for the tavern, brick only for later/high-status.
+    See `docs/structure-generation/ChimneyForgePlan.md` §"Then: hearth typology".
 
 - **★ CURRENT FOCUS (2026-08-06→07): ITEMS EVERYWHERE — structure gen places real item
   props; interaction polish. SHIPPED + L4-verified**, commits `908a911c`/`d279683a`/
