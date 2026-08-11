@@ -168,6 +168,18 @@ void ChunkRenderManager::blockLightAt(int x, int y, int z, uint8_t& r, uint8_t& 
     }
 }
 
+bool ChunkRenderManager::bakedLightResolvable(int x, int y, int z, BakedLight& out) const {
+    if (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32) {
+        if (m_skyLight.empty() || m_blockR.empty()) return false;
+        size_t i = static_cast<size_t>(z + y * 32 + x * 1024);
+        out.sky = m_skyLight[i];
+        out.r = m_blockR[i]; out.g = m_blockG[i]; out.b = m_blockB[i];
+        return true;
+    }
+    if (m_neighborLight) return m_neighborLight(m_lightWorldOrigin + glm::ivec3(x, y, z), out);
+    return false;
+}
+
 void ChunkRenderManager::clearForUniform() {
     // Release, don't just clear — a chunk that transitions to sealed must give back its mesh
     // memory, and a never-meshed chunk must not allocate any of this in the first place.
@@ -182,6 +194,8 @@ void ChunkRenderManager::clearForUniform() {
     std::vector<uint8_t>().swap(m_solidVis);
     std::vector<int>().swap(m_cellMat);
     std::vector<uint8_t>().swap(m_cellDamage);
+    std::vector<uint8_t>().swap(m_lightOpaque);
+    std::vector<uint16_t>().swap(m_subFill);
     std::vector<uint8_t>().swap(m_prevBorderLight);
     m_subOcc.clear();
     m_microOcc.clear();
@@ -407,6 +421,61 @@ void ChunkRenderManager::rebuildCubeFaces(
         }
     }
 
+    // --- What blocks LIGHT (m_lightOpaque; see the header for why this is NOT m_solidVis) -------
+    // Built here, between the cube scan (which fills solidVis/cellMat) and the two flood fills that
+    // consume it. Sub-voxel geometry occludes; transparent materials do not.
+    m_lightOpaque.assign(N * N * N, 0);
+    m_subFill.assign(N * N * N, 0);
+    {
+        // Sub-voxel volume per CUBE cell, in micro-equivalents. Same leaf iteration and bounds
+        // guards as buildSubMicroOccupancy, but accumulating volume instead of leaf-slot keys — so
+        // this costs one increment per leaf voxel and needs no hashing.
+        auto addFill = [&](const glm::ivec3& parentWorldPos, int amount) {
+            glm::ivec3 lp = parentWorldPos - worldOrigin;
+            if (lp.x < 0 || lp.x >= N || lp.y < 0 || lp.y >= N || lp.z < 0 || lp.z >= N) return;
+            uint16_t& f = m_subFill[cellIdx(lp.x, lp.y, lp.z)];
+            f = static_cast<uint16_t>(std::min(729, static_cast<int>(f) + amount));
+        };
+        // BILLBOARDED (leaf) sub-voxels are deliberately excluded. A canopy is thousands of leaf
+        // subcubes, so counting them would flip every forest floor from full sky to near-black in
+        // one step. Whether canopies should cast baked shade is a real look question, but it is a
+        // SEPARATE decision from "a building's roof must not leak daylight", and it deserves its own
+        // measurement. Structural sub-voxel geometry (the actual bug) occludes; foliage does not
+        // — which leaves forests exactly as they render today.
+        std::unordered_map<std::string, bool> foliageMat;   // material name -> billboarded
+        auto isFoliage = [&](const std::string& name) -> bool {
+            auto it = foliageMat.find(name);
+            if (it != foliageMat.end()) return it->second;
+            const auto* md = reg.getMaterial(name);
+            bool b = md && md->billboarded;
+            foliageMat.emplace(name, b);
+            return b;
+        };
+        for (const auto& sc : subcubes) {
+            if (!sc || sc->isBroken() || !sc->isVisible()) continue;
+            if (isFoliage(sc->getMaterialName())) continue;
+            addFill(sc->getPosition(), 27);          // one subcube = 27 microcells
+        }
+        for (const auto& mc : microcubes) {
+            if (!mc || mc->isBroken() || !mc->isVisible()) continue;
+            if (isFoliage(mc->getMaterialName())) continue;
+            addFill(mc->getParentCubePosition(), 1);
+        }
+        for (int cell = 0; cell < N * N * N; ++cell) {
+            bool blocks = solidVis[cell] != 0;
+            if (blocks) {
+                const int m = cellMat[cell];
+                // reserved bit1 = transparent (material alpha < 0.99). Glass is a window, not a
+                // wall: it must pass skylight or a glazed room bakes pitch black. Leaf materials
+                // are alpha 1.0 (they are `billboarded`, not transparent), so canopies keep casting
+                // the dappled shade they cast today.
+                if (m >= 0 && (matFaces[m].reserved & 0x2u) != 0u) blocks = false;
+            }
+            m_lightOpaque[cell] = (blocks || m_subFill[cell] >= kLightOpaqueFill) ? 1u : 0u;
+        }
+    }
+    std::vector<uint8_t>& lightOpaque = m_lightOpaque;
+
     // --- Baked skylight (Phase 1, per-chunk) ---
     // Air cells open to the top of the chunk receive full sky (15) straight down through air
     // (lossless), then light spreads to neighbouring air cells at -1 per step via BFS. Air that
@@ -441,7 +510,7 @@ void ChunkRenderManager::rebuildCubeFaces(
                 if (!columnOpenAbove(x, z)) continue;  // roofed: no direct sky into this column
                 for (int y = N - 1; y >= 0; --y) {
                     int cell = cellIdx(x, y, z);
-                    if (solidVis[cell]) break;  // blocked: cells below are not direct sky
+                    if (lightOpaque[cell]) break;  // blocked: cells below are not direct sky
                     m_skyLight[cell] = 15;
                     q.push_back(cell);
                 }
@@ -452,7 +521,7 @@ void ChunkRenderManager::rebuildCubeFaces(
         if (m_neighborLight) {
             auto seed = [&](int x, int y, int z, int ox, int oy, int oz) {
                 int cell = cellIdx(x, y, z);
-                if (solidVis[cell]) return;
+                if (lightOpaque[cell]) return;
                 BakedLight nl;
                 if (m_neighborLight(worldOrigin + glm::ivec3(x + ox, y + oy, z + oz), nl) && nl.sky > 1) {
                     uint8_t v = static_cast<uint8_t>(nl.sky - 1);
@@ -480,7 +549,7 @@ void ChunkRenderManager::rebuildCubeFaces(
                 int nx = cx + ndx[d], ny = cy + ndy[d], nz = cz + ndz[d];
                 if (nx < 0 || nx >= N || ny < 0 || ny >= N || nz < 0 || nz >= N) continue;
                 int ncell = cellIdx(nx, ny, nz);
-                if (solidVis[ncell]) continue;  // opaque blocks light
+                if (lightOpaque[ncell]) continue;  // opaque blocks light
                 uint8_t nl = static_cast<uint8_t>(level - 1);
                 if (m_skyLight[ncell] < nl) {
                     m_skyLight[ncell] = nl;
@@ -563,7 +632,7 @@ void ChunkRenderManager::rebuildCubeFaces(
         if (m_neighborLight) {
             auto seed = [&](int x, int y, int z, int ox, int oy, int oz) {
                 int cell = cellIdx(x, y, z);
-                if (solidVis[cell]) return;
+                if (lightOpaque[cell]) return;
                 BakedLight nl;
                 if (m_neighborLight(worldOrigin + glm::ivec3(x + ox, y + oy, z + oz), nl)) {
                     bump(cell, nl.r > 0 ? nl.r - 1 : 0, nl.g > 0 ? nl.g - 1 : 0, nl.b > 0 ? nl.b - 1 : 0);
@@ -590,7 +659,7 @@ void ChunkRenderManager::rebuildCubeFaces(
                 int nx = cx + ndx[d], ny = cy + ndy[d], nz = cz + ndz[d];
                 if (nx < 0 || nx >= N || ny < 0 || ny >= N || nz < 0 || nz >= N) continue;
                 int ncell = cellIdx(nx, ny, nz);
-                if (solidVis[ncell]) continue;  // light fills air, blocked by opaque
+                if (lightOpaque[ncell]) continue;  // light fills air, blocked by opaque
                 bump(ncell, pr, pg, pb);
             }
         }
@@ -790,14 +859,33 @@ void ChunkRenderManager::rebuildCubeFaces(
                                 glm::ivec3 us = (vid & 1) ? uD : -uD;
                                 glm::ivec3 vs = (vid & 2) ? vD : -vD;
                                 const glm::ivec3 c[4] = { A, A + us, A + vs, A + us + vs };
-                                int sSum = 0, rSum = 0, gSum = 0, bSum = 0;
+                                // Average only the samples that are REAL. An out-of-chunk cell with
+                                // no baked neighbour is unknown, and skyLightAt()'s optimistic
+                                // "open sky" guess used to be averaged in as 15 — which stamped up
+                                // to 11/15 skylight onto interior faces at a chunk seam whose bake
+                                // was 0, i.e. AO inverted into a bright halo exactly where it
+                                // should darken. Skipping the unknown samples clamps the average to
+                                // what this chunk can actually see. See bakedLightResolvable().
+                                int sSum = 0, rSum = 0, gSum = 0, bSum = 0, n = 0;
                                 for (int j = 0; j < 4; ++j) {
-                                    sSum += skyLightAt(c[j].x, c[j].y, c[j].z) & 0xF;
-                                    uint8_t r = 0, gg = 0, bb = 0;
-                                    blockLightAt(c[j].x, c[j].y, c[j].z, r, gg, bb);
-                                    rSum += r; gSum += gg; bSum += bb;
+                                    BakedLight bl{};
+                                    if (!bakedLightResolvable(c[j].x, c[j].y, c[j].z, bl)) continue;
+                                    sSum += bl.sky & 0xF;
+                                    rSum += bl.r; gSum += bl.g; bSum += bl.b;
+                                    ++n;
                                 }
-                                skyC[vid] = sSum / 4; rC[vid] = rSum / 4; gC[vid] = gSum / 4; bC[vid] = bSum / 4;
+                                if (n > 0) {
+                                    skyC[vid] = sSum / n; rC[vid] = rSum / n;
+                                    gC[vid] = gSum / n; bC[vid] = bSum / n;
+                                } else {
+                                    // Nothing resolvable at all (the face's own air cell is across
+                                    // an unloaded seam): fall back to the optimistic primary sample
+                                    // so an exterior face does not go black waiting for a stream-in.
+                                    skyC[vid] = skyLightAt(A.x, A.y, A.z) & 0xF;
+                                    uint8_t r = 0, gg = 0, bb = 0;
+                                    blockLightAt(A.x, A.y, A.z, r, gg, bb);
+                                    rC[vid] = r; gC[vid] = gg; bC[vid] = bb;
+                                }
                             } else {
                                 skyC[vid] = skyLightAt(A.x, A.y, A.z) & 0xF;
                                 uint8_t r = 0, gg = 0, bb = 0;

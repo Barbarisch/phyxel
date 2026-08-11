@@ -315,12 +315,42 @@ private:
     // Block light colour of the air cell at local (x,y,z); 0 if out of chunk bounds (no source).
     void blockLightAt(int x, int y, int z, uint8_t& r, uint8_t& g, uint8_t& b) const;
 
+    // Baked light at a cell WITHOUT inventing an answer: true only when the value is real (in this
+    // chunk, or resolved from a baked neighbour). skyLightAt() deliberately guesses "open sky" for
+    // an unresolved cell, which is the right optimism for a face's own air cell — a chunk-edge
+    // exterior face must not go black just because the neighbour has not streamed in. It is the
+    // WRONG answer for the per-corner AO average, which samples cells in the air cell's plane:
+    // those guesses pulled full daylight onto interior faces at a chunk seam (measured 11/15 on a
+    // floor whose bake was 0), inverting AO into a bright halo. The corner average therefore uses
+    // this and skips what it cannot resolve.
+    bool bakedLightResolvable(int x, int y, int z, BakedLight& out) const;
+
     // Reused scratch buffers for rebuildCubeFaces occupancy (32x32x32). Promoted from per-call
     // locals to members + .assign() (like m_skyLight) to avoid a heap alloc/free of ~190KB on
     // every chunk rebuild — meaningful on streaming/edit-heavy scenes.
     std::vector<uint8_t> m_solidVis;    // 1 = a visible cube occupies the cell
     std::vector<int>     m_cellMat;     // index into the per-rebuild matFaces table (-1 = none)
     std::vector<uint8_t> m_cellDamage;  // quantized 0-15 voxel damage (roughness driver)
+
+    // --- What blocks LIGHT (deliberately not m_solidVis) ---
+    // m_solidVis answers "is there a visible cube here" and drives face culling + material lookup;
+    // it must not be repurposed. Light opacity differs from it in two directions:
+    //   * sub-voxel geometry OCCLUDES. m_solidVis is cube-only, so a wall or roof built at subcube
+    //     or microcube resolution used to be invisible to the light flood fill — a subcube-roofed
+    //     room baked as if it had no roof. Structure generation builds heavily at sub-voxel
+    //     resolution, so this leaked daylight through geometry the player sees as solid.
+    //   * TRANSPARENT materials do NOT occlude. Glass was blocking skylight completely, so a glazed
+    //     room baked pitch dark.
+    // Pinned by tests/graphics/LightBakeOcclusionTest.cpp.
+    std::vector<uint8_t>  m_lightOpaque;  // 1 = blocks skylight and block light
+    // Sub-voxel fill per cell in MICRO-equivalents (a subcube = 27, a microcube = 1, full = 729).
+    // A cell counts as light-opaque at or above kLightOpaqueFill: the volume of one full
+    // subcube-thick slab (243 = 729/3), which is what a 1-subcube wall or roof actually occupies.
+    // Chosen over a slab-shape test because it is one counter per cell instead of a 27-bit mask,
+    // and it errs toward DARKER interiors (a scattered third-full cell blocks) — the safe direction.
+    // A single decorative subcube (27) or a 1-microcube-thick trim course (81) stays transparent.
+    std::vector<uint16_t> m_subFill;
+    static constexpr uint16_t kLightOpaqueFill = 243;  // 729 / 3 = one subcube-thick slab
 
     // --- Sub/microcube hidden-face culling (Phase 1) ---
     // Occupancy of the chunk's leaf subcubes/microcubes, rebuilt once per rebuildAllFaces straight

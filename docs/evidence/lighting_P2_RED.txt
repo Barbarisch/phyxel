@@ -1,0 +1,40 @@
+Running main() from G:\Github\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+[32m[14:13:04.795] [INFO] [MaterialRegistry] Loaded 103 materials (618 texture slots) from resources/materials.json[0m
+[32m[14:13:04.850] [INFO] [MaterialRegistry] Loaded 103 materials (618 texture slots) from resources/materials.json[0m
+[32m[14:13:04.904] [INFO] [MaterialRegistry] Loaded 103 materials (618 texture slots) from resources/materials.json[0m
+G:\Github\phyxel\tests\graphics\LightBakeOcclusionTest.cpp(190): error: Expected equality of these values:
+  bakeAndProbeCentre(Roof::Subcubes, crm)
+    Which is: '\xF' (15)
+  0u
+    Which is: 0
+A fully-packed subcube roof fills the same volume as a cube roof; it must block skylight identically. See D5 in the lighting revamp plan.
+
+[  FAILED  ] LightBakeOcclusion.SubcubeRoofOccludesSkylight (56 ms)
+[32m[14:13:04.961] [INFO] [MaterialRegistry] Loaded 103 materials (618 texture slots) from resources/materials.json[0m
+G:\Github\phyxel\tests\graphics\LightBakeOcclusionTest.cpp(199): error: Expected equality of these values:
+  bakeAndProbeCentre(Roof::Microcubes, crm)
+    Which is: '\xF' (15)
+  0u
+    Which is: 0
+A fully-packed microcube roof fills the same volume as a cube roof; it must block skylight identically. See D5 in the lighting revamp plan.
+
+[  FAILED  ] LightBakeOcclusion.MicrocubeRoofOccludesSkylight (105 ms)
+[32m[14:13:05.067] [INFO] [MaterialRegistry] Loaded 103 materials (618 texture slots) from resources/materials.json[0m
+G:\Github\phyxel\tests\graphics\LightBakeOcclusionTest.cpp(215): error: Expected: (bakeAndProbeCentre(Roof::Glass, crm)) > (0u), actual: '\0' vs 0
+Skylight must pass through a transparent roof. See D5 in the lighting revamp plan.
+
+[  FAILED  ] LightBakeOcclusion.GlassRoofAdmitsSkylight (55 ms)
+[32m[14:13:05.121] [INFO] [MaterialRegistry] Loaded 103 materials (618 texture slots) from resources/materials.json[0m
+G:\Github\phyxel\tests\graphics\LightBakeOcclusionTest.cpp(271): error: Expected equality of these values:
+  offenders
+    Which is: 15
+  0
+15 of 16 interior floor faces carry skylight (worst corner 11/15). An out-of-chunk sample that cannot be resolved must not default to full daylight. See D6 in the lighting revamp plan.
+
+[  FAILED  ] LightBakeOcclusion.ChunkEdgeInteriorFacesDoNotReadFullSky (54 ms)
+[==========] 6 tests from 1 test suite ran. (383 ms total)
+[  PASSED  ] 2 tests.
+
+================================================================================
+GREEN after P2 (sub-voxel + transparent light opacity, resolvable-only corner AO)
+================================================================================
