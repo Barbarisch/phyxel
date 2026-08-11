@@ -40,6 +40,20 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     // border fade IS the cascade blend, and mid-only casters can never vanish up close.
     mat4 biasedLightSpaceNear;
     vec4 shadowCascadeNear;   // x = range end (0 = off), y = near depthRange, z = blend halfwidth
+    mat4 lightSpaceMatrixNear;      // (prefix padding to reach the atmosphere fields below)
+    mat4 biasedLightSpaceFar;
+    vec4 shadowCascadeFar;
+    mat4 lightSpaceMatrixFar;
+    // ---- Atmosphere-derived lighting + exposure (2026-08-10) --------------------------------
+    // The sky is a physical scattering model now, so these come from the SAME transmittance as the
+    // sun's disc and colour. exposure converts radiance to something a display can show at all.
+    vec3 ambientColor;
+    vec3 hazeHorizonColor;
+    vec3 hazeZenithColor;
+    vec3 moonDirection;
+    vec3 moonColor;
+    float exposure;
+    int   tonemapCurve;
 } ubo;
 
 layout(set = 0, binding = 1) uniform sampler2DArray textureArray;     // class 0 albedo: 512px
@@ -188,9 +202,17 @@ vec3 pbrBRDF(vec3 N, vec3 V, vec3 L, vec3 albedo, float rough, float metallic, v
     // (metal/gold, low roughness) keep their FULL specular glare. Clean matte/glossy separation.
     spec *= 1.0 - smoothstep(0.55, 0.95, rough);
     vec3 kd = (vec3(1.0) - F) * (1.0 - metallic);  // metals have no diffuse lobe
-    // NOTE: diffuse 1/pi omitted on purpose — light intensities are authored for the prior
-    // (non-PBR) model, so this keeps brightness parity while adding GGX specular + normal maps.
-    vec3 diffuse = kd * albedo;
+    // The Lambert 1/pi is RESTORED (2026-08-10). It used to be omitted deliberately, and the reason
+    // given was sound at the time: "light intensities are authored for the prior (non-PBR) model, so
+    // this keeps brightness parity". That rationale expired the moment the sun's colour and intensity
+    // started coming from a physical scattering model (graphics/Atmosphere.h) — the sky is radiance
+    // and the surfaces were pi times too bright relative to it, which showed up immediately as a
+    // correct-looking sky above a washed-out world. A compensation for a problem that no longer
+    // exists is just an error.
+    // ⚠️ Point/spot light intensities WERE authored against the un-normalised term, so they are now
+    // pi times dimmer and need retuning along with the fixture photometry work.
+    const float kInvPi = 0.31830989;
+    vec3 diffuse = kd * albedo * kInvPi;
     return (diffuse + spec) * radiance * ndl;
 }
 
@@ -321,7 +343,7 @@ void main() {
         vec3 tint = vBlockColor;
         float m = max(tint.r, max(tint.g, max(tint.b, 0.001)));
         tint = (m > 0.05) ? tint / m : vec3(1.0);  // hue only; fall back to white if unknown
-        outColor = vec4(albedo * ubo.emissiveMultiplier * tint, textureColor.a);
+        outColor = vec4(phxTonemap(albedo * ubo.emissiveMultiplier * tint, ubo.exposure, ubo.tonemapCurve), textureColor.a);
         return;
     }
 
@@ -334,13 +356,27 @@ void main() {
     // Sky ambient = soft FILL (never the key light), hemispherical and gated by baked
     // skylight. Model + constants: lighting.glsl.
     float skyCurve = phxSkyGate(vSkyLight);
-    vec3  color = phxAmbient(N, vSkyLight, ubo.ambientLight) * albedo;
+    vec3  color = phxAmbientAtmos(N, vSkyLight, ubo.ambientColor) * albedo;
 
     // Sun (directional) — the KEY light. Cook-Torrance, N·L shading, shadow-mapped. Gated by
     // sky access (curved) so surfaces with no sky exposure don't receive direct sun. This is
     // what casts shadows across the scene whenever the sun isn't directly overhead.
     vec3 sunL = normalize(-ubo.sunDirection);
     color += pbrBRDF(N, V, sunL, albedo, rough, metallic, ubo.sunColor) * shadowFactor * skyCurve;
+
+    // Moonlight — the same directional model, fed by the atmosphere's phase-scaled moonlight colour,
+    // so a new moon contributes literally nothing and a full moon reads clearly. Without this the
+    // night sky was rendered but the WORLD was not lit by it: measured at 98% of the frame crushed to
+    // black, with a full moon and a new moon producing identical frames.
+    // ⚠️ Deliberately NOT multiplied by shadowFactor. The shadow cascades are fitted to the SUN's
+    // direction, so at night that map describes a light source below the horizon and applying it to
+    // the moon would stamp sun-shaped shadows from the wrong direction. Unshadowed moonlight is the
+    // standard approximation and it is dim enough (~3.5% of sunlight) to be unobjectionable; fitting
+    // the cascades to whichever body is dominant is the follow-up that earns real moon shadows.
+    if (ubo.moonColor.b > 0.0) {
+        color += pbrBRDF(N, V, normalize(-ubo.moonDirection), albedo, rough, metallic,
+                         ubo.moonColor) * skyCurve;
+    }
 
     // Baked COLOURED block light from emissive voxels (torches/glow/crystals). Omnidirectional
     // fill (the bake stores no direction, like a lightmap) carrying each source's own colour, so a
@@ -395,11 +431,11 @@ void main() {
 
     // Aerial perspective (shared curve - lighting.glsl). inWorldPos is ALREADY
     // camera-relative in this pass, so it IS the camera->fragment vector.
-    color = phxAerialPerspective(color, inWorldPos, ubo.sunDirection, ubo.sunColor);
+    color = phxAerialPerspective(color, inWorldPos, ubo.sunDirection, ubo.sunColor, ubo.hazeHorizonColor, ubo.hazeZenithColor);
 
     // Debug view 2 is the GRASS WIND ramp. Everything that is not grass must go flat and
     // dark, or the shadow-only view underneath drowns the signal it exists to show.
     if (ubo.debugShadowMode == 2) { outColor = vec4(0.05, 0.05, 0.06, 1.0); return; }
     if (ubo.debugShadowMode == 1) { outColor = phxShadowOnly(shadowFactor); return; }
-    outColor = vec4(color, textureColor.a);
+    outColor = vec4(phxTonemap(color, ubo.exposure, ubo.tonemapCurve), textureColor.a);
 }

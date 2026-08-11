@@ -49,6 +49,12 @@ void DayNightCycle::setDayLengthSeconds(float seconds) {
     m_dayLengthSeconds = std::max(1.0f, seconds);
 }
 
+float DayNightCycle::getMoonIlluminatedFraction() const {
+    // Same closed form as Atmosphere::moonIlluminatedFraction, and it must stay the same: the light
+    // the moon casts and the lit area drawn on its disc have to agree.
+    return 0.5f * (1.0f - std::cos(glm::two_pi<float>() * m_moonPhase01));
+}
+
 void DayNightCycle::recalculate() {
     // Sun angle: 0h = midnight (below horizon), 6h = dawn, 12h = noon, 18h = dusk
     float hourAngle = (m_timeOfDay / 24.0f) * glm::two_pi<float>() - glm::half_pi<float>();
@@ -60,6 +66,23 @@ void DayNightCycle::recalculate() {
 
     // Sun travels east to west (positive X at dawn, negative X at dusk)
     m_sunDirection = glm::normalize(glm::vec3(-sunXZ * 0.7f, -sunY, -sunXZ * 0.3f));
+
+    // ---- Moon: same swing plane, LAGGING the sun by the phase angle -----------------------------
+    // Phase comes from the day number over WorldClock's 28-day lunar cycle, and the moon's position
+    // is the sun's hour angle minus 2*pi*phase. That one subtraction gives correct behaviour for
+    // free: at phase 0 (new) the moon sits with the sun and is invisible; at phase 0.5 (full) it is
+    // half a cycle behind, i.e. 180 degrees away, so it rises exactly as the sun sets. Nothing
+    // scripts that — it is where the geometry puts it. The renderer's disc shading then derives the
+    // terminator from this direction versus the sun's, so the drawn phase always matches the orbit.
+    constexpr int kLunarCycleDays = 28;   // matches Core::LUNAR_CYCLE_DAYS (WorldClock.h)
+    {
+        const int dayInCycle = ((m_dayNumber % kLunarCycleDays) + kLunarCycleDays) % kLunarCycleDays;
+        m_moonPhase01 = static_cast<float>(dayInCycle) / static_cast<float>(kLunarCycleDays);
+        const float moonHourAngle = hourAngle - glm::two_pi<float>() * m_moonPhase01;
+        const float moonY  = std::sin(moonHourAngle);
+        const float moonXZ = std::cos(moonHourAngle);
+        m_moonDirection = glm::normalize(glm::vec3(-moonXZ * 0.7f, -moonY, -moonXZ * 0.3f));
+    }
 
     // Sun elevation factor: 0 when below horizon, 1 at zenith
     float elevation = std::max(0.0f, sunY);

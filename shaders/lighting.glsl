@@ -32,6 +32,21 @@ const vec3  kGroundTint   = vec3(1.06, 0.94, 0.78);   // warm earth/foliage boun
 const float kSkyFill      = 0.50;   // sky ambient as a fraction — FILL, never the key light
 const float kAmbientFloor = 0.05;   // keeps sealed cells off pure black before block light
 
+// ---- Atmosphere-driven ambient (phxAmbientAtmos) ----------------------------------------------
+// Separate constants from the legacy pair above, because these multiply a PHYSICAL sky radiance
+// rather than a 0..1 strength scalar, so the numbers are not comparable and sharing them would be a
+// trap. The fill is deliberately near 1.0: the sky's own radiance already carries the right
+// magnitude, and scaling it down was how the old model ended up needing a separate brightness knob.
+const float kSkyFillAtmos     = 1.00;
+// Ground bounce: the sky reflected off the world. 0.30 is a reasonable mid albedo for grass, dirt
+// and stone, and it is deliberately NOT re-tinted — the hue comes from the scattering model.
+const float kGroundBounce     = 0.30;
+// A sealed cell with no block light still gets a whisper of the sky rather than absolute black, at a
+// far lower level than the legacy 0.05 flat term because interiors are now genuinely dark (the light
+// bake stopped leaking daylight) and this is the only thing standing between a windowless room and
+// pure void. Scaled BY the sky colour, so it vanishes at night instead of glowing on forever.
+const float kAmbientFloorAtmos = 0.02;
+
 // Aerial perspective. Identical in every pass or the near/far handoff becomes a colour wall.
 const float kHazeDensity  = 0.00052;
 const float kHazeMax      = 0.72;
@@ -59,6 +74,20 @@ vec3 phxAmbient(vec3 N, float skyLight, float ambientStrength) {
     float fill     = ambientStrength * skyCurve * kSkyFill;
     vec3  tint     = mix(kGroundTint, kSkyTint, clamp(N.y * 0.5 + 0.5, 0.0, 1.0));
     return fill * tint + kAmbientFloor;
+}
+
+/// Hemispherical fill driven by the ATMOSPHERE instead of a constant tint pair. `skyColor` is
+/// Atmosphere::skyIrradiance for the current sun, so the fill is cool blue by day, warm at sunset
+/// and near-black at night WITHOUT a separate ramp — and shadows inherit the sky's colour, which is
+/// the single biggest ingredient in light reading as natural.
+///
+/// The ground term is the sky bounced off the world: same colour, dimmer and warmer. Nothing here
+/// re-tints for taste; the hue comes from the scattering model.
+vec3 phxAmbientAtmos(vec3 N, float skyLight, vec3 skyColor) {
+    float skyCurve = skyLight * skyLight;
+    float up = clamp(N.y * 0.5 + 0.5, 0.0, 1.0);
+    vec3 ground = skyColor * kGroundBounce;
+    return mix(ground, skyColor, up) * (skyCurve * kSkyFillAtmos) + skyColor * kAmbientFloorAtmos;
 }
 
 /// The sun's sky-access gate. Surfaces with no sky exposure receive no direct sun.
@@ -180,12 +209,104 @@ vec4 phxShadowOnly(float shadowFactor) {
 ///              camera-relative (so the fragment position IS this vector) while the far passes
 ///              are world-space (so it is worldPos - cameraWorld). Getting that wrong measures
 ///              distance from the world origin and washes distant content white.
-vec3 phxAerialPerspective(vec3 color, vec3 camToFrag, vec3 sunDir, vec3 sunColor) {
+/// `hazeHorizon` / `hazeZenith` are Atmosphere::hazeHorizon/hazeZenith — the SKY's own radiance
+/// looking level and looking up. Blending between them by view-direction Y means distant geometry
+/// fades into the colour of the sky actually behind it, at every time of day, instead of toward a
+/// fixed pale blue that was right at noon and wrong at dusk. It is also what unifies the render
+/// tiers: near voxels, far terrain tiles and instanced far trees all inherit the same curve, so the
+/// handoff between them reads as air rather than as a colour step.
+vec3 phxAerialPerspective(vec3 color, vec3 camToFrag, vec3 sunDir, vec3 sunColor,
+                          vec3 hazeHorizon, vec3 hazeZenith) {
     float dist = length(camToFrag);
+    vec3  dir  = camToFrag / max(dist, 1e-4);
     float haze = 1.0 - exp(-dist * kHazeDensity);
-    float sunAmt = pow(max(dot(camToFrag / max(dist, 1.0), normalize(-sunDir)), 0.0), 8.0);
-    vec3  hazeCol = mix(kHazeColor, sunColor * 0.85, sunAmt * 0.5);
+    float sunAmt = pow(max(dot(dir, normalize(-sunDir)), 0.0), 8.0);
+    // Looking up sees the zenith end; looking level or down sees the horizon end.
+    vec3 hazeCol = mix(hazeHorizon, hazeZenith, clamp(dir.y, 0.0, 1.0));
+    // Forward Mie: looking toward the sun, the haze takes the sun's own colour.
+    hazeCol = mix(hazeCol, sunColor * 0.85, sunAmt * 0.5);
     return mix(color, hazeCol, haze * kHazeMax);
+}
+
+// ---- Exposure + tone mapping ------------------------------------------------------------------
+// WHY THIS LIVES HERE AND WHY IT IS SUDDENLY REQUIRED. The sky became a physical scattering model
+// (atmosphere.glsl), and a physical model returns RADIANCE: a noon sky is around 0.02 and a lit
+// diffuse surface around 0.1. The flat clear colour it replaced was a display-referred 0.45-0.95.
+// Sending radiance straight to an 8-bit display therefore produced a nearly black frame — measured,
+// not guessed. Exposure is the unit conversion that makes the model viewable, and a tone curve is
+// what stops the parts that ARE bright (the sun's disc, a hearth) from clipping to flat white.
+//
+// Clipping is not a cosmetic problem. A clipped pixel carries NO shading information, so a frame
+// full of them reads as flat no matter how good the lighting behind it is — measured at 29.7% of a
+// hearth-lit room's interior before this existed.
+//
+// AgX, not ACES: ACES desaturates bright colours toward white, which is exactly the "washed out"
+// look this work is trying to remove, and it would bleach the warm sun and firelight that the
+// atmosphere model works hard to produce. AgX keeps hue into the highlights.
+//
+// ⚠️ STAGING NOTE. Ideally this runs ONCE in a post-process grade pass, not per scene shader. It is
+// here because the editor viewport samples the RAW offscreen scene image and never sees the
+// swapchain post-process pass — the documented reason bloom, SSAO and the old Reinhard tonemap were
+// all disabled and shipped broken in packaged games. Until that grade pass exists, tonemapping in
+// the scene shaders is the only form of it an author can actually SEE. The function lives in one
+// file so moving it later is a deletion, not a rewrite.
+
+// AgX log-encoding range, in stops. The ~16.5-stop span is the reference AgX configuration.
+const float kAgxMinEv = -12.47393;
+const float kAgxMaxEv =   4.026069;
+
+// AgX does its curve in slightly rotated ("inset") primaries and rotates back out afterwards. THAT
+// is where the hue preservation comes from: a per-channel sigmoid applied in the render primaries
+// skews hues as it compresses (bright orange drifts yellow, bright blue drifts cyan), and the inset
+// keeps the three channels from separating. Values are the reference AgX minimal matrices; GLSL mat3
+// constructors take COLUMNS.
+const mat3 kAgxInset = mat3(
+    0.8566271533,  0.0951212405,  0.0482516061,
+    0.1373189729,  0.7612419906,  0.1014390365,
+    0.1118982130,  0.0767994186,  0.8113023684);
+const mat3 kAgxOutset = mat3(
+     1.1271005818, -0.1106066431, -0.0164939387,
+    -0.1413297635,  1.1578237022, -0.0164939387,
+    -0.1413297635, -0.1106066431,  1.2519364066);
+
+/// 6th-order polynomial fit of the AgX sigmoid — cheaper than the piecewise original and visually
+/// indistinguishable across the encoded range.
+vec3 phxAgxContrast(vec3 x) {
+    vec3 x2 = x * x;
+    vec3 x4 = x2 * x2;
+    return  15.5     * x4 * x2
+          - 40.14    * x4 * x
+          + 31.96    * x4
+          -  6.868   * x2 * x
+          +  0.4298  * x2
+          +  0.1191  * x
+          -  0.00232;
+}
+
+/// Apply exposure and the selected tone curve, returning a LINEAR value.
+///   curve 0 = none (raw linear x exposure — the A/B control, and the old look)
+///   curve 1 = AgX
+/// ⚠️ Returns LINEAR, not display-encoded. The scene target is linear and the sRGB encode happens in
+/// hardware at the swapchain, so AgX's display-referred output is converted back with the 2.2 power
+/// at the end. Dropping that step double-gammas the frame and washes it out — the exact bug that
+/// once shipped in packaged games.
+vec3 phxTonemap(vec3 color, float exposure, int curve) {
+    color = max(color * exposure, vec3(0.0));
+    if (curve == 0) return color;
+
+    vec3 v = kAgxInset * color;
+    v = clamp(log2(max(v, vec3(1e-10))), vec3(kAgxMinEv), vec3(kAgxMaxEv));
+    v = (v - kAgxMinEv) / (kAgxMaxEv - kAgxMinEv);
+    v = clamp(phxAgxContrast(v), vec3(0.0), vec3(1.0));
+
+    // A modest saturation lift: the sigmoid desaturates slightly by construction and voxel albedo is
+    // already flat-ish, so pulling a little colour back keeps materials reading as materials. Kept
+    // small deliberately — this is the knob that turns "filmic" into "cartoon".
+    float luma = dot(v, vec3(0.2126, 0.7152, 0.0722));
+    v = luma + (v - luma) * 1.10;
+
+    v = kAgxOutset * v;
+    return pow(max(v, vec3(0.0)), vec3(2.2));   // display-referred -> LINEAR
 }
 
 #endif // PHYXEL_LIGHTING_GLSL

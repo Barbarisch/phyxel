@@ -24,6 +24,11 @@ public:
     bool createOITPipeline(VkRenderPass oitRenderPass); // Weighted Blended OIT transparent pass
     bool createMirrorPipeline(VkRenderPass sceneRenderPass); // Reflective mirror surface pass
     bool createReflectionScenePipeline(VkRenderPass sceneRenderPass); // Scene rendered from reflected camera (BACK_BIT cull)
+    /// Atmospheric sky + sun + moon (shaders/sky.{vert,frag}, model in shaders/atmosphere.glsl).
+    /// Drawn FIRST in the scene pass with depth test and write DISABLED, so it fills the frame and
+    /// geometry simply draws over it — which also retires the flat clear colour that used to stand in
+    /// for a sky. Uses push constants only and binds NO descriptor sets.
+    bool createSkyPipeline(VkRenderPass sceneRenderPass);
     void updateMirrorReflectionDescriptor(VkImageView reflectionView, VkSampler reflectionSampler);
     void cleanup();
 
@@ -54,6 +59,20 @@ public:
     VkPipeline getMirrorPipeline() const { return mirrorPipeline; }
     VkPipeline getReflectionScenePipeline() const { return reflectionScenePipeline; }
     VkPipelineLayout getMirrorPipelineLayout() const { return mirrorPipelineLayout; }
+    VkPipeline       getSkyPipeline() const { return skyPipeline; }
+    VkPipelineLayout getSkyPipelineLayout() const { return skyPipelineLayout; }
+
+    /// Push-constant block for the sky pass. Mirrors the `SkyPush` block in sky.vert / sky.frag —
+    /// keep the two in step. 80 bytes, well inside the 128-byte guaranteed minimum.
+    /// ⚠️ toSun / toMoon point TOWARD the body. `ubo.sunDirection` is the opposite (the direction
+    /// light travels); handing that over unflipped renders a permanent midnight.
+    struct SkyPushConstants {
+        glm::vec4 camRight;    // xyz = right * tan(fovX/2);  w = camera altitude in METRES
+        glm::vec4 camUp;       // xyz = up * tan(fovY/2), signed so it carries the Vulkan Y flip
+        glm::vec4 camForward;  // xyz = unit forward
+        glm::vec4 toSun;
+        glm::vec4 toMoon;
+    };
     VkDescriptorSet getMirrorReflectionDescriptorSet() const { return mirrorReflectionDescriptorSet; }
     VkPipelineLayout getGraphicsLayout() const { return pipelineLayout; }
     VkPipelineLayout getCharacterLayout() const { return characterPipelineLayout; }
@@ -89,6 +108,12 @@ private:
     VkDescriptorSetLayout mirrorReflectionDescSetLayout = VK_NULL_HANDLE; // set 1: reflection sampler
     VkDescriptorPool mirrorDescriptorPool = VK_NULL_HANDLE;
     VkDescriptorSet mirrorReflectionDescriptorSet = VK_NULL_HANDLE; // single, not per-frame
+
+    // Sky / atmosphere pass. Push-constants only — no descriptor sets, no vertex or index buffer.
+    VkPipeline       skyPipeline = VK_NULL_HANDLE;
+    VkPipelineLayout skyPipelineLayout = VK_NULL_HANDLE;
+    VkShaderModule   skyVertShaderModule = VK_NULL_HANDLE;
+    VkShaderModule   skyFragShaderModule = VK_NULL_HANDLE;
 
     // Descriptor set layouts
     VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;

@@ -801,6 +801,22 @@ void RenderPipeline::cleanup() {
         vkDestroyPipeline(device, reflectionScenePipeline, nullptr);
         reflectionScenePipeline = VK_NULL_HANDLE;
     }
+    if (skyPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, skyPipeline, nullptr);
+        skyPipeline = VK_NULL_HANDLE;
+    }
+    if (skyVertShaderModule != VK_NULL_HANDLE) {
+        vkDestroyShaderModule(device, skyVertShaderModule, nullptr);
+        skyVertShaderModule = VK_NULL_HANDLE;
+    }
+    if (skyFragShaderModule != VK_NULL_HANDLE) {
+        vkDestroyShaderModule(device, skyFragShaderModule, nullptr);
+        skyFragShaderModule = VK_NULL_HANDLE;
+    }
+    if (skyPipelineLayout != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(device, skyPipelineLayout, nullptr);
+        skyPipelineLayout = VK_NULL_HANDLE;
+    }
     if (mirrorPipeline != VK_NULL_HANDLE) {
         vkDestroyPipeline(device, mirrorPipeline, nullptr);
         mirrorPipeline = VK_NULL_HANDLE;
@@ -1535,6 +1551,133 @@ void RenderPipeline::bindMirrorPipeline(VkCommandBuffer commandBuffer, uint32_t 
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
             mirrorPipelineLayout, 1, 1, &mirrorReflDescSet, 0, nullptr);
     }
+}
+
+bool RenderPipeline::createSkyPipeline(VkRenderPass sceneRenderPass) {
+    VkDevice device = vulkanDevice.getDevice();
+
+    auto vertCode = Utils::readFile("shaders/sky.vert.spv");
+    auto fragCode = Utils::readFile("shaders/sky.frag.spv");
+    if (vertCode.empty() || fragCode.empty()) {
+        // build_shaders.bat is an EXPLICIT list of files, not a glob — a shader added to the repo but
+        // not to that list produces exactly this, and the symptom (no sky) looks like a logic bug.
+        LOG_ERROR("RenderPipeline", "Failed to load sky.vert.spv / sky.frag.spv (is sky.* in build_shaders.bat?)");
+        return false;
+    }
+    if (skyVertShaderModule != VK_NULL_HANDLE) {
+        vkDestroyShaderModule(device, skyVertShaderModule, nullptr);
+        skyVertShaderModule = VK_NULL_HANDLE;
+    }
+    if (skyFragShaderModule != VK_NULL_HANDLE) {
+        vkDestroyShaderModule(device, skyFragShaderModule, nullptr);
+        skyFragShaderModule = VK_NULL_HANDLE;
+    }
+    skyVertShaderModule = createShaderModule(vertCode);
+    skyFragShaderModule = createShaderModule(fragCode);
+
+    // --- Layout: push constants only. No descriptor sets at all. ---
+    if (skyPipelineLayout != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(device, skyPipelineLayout, nullptr);
+        skyPipelineLayout = VK_NULL_HANDLE;
+    }
+    VkPushConstantRange pcRange{};
+    pcRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    pcRange.offset = 0;
+    pcRange.size = sizeof(SkyPushConstants);
+    VkPipelineLayoutCreateInfo layoutCI{};
+    layoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    layoutCI.setLayoutCount = 0;
+    layoutCI.pSetLayouts = nullptr;
+    layoutCI.pushConstantRangeCount = 1;
+    layoutCI.pPushConstantRanges = &pcRange;
+    if (vkCreatePipelineLayout(device, &layoutCI, nullptr, &skyPipelineLayout) != VK_SUCCESS) {
+        LOG_ERROR("RenderPipeline", "Failed to create sky pipeline layout");
+        return false;
+    }
+
+    VkPipelineShaderStageCreateInfo stages[2]{};
+    stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    stages[0].module = skyVertShaderModule;
+    stages[0].pName = "main";
+    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    stages[1].module = skyFragShaderModule;
+    stages[1].pName = "main";
+
+    // No vertex input: the three vertices come from gl_VertexIndex.
+    VkPipelineVertexInputStateCreateInfo vi{};
+    vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+    VkPipelineInputAssemblyStateCreateInfo ia{};
+    ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    VkPipelineViewportStateCreateInfo vps{};
+    vps.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    vps.viewportCount = 1; vps.scissorCount = 1;
+
+    VkPipelineRasterizationStateCreateInfo rs{};
+    rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rs.polygonMode = VK_POLYGON_MODE_FILL;
+    rs.lineWidth = 1.0f;
+    // CULL_NONE: the oversized triangle's winding is whatever gl_VertexIndex produces, and there is
+    // no reason for a fullscreen pass to care.
+    rs.cullMode = VK_CULL_MODE_NONE;
+    rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
+    VkPipelineMultisampleStateCreateInfo ms{};
+    ms.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    // Depth OFF, both test and write. The sky is drawn first and everything else draws over it, so
+    // it needs no depth of its own — and crucially this means the pass is INDEPENDENT of the scene's
+    // reverse-Z convention, which is where depth state in this engine has gone wrong before.
+    VkPipelineDepthStencilStateCreateInfo ds{};
+    ds.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    ds.depthTestEnable  = VK_FALSE;
+    ds.depthWriteEnable = VK_FALSE;
+    ds.depthCompareOp   = VK_COMPARE_OP_ALWAYS;
+
+    VkPipelineColorBlendAttachmentState blendAtt{};
+    blendAtt.blendEnable = VK_FALSE;
+    blendAtt.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                              VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    VkPipelineColorBlendStateCreateInfo cb{};
+    cb.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    cb.attachmentCount = 1; cb.pAttachments = &blendAtt;
+
+    std::vector<VkDynamicState> dynStates = { VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR };
+    VkPipelineDynamicStateCreateInfo dyn{};
+    dyn.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dyn.dynamicStateCount = static_cast<uint32_t>(dynStates.size());
+    dyn.pDynamicStates = dynStates.data();
+
+    VkGraphicsPipelineCreateInfo gpi{};
+    gpi.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    gpi.stageCount = 2; gpi.pStages = stages;
+    gpi.pVertexInputState   = &vi;
+    gpi.pInputAssemblyState = &ia;
+    gpi.pViewportState      = &vps;
+    gpi.pRasterizationState = &rs;
+    gpi.pMultisampleState   = &ms;
+    gpi.pDepthStencilState  = &ds;
+    gpi.pColorBlendState    = &cb;
+    gpi.pDynamicState       = &dyn;
+    gpi.layout     = skyPipelineLayout;
+    gpi.renderPass = sceneRenderPass;
+    gpi.subpass    = 0;
+
+    if (skyPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, skyPipeline, nullptr);
+        skyPipeline = VK_NULL_HANDLE;
+    }
+    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &gpi, nullptr, &skyPipeline) != VK_SUCCESS) {
+        LOG_ERROR("RenderPipeline", "Failed to create sky pipeline");
+        return false;
+    }
+    LOG_INFO("RenderPipeline", "Sky pipeline created (atmospheric sky + sun + moon)");
+    return true;
 }
 
 bool RenderPipeline::createMirrorPipeline(VkRenderPass sceneRenderPass) {

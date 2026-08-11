@@ -172,6 +172,25 @@ struct UniformBufferObject {
     // x = far cascade range end (0 = OFF), y = far depthRange, z/w reserved.
     alignas(16) glm::vec4 shadowCascadeFar{0.0f, 1.0f, 0.0f, 0.0f};
     alignas(16) glm::mat4 lightSpaceMatrixFar;   // raw matrix for the far CASTER passes
+    // ---- Atmosphere-derived lighting + exposure (2026-08-10) --------------------------------
+    // The sky is now a physical scattering model (graphics/Atmosphere.h, shaders/atmosphere.glsl)
+    // and it is the SOURCE OF TRUTH for these: sunColor above, this ambient colour, and the haze
+    // endpoints all come out of the same transmittance, so the sun you see and the light you get
+    // cannot drift apart. They used to be three independently hand-tuned constant ramps.
+    //
+    // ⚠️ EXPOSURE IS NOT OPTIONAL POLISH. A physical model returns RADIANCE — a noon sky is ~0.02
+    // and a lit diffuse surface ~0.1 — whereas the flat clear colour it replaced was a
+    // display-referred 0.45-0.95. Rendering physical radiance straight to an 8-bit display gives a
+    // nearly black frame. Exposure is the unit conversion that makes the model viewable at all.
+    // Appended per the trailing-field rule: GLSL blocks are std140 PREFIXES, so every existing
+    // truncated declaration stays valid and only shaders that read this far declare these.
+    alignas(16) glm::vec3 ambientColor{1.0f};        // sky irradiance colour (hemispheric fill)
+    alignas(16) glm::vec3 hazeHorizonColor{0.66f, 0.76f, 0.92f};  // aerial perspective, horizon end
+    alignas(16) glm::vec3 hazeZenithColor{0.40f, 0.55f, 0.85f};   // ... and zenith end
+    alignas(16) glm::vec3 moonDirection{0.0f, -1.0f, 0.0f};  // direction light TRAVELS (like sunDirection)
+    alignas(16) glm::vec3 moonColor{0.0f};           // moonlight, already scaled by lunar phase
+    alignas(4)  float exposure = 1.0f;               // linear scale applied before the tonemap
+    alignas(4)  int   tonemapCurve = 1;              // 0 = none (raw linear), 1 = AgX
 };
 
 class VulkanDevice {
@@ -223,6 +242,23 @@ public:
 
     /// Shadow-only debug view (0 = off, 1 = on). Uploaded with the per-frame UBO, so every
     /// pass that declares `debugShadowMode` honours it in the same frame.
+    /// Atmosphere-derived lighting + exposure, pushed into the UBO's trailing fields.
+    /// Set once per frame from graphics/Atmosphere.h so the sky, the sun's colour, the ambient fill
+    /// and the distance haze all come out of ONE scattering model rather than three tuned ramps.
+    /// Carried as a struct through a setter (rather than seven more updateUniformBuffer parameters)
+    /// for the same reason setDebugShadowMode is: that signature is already long enough.
+    struct AtmosphereUniforms {
+        glm::vec3 ambientColor{1.0f};
+        glm::vec3 hazeHorizonColor{0.66f, 0.76f, 0.92f};
+        glm::vec3 hazeZenithColor{0.40f, 0.55f, 0.85f};
+        glm::vec3 moonDirection{0.0f, -1.0f, 0.0f};
+        glm::vec3 moonColor{0.0f};
+        float exposure = 1.0f;
+        int   tonemapCurve = 1;   // 0 = none (raw linear), 1 = AgX
+    };
+    void setAtmosphereUniforms(const AtmosphereUniforms& a) { m_atmosphere = a; }
+    const AtmosphereUniforms& getAtmosphereUniforms() const { return m_atmosphere; }
+
     void setDebugShadowMode(int mode) { m_debugShadowMode = mode; }
     int  getDebugShadowMode() const   { return m_debugShadowMode; }
 
@@ -576,6 +612,7 @@ private:
     
     // Window resize handling
     bool framebufferResized = false;
+    AtmosphereUniforms m_atmosphere{};  ///< see setAtmosphereUniforms
     int  m_debugShadowMode = 0;   ///< shadow-only debug view (see setDebugShadowMode)
     float m_shadowDepthRange = 1.0f;  ///< world-unit light-volume depth span (bias normalization)
 

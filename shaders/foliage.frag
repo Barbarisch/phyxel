@@ -43,6 +43,20 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     ivec4 grassDisplacerMeta;
     mat4 biasedLightSpaceNear;      // near shadow cascade (docs/NearShadowCascade.md)
     vec4 shadowCascadeNear;         // x = range end (0 = off), y = near depthRange
+    mat4 lightSpaceMatrixNear;      // (prefix padding to reach the atmosphere fields below)
+    mat4 biasedLightSpaceFar;
+    vec4 shadowCascadeFar;
+    mat4 lightSpaceMatrixFar;
+    // ---- Atmosphere-derived lighting + exposure (2026-08-10) --------------------------------
+    // The sky is a physical scattering model now, so these come from the SAME transmittance as the
+    // sun's disc and colour. exposure converts radiance to something a display can show at all.
+    vec3 ambientColor;
+    vec3 hazeHorizonColor;
+    vec3 hazeZenithColor;
+    vec3 moonDirection;
+    vec3 moonColor;
+    float exposure;
+    int   tonemapCurve;
 } ubo;
 
 layout(set = 0, binding = 9) uniform sampler2D shadowMapNear;   // near cascade
@@ -92,7 +106,7 @@ void main() {
                                          ubo.biasedLightSpaceNear * vec4(vWorldPos, 1.0),
                                          ubo.shadowCascadeNear.y));
     float skyGate = phxSkyGate(vSky);
-    vec3  fill    = phxAmbient(vec3(0.0, 1.0, 0.0), vSky, ubo.ambientLight);
+    vec3  fill    = phxAmbientAtmos(vec3(0.0, 1.0, 0.0), vSky, ubo.ambientColor);
     vec3  sunTerm = ubo.sunColor * (0.7 * shadowFactor * skyGate);
 
     // Backlit TRANSMISSION: looking toward the sun through foliage, shadowed leaves glow —
@@ -109,5 +123,5 @@ void main() {
     // dark, or the shadow-only view underneath drowns the signal it exists to show.
     if (ubo.debugShadowMode == 2) { outColor = vec4(0.05, 0.05, 0.06, 1.0); return; }
     if (ubo.debugShadowMode == 1) { outColor = phxShadowOnly(shadowFactor); return; }
-    outColor = vec4(lit, 1.0);
+    outColor = vec4(phxTonemap(lit, ubo.exposure, ubo.tonemapCurve), 1.0);
 }

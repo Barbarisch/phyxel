@@ -2,6 +2,8 @@
 #include "graphics/RenderCoordinator.h"
 
 #include "core/LodChunkMesh.h"
+#include "core/WorldConstants.h"   // kSeaLevelY — the shared sea-level datum for sky altitude
+#include "graphics/Atmosphere.h"   // THE scattering model: sun colour, sky fill, haze, moonlight
 #include "core/WorldStorage.h"
 #include "core/LodPyramidService.h"
 #include "core/GpuParticlePhysics.h"
@@ -166,7 +168,8 @@ RenderCoordinator::RenderCoordinator(
     renderPipeline->createOITPipeline(postProcessor->getOITRenderPass());
 
     // Mirror reflective surface pipeline (uses scene render pass, separate descriptor for reflection texture)
-    renderPipeline->createMirrorPipeline(postProcessor->getSceneRenderPass());
+    renderPipeline->createSkyPipeline(postProcessor->getSceneRenderPass());
+        renderPipeline->createMirrorPipeline(postProcessor->getSceneRenderPass());
     renderPipeline->createReflectionScenePipeline(postProcessor->getSceneRenderPass());
     renderPipeline->updateMirrorReflectionDescriptor(
         postProcessor->getReflectionImageView(), postProcessor->getReflectionSampler());
@@ -709,6 +712,67 @@ RenderCoordinator::LodTierThresholds RenderCoordinator::lodTierThresholds() cons
 }
 
 RenderCoordinator::~RenderCoordinator() = default;
+
+void RenderCoordinator::drawSky(VkCommandBuffer cmd) {
+    if (!renderPipeline || renderPipeline->getSkyPipeline() == VK_NULL_HANDLE) return;
+    if (!windowManager) return;
+
+    // Camera basis in WORLD space, straight out of the view matrix. glm::lookAt stores the basis in
+    // the ROWS of the rotation part, so right/up/-forward are read across the columns:
+    //   view[0] = (right.x, up.x, -fwd.x, 0), view[1] = (right.y, ...), view[2] = (right.z, ...)
+    const glm::mat4& v = cachedViewMatrix;
+    const glm::vec3 right   = glm::vec3(v[0][0], v[1][0], v[2][0]);
+    const glm::vec3 up      = glm::vec3(v[0][1], v[1][1], v[2][1]);
+    const glm::vec3 forward = -glm::vec3(v[0][2], v[1][2], v[2][2]);
+
+    // Focal terms from the projection. proj[0][0] = 1/(aspect*tan(fovX/2)) and
+    // proj[1][1] = 1/tan(fovY/2) NEGATED by the engine's Vulkan Y flip. Taking the reciprocals
+    // SIGNED means the flip rides along inside camUp and the shader never has to know about it.
+    // Deliberately not inverse(viewProj): this engine uses reverse-Z with an infinite far plane, and
+    // un-projecting a clip point would be three separate chances to get a convention wrong.
+    const float a00 = cachedProjectionMatrix[0][0];
+    const float a11 = cachedProjectionMatrix[1][1];
+    const float scaleX = (std::abs(a00) > 1e-6f) ? (1.0f / a00) : 1.0f;
+    const float scaleY = (std::abs(a11) > 1e-6f) ? (1.0f / a11) : 1.0f;
+
+    // Altitude for the scattering march. One cube voxel is ~1 m (81 fine cells at ~1.23 cm), and
+    // kSeaLevelY is the shared sea-level datum, so world Y maps to metres almost directly. Clamped
+    // to >= 1 because a viewer at exactly the planet's surface makes the horizon march degenerate.
+    // kSeaLevelY (WorldConstants.h) is the shared sea-level datum — consumed, never re-declared.
+    const float altitudeM = std::max(1.0f, (camera ? camera->getPosition().y : 0.0f) - Phyxel::Core::kSeaLevelY);
+
+    // ⚠️ THE SIGN. sunDirection / moonDirection are the direction the light TRAVELS (downward at
+    // noon); the atmosphere model wants a vector pointing AT the body. Handing these over unflipped
+    // renders a permanent midnight — pinned by AtmosphereTest.DirectionConventionIsTowardTheBody.
+    Vulkan::RenderPipeline::SkyPushConstants push{};
+    push.camRight   = glm::vec4(right * scaleX, altitudeM);
+    push.camUp      = glm::vec4(up * scaleY, 0.0f);
+    // The sky goes through the SAME exposure and curve as the world; a sky with its own would drift
+    // from the ground it meets, and that seam is the most visible artifact available.
+    push.camForward = glm::vec4(forward, m_exposure);
+    push.toSun      = glm::vec4(glm::normalize(-sunDirection), static_cast<float>(m_tonemapCurve));
+    push.toMoon     = glm::vec4(glm::normalize(-m_dayNightCycle.getMoonDirection()), 0.0f);
+
+    // This pass runs before the scene pass sets its own dynamic state, so it sets its own.
+    VkViewport viewport{};
+    viewport.x = 0.0f; viewport.y = 0.0f;
+    viewport.width  = static_cast<float>(windowManager->getWidth());
+    viewport.height = static_cast<float>(windowManager->getHeight());
+    viewport.minDepth = 0.0f; viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(cmd, 0, 1, &viewport);
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = {static_cast<uint32_t>(windowManager->getWidth()),
+                      static_cast<uint32_t>(windowManager->getHeight())};
+    vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getSkyPipeline());
+    vkCmdPushConstants(cmd, renderPipeline->getSkyPipelineLayout(),
+                       VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                       0, sizeof(push), &push);
+    // Three vertices, no buffers, no descriptor sets.
+    vkCmdDraw(cmd, 3, 1, 0, 0);
+}
 
 bool RenderCoordinator::initUISystem() {
     if (!postProcessor || !vulkanDevice || !windowManager) return false;
@@ -2863,6 +2927,7 @@ void RenderCoordinator::drawFrame() {
         renderPipeline->createDebugLinePipeline();
         renderPipeline->createCharacterPipeline();
         renderPipeline->createOITPipeline(postProcessor->getOITRenderPass());
+        renderPipeline->createSkyPipeline(postProcessor->getSceneRenderPass());
         renderPipeline->createMirrorPipeline(postProcessor->getSceneRenderPass());
         renderPipeline->createReflectionScenePipeline(postProcessor->getSceneRenderPass());
         renderPipeline->updateMirrorReflectionDescriptor(
@@ -2960,6 +3025,7 @@ void RenderCoordinator::drawFrame() {
         renderPipeline->createDebugLinePipeline();
         renderPipeline->createCharacterPipeline();
         renderPipeline->createOITPipeline(postProcessor->getOITRenderPass());
+        renderPipeline->createSkyPipeline(postProcessor->getSceneRenderPass());
         renderPipeline->createMirrorPipeline(postProcessor->getSceneRenderPass());
         renderPipeline->createReflectionScenePipeline(postProcessor->getSceneRenderPass());
         renderPipeline->updateMirrorReflectionDescriptor(
@@ -2998,6 +3064,7 @@ void RenderCoordinator::drawFrame() {
         renderPipeline->createDebugLinePipeline();
         renderPipeline->createCharacterPipeline();
         renderPipeline->createOITPipeline(postProcessor->getOITRenderPass());
+        renderPipeline->createSkyPipeline(postProcessor->getSceneRenderPass());
         renderPipeline->createMirrorPipeline(postProcessor->getSceneRenderPass());
         renderPipeline->createReflectionScenePipeline(postProcessor->getSceneRenderPass());
         renderPipeline->updateMirrorReflectionDescriptor(
@@ -3090,9 +3157,54 @@ void RenderCoordinator::drawFrame() {
         }
         // Drive the background sky colour: from the cycle when enabled, else a default day blue
         // (so the scene never clears to black). Shows behind the world in editor + standalone.
+        // NOTE: since the sky pass draws first and covers the whole frame, this clear colour is now
+        // only what shows if the sky pipeline failed to build — a fallback, not the sky.
         if (postProcessor) {
             postProcessor->setSkyColor(m_dayNightCycle.isEnabled()
                 ? m_dayNightCycle.getSkyColor() : glm::vec3(0.45f, 0.65f, 0.95f));
+        }
+
+        // ---- Derive the LIGHT from the atmosphere ------------------------------------------------
+        // One scattering model now answers all four questions that used to be four separate tuned
+        // ramps: what colour is the sun, what colour is the sky fill, what colour is the distance
+        // haze, and what colour is the moonlight. Because they share a transmittance, a warm sun
+        // always comes with a warm horizon and cool shadows — that relationship is no longer
+        // something to keep in sync by hand.
+        {
+            const float altitudeM = std::max(1.0f, (camera ? camera->getPosition().y : 0.0f)
+                                                   - Phyxel::Core::kSeaLevelY);
+            // ⚠️ FLIP. sunDirection/moonDirection are the direction light TRAVELS; the model wants a
+            // vector pointing AT the body. Unflipped gives a permanent midnight.
+            const glm::vec3 toSun  = glm::normalize(-sunDirection);
+            const glm::vec3 toMoon = glm::normalize(-m_dayNightCycle.getMoonDirection());
+
+            Vulkan::VulkanDevice::AtmosphereUniforms a{};
+            const glm::vec3 moonlight = Atmosphere::moonlightColor(
+                toMoon, m_dayNightCycle.getMoonPhase01(), altitudeM);
+
+            // Ambient fill = the sky's own irradiance, PLUS the moon's share of it. The moon lights
+            // the night sky as well as the ground, and without its contribution the sun's irradiance
+            // alone leaves a moonlit night indistinguishable from a moonless one (measured: 98% of
+            // the frame crushed to black either way). kMoonSkyShare is a look constant — the true
+            // ratio is unmeasurable at this scale and the honest label keeps it from drifting toward
+            // false physics.
+            constexpr float kMoonSkyShare = 0.45f;
+            a.ambientColor     = Atmosphere::skyIrradiance(toSun, altitudeM)
+                               + moonlight * kMoonSkyShare;
+            a.hazeHorizonColor = Atmosphere::hazeHorizon(toSun, altitudeM);
+            a.hazeZenithColor  = Atmosphere::hazeZenith(toSun, altitudeM);
+            a.moonDirection    = m_dayNightCycle.getMoonDirection();
+            a.moonColor        = moonlight;
+            a.exposure         = m_exposure;
+            a.tonemapCurve     = m_tonemapCurve;
+            if (vulkanDevice) vulkanDevice->setAtmosphereUniforms(a);
+
+            // The sun's own colour comes from the same transmittance as its rendered disc, so the
+            // two can never disagree. Only when the cycle is driving time — with it off, the fixed
+            // debug sun direction and white colour stay as they were.
+            if (m_dayNightCycle.isEnabled()) {
+                sunColor = Atmosphere::sunlightColor(toSun, altitudeM);
+            }
         }
     }
 
@@ -3363,6 +3475,12 @@ void RenderCoordinator::drawFrame() {
     
     {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Scene Pass");
+
+        // ---- Atmospheric sky + sun + moon, FIRST in the pass ------------------------------------
+        // Depth test and write are off, so this simply fills the frame and every later draw covers
+        // it. That ordering is what lets the pass replace the flat clear colour outright, and it
+        // keeps the sky independent of the scene's reverse-Z depth convention.
+        drawSky(cmd);
 
         // Bind graphics pipeline (debug or normal based on debug mode)
     if (debugModeEnabled) {

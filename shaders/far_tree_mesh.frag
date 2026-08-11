@@ -38,6 +38,17 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 lightSpaceMatrixNear;
     mat4 biasedLightSpaceFar;       // FAR shadow cascade
     vec4 shadowCascadeFar;          // x = range end (0 = off), y = far depthRange
+    mat4 lightSpaceMatrixFar;
+    // ---- Atmosphere-derived lighting + exposure (2026-08-10) --------------------------------
+    // The sky is a physical scattering model now, so these come from the SAME transmittance as the
+    // sun's disc and colour. exposure converts radiance to something a display can show at all.
+    vec3 ambientColor;
+    vec3 hazeHorizonColor;
+    vec3 hazeZenithColor;
+    vec3 moonDirection;
+    vec3 moonColor;
+    float exposure;
+    int   tonemapCurve;
 } ubo;
 
 layout(set = 0, binding = 1) uniform sampler2DArray textureArray;
@@ -107,10 +118,10 @@ void main() {
                                 ubo.biasedLightSpaceFar *
                                     vec4(vWorldPos - ubo.cameraWorld, 1.0),
                                 ubo.shadowCascadeFar.y);
-    vec3 color = phxAmbient(N, 1.0, ubo.ambientLight) * albedo.rgb
+    vec3 color = phxAmbientAtmos(N, 1.0, ubo.ambientColor) * albedo.rgb
                + ndl * shadowF * ubo.sunColor * albedo.rgb;
     if (ubo.debugShadowMode == 1) { outColor = phxShadowOnly(shadowF); return; }
     color = phxAerialPerspective(color, vWorldPos - ubo.cameraWorld,
-                                 ubo.sunDirection, ubo.sunColor);
-    outColor = vec4(color, 1.0);
+                                 ubo.sunDirection, ubo.sunColor, ubo.hazeHorizonColor, ubo.hazeZenithColor);
+    outColor = vec4(phxTonemap(color, ubo.exposure, ubo.tonemapCurve), 1.0);
 }

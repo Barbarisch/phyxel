@@ -1683,6 +1683,14 @@ void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& vie
     ubo.shadowCascadeNear =
         glm::vec4(m_nearCascadeRangeEnd, m_nearCascadeDepthRange, 6.0f, 0.0f);
     ubo.lightSpaceMatrixNear = m_nearLightSpace;
+    // Atmosphere-derived lighting + exposure (see setAtmosphereUniforms).
+    ubo.ambientColor      = m_atmosphere.ambientColor;
+    ubo.hazeHorizonColor  = m_atmosphere.hazeHorizonColor;
+    ubo.hazeZenithColor   = m_atmosphere.hazeZenithColor;
+    ubo.moonDirection     = m_atmosphere.moonDirection;
+    ubo.moonColor         = m_atmosphere.moonColor;
+    ubo.exposure          = m_atmosphere.exposure;
+    ubo.tonemapCurve      = m_atmosphere.tonemapCurve;
     ubo.biasedLightSpaceFar = kShadowBiasMat * m_farLightSpace;
     ubo.shadowCascadeFar =
         glm::vec4(m_farCascadeRangeEnd, m_farCascadeDepthRange, 0.0f, 0.0f);

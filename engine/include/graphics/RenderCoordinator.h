@@ -512,6 +512,20 @@ public:
 
     // Frame state accessors
     void setFrameStartTime(std::chrono::high_resolution_clock::time_point time) { frameStartTime = time; }
+    /// Draw the atmospheric sky + sun + moon. Called FIRST inside the scene pass, with depth test
+    /// and write disabled, so it fills the frame and geometry draws over it. Sets its own viewport
+    /// and scissor because it runs before the pass's main dynamic-state setup.
+    void drawSky(VkCommandBuffer cmd);
+
+    // ---- Exposure + tone curve (live-tunable; POST /api/debug/tonemap) --------------------------
+    // The atmosphere returns physical RADIANCE, so exposure is the unit conversion that makes it
+    // visible at all rather than an optional grade. Live-settable because calibrating it against a
+    // rebuild cycle would be unbearable: the whole point is to measure, adjust, measure.
+    void setExposure(float e) { m_exposure = (e > 0.0f) ? e : 1.0f; }
+    float getExposure() const { return m_exposure; }
+    void setTonemapCurve(int c) { m_tonemapCurve = c; }
+    int  getTonemapCurve() const { return m_tonemapCurve; }
+
     void setCachedViewMatrix(const glm::mat4& view) { cachedViewMatrix = view; }
     const glm::mat4& getCachedViewMatrix() const { return cachedViewMatrix; }
     const glm::mat4& getCachedProjectionMatrix() const { return cachedProjectionMatrix; }
@@ -769,6 +783,12 @@ private:
     uint32_t debugVisualizationMode = 0;  // 0=wireframe, 1=normals, 2=hierarchy, 3=uv, 4=emissive
     bool raycastVisualizationEnabled = false;  // Toggle for raycast visualization
     float ambientLightStrength = 1.0f; // Default brightness multiplier
+    // Exposure default: the atmosphere's noon sunlit diffuse radiance lands near 0.1, so roughly a
+    // 6x scale puts a lit surface in the middle of the display range before AgX rolls the top off.
+    // Calibrated by measurement (tools/lighting_stats.py), not by eye.
+    float m_exposure = 8.0f;   // calibrated: puts a noon lit surface near 0.16-0.19
+                               // linear with 0.00% clipped (measured, exposure sweep)
+    int   m_tonemapCurve = 1;   // 1 = AgX, 0 = none (the pre-tonemap look, for A/B)
     glm::vec3 sunDirection = glm::normalize(glm::vec3(-0.6f, -0.7f, -0.45f)); // ~43 deg elevation — angled so structures cast clear shadows (used when day/night is off)
     glm::vec3 sunColor = glm::vec3(1.0f, 1.0f, 1.0f);
     float emissiveMultiplier = 2.0f;

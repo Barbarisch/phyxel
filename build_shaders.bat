@@ -75,6 +75,20 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
+    echo Compiling sky shaders (atmosphere)...
+    %GLSLANG% -fshader-stage=vert -I. shaders\sky.vert -o shaders\sky.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile sky vertex shader
+        pause
+        exit /b 1
+    )
+    %GLSLANG% -fshader-stage=frag -I. shaders\sky.frag -o shaders\sky.frag.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile sky fragment shader
+        pause
+        exit /b 1
+    )
+
     echo Compiling shadow vertex shader...
     %GLSLANG% -fshader-stage=vert -I. shaders\shadow.vert -o shaders\shadow.vert.spv
     if %errorlevel% neq 0 (
@@ -103,6 +117,20 @@ if defined USE_GLSLC (
     %GLSLANG% -fshader-stage=frag -I. shaders\debug_voxel.frag -o shaders\debug_voxel.frag.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile debug fragment shader
+        pause
+        exit /b 1
+    )
+
+    echo Compiling sky shaders (atmosphere)...
+    %GLSLANG% -fshader-stage=vert -I. shaders\sky.vert -o shaders\sky.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile sky vertex shader
+        pause
+        exit /b 1
+    )
+    %GLSLANG% -fshader-stage=frag -I. shaders\sky.frag -o shaders\sky.frag.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile sky fragment shader
         pause
         exit /b 1
     )
@@ -352,6 +380,20 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
+    echo Compiling sky shaders (atmosphere)...
+    %GLSLANG% -V -I. shaders\sky.vert -o shaders\sky.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile sky vertex shader
+        pause
+        exit /b 1
+    )
+    %GLSLANG% -V -I. shaders\sky.frag -o shaders\sky.frag.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile sky fragment shader
+        pause
+        exit /b 1
+    )
+
     echo Compiling shadow vertex shader...
     %GLSLANG% -V -I. shaders\shadow.vert -o shaders\shadow.vert.spv
     if %errorlevel% neq 0 (
@@ -380,6 +422,20 @@ if defined USE_GLSLC (
     %GLSLANG% -V -I. shaders\debug_voxel.frag -o shaders\debug_voxel.frag.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile debug fragment shader
+        pause
+        exit /b 1
+    )
+
+    echo Compiling sky shaders (atmosphere)...
+    %GLSLANG% -V -I. shaders\sky.vert -o shaders\sky.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile sky vertex shader
+        pause
+        exit /b 1
+    )
+    %GLSLANG% -V -I. shaders\sky.frag -o shaders\sky.frag.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile sky fragment shader
         pause
         exit /b 1
     )
@@ -644,6 +700,20 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+    echo Compiling sky shaders (atmosphere)...
+    %GLSLANG% -V -I. shaders\sky.vert -o shaders\sky.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile sky vertex shader
+        pause
+        exit /b 1
+    )
+    %GLSLANG% -V -I. shaders\sky.frag -o shaders\sky.frag.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile sky fragment shader
+        pause
+        exit /b 1
+    )
+
 echo Compiling mirror voxel fragment shader...
 %GLSLANG% -V -I. shaders\mirror_voxel.frag -o shaders\mirror_voxel.frag.spv
 if %errorlevel% neq 0 (
@@ -651,6 +721,20 @@ if %errorlevel% neq 0 (
     pause
     exit /b 1
 )
+
+    echo Compiling sky shaders (atmosphere)...
+    %GLSLANG% -V -I. shaders\sky.vert -o shaders\sky.vert.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile sky vertex shader
+        pause
+        exit /b 1
+    )
+    %GLSLANG% -V -I. shaders\sky.frag -o shaders\sky.frag.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile sky fragment shader
+        pause
+        exit /b 1
+    )
 
 echo Compiling VFX particle vertex shader...
 %GLSLANG% -V -I. shaders\vfx.vert -o shaders\vfx.vert.spv

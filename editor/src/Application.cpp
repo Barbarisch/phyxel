@@ -13263,6 +13263,21 @@ void Application::registerEffectsCommands() {
              {"tolerance", Graphics::ChunkRenderManager::getMergeTolerance()}};
     });
 
+    // Exposure + tone curve. Live because the atmosphere returns physical RADIANCE, so exposure is a
+    // unit conversion that has to be CALIBRATED against measurements (tools/lighting_stats.py) rather
+    // than guessed — and calibrating against a rebuild cycle would be unbearable.
+    // curve 0 = none (raw linear, the pre-tonemap look, for A/B); 1 = AgX.
+    reg.on("set_tonemap", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) { r = {{"success", false}, {"error", "no render coordinator"}}; return; }
+        if (cmd.params.contains("exposure"))
+            renderCoordinator->setExposure(cmd.params["exposure"].get<float>());
+        if (cmd.params.contains("curve"))
+            renderCoordinator->setTonemapCurve(cmd.params["curve"].get<int>());
+        r = {{"success", true},
+             {"exposure", renderCoordinator->getExposure()},
+             {"curve", renderCoordinator->getTonemapCurve()}};
+    });
+
     // Fine (sub/microcube) greedy-merge toggle — live A/B for docs/BinaryGreedyMeshingPlan.md.
     // Re-meshes all chunks so the change takes effect immediately (same as smooth_lighting).
     reg.on("set_fine_merge", [this](const Core::APICommand& cmd, nlohmann::json& r) {

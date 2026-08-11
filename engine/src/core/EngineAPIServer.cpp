@@ -1035,6 +1035,22 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // POST /api/debug/tonemap — exposure + tone curve, live.
+    // Body: { "exposure": float (opt), "curve": int (opt; 0 = none/raw linear, 1 = AgX) }
+    // Exists because the atmosphere model emits physical radiance, so exposure must be calibrated
+    // against measured frames rather than guessed, and a rebuild per trial is not workable.
+    srv.Post("/api/debug/tonemap", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("set_tonemap", params, 5000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
     // POST /api/debug/smooth_lighting — toggle smooth per-corner lighting + set merge tolerance,
     // then re-bake all chunks. Body: { "enabled": bool (opt), "tolerance": int (opt) }
     srv.Post("/api/debug/smooth_lighting", [this](const httplib::Request& req, httplib::Response& res) {
