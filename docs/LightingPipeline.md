@@ -1,132 +1,267 @@
-# Lighting Pipeline — Implementation State
+# Lighting Pipeline
 
-*Last updated: May 11, 2026*
+**Last updated: 2026-08-11.** THE reference for how this engine lights a frame.
 
-This document describes the multi-phase rendering upgrade that added shadows, SSAO, planar mirrors, and transparent (glass) voxels. See `STATUS.md` for the project-level summary.
+> **This document was rewritten on 2026-08-11 because the previous version had become actively
+> misleading.** Dated 2026-05-11, it described a single 4096² shadow map fitted from the scene AABB,
+> a 16-tap Poisson PCF, "No CSM — Phase 5 work", and a post-process pass that "composites SSAO +
+> bloom, tone-maps, gamma-corrects". By August every one of those was false: three cascades had
+> shipped, PCF had been replaced by contact-hardening PCSS, and bloom/SSAO/tone-map had all been
+> deliberately DISABLED. It also never mentioned the baked per-voxel light field, despite
+> `docs/README.md` advertising it as the doc that covered exactly that. The old text is not
+> preserved here — git history has it.
+
+## The one-paragraph version
+
+A frame is lit by four things: a **physical atmosphere model** that supplies the sun's colour, the
+sky's colour, the ambient fill and the distance haze; a **baked per-voxel light field** that carries
+skylight and coloured block light through the world's geometry; **three sun shadow cascades**; and a
+small number of **dynamic point/spot lights**. All of it is composed in `shaders/lighting.glsl`,
+tone-mapped with AgX, and written to a linear HDR target.
 
 ---
 
-## Render Pipeline Overview
+## 1. The atmosphere is the source of truth for light
 
-All scene rendering targets an offscreen `R16G16B16A16_SFLOAT` image. A fullscreen post-process quad composites the result to the swapchain each frame.
+`engine/include/graphics/Atmosphere.h` + `engine/src/graphics/Atmosphere.cpp` (CPU) and
+`shaders/atmosphere.glsl` (GPU). Rayleigh + Mie + ozone single scattering, ray-marched through a
+spherical shell at Earth scale, with quadratic step spacing.
 
-**Frame order in `RenderCoordinator::drawFrame()`:**
+It answers four questions that used to be four independently hand-tuned constant ramps in
+`DayNightCycle` and `lighting.glsl`:
 
-1. Shadow pass (`ShadowMap`) — depth-only, light-space orthographic
-2. GPU compute (particle solver)
-3. Reflection pass — renders reflected scene into `reflectionImage` (only when mirror voxels are present)
-4. Scene pass (offscreen HDR) — opaque geometry, entities, kinematic objects, mirror surfaces
-5. SSAO pass — reads scene depth, outputs occlusion into `ssaoBlurImage`
-6. OIT pass — re-renders chunks through `transparent_voxel.frag` (currently all fragments discarded — see below)
-7. Post-process pass (swapchain) — composites scene + OIT + SSAO + bloom, tone-maps, gamma-corrects
-
----
-
-## Phase 1 — Shadow Mapping (PCF)
-
-**Shadow map:** 4096×4096 `D32_SFLOAT` image. Orthographic light-space matrix from scene AABB.
-
-**PCF:** 16-sample Poisson-disk in `voxel.frag`. Bias = 0.005.
-
-**Shadow pipelines:**
-| Pipeline | Vertex shader | For |
+| Question | Function | Feeds |
 |---|---|---|
-| Static voxels | `shadow.vert` | Chunk voxels |
-| Characters | `character_shadow.vert` | `AnimatedVoxelCharacter` |
-| Kinematic | `kinematic_shadow.vert` | Doors, furniture, fragments |
-| Dynamic | `dynamic_shadow.vert` | GPU-particle debris |
+| What colour is the sun? | `sunlightColor(toSun)` | `ubo.sunColor` |
+| What colour is the sky fill? | `skyIrradiance(toSun)` | `ubo.ambientColor` |
+| What colour is the distance haze? | `hazeHorizon` / `hazeZenith` | `ubo.hazeHorizonColor` / `hazeZenithColor` |
+| What colour is moonlight? | `moonlightColor(toMoon, phase)` | `ubo.moonColor` |
+
+Because they share one transmittance, a warm sun always arrives with a warm horizon and cool
+shadows. **There is no sunset colour ramp and there should never be one again** — a horizon sun
+measures R/B > 10 purely because the long slant path scatters blue away.
+
+⚠️ **Direction convention.** `Atmosphere::` and `atmosphere.glsl` take `toSun` / `toMoon` pointing
+**at** the body. `ubo.sunDirection` / `ubo.moonDirection` are the opposite — the direction light
+*travels*, downward at noon. Passing one unflipped renders a permanent midnight. Pinned by
+`AtmosphereTest.DirectionConventionIsTowardTheBody`.
+
+⚠️ **Two implementations, one set of constants.** `AtmosphereTest.ShaderConstantsMatchTheCppModel`
+parses `atmosphere.glsl` and asserts all 17 shared constants equal the C++ ones. Keep the GLSL
+declarations in the plain `const float kName = <number>;` form the regex reads.
+
+### The sky pass
+`shaders/sky.{vert,frag}`, built by `RenderPipeline::createSkyPipeline`, drawn first in the scene
+pass by `RenderCoordinator::drawSky`. Push constants only — no descriptor sets, no vertex buffer,
+three vertices from `gl_VertexIndex` — with **depth test and write OFF**, so it fills the frame and
+geometry draws over it. This replaced the flat clear colour; `PostProcessor::setSkyColor` is now
+only a fallback for when the sky pipeline fails to build.
+
+The view ray comes from **camera basis vectors** scaled by the projection's focal terms (signed, so
+the Vulkan Y-flip rides inside `camUp`), deliberately not from `inverse(viewProj)`: the scene uses
+reverse-Z with an infinite far plane, and un-projecting a clip point is three chances to get a
+convention wrong.
+
+### The moon
+`DayNightCycle` places the moon by lagging the sun's hour angle by `2*pi*phase`, with the phase from
+WorldClock's 28-day cycle — so a **full moon rises at sunset because the geometry says so**. The
+disc's terminator is not a parameter either: `phxMoonDisc` reconstructs the sphere normal per pixel
+and tests it against the sun, so the drawn phase always agrees with the orbit.
+
+⚠️ `setDayNumber` **must** call `recalculate()`. The day number drives the phase, hence the moon's
+position and light. While it was an inert setter, the API (which sets `timeOfDay` first, and
+`setTimeOfDay` does recalculate) rendered every moon with the *previous* day's phase.
 
 ---
 
-## Phase 2 — SSAO
+## 2. The baked per-voxel light field
 
-**Inputs:** Scene depth buffer (sampled as `SAMPLED_BIT` texture), random hemisphere kernel (64 samples), 4×4 Halton noise tile.
+Lives entirely in the chunk mesher: `ChunkRenderManager::rebuildCubeFaces`. There is no
+`LightingSystem` class.
 
-**Passes:**
-1. SSAO → `ssaoImage` (R8_UNORM)
-2. Blur → `ssaoBlurImage` (R8_UNORM)
+- **Skylight**: 4 bits/cell. Columns open to the sky seed 15 losslessly downward, then a 6-connected
+  BFS spreads at −1 per step. A sealed room stays 0.
+- **Block light**: 4 bits × RGB, independent channels, same BFS, seeded from emissive materials
+  (hue from `physics.colorTint`, peak 15, or `emissiveStrength × 4` for masked-emissive) and from
+  emissive/flaming sub- and microcubes at their parent cube cell.
+- **Cross-chunk bleed** via a boundary seed plus a border-change ripple that re-meshes the six
+  neighbours; converges because light is monotone and capped.
+- **Smooth lighting + implicit AO**: per quad corner, the light of the four cells touching that
+  corner in the air cell's plane is averaged. Solid cells read 0, so concave corners darken. Only
+  faces whose corners are uniform may greedy-merge (`s_smoothLighting`, `s_mergeTolerance`).
 
-**Integration:** `post_process.frag` binding 2 samples `ssaoBlurImage`. `color *= ao` applied after OIT composite, before tone-mapping.
+### What blocks light is NOT `m_solidVis`
+`m_solidVis` answers "is there a visible cube here" and drives face culling and material lookup.
+Light opacity is a separate array, `m_lightOpaque`, and it differs in both directions:
 
----
+- **Sub-voxel geometry occludes.** Sub-voxel fill is accumulated per cell in micro-equivalents; a
+  cell blocks light at `kLightOpaqueFill = 243` (= 729/3, one subcube-thick slab). Before this,
+  a subcube-built roof was transparent to skylight and generated interiors leaked daylight.
+- **Transparent materials do not occlude.** Glass is a window; it used to bake a glazed room black.
+- **Leaf/billboarded sub-voxels are deliberately excluded** — counting them would flip every forest
+  floor to near-black, which is a separate look decision.
 
-## Phase 3 — OIT Infrastructure (Weighted Blended)
+⚠️ **An unresolvable sample must not mean "outdoors".** `skyLightAt` returns 15 for a cell it cannot
+resolve, which is right for a face's own air cell (a chunk-edge exterior face must not go black
+waiting for a stream-in) and **wrong** for the per-corner AO average. The corner average uses
+`bakedLightResolvable()` and skips what it cannot resolve. Pinned by `LightBakeOcclusionTest`.
 
-### Resources
-| Image | Format | Clear | Usage |
-|---|---|---|---|
-| `oitAccumImage` | `R16G16B16A16_SFLOAT` | (0,0,0,0) | Additive weighted color accumulation |
-| `oitRevealImage` | `R8_UNORM` | 1.0 | Product of `(1 - alpha)` across layers |
-
-### OIT render pass
-- `initialLayout = VK_IMAGE_LAYOUT_UNDEFINED` (CLEAR discards prior content)
-- `finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL`
-- Depth attachment: `loadOp = LOAD`, `initialLayout = DEPTH_STENCIL_READ_ONLY_OPTIMAL` — reuses scene depth without writing
-
-### OIT pipeline (`transparent_voxel.frag`)
-- Depth test: ON, depth write: OFF, compare: `LESS_OR_EQUAL`
-- Blend attachment 0 (accum): `ONE / ONE` additive
-- Blend attachment 1 (reveal): `ZERO / SRC_COLOR` multiplicative
-- `independentBlend = VK_TRUE` required
-
-### Post-process composite (`post_process.frag`)
-```glsl
-vec4 accum  = texture(oitAccum, inUV);   // binding 3
-float reveal = texture(oitReveal, inUV).r; // binding 4
-if (accum.a > 1e-5) {
-    vec3 transparentColor = accum.rgb / accum.a;
-    color = mix(transparentColor, color, reveal);
-}
-```
-
-### Current state — OIT disabled
-`blurImages[0/1]` (bloom ping-pong images) are created in `VK_IMAGE_LAYOUT_UNDEFINED` and never transitioned because `renderBloom()` is never called from `drawFrame()`. The post-process descriptor at binding 1 points to `blurImages[0]` in UNDEFINED layout, which causes a validation error on every frame and corrupts the draw call output — making OIT composite invisible.
-
-**To re-enable OIT:**
-1. Wire bloom: call `postProcessor->renderBloom(cmd)` before `beginPostProcessRenderPass`, or at minimum add a one-time image barrier transitioning `blurImages[0/1]` from UNDEFINED → SHADER_READ_ONLY_OPTIMAL before the first post-process draw.
-2. In `voxel.frag`, restore: `if ((flags & 2u) != 0u) discard;`
-3. In `transparent_voxel.frag`, remove the `discard;` at the top of `main()`.
+The bake is inseparable from a full chunk remesh (~40–50 ms/chunk in Debug); there is no light-only
+update path.
 
 ---
 
-## Phase 4a — Transparent (Glass) Voxels
+## 3. Shadows — three cascades
 
-### Flag encoding
-`InstanceData.reserved` (uint16):
-- Bit 0: unused (reserved for emissive in `packedData`)
-- Bit 1: `isTransparent` — set when `matDef->alpha < 0.99f`
-- Bits 2–9: quantised alpha = `uint16_t(alpha * 255)`
-- Bit 10: `isMirror`
+Created in `RenderCoordinator`; design record in [`NearShadowCascade.md`](NearShadowCascade.md).
 
-Glass material: `alpha=0.5` → `reserved = (0 | 2 | (127 << 2)) = 510`
+| Cascade | Resolution | Distance | Texel | Update |
+|---|---|---|---|---|
+| Near | 4096² | 40 u | 0.0195 u | every frame |
+| Mid | 8192² | 420 u | 0.1125 u | every frame |
+| Far | 4096² | 1600 u | ~0.9 u | on a cadence |
 
-### Current rendering path (OIT disabled)
-Glass renders through `voxel.frag` alongside opaque voxels. The `if ((flags & 2u) != 0u) discard` line is absent — transparent instances are not culled from the opaque pass. Texture alpha cutout (`if (textureColor.a < 0.1) discard`) still discards fully invisible texels.
+Fit is a view-frustum **bounding sphere** (rotation-invariant, so no shimmer when turning), texel-
+snapped in the absolute world light frame, `glm::orthoRH_ZO` plus a Vulkan Y-flip.
 
-This matches exactly how kinematic and dynamic glass have always rendered.
+Receivers **min-compose**: `min(mid, near)` is the union of shadows, so a caster recorded in only one
+map still shades correctly, and the near map's 12 % border fade *is* the cascade blend.
 
-### Face culling
-`ChunkRenderManager::rebuildCubeFaces()` calls `neighborCube->isVisible()` to decide whether to generate a face. `Cube::isVisible()` returns the `visible` flag which is `true` for all placed cubes regardless of material alpha. This correctly suppresses interior faces between a glass cube and an adjacent solid cube — matching Minecraft-style glass rendering.
+Sampling is contact-hardening **PCSS** (8-tap blocker search, then a 16-tap filter whose radius
+scales with occluder→receiver separation) for solid geometry, and a cheap 4-tap for vegetation.
+Bias is authored in **world units** and divided by the light volume's depth span, so it means the
+same physical distance at every shadow distance.
 
-### Known issue — Glass_side.png missing
-`resources/textures/source/Glass_side.png` does not exist. All 6 glass faces fall back to the atlas fallback texture. To fix: create or copy a glass texture PNG to that path and run `build_shaders.bat` to rebuild the atlas.
+⚠️ Any shadow-pass pipeline must use `VK_COMPARE_OP_LESS`, never the scene's reverse-Z compare.
+⚠️ Shadow-caster pipelines bake a static viewport — create them against the map they render into.
+⚠️ Shadow multiplies **only** the sun term. Ambient, block light, point/spot lights and emission are
+all unshadowed.
+
+**Known issue:** grass blades cast only into the ~40 u near cascade, whose camera-following coverage
+reads from an elevated camera as a dark disc gliding with the view. `GrassRenderPipeline::s_castShadows`
+defaults **false** as mitigation.
 
 ---
 
-## Phase 4b — Planar Mirror Voxels
+## 4. Dynamic point and spot lights
 
-- **Mirror material flag:** `InstanceData.reserved` bit 10.
-- **Reflection render pass:** Renders full scene into `reflectionImage` (RGBA16F) from a reflected camera. Runs only when `scanForMirrorVoxels()` returns true.
-- **Mirror pipeline:** `mirror_voxel.frag` samples `reflectionImage` and composites the reflected view onto mirror-material voxel faces.
-- **Culling:** Both `voxel.frag` and `transparent_voxel.frag` discard mirror-flagged fragments so they don't appear in the main scene pass.
+`Light.h` / `LightManager`. **32 point, 16 spot**, uploaded as an SSBO and consumed in a forward loop
+with a full Cook-Torrance evaluation each.
+
+Open defects, all real:
+- **They cast no shadows and do no occlusion test** — a chandelier lights through walls.
+- **Positions are absolute world while fragment positions are camera-relative**, so they are only
+  correct near the origin.
+- Attenuation is a hand-rolled `1/(1+ld+qd²)` with a hard cutoff — no inverse-square, no photometric
+  units.
+- Structure-generation fixtures are **double-counted**: the same lamp is an emissive voxel seeding
+  baked block light *and* a registered point light.
+- `LightManager` lights are not world-persisted, so generated lighting does not survive save/load.
+
+The planned resolution is to move static fixtures into the bake (where the flood fill already
+respects walls) and reserve forward lights for dynamic sources.
+
+⚠️ Point/spot intensities were authored against a diffuse term with the Lambert `1/pi` **omitted**.
+That omission was removed on 2026-08-10 when the sun became physical, so every authored intensity is
+now π× dimmer and needs retuning.
 
 ---
 
-## Known Issues
+## 5. Composition, exposure and tone mapping
 
-| Issue | Cause | Fix |
-|---|---|---|
-| `VK_IMAGE_LAYOUT_UNDEFINED` validation error (image `0xa900000000a9`) every frame | `blurImages[0]` created but never transitioned (bloom not wired) | Call `renderBloom()` from `drawFrame()` or add image barrier |
-| OIT glass invisible | Downstream of bloom UNDEFINED — disables OIT until bloom fixed | See "To re-enable OIT" above |
-| Glass uses fallback texture | `Glass_side.png` missing from source textures | Add PNG and rebuild atlas |
-| No CSM | Single shadow cascade | Phase 5 work |
+`shaders/lighting.glsl` is THE single source of the scene lighting model — ambient, shadow lookup,
+aerial perspective and the tone curve. It is included by `voxel.frag`, `grass.frag`, `foliage.frag`,
+`far_terrain.frag`, `far_tree_mesh.frag` and `sky.frag`. **Never re-inline a lighting constant or a
+shadow loop into a single shader**; five hand-synced copies is how `grass.frag` went its entire life
+with no shadow lookup at all.
+
+Order in `voxel.frag`: hemispheric ambient (`phxAmbientAtmos`, driven by the sky colour) → sun
+(Cook-Torrance, shadowed, sky-gated) → moonlight → baked block light → point lights → spot lights →
+masked emission → aerial perspective → `phxTonemap`.
+
+### Exposure is required, not polish
+A physical atmosphere returns **radiance**: a noon sky is ~0.02 and a lit diffuse surface ~0.1,
+whereas the flat clear colour it replaced was a display-referred 0.45–0.95. Rendering radiance
+straight to an 8-bit display gives a nearly black frame — measured. `phxTonemap(color, exposure,
+curve)` applies exposure and then **AgX**.
+
+AgX rather than ACES: ACES desaturates bright colours toward white, which is the washed-out look
+this work exists to remove and would bleach the warm sun the atmosphere works to produce. AgX does
+its curve in inset primaries and rotates back out, which is where its hue preservation comes from.
+
+⚠️ `phxTonemap` returns **LINEAR**. AgX's own output is display-referred, so it is converted back
+with the 2.2 power. Dropping that step double-gammas the frame.
+
+Live knob: `POST /api/debug/tonemap {"exposure": float, "curve": int}` — curve 0 = none (raw linear,
+for A/B), 1 = AgX. Default exposure **8.0**, calibrated by sweep.
+
+⚠️ **Staging note.** The tone map currently runs in the scene fragment shaders rather than in a
+post-process pass, because **the editor viewport samples the raw offscreen HDR image and never sees
+the swapchain post-process pass**. That is the documented reason bloom, SSAO and an earlier Reinhard
+tone map were disabled — their bugs shipped in packaged games unseen. Until an editor-visible grade
+pass exists, tone mapping in the scene shaders is the only form of it an author can actually see.
+The function lives in one file so moving it later is a deletion, not a rewrite.
+
+**Not yet on the shared model:** `character.frag` (its own `kSkyFill`, no ambient floor, no haze,
+Blinn-Phong, mid cascade only) and the water shaders. They will read brighter than the world.
+
+---
+
+## 6. Post-processing
+
+`shaders/post_process.frag` composites scene colour + OIT transparency and nothing else. The
+swapchain is `B8G8R8A8_SRGB`, so the hardware applies the linear→sRGB encode — **do not add a manual
+`pow(1/2.2)`**.
+
+Disabled, with resources still bound so the pipeline layout is unchanged:
+- **bloom** — the blur input has no brightness threshold, so it added a blurred copy of the whole
+  frame (~2× brightness).
+- **SSAO** — depth-derivative normals degenerate at grazing angles and draw a dark band across
+  screen centre. `PostProcessor.h ssaoEnabled = false`, and nothing consumes its output.
+
+Re-enable either only once it renders in the editor preview too.
+
+---
+
+## 7. Measuring lighting changes
+
+Use the rig; do not judge by eye.
+
+- `tools/lighting_stats.py` — region-mean luminance, percentiles, and the **clipped-pixel fraction**.
+  Measure the **viewport rect** (`docs/evidence/viewport_regions.json`), not the whole window: editor
+  chrome pins the median otherwise.
+- `tools/lighting_lab.py` — builds the LightingLab world (five one-variable rooms with written
+  predictions and controls at both ends), drives fixed poses and a day/night sweep, and verifies by
+  reading the world back.
+- `POST /api/debug/shadow {"mode": 1}` — shadow-only view (white = lit, black = shadowed). Thin
+  casters are unreadable against textured ground without it.
+
+⚠️ Identical statistics across *different* scene states mean a **stale frame**, not a result. Settle
+≥ 2.5 s and take two screenshots, keeping the second.
+
+**Reference measurements** (LightingLab, exposure 8, AgX, viewport region): noon exterior mean 0.145
+with 0.00 % clipped; golden hour 0.160; hearth interior 0.245 with 0.00 % clipped (was **29.72 %**
+before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
+
+---
+
+## 8. Known gaps
+
+| Gap | Detail |
+|---|---|
+| **Blue hour** | Single scattering cannot produce it — the twilight zenith measures B/R = 0.94. Needs a multiple-scattering LUT. Pinned as `DISABLED_TwilightZenithIsBlue_NeedsMultipleScattering`. |
+| **Moon shadows** | Moonlight is unshadowed; the cascades are fitted to the sun. Fitting to the dominant body earns real moon shadows. |
+| **No stars / airglow** | A new-moon night is genuinely black. |
+| **No real AO** | AO is implicit in the skylight nibbles, so it vanishes outdoors (sky = 15) and indoors (sky = 0). A dedicated per-corner AO channel fits in the 16 spare bits of `light2`/`light3`. |
+| **No editor-visible grade pass** | Blocks bloom, AA and a proper post-process tone map. |
+| **Point lights** | See §4 — unshadowed, wrong coordinate space, double-counted, not persisted. |
+| **Metals** | No environment/IBL term, so they read dark except in direct light. |
+| **T-junction cracks / character speckle** | Open render defects at greedy-merge borders; see `RenderOptimization.md`. |
+
+## Related
+
+- [`NearShadowCascade.md`](NearShadowCascade.md) — the canonical cascade record.
+- [`WorldRenderV2Plan.md`](WorldRenderV2Plan.md) — §3.3 and §7c designed much of the atmosphere work.
+- [`EngineAdvancesResearch.md`](EngineAdvancesResearch.md) §4 — radiance cascades, the GI option.
+- [`VoxelRenderPipelines.md`](VoxelRenderPipelines.md) — the three voxel vertex shaders and
+  `InstanceData`, which carries the baked light words.

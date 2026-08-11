@@ -28,6 +28,11 @@ Knobs: `POST /api/debug/shadow {"near_enabled","near_distance","far_enabled",
 
 ---
 
+> ⚠️ **EVERYTHING BELOW THIS LINE IS HISTORY — the pre-implementation plan, kept for its reasoning.**
+> It describes a TWO-map design (see the table in §Why) that the shipped three-cascade table at the
+> top of this file supersedes. Read it for why the near cascade exists, not for what the engine does.
+> Flagged 2026-08-11 after the two tables were found to contradict each other.
+
 *(Original near-cascade record follows.)*
 
 **Near cascade: SHIPPED + VERIFIED 2026-08-06 (red→green on the single-blade rig).** Save

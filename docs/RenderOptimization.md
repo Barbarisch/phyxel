@@ -535,9 +535,13 @@ improves (vs the noon default), and the character speckle improves only modestly
 with the texture theory (contrast-dependent) and the grass aliasing mechanism above.
 
 **Related (user-observed 2026-07-17): grass-blade "jitter" looks like the same speckle but is a
-DIFFERENT mechanism** — grass.vert does NOT sample the shadow map (the logged "blades receive no
-shadows" gap), so its shimmer is thin sub-pixel quads swaying in the wind with no AA, plus any
-sun-direction lighting term flipping as blade normals sway. Aggravated by this engine's DEFAULT
+DIFFERENT mechanism** — its shimmer is thin sub-pixel quads swaying in the wind with no AA, plus any
+sun-direction lighting term flipping as blade normals sway.
+> ⚠️ **Corrected 2026-08-11.** This paragraph used to add "grass.vert does NOT sample the shadow map
+> (the logged 'blades receive no shadows' gap)" as part of the explanation. That has been false since
+> the cascade work: `grass.frag` is a min-compose shadow receiver over the near and mid maps
+> (`NearShadowCascade.md` §min-compose), and grass both casts and receives. The shimmer mechanism
+> above stands on its own; the shadow claim was stale. Aggravated by this engine's DEFAULT
 sun being NOON (DayNightCycle boots at 12.0 — vertical light is worst-case for both artifacts on
 vertical/thin geometry). Consider: blade-width floor in screen space or distance fade tune, and
 revisit when blades get shadow reception. A softer default sun angle (e.g. 10:00) would visibly

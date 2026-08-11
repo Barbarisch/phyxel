@@ -53,7 +53,9 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 - **[VoxelSystem.md](VoxelSystem.md)** — voxel sizes (cube/subcube/microcube) + static/kinematic/dynamic lifecycle
 - **[VoxelRenderPipelines.md](VoxelRenderPipelines.md)** — three Vulkan voxel pipelines (static / kinematic / GPU particle)
 - **[ChunkUpdateOptimization.md](ChunkUpdateOptimization.md)** — face culling, instance batching, dirty-chunk tracking
-- **[LightingPipeline.md](LightingPipeline.md)** — shadows, SSAO, baked per-voxel light field
+- **[LightingPipeline.md](LightingPipeline.md)** — THE lighting reference: the atmosphere model (sun,
+  moon, sky, haze), the baked per-voxel light field, the three shadow cascades, exposure + AgX, and
+  the known gaps
 - **[ObjectTemplateSystem.md](ObjectTemplateSystem.md)** — voxel object import & spawning
 - **[TextureSystemOverhaul.md](TextureSystemOverhaul.md)** — PBR texture-array system (Phases 1–2 merged)
 - **[LargeWorldScalePlan.md](LargeWorldScalePlan.md)** — active workstream: chunk RAM (`ChunkVoxelStore` palette storage), region GPU buffer arenas, sealed/uniform chunks

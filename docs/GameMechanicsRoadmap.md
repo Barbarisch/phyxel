@@ -47,7 +47,10 @@ Phase 2 (Cameras) ─┘
 - One directional sun with color/direction controls
 - Ambient light global multiplier (0.0–2.0)
 - Glow material is visual-only (emissive multiplier, no actual light emission)
-- Shadow mapping: PCF with 2048×2048 depth texture
+- Shadow mapping: three sun cascades — near 4096² / 40 u, mid 8192² / 420 u, far 4096² / 1600 u —
+  with contact-hardening PCSS and min-compose receivers. See [LightingPipeline.md](LightingPipeline.md)
+  §3 and [NearShadowCascade.md](NearShadowCascade.md). (Was described here as "PCF with 2048×2048"
+  until 2026-08-11; that predated the cascades by months.)
 - UBO struct ~256 bytes (well below 64KB limit)
 - No SSBOs currently in use
 - Descriptor set: binding 0 (UBO), binding 1 (texture atlas), binding 2 (shadow map)
