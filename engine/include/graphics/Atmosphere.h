@@ -64,12 +64,32 @@ constexpr float     kOzoneWidth  = 15000.0f;   // m (half-width of the tent)
 // rather than in photometric units — the renderer has no absolute photometric pipeline yet, and a
 // unit-less scale keeps this change from silently re-exposing every existing world.
 constexpr glm::vec3 kSolarIrradiance{1.0f, 0.97f, 0.92f};
-constexpr float     kSunAngularRadius = 0.004675f;   // rad (~0.268 deg)
+
+// ---- Apparent size of the sun and moon: a deliberate STYLIZED choice ---------------------------
+// The real sun and moon are both about half a degree across, which at a typical field of view is
+// roughly a TEN PIXEL dot. Rendered at life size they read as specks, and in the moon's case the
+// phase terminator -- which is computed correctly, per pixel, from the sphere's normal against the
+// sun -- is entirely invisible. A feature nobody can see is not a feature.
+//
+// So the DRAWN discs are 5x life size (~2.7 deg across). This is an art decision, not an error, and
+// it is the near-universal one: games essentially always oversize both bodies for exactly this
+// reason. kSunSizeScale is the single knob; raise it for a more stylized sky, set it to 1 for
+// physical size.
+//
+// ⚠️ THE DRAWN SIZE MUST NOT CHANGE WHEN THE SUN SETS. The horizon fade -- how quickly direct
+// sunlight dies as the sun dips -- models the real disc crossing the real horizon, so it uses
+// kSunPhysicalAngularRadius and is INDEPENDENT of how large we choose to draw things. Deriving the
+// fade band from the stylized radius instead would make sunlight linger ~2.7 deg below the horizon,
+// i.e. shadows at dusk, which `AtmosphereTest.NoDirectSunlightBelowTheHorizon` catches.
+constexpr float kSunSizeScale = 5.0f;
+constexpr float kSunPhysicalAngularRadius  = 0.004675f;   // rad (~0.268 deg) -- the real sun
+constexpr float kMoonPhysicalAngularRadius = 0.004525f;   // rad (~0.259 deg) -- the real moon
+constexpr float     kSunAngularRadius = kSunPhysicalAngularRadius * kSunSizeScale;
 
 // The moon is lit BY the sun, so its light is sunlight reflected off a dark grey body: Bond albedo
 // ~0.12, and the disc is 0.259 deg. The faint blue bias is the Purkinje shift — scotopic vision
 // really does read moonlight as cool, and every film convention agrees.
-constexpr float     kMoonAngularRadius = 0.004525f;  // rad (~0.259 deg)
+constexpr float     kMoonAngularRadius = kMoonPhysicalAngularRadius * kSunSizeScale;
 constexpr float     kMoonAlbedo        = 0.12f;
 constexpr glm::vec3 kMoonlightTint{0.62f, 0.78f, 1.0f};
 // Full moon illuminance is ~1/400,000 of sunlight. That is physically true and visually useless:

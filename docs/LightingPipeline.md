@@ -62,6 +62,21 @@ the Vulkan Y-flip rides inside `camUp`), deliberately not from `inverse(viewProj
 reverse-Z with an infinite far plane, and un-projecting a clip point is three chances to get a
 convention wrong.
 
+### Apparent size of the sun and moon — a stylized choice
+Both bodies are drawn at **5× life size** (`kSunSizeScale`), i.e. ~2.7° across instead of ~0.5°. At
+true size each is a ten-pixel dot and the moon's phase is invisible; oversizing is the near-universal
+game convention for exactly that reason.
+
+⚠️ **Drawn size must not affect light timing.** The horizon fade — how fast direct sunlight dies as
+the sun dips — uses `kSunPhysicalAngularRadius`, not the stylized radius, because it models the real
+disc crossing the real horizon. Deriving it from the drawn size would leave the sun lighting the
+world ~2.7° below the horizon (shadows at dusk). Pinned by
+`AtmosphereTest.StylizedDiscSizeDoesNotAffectLightTiming` and `NoDirectSunlightBelowTheHorizon`.
+
+⚠️ Disc edge softening (`kDiscEdgeAngle`) is an **absolute angle**, not a fraction of the radius. As
+a fraction it scaled with the disc, so at 5× the antialiasing band was 5× wider and the sun read as a
+soft blob.
+
 ### The moon
 `DayNightCycle` places the moon by lagging the sun's hour angle by `2*pi*phase`, with the phase from
 WorldClock's 28-day cycle — so a **full moon rises at sunset because the geometry says so**. The

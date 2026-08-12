@@ -110,6 +110,24 @@ TEST(Atmosphere, SunlightWeakensMonotonicallyAsSunDescends) {
     }
 }
 
+// The DRAWN size of the sun and moon is a stylized choice (5x life), but it must not leak into the
+// LIGHT. Sunlight dies as the real disc crosses the real horizon, so the fade band is derived from
+// the physical radius; deriving it from the stylized one would keep the sun lighting the world ~2.7
+// degrees below the horizon, i.e. shadows at dusk. NoDirectSunlightBelowTheHorizon below is what
+// actually catches that, and this pins the relationship the fade depends on.
+TEST(Atmosphere, StylizedDiscSizeDoesNotAffectLightTiming) {
+    EXPECT_GT(Atmosphere::kSunSizeScale, 1.0f) << "test premise: the discs are oversized on purpose";
+    EXPECT_FLOAT_EQ(Atmosphere::kSunAngularRadius,
+                    Atmosphere::kSunPhysicalAngularRadius * Atmosphere::kSunSizeScale);
+    EXPECT_FLOAT_EQ(Atmosphere::kMoonAngularRadius,
+                    Atmosphere::kMoonPhysicalAngularRadius * Atmosphere::kSunSizeScale);
+    // The fade must still complete within about the PHYSICAL disc's crossing, regardless of scale.
+    const float justBelow = -2.0f * glm::degrees(Atmosphere::kSunPhysicalAngularRadius) - 0.2f;
+    EXPECT_LT(luma(Atmosphere::sunlightColor(towardElevation(justBelow))), 1e-6f)
+        << "sunlight survived " << justBelow << " deg below the horizon — the fade band is probably "
+           "being derived from the STYLIZED radius instead of the physical one";
+}
+
 // Once the sun is properly below the horizon there is NO direct sunlight — twilight is sky-lit, not
 // sun-lit. Without this the world would keep casting hard shadows at midnight.
 TEST(Atmosphere, NoDirectSunlightBelowTheHorizon) {
@@ -338,6 +356,9 @@ TEST(Atmosphere, ShaderConstantsMatchTheCppModel) {
         {"kMieAnisotropy",      Atmosphere::kMieAnisotropy},
         {"kOzoneCenter",        Atmosphere::kOzoneCenter},
         {"kOzoneWidth",         Atmosphere::kOzoneWidth},
+        {"kSunSizeScale",              Atmosphere::kSunSizeScale},
+        {"kSunPhysicalAngularRadius",  Atmosphere::kSunPhysicalAngularRadius},
+        {"kMoonPhysicalAngularRadius", Atmosphere::kMoonPhysicalAngularRadius},
         {"kSunAngularRadius",   Atmosphere::kSunAngularRadius},
         {"kMoonAngularRadius",  Atmosphere::kMoonAngularRadius},
         {"kMoonAlbedo",         Atmosphere::kMoonAlbedo},

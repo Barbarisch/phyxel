@@ -43,8 +43,16 @@ const float kOzoneCenter        = 25000.0;
 const float kOzoneWidth         = 15000.0;
 
 const vec3  kSolarIrradiance    = vec3(1.0, 0.97, 0.92);
-const float kSunAngularRadius   = 0.004675;
-const float kMoonAngularRadius  = 0.004525;
+// Apparent size of the sun and moon: a deliberate STYLIZED choice, 5x life size. At true size both
+// are ~0.5 deg -- a ten-pixel dot -- and the moon's per-pixel phase terminator is invisible. See the
+// full note in Atmosphere.h. kSun/kMoonPhysicalAngularRadius are the real values, kept because the
+// HORIZON FADE must stay physical: how fast sunlight dies as the sun sets cannot depend on how big
+// we chose to draw it.
+const float kSunSizeScale             = 5.0;
+const float kSunPhysicalAngularRadius = 0.004675;
+const float kMoonPhysicalAngularRadius = 0.004525;
+const float kSunAngularRadius   = 0.023375;   // = kSunPhysicalAngularRadius  * kSunSizeScale
+const float kMoonAngularRadius  = 0.022625;   // = kMoonPhysicalAngularRadius * kSunSizeScale
 const float kMoonAlbedo         = 0.12;
 const vec3  kMoonlightTint      = vec3(0.62, 0.78, 1.0);
 const float kMoonlightScale     = 0.25;
@@ -57,8 +65,11 @@ const float kMoonlightScale     = 0.25;
 // setting sun's disc reddens on its own.
 const float kSunDiscBrightness  = 24.0;
 const float kMoonDiscBrightness = 2.2;
-// Softening of the disc edge as a fraction of angular radius, for anti-aliasing.
-const float kDiscEdgeSoftness   = 0.14;
+// Disc edge softening for anti-aliasing, as an ABSOLUTE ANGLE in radians (~1.3 px at a typical
+// field of view). It used to be a FRACTION of the radius, which was fine at life size but scales
+// with the disc: at 5x the stylized size that fraction became a 5x wider blur in angle, turning a
+// crisp sun into a soft blob. An absolute angle keeps the edge the same sharpness at any disc size.
+const float kDiscEdgeAngle      = 0.0009;
 
 const int   kViewSteps = 12;
 const int   kSunSteps  = 5;
@@ -140,7 +151,8 @@ float phxPhaseMie(float mu, float g) {
 // Smooth the horizon crossing over roughly the sun's angular diameter, so the key light fades
 // instead of snapping off between two frames.
 float phxHorizonFade(float sinElevation) {
-    float band = kSunAngularRadius * 2.0;
+    // PHYSICAL radius, not the stylized drawn one -- see the size note above.
+    float band = kSunPhysicalAngularRadius * 2.0;
     return smoothstep(0.0, 1.0, clamp((sinElevation + band) / (2.0 * band), 0.0, 1.0));
 }
 
@@ -205,7 +217,7 @@ float phxDiscCoverage(vec3 dir, vec3 bodyDir, float radius) {
     float cosAng = dot(normalize(dir), bodyDir);
     // Work in angle rather than cosine so the soft edge has a constant angular width.
     float ang = acos(clamp(cosAng, -1.0, 1.0));
-    return 1.0 - smoothstep(radius * (1.0 - kDiscEdgeSoftness), radius * (1.0 + kDiscEdgeSoftness), ang);
+    return 1.0 - smoothstep(radius - kDiscEdgeAngle, radius + kDiscEdgeAngle, ang);
 }
 
 /// The sun's disc, already reddened by the same transmittance that colours the directional light,
