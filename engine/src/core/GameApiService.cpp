@@ -14,6 +14,7 @@
 #include "core/CombatAISystem.h"
 #include "core/PlayerTurnController.h"
 #include "core/DiceSystem.h"
+#include "core/CharacterSheet.h"
 #include "core/SceneManager.h"
 #include "core/SceneDefinition.h"
 #include "graphics/RenderCoordinator.h"
@@ -245,6 +246,13 @@ void GameApiService::registerCommands() {
         if (!combatDirector) { r = {{"error", "combat not available"}}; return; }
         combatDirector->setMode(combatModeFromString(cmd.params.value("mode", "real_time")));
         r = {{"ok", true}, {"mode", combatModeToString(combatDirector->mode())}};
+    });
+
+    // GET/POST /api/rpg/sheet — the player's character sheet (progression:
+    // XP, level, classes, HP). Null until the host wires a sheet.
+    reg.on("sheet", [this](const APICommand&, json& r) {
+        if (!playerSheet) { r = {{"error", "character sheet not available"}}; return; }
+        r = {{"success", true}, {"sheet", playerSheet->toJson()}};
     });
 
     reg.on("combat/targeting_info", [this](const APICommand& cmd, json& r) {

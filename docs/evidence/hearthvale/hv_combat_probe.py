@@ -124,6 +124,9 @@ try:
     rec("combat_final", {"state": st, "rounds_seen": sorted(rounds_seen),
                          "rat_still_listed": rat_pos() is not None})
 
+    # P1: progression — the kill granted XP into a real CharacterSheet
+    rec("sheet_after_kill", api("POST","/api/rpg/sheet",{}))
+
     # C4: finish the quest with the combat beat behind us
     steer_to(dirs, 16, 16)                       # remedy shelf
     time.sleep(1)
@@ -132,11 +135,36 @@ try:
     steer_to(dirs, 18, 17.2, tol=2.0)
     key("E",0.1); time.sleep(0.8); key("2",0.1); time.sleep(0.8)
     key("Enter",0.1); time.sleep(0.5); key("Enter",0.1); time.sleep(1.5)
-    rec("finale", {"screen": screen(), "objectives_done": None})
+    # P2: 300 XP (kill + 2 objectives) should have crossed the 5e level-2
+    # threshold exactly on the final turn-in
+    sheet = api("POST","/api/rpg/sheet",{})
+    rec("finale", {"screen": screen(),
+                   "xp": sheet.get("sheet",{}).get("experiencePoints"),
+                   "classes": sheet.get("sheet",{}).get("classes")})
 except Exception as e:
     rec("PROBE_ERROR", {"error": repr(e)})
 finally:
     proc.kill(); log.close(); time.sleep(0.5)
+
+# P3: relaunch — progression survives the save/reload round trip. The win
+# trigger fired save_game AFTER the level-up, so town.db carries xp=300 lvl=2.
+time.sleep(1.0)
+log2 = open(SCRATCH/"hv_restore.log", "w", encoding="utf-8", errors="replace")
+proc2 = subprocess.Popen([str(RELDIR/"Hearthvale.exe"), "--test", str(PORT)],
+                         cwd=str(RELDIR), stdout=log2, stderr=subprocess.STDOUT)
+try:
+    dl = time.time()+90
+    while time.time() < dl:
+        try: api("GET","/api/state",t=3); break
+        except Exception: time.sleep(1)
+    api("POST","/api/ui/click",{"x":640,"y":384}); time.sleep(4)   # Begin -> town loads profile
+    sheet = api("POST","/api/rpg/sheet",{})
+    rec("sheet_after_relaunch", {"xp": sheet.get("sheet",{}).get("experiencePoints"),
+                                 "classes": sheet.get("sheet",{}).get("classes")})
+except Exception as e:
+    rec("RESTORE_ERROR", {"error": repr(e)})
+finally:
+    proc2.kill(); log2.close(); time.sleep(0.5)
     txt = (SCRATCH/"hv_combat.log").read_text(encoding="utf-8", errors="replace")
     ev["log"] = [l for l in txt.splitlines() if any(k in l for k in
         ("ombat","Damage","damage","attack","Attack","initiative","Initiative",

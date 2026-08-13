@@ -20,6 +20,7 @@ class CommandRegistry;
 class CombatDirector;
 class CombatAISystem;
 class PlayerTurnController;
+class CharacterSheet;
 
 // ============================================================================
 // GameApiService — opt-in HTTP API host for STANDALONE (packaged) games.
@@ -71,6 +72,7 @@ public:
     CombatDirector*       combatDirector = nullptr;
     CombatAISystem*       combatAI = nullptr;
     PlayerTurnController* playerTurn = nullptr;
+    CharacterSheet*       playerSheet = nullptr;   // progression: /api/rpg/sheet command
     std::string projectName;  // reported by project_info (identifies the running game)
 
     // Construct the queue+server, wire handlers, and start listening on `port`.

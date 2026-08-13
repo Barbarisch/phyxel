@@ -225,9 +225,22 @@ fired (when: entity_died)` → `Encounter won — last enemy fell ('npc_Rat')` �
 `in_combat: false` with the probe's manual `combat/end` REMOVED → quest completes to
 victory. A kill is now a first-class authorable event in shipped games.
 
+**Increment 4 — PROGRESSION (same day):** `CharacterProgression::awardXP` — zero gameplay
+callers when this ledger opened — now levels a real `CharacterSheet` in shipped games.
+Scaffold: kills grant `progression.kill_xp`, objective completions grant
+`progression.objective_xp` (both authorable, with class/race), level-ups log + fire a
+`player_level_up` trigger event, and restore RE-LEVELS the sheet (average HP) rather than
+poking numbers. Engine: `PlayerProfile` gained `xp`/`level` (the §5 save-format item),
+`/api/rpg/sheet` returns the live sheet (`apiPlayerSheet` hook). Measured on Hearthvale
+(fighter, 100 XP per kill/objective): rat + 2 objectives = 300 XP = **level 2 exactly at
+the 5e threshold, landing on the final turn-in**; `/api/rpg/sheet` shows xp 300 / fighter 2
+at the victory screen AND after relaunch. The relaunch initially failed (xp 0) — root
+cause: profile restore ran only at BOOT, before a menu-start game opens its world DB;
+moved to first-world-scene `onSceneReady`, once per session (re-entering a scene must
+never rewind live progress). That same fix closes §6 finding 6 (run-B restore).
+
 **Still deferred:** combat HUD verification in the standalone, loot on kill → Inventory
-(the next §1 row), progression (`awardXP` on kill/quest — now has natural call sites:
-`entity_died` + `objective_complete`).
+(the last big §1 row).
 
 ## 7. Ordered fix list
 

@@ -161,6 +161,14 @@
 
   "combat": { "mode": "turn_based" },
 
+  "progression": {
+    "class": "fighter",
+    "race": "human",
+    "kill_xp": 100,
+    "objective_xp": 100,
+    "_comment": "rat + 2 objectives = 300 XP = fighter level 2 exactly (5e threshold) - the level-up lands on the final turn-in"
+  },
+
   "objectives": [
     { "id": "find_remedy", "title": "Find the moonpetal remedy", "description": "Search the old cellar east of town.", "category": "main" },
     { "id": "report_back", "title": "Bring the remedy to the Elder", "description": "Return to Hearthvale and speak with the Elder.", "category": "main" }

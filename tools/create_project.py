@@ -157,6 +157,15 @@ def create_project(
     extra_members.append("    Phyxel::Core::Party rpgParty_;")
     extra_members.append("    std::unique_ptr<Phyxel::Core::CombatSystem> combatSystem_;  // the applyDamage funnel")
     extra_members.append("    std::unordered_map<Phyxel::Scene::AnimatedVoxelCharacter*, std::unique_ptr<Phyxel::Scene::CharacterTurnBody>> turnBodies_;")
+    # Progression: kill/quest XP -> CharacterProgression::awardXP -> level-up.
+    # Authored via game.json "progression" {class, race, kill_xp, objective_xp}.
+    extra_includes.append('#include "core/CharacterSheet.h"')
+    extra_includes.append('#include "core/CharacterProgression.h"')
+    extra_includes.append('#include "core/ClassDefinition.h"')
+    extra_members.append("    Phyxel::Core::CharacterSheet playerSheet_;  // progression: XP/level/classes")
+    extra_members.append("    int killXp_ = 0;       // XP per enemy killed (game.json progression.kill_xp)")
+    extra_members.append("    int objectiveXp_ = 0;  // XP per objective completed (progression.objective_xp)")
+    extra_members.append("    bool profileRestored_ = false;  // profile restore runs ONCE per session, at the first world-scene load (a menu-start game has no world DB open at boot)")
     extra_members.append("    Phyxel::Core::ObjectiveTracker objectiveTracker_;  // quest-log spine; game.json \"objectives\" load here")
     extra_members.append("    Phyxel::Core::PlayerProfile playerProfile_;        // persisted to the active scene's world DB (player_state table)")
     extra_members.append("    std::string loadingSceneName_;  // destination scene shown on the loading screen")
@@ -243,6 +252,7 @@ def create_project(
         "    Phyxel::Core::CombatDirector*       apiCombatDirector() override { return &combatDirector_; }",
         "    Phyxel::Core::CombatAISystem*       apiCombatAI() override       { return &combatAI_; }",
         "    Phyxel::Core::PlayerTurnController* apiPlayerTurn() override     { return &playerTurn_; }",
+        "    Phyxel::Core::CharacterSheet*       apiPlayerSheet() override    { return &playerSheet_; }",
         *([
             "    Phyxel::Core::EntityRegistry* apiEntityRegistry() override { return entityRegistry_.get(); }",
             "    Phyxel::Core::NPCManager* apiNPCManager() override { return npcManager_.get(); }",
@@ -255,6 +265,7 @@ def create_project(
         f"    void savePlayerProfile();   // camera+health -> active scene world DB",
         f"    bool loadPlayerProfile();   // world DB -> camera+health (boot / save points)",
         f"    void applyAudioSettings();  // settings_ volumes -> EngineRuntime AudioSystem",
+        f"    void grantXP(int xp, const char* why);  // awardXP + level-up log/event",
         "",
         "    float elapsed_ = 0.0f;",
         f"    Phyxel::Core::EngineRuntime* engine_ = nullptr;",
@@ -782,6 +793,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // Mirrors the editor host's ObjectiveTracker wiring.
             objectiveTracker_.onCompleted = [this](const std::string& id) {{
                 triggers_.onEvent("objective_complete", {{{{"id", id}}}});
+                if (objectiveXp_ > 0) grantXP(objectiveXp_, id.c_str());
             }};
 
             // Turn-based combat stack — the same director/AI/player-turn wiring the
@@ -818,6 +830,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     triggers_.onEvent("player_died", {{{{"id", ev.targetId}}}});
                     return;
                 }}
+                if (killXp_ > 0) grantXP(killXp_, ev.targetId.c_str());
                 if (combatDirector_.inCombat()) {{
                     combatDirector_.removeCombatant(ev.targetId);
                     bool enemyRemains = false;
@@ -987,6 +1000,31 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     LOG_INFO("{class_name}", "Combat mode: {{}}", mode);
                 }}
 
+                // "progression": {{"class","race","kill_xp","objective_xp"}} — the
+                // player levels a real CharacterSheet through
+                // CharacterProgression::awardXP. Class data comes from the SAME
+                // resources/classes/*.json the editor uses (packaged with the game).
+                if (gameDef.contains("progression") && gameDef["progression"].is_object()) {{
+                    const auto& prog = gameDef["progression"];
+                    namespace fs = std::filesystem;
+                    if (fs::exists("resources/classes"))
+                        for (const auto& f : fs::directory_iterator("resources/classes"))
+                            if (f.path().extension() == ".json")
+                                Phyxel::Core::ClassRegistry::instance().loadFromFile(f.path().string());
+                    playerSheet_.name   = "player";
+                    playerSheet_.raceId = prog.value("race", "human");
+                    Phyxel::Core::ClassLevel cl;
+                    cl.classId = prog.value("class", "fighter");
+                    cl.level   = 1;
+                    playerSheet_.classes.clear();
+                    playerSheet_.classes.push_back(cl);
+                    playerSheet_.experiencePoints = 0;
+                    killXp_      = prog.value("kill_xp", 0);
+                    objectiveXp_ = prog.value("objective_xp", 0);
+                    LOG_INFO("{class_name}", "Progression: {{}} {{}} (kill_xp={{}}, objective_xp={{}})",
+                             playerSheet_.raceId, cl.classId, killXp_, objectiveXp_);
+                }}
+
                 // PERSISTENT member, not a local: the SceneManager keeps a pointer to
                 // this for every later scene transition (menu buttons, triggers).
                 auto& subsystems = gameSubsystems_;
@@ -1121,6 +1159,16 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             if (!Phyxel::UI::isGameRunning(screen_.getState())) {{
                                 screen_.setState(Phyxel::UI::ScreenState::Playing);
                             }}
+                            // First WORLD scene of the session: the scene's DB is
+                            // now open and the player spawned — restore the saved
+                            // profile. ONE attempt per session: re-entering a scene
+                            // mid-run must never rewind live progress to an older
+                            // save in that scene's DB.
+                            if (!profileRestored_) {{
+                                profileRestored_ = true;
+                                if (loadPlayerProfile())
+                                    LOG_INFO("{class_name}", "Restored saved player profile");
+                            }}
                             if (engine_) updateCursorMode(*engine_);
                         }};
                         sm->setCallbacks(cb);
@@ -1144,11 +1192,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     }}
                 }}
 
-                // Restore the saved player profile (camera pose + health) from the
-                // active scene's world DB, if one was saved by a previous run
-                // (save_game trigger action or quit-save). Runs AFTER the world/
-                // scene load so it wins over the definition's authored camera.
-                if (loadPlayerProfile()) {{
+                // Restore the saved player profile (camera pose + health + XP/level)
+                // from the active scene's world DB, if one was saved by a previous
+                // run. Succeeds here only for WORLD-start games (the DB is open);
+                // menu-start games restore in onSceneReady at the first world scene.
+                if (!profileRestored_ && loadPlayerProfile()) {{
+                    profileRestored_ = true;
                     LOG_INFO("{class_name}", "Restored saved player profile");
                 }}
 
@@ -1594,6 +1643,20 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             audio->setChannelVolume(Phyxel::Core::AudioChannel::SFX,    settings_.sfxVolume);
         }}
 
+        void {class_name}::grantXP(int xp, const char* why) {{
+            if (playerSheet_.classes.empty()) return;   // no progression authored
+            Phyxel::Core::DiceSystem dice;
+            const int before = playerSheet_.totalLevel();
+            const bool leveled = Phyxel::Core::CharacterProgression::awardXP(
+                playerSheet_, xp, dice, /*autoLevel=*/true, /*useAverageHP=*/true);
+            LOG_INFO("{class_name}", "+{{}} XP ({{}}) — total {{}} XP, level {{}}",
+                     xp, why, playerSheet_.experiencePoints, playerSheet_.totalLevel());
+            if (leveled) {{
+                LOG_INFO("{class_name}", "LEVEL UP! {{}} -> {{}}", before, playerSheet_.totalLevel());
+                triggers_.onEvent("player_level_up", {{{{"level", playerSheet_.totalLevel()}}}});
+            }}
+        }}
+
         void {class_name}::savePlayerProfile() {{
             auto* cm = engine_ ? engine_->getChunkManager() : nullptr;
             auto* ws = cm ? cm->m_streamingManager.getWorldStorage() : nullptr;
@@ -1609,6 +1672,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (auto* hc = playerCharacter_ ? playerCharacter_->getHealthComponent() : nullptr) {{
                 playerProfile_.health    = hc->getHealth();
                 playerProfile_.maxHealth = hc->getMaxHealth();
+            }}
+            if (!playerSheet_.classes.empty()) {{
+                playerProfile_.xp    = playerSheet_.experiencePoints;
+                playerProfile_.level = playerSheet_.totalLevel();
             }}
             if (playerProfile_.saveToDb(ws->getDb())) {{
                 LOG_INFO("{class_name}", "Player profile saved (player_state table)");
@@ -1630,6 +1697,20 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (auto* hc = playerCharacter_ ? playerCharacter_->getHealthComponent() : nullptr) {{
                 hc->setMaxHealth(playerProfile_.maxHealth);
                 hc->setHealth(playerProfile_.health);
+            }}
+            // Progression restore: XP round-trips directly; LEVEL is rebuilt by
+            // re-running levelUp so class HP/hit-dice accrue properly (average
+            // HP, deterministic — matches how the XP was originally earned).
+            if (!playerSheet_.classes.empty() && playerProfile_.xp > 0) {{
+                playerSheet_.experiencePoints = playerProfile_.xp;
+                Phyxel::Core::DiceSystem dice;
+                while (playerSheet_.totalLevel() < playerProfile_.level) {{
+                    auto res = Phyxel::Core::CharacterProgression::levelUp(
+                        playerSheet_, playerSheet_.classes[0].classId, dice, /*useAverageHP=*/true);
+                    if (!res.success) break;
+                }}
+                LOG_INFO("{class_name}", "Progression restored: {{}} XP, level {{}}",
+                         playerSheet_.experiencePoints, playerSheet_.totalLevel());
             }}
             return true;
         }}

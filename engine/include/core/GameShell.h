@@ -19,6 +19,7 @@ class EntityRegistry;
 class CombatDirector;
 class CombatAISystem;
 class PlayerTurnController;
+class CharacterSheet;
 
 // Engine-side base for standalone game hosts. Scaffolded games subclass THIS
 // instead of GameCallbacks, so shell behavior lives in the engine and fixes
@@ -73,6 +74,7 @@ protected:
     virtual CombatDirector*       apiCombatDirector() { return nullptr; }
     virtual CombatAISystem*       apiCombatAI()       { return nullptr; }
     virtual PlayerTurnController* apiPlayerTurn()     { return nullptr; }
+    virtual CharacterSheet*       apiPlayerSheet()    { return nullptr; }  // progression
 
 private:
     GameplayCameraController cameraController_;
