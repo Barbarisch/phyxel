@@ -170,9 +170,12 @@ victory screen. First shipped Phyxel game completed by actual play. Evidence:
 game definition).
 
 Findings (each with its red proof in the evidence):
-1. **Dialogue conditions missing** — the turn-in choice can't be gated on quest state
-   (`DialogueChoice.conditionJson` exists but no authoring path); run C reached VICTORY
-   without ever visiting the cellar. The slice's #1 engine ask.
+1. ~~Dialogue conditions missing~~ **RESOLVED same day (d4208fee) — authoring gap, not
+   engine gap.** `"condition": {"variable": "...", "equals": ...}` on a choice works
+   end-to-end in a shipped build (fail-closed on missing variables); pair with a
+   `set_story_variable` trigger action. Red→green on the same probe: run C (immediate
+   turn-in) can no longer reach victory; run A (legitimate path) still does. Document
+   the schema in GameCreationGuide.
 2. **Root-relative anim paths don't ship** — `animFile:"character.anim"` fails in a packaged
    build (editor-repo file, not in packaged `resources/animated_characters/`); omit for the
    humanoid default or the packager must map them.
