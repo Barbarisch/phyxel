@@ -135,6 +135,13 @@ def create_project(
     extra_members.append("    Phyxel::Core::TriggerSystem triggers_;  // declarative when/then win conditions (game.json \"triggers\")")
     extra_includes.append('#include "core/GameDefinitionLoader.h"')
     extra_members.append("    Phyxel::Core::GameSubsystems gameSubsystems_;  // persistent: the SceneManager keeps a pointer to it")
+    # Editor-parity gameplay state (docs/game-production/StandaloneParityGaps.md §1):
+    # objectives + persistence exist in the SHIPPED game, not just the editor host.
+    extra_includes.append('#include "core/ObjectiveTracker.h"')
+    extra_includes.append('#include "core/PlayerProfile.h"')
+    extra_members.append("    Phyxel::Core::ObjectiveTracker objectiveTracker_;  // quest-log spine; game.json \"objectives\" load here")
+    extra_members.append("    Phyxel::Core::PlayerProfile playerProfile_;        // persisted to the active scene's world DB (player_state table)")
+    extra_members.append("    std::string loadingSceneName_;  // destination scene shown on the loading screen")
 
     # Menu-scene support: a JSON-driven menu renderer for sceneType:"menu" scenes.
     # When the loaded game uses menu scenes, the SceneManager drives the flow and
@@ -223,6 +230,9 @@ def create_project(
         f"    bool loadGameDefinition(Phyxel::Core::EngineRuntime& engine);",
         f"    Phyxel::Scene::Entity* spawnEntity(const std::string& type, const glm::vec3& pos, const std::string& animFile);",
         f"    void updateCursorMode(Phyxel::Core::EngineRuntime& engine);",
+        f"    void savePlayerProfile();   // camera+health -> active scene world DB",
+        f"    bool loadPlayerProfile();   // world DB -> camera+health (boot / save points)",
+        f"    void applyAudioSettings();  // settings_ volumes -> EngineRuntime AudioSystem",
         "",
         "    float elapsed_ = 0.0f;",
         f"    Phyxel::Core::EngineRuntime* engine_ = nullptr;",
@@ -473,6 +483,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         #include "core/ChunkStreamingManager.h"
         #include "core/WorldStorage.h"
         #include "core/InteractionManager.h"
+        #include "core/AudioSystem.h"
         #include "utils/PerformanceProfiler.h"
         #include "utils/PerformanceMonitor.h"
         #include "utils/Logger.h"
@@ -519,6 +530,17 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         void {class_name}::updateCursorMode(Phyxel::Core::EngineRuntime& engine) {{
             auto* window = engine.getWindowManager();
             if (!window) return;
+            // Test-API mode (--test): an automated harness drives the game — no
+            // human is at the window. NEVER grab the OS cursor: a background
+            // test run must not capture the user's mouse, and a hard-killed
+            // process whose window held a GLFW_CURSOR_DISABLED grab can leave
+            // the cursor locked/confined until the desktop refocuses.
+            // (config.testApiEnabled is set in main() BEFORE init, unlike
+            // testApiRunning(), which only turns true on the first onUpdate.)
+            if (engine.getConfig().testApiEnabled) {{
+                window->setCursorVisible(true);
+                return;
+            }}
             bool inDialogue = dialogueSystem_ && dialogueSystem_->isActive();
             // A menu scene always wants a free cursor (its buttons are clickable).
             bool shouldCapture = !menuSceneActive_ &&
@@ -583,6 +605,11 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     in->bindAction(kb.action, kb.key, kb.modifiers);
                 in->setInvertY(settings_.invertY);
             }}
+
+            // Apply persisted volume settings to the engine's AudioSystem at boot.
+            // Without this the sliders only mutate settings_ fields and the mixer
+            // never hears about them (StandaloneParityGaps.md §1, AudioSystem row).
+            applyAudioSettings();
 
             // AI conversation service — enables LLM-driven NPC dialogue
             aiConversationService_ = std::make_unique<Phyxel::AI::AIConversationService>(
@@ -726,9 +753,20 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 cam->setDistanceFromTarget(4.0f);
             }}
 
+            // Completing an objective (from any caller: trigger action, gameplay
+            // code) feeds the "objective_complete" event back into the trigger
+            // system, so quest chains compose declaratively:
+            //   {{when: {{event: "objective_complete", id: "main_quest"}}, then: [...]}}
+            // Mirrors the editor host's ObjectiveTracker wiring.
+            objectiveTracker_.onCompleted = [this](const std::string& id) {{
+                triggers_.onEvent("objective_complete", {{{{"id", id}}}});
+            }};
+
             // Declarative trigger actions (game.json "triggers"): wire to the shell.
             // Conditions like {{when: {{event: "player_jumped"}}}} can drive
             // show_victory / show_credits / transition_scene / quit_game with no code.
+            // Vocabulary is EDITOR-PARITY (StandaloneParityGaps.md §3): a game.json
+            // authored + tested in the editor must not change behavior when packaged.
             triggers_.setActionExecutor([this](const nlohmann::json& a, const std::string& tid) {{
                 const std::string type = a.value("type", "");
                 if (type == "transition_scene") {{
@@ -755,6 +793,19 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         else if (val.is_number_float())   ws.setVariable(name, val.get<float>());
                         else if (val.is_string())         ws.setVariable(name, val.get<std::string>());
                     }}
+                }} else if (type == "complete_objective") {{
+                    // Editor-parity: {{"type":"complete_objective","id":"main_quest"}}
+                    const std::string id = a.value("id", "");
+                    if (!objectiveTracker_.completeObjective(id))
+                        LOG_WARN("{class_name}", "complete_objective: unknown objective '{{}}' (trigger '{{}}')", id, tid);
+                }} else if (type == "fail_objective") {{
+                    const std::string id = a.value("id", "");
+                    if (!objectiveTracker_.failObjective(id))
+                        LOG_WARN("{class_name}", "fail_objective: unknown objective '{{}}' (trigger '{{}}')", id, tid);
+                }} else if (type == "save_game") {{
+                    // Authorable save point: {{"type":"save_game"}} persists the
+                    // player profile to the active scene's world DB.
+                    savePlayerProfile();
                 }} else {{
                     LOG_WARN("{class_name}", "Unhandled trigger action '{{}}' (trigger '{{}}')", type, tid);
                 }}
@@ -796,6 +847,22 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         if (cameraHasMode(sc.value("definition", nlohmann::json::object())))
                             authoredCameraMode_ = true;
                     }}
+                }}
+
+                // Top-level "objectives" array -> the quest log. Authorable in
+                // game.json (the editor only gets objectives via MCP at runtime;
+                // a shipped game needs them in the definition):
+                //   "objectives": [{{"id":"main_quest","title":"...","description":"...",
+                //                   "category":"main","priority":0,"hidden":false}}]
+                if (gameDef.contains("objectives") && gameDef["objectives"].is_array()) {{
+                    for (const auto& o : gameDef["objectives"]) {{
+                        objectiveTracker_.addObjective(
+                            o.value("id", ""), o.value("title", ""),
+                            o.value("description", ""), o.value("category", "main"),
+                            o.value("priority", 0), o.value("hidden", false));
+                    }}
+                    LOG_INFO("{class_name}", "Loaded {{}} objective(s) from game.json",
+                             gameDef["objectives"].size());
                 }}
 
                 // PERSISTENT member, not a local: the SceneManager keeps a pointer to
@@ -864,6 +931,27 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             if (dialogueSystem_ && dialogueSystem_->isActive())
                                 dialogueSystem_->endConversation();
                         }};
+                        // Loading screen for transitionStyle:"loading_screen" (the
+                        // DEFAULT style — without this callback the SceneManager's
+                        // setLoadingScreen calls silently no-op and transitions show
+                        // a frozen frame; StandaloneParityGaps.md §2). ScreenState::
+                        // Loading drives the data-driven "loading:*" overlay in
+                        // onRender. onSceneReady (below) or the hide call returns
+                        // the shell to Playing, whichever the SceneManager fires.
+                        cb.setLoadingScreen = [this](bool show, const std::string& sceneName) {{
+                            if (show) {{
+                                loadingSceneName_ = sceneName;
+                                if (!menuSceneActive_ &&
+                                    screen_.getState() != Phyxel::UI::ScreenState::Loading) {{
+                                    LOG_INFO("{class_name}", "Loading screen shown (-> '{{}}')", sceneName);
+                                    screen_.setState(Phyxel::UI::ScreenState::Loading);
+                                }}
+                            }} else if (screen_.getState() == Phyxel::UI::ScreenState::Loading) {{
+                                LOG_INFO("{class_name}", "Loading screen dismissed");
+                                screen_.setState(Phyxel::UI::ScreenState::Playing);
+                            }}
+                            if (engine_) updateCursorMode(*engine_);
+                        }};
                         cb.onMenuSceneLoaded = [this](const Phyxel::Core::SceneDefinition& scene) {{
                             // Menu scenes render via the UISystem (custom-Vulkan, no ImGui).
                             auto* ui = renderCoordinator_ ? renderCoordinator_->getUISystem() : nullptr;
@@ -927,6 +1015,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         LOG_ERROR("{class_name}", "Failed to load game: {{}}", result.error);
                         return false;
                     }}
+                }}
+
+                // Restore the saved player profile (camera pose + health) from the
+                // active scene's world DB, if one was saved by a previous run
+                // (save_game trigger action or quit-save). Runs AFTER the world/
+                // scene load so it wins over the definition's authored camera.
+                if (loadPlayerProfile()) {{
+                    LOG_INFO("{class_name}", "Restored saved player profile");
                 }}
 
                 // Sync input manager with camera after definition load
@@ -1100,6 +1196,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 case Phyxel::UI::ScreenState::Victory:  want = "victory";  break;
                                 case Phyxel::UI::ScreenState::Credits:  want = "credits";  break;
                                 case Phyxel::UI::ScreenState::Settings: want = "settings"; break;
+                                case Phyxel::UI::ScreenState::Loading:  want = "loading";  break;
                                 default: break;
                             }}
                         }}
@@ -1111,6 +1208,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 a.onResolveVariable = [this](const std::string& t) -> std::optional<std::string> {{
                                     if (t == "title")   return std::string("{class_name}");
                                     if (t == "tagline") return std::string("{game_tagline}");
+                                    if (t == "loading_target") return loadingSceneName_;
                                     // {{keybind.<Action>}} -> current key for the keybindings sub-panel rows.
                                     if (t.rfind("keybind.", 0) == 0) {{
                                         const auto* b = settings_.findBinding(t.substr(8));
@@ -1161,9 +1259,9 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                     auto* win = engine_ ? engine_->getWindowManager() : nullptr;
                                     auto* cam = engine_ ? engine_->getCamera() : nullptr;
                                     if (k == "fov")                   {{ settings_.fov = v; if (cam) cam->setZoom(v); }}
-                                    else if (k == "masterVolume")     {{ settings_.masterVolume = v; }}
-                                    else if (k == "musicVolume")      {{ settings_.musicVolume = v; }}
-                                    else if (k == "sfxVolume")        {{ settings_.sfxVolume = v; }}
+                                    else if (k == "masterVolume")     {{ settings_.masterVolume = v; applyAudioSettings(); }}
+                                    else if (k == "musicVolume")      {{ settings_.musicVolume = v; applyAudioSettings(); }}
+                                    else if (k == "sfxVolume")        {{ settings_.sfxVolume = v; applyAudioSettings(); }}
                                     else if (k == "mouseSensitivity") {{ settings_.mouseSensitivity = v; if (cam) cam->setMouseSensitivity(v); }}
                                     else if (k == "fullscreen")       {{ settings_.fullscreen = (v > 0.5f); if (win) win->setFullscreen(settings_.fullscreen); }}
                                     else if (k == "vsync") {{
@@ -1351,9 +1449,65 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (renderCoordinator_) renderCoordinator_->render();
         }}
 
+        // ── Editor-parity persistence + audio (StandaloneParityGaps.md §1) ──────
+
+        void {class_name}::applyAudioSettings() {{
+            auto* audio = engine_ ? engine_->getAudioSystem() : nullptr;
+            if (!audio) return;
+            audio->setChannelVolume(Phyxel::Core::AudioChannel::Master, settings_.masterVolume);
+            audio->setChannelVolume(Phyxel::Core::AudioChannel::Music,  settings_.musicVolume);
+            audio->setChannelVolume(Phyxel::Core::AudioChannel::SFX,    settings_.sfxVolume);
+        }}
+
+        void {class_name}::savePlayerProfile() {{
+            auto* cm = engine_ ? engine_->getChunkManager() : nullptr;
+            auto* ws = cm ? cm->m_streamingManager.getWorldStorage() : nullptr;
+            if (!ws || !ws->getDb()) {{
+                LOG_WARN("{class_name}", "savePlayerProfile: no world database open");
+                return;
+            }}
+            if (auto* cam = engine_->getCamera()) {{
+                playerProfile_.cameraPosition = cam->getPosition();
+                playerProfile_.cameraYaw     = cam->getYaw();
+                playerProfile_.cameraPitch   = cam->getPitch();
+            }}
+            if (auto* hc = playerCharacter_ ? playerCharacter_->getHealthComponent() : nullptr) {{
+                playerProfile_.health    = hc->getHealth();
+                playerProfile_.maxHealth = hc->getMaxHealth();
+            }}
+            if (playerProfile_.saveToDb(ws->getDb())) {{
+                LOG_INFO("{class_name}", "Player profile saved (player_state table)");
+            }} else {{
+                LOG_WARN("{class_name}", "Player profile save FAILED");
+            }}
+        }}
+
+        bool {class_name}::loadPlayerProfile() {{
+            auto* cm = engine_ ? engine_->getChunkManager() : nullptr;
+            auto* ws = cm ? cm->m_streamingManager.getWorldStorage() : nullptr;
+            if (!ws || !ws->getDb()) return false;
+            if (!playerProfile_.loadFromDb(ws->getDb())) return false;
+            if (auto* cam = engine_->getCamera()) {{
+                cam->setPosition(playerProfile_.cameraPosition);
+                cam->setYaw(playerProfile_.cameraYaw);
+                cam->setPitch(playerProfile_.cameraPitch);
+            }}
+            if (auto* hc = playerCharacter_ ? playerCharacter_->getHealthComponent() : nullptr) {{
+                hc->setMaxHealth(playerProfile_.maxHealth);
+                hc->setHealth(playerProfile_.health);
+            }}
+            return true;
+        }}
+
         void {class_name}::onShutdown() {{
             LOG_INFO("{class_name}", "Shutting down...");
+            // Release any cursor grab FIRST — quitting from Playing otherwise
+            // tears the window down while it holds GLFW_CURSOR_DISABLED, which
+            // can leave the OS cursor confined/hidden until the desktop refocuses.
+            if (engine_ && engine_->getWindowManager())
+                engine_->getWindowManager()->setCursorVisible(true);
             stopTestApi();  // stop the test API before tearing down subsystems it references
+            savePlayerProfile();  // quit-save: profile -> active scene's world DB
             settings_.saveToFile("settings.json");
             renderCoordinator_.reset();
             entities_.clear();

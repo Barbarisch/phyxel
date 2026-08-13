@@ -80,6 +80,7 @@ REQUIRED_RESOURCES = [
     "resources/ui/credits_screen.json",
     "resources/ui/settings_screen.json",
     "resources/ui/mainmenu_screen.json",
+    "resources/ui/loading_screen.json",
 ]
 
 # The default animation file an animated character/NPC falls back to when the
