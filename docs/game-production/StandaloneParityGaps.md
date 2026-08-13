@@ -157,7 +157,38 @@ Notes / residue from this round:
 - Still absent from the standalone, unchanged: Inventory, CombatDirector, CharacterSheet/
   Progression (§1 rows stand).
 
-## 6. Ordered fix list
+## 6. Vertical slice increment 1 — Hearthvale PLAYED THROUGH (2026-08-13)
+
+The §7 fix-list's item 2 forcing function ran: **Hearthvale** (`PhyxelProjects/Hearthvale`,
+3 scenes: menu → town ⇄ cellar) was authored in game.json, generated, compiled Release, and
+**played start-to-victory over the `--test` API** — menu Begin click → Elder dialogue accept
+(E + choice) → walked east by steered `inject_input` → `to_cellar` region trigger + loading
+screen → walked to the remedy (`find_remedy` fired + save) → walked out → town → dialogue
+turn-in (choice → node `actions` → `complete_objective`) → `win` trigger → save + real
+victory screen. First shipped Phyxel game completed by actual play. Evidence:
+[`docs/evidence/hearthvale/`](../evidence/hearthvale/) (probe, evidence JSON, 3 run logs,
+game definition).
+
+Findings (each with its red proof in the evidence):
+1. **Dialogue conditions missing** — the turn-in choice can't be gated on quest state
+   (`DialogueChoice.conditionJson` exists but no authoring path); run C reached VICTORY
+   without ever visiting the cellar. The slice's #1 engine ask.
+2. **Root-relative anim paths don't ship** — `animFile:"character.anim"` fails in a packaged
+   build (editor-repo file, not in packaged `resources/animated_characters/`); omit for the
+   humanoid default or the packager must map them.
+3. **Authored scene camera not applied on menu→world transition** (camera stays engine
+   default (50,50,50)); gameplay is unaffected (rig follows the player) — needs triage.
+4. **`inject_input` key names are case-sensitive** (`Core::stringToKey`: `W`, `Enter`,
+   `Escape`; lowercase silently unresolved) and unknown param shapes (`key` vs `keys`)
+   return success — normalize + error on unknown params.
+5. **Region-door authoring trap**: scene re-entry restores the player inside the departure
+   region — `once:false` door pairs revolving-door loop. Authoring rule (or engine grace
+   period) needed; slice used `once:true`.
+6. Run B's save/reload measurement is incomplete (relaunch stops at the menu; profile
+   applies on world-scene load) — extend the probe to click Begin before checking.
+7. Pre-existing reflection-descriptor-pool Vulkan error also fires in standalones (known).
+
+## 7. Ordered fix list
 
 1. ~~**Scaffold parity**~~ **DONE 2026-08-13 (§5)** — ObjectiveTracker + PlayerProfile +
    AudioSystem hookup + `setLoadingScreen` + trigger-vocabulary parity, measured green
