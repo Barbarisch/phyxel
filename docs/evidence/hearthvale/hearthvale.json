@@ -48,7 +48,8 @@
                   "text": "This fever will take me before winter does. A moonpetal remedy sits forgotten in the old cellar east of town. Will you fetch it?",
                   "choices": [
                     { "text": "I'll find your remedy.", "nextNodeId": "accepted" },
-                    { "text": "I have your remedy.", "nextNodeId": "turn_in" },
+                    { "text": "I have your remedy.", "nextNodeId": "turn_in",
+                      "condition": { "variable": "remedy_found", "equals": true } },
                     { "text": "Not now.", "nextNodeId": "declined" }
                   ]
                 },
@@ -109,6 +110,7 @@
                       "region": { "from": { "x": 14, "y": 16, "z": 14 }, "to": { "x": 18, "y": 22, "z": 18 } } },
             "then": [
               { "type": "complete_objective", "id": "find_remedy" },
+              { "type": "set_story_variable", "name": "remedy_found", "value": true },
               { "type": "save_game" }
             ],
             "once": true

@@ -1,346 +1,346 @@
-[32m[13:28:06.798] [INFO] [main] Hearthvale starting[0m
-[32m[13:28:06.799] [INFO] [InputManager] InputManager created[0m
-[32m[13:28:07.293] [INFO] [Audio] Audio System Initialized.[0m
-[33m[13:28:07.293] [WARN] [TTS] Piper assets not found (run tools/setup_piper.py) — NPC voices disabled[0m
-[32m[13:28:07.293] [INFO] [WorldInitializer] Initializing Phyxel Application...[0m
-[32m[13:28:07.293] [INFO] [WorldInitializer] Logging system initialized (check logging.ini for configuration)[0m
-[32m[13:28:07.293] [INFO] [WorldInitializer] Initializing window[0m
-[32m[13:28:07.293] [INFO] [WindowManager] Initializing GLFW window system[0m
-[32m[13:28:07.320] [INFO] [WindowManager] Window created: 1280x720 'Hearthvale'[0m
-[32m[13:28:07.320] [INFO] [WorldInitializer] Window initialization complete[0m
-[32m[13:28:07.322] [INFO] [Vulkan] Instance API version requested: 1.2 (loader offers 1.4)[0m
-[32m[13:28:09.019] [INFO] [Vulkan] Vulkan surface created successfully[0m
-[32m[13:28:09.021] [INFO] [Vulkan] C2 capability set: multiDrawIndirect=yes drawIndirectFirstInstance=yes gl_DrawID(1.1)=yes drawIndirectCount(1.2)=yes deviceApi=1.4[0m
-[32m[13:28:09.029] [INFO] [Vulkan] Compute queue family: 0 (shared with graphics)[0m
-[32m[13:28:09.047] [INFO] [Vulkan] Swapchain created successfully[0m
-[32m[13:28:09.047] [INFO] [Vulkan] Framebuffers created successfully[0m
-[32m[13:28:09.048] [INFO] [Rendering] Debug graphics pipeline created successfully[0m
-[32m[13:28:09.048] [INFO] [Rendering] Debug line pipeline created successfully[0m
-[32m[13:28:09.048] [INFO] [Vulkan] Command buffers created successfully[0m
-[32m[13:28:09.048] [INFO] [Vulkan] Compute resources initialized (2 command buffers)[0m
-[32m[13:28:09.050] [INFO] [Vulkan] Created light SSBO buffers (2064 bytes each)[0m
-[32m[13:28:09.050] [INFO] [Vulkan] Created atlas UV SSBO buffers (24592 bytes each)[0m
-[32m[13:28:09.050] [INFO] [Vulkan] Created character bone SSBO (65536 matrices, 4194304 bytes)[0m
-[32m[13:28:09.050] [INFO] [Vulkan] Sync objects created successfully[0m
-[32m[13:28:09.050] [INFO] [WorldInitializer] Vulkan subsystem initialized successfully[0m
-[32m[13:28:09.050] [INFO] [WorldInitializer] Initializing texture atlas system...[0m
-[32m[13:28:09.052] [INFO] [MaterialRegistry] Loaded 103 materials (618 texture slots) from resources/materials.json[0m
-[32m[13:28:10.867] [INFO] [AtlasManager] Built texture array class 0: 438 layers @ 512x512 (albedo + normal/rough)[0m
-[32m[13:28:20.143] [INFO] [AtlasManager] Built texture array class 1: 180 layers @ 1024x1024 (albedo + normal/rough)[0m
-[32m[13:28:20.267] [INFO] [AtlasManager] Loaded BC7 cache albedo class 0 (146 MB)[0m
-[32m[13:28:20.312] [INFO] [Vulkan] BC7 texture array uploaded (class 0, 438 layers @ 512x512, 10 mips, 146 MB)[0m
-[32m[13:28:20.416] [INFO] [AtlasManager] Loaded BC7 cache nr class 0 (146 MB)[0m
-[32m[13:28:20.458] [INFO] [Vulkan] BC7 texture array uploaded (class 2, 438 layers @ 512x512, 10 mips, 146 MB)[0m
-[32m[13:28:20.642] [INFO] [AtlasManager] Loaded BC7 cache albedo class 1 (240 MB)[0m
-[32m[13:28:20.717] [INFO] [Vulkan] BC7 texture array uploaded (class 1, 180 layers @ 1024x1024, 11 mips, 240 MB)[0m
-[32m[13:28:20.912] [INFO] [AtlasManager] Loaded BC7 cache nr class 1 (240 MB)[0m
-[32m[13:28:20.985] [INFO] [Vulkan] BC7 texture array uploaded (class 3, 180 layers @ 1024x1024, 11 mips, 240 MB)[0m
-[32m[13:28:20.985] [INFO] [Vulkan] Updated atlas SSBO (count512=438, count1024=180, fallback=0)[0m
-[32m[13:28:20.985] [INFO] [WorldInitializer] Populated atlas SSBO with material PBR props (512 class=438, 1024 class=180)[0m
-[32m[13:28:20.985] [INFO] [WorldInitializer] Texture atlas system initialized successfully[0m
-[32m[13:28:20.985] [INFO] [Chunk] Physics world set for proper dynamic object cleanup[0m
-[32m[13:28:20.985] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: worlds/default.db[0m
-[32m[13:28:20.990] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
-[32m[13:28:20.990] [INFO] [ChunkStreaming] World storage initialized: worlds/default.db[0m
-[32m[13:28:20.990] [INFO] [WorldStorage] [WORLD_STORAGE] Found 0 chunks in database[0m
-[32m[13:28:20.990] [INFO] [ChunkStreaming] No chunks found in database[0m
-[32m[13:28:20.990] [INFO] [WorldInitializer] No chunks found in database - starting with EMPTY world for Python scripting[0m
-[32m[13:28:20.990] [INFO] [Chunk] Rebuilding faces for all loaded chunks with cross-chunk culling...[0m
-[32m[13:28:20.990] [INFO] [Chunk] Face rebuilding complete for 0 chunks[0m
-[32m[13:28:20.990] [INFO] [Chunk] Initializing voxel hash maps for all 0 chunks...[0m
-[32m[13:28:20.990] [INFO] [Chunk] Completed voxel map initialization for optimized O(1) hover detection[0m
-[32m[13:28:20.991] [INFO] [WorldInitializer] Created 0 chunks for testing[0m
-[32m[13:28:20.991] [INFO] [InputManager] InputManager initialized successfully[0m
-[32m[13:28:20.991] [INFO] [Physics] PhysicsWorld initialized (VoxelDynamicsWorld)[0m
-[32m[13:28:20.991] [INFO] [WorldInitializer] Physics subsystem initialized successfully (static cubes excluded)[0m
-[32m[13:28:20.991] [INFO] [WorldInitializer] Creating chunk physics bodies...[0m
-[32m[13:28:20.991] [INFO] [WorldInitializer] Assets loaded successfully[0m
-[32m[13:28:20.992] [INFO] [UI] Loaded terminal font: JetBrains Mono Nerd Font (bundled)[0m
-[32m[13:28:20.993] [INFO] [WorldInitializer] Application initialized successfully![0m
-[32m[13:28:20.993] [INFO] [EngineRuntime] Engine runtime initialized successfully[0m
-[32m[13:28:20.993] [INFO] [Hearthvale] Initializing...[0m
-[32m[13:28:20.993] [INFO] [GameSettings] No settings file found at 'settings.json', using defaults[0m
-[32m[13:28:20.993] [INFO] [AI] LLMClient created (provider=anthropic, model=claude-sonnet-5)[0m
-[32m[13:28:20.993] [INFO] [AI] ConversationMemory initialized[0m
-[32m[13:28:20.993] [INFO] [AI] AIConversationService initialized (configured=0)[0m
-[32m[13:28:20.993] [INFO] [Hearthvale] AI Conversation Service ready (configured=no)[0m
-[32m[13:28:21.026] [INFO] [ShadowMap] C2.1 chunk-data SSBO ready (16384 entries) + indirect buffer (16384 commands)[0m
-[32m[13:28:21.030] [INFO] [ShadowMap] C2.1 chunk-data SSBO ready (16384 entries) + indirect buffer (16384 commands)[0m
-[32m[13:28:21.034] [INFO] [ShadowMap] C2.1 chunk-data SSBO ready (16384 entries) + indirect buffer (16384 commands)[0m
-[32m[13:28:21.038] [INFO] [Rendering] Debug graphics pipeline created successfully[0m
-[32m[13:28:21.038] [INFO] [Rendering] Debug line pipeline created successfully[0m
-[32m[13:28:21.038] [INFO] [RenderPipeline] OIT transparent pipeline created[0m
-[32m[13:28:21.039] [INFO] [RenderPipeline] Sky pipeline created (atmospheric sky + sun + moon)[0m
-[32m[13:28:21.039] [INFO] [RenderPipeline] Mirror pipeline created[0m
-[32m[13:28:21.039] [INFO] [RenderPipeline] Reflection scene pipeline created[0m
-[31m[13:28:21.039] [ERROR] [Vulkan] Failed to allocate reflection descriptor sets![0m
-[32m[13:28:21.039] [INFO] [Vulkan] Framebuffers created successfully[0m
-[32m[13:28:21.041] [INFO] [UI] Loaded terminal font: JetBrains Mono Nerd Font (bundled)[0m
-[32m[13:28:21.048] [INFO] [Water] sea clipmap: 4 levels, 14785 verts, 29312 tris, reach 1024u[0m
-[32m[13:28:21.049] [INFO] [KinematicVoxelPipeline] Initialized (max 131072 face instances)[0m
-[32m[13:28:21.049] [INFO] [GrassRenderPipeline] Initialized (grass blade layer)[0m
-[32m[13:28:21.049] [INFO] [GrassRenderPipeline] Shadow caster initialized (grass casts shadows)[0m
-[32m[13:28:21.049] [INFO] [FoliageRenderPipeline] Initialized (leaf card layer)[0m
-[32m[13:28:21.049] [INFO] [FoliageRenderPipeline] Shadow caster initialized (dappled canopy shadows)[0m
-[32m[13:28:21.050] [INFO] [FoliageRenderPipeline] Kinematic foliage initialized (falling canopies keep cards)[0m
-[32m[13:28:21.050] [INFO] [FarTerrainRenderPipeline] Initialized (far-terrain LOD tiles)[0m
-[32m[13:28:21.050] [INFO] [FarTerrainRenderPipeline] Far-cascade shadow caster variant initialized[0m
-[32m[13:28:21.050] [INFO] [FarTreeRenderPipeline] Initialized (far-tree impostors)[0m
-[32m[13:28:21.050] [INFO] [TreeLodRenderPipeline] Initialized (instanced far-tree LOD meshes)[0m
-[32m[13:28:21.050] [INFO] [TreeLodRenderPipeline] Far-cascade shadow caster variant initialized[0m
-[32m[13:28:21.051] [INFO] [UIRenderer] Initialized (1280x720)[0m
-[32m[13:28:21.053] [INFO] [UIRenderer] Font atlas uploaded (512x512)[0m
-[32m[13:28:21.053] [INFO] [BitmapFont] Loaded TTF 'resources/fonts/JetBrainsMonoNerdFontMono-Regular.ttf' baked @ 48px (norm {:.3f})[0m
-[32m[13:28:21.054] [INFO] [RenderCoordinator] UISystem initialized successfully[0m
-[32m[13:28:21.054] [INFO] [Hearthvale] Loaded 2 objective(s) from game.json[0m
-[32m[13:28:21.054] [INFO] [HUD] Loaded engine default HUD (resources/ui/default_hud.json)[0m
-[32m[13:28:21.054] [INFO] [HUD] HUD panel 'hud_health' loaded[0m
-[32m[13:28:21.054] [INFO] [HUD] HUD panel 'hud_hotbar' loaded[0m
-[32m[13:28:21.054] [INFO] [HUD] HUD panel 'hud_objectives' loaded[0m
-[32m[13:28:21.054] [INFO] [HUD] HUD panel 'hud_dialogue' loaded[0m
-[32m[13:28:21.054] [INFO] [HUD] HUD panel 'hud_combat_banner' loaded[0m
-[32m[13:28:21.054] [INFO] [HUD] HUD panel 'hud_combat_order' loaded[0m
-[32m[13:28:21.054] [INFO] [HUD] HUD panel 'hud_combat_turn' loaded[0m
-[32m[13:28:21.054] [INFO] [HUD] HUD panel 'hud_combat_action' loaded[0m
-[32m[13:28:21.054] [INFO] [HUD] HUD panel 'hud_ai_dialogue' loaded[0m
-[32m[13:28:21.054] [INFO] [HUD] HUD panel 'hud_countdown' loaded[0m
-[32m[13:28:21.054] [INFO] [SceneManager] Loaded manifest with 3 scene(s), startScene='main_menu'[0m
-[32m[13:28:21.054] [INFO] [SceneManager] Loading initial scene: 'main_menu'[0m
-[32m[13:28:21.054] [INFO] [Hearthvale] Loading screen shown (-> 'Main Menu')[0m
-[32m[13:28:21.054] [INFO] [Hearthvale] Loading screen dismissed[0m
-[32m[13:28:21.054] [INFO] [SceneManager] Scene 'main_menu' loaded in {:.1f}ms[0m
-[32m[13:28:21.054] [INFO] [Hearthvale] Loaded multi-scene game (3 scenes)[0m
-[32m[13:28:21.055] [INFO] [Hearthvale] Game initialized[0m
-[32m[13:28:21.077] [INFO] [EngineAPIServer] HTTP API server started on port 8101[0m
-[32m[13:28:21.077] [INFO] [GameApiService] Standalone test API listening on 127.0.0.1:8101 (Hearthvale)[0m
-[33m[13:28:21.077] [WARN] [GameShell] *** TEST API ENABLED on 127.0.0.1:8101 — dev/test build, do NOT ship ***[0m
-[32m[13:28:21.078] [INFO] [WaterPipeline] Water-layer levels bound: 1x1 cells, origin (0, 0), cell 0 (invCell 0 = flat-sea; negative = grounded/off-grid-dry)[0m
-[32m[13:28:22.007] [INFO] [SceneManager] Beginning transition: 'main_menu' -> 'town'[0m
-[32m[13:28:22.008] [INFO] [SceneManager] Unloading scene 'main_menu'...[0m
-[32m[13:28:22.008] [INFO] [SceneManager] Scene 'main_menu' unloaded[0m
-[32m[13:28:22.016] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
-[32m[13:28:22.017] [INFO] [ChunkStreaming] World storage disconnected[0m
-[32m[13:28:22.017] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: worlds\town.db[0m
-[32m[13:28:22.026] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
-[32m[13:28:22.026] [INFO] [ChunkStreaming] World storage initialized: worlds\town.db[0m
-[32m[13:28:22.026] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
-[32m[13:28:22.027] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
-[32m[13:28:22.027] [INFO] [GameDefinitionLoader] World: synthesized + persisted generation recipe to world.db[0m
-[32m[13:28:22.027] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
-[32m[13:28:22.037] [INFO] [ChunkArena] initialized (block size 64 MB)[0m
-[32m[13:28:22.040] [INFO] [ChunkArena] block 0 created (64 MB)[0m
-[32m[13:28:22.050] [INFO] [ChunkArena] block 1 created (64 MB)[0m
-[32m[13:28:22.085] [INFO] [ChunkArena] block 2 created (64 MB)[0m
-[32m[13:28:22.105] [INFO] [ChunkArena] block 3 created (64 MB)[0m
-[32m[13:28:22.167] [INFO] [GameDefinitionLoader] World: generated 9 chunks (Flat, seed=11)[0m
-[32m[13:28:22.167] [INFO] [Character] Parsed archetype 'humanoid_normal' from resources/animated_characters/humanoid.anim[0m
-[32m[13:28:22.984] [INFO] [Character] === Loaded Animations (84) ===[0m
-[32m[13:28:22.984] [INFO] [Character]   [0] base_pose (Duration: 0s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [2] crouched_walking (Duration: 1s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [3] fast_run (Duration: 0.5s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [6] floating (Duration: 3.58333s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [7] idle (Duration: 16.625s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [8] jump (Duration: 2.58333s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [10] jump_down (Duration: 3.5s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [11] landing (Duration: 2.08333s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [19] run (Duration: 0.666667s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [21] standing (Duration: 3.83333s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [24] walk (Duration: 0.958333s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [25] crouch_idle (Duration: 3s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [26] point (Duration: 1.5s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [28] body_block (Duration: 3.41667s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [29] boxing (Duration: 1.70833s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [31] climbing_top (Duration: 4s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [36] attack (Duration: 1.25s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [43] talk (Duration: 5.16667s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [44] taunt (Duration: 2.83333s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [46] wave (Duration: 0.5s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [51] cast_release (Duration: 0.7s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [52] cast_call_down (Duration: 2s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [60] sword1h_guard (Duration: 0.5s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [61] sword1h_light1 (Duration: 1s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [62] sword1h_light2 (Duration: 1s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [63] sword1h_light3 (Duration: 1.15s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [64] sword1h_heavy (Duration: 1.9s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [65] roll_forward (Duration: 2.36667s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [66] dive_forward (Duration: 1.2s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [67] hit_head (Duration: 1.43333s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [68] hit_stomach (Duration: 1.2s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [69] hit_rib (Duration: 1s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [70] dodge_right (Duration: 1.43333s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [71] death_front (Duration: 4.33333s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [72] death_back (Duration: 4.6s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [73] ko_lay (Duration: 2.13333s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [74] get_up (Duration: 11.4s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [75] kick (Duration: 1.5s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [76] chop_1h (Duration: 2.4s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [77] ogre_walk (Duration: 1.41667s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [78] ogre_swipe (Duration: 2.66667s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [79] ogre_idle (Duration: 4s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [81] hop_onto_seat (Duration: 3.875s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [82] scamper_walk (Duration: 1.08333s)[0m
-[32m[13:28:22.985] [INFO] [Character]   [83] stomp (Duration: 1.79167s)[0m
-[32m[13:28:22.985] [INFO] [Character] =====================================[0m
-[32m[13:28:22.986] [INFO] [BodyPlan] loaded 5 body plans[0m
-[32m[13:28:22.986] [INFO] [Character] resizeController: height=2.11967 halfWidth=0.25 maxStep=0.444444 footOffset=7.31247e-07 minY=7.31247e-07 maxY=1.81967[0m
-[32m[13:28:22.986] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.12,0.12,0.12)[0m
-[32m[13:28:22.986] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0654832,0.1)[0m
-[32m[13:28:22.986] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.0466105,0.1)[0m
-[32m[13:28:22.987] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.1,0.1)[0m
-[32m[13:28:22.987] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.139208,0.07)[0m
-[32m[13:28:22.987] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.139208,0.07)[0m
-[32m[13:28:22.987] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.141644,0.07)[0m
-[32m[13:28:22.987] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.141644,0.07)[0m
-[32m[13:28:22.987] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.221857,0.08)[0m
-[32m[13:28:22.987] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.221857,0.08)[0m
-[32m[13:28:22.987] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.222639,0.08)[0m
-[32m[13:28:22.987] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.222639,0.08)[0m
-[32m[13:28:22.987] [INFO] [Character] Built 12/8 segment collision boxes[0m
-[32m[13:28:22.987] [INFO] [GameDefinitionLoader] Player spawned: animated at (16.000000, 20.000000, 16.000000)[0m
-[32m[13:28:22.987] [INFO] [Character] Parsed archetype 'humanoid_normal' from resources/animated_characters/humanoid.anim[0m
-[32m[13:28:22.992] [INFO] [Character] === Loaded Animations (84) ===[0m
-[32m[13:28:22.992] [INFO] [Character]   [0] base_pose (Duration: 0s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [2] crouched_walking (Duration: 1s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [3] fast_run (Duration: 0.5s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [6] floating (Duration: 3.58333s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [7] idle (Duration: 16.625s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [8] jump (Duration: 2.58333s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [10] jump_down (Duration: 3.5s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [11] landing (Duration: 2.08333s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [19] run (Duration: 0.666667s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [21] standing (Duration: 3.83333s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [24] walk (Duration: 0.958333s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [25] crouch_idle (Duration: 3s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [26] point (Duration: 1.5s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [28] body_block (Duration: 3.41667s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [29] boxing (Duration: 1.70833s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [31] climbing_top (Duration: 4s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [36] attack (Duration: 1.25s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [43] talk (Duration: 5.16667s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [44] taunt (Duration: 2.83333s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [46] wave (Duration: 0.5s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [51] cast_release (Duration: 0.7s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [52] cast_call_down (Duration: 2s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [60] sword1h_guard (Duration: 0.5s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [61] sword1h_light1 (Duration: 1s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [62] sword1h_light2 (Duration: 1s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [63] sword1h_light3 (Duration: 1.15s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [64] sword1h_heavy (Duration: 1.9s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [65] roll_forward (Duration: 2.36667s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [66] dive_forward (Duration: 1.2s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [67] hit_head (Duration: 1.43333s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [68] hit_stomach (Duration: 1.2s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [69] hit_rib (Duration: 1s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [70] dodge_right (Duration: 1.43333s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [71] death_front (Duration: 4.33333s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [72] death_back (Duration: 4.6s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [73] ko_lay (Duration: 2.13333s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [74] get_up (Duration: 11.4s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [75] kick (Duration: 1.5s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [76] chop_1h (Duration: 2.4s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [77] ogre_walk (Duration: 1.41667s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [78] ogre_swipe (Duration: 2.66667s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [79] ogre_idle (Duration: 4s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [81] hop_onto_seat (Duration: 3.875s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [82] scamper_walk (Duration: 1.08333s)[0m
-[32m[13:28:22.992] [INFO] [Character]   [83] stomp (Duration: 1.79167s)[0m
-[32m[13:28:22.992] [INFO] [Character] =====================================[0m
-[32m[13:28:22.992] [INFO] [Character] resizeController: height=1.87396 halfWidth=0.229561 maxStep=0.36372 footOffset=0.0437103 minY=0.0437103 maxY=1.61767[0m
-[32m[13:28:22.993] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.114466,0.114466,0.114466)[0m
-[32m[13:28:22.993] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0538415,0.1)[0m
-[32m[13:28:22.993] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.04,0.1)[0m
-[32m[13:28:22.993] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.1,0.0864118)[0m
-[32m[13:28:22.993] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.116967,0.07)[0m
-[32m[13:28:22.993] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.116967,0.07)[0m
-[32m[13:28:22.993] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.119014,0.07)[0m
-[32m[13:28:22.993] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.119014,0.07)[0m
-[32m[13:28:22.993] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.148584,0.08)[0m
-[32m[13:28:22.993] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.148584,0.08)[0m
-[32m[13:28:22.993] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.149108,0.08)[0m
-[32m[13:28:22.993] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.149108,0.08)[0m
-[32m[13:28:22.993] [INFO] [Character] Built 12/8 segment collision boxes[0m
-[32m[13:28:22.993] [INFO] [NPCManager] Spawned NPC 'Elder' at (18, 18, 18)[0m
-[32m[13:28:22.993] [INFO] [GameDefinitionLoader] Triggers: loaded 2[0m
-[32m[13:28:22.993] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=9, structures=0, locations=0, npcs=1)[0m
-[32m[13:28:22.993] [INFO] [SceneManager] Scene 'town' loaded in {:.1f}ms[0m
+[32m[15:20:22.599] [INFO] [main] Hearthvale starting[0m
+[32m[15:20:22.600] [INFO] [InputManager] InputManager created[0m
+[32m[15:20:23.071] [INFO] [Audio] Audio System Initialized.[0m
+[33m[15:20:23.071] [WARN] [TTS] Piper assets not found (run tools/setup_piper.py) — NPC voices disabled[0m
+[32m[15:20:23.071] [INFO] [WorldInitializer] Initializing Phyxel Application...[0m
+[32m[15:20:23.071] [INFO] [WorldInitializer] Logging system initialized (check logging.ini for configuration)[0m
+[32m[15:20:23.071] [INFO] [WorldInitializer] Initializing window[0m
+[32m[15:20:23.071] [INFO] [WindowManager] Initializing GLFW window system[0m
+[32m[15:20:23.097] [INFO] [WindowManager] Window created: 1280x720 'Hearthvale'[0m
+[32m[15:20:23.097] [INFO] [WorldInitializer] Window initialization complete[0m
+[32m[15:20:23.099] [INFO] [Vulkan] Instance API version requested: 1.2 (loader offers 1.4)[0m
+[32m[15:20:24.810] [INFO] [Vulkan] Vulkan surface created successfully[0m
+[32m[15:20:24.811] [INFO] [Vulkan] C2 capability set: multiDrawIndirect=yes drawIndirectFirstInstance=yes gl_DrawID(1.1)=yes drawIndirectCount(1.2)=yes deviceApi=1.4[0m
+[32m[15:20:24.820] [INFO] [Vulkan] Compute queue family: 0 (shared with graphics)[0m
+[32m[15:20:24.838] [INFO] [Vulkan] Swapchain created successfully[0m
+[32m[15:20:24.838] [INFO] [Vulkan] Framebuffers created successfully[0m
+[32m[15:20:24.840] [INFO] [Rendering] Debug graphics pipeline created successfully[0m
+[32m[15:20:24.840] [INFO] [Rendering] Debug line pipeline created successfully[0m
+[32m[15:20:24.840] [INFO] [Vulkan] Command buffers created successfully[0m
+[32m[15:20:24.840] [INFO] [Vulkan] Compute resources initialized (2 command buffers)[0m
+[32m[15:20:24.841] [INFO] [Vulkan] Created light SSBO buffers (2064 bytes each)[0m
+[32m[15:20:24.841] [INFO] [Vulkan] Created atlas UV SSBO buffers (24592 bytes each)[0m
+[32m[15:20:24.842] [INFO] [Vulkan] Created character bone SSBO (65536 matrices, 4194304 bytes)[0m
+[32m[15:20:24.842] [INFO] [Vulkan] Sync objects created successfully[0m
+[32m[15:20:24.842] [INFO] [WorldInitializer] Vulkan subsystem initialized successfully[0m
+[32m[15:20:24.842] [INFO] [WorldInitializer] Initializing texture atlas system...[0m
+[32m[15:20:24.843] [INFO] [MaterialRegistry] Loaded 103 materials (618 texture slots) from resources/materials.json[0m
+[32m[15:20:26.613] [INFO] [AtlasManager] Built texture array class 0: 438 layers @ 512x512 (albedo + normal/rough)[0m
+[32m[15:20:36.120] [INFO] [AtlasManager] Built texture array class 1: 180 layers @ 1024x1024 (albedo + normal/rough)[0m
+[32m[15:20:36.241] [INFO] [AtlasManager] Loaded BC7 cache albedo class 0 (146 MB)[0m
+[32m[15:20:36.300] [INFO] [Vulkan] BC7 texture array uploaded (class 0, 438 layers @ 512x512, 10 mips, 146 MB)[0m
+[32m[15:20:36.446] [INFO] [AtlasManager] Loaded BC7 cache nr class 0 (146 MB)[0m
+[32m[15:20:36.516] [INFO] [Vulkan] BC7 texture array uploaded (class 2, 438 layers @ 512x512, 10 mips, 146 MB)[0m
+[32m[15:20:36.722] [INFO] [AtlasManager] Loaded BC7 cache albedo class 1 (240 MB)[0m
+[32m[15:20:37.095] [INFO] [Vulkan] BC7 texture array uploaded (class 1, 180 layers @ 1024x1024, 11 mips, 240 MB)[0m
+[32m[15:20:37.282] [INFO] [AtlasManager] Loaded BC7 cache nr class 1 (240 MB)[0m
+[32m[15:20:37.507] [INFO] [Vulkan] BC7 texture array uploaded (class 3, 180 layers @ 1024x1024, 11 mips, 240 MB)[0m
+[32m[15:20:37.507] [INFO] [Vulkan] Updated atlas SSBO (count512=438, count1024=180, fallback=0)[0m
+[32m[15:20:37.507] [INFO] [WorldInitializer] Populated atlas SSBO with material PBR props (512 class=438, 1024 class=180)[0m
+[32m[15:20:37.507] [INFO] [WorldInitializer] Texture atlas system initialized successfully[0m
+[32m[15:20:37.507] [INFO] [Chunk] Physics world set for proper dynamic object cleanup[0m
+[32m[15:20:37.508] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: worlds/default.db[0m
+[32m[15:20:37.512] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[15:20:37.512] [INFO] [ChunkStreaming] World storage initialized: worlds/default.db[0m
+[32m[15:20:37.512] [INFO] [WorldStorage] [WORLD_STORAGE] Found 0 chunks in database[0m
+[32m[15:20:37.512] [INFO] [ChunkStreaming] No chunks found in database[0m
+[32m[15:20:37.512] [INFO] [WorldInitializer] No chunks found in database - starting with EMPTY world for Python scripting[0m
+[32m[15:20:37.512] [INFO] [Chunk] Rebuilding faces for all loaded chunks with cross-chunk culling...[0m
+[32m[15:20:37.512] [INFO] [Chunk] Face rebuilding complete for 0 chunks[0m
+[32m[15:20:37.512] [INFO] [Chunk] Initializing voxel hash maps for all 0 chunks...[0m
+[32m[15:20:37.512] [INFO] [Chunk] Completed voxel map initialization for optimized O(1) hover detection[0m
+[32m[15:20:37.513] [INFO] [WorldInitializer] Created 0 chunks for testing[0m
+[32m[15:20:37.513] [INFO] [InputManager] InputManager initialized successfully[0m
+[32m[15:20:37.513] [INFO] [Physics] PhysicsWorld initialized (VoxelDynamicsWorld)[0m
+[32m[15:20:37.513] [INFO] [WorldInitializer] Physics subsystem initialized successfully (static cubes excluded)[0m
+[32m[15:20:37.513] [INFO] [WorldInitializer] Creating chunk physics bodies...[0m
+[32m[15:20:37.513] [INFO] [WorldInitializer] Assets loaded successfully[0m
+[32m[15:20:37.514] [INFO] [UI] Loaded terminal font: JetBrains Mono Nerd Font (bundled)[0m
+[32m[15:20:37.514] [INFO] [WorldInitializer] Application initialized successfully![0m
+[32m[15:20:37.514] [INFO] [EngineRuntime] Engine runtime initialized successfully[0m
+[32m[15:20:37.514] [INFO] [Hearthvale] Initializing...[0m
+[32m[15:20:37.514] [INFO] [GameSettings] No settings file found at 'settings.json', using defaults[0m
+[32m[15:20:37.514] [INFO] [AI] LLMClient created (provider=anthropic, model=claude-sonnet-5)[0m
+[32m[15:20:37.515] [INFO] [AI] ConversationMemory initialized[0m
+[32m[15:20:37.515] [INFO] [AI] AIConversationService initialized (configured=0)[0m
+[32m[15:20:37.515] [INFO] [Hearthvale] AI Conversation Service ready (configured=no)[0m
+[32m[15:20:37.716] [INFO] [ShadowMap] C2.1 chunk-data SSBO ready (16384 entries) + indirect buffer (16384 commands)[0m
+[32m[15:20:37.722] [INFO] [ShadowMap] C2.1 chunk-data SSBO ready (16384 entries) + indirect buffer (16384 commands)[0m
+[32m[15:20:37.726] [INFO] [ShadowMap] C2.1 chunk-data SSBO ready (16384 entries) + indirect buffer (16384 commands)[0m
+[32m[15:20:37.731] [INFO] [Rendering] Debug graphics pipeline created successfully[0m
+[32m[15:20:37.731] [INFO] [Rendering] Debug line pipeline created successfully[0m
+[32m[15:20:37.731] [INFO] [RenderPipeline] OIT transparent pipeline created[0m
+[32m[15:20:37.732] [INFO] [RenderPipeline] Sky pipeline created (atmospheric sky + sun + moon)[0m
+[32m[15:20:37.732] [INFO] [RenderPipeline] Mirror pipeline created[0m
+[32m[15:20:37.732] [INFO] [RenderPipeline] Reflection scene pipeline created[0m
+[31m[15:20:37.732] [ERROR] [Vulkan] Failed to allocate reflection descriptor sets![0m
+[32m[15:20:37.732] [INFO] [Vulkan] Framebuffers created successfully[0m
+[32m[15:20:37.734] [INFO] [UI] Loaded terminal font: JetBrains Mono Nerd Font (bundled)[0m
+[32m[15:20:37.741] [INFO] [Water] sea clipmap: 4 levels, 14785 verts, 29312 tris, reach 1024u[0m
+[32m[15:20:37.743] [INFO] [KinematicVoxelPipeline] Initialized (max 131072 face instances)[0m
+[32m[15:20:37.743] [INFO] [GrassRenderPipeline] Initialized (grass blade layer)[0m
+[32m[15:20:37.744] [INFO] [GrassRenderPipeline] Shadow caster initialized (grass casts shadows)[0m
+[32m[15:20:37.744] [INFO] [FoliageRenderPipeline] Initialized (leaf card layer)[0m
+[32m[15:20:37.744] [INFO] [FoliageRenderPipeline] Shadow caster initialized (dappled canopy shadows)[0m
+[32m[15:20:37.744] [INFO] [FoliageRenderPipeline] Kinematic foliage initialized (falling canopies keep cards)[0m
+[32m[15:20:37.745] [INFO] [FarTerrainRenderPipeline] Initialized (far-terrain LOD tiles)[0m
+[32m[15:20:37.745] [INFO] [FarTerrainRenderPipeline] Far-cascade shadow caster variant initialized[0m
+[32m[15:20:37.745] [INFO] [FarTreeRenderPipeline] Initialized (far-tree impostors)[0m
+[32m[15:20:37.745] [INFO] [TreeLodRenderPipeline] Initialized (instanced far-tree LOD meshes)[0m
+[32m[15:20:37.745] [INFO] [TreeLodRenderPipeline] Far-cascade shadow caster variant initialized[0m
+[32m[15:20:37.746] [INFO] [UIRenderer] Initialized (1280x720)[0m
+[32m[15:20:37.749] [INFO] [UIRenderer] Font atlas uploaded (512x512)[0m
+[32m[15:20:37.749] [INFO] [BitmapFont] Loaded TTF 'resources/fonts/JetBrainsMonoNerdFontMono-Regular.ttf' baked @ 48px (norm {:.3f})[0m
+[32m[15:20:37.749] [INFO] [RenderCoordinator] UISystem initialized successfully[0m
+[32m[15:20:37.761] [INFO] [Hearthvale] Loaded 2 objective(s) from game.json[0m
+[32m[15:20:37.761] [INFO] [HUD] Loaded engine default HUD (resources/ui/default_hud.json)[0m
+[32m[15:20:37.761] [INFO] [HUD] HUD panel 'hud_health' loaded[0m
+[32m[15:20:37.761] [INFO] [HUD] HUD panel 'hud_hotbar' loaded[0m
+[32m[15:20:37.761] [INFO] [HUD] HUD panel 'hud_objectives' loaded[0m
+[32m[15:20:37.761] [INFO] [HUD] HUD panel 'hud_dialogue' loaded[0m
+[32m[15:20:37.761] [INFO] [HUD] HUD panel 'hud_combat_banner' loaded[0m
+[32m[15:20:37.761] [INFO] [HUD] HUD panel 'hud_combat_order' loaded[0m
+[32m[15:20:37.761] [INFO] [HUD] HUD panel 'hud_combat_turn' loaded[0m
+[32m[15:20:37.761] [INFO] [HUD] HUD panel 'hud_combat_action' loaded[0m
+[32m[15:20:37.761] [INFO] [HUD] HUD panel 'hud_ai_dialogue' loaded[0m
+[32m[15:20:37.761] [INFO] [HUD] HUD panel 'hud_countdown' loaded[0m
+[32m[15:20:37.761] [INFO] [SceneManager] Loaded manifest with 3 scene(s), startScene='main_menu'[0m
+[32m[15:20:37.761] [INFO] [SceneManager] Loading initial scene: 'main_menu'[0m
+[32m[15:20:37.761] [INFO] [Hearthvale] Loading screen shown (-> 'Main Menu')[0m
+[32m[15:20:37.761] [INFO] [Hearthvale] Loading screen dismissed[0m
+[32m[15:20:37.761] [INFO] [SceneManager] Scene 'main_menu' loaded in {:.1f}ms[0m
+[32m[15:20:37.761] [INFO] [Hearthvale] Loaded multi-scene game (3 scenes)[0m
+[32m[15:20:37.762] [INFO] [Hearthvale] Game initialized[0m
+[32m[15:20:37.797] [INFO] [EngineAPIServer] HTTP API server started on port 8101[0m
+[32m[15:20:37.797] [INFO] [GameApiService] Standalone test API listening on 127.0.0.1:8101 (Hearthvale)[0m
+[33m[15:20:37.797] [WARN] [GameShell] *** TEST API ENABLED on 127.0.0.1:8101 — dev/test build, do NOT ship ***[0m
+[32m[15:20:37.799] [INFO] [WaterPipeline] Water-layer levels bound: 1x1 cells, origin (0, 0), cell 0 (invCell 0 = flat-sea; negative = grounded/off-grid-dry)[0m
+[32m[15:20:37.878] [INFO] [SceneManager] Beginning transition: 'main_menu' -> 'town'[0m
+[32m[15:20:37.878] [INFO] [SceneManager] Unloading scene 'main_menu'...[0m
+[32m[15:20:37.878] [INFO] [SceneManager] Scene 'main_menu' unloaded[0m
+[32m[15:20:37.887] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[15:20:37.887] [INFO] [ChunkStreaming] World storage disconnected[0m
+[32m[15:20:37.888] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: worlds\town.db[0m
+[32m[15:20:37.895] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[15:20:37.895] [INFO] [ChunkStreaming] World storage initialized: worlds\town.db[0m
+[32m[15:20:37.895] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[32m[15:20:37.896] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[15:20:37.897] [INFO] [GameDefinitionLoader] World: synthesized + persisted generation recipe to world.db[0m
+[32m[15:20:37.897] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[15:20:37.907] [INFO] [ChunkArena] initialized (block size 64 MB)[0m
+[32m[15:20:37.909] [INFO] [ChunkArena] block 0 created (64 MB)[0m
+[32m[15:20:37.920] [INFO] [ChunkArena] block 1 created (64 MB)[0m
+[32m[15:20:37.991] [INFO] [ChunkArena] block 2 created (64 MB)[0m
+[32m[15:20:38.050] [INFO] [ChunkArena] block 3 created (64 MB)[0m
+[32m[15:20:38.120] [INFO] [GameDefinitionLoader] World: generated 9 chunks (Flat, seed=11)[0m
+[32m[15:20:38.120] [INFO] [Character] Parsed archetype 'humanoid_normal' from resources/animated_characters/humanoid.anim[0m
+[32m[15:20:38.917] [INFO] [Character] === Loaded Animations (84) ===[0m
+[32m[15:20:38.917] [INFO] [Character]   [0] base_pose (Duration: 0s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [2] crouched_walking (Duration: 1s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [3] fast_run (Duration: 0.5s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [6] floating (Duration: 3.58333s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [7] idle (Duration: 16.625s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [8] jump (Duration: 2.58333s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [10] jump_down (Duration: 3.5s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [11] landing (Duration: 2.08333s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [19] run (Duration: 0.666667s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [21] standing (Duration: 3.83333s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [24] walk (Duration: 0.958333s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [25] crouch_idle (Duration: 3s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [26] point (Duration: 1.5s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [28] body_block (Duration: 3.41667s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [29] boxing (Duration: 1.70833s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [31] climbing_top (Duration: 4s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [36] attack (Duration: 1.25s)[0m
+[32m[15:20:38.917] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [43] talk (Duration: 5.16667s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [44] taunt (Duration: 2.83333s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [46] wave (Duration: 0.5s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [51] cast_release (Duration: 0.7s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [52] cast_call_down (Duration: 2s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [60] sword1h_guard (Duration: 0.5s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [61] sword1h_light1 (Duration: 1s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [62] sword1h_light2 (Duration: 1s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [63] sword1h_light3 (Duration: 1.15s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [64] sword1h_heavy (Duration: 1.9s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [65] roll_forward (Duration: 2.36667s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [66] dive_forward (Duration: 1.2s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [67] hit_head (Duration: 1.43333s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [68] hit_stomach (Duration: 1.2s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [69] hit_rib (Duration: 1s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [70] dodge_right (Duration: 1.43333s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [71] death_front (Duration: 4.33333s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [72] death_back (Duration: 4.6s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [73] ko_lay (Duration: 2.13333s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [74] get_up (Duration: 11.4s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [75] kick (Duration: 1.5s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [76] chop_1h (Duration: 2.4s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [77] ogre_walk (Duration: 1.41667s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [78] ogre_swipe (Duration: 2.66667s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [79] ogre_idle (Duration: 4s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [81] hop_onto_seat (Duration: 3.875s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [82] scamper_walk (Duration: 1.08333s)[0m
+[32m[15:20:38.918] [INFO] [Character]   [83] stomp (Duration: 1.79167s)[0m
+[32m[15:20:38.918] [INFO] [Character] =====================================[0m
+[32m[15:20:38.919] [INFO] [BodyPlan] loaded 5 body plans[0m
+[32m[15:20:38.919] [INFO] [Character] resizeController: height=2.11967 halfWidth=0.25 maxStep=0.444444 footOffset=7.31247e-07 minY=7.31247e-07 maxY=1.81967[0m
+[32m[15:20:38.919] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.12,0.12,0.12)[0m
+[32m[15:20:38.919] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0654832,0.1)[0m
+[32m[15:20:38.919] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.0466105,0.1)[0m
+[32m[15:20:38.919] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.1,0.1)[0m
+[32m[15:20:38.919] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.139208,0.07)[0m
+[32m[15:20:38.919] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.139208,0.07)[0m
+[32m[15:20:38.919] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.141644,0.07)[0m
+[32m[15:20:38.919] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.141644,0.07)[0m
+[32m[15:20:38.919] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.221857,0.08)[0m
+[32m[15:20:38.919] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.221857,0.08)[0m
+[32m[15:20:38.919] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.222639,0.08)[0m
+[32m[15:20:38.919] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.222639,0.08)[0m
+[32m[15:20:38.919] [INFO] [Character] Built 12/8 segment collision boxes[0m
+[32m[15:20:38.919] [INFO] [GameDefinitionLoader] Player spawned: animated at (16.000000, 20.000000, 16.000000)[0m
+[32m[15:20:38.919] [INFO] [Character] Parsed archetype 'humanoid_normal' from resources/animated_characters/humanoid.anim[0m
+[32m[15:20:38.924] [INFO] [Character] === Loaded Animations (84) ===[0m
+[32m[15:20:38.924] [INFO] [Character]   [0] base_pose (Duration: 0s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [2] crouched_walking (Duration: 1s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [3] fast_run (Duration: 0.5s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [6] floating (Duration: 3.58333s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [7] idle (Duration: 16.625s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [8] jump (Duration: 2.58333s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [10] jump_down (Duration: 3.5s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [11] landing (Duration: 2.08333s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [19] run (Duration: 0.666667s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [21] standing (Duration: 3.83333s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [24] walk (Duration: 0.958333s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [25] crouch_idle (Duration: 3s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [26] point (Duration: 1.5s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [28] body_block (Duration: 3.41667s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [29] boxing (Duration: 1.70833s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [31] climbing_top (Duration: 4s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [36] attack (Duration: 1.25s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [43] talk (Duration: 5.16667s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [44] taunt (Duration: 2.83333s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [46] wave (Duration: 0.5s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [51] cast_release (Duration: 0.7s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [52] cast_call_down (Duration: 2s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [60] sword1h_guard (Duration: 0.5s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [61] sword1h_light1 (Duration: 1s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [62] sword1h_light2 (Duration: 1s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [63] sword1h_light3 (Duration: 1.15s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [64] sword1h_heavy (Duration: 1.9s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [65] roll_forward (Duration: 2.36667s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [66] dive_forward (Duration: 1.2s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [67] hit_head (Duration: 1.43333s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [68] hit_stomach (Duration: 1.2s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [69] hit_rib (Duration: 1s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [70] dodge_right (Duration: 1.43333s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [71] death_front (Duration: 4.33333s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [72] death_back (Duration: 4.6s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [73] ko_lay (Duration: 2.13333s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [74] get_up (Duration: 11.4s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [75] kick (Duration: 1.5s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [76] chop_1h (Duration: 2.4s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [77] ogre_walk (Duration: 1.41667s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [78] ogre_swipe (Duration: 2.66667s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [79] ogre_idle (Duration: 4s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [81] hop_onto_seat (Duration: 3.875s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [82] scamper_walk (Duration: 1.08333s)[0m
+[32m[15:20:38.924] [INFO] [Character]   [83] stomp (Duration: 1.79167s)[0m
+[32m[15:20:38.924] [INFO] [Character] =====================================[0m
+[32m[15:20:38.924] [INFO] [Character] resizeController: height=1.87396 halfWidth=0.229561 maxStep=0.36372 footOffset=0.0437103 minY=0.0437103 maxY=1.61767[0m
+[32m[15:20:38.925] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.114466,0.114466,0.114466)[0m
+[32m[15:20:38.925] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0538415,0.1)[0m
+[32m[15:20:38.925] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.04,0.1)[0m
+[32m[15:20:38.925] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.1,0.0864118)[0m
+[32m[15:20:38.925] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.116967,0.07)[0m
+[32m[15:20:38.925] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.116967,0.07)[0m
+[32m[15:20:38.925] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.119014,0.07)[0m
+[32m[15:20:38.925] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.119014,0.07)[0m
+[32m[15:20:38.925] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.148584,0.08)[0m
+[32m[15:20:38.925] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.148584,0.08)[0m
+[32m[15:20:38.925] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.149108,0.08)[0m
+[32m[15:20:38.925] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.149108,0.08)[0m
+[32m[15:20:38.925] [INFO] [Character] Built 12/8 segment collision boxes[0m
+[32m[15:20:38.925] [INFO] [NPCManager] Spawned NPC 'Elder' at (18, 18, 18)[0m
+[32m[15:20:38.925] [INFO] [GameDefinitionLoader] Triggers: loaded 2[0m
+[32m[15:20:38.925] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=9, structures=0, locations=0, npcs=1)[0m
+[32m[15:20:38.925] [INFO] [SceneManager] Scene 'town' loaded in {:.1f}ms[0m
 DEBUG: Selected TargetAnim=idle
 DEBUG: Selected TargetAnim=idle
 DEBUG: Selected TargetAnim=idle
@@ -348,255 +348,249 @@ DEBUG: Selected TargetAnim=idle
 DEBUG: Selected TargetAnim=idle
 DEBUG: Selected TargetAnim=idle
 DEBUG: Selected TargetAnim=idle
-[31m[13:28:25.076] [ERROR] [Character] Clip 'idle' (state=Run) has no Speed line; using fallback 8 m/s. Add `Speed <val>` to the clip in the .anim file.[0m
+[31m[15:20:40.933] [ERROR] [Character] Clip 'idle' (state=Run) has no Speed line; using fallback 8 m/s. Add `Speed <val>` to the clip in the .anim file.[0m
 DEBUG: Selected TargetAnim=run
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=right_strafe_walk
+DEBUG: Selected TargetAnim=idle
+[33m[15:20:42.275] [WARN] [InteractionManager] tryInteract: cooldown={:.3f} nearNPC=0 nearType='0' nearObj=''[0m
+DEBUG: Selected TargetAnim=idle
+[33m[15:20:42.294] [WARN] [InteractionManager] tryInteract: cooldown={:.3f} nearNPC=0 nearType='0' nearObj=''[0m
+[33m[15:20:42.317] [WARN] [InteractionManager] tryInteract: cooldown={:.3f} nearNPC=0 nearType='0' nearObj=''[0m
+[33m[15:20:42.336] [WARN] [InteractionManager] tryInteract: cooldown={:.3f} nearNPC=0 nearType='0' nearObj=''[0m
+[33m[15:20:42.357] [WARN] [InteractionManager] tryInteract: cooldown={:.3f} nearNPC=0 nearType='0' nearObj=''[0m
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=right_strafe_walk
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=right_strafe_walk
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=right_strafe_walk
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=right_strafe_walk
+DEBUG: Selected TargetAnim=right_strafe_walk
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=walking_backward
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=walking_backward
+[32m[15:21:09.915] [INFO] [TriggerSystem] Trigger 'to_cellar' fired (when: entity_reached_region)[0m
+[32m[15:21:09.915] [INFO] [SceneManager] Beginning transition: 'town' -> 'cellar'[0m
+[32m[15:21:09.938] [INFO] [Hearthvale] Loading screen shown (-> 'The Old Cellar')[0m
+[32m[15:21:09.938] [INFO] [SceneManager] Unloading scene 'town'...[0m
+[32m[15:21:09.940] [INFO] [NPCManager] Removed NPC 'Elder'[0m
+[32m[15:21:09.940] [INFO] [EntityRegistry] Cleared all entity registrations[0m
+[32m[15:21:09.941] [INFO] [SceneManager] Scene 'town' unloaded[0m
+[32m[15:21:09.959] [INFO] [ChunkStreaming] Attempting to save 9 dirty chunks[0m
+[32m[15:21:09.965] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[15:21:09.965] [INFO] [ChunkStreaming] World storage disconnected[0m
+[32m[15:21:09.965] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: worlds\cellar.db[0m
+[32m[15:21:09.971] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[15:21:09.971] [INFO] [ChunkStreaming] World storage initialized: worlds\cellar.db[0m
+[32m[15:21:09.971] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[32m[15:21:09.972] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[15:21:09.972] [INFO] [GameDefinitionLoader] World: synthesized + persisted generation recipe to world.db[0m
+[32m[15:21:09.972] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[15:21:10.105] [INFO] [GameDefinitionLoader] World: generated 9 chunks (Flat, seed=12)[0m
+[32m[15:21:10.105] [INFO] [GameDefinitionLoader] Fill glow [15,16,15]..[17,16,17]: placed 0, failed 9 (occupied voxels skipped — add "replace": true to overwrite)[0m
+[32m[15:21:10.105] [INFO] [Character] Parsed archetype 'humanoid_normal' from resources/animated_characters/humanoid.anim[0m
+[32m[15:21:10.108] [INFO] [Character] === Loaded Animations (84) ===[0m
+[32m[15:21:10.108] [INFO] [Character]   [0] base_pose (Duration: 0s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [2] crouched_walking (Duration: 1s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [3] fast_run (Duration: 0.5s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [6] floating (Duration: 3.58333s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [7] idle (Duration: 16.625s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [8] jump (Duration: 2.58333s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [10] jump_down (Duration: 3.5s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [11] landing (Duration: 2.08333s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [19] run (Duration: 0.666667s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [21] standing (Duration: 3.83333s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [24] walk (Duration: 0.958333s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [25] crouch_idle (Duration: 3s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [26] point (Duration: 1.5s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [28] body_block (Duration: 3.41667s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [29] boxing (Duration: 1.70833s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [31] climbing_top (Duration: 4s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [36] attack (Duration: 1.25s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [43] talk (Duration: 5.16667s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [44] taunt (Duration: 2.83333s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [46] wave (Duration: 0.5s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [51] cast_release (Duration: 0.7s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [52] cast_call_down (Duration: 2s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)[0m
+[32m[15:21:10.108] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [60] sword1h_guard (Duration: 0.5s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [61] sword1h_light1 (Duration: 1s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [62] sword1h_light2 (Duration: 1s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [63] sword1h_light3 (Duration: 1.15s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [64] sword1h_heavy (Duration: 1.9s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [65] roll_forward (Duration: 2.36667s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [66] dive_forward (Duration: 1.2s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [67] hit_head (Duration: 1.43333s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [68] hit_stomach (Duration: 1.2s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [69] hit_rib (Duration: 1s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [70] dodge_right (Duration: 1.43333s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [71] death_front (Duration: 4.33333s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [72] death_back (Duration: 4.6s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [73] ko_lay (Duration: 2.13333s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [74] get_up (Duration: 11.4s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [75] kick (Duration: 1.5s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [76] chop_1h (Duration: 2.4s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [77] ogre_walk (Duration: 1.41667s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [78] ogre_swipe (Duration: 2.66667s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [79] ogre_idle (Duration: 4s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [81] hop_onto_seat (Duration: 3.875s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [82] scamper_walk (Duration: 1.08333s)[0m
+[32m[15:21:10.109] [INFO] [Character]   [83] stomp (Duration: 1.79167s)[0m
+[32m[15:21:10.109] [INFO] [Character] =====================================[0m
+[32m[15:21:10.109] [INFO] [Character] resizeController: height=2.11967 halfWidth=0.25 maxStep=0.444444 footOffset=7.31247e-07 minY=7.31247e-07 maxY=1.81967[0m
+[32m[15:21:10.109] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.12,0.12,0.12)[0m
+[32m[15:21:10.109] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0654832,0.1)[0m
+[32m[15:21:10.109] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.0466105,0.1)[0m
+[32m[15:21:10.109] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.1,0.1)[0m
+[32m[15:21:10.109] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.139208,0.07)[0m
+[32m[15:21:10.109] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.139208,0.07)[0m
+[32m[15:21:10.109] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.141644,0.07)[0m
+[32m[15:21:10.109] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.141644,0.07)[0m
+[32m[15:21:10.109] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.221857,0.08)[0m
+[32m[15:21:10.109] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.221857,0.08)[0m
+[32m[15:21:10.109] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.222639,0.08)[0m
+[32m[15:21:10.109] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.222639,0.08)[0m
+[32m[15:21:10.109] [INFO] [Character] Built 12/8 segment collision boxes[0m
+[32m[15:21:10.110] [INFO] [GameDefinitionLoader] Player spawned: animated at (10.000000, 20.000000, 26.000000)[0m
+[32m[15:21:10.110] [INFO] [GameDefinitionLoader] Triggers: loaded 2[0m
+[32m[15:21:10.110] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=9, structures=1, locations=0, npcs=0)[0m
+[32m[15:21:10.110] [INFO] [Hearthvale] Loading screen dismissed[0m
+[32m[15:21:10.110] [INFO] [SceneManager] Scene 'cellar' loaded in {:.1f}ms[0m
+[31m[15:21:10.110] [ERROR] [Character] Clip 'idle' (state=BackwardWalk) has no Speed line; using fallback 1.5 m/s. Add `Speed <val>` to the clip in the .anim file.[0m
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=female_stop_walking
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=right_strafe_walk
+DEBUG: Selected TargetAnim=right_strafe_walk
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=right_strafe_walk
+DEBUG: Selected TargetAnim=right_strafe_walk
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=right_strafe_walk
+DEBUG: Selected TargetAnim=right_strafe_walk
+DEBUG: Selected TargetAnim=right_strafe_walk
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+DEBUG: Selected TargetAnim=idle
+[32m[15:21:20.505] [INFO] [TriggerSystem] Trigger 'find_remedy' fired (when: entity_reached_region)[0m
+[32m[15:21:20.506] [INFO] [Hearthvale] Player profile saved (player_state table)[0m
 DEBUG: Selected TargetAnim=run
-DEBUG: Selected TargetAnim=right_strafe_walk
-DEBUG: Selected TargetAnim=right_strafe_walk
-DEBUG: Selected TargetAnim=idle
-[33m[13:28:26.387] [WARN] [InteractionManager] tryInteract: cooldown={:.3f} nearNPC=0 nearType='0' nearObj=''[0m
-[33m[13:28:26.407] [WARN] [InteractionManager] tryInteract: cooldown={:.3f} nearNPC=0 nearType='0' nearObj=''[0m
-[33m[13:28:26.429] [WARN] [InteractionManager] tryInteract: cooldown={:.3f} nearNPC=0 nearType='0' nearObj=''[0m
-[33m[13:28:26.450] [WARN] [InteractionManager] tryInteract: cooldown={:.3f} nearNPC=0 nearType='0' nearObj=''[0m
-[33m[13:28:26.470] [WARN] [InteractionManager] tryInteract: cooldown={:.3f} nearNPC=0 nearType='0' nearObj=''[0m
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=right_strafe_walk
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=right_strafe_walk
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=right_strafe_walk
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=right_strafe_walk
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=walking_backward
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=walking_backward
-[32m[13:28:55.970] [INFO] [TriggerSystem] Trigger 'to_cellar' fired (when: entity_reached_region)[0m
-[32m[13:28:55.970] [INFO] [SceneManager] Beginning transition: 'town' -> 'cellar'[0m
-[32m[13:28:55.993] [INFO] [Hearthvale] Loading screen shown (-> 'The Old Cellar')[0m
-[32m[13:28:55.993] [INFO] [SceneManager] Unloading scene 'town'...[0m
-[32m[13:28:55.995] [INFO] [NPCManager] Removed NPC 'Elder'[0m
-[32m[13:28:55.995] [INFO] [EntityRegistry] Cleared all entity registrations[0m
-[32m[13:28:55.997] [INFO] [SceneManager] Scene 'town' unloaded[0m
-[32m[13:28:56.016] [INFO] [ChunkStreaming] Attempting to save 9 dirty chunks[0m
-[32m[13:28:56.022] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
-[32m[13:28:56.022] [INFO] [ChunkStreaming] World storage disconnected[0m
-[32m[13:28:56.022] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: worlds\cellar.db[0m
-[32m[13:28:56.027] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
-[32m[13:28:56.027] [INFO] [ChunkStreaming] World storage initialized: worlds\cellar.db[0m
-[32m[13:28:56.027] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
-[32m[13:28:56.027] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
-[32m[13:28:56.028] [INFO] [GameDefinitionLoader] World: synthesized + persisted generation recipe to world.db[0m
-[32m[13:28:56.028] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
-[32m[13:28:56.161] [INFO] [GameDefinitionLoader] World: generated 9 chunks (Flat, seed=12)[0m
-[32m[13:28:56.161] [INFO] [GameDefinitionLoader] Fill glow [15,16,15]..[17,16,17]: placed 0, failed 9 (occupied voxels skipped — add "replace": true to overwrite)[0m
-[32m[13:28:56.161] [INFO] [Character] Parsed archetype 'humanoid_normal' from resources/animated_characters/humanoid.anim[0m
-[32m[13:28:56.165] [INFO] [Character] === Loaded Animations (84) ===[0m
-[32m[13:28:56.165] [INFO] [Character]   [0] base_pose (Duration: 0s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [2] crouched_walking (Duration: 1s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [3] fast_run (Duration: 0.5s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [6] floating (Duration: 3.58333s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [7] idle (Duration: 16.625s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [8] jump (Duration: 2.58333s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [10] jump_down (Duration: 3.5s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [11] landing (Duration: 2.08333s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [19] run (Duration: 0.666667s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [21] standing (Duration: 3.83333s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [24] walk (Duration: 0.958333s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [25] crouch_idle (Duration: 3s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [26] point (Duration: 1.5s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [28] body_block (Duration: 3.41667s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [29] boxing (Duration: 1.70833s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [31] climbing_top (Duration: 4s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [36] attack (Duration: 1.25s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [43] talk (Duration: 5.16667s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [44] taunt (Duration: 2.83333s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [46] wave (Duration: 0.5s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)[0m
-[32m[13:28:56.165] [INFO] [Character]   [51] cast_release (Duration: 0.7s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [52] cast_call_down (Duration: 2s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [60] sword1h_guard (Duration: 0.5s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [61] sword1h_light1 (Duration: 1s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [62] sword1h_light2 (Duration: 1s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [63] sword1h_light3 (Duration: 1.15s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [64] sword1h_heavy (Duration: 1.9s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [65] roll_forward (Duration: 2.36667s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [66] dive_forward (Duration: 1.2s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [67] hit_head (Duration: 1.43333s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [68] hit_stomach (Duration: 1.2s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [69] hit_rib (Duration: 1s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [70] dodge_right (Duration: 1.43333s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [71] death_front (Duration: 4.33333s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [72] death_back (Duration: 4.6s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [73] ko_lay (Duration: 2.13333s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [74] get_up (Duration: 11.4s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [75] kick (Duration: 1.5s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [76] chop_1h (Duration: 2.4s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [77] ogre_walk (Duration: 1.41667s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [78] ogre_swipe (Duration: 2.66667s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [79] ogre_idle (Duration: 4s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [81] hop_onto_seat (Duration: 3.875s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [82] scamper_walk (Duration: 1.08333s)[0m
-[32m[13:28:56.166] [INFO] [Character]   [83] stomp (Duration: 1.79167s)[0m
-[32m[13:28:56.166] [INFO] [Character] =====================================[0m
-[32m[13:28:56.166] [INFO] [Character] resizeController: height=2.11967 halfWidth=0.25 maxStep=0.444444 footOffset=7.31247e-07 minY=7.31247e-07 maxY=1.81967[0m
-[32m[13:28:56.166] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.12,0.12,0.12)[0m
-[32m[13:28:56.166] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0654832,0.1)[0m
-[32m[13:28:56.166] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.0466105,0.1)[0m
-[32m[13:28:56.166] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.1,0.1)[0m
-[32m[13:28:56.166] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.139208,0.07)[0m
-[32m[13:28:56.166] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.139208,0.07)[0m
-[32m[13:28:56.166] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.141644,0.07)[0m
-[32m[13:28:56.166] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.141644,0.07)[0m
-[32m[13:28:56.166] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.221857,0.08)[0m
-[32m[13:28:56.166] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.221857,0.08)[0m
-[32m[13:28:56.166] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.222639,0.08)[0m
-[32m[13:28:56.166] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.222639,0.08)[0m
-[32m[13:28:56.166] [INFO] [Character] Built 12/8 segment collision boxes[0m
-[32m[13:28:56.167] [INFO] [GameDefinitionLoader] Player spawned: animated at (10.000000, 20.000000, 26.000000)[0m
-[32m[13:28:56.167] [INFO] [GameDefinitionLoader] Triggers: loaded 2[0m
-[32m[13:28:56.167] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=9, structures=1, locations=0, npcs=0)[0m
-[32m[13:28:56.167] [INFO] [Hearthvale] Loading screen dismissed[0m
-[32m[13:28:56.167] [INFO] [SceneManager] Scene 'cellar' loaded in {:.1f}ms[0m
-[31m[13:28:56.167] [ERROR] [Character] Clip 'idle' (state=BackwardWalk) has no Speed line; using fallback 1.5 m/s. Add `Speed <val>` to the clip in the .anim file.[0m
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=female_stop_walking
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=right_strafe_walk
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=right_strafe_walk
-DEBUG: Selected TargetAnim=right_strafe_walk
-DEBUG: Selected TargetAnim=right_strafe_walk
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=right_strafe_walk
-DEBUG: Selected TargetAnim=right_strafe_walk
-DEBUG: Selected TargetAnim=right_strafe_walk
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=idle
-[32m[13:29:06.578] [INFO] [TriggerSystem] Trigger 'find_remedy' fired (when: entity_reached_region)[0m
-[32m[13:29:06.579] [INFO] [Hearthvale] Player profile saved (player_state table)[0m
-DEBUG: Selected TargetAnim=idle
 DEBUG: Selected TargetAnim=right_strafe_walk
 DEBUG: Selected TargetAnim=idle
 DEBUG: Selected TargetAnim=idle
@@ -606,237 +600,237 @@ DEBUG: Selected TargetAnim=idle
 DEBUG: Selected TargetAnim=run
 DEBUG: Selected TargetAnim=left_strafe_walk
 DEBUG: Selected TargetAnim=idle
-DEBUG: Selected TargetAnim=left_strafe_walk
+DEBUG: Selected TargetAnim=idle
 DEBUG: Selected TargetAnim=run
 DEBUG: Selected TargetAnim=left_strafe_walk
 DEBUG: Selected TargetAnim=left_strafe_walk
-[32m[13:29:15.362] [INFO] [TriggerSystem] Trigger 'back_to_town' fired (when: entity_reached_region)[0m
-[32m[13:29:15.363] [INFO] [SceneManager] Beginning transition: 'cellar' -> 'town'[0m
-[32m[13:29:15.383] [INFO] [Hearthvale] Loading screen shown (-> 'Hearthvale Town')[0m
-[32m[13:29:15.383] [INFO] [SceneManager] Unloading scene 'cellar'...[0m
-[32m[13:29:15.383] [INFO] [EntityRegistry] Cleared all entity registrations[0m
-[32m[13:29:15.385] [INFO] [SceneManager] Scene 'cellar' unloaded[0m
-[32m[13:29:15.404] [INFO] [ChunkStreaming] Attempting to save 9 dirty chunks[0m
-[32m[13:29:15.416] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
-[32m[13:29:15.416] [INFO] [ChunkStreaming] World storage disconnected[0m
-[32m[13:29:15.416] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: worlds\town.db[0m
-[32m[13:29:15.418] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
-[32m[13:29:15.418] [INFO] [ChunkStreaming] World storage initialized: worlds\town.db[0m
-[32m[13:29:15.418] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
-[32m[13:29:15.418] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
-[32m[13:29:15.418] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
-[32m[13:29:15.418] [INFO] [GameDefinitionLoader] World: applied generation recipe from world.db[0m
-[32m[13:29:15.551] [INFO] [GameDefinitionLoader] World: generated 9 chunks (Flat, seed=11)[0m
-[32m[13:29:15.551] [INFO] [Character] Parsed archetype 'humanoid_normal' from resources/animated_characters/humanoid.anim[0m
-[32m[13:29:15.554] [INFO] [Character] === Loaded Animations (84) ===[0m
-[32m[13:29:15.554] [INFO] [Character]   [0] base_pose (Duration: 0s)[0m
-[32m[13:29:15.554] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)[0m
-[32m[13:29:15.554] [INFO] [Character]   [2] crouched_walking (Duration: 1s)[0m
-[32m[13:29:15.554] [INFO] [Character]   [3] fast_run (Duration: 0.5s)[0m
-[32m[13:29:15.554] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)[0m
-[32m[13:29:15.554] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [6] floating (Duration: 3.58333s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [7] idle (Duration: 16.625s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [8] jump (Duration: 2.58333s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [10] jump_down (Duration: 3.5s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [11] landing (Duration: 2.08333s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [19] run (Duration: 0.666667s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [21] standing (Duration: 3.83333s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [24] walk (Duration: 0.958333s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [25] crouch_idle (Duration: 3s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [26] point (Duration: 1.5s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [28] body_block (Duration: 3.41667s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [29] boxing (Duration: 1.70833s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [31] climbing_top (Duration: 4s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [36] attack (Duration: 1.25s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [43] talk (Duration: 5.16667s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [44] taunt (Duration: 2.83333s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [46] wave (Duration: 0.5s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [51] cast_release (Duration: 0.7s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [52] cast_call_down (Duration: 2s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [60] sword1h_guard (Duration: 0.5s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [61] sword1h_light1 (Duration: 1s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [62] sword1h_light2 (Duration: 1s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [63] sword1h_light3 (Duration: 1.15s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [64] sword1h_heavy (Duration: 1.9s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [65] roll_forward (Duration: 2.36667s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [66] dive_forward (Duration: 1.2s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [67] hit_head (Duration: 1.43333s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [68] hit_stomach (Duration: 1.2s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [69] hit_rib (Duration: 1s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [70] dodge_right (Duration: 1.43333s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [71] death_front (Duration: 4.33333s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [72] death_back (Duration: 4.6s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [73] ko_lay (Duration: 2.13333s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [74] get_up (Duration: 11.4s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [75] kick (Duration: 1.5s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [76] chop_1h (Duration: 2.4s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [77] ogre_walk (Duration: 1.41667s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [78] ogre_swipe (Duration: 2.66667s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [79] ogre_idle (Duration: 4s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [81] hop_onto_seat (Duration: 3.875s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [82] scamper_walk (Duration: 1.08333s)[0m
-[32m[13:29:15.555] [INFO] [Character]   [83] stomp (Duration: 1.79167s)[0m
-[32m[13:29:15.555] [INFO] [Character] =====================================[0m
-[32m[13:29:15.555] [INFO] [Character] resizeController: height=2.11967 halfWidth=0.25 maxStep=0.444444 footOffset=7.31247e-07 minY=7.31247e-07 maxY=1.81967[0m
-[32m[13:29:15.556] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.12,0.12,0.12)[0m
-[32m[13:29:15.556] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0654832,0.1)[0m
-[32m[13:29:15.556] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.0466105,0.1)[0m
-[32m[13:29:15.556] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.1,0.1)[0m
-[32m[13:29:15.556] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.139208,0.07)[0m
-[32m[13:29:15.556] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.139208,0.07)[0m
-[32m[13:29:15.556] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.141644,0.07)[0m
-[32m[13:29:15.556] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.141644,0.07)[0m
-[32m[13:29:15.556] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.221857,0.08)[0m
-[32m[13:29:15.556] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.221857,0.08)[0m
-[32m[13:29:15.556] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.222639,0.08)[0m
-[32m[13:29:15.556] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.222639,0.08)[0m
-[32m[13:29:15.556] [INFO] [Character] Built 12/8 segment collision boxes[0m
-[32m[13:29:15.556] [INFO] [GameDefinitionLoader] Player spawned: animated at (16.000000, 20.000000, 16.000000)[0m
-[32m[13:29:15.556] [INFO] [Character] Parsed archetype 'humanoid_normal' from resources/animated_characters/humanoid.anim[0m
-[32m[13:29:15.560] [INFO] [Character] === Loaded Animations (84) ===[0m
-[32m[13:29:15.560] [INFO] [Character]   [0] base_pose (Duration: 0s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [2] crouched_walking (Duration: 1s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [3] fast_run (Duration: 0.5s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [6] floating (Duration: 3.58333s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [7] idle (Duration: 16.625s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [8] jump (Duration: 2.58333s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [10] jump_down (Duration: 3.5s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [11] landing (Duration: 2.08333s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [19] run (Duration: 0.666667s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [21] standing (Duration: 3.83333s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [24] walk (Duration: 0.958333s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [25] crouch_idle (Duration: 3s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [26] point (Duration: 1.5s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [28] body_block (Duration: 3.41667s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [29] boxing (Duration: 1.70833s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [31] climbing_top (Duration: 4s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [36] attack (Duration: 1.25s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [43] talk (Duration: 5.16667s)[0m
-[32m[13:29:15.560] [INFO] [Character]   [44] taunt (Duration: 2.83333s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [46] wave (Duration: 0.5s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [51] cast_release (Duration: 0.7s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [52] cast_call_down (Duration: 2s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [60] sword1h_guard (Duration: 0.5s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [61] sword1h_light1 (Duration: 1s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [62] sword1h_light2 (Duration: 1s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [63] sword1h_light3 (Duration: 1.15s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [64] sword1h_heavy (Duration: 1.9s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [65] roll_forward (Duration: 2.36667s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [66] dive_forward (Duration: 1.2s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [67] hit_head (Duration: 1.43333s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [68] hit_stomach (Duration: 1.2s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [69] hit_rib (Duration: 1s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [70] dodge_right (Duration: 1.43333s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [71] death_front (Duration: 4.33333s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [72] death_back (Duration: 4.6s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [73] ko_lay (Duration: 2.13333s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [74] get_up (Duration: 11.4s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [75] kick (Duration: 1.5s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [76] chop_1h (Duration: 2.4s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [77] ogre_walk (Duration: 1.41667s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [78] ogre_swipe (Duration: 2.66667s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [79] ogre_idle (Duration: 4s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [81] hop_onto_seat (Duration: 3.875s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [82] scamper_walk (Duration: 1.08333s)[0m
-[32m[13:29:15.561] [INFO] [Character]   [83] stomp (Duration: 1.79167s)[0m
-[32m[13:29:15.561] [INFO] [Character] =====================================[0m
-[32m[13:29:15.561] [INFO] [Character] resizeController: height=1.87396 halfWidth=0.229561 maxStep=0.36372 footOffset=0.0437103 minY=0.0437103 maxY=1.61767[0m
-[32m[13:29:15.561] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.114466,0.114466,0.114466)[0m
-[32m[13:29:15.561] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0538415,0.1)[0m
-[32m[13:29:15.562] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.04,0.1)[0m
-[32m[13:29:15.562] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.1,0.0864118)[0m
-[32m[13:29:15.562] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.116967,0.07)[0m
-[32m[13:29:15.562] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.116967,0.07)[0m
-[32m[13:29:15.562] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.119014,0.07)[0m
-[32m[13:29:15.562] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.119014,0.07)[0m
-[32m[13:29:15.562] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.148584,0.08)[0m
-[32m[13:29:15.562] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.148584,0.08)[0m
-[32m[13:29:15.562] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.149108,0.08)[0m
-[32m[13:29:15.562] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.149108,0.08)[0m
-[32m[13:29:15.562] [INFO] [Character] Built 12/8 segment collision boxes[0m
-[32m[13:29:15.562] [INFO] [NPCManager] Spawned NPC 'Elder' at (18, 18, 18)[0m
-[32m[13:29:15.562] [INFO] [GameDefinitionLoader] Triggers: loaded 2[0m
-[32m[13:29:15.562] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=9, structures=0, locations=0, npcs=1)[0m
-[32m[13:29:15.562] [INFO] [SceneManager] Restored re-entry position ({:.1f}, {:.1f}, {:.1f}) for scene '26.0057'[0m
-[32m[13:29:15.562] [INFO] [Hearthvale] Loading screen dismissed[0m
-[32m[13:29:15.562] [INFO] [SceneManager] Scene 'town' loaded in {:.1f}ms[0m
-[31m[13:29:15.562] [ERROR] [Character] Clip 'idle' (state=Strafe) has no Speed line; using fallback 4 m/s. Add `Speed <val>` to the clip in the .anim file.[0m
+[32m[15:21:29.352] [INFO] [TriggerSystem] Trigger 'back_to_town' fired (when: entity_reached_region)[0m
+[32m[15:21:29.352] [INFO] [SceneManager] Beginning transition: 'cellar' -> 'town'[0m
+[32m[15:21:29.373] [INFO] [Hearthvale] Loading screen shown (-> 'Hearthvale Town')[0m
+[32m[15:21:29.374] [INFO] [SceneManager] Unloading scene 'cellar'...[0m
+[32m[15:21:29.374] [INFO] [EntityRegistry] Cleared all entity registrations[0m
+[32m[15:21:29.376] [INFO] [SceneManager] Scene 'cellar' unloaded[0m
+[32m[15:21:29.394] [INFO] [ChunkStreaming] Attempting to save 9 dirty chunks[0m
+[32m[15:21:29.404] [INFO] [WorldStorage] [WORLD_STORAGE] Database closed[0m
+[32m[15:21:29.404] [INFO] [ChunkStreaming] World storage disconnected[0m
+[32m[15:21:29.404] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: worlds\town.db[0m
+[32m[15:21:29.406] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[15:21:29.406] [INFO] [ChunkStreaming] World storage initialized: worlds\town.db[0m
+[32m[15:21:29.406] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[32m[15:21:29.406] [INFO] [WorldGenerator] Loaded 8 biomes from resources/biomes.json[0m
+[32m[15:21:29.406] [INFO] [WorldGenerator] Applied world recipe (climateFreq=0.002, 8 biome tunings)[0m
+[32m[15:21:29.406] [INFO] [GameDefinitionLoader] World: applied generation recipe from world.db[0m
+[32m[15:21:29.538] [INFO] [GameDefinitionLoader] World: generated 9 chunks (Flat, seed=11)[0m
+[32m[15:21:29.538] [INFO] [Character] Parsed archetype 'humanoid_normal' from resources/animated_characters/humanoid.anim[0m
+[32m[15:21:29.542] [INFO] [Character] === Loaded Animations (84) ===[0m
+[32m[15:21:29.542] [INFO] [Character]   [0] base_pose (Duration: 0s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [2] crouched_walking (Duration: 1s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [3] fast_run (Duration: 0.5s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [6] floating (Duration: 3.58333s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [7] idle (Duration: 16.625s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [8] jump (Duration: 2.58333s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [10] jump_down (Duration: 3.5s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [11] landing (Duration: 2.08333s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [19] run (Duration: 0.666667s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [21] standing (Duration: 3.83333s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [24] walk (Duration: 0.958333s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [25] crouch_idle (Duration: 3s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [26] point (Duration: 1.5s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [28] body_block (Duration: 3.41667s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [29] boxing (Duration: 1.70833s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [31] climbing_top (Duration: 4s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [36] attack (Duration: 1.25s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [43] talk (Duration: 5.16667s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [44] taunt (Duration: 2.83333s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [46] wave (Duration: 0.5s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [51] cast_release (Duration: 0.7s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [52] cast_call_down (Duration: 2s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [60] sword1h_guard (Duration: 0.5s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [61] sword1h_light1 (Duration: 1s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [62] sword1h_light2 (Duration: 1s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [63] sword1h_light3 (Duration: 1.15s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [64] sword1h_heavy (Duration: 1.9s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [65] roll_forward (Duration: 2.36667s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [66] dive_forward (Duration: 1.2s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [67] hit_head (Duration: 1.43333s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [68] hit_stomach (Duration: 1.2s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [69] hit_rib (Duration: 1s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [70] dodge_right (Duration: 1.43333s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [71] death_front (Duration: 4.33333s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [72] death_back (Duration: 4.6s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [73] ko_lay (Duration: 2.13333s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [74] get_up (Duration: 11.4s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [75] kick (Duration: 1.5s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [76] chop_1h (Duration: 2.4s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [77] ogre_walk (Duration: 1.41667s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [78] ogre_swipe (Duration: 2.66667s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [79] ogre_idle (Duration: 4s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [81] hop_onto_seat (Duration: 3.875s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [82] scamper_walk (Duration: 1.08333s)[0m
+[32m[15:21:29.542] [INFO] [Character]   [83] stomp (Duration: 1.79167s)[0m
+[32m[15:21:29.542] [INFO] [Character] =====================================[0m
+[32m[15:21:29.542] [INFO] [Character] resizeController: height=2.11967 halfWidth=0.25 maxStep=0.444444 footOffset=7.31247e-07 minY=7.31247e-07 maxY=1.81967[0m
+[32m[15:21:29.543] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.12,0.12,0.12)[0m
+[32m[15:21:29.543] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0654832,0.1)[0m
+[32m[15:21:29.543] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.0466105,0.1)[0m
+[32m[15:21:29.543] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.1,0.1)[0m
+[32m[15:21:29.543] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.139208,0.07)[0m
+[32m[15:21:29.543] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.139208,0.07)[0m
+[32m[15:21:29.543] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.141644,0.07)[0m
+[32m[15:21:29.543] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.141644,0.07)[0m
+[32m[15:21:29.543] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.221857,0.08)[0m
+[32m[15:21:29.543] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.221857,0.08)[0m
+[32m[15:21:29.543] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.222639,0.08)[0m
+[32m[15:21:29.543] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.222639,0.08)[0m
+[32m[15:21:29.543] [INFO] [Character] Built 12/8 segment collision boxes[0m
+[32m[15:21:29.543] [INFO] [GameDefinitionLoader] Player spawned: animated at (16.000000, 20.000000, 16.000000)[0m
+[32m[15:21:29.543] [INFO] [Character] Parsed archetype 'humanoid_normal' from resources/animated_characters/humanoid.anim[0m
+[32m[15:21:29.547] [INFO] [Character] === Loaded Animations (84) ===[0m
+[32m[15:21:29.547] [INFO] [Character]   [0] base_pose (Duration: 0s)[0m
+[32m[15:21:29.547] [INFO] [Character]   [1] crouch_to_stand (Duration: 2.54167s)[0m
+[32m[15:21:29.547] [INFO] [Character]   [2] crouched_walking (Duration: 1s)[0m
+[32m[15:21:29.547] [INFO] [Character]   [3] fast_run (Duration: 0.5s)[0m
+[32m[15:21:29.547] [INFO] [Character]   [4] female_start_walking (Duration: 1.83333s)[0m
+[32m[15:21:29.547] [INFO] [Character]   [5] female_stop_walking (Duration: 1.5s)[0m
+[32m[15:21:29.547] [INFO] [Character]   [6] floating (Duration: 3.58333s)[0m
+[32m[15:21:29.547] [INFO] [Character]   [7] idle (Duration: 16.625s)[0m
+[32m[15:21:29.547] [INFO] [Character]   [8] jump (Duration: 2.58333s)[0m
+[32m[15:21:29.547] [INFO] [Character]   [9] jumping_down (Duration: 3.45833s)[0m
+[32m[15:21:29.547] [INFO] [Character]   [10] jump_down (Duration: 3.5s)[0m
+[32m[15:21:29.547] [INFO] [Character]   [11] landing (Duration: 2.08333s)[0m
+[32m[15:21:29.547] [INFO] [Character]   [12] left_strafe_walk (Duration: 0.916667s)[0m
+[32m[15:21:29.547] [INFO] [Character]   [13] left_strafe (Duration: 0.666667s)[0m
+[32m[15:21:29.547] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [15] right_strafe_walk (Duration: 0.916667s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [16] right_strafe (Duration: 0.666667s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [18] run_to_stop (Duration: 0.875s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [19] run (Duration: 0.666667s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [20] standing_to_crouched (Duration: 0.625s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [21] standing (Duration: 3.83333s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [22] unarmed_walk (Duration: 1.33333s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [23] walking_backward (Duration: 1.20833s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [24] walk (Duration: 0.958333s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [25] crouch_idle (Duration: 3s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [26] point (Duration: 1.5s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [27] climbing_to_top (Duration: 4s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [28] body_block (Duration: 3.41667s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [29] boxing (Duration: 1.70833s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [30] climbing_down (Duration: 3.41667s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [31] climbing_top (Duration: 4s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [32] stair_down (Duration: 0.916667s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [33] elbow_punch (Duration: 1.70833s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [34] headbutt (Duration: 2.08333s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [35] idle_looking (Duration: 7.83333s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [36] attack (Duration: 1.25s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [37] sit_to_stand (Duration: 2.25s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [38] sitting_idle (Duration: 6.375s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [39] stand_to_sit (Duration: 2.20833s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [42] start_walking (Duration: 1.83333s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [43] talk (Duration: 5.16667s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [44] taunt (Duration: 2.83333s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [45] stair_up (Duration: 1.16667s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [46] wave (Duration: 0.5s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [47] cast_quick (Duration: 0.8s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [48] cast_standard (Duration: 1.6s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [49] cast_windup (Duration: 0.8s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [50] cast_loop (Duration: 1.2s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [51] cast_release (Duration: 0.7s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [52] cast_call_down (Duration: 2s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [53] cast_touch (Duration: 1.2s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [54] cast_ward (Duration: 0.5s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [55] melee_stab_1h (Duration: 0.9s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [56] melee_chop_2h (Duration: 1.3s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [57] melee_sweep_2h (Duration: 1.4s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [58] melee_thrust_spear (Duration: 1s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [59] melee_parry (Duration: 0.45s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [60] sword1h_guard (Duration: 0.5s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [61] sword1h_light1 (Duration: 1s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [62] sword1h_light2 (Duration: 1s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [63] sword1h_light3 (Duration: 1.15s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [64] sword1h_heavy (Duration: 1.9s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [65] roll_forward (Duration: 2.36667s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [66] dive_forward (Duration: 1.2s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [67] hit_head (Duration: 1.43333s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [68] hit_stomach (Duration: 1.2s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [69] hit_rib (Duration: 1s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [70] dodge_right (Duration: 1.43333s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [71] death_front (Duration: 4.33333s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [72] death_back (Duration: 4.6s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [73] ko_lay (Duration: 2.13333s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [74] get_up (Duration: 11.4s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [75] kick (Duration: 1.5s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [76] chop_1h (Duration: 2.4s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [77] ogre_walk (Duration: 1.41667s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [78] ogre_swipe (Duration: 2.66667s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [79] ogre_idle (Duration: 4s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [81] hop_onto_seat (Duration: 3.875s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [82] scamper_walk (Duration: 1.08333s)[0m
+[32m[15:21:29.548] [INFO] [Character]   [83] stomp (Duration: 1.79167s)[0m
+[32m[15:21:29.548] [INFO] [Character] =====================================[0m
+[32m[15:21:29.548] [INFO] [Character] resizeController: height=1.87396 halfWidth=0.229561 maxStep=0.36372 footOffset=0.0437103 minY=0.0437103 maxY=1.61767[0m
+[32m[15:21:29.549] [INFO] [Character]   Segment [mixamorig:Head] source=skeleton fallback he=(0.114466,0.114466,0.114466)[0m
+[32m[15:21:29.549] [INFO] [Character]   Segment [mixamorig:Spine2] source=skeleton fallback he=(0.1,0.0538415,0.1)[0m
+[32m[15:21:29.549] [INFO] [Character]   Segment [mixamorig:Spine1] source=skeleton fallback he=(0.1,0.04,0.1)[0m
+[32m[15:21:29.549] [INFO] [Character]   Segment [mixamorig:Hips] source=skeleton fallback he=(0.1,0.1,0.0864118)[0m
+[32m[15:21:29.549] [INFO] [Character]   Segment [mixamorig:LeftArm] source=skeleton fallback he=(0.07,0.116967,0.07)[0m
+[32m[15:21:29.549] [INFO] [Character]   Segment [mixamorig:RightArm] source=skeleton fallback he=(0.07,0.116967,0.07)[0m
+[32m[15:21:29.549] [INFO] [Character]   Segment [mixamorig:LeftForeArm] source=skeleton fallback he=(0.07,0.119014,0.07)[0m
+[32m[15:21:29.549] [INFO] [Character]   Segment [mixamorig:RightForeArm] source=skeleton fallback he=(0.07,0.119014,0.07)[0m
+[32m[15:21:29.549] [INFO] [Character]   Segment [mixamorig:LeftUpLeg] source=skeleton fallback he=(0.08,0.148584,0.08)[0m
+[32m[15:21:29.549] [INFO] [Character]   Segment [mixamorig:RightUpLeg] source=skeleton fallback he=(0.08,0.148584,0.08)[0m
+[32m[15:21:29.549] [INFO] [Character]   Segment [mixamorig:LeftLeg] source=skeleton fallback he=(0.08,0.149108,0.08)[0m
+[32m[15:21:29.549] [INFO] [Character]   Segment [mixamorig:RightLeg] source=skeleton fallback he=(0.08,0.149108,0.08)[0m
+[32m[15:21:29.549] [INFO] [Character] Built 12/8 segment collision boxes[0m
+[32m[15:21:29.549] [INFO] [NPCManager] Spawned NPC 'Elder' at (18, 18, 18)[0m
+[32m[15:21:29.549] [INFO] [GameDefinitionLoader] Triggers: loaded 2[0m
+[32m[15:21:29.549] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=9, structures=0, locations=0, npcs=1)[0m
+[32m[15:21:29.549] [INFO] [SceneManager] Restored re-entry position ({:.1f}, {:.1f}, {:.1f}) for scene '26.0099'[0m
+[32m[15:21:29.549] [INFO] [Hearthvale] Loading screen dismissed[0m
+[32m[15:21:29.549] [INFO] [SceneManager] Scene 'town' loaded in {:.1f}ms[0m
+[31m[15:21:29.549] [ERROR] [Character] Clip 'idle' (state=Strafe) has no Speed line; using fallback 4 m/s. Add `Speed <val>` to the clip in the .anim file.[0m
 DEBUG: Selected TargetAnim=idle
 DEBUG: Selected TargetAnim=idle
 DEBUG: Selected TargetAnim=idle
@@ -845,18 +839,18 @@ DEBUG: Selected TargetAnim=idle
 DEBUG: Selected TargetAnim=idle
 DEBUG: Selected TargetAnim=idle
 DEBUG: Selected TargetAnim=idle
-[31m[13:29:17.803] [ERROR] [Character] Clip 'landing' (state=Walk) has no Speed line; using fallback 2 m/s. Add `Speed <val>` to the clip in the .anim file.[0m
+[31m[15:21:31.820] [ERROR] [Character] Clip 'landing' (state=Walk) has no Speed line; using fallback 2 m/s. Add `Speed <val>` to the clip in the .anim file.[0m
 DEBUG: Selected TargetAnim=idle
 DEBUG: Selected TargetAnim=idle
 DEBUG: Selected TargetAnim=idle
-[33m[13:29:18.845] [WARN] [InteractionManager] tryInteract: cooldown={:.3f} nearNPC=0 nearType='1' nearObj=''[0m
-[32m[13:29:18.845] [INFO] [InteractionManager] Player interacting with NPC 'Elder'[0m
-[32m[13:29:18.845] [INFO] [IdleBehavior] NPC interacted with by entity[0m
-[32m[13:29:18.845] [INFO] [DialogueSystem] Started conversation with 'Elder'[0m
+[33m[15:21:32.880] [WARN] [InteractionManager] tryInteract: cooldown={:.3f} nearNPC=0 nearType='1' nearObj=''[0m
+[32m[15:21:32.881] [INFO] [InteractionManager] Player interacting with NPC 'Elder'[0m
+[32m[15:21:32.881] [INFO] [IdleBehavior] NPC interacted with by entity[0m
+[32m[15:21:32.881] [INFO] [DialogueSystem] Started conversation with 'Elder'[0m
 DEBUG: Selected TargetAnim=idle
 DEBUG: Selected TargetAnim=idle
 DEBUG: Selected TargetAnim=idle
 DEBUG: Selected TargetAnim=idle
-[32m[13:29:20.036] [INFO] [TriggerSystem] Trigger 'win' fired (when: objective_complete)[0m
-[32m[13:29:20.038] [INFO] [Hearthvale] Player profile saved (player_state table)[0m
-[32m[13:29:21.231] [INFO] [DialogueSystem] Ended conversation with 'Elder'[0m
+[32m[15:21:34.069] [INFO] [TriggerSystem] Trigger 'win' fired (when: objective_complete)[0m
+[32m[15:21:34.073] [INFO] [Hearthvale] Player profile saved (player_state table)[0m
+[32m[15:21:35.261] [INFO] [DialogueSystem] Ended conversation with 'Elder'[0m
