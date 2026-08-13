@@ -6,6 +6,7 @@
 #include "utils/Frustum.h"
 #include "graphics/LightManager.h"
 #include "graphics/DayNightCycle.h"
+#include "graphics/CelestialBody.h"
 #include "graphics/WindSystem.h"
 #include "utils/PerformanceMonitor.h"
 #include "utils/PerformanceProfiler.h"
@@ -786,6 +787,13 @@ private:
     // Exposure default: the atmosphere's noon sunlit diffuse radiance lands near 0.1, so roughly a
     // 6x scale puts a lit surface in the middle of the display range before AgX rolls the top off.
     // Calibrated by measurement (tools/lighting_stats.py), not by eye.
+    // The sky's suns and moons. Defaults to one sun + one moon, so an unconfigured world is
+    // unchanged; extra bodies are configuration (graphics/CelestialBody.h).
+    SkyBodies m_skyBodies = SkyBodies::defaultSky();
+    // Direction TOWARD the primary star. The sky pass scatters against THIS, not against
+    // sunDirection -- which now tracks whichever body owns the shadow cascades and becomes
+    // the moon at night. Using the latter renders a daylight sky at midnight.
+    glm::vec3 m_skyStarDir{0.0f, 1.0f, 0.0f};
     float m_exposure = 8.0f;   // calibrated: puts a noon lit surface near 0.16-0.19
                                // linear with 0.00% clipped (measured, exposure sweep)
     int   m_tonemapCurve = 1;   // 1 = AgX, 0 = none (the pre-tonemap look, for A/B)

@@ -1691,6 +1691,13 @@ void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& vie
     ubo.moonColor         = m_atmosphere.moonColor;
     ubo.exposure          = m_atmosphere.exposure;
     ubo.tonemapCurve      = m_atmosphere.tonemapCurve;
+    ubo.skyBodyCount      = m_atmosphere.bodyCount;
+    for (int i = 0; i < AtmosphereUniforms::kMaxSkyBodies; ++i) {
+        ubo.skyBodyDirRadius[i] = m_atmosphere.bodyDirRadius[i];
+        ubo.skyBodyDisc[i]      = m_atmosphere.bodyDisc[i];
+        ubo.skyBodyLitDir[i]    = m_atmosphere.bodyLitDir[i];
+        ubo.skyBodyLight[i]     = m_atmosphere.bodyLight[i];
+    }
     ubo.biasedLightSpaceFar = kShadowBiasMat * m_farLightSpace;
     ubo.shadowCascadeFar =
         glm::vec4(m_farCascadeRangeEnd, m_farCascadeDepthRange, 0.0f, 0.0f);

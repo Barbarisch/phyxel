@@ -267,12 +267,59 @@ vec3 phxMoonDisc(vec3 dir, vec3 toMoon, vec3 toSun, float altitudeM) {
          * phxTransmittanceToSun(toMoon, altitudeM);
 }
 
-/// Everything behind the geometry: sky plus both bodies. `toMoon` may be any direction; the moon
-/// simply contributes nothing while it is below the horizon (its transmittance is zero there).
-vec3 phxAtmosphere(vec3 dir, vec3 toSun, vec3 toMoon, float altitudeM) {
+/// A GENERIC celestial body disc — the one function that draws suns and moons alike.
+///   bodyDir   unit vector TOWARD the body
+///   radius    drawn angular radius (radians)
+///   discColor colour x brightness
+///   litDir    unit vector toward whatever illuminates it (ignored when not reflective)
+///   reflective 1 = has a phase (a moon), 0 = emits its own light (a star)
+/// Reflective bodies get their terminator from GEOMETRY: the sphere's normal at each pixel tested
+/// against litDir. Nothing passes a phase in, so the drawn phase can never disagree with where the
+/// bodies actually are.
+vec3 phxBodyDisc(vec3 dir, vec3 bodyDir, float radius, vec3 discColor,
+                 vec3 litDir, float reflective, float altitudeM) {
+    float cov = phxDiscCoverage(dir, bodyDir, radius);
+    if (cov <= 0.0) return vec3(0.0);
+
+    vec3 d = normalize(dir);
+    float ang = acos(clamp(dot(d, bodyDir), -1.0, 1.0));
+
+    float shade;
+    if (reflective > 0.5) {
+        // Tangent frame on the disc; reconstruct the sphere normal at this pixel.
+        vec3 up = abs(bodyDir.y) > 0.99 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
+        vec3 tx = normalize(cross(up, bodyDir));
+        vec3 ty = cross(bodyDir, tx);
+        float u = dot(d, tx) / radius;
+        float v = dot(d, ty) / radius;
+        float r2 = u * u + v * v;
+        if (r2 > 1.0) return vec3(0.0);
+        vec3 n = normalize(tx * u + ty * v - bodyDir * sqrt(max(0.0, 1.0 - r2)));
+        float lit = max(0.0, dot(n, litDir));
+        // Soft terminator (the real one is not razor sharp and a hard step aliases badly at this
+        // angular size) plus a little earthshine so the dark limb stays faintly present.
+        shade = smoothstep(0.0, 0.12, lit) * (0.06 + 0.94 * lit);
+    } else {
+        // Limb darkening: a star is measurably dimmer at its edge, which is what stops it reading
+        // as a flat sticker.
+        float r = clamp(ang / radius, 0.0, 1.0);
+        shade = 0.6 + 0.4 * sqrt(max(0.0, 1.0 - r * r));
+    }
+
+    // Every body is reddened by the same transmittance that colours the light it casts, so a setting
+    // sun and the light it throws can never disagree.
+    return discColor * shade * cov * phxTransmittanceToSun(bodyDir, altitudeM);
+}
+
+/// Everything behind the geometry: the scattered sky plus every body.
+/// `toSun` drives the SKY's scattering (the primary star); the bodies draw themselves.
+vec3 phxAtmosphereBodies(vec3 dir, vec3 toSun, float altitudeM,
+                         vec4 dirRadius[4], vec4 disc[4], vec4 litDir[4], int count) {
     vec3 c = phxSkyRadiance(dir, toSun, altitudeM);
-    c += phxSunDisc(dir, toSun, altitudeM);
-    c += phxMoonDisc(dir, toMoon, toSun, altitudeM);
+    for (int i = 0; i < count && i < 4; ++i) {
+        c += phxBodyDisc(dir, dirRadius[i].xyz, dirRadius[i].w, disc[i].rgb,
+                         litDir[i].xyz, disc[i].w, altitudeM);
+    }
     return c;
 }
 

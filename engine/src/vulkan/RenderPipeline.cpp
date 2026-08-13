@@ -1584,10 +1584,14 @@ bool RenderPipeline::createSkyPipeline(VkRenderPass sceneRenderPass) {
     pcRange.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
     pcRange.offset = 0;
     pcRange.size = sizeof(SkyPushConstants);
+    // Set 0 is bound because sky.frag reads the celestial-body arrays from the shared UBO: a push
+    // block is 128 bytes and each body needs three vec4s, so an array of them cannot fit there.
+    // The camera basis stays in push constants (per-draw), the bodies in the UBO (per-frame).
+    VkDescriptorSetLayout skySetLayout = vulkanDevice.getDescriptorSetLayout();
     VkPipelineLayoutCreateInfo layoutCI{};
     layoutCI.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    layoutCI.setLayoutCount = 0;
-    layoutCI.pSetLayouts = nullptr;
+    layoutCI.setLayoutCount = 1;
+    layoutCI.pSetLayouts = &skySetLayout;
     layoutCI.pushConstantRangeCount = 1;
     layoutCI.pPushConstantRanges = &pcRange;
     if (vkCreatePipelineLayout(device, &layoutCI, nullptr, &skyPipelineLayout) != VK_SUCCESS) {

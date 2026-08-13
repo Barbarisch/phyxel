@@ -4,6 +4,7 @@
 #include "core/LodChunkMesh.h"
 #include "core/WorldConstants.h"   // kSeaLevelY — the shared sea-level datum for sky altitude
 #include "graphics/Atmosphere.h"   // THE scattering model: sun colour, sky fill, haze, moonlight
+#include "graphics/CelestialBody.h" // the sky's suns and moons, as data
 #include "core/WorldStorage.h"
 #include "core/LodPyramidService.h"
 #include "core/GpuParticlePhysics.h"
@@ -750,7 +751,9 @@ void RenderCoordinator::drawSky(VkCommandBuffer cmd) {
     // The sky goes through the SAME exposure and curve as the world; a sky with its own would drift
     // from the ground it meets, and that seam is the most visible artifact available.
     push.camForward = glm::vec4(forward, m_exposure);
-    push.toSun      = glm::vec4(glm::normalize(-sunDirection), static_cast<float>(m_tonemapCurve));
+    // The primary STAR, not the dominant light: the atmosphere is lit by the sun even when
+    // the moon is what is lighting the ground.
+    push.toSun      = glm::vec4(m_skyStarDir, static_cast<float>(m_tonemapCurve));
     push.toMoon     = glm::vec4(glm::normalize(-m_dayNightCycle.getMoonDirection()), 0.0f);
 
     // This pass runs before the scene pass sets its own dynamic state, so it sets its own.
@@ -767,6 +770,8 @@ void RenderCoordinator::drawSky(VkCommandBuffer cmd) {
     vkCmdSetScissor(cmd, 0, 1, &scissor);
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, renderPipeline->getSkyPipeline());
+    // sky.frag reads the celestial-body arrays out of the shared UBO, so set 0 must be bound.
+    vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getSkyPipelineLayout());
     vkCmdPushConstants(cmd, renderPipeline->getSkyPipelineLayout(),
                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                        0, sizeof(push), &push);
@@ -3175,12 +3180,52 @@ void RenderCoordinator::drawFrame() {
                                                    - Phyxel::Core::kSeaLevelY);
             // ⚠️ FLIP. sunDirection/moonDirection are the direction light TRAVELS; the model wants a
             // vector pointing AT the body. Unflipped gives a permanent midnight.
-            const glm::vec3 toSun  = glm::normalize(-sunDirection);
             const glm::vec3 toMoon = glm::normalize(-m_dayNightCycle.getMoonDirection());
 
+            // Place every celestial body for this instant. SkyBodies::defaultSky() is one sun and
+            // one moon, so an unconfigured world is unchanged; extra bodies are pure configuration.
+            m_skyBodies.update(m_dayNightCycle.getTimeOfDay(), m_dayNightCycle.getDayNumber(),
+                               altitudeM);
+            const int dominant = m_skyBodies.dominantLightIndex();
+
+            // The sky's SCATTERING follows the primary STAR, never the dominant light. These
+            // are different questions: "what lights the ground right now" becomes the moon at
+            // night, but "what is illuminating the atmosphere" is always the sun. Conflating
+            // them renders a full DAYLIGHT sky at midnight -- measured, when the 22:00 frame
+            // came out as bright as noon (viewport mean 0.172 against an expected 0.004).
+            int star = 0;
+            for (size_t i = 0; i < m_skyBodies.bodies.size(); ++i) {
+                if (m_skyBodies.bodies[i].emissive) { star = static_cast<int>(i); break; }
+            }
+            const glm::vec3 toSun = m_skyBodies.directions.empty()
+                                  ? glm::normalize(-sunDirection)
+                                  : m_skyBodies.directions[star];
+            m_skyStarDir = toSun;
+
             Vulkan::VulkanDevice::AtmosphereUniforms a{};
-            const glm::vec3 moonlight = Atmosphere::moonlightColor(
-                toMoon, m_dayNightCycle.getMoonPhase01(), altitudeM);
+            // Sum the light from every body that is NOT the shadow caster. Only one body can own the
+            // cascades (they are fitted to a single direction), so the rest contribute unshadowed
+            // light -- the same rule that already governed sun-versus-moon, generalised.
+            // TWO different sums, and the distinction matters.
+            //  * secondary: the bodies that are NOT the shadow caster. They add unshadowed
+            //    directional light, because only one body can own the cascades.
+            //  * allBodyLight: EVERY light-contributing body, including the dominant one. This
+            //    feeds the ambient fill, because a body lights the sky whether or not it also
+            //    happens to be casting the shadows. Summing only the non-dominant ones here
+            //    silently dropped the moon's share of night ambient the moment the moon became
+            //    dominant -- measured as a moonlit ground frame going from 48% to 65% crushed.
+            glm::vec3 moonlight(0.0f);
+            glm::vec3 allBodyLight(0.0f);
+            for (size_t i = 0; i < m_skyBodies.lightColors.size(); ++i) {
+                allBodyLight += m_skyBodies.lightColors[i];
+                if (static_cast<int>(i) != dominant) moonlight += m_skyBodies.lightColors[i];
+            }
+            // The star's own contribution already reaches ambient through skyIrradiance below,
+            // so only the NON-star bodies are added on top; otherwise daylight double-counts.
+            glm::vec3 reflectedAmbient = allBodyLight;
+            if (star >= 0 && star < static_cast<int>(m_skyBodies.lightColors.size())) {
+                reflectedAmbient -= m_skyBodies.lightColors[star];
+            }
 
             // Ambient fill = the sky's own irradiance, PLUS the moon's share of it. The moon lights
             // the night sky as well as the ground, and without its contribution the sun's irradiance
@@ -3190,20 +3235,47 @@ void RenderCoordinator::drawFrame() {
             // false physics.
             constexpr float kMoonSkyShare = 0.45f;
             a.ambientColor     = Atmosphere::skyIrradiance(toSun, altitudeM)
-                               + moonlight * kMoonSkyShare;
+                               + reflectedAmbient * kMoonSkyShare;
             a.hazeHorizonColor = Atmosphere::hazeHorizon(toSun, altitudeM);
             a.hazeZenithColor  = Atmosphere::hazeZenith(toSun, altitudeM);
             a.moonDirection    = m_dayNightCycle.getMoonDirection();
             a.moonColor        = moonlight;
             a.exposure         = m_exposure;
             a.tonemapCurve     = m_tonemapCurve;
+
+            // Pack the bodies for the shaders. Directions are TOWARD the body (the model's
+            // convention); the disc's w carries "is reflective", the litDir's w "owns the cascades".
+            const int nb = std::min<int>(static_cast<int>(m_skyBodies.bodies.size()),
+                                         Vulkan::VulkanDevice::AtmosphereUniforms::kMaxSkyBodies);
+            a.bodyCount = nb;
+            for (int i = 0; i < nb; ++i) {
+                const auto& b = m_skyBodies.bodies[i];
+                const glm::vec3 d = m_skyBodies.directions[i];
+                int src = b.litBy;
+                if (src < 0 || src >= nb) src = 0;
+                a.bodyDirRadius[i] = glm::vec4(d, b.angularRadius);
+                a.bodyDisc[i]      = glm::vec4(b.tint * b.discBrightness, b.emissive ? 0.0f : 1.0f);
+                a.bodyLitDir[i]    = glm::vec4(m_skyBodies.directions[src],
+                                               (i == dominant) ? 1.0f : 0.0f);
+                a.bodyLight[i]     = glm::vec4(m_skyBodies.lightColors[i], 0.0f);
+            }
             if (vulkanDevice) vulkanDevice->setAtmosphereUniforms(a);
 
             // The sun's own colour comes from the same transmittance as its rendered disc, so the
             // two can never disagree. Only when the cycle is driving time — with it off, the fixed
             // debug sun direction and white colour stay as they were.
             if (m_dayNightCycle.isEnabled()) {
-                sunColor = Atmosphere::sunlightColor(toSun, altitudeM);
+                if (dominant >= 0) {
+                    // The brightest body currently ABOVE the horizon owns the shadowed key light and
+                    // therefore the cascades. On a moonless night dominant is -1 and we leave the
+                    // sun direction alone rather than fit the cascades to a light underground --
+                    // fitting to nothing is how this engine previously produced a NaN light matrix
+                    // that silently disabled every shadow.
+                    sunDirection = -m_skyBodies.directions[dominant];
+                    sunColor     = m_skyBodies.lightColors[dominant];
+                } else {
+                    sunColor = glm::vec3(0.0f);
+                }
             }
         }
     }
