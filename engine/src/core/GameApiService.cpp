@@ -10,6 +10,10 @@
 #include "core/AStarPathfinder.h"
 #include "core/TriggerSystem.h"
 #include "core/EntityRegistry.h"
+#include "core/CombatDirector.h"
+#include "core/CombatAISystem.h"
+#include "core/PlayerTurnController.h"
+#include "core/DiceSystem.h"
 #include "core/SceneManager.h"
 #include "core/SceneDefinition.h"
 #include "graphics/RenderCoordinator.h"
@@ -96,6 +100,14 @@ bool GameApiService::start(int port) {
         return {{"fps", fps}};
     });
 
+    // /api/rpg/<action> (incl. combat/*) — bounce through the command queue so
+    // the handlers run on the game-loop thread via pump(), same as every other
+    // command. (The editor's rpg handler runs on the HTTP thread and must queue
+    // player intents itself; here the queue does that uniformly.)
+    server_->setRpgHandler([this](const std::string& action, const json& params) -> json {
+        return server_->queueAndWait(action, params);
+    });
+
     registerCommands();
     if (!server_->start()) {
         LOG_ERROR("GameApiService", "EngineAPIServer failed to start on port {}", port);
@@ -160,6 +172,90 @@ void GameApiService::registerCommands() {
             return;
         }
         r = {{"success", false}, {"error", "Provide 'id' or 'event'"}};
+    });
+
+    // --- Turn-based combat (POST /api/rpg/combat/<action>) -------------------
+    // Runs on the game-loop thread (pump()), so player intents apply directly —
+    // no pending-intent mutex (contrast: editor Application.cpp rpg handler).
+    reg.on("combat/state", [this](const APICommand&, json& r) {
+        if (!combatDirector) { r = {{"error", "combat not available"}}; return; }
+        r = {{"mode",           combatModeToString(combatDirector->mode())},
+             {"in_combat",      combatDirector->inCombat()},
+             {"active",         combatDirector->initiative().isCombatActive()},
+             {"round",          combatDirector->currentRound()},
+             {"current_entity", combatDirector->currentEntityId()},
+             {"player_turn",    combatDirector->isPlayerTurn()},
+             {"turn_order",     combatDirector->initiative().toJson()}};
+    });
+
+    reg.on("combat/start", [this](const APICommand& cmd, json& r) {
+        if (!combatDirector) { r = {{"error", "combat not available"}}; return; }
+        std::vector<CombatDirector::Combatant> combatants;
+        if (cmd.params.contains("participants") && cmd.params["participants"].is_array())
+            for (const auto& p : cmd.params["participants"]) {
+                std::string eid = p.value("entity_id", "");
+                if (eid.empty()) continue;
+                CombatDirector::Combatant c;
+                c.entityId        = eid;
+                c.isPlayerSide    = p.value("player_side", false);
+                c.initiativeBonus = p.value("initiative_bonus", 0);
+                c.speed           = p.value("speed", 30);
+                combatants.push_back(c);
+            }
+        if (combatDirector->inCombat()) combatDirector->endEncounter();
+        DiceSystem dice;
+        combatDirector->beginEncounter(combatants, dice);
+        r = {{"ok", true}, {"state", combatDirector->toJson()}};
+    });
+
+    reg.on("combat/player_move", [this](const APICommand& cmd, json& r) {
+        if (!playerTurn) { r = {{"error", "combat not available"}}; return; }
+        glm::vec3 pt(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f),
+                     cmd.params.value("z", 0.0f));
+        r = {{"ok", playerTurn->requestMove(pt)}};
+    });
+
+    reg.on("combat/player_attack", [this](const APICommand& cmd, json& r) {
+        if (!playerTurn) { r = {{"error", "combat not available"}}; return; }
+        const std::string tid = cmd.params.value("target_id", "");
+        playerTurn->setSelectedTarget(tid);
+        r = {{"ok", playerTurn->requestAttack(tid)}};
+    });
+
+    reg.on("combat/end_turn", [this](const APICommand&, json& r) {
+        if (!playerTurn) { r = {{"error", "combat not available"}}; return; }
+        playerTurn->endTurn();
+        r = {{"ok", true}};
+    });
+
+    reg.on("combat/next_turn", [this](const APICommand&, json& r) {
+        if (!combatDirector) { r = {{"error", "combat not available"}}; return; }
+        if (!combatDirector->inCombat()) { r = {{"error", "no active combat"}}; return; }
+        std::string next = combatDirector->advanceTurn();
+        r = {{"ok", true}, {"next_entity", next}, {"round", combatDirector->currentRound()}};
+    });
+
+    reg.on("combat/end", [this](const APICommand&, json& r) {
+        if (!combatDirector) { r = {{"error", "combat not available"}}; return; }
+        combatDirector->endEncounter();
+        r = {{"ok", true}};
+    });
+
+    reg.on("combat/set_mode", [this](const APICommand& cmd, json& r) {
+        if (!combatDirector) { r = {{"error", "combat not available"}}; return; }
+        combatDirector->setMode(combatModeFromString(cmd.params.value("mode", "real_time")));
+        r = {{"ok", true}, {"mode", combatModeToString(combatDirector->mode())}};
+    });
+
+    reg.on("combat/targeting_info", [this](const APICommand& cmd, json& r) {
+        if (!playerTurn) { r = {{"error", "combat not available"}}; return; }
+        const std::string tid = cmd.params.value("target_id", "");
+        r = {{"target_id",    tid},
+             {"attack_bonus", playerTurn->attackBonus()},
+             {"target_ac",    playerTurn->targetAC(tid)},
+             {"hit_chance",   playerTurn->hitChanceVs(tid)},
+             {"distance",     playerTurn->distanceTo(tid)},
+             {"in_reach",     playerTurn->inReachOf(tid)}};
     });
 
     reg.on("inject_input", [this](const APICommand& cmd, json& r) {

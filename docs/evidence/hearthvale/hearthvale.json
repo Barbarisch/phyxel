@@ -103,7 +103,27 @@
         "structures": [
           { "type": "fill", "from": { "x": 15, "y": 16, "z": 15 }, "to": { "x": 17, "y": 16, "z": 17 }, "material": "glow", "_comment": "the remedy shelf - glowing so it reads as the objective" }
         ],
+        "npcs": [
+          {
+            "name": "Rat",
+            "position": { "x": 15, "y": 18, "z": 13 },
+            "behavior": "idle",
+            "_comment": "guards the remedy; the guard_post trigger pulls it into turn-based combat"
+          }
+        ],
         "triggers": [
+          {
+            "id": "guard_post",
+            "when": { "event": "entity_reached_region", "entity": "player",
+                      "region": { "from": { "x": 11, "y": 16, "z": 10 }, "to": { "x": 13, "y": 22, "z": 28 } } },
+            "then": [
+              { "type": "start_combat", "participants": [
+                { "entity_id": "player", "player_side": true, "initiative_bonus": 3 },
+                { "entity_id": "npc_Rat", "initiative_bonus": 1 }
+              ] }
+            ],
+            "once": true
+          },
           {
             "id": "find_remedy",
             "when": { "event": "entity_reached_region", "entity": "player",
@@ -128,6 +148,8 @@
   ],
 
   "startScene": "main_menu",
+
+  "combat": { "mode": "turn_based" },
 
   "objectives": [
     { "id": "find_remedy", "title": "Find the moonpetal remedy", "description": "Search the old cellar east of town.", "category": "main" },

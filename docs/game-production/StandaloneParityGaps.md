@@ -191,6 +191,34 @@ Findings (each with its red proof in the evidence):
    applies on world-scene load) — extend the probe to click Begin before checking.
 7. Pre-existing reflection-descriptor-pool Vulkan error also fires in standalones (known).
 
+## 6b. Increment 2 — TURN-BASED COMBAT in the shipped game (2026-08-13)
+
+The §1 CombatDirector row is closed: the generated standalone now wires the full editor
+combat stack (CombatDirector + CombatAISystem + PlayerTurnController + Party + CombatSystem
+damage funnel + CharacterTurnBody provider; per-frame ticks; turn-body map cleared on scene
+transitions). Three new authoring surfaces: game.json `"combat": {"mode": "turn_based"}`,
+the **`start_combat` trigger action** (encounters are authorable data), and 9 `combat/*`
+commands on the test API (`/api/rpg/combat/*` bounced through the command queue onto the
+game thread — no editor-style intent mutex needed). Engine: GameShell `apiCombat*` hooks,
+GameApiService combat handlers + rpg-handler bounce, `EngineAPIServer::queueAndWait` public.
+
+**Red→green, measured on Hearthvale:** red = `POST /api/rpg/combat/state` → **503** on the
+pre-combat exe. Green (`hv_combat_probe.py` + `hv_combat_evidence.json` + `hv_combat.log`):
+- C1 `combat/state` answers, `mode: turn_based` from game.json
+- C2 walking into the cellar guard region fires the AUTHORED `start_combat` trigger —
+  `Combat encounter started: 2 combatants (trigger 'guard_post')`, initiative rolled,
+  player first
+- C3 real D&D turns over the API: targeting (attack bonus 5 vs AC 14, 60% hit chance,
+  distance 11.6 closed to 1.46 by `player_move`, then `in_reach` → attack, hit-frame
+  resolution) — and the enemy AI took its own turn: `NPC 'npc_Rat' misses 'player'
+  (roll 4 vs AC 14)`. Rounds advanced 1→4.
+- C4 the quest still completes with the combat beat in the path (remedy → turn-in →
+  victory screen).
+
+**Deferred to increment 3:** kill-the-rat victory (needs authorable NPC HP/stats in
+game.json — today the fight runs on defaults), combat HUD verification in the standalone,
+loot on kill → Inventory (the next §1 row).
+
 ## 7. Ordered fix list
 
 1. ~~**Scaffold parity**~~ **DONE 2026-08-13 (§5)** — ObjectiveTracker + PlayerProfile +

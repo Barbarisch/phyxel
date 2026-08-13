@@ -16,6 +16,9 @@ class EngineRuntime;
 class NPCManager;
 class TriggerSystem;
 class EntityRegistry;
+class CombatDirector;
+class CombatAISystem;
+class PlayerTurnController;
 
 // Engine-side base for standalone game hosts. Scaffolded games subclass THIS
 // instead of GameCallbacks, so shell behavior lives in the engine and fixes
@@ -66,6 +69,10 @@ protected:
     virtual UI::GameScreen*              apiScreen()            { return nullptr; }
     virtual EntityRegistry*              apiEntityRegistry()    { return nullptr; }
     virtual Scene::AnimatedVoxelCharacter* apiPlayer()          { return nullptr; }
+    // Turn-based combat trio (see GameApiService) — override all three or none.
+    virtual CombatDirector*       apiCombatDirector() { return nullptr; }
+    virtual CombatAISystem*       apiCombatAI()       { return nullptr; }
+    virtual PlayerTurnController* apiPlayerTurn()     { return nullptr; }
 
 private:
     GameplayCameraController cameraController_;

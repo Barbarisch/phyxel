@@ -139,6 +139,24 @@ def create_project(
     # objectives + persistence exist in the SHIPPED game, not just the editor host.
     extra_includes.append('#include "core/ObjectiveTracker.h"')
     extra_includes.append('#include "core/PlayerProfile.h"')
+    # Turn-based combat in the SHIPPED game (StandaloneParityGaps.md §1, CombatDirector
+    # row): the same director/AI/player-turn stack the editor wires (Application.cpp
+    # ~554-589 + 1847-1859), minus editor-only cast visuals. game.json "combat.mode"
+    # selects the ruleset; a "start_combat" trigger action begins authored encounters.
+    extra_includes.append('#include "core/CombatDirector.h"')
+    extra_includes.append('#include "core/CombatAISystem.h"')
+    extra_includes.append('#include "core/PlayerTurnController.h"')
+    extra_includes.append('#include "core/CombatSystem.h"')
+    extra_includes.append('#include "core/Party.h"')
+    extra_includes.append('#include "core/DiceSystem.h"')
+    extra_includes.append('#include "scene/CharacterTurnBody.h"')
+    extra_includes.append('#include "scene/NPCEntity.h"')
+    extra_members.append("    Phyxel::Core::CombatDirector combatDirector_;        // initiative + turn order (single source of combat truth)")
+    extra_members.append("    Phyxel::Core::CombatAISystem combatAI_;              // runs enemy turns through TurnActor")
+    extra_members.append("    Phyxel::Core::PlayerTurnController playerTurn_;      // player intents -> the same TurnActor path")
+    extra_members.append("    Phyxel::Core::Party rpgParty_;")
+    extra_members.append("    std::unique_ptr<Phyxel::Core::CombatSystem> combatSystem_;  // the applyDamage funnel")
+    extra_members.append("    std::unordered_map<Phyxel::Scene::AnimatedVoxelCharacter*, std::unique_ptr<Phyxel::Scene::CharacterTurnBody>> turnBodies_;")
     extra_members.append("    Phyxel::Core::ObjectiveTracker objectiveTracker_;  // quest-log spine; game.json \"objectives\" load here")
     extra_members.append("    Phyxel::Core::PlayerProfile playerProfile_;        // persisted to the active scene's world DB (player_state table)")
     extra_members.append("    std::string loadingSceneName_;  // destination scene shown on the loading screen")
@@ -202,6 +220,7 @@ def create_project(
         *sorted(set(extra_includes)),
         "#include <memory>",
         "#include <vector>",
+        "#include <unordered_map>",
         "",
         "// GameShell is the engine-side base for standalone games: it owns the",
         "// gameplay camera + character control loop (rig/scheme resolved from each",
@@ -221,6 +240,9 @@ def create_project(
         "    Phyxel::UI::GameScreen* apiScreen() override { return &screen_; }",
         "    Phyxel::Core::TriggerSystem* apiTriggerSystem() override { return &triggers_; }",
         "    Phyxel::Scene::AnimatedVoxelCharacter* apiPlayer() override { return playerCharacter_; }",
+        "    Phyxel::Core::CombatDirector*       apiCombatDirector() override { return &combatDirector_; }",
+        "    Phyxel::Core::CombatAISystem*       apiCombatAI() override       { return &combatAI_; }",
+        "    Phyxel::Core::PlayerTurnController* apiPlayerTurn() override     { return &playerTurn_; }",
         *([
             "    Phyxel::Core::EntityRegistry* apiEntityRegistry() override { return entityRegistry_.get(); }",
             "    Phyxel::Core::NPCManager* apiNPCManager() override { return npcManager_.get(); }",
@@ -762,6 +784,36 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 triggers_.onEvent("objective_complete", {{{{"id", id}}}});
             }};
 
+            // Turn-based combat stack — the same director/AI/player-turn wiring the
+            // editor host has (docs/TurnBasedCombat.md; StandaloneParityGaps.md §1).
+            // All of it no-ops until an encounter begins (start_combat trigger action
+            // or POST /api/rpg/combat/start on the test API).
+            combatSystem_ = std::make_unique<Phyxel::Core::CombatSystem>();
+            combatSystem_->setInvulnerabilityQuery([](const Phyxel::Scene::Entity* e) -> bool {{
+                if (const auto* a = dynamic_cast<const Phyxel::Scene::AnimatedVoxelCharacter*>(e))
+                    return a->isDodgeInvulnerable();
+                return false;
+            }});
+            if (npcManager_) npcManager_->setCombatSystem(combatSystem_.get());
+            auto bodyProvider = [this](Phyxel::Scene::Entity* e) -> Phyxel::Core::ITurnActorBody* {{
+                Phyxel::Scene::AnimatedVoxelCharacter* ch = nullptr;
+                if (auto* npc = dynamic_cast<Phyxel::Scene::NPCEntity*>(e)) ch = npc->getAnimatedCharacter();
+                else ch = dynamic_cast<Phyxel::Scene::AnimatedVoxelCharacter*>(e);
+                if (!ch) return nullptr;
+                auto& slot = turnBodies_[ch];
+                if (!slot) slot = std::make_unique<Phyxel::Scene::CharacterTurnBody>(ch);
+                return slot.get();
+            }};
+            combatAI_.setCombatDirector(&combatDirector_);
+            combatAI_.setParty(&rpgParty_);
+            combatAI_.setEntityRegistry(entityRegistry_.get());
+            combatAI_.setBodyProvider(bodyProvider);
+            combatAI_.setCombatSystem(combatSystem_.get());
+            playerTurn_.setCombatDirector(&combatDirector_);
+            playerTurn_.setEntityRegistry(entityRegistry_.get());
+            playerTurn_.setBodyProvider(bodyProvider);
+            playerTurn_.setCombatSystem(combatSystem_.get());
+
             // Declarative trigger actions (game.json "triggers"): wire to the shell.
             // Conditions like {{when: {{event: "player_jumped"}}}} can drive
             // show_victory / show_credits / transition_scene / quit_game with no code.
@@ -806,6 +858,32 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     // Authorable save point: {{"type":"save_game"}} persists the
                     // player profile to the active scene's world DB.
                     savePlayerProfile();
+                }} else if (type == "start_combat") {{
+                    // Authored encounter: {{"type":"start_combat","participants":
+                    //   [{{"entity_id":"player","player_side":true}},
+                    //    {{"entity_id":"npc_Rat","initiative_bonus":2}}]}}
+                    std::vector<Phyxel::Core::CombatDirector::Combatant> combatants;
+                    if (a.contains("participants") && a["participants"].is_array()) {{
+                        for (const auto& p : a["participants"]) {{
+                            const std::string eid = p.value("entity_id", "");
+                            if (eid.empty()) continue;
+                            Phyxel::Core::CombatDirector::Combatant c;
+                            c.entityId        = eid;
+                            c.isPlayerSide    = p.value("player_side", false);
+                            c.initiativeBonus = p.value("initiative_bonus", 0);
+                            c.speed           = p.value("speed", 30);
+                            combatants.push_back(c);
+                        }}
+                    }}
+                    if (combatants.empty()) {{
+                        LOG_WARN("{class_name}", "start_combat: no participants (trigger '{{}}')", tid);
+                    }} else {{
+                        if (combatDirector_.inCombat()) combatDirector_.endEncounter();
+                        Phyxel::Core::DiceSystem dice;
+                        combatDirector_.beginEncounter(combatants, dice);
+                        LOG_INFO("{class_name}", "Combat encounter started: {{}} combatants (trigger '{{}}')",
+                                 combatants.size(), tid);
+                    }}
                 }} else {{
                     LOG_WARN("{class_name}", "Unhandled trigger action '{{}}' (trigger '{{}}')", type, tid);
                 }}
@@ -865,6 +943,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                              gameDef["objectives"].size());
                 }}
 
+                // "combat": {{"mode": "turn_based"|"real_time"}} — the per-game
+                // ruleset (mirrors the editor's combat.mode application).
+                if (gameDef.contains("combat") && gameDef["combat"].is_object()) {{
+                    const std::string mode = gameDef["combat"].value("mode", "real_time");
+                    combatDirector_.setMode(Phyxel::Core::combatModeFromString(mode));
+                    LOG_INFO("{class_name}", "Combat mode: {{}}", mode);
+                }}
+
                 // PERSISTENT member, not a local: the SceneManager keeps a pointer to
                 // this for every later scene transition (menu buttons, triggers).
                 auto& subsystems = gameSubsystems_;
@@ -921,6 +1007,11 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             if (entityRegistry_) entityRegistry_->clear();
                             entities_.clear();
                             playerCharacter_ = nullptr;
+                            // Turn bodies wrap per-scene characters — clear them with
+                            // the entities or the map dangles across transitions; end
+                            // any encounter still running against the old scene.
+                            if (combatDirector_.inCombat()) combatDirector_.endEncounter();
+                            turnBodies_.clear();
                         }};
                         cb.clearNPCs = [this]() {{
                             if (!npcManager_) return;
@@ -1145,6 +1236,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 if (playerCharacter_->consumeJustJumped()) triggers_.onEvent("player_jumped");
                 if (playerCharacter_->consumeJustLanded()) triggers_.onEvent("player_landed");
             }}
+
+            // Turn-based combat: enemy AI + the player-turn controller tick every
+            // frame; both no-op unless an encounter is active. (Mirrors the editor
+            // loop — Application.cpp ~3540; the player turn self-binds in tick.)
+            combatAI_.tick(dt);
+            if (playerCharacter_ && entityRegistry_)
+                playerTurn_.setPlayerEntityId(entityRegistry_->getEntityId(playerCharacter_));
+            playerTurn_.tick(dt);
 
             // Advance trigger timers/regions and run fired actions (gameplay only —
             // timers do not tick while paused or in menus).

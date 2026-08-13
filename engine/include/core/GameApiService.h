@@ -17,6 +17,9 @@ class EntityRegistry;
 class APICommandQueue;
 class EngineAPIServer;
 class CommandRegistry;
+class CombatDirector;
+class CombatAISystem;
+class PlayerTurnController;
 
 // ============================================================================
 // GameApiService — opt-in HTTP API host for STANDALONE (packaged) games.
@@ -61,6 +64,13 @@ public:
     // The player character can be rebuilt/reassigned across scenes, so resolve it
     // fresh each call rather than caching a pointer.
     std::function<Scene::AnimatedVoxelCharacter*()> playerProvider;
+    // Turn-based combat (all-or-nothing trio; null = combat endpoints report
+    // "not available"). Commands run on the game-loop thread via pump(), so
+    // handlers may call these directly — no intent mutex (unlike the editor's
+    // HTTP-thread rpg handler, which must queue intents).
+    CombatDirector*       combatDirector = nullptr;
+    CombatAISystem*       combatAI = nullptr;
+    PlayerTurnController* playerTurn = nullptr;
     std::string projectName;  // reported by project_info (identifies the running game)
 
     // Construct the queue+server, wire handlers, and start listening on `port`.
