@@ -98,19 +98,21 @@ try:
     time.sleep(1.0)
     st = combat("state"); rec("encounter_started", st)
 
-    # C3: fight 4 rounds — on the player's turn approach + attack, then end turn
+    # C3+K: fight to the KILL — the encounter must resolve ITSELF (no manual
+    # combat/end): rat at authored maxHealth 10 dies in ~2 hits, entity_died
+    # fires the rat_slain trigger, combat_victory ends the encounter.
     rounds_seen = set()
-    for i in range(40):
+    for i in range(60):
         st = combat("state")
-        if not st.get("in_combat"): break
+        if not st.get("in_combat"):
+            rec("encounter_self_resolved", {"iter": i, "state": st}); break
         rounds_seen.add(st.get("round"))
-        if len(rounds_seen) >= 4: break
         if st.get("player_turn"):
             ti = combat("targeting_info", {"target_id": "npc_Rat"})
             if i % 7 == 0: rec("targeting", ti)
             if ti.get("in_reach"):
                 rec("attack", combat("player_attack", {"target_id": "npc_Rat"}))
-                time.sleep(2.0)   # attack animation resolves at the hit frame
+                time.sleep(2.5)   # attack animation resolves at the hit frame
             else:
                 rp = rat_pos()
                 if rp: combat("player_move", {"x": rp[0], "y": rp[1], "z": rp[2]})
@@ -119,10 +121,10 @@ try:
         else:
             time.sleep(1.0)       # enemy AI turn runs on its own
     st = combat("state")
-    rec("combat_after_rounds", {"state": st, "rounds_seen": sorted(rounds_seen)})
+    rec("combat_final", {"state": st, "rounds_seen": sorted(rounds_seen),
+                         "rat_still_listed": rat_pos() is not None})
 
-    # C4: wrap the encounter and finish the quest with the combat beat behind us
-    combat("end")
+    # C4: finish the quest with the combat beat behind us
     steer_to(dirs, 16, 16)                       # remedy shelf
     time.sleep(1)
     steer_to(dirs, 6, 16, stop=lambda: screen().get("scene_id")=="town")

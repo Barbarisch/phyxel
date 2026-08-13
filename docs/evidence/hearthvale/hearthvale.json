@@ -108,7 +108,8 @@
             "name": "Rat",
             "position": { "x": 15, "y": 18, "z": 13 },
             "behavior": "idle",
-            "_comment": "guards the remedy; the guard_post trigger pulls it into turn-based combat"
+            "maxHealth": 10,
+            "_comment": "guards the remedy; the guard_post trigger pulls it into turn-based combat; ~2 hits to kill"
           }
         ],
         "triggers": [
@@ -121,6 +122,15 @@
                 { "entity_id": "player", "player_side": true, "initiative_bonus": 3 },
                 { "entity_id": "npc_Rat", "initiative_bonus": 1 }
               ] }
+            ],
+            "once": true
+          },
+          {
+            "id": "rat_slain",
+            "when": { "event": "entity_died", "id": "npc_Rat" },
+            "then": [
+              { "type": "set_story_variable", "name": "cellar_cleared", "value": true },
+              { "type": "save_game" }
             ],
             "once": true
           },

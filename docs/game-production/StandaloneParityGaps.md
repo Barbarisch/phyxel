@@ -215,9 +215,19 @@ pre-combat exe. Green (`hv_combat_probe.py` + `hv_combat_evidence.json` + `hv_co
 - C4 the quest still completes with the combat beat in the path (remedy → turn-in →
   victory screen).
 
-**Deferred to increment 3:** kill-the-rat victory (needs authorable NPC HP/stats in
-game.json — today the fight runs on defaults), combat HUD verification in the standalone,
-loot on kill → Inventory (the next §1 row).
+**Increment 3 — the kill loop (same day):** NPC `maxHealth` was ALREADY authorable
+(`GameDefinitionLoader.cpp:887` — never exercised in a shipped game). The scaffold's new
+`onDamage` callback adds: death animation, **`entity_died` / `player_died` /
+`combat_victory` trigger events**, and self-resolving encounters (dead combatant leaves
+the initiative; last enemy down → encounter ends). Measured on Hearthvale (rat at
+maxHealth 10): 3 landed attacks across rounds 1-4 → log sequence `Trigger 'rat_slain'
+fired (when: entity_died)` → `Encounter won — last enemy fell ('npc_Rat')` →
+`in_combat: false` with the probe's manual `combat/end` REMOVED → quest completes to
+victory. A kill is now a first-class authorable event in shipped games.
+
+**Still deferred:** combat HUD verification in the standalone, loot on kill → Inventory
+(the next §1 row), progression (`awardXP` on kill/quest — now has natural call sites:
+`entity_died` + `objective_complete`).
 
 ## 7. Ordered fix list
 

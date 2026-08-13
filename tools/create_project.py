@@ -794,6 +794,42 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     return a->isDodgeInvulnerable();
                 return false;
             }});
+            // Damage reactions + DECLARATIVE death hooks. Every kill emits
+            // "entity_died" {{id}} into the trigger system (gate quests on a
+            // specific kill), and the encounter resolves itself: the dead
+            // combatant leaves the initiative; when no enemy-side combatant
+            // remains, combat ends and "combat_victory" fires (the player's
+            // death fires "player_died" for game-over wiring instead).
+            combatSystem_->setOnDamage([this](const Phyxel::Core::DamageEvent& ev) {{
+                if (!entityRegistry_) return;
+                Phyxel::Scene::Entity* tgt = entityRegistry_->getEntity(ev.targetId);
+                if (tgt) {{
+                    Phyxel::Scene::AnimatedVoxelCharacter* hitChar = nullptr;
+                    if (auto* npcE = dynamic_cast<Phyxel::Scene::NPCEntity*>(tgt)) hitChar = npcE->getAnimatedCharacter();
+                    else hitChar = dynamic_cast<Phyxel::Scene::AnimatedVoxelCharacter*>(tgt);
+                    if (hitChar) {{
+                        if (ev.killed) hitChar->die();
+                        else           hitChar->hitReact(ev.actualDamage >= 11.0f);
+                    }}
+                }}
+                if (!ev.killed) return;
+                triggers_.onEvent("entity_died", {{{{"id", ev.targetId}}}});
+                if (ev.targetId == "player") {{
+                    triggers_.onEvent("player_died", {{{{"id", ev.targetId}}}});
+                    return;
+                }}
+                if (combatDirector_.inCombat()) {{
+                    combatDirector_.removeCombatant(ev.targetId);
+                    bool enemyRemains = false;
+                    for (const auto& p : combatDirector_.initiative().turnOrder())
+                        if (!p.isPlayer) {{ enemyRemains = true; break; }}
+                    if (!enemyRemains) {{
+                        combatDirector_.endEncounter();
+                        LOG_INFO("{class_name}", "Encounter won — last enemy fell ('{{}}')", ev.targetId);
+                        triggers_.onEvent("combat_victory", {{{{"last_kill", ev.targetId}}}});
+                    }}
+                }}
+            }});
             if (npcManager_) npcManager_->setCombatSystem(combatSystem_.get());
             auto bodyProvider = [this](Phyxel::Scene::Entity* e) -> Phyxel::Core::ITurnActorBody* {{
                 Phyxel::Scene::AnimatedVoxelCharacter* ch = nullptr;
