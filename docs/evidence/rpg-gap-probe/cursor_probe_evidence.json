@@ -1,0 +1,186 @@
+{
+  "runs": [
+    {
+      "label": "red",
+      "exe_mtime": "Thu Aug 13 12:02:57 2026",
+      "started": "12:41:43",
+      "samples": [
+        {
+          "tag": "before_launch",
+          "clip_rect": [
+            0,
+            0,
+            3440,
+            1440
+          ],
+          "virtual_screen": [
+            0,
+            0,
+            3440,
+            1440
+          ],
+          "cursor_clipped": false,
+          "cursor_showing": true,
+          "foreground_window": "Reddit - The heart of the internet - Google Chrome"
+        },
+        {
+          "tag": "running_focused",
+          "clip_rect": [
+            346,
+            369,
+            1626,
+            1089
+          ],
+          "virtual_screen": [
+            0,
+            0,
+            3440,
+            1440
+          ],
+          "cursor_clipped": true,
+          "cursor_showing": true,
+          "foreground_window": "Reddit - The heart of the internet - Google Chrome"
+        },
+        {
+          "tag": "running_focused_2",
+          "clip_rect": [
+            346,
+            369,
+            1626,
+            1089
+          ],
+          "virtual_screen": [
+            0,
+            0,
+            3440,
+            1440
+          ],
+          "cursor_clipped": true,
+          "cursor_showing": true,
+          "foreground_window": "Reddit - The heart of the internet - Google Chrome"
+        },
+        {
+          "tag": "after_hard_kill",
+          "clip_rect": [
+            346,
+            369,
+            1626,
+            1089
+          ],
+          "virtual_screen": [
+            0,
+            0,
+            3440,
+            1440
+          ],
+          "cursor_clipped": true,
+          "cursor_showing": true,
+          "foreground_window": "Reddit - The heart of the internet - Google Chrome"
+        }
+      ],
+      "api_up": true,
+      "screen": "playing",
+      "found_window": true
+    },
+    {
+      "label": "green",
+      "exe_mtime": "Thu Aug 13 12:42:53 2026",
+      "started": "12:43:12",
+      "samples": [
+        {
+          "tag": "before_launch",
+          "clip_rect": [
+            0,
+            0,
+            3440,
+            1440
+          ],
+          "virtual_screen": [
+            0,
+            0,
+            3440,
+            1440
+          ],
+          "cursor_clipped": false,
+          "cursor_showing": true,
+          "foreground_window": "Reddit - The heart of the internet - Google Chrome"
+        },
+        {
+          "tag": "running_focused",
+          "clip_rect": [
+            0,
+            0,
+            3440,
+            1440
+          ],
+          "virtual_screen": [
+            0,
+            0,
+            3440,
+            1440
+          ],
+          "cursor_clipped": false,
+          "cursor_showing": true,
+          "foreground_window": "Reddit - The heart of the internet - Google Chrome"
+        },
+        {
+          "tag": "running_focused_2",
+          "clip_rect": [
+            0,
+            0,
+            3440,
+            1440
+          ],
+          "virtual_screen": [
+            0,
+            0,
+            3440,
+            1440
+          ],
+          "cursor_clipped": false,
+          "cursor_showing": true,
+          "foreground_window": "Reddit - The heart of the internet - Google Chrome"
+        },
+        {
+          "tag": "after_hard_kill",
+          "clip_rect": [
+            0,
+            0,
+            3440,
+            1440
+          ],
+          "virtual_screen": [
+            0,
+            0,
+            3440,
+            1440
+          ],
+          "cursor_clipped": false,
+          "cursor_showing": true,
+          "foreground_window": "Reddit - The heart of the internet - Google Chrome"
+        },
+        {
+          "tag": "after_probe_release",
+          "clip_rect": [
+            0,
+            0,
+            3440,
+            1440
+          ],
+          "virtual_screen": [
+            0,
+            0,
+            3440,
+            1440
+          ],
+          "cursor_clipped": false,
+          "cursor_showing": true,
+          "foreground_window": "Reddit - The heart of the internet - Google Chrome"
+        }
+      ],
+      "api_up": true,
+      "screen": "playing",
+      "found_window": true
+    }
+  ]
+}
