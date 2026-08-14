@@ -1,0 +1,53 @@
+# Recipe: menu & screen STYLE — make it pop
+
+**Satisfies milestone:** `presentation` (core). **Genre:** any.
+**Sibling:** `menus-and-screens.md` covers which screens EXIST; this covers how they LOOK.
+Born from the Hearthvale slice: the user watched runs for days and the first feedback was
+presentation — off-center titles, static screens, text escaping boxes. None of it blocked
+an L4 milestone; all of it read as jank.
+
+## THE OFFERING RULE (why this recipe exists)
+
+**Whenever a session touches any screen/menu/HUD JSON, present the style option menu instead
+of silently accepting defaults.** Enumerate what's available (below), show the user what
+their screen COULD look like, and for anything not yet supported say plainly: *"engine gap —
+filing /feedback"* — never hand-roll around a missing engine capability. Defaults are a
+fallback, not a decision.
+
+## The option menu (current engine capabilities, all JSON)
+
+1. **Fonts** — per-menu `"fonts"` array: `[{ "id": "title", "file": "resources/fonts/<any>.ttf",
+   "size": 52 }]`; widgets reference `"font": "title"`. Any TTF you drop in resources/fonts.
+2. **Alignment** — labels: `"align": "left" | "center" | "right"` (center/right are relative
+   to `position.x`; center = centered ON it). Titles/messages want center; row labels left.
+   ⚠ TWO label build paths exist (`buildWidget` + `buildMenuElement`) — both support align
+   now; if adding label features, patch BOTH (screenshot-verify, it caught this once).
+3. **Text containment** — labels with an authored `"size"` auto-wrap to that width; panels
+   clip their children by default (`"clip": false` opts out). No scrolling yet (gap, below).
+4. **Backgrounds** —
+   - `"background_type": "solid"` + `"background_color": [r,g,b,a]`
+   - `"background_type": "image"` + a full-screen art image
+   - **menuWorld (the BG3 living title screen)**: give the menu scene a `worldDatabase`,
+     a `definition.world` (+ `structures`), and a `definition.cameraPath`:
+     `{ "loop": true, "waypoints": [{ "position": {x,y,z}, "yaw": -180, "pitch": -22,
+     "dwell": 0.5 }, ...] }` — the menu renders over a live, slowly-orbiting 3D scene.
+     Pixel-proven: 62.9% of pixels moving under a rock-still UI.
+5. **Screen JSONs are per-game overridable** — copy any `resources/ui/*_screen.json` into
+   the project's `resources/ui/` (project files win over engine defaults at build-asset copy).
+6. **HUD layout** — top-level `"hud"` array in game.json replaces the default HUD panels.
+
+## Verify (the presentation milestone's L2 bar)
+
+`GET /api/screenshot` on the running standalone (`--test`) → Read the PNG. Check: titles
+centered, text inside its boxes, background not the default solid, readable at 1280×720.
+For animated backgrounds: two captures ≥3 s apart must differ substantially (pixel diff).
+Archive before/after captures as evidence.
+
+## Known gaps — say "engine gap", file /feedback, do NOT hand-roll
+
+- **Named themes / BG3 theme** (`hud.theme` per game) — colors are one built-in UITheme today.
+- **Per-element animations** (fade_in/slide_in + delays) — schema existed on the retired
+  ImGui renderer; UISystem port pending.
+- **Scrollable container + text input widgets** — quest logs/long lists clip, not scroll.
+- **Menu scrim over menuWorld** — background alpha compositing over the 3D scene needs tuning.
+- **Per-widget colors / fonts on every widget type** — labels only, partially.

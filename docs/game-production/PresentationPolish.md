@@ -1,4 +1,4 @@
-# Presentation & Polish — the menu/screen styling surface (design + tracker wiring)
+﻿# Presentation & Polish — the menu/screen styling surface (design + tracker wiring)
 
 > Born from the Hearthvale BG3 slice (2026-08-14): the user watched runs all week and the
 > first things they called out were presentation — off-center titles, static menus, jank.
@@ -79,11 +79,11 @@ Tracker data changes live in `docs/game-production/genre-templates/` + `recipes/
 
 ## 5. TODO (tracked)
 
-- [ ] Tier 1 `menuWorld` engine support (SceneManager + CameraPath drive) + sample
+- [x] Tier 1 `menuWorld` engine support + Hearthvale sample, pixel-verified (2026-08-14)
 - [ ] Tier 2 per-element animation port to UISystem
 - [ ] Named JSON themes + BG3 theme (`hud.theme` per game) — HudSystem.md §4 item
-- [ ] `presentation` milestone added to genre templates; `menus-and-style` recipe written
-- [ ] Standalone screenshot endpoint (GameApiService) so presentation gets pixel-verified
+- [x] `presentation` milestone added to genre templates; `menus-and-style` recipe written (2026-08-14)
+- [x] Standalone screenshot endpoint — shipped + already caught a real bug (2026-08-14)
 
 ## 6. Text containment (2026-08-14)
 
