@@ -111,3 +111,17 @@ semantics, and single-line labels center on measured text width (a box-aligned w
 have re-broken short titles). Evidence: docs/evidence/hearthvale/menu_before_center.png vs
 menu_after_center.png - title/subtitle/buttons all on the 640 centerline, pixel-verified.
 Presentation claims can now graduate from smoke+eyes to measured.
+
+## 8. menuWorld SHIPPED (2026-08-14) - the living title screen
+
+Tier 1 is real: a menu scene authors worldDatabase + definition.world (+ structures) and a
+definition.cameraPath (waypoints {position,yaw,pitch,dwell}, loop) - the SceneManager loads
+the world behind the menu (no player/NPCs/physics; playerDefaults never merged for menus)
+and the shell drives the Catmull-Rom orbit every frame the menu is up, releasing the camera
+to gameplay on transition. PIXEL-VERIFIED on Hearthvale: menuworld_frameA/B.png, 3.5s apart,
+62.9 percent of pixels changed while title+buttons held still; Begin lands in town after.
+Authoring cost to a game: JSON only. Known cosmetics: the menu background scrim alpha did
+not visibly composite (UI draws direct on the world - readable, but tune scrim blending);
+glow material reads as a flat pale slab from above. Build lore reconfirmed: a timed-out
+background build KEEPS RUNNING and holds file locks - stop it (TaskStop) and kill orphaned
+cl.exe before regenerating, or the regen silently leaves stale files.

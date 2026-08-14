@@ -175,6 +175,10 @@ def create_project(
     extra_members.append("    std::string preCombatRig_;      // rig to restore when the encounter ends")
     extra_members.append("    float preCombatYaw_ = 0.0f, preCombatPitch_ = 0.0f;  // look restored with the rig")
     extra_members.append("    bool wasInCombat_ = false;      // combat camera edge detection")
+    # menuWorld: menu scenes with an authored world get a looping CameraPath
+    # orbit behind their UI (PresentationPolish.md §3 Tier 1).
+    extra_includes.append('#include "graphics/CameraManager.h"')
+    extra_members.append("    Phyxel::Graphics::CameraPath menuCamPath_;  // drives the menuWorld orbit while a menu scene is up")
     extra_members.append("    Phyxel::Core::ObjectiveTracker objectiveTracker_;  // quest-log spine; game.json \"objectives\" load here")
     extra_members.append("    Phyxel::Core::PlayerProfile playerProfile_;        // persisted to the active scene's world DB (player_state table)")
     extra_members.append("    std::string loadingSceneName_;  // destination scene shown on the loading screen")
@@ -1297,6 +1301,33 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 menuSceneActive_ = true;
                                 if (engine_) updateCursorMode(*engine_);
                             }}
+                            // menuWorld camera orbit: "cameraPath" in the menu
+                            // scene's definition — waypoints [{{position,yaw,
+                            // pitch,dwell}}], "loop" (default true). The world
+                            // itself was loaded by the SceneManager.
+                            menuCamPath_.stop();
+                            menuCamPath_.clearWaypoints();
+                            const auto& sdef = scene.definition;
+                            if (sdef.contains("cameraPath") && sdef["cameraPath"].is_object()) {{
+                                const auto& cp = sdef["cameraPath"];
+                                if (cp.contains("waypoints") && cp["waypoints"].is_array()) {{
+                                    for (const auto& wj : cp["waypoints"]) {{
+                                        Phyxel::Graphics::CameraWaypoint wp;
+                                        const auto& p = wj.value("position", nlohmann::json::object());
+                                        wp.position = {{p.value("x", 0.0f), p.value("y", 0.0f), p.value("z", 0.0f)}};
+                                        wp.yaw       = wj.value("yaw", 0.0f);
+                                        wp.pitch     = wj.value("pitch", 0.0f);
+                                        wp.dwellTime = wj.value("dwell", 0.0f);
+                                        menuCamPath_.addWaypoint(wp);
+                                    }}
+                                }}
+                                if (menuCamPath_.waypointCount() >= 2) {{
+                                    menuCamPath_.setLooping(cp.value("loop", true));
+                                    menuCamPath_.play();
+                                    LOG_INFO("{class_name}", "menuWorld camera path playing ({{}} waypoints)",
+                                             menuCamPath_.waypointCount());
+                                }}
+                            }}
                         }};
                         cb.onSceneReady = [this](const std::string& /*sceneId*/) {{
                             auto* smgr = engine_ ? engine_->getSceneManager() : nullptr;
@@ -1457,8 +1488,15 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             }}
 
             // A menu scene is showing: SceneManager + the menu renderer drive things;
-            // skip world/gameplay simulation entirely.
-            if (menuSceneActive_) return;
+            // skip world/gameplay simulation — but keep the menuWorld camera
+            // orbiting (the living title screen).
+            if (menuSceneActive_) {{
+                if (menuCamPath_.isPlaying()) {{
+                    if (auto* cam = engine.getCamera()) menuCamPath_.update(dt, *cam);
+                }}
+                return;
+            }}
+            if (menuCamPath_.isPlaying()) menuCamPath_.stop();   // gameplay owns the camera now
 
             if (!Phyxel::UI::isGameRunning(screen_.getState())) return;
 
