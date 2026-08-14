@@ -73,12 +73,20 @@ void UIPanel::render(UIRenderer* renderer, const BitmapFont* font,
         renderer->drawRect(pos + glm::vec2(bw), size - glm::vec2(bw * 2), theme.panelBg);
     }
 
+    // Contain the children: content can never draw outside the panel's box
+    // (long labels, overflowing rows). Nested panels intersect their clips.
+    // Panels sized 0 (auto/fullscreen overlays) don't clip; "clip": false in
+    // JSON opts a panel out for intentional overhang.
+    const bool doClip = clipChildren && size.x > 0.0f && size.y > 0.0f;
+    if (doClip) renderer->pushClip(pos, size);
+
     if (freeLayout) {
         for (auto& child : children) {
             if (!child->visible) continue;
             child->render(renderer, font, theme, pos + child->position);
         }
         cachedFont_ = font;
+        if (doClip) renderer->popClip();
         return;
     }
 
@@ -100,6 +108,7 @@ void UIPanel::render(UIRenderer* renderer, const BitmapFont* font,
     }
 
     cachedFont_ = font;
+    if (doClip) renderer->popClip();
 }
 
 bool UIPanel::handleClick(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) {

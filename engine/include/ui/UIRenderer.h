@@ -82,6 +82,21 @@ public:
     /// the atlas, so it tells the renderer where its reserved white pixel is.
     void setWhitePixelUV(glm::vec2 uv) { whitePixelUV_ = uv; }
 
+    // ── Clipping ────────────────────────────────────────────────
+    // CPU clip-rect stack applied in pushQuad (every rect/image/glyph flows
+    // through it). Panels push their bounds around child rendering so text
+    // can never escape its box; nested panels intersect naturally.
+    void pushClip(glm::vec2 pos, glm::vec2 size) {
+        glm::vec4 r(pos.x, pos.y, pos.x + size.x, pos.y + size.y);
+        if (!clipStack_.empty()) {                 // intersect with the parent clip
+            const glm::vec4& p = clipStack_.back();
+            r.x = std::max(r.x, p.x); r.y = std::max(r.y, p.y);
+            r.z = std::min(r.z, p.z); r.w = std::min(r.w, p.w);
+        }
+        clipStack_.push_back(r);
+    }
+    void popClip() { if (!clipStack_.empty()) clipStack_.pop_back(); }
+
     // ── Accessors ───────────────────────────────────────────────
 
     uint32_t getScreenWidth() const { return screenWidth_; }
@@ -146,6 +161,7 @@ private:
     static constexpr size_t MAX_INDICES = MAX_QUADS * 6;
 
     // CPU-side batch
+    std::vector<glm::vec4> clipStack_;   // active clip rects (x, y, xMax, yMax)
     std::vector<UIVertex> vertices_;
     std::vector<uint32_t> indices_;
 

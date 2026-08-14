@@ -49,6 +49,10 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         if (j.contains("position") && j["position"].is_array() && j["position"].size() >= 2) {
             w->position = {j["position"][0].get<float>(), j["position"][1].get<float>()};
         }
+        // An authored width finally MEANS something: wrap to it unless the
+        // author set an explicit wrapWidth. Ends the "text runs out of its
+        // box" default — labels with no size stay unbounded single-line.
+        if (w->wrapWidth <= 0.0f && w->size.x > 0.0f) w->wrapWidth = w->size.x;
         return w;
     }
 
@@ -213,6 +217,7 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         w->title = j.value("title", "");
         w->showBackground = j.value("showBackground", true);
         w->freeLayout = j.value("freeLayout", false);
+        w->clipChildren = j.value("clip", true);
         w->visibleWhen = j.value("visibleWhen", "");
         w->visible = j.value("visible", true);
         w->enabled = j.value("enabled", true);

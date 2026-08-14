@@ -152,6 +152,10 @@ public:
     bool handleDrag(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) override;
     void handleHover(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) override;
 
+    /// Contain children to the panel's box (default). JSON "clip": false opts
+    /// out for intentional overhang. Panels with zero size never clip.
+    bool clipChildren = true;
+
     /// Add a child widget. Panel owns it.
     void addChild(std::unique_ptr<UIWidget> widget);
 

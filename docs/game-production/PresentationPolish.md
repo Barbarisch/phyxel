@@ -84,3 +84,17 @@ Tracker data changes live in `docs/game-production/genre-templates/` + `recipes/
 - [ ] Named JSON themes + BG3 theme (`hud.theme` per game) — HudSystem.md §4 item
 - [ ] `presentation` milestone added to genre templates; `menus-and-style` recipe written
 - [ ] Standalone screenshot endpoint (GameApiService) so presentation gets pixel-verified
+
+## 6. Text containment (2026-08-14)
+
+Root cause of text escaping its boxes: no clipping existed anywhere, label wrapWidth was
+never authored, and authored label size was dead data. Shipped: (1) a CPU clip-rect stack
+in UIRenderer::pushQuad - the single choke point every rect/image/glyph flows through -
+clamping partial quads with proportional UVs, so panels contain content WITHOUT breaking
+the one-draw-call batch a GPU scissor would split; (2) UIPanel clips its children by
+default (opt-out "clip": false; zero-size panels never clip; nested clips intersect);
+(3) labels with an authored width auto-wrap to it. Smoke-verified: menu renders + clicks,
+dialogue opens. Pixels not machine-verified (screenshot endpoint still TODO).
+Scrolling: NOT built - the scrollable-container widget (quest logs, long dialogue, AI
+chat) remains the top open widget item (HudSystem.md sec 4); clipping makes overflow
+invisible, scrolling makes it reachable.
