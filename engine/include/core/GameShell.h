@@ -42,8 +42,11 @@ protected:
     // transition, then runs the shared controller: samples input via the
     // scheme, drives the character (movement, facing, jump/attack/crouch,
     // advances its update), and frames the camera via the rig.
+    // driveCharacter=false: frame the character without steering it (turn-based
+    // combat — the TurnActor owns movement, the camera observes tactically).
     void updateGameplayCamera(EngineRuntime& engine, float dt,
-                              Scene::AnimatedVoxelCharacter* character);
+                              Scene::AnimatedVoxelCharacter* character,
+                              bool driveCharacter = true);
 
     // Defaults used when the scene's camera block doesn't name one.
     virtual std::string defaultRigName() const { return "first_person"; }

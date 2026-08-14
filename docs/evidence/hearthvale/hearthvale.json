@@ -32,7 +32,7 @@
       "transitionStyle": "loading_screen",
       "definition": {
         "world": { "type": "Flat", "seed": 11, "from": { "x": -1, "y": 0, "z": -1 }, "to": { "x": 1, "y": 0, "z": 1 } },
-        "camera": { "position": { "x": 26, "y": 23, "z": 26 }, "yaw": -135, "pitch": -20 },
+        "camera": { "position": { "x": 26, "y": 23, "z": 26 }, "yaw": -135, "pitch": -20, "mode": "third_person" },
         "npcs": [
           {
             "name": "Elder",
@@ -99,7 +99,7 @@
       "transitionStyle": "loading_screen",
       "definition": {
         "world": { "type": "Flat", "seed": 12, "from": { "x": -1, "y": 0, "z": -1 }, "to": { "x": 1, "y": 0, "z": 1 } },
-        "camera": { "position": { "x": 24, "y": 22, "z": 24 }, "yaw": -135, "pitch": -18 },
+        "camera": { "position": { "x": 24, "y": 22, "z": 24 }, "yaw": -135, "pitch": -18, "mode": "third_person" },
         "player": { "type": "animated", "position": { "x": 10, "y": 20, "z": 26 } },
         "structures": [
           { "type": "fill", "from": { "x": 15, "y": 16, "z": 15 }, "to": { "x": 17, "y": 16, "z": 17 }, "material": "glow", "_comment": "the remedy shelf - glowing so it reads as the objective" }
@@ -161,7 +161,7 @@
 
   "startScene": "main_menu",
 
-  "combat": { "mode": "turn_based" },
+  "combat": { "mode": "turn_based", "camera": "overhead" },
 
   "progression": {
     "class": "fighter",

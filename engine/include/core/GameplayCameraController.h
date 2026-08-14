@@ -59,16 +59,21 @@ public:
     // itself. Hosts that already advance the character elsewhere (e.g. the editor's
     // entity loop) pass false so it isn't double-updated; the control inputs set here
     // then apply on that host's next character update.
+    //
+    // driveCharacter: when false, the scheme's control intent is NOT applied to the
+    // character (no WASD/jump/attack/facing) but the character still advances and
+    // the rig still frames it — for turn-based combat, where the TurnActor owns
+    // movement and the camera becomes a tactical observer (BG3-style).
     void update(float dt, Input::InputManager& input,
                 Scene::AnimatedVoxelCharacter* character, Graphics::Camera& camera,
-                bool advanceCharacter = true) {
+                bool advanceCharacter = true, bool driveCharacter = true) {
         if (!rig_ || !scheme_) return;
 
-        if (scheme_->wantsAlwaysOnLook()) input.setMouseCaptured(true);
+        if (scheme_->wantsAlwaysOnLook() && driveCharacter) input.setMouseCaptured(true);
 
         const Input::ControlIntent in = scheme_->sample(input, dt);
 
-        if (character) {
+        if (character && driveCharacter) {
             character->setControlInput(in.forward, in.turn, in.strafe);
             character->setSprint(in.sprint);
             character->setCrouch(in.crouch);
@@ -109,9 +114,23 @@ public:
             // facing to the roll direction, and the camera-coupled yaw would fight it.
             if (in.coupleFacingToYaw && !character->isDodging())
                 character->setFacingYaw(glm::radians(90.0f - in.yaw));
-
-            if (advanceCharacter) character->update(dt);
         }
+
+        // Suppression EDGE: zero the latched control exactly once when driving
+        // stops — setControlInput persists frame-to-frame, so a movement key
+        // held at the moment combat started would otherwise keep walking the
+        // character through the encounter. Once only: the TurnActor drives the
+        // body through the SAME setControlInput during its turns
+        // (CharacterTurnBody.h:58), so a per-frame zero would fight it.
+        if (character && !driveCharacter && wasDriving_) {
+            character->setControlInput(0.0f, 0.0f, 0.0f);
+            character->setSprint(false);
+        }
+        wasDriving_ = driveCharacter;
+
+        // Advance regardless of driveCharacter — animations and TurnActor-driven
+        // motion must keep running while the tactical camera merely observes.
+        if (character && advanceCharacter) character->update(dt);
 
         const glm::vec3 target = character ? character->getCameraTrackPosition()
                                            : camera.getPosition();
@@ -127,6 +146,7 @@ private:
     bool jumpHeld_   = false;
     bool attackHeld_ = false;
     bool dodgeHeld_  = false;
+    bool wasDriving_ = true;   // driveCharacter edge detection (see update)
 };
 
 } // namespace Core

@@ -169,6 +169,12 @@ def create_project(
     # Inventory: loot via the give_item trigger action; persists in the profile blob.
     extra_includes.append('#include "core/Inventory.h"')
     extra_members.append("    Phyxel::Core::Inventory inventory_;  // player inventory (loot; persisted via PlayerProfile)")
+    # BG3-style tactical camera: swap to an overhead/isometric rig while an
+    # encounter runs, restore the scene's rig after (combat.camera in game.json).
+    extra_members.append('    std::string combatCameraRig_ = "overhead";  // rig while in combat (game.json combat.camera)')
+    extra_members.append("    std::string preCombatRig_;      // rig to restore when the encounter ends")
+    extra_members.append("    float preCombatYaw_ = 0.0f, preCombatPitch_ = 0.0f;  // look restored with the rig")
+    extra_members.append("    bool wasInCombat_ = false;      // combat camera edge detection")
     extra_members.append("    Phyxel::Core::ObjectiveTracker objectiveTracker_;  // quest-log spine; game.json \"objectives\" load here")
     extra_members.append("    Phyxel::Core::PlayerProfile playerProfile_;        // persisted to the active scene's world DB (player_state table)")
     extra_members.append("    std::string loadingSceneName_;  // destination scene shown on the loading screen")
@@ -579,9 +585,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 return;
             }}
             bool inDialogue = dialogueSystem_ && dialogueSystem_->isActive();
-            // A menu scene always wants a free cursor (its buttons are clickable).
+            // A menu scene always wants a free cursor (its buttons are clickable);
+            // so does turn-based combat (BG3-style click-targeting under the
+            // tactical camera).
             bool shouldCapture = !menuSceneActive_ &&
-                                 !Phyxel::UI::isMouseFree(screen_.getState()) && !inDialogue;
+                                 !Phyxel::UI::isMouseFree(screen_.getState()) && !inDialogue &&
+                                 !combatDirector_.inCombat();
             window->setCursorVisible(!shouldCapture);
         }}
 
@@ -1013,7 +1022,11 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 if (gameDef.contains("combat") && gameDef["combat"].is_object()) {{
                     const std::string mode = gameDef["combat"].value("mode", "real_time");
                     combatDirector_.setMode(Phyxel::Core::combatModeFromString(mode));
-                    LOG_INFO("{class_name}", "Combat mode: {{}}", mode);
+                    // "camera": the rig used while an encounter runs (BG3-style
+                    // tactical view). Any registered rig name: overhead (straight-
+                    // down birds-eye), isometric (angled ortho), third_person...
+                    combatCameraRig_ = gameDef["combat"].value("camera", "overhead");
+                    LOG_INFO("{class_name}", "Combat mode: {{}} (camera: {{}})", mode, combatCameraRig_);
                 }}
 
                 // "progression": {{"class","race","kill_xp","objective_xp"}} — the
@@ -1331,7 +1344,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // after transitions), samples input, moves the body, frames the
             // camera. See docs/CameraControlSystem.md.
             if (playerCharacter_) {{
-                updateGameplayCamera(engine, dt, playerCharacter_);
+                // During turn-based combat the TurnActor owns movement: the camera
+                // keeps framing the player (tactical rig) but WASD is suppressed.
+                updateGameplayCamera(engine, dt, playerCharacter_,
+                                     /*driveCharacter=*/!combatDirector_.inCombat());
 
                 // Gameplay events -> declarative triggers (win conditions).
                 if (playerCharacter_->consumeJustJumped()) triggers_.onEvent("player_jumped");
@@ -1345,6 +1361,33 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (playerCharacter_ && entityRegistry_)
                 playerTurn_.setPlayerEntityId(entityRegistry_->getEntityId(playerCharacter_));
             playerTurn_.tick(dt);
+
+            // BG3-style tactical camera: entering combat swaps to the authored
+            // combat rig (default overhead birds-eye) and frees the cursor for
+            // click-targeting; leaving combat restores the scene's rig. (WASD
+            // suppression happens at the updateGameplayCamera call above via
+            // driveCharacter=false.)
+            const bool inCombatNow = combatDirector_.inCombat();
+            if (inCombatNow != wasInCombat_) {{
+                auto* look = engine.getInputManager();
+                if (inCombatNow) {{
+                    preCombatRig_ = gameplayCamera().rigName();
+                    if (look) {{ preCombatYaw_ = look->getYaw(); preCombatPitch_ = look->getPitch(); }}
+                    if (gameplayCamera().setRigByName(combatCameraRig_))
+                        LOG_INFO("{class_name}", "Tactical camera: '{{}}' (combat)", combatCameraRig_);
+                }} else {{
+                    const std::string back = preCombatRig_.empty() ? "third_person" : preCombatRig_;
+                    // Restore the LOOK along with the rig — the tactical phase can
+                    // leave the InputManager's pitch scrambled (rig pitch clamps +
+                    // convention differences), which would put the restored camera
+                    // under the floor looking up.
+                    if (look) look->setYawPitch(preCombatYaw_, preCombatPitch_);
+                    if (gameplayCamera().setRigByName(back))
+                        LOG_INFO("{class_name}", "Camera restored: '{{}}' (combat over)", back);
+                }}
+                wasInCombat_ = inCombatNow;
+                if (engine_) updateCursorMode(*engine_);
+            }}
 
             // Advance trigger timers/regions and run fired actions (gameplay only —
             // timers do not tick while paused or in menus).

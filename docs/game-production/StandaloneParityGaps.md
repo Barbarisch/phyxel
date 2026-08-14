@@ -268,3 +268,20 @@ RpgGapProbe regen on the current scaffold.
    authorable in `game.json`; then the save format for it.
 5. **Save-integrity deep-diff validator** (README Â§10.5) once PlayerProfile covers the real
    state surface.
+
+## 6c. Increment 6 — BG3 cameras (2026-08-14)
+
+Third-person exploration + tactical birds-eye combat, all authorable: scene camera
+`"mode": "third_person"`, `combat.camera` rig for encounters (default `overhead`;
+`isometric` available). On encounter start the scaffold swaps rigs, frees the cursor,
+and suppresses WASD (`GameplayCameraController` gained `driveCharacter` — frame without
+steering; zero latched control on the suppression EDGE only, because the TurnActor drives
+the body through the same `setControlInput`); on end it restores rig + look angles.
+Measured geometry (cam-vs-player): exploration 4.4 up / 4.3 behind @ -30 deg ->
+combat 30.0 up / 0.0 horiz @ -89 deg, WASD moved 0.0 -> restored 3.0 / 4.3 @ -30 deg,
+quest completes. Three bugs found+fixed on the way: (1) `/api/state` camera read
+InputManager's stale free-cam copy, not the rig-driven Graphics::Camera (retro-explains
+finding 3); (2) latched control input walked the character through combat; (3) the
+tactical phase scrambles InputManager pitch - look is snapshot/restored with the rig.
+Evidence: hv_combat_probe.py (now with adaptive steering re-calibration - the following
+camera changes key directions as it swings) + hv_combat_evidence.json + hv_combat.log.

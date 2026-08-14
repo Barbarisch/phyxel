@@ -51,7 +51,34 @@ def key(k, hold):
 
 def screen(): return api("GET","/api/screen/state")
 
+def cam_geom():
+    """Camera-vs-player geometry: the BG3 observable. third_person => camera a
+    few units behind/above the player; overhead => far above, looking down."""
+    st = api("GET","/api/state")
+    c = st.get("camera", {}); cp = c.get("position", {})
+    pp = None
+    for e in st.get("entities", []):
+        if e.get("id") == "player": pp = e["position"]
+    if not pp: return {"error": "no player"}
+    dy = cp.get("y", 0) - pp["y"]
+    dh = math.hypot(cp.get("x", 0) - pp["x"], cp.get("z", 0) - pp["z"])
+    return {"cam_above_player": round(dy, 1), "cam_horiz_dist": round(dh, 1),
+            "pitch": c.get("pitch")}
+
+def calibrate2(dirs):
+    """Re-measure W and D displacement — the third-person camera FOLLOWS the
+    player, so camera-relative key directions drift as the camera swings."""
+    for k in ("W","D"):
+        p0 = player_pos(); key(k, 0.35); p1 = player_pos()
+        if p0 is None or p1 is None: continue
+        dx, dz = p1[0]-p0[0], p1[1]-p0[1]
+        n = math.hypot(dx,dz)
+        if n > 0.05: dirs[k] = (dx/n, dz/n)
+    dirs["S"] = (-dirs["W"][0], -dirs["W"][1])
+    dirs["A"] = (-dirs["D"][0], -dirs["D"][1])
+
 def steer_to(dirs, tx, tz, tol=1.2, max_iter=50, stop=None):
+    last_dist = None; stalled = 0
     for i in range(max_iter):
         if screen().get("screen") == "paused":
             key("Escape", 0.1); time.sleep(0.4)
@@ -63,6 +90,15 @@ def steer_to(dirs, tx, tz, tol=1.2, max_iter=50, stop=None):
         dist = math.hypot(dx,dz)
         if dist < tol:
             rec("steer_arrived", {"iter": i, "pos": [round(p[0],1),round(p[1],1)]}); return "arrived"
+        # Adaptive: if we're not closing on the target, the camera has swung and
+        # the direction map is stale — re-measure it.
+        if last_dist is not None and dist >= last_dist - 0.1:
+            stalled += 1
+            if stalled >= 3:
+                calibrate2(dirs); stalled = 0
+        else:
+            stalled = 0
+        last_dist = dist
         best = max(dirs, key=lambda k2: (dirs[k2][0]*dx + dirs[k2][1]*dz)/dist)
         key(best, min(0.6, max(0.15, dist*0.09)))
     rec("steer_stuck", {"pos": player_pos()}); return "stuck"
@@ -85,18 +121,27 @@ try:
     rec("combat_state_boot", combat("state"))
 
     api("POST","/api/ui/click",{"x":640,"y":384}); time.sleep(3)   # Begin
-    dirs = {"W":(-0.71,-0.71),"D":(0.71,-0.71),"S":(0.71,0.71),"A":(-0.71,0.71)}  # calibrated 3x today
+    dirs = {"W":(-0.71,-0.71),"D":(0.71,-0.71),"S":(0.71,0.71),"A":(-0.71,0.71)}  # seed; adaptively re-measured
+    calibrate2(dirs)
+    rec("initial_dirs", {k: [round(v,2) for v in d] for k,d in dirs.items()})
     # accept the quest, walk east to the cellar
     key("E",0.1); time.sleep(0.8); key("1",0.1); time.sleep(0.8)
     key("Enter",0.1); time.sleep(0.5); key("Enter",0.1); time.sleep(0.5)
     steer_to(dirs, 28, 16, stop=lambda: screen().get("scene_id")=="cellar")
     time.sleep(2)
     rec("in_cellar", {"scene": screen().get("scene_id"), "pos": player_pos(), "rat": rat_pos()})
+    rec("camera_exploration", cam_geom())   # BG3: third_person while exploring
 
     # C2: walk into the guard region (x11-13) -> authored start_combat fires
     steer_to(dirs, 12, 18, tol=1.0, stop=lambda: combat("state").get("in_combat"))
     time.sleep(1.0)
     st = combat("state"); rec("encounter_started", st)
+    time.sleep(1.0)
+    rec("camera_combat", cam_geom())        # BG3: overhead birds-eye in combat
+    # WASD must be DEAD during turn-based combat (TurnActor owns movement)
+    p0 = player_pos(); key("W", 0.5); p1 = player_pos()
+    rec("wasd_suppressed", {"before": p0, "after": p1,
+                            "moved": round(math.hypot(p1[0]-p0[0], p1[1]-p0[1]), 3)})
 
     # C3+K: fight to the KILL — the encounter must resolve ITSELF (no manual
     # combat/end): rat at authored maxHealth 10 dies in ~2 hits, entity_died
@@ -123,6 +168,8 @@ try:
     st = combat("state")
     rec("combat_final", {"state": st, "rounds_seen": sorted(rounds_seen),
                          "rat_still_listed": rat_pos() is not None})
+    time.sleep(1.0)
+    rec("camera_restored", cam_geom())      # BG3: back to third_person after combat
 
     # P1: progression — the kill granted XP into a real CharacterSheet
     rec("sheet_after_kill", api("POST","/api/rpg/sheet",{}))

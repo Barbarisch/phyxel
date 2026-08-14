@@ -33,7 +33,8 @@ void GameShell::pumpTestApi() { gameApi_.pump(); }
 void GameShell::stopTestApi() { gameApi_.stop(); }
 
 void GameShell::updateGameplayCamera(EngineRuntime& engine, float dt,
-                                     Scene::AnimatedVoxelCharacter* character) {
+                                     Scene::AnimatedVoxelCharacter* character,
+                                     bool driveCharacter) {
     auto* input = engine.getInputManager();
     auto* cam   = engine.getCamera();
     if (!input || !cam) return;
@@ -77,7 +78,8 @@ void GameShell::updateGameplayCamera(EngineRuntime& engine, float dt,
         cameraResolvedScene_ = sceneId;
     }
 
-    cameraController_.update(dt, *input, character, *cam);
+    cameraController_.update(dt, *input, character, *cam,
+                             /*advanceCharacter=*/true, driveCharacter);
 
     // Update-LOD: publish the viewer position so AnimatedVoxelCharacter can tick
     // distant characters at a reduced rate. This is the standalone-game analog of

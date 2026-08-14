@@ -83,7 +83,17 @@ bool GameApiService::start(int port) {
             }
         }
         json state = {{"entities", entities}, {"entity_count", entities.size()}};
-        if (runtime && runtime->getInputManager()) {
+        // Report the REAL rig-driven camera, not InputManager's free-cam copy —
+        // a rig (third_person/overhead) repositions Graphics::Camera every frame
+        // and never writes back to InputManager, so the copy goes stale the
+        // moment gameplay cameras engage. (Found by the BG3 tactical-camera
+        // probe: the API showed the boot pose through an entire rig swap.)
+        if (runtime && runtime->getCamera()) {
+            auto* cam = runtime->getCamera();
+            const glm::vec3 c = cam->getPosition();
+            state["camera"] = {{"position", {{"x", c.x}, {"y", c.y}, {"z", c.z}}},
+                               {"yaw", cam->getYaw()}, {"pitch", cam->getPitch()}};
+        } else if (runtime && runtime->getInputManager()) {
             auto* im = runtime->getInputManager();
             const glm::vec3 c = im->getCameraPosition();
             state["camera"] = {{"position", {{"x", c.x}, {"y", c.y}, {"z", c.z}}},
