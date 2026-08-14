@@ -215,8 +215,14 @@ void UILabel::render(UIRenderer* renderer, const BitmapFont* font,
     float scale = isTitle ? theme.titleScale : theme.textScale;
     glm::vec4 color = enabled ? (isTitle ? theme.titleColor : theme.textColor) : theme.disabledColor;
 
+    std::string wrapped;
+    bool multiline = false;
     if (wrapWidth > 0.0f) {
-        std::string wrapped = wrapText(font, text, scale, wrapWidth);
+        wrapped = wrapText(font, text, scale, wrapWidth);
+        multiline = wrapped.find('\n') != std::string::npos;
+    }
+    if (multiline) {
+        // Multi-line: align the wrap BOX relative to position.x.
         glm::vec2 drawPos = pos;
         if (align == HAlign::Center)      drawPos.x = pos.x - wrapWidth * 0.5f;
         else if (align == HAlign::Right)  drawPos.x = pos.x - wrapWidth;

@@ -28,7 +28,10 @@
 #include "utils/Logger.h"
 
 #include <GLFW/glfw3.h>
+#include "stb_image_write.h"
 #include <cctype>
+#include <chrono>
+#include <filesystem>
 
 namespace Phyxel {
 namespace Core {
@@ -271,6 +274,29 @@ void GameApiService::registerCommands() {
     reg.on("inventory", [this](const APICommand&, json& r) {
         if (!inventory) { r = {{"error", "inventory not available"}}; return; }
         r = {{"success", true}, {"inventory", inventory->toJson()}};
+    });
+
+    // GET /api/screenshot — capture the current frame to screenshots/<ts>.png.
+    // The pixel-verification unlock for shipped games: probes can now PROVE
+    // rendering claims (HUD panels, text centering/clipping, menu animation =
+    // two captures that differ) instead of stopping at "providers are live".
+    reg.on("capture_screenshot", [this](const APICommand&, json& r) {
+        if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
+        auto pixels = renderCoordinator->captureScreenshot();
+        if (pixels.empty()) { r = {{"error", "Screenshot capture failed"}}; return; }
+        const glm::uvec2 wh = renderCoordinator->getSwapChainSize();
+        std::error_code ec;
+        std::filesystem::create_directories("screenshots", ec);
+        const auto now = std::chrono::system_clock::now();
+        const auto ms  = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             now.time_since_epoch()).count();
+        const std::string path = "screenshots/shot_" + std::to_string(ms) + ".png";
+        if (!stbi_write_png(path.c_str(), static_cast<int>(wh.x), static_cast<int>(wh.y),
+                            4, pixels.data(), static_cast<int>(wh.x) * 4)) {
+            r = {{"error", "Failed to write PNG"}};
+            return;
+        }
+        r = {{"success", true}, {"path", path}, {"width", wh.x}, {"height", wh.y}};
     });
 
     reg.on("combat/targeting_info", [this](const APICommand& cmd, json& r) {

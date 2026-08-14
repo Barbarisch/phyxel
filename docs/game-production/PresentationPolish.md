@@ -98,3 +98,16 @@ dialogue opens. Pixels not machine-verified (screenshot endpoint still TODO).
 Scrolling: NOT built - the scrollable-container widget (quest logs, long dialogue, AI
 chat) remains the top open widget item (HudSystem.md sec 4); clipping makes overflow
 invisible, scrolling makes it reachable.
+
+## 7. Screenshot endpoint + pixel-verified centering (2026-08-14)
+
+GET /api/screenshot now works on STANDALONE games (GameApiService capture_screenshot ->
+RenderCoordinator::captureScreenshot -> screenshots/<ts>.png; the shared EngineAPIServer
+route existed all along). First use immediately caught a real bug: the align fix had
+patched MenuDefinition::buildWidget, but menu scenes AND the intro/victory/credits/loading
+overlays build labels through a SECOND path (buildMenuElement) that never parsed align -
+the "centered" title was still left-flushed at 640. Both paths now share align/auto-wrap
+semantics, and single-line labels center on measured text width (a box-aligned wrap would
+have re-broken short titles). Evidence: docs/evidence/hearthvale/menu_before_center.png vs
+menu_after_center.png - title/subtitle/buttons all on the 640 centerline, pixel-verified.
+Presentation claims can now graduate from smoke+eyes to measured.

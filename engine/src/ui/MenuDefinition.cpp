@@ -591,6 +591,15 @@ static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, floa
         w->text = resolveTokens(el.value("text", ""), actions);
         w->isTitle = (el.value("font", "") == "title");
         w->position = posv; w->size = sizev;
+        // Same align/wrap semantics as MenuDefinition::buildWidget — this is the
+        // OTHER label path (menu scenes + intro/victory/credits/loading overlays);
+        // the screenshot probe caught it missing the align parse entirely.
+        const std::string al = el.value("align", "left");
+        if (al == "center")      w->align = UILabel::HAlign::Center;
+        else if (al == "right")  w->align = UILabel::HAlign::Right;
+        w->wrapWidth = el.value("wrapWidth", 0.0f) * sx;
+        if (w->wrapWidth <= 0.0f && el.contains("size") && sizev.x > 0.0f)
+            w->wrapWidth = sizev.x;   // authored width bounds the text
         return w;
     }
     if (type == "image") {

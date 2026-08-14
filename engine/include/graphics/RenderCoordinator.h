@@ -541,6 +541,10 @@ public:
     /// Output: width*height*4 bytes of RGBA data, top-to-bottom row order.
     std::vector<uint8_t> captureScreenshot();
 
+    /// Swapchain dimensions for captureScreenshot consumers that don't hold a
+    /// VulkanDevice (the standalone test API's screenshot endpoint).
+    glm::uvec2 getSwapChainSize() const;
+
 private:
     const std::vector<std::unique_ptr<Scene::Entity>>* entities = nullptr;
     Core::NPCManager* m_npcManager = nullptr;
