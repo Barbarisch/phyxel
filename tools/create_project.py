@@ -490,6 +490,113 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     auto* hc = playerCharacter_ ? playerCharacter_->getHealthComponent() : nullptr;
                     return hc ? hc->getMaxHealth() : 100.0f;
                 });
+
+                // Combat panels (initiative order, turn label, action budget, hit
+                // chance) — the same providers the editor registers, wired to the
+                // standalone's own combat stack. Hidden until combat.inCombat flips.
+                hud.setFloat("combat.inCombat",         [this]{ return combatDirector_.inCombat() ? 1.0f : 0.0f; });
+                hud.setFloat("combat.playerTurnActive", [this]{ return playerTurn_.isPlayerTurnActive() ? 1.0f : 0.0f; });
+                hud.setText ("combat.roundText", [this]{
+                    char buf[32];
+                    snprintf(buf, sizeof(buf), "COMBAT  -  Round %d", combatDirector_.currentRound());
+                    return std::string(buf);
+                });
+                hud.setText ("combat.turnLabel", [this]{
+                    if (combatDirector_.isPlayerTurn()) return std::string("YOUR TURN");
+                    std::string id = combatDirector_.currentEntityId();
+                    return id.empty() ? std::string("") : (id + "'s Turn");
+                });
+                hud.setText ("combat.budgetText", [this]{
+                    const auto* b = playerTurn_.budget();
+                    if (!b) return std::string("");
+                    char buf[64];
+                    snprintf(buf, sizeof(buf), "Action:%s  Bonus:%s  Move:%.1f",
+                             b->action ? "Y" : "-", b->bonusAction ? "Y" : "-",
+                             playerTurn_.movementRemainingUnits());
+                    return std::string(buf);
+                });
+                hud.setText ("combat.hitChanceText", [this]{
+                    const std::string& tgt = playerTurn_.selectedTarget();
+                    if (tgt.empty()) return std::string("");
+                    char buf[96];
+                    snprintf(buf, sizeof(buf), "%s: %.0f%% to hit (AC %d)%s",
+                             tgt.c_str(), playerTurn_.hitChanceVs(tgt) * 100.0f, playerTurn_.targetAC(tgt),
+                             playerTurn_.inReachOf(tgt) ? "" : "  [out of reach]");
+                    return std::string(buf);
+                });
+                hud.setList("combat.turn_order", [this]() {
+                    std::vector<Phyxel::UI::HudRecord> rows;
+                    const auto& tracker = combatDirector_.initiative();
+                    if (!tracker.isCombatActive()) return rows;
+                    const std::string& cur = combatDirector_.currentEntityId();
+                    for (const auto& p : tracker.turnOrder()) {
+                        Phyxel::UI::HudRecord r;
+                        float hp = 0.0f, maxHp = 1.0f;
+                        if (entityRegistry_) {
+                            if (auto* e = entityRegistry_->getEntity(p.entityId)) {
+                                if (auto* hc = e->getHealthComponent()) { hp = hc->getHealth(); maxHp = hc->getMaxHealth(); }
+                            }
+                        }
+                        bool active = (p.entityId == cur);
+                        r.floats["hp"] = hp;
+                        r.floats["maxHp"] = maxHp;
+                        r.floats["hpFrac"] = (maxHp > 0.0f) ? hp / maxHp : 0.0f;
+                        r.floats["active"] = active ? 1.0f : 0.0f;
+                        r.texts["name"] = p.entityId;
+                        char buf[64];
+                        snprintf(buf, sizeof(buf), "%s%s [%d]  %d/%d",
+                                 active ? "> " : "  ", p.entityId.c_str(), p.initiativeRoll,
+                                 (int)(hp + 0.5f), (int)(maxHp + 0.5f));
+                        r.texts["label"] = buf;
+                        rows.push_back(std::move(r));
+                    }
+                    return rows;
+                });
+
+                // Objectives (quest log) — [x] when complete; .any gates visibility.
+                hud.setFloat("objectives.any", [this] {
+                    for (const auto* o : objectiveTracker_.getAllObjectives())
+                        if (o && !o->hidden && o->status != Phyxel::Core::Objective::Status::Failed) return 1.0f;
+                    return 0.0f;
+                });
+                hud.setList("objectives", [this]() {
+                    std::vector<Phyxel::UI::HudRecord> rows;
+                    for (const auto* o : objectiveTracker_.getAllObjectives()) {
+                        if (!o || o->hidden || o->status == Phyxel::Core::Objective::Status::Failed) continue;
+                        bool done = (o->status == Phyxel::Core::Objective::Status::Completed);
+                        Phyxel::UI::HudRecord r;
+                        r.texts["label"] = std::string(done ? "[x] " : "[ ] ") + o->title;
+                        r.floats["complete"] = done ? 1.0f : 0.0f;
+                        rows.push_back(std::move(r));
+                    }
+                    return rows;
+                });
+
+                // Hotbar — first 9 slots, icon from the item's top-face texture.
+                hud.setFloat("hotbar.any", [this] { return inventory_.size() > 0 ? 1.0f : 0.0f; });
+                hud.setList("hotbar", [this]() {
+                    std::vector<Phyxel::UI::HudRecord> rows;
+                    int n = std::min(inventory_.size(), 9);
+                    int sel = inventory_.getSelectedSlot();
+                    for (int i = 0; i < n; ++i) {
+                        Phyxel::UI::HudRecord r;
+                        auto slot = inventory_.getSlot(i);
+                        if (slot && !slot->itemId.empty()) {
+                            std::string lower;
+                            lower.reserve(slot->itemId.size());
+                            for (char c : slot->itemId) lower += static_cast<char>(std::tolower((unsigned char)c));
+                            r.texts["icon"] = "resources/textures/source/" + lower + "_top.png";
+                            r.texts["count"] = (slot->count > 1) ? std::to_string(slot->count) : std::string();
+                        } else {
+                            r.texts["icon"] = "";
+                            r.texts["count"] = "";
+                        }
+                        r.floats["selected"] = (i == sel) ? 1.0f : 0.0f;
+                        rows.push_back(std::move(r));
+                    }
+                    return rows;
+                });
+
                 // Timer-trigger countdown -> hud_countdown panel (replaces ImGui
                 // renderCountdownHud). Shows the first active countdown's label + time.
                 hud.setFloat("countdown.active", [this]() {
@@ -538,6 +645,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         #include <GLFW/glfw3.h>
         #include <fstream>
         #include <filesystem>
+        #include <algorithm>
+        #include <cctype>
         #include <optional>
         #include <variant>
 

@@ -298,3 +298,16 @@ dialogue facing 0.785 vs 0.785 expected, stable over 2 s at 10 Hz (micro-probe -
 run first read the camera-coupled value because probe CALIBRATION walked the player out of
 interact range before pressing E, a probe-flow bug, not a game bug; reorder noted). NPC-side
 facing is code-reviewed only (not API-observable).
+
+## 6e. Increment 8 — the HUD comes alive in the standalone (2026-08-14)
+
+The fail-closed HUD panels now have live providers in generated games: combat.* (inCombat,
+playerTurnActive, roundText, turnLabel, budgetText, hitChanceText, turn_order with per-row
+HP/initiative), objectives.any + objectives ([x] markers), hotbar.any + hotbar (icons +
+counts + selected slot) - the same registrations the editor makes (Application.cpp ~5793),
+wired to the standalone's own subsystems. Runtime: all 8 HUD panels load (hud_health/
+hotbar/objectives/dialogue/combat_banner/combat_order/combat_turn/combat_action), the
+full playthrough completes with providers executing every frame including in-combat.
+HONEST DEPTH: providers are functionally live (exercised, no crash, panels gated open by
+live data); the rendered PIXELS are not machine-verified - no screenshot path on the
+standalone API. Visual confirmation = watch the next run.
