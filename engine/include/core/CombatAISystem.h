@@ -55,6 +55,11 @@ public:
     /// instant, non-animated execution). Keeps this core system scene-free.
     using BodyProvider = std::function<ITurnActorBody*(Scene::Entity*)>;
     void setBodyProvider(BodyProvider provider)            { m_bodyProvider = std::move(provider); }
+    /// The HUMAN player's entity id. When set, the AI drives every OTHER
+    /// combatant's turn — including player-side COMPANIONS (they auto-fight,
+    /// targeting the opposing side). When unset (legacy hosts), all
+    /// player-side turns wait for input, so single-player behavior is unchanged.
+    void setPlayerEntityId(const std::string& id)          { m_playerEntityId = id; }
 
     // -----------------------------------------------------------------------
     // Per-frame update
@@ -111,7 +116,8 @@ private:
     // Per-turn state
     // -----------------------------------------------------------------------
     Phase       m_phase   = Phase::Idle;
-    std::string m_actingId;        ///< enemy whose turn we are currently running
+    std::string m_actingId;        ///< combatant whose turn we are currently running
+    std::string m_playerEntityId;  ///< the human's entity — the only turn the AI waits on
     std::string m_targetId;        ///< chosen target this turn
     float       m_thinkAccum = 0.0f;
     bool        m_attacked   = false;  ///< guard: resolve damage once per attack

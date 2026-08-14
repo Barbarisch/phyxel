@@ -325,3 +325,27 @@ overhead rig: click_move (803,495) -> move closed the gap, then five click_attac
 -> attack at the rat''s projected position until it died; encounter self-resolved; quest to
 victory at fighter 2. A wrong NDC y-flip would have resolved none - the kill is behavioral
 proof of the projection in both camera modes. The last big BG3 feel gap is closed.
+
+## 6g. Increment 10 - PARTY MEMBERS (2026-08-14, partial - honestly scoped)
+
+SHIPPED + measured: the join_party action (dialogue-driven recruiting - Bram joins from a
+conversation choice), party persistence across scenes (members respawn at the player''s side
+on world-scene load), start_combat AUTO-ENLISTS living party members player-side (measured:
+3 combatants ["npc_Bram","player","npc_Rat"]), and the CombatAI ally-turn INFRASTRUCTURE
+(waits only on the human''s entity via setPlayerEntityId; side-aware target acquisition -
+legacy hosts unchanged).
+
+THE HUNT (the increment''s real yield): "Bram won''t talk" -> engine root cause found via a
+new tryInteract diagnostic sweep (dumps every npc-typed entity with dist/cast/radius when
+nothing is in range): **InteractionManager::update''s playerFront DEFAULTS to +Z**, silently
+arming a north-facing 90-degree view cone - ANY NPC south of the player was uninteractable.
+Every earlier symptom (settle-time, first-visit, steering correlations) was coincidence of
+geometry. Scaffold now passes an explicit zero front = BG3 proximity interact. Also fixed:
+the tryInteract log''s {:.3f} spec (third literal-format bug found; args were shifting).
+
+OPEN (next session): Bram''s OWN combat turn stalls in execution - the AI binds his turn but
+he never attacks; leading suspect is his Idle NPC BEHAVIOR fighting the TurnActor for
+setControlInput each frame (the rat, also idle, DOES act - asymmetry unexplained). Probe
+lesson recorded in-file: combat/state player_turn is SIDE-based - drive the probe off
+current_entity == player. Evidence: hv_combat.log (3-combatant encounter, joined-the-party
+lines) + bram2.log-style diagnostic dumps.

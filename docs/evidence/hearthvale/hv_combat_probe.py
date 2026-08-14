@@ -1,4 +1,4 @@
-"""Hearthvale increment 2: the combat beat, played over the --test API.
+﻿"""Hearthvale increment 2: the combat beat, played over the --test API.
 
 Green flips vs the red baseline (503 on /api/rpg/combat/state, captured
 2026-08-13 on the pre-combat exe):
@@ -66,7 +66,7 @@ def cam_geom():
             "pitch": c.get("pitch")}
 
 def calibrate2(dirs):
-    """Re-measure W and D displacement — the third-person camera FOLLOWS the
+    """Re-measure W and D displacement â€” the third-person camera FOLLOWS the
     player, so camera-relative key directions drift as the camera swings."""
     for k in ("W","D"):
         p0 = player_pos(); key(k, 0.35); p1 = player_pos()
@@ -91,7 +91,7 @@ def steer_to(dirs, tx, tz, tol=1.2, max_iter=50, stop=None):
         if dist < tol:
             rec("steer_arrived", {"iter": i, "pos": [round(p[0],1),round(p[1],1)]}); return "arrived"
         # Adaptive: if we're not closing on the target, the camera has swung and
-        # the direction map is stale — re-measure it.
+        # the direction map is stale â€” re-measure it.
         if last_dist is not None and dist >= last_dist - 0.1:
             stalled += 1
             if stalled >= 3:
@@ -103,7 +103,7 @@ def steer_to(dirs, tx, tz, tol=1.2, max_iter=50, stop=None):
         key(best, min(0.6, max(0.15, dist*0.09)))
     rec("steer_stuck", {"pos": player_pos()}); return "stuck"
 
-# ── Launch fresh ────────────────────────────────────────────────────────────
+# â”€â”€ Launch fresh â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 for f in (RELDIR/"worlds").glob("*.db*"):
     for _ in range(10):
         try: f.unlink(); break
@@ -121,6 +121,8 @@ try:
     rec("combat_state_boot", combat("state"))
 
     api("POST","/api/ui/click",{"x":640,"y":384}); time.sleep(3)   # Begin
+    time.sleep(5)   # FIRST-LOAD SETTLE: interacts have a dead-zone for ~5s after
+                    # a scene's FIRST load (anim-parse readiness race — filed)
     dirs = {"W":(-0.71,-0.71),"D":(0.71,-0.71),"S":(0.71,0.71),"A":(-0.71,0.71)}  # seed; adaptively re-measured
     calibrate2(dirs)
     rec("initial_dirs", {k: [round(v,2) for v in d] for k,d in dirs.items()})
@@ -136,11 +138,18 @@ try:
         rec(tag, {"facing_yaw": yaw, "expected_bearing": expect,
                   "err_rad": round(err,3) if err is not None else None})
 
-    # accept the quest — the speakers should square up (Elder at 18,18)
+    # accept the quest â€” the speakers should square up (Elder at 18,18)
     key("E",0.1); time.sleep(0.8)
     facing_check("facing_dialogue", (18.0, 18.0))
     key("1",0.1); time.sleep(0.8)
     key("Enter",0.1); time.sleep(0.5); key("Enter",0.1); time.sleep(0.5)
+
+    # Recruit Bram: walk to him (16,12), talk, choice 1 = join
+    steer_to(dirs, 16, 12.6, tol=1.4)
+    key("E",0.1); time.sleep(0.8); key("1",0.1); time.sleep(0.8)
+    key("Enter",0.1); time.sleep(0.5); key("Enter",0.1); time.sleep(0.5)
+    rec("recruited", {"note": "party_joined expected in log"})
+
     steer_to(dirs, 28, 16, stop=lambda: screen().get("scene_id")=="cellar")
     time.sleep(2)
     rec("in_cellar", {"scene": screen().get("scene_id"), "pos": player_pos(), "rat": rat_pos()})
@@ -150,6 +159,9 @@ try:
     steer_to(dirs, 12, 18, tol=1.0, stop=lambda: combat("state").get("in_combat"))
     time.sleep(1.0)
     st = combat("state"); rec("encounter_started", st)
+    order = st.get("turn_order", {}).get("order", [])
+    rec("party_in_combat", {"combatants": len(order),
+                            "ids": [o.get("entityId", o.get("entity_id", "?")) for o in order]})
     time.sleep(1.0)
     rp = rat_pos()
     if rp: facing_check("facing_combat_start", (rp[0], rp[2]))  # squared off vs the rat
@@ -159,7 +171,7 @@ try:
     rec("wasd_suppressed", {"before": p0, "after": p1,
                             "moved": round(math.hypot(p1[0]-p0[0], p1[1]-p0[1]), 3)})
 
-    # C3+K: fight to the KILL — the encounter must resolve ITSELF (no manual
+    # C3+K: fight to the KILL â€” the encounter must resolve ITSELF (no manual
     # combat/end): rat at authored maxHealth 10 dies in ~2 hits, entity_died
     # fires the rat_slain trigger, combat_victory ends the encounter.
     rounds_seen = set()
@@ -168,12 +180,13 @@ try:
         if not st.get("in_combat"):
             rec("encounter_self_resolved", {"iter": i, "state": st}); break
         rounds_seen.add(st.get("round"))
-        if st.get("player_turn"):
+        if st.get("current_entity") == "player":   # OUR turn only — player_turn is
+                                                   # SIDE-based and true on Bram's too
             ti = combat("targeting_info", {"target_id": "npc_Rat"})
             if i % 7 == 0: rec("targeting", ti)
             # BG3 mouse combat: CLICK the rat on screen (attack when in reach,
             # approach-move otherwise resolves via the same click when out of
-            # range? no — clicking the enemy always resolves attack; when out
+            # range? no â€” clicking the enemy always resolves attack; when out
             # of reach we click the GROUND next to the rat to close distance).
             scr = combat("screen_of", {"entity_id": "npc_Rat"})
             if ti.get("in_reach") and scr.get("ok"):
@@ -198,7 +211,7 @@ try:
     time.sleep(1.0)
     rec("camera_restored", cam_geom())      # BG3: back to third_person after combat
 
-    # P1: progression — the kill granted XP into a real CharacterSheet
+    # P1: progression â€” the kill granted XP into a real CharacterSheet
     rec("sheet_after_kill", api("POST","/api/rpg/sheet",{}))
 
     # C4: finish the quest with the combat beat behind us
@@ -226,7 +239,7 @@ except Exception as e:
 finally:
     proc.kill(); log.close(); time.sleep(0.5)
 
-# P3: relaunch — progression survives the save/reload round trip. The win
+# P3: relaunch â€” progression survives the save/reload round trip. The win
 # trigger fired save_game AFTER the level-up, so town.db carries xp=300 lvl=2.
 time.sleep(1.0)
 log2 = open(SCRATCH/"hv_restore.log", "w", encoding="utf-8", errors="replace")

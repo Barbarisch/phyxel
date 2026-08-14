@@ -55,9 +55,14 @@ void CombatAISystem::tick(float dt) {
     const std::string curId = tr->currentEntityId();
     if (curId.empty()) return;
 
-    // Player-side turn: the AI waits (player input drives it — S5). Tear down
-    // any enemy turn we were mid-running.
-    if (m_director->isPlayerSide(curId)) {
+    // The HUMAN's turn: the AI waits (player input drives it — S5). When the
+    // host told us which entity the human controls, only THAT turn waits and
+    // player-side COMPANIONS auto-fight; legacy hosts (no player id set) keep
+    // the old behavior of waiting on every player-side turn.
+    const bool humansTurn = m_playerEntityId.empty()
+                              ? m_director->isPlayerSide(curId)
+                              : (curId == m_playerEntityId);
+    if (humansTurn) {
         if (!m_actingId.empty()) { m_turnActor.end(); m_actingId.clear(); m_phase = Phase::Idle; }
         return;
     }
@@ -162,10 +167,12 @@ std::string CombatAISystem::acquireTarget(const glm::vec3& fromPos, const std::s
         if (dsq < bestDistSq) { bestDistSq = dsq; best = id; }
     };
 
-    // Prefer player-side combatants in the turn order (the people we're fighting).
+    // Target the OPPOSING side of whoever is acting: an enemy hunts
+    // player-side combatants; an allied companion hunts enemies.
     if (m_director) {
+        const bool selfPlayerSide = m_director->isPlayerSide(selfId);
         for (const auto& p : tracker()->turnOrder())
-            if (m_director->isPlayerSide(p.entityId)) consider(p.entityId);
+            if (m_director->isPlayerSide(p.entityId) != selfPlayerSide) consider(p.entityId);
     } else if (m_party) {
         for (const auto& m : m_party->getMembers())
             if (m.isAlive) consider(m.entityId);

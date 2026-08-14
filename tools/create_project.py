@@ -1064,6 +1064,19 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 }} else if (type == "remove_item") {{
                     const std::string id = a.value("id", "");
                     if (!id.empty()) inventory_.removeItem(id, a.value("count", 1));
+                }} else if (type == "join_party") {{
+                    // Recruit a companion (usually from a dialogue node action):
+                    //   {{"type":"join_party","entity_id":"npc_Bram","name":"Bram"}}
+                    // The member persists in rpgParty_; on every world-scene load
+                    // the shell respawns absent members near the player, and
+                    // start_combat auto-enlists them on the player's side.
+                    const std::string eid  = a.value("entity_id", "");
+                    const std::string name = a.value("name", "");
+                    if (!eid.empty() && !name.empty()) {{
+                        rpgParty_.addMember(eid, name, playerSheet_.totalLevel() > 0 ? playerSheet_.totalLevel() : 1);
+                        LOG_INFO("{class_name}", "'{{}}' joined the party ({{}})", name, eid);
+                        triggers_.onEvent("party_joined", {{{{"id", eid}}, {{"name", name}}}});
+                    }}
                 }} else if (type == "start_combat") {{
                     // Authored encounter: {{"type":"start_combat","participants":
                     //   [{{"entity_id":"player","player_side":true}},
@@ -1080,6 +1093,20 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             c.speed           = p.value("speed", 30);
                             combatants.push_back(c);
                         }}
+                    }}
+                    // Party members auto-enlist on the player's side (skip any the
+                    // author already listed explicitly).
+                    for (const auto& m : rpgParty_.getMembers()) {{
+                        if (!m.isAlive) continue;
+                        bool listed = false;
+                        for (const auto& c : combatants)
+                            if (c.entityId == m.entityId) {{ listed = true; break; }}
+                        if (listed || !entityRegistry_ || !entityRegistry_->getEntity(m.entityId)) continue;
+                        Phyxel::Core::CombatDirector::Combatant c;
+                        c.entityId        = m.entityId;
+                        c.isPlayerSide    = true;
+                        c.initiativeBonus = 1;
+                        combatants.push_back(c);
                     }}
                     if (combatants.empty()) {{
                         LOG_WARN("{class_name}", "start_combat: no participants (trigger '{{}}')", tid);
@@ -1358,6 +1385,19 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 if (loadPlayerProfile())
                                     LOG_INFO("{class_name}", "Restored saved player profile");
                             }}
+                            // Companions travel WITH the player: scene loads clear
+                            // all entities, so respawn absent party members near
+                            // the player on every world scene. (Exploration follow
+                            // behavior is a future increment — they stand by until
+                            // combat, where start_combat auto-enlists them.)
+                            if (npcManager_ && entityRegistry_ && playerCharacter_) {{
+                                for (const auto& m : rpgParty_.getMembers()) {{
+                                    if (!m.isAlive || entityRegistry_->getEntity(m.entityId)) continue;
+                                    const glm::vec3 at = playerCharacter_->getPosition() + glm::vec3(1.5f, 0.0f, 1.5f);
+                                    if (npcManager_->spawnNPC(m.name, "", at, Phyxel::Core::NPCBehaviorType::Idle))
+                                        LOG_INFO("{class_name}", "Companion '{{}}' rejoined at the player's side", m.name);
+                                }}
+                            }}
                             if (engine_) updateCursorMode(*engine_);
                         }};
                         sm->setCallbacks(cb);
@@ -1555,8 +1595,11 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // frame; both no-op unless an encounter is active. (Mirrors the editor
             // loop — Application.cpp ~3540; the player turn self-binds in tick.)
             combatAI_.tick(dt);
-            if (playerCharacter_ && entityRegistry_)
-                playerTurn_.setPlayerEntityId(entityRegistry_->getEntityId(playerCharacter_));
+            if (playerCharacter_ && entityRegistry_) {{
+                const std::string pid = entityRegistry_->getEntityId(playerCharacter_);
+                playerTurn_.setPlayerEntityId(pid);
+                combatAI_.setPlayerEntityId(pid);   // companions auto-fight; only the human waits
+            }}
             playerTurn_.tick(dt);
 
             // BG3-style tactical camera: entering combat swaps to the authored
@@ -1600,9 +1643,15 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (storyEngine_) storyEngine_->update(dt);
             if (speechBubbleManager_) speechBubbleManager_->update(dt);
 
-            // Update interaction manager with player position
+            // Update interaction manager with player position. Front is
+            // EXPLICITLY zero: the engine's default playerFront is +Z, which
+            // silently arms a north-facing 90° view cone — any NPC standing
+            // SOUTH of the player was uninteractable (the Hearthvale "Bram
+            // won't talk" hunt). Under camera-coupled facing a view cone is
+            // meaningless anyway; BG3-style proximity interact = nearest NPC
+            // in radius, any direction.
             if (interactionManager_ && playerCharacter_) {{
-                interactionManager_->update(dt, playerCharacter_->getPosition());
+                interactionManager_->update(dt, playerCharacter_->getPosition(), glm::vec3(0.0f));
             }}
 
             if (dialogueSystem_) dialogueSystem_->update(dt);
