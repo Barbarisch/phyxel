@@ -1,4 +1,4 @@
-{
+﻿{
   "_comment": "Data-driven scene-transition loading screen (docs/game-production/StandaloneParityGaps.md §2). Loaded by UI::loadGameScreenInto(ui,\"loading\",...) into loading:<panel> screens while SceneManager reports SceneTransitionStyle::LoadingScreen via SceneCallbacks::setLoadingScreen. {{loading_target}} resolves to the destination scene's display name via MenuActions.onResolveVariable.",
   "background_type": "solid",
   "background_color": [0.03, 0.03, 0.06, 1.0],
@@ -6,8 +6,8 @@
   "panels": {
     "main": {
       "children": [
-        { "type": "label", "id": "loading_title",  "text": "Loading...", "font": "title", "position": [640, 300], "size": [500, 70] },
-        { "type": "label", "id": "loading_target", "text": "{{loading_target}}", "position": [640, 390], "size": [800, 32] }
+        { "type": "label", "align": "center", "id": "loading_title",  "text": "Loading...", "font": "title", "position": [640, 300], "size": [500, 70] },
+        { "type": "label", "align": "center", "id": "loading_target", "text": "{{loading_target}}", "position": [640, 390], "size": [800, 32] }
       ]
     }
   }

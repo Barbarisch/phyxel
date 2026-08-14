@@ -185,6 +185,13 @@ public:
     std::string text;
     bool isTitle = false;     // uses titleColor + titleScale if true
     float wrapWidth = 0.0f;   // >0 = word-wrap to this pixel width (multi-line)
+    /// Horizontal alignment relative to `position.x`:
+    ///   Left   (default) — text STARTS at position.x (historical behavior)
+    ///   Center           — text is centered ON position.x (what every shipped
+    ///                      screen JSON authored: position 640 = screen center)
+    ///   Right            — text ENDS at position.x
+    enum class HAlign { Left, Center, Right };
+    HAlign align = HAlign::Left;
 };
 
 // ════════════════════════════════════════════════════════════════

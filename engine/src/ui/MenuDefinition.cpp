@@ -34,6 +34,11 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         w->text = j.value("text", "");
         w->isTitle = j.value("isTitle", false);
         w->wrapWidth = j.value("wrapWidth", 0.0f);
+        // "align": "center" -> text centered ON position.x; "right" -> ends at it.
+        // Default left (start at position.x) preserves every existing layout.
+        const std::string al = j.value("align", "left");
+        if (al == "center")      w->align = UILabel::HAlign::Center;
+        else if (al == "right")  w->align = UILabel::HAlign::Right;
         w->bind = j.value("bind", "");
         w->visibleWhen = j.value("visibleWhen", "");
         w->visible = j.value("visible", true);

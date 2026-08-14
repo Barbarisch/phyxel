@@ -208,14 +208,21 @@ void UILabel::render(UIRenderer* renderer, const BitmapFont* font,
 
     if (wrapWidth > 0.0f) {
         std::string wrapped = wrapText(font, text, scale, wrapWidth);
-        font->drawText(renderer, wrapped, pos, color, scale);
+        glm::vec2 drawPos = pos;
+        if (align == HAlign::Center)      drawPos.x = pos.x - wrapWidth * 0.5f;
+        else if (align == HAlign::Right)  drawPos.x = pos.x - wrapWidth;
+        font->drawText(renderer, wrapped, drawPos, color, scale);
         int lines = 1;
         for (char c : wrapped) if (c == '\n') ++lines;
         size.x = wrapWidth;
         size.y = font->lineHeight(scale) * static_cast<float>(lines);
     } else {
-        font->drawText(renderer, text, pos, color, scale);
-        size.x = font->measureText(text, scale);
+        const float textW = font->measureText(text, scale);
+        glm::vec2 drawPos = pos;
+        if (align == HAlign::Center)      drawPos.x = pos.x - textW * 0.5f;
+        else if (align == HAlign::Right)  drawPos.x = pos.x - textW;
+        font->drawText(renderer, text, drawPos, color, scale);
+        size.x = textW;
         size.y = font->lineHeight(scale);
     }
 }
