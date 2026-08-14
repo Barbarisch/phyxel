@@ -179,6 +179,7 @@ def create_project(
     # orbit behind their UI (PresentationPolish.md §3 Tier 1).
     extra_includes.append('#include "graphics/CameraManager.h"')
     extra_members.append("    Phyxel::Graphics::CameraPath menuCamPath_;  // drives the menuWorld orbit while a menu scene is up")
+    extra_members.append("    bool combatLmbHeld_ = false;    // click-to-act edge detection (BG3 mouse combat)")
     extra_members.append("    Phyxel::Core::ObjectiveTracker objectiveTracker_;  // quest-log spine; game.json \"objectives\" load here")
     extra_members.append("    Phyxel::Core::PlayerProfile playerProfile_;        // persisted to the active scene's world DB (player_state table)")
     extra_members.append("    std::string loadingSceneName_;  // destination scene shown on the loading screen")
@@ -1468,6 +1469,33 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             bool inDialogue = dialogueSystem_ && dialogueSystem_->isActive();
             if (Phyxel::UI::isGameRunning(screen_.getState()) && !inDialogue && !menuSceneActive_) {{
                 input->processInput(engine.getLastDeltaTime());
+            }}
+
+            // BG3 mouse combat: on the player's turn, a left click resolves to
+            // attack (enemy under cursor) or move (ground point) through the
+            // same PlayerTurnController pick the test API uses. Edge-triggered;
+            // cursor is free during combat (updateCursorMode).
+            if (combatDirector_.inCombat() && playerTurn_.isPlayerTurnActive() &&
+                !inDialogue && renderCoordinator_) {{
+                const bool lmb = input->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
+                if (lmb && !combatLmbHeld_) {{
+                    auto* win = engine.getWindowManager();
+                    auto* cam = engine.getCamera();
+                    if (win && cam) {{
+                        double mx = 0.0, my = 0.0;
+                        glfwGetCursorPos(win->getHandle(), &mx, &my);
+                        const glm::uvec2 vp = renderCoordinator_->getSwapChainSize();
+                        const float groundY = playerCharacter_ ? playerCharacter_->getPosition().y : 0.0f;
+                        const char* resolved = playerTurn_.requestPickAt(
+                            *cam, {{static_cast<float>(mx), static_cast<float>(my)}},
+                            {{static_cast<float>(vp.x), static_cast<float>(vp.y)}}, groundY);
+                        LOG_INFO("{class_name}", "Combat click ({{}}, {{}}) -> {{}}",
+                                 static_cast<int>(mx), static_cast<int>(my), resolved);
+                    }}
+                }}
+                combatLmbHeld_ = lmb;
+            }} else {{
+                combatLmbHeld_ = false;
             }}
         }}
 

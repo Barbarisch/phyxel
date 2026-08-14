@@ -171,9 +171,20 @@ try:
         if st.get("player_turn"):
             ti = combat("targeting_info", {"target_id": "npc_Rat"})
             if i % 7 == 0: rec("targeting", ti)
-            if ti.get("in_reach"):
-                rec("attack", combat("player_attack", {"target_id": "npc_Rat"}))
+            # BG3 mouse combat: CLICK the rat on screen (attack when in reach,
+            # approach-move otherwise resolves via the same click when out of
+            # range? no — clicking the enemy always resolves attack; when out
+            # of reach we click the GROUND next to the rat to close distance).
+            scr = combat("screen_of", {"entity_id": "npc_Rat"})
+            if ti.get("in_reach") and scr.get("ok"):
+                pk = combat("player_pick", {"x": scr["x"], "y": scr["y"]})
+                rec("click_attack", {"at": [round(scr["x"]), round(scr["y"])], "resolved": pk.get("resolved")})
                 time.sleep(2.5)   # attack animation resolves at the hit frame
+            elif scr.get("ok"):
+                # click slightly BELOW the rat on screen = the ground near it
+                pk = combat("player_pick", {"x": scr["x"], "y": scr["y"] + 60})
+                rec("click_move", {"at": [round(scr["x"]), round(scr["y"]+60)], "resolved": pk.get("resolved")})
+                time.sleep(2.0)
             else:
                 rp = rat_pos()
                 if rp: combat("player_move", {"x": rp[0], "y": rp[1], "z": rp[2]})

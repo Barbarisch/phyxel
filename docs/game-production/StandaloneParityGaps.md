@@ -311,3 +311,17 @@ full playthrough completes with providers executing every frame including in-com
 HONEST DEPTH: providers are functionally live (exercised, no crash, panels gated open by
 live data); the rendered PIXELS are not machine-verified - no screenshot path on the
 standalone API. Visual confirmation = watch the next run.
+
+## 6f. Increment 9 - CLICK-TO-MOVE/ATTACK (2026-08-14): combat is played with the mouse
+
+PlayerTurnController gained resolvePick/screenOf/requestPickAt - engine-side, projection-
+agnostic (inverse view-projection, identical under perspective third-person and the ortho
+tactical overhead): a living enemy combatant within 32px of the cursor resolves Attack
+(nearest wins); otherwise the cursor ray intersects the ground plane for Move. TWO consumers
+share the one path: the shipped game binds LMB on the player turn (edge-triggered, cursor
+already free in combat), and the test API exposes combat/player_pick {x,y} +
+combat/screen_of {entity_id} so probes fight by CLICKING. Measured on Hearthvale under the
+overhead rig: click_move (803,495) -> move closed the gap, then five click_attack (661,355)
+-> attack at the rat''s projected position until it died; encounter self-resolved; quest to
+victory at fighter 2. A wrong NDC y-flip would have resolved none - the kill is behavioral
+proof of the projection in both camera modes. The last big BG3 feel gap is closed.

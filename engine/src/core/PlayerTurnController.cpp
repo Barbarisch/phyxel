@@ -6,6 +6,7 @@
 #include "core/AttackResolver.h"
 #include "core/SpellDefinition.h"
 #include "scene/Entity.h"
+#include "graphics/Camera.h"
 #include "utils/Logger.h"
 
 #include <cmath>
@@ -287,6 +288,92 @@ void PlayerTurnController::resolvePlayerAttack(Scene::Entity* target, const std:
     }
     LOG_INFO("PlayerTurn", "Player hits '{}' for {} ({}) damage (roll {} vs AC {}).",
              targetId, result.finalDamage, m_damageDice, result.attackTotal, ac);
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Click-to-act (BG3 mouse combat) — see the header. All math goes through the
+// inverse view-projection so it is identical under the perspective third-person
+// rig and the orthographic tactical overhead.
+// ════════════════════════════════════════════════════════════════════════════
+
+// Shared: world → screen pixels. Returns false when behind the camera /
+// degenerate. NDC y is flipped to screen-down (Vulkan-style viewport).
+static bool worldToScreen(const glm::mat4& viewProj, const glm::vec3& world,
+                          glm::vec2 viewportPx, glm::vec2& outPx) {
+    const glm::vec4 clip = viewProj * glm::vec4(world, 1.0f);
+    if (clip.w < 1e-4f) return false;          // behind camera (ortho w == 1)
+    const glm::vec3 ndc = glm::vec3(clip) / clip.w;
+    outPx = {( ndc.x * 0.5f + 0.5f) * viewportPx.x,
+             (-ndc.y * 0.5f + 0.5f) * viewportPx.y};
+    return true;
+}
+
+bool PlayerTurnController::screenOf(const Graphics::Camera& cam, const std::string& entityId,
+                                    glm::vec2 viewportPx, glm::vec2& outPx) const {
+    if (!m_registry || viewportPx.x <= 0.0f || viewportPx.y <= 0.0f) return false;
+    Scene::Entity* e = m_registry->getEntity(entityId);
+    if (!e) return false;
+    const glm::mat4 vp = cam.getProjectionMatrix(viewportPx.x / viewportPx.y, 0.1f, 1000.0f)
+                       * cam.getViewMatrix();
+    return worldToScreen(vp, e->getPosition() + glm::vec3(0.0f, 0.9f, 0.0f), viewportPx, outPx);
+}
+
+PlayerTurnController::PickResult PlayerTurnController::resolvePick(
+        const Graphics::Camera& cam, glm::vec2 screenPx,
+        glm::vec2 viewportPx, float groundY) const {
+    PickResult r;
+    if (!m_director || !m_registry || viewportPx.x <= 0.0f || viewportPx.y <= 0.0f) return r;
+    const glm::mat4 vp = cam.getProjectionMatrix(viewportPx.x / viewportPx.y, 0.1f, 1000.0f)
+                       * cam.getViewMatrix();
+
+    // 1) A living ENEMY combatant near the cursor wins: closest within radius.
+    const float pickRadiusPx = 32.0f;
+    float best = pickRadiusPx;
+    for (const auto& p : m_director->initiative().turnOrder()) {
+        if (p.isPlayer) continue;
+        Scene::Entity* e = m_registry->getEntity(p.entityId);
+        if (!e) continue;
+        if (auto* hc = e->getHealthComponent(); hc && !hc->isAlive()) continue;
+        glm::vec2 scr;
+        if (!worldToScreen(vp, e->getPosition() + glm::vec3(0.0f, 0.9f, 0.0f), viewportPx, scr))
+            continue;
+        const float d = glm::length(scr - screenPx);
+        if (d < best) { best = d; r.kind = PickResult::Kind::Attack; r.targetId = p.entityId; }
+    }
+    if (r.kind == PickResult::Kind::Attack) return r;
+
+    // 2) Otherwise: the ground point under the cursor (plane y = groundY).
+    const glm::mat4 inv = glm::inverse(vp);
+    const glm::vec2 ndcXY(screenPx.x / viewportPx.x * 2.0f - 1.0f,
+                          -(screenPx.y / viewportPx.y * 2.0f - 1.0f));
+    const glm::vec4 a = inv * glm::vec4(ndcXY, 0.0f, 1.0f);
+    const glm::vec4 b = inv * glm::vec4(ndcXY, 1.0f, 1.0f);
+    if (std::abs(a.w) < 1e-6f || std::abs(b.w) < 1e-6f) return r;
+    const glm::vec3 p0 = glm::vec3(a) / a.w;
+    const glm::vec3 p1 = glm::vec3(b) / b.w;
+    const float dy = p1.y - p0.y;
+    if (std::abs(dy) < 1e-4f) return r;                    // ray parallel to ground
+    const float t = (groundY - p0.y) / dy;
+    if (t < 0.0f || t > 1.0f) return r;                    // plane outside the segment
+    r.kind  = PickResult::Kind::Move;
+    r.point = p0 + (p1 - p0) * t;
+    return r;
+}
+
+const char* PlayerTurnController::requestPickAt(const Graphics::Camera& cam, glm::vec2 screenPx,
+                                                glm::vec2 viewportPx, float groundY) {
+    const PickResult r = resolvePick(cam, screenPx, viewportPx, groundY);
+    switch (r.kind) {
+        case PickResult::Kind::Attack:
+            setSelectedTarget(r.targetId);
+            requestAttack(r.targetId);
+            return "attack";
+        case PickResult::Kind::Move:
+            requestMove(r.point);
+            return "move";
+        default:
+            return "none";
+    }
 }
 
 } // namespace Core

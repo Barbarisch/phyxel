@@ -12,6 +12,7 @@
 namespace Phyxel {
 
 namespace Scene { class Entity; }
+namespace Graphics { class Camera; }
 namespace Core { class CombatDirector; class EntityRegistry; class CombatSystem; }
 
 namespace Core {
@@ -51,6 +52,29 @@ public:
 
     /// Walk the player toward a world point, spending movement.
     bool requestMove(const glm::vec3& worldPoint);
+
+    // ── Click-to-act (BG3 mouse combat) ─────────────────────────────────────
+    // Resolve a screen click under ANY camera projection (perspective third-
+    // person or the orthographic tactical overhead) into a combat intent: a
+    // living enemy combatant near the cursor → Attack; otherwise the ground
+    // point under the cursor → Move. Projection-agnostic (inverse view-proj).
+    struct PickResult {
+        enum class Kind { None, Attack, Move };
+        Kind kind = Kind::None;
+        std::string targetId;      // Attack
+        glm::vec3 point{0.0f};     // Move destination (on y = groundY)
+    };
+    PickResult resolvePick(const Graphics::Camera& cam, glm::vec2 screenPx,
+                           glm::vec2 viewportPx, float groundY) const;
+    /// Project an entity's position (chest height) to screen pixels. Returns
+    /// false if the entity is unknown or behind the camera. Shares the exact
+    /// math resolvePick uses — probes verify one and trust the other.
+    bool screenOf(const Graphics::Camera& cam, const std::string& entityId,
+                  glm::vec2 viewportPx, glm::vec2& outPx) const;
+    /// resolvePick + execute (Attack → select+requestAttack; Move → requestMove).
+    /// Returns "attack" / "move" / "none" for callers to report.
+    const char* requestPickAt(const Graphics::Camera& cam, glm::vec2 screenPx,
+                              glm::vec2 viewportPx, float groundY);
 
     /// Attack a target entity by id (must be in reach + action available).
     bool requestAttack(const std::string& targetId);

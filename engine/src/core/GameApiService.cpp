@@ -299,6 +299,42 @@ void GameApiService::registerCommands() {
         r = {{"success", true}, {"path", path}, {"width", wh.x}, {"height", wh.y}};
     });
 
+    // Click-to-act: resolve a SCREEN click into attack/move — the same
+    // PlayerTurnController::requestPickAt the shipped game's LMB uses, so a
+    // probe clicking the rat exercises the player's real path.
+    reg.on("combat/player_pick", [this](const APICommand& cmd, json& r) {
+        if (!playerTurn || !runtime) { r = {{"error", "combat not available"}}; return; }
+        auto* cam = runtime->getCamera();
+        auto* rc  = renderCoordinator;
+        if (!cam || !rc) { r = {{"error", "camera not available"}}; return; }
+        const glm::uvec2 vp = rc->getSwapChainSize();
+        float groundY = cmd.params.value("ground_y", -10000.0f);
+        if (groundY <= -9999.0f) {
+            if (auto* p = playerProvider ? playerProvider() : nullptr)
+                groundY = p->getPosition().y;
+            else groundY = 0.0f;
+        }
+        const char* resolved = playerTurn->requestPickAt(
+            *cam, {cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f)},
+            {static_cast<float>(vp.x), static_cast<float>(vp.y)}, groundY);
+        r = {{"ok", true}, {"resolved", resolved}};
+    });
+
+    reg.on("combat/screen_of", [this](const APICommand& cmd, json& r) {
+        if (!playerTurn || !runtime) { r = {{"error", "combat not available"}}; return; }
+        auto* cam = runtime->getCamera();
+        auto* rc  = renderCoordinator;
+        if (!cam || !rc) { r = {{"error", "camera not available"}}; return; }
+        const glm::uvec2 vp = rc->getSwapChainSize();
+        glm::vec2 px;
+        if (!playerTurn->screenOf(*cam, cmd.params.value("entity_id", ""),
+                                  {static_cast<float>(vp.x), static_cast<float>(vp.y)}, px)) {
+            r = {{"ok", false}, {"error", "entity unknown or off-screen"}};
+            return;
+        }
+        r = {{"ok", true}, {"x", px.x}, {"y", px.y}};
+    });
+
     reg.on("combat/targeting_info", [this](const APICommand& cmd, json& r) {
         if (!playerTurn) { r = {{"error", "combat not available"}}; return; }
         const std::string tid = cmd.params.value("target_id", "");
