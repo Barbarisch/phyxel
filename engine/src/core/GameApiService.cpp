@@ -15,6 +15,7 @@
 #include "core/PlayerTurnController.h"
 #include "core/DiceSystem.h"
 #include "core/CharacterSheet.h"
+#include "core/Inventory.h"
 #include "core/SceneManager.h"
 #include "core/SceneDefinition.h"
 #include "graphics/RenderCoordinator.h"
@@ -253,6 +254,12 @@ void GameApiService::registerCommands() {
     reg.on("sheet", [this](const APICommand&, json& r) {
         if (!playerSheet) { r = {{"error", "character sheet not available"}}; return; }
         r = {{"success", true}, {"sheet", playerSheet->toJson()}};
+    });
+
+    // GET/POST /api/rpg/inventory — the player's inventory (loot/persistence).
+    reg.on("inventory", [this](const APICommand&, json& r) {
+        if (!inventory) { r = {{"error", "inventory not available"}}; return; }
+        r = {{"success", true}, {"inventory", inventory->toJson()}};
     });
 
     reg.on("combat/targeting_info", [this](const APICommand& cmd, json& r) {

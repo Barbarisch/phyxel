@@ -166,6 +166,9 @@ def create_project(
     extra_members.append("    int killXp_ = 0;       // XP per enemy killed (game.json progression.kill_xp)")
     extra_members.append("    int objectiveXp_ = 0;  // XP per objective completed (progression.objective_xp)")
     extra_members.append("    bool profileRestored_ = false;  // profile restore runs ONCE per session, at the first world-scene load (a menu-start game has no world DB open at boot)")
+    # Inventory: loot via the give_item trigger action; persists in the profile blob.
+    extra_includes.append('#include "core/Inventory.h"')
+    extra_members.append("    Phyxel::Core::Inventory inventory_;  // player inventory (loot; persisted via PlayerProfile)")
     extra_members.append("    Phyxel::Core::ObjectiveTracker objectiveTracker_;  // quest-log spine; game.json \"objectives\" load here")
     extra_members.append("    Phyxel::Core::PlayerProfile playerProfile_;        // persisted to the active scene's world DB (player_state table)")
     extra_members.append("    std::string loadingSceneName_;  // destination scene shown on the loading screen")
@@ -253,6 +256,7 @@ def create_project(
         "    Phyxel::Core::CombatAISystem*       apiCombatAI() override       { return &combatAI_; }",
         "    Phyxel::Core::PlayerTurnController* apiPlayerTurn() override     { return &playerTurn_; }",
         "    Phyxel::Core::CharacterSheet*       apiPlayerSheet() override    { return &playerSheet_; }",
+        "    Phyxel::Core::Inventory*            apiInventory() override      { return &inventory_; }",
         *([
             "    Phyxel::Core::EntityRegistry* apiEntityRegistry() override { return entityRegistry_.get(); }",
             "    Phyxel::Core::NPCManager* apiNPCManager() override { return npcManager_.get(); }",
@@ -907,6 +911,18 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     // Authorable save point: {{"type":"save_game"}} persists the
                     // player profile to the active scene's world DB.
                     savePlayerProfile();
+                }} else if (type == "give_item") {{
+                    // Authorable loot: {{"type":"give_item","id":"moonpetal_remedy","count":1}}
+                    const std::string id = a.value("id", "");
+                    const int count = a.value("count", 1);
+                    if (!id.empty()) {{
+                        const int leftover = inventory_.addItem(id, count);
+                        LOG_INFO("{class_name}", "Item received: {{}} x{{}} (trigger '{{}}')", id, count - leftover, tid);
+                        triggers_.onEvent("item_received", {{{{"id", id}}, {{"count", count - leftover}}}});
+                    }}
+                }} else if (type == "remove_item") {{
+                    const std::string id = a.value("id", "");
+                    if (!id.empty()) inventory_.removeItem(id, a.value("count", 1));
                 }} else if (type == "start_combat") {{
                     // Authored encounter: {{"type":"start_combat","participants":
                     //   [{{"entity_id":"player","player_side":true}},
@@ -1677,6 +1693,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 playerProfile_.xp    = playerSheet_.experiencePoints;
                 playerProfile_.level = playerSheet_.totalLevel();
             }}
+            playerProfile_.inventoryData = inventory_.toJson();
             if (playerProfile_.saveToDb(ws->getDb())) {{
                 LOG_INFO("{class_name}", "Player profile saved (player_state table)");
             }} else {{
@@ -1698,6 +1715,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 hc->setMaxHealth(playerProfile_.maxHealth);
                 hc->setHealth(playerProfile_.health);
             }}
+            if (!playerProfile_.inventoryData.is_null() && !playerProfile_.inventoryData.empty())
+                inventory_.fromJson(playerProfile_.inventoryData);
             // Progression restore: XP round-trips directly; LEVEL is rebuilt by
             // re-running levelUp so class HP/hit-dice accrue properly (average
             // HP, deterministic — matches how the XP was originally earned).

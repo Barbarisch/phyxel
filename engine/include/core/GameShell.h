@@ -20,6 +20,7 @@ class CombatDirector;
 class CombatAISystem;
 class PlayerTurnController;
 class CharacterSheet;
+class Inventory;
 
 // Engine-side base for standalone game hosts. Scaffolded games subclass THIS
 // instead of GameCallbacks, so shell behavior lives in the engine and fixes
@@ -75,6 +76,7 @@ protected:
     virtual CombatAISystem*       apiCombatAI()       { return nullptr; }
     virtual PlayerTurnController* apiPlayerTurn()     { return nullptr; }
     virtual CharacterSheet*       apiPlayerSheet()    { return nullptr; }  // progression
+    virtual Inventory*            apiInventory()      { return nullptr; }  // loot/persistence
 
 private:
     GameplayCameraController cameraController_;

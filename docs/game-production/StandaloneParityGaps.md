@@ -239,8 +239,20 @@ cause: profile restore ran only at BOOT, before a menu-start game opens its worl
 moved to first-world-scene `onSceneReady`, once per session (re-entering a scene must
 never rewind live progress). That same fix closes §6 finding 6 (run-B restore).
 
-**Still deferred:** combat HUD verification in the standalone, loot on kill → Inventory
-(the last big §1 row).
+**Increment 5 — LOOT → INVENTORY (2026-08-14):** the last big §1 subsystem row closes. The
+generated standalone owns a real `Core::Inventory`; **`give_item` / `remove_item` trigger
+actions** make loot authorable data (dialogue node actions share the vocabulary, so an NPC
+can take an item at turn-in); the inventory blob rides `PlayerProfile.inventoryData` through
+save/load (the field existed from day one — nothing in a shipped game ever wrote it);
+`/api/rpg/inventory` returns live state (`apiInventory` hook). Measured on Hearthvale: the
+fetch quest is now LITERAL — `Item received: moonpetal_remedy x1 (trigger 'find_remedy')` →
+hotbar slot 0 shows the item → the Elder's turn-in dialogue `remove_item`s it → zero items
+after turn-in, with XP/level and relaunch restore intact from increment 4.
+
+**Still deferred:** combat/objectives/hotbar HUD verification in the standalone (panels
+exist; provider wiring for hotbar display unverified), findings 2-5 (anim paths,
+menu→world camera, inject case-sensitivity, region-door grace), content volume,
+RpgGapProbe regen on the current scaffold.
 
 ## 7. Ordered fix list
 

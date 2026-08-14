@@ -67,6 +67,7 @@
                   "speaker": "Elder",
                   "text": "The moonpetal... yes, that is it. You have my thanks, and Hearthvale's.",
                   "actions": [
+                    { "type": "remove_item", "id": "moonpetal_remedy", "count": 1 },
                     { "type": "complete_objective", "id": "report_back" }
                   ]
                 }
@@ -141,6 +142,7 @@
             "then": [
               { "type": "complete_objective", "id": "find_remedy" },
               { "type": "set_story_variable", "name": "remedy_found", "value": true },
+              { "type": "give_item", "id": "moonpetal_remedy", "count": 1 },
               { "type": "save_game" }
             ],
             "once": true

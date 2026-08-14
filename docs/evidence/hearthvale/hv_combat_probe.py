@@ -130,6 +130,9 @@ try:
     # C4: finish the quest with the combat beat behind us
     steer_to(dirs, 16, 16)                       # remedy shelf
     time.sleep(1)
+    # I1: grabbing the remedy put a real item in a real inventory
+    inv = api("POST","/api/rpg/inventory",{})
+    rec("inventory_after_pickup", inv.get("inventory"))
     steer_to(dirs, 6, 16, stop=lambda: screen().get("scene_id")=="town")
     time.sleep(2)
     steer_to(dirs, 18, 17.2, tol=2.0)
@@ -138,9 +141,12 @@ try:
     # P2: 300 XP (kill + 2 objectives) should have crossed the 5e level-2
     # threshold exactly on the final turn-in
     sheet = api("POST","/api/rpg/sheet",{})
+    # I2: the turn-in dialogue CONSUMED the remedy (remove_item action)
+    inv = api("POST","/api/rpg/inventory",{})
     rec("finale", {"screen": screen(),
                    "xp": sheet.get("sheet",{}).get("experiencePoints"),
-                   "classes": sheet.get("sheet",{}).get("classes")})
+                   "classes": sheet.get("sheet",{}).get("classes"),
+                   "inventory_after_turnin": inv.get("inventory")})
 except Exception as e:
     rec("PROBE_ERROR", {"error": repr(e)})
 finally:
