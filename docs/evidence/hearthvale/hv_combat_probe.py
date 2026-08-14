@@ -124,8 +124,22 @@ try:
     dirs = {"W":(-0.71,-0.71),"D":(0.71,-0.71),"S":(0.71,0.71),"A":(-0.71,0.71)}  # seed; adaptively re-measured
     calibrate2(dirs)
     rec("initial_dirs", {k: [round(v,2) for v in d] for k,d in dirs.items()})
-    # accept the quest, walk east to the cellar
-    key("E",0.1); time.sleep(0.8); key("1",0.1); time.sleep(0.8)
+
+    def facing_check(tag, target_xz):
+        ps = api("POST","/api/character/player_state",{})
+        yaw = ps.get("facing_yaw")
+        p = player_pos()
+        expect = math.atan2(target_xz[0]-p[0], target_xz[1]-p[1]) if p else None
+        err = None
+        if yaw is not None and expect is not None:
+            err = abs(math.atan2(math.sin(yaw-expect), math.cos(yaw-expect)))
+        rec(tag, {"facing_yaw": yaw, "expected_bearing": expect,
+                  "err_rad": round(err,3) if err is not None else None})
+
+    # accept the quest — the speakers should square up (Elder at 18,18)
+    key("E",0.1); time.sleep(0.8)
+    facing_check("facing_dialogue", (18.0, 18.0))
+    key("1",0.1); time.sleep(0.8)
     key("Enter",0.1); time.sleep(0.5); key("Enter",0.1); time.sleep(0.5)
     steer_to(dirs, 28, 16, stop=lambda: screen().get("scene_id")=="cellar")
     time.sleep(2)
@@ -137,6 +151,8 @@ try:
     time.sleep(1.0)
     st = combat("state"); rec("encounter_started", st)
     time.sleep(1.0)
+    rp = rat_pos()
+    if rp: facing_check("facing_combat_start", (rp[0], rp[2]))  # squared off vs the rat
     rec("camera_combat", cam_geom())        # BG3: overhead birds-eye in combat
     # WASD must be DEAD during turn-based combat (TurnActor owns movement)
     p0 = player_pos(); key("W", 0.5); p1 = player_pos()

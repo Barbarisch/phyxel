@@ -151,6 +151,7 @@ void GameApiService::registerCommands() {
              {"position", {{"x", p.x}, {"y", p.y}, {"z", p.z}}},
              {"velocity", {{"x", v.x}, {"y", v.y}, {"z", v.z}}},
              {"grounded", ch->isGrounded()},
+             {"facing_yaw", ch->getYaw()},   // radians; model faces +Z at yaw 0
              {"state", ch->stateToString(ch->getAnimationState())}};
     });
 

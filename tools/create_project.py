@@ -276,6 +276,9 @@ def create_project(
         f"    bool loadPlayerProfile();   // world DB -> camera+health (boot / save points)",
         f"    void applyAudioSettings();  // settings_ volumes -> EngineRuntime AudioSystem",
         f"    void grantXP(int xp, const char* why);  // awardXP + level-up log/event",
+        f"    void faceToward(Phyxel::Scene::AnimatedVoxelCharacter* ch, const glm::vec3& at);",
+        f"    Phyxel::Scene::AnimatedVoxelCharacter* characterOf(const std::string& entityId);",
+        f"    void faceCombatants();  // everyone faces the nearest opposing-side combatant",
         "",
         "    float elapsed_ = 0.0f;",
         f"    Phyxel::Core::EngineRuntime* engine_ = nullptr;",
@@ -748,6 +751,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // Wire NPC interaction callback — priority: AI conversation > tree dialogue
             interactionManager_->setInteractCallback([this](Phyxel::Scene::NPCEntity* npc) {{
                 if (!dialogueSystem_ || !npc) return;
+                // Speakers face each other for the conversation (the camera-coupled
+                // player facing is suppressed while dialogue is active, so the snap
+                // holds — see the updateGameplayCamera call).
+                if (playerCharacter_) {{
+                    faceToward(playerCharacter_, npc->getPosition());
+                    if (auto* npcCh = npc->getAnimatedCharacter())
+                        faceToward(npcCh, playerCharacter_->getPosition());
+                }}
                 auto* provider = npc->getDialogueProvider();
 
                 // AI conversation via direct LLM
@@ -837,7 +848,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         else           hitChar->hitReact(ev.actualDamage >= 11.0f);
                     }}
                 }}
-                if (!ev.killed) return;
+                if (!ev.killed) {{
+                    // A surviving defender snaps to face its attacker (hit react
+                    // plays toward the threat, and the counter-attack lines up).
+                    if (!ev.attackerId.empty())
+                        if (auto* atk = characterOf(ev.attackerId))
+                            faceToward(characterOf(ev.targetId), atk->getPosition());
+                    return;
+                }}
                 triggers_.onEvent("entity_died", {{{{"id", ev.targetId}}}});
                 if (ev.targetId == "player") {{
                     triggers_.onEvent("player_died", {{{{"id", ev.targetId}}}});
@@ -955,6 +973,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         if (combatDirector_.inCombat()) combatDirector_.endEncounter();
                         Phyxel::Core::DiceSystem dice;
                         combatDirector_.beginEncounter(combatants, dice);
+                        faceCombatants();   // square off — everyone faces the enemy
                         LOG_INFO("{class_name}", "Combat encounter started: {{}} combatants (trigger '{{}}')",
                                  combatants.size(), tid);
                     }}
@@ -1346,8 +1365,11 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (playerCharacter_) {{
                 // During turn-based combat the TurnActor owns movement: the camera
                 // keeps framing the player (tactical rig) but WASD is suppressed.
+                // Same during dialogue — the speakers hold their mutual facing
+                // (camera-coupled facing would stomp it every frame).
+                const bool talking = dialogueSystem_ && dialogueSystem_->isActive();
                 updateGameplayCamera(engine, dt, playerCharacter_,
-                                     /*driveCharacter=*/!combatDirector_.inCombat());
+                                     /*driveCharacter=*/!combatDirector_.inCombat() && !talking);
 
                 // Gameplay events -> declarative triggers (win conditions).
                 if (playerCharacter_->consumeJustJumped()) triggers_.onEvent("player_jumped");
@@ -1700,6 +1722,45 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             audio->setChannelVolume(Phyxel::Core::AudioChannel::Master, settings_.masterVolume);
             audio->setChannelVolume(Phyxel::Core::AudioChannel::Music,  settings_.musicVolume);
             audio->setChannelVolume(Phyxel::Core::AudioChannel::SFX,    settings_.sfxVolume);
+        }}
+
+        // ── Facing (dialogue + combat juice) ────────────────────────────────────
+        // Characters that talk or fight LOOK at each other. Convention matches
+        // CharacterTurnBody: model faces +Z at yaw 0, yaw = atan2(dx, dz).
+
+        void {class_name}::faceToward(Phyxel::Scene::AnimatedVoxelCharacter* ch, const glm::vec3& at) {{
+            if (!ch) return;
+            const glm::vec3 from = ch->getPosition();
+            const float dx = at.x - from.x, dz = at.z - from.z;
+            if (dx * dx + dz * dz < 0.01f) return;   // on top of each other — keep facing
+            ch->setFacingYaw(std::atan2(dx, dz));
+        }}
+
+        Phyxel::Scene::AnimatedVoxelCharacter* {class_name}::characterOf(const std::string& entityId) {{
+            if (!entityRegistry_) return nullptr;
+            auto* e = entityRegistry_->getEntity(entityId);
+            if (!e) return nullptr;
+            if (auto* npc = dynamic_cast<Phyxel::Scene::NPCEntity*>(e)) return npc->getAnimatedCharacter();
+            return dynamic_cast<Phyxel::Scene::AnimatedVoxelCharacter*>(e);
+        }}
+
+        void {class_name}::faceCombatants() {{
+            const auto& order = combatDirector_.initiative().turnOrder();
+            for (const auto& me : order) {{
+                auto* meCh = characterOf(me.entityId);
+                if (!meCh) continue;
+                float bestD2 = 1e30f;
+                const Phyxel::Scene::AnimatedVoxelCharacter* target = nullptr;
+                for (const auto& other : order) {{
+                    if (other.isPlayer == me.isPlayer) continue;   // face the OPPOSING side
+                    auto* oCh = characterOf(other.entityId);
+                    if (!oCh) continue;
+                    const glm::vec3 d = oCh->getPosition() - meCh->getPosition();
+                    const float d2 = d.x * d.x + d.z * d.z;
+                    if (d2 < bestD2) {{ bestD2 = d2; target = oCh; }}
+                }}
+                if (target) faceToward(meCh, target->getPosition());
+            }}
         }}
 
         void {class_name}::grantXP(int xp, const char* why) {{

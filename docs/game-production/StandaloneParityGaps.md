@@ -285,3 +285,16 @@ finding 3); (2) latched control input walked the character through combat; (3) t
 tactical phase scrambles InputManager pitch - look is snapshot/restored with the rig.
 Evidence: hv_combat_probe.py (now with adaptive steering re-calibration - the following
 camera changes key directions as it swings) + hv_combat_evidence.json + hv_combat.log.
+
+## 6d. Increment 7 — mutual facing (2026-08-14)
+
+Speakers and combatants LOOK at each other: interact snaps player and NPC to face each
+other (drive suppressed during dialogue so camera-coupled facing cannot stomp it);
+start_combat squares every combatant toward the nearest opposing-side combatant; a
+surviving defender snaps to face its attacker on every hit. Convention = CharacterTurnBody
+(model +Z, yaw = atan2(dx, dz)); `facing_yaw` added to get_player_state (getYaw - note
+getCurrentYaw is private). Measured: combat square-off err 0.000 rad vs computed bearing;
+dialogue facing 0.785 vs 0.785 expected, stable over 2 s at 10 Hz (micro-probe - the full
+run first read the camera-coupled value because probe CALIBRATION walked the player out of
+interact range before pressing E, a probe-flow bug, not a game bug; reorder noted). NPC-side
+facing is code-reviewed only (not API-observable).
