@@ -77,6 +77,54 @@ world ~2.7° below the horizon (shadows at dusk). Pinned by
 a fraction it scaled with the disc, so at 5× the antialiasing band was 5× wider and the sun read as a
 soft blob.
 
+### Configuring the sky — multiple suns and moons
+Celestial bodies are **data**, not two hardcoded cases (`graphics/CelestialBody.h`). A body is a
+disc with a size, an orbit, and a way of getting its light: it either **emits** (a star) or
+**reflects** another body's light (a moon, which therefore has phases).
+
+Author it in `game.json`:
+
+```json
+"sky": { "bodies": [
+  { "name": "sun",  "angularDiameterDeg": 2.7, "emissive": true,  "periodDays": 1.0 },
+  { "name": "luna", "angularDiameterDeg": 7.0, "emissive": false, "litBy": 0,
+    "albedo": 0.12, "lightScale": 0.25,
+    "periodDays": 1.037, "phaseOffset": 0.5,  "tint": [0.62, 0.78, 1.0] },
+  { "name": "rust", "angularDiameterDeg": 4.5, "emissive": false, "litBy": 0,
+    "albedo": 0.18, "lightScale": 0.25,
+    "periodDays": 0.7,  "phaseOffset": 0.62, "planeTiltDeg": 28.0,
+    "tint": [1.0, 0.45, 0.30] }
+]}
+```
+
+| Field | Meaning |
+|---|---|
+| `angularDiameterDeg` | Drawn size. Real bodies are ~0.5°; the default 2.68 is 5× life, deliberately. |
+| `discBrightness` | Disc brightness. Defaults to 24 for a star, **2.2 for a reflective body** — a star's value on a moon clips the disc to white and destroys its tint. |
+| `tint` | Colour of both the disc and the light it gives. |
+| `emissive` / `litBy` | A star, or lit by body index `litBy` (`-1` = the first star). |
+| `albedo`, `lightScale` | Reflectance, and the honest cheat knob for how much light it delivers. |
+| `castsLight` | `false` = drawn but contributes no light at all. |
+| `periodDays` | Days per circuit. 1.0 = once per in-game day. |
+| `phaseOffset` | Where in the circuit it starts, in turns. At `periodDays: 1`, this **is** the phase. |
+| `planeTiltDeg` | Tilt out of the sun's plane, so a body traces a visibly different arc. |
+
+Live tuning, no rebuild — `POST /api/debug/sky`:
+`{"reset": true}` · `{"sizeScale": 2.0}` · `{"bodies": [...]}`. Always responds with the resulting
+list, so it also serves as a query.
+
+⚠️ **Only ONE body can cast shadows.** The cascades are fitted to a single direction, so the
+brightest light-contributing body currently *above the horizon* owns them and every other body adds
+**unshadowed** light. On a moonless night there is no caster and the cascades are left alone rather
+than fitted to a light below the ground.
+
+⚠️ **The sky's scattering follows the primary STAR, never the dominant light.** "What lights the
+ground right now" becomes the moon at night; "what illuminates the atmosphere" is always the sun.
+Conflating them renders a full daylight sky at midnight.
+
+⚠️ Missing, empty or malformed `sky` falls back to the default sun + moon. A world with no sun is
+never what was meant.
+
 ### The moon
 `DayNightCycle` places the moon by lagging the sun's hour angle by `2*pi*phase`, with the phase from
 WorldClock's 28-day cycle — so a **full moon rises at sunset because the geometry says so**. The
