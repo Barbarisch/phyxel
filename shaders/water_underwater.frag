@@ -1,4 +1,15 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
+#include "lighting.glsl"   // phxTonemap — water must use the world's response curve
+
+// ⚠️ Water used to skip the tone map entirely. The world is exposed and tone-mapped; water was not,
+// so a lake sat on a different response curve than the shore it met -- the same divergence
+// character.frag had. Fixed by running the final colour through phxTonemap at the world's exposure.
+//
+// KNOWN LIMITATION: water is a BLENDED pass, so tone-mapping here happens before blending rather
+// than after. That is not strictly correct -- a proper pipeline tone-maps once, after compositing --
+// but it is consistent with every other pass today, and it is the reason the post-process grade pass
+// is still worth building.
 //
 // water_underwater.frag — the view from BELOW the surface (WaterSystemV3 Phase 1, item 5).
 //
@@ -27,7 +38,30 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     uint numInstances;
     float ambientLight;
     float emissiveMultiplier;
-    vec3 cameraPosition;
+    vec3  cameraPosition;
+    mat4  reflectedViewProj;
+    float elapsedTime;
+    mat4  viewProj;
+    mat4  biasedLightSpace;
+    vec3  cameraWorld;
+    int   debugShadowMode;
+    float shadowDepthRange;
+    vec4  grassDisplacers[16];
+    vec4  grassDisplacersAux[16];
+    ivec4 grassDisplacerMeta;
+    mat4  biasedLightSpaceNear;
+    vec4  shadowCascadeNear;
+    mat4  lightSpaceMatrixNear;
+    mat4  biasedLightSpaceFar;
+    vec4  shadowCascadeFar;
+    mat4  lightSpaceMatrixFar;
+    vec3  ambientColor;
+    vec3  hazeHorizonColor;
+    vec3  hazeZenithColor;
+    vec3  moonDirection;
+    vec3  moonColor;
+    float exposure;
+    int   tonemapCurve;
 } ubo;
 
 layout(set = 1, binding = 0) uniform sampler2D refractionTex;
@@ -97,5 +131,6 @@ void main() {
     // Distance also shifts the remaining light toward blue (red is gone first).
     fogCol = mix(fogCol, fogCol * vec3(0.55, 0.85, 1.25), fog * 0.6);
 
-    outColor = vec4(fogCol, fog * submergence);
+    outColor = vec4(phxTonemap(fogCol, ubo.exposure, ubo.tonemapCurve),
+                    fog * submergence);
 }

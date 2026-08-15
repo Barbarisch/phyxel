@@ -1,5 +1,16 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
+#include "lighting.glsl"   // phxTonemap — water must use the world's response curve
+
+// ⚠️ Water used to skip the tone map entirely. The world is exposed and tone-mapped; water was not,
+// so a lake sat on a different response curve than the shore it met -- the same divergence
+// character.frag had. Fixed by running the final colour through phxTonemap at the world's exposure.
+//
+// KNOWN LIMITATION: water is a BLENDED pass, so tone-mapping here happens before blending rather
+// than after. That is not strictly correct -- a proper pipeline tone-maps once, after compositing --
+// but it is consistent with every other pass today, and it is the reason the post-process grade pass
+// is still worth building.
+#extension GL_GOOGLE_include_directive : require
 //
 // water_cell.frag — per-cell water surface shading (the CPU sim's actual field).
 //
@@ -24,7 +35,30 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     uint numInstances;
     float ambientLight;
     float emissiveMultiplier;
-    vec3 cameraPosition;
+    vec3  cameraPosition;
+    mat4  reflectedViewProj;
+    float elapsedTime;
+    mat4  viewProj;
+    mat4  biasedLightSpace;
+    vec3  cameraWorld;
+    int   debugShadowMode;
+    float shadowDepthRange;
+    vec4  grassDisplacers[16];
+    vec4  grassDisplacersAux[16];
+    ivec4 grassDisplacerMeta;
+    mat4  biasedLightSpaceNear;
+    vec4  shadowCascadeNear;
+    mat4  lightSpaceMatrixNear;
+    mat4  biasedLightSpaceFar;
+    vec4  shadowCascadeFar;
+    mat4  lightSpaceMatrixFar;
+    vec3  ambientColor;
+    vec3  hazeHorizonColor;
+    vec3  hazeZenithColor;
+    vec3  moonDirection;
+    vec3  moonColor;
+    float exposure;
+    int   tonemapCurve;
 } ubo;
 
 layout(set = 1, binding = 0) uniform sampler2D refractionTex;
@@ -101,4 +135,5 @@ void main() {
     inp.ssr          = 0.0;
 
     outColor = shadeWaterSurface(inp);
+    outColor.rgb = phxTonemap(outColor.rgb, ubo.exposure, ubo.tonemapCurve);
 }
