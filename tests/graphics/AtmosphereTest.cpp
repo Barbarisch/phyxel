@@ -377,6 +377,7 @@ TEST(Atmosphere, ShaderConstantsMatchTheCppModel) {
         {"kOzoneAbsorption",    Atmosphere::kOzoneAbsorption},
         {"kSolarIrradiance",    Atmosphere::kSolarIrradiance},
         {"kMoonlightTint",      Atmosphere::kMoonlightTint},
+        {"kAirglow",            Atmosphere::kAirglow},
     };
     for (const auto& c : vecs) {
         glm::vec3 got(0.0f);

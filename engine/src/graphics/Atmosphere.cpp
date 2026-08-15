@@ -190,8 +190,12 @@ glm::vec3 skyRadiance(const glm::vec3& dirIn, const glm::vec3& toSun, float alti
         sumM += t * d.mie * ds;
     }
 
+    // Airglow is added AFTER the scattering integral, not fed through it: it is emission from the
+    // upper atmosphere rather than sunlight being redirected, so it does not depend on where the sun
+    // is. That is exactly what makes it a night floor.
     return kSolarIrradiance * (sumR * kRayleighScattering * pr
-                             + sumM * glm::vec3(kMieScattering) * pm);
+                             + sumM * glm::vec3(kMieScattering) * pm)
+         + kAirglow;
 }
 
 glm::vec3 skyIrradiance(const glm::vec3& toSun, float altitudeM) {

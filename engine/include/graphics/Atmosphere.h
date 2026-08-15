@@ -102,6 +102,27 @@ constexpr glm::vec3 kMoonlightTint{0.62f, 0.78f, 1.0f};
 // a fifteenth of daylight: clearly night, clearly visible.
 constexpr float kMoonlightScale = 0.25f;
 
+// Airglow: the faint permanent emission of the upper atmosphere (excited oxygen at 557.7 nm and
+// friends). It is why a genuinely moonless night is never actually black to the eye, and it is
+// dominated by six orders of magnitude in daylight, so a flat additive term is a fair model at both
+// ends. Without it a new-moon night measured 98% of the frame crushed to pure black -- the renderer
+// looked switched off rather than dark.
+//
+// CALIBRATED AGAINST TWILIGHT, not by eye. A constant floor is added to EVERY direction, so it is
+// added to deep night and to dusk alike -- set it too high and it swamps the difference between
+// them, which is exactly what happened: the first value (~7x this one) made a sky three degrees
+// after sunset indistinguishable from midnight, and
+// `AtmosphereTest.SkyStillGlowsJustAfterSunset` caught it. The constraint is that twilight must stay
+// clearly brighter than airglow-only night, and that bounds the value from above.
+//
+// The consequence, stated plainly: a MOONLESS night stays genuinely dark. This lifts the sky off
+// pure black and lets stars sit on something, but it is not a substitute for the real fix -- the
+// model's twilight is too dim because single scattering cannot carry it, which is the same
+// limitation as the missing blue hour.
+//
+// Mirrored in atmosphere.glsl and parity-tested. Slightly green-cyan, as the real thing is.
+constexpr glm::vec3 kAirglow{0.000022f, 0.000034f, 0.000037f};
+
 // Sampling. The CPU path runs a handful of times per frame (not per pixel), so it can afford to be
 // accurate; the shader uses coarser counts declared in atmosphere.glsl.
 constexpr int kCpuViewSteps = 32;
