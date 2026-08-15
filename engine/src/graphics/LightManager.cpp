@@ -175,6 +175,16 @@ std::vector<SpotLight> LightManager::getSpotLights() const {
 
 // --- GPU Upload ---
 
+void LightManager::setViewerWorld(const glm::vec3& viewerWorld) {
+    // The packed buffer is cached on dirty_, and it is expressed relative to this origin -- so a
+    // moved camera invalidates it just as surely as a moved light does. Missing this would cache
+    // positions against a stale origin and the lights would lag the camera.
+    if (viewerWorld != viewerWorld_) {
+        viewerWorld_ = viewerWorld;
+        dirty_ = true;
+    }
+}
+
 const LightBufferGPU& LightManager::getGPUData() {
     if (!dirty_) return gpuBuffer_;
 
@@ -184,7 +194,7 @@ const LightBufferGPU& LightManager::getGPUData() {
         if (!e.light.enabled) continue;
         if (pi >= MAX_POINT_LIGHTS) break;
         auto& gpu = gpuBuffer_.pointLights[pi];
-        gpu.positionAndRadius = glm::vec4(e.light.position, e.light.radius);
+        gpu.positionAndRadius = glm::vec4(e.light.position - viewerWorld_, e.light.radius);
         gpu.colorAndIntensity = glm::vec4(e.light.color, e.light.intensity);
         pi++;
     }
@@ -195,7 +205,7 @@ const LightBufferGPU& LightManager::getGPUData() {
         if (!e.light.enabled) continue;
         if (si >= MAX_SPOT_LIGHTS) break;
         auto& gpu = gpuBuffer_.spotLights[si];
-        gpu.positionAndRadius = glm::vec4(e.light.position, e.light.radius);
+        gpu.positionAndRadius = glm::vec4(e.light.position - viewerWorld_, e.light.radius);
         gpu.directionAndInnerCone = glm::vec4(e.light.direction, e.light.innerCone);
         gpu.colorAndIntensity = glm::vec4(e.light.color, e.light.intensity);
         gpu.outerConeAndPadding = glm::vec4(e.light.outerCone, 0.0f, 0.0f, 0.0f);

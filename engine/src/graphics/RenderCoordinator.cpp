@@ -3447,6 +3447,9 @@ void RenderCoordinator::drawFrame() {
     }
     
     // Upload light data to GPU SSBO
+    // Light positions must be expressed in the same camera-relative space as the fragment
+    // positions they are subtracted from. See LightManager::setViewerWorld.
+    lightManager.setViewerWorld(camera ? camera->getPosition() : glm::vec3(0.0f));
     auto gpuLightData = lightManager.getGPUData();
     vulkanDevice->updateLightBuffer(currentFrame, gpuLightData);
     
