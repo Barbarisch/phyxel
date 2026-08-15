@@ -3874,6 +3874,7 @@ void RenderCoordinator::drawFrame() {
         // Same exposure/curve the scene UBO got this frame -- one source, so the composite's tone
         // map can never drift from what the rest of the frame was lit for.
         postProcessor->setTonemap(m_exposure, m_tonemapCurve);
+        postProcessor->setBloom(m_bloomIntensity, m_bloomThreshold, m_bloomKnee);
         postProcessor->compositeToGrade(vulkanDevice->getCommandBuffer(currentFrame));
     }
 

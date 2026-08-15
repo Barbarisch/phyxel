@@ -22,7 +22,8 @@ layout (set = 0, binding = 4) uniform sampler2D oitReveal;  // OIT reveal factor
 // POST /api/debug/tonemap, and this pass owns no descriptor set beyond its samplers.
 layout(push_constant) uniform GradePush {
     float exposure;
-    int   curve;    // 0 = linear (A/B control), 1 = AgX
+    int   curve;      // 0 = linear (A/B control), 1 = AgX
+    float bloom;      // bloom intensity; 0 disables it entirely (the A/B control)
 } grade;
 
 // EDITOR-PARITY COMPOSITE.
@@ -56,6 +57,13 @@ void main()
         // reveal = product of (1 - alpha) across all transparent layers
         // 0 = fully covered by transparent, 1 = nothing transparent
         color = mix(transparentColor, color, reveal);
+    }
+
+    // Bloom is ADDED BEFORE the tone map, because bloom is light -- it has to go through the same
+    // response curve as everything else. Adding it after would paste display-referred haze on top of
+    // a tone-mapped image and blow the highlights straight back out.
+    if (grade.bloom > 0.0) {
+        color += texture(bloomBlur, inUV).rgb * grade.bloom;
     }
 
     outColor = vec4(phxTonemap(color, grade.exposure, grade.curve), 1.0);

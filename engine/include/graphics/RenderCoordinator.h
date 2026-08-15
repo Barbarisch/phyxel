@@ -537,6 +537,17 @@ public:
     void setExposure(float e) { m_exposure = (e > 0.0f) ? e : 1.0f; }
     float getExposure() const { return m_exposure; }
     void setTonemapCurve(int c) { m_tonemapCurve = c; }
+    // Bloom. Threshold is SCENE-REFERRED (pre-exposure radiance), so only the sun, sky near it,
+    // emissives and specular hits clear it -- keep it above the diffuse range or bloom degenerates
+    // into a blurred copy of the whole frame, which is what got it disabled for years.
+    void setBloom(float intensity, float threshold, float knee) {
+        m_bloomIntensity = (intensity >= 0.0f) ? intensity : 0.0f;
+        if (threshold > 0.0f) m_bloomThreshold = threshold;
+        if (knee >= 0.0f) m_bloomKnee = knee;
+    }
+    float getBloomIntensity() const { return m_bloomIntensity; }
+    float getBloomThreshold() const { return m_bloomThreshold; }
+    float getBloomKnee() const { return m_bloomKnee; }
     int  getTonemapCurve() const { return m_tonemapCurve; }
 
     void setCachedViewMatrix(const glm::mat4& view) { cachedViewMatrix = view; }
@@ -807,6 +818,9 @@ private:
     // the moon at night. Using the latter renders a daylight sky at midnight.
     glm::vec3 m_skyStarDir{0.0f, 1.0f, 0.0f};
     bool m_skyEnabled = true;   ///< see setSkyEnabled (measurement instrument)
+    float m_bloomIntensity = 0.0f;   // DEFAULT OFF: opt in, and it doubles as the A/B control
+    float m_bloomThreshold = 1.0f;
+    float m_bloomKnee = 0.5f;
     float m_exposure = 8.0f;   // calibrated: puts a noon lit surface near 0.16-0.19
                                // linear with 0.00% clipped (measured, exposure sweep)
     int   m_tonemapCurve = 1;   // 1 = AgX, 0 = none (the pre-tonemap look, for A/B)

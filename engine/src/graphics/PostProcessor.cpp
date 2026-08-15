@@ -834,7 +834,7 @@ void PostProcessor::drawQuad(VkCommandBuffer commandBuffer) {
 
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 
-    GradePush push{m_gradeExposure, m_gradeCurve};
+    GradePush push{m_gradeExposure, m_gradeCurve, m_bloomIntensity};
     vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
 
     vkCmdDraw(commandBuffer, 3, 1, 0, 0);
@@ -1076,6 +1076,15 @@ void PostProcessor::beginGradeRenderPass(VkCommandBuffer commandBuffer) {
 }
 
 void PostProcessor::compositeToGrade(VkCommandBuffer commandBuffer) {
+    // The composite OWNS its inputs. renderBloom used to be called only from draw(), which the
+    // editor never calls -- so bloom silently composited stale blur targets and looked like a no-op
+    // at ANY intensity. Exactly the trap that left the editor viewport blank earlier. Owning it here
+    // means both call sites are correct by construction.
+    // Skipped entirely when bloom is off, so the 10 blur passes cost nothing at the default.
+    if (m_bloomIntensity > 0.0f) {
+        renderBloom(commandBuffer);
+    }
+
     beginGradeRenderPass(commandBuffer);
     drawQuad(commandBuffer);
     vkCmdEndRenderPass(commandBuffer);
@@ -1105,8 +1114,6 @@ void PostProcessor::endPostProcessRenderPass(VkCommandBuffer commandBuffer) {
 }
 
 void PostProcessor::draw(VkCommandBuffer commandBuffer, VkFramebuffer swapchainFramebuffer) {
-    renderBloom(commandBuffer);
-
     // 1. Composite (bloom + SSAO + OIT + tonemap) into the grade image. ONE composited image,
     //    which the editor viewport samples too -- see getGradeImageView().
     compositeToGrade(commandBuffer);
@@ -1159,15 +1166,15 @@ static void insertImageMemoryBarrier(
 
 bool PostProcessor::createBloomResources(uint32_t width, uint32_t height) {
     for (int i = 0; i < 2; i++) {
-        device->createImage(width, height, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, blurImages[i], blurImageMemory[i]);
-        blurImageViews[i] = device->createImageView(blurImages[i], VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
+        device->createImage(width, height, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, blurImages[i], blurImageMemory[i]);
+        blurImageViews[i] = device->createImageView(blurImages[i], VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT);
     }
     return true;
 }
 
 bool PostProcessor::createBlurRenderPass() {
     VkAttachmentDescription colorAttachment{};
-    colorAttachment.format = VK_FORMAT_R8G8B8A8_UNORM;
+    colorAttachment.format = VK_FORMAT_R16G16B16A16_SFLOAT;
     colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
     colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
     colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -1322,10 +1329,11 @@ bool PostProcessor::createBlurPipeline() {
     dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
     dynamicState.pDynamicStates = dynamicStates.data();
 
+    // Must match the PushConstants block in blur.frag: {int horizontal; float threshold; float knee;}
     VkPushConstantRange pushConstantRange{};
     pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
     pushConstantRange.offset = 0;
-    pushConstantRange.size = sizeof(int);
+    pushConstantRange.size = sizeof(BlurPush);
 
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -1483,8 +1491,19 @@ void PostProcessor::renderBloom(VkCommandBuffer commandBuffer) {
         // If inputIndex is 1, we want Set 0.
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, blurPipelineLayout, 0, 1, &blurDescriptorSets[(inputIndex + 1) % 2], 0, nullptr);
         
-        int h = horizontal ? 1 : 0;
-        vkCmdPushConstants(commandBuffer, blurPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(int), &h);
+        // Threshold on the FIRST iteration only. Re-thresholding every pass would eat the highlight
+        // away a little more each time and bloom would fade to nothing.
+        BlurPush bp{};
+        bp.horizontal = horizontal ? 1 : 0;
+        // The threshold is authored in POST-EXPOSURE units -- 1.0 means "this would clip" -- but the
+        // scene target holds PHYSICAL radiance, where a lit noon surface is ~0.02-0.2 and only the
+        // sun disc exceeds 1.0. Comparing an authored 1.0 against raw radiance would make bloom a
+        // no-op on everything except the sun. Convert here so the knob means what it says and stays
+        // stable when exposure is retuned.
+        const float exposureRel = (m_gradeExposure > 0.0f) ? m_gradeExposure : 1.0f;
+        bp.threshold  = (i == 0) ? (m_bloomThreshold / exposureRel) : 0.0f;
+        bp.knee       = m_bloomKnee / exposureRel;
+        vkCmdPushConstants(commandBuffer, blurPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(bp), &bp);
         
         vkCmdDraw(commandBuffer, 3, 1, 0, 0);
         

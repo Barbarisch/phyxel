@@ -13280,9 +13280,21 @@ void Application::registerEffectsCommands() {
             renderCoordinator->setExposure(cmd.params["exposure"].get<float>());
         if (cmd.params.contains("curve"))
             renderCoordinator->setTonemapCurve(cmd.params["curve"].get<int>());
+        // Bloom rides on this endpoint because it is the same question -- how the frame is graded --
+        // and it wants the same look-then-tune loop rather than a rebuild per trial.
+        if (cmd.params.contains("bloom") || cmd.params.contains("bloomThreshold") ||
+            cmd.params.contains("bloomKnee")) {
+            float bi = cmd.params.value("bloom", renderCoordinator->getBloomIntensity());
+            float bt = cmd.params.value("bloomThreshold", renderCoordinator->getBloomThreshold());
+            float bk = cmd.params.value("bloomKnee", renderCoordinator->getBloomKnee());
+            renderCoordinator->setBloom(bi, bt, bk);
+        }
         r = {{"success", true},
              {"exposure", renderCoordinator->getExposure()},
-             {"curve", renderCoordinator->getTonemapCurve()}};
+             {"curve", renderCoordinator->getTonemapCurve()},
+             {"bloom", renderCoordinator->getBloomIntensity()},
+             {"bloomThreshold", renderCoordinator->getBloomThreshold()},
+             {"bloomKnee", renderCoordinator->getBloomKnee()}};
     });
 
     // Celestial bodies, live. "Multiple moons" and "make them bigger" are the two things this

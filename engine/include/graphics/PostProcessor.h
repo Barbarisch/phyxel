@@ -50,6 +50,16 @@ public:
     // same values it uploads to the scene UBO, so the two can never drift apart.
     void setTonemap(float exposure, int curve) { m_gradeExposure = exposure; m_gradeCurve = curve; }
 
+    // Bloom knobs, live-tunable via POST /api/debug/tonemap. intensity 0 = off.
+    void setBloom(float intensity, float threshold, float knee) {
+        m_bloomIntensity = (intensity > 0.0f) ? intensity : 0.0f;
+        if (threshold > 0.0f) m_bloomThreshold = threshold;
+        if (knee >= 0.0f) m_bloomKnee = knee;
+    }
+    float getBloomIntensity() const { return m_bloomIntensity; }
+    float getBloomThreshold() const { return m_bloomThreshold; }
+    float getBloomKnee() const { return m_bloomKnee; }
+
     void compositeToGrade(VkCommandBuffer commandBuffer);
     void drawBlit(VkCommandBuffer commandBuffer);
 
@@ -157,9 +167,18 @@ private:
     VkPipeline blitPipeline = VK_NULL_HANDLE;
 
     // Must match the GradePush block in post_process.frag.
-    struct GradePush { float exposure; int curve; };
+    struct GradePush { float exposure; int curve; float bloom; };
     float m_gradeExposure = 8.0f;   // mirrors RenderCoordinator's calibrated default
     int   m_gradeCurve = 1;         // 1 = AgX
+
+    // Must match the PushConstants block in blur.frag.
+    struct BlurPush { int horizontal; float threshold; float knee; };
+    // Bloom. Threshold is in SCENE-REFERRED linear units, i.e. pre-exposure radiance -- only the sun,
+    // sky near it, emissives and specular hits clear 1.0. It has to sit above the diffuse range or
+    // bloom becomes the blurred-copy-of-everything that got it disabled the first time.
+    float m_bloomThreshold = 1.0f;
+    float m_bloomKnee = 0.5f;
+    float m_bloomIntensity = 0.0f;  // DEFAULT OFF -- opt in, and it is the A/B control
 
     // Post Process Resources
     VkRenderPass postProcessRenderPass = VK_NULL_HANDLE;
