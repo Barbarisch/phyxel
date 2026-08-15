@@ -119,5 +119,5 @@ void main() {
         return;
     }
     if (ubo.debugShadowMode == 1) { outColor = phxShadowOnly(shadowFactor); return; }
-    outColor = vec4(phxTonemap(lit, ubo.exposure, ubo.tonemapCurve), 1.0);
+    outColor = vec4(lit, 1.0);
 }

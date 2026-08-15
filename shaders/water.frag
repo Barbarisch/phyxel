@@ -1,15 +1,14 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
-#include "lighting.glsl"   // phxTonemap — water must use the world's response curve
+#include "lighting.glsl"   // shared lighting model
 
-// ⚠️ Water used to skip the tone map entirely. The world is exposed and tone-mapped; water was not,
-// so a lake sat on a different response curve than the shore it met -- the same divergence
-// character.frag had. Fixed by running the final colour through phxTonemap at the world's exposure.
+// ⚠️ Water used to skip the tone map entirely, so a lake sat on a different response curve than
+// the shore it met. It was then given its own phxTonemap call -- which fixed the divergence but
+// tone-mapped BEFORE blending, since water is a blended pass.
 //
-// KNOWN LIMITATION: water is a BLENDED pass, so tone-mapping here happens before blending rather
-// than after. That is not strictly correct -- a proper pipeline tone-maps once, after compositing --
-// but it is consistent with every other pass today, and it is the reason the post-process grade pass
-// is still worth building.
+// Both problems are gone: there is now exactly ONE tone map, in post_process.frag, applied after
+// compositing. This shader outputs LINEAR HDR and must keep doing so. Do not re-add a tone map here
+// -- it would double-compress water against the rest of the frame.
 #extension GL_GOOGLE_include_directive : require
 //
 // water.frag — the flat sea-level plane.
@@ -199,5 +198,5 @@ void main() {
     // Screen-space reflection replaces it inside shadeWaterSurface, where it composes correctly
     // with Fresnel and the ripple normal instead of being blended over the finished colour.
     outColor = shadeWaterSurface(inp);
-    outColor.rgb = phxTonemap(outColor.rgb, ubo.exposure, ubo.tonemapCurve);
+    outColor.rgb = outColor.rgb;
 }

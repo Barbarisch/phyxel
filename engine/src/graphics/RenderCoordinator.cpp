@@ -3871,6 +3871,9 @@ void RenderCoordinator::drawFrame() {
         // point: post-process defects used to be invisible here and were disabled rather than
         // fixed. drawQuad() must NOT be called inside the swapchain pass any more; the composite
         // pipeline is built against gradeRenderPass.
+        // Same exposure/curve the scene UBO got this frame -- one source, so the composite's tone
+        // map can never drift from what the rest of the frame was lit for.
+        postProcessor->setTonemap(m_exposure, m_tonemapCurve);
         postProcessor->compositeToGrade(vulkanDevice->getCommandBuffer(currentFrame));
     }
 

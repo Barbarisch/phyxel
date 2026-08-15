@@ -9,7 +9,8 @@
 // completely different response curve and blew out against it.
 //
 // Now on the shared model: phxAmbientAtmos for the fill (so shadows on a character go cool with the
-// sky, like everything else) and phxTonemap on the way out.
+// sky, like everything else). Tone mapping is NOT done here -- there is one tone map for the
+// whole frame, in post_process.frag, applied after compositing. Output linear HDR.
 //
 // STILL DIVERGENT, deliberately deferred: this pass samples only the MID shadow cascade, where
 // voxel.frag min-composes near + mid. Characters therefore miss the fine near-cascade shadows.
@@ -206,5 +207,5 @@ void main() {
         }
     }
 
-    outColor = vec4(phxTonemap(fragColor * finalLight, ubo.exposure, ubo.tonemapCurve), 1.0);
+    outColor = vec4(fragColor * finalLight, 1.0);
 }

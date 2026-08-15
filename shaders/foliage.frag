@@ -123,5 +123,5 @@ void main() {
     // dark, or the shadow-only view underneath drowns the signal it exists to show.
     if (ubo.debugShadowMode == 2) { outColor = vec4(0.05, 0.05, 0.06, 1.0); return; }
     if (ubo.debugShadowMode == 1) { outColor = phxShadowOnly(shadowFactor); return; }
-    outColor = vec4(phxTonemap(lit, ubo.exposure, ubo.tonemapCurve), 1.0);
+    outColor = vec4(lit, 1.0);
 }

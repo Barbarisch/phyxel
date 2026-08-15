@@ -16,7 +16,7 @@
 // changes per draw, not per frame.
 
 #include "atmosphere.glsl"   // the shared scattering model (also compiled into the CPU light path)
-#include "lighting.glsl"     // phxTonemap — the sky must go through the SAME curve as the world
+#include "lighting.glsl"     // shared lighting model (the sky outputs LINEAR HDR; see post_process.frag)
 
 // std140 PREFIX of the shared UBO. Declared only as far as the fields this shader reads; every
 // field before them must still be listed so the offsets line up.
@@ -82,5 +82,5 @@ void main() {
 
     // The SAME exposure and curve the world uses. A sky with its own would drift from the ground it
     // meets, and that seam is the most visible artifact available.
-    outColor = vec4(phxTonemap(radiance, ubo.exposure, ubo.tonemapCurve), 1.0);
+    outColor = vec4(radiance, 1.0);
 }

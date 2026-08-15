@@ -627,10 +627,18 @@ bool PostProcessor::createPipeline() {
     dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
     dynamicState.pDynamicStates = dynamicStates.data();
 
+    // Exposure + tone curve for the frame's single tone map (post_process.frag GradePush).
+    VkPushConstantRange gradeRange{};
+    gradeRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    gradeRange.offset = 0;
+    gradeRange.size = sizeof(GradePush);
+
     VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
     pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &gradeRange;
 
     if (vkCreatePipelineLayout(device->getDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
         return false;
@@ -825,6 +833,9 @@ void PostProcessor::drawQuad(VkCommandBuffer commandBuffer) {
     vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+
+    GradePush push{m_gradeExposure, m_gradeCurve};
+    vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(push), &push);
 
     vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 }

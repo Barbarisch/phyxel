@@ -45,6 +45,11 @@ public:
     // Calling drawQuad() inside the swapchain pass is now a render-pass incompatibility -- the
     // composite pipeline is built against gradeRenderPass. Symptom if you get this wrong: a blank
     // editor viewport, because nothing ever writes gradeImage.
+    // Exposure + tone curve for THE frame's single tone map, which lives in post_process.frag.
+    // Pushed as push constants at composite time; RenderCoordinator sets these each frame from the
+    // same values it uploads to the scene UBO, so the two can never drift apart.
+    void setTonemap(float exposure, int curve) { m_gradeExposure = exposure; m_gradeCurve = curve; }
+
     void compositeToGrade(VkCommandBuffer commandBuffer);
     void drawBlit(VkCommandBuffer commandBuffer);
 
@@ -150,6 +155,11 @@ private:
     VkDescriptorSet blitDescriptorSet = VK_NULL_HANDLE;
     VkPipelineLayout blitPipelineLayout = VK_NULL_HANDLE;
     VkPipeline blitPipeline = VK_NULL_HANDLE;
+
+    // Must match the GradePush block in post_process.frag.
+    struct GradePush { float exposure; int curve; };
+    float m_gradeExposure = 8.0f;   // mirrors RenderCoordinator's calibrated default
+    int   m_gradeCurve = 1;         // 1 = AgX
 
     // Post Process Resources
     VkRenderPass postProcessRenderPass = VK_NULL_HANDLE;
