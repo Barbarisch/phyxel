@@ -171,6 +171,14 @@ private:
     float m_gradeExposure = 8.0f;   // mirrors RenderCoordinator's calibrated default
     int   m_gradeCurve = 1;         // 1 = AgX
 
+    // Bloom blurs at REDUCED resolution. 10 full-res gaussian passes cost ~11% of frame time; the
+    // blur is a low-frequency effect, so running it at half res is visually near-free and quarters
+    // the fill. The bright-pass downsample happens in the vkCmdBlitImage that seeds blurImages[0]
+    // (VK_FILTER_LINEAR), so it doubles as the box prefilter.
+    static constexpr uint32_t kBloomDownscale = 2;
+    uint32_t bloomWidth()  const { return (width  / kBloomDownscale) > 0 ? (width  / kBloomDownscale) : 1u; }
+    uint32_t bloomHeight() const { return (height / kBloomDownscale) > 0 ? (height / kBloomDownscale) : 1u; }
+
     // Must match the PushConstants block in blur.frag.
     struct BlurPush { int horizontal; float threshold; float knee; };
     // Bloom. Threshold is in SCENE-REFERRED linear units, i.e. pre-exposure radiance -- only the sun,

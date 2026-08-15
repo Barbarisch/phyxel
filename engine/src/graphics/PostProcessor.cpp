@@ -1165,8 +1165,12 @@ static void insertImageMemoryBarrier(
 }
 
 bool PostProcessor::createBloomResources(uint32_t width, uint32_t height) {
+    // The parameters are the FULL frame size; the blur chain runs at bloomWidth/bloomHeight.
+    // Deliberately ignoring them rather than changing every caller.
+    (void)width; (void)height;
+    const uint32_t bw = bloomWidth(), bh = bloomHeight();
     for (int i = 0; i < 2; i++) {
-        device->createImage(width, height, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, blurImages[i], blurImageMemory[i]);
+        device->createImage(bw, bh, VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, blurImages[i], blurImageMemory[i]);
         blurImageViews[i] = device->createImageView(blurImages[i], VK_FORMAT_R16G16B16A16_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT);
     }
     return true;
@@ -1216,6 +1220,9 @@ bool PostProcessor::createBlurRenderPass() {
 }
 
 bool PostProcessor::createBlurFramebuffers(uint32_t width, uint32_t height) {
+    // Must match the reduced-size blur images, not the frame.
+    (void)width; (void)height;
+    const uint32_t bw = bloomWidth(), bh = bloomHeight();
     for (int i = 0; i < 2; i++) {
         VkImageView attachments[] = {
             blurImageViews[i]
@@ -1226,8 +1233,8 @@ bool PostProcessor::createBlurFramebuffers(uint32_t width, uint32_t height) {
         framebufferInfo.renderPass = blurRenderPass;
         framebufferInfo.attachmentCount = 1;
         framebufferInfo.pAttachments = attachments;
-        framebufferInfo.width = width;
-        framebufferInfo.height = height;
+        framebufferInfo.width = bw;
+        framebufferInfo.height = bh;
         framebufferInfo.layers = 1;
 
         if (vkCreateFramebuffer(device->getDevice(), &framebufferInfo, nullptr, &blurFramebuffers[i]) != VK_SUCCESS) {
@@ -1428,8 +1435,10 @@ void PostProcessor::renderBloom(VkCommandBuffer commandBuffer) {
     blit.srcSubresource.mipLevel = 0;
     blit.srcSubresource.baseArrayLayer = 0;
     blit.srcSubresource.layerCount = 1;
+    // Downsampling blit: full-res source -> reduced-res blur target. VK_FILTER_LINEAR below makes
+    // this the prefilter, so no separate downsample pass is needed.
     blit.dstOffsets[0] = {0, 0, 0};
-    blit.dstOffsets[1] = {static_cast<int32_t>(width), static_cast<int32_t>(height), 1};
+    blit.dstOffsets[1] = {static_cast<int32_t>(bloomWidth()), static_cast<int32_t>(bloomHeight()), 1};
     blit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     blit.dstSubresource.mipLevel = 0;
     blit.dstSubresource.baseArrayLayer = 0;
@@ -1463,7 +1472,7 @@ void PostProcessor::renderBloom(VkCommandBuffer commandBuffer) {
         renderPassInfo.renderPass = blurRenderPass;
         renderPassInfo.framebuffer = blurFramebuffers[outputIndex];
         renderPassInfo.renderArea.offset = {0, 0};
-        renderPassInfo.renderArea.extent = {width, height};
+        renderPassInfo.renderArea.extent = {bloomWidth(), bloomHeight()};
         
         VkClearValue clearValue = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
         renderPassInfo.clearValueCount = 1;
@@ -1474,15 +1483,15 @@ void PostProcessor::renderBloom(VkCommandBuffer commandBuffer) {
         VkViewport viewport{};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
-        viewport.width = (float)width;
-        viewport.height = (float)height;
+        viewport.width = (float)bloomWidth();
+        viewport.height = (float)bloomHeight();
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
         vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
         VkRect2D scissor{};
         scissor.offset = {0, 0};
-        scissor.extent = {width, height};
+        scissor.extent = {bloomWidth(), bloomHeight()};
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
         
         // Bind descriptor set that reads from inputIndex
