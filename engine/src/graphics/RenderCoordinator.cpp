@@ -3863,14 +3863,20 @@ void RenderCoordinator::drawFrame() {
         postProcessor->endOITRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
     }
 
-    // Begin Post Process Render Pass (Swapchain)
-    postProcessor->beginPostProcessRenderPass(vulkanDevice->getCommandBuffer(currentFrame), vulkanDevice->getSwapChainFramebuffer(imageIndex));
-
     {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Post Process");
-        // Draw Fullscreen Quad
-        postProcessor->drawQuad(vulkanDevice->getCommandBuffer(currentFrame));
+        // Composite (bloom + SSAO + OIT + tonemap) into the GRADE image rather than straight to
+        // the swapchain. The editor viewport samples that same image (getGradeImageView), so the
+        // editor and a packaged game now show identical composited pixels -- which is the whole
+        // point: post-process defects used to be invisible here and were disabled rather than
+        // fixed. drawQuad() must NOT be called inside the swapchain pass any more; the composite
+        // pipeline is built against gradeRenderPass.
+        postProcessor->compositeToGrade(vulkanDevice->getCommandBuffer(currentFrame));
     }
+
+    // Swapchain pass: now just a blit of the graded image, with ImGui drawn on top.
+    postProcessor->beginPostProcessRenderPass(vulkanDevice->getCommandBuffer(currentFrame), vulkanDevice->getSwapChainFramebuffer(imageIndex));
+    postProcessor->drawBlit(vulkanDevice->getCommandBuffer(currentFrame));
 
     // (Game HUD / custom UI is now rendered inside the SCENE pass — into the
     // offscreen image — so it is visible in the editor viewport and stays off ImGui.
@@ -3974,7 +3980,11 @@ void RenderCoordinator::renderUI() {
 }
 
 VkImageView RenderCoordinator::getViewportImageView() const {
-    return postProcessor ? postProcessor->getOffscreenImageView() : VK_NULL_HANDLE;
+    // The GRADED image, not the raw scene image. The editor viewport used to sample the raw
+    // offscreen colour, so bloom, SSAO, OIT and the tonemap were invisible in the editor -- which
+    // is why they were disabled rather than debugged. Editor and packaged game now show the same
+    // composited pixels.
+    return postProcessor ? postProcessor->getGradeImageView() : VK_NULL_HANDLE;
 }
 
 VkSampler RenderCoordinator::getViewportSampler() const {

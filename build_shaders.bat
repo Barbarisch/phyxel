@@ -145,6 +145,7 @@ if defined USE_GLSLC (
 
     echo Compiling post-process fragment shader...
     %GLSLANG% -fshader-stage=frag -I. shaders\post_process.frag -o shaders\post_process.frag.spv
+    %GLSLANG% -fshader-stage=frag -I. shaders\blit.frag -o shaders\blit.frag.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile post-process fragment shader
         pause
@@ -466,6 +467,7 @@ if defined USE_GLSLC (
 
     echo Compiling post-process fragment shader...
     %GLSLANG% -V -I. shaders\post_process.frag -o shaders\post_process.frag.spv
+    %GLSLANG% -V -I. shaders\blit.frag -o shaders\blit.frag.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile post-process fragment shader
         pause

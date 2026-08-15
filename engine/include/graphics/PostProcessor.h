@@ -35,6 +35,19 @@ public:
     
     void draw(VkCommandBuffer commandBuffer, VkFramebuffer swapchainFramebuffer);
 
+    // The editor does NOT call draw() -- RenderCoordinator inlines the sequence so it can slot
+    // ImGui into the swapchain pass. These two ARE that sequence, split:
+    //   compositeToGrade(cmd);                     // post_process.frag -> gradeImage
+    //   beginPostProcessRenderPass(cmd, swapFb);
+    //   drawBlit(cmd);                             // gradeImage -> swapchain
+    //   <ImGui>
+    //   endPostProcessRenderPass(cmd);
+    // Calling drawQuad() inside the swapchain pass is now a render-pass incompatibility -- the
+    // composite pipeline is built against gradeRenderPass. Symptom if you get this wrong: a blank
+    // editor viewport, because nothing ever writes gradeImage.
+    void compositeToGrade(VkCommandBuffer commandBuffer);
+    void drawBlit(VkCommandBuffer commandBuffer);
+
     /// Run the SSAO + blur passes. Call after the scene pass, before post-process.
     void renderSSAO(VkCommandBuffer commandBuffer, const glm::mat4& proj);
 
@@ -76,6 +89,11 @@ public:
     VkRenderPass getSceneRenderPass() const { return sceneRenderPass; }
     VkRenderPass getPostProcessRenderPass() const { return postProcessRenderPass; }
     VkImageView getOffscreenImageView() const { return offscreenImageView; }
+
+    // THE image the editor viewport should sample. getOffscreenImageView() is the RAW scene
+    // image -- linear, un-composited, no bloom/SSAO/OIT. Sampling that is why post-process
+    // defects shipped unseen for years. Point viewports here instead.
+    VkImageView getGradeImageView() const { return gradeImageView; }
     VkSampler getOffscreenSampler() const { return offscreenSampler; }
 
     // SSAO is OFF by default because its output is currently UNUSED: post_process.frag
@@ -115,6 +133,23 @@ private:
     VkPipelineLayout blurPipelineLayout = VK_NULL_HANDLE;
     VkDescriptorSetLayout blurDescriptorSetLayout = VK_NULL_HANDLE;
     std::array<VkDescriptorSet, 2> blurDescriptorSets = {VK_NULL_HANDLE, VK_NULL_HANDLE};
+
+    // Grade Resources -- the composited, tone-mapped image.
+    // post_process.frag renders HERE, not to the swapchain; the swapchain pass is then a plain
+    // blit of this image. Both the editor viewport and a packaged game therefore show the same
+    // composited pixels. Same format as the scene image (R16G16B16A16_SFLOAT) so pointing the
+    // editor at it is a drop-in swap for offscreenImageView.
+    VkImage gradeImage = VK_NULL_HANDLE;
+    VkDeviceMemory gradeImageMemory = VK_NULL_HANDLE;
+    VkImageView gradeImageView = VK_NULL_HANDLE;
+    VkFramebuffer gradeFramebuffer = VK_NULL_HANDLE;
+    VkRenderPass gradeRenderPass = VK_NULL_HANDLE;
+
+    // Blit (grade image -> swapchain)
+    VkDescriptorSetLayout blitDescriptorSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSet blitDescriptorSet = VK_NULL_HANDLE;
+    VkPipelineLayout blitPipelineLayout = VK_NULL_HANDLE;
+    VkPipeline blitPipeline = VK_NULL_HANDLE;
 
     // Post Process Resources
     VkRenderPass postProcessRenderPass = VK_NULL_HANDLE;
@@ -195,6 +230,13 @@ private:
     bool createSceneFramebuffer();
     bool createBlurFramebuffers(uint32_t width, uint32_t height);
     bool createPostProcessRenderPass();
+    bool createGradeRenderPass();
+    bool createGradeResources();       // size-dependent: image + view + framebuffer
+    bool createBlitDescriptorSetLayout();
+    bool createBlitPipeline();
+    bool createBlitDescriptorSet();
+    void updateBlitDescriptor();       // re-point at gradeImageView (MUST run after every resize)
+    void beginGradeRenderPass(VkCommandBuffer commandBuffer);
     bool createDescriptorSetLayout();
     bool createBlurDescriptorSetLayout();
     bool createPipeline();

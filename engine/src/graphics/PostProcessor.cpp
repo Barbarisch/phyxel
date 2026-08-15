@@ -46,16 +46,25 @@ bool PostProcessor::initialize() {
     if (!createWaterResources()) return false; // refraction image + framebuffer over scene color/depth
     if (!createBlurFramebuffers(width, height)) return false;
     if (!createPostProcessRenderPass()) return false;
+    // Grade pass: post_process.frag renders into gradeImage, then the swapchain pass blits it.
+    // createGradeRenderPass MUST precede createPipeline() -- the composite pipeline is now created
+    // against the grade pass, not the swapchain pass.
+    if (!createGradeRenderPass()) return false;
+    if (!createGradeResources()) return false;
     
     if (!createDescriptorSetLayout()) return false;
     if (!createBlurDescriptorSetLayout()) return false;
+    if (!createBlitDescriptorSetLayout()) return false;
     
     if (!createPipeline()) return false;
     if (!createBlurPipeline()) return false;
+    if (!createBlitPipeline()) return false;
     
     if (!createDescriptorPool()) return false;
     if (!createDescriptorSet()) return false;
     if (!createBlurDescriptorSets()) return false;
+    if (!createBlitDescriptorSet()) return false;
+    updateBlitDescriptor();
 
     // SSAO — after descriptor pool is created
     if (!createSSAODescriptors()) return false;
@@ -105,6 +114,38 @@ void PostProcessor::cleanup() {
     if (postProcessRenderPass != VK_NULL_HANDLE) {
         vkDestroyRenderPass(vkDevice, postProcessRenderPass, nullptr);
         postProcessRenderPass = VK_NULL_HANDLE;
+    }
+    if (blitPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(vkDevice, blitPipeline, nullptr);
+        blitPipeline = VK_NULL_HANDLE;
+    }
+    if (blitPipelineLayout != VK_NULL_HANDLE) {
+        vkDestroyPipelineLayout(vkDevice, blitPipelineLayout, nullptr);
+        blitPipelineLayout = VK_NULL_HANDLE;
+    }
+    if (blitDescriptorSetLayout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(vkDevice, blitDescriptorSetLayout, nullptr);
+        blitDescriptorSetLayout = VK_NULL_HANDLE;
+    }
+    if (gradeFramebuffer != VK_NULL_HANDLE) {
+        vkDestroyFramebuffer(vkDevice, gradeFramebuffer, nullptr);
+        gradeFramebuffer = VK_NULL_HANDLE;
+    }
+    if (gradeImageView != VK_NULL_HANDLE) {
+        vkDestroyImageView(vkDevice, gradeImageView, nullptr);
+        gradeImageView = VK_NULL_HANDLE;
+    }
+    if (gradeImage != VK_NULL_HANDLE) {
+        vkDestroyImage(vkDevice, gradeImage, nullptr);
+        gradeImage = VK_NULL_HANDLE;
+    }
+    if (gradeImageMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(vkDevice, gradeImageMemory, nullptr);
+        gradeImageMemory = VK_NULL_HANDLE;
+    }
+    if (gradeRenderPass != VK_NULL_HANDLE) {
+        vkDestroyRenderPass(vkDevice, gradeRenderPass, nullptr);
+        gradeRenderPass = VK_NULL_HANDLE;
     }
     if (sceneFramebuffer != VK_NULL_HANDLE) {
         vkDestroyFramebuffer(vkDevice, sceneFramebuffer, nullptr);
@@ -195,6 +236,14 @@ void PostProcessor::resize(uint32_t newWidth, uint32_t newHeight) {
     // Cleanup size-dependent resources
     VkDevice vkDevice = device->getDevice();
     
+    // Grade image is size-dependent; its render pass, pipeline and descriptor set are not.
+    vkDestroyFramebuffer(vkDevice, gradeFramebuffer, nullptr);
+    vkDestroyImageView(vkDevice, gradeImageView, nullptr);
+    vkDestroyImage(vkDevice, gradeImage, nullptr);
+    vkFreeMemory(vkDevice, gradeImageMemory, nullptr);
+    gradeFramebuffer = VK_NULL_HANDLE; gradeImageView = VK_NULL_HANDLE;
+    gradeImage = VK_NULL_HANDLE; gradeImageMemory = VK_NULL_HANDLE;
+
     vkDestroyFramebuffer(vkDevice, sceneFramebuffer, nullptr);
     vkDestroyImageView(vkDevice, offscreenImageView, nullptr);
     vkDestroyImage(vkDevice, offscreenImage, nullptr);
@@ -213,6 +262,7 @@ void PostProcessor::resize(uint32_t newWidth, uint32_t newHeight) {
     
     // Recreate
     createOffscreenResources();
+    createGradeResources();
     createBloomResources(width, height);
     createSceneFramebuffer();
     createBlurFramebuffers(width, height);
@@ -236,6 +286,8 @@ void PostProcessor::resize(uint32_t newWidth, uint32_t newHeight) {
     createReflectionResources();
     updateDescriptorSet();
     updateBlurDescriptorSets();
+    // Forgetting this shows up as a viewport frozen at the OLD size after a window drag.
+    updateBlitDescriptor();
 }
 
 bool PostProcessor::createOffscreenResources() {
@@ -597,7 +649,8 @@ bool PostProcessor::createPipeline() {
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicState;
     pipelineInfo.layout = pipelineLayout;
-    pipelineInfo.renderPass = postProcessRenderPass;
+    // The composite renders into the grade image now, NOT the swapchain.
+    pipelineInfo.renderPass = gradeRenderPass;
     pipelineInfo.subpass = 0;
 
     if (vkCreateGraphicsPipelines(device->getDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
@@ -776,14 +829,280 @@ void PostProcessor::drawQuad(VkCommandBuffer commandBuffer) {
     vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 }
 
+// ---------------------------------------------------------------------------------------------
+// Grade pass + blit
+//
+// Why this exists: post_process.frag used to render straight to the swapchain, which the editor
+// never sampled -- the editor viewport read the raw scene image. So bloom, SSAO and the tonemap
+// were invisible in the editor and were disabled rather than debugged. Now the composite lands in
+// gradeImage, the swapchain pass blits it, and the editor samples the same image.
+// ---------------------------------------------------------------------------------------------
+
+bool PostProcessor::createGradeRenderPass() {
+    // Single colour attachment, ending SHADER_READ_ONLY so both the blit and the editor's ImGui
+    // texture can sample it. R16G16B16A16_SFLOAT matches the scene image, which keeps the editor
+    // swap a drop-in and leaves headroom for grading that overshoots 1.0 before the final blit.
+    VkAttachmentDescription colorAttachment{};
+    colorAttachment.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+    colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;  // fullscreen triangle covers every pixel
+    colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    colorAttachment.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    VkAttachmentReference colorAttachmentRef{};
+    colorAttachmentRef.attachment = 0;
+    colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    VkSubpassDescription subpass{};
+    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &colorAttachmentRef;
+
+    // Two dependencies: wait for the scene/bloom writes we sample, and make our own write visible
+    // to the blit (and to ImGui) that samples it.
+    std::array<VkSubpassDependency, 2> deps{};
+    deps[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+    deps[0].dstSubpass = 0;
+    deps[0].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    deps[0].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    deps[0].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    deps[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    deps[1].srcSubpass = 0;
+    deps[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+    deps[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    deps[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    deps[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    deps[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    VkRenderPassCreateInfo renderPassInfo{};
+    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    renderPassInfo.attachmentCount = 1;
+    renderPassInfo.pAttachments = &colorAttachment;
+    renderPassInfo.subpassCount = 1;
+    renderPassInfo.pSubpasses = &subpass;
+    renderPassInfo.dependencyCount = static_cast<uint32_t>(deps.size());
+    renderPassInfo.pDependencies = deps.data();
+
+    return vkCreateRenderPass(device->getDevice(), &renderPassInfo, nullptr, &gradeRenderPass) == VK_SUCCESS;
+}
+
+bool PostProcessor::createGradeResources() {
+    const VkFormat fmt = VK_FORMAT_R16G16B16A16_SFLOAT;
+    device->createImage(width, height, fmt, VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, gradeImage, gradeImageMemory);
+    gradeImageView = device->createImageView(gradeImage, fmt, VK_IMAGE_ASPECT_COLOR_BIT);
+    if (gradeImageView == VK_NULL_HANDLE) return false;
+
+    VkFramebufferCreateInfo fbInfo{};
+    fbInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    fbInfo.renderPass = gradeRenderPass;
+    fbInfo.attachmentCount = 1;
+    fbInfo.pAttachments = &gradeImageView;
+    fbInfo.width = width;
+    fbInfo.height = height;
+    fbInfo.layers = 1;
+    return vkCreateFramebuffer(device->getDevice(), &fbInfo, nullptr, &gradeFramebuffer) == VK_SUCCESS;
+}
+
+bool PostProcessor::createBlitDescriptorSetLayout() {
+    VkDescriptorSetLayoutBinding binding{};
+    binding.binding = 0;
+    binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    binding.descriptorCount = 1;
+    binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 1;
+    layoutInfo.pBindings = &binding;
+
+    return vkCreateDescriptorSetLayout(device->getDevice(), &layoutInfo, nullptr,
+                                       &blitDescriptorSetLayout) == VK_SUCCESS;
+}
+
+bool PostProcessor::createBlitPipeline() {
+    // build_shaders.bat is an EXPLICIT file list -- a shader missing from it surfaces here as an
+    // empty read, not as a build error.
+    auto vertCode = Utils::readFile(Core::AssetManager::instance().resolveShader("post_process.vert.spv"));
+    auto fragCode = Utils::readFile(Core::AssetManager::instance().resolveShader("blit.frag.spv"));
+    if (vertCode.empty() || fragCode.empty()) {
+        return false;
+    }
+    VkShaderModule vertModule = createShaderModule(device->getDevice(), vertCode);
+    VkShaderModule fragModule = createShaderModule(device->getDevice(), fragCode);
+
+    VkPipelineShaderStageCreateInfo stages[2]{};
+    stages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+    stages[0].module = vertModule;
+    stages[0].pName = "main";
+    stages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    stages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    stages[1].module = fragModule;
+    stages[1].pName = "main";
+
+    VkPipelineVertexInputStateCreateInfo vertexInput{};
+    vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+    VkPipelineViewportStateCreateInfo viewportState{};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1;
+    viewportState.scissorCount = 1;
+
+    VkPipelineRasterizationStateCreateInfo raster{};
+    raster.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    raster.polygonMode = VK_POLYGON_MODE_FILL;
+    raster.lineWidth = 1.0f;
+    raster.cullMode = VK_CULL_MODE_NONE;
+    raster.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+
+    VkPipelineMultisampleStateCreateInfo multisampling{};
+    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    // The swapchain pass carries a depth attachment (VulkanDevice::createFramebuffers always
+    // attaches one); a fullscreen blit must not test or write it.
+    VkPipelineDepthStencilStateCreateInfo depthStencil{};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_FALSE;
+    depthStencil.depthWriteEnable = VK_FALSE;
+    depthStencil.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+
+    VkPipelineColorBlendAttachmentState blendAttachment{};
+    blendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                     VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    blendAttachment.blendEnable = VK_FALSE;
+
+    VkPipelineColorBlendStateCreateInfo colorBlending{};
+    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlending.attachmentCount = 1;
+    colorBlending.pAttachments = &blendAttachment;
+
+    std::array<VkDynamicState, 2> dynamicStates = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    VkPipelineDynamicStateCreateInfo dynamicState{};
+    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+    dynamicState.pDynamicStates = dynamicStates.data();
+
+    VkPipelineLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    layoutInfo.setLayoutCount = 1;
+    layoutInfo.pSetLayouts = &blitDescriptorSetLayout;
+    if (vkCreatePipelineLayout(device->getDevice(), &layoutInfo, nullptr, &blitPipelineLayout) != VK_SUCCESS) {
+        vkDestroyShaderModule(device->getDevice(), vertModule, nullptr);
+        vkDestroyShaderModule(device->getDevice(), fragModule, nullptr);
+        return false;
+    }
+
+    VkGraphicsPipelineCreateInfo pipelineInfo{};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo.stageCount = 2;
+    pipelineInfo.pStages = stages;
+    pipelineInfo.pVertexInputState = &vertexInput;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &raster;
+    pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pDepthStencilState = &depthStencil;
+    pipelineInfo.pColorBlendState = &colorBlending;
+    pipelineInfo.pDynamicState = &dynamicState;
+    pipelineInfo.layout = blitPipelineLayout;
+    pipelineInfo.renderPass = postProcessRenderPass;  // this one DOES target the swapchain
+    pipelineInfo.subpass = 0;
+
+    VkResult r = vkCreateGraphicsPipelines(device->getDevice(), VK_NULL_HANDLE, 1, &pipelineInfo,
+                                           nullptr, &blitPipeline);
+    vkDestroyShaderModule(device->getDevice(), vertModule, nullptr);
+    vkDestroyShaderModule(device->getDevice(), fragModule, nullptr);
+    return r == VK_SUCCESS;
+}
+
+bool PostProcessor::createBlitDescriptorSet() {
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = descriptorPool;
+    allocInfo.descriptorSetCount = 1;
+    allocInfo.pSetLayouts = &blitDescriptorSetLayout;
+    return vkAllocateDescriptorSets(device->getDevice(), &allocInfo, &blitDescriptorSet) == VK_SUCCESS;
+}
+
+void PostProcessor::updateBlitDescriptor() {
+    if (blitDescriptorSet == VK_NULL_HANDLE || gradeImageView == VK_NULL_HANDLE) return;
+
+    VkDescriptorImageInfo info{};
+    info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    info.imageView = gradeImageView;
+    info.sampler = offscreenSampler;
+
+    VkWriteDescriptorSet write{};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.dstSet = blitDescriptorSet;
+    write.dstBinding = 0;
+    write.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    write.descriptorCount = 1;
+    write.pImageInfo = &info;
+    vkUpdateDescriptorSets(device->getDevice(), 1, &write, 0, nullptr);
+}
+
+void PostProcessor::beginGradeRenderPass(VkCommandBuffer commandBuffer) {
+    VkRenderPassBeginInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    info.renderPass = gradeRenderPass;
+    info.framebuffer = gradeFramebuffer;
+    info.renderArea.offset = {0, 0};
+    info.renderArea.extent = {width, height};
+    info.clearValueCount = 0;   // loadOp is DONT_CARE; the fullscreen triangle writes every pixel
+    info.pClearValues = nullptr;
+    vkCmdBeginRenderPass(commandBuffer, &info, VK_SUBPASS_CONTENTS_INLINE);
+}
+
+void PostProcessor::compositeToGrade(VkCommandBuffer commandBuffer) {
+    beginGradeRenderPass(commandBuffer);
+    drawQuad(commandBuffer);
+    vkCmdEndRenderPass(commandBuffer);
+}
+
+void PostProcessor::drawBlit(VkCommandBuffer commandBuffer) {
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, blitPipeline);
+
+    VkViewport viewport{};
+    viewport.x = 0.0f; viewport.y = 0.0f;
+    viewport.width = (float)width; viewport.height = (float)height;
+    viewport.minDepth = 0.0f; viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = {width, height};
+    vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, blitPipelineLayout,
+                            0, 1, &blitDescriptorSet, 0, nullptr);
+    vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+}
+
 void PostProcessor::endPostProcessRenderPass(VkCommandBuffer commandBuffer) {
     vkCmdEndRenderPass(commandBuffer);
 }
 
 void PostProcessor::draw(VkCommandBuffer commandBuffer, VkFramebuffer swapchainFramebuffer) {
     renderBloom(commandBuffer);
+
+    // 1. Composite (bloom + SSAO + OIT + tonemap) into the grade image. ONE composited image,
+    //    which the editor viewport samples too -- see getGradeImageView().
+    compositeToGrade(commandBuffer);
+
+    // 2. Blit it to the swapchain. ImGui draws over this afterwards.
     beginPostProcessRenderPass(commandBuffer, swapchainFramebuffer);
-    drawQuad(commandBuffer);
+    drawBlit(commandBuffer);
     endPostProcessRenderPass(commandBuffer);
 }
 
