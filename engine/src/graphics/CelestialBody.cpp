@@ -133,6 +133,87 @@ void SkyBodies::update(float timeOfDayHours, int dayNumber, float altitudeM) {
     }
 }
 
+namespace {
+
+glm::vec3 readVec3(const nlohmann::json& j, const char* key, const glm::vec3& fallback) {
+    if (!j.contains(key)) return fallback;
+    const auto& a = j.at(key);
+    if (a.is_array() && a.size() >= 3) {
+        return glm::vec3(a[0].get<float>(), a[1].get<float>(), a[2].get<float>());
+    }
+    return fallback;
+}
+
+}  // namespace
+
+SkyBodies SkyBodies::fromJson(const nlohmann::json& j) {
+    // A world with no sun is never what was meant, so anything missing or empty falls back to the
+    // default sun+moon rather than to an empty sky.
+    if (!j.is_object() || !j.contains("bodies") || !j.at("bodies").is_array() ||
+        j.at("bodies").empty()) {
+        return defaultSky();
+    }
+
+    SkyBodies s;
+    const CelestialBody proto{};
+    for (const auto& e : j.at("bodies")) {
+        if (!e.is_object()) continue;
+        CelestialBody b;
+        b.name = e.value("name", proto.name);
+        // Authored as an angular DIAMETER in DEGREES; stored as a radius in radians.
+        if (e.contains("angularDiameterDeg")) {
+            b.angularRadius = glm::radians(e.at("angularDiameterDeg").get<float>()) * 0.5f;
+        }
+        b.tint           = readVec3(e, "tint", proto.tint);
+        b.emissive       = e.value("emissive", proto.emissive);
+        // The disc-brightness default depends on what KIND of body this is. CelestialBody's own
+        // default (24) is a STAR's value; applying it to a moon drives every channel far past 1.0,
+        // so the tone map clips the disc to white and the body's tint is lost entirely — a rust-red
+        // moon rendered as a white one. Reflective bodies default to the moon's 2.2 instead.
+        constexpr float kReflectiveDiscBrightness = 2.2f;
+        b.discBrightness = e.value("discBrightness",
+                                   b.emissive ? proto.discBrightness : kReflectiveDiscBrightness);
+        b.litBy          = e.value("litBy", proto.litBy);
+        b.albedo         = e.value("albedo", proto.albedo);
+        b.lightScale     = e.value("lightScale", proto.lightScale);
+        b.castsLight     = e.value("castsLight", proto.castsLight);
+        b.periodDays     = e.value("periodDays", proto.periodDays);
+        b.phaseOffset    = e.value("phaseOffset", proto.phaseOffset);
+        if (e.contains("planeTiltDeg")) {
+            b.planeTilt = glm::radians(e.at("planeTiltDeg").get<float>());
+        }
+        s.bodies.push_back(b);
+    }
+    if (s.bodies.empty()) return defaultSky();
+    return s;
+}
+
+nlohmann::json SkyBodies::toJson() const {
+    nlohmann::json arr = nlohmann::json::array();
+    for (const auto& b : bodies) {
+        arr.push_back({
+            {"name", b.name},
+            {"angularDiameterDeg", glm::degrees(b.angularRadius * 2.0f)},
+            {"discBrightness", b.discBrightness},
+            {"tint", {b.tint.x, b.tint.y, b.tint.z}},
+            {"emissive", b.emissive},
+            {"litBy", b.litBy},
+            {"albedo", b.albedo},
+            {"lightScale", b.lightScale},
+            {"castsLight", b.castsLight},
+            {"periodDays", b.periodDays},
+            {"phaseOffset", b.phaseOffset},
+            {"planeTiltDeg", glm::degrees(b.planeTilt)},
+        });
+    }
+    return nlohmann::json{{"bodies", arr}};
+}
+
+void SkyBodies::scaleAllSizes(float scale) {
+    if (!(scale > 0.0f)) return;
+    for (auto& b : bodies) b.angularRadius *= scale;
+}
+
 int SkyBodies::dominantLightIndex() const {
     int best = -1;
     float bestLuma = 0.0f;

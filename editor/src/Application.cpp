@@ -6119,6 +6119,13 @@ void Application::autoLoadGameDefinition() {
         };
 
         auto result = Core::GameDefinitionLoader::load(gameDef, subsystems);
+    // Apply the definition's "sky" block, if it carried one. The loader deliberately passes it
+    // through unparsed (engine/core must not depend on graphics), so this is where a game project's
+    // celestial bodies actually take effect. Absent = keep the default sun + moon.
+    if (result.skyLoaded && renderCoordinator) {
+        renderCoordinator->setSkyBodies(Graphics::SkyBodies::fromJson(result.skyDefinition));
+    }
+
         if (result.success) {
             LOG_INFO("Application", "Game definition loaded: {} chunks, {} structures, {} NPCs", result.chunksGenerated, result.structuresPlaced, result.npcsSpawned);
 
@@ -13278,6 +13285,31 @@ void Application::registerEffectsCommands() {
              {"curve", renderCoordinator->getTonemapCurve()}};
     });
 
+    // Celestial bodies, live. "Multiple moons" and "make them bigger" are the two things this
+    // exists for, and both are tuning questions -- they want to be answered by looking at the sky,
+    // not by waiting for a rebuild. The bodies are placed and uploaded every frame, so a change
+    // here shows on the very next one.
+    //   { "reset": true }            -> back to the default sun + moon
+    //   { "sizeScale": 2.0 }         -> multiply every body's drawn size
+    //   { "bodies": [ ... ] }        -> replace the list wholesale (see SkyBodies::fromJson)
+    // Always responds with the resulting list, so it doubles as a query.
+    reg.on("set_sky", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) { r = {{"success", false}, {"error", "no render coordinator"}}; return; }
+        if (cmd.params.value("reset", false)) {
+            renderCoordinator->setSkyBodies(Graphics::SkyBodies::defaultSky());
+        }
+        if (cmd.params.contains("bodies")) {
+            renderCoordinator->setSkyBodies(Graphics::SkyBodies::fromJson(cmd.params));
+        }
+        if (cmd.params.contains("sizeScale")) {
+            renderCoordinator->getSkyBodiesMutable()
+                .scaleAllSizes(cmd.params["sizeScale"].get<float>());
+        }
+        r = renderCoordinator->getSkyBodies().toJson();
+        r["success"] = true;
+        r["count"] = static_cast<int>(renderCoordinator->getSkyBodies().bodies.size());
+    });
+
     // Fine (sub/microcube) greedy-merge toggle — live A/B for docs/BinaryGreedyMeshingPlan.md.
     // Re-meshes all chunks so the change takes effect immediately (same as smooth_lighting).
     reg.on("set_fine_merge", [this](const Core::APICommand& cmd, nlohmann::json& r) {
@@ -15008,6 +15040,13 @@ void Application::processAPICommands() {
                             };
 
                             auto loadResult = Core::GameDefinitionLoader::load(defJson, subsystems);
+    // Apply the definition's "sky" block, if it carried one. The loader deliberately passes it
+    // through unparsed (engine/core must not depend on graphics), so this is where a game project's
+    // celestial bodies actually take effect. Absent = keep the default sun + moon.
+    if (loadResult.skyLoaded && renderCoordinator) {
+        renderCoordinator->setSkyBodies(Graphics::SkyBodies::fromJson(loadResult.skyDefinition));
+    }
+
                             response = loadResult.toJson();
                             response["reloaded"] = true;
 
@@ -16710,6 +16749,13 @@ void Application::processAPICommands() {
                 };
 
                 auto loadResult = Core::GameDefinitionLoader::load(cmd.params, subsystems);
+    // Apply the definition's "sky" block, if it carried one. The loader deliberately passes it
+    // through unparsed (engine/core must not depend on graphics), so this is where a game project's
+    // celestial bodies actually take effect. Absent = keep the default sun + moon.
+    if (loadResult.skyLoaded && renderCoordinator) {
+        renderCoordinator->setSkyBodies(Graphics::SkyBodies::fromJson(loadResult.skyDefinition));
+    }
+
                 response = loadResult.toJson();
 
                 // Render distance + far-terrain LOD from the world block (parity with
@@ -16772,6 +16818,13 @@ void Application::processAPICommands() {
                     nlohmann::json fakeDef = {{"npcs", npcArray}};
 
                     auto loadResult = Core::GameDefinitionLoader::load(fakeDef, subsystems);
+    // Apply the definition's "sky" block, if it carried one. The loader deliberately passes it
+    // through unparsed (engine/core must not depend on graphics), so this is where a game project's
+    // celestial bodies actually take effect. Absent = keep the default sun + moon.
+    if (loadResult.skyLoaded && renderCoordinator) {
+        renderCoordinator->setSkyBodies(Graphics::SkyBodies::fromJson(loadResult.skyDefinition));
+    }
+
                     response = loadResult.toJson();
                 }
 

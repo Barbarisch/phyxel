@@ -522,6 +522,12 @@ public:
     // The atmosphere returns physical RADIANCE, so exposure is the unit conversion that makes it
     // visible at all rather than an optional grade. Live-settable because calibrating it against a
     // rebuild cycle would be unbearable: the whole point is to measure, adjust, measure.
+    /// The sky's celestial bodies. Replacing the list takes effect on the next frame -- the
+    /// bodies are placed and uploaded per frame, so nothing needs a rebuild or a relight.
+    void setSkyBodies(const SkyBodies& s) { m_skyBodies = s; }
+    const SkyBodies& getSkyBodies() const { return m_skyBodies; }
+    SkyBodies& getSkyBodiesMutable() { return m_skyBodies; }
+
     void setExposure(float e) { m_exposure = (e > 0.0f) ? e : 1.0f; }
     float getExposure() const { return m_exposure; }
     void setTonemapCurve(int c) { m_tonemapCurve = c; }

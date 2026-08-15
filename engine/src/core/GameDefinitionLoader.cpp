@@ -178,6 +178,13 @@ GameDefinitionResult GameDefinitionLoader::load(const json& definition, GameSubs
         loadCamera(definition["camera"], subsystems, result);
     }
 
+    // "sky": the celestial bodies (graphics/CelestialBody.h). Passed through unparsed for the
+    // layering reason above; absent means the caller keeps the default sun + moon.
+    if (definition.contains("sky")) {
+        result.skyDefinition = definition["sky"];
+        result.skyLoaded = true;
+    }
+
     if (definition.contains("locations")) {
         loadLocations(definition["locations"], subsystems, result);
         if (!result.error.empty()) return result;

@@ -35,6 +35,7 @@
 // the same rule that already governed sun-versus-moon, generalised — it is not a new compromise.
 
 #include <glm/glm.hpp>
+#include <nlohmann/json.hpp>
 
 #include <string>
 #include <vector>
@@ -106,6 +107,24 @@ struct SkyBodies {
     /// Place every body for a time of day and day number, filling directions / lightColors /
     /// litFractions. `altitudeM` is the viewer's height for atmospheric extinction.
     void update(float timeOfDayHours, int dayNumber, float altitudeM = 1.0f);
+
+    /// Parse a sky definition. Shape (every field optional, defaults from CelestialBody):
+    ///   { "bodies": [ { "name": "sun", "angularDiameterDeg": 2.68, "discBrightness": 24,
+    ///                   "tint": [1,1,1], "emissive": true, "periodDays": 1.0,
+    ///                   "phaseOffset": 0.0, "planeTiltDeg": 0.0 },
+    ///                 { "name": "moon", "emissive": false, "litBy": 0, "albedo": 0.12,
+    ///                   "lightScale": 0.25, "periodDays": 1.037, "phaseOffset": 0.0 } ] }
+    ///
+    /// Size is authored as an angular DIAMETER IN DEGREES, not radians: radians are unreadable in a
+    /// config file, and degrees make the stylized choice legible (the real sun and moon are ~0.5;
+    /// the default here is 2.68, i.e. 5x life). An empty or missing "bodies" array yields
+    /// defaultSky() rather than an empty sky, because a world with no sun is never what was meant.
+    static SkyBodies fromJson(const nlohmann::json& j);
+    nlohmann::json toJson() const;
+
+    /// Multiply every body's drawn size by `scale` (1.0 = leave alone). The one-knob answer to
+    /// "make them bigger", without having to restate the whole list.
+    void scaleAllSizes(float scale);
 
     /// Index of the body that should own the shadow cascades: the brightest light-contributing body
     /// currently above the horizon. Returns -1 when nothing is up (true night with no moon), in

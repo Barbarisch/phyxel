@@ -1035,6 +1035,21 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // POST /api/debug/sky -- celestial bodies, live.
+    // Body: { "reset": bool } | { "sizeScale": float } | { "bodies": [...] }; responds with the
+    // resulting list, so it also serves as a query. See graphics/CelestialBody.h for the schema.
+    srv.Post("/api/debug/sky", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("set_sky", params, 5000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
     // POST /api/debug/tonemap — exposure + tone curve, live.
     // Body: { "exposure": float (opt), "curve": int (opt; 0 = none/raw linear, 1 = AgX) }
     // Exists because the atmosphere model emits physical radiance, so exposure must be calibrated

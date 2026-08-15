@@ -161,3 +161,67 @@ TEST(CelestialBody, DominantLightIgnoresBodiesBelowTheHorizon) {
         EXPECT_GT(s.directions[dom].y, 0.0f) << "the chosen shadow caster is below the horizon";
     }
 }
+
+
+// ── Configuration round-trip ─────────────────────────────────────────────────────────────────────
+
+// Size is authored as an angular DIAMETER IN DEGREES because radians are unreadable in a config
+// file. The conversion is the thing most likely to be silently wrong, so it is pinned by value.
+TEST(CelestialBody, SizeIsAuthoredInDegreesOfDiameter) {
+    const nlohmann::json j = {{"bodies", {{{"name", "big"}, {"angularDiameterDeg", 10.0}}}}};
+    const SkyBodies s = SkyBodies::fromJson(j);
+    ASSERT_EQ(s.bodies.size(), 1u);
+    EXPECT_NEAR(s.bodies[0].angularRadius, glm::radians(5.0f), 1e-6f)
+        << "a 10 degree DIAMETER must become a 5 degree RADIUS in radians";
+}
+
+// A world with no sun is never what was meant, so bad or empty input falls back rather than
+// producing a black sky with nothing in it.
+TEST(CelestialBody, MissingOrEmptyConfigFallsBackToTheDefaultSky) {
+    EXPECT_EQ(SkyBodies::fromJson(nlohmann::json::object()).bodies.size(), 2u);
+    EXPECT_EQ(SkyBodies::fromJson({{"bodies", nlohmann::json::array()}}).bodies.size(), 2u);
+    EXPECT_EQ(SkyBodies::fromJson("not an object").bodies.size(), 2u);
+}
+
+// Round-tripping must preserve every field, or a game.json written back out would quietly drift.
+TEST(CelestialBody, ConfigRoundTripsThroughJson) {
+    SkyBodies original = SkyBodies::defaultSky();
+    CelestialBody extra;
+    extra.name = "second_moon";
+    extra.emissive = false;
+    extra.litBy = 0;
+    extra.periodDays = 0.6f;
+    extra.phaseOffset = 0.3f;
+    extra.planeTilt = glm::radians(25.0f);
+    extra.tint = glm::vec3(1.0f, 0.8f, 0.7f);
+    original.bodies.push_back(extra);
+
+    const SkyBodies back = SkyBodies::fromJson(original.toJson());
+    ASSERT_EQ(back.bodies.size(), original.bodies.size());
+    for (size_t i = 0; i < back.bodies.size(); ++i) {
+        const auto& a = original.bodies[i];
+        const auto& b = back.bodies[i];
+        EXPECT_EQ(b.name, a.name);
+        EXPECT_NEAR(b.angularRadius, a.angularRadius, 1e-6f) << "body " << i;
+        EXPECT_EQ(b.emissive, a.emissive) << "body " << i;
+        EXPECT_EQ(b.litBy, a.litBy) << "body " << i;
+        EXPECT_NEAR(b.periodDays, a.periodDays, 1e-5f) << "body " << i;
+        EXPECT_NEAR(b.phaseOffset, a.phaseOffset, 1e-5f) << "body " << i;
+        EXPECT_NEAR(b.planeTilt, a.planeTilt, 1e-5f) << "body " << i;
+        EXPECT_NEAR(b.tint.g, a.tint.g, 1e-5f) << "body " << i;
+    }
+}
+
+// The one-knob answer to "make them bigger" must not disturb anything else.
+TEST(CelestialBody, ScaleAllSizesOnlyChangesSize) {
+    SkyBodies s = SkyBodies::defaultSky();
+    const float r0 = s.bodies[0].angularRadius;
+    const float r1 = s.bodies[1].angularRadius;
+    const float period = s.bodies[1].periodDays;
+    s.scaleAllSizes(3.0f);
+    EXPECT_NEAR(s.bodies[0].angularRadius, r0 * 3.0f, 1e-7f);
+    EXPECT_NEAR(s.bodies[1].angularRadius, r1 * 3.0f, 1e-7f);
+    EXPECT_NEAR(s.bodies[1].periodDays, period, 1e-7f) << "scaling size must not touch the orbit";
+    s.scaleAllSizes(0.0f);   // rejected, not applied
+    EXPECT_NEAR(s.bodies[0].angularRadius, r0 * 3.0f, 1e-7f);
+}
