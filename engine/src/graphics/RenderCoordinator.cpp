@@ -715,6 +715,7 @@ RenderCoordinator::LodTierThresholds RenderCoordinator::lodTierThresholds() cons
 RenderCoordinator::~RenderCoordinator() = default;
 
 void RenderCoordinator::drawSky(VkCommandBuffer cmd) {
+    if (!m_skyEnabled) return;
     if (!renderPipeline || renderPipeline->getSkyPipeline() == VK_NULL_HANDLE) return;
     if (!windowManager) return;
 

@@ -13295,6 +13295,9 @@ void Application::registerEffectsCommands() {
     // Always responds with the resulting list, so it doubles as a query.
     reg.on("set_sky", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!renderCoordinator) { r = {{"success", false}, {"error", "no render coordinator"}}; return; }
+        if (cmd.params.contains("enabled")) {
+            renderCoordinator->setSkyEnabled(cmd.params["enabled"].get<bool>());
+        }
         if (cmd.params.value("reset", false)) {
             renderCoordinator->setSkyBodies(Graphics::SkyBodies::defaultSky());
         }
@@ -13308,6 +13311,7 @@ void Application::registerEffectsCommands() {
         r = renderCoordinator->getSkyBodies().toJson();
         r["success"] = true;
         r["count"] = static_cast<int>(renderCoordinator->getSkyBodies().bodies.size());
+        r["enabled"] = renderCoordinator->getSkyEnabled();
     });
 
     // Fine (sub/microcube) greedy-merge toggle — live A/B for docs/BinaryGreedyMeshingPlan.md.

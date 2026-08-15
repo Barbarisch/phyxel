@@ -528,6 +528,12 @@ public:
     const SkyBodies& getSkyBodies() const { return m_skyBodies; }
     SkyBodies& getSkyBodiesMutable() { return m_skyBodies; }
 
+    /// Sky pass on/off. Exists so the pass can be MEASURED: it is a full-screen raymarch and
+    /// the only way to know what it costs is to render the same pose without it. Default ON;
+    /// with it off the scene clears to the DayNightCycle colour, as it did before the pass.
+    void setSkyEnabled(bool on) { m_skyEnabled = on; }
+    bool getSkyEnabled() const { return m_skyEnabled; }
+
     void setExposure(float e) { m_exposure = (e > 0.0f) ? e : 1.0f; }
     float getExposure() const { return m_exposure; }
     void setTonemapCurve(int c) { m_tonemapCurve = c; }
@@ -800,6 +806,7 @@ private:
     // sunDirection -- which now tracks whichever body owns the shadow cascades and becomes
     // the moon at night. Using the latter renders a daylight sky at midnight.
     glm::vec3 m_skyStarDir{0.0f, 1.0f, 0.0f};
+    bool m_skyEnabled = true;   ///< see setSkyEnabled (measurement instrument)
     float m_exposure = 8.0f;   // calibrated: puts a noon lit surface near 0.16-0.19
                                // linear with 0.00% clipped (measured, exposure sweep)
     int   m_tonemapCurve = 1;   // 1 = AgX, 0 = none (the pre-tonemap look, for A/B)

@@ -302,6 +302,26 @@ Use the rig; do not judge by eye.
 ⚠️ Identical statistics across *different* scene states mean a **stale frame**, not a result. Settle
 ≥ 2.5 s and take two screenshots, keeping the second.
 
+### What the sky pass costs — measured, RELEASE
+Toggle it with `POST /api/debug/sky {"enabled": false}`; that toggle exists **to make this
+measurable**, since the pass otherwise always draws and there is nothing to subtract.
+
+LightingLab, Release, 1600×900, median of 20 samples per state, sky ON minus sky OFF:
+
+| Pose | Δ frame time |
+|---|---|
+| Looking up (most of the frame is raymarched sky) | **+0.10 ms** |
+| Horizon (realistic gameplay mix) | **+0.15 ms** |
+| Looking down (geometry covers nearly all sky pixels) | **+0.03 ms** |
+
+**≈0.1 ms — negligible.** A full-screen 12-step view march with a 5-step inner sun march was the
+obvious thing to suspect, and it is not worth optimising: a sky-view LUT would buy back a tenth of a
+millisecond. If the LUT is ever built it should be for **accuracy** (multiple scattering, the blue
+hour), not for speed.
+
+⚠️ `/api/debug/engine_timing` reports identical `cpuFrameTime` and `gpuFrameTime`, so these are
+frame times, **not** an isolated GPU measurement. Treat the split as unmeasured.
+
 **Reference measurements** (LightingLab, exposure 8, AgX, viewport region): noon exterior mean 0.145
 with 0.00 % clipped; golden hour 0.160; hearth interior 0.245 with 0.00 % clipped (was **29.72 %**
 before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
