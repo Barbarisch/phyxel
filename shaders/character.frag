@@ -1,4 +1,19 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
+#include "lighting.glsl"   // THE shared lighting model — see the note below
+
+// ⚠️ THIS SHADER USED ITS OWN LIGHTING AND IT SHOWED. It carried a private kSkyFill (0.35 against
+// the world's model), no ambient floor, no hemisphere tint, no aerial perspective, and -- once the
+// atmosphere landed -- NO TONE MAP AT ALL. That last one is the serious part: the world is exposed
+// and tone-mapped while characters were not, so a character stood in a scene rendered on a
+// completely different response curve and blew out against it.
+//
+// Now on the shared model: phxAmbientAtmos for the fill (so shadows on a character go cool with the
+// sky, like everything else) and phxTonemap on the way out.
+//
+// STILL DIVERGENT, deliberately deferred: this pass samples only the MID shadow cascade, where
+// voxel.frag min-composes near + mid. Characters therefore miss the fine near-cascade shadows.
+// Fixing that needs the binding-9 near map wired into this pipeline.
 
 layout(location = 0) in vec3 fragColor;
 layout(location = 1) in vec3 fragNormal;
@@ -19,6 +34,28 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     float elapsedTime;
     mat4 viewProj;          // proj*view, precombined once per frame on CPU
     mat4 biasedLightSpace;  // shadow bias * lightSpaceMatrix, precombined on CPU
+    // Prefix padding to reach the atmosphere fields below. These are not read here; they must be
+    // declared so the std140 offsets match the C++ UniformBufferObject.
+    vec3  cameraWorld;
+    int   debugShadowMode;
+    float shadowDepthRange;
+    vec4  grassDisplacers[16];
+    vec4  grassDisplacersAux[16];
+    ivec4 grassDisplacerMeta;
+    mat4  biasedLightSpaceNear;
+    vec4  shadowCascadeNear;
+    mat4  lightSpaceMatrixNear;
+    mat4  biasedLightSpaceFar;
+    vec4  shadowCascadeFar;
+    mat4  lightSpaceMatrixFar;
+    // Atmosphere-derived lighting + exposure.
+    vec3  ambientColor;
+    vec3  hazeHorizonColor;
+    vec3  hazeZenithColor;
+    vec3  moonDirection;
+    vec3  moonColor;
+    float exposure;
+    int   tonemapCurve;
 } ubo;
 
 // Point light (32 bytes, std430)
@@ -107,8 +144,17 @@ void main() {
         shadowFactor = 1.0 - (shadowSum / 16.0);
     }
 
-    vec3 ambient = vec3(ubo.ambientLight) * skyCurve * kSkyFill;
+    // Shared hemispheric fill driven by the atmosphere, so a character's shaded side goes cool
+    // with the sky exactly as the world's does.
+    vec3 ambient = phxAmbientAtmos(normal, sky, ubo.ambientColor);
     vec3 finalLight = ambient + (diff + sunSpec) * ubo.sunColor * skyCurve * shadowFactor;
+    // Moonlight, matching voxel.frag: unshadowed (the cascades are fitted to the sun), and
+    // gated by sky access. Without it a character is black on a moonlit night while the ground
+    // around them is lit.
+    if (ubo.moonColor.b > 0.0) {
+        float moonNdl = max(dot(normal, normalize(-ubo.moonDirection)), 0.0);
+        finalLight += ubo.moonColor * moonNdl * skyCurve;
+    }
     finalLight += blockColor * blockColor; // omnidirectional warm/colored fill from baked block light
 
     // Point lights
@@ -160,5 +206,5 @@ void main() {
         }
     }
 
-    outColor = vec4(fragColor * finalLight, 1.0);
+    outColor = vec4(phxTonemap(fragColor * finalLight, ubo.exposure, ubo.tonemapCurve), 1.0);
 }
