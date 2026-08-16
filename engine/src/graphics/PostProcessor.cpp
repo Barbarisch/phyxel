@@ -775,6 +775,22 @@ void PostProcessor::updateDescriptorSet() {
     vkUpdateDescriptorSets(device->getDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 }
 
+// Set the viewport + scissor for a whole render pass. Dynamic viewport state is command-buffer
+// state, not pipeline state, so setting it once right after vkCmdBeginRenderPass covers EVERY
+// pipeline subsequently bound inside that pass. That is why the ten scene pipelines could be
+// switched to dynamic viewport without touching a single draw site.
+//
+// Why this exists at all: those pipelines baked the swapchain extent at creation and were never
+// re-created, so after a window resize they rasterised at the OLD size while the main chunk
+// pipeline used the new one -- tree foliage visibly detached from its trunks. Anything added to a
+// pass from now on inherits the correct viewport for free.
+static void setPassViewport(VkCommandBuffer cmd, uint32_t w, uint32_t h) {
+    VkViewport vp{0.0f, 0.0f, static_cast<float>(w), static_cast<float>(h), 0.0f, 1.0f};
+    vkCmdSetViewport(cmd, 0, 1, &vp);
+    VkRect2D sc{{0, 0}, {w, h}};
+    vkCmdSetScissor(cmd, 0, 1, &sc);
+}
+
 void PostProcessor::beginSceneRenderPass(VkCommandBuffer commandBuffer) {
     VkRenderPassBeginInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -791,6 +807,7 @@ void PostProcessor::beginSceneRenderPass(VkCommandBuffer commandBuffer) {
     renderPassInfo.pClearValues = clearValues.data();
 
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+    setPassViewport(commandBuffer, width, height);
 }
 
 void PostProcessor::endSceneRenderPass(VkCommandBuffer commandBuffer) {
@@ -2043,6 +2060,7 @@ void PostProcessor::beginWaterRenderPass(VkCommandBuffer commandBuffer) {
     rp.clearValueCount = 0;   // both attachments LOAD — nothing is cleared
     rp.pClearValues = nullptr;
     vkCmdBeginRenderPass(commandBuffer, &rp, VK_SUBPASS_CONTENTS_INLINE);
+    setPassViewport(commandBuffer, width, height);
 }
 
 void PostProcessor::endWaterRenderPass(VkCommandBuffer commandBuffer) {
@@ -2120,6 +2138,7 @@ void PostProcessor::beginOITRenderPass(VkCommandBuffer commandBuffer) {
     rpi.clearValueCount = 3;
     rpi.pClearValues    = clearValues.data();
     vkCmdBeginRenderPass(commandBuffer, &rpi, VK_SUBPASS_CONTENTS_INLINE);
+    setPassViewport(commandBuffer, width, height);
 
     VkViewport viewport{ 0, 0, (float)width, (float)height, 0.0f, 1.0f };
     VkRect2D scissor{ {0, 0}, {width, height} };
@@ -2220,6 +2239,7 @@ void PostProcessor::beginReflectionRenderPass(VkCommandBuffer commandBuffer) {
     rpi.clearValueCount = 2;
     rpi.pClearValues    = clearValues.data();
     vkCmdBeginRenderPass(commandBuffer, &rpi, VK_SUBPASS_CONTENTS_INLINE);
+    setPassViewport(commandBuffer, width, height);
 
     VkViewport viewport{ 0, 0, (float)width, (float)height, 0.0f, 1.0f };
     VkRect2D scissor{ {0, 0}, {width, height} };

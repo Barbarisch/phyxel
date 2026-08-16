@@ -411,6 +411,15 @@ void WaterCellRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D
     vps.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     vps.viewportCount = 1; vps.pViewports = &vp; vps.scissorCount = 1; vps.pScissors = &sc;
 
+    // DYNAMIC viewport/scissor -- this pipeline is created once and never re-created, so a baked
+    // extent goes stale on window resize and this pass then rasterises at the OLD size. Set once per
+    // render pass in PostProcessor::begin*RenderPass; every pipeline in the pass inherits it.
+    VkDynamicState dynStates[2] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    VkPipelineDynamicStateCreateInfo dynState{};
+    dynState.sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynState.dynamicStateCount = 2;
+    dynState.pDynamicStates    = dynStates;
+
     VkPipelineRasterizationStateCreateInfo rs{};
     rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rs.polygonMode = VK_POLYGON_MODE_FILL; rs.lineWidth = 1.0f;
@@ -445,6 +454,8 @@ void WaterCellRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D
     gpi.pViewportState = &vps; gpi.pRasterizationState = &rs;
     gpi.pMultisampleState = &ms; gpi.pDepthStencilState = &ds; gpi.pColorBlendState = &cb;
     gpi.layout = m_pipelineLayout; gpi.renderPass = renderPass; gpi.subpass = 0;
+
+    gpi.pDynamicState = &dynState;
 
     if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &gpi, nullptr, &m_pipeline) != VK_SUCCESS)
         throw std::runtime_error("failed to create water-cell graphics pipeline!");
