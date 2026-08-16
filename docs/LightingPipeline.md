@@ -272,17 +272,57 @@ Blinn-Phong, mid cascade only) and the water shaders. They will read brighter th
 
 ## 6. Post-processing
 
-`shaders/post_process.frag` composites scene colour + OIT transparency and nothing else. The
-swapchain is `B8G8R8A8_SRGB`, so the hardware applies the linear→sRGB encode — **do not add a manual
-`pow(1/2.2)`**.
+**The grade pass (shipped 2026-08-15, `94927b07`).** `shaders/post_process.frag` composites scene
+colour + OIT transparency **and applies the frame's single tone map**, rendering into an offscreen
+*grade image* rather than straight to the swapchain. The swapchain pass is then a plain blit
+(`shaders/blit.frag`), and the **editor viewport samples the same grade image**
+(`PostProcessor::getGradeImageView()`), so the editor and a packaged game show identical composited
+pixels. That permanently retires the class of bug where a post-process defect shipped invisible to
+the editor — which is why bloom, SSAO and the tone map sat disabled for so long.
 
-Disabled, with resources still bound so the pipeline layout is unchanged:
-- **bloom** — the blur input has no brightness threshold, so it added a blurred copy of the whole
-  frame (~2× brightness).
-- **SSAO** — depth-derivative normals degenerate at grazing angles and draw a dark band across
-  screen centre. `PostProcessor.h ssaoEnabled = false`, and nothing consumes its output.
+The swapchain is `B8G8R8A8_SRGB`, so hardware applies the linear→sRGB encode — **do not add a manual
+`pow(1/2.2)`** anywhere in this pass. Double gamma was a real shipped bug.
 
-Re-enable either only once it renders in the editor preview too.
+⚠️ **The editor does NOT call `PostProcessor::draw()`.** `RenderCoordinator` inlines the sequence so
+it can slot ImGui into the swapchain pass, so the composite must be driven via
+`compositeToGrade()` + `drawBlit()`. This trap bit twice: first leaving the grade image unwritten
+(blank viewport), then leaving `renderBloom` uncalled (bloom a silent no-op at any intensity).
+`compositeToGrade()` therefore **owns** the bloom pass, so both call sites are correct by
+construction. Do not move it back out.
+
+### ⛔ Bloom is BROKEN — do not enable
+
+Confirmed by the user 2026-08-15: at any visible intensity bloom produces **spots / blotches across
+the frame** rather than a smooth glow. It ships **off** (`bloom = 0.0`) and must stay off. The knob
+remains live purely so it can be debugged, and `POST /api/debug/tonemap` returns a `warning` field
+whenever intensity is set above zero.
+
+What *is* built and believed correct:
+- a soft-knee **bright-pass** on the first blur iteration only (re-thresholding every pass erodes the
+  highlight to nothing);
+- **R16F** blur targets — they were `R8G8B8A8_UNORM`, which clamped every highlight to 1.0 at the
+  seeding blit, so bloom could not tell the sun from a white wall;
+- the threshold is authored in **post-exposure** units (1.0 = "this would clip") and divided by
+  exposure before reaching the shader, because the scene target holds *physical radiance* where a lit
+  noon surface is ~0.02–0.2;
+- the blur chain runs at **half resolution** (`kBloomDownscale`), which took the cost from ~11% to
+  ~6% of frame time.
+
+Suspected cause of the spots, **not yet confirmed**: isolated very bright pixels survive the
+bright-pass and each becomes a blob — classic **fireflies**. Candidate sources are the sky pass's
+stars/airglow (per-pixel hash noise) and the known grass/character sub-pixel speckle
+(`RenderOptimization.md:489,513`). The half-res blur doubles the width of every blob, which is why
+they read as *spots* rather than fine sparkle. First things to try: clamp each bright-pass tap so one
+pixel cannot dominate the kernel, and/or exclude the star/airglow term from what seeds bloom.
+
+**Diagnose it by measuring, not by looking.** An earlier claim that the spots were "only in the sky"
+came from eyeballing two screenshots and is unverified. Measure *where* the bloom-on vs bloom-off
+difference lands, per region — and always against a control, because this scene animates (see §7).
+
+### SSAO — still disabled
+Depth-derivative normals degenerate at grazing angles and draw a dark band across screen centre.
+`PostProcessor.h ssaoEnabled = false`, and nothing consumes its output. A forward renderer has no
+normal buffer; fixing it properly means adding a normal attachment to the scene pass.
 
 ---
 
@@ -334,9 +374,10 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 |---|---|
 | **Blue hour** | Single scattering cannot produce it — the twilight zenith measures B/R = 0.94. Needs a multiple-scattering LUT. Pinned as `DISABLED_TwilightZenithIsBlue_NeedsMultipleScattering`. |
 | **Moon shadows** | Moonlight is unshadowed; the cascades are fitted to the sun. Fitting to the dominant body earns real moon shadows. |
-| **No stars / airglow** | A new-moon night is genuinely black. |
+| ~~No stars / airglow~~ | SHIPPED — stars + airglow render. Note they are a *suspect* in the bloom spots (§6). |
 | **No real AO** | AO is implicit in the skylight nibbles, so it vanishes outdoors (sky = 15) and indoors (sky = 0). A dedicated per-corner AO channel fits in the 16 spare bits of `light2`/`light3`. |
-| **No editor-visible grade pass** | Blocks bloom, AA and a proper post-process tone map. |
+| **Bloom produces spots** | ⛔ BROKEN, ships off. Spots/blotches instead of a glow; suspected fireflies from bright single pixels (sky star/airglow noise, grass speckle), widened by the half-res blur. See §6. |
+| **No AA** | The grade pass now exists, so FXAA/TAA is unblocked but not built. |
 | **Point lights** | See §4 — unshadowed, wrong coordinate space, double-counted, not persisted. |
 | **Metals** | No environment/IBL term, so they read dark except in direct light. |
 | **T-junction cracks / character speckle** | Open render defects at greedy-merge borders; see `RenderOptimization.md`. |

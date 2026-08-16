@@ -537,6 +537,17 @@ public:
     void setExposure(float e) { m_exposure = (e > 0.0f) ? e : 1.0f; }
     float getExposure() const { return m_exposure; }
     void setTonemapCurve(int c) { m_tonemapCurve = c; }
+// ⛔ BLOOM IS BROKEN -- DO NOT ENABLE. Confirmed by the user 2026-08-15: at any visible intensity it
+// produces SPOTS/BLOTCHES across the frame rather than a smooth glow. Default is 0 (off) and it must
+// stay that way until fixed.
+//
+// Suspected cause, NOT yet confirmed: isolated very bright pixels (the sky pass draws stars/airglow
+// from per-pixel hash noise; grass/character sub-pixel speckle is a known defect --
+// RenderOptimization.md:489,513) clear the bright-pass and each becomes a blob -- classic bloom
+// "fireflies". The half-res blur doubles the width of every blob, which is why they read as spots.
+// Likely fixes to try: clamp each bright-pass tap so one pixel cannot dominate the kernel; and/or
+// exclude the star/airglow term from what seeds bloom. Diagnose by measuring WHERE the on-vs-off
+// difference lands (per-region), not by eyeballing screenshots.
     // Bloom. Threshold is SCENE-REFERRED (pre-exposure radiance), so only the sun, sky near it,
     // emissives and specular hits clear it -- keep it above the diffuse range or bloom degenerates
     // into a blurred copy of the whole frame, which is what got it disabled for years.
@@ -818,7 +829,7 @@ private:
     // the moon at night. Using the latter renders a daylight sky at midnight.
     glm::vec3 m_skyStarDir{0.0f, 1.0f, 0.0f};
     bool m_skyEnabled = true;   ///< see setSkyEnabled (measurement instrument)
-    float m_bloomIntensity = 0.0f;   // DEFAULT OFF: opt in, and it doubles as the A/B control
+    float m_bloomIntensity = 0.0f;   // DEFAULT OFF and MUST STAY OFF -- bloom is broken, see above
     float m_bloomThreshold = 1.0f;
     float m_bloomKnee = 0.5f;
     float m_exposure = 8.0f;   // calibrated: puts a noon lit surface near 0.16-0.19

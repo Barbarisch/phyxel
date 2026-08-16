@@ -62,6 +62,8 @@ void main()
     // Bloom is ADDED BEFORE the tone map, because bloom is light -- it has to go through the same
     // response curve as everything else. Adding it after would paste display-referred haze on top of
     // a tone-mapped image and blow the highlights straight back out.
+    // ⛔ BROKEN: bloom produces SPOTS/BLOTCHES, not a smooth glow (confirmed 2026-08-15). Ships with
+    //    grade.bloom == 0 so this branch never runs. See PostProcessor.h for the suspected cause.
     if (grade.bloom > 0.0) {
         color += texture(bloomBlur, inUV).rgb * grade.bloom;
     }

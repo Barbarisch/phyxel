@@ -11,6 +11,11 @@ layout(push_constant) uniform PushConstants {
     float knee;        // soft shoulder width, so bloom fades in instead of popping
 } pushConsts;
 
+// ⛔ BLOOM IS BROKEN -- this bright-pass is the prime suspect. It produces SPOTS across the frame
+// rather than a smooth glow, most likely because isolated very bright pixels survive it and each
+// becomes a blob (fireflies), widened further by the half-res blur. A per-tap clamp here is the
+// first thing to try. Bloom ships disabled; see PostProcessor.h.
+//
 // Bright-pass with a soft knee. Without this the blur input is the WHOLE frame, so compositing it
 // back roughly doubles the image -- which is exactly why bloom was disabled rather than debugged.
 // Applied on the first pass only; re-applying it every iteration would erode the highlight away.

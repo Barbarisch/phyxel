@@ -181,12 +181,23 @@ private:
 
     // Must match the PushConstants block in blur.frag.
     struct BlurPush { int horizontal; float threshold; float knee; };
+// ⛔ BLOOM IS BROKEN -- DO NOT ENABLE. Confirmed by the user 2026-08-15: at any visible intensity it
+// produces SPOTS/BLOTCHES across the frame rather than a smooth glow. Default is 0 (off) and it must
+// stay that way until fixed.
+//
+// Suspected cause, NOT yet confirmed: isolated very bright pixels (the sky pass draws stars/airglow
+// from per-pixel hash noise; grass/character sub-pixel speckle is a known defect --
+// RenderOptimization.md:489,513) clear the bright-pass and each becomes a blob -- classic bloom
+// "fireflies". The half-res blur doubles the width of every blob, which is why they read as spots.
+// Likely fixes to try: clamp each bright-pass tap so one pixel cannot dominate the kernel; and/or
+// exclude the star/airglow term from what seeds bloom. Diagnose by measuring WHERE the on-vs-off
+// difference lands (per-region), not by eyeballing screenshots.
     // Bloom. Threshold is in SCENE-REFERRED linear units, i.e. pre-exposure radiance -- only the sun,
     // sky near it, emissives and specular hits clear 1.0. It has to sit above the diffuse range or
     // bloom becomes the blurred-copy-of-everything that got it disabled the first time.
     float m_bloomThreshold = 1.0f;
     float m_bloomKnee = 0.5f;
-    float m_bloomIntensity = 0.0f;  // DEFAULT OFF -- opt in, and it is the A/B control
+    float m_bloomIntensity = 0.0f;  // DEFAULT OFF and MUST STAY OFF -- see the banner above
 
     // Post Process Resources
     VkRenderPass postProcessRenderPass = VK_NULL_HANDLE;

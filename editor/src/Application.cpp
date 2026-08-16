@@ -13295,6 +13295,13 @@ void Application::registerEffectsCommands() {
              {"bloom", renderCoordinator->getBloomIntensity()},
              {"bloomThreshold", renderCoordinator->getBloomThreshold()},
              {"bloomKnee", renderCoordinator->getBloomKnee()}};
+        // Bloom is knowingly broken (spots/blotches, not a glow). The knob still works so it can be
+        // debugged, but anything that turns it on gets told, rather than discovering it in a frame.
+        if (renderCoordinator->getBloomIntensity() > 0.0f) {
+            r["warning"] = "BLOOM IS BROKEN: produces spots/blotches, not a smooth glow. "
+                           "Enabled here for debugging only -- do not ship it on. "
+                           "See docs/LightingPipeline.md.";
+        }
     });
 
     // Celestial bodies, live. "Multiple moons" and "make them bigger" are the two things this
