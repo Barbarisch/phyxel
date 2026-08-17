@@ -1670,6 +1670,37 @@ proven claim is "a synthetic flat multi-tavern grid recovers 5–8×" — **not*
 is retired. Also re-measure the single furnished tavern (the original 412k/49 FPS case) for
 completeness, acknowledging its ±20% noise floor.
 
+> #### ✅ M4 RESULT (2026-08-17) — **the density wall is retired at the settlement operating point, now with the number**
+> **Evidence:** `docs/evidence/lod_m4_density_wall.jsonl` (raw per-sample responses, 3 scenes ×
+> 3 configs × n=15, **135/135 samples pose-verified** — the M1 failure mode designed out),
+> `lod_m4_settlement_build_result.json`, `lod_m4_tavern_build_response.json` (raw generator
+> responses, per the provenance rule). **Build:** Release, `main` @ WorldForge M3. **Method:** one
+> process per scene, fixed pose re-verified before every capture, merge ON→OFF→ON bracket (the
+> second ON block detects drift; it agreed within ±13%, inside the known noise), timing samples
+> read only `render/stats` + `engine_timing`; `gpu_scopes` captured once per config after timing.
+>
+> | scene (engine-generated) | merge ON | merge OFF | reduction |
+> |---|---|---|---|
+> | Perlin-hills town (5 bldgs — terrain mode honestly dropped to 5 on the hostile hills) | 109,433 faces / **226 FPS** | 427,511 / **112 FPS** | 3.9× faces, 2.0× FPS |
+> | **Perlin hills + 4 settlements, 25 buildings** (the original scene's scale) | 269,618 faces / **135–145 FPS** | **1,764,780 / 27.5 FPS** | **6.5× faces, ~5× FPS** |
+> | single furnished tavern (flat world) | 13,767 / **~460–497 FPS** | 137,836 / **246 FPS** | 10× faces |
+>
+> **The 24–26 ms shadow wall REPRODUCED and root-caused:** on the 25-building scene the shadow
+> pass is **5.2 ms merged → 25.6 ms un-merged at a CONSTANT 466 draws** (instances 269k → 1.76M).
+> That is the historical wall, at its original operating point, and it confirms the M1
+> retraction's surviving hypothesis — **shadow cost tracks instance volume, not draw count** —
+> and identifies fine greedy merge as the change that retired it.
+>
+> **Honest caveats:** (1) the historical **3.4M faces is unreachable on today's code** — Phase-1
+> sub/micro hidden-face culling (2026-06-28) is unconditional, so merge-OFF peaks at 1.76M; the
+> comparison is recipe-equivalent (Perlin seed 7, heightScale 18, settlement overview), not
+> byte-equivalent (terrain-v2 also moved the base height; west peaks clip at the y-range top).
+> (2) The original single measurement was DEBUG; these are Release — the honest cross-config
+> statement is "the un-merged configuration still walls (27.5 FPS / 25.6 ms shadows at
+> settlement density) and the shipped default does not (135+ FPS / 5.2 ms)". (3) The terrain-mode
+> town honestly degrades to 5 buildings on raw hills; scene 2 reaches the original's 20+ building
+> scale with three additional engine-generated villages (all raw build responses archived).
+
 ### M5 — Shadow-pass quad re-test under `CULL_NONE` (correctness, not perf)
 The recorded reason the shadow pass must use a 36-index draw ("the pipeline front-culls") is stale:
 `ShadowMap.cpp:433` has been `VK_CULL_MODE_NONE` since `07ba0a74` (2026-07-12), while the comment

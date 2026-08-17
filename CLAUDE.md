@@ -42,23 +42,19 @@ clicks) and builds NEVER generate through trees (vegetation gate; `keep_vegetati
 session TODOs. ⚠️ Direct `schema:"v2"` `/api/structure/build` calls need explicit `"typology"` and
 `"footprint":[w,d]` as an ARRAY, or you silently get a hall_house.
 
-**#1 known issue: render density — MECHANISM SHIPPED, the original scenario NOT re-measured
-(corrected 2026-07-29, then scoped down after a solution-auditor FAIL).** The old entry here
-("sub/micro faces aren't greedy-merged; fix deferred") was **stale by ~3 weeks**: fine greedy
-merging shipped **default ON 2026-07-07** (`ChunkRenderManager::s_fineGreedyMerge = true`), and the
-main-pass 36-index amplifier is fixed (`s_quadDraw`, main pass only).
-**But do not read that as "solved."** What is actually proven is narrower than a first correction
-of this entry claimed:
-- **Proven:** on *synthetic flat multi-tavern grids* (an explicit face-bound proxy), 12× fewer faces
-  and ~5–8× FPS recovery (`docs/RenderOptimization.md:387-388`).
-- **NOT proven:** the scenario this entry was always about — **one furnished tavern at 412,298
-  faces / 49 FPS — was never re-measured for FPS**; at that scale the doc says FPS is *noise*
-  (±20% restart variance, sign flips Debug vs Release, `RenderOptimization.md:352`). And the
-  documented worst case, the **3.4M-face Perlin-hills settlement, "remains not run"**
-  (`RenderOptimization.md:376-380`).
-- **The falsifiable test that would settle it:** regenerate the 3.4M-face settlement via the
-  engine's own generator, measure `total_visible_faces` + FPS at a fixed verified pose on a Release
-  build. Queued as M4 in [`docs/ContinuousLodPlan.md`](docs/ContinuousLodPlan.md) §7b.
+**Render density — MEASURED CLOSED 2026-08-17 (ContinuousLodPlan M4 run; was the #1 known
+issue).** Fine greedy merging (default ON since 2026-07-07) is now proven at the real operating
+point, not just the synthetic flat-grid proxy: a **Perlin-hills 4-settlement / 25-building scene
+(engine-generated, seed 7)** measures merge ON **269,618 faces / 135–145 FPS** vs merge OFF
+**1,764,780 faces / 27.5 FPS** on Release — 6.5× faces, ~5× FPS, n=15 per point, 135/135 samples
+pose-verified, raw responses in `docs/evidence/lod_m4_density_wall.jsonl`. The single furnished
+tavern: 13,767 faces / ~460–497 FPS merged (137,836 / 246 un-merged). **The historical 3.4M-face /
+24–26 ms-shadow operating point is unreachable on today's code** (Phase-1 hidden-face culling is
+unconditional) — and the un-merged shadow pass REPRODUCED the old wall at constant draws
+(5.2 ms → 25.6 ms at 466 draws), confirming shadow cost tracks **instance volume, not draw
+count**, and that fine merge is what retired it. Full result + honest caveats:
+[`docs/ContinuousLodPlan.md`](docs/ContinuousLodPlan.md) §7b M4 RESULT. Remaining open visual
+defects unchanged (T-junction cracks, sub-pixel speckle below).
 
 **SHADOW STORY RESOLVED (2026-08-06, supersedes the 24–26 ms narrative):** the engine now runs
 **three shadow cascades** — near 40 u (blade-resolving), mid 420 u, far 1600 u (the LOD band

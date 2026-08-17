@@ -546,3 +546,26 @@ sun being NOON (DayNightCycle boots at 12.0 — vertical light is worst-case for
 vertical/thin geometry). Consider: blade-width floor in screen space or distance fade tune, and
 revisit when blades get shadow reception. A softer default sun angle (e.g. 10:00) would visibly
 calm BOTH artifacts for free — worth considering as a default.
+
+## 2026-08-17 -- M4 re-measure (Release, ContinuousLodPlan 7b M4): the wall is retired, measured
+
+The falsifiable test queued above finally ran (raw data:
+`docs/evidence/lod_m4_density_wall.jsonl`, 135/135 samples pose-verified, n=15 per point,
+merge ON->OFF->ON brackets in one process per scene). Scenes regenerated via the engine's own
+generators (Perlin seed 7 heightScale 18 + terrain-mode `build_settlement`; all raw build
+responses archived).
+
+| scene | merge ON | merge OFF |
+|---|---|---|
+| Perlin hills + 4 settlements, 25 buildings | 269,618 faces / 135-145 FPS | 1,764,780 faces / 27.5 FPS |
+| Perlin-hills town alone (honest 5-building degradation) | 109,433 / 226 FPS | 427,511 / 112 FPS |
+| single furnished tavern (flat world) | 13,767 / ~460-497 FPS | 137,836 / 246 FPS |
+
+Key facts:
+- **The 3.4M-face baseline above is unreachable on today's code**: Phase-1 sub/micro
+  hidden-face culling is unconditional, so even merge-OFF peaks at 1.76M at the same recipe.
+- **The 24-26 ms shadow wall reproduced un-merged at CONSTANT 466 draws** (5.2 ms merged ->
+  25.6 ms un-merged; instances 269k -> 1.76M): shadow cost tracks instance volume, not draws,
+  and fine greedy merge is the change that retired it.
+- The original 412k/49-FPS tavern figure was DEBUG; today's tavern runs 246 FPS Release even
+  un-merged. The old operating point no longer exists.
