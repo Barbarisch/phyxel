@@ -12,6 +12,23 @@
 All on `main` now. Pipeline: `StructureBrief → BuildingProgram → autofillRoomLayout → StructureRealizer
 → place`. Build at runtime via `POST /api/structure/build {"schema":"v2",...}`.
 
+**2026-08-16 — WORLDFORGE (world-scale layer) M0–M2 built + Release-L4-verified
+([`docs/WorldForge.md`](docs/WorldForge.md)):** the engine now PLANS a region (settlement siting
+scored on hydrology/relief/biome with derived per-site seeds + inter-settlement roads baked as a
+generation-time `ColumnSample.roadClass` field — pure function of world position, flora-gated,
+seam-free) and REALIZES it (`worldforge_build` async job: streaming-focus residency → per-site
+`SettlementBuildService` → persisted `worldforge_ledger`). Live proof: 3/3 sites built (town + 2
+villages, refusals/lot-failures surfaced honestly), idempotent re-run, plan hash stable across
+restarts/DB-regen/build-configs. API `/api/worldforge/{plan,apply,status,map,build,focus}` + MCP
+tools; recipe-seed authority fixed (the DB now owns the seed). ⚠️ Verify worldforge builds on
+RELEASE (Debug streams ~7 chunks/min in forest — looks like the pump-death bug, is crawl);
+⚠️ never teleport the player into unstreamed terrain — use `worldforge_focus`. V1 punts (bridges,
+road grading, street fusion, live apply, far-road LOD, residents-at-remote-sites) logged in
+`docs/StructurePipelineGaps.md` 2026-08-16. **M3 stress COMPLETE 2026-08-17**: 8-site world
+built live 8/8 (idempotent), Mountains world degrades honestly, delete-DB road identity
+cell-exact, road walkability measured (0% canonical / 0.69% mountains unclimbable steps —
+`WorldForgeStressTest`). All WorldForge work on `main`, uncommitted.
+
 **Recently shipped (grounded + red-before-green + auditor-verified):** first functional typology — the
 `tavern` (taproom/kitchen/service, L3-navigable); **generative multi-story** (inn upstairs guest
 chambers + auto-generated stair); **inn asset depth** (grounded bar/stools/back-bar/lighting via

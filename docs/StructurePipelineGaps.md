@@ -63,3 +63,86 @@ what the engine did instead, the workaround used, and what a real fix looks like
 - **Real fix:** apply the same type→typology alias in the v2 path (or refuse a `type` that
   contradicts the resolved typology), and accept the object footprint shape or reject it with
   a message naming the array form.
+
+## 2026-08-16 - WorldForge V1 punts (docs/WorldForge.md), logged so nothing is silently "done"
+
+- **Bridges at river crossings:** the world plan MARKS every order>=3 crossing on a road
+  (position + Strahler order, in the plan JSON and `WorldForgeRoad::crossings`), but nothing is
+  built there - the road stops at the carved channel and resumes on the far bank. Real fix:
+  ValidationLedger placer #44 `place_bridges`, consuming the crossing records (order -> span/width
+  from the same Doll-et-al channel-geometry tables the carve uses).
+- **Road grading:** generation-time roads DRAPE the terrain surface (material stamp only - no
+  cut/fill, no slope-limited profile like `StreetPaver`'s settlement streets). Steep terrain
+  yields steep road surfaces. Real fix: a generation-time analog of `planTerrainPath`'s
+  slope-limited lower envelope applied to `surfaceY` along the corridor.
+- **Road-to-street fusion:** roads terminate at the settlement footprint edge; the settlement's
+  own street network doesn't orient toward or join the arriving road (`chooseStreetAxis` knows
+  nothing about the plan). Real fix: pass the road arrival bearing into settlement layout.
+- **Live apply:** `worldforge_apply` is restart-required - streaming gen workers hold generator
+  snapshots taken at configure time, so a mid-session plan change would seam already-generated
+  chunks against new road-stamped ones. Real fix: a worker re-snapshot path in
+  ChunkStreamingManager (stop workers -> refresh copies -> resume), then invalidate
+  ungenerated-but-queued chunks.
+- **Heightmap/Flat worlds:** no hydrology bake -> no WorldForge plan (surfaced as an error).
+  Same family as the "far-terrain heightmap worlds skip the hydrology bake" gap.
+- **Roads at distance:** no far tier renders roads beyond chunk residency (far-terrain tiles
+  carry no road channel) - a P-DERIVED violation at distance, noted in LodTierLedger.
+- **Lazy realization:** settlements only realize via the orchestrated `worldforge_build` job;
+  there is no build-on-stream-in for unbounded exploration (deliberate V1 scope decision).
+
+## 2026-08-16 - streaming "wedge" during worldforge_build was Debug-build CRAWL, not pump death (RETRACTED in part, kept for the measurements)
+
+- **CORRECTION (same day, measured):** a controlled A/B after cancelling the job showed the pump
+  ALIVE at ~7 chunks/min (18->29 resident over 90 s, plain focus, no job) - the "freeze" was a full
+  48-slot request queue draining at Debug-crawl speed in a forest/creek region (dense flora stamping
+  is a recorded 450-625 ms/chunk; plus water spans + fine ponds). generation_pending pinned at its
+  cap is NORMAL at that rate. The anchor-jump-wedge theory is therefore UNPROVEN here; the walking
+  anchor + wall-clock residency deadline shipped anyway (good hygiene, and the recorded spawn-swap
+  boot gap still stands). The residency-scale lesson is real: a town footprint needs ~150-300
+  resident chunks = 20-40 min PER SITE on Debug - worldforge_build verification belongs on RELEASE
+  (163 chunks/s measured), per the standing "never size an investment off Debug" rule.
+- **What happened:** the first live `worldforge_build` run set the new streaming focus override
+  (ChunkManager::setStreamingFocusOverride) directly to a site ~630 u from the player - an instant
+  anchor teleport. Within ~2 min the generation pipeline froze: `/api/debug/load_state` pinned at
+  `generation_pending: 48` with resident count crawling, zero ChunkStreaming log lines after
+  21:12:12, engine/API/game-loop alive throughout, job residency polls ticking normally. Clearing
+  the override did NOT revive generation - the wedge is permanent once entered. Same signature as
+  the recorded "streaming pump dies after ~2 h uptime" open bug (chunk count freezes, zero
+  ChunkStreaming logs, silent gen-worker death + pending-slot leak hypothesis), triggered here in
+  minutes by the anchor jump; also consistent with the recorded "spawn-swap to a far coordinate
+  never finished booting" gap. Note also an earlier full CRASH this session: a player teleport into
+  unstreamed terrain at (-102,701) killed the process silently ~2 min later while the player
+  free-fell to y=-516k (chunks only load within loadDistance of the player's 3D position, so a
+  falling player outruns its own terrain forever).
+- **Workaround (shipped in worldforge_build):** the focus driver now WALKS the anchor 64 u per
+  residency poll instead of teleporting; plus a wall-clock residency deadline so a wedged pump
+  surfaces as `refused: residency_timeout`, never a hang.
+- **Real fix:** the recorded pump-death fix shape (gen-worker heartbeat + dead-worker restart +
+  pending-slot reclaim), plus making a large anchor delta safe in ChunkStreamingManager (it is
+  reachable from ordinary gameplay: teleports, scene transitions, respawns).
+
+## 2026-08-16 - remote-settlement residents fall through evicted terrain (worldforge_build measurement)
+
+- **What happened:** the first complete `worldforge_build` run (Release, 3 sites) spawned 15
+  scheduled residents across the sites; when the job released the streaming focus, the remote
+  sites' chunks evicted and every resident free-fell through the missing occupancy grids
+  (observed positions y=-4.5k to -234k). Residents are also not DB-persisted (recorded gap), so
+  they'd vanish on reload regardless.
+- **Workaround (shipped):** `WorldForgeBuildService::settlementParamsFor` passes
+  `"residents": false` - worldforge-built settlements ship without residents in V1.
+- **Real fix:** persist Location/resident records with the settlement (the recorded persistence
+  gap) and re-spawn residents on chunk stream-in near a built site - which also fixes plain
+  `build_settlement` towns after any reload, not just worldforge ones. NPC ground-truth also
+  wants the "kinematic bodies wedge when chunks evict" family fixed (fauna D1).
+
+## 2026-08-17 - player loses ground while worldforge_build owns residency (operational hazard)
+
+- **What happened:** during a worldforge_build (and manual `worldforge_focus`), the streaming
+  anchor moves to the build site, the spawn area's chunks evict once outside unloadDistance, and
+  the parked player free-falls through the vanished floor (observed at y=-2938 on the 8-site run).
+  The job restores the player anchor at the end, but the player is deep underground by then.
+- **Workaround:** world-BAKING is an authoring activity - keep the player parked and respawn
+  (force_respawn / reload) after the bake; or run bakes before entering play.
+- **Real fix options:** freeze player physics while a residency override is active; or a dual
+  anchor (player + focus) with a small player-side keep-alive ring; ties into the recorded
+  "falling player outruns its own terrain" teleport hazard.

@@ -144,6 +144,35 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **★ WORLDFORGE — M0-M2 BUILT + Release-L4-VERIFIED 2026-08-16 (docs/WorldForge.md).** The
+  world-scale planning layer over terrain-v2: settlement SITING (scored hydro-grid candidates:
+  relief/water/biome, derived per-site seeds), inter-settlement ROADS as a generation-time
+  field (`ColumnSample.roadClass`, riverOrder pattern — pure f(world position), seam-free,
+  flora-gated corridor, Dirt/Gravel/Cobblestone by class from settlement_program.json), and an
+  orchestrated realization job (`worldforge_build`: streaming-focus residency → per-site
+  `SettlementBuildService` with the plan's seed → `WorldForgeLedger` checkpoints in
+  world_meta). User decisions: bake job (not lazy stream-in), gen-time roads (not runtime
+  paving), region scale 3-8 sites. 37 unit tests red-before-green across 4 suites; **live
+  Release run: 3/3 sites built (town 7 bldgs + 2 villages, 1 lot failure honestly surfaced),
+  idempotent re-run = 0 queued, plan hash 5102375980102752933 stable across process restarts,
+  DB deletion, and Debug/Release**. Roads verified voxel-by-voxel (gravel band scan) + visually.
+  Also shipped: **recipe-seed authority fix** (applyRecipe adopts recipe.seed — the DB finally
+  owns it), `ChunkManager::setStreamingFocusOverride` (+`worldforge_focus` debug command),
+  `/api/worldforge/*` + MCP tools, canonical test world `worldforge_test.json`.
+  ⚑ **Debug streaming crawls ~7 chunks/min in forest** (flora stamping) — generation_pending
+  pinned at its 48 cap LOOKS like the pump-death bug but is crawl; verify on Release only.
+  ⚑ **Never teleport the player into unstreamed terrain** (falls forever, chunks can't follow;
+  one silent crash) — use the focus override. ⚑ Remote-site residents fall through evicted
+  chunks → worldforge builds pass residents:false (gap logged). V1 punts logged in
+  StructurePipelineGaps 2026-08-16 (bridges/grading/street-fusion/live-apply/far-roads/lazy).
+  **M3 COMPLETE 2026-08-17** (`WorldForgeStressTest` + live): 8-site/2048u world built 8/8
+  on Release (4 lot failures honest, idempotent re-run), Mountains world degrades honestly,
+  delete-DB regeneration reproduced the road scan CELL-EXACT (88/88 Gravel), road walkability
+  measured 0% (canonical) / 0.69% (mountains) unclimbable 1u steps. New hazard logged: the
+  player at spawn falls while a bake owns residency (park/respawn around bakes). Small
+  remainders: full TraversalProbe agent-walk, road-arrival street orientation. Memory:
+  `project_worldforge.md`. All uncommitted on `main`.
+
 - **★ CHIMNEY FORGE — SHIPPED 2026-08-10 (`HearthForge`).** The chimney was the last
   structural element built AFTER the shell: the furnish pass stamped a stack into a
   finished building, **displacing ~600 already-built cells per tavern** (measured in
