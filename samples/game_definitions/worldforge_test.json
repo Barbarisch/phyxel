@@ -1,0 +1,28 @@
+{
+  "name": "WorldForgeTest",
+  "description": "WorldForge canonical small test world (docs/WorldForge.md): fixed-seed streaming Perlin terrain with a 3-site region plan — shared by the M0 API checks, M1 road visual tests, and the M2/M3 build + stress runs.",
+  "version": "1.0",
+  "world": {
+    "type": "Perlin",
+    "seed": 20260816,
+    "streaming": true,
+    "loadRadius": 6,
+    "unloadRadius": 9,
+    "from": { "x": -1, "y": 0, "z": -1 },
+    "to": { "x": 1, "y": 0, "z": 1 },
+    "worldforge": {
+      "siteCount": 3,
+      "regionRadius": 768,
+      "minSpacing": 256
+    }
+  },
+  "camera": {
+    "position": { "x": 16, "y": 60, "z": 80 },
+    "yaw": -90,
+    "pitch": -25
+  },
+  "player": {
+    "type": "animated",
+    "position": { "x": 16, "y": 40, "z": 16 }
+  }
+}

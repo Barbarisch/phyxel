@@ -1,4 +1,5 @@
 #include "core/WorldGenerator.h"
+#include "core/WorldForgePlan.h"
 #include "core/WorldRecipe.h"
 #include "core/MapCoarseSource.h"
 #include "core/Chunk.h"
@@ -122,9 +123,9 @@ constexpr float kHillFineAmp  = 22.0f;     // Perlin/Caves: light surface roughn
 
 // ── P2 hydrology bake region (docs/TerrainGenerationV2.md §P2 "bounded backing"). ──
 // The lake/river network is baked ONCE per world build over a fixed box centred on the world
-// origin: 256 cells × 32 m = 8192 world units (~8 km) per side. Columns outside get no water/rivers
-// (a DESIGN limit — infinite-world region partitioning is P5). 256² = 65 536 cells → the two
-// Priority-Flood + accumulation passes are O(n log n), a few ms, run once (ctor + applyRecipe).
+// origin: 256 cells × 128 m = 32 768 world units (~32 km) per side. Columns outside get no
+// water/rivers (a DESIGN limit — infinite-world region partitioning is P5). 256² = 65 536 cells →
+// the two Priority-Flood + accumulation passes are O(n log n), run once (ctor + applyRecipe).
 constexpr int   kHydroCells  = 256;
 constexpr float kHydroCell   = 128.0f;     // 4 chunks per hydrology cell (coarse grid → cheap bake)
 constexpr float kHydroOrigin = -0.5f * kHydroCells * kHydroCell;  // -16384 → box [-16384, 16384]² (~32 km)
@@ -300,13 +301,14 @@ void WorldGenerator::rebuildCoarseModel() {
     // bake (m_hydro/m_flow stay null; sampleColumn's carve is guarded on m_flow). cellSize =
     // blocksPerPixel so the coarse grid aligns to map pixels; the SourceFunc reads nearest and
     // CoarseWorldModel bilinearly interpolates between pixel corners (one smooth interpolation).
+    m_worldForge.reset();   // derives from the model being rebuilt; re-baked at the end
     if (m_mapSource) {
         m_coarse = std::make_shared<CoarseWorldModel>(makeMapCoarseSource(m_mapSource),
                                                       m_mapSource->blocksPerPixel);
         m_hydro.reset();
         m_flow.reset();
         m_waterBodies.reset();
-        return;
+        return;   // no hydrology → no worldforge plan (heightmap worlds are a logged gap)
     }
 
     const uint32_t s = seed;
@@ -347,6 +349,7 @@ void WorldGenerator::rebuildCoarseModel() {
     const float seaLvl = terrainParams.seaLevelY;
     const HydroBakeKey key{static_cast<int>(generationType), seed, terrainParams.climateFrequency,
                            seaLvl, m_continentalHeightSpline.points()};
+    bool cacheHit = false;
     {
         std::lock_guard<std::mutex> lock(g_hydroCacheMutex);
         for (const auto& e : g_hydroCache)
@@ -354,8 +357,15 @@ void WorldGenerator::rebuildCoarseModel() {
                 m_hydro = e.second.hydro;
                 m_flow = e.second.flow;
                 m_waterBodies = e.second.bodies;
-                return;
+                cacheHit = true;
+                break;
             }
+    }
+    if (cacheHit) {
+        // The worldforge plan is NOT part of the hydro cache entry (its identity also spans
+        // biome tuning) — bake it against the shared backings.
+        bakeWorldForgePlan();
+        return;
     }
     // Height function for the flood/accumulation = the FULL rendered surface (Layer-0 coarse base +
     // Layer-1 relief): the relief's defined ridge/valley structure funnels drainage into convergent,
@@ -400,11 +410,44 @@ void WorldGenerator::rebuildCoarseModel() {
     // are identical). Bounded: evict oldest once over the cap (few distinct configs in practice).
     {
         std::lock_guard<std::mutex> lock(g_hydroCacheMutex);
+        bool present = false;
         for (const auto& e : g_hydroCache)
-            if (e.first == key) return;  // someone else inserted it; ours is identical, drop it
-        g_hydroCache.push_back({key, {m_hydro, m_flow, m_waterBodies}});
-        if (g_hydroCache.size() > kHydroCacheCap) g_hydroCache.erase(g_hydroCache.begin());
+            if (e.first == key) present = true;  // someone else inserted it; ours is identical
+        if (!present) {
+            g_hydroCache.push_back({key, {m_hydro, m_flow, m_waterBodies}});
+            if (g_hydroCache.size() > kHydroCacheCap) g_hydroCache.erase(g_hydroCache.begin());
+        }
     }
+    bakeWorldForgePlan();
+}
+
+// Bake (or clear) the WorldForge plan against the current hydrology backings. Runs at the
+// end of every rebuildCoarseModel — columns sampled for the biome-hostility probe see NO
+// roads (m_worldForge was reset at the top of the rebuild), so the plan cannot feed back
+// into its own siting and two generators with identical config bake identical plans.
+void WorldGenerator::bakeWorldForgePlan() {
+    m_worldForge.reset();
+    if (!m_worldForgeParams.enabled) return;
+    m_worldForge = previewWorldForge(m_worldForgeParams);
+    // Columns memoized during the bake are road-free; road stamping (M1) must re-sample.
+    clearColumnCache();
+}
+
+std::shared_ptr<const WorldForgePlan> WorldGenerator::previewWorldForge(
+    const WorldForgeParams& params) {
+    if (!m_hydro || !m_flow || !m_waterBodies || !m_coarse) return nullptr;
+    // The SAME full-surface height function the hydrology bake flooded (pure: immutable
+    // shared coarse model + seed/type by value — the worker-copy contract).
+    auto heightAt = [coarse = m_coarse, s = seed, gt = generationType](float x, float z) -> float {
+        const CoarseSample cs = coarse->sample(x, z);
+        return cs.baseHeight + reliefAt(gt, s, static_cast<int>(std::floor(x)),
+                                        static_cast<int>(std::floor(z)), cs.continentalness);
+    };
+    // Biome-hostility probe: the full resolved surface material (biome + physical overrides).
+    // Captures `this` but is only invoked DURING the bake, on this thread — never stored.
+    auto surfaceMat = [this](int x, int z) { return sampleColumn(x, z).surfaceMat; };
+    return WorldForgePlan::bake(params, seed, heightAt, *m_hydro, *m_flow, *m_waterBodies,
+                                surfaceMat);
 }
 
 void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
@@ -943,6 +986,23 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
             col.surfaceMat = "SnowGrass";  // snow lies on forested ground (taiga) — conifers persist
         }
         // else: keep the biome surface material set above (moderate, gently-sloped land).
+
+        // WorldForge road stamp (docs/WorldForge.md M1) — the riverOrder pattern: roads are a
+        // pure function of world position via the baked plan, so a streamed chunk and a
+        // whole-region pass agree by construction (RoadFieldSeamTest). The RIVER wins where
+        // they meet (fords/bridges are an honest V1 gap — the carve stays, the road breaks)
+        // and the sea is never paved. Roads DRAPE the terrain (no cut/fill at generation
+        // time — logged gap); the stamp is the surface material + the flora-gate flag.
+        if (m_worldForge && col.riverOrder == 0 &&
+            col.surfaceY >= static_cast<int>(terrainParams.seaLevelY)) {
+            const WorldForgePlan::RoadHit rh =
+                m_worldForge->roadAt(static_cast<float>(wx), static_cast<float>(wz));
+            if (rh.cls > 0 && rh.dist <= WorldForgePlan::roadHalfWidth(rh.cls)) {
+                col.roadClass = rh.cls;
+                col.roadDist = rh.dist;
+                col.surfaceMat = WorldForgePlan::roadMaterial(rh.cls);
+            }
+        }
     }
     return col;
 }
@@ -1111,6 +1171,14 @@ bool WorldGenerator::floraCellLayer(int cx, int cz, int layerIdx, FloraPlacement
     // P2: no trees in a carved river channel, nor on land that sits below a lake/sea surface (the
     // water runtime will flood it). Keeps flora off the water line. (docs/TerrainGenerationV2.md §P2)
     if (col.riverOrder > 0) return false;                                       // carved riverbed
+    // WorldForge road gate (M1): no trunks on the road or its 2-column shoulder — the road
+    // corridor stays clear by CONSTRUCTION (canopy overhang past the shoulder is fine).
+    if (col.roadClass > 0) return false;
+    if (m_worldForge) {
+        const WorldForgePlan::RoadHit rh =
+            m_worldForge->roadAt(static_cast<float>(jx), static_cast<float>(jz));
+        if (rh.cls > 0 && rh.dist <= WorldForgePlan::roadHalfWidth(rh.cls) + 2.0f) return false;
+    }
     if (m_hydro) {
         const float wl = m_hydro->waterLevelAt(static_cast<float>(jx), static_cast<float>(jz));
         if (wl > HydrologyMap::NO_WATER * 0.5f && static_cast<float>(col.surfaceY) < wl) return false;  // under lake/sea
@@ -1216,6 +1284,7 @@ bool WorldGenerator::faunaCell(int cx, int cz, FaunaPlacement& out) {
     if (col.surfaceY < static_cast<int>(terrainParams.seaLevelY)) return false;  // per-world sea level
     if (col.surfaceMat == "Stone" || col.surfaceMat == "Snow") return false;
     if (col.riverOrder > 0) return false;
+    if (col.roadClass > 0) return false;   // WorldForge road (M1): herds don't anchor on the road
     if (m_hydro) {
         const float wl = m_hydro->waterLevelAt(static_cast<float>(jx), static_cast<float>(jz));
         if (wl > HydrologyMap::NO_WATER * 0.5f && static_cast<float>(col.surfaceY) < wl) return false;
@@ -1310,10 +1379,18 @@ WorldRecipe WorldGenerator::makeRecipe() const {
     // Snapshot the continental height spline so the world round-trips its terrain shape.
     for (const auto& p : m_continentalHeightSpline.points())
         r.heightSpline.push_back({p.x, p.y});
+    r.worldforge = m_worldForgeParams;
     return r;
 }
 
 void WorldGenerator::applyRecipe(const WorldRecipe& recipe) {
+    // The DB recipe OWNS the seed (docs/WorldModel.md: the DB is the source of truth once a
+    // world exists) — without this, editing game.json's seed silently re-seeded an existing
+    // world and drifted anything keyed on the seed (the WorldForge plan, flora, terrain).
+    // Seed 0 means "unowned" (synthesized defaults and pre-fix recipes): keep the ctor seed.
+    // Pinned by WorldForgeRecipeTest.RecipeSeedAuthority (shown red first).
+    if (recipe.seed != 0) seed = recipe.seed;
+    m_worldForgeParams = recipe.worldforge;
     terrainParams.climateFrequency = recipe.climateFrequency;
     terrainParams.seaLevelY = recipe.seaLevelY;   // rebake below re-floods against this outlet
     // Override per-biome tuning by name; biome category fields (materials, climate) untouched.

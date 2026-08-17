@@ -13,6 +13,7 @@
 #include "core/Spline.h"
 #include "core/WaterOccupancy.h"
 #include "core/WorldConstants.h"
+#include "core/WorldForgeParams.h"
 
 namespace Phyxel {
 
@@ -21,6 +22,7 @@ struct WorldRecipe;
 class HydrologyMap;
 class FlowField;
 struct MapCoarseData;
+class WorldForgePlan;
 
 /**
  * @brief World generation interface for procedural world creation
@@ -154,6 +156,10 @@ public:
                                       // threshold): the surface voxel is emitted as a 2/3 subcube
                                       // shelf so the creek rests in a 1/3-voxel recess
                                       // (water-as-terrain-stage P2)
+        int   roadClass   = 0;        // WorldForge road here (1 track/2 road/3 highway; 0 = none) —
+                                      // the riverOrder pattern: pure function of world position via
+                                      // the baked plan; drives surface material + the flora gate
+        float roadDist    = 0.0f;     // distance to the road centreline (valid when roadClass > 0)
     };
 
     // Load biome definitions from JSON (resources/biomes.json). Returns false (and keeps
@@ -229,6 +235,17 @@ public:
     // Water BODY identity over the bake (tangible-water Phase A): which body a wet column belongs
     // to and what kind (OCEAN/LAKE infinite; POND finite/scoopable). Null when nothing is baked.
     const WaterBodyIndex* waterBodies()  const { return m_waterBodies.get(); }
+
+    // ── WorldForge plan (docs/WorldForge.md) ────────────────────────────────────────────────
+    // The world-scale settlement + road plan, baked in rebuildCoarseModel right after the
+    // hydrology bake (it consumes hydrology). Null when worldforge is disabled (every legacy
+    // world) or nothing is baked. Immutable + shared_ptr → worker-copy-safe like m_hydro.
+    const WorldForgePlan* worldForge() const { return m_worldForge.get(); }
+    const WorldForgeParams& worldForgeParams() const { return m_worldForgeParams; }
+    void setWorldForgeParams(const WorldForgeParams& p) { m_worldForgeParams = p; rebuildCoarseModel(); }
+    // Bake a plan for arbitrary params WITHOUT storing it (the worldforge_plan preview
+    // command). Requires a hydrology bake (returns null otherwise).
+    std::shared_ptr<const WorldForgePlan> previewWorldForge(const WorldForgeParams& params);
 
     // ── Fine-scale ponds (tangible-water Phase B) ────────────────────────────────────────────
     // TRUE small ponds — sub-bake-cell depressions the 128 u/cell hydrology can never see —
@@ -341,6 +358,14 @@ private:
     std::shared_ptr<HydrologyMap>   m_hydro;
     std::shared_ptr<FlowField>      m_flow;
     std::shared_ptr<WaterBodyIndex> m_waterBodies;  // body identity riding the bake (Phase A)
+
+    // WorldForge (docs/WorldForge.md): params come from the world recipe; the plan is baked
+    // at the end of rebuildCoarseModel (after hydrology, which it consumes). NOT memoized
+    // process-wide — the bake is cheap and its identity depends on biome tuning the hydro
+    // key can't see (see WorldForgePlan::bake).
+    WorldForgeParams m_worldForgeParams;
+    std::shared_ptr<const WorldForgePlan> m_worldForge;
+    void bakeWorldForgePlan();
 
     // Fine-pond registry cache (Phase B), FIFO-capped like the column cache.
     std::unordered_map<uint64_t, std::shared_ptr<const std::vector<StoredFinePond>>> m_finePondCache;
