@@ -934,5 +934,11 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
+REM Record the source hashes these .spv were built from, so a later edit to a shared include
+REM (lighting.glsl is #included by eleven shaders) cannot silently leave them stale. See
+REM tools/shader_manifest.py -- this is the guard for the bug that shipped a pink world.
+python "%~dp0tools\shader_manifest.py" --update
+if %errorlevel% neq 0 echo WARNING: could not update shaders\shader_manifest.json ^(is python on PATH?^)
+
 echo All shaders compiled successfully!
 REM pause

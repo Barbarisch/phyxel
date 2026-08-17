@@ -104,6 +104,20 @@ if (-not $SkipBuild) {
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "Checking compiled shaders are current..." -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
+# shaders/*.spv are COMMITTED artifacts and glslc does not track #include dependencies, so editing a
+# shared include (lighting.glsl feeds eleven shaders) leaves every dependent .spv silently stale.
+# That shipped a pink world once -- the fix was committed as source only and no other checkout got
+# it. Warn loudly here; do not fail the build, because a stale .spv still compiles and links fine
+# and blocking the build over it would be worse than the warning.
+& python (Join-Path $ScriptDir "tools/shader_manifest.py") --check
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "WARNING: compiled shaders are STALE -- run build_shaders.bat and commit the .spv" -ForegroundColor Red
+}
+
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "Building Project ($Config)..." -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
