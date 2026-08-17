@@ -75,7 +75,7 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
-    echo Compiling sky shaders (atmosphere)...
+    echo Compiling sky shaders ^(atmosphere^)...
     %GLSLANG% -fshader-stage=vert -I. shaders\sky.vert -o shaders\sky.vert.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile sky vertex shader
@@ -121,7 +121,7 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
-    echo Compiling sky shaders (atmosphere)...
+    echo Compiling sky shaders ^(atmosphere^)...
     %GLSLANG% -fshader-stage=vert -I. shaders\sky.vert -o shaders\sky.vert.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile sky vertex shader
@@ -381,7 +381,7 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
-    echo Compiling sky shaders (atmosphere)...
+    echo Compiling sky shaders ^(atmosphere^)...
     %GLSLANG% -V -I. shaders\sky.vert -o shaders\sky.vert.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile sky vertex shader
@@ -427,7 +427,7 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
-    echo Compiling sky shaders (atmosphere)...
+    echo Compiling sky shaders ^(atmosphere^)...
     %GLSLANG% -V -I. shaders\sky.vert -o shaders\sky.vert.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile sky vertex shader
@@ -702,7 +702,7 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-    echo Compiling sky shaders (atmosphere)...
+    echo Compiling sky shaders ^(atmosphere^)...
     %GLSLANG% -V -I. shaders\sky.vert -o shaders\sky.vert.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile sky vertex shader
@@ -724,7 +724,7 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-    echo Compiling sky shaders (atmosphere)...
+    echo Compiling sky shaders ^(atmosphere^)...
     %GLSLANG% -V -I. shaders\sky.vert -o shaders\sky.vert.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile sky vertex shader
