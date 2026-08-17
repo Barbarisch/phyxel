@@ -64,6 +64,10 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/Chunk.h"
 #include "core/LodChunkMesh.h"
 #include "core/WorldGenerator.h"
+#include "core/WorldForgeBuildService.h"
+#include "core/WorldForgeLedger.h"
+#include "core/WorldForgePlan.h"
+#include "core/WorldRecipe.h"
 #include "core/HydrologyMap.h"
 #include "core/WaterProfile.h"   // v4 W3: derived-profile probe in water_look
 #include "core/WaterOccupancy.h" // grounded water grid: buildOpenWaterSpan decides per-column wetness
@@ -491,6 +495,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // if-chain). Handlers read subsystems (waterManager, …) lazily at dispatch, so order is free.
     registerWaterCommands();
     registerSettlementCommands();
+    registerWorldForgeCommands();
     registerDoorCommands();
     registerLightCommands();
     registerSnapshotCommands();
@@ -12791,6 +12796,286 @@ void Application::registerSettlementCommands() {
                  {"residents", *plan.residents},
                  {"queued_builds", plan.queuedBuilds}};
         }
+    });
+}
+
+// worldforge_* — world-scale planning commands (docs/WorldForge.md M0). The plan itself is
+// engine-side (WorldForgePlan, baked by the streaming WorldGenerator); the editor exposes
+// preview/apply/status/map. All commands require a streaming world (hydrology + the plan
+// live on the streaming generator).
+void Application::registerWorldForgeCommands() {
+    auto& reg = m_commandRegistry;
+
+    auto streamingGen = [this]() -> Phyxel::WorldGenerator* {
+        return chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+    };
+    auto noGen = [](nlohmann::json& r) {
+        r = {{"error", "worldforge requires a streaming world (game.json world.streaming: true)"}};
+    };
+
+    // Pure preview: bake a plan for the given params (or report the applied one) — NO world
+    // mutation, no recipe write. Empty params → the currently applied plan.
+    reg.on("worldforge_plan", [this, streamingGen, noGen](const Core::APICommand& cmd,
+                                                          nlohmann::json& r) {
+        Phyxel::WorldGenerator* g = streamingGen();
+        if (!g) return noGen(r);
+        if (cmd.params.empty()) {
+            if (const Phyxel::WorldForgePlan* p = g->worldForge()) {
+                r = {{"success", true}, {"applied", true}, {"plan", p->toJson()},
+                     {"plan_hash", std::to_string(p->planHash())}};
+            } else {
+                r = {{"success", true}, {"applied", false},
+                     {"message", "worldforge disabled for this world; pass params to preview"}};
+            }
+            return;
+        }
+        nlohmann::json pj = cmd.params;
+        if (!pj.contains("enabled")) pj["enabled"] = true;
+        const auto t0 = std::chrono::steady_clock::now();
+        auto plan = g->previewWorldForge(Phyxel::WorldForgeParams::fromJson(pj));
+        if (!plan) {
+            r = {{"error", "no hydrology bake on this world (heightmap/Flat worlds have no "
+                           "worldforge plan — logged gap)"}};
+            return;
+        }
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now() - t0).count();
+        r = {{"success", true}, {"applied", false}, {"plan", plan->toJson()},
+             {"plan_hash", std::to_string(plan->planHash())}, {"bake_ms", ms}};
+    });
+
+    // Persist params into the world recipe (world.db world_meta). The plan takes effect for
+    // chunks generated AFTER a reload — gen workers hold generator snapshots, so a live
+    // apply would seam old chunks against new (written down; restart_required is honest).
+    // REFUSES on a world that already has saved chunks unless {"force": true}: enabling
+    // roads on a part-generated world seams the DB chunks against fresh road chunks.
+    reg.on("worldforge_apply", [this, streamingGen, noGen](const Core::APICommand& cmd,
+                                                           nlohmann::json& r) {
+        Phyxel::WorldGenerator* g = streamingGen();
+        if (!g) return noGen(r);
+        Phyxel::WorldStorage* storage = chunkManager->getWorldStorage();
+        if (!storage) {
+            r = {{"error", "no world storage — worldforge_apply persists into world.db"}};
+            return;
+        }
+        nlohmann::json pj = cmd.params;
+        pj.erase("force");
+        if (!pj.contains("enabled")) pj["enabled"] = true;
+        const Phyxel::WorldForgeParams p =
+            Phyxel::WorldForgeParams::fromJson(pj).clamped();
+        const size_t savedChunks = storage->getChunkCount();
+        if (savedChunks > 0 && !cmd.params.value("force", false)) {
+            r = {{"error", "world.db already holds " + std::to_string(savedChunks) +
+                           " saved chunks — enabling worldforge now would seam them against "
+                           "fresh road-stamped terrain. Regenerate the world (delete world.db) "
+                           "or pass {\"force\": true} to accept the seams."},
+                 {"saved_chunks", savedChunks}};
+            return;
+        }
+        Phyxel::WorldRecipe recipe = storage->hasMeta("recipe")
+            ? Phyxel::WorldRecipe::fromJson(storage->getMeta("recipe"))
+            : g->makeRecipe();
+        recipe.worldforge = p;
+        if (!storage->setMeta("recipe", recipe.toJson())) {
+            r = {{"error", "failed to write recipe to world.db"}};
+            return;
+        }
+        // Bake on the live streaming generator so status/map reflect the plan immediately;
+        // WORKER generator snapshots are not refreshed — chunks stream with roads only
+        // after a reload (restart_required).
+        g->setWorldForgeParams(p);
+        const Phyxel::WorldForgePlan* plan = g->worldForge();
+        r = {{"success", true},
+             {"params", p.toJson()},
+             {"plan_hash", plan ? std::to_string(plan->planHash()) : ""},
+             {"sites", plan ? static_cast<int>(plan->sites().size()) : 0},
+             {"roads", plan ? static_cast<int>(plan->roads().size()) : 0},
+             {"restart_required", true},
+             {"note", "recipe persisted; reload the project so streamed chunks pick up the plan"}};
+    });
+
+    reg.on("worldforge_status", [this, streamingGen, noGen](const Core::APICommand&,
+                                                            nlohmann::json& r) {
+        Phyxel::WorldGenerator* g = streamingGen();
+        if (!g) return noGen(r);
+        const Phyxel::WorldForgePlan* p = g->worldForge();
+        r = {{"success", true},
+             {"enabled", g->worldForgeParams().enabled},
+             {"applied", p != nullptr},
+             {"plan_hash", p ? std::to_string(p->planHash()) : ""},
+             {"sites", p ? static_cast<int>(p->sites().size()) : 0},
+             {"roads", p ? static_cast<int>(p->roads().size()) : 0}};
+        if (Phyxel::WorldStorage* storage = chunkManager->getWorldStorage())
+            if (storage->hasMeta("worldforge_ledger"))
+                r["ledger"] = nlohmann::json::parse(
+                    Phyxel::WorldForgeLedger::fromJson(storage->getMeta("worldforge_ledger"))
+                        .toJson());
+    });
+
+    // Realize the applied plan's settlements (docs/WorldForge.md M2): an async self-chaining
+    // MainThreadJobs job — per site: streaming-focus residency → SettlementBuildService (the
+    // site's DERIVED seed) → ledger checkpoint. Refusals are recorded outcomes. Poll via
+    // /api/jobs. {"sites": [ids]} restricts; {"residency_timeout_s": N} bounds each site's wait.
+    reg.on("worldforge_build", [this, streamingGen, noGen](const Core::APICommand& cmd,
+                                                           nlohmann::json& r) {
+        Phyxel::WorldGenerator* g = streamingGen();
+        if (!g) return noGen(r);
+        const Phyxel::WorldForgePlan* plan = g->worldForge();
+        if (!plan) {
+            r = {{"error", "no applied worldforge plan (worldforge_apply + reload first)"}};
+            return;
+        }
+        if (!mainThreadJobs) {
+            r = {{"error", "job system unavailable"}};
+            return;
+        }
+        Core::WorldForgeBuildService::Deps d;
+        d.settlement.chunkManager  = chunkManager;
+        d.settlement.placedObjects = placedObjectManager ? &*placedObjectManager : nullptr;
+        d.settlement.templates     = objectTemplateManager ? &*objectTemplateManager : nullptr;
+        d.settlement.locations     = locationRegistry ? &*locationRegistry : nullptr;
+        d.settlement.npcs          = npcManager ? &*npcManager : nullptr;
+        d.settlement.pushUndo = [this](const glm::ivec3& a, const glm::ivec3& b,
+                                       const std::string& label) {
+            pushUndoSnapshot(chunkManager, snapshotManager.get(), a, b, label);
+        };
+        if (renderCoordinator)
+            d.settlement.addPointLight = [this](const glm::vec3& p, const glm::vec3& c,
+                                                float intensity, float radius) {
+                return renderCoordinator->getLightManager().addPointLight(p, c, intensity,
+                                                                          radius);
+            };
+        d.plan = plan;
+        d.worldSeed = g->getSeed();
+        // Residency driver: WALK the streaming anchor toward the site (64 u per call, one
+        // call per residency poll) instead of teleporting it — an instant far anchor jump
+        // is the recorded "spawn-swap never finished booting" streaming fragility (it
+        // wedged the gen pipeline on the first live run: generation_pending froze at 48).
+        // Restore player residency + the load radii when the job finishes.
+        auto savedDist = std::make_shared<std::optional<std::pair<float, float>>>();
+        d.focusResidency = [this, savedDist](const glm::vec3& target, float radius) {
+            if (!*savedDist)
+                *savedDist = std::make_pair(chunkManager->loadDistance,
+                                            chunkManager->unloadDistance);
+            chunkManager->loadDistance = std::max(chunkManager->loadDistance, radius);
+            chunkManager->unloadDistance =
+                std::max(chunkManager->unloadDistance, radius + 96.0f);
+            constexpr float kFocusStep = 64.0f;   // ~2 chunks per poll — a fast player, not a teleport
+            const glm::vec3 cur = chunkManager->streamingAnchor();
+            const glm::vec3 to = target - cur;
+            const float dist = glm::length(to);
+            chunkManager->setStreamingFocusOverride(
+                dist <= kFocusStep ? target : cur + to * (kFocusStep / dist));
+        };
+        d.releaseFocus = [this, savedDist] {
+            chunkManager->clearStreamingFocusOverride();
+            if (*savedDist) {
+                chunkManager->loadDistance = (*savedDist)->first;
+                chunkManager->unloadDistance = (*savedDist)->second;
+                savedDist->reset();
+            }
+        };
+        // Ready when the footprint's centre + corners all have their surface chunk resident
+        // (the settlement grounding gate then re-verifies every column for real).
+        d.residencyReady = [this, streamingGen](const Phyxel::WorldForgeSite& site) {
+            Phyxel::WorldGenerator* gen = streamingGen();
+            if (!gen) return false;
+            auto resident = [&](int wx, int wz) {
+                const int sy = gen->sampleSurface(wx, wz).surfaceY;
+                return chunkManager->getChunkAtFast(glm::ivec3(wx, sy, wz)) != nullptr;
+            };
+            const int hw = site.width / 2, hd = site.depth / 2;
+            return resident(site.pos.x, site.pos.y) &&
+                   resident(site.pos.x - hw, site.pos.y - hd) &&
+                   resident(site.pos.x + hw, site.pos.y - hd) &&
+                   resident(site.pos.x - hw, site.pos.y + hd) &&
+                   resident(site.pos.x + hw, site.pos.y + hd);
+        };
+        if (Phyxel::WorldStorage* storage = chunkManager->getWorldStorage()) {
+            d.loadLedger = [storage] {
+                return storage->hasMeta("worldforge_ledger")
+                    ? storage->getMeta("worldforge_ledger") : std::string();
+            };
+            d.saveLedger = [storage](const std::string& s) {
+                storage->setMeta("worldforge_ledger", s);
+            };
+        }
+        // Checkpoint = chunks AND placed-object records together (the atomic-persistence
+        // rule: records save only where chunks save; chunks-only would leave ghost voxels
+        // without assembly_plan records on reload).
+        d.checkpointWorld = [this] {
+            chunkManager->saveAllChunks();
+            if (placedObjectManager)
+                if (auto* ws = chunkManager->m_streamingManager.getWorldStorage())
+                    placedObjectManager->saveToDb(ws->getDb());
+        };
+        d.residencyTimeoutSeconds = std::max(5, cmd.params.value("residency_timeout_s", 120));
+        std::vector<int> siteFilter;
+        if (cmd.params.contains("sites") && cmd.params["sites"].is_array())
+            for (const auto& s : cmd.params["sites"]) siteFilter.push_back(s.get<int>());
+        Core::WorldForgeBuildService::start(*mainThreadJobs, d, siteFilter, r);
+    });
+
+    // Dev/verification: anchor the streaming pump at a world (x,z) without moving the
+    // player (chunks stream there through the normal throttled path). {} clears.
+    reg.on("worldforge_focus", [this, streamingGen, noGen](const Core::APICommand& cmd,
+                                                           nlohmann::json& r) {
+        Phyxel::WorldGenerator* g = streamingGen();
+        if (!g) return noGen(r);
+        if (!cmd.params.contains("x") || !cmd.params.contains("z")) {
+            chunkManager->clearStreamingFocusOverride();
+            r = {{"success", true}, {"focused", false}};
+            return;
+        }
+        const int x = cmd.params["x"].get<int>();
+        const int z = cmd.params["z"].get<int>();
+        const int sy = g->sampleSurface(x, z).surfaceY;
+        chunkManager->setStreamingFocusOverride(glm::vec3(static_cast<float>(x),
+                                                          static_cast<float>(sy),
+                                                          static_cast<float>(z)));
+        r = {{"success", true}, {"focused", true}, {"x", x}, {"z", z}, {"surface_y", sy}};
+    });
+
+    // ASCII map of the plan over the hydrology region: '~' standing water, 'r' order>=3
+    // river, '=' road, T/V/H town/village/hamlet sites, '.' land. ASCII ONLY (the JSON
+    // pipe mojibakes non-ASCII — recorded gotcha).
+    reg.on("worldforge_map", [this, streamingGen, noGen](const Core::APICommand& cmd,
+                                                         nlohmann::json& r) {
+        Phyxel::WorldGenerator* g = streamingGen();
+        if (!g) return noGen(r);
+        const Phyxel::WorldForgePlan* plan = g->worldForge();
+        const Phyxel::HydrologyMap* hydro = g->hydrology();
+        const Phyxel::FlowField* flow = g->riverNetwork();
+        if (!plan || !hydro || !flow) {
+            r = {{"error", "no applied worldforge plan (worldforge_apply + reload first)"}};
+            return;
+        }
+        const int step = std::max(1, cmd.params.value("step", 4));  // bake cells per char
+        std::vector<std::string> lines;
+        for (int cz = 0; cz < hydro->cellsZ(); cz += step) {
+            std::string line;
+            for (int cx = 0; cx < hydro->cellsX(); cx += step) {
+                const float x = hydro->originX() + (cx + 0.5f) * hydro->cellSize();
+                const float z = hydro->originZ() + (cz + 0.5f) * hydro->cellSize();
+                char c = '.';
+                if (hydro->hasWater(x, z)) c = '~';
+                else if (flow->orderAt(x, z) >= 3) c = 'r';
+                // A road is a few cubes wide; at coarse map steps the sample point almost
+                // never lands ON it — mark the char cell if the centerline passes through it.
+                else if (plan->roadAt(x, z).dist <= step * hydro->cellSize() * 0.5f) c = '=';
+                line.push_back(c);
+            }
+            lines.push_back(std::move(line));
+        }
+        for (const auto& s : plan->sites()) {
+            const int cx = static_cast<int>((s.pos.x - hydro->originX()) / hydro->cellSize()) / step;
+            const int cz = static_cast<int>((s.pos.y - hydro->originZ()) / hydro->cellSize()) / step;
+            if (cz >= 0 && cz < static_cast<int>(lines.size()) && cx >= 0 &&
+                cx < static_cast<int>(lines[cz].size()))
+                lines[cz][cx] = s.tier == "town" ? 'T' : (s.tier == "village" ? 'V' : 'H');
+        }
+        r = {{"success", true}, {"legend", "~ water | r river(order>=3) | = road | T/V/H sites | . land"},
+             {"cell_units", hydro->cellSize() * step}, {"lines", lines}};
     });
 }
 

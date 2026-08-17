@@ -530,6 +530,7 @@ private:
     // domain at a time). Called once during init.
     void registerWaterCommands();
     void registerSettlementCommands();   // build_settlement: compose a settlement (subdivide+populate+build each)
+    void registerWorldForgeCommands();   // worldforge_*: world-scale plan preview/apply/status/map (docs/WorldForge.md)
     void registerDoorCommands();
     void registerLightCommands();
     void registerSnapshotCommands();

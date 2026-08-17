@@ -1257,6 +1257,73 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // WorldForge — world-scale settlement/road planning (docs/WorldForge.md).
+    // POST /api/worldforge/plan   {siteCount?, regionRadius?, minSpacing?, maxSpacing?,
+    //                              sitePins?} — pure preview bake (no mutation); {} returns
+    //                              the applied plan.
+    // POST /api/worldforge/apply  {same params, force?} — persist into the world recipe
+    //                              (world.db); refuses on a world with saved chunks unless
+    //                              force. restart_required: streamed chunks pick the plan up
+    //                              on the next project load.
+    // GET  /api/worldforge/status — enabled/applied/plan_hash/site+road counts.
+    // GET  /api/worldforge/map    — ASCII overview map (water/rivers/roads/sites).
+    // ====================================================================
+    srv.Post("/api/worldforge/plan", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("worldforge_plan", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+    srv.Post("/api/worldforge/apply", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("worldforge_apply", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+    srv.Post("/api/worldforge/build", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("worldforge_build", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+    srv.Post("/api/worldforge/focus", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("worldforge_focus", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+    srv.Get("/api/worldforge/status", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("worldforge_status", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+    srv.Get("/api/worldforge/map", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("step")) params["step"] = std::stoi(req.get_param_value("step"));
+        json result = queueAndWait("worldforge_map", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
     // POST /api/world/validate — Run geometric world-placement detectors over the
     // live realized world (placed fixtures + stamped voxels). Body: {} (no params).
     // Returns a ValidationReport (issues[] with code/message/where).

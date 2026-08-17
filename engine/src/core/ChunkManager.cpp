@@ -300,11 +300,13 @@ void ChunkManager::configureStreamingGeneration(bool enabled, WorldGenerator::Ge
 }
 
 void ChunkManager::updateChunkStreaming() {
-    m_streamingManager.updateStreaming(playerPosition, loadDistance, unloadDistance);
+    // streamingAnchor(): the player, unless a WorldForge orchestration job holds a focus
+    // override (residency driven at a remote build site through this same throttled path).
+    m_streamingManager.updateStreaming(streamingAnchor(), loadDistance, unloadDistance);
 }
 
 void ChunkManager::pumpChunkLanding() {
-    m_streamingManager.pumpLanding(playerPosition, unloadDistance);
+    m_streamingManager.pumpLanding(streamingAnchor(), unloadDistance);
 }
 
 void ChunkManager::setStreamingViewDirection(const glm::vec3& dir) {

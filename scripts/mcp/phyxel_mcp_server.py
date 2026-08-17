@@ -520,6 +520,76 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="worldforge_plan",
+            description="WorldForge: preview the world-scale settlement + road plan (pure bake, no world "
+                        "mutation). With no params, returns the plan applied to the current world. Requires "
+                        "a streaming world (game.json world.streaming: true). Returns sites (pos/tier/seed/"
+                        "scores), road polylines with river crossings, clamped params echo, and plan_hash.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "siteCount": {"type": "integer", "description": "Settlements to site (clamped 3-8)"},
+                    "regionRadius": {"type": "number", "description": "World units from the region centre (clamped 512-8192)"},
+                    "minSpacing": {"type": "number", "description": "Hard minimum between site centres"},
+                    "maxSpacing": {"type": "number", "description": "Soft cohesion distance (farther candidates score-halved)"},
+                    "sitePins": {"type": "array", "description": "Pinned site centres, seated verbatim first",
+                                 "items": {"type": "object", "properties": {"x": {"type": "integer"}, "z": {"type": "integer"}}}}
+                }
+            }
+        ),
+        Tool(
+            name="worldforge_apply",
+            description="WorldForge: persist plan params into the world recipe (world.db world_meta). "
+                        "REFUSES on a world that already has saved chunks unless force:true (roads stamp at "
+                        "generation time; enabling them mid-world seams old chunks against new). "
+                        "restart_required: reload the project so streamed chunks pick up the plan.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "siteCount": {"type": "integer"},
+                    "regionRadius": {"type": "number"},
+                    "minSpacing": {"type": "number"},
+                    "maxSpacing": {"type": "number"},
+                    "sitePins": {"type": "array", "items": {"type": "object", "properties": {"x": {"type": "integer"}, "z": {"type": "integer"}}}},
+                    "enabled": {"type": "boolean", "description": "Set false to disable worldforge for this world", "default": True},
+                    "force": {"type": "boolean", "description": "Apply even though the world has saved chunks (accepts terrain seams)", "default": False}
+                }
+            }
+        ),
+        Tool(
+            name="worldforge_build",
+            description="WorldForge: realize the applied plan's settlements as an async job (returns job_id; "
+                        "poll get_job_status). Per site: streaming-focus residency, SettlementBuildService with "
+                        "the plan's derived seed, ledger checkpoint (world_meta worldforge_ledger). Refused "
+                        "sites (grounding/residency_timeout) are recorded outcomes, surfaced in the result. "
+                        "Idempotent: sites already 'built' in the ledger are skipped.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "sites": {"type": "array", "items": {"type": "integer"},
+                              "description": "Restrict to these site ids (default: all pending)"},
+                    "residency_timeout_s": {"type": "integer", "default": 120,
+                                            "description": "Per-site bound on waiting for chunk residency"}
+                }
+            }
+        ),
+        Tool(
+            name="worldforge_status",
+            description="WorldForge: enabled/applied state, plan hash, and site/road counts for the current world.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="worldforge_map",
+            description="WorldForge: ASCII overview map of the applied plan — '~' water, 'r' order>=3 river, "
+                        "'=' road, T/V/H sites, '.' land. One char per `step` hydrology cells (128u each).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "step": {"type": "integer", "description": "Bake cells per character (default 4 = 512u/char)", "default": 4}
+                }
+            }
+        ),
+        Tool(
             name="list_structure_types",
             description="List all available procedural structure types with their parameters and defaults.",
             inputSchema={
@@ -4706,6 +4776,23 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     # --- Structures ---
     elif name == "build_structure":
         return await api_post("/api/structure/build", args)
+
+    # --- WorldForge (docs/WorldForge.md) ---
+    elif name == "worldforge_plan":
+        return await api_post("/api/worldforge/plan", args)
+
+    elif name == "worldforge_apply":
+        return await api_post("/api/worldforge/apply", args)
+
+    elif name == "worldforge_build":
+        return await api_post("/api/worldforge/build", args)
+
+    elif name == "worldforge_status":
+        return await api_get("/api/worldforge/status")
+
+    elif name == "worldforge_map":
+        step = args.get("step", 4)
+        return await api_get(f"/api/worldforge/map?step={step}")
 
     elif name == "list_structure_types":
         return await api_get("/api/structure/types")
