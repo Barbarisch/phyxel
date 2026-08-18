@@ -182,6 +182,15 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   vs OFF 1,764,780 / 27.5 FPS, Perlin hills + 25 engine-built buildings; the historic
   24-26 ms shadow wall reproduced un-merged at CONSTANT 466 draws → shadow cost = instance
   volume, not draws; §7b M4 RESULT + docs/evidence/lod_m4_density_wall.jsonl).
+  **RESIDENTS PERSIST (5c2be28b) + STREET ORIENTATION (1caaf2b8), 2026-08-18:** locations
+  persist in `world_meta["locations"]` at every save point; the new `ResidentSpawner` (the
+  FaunaSpawner pattern) re-derives townsfolk from them — per-settlement clustering (each
+  keeps its own tavern), spawn on ground-resident, despawn BEFORE evict (the y=-233k
+  free-fall hazard closed by construction), identical deterministic respawn on reload
+  (L4: same 7 names back after restart). NPCs are never stored. And settlements now turn
+  their main street toward the first arriving road (`street_axis` from the plan;
+  `chooseStreetAxis` bounded preference — terrain still wins). Physical street↔road paving
+  junction remains the logged gap.
 
 - **★ CHIMNEY FORGE — SHIPPED 2026-08-10 (`HearthForge`).** The chimney was the last
   structural element built AFTER the shell: the furnish pass stamped a stack into a
