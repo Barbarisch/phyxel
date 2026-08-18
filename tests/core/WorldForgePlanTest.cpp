@@ -80,8 +80,12 @@ struct Fixture {
 
     std::shared_ptr<const WorldForgePlan> bake(const WorldForgeParams& p,
                                                uint32_t seed = 777001) const {
-        return WorldForgePlan::bake(p, seed, fixtureHeight, hydro, flow, bodies,
-                                    [](int, int) { return std::string("Grass"); });
+        return WorldForgePlan::bake(
+            p, seed, fixtureHeight, hydro, flow, bodies,
+            [](int, int) { return std::string("Grass"); },
+            [](int x, int z) { return static_cast<int>(std::floor(fixtureHeight(
+                                   static_cast<float>(x), static_cast<float>(z)))); },
+            [this](float x, float z) { return flow.channelAt(x, z); });
     }
 
     static WorldForgeParams defaultParams() {
@@ -265,6 +269,44 @@ TEST(WorldForgePlanTest, CrossingsMarkedWhereOrder3) {
     EXPECT_TRUE(foundCrossing) << "no order>=3 crossing recorded on any road";
 }
 
+// Every order>=3 crossing is realized as a BRIDGE SPAN (placer #44): endpoints on dry banks
+// (off the channel), flat deck at/above both banks' surface, covering the crossing. Same
+// pinned crossing rig as CrossingsMarkedWhereOrder3. RED against the stub (no spans baked).
+TEST(WorldForgePlanTest, CrossingsGetBridgeSpans) {
+    Fixture f;
+    WorldForgeParams p = Fixture::defaultParams();
+    p.siteCount = 3;
+    p.sitePins = {{1000, 950}, {1000, 1100}};
+    auto plan = f.bake(p);
+    // Count order>=3 crossings across all roads; each must be covered by a span.
+    int majorCrossings = 0;
+    for (const auto& r : plan->roads())
+        for (const auto& c : r.crossings)
+            if (c.riverOrder >= 3) ++majorCrossings;
+    ASSERT_GT(majorCrossings, 0) << "rig must produce an order>=3 crossing";
+    ASSERT_FALSE(plan->bridges().empty()) << "no bridge spans baked for major crossings";
+    for (const auto& b : plan->bridges()) {
+        EXPECT_GE(b.crossingOrder, 3);
+        // Endpoints on dry banks: the carve-accurate channel reports no carving there.
+        for (const glm::vec2& e : {b.a, b.b}) {
+            const auto ch = f.flow.channelAt(e.x, e.y);
+            EXPECT_LT(ch.hit ? ch.depth : 0.0f, 0.15f)
+                << "bridge endpoint (" << e.x << "," << e.y << ") sits in the channel";
+            const int bank = static_cast<int>(std::floor(fixtureHeight(e.x, e.y)));
+            EXPECT_GE(static_cast<int>(b.deckY), bank) << "deck below its own bank";
+            EXPECT_LE(static_cast<int>(b.deckY) - bank, 3) << "deck floats high above the bank";
+        }
+        // The deck must actually span water: its midpoint lies over the carved channel.
+        const glm::vec2 mid = (b.a + b.b) * 0.5f;
+        const auto chMid = f.flow.channelAt(mid.x, mid.y);
+        EXPECT_TRUE(chMid.hit && chMid.order >= 3) << "span midpoint is not over the channel";
+        // And a bridge column reports the deck via the per-column query.
+        const auto hit = plan->bridgeAt(mid.x, mid.y);
+        EXPECT_TRUE(hit.hit());
+        EXPECT_EQ(static_cast<int>(hit.deckY), static_cast<int>(b.deckY));
+    }
+}
+
 // Pins are seated verbatim, first, with ids 0..n-1.
 TEST(WorldForgePlanTest, SitePinsSeatedVerbatim) {
     Fixture f;
@@ -355,7 +397,9 @@ TEST(WorldForgePlanTest, UnviableRegionYieldsFewerSitesHonestly) {
     p.siteCount = 5;
     p.regionRadius = 512.0f;
     auto plan = WorldForgePlan::bake(p, 1, ocean, hydro, flow, bodies,
-                                     [](int, int) { return std::string("Sand"); });
+                                     [](int, int) { return std::string("Sand"); },
+                                     [](int, int) { return 4; },
+                                     [&flow](float x, float z) { return flow.channelAt(x, z); });
     EXPECT_TRUE(plan->sites().empty());
     EXPECT_TRUE(plan->roads().empty());
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <glm/glm.hpp>
+#include <climits>
 #include <functional>
 #include <memory>
 #include <string>
@@ -160,6 +161,9 @@ public:
                                       // the riverOrder pattern: pure function of world position via
                                       // the baked plan; drives surface material + the flora gate
         float roadDist    = 0.0f;     // distance to the road centreline (valid when roadClass > 0)
+        int   bridgeDeckY = INT_MIN;  // WorldForge bridge deck height where a road spans an
+                                      // order>=3 channel (INT_MIN = none): generateChunk emits a
+                                      // plank layer at this Y — the only above-surface emission
     };
 
     // Load biome definitions from JSON (resources/biomes.json). Returns false (and keeps

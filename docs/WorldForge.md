@@ -192,10 +192,25 @@ orientation (logged gap).
   steps are real cliffs a character cannot climb), but V1 roads are ~99.3% step-walkable
   even on mountain terrain. Bounds pinned at 6% / 50% so only real regression fails.
 
+## Bridges — V1 SHIPPED 2026-08-17 (placer #44)
+
+Every order≥3 crossing bakes a `WorldForgeBridgeSpan`: endpoints marched off the
+**carve-accurate** channel onto the banks (3 consecutive dry 1 u steps + 2 u shoulder), flat
+deck at the higher bank's REAL `surfaceY`. `ColumnSample.bridgeDeckY` makes `generateChunk`
+emit a Wood plank deck — the one thing generation ever places above the surface, pure
+per-column like the road field. Crossing DETECTION also moved to the warp-accurate
+`channelAt` at 2 u steps: the raw `FlowField` cell line sits ~a channel-width off the carved
+bed, and 16 u point sampling straddled the ~5 u channel — **both defects caught red** by
+`CrossingsGetBridgeSpans` / `BridgeDeckEmittedOverOrder3Channel`. L4: the deck scanned
+voxel-by-voxel spanning a carved gorge on the canonical seed (68 Wood cubes, 5 wide, banks
+met flush at y=65 over a bed at y≈52) + in-ravine screenshot; `BridgeVis` project pins the
+scene. **Note: adding bridges to the plan JSON changes every plan hash** — existing
+realization ledgers correctly flag stale on re-run (the designed drift guard).
+Still open (logged): railings/piers/abutments (bare deck), channels wider than 96 u get NO
+deck (surfaced in the bake log, never a half-bridge), decks are flat (no arc).
+
 ## Known gaps (V1 non-goals, logged)
 
-- **Bridges**: crossings are marked (position + order), nothing is built — an order≥3
-  crossing is a river break in the road. `docs/StructurePipelineGaps.md`.
 - **Road grading**: roads drape the terrain surface at generation time; no cut/fill.
 - **Road-to-street fusion**: roads stop at the settlement footprint edge.
 - **Live apply**: `worldforge_apply` is restart-required (worker generator snapshots are

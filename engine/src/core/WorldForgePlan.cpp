@@ -267,7 +267,8 @@ std::vector<glm::vec2> smoothResample(std::vector<glm::vec2> pts) {
 std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
     const WorldForgeParams& params, uint32_t worldSeed, const HeightFn& heightAt,
     const HydrologyMap& hydro, const FlowField& flow, const WaterBodyIndex& bodies,
-    const SurfaceMatFn& surfaceMatAt) {
+    const SurfaceMatFn& surfaceMatAt, const SurfaceYFn& surfaceYAt,
+    const ChannelFn& channelAt) {
     const auto t0 = std::chrono::steady_clock::now();
     auto plan = std::shared_ptr<WorldForgePlan>(new WorldForgePlan());
     const WorldForgeParams P = params.clamped();
@@ -533,24 +534,90 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                     --last;
                 cl = std::vector<glm::vec2>(cl.begin() + first, cl.begin() + last + 1);
             }
-            // Crossings: one per contiguous run of channel cells along the line, labeled with
-            // the run's max order at the point where that max occurred.
+            // Crossings: one per contiguous run of CARVED channel along the line, labeled with
+            // the run's max order at the point where that max occurred. Detection uses the
+            // carve-accurate (meander-warped) channelAt — the raw FlowField cell line can sit
+            // ~a channel-width away from the bed the terrain actually carves, which put bridge
+            // spans on dry ground (caught red by CrossingsGetBridgeSpans).
+            // 2 u steps along each segment: the carved line is only ~a channel-width wide
+            // (order 3 ≈ 5 u) — the 16 u resampled points alone can straddle it entirely.
             int runMaxOrder = 0;
             glm::vec2 runPos{0.0f};
-            for (const auto& p : road.centerline) {
-                const int order = flow.orderAt(p.x, p.y);
-                if (order >= 1) {
-                    if (order > runMaxOrder) {
-                        runMaxOrder = order;
-                        runPos = p;
+            for (size_t i = 0; i + 1 < road.centerline.size(); ++i) {
+                const glm::vec2 a = road.centerline[i], b = road.centerline[i + 1];
+                const float len = glm::length(b - a);
+                if (len <= 1e-4f) continue;
+                for (float t = 0.0f; t < len; t += 2.0f) {
+                    const glm::vec2 p = a + (b - a) * (t / len);
+                    const FlowField::ChannelHit ch = channelAt(p.x, p.y);
+                    const int order = (ch.hit && ch.depth >= 0.15f) ? ch.order : 0;
+                    if (order >= 1) {
+                        if (order > runMaxOrder) {
+                            runMaxOrder = order;
+                            runPos = p;
+                        }
+                    } else if (runMaxOrder >= 1) {
+                        road.crossings.push_back({runPos, runMaxOrder});
+                        runMaxOrder = 0;
                     }
-                } else if (runMaxOrder >= 1) {
-                    road.crossings.push_back({runPos, runMaxOrder});
-                    runMaxOrder = 0;
                 }
             }
             if (runMaxOrder >= 1) road.crossings.push_back({runPos, runMaxOrder});
             plan->m_roads.push_back(std::move(road));
+        }
+    }
+
+    // ── Bridge spans (placer #44): every order>=3 crossing gets a flat plank deck ────────────
+    // Endpoints are found by marching along the road's local tangent from the crossing point
+    // until the CARVE-ACCURATE channel (meander-warped channelAt, not the raw cell line) has
+    // been dry for 3 consecutive 1 u steps — the banks — plus a 2 u shoulder onto each. The
+    // deck is FLAT at the higher bank's REAL emitted surface (surfaceYAt = sampleColumn), so
+    // the deck meets the road the generator actually produces. A channel too wide to clear
+    // within 96 u yields NO deck — surfaced in the log, never a half-bridge.
+    for (const auto& road : plan->m_roads) {
+        for (const auto& cross : road.crossings) {
+            if (cross.riverOrder < 3) continue;
+            // Local road tangent at the crossing (nearest centerline point's neighbors).
+            size_t ci = 0;
+            float best = 1e30f;
+            for (size_t i = 0; i < road.centerline.size(); ++i) {
+                const float d = glm::length(road.centerline[i] - cross.pos);
+                if (d < best) { best = d; ci = i; }
+            }
+            if (road.centerline.size() < 2) continue;
+            const glm::vec2 tan = glm::normalize(
+                road.centerline[std::min(ci + 1, road.centerline.size() - 1)] -
+                road.centerline[ci > 0 ? ci - 1 : 0]);
+            if (!std::isfinite(tan.x)) continue;
+            auto bankFrom = [&](float sign) -> std::pair<bool, glm::vec2> {
+                int dry = 0;
+                for (float s = 0.0f; s <= 96.0f; s += 1.0f) {
+                    const glm::vec2 pt = cross.pos + tan * (sign * s);
+                    const FlowField::ChannelHit ch = channelAt(pt.x, pt.y);
+                    if (ch.hit && ch.depth >= 0.15f) dry = 0;
+                    else if (++dry >= 3) return {true, pt};
+                }
+                return {false, glm::vec2(0.0f)};
+            };
+            const auto [okA, bankA] = bankFrom(-1.0f);
+            const auto [okB, bankB] = bankFrom(+1.0f);
+            if (!okA || !okB) {
+                LOG_WARN_FMT("WorldForge", "[WORLDFORGE] order-" << cross.riverOrder
+                             << " crossing at (" << cross.pos.x << "," << cross.pos.y
+                             << ") too wide for a 96 u deck — no bridge (gap surfaced)");
+                continue;
+            }
+            WorldForgeBridgeSpan span;
+            span.a = bankA - tan * 2.0f;   // 2 u shoulder onto each bank
+            span.b = bankB + tan * 2.0f;
+            span.deckY = static_cast<float>(std::max(
+                surfaceYAt(static_cast<int>(std::lround(span.a.x)),
+                           static_cast<int>(std::lround(span.a.y))),
+                surfaceYAt(static_cast<int>(std::lround(span.b.x)),
+                           static_cast<int>(std::lround(span.b.y)))));
+            span.cls = road.cls;
+            span.crossingOrder = cross.riverOrder;
+            plan->m_bridges.push_back(span);
         }
     }
 
@@ -611,9 +678,23 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
                         std::chrono::steady_clock::now() - t0)
                         .count();
     LOG_INFO_FMT("WorldForge", "[WORLDFORGE] plan baked: " << plan->m_sites.size() << " sites, "
-                 << plan->m_roads.size() << " roads, " << plan->m_segments.size()
-                 << " segments in " << ms << " ms (hash " << plan->planHash() << ")");
+                 << plan->m_roads.size() << " roads, " << plan->m_bridges.size() << " bridges, "
+                 << plan->m_segments.size() << " segments in " << ms << " ms (hash "
+                 << plan->planHash() << ")");
     return plan;
+}
+
+WorldForgePlan::BridgeHit WorldForgePlan::bridgeAt(float worldX, float worldZ) const {
+    BridgeHit hit;
+    const glm::vec2 p(worldX, worldZ);
+    for (const auto& b : m_bridges) {
+        if (distToSegment(p, b.a, b.b) <= roadHalfWidth(b.cls)) {
+            hit.deckY = b.deckY;
+            hit.cls = b.cls;
+            return hit;
+        }
+    }
+    return hit;
 }
 
 WorldForgePlan::RoadHit WorldForgePlan::roadAt(float worldX, float worldZ) const {
@@ -686,6 +767,11 @@ nlohmann::json WorldForgePlan::toJson() const {
                          {"centerline", line}, {"crossings", crossings}});
     }
     j["roads"] = roads;
+    nlohmann::json bridges = nlohmann::json::array();
+    for (const auto& b : m_bridges)
+        bridges.push_back({{"ax", b.a.x}, {"az", b.a.y}, {"bx", b.b.x}, {"bz", b.b.y},
+                           {"deckY", b.deckY}, {"class", b.cls}, {"order", b.crossingOrder}});
+    j["bridges"] = bridges;
     return j;
 }
 

@@ -60,9 +60,20 @@ struct WorldForgeRoad {
     std::vector<glm::vec2> centerline;   // world XZ, smoothed, ~16 u point spacing
     struct Crossing {
         glm::vec2 pos{0.0f};
-        int riverOrder = 0;     // order >= 3 channel crossed here (bridge site; V1 unbuilt gap)
+        int riverOrder = 0;     // order >= 3 channel crossed here -> realized as a bridge span
     };
     std::vector<Crossing> crossings;
+};
+
+/// One bridge deck spanning an order>=3 channel (placer #44, V2 of the road field). The
+/// endpoints sit on the BANKS (found by marching the road centerline off the carve-accurate
+/// channel), the deck is flat at the higher bank's surface, and generation emits it per
+/// column — the only thing generateChunk ever places above the surface.
+struct WorldForgeBridgeSpan {
+    glm::vec2 a{0.0f}, b{0.0f};   // deck centerline endpoints (world XZ, on the road)
+    float deckY = 0.0f;           // flat deck height (world Y of the deck cube layer)
+    int cls = 1;                  // road class (width follows roadHalfWidth)
+    int crossingOrder = 0;        // Strahler order of the channel spanned
 };
 
 class WorldForgePlan {
@@ -74,6 +85,12 @@ public:
     /// Resolved surface material for a world column (biome + physical overrides), used for the
     /// biome-hostility score term. Only invoked DURING bake — never stored in the plan.
     using SurfaceMatFn = std::function<std::string(int worldX, int worldZ)>;
+    /// REAL column surface (sampleColumn's surfaceY — biome blend + carve included): bridge
+    /// deck endpoints must meet the ground the generator actually emits, not the coarse height.
+    using SurfaceYFn = std::function<int(int worldX, int worldZ)>;
+    /// Carve-accurate channel query (WorldGenerator::channelHitAt — MEANDER-WARPED, unlike raw
+    /// FlowField::channelAt): bridge spans must clear the channel as it is actually carved.
+    using ChannelFn = std::function<FlowField::ChannelHit(float worldX, float worldZ)>;
 
     /// Bake the plan. `params` is clamped internally (the plan echoes the clamped copy).
     /// Deterministic: same (params, worldSeed, terrain/hydrology inputs) → byte-identical
@@ -83,11 +100,22 @@ public:
     static std::shared_ptr<const WorldForgePlan> bake(
         const WorldForgeParams& params, uint32_t worldSeed, const HeightFn& heightAt,
         const HydrologyMap& hydro, const FlowField& flow, const WaterBodyIndex& bodies,
-        const SurfaceMatFn& surfaceMatAt);
+        const SurfaceMatFn& surfaceMatAt, const SurfaceYFn& surfaceYAt,
+        const ChannelFn& channelAt);
 
     const WorldForgeParams& params() const { return m_params; }   // clamped echo
     const std::vector<WorldForgeSite>& sites() const { return m_sites; }
     const std::vector<WorldForgeRoad>& roads() const { return m_roads; }
+    const std::vector<WorldForgeBridgeSpan>& bridges() const { return m_bridges; }
+
+    /// Bridge query for one world column (sampleColumn, gated on a roadAt hit — decks lie
+    /// inside the road corridor). Linear over the few spans; hit() false = no deck here.
+    struct BridgeHit {
+        float deckY = -1e30f;
+        int cls = 0;
+        bool hit() const { return cls > 0; }
+    };
+    BridgeHit bridgeAt(float worldX, float worldZ) const;
 
     /// Road query for one world column — the per-column generation hook (sampleColumn).
     /// O(1): raster cell lookup + exact distance against <= 3 candidate segments.
@@ -129,6 +157,7 @@ private:
     WorldForgeParams m_params;
     std::vector<WorldForgeSite> m_sites;
     std::vector<WorldForgeRoad> m_roads;
+    std::vector<WorldForgeBridgeSpan> m_bridges;
 
     // Road raster: 8 u cells over the road-network bbox. Per cell the nearest global segment
     // index (0xFFFF = none within reach) — roadAt refines with exact segment distances.

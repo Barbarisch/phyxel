@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <iostream>
 
+#include "core/Chunk.h"
 #include "core/WorldForgePlan.h"
 #include "core/WorldGenerator.h"
 #include "core/WorldRecipe.h"
@@ -146,6 +148,62 @@ TEST(RoadFieldSeamTest, FloraKeepsOffTheRoadCorridor) {
         if (hit.cls > 0 && hit.dist <= WorldForgePlan::roadHalfWidth(hit.cls) + 2.0f) ++violations;
     }
     EXPECT_EQ(violations, 0) << violations << " trunks on the road corridor";
+}
+
+// Bridges in the GENERATOR (placer #44): pin two sites straddling a real order>=3 channel
+// (found from the live flow field, perpendicular via flowDirAt — no hardcoded coordinates),
+// then assert the connecting road's span emits an actual plank deck: bridgeDeckY set above
+// the carved bed on deck columns, and generateChunk places a Wood cube at the deck cell.
+// RED before the sampleColumn/generateChunk wiring.
+TEST(RoadFieldSeamTest, BridgeDeckEmittedOverOrder3Channel) {
+    WorldGenerator gen(WorldGenerator::GenerationType::Perlin, 20260816);
+    // Find an order>=3 channel cell within the plannable region of the canonical seed.
+    const FlowField* flow = gen.riverNetwork();
+    ASSERT_NE(flow, nullptr);
+    glm::vec2 stem(0.0f);
+    bool found = false;
+    for (int r = 2; r < 40 && !found; ++r)   // ring search outward from the origin
+        for (int cx = -r; cx <= r && !found; ++cx)
+            for (int cz = -r; cz <= r && !found; ++cz) {
+                if (std::max(std::abs(cx), std::abs(cz)) != r) continue;
+                const glm::vec2 p(cx * 128.0f + 64.0f, cz * 128.0f + 64.0f);
+                if (flow->orderAt(p.x, p.y) >= 3) {
+                    stem = p;
+                    found = true;
+                }
+            }
+    if (!found) GTEST_SKIP() << "no order>=3 channel within 5 km of origin on this seed";
+    const glm::vec2 dir = flow->flowDirAt(stem.x, stem.y);
+    ASSERT_GT(glm::length(dir), 0.01f);
+    const glm::vec2 perp = glm::normalize(glm::vec2(-dir.y, dir.x));
+
+    WorldRecipe r = testRecipe(gen);
+    r.worldforge.regionRadius = 8192.0f;   // the stem may be far from the origin
+    r.worldforge.sitePins = {
+        {static_cast<int>(stem.x + perp.x * 140.0f), static_cast<int>(stem.y + perp.y * 140.0f)},
+        {static_cast<int>(stem.x - perp.x * 140.0f), static_cast<int>(stem.y - perp.y * 140.0f)}};
+    gen.applyRecipe(r);
+    const WorldForgePlan* plan = gen.worldForge();
+    ASSERT_NE(plan, nullptr);
+    ASSERT_FALSE(plan->bridges().empty()) << "pinned crossing produced no bridge span";
+
+    const auto& b = plan->bridges()[0];
+    const glm::vec2 mid = (b.a + b.b) * 0.5f;
+    const int mx = static_cast<int>(std::lround(mid.x)), mz = static_cast<int>(std::lround(mid.y));
+    auto col = gen.sampleSurface(mx, mz);
+    EXPECT_NE(col.bridgeDeckY, INT_MIN) << "deck column not marked in ColumnSample";
+    EXPECT_GT(col.bridgeDeckY, col.surfaceY) << "deck must clear the carved bed";
+    EXPECT_GT(col.roadClass, 0) << "a bridge column is a road column";
+
+    // The deck is physically emitted: generate the chunk holding the deck cell and read it.
+    auto floorDiv = [](int a) { return a >= 0 ? a / 32 : (a - 31) / 32; };
+    const glm::ivec3 cc(floorDiv(mx), floorDiv(col.bridgeDeckY), floorDiv(mz));
+    Chunk chunk(glm::ivec3(cc.x * 32, cc.y * 32, cc.z * 32));
+    chunk.initializeForLoading();   // wires the voxel-manager callbacks (FloraMarginTest pattern)
+    gen.generateChunk(chunk, cc);
+    const Cube* deck = chunk.getCubeAt(glm::ivec3(mx - cc.x * 32, col.bridgeDeckY - cc.y * 32,
+                                                  mz - cc.z * 32));
+    ASSERT_NE(deck, nullptr) << "no voxel at the deck cell";
 }
 
 // Off-road columns are untouched by the plan: identical to a worldforge-DISABLED world.

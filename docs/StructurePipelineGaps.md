@@ -146,3 +146,16 @@ what the engine did instead, the workaround used, and what a real fix looks like
 - **Real fix options:** freeze player physics while a residency override is active; or a dual
   anchor (player + focus) with a small player-side keep-alive ring; ties into the recorded
   "falling player outruns its own terrain" teleport hazard.
+
+## 2026-08-17 (later) - bridges V1 shipped; remaining bridge gaps
+
+Placer #44 V1 landed (docs/WorldForge.md "Bridges"): flat Wood plank decks span every
+order>=3 crossing, baked in the plan and emitted per-column by generateChunk; L4-verified
+(voxel scan + in-ravine screenshot, BridgeVis project). The 2026-08-16 "bridges" punt above
+is superseded. Still open, logged here so they are not silently "done":
+- Railings/piers/abutments: the deck is a bare 1-cube-thick plank slab. Railings want the
+  sub-voxel fence machinery (FenceBuilder) adapted to a generation-time per-column form.
+- Channels wider than 96 u yield NO deck (bake log warns) - big rivers stay uncrossable.
+- Decks are flat; no arc/clearance shaping for tall boat traffic (cosmetic for now).
+- Plan-hash note: the bridges field changes all plan hashes; pre-bridge realization ledgers
+  refuse re-runs with the stale-ledger guard (by design - regenerate or clear the ledger).

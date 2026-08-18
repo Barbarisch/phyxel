@@ -446,8 +446,13 @@ std::shared_ptr<const WorldForgePlan> WorldGenerator::previewWorldForge(
     // Biome-hostility probe: the full resolved surface material (biome + physical overrides).
     // Captures `this` but is only invoked DURING the bake, on this thread — never stored.
     auto surfaceMat = [this](int x, int z) { return sampleColumn(x, z).surfaceMat; };
+    // Bridge probes: the REAL emitted surface (deck ends must meet the actual ground) and the
+    // carve-accurate, meander-warped channel line (spans must clear the channel AS CARVED —
+    // the raw FlowField line can sit ~a channel-width away from the carved bed).
+    auto surfaceY = [this](int x, int z) { return sampleColumn(x, z).surfaceY; };
+    auto channel = [this](float x, float z) { return channelHitAt(x, z); };
     return WorldForgePlan::bake(params, seed, heightAt, *m_hydro, *m_flow, *m_waterBodies,
-                                surfaceMat);
+                                surfaceMat, surfaceY, channel);
 }
 
 void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
@@ -540,6 +545,16 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
                 if (depthProfile.hasBedrock) {
                     if (wy < depthProfile.bedrockY) continue;
                     if (wy == depthProfile.bedrockY) { chunk.addCube(localPos, "Stone"); continue; }
+                }
+
+                // WorldForge bridge deck (docs/WorldForge.md #44): the ONE thing generation
+                // emits above the surface — a plank layer spanning an order>=3 channel at the
+                // plan's flat deck height. Pure per-column (bridgeDeckY comes from the baked
+                // plan), so it streams seam-free exactly like the road field. "Wood" = oak
+                // planks, the engine's FLOOR wood (materials table) — a deck is a floor.
+                if (col.bridgeDeckY != INT_MIN && wy == col.bridgeDeckY && wy > col.surfaceY) {
+                    chunk.addCube(localPos, "Wood");
+                    continue;
                 }
 
                 if (wy > col.surfaceY) continue;  // above the surface: air (solid extends down)
@@ -989,15 +1004,28 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
 
         // WorldForge road stamp (docs/WorldForge.md M1) — the riverOrder pattern: roads are a
         // pure function of world position via the baked plan, so a streamed chunk and a
-        // whole-region pass agree by construction (RoadFieldSeamTest). The RIVER wins where
-        // they meet (fords/bridges are an honest V1 gap — the carve stays, the road breaks)
-        // and the sea is never paved. Roads DRAPE the terrain (no cut/fill at generation
-        // time — logged gap); the stamp is the surface material + the flora-gate flag.
-        if (m_worldForge && col.riverOrder == 0 &&
-            col.surfaceY >= static_cast<int>(terrainParams.seaLevelY)) {
+        // whole-region pass agree by construction (RoadFieldSeamTest). Roads DRAPE the
+        // terrain (no cut/fill at generation time — logged gap); the stamp is the surface
+        // material + the flora-gate flag. Where a road meets an order>=3 channel the plan
+        // bakes a BRIDGE SPAN (#44): the column keeps its carved/wet terrain and instead
+        // carries bridgeDeckY — generateChunk emits a plank deck there, above the surface.
+        // Order 1-2 creeks stay fords (sub-voxel deep; the road simply breaks over the line).
+        if (m_worldForge) {
             const WorldForgePlan::RoadHit rh =
                 m_worldForge->roadAt(static_cast<float>(wx), static_cast<float>(wz));
-            if (rh.cls > 0 && rh.dist <= WorldForgePlan::roadHalfWidth(rh.cls)) {
+            const bool onRoad = rh.cls > 0 && rh.dist <= WorldForgePlan::roadHalfWidth(rh.cls);
+            // Deck query gated to road/channel columns so the per-column cost stays bounded
+            // (a deck always lies on the road corridor or over the carved channel).
+            if (onRoad || col.riverOrder > 0) {
+                const WorldForgePlan::BridgeHit bh =
+                    m_worldForge->bridgeAt(static_cast<float>(wx), static_cast<float>(wz));
+                if (bh.hit()) {
+                    col.roadClass = std::max(col.roadClass, bh.cls);   // flora gate covers the deck
+                    col.bridgeDeckY = static_cast<int>(bh.deckY);
+                }
+            }
+            if (onRoad && col.bridgeDeckY == INT_MIN && col.riverOrder == 0 &&
+                col.surfaceY >= static_cast<int>(terrainParams.seaLevelY)) {
                 col.roadClass = rh.cls;
                 col.roadDist = rh.dist;
                 col.surfaceMat = WorldForgePlan::roadMaterial(rh.cls);

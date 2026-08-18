@@ -39,7 +39,9 @@ std::shared_ptr<const WorldForgePlan> makePlan(int siteCount = 3) {
     p.minSpacing = 200.0f;
     p.sitePins = {{400, 400}, {700, 700}, {400, 1000}};
     return WorldForgePlan::bake(p, 42, flatHeight, hydro, flow, bodies,
-                                [](int, int) { return std::string("Grass"); });
+                                [](int, int) { return std::string("Grass"); },
+                                [](int, int) { return 30; },
+                                [](float x, float z) { return flow.channelAt(x, z); });
 }
 
 struct Harness {
