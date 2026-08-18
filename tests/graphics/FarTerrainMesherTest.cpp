@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 #include "graphics/FarTerrainMesher.h"
+#include "core/WorldForgePlan.h"
 #include "core/WorldGenerator.h"
+#include "core/WorldRecipe.h"
 
 #include <cstring>
 #include <map>
@@ -292,4 +294,42 @@ TEST(FarTerrainMesherTest, BuildTile_YBoundsAreTight) {
     }
     EXPECT_FLOAT_EQ(mesh.minY, lo);
     EXPECT_FLOAT_EQ(mesh.maxY, hi);
+}
+
+// ============================================================================
+// WorldForge far-road LOD (docs/WorldForge.md; closes the LodTierLedger "roads
+// have no far tier" P-DERIVED gap): sampleColumn stamps road material, and the
+// mesher's private generator copy carries the baked plan — so far tiles must
+// show the road wherever their column sampling lands on the corridor, with NO
+// far-terrain code changes. This pins that end-to-end.
+// ============================================================================
+TEST(FarTerrainMesherTest, RoadsShowInFarTiles) {
+    auto gen = std::make_unique<WorldGenerator>(WorldGenerator::GenerationType::Perlin, 20260816);
+    WorldRecipe r = gen->makeRecipe();
+    r.worldforge.enabled = true;
+    r.worldforge.siteCount = 3;
+    r.worldforge.regionRadius = 768.0f;
+    r.worldforge.minSpacing = 256.0f;
+    gen->applyRecipe(r);
+    const WorldForgePlan* plan = gen->worldForge();
+    ASSERT_NE(plan, nullptr);
+    ASSERT_FALSE(plan->roads().empty());
+    const auto& road = plan->roads()[0];
+    const glm::vec2 mid = road.centerline[road.centerline.size() / 2];
+    const uint16_t roadTex =
+        fakeResolver(WorldForgePlan::roadMaterial(road.cls), 4);   // tops are faceID 4
+    for (const int step : {2, 4}) {
+        const int tileSize = FarTerrainMesher::kColumns * step;
+        FarTileKey key;
+        key.ring = 0;
+        key.x = static_cast<int>(std::floor(mid.x / tileSize));
+        key.z = static_cast<int>(std::floor(mid.y / tileSize));
+        FarTerrainMesher mesher(std::make_unique<WorldGenerator>(*gen), fakeResolver);
+        const FarTileMesh mesh = mesher.buildTile(key, step);
+        int roadQuads = 0;
+        for (const Quad& q : extractQuads(mesh))
+            if (q.faceID == 4u && q.tex == roadTex) ++roadQuads;
+        EXPECT_GT(roadQuads, 0) << "no road-material top quads in the step-" << step
+                                << " far tile crossing the road corridor";
+    }
 }

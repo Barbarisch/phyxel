@@ -33,10 +33,15 @@ non-render distance systems (streaming residency, sim LOD) listed below the line
 | 8d | Kinematic objects (items/furniture/doors) | `RenderCoordinator::buildKinematicVisibility` + `KinematicCulling.h` | 1 + cull (camera frustum + 128 u main; light frustum, no distance cap, shadow) | bounding sphere cached at `add()` | pop (cull only — no LOD levels yet) | per-frame | ON (2026-08-07 — previously the ONLY unculled geometry class; drawn in up to 4 passes unconditionally) |
 
 **No far tier exists for:** water (other session owns Phase B), kinematic voxel LOD
-(8d is cull-only — no face coarsening at distance), GPU debris, VFX, **WorldForge roads**
-(2026-08-16 — generation-time surface stamps inside chunks, so roads pop with near-chunk
-residency; far-terrain heightmap tiles carry no road/material channel. A P-DERIVED gap,
-logged in docs/StructurePipelineGaps.md; see docs/WorldForge.md).
+(8d is cull-only — no face coarsening at distance), GPU debris, VFX.
+**WorldForge roads DO render in the far-terrain tiles (corrected 2026-08-18 — the
+2026-08-16 "no far tier for roads" entry here was WRONG):** tile columns sample
+`sampleSurface`, which stamps road material, and the mesher's private generator copy
+carries the baked plan — P-DERIVED holds with zero far-terrain code (pinned by
+`FarTerrainMesherTest.RoadsShowInFarTiles`, steps 2 and 4; live-corroborated from an
+elevated camera). Residual, honestly scoped: point-sampled 5-6 u roads THIN at coarse
+rings (step 8 dashes, step 16 mostly gone, ~2 km+) — a supersampled road channel per far
+column would extend them to the horizon; logged in docs/StructurePipelineGaps.md.
 
 ### Non-render distance systems (for completeness — do not confuse with render LOD)
 

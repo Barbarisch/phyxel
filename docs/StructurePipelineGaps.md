@@ -199,3 +199,16 @@ enters. L4 (fresh canonical world): site 0's street chose "axis Z offset 65" = e
 requested arrival alignment - the street runs along the road's final approach and meets its
 end head-on. Note for scans: street paving is MICRO-resolution Cobblestone - cube-level
 surface scans do not show it (misread this before finding it in the paving logs).
+
+## 2026-08-18 - far-road LOD: already worked, now pinned; coarse-ring thinning remains
+
+The "roads have no far tier" gap logged 2026-08-16 (and echoed in LodTierLedger) was WRONG
+about the present: far-terrain tiles sample sampleSurface per column, which has stamped
+road material since M1, and FarTerrainManager::configure copies the CONFIGURED streaming
+generator - the worldforge plan rides the copy. Roads therefore render in far tiles with
+zero far-terrain code (FarTerrainMesherTest.RoadsShowInFarTiles pins steps 2 and 4;
+corroborated live from an elevated camera - a gravel line crossing far snowfield tiles).
+Both docs corrected. REMAINING (real): point-sampling thins a 5-6u road at coarse rings -
+step 8 renders dashes, step 16 mostly loses it (beyond ~2 km). Fix shape: a supersampled
+road hit per far column (query roadAt at 2-3 subpositions, majority wins) or a widened
+roadHalfWidth for far sampling only.
