@@ -1990,6 +1990,20 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             // Item props restored from the DB need their kinematic render groups back.
             if (itemPropManager) itemPropManager->rebuildFromPlacedObjects();
 
+            // Restore persisted world locations (world_meta["locations"]): the
+            // ResidentSpawner re-derives every settlement's townsfolk from these, so a
+            // reloaded world keeps its residents without persisting a single NPC.
+            if (locationRegistry && ws->hasMeta("locations")) {
+                try {
+                    locationRegistry->fromJson(nlohmann::json::parse(ws->getMeta("locations")));
+                    LOG_INFO_FMT("Application", "Locations restored from world.db: "
+                                 << locationRegistry->size());
+                } catch (const std::exception& e) {
+                    LOG_WARN_FMT("Application", "world_meta locations failed to parse: "
+                                 << e.what() << " (residents will not respawn)");
+                }
+            }
+
             // Respawn runtime-spawned entities (Phase 2b) with their persisted uuids, via the
             // same factory spawn_entity uses. createAnimatedCharacter rebinds `animatedCharacter`
             // (it's the player factory), so save/restore it — the authored player is set up
@@ -3535,6 +3549,19 @@ void Application::update(float deltaTime) {
             }
             m_faunaSpawner.update(camera->getPosition(), deltaTime);
         }
+    }
+
+    // Settlement residents as a streaming population (ResidentSpawner): spawn where a
+    // location's ground is resident, despawn on evict, respawn identically on return —
+    // driven by the PERSISTED LocationRegistry, so reloaded worlds keep their townsfolk.
+    // Works in any world with locations (streaming or fixed).
+    if (npcManager && chunkManager && locationRegistry) {
+        if (!m_residentSpawnerConfigured) {
+            m_residentSpawner.configure(&*locationRegistry, npcManager.get(), chunkManager);
+            m_residentSpawner.setEnabled(true);
+            m_residentSpawnerConfigured = true;
+        }
+        m_residentSpawner.update(deltaTime);
     }
 
     // Update combat system (invulnerability timers)
@@ -13000,14 +13027,17 @@ void Application::registerWorldForgeCommands() {
                 storage->setMeta("worldforge_ledger", s);
             };
         }
-        // Checkpoint = chunks AND placed-object records together (the atomic-persistence
-        // rule: records save only where chunks save; chunks-only would leave ghost voxels
-        // without assembly_plan records on reload).
+        // Checkpoint = chunks AND placed-object records AND locations together (the
+        // atomic-persistence rule: records save only where chunks save; chunks-only would
+        // leave ghost voxels without assembly_plan records on reload; locations are what
+        // make the site's residents respawnable).
         d.checkpointWorld = [this] {
             chunkManager->saveAllChunks();
-            if (placedObjectManager)
-                if (auto* ws = chunkManager->m_streamingManager.getWorldStorage())
-                    placedObjectManager->saveToDb(ws->getDb());
+            if (auto* ws = chunkManager->m_streamingManager.getWorldStorage()) {
+                if (placedObjectManager) placedObjectManager->saveToDb(ws->getDb());
+                if (locationRegistry)
+                    ws->setMeta("locations", locationRegistry->toJson().dump());
+            }
         };
         d.residencyTimeoutSeconds = std::max(5, cmd.params.value("residency_timeout_s", 120));
         std::vector<int> siteFilter;
@@ -15421,6 +15451,12 @@ void Application::processAPICommands() {
                             auto* ws = chunkManager->m_streamingManager.getWorldStorage();
                             if (ws) {
                                 placedObjectManager->saveToDb(ws->getDb());
+                                // Locations persist WITH the world (world_meta["locations"]):
+                                // they are what makes a reloaded settlement'S residents
+                                // respawnable (ResidentSpawner reads them; NPCs themselves
+                                // stay derived state, never stored).
+                                if (locationRegistry)
+                                    ws->setMeta("locations", locationRegistry->toJson().dump());
                                 // Persist runtime-spawned entities (Phase 2b): refresh their
                                 // last position from the live entity, then write the recipes.
                                 if (entityRegistry) {
@@ -17698,13 +17734,19 @@ void Application::processAPICommands() {
                             ctx.setProgress(1.0f, "Save complete");
                             return {{"success", ok}, {"dirty_only", dirtyOnly}};
                         };
-                        desc.mainThreadFinalize = [evSave, cmSave, pomSave](nlohmann::json& result) {
+                        Core::LocationRegistry* locSave =
+                            locationRegistry ? &*locationRegistry : nullptr;
+                        desc.mainThreadFinalize = [evSave, cmSave, pomSave,
+                                                   locSave](nlohmann::json& result) {
                             // Placed-object records save WITH the chunks (atomic world save —
                             // the ghost-record rule). Main thread: the registry isn't locked
                             // for the background chunk write.
                             if (pomSave && cmSave && result.value("success", false)) {
                                 auto* ws = cmSave->m_streamingManager.getWorldStorage();
                                 if (ws) pomSave->saveToDb(ws->getDb());
+                                // Locations ride the same save point (resident persistence).
+                                if (ws && locSave)
+                                    ws->setMeta("locations", locSave->toJson().dump());
                             }
                             if (evSave) {
                                 evSave->emit("world_saved", {{"async", true}});

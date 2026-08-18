@@ -998,8 +998,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // locations the buildings just registered — the smith works the smithy, everyone
         // sleeps at home and hits the tavern in the evening (ResidentPlanner). Runs after
         // the nav rebuild so residents can path from frame one. Program-mode default ON;
-        // {"residents": false} opts out. NOT persisted: NPCs live in memory like the
-        // locations they reference — a reloaded world has neither (known follow-up).
+        // {"residents": false} opts out (worldforge builds do — the ResidentSpawner owns
+        // their lifecycle). NPCs are DERIVED state, never persisted; the LOCATIONS persist
+        // (world_meta["locations"]) and the ResidentSpawner re-derives identical residents
+        // on reload/stream-in, adopting any this unit spawned by their deterministic names.
         const bool spawnResidents = programMode && p.value("residents", true);
         if (spawnResidents) {
             const int rW = W, rD = D, rOx = ox, rOz = oz;

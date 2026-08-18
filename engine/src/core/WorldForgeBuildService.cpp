@@ -23,12 +23,11 @@ nlohmann::json WorldForgeBuildService::settlementParamsFor(const WorldForgeSite&
         {"depth", site.depth},
         {"terrain", true},
         {"async", false},   // units are spliced into the worldforge job (one per frame)
-        // NO residents at remote sites (V1, measured 2026-08-16): the job releases the
-        // streaming focus when done, the site's chunks evict, and spawned residents fall
-        // through the missing occupancy grids (observed at y=-233k) — and residents are
-        // not DB-persisted anyway (recorded gap), so they'd vanish on reload regardless.
-        // Falling NPCs are worse than none. Real fix: resident re-spawn on stream-in from
-        // persisted Location records (docs/StructurePipelineGaps.md 2026-08-16).
+        // The BUILD spawns no residents; the ResidentSpawner owns them. It re-derives every
+        // site's townsfolk from the persisted Location records the buildings register:
+        // spawned when the site's ground is resident, despawned before eviction can drop
+        // them (the free-falling-resident hazard measured at y=-233k on the first live
+        // run), respawned identically on return or reload.
         {"residents", false},
     };
 }

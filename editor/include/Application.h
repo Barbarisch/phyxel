@@ -23,6 +23,7 @@
 #include "input/InputController.h"
 #include "core/ChunkManager.h"
 #include "core/FaunaSpawner.h"
+#include "core/ResidentSpawner.h"
 #include "core/ForceSystem.h"
 // WorldInitializer now lives in engine/ and is used by EngineRuntime internally
 #include "core/ObjectTemplateManager.h"
@@ -332,6 +333,8 @@ private:
     std::unique_ptr<Core::NPCManager> npcManager;
     Core::FaunaSpawner m_faunaSpawner;   // biome-driven wildlife population
     bool m_faunaConfigured = false;
+    Core::ResidentSpawner m_residentSpawner;   // settlement residents from persisted Locations
+    bool m_residentSpawnerConfigured = false;
     float m_farTreeExclusionPoll = 0.0f;   ///< 1s cadence for far-tree structure exclusions
     std::unique_ptr<Core::InteractionManager> interactionManager;
     std::unique_ptr<Core::InteractionProfileManager> interactionProfileManager;

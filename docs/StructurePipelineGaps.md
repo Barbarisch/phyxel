@@ -159,3 +159,21 @@ is superseded. Still open, logged here so they are not silently "done":
 - Decks are flat; no arc/clearance shaping for tall boat traffic (cosmetic for now).
 - Plan-hash note: the bridges field changes all plan hashes; pre-bridge realization ledgers
   refuse re-runs with the stale-ledger guard (by design - regenerate or clear the ledger).
+
+## 2026-08-18 - RESOLVED: resident persistence + free-falling remote residents (ResidentSpawner)
+
+Both 2026-08-16/17 resident gaps above are closed by core/ResidentSpawner (the FaunaSpawner
+pattern driven by PERSISTED Locations):
+- Locations now persist in world_meta["locations"] at every save point (sync save_world,
+  async save job, worldforge checkpoints) and restore at project load.
+- Residents are DERIVED state, never stored: the spawner clusters locations into settlements
+  (union-find, 64u links - each settlement keeps its own tavern), plans via ResidentPlanner,
+  spawns when a location's ground voxel is resident, despawns BEFORE eviction can drop them,
+  respawns identically (deterministic names) on return or reload, and adopts build-spawned
+  NPCs by name. Settlement builds via worldforge pass residents:false; the spawner owns them.
+- L4 (Release, canonical 3-site world): 7 town residents spawned during the bake, despawned
+  cleanly when the focus walked away (0 falling - previously y=-233k), 15 locations restored
+  after reload, the SAME 7 names respawned on stream-in, despawned again on evict.
+- Note: one reload in this verification hit the RECORDED intermittent boot hang
+  (reference_engine_boot_hang: init stalls while the API answers; log froze mid chunk-load
+  16s after boot, before the spawner ever ticked). Not reproduced on retry; still open.
