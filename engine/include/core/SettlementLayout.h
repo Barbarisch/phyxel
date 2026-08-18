@@ -185,7 +185,13 @@ struct StreetAxisChoice {
     int  crossOffset = 0;///< band start on the cross axis (site-cell coords)
     long score = 0;      ///< per-cell relief x1000 + penalties (lower = flatter)
 };
-StreetAxisChoice chooseStreetAxis(const BuildabilityMap& site, int mainWidth, int minPlotDepth = 0);
+/// `preferredAxis` ('X'/'Z', 0 = none): a bounded score bias toward the axis an arriving
+/// inter-settlement road runs along (WorldForge passes it), so the main street MEETS the
+/// road on comparable terrain — row villages grow along their through-road (the
+/// settlement_program morphology sources). Terrain still wins: the bias never overrides
+/// water/cliff penalties or a decisively flatter axis.
+StreetAxisChoice chooseStreetAxis(const BuildabilityMap& site, int mainWidth, int minPlotDepth = 0,
+                                  char preferredAxis = 0);
 
 } // namespace Core
 } // namespace Phyxel

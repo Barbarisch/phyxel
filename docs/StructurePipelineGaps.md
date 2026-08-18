@@ -177,3 +177,14 @@ pattern driven by PERSISTED Locations):
 - Note: one reload in this verification hit the RECORDED intermittent boot hang
   (reference_engine_boot_hang: init stalls while the API answers; log froze mid chunk-load
   16s after boot, before the spawner ever ticked). Not reproduced on retry; still open.
+
+## 2026-08-18 - road-arrival street orientation shipped; physical junction still open
+
+The 2026-08-16 "road-to-street fusion" gap is HALF closed: worldforge builds now pass
+{"street_axis"} derived from the first arriving road's bearing, and chooseStreetAxis takes
+a bounded per-cell preference (1500 in the x1000 relief score - tips comparable terrain
+toward the road's axis, never overrides water/cliffs or a decisively flatter spine;
+ChooseStreetAxisHonorsRoadPreference red-first). Still open: the PHYSICAL junction - the
+road terminates at the settlement footprint edge and the main street starts inside it, so
+a few unpaved cubes can separate them; full fusion means extending the street paving (or
+the road) to meet at the boundary.

@@ -9,10 +9,11 @@
 namespace Phyxel {
 namespace Core {
 
-nlohmann::json WorldForgeBuildService::settlementParamsFor(const WorldForgeSite& site) {
+nlohmann::json WorldForgeBuildService::settlementParamsFor(const WorldForgePlan& plan,
+                                                           const WorldForgeSite& site) {
     // Position is the site CENTRE in the plan but SettlementBuildService takes the MIN
     // corner; convert. Y is a nominal base — terrain mode re-grounds per column.
-    return nlohmann::json{
+    nlohmann::json params{
         {"era", "medieval"},
         {"tier", site.tier},
         {"seed", site.seed},
@@ -30,6 +31,19 @@ nlohmann::json WorldForgeBuildService::settlementParamsFor(const WorldForgeSite&
         // run), respawned identically on return or reload.
         {"residents", false},
     };
+    // Street axis follows the FIRST road arriving at this site (road order — deterministic):
+    // the main street should MEET the through-road, per the row-village morphology. Terrain
+    // can still override inside chooseStreetAxis (the bias is bounded).
+    for (const auto& r : plan.roads()) {
+        if (r.a != site.id && r.b != site.id) continue;
+        const auto& cl = r.centerline;
+        if (cl.size() < 2) continue;
+        const bool atA = (r.a == site.id);
+        const glm::vec2 dir = atA ? (cl[0] - cl[1]) : (cl[cl.size() - 1] - cl[cl.size() - 2]);
+        params["street_axis"] = std::abs(dir.x) >= std::abs(dir.y) ? "x" : "z";
+        break;
+    }
+    return params;
 }
 
 std::vector<int> WorldForgeBuildService::realizationOrder(const WorldForgePlan& plan) {
@@ -101,8 +115,8 @@ void queuePlanAndBuild(const std::shared_ptr<BuildState>& s) {
     const int siteId = s->queue[s->idx];
     s->jobs->addUnit(s->jobId, "site " + std::to_string(siteId) + ": planning", [s, siteId] {
         const WorldForgeSite& site = s->deps.plan->sites()[siteId];
-        auto plan = std::make_shared<SettlementBuildService::Plan>(
-            s->deps.planSettlement(WorldForgeBuildService::settlementParamsFor(site)));
+        auto plan = std::make_shared<SettlementBuildService::Plan>(s->deps.planSettlement(
+            WorldForgeBuildService::settlementParamsFor(*s->deps.plan, site)));
         if (!plan->ok()) {
             // A refusal is an OUTCOME, recorded and surfaced — never retried into a
             // broken build (the grounding gate refused for a reason).

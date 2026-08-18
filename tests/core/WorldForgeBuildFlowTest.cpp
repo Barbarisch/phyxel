@@ -96,7 +96,7 @@ TEST(WorldForgeBuildFlowTest, SettlementParamsDerivedFromSite) {
     auto plan = makePlan();
     ASSERT_FALSE(plan->sites().empty());
     const auto& s = plan->sites()[0];
-    const auto params = WorldForgeBuildService::settlementParamsFor(s);
+    const auto params = WorldForgeBuildService::settlementParamsFor(*plan, s);
     EXPECT_EQ(params.value("seed", 0u), s.seed) << "the plan's derived seed must reach the build";
     EXPECT_EQ(params.value("tier", std::string()), s.tier);
     EXPECT_EQ(params.value("width", 0), s.width);
@@ -107,6 +107,43 @@ TEST(WorldForgeBuildFlowTest, SettlementParamsDerivedFromSite) {
     EXPECT_FALSE(params.value("residents", true))
         << "remote sites spawn NO residents (they fall through evicted chunks and don't "
            "persist — measured live 2026-08-16; see StructurePipelineGaps)";
+}
+
+// Road-arrival orientation: the settlement's street axis follows the FIRST road arriving
+// at the site (the main street should MEET the road, not sit perpendicular to it on a
+// whim). Expected axis computed from the plan's own road geometry — never hardcoded.
+TEST(WorldForgeBuildFlowTest, SettlementParamsCarryArrivalAxis) {
+    auto plan = makePlan();
+    ASSERT_FALSE(plan->roads().empty());
+    // First site that has a road touching it, in road order (the derivation's contract).
+    for (const auto& s : plan->sites()) {
+        const WorldForgeRoad* arriving = nullptr;
+        bool atA = false;
+        for (const auto& r : plan->roads())
+            if (r.a == s.id || r.b == s.id) {
+                arriving = &r;
+                atA = (r.a == s.id);
+                break;
+            }
+        if (!arriving || arriving->centerline.size() < 2) continue;
+        // Direction of the road AT the site's end of the centerline.
+        const auto& cl = arriving->centerline;
+        const glm::vec2 dir = atA ? (cl[0] - cl[1]) : (cl[cl.size() - 1] - cl[cl.size() - 2]);
+        const std::string expected = std::abs(dir.x) >= std::abs(dir.y) ? "x" : "z";
+        const auto params = WorldForgeBuildService::settlementParamsFor(*plan, s);
+        EXPECT_EQ(params.value("street_axis", std::string("<absent>")), expected)
+            << "site " << s.id << " must orient its street along the arriving road\n"
+            << "params: " << params.dump() << "\nroads:"
+            << [&] {
+                   std::string out;
+                   for (const auto& r : plan->roads())
+                       out += " (" + std::to_string(r.a) + "-" + std::to_string(r.b) +
+                              " pts " + std::to_string(r.centerline.size()) + ")";
+                   return out;
+               }();
+        return;   // one verified site suffices
+    }
+    FAIL() << "no site with an arriving road found";
 }
 
 TEST(WorldForgeBuildFlowTest, RealizationOrderTownFirst) {

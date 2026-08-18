@@ -208,8 +208,15 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 // The spine picks the FLATTEST straight alignment over the site, then plots whose
                 // footprint touches an unbuildable cell are dropped with a surfaced count
                 // (graceful degradation, TerrainAwareSettlement.md).
+                // Optional road-arrival bias ({"street_axis": "x"|"z"}, WorldForge passes it):
+                // prefer the spine axis the arriving road runs along; terrain still wins.
+                char prefAxis = 0;
+                const std::string sa = p.value("street_axis", std::string());
+                if (sa == "x" || sa == "X") prefAxis = 'X';
+                else if (sa == "z" || sa == "Z") prefAxis = 'Z';
                 const Core::StreetAxisChoice pick =
-                    Core::chooseStreetAxis(site, tierP->street.mainWidth, tierP->plot.depthMin);
+                    Core::chooseStreetAxis(site, tierP->street.mainWidth, tierP->plot.depthMin,
+                                           prefAxis);
                 msl = cityMode
                     ? Core::planCityLayout(*tierP, W, D, roomReg, seed)   // city picks its own axes
                     : Core::planMainStreetLayout(*tierP, W, D, roomReg, seed,

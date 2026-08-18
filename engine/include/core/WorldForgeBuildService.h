@@ -68,9 +68,11 @@ public:
     };
 
     /// The exact settlement-build params a plan site realizes with — THE canonical
-    /// derivation (seed from the plan, tier/footprint from the site, terrain mode on).
+    /// derivation (seed from the plan, tier/footprint from the site, terrain mode on,
+    /// street axis biased toward the first arriving road so the main street MEETS it).
     /// Pure; unit-pinned so a live build is reproducible from the plan alone.
-    static nlohmann::json settlementParamsFor(const WorldForgeSite& site);
+    static nlohmann::json settlementParamsFor(const WorldForgePlan& plan,
+                                              const WorldForgeSite& site);
 
     /// Sites in realization order: tier rank descending (town first), id ascending within
     /// a rank. Pure; unit-pinned.
