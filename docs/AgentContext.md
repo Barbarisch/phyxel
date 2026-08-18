@@ -171,7 +171,17 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   measured 0% (canonical) / 0.69% (mountains) unclimbable 1u steps. New hazard logged: the
   player at spawn falls while a bake owns residency (park/respawn around bakes). Small
   remainders: full TraversalProbe agent-walk, road-arrival street orientation. Memory:
-  `project_worldforge.md`. All uncommitted on `main`.
+  `project_worldforge.md`. **COMMITTED 2026-08-18 (5c09b04b, dc1b1339, 8681c65c) plus:**
+  **BRIDGES V1 (eedf0bd7)** — every order≥3 crossing bakes a `WorldForgeBridgeSpan`;
+  `generateChunk` emits a Wood plank deck (the one above-surface emission; crossing
+  detection moved to the carve-accurate meander-warped `channelAt` at 2 u steps — the raw
+  FlowField line sits ~a channel-width off the carved bed; L4 voxel scan + ravine
+  screenshot, `BridgeVis` project; bridges changed ALL plan hashes → pre-bridge ledgers
+  refuse re-runs by design). **ContinuousLodPlan M4 RAN (9c9a249f)** — the density wall is
+  measured retired at the settlement operating point (merge ON 269,618 faces / 135-145 FPS
+  vs OFF 1,764,780 / 27.5 FPS, Perlin hills + 25 engine-built buildings; the historic
+  24-26 ms shadow wall reproduced un-merged at CONSTANT 466 draws → shadow cost = instance
+  volume, not draws; §7b M4 RESULT + docs/evidence/lod_m4_density_wall.jsonl).
 
 - **★ CHIMNEY FORGE — SHIPPED 2026-08-10 (`HearthForge`).** The chimney was the last
   structural element built AFTER the shell: the furnish pass stamped a stack into a
