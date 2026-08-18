@@ -214,9 +214,16 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 const std::string sa = p.value("street_axis", std::string());
                 if (sa == "x" || sa == "X") prefAxis = 'X';
                 else if (sa == "z" || sa == "Z") prefAxis = 'Z';
+                // Optional lateral arrival preference ({"street_offset": site-local cross
+                // coordinate of the road's arrival CENTER}): converted to a band start so
+                // street and road meet head-on where terrain allows.
+                int prefOffset = -1;
+                if (p.contains("street_offset") && p["street_offset"].is_number_integer())
+                    prefOffset = std::max(0, p["street_offset"].get<int>() -
+                                                 tierP->street.mainWidth / 2);
                 const Core::StreetAxisChoice pick =
                     Core::chooseStreetAxis(site, tierP->street.mainWidth, tierP->plot.depthMin,
-                                           prefAxis);
+                                           prefAxis, prefOffset);
                 msl = cityMode
                     ? Core::planCityLayout(*tierP, W, D, roomReg, seed)   // city picks its own axes
                     : Core::planMainStreetLayout(*tierP, W, D, roomReg, seed,

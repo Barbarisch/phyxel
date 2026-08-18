@@ -40,7 +40,14 @@ nlohmann::json WorldForgeBuildService::settlementParamsFor(const WorldForgePlan&
         if (cl.size() < 2) continue;
         const bool atA = (r.a == site.id);
         const glm::vec2 dir = atA ? (cl[0] - cl[1]) : (cl[cl.size() - 1] - cl[cl.size() - 2]);
-        params["street_axis"] = std::abs(dir.x) >= std::abs(dir.y) ? "x" : "z";
+        const glm::vec2 end = atA ? cl.front() : cl.back();
+        const bool axisX = std::abs(dir.x) >= std::abs(dir.y);
+        params["street_axis"] = axisX ? "x" : "z";
+        // The arrival CENTER in site-local cross coordinates: lets the band land where the
+        // road actually meets the footprint (the lateral half of the junction).
+        params["street_offset"] = axisX
+            ? static_cast<int>(std::lround(end.y)) - (site.pos.y - site.depth / 2)
+            : static_cast<int>(std::lround(end.x)) - (site.pos.x - site.width / 2);
         break;
     }
     return params;

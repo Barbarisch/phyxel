@@ -188,3 +188,14 @@ ChooseStreetAxisHonorsRoadPreference red-first). Still open: the PHYSICAL juncti
 road terminates at the settlement footprint edge and the main street starts inside it, so
 a few unpaved cubes can separate them; full fusion means extending the street paving (or
 the road) to meet at the boundary.
+
+## 2026-08-18 (later) - street-road junction closed (both halves)
+
+The remaining physical-junction gap above is now closed: roads trim to the footprint
+boundary (+1 inset, was +8 - RoadsReachTheFootprintEdge red-first), and chooseStreetAxis
+takes a bounded lateral preference (30/cube capped 1500) fed by street_offset = the road's
+arrival center in site-local coords, so the main street lands where the road actually
+enters. L4 (fresh canonical world): site 0's street chose "axis Z offset 65" = exactly the
+requested arrival alignment - the street runs along the road's final approach and meets its
+end head-on. Note for scans: street paving is MICRO-resolution Cobblestone - cube-level
+surface scans do not show it (misread this before finding it in the paving logs).

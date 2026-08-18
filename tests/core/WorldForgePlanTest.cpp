@@ -319,6 +319,30 @@ TEST(WorldForgePlanTest, SitePinsSeatedVerbatim) {
     EXPECT_EQ(plan->sites()[0].id, 0);
 }
 
+// The road must REACH each built settlement: after footprint trimming, the centerline end
+// nearest a site stops within ~2 cubes of the footprint boundary — not 8 short of it (the
+// unpaved shoulder the street cannot bridge). Red-first against the old +8 trim inset.
+TEST(WorldForgePlanTest, RoadsReachTheFootprintEdge) {
+    Fixture f;
+    auto plan = f.bake(Fixture::defaultParams());
+    ASSERT_FALSE(plan->roads().empty());
+    for (const auto& r : plan->roads()) {
+        ASSERT_GE(r.centerline.size(), 2u);
+        for (const bool atA : {true, false}) {
+            const auto& s = plan->sites()[atA ? r.a : r.b];
+            const glm::vec2 end = atA ? r.centerline.front() : r.centerline.back();
+            // Distance from the end to the footprint RECT boundary (0 if inside).
+            const float dx = std::max({(s.pos.x - s.width / 2.0f) - end.x, 0.0f,
+                                       end.x - (s.pos.x + s.width / 2.0f)});
+            const float dz = std::max({(s.pos.y - s.depth / 2.0f) - end.y, 0.0f,
+                                       end.y - (s.pos.y + s.depth / 2.0f)});
+            EXPECT_LE(std::sqrt(dx * dx + dz * dz), 2.5f)
+                << "road " << r.a << "-" << r.b << " ends short of site "
+                << (atA ? r.a : r.b) << "'s footprint";
+        }
+    }
+}
+
 // roadAt: a point ON a centerline reports its class within half-width; a far point misses.
 TEST(WorldForgePlanTest, RoadAtHitsCenterlineMissesFar) {
     Fixture f;

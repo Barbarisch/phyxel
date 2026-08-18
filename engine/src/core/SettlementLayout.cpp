@@ -596,7 +596,14 @@ std::vector<YardProp> planYardProps(const AssignedPlot& ap, unsigned seed) {
 }
 
 StreetAxisChoice chooseStreetAxis(const BuildabilityMap& site, int mainWidth, int minPlotDepth,
-                                  char preferredAxis) {
+                                  char preferredAxis, int preferredOffset) {
+    // Lateral arrival preference: linear per-cube handicap toward the band start where the
+    // road arrives, capped at the same 1500 bound as the axis preference — flat ground puts
+    // street and road head-on; relief/water beyond ~1.5 cubes-per-cell of difference still
+    // relocate the band (the street never climbs a wall to meet the road). REASONED, same
+    // grounding as the axis bias.
+    const long kOffsetHandicapPerCube = 30;
+    const long kOffsetHandicapCap = 1500;
     // Road-arrival preference: a bounded per-cell handicap on the NON-preferred axis. 1500
     // (= 1.5 cubes of per-cell relief in the x1000 score) tips ties and mild differences
     // toward the arriving road's axis, but never outweighs the water/cliff penalty
@@ -634,6 +641,9 @@ StreetAxisChoice chooseStreetAxis(const BuildabilityMap& site, int mainWidth, in
         for (int off = room; off + mainWidth <= cross - room; ++off) {
             long s = evalBand(ax, off);
             if (preferredAxis != 0 && ax != preferredAxis) s += kPreferenceHandicap;
+            if (preferredOffset >= 0 && ax == (preferredAxis != 0 ? preferredAxis : ax))
+                s += std::min(kOffsetHandicapCap,
+                              kOffsetHandicapPerCube * std::abs(off - preferredOffset));
             if (best.score < 0 || s < best.score) { best = {ax, off, s}; }
         }
     }

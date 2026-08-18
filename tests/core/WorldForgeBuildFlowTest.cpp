@@ -131,6 +131,15 @@ TEST(WorldForgeBuildFlowTest, SettlementParamsCarryArrivalAxis) {
         const glm::vec2 dir = atA ? (cl[0] - cl[1]) : (cl[cl.size() - 1] - cl[cl.size() - 2]);
         const std::string expected = std::abs(dir.x) >= std::abs(dir.y) ? "x" : "z";
         const auto params = WorldForgeBuildService::settlementParamsFor(*plan, s);
+        // Lateral half of the junction: the arrival CENTER in site-local cross coords, so
+        // the street band can line up with the road head-on. Expected from the same road
+        // end geometry the axis came from.
+        const glm::vec2 end = atA ? cl.front() : cl.back();
+        const int expectedOffset = expected == "x"
+            ? static_cast<int>(std::lround(end.y)) - (s.pos.y - s.depth / 2)
+            : static_cast<int>(std::lround(end.x)) - (s.pos.x - s.width / 2);
+        EXPECT_EQ(params.value("street_offset", -9999), expectedOffset)
+            << "site " << s.id << " must carry the road's arrival offset";
         EXPECT_EQ(params.value("street_axis", std::string("<absent>")), expected)
             << "site " << s.id << " must orient its street along the arriving road\n"
             << "params: " << params.dump() << "\nroads:"

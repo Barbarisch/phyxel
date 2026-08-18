@@ -518,11 +518,13 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
             }
             pts.push_back(glm::vec2(plan->m_sites[pr->b].pos));
             road.centerline = smoothResample(std::move(pts));
-            // Trim inside the endpoint footprints (roads stop at the settlement edge; the
-            // street network takes over inside — V1 gap: they are not yet fused).
+            // Trim inside the endpoint footprints. Inset 1 (was 8): the road must REACH the
+            // footprint boundary so the arrival-aligned main street can meet it — an 8-cube
+            // unpaved shoulder was the longitudinal half of the street↔road junction gap
+            // (RoadsReachTheFootprintEdge, red-first).
             auto insideFootprint = [&](const glm::vec2& p, const WorldForgeSite& s) {
-                return std::fabs(p.x - s.pos.x) <= s.width * 0.5f + 8.0f &&
-                       std::fabs(p.y - s.pos.y) <= s.depth * 0.5f + 8.0f;
+                return std::fabs(p.x - s.pos.x) <= s.width * 0.5f + 1.0f &&
+                       std::fabs(p.y - s.pos.y) <= s.depth * 0.5f + 1.0f;
             };
             {
                 auto& cl = road.centerline;

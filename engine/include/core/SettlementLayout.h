@@ -190,8 +190,11 @@ struct StreetAxisChoice {
 /// road on comparable terrain — row villages grow along their through-road (the
 /// settlement_program morphology sources). Terrain still wins: the bias never overrides
 /// water/cliff penalties or a decisively flatter axis.
+/// `preferredOffset` (band-start cell on the cross axis, -1 = none): the same bounded idea
+/// laterally — bias the band toward where the road actually arrives, so on comparable
+/// terrain street and road meet head-on instead of offset by half the site.
 StreetAxisChoice chooseStreetAxis(const BuildabilityMap& site, int mainWidth, int minPlotDepth = 0,
-                                  char preferredAxis = 0);
+                                  char preferredAxis = 0, int preferredOffset = -1);
 
 } // namespace Core
 } // namespace Phyxel
