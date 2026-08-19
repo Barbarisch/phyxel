@@ -74,5 +74,7 @@ carries over. Verified: early-vs-settled captures differ ~200k px, reopen replay
 - **menuWorld art direction:** a multi-voxel `glow` fill blooms into a screen-filling flat
   blob from the emissive pass — use SINGLE glow voxels as lanterns/accents on non-emissive
   structures (the underlying glow-bloom scaling is still an engine issue, tracked).
-- **Per-widget colors / fonts on every widget type** — labels only, partially; themes now
-  cover the global palette, per-element overrides remain open.
+- **Per-element colors: BUILT 2026-08-19.** Labels: `"color"` + `"scale"`; buttons:
+  `"color"` / `"bg"` / `"bgHover"`. Use for accent buttons (a danger-red Quit, a gold
+  call-to-action) and secondary text. Custom typefaces remain the real gap — one bitmap
+  font today (engine gap; file /feedback if a game needs it).

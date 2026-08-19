@@ -237,6 +237,12 @@ public:
     ///   Right            — text ENDS at position.x
     enum class HAlign { Left, Center, Right };
     HAlign align = HAlign::Left;
+
+    // Per-element overrides (JSON "color" / "scale"). alpha 0 / scale 0 = unset
+    // → theme colors and scales apply. Scale is absolute font scale (theme body
+    // text is 2.0, titles 3.0).
+    glm::vec4 customColor = {0, 0, 0, 0};
+    float customScale = 0.0f;
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -253,6 +259,13 @@ public:
 
     std::string text;
     std::function<void()> onClick;
+
+    // Per-element overrides (JSON "color" = text, "bg" = background,
+    // "bgHover" = hover background; unset hover = bg lightened 25%).
+    // alpha 0 = unset → theme colors apply.
+    glm::vec4 customColor   = {0, 0, 0, 0};
+    glm::vec4 customBg      = {0, 0, 0, 0};
+    glm::vec4 customBgHover = {0, 0, 0, 0};
 };
 
 // ════════════════════════════════════════════════════════════════

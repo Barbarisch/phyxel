@@ -1,0 +1,9 @@
+﻿Per-element color override verification, 2026-08-19 12:02 (Release, --test 8101)
+RED = title_final_lantern.png (previous build, same layout, no overrides):
+  Begin bg (600,384) = (173,129,89)   Quit bg (600,504) = (173,129,89)  <- identical, both theme
+  subtitle glyph cores avg (235,228,218), R-B = 17  <- theme cream
+GREEN = elem_colors_menu.png (this build, Quit bg + subtitle color authored):
+  Begin bg (600,384) = (173,129,89)   <- unchanged (theme, control)
+  Quit  bg (600,504) = (134,101,89)   <- authored [0.24,0.13,0.10] override live
+  subtitle glyph cores avg (228,198,174), R-B = 54  <- authored [0.85,0.62,0.45] dusty amber
+VERDICT: PASS - overrides change ONLY the authored elements; theme control pixel identical.

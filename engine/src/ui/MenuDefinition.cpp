@@ -12,6 +12,9 @@
 namespace Phyxel {
 namespace UI {
 
+// Defined further down with the other element parsers; used by both build paths.
+static glm::vec4 parseElemColor(const nlohmann::json& el, const char* key);
+
 Anchor MenuDefinition::parseAnchor(const std::string& str) {
     if (str == "TopLeft")      return Anchor::TopLeft;
     if (str == "TopCenter")    return Anchor::TopCenter;
@@ -53,6 +56,8 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         // author set an explicit wrapWidth. Ends the "text runs out of its
         // box" default — labels with no size stay unbounded single-line.
         if (w->wrapWidth <= 0.0f && w->size.x > 0.0f) w->wrapWidth = w->size.x;
+        w->customColor = parseElemColor(j, "color");
+        w->customScale = j.value("scale", 0.0f);
         return w;
     }
 
@@ -69,6 +74,9 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         if (j.contains("position") && j["position"].is_array() && j["position"].size() >= 2) {
             w->position = {j["position"][0].get<float>(), j["position"][1].get<float>()};
         }
+        w->customColor   = parseElemColor(j, "color");
+        w->customBg      = parseElemColor(j, "bg");
+        w->customBgHover = parseElemColor(j, "bgHover");
         return w;
     }
 
@@ -581,6 +589,16 @@ static std::string resolveTokens(const std::string& text, const MenuActions& act
 // Schema matches the retired ImGui GameMenuRenderer ("animation" /
 // "animation_delay" / "animation_duration") so existing authored menus keep
 // working. Unknown animation names are ignored (renders settled).
+// Per-element color: [r,g,b] or [r,g,b,a] floats 0-1. Returns alpha-0 (the
+// "unset → use theme" sentinel) when absent or malformed.
+static glm::vec4 parseElemColor(const nlohmann::json& el, const char* key) {
+    if (!el.contains(key)) return {0, 0, 0, 0};
+    const auto& v = el[key];
+    if (!v.is_array() || v.size() < 3) return {0, 0, 0, 0};
+    return {v[0].get<float>(), v[1].get<float>(), v[2].get<float>(),
+            v.size() >= 4 ? v[3].get<float>() : 1.0f};
+}
+
 static void parseAppearAnim(const nlohmann::json& el, UIWidget& w) {
     const std::string anim = el.value("animation", "");
     if (anim.empty()) return;
@@ -623,6 +641,8 @@ static std::unique_ptr<UIWidget> buildMenuElementInner(const nlohmann::json& el,
         w->wrapWidth = el.value("wrapWidth", 0.0f) * sx;
         if (w->wrapWidth <= 0.0f && el.contains("size") && sizev.x > 0.0f)
             w->wrapWidth = sizev.x;   // authored width bounds the text
+        w->customColor = parseElemColor(el, "color");
+        w->customScale = el.value("scale", 0.0f);
         return w;
     }
     if (type == "image") {
@@ -671,6 +691,9 @@ static std::unique_ptr<UIWidget> buildMenuElementInner(const nlohmann::json& el,
             else if (at == "close_submenu"){ w->onClick = [uip, startPanel, nsPrefix]{ showOnlyInNamespace(*uip, nsPrefix, nsPrefix + startPanel); }; }
             else if (at == "rebind")       { auto cb = actions.onRebindKey; std::string b = a.value("binding", ""); w->onClick = [cb, b] { if (cb) cb(b); }; }
         }
+        w->customColor   = parseElemColor(el, "color");
+        w->customBg      = parseElemColor(el, "bg");
+        w->customBgHover = parseElemColor(el, "bgHover");
         return w;
     }
     // Settings widgets — slider / checkbox / dropdown carrying a "setting" key are

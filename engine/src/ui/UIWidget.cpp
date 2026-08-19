@@ -313,8 +313,10 @@ static std::string wrapText(const BitmapFont* font, const std::string& text,
 void UILabel::render(UIRenderer* renderer, const BitmapFont* font,
                      const UITheme& theme, glm::vec2 pos) {
     if (!visible) return;
-    float scale = isTitle ? theme.titleScale : theme.textScale;
+    float scale = customScale > 0.0f ? customScale
+                                     : (isTitle ? theme.titleScale : theme.textScale);
     glm::vec4 color = enabled ? (isTitle ? theme.titleColor : theme.textColor) : theme.disabledColor;
+    if (enabled && customColor.a > 0.0f) color = customColor;
 
     std::string wrapped;
     bool multiline = false;
@@ -352,6 +354,15 @@ void UIButton::render(UIRenderer* renderer, const BitmapFont* font,
     if (!visible) return;
 
     glm::vec4 bg = hovered ? theme.buttonHover : theme.buttonBg;
+    if (customBg.a > 0.0f) {
+        // Per-element background override; hover state lightens it 25% unless an
+        // explicit hover color was authored.
+        bg = hovered ? (customBgHover.a > 0.0f
+                            ? customBgHover
+                            : glm::vec4(glm::min(glm::vec3(customBg) * 1.25f, glm::vec3(1.0f)),
+                                        customBg.a))
+                     : customBg;
+    }
     if (!enabled) bg = theme.panelBg;
 
     renderer->drawRect(pos, size, bg);
@@ -363,6 +374,7 @@ void UIButton::render(UIRenderer* renderer, const BitmapFont* font,
         pos.y + (size.y - textH) * 0.5f
     };
     glm::vec4 textColor = enabled ? theme.buttonText : theme.disabledColor;
+    if (enabled && customColor.a > 0.0f) textColor = customColor;
     font->drawText(renderer, text, textPos, textColor, theme.textScale);
 }
 
