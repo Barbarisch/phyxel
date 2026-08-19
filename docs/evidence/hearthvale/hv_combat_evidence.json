@@ -2,7 +2,7 @@
   "steps": [
     {
       "step": "combat_state_boot",
-      "t": 15.3,
+      "t": 50.9,
       "data": {
         "active": false,
         "current_entity": "",
@@ -21,7 +21,7 @@
     },
     {
       "step": "initial_dirs",
-      "t": 24.7,
+      "t": 60.2,
       "data": {
         "W": [
           -0.71,
@@ -43,16 +43,16 @@
     },
     {
       "step": "facing_dialogue",
-      "t": 25.9,
+      "t": 61.4,
       "data": {
-        "facing_yaw": 2.9362783432006836,
-        "expected_bearing": 0.6125929301669504,
-        "err_rad": 2.324
+        "facing_yaw": 2.9437003135681152,
+        "expected_bearing": 0.6131887502005069,
+        "err_rad": 2.331
       }
     },
     {
       "step": "steer_arrived",
-      "t": 29.8,
+      "t": 65.3,
       "data": {
         "iter": 2,
         "pos": [
@@ -63,26 +63,26 @@
     },
     {
       "step": "recruited",
-      "t": 34.0,
+      "t": 69.5,
       "data": {
         "note": "party_joined expected in log"
       }
     },
     {
       "step": "steer_stopped",
-      "t": 58.0,
+      "t": 94.8,
       "data": {
-        "iter": 30
+        "iter": 32
       }
     },
     {
       "step": "in_cellar",
-      "t": 60.0,
+      "t": 96.8,
       "data": {
         "scene": "cellar",
         "pos": [
-          10.028250694274902,
-          26.028249740600586
+          10.068338394165039,
+          25.93166160583496
         ],
         "rat": [
           15.0,
@@ -93,7 +93,7 @@
     },
     {
       "step": "camera_exploration",
-      "t": 60.0,
+      "t": 96.8,
       "data": {
         "cam_above_player": 4.4,
         "cam_horiz_dist": 4.3,
@@ -102,14 +102,14 @@
     },
     {
       "step": "steer_stopped",
-      "t": 62.0,
+      "t": 98.7,
       "data": {
         "iter": 2
       }
     },
     {
       "step": "encounter_started",
-      "t": 63.0,
+      "t": 99.7,
       "data": {
         "active": true,
         "current_entity": "player",
@@ -119,24 +119,9 @@
         "round": 1,
         "turn_order": {
           "active": true,
-          "currentIndex": 1,
+          "currentIndex": 0,
           "defaultSpeed": 30,
           "order": [
-            {
-              "budget": {
-                "action": true,
-                "bonusAction": true,
-                "freeObjectInteraction": true,
-                "movementRemaining": 0,
-                "reaction": true
-              },
-              "entityId": "npc_Bram",
-              "hasActedThisRound": true,
-              "initiativeModifier": 1,
-              "initiativeRoll": 20,
-              "isPlayer": true,
-              "isSurprised": false
-            },
             {
               "budget": {
                 "action": true,
@@ -148,7 +133,22 @@
               "entityId": "player",
               "hasActedThisRound": false,
               "initiativeModifier": 3,
-              "initiativeRoll": 14,
+              "initiativeRoll": 11,
+              "isPlayer": true,
+              "isSurprised": false
+            },
+            {
+              "budget": {
+                "action": true,
+                "bonusAction": true,
+                "freeObjectInteraction": true,
+                "movementRemaining": 30,
+                "reaction": true
+              },
+              "entityId": "npc_Bram",
+              "hasActedThisRound": false,
+              "initiativeModifier": 1,
+              "initiativeRoll": 11,
               "isPlayer": true,
               "isSurprised": false
             },
@@ -163,7 +163,7 @@
               "entityId": "npc_Rat",
               "hasActedThisRound": false,
               "initiativeModifier": 1,
-              "initiativeRoll": 2,
+              "initiativeRoll": 4,
               "isPlayer": false,
               "isSurprised": false
             }
@@ -174,28 +174,28 @@
     },
     {
       "step": "party_in_combat",
-      "t": 63.0,
+      "t": 99.7,
       "data": {
         "combatants": 3,
         "ids": [
-          "npc_Bram",
           "player",
+          "npc_Bram",
           "npc_Rat"
         ]
       }
     },
     {
       "step": "facing_combat_start",
-      "t": 64.1,
+      "t": 100.8,
       "data": {
-        "facing_yaw": 2.8222157955169678,
-        "expected_bearing": 2.8222158292721162,
+        "facing_yaw": 2.820849657058716,
+        "expected_bearing": 2.8208497275218782,
         "err_rad": 0.0
       }
     },
     {
       "step": "camera_combat",
-      "t": 64.1,
+      "t": 100.8,
       "data": {
         "cam_above_player": 30.0,
         "cam_horiz_dist": 0.0,
@@ -204,25 +204,25 @@
     },
     {
       "step": "wasd_suppressed",
-      "t": 64.9,
+      "t": 101.6,
       "data": {
         "before": [
-          11.019335746765137,
-          25.037160873413086
+          11.020112991333008,
+          24.97988510131836
         ],
         "after": [
-          11.019335746765137,
-          25.037160873413086
+          11.020112991333008,
+          24.97988510131836
         ],
         "moved": 0.0
       }
     },
     {
       "step": "targeting",
-      "t": 64.9,
+      "t": 101.6,
       "data": {
         "attack_bonus": 5,
-        "distance": 12.678285598754883,
+        "distance": 12.623674392700195,
         "hit_chance": 0.6000000238418579,
         "in_reach": false,
         "target_ac": 14,
@@ -231,99 +231,98 @@
     },
     {
       "step": "click_move",
-      "t": 65.0,
+      "t": 101.7,
       "data": {
         "at": [
           803,
-          495
+          494
         ],
         "resolved": "move"
       }
     },
     {
-      "step": "combat_final",
-      "t": 129.0,
+      "step": "click_attack",
+      "t": 109.9,
       "data": {
+        "at": [
+          661,
+          355
+        ],
+        "resolved": "attack"
+      }
+    },
+    {
+      "step": "click_attack",
+      "t": 117.6,
+      "data": {
+        "at": [
+          661,
+          355
+        ],
+        "resolved": "attack"
+      }
+    },
+    {
+      "step": "encounter_self_resolved",
+      "t": 121.2,
+      "data": {
+        "iter": 12,
         "state": {
-          "active": true,
-          "current_entity": "npc_Bram",
-          "in_combat": true,
+          "active": false,
+          "current_entity": "",
+          "in_combat": false,
           "mode": "turn_based",
-          "player_turn": true,
-          "round": 2,
+          "player_turn": false,
+          "round": 0,
           "turn_order": {
-            "active": true,
+            "active": false,
             "currentIndex": 0,
             "defaultSpeed": 30,
-            "order": [
-              {
-                "budget": {
-                  "action": false,
-                  "bonusAction": true,
-                  "freeObjectInteraction": true,
-                  "movementRemaining": 28,
-                  "reaction": true
-                },
-                "entityId": "npc_Bram",
-                "hasActedThisRound": false,
-                "initiativeModifier": 1,
-                "initiativeRoll": 20,
-                "isPlayer": true,
-                "isSurprised": false
-              },
-              {
-                "budget": {
-                  "action": true,
-                  "bonusAction": true,
-                  "freeObjectInteraction": true,
-                  "movementRemaining": 5,
-                  "reaction": true
-                },
-                "entityId": "player",
-                "hasActedThisRound": false,
-                "initiativeModifier": 3,
-                "initiativeRoll": 14,
-                "isPlayer": true,
-                "isSurprised": false
-              },
-              {
-                "budget": {
-                  "action": false,
-                  "bonusAction": true,
-                  "freeObjectInteraction": true,
-                  "movementRemaining": 17,
-                  "reaction": true
-                },
-                "entityId": "npc_Rat",
-                "hasActedThisRound": false,
-                "initiativeModifier": 1,
-                "initiativeRoll": 2,
-                "isPlayer": false,
-                "isSurprised": false
-              }
-            ],
-            "round": 2
+            "order": [],
+            "round": 0
+          }
+        }
+      }
+    },
+    {
+      "step": "combat_final",
+      "t": 121.2,
+      "data": {
+        "state": {
+          "active": false,
+          "current_entity": "",
+          "in_combat": false,
+          "mode": "turn_based",
+          "player_turn": false,
+          "round": 0,
+          "turn_order": {
+            "active": false,
+            "currentIndex": 0,
+            "defaultSpeed": 30,
+            "order": [],
+            "round": 0
           }
         },
         "rounds_seen": [
           1,
-          2
+          2,
+          3
         ],
         "rat_still_listed": true
       }
     },
     {
       "step": "camera_restored",
-      "t": 130.0,
+      "t": 122.2,
       "data": {
-        "cam_above_player": 30.0,
-        "cam_horiz_dist": 0.0,
-        "pitch": -89.0
+        "cam_above_player": 3.0,
+        "cam_horiz_dist": 4.3,
+        "pitch": -30.0
       }
     },
     {
       "step": "sheet_after_kill",
-      "t": 130.0,
+      "t": 122.3,
       "data": {
         "sheet": {
           "armorClass": 10,
@@ -394,7 +393,7 @@
             "successes": 0
           },
           "earnedFeatureIds": [],
-          "experiencePoints": 0,
+          "experiencePoints": 100,
           "featIds": [],
           "hitDicePools": [],
           "initiative": 0,
@@ -413,23 +412,26 @@
       }
     },
     {
-      "step": "steer_stuck",
-      "t": 187.7,
+      "step": "steer_arrived",
+      "t": 133.6,
       "data": {
+        "iter": 19,
         "pos": [
-          11.539392471313477,
-          17.412960052490234
+          14.9,
+          15.6
         ]
       }
     },
     {
       "step": "inventory_after_pickup",
-      "t": 188.7,
+      "t": 134.6,
       "data": {
         "creative": true,
         "hotbar": [
           {
-            "empty": true,
+            "count": 1,
+            "material": "moonpetal_remedy",
+            "max_stack": 64,
             "selected": true,
             "slot": 0
           },
@@ -476,47 +478,54 @@
         ],
         "selected_slot": 0,
         "size": 36,
-        "slots": []
-      }
-    },
-    {
-      "step": "steer_stuck",
-      "t": 252.5,
-      "data": {
-        "pos": [
-          11.539392471313477,
-          17.412960052490234
+        "slots": [
+          {
+            "count": 1,
+            "material": "moonpetal_remedy",
+            "max_stack": 64,
+            "slot": 0
+          }
         ]
       }
     },
     {
-      "step": "steer_stuck",
-      "t": 320.2,
+      "step": "steer_stopped",
+      "t": 141.4,
       "data": {
+        "iter": 9
+      }
+    },
+    {
+      "step": "steer_arrived",
+      "t": 144.5,
+      "data": {
+        "iter": 2,
         "pos": [
-          11.539392471313477,
-          17.412960052490234
+          16.3,
+          16.3
         ]
       }
     },
     {
       "step": "finale",
-      "t": 325.5,
+      "t": 149.6,
       "data": {
         "screen": {
-          "scene_id": "cellar",
+          "scene_id": "town",
           "scene_type": "world",
-          "screen": "playing",
+          "screen": "victory",
           "source": "shell",
           "success": true,
           "transitioning": false,
-          "visible_menus": []
+          "visible_menus": [
+            "victory:main"
+          ]
         },
-        "xp": 0,
+        "xp": 300,
         "classes": [
           {
             "classId": "fighter",
-            "level": 1,
+            "level": 2,
             "subclassId": ""
           }
         ],
@@ -577,13 +586,13 @@
     },
     {
       "step": "sheet_after_relaunch",
-      "t": 345.2,
+      "t": 171.7,
       "data": {
-        "xp": 0,
+        "xp": 300,
         "classes": [
           {
             "classId": "fighter",
-            "level": 1,
+            "level": 2,
             "subclassId": ""
           }
         ]
@@ -591,105 +600,100 @@
     }
   ],
   "log": [
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
+    "\u001b[31m[10:20:03.437] [ERROR] [Vulkan] Failed to allocate reflection descriptor sets!\u001b[0m",
+    "\u001b[32m[10:20:03.638] [INFO] [Hearthvale] Loaded 2 objective(s) from game.json\u001b[0m",
+    "\u001b[32m[10:20:03.638] [INFO] [Hearthvale] Combat mode: turn_based (camera: overhead)\u001b[0m",
+    "\u001b[32m[10:20:03.661] [INFO] [Hearthvale] Progression: human fighter (kill_xp=100, objective_xp=100)\u001b[0m",
+    "\u001b[32m[10:20:03.662] [INFO] [HUD] HUD panel 'hud_objectives' loaded\u001b[0m",
+    "\u001b[32m[10:20:03.662] [INFO] [HUD] HUD panel 'hud_combat_banner' loaded\u001b[0m",
+    "\u001b[32m[10:20:03.662] [INFO] [HUD] HUD panel 'hud_combat_order' loaded\u001b[0m",
+    "\u001b[32m[10:20:03.662] [INFO] [HUD] HUD panel 'hud_combat_turn' loaded\u001b[0m",
+    "\u001b[32m[10:20:03.662] [INFO] [HUD] HUD panel 'hud_combat_action' loaded\u001b[0m",
+    "\u001b[32m[10:20:05.755] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:05.755] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:05.755] [INFO] [Character]   [36] attack (Duration: 1.25s)\u001b[0m",
+    "\u001b[32m[10:20:05.755] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)\u001b[0m",
+    "\u001b[32m[10:20:05.755] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)\u001b[0m",
+    "\u001b[32m[10:20:05.756] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)\u001b[0m",
+    "\u001b[32m[10:20:05.771] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:05.771] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:05.771] [INFO] [Character]   [36] attack (Duration: 1.25s)\u001b[0m",
+    "\u001b[32m[10:20:05.771] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)\u001b[0m",
+    "\u001b[32m[10:20:05.771] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)\u001b[0m",
+    "\u001b[32m[10:20:05.772] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)\u001b[0m",
+    "\u001b[32m[10:20:05.780] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:05.780] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:05.780] [INFO] [Character]   [36] attack (Duration: 1.25s)\u001b[0m",
+    "\u001b[32m[10:20:05.780] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)\u001b[0m",
+    "\u001b[32m[10:20:05.780] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)\u001b[0m",
+    "\u001b[32m[10:20:05.781] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)\u001b[0m",
+    "\u001b[31m[10:20:12.316] [ERROR] [Character] Clip 'idle' (state=Run) has no Speed line; using fallback 8 m/s. Add `Speed <val>` to the clip in the .anim file.\u001b[0m",
+    "\u001b[32m[10:20:48.020] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:48.020] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:48.021] [INFO] [Character]   [36] attack (Duration: 1.25s)\u001b[0m",
+    "\u001b[32m[10:20:48.021] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)\u001b[0m",
+    "\u001b[32m[10:20:48.021] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)\u001b[0m",
+    "\u001b[32m[10:20:48.021] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)\u001b[0m",
+    "\u001b[32m[10:20:48.027] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:48.027] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:48.027] [INFO] [Character]   [36] attack (Duration: 1.25s)\u001b[0m",
+    "\u001b[32m[10:20:48.027] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)\u001b[0m",
+    "\u001b[32m[10:20:48.027] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)\u001b[0m",
+    "\u001b[32m[10:20:48.028] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)\u001b[0m",
+    "\u001b[32m[10:20:48.034] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:48.034] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:48.034] [INFO] [Character]   [36] attack (Duration: 1.25s)\u001b[0m",
+    "\u001b[32m[10:20:48.034] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)\u001b[0m",
+    "\u001b[32m[10:20:48.034] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)\u001b[0m",
+    "\u001b[32m[10:20:48.035] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)\u001b[0m",
+    "\u001b[31m[10:20:48.035] [ERROR] [Character] Clip 'idle' (state=Strafe) has no Speed line; using fallback 4 m/s. Add `Speed <val>` to the clip in the .anim file.\u001b[0m",
+    "\u001b[31m[10:20:50.258] [ERROR] [Character] Clip 'landing' (state=Strafe) has no Speed line; using fallback 4 m/s. Add `Speed <val>` to the clip in the .anim file.\u001b[0m",
+    "\u001b[32m[10:20:51.184] [INFO] [Hearthvale] Combat encounter started: 3 combatants (trigger 'guard_post')\u001b[0m",
+    "\u001b[32m[10:20:51.207] [INFO] [Hearthvale] Tactical camera: 'overhead' (combat)\u001b[0m",
+    "\u001b[31m[10:20:57.674] [ERROR] [Character] Clip 'idle' (state=Run) has no Speed line; using fallback 8 m/s. Add `Speed <val>` to the clip in the .anim file.\u001b[0m",
+    "\u001b[31m[10:21:00.756] [ERROR] [Character] Clip 'idle' (state=Run) has no Speed line; using fallback 8 m/s. Add `Speed <val>` to the clip in the .anim file.\u001b[0m",
+    "\u001b[32m[10:21:02.319] [INFO] [Character] hit frame: clip='attack' t=0.538337 scaledDur=1.25 frac=0.430669\u001b[0m",
+    "\u001b[32m[10:21:03.100] [INFO] [Combat] npc_Rat hit player for {:.1f} damage (actual: {:.1f})3\u001b[0m",
+    "\u001b[32m[10:21:03.100] [INFO] [CombatAI] NPC 'npc_Rat' hits 'player' for 3 (1d4) damage (roll 18 vs AC 14).\u001b[0m",
     "DEBUG: Selected TargetAnim=attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
+    "\u001b[32m[10:21:04.065] [INFO] [Character] hit frame: clip='attack' t=0.507656 scaledDur=1.25 frac=0.406125\u001b[0m",
     "DEBUG: Selected TargetAnim=attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
+    "\u001b[32m[10:21:04.824] [INFO] [PlayerTurn] Player misses 'npc_Rat' (roll 11 vs AC 14).\u001b[0m",
     "DEBUG: Selected TargetAnim=attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
+    "\u001b[32m[10:21:07.219] [INFO] [Character] hit frame: clip='attack' t=0.541712 scaledDur=1.25 frac=0.43337\u001b[0m",
     "DEBUG: Selected TargetAnim=attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack",
-    "WARNING: Animation not found for target: attack"
+    "\u001b[32m[10:21:07.996] [INFO] [Combat] npc_Bram hit npc_Rat for {:.1f} damage (actual: {:.1f})2\u001b[0m",
+    "\u001b[32m[10:21:07.996] [INFO] [CombatAI] NPC 'npc_Bram' hits 'npc_Rat' for 2 (1d4) damage (roll 14 vs AC 14).\u001b[0m",
+    "\u001b[32m[10:21:09.205] [INFO] [Character] hit frame: clip='attack' t=0.53503 scaledDur=1.25 frac=0.428024\u001b[0m",
+    "\u001b[32m[10:21:09.985] [INFO] [Combat] npc_Rat hit npc_Bram for {:.1f} damage (actual: {:.1f})1\u001b[0m",
+    "\u001b[32m[10:21:09.985] [INFO] [CombatAI] NPC 'npc_Rat' hits 'npc_Bram' for 1 (1d4) damage (roll 20 vs AC 14).\u001b[0m",
+    "DEBUG: Selected TargetAnim=attack",
+    "\u001b[32m[10:21:11.518] [INFO] [Character] hit frame: clip='attack' t=0.512146 scaledDur=1.25 frac=0.409717\u001b[0m",
+    "DEBUG: Selected TargetAnim=attack",
+    "\u001b[32m[10:21:12.266] [INFO] [Combat] player hit npc_Rat for {:.1f} damage (actual: {:.1f})8\u001b[0m",
+    "\u001b[32m[10:21:12.267] [INFO] [PlayerTurn] Player hits 'npc_Rat' for 8 (1d6+3) damage (roll 19 vs AC 12).\u001b[0m",
+    "\u001b[32m[10:21:12.267] [INFO] [Hearthvale] Camera restored: 'third_person' (combat over)\u001b[0m",
+    "\u001b[31m[10:21:20.593] [ERROR] [UIRenderer] Failed to load UI image 'resources/textures/source/moonpetal_remedy_top.png' (can't fopen)\u001b[0m",
+    "\u001b[32m[10:21:34.594] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:21:34.594] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:21:34.594] [INFO] [Character]   [36] attack (Duration: 1.25s)\u001b[0m",
+    "\u001b[32m[10:21:34.594] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)\u001b[0m",
+    "\u001b[32m[10:21:34.594] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)\u001b[0m",
+    "\u001b[32m[10:21:34.595] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)\u001b[0m",
+    "\u001b[32m[10:21:34.601] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:21:34.601] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:21:34.601] [INFO] [Character]   [36] attack (Duration: 1.25s)\u001b[0m",
+    "\u001b[32m[10:21:34.601] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)\u001b[0m",
+    "\u001b[32m[10:21:34.601] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)\u001b[0m",
+    "\u001b[32m[10:21:34.602] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)\u001b[0m",
+    "\u001b[32m[10:21:34.607] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:21:34.607] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:21:34.608] [INFO] [Character]   [36] attack (Duration: 1.25s)\u001b[0m",
+    "\u001b[32m[10:21:34.608] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)\u001b[0m",
+    "\u001b[32m[10:21:34.608] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)\u001b[0m",
+    "\u001b[32m[10:21:34.608] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)\u001b[0m",
+    "\u001b[31m[10:21:34.609] [ERROR] [Character] Clip 'idle' (state=Run) has no Speed line; using fallback 8 m/s. Add `Speed <val>` to the clip in the .anim file.\u001b[0m",
+    "\u001b[31m[10:21:36.856] [ERROR] [Character] Clip 'landing' (state=Walk) has no Speed line; using fallback 2 m/s. Add `Speed <val>` to the clip in the .anim file.\u001b[0m",
+    "\u001b[32m[10:21:39.061] [INFO] [TriggerSystem] Trigger 'win' fired (when: objective_complete)\u001b[0m"
   ]
 }

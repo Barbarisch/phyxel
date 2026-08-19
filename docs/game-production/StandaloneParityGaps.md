@@ -349,3 +349,15 @@ setControlInput each frame (the rat, also idle, DOES act - asymmetry unexplained
 lesson recorded in-file: combat/state player_turn is SIDE-based - drive the probe off
 current_entity == player. Evidence: hv_combat.log (3-combatant encounter, joined-the-party
 lines) + bram2.log-style diagnostic dumps.
+
+## 6g-addendum - PARTY COMPLETE (2026-08-19): Bram fights
+
+The stalled ally turn was NOT a behavior conflict: the companion respawn passed
+animFile "" to NPCManager::spawnNPC, which (unlike the game.json loader) does NOT default
+an empty path - the cellar Bram had no rig, so the TurnActor could never bind his body and
+his turn stalled the encounter. One line (explicit humanoid.anim) closed it. Measured:
+3-combatant encounter, "NPC npc_Bram hits npc_Rat for 2 (1d4) damage (roll 14 vs AC 14)" -
+an autonomous ally turn with its own d20 - encounter self-resolves, quest to victory at
+fighter 2. The full party loop is live in shipped games: dialogue recruit -> cross-scene
+travel -> auto-enlist -> autonomous ally combat. ENGINE NIT for triage: spawnNPC should
+default an empty animFile like the loader does (two spawn paths, two conventions).

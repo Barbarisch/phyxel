@@ -1394,7 +1394,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 for (const auto& m : rpgParty_.getMembers()) {{
                                     if (!m.isAlive || entityRegistry_->getEntity(m.entityId)) continue;
                                     const glm::vec3 at = playerCharacter_->getPosition() + glm::vec3(1.5f, 0.0f, 1.5f);
-                                    if (npcManager_->spawnNPC(m.name, "", at, Phyxel::Core::NPCBehaviorType::Idle))
+                                    // Explicit anim file: spawnNPC does NOT default an empty
+                                    // path (unlike the game.json loader) — a companion spawned
+                                    // with "" has no rig, so the combat TurnActor can never
+                                    // bind its body and its turn stalls the whole encounter.
+                                    if (npcManager_->spawnNPC(m.name, "resources/animated_characters/humanoid.anim",
+                                                              at, Phyxel::Core::NPCBehaviorType::Idle))
                                         LOG_INFO("{class_name}", "Companion '{{}}' rejoined at the player's side", m.name);
                                 }}
                             }}
