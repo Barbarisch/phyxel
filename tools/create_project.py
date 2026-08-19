@@ -1458,6 +1458,22 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
 
             auto state = screen_.getState();
 
+            // Mouse wheel -> scrollable UI panels (quest logs, lore pages,
+            // long lists). Consumed by the topmost scrollable under the
+            // cursor; the delta is reset either way so it can't leak into
+            // other consumers as a stale value.
+            if (auto* wm = engine.getWindowManager()) {{
+                const float wheel = wm->getScrollDelta();
+                if (wheel != 0.0f) {{
+                    if (auto* ui = renderCoordinator_ ? renderCoordinator_->getUISystem() : nullptr) {{
+                        double mx = 0.0, my = 0.0;
+                        glfwGetCursorPos(wm->getHandle(), &mx, &my);
+                        ui->handleScroll({{static_cast<float>(mx), static_cast<float>(my)}}, wheel);
+                    }}
+                    wm->resetScrollDelta();
+                }}
+            }}
+
             // ESC: pause/resume toggle, or close dialogue. EDGE-TRIGGERED — isKeyPressed
             // is held-state, so without this a held ESC would toggle pause every frame.
             const bool escNow = input->isKeyPressed(GLFW_KEY_ESCAPE);

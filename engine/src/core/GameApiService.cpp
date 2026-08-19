@@ -276,6 +276,18 @@ void GameApiService::registerCommands() {
         r = {{"success", true}, {"inventory", inventory->toJson()}};
     });
 
+    // POST /api/rpg/ui_scroll {x, y, delta} — wheel input at a screen point
+    // (delta > 0 = wheel up). Drives the same UISystem::handleScroll the
+    // shipped game's real wheel uses.
+    reg.on("ui_scroll", [this](const APICommand& cmd, json& r) {
+        auto* ui = renderCoordinator ? renderCoordinator->getUISystem() : nullptr;
+        if (!ui) { r = {{"error", "UISystem not available"}}; return; }
+        const bool consumed = ui->handleScroll(
+            {cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f)},
+            cmd.params.value("delta", 0.0f));
+        r = {{"ok", true}, {"consumed", consumed}};
+    });
+
     // GET /api/screenshot — capture the current frame to screenshots/<ts>.png.
     // The pixel-verification unlock for shipped games: probes can now PROVE
     // rendering claims (HUD panels, text centering/clipping, menu animation =

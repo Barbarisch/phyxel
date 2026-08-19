@@ -95,9 +95,17 @@ the one-draw-call batch a GPU scissor would split; (2) UIPanel clips its childre
 default (opt-out "clip": false; zero-size panels never clip; nested clips intersect);
 (3) labels with an authored width auto-wrap to it. Smoke-verified: menu renders + clicks,
 dialogue opens. Pixels not machine-verified (screenshot endpoint still TODO).
-Scrolling: NOT built - the scrollable-container widget (quest logs, long dialogue, AI
-chat) remains the top open widget item (HudSystem.md sec 4); clipping makes overflow
-invisible, scrolling makes it reachable.
+Scrolling: BUILT + pixel-verified (2026-08-19). Any panel takes `"scrollable": true`
+(menu screens gained a nested `"panel"` element type so screens can hold scroll regions);
+wheel input routes window wheel -> UISystem::handleScroll -> nested-innermost panel
+(48 px/notch, clamped to measured content), with a translucent right-edge scrollbar
+(thumb position/size reflect scroll state). Click/drag/hover hit-testing mirrors the
+scroll offset, so a button scrolled 100 px up is clicked where it draws. Probe-verified
+on the Hearthvale Lore page (15 lines in a 320 px panel): scroll consumed, 46,205 px
+changed in the panel region vs a 0-px no-input noise floor, scroll-back bit-identical
+to the original frame, thumb visibly top->bottom (docs/evidence/hearthvale/
+lore_scroll_*.png + probe + result txt). Standalone probes drive it via
+POST /api/rpg/ui_scroll {x,y,delta}.
 
 ## 7. Screenshot endpoint + pixel-verified centering (2026-08-14)
 

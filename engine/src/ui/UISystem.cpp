@@ -252,6 +252,21 @@ bool UISystem::injectClick(glm::vec2 pos) {
     return consumed;
 }
 
+bool UISystem::handleScroll(glm::vec2 pos, float delta) {
+    if (!initialized_ || delta == 0.0f || !hasVisibleScreens()) return false;
+
+    glm::vec2 screenSize(static_cast<float>(screenWidth_), static_cast<float>(screenHeight_));
+    auto activeScreens = visibleScreenSnapshot();
+
+    for (auto* entry : activeScreens) {
+        auto* panel = entry->panel.get();
+        glm::vec2 panelPos = resolveAnchor(panel->anchor, {0, 0}, screenSize,
+                                            panel->size, panel->offset);
+        if (panel->handleScroll(pos, panelPos, delta, theme_)) return true;
+    }
+    return false;
+}
+
 // ── Key capture (rebind) ────────────────────────────────────
 
 void UISystem::beginKeyCapture(std::function<void(int, int)> onCaptured,

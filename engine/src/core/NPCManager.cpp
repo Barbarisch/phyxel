@@ -121,10 +121,16 @@ Scene::NPCEntity* NPCManager::spawnNPC(const std::string& name, const std::strin
     return spawnNPCWithBehavior(name, animFile, position, std::move(behavior), appearance);
 }
 
-Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, const std::string& animFile,
+Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, const std::string& animFileIn,
                                                      const glm::vec3& position,
                                                      std::unique_ptr<Scene::NPCBehavior> behavior,
                                                      const Scene::CharacterAppearance& appearance) {
+    // Default an empty anim file exactly like the game.json loader does — the
+    // two spawn paths had two conventions, and an ""-spawned NPC has NO RIG,
+    // which silently stalls turn-based combat when the TurnActor can't bind
+    // its body (the Hearthvale companion-respawn hunt, 2026-08-19).
+    const std::string animFile = animFileIn.empty()
+        ? std::string("resources/animated_characters/humanoid.anim") : animFileIn;
     if (m_npcs.count(name)) {
         LOG_WARN("NPCManager", "NPC '{}' already exists", name);
         return nullptr;

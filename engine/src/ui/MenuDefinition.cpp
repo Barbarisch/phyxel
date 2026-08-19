@@ -218,6 +218,7 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         w->showBackground = j.value("showBackground", true);
         w->freeLayout = j.value("freeLayout", false);
         w->clipChildren = j.value("clip", true);
+        w->scrollable = j.value("scrollable", false);
         w->visibleWhen = j.value("visibleWhen", "");
         w->visible = j.value("visible", true);
         w->enabled = j.value("enabled", true);
@@ -606,6 +607,24 @@ static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, floa
         auto w = std::make_unique<UIImage>();
         w->imagePath = el.value("image", el.value("imagePath", ""));
         w->position = posv; w->size = sizev;
+        return w;
+    }
+    if (type == "panel") {
+        // Nested panel inside a menu screen — the container for scrollable
+        // content (lore pages, credits rolls, long option lists). Children
+        // recurse through this same builder, so anything a screen can hold,
+        // a panel can hold.
+        auto w = std::make_unique<UIPanel>();
+        w->id = el.value("id", "");
+        w->position = posv; w->size = sizev;
+        w->freeLayout = true;
+        w->showBackground = el.value("showBackground", true);
+        w->clipChildren = el.value("clip", true);
+        w->scrollable = el.value("scrollable", false);
+        if (el.contains("children") && el["children"].is_array())
+            for (const auto& c : el["children"])
+                if (auto cw = buildMenuElement(c, sx, sy, actions, ui, startPanel, nsPrefix))
+                    w->addChild(std::move(cw));
         return w;
     }
     if (type == "button") {

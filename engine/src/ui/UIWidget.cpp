@@ -80,12 +80,23 @@ void UIPanel::render(UIRenderer* renderer, const BitmapFont* font,
     const bool doClip = clipChildren && size.x > 0.0f && size.y > 0.0f;
     if (doClip) renderer->pushClip(pos, size);
 
+    // Scrolling: clamp against last frame's measured content, shift children.
+    if (scrollable) {
+        const float maxScroll = std::max(0.0f, contentHeight - size.y);
+        scrollOffset = std::clamp(scrollOffset, 0.0f, maxScroll);
+    }
+    const glm::vec2 scrollVec = scrollable ? glm::vec2(0.0f, scrollOffset) : glm::vec2(0.0f);
+
     if (freeLayout) {
+        float maxExtent = 0.0f;
         for (auto& child : children) {
             if (!child->visible) continue;
-            child->render(renderer, font, theme, pos + child->position);
+            child->render(renderer, font, theme, pos + child->position - scrollVec);
+            maxExtent = std::max(maxExtent, child->position.y + child->size.y);
         }
+        contentHeight = maxExtent;
         cachedFont_ = font;
+        drawScrollbar(renderer, theme, pos);
         if (doClip) renderer->popClip();
         return;
     }
@@ -102,23 +113,79 @@ void UIPanel::render(UIRenderer* renderer, const BitmapFont* font,
     for (auto& child : children) {
         if (!child->visible) continue;
         float cx = pos.x + theme.padding;
-        float cy = pos.y + yOffset;
+        float cy = pos.y + yOffset - scrollVec.y;
         child->render(renderer, font, theme, {cx, cy});
         yOffset += child->size.y + theme.itemSpacing;
     }
+    contentHeight = yOffset;
 
     cachedFont_ = font;
+    drawScrollbar(renderer, theme, pos);
     if (doClip) renderer->popClip();
+}
+
+// Slim right-edge scrollbar, drawn only when scrollable content overflows.
+void UIPanel::drawScrollbar(UIRenderer* renderer, const UITheme& theme, glm::vec2 pos) {
+    if (!scrollable || contentHeight <= size.y || size.y <= 8.0f) return;
+    const float trackX = pos.x + size.x - 6.0f;
+    const float trackY = pos.y + 2.0f;
+    const float trackH = size.y - 4.0f;
+    // Fixed translucent colors, not theme greys — the bar must read against the
+    // panel it sits on regardless of the theme's panel color.
+    renderer->drawRect({trackX, trackY}, {4.0f, trackH}, {0.0f, 0.0f, 0.0f, 0.35f});
+    const float frac   = size.y / contentHeight;
+    const float thumbH = std::max(12.0f, trackH * frac);
+    const float maxScroll = contentHeight - size.y;
+    const float t = maxScroll > 0.0f ? scrollOffset / maxScroll : 0.0f;
+    renderer->drawRect({trackX, trackY + (trackH - thumbH) * t}, {4.0f, thumbH},
+                       {1.0f, 1.0f, 1.0f, 0.55f});
+}
+
+bool UIPanel::handleScroll(glm::vec2 mousePos, glm::vec2 widgetPos, float delta, const UITheme& theme) {
+    if (!visible || !enabled) return false;
+    if (!hitTest(mousePos, widgetPos, size)) return false;
+
+    const glm::vec2 scrollVec = scrollable ? glm::vec2(0.0f, scrollOffset) : glm::vec2(0.0f);
+
+    // Nested scrollables win over their parents.
+    if (freeLayout) {
+        for (auto& child : children) {
+            if (!child->visible) continue;
+            if (auto* p = dynamic_cast<UIPanel*>(child.get()))
+                if (p->handleScroll(mousePos, widgetPos + child->position - scrollVec, delta, theme))
+                    return true;
+        }
+    } else {
+        float yOffset = panelContentStartY(title, cachedFont_, theme);
+        for (auto& child : children) {
+            if (!child->visible) continue;
+            if (auto* p = dynamic_cast<UIPanel*>(child.get()))
+                if (p->handleScroll(mousePos, {widgetPos.x + theme.padding,
+                                               widgetPos.y + yOffset - scrollVec.y}, delta, theme))
+                    return true;
+            yOffset += child->size.y + theme.itemSpacing;
+        }
+    }
+
+    if (!scrollable || contentHeight <= size.y) return false;
+    const float step = 48.0f;                 // px per wheel notch
+    scrollOffset = std::clamp(scrollOffset - delta * step,
+                              0.0f, contentHeight - size.y);
+    return true;
 }
 
 bool UIPanel::handleClick(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) {
     if (!visible || !enabled) return false;
     if (!hitTest(mousePos, widgetPos, size)) return false;
 
+    // Hit-testing mirrors the render offset for scrollable panels — a button
+    // scrolled 100px up must be clicked where it DRAWS, not where it started.
+    const glm::vec2 scrollVec = scrollable ? glm::vec2(0.0f, scrollOffset) : glm::vec2(0.0f);
+
     if (freeLayout) {
         for (auto& child : children) {
             if (!child->visible) continue;
-            if (child->handleClick(mousePos, widgetPos + child->position, theme)) return true;
+            if (child->handleClick(mousePos, widgetPos + child->position - scrollVec, theme)) return true;
         }
         return true;
     }
@@ -128,7 +195,7 @@ bool UIPanel::handleClick(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme
     for (auto& child : children) {
         if (!child->visible) continue;
         float cx = widgetPos.x + theme.padding;
-        float cy = widgetPos.y + yOffset;
+        float cy = widgetPos.y + yOffset - scrollVec.y;
         if (child->handleClick(mousePos, {cx, cy}, theme)) return true;
         yOffset += child->size.y + theme.itemSpacing;
     }
@@ -138,10 +205,12 @@ bool UIPanel::handleClick(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme
 bool UIPanel::handleDrag(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) {
     if (!visible || !enabled) return false;
 
+    const glm::vec2 scrollVec = scrollable ? glm::vec2(0.0f, scrollOffset) : glm::vec2(0.0f);
+
     if (freeLayout) {
         for (auto& child : children) {
             if (!child->visible) continue;
-            if (child->handleDrag(mousePos, widgetPos + child->position, theme)) return true;
+            if (child->handleDrag(mousePos, widgetPos + child->position - scrollVec, theme)) return true;
         }
         return false;
     }
@@ -151,7 +220,7 @@ bool UIPanel::handleDrag(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme&
     for (auto& child : children) {
         if (!child->visible) continue;
         float cx = widgetPos.x + theme.padding;
-        float cy = widgetPos.y + yOffset;
+        float cy = widgetPos.y + yOffset - scrollVec.y;
         if (child->handleDrag(mousePos, {cx, cy}, theme)) return true;
         yOffset += child->size.y + theme.itemSpacing;
     }
@@ -161,10 +230,12 @@ bool UIPanel::handleDrag(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme&
 void UIPanel::handleHover(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) {
     if (!visible) return;
 
+    const glm::vec2 scrollVec = scrollable ? glm::vec2(0.0f, scrollOffset) : glm::vec2(0.0f);
+
     if (freeLayout) {
         for (auto& child : children) {
             if (!child->visible) continue;
-            child->handleHover(mousePos, widgetPos + child->position, theme);
+            child->handleHover(mousePos, widgetPos + child->position - scrollVec, theme);
         }
         return;
     }
@@ -174,7 +245,7 @@ void UIPanel::handleHover(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme
     for (auto& child : children) {
         if (!child->visible) continue;
         float cx = widgetPos.x + theme.padding;
-        float cy = widgetPos.y + yOffset;
+        float cy = widgetPos.y + yOffset - scrollVec.y;
         child->handleHover(mousePos, {cx, cy}, theme);
         yOffset += child->size.y + theme.itemSpacing;
     }

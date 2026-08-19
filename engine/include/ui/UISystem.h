@@ -79,6 +79,11 @@ public:
     /// consumed it. For agent/test-driven UI interaction without a real mouse.
     bool injectClick(glm::vec2 pos);
 
+    /// Route mouse-wheel input to the scrollable panel under `pos` (topmost
+    /// visible screen wins; nested scrollables win over parents). Returns
+    /// true when consumed. delta > 0 = wheel up.
+    bool handleScroll(glm::vec2 pos, float delta);
+
     // ── Key capture (keybinding rebind) ──────────────────────────
     // One-shot "press a key" capture for the settings rebind buttons. After
     // beginKeyCapture, handleInput consumes ALL input until the user presses a

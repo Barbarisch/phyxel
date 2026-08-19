@@ -156,8 +156,26 @@ public:
     /// out for intentional overhang. Panels with zero size never clip.
     bool clipChildren = true;
 
+    /// Scrollable content (JSON "scrollable": true): the mouse wheel over the
+    /// panel shifts children vertically, content clips to the box, and a slim
+    /// scrollbar renders when content overflows. Quest logs, long lists,
+    /// dialogue histories. Both free and flow layouts.
+    bool scrollable = false;
+    float scrollOffset = 0.0f;    ///< current scroll in px (0 = top), clamped in render
+    float contentHeight = 0.0f;   ///< measured during render
+
+    /// Wheel input. Returns true when consumed (hit a scrollable panel whose
+    /// content overflows). Recurses into children first so nested scrollables
+    /// win over their parents.
+    bool handleScroll(glm::vec2 mousePos, glm::vec2 widgetPos, float delta, const UITheme& theme);
+
     /// Add a child widget. Panel owns it.
     void addChild(std::unique_ptr<UIWidget> widget);
+
+private:
+    void drawScrollbar(UIRenderer* renderer, const UITheme& theme, glm::vec2 pos);
+
+public:
 
     /// Find a child by id (recursive).
     UIWidget* findChild(const std::string& childId);
