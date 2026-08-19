@@ -66,6 +66,13 @@ carries over. Verified: early-vs-settled captures differ ~200k px, reopen replay
 
 - **Scrolling: BUILT 2026-08-19** (`"scrollable": true` panels + nested `"panel"` menu
   element). Text-input widget exists; AI-dialogue standalone wiring still pending.
-- **Menu scrim over menuWorld** — background alpha compositing over the 3D scene needs tuning.
+- **Menu scrim over menuWorld: NOT a gap — measured working 2026-08-19.** A/B pixel test
+  (alpha 0.45 → world grass (123,134,114); 0.95 → (60,56,75)) matches the expected
+  `(1-a)·world + a·scrim` blend. The old "not compositing" note was a misdiagnosis: 0.45
+  near-black over a bright pastel world is just subtle. **Authoring guidance: 0.55-0.70
+  for a legible menu over a visible world** (Hearthvale ships 0.62); 0.9+ ≈ opaque.
+- **menuWorld art direction:** a multi-voxel `glow` fill blooms into a screen-filling flat
+  blob from the emissive pass — use SINGLE glow voxels as lanterns/accents on non-emissive
+  structures (the underlying glow-bloom scaling is still an engine issue, tracked).
 - **Per-widget colors / fonts on every widget type** — labels only, partially; themes now
   cover the global palette, per-element overrides remain open.
