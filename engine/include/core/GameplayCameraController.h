@@ -9,6 +9,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
 #include <algorithm>
+#include <cmath>
 #include <memory>
 #include <string>
 
@@ -83,7 +84,33 @@ public:
         const Input::ControlIntent in = scheme_->sample(input, dt);
 
         if (character && driveCharacter) {
-            character->setControlInput(in.forward, in.turn, in.strafe);
+            if (in.coupleFacingToYaw && !character->isDodging()) {
+                // Action-RPG locomotion (the "characters should face where they
+                // walk" rule): the WASD vector is CAMERA-relative; the body
+                // TURNS to the world-space move direction and walks forward
+                // along it. The old camera-coupled facing made S/A/D backpedal
+                // and sidestep — a character moonwalking across town. Idle
+                // keeps the last facing (no camera-orbit spin); attacks snap
+                // the aim to the camera below. Same face-then-drive-forward
+                // pattern CharacterTurnBody uses for combat approaches.
+                const float mag = std::min(1.0f, std::sqrt(in.forward * in.forward +
+                                                           in.strafe * in.strafe));
+                if (mag > 0.05f) {
+                    const float camYaw = glm::radians(90.0f - in.yaw);   // world yaw of camera-forward
+                    // atan2(x,z) convention: dir(θ) = (sin θ, cos θ). Stick
+                    // forward is NEGATIVE in.forward (W drives forward -= 1).
+                    const glm::vec2 fwd(std::sin(camYaw), std::cos(camYaw));
+                    const glm::vec2 right(std::sin(camYaw + glm::half_pi<float>()),
+                                          std::cos(camYaw + glm::half_pi<float>()));
+                    const glm::vec2 move = fwd * (-in.forward) + right * in.strafe;
+                    character->setFacingYaw(std::atan2(move.x, move.y));
+                    character->setControlInput(-mag, 0.0f, 0.0f);   // pure forward
+                } else {
+                    character->setControlInput(0.0f, 0.0f, 0.0f);
+                }
+            } else {
+                character->setControlInput(in.forward, in.turn, in.strafe);
+            }
             character->setSprint(in.sprint);
             character->setCrouch(in.crouch);
 
@@ -103,6 +130,10 @@ public:
             const bool attackPressed = in.attack || in.heavy;
             if (attackPressed) {
                 if (!attackHeld_) {
+                    // Aim the swing where the player is LOOKING — facing follows
+                    // movement now, so the attack edge re-couples to the camera.
+                    if (in.coupleFacingToYaw && !character->isDodging())
+                        character->setFacingYaw(glm::radians(90.0f - in.yaw));
                     if (in.heavy) character->heavyAttack();
                     else          character->lightAttack();
                 }
@@ -119,10 +150,9 @@ public:
             if (in.dodge) { if (!dodgeHeld_) character->dodgeFromInput(); dodgeHeld_ = true; }
             else          { dodgeHeld_ = false; }
 
-            // Don't stomp the body heading while dodging — enterDodge() snaps the
-            // facing to the roll direction, and the camera-coupled yaw would fight it.
-            if (in.coupleFacingToYaw && !character->isDodging())
-                character->setFacingYaw(glm::radians(90.0f - in.yaw));
+            // (Facing is handled up top now: movement direction while moving,
+            // last facing while idle, camera aim on the attack edge. The old
+            // per-frame camera-coupled setFacingYaw lived here.)
         }
 
         // Suppression EDGE: zero the latched control exactly once when driving
