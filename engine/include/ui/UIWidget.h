@@ -54,6 +54,12 @@ struct UITheme {
     float buttonHeight = 40.0f;
     float sliderHeight = 24.0f;
     float borderWidth  = 2.0f;
+
+    // Runtime-only (NOT an authored theme value): seconds since the screen being
+    // rendered was last shown. UISystem sets this per screen before rendering it;
+    // widgets read it to drive appear animations. Defaults far past any animation
+    // so hosts that never stamp it render the settled state.
+    float screenElapsed = 1.0e9f;
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -137,6 +143,23 @@ public:
     /// from the named float provider each frame (>0.5 → visible). Used to show a HUD
     /// element only in certain states (e.g. "combat.inCombat").
     std::string visibleWhen;
+
+    // ── Appear animation (menu polish) ──────────────────────────
+    // Same schema as the retired ImGui GameMenuRenderer so existing authored
+    // menus (menu_demo.json, MenuEditorPanel) keep working: JSON "animation"
+    // (fade_in / slide_in_left / slide_in_right / slide_in_up),
+    // "animation_delay", "animation_duration". All types fade alpha in; slides
+    // additionally offset 80px along their axis, ease-out cubic. Driven by
+    // UITheme::screenElapsed — replays every time the screen is (re)shown.
+    enum class AppearAnim { None, FadeIn, SlideInLeft, SlideInRight, SlideInUp };
+    AppearAnim appearAnim = AppearAnim::None;
+    float appearDelay    = 0.0f;
+    float appearDuration = 0.4f;
+
+    /// Evaluate the appear animation at `elapsed` seconds since screen show.
+    /// Returns false when no animation applies (none authored, or settled) —
+    /// callers skip the renderer anim push entirely in that case.
+    bool computeAppear(float elapsed, float& alphaOut, glm::vec2& offsetOut) const;
 };
 
 // ════════════════════════════════════════════════════════════════

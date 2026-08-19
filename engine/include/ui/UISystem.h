@@ -10,6 +10,7 @@
 #include <functional>
 #include <vector>
 #include <utility>
+#include <chrono>
 
 namespace Phyxel {
     namespace Vulkan { class VulkanDevice; }
@@ -144,6 +145,10 @@ private:
     struct ScreenEntry {
         std::unique_ptr<UIPanel> panel;
         bool visible = false;
+        // Stamped on the hidden→visible transition; drives appear animations
+        // (UITheme::screenElapsed). Re-showing an already-visible screen does
+        // NOT restart its animations.
+        std::chrono::steady_clock::time_point shownAt{};
     };
     std::unordered_map<std::string, ScreenEntry> screens_;
 

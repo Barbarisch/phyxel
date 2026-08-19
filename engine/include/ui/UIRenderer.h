@@ -97,6 +97,24 @@ public:
     }
     void popClip() { if (!clipStack_.empty()) clipStack_.pop_back(); }
 
+    // ── Appear-animation state ──────────────────────────────────
+    // Same single-choke-point idea as the clip stack: a widget mid-animation
+    // pushes (alpha, offset) around its own rendering and every quad it emits
+    // — background, border, glyphs — fades/slides as one. Alphas multiply and
+    // offsets add down the stack, so an animated child of an animated panel
+    // composes. Offset applies BEFORE clipping: sliding content clips at its
+    // parent panel's edge while entering, it doesn't overshoot the box.
+    void pushAnim(float alpha, glm::vec2 offset) {
+        float a = alpha;
+        glm::vec2 o = offset;
+        if (!animStack_.empty()) {
+            a *= animStack_.back().first;
+            o += animStack_.back().second;
+        }
+        animStack_.emplace_back(a, o);
+    }
+    void popAnim() { if (!animStack_.empty()) animStack_.pop_back(); }
+
     // ── Accessors ───────────────────────────────────────────────
 
     uint32_t getScreenWidth() const { return screenWidth_; }
@@ -162,6 +180,7 @@ private:
 
     // CPU-side batch
     std::vector<glm::vec4> clipStack_;   // active clip rects (x, y, xMax, yMax)
+    std::vector<std::pair<float, glm::vec2>> animStack_;  // composed (alpha, offset)
     std::vector<UIVertex> vertices_;
     std::vector<uint32_t> indices_;
 

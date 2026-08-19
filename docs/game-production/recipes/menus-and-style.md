@@ -43,11 +43,29 @@ centered, text inside its boxes, background not the default solid, readable at 1
 For animated backgrounds: two captures ≥3 s apart must differ substantially (pixel diff).
 Archive before/after captures as evidence.
 
+## Themes (2026-08-19) — offer these EVERY session
+
+`"theme"` on any menuLayout / screen JSON: either a preset name or an inline object.
+Presets ship in `resources/ui/themes/` — **slate** (default cool grey), **ember** (warm
+firelit tavern), **parchment** (light aged paper / codex). Inline objects override any
+subset of keys (`buttonBg`, `titleColor`, `padding`, … — full list in UITheme /
+MenuDefinition::applyThemeJson); colors are `[r,g,b(,a)]` floats 0-1. A game can also
+copy a preset into its own `resources/ui/themes/` and edit it. Offer the three presets
+by name + "or a custom palette" whenever a game's menus come up.
+
+## Per-element animations (2026-08-19)
+
+Any menu element takes `"animation"`: `fade_in`, `slide_in_left`, `slide_in_right`,
+`slide_in_up`, with `"animation_delay"` / `"animation_duration"` (s). Stagger delays
+across buttons for the cascade look (Hearthvale: title fade 0.8s, buttons slide-left at
+0.15/0.30/0.45). Replays every time the screen is (re)shown — submenus included. Same
+schema as the old ImGui renderer, so `samples/game_definitions/menu_demo.json` authoring
+carries over. Verified: early-vs-settled captures differ ~200k px, reopen replays.
+
 ## Known gaps — say "engine gap", file /feedback, do NOT hand-roll
 
-- **Named themes / BG3 theme** (`hud.theme` per game) — colors are one built-in UITheme today.
-- **Per-element animations** (fade_in/slide_in + delays) — schema existed on the retired
-  ImGui renderer; UISystem port pending.
-- **Scrollable container + text input widgets** — quest logs/long lists clip, not scroll.
+- **Scrolling: BUILT 2026-08-19** (`"scrollable": true` panels + nested `"panel"` menu
+  element). Text-input widget exists; AI-dialogue standalone wiring still pending.
 - **Menu scrim over menuWorld** — background alpha compositing over the 3D scene needs tuning.
-- **Per-widget colors / fonts on every widget type** — labels only, partially.
+- **Per-widget colors / fonts on every widget type** — labels only, partially; themes now
+  cover the global palette, per-element overrides remain open.

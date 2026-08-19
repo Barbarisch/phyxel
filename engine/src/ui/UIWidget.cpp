@@ -45,6 +45,28 @@ static float panelContentStartY(const std::string& title, const BitmapFont* font
 }
 
 // ════════════════════════════════════════════════════════════════
+// UIWidget — appear animation
+// ════════════════════════════════════════════════════════════════
+
+bool UIWidget::computeAppear(float elapsed, float& alphaOut, glm::vec2& offsetOut) const {
+    if (appearAnim == AppearAnim::None) return false;
+    const float dur = appearDuration > 0.0f ? appearDuration : 0.0001f;
+    float t = (elapsed - appearDelay) / dur;
+    if (t >= 1.0f) return false;                                  // settled — no push needed
+    t = std::max(0.0f, t);
+    const float e = 1.0f - (1.0f - t) * (1.0f - t) * (1.0f - t);  // ease-out cubic (GameMenuRenderer)
+    alphaOut = e;
+    const float rem = (1.0f - e) * 80.0f;                         // slide distance, matches old renderer
+    switch (appearAnim) {
+        case AppearAnim::SlideInLeft:  offsetOut = {-rem, 0.0f}; break;
+        case AppearAnim::SlideInRight: offsetOut = { rem, 0.0f}; break;
+        case AppearAnim::SlideInUp:    offsetOut = {0.0f, -rem}; break;  // enters from above
+        default:                       offsetOut = {0.0f, 0.0f}; break;  // fade_in
+    }
+    return true;
+}
+
+// ════════════════════════════════════════════════════════════════
 // UIPanel
 // ════════════════════════════════════════════════════════════════
 
@@ -91,7 +113,11 @@ void UIPanel::render(UIRenderer* renderer, const BitmapFont* font,
         float maxExtent = 0.0f;
         for (auto& child : children) {
             if (!child->visible) continue;
+            float animAlpha; glm::vec2 animOff;
+            const bool animating = child->computeAppear(theme.screenElapsed, animAlpha, animOff);
+            if (animating) renderer->pushAnim(animAlpha, animOff);
             child->render(renderer, font, theme, pos + child->position - scrollVec);
+            if (animating) renderer->popAnim();
             maxExtent = std::max(maxExtent, child->position.y + child->size.y);
         }
         contentHeight = maxExtent;
@@ -114,7 +140,11 @@ void UIPanel::render(UIRenderer* renderer, const BitmapFont* font,
         if (!child->visible) continue;
         float cx = pos.x + theme.padding;
         float cy = pos.y + yOffset - scrollVec.y;
+        float animAlpha; glm::vec2 animOff;
+        const bool animating = child->computeAppear(theme.screenElapsed, animAlpha, animOff);
+        if (animating) renderer->pushAnim(animAlpha, animOff);
         child->render(renderer, font, theme, {cx, cy});
+        if (animating) renderer->popAnim();
         yOffset += child->size.y + theme.itemSpacing;
     }
     contentHeight = yOffset;

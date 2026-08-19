@@ -333,6 +333,14 @@ void UIRenderer::pushQuad(glm::vec2 pos, glm::vec2 size, glm::vec2 uvMin, glm::v
                           glm::vec4 color, VkDescriptorSet set, float mode) {
     if (vertices_.size() + 4 > MAX_VERTICES) return;
 
+    // Appear animation: offset slides the quad, alpha fades it. Applied BEFORE
+    // the clip so entering content is clipped at its panel's edge (see pushAnim).
+    if (!animStack_.empty()) {
+        pos += animStack_.back().second;
+        color.a *= animStack_.back().first;
+        if (color.a <= 0.003f) return;   // fully faded — skip the quad
+    }
+
     // CPU clip against the active clip rect (single choke point — every rect,
     // image, and glyph flows through here, so panels can contain their content
     // without breaking the one-draw-call batching a GPU scissor would split).

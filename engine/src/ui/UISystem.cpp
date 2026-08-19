@@ -50,7 +50,10 @@ void UISystem::removeScreen(const std::string& name) {
 
 void UISystem::showScreen(const std::string& name) {
     auto it = screens_.find(name);
-    if (it != screens_.end()) it->second.visible = true;
+    if (it == screens_.end()) return;
+    if (!it->second.visible)   // hidden→visible edge: restart appear animations
+        it->second.shownAt = std::chrono::steady_clock::now();
+    it->second.visible = true;
 }
 
 void UISystem::hideScreen(const std::string& name) {
@@ -315,6 +318,7 @@ void UISystem::render(VkCommandBuffer cmd) {
 
     glm::vec2 screenSize(static_cast<float>(screenWidth_), static_cast<float>(screenHeight_));
 
+    const auto now = std::chrono::steady_clock::now();
     for (auto& [name, entry] : screens_) {
         if (!entry.visible || !entry.panel) continue;
         auto* panel = entry.panel.get();
@@ -322,8 +326,11 @@ void UISystem::render(VkCommandBuffer cmd) {
         glm::vec2 panelPos = resolveAnchor(panel->anchor, {0, 0}, screenSize,
                                             panel->size, panel->offset);
 
+        // Per-screen appear-animation clock (see UITheme::screenElapsed).
+        theme_.screenElapsed = std::chrono::duration<float>(now - entry.shownAt).count();
         panel->render(&renderer_, &font_, theme_, panelPos);
     }
+    theme_.screenElapsed = 1.0e9f;   // world labels & any later draws render settled
 
     // World-anchored overlay labels (speech bubbles / interaction prompts), drawn
     // last so they sit over the HUD. Centered horizontally, box sits ABOVE the

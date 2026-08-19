@@ -577,7 +577,29 @@ static std::string resolveTokens(const std::string& text, const MenuActions& act
     return out;
 }
 
+// Appear-animation fields, shared by every element type on both build paths.
+// Schema matches the retired ImGui GameMenuRenderer ("animation" /
+// "animation_delay" / "animation_duration") so existing authored menus keep
+// working. Unknown animation names are ignored (renders settled).
+static void parseAppearAnim(const nlohmann::json& el, UIWidget& w) {
+    const std::string anim = el.value("animation", "");
+    if (anim.empty()) return;
+    if      (anim == "fade_in")        w.appearAnim = UIWidget::AppearAnim::FadeIn;
+    else if (anim == "slide_in_left")  w.appearAnim = UIWidget::AppearAnim::SlideInLeft;
+    else if (anim == "slide_in_right") w.appearAnim = UIWidget::AppearAnim::SlideInRight;
+    else if (anim == "slide_in_up")    w.appearAnim = UIWidget::AppearAnim::SlideInUp;
+    else return;
+    w.appearDelay    = el.value("animation_delay", 0.0f);
+    w.appearDuration = el.value("animation_duration", 0.4f);
+}
+
 static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, float sx, float sy,
+        const MenuActions& actions, UISystem& ui, const std::string& startPanel,
+        const std::string& nsPrefix);
+
+// The per-type builder. buildMenuElement (below) wraps it to apply the common
+// appear-animation fields, so nested panel children get them too.
+static std::unique_ptr<UIWidget> buildMenuElementInner(const nlohmann::json& el, float sx, float sy,
         const MenuActions& actions, UISystem& ui, const std::string& startPanel,
         const std::string& nsPrefix) {
     std::string type = el.value("type", "");
@@ -707,6 +729,87 @@ static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, floa
     return nullptr;
 }
 
+static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, float sx, float sy,
+        const MenuActions& actions, UISystem& ui, const std::string& startPanel,
+        const std::string& nsPrefix) {
+    auto w = buildMenuElementInner(el, sx, sy, actions, ui, startPanel, nsPrefix);
+    if (w) parseAppearAnim(el, *w);
+    return w;
+}
+
+// Theme spec: a string names a preset (resources/ui/themes/<name>.json), an
+// object applies inline. Colors are [r,g,b] or [r,g,b,a] floats 0-1; dimension
+// keys are numbers. Unknown keys warn (typos should not fail silently); missing
+// keys keep their current value, so a theme may override just two colors.
+static void applyThemeJson(UITheme& t, const nlohmann::json& j) {
+    auto col = [&](const char* key, glm::vec4& out) {
+        if (!j.contains(key)) return true;
+        const auto& v = j[key];
+        if (!v.is_array() || v.size() < 3) return false;
+        out = {v[0].get<float>(), v[1].get<float>(), v[2].get<float>(),
+               v.size() >= 4 ? v[3].get<float>() : 1.0f};
+        return true;
+    };
+    auto num = [&](const char* key, float& out) {
+        if (!j.contains(key)) return true;
+        if (!j[key].is_number()) return false;
+        out = j[key].get<float>();
+        return true;
+    };
+    static const char* known[] = {
+        "panelBg","panelBorder","textColor","titleColor","disabledColor",
+        "buttonBg","buttonHover","buttonActive","buttonText",
+        "sliderTrack","sliderFill","sliderKnob","checkboxBg","checkboxCheck",
+        "dropdownBg","dropdownItem",
+        "textScale","titleScale","padding","itemSpacing","buttonHeight",
+        "sliderHeight","borderWidth","name","description"};
+    for (auto it = j.begin(); it != j.end(); ++it) {
+        bool ok = false;
+        for (const char* k : known) if (it.key() == k) { ok = true; break; }
+        if (!ok) LOG_WARN("Menu", "Theme: unknown key '{}' ignored", it.key());
+    }
+    bool ok = true;
+    ok &= col("panelBg", t.panelBg);           ok &= col("panelBorder", t.panelBorder);
+    ok &= col("textColor", t.textColor);       ok &= col("titleColor", t.titleColor);
+    ok &= col("disabledColor", t.disabledColor);
+    ok &= col("buttonBg", t.buttonBg);         ok &= col("buttonHover", t.buttonHover);
+    ok &= col("buttonActive", t.buttonActive); ok &= col("buttonText", t.buttonText);
+    ok &= col("sliderTrack", t.sliderTrack);   ok &= col("sliderFill", t.sliderFill);
+    ok &= col("sliderKnob", t.sliderKnob);
+    ok &= col("checkboxBg", t.checkboxBg);     ok &= col("checkboxCheck", t.checkboxCheck);
+    ok &= col("dropdownBg", t.dropdownBg);     ok &= col("dropdownItem", t.dropdownItem);
+    ok &= num("textScale", t.textScale);       ok &= num("titleScale", t.titleScale);
+    ok &= num("padding", t.padding);           ok &= num("itemSpacing", t.itemSpacing);
+    ok &= num("buttonHeight", t.buttonHeight); ok &= num("sliderHeight", t.sliderHeight);
+    ok &= num("borderWidth", t.borderWidth);
+    if (!ok) LOG_WARN("Menu", "Theme: one or more malformed values were skipped");
+}
+
+void applyTheme(UISystem& ui, const nlohmann::json& spec) {
+    if (spec.is_string()) {
+        const std::string name = spec.get<std::string>();
+        const std::string path = "resources/ui/themes/" + name + ".json";
+        std::ifstream f(path);
+        if (!f.is_open()) {
+            LOG_ERROR("Menu", "Theme preset '{}' not found at {} — keeping current theme",
+                      name, path);
+            return;
+        }
+        try {
+            nlohmann::json j; f >> j;
+            applyThemeJson(ui.getTheme(), j);
+            LOG_INFO("Menu", "Applied theme preset '{}'", name);
+        } catch (const std::exception& e) {
+            LOG_ERROR("Menu", "Theme preset '{}' failed to parse: {}", name, e.what());
+        }
+    } else if (spec.is_object()) {
+        applyThemeJson(ui.getTheme(), spec);
+        LOG_INFO("Menu", "Applied inline theme");
+    } else if (!spec.is_null()) {
+        LOG_WARN("Menu", "\"theme\" must be a preset name or an object — ignored");
+    }
+}
+
 void loadHudInto(UISystem& ui, const nlohmann::json* gameHud) {
     nlohmann::json hudDef;
     if (gameHud && !gameHud->is_null()) {
@@ -743,6 +846,8 @@ void loadHudInto(UISystem& ui, const nlohmann::json* gameHud) {
 void loadMenuInto(UISystem& ui, const nlohmann::json& layout, const MenuActions& actions) {
     unloadMenuFrom(ui);
     if (!layout.is_object() || !layout.contains("panels") || !layout["panels"].is_object()) return;
+
+    if (layout.contains("theme")) applyTheme(ui, layout["theme"]);
 
     const float W = static_cast<float>(ui.width());
     const float H = static_cast<float>(ui.height());
@@ -818,6 +923,8 @@ static void loadOverlayFromFile(UISystem& ui, const std::string& nsPrefix,
         return;
     }
     if (!layout.is_object() || !layout.contains("panels") || !layout["panels"].is_object()) return;
+
+    if (layout.contains("theme")) applyTheme(ui, layout["theme"]);
 
     const float W = static_cast<float>(ui.width());
     const float H = static_cast<float>(ui.height());

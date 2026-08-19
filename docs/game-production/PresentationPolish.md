@@ -50,10 +50,18 @@ no physics tick needed beyond render); drive `CameraPath::update` while the menu
 active. Scaffold work: none beyond passing through (the loader owns it) — this is
 deliberately an ENGINE feature so every game gets it by authoring two JSON keys.
 
-**Tier 2 — UI-layer motion.** Port the per-element animations the old ImGui menu renderer
-had (`fade_in` / `slide_in_left/right` + delays — schema already exists, HudSystem.md §3)
-onto UISystem widgets, plus an animated background primitive (scrolling/pulsing gradient)
-for menus that want motion without a world.
+**Tier 2 — UI-layer motion. SHIPPED 2026-08-19 (+ named themes).** The old ImGui schema
+(`"animation"`: fade_in / slide_in_left / slide_in_right / slide_in_up + `animation_delay`
+/ `animation_duration`) now runs on UISystem widgets: UIRenderer carries an anim stack
+(alpha × offset applied in pushQuad, composing with the clip stack — sliding content clips
+at its panel edge), UIWidget::computeAppear evaluates ease-out-cubic against a per-screen
+show timestamp (UISystem stamps hidden→visible edges, so submenus replay on every open).
+Same commit: **named themes** — `"theme"` on any menuLayout/screen JSON, preset
+(`resources/ui/themes/`: slate / ember / parchment) or inline overrides. Pixel-verified on
+Hearthvale (probe + captures in docs/evidence/hearthvale/theme_anim_*): ember button
+(173,129,89) vs red-baseline grey (137,137,149); submenu open early-vs-settled ~197k px
+apart, settled noise ~4k, reopen replays. Still open from this tier: animated background
+primitive (gradient motion without a menuWorld), per-element fonts/colors.
 
 ## 4. Surfacing in interactive game-dev sessions (so this never goes unoffered)
 

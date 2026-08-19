@@ -158,5 +158,13 @@ void unloadMenuFrom(UISystem& ui);
 /// the host registers data providers separately on the RenderCoordinator hudData().
 void loadHudInto(UISystem& ui, const nlohmann::json* gameHud);
 
+/// Apply a UI theme to the system's global UITheme. `spec` is either a preset
+/// name (loads resources/ui/themes/<name>.json, cwd-relative like all UI
+/// resources) or an inline object of theme keys (colors [r,g,b(,a)] 0-1 +
+/// dimension numbers); missing keys keep their current values. menuLayout /
+/// game screens call this automatically for their "theme" key; hosts may also
+/// call it directly (e.g. a game.json top-level ui.theme).
+void applyTheme(UISystem& ui, const nlohmann::json& spec);
+
 } // namespace UI
 } // namespace Phyxel
