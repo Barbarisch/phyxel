@@ -1,0 +1,111 @@
+{
+  "steps": [
+    {
+      "step": "steer_arrived",
+      "t": 33.3,
+      "data": {
+        "iter": 2
+      }
+    },
+    {
+      "step": "steer_stopped",
+      "t": 61.9,
+      "data": {
+        "iter": 31
+      }
+    },
+    {
+      "step": "in_cellar",
+      "t": 68.0,
+      "data": {
+        "scene": "cellar"
+      }
+    },
+    {
+      "step": "steer_stopped",
+      "t": 69.9,
+      "data": {
+        "iter": 2
+      }
+    },
+    {
+      "step": "encounter",
+      "t": 71.4,
+      "data": {
+        "in_combat": true
+      }
+    },
+    {
+      "step": "cast",
+      "t": 72.5,
+      "data": {
+        "spell": "guiding_bolt",
+        "resp": {
+          "cast": true,
+          "ok": true
+        }
+      }
+    },
+    {
+      "step": "shot_mid_cast",
+      "t": 73.7,
+      "data": {
+        "path": "screenshots/shot_1787163456746.png"
+      }
+    },
+    {
+      "step": "combat_resolved",
+      "t": 77.3,
+      "data": {
+        "iter": 2
+      }
+    },
+    {
+      "step": "PASS S1 player_cast answers and casts (red: unknown action)",
+      "t": 77.3,
+      "data": {
+        "casts": 1,
+        "accepted": 1
+      }
+    },
+    {
+      "step": "PASS S3a encounter resolved by magic only (no melee clicks issued)",
+      "t": 77.3,
+      "data": {
+        "iterations": 1
+      }
+    },
+    {
+      "step": "PASS S3b kill XP landed on the cleric sheet",
+      "t": 78.8,
+      "data": {
+        "xp": 100,
+        "classes": [
+          {
+            "classId": "cleric",
+            "level": 1,
+            "subclassId": ""
+          }
+        ]
+      }
+    }
+  ],
+  "cast_lines": [
+    "\u001b[32m[14:17:35.701] [INFO] [PlayerTurn] Player casts 'guiding_bolt' at 'npc_Rat' -> 15 dmg.\u001b[0m"
+  ],
+  "vfx_lines": [
+    "\u001b[32m[14:17:36.253] [INFO] [VfxDirector] Cast 'guiding_bolt' as spell_1 (1 emissions)\u001b[0m"
+  ],
+  "anim_lines": [
+    "DEBUG: Selected TargetAnim=death_front",
+    "DEBUG: Selected TargetAnim=death_front",
+    "DEBUG: Selected TargetAnim=death_front",
+    "DEBUG: Selected TargetAnim=death_front",
+    "DEBUG: Selected TargetAnim=death_front",
+    "DEBUG: Selected TargetAnim=death_front",
+    "DEBUG: Selected TargetAnim=death_front",
+    "DEBUG: Selected TargetAnim=death_front",
+    "DEBUG: Selected TargetAnim=death_front",
+    "DEBUG: Selected TargetAnim=death_front"
+  ]
+}

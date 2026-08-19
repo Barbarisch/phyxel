@@ -394,3 +394,31 @@ camera pass was two mid-combat frames. Fix: NPCEntity::setBehaviorSuspended (+
 NPCManager::forEachNPC); the scaffold suspends every NPC on the combat-enter edge and
 resumes on exit. CAM2 now requires the encounter RESOLVED + third-person camera shape -
 a stalled encounter can never fake that pass again.
+
+## 6i. Increment 12 - SPELLCASTING in the shipped game (2026-08-19)
+
+The rules stack was already complete (PlayerTurnController::castSpell: action budget,
+cantrip scaling, save/attack-roll resolution, AoE, heals, release-frame application;
+SpellRegistry/SpellAnimMapper/SpellVfxMapper/VfxDirector) - but NONE of it was reachable
+in a shipped game: the registry only auto-loaded in the EDITOR (every standalone cast
+would fail "Unknown spell"), the cast-visual executor lived only in Application.cpp, and
+the combat API had no cast command.
+
+Shipped: scaffold boot-loads resources/spells, ports playCastVisual (cast animation via
+SpellAnimMapper plan -> VFX + damage at the RELEASE frame - a spell looks the same shipped
+as in the editor), tracks casterLevel from the live sheet (save DC stays the controller
+default 13 = 8 + prof 2 + mod 3, standard level-1 full caster; sheet-derived DC is a
+follow-up); GameApiService gains POST combat/player_cast {spell_id, target_id}.
+
+Hearthvale's player is now a CLERIC (5e XP thresholds are class-independent - the 300 XP
+= level-2-on-turn-in beat is untouched) and the cellar fight can be won BY MAGIC:
+red-first (unknown action on the old exe), then 5/5 - guiding_bolt one-shot the rat for
+15 (4d6, real d20: the prior run logged a miss for 0), cast accepted from [out of reach]
+with the action visibly spent on the HUD, VfxDirector emission + anim plan per cast, kill
+XP on the cleric sheet. Evidence: docs/evidence/hearthvale/spellcast_* + hv_spellcast_*.
+Checker lesson recorded there: Release-visible observables only (LOG_DEBUG lines are not
+evidence in a Release run).
+
+Open next in this area: spell HOTBAR/UI for human players (the API path is proven; a
+mouse-driven cast picker is the missing expression), NPC/companion casting via CombatAI,
+slot tracking through SpellcasterComponent (casts currently spend only the action).

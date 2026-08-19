@@ -311,6 +311,19 @@ void GameApiService::registerCommands() {
         r = {{"success", true}, {"path", path}, {"width", wh.x}, {"height", wh.y}};
     });
 
+    // POST /api/rpg/combat/player_cast {spell_id, target_id} — cast on the
+    // player's turn through PlayerTurnController::castSpell (budget spend,
+    // cantrip scaling, save/attack-roll resolution, AoE, release-frame damage
+    // via the host's cast executor). Same funnel a spell hotbar will use.
+    reg.on("combat/player_cast", [this](const APICommand& cmd, json& r) {
+        if (!playerTurn) { r = {{"error", "combat not available"}}; return; }
+        const std::string spellId  = cmd.params.value("spell_id", "");
+        const std::string targetId = cmd.params.value("target_id", "");
+        if (spellId.empty()) { r = {{"error", "spell_id required"}}; return; }
+        const bool cast = playerTurn->castSpell(spellId, targetId);
+        r = {{"ok", true}, {"cast", cast}};
+    });
+
     // Click-to-act: resolve a SCREEN click into attack/move — the same
     // PlayerTurnController::requestPickAt the shipped game's LMB uses, so a
     // probe clicking the rat exercises the player's real path.

@@ -147,6 +147,11 @@ def create_project(
     extra_includes.append('#include "core/CombatAISystem.h"')
     extra_includes.append('#include "core/PlayerTurnController.h"')
     extra_includes.append('#include "core/CombatSystem.h"')
+    # Spellcasting (shipped-game parity with the editor's cast path)
+    extra_includes.append('#include "core/VfxDirector.h"')
+    extra_includes.append('#include "core/SpellVfxMapper.h"')
+    extra_includes.append('#include "core/SpellDefinition.h"')
+    extra_includes.append('#include "core/SpellAnimMapper.h"')
     extra_includes.append('#include "core/Party.h"')
     extra_includes.append('#include "core/DiceSystem.h"')
     extra_includes.append('#include "scene/CharacterTurnBody.h"')
@@ -281,6 +286,7 @@ def create_project(
         f"    void applyAudioSettings();  // settings_ volumes -> EngineRuntime AudioSystem",
         f"    void grantXP(int xp, const char* why);  // awardXP + level-up log/event",
         f"    void faceToward(Phyxel::Scene::AnimatedVoxelCharacter* ch, const glm::vec3& at);",
+        f"    void playCastVisual(const std::string& spellId, const glm::vec3& targetPos, std::function<void()> onRelease);",
         f"    Phyxel::Scene::AnimatedVoxelCharacter* characterOf(const std::string& entityId);",
         f"    void faceCombatants();  // everyone faces the nearest opposing-side combatant",
         "",
@@ -1006,6 +1012,18 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             playerTurn_.setEntityRegistry(entityRegistry_.get());
             playerTurn_.setBodyProvider(bodyProvider);
             playerTurn_.setCombatSystem(combatSystem_.get());
+            // Spellcasting in the SHIPPED game: the registry only auto-loaded in
+            // the editor before, so every cast failed "Unknown spell" here.
+            if (Phyxel::Core::SpellRegistry::instance().count() == 0)
+                Phyxel::Core::SpellRegistry::instance().loadFromDirectory("resources/spells");
+            // Cast visual: animation via SpellAnimMapper + VFX via the
+            // VfxDirector, damage applied at the release frame — the same
+            // playCastVisual flow the editor host runs (Application.cpp ~5558).
+            playerTurn_.setCastExecutor(
+                [this](const std::string& spellId, const std::string&,
+                       const glm::vec3& targetPos, std::function<void()> onRelease) {{
+                    playCastVisual(spellId, targetPos, std::move(onRelease));
+                }});
 
             // Declarative trigger actions (game.json "triggers"): wire to the shell.
             // Conditions like {{when: {{event: "player_jumped"}}}} can drive
@@ -1621,6 +1639,11 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 playerTurn_.setPlayerEntityId(pid);
                 combatAI_.setPlayerEntityId(pid);   // companions auto-fight; only the human waits
             }}
+            // Caster level tracks the live sheet (cantrip dice scale at 5/11/17).
+            // Save DC stays the controller default 13 = 8 + prof 2 + mod 3, the
+            // standard level-1 full caster (5e PHB math) — deriving it from the
+            // sheet's casting ability is a follow-up.
+            playerTurn_.setCasterLevel(playerSheet_.totalLevel());
             playerTurn_.tick(dt);
 
             // BG3-style tactical camera: entering combat swaps to the authored
@@ -1988,6 +2011,53 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             const float dx = at.x - from.x, dz = at.z - from.z;
             if (dx * dx + dz * dz < 0.01f) return;   // on top of each other — keep facing
             ch->setFacingYaw(std::atan2(dx, dz));
+        }}
+
+        // Cast visual for the player's spells: cast animation (SpellAnimMapper
+        // family plan) + spell VFX, with damage/heal applied at the RELEASE
+        // frame. Mirrors the editor host (Application::playCastVisual) so a
+        // spell looks the same shipped as it does in the editor. Falls back to
+        // immediate VFX+resolution when no animation plan is available.
+        void {class_name}::playCastVisual(const std::string& spellId,
+                                          const glm::vec3& targetPos,
+                                          std::function<void()> onRelease) {{
+            auto* caster = playerCharacter_;
+            glm::vec3 origin = caster ? caster->getPosition() + glm::vec3(0.0f, 1.4f, 0.0f)
+                                      : targetPos;
+            Phyxel::VfxSpellModifiers mods;
+            Phyxel::VfxCastContext ctx;
+            ctx.caster = origin;
+            ctx.targets.push_back(targetPos);
+            auto fire = [this, spellId, mods, ctx, onRelease]() {{
+                auto* d = renderCoordinator_ ? renderCoordinator_->getVfxDirector() : nullptr;
+                if (d) d->cast(Phyxel::resolveSpellVfx(spellId, mods), ctx);
+                if (onRelease) onRelease();
+            }};
+            bool animated = false;
+            if (caster) {{
+                auto& reg = Phyxel::Core::SpellRegistry::instance();
+                auto& mapper = Phyxel::Core::SpellAnimMapper::instance();
+                if (!mapper.isLoaded())
+                    mapper.loadConfig("resources/spells/anim/spell_anim_families.json");
+                const auto* def = reg.getSpell(spellId);
+                if (def && mapper.isLoaded()) {{
+                    auto plan = mapper.resolve(*def, 2, [caster](const std::string& clip) {{
+                        for (const auto& c : caster->getAnimationClips())
+                            if (c.name == clip) return c.duration;
+                        return 0.0f;
+                    }});
+                    if (plan.valid) {{
+                        std::vector<Phyxel::Scene::AnimatedVoxelCharacter::CastSegment> segs;
+                        for (const auto& s : plan.segments) segs.push_back({{s.clip, s.speed, s.loops}});
+                        glm::vec3 dd = targetPos - caster->getPosition();
+                        if (glm::length(glm::vec2(dd.x, dd.z)) > 0.01f)
+                            caster->setFacingYaw(std::atan2(dd.x, dd.z));
+                        caster->setOnCastRelease(fire);
+                        animated = caster->castSpell(segs);
+                    }}
+                }}
+            }}
+            if (!animated) fire();   // fallback: immediate VFX + resolution
         }}
 
         Phyxel::Scene::AnimatedVoxelCharacter* {class_name}::characterOf(const std::string& entityId) {{
