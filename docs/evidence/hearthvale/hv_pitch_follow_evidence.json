@@ -1,0 +1,231 @@
+{
+  "steps": [
+    {
+      "step": "hwnd",
+      "t": 18.2,
+      "data": {
+        "hwnd": 3214666
+      }
+    },
+    {
+      "step": "PASS CAM0 exploration sweep moves look (channel alive)",
+      "t": 28.4,
+      "data": {
+        "before": {
+          "yaw": -135.0,
+          "pitch": -30.0,
+          "pos": {
+            "x": 18.576644897460938,
+            "y": 21.40770149230957,
+            "z": 17.535184860229492
+          }
+        },
+        "after": {
+          "yaw": 180.90000915527344,
+          "pitch": 89.0,
+          "pos": {
+            "x": 15.602032661437988,
+            "y": 13.908462524414062,
+            "z": 14.474692344665527
+          }
+        }
+      }
+    },
+    {
+      "step": "look_restored",
+      "t": 28.8,
+      "data": {
+        "yaw": 27.0,
+        "pitch": -55.0,
+        "pos": {
+          "x": 12.959480285644531,
+          "y": 23.003461837768555,
+          "z": 13.171330451965332
+        }
+      }
+    },
+    {
+      "step": "steer_arrived",
+      "t": 57.7,
+      "data": {
+        "iter": 40
+      }
+    },
+    {
+      "step": "recruited",
+      "t": 61.8,
+      "data": {}
+    },
+    {
+      "step": "steer_stopped",
+      "t": 67.5,
+      "data": {
+        "iter": 7
+      }
+    },
+    {
+      "step": "in_cellar",
+      "t": 73.6,
+      "data": {
+        "scene": "cellar",
+        "player": [
+          10.183379173278809,
+          26.09343719482422
+        ],
+        "bram": [
+          11.5,
+          17.0,
+          27.5
+        ]
+      }
+    },
+    {
+      "step": "cam_pre_combat",
+      "t": 73.6,
+      "data": {
+        "yaw": 27.0,
+        "pitch": -55.0,
+        "pos": {
+          "x": 7.628077507019043,
+          "y": 23.003461837768555,
+          "z": 24.791446685791016
+        }
+      }
+    },
+    {
+      "step": "micro_calibration",
+      "t": 76.8,
+      "data": {
+        "W": [
+          0.89,
+          0.45
+        ],
+        "A": [
+          0.45,
+          -0.89
+        ],
+        "S": [
+          -0.89,
+          -0.45
+        ],
+        "D": [
+          -0.45,
+          0.89
+        ]
+      }
+    },
+    {
+      "step": "follow_walk_samples",
+      "t": 80.7,
+      "data": {
+        "dist_series": [
+          1.93,
+          1.95,
+          2.53,
+          3.11,
+          3.71,
+          3.18
+        ],
+        "west_key": "S"
+      }
+    },
+    {
+      "step": "PASS F1 follow stays bounded while walking",
+      "t": 80.8,
+      "data": {
+        "series": [
+          1.93,
+          1.95,
+          2.53,
+          3.11,
+          3.71,
+          3.18
+        ]
+      }
+    },
+    {
+      "step": "PASS F2 follow settles in the deadzone and stops",
+      "t": 85.8,
+      "data": {
+        "displacement_2s": 0.0,
+        "hold_dist": 3.177075476017785
+      }
+    },
+    {
+      "step": "steer_stopped",
+      "t": 91.7,
+      "data": {
+        "iter": 8
+      }
+    },
+    {
+      "step": "encounter",
+      "t": 93.2,
+      "data": {
+        "in_combat": true,
+        "order": [
+          "player",
+          "npc_Rat",
+          "npc_Bram"
+        ]
+      }
+    },
+    {
+      "step": "PASS CAM1 combat sweep does NOT move the look",
+      "t": 94.8,
+      "data": {
+        "before": {
+          "yaw": 27.0,
+          "pitch": -89.0,
+          "pos": {
+            "x": 11.004171371459961,
+            "y": 47.0,
+            "z": 19.080120086669922
+          }
+        },
+        "after": {
+          "yaw": 27.0,
+          "pitch": -89.0,
+          "pos": {
+            "x": 11.004171371459961,
+            "y": 47.0,
+            "z": 19.080120086669922
+          }
+        }
+      }
+    },
+    {
+      "step": "combat_resolved",
+      "t": 121.2,
+      "data": {
+        "iter": 16
+      }
+    },
+    {
+      "step": "PASS CAM2 post-combat look equals pre-combat (no mask)",
+      "t": 123.3,
+      "data": {
+        "resolved": true,
+        "pre": {
+          "yaw": 27.0,
+          "pitch": -55.0,
+          "pos": {
+            "x": 7.628077507019043,
+            "y": 23.003461837768555,
+            "z": 24.791446685791016
+          }
+        },
+        "post": {
+          "yaw": 27.0,
+          "pitch": -55.0,
+          "pos": {
+            "x": 15.152704238891602,
+            "y": 21.595760345458984,
+            "z": 14.148772239685059
+          }
+        },
+        "cam_above_player": 4.595760345458984
+      }
+    }
+  ]
+}

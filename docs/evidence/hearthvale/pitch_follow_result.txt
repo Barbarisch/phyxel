@@ -1,0 +1,20 @@
+﻿mouseCaptured-leak fix (unmasked) + companion FOLLOW - L4 run 2026-08-19 12:5x, Release --test 8101
+UNIT red/green first: GameplayCameraControllerTest - RED reproduced the field defect exactly
+(free-cursor sweep while driveCharacter=false -> pitch 89, yaw scrambled -90 -> 78); GREEN 3/3
+after the symmetric setMouseCaptured(driveCharacter) fix.
+L4 (scaffold snapshot/restore mask REMOVED from create_project.py - nothing hides a regression):
+  CAM0 PASS control: posted WM_MOUSEMOVE sweeps in exploration drove yaw -135->180.9, pitch
+       -30->+89 - the input channel is real and the scramble mechanism demonstrated live.
+  CAM1 PASS: identical sweeps DURING combat moved the look by exactly 0.0.
+  CAM2 PASS: encounter RESOLVED (guarded - a stalled encounter can no longer fake this),
+       post-combat look == pre-combat (yaw 27/pitch -55 both), camera back at third-person
+       height above the player.
+  F1  PASS: walking player, Bram distance series 1.93..3.71..3.18 (bounded, follower closes).
+  F2  PASS: player stationary - Bram displacement 0.0 over 2s, holding at 3.18u (authored
+       followDist 3.0 + hysteresis).
+FOUND EN ROUTE (fixed + covered by CAM2's resolution guard): NPC behaviors kept running during
+turn-based combat - Follow's per-frame velocity writes stalled the TurnActor and the encounter
+never resolved (first L4 run). Fix: NPCEntity::setBehaviorSuspended + scaffold suspends all NPCs
+on the combat edges. Probe archaeology (3 iterations): full-press direction probing at the cellar
+entry crossed into the guard wall 0.85u away - micro-press (0.12s) calibrate-and-undo is the
+pattern; an aborted probe now force-fails the verdict (5/5 checks required).

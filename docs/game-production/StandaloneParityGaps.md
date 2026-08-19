@@ -269,12 +269,12 @@ RpgGapProbe regen on the current scaffold.
 5. **Save-integrity deep-diff validator** (README Â§10.5) once PlayerProfile covers the real
    state surface.
 
-## 6c. Increment 6 — BG3 cameras (2026-08-14)
+## 6c. Increment 6 ï¿½ BG3 cameras (2026-08-14)
 
 Third-person exploration + tactical birds-eye combat, all authorable: scene camera
 `"mode": "third_person"`, `combat.camera` rig for encounters (default `overhead`;
 `isometric` available). On encounter start the scaffold swaps rigs, frees the cursor,
-and suppresses WASD (`GameplayCameraController` gained `driveCharacter` — frame without
+and suppresses WASD (`GameplayCameraController` gained `driveCharacter` ï¿½ frame without
 steering; zero latched control on the suppression EDGE only, because the TurnActor drives
 the body through the same `setControlInput`); on end it restores rig + look angles.
 Measured geometry (cam-vs-player): exploration 4.4 up / 4.3 behind @ -30 deg ->
@@ -286,7 +286,7 @@ tactical phase scrambles InputManager pitch - look is snapshot/restored with the
 Evidence: hv_combat_probe.py (now with adaptive steering re-calibration - the following
 camera changes key directions as it swings) + hv_combat_evidence.json + hv_combat.log.
 
-## 6d. Increment 7 — mutual facing (2026-08-14)
+## 6d. Increment 7 ï¿½ mutual facing (2026-08-14)
 
 Speakers and combatants LOOK at each other: interact snaps player and NPC to face each
 other (drive suppressed during dialogue so camera-coupled facing cannot stomp it);
@@ -299,7 +299,7 @@ run first read the camera-coupled value because probe CALIBRATION walked the pla
 interact range before pressing E, a probe-flow bug, not a game bug; reorder noted). NPC-side
 facing is code-reviewed only (not API-observable).
 
-## 6e. Increment 8 — the HUD comes alive in the standalone (2026-08-14)
+## 6e. Increment 8 ï¿½ the HUD comes alive in the standalone (2026-08-14)
 
 The fail-closed HUD panels now have live providers in generated games: combat.* (inCombat,
 playerTurnActive, roundText, turnLabel, budgetText, hitChanceText, turn_order with per-row
@@ -361,3 +361,36 @@ an autonomous ally turn with its own d20 - encounter self-resolves, quest to vic
 fighter 2. The full party loop is live in shipped games: dialogue recruit -> cross-scene
 travel -> auto-enlist -> autonomous ally combat. ENGINE NIT for triage: spawnNPC should
 default an empty animFile like the loader does (two spawn paths, two conventions).
+(NIT CLOSED 2026-08-19 in a98bf7ee: spawnNPCWithBehavior now defaults empty animFile.)
+
+## 6h. Increment 11 - PITCH-INVERSION ROOT CAUSE + COMPANION FOLLOW (2026-08-19)
+
+**The under-floor camera is dead at the root.** It was an InputManager `mouseCaptured`
+LEAK: GameplayCameraController set the flag every driving frame and never cleared it when
+`driveCharacter` went false (combat/dialogue). The host frees the OS CURSOR for
+click-targeting, but that is WindowManager state - the separate InputManager flag stayed
+latched, so every mouse move made to click an enemy kept integrating into yaw/pitch until
+pitch pinned at the +-89 clamp; restoring the exploration rig then framed the camera from
+under the floor. Fix: capture is symmetric with driving (`setMouseCaptured(driveCharacter)`
+for always-on-look schemes; firstMouse re-latches on the edge so re-capture never
+integrates the cursor-park jump). Red-before-green: GameplayCameraControllerTest's RED run
+reproduced pitch 89 + yaw scramble exactly; GREEN 3/3 after the fix. The scaffold's
+snapshot/restore workaround is REMOVED - the root fix is the only mechanism, and the L4
+proved the combat round trip unmasked with a positive-control probe (posted WM_MOUSEMOVE
+sweeps scramble the exploration camera on demand, move the combat camera by exactly 0.0,
+and post-combat look == pre-combat). Evidence: docs/evidence/hearthvale/pitch_follow_*.
+
+**Companions FOLLOW in exploration (BG3-style).** NPCBehaviorType::Follow ->
+PatrolBehavior::setFollowMode (reuses the whole patrol nav stack; 3.0u deadzone +
+hysteresis, repath at 2.0u of target drift, 40u catch-up teleport; registry lookup, NOT
+ctx.getEntityPosition - that helper returns ORIGIN for missing entities). game.json NPCs
+can author `"behavior": "follow"`. Scaffold party respawn now uses Follow. Measured:
+distance bounded while walking (1.93-3.71u), settles bit-still at 3.18u.
+
+**Second bug, found by the L4's own vacuity guard:** NPC behaviors kept running during
+turn-based combat - Follow's per-frame velocity writes fought the CharacterTurnBody (same
+setMoveVelocity funnel) and STALLED the encounter; the first probe run's "post == pre"
+camera pass was two mid-combat frames. Fix: NPCEntity::setBehaviorSuspended (+
+NPCManager::forEachNPC); the scaffold suspends every NPC on the combat-enter edge and
+resumes on exit. CAM2 now requires the encounter RESOLVED + third-person camera shape -
+a stalled encounter can never fake that pass again.

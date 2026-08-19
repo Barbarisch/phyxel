@@ -830,6 +830,8 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
             }
         } else if (behaviorStr == "wander") {
             behaviorType = NPCBehaviorType::Wander;   // roam near spawn (fauna)
+        } else if (behaviorStr == "follow") {
+            behaviorType = NPCBehaviorType::Follow;   // party companion: follow the player
         } else if (behaviorStr == "behavior_tree") {
             behaviorType = NPCBehaviorType::BehaviorTree;
         } else if (behaviorStr == "scheduled") {

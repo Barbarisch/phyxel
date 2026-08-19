@@ -103,6 +103,17 @@ Scene::NPCEntity* NPCManager::spawnNPC(const std::string& name, const std::strin
             behavior = std::move(patrol);
             break;
         }
+        case NPCBehaviorType::Follow: {
+            // Party companion: follow the player entity. Speed 4.5 outruns the
+            // default walk pace so the follower closes distance (convergence is
+            // measured at L4, and the follow-mode catch-up teleport backstops a
+            // sprinting player); waitTime is irrelevant in follow mode.
+            auto follow = std::make_unique<Scene::PatrolBehavior>(
+                std::vector<glm::vec3>{}, 4.5f, 0.0f);
+            follow->setFollowMode("player");
+            behavior = std::move(follow);
+            break;
+        }
         case NPCBehaviorType::BehaviorTree:
             behavior = std::make_unique<Scene::BehaviorTreeBehavior>();
             break;
@@ -685,6 +696,16 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
             behavior = std::move(patrol);
             break;
         }
+        case NPCBehaviorType::Follow: {
+            // Party companion: follow the player entity. Speed 4.5 outruns the
+            // default walk pace (convergence measured at L4; the follow-mode
+            // catch-up teleport backstops a sprinting player).
+            auto follow = std::make_unique<Scene::PatrolBehavior>(
+                std::vector<glm::vec3>{}, 4.5f, 0.0f);
+            follow->setFollowMode("player");
+            behavior = std::move(follow);
+            break;
+        }
         case NPCBehaviorType::BehaviorTree:
             behavior = std::make_unique<Scene::BehaviorTreeBehavior>();
             break;
@@ -773,6 +794,16 @@ Scene::NPCEntity* NPCManager::spawnPhysicsNPC(const std::string& name, const std
                 std::vector<glm::vec3>{}, walkSpeed, waitTime);
             patrol->setWanderMode(position, 12.0f);
             behavior = std::move(patrol);
+            break;
+        }
+        case NPCBehaviorType::Follow: {
+            // Party companion: follow the player entity. Speed 4.5 outruns the
+            // default walk pace (convergence measured at L4; the follow-mode
+            // catch-up teleport backstops a sprinting player).
+            auto follow = std::make_unique<Scene::PatrolBehavior>(
+                std::vector<glm::vec3>{}, 4.5f, 0.0f);
+            follow->setFollowMode("player");
+            behavior = std::move(follow);
             break;
         }
         case NPCBehaviorType::BehaviorTree:
@@ -874,6 +905,16 @@ Scene::NPCEntity* NPCManager::spawnPhysicsProceduralNPC(const std::string& name,
                 std::vector<glm::vec3>{}, walkSpeed, waitTime);
             patrol->setWanderMode(position, 12.0f);
             behavior = std::move(patrol);
+            break;
+        }
+        case NPCBehaviorType::Follow: {
+            // Party companion: follow the player entity. Speed 4.5 outruns the
+            // default walk pace (convergence measured at L4; the follow-mode
+            // catch-up teleport backstops a sprinting player).
+            auto follow = std::make_unique<Scene::PatrolBehavior>(
+                std::vector<glm::vec3>{}, 4.5f, 0.0f);
+            follow->setFollowMode("player");
+            behavior = std::move(follow);
             break;
         }
         case NPCBehaviorType::BehaviorTree:

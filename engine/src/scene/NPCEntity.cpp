@@ -79,7 +79,12 @@ NPCEntity::NPCEntity(Physics::PhysicsWorld* physicsWorld, const glm::vec3& posit
 NPCEntity::~NPCEntity() = default;
 
 void NPCEntity::update(float deltaTime) {
-    if (m_behavior) {
+    // Suspended = a turn-based encounter owns this body (CharacterTurnBody
+    // drives it through the same setMoveVelocity/setControlInput the behavior
+    // would write). Running the behavior anyway stalls the encounter — a
+    // Follow companion holding its deadzone zeroes velocity every frame and
+    // its turn never completes. The host toggles this on the combat edges.
+    if (m_behavior && !m_behaviorSuspended) {
         m_context.self = this;
         m_behavior->update(deltaTime, m_context);
     }

@@ -40,6 +40,7 @@ enum class NPCBehaviorType {
     Idle,
     Patrol,
     Wander,          ///< Roam random points near the spawn anchor (fauna/wildlife)
+    Follow,          ///< Follow the player entity (party companions in exploration)
     BehaviorTree,    ///< AI-driven via BehaviorTree / UtilityAI
     Scheduled,       ///< Schedule-driven: time-aware behavior tree
     Combat           ///< Real-time melee enemy (CombatBehavior): approach/strafe/attack/back-off
@@ -160,6 +161,11 @@ public:
 
     /// Get total NPC count.
     size_t getNPCCount() const { return m_npcs.size(); }
+
+    /// Visit every live NPC (suspension sweeps on combat edges, bulk queries).
+    void forEachNPC(const std::function<void(Scene::NPCEntity&)>& fn) {
+        for (auto& [name, npc] : m_npcs) if (npc) fn(*npc);
+    }
 
     /// Update all NPCs (called from main update loop).
     void update(float deltaTime);

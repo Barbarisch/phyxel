@@ -69,7 +69,16 @@ public:
                 bool advanceCharacter = true, bool driveCharacter = true) {
         if (!rig_ || !scheme_) return;
 
-        if (scheme_->wantsAlwaysOnLook() && driveCharacter) input.setMouseCaptured(true);
+        // Capture is SYMMETRIC with driving. Setting it only on driveCharacter
+        // frames (and never clearing) left mouseCaptured latched through
+        // turn-based combat and dialogue — the host frees the OS cursor for
+        // click-targeting, but that is WindowManager state, so every mouse move
+        // made to click an enemy kept integrating into InputManager yaw/pitch
+        // until pitch pinned at its +-89 clamp ("camera under the floor" after
+        // combat). setMouseCaptured re-latches firstMouse on the false->true
+        // edge, so re-capturing after combat does not integrate the cursor-park
+        // jump. Pinned by GameplayCameraControllerTest.
+        if (scheme_->wantsAlwaysOnLook()) input.setMouseCaptured(driveCharacter);
 
         const Input::ControlIntent in = scheme_->sample(input, dt);
 

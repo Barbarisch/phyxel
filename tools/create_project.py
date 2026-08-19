@@ -173,7 +173,6 @@ def create_project(
     # encounter runs, restore the scene's rig after (combat.camera in game.json).
     extra_members.append('    std::string combatCameraRig_ = "overhead";  // rig while in combat (game.json combat.camera)')
     extra_members.append("    std::string preCombatRig_;      // rig to restore when the encounter ends")
-    extra_members.append("    float preCombatYaw_ = 0.0f, preCombatPitch_ = 0.0f;  // look restored with the rig")
     extra_members.append("    bool wasInCombat_ = false;      // combat camera edge detection")
     # menuWorld: menu scenes with an authored world get a looping CameraPath
     # orbit behind their UI (PresentationPolish.md §3 Tier 1).
@@ -1387,9 +1386,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             }}
                             // Companions travel WITH the player: scene loads clear
                             // all entities, so respawn absent party members near
-                            // the player on every world scene. (Exploration follow
-                            // behavior is a future increment — they stand by until
-                            // combat, where start_combat auto-enlists them.)
+                            // the player on every world scene, in FOLLOW mode —
+                            // they walk with the player in exploration (BG3-style)
+                            // and start_combat auto-enlists them on the player's
+                            // side when an encounter begins.
                             if (npcManager_ && entityRegistry_ && playerCharacter_) {{
                                 for (const auto& m : rpgParty_.getMembers()) {{
                                     if (!m.isAlive || entityRegistry_->getEntity(m.entityId)) continue;
@@ -1399,7 +1399,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                     // with "" has no rig, so the combat TurnActor can never
                                     // bind its body and its turn stalls the whole encounter.
                                     if (npcManager_->spawnNPC(m.name, "resources/animated_characters/humanoid.anim",
-                                                              at, Phyxel::Core::NPCBehaviorType::Idle))
+                                                              at, Phyxel::Core::NPCBehaviorType::Follow))
                                         LOG_INFO("{class_name}", "Companion '{{}}' rejoined at the player's side", m.name);
                                 }}
                             }}
@@ -1630,19 +1630,28 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // driveCharacter=false.)
             const bool inCombatNow = combatDirector_.inCombat();
             if (inCombatNow != wasInCombat_) {{
-                auto* look = engine.getInputManager();
+                // Turn-based combat owns every body on the field: suspend NPC
+                // behaviors for the encounter (a live Follow/patrol behavior
+                // writes velocity every frame and stalls its TurnActor turn —
+                // the L4 probe caught Bram's follow deadzone freezing the
+                // whole encounter). Resumed on the exit edge.
+                if (npcManager_)
+                    npcManager_->forEachNPC([inCombatNow](Phyxel::Scene::NPCEntity& n) {{
+                        n.setBehaviorSuspended(inCombatNow);
+                    }});
                 if (inCombatNow) {{
                     preCombatRig_ = gameplayCamera().rigName();
-                    if (look) {{ preCombatYaw_ = look->getYaw(); preCombatPitch_ = look->getPitch(); }}
                     if (gameplayCamera().setRigByName(combatCameraRig_))
                         LOG_INFO("{class_name}", "Tactical camera: '{{}}' (combat)", combatCameraRig_);
                 }} else {{
                     const std::string back = preCombatRig_.empty() ? "third_person" : preCombatRig_;
-                    // Restore the LOOK along with the rig — the tactical phase can
-                    // leave the InputManager's pitch scrambled (rig pitch clamps +
-                    // convention differences), which would put the restored camera
-                    // under the floor looking up.
-                    if (look) look->setYawPitch(preCombatYaw_, preCombatPitch_);
+                    // No look snapshot/restore here anymore: the old "pitch
+                    // scrambled to +89 during the tactical phase" defect was the
+                    // InputManager mouseCaptured leak, fixed at the root in
+                    // GameplayCameraController (capture now releases while the
+                    // controller isn't driving, so free-cursor click-targeting
+                    // never integrates into look). Pinned by
+                    // GameplayCameraControllerTest.
                     if (gameplayCamera().setRigByName(back))
                         LOG_INFO("{class_name}", "Camera restored: '{{}}' (combat over)", back);
                 }}

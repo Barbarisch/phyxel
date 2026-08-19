@@ -19,8 +19,81 @@ PatrolBehavior::PatrolBehavior(const std::vector<glm::vec3>& waypoints, float wa
                                float waitTime)
     : m_waypoints(waypoints), m_walkSpeed(walkSpeed), m_waitTime(waitTime) {}
 
+void PatrolBehavior::setFollowMode(const std::string& targetId, float followDist,
+                                   float repathDist, float teleportDist) {
+    m_follow = true;
+    m_followTargetId = targetId;
+    m_followDist = followDist;
+    m_followRepathDist = repathDist;
+    m_followTeleportDist = teleportDist;
+    m_wander = false;
+    m_waitTime = 0.0f;      // follow never lingers at an "arrived" waypoint
+    m_waypoints.clear();    // seeded from the live target each frame
+}
+
+bool PatrolBehavior::updateFollowTarget(NPCContext& ctx, const glm::vec3& pos) {
+    // Registry lookup (NOT ctx.getEntityPosition — that helper returns origin
+    // for a missing entity, which would send the follower sprinting to 0,0,0).
+    Entity* target = ctx.entityRegistry ? ctx.entityRegistry->getEntity(m_followTargetId)
+                                        : nullptr;
+    if (!target) {
+        ctx.self->setMoveVelocity(glm::vec3(0.0f));
+        return true;
+    }
+    const glm::vec3 tpos = target->getPosition();
+    const float distXZ = glm::length(glm::vec2(tpos.x - pos.x, tpos.z - pos.z));
+
+    // Left hopelessly behind (failed path, scene geometry): BG3-style catch-up
+    // snap to the target's side rather than losing the companion forever.
+    if (distXZ > m_followTeleportDist) {
+        ctx.self->setPosition(tpos + glm::vec3(1.5f, 0.5f, 1.5f));
+        invalidatePath();
+        m_waypoints.clear();
+        m_followHolding = false;
+        LOG_WARN("PatrolBehavior", "Follow catch-up: teleported to '{}' ({} units behind)",
+                 m_followTargetId, distXZ);
+        return true;
+    }
+
+    // Deadzone with hysteresis: stop inside followDist, resume only once the
+    // target has pulled clearly away — no oscillating start/stop at the rim.
+    const float resumeDist = m_followDist + 0.75f;
+    if (m_followHolding) {
+        if (distXZ < resumeDist) {
+            ctx.self->setMoveVelocity(glm::vec3(0.0f));
+            glm::vec3 to = tpos - pos;   // stand by facing the target
+            if (glm::length(glm::vec2(to.x, to.z)) > 0.01f)
+                ctx.self->setRotation(glm::angleAxis(std::atan2(to.x, to.z),
+                                                     glm::vec3(0.0f, 1.0f, 0.0f)));
+            return true;
+        }
+        m_followHolding = false;
+    } else if (distXZ <= m_followDist) {
+        m_followHolding = true;
+        ctx.self->setMoveVelocity(glm::vec3(0.0f));
+        m_waiting = false;
+        return true;
+    }
+
+    // Chasing: keep the single waypoint pinned to the target, repathing only
+    // when it has strayed from the last pathed goal (not every frame — A* is
+    // not free and the stuck/probe machinery needs a stable path to validate).
+    if (m_waypoints.empty() ||
+        glm::length(glm::vec2(tpos.x - m_lastFollowGoal.x,
+                              tpos.z - m_lastFollowGoal.z)) > m_followRepathDist) {
+        m_waypoints = { tpos };
+        m_currentWaypoint = 0;
+        m_lastFollowGoal = tpos;
+        invalidatePath();
+    }
+    m_waiting = false;
+    return false;   // fall through to the shared patrol movement machinery
+}
+
 void PatrolBehavior::update(float dt, NPCContext& ctx) {
-    if (m_waypoints.empty() || !ctx.self) return;
+    if (!ctx.self) return;
+    if (m_follow && updateFollowTarget(ctx, ctx.self->getPosition())) return;
+    if (m_waypoints.empty()) return;
 
     // Derive forward from entity rotation (model faces +Z; atan2(x,z) yaw convention)
     glm::vec3 forward = ctx.self->getRotation() * glm::vec3(0.0f, 0.0f, 1.0f);
