@@ -1,0 +1,13 @@
+﻿Regression rerun 2026-08-19 12:10-12:12 — RpgGapProbe REGENERATED from
+game_definition_green.json on the CURRENT create_project.py scaffold + engine (post
+presentation arc: combat/cameras/facing/menuWorld/scrolling/themes/animations/colors),
+clean engine rebuild, archived green_probe.py run VERBATIM from a scratch copy.
+  G1 PASS: 0 'Unhandled trigger' WARNs; win_quest executed [complete_objective,
+           show_victory]; quest_chain fired=true via objective_complete event.
+  G2 PASS: 'Loading screen shown/dismissed' on BOTH transitions; API sampled
+           ['loading','playing'] on each.
+  G3 PASS: graceful quit exit 0; player_state row in town.db (camera/health/inventory);
+           Run B 'Restored saved player profile', camera bit-equal to saved.
+  WARN delta vs archived green: NONE new (Piper + test-API banner + 2x Elder
+  'character.anim' load failure all present in the 2026-08-13 archive too).
+VERDICT: the 2026-08-13 parity fixes hold on today's scaffold.
