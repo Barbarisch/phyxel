@@ -422,3 +422,27 @@ evidence in a Release run).
 Open next in this area: spell HOTBAR/UI for human players (the API path is proven; a
 mouse-driven cast picker is the missing expression), NPC/companion casting via CombatAI,
 slot tracking through SpellcasterComponent (casts currently spend only the action).
+
+## 6j. Increment 13 - SPELL HOTBAR: the mouse casts (2026-08-19)
+
+game.json `progression.spells` (SpellRegistry ids, unknown ids dropped LOUDLY) builds a
+combat spellbar: a vertical button stack on the right edge (spell names from the
+registry), click ARMS a spell (ember highlight via the per-element bg override — the
+theme feature doing live UI state), the next enemy click routes through castSpell instead
+of the melee pick; ground click cancels; bar tears down on the combat exit edge. Clicks
+route UI-FIRST in the combat handler (injectClick, the only real-click path into the
+UISystem during combat gameplay).
+
+Probe-verified through the REAL input path — posted WM_MOUSEMOVE parks the cursor on the
+rat, an injected LMB lands in the combat click handler: "Combat click -> cast
+'guiding_bolt' at 'npc_Rat' (ok)", encounter resolved in 2 hotbar casts. Evidence:
+docs/evidence/hearthvale/spellbar_* (armed screenshot: legible stacked bar, guiding_bolt
+glowing).
+
+Three findings, each caught by a failing probe check (full detail in spellbar_result.txt):
+load-order (spells parsed before the registry loaded — the loud-drop guard caught it);
+glfwGetCursorPos polls the OS cursor live and diverges from the message-fed input stream
+(combat clicks now read InputManager::getCurrentMousePosition); and a freeLayout UIPanel
+consumes EVERY in-bounds click (modal semantics) — a fullscreen transparent overlay root
+silently eats the world's clicks, so overlay roots must be sized to their content.
+That last one is an ENGINE footgun worth a click-through flag eventually.

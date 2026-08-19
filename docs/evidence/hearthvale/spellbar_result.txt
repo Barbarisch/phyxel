@@ -1,0 +1,22 @@
+﻿Spell HOTBAR - click-to-arm, click-to-cast - 2026-08-19 15:06, Release --test 8101
+RED (structural): no hud_spellbar screen existed; the only cast path was the direct
+combat/player_cast API call (spellcast_result.txt).
+GREEN 4/4 final run:
+  B1 spellbar button consumes the click (ui_click at (1150,589) -> consumed, 'Spell armed')
+  B2 armed highlight: guiding_bolt bg (255,216,137) ember vs neighbor theme rust (173,129,89)
+     - the per-element bg override doing live UI state
+  B3+B3b THE REAL PATH: posted WM_MOUSEMOVE parks the cursor on the rat, injected LMB lands
+     in the combat click handler -> "Combat click -> cast 'guiding_bolt' at 'npc_Rat' (ok)"
+     -> "Player casts 'guiding_bolt'..." -> encounter resolved in 2 hotbar casts, iter 6.
+THREE BUGS FOUND EN ROUTE (each by a failing check):
+  1. Load-order: progression.spells parsed BEFORE the combat wiring's SpellRegistry load ->
+     every authored spell LOUDLY dropped (the drop-warn guard earned its keep). Fix: lazy
+     registry load at the parse site too.
+  2. glfwGetCursorPos polls the OS cursor LIVE in normal cursor mode - it diverges from the
+     message-fed event stream (and from posted WM_MOUSEMOVE). Fix: combat clicks read
+     InputManager::getCurrentMousePosition (single source of truth with the input system).
+  3. A freeLayout UIPanel consumes EVERY click inside its bounds (modal semantics,
+     UIWidget.cpp handleClick returns true) - the first fullscreen-transparent bar root ate
+     all combat clicks silently. Fix: size the bar root to exactly the button strip.
+Layout: vertical 220x34 stack at right edge under Initiative (labels fully legible - the
+horizontal 150px version clipped "Sacred Flame").

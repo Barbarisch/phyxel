@@ -184,6 +184,11 @@ def create_project(
     extra_includes.append('#include "graphics/CameraManager.h"')
     extra_members.append("    Phyxel::Graphics::CameraPath menuCamPath_;  // drives the menuWorld orbit while a menu scene is up")
     extra_members.append("    bool combatLmbHeld_ = false;    // click-to-act edge detection (BG3 mouse combat)")
+    # Spell hotbar (BG3 casting UI): authored spells -> combat spellbar; click a
+    # slot to ARM, click an enemy to CAST (routes through castSpell instead of
+    # the melee pick). Ground click with a spell armed = cancel.
+    extra_members.append('    std::vector<std::string> playerSpells_;  // game.json progression.spells (SpellRegistry ids)')
+    extra_members.append('    std::string armedSpell_;        // spellbar-armed spell; empty = melee/move clicks')
     extra_members.append("    Phyxel::Core::ObjectiveTracker objectiveTracker_;  // quest-log spine; game.json \"objectives\" load here")
     extra_members.append("    Phyxel::Core::PlayerProfile playerProfile_;        // persisted to the active scene's world DB (player_state table)")
     extra_members.append("    std::string loadingSceneName_;  // destination scene shown on the loading screen")
@@ -287,6 +292,7 @@ def create_project(
         f"    void grantXP(int xp, const char* why);  // awardXP + level-up log/event",
         f"    void faceToward(Phyxel::Scene::AnimatedVoxelCharacter* ch, const glm::vec3& at);",
         f"    void playCastVisual(const std::string& spellId, const glm::vec3& targetPos, std::function<void()> onRelease);",
+        f"    void setArmedSpell(const std::string& id);  // spellbar arm/disarm + button highlight",
         f"    Phyxel::Scene::AnimatedVoxelCharacter* characterOf(const std::string& entityId);",
         f"    void faceCombatants();  // everyone faces the nearest opposing-side combatant",
         "",
@@ -1227,8 +1233,26 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     playerSheet_.experiencePoints = 0;
                     killXp_      = prog.value("kill_xp", 0);
                     objectiveXp_ = prog.value("objective_xp", 0);
-                    LOG_INFO("{class_name}", "Progression: {{}} {{}} (kill_xp={{}}, objective_xp={{}})",
-                             playerSheet_.raceId, cl.classId, killXp_, objectiveXp_);
+                    // "spells": authored castable list (SpellRegistry ids) — the
+                    // combat spellbar builds from this. Unknown ids are dropped
+                    // LOUDLY here rather than rendering a dead button. The
+                    // registry load is lazy/idempotent and MUST also happen here:
+                    // this parse runs before the combat wiring's load, and an
+                    // empty registry silently dropped every authored spell once.
+                    if (Phyxel::Core::SpellRegistry::instance().count() == 0)
+                        Phyxel::Core::SpellRegistry::instance().loadFromDirectory("resources/spells");
+                    playerSpells_.clear();
+                    if (prog.contains("spells") && prog["spells"].is_array()) {{
+                        for (const auto& s : prog["spells"]) {{
+                            const std::string id = s.get<std::string>();
+                            if (Phyxel::Core::SpellRegistry::instance().getSpell(id))
+                                playerSpells_.push_back(id);
+                            else
+                                LOG_WARN("{class_name}", "progression.spells: unknown spell '{{}}' dropped", id);
+                        }}
+                    }}
+                    LOG_INFO("{class_name}", "Progression: {{}} {{}} (kill_xp={{}}, objective_xp={{}}, spells={{}})",
+                             playerSheet_.raceId, cl.classId, killXp_, objectiveXp_, playerSpells_.size());
                 }}
 
                 // PERSISTENT member, not a local: the SceneManager keeps a pointer to
@@ -1558,18 +1582,47 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 !inDialogue && renderCoordinator_) {{
                 const bool lmb = input->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
                 if (lmb && !combatLmbHeld_) {{
-                    auto* win = engine.getWindowManager();
                     auto* cam = engine.getCamera();
-                    if (win && cam) {{
+                    if (cam) {{
+                        // Cursor position through the InputManager's message-fed
+                        // cache, NOT glfwGetCursorPos: GLFW polls the OS cursor
+                        // live in normal cursor mode, which diverges from the
+                        // event stream the rest of input uses (and from injected
+                        // WM_MOUSEMOVE in test harnesses).
                         double mx = 0.0, my = 0.0;
-                        glfwGetCursorPos(win->getHandle(), &mx, &my);
-                        const glm::uvec2 vp = renderCoordinator_->getSwapChainSize();
-                        const float groundY = playerCharacter_ ? playerCharacter_->getPosition().y : 0.0f;
-                        const char* resolved = playerTurn_.requestPickAt(
-                            *cam, {{static_cast<float>(mx), static_cast<float>(my)}},
-                            {{static_cast<float>(vp.x), static_cast<float>(vp.y)}}, groundY);
-                        LOG_INFO("{class_name}", "Combat click ({{}}, {{}}) -> {{}}",
-                                 static_cast<int>(mx), static_cast<int>(my), resolved);
+                        input->getCurrentMousePosition(mx, my);
+                        const glm::vec2 click{{static_cast<float>(mx), static_cast<float>(my)}};
+                        // UI first: HUD widgets (the spellbar) consume the click
+                        // before any world pick — no other path routes real
+                        // clicks into the UISystem during combat gameplay.
+                        bool uiConsumed = false;
+                        if (auto* uisys = renderCoordinator_->getUISystem())
+                            uiConsumed = uisys->injectClick(click);
+                        if (uiConsumed)
+                            LOG_INFO("{class_name}", "Combat click ({{}}, {{}}) -> UI",
+                                     static_cast<int>(mx), static_cast<int>(my));
+                        if (!uiConsumed) {{
+                            const glm::uvec2 vp = renderCoordinator_->getSwapChainSize();
+                            const glm::vec2 vps{{static_cast<float>(vp.x), static_cast<float>(vp.y)}};
+                            const float groundY = playerCharacter_ ? playerCharacter_->getPosition().y : 0.0f;
+                            if (!armedSpell_.empty()) {{
+                                // Armed cast: an enemy under the cursor takes the
+                                // spell; anything else cancels the arm (BG3-style).
+                                auto pick = playerTurn_.resolvePick(*cam, click, vps, groundY);
+                                if (pick.kind == Phyxel::Core::PlayerTurnController::PickResult::Kind::Attack) {{
+                                    const bool castOk = playerTurn_.castSpell(armedSpell_, pick.targetId);
+                                    LOG_INFO("{class_name}", "Combat click -> cast '{{}}' at '{{}}' ({{}})",
+                                             armedSpell_, pick.targetId, castOk ? "ok" : "refused");
+                                }} else {{
+                                    LOG_INFO("{class_name}", "Combat click -> cast '{{}}' cancelled", armedSpell_);
+                                }}
+                                setArmedSpell("");
+                            }} else {{
+                                const char* resolved = playerTurn_.requestPickAt(*cam, click, vps, groundY);
+                                LOG_INFO("{class_name}", "Combat click ({{}}, {{}}) -> {{}}",
+                                         static_cast<int>(mx), static_cast<int>(my), resolved);
+                            }}
+                        }}
                     }}
                 }}
                 combatLmbHeld_ = lmb;
@@ -1666,6 +1719,46 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     preCombatRig_ = gameplayCamera().rigName();
                     if (gameplayCamera().setRigByName(combatCameraRig_))
                         LOG_INFO("{class_name}", "Tactical camera: '{{}}' (combat)", combatCameraRig_);
+                    // Spellbar: one button per authored spell (progression.spells).
+                    // Click ARMS the spell (ember highlight via the per-element bg
+                    // override); the next enemy click casts it. Rebuilt fresh each
+                    // encounter, torn down on the exit edge.
+                    if (!playerSpells_.empty() && renderCoordinator_) {{
+                        if (auto* uisys = renderCoordinator_->getUISystem()) {{
+                            uisys->removeScreen("hud_spellbar");
+                            // The root panel is sized to EXACTLY the bar strip:
+                            // a freeLayout UIPanel consumes every click inside
+                            // its bounds (modal semantics), so a fullscreen
+                            // transparent root would eat all combat clicks —
+                            // it ate the cast clicks on the first probe run.
+                            // Vertical stack on the right edge, below the
+                            // Initiative panel and clear of the action panel +
+                            // item hotbar. 220px wide fits the longest SRD-ish
+                            // name ("Sacred Flame", 12 chars at 16px/char).
+                            const float bw = 220.0f, bh = 34.0f, gap = 8.0f;
+                            const float totalH = (bh + gap) * playerSpells_.size() - gap;
+                            auto bar = std::make_unique<Phyxel::UI::UIPanel>();
+                            bar->freeLayout = true;
+                            bar->showBackground = false;
+                            bar->anchor = Phyxel::UI::Anchor::TopLeft;
+                            bar->offset = {{uisys->width() - bw - 20.0f, 530.0f}};
+                            bar->size = {{bw, totalH}};
+                            float y = 0.0f;
+                            for (const auto& sid : playerSpells_) {{
+                                auto btn = std::make_unique<Phyxel::UI::UIButton>();
+                                const auto* sdef = Phyxel::Core::SpellRegistry::instance().getSpell(sid);
+                                btn->id = "spell_" + sid;
+                                btn->text = sdef ? sdef->name : sid;
+                                btn->position = {{0.0f, y}};
+                                btn->size = {{bw, bh}};
+                                btn->onClick = [this, sid] {{ setArmedSpell(armedSpell_ == sid ? "" : sid); }};
+                                bar->addChild(std::move(btn));
+                                y += bh + gap;
+                            }}
+                            uisys->addScreen("hud_spellbar", std::move(bar));
+                            uisys->showScreen("hud_spellbar");
+                        }}
+                    }}
                 }} else {{
                     const std::string back = preCombatRig_.empty() ? "third_person" : preCombatRig_;
                     // No look snapshot/restore here anymore: the old "pitch
@@ -1677,6 +1770,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     // GameplayCameraControllerTest.
                     if (gameplayCamera().setRigByName(back))
                         LOG_INFO("{class_name}", "Camera restored: '{{}}' (combat over)", back);
+                    if (renderCoordinator_)
+                        if (auto* uisys = renderCoordinator_->getUISystem())
+                            uisys->removeScreen("hud_spellbar");
+                    armedSpell_.clear();
                 }}
                 wasInCombat_ = inCombatNow;
                 if (engine_) updateCursorMode(*engine_);
@@ -2011,6 +2108,25 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             const float dx = at.x - from.x, dz = at.z - from.z;
             if (dx * dx + dz * dz < 0.01f) return;   // on top of each other — keep facing
             ch->setFacingYaw(std::atan2(dx, dz));
+        }}
+
+        // Arm/disarm a spellbar spell. The armed slot glows ember through the
+        // per-element bg override; everything else reverts to the theme.
+        void {class_name}::setArmedSpell(const std::string& id) {{
+            armedSpell_ = id;
+            if (!renderCoordinator_) return;
+            auto* uisys = renderCoordinator_->getUISystem();
+            if (!uisys) return;
+            auto* bar = uisys->getScreen("hud_spellbar");
+            if (!bar) return;
+            for (const auto& sid : playerSpells_) {{
+                if (auto* w = bar->findChild("spell_" + sid))
+                    if (auto* b = dynamic_cast<Phyxel::UI::UIButton*>(w))
+                        b->customBg = (sid == id && !id.empty())
+                                          ? glm::vec4(0.85f, 0.55f, 0.20f, 1.0f)
+                                          : glm::vec4(0.0f);
+            }}
+            if (!id.empty()) LOG_INFO("{class_name}", "Spell armed: '{{}}'", id);
         }}
 
         // Cast visual for the player's spells: cast animation (SpellAnimMapper
