@@ -1,4 +1,5 @@
 #include "graphics/FarTerrainMesher.h"
+#include "core/WorldForgePlan.h"
 #include "graphics/TreeSpeciesTable.h"
 #include "core/WorldGenerator.h"
 
@@ -88,14 +89,31 @@ FarTileMesh FarTerrainMesher::buildTile(const FarTileKey& key, int step) {
     auto q = [&](int i, int j) -> int& { return qGrid[size_t(i + 1) + size_t(j + 1) * G]; };
     auto biomeAt = [&](int i, int j) -> int& { return biomeGrid[size_t(i + 1) + size_t(j + 1) * G]; };
 
+    // WorldForge far roads (docs/WorldForge.md): the min-corner point sample misses a
+    // 5-6 u road in a coarse cell (step 8 rendered dashes, step 16 mostly lost it —
+    // FarTerrainMesherTest.RoadsShowInFarTiles, red-first). Widen the acceptance to
+    // halfWidth + step/2 at the CELL CENTRE: any cell the road passes through reads as
+    // road, so the far ribbon stays continuous at every ring (a 1-cell-wide line is the
+    // correct far-map thickness). Near columns are untouched — this is far-tile-only.
+    const WorldForgePlan* roadPlan = m_generator->worldForge();
     for (int j = -1; j <= N; ++j) {
         for (int i = -1; i <= N; ++i) {
             WorldGenerator::ColumnSample col =
                 m_generator->sampleSurface(mesh.originXZ.x + i * step, mesh.originXZ.y + j * step);
             q(i, j) = quantizeTop(col.surfaceY, step);
             biomeAt(i, j) = col.biomeIndex;
-            if (i >= 0 && i < N && j >= 0 && j < N)
+            if (i >= 0 && i < N && j >= 0 && j < N) {
+                if (roadPlan && col.roadClass == 0 && col.riverOrder == 0 &&
+                    col.bridgeDeckY == INT_MIN) {
+                    const auto hit = roadPlan->roadAt(
+                        mesh.originXZ.x + i * step + step * 0.5f,
+                        mesh.originXZ.y + j * step + step * 0.5f);
+                    if (hit.cls > 0 &&
+                        hit.dist <= WorldForgePlan::roadHalfWidth(hit.cls) + step * 0.5f)
+                        col.surfaceMat = WorldForgePlan::roadMaterial(hit.cls);
+                }
                 topMat[size_t(i) + size_t(j) * N] = std::move(col.surfaceMat);
+            }
         }
     }
 

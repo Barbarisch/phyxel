@@ -318,7 +318,10 @@ TEST(FarTerrainMesherTest, RoadsShowInFarTiles) {
     const glm::vec2 mid = road.centerline[road.centerline.size() / 2];
     const uint16_t roadTex =
         fakeResolver(WorldForgePlan::roadMaterial(road.cls), 4);   // tops are faceID 4
-    for (const int step : {2, 4}) {
+    // CONTINUITY, not mere presence (point-sampling passed ">0 quads" while rendering the
+    // road as dashes at coarse rings): the road-material top AREA must cover at least a
+    // 1-column-wide connected line along the centerline's arc inside the tile.
+    for (const int step : {2, 4, 8, 16}) {
         const int tileSize = FarTerrainMesher::kColumns * step;
         FarTileKey key;
         key.ring = 0;
@@ -326,10 +329,28 @@ TEST(FarTerrainMesherTest, RoadsShowInFarTiles) {
         key.z = static_cast<int>(std::floor(mid.y / tileSize));
         FarTerrainMesher mesher(std::make_unique<WorldGenerator>(*gen), fakeResolver);
         const FarTileMesh mesh = mesher.buildTile(key, step);
-        int roadQuads = 0;
+        float roadArea = 0.0f;
         for (const Quad& q : extractQuads(mesh))
-            if (q.faceID == 4u && q.tex == roadTex) ++roadQuads;
-        EXPECT_GT(roadQuads, 0) << "no road-material top quads in the step-" << step
-                                << " far tile crossing the road corridor";
+            if (q.faceID == 4u && q.tex == roadTex) roadArea += q.area();
+        const float roadColumns = roadArea / float(step * step);
+        // Arc length of the road's centerlines clipped to this tile (ALL roads: a tile can
+        // hold more than one; the material is per-class so same-class roads share the tex).
+        const float x0 = float(key.x * tileSize), z0 = float(key.z * tileSize);
+        const float x1 = x0 + tileSize, z1 = z0 + tileSize;
+        float arcLen = 0.0f;
+        for (const auto& rd : plan->roads()) {
+            if (rd.cls != road.cls) continue;
+            for (size_t i = 0; i + 1 < rd.centerline.size(); ++i) {
+                glm::vec2 a = rd.centerline[i], b = rd.centerline[i + 1];
+                // Coarse clip: count the segment if its midpoint lies in the tile.
+                const glm::vec2 m = (a + b) * 0.5f;
+                if (m.x >= x0 && m.x < x1 && m.y >= z0 && m.y < z1)
+                    arcLen += glm::length(b - a);
+            }
+        }
+        ASSERT_GT(arcLen, float(step) * 4.0f) << "tile must actually contain road";
+        EXPECT_GE(roadColumns, 0.8f * arcLen / float(step))
+            << "step-" << step << " far tile renders the road as dashes ("
+            << roadColumns << " road columns for " << arcLen << "u of road)";
     }
 }

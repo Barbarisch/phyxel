@@ -39,9 +39,10 @@ non-render distance systems (streaming residency, sim LOD) listed below the line
 `sampleSurface`, which stamps road material, and the mesher's private generator copy
 carries the baked plan — P-DERIVED holds with zero far-terrain code (pinned by
 `FarTerrainMesherTest.RoadsShowInFarTiles`, steps 2 and 4; live-corroborated from an
-elevated camera). Residual, honestly scoped: point-sampled 5-6 u roads THIN at coarse
-rings (step 8 dashes, step 16 mostly gone, ~2 km+) — a supersampled road channel per far
-column would extend them to the horizon; logged in docs/StructurePipelineGaps.md.
+elevated camera). The coarse-ring thinning residual was RESOLVED same day: the mesher
+tests each far column's cell centre against roadAt widened by step/2, so the ribbon is
+continuous at every ring (the RoadsShowInFarTiles continuity assertion pins ≥ 0.8× the
+centerline arc length in road columns per step, 2 through 16).
 
 ### Non-render distance systems (for completeness — do not confuse with render LOD)
 

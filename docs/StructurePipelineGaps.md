@@ -212,3 +212,12 @@ Both docs corrected. REMAINING (real): point-sampling thins a 5-6u road at coars
 step 8 renders dashes, step 16 mostly loses it (beyond ~2 km). Fix shape: a supersampled
 road hit per far column (query roadAt at 2-3 subpositions, majority wins) or a widened
 roadHalfWidth for far sampling only.
+
+## 2026-08-18 (later) - far-road thinning RESOLVED (supersampled far columns)
+
+The coarse-ring residual above is closed: FarTerrainMesher now tests each far column
+CELL CENTRE against roadAt with acceptance halfWidth + step/2, so any cell the road passes
+through reads as road - the far ribbon is continuous at every ring (1-cell-wide line, the
+correct far-map thickness). Near columns untouched (far-tile-only widening). Red-first:
+the RoadsShowInFarTiles continuity assertion (road-column area >= 0.8x the centerline arc
+length per step) measured 38 columns for 461u of road at step 8 before the fix.
