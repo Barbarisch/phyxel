@@ -219,8 +219,27 @@ and not a full cube) + `BridgePiersStandSolidOnALongSpan` (solid at EVERY level,
 8-site fixture). The walkway-intrusion assertion caught a real defect mid-implementation:
 clamped segment distance wrapped the rail band around the span endpoints as an arc — a
 parapet ACROSS the bridge entrance; rails now use unclamped lateral distance.
+**L3 agent walk + abutment ramps SHIPPED 2026-08-20:** `BridgeCrossingIsAgentWalkable`
+(the M3-owed L3) drives a TraversalProbe character-box bank-to-bank over the deck (1-cube
+hop, the M3 climbability bound), a STRICT walker (engine auto-step only) end-to-end
+between the parapets, and a sensitivity control that overlays a parapet-height wall
+across the walkway and must break — proving the test can catch a rail intrusion. Two
+emission changes fell out: (1) the deck used clamped segment distance, which grew a
+floating ~2.5 u deck DISC beyond each endpoint — decks are now strictly span-interior;
+(2) span ends whose bank sits genuinely below the deck get a stepped Stone **abutment
+ramp** (1 cube per 2 u, ≤ `kRampLength` 8 u, filled only where the ramp line clears
+terrain) so the deck is mountable ALONG THE ROAD LINE — pinned by
+`BridgeAbutmentRampStepsTheLowBankUp` on the mountain gorge fixture (red with
+kRampLength=0), since the canonical fixture's "low bank" is a one-column lip under the
+deck end where no ramp applies. Provenance note, recorded honestly: the crossing test's
+first red was a TEST bounds bug (vertical bound below the approach terrain), not the
+mount step — the agent crosses even without the ramp by detouring over bank terrain; the
+ramp's own test is what pins the feature. Ramps/rails/piers are all query-derived: plan
+hashes unchanged throughout (mountain fixture re-baked identical).
 Still open (logged): channels wider than 96 u get NO deck (surfaced in the bake log, never
-a half-bridge), decks are flat (no arc), parapets have no openings/posts rhythm.
+a half-bridge), decks are flat (no arc), parapets have no openings/posts rhythm, and
+natural terrain steps > 1 cube on the approach BEYOND the ramp remain the road-grading
+gap's business.
 
 ## Known gaps (V1 non-goals, logged)
 

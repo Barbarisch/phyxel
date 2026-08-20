@@ -692,27 +692,39 @@ WorldForgePlan::BridgeHit WorldForgePlan::bridgeAt(float worldX, float worldZ) c
     for (const auto& b : m_bridges) {
         const glm::vec2 ab = b.b - b.a;
         const float len2 = glm::dot(ab, ab);
-        const float t = len2 > 0.0f ? glm::clamp(glm::dot(p - b.a, ab) / len2, 0.0f, 1.0f) : 0.0f;
-        const float d = glm::length(p - (b.a + ab * t));
+        if (len2 <= 0.0f) continue;
+        const float len = std::sqrt(len2);
+        const glm::vec2 dirn = ab / len;
+        const float tRaw = glm::dot(p - b.a, ab) / len2;
+        const float lateral = std::abs(glm::dot(p - b.a, glm::vec2(-dirn.y, dirn.x)));
         const float half = roadHalfWidth(b.cls);
-        if (d > half) continue;
+        if (lateral > half) continue;
+
+        // Beyond a span end: no deck (the old clamped-distance test grew a floating deck
+        // DISC around each endpoint) — instead an abutment APPROACH ramp, descending 1
+        // cube per 2 u, so a low bank can mount the deck in 1-cube steps (the 2-cube
+        // low-bank step was agent-unwalkable, caught by BridgeCrossingIsAgentWalkable).
+        if (tRaw < 0.0f || tRaw > 1.0f) {
+            const float beyond = (tRaw < 0.0f ? -tRaw : tRaw - 1.0f) * len;
+            if (beyond <= kRampLength) {
+                const int drop = static_cast<int>(std::ceil(beyond / 2.0f));
+                hit.rampTopY = std::max(hit.rampTopY, static_cast<int>(b.deckY) - drop);
+            }
+            continue;
+        }
+
         hit.deckY = b.deckY;
         hit.cls = b.cls;
-        // Deck-edge band -> parapet, from TRUE lateral distance on the span INTERIOR only.
-        // Using the clamped segment distance here would wrap the band around the endpoints
-        // as an arc — a parapet ACROSS the walkway entrance, blocking the bridge (the red
+        // Deck-edge band -> parapet, from TRUE lateral distance on the span INTERIOR only
+        // (an endpoint-arc band would be a parapet ACROSS the walkway entrance — the red
         // test's walkway-violation assertion caught exactly this).
-        const float tRaw = len2 > 0.0f ? glm::dot(p - b.a, ab) / len2 : 0.0f;
-        const glm::vec2 dirn = len2 > 0.0f ? ab / std::sqrt(len2) : glm::vec2(0.0f);
-        const float lateral = std::abs(glm::dot(p - b.a, glm::vec2(-dirn.y, dirn.x)));
-        hit.rail = tRaw > 0.0f && tRaw < 1.0f && lateral > half - 1.0f;
+        hit.rail = lateral > half - 1.0f;
         // Piers: interior stations every ~kPierSpacing along the span, DERIVED here per
         // query (nothing baked, planHash unchanged — pre-pier ledgers stay valid). A span
         // shorter than 2x the spacing carries no station.
-        const float len = std::sqrt(len2);
         const int n = std::max(0, static_cast<int>(std::floor(len / kPierSpacing)) - 1);
-        if (n > 0 && d <= 1.5f) {
-            const float along = t * len;
+        if (n > 0 && lateral <= 1.5f) {
+            const float along = tRaw * len;
             for (int i = 0; i < n; ++i) {
                 const float station = len * static_cast<float>(i + 1) / static_cast<float>(n + 1);
                 if (std::abs(along - station) <= 1.5f) {

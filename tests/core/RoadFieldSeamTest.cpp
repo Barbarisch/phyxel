@@ -2,9 +2,12 @@
 
 #include <cmath>
 #include <iostream>
+#include <map>
 #include <memory>
+#include <tuple>
 
 #include "core/Chunk.h"
+#include "core/TraversalProbe.h"
 #include "core/WorldForgePlan.h"
 #include "core/WorldGenerator.h"
 #include "core/WorldRecipe.h"
@@ -81,6 +84,38 @@ struct BridgeWorld {
 };
 
 int floorDiv32(int a) { return a >= 0 ? a / 32 : (a - 31) / 32; }
+int floorDivN(int a, int n) { return a >= 0 ? a / n : (a - n + 1) / n; }
+int floorModN(int a, int n) { return a - floorDivN(a, n) * n; }
+
+// Generated chunks as a MICRO-cell occupancy field (1 cube = 9 micros per axis) for
+// TraversalProbe — cubes, subcubes and microcubes all count as solid. Chunks generate
+// lazily on first touch and are cached.
+struct ChunkMicroWorld {
+    WorldGenerator& gen;
+    std::map<std::tuple<int, int, int>, std::unique_ptr<Chunk>> chunks;
+    explicit ChunkMicroWorld(WorldGenerator& g) : gen(g) {}
+    Chunk& chunkAt(int cx, int cy, int cz) {
+        auto key = std::make_tuple(cx, cy, cz);
+        auto it = chunks.find(key);
+        if (it == chunks.end()) {
+            auto c = std::make_unique<Chunk>(glm::ivec3(cx, cy, cz) * 32);
+            c->initializeForLoading();
+            gen.generateChunk(*c, glm::ivec3(cx, cy, cz));
+            it = chunks.emplace(key, std::move(c)).first;
+        }
+        return *it->second;
+    }
+    bool solidMicro(int mx, int my, int mz) {
+        const int wx = floorDivN(mx, 9), wy = floorDivN(my, 9), wz = floorDivN(mz, 9);
+        Chunk& c = chunkAt(floorDiv32(wx), floorDiv32(wy), floorDiv32(wz));
+        const glm::ivec3 lp(floorModN(wx, 32), floorModN(wy, 32), floorModN(wz, 32));
+        if (c.getCubeAt(lp)) return true;
+        const glm::ivec3 sp(floorModN(mx, 9) / 3, floorModN(my, 9) / 3, floorModN(mz, 9) / 3);
+        if (c.hasSubcubeAt(lp, sp)) return true;
+        const glm::ivec3 mp(floorModN(mx, 3), floorModN(my, 3), floorModN(mz, 3));
+        return c.getMicrocubeAt(lp, sp, mp) != nullptr;
+    }
+};
 
 // Generate the chunk holding one world cell (initializeForLoading wires the voxel-manager
 // callbacks — the FloraMarginTest pattern; a bare Chunk throws bad_function_call).
@@ -387,4 +422,193 @@ TEST(RoadFieldSeamTest, OffRoadColumnsIdenticalToDisabledWorld) {
             ++checked;
         }
     EXPECT_GT(checked, 0);
+}
+
+// ============================================================================
+// L3 — the M3-owed AGENT WALK: "reachable" must mean physically walkable. A
+// character-box (TraversalProbe, the engine agent's honest kinematic stand-in)
+// crosses the bridge from one bank approach to the other; a STRICT walker (no
+// hop) proves the walkway between the parapets; and a sensitivity control
+// proves the probe would catch a parapet-height wall ACROSS the walkway — the
+// exact failure shape of the endpoint-arc rail bug.
+// ============================================================================
+TEST(RoadFieldSeamTest, BridgeCrossingIsAgentWalkable) {
+    BridgeWorld w;
+    if (!w.plan) GTEST_SKIP() << "no order>=3 channel within 5 km of origin on this seed";
+    const auto& b = w.plan->bridges()[0];
+    const glm::vec2 ab = b.b - b.a;
+    const float len = glm::length(ab);
+    ASSERT_GT(len, 6.0f);
+    const glm::vec2 dir = ab / len;
+    const int deckY = static_cast<int>(b.deckY);
+
+    ChunkMicroWorld world(w.gen);
+
+    // Approach points 8 u out from each bank, on the road corridor.
+    const glm::vec2 A = b.a - dir * 8.0f, B = b.b + dir * 8.0f;
+    const auto colA = w.gen.sampleSurface(static_cast<int>(std::lround(A.x)),
+                                          static_cast<int>(std::lround(A.y)));
+    const auto colB = w.gen.sampleSurface(static_cast<int>(std::lround(B.x)),
+                                          static_cast<int>(std::lround(B.y)));
+
+    // Corridor bounds (micro): the walk plane spans the approaches plus shoulder; the
+    // vertical band stays NEAR DECK LEVEL so the only way across the channel is the
+    // deck — a bed-wading route may not silently satisfy this test.
+    const int minSurf = std::min({colA.surfaceY, colB.surfaceY, deckY});
+    const int maxSurf = std::max({colA.surfaceY, colB.surfaceY, deckY});
+    const glm::ivec3 boundLo(static_cast<int>((std::min(A.x, B.x) - 6.0f) * 9.0f),
+                             (minSurf - 2) * 9,
+                             static_cast<int>((std::min(A.y, B.y) - 6.0f) * 9.0f));
+    const glm::ivec3 boundHi(static_cast<int>((std::max(A.x, B.x) + 6.0f) * 9.0f),
+                             (maxSurf + 5) * 9,
+                             static_cast<int>((std::max(A.y, B.y) + 6.0f) * 9.0f));
+
+    auto occ = [&](int x, int y, int z) { return world.solidMicro(x, y, z); };
+
+    // Hop agent: the engine box plus a 1-cube step-up, matching the M3 walkability
+    // bound (canonical-seed roads measured 0% steps above 1 cube).
+    Core::AgentBox hopBox;
+    hopBox.maxStepUpMicro = 9;
+    Core::TraversalProbe hopProbe(occ, hopBox);
+
+    auto feetAt = [&](const glm::vec2& p, int surfY, const Core::TraversalProbe& pr) {
+        const int fx = static_cast<int>(std::floor(p.x * 9.0f)) + 4;
+        const int fz = static_cast<int>(std::floor(p.y * 9.0f)) + 4;
+        return glm::ivec3(fx, pr.settle(fx, (surfY + 3) * 9, fz, boundLo.y), fz);
+    };
+
+    const glm::ivec3 start = feetAt(A, colA.surfaceY, hopProbe);
+    const glm::ivec3 goal = feetAt(B, colB.surfaceY, hopProbe);
+    ASSERT_NE(start.y, INT_MIN) << "agent cannot even stand at the A-side approach";
+    ASSERT_NE(goal.y, INT_MIN) << "agent cannot even stand at the B-side approach";
+
+    // Failure diagnostics: where does each end of the bridge sit vs its bank?
+    const auto bankA = w.gen.sampleSurface(static_cast<int>(std::lround(b.a.x)),
+                                           static_cast<int>(std::lround(b.a.y)));
+    const auto bankB = w.gen.sampleSurface(static_cast<int>(std::lround(b.b.x)),
+                                           static_cast<int>(std::lround(b.b.y)));
+    std::cout << "[BRIDGE-WALK] deckY=" << deckY << " bankA.surfaceY=" << bankA.surfaceY
+              << " bankB.surfaceY=" << bankB.surfaceY << " approachA.surfaceY="
+              << colA.surfaceY << " approachB.surfaceY=" << colB.surfaceY
+              << " len=" << len << std::endl;
+
+    EXPECT_TRUE(hopProbe.reachable(start, goal - glm::ivec3(9, 18, 9),
+                                   goal + glm::ivec3(9, 18, 9), boundLo, boundHi))
+        << "bank-to-bank bridge crossing is not walkable (with 1-cube hop)";
+
+    // Strict walker (engine auto-step only, 4 micros): the DECK itself must be walkable
+    // end to end — the parapet may not intrude into the walkway.
+    Core::AgentBox strictBox;   // defaults = the engine agent
+    Core::TraversalProbe strictProbe(occ, strictBox);
+    const glm::ivec3 deckStart = feetAt(b.a + dir * 2.0f, deckY, strictProbe);
+    const glm::ivec3 deckGoal = feetAt(b.b - dir * 2.0f, deckY, strictProbe);
+    ASSERT_NE(deckStart.y, INT_MIN);
+    ASSERT_NE(deckGoal.y, INT_MIN);
+    EXPECT_TRUE(strictProbe.reachable(deckStart, deckGoal - glm::ivec3(9, 18, 9),
+                                      deckGoal + glm::ivec3(9, 18, 9), boundLo, boundHi))
+        << "deck walkway not strictly walkable between the parapets";
+
+    // Sensitivity control — the test must be ABLE to fail: overlay a parapet-height
+    // (6-micro) wall across the mid-span walkway and the strict walk must break.
+    const glm::vec2 mid = (b.a + b.b) * 0.5f;
+    auto blockedOcc = [&](int x, int y, int z) {
+        const glm::vec2 p((x + 0.5f) / 9.0f, (z + 0.5f) / 9.0f);
+        const float along = glm::dot(p - b.a, dir);
+        const float lat = std::abs(glm::dot(p - b.a, glm::vec2(-dir.y, dir.x)));
+        const float midAlong = glm::dot(mid - b.a, dir);
+        if (std::abs(along - midAlong) <= 0.5f && lat <= 4.0f && y >= (deckY + 1) * 9 &&
+            y < (deckY + 1) * 9 + 6)
+            return true;
+        return world.solidMicro(x, y, z);
+    };
+    Core::TraversalProbe blockedProbe(blockedOcc, strictBox);
+    EXPECT_FALSE(blockedProbe.reachable(deckStart, deckGoal - glm::ivec3(9, 18, 9),
+                                        deckGoal + glm::ivec3(9, 18, 9), boundLo, boundHi))
+        << "probe failed to sense a parapet-height wall across the walkway — the test "
+           "could never catch a rail intruding into the deck";
+}
+
+// The deck must be mountable ALONG THE ROAD LINE itself, not only by detouring onto
+// bank terrain: where a bank sits below the deck, the abutment ramp steps it up at
+// <= 1 cube per step, and the fill is physically emitted Stone. (The crossing test
+// above passes even without the ramp — the agent walks around via the bank — so the
+// ramp needs this direct pin. Red with kRampLength=0: the centerline mount step is
+// deckY - bankSurfaceY = 2 cubes on the canonical fixture.)
+TEST(RoadFieldSeamTest, BridgeAbutmentRampStepsTheLowBankUp) {
+    // The canonical fixture's "low bank" is a one-column lip UNDER the deck end (terrain
+    // rises above deck just beyond it — no ramp applies). Genuinely low banks live on the
+    // mountain gorge crossings: hunt all span ends of the WorldForgeStressTest mountain
+    // fixture for one whose off-end centerline carries ramp fill.
+    WorldGenerator gen(WorldGenerator::GenerationType::Mountains, 424242);
+    WorldRecipe r = gen.makeRecipe();
+    r.worldforge.enabled = true;
+    r.worldforge.siteCount = 8;
+    r.worldforge.regionRadius = 2048.0f;
+    r.worldforge.minSpacing = 400.0f;
+    gen.applyRecipe(r);
+    const WorldForgePlan* plan = gen.worldForge();
+    ASSERT_NE(plan, nullptr);
+    ASSERT_FALSE(plan->bridges().empty());
+
+    auto surfAt = [&](const glm::vec2& p) {
+        return gen.sampleSurface(static_cast<int>(std::lround(p.x)),
+                                 static_cast<int>(std::lround(p.y)));
+    };
+
+    bool found = false;
+    for (const auto& b : plan->bridges()) {
+        const glm::vec2 ab = b.b - b.a;
+        const float len = glm::length(ab);
+        if (len < 4.0f) continue;
+        const glm::vec2 dir = ab / len;
+        const int deckY = static_cast<int>(b.deckY);
+        for (int endIdx = 0; endIdx < 2 && !found; ++endIdx) {
+            const glm::vec2 end = endIdx == 0 ? b.a : b.b;
+            const glm::vec2 out = endIdx == 0 ? -dir : dir;
+
+            // Find ramp fill along the off-end centerline.
+            glm::ivec2 rampCell(INT_MIN, INT_MIN);
+            int rampTop = INT_MIN;
+            for (float d = 1.0f; d <= WorldForgePlan::kRampLength && rampCell.x == INT_MIN;
+                 d += 1.0f) {
+                const glm::vec2 p = end + out * d;
+                const auto col = surfAt(p);
+                if (col.bridgeRampTopY != INT_MIN && col.bridgeRampTopY > col.surfaceY) {
+                    rampCell = {static_cast<int>(std::lround(p.x)),
+                                static_cast<int>(std::lround(p.y))};
+                    rampTop = col.bridgeRampTopY;
+                }
+            }
+            if (rampCell.x == INT_MIN) continue;
+            found = true;
+
+            // The mount is stepped: walk-surface heights (terrain OR ramp fill) never step
+            // more than 1 cube from the deck through the ramp zone.
+            int prev = deckY;
+            for (float d = 1.0f; d <= WorldForgePlan::kRampLength + 2.0f; d += 1.0f) {
+                const auto col = surfAt(end + out * d);
+                const int walkY = std::max(col.surfaceY, col.bridgeRampTopY);
+                EXPECT_LE(std::abs(walkY - prev), 1)
+                    << "step of " << std::abs(walkY - prev) << " cubes at " << d
+                    << " u off the deck end (walkY=" << walkY << ", prev=" << prev << ")";
+                prev = walkY;
+                if (walkY == col.surfaceY) break;   // terrain took over — grading gap territory
+            }
+
+            // The fill is physically emitted: every level (surfaceY, rampTopY] is solid.
+            const auto col = surfAt(glm::vec2(rampCell));
+            for (int wy = col.surfaceY + 1; wy <= rampTop; ++wy) {
+                const glm::ivec3 cc(floorDiv32(rampCell.x), floorDiv32(wy),
+                                    floorDiv32(rampCell.y));
+                auto chunk = genChunkAt(gen, cc);
+                const glm::ivec3 lp(rampCell.x - cc.x * 32, wy - cc.y * 32,
+                                    rampCell.y - cc.z * 32);
+                EXPECT_NE(chunk->getCubeAt(lp), nullptr)
+                    << "ramp gap at y=" << wy << " (" << rampCell.x << "," << rampCell.y << ")";
+            }
+        }
+        if (found) break;
+    }
+    ASSERT_TRUE(found) << "no span end on the mountain fixture carries ramp fill — the "
+                          "abutment ramp is dead code and should be removed";
 }

@@ -158,7 +158,14 @@ is superseded. Still open, logged here so they are not silently "done":
   arcs would have walled off the bridge ENTRANCE, caught red by the walkway-intrusion
   assertion), spans >= 24 u get solid Stone piers bed-to-deck at ~12 u stations, pier
   columns emit no water span. All derived per query - plan hashes unchanged, ledgers
-  stay valid. Residual: no parapet post rhythm/openings; no distinct abutment massing.
+  stay valid. Residual: no parapet post rhythm/openings.
+- 2026-08-20 (later): the M3-owed TraversalProbe agent walk landed as L3 tests
+  (BridgeCrossingIsAgentWalkable + BridgeAbutmentRampStepsTheLowBankUp) and drove two
+  emission changes: decks are now strictly span-interior (the clamped-distance check had
+  grown a floating deck DISC beyond each endpoint), and genuinely-low banks get a stepped
+  Stone ABUTMENT RAMP (1 cube per 2u, reach 8u) so the deck mounts along the road line -
+  the abutment-massing residual above is partially closed. Natural terrain steps > 1 cube
+  on approaches BEYOND the ramp remain the road-grading gap (unchanged).
 - Channels wider than 96 u yield NO deck (bake log warns) - big rivers stay uncrossable.
 - Decks are flat; no arc/clearance shaping for tall boat traffic (cosmetic for now).
 - Plan-hash note: the bridges field changes all plan hashes; pre-bridge realization ledgers

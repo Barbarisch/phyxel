@@ -1,5 +1,6 @@
 #pragma once
 
+#include <climits>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -118,9 +119,14 @@ public:
         bool pier = false;   // within a pier footprint — stations every kPierSpacing along the
                              // span, derived per query so baked plan data (and planHash) are
                              // unchanged by piers
+        int rampTopY = INT_MIN;  // abutment APPROACH ramp top (columns just beyond a span end,
+                             // descending 1 cube per 2 u): where a bank sits below the deck,
+                             // generation fills Stone up to this so the deck can be MOUNTED
+                             // with 1-cube steps (the low-bank 2-cube step was agent-unwalkable)
         bool hit() const { return cls > 0; }
     };
     static constexpr float kPierSpacing = 12.0f;   // interior pier stations along a span
+    static constexpr float kRampLength = 8.0f;     // abutment ramp reach beyond each span end
     BridgeHit bridgeAt(float worldX, float worldZ) const;
 
     /// Road query for one world column — the per-column generation hook (sampleColumn).

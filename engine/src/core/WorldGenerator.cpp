@@ -576,6 +576,13 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
                         continue;
                     }
                 }
+                // Abutment approach ramp (same family): Stone fill stepping the low bank up
+                // to the deck, 1 cube per 2 u — the deck must be MOUNTABLE, not just exist.
+                if (col.bridgeRampTopY != INT_MIN && wy > col.surfaceY &&
+                    wy <= col.bridgeRampTopY) {
+                    chunk.addCube(localPos, "Stone");
+                    continue;
+                }
 
                 if (wy > col.surfaceY) continue;  // above the surface: air (solid extends down)
 
@@ -1055,6 +1062,10 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                     // A pier only exists where there is water/air to stand in: bed below deck.
                     if (bh.pier && col.bridgeDeckY - 1 > col.surfaceY)
                         col.bridgePierTopY = col.bridgeDeckY - 1;
+                } else if (bh.rampTopY != INT_MIN && bh.rampTopY > col.surfaceY) {
+                    // Abutment approach ramp: fill only where the ramp line sits ABOVE the
+                    // bank terrain — where terrain meets or exceeds it, the ground IS the ramp.
+                    col.bridgeRampTopY = bh.rampTopY;
                 }
             }
             if (onRoad && col.bridgeDeckY == INT_MIN && col.riverOrder == 0 &&

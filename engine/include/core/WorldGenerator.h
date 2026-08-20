@@ -170,6 +170,9 @@ public:
                                       // clear — traversability is the invariant)
         int   bridgePierTopY = INT_MIN; // pier column: solid Stone fills (surfaceY, pierTopY]
                                       // from the carved bed up to under the deck (INT_MIN = none)
+        int   bridgeRampTopY = INT_MIN; // abutment approach column (just beyond a span end):
+                                      // solid Stone fills (surfaceY, rampTopY] so a low bank
+                                      // mounts the deck in 1-cube steps (INT_MIN = none)
     };
 
     // Load biome definitions from JSON (resources/biomes.json). Returns false (and keeps
