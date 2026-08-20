@@ -975,6 +975,8 @@ namespace Scene {
         void rebuildCompoundShape();       // no-op: compound was for Bullet terrain, replaced by occupancy grid
         void updateCompoundTransforms();   // no-op
         void resolveKinematicMovement(float dt);
+        bool kinematicResidencyHold() const;  // streaming world + unstreamed ground below
+                                              // -> hold in place instead of free-falling
         void updateStateMachine(float deltaTime);
         void detectAndApplyStepUp(const glm::vec3& desiredVelocity, float deltaTime);
         void configureAnimationFixes();

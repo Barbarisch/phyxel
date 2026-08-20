@@ -54,6 +54,25 @@ namespace Scene {
         worldPosition  = position;
     }
 
+    bool AnimatedVoxelCharacter::kinematicResidencyHold() const {
+        // Residency gate (docs/StructurePipelineGaps.md 2026-08-17 "player loses ground
+        // while worldforge_build owns residency"): on a STREAMING world, an absent chunk
+        // means "not streamed yet", never "empty" — all-air chunks stay in chunkMap and
+        // merely unregister their occupancy grid. So when BOTH the chunk at the feet and
+        // the chunk below are absent, the ground here is UNKNOWN and the character must
+        // wait for the world instead of free-falling through it (focus-override bakes,
+        // teleports into unstreamed terrain; observed y=-114k). The chunk-below escape
+        // keeps a jump above the streamed surface band under normal gravity. Static
+        // worlds return false — legacy behavior untouched.
+        if (!m_chunkManager || !m_chunkManager->isStreamingGenerationEnabled()) return false;
+        const glm::ivec3 feet(static_cast<int>(std::floor(worldPosition.x)),
+                              static_cast<int>(std::floor(worldPosition.y)),
+                              static_cast<int>(std::floor(worldPosition.z)));
+        const glm::ivec3 cc = Phyxel::ChunkManager::worldToChunkCoord(feet);
+        if (m_chunkManager->getChunkAtCoord(cc)) return false;
+        return m_chunkManager->getChunkAtCoord(cc + glm::ivec3(0, -1, 0)) == nullptr;
+    }
+
     void AnimatedVoxelCharacter::resolveKinematicMovement(float dt) {
         if (m_kinFrozen) return;  // anim editor: position is set externally
         auto* voxelWorld = physicsWorld ? physicsWorld->getVoxelWorld() : nullptr;
@@ -226,7 +245,14 @@ namespace Scene {
                 }
             }
             // Gravity and ground-snap are suppressed when Y root motion owns vertical movement
-            if (!m_yRootMotionActive) {
+            if (!m_yRootMotionActive && kinematicResidencyHold()) {
+                // Residency gate: the ground below is UNSTREAMED (unknown, not empty) —
+                // stand and wait for the world instead of free-falling through it. The
+                // hold releases the instant residency returns (see the helper).
+                m_kinVelocity.y = 0.0f;
+                m_kinGrounded = true;
+                m_stepGlideTargetY = -1.0e30f;
+            } else if (!m_yRootMotionActive) {
 
                 // Feet position at the start of this frame's vertical integration.
                 // Used below for a swept ground test so a fast fall or a frame-time

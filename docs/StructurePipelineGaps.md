@@ -146,6 +146,15 @@ what the engine did instead, the workaround used, and what a real fix looks like
 - **Real fix options:** freeze player physics while a residency override is active; or a dual
   anchor (player + focus) with a small player-side keep-alive ring; ties into the recorded
   "falling player outruns its own terrain" teleport hazard.
+- **RESOLVED 2026-08-20 - kinematic residency gate** (AnimatedVoxelCharacter::
+  kinematicResidencyHold): on a streaming world, when the chunk at the feet AND the chunk
+  below are both absent from chunkMap, the ground is UNKNOWN (all-air chunks stay
+  resident, so absence = not-yet-streamed) and the character holds in place - zero
+  vertical velocity, grounded stance - releasing the instant residency returns. Covers
+  BOTH this hazard and the teleport-into-unstreamed-terrain family, for the player and
+  every NPC on the same controller. The chunk-below escape keeps jumps above the streamed
+  surface band under normal gravity; static worlds are untouched
+  (CharacterResidencyGateTest, 4 tests, red-first: held character fell 19.8u/2s before).
 
 ## 2026-08-17 (later) - bridges V1 shipped; remaining bridge gaps
 
