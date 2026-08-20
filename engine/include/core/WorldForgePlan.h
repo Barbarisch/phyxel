@@ -113,8 +113,14 @@ public:
     struct BridgeHit {
         float deckY = -1e30f;
         int cls = 0;
+        bool rail = false;   // deck-EDGE band (lateral dist in (halfWidth-1, halfWidth]):
+                             // generation raises a sub-voxel parapet here, never on the walkway
+        bool pier = false;   // within a pier footprint — stations every kPierSpacing along the
+                             // span, derived per query so baked plan data (and planHash) are
+                             // unchanged by piers
         bool hit() const { return cls > 0; }
     };
+    static constexpr float kPierSpacing = 12.0f;   // interior pier stations along a span
     BridgeHit bridgeAt(float worldX, float worldZ) const;
 
     /// Road query for one world column — the per-column generation hook (sampleColumn).

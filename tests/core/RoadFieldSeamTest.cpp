@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <iostream>
+#include <memory>
 
 #include "core/Chunk.h"
 #include "core/WorldForgePlan.h"
@@ -43,6 +44,52 @@ struct ForgeWorld {
         gen.applyRecipe(testRecipe(gen));
     }
 };
+
+// Bridge fixture (shared by the deck / rail / pier tests): pin two sites either side of
+// the nearest order>=3 stem on the canonical seed so the plan bakes a span. plan == null
+// means the seed offers no stem within 5 km (tests skip).
+struct BridgeWorld {
+    WorldGenerator gen{WorldGenerator::GenerationType::Perlin, 20260816};
+    const WorldForgePlan* plan = nullptr;
+    BridgeWorld() {
+        const FlowField* flow = gen.riverNetwork();
+        if (!flow) return;
+        glm::vec2 stem(0.0f);
+        bool found = false;
+        for (int r = 2; r < 40 && !found; ++r)   // ring search outward from the origin
+            for (int cx = -r; cx <= r && !found; ++cx)
+                for (int cz = -r; cz <= r && !found; ++cz) {
+                    if (std::max(std::abs(cx), std::abs(cz)) != r) continue;
+                    const glm::vec2 p(cx * 128.0f + 64.0f, cz * 128.0f + 64.0f);
+                    if (flow->orderAt(p.x, p.y) >= 3) {
+                        stem = p;
+                        found = true;
+                    }
+                }
+        if (!found) return;
+        const glm::vec2 dir = flow->flowDirAt(stem.x, stem.y);
+        if (glm::length(dir) < 0.01f) return;
+        const glm::vec2 perp = glm::normalize(glm::vec2(-dir.y, dir.x));
+        WorldRecipe r = testRecipe(gen);
+        r.worldforge.regionRadius = 8192.0f;   // the stem may be far from the origin
+        r.worldforge.sitePins = {
+            {static_cast<int>(stem.x + perp.x * 140.0f), static_cast<int>(stem.y + perp.y * 140.0f)},
+            {static_cast<int>(stem.x - perp.x * 140.0f), static_cast<int>(stem.y - perp.y * 140.0f)}};
+        gen.applyRecipe(r);
+        if (gen.worldForge() && !gen.worldForge()->bridges().empty()) plan = gen.worldForge();
+    }
+};
+
+int floorDiv32(int a) { return a >= 0 ? a / 32 : (a - 31) / 32; }
+
+// Generate the chunk holding one world cell (initializeForLoading wires the voxel-manager
+// callbacks — the FloraMarginTest pattern; a bare Chunk throws bad_function_call).
+std::unique_ptr<Chunk> genChunkAt(WorldGenerator& gen, const glm::ivec3& chunkCoord) {
+    auto chunk = std::make_unique<Chunk>(chunkCoord * 32);
+    chunk->initializeForLoading();
+    gen.generateChunk(*chunk, chunkCoord);
+    return chunk;
+}
 
 }  // namespace
 
@@ -156,54 +203,166 @@ TEST(RoadFieldSeamTest, FloraKeepsOffTheRoadCorridor) {
 // the carved bed on deck columns, and generateChunk places a Wood cube at the deck cell.
 // RED before the sampleColumn/generateChunk wiring.
 TEST(RoadFieldSeamTest, BridgeDeckEmittedOverOrder3Channel) {
-    WorldGenerator gen(WorldGenerator::GenerationType::Perlin, 20260816);
-    // Find an order>=3 channel cell within the plannable region of the canonical seed.
-    const FlowField* flow = gen.riverNetwork();
-    ASSERT_NE(flow, nullptr);
-    glm::vec2 stem(0.0f);
-    bool found = false;
-    for (int r = 2; r < 40 && !found; ++r)   // ring search outward from the origin
-        for (int cx = -r; cx <= r && !found; ++cx)
-            for (int cz = -r; cz <= r && !found; ++cz) {
-                if (std::max(std::abs(cx), std::abs(cz)) != r) continue;
-                const glm::vec2 p(cx * 128.0f + 64.0f, cz * 128.0f + 64.0f);
-                if (flow->orderAt(p.x, p.y) >= 3) {
-                    stem = p;
-                    found = true;
-                }
-            }
-    if (!found) GTEST_SKIP() << "no order>=3 channel within 5 km of origin on this seed";
-    const glm::vec2 dir = flow->flowDirAt(stem.x, stem.y);
-    ASSERT_GT(glm::length(dir), 0.01f);
-    const glm::vec2 perp = glm::normalize(glm::vec2(-dir.y, dir.x));
+    BridgeWorld w;
+    if (!w.plan) GTEST_SKIP() << "no order>=3 channel within 5 km of origin on this seed";
 
-    WorldRecipe r = testRecipe(gen);
-    r.worldforge.regionRadius = 8192.0f;   // the stem may be far from the origin
-    r.worldforge.sitePins = {
-        {static_cast<int>(stem.x + perp.x * 140.0f), static_cast<int>(stem.y + perp.y * 140.0f)},
-        {static_cast<int>(stem.x - perp.x * 140.0f), static_cast<int>(stem.y - perp.y * 140.0f)}};
-    gen.applyRecipe(r);
-    const WorldForgePlan* plan = gen.worldForge();
-    ASSERT_NE(plan, nullptr);
-    ASSERT_FALSE(plan->bridges().empty()) << "pinned crossing produced no bridge span";
-
-    const auto& b = plan->bridges()[0];
+    const auto& b = w.plan->bridges()[0];
     const glm::vec2 mid = (b.a + b.b) * 0.5f;
     const int mx = static_cast<int>(std::lround(mid.x)), mz = static_cast<int>(std::lround(mid.y));
-    auto col = gen.sampleSurface(mx, mz);
+    auto col = w.gen.sampleSurface(mx, mz);
     EXPECT_NE(col.bridgeDeckY, INT_MIN) << "deck column not marked in ColumnSample";
     EXPECT_GT(col.bridgeDeckY, col.surfaceY) << "deck must clear the carved bed";
     EXPECT_GT(col.roadClass, 0) << "a bridge column is a road column";
 
     // The deck is physically emitted: generate the chunk holding the deck cell and read it.
-    auto floorDiv = [](int a) { return a >= 0 ? a / 32 : (a - 31) / 32; };
-    const glm::ivec3 cc(floorDiv(mx), floorDiv(col.bridgeDeckY), floorDiv(mz));
-    Chunk chunk(glm::ivec3(cc.x * 32, cc.y * 32, cc.z * 32));
-    chunk.initializeForLoading();   // wires the voxel-manager callbacks (FloraMarginTest pattern)
-    gen.generateChunk(chunk, cc);
-    const Cube* deck = chunk.getCubeAt(glm::ivec3(mx - cc.x * 32, col.bridgeDeckY - cc.y * 32,
-                                                  mz - cc.z * 32));
+    const glm::ivec3 cc(floorDiv32(mx), floorDiv32(col.bridgeDeckY), floorDiv32(mz));
+    auto chunk = genChunkAt(w.gen, cc);
+    const Cube* deck = chunk->getCubeAt(glm::ivec3(mx - cc.x * 32, col.bridgeDeckY - cc.y * 32,
+                                                   mz - cc.z * 32));
     ASSERT_NE(deck, nullptr) << "no voxel at the deck cell";
+}
+
+// Rails + piers (the red driver for the parapet/pier emission). Coverage, not existence —
+// the far-road lesson: BOTH deck edges must carry the rail mark along >=80% of the span
+// interior, the walkway between them must NEVER be rail-marked (traversability is the
+// invariant), and physically the rail cell holds a 2/3-height SUBCUBE parapet (sub-voxel
+// per the detail rule — a full cube there is a defect) while a pier column is solid from
+// the carved bed to under the deck.
+TEST(RoadFieldSeamTest, BridgeRailsGuardDeckEdgesAndPiersReachTheBed) {
+    BridgeWorld w;
+    if (!w.plan) GTEST_SKIP() << "no order>=3 channel within 5 km of origin on this seed";
+
+    const auto& b = w.plan->bridges()[0];
+    const glm::vec2 ab = b.b - b.a;
+    const float len = glm::length(ab);
+    ASSERT_GT(len, 6.0f) << "degenerate span";
+    const glm::vec2 dir = ab / len;
+    const glm::vec2 perp(-dir.y, dir.x);
+    const float half = WorldForgePlan::roadHalfWidth(b.cls);
+
+    int steps = 0, leftRail = 0, rightRail = 0, walkwayViolations = 0;
+    glm::ivec2 railCell(INT_MIN, INT_MIN), pierCell(INT_MIN, INT_MIN);
+    const int win = static_cast<int>(std::ceil(half)) + 1;
+    for (float t = 1.0f; t <= len - 1.0f; t += 1.0f) {
+        ++steps;
+        const glm::vec2 c = b.a + dir * t;
+        bool l = false, r = false;
+        for (int ox = -win; ox <= win; ++ox)
+            for (int oz = -win; oz <= win; ++oz) {
+                const int wx = static_cast<int>(std::lround(c.x)) + ox;
+                const int wz = static_cast<int>(std::lround(c.y)) + oz;
+                const float lat = glm::dot(glm::vec2(wx, wz) - b.a, perp);   // signed side
+                const auto col = w.gen.sampleSurface(wx, wz);
+                if (!col.bridgeRail) {
+                    if (col.bridgePierTopY != INT_MIN && pierCell.x == INT_MIN)
+                        pierCell = {wx, wz};
+                    continue;
+                }
+                if (lat > 0.0f) l = true; else r = true;
+                railCell = {wx, wz};
+                if (std::abs(lat) <= half - 1.2f) ++walkwayViolations;  // rail INSIDE the walkway
+            }
+        if (l) ++leftRail;
+        if (r) ++rightRail;
+    }
+    ASSERT_GT(steps, 0);
+    EXPECT_GE(leftRail, static_cast<int>(0.8f * steps)) << "left deck edge not railed";
+    EXPECT_GE(rightRail, static_cast<int>(0.8f * steps)) << "right deck edge not railed";
+    EXPECT_EQ(walkwayViolations, 0) << "rail marks intrude into the walkway";
+    ASSERT_NE(railCell.x, INT_MIN) << "no rail-marked column anywhere on the span";
+
+    // Physical parapet: subcubes at deckY+1, 2/3 tall, and NOT a full cube.
+    {
+        const auto col = w.gen.sampleSurface(railCell.x, railCell.y);
+        ASSERT_NE(col.bridgeDeckY, INT_MIN);
+        const int ry = col.bridgeDeckY + 1;
+        const glm::ivec3 cc(floorDiv32(railCell.x), floorDiv32(ry), floorDiv32(railCell.y));
+        auto chunk = genChunkAt(w.gen, cc);
+        const glm::ivec3 lp(railCell.x - cc.x * 32, ry - cc.y * 32, railCell.y - cc.z * 32);
+        EXPECT_EQ(chunk->getCubeAt(lp), nullptr) << "parapet emitted as a FULL cube (defect)";
+        EXPECT_TRUE(chunk->hasSubcubeAt(lp, glm::ivec3(0, 0, 0))) << "no parapet subcubes";
+        EXPECT_TRUE(chunk->hasSubcubeAt(lp, glm::ivec3(2, 1, 2))) << "parapet not 2 subcubes tall";
+        EXPECT_FALSE(chunk->hasSubcubeAt(lp, glm::ivec3(0, 2, 0))) << "parapet reaches full height";
+    }
+
+    // Piers: expected exactly when the span is long enough for an interior station.
+    if (len >= 2.0f * WorldForgePlan::kPierSpacing) {
+        ASSERT_NE(pierCell.x, INT_MIN) << "span of " << len << " u has no pier column";
+        const auto col = w.gen.sampleSurface(pierCell.x, pierCell.y);
+        ASSERT_GT(col.bridgePierTopY, col.surfaceY) << "pier has no height above the bed";
+        // Solid at EVERY level from the bed to under the deck (invariant at depth, not
+        // in aggregate — a floating pier segment must fail this).
+        for (int wy = col.surfaceY + 1; wy <= col.bridgePierTopY; ++wy) {
+            const glm::ivec3 cc(floorDiv32(pierCell.x), floorDiv32(wy), floorDiv32(pierCell.y));
+            auto chunk = genChunkAt(w.gen, cc);
+            const glm::ivec3 lp(pierCell.x - cc.x * 32, wy - cc.y * 32, pierCell.y - cc.z * 32);
+            EXPECT_NE(chunk->getCubeAt(lp), nullptr)
+                << "pier gap at y=" << wy << " (" << pierCell.x << "," << pierCell.y << ")";
+        }
+    } else {
+        EXPECT_EQ(pierCell.x, INT_MIN) << "short span sprouted a pier";
+    }
+}
+
+// The pier EMISSION path needs a span >= 2x kPierSpacing, and the canonical crossing is
+// shorter — so hunt the 8-site stress plan (3 bridges on this seed) for a long span and
+// prove a pier stands solid from the carved bed to under the deck at every level. Without
+// this, only the no-pier branch of the fill code would ever run in tests.
+TEST(RoadFieldSeamTest, BridgePiersStandSolidOnALongSpan) {
+    // The WorldForgeStressTest mountain fixture — the only known plan with multiple
+    // bridges on the tested seeds (Perlin 20260816 routes around its channels).
+    WorldGenerator gen(WorldGenerator::GenerationType::Mountains, 424242);
+    WorldRecipe r = gen.makeRecipe();
+    r.worldforge.enabled = true;
+    r.worldforge.siteCount = 8;
+    r.worldforge.regionRadius = 2048.0f;
+    r.worldforge.minSpacing = 400.0f;
+    gen.applyRecipe(r);
+    const WorldForgePlan* plan = gen.worldForge();
+    ASSERT_NE(plan, nullptr);
+
+    const WorldForgeBridgeSpan* span = nullptr;
+    std::string lens;
+    for (const auto& b : plan->bridges()) {
+        const float len = glm::length(b.b - b.a);
+        lens += std::to_string(len) + " ";
+        if (len >= 2.0f * WorldForgePlan::kPierSpacing && !span) span = &b;
+    }
+    ASSERT_NE(span, nullptr) << "no span >= " << 2.0f * WorldForgePlan::kPierSpacing
+                             << " u among bridges (lengths: " << lens
+                             << ") — the pier path has no fixture";
+
+    // Find a pier column near the first interior station.
+    const glm::vec2 ab = span->b - span->a;
+    const float len = glm::length(ab);
+    const glm::vec2 dir = ab / len;
+    const int n = static_cast<int>(std::floor(len / WorldForgePlan::kPierSpacing)) - 1;
+    ASSERT_GE(n, 1);
+    const glm::vec2 st = span->a + dir * (len / static_cast<float>(n + 1));
+    glm::ivec2 pierCell(INT_MIN, INT_MIN);
+    for (int ox = -2; ox <= 2 && pierCell.x == INT_MIN; ++ox)
+        for (int oz = -2; oz <= 2 && pierCell.x == INT_MIN; ++oz) {
+            const int wx = static_cast<int>(std::lround(st.x)) + ox;
+            const int wz = static_cast<int>(std::lround(st.y)) + oz;
+            if (gen.sampleSurface(wx, wz).bridgePierTopY != INT_MIN) pierCell = {wx, wz};
+        }
+    ASSERT_NE(pierCell.x, INT_MIN) << "no pier column near the first station";
+
+    const auto col = gen.sampleSurface(pierCell.x, pierCell.y);
+    ASSERT_GT(col.bridgePierTopY, col.surfaceY);
+    EXPECT_EQ(col.bridgePierTopY, col.bridgeDeckY - 1) << "pier must meet the deck underside";
+    std::unique_ptr<Chunk> chunk;
+    glm::ivec3 cachedCc(INT_MIN);
+    for (int wy = col.surfaceY + 1; wy <= col.bridgePierTopY; ++wy) {
+        const glm::ivec3 cc(floorDiv32(pierCell.x), floorDiv32(wy), floorDiv32(pierCell.y));
+        if (cc != cachedCc) {
+            chunk = genChunkAt(gen, cc);
+            cachedCc = cc;
+        }
+        const glm::ivec3 lp(pierCell.x - cc.x * 32, wy - cc.y * 32, pierCell.y - cc.z * 32);
+        EXPECT_NE(chunk->getCubeAt(lp), nullptr)
+            << "pier gap at y=" << wy << " (" << pierCell.x << "," << pierCell.y << ")";
+    }
 }
 
 // Off-road columns are untouched by the plan: identical to a worldforge-DISABLED world.

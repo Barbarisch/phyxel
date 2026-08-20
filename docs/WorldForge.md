@@ -206,8 +206,21 @@ voxel-by-voxel spanning a carved gorge on the canonical seed (68 Wood cubes, 5 w
 met flush at y=65 over a bed at y≈52) + in-ravine screenshot; `BridgeVis` project pins the
 scene. **Note: adding bridges to the plan JSON changes every plan hash** — existing
 realization ledgers correctly flag stale on re-run (the designed drift guard).
-Still open (logged): railings/piers/abutments (bare deck), channels wider than 96 u get NO
-deck (surfaced in the bake log, never a half-bridge), decks are flat (no arc).
+**Railings + piers SHIPPED 2026-08-20:** deck-EDGE columns (true lateral distance in
+`(halfWidth-1, halfWidth]`, span INTERIOR only) raise a 2/3-voxel WoodPlanks subcube
+parapet at `deckY+1` (the creek-bed-shelf pattern — sub-voxel per the detail rule); spans
+≥ 2× `kPierSpacing` (24 u) get solid Stone piers from the carved bed to under the deck at
+interior stations every ~12 u, and pier columns emit NO water span (the pier displaces the
+water). Both derived per query in `bridgeAt` — **no baked data changed, plan hashes are
+unchanged** (the mountain fixture re-baked to the identical pre-pier hash), so existing
+ledgers stay valid. Red-first: `BridgeRailsGuardDeckEdgesAndPiersReachTheBed` (≥80%
+edge-rail coverage per side, zero walkway intrusions, physically a 2-subcube-tall shelf
+and not a full cube) + `BridgePiersStandSolidOnALongSpan` (solid at EVERY level, mountain
+8-site fixture). The walkway-intrusion assertion caught a real defect mid-implementation:
+clamped segment distance wrapped the rail band around the span endpoints as an arc — a
+parapet ACROSS the bridge entrance; rails now use unclamped lateral distance.
+Still open (logged): channels wider than 96 u get NO deck (surfaced in the bake log, never
+a half-bridge), decks are flat (no arc), parapets have no openings/posts rhythm.
 
 ## Known gaps (V1 non-goals, logged)
 

@@ -153,8 +153,12 @@ Placer #44 V1 landed (docs/WorldForge.md "Bridges"): flat Wood plank decks span 
 order>=3 crossing, baked in the plan and emitted per-column by generateChunk; L4-verified
 (voxel scan + in-ravine screenshot, BridgeVis project). The 2026-08-16 "bridges" punt above
 is superseded. Still open, logged here so they are not silently "done":
-- Railings/piers/abutments: the deck is a bare 1-cube-thick plank slab. Railings want the
-  sub-voxel fence machinery (FenceBuilder) adapted to a generation-time per-column form.
+- ~~Railings/piers/abutments~~ **RESOLVED 2026-08-20**: deck-edge columns raise a
+  2/3-voxel WoodPlanks subcube parapet (span interior only - clamped-distance endpoint
+  arcs would have walled off the bridge ENTRANCE, caught red by the walkway-intrusion
+  assertion), spans >= 24 u get solid Stone piers bed-to-deck at ~12 u stations, pier
+  columns emit no water span. All derived per query - plan hashes unchanged, ledgers
+  stay valid. Residual: no parapet post rhythm/openings; no distinct abutment massing.
 - Channels wider than 96 u yield NO deck (bake log warns) - big rivers stay uncrossable.
 - Decks are flat; no arc/clearance shaping for tall boat traffic (cosmetic for now).
 - Plan-hash note: the bridges field changes all plan hashes; pre-bridge realization ledgers

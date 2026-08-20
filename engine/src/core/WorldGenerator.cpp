@@ -547,14 +547,34 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
                     if (wy == depthProfile.bedrockY) { chunk.addCube(localPos, "Stone"); continue; }
                 }
 
-                // WorldForge bridge deck (docs/WorldForge.md #44): the ONE thing generation
-                // emits above the surface — a plank layer spanning an order>=3 channel at the
-                // plan's flat deck height. Pure per-column (bridgeDeckY comes from the baked
-                // plan), so it streams seam-free exactly like the road field. "Wood" = oak
-                // planks, the engine's FLOOR wood (materials table) — a deck is a floor.
-                if (col.bridgeDeckY != INT_MIN && wy == col.bridgeDeckY && wy > col.surfaceY) {
-                    chunk.addCube(localPos, "Wood");
-                    continue;
+                // WorldForge bridge family (docs/WorldForge.md #44): the bridge is the ONLY
+                // thing generation emits above the surface — all pure per-column from the
+                // baked plan, so it streams seam-free exactly like the road field.
+                //   deck   : plank layer at deckY ("Wood" = oak planks, FLOOR wood — a deck
+                //            is a floor);
+                //   parapet: deck-EDGE columns get a 2/3-voxel subcube shelf at deckY+1
+                //            (WoodPlanks = WALL wood; sub-voxel per the detail rule — the
+                //            creek-bed-shelf pattern, inverted) so the walkway between the
+                //            rails stays clear;
+                //   pier   : station columns fill solid Stone from the carved bed up to
+                //            under the deck.
+                if (col.bridgeDeckY != INT_MIN && wy > col.surfaceY) {
+                    if (wy == col.bridgeDeckY) {
+                        chunk.addCube(localPos, "Wood");
+                        continue;
+                    }
+                    if (col.bridgeRail && wy == col.bridgeDeckY + 1) {
+                        for (int sy = 0; sy < 2; ++sy)
+                            for (int sx = 0; sx < 3; ++sx)
+                                for (int sz = 0; sz < 3; ++sz)
+                                    chunk.addSubcube(localPos, glm::ivec3(sx, sy, sz),
+                                                     "WoodPlanks");
+                        continue;
+                    }
+                    if (col.bridgePierTopY != INT_MIN && wy <= col.bridgePierTopY) {
+                        chunk.addCube(localPos, "Stone");
+                        continue;
+                    }
                 }
 
                 if (wy > col.surfaceY) continue;  // above the surface: air (solid extends down)
@@ -597,6 +617,15 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
             for (int z = 0; z < 32; ++z) {
                 const size_t i = static_cast<size_t>(x) * 32 + z;
                 if (!ws->has[i]) continue;
+                // A bridge pier displaces the water in its column (solid from the bed up
+                // through the water surface): emit no span there, or the water ribbon
+                // renders inside the stone.
+                if (m_worldForge &&
+                    m_worldForge
+                        ->bridgeAt(static_cast<float>(chunkCoord.x * 32 + x),
+                                   static_cast<float>(chunkCoord.z * 32 + z))
+                        .pier)
+                    continue;
                 const float lo = std::max(static_cast<float>(ws->spans[i].bottomY), base);
                 const float hi = std::min(ws->spans[i].topY, base + 32.0f);
                 if (hi <= lo) continue;   // the span lives in another vertical chunk
@@ -1022,6 +1051,10 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                 if (bh.hit()) {
                     col.roadClass = std::max(col.roadClass, bh.cls);   // flora gate covers the deck
                     col.bridgeDeckY = static_cast<int>(bh.deckY);
+                    col.bridgeRail = bh.rail;
+                    // A pier only exists where there is water/air to stand in: bed below deck.
+                    if (bh.pier && col.bridgeDeckY - 1 > col.surfaceY)
+                        col.bridgePierTopY = col.bridgeDeckY - 1;
                 }
             }
             if (onRoad && col.bridgeDeckY == INT_MIN && col.riverOrder == 0 &&

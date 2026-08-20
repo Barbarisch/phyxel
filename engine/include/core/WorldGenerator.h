@@ -163,7 +163,13 @@ public:
         float roadDist    = 0.0f;     // distance to the road centreline (valid when roadClass > 0)
         int   bridgeDeckY = INT_MIN;  // WorldForge bridge deck height where a road spans an
                                       // order>=3 channel (INT_MIN = none): generateChunk emits a
-                                      // plank layer at this Y — the only above-surface emission
+                                      // plank layer at this Y (the bridge family is the only
+                                      // above-surface emission)
+        bool  bridgeRail  = false;    // deck-EDGE column: generation raises a 2/3-voxel subcube
+                                      // parapet at deckY+1 (the walkway between the rails stays
+                                      // clear — traversability is the invariant)
+        int   bridgePierTopY = INT_MIN; // pier column: solid Stone fills (surfaceY, pierTopY]
+                                      // from the carved bed up to under the deck (INT_MIN = none)
     };
 
     // Load biome definitions from JSON (resources/biomes.json). Returns false (and keeps
