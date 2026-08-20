@@ -256,7 +256,10 @@ the steepest fixture (`GradedRoadsAreStepWalkableOnMountains`, Mountains 424242 
 consecutive 1 u centerline walk-surface steps (graded ground, or deck over a channel)
 never exceed 1 cube — progression 45 tall steps ungraded → 3 (short-span pin miss +
 junction disagreement) → 1 (high rim 5 above deck) → **0/6656**. planHash changes (roads
-carry a grade summary in toJson): pre-grading ledgers correctly flag stale.
+carry a grade summary in toJson): pre-grading ledgers correctly flag stale. **L4 look
+(Release, BridgeVis fresh-streamed):** the roadway descends its slope as evenly spaced
+1-cube terrace steps between grass-bank shoulders — an engineered cutting, not draped
+terrain — `docs/evidence/road_grading_{terraces,cutting}.png`.
 
 ## Known gaps (V1 non-goals, logged)
 

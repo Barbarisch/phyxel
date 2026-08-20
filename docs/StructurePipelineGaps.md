@@ -242,3 +242,16 @@ through reads as road - the far ribbon is continuous at every ring (1-cell-wide 
 correct far-map thickness). Near columns untouched (far-tile-only widening). Red-first:
 the RoadsShowInFarTiles continuity assertion (road-column area >= 0.8x the centerline arc
 length per step) measured 38 columns for 461u of road at step 8 before the fix.
+
+## 2026-08-20 - silent engine death on BridgeVis (Release), second sighting
+
+During the road-grading L4 look (Release, BridgeVis fresh world, ~15 min uptime: focus
+walk, streaming settled, orbit screenshots, then a slow API voxel-scan), the process died
+with NO crash line - the log just stops. The last minute is exclusively a wedged fauna
+NPC spamming "[PatrolBehavior] STUCK (replan): pos=(-2357.75,65,-2387.3), pathNode=0/0"
+every 1.5 s (the recorded "kinematic bodies wedge when chunks evict" fauna family - the
+NPC sits exactly at deck height 65 near the bridge). First sighting was 2026-08-17 during
+a teleport-fall (that trigger is now fixed by the residency gate; this one had no fall).
+No repro, no stack. Two leads for a future session: (a) the wedged-NPC replan loop as a
+correlate, (b) phyxel.log is 11.5M lines - rotate it; a log-write failure would be
+invisible. Logged, not chased.
