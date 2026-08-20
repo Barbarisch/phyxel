@@ -507,6 +507,32 @@ void ChunkStreamingManager::unloadDistantChunks(const glm::vec3& position, float
     }
 }
 
+size_t ChunkStreamingManager::evictAllChunks() {
+    auto& chunks = m_getChunks();
+    auto& chunkMap = m_getChunkMap();
+    size_t evicted = 0, discardedDirty = 0;
+    for (auto& chunk : chunks) {
+        if (!chunk) continue;
+        // Per-chunk teardown as in unloadDistantChunks, with ONE deliberate difference:
+        // dirty chunks are DISCARDED, not saved. Saving them here persisted OLD-plan
+        // content that would later reload as stale islands inside the re-streamed world —
+        // the exact seam a live apply must not create (it also tripped the saved-chunk
+        // guard on the NEXT apply: 9 ambient-dirty chunks, observed live). A live
+        // re-stream means "regenerate this world"; unsaved edits go with it, and the
+        // count is surfaced so nothing is silently lost.
+        if (chunk->getIsDirty()) ++discardedDirty;
+        if (m_onChunkEvicted) m_onChunkEvicted(*chunk);
+        chunkMap.erase(Utils::CoordinateUtils::worldToChunkCoord(chunk->getWorldOrigin()));
+        m_pendingDeletion.push_back(std::move(chunk));
+        ++evicted;
+    }
+    chunks.clear();
+    LOG_INFO_FMT("ChunkStreaming", "Evicted ALL " << evicted
+                 << " resident chunks (live re-stream, " << discardedDirty
+                 << " dirty discarded); deletion deferred to the next pump");
+    return evicted;
+}
+
 bool ChunkStreamingManager::saveChunk(Chunk* chunk) {
     if (!worldStorage || !chunk) return false;
     // Serialize against the async worker's off-thread DB loads.

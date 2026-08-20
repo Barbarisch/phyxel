@@ -79,11 +79,15 @@ what the engine did instead, the workaround used, and what a real fix looks like
 - **Road-to-street fusion:** roads terminate at the settlement footprint edge; the settlement's
   own street network doesn't orient toward or join the arriving road (`chooseStreetAxis` knows
   nothing about the plan). Real fix: pass the road arrival bearing into settlement layout.
-- **Live apply:** `worldforge_apply` is restart-required - streaming gen workers hold generator
-  snapshots taken at configure time, so a mid-session plan change would seam already-generated
-  chunks against new road-stamped ones. Real fix: a worker re-snapshot path in
-  ChunkStreamingManager (stop workers -> refresh copies -> resume), then invalidate
-  ungenerated-but-queued chunks.
+- ~~Live apply~~ **RESOLVED 2026-08-21**: worldforge_apply applies LIVE on worlds with no
+  saved chunks - ChunkManager::restreamWorldLive() stops the gen workers (fresh generator
+  snapshots re-taken on the next pump), evicts every resident chunk (deferred deletion;
+  DIRTY chunks are DISCARDED, not saved - saving them smuggled old-plan content back as
+  stale islands, observed live), clears the surface-band + evicted-LOD caches, and the
+  far-terrain mesher re-configures its private generator copy. Guards: in-flight
+  worldforge_build (raw plan pointer - UAF), draining boot DB backlog. Saved-chunk worlds
+  keep the refusal / force+restart path. WorldForgeLiveApplyTest pins bare-apply staleness,
+  restream pickup, and fresh-generator seam equality on the real async pump.
 - **Heightmap/Flat worlds:** no hydrology bake -> no WorldForge plan (surfaced as an error).
   Same family as the "far-terrain heightmap worlds skip the hydrology bake" gap.
 - **Roads at distance:** no far tier renders roads beyond chunk residency (far-terrain tiles

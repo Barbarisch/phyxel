@@ -691,6 +691,16 @@ Chunk* ChunkManager::getChunkAt(const glm::ivec3& worldPos) {
     return m_voxelQuerySystem.getChunkAt(worldPos);
 }
 
+size_t ChunkManager::restreamWorldLive() {
+    // Order matters: stop workers FIRST so nothing generates with the old snapshot while
+    // we evict (their queued requests are dropped; the pump re-requests from residency).
+    m_streamingManager.stopAsyncGeneration();
+    const size_t evicted = m_streamingManager.evictAllChunks();
+    m_streamingManager.clearSurfaceBandCache();
+    m_evictedLodCache.clear();
+    return evicted;
+}
+
 bool ChunkManager::clearChunk(const glm::ivec3& chunkCoord) {
     Chunk* chunk = getChunkAtCoord(chunkCoord);
     if (!chunk) return false;

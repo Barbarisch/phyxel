@@ -590,6 +590,22 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="worldforge_minimap",
+            description="WorldForge: render a biome-colored PNG world map (hillshaded terrain, depth-shaded "
+                        "water, roads, bridge decks, site markers, camera cross) pure from the generator — "
+                        "shows the WHOLE planned world, chunk residency irrelevant. Returns the PNG path.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "px": {"type": "integer", "description": "Image size in pixels, 64-1024 (default 256)"},
+                    "x": {"type": "number", "description": "Window centre world X (default: hydrology region centre)"},
+                    "z": {"type": "number", "description": "Window centre world Z"},
+                    "radius": {"type": "number", "description": "Window half-extent in world units (default: full region)"},
+                    "filename": {"type": "string", "description": "Output PNG path (default worldforge_map.png)"}
+                }
+            }
+        ),
+        Tool(
             name="list_structure_types",
             description="List all available procedural structure types with their parameters and defaults.",
             inputSchema={
@@ -4793,6 +4809,12 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     elif name == "worldforge_map":
         step = args.get("step", 4)
         return await api_get(f"/api/worldforge/map?step={step}")
+
+    elif name == "worldforge_minimap":
+        from urllib.parse import urlencode
+        q = urlencode({k: v for k, v in args.items()
+                       if k in ("px", "x", "z", "radius", "filename")})
+        return await api_get(f"/api/worldforge/minimap{'?' + q if q else ''}")
 
     elif name == "list_structure_types":
         return await api_get("/api/structure/types")

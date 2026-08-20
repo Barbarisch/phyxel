@@ -285,6 +285,16 @@ public:
     // Bulk clear all voxels in a chunk (instant, single rebuild)
     bool clearChunk(const glm::ivec3& chunkCoord);
 
+    /// LIVE re-stream after the streaming generator changed (WorldForge live apply): stop
+    /// the async gen workers (their private generator snapshots are stale — fresh copies
+    /// are re-taken from the live generator on the next pump), evict EVERY resident chunk
+    /// through the deferred-deletion teardown, and drop the derived caches nothing else
+    /// clears (per-column surface band, evicted-LOD blobs of pre-change terrain). The
+    /// pump then re-streams the world under the new plan. Returns chunks evicted.
+    /// Caller contract: apply the generator change FIRST (e.g. setWorldForgeParams), and
+    /// refuse while a worldforge_build job is in flight or boot DB loads are pending.
+    size_t restreamWorldLive();
+
     // Cube manipulation helpers
     Cube* getCubeAt(const glm::ivec3& worldPos);          // Get cube at world position
     bool removeCube(const glm::ivec3& worldPos);          // Returns true if cube was removed

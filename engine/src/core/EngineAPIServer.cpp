@@ -1322,6 +1322,22 @@ void EngineAPIServer::setupRoutes() {
         json result = queueAndWait("worldforge_map", params);
         res.set_content(result.dump(), "application/json");
     });
+    // GET /api/worldforge/minimap — render the biome-colored PNG world map (hillshade,
+    // water, roads, bridges, site markers) and return its path. ?px= pixels (64-1024),
+    // ?x=&z=&radius= world window (default: the full hydrology region), ?filename= .
+    // Sampling is px^2 sampleSurface calls on the game loop — the 30 s window covers the
+    // 1024px worst case on Release.
+    srv.Get("/api/worldforge/minimap",
+            [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("px")) params["px"] = std::stoi(req.get_param_value("px"));
+        if (req.has_param("x")) params["x"] = std::stof(req.get_param_value("x"));
+        if (req.has_param("z")) params["z"] = std::stof(req.get_param_value("z"));
+        if (req.has_param("radius")) params["radius"] = std::stof(req.get_param_value("radius"));
+        if (req.has_param("filename")) params["filename"] = req.get_param_value("filename");
+        json result = queueAndWait("worldforge_minimap", params, 30000);
+        res.set_content(result.dump(), "application/json");
+    });
 
     // ====================================================================
     // POST /api/world/validate — Run geometric world-placement detectors over the

@@ -239,6 +239,33 @@ hashes unchanged throughout (mountain fixture re-baked identical).
 Still open (logged): channels wider than 96 u get NO deck (surfaced in the bake log, never
 a half-bridge), decks are flat (no arc), parapets have no openings/posts rhythm.
 
+## Live apply + the world minimap — SHIPPED 2026-08-21
+
+**Live apply.** `worldforge_apply` on a world with NO saved chunks now applies the plan
+LIVE: `ChunkManager::restreamWorldLive()` stops the async gen workers (their private
+generator snapshots are stale; fresh copies are re-taken from the live generator on the
+next pump), evicts every resident chunk through the deferred-deletion teardown — dirty
+chunks are **discarded, not saved** (saving them persisted old-plan content that reloaded
+as stale islands) — clears the surface-band and evicted-LOD caches, and the far-terrain
+mesher re-configures its private generator copy. The pump re-streams the world under the
+new plan; the recipe write makes it durable across restarts. Guards: an in-flight
+`worldforge_build` (it holds a RAW plan pointer for its whole job — re-baking under it is
+a use-after-free) and a draining boot DB backlog. Saved-chunk worlds keep the honest
+refusal / `force` + restart_required path. Pinned by `WorldForgeLiveApplyTest` on the
+real async streaming pipeline: a bare apply provably changes nothing resident (the old
+restart rationale, now a regression guard), the restream picks up the new plan, and the
+re-streamed surface matches a fresh generator column-for-column.
+
+**Minimap** (`worldforge_minimap` command, `GET /api/worldforge/minimap`, MCP tool): a
+PNG world map rendered pure from the generator (`sampleSurface` per pixel — the whole
+planned world, chunk residency irrelevant): biome-colored terrain with NW hillshade,
+depth-shaded water and rivers, roads (centerline-marked at coarse zooms where a 5 u road
+is sub-pixel), bridge decks, tier-colored site markers (red town / orange village /
+yellow hamlet), and a camera cross. 384 px over the full 32 km region samples in ~1.3 s
+on Release. Params: `px` (64–1024), `x`/`z`/`radius` window, `filename`.
+⚠️ API response strings must be ASCII — an em-dash literal compiles to CP-1252 0x97 under
+MSVC's ANSI source charset and poisons the whole JSON dump (the recorded mojibake gotcha).
+
 ## Road grading — SHIPPED 2026-08-20 (supersedes both the drape gap AND the abutment ramp)
 
 Every road bakes a **slope-limited grade profile** (per centerline vertex): the lower

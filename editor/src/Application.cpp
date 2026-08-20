@@ -12871,18 +12871,21 @@ void Application::registerWorldForgeCommands() {
              {"plan_hash", std::to_string(plan->planHash())}, {"bake_ms", ms}};
     });
 
-    // Persist params into the world recipe (world.db world_meta). The plan takes effect for
-    // chunks generated AFTER a reload — gen workers hold generator snapshots, so a live
-    // apply would seam old chunks against new (written down; restart_required is honest).
-    // REFUSES on a world that already has saved chunks unless {"force": true}: enabling
-    // roads on a part-generated world seams the DB chunks against fresh road chunks.
+    // Persist params into the world recipe (world.db world_meta) and — when the world has
+    // NO saved chunks — apply LIVE: stop the gen workers (fresh generator snapshots are
+    // re-taken from the live generator on the next pump), evict every resident chunk
+    // through the deferred-deletion teardown, drop the stale derived caches, refresh the
+    // far-terrain mesher's private generator copy, and let the pump re-stream the world
+    // under the new plan. No restart. Falls back to restart_required only for the force
+    // path on a world with saved chunks (re-streaming those would destroy built
+    // settlements / player edits — the seam warning stands).
     reg.on("worldforge_apply", [this, streamingGen, noGen](const Core::APICommand& cmd,
                                                            nlohmann::json& r) {
         Phyxel::WorldGenerator* g = streamingGen();
         if (!g) return noGen(r);
         Phyxel::WorldStorage* storage = chunkManager->getWorldStorage();
         if (!storage) {
-            r = {{"error", "no world storage — worldforge_apply persists into world.db"}};
+            r = {{"error", "no world storage - worldforge_apply persists into world.db"}};
             return;
         }
         nlohmann::json pj = cmd.params;
@@ -12893,11 +12896,30 @@ void Application::registerWorldForgeCommands() {
         const size_t savedChunks = storage->getChunkCount();
         if (savedChunks > 0 && !cmd.params.value("force", false)) {
             r = {{"error", "world.db already holds " + std::to_string(savedChunks) +
-                           " saved chunks — enabling worldforge now would seam them against "
+                           " saved chunks - enabling worldforge now would seam them against "
                            "fresh road-stamped terrain. Regenerate the world (delete world.db) "
                            "or pass {\"force\": true} to accept the seams."},
                  {"saved_chunks", savedChunks}};
             return;
+        }
+        const bool live = savedChunks == 0;
+        if (live) {
+            // Live-path guards, BEFORE any state is written:
+            // - an in-flight main-thread job (worldforge_build) holds a raw pointer to
+            //   the CURRENT plan for its whole lifetime — re-baking under it is a
+            //   use-after-free;
+            // - a draining boot DB backlog would be lost by the worker stop (those
+            //   chunks would never load).
+            if (mainThreadJobs && mainThreadJobs->anyActive()) {
+                r = {{"error", "a main-thread job is running (worldforge_build?) - a live "
+                               "apply would re-bake the plan out from under it. Retry when "
+                               "/api/jobs drains."}};
+                return;
+            }
+            if (chunkManager->m_streamingManager.hasDeferredDbLoads()) {
+                r = {{"error", "boot DB backlog still draining - retry in a few seconds"}};
+                return;
+            }
         }
         Phyxel::WorldRecipe recipe = storage->hasMeta("recipe")
             ? Phyxel::WorldRecipe::fromJson(storage->getMeta("recipe"))
@@ -12907,18 +12929,31 @@ void Application::registerWorldForgeCommands() {
             r = {{"error", "failed to write recipe to world.db"}};
             return;
         }
-        // Bake on the live streaming generator so status/map reflect the plan immediately;
-        // WORKER generator snapshots are not refreshed — chunks stream with roads only
-        // after a reload (restart_required).
-        g->setWorldForgeParams(p);
+        g->setWorldForgeParams(p);   // re-bake on the live generator (main thread)
         const Phyxel::WorldForgePlan* plan = g->worldForge();
         r = {{"success", true},
              {"params", p.toJson()},
              {"plan_hash", plan ? std::to_string(plan->planHash()) : ""},
              {"sites", plan ? static_cast<int>(plan->sites().size()) : 0},
-             {"roads", plan ? static_cast<int>(plan->roads().size()) : 0},
-             {"restart_required", true},
-             {"note", "recipe persisted; reload the project so streamed chunks pick up the plan"}};
+             {"roads", plan ? static_cast<int>(plan->roads().size()) : 0}};
+        if (live) {
+            const size_t evictedChunks = chunkManager->restreamWorldLive();
+            if (renderCoordinator) {
+                if (auto* ft = renderCoordinator->getFarTerrainManager()) {
+                    // The far mesher samples through its own private generator copy —
+                    // refresh it or the far field keeps drawing the OLD plan's roads.
+                    if (ft->isConfigured()) ft->configure(*g);
+                }
+            }
+            r["restart_required"] = false;
+            r["live_applied"] = true;
+            r["evicted_chunks"] = evictedChunks;
+            r["note"] = "plan applied LIVE - the world is re-streaming under the new plan";
+        } else {
+            r["restart_required"] = true;
+            r["note"] = "force apply on a world with saved chunks: recipe persisted; reload "
+                        "the project so streamed chunks pick up the plan";
+        }
     });
 
     reg.on("worldforge_status", [this, streamingGen, noGen](const Core::APICommand&,
@@ -13106,6 +13141,161 @@ void Application::registerWorldForgeCommands() {
         }
         r = {{"success", true}, {"legend", "~ water | r river(order>=3) | = road | T/V/H sites | . land"},
              {"cell_units", hydro->cellSize() * step}, {"lines", lines}};
+    });
+
+    // worldforge_minimap: a real IMAGE of the world — biome-colored terrain with hillshade,
+    // depth-shaded water, rivers, roads (graded corridors included), bridge decks, and site
+    // markers — rendered PURE from the generator (sampleSurface per pixel), so it shows the
+    // whole planned world including never-visited terrain, chunk residency irrelevant.
+    // Writes a PNG (stb) and returns the absolute path. {px, x, z, radius, filename} all
+    // optional; the default window is the full hydrology bake region.
+    reg.on("worldforge_minimap", [this, streamingGen, noGen](const Core::APICommand& cmd,
+                                                             nlohmann::json& r) {
+        Phyxel::WorldGenerator* g = streamingGen();
+        if (!g) return noGen(r);
+        const Phyxel::HydrologyMap* hydro = g->hydrology();
+        if (!hydro) {
+            r = {{"error", "no hydrology bake (streaming height-based world required)"}};
+            return;
+        }
+        const Phyxel::WorldForgePlan* plan = g->worldForge();   // optional — map works planless
+
+        const int px = std::clamp(cmd.params.value("px", 256), 64, 1024);
+        const float regionW = hydro->cellsX() * hydro->cellSize();
+        const float defCx = hydro->originX() + regionW * 0.5f;
+        const float defCz = hydro->originZ() + hydro->cellsZ() * hydro->cellSize() * 0.5f;
+        const float cx = cmd.params.value("x", defCx);
+        const float cz = cmd.params.value("z", defCz);
+        const float radius = cmd.params.value("radius", regionW * 0.5f);
+        const float x0 = cx - radius, z0 = cz - radius;
+        const float stepU = (2.0f * radius) / static_cast<float>(px);
+        std::string path = cmd.params.value("filename", std::string("worldforge_map.png"));
+
+        auto matColor = [](const std::string& m) -> glm::ivec3 {
+            if (m == "Grass") return {86, 125, 70};
+            if (m == "GrassForest") return {56, 96, 50};
+            if (m == "GrassSavanna") return {168, 146, 80};
+            if (m == "Sand") return {194, 178, 128};
+            if (m == "Snow") return {235, 240, 245};
+            if (m == "SnowGrass") return {198, 205, 198};
+            if (m == "Stone") return {130, 130, 130};
+            if (m == "Dirt") return {110, 84, 60};
+            if (m == "Gravel") return {150, 145, 140};
+            if (m == "Cobblestone") return {122, 120, 116};
+            return {140, 120, 100};
+        };
+
+        const auto t0 = std::chrono::steady_clock::now();
+        std::vector<int> hgt(static_cast<size_t>(px) * px, 0);
+        std::vector<unsigned char> img(static_cast<size_t>(px) * px * 3, 0);
+        std::vector<uint8_t> isWater(static_cast<size_t>(px) * px, 0);
+        for (int pz = 0; pz < px; ++pz) {
+            for (int pxx = 0; pxx < px; ++pxx) {
+                const float wx = x0 + (pxx + 0.5f) * stepU;
+                const float wz = z0 + (pz + 0.5f) * stepU;
+                const auto col = g->sampleSurface(static_cast<int>(std::floor(wx)),
+                                                  static_cast<int>(std::floor(wz)));
+                const size_t i = static_cast<size_t>(pz) * px + pxx;
+                hgt[i] = col.surfaceY;
+                glm::ivec3 c = matColor(col.surfaceMat);
+                const float wl = hydro->waterLevelAt(wx, wz);
+                const bool standing = hydro->hasWater(wx, wz) &&
+                                      wl > static_cast<float>(col.surfaceY);
+                if (col.bridgeDeckY != INT_MIN && col.bridgeDeckY > col.surfaceY) {
+                    c = {146, 96, 52};                       // bridge deck
+                } else if (standing || col.riverOrder > 0) {
+                    const float depth = standing ? wl - static_cast<float>(col.surfaceY)
+                                                 : static_cast<float>(col.riverOrder);
+                    const float t = std::min(depth / 12.0f, 1.0f);
+                    c = {static_cast<int>(70 - 50 * t), static_cast<int>(130 - 80 * t),
+                         static_cast<int>(190 - 80 * t)};
+                    isWater[i] = 1;
+                } else if (col.roadClass == 3) {
+                    c = {200, 198, 190};                     // highway (Cobblestone)
+                } else if (col.roadClass == 2) {
+                    c = {180, 175, 165};                     // road (Gravel)
+                } else if (col.roadClass == 1) {
+                    c = {139, 105, 60};                      // track (Dirt)
+                } else if (plan && stepU > 4.0f) {
+                    // Coarse zoom: a 5 u road is sub-pixel — mark the pixel when the
+                    // centerline passes through it (the ASCII map's trick), or the road
+                    // network vanishes from exactly the view meant to show it.
+                    const auto rhit = plan->roadAt(wx, wz);
+                    if (rhit.cls > 0 && rhit.dist <= stepU * 0.75f)
+                        c = rhit.cls == 1 ? glm::ivec3(139, 105, 60)
+                                          : glm::ivec3(190, 186, 178);
+                }
+                img[i * 3 + 0] = static_cast<unsigned char>(c.r);
+                img[i * 3 + 1] = static_cast<unsigned char>(c.g);
+                img[i * 3 + 2] = static_cast<unsigned char>(c.b);
+            }
+        }
+        // Hillshade (land only): light from the NW — brighten slopes facing it, darken away.
+        for (int pz = 0; pz < px - 1; ++pz)
+            for (int pxx = 0; pxx < px - 1; ++pxx) {
+                const size_t i = static_cast<size_t>(pz) * px + pxx;
+                if (isWater[i]) continue;
+                const int dh = (hgt[i] - hgt[i + 1]) + (hgt[i] - hgt[i + px]);
+                const float shade = std::clamp(1.0f + dh * 0.035f, 0.70f, 1.25f);
+                for (int k = 0; k < 3; ++k)
+                    img[i * 3 + k] = static_cast<unsigned char>(
+                        std::min(255.0f, img[i * 3 + k] * shade));
+            }
+        // Site markers: filled tier-colored squares with a white border.
+        auto drawSquare = [&](int mx, int mz, int half, glm::ivec3 fill) {
+            for (int dz = -half - 1; dz <= half + 1; ++dz)
+                for (int dx = -half - 1; dx <= half + 1; ++dx) {
+                    const int qx = mx + dx, qz = mz + dz;
+                    if (qx < 0 || qz < 0 || qx >= px || qz >= px) continue;
+                    const bool border = std::abs(dx) > half || std::abs(dz) > half;
+                    const glm::ivec3 c = border ? glm::ivec3(255, 255, 255) : fill;
+                    const size_t i = (static_cast<size_t>(qz) * px + qx) * 3;
+                    img[i] = static_cast<unsigned char>(c.r);
+                    img[i + 1] = static_cast<unsigned char>(c.g);
+                    img[i + 2] = static_cast<unsigned char>(c.b);
+                }
+        };
+        if (plan) {
+            for (const auto& s : plan->sites()) {
+                const int mx = static_cast<int>((s.pos.x - x0) / stepU);
+                const int mz = static_cast<int>((s.pos.y - z0) / stepU);
+                if (mx < 0 || mz < 0 || mx >= px || mz >= px) continue;
+                if (s.tier == "town") drawSquare(mx, mz, 3, {220, 40, 40});
+                else if (s.tier == "village") drawSquare(mx, mz, 2, {240, 150, 40});
+                else drawSquare(mx, mz, 2, {240, 220, 60});
+            }
+        }
+        // Camera marker: a magenta cross where the viewer currently is.
+        if (camera) {
+            const glm::vec3 cp = camera->getPosition();
+            const int mx = static_cast<int>((cp.x - x0) / stepU);
+            const int mz = static_cast<int>((cp.z - z0) / stepU);
+            for (int d = -4; d <= 4; ++d) {
+                auto put = [&](int qx, int qz) {
+                    if (qx < 0 || qz < 0 || qx >= px || qz >= px) return;
+                    const size_t i = (static_cast<size_t>(qz) * px + qx) * 3;
+                    img[i] = 255; img[i + 1] = 0; img[i + 2] = 255;
+                };
+                put(mx + d, mz);
+                put(mx, mz + d);
+            }
+        }
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now() - t0)
+                            .count();
+        if (!stbi_write_png(path.c_str(), px, px, 3, img.data(), px * 3)) {
+            r = {{"error", "failed to write " + path}};
+            return;
+        }
+        r = {{"success", true},
+             {"path", std::filesystem::absolute(path).string()},
+             {"px", px},
+             {"world", {{"x0", x0}, {"z0", z0}, {"size", 2.0f * radius}}},
+             {"units_per_pixel", stepU},
+             {"sample_ms", ms},
+             {"legend", "terrain biome colors + NW hillshade | blue water (depth-shaded) | "
+                        "tan/gray roads | brown bridge decks | squares: red town, orange "
+                        "village, yellow hamlet | magenta cross: camera"}};
     });
 }
 
