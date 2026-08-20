@@ -2,6 +2,7 @@
 #include <iostream>
 #include <ctime>
 #include <thread>
+#include <filesystem>
 #include <fstream>
 
 #ifdef _WIN32
@@ -23,6 +24,9 @@ Logger::Logger()
     , consoleOutputEnabled_(true)
     , fileOutputEnabled_(false)
     , logFileName_("phyxel.log")
+    , maxLogFileBytes_(64ull * 1024 * 1024)
+    , currentLogBytes_(0)
+    , rotateKeep_(2)
     , timestampsEnabled_(true)
     , colorsEnabled_(true)
     , moduleNamesEnabled_(true)
@@ -95,26 +99,69 @@ void Logger::enableFileOutput(bool enable, const std::string& filename) {
     std::lock_guard<std::mutex> lock(instance.mutex_);
     
     instance.fileOutputEnabled_ = enable;
-    
-    if (enable && !filename.empty()) {
+
+    if (!enable) {
+        // Disabling releases the file handle — callers (tests, world switches) must be
+        // able to delete/rotate the file afterwards.
+        if (instance.logFile_.is_open()) instance.logFile_.close();
+    } else if (!filename.empty()) {
         instance.logFileName_ = filename;
-        
-        // Close existing file if open
-        if (instance.logFile_.is_open()) {
-            instance.logFile_.close();
-        }
-        
-        // Open new file
-        instance.logFile_.open(filename, std::ios::out | std::ios::app);
-        if (!instance.logFile_.is_open()) {
-            std::cerr << "Failed to open log file: " << filename << std::endl;
-            instance.fileOutputEnabled_ = false;
-        }
+        instance.openLogFileLocked();   // rotates an oversized leftover, inits the counter
     }
 }
 
 void Logger::setOutputFile(const std::string& filename) {
     enableFileOutput(getInstance().fileOutputEnabled_, filename);
+}
+
+void Logger::setMaxLogFileBytes(size_t bytes) {
+    std::lock_guard<std::mutex> lock(getInstance().mutex_);
+    getInstance().maxLogFileBytes_ = bytes;
+}
+
+size_t Logger::getMaxLogFileBytes() {
+    std::lock_guard<std::mutex> lock(getInstance().mutex_);
+    return getInstance().maxLogFileBytes_;
+}
+
+void Logger::rotateLogLocked() {
+    // Shift generations: <name>.keep dropped, <name>.i -> <name>.(i+1), <name> -> .1,
+    // then continue on a fresh file. Non-throwing filesystem calls throughout — a
+    // rotation failure must never take the logger (or the process) down.
+    namespace fs = std::filesystem;
+    if (logFile_.is_open()) logFile_.close();
+    std::error_code ec;
+    fs::remove(logFileName_ + "." + std::to_string(rotateKeep_), ec);
+    for (int i = rotateKeep_ - 1; i >= 1; --i) {
+        ec.clear();
+        fs::rename(logFileName_ + "." + std::to_string(i),
+                   logFileName_ + "." + std::to_string(i + 1), ec);
+    }
+    ec.clear();
+    fs::rename(logFileName_, logFileName_ + ".1", ec);
+    logFile_.open(logFileName_, std::ios::out | std::ios::app);
+    currentLogBytes_ = 0;
+}
+
+void Logger::openLogFileLocked() {
+    namespace fs = std::filesystem;
+    if (logFile_.is_open()) logFile_.close();
+    std::error_code ec;
+    uintmax_t existing =
+        fs::exists(logFileName_, ec) && !ec ? fs::file_size(logFileName_, ec) : 0;
+    if (ec) existing = 0;
+    if (maxLogFileBytes_ > 0 && existing >= maxLogFileBytes_) {
+        // An oversized leftover (earlier sessions appended past the cap): move it
+        // aside so this session starts fresh instead of growing it further.
+        rotateLogLocked();
+    } else {
+        logFile_.open(logFileName_, std::ios::out | std::ios::app);
+        currentLogBytes_ = static_cast<size_t>(existing);
+    }
+    if (!logFile_.is_open()) {
+        std::cerr << "Failed to open log file: " << logFileName_ << std::endl;
+        fileOutputEnabled_ = false;
+    }
 }
 
 // Formatting options
@@ -217,16 +264,9 @@ bool Logger::loadConfig(const std::string& configFile) {
     
     // Open log file if file output is enabled
     if (instance.fileOutputEnabled_ && !instance.logFileName_.empty()) {
-        if (instance.logFile_.is_open()) {
-            instance.logFile_.close();
-        }
-        instance.logFile_.open(instance.logFileName_, std::ios::out | std::ios::app);
-        if (!instance.logFile_.is_open()) {
-            std::cerr << "Failed to open log file: " << instance.logFileName_ << std::endl;
-            instance.fileOutputEnabled_ = false;
-        }
+        instance.openLogFileLocked();   // rotates an oversized leftover, inits the counter
     }
-    
+
     return true;
 }
 
@@ -366,6 +406,8 @@ void Logger::logImpl(LogLevel level, const std::string& module, const std::strin
     // File output (no colors)
     if (fileOutputEnabled_ && logFile_.is_open()) {
         logFile_ << formattedMessage << std::endl;
+        currentLogBytes_ += formattedMessage.size() + 2;   // + line ending (upper bound)
+        if (maxLogFileBytes_ > 0 && currentLogBytes_ >= maxLogFileBytes_) rotateLogLocked();
     }
 }
 

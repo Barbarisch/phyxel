@@ -59,6 +59,14 @@ public:
     static void enableConsoleOutput(bool enable = true);
     static void enableFileOutput(bool enable = true, const std::string& filename = "phyxel.log");
     static void setOutputFile(const std::string& filename);
+
+    // Rotation: the log file is size-capped (default 64 MB) and rotates at open time AND
+    // at runtime — <name> → <name>.1 → <name>.2, then the fresh file continues. Before
+    // this, phyxel.log opened append-forever and had grown to 11.5M lines across
+    // sessions, and a log-write failure (or the file's role in a silent death) would be
+    // invisible. 0 = unlimited (legacy behavior).
+    static void setMaxLogFileBytes(size_t bytes);
+    static size_t getMaxLogFileBytes();
     
     // Formatting options
     static void enableTimestamps(bool enable = true);
@@ -111,6 +119,14 @@ private:
     bool fileOutputEnabled_;
     std::ofstream logFile_;
     std::string logFileName_;
+    size_t maxLogFileBytes_;   // rotation cap; 0 = unlimited (legacy)
+    size_t currentLogBytes_;   // bytes in the current file (initialized at open)
+    int rotateKeep_;           // rotated generations kept: <name>.1 .. <name>.N
+
+    // Rotate-if-oversized + open + counter init. Callers hold mutex_.
+    void openLogFileLocked();
+    // Close, shift <name>.N chain, reopen fresh. Callers hold mutex_.
+    void rotateLogLocked();
     
     bool timestampsEnabled_;
     bool colorsEnabled_;
