@@ -1322,6 +1322,17 @@ void EngineAPIServer::setupRoutes() {
         json result = queueAndWait("worldforge_map", params);
         res.set_content(result.dump(), "application/json");
     });
+    // POST /api/ui/panel — toggle an editor panel: {"panel": "world_map", "visible": true}.
+    srv.Post("/api/ui/panel", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("set_panel_visible", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const std::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", e.what()}}.dump(), "application/json");
+        }
+    });
     // GET /api/worldforge/minimap — render the biome-colored PNG world map (hillshade,
     // water, roads, bridges, site markers) and return its path. ?px= pixels (64-1024),
     // ?x=&z=&radius= world window (default: the full hydrology region), ?filename= .

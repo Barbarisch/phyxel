@@ -2888,6 +2888,9 @@ void Application::run() {
                 m_cameraPanel->render(&m_showCameraPanel);
             }
 
+            // World Map panel (WorldForge minimap, in-engine)
+            renderWorldMapPanel();
+
 #ifdef _WIN32
             // Render terminal panel as a dockable window
             if (m_terminalPanel && m_showTerminal) {
@@ -13081,6 +13084,21 @@ void Application::registerWorldForgeCommands() {
         Core::WorldForgeBuildService::start(*mainThreadJobs, d, siteFilter, r);
     });
 
+    // Editor UI: toggle dockable panels remotely (agents verifying UI features, demo
+    // driving). {"panel": "world_map", "visible": true}. Extend the map as panels grow.
+    reg.on("set_panel_visible", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        const std::string panel = cmd.params.value("panel", "");
+        const bool visible = cmd.params.value("visible", true);
+        if (panel == "world_map") m_showWorldMapPanel = visible;
+        else if (panel == "camera") m_showCameraPanel = visible;
+        else if (panel == "properties") m_showProperties = visible;
+        else {
+            r = {{"error", "unknown panel '" + panel + "' (world_map, camera, properties)"}};
+            return;
+        }
+        r = {{"success", true}, {"panel", panel}, {"visible", visible}};
+    });
+
     // Dev/verification: anchor the streaming pump at a world (x,z) without moving the
     // player (chunks stream there through the normal throttled path). {} clears.
     reg.on("worldforge_focus", [this, streamingGen, noGen](const Core::APICommand& cmd,
@@ -13171,114 +13189,12 @@ void Application::registerWorldForgeCommands() {
         const float stepU = (2.0f * radius) / static_cast<float>(px);
         std::string path = cmd.params.value("filename", std::string("worldforge_map.png"));
 
-        auto matColor = [](const std::string& m) -> glm::ivec3 {
-            if (m == "Grass") return {86, 125, 70};
-            if (m == "GrassForest") return {56, 96, 50};
-            if (m == "GrassSavanna") return {168, 146, 80};
-            if (m == "Sand") return {194, 178, 128};
-            if (m == "Snow") return {235, 240, 245};
-            if (m == "SnowGrass") return {198, 205, 198};
-            if (m == "Stone") return {130, 130, 130};
-            if (m == "Dirt") return {110, 84, 60};
-            if (m == "Gravel") return {150, 145, 140};
-            if (m == "Cobblestone") return {122, 120, 116};
-            return {140, 120, 100};
-        };
-
         const auto t0 = std::chrono::steady_clock::now();
-        std::vector<int> hgt(static_cast<size_t>(px) * px, 0);
-        std::vector<unsigned char> img(static_cast<size_t>(px) * px * 3, 0);
-        std::vector<uint8_t> isWater(static_cast<size_t>(px) * px, 0);
-        for (int pz = 0; pz < px; ++pz) {
-            for (int pxx = 0; pxx < px; ++pxx) {
-                const float wx = x0 + (pxx + 0.5f) * stepU;
-                const float wz = z0 + (pz + 0.5f) * stepU;
-                const auto col = g->sampleSurface(static_cast<int>(std::floor(wx)),
-                                                  static_cast<int>(std::floor(wz)));
-                const size_t i = static_cast<size_t>(pz) * px + pxx;
-                hgt[i] = col.surfaceY;
-                glm::ivec3 c = matColor(col.surfaceMat);
-                const float wl = hydro->waterLevelAt(wx, wz);
-                const bool standing = hydro->hasWater(wx, wz) &&
-                                      wl > static_cast<float>(col.surfaceY);
-                if (col.bridgeDeckY != INT_MIN && col.bridgeDeckY > col.surfaceY) {
-                    c = {146, 96, 52};                       // bridge deck
-                } else if (standing || col.riverOrder > 0) {
-                    const float depth = standing ? wl - static_cast<float>(col.surfaceY)
-                                                 : static_cast<float>(col.riverOrder);
-                    const float t = std::min(depth / 12.0f, 1.0f);
-                    c = {static_cast<int>(70 - 50 * t), static_cast<int>(130 - 80 * t),
-                         static_cast<int>(190 - 80 * t)};
-                    isWater[i] = 1;
-                } else if (col.roadClass == 3) {
-                    c = {200, 198, 190};                     // highway (Cobblestone)
-                } else if (col.roadClass == 2) {
-                    c = {180, 175, 165};                     // road (Gravel)
-                } else if (col.roadClass == 1) {
-                    c = {139, 105, 60};                      // track (Dirt)
-                } else if (plan && stepU > 4.0f) {
-                    // Coarse zoom: a 5 u road is sub-pixel — mark the pixel when the
-                    // centerline passes through it (the ASCII map's trick), or the road
-                    // network vanishes from exactly the view meant to show it.
-                    const auto rhit = plan->roadAt(wx, wz);
-                    if (rhit.cls > 0 && rhit.dist <= stepU * 0.75f)
-                        c = rhit.cls == 1 ? glm::ivec3(139, 105, 60)
-                                          : glm::ivec3(190, 186, 178);
-                }
-                img[i * 3 + 0] = static_cast<unsigned char>(c.r);
-                img[i * 3 + 1] = static_cast<unsigned char>(c.g);
-                img[i * 3 + 2] = static_cast<unsigned char>(c.b);
-            }
-        }
-        // Hillshade (land only): light from the NW — brighten slopes facing it, darken away.
-        for (int pz = 0; pz < px - 1; ++pz)
-            for (int pxx = 0; pxx < px - 1; ++pxx) {
-                const size_t i = static_cast<size_t>(pz) * px + pxx;
-                if (isWater[i]) continue;
-                const int dh = (hgt[i] - hgt[i + 1]) + (hgt[i] - hgt[i + px]);
-                const float shade = std::clamp(1.0f + dh * 0.035f, 0.70f, 1.25f);
-                for (int k = 0; k < 3; ++k)
-                    img[i * 3 + k] = static_cast<unsigned char>(
-                        std::min(255.0f, img[i * 3 + k] * shade));
-            }
-        // Site markers: filled tier-colored squares with a white border.
-        auto drawSquare = [&](int mx, int mz, int half, glm::ivec3 fill) {
-            for (int dz = -half - 1; dz <= half + 1; ++dz)
-                for (int dx = -half - 1; dx <= half + 1; ++dx) {
-                    const int qx = mx + dx, qz = mz + dz;
-                    if (qx < 0 || qz < 0 || qx >= px || qz >= px) continue;
-                    const bool border = std::abs(dx) > half || std::abs(dz) > half;
-                    const glm::ivec3 c = border ? glm::ivec3(255, 255, 255) : fill;
-                    const size_t i = (static_cast<size_t>(qz) * px + qx) * 3;
-                    img[i] = static_cast<unsigned char>(c.r);
-                    img[i + 1] = static_cast<unsigned char>(c.g);
-                    img[i + 2] = static_cast<unsigned char>(c.b);
-                }
-        };
-        if (plan) {
-            for (const auto& s : plan->sites()) {
-                const int mx = static_cast<int>((s.pos.x - x0) / stepU);
-                const int mz = static_cast<int>((s.pos.y - z0) / stepU);
-                if (mx < 0 || mz < 0 || mx >= px || mz >= px) continue;
-                if (s.tier == "town") drawSquare(mx, mz, 3, {220, 40, 40});
-                else if (s.tier == "village") drawSquare(mx, mz, 2, {240, 150, 40});
-                else drawSquare(mx, mz, 2, {240, 220, 60});
-            }
-        }
-        // Camera marker: a magenta cross where the viewer currently is.
-        if (camera) {
-            const glm::vec3 cp = camera->getPosition();
-            const int mx = static_cast<int>((cp.x - x0) / stepU);
-            const int mz = static_cast<int>((cp.z - z0) / stepU);
-            for (int d = -4; d <= 4; ++d) {
-                auto put = [&](int qx, int qz) {
-                    if (qx < 0 || qz < 0 || qx >= px || qz >= px) return;
-                    const size_t i = (static_cast<size_t>(qz) * px + qx) * 3;
-                    img[i] = 255; img[i + 1] = 0; img[i + 2] = 255;
-                };
-                put(mx + d, mz);
-                put(mx, mz + d);
-            }
+        std::vector<unsigned char> img;
+        std::string mapErr;
+        if (!renderWorldMapImage(px, cx, cz, radius, img, &mapErr)) {
+            r = {{"error", mapErr}};
+            return;
         }
         const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                             std::chrono::steady_clock::now() - t0)
@@ -13297,6 +13213,203 @@ void Application::registerWorldForgeCommands() {
                         "tan/gray roads | brown bridge decks | squares: red town, orange "
                         "village, yellow hamlet | magenta cross: camera"}};
     });
+}
+
+// The world-map renderer shared by the worldforge_minimap API and the in-engine World
+// Map panel: biome-colored terrain + NW hillshade + depth-shaded water + roads
+// (centerline-marked at coarse zooms) + bridge decks + site markers + camera cross,
+// sampled PURE from the generator — chunk residency irrelevant.
+bool Application::renderWorldMapImage(int px, float cx, float cz, float radius,
+                                      std::vector<unsigned char>& img, std::string* err) {
+    Phyxel::WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+    const Phyxel::HydrologyMap* hydro = g ? g->hydrology() : nullptr;
+    if (!g || !hydro) {
+        if (err) *err = "no hydrology bake (streaming height-based world required)";
+        return false;
+    }
+    const Phyxel::WorldForgePlan* plan = g->worldForge();
+    const float x0 = cx - radius, z0 = cz - radius;
+    const float stepU = (2.0f * radius) / static_cast<float>(px);
+
+    auto matColor = [](const std::string& m) -> glm::ivec3 {
+        if (m == "Grass") return {86, 125, 70};
+        if (m == "GrassForest") return {56, 96, 50};
+        if (m == "GrassSavanna") return {168, 146, 80};
+        if (m == "Sand") return {194, 178, 128};
+        if (m == "Snow") return {235, 240, 245};
+        if (m == "SnowGrass") return {198, 205, 198};
+        if (m == "Stone") return {130, 130, 130};
+        if (m == "Dirt") return {110, 84, 60};
+        if (m == "Gravel") return {150, 145, 140};
+        if (m == "Cobblestone") return {122, 120, 116};
+        return {140, 120, 100};
+    };
+
+    std::vector<int> hgt(static_cast<size_t>(px) * px, 0);
+    img.assign(static_cast<size_t>(px) * px * 3, 0);
+    std::vector<uint8_t> isWater(static_cast<size_t>(px) * px, 0);
+    for (int pz = 0; pz < px; ++pz) {
+        for (int pxx = 0; pxx < px; ++pxx) {
+            const float wx = x0 + (pxx + 0.5f) * stepU;
+            const float wz = z0 + (pz + 0.5f) * stepU;
+            const auto col = g->sampleSurface(static_cast<int>(std::floor(wx)),
+                                              static_cast<int>(std::floor(wz)));
+            const size_t i = static_cast<size_t>(pz) * px + pxx;
+            hgt[i] = col.surfaceY;
+            glm::ivec3 c = matColor(col.surfaceMat);
+            const float wl = hydro->waterLevelAt(wx, wz);
+            const bool standing = hydro->hasWater(wx, wz) &&
+                                  wl > static_cast<float>(col.surfaceY);
+            if (col.bridgeDeckY != INT_MIN && col.bridgeDeckY > col.surfaceY) {
+                c = {146, 96, 52};                       // bridge deck
+            } else if (standing || col.riverOrder > 0) {
+                const float depth = standing ? wl - static_cast<float>(col.surfaceY)
+                                             : static_cast<float>(col.riverOrder);
+                const float t = std::min(depth / 12.0f, 1.0f);
+                c = {static_cast<int>(70 - 50 * t), static_cast<int>(130 - 80 * t),
+                     static_cast<int>(190 - 80 * t)};
+                isWater[i] = 1;
+            } else if (col.roadClass == 3) {
+                c = {200, 198, 190};                     // highway (Cobblestone)
+            } else if (col.roadClass == 2) {
+                c = {180, 175, 165};                     // road (Gravel)
+            } else if (col.roadClass == 1) {
+                c = {139, 105, 60};                      // track (Dirt)
+            } else if (plan && stepU > 4.0f) {
+                // Coarse zoom: a 5 u road is sub-pixel — mark the pixel when the
+                // centerline passes through it (the ASCII map's trick), or the road
+                // network vanishes from exactly the view meant to show it.
+                const auto rhit = plan->roadAt(wx, wz);
+                if (rhit.cls > 0 && rhit.dist <= stepU * 0.75f)
+                    c = rhit.cls == 1 ? glm::ivec3(139, 105, 60)
+                                      : glm::ivec3(190, 186, 178);
+            }
+            img[i * 3 + 0] = static_cast<unsigned char>(c.r);
+            img[i * 3 + 1] = static_cast<unsigned char>(c.g);
+            img[i * 3 + 2] = static_cast<unsigned char>(c.b);
+        }
+    }
+    // Hillshade (land only): light from the NW — brighten slopes facing it, darken away.
+    for (int pz = 0; pz < px - 1; ++pz)
+        for (int pxx = 0; pxx < px - 1; ++pxx) {
+            const size_t i = static_cast<size_t>(pz) * px + pxx;
+            if (isWater[i]) continue;
+            const int dh = (hgt[i] - hgt[i + 1]) + (hgt[i] - hgt[i + px]);
+            const float shade = std::clamp(1.0f + dh * 0.035f, 0.70f, 1.25f);
+            for (int k = 0; k < 3; ++k)
+                img[i * 3 + k] = static_cast<unsigned char>(
+                    std::min(255.0f, img[i * 3 + k] * shade));
+        }
+    // Site markers: filled tier-colored squares with a white border.
+    auto drawSquare = [&](int mx, int mz, int half, glm::ivec3 fill) {
+        for (int dz = -half - 1; dz <= half + 1; ++dz)
+            for (int dx = -half - 1; dx <= half + 1; ++dx) {
+                const int qx = mx + dx, qz = mz + dz;
+                if (qx < 0 || qz < 0 || qx >= px || qz >= px) continue;
+                const bool border = std::abs(dx) > half || std::abs(dz) > half;
+                const glm::ivec3 c = border ? glm::ivec3(255, 255, 255) : fill;
+                const size_t i = (static_cast<size_t>(qz) * px + qx) * 3;
+                img[i] = static_cast<unsigned char>(c.r);
+                img[i + 1] = static_cast<unsigned char>(c.g);
+                img[i + 2] = static_cast<unsigned char>(c.b);
+            }
+    };
+    if (plan) {
+        for (const auto& s : plan->sites()) {
+            const int mx = static_cast<int>((s.pos.x - x0) / stepU);
+            const int mz = static_cast<int>((s.pos.y - z0) / stepU);
+            if (mx < 0 || mz < 0 || mx >= px || mz >= px) continue;
+            if (s.tier == "town") drawSquare(mx, mz, 3, {220, 40, 40});
+            else if (s.tier == "village") drawSquare(mx, mz, 2, {240, 150, 40});
+            else drawSquare(mx, mz, 2, {240, 220, 60});
+        }
+    }
+    // Camera marker: a magenta cross where the viewer currently is.
+    if (camera) {
+        const glm::vec3 cp = camera->getPosition();
+        const int mx = static_cast<int>((cp.x - x0) / stepU);
+        const int mz = static_cast<int>((cp.z - z0) / stepU);
+        for (int d = -4; d <= 4; ++d) {
+            auto put = [&](int qx, int qz) {
+                if (qx < 0 || qz < 0 || qx >= px || qz >= px) return;
+                const size_t i = (static_cast<size_t>(qz) * px + qx) * 3;
+                img[i] = 255; img[i + 1] = 0; img[i + 2] = 255;
+            };
+            put(mx + d, mz);
+            put(mx, mz + d);
+        }
+    }
+    return true;
+}
+
+void Application::refreshWorldMapTexture() {
+    Phyxel::WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+    const Phyxel::HydrologyMap* hydro = g ? g->hydrology() : nullptr;
+    if (!hydro || !vulkanDevice) {
+        m_worldMapTex = nullptr;
+        return;
+    }
+    const float regionHalf = hydro->cellsX() * hydro->cellSize() * 0.5f;
+    float cx = hydro->originX() + regionHalf;
+    float cz = hydro->originZ() + hydro->cellsZ() * hydro->cellSize() * 0.5f;
+    float radius = regionHalf;
+    if (m_worldMapZoom > 0 && camera) {
+        const glm::vec3 cp = camera->getPosition();
+        cx = cp.x;
+        cz = cp.z;
+        radius = regionHalf / (m_worldMapZoom == 1 ? 4.0f : 16.0f);
+    }
+    const int px = 384;
+    std::vector<unsigned char> img;
+    std::string err;
+    if (!renderWorldMapImage(px, cx, cz, radius, img, &err)) {
+        m_worldMapTex = nullptr;
+        return;
+    }
+    // Round-trip through a PNG on disk: loadImGuiTexture is the one existing path from
+    // pixels to an ImGui-usable Vulkan texture, and refresh cadence is a button click.
+    const std::string path = "worldmap_panel.png";
+    if (!stbi_write_png(path.c_str(), px, px, 3, img.data(), px * 3)) {
+        m_worldMapTex = nullptr;
+        return;
+    }
+    vulkanDevice->releaseImGuiTexture(path);
+    m_worldMapTex = vulkanDevice->loadImGuiTexture(path);
+    m_worldMapX0 = cx - radius;
+    m_worldMapZ0 = cz - radius;
+    m_worldMapSize = 2.0f * radius;
+}
+
+void Application::renderWorldMapPanel() {
+    if (!m_showWorldMapPanel) return;
+    ImGui::SetNextWindowSize(ImVec2(420, 480), ImGuiCond_FirstUseEver);
+    if (ImGui::Begin("World Map", &m_showWorldMapPanel)) {
+        static const char* kZooms[] = {"Region", "4x (camera)", "16x (camera)"};
+        bool refresh = false;
+        ImGui::SetNextItemWidth(140.0f);
+        if (ImGui::Combo("##worldmap_zoom", &m_worldMapZoom, kZooms, 3)) refresh = true;
+        ImGui::SameLine();
+        if (ImGui::Button("Refresh")) refresh = true;
+        if (!m_worldMapTex) refresh = true;   // first open renders automatically
+        if (refresh) refreshWorldMapTexture();
+        if (m_worldMapTex) {
+            const float w = ImGui::GetContentRegionAvail().x;
+            const ImVec2 imgPos = ImGui::GetCursorScreenPos();
+            ImGui::Image(reinterpret_cast<ImTextureID>(m_worldMapTex), ImVec2(w, w));
+            if (ImGui::IsItemHovered()) {
+                const ImVec2 m = ImGui::GetMousePos();
+                const float wx = m_worldMapX0 + (m.x - imgPos.x) / w * m_worldMapSize;
+                const float wz = m_worldMapZ0 + (m.y - imgPos.y) / w * m_worldMapSize;
+                ImGui::SetTooltip("world (%.0f, %.0f)", wx, wz);
+            }
+            ImGui::TextDisabled("town / village / hamlet squares - magenta cross = camera");
+        } else {
+            ImGui::TextWrapped(
+                "No map available - the World Map needs a streaming height-based world "
+                "(hydrology bake).");
+        }
+    }
+    ImGui::End();
 }
 
 // Door management commands, migrated from the static handleDoorCommand() helper onto the
@@ -18199,6 +18312,7 @@ void Application::renderMainMenuBar() {
             ImGui::MenuItem("Properties", nullptr, &m_showProperties);
             ImGui::MenuItem("World Outliner", nullptr, &m_showWorldOutliner);
             ImGui::MenuItem("Camera", nullptr, &m_showCameraPanel);
+            ImGui::MenuItem("World Map", nullptr, &m_showWorldMapPanel);
 #ifdef _WIN32
             ImGui::MenuItem("Terminal", nullptr, &m_showTerminal);
 #endif

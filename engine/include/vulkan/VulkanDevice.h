@@ -385,7 +385,11 @@ public:
     void* loadImGuiTexture(const std::string& path);
 
     /// Free all textures loaded via loadImGuiTexture.
-    void cleanupImGuiTextures();    
+    void cleanupImGuiTextures();
+
+    /// Free ONE cached ImGui texture so the same path can be reloaded with fresh pixels
+    /// (waits for the device to go idle — refresh-button cadence, never per frame).
+    void releaseImGuiTexture(const std::string& path);
     
     // Shadow map resources
     void setShadowMapResources(VkImageView imageView, VkSampler sampler) {

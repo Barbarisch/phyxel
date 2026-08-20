@@ -784,6 +784,20 @@ private:
     std::unique_ptr<Editor::CameraPanel> m_cameraPanel;        // Dockable camera management
     bool m_showCameraPanel = false;
 
+    // World Map panel (WorldForge minimap rendered in-engine): texture + the window it
+    // covers (for the hover→world-coordinate readout). Refresh-driven, never per frame.
+    bool m_showWorldMapPanel = false;
+    void* m_worldMapTex = nullptr;
+    int m_worldMapZoom = 0;              // 0 = region, 1 = 4x on camera, 2 = 16x on camera
+    float m_worldMapX0 = 0.0f, m_worldMapZ0 = 0.0f, m_worldMapSize = 1.0f;
+    // Fill `img` (px*px RGB) with the biome/water/road/site map for the given world
+    // window — the SAME renderer the worldforge_minimap API serves. False + *err when the
+    // world has no hydrology bake.
+    bool renderWorldMapImage(int px, float cx, float cz, float radius,
+                             std::vector<unsigned char>& img, std::string* err);
+    void refreshWorldMapTexture();
+    void renderWorldMapPanel();
+
     std::unique_ptr<Editor::TextureEditorPanel> m_textureEditor; // Dockable texture pixel editor
     bool m_showTextureEditor = false;
     bool m_needsLayoutReset = false;

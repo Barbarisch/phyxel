@@ -3104,6 +3104,19 @@ void* VulkanDevice::loadImGuiTexture(const std::string& path) {
     return reinterpret_cast<void*>(entry.descriptorSet);
 }
 
+void VulkanDevice::releaseImGuiTexture(const std::string& path) {
+    auto it = imguiTextureCache_.find(path);
+    if (it == imguiTextureCache_.end()) return;
+    vkDeviceWaitIdle(device);
+    auto& entry = it->second;
+    if (entry.descriptorSet != VK_NULL_HANDLE) ImGui_ImplVulkan_RemoveTexture(entry.descriptorSet);
+    if (entry.sampler != VK_NULL_HANDLE) vkDestroySampler(device, entry.sampler, nullptr);
+    if (entry.view != VK_NULL_HANDLE) vkDestroyImageView(device, entry.view, nullptr);
+    if (entry.image != VK_NULL_HANDLE) vkDestroyImage(device, entry.image, nullptr);
+    if (entry.memory != VK_NULL_HANDLE) vkFreeMemory(device, entry.memory, nullptr);
+    imguiTextureCache_.erase(it);
+}
+
 void VulkanDevice::cleanupImGuiTextures() {
     vkDeviceWaitIdle(device);
     for (auto& [path, entry] : imguiTextureCache_) {
