@@ -528,17 +528,16 @@ TEST(RoadFieldSeamTest, BridgeCrossingIsAgentWalkable) {
            "could never catch a rail intruding into the deck";
 }
 
-// The deck must be mountable ALONG THE ROAD LINE itself, not only by detouring onto
-// bank terrain: where a bank sits below the deck, the abutment ramp steps it up at
-// <= 1 cube per step, and the fill is physically emitted Stone. (The crossing test
-// above passes even without the ramp — the agent walks around via the bank — so the
-// ramp needs this direct pin. Red with kRampLength=0: the centerline mount step is
-// deckY - bankSurfaceY = 2 cubes on the canonical fixture.)
-TEST(RoadFieldSeamTest, BridgeAbutmentRampStepsTheLowBankUp) {
-    // The canonical fixture's "low bank" is a one-column lip UNDER the deck end (terrain
-    // rises above deck just beyond it — no ramp applies). Genuinely low banks live on the
-    // mountain gorge crossings: hunt all span ends of the WorldForgeStressTest mountain
-    // fixture for one whose off-end centerline carries ramp fill.
+// ============================================================================
+// ROAD GRADING (the logged "roads drape the terrain" gap): every road carries a
+// slope-limited grade profile baked into the plan (cut lower envelope raised to
+// bridge-deck pins), and sampleColumn pulls corridor surfaceY to it. The walk
+// invariant, network-wide on the STEEPEST fixture: consecutive 1 u centerline
+// steps never change the walk surface (graded ground, or the deck where one
+// spans a channel) by more than 1 cube. Pre-grading this world measured 45
+// steps over 1 cube (M3 stress) plus multi-cube deck mounts.
+// ============================================================================
+TEST(RoadFieldSeamTest, GradedRoadsAreStepWalkableOnMountains) {
     WorldGenerator gen(WorldGenerator::GenerationType::Mountains, 424242);
     WorldRecipe r = gen.makeRecipe();
     r.worldforge.enabled = true;
@@ -548,67 +547,63 @@ TEST(RoadFieldSeamTest, BridgeAbutmentRampStepsTheLowBankUp) {
     gen.applyRecipe(r);
     const WorldForgePlan* plan = gen.worldForge();
     ASSERT_NE(plan, nullptr);
-    ASSERT_FALSE(plan->bridges().empty());
+    ASSERT_FALSE(plan->roads().empty());
 
-    auto surfAt = [&](const glm::vec2& p) {
-        return gen.sampleSurface(static_cast<int>(std::lround(p.x)),
-                                 static_cast<int>(std::lround(p.y)));
+    // Walk surface at a column: the deck where a bridge spans, else the (graded) ground.
+    auto walkY = [&](const glm::vec2& p, bool& wet) {
+        const auto col = gen.sampleSurface(static_cast<int>(std::lround(p.x)),
+                                           static_cast<int>(std::lround(p.y)));
+        wet = col.riverOrder > 0;
+        if (col.bridgeDeckY != INT_MIN && col.bridgeDeckY > col.surfaceY) {
+            wet = false;   // the deck carries the road over the channel
+            return col.bridgeDeckY;
+        }
+        return col.surfaceY;
     };
 
-    bool found = false;
-    for (const auto& b : plan->bridges()) {
-        const glm::vec2 ab = b.b - b.a;
-        const float len = glm::length(ab);
-        if (len < 4.0f) continue;
-        const glm::vec2 dir = ab / len;
-        const int deckY = static_cast<int>(b.deckY);
-        for (int endIdx = 0; endIdx < 2 && !found; ++endIdx) {
-            const glm::vec2 end = endIdx == 0 ? b.a : b.b;
-            const glm::vec2 out = endIdx == 0 ? -dir : dir;
-
-            // Find ramp fill along the off-end centerline.
-            glm::ivec2 rampCell(INT_MIN, INT_MIN);
-            int rampTop = INT_MIN;
-            for (float d = 1.0f; d <= WorldForgePlan::kRampLength && rampCell.x == INT_MIN;
-                 d += 1.0f) {
-                const glm::vec2 p = end + out * d;
-                const auto col = surfAt(p);
-                if (col.bridgeRampTopY != INT_MIN && col.bridgeRampTopY > col.surfaceY) {
-                    rampCell = {static_cast<int>(std::lround(p.x)),
-                                static_cast<int>(std::lround(p.y))};
-                    rampTop = col.bridgeRampTopY;
+    int steps = 0, tall = 0;
+    for (const auto& road : plan->roads()) {
+        const auto& cl = road.centerline;
+        for (size_t i = 0; i + 1 < cl.size(); ++i) {
+            const glm::vec2 a = cl[i], b = cl[i + 1];
+            const float len = glm::length(b - a);
+            if (len <= 1e-4f) continue;
+            bool prevWet = false;
+            int prevY = walkY(a, prevWet);
+            for (float t = 1.0f; t <= len; t += 1.0f) {
+                bool nowWet = false;
+                const int y = walkY(a + (b - a) * (t / len), nowWet);
+                // Fords (order 1-2, no deck) remain the road-break case - skip pairs
+                // touching a carved channel; everything else must step <= 1 cube.
+                if (!prevWet && !nowWet) {
+                    ++steps;
+                    if (std::abs(y - prevY) > 1) {
+                        ++tall;
+                        if (tall <= 5) {
+                            const glm::vec2 p = a + (b - a) * (t / len);
+                            const auto c0 = gen.sampleSurface(
+                                static_cast<int>(std::lround(p.x - (b.x - a.x) / len)),
+                                static_cast<int>(std::lround(p.y - (b.y - a.y) / len)));
+                            const auto c1 = gen.sampleSurface(static_cast<int>(std::lround(p.x)),
+                                                              static_cast<int>(std::lround(p.y)));
+                            const auto hit = plan->roadAt(p.x, p.y);
+                            std::cout << "[GRADE] step " << std::abs(y - prevY)
+                                      << " cubes on road " << road.a << "-" << road.b
+                                      << " at (" << p.x << "," << p.y << ") prev{surf="
+                                      << c0.surfaceY << " deck=" << c0.bridgeDeckY << " river="
+                                      << c0.riverOrder << "} now{surf=" << c1.surfaceY
+                                      << " deck=" << c1.bridgeDeckY << " river=" << c1.riverOrder
+                                      << "} roadAt{cls=" << hit.cls << " dist=" << hit.dist
+                                      << " grade=" << hit.gradeY << "}" << std::endl;
+                        }
+                    }
                 }
-            }
-            if (rampCell.x == INT_MIN) continue;
-            found = true;
-
-            // The mount is stepped: walk-surface heights (terrain OR ramp fill) never step
-            // more than 1 cube from the deck through the ramp zone.
-            int prev = deckY;
-            for (float d = 1.0f; d <= WorldForgePlan::kRampLength + 2.0f; d += 1.0f) {
-                const auto col = surfAt(end + out * d);
-                const int walkY = std::max(col.surfaceY, col.bridgeRampTopY);
-                EXPECT_LE(std::abs(walkY - prev), 1)
-                    << "step of " << std::abs(walkY - prev) << " cubes at " << d
-                    << " u off the deck end (walkY=" << walkY << ", prev=" << prev << ")";
-                prev = walkY;
-                if (walkY == col.surfaceY) break;   // terrain took over — grading gap territory
-            }
-
-            // The fill is physically emitted: every level (surfaceY, rampTopY] is solid.
-            const auto col = surfAt(glm::vec2(rampCell));
-            for (int wy = col.surfaceY + 1; wy <= rampTop; ++wy) {
-                const glm::ivec3 cc(floorDiv32(rampCell.x), floorDiv32(wy),
-                                    floorDiv32(rampCell.y));
-                auto chunk = genChunkAt(gen, cc);
-                const glm::ivec3 lp(rampCell.x - cc.x * 32, wy - cc.y * 32,
-                                    rampCell.y - cc.z * 32);
-                EXPECT_NE(chunk->getCubeAt(lp), nullptr)
-                    << "ramp gap at y=" << wy << " (" << rampCell.x << "," << rampCell.y << ")";
+                prevY = y;
+                prevWet = nowWet;
             }
         }
-        if (found) break;
     }
-    ASSERT_TRUE(found) << "no span end on the mountain fixture carries ramp fill — the "
-                          "abutment ramp is dead code and should be removed";
+    ASSERT_GT(steps, 1000);
+    EXPECT_EQ(tall, 0) << tall << "/" << steps
+                       << " centerline steps exceed 1 cube on the graded network";
 }

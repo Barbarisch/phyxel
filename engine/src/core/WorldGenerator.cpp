@@ -576,13 +576,6 @@ void WorldGenerator::generateChunk(Chunk& chunk, const glm::ivec3& chunkCoord) {
                         continue;
                     }
                 }
-                // Abutment approach ramp (same family): Stone fill stepping the low bank up
-                // to the deck, 1 cube per 2 u — the deck must be MOUNTABLE, not just exist.
-                if (col.bridgeRampTopY != INT_MIN && wy > col.surfaceY &&
-                    wy <= col.bridgeRampTopY) {
-                    chunk.addCube(localPos, "Stone");
-                    continue;
-                }
 
                 if (wy > col.surfaceY) continue;  // above the surface: air (solid extends down)
 
@@ -1049,7 +1042,27 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
         if (m_worldForge) {
             const WorldForgePlan::RoadHit rh =
                 m_worldForge->roadAt(static_cast<float>(wx), static_cast<float>(wz));
-            const bool onRoad = rh.cls > 0 && rh.dist <= WorldForgePlan::roadHalfWidth(rh.cls);
+            const float half = WorldForgePlan::roadHalfWidth(rh.cls);
+            const bool onRoad = rh.cls > 0 && rh.dist <= half;
+            // Road GRADING: pull the corridor surface to the plan's slope-limited grade
+            // profile — LOWERING surfaceY cuts through bumps, RAISING it fills dips and
+            // climbs to bridge decks, both falling out of just moving surfaceY before
+            // emission. A 3 u shoulder blends back to natural terrain so the earthwork
+            // has banks instead of cliffs. Dry columns only: never grade a carved channel
+            // (the bridge deck spans it), below sea, or under standing water (a filled
+            // causeway must not dam a lake).
+            constexpr float kGradeBlend = 3.0f;
+            if (rh.cls > 0 && rh.gradeY > -1e29f && rh.dist <= half + kGradeBlend &&
+                col.riverOrder == 0 &&
+                col.surfaceY >= static_cast<int>(terrainParams.seaLevelY) &&
+                !(m_hydro && m_hydro->waterLevelAt(static_cast<float>(wx),
+                                                   static_cast<float>(wz)) >
+                                 static_cast<float>(col.surfaceY))) {
+                const float w =
+                    rh.dist <= half ? 1.0f : 1.0f - (rh.dist - half) / kGradeBlend;
+                col.surfaceY = static_cast<int>(std::lround(
+                    rh.gradeY * w + static_cast<float>(col.surfaceY) * (1.0f - w)));
+            }
             // Deck query gated to road/channel columns so the per-column cost stays bounded
             // (a deck always lies on the road corridor or over the carved channel).
             if (onRoad || col.riverOrder > 0) {
@@ -1062,10 +1075,6 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                     // A pier only exists where there is water/air to stand in: bed below deck.
                     if (bh.pier && col.bridgeDeckY - 1 > col.surfaceY)
                         col.bridgePierTopY = col.bridgeDeckY - 1;
-                } else if (bh.rampTopY != INT_MIN && bh.rampTopY > col.surfaceY) {
-                    // Abutment approach ramp: fill only where the ramp line sits ABOVE the
-                    // bank terrain — where terrain meets or exceeds it, the ground IS the ramp.
-                    col.bridgeRampTopY = bh.rampTopY;
                 }
             }
             if (onRoad && col.bridgeDeckY == INT_MIN && col.riverOrder == 0 &&

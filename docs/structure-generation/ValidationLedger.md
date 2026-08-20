@@ -141,8 +141,9 @@ Validate when each lands; required layer noted so the plan is set up front.
   — ≥80% per-side edge coverage + zero walkway intrusions, the intrusion assertion caught the
   endpoint-arc rail bug live; `BridgePiersStandSolidOnALongSpan` — solid at every level, mountain fixture);
   **L3** `BridgeCrossingIsAgentWalkable` (TraversalProbe bank-to-bank with 1-cube hop, STRICT walker between
-  the parapets, sensitivity control that must fail on a walkway wall) + `BridgeAbutmentRampStepsTheLowBankUp`
-  (stepped ≤1-cube mount via abutment ramp, red with kRampLength=0, mountain gorge fixture); **L4** live
+  the parapets, sensitivity control that must fail on a walkway wall) + `GradedRoadsAreStepWalkableOnMountains`
+  (road GRADING with two-sided deck pins: 0/6656 centerline walk-surface steps over 1 cube on the mountain
+  8-site network, red-first at 45 → 3 → 1 → 0; superseded the short-lived abutment ramp); **L4** live
   Release scan+screenshots (BridgeVis: 5-wide deck y=65, both parapets, hover probe Subcube/WoodPlanks —
   docs/evidence/bridge_rails_*.png). Owed: >96 u channels undecked, flat decks, parapet post rhythm.
   **`subdivide_plots` 40 — ✅ L2** (`SettlementLayoutTest`: plots no-overlap + street-gap + fit + min;

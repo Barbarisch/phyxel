@@ -64,6 +64,12 @@ struct WorldForgeRoad {
         int riverOrder = 0;     // order >= 3 channel crossed here -> realized as a bridge span
     };
     std::vector<Crossing> crossings;
+    /// Slope-limited road surface Y per centerline vertex (road GRADING): the cut lower
+    /// envelope of the real terrain (ascent <= kMaxRoadGrade in both walk directions)
+    /// raised toward bridge-deck pins so approaches climb to meet the deck. sampleColumn
+    /// pulls corridor surfaceY to the interpolated profile — cut AND fill both fall out
+    /// of moving surfaceY. Empty = ungraded (legacy drape).
+    std::vector<float> gradeProfile;
 };
 
 /// One bridge deck spanning an order>=3 channel (placer #44, V2 of the road field). The
@@ -119,14 +125,10 @@ public:
         bool pier = false;   // within a pier footprint — stations every kPierSpacing along the
                              // span, derived per query so baked plan data (and planHash) are
                              // unchanged by piers
-        int rampTopY = INT_MIN;  // abutment APPROACH ramp top (columns just beyond a span end,
-                             // descending 1 cube per 2 u): where a bank sits below the deck,
-                             // generation fills Stone up to this so the deck can be MOUNTED
-                             // with 1-cube steps (the low-bank 2-cube step was agent-unwalkable)
         bool hit() const { return cls > 0; }
     };
     static constexpr float kPierSpacing = 12.0f;   // interior pier stations along a span
-    static constexpr float kRampLength = 8.0f;     // abutment ramp reach beyond each span end
+    static constexpr float kMaxRoadGrade = 0.5f;   // grade profile: max |dY| per u of arclength
     BridgeHit bridgeAt(float worldX, float worldZ) const;
 
     /// Road query for one world column — the per-column generation hook (sampleColumn).
@@ -135,6 +137,8 @@ public:
         int cls = 0;            // 0 = no road here
         float dist = 1e9f;      // distance to the road centerline (world units)
         int roadIdx = -1;       // index into roads()
+        float gradeY = -1e30f;  // graded road surface Y at the query's centerline projection
+                                // (interpolated from the road's gradeProfile; -1e30 = none)
     };
     RoadHit roadAt(float worldX, float worldZ) const;
 
@@ -184,6 +188,7 @@ private:
         glm::vec2 a{0.0f}, b{0.0f};
         uint16_t roadIdx = 0;
         uint8_t cls = 1;
+        uint16_t vert = 0;   // index of `a` in its road's centerline (grade interpolation)
     };
     std::vector<Segment> m_segments;
 };

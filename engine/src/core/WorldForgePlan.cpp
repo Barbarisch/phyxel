@@ -623,13 +623,153 @@ std::shared_ptr<const WorldForgePlan> WorldForgePlan::bake(
         }
     }
 
+    // ── Road grade profiles: slope-limited cut envelope + bridge-deck pins ──────────────────
+    // Per centerline vertex: start from the REAL emitted surface, take the LOWER envelope
+    // with ascent limited to kMaxRoadGrade in both walk directions (cuts through bumps),
+    // then raise toward bridge-deck pin cones (approaches climb to MEET the deck instead of
+    // stepping onto it — this supersedes the 2026-08-20-morning abutment ramp, which never
+    // fired once grading lifted the approach surface). Channel vertices take the lower of
+    // their neighbors so a carved bed never drags the profile into the river. Both terms
+    // are kMaxRoadGrade-Lipschitz, so their max is too — every step along the graded line
+    // is walkable by construction. Consumed by sampleColumn via RoadHit.gradeY.
+    {
+        auto stepLimOf = [](const std::vector<glm::vec2>& cl, size_t i, size_t j) {
+            return kMaxRoadGrade * glm::length(cl[j] - cl[i]);
+        };
+        auto lowerEnvelope = [&](const std::vector<glm::vec2>& cl, std::vector<float>& h) {
+            const size_t n = h.size();
+            for (size_t i = 1; i < n; ++i)
+                h[i] = std::min(h[i], h[i - 1] + stepLimOf(cl, i - 1, i));
+            for (size_t i = n - 1; i-- > 0;)
+                h[i] = std::min(h[i], h[i + 1] + stepLimOf(cl, i, i + 1));
+        };
+        for (auto& road : plan->m_roads) {
+            const auto& cl = road.centerline;
+            const size_t n = cl.size();
+            if (n < 2) continue;
+            std::vector<float> h(n);
+            std::vector<bool> wet(n, false);
+            for (size_t i = 0; i < n; ++i) {
+                h[i] = static_cast<float>(surfaceYAt(static_cast<int>(std::lround(cl[i].x)),
+                                                     static_cast<int>(std::lround(cl[i].y))));
+                const FlowField::ChannelHit ch = channelAt(cl[i].x, cl[i].y);
+                wet[i] = ch.hit && ch.depth >= 0.15f;
+            }
+            // A carved-bed vertex must not pull the envelope down: borrow the nearest dry
+            // height.
+            for (size_t i = 0; i < n; ++i) {
+                if (!wet[i]) continue;
+                float dry = -1e30f;
+                for (size_t j = 1; j < n; ++j) {
+                    if (i >= j && !wet[i - j]) { dry = h[i - j]; break; }
+                    if (i + j < n && !wet[i + j]) { dry = h[i + j]; break; }
+                }
+                if (dry > -1e29f) h[i] = dry;
+            }
+            lowerEnvelope(cl, h);
+            road.gradeProfile = std::move(h);
+        }
+        // Junction reconciliation: where two corridors overlap, the SINGLE emitted surface
+        // takes the nearest road's grade — so both profiles must agree there or a walker
+        // crossing the nearest-road boundary steps the disagreement (measured 2 cubes at a
+        // mountain junction, red). Both take the LOWER height (min of Lipschitz functions
+        // stays Lipschitz), then the envelope re-limits each road.
+        for (size_t r1 = 0; r1 < plan->m_roads.size(); ++r1) {
+            auto& roadA = plan->m_roads[r1];
+            for (size_t r2 = r1 + 1; r2 < plan->m_roads.size(); ++r2) {
+                auto& roadB = plan->m_roads[r2];
+                const float reach = roadHalfWidth(roadA.cls) + roadHalfWidth(roadB.cls) + 3.0f;
+                for (size_t i = 0; i < roadA.centerline.size(); ++i) {
+                    // Nearest point of B to A's vertex i.
+                    float best = 1e30f;
+                    size_t bj = 0;
+                    float bt = 0.0f;
+                    for (size_t j = 0; j + 1 < roadB.centerline.size(); ++j) {
+                        const glm::vec2 a = roadB.centerline[j], b = roadB.centerline[j + 1];
+                        const glm::vec2 ab = b - a;
+                        const float len2 = glm::dot(ab, ab);
+                        const float t = len2 > 0.0f
+                                            ? glm::clamp(glm::dot(roadA.centerline[i] - a, ab) /
+                                                             len2, 0.0f, 1.0f)
+                                            : 0.0f;
+                        const float d = glm::length(roadA.centerline[i] - (a + ab * t));
+                        if (d < best) { best = d; bj = j; bt = t; }
+                    }
+                    if (best > reach || roadB.gradeProfile.size() <= bj + 1 ||
+                        roadA.gradeProfile.size() <= i)
+                        continue;
+                    const float hB = roadB.gradeProfile[bj] * (1.0f - bt) +
+                                     roadB.gradeProfile[bj + 1] * bt;
+                    const float m = std::min(roadA.gradeProfile[i], hB);
+                    roadA.gradeProfile[i] = m;
+                    roadB.gradeProfile[bj] = std::min(roadB.gradeProfile[bj],
+                                                      m + kMaxRoadGrade * bt * glm::length(
+                                                              roadB.centerline[bj + 1] -
+                                                              roadB.centerline[bj]));
+                    roadB.gradeProfile[bj + 1] = std::min(
+                        roadB.gradeProfile[bj + 1],
+                        m + kMaxRoadGrade * (1.0f - bt) *
+                                glm::length(roadB.centerline[bj + 1] - roadB.centerline[bj]));
+                }
+            }
+        }
+        for (auto& road : plan->m_roads)
+            if (road.gradeProfile.size() >= 2) lowerEnvelope(road.centerline, road.gradeProfile);
+        // Deck pin cones — pinned by PROJECTION, not vertex-to-span distance: a short span
+        // can fall entirely between 16 u vertices and a distance test then pins NOTHING,
+        // leaving the old multi-cube deck mount (measured 5 cubes, red). Pin every vertex
+        // from the one nearest bank A to the one nearest bank B, banks included, so the
+        // approach fills up to the deck; the cone spreads outward at the grade limit and
+        // the final profile is the max of envelope and cone.
+        for (auto& road : plan->m_roads) {
+            const auto& cl = road.centerline;
+            const size_t n = cl.size();
+            if (n < 2 || road.gradeProfile.size() != n) continue;
+            // TWO-SIDED pins: a low bank FILLS up to the deck (lower cone, max) and a high
+            // approach CUTS down to it (upper cone, min) — a bank 5 above the deck was a
+            // 5-cube drop onto the span, measured red. clamp of Lipschitz functions stays
+            // Lipschitz, so every step remains within the grade limit.
+            std::vector<float> pin(n, -1e30f), cap(n, 1e30f);
+            for (const auto& span : plan->m_bridges) {
+                auto nearestVert = [&](const glm::vec2& p, float maxD) -> int {
+                    float best = maxD;
+                    int bi = -1;
+                    for (size_t i = 0; i < n; ++i) {
+                        const float d = glm::length(cl[i] - p);
+                        if (d < best) { best = d; bi = static_cast<int>(i); }
+                    }
+                    return bi;
+                };
+                const int ia = nearestVert(span.a, 32.0f), ib = nearestVert(span.b, 32.0f);
+                if (ia < 0 || ib < 0) continue;   // span belongs to another road
+                for (int i = std::min(ia, ib); i <= std::max(ia, ib); ++i) {
+                    pin[i] = std::max(pin[i], span.deckY);
+                    cap[i] = std::min(cap[i], span.deckY);
+                }
+            }
+            auto stepLim = [&](size_t i, size_t j) { return stepLimOf(cl, i, j); };
+            for (size_t i = 1; i < n; ++i) {
+                pin[i] = std::max(pin[i], pin[i - 1] - stepLim(i - 1, i));
+                cap[i] = std::min(cap[i], cap[i - 1] + stepLim(i - 1, i));
+            }
+            for (size_t i = n - 1; i-- > 0;) {
+                pin[i] = std::max(pin[i], pin[i + 1] - stepLim(i, i + 1));
+                cap[i] = std::min(cap[i], cap[i + 1] + stepLim(i, i + 1));
+            }
+            for (size_t i = 0; i < n; ++i)
+                road.gradeProfile[i] =
+                    std::min(std::max(road.gradeProfile[i], pin[i]), cap[i]);
+        }
+    }
+
     // ── Road raster: nearest-segment index per 8 u cell over the network bbox ────────────────
     for (size_t r = 0; r < plan->m_roads.size(); ++r) {
         const auto& cl = plan->m_roads[r].centerline;
         for (size_t i = 0; i + 1 < cl.size(); ++i) {
             if (plan->m_segments.size() >= 0xFFFE) break;   // uint16 raster limit (log below)
             plan->m_segments.push_back({cl[i], cl[i + 1], static_cast<uint16_t>(r),
-                                        static_cast<uint8_t>(plan->m_roads[r].cls)});
+                                        static_cast<uint8_t>(plan->m_roads[r].cls),
+                                        static_cast<uint16_t>(i)});
         }
     }
     if (!plan->m_segments.empty()) {
@@ -701,17 +841,10 @@ WorldForgePlan::BridgeHit WorldForgePlan::bridgeAt(float worldX, float worldZ) c
         if (lateral > half) continue;
 
         // Beyond a span end: no deck (the old clamped-distance test grew a floating deck
-        // DISC around each endpoint) — instead an abutment APPROACH ramp, descending 1
-        // cube per 2 u, so a low bank can mount the deck in 1-cube steps (the 2-cube
-        // low-bank step was agent-unwalkable, caught by BridgeCrossingIsAgentWalkable).
-        if (tRaw < 0.0f || tRaw > 1.0f) {
-            const float beyond = (tRaw < 0.0f ? -tRaw : tRaw - 1.0f) * len;
-            if (beyond <= kRampLength) {
-                const int drop = static_cast<int>(std::ceil(beyond / 2.0f));
-                hit.rampTopY = std::max(hit.rampTopY, static_cast<int>(b.deckY) - drop);
-            }
-            continue;
-        }
+        // DISC around each endpoint). Mounting a deck from a low bank is the GRADE
+        // PROFILE's job — deck pins raise the approach surfaceY to meet the deck
+        // (superseding the short-lived per-column abutment ramp).
+        if (tRaw < 0.0f || tRaw > 1.0f) continue;
 
         hit.deckY = b.deckY;
         hit.cls = b.cls;
@@ -763,6 +896,12 @@ WorldForgePlan::RoadHit WorldForgePlan::roadAt(float worldX, float worldZ) const
             hit.dist = d;
             hit.cls = s.cls;
             hit.roadIdx = roadIdx;
+            // Graded road surface at the projection: linear between the segment's two
+            // vertex profile heights (the profile is slope-limited per vertex, so the
+            // interpolated line is walkable by construction).
+            const auto& prof = m_roads[roadIdx].gradeProfile;
+            if (s.vert + 1 < prof.size())
+                hit.gradeY = prof[s.vert] * (1.0f - t) + prof[s.vert + 1] * t;
         }
     }
     return hit;
@@ -803,9 +942,24 @@ nlohmann::json WorldForgePlan::toJson() const {
         nlohmann::json crossings = nlohmann::json::array();
         for (const auto& c : r.crossings)
             crossings.push_back({{"x", c.pos.x}, {"z", c.pos.y}, {"order", c.riverOrder}});
+        // Grade summary (min/max/sum, 0.1-quantized): the profile is part of the plan's
+        // identity — grading changes what generation EMITS, so planHash must move with it
+        // (the ledger drift guard exists for exactly this) — without bloating the payload.
+        nlohmann::json grade = nlohmann::json::array();
+        if (!r.gradeProfile.empty()) {
+            float lo = 1e30f, hi = -1e30f;
+            double sum = 0.0;
+            for (const float g : r.gradeProfile) {
+                lo = std::min(lo, g);
+                hi = std::max(hi, g);
+                sum += std::round(g * 10.0f) / 10.0;
+            }
+            grade = {std::round(lo * 10.0f) / 10.0, std::round(hi * 10.0f) / 10.0,
+                     std::round(sum * 10.0) / 10.0};
+        }
         roads.push_back({{"a", r.a}, {"b", r.b}, {"class", r.cls},
                          {"points", static_cast<int>(r.centerline.size())},
-                         {"centerline", line}, {"crossings", crossings}});
+                         {"centerline", line}, {"crossings", crossings}, {"grade", grade}});
     }
     j["roads"] = roads;
     nlohmann::json bridges = nlohmann::json::array();

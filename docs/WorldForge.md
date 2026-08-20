@@ -237,9 +237,26 @@ mount step — the agent crosses even without the ramp by detouring over bank te
 ramp's own test is what pins the feature. Ramps/rails/piers are all query-derived: plan
 hashes unchanged throughout (mountain fixture re-baked identical).
 Still open (logged): channels wider than 96 u get NO deck (surfaced in the bake log, never
-a half-bridge), decks are flat (no arc), parapets have no openings/posts rhythm, and
-natural terrain steps > 1 cube on the approach BEYOND the ramp remain the road-grading
-gap's business.
+a half-bridge), decks are flat (no arc), parapets have no openings/posts rhythm.
+
+## Road grading — SHIPPED 2026-08-20 (supersedes both the drape gap AND the abutment ramp)
+
+Every road bakes a **slope-limited grade profile** (per centerline vertex): the lower
+envelope of the real emitted surface with ascent capped at `kMaxRoadGrade` (0.5/u) in both
+walk directions, junction-reconciled (where two corridors overlap, both profiles take the
+lower height — the emitted surface is single-valued, so disagreement was a measured 2-cube
+step at a mountain junction), then clamped to **two-sided bridge-deck pins**: vertices
+between the banks sit exactly at deckY, with a fill cone (max) raising low banks and a cut
+cone (min) lowering high rims, both at the grade limit. `sampleColumn` pulls corridor
+`surfaceY` to the interpolated profile (3 u shoulder blend; carved channels / below-sea /
+standing-water columns never grade) — cut and fill both fall out of moving `surfaceY`
+before emission. **The same-day abutment ramp is REMOVED** — deck pins subsume it (once
+grading lifts an approach, the ramp condition never fired). Invariant, pinned red-first on
+the steepest fixture (`GradedRoadsAreStepWalkableOnMountains`, Mountains 424242 8-site):
+consecutive 1 u centerline walk-surface steps (graded ground, or deck over a channel)
+never exceed 1 cube — progression 45 tall steps ungraded → 3 (short-span pin miss +
+junction disagreement) → 1 (high rim 5 above deck) → **0/6656**. planHash changes (roads
+carry a grade summary in toJson): pre-grading ledgers correctly flag stale.
 
 ## Known gaps (V1 non-goals, logged)
 

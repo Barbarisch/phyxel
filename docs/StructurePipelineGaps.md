@@ -71,10 +71,11 @@ what the engine did instead, the workaround used, and what a real fix looks like
   built there - the road stops at the carved channel and resumes on the far bank. Real fix:
   ValidationLedger placer #44 `place_bridges`, consuming the crossing records (order -> span/width
   from the same Doll-et-al channel-geometry tables the carve uses).
-- **Road grading:** generation-time roads DRAPE the terrain surface (material stamp only - no
-  cut/fill, no slope-limited profile like `StreetPaver`'s settlement streets). Steep terrain
-  yields steep road surfaces. Real fix: a generation-time analog of `planTerrainPath`'s
-  slope-limited lower envelope applied to `surfaceY` along the corridor.
+- ~~Road grading~~ **RESOLVED 2026-08-20**: per-road slope-limited grade profile baked in
+  the plan (lower envelope + junction reconciliation + two-sided bridge-deck pins);
+  sampleColumn pulls corridor surfaceY to it (cut AND fill). Mountain network measured
+  0/6656 centerline steps over 1 cube (was 45). The 2026-08-20-morning abutment ramp was
+  REMOVED same day - deck pins subsume it.
 - **Road-to-street fusion:** roads terminate at the settlement footprint edge; the settlement's
   own street network doesn't orient toward or join the arriving road (`chooseStreetAxis` knows
   nothing about the plan). Real fix: pass the road arrival bearing into settlement layout.
