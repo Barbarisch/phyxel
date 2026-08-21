@@ -742,6 +742,16 @@ void ChunkStreamingManager::pumpDeferredDbLoads(const glm::vec3& position) {
 }
 
 bool ChunkStreamingManager::generateOrLoadChunk(const glm::ivec3& chunkCoord) {
+    // ONE chunk object per coord, ever. Without this guard the sync path could land a
+    // SECOND object for an already-resident coord: chunkMap[coord] was overwritten (new
+    // wins for queries) while the old object stayed in the render vector — a GHOST that
+    // draws forever but no voxel query can reach. Live symptom: bare, undecorated,
+    // pre-recipe terrain terraces "poking out of" the real meadow near spawn (the boot
+    // window before the async workers start sync-generates with the pre-recipe
+    // generator; the properly-generated chunk then orphaned it). Same family as the
+    // recorded "empty chunks linger in the Outliner" bug. The async drain has had this
+    // guard all along ("superseded"); the sync path now matches it.
+    if (getChunkAtCoord(chunkCoord)) return true;
     if (!worldStorage) {
         // Fallback: create empty chunk via callback
         m_createChunk(Utils::CoordinateUtils::chunkCoordToOrigin(chunkCoord));

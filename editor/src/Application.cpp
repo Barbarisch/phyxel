@@ -14330,7 +14330,7 @@ void Application::registerEffectsCommands() {
     reg.on("load_state", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         (void)cmd;
         nlohmann::json out = {{"success", true}};
-        size_t genPending = 0, dirty = 0, idle = 0, unmeshed = 0, resident = 0;
+        size_t genPending = 0, dirty = 0, idle = 0, unmeshed = 0, resident = 0, ghosts = 0;
         if (chunkManager) {
             genPending = chunkManager->streamingManagerRO().pendingGenerationCount();
             dirty = chunkManager->dirtyTracker().getDirtyCount();
@@ -14339,9 +14339,19 @@ void Application::registerEffectsCommands() {
                 if (!c) continue;
                 ++resident;
                 if (c->getNumInstances() == 0) ++unmeshed;   // air OR not-yet-meshed
+                // GHOST detector: a vector entry whose coord maps to a DIFFERENT object
+                // renders forever but is unreachable by every voxel query (the
+                // "terraces poking out of the meadow" / lingering-Outliner bug). Must
+                // always read 0 — the one-object-per-coord guard in
+                // generateOrLoadChunk enforces it at the source.
+                const glm::ivec3 cc =
+                    Utils::CoordinateUtils::worldToChunkCoord(c->getWorldOrigin());
+                if (chunkManager->getChunkAtCoord(cc) != c.get()) ++ghosts;
             }
         }
         out["chunks"] = {{"resident", resident},
+                         {"chunk_map", chunkManager ? chunkManager->chunkMap.size() : 0},
+                         {"ghosts", ghosts},
                          {"generation_pending", genPending},
                          {"remesh_pending", dirty},
                          {"remesh_idle_pending", idle},
