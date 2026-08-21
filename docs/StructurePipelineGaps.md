@@ -273,3 +273,24 @@ re-rasterize under any view change, most visible at the ground contact, masked b
 view motion, invisible at rest. Fix = the WorldRenderV2 M3 anti-aliasing milestone, not a
 tweak. (Same session: the map-panel scrollbar oscillation and the stale far-tile terraces
 were real bugs, fixed in e11b51d6.)
+
+## 2026-08-21 - OPEN: bald grass strips along terrain step contours (evidence trail)
+
+User-visible: bare "staircase" strips along 1-cube step contours in meadows, reading as
+broken LOD; view-angle contrast makes them pop. Established by measurement on BridgeVis:
+- World data CORRECT: streamed voxels == generator surface on 109/110 columns (the one
+  outlier is a tree); forced remesh is a no-op (mesh faithful to data).
+- NOT far-terrain tiles (disabled via /api/debug/far_terrain -> artifact persists,
+  tiles_drawn 0), NOT occlusion culling (disabled -> identical frame), NOT ghost chunks
+  (one-object-per-coord guard added d32dcece; ghosts counter reads 0), NOT the shader
+  edge taper (edgeTaperFloor=1.0 -> strips stay bald; the shader only scales height,
+  never discards), NOT the blade PLANTING scan (GrassBladeCoverageTest: terraced floor
+  gets 1024/1024 blade instances headless).
+- With bladeWidth 3x, most of the strip fills in EXCEPT clean RECTANGULAR bald patches
+  hugging the upper side of step edges - rectangle-shaped absence suggests something
+  structural (merged-quad-correlated? per-instance-range?) rather than per-cell logic.
+Next session's tool: a debug overlay coloring each grass-topped cell by whether a blade
+INSTANCE exists for it in the live chunk buffer (CPU-side dump of m_grassInstances per
+chunk via an API route) - that splits "instances absent" from "instances invisible" in
+one look. Related open defects in the same visual family: T-junction cracks at
+greedy-merge borders, no-AA sub-pixel speckle.
