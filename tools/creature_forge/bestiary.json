@@ -5,5 +5,11 @@
   {"id": "forge_ibex", "spec": "specs/ibex.json",
    "out": "resources/animated_characters/forge_ibex.anim",
    "target_height": 1.05, "morphology": "quadruped",
-   "combat": true, "display": "Alpine Ibex"}
+   "combat": true, "display": "Alpine Ibex"},
+
+  {"_comment": "=== SRD bestiary: quadrupeds (M3) ==="},
+  {"id": "forge_direwolf", "spec": "specs/dire_wolf.json",
+   "out": "resources/animated_characters/forge_direwolf.anim",
+   "target_height": 1.15, "morphology": "quadruped",
+   "monsterId": "dire_wolf", "combat": true, "display": "Dire Wolf"}
 ]
