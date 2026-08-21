@@ -17063,6 +17063,18 @@ void Application::processAPICommands() {
                                 if (auto* cb = dynamic_cast<Scene::CombatBehavior*>(npc->getBehavior()))
                                     cb->setWeapon(cmd.params.value("weapon", std::string{}));
                             }
+                            // Faction gates combat targeting: an empty faction is
+                            // hostile to EVERYONE, so a spawned monster pack would
+                            // fight itself unless the caller sets a shared tag.
+                            if (behaviorType == Core::NPCBehaviorType::Combat &&
+                                cmd.params.contains("faction")) {
+                                if (auto* cb = dynamic_cast<Scene::CombatBehavior*>(npc->getBehavior()))
+                                    cb->setFaction(cmd.params.value("faction", std::string{}));
+                            }
+                            // Stat-block link: lets turn-based CombatAISystem look up
+                            // the monster's real AC/attacks instead of the fallback.
+                            if (cmd.params.contains("monsterId"))
+                                npc->setMonsterId(cmd.params.value("monsterId", std::string{}));
                             response = {{"success", true}, {"name", name}, {"behavior", behaviorStr},
                                         {"procedural", procedural}, {"role", role}, {"driveMode", driveModeStr},
                                         {"position", {{"x", x}, {"y", y}, {"z", z}}}};

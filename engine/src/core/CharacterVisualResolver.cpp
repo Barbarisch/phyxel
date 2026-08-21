@@ -15,6 +15,12 @@ constexpr const char* kDefaultAnimFile = "resources/animated_characters/humanoid
 Scene::MorphologyType morphologyFromAnimFile(const std::string& animFile) {
     std::string lower = animFile;
     std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
+    // creature_forge rigs (forge_ prefix) author their bones to satisfy
+    // detectMorphology — defer like *_meshy below, BEFORE the substring
+    // guesses: forge_boar has no morphology substring and would otherwise
+    // be stamped Humanoid, while a forge biped named after an animal would
+    // be mis-stamped by the animal word.
+    if (lower.find("forge_") != std::string::npos)  return Scene::MorphologyType::Unknown;
     if (lower.find("wolf") != std::string::npos)   return Scene::MorphologyType::Quadruped;
     if (lower.find("spider") != std::string::npos) return Scene::MorphologyType::Arachnid;
     if (lower.find("dragon") != std::string::npos) return Scene::MorphologyType::Dragon;

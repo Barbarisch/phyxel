@@ -1737,12 +1737,17 @@ async def list_tools() -> list[Tool]:
                     "position": {"type": "object", "description": "Spawn position {x,y,z}", "properties": {
                         "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}
                     }},
-                    "behavior": {"type": "string", "description": "Behavior type: idle or patrol", "enum": ["idle", "patrol", "wander"], "default": "idle"},
+                    "behavior": {"type": "string", "description": "Behavior type. 'combat' (alias 'aggressive') = real-time hostile melee (seeks + attacks the player and differing-faction NPCs).", "enum": ["idle", "patrol", "wander", "combat", "aggressive", "behavior_tree", "scheduled"], "default": "idle"},
                     "waypoints": {"type": "array", "description": "Patrol waypoints [{x,y,z}, ...] (required for patrol)", "items": {
                         "type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}
                     }},
                     "walkSpeed": {"type": "number", "description": "Walk speed for patrol (default 2.0)", "default": 2.0},
-                    "waitTime": {"type": "number", "description": "Wait time at waypoints (default 2.0)", "default": 2.0}
+                    "waitTime": {"type": "number", "description": "Wait time at waypoints (default 2.0)", "default": 2.0},
+                    "weapon": {"type": "string", "description": "Weapon item id to equip (combat behavior only)"},
+                    "faction": {"type": "string", "description": "Combat faction tag. Combat NPCs only target entities of a DIFFERENT faction; empty = hostile to everyone (including each other). Always set a shared faction when spawning a group."},
+                    "monsterId": {"type": "string", "description": "resources/monsters stat-block id (e.g. 'goblin') — links this NPC to its D&D stats for turn-based combat."},
+                    "role": {"type": "string", "description": "Role tag used for seeded appearance (e.g. guard, merchant)"},
+                    "driveMode": {"type": "string", "description": "'animated' (kinematic, default) or 'physics'", "enum": ["animated", "physics"]}
                 },
                 "required": ["name"]
             }
@@ -5321,6 +5326,9 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             body["walkSpeed"] = args["walkSpeed"]
         if "waitTime" in args:
             body["waitTime"] = args["waitTime"]
+        for key in ("weapon", "faction", "monsterId", "role", "driveMode"):
+            if key in args:
+                body[key] = args[key]
         return await api_post("/api/npc/spawn", body)
 
     elif name == "remove_npc":
