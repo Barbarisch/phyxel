@@ -3797,6 +3797,34 @@ void Application::update(float deltaTime) {
         }
     }
 
+    // Per-frame jitter trace (diagnostic, cheap): ring buffer of the character + camera
+    // positions at FRAME rate — API polling is ~10 Hz and rounds, which hid a per-frame
+    // oscillation during the third-person jitter hunt. Dumped by the "frame_trace"
+    // command; whichever series oscillates per frame names the culprit.
+    {
+        auto& ring = m_frameTrace;
+        FrameTraceSample s;
+        s.frame = m_frameTraceCounter++;
+        if (animatedCharacter) {
+            s.charPos = animatedCharacter->getPosition();
+            // One RENDER input too: the first active part's world position. The entity
+            // position proved frozen while the rendered character visibly jittered, so
+            // the oscillator (if CPU-side) must live in the part/bone transforms the
+            // instance build consumes.
+            for (const auto& p : animatedCharacter->getParts()) {
+                if (!p.active) continue;
+                s.partPos = p.worldPos;
+                break;
+            }
+        }
+        if (camera) {
+            s.camPos = camera->getPosition();
+            s.camYaw = camera->getYaw();
+        }
+        s.dtMs = deltaTime * 1000.0f;
+        ring[s.frame % kFrameTraceLen] = s;
+    }
+
     // Camera sync
     {
         PROFILE_SCOPE(*performanceProfiler, "Camera Sync");
@@ -4119,11 +4147,17 @@ void Application::update(float deltaTime) {
     
     // NOTE: Frustum culling is now handled in renderStaticGeometry()
 
-    // Sync Camera to InputManager for other systems (Audio, Scripts, etc.)
-    // Only sync if NOT in Free mode, otherwise InputManager is the master
+    // Sync the camera POSITION to InputManager for other systems (audio listener, scripts).
+    // ⚠️ Never write yaw/pitch back here: the input yaw is the MOUSE-LOOK ACCUMULATOR, and
+    // this block runs late in the frame — any mouse deltas that arrived after the camera
+    // took its yaw were ERASED by the write-back, reverting the view by exactly those
+    // counts. Measured live (frame trace, third-person orbit): backward yaw kicks of
+    // 1-4 degrees — all multiples of the 0.3° mouse quantum — punctuating a steady drag,
+    // i.e. the long-standing "character jitters in third person, never in Free cam" (Free
+    // skipped this block, which is why it was immune). Yaw/pitch sync on MODE SWITCHES
+    // (toggleCameraMode) is the correct, race-free place and already exists.
     if (camera && inputManager && camera->getMode() != Graphics::CameraMode::Free) {
         inputManager->setCameraPosition(camera->getPosition());
-        inputManager->setYawPitch(camera->getYaw(), camera->getPitch());
     }
 
     // Update view and projection matrices for Vulkan rendering
@@ -13107,6 +13141,23 @@ void Application::registerWorldForgeCommands() {
             return;
         }
         r = {{"success", true}, {"panel", panel}, {"visible", visible}};
+    });
+
+    // Diagnostic: dump the per-frame character/camera trace ring (see the update-loop
+    // recorder). Full float precision — this exists because the polling API rounds.
+    reg.on("frame_trace", [this](const Core::APICommand&, nlohmann::json& r) {
+        nlohmann::json rows = nlohmann::json::array();
+        const uint64_t n = std::min<uint64_t>(m_frameTraceCounter, kFrameTraceLen);
+        const uint64_t start = m_frameTraceCounter - n;
+        for (uint64_t f = start; f < m_frameTraceCounter; ++f) {
+            const auto& s = m_frameTrace[f % kFrameTraceLen];
+            rows.push_back({{"f", s.frame},
+                            {"cx", s.charPos.x}, {"cy", s.charPos.y}, {"cz", s.charPos.z},
+                            {"bx", s.partPos.x}, {"by", s.partPos.y}, {"bz", s.partPos.z},
+                            {"px", s.camPos.x}, {"py", s.camPos.y}, {"pz", s.camPos.z},
+                            {"yaw", s.camYaw}, {"dt", s.dtMs}});
+        }
+        r = {{"success", true}, {"frames", rows}};
     });
 
     // Dev/verification: anchor the streaming pump at a world (x,z) without moving the

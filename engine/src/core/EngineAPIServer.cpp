@@ -1322,6 +1322,11 @@ void EngineAPIServer::setupRoutes() {
         json result = queueAndWait("worldforge_map", params);
         res.set_content(result.dump(), "application/json");
     });
+    // GET /api/debug/frame_trace — per-frame character/camera position ring (jitter hunts).
+    srv.Get("/api/debug/frame_trace", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("frame_trace", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
     // POST /api/ui/panel — toggle an editor panel: {"panel": "world_map", "visible": true}.
     srv.Post("/api/ui/panel", [this](const httplib::Request& req, httplib::Response& res) {
         try {

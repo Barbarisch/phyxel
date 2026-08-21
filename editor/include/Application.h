@@ -2,6 +2,7 @@
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+#include <array>
 #include <chrono>
 #include "core/Types.h"
 #include "vulkan/VulkanDevice.h"
@@ -105,6 +106,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <array>
 #include <chrono>
 #include <thread>
 #include <glm/glm.hpp>
@@ -786,6 +788,19 @@ private:
 
     // World Map panel (WorldForge minimap rendered in-engine): texture + the window it
     // covers (for the hover→world-coordinate readout). Refresh-driven, never per frame.
+    // Per-frame jitter trace (see the update-loop recorder + the "frame_trace" command).
+    struct FrameTraceSample {
+        uint64_t frame = 0;
+        glm::vec3 charPos{0.0f};
+        glm::vec3 partPos{0.0f};   // first active ragdoll part (a render input)
+        glm::vec3 camPos{0.0f};
+        float camYaw = 0.0f;
+        float dtMs = 0.0f;   // frame delta in ms - hitch spikes make orbits snap
+    };
+    static constexpr size_t kFrameTraceLen = 240;
+    std::array<FrameTraceSample, kFrameTraceLen> m_frameTrace{};
+    uint64_t m_frameTraceCounter = 0;
+
     bool m_showWorldMapPanel = false;
     bool m_worldMapTried = false;        // gates auto-render to once; failures need Refresh
     void* m_worldMapTex = nullptr;

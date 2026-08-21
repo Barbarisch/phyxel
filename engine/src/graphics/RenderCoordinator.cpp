@@ -4343,7 +4343,7 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
     // ONE upload per frame, shared by the shadow pass, the main pass and the mirror
     // pass. Each pass previously rebuilt and re-uploaded byte-identical data.
     vulkanDevice->updateCharacterInstanceBuffer(instanceData);
-    vulkanDevice->updateCharacterBoneBuffer(m_charBoneTransforms);
+    vulkanDevice->updateCharacterBoneBuffer(currentFrame, m_charBoneTransforms);
 }
 
 void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,

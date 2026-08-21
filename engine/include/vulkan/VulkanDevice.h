@@ -321,7 +321,7 @@ public:
     // matrix per bone group so instances can index their own transform, which is what
     // lets a whole character render in a single draw.
     bool createCharacterBoneBuffer(uint32_t maxBones);
-    void updateCharacterBoneBuffer(const std::vector<glm::mat4>& bones);
+    void updateCharacterBoneBuffer(uint32_t frameIndex, const std::vector<glm::mat4>& bones);
     void cleanupCharacterBoneBuffer();
     uint32_t getMaxCharacterBones() const { return maxCharacterBones; }
     
@@ -564,9 +564,14 @@ private:
     uint32_t maxCharacterInstances = 0;
 
     // Character bone-transform SSBO (binding 8)
-    VkBuffer characterBoneBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory characterBoneBufferMemory = VK_NULL_HANDLE;
-    void* characterBoneMapped = nullptr;      // persistent map (HOST_COHERENT)
+    // Character bone SSBO — PER FRAME IN FLIGHT. A single shared buffer memcpy'd every
+    // frame raced the GPU: an in-flight frame read the NEXT frame's camera-relative bone
+    // matrices against its own older view, shifting the character by the camera's
+    // between-frame translation — the "character jitters in third person orbit, never in
+    // free-cam rotation" bug (rotation leaves camera-relative positions unchanged).
+    std::vector<VkBuffer> characterBoneBuffers;
+    std::vector<VkDeviceMemory> characterBoneBufferMemories;
+    std::vector<void*> characterBoneMapped;   // persistent maps (HOST_COHERENT)
     uint32_t maxCharacterBones = 0;
     
     std::vector<VkBuffer> uniformBuffers;
