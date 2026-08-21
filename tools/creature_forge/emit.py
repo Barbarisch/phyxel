@@ -181,6 +181,17 @@ def compile_spec(spec: dict, options: Options = None) -> Compiled:
     bind_local = {b.name: b.pos for b in af.bones}
     af.clips = compile_clips(spec, sk, bind_local, samples=options.samples)
 
+    # combat metadata: the engine reads '# clip_meta:' header lines for the
+    # damage timing (hitFrameFraction) — without it the default 0.4 applies
+    if af.clip("attack") is not None:
+        atk_spec = spec.get("animations", {}).get("attack", {})
+        af.set_clip_meta("attack", {
+            "type": "combat",
+            "hitFrameFraction": float(atk_spec.get("hit_fraction", 0.45)),
+            "meleeFamily": "natural",
+            "meleeRole": "primary",
+        })
+
     # ---- target height rescale --------------------------------------------
     if options.target_height:
         ys = []

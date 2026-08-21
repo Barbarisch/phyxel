@@ -48,17 +48,12 @@ _RESOLVER_TRAP_SUBSTRINGS = ("wolf", "spider", "dragon")
 
 
 def write_body_plan(compiled, out_path: Path, species: str) -> Path | None:
-    """Emit a body-plan JSON (clipDefaults + morphology) next to the rig when
-    the skeleton reads as a quadruped."""
+    """Emit a FULL body-plan JSON (rootBone/legs/segments/clipDefaults) next
+    to the rig. Minimal plans are forbidden: planForSkeleton scores them 0,
+    rejects them, and lets them shadow the real per-morphology default."""
     import json
-    names = [b.name for b in compiled.af.bones]
-    if detect_morphology(names) != "quadruped":
-        return None
-    plan = {
-        "id": species,
-        "morphology": "quadruped",
-        "clipDefaults": {"Idle": "idle", "Walk": "walk"},
-    }
+    from creature_forge.body_plan import derive_plan
+    plan = derive_plan(compiled, species)
     plan_path = out_path.parents[1] / "body_plans" / f"{species}.json"
     if not plan_path.parent.is_dir():
         return None
@@ -66,12 +61,98 @@ def write_body_plan(compiled, out_path: Path, species: str) -> Path | None:
     return plan_path
 
 
+def run_one(spec_path, out, *, voxel_size=0.05, target_height=None, samples=24,
+            noise=True, check=True, body_plan=True, force=False,
+            combat=None) -> int:
+    """Compile one spec to `out`. Returns 0 on success, 1 on refusal/error."""
+    out_path = Path(out)
+    stem = out_path.stem.lower()
+    for trap in _RESOLVER_TRAP_SUBSTRINGS:
+        if trap in stem and not stem.startswith("forge_"):
+            print(f"WARN: output name contains '{trap}' — "
+                  "CharacterVisualResolver::morphologyFromAnimFile matches "
+                  "filenames by substring; pick a name without it")
+
+    try:
+        spec = load_spec(spec_path)
+        if combat is not None:
+            spec["combat"] = combat
+        compiled = compile_spec(spec, Options(
+            voxel_size=voxel_size, target_height=target_height,
+            samples=samples, noise=noise))
+    except SpecError as e:
+        print(f"SPEC ERROR ({spec_path}): {e}")
+        return 1
+
+    findings = [] if not check else checks.run(compiled)
+    blocks = [f for f in findings if f.severity == "BLOCK"]
+    for f in findings:
+        print(f"{f.severity}: [{f.rule}] {f.message}")
+
+    if blocks and not force:
+        print(f"REFUSED {out_path.name}: {len(blocks)} BLOCK finding(s); "
+              "use --force to write anyway")
+        return 1
+
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    anim_format.write(compiled.af, out_path)
+    af = compiled.af
+    walk = af.clip("walk")
+    print(f"wrote {out_path}")
+    print(f"  bones: {len(af.bones)}  boxes: {len(af.boxes)}  clips: "
+          f"{[c.name for c in af.clips]}")
+    print(f"  morphology: {detect_morphology([b.name for b in af.bones])}")
+    if walk is not None and walk.speed:
+        print(f"  no-slide walkSpeed = {walk.speed:.3f}")
+    if body_plan:
+        plan = write_body_plan(compiled, out_path, out_path.stem)
+        if plan:
+            print(f"  body plan: {plan}")
+    return 0
+
+
+def run_manifest(manifest_path, only=None, **kw) -> int:
+    """Batch mode: compile every entry of a bestiary manifest (a JSON array
+    in the tools/tree_library.json house style; entries without an 'id' are
+    _comment markers). Any BLOCKed species fails the whole run (exit 1)."""
+    import json
+    manifest_path = Path(manifest_path)
+    entries = [e for e in json.loads(manifest_path.read_text(encoding="utf-8"))
+               if "id" in e]
+    if only:
+        entries = [e for e in entries if e["id"] in only]
+        if not entries:
+            print(f"no manifest entries match {only}")
+            return 1
+    print(f"Bestiary: {len(entries)} species")
+    failures = 0
+    for e in entries:
+        print(f"--- {e['id']} ---")
+        rc = run_one(
+            manifest_path.parent / e["spec"], e["out"],
+            voxel_size=e.get("voxel_size", kw.get("voxel_size", 0.05)),
+            target_height=e.get("target_height"),
+            samples=e.get("samples", kw.get("samples", 24)),
+            noise=kw.get("noise", True), check=kw.get("check", True),
+            body_plan=kw.get("body_plan", True), force=kw.get("force", False),
+            combat=e.get("combat"))
+        failures += (rc != 0)
+    print(f"done: {len(entries) - failures}/{len(entries)} species ok")
+    if failures == 0:
+        print("NOTE: the engine caches parsed .anim files per path forever — "
+              "restart the engine to pick these up")
+    return 1 if failures else 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("spec", help="ACS creature spec JSON")
-    ap.add_argument("--out", required=True, help="output .anim path")
+    ap.add_argument("spec", nargs="?", help="ACS creature spec JSON")
+    ap.add_argument("--out", help="output .anim path (single-spec mode)")
+    ap.add_argument("--manifest", help="bestiary manifest JSON — batch mode")
+    ap.add_argument("--only", action="append",
+                    help="manifest mode: build only this species id (repeatable)")
     ap.add_argument("--voxel-size", type=float, default=0.05,
                     help="voxel edge length in world units (default 0.05, "
                          "the fauna-import precedent)")
@@ -89,52 +170,21 @@ def main(argv=None) -> int:
                     help="write the .anim even when checks BLOCK")
     args = ap.parse_args(argv)
 
-    out_path = Path(args.out)
-    stem = out_path.stem.lower()
-    for trap in _RESOLVER_TRAP_SUBSTRINGS:
-        if trap in stem:
-            print(f"WARN: output name contains '{trap}' — "
-                  "CharacterVisualResolver::morphologyFromAnimFile matches "
-                  "filenames by substring; pick a name without it")
+    kw = dict(voxel_size=args.voxel_size, samples=args.samples,
+              noise=not args.no_noise, check=not args.no_check,
+              body_plan=not args.no_body_plan, force=args.force)
 
-    try:
-        spec = load_spec(args.spec)
-        compiled = compile_spec(spec, Options(
-            voxel_size=args.voxel_size,
-            target_height=args.target_height,
-            samples=args.samples,
-            noise=not args.no_noise))
-    except SpecError as e:
-        print(f"SPEC ERROR: {e}")
-        return 1
+    if args.manifest:
+        return run_manifest(args.manifest, only=args.only, **kw)
 
-    findings = [] if args.no_check else checks.run(compiled)
-    blocks = [f for f in findings if f.severity == "BLOCK"]
-    for f in findings:
-        print(f"{f.severity}: [{f.rule}] {f.message}")
-
-    if blocks and not args.force:
-        print(f"REFUSED: {len(blocks)} BLOCK finding(s); use --force to write anyway")
-        return 1
-
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    anim_format.write(compiled.af, out_path)
-    af = compiled.af
-    walk = af.clip("walk")
-    print(f"wrote {out_path}")
-    print(f"  bones: {len(af.bones)}  boxes: {len(af.boxes)}  clips: "
-          f"{[c.name for c in af.clips]}")
-    print(f"  morphology: {detect_morphology([b.name for b in af.bones])}")
-    if walk is not None and walk.speed:
-        print(f"  no-slide walkSpeed = {walk.speed:.3f}  "
-              "(add to FaunaSpawner::walkSpeedFor for biome fauna)")
-    if not args.no_body_plan:
-        plan = write_body_plan(compiled, out_path, out_path.stem)
-        if plan:
-            print(f"  body plan: {plan}")
-    print("  NOTE: the engine caches parsed .anim files per path forever — "
-          "restart the engine to pick this up")
-    return 0
+    if not args.spec or not args.out:
+        ap.error("single-spec mode needs <spec> and --out (or use --manifest)")
+    rc = run_one(args.spec, args.out,
+                 target_height=args.target_height, **kw)
+    if rc == 0:
+        print("  NOTE: the engine caches parsed .anim files per path forever — "
+              "restart the engine to pick this up")
+    return rc
 
 
 if __name__ == "__main__":

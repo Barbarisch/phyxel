@@ -222,7 +222,7 @@ class TestWolfReference:
     def test_lint_clean(self, wolf):
         for clip in wolf.af.clips:
             findings = anim_lint.lint_clip(wolf.af, clip, looping=True)
-            errors = [f for f in findings if f.get("severity") == "ERROR"]
+            errors = [f for f in findings if f[0] == "ERROR"]
             assert errors == [], f"lint errors on {clip.name}: {errors}"
 
     def test_no_blank_lines_inside_sections(self, wolf, tmp_path):
@@ -359,7 +359,156 @@ def test_fauna_speed_table_matches_shipped_rig():
 
 
 # ---------------------------------------------------------------------------
-# 6. Voxelization geometry units
+# 6. Bestiary manifest: batch compile + per-species contracts
+# ---------------------------------------------------------------------------
+
+MANIFEST = ROOT / "tools" / "creature_forge" / "bestiary.json"
+
+
+def _manifest_entries():
+    if not MANIFEST.exists():
+        return []
+    entries = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    return [e for e in entries if "id" in e]
+
+
+def _plan_score(plan: dict, bone_names) -> int:
+    """Python replica of BodyPlanRegistry::planForSkeleton scoring
+    (BodyPlan.cpp:241-261): exact-name matches only; +1 resolved root,
+    +1 per resolved leg upper/mid/foot, +1 per resolved segment. The
+    engine requires score >= 3 or the plan is rejected in favor of the
+    morphology default."""
+    names = set(bone_names)
+    score = 0
+    root = plan.get("rootBone", "")
+    if root in names:
+        score += 1
+    else:
+        low = [n.lower() for n in names]
+        for alias in plan.get("hipAliases", []):
+            if any(alias in n for n in low):
+                score += 1
+                break
+    for leg in plan.get("legs", []):
+        score += (leg.get("upper") in names) + (leg.get("mid") in names) \
+            + (leg.get("foot") in names)
+    for seg in plan.get("segments", []):
+        score += (seg.get("bone") in names)
+    return score
+
+
+@pytest.mark.parametrize("entry", _manifest_entries(), ids=lambda e: e["id"])
+class TestBestiarySpecies:
+    """Every bestiary-manifest species must compile clean and satisfy the
+    engine contracts. Parametrized: adding a creature to the manifest
+    automatically puts it under contract."""
+
+    @pytest.fixture(scope="class")
+    def compiled_cache(self):
+        return {}
+
+    def _compile(self, entry, cache):
+        if entry["id"] not in cache:
+            from creature_forge.emit import compile_spec, Options
+            spec = load_spec(SPECS / Path(entry["spec"]).name)
+            cache[entry["id"]] = compile_spec(spec, Options(
+                target_height=entry.get("target_height")))
+        return cache[entry["id"]]
+
+    def test_checks_pass(self, entry, compiled_cache):
+        compiled = self._compile(entry, compiled_cache)
+        blocks = [f for f in checks.run(compiled) if f.severity == "BLOCK"]
+        assert blocks == [], blocks
+
+    def test_morphology_contract(self, entry, compiled_cache):
+        compiled = self._compile(entry, compiled_cache)
+        names = [b.name for b in compiled.af.bones]
+        assert _detect_morphology(names) == entry["morphology"], names
+
+    def test_combat_clip_set(self, entry, compiled_cache):
+        compiled = self._compile(entry, compiled_cache)
+        clips = {c.name for c in compiled.af.clips}
+        required = {"idle", "walk"}
+        if entry.get("combat"):
+            required |= {"attack", "death"}
+        assert required <= clips, f"missing {required - clips}"
+
+    def test_attack_clip_meta(self, entry, compiled_cache):
+        if not entry.get("combat"):
+            pytest.skip("non-combat species")
+        compiled = self._compile(entry, compiled_cache)
+        meta = compiled.af.clip_meta("attack")
+        assert meta is not None, "attack clip has no # clip_meta header"
+        assert meta.get("type") == "combat"
+        assert 0.0 < float(meta["hitFrameFraction"]) < 1.0
+
+    def test_box_budget(self, entry, compiled_cache):
+        compiled = self._compile(entry, compiled_cache)
+        assert len(compiled.af.boxes) <= BOX_BUDGET
+
+    def test_full_body_plan(self, entry, compiled_cache):
+        """Generated plans must be FULL (rootBone/legs/segments) so
+        planForSkeleton scores them >= 3 — a minimal plan is rejected AND
+        shadows the real per-morphology default (the forge_ibex bug)."""
+        from creature_forge.body_plan import derive_plan
+        compiled = self._compile(entry, compiled_cache)
+        plan = derive_plan(compiled, entry["id"])
+        names = [b.name for b in compiled.af.bones]
+        assert plan["rootBone"] in names
+        min_legs = {"quadruped": 4, "arachnid": 8, "dragon": 4}.get(
+            entry["morphology"], 2)
+        assert len(plan["legs"]) >= min_legs
+        assert plan["segments"], "segments must not be empty"
+        assert _plan_score(plan, names) >= 3
+        cd = plan["clipDefaults"]
+        assert cd.get("Idle") == "idle" and cd.get("Walk") == "walk"
+        if entry.get("combat"):
+            assert cd.get("Attack") == "attack" and cd.get("Death") == "death"
+
+
+def test_generated_plan_does_not_shadow_wolf():
+    """The ibex's generated plan must not out-score quadruped_wolf on the
+    wolf's OWN skeleton (regression for the minimal-plan shadowing bug)."""
+    from creature_forge.emit import compile_spec, Options
+    from creature_forge.body_plan import derive_plan
+    compiled = compile_spec(load_spec(SPECS / "ibex.json"),
+                            Options(target_height=1.05))
+    ibex_plan = derive_plan(compiled, "forge_ibex")
+    wolf_plan = json.loads(
+        (ROOT / "resources" / "body_plans" / "quadruped_wolf.json").read_text())
+    wolf_bones = []
+    for line in (ROOT / "resources" / "animated_characters"
+                 / "character_wolf.anim").read_text().splitlines():
+        if line.startswith("Bone "):
+            wolf_bones.append(line.split()[2])
+        elif line.startswith("MODEL"):
+            break
+    assert _plan_score(wolf_plan, wolf_bones) > _plan_score(ibex_plan, wolf_bones)
+
+
+def test_death_pose_rule_blocks_standing_death():
+    """A 'death' clip that leaves the creature standing must BLOCK."""
+    s = minimal_spec()
+    s["animations"]["death"] = {
+        "duration": 1.0, "loop": False,
+        "tracks": {"Top": {"rx": [[0, 0], [1, 5]]}},  # barely moves — stays up
+    }
+    compiled = compile_spec(s)
+    blocks = [f for f in checks.run(compiled) if f.severity == "BLOCK"]
+    assert any(f.rule == "death_pose" for f in blocks), blocks
+
+
+def test_required_clips_rule_blocks_combat_without_attack():
+    """combat=True compilation without attack/death clips must BLOCK."""
+    s = minimal_spec()
+    s["combat"] = True  # only idle exists
+    compiled = compile_spec(s)
+    blocks = [f for f in checks.run(compiled) if f.severity == "BLOCK"]
+    assert any(f.rule == "required_clips" for f in blocks), blocks
+
+
+# ---------------------------------------------------------------------------
+# 7. Voxelization geometry units
 # ---------------------------------------------------------------------------
 
 class TestVoxelGeometry:

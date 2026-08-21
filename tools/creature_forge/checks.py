@@ -413,12 +413,79 @@ def _rule_attack_reach(compiled, out):
                            f"bind front; needs >= {0.15 * span:.3f}"))
 
 
+def _rule_required_clips(compiled, out):
+    """A combat creature without a resolvable attack/death clip fails
+    SILENTLY WRONG in-engine (the FSM stays in Attack on a stale clip and
+    damage fires at 0.4 of idle's duration) — refuse at build time."""
+    if not compiled.spec.get("combat"):
+        return
+    clips = {c.name for c in compiled.af.clips}
+    missing = {"idle", "walk", "attack", "death"} - clips
+    if missing:
+        out.append(Finding("BLOCK", "required_clips",
+                           f"combat creature missing clips: {sorted(missing)}"))
+
+
+def _rule_death_pose(compiled, out):
+    """The engine plays a Death clip once and freezes the LAST frame — a
+    death clip must end with the body down. BLOCK unless the box-mass
+    centroid height at the clip's end drops to <= 65% of bind height."""
+    death = compiled.af.clip("death")
+    if death is None:
+        return
+    af = compiled.af
+
+    def centroid_y(fk_t):
+        gp, gr = fk_t
+        total_w = 0.0
+        acc = 0.0
+        for bx in af.boxes:
+            w = bx.size[0] * bx.size[1] * bx.size[2]
+            c = q_rot(gr[bx.bone_id], bx.center)
+            acc += (gp[bx.bone_id][1] + c[1]) * w
+            total_w += w
+        return acc / (total_w or 1.0)
+
+    def min_y(fk_t):
+        gp, gr = fk_t
+        lo = 1e18
+        for bx in af.boxes:
+            c = q_rot(gr[bx.bone_id], bx.center)
+            lo = min(lo, gp[bx.bone_id][1] + c[1] - bx.size[1] / 2)
+        return lo
+
+    fk, dur = _fk_fn(af, "death")
+    if dur <= 0:
+        return
+    bind = fk(-1e9)
+    final = fk(dur)
+    ground = min_y(bind)
+    bind_h = centroid_y(bind) - ground
+    final_h = centroid_y(final) - ground
+    if bind_h > 1e-6 and final_h > 0.65 * bind_h:
+        out.append(Finding(
+            "BLOCK", "death_pose",
+            f"death clip ends with centroid at {final_h / bind_h:.0%} of bind "
+            "height — the engine freezes the last frame, so the creature must "
+            "end DOWN (<= 65%)"))
+
+
 def _rule_lint(compiled, out):
+    """anim_lint findings are (severity, message) tuples. Loop-closure is
+    only asserted for clips the spec marks loop:true — attack/death clips
+    legitimately end in a different pose."""
+    spec_anims = compiled.spec.get("animations", {})
+    aliases = {"move": "walk"}
+    loop_clips = set()
+    for name, a in spec_anims.items():
+        if a.get("loop"):
+            loop_clips.add(aliases.get(name, name))
     for clip in compiled.af.clips:
-        for f in anim_lint.lint_clip(compiled.af, clip, looping=True):
-            sev = "BLOCK" if f.get("severity") == "ERROR" else "WARN"
-            out.append(Finding(sev, "anim_lint",
-                               f"{clip.name}: {f.get('message', f)}"))
+        looping = clip.name in loop_clips
+        for sev_str, msg in anim_lint.lint_clip(compiled.af, clip,
+                                                looping=looping):
+            sev = "BLOCK" if sev_str == "ERROR" else "WARN"
+            out.append(Finding(sev, "anim_lint", f"{clip.name}: {msg}"))
 
 
 # ---------------------------------------------------------------------------
@@ -441,5 +508,7 @@ def run(compiled) -> list:
     _rule_proportion(compiled, out)
     _rule_anim_integrity(compiled, out)
     _rule_attack_reach(compiled, out)
+    _rule_required_clips(compiled, out)
+    _rule_death_pose(compiled, out)
     _rule_lint(compiled, out)
     return out

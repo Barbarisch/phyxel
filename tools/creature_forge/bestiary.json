@@ -1,0 +1,9 @@
+[
+  {"_comment": "Bestiary manifest (tools/tree_library.json house style). Each entry drives one species build: python tools/creature_forge/gen_creature.py --manifest tools/creature_forge/bestiary.json [--only <id>]. 'combat': true requires idle/walk/attack/death clips (checks BLOCK otherwise) and stamps attack clip_meta. 'monsterId' names the resources/monsters stat block the visual binding will reference (M6). Output filenames: forge_ prefix defers path-morphology to the bone heuristic (CharacterVisualResolver forge_ rule, M2)."},
+
+  {"_comment": "=== Proven pilot (quadruped) ==="},
+  {"id": "forge_ibex", "spec": "specs/ibex.json",
+   "out": "resources/animated_characters/forge_ibex.anim",
+   "target_height": 1.05, "morphology": "quadruped",
+   "combat": true, "display": "Alpine Ibex"}
+]
