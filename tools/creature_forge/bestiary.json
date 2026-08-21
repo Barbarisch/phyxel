@@ -11,5 +11,15 @@
   {"id": "forge_direwolf", "spec": "specs/dire_wolf.json",
    "out": "resources/animated_characters/forge_direwolf.anim",
    "target_height": 1.15, "morphology": "quadruped",
-   "monsterId": "dire_wolf", "combat": true, "display": "Dire Wolf"}
+   "monsterId": "dire_wolf", "combat": true, "display": "Dire Wolf"},
+
+  {"id": "forge_boar", "spec": "specs/boar.json",
+   "out": "resources/animated_characters/forge_boar.anim",
+   "target_height": 0.85, "morphology": "quadruped",
+   "monsterId": "boar", "combat": true, "display": "Boar"},
+
+  {"id": "forge_bear", "spec": "specs/bear.json",
+   "out": "resources/animated_characters/forge_bear.anim",
+   "target_height": 1.35, "morphology": "quadruped",
+   "monsterId": "brown_bear", "combat": true, "display": "Brown Bear"}
 ]

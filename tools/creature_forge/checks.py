@@ -280,6 +280,11 @@ def _rule_mirror_distortion(compiled, out):
                 re = max(p[axis] for p in rpts) - min(p[axis] for p in rpts)
                 if le < 1e-6 and re < 1e-6:
                     continue
+                # spec mirroring is exact X-negation; only grid quantization
+                # can differ, so a sub-2-voxel absolute delta is never a
+                # real distortion (short extents make the RATIO explode)
+                if abs(le - re) <= 2.0 * compiled.options.voxel_size:
+                    continue
                 ratio = (re / le) if le > 1e-6 else 99.0
                 if ratio < 0.70 or ratio > 1.30:
                     out.append(Finding("BLOCK", "mirror_distortion",
