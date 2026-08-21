@@ -259,3 +259,17 @@ a teleport-fall (that trigger is now fixed by the residency gate; this one had n
 No repro, no stack. Two leads for a future session: (a) the wedged-NPC replan loop as a
 correlate, (b) phyxel.log is 11.5M lines - rotate it; a log-write failure would be
 invisible. Logged, not chased.
+
+## 2026-08-21 - third-person "feet jitter" triage: sim exonerated, it is the no-AA speckle
+
+User report: in locked 3rd person, orbiting the camera makes the character's feet/ground
+look like they micro-adjust; moving the character does not. Measured live (10 Hz trace
+during a user-performed RMB orbit): player position FROZEN to the millimeter (zero
+variance, all axes), camera boom rigid at exactly 4.000u, grounding never fired, and the
+shadow fit already does world-anchored texel snapping (RenderCoordinator fitVolume). Every
+simulation-side suspect is exonerated. The visible effect is the RECORDED sub-pixel
+speckle defect (docs/RenderOptimization.md:489,513 - no AA): grass blades and voxel edges
+re-rasterize under any view change, most visible at the ground contact, masked by whole-
+view motion, invisible at rest. Fix = the WorldRenderV2 M3 anti-aliasing milestone, not a
+tweak. (Same session: the map-panel scrollbar oscillation and the stale far-tile terraces
+were real bugs, fixed in e11b51d6.)
