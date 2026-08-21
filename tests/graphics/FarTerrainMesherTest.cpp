@@ -108,9 +108,14 @@ GroundTruth computeGroundTruth(const FarTileKey& key, int step) {
     for (int j = -1; j <= N; ++j) {
         for (int i = -1; i <= N; ++i) {
             const int x0 = gt.origin.x + i * step, z0 = gt.origin.y + j * step;
-            const int minSurf = std::min({surf(x0, z0), surf(x0 + step, z0), surf(x0, z0 + step),
-                                          surf(x0 + step, z0 + step),
-                                          surf(x0 + step / 2, z0 + step / 2)});
+            int minSurf = std::min({surf(x0, z0), surf(x0 + step, z0), surf(x0, z0 + step),
+                                    surf(x0 + step, z0 + step),
+                                    surf(x0 + step / 2, z0 + step / 2)});
+            // Near rings (step <= 4): EXACT footprint scan, mirroring the mesher.
+            if (step <= 4)
+                for (int dz = 0; dz < step; ++dz)
+                    for (int dx = 0; dx < step; ++dx)
+                        minSurf = std::min(minSurf, surf(x0 + dx, z0 + dz));
             gt.q[size_t(i + 1) + size_t(j + 1) * (N + 2)] =
                 FarTerrainMesher::quantizeTop(minSurf, step);
         }
@@ -133,6 +138,69 @@ TEST(FarTerrainMesherTest, QuantizeTop_MultipleOfStep_WithinOneStepBelowSurfaceP
             EXPECT_LE(q, surfaceY + 1) << "far terrain must never rise above the real surface plane";
             EXPECT_GT(q, surfaceY + 1 - step) << "y=" << surfaceY << " s=" << step;
         }
+    }
+}
+
+// THE STANDING INVARIANT behind the "false voxels" fix (65585dbe): no far-tile cell may
+// stand above the true terrain anywhere in its footprint. Before footprint-min sampling,
+// a cell took its height from ONE corner sample and could render up to step cubes above
+// the real ground across the rest of its width — poking through resident chunks as
+// offset, unlit, non-raycastable flicker (user-reported; pre-dated the fix's session).
+// This test walks EVERY cell of tiles at every ring step and probes the true surface at
+// a dense sub-grid of the cell's footprint: the cell top (minus the compositing bias)
+// must never exceed the real surface plane at any probe. It fails against the old
+// point-sample rule by construction.
+TEST(FarTerrainMesherTest, CellsNeverRiseAboveTheGroundTheyCover) {
+    // Strict for the near rings only (steps 2/4 use an EXACT footprint scan): those are
+    // the rings that can overlap resident chunks. Far rings (8/16) use a 5-point
+    // approximate min — they never reach residency, and sub-sample dips there are
+    // sub-pixel at their draw distance.
+    for (int step : {2, 4}) {
+        FarTerrainMesher mesher(makeGen(), fakeResolver);
+        auto gen = makeGen();
+        const FarTileKey key{1, 1, -1};
+        FarTileMesh mesh = mesher.buildTile(key, step);
+        // Recover per-cell top heights from the +Y quads (tops sit at quantized height
+        // + yBias; undo the bias with the mesh's own step/ring bias convention by
+        // comparing against the RAW surface plane with a half-cube tolerance).
+        int violations = 0;
+        for (size_t v = 0; v + 3 < mesh.vertices.size(); v += 4) {
+            // Top faces are axis-aligned quads; identify by 4 equal Ys.
+            const float y = mesh.vertices[v].pos.y;
+            if (mesh.vertices[v + 1].pos.y != y || mesh.vertices[v + 2].pos.y != y ||
+                mesh.vertices[v + 3].pos.y != y)
+                continue;
+            float minX = 1e30f, maxX = -1e30f, minZ = 1e30f, maxZ = -1e30f;
+            for (int k = 0; k < 4; ++k) {
+                minX = std::min(minX, mesh.vertices[v + k].pos.x);
+                maxX = std::max(maxX, mesh.vertices[v + k].pos.x);
+                minZ = std::min(minZ, mesh.vertices[v + k].pos.z);
+                maxZ = std::max(maxZ, mesh.vertices[v + k].pos.z);
+            }
+            if (maxX - minX < 0.5f || maxZ - minZ < 0.5f) continue;   // wall, not a top
+            // Probe the true surface across the quad's footprint at ~1-cube density.
+            for (float px = minX + 0.5f; px < maxX; px += 1.0f)
+                for (float pz = minZ + 0.5f; pz < maxZ; pz += 1.0f) {
+                    // Mesh vertices are TILE-LOCAL; the surface probe needs world coords.
+                    const int surf =
+                        gen->sampleSurface(
+                               static_cast<int>(std::floor(px)) + mesh.originXZ.x,
+                               static_cast<int>(std::floor(pz)) + mesh.originXZ.y)
+                            .surfaceY;
+                    // The cell top (bias included, so y is already sunk slightly) must
+                    // not exceed the surface PLANE (surf + 1).
+                    if (y > static_cast<float>(surf + 1) + 0.001f) {
+                        if (violations < 5)
+                            std::cout << "[VIOLATION] step=" << step << " probe=(" << px << ","
+                                      << pz << ") quadY=" << y << " surf=" << surf
+                                      << " quad x[" << minX << ".." << maxX << "] z[" << minZ
+                                      << ".." << maxZ << "]" << std::endl;
+                        ++violations;
+                    }
+                }
+        }
+        EXPECT_EQ(violations, 0) << "step " << step
+                                 << ": far-tile tops rise above the true surface plane";
     }
 }
 

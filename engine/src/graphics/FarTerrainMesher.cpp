@@ -119,9 +119,22 @@ FarTileMesh FarTerrainMesher::buildTile(const FarTileKey& key, int step) {
         for (int i = -1; i <= N; ++i) {
             WorldGenerator::ColumnSample col = m_generator->sampleSurface(
                 mesh.originXZ.x + i * step + step / 2, mesh.originXZ.y + j * step + step / 2);
-            const int minSurf =
+            int minSurf =
                 std::min({corner(i, j), corner(i + 1, j), corner(i, j + 1), corner(i + 1, j + 1),
                           col.surfaceY});
+            // Near rings (steps 2/4) can overlap RESIDENT chunks, so their bound must be
+            // EXACT: scan every column of the footprint (4/16 samples). Far rings keep
+            // the 5-point approximation — they never reach residency, and their footprints
+            // (64/256 columns) would make the exact scan the dominant tile-build cost.
+            if (step <= 4) {
+                for (int dz = 0; dz < step; ++dz)
+                    for (int dx = 0; dx < step; ++dx)
+                        minSurf = std::min(
+                            minSurf, m_generator
+                                         ->sampleSurface(mesh.originXZ.x + i * step + dx,
+                                                         mesh.originXZ.y + j * step + dz)
+                                         .surfaceY);
+            }
             q(i, j) = quantizeTop(minSurf, step);
             biomeAt(i, j) = col.biomeIndex;
             if (i >= 0 && i < N && j >= 0 && j < N) {
