@@ -1,0 +1,63 @@
+{
+  "_comment": "Monster visual bindings: stat-block id (resources/monsters/*) -> rig + animation mapping + combat faction. MonsterDefinition stays a pure stat block; this sidecar is the only place a monster learns what it looks like. Loaded by MonsterVisualRegistry; consumed by the spawn_encounter handler. This subdirectory is outside MonsterRegistry's non-recursive stat-block glob on purpose. Forge rigs route Attack/Death through their generated body plans; explicit animationMapping entries are belt-and-braces so a binding also works if a body plan is missing. Humanoid-variant rigs inherit the full humanoid moveset and need no mapping.",
+
+  "goblin": {
+    "animFile": "resources/animated_characters/goblin.anim",
+    "appearance": {"preset": "halfling", "skinTone": {"r": 0.42, "g": 0.56, "b": 0.25}},
+    "faction": "monsters"
+  },
+  "orc": {
+    "animFile": "resources/animated_characters/orc_warrior.anim",
+    "appearance": {"skinTone": {"r": 0.35, "g": 0.45, "b": 0.28}},
+    "faction": "monsters"
+  },
+  "skeleton": {
+    "animFile": "resources/animated_characters/skeleton_warrior.anim",
+    "faction": "undead"
+  },
+  "zombie": {
+    "animFile": "resources/animated_characters/zombie.anim",
+    "appearance": {"skinTone": {"r": 0.45, "g": 0.52, "b": 0.42}},
+    "faction": "undead"
+  },
+  "ogre": {
+    "animFile": "resources/animated_characters/ogre.anim",
+    "appearance": {"preset": "giant"},
+    "faction": "monsters"
+  },
+  "troll": {
+    "animFile": "resources/animated_characters/troll.anim",
+    "appearance": {"preset": "giant", "skinTone": {"r": 0.32, "g": 0.5, "b": 0.35}},
+    "faction": "monsters"
+  },
+  "dire-wolf": {
+    "animFile": "resources/animated_characters/forge_direwolf.anim",
+    "animationMapping": {"Attack": "attack", "Death": "death"},
+    "faction": "beasts"
+  },
+  "boar": {
+    "animFile": "resources/animated_characters/forge_boar.anim",
+    "animationMapping": {"Attack": "attack", "Death": "death"},
+    "faction": "beasts"
+  },
+  "brown-bear": {
+    "animFile": "resources/animated_characters/forge_bear.anim",
+    "animationMapping": {"Attack": "attack", "Death": "death"},
+    "faction": "beasts"
+  },
+  "giant_spider": {
+    "animFile": "resources/animated_characters/forge_spider_giant.anim",
+    "animationMapping": {"Attack": "attack", "Death": "death"},
+    "faction": "monsters"
+  },
+  "young_red_dragon": {
+    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animationMapping": {"Attack": "attack", "Death": "death"},
+    "faction": "dragon"
+  },
+  "griffon": {
+    "animFile": "resources/animated_characters/forge_griffon.anim",
+    "animationMapping": {"Attack": "attack", "Death": "death"},
+    "faction": "beasts"
+  }
+}

@@ -23,7 +23,7 @@
     "out": "resources/animated_characters/forge_direwolf.anim",
     "target_height": 1.15,
     "morphology": "quadruped",
-    "monsterId": "dire_wolf",
+    "monsterId": "dire-wolf",
     "combat": true,
     "display": "Dire Wolf"
   },
@@ -43,7 +43,7 @@
     "out": "resources/animated_characters/forge_bear.anim",
     "target_height": 1.35,
     "morphology": "quadruped",
-    "monsterId": "brown_bear",
+    "monsterId": "brown-bear",
     "combat": true,
     "display": "Brown Bear"
   },

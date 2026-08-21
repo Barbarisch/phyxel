@@ -1753,6 +1753,29 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="spawn_encounter",
+            description="Spawn a D&D encounter: a list of monster stat-block ids (resources/monsters/, e.g. goblin, dire-wolf, brown-bear, giant_spider) each resolved to its visual binding (resources/monsters/visuals/bindings.json) and spawned as a hostile Combat NPC. All members share one faction so the pack fights the player, not itself. Each NPC carries its monsterId so turn-based combat resolves the real stat block.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "monsters": {"type": "array", "description": "Monsters to spawn: [{id, count}]", "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "string", "description": "Monster stat-block id"},
+                            "count": {"type": "integer", "description": "How many (default 1)", "default": 1}
+                        },
+                        "required": ["id"]
+                    }},
+                    "position": {"type": "object", "description": "Encounter center {x,y,z}", "properties": {
+                        "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}
+                    }},
+                    "radius": {"type": "number", "description": "Scatter radius around the center (default 4)", "default": 4},
+                    "faction": {"type": "string", "description": "Override the shared faction (default: each monster's binding faction)"}
+                },
+                "required": ["monsters", "position"]
+            }
+        ),
+        Tool(
             name="remove_npc",
             description="Remove an NPC from the world by name.",
             inputSchema={
@@ -5330,6 +5353,14 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             if key in args:
                 body[key] = args[key]
         return await api_post("/api/npc/spawn", body)
+
+    elif name == "spawn_encounter":
+        body = {"monsters": args["monsters"], "position": args["position"]}
+        if "radius" in args:
+            body["radius"] = args["radius"]
+        if "faction" in args:
+            body["faction"] = args["faction"]
+        return await api_post("/api/encounter/spawn", body)
 
     elif name == "remove_npc":
         return await api_post("/api/npc/remove", {"name": args["name"]})

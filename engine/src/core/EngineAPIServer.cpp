@@ -3187,6 +3187,21 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // POST /api/encounter/spawn — Spawn a D&D encounter: a list of monster
+    // stat-block ids, each resolved to its visual binding and spawned as a
+    // hostile Combat NPC sharing one faction.
+    srv.Post("/api/encounter/spawn", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("spawn_encounter", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
     // POST /api/npc/remove — Remove an NPC
     srv.Post("/api/npc/remove", [this](const httplib::Request& req, httplib::Response& res) {
         try {

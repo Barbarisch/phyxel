@@ -80,6 +80,8 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/AssetManager.h"
 #include "core/GameDefinitionLoader.h"
 #include "core/CharacterVisualResolver.h"  // race/preset -> animFile+appearance (single spawn path)
+#include "core/MonsterDefinition.h"        // stat blocks for spawn_encounter
+#include "core/MonsterVisualRegistry.h"    // monsterId -> rig binding (spawn_encounter)
 #include "core/StructureGenerator.h"
 #include "core/StructureBuildService.h"
 #include "core/SettlementBuildService.h"
@@ -16974,6 +16976,100 @@ void Application::processAPICommands() {
             // ================================================================
             // NPC COMMANDS
             // ================================================================
+            } else if (cmd.action == "spawn_encounter") {
+                // D&D encounter spawn: [{id, count}] of monster stat-block ids,
+                // each resolved to its visual binding (rig + mapping + faction)
+                // and spawned as a hostile Combat NPC. All members share one
+                // faction — an empty faction is hostile to EVERYONE, so a pack
+                // without one would fight itself.
+                if (!npcManager) {
+                    response = {{"error", "NPCManager not available"}};
+                } else if (!cmd.params.contains("monsters") ||
+                           !cmd.params["monsters"].is_array() ||
+                           cmd.params["monsters"].empty()) {
+                    response = {{"error", "spawn_encounter needs monsters: [{id, count}]"}};
+                } else {
+                    Core::MonsterVisualRegistry::instance().ensureLoaded();
+                    // MonsterRegistry has no self-load: stat blocks were only
+                    // ever registered by tests, so lazy-load the shipped set
+                    // here (also un-stubs turn-based CombatAISystem lookups).
+                    if (Core::MonsterRegistry::instance().count() == 0) {
+                        int n = Core::MonsterRegistry::instance()
+                                    .loadFromDirectory("resources/monsters");
+                        LOG_INFO("Application", "Loaded {} monster stat blocks", n);
+                    }
+                    float cx = 0, cy = 20, cz = 0;
+                    if (cmd.params.contains("position")) {
+                        cx = cmd.params["position"].value("x", 0.0f);
+                        cy = cmd.params["position"].value("y", 20.0f);
+                        cz = cmd.params["position"].value("z", 0.0f);
+                    }
+                    const float radius = cmd.params.value("radius", 4.0f);
+                    // The whole encounter shares ONE faction (explicit param,
+                    // else the first monster's binding faction): mixed packs
+                    // with differing binding factions would fight each other.
+                    std::string encFaction = cmd.params.value("faction", std::string{});
+
+                    nlohmann::json spawned = nlohmann::json::array();
+                    std::string err;
+                    int k = 0;
+                    for (const auto& entry : cmd.params["monsters"]) {
+                        const std::string monsterId = entry.value("id", "");
+                        const int count = std::max(1, entry.value("count", 1));
+                        const Core::MonsterDefinition* def =
+                            Core::MonsterRegistry::instance().getMonster(monsterId);
+                        if (!def) { err = "unknown monster stat block: " + monsterId; break; }
+                        const Core::MonsterVisual* vis =
+                            Core::MonsterVisualRegistry::instance().get(monsterId);
+                        if (!vis) { err = "no visual binding for monster: " + monsterId; break; }
+                        if (encFaction.empty()) encFaction = vis->faction;
+
+                        for (int i = 0; i < count; ++i, ++k) {
+                            // deterministic scatter on a ring — no RNG
+                            const float ang = 2.39996f * k;  // golden angle
+                            const float r   = radius * (0.35f + 0.65f * ((k % 5) / 4.0f));
+                            glm::vec3 pos(cx + r * std::cos(ang), cy, cz + r * std::sin(ang));
+                            std::string npcName = monsterId + "_" + std::to_string(k);
+
+                            nlohmann::json vparams = {{"animFile", vis->animFile}};
+                            if (!vis->appearance.is_null())
+                                vparams["appearance"] = vis->appearance;
+                            auto visual = Core::CharacterVisualResolver::resolve(vparams, npcName);
+
+                            Scene::NPCEntity* npc = npcManager->spawnNPC(
+                                npcName, visual.animFile, pos,
+                                Core::NPCBehaviorType::Combat, {}, 2.0f, 2.0f,
+                                visual.appearance);
+                            if (!npc) { err = "failed to spawn " + npcName; break; }
+
+                            if (auto* ch = npc->getAnimatedCharacter()) {
+                                for (const auto& [state, clip] : visual.animationMapping)
+                                    ch->setAnimationMapping(state, clip);
+                                for (const auto& [state, clip] : vis->animationMapping)
+                                    ch->setAnimationMapping(state, clip);
+                            }
+                            if (auto* cb = dynamic_cast<Scene::CombatBehavior*>(npc->getBehavior()))
+                                cb->setFaction(encFaction);
+                            npc->setMonsterId(monsterId);
+                            if (auto* hp = npc->getHealthComponent()) {
+                                hp->setMaxHealth(static_cast<float>(def->averageHP));
+                                hp->setHealth(static_cast<float>(def->averageHP));
+                            }
+                            spawned.push_back(npcName);
+                        }
+                        if (!err.empty()) break;
+                    }
+                    if (!err.empty() && spawned.empty()) {
+                        response = {{"error", err}};
+                    } else {
+                        response = {{"success", err.empty()}, {"spawned", spawned}};
+                        if (!err.empty()) response["error"] = err;
+                        if (gameEventLog)
+                            gameEventLog->emit("encounter_spawned",
+                                               {{"count", spawned.size()}});
+                    }
+                }
+
             } else if (cmd.action == "spawn_npc") {
                 if (!npcManager) {
                     response = {{"error", "NPCManager not available"}};

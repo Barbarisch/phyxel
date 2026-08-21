@@ -6,6 +6,7 @@
 #include "core/MonsterDefinition.h"
 #include "core/DamageTypes.h"
 #include "scene/Entity.h"
+#include "scene/NPCEntity.h"
 #include "utils/Logger.h"
 
 #include <glm/glm.hpp>
@@ -225,7 +226,15 @@ void CombatAISystem::resolveEnemyAttack(Scene::Entity* enemyEntity) {
     std::string damageDiceStr = "1d4";
     DamageType  damageType    = DamageType::Physical;
 
-    if (const MonsterDefinition* def = MonsterRegistry::instance().getMonster(m_actingId)) {
+    // Stat-block resolution: an NPC spawned with a monsterId (spawn_npc /
+    // spawn_encounter) names its stat block directly; the raw entity id
+    // ("npc_<name>") stays as the legacy fallback for hand-keyed combats.
+    std::string statBlockId = m_actingId;
+    if (auto* npc = dynamic_cast<Scene::NPCEntity*>(enemyEntity)) {
+        if (!npc->getMonsterId().empty()) statBlockId = npc->getMonsterId();
+    }
+
+    if (const MonsterDefinition* def = MonsterRegistry::instance().getMonster(statBlockId)) {
         if (!def->attacks.empty()) {
             const auto& atk = def->attacks[0];
             attackBonus   = atk.toHitBonus;
