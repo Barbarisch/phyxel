@@ -3325,23 +3325,43 @@ void RenderCoordinator::drawFrame() {
             vulkanDevice->setNearShadowCascade(glm::mat4(1.0f), 0.0f, 1.0f);
         }
 
-        // Far cascade fit — EVERY frame (microseconds); only the caster PASS is cadenced
-        // (renderShadowPass call site). This is safe with a persistent map because the fit
-        // is texel-snapped in the WORLD-anchored light frame: a given world point keeps its
-        // light-space UV across frames, so 1-3 frame old depth sampled through a fresh
-        // matrix is off by at most the camera's travel quantized to 0.9 u texels —
-        // invisible at LOD-band distances.
+        // Far cascade fit — LATCHED to the caster-pass cadence. The map re-renders only
+        // every s_farShadowCadence frames, so the SAMPLING matrix must stay the one the
+        // map was rendered with: re-fitting per frame swings the fit center with camera
+        // ROTATION (the frustum bounding-sphere center sits ~radius out along fwd — a few
+        // degrees/frame moves it tens of world units), and sampling the persistent map
+        // through the fresh matrix slid the window dozens of texels off the recorded
+        // depth. That was the far-field shadow flicker during orbit (2026-08-21). The
+        // texel snap only ever protected against camera TRANSLATION, which we handle
+        // exactly instead: the matrix maps camera-relative world, so between refits we
+        // rebase it — M' = M_fit * translate(camNow - camFit) — keeping every absolute
+        // world point on the exact texel it was rendered to.
         if (shadowMapFar && s_farShadowEnabled) {
-            const float farDist = std::min(s_farShadowDistance, maxChunkRenderDistance);
-            const ShadowFit fitF = fitShadowVolume(
-                farDist,
-                float(shadowMapFar->getWidth() > 0 ? shadowMapFar->getWidth() : 4096),
-                camWorld, sunDirection);
-            m_farLightSpaceMatrix = fitF.lightSpaceMatrix;
-            m_farShadowCullCenter = fitF.cullCenterAbs;
-            m_farShadowCullRadius = fitF.cullRadius;
-            vulkanDevice->setFarShadowCascade(m_farLightSpaceMatrix, farDist, fitF.depthRange);
+            m_farRenderThisFrame = (--m_farShadowFrameCounter <= 0) || !m_farFitValid;
+            if (m_farRenderThisFrame) {
+                m_farShadowFrameCounter = std::max(1, s_farShadowCadence);
+                const float farDist = std::min(s_farShadowDistance, maxChunkRenderDistance);
+                const ShadowFit fitF = fitShadowVolume(
+                    farDist,
+                    float(shadowMapFar->getWidth() > 0 ? shadowMapFar->getWidth() : 4096),
+                    camWorld, sunDirection);
+                m_farLightSpaceMatrix = fitF.lightSpaceMatrix;
+                m_farShadowCullCenter = fitF.cullCenterAbs;
+                m_farShadowCullRadius = fitF.cullRadius;
+                m_farFitCamWorld      = camWorld;
+                m_farFitDepthRange    = fitF.depthRange;
+                m_farFitDist          = farDist;
+                m_farFitValid         = true;
+            }
+            glm::mat4 sampleMatrix = m_farLightSpaceMatrix;
+            const glm::dvec3 delta = camWorld - m_farFitCamWorld;
+            if (delta != glm::dvec3(0.0))
+                sampleMatrix = m_farLightSpaceMatrix *
+                               glm::translate(glm::mat4(1.0f), glm::vec3(delta));
+            vulkanDevice->setFarShadowCascade(sampleMatrix, m_farFitDist, m_farFitDepthRange);
         } else {
+            m_farRenderThisFrame = false;
+            m_farFitValid = false;
             vulkanDevice->setFarShadowCascade(glm::mat4(1.0f), 0.0f, 1.0f);
         }
     }
@@ -3484,9 +3504,10 @@ void RenderCoordinator::drawFrame() {
             renderShadowPass(cmd, *shadowMapNear, m_nearLightSpaceMatrix,
                              m_nearShadowCullCenter, m_nearShadowCullRadius, kCascadeNear);
         // FAR cascade on a cadence: skipping a frame skips the CLEAR too, so the map
-        // simply persists — coarse texels a kilometre out cannot show the staleness.
-        if (shadowMapFar && s_farShadowEnabled && --m_farShadowFrameCounter <= 0) {
-            m_farShadowFrameCounter = std::max(1, s_farShadowCadence);
+        // simply persists. The counter + fit are latched together in the fit block above;
+        // recording ONLY on latch frames keeps the map and its sampling matrix in
+        // lockstep (the flicker fix depends on this pairing).
+        if (shadowMapFar && s_farShadowEnabled && m_farRenderThisFrame) {
             renderShadowPass(cmd, *shadowMapFar, m_farLightSpaceMatrix,
                              m_farShadowCullCenter, m_farShadowCullRadius, kCascadeFar);
         }

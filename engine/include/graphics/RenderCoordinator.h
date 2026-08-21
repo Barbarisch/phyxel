@@ -758,6 +758,16 @@ private:
     glm::vec3 m_farShadowCullCenter{0.0f};
     float     m_farShadowCullRadius = 1.0f;
     int       m_farShadowFrameCounter = 0;
+    // Latched-fit state: the camera the fit matrix is relative to, and whether this frame
+    // records the caster pass. Between cadence refits the scene samples the map through
+    // the LATCHED matrix rebased only for camera translation — never a fresh fit, whose
+    // center swings with camera rotation and shears the sample window off the stale map
+    // (the far-field shadow flicker fixed 2026-08-21).
+    glm::dvec3 m_farFitCamWorld{0.0};
+    float      m_farFitDepthRange = 1.0f;
+    float      m_farFitDist = 0.0f;
+    bool       m_farFitValid = false;
+    bool       m_farRenderThisFrame = false;
     std::unique_ptr<PostProcessor> postProcessor;
     std::unique_ptr<GpuProfiler> gpuProfiler;
     // D1 shadow-pass diagnosis: chunks/instances drawn by the shadow pass this frame (stashed here
