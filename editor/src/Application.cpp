@@ -12945,7 +12945,17 @@ void Application::registerWorldForgeCommands() {
                 if (auto* ft = renderCoordinator->getFarTerrainManager()) {
                     // The far mesher samples through its own private generator copy —
                     // refresh it or the far field keeps drawing the OLD plan's roads.
-                    if (ft->isConfigured()) ft->configure(*g);
+                    if (ft->isConfigured()) {
+                        ft->configure(*g);
+                        // configure() refreshes the WANTED set but keeps resident tiles:
+                        // their meshes still carry the OLD plan's graded road terraces,
+                        // which poke up through the re-streamed terrain (user-reported
+                        // "low LOD stuff clipping into the world"). Drop them all — the
+                        // worker rebuilds against the new plan. Wait-idle first: tile
+                        // buffers may still be referenced by an in-flight frame.
+                        if (vulkanDevice) vkDeviceWaitIdle(vulkanDevice->getDevice());
+                        ft->clearTiles();
+                    }
                 }
             }
             r["restart_required"] = false;
@@ -13383,30 +13393,45 @@ void Application::refreshWorldMapTexture() {
 void Application::renderWorldMapPanel() {
     if (!m_showWorldMapPanel) return;
     ImGui::SetNextWindowSize(ImVec2(420, 480), ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("World Map", &m_showWorldMapPanel)) {
+    // NoScrollbar: the map image is sized to FIT the window below — letting a scrollbar
+    // appear shrinks the content width, which shrinks the image, which removes the
+    // scrollbar, which grows the image again: a per-frame size oscillation (the "super
+    // jittery window" bug, reported live).
+    if (ImGui::Begin("World Map", &m_showWorldMapPanel,
+                     ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
         static const char* kZooms[] = {"Region", "4x (camera)", "16x (camera)"};
         bool refresh = false;
         ImGui::SetNextItemWidth(140.0f);
         if (ImGui::Combo("##worldmap_zoom", &m_worldMapZoom, kZooms, 3)) refresh = true;
         ImGui::SameLine();
         if (ImGui::Button("Refresh")) refresh = true;
-        if (!m_worldMapTex) refresh = true;   // first open renders automatically
-        if (refresh) refreshWorldMapTexture();
+        // First open renders once. A FAILED render must not retry every frame — the
+        // renderer samples the whole window and waits for the GPU, so a per-frame retry
+        // is a slideshow; m_worldMapTried gates it to explicit refreshes.
+        if (!m_worldMapTex && !m_worldMapTried) refresh = true;
+        if (refresh) {
+            refreshWorldMapTexture();
+            m_worldMapTried = true;
+        }
         if (m_worldMapTex) {
-            const float w = ImGui::GetContentRegionAvail().x;
+            // Fit BOTH dimensions: width of the content region, height of what remains
+            // after the legend line. Never overflow the window (see NoScrollbar above).
+            const ImVec2 avail = ImGui::GetContentRegionAvail();
+            const float legendH = ImGui::GetTextLineHeightWithSpacing();
+            const float side = std::max(64.0f, std::min(avail.x, avail.y - legendH - 4.0f));
             const ImVec2 imgPos = ImGui::GetCursorScreenPos();
-            ImGui::Image(reinterpret_cast<ImTextureID>(m_worldMapTex), ImVec2(w, w));
+            ImGui::Image(reinterpret_cast<ImTextureID>(m_worldMapTex), ImVec2(side, side));
             if (ImGui::IsItemHovered()) {
                 const ImVec2 m = ImGui::GetMousePos();
-                const float wx = m_worldMapX0 + (m.x - imgPos.x) / w * m_worldMapSize;
-                const float wz = m_worldMapZ0 + (m.y - imgPos.y) / w * m_worldMapSize;
+                const float wx = m_worldMapX0 + (m.x - imgPos.x) / side * m_worldMapSize;
+                const float wz = m_worldMapZ0 + (m.y - imgPos.y) / side * m_worldMapSize;
                 ImGui::SetTooltip("world (%.0f, %.0f)", wx, wz);
             }
             ImGui::TextDisabled("town / village / hamlet squares - magenta cross = camera");
         } else {
             ImGui::TextWrapped(
                 "No map available - the World Map needs a streaming height-based world "
-                "(hydrology bake).");
+                "(hydrology bake). Press Refresh to retry.");
         }
     }
     ImGui::End();

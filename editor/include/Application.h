@@ -787,6 +787,7 @@ private:
     // World Map panel (WorldForge minimap rendered in-engine): texture + the window it
     // covers (for the hover→world-coordinate readout). Refresh-driven, never per frame.
     bool m_showWorldMapPanel = false;
+    bool m_worldMapTried = false;        // gates auto-render to once; failures need Refresh
     void* m_worldMapTex = nullptr;
     int m_worldMapZoom = 0;              // 0 = region, 1 = 4x on camera, 2 = 16x on camera
     float m_worldMapX0 = 0.0f, m_worldMapZ0 = 0.0f, m_worldMapSize = 1.0f;
