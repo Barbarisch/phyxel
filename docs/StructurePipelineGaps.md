@@ -294,3 +294,39 @@ INSTANCE exists for it in the live chunk buffer (CPU-side dump of m_grassInstanc
 chunk via an API route) - that splits "instances absent" from "instances invisible" in
 one look. Related open defects in the same visual family: T-junction cracks at
 greedy-merge borders, no-AA sub-pixel speckle.
+
+## 2026-08-21 - OPEN: character parts wash out under direct sun / go slate-navy in ambient
+
+Observed during creature_forge L4 (CharacterTestbed, Debug + LodTest, Release): animated-character
+box albedo renders with far higher lighting contrast than terrain. Mid-brown albedo (~0.55) reads
+near-white on sun-facing faces and desaturated slate-blue on ambient-only faces (noon: all vertical
+faces). NOT an asset defect: an RGB probe rig (pure red/green/blue boxes) proved per-box .anim
+colors reach the renderer with correct channels; the imported fox control washes out identically.
+Effect: every fauna rig's authored palette is only recognizable at oblique sun angles; at noon or
+in canopy shade creatures read grey. Suspect the character instancing path lacks the warmer
+ambient/bounce terms terrain gets from lighting.glsl (characters were tuned pre-lighting-revamp).
+Next probe: render one character + one terrain block with IDENTICAL albedo side by side and diff
+the lit values per face orientation. Workaround used by creature_forge: keep spec `shading.gradient`
+gentle (bottom -0.22, not anyCreature's -0.88) so the engine's own contrast doesn't compound it.
+
+## 2026-08-21 - Bestiary Forge punts (logged at M6)
+
+- **Flight locomotion for winged rigs**: forge_dragon_young / forge_griffon ship folded-wing,
+  ground-only. The engine has no flying gait class for spawned NPCs (the dragon body plan is
+  ground clips too). A flight tier needs: airborne capsule mode, a Fly FSM state + clips, and
+  wing-beat membrane animation (membrane bones exist and are animatable today).
+- **Natural-weapon melee family**: CombatBehavior installs the 'unarmed' weapon moveset for
+  every NPC; forge monsters route Attack through body-plan clipDefaults instead, which works
+  but bypasses the family system (no light/heavy chains, no block). A 'natural' family
+  (bite/claw/slam) in melee_anim_families.json + a per-species family hook on CombatBehavior
+  would unify them.
+- **Turn-based defender AC**: CombatAISystem derives a pseudo-AC from HP% for generic
+  entities; now that NPCs carry monsterId, the defender's real AC could come from its stat
+  block the same way the attacker's attacks now do.
+- **Quaternius monster_* overlap**: monster_orc/monster_dragon etc. duplicate bestiary roles
+  with no clip_meta and (dragon) a missing idle clip. DECISION: keep them (unknown consumers,
+  zero maintenance); bindings.json points only at the new rigs; revisit retirement after a
+  consumer inventory.
+- **MonsterRegistry had no loader call anywhere**: fixed as a lazy load inside the
+  spawn_encounter handler — a proper boot-time load (WorldInitializer) would also serve
+  hand-keyed turn-based combats whose acting id happens to equal a stat-block id.

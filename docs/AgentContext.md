@@ -144,6 +144,58 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **★ BESTIARY FORGE — 12 D&D SRD CREATURES + FULL RPG WIRING, SHIPPED 2026-08-21.**
+  Two lanes: **creature_forge specs** (dire wolf, boar, brown bear quadrupeds; giant spider
+  arachnid; young red dragon + griffon dragon-class with folded MEMBRANE wings — ground-only,
+  flight punted) via `tools/creature_forge/bestiary.json` manifest
+  (`gen_creature.py --manifest ... [--only id]`), and **humanoid variants** (goblin, orc_warrior,
+  skeleton_warrior, zombie, troll — plus reused ogre.anim) via
+  `tools/anim_pipeline/derive_humanoid_variant.py` + `humanoid_variants.json` (same 65-bone
+  skeleton + 84 clips + clip_meta = full melee/IK/death stack free). All combat species carry
+  idle/walk/attack/death, attack clip_meta (hitFrameFraction), and FULL generated body plans
+  (Attack/Death clipDefaults). **RPG wiring:** `resources/monsters/visuals/bindings.json`
+  (monsterId → rig/mapping/faction; NOTE srd ids are HYPHENATED: dire-wolf, brown-bear) →
+  `MonsterVisualRegistry` → **`spawn_encounter`** (MCP + `POST /api/encounter/spawn`): resolves
+  stat block + binding, spawns Combat NPCs on a golden-angle ring with a SHARED faction (empty
+  faction = hostile-to-all = pack fights itself), HP from averageHP, `NPCEntity.monsterId` set so
+  turn-based `CombatAISystem` uses the real stat block (registry is lazy-loaded there — it had NO
+  loader call anywhere before). L4: dire wolf spawned behavior=combat HUNTED AND KILLED the test
+  player unaided; death clips end down and hold (gates: required_clips, death_pose ≤65% centroid).
+  ⚑ Forge bug fixed 2026-08-21: `_mirror_axis_keys` wrapped a non-looping clip's final key to t=0
+  (mirrored side snapped to end pose instantly) — caught by the anim_integrity gate on the
+  spider. ⚑ Structural spec rules the gates enforce: lunges on the ROOT bone only; attached-chain
+  root joints inside host mass; modest joint angles (mid-chain boxes belong to a joint they sit
+  before). ⚑ SRD 5.1 attribution: `docs/ATTRIBUTION.md`. Punts logged in StructurePipelineGaps
+  2026-08-21 (flight, natural melee family, defender AC, Quaternius overlap, boot-time registry
+  load).
+
+- **CREATURE FORGE — SHIPPED + L4-VERIFIED 2026-08-21 (`tools/creature_forge/`).**
+  L4 evidence (Release, LodTest streaming world): FaunaSpawner spawned 4 forge_ibex from
+  biomes.json (proof: each fauna spawn logged "Loaded Animations (2)" — forge_ibex is the ONLY
+  2-clip fauna rig; natives are 12-13), all wandering; render stats 5 characters / 2,621 parts /
+  **dropped 0**. Spawn+ground+walk verified visually in CharacterTestbed (Debug); an RGB probe
+  rig proved per-box .anim colors reach the renderer with correct channels. ⚑ NEW GAP LOGGED
+  (StructurePipelineGaps.md 2026-08-21): character parts wash out under direct sun / go
+  slate-navy in ambient — engine character-lighting issue affecting ALL rigs, not a forge
+  defect; keep spec shading gradients gentle. Python port of the
+  anyCreature ACS compiler front half (MIT; verdict + full eval: `docs/EngineAdvancesResearch.md`
+  §9): one JSON spec (joints → chains → swept superellipse volumes → curve/spike/membrane/fin/
+  eye/paw parts → degree keyframe tracks with `mirror_phase`) compiles to a voxel `.anim` rig
+  via `anim_pipeline/anim_format.py` — membership-function voxelization at 0.05, greedy
+  per-(bone,color) box merge, explicit per-box colors, `ground_ref` + measured walk `Speed`
+  (finalize_quadruped in-process). CLI: `python tools/creature_forge/gen_creature.py
+  specs/ibex.json --out resources/animated_characters/forge_ibex.anim --target-height 1.05`.
+  Deterministic gates in `creature_forge/checks.py` (balance/limb-clearance/root-containment/
+  anim-integrity/budget ≤13107 boxes/anim_lint); 32-test suite `tests/test_creature_forge.py`
+  (reference = vendored anyCreature wolf; balance gate proven red on a cantilever spec).
+  First species **forge_ibex** (31 bones, ~1.4k boxes, quadruped names: exact Pelvis/Chest +
+  *Paw*/*Tail*) wired as Tundra(w2)/Snow(w1) fauna — `FaunaSpawner::walkSpeedFor` ibex=0.790
+  (5%-consistency test pins table vs clip Speed). ⚑ Anim parse cache never invalidates:
+  regenerate → RESTART engine. ⚑ Never name outputs with wolf/spider/dragon substrings
+  (CharacterVisualResolver filename trap). ⚑ `proportion` gate is WARN-only (the extracted
+  0.923 threshold blocks anyCreature's own wolf — re-derive before hardening). Deferred: AI
+  silhouette-recognition gate as a skill over `orbit_screenshots`; `coil` curve op.
+
 - **★ WORLDFORGE — M0-M2 BUILT + Release-L4-VERIFIED 2026-08-16 (docs/WorldForge.md).** The
   world-scale planning layer over terrain-v2: settlement SITING (scored hydro-grid candidates:
   relief/water/biome, derived per-site seeds), inter-settlement ROADS as a generation-time

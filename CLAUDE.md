@@ -295,7 +295,7 @@ Textures are authored per-face per-material (source PNGs in `resources/textures/
 into a **mixed-resolution `sampler2DArray`** (512px terrain / 1024px detail objects, BC7-compressed) —
 not a single fixed atlas. Materials with `"resolution": 1024` (e.g. StoneBricks, Wood, Bricks) use the
 high-res array. Full design: `docs/TextureSystemOverhaul.md`. Rebuild after texture changes:
-`.\build_shaders.bat` (also manually recompile `voxel.frag` since glslc doesn't track `#include` deps).
+`.\build_shaders.bat` (rebuilds every shader, so `#include` changes are covered — **commit the regenerated `.spv`**).
 Lookup: `MaterialRegistry::instance().getTextureIndex(materialID, faceID)` — data-driven via `resources/materials.json`
 
 ## Voxel Rendering Pipelines
@@ -311,6 +311,8 @@ Three separate vertex shaders handle voxels in different states. All share `voxe
 **Texture mapping for subcubes/microcubes:** Each voxel face shows only its portion of the parent cube's texture. A subcube (1/3 scale) at grid position (1,2,0) gets UV offset (1/3, 2/3) on applicable axes. Per-face axis mapping and flips ensure seamless tiling. The three shaders achieve the same visual result via different encoding strategies (packed bits, grid positions, or pre-computed offsets).
 
 **Compiling shaders:** `.\build_shaders.bat` — compiles all `.vert`/`.frag`/`.comp` to SPIR-V in `shaders/*.spv`. The CMake build copies compiled shaders to `build/shaders/`.
+
+> ⚠️ **`shaders/*.spv` are COMMITTED build artifacts, and glslc does NOT track `#include` deps.** Editing a shared include — `lighting.glsl` feeds **eleven** shaders — leaves every dependent `.spv` stale. Committing the `.glsl` alone means *your* machine looks right and **every other checkout keeps rendering the old shader**. That is exactly how the transposed-AgX fix (`20341333`) shipped a pink world to everyone but the author for five days. **Always run `build_shaders.bat` and commit the regenerated `.spv` with your source change.** `tools/shader_manifest.py --check` detects staleness (it hashes each shader plus its transitive includes; run by `build_and_test.ps1`, refreshed automatically by `build_shaders.bat`).
 
 ## Entity Types
 
@@ -471,6 +473,17 @@ plain `build_structure type:house|tavern` aliases onto v2 typologies.)
 ## Animation Files
 
 Root-level: `character.anim`, `character_box.anim`, `character_complete.anim`
+
+**Authoring new creature species:** `tools/creature_forge/` (SHIPPED 2026-08-21) compiles a
+parametric ACS JSON spec (joints/chains/swept volumes/parts/keyframe tracks — anyCreature port,
+see `docs/EngineAdvancesResearch.md` §9) into a voxel `.anim` rig with deterministic validation
+gates. Batch bestiary: `python tools/creature_forge/gen_creature.py --manifest
+tools/creature_forge/bestiary.json [--only <id>]` (12 D&D SRD creatures shipped 2026-08-21 —
+quadruped/arachnid/winged forge specs + humanoid variants via
+`tools/anim_pipeline/derive_humanoid_variant.py`). Monster→rig bindings:
+`resources/monsters/visuals/bindings.json`; spawn hostile packs with the `spawn_encounter` MCP
+tool (shared faction, stat-block HP, turn-based stats via `NPCEntity.monsterId`). ⚠️ The engine's
+anim parse cache never invalidates — restart the engine after regenerating a rig.
 
 In `resources/animated_characters/`:
 - `character_wolf.anim`
