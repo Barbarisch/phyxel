@@ -269,6 +269,26 @@ void FarTerrainManager::drainResults() {
         if (!m_wanted.count(key)) continue;          // superseded while meshing
         if (m_tiles.count(key)) continue;            // already resident
         if (mesh.vertices.empty()) continue;
+        // Evaluate terrainHidden AT LANDING. Without this, a tile landing over already-
+        // resident chunks entered the draw list VISIBLE until the next wanted-set refresh
+        // (64 u of camera travel) or the 15-frame recheck — which is skipped on refresh
+        // frames, so continuous camera movement starves it. Result: frames-long flashes
+        // of coarse, offset, unlit, non-raycastable terrain wherever tiles land inside
+        // residency (user-reported "false voxels that appear and disappear with camera
+        // movement"; tile churn from live applies / clearTiles made it constant).
+        if (m_chunkCoverage && m_nearFieldRadius > 0.0f && key.ring >= 1 &&
+            key.ring <= int(m_params.ringSteps.size())) {
+            const int tileSize = FarTerrainMesher::kColumns *
+                                 std::max(1, m_params.ringSteps[size_t(key.ring - 1)]);
+            const float T = float(tileSize);
+            const glm::vec2 center((key.x + 0.5f) * T, (key.z + 0.5f) * T);
+            const float d = glm::length(center - glm::vec2(m_lastRefreshPos));
+            if (d + T * 0.7071f < m_nearFieldRadius - 32.0f) {
+                const glm::ivec2 minXZ(key.x * tileSize, key.z * tileSize);
+                const glm::ivec2 maxXZ(minXZ.x + tileSize, minXZ.y + tileSize);
+                if (m_chunkCoverage(minXZ, maxXZ)) m_terrainHidden.insert(key);
+            }
+        }
         if (uploadTile(key, mesh)) changed = true;
     }
     if (changed) rebuildDrawList();
