@@ -1,0 +1,55 @@
+[
+  {"_comment": "Humanoid monster variants (SRD 5.1 names). GEOMETRY only - skin/cloth colors come from the spawn-time appearance system so the region palette keeps working; explicit boxColors are reserved for features that must never recolor (bone, tusks, gore). Regenerate: python tools/anim_pipeline/derive_humanoid_variant.py [id ...]. Overall body scale (goblin smallness, troll height) is applied at spawn via appearance presets, per the ogre precedent."},
+
+  {"id": "goblin",
+   "out": "resources/animated_characters/goblin.anim",
+   "boxScales": {"head": [1.22, 1.12, 1.18], "hand": [1.15, 1.15, 1.15]},
+   "extras": [
+     {"bone": "head", "size": [0.045, 0.11, 0.03], "center": [0.145, 0.06, -0.01],
+      "mirror_x": true, "face_feature": false},
+     {"bone": "head", "size": [0.06, 0.035, 0.05], "center": [0.0, -0.035, 0.155]}
+   ]},
+
+  {"id": "orc_warrior",
+   "out": "resources/animated_characters/orc_warrior.anim",
+   "boxScales": {"forearm": [1.22, 1.0, 1.22], "hand": [1.28, 1.28, 1.28],
+                 "head": [1.08, 1.05, 1.08], "foot": [1.12, 1.0, 1.12]},
+   "extras": [
+     {"bone": "head", "size": [0.19, 0.06, 0.09], "center": [0.0, -0.055, 0.17]},
+     {"bone": "head", "size": [0.04, 0.10, 0.04], "center": [-0.065, 0.02, 0.195],
+      "color": [0.97, 0.96, 0.90]},
+     {"bone": "head", "size": [0.04, 0.10, 0.04], "center": [0.065, 0.02, 0.195],
+      "color": [0.97, 0.96, 0.90]}
+   ]},
+
+  {"id": "skeleton_warrior",
+   "out": "resources/animated_characters/skeleton_warrior.anim",
+   "boxScales": {"spine": [0.72, 1.0, 0.62], "hips": [0.78, 1.0, 0.68],
+                 "arm": [0.62, 1.0, 0.62], "leg": [0.66, 1.0, 0.66],
+                 "neck": [0.7, 1.0, 0.7]},
+   "boxColors": {"": [0.87, 0.84, 0.74]},
+   "extras": [
+     {"bone": "spine2", "size": [0.30, 0.03, 0.20], "center": [0.0, 0.05, 0.0],
+      "color": [0.87, 0.84, 0.74], "face_feature": false},
+     {"bone": "spine2", "size": [0.30, 0.03, 0.20], "center": [0.0, -0.03, 0.0],
+      "color": [0.87, 0.84, 0.74], "face_feature": false}
+   ]},
+
+  {"id": "zombie",
+   "out": "resources/animated_characters/zombie.anim",
+   "extras": [
+     {"bone": "spine2", "size": [0.10, 0.12, 0.04], "center": [0.06, 0.0, 0.13],
+      "color": [0.35, 0.12, 0.10]},
+     {"bone": "leftforearm", "size": [0.05, 0.08, 0.05], "center": [0.0, 0.12, 0.02],
+      "color": [0.35, 0.12, 0.10], "face_feature": false}
+   ]},
+
+  {"id": "troll",
+   "out": "resources/animated_characters/troll.anim",
+   "boxScales": {"forearm": [1.35, 1.22, 1.35], "hand": [1.5, 1.5, 1.5],
+                 "arm": [1.2, 1.12, 1.2], "head": [0.95, 1.0, 1.0]},
+   "extras": [
+     {"bone": "head", "size": [0.06, 0.10, 0.07], "center": [0.0, -0.01, 0.17]},
+     {"bone": "head", "size": [0.16, 0.05, 0.08], "center": [0.0, -0.075, 0.15]}
+   ]}
+]
