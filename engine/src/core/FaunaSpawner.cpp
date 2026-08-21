@@ -31,6 +31,7 @@ float FaunaSpawner::walkSpeedFor(const std::string& a) {
     if (has("fox"))    return 0.226f;
     if (has("wolf"))   return 0.346f;
     if (has("husky"))  return 0.463f;
+    if (has("ibex"))   return 0.790f;
     if (has("alpaca")) return 0.508f;
     if (has("cow"))    return 0.614f;
     if (has("deer"))   return 0.617f;

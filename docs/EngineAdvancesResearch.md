@@ -245,6 +245,52 @@ checkpoint AND a standard export path (BVH/FBX or ONNX).** That is the version t
 clip authoring viable; until then the only actionable item is the interface-shape idea above, which
 stands on its own regardless of the model.
 
+## 9. anyCreature (ACS) — parametric creature compiler (evaluated 2026-08-21) — ✅ ADOPT THE SPEC (front half ported)
+
+**What:** anyCreature (github.com/Ariescar/anyCreature, MIT, solo author "Ariescar") is a
+zero-dependency Node.js compiler from one parametric JSON spec to a skinned, vertex-colored,
+animated GLB creature, wrapped in an AI-session card workflow with two reader-agent quality gates
+(context-free silhouette recognition; "punchier than last round"). The spec ("ACS") is a joint tree
+resolved from relative offsets, named chains, swept superellipse volumes with uniformly-parameterized
+Catmull-Rom profiles, six part types (curve/spike/membrane/fin/eye/paw), and per-joint degree
+keyframe tracks with automatic contralateral mirroring (`mirror_phase`). Links: repo only (no site,
+no paper). License: MIT with bundled three.js attributions; render harness needs headless Chromium,
+the compiler itself needs nothing.
+
+> ⚠️ **Reality check — verified 2026-08-21 by reading the source, not the README.** The engine is
+> real and complete (`engine/core/*.js`, ~120 KB total, fetched and dissected file-by-file); the
+> honest-limitations section in its README is accurate (their own example wolf ships 2 of the 3
+> asked-for animations). Two gotchas for whoever revisits: `calibration/wolf_red.json` is a
+> *silhouette*-calibration bad example, NOT geometrically invalid — do not assume it trips geometry
+> checks; and the extracted `proportion` gate threshold (adjacent segment ratio > 0.923 blocks)
+> would block their own shipped wolf (front-leg segments 0.968 equal), so that one rule cannot be
+> ported as a hard gate without re-derivation. Token cost of their full card workflow is honestly
+> documented at ~4.4M tokens per boss-tier creature — we did not adopt the workflow.
+
+**Why Phyxel (and why it fits):** Phyxel's 10 fauna rigs all came from imported third-party
+glTF/FBX (`tools/asset_pipeline/extract_animation.py`); there was no way to *author* a species.
+The ACS front half maps almost 1:1 onto `.anim`: same Y-up/+Z-forward axes, ≤2-joint smoothstep
+ring skinning that collapses cleanly to per-voxel max-weight bone assignment, and degree tracks
+that sample directly into `PosKey`/`RotKey` channels. The GLB back half (uv/ao/normals/glb) is
+useless here and was discarded.
+
+**What was taken — `tools/creature_forge/` (2026-08-21):** a Python port of relative.js /
+skeleton.js / geometry.js / section.js / anim.js plus the deterministic subset of checks.js,
+re-targeted to a voxelizer (membership-function fill at 0.05, greedy per-(bone,color) box merge)
+emitting `.anim` via `tools/anim_pipeline/anim_format.py`, finalized by
+`finalize_quadruped.ensure_ground_ref` + `measure_walk_speed`. Reference specs vendored with MIT
+attribution (`specs/LICENSE-anyCreature.md`); their wolf compiles as the fidelity test. First
+shipped species: `forge_ibex` (31 bones, ~1.4k boxes, quadruped-morphology names, Tundra+Snow
+fauna). 32-test suite in `tests/test_creature_forge.py` (red-before-green; the balance gate is
+proven on a known-bad cantilever spec). NOT taken: the card workflow, the AI silhouette gates
+(deferred as a possible skill on top of `orbit_screenshots`), the `coil` curve op, GLB output.
+
+**Cost:** zero runtime dependency; authoring a species = writing one JSON spec + one
+`gen_creature.py` run (seconds). The port itself was one session.
+
+**Verdict: ADOPT-THE-SPEC — shipped.** Re-check trigger: if upstream grows spec features we lack
+(new part types, IK-aware animation), diff `cards/SYNTAX.md` against `creature_forge/spec.py`.
+
 ## Suggested sequencing
 
 1. **Now (separate session, no source conflict):** `ShaderMathRedundancyPlan.md`.
@@ -261,3 +307,7 @@ stands on its own regardless of the model.
 8. **Rejected (2026-08-10):** MotionBricks (#8) — no work scheduled. Only the smart-primitive
    *interface shape* survives as an idea for the NPC animation layer; the model itself is
    re-checkable only on a human-skeleton + standard-export release.
+9. **Adopted (2026-08-21):** anyCreature ACS spec (#9) — front half ported as
+   `tools/creature_forge/` (spec → voxel `.anim` rigs); first species `forge_ibex` live as
+   Tundra/Snow fauna. Possible follow-up: a silhouette-recognition gate skill on top of
+   `orbit_screenshots`.

@@ -14,6 +14,10 @@
           {
             "animFile": "resources/animated_characters/quad_wolf.anim",
             "weight": 1
+          },
+          {
+            "animFile": "resources/animated_characters/forge_ibex.anim",
+            "weight": 1
           }
         ]
       },
@@ -608,6 +612,10 @@
           {
             "animFile": "resources/animated_characters/quad_husky.anim",
             "weight": 1
+          },
+          {
+            "animFile": "resources/animated_characters/forge_ibex.anim",
+            "weight": 2
           }
         ]
       },
