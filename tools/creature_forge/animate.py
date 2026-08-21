@@ -43,6 +43,12 @@ def _sample_keys(keys, t):
 
 
 def _mirror_axis_keys(keys, phase, flip):
+    # phase 0 must be the identity on key times: the modulo wrap would send a
+    # non-looping clip's final key (t=1.0) to t=0.0, snapping the mirrored
+    # side to its END value instantly (caught by anim_integrity on the
+    # spider's death curl).
+    if abs(phase) < 1e-9:
+        return [(t, v * flip) for t, v in keys]
     shifted = sorted([((t + phase) % 1.0, v * flip) for t, v in keys],
                      key=lambda kv: kv[0])
     if shifted and shifted[0][0] > 1e-9:

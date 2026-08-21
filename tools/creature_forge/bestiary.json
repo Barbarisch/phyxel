@@ -21,5 +21,11 @@
   {"id": "forge_bear", "spec": "specs/bear.json",
    "out": "resources/animated_characters/forge_bear.anim",
    "target_height": 1.35, "morphology": "quadruped",
-   "monsterId": "brown_bear", "combat": true, "display": "Brown Bear"}
+   "monsterId": "brown_bear", "combat": true, "display": "Brown Bear"},
+
+  {"_comment": "=== SRD bestiary: arachnid (M5) ==="},
+  {"id": "forge_spider_giant", "spec": "specs/giant_spider.json",
+   "out": "resources/animated_characters/forge_spider_giant.anim",
+   "target_height": 0.9, "morphology": "arachnid",
+   "monsterId": "giant_spider", "combat": true, "display": "Giant Spider"}
 ]

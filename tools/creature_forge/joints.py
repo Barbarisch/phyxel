@@ -80,7 +80,11 @@ def resolve(spec: dict):
 
 
 def mirror_name(name: str) -> str:
-    """anyCreature side convention: an L-prefixed name mirrors to R."""
+    """Side-name mirroring: L-prefix (anyCreature convention, LFrontPaw ->
+    RFrontPaw) or _L suffix (engine arachnid convention, leg1_coxa_L ->
+    leg1_coxa_R)."""
+    if name.endswith("_L"):
+        return name[:-2] + "_R"
     if name.startswith("L"):
         return "R" + name[1:]
     return name

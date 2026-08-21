@@ -104,8 +104,8 @@ def build(spec: dict, joints: dict, joints_r: dict) -> Skel:
         if host not in sk.index:
             raise SpecError(f"loose joint '{jn}' attaches to un-indexed '{host}'")
         sk.add(jn, sk.index[host], joints[jn])
-        if jn.startswith("L"):
-            rn = mirror_name(jn)
+        rn = mirror_name(jn)
+        if rn != jn:
             lx, ly, lz = joints[jn]
             sk.add(rn, sk.index[host], joints_r.get(rn, (-lx, ly, lz)))
             sk.mirror_joint[jn] = rn
