@@ -96,11 +96,33 @@ FarTileMesh FarTerrainMesher::buildTile(const FarTileKey& key, int step) {
     // road, so the far ribbon stays continuous at every ring (a 1-cell-wide line is the
     // correct far-map thickness). Near columns are untouched — this is far-tile-only.
     const WorldForgePlan* roadPlan = m_generator->worldForge();
+    // FOOTPRINT-MIN heights: a cell is `step` wide, but its height used to come from ONE
+    // sample at its min-corner — a cell whose sample landed on the high side of an
+    // intra-cell slope rendered its whole flat top up to `step` cubes ABOVE the true
+    // terrain across the rest of its footprint. Wherever such a cell overlapped resident
+    // chunks (streaming frontier, hide-check gaps) it poked THROUGH the real ground as
+    // offset, unlit, non-raycastable geometry flickering with the camera (the
+    // user-reported "false voxels"). Each cell now takes the MINIMUM surface over its 4
+    // footprint corners + centre, then quantizes down — it can no longer stand above any
+    // true surface point it covers (sub-sample dips excepted). Corner samples are shared
+    // between neighbouring cells, and the same rule reproduces the adjacent tile's border
+    // cells exactly, so tiles still seam.
+    const int C = N + 3;   // corner grid: i = -1 .. N+1
+    std::vector<int> cornerY(size_t(C) * C);
+    auto corner = [&](int i, int j) -> int& { return cornerY[size_t(i + 1) + size_t(j + 1) * C]; };
+    for (int j = -1; j <= N + 1; ++j)
+        for (int i = -1; i <= N + 1; ++i)
+            corner(i, j) = m_generator
+                               ->sampleSurface(mesh.originXZ.x + i * step, mesh.originXZ.y + j * step)
+                               .surfaceY;
     for (int j = -1; j <= N; ++j) {
         for (int i = -1; i <= N; ++i) {
-            WorldGenerator::ColumnSample col =
-                m_generator->sampleSurface(mesh.originXZ.x + i * step, mesh.originXZ.y + j * step);
-            q(i, j) = quantizeTop(col.surfaceY, step);
+            WorldGenerator::ColumnSample col = m_generator->sampleSurface(
+                mesh.originXZ.x + i * step + step / 2, mesh.originXZ.y + j * step + step / 2);
+            const int minSurf =
+                std::min({corner(i, j), corner(i + 1, j), corner(i, j + 1), corner(i + 1, j + 1),
+                          col.surfaceY});
+            q(i, j) = quantizeTop(minSurf, step);
             biomeAt(i, j) = col.biomeIndex;
             if (i >= 0 && i < N && j >= 0 && j < N) {
                 if (roadPlan && col.roadClass == 0 && col.riverOrder == 0 &&

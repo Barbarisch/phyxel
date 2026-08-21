@@ -100,11 +100,19 @@ GroundTruth computeGroundTruth(const FarTileKey& key, int step) {
     gt.origin = glm::ivec2(key.x * tileSize, key.z * tileSize);
     gt.q.resize(size_t(N + 2) * size_t(N + 2));
     auto gen = makeGen();
+    // Mirrors the mesher's FOOTPRINT-MIN rule (2026-08-21): a cell's height is the
+    // minimum surface over its 4 footprint corners + centre, quantized down — so a
+    // coarse cell can never stand above the true terrain it covers (the "false voxels
+    // poking through resident chunks" fix).
+    auto surf = [&](int wx, int wz) { return gen->sampleSurface(wx, wz).surfaceY; };
     for (int j = -1; j <= N; ++j) {
         for (int i = -1; i <= N; ++i) {
-            auto col = gen->sampleSurface(gt.origin.x + i * step, gt.origin.y + j * step);
+            const int x0 = gt.origin.x + i * step, z0 = gt.origin.y + j * step;
+            const int minSurf = std::min({surf(x0, z0), surf(x0 + step, z0), surf(x0, z0 + step),
+                                          surf(x0 + step, z0 + step),
+                                          surf(x0 + step / 2, z0 + step / 2)});
             gt.q[size_t(i + 1) + size_t(j + 1) * (N + 2)] =
-                FarTerrainMesher::quantizeTop(col.surfaceY, step);
+                FarTerrainMesher::quantizeTop(minSurf, step);
         }
     }
     return gt;
