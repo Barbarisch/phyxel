@@ -1,0 +1,217 @@
+{
+  "name": "forge_otyugh",
+  "_template": "Otyugh archetype (tentacled). A bloated refuse-eating sac on THREE stubby legs, with two long grasping tentacles ending in bark-plated flanges and a third stalk on its back carrying the eyes and a second mouth. Three legs means one on the centreline and a mirrored rear pair - a tripod support polygon, not the usual rectangle. Neutral bile-brown palette FOR tinting.",
+  "palette": {
+    "hide_body": { "color": "#7c7157", "rough": 0.95 },
+    "hide_tent": { "color": "#847955", "rough": 0.92 },
+    "hide_stalk": { "color": "#7a7052", "rough": 0.92 },
+    "hide_leg": { "color": "#6f6650", "rough": 0.92 },
+    "maw": { "color": "#5a2f2c", "rough": 0.7 },
+    "flange": { "color": "#4e4535", "rough": 0.8 },
+    "tooth": { "color": "#cdc4a6", "rough": 0.4 },
+    "eye": { "color": "#d0c020", "rough": 0.2 }
+  },
+  "shading": {
+    "_note": "Engine lights character parts with high contrast (open gap) - keep the ramp gentle.",
+    "gradient": { "top": 0.12, "bottom": -0.22 },
+    "noise": { "size": 0.024, "amount": 0.13 }
+  },
+  "smooth_angle": 55,
+  "joints": {
+    "Pelvis": [0, 0.5, -0.08],
+    "Rump": { "from": "Pelvis", "up": -0.01, "fwd": -0.24 },
+    "Spine": { "from": "Pelvis", "up": 0.02, "fwd": 0.2 },
+    "Chest": { "from": "Spine", "up": -0.02, "fwd": 0.16 },
+    "Maw": { "from": "Chest", "up": -0.03, "fwd": 0.11 },
+
+    "_note_tentacles": "The pair is authored once and mirrored. They rise off the shoulders before reaching forward so the flanges clear the sac - a tentacle that leaves the body horizontally just buries itself in the barrel.",
+    "LTentRoot": { "from": "Pelvis", "side": 0.15, "up": 0.15 },
+    "LTent1": { "from": "LTentRoot", "side": 0.13, "up": 0.25, "fwd": 0.06 },
+    "LTent2": { "from": "LTent1", "side": 0.09, "up": 0.11, "fwd": 0.22 },
+    "LTent3": { "from": "LTent2", "side": 0.03, "up": -0.05, "fwd": 0.21 },
+    "LTentTip": { "from": "LTent3", "side": 0.0, "up": -0.12, "fwd": 0.14 },
+
+    "StalkA": { "from": "Spine", "up": 0.2, "fwd": -0.02 },
+    "StalkB": { "from": "StalkA", "up": 0.16, "fwd": 0.07 },
+    "StalkTip": { "from": "StalkB", "up": 0.05, "fwd": 0.06 },
+
+    "_note_tripod": "Terminals are named *Paw* on purpose: detectMorphology needs exact Pelvis + Chest PLUS a *Tail*/*Paw* bone, and an otyugh has no tail. One foreleg on the centreline, two rear legs mirrored. The centroid has to sit inside THAT triangle, which is why the sac's mass is carried behind the shoulders rather than out over the maw.",
+    "FLegRoot": { "from": "Chest", "up": -0.1, "fwd": 0.03 },
+    "FLegMid": { "from": "FLegRoot", "up": -0.17, "fwd": 0.04 },
+    "FLegPaw": { "from": "FLegMid", "fwd": 0.06, "ground": 0.02 },
+
+    "LBackRoot": { "from": "Pelvis", "side": 0.2, "up": -0.13, "fwd": -0.07 },
+    "LBackMid": { "from": "LBackRoot", "side": 0.04, "up": -0.22, "fwd": -0.02 },
+    "LBackPaw": { "from": "LBackMid", "fwd": 0.05, "ground": 0.02 }
+  },
+  "chains": {
+    "body": ["Rump", "Pelvis", "Spine", "Chest", "Maw"],
+    "LTent": ["LTentRoot", "LTent1", "LTent2", "LTent3", "LTentTip"],
+    "stalk": ["StalkA", "StalkB", "StalkTip"],
+    "FLeg": ["FLegRoot", "FLegMid", "FLegPaw"],
+    "LBack": ["LBackRoot", "LBackMid", "LBackPaw"]
+  },
+  "attach": {
+    "LTent": "Pelvis",
+    "stalk": "Spine",
+    "FLeg": "Chest",
+    "LBack": "Pelvis"
+  },
+  "mirror": ["LTent", "LBack"],
+  "volumes": [
+    {
+      "chain": "body",
+      "material": "hide_body",
+      "frame": "up",
+      "sides": 15,
+      "profile": [
+        [0.0, 0.16, 0.15],
+        [0.28, 0.29, 0.27, { "bias": -0.08 }],
+        [0.58, 0.3, 0.28, { "bias": -0.1 }],
+        [0.82, 0.22, 0.21],
+        [1.0, 0.13, 0.12]
+      ],
+      "caps": ["dome", "dome"],
+      "colors": {
+        "arcs": [
+          { "from": 0, "to": 40, "color": "#655c46" },
+          { "from": 138, "to": 180, "color": "#a89a76" }
+        ]
+      }
+    },
+    {
+      "chain": "LTent",
+      "material": "hide_tent",
+      "sides": 10,
+      "profile": [
+        [0.0, 0.075, 0.075],
+        [0.4, 0.055, 0.055],
+        [0.78, 0.04, 0.04],
+        [1.0, 0.028, 0.028]
+      ],
+      "caps": ["none", "dome"]
+    },
+    {
+      "chain": "stalk",
+      "material": "hide_stalk",
+      "sides": 10,
+      "profile": [
+        [0.0, 0.08, 0.08],
+        [0.5, 0.05, 0.05],
+        [0.78, 0.085, 0.08, { "sharp": true, "exp": 2.2 }],
+        [1.0, 0.055, 0.05]
+      ],
+      "caps": ["none", "dome"]
+    },
+    {
+      "chain": "FLeg",
+      "material": "hide_leg",
+      "sides": 9,
+      "profile": [
+        [0.0, 0.075, 0.075],
+        [0.55, 0.05, 0.05],
+        [1.0, 0.04, 0.04]
+      ],
+      "caps": ["none", "dome"]
+    },
+    {
+      "chain": "LBack",
+      "material": "hide_leg",
+      "sides": 9,
+      "profile": [
+        [0.0, 0.08, 0.08],
+        [0.55, 0.052, 0.052],
+        [1.0, 0.042, 0.042]
+      ],
+      "caps": ["none", "dome"]
+    }
+  ],
+  "parts": [
+    { "type": "eye", "host": "StalkB", "material": "eye", "size": 0.024, "anchor": { "chain": "stalk", "t": 0.8, "around": 55 } },
+    { "type": "eye", "host": "StalkB", "material": "eye", "size": 0.024, "anchor": { "chain": "stalk", "t": 0.8, "around": -55 } },
+    {
+      "_note": "The flange is a flat plate, not a claw - an otyugh grabs and drags rather than rakes.",
+      "type": "paw", "host": "LTentTip", "material": "flange",
+      "size": [0.12, 0.03, 0.13], "mirrored": true
+    },
+    { "type": "paw", "host": "FLegPaw", "material": "flange", "size": [0.1, 0.03, 0.11] },
+    { "type": "paw", "host": "LBackPaw", "material": "flange", "size": [0.1, 0.03, 0.11], "mirrored": true },
+    {
+      "type": "spike", "host": "Maw", "material": "tooth",
+      "offset": [0.035, 0.02, 0.03], "dir": [0.2, -0.5, 1], "sides": 5,
+      "segments": [{ "len": 0.045, "r": 0.014 }],
+      "mirrored": true
+    },
+    {
+      "type": "spike", "host": "StalkTip", "material": "tooth",
+      "offset": [0.0, 0.0, 0.035], "dir": [0, -0.3, 1], "sides": 5,
+      "segments": [{ "len": 0.035, "r": 0.012 }]
+    }
+  ],
+  "combat": true,
+  "animations": {
+    "idle": {
+      "duration": 2.8,
+      "loop": true,
+      "tracks": {
+        "LTentRoot": { "rx": [[0, -5], [0.5, 5], [1, -5]], "ry": [[0, 4], [0.35, -5], [0.8, 3], [1, 4]] },
+        "LTent2": { "rx": [[0, 4], [0.45, -6], [1, 4]] },
+        "StalkA": { "ry": [[0, -6], [0.4, 7], [0.85, -4], [1, -6]], "rx": [[0, 3], [0.6, -4], [1, 3]] },
+        "Rump": { "ty": [[0, 0], [0.5, 0.008], [1, 0]] }
+      }
+    },
+    "attack": {
+      "duration": 0.7,
+      "loop": false,
+      "hit_fraction": 0.44,
+      "_note": "Both tentacles whip forward together and the body heaves after them. Translation lives on Rump, the skeleton root - keyed on a tentacle it would tear the limb off the sac.",
+      "tracks": {
+        "Rump": {
+          "tz": [[0, 0], [0.2, -0.07], [0.44, 0.44], [0.68, 0.38], [1, 0]],
+          "ty": [[0, 0], [0.2, 0.03], [0.44, -0.02], [1, 0]]
+        },
+        "LTentRoot": { "rx": [[0, 0], [0.2, -34], [0.44, 46], [0.68, 34], [1, 0]] },
+        "LTent1": { "rx": [[0, 0], [0.2, -24], [0.44, 38], [1, 0]] },
+        "LTent2": { "rx": [[0, 0], [0.24, -16], [0.5, 30], [1, 0]] },
+        "StalkA": { "rx": [[0, 0], [0.2, -14], [0.44, 20], [1, 0]] },
+        "Maw": { "rx": [[0, 0], [0.3, -12], [0.5, 10], [1, 0]] }
+      }
+    },
+    "death": {
+      "duration": 1.3,
+      "loop": false,
+      "_note": "The sac slumps and every tentacle goes limp - all tracks must END DOWN, because the engine freezes the last frame.",
+      "tracks": {
+        "Rump": {
+          "rz": [[0, 0], [0.4, 22], [0.75, 56], [1, 74]],
+          "ty": [[0, 0], [0.4, -0.1], [0.75, -0.24], [1, -0.32]]
+        },
+        "LTentRoot": { "rx": [[0, 0], [0.4, 26], [0.8, 58], [1, 72]], "ry": [[0, 0], [1, 18]] },
+        "LTent1": { "rx": [[0, 0], [1, 34]] },
+        "LTent2": { "rx": [[0, 0], [1, 30]] },
+        "StalkA": { "rx": [[0, 0], [0.5, 30], [1, 68]] },
+        "StalkB": { "rx": [[0, 0], [1, 26]] },
+        "FLegRoot": { "rx": [[0, 0], [0.7, 24], [1, 32]] },
+        "LBackRoot": { "rz": [[0, 0], [0.7, 20], [1, 28]] }
+      }
+    },
+    "move": {
+      "duration": 1.05,
+      "loop": true,
+      "mirror_phase": 0.5,
+      "_note": "A tripod cannot trot. The rear pair alternates and the single foreleg pumps at DOUBLE rate so it lands with each of them in turn - that is what keeps a three-legged gait from reading as a limp.",
+      "tracks": {
+        "LBackRoot": { "rx": [[0, -16], [0.5, 18], [1, -16]] },
+        "LBackMid": { "rx": [[0, 10], [0.3, 22], [0.6, -6], [1, 10]] },
+        "FLegRoot": { "rx": [[0, 14], [0.25, -14], [0.5, 14], [0.75, -14], [1, 14]] },
+        "FLegMid": { "rx": [[0, -8], [0.25, 14], [0.5, -8], [0.75, 14], [1, -8]] },
+        "Rump": { "ty": [[0, 0], [0.25, 0.014], [0.5, 0], [0.75, 0.014], [1, 0]], "ry": [[0, -4], [0.5, 4], [1, -4]] },
+        "LTentRoot": { "rx": [[0, 6], [0.5, -6], [1, 6]] },
+        "StalkA": { "ry": [[0, 5], [0.5, -5], [1, 5]] }
+      }
+    }
+  },
+  "body_plan": {
+    "leg_terminals": ["flegpaw", "lbackpaw", "rbackpaw"]
+  }
+}

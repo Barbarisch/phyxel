@@ -1,0 +1,115 @@
+{
+  "id": "forge_hydra",
+  "morphology": "quadruped",
+  "gaitClass": "quadruped_clips",
+  "rootBone": "Pelvis",
+  "hipAliases": [
+    "pelvis",
+    "hip"
+  ],
+  "gripBone": "N1head",
+  "capsule": {
+    "mode": "xz_extent",
+    "minHalfWidth": 0.2,
+    "maxHalfWidth": 3.29
+  },
+  "legs": [
+    {
+      "id": "lback",
+      "upper": "LBackRoot",
+      "mid": "LBackHock",
+      "foot": "LBackPaw",
+      "footIK": false
+    },
+    {
+      "id": "lfront",
+      "upper": "LFrontRoot",
+      "mid": "LFrontShin",
+      "foot": "LFrontPaw",
+      "footIK": false
+    },
+    {
+      "id": "rback",
+      "upper": "RBackRoot",
+      "mid": "RBackHock",
+      "foot": "RBackPaw",
+      "footIK": false
+    },
+    {
+      "id": "rfront",
+      "upper": "RFrontRoot",
+      "mid": "RFrontShin",
+      "foot": "RFrontPaw",
+      "footIK": false
+    }
+  ],
+  "segments": [
+    {
+      "bone": "Rump",
+      "isArm": false
+    },
+    {
+      "bone": "Pelvis",
+      "isArm": false
+    },
+    {
+      "bone": "Spine",
+      "isArm": false
+    },
+    {
+      "bone": "Chest",
+      "isArm": false
+    },
+    {
+      "bone": "Shoulders",
+      "isArm": false
+    },
+    {
+      "bone": "N1a",
+      "isArm": false
+    },
+    {
+      "bone": "N2a",
+      "isArm": false
+    },
+    {
+      "bone": "N3a",
+      "isArm": false
+    },
+    {
+      "bone": "N4a",
+      "isArm": false
+    },
+    {
+      "bone": "N5a",
+      "isArm": false
+    },
+    {
+      "bone": "TailRoot",
+      "isArm": false
+    },
+    {
+      "bone": "LBackRoot",
+      "isArm": false
+    },
+    {
+      "bone": "LFrontRoot",
+      "isArm": false
+    },
+    {
+      "bone": "RBackRoot",
+      "isArm": false
+    },
+    {
+      "bone": "RFrontRoot",
+      "isArm": false
+    }
+  ],
+  "clipDefaults": {
+    "Idle": "idle",
+    "Walk": "walk",
+    "StartWalk": "walk",
+    "Attack": "attack",
+    "Death": "death"
+  }
+}

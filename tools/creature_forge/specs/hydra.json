@@ -1,0 +1,327 @@
+{
+  "name": "forge_hydra",
+  "_template": "Hydra archetype (multi_headed). A heavy sprawling reptile barrel carrying FIVE independent necks off the chest, each ending in its own skull. The necks are separate chains rather than one mirrored pair because odd radial fan-out has no mirror partner: neck 3 is on the centreline, and 1/5 and 2/4 differ in both yaw and length. Neutral swamp-grey palette FOR tinting.",
+  "palette": {
+    "hide_body": { "color": "#7d8574", "rough": 0.9 },
+    "hide_neck": { "color": "#78806f", "rough": 0.9 },
+    "hide_tail": { "color": "#727a6a", "rough": 0.9 },
+    "hide_leg": { "color": "#747c6b", "rough": 0.9 },
+    "belly": { "color": "#c2c4ac", "rough": 0.9 },
+    "tooth": { "color": "#d8d2ba", "rough": 0.4 },
+    "claw": { "color": "#3f4238", "rough": 0.6 },
+    "eye": { "color": "#c4b028", "rough": 0.2 }
+  },
+  "shading": {
+    "_note": "Engine lights character parts with high contrast (open gap) - keep the ramp gentle.",
+    "gradient": { "top": 0.12, "bottom": -0.2 },
+    "noise": { "size": 0.02, "amount": 0.1 }
+  },
+  "smooth_angle": 50,
+  "joints": {
+    "Pelvis": [0, 0.42, -0.35],
+    "Rump": { "from": "Pelvis", "up": -0.03, "fwd": -0.16 },
+    "Spine": { "from": "Pelvis", "up": 0.03, "fwd": 0.34 },
+    "Chest": { "from": "Spine", "up": 0.01, "fwd": 0.26 },
+    "Shoulders": { "from": "Chest", "up": 0.06, "fwd": 0.14 },
+
+    "_note_necks": "The first neck segment spreads OUTWARD before rising (60 deg of yaw, out-magnitude 0.17 against 0.07 of lift). Five necks that rise first all occupy the same column above the shoulders and steal each other's voxels - the fan has to start at the base.",
+
+    "N1a": { "from": "Shoulders", "up": 0.07, "side": -0.147, "fwd": 0.085 },
+    "N1b": { "from": "N1a", "up": 0.22, "side": -0.087, "fwd": 0.05 },
+    "N1c": { "from": "N1b", "up": 0.17, "side": -0.061, "fwd": 0.035 },
+    "N1head": { "from": "N1c", "up": 0.1, "side": -0.165, "fwd": 0.095 },
+    "N1snout": { "from": "N1head", "up": -0.02, "side": -0.113, "fwd": 0.065 },
+
+    "N2a": { "from": "Shoulders", "up": 0.07, "side": -0.085, "fwd": 0.147 },
+    "N2b": { "from": "N2a", "up": 0.22, "side": -0.05, "fwd": 0.087 },
+    "N2c": { "from": "N2b", "up": 0.17, "side": -0.035, "fwd": 0.061 },
+    "N2head": { "from": "N2c", "up": 0.1, "side": -0.095, "fwd": 0.165 },
+    "N2snout": { "from": "N2head", "up": -0.02, "side": -0.065, "fwd": 0.113 },
+
+    "N3a": { "from": "Shoulders", "up": 0.07, "fwd": 0.17 },
+    "N3b": { "from": "N3a", "up": 0.22, "fwd": 0.1 },
+    "N3c": { "from": "N3b", "up": 0.17, "fwd": 0.07 },
+    "N3head": { "from": "N3c", "up": 0.1, "fwd": 0.19 },
+    "N3snout": { "from": "N3head", "up": -0.02, "fwd": 0.13 },
+
+    "N4a": { "from": "Shoulders", "up": 0.07, "side": 0.085, "fwd": 0.147 },
+    "N4b": { "from": "N4a", "up": 0.22, "side": 0.05, "fwd": 0.087 },
+    "N4c": { "from": "N4b", "up": 0.17, "side": 0.035, "fwd": 0.061 },
+    "N4head": { "from": "N4c", "up": 0.1, "side": 0.095, "fwd": 0.165 },
+    "N4snout": { "from": "N4head", "up": -0.02, "side": 0.065, "fwd": 0.113 },
+
+    "N5a": { "from": "Shoulders", "up": 0.07, "side": 0.147, "fwd": 0.085 },
+    "N5b": { "from": "N5a", "up": 0.22, "side": 0.087, "fwd": 0.05 },
+    "N5c": { "from": "N5b", "up": 0.17, "side": 0.061, "fwd": 0.035 },
+    "N5head": { "from": "N5c", "up": 0.1, "side": 0.165, "fwd": 0.095 },
+    "N5snout": { "from": "N5head", "up": -0.02, "side": 0.113, "fwd": 0.065 },
+
+    "TailRoot": { "from": "Pelvis", "up": 0.02, "fwd": -0.1 },
+    "Tail1": { "from": "TailRoot", "up": -0.03, "fwd": -0.18 },
+    "Tail2": { "from": "Tail1", "up": -0.03, "fwd": -0.22 },
+    "TailTip": { "from": "Tail2", "up": -0.02, "fwd": -0.2 },
+
+    "LFrontRoot": { "from": "Chest", "side": 0.15, "fwd": 0.02 },
+    "LFrontKnee": { "from": "LFrontRoot", "side": 0.11, "up": -0.11, "fwd": 0.0 },
+    "LFrontShin": { "from": "LFrontKnee", "side": 0.05, "up": -0.18, "fwd": 0.02 },
+    "LFrontPaw": { "from": "LFrontShin", "fwd": 0.06, "ground": 0.02 },
+
+    "LBackRoot": { "from": "Pelvis", "side": 0.14, "fwd": 0.02 },
+    "LBackKnee": { "from": "LBackRoot", "side": 0.12, "up": -0.1, "fwd": 0.06 },
+    "LBackHock": { "from": "LBackKnee", "side": 0.04, "up": -0.19, "fwd": -0.05 },
+    "LBackPaw": { "from": "LBackHock", "fwd": 0.08, "ground": 0.02 }
+  },
+  "chains": {
+    "body": ["Rump", "Pelvis", "Spine", "Chest", "Shoulders"],
+    "neck1": ["N1a", "N1b", "N1c", "N1head", "N1snout"],
+    "neck2": ["N2a", "N2b", "N2c", "N2head", "N2snout"],
+    "neck3": ["N3a", "N3b", "N3c", "N3head", "N3snout"],
+    "neck4": ["N4a", "N4b", "N4c", "N4head", "N4snout"],
+    "neck5": ["N5a", "N5b", "N5c", "N5head", "N5snout"],
+    "tail": ["TailRoot", "Tail1", "Tail2", "TailTip"],
+    "LFront": ["LFrontRoot", "LFrontKnee", "LFrontShin", "LFrontPaw"],
+    "LBack": ["LBackRoot", "LBackKnee", "LBackHock", "LBackPaw"]
+  },
+  "attach": {
+    "neck1": "Shoulders",
+    "neck2": "Shoulders",
+    "neck3": "Shoulders",
+    "neck4": "Shoulders",
+    "neck5": "Shoulders",
+    "tail": "Pelvis",
+    "LFront": "Chest",
+    "LBack": "Pelvis"
+  },
+  "mirror": ["LFront", "LBack"],
+  "volumes": [
+    {
+      "chain": "body",
+      "material": "hide_body",
+      "frame": "up",
+      "sides": 14,
+      "profile": [
+        [0.0, 0.13, 0.13],
+        [0.3, 0.21, 0.2, { "bias": -0.1 }],
+        [0.62, 0.22, 0.21, { "bias": -0.12 }],
+        [0.85, 0.18, 0.18],
+        [1.0, 0.15, 0.15]
+      ],
+      "caps": ["dome", "dome"],
+      "colors": {
+        "arcs": [
+          { "from": 0, "to": 42, "color": "#5f6656" },
+          { "from": 136, "to": 180, "color": "#c2c4ac" }
+        ]
+      }
+    },
+    {
+      "chain": "neck1",
+      "material": "hide_neck",
+      "frame": "up",
+      "sides": 11,
+      "profile": [
+        [0.0, 0.1, 0.1],
+        [0.3, 0.068, 0.072],
+        [0.62, 0.06, 0.064],
+        [0.76, 0.094, 0.082, { "sharp": true, "exp": 2.2 }],
+        [0.9, 0.058, 0.046],
+        [1.0, 0.03, 0.025]
+      ],
+      "caps": ["none", "dome"],
+      "colors": { "arcs": [{ "from": 136, "to": 180, "color": "#b6bca2" }] }
+    },
+    {
+      "chain": "neck2",
+      "material": "hide_neck",
+      "frame": "up",
+      "sides": 11,
+      "profile": [
+        [0.0, 0.1, 0.1],
+        [0.3, 0.068, 0.072],
+        [0.62, 0.06, 0.064],
+        [0.76, 0.094, 0.082, { "sharp": true, "exp": 2.2 }],
+        [0.9, 0.058, 0.046],
+        [1.0, 0.03, 0.025]
+      ],
+      "caps": ["none", "dome"],
+      "colors": { "arcs": [{ "from": 136, "to": 180, "color": "#b6bca2" }] }
+    },
+    {
+      "chain": "neck3",
+      "material": "hide_neck",
+      "frame": "up",
+      "sides": 11,
+      "profile": [
+        [0.0, 0.105, 0.105],
+        [0.3, 0.072, 0.076],
+        [0.62, 0.064, 0.068],
+        [0.76, 0.1, 0.088, { "sharp": true, "exp": 2.2 }],
+        [0.9, 0.062, 0.05],
+        [1.0, 0.032, 0.027]
+      ],
+      "caps": ["none", "dome"],
+      "colors": { "arcs": [{ "from": 136, "to": 180, "color": "#b6bca2" }] }
+    },
+    {
+      "chain": "neck4",
+      "material": "hide_neck",
+      "frame": "up",
+      "sides": 11,
+      "profile": [
+        [0.0, 0.1, 0.1],
+        [0.3, 0.068, 0.072],
+        [0.62, 0.06, 0.064],
+        [0.76, 0.094, 0.082, { "sharp": true, "exp": 2.2 }],
+        [0.9, 0.058, 0.046],
+        [1.0, 0.03, 0.025]
+      ],
+      "caps": ["none", "dome"],
+      "colors": { "arcs": [{ "from": 136, "to": 180, "color": "#b6bca2" }] }
+    },
+    {
+      "chain": "neck5",
+      "material": "hide_neck",
+      "frame": "up",
+      "sides": 11,
+      "profile": [
+        [0.0, 0.1, 0.1],
+        [0.3, 0.068, 0.072],
+        [0.62, 0.06, 0.064],
+        [0.76, 0.094, 0.082, { "sharp": true, "exp": 2.2 }],
+        [0.9, 0.058, 0.046],
+        [1.0, 0.03, 0.025]
+      ],
+      "caps": ["none", "dome"],
+      "colors": { "arcs": [{ "from": 136, "to": 180, "color": "#b6bca2" }] }
+    },
+    {
+      "chain": "tail",
+      "material": "hide_tail",
+      "sides": 10,
+      "profile": [
+        [0.0, 0.15, 0.14],
+        [0.4, 0.1, 0.1],
+        [0.75, 0.06, 0.06],
+        [1.0, 0.028, 0.028]
+      ],
+      "caps": ["none", "dome"]
+    },
+    {
+      "chain": "LFront",
+      "material": "hide_leg",
+      "sides": 9,
+      "profile": [
+        [0.0, 0.06, 0.06],
+        [0.55, 0.04, 0.04],
+        [1.0, 0.032, 0.032]
+      ],
+      "caps": ["none", "dome"]
+    },
+    {
+      "chain": "LBack",
+      "material": "hide_leg",
+      "sides": 9,
+      "profile": [
+        [0.0, 0.065, 0.065],
+        [0.55, 0.042, 0.042],
+        [1.0, 0.033, 0.033]
+      ],
+      "caps": ["none", "dome"]
+    }
+  ],
+  "parts": [
+    { "type": "eye", "host": "N1head", "material": "eye", "size": 0.02, "anchor": { "chain": "neck1", "t": 0.78, "around": 62 } },
+    { "type": "eye", "host": "N1head", "material": "eye", "size": 0.02, "anchor": { "chain": "neck1", "t": 0.78, "around": -62 } },
+    { "type": "eye", "host": "N2head", "material": "eye", "size": 0.02, "anchor": { "chain": "neck2", "t": 0.78, "around": 62 } },
+    { "type": "eye", "host": "N2head", "material": "eye", "size": 0.02, "anchor": { "chain": "neck2", "t": 0.78, "around": -62 } },
+    { "type": "eye", "host": "N3head", "material": "eye", "size": 0.021, "anchor": { "chain": "neck3", "t": 0.78, "around": 62 } },
+    { "type": "eye", "host": "N3head", "material": "eye", "size": 0.021, "anchor": { "chain": "neck3", "t": 0.78, "around": -62 } },
+    { "type": "eye", "host": "N4head", "material": "eye", "size": 0.02, "anchor": { "chain": "neck4", "t": 0.78, "around": 62 } },
+    { "type": "eye", "host": "N4head", "material": "eye", "size": 0.02, "anchor": { "chain": "neck4", "t": 0.78, "around": -62 } },
+    { "type": "eye", "host": "N5head", "material": "eye", "size": 0.02, "anchor": { "chain": "neck5", "t": 0.78, "around": 62 } },
+    { "type": "eye", "host": "N5head", "material": "eye", "size": 0.02, "anchor": { "chain": "neck5", "t": 0.78, "around": -62 } },
+    { "type": "paw", "host": "LFrontPaw", "material": "claw", "size": [0.08, 0.028, 0.11], "mirrored": true },
+    { "type": "paw", "host": "LBackPaw", "material": "claw", "size": [0.08, 0.028, 0.11], "mirrored": true }
+  ],
+  "combat": true,
+  "animations": {
+    "idle": {
+      "duration": 3.0,
+      "loop": true,
+      "_note": "Five necks on five different phases - a hydra that sways in unison reads as one animal with a decal, not five heads.",
+      "tracks": {
+        "N1a": { "ry": [[0, 7], [0.4, -6], [0.8, 5], [1, 7]], "rx": [[0, -3], [0.55, 4], [1, -3]] },
+        "N2a": { "ry": [[0, -5], [0.3, 6], [0.72, -4], [1, -5]], "rx": [[0, 3], [0.45, -4], [1, 3]] },
+        "N3a": { "ry": [[0, 4], [0.5, -5], [1, 4]], "rx": [[0, -2], [0.35, 5], [0.8, -3], [1, -2]] },
+        "N4a": { "ry": [[0, 6], [0.25, -5], [0.66, 6], [1, 6]], "rx": [[0, 2], [0.6, -5], [1, 2]] },
+        "N5a": { "ry": [[0, -6], [0.45, 7], [0.85, -4], [1, -6]], "rx": [[0, -4], [0.3, 3], [1, -4]] },
+        "N1head": { "rx": [[0, 4], [0.5, -5], [1, 4]] },
+        "N3head": { "rx": [[0, -4], [0.6, 5], [1, -4]] },
+        "N5head": { "rx": [[0, 5], [0.4, -4], [1, 5]] },
+        "Rump": { "ty": [[0, 0], [0.5, 0.007], [1, 0]] }
+      }
+    },
+    "attack": {
+      "duration": 0.65,
+      "loop": false,
+      "hit_fraction": 0.45,
+      "_note": "Centre neck strikes; flanking necks rear back and snap in behind it, so the bite reads as the whole animal committing.",
+      "tracks": {
+        "Rump": {
+          "tz": [[0, 0], [0.18, -0.05], [0.45, 0.16], [0.7, 0.14], [1, 0]],
+          "ty": [[0, 0], [0.18, 0.03], [0.45, -0.02], [1, 0]]
+        },
+        "N3a": { "rx": [[0, 0], [0.18, -26], [0.45, 32], [0.7, 22], [1, 0]] },
+        "N3head": { "rx": [[0, 0], [0.18, -16], [0.45, 26], [1, 0]] },
+        "N2a": { "rx": [[0, 0], [0.22, -22], [0.55, 24], [1, 0]], "ry": [[0, 0], [0.3, 10], [1, 0]] },
+        "N4a": { "rx": [[0, 0], [0.22, -22], [0.55, 24], [1, 0]], "ry": [[0, 0], [0.3, -10], [1, 0]] },
+        "N1a": { "rx": [[0, 0], [0.3, -18], [0.65, 16], [1, 0]] },
+        "N5a": { "rx": [[0, 0], [0.3, -18], [0.65, 16], [1, 0]] }
+      }
+    },
+    "death": {
+      "duration": 1.2,
+      "loop": false,
+      "_note": "The engine freezes the last frame, so every neck must be DOWN at t=1 - a hydra that dies with one head still raised looks alive.",
+      "tracks": {
+        "Rump": {
+          "rz": [[0, 0], [0.4, 22], [0.75, 58], [1, 72]],
+          "ty": [[0, 0], [0.4, -0.09], [0.75, -0.22], [1, -0.3]]
+        },
+        "N1a": { "rx": [[0, 0], [0.35, 20], [0.75, 54], [1, 66]], "ry": [[0, 0], [1, 16]] },
+        "N2a": { "rx": [[0, 0], [0.4, 24], [0.8, 58], [1, 70]], "ry": [[0, 0], [1, 8]] },
+        "N3a": { "rx": [[0, 0], [0.3, 26], [0.7, 60], [1, 74]] },
+        "N4a": { "rx": [[0, 0], [0.4, 24], [0.8, 58], [1, 70]], "ry": [[0, 0], [1, -8]] },
+        "N5a": { "rx": [[0, 0], [0.35, 20], [0.75, 54], [1, 66]], "ry": [[0, 0], [1, -16]] },
+        "N1head": { "rx": [[0, 0], [1, 26]] },
+        "N2head": { "rx": [[0, 0], [1, 30]] },
+        "N3head": { "rx": [[0, 0], [1, 28]] },
+        "N4head": { "rx": [[0, 0], [1, 30]] },
+        "N5head": { "rx": [[0, 0], [1, 26]] },
+        "LFrontRoot": { "rz": [[0, 0], [0.7, 20], [1, 26]] },
+        "LBackKnee": { "rx": [[0, 0], [0.6, 24], [1, 30]] }
+      }
+    },
+    "move": {
+      "duration": 0.95,
+      "loop": true,
+      "mirror_phase": 0.5,
+      "tracks": {
+        "LBackRoot": { "rx": [[0, -18], [0.5, 20], [1, -18]] },
+        "LBackKnee": { "rx": [[0, 10], [0.3, 24], [0.6, -6], [1, 10]] },
+        "LBackHock": { "rx": [[0, -6], [0.4, -18], [0.7, 6], [1, -6]] },
+        "LFrontRoot": { "rx": [[0, 16], [0.5, -16], [1, 16]] },
+        "LFrontKnee": { "rx": [[0, -8], [0.35, 18], [0.7, -10], [1, -8]] },
+        "Rump": { "ty": [[0, 0], [0.25, 0.016], [0.5, 0], [0.75, 0.016], [1, 0]], "ry": [[0, -4], [0.5, 4], [1, -4]] },
+        "N1a": { "ry": [[0, 5], [0.5, -4], [1, 5]] },
+        "N2a": { "ry": [[0, -4], [0.5, 5], [1, -4]] },
+        "N3a": { "rx": [[0, 3], [0.5, -4], [1, 3]] },
+        "N4a": { "ry": [[0, 4], [0.5, -5], [1, 4]] },
+        "N5a": { "ry": [[0, -5], [0.5, 4], [1, -5]] }
+      }
+    }
+  },
+  "body_plan": {
+    "leg_terminals": ["lfrontpaw", "rfrontpaw", "lbackpaw", "rbackpaw"]
+  }
+}

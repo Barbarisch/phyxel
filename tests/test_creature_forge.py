@@ -607,6 +607,27 @@ def test_tint_and_alpha_in_range(bindings):
         assert 0.05 <= v.get("alpha", 1.0) <= 1.0, (mid, v.get("alpha"))
 
 
+def test_no_stat_block_is_still_approximated():
+    """Every SRD stat block now rides a rig built for its own body — the
+    approximation backlog is empty, and that is the claim most likely to rot
+    quietly. A new stat block bound to a `standin_*` archetype must carry an
+    `approx` tag (gen_bindings.py enforces that), so the tag reappearing here
+    is the honest signal that "336/336 final fidelity" has stopped being true.
+    Re-approximating is allowed; letting the docs keep saying otherwise is not."""
+    spec = json.loads((ROOT / "tools" / "creature_forge" /
+                       "bindings_map.json").read_text(encoding="utf-8"))
+    approximated = {
+        mid: ov["approx"]
+        for arch in spec["archetypes"].values()
+        for mid, ov in arch.get("members", {}).items()
+        if isinstance(ov, dict) and ov.get("approx")
+    }
+    assert not approximated, (
+        "stat blocks riding a stand-in rig: " + repr(approximated) +
+        " — either build the rig or update the coverage claim in "
+        "docs/AgentContext.md and the bestiary memory")
+
+
 def test_bindings_are_regenerable(tmp_path):
     """bindings.json is generated from bindings_map.json — hand edits get lost,
     so the checked-in file must match a fresh generation exactly."""

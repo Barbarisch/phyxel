@@ -435,15 +435,6 @@
             0.65,
             0.5
           ]
-        },
-        "dragon-turtle": {
-          "tint": [
-            0.5,
-            0.68,
-            0.6
-          ],
-          "scale": 2.6,
-          "approx": "shelled"
         }
       }
     },
@@ -1268,15 +1259,6 @@
             0.55
           ],
           "scale": 1.4
-        },
-        "hydra": {
-          "tint": [
-            0.6,
-            0.85,
-            0.62
-          ],
-          "scale": 3.0,
-          "approx": "multi_headed"
         }
       }
     },
@@ -1733,15 +1715,6 @@
         },
         "helmed-placeholder": {
           "skip": true
-        },
-        "xorn": {
-          "tint": [
-            0.65,
-            0.6,
-            0.52
-          ],
-          "scale": 0.9,
-          "approx": "radial"
         }
       }
     },
@@ -2386,15 +2359,6 @@
             0.85
           ],
           "scale": 0.5
-        },
-        "otyugh": {
-          "tint": [
-            0.7,
-            0.65,
-            0.5
-          ],
-          "scale": 1.5,
-          "approx": "tentacled"
         }
       }
     },
@@ -2594,15 +2558,71 @@
             0.45
           ],
           "scale": 1.35
-        },
+        }
+      }
+    },
+    "hydra_true": {
+      "animFile": "resources/animated_characters/forge_hydra.anim",
+      "faction": "beasts",
+      "members": {
+        "hydra": {
+          "tint": [
+            0.72,
+            0.95,
+            0.68
+          ]
+        }
+      }
+    },
+    "tarrasque_true": {
+      "animFile": "resources/animated_characters/forge_tarrasque.anim",
+      "faction": "monsters",
+      "members": {
         "tarrasque": {
           "tint": [
+            0.95,
+            0.72,
+            0.55
+          ]
+        }
+      }
+    },
+    "dragon_turtle_true": {
+      "animFile": "resources/animated_characters/forge_dragon_turtle.anim",
+      "faction": "beasts",
+      "members": {
+        "dragon-turtle": {
+          "tint": [
             0.62,
-            0.55,
-            0.48
-          ],
-          "scale": 4.0,
-          "approx": "exotic"
+            0.86,
+            0.88
+          ]
+        }
+      }
+    },
+    "otyugh_true": {
+      "animFile": "resources/animated_characters/forge_otyugh.anim",
+      "faction": "monsters",
+      "members": {
+        "otyugh": {
+          "tint": [
+            0.88,
+            0.8,
+            0.55
+          ]
+        }
+      }
+    },
+    "xorn_true": {
+      "animFile": "resources/animated_characters/forge_xorn.anim",
+      "faction": "monsters",
+      "members": {
+        "xorn": {
+          "tint": [
+            0.78,
+            0.74,
+            0.66
+          ]
         }
       }
     }

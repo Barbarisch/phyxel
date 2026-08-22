@@ -291,5 +291,63 @@
     "monsterId": "ape",
     "combat": true,
     "display": "Great Ape (archetype)"
+  },
+  {
+    "_comment": "=== SRD bestiary: exotics (W8) - the five bodies no archetype could honestly stand in for ==="
+  },
+  {
+    "id": "forge_hydra",
+    "spec": "specs/hydra.json",
+    "out": "resources/animated_characters/forge_hydra.anim",
+    "target_height": 3.6,
+    "morphology": "quadruped",
+    "monsterId": "hydra",
+    "combat": true,
+    "legs": 4,
+    "display": "Hydra (five necks)"
+  },
+  {
+    "id": "forge_tarrasque",
+    "spec": "specs/tarrasque.json",
+    "out": "resources/animated_characters/forge_tarrasque.anim",
+    "target_height": 7.0,
+    "morphology": "quadruped",
+    "monsterId": "tarrasque",
+    "combat": true,
+    "legs": 2,
+    "display": "Tarrasque (Gargantuan biped)"
+  },
+  {
+    "id": "forge_dragon_turtle",
+    "spec": "specs/dragon_turtle.json",
+    "out": "resources/animated_characters/forge_dragon_turtle.anim",
+    "target_height": 3.4,
+    "morphology": "quadruped",
+    "monsterId": "dragon-turtle",
+    "combat": true,
+    "legs": 4,
+    "display": "Dragon Turtle (shelled)"
+  },
+  {
+    "id": "forge_otyugh",
+    "spec": "specs/otyugh.json",
+    "out": "resources/animated_characters/forge_otyugh.anim",
+    "target_height": 2.1,
+    "morphology": "quadruped",
+    "monsterId": "otyugh",
+    "combat": true,
+    "legs": 3,
+    "display": "Otyugh (tripod, tentacled)"
+  },
+  {
+    "id": "forge_xorn",
+    "spec": "specs/xorn.json",
+    "out": "resources/animated_characters/forge_xorn.anim",
+    "target_height": 1.55,
+    "morphology": "quadruped",
+    "monsterId": "xorn",
+    "combat": true,
+    "legs": 3,
+    "display": "Xorn (three-fold radial)"
   }
 ]

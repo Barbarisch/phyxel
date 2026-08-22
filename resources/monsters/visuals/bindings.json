@@ -862,17 +862,13 @@
     }
   },
   "dragon-turtle": {
-    "animFile": "resources/animated_characters/forge_bear.anim",
+    "animFile": "resources/animated_characters/forge_dragon_turtle.anim",
     "faction": "beasts",
     "tint": [
-      0.5,
-      0.68,
-      0.6
-    ],
-    "appearance": {
-      "heightScale": 2.6,
-      "bulkScale": 2.6
-    }
+      0.62,
+      0.86,
+      0.88
+    ]
   },
   "dretch": {
     "animFile": "resources/animated_characters/devil.anim",
@@ -1842,17 +1838,13 @@
     }
   },
   "hydra": {
-    "animFile": "resources/animated_characters/forge_serpent.anim",
+    "animFile": "resources/animated_characters/forge_hydra.anim",
     "faction": "beasts",
     "tint": [
-      0.6,
-      0.85,
-      0.62
-    ],
-    "appearance": {
-      "heightScale": 3.0,
-      "bulkScale": 3.0
-    }
+      0.72,
+      0.95,
+      0.68
+    ]
   },
   "hyena": {
     "animFile": "resources/animated_characters/forge_direwolf.anim",
@@ -2341,17 +2333,13 @@
     "faction": "monsters"
   },
   "otyugh": {
-    "animFile": "resources/animated_characters/forge_ooze.anim",
+    "animFile": "resources/animated_characters/forge_otyugh.anim",
     "faction": "monsters",
     "tint": [
-      0.7,
-      0.65,
-      0.5
-    ],
-    "appearance": {
-      "heightScale": 1.5,
-      "bulkScale": 1.5
-    }
+      0.88,
+      0.8,
+      0.55
+    ]
   },
   "owl": {
     "animFile": "resources/animated_characters/forge_raptor.anim",
@@ -3066,17 +3054,13 @@
     ]
   },
   "tarrasque": {
-    "animFile": "resources/animated_characters/ogre.anim",
+    "animFile": "resources/animated_characters/forge_tarrasque.anim",
     "faction": "monsters",
     "tint": [
-      0.62,
-      0.55,
-      0.48
-    ],
-    "appearance": {
-      "heightScale": 4.0,
-      "bulkScale": 4.0
-    }
+      0.95,
+      0.72,
+      0.55
+    ]
   },
   "thug": {
     "animFile": "resources/animated_characters/humanoid.anim",
@@ -3543,17 +3527,13 @@
     }
   },
   "xorn": {
-    "animFile": "resources/animated_characters/golem.anim",
+    "animFile": "resources/animated_characters/forge_xorn.anim",
     "faction": "monsters",
     "tint": [
-      0.65,
-      0.6,
-      0.52
-    ],
-    "appearance": {
-      "heightScale": 0.9,
-      "bulkScale": 0.9
-    }
+      0.78,
+      0.74,
+      0.66
+    ]
   },
   "young-black-dragon": {
     "animFile": "resources/animated_characters/forge_dragon_young.anim",
