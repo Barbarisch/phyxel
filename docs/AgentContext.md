@@ -144,6 +144,28 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **★ BESTIARY FORGE II — FULL SRD COVERAGE (336/336 bound), W1 SHIPPED 2026-08-22.**
+  Every D&D stat block the engine ships now resolves to a spawnable rig. Coverage is
+  **generated, not hand-written**: `tools/creature_forge/bindings_map.json` (archetype rig →
+  stat blocks, per-member tint/scale/alpha/approx) → `gen_bindings.py` →
+  `resources/monsters/visuals/bindings.json`, validating every id bound exactly once + every
+  rig able to play Idle/Walk/Attack/Death **through the engine's real resolution** (literal
+  clip / humanoid `death_front|death_back` probe / unarmed moveset / animationMapping). That
+  gate caught the Quaternius families on first run (fauna attack = `Attack_Headbutt`, monster
+  pack = `Punch`) — both now carry archetype-level mappings instead of firing damage on a
+  stale clip. **KEYSTONE: per-character tint+alpha** (`RagdollCharacter::setRenderTint/
+  setRenderAlpha`, baked into the RenderCoordinator instance blob, invalidated via
+  `bumpPartsVersion`) — forge rigs bake explicit box colors that `appearance.skinTone` cannot
+  touch, so tint is the ONLY recolor lever for them: it gives 10 dragon colors per age tier,
+  palette families (winter wolf, polar bear) and incorporeal alpha from single rigs.
+  **Status: 163 stat blocks on final-fidelity rigs, 173 on honest stand-ins** tagged `approx`
+  (the generator prints the backlog by target archetype). Remaining waves: W2 quadruped/bird/
+  serpent · W3 aquatic/arthropod/swarm/taur · W4 dragon age tiers (⚠️ Gargantuan needs
+  per-tier BUILDS — `appearance.heightScale` scales bones but NOT the body-plan-clamped
+  capsule; and coarse per-entry `voxel_size` to stay under the 13,107-box budget) · W5
+  humanoid variants (devil/golem/elemental/hag/angel) · W6 transparent character pipeline +
+  incorporeals · W7 ooze/plant/exotics. Plan: `C:\Users\jack\.claude\plans\starry-humming-magpie.md`.
+
 - **★ BESTIARY FORGE — 12 D&D SRD CREATURES + FULL RPG WIRING, SHIPPED 2026-08-21.**
   Two lanes: **creature_forge specs** (dire wolf, boar, brown bear quadrupeds; giant spider
   arachnid; young red dragon + griffon dragon-class with folded MEMBRANE wings — ground-only,
