@@ -158,14 +158,27 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   `bumpPartsVersion`) — forge rigs bake explicit box colors that `appearance.skinTone` cannot
   touch, so tint is the ONLY recolor lever for them: it gives 10 dragon colors per age tier,
   palette families (winter wolf, polar bear) and incorporeal alpha from single rigs.
-  **Status 2026-08-22: 257/336 on final-fidelity rigs, 79 on stand-ins** tagged `approx` (the
-  generator prints the backlog by target archetype). **W1/W2/W4/W5 SHIPPED**: binding factory
-  + 336 coverage · quadruped archetypes (feline/rodent/reptile/pachyderm) + raptor + **serpent
-  (first zero-leg rig — 13 bones, empty legs[], engine allows it: plans iterate whatever legs[]
-  holds, foot IK is 2-leg opt-in, grounding sweeps from the root)** · **all 40 dragons from ONE
-  spec × 4 age-tier builds × 10 binding tints** · 5 humanoid variants (devil/golem/elemental/
-  hag/angel, 45 stat blocks). Remaining: W3 aquatic/arthropod/swarm/taur · W6 transparent
-  pipeline + incorporeals · W7 ooze/plant/exotics/giant.
+  **Status 2026-08-22: ALL WAVES SHIPPED — 331/336 on final-fidelity rigs, 5 approximations**
+  (tarrasque, hydra, xorn, dragon-turtle, otyugh: genuinely odd bodies riding honest
+  neighbours, each tagged with its target). ~30 archetype rigs total. Highlights: binding
+  factory + 336 coverage · quadruped set (feline/rodent/reptile/pachyderm/ape) · raptor +
+  theropod · **serpent, shark, ooze, plant, swarm = zero-leg rigs** (engine allows it: plans
+  iterate whatever legs[] holds, foot IK is 2-leg opt-in, grounding sweeps from the root) ·
+  cephalopod + scorpion + beetle on the ARACHNID contract · taur (quadruped barrel + humanoid
+  torso) · **all 40 dragons from ONE spec × 4 age-tier builds × 10 binding tints** · 10
+  humanoid variants (goblin/orc/skeleton/zombie/troll/devil/golem/elemental/hag/angel) +
+  giants on the ogre rig.
+  **TRANSLUCENT CHARACTERS (W6) SHIPPED**: alpha now survives the shader chain
+  (character_instanced.vert + character.vert varying vec3→vec4, character.frag outputs
+  fragColor.a), a blend-enabled **depth-write-off** pipeline variant sits beside the opaque one
+  (`getTranslucentInstancedCharacterPipeline`), and `RenderCoordinator` draws translucent
+  characters in a SECOND pass after the opaque ones (`CharacterDraw.translucent`, filtered by
+  `renderInstancedCharacters(..., translucentPass)`). ⚠️ The shadow exclusion is a SEPARATE
+  list: `m_charBatches` is built independently of `m_charDrawsMain`, so filtering the main
+  draws alone left ghosts casting solid shadows (measured: drawn_shadow 3 of 3). Translucent
+  characters are now skipped when building `m_charBatches`. Verified live: ghost + specter
+  see-through with grass visible through them, opaque orc unchanged in the same frame.
+  Pinned by `tests/scene/CharacterTranslucencyTest.cpp`.
   ⚠️ **SCALE TRUTHS (cost several hours; do not re-derive):** `voxel_size` is applied in SPEC
   space and `target_height` rescales AFTERWARDS, so (a) box count is **scale-independent** —
   every dragon tier is 994 boxes, coarsening the grid for big creatures only destroys detail
