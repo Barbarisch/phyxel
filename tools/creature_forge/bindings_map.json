@@ -1094,24 +1094,6 @@
             0.5
           ]
         },
-        "rust-monster": {
-          "tint": [
-            0.9,
-            0.6,
-            0.4
-          ],
-          "scale": 0.75,
-          "approx": "reptile"
-        },
-        "bulette": {
-          "tint": [
-            0.6,
-            0.6,
-            0.55
-          ],
-          "scale": 1.2,
-          "approx": "reptile"
-        },
         "remorhaz": {
           "tint": [
             1.1,
@@ -1182,22 +1164,6 @@
             0.75,
             0.65
           ]
-        },
-        "badger": {
-          "tint": [
-            0.75,
-            0.75,
-            0.72
-          ],
-          "scale": 0.35
-        },
-        "giant-badger": {
-          "tint": [
-            0.75,
-            0.75,
-            0.72
-          ],
-          "scale": 0.6
         },
         "warthog-placeholder": {
           "skip": true
@@ -1332,202 +1298,6 @@
         "Run": "Gallop"
       }
     },
-    "feline": {
-      "animFile": "resources/animated_characters/fox.anim",
-      "faction": "beasts",
-      "members": {
-        "cat": {
-          "scale": 0.35
-        },
-        "panther": {
-          "tint": [
-            0.35,
-            0.33,
-            0.38
-          ],
-          "scale": 1.1
-        },
-        "lion": {
-          "tint": [
-            1.05,
-            0.85,
-            0.55
-          ],
-          "scale": 1.3
-        },
-        "tiger": {
-          "tint": [
-            1.1,
-            0.8,
-            0.45
-          ],
-          "scale": 1.3
-        },
-        "saber-toothed-tiger": {
-          "tint": [
-            1.05,
-            0.85,
-            0.6
-          ],
-          "scale": 1.45
-        },
-        "weretiger-tiger": {
-          "tint": [
-            1.1,
-            0.8,
-            0.5
-          ],
-          "scale": 1.2
-        },
-        "fox-placeholder": {
-          "skip": true
-        },
-        "rat": {
-          "tint": [
-            0.6,
-            0.55,
-            0.5
-          ],
-          "scale": 0.22,
-          "approx": "rodent"
-        },
-        "giant-rat": {
-          "tint": [
-            0.6,
-            0.55,
-            0.5
-          ],
-          "scale": 0.45,
-          "approx": "rodent"
-        },
-        "giant-rat-diseased": {
-          "tint": [
-            0.55,
-            0.55,
-            0.45
-          ],
-          "scale": 0.45,
-          "approx": "rodent"
-        },
-        "wererat-rat": {
-          "tint": [
-            0.6,
-            0.55,
-            0.5
-          ],
-          "scale": 0.5,
-          "approx": "rodent"
-        },
-        "weasel": {
-          "tint": [
-            0.85,
-            0.7,
-            0.5
-          ],
-          "scale": 0.25,
-          "approx": "rodent"
-        },
-        "giant-weasel": {
-          "tint": [
-            0.85,
-            0.7,
-            0.5
-          ],
-          "scale": 0.6,
-          "approx": "rodent"
-        },
-        "giant-lizard": {
-          "tint": [
-            0.7,
-            0.8,
-            0.55
-          ],
-          "scale": 0.8,
-          "approx": "reptile"
-        },
-        "lizard": {
-          "tint": [
-            0.7,
-            0.8,
-            0.55
-          ],
-          "scale": 0.2,
-          "approx": "reptile"
-        },
-        "crocodile": {
-          "tint": [
-            0.55,
-            0.65,
-            0.5
-          ],
-          "scale": 1.0,
-          "approx": "reptile"
-        },
-        "giant-crocodile": {
-          "tint": [
-            0.55,
-            0.65,
-            0.5
-          ],
-          "scale": 1.6,
-          "approx": "reptile"
-        },
-        "basilisk": {
-          "tint": [
-            0.6,
-            0.7,
-            0.55
-          ],
-          "scale": 0.9,
-          "approx": "reptile"
-        },
-        "grick": {
-          "tint": [
-            0.55,
-            0.5,
-            0.55
-          ],
-          "scale": 0.8,
-          "approx": "serpent"
-        },
-        "darkmantle": {
-          "tint": [
-            0.4,
-            0.4,
-            0.45
-          ],
-          "scale": 0.5,
-          "approx": "incorporeal"
-        },
-        "cloaker": {
-          "tint": [
-            0.45,
-            0.42,
-            0.5
-          ],
-          "scale": 1.1,
-          "approx": "incorporeal"
-        },
-        "mimic": {
-          "tint": [
-            0.7,
-            0.55,
-            0.4
-          ],
-          "scale": 0.8,
-          "approx": "ooze"
-        },
-        "roper": {
-          "tint": [
-            0.6,
-            0.58,
-            0.52
-          ],
-          "scale": 1.2,
-          "approx": "plant"
-        }
-      }
-    },
     "bovine": {
       "animFile": "resources/animated_characters/bull.anim",
       "faction": "beasts",
@@ -1577,26 +1347,7 @@
     "camelid": {
       "animFile": "resources/animated_characters/alpaca.anim",
       "faction": "beasts",
-      "members": {
-        "giant-frog": {
-          "tint": [
-            0.6,
-            0.8,
-            0.5
-          ],
-          "scale": 0.7,
-          "approx": "reptile"
-        },
-        "giant-toad": {
-          "tint": [
-            0.65,
-            0.7,
-            0.5
-          ],
-          "scale": 0.8,
-          "approx": "reptile"
-        }
-      },
+      "members": {},
       "animationMapping": {
         "Attack": "Attack_Headbutt",
         "Run": "Gallop"
@@ -2264,15 +2015,6 @@
       "animFile": "resources/animated_characters/monster_dino.anim",
       "faction": "beasts",
       "members": {
-        "frog": {
-          "tint": [
-            0.6,
-            0.8,
-            0.5
-          ],
-          "scale": 0.15,
-          "approx": "reptile"
-        },
         "constrictor-snake": {
           "tint": [
             0.65,
@@ -2657,6 +2399,269 @@
       "animationMapping": {
         "Attack": "Punch",
         "Run": "Run"
+      }
+    },
+    "feline_true": {
+      "animFile": "resources/animated_characters/forge_feline.anim",
+      "faction": "beasts",
+      "members": {
+        "cat": {
+          "tint": [
+            0.95,
+            0.85,
+            0.75
+          ],
+          "scale": 0.3
+        },
+        "panther": {
+          "tint": [
+            0.32,
+            0.3,
+            0.35
+          ],
+          "scale": 0.85
+        },
+        "lion": {
+          "tint": [
+            1.05,
+            0.92,
+            0.68
+          ]
+        },
+        "tiger": {
+          "tint": [
+            1.1,
+            0.78,
+            0.42
+          ],
+          "scale": 1.0
+        },
+        "saber-toothed-tiger": {
+          "tint": [
+            1.0,
+            0.88,
+            0.66
+          ],
+          "scale": 1.15
+        },
+        "weretiger-tiger": {
+          "tint": [
+            1.1,
+            0.8,
+            0.5
+          ],
+          "scale": 0.95
+        }
+      }
+    },
+    "standin_fox": {
+      "animFile": "resources/animated_characters/fox.anim",
+      "faction": "beasts",
+      "members": {
+        "fox-placeholder": {
+          "skip": true
+        },
+        "grick": {
+          "tint": [
+            0.55,
+            0.5,
+            0.55
+          ],
+          "scale": 0.8,
+          "approx": "serpent"
+        },
+        "darkmantle": {
+          "tint": [
+            0.4,
+            0.4,
+            0.45
+          ],
+          "scale": 0.5,
+          "approx": "incorporeal"
+        },
+        "cloaker": {
+          "tint": [
+            0.45,
+            0.42,
+            0.5
+          ],
+          "scale": 1.1,
+          "approx": "incorporeal"
+        },
+        "mimic": {
+          "tint": [
+            0.7,
+            0.55,
+            0.4
+          ],
+          "scale": 0.8,
+          "approx": "ooze"
+        },
+        "roper": {
+          "tint": [
+            0.6,
+            0.58,
+            0.52
+          ],
+          "scale": 1.2,
+          "approx": "plant"
+        }
+      }
+    },
+    "rodent_true": {
+      "animFile": "resources/animated_characters/forge_rodent.anim",
+      "faction": "beasts",
+      "members": {
+        "rat": {
+          "tint": [
+            0.72,
+            0.66,
+            0.6
+          ],
+          "scale": 0.45
+        },
+        "giant-rat": {
+          "tint": [
+            0.72,
+            0.66,
+            0.6
+          ],
+          "scale": 0.9
+        },
+        "giant-rat-diseased": {
+          "tint": [
+            0.62,
+            0.66,
+            0.55
+          ],
+          "scale": 0.9
+        },
+        "wererat-rat": {
+          "tint": [
+            0.68,
+            0.62,
+            0.58
+          ],
+          "scale": 1.0
+        },
+        "weasel": {
+          "tint": [
+            1.0,
+            0.82,
+            0.55
+          ],
+          "scale": 0.5
+        },
+        "giant-weasel": {
+          "tint": [
+            1.0,
+            0.82,
+            0.55
+          ],
+          "scale": 1.1
+        },
+        "badger": {
+          "tint": [
+            0.85,
+            0.85,
+            0.82
+          ],
+          "scale": 0.7
+        },
+        "giant-badger": {
+          "tint": [
+            0.85,
+            0.85,
+            0.82
+          ],
+          "scale": 1.2
+        }
+      }
+    },
+    "reptile_true": {
+      "animFile": "resources/animated_characters/forge_reptile.anim",
+      "faction": "beasts",
+      "members": {
+        "lizard": {
+          "tint": [
+            0.85,
+            0.95,
+            0.7
+          ],
+          "scale": 0.28
+        },
+        "giant-lizard": {
+          "tint": [
+            0.85,
+            0.95,
+            0.7
+          ],
+          "scale": 1.15
+        },
+        "crocodile": {
+          "tint": [
+            0.8,
+            0.85,
+            0.75
+          ],
+          "scale": 1.5
+        },
+        "giant-crocodile": {
+          "tint": [
+            0.8,
+            0.85,
+            0.75
+          ],
+          "scale": 2.3
+        },
+        "basilisk": {
+          "tint": [
+            0.75,
+            0.8,
+            0.85
+          ],
+          "scale": 1.1
+        },
+        "frog": {
+          "tint": [
+            0.7,
+            1.0,
+            0.6
+          ],
+          "scale": 0.22
+        },
+        "giant-frog": {
+          "tint": [
+            0.7,
+            1.0,
+            0.6
+          ],
+          "scale": 0.8
+        },
+        "giant-toad": {
+          "tint": [
+            0.85,
+            0.8,
+            0.6
+          ],
+          "scale": 1.0
+        },
+        "bulette": {
+          "tint": [
+            0.7,
+            0.68,
+            0.62
+          ],
+          "scale": 1.8
+        },
+        "rust-monster": {
+          "tint": [
+            1.1,
+            0.65,
+            0.45
+          ],
+          "scale": 0.9
+        }
       }
     }
   }

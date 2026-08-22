@@ -132,6 +132,13 @@ def build(spec: dict):
 
             if ov.get("approx"):
                 approx.setdefault(ov["approx"], []).append(mid)
+            elif arch_id.startswith("standin_"):
+                # A `standin_` archetype is by definition not anyone's true
+                # body plan, so an untagged member there would sit on a
+                # borrowed rig and never appear in the backlog — exactly how
+                # six great cats quietly rode a fox rig.
+                errors.append(f"'{mid}' sits in stand-in archetype "
+                              f"'{arch_id}' without an `approx` target")
 
     known = stat_block_ids()
     for mid in sorted(set(bindings) - known):

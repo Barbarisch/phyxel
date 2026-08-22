@@ -82,5 +82,35 @@
     "monsterId": "griffon",
     "combat": true,
     "display": "Griffon"
+  },
+  {
+    "id": "forge_feline",
+    "spec": "specs/feline.json",
+    "out": "resources/animated_characters/forge_feline.anim",
+    "target_height": 1.0,
+    "morphology": "quadruped",
+    "monsterId": "lion",
+    "combat": true,
+    "display": "Great Cat (archetype)"
+  },
+  {
+    "id": "forge_rodent",
+    "spec": "specs/rodent.json",
+    "out": "resources/animated_characters/forge_rodent.anim",
+    "target_height": 0.45,
+    "morphology": "quadruped",
+    "monsterId": "giant-rat",
+    "combat": true,
+    "display": "Rodent (archetype)"
+  },
+  {
+    "id": "forge_reptile",
+    "spec": "specs/reptile.json",
+    "out": "resources/animated_characters/forge_reptile.anim",
+    "target_height": 0.65,
+    "morphology": "quadruped",
+    "monsterId": "crocodile",
+    "combat": true,
+    "display": "Sprawling Reptile (archetype)"
   }
 ]

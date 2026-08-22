@@ -403,16 +403,16 @@
     }
   },
   "badger": {
-    "animFile": "resources/animated_characters/forge_boar.anim",
+    "animFile": "resources/animated_characters/forge_rodent.anim",
     "faction": "beasts",
     "tint": [
-      0.75,
-      0.75,
-      0.72
+      0.85,
+      0.85,
+      0.82
     ],
     "appearance": {
-      "heightScale": 0.35,
-      "bulkScale": 0.35
+      "heightScale": 0.7,
+      "bulkScale": 0.7
     }
   },
   "balor": {
@@ -454,16 +454,16 @@
     ]
   },
   "basilisk": {
-    "animFile": "resources/animated_characters/fox.anim",
+    "animFile": "resources/animated_characters/forge_reptile.anim",
     "faction": "beasts",
     "tint": [
-      0.6,
-      0.7,
-      0.55
+      0.75,
+      0.8,
+      0.85
     ],
     "appearance": {
-      "heightScale": 0.9,
-      "bulkScale": 0.9
+      "heightScale": 1.1,
+      "bulkScale": 1.1
     }
   },
   "bat": {
@@ -664,16 +664,16 @@
     }
   },
   "bulette": {
-    "animFile": "resources/animated_characters/forge_bear.anim",
+    "animFile": "resources/animated_characters/forge_reptile.anim",
     "faction": "beasts",
     "tint": [
-      0.6,
-      0.6,
-      0.55
+      0.7,
+      0.68,
+      0.62
     ],
     "appearance": {
-      "heightScale": 1.2,
-      "bulkScale": 1.2
+      "heightScale": 1.8,
+      "bulkScale": 1.8
     }
   },
   "camel": {
@@ -694,11 +694,16 @@
     }
   },
   "cat": {
-    "animFile": "resources/animated_characters/fox.anim",
+    "animFile": "resources/animated_characters/forge_feline.anim",
     "faction": "beasts",
+    "tint": [
+      0.95,
+      0.85,
+      0.75
+    ],
     "appearance": {
-      "heightScale": 0.35,
-      "bulkScale": 0.35
+      "heightScale": 0.3,
+      "bulkScale": 0.3
     }
   },
   "centaur": {
@@ -866,16 +871,16 @@
     }
   },
   "crocodile": {
-    "animFile": "resources/animated_characters/fox.anim",
+    "animFile": "resources/animated_characters/forge_reptile.anim",
     "faction": "beasts",
     "tint": [
-      0.55,
-      0.65,
-      0.5
+      0.8,
+      0.85,
+      0.75
     ],
     "appearance": {
-      "heightScale": 1.0,
-      "bulkScale": 1.0
+      "heightScale": 1.5,
+      "bulkScale": 1.5
     }
   },
   "cult-fanatic": {
@@ -1251,20 +1256,16 @@
     }
   },
   "frog": {
-    "animFile": "resources/animated_characters/monster_dino.anim",
+    "animFile": "resources/animated_characters/forge_reptile.anim",
     "faction": "beasts",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
     "tint": [
-      0.6,
-      0.8,
-      0.5
+      0.7,
+      1.0,
+      0.6
     ],
     "appearance": {
-      "heightScale": 0.15,
-      "bulkScale": 0.15
+      "heightScale": 0.22,
+      "bulkScale": 0.22
     }
   },
   "frost-giant": {
@@ -1353,16 +1354,16 @@
     }
   },
   "giant-badger": {
-    "animFile": "resources/animated_characters/forge_boar.anim",
+    "animFile": "resources/animated_characters/forge_rodent.anim",
     "faction": "beasts",
     "tint": [
-      0.75,
-      0.75,
-      0.72
+      0.85,
+      0.85,
+      0.82
     ],
     "appearance": {
-      "heightScale": 0.6,
-      "bulkScale": 0.6
+      "heightScale": 1.2,
+      "bulkScale": 1.2
     }
   },
   "giant-bat": {
@@ -1438,16 +1439,16 @@
     }
   },
   "giant-crocodile": {
-    "animFile": "resources/animated_characters/fox.anim",
+    "animFile": "resources/animated_characters/forge_reptile.anim",
     "faction": "beasts",
     "tint": [
-      0.55,
-      0.65,
-      0.5
+      0.8,
+      0.85,
+      0.75
     ],
     "appearance": {
-      "heightScale": 1.6,
-      "bulkScale": 1.6
+      "heightScale": 2.3,
+      "bulkScale": 2.3
     }
   },
   "giant-eagle": {
@@ -1488,20 +1489,16 @@
     }
   },
   "giant-frog": {
-    "animFile": "resources/animated_characters/alpaca.anim",
+    "animFile": "resources/animated_characters/forge_reptile.anim",
     "faction": "beasts",
-    "animationMapping": {
-      "Attack": "Attack_Headbutt",
-      "Run": "Gallop"
-    },
     "tint": [
-      0.6,
-      0.8,
-      0.5
+      0.7,
+      1.0,
+      0.6
     ],
     "appearance": {
-      "heightScale": 0.7,
-      "bulkScale": 0.7
+      "heightScale": 0.8,
+      "bulkScale": 0.8
     }
   },
   "giant-goat": {
@@ -1526,16 +1523,16 @@
     }
   },
   "giant-lizard": {
-    "animFile": "resources/animated_characters/fox.anim",
+    "animFile": "resources/animated_characters/forge_reptile.anim",
     "faction": "beasts",
     "tint": [
-      0.7,
-      0.8,
-      0.55
+      0.85,
+      0.95,
+      0.7
     ],
     "appearance": {
-      "heightScale": 0.8,
-      "bulkScale": 0.8
+      "heightScale": 1.15,
+      "bulkScale": 1.15
     }
   },
   "giant-octopus": {
@@ -1590,29 +1587,29 @@
     }
   },
   "giant-rat": {
-    "animFile": "resources/animated_characters/fox.anim",
+    "animFile": "resources/animated_characters/forge_rodent.anim",
     "faction": "beasts",
     "tint": [
-      0.6,
-      0.55,
-      0.5
+      0.72,
+      0.66,
+      0.6
     ],
     "appearance": {
-      "heightScale": 0.45,
-      "bulkScale": 0.45
+      "heightScale": 0.9,
+      "bulkScale": 0.9
     }
   },
   "giant-rat-diseased": {
-    "animFile": "resources/animated_characters/fox.anim",
+    "animFile": "resources/animated_characters/forge_rodent.anim",
     "faction": "beasts",
     "tint": [
-      0.55,
-      0.55,
-      0.45
+      0.62,
+      0.66,
+      0.55
     ],
     "appearance": {
-      "heightScale": 0.45,
-      "bulkScale": 0.45
+      "heightScale": 0.9,
+      "bulkScale": 0.9
     }
   },
   "giant-scorpion": {
@@ -1667,20 +1664,16 @@
     "faction": "monsters"
   },
   "giant-toad": {
-    "animFile": "resources/animated_characters/alpaca.anim",
+    "animFile": "resources/animated_characters/forge_reptile.anim",
     "faction": "beasts",
-    "animationMapping": {
-      "Attack": "Attack_Headbutt",
-      "Run": "Gallop"
-    },
     "tint": [
-      0.65,
-      0.7,
-      0.5
+      0.85,
+      0.8,
+      0.6
     ],
     "appearance": {
-      "heightScale": 0.8,
-      "bulkScale": 0.8
+      "heightScale": 1.0,
+      "bulkScale": 1.0
     }
   },
   "giant-vulture": {
@@ -1714,16 +1707,16 @@
     }
   },
   "giant-weasel": {
-    "animFile": "resources/animated_characters/fox.anim",
+    "animFile": "resources/animated_characters/forge_rodent.anim",
     "faction": "beasts",
     "tint": [
-      0.85,
-      0.7,
-      0.5
+      1.0,
+      0.82,
+      0.55
     ],
     "appearance": {
-      "heightScale": 0.6,
-      "bulkScale": 0.6
+      "heightScale": 1.1,
+      "bulkScale": 1.1
     }
   },
   "giant-wolf-spider": {
@@ -2258,29 +2251,25 @@
     ]
   },
   "lion": {
-    "animFile": "resources/animated_characters/fox.anim",
+    "animFile": "resources/animated_characters/forge_feline.anim",
     "faction": "beasts",
     "tint": [
       1.05,
-      0.85,
-      0.55
-    ],
-    "appearance": {
-      "heightScale": 1.3,
-      "bulkScale": 1.3
-    }
+      0.92,
+      0.68
+    ]
   },
   "lizard": {
-    "animFile": "resources/animated_characters/fox.anim",
+    "animFile": "resources/animated_characters/forge_reptile.anim",
     "faction": "beasts",
     "tint": [
-      0.7,
-      0.8,
-      0.55
+      0.85,
+      0.95,
+      0.7
     ],
     "appearance": {
-      "heightScale": 0.2,
-      "bulkScale": 0.2
+      "heightScale": 0.28,
+      "bulkScale": 0.28
     }
   },
   "lizardfolk": {
@@ -2641,16 +2630,16 @@
     }
   },
   "panther": {
-    "animFile": "resources/animated_characters/fox.anim",
+    "animFile": "resources/animated_characters/forge_feline.anim",
     "faction": "beasts",
     "tint": [
-      0.35,
-      0.33,
-      0.38
+      0.32,
+      0.3,
+      0.35
     ],
     "appearance": {
-      "heightScale": 1.1,
-      "bulkScale": 1.1
+      "heightScale": 0.85,
+      "bulkScale": 0.85
     }
   },
   "pegasus": {
@@ -2835,16 +2824,16 @@
     ]
   },
   "rat": {
-    "animFile": "resources/animated_characters/fox.anim",
+    "animFile": "resources/animated_characters/forge_rodent.anim",
     "faction": "beasts",
     "tint": [
-      0.6,
-      0.55,
-      0.5
+      0.72,
+      0.66,
+      0.6
     ],
     "appearance": {
-      "heightScale": 0.22,
-      "bulkScale": 0.22
+      "heightScale": 0.45,
+      "bulkScale": 0.45
     }
   },
   "raven": {
@@ -2971,29 +2960,29 @@
     }
   },
   "rust-monster": {
-    "animFile": "resources/animated_characters/forge_bear.anim",
+    "animFile": "resources/animated_characters/forge_reptile.anim",
     "faction": "beasts",
     "tint": [
-      0.9,
-      0.6,
-      0.4
+      1.1,
+      0.65,
+      0.45
     ],
     "appearance": {
-      "heightScale": 0.75,
-      "bulkScale": 0.75
+      "heightScale": 0.9,
+      "bulkScale": 0.9
     }
   },
   "saber-toothed-tiger": {
-    "animFile": "resources/animated_characters/fox.anim",
+    "animFile": "resources/animated_characters/forge_feline.anim",
     "faction": "beasts",
     "tint": [
-      1.05,
-      0.85,
-      0.6
+      1.0,
+      0.88,
+      0.66
     ],
     "appearance": {
-      "heightScale": 1.45,
-      "bulkScale": 1.45
+      "heightScale": 1.15,
+      "bulkScale": 1.15
     }
   },
   "sahuagin": {
@@ -3459,16 +3448,16 @@
     "faction": "monsters"
   },
   "tiger": {
-    "animFile": "resources/animated_characters/fox.anim",
+    "animFile": "resources/animated_characters/forge_feline.anim",
     "faction": "beasts",
     "tint": [
       1.1,
-      0.8,
-      0.45
+      0.78,
+      0.42
     ],
     "appearance": {
-      "heightScale": 1.3,
-      "bulkScale": 1.3
+      "heightScale": 1.0,
+      "bulkScale": 1.0
     }
   },
   "treant": {
@@ -3683,16 +3672,16 @@
     }
   },
   "weasel": {
-    "animFile": "resources/animated_characters/fox.anim",
+    "animFile": "resources/animated_characters/forge_rodent.anim",
     "faction": "beasts",
     "tint": [
-      0.85,
-      0.7,
-      0.5
+      1.0,
+      0.82,
+      0.55
     ],
     "appearance": {
-      "heightScale": 0.25,
-      "bulkScale": 0.25
+      "heightScale": 0.5,
+      "bulkScale": 0.5
     }
   },
   "werebear-bear": {
@@ -3765,16 +3754,16 @@
     }
   },
   "wererat-rat": {
-    "animFile": "resources/animated_characters/fox.anim",
+    "animFile": "resources/animated_characters/forge_rodent.anim",
     "faction": "beasts",
     "tint": [
-      0.6,
-      0.55,
-      0.5
+      0.68,
+      0.62,
+      0.58
     ],
     "appearance": {
-      "heightScale": 0.5,
-      "bulkScale": 0.5
+      "heightScale": 1.0,
+      "bulkScale": 1.0
     }
   },
   "weretiger-human": {
@@ -3795,7 +3784,7 @@
     }
   },
   "weretiger-tiger": {
-    "animFile": "resources/animated_characters/fox.anim",
+    "animFile": "resources/animated_characters/forge_feline.anim",
     "faction": "beasts",
     "tint": [
       1.1,
@@ -3803,8 +3792,8 @@
       0.5
     ],
     "appearance": {
-      "heightScale": 1.2,
-      "bulkScale": 1.2
+      "heightScale": 0.95,
+      "bulkScale": 0.95
     }
   },
   "werewolf-human": {
