@@ -248,5 +248,48 @@
     "combat": true,
     "legless": true,
     "display": "Swarm (archetype)"
+  },
+  {
+    "id": "forge_ooze",
+    "spec": "specs/ooze.json",
+    "out": "resources/animated_characters/forge_ooze.anim",
+    "target_height": 0.9,
+    "morphology": "quadruped",
+    "monsterId": "gray-ooze",
+    "combat": true,
+    "legless": true,
+    "display": "Ooze (archetype)"
+  },
+  {
+    "id": "forge_plant",
+    "spec": "specs/plant.json",
+    "out": "resources/animated_characters/forge_plant.anim",
+    "target_height": 1.0,
+    "morphology": "quadruped",
+    "monsterId": "shrieker",
+    "combat": true,
+    "legless": true,
+    "display": "Plant (archetype)"
+  },
+  {
+    "id": "forge_theropod",
+    "spec": "specs/theropod.json",
+    "out": "resources/animated_characters/forge_theropod.anim",
+    "target_height": 1.6,
+    "morphology": "quadruped",
+    "monsterId": "axe-beak",
+    "combat": true,
+    "legs": 2,
+    "display": "Theropod (archetype)"
+  },
+  {
+    "id": "forge_ape",
+    "spec": "specs/ape.json",
+    "out": "resources/animated_characters/forge_ape.anim",
+    "target_height": 1.3,
+    "morphology": "quadruped",
+    "monsterId": "ape",
+    "combat": true,
+    "display": "Great Ape (archetype)"
   }
 ]

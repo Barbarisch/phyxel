@@ -247,12 +247,12 @@
     }
   },
   "ape": {
-    "animFile": "resources/animated_characters/orc_warrior.anim",
-    "faction": "monsters",
+    "animFile": "resources/animated_characters/forge_ape.anim",
+    "faction": "beasts",
     "tint": [
-      0.5,
-      0.45,
-      0.42
+      0.62,
+      0.58,
+      0.55
     ]
   },
   "archmage": {
@@ -264,42 +264,42 @@
     "faction": "monsters"
   },
   "awakened-shrub": {
-    "animFile": "resources/animated_characters/troll.anim",
+    "animFile": "resources/animated_characters/forge_plant.anim",
     "faction": "monsters",
     "tint": [
-      0.55,
-      0.7,
-      0.45
-    ],
-    "appearance": {
-      "heightScale": 0.5,
-      "bulkScale": 0.5
-    }
-  },
-  "awakened-tree": {
-    "animFile": "resources/animated_characters/troll.anim",
-    "faction": "monsters",
-    "tint": [
-      0.62,
-      0.55,
-      0.42
-    ],
-    "appearance": {
-      "heightScale": 1.5,
-      "bulkScale": 1.5
-    }
-  },
-  "axe-beak": {
-    "animFile": "resources/animated_characters/forge_raptor.anim",
-    "faction": "beasts",
-    "tint": [
-      0.8,
       0.75,
+      0.95,
       0.6
     ],
     "appearance": {
-      "heightScale": 1.8,
-      "bulkScale": 1.8
+      "heightScale": 0.7,
+      "bulkScale": 0.7
+    }
+  },
+  "awakened-tree": {
+    "animFile": "resources/animated_characters/forge_plant.anim",
+    "faction": "monsters",
+    "tint": [
+      0.7,
+      0.65,
+      0.5
+    ],
+    "appearance": {
+      "heightScale": 2.6,
+      "bulkScale": 2.6
+    }
+  },
+  "axe-beak": {
+    "animFile": "resources/animated_characters/forge_theropod.anim",
+    "faction": "beasts",
+    "tint": [
+      0.95,
+      0.88,
+      0.7
+    ],
+    "appearance": {
+      "heightScale": 0.9,
+      "bulkScale": 0.9
     }
   },
   "azer": {
@@ -316,16 +316,16 @@
     }
   },
   "baboon": {
-    "animFile": "resources/animated_characters/orc_warrior.anim",
-    "faction": "monsters",
+    "animFile": "resources/animated_characters/forge_ape.anim",
+    "faction": "beasts",
     "tint": [
-      0.7,
-      0.6,
-      0.5
+      0.85,
+      0.72,
+      0.55
     ],
     "appearance": {
-      "heightScale": 0.6,
-      "bulkScale": 0.6
+      "heightScale": 0.5,
+      "bulkScale": 0.5
     }
   },
   "badger": {
@@ -446,20 +446,16 @@
     ]
   },
   "black-pudding": {
-    "animFile": "resources/animated_characters/monster_mushroomking.anim",
+    "animFile": "resources/animated_characters/forge_ooze.anim",
     "faction": "monsters",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
     "tint": [
       0.3,
       0.3,
       0.33
     ],
     "appearance": {
-      "heightScale": 0.9,
-      "bulkScale": 0.9
+      "heightScale": 1.3,
+      "bulkScale": 1.3
     }
   },
   "blink-dog": {
@@ -663,29 +659,29 @@
     }
   },
   "cloud-giant": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/ogre.anim",
     "faction": "monsters",
     "tint": [
-      0.85,
       0.88,
-      0.95
+      0.9,
+      0.98
     ],
     "appearance": {
-      "heightScale": 1.9,
-      "bulkScale": 1.9
+      "heightScale": 1.95,
+      "bulkScale": 1.95
     }
   },
   "cockatrice": {
-    "animFile": "resources/animated_characters/forge_raptor.anim",
+    "animFile": "resources/animated_characters/forge_theropod.anim",
     "faction": "beasts",
     "tint": [
+      0.9,
       0.85,
-      0.8,
-      0.55
+      0.6
     ],
     "appearance": {
-      "heightScale": 0.7,
-      "bulkScale": 0.7
+      "heightScale": 0.4,
+      "bulkScale": 0.4
     }
   },
   "commoner": {
@@ -867,13 +863,13 @@
     "animFile": "resources/animated_characters/forge_bear.anim",
     "faction": "beasts",
     "tint": [
-      0.45,
-      0.62,
-      0.55
+      0.5,
+      0.68,
+      0.6
     ],
     "appearance": {
-      "heightScale": 2.4,
-      "bulkScale": 2.4
+      "heightScale": 2.6,
+      "bulkScale": 2.6
     }
   },
   "dretch": {
@@ -1033,12 +1029,12 @@
     }
   },
   "ettin": {
-    "animFile": "resources/animated_characters/orc_warrior.anim",
+    "animFile": "resources/animated_characters/ogre.anim",
     "faction": "monsters",
     "tint": [
-      0.75,
-      0.68,
-      0.55
+      0.78,
+      0.7,
+      0.58
     ],
     "appearance": {
       "heightScale": 1.5,
@@ -1059,7 +1055,7 @@
     }
   },
   "fire-giant": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/ogre.anim",
     "faction": "monsters",
     "tint": [
       0.9,
@@ -1067,8 +1063,8 @@
       0.5
     ],
     "appearance": {
-      "heightScale": 1.8,
-      "bulkScale": 1.8
+      "heightScale": 1.85,
+      "bulkScale": 1.85
     }
   },
   "flesh-golem": {
@@ -1098,20 +1094,16 @@
     }
   },
   "flying-sword": {
-    "animFile": "resources/animated_characters/monster_birb.anim",
-    "faction": "beasts",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
+    "animFile": "resources/animated_characters/forge_ooze.anim",
+    "faction": "monsters",
     "tint": [
-      0.7,
-      0.72,
-      0.8
+      0.75,
+      0.78,
+      0.85
     ],
     "appearance": {
-      "heightScale": 0.4,
-      "bulkScale": 0.4
+      "heightScale": 0.5,
+      "bulkScale": 0.5
     }
   },
   "frog": {
@@ -1128,16 +1120,16 @@
     }
   },
   "frost-giant": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/ogre.anim",
     "faction": "monsters",
     "tint": [
-      0.8,
-      0.9,
+      0.82,
+      0.92,
       1.0
     ],
     "appearance": {
-      "heightScale": 1.8,
-      "bulkScale": 1.8
+      "heightScale": 1.85,
+      "bulkScale": 1.85
     }
   },
   "gargoyle": {
@@ -1154,21 +1146,17 @@
     }
   },
   "gelatinous-cube": {
-    "animFile": "resources/animated_characters/monster_mushroomking.anim",
+    "animFile": "resources/animated_characters/forge_ooze.anim",
     "faction": "monsters",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
     "tint": [
-      0.75,
-      0.9,
-      0.8
+      0.8,
+      1.0,
+      0.88
     ],
     "alpha": 0.45,
     "appearance": {
-      "heightScale": 1.1,
-      "bulkScale": 1.1
+      "heightScale": 1.5,
+      "bulkScale": 1.5
     }
   },
   "ghast": {
@@ -1204,16 +1192,16 @@
     ]
   },
   "giant-ape": {
-    "animFile": "resources/animated_characters/orc_warrior.anim",
-    "faction": "monsters",
+    "animFile": "resources/animated_characters/forge_ape.anim",
+    "faction": "beasts",
     "tint": [
-      0.45,
-      0.42,
-      0.4
+      0.55,
+      0.52,
+      0.5
     ],
     "appearance": {
-      "heightScale": 1.9,
-      "bulkScale": 1.9
+      "heightScale": 2.4,
+      "bulkScale": 2.4
     }
   },
   "giant-badger": {
@@ -1565,16 +1553,16 @@
     "faction": "monsters"
   },
   "gibbering-mouther": {
-    "animFile": "resources/animated_characters/forge_bear.anim",
-    "faction": "beasts",
+    "animFile": "resources/animated_characters/forge_ooze.anim",
+    "faction": "monsters",
     "tint": [
+      0.95,
       0.8,
-      0.7,
-      0.65
+      0.75
     ],
     "appearance": {
-      "heightScale": 0.8,
-      "bulkScale": 0.8
+      "heightScale": 0.95,
+      "bulkScale": 0.95
     }
   },
   "glabrezu": {
@@ -1638,21 +1626,13 @@
     }
   },
   "gray-ooze": {
-    "animFile": "resources/animated_characters/monster_mushroomking.anim",
+    "animFile": "resources/animated_characters/forge_ooze.anim",
     "faction": "monsters",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
     "tint": [
-      0.55,
-      0.55,
-      0.55
-    ],
-    "appearance": {
-      "heightScale": 0.7,
-      "bulkScale": 0.7
-    }
+      0.62,
+      0.66,
+      0.62
+    ]
   },
   "green-dragon-wyrmling": {
     "animFile": "resources/animated_characters/forge_dragon_wyrmling.anim",
@@ -1741,13 +1721,13 @@
     "animFile": "resources/animated_characters/forge_raptor.anim",
     "faction": "beasts",
     "tint": [
-      0.8,
-      0.72,
-      0.6
+      0.85,
+      0.78,
+      0.62
     ],
     "appearance": {
-      "heightScale": 1.9,
-      "bulkScale": 1.9
+      "heightScale": 1.7,
+      "bulkScale": 1.7
     }
   },
   "hawk": {
@@ -1790,11 +1770,11 @@
     }
   },
   "hill-giant": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/ogre.anim",
     "faction": "monsters",
     "tint": [
-      0.8,
-      0.72,
+      0.85,
+      0.75,
       0.6
     ],
     "appearance": {
@@ -1860,20 +1840,16 @@
     }
   },
   "hydra": {
-    "animFile": "resources/animated_characters/bull.anim",
+    "animFile": "resources/animated_characters/forge_serpent.anim",
     "faction": "beasts",
-    "animationMapping": {
-      "Attack": "Attack_Headbutt",
-      "Run": "Gallop"
-    },
     "tint": [
-      0.5,
-      0.7,
-      0.55
+      0.6,
+      0.85,
+      0.62
     ],
     "appearance": {
-      "heightScale": 1.8,
-      "bulkScale": 1.8
+      "heightScale": 3.0,
+      "bulkScale": 3.0
     }
   },
   "hyena": {
@@ -1982,11 +1958,11 @@
     "faction": "monsters"
   },
   "kobold": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/goblin.anim",
     "faction": "monsters",
     "tint": [
-      0.85,
-      0.6,
+      0.9,
+      0.62,
       0.45
     ],
     "appearance": {
@@ -2187,24 +2163,24 @@
     }
   },
   "mimic": {
-    "animFile": "resources/animated_characters/fox.anim",
-    "faction": "beasts",
+    "animFile": "resources/animated_characters/forge_ooze.anim",
+    "faction": "monsters",
     "tint": [
-      0.7,
-      0.55,
-      0.4
+      0.8,
+      0.62,
+      0.45
     ],
     "appearance": {
-      "heightScale": 0.8,
-      "bulkScale": 0.8
+      "heightScale": 1.0,
+      "bulkScale": 1.0
     }
   },
   "minotaur": {
-    "animFile": "resources/animated_characters/orc_warrior.anim",
+    "animFile": "resources/animated_characters/ogre.anim",
     "faction": "monsters",
     "tint": [
-      0.7,
-      0.55,
+      0.72,
+      0.58,
       0.45
     ],
     "appearance": {
@@ -2303,20 +2279,16 @@
     "faction": "monsters"
   },
   "ochre-jelly": {
-    "animFile": "resources/animated_characters/monster_mushroomking.anim",
+    "animFile": "resources/animated_characters/forge_ooze.anim",
     "faction": "monsters",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
     "tint": [
-      0.85,
-      0.7,
+      1.05,
+      0.8,
       0.35
     ],
     "appearance": {
-      "heightScale": 0.8,
-      "bulkScale": 0.8
+      "heightScale": 1.15,
+      "bulkScale": 1.15
     }
   },
   "octopus": {
@@ -2350,12 +2322,12 @@
     }
   },
   "oni": {
-    "animFile": "resources/animated_characters/orc_warrior.anim",
+    "animFile": "resources/animated_characters/ogre.anim",
     "faction": "monsters",
     "tint": [
-      0.6,
-      0.75,
-      0.65
+      0.62,
+      0.78,
+      0.68
     ],
     "appearance": {
       "heightScale": 1.4,
@@ -2367,16 +2339,16 @@
     "faction": "monsters"
   },
   "otyugh": {
-    "animFile": "resources/animated_characters/forge_bear.anim",
-    "faction": "beasts",
+    "animFile": "resources/animated_characters/forge_ooze.anim",
+    "faction": "monsters",
     "tint": [
+      0.7,
       0.65,
-      0.6,
-      0.45
+      0.5
     ],
     "appearance": {
-      "heightScale": 1.1,
-      "bulkScale": 1.1
+      "heightScale": 1.5,
+      "bulkScale": 1.5
     }
   },
   "owl": {
@@ -2679,33 +2651,29 @@
     }
   },
   "roper": {
-    "animFile": "resources/animated_characters/fox.anim",
-    "faction": "beasts",
+    "animFile": "resources/animated_characters/forge_plant.anim",
+    "faction": "monsters",
     "tint": [
-      0.6,
-      0.58,
-      0.52
+      0.7,
+      0.68,
+      0.62
+    ],
+    "appearance": {
+      "heightScale": 1.9,
+      "bulkScale": 1.9
+    }
+  },
+  "rug-of-smothering": {
+    "animFile": "resources/animated_characters/forge_ooze.anim",
+    "faction": "monsters",
+    "tint": [
+      0.85,
+      0.55,
+      0.5
     ],
     "appearance": {
       "heightScale": 1.2,
       "bulkScale": 1.2
-    }
-  },
-  "rug-of-smothering": {
-    "animFile": "resources/animated_characters/monster_mushroomking.anim",
-    "faction": "monsters",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
-    "tint": [
-      0.7,
-      0.5,
-      0.45
-    ],
-    "appearance": {
-      "heightScale": 0.5,
-      "bulkScale": 0.5
     }
   },
   "rust-monster": {
@@ -2815,13 +2783,17 @@
     "alpha": 0.5
   },
   "shambling-mound": {
-    "animFile": "resources/animated_characters/troll.anim",
+    "animFile": "resources/animated_characters/forge_plant.anim",
     "faction": "monsters",
     "tint": [
-      0.55,
-      0.65,
-      0.45
-    ]
+      0.6,
+      0.72,
+      0.5
+    ],
+    "appearance": {
+      "heightScale": 1.8,
+      "bulkScale": 1.8
+    }
   },
   "shield-guardian": {
     "animFile": "resources/animated_characters/golem.anim",
@@ -2837,20 +2809,16 @@
     }
   },
   "shrieker": {
-    "animFile": "resources/animated_characters/monster_mushroomking.anim",
+    "animFile": "resources/animated_characters/forge_plant.anim",
     "faction": "monsters",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
     "tint": [
-      0.75,
-      0.7,
-      0.5
+      0.9,
+      0.8,
+      0.6
     ],
     "appearance": {
-      "heightScale": 0.6,
-      "bulkScale": 0.6
+      "heightScale": 0.8,
+      "bulkScale": 0.8
     }
   },
   "silver-dragon-wyrmling": {
@@ -2954,12 +2922,12 @@
     }
   },
   "stone-giant": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/ogre.anim",
     "faction": "monsters",
     "tint": [
-      0.7,
-      0.7,
-      0.68
+      0.72,
+      0.72,
+      0.7
     ],
     "appearance": {
       "heightScale": 1.8,
@@ -2980,16 +2948,16 @@
     }
   },
   "storm-giant": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/ogre.anim",
     "faction": "monsters",
     "tint": [
-      0.7,
-      0.8,
-      0.95
+      0.72,
+      0.82,
+      0.98
     ],
     "appearance": {
-      "heightScale": 2.0,
-      "bulkScale": 2.0
+      "heightScale": 2.05,
+      "bulkScale": 2.05
     }
   },
   "succubus-incubus": {
@@ -3096,16 +3064,16 @@
     ]
   },
   "tarrasque": {
-    "animFile": "resources/animated_characters/forge_bear.anim",
-    "faction": "beasts",
+    "animFile": "resources/animated_characters/ogre.anim",
+    "faction": "monsters",
     "tint": [
-      0.6,
-      0.5,
-      0.45
+      0.62,
+      0.55,
+      0.48
     ],
     "appearance": {
-      "heightScale": 3.0,
-      "bulkScale": 3.0
+      "heightScale": 4.0,
+      "bulkScale": 4.0
     }
   },
   "thug": {
@@ -3126,16 +3094,16 @@
     }
   },
   "treant": {
-    "animFile": "resources/animated_characters/troll.anim",
+    "animFile": "resources/animated_characters/forge_plant.anim",
     "faction": "monsters",
     "tint": [
-      0.6,
-      0.55,
-      0.4
+      0.68,
+      0.62,
+      0.48
     ],
     "appearance": {
-      "heightScale": 1.8,
-      "bulkScale": 1.8
+      "heightScale": 3.2,
+      "bulkScale": 3.2
     }
   },
   "tribal-warrior": {
@@ -3165,29 +3133,33 @@
     "faction": "monsters"
   },
   "tyrannosaurus-rex": {
-    "animFile": "resources/animated_characters/forge_raptor.anim",
+    "animFile": "resources/animated_characters/forge_theropod.anim",
     "faction": "beasts",
     "tint": [
-      0.7,
-      0.72,
-      0.55
+      0.8,
+      0.82,
+      0.65
     ],
     "appearance": {
-      "heightScale": 4.5,
-      "bulkScale": 4.5
+      "heightScale": 3.0,
+      "bulkScale": 3.0
     }
   },
   "unicorn": {
-    "animFile": "resources/animated_characters/forge_ibex.anim",
+    "animFile": "resources/animated_characters/quad_horse.anim",
     "faction": "beasts",
+    "animationMapping": {
+      "Attack": "Attack_Headbutt",
+      "Run": "Gallop"
+    },
     "tint": [
-      1.35,
-      1.35,
-      1.3
+      1.3,
+      1.3,
+      1.28
     ],
     "appearance": {
-      "heightScale": 1.5,
-      "bulkScale": 1.5
+      "heightScale": 1.05,
+      "bulkScale": 1.05
     }
   },
   "vampire-bat": {
@@ -3240,20 +3212,16 @@
     "faction": "monsters"
   },
   "violet-fungus": {
-    "animFile": "resources/animated_characters/monster_mushroomking.anim",
+    "animFile": "resources/animated_characters/forge_plant.anim",
     "faction": "monsters",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
     "tint": [
-      0.7,
-      0.5,
-      0.75
+      0.85,
+      0.6,
+      0.95
     ],
     "appearance": {
-      "heightScale": 0.7,
-      "bulkScale": 0.7
+      "heightScale": 0.9,
+      "bulkScale": 0.9
     }
   },
   "vrock": {
@@ -3295,11 +3263,20 @@
     }
   },
   "warhorse-skeleton": {
-    "animFile": "resources/animated_characters/skeleton_warrior.anim",
-    "faction": "undead",
+    "animFile": "resources/animated_characters/quad_horse.anim",
+    "faction": "beasts",
+    "animationMapping": {
+      "Attack": "Attack_Headbutt",
+      "Run": "Gallop"
+    },
+    "tint": [
+      0.9,
+      0.88,
+      0.78
+    ],
     "appearance": {
-      "heightScale": 1.2,
-      "bulkScale": 1.2
+      "heightScale": 1.0,
+      "bulkScale": 1.0
     }
   },
   "water-elemental": {
@@ -3564,12 +3541,12 @@
     }
   },
   "xorn": {
-    "animFile": "resources/animated_characters/elemental.anim",
+    "animFile": "resources/animated_characters/golem.anim",
     "faction": "monsters",
     "tint": [
+      0.65,
       0.6,
-      0.56,
-      0.5
+      0.52
     ],
     "appearance": {
       "heightScale": 0.9,

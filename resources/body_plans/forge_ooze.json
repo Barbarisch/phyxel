@@ -1,0 +1,42 @@
+{
+  "id": "forge_ooze",
+  "morphology": "quadruped",
+  "gaitClass": "quadruped_clips",
+  "rootBone": "Pelvis",
+  "hipAliases": [
+    "pelvis",
+    "hip"
+  ],
+  "gripBone": "Head",
+  "capsule": {
+    "mode": "xz_extent",
+    "minHalfWidth": 0.2,
+    "maxHalfWidth": 0.49
+  },
+  "legs": [],
+  "segments": [
+    {
+      "bone": "Pelvis",
+      "isArm": false
+    },
+    {
+      "bone": "Chest",
+      "isArm": false
+    },
+    {
+      "bone": "Head",
+      "isArm": false
+    },
+    {
+      "bone": "tail_1",
+      "isArm": false
+    }
+  ],
+  "clipDefaults": {
+    "Idle": "idle",
+    "Walk": "walk",
+    "StartWalk": "walk",
+    "Attack": "attack",
+    "Death": "death"
+  }
+}
