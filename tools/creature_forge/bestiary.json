@@ -174,5 +174,79 @@
     "monsterId": "ancient-red-dragon",
     "combat": true,
     "display": "Ancient Dragon"
+  },
+  {
+    "id": "forge_shark",
+    "spec": "specs/shark.json",
+    "out": "resources/animated_characters/forge_shark.anim",
+    "target_height": 0.5,
+    "morphology": "quadruped",
+    "monsterId": "reef-shark",
+    "combat": true,
+    "legless": true,
+    "display": "Aquatic (archetype)"
+  },
+  {
+    "id": "forge_cephalopod",
+    "spec": "specs/cephalopod.json",
+    "out": "resources/animated_characters/forge_cephalopod.anim",
+    "target_height": 0.8,
+    "morphology": "arachnid",
+    "monsterId": "giant-octopus",
+    "combat": true,
+    "display": "Cephalopod (archetype)"
+  },
+  {
+    "id": "forge_bat",
+    "spec": "specs/bat.json",
+    "out": "resources/animated_characters/forge_bat.anim",
+    "target_height": 0.3,
+    "morphology": "quadruped",
+    "monsterId": "giant-bat",
+    "combat": true,
+    "legs": 2,
+    "display": "Bat (archetype)"
+  },
+  {
+    "id": "forge_scorpion",
+    "spec": "specs/scorpion.json",
+    "out": "resources/animated_characters/forge_scorpion.anim",
+    "target_height": 0.6,
+    "morphology": "arachnid",
+    "monsterId": "giant-scorpion",
+    "combat": true,
+    "display": "Scorpion (archetype)"
+  },
+  {
+    "id": "forge_beetle",
+    "spec": "specs/beetle.json",
+    "out": "resources/animated_characters/forge_beetle.anim",
+    "target_height": 0.5,
+    "morphology": "arachnid",
+    "monsterId": "giant-fire-beetle",
+    "combat": true,
+    "legs": 6,
+    "display": "Insectoid (archetype)"
+  },
+  {
+    "id": "forge_taur",
+    "spec": "specs/taur.json",
+    "out": "resources/animated_characters/forge_taur.anim",
+    "target_height": 1.7,
+    "morphology": "quadruped",
+    "monsterId": "centaur",
+    "combat": true,
+    "display": "Taur (archetype)"
+  },
+  {
+    "id": "forge_swarm",
+    "spec": "specs/swarm.json",
+    "out": "resources/animated_characters/forge_swarm.anim",
+    "target_height": 0.4,
+    "morphology": "quadruped",
+    "monsterId": "swarm-of-rats",
+    "combat": true,
+    "legless": true,
+    "display": "Swarm (archetype)"
   }
 ]

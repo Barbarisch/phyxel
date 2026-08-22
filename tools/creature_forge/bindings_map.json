@@ -146,33 +146,6 @@
           ],
           "scale": 0.4
         },
-        "lamia": {
-          "tint": [
-            0.9,
-            0.75,
-            0.55
-          ],
-          "scale": 1.15,
-          "approx": "taur"
-        },
-        "marilith": {
-          "tint": [
-            0.75,
-            0.55,
-            0.6
-          ],
-          "scale": 1.2,
-          "approx": "taur"
-        },
-        "centaur": {
-          "tint": [
-            0.8,
-            0.65,
-            0.5
-          ],
-          "scale": 1.2,
-          "approx": "taur"
-        },
         "cloud-giant": {
           "tint": [
             0.85,
@@ -628,33 +601,6 @@
             0.5
           ]
         },
-        "remorhaz": {
-          "tint": [
-            1.1,
-            0.6,
-            0.45
-          ],
-          "scale": 1.5,
-          "approx": "insectoid"
-        },
-        "ankheg": {
-          "tint": [
-            0.75,
-            0.65,
-            0.4
-          ],
-          "scale": 1.1,
-          "approx": "insectoid"
-        },
-        "chuul": {
-          "tint": [
-            0.7,
-            0.75,
-            0.5
-          ],
-          "scale": 1.1,
-          "approx": "insectoid"
-        },
         "otyugh": {
           "tint": [
             0.65,
@@ -809,24 +755,6 @@
       "animFile": "resources/animated_characters/bull.anim",
       "faction": "beasts",
       "members": {
-        "giant-crab": {
-          "tint": [
-            0.8,
-            0.55,
-            0.45
-          ],
-          "scale": 0.8,
-          "approx": "insectoid"
-        },
-        "crab": {
-          "tint": [
-            0.8,
-            0.55,
-            0.45
-          ],
-          "scale": 0.2,
-          "approx": "insectoid"
-        },
         "hydra": {
           "tint": [
             0.5,
@@ -837,15 +765,6 @@
           "approx": "exotic"
         }
       },
-      "animationMapping": {
-        "Attack": "Attack_Headbutt",
-        "Run": "Gallop"
-      }
-    },
-    "camelid": {
-      "animFile": "resources/animated_characters/alpaca.anim",
-      "faction": "beasts",
-      "members": {},
       "animationMapping": {
         "Attack": "Attack_Headbutt",
         "Run": "Gallop"
@@ -876,60 +795,6 @@
           ],
           "scale": 1.05,
           "alpha": 0.85
-        },
-        "drider": {
-          "tint": [
-            0.6,
-            0.5,
-            0.6
-          ],
-          "scale": 1.3,
-          "approx": "taur"
-        },
-        "scorpion": {
-          "tint": [
-            0.75,
-            0.65,
-            0.45
-          ],
-          "scale": 0.2,
-          "approx": "scorpion"
-        },
-        "giant-scorpion": {
-          "tint": [
-            0.75,
-            0.65,
-            0.45
-          ],
-          "scale": 1.0,
-          "approx": "scorpion"
-        },
-        "giant-centipede": {
-          "tint": [
-            0.7,
-            0.6,
-            0.35
-          ],
-          "scale": 0.35,
-          "approx": "insectoid"
-        },
-        "giant-fire-beetle": {
-          "tint": [
-            0.9,
-            0.5,
-            0.35
-          ],
-          "scale": 0.3,
-          "approx": "insectoid"
-        },
-        "giant-wasp": {
-          "tint": [
-            0.9,
-            0.8,
-            0.35
-          ],
-          "scale": 0.5,
-          "approx": "insectoid"
         }
       }
     },
@@ -1096,121 +961,10 @@
         "Run": "Run"
       }
     },
-    "reptile_dino": {
-      "animFile": "resources/animated_characters/monster_dino.anim",
-      "faction": "beasts",
-      "members": {
-        "plesiosaurus": {
-          "tint": [
-            0.5,
-            0.65,
-            0.7
-          ],
-          "scale": 1.4,
-          "approx": "aquatic"
-        }
-      },
-      "animationMapping": {
-        "Attack": "Punch",
-        "Run": "Run"
-      }
-    },
     "aquatic": {
       "animFile": "resources/animated_characters/monster_fish.anim",
       "faction": "beasts",
       "members": {
-        "reef-shark": {
-          "tint": [
-            0.6,
-            0.65,
-            0.7
-          ],
-          "scale": 1.0
-        },
-        "hunter-shark": {
-          "tint": [
-            0.55,
-            0.6,
-            0.68
-          ],
-          "scale": 1.5
-        },
-        "giant-shark": {
-          "tint": [
-            0.5,
-            0.58,
-            0.65
-          ],
-          "scale": 2.2
-        },
-        "quipper": {
-          "tint": [
-            0.7,
-            0.8,
-            0.6
-          ],
-          "scale": 0.2
-        },
-        "sea-horse": {
-          "tint": [
-            0.9,
-            0.8,
-            0.5
-          ],
-          "scale": 0.15
-        },
-        "giant-sea-horse": {
-          "tint": [
-            0.9,
-            0.8,
-            0.5
-          ],
-          "scale": 0.9
-        },
-        "killer-whale": {
-          "tint": [
-            0.4,
-            0.42,
-            0.5
-          ],
-          "scale": 2.4
-        },
-        "octopus": {
-          "tint": [
-            0.8,
-            0.5,
-            0.55
-          ],
-          "scale": 0.3,
-          "approx": "cephalopod"
-        },
-        "giant-octopus": {
-          "tint": [
-            0.8,
-            0.5,
-            0.55
-          ],
-          "scale": 1.4,
-          "approx": "cephalopod"
-        },
-        "kraken": {
-          "tint": [
-            0.45,
-            0.5,
-            0.6
-          ],
-          "scale": 3.0,
-          "approx": "cephalopod"
-        },
-        "aboleth": {
-          "tint": [
-            0.55,
-            0.7,
-            0.65
-          ],
-          "scale": 1.5,
-          "approx": "cephalopod"
-        },
         "merrow-placeholder": {
           "skip": true
         }
@@ -1348,106 +1102,6 @@
           ],
           "alpha": 0.35
         }
-      }
-    },
-    "swarm": {
-      "animFile": "resources/animated_characters/monster_bunny.anim",
-      "faction": "beasts",
-      "members": {
-        "swarm-of-rats": {
-          "tint": [
-            0.6,
-            0.55,
-            0.5
-          ],
-          "scale": 0.3,
-          "approx": "swarm_tiny"
-        },
-        "swarm-of-bats": {
-          "tint": [
-            0.45,
-            0.42,
-            0.45
-          ],
-          "scale": 0.3,
-          "approx": "swarm_tiny"
-        },
-        "swarm-of-insects": {
-          "tint": [
-            0.5,
-            0.45,
-            0.35
-          ],
-          "scale": 0.25,
-          "approx": "swarm_tiny"
-        },
-        "swarm-of-beetles": {
-          "tint": [
-            0.4,
-            0.4,
-            0.35
-          ],
-          "scale": 0.25,
-          "approx": "swarm_tiny"
-        },
-        "swarm-of-centipedes": {
-          "tint": [
-            0.7,
-            0.6,
-            0.35
-          ],
-          "scale": 0.25,
-          "approx": "swarm_tiny"
-        },
-        "swarm-of-poisonous-snakes": {
-          "tint": [
-            0.5,
-            0.7,
-            0.5
-          ],
-          "scale": 0.3,
-          "approx": "swarm_tiny"
-        },
-        "swarm-of-quippers": {
-          "tint": [
-            0.7,
-            0.8,
-            0.6
-          ],
-          "scale": 0.25,
-          "approx": "swarm_tiny"
-        },
-        "swarm-of-ravens": {
-          "tint": [
-            0.35,
-            0.35,
-            0.4
-          ],
-          "scale": 0.3,
-          "approx": "swarm_tiny"
-        },
-        "swarm-of-spiders": {
-          "tint": [
-            0.5,
-            0.45,
-            0.45
-          ],
-          "scale": 0.25,
-          "approx": "swarm_tiny"
-        },
-        "swarm-of-wasps": {
-          "tint": [
-            0.9,
-            0.8,
-            0.35
-          ],
-          "scale": 0.25,
-          "approx": "swarm_tiny"
-        }
-      },
-      "animationMapping": {
-        "Attack": "Punch",
-        "Run": "Run"
       }
     },
     "feline_true": {
@@ -1693,14 +1347,6 @@
             0.62
           ],
           "scale": 1.8
-        },
-        "rust-monster": {
-          "tint": [
-            1.1,
-            0.65,
-            0.45
-          ],
-          "scale": 0.9
         }
       }
     },
@@ -1859,51 +1505,6 @@
           ],
           "scale": 4.5,
           "approx": "theropod"
-        },
-        "stirge": {
-          "tint": [
-            0.9,
-            0.55,
-            0.55
-          ],
-          "scale": 0.4,
-          "approx": "bat"
-        },
-        "bat": {
-          "tint": [
-            0.5,
-            0.46,
-            0.5
-          ],
-          "scale": 0.35,
-          "approx": "bat"
-        },
-        "giant-bat": {
-          "tint": [
-            0.5,
-            0.46,
-            0.5
-          ],
-          "scale": 1.4,
-          "approx": "bat"
-        },
-        "vampire-bat": {
-          "tint": [
-            0.55,
-            0.42,
-            0.48
-          ],
-          "scale": 0.9,
-          "approx": "bat"
-        },
-        "flying-snake": {
-          "tint": [
-            0.6,
-            0.9,
-            0.6
-          ],
-          "scale": 0.5,
-          "approx": "serpent"
         }
       }
     },
@@ -1966,24 +1567,6 @@
             0.8
           ],
           "scale": 4.5
-        },
-        "guardian-naga": {
-          "tint": [
-            0.8,
-            1.0,
-            0.7
-          ],
-          "scale": 2.0,
-          "approx": "taur"
-        },
-        "spirit-naga": {
-          "tint": [
-            0.7,
-            0.6,
-            0.85
-          ],
-          "scale": 2.0,
-          "approx": "taur"
         },
         "couatl": {
           "tint": [
@@ -2543,15 +2126,6 @@
           ],
           "scale": 1.35
         },
-        "salamander": {
-          "tint": [
-            1.18,
-            0.6,
-            0.4
-          ],
-          "scale": 1.15,
-          "approx": "taur"
-        },
         "xorn": {
           "tint": [
             0.6,
@@ -2617,14 +2191,6 @@
             0.7,
             0.5
           ]
-        },
-        "ettercap": {
-          "tint": [
-            0.62,
-            0.58,
-            0.5
-          ],
-          "approx": "arachnid"
         }
       }
     },
@@ -2658,6 +2224,405 @@
         },
         "couatl-placeholder": {
           "skip": true
+        }
+      }
+    },
+    "aquatic_true": {
+      "animFile": "resources/animated_characters/forge_shark.anim",
+      "faction": "beasts",
+      "members": {
+        "reef-shark": {
+          "tint": [
+            0.85,
+            0.9,
+            0.95
+          ],
+          "scale": 1.2
+        },
+        "hunter-shark": {
+          "tint": [
+            0.75,
+            0.82,
+            0.9
+          ],
+          "scale": 1.8
+        },
+        "giant-shark": {
+          "tint": [
+            0.68,
+            0.75,
+            0.85
+          ],
+          "scale": 2.6
+        },
+        "killer-whale": {
+          "tint": [
+            0.35,
+            0.38,
+            0.45
+          ],
+          "scale": 2.8
+        },
+        "quipper": {
+          "tint": [
+            0.9,
+            1.0,
+            0.7
+          ],
+          "scale": 0.3
+        },
+        "sea-horse": {
+          "tint": [
+            1.1,
+            0.95,
+            0.55
+          ],
+          "scale": 0.25
+        },
+        "giant-sea-horse": {
+          "tint": [
+            1.1,
+            0.95,
+            0.55
+          ],
+          "scale": 1.1
+        },
+        "plesiosaurus": {
+          "tint": [
+            0.6,
+            0.78,
+            0.8
+          ],
+          "scale": 1.9
+        }
+      }
+    },
+    "cephalopod_true": {
+      "animFile": "resources/animated_characters/forge_cephalopod.anim",
+      "faction": "beasts",
+      "members": {
+        "octopus": {
+          "tint": [
+            1.0,
+            0.72,
+            0.7
+          ],
+          "scale": 0.35
+        },
+        "giant-octopus": {
+          "tint": [
+            1.0,
+            0.72,
+            0.7
+          ],
+          "scale": 1.6
+        },
+        "kraken": {
+          "tint": [
+            0.55,
+            0.6,
+            0.75
+          ],
+          "scale": 4.5
+        },
+        "aboleth": {
+          "tint": [
+            0.62,
+            0.85,
+            0.78
+          ],
+          "scale": 1.8
+        }
+      }
+    },
+    "bat_true": {
+      "animFile": "resources/animated_characters/forge_bat.anim",
+      "faction": "beasts",
+      "members": {
+        "bat": {
+          "tint": [
+            0.75,
+            0.7,
+            0.72
+          ],
+          "scale": 0.45
+        },
+        "giant-bat": {
+          "tint": [
+            0.75,
+            0.7,
+            0.72
+          ],
+          "scale": 1.8
+        },
+        "vampire-bat": {
+          "tint": [
+            0.8,
+            0.6,
+            0.65
+          ],
+          "scale": 1.1
+        },
+        "stirge": {
+          "tint": [
+            1.05,
+            0.6,
+            0.6
+          ],
+          "scale": 0.6
+        },
+        "flying-snake": {
+          "tint": [
+            0.7,
+            1.05,
+            0.7
+          ],
+          "scale": 0.6
+        }
+      }
+    },
+    "scorpion_true": {
+      "animFile": "resources/animated_characters/forge_scorpion.anim",
+      "faction": "beasts",
+      "members": {
+        "scorpion": {
+          "tint": [
+            0.9,
+            0.85,
+            0.7
+          ],
+          "scale": 0.2
+        },
+        "giant-scorpion": {
+          "tint": [
+            0.9,
+            0.85,
+            0.7
+          ],
+          "scale": 1.4
+        }
+      }
+    },
+    "beetle_true": {
+      "animFile": "resources/animated_characters/forge_beetle.anim",
+      "faction": "beasts",
+      "members": {
+        "giant-fire-beetle": {
+          "tint": [
+            1.15,
+            0.6,
+            0.4
+          ],
+          "scale": 0.6
+        },
+        "giant-centipede": {
+          "tint": [
+            0.95,
+            0.8,
+            0.45
+          ],
+          "scale": 0.7
+        },
+        "giant-wasp": {
+          "tint": [
+            1.1,
+            0.95,
+            0.4
+          ],
+          "scale": 0.9
+        },
+        "crab": {
+          "tint": [
+            1.1,
+            0.7,
+            0.6
+          ],
+          "scale": 0.35
+        },
+        "giant-crab": {
+          "tint": [
+            1.1,
+            0.7,
+            0.6
+          ],
+          "scale": 1.1
+        },
+        "ankheg": {
+          "tint": [
+            0.95,
+            0.85,
+            0.55
+          ],
+          "scale": 2.0
+        },
+        "chuul": {
+          "tint": [
+            0.85,
+            0.95,
+            0.6
+          ],
+          "scale": 2.0
+        },
+        "remorhaz": {
+          "tint": [
+            1.15,
+            0.7,
+            0.5
+          ],
+          "scale": 2.6
+        },
+        "ettercap": {
+          "tint": [
+            0.8,
+            0.75,
+            0.6
+          ],
+          "scale": 1.4
+        },
+        "rust-monster": {
+          "tint": [
+            1.15,
+            0.7,
+            0.45
+          ],
+          "scale": 1.2
+        }
+      }
+    },
+    "taur_true": {
+      "animFile": "resources/animated_characters/forge_taur.anim",
+      "faction": "monsters",
+      "members": {
+        "centaur": {
+          "tint": [
+            0.95,
+            0.82,
+            0.65
+          ]
+        },
+        "lamia": {
+          "tint": [
+            1.0,
+            0.85,
+            0.6
+          ],
+          "scale": 1.05
+        },
+        "marilith": {
+          "tint": [
+            0.85,
+            0.6,
+            0.65
+          ],
+          "scale": 1.05
+        },
+        "guardian-naga": {
+          "tint": [
+            0.8,
+            1.05,
+            0.7
+          ],
+          "scale": 1.1
+        },
+        "spirit-naga": {
+          "tint": [
+            0.75,
+            0.65,
+            0.95
+          ],
+          "scale": 1.05
+        },
+        "salamander": {
+          "tint": [
+            1.2,
+            0.62,
+            0.42
+          ],
+          "scale": 1.05
+        },
+        "drider": {
+          "tint": [
+            0.65,
+            0.55,
+            0.68
+          ],
+          "scale": 1.0
+        }
+      }
+    },
+    "swarm_true": {
+      "animFile": "resources/animated_characters/forge_swarm.anim",
+      "faction": "beasts",
+      "members": {
+        "swarm-of-rats": {
+          "tint": [
+            0.85,
+            0.78,
+            0.7
+          ]
+        },
+        "swarm-of-bats": {
+          "tint": [
+            0.6,
+            0.56,
+            0.62
+          ]
+        },
+        "swarm-of-insects": {
+          "tint": [
+            0.65,
+            0.6,
+            0.45
+          ]
+        },
+        "swarm-of-beetles": {
+          "tint": [
+            0.5,
+            0.5,
+            0.45
+          ]
+        },
+        "swarm-of-centipedes": {
+          "tint": [
+            0.95,
+            0.8,
+            0.45
+          ]
+        },
+        "swarm-of-poisonous-snakes": {
+          "tint": [
+            0.7,
+            0.95,
+            0.65
+          ]
+        },
+        "swarm-of-quippers": {
+          "tint": [
+            0.85,
+            0.95,
+            0.75
+          ]
+        },
+        "swarm-of-ravens": {
+          "tint": [
+            0.42,
+            0.42,
+            0.5
+          ]
+        },
+        "swarm-of-spiders": {
+          "tint": [
+            0.6,
+            0.55,
+            0.55
+          ]
+        },
+        "swarm-of-wasps": {
+          "tint": [
+            1.1,
+            0.95,
+            0.4
+          ]
         }
       }
     }
