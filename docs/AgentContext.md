@@ -158,13 +158,24 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   `bumpPartsVersion`) — forge rigs bake explicit box colors that `appearance.skinTone` cannot
   touch, so tint is the ONLY recolor lever for them: it gives 10 dragon colors per age tier,
   palette families (winter wolf, polar bear) and incorporeal alpha from single rigs.
-  **Status: 163 stat blocks on final-fidelity rigs, 173 on honest stand-ins** tagged `approx`
-  (the generator prints the backlog by target archetype). Remaining waves: W2 quadruped/bird/
-  serpent · W3 aquatic/arthropod/swarm/taur · W4 dragon age tiers (⚠️ Gargantuan needs
-  per-tier BUILDS — `appearance.heightScale` scales bones but NOT the body-plan-clamped
-  capsule; and coarse per-entry `voxel_size` to stay under the 13,107-box budget) · W5
-  humanoid variants (devil/golem/elemental/hag/angel) · W6 transparent character pipeline +
-  incorporeals · W7 ooze/plant/exotics. Plan: `C:\Users\jack\.claude\plans\starry-humming-magpie.md`.
+  **Status 2026-08-22: 257/336 on final-fidelity rigs, 79 on stand-ins** tagged `approx` (the
+  generator prints the backlog by target archetype). **W1/W2/W4/W5 SHIPPED**: binding factory
+  + 336 coverage · quadruped archetypes (feline/rodent/reptile/pachyderm) + raptor + **serpent
+  (first zero-leg rig — 13 bones, empty legs[], engine allows it: plans iterate whatever legs[]
+  holds, foot IK is 2-leg opt-in, grounding sweeps from the root)** · **all 40 dragons from ONE
+  spec × 4 age-tier builds × 10 binding tints** · 5 humanoid variants (devil/golem/elemental/
+  hag/angel, 45 stat blocks). Remaining: W3 aquatic/arthropod/swarm/taur · W6 transparent
+  pipeline + incorporeals · W7 ooze/plant/exotics/giant.
+  ⚠️ **SCALE TRUTHS (cost several hours; do not re-derive):** `voxel_size` is applied in SPEC
+  space and `target_height` rescales AFTERWARDS, so (a) box count is **scale-independent** —
+  every dragon tier is 994 boxes, coarsening the grid for big creatures only destroys detail
+  and empties thin bones; (b) anything derived from the grid is in spec units — the collision
+  capsule was, giving an ancient dragon a wyrmling's radius (now derived from the finished rig:
+  0.73/1.03/3.12/5.86 across tiers); (c) gate tolerances expressed in voxels must use
+  `Compiled.voxel_world` (voxel × applied scale) or a spec fails purely for being large.
+  ⚠️ `measure_walk_speed` needs a planted foot — legless rigs must author `walk_speed` in the
+  spec (a degenerate measurement now warns). Plan:
+  `C:\Users\jack\.claude\plans\starry-humming-magpie.md`.
 
 - **★ BESTIARY FORGE — 12 D&D SRD CREATURES + FULL RPG WIRING, SHIPPED 2026-08-21.**
   Two lanes: **creature_forge specs** (dire wolf, boar, brown bear quadrupeds; giant spider
