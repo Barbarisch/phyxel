@@ -19,7 +19,7 @@ layout(location = 1) in vec3 inScale;
 layout(location = 2) in vec4 inColor;
 layout(location = 3) in uint inBoneIndex;
 
-layout(location = 0) out vec3 fragColor;
+layout(location = 0) out vec4 fragColor;   // .a carries per-character opacity
 layout(location = 1) out vec3 fragNormal;
 layout(location = 2) out vec3 fragWorldPos;
 layout(location = 3) out vec4 fragBakedLight;
@@ -83,7 +83,7 @@ void main() {
 
     // Transform normal (only rotation from model matrix)
     fragNormal = mat3(model) * normal;
-    fragColor = inColor.rgb;
+    fragColor = inColor;                  // keep alpha: incorporeal undead
     fragWorldPos = worldPos.xyz;
     fragBakedLight = pushConsts.bakedLight;
 }

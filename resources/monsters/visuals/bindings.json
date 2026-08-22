@@ -109,13 +109,13 @@
   },
   "air-elemental": {
     "animFile": "resources/animated_characters/humanoid.anim",
-    "faction": "monsters",
+    "faction": "undead",
     "tint": [
-      0.85,
-      0.9,
+      0.88,
+      0.92,
       1.0
     ],
-    "alpha": 0.35,
+    "alpha": 0.32,
     "appearance": {
       "heightScale": 1.2,
       "bulkScale": 1.2
@@ -646,16 +646,17 @@
     }
   },
   "cloaker": {
-    "animFile": "resources/animated_characters/fox.anim",
-    "faction": "beasts",
+    "animFile": "resources/animated_characters/humanoid.anim",
+    "faction": "undead",
     "tint": [
-      0.45,
-      0.42,
-      0.5
+      0.5,
+      0.46,
+      0.55
     ],
+    "alpha": 0.7,
     "appearance": {
-      "heightScale": 1.1,
-      "bulkScale": 1.1
+      "heightScale": 1.2,
+      "bulkScale": 1.2
     }
   },
   "cloud-giant": {
@@ -758,16 +759,17 @@
     "faction": "monsters"
   },
   "darkmantle": {
-    "animFile": "resources/animated_characters/fox.anim",
-    "faction": "beasts",
+    "animFile": "resources/animated_characters/humanoid.anim",
+    "faction": "undead",
     "tint": [
+      0.42,
       0.4,
-      0.4,
-      0.45
+      0.48
     ],
+    "alpha": 0.75,
     "appearance": {
-      "heightScale": 0.5,
-      "bulkScale": 0.5
+      "heightScale": 0.6,
+      "bulkScale": 0.6
     }
   },
   "death-dog": {
@@ -1176,9 +1178,9 @@
     "animFile": "resources/animated_characters/humanoid.anim",
     "faction": "undead",
     "tint": [
-      0.75,
-      0.85,
-      0.95
+      0.8,
+      0.9,
+      1.0
     ],
     "alpha": 0.4
   },
@@ -1905,14 +1907,14 @@
     }
   },
   "invisible-stalker": {
-    "animFile": "resources/animated_characters/elemental.anim",
-    "faction": "monsters",
+    "animFile": "resources/animated_characters/humanoid.anim",
+    "faction": "undead",
     "tint": [
       0.85,
       0.9,
-      1.0
+      0.98
     ],
-    "alpha": 0.35
+    "alpha": 0.22
   },
   "iron-golem": {
     "animFile": "resources/animated_characters/golem.anim",
@@ -2778,7 +2780,7 @@
     "tint": [
       0.3,
       0.3,
-      0.4
+      0.42
     ],
     "alpha": 0.5
   },
@@ -2851,11 +2853,11 @@
     "animFile": "resources/animated_characters/humanoid.anim",
     "faction": "undead",
     "tint": [
-      0.6,
-      0.7,
-      0.85
+      0.62,
+      0.72,
+      0.9
     ],
-    "alpha": 0.4
+    "alpha": 0.38
   },
   "spider": {
     "animFile": "resources/animated_characters/forge_spider_giant.anim",
@@ -3179,9 +3181,9 @@
     "animFile": "resources/animated_characters/humanoid.anim",
     "faction": "undead",
     "tint": [
-      0.7,
-      0.6,
-      0.7
+      0.72,
+      0.62,
+      0.72
     ],
     "alpha": 0.35
   },
@@ -3469,11 +3471,11 @@
     "animFile": "resources/animated_characters/humanoid.anim",
     "faction": "undead",
     "tint": [
-      0.8,
-      1.0,
-      0.8
+      0.85,
+      1.05,
+      0.85
     ],
-    "alpha": 0.5,
+    "alpha": 0.55,
     "appearance": {
       "heightScale": 0.3,
       "bulkScale": 0.3
@@ -3519,7 +3521,7 @@
     "tint": [
       0.45,
       0.5,
-      0.65
+      0.68
     ],
     "alpha": 0.45,
     "appearance": {

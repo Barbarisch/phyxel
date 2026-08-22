@@ -4303,7 +4303,14 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
 
             // Per-group spans for the shadow pass (which still draws per bone group).
             // Precomputed in the blob — deriving them here would rescan every instance.
-            for (size_t g = 0; g < blob.groupSpans.size(); ++g) {
+            //
+            // Translucent characters are skipped here: the shadow pass has no
+            // blending, so a ghost at alpha 0.4 would throw the same solid
+            // shadow as a living body. That measured true the first time this
+            // shipped (drawn_shadow counted ghost, specter AND orc), so the
+            // exclusion belongs in this list, not in the main draw split.
+            const bool castsShadow = !ch->isTranslucent();
+            for (size_t g = 0; castsShadow && g < blob.groupSpans.size(); ++g) {
                 const auto& span = blob.groupSpans[g];
                 CharacterBatch b;
                 b.model         = m_charBoneTransforms[boneBase + g];
@@ -4344,6 +4351,7 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
             draw.bakedLight    = charLight;
             draw.charIndex     = static_cast<int>(ci);
             draw.boneBase      = boneBase;
+            draw.translucent   = ch->isTranslucent();
             m_charDrawsMain.push_back(draw);
         }
 
@@ -4377,7 +4385,8 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
 }
 
 void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
-        const glm::mat4& viewProj, VkPipeline pipeline, CharacterPassVisibility visibility) {
+        const glm::mat4& viewProj, VkPipeline pipeline, CharacterPassVisibility visibility,
+        bool translucentPass) {
     if (m_charDrawsMain.empty()) return;
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
@@ -4397,6 +4406,9 @@ void RenderCoordinator::renderInstancedCharacters(VkCommandBuffer commandBuffer,
         // (All) rather than re-culling against a third frustum.
         if (visibility == CharacterPassVisibility::Main &&
             (draw.charIndex < 0 || !m_charVisibleMain[draw.charIndex])) continue;
+        // Opaque and translucent characters share one instance buffer but need
+        // different pipelines, so each pass skips the other's characters.
+        if (draw.translucent != translucentPass) continue;
 
         pushConsts.bakedLight = draw.bakedLight;
         pushConsts.boneBase   = draw.boneBase;
@@ -4430,6 +4442,14 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
         renderInstancedCharacters(commandBuffer, mainViewProj,
                                   renderPipeline->getInstancedCharacterPipeline(),
                                   CharacterPassVisibility::Main);
+        // Translucent characters (incorporeal undead) after the opaque ones, so
+        // they blend against a finished scene. Their pipeline leaves depth
+        // WRITE off, and they are kept out of the shadow batch list, so they
+        // cast no shadow.
+        if (renderPipeline->getTranslucentInstancedCharacterPipeline() != VK_NULL_HANDLE)
+            renderInstancedCharacters(commandBuffer, mainViewProj,
+                                      renderPipeline->getTranslucentInstancedCharacterPipeline(),
+                                      CharacterPassVisibility::Main, true);
         gpuProfiler->endPipelineStats(commandBuffer, GpuProfiler::STATS_SLOT_CHARACTER);
     }
 

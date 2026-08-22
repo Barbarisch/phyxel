@@ -606,8 +606,12 @@ private:
     // and pipeline. Used both for the main pass and the mirror reflection pass (which passes
     // the reflected view-projection + the FRONT_BIT reflection pipeline). Consumes the
     // per-frame batch list built ONCE by buildCharacterFrameData() — see that method.
+    /// `translucentPass` selects which half of the batched characters to draw:
+    /// false = the opaque ones (default), true = those with alpha < 1, which run
+    /// through the blend-enabled pipeline afterwards.
     void renderInstancedCharacters(VkCommandBuffer commandBuffer, const glm::mat4& viewProj,
-                                   VkPipeline pipeline, CharacterPassVisibility visibility);
+                                   VkPipeline pipeline, CharacterPassVisibility visibility,
+                                   bool translucentPass = false);
     /// One cascade's caster pass. `map` = which shadow map to render into; `cascade`
     /// selects the caster policy: 0 = MID (chunks + characters + kinematic + dynamic +
     /// foliage; GPU-driven multidraw; D1 stats), 1 = NEAR (tight margin; grass casts ONLY
@@ -654,6 +658,7 @@ private:
         glm::vec4 bakedLight{1.0f};
         int       charIndex = -1;
         uint32_t  boneBase = 0;   ///< added to each instance's local bone index
+        bool      translucent = false;  ///< alpha < 1: drawn after the opaque pass
     };
     std::vector<CharacterDraw> m_charDrawsMain;
     std::vector<glm::mat4>     m_charBoneTransforms;

@@ -16,7 +16,7 @@
 // voxel.frag min-composes near + mid. Characters therefore miss the fine near-cascade shadows.
 // Fixing that needs the binding-9 near map wired into this pipeline.
 
-layout(location = 0) in vec3 fragColor;
+layout(location = 0) in vec4 fragColor;    // .a = per-character opacity
 layout(location = 1) in vec3 fragNormal;
 layout(location = 2) in vec3 fragWorldPos;
 layout(location = 3) in vec4 fragBakedLight; // x = skylight (0..1), yzw = block RGB (0..1)
@@ -207,5 +207,9 @@ void main() {
         }
     }
 
-    outColor = vec4(fragColor * finalLight, 1.0);
+    // Alpha reaches here from CharacterInstanceData.color.a (see
+    // RagdollCharacter::setRenderAlpha). It only becomes visible when the
+    // character is drawn through the blend-enabled translucent pipeline;
+    // opaque characters carry a = 1 and are unaffected.
+    outColor = vec4(fragColor.rgb * finalLight, fragColor.a);
 }

@@ -6,7 +6,7 @@ layout(push_constant) uniform PushConstants {
     vec4 color;
 } pushConsts;
 
-layout(location = 0) out vec3 fragColor;
+layout(location = 0) out vec4 fragColor;   // .a carries per-character opacity
 layout(location = 1) out vec3 fragNormal;
 layout(location = 2) out vec3 fragWorldPos;
 
@@ -62,7 +62,7 @@ void main() {
     // normal matrix is just mat3(model) — no per-vertex inverse-transpose needed.
     vec4 worldPos = pushConsts.model * vec4(inPosition, 1.0);
     gl_Position = pushConsts.viewProj * worldPos;
-    fragColor = pushConsts.color.rgb;
+    fragColor = pushConsts.color;         // keep alpha: incorporeal undead
     fragNormal = mat3(pushConsts.model) * inNormal;
     fragWorldPos = worldPos.xyz;
 }

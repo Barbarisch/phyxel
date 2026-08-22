@@ -137,16 +137,6 @@
           ],
           "scale": 0.4
         },
-        "air-elemental": {
-          "tint": [
-            0.85,
-            0.9,
-            1.0
-          ],
-          "scale": 1.2,
-          "alpha": 0.35,
-          "approx": "incorporeal"
-        },
         "half-red-dragon-veteran": {
           "tint": [
             1.0,
@@ -785,25 +775,25 @@
       "members": {
         "ghost": {
           "tint": [
-            0.75,
-            0.85,
-            0.95
+            0.8,
+            0.9,
+            1.0
           ],
           "alpha": 0.4
         },
         "specter": {
           "tint": [
-            0.6,
-            0.7,
-            0.85
+            0.62,
+            0.72,
+            0.9
           ],
-          "alpha": 0.4
+          "alpha": 0.38
         },
         "wraith": {
           "tint": [
             0.45,
             0.5,
-            0.65
+            0.68
           ],
           "alpha": 0.45,
           "scale": 1.1
@@ -812,26 +802,61 @@
           "tint": [
             0.3,
             0.3,
-            0.4
+            0.42
           ],
           "alpha": 0.5
         },
         "will-o-wisp": {
           "tint": [
-            0.8,
-            1.0,
-            0.8
+            0.85,
+            1.05,
+            0.85
           ],
-          "alpha": 0.5,
+          "alpha": 0.55,
           "scale": 0.3
         },
         "vampire-mist": {
           "tint": [
-            0.7,
-            0.6,
-            0.7
+            0.72,
+            0.62,
+            0.72
           ],
           "alpha": 0.35
+        },
+        "air-elemental": {
+          "tint": [
+            0.88,
+            0.92,
+            1.0
+          ],
+          "alpha": 0.32,
+          "scale": 1.2
+        },
+        "invisible-stalker": {
+          "tint": [
+            0.85,
+            0.9,
+            0.98
+          ],
+          "alpha": 0.22
+        },
+        "cloaker": {
+          "tint": [
+            0.5,
+            0.46,
+            0.55
+          ],
+          "alpha": 0.7,
+          "scale": 1.2
+        },
+        "darkmantle": {
+          "tint": [
+            0.42,
+            0.4,
+            0.48
+          ],
+          "alpha": 0.75,
+          "scale": 0.6
         }
       }
     },
@@ -894,24 +919,6 @@
       "members": {
         "fox-placeholder": {
           "skip": true
-        },
-        "darkmantle": {
-          "tint": [
-            0.4,
-            0.4,
-            0.45
-          ],
-          "scale": 0.5,
-          "approx": "incorporeal"
-        },
-        "cloaker": {
-          "tint": [
-            0.45,
-            0.42,
-            0.5
-          ],
-          "scale": 1.1,
-          "approx": "incorporeal"
         }
       }
     },
@@ -1829,15 +1836,6 @@
             0.4
           ],
           "scale": 1.35
-        },
-        "invisible-stalker": {
-          "tint": [
-            0.85,
-            0.9,
-            1.0
-          ],
-          "alpha": 0.35,
-          "approx": "incorporeal"
         }
       }
     },

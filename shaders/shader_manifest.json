@@ -13,17 +13,17 @@
     },
     "character.frag": {
       "built": true,
-      "sources": "2540faa5f1ea9609e43a10c80c2310248b8d971243e042b723792a529e7b26fa",
+      "sources": "7eb43f314581c7f30ca30f5e56def0cfa3d400386f3cd81171a02ba5ca6004f4",
       "spv_present": true
     },
     "character.vert": {
       "built": true,
-      "sources": "b3c2b83db5690f4fc81c3eaf378b2153921ec1c2a6eb1f1db6e98dd733a17de7",
+      "sources": "3bc44fdb9dd15e28b170f735e1ef6de6efc8ed1375bfe87c95e86b44fe16cd03",
       "spv_present": true
     },
     "character_instanced.vert": {
       "built": true,
-      "sources": "7e9c3b2b1f1bf01e0c553ddc8a5163907cd6e4be5e37e17dde5738b3d1d5a74e",
+      "sources": "63b39992484a03a0a89d33324d088616876b8f7dbef1b83e82edb8ecd70bec81",
       "spv_present": true
     },
     "character_shadow.vert": {
