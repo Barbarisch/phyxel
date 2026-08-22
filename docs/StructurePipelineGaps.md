@@ -309,6 +309,19 @@ Next probe: render one character + one terrain block with IDENTICAL albedo side 
 the lit values per face orientation. Workaround used by creature_forge: keep spec `shading.gradient`
 gentle (bottom -0.22, not anyCreature's -0.88) so the engine's own contrast doesn't compound it.
 
+**2026-08-22 reproduction (still open, still not an asset defect).** Hit again during the W8
+exotics L4 in CharacterTestbed on Release. At the project's default `ambientStrength` 1.0 with the
+sun straight down, all five new rigs plus a *previously-shipped* `forge_bear` spawned beside them
+render essentially WHITE — the control is what rules out the new rigs. Dropping ambient to 0.12
+makes form fully readable but colour still reads slate-blue rather than the authored grey-green
+(`.anim` Box lines carry the right values, e.g. 0.406/0.406/0.375). So the two halves of this gap
+are one gap seen at two ambient levels, not two bugs. Practical note for the next L4: binding
+`tint` cannot compensate — it multiplies an albedo the lighting is already crushing. Verify rig
+SHAPE by bone probe plus a low-ambient screenshot; do not try to judge palette in this scene.
+Two API traps found while chasing it: `set_day_night`'s `time` param and a `/api/daynight` POST
+both leave `timeOfDay` pinned at 12.0, and *enabling* day/night resets ambient to 1.0 — so lower
+ambient only sticks with day/night disabled.
+
 ## 2026-08-21 - Bestiary Forge punts (logged at M6)
 
 - **Flight locomotion for winged rigs**: forge_dragon_young / forge_griffon ship folded-wing,

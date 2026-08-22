@@ -158,16 +158,29 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   `bumpPartsVersion`) — forge rigs bake explicit box colors that `appearance.skinTone` cannot
   touch, so tint is the ONLY recolor lever for them: it gives 10 dragon colors per age tier,
   palette families (winter wolf, polar bear) and incorporeal alpha from single rigs.
-  **Status 2026-08-22: ALL WAVES SHIPPED — 331/336 on final-fidelity rigs, 5 approximations**
-  (tarrasque, hydra, xorn, dragon-turtle, otyugh: genuinely odd bodies riding honest
-  neighbours, each tagged with its target). ~30 archetype rigs total. Highlights: binding
+  **Status 2026-08-22: COMPLETE — 336/336 on final-fidelity rigs, ZERO approximations.**
+  The backlog is empty and `test_no_stat_block_is_still_approximated` keeps it that way (an
+  `approx` tag reappearing fails the suite, so the coverage claim cannot rot silently).
+  ~35 archetype rigs total. Highlights: binding
   factory + 336 coverage · quadruped set (feline/rodent/reptile/pachyderm/ape) · raptor +
   theropod · **serpent, shark, ooze, plant, swarm = zero-leg rigs** (engine allows it: plans
   iterate whatever legs[] holds, foot IK is 2-leg opt-in, grounding sweeps from the root) ·
   cephalopod + scorpion + beetle on the ARACHNID contract · taur (quadruped barrel + humanoid
   torso) · **all 40 dragons from ONE spec × 4 age-tier builds × 10 binding tints** · 10
   humanoid variants (goblin/orc/skeleton/zombie/troll/devil/golem/elemental/hag/angel) +
-  giants on the ogre rig.
+  giants on the ogre rig · **the five exotics** (W8): hydra (five necks, each its own chain —
+  odd fan-out has no mirror partner; they spread OUTWARD before rising or they share one
+  column and steal each other's voxels), tarrasque (Gargantuan biped on the theropod's balance
+  solution), dragon turtle (a carapace is a swept tube whose radius dwarfs its length, on its
+  own horizontal spine; `exp` 3.2 flattens it toward a slab), otyugh (tripod — centreline
+  foreleg pumping at DOUBLE rate so it lands with each rear leg in turn), xorn (three-fold
+  radial, nothing mirrored; walk hand-phased in thirds because `mirror_phase` offsets a chain
+  against a partner these legs do not have).
+  ⚠️ **`attack_reach` measures the head against the BIND front**, so a rig whose neck already
+  sits extended at rest gains almost nothing from rotation — the lunge has to actually travel
+  (it refused the turtle and the otyugh until their `tz` roughly doubled). ⚠️ **`walk_speed` in
+  a spec is for LEGLESS rigs only**; a legged creature trusts the measurement (the gate caught
+  a hand-guessed 0.62 on the xorn against a measured 0.255).
   **TRANSLUCENT CHARACTERS (W6) SHIPPED**: alpha now survives the shader chain
   (character_instanced.vert + character.vert varying vec3→vec4, character.frag outputs
   fragColor.a), a blend-enabled **depth-write-off** pipeline variant sits beside the opaque one
