@@ -508,7 +508,116 @@ def test_required_clips_rule_blocks_combat_without_attack():
 
 
 # ---------------------------------------------------------------------------
-# 7. Voxelization geometry units
+# 7. Bestiary bindings: every SRD stat block resolves to a usable rig
+# ---------------------------------------------------------------------------
+
+MONSTER_DIR = ROOT / "resources" / "monsters"
+BINDINGS = MONSTER_DIR / "visuals" / "bindings.json"
+RIG_DIR = ROOT / "resources" / "animated_characters"
+
+
+def _all_stat_block_ids():
+    ids = set()
+    for f in sorted(MONSTER_DIR.glob("*.json")):
+        data = json.loads(f.read_text(encoding="utf-8"))
+        entries = data if isinstance(data, list) else data.get("monsters", [])
+        for m in entries:
+            if isinstance(m, dict) and m.get("id"):
+                ids.add(m["id"])
+    return ids
+
+
+def _rig_clip_names(anim_path: Path):
+    """Clip names without a full parse — the MODEL section is huge."""
+    names = []
+    for line in anim_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        if line.startswith("ANIMATION "):
+            names.append(line.split(None, 1)[1].strip().lower())
+    return names
+
+
+@pytest.fixture(scope="module")
+def bindings():
+    if not BINDINGS.exists():
+        pytest.skip("bindings.json not generated yet")
+    return json.loads(BINDINGS.read_text(encoding="utf-8"))
+
+
+def _binding_items(bindings):
+    return {k: v for k, v in bindings.items()
+            if not k.startswith("_") and isinstance(v, dict)}
+
+
+def test_every_stat_block_has_a_binding(bindings):
+    """The completeness gate: a stat block added without a binding fails here,
+    and spawn_encounter would otherwise error at runtime instead."""
+    unbound = _all_stat_block_ids() - set(_binding_items(bindings))
+    assert not unbound, (f"{len(unbound)} stat blocks without a visual binding: "
+                         f"{sorted(unbound)[:15]}")
+
+
+def test_no_binding_points_at_a_missing_rig(bindings):
+    missing = [(k, v["animFile"]) for k, v in _binding_items(bindings).items()
+               if not (ROOT / v["animFile"]).exists()]
+    assert not missing, missing
+
+
+# How the ENGINE actually resolves each state, so a rig counts as capable if any
+# accepted clip exists (AnimatedVoxelCharacter::die() probes death_front/back
+# directly; CombatBehavior installs the unarmed moveset for humanoid rigs).
+_STATE_CLIPS = {
+    "Idle":   ("idle",),
+    "Walk":   ("walk",),
+    "Attack": ("attack", "boxing", "elbow_punch", "kick", "punch"),
+    "Death":  ("death", "death_front", "death_back"),
+}
+
+
+def test_bound_rigs_are_combat_capable(bindings):
+    """Bindings must not point at walk-only (*_meshy) or flight-only
+    (monster_dragon) rigs: the FSM would hold a stale clip while damage still
+    fires, which reads as a T-posing monster that still hurts you."""
+    bad = []
+    for mid, v in sorted(_binding_items(bindings).items()):
+        rig = ROOT / v["animFile"]
+        if not rig.exists():
+            continue
+        clips = set(_rig_clip_names(rig))
+        mapping = {k: c.lower() for k, c in (v.get("animationMapping") or {}).items()}
+        for state, accepted in _STATE_CLIPS.items():
+            if any(c in clips for c in accepted):
+                continue
+            if mapping.get(state, "") in clips:      # explicit override resolves it
+                continue
+            bad.append(f"{mid} -> {rig.name} cannot play {state}")
+    assert not bad, bad[:15]
+
+
+def test_tint_and_alpha_in_range(bindings):
+    for mid, v in _binding_items(bindings).items():
+        tint = v.get("tint", [1, 1, 1])
+        assert len(tint) == 3 and all(0.0 <= c <= 2.0 for c in tint), (mid, tint)
+        assert 0.05 <= v.get("alpha", 1.0) <= 1.0, (mid, v.get("alpha"))
+
+
+def test_bindings_are_regenerable(tmp_path):
+    """bindings.json is generated from bindings_map.json — hand edits get lost,
+    so the checked-in file must match a fresh generation exactly."""
+    import subprocess
+    gen = ROOT / "tools" / "creature_forge" / "gen_bindings.py"
+    if not gen.exists():
+        pytest.skip("gen_bindings.py not written yet")
+    out = tmp_path / "bindings.json"
+    r = subprocess.run([sys.executable, str(gen), "--out", str(out)],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert json.loads(out.read_text(encoding="utf-8")) == \
+        json.loads(BINDINGS.read_text(encoding="utf-8")), \
+        "bindings.json is stale — re-run tools/creature_forge/gen_bindings.py"
+
+
+# ---------------------------------------------------------------------------
+# 8. Voxelization geometry units
 # ---------------------------------------------------------------------------
 
 class TestVoxelGeometry:
