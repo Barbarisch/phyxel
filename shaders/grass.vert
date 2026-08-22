@@ -4,10 +4,11 @@
 #include "grass_sites.glsl"   // progressive blue-noise lattice (tools/gen_grass_site_order.py)
 
 // Lightweight grass blades. ONE instance per grass-topped voxel (GrassInstanceData); this shader
-// procedurally fans it into `bladesPerVoxel` blades using gl_VertexIndex (6 verts/blade, no
-// vertex buffer). Two silhouettes (pc.bladeStyle): BOXY voxel-aesthetic (default) = thin
-// elongated crisp RECTANGLE, rest height quantized to the 1/9-voxel microcube grid; SMOOTH
-// legacy = ribbon tapering to a point. Both share the SAME smooth wind motion — the shared
+// procedurally fans it into `bladesPerVoxel` blades using gl_VertexIndex (SEGMENTS stacked
+// quads per blade, no vertex buffer). Two silhouettes (pc.bladeStyle): SMOOTH (default since
+// 2026-08-21, user call) = ribbon tapering to a point; BOXY voxel-aesthetic = thin elongated
+// crisp RECTANGLE, rest height quantized to the 1/9-voxel microcube grid (available via
+// /api/debug/grass bladeStyle). Both share the SAME smooth wind motion — the shared
 // procedural gust field (wind.glsl, fed by the CPU WindSystem via push constants); the boxy
 // look is silhouette-only, never quantized motion (quantized offsets read as janky popping).
 // Sprout-in growth uses ubo.elapsedTime; distance fade uses ubo.cameraPosition.
@@ -130,6 +131,21 @@ float vnoise2(vec2 p) {
     return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 }
 
+// LATTICE-PERIODIC value noise, period `rep` lattice cells. The hash domain wraps every 2048
+// world units (see cellHash below) — and mod() puts a wrap line THROUGH THE WORLD ORIGIN — so any
+// field meant to be seam-free must tile with that wrap. Wrapping the LATTICE coordinates before
+// hashing makes the noise itself periodic; the caller passes rep = 2048 / worldPeriod, which is
+// only seamless when worldPeriod divides 2048 (the shipped meadow/patch periods do — keep it so).
+float vnoise2p(vec2 p, float rep) {
+    vec2 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = hash21(mod(i,                  vec2(rep)));
+    float b = hash21(mod(i + vec2(1.0, 0.0), vec2(rep)));
+    float c = hash21(mod(i + vec2(0.0, 1.0), vec2(rep)));
+    float d = hash21(mod(i + vec2(1.0, 1.0), vec2(rep)));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
 void main() {
     // Decode voxel local position + baked light.
     uint packed = inPacked;
@@ -154,7 +170,7 @@ void main() {
     // Segmented blades (Phase 3-lite): each blade is SEGMENTS stacked quads, so the v^bendExp
     // displacement profile below renders as an actual CURVE — blades bow under wind and around
     // characters instead of shearing as one rigid rectangle (single-quad blades read stiff).
-    const int SEGMENTS = 3;
+    const int SEGMENTS = 4;
     const int VERTS_PER_BLADE = SEGMENTS * 6;   // must match vertsPerBlade in GrassRenderPipeline.cpp
     int blade  = gl_VertexIndex / VERTS_PER_BLADE;
     int rem    = gl_VertexIndex - blade * VERTS_PER_BLADE;
@@ -187,35 +203,10 @@ void main() {
     uint  siteIdx  = uint(blade) & (kGrassGrid * kGrassGrid - 1u);
     vec2  cellCtr  = grassSiteCentre(siteIdx);
 
-    // MEADOW field: one smooth low-frequency noise drives BOTH blade height and coverage, so tall
-    // lush zones and shorter zones drift across the field while any few-meter neighborhood stays
-    // uniform and dense. (The old per-5-voxel/per-2-voxel hash patches made short-scale holes +
-    // per-blade height chaos — the exact opposite of the wanted look.)
-    // The DOMINANT octave is deliberately long (~72 voxels): the point is height varying across
-    // a FIELD, read while walking over it, not per-voxel roughness. The 26-voxel octave only
-    // keeps the gradient from looking like a rendered gradient; anything shorter than that reads
-    // as noise and undoes the smoothness.
-    // Periods are world units; guard against a zero/negative scale from the API turning the
-    // whole field into a constant (or a NaN).
-    float mScale  = max(pc.meadowScale, 1.0);
-    float mDetail = max(pc.meadowDetailScale, 1.0);
-    float mW      = clamp(pc.meadowDetailWeight, 0.0, 1.0);
-    float meadow = vnoise2(cellHash.xz / mScale)  * (1.0 - mW)
-                 + vnoise2(cellHash.xz / mDetail + 41.7) * mW;
-
-    // Coverage: dense EVERYWHERE. The meadow field must not punch holes — the look being chased is
-    // a continuous field, so coverage stays above the highest clump threshold across the whole
-    // meadow range and only the very shortest zones thin at all.
-    float coverage = 0.88 + 0.22 * meadow;
-    // RANK of this blade in the progressive ordering, 0..1. Replaces the old clumpFrac: the LOD
-    // now fades individual blades from the tail of the sequence rather than whole tufts, which is
-    // both smoother and exactly what the blue-noise prefix property is for.
-    float rankFrac = (float(blade) + 0.5) / float(max(pc.bladesPerVoxel, 1u));
-    float keep     = step(0.18 + 0.42 * rankFrac, coverage);
-
     // Per-blade hash, seeded on (cell, blade). Drives height/yaw/stagger/wind — and, in h4/h5,
     // the jitter. Jitter gets its OWN slots so that shrinking the jitter radius does not also
-    // change per-blade colour (vUV reads h0/h1).
+    // change per-blade colour (vUV reads h0/h1). (Computed BEFORE the meadow block: the field is
+    // sampled at the blade ROOT, so the root must exist first.)
     vec2 seed = vec2(cellHash.x * 3.17 + cellHash.z * 7.71 + float(blade) * 13.1,
                      cellHash.z * 2.39 - cellHash.x * 5.11 + float(blade) * 7.31);
     float h0 = hash21(seed);
@@ -255,6 +246,48 @@ void main() {
     // clamp was itself the cross-voxel overlap mechanism (it pulled roots onto the shared border).
     vec2 root2  = cellCtr + jitter;
     vec3 rootWorld = cellBase + vec3(root2.x, 0.0, root2.y);
+    // The wrapped ABSOLUTE root position — the domain every world-space field below samples.
+    // Fields sample the ROOT, never the voxel corner: a corner-sampled field is piecewise
+    // constant per voxel, and the resulting height plateaus made the voxel/chunk grid readable
+    // in the grass (user, 2026-08-21; pinned by tests/graphics/GrassMeadowSeamTest.cpp).
+    vec2 fieldP = cellHash.xz + root2;
+
+    // MEADOW field: one smooth low-frequency noise drives BOTH blade height and coverage, so tall
+    // lush zones and shorter zones drift across the field while any few-meter neighborhood stays
+    // locally even. (The old per-5-voxel/per-2-voxel hash patches made short-scale holes +
+    // per-blade height chaos — the exact opposite of the wanted look.)
+    // The DOMINANT octave is deliberately long (~64 voxels): the point is height varying across
+    // a FIELD, read while walking over it, not per-voxel roughness. The ~32-voxel octave only
+    // keeps the gradient from looking like a rendered gradient; anything shorter than that reads
+    // as noise and undoes the smoothness.
+    // Periods are world units and MUST DIVIDE 2048 (the hash-domain wrap) or the field seams at
+    // every wrap line — vnoise2p tiles the lattice to make divisor periods exactly seamless.
+    // Guard against a zero/negative scale from the API turning the field into a constant (or NaN).
+    float mScale  = max(pc.meadowScale, 1.0);
+    float mDetail = max(pc.meadowDetailScale, 1.0);
+    float mW      = clamp(pc.meadowDetailWeight, 0.0, 1.0);
+    float meadow = vnoise2p(fieldP / mScale, 2048.0 / mScale)  * (1.0 - mW)
+                 + vnoise2p(fieldP / mDetail + 41.7, 2048.0 / mDetail) * mW;
+
+    // PATCH field: mid-frequency (~4-voxel) coverage variation, sampled at the root like
+    // everything else. Two jobs (user, 2026-08-21): (1) grass density gets natural patchiness
+    // instead of reading evenly planted; (2) each voxel keeps a DIFFERENT subset of the shared
+    // 256-site sequence, which kills the "same constellation tiles every voxel" repeat that the
+    // lattice alone produces. This is a CONTINUOUS field, deliberately not tufting — clustered
+    // blades were tried and overruled (2026-08-05); patchiness must come from smooth world-space
+    // fields, never discrete clumps.
+    float patchy = vnoise2p(fieldP * 0.25 + 17.3, 512.0);   // ("patch" is a GLSL keyword)
+
+    // Coverage maps through the keep threshold below (0.18 + 0.42*rank): mean ~0.53 keeps ~83%
+    // of blades, lush cells keep all, the sparsest patches still keep ~50% — patchy, NEVER bald.
+    float coverage = 0.39 + 0.10 * meadow + 0.18 * patchy;
+    // RANK of this blade in the progressive ordering, 0..1. The LOD and the coverage both thin
+    // from the tail of the sequence, which the blue-noise prefix property keeps well-spread.
+    float rankFrac = (float(blade) + 0.5) / float(max(pc.bladesPerVoxel, 1u));
+    // Soft threshold (was a hard step): blades near a patch edge SHORTEN instead of vanishing,
+    // so patches end in fringes rather than contour lines.
+    float thr  = 0.18 + 0.42 * rankFrac;
+    float keep = smoothstep(thr - 0.06, thr + 0.02, coverage);
 
     // Quad corners (2 tris): (u in {0,1}, v in {0,1} within THIS segment); v then maps to the
     // blade-length fraction so consecutive segments share their boundary rows seamlessly.
@@ -398,7 +431,11 @@ void main() {
     // pc.widthScale is the RUNTIME width knob (Params::bladeWidthScale, default 1.0 = as
     // authored). Width is the variable that decides whether a blade exceeds a shadow-map
     // texel, so it must be sweepable — POST /api/debug/grass {"bladeWidth": N}.
-    float bladeWidth = (boxy ? 0.040 : 0.036) * min(inversesqrt(max(densityFrac, 0.02)), 2.6)
+    // Smooth widened 0.036 → 0.042 (2026-08-21): the true-point taper halves a blade's
+    // silhouette area vs the rectangle, so the pointy default needs a wider base to hold the
+    // same ground coverage. 0.042 stays under the packing clamp at the shipped 55 blades/voxel
+    // (maxPackWidth 0.0432) so the clamp never trims a near-field blade.
+    float bladeWidth = (boxy ? 0.040 : 0.042) * min(inversesqrt(max(densityFrac, 0.02)), 2.6)
                      * max(pc.widthScale, 0.001);
     // SHADOW PASS: cast a slightly WIDER shadow than the blade — a multiple of the blade's real
     // width, NOT a shadow-texel clamp. The clamp it replaces stamped a blade 3.5 texels wide,
@@ -453,7 +490,6 @@ void main() {
     // motion, and per-blade variation exists only to stop it looking like a rigid sheet.
     // response spread 1.2-0.8 -> 1.08-0.94, lag 0.06 -> 0.02.
     float response  = mix(1.08, 0.94, stiffness);
-    float lag       = stiffness * 0.02;
     // Trodden blades are pinned underfoot — they stop waving instead of thrashing while flat.
     float windDamp = 1.0 - 0.6 * tread;
     // ⚑THE 4-TAP BOX LOW-PASS THAT USED TO BE HERE IS GONE — IT WAS DOING NOTHING.
@@ -466,9 +502,7 @@ void main() {
     // it was the flutter and response-spread reductions made at the same time, not this.
     // The jitter was SPATIAL, not temporal — small isotropic blobs (12u across) rather than
     // field-scale fronts. That is fixed in windGustAt by anisotropy, where it actually lives.
-    vec2  gp = cellHash.xz + root2;
-    float tg = ubo.elapsedTime - lag;
-    float gust = windGustAt(gp, vec2(pc.windScrollX, pc.windScrollZ), wd,
+    float gust = windGustAt(fieldP, vec2(pc.windScrollX, pc.windScrollZ), wd,
                             pc.gustScale, pc.windAniso);
     float bend = (pc.windBase + pc.gustAmp * gust) * response * pc.windStrength * windDamp;
 
@@ -483,14 +517,25 @@ void main() {
                   + h3 * 1.2566371;   // 0.2 * 2pi
     float flutter = sin(ubo.elapsedTime * max(pc.flutterFreq, 0.0) * 6.2831853 + phase) * 0.018
                   * (pc.gustAmp * gust + 0.15 * pc.windBase) * pc.windStrength * windDamp;
+    // REST BEND (user, 2026-08-21: blades should not stand perfectly straight): a small STATIC
+    // per-blade lean in a hashed random direction, composed with the wind exactly like a
+    // constant breeze so it rides the same profile/clamp/length-preservation below. Static ⇒
+    // time-independent ⇒ the wind-0 bit-identical stillness invariant (WindSystemTest) holds.
+    // Magnitude 0.025–0.075 in sway units ≈ a 3–9° arc at rest (leanSin ≈ 2× sway at the tip).
+    float restYaw = hash21(seed + 89.7) * 6.2831853;
+    float restMag = 0.025 + 0.050 * hash21(seed + 103.9);
+    vec2  restSway = vec2(cos(restYaw), sin(restYaw)) * restMag;
+
     // Bend profile: base stays planted, tip displaces most. bendExp is the per-blade FLEX —
     // soft blades (low h2) yield along their whole length, stiff blades hold their base and
     // give mostly at the tip. With SEGMENTS rows this renders as a visible arc, not a shear.
+    // Low end 1.6 → 1.3 (2026-08-21): soft blades now curl along more of their length, so a
+    // bent blade reads as a CURVE rather than a leaning line.
     // Displacer push composes with wind here so the tip-drop length preservation below applies
     // to BOTH: a pushed blade bows over and hugs the ground, it doesn't stretch sideways.
-    float bendExp = mix(1.6, 2.4, stiffness);
+    float bendExp = mix(1.3, 2.4, stiffness);
     float profile = pow(v, bendExp);
-    vec2 swayDir = wd * bend + vec2(-wd.y, wd.x) * flutter + pushXZ;
+    vec2 swayDir = wd * bend + vec2(-wd.y, wd.x) * flutter + pushXZ + restSway;
     float swayMag = length(swayDir);
     if (swayMag > 1.4) swayDir *= 1.4 / swayMag;   // total-bend clamp (wind + push composed)
     vec3 windOffset = vec3(swayDir.x, 0.0, swayDir.y) * (profile * H * 2.0);

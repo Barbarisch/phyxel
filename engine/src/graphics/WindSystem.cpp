@@ -68,18 +68,13 @@ void WindSystem::tick(float t) {
     // Calibrated so the default speed 0.35 gives 2.5 u/s — the approved travel rate. The old
     // 2.0 + 10.0*speed put the default at 5.5, which read as hurried.
     m_state.gustSpeed = 1.0f + 4.3f * speed;
-    // ⚑LOWERED 2026-08-05. The old curve (0.055 - 0.02*gusty) produced a coarse gust only ~22u
-    // across at default gustiness, with the fine octave at ~10u — patchiness at the scale of a
-    // few voxels, not gust structure. It is also why the comment above was aspirational rather
-    // than true: fronts that small never read as "waves sweeping the field".
-    // Now ~42u at calm gustiness down to ~71u when gusty. Combined with State::aniso this gives
-    // fronts about 31u deep and 107u wide, measured by tools/wind_field_probe.py.
-    // NOTE this OVERWRITES the header default every update — setting Params in the header alone
-    // does nothing, which is a good way to convince yourself a knob is broken.
     // Calibrated so the default gustiness 0.45 gives 0.045 — fronts ~22u deep, and ~110u
     // crosswind once State::aniso stretches them. Gustier weather still means longer fronts.
-    // (An earlier pass set this to 0.024-0.010*gusty for 42-71u fronts; tuned back by eye — at
-    // that size a front was larger than anything you could see moving.)
+    // (History, so nobody relitigates it from half the story: an earlier pass lowered this to
+    // 0.024-0.010*gusty for 42-71u fronts, then it was tuned BACK by eye — at that size a front
+    // was larger than anything you could see moving. This curve is the surviving verdict.)
+    // NOTE this OVERWRITES the header default every update — setting State in the header alone
+    // does nothing, which is a good way to convince yourself a knob is broken.
     m_state.gustScale = 0.055f - 0.022f * gusty;
 
     // Tuning overrides last, so they win over the derivation instead of being erased by it.

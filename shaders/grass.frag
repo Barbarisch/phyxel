@@ -62,8 +62,9 @@ layout(set = 0, binding = 5) uniform sampler2DArray textureArrayHi;  // 1024px a
 layout(location = 0) out vec4 outColor;
 
 void main() {
-    // Blade silhouette: triangular taper — full width at base, pinches to a point at the tip.
-    float taper = 1.0 - vGrad * 0.92;
+    // Blade silhouette: triangular taper — full width at base, pinches to a TRUE point at the
+    // tip (was 0.92, which left every tip a visibly clipped 8%-wide stub — "rectangular grass").
+    float taper = 1.0 - vGrad;
     if (abs(vSide) > taper) discard;
 
     // Colour from the grass-top texture (class bit 15 selects hi/lo array; layer in low 15 bits).

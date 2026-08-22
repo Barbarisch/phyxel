@@ -257,15 +257,20 @@ TEST(LodCharacterizationTest, GrassAndFoliageDefaultsAreUnchanged) {
     EXPECT_TRUE(g.enabled);
     EXPECT_FLOAT_EQ(g.radius, 224.0f) << "affordable only via the continuous density falloff";
     EXPECT_FLOAT_EQ(g.fadeRange, 80.0f) << "deliberately a third of the radius — a short fade reads as a mowing line";
-    // UPDATED 2026-08-05: 140 -> 30, with the non-overlap change. Tufting made most blades
-    // re-fill the same few spots while the rest of the voxel face stayed bare, so the count had
-    // to be high for ground to read as covered; one-blade-per-lattice-cell means every blade
-    // contributes and far fewer are needed. ~4.7x less grass vertex load (18 verts/blade).
-    EXPECT_EQ(g.bladesPerVoxel, 30u);
-    // Tuned by eye against the wind debug view on 2026-08-05 and signed off. Pinned because it is
-    // the difference between grass that reads as windblown and grass that looks static: at the
-    // previous 0.13 the peak lean was ~11% of the cap.
-    EXPECT_FLOAT_EQ(g.windStrength, 0.50f);
+    // UPDATED 2026-08-21: 30 -> 55 (user: "noticeably denser"), with the patch-field coverage
+    // keeping ~83% on average. Budget recomputed per the standing rule: 55 blades * 24 verts
+    // (4 segments) ≈ 23M verts/frame at R=224 — the historically-accepted 22.8M operating point.
+    EXPECT_EQ(g.bladesPerVoxel, 55u);
+    // UPDATED 2026-08-21: 0.50 -> 1.0 ("lively meadow", user-picked target): ~15 degree average
+    // lean, gusts to ~43 degrees — leanSin ≈ 2*(base + gustAmp*gust)*windStrength at the
+    // WindSystem defaults. At the old 0.50 the average lean was ~7 degrees ("way too slight").
+    EXPECT_FLOAT_EQ(g.windStrength, 1.0f);
+    // Pinned 2026-08-21 with the pointy-default + seam-free-meadow change: smooth style is the
+    // default again (user call), and the meadow periods must DIVIDE 2048 or the field seams at
+    // the hash-domain wrap (GrassMeadowSeamTest owns the continuity proof).
+    EXPECT_EQ(g.bladeStyle, 0u);
+    EXPECT_FLOAT_EQ(g.meadowScale, 64.0f);
+    EXPECT_FLOAT_EQ(g.meadowDetailScale, 32.0f);
     // The old "whole clumps only" assertion is DELETED, not relaxed: grass.vert no longer groups
     // blades into tufts (`blade / BLADES_PER_CLUMP` is gone), so there is no partial clump to
     // render torn and no reason for the authored count to be a multiple of 7 — 30 is not.

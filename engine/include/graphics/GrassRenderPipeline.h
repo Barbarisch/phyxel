@@ -51,22 +51,28 @@ public:
         /// shadow casting at all. Rides the previously-unused `widthScale` push constant, so
         /// no push-constant layout change. POST /api/debug/grass {"bladeWidth": N}.
         float    bladeWidthScale = 1.0f;
-        /// Master wind amplitude. Raised 0.13 -> 0.50 on 2026-08-05: 0.13 dated from blades
-        /// 0.016u wide and 0.32u tall, and against today's taller blades it produced a peak lean
-        /// of only ~11% of the hard lean cap — motion so small no frequency could make it read.
-        /// Measured in the wind debug view; the lean cap (64 degrees) makes raising this safe.
-        float    windStrength   = 0.50f;  ///< master wind amplitude (scaled by blade height in-shader)
+        /// Master wind amplitude. Raised 0.50 -> 1.0 on 2026-08-21 (user: "wind is way too
+        /// slight"; target = lively meadow). At the WindSystem defaults this lands a ~15 degree
+        /// average lean with gusts bowing blades to ~43 degrees — computed from
+        /// leanSin ≈ 2*(base + gustAmp*gust)*windStrength, verified in the wind debug view.
+        /// The lean cap (64 degrees) makes raising this safe.
+        float    windStrength   = 1.0f;   ///< master wind amplitude (scaled by blade height in-shader)
         float    growDuration   = 6.0f;   ///< seconds for the sprout-in ramp
-        /// Blades on a FULLY grassy voxel. Dropped 140 -> 30 on 2026-08-05, together with the
-        /// non-overlap change: tufting meant most blades re-filled the same few spots while the
-        /// rest of the face stayed bare, so the count had to be high to make ground read as
-        /// covered. Now every blade owns its own lattice cell and contributes, so far fewer are
-        /// needed — and 18 verts/blade makes this a ~4.7x cut in grass vertex load.
-        /// Spacing at 30 is 0.130 u against a 0.040 u blade (3.2x), so the packing budget is
-        /// comfortable and the width clamp never engages.
+        /// Blades on a FULLY grassy voxel. Raised 30 -> 55 on 2026-08-21 (user: "noticeably
+        /// denser"), together with the patch-field coverage (mean keep ~83%, so ~46 visible in
+        /// an average cell). BUDGET (recompute before touching this, radius or the falloff —
+        /// the total is quadratic in radius): disc integral of the per-blade density curve at
+        /// R=224 gives ~17.4k blades per count unit -> 55 blades * 24 verts (4 segments) ≈ 23M
+        /// verts/frame, at the historically-accepted 22.8M operating point (was 9.4M at 30*18).
+        /// Spacing at 55 is 0.0957 u against a 0.042 u blade, so the packing clamp (0.0432)
+        /// never trims a near-field blade.
         /// NOT required to be a multiple of kBladesPerClump any more — there are no clumps.
-        uint32_t bladesPerVoxel = 30;     ///< procedural blades/voxel, one per lattice cell
-        uint32_t bladeStyle     = 1;      ///< 1 = boxy rectangle blades (default), 0 = smooth tapered ribbon
+        uint32_t bladesPerVoxel = 55;     ///< procedural blades/voxel, one per lattice cell
+        /// 0 = smooth ribbon tapering to a true point (DEFAULT since 2026-08-21, user call:
+        /// "go back to pointy grass" — supersedes the 2026-07-11 boxy default), 1 = boxy
+        /// rectangle (rest height quantized to microcube steps; the quantization is also why
+        /// boxy made the voxel grid readable in grass height).
+        uint32_t bladeStyle     = 0;      ///< 0 = smooth tapered ribbon (default), 1 = boxy rectangle
         float    pushStrength   = 0.55f;  ///< character-displacer bend amplitude (0 = interaction off)
 
         // ── MEADOW HEIGHT FIELD — the plain-scale height modifier ─────────────────────────
@@ -76,8 +82,12 @@ public:
         /// Dominant octave period. This is the knob that decides how large a "plain" reads as:
         /// the point is height varying across a FIELD you walk over, not per-voxel roughness.
         /// Anything shorter than the detail octave reads as noise and undoes the smoothness.
-        float    meadowScale        = 72.0f;
-        float    meadowDetailScale  = 26.0f;   ///< detail octave period, world units
+        /// ⚠ Periods MUST DIVIDE 2048 (the shader's hash-domain wrap, which passes through the
+        /// world origin) or the meadow seams at every wrap line — the field noise is lattice-
+        /// periodic (vnoise2p) and only divisor periods tile exactly. 72/26 -> 64/32 on
+        /// 2026-08-21 for this reason (GrassMeadowSeamTest pins the continuity).
+        float    meadowScale        = 64.0f;
+        float    meadowDetailScale  = 32.0f;   ///< detail octave period, world units (divisor of 2048)
         float    meadowDetailWeight = 0.30f;   ///< 0..1; dominant octave takes the remainder
         float    heightMin          = 0.45f;   ///< height multiplier in cropped zones
         float    heightMax          = 1.85f;   ///< height multiplier in lush zones
@@ -174,6 +184,14 @@ public:
 
     /// Per-blade density fraction, mirroring grass.vert's `densityFrac`.
     static float densityFracAt(float dist, float radius);
+
+    /// Meadow height multiplier exactly as grass.vert computes it for a blade whose root sits at
+    /// voxel-local `rootLocal` on the grass voxel at ABSOLUTE world cell (cx, ·, cz) — the value
+    /// that multiplies Params::bladeHeight. CPU mirror, pure + static, same convention as
+    /// bladeRootLocal above. tests/graphics/GrassMeadowSeamTest.cpp asserts on it that blade
+    /// height is CONTINUOUS across voxel/chunk borders and across the 2048-unit hash-domain wrap
+    /// — the "you can see the chunk grid in the grass" defect class.
+    static float meadowHeightMulAt(int cx, int cz, glm::vec2 rootLocal, const Params& p);
 
     /// Jitter as a fraction of the guaranteed spacing, and the safety margin on the width
     /// clamp. MUST MATCH kJitterFrac / kPackMargin in grass.vert — they define the packing

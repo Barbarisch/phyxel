@@ -29,8 +29,8 @@ public:
         /// means a value poked into State lasts exactly one frame — long enough to look like the
         /// knob works and short enough that it never actually did anything. These live in the
         /// SETTINGS, which persist, so an override survives.
-        /// Needed because the derived gustScale only spans 0.024..0.014 (fronts 42-71 world units)
-        /// — field scale by design, and therefore larger than any small test plane. Tuning against
+        /// Needed because the derived gustScale only spans 0.055..0.033 (see the curve in
+        /// WindSystem.cpp tick()) — field scale by design. Tuning against
         /// tools/wind_field_probe.py requires reaching outside that range.
         float gustScaleOverride = -1.0f;
         float gustSpeedOverride = -1.0f;
@@ -41,11 +41,12 @@ public:
         glm::vec2 dir       {1.0f, 0.0f};  ///< unit XZ wind direction (slowly wandering)
         float     base      = 0.0f;        ///< steady bend strength (normalized, ~0..1)
         float     gustAmp   = 0.0f;        ///< gust bend amplitude riding on top of base
-        /// Gust spatial frequency (1 / world units). Lowered 0.045 -> 0.018 on 2026-08-05:
-        /// at 0.045 the coarse gust was only ~22u across and the fine octave ~10u, which is
-        /// patchiness at the scale of a few voxels rather than gust structure. Combined with
-        /// `aniso` this now yields fronts ~31u deep and ~107u wide (tools/wind_field_probe.py).
-        float     gustScale = 0.018f;
+        /// Gust spatial frequency (1 / world units). RE-DERIVED every tick() as
+        /// 0.055 - 0.022*gustiness (0.045 at defaults: fronts ~22u deep, ~110u crosswind with
+        /// aniso) — this initializer never survives a frame; use Settings::gustScaleOverride to
+        /// actually pin it. (A 2026-08-05 pass lowered the curve for 42-71u fronts and was tuned
+        /// back by eye; the .cpp comment carries that verdict.)
+        float     gustScale = 0.045f;
         float     gustSpeed = 6.0f;        ///< gust front travel speed (world units / second)
         /// How many times longer a gust front is CROSSWIND than along-wind. 1 = isotropic blobs
         /// (what shipped before 2026-08-05 - scrolled lumps, which is why wind never read as
