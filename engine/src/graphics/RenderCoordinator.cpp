@@ -4028,6 +4028,15 @@ RenderCoordinator::getCharacterBlob(const Scene::RagdollCharacter* ch, int lod) 
     blob.groupSpans.clear();
 
     const auto& charParts = ch->getParts();
+    // Whole-character tint/opacity are baked HERE rather than applied per frame: the
+    // blob is a static payload that gets bulk-copied into the instance buffer, and
+    // setRenderTint/setRenderAlpha bump partsVersion, so a change rebuilds the blob
+    // exactly once instead of costing a multiply on every part every frame.
+    const glm::vec3 tint  = ch->getRenderTint();
+    const float     alpha = ch->getRenderAlpha();
+    const auto tinted = [&](const glm::vec4& c) {
+        return glm::vec4(glm::vec3(c) * tint, c.a * alpha);
+    };
     if (lod > 0) {
         const auto& level = ch->getLodLevel(lod);
         for (const auto& range : level.groups) {
@@ -4036,7 +4045,7 @@ RenderCoordinator::getCharacterBlob(const Scene::RagdollCharacter* ch, int lod) 
             for (uint32_t k = 0; k < range.count; ++k) {
                 const auto& lp = level.parts[range.start + k];
                 CharacterInstanceData d;
-                d.offset = lp.offset; d.scale = lp.scale; d.color = lp.color;
+                d.offset = lp.offset; d.scale = lp.scale; d.color = tinted(lp.color);
                 d.boneIndex = local;
                 blob.instances.push_back(d);
             }
@@ -4052,7 +4061,7 @@ RenderCoordinator::getCharacterBlob(const Scene::RagdollCharacter* ch, int lod) 
                 const auto& p = charParts[pi];
                 if (!p.active) continue;
                 CharacterInstanceData d;
-                d.offset = p.offset; d.scale = p.scale; d.color = p.color;
+                d.offset = p.offset; d.scale = p.scale; d.color = tinted(p.color);
                 d.boneIndex = local;
                 blob.instances.push_back(d);
             }

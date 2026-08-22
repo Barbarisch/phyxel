@@ -17047,6 +17047,12 @@ void Application::processAPICommands() {
                                     ch->setAnimationMapping(state, clip);
                                 for (const auto& [state, clip] : vis->animationMapping)
                                     ch->setAnimationMapping(state, clip);
+                                // Palette-family recolor + incorporeal opacity. Forge
+                                // rigs bake explicit box colors, so this multiply is
+                                // the only lever that reaches them.
+                                ch->setRenderTint(glm::vec3(vis->tint[0], vis->tint[1],
+                                                            vis->tint[2]));
+                                ch->setRenderAlpha(vis->alpha);
                             }
                             if (auto* cb = dynamic_cast<Scene::CombatBehavior*>(npc->getBehavior()))
                                 cb->setFaction(encFaction);

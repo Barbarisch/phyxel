@@ -102,6 +102,18 @@ std::string CombatBehavior::acquireTarget(NPCContext& ctx, const glm::vec3& self
             if (!e || e == ctx.self) continue;          // skip self
             const auto* hp = e->getHealthComponent();
             if (!hp || !hp->isAlive()) continue;         // skip dead / healthless
+            // Allies are off the menu. m_faction was declared and documented
+            // for exactly this but nothing ever read it, so a spawned pack
+            // tore itself apart before it ever reached the player. An empty
+            // faction stays hostile to everyone (a lone monster needs no tag).
+            if (!m_faction.empty()) {
+                if (const auto* other = dynamic_cast<const NPCEntity*>(e)) {
+                    if (const auto* ob =
+                            dynamic_cast<const CombatBehavior*>(other->getBehavior())) {
+                        if (ob->faction() == m_faction) continue;
+                    }
+                }
+            }
             const glm::vec3 d = e->getPosition() - selfPos;
             const float d2 = d.x * d.x + d.z * d.z;
             if (d2 < bestD2) { bestD2 = d2; best = id; }
