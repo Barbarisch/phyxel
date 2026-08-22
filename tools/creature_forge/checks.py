@@ -233,7 +233,14 @@ def _rule_root_containment(compiled, out):
             continue
         root_joint = spec["chains"][cn][0]
         rp = world[root_joint]
-        chain_bones = set(sk.chains[cn])
+        # A joint shared with another chain IS the connection (a serpent's body
+        # and tail are one tube through Pelvis), so it counts as host mass
+        # rather than as part of the limb being checked.
+        shared = set()
+        for other_cn, other in sk.chains.items():
+            if other_cn != cn:
+                shared |= set(other)
+        chain_bones = set(sk.chains[cn]) - shared
         others = [p for name, pl in bone_pts.items()
                   if name not in chain_bones for p in _downsample(pl)]
         if not others:
@@ -467,12 +474,18 @@ def _rule_death_pose(compiled, out):
     ground = min_y(bind)
     bind_h = centroid_y(bind) - ground
     final_h = centroid_y(final) - ground
-    if bind_h > 1e-6 and final_h > 0.65 * bind_h:
+    # "Collapsed" cannot mean a fixed fraction of bind height: a serpent (or an
+    # ooze) already lies on the ground, so there is no 35% left to give. The
+    # floor says a creature whose mass is already within a few voxels of the
+    # ground is as down as it can get, however tall the gate would like it.
+    floor = 3.0 * compiled.options.voxel_size
+    if bind_h > 1e-6 and final_h > max(0.65 * bind_h, floor):
         out.append(Finding(
             "BLOCK", "death_pose",
             f"death clip ends with centroid at {final_h / bind_h:.0%} of bind "
-            "height — the engine freezes the last frame, so the creature must "
-            "end DOWN (<= 65%)"))
+            f"height ({final_h:.3f} above ground) — the engine freezes the last "
+            "frame, so the creature must end DOWN (<= 65% of bind height, or "
+            f"within {floor:.2f} of the ground)"))
 
 
 def _rule_lint(compiled, out):

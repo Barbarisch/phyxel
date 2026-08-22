@@ -112,5 +112,37 @@
     "monsterId": "crocodile",
     "combat": true,
     "display": "Sprawling Reptile (archetype)"
+  },
+  {
+    "id": "forge_pachyderm",
+    "spec": "specs/pachyderm.json",
+    "out": "resources/animated_characters/forge_pachyderm.anim",
+    "target_height": 1.8,
+    "morphology": "quadruped",
+    "monsterId": "elephant",
+    "combat": true,
+    "display": "Pachyderm (archetype)"
+  },
+  {
+    "id": "forge_raptor",
+    "spec": "specs/raptor.json",
+    "out": "resources/animated_characters/forge_raptor.anim",
+    "target_height": 0.55,
+    "morphology": "quadruped",
+    "monsterId": "eagle",
+    "combat": true,
+    "display": "Raptor (archetype)",
+    "legs": 2
+  },
+  {
+    "id": "forge_serpent",
+    "spec": "specs/serpent.json",
+    "out": "resources/animated_characters/forge_serpent.anim",
+    "target_height": 0.35,
+    "morphology": "quadruped",
+    "monsterId": "constrictor-snake",
+    "combat": true,
+    "legless": true,
+    "display": "Serpent (archetype)"
   }
 ]

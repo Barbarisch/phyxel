@@ -221,12 +221,26 @@ def compile_spec(spec: dict, options: Options = None) -> Compiled:
     ensure_ground_ref(af)
     walk = af.clip("walk")
     if walk is not None:
+        # measure_walk_speed derives the no-slide speed from how far a planted
+        # FOOT sweeps during stance. A legless creature has no stance, so the
+        # measurement degenerates to ~0 and the engine would translate a frozen
+        # snake across the ground — hence the spec-authored override.
+        override = spec.get("walk_speed")
         spd = measure_walk_speed(af, clip_name="walk")
-        if spd:
+        if override:
+            walk.speed = round(float(override), 3)
+            if spd and abs(spd - override) > 0.5 * override:
+                warnings.append(
+                    f"spec walk_speed {override} overrides the measured "
+                    f"{spd:.3f} — intended for legless/gliding rigs; a legged "
+                    "creature should trust the measurement")
+        elif spd and spd >= 0.05:
             walk.speed = round(spd, 3)
         else:
-            warnings.append("walk clip present but no measurable stance sweep; "
-                            "Speed not stamped (engine will foot-slide)")
+            warnings.append(
+                f"walk speed measurement degenerate ({spd if spd else 0:.3f}) — "
+                "no planted foot to measure. Set spec 'walk_speed' explicitly "
+                "or the creature will slide")
 
     return Compiled(af=af, spec=spec, sk=sk, grid=grid, options=options,
                     warnings=warnings, direct_box_bones=direct_bones)

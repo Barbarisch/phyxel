@@ -455,8 +455,15 @@ class TestBestiarySpecies:
         plan = derive_plan(compiled, entry["id"])
         names = [b.name for b in compiled.af.bones]
         assert plan["rootBone"] in names
-        min_legs = {"quadruped": 4, "arachnid": 8, "dragon": 4}.get(
-            entry["morphology"], 2)
+        # Leg count is a property of the CREATURE, not of the morphology label:
+        # a serpent legitimately has none and a bird has two, while both still
+        # read as 'quadruped' to the engine's bone heuristic. The binding
+        # contract that actually matters is the plan score below.
+        if entry.get("legless"):
+            min_legs = 0
+        else:
+            min_legs = entry.get("legs", {"quadruped": 4, "arachnid": 8,
+                                          "dragon": 4}.get(entry["morphology"], 2))
         assert len(plan["legs"]) >= min_legs
         assert plan["segments"], "segments must not be empty"
         assert _plan_score(plan, names) >= 3

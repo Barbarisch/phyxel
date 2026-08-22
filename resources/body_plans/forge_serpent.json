@@ -1,0 +1,54 @@
+{
+  "id": "forge_serpent",
+  "morphology": "quadruped",
+  "gaitClass": "quadruped_clips",
+  "rootBone": "Pelvis",
+  "hipAliases": [
+    "pelvis",
+    "hip"
+  ],
+  "gripBone": "HeadRoot",
+  "capsule": {
+    "mode": "xz_extent",
+    "minHalfWidth": 0.2,
+    "maxHalfWidth": 0.98
+  },
+  "legs": [],
+  "segments": [
+    {
+      "bone": "Pelvis",
+      "isArm": false
+    },
+    {
+      "bone": "Chest",
+      "isArm": false
+    },
+    {
+      "bone": "Neck",
+      "isArm": false
+    },
+    {
+      "bone": "HeadRoot",
+      "isArm": false
+    },
+    {
+      "bone": "tail_1",
+      "isArm": false
+    },
+    {
+      "bone": "tail_2",
+      "isArm": false
+    },
+    {
+      "bone": "tail_3",
+      "isArm": false
+    }
+  ],
+  "clipDefaults": {
+    "Idle": "idle",
+    "Walk": "walk",
+    "StartWalk": "walk",
+    "Attack": "attack",
+    "Death": "death"
+  }
+}

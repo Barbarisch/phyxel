@@ -1,0 +1,794 @@
+{
+  "name": "forge_serpent",
+  "_template": "Serpent archetype (constrictor, poisonous snake, naga body, behir, purple worm via binding tint+scale). LEGLESS: no leg chains at all - the first forge body plan with an empty legs[]. Slither is a lateral body wave. Neutral olive palette authored FOR tinting.",
+  "palette": {
+    "scale_body": {
+      "color": "#87936d",
+      "rough": 0.85
+    },
+    "scale_head": {
+      "color": "#7e8a64",
+      "rough": 0.85
+    },
+    "belly": {
+      "color": "#c9c9a0",
+      "rough": 0.85
+    },
+    "fang": {
+      "color": "#d8d0bc",
+      "rough": 0.5
+    },
+    "eye": {
+      "color": "#c8a828",
+      "rough": 0.2
+    }
+  },
+  "shading": {
+    "gradient": {
+      "top": 0.12,
+      "bottom": -0.22
+    },
+    "noise": {
+      "size": 0.018,
+      "amount": 0.1
+    }
+  },
+  "smooth_angle": 50,
+  "joints": {
+    "Pelvis": [
+      0,
+      0.16,
+      -0.1
+    ],
+    "Chest": {
+      "from": "Pelvis",
+      "up": 0.02,
+      "fwd": 0.34
+    },
+    "Neck": {
+      "from": "Chest",
+      "up": 0.03,
+      "fwd": 0.26
+    },
+    "HeadRoot": {
+      "from": "Neck",
+      "up": 0.02,
+      "fwd": 0.05
+    },
+    "Skull": {
+      "from": "HeadRoot",
+      "up": 0.01,
+      "fwd": 0.07
+    },
+    "Brow": {
+      "from": "Skull",
+      "fwd": 0.05
+    },
+    "Snout": {
+      "from": "Brow",
+      "up": -0.01,
+      "fwd": 0.06
+    },
+    "tail_1": {
+      "from": "Pelvis",
+      "up": -0.01,
+      "fwd": -0.14
+    },
+    "tail_2": {
+      "from": "tail_1",
+      "up": -0.01,
+      "fwd": -0.28
+    },
+    "tail_3": {
+      "from": "tail_2",
+      "up": 0.0,
+      "fwd": -0.26
+    },
+    "tail_4": {
+      "from": "tail_3",
+      "up": 0.0,
+      "fwd": -0.22
+    },
+    "tail_tip": {
+      "from": "tail_4",
+      "up": 0.0,
+      "fwd": -0.18
+    }
+  },
+  "chains": {
+    "body": [
+      "Pelvis",
+      "Chest",
+      "Neck"
+    ],
+    "head": [
+      "HeadRoot",
+      "Skull",
+      "Brow",
+      "Snout"
+    ],
+    "tail": [
+      "Pelvis",
+      "tail_1",
+      "tail_2",
+      "tail_3",
+      "tail_4",
+      "tail_tip"
+    ]
+  },
+  "attach": {
+    "head": "Neck",
+    "tail": "Pelvis"
+  },
+  "body_plan": {
+    "root": "Pelvis",
+    "grip": "HeadRoot",
+    "segments": [
+      "Pelvis",
+      "Chest",
+      "Neck",
+      "HeadRoot",
+      "tail_1",
+      "tail_2",
+      "tail_3"
+    ]
+  },
+  "volumes": [
+    {
+      "chain": "body",
+      "material": "scale_body",
+      "frame": "up",
+      "sides": 12,
+      "profile": [
+        [
+          0.0,
+          0.13,
+          0.12,
+          {
+            "exp": 2.3
+          }
+        ],
+        [
+          0.45,
+          0.12,
+          0.11,
+          {
+            "exp": 2.3
+          }
+        ],
+        [
+          1.0,
+          0.1,
+          0.095,
+          {
+            "exp": 2.2
+          }
+        ]
+      ],
+      "caps": [
+        "dome",
+        "dome"
+      ],
+      "colors": {
+        "arcs": [
+          {
+            "from": 0,
+            "to": 42,
+            "color": "#5f6b48"
+          },
+          {
+            "from": 134,
+            "to": 180,
+            "color": "#c9c9a0"
+          }
+        ]
+      }
+    },
+    {
+      "chain": "tail",
+      "material": "scale_body",
+      "sides": 12,
+      "profile": [
+        [
+          0.0,
+          0.13,
+          0.12,
+          {
+            "exp": 2.3
+          }
+        ],
+        [
+          0.35,
+          0.115,
+          0.105,
+          {
+            "exp": 2.3
+          }
+        ],
+        [
+          0.72,
+          0.075,
+          0.07
+        ],
+        [
+          1.0,
+          0.033,
+          0.031
+        ]
+      ],
+      "caps": [
+        "none",
+        "dome"
+      ],
+      "colors": {
+        "arcs": [
+          {
+            "from": 0,
+            "to": 42,
+            "color": "#5f6b48"
+          },
+          {
+            "from": 134,
+            "to": 180,
+            "color": "#c9c9a0"
+          }
+        ]
+      }
+    },
+    {
+      "chain": "head",
+      "material": "scale_head",
+      "frame": "up",
+      "sides": 10,
+      "profile": [
+        [
+          0.0,
+          0.1,
+          0.09
+        ],
+        [
+          0.35,
+          0.115,
+          0.085,
+          {
+            "sharp": true,
+            "exp": 2.5
+          }
+        ],
+        [
+          0.72,
+          0.09,
+          0.06,
+          {
+            "exp": 2.4
+          }
+        ],
+        [
+          1.0,
+          0.055,
+          0.04
+        ]
+      ],
+      "caps": [
+        "none",
+        "dome"
+      ],
+      "colors": {
+        "arcs": [
+          {
+            "from": 0,
+            "to": 44,
+            "color": "#5f6b48"
+          }
+        ]
+      }
+    }
+  ],
+  "parts": [
+    {
+      "type": "eye",
+      "host": "Brow",
+      "material": "eye",
+      "size": 0.02,
+      "anchor": {
+        "chain": "head",
+        "t": 0.42,
+        "around": 58
+      }
+    },
+    {
+      "type": "spike",
+      "host": "Snout",
+      "material": "fang",
+      "offset": [
+        0.028,
+        -0.03,
+        0.01
+      ],
+      "dir": [
+        0.05,
+        -0.95,
+        0.3
+      ],
+      "sides": 5,
+      "segments": [
+        {
+          "len": 0.05,
+          "r": 0.014,
+          "taper": true
+        }
+      ],
+      "mirrored": true
+    }
+  ],
+  "combat": true,
+  "animations": {
+    "idle": {
+      "duration": 3.0,
+      "loop": true,
+      "tracks": {
+        "Neck": {
+          "ry": [
+            [
+              0,
+              5
+            ],
+            [
+              0.5,
+              -5
+            ],
+            [
+              1,
+              5
+            ]
+          ]
+        },
+        "tail_1": {
+          "ry": [
+            [
+              0,
+              -6
+            ],
+            [
+              0.5,
+              6
+            ],
+            [
+              1,
+              -6
+            ]
+          ]
+        },
+        "tail_3": {
+          "ry": [
+            [
+              0,
+              7
+            ],
+            [
+              0.5,
+              -7
+            ],
+            [
+              1,
+              7
+            ]
+          ]
+        },
+        "Skull": {
+          "rx": [
+            [
+              0,
+              -2
+            ],
+            [
+              0.5,
+              3
+            ],
+            [
+              1,
+              -2
+            ]
+          ]
+        }
+      }
+    },
+    "attack": {
+      "duration": 0.55,
+      "loop": false,
+      "hit_fraction": 0.42,
+      "tracks": {
+        "Pelvis": {
+          "tz": [
+            [
+              0,
+              0
+            ],
+            [
+              0.18,
+              -0.08
+            ],
+            [
+              0.42,
+              0.4
+            ],
+            [
+              0.62,
+              0.4
+            ],
+            [
+              1,
+              0
+            ]
+          ],
+          "ty": [
+            [
+              0,
+              0
+            ],
+            [
+              0.18,
+              0.05
+            ],
+            [
+              0.42,
+              -0.01
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        },
+        "Chest": {
+          "rx": [
+            [
+              0,
+              0
+            ],
+            [
+              0.18,
+              -22
+            ],
+            [
+              0.42,
+              26
+            ],
+            [
+              0.7,
+              14
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        },
+        "Neck": {
+          "rx": [
+            [
+              0,
+              0
+            ],
+            [
+              0.18,
+              -18
+            ],
+            [
+              0.42,
+              24
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        },
+        "Skull": {
+          "rx": [
+            [
+              0,
+              0
+            ],
+            [
+              0.18,
+              -12
+            ],
+            [
+              0.42,
+              20
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        }
+      }
+    },
+    "death": {
+      "duration": 1.2,
+      "loop": false,
+      "tracks": {
+        "Pelvis": {
+          "ty": [
+            [
+              0,
+              0
+            ],
+            [
+              0.6,
+              -0.05
+            ],
+            [
+              1,
+              -0.07
+            ]
+          ],
+          "rz": [
+            [
+              0,
+              0
+            ],
+            [
+              0.6,
+              16
+            ],
+            [
+              1,
+              22
+            ]
+          ]
+        },
+        "Chest": {
+          "ry": [
+            [
+              0,
+              0
+            ],
+            [
+              0.6,
+              26
+            ],
+            [
+              1,
+              34
+            ]
+          ]
+        },
+        "Neck": {
+          "ry": [
+            [
+              0,
+              0
+            ],
+            [
+              0.6,
+              -22
+            ],
+            [
+              1,
+              -30
+            ]
+          ]
+        },
+        "tail_1": {
+          "ry": [
+            [
+              0,
+              0
+            ],
+            [
+              0.6,
+              -28
+            ],
+            [
+              1,
+              -36
+            ]
+          ]
+        },
+        "tail_2": {
+          "ry": [
+            [
+              0,
+              0
+            ],
+            [
+              0.6,
+              30
+            ],
+            [
+              1,
+              38
+            ]
+          ]
+        },
+        "tail_3": {
+          "ry": [
+            [
+              0,
+              0
+            ],
+            [
+              0.6,
+              -26
+            ],
+            [
+              1,
+              -34
+            ]
+          ]
+        },
+        "tail_4": {
+          "ry": [
+            [
+              0,
+              0
+            ],
+            [
+              0.6,
+              24
+            ],
+            [
+              1,
+              32
+            ]
+          ]
+        }
+      }
+    },
+    "move": {
+      "duration": 1.0,
+      "loop": true,
+      "tracks": {
+        "Chest": {
+          "ry": [
+            [
+              0,
+              14
+            ],
+            [
+              0.25,
+              0
+            ],
+            [
+              0.5,
+              -14
+            ],
+            [
+              0.75,
+              0
+            ],
+            [
+              1,
+              14
+            ]
+          ]
+        },
+        "Neck": {
+          "ry": [
+            [
+              0,
+              -10
+            ],
+            [
+              0.25,
+              6
+            ],
+            [
+              0.5,
+              10
+            ],
+            [
+              0.75,
+              -6
+            ],
+            [
+              1,
+              -10
+            ]
+          ]
+        },
+        "tail_1": {
+          "ry": [
+            [
+              0,
+              -16
+            ],
+            [
+              0.25,
+              0
+            ],
+            [
+              0.5,
+              16
+            ],
+            [
+              0.75,
+              0
+            ],
+            [
+              1,
+              -16
+            ]
+          ]
+        },
+        "tail_2": {
+          "ry": [
+            [
+              0,
+              0
+            ],
+            [
+              0.25,
+              16
+            ],
+            [
+              0.5,
+              0
+            ],
+            [
+              0.75,
+              -16
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        },
+        "tail_3": {
+          "ry": [
+            [
+              0,
+              16
+            ],
+            [
+              0.25,
+              0
+            ],
+            [
+              0.5,
+              -16
+            ],
+            [
+              0.75,
+              0
+            ],
+            [
+              1,
+              16
+            ]
+          ]
+        },
+        "tail_4": {
+          "ry": [
+            [
+              0,
+              0
+            ],
+            [
+              0.25,
+              -16
+            ],
+            [
+              0.5,
+              0
+            ],
+            [
+              0.75,
+              16
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        }
+      }
+    }
+  },
+  "walk_speed": 0.35,
+  "_note_speed": "Legless: no planted foot for measure_walk_speed to sweep, so the no-slide speed is authored here (SRD snakes move ~30 ft/round, i.e. a brisk crawl at this scale)."
+}
