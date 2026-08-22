@@ -22,129 +22,94 @@
     "faction": "monsters"
   },
   "adult-black-dragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_adult.anim",
     "faction": "dragons",
     "tint": [
-      0.35,
-      0.35,
-      0.4
-    ],
-    "appearance": {
-      "heightScale": 1.9,
-      "bulkScale": 1.9
-    }
+      0.38,
+      0.38,
+      0.44
+    ]
   },
   "adult-blue-dragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_adult.anim",
     "faction": "dragons",
     "tint": [
       0.45,
-      0.6,
-      1.1
-    ],
-    "appearance": {
-      "heightScale": 1.9,
-      "bulkScale": 1.9
-    }
+      0.62,
+      1.15
+    ]
   },
   "adult-brass-dragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_adult.anim",
+    "faction": "dragons",
+    "tint": [
+      1.2,
+      0.92,
+      0.45
+    ]
+  },
+  "adult-bronze-dragon": {
+    "animFile": "resources/animated_characters/forge_dragon_adult.anim",
+    "faction": "dragons",
+    "tint": [
+      0.95,
+      0.72,
+      0.4
+    ]
+  },
+  "adult-copper-dragon": {
+    "animFile": "resources/animated_characters/forge_dragon_adult.anim",
     "faction": "dragons",
     "tint": [
       1.15,
-      0.9,
-      0.45
-    ],
-    "appearance": {
-      "heightScale": 1.9,
-      "bulkScale": 1.9
-    }
-  },
-  "adult-bronze-dragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
-    "faction": "dragons",
-    "tint": [
-      0.9,
-      0.7,
-      0.4
-    ],
-    "appearance": {
-      "heightScale": 1.9,
-      "bulkScale": 1.9
-    }
-  },
-  "adult-copper-dragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
-    "faction": "dragons",
-    "tint": [
-      1.1,
       0.6,
       0.4
-    ],
-    "appearance": {
-      "heightScale": 1.9,
-      "bulkScale": 1.9
-    }
+    ]
   },
   "adult-gold-dragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_adult.anim",
     "faction": "dragons",
     "tint": [
       1.3,
       1.05,
       0.4
-    ],
-    "appearance": {
-      "heightScale": 1.9,
-      "bulkScale": 1.9
-    }
+    ]
   },
   "adult-green-dragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_adult.anim",
     "faction": "dragons",
     "tint": [
       0.45,
-      0.75,
+      0.78,
       0.45
-    ],
-    "appearance": {
-      "heightScale": 1.9,
-      "bulkScale": 1.9
-    }
+    ]
   },
   "adult-red-dragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_adult.anim",
     "faction": "dragons",
-    "appearance": {
-      "heightScale": 1.9,
-      "bulkScale": 1.9
-    }
+    "tint": [
+      1.15,
+      0.45,
+      0.38
+    ]
   },
   "adult-silver-dragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_adult.anim",
     "faction": "dragons",
     "tint": [
       1.15,
       1.2,
       1.3
-    ],
-    "appearance": {
-      "heightScale": 1.9,
-      "bulkScale": 1.9
-    }
+    ]
   },
   "adult-white-dragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_adult.anim",
     "faction": "dragons",
     "tint": [
       1.3,
       1.35,
       1.4
-    ],
-    "appearance": {
-      "heightScale": 1.9,
-      "bulkScale": 1.9
-    }
+    ]
   },
   "air-elemental": {
     "animFile": "resources/animated_characters/humanoid.anim",
@@ -161,129 +126,94 @@
     }
   },
   "ancient-black-dragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_ancient.anim",
     "faction": "dragons",
     "tint": [
-      0.35,
-      0.35,
-      0.4
-    ],
-    "appearance": {
-      "heightScale": 3.2,
-      "bulkScale": 3.2
-    }
+      0.38,
+      0.38,
+      0.44
+    ]
   },
   "ancient-blue-dragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_ancient.anim",
     "faction": "dragons",
     "tint": [
       0.45,
-      0.6,
-      1.1
-    ],
-    "appearance": {
-      "heightScale": 3.2,
-      "bulkScale": 3.2
-    }
+      0.62,
+      1.15
+    ]
   },
   "ancient-brass-dragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_ancient.anim",
+    "faction": "dragons",
+    "tint": [
+      1.2,
+      0.92,
+      0.45
+    ]
+  },
+  "ancient-bronze-dragon": {
+    "animFile": "resources/animated_characters/forge_dragon_ancient.anim",
+    "faction": "dragons",
+    "tint": [
+      0.95,
+      0.72,
+      0.4
+    ]
+  },
+  "ancient-copper-dragon": {
+    "animFile": "resources/animated_characters/forge_dragon_ancient.anim",
     "faction": "dragons",
     "tint": [
       1.15,
-      0.9,
-      0.45
-    ],
-    "appearance": {
-      "heightScale": 3.2,
-      "bulkScale": 3.2
-    }
-  },
-  "ancient-bronze-dragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
-    "faction": "dragons",
-    "tint": [
-      0.9,
-      0.7,
-      0.4
-    ],
-    "appearance": {
-      "heightScale": 3.2,
-      "bulkScale": 3.2
-    }
-  },
-  "ancient-copper-dragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
-    "faction": "dragons",
-    "tint": [
-      1.1,
       0.6,
       0.4
-    ],
-    "appearance": {
-      "heightScale": 3.2,
-      "bulkScale": 3.2
-    }
+    ]
   },
   "ancient-gold-dragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_ancient.anim",
     "faction": "dragons",
     "tint": [
       1.3,
       1.05,
       0.4
-    ],
-    "appearance": {
-      "heightScale": 3.2,
-      "bulkScale": 3.2
-    }
+    ]
   },
   "ancient-green-dragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_ancient.anim",
     "faction": "dragons",
     "tint": [
       0.45,
-      0.75,
+      0.78,
       0.45
-    ],
-    "appearance": {
-      "heightScale": 3.2,
-      "bulkScale": 3.2
-    }
+    ]
   },
   "ancient-red-dragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_ancient.anim",
     "faction": "dragons",
-    "appearance": {
-      "heightScale": 3.2,
-      "bulkScale": 3.2
-    }
+    "tint": [
+      1.15,
+      0.45,
+      0.38
+    ]
   },
   "ancient-silver-dragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_ancient.anim",
     "faction": "dragons",
     "tint": [
       1.15,
       1.2,
       1.3
-    ],
-    "appearance": {
-      "heightScale": 3.2,
-      "bulkScale": 3.2
-    }
+    ]
   },
   "ancient-white-dragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_ancient.anim",
     "faction": "dragons",
     "tint": [
       1.3,
       1.35,
       1.4
-    ],
-    "appearance": {
-      "heightScale": 3.2,
-      "bulkScale": 3.2
-    }
+    ]
   },
   "androsphinx": {
     "animFile": "resources/animated_characters/forge_griffon.anim",
@@ -519,17 +449,13 @@
     }
   },
   "black-dragon-wyrmling": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_wyrmling.anim",
     "faction": "dragons",
     "tint": [
-      0.35,
-      0.35,
-      0.4
-    ],
-    "appearance": {
-      "heightScale": 0.5,
-      "bulkScale": 0.5
-    }
+      0.38,
+      0.38,
+      0.44
+    ]
   },
   "black-pudding": {
     "animFile": "resources/animated_characters/monster_mushroomking.anim",
@@ -575,17 +501,13 @@
     }
   },
   "blue-dragon-wyrmling": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_wyrmling.anim",
     "faction": "dragons",
     "tint": [
       0.45,
-      0.6,
-      1.1
-    ],
-    "appearance": {
-      "heightScale": 0.5,
-      "bulkScale": 0.5
-    }
+      0.62,
+      1.15
+    ]
   },
   "boar": {
     "animFile": "resources/animated_characters/forge_boar.anim",
@@ -609,30 +531,22 @@
     }
   },
   "brass-dragon-wyrmling": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_wyrmling.anim",
     "faction": "dragons",
     "tint": [
-      1.15,
-      0.9,
+      1.2,
+      0.92,
       0.45
-    ],
-    "appearance": {
-      "heightScale": 0.5,
-      "bulkScale": 0.5
-    }
+    ]
   },
   "bronze-dragon-wyrmling": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_wyrmling.anim",
     "faction": "dragons",
     "tint": [
-      0.9,
-      0.7,
+      0.95,
+      0.72,
       0.4
-    ],
-    "appearance": {
-      "heightScale": 0.5,
-      "bulkScale": 0.5
-    }
+    ]
   },
   "brown-bear": {
     "animFile": "resources/animated_characters/forge_bear.anim",
@@ -816,17 +730,13 @@
     }
   },
   "copper-dragon-wyrmling": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_wyrmling.anim",
     "faction": "dragons",
     "tint": [
-      1.1,
+      1.15,
       0.6,
       0.4
-    ],
-    "appearance": {
-      "heightScale": 0.5,
-      "bulkScale": 0.5
-    }
+    ]
   },
   "couatl": {
     "animFile": "resources/animated_characters/forge_serpent.anim",
@@ -982,20 +892,16 @@
     }
   },
   "dragon-turtle": {
-    "animFile": "resources/animated_characters/bull.anim",
+    "animFile": "resources/animated_characters/forge_bear.anim",
     "faction": "beasts",
-    "animationMapping": {
-      "Attack": "Attack_Headbutt",
-      "Run": "Gallop"
-    },
     "tint": [
-      0.4,
-      0.6,
+      0.45,
+      0.62,
       0.55
     ],
     "appearance": {
-      "heightScale": 2.2,
-      "bulkScale": 2.2
+      "heightScale": 2.4,
+      "bulkScale": 2.4
     }
   },
   "dretch": {
@@ -1750,17 +1656,13 @@
     "faction": "monsters"
   },
   "gold-dragon-wyrmling": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_wyrmling.anim",
     "faction": "dragons",
     "tint": [
       1.3,
       1.05,
       0.4
-    ],
-    "appearance": {
-      "heightScale": 0.5,
-      "bulkScale": 0.5
-    }
+    ]
   },
   "gorgon": {
     "animFile": "resources/animated_characters/forge_ibex.anim",
@@ -1793,17 +1695,13 @@
     }
   },
   "green-dragon-wyrmling": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_wyrmling.anim",
     "faction": "dragons",
     "tint": [
       0.45,
-      0.75,
+      0.78,
       0.45
-    ],
-    "appearance": {
-      "heightScale": 0.5,
-      "bulkScale": 0.5
-    }
+    ]
   },
   "green-hag": {
     "animFile": "resources/animated_characters/humanoid.anim",
@@ -2705,16 +2603,16 @@
     "faction": "monsters"
   },
   "pseudodragon": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_wyrmling.anim",
     "faction": "dragons",
     "tint": [
-      1.0,
+      1.05,
       0.55,
       0.5
     ],
     "appearance": {
-      "heightScale": 0.3,
-      "bulkScale": 0.3
+      "heightScale": 0.45,
+      "bulkScale": 0.45
     }
   },
   "purple-worm": {
@@ -2796,12 +2694,13 @@
     }
   },
   "red-dragon-wyrmling": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_wyrmling.anim",
     "faction": "dragons",
-    "appearance": {
-      "heightScale": 0.5,
-      "bulkScale": 0.5
-    }
+    "tint": [
+      1.15,
+      0.45,
+      0.38
+    ]
   },
   "reef-shark": {
     "animFile": "resources/animated_characters/monster_fish.anim",
@@ -3047,17 +2946,13 @@
     }
   },
   "silver-dragon-wyrmling": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_wyrmling.anim",
     "faction": "dragons",
     "tint": [
       1.15,
       1.2,
       1.3
-    ],
-    "appearance": {
-      "heightScale": 0.5,
-      "bulkScale": 0.5
-    }
+    ]
   },
   "skeleton": {
     "animFile": "resources/animated_characters/skeleton_warrior.anim",
@@ -3749,17 +3644,13 @@
     }
   },
   "white-dragon-wyrmling": {
-    "animFile": "resources/animated_characters/forge_dragon_young.anim",
+    "animFile": "resources/animated_characters/forge_dragon_wyrmling.anim",
     "faction": "dragons",
     "tint": [
       1.3,
       1.35,
       1.4
-    ],
-    "appearance": {
-      "heightScale": 0.5,
-      "bulkScale": 0.5
-    }
+    ]
   },
   "wight": {
     "animFile": "resources/animated_characters/skeleton_warrior.anim",
@@ -3836,13 +3727,13 @@
     "animFile": "resources/animated_characters/forge_dragon_young.anim",
     "faction": "dragons",
     "tint": [
+      0.7,
       0.65,
-      0.6,
-      0.5
+      0.55
     ],
     "appearance": {
-      "heightScale": 1.2,
-      "bulkScale": 1.2
+      "heightScale": 0.9,
+      "bulkScale": 0.9
     }
   },
   "xorn": {
@@ -3862,9 +3753,9 @@
     "animFile": "resources/animated_characters/forge_dragon_young.anim",
     "faction": "dragons",
     "tint": [
-      0.35,
-      0.35,
-      0.4
+      0.38,
+      0.38,
+      0.44
     ]
   },
   "young-blue-dragon": {
@@ -3872,16 +3763,16 @@
     "faction": "dragons",
     "tint": [
       0.45,
-      0.6,
-      1.1
+      0.62,
+      1.15
     ]
   },
   "young-brass-dragon": {
     "animFile": "resources/animated_characters/forge_dragon_young.anim",
     "faction": "dragons",
     "tint": [
-      1.15,
-      0.9,
+      1.2,
+      0.92,
       0.45
     ]
   },
@@ -3889,8 +3780,8 @@
     "animFile": "resources/animated_characters/forge_dragon_young.anim",
     "faction": "dragons",
     "tint": [
-      0.9,
-      0.7,
+      0.95,
+      0.72,
       0.4
     ]
   },
@@ -3898,7 +3789,7 @@
     "animFile": "resources/animated_characters/forge_dragon_young.anim",
     "faction": "dragons",
     "tint": [
-      1.1,
+      1.15,
       0.6,
       0.4
     ]
@@ -3917,13 +3808,18 @@
     "faction": "dragons",
     "tint": [
       0.45,
-      0.75,
+      0.78,
       0.45
     ]
   },
   "young-red-dragon": {
     "animFile": "resources/animated_characters/forge_dragon_young.anim",
-    "faction": "dragons"
+    "faction": "dragons",
+    "tint": [
+      1.15,
+      0.45,
+      0.38
+    ]
   },
   "young-silver-dragon": {
     "animFile": "resources/animated_characters/forge_dragon_young.anim",
@@ -3945,7 +3841,12 @@
   },
   "young_red_dragon": {
     "animFile": "resources/animated_characters/forge_dragon_young.anim",
-    "faction": "dragons"
+    "faction": "dragons",
+    "tint": [
+      1.15,
+      0.45,
+      0.38
+    ]
   },
   "zombie": {
     "animFile": "resources/animated_characters/zombie.anim",

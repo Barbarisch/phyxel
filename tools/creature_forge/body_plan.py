@@ -98,15 +98,23 @@ def derive_plan(compiled, plan_id: str) -> dict:
                 seg_names.append(leg["upper"])
     segments = [{"bone": n, "isArm": False} for n in seg_names if n in sk.index]
 
-    # capsule from the voxel grid's XZ extent
+    # Capsule from the FINISHED rig's XZ extent, not the voxel grid: the grid
+    # is in spec space and target_height rescales the boxes afterwards, so a
+    # grid-derived capsule would give an ancient dragon a wyrmling's collision
+    # radius (the engine clamps the runtime capsule to this number, so it would
+    # walk through walls its body visibly fills).
     max_half = 0.3
-    if compiled.grid.cells:
-        vs = compiled.grid.vs
-        xs = [k[0] for k in compiled.grid.cells]
-        zs = [k[2] for k in compiled.grid.cells]
-        half_x = (max(xs) - min(xs) + 1) * vs * 0.5
-        half_z = (max(zs) - min(zs) + 1) * vs * 0.5
-        max_half = max(0.3, round(max(half_x, half_z), 2))
+    world = compiled.bind_world_positions()
+    xs, zs = [], []
+    for bx in compiled.af.boxes:
+        b = world[compiled.af.bones[bx.bone_id].name]
+        xs += [b[0] + bx.center[0] - bx.size[0] / 2,
+               b[0] + bx.center[0] + bx.size[0] / 2]
+        zs += [b[2] + bx.center[2] - bx.size[2] / 2,
+               b[2] + bx.center[2] + bx.size[2] / 2]
+    if xs:
+        max_half = max(0.3, round(max(max(xs) - min(xs),
+                                      max(zs) - min(zs)) * 0.5, 2))
 
     clips = {c.name for c in compiled.af.clips}
     clip_defaults = {}

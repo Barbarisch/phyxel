@@ -85,13 +85,6 @@
           ],
           "approx": "hag"
         },
-        "half-red-dragon-veteran": {
-          "tint": [
-            1.0,
-            0.6,
-            0.55
-          ]
-        },
         "werebear-human": {},
         "wereboar-human": {},
         "wererat-human": {},
@@ -519,6 +512,13 @@
           "scale": 1.2,
           "alpha": 0.35,
           "approx": "incorporeal"
+        },
+        "half-red-dragon-veteran": {
+          "tint": [
+            1.0,
+            0.6,
+            0.55
+          ]
         }
       }
     },
@@ -1113,6 +1113,15 @@
           ],
           "scale": 3.0,
           "approx": "exotic"
+        },
+        "dragon-turtle": {
+          "tint": [
+            0.45,
+            0.62,
+            0.55
+          ],
+          "scale": 2.4,
+          "approx": "exotic"
         }
       }
     },
@@ -1258,15 +1267,6 @@
           ],
           "scale": 1.8,
           "approx": "exotic"
-        },
-        "dragon-turtle": {
-          "tint": [
-            0.4,
-            0.6,
-            0.55
-          ],
-          "scale": 2.2,
-          "approx": "exotic"
         }
       },
       "animationMapping": {
@@ -1369,27 +1369,32 @@
       "animFile": "resources/animated_characters/forge_dragon_young.anim",
       "faction": "dragons",
       "members": {
-        "young_red_dragon": {},
-        "young-red-dragon": {},
         "young-black-dragon": {
           "tint": [
-            0.35,
-            0.35,
-            0.4
+            0.38,
+            0.38,
+            0.44
           ]
         },
         "young-blue-dragon": {
           "tint": [
             0.45,
-            0.6,
-            1.1
+            0.62,
+            1.15
           ]
         },
         "young-green-dragon": {
           "tint": [
             0.45,
-            0.75,
+            0.78,
             0.45
+          ]
+        },
+        "young-red-dragon": {
+          "tint": [
+            1.15,
+            0.45,
+            0.38
           ]
         },
         "young-white-dragon": {
@@ -1401,21 +1406,21 @@
         },
         "young-brass-dragon": {
           "tint": [
-            1.15,
-            0.9,
+            1.2,
+            0.92,
             0.45
           ]
         },
         "young-bronze-dragon": {
           "tint": [
-            0.9,
-            0.7,
+            0.95,
+            0.72,
             0.4
           ]
         },
         "young-copper-dragon": {
           "tint": [
-            1.1,
+            1.15,
             0.6,
             0.4
           ]
@@ -1434,277 +1439,20 @@
             1.3
           ]
         },
-        "black-dragon-wyrmling": {
-          "tint": [
-            0.35,
-            0.35,
-            0.4
-          ],
-          "scale": 0.5,
-          "approx": "dragon_wyrmling"
-        },
-        "blue-dragon-wyrmling": {
-          "tint": [
-            0.45,
-            0.6,
-            1.1
-          ],
-          "scale": 0.5,
-          "approx": "dragon_wyrmling"
-        },
-        "brass-dragon-wyrmling": {
+        "young_red_dragon": {
           "tint": [
             1.15,
-            0.9,
-            0.45
-          ],
-          "scale": 0.5,
-          "approx": "dragon_wyrmling"
-        },
-        "bronze-dragon-wyrmling": {
-          "tint": [
-            0.9,
-            0.7,
-            0.4
-          ],
-          "scale": 0.5,
-          "approx": "dragon_wyrmling"
-        },
-        "copper-dragon-wyrmling": {
-          "tint": [
-            1.1,
-            0.6,
-            0.4
-          ],
-          "scale": 0.5,
-          "approx": "dragon_wyrmling"
-        },
-        "gold-dragon-wyrmling": {
-          "tint": [
-            1.3,
-            1.05,
-            0.4
-          ],
-          "scale": 0.5,
-          "approx": "dragon_wyrmling"
-        },
-        "green-dragon-wyrmling": {
-          "tint": [
             0.45,
-            0.75,
-            0.45
-          ],
-          "scale": 0.5,
-          "approx": "dragon_wyrmling"
-        },
-        "red-dragon-wyrmling": {
-          "scale": 0.5,
-          "approx": "dragon_wyrmling"
-        },
-        "silver-dragon-wyrmling": {
-          "tint": [
-            1.15,
-            1.2,
-            1.3
-          ],
-          "scale": 0.5,
-          "approx": "dragon_wyrmling"
-        },
-        "white-dragon-wyrmling": {
-          "tint": [
-            1.3,
-            1.35,
-            1.4
-          ],
-          "scale": 0.5,
-          "approx": "dragon_wyrmling"
-        },
-        "pseudodragon": {
-          "tint": [
-            1.0,
-            0.55,
-            0.5
-          ],
-          "scale": 0.3,
-          "approx": "dragon_wyrmling"
-        },
-        "adult-black-dragon": {
-          "tint": [
-            0.35,
-            0.35,
-            0.4
-          ],
-          "scale": 1.9,
-          "approx": "dragon_adult"
-        },
-        "adult-blue-dragon": {
-          "tint": [
-            0.45,
-            0.6,
-            1.1
-          ],
-          "scale": 1.9,
-          "approx": "dragon_adult"
-        },
-        "adult-brass-dragon": {
-          "tint": [
-            1.15,
-            0.9,
-            0.45
-          ],
-          "scale": 1.9,
-          "approx": "dragon_adult"
-        },
-        "adult-bronze-dragon": {
-          "tint": [
-            0.9,
-            0.7,
-            0.4
-          ],
-          "scale": 1.9,
-          "approx": "dragon_adult"
-        },
-        "adult-copper-dragon": {
-          "tint": [
-            1.1,
-            0.6,
-            0.4
-          ],
-          "scale": 1.9,
-          "approx": "dragon_adult"
-        },
-        "adult-gold-dragon": {
-          "tint": [
-            1.3,
-            1.05,
-            0.4
-          ],
-          "scale": 1.9,
-          "approx": "dragon_adult"
-        },
-        "adult-green-dragon": {
-          "tint": [
-            0.45,
-            0.75,
-            0.45
-          ],
-          "scale": 1.9,
-          "approx": "dragon_adult"
-        },
-        "adult-red-dragon": {
-          "scale": 1.9,
-          "approx": "dragon_adult"
-        },
-        "adult-silver-dragon": {
-          "tint": [
-            1.15,
-            1.2,
-            1.3
-          ],
-          "scale": 1.9,
-          "approx": "dragon_adult"
-        },
-        "adult-white-dragon": {
-          "tint": [
-            1.3,
-            1.35,
-            1.4
-          ],
-          "scale": 1.9,
-          "approx": "dragon_adult"
-        },
-        "ancient-black-dragon": {
-          "tint": [
-            0.35,
-            0.35,
-            0.4
-          ],
-          "scale": 3.2,
-          "approx": "dragon_ancient"
-        },
-        "ancient-blue-dragon": {
-          "tint": [
-            0.45,
-            0.6,
-            1.1
-          ],
-          "scale": 3.2,
-          "approx": "dragon_ancient"
-        },
-        "ancient-brass-dragon": {
-          "tint": [
-            1.15,
-            0.9,
-            0.45
-          ],
-          "scale": 3.2,
-          "approx": "dragon_ancient"
-        },
-        "ancient-bronze-dragon": {
-          "tint": [
-            0.9,
-            0.7,
-            0.4
-          ],
-          "scale": 3.2,
-          "approx": "dragon_ancient"
-        },
-        "ancient-copper-dragon": {
-          "tint": [
-            1.1,
-            0.6,
-            0.4
-          ],
-          "scale": 3.2,
-          "approx": "dragon_ancient"
-        },
-        "ancient-gold-dragon": {
-          "tint": [
-            1.3,
-            1.05,
-            0.4
-          ],
-          "scale": 3.2,
-          "approx": "dragon_ancient"
-        },
-        "ancient-green-dragon": {
-          "tint": [
-            0.45,
-            0.75,
-            0.45
-          ],
-          "scale": 3.2,
-          "approx": "dragon_ancient"
-        },
-        "ancient-red-dragon": {
-          "scale": 3.2,
-          "approx": "dragon_ancient"
-        },
-        "ancient-silver-dragon": {
-          "tint": [
-            1.15,
-            1.2,
-            1.3
-          ],
-          "scale": 3.2,
-          "approx": "dragon_ancient"
-        },
-        "ancient-white-dragon": {
-          "tint": [
-            1.3,
-            1.35,
-            1.4
-          ],
-          "scale": 3.2,
-          "approx": "dragon_ancient"
+            0.38
+          ]
         },
         "wyvern": {
           "tint": [
+            0.7,
             0.65,
-            0.6,
-            0.5
+            0.55
           ],
-          "scale": 1.2
+          "scale": 0.9
         }
       }
     },
@@ -2676,6 +2424,242 @@
             0.55
           ],
           "scale": 1.4
+        }
+      }
+    },
+    "dragon_wyrmling": {
+      "animFile": "resources/animated_characters/forge_dragon_wyrmling.anim",
+      "faction": "dragons",
+      "members": {
+        "black-dragon-wyrmling": {
+          "tint": [
+            0.38,
+            0.38,
+            0.44
+          ]
+        },
+        "blue-dragon-wyrmling": {
+          "tint": [
+            0.45,
+            0.62,
+            1.15
+          ]
+        },
+        "green-dragon-wyrmling": {
+          "tint": [
+            0.45,
+            0.78,
+            0.45
+          ]
+        },
+        "red-dragon-wyrmling": {
+          "tint": [
+            1.15,
+            0.45,
+            0.38
+          ]
+        },
+        "white-dragon-wyrmling": {
+          "tint": [
+            1.3,
+            1.35,
+            1.4
+          ]
+        },
+        "brass-dragon-wyrmling": {
+          "tint": [
+            1.2,
+            0.92,
+            0.45
+          ]
+        },
+        "bronze-dragon-wyrmling": {
+          "tint": [
+            0.95,
+            0.72,
+            0.4
+          ]
+        },
+        "copper-dragon-wyrmling": {
+          "tint": [
+            1.15,
+            0.6,
+            0.4
+          ]
+        },
+        "gold-dragon-wyrmling": {
+          "tint": [
+            1.3,
+            1.05,
+            0.4
+          ]
+        },
+        "silver-dragon-wyrmling": {
+          "tint": [
+            1.15,
+            1.2,
+            1.3
+          ]
+        },
+        "pseudodragon": {
+          "tint": [
+            1.05,
+            0.55,
+            0.5
+          ],
+          "scale": 0.45
+        }
+      }
+    },
+    "dragon_adult": {
+      "animFile": "resources/animated_characters/forge_dragon_adult.anim",
+      "faction": "dragons",
+      "members": {
+        "adult-black-dragon": {
+          "tint": [
+            0.38,
+            0.38,
+            0.44
+          ]
+        },
+        "adult-blue-dragon": {
+          "tint": [
+            0.45,
+            0.62,
+            1.15
+          ]
+        },
+        "adult-green-dragon": {
+          "tint": [
+            0.45,
+            0.78,
+            0.45
+          ]
+        },
+        "adult-red-dragon": {
+          "tint": [
+            1.15,
+            0.45,
+            0.38
+          ]
+        },
+        "adult-white-dragon": {
+          "tint": [
+            1.3,
+            1.35,
+            1.4
+          ]
+        },
+        "adult-brass-dragon": {
+          "tint": [
+            1.2,
+            0.92,
+            0.45
+          ]
+        },
+        "adult-bronze-dragon": {
+          "tint": [
+            0.95,
+            0.72,
+            0.4
+          ]
+        },
+        "adult-copper-dragon": {
+          "tint": [
+            1.15,
+            0.6,
+            0.4
+          ]
+        },
+        "adult-gold-dragon": {
+          "tint": [
+            1.3,
+            1.05,
+            0.4
+          ]
+        },
+        "adult-silver-dragon": {
+          "tint": [
+            1.15,
+            1.2,
+            1.3
+          ]
+        }
+      }
+    },
+    "dragon_ancient": {
+      "animFile": "resources/animated_characters/forge_dragon_ancient.anim",
+      "faction": "dragons",
+      "members": {
+        "ancient-black-dragon": {
+          "tint": [
+            0.38,
+            0.38,
+            0.44
+          ]
+        },
+        "ancient-blue-dragon": {
+          "tint": [
+            0.45,
+            0.62,
+            1.15
+          ]
+        },
+        "ancient-green-dragon": {
+          "tint": [
+            0.45,
+            0.78,
+            0.45
+          ]
+        },
+        "ancient-red-dragon": {
+          "tint": [
+            1.15,
+            0.45,
+            0.38
+          ]
+        },
+        "ancient-white-dragon": {
+          "tint": [
+            1.3,
+            1.35,
+            1.4
+          ]
+        },
+        "ancient-brass-dragon": {
+          "tint": [
+            1.2,
+            0.92,
+            0.45
+          ]
+        },
+        "ancient-bronze-dragon": {
+          "tint": [
+            0.95,
+            0.72,
+            0.4
+          ]
+        },
+        "ancient-copper-dragon": {
+          "tint": [
+            1.15,
+            0.6,
+            0.4
+          ]
+        },
+        "ancient-gold-dragon": {
+          "tint": [
+            1.3,
+            1.05,
+            0.4
+          ]
+        },
+        "ancient-silver-dragon": {
+          "tint": [
+            1.15,
+            1.2,
+            1.3
+          ]
         }
       }
     }

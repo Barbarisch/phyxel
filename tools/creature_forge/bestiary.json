@@ -144,5 +144,35 @@
     "combat": true,
     "legless": true,
     "display": "Serpent (archetype)"
+  },
+  {
+    "id": "forge_dragon_wyrmling",
+    "spec": "specs/young_dragon.json",
+    "out": "resources/animated_characters/forge_dragon_wyrmling.anim",
+    "target_height": 0.75,
+    "morphology": "dragon",
+    "monsterId": "black-dragon-wyrmling",
+    "combat": true,
+    "display": "Dragon Wyrmling"
+  },
+  {
+    "id": "forge_dragon_adult",
+    "spec": "specs/young_dragon.json",
+    "out": "resources/animated_characters/forge_dragon_adult.anim",
+    "target_height": 3.2,
+    "morphology": "dragon",
+    "monsterId": "adult-red-dragon",
+    "combat": true,
+    "display": "Adult Dragon"
+  },
+  {
+    "id": "forge_dragon_ancient",
+    "spec": "specs/young_dragon.json",
+    "out": "resources/animated_characters/forge_dragon_ancient.anim",
+    "target_height": 6.0,
+    "morphology": "dragon",
+    "monsterId": "ancient-red-dragon",
+    "combat": true,
+    "display": "Ancient Dragon"
   }
 ]
