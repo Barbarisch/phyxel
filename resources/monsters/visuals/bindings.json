@@ -229,12 +229,12 @@
     }
   },
   "animated-armor": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/golem.anim",
     "faction": "monsters",
     "tint": [
-      0.7,
       0.72,
-      0.78
+      0.75,
+      0.82
     ]
   },
   "ankheg": {
@@ -307,13 +307,17 @@
     }
   },
   "azer": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/elemental.anim",
     "faction": "monsters",
     "tint": [
       1.1,
-      0.75,
+      0.78,
       0.5
-    ]
+    ],
+    "appearance": {
+      "heightScale": 0.9,
+      "bulkScale": 0.9
+    }
   },
   "baboon": {
     "animFile": "resources/animated_characters/orc_warrior.anim",
@@ -342,14 +346,10 @@
     }
   },
   "balor": {
-    "animFile": "resources/animated_characters/monster_bluedemon.anim",
+    "animFile": "resources/animated_characters/devil.anim",
     "faction": "fiends",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
     "tint": [
-      1.1,
+      1.15,
       0.4,
       0.3
     ],
@@ -367,14 +367,10 @@
     "faction": "monsters"
   },
   "barbed-devil": {
-    "animFile": "resources/animated_characters/monster_bluedemon.anim",
+    "animFile": "resources/animated_characters/devil.anim",
     "faction": "fiends",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
     "tint": [
-      1.1,
+      1.15,
       0.5,
       0.4
     ]
@@ -406,14 +402,10 @@
     }
   },
   "bearded-devil": {
-    "animFile": "resources/animated_characters/monster_bluedemon.anim",
+    "animFile": "resources/animated_characters/devil.anim",
     "faction": "fiends",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
     "tint": [
-      0.9,
+      0.95,
       0.6,
       0.5
     ]
@@ -514,20 +506,16 @@
     "faction": "beasts"
   },
   "bone-devil": {
-    "animFile": "resources/animated_characters/monster_bluedemon.anim",
+    "animFile": "resources/animated_characters/devil.anim",
     "faction": "fiends",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
     "tint": [
+      0.95,
       0.9,
-      0.85,
-      0.7
+      0.75
     ],
     "appearance": {
-      "heightScale": 1.2,
-      "bulkScale": 1.2
+      "heightScale": 1.25,
+      "bulkScale": 1.25
     }
   },
   "brass-dragon-wyrmling": {
@@ -622,16 +610,12 @@
     }
   },
   "chain-devil": {
-    "animFile": "resources/animated_characters/monster_bluedemon.anim",
+    "animFile": "resources/animated_characters/devil.anim",
     "faction": "fiends",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
     "tint": [
       0.7,
-      0.6,
-      0.6
+      0.62,
+      0.62
     ]
   },
   "chimera": {
@@ -661,10 +645,10 @@
     }
   },
   "clay-golem": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/golem.anim",
     "faction": "monsters",
     "tint": [
-      0.8,
+      0.85,
       0.6,
       0.45
     ],
@@ -841,12 +825,12 @@
     }
   },
   "deva": {
-    "animFile": "resources/animated_characters/humanoid.anim",
-    "faction": "monsters",
+    "animFile": "resources/animated_characters/angel.anim",
+    "faction": "celestials",
     "tint": [
       1.2,
       1.15,
-      0.9
+      0.92
     ],
     "appearance": {
       "heightScale": 1.1,
@@ -858,16 +842,16 @@
     "faction": "beasts"
   },
   "djinni": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/elemental.anim",
     "faction": "monsters",
     "tint": [
-      0.7,
-      0.9,
-      1.1
+      0.72,
+      0.92,
+      1.12
     ],
     "appearance": {
-      "heightScale": 1.3,
-      "bulkScale": 1.3
+      "heightScale": 1.35,
+      "bulkScale": 1.35
     }
   },
   "doppelganger": {
@@ -905,16 +889,16 @@
     }
   },
   "dretch": {
-    "animFile": "resources/animated_characters/goblin.anim",
-    "faction": "monsters",
+    "animFile": "resources/animated_characters/devil.anim",
+    "faction": "fiends",
     "tint": [
-      0.75,
-      0.7,
+      0.78,
+      0.72,
       0.6
     ],
     "appearance": {
-      "heightScale": 0.85,
-      "bulkScale": 0.85
+      "heightScale": 0.75,
+      "bulkScale": 0.75
     }
   },
   "drider": {
@@ -944,11 +928,11 @@
     "faction": "monsters"
   },
   "dryad": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/hag.anim",
     "faction": "monsters",
     "tint": [
-      0.7,
-      0.85,
+      0.72,
+      0.88,
       0.6
     ]
   },
@@ -966,16 +950,16 @@
     }
   },
   "dust-mephit": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/elemental.anim",
     "faction": "monsters",
     "tint": [
+      0.72,
       0.7,
-      0.68,
-      0.6
+      0.62
     ],
     "appearance": {
-      "heightScale": 0.6,
-      "bulkScale": 0.6
+      "heightScale": 0.55,
+      "bulkScale": 0.55
     }
   },
   "eagle": {
@@ -992,7 +976,7 @@
     }
   },
   "earth-elemental": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/elemental.anim",
     "faction": "monsters",
     "tint": [
       0.65,
@@ -1000,21 +984,21 @@
       0.55
     ],
     "appearance": {
-      "heightScale": 1.3,
-      "bulkScale": 1.3
+      "heightScale": 1.35,
+      "bulkScale": 1.35
     }
   },
   "efreeti": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/elemental.anim",
     "faction": "monsters",
     "tint": [
-      1.2,
+      1.22,
       0.65,
       0.4
     ],
     "appearance": {
-      "heightScale": 1.3,
-      "bulkScale": 1.3
+      "heightScale": 1.35,
+      "bulkScale": 1.35
     }
   },
   "elephant": {
@@ -1039,20 +1023,20 @@
     }
   },
   "erinyes": {
-    "animFile": "resources/animated_characters/humanoid.anim",
-    "faction": "monsters",
+    "animFile": "resources/animated_characters/devil.anim",
+    "faction": "fiends",
     "tint": [
-      0.85,
+      0.88,
       0.55,
       0.55
     ]
   },
   "ettercap": {
-    "animFile": "resources/animated_characters/orc_warrior.anim",
+    "animFile": "resources/animated_characters/hag.anim",
     "faction": "monsters",
     "tint": [
-      0.6,
-      0.55,
+      0.62,
+      0.58,
       0.5
     ]
   },
@@ -1070,10 +1054,10 @@
     }
   },
   "fire-elemental": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/elemental.anim",
     "faction": "monsters",
     "tint": [
-      1.25,
+      1.3,
       0.6,
       0.3
     ],
@@ -1096,11 +1080,11 @@
     }
   },
   "flesh-golem": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/golem.anim",
     "faction": "monsters",
     "tint": [
-      0.65,
-      0.7,
+      0.68,
+      0.72,
       0.6
     ],
     "appearance": {
@@ -1165,13 +1149,17 @@
     }
   },
   "gargoyle": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/golem.anim",
     "faction": "monsters",
     "tint": [
       0.55,
       0.55,
       0.58
-    ]
+    ],
+    "appearance": {
+      "heightScale": 0.95,
+      "bulkScale": 0.95
+    }
   },
   "gelatinous-cube": {
     "animFile": "resources/animated_characters/monster_mushroomking.anim",
@@ -1614,20 +1602,16 @@
     }
   },
   "glabrezu": {
-    "animFile": "resources/animated_characters/monster_bluedemon.anim",
+    "animFile": "resources/animated_characters/devil.anim",
     "faction": "fiends",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
     "tint": [
-      0.8,
+      0.85,
       0.6,
       0.45
     ],
     "appearance": {
-      "heightScale": 1.4,
-      "bulkScale": 1.4
+      "heightScale": 1.45,
+      "bulkScale": 1.45
     }
   },
   "gladiator": {
@@ -1704,11 +1688,11 @@
     ]
   },
   "green-hag": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/hag.anim",
     "faction": "monsters",
     "tint": [
       0.55,
-      0.75,
+      0.78,
       0.5
     ]
   },
@@ -1817,15 +1801,11 @@
     }
   },
   "hezrou": {
-    "animFile": "resources/animated_characters/monster_bluedemon.anim",
+    "animFile": "resources/animated_characters/devil.anim",
     "faction": "fiends",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
     "tint": [
       0.6,
-      0.75,
+      0.78,
       0.5
     ],
     "appearance": {
@@ -1878,14 +1858,10 @@
     }
   },
   "horned-devil": {
-    "animFile": "resources/animated_characters/monster_bluedemon.anim",
+    "animFile": "resources/animated_characters/devil.anim",
     "faction": "fiends",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
     "tint": [
-      1.0,
+      1.05,
       0.45,
       0.4
     ],
@@ -1942,16 +1918,12 @@
     }
   },
   "ice-devil": {
-    "animFile": "resources/animated_characters/monster_bluedemon.anim",
+    "animFile": "resources/animated_characters/devil.anim",
     "faction": "fiends",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
     "tint": [
-      0.75,
-      0.9,
-      1.1
+      0.78,
+      0.92,
+      1.15
     ],
     "appearance": {
       "heightScale": 1.3,
@@ -1959,48 +1931,48 @@
     }
   },
   "ice-mephit": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/elemental.anim",
     "faction": "monsters",
     "tint": [
-      0.7,
-      0.9,
-      1.1
+      0.72,
+      0.92,
+      1.12
     ],
     "appearance": {
-      "heightScale": 0.6,
-      "bulkScale": 0.6
+      "heightScale": 0.55,
+      "bulkScale": 0.55
     }
   },
   "imp": {
-    "animFile": "resources/animated_characters/goblin.anim",
-    "faction": "monsters",
+    "animFile": "resources/animated_characters/devil.anim",
+    "faction": "fiends",
     "tint": [
-      0.85,
+      0.9,
       0.45,
       0.45
     ],
     "appearance": {
-      "heightScale": 0.5,
-      "bulkScale": 0.5
+      "heightScale": 0.42,
+      "bulkScale": 0.42
     }
   },
   "invisible-stalker": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/elemental.anim",
     "faction": "monsters",
     "tint": [
-      0.8,
       0.85,
-      0.95
+      0.9,
+      1.0
     ],
     "alpha": 0.35
   },
   "iron-golem": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/golem.anim",
     "faction": "monsters",
     "tint": [
       0.5,
-      0.52,
-      0.58
+      0.53,
+      0.6
     ],
     "appearance": {
       "heightScale": 1.5,
@@ -2085,16 +2057,16 @@
     }
   },
   "lemure": {
-    "animFile": "resources/animated_characters/goblin.anim",
-    "faction": "monsters",
+    "animFile": "resources/animated_characters/devil.anim",
+    "faction": "fiends",
     "tint": [
-      0.7,
+      0.72,
       0.6,
       0.55
     ],
     "appearance": {
-      "heightScale": 0.9,
-      "bulkScale": 0.9
+      "heightScale": 0.85,
+      "bulkScale": 0.85
     }
   },
   "lich": {
@@ -2142,29 +2114,29 @@
     "faction": "monsters"
   },
   "magma-mephit": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/elemental.anim",
     "faction": "monsters",
     "tint": [
-      1.2,
+      1.25,
       0.55,
       0.3
     ],
     "appearance": {
-      "heightScale": 0.6,
-      "bulkScale": 0.6
+      "heightScale": 0.55,
+      "bulkScale": 0.55
     }
   },
   "magmin": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/elemental.anim",
     "faction": "monsters",
     "tint": [
-      1.2,
+      1.25,
       0.6,
       0.35
     ],
     "appearance": {
-      "heightScale": 0.7,
-      "bulkScale": 0.7
+      "heightScale": 0.6,
+      "bulkScale": 0.6
     }
   },
   "mammoth": {
@@ -2220,11 +2192,11 @@
     }
   },
   "medusa": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/hag.anim",
     "faction": "monsters",
     "tint": [
       0.72,
-      0.85,
+      0.88,
       0.68
     ]
   },
@@ -2324,24 +2296,20 @@
     }
   },
   "nalfeshnee": {
-    "animFile": "resources/animated_characters/monster_bluedemon.anim",
+    "animFile": "resources/animated_characters/devil.anim",
     "faction": "fiends",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
     "tint": [
-      0.85,
-      0.7,
+      0.9,
+      0.72,
       0.4
     ],
     "appearance": {
-      "heightScale": 1.4,
-      "bulkScale": 1.4
+      "heightScale": 1.45,
+      "bulkScale": 1.45
     }
   },
   "night-hag": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/hag.anim",
     "faction": "monsters",
     "tint": [
       0.5,
@@ -2514,14 +2482,10 @@
     }
   },
   "pit-fiend": {
-    "animFile": "resources/animated_characters/monster_bluedemon.anim",
+    "animFile": "resources/animated_characters/devil.anim",
     "faction": "fiends",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
     "tint": [
-      1.0,
+      1.05,
       0.4,
       0.35
     ],
@@ -2531,12 +2495,12 @@
     }
   },
   "planetar": {
-    "animFile": "resources/animated_characters/humanoid.anim",
-    "faction": "monsters",
+    "animFile": "resources/animated_characters/angel.anim",
+    "faction": "celestials",
     "tint": [
       1.15,
       1.1,
-      0.95
+      0.98
     ],
     "appearance": {
       "heightScale": 1.25,
@@ -2629,16 +2593,16 @@
     }
   },
   "quasit": {
-    "animFile": "resources/animated_characters/goblin.anim",
-    "faction": "monsters",
+    "animFile": "resources/animated_characters/devil.anim",
+    "faction": "fiends",
     "tint": [
       0.5,
       0.45,
       0.55
     ],
     "appearance": {
-      "heightScale": 0.55,
-      "bulkScale": 0.55
+      "heightScale": 0.45,
+      "bulkScale": 0.45
     }
   },
   "quipper": {
@@ -2659,11 +2623,11 @@
     }
   },
   "rakshasa": {
-    "animFile": "resources/animated_characters/humanoid.anim",
-    "faction": "monsters",
+    "animFile": "resources/animated_characters/devil.anim",
+    "faction": "fiends",
     "tint": [
-      0.9,
-      0.6,
+      0.92,
+      0.62,
       0.5
     ]
   },
@@ -2832,23 +2796,23 @@
     ]
   },
   "salamander": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/elemental.anim",
     "faction": "monsters",
     "tint": [
-      1.15,
+      1.18,
       0.6,
       0.4
     ],
     "appearance": {
-      "heightScale": 1.1,
-      "bulkScale": 1.1
+      "heightScale": 1.15,
+      "bulkScale": 1.15
     }
   },
   "satyr": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/hag.anim",
     "faction": "monsters",
     "tint": [
-      0.8,
+      0.82,
       0.7,
       0.5
     ]
@@ -2871,11 +2835,11 @@
     "faction": "monsters"
   },
   "sea-hag": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/hag.anim",
     "faction": "monsters",
     "tint": [
       0.55,
-      0.7,
+      0.72,
       0.68
     ]
   },
@@ -2916,12 +2880,12 @@
     ]
   },
   "shield-guardian": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/golem.anim",
     "faction": "monsters",
     "tint": [
-      0.65,
-      0.68,
-      0.72
+      0.66,
+      0.7,
+      0.74
     ],
     "appearance": {
       "heightScale": 1.3,
@@ -2959,11 +2923,11 @@
     "faction": "undead"
   },
   "solar": {
-    "animFile": "resources/animated_characters/humanoid.anim",
-    "faction": "monsters",
+    "animFile": "resources/animated_characters/angel.anim",
+    "faction": "celestials",
     "tint": [
-      1.25,
-      1.2,
+      1.28,
+      1.22,
       0.95
     ],
     "appearance": {
@@ -3020,16 +2984,16 @@
     "faction": "monsters"
   },
   "steam-mephit": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/elemental.anim",
     "faction": "monsters",
     "tint": [
-      0.9,
-      0.95,
+      0.92,
+      0.96,
       1.0
     ],
     "appearance": {
-      "heightScale": 0.6,
-      "bulkScale": 0.6
+      "heightScale": 0.55,
+      "bulkScale": 0.55
     }
   },
   "stirge": {
@@ -3059,12 +3023,12 @@
     }
   },
   "stone-golem": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/golem.anim",
     "faction": "monsters",
     "tint": [
-      0.62,
-      0.62,
-      0.6
+      0.65,
+      0.65,
+      0.62
     ],
     "appearance": {
       "heightScale": 1.4,
@@ -3085,13 +3049,17 @@
     }
   },
   "succubus-incubus": {
-    "animFile": "resources/animated_characters/humanoid.anim",
-    "faction": "monsters",
+    "animFile": "resources/animated_characters/devil.anim",
+    "faction": "fiends",
     "tint": [
-      0.95,
-      0.7,
+      0.98,
+      0.72,
       0.75
-    ]
+    ],
+    "appearance": {
+      "heightScale": 0.95,
+      "bulkScale": 0.95
+    }
   },
   "swarm-of-bats": {
     "animFile": "resources/animated_characters/monster_bunny.anim",
@@ -3425,15 +3393,11 @@
     }
   },
   "vrock": {
-    "animFile": "resources/animated_characters/monster_bluedemon.anim",
+    "animFile": "resources/animated_characters/devil.anim",
     "faction": "fiends",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
     "tint": [
-      0.7,
-      0.75,
+      0.72,
+      0.78,
       0.55
     ],
     "appearance": {
@@ -3475,14 +3439,13 @@
     }
   },
   "water-elemental": {
-    "animFile": "resources/animated_characters/humanoid.anim",
+    "animFile": "resources/animated_characters/elemental.anim",
     "faction": "monsters",
     "tint": [
       0.6,
-      0.8,
-      1.0
+      0.82,
+      1.05
     ],
-    "alpha": 0.75,
     "appearance": {
       "heightScale": 1.2,
       "bulkScale": 1.2
@@ -3737,17 +3700,17 @@
     }
   },
   "xorn": {
-    "animFile": "resources/animated_characters/monster_yeti.anim",
+    "animFile": "resources/animated_characters/elemental.anim",
     "faction": "monsters",
-    "animationMapping": {
-      "Attack": "Punch",
-      "Run": "Run"
-    },
     "tint": [
       0.6,
-      0.55,
+      0.56,
       0.5
-    ]
+    ],
+    "appearance": {
+      "heightScale": 0.9,
+      "bulkScale": 0.9
+    }
   },
   "young-black-dragon": {
     "animFile": "resources/animated_characters/forge_dragon_young.anim",
