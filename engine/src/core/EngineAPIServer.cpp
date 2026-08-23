@@ -3202,6 +3202,56 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // ── Bestiary Hall ────────────────────────────────────────────────────
+    // The demo stage that shows every creature rig at once. Exposed over HTTP
+    // (not just the panel) so a harness can stage it, walk the roster, drive
+    // each clip and screenshot the result without a human clicking anything.
+
+    // GET /api/bestiary/list — roster + staged state + per-rig clip support
+    srv.Get("/api/bestiary/list", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("bestiary_list", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/bestiary/stage — stage (or re-stage) the whole hall
+    srv.Post("/api/bestiary/stage", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("bestiary_stage", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/bestiary/select — {"rig":"forge_hydra"} ("" clears); ghosts the rest
+    srv.Post("/api/bestiary/select", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("bestiary_select", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/bestiary/play — {"state":"Attack","all":true}
+    srv.Post("/api/bestiary/play", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("bestiary_play", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
     // POST /api/npc/remove — Remove an NPC
     srv.Post("/api/npc/remove", [this](const httplib::Request& req, httplib::Response& res) {
         try {

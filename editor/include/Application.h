@@ -43,6 +43,8 @@
 #include "TextureEditorPanel.h"
 #endif
 #include "WorldOutlinerPanel.h"
+#include "BestiaryHall.h"
+#include "BestiaryPanel.h"
 #include "MenuEditorPanel.h"
 #include "ui/GameMenuRenderer.h"
 #include "core/EntityRegistry.h"
@@ -157,6 +159,25 @@ public:
     void toggleInteractionTuner();
     void toggleCameraMode();
     void toggleCharacterControl();
+
+    /// Point the free camera at `target` from `pos`.
+    /// The camera is yaw/pitch driven and the free-cam controller re-syncs it
+    /// from the InputManager every frame, so setting position alone (or a
+    /// look-at vector) is silently reverted — this converts to yaw/pitch AND
+    /// pushes them into the InputManager, which is what makes the move stick.
+    void focusCameraOn(const glm::vec3& pos, const glm::vec3& target);
+
+    /// Stage the Bestiary Hall. When `groundFromTerrain` is true the floor
+    /// height is sampled from the world at the origin rather than trusted from
+    /// the caller, so the hall stands on real ground in any project.
+    bool stageBestiaryHall(const glm::vec3& origin, float groundY, bool groundFromTerrain);
+
+    /// Draw a floating nameplate over every staged creature. Always-on, so a
+    /// creature is identifiable without selecting it first — selection is for
+    /// isolating one, not for finding out what it is.
+    void renderBestiaryNameplates();
+
+    Editor::BestiaryHall& bestiaryHall() { return m_bestiaryHall; }
     void cycleCameraSlot();
     void cycleCameraSlotReverse();
 
@@ -785,6 +806,14 @@ private:
 
     std::unique_ptr<Editor::CameraPanel> m_cameraPanel;        // Dockable camera management
     bool m_showCameraPanel = false;
+
+    // Bestiary Hall: every creature rig staged at once, labelled in-world, and
+    // driveable clip-by-clip. Selection ghosts every OTHER creature (see
+    // BestiaryHall.h) so the chosen one is unambiguous at any distance.
+    Editor::BestiaryHall                 m_bestiaryHall;
+    std::unique_ptr<Editor::BestiaryPanel> m_bestiaryPanel;
+    bool m_showBestiaryPanel = false;
+    bool m_showBestiaryNameplates = true;
 
     // World Map panel (WorldForge minimap rendered in-engine): texture + the window it
     // covers (for the hover→world-coordinate readout). Refresh-driven, never per frame.

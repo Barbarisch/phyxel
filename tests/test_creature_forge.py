@@ -713,3 +713,110 @@ class TestVoxelGeometry:
         paw = [bx for bx in compiled.af.boxes
                if bx.size == pytest.approx((0.2, 0.1, 0.3))]
         assert len(paw) == 1
+
+
+# ---------------------------------------------------------------------------
+# 9. Bestiary Hall roster
+#
+# The hall stages every rig at once so the whole creature library can be judged
+# in one frame. Its roster is GENERATED (tools/creature_forge/gen_hall.py) and
+# the engine trusts three things from it that are cheap to get wrong: the
+# measured bind footprint (used for spacing and nameplate height), the
+# engine-resolved clip per state (used to grey out what a rig cannot do), and
+# the promise that every staged rig is one a real stat block actually uses.
+
+
+HALL = ROOT / "resources" / "monsters" / "visuals" / "bestiary_hall.json"
+
+
+@pytest.fixture(scope="module")
+def hall():
+    if not HALL.exists():
+        pytest.skip("hall roster not generated yet")
+    return json.loads(HALL.read_text(encoding="utf-8"))
+
+
+def test_hall_roster_is_regenerable(tmp_path):
+    """Hand edits to the roster get silently overwritten on the next run, so
+    the checked-in file must equal a fresh generation."""
+    import subprocess
+    gen = ROOT / "tools" / "creature_forge" / "gen_hall.py"
+    if not gen.exists():
+        pytest.skip("gen_hall.py not written yet")
+    r = subprocess.run([sys.executable, str(gen), "--check"],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_hall_covers_every_rig_a_stat_block_uses(hall, bindings):
+    """The hall is the bestiary's shop window: if a rig carries live stat
+    blocks it must be on stage, or the demo quietly under-reports the library."""
+    staged = {e["id"] for e in hall["entries"]}
+    bound = {Path(v["animFile"]).stem
+             for v in _binding_items(bindings).values() if v.get("animFile")}
+    missing = sorted(bound - staged)
+    assert not missing, f"rigs bound to stat blocks but absent from the hall: {missing}"
+
+
+def test_hall_footprints_are_measured_not_guessed(hall):
+    """Spacing and nameplate height both come from these numbers. A zero or
+    absurd extent means the FK walk broke, and the hall would either stack
+    creatures on top of each other or float every label into the sky."""
+    for e in hall["entries"]:
+        b = e["bind"]
+        assert 0.05 < b["height"] < 30.0, (e["id"], b)
+        assert 0.05 < b["width"] < 30.0, (e["id"], b)
+        assert 0.05 < b["depth"] < 30.0, (e["id"], b)
+        # The rig origin sits at (or very near) the creature's feet; the hall
+        # subtracts footY to plant it, so a wild value would bury or levitate it.
+        assert -1.0 < b["footY"] < 1.0, (e["id"], b)
+
+
+def test_hall_footprint_matches_the_authored_target_height(hall):
+    """Spot-check the FK against specs whose target_height is known, so a
+    silently wrong transform cannot pass as 'some plausible number'."""
+    expected = {
+        "forge_tarrasque": 7.0,
+        "forge_dragon_ancient": 6.0,
+        "forge_hydra": 3.6,
+        "forge_dragon_turtle": 3.4,
+        "forge_otyugh": 2.1,
+        "forge_xorn": 1.55,
+    }
+    by_id = {e["id"]: e for e in hall["entries"]}
+    for rig, want in expected.items():
+        assert rig in by_id, f"{rig} missing from the hall"
+        got = by_id[rig]["bind"]["height"]
+        assert got == pytest.approx(want, abs=0.02), (rig, got, want)
+
+
+def test_hall_every_rig_can_at_least_idle_and_die(hall):
+    """Idle is what a staged creature does by default and Death is the clip the
+    bestiary most needs to look right. A rig missing either would stand in
+    T-pose on the shelf."""
+    bad = [e["id"] for e in hall["entries"]
+           if not e["clips"].get("Idle") or not e["clips"].get("Death")]
+    assert not bad, f"rigs that cannot idle or die: {bad}"
+
+
+def test_hall_clip_claims_match_the_actual_rig(hall):
+    """The panel greys out states based on these strings; if one names a clip
+    the .anim does not contain, the button lights up and does nothing."""
+    from anim_pipeline import anim_format
+    for e in hall["entries"]:
+        af = anim_format.parse(ROOT / e["animFile"])
+        have = {c.name.lower() for c in af.clips}
+        for state, clip in e["clips"].items():
+            if clip:
+                assert clip in have, f"{e['id']} claims {state}->{clip}, not in rig"
+
+
+def test_hall_entries_are_unique_and_named(hall):
+    ids = [e["id"] for e in hall["entries"]]
+    assert len(ids) == len(set(ids)), "duplicate rig ids in the hall"
+    for e in hall["entries"]:
+        assert e["name"].strip(), e["id"]
+        assert e["category"].strip(), e["id"]
+        # A staged rig with no stat blocks is library dead weight; gen_hall
+        # deliberately leaves those off the stage.
+        assert e["statBlocks"] > 0, e["id"]

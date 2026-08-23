@@ -1753,6 +1753,49 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="bestiary_stage",
+            description="Stage the Bestiary Hall: spawn EVERY distinct creature rig in the bestiary (~46) at once on a labeled grid, grouped by category and spaced by each rig's measured bind-pose size. Idempotent -- re-staging despawns the previous hall first. Use this to review the whole creature library in one view.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "origin": {"type": "object", "description": "Hall center {x,y,z} (default 0,0,0)", "properties": {
+                        "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}
+                    }},
+                    "groundFromTerrain": {"type": "boolean", "description": "Sample the real surface height under the origin (default true). Set false to trust groundY.", "default": True},
+                    "groundY": {"type": "number", "description": "Floor height used when groundFromTerrain is false", "default": 0}
+                }
+            }
+        ),
+        Tool(
+            name="bestiary_list",
+            description="List the Bestiary Hall roster: every creature rig with its display name, category, measured size, box/bone counts, how many SRD stat blocks ride it, its staged world position, and which of Idle/Walk/Attack/Death it can actually play (an empty clip means the rig genuinely lacks that animation).",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="bestiary_select",
+            description="Select one creature in the Bestiary Hall by rig id (e.g. forge_hydra). The selected creature stays fully opaque while EVERY OTHER creature drops to ~22% alpha, so the selection is unmistakable. Pass an empty rig to clear the selection and make the whole hall solid again.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "rig": {"type": "string", "description": "Rig id from bestiary_list; empty string clears the selection"},
+                    "focus": {"type": "boolean", "description": "Also fly the camera to frame this creature (default false)", "default": False}
+                },
+                "required": ["rig"]
+            }
+        ),
+        Tool(
+            name="bestiary_play",
+            description="Play an animation state on the Bestiary Hall. Rigs that lack the requested clip are SKIPPED rather than forced into a T-pose, and the response reports how many actually played.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "state": {"type": "string", "description": "Idle | Walk | Attack | Death", "enum": ["Idle", "Walk", "Attack", "Death"]},
+                    "all": {"type": "boolean", "description": "Play on every staged rig (default true); false plays only on the current selection", "default": True}
+                },
+                "required": ["state"]
+            }
+        ),
+        Tool(
             name="spawn_encounter",
             description="Spawn a D&D encounter: a list of monster stat-block ids (resources/monsters/, e.g. goblin, dire-wolf, brown-bear, giant_spider) each resolved to its visual binding (resources/monsters/visuals/bindings.json) and spawned as a hostile Combat NPC. All members share one faction so the pack fights the player, not itself. Each NPC carries its monsterId so turn-based combat resolves the real stat block.",
             inputSchema={
@@ -6031,6 +6074,18 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
 
     elif name == "resume_animation":
         return await api_post("/api/animation/resume", {"id": args["id"]})
+
+    elif name == "bestiary_stage":
+        return await api_post("/api/bestiary/stage", args)
+
+    elif name == "bestiary_list":
+        return await api_get("/api/bestiary/list")
+
+    elif name == "bestiary_select":
+        return await api_post("/api/bestiary/select", args)
+
+    elif name == "bestiary_play":
+        return await api_post("/api/bestiary/play", args)
 
     elif name == "get_bone_positions":
         return await api_get(f"/api/entity/{args['id']}/bones")

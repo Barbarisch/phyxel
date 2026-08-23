@@ -322,6 +322,29 @@ Two API traps found while chasing it: `set_day_night`'s `time` param and a `/api
 both leave `timeOfDay` pinned at 12.0, and *enabling* day/night resets ambient to 1.0 — so lower
 ambient only sticks with day/night disabled.
 
+## 2026-08-23 - OPEN: engine dies during clear_region while the Bestiary Hall is staged
+
+Hit twice, reproducibly, while preparing the Bestiary Hall demo arena: with the hall staged
+(46 NPCs, 46 DISTINCT rigs), a `clear_region` job kills the process outright — no ERROR line, no
+exception, the log just stops mid-job (`Job N started: clear_region` is the last entry). Both times
+the world edits made in that session were lost with it, which is a second-order trap: the terrain
+silently reverts to its pre-edit state on the next launch and the next attempt looks like the clear
+"didn't apply".
+
+**It is NOT simply "many characters during a terrain edit."** Discriminating test run the same
+session: 46 NPCs spawned the ordinary way (`spawn_encounter`, 16 goblins + 15 wolves + 15 orcs)
+survived two back-to-back `clear_region` calls over the same volume with no crash. `clear_region`
+with nothing staged is also fine (4 calls, clean). So the trigger involves something the hall does
+that an encounter does not. Candidates, untested: 46 distinct `.anim` templates resident at once
+(vs 3); the very large rigs the hall stages (tarrasque 7u, ancient dragon 6u) grounding big capsules
+against an occupancy grid mid-rebuild; or `NPCBehaviorType::Idle` vs `Combat` taking a different
+grounding path.
+
+Not yet root-caused — no stack was captured. **Workaround in the meantime: prepare the arena
+BEFORE staging the hall, and do not edit terrain while it is up.** Next probe: attach a debugger (or
+enable crash dumps) and clear terrain with the hall staged; if that is slow, bisect by staging a hall
+subset (large rigs only vs small rigs only) to separate "rig count" from "rig size".
+
 ## 2026-08-21 - Bestiary Forge punts (logged at M6)
 
 - **Flight locomotion for winged rigs**: forge_dragon_young / forge_griffon ship folded-wing,

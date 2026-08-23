@@ -2175,6 +2175,20 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     m_textureEditor = std::make_unique<Editor::TextureEditorPanel>();
     m_textureEditor->setVulkanDevice(vulkanDevice);
 
+    // Bestiary Hall — the roster load is allowed to fail quietly here (the
+    // panel surfaces the reason on open); a missing roster must never stop the
+    // editor from starting.
+    m_bestiaryHall.loadRoster("resources/monsters/visuals/bestiary_hall.json");
+    m_bestiaryPanel = std::make_unique<Editor::BestiaryPanel>();
+    m_bestiaryPanel->setHall(&m_bestiaryHall);
+    m_bestiaryPanel->setNPCManager(npcManager.get());
+    m_bestiaryPanel->onFocusCamera = [this](const glm::vec3& pos, const glm::vec3& target) {
+        focusCameraOn(pos, target);
+    };
+    m_bestiaryPanel->onStageHall = [this]() {
+        return stageBestiaryHall(glm::vec3(0.0f, 0.0f, 0.0f), 0.0f, true);
+    };
+
     m_worldOutliner->setEntityRegistry(entityRegistry.get());
     m_worldOutliner->setNPCManager(npcManager.get());
     m_worldOutliner->setPlacedObjectManager(placedObjectManager.get());
@@ -2889,6 +2903,12 @@ void Application::run() {
             if (m_cameraPanel && m_showCameraPanel) {
                 m_cameraPanel->render(&m_showCameraPanel);
             }
+
+            if (m_bestiaryPanel && m_showBestiaryPanel) {
+                m_bestiaryPanel->tick(deltaTime);
+                m_bestiaryPanel->render(&m_showBestiaryPanel);
+            }
+            renderBestiaryNameplates();
 
             // World Map panel (WorldForge minimap, in-engine)
             renderWorldMapPanel();
@@ -5291,6 +5311,168 @@ void Application::setChunkInclusionDistance(float distance) {
         
         LOG_INFO_FMT("Application", "Chunk inclusion distance updated to: " << distance);
     }
+}
+
+void Application::renderBestiaryNameplates() {
+    if (!m_showBestiaryNameplates || !m_bestiaryHall.isStaged()) return;
+    if (!windowManager || !camera) return;
+
+    // The scene renders into the DOCKED Viewport window, not the OS window, so
+    // NDC has to be mapped into that sub-rect. Using the window size instead
+    // puts every plate off its creature by the width of the side panels.
+    const float vx = m_viewportPosX,  vy = m_viewportPosY;
+    const float sw = m_viewportSizeW, sh = m_viewportSizeH;
+    if (sw < 2.0f || sh < 2.0f) return;      // viewport hasn't laid out yet
+
+    const glm::vec3 eye = camera->getPosition();
+    const std::string& sel = m_bestiaryHall.selected();
+
+    // FOREGROUND, not background: the background list draws BEHIND ImGui
+    // windows, and the viewport is one — plates rendered there are invisible.
+    // Clipped to the viewport so labels never spill over the docked panels.
+    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    dl->PushClipRect(ImVec2(vx, vy), ImVec2(vx + sw, vy + sh), true);
+
+    struct Plate {
+        const Editor::BestiaryHall::Entry* e;
+        float sx, sy, dist;
+        ImVec2 tl, br;
+    };
+    std::vector<Plate> plates;
+    plates.reserve(m_bestiaryHall.entries().size());
+
+    for (const auto& e : m_bestiaryHall.entries()) {
+        if (!e.spawned) continue;
+
+        // Anchor just above the rig's MEASURED height so the plate clears a
+        // tarrasque and still hugs a rodent.
+        const glm::vec3 world = e.position + glm::vec3(0.0f, e.height + e.footY + 0.45f, 0.0f);
+
+        const glm::vec4 clip = cachedProjectionMatrix * cachedViewMatrix * glm::vec4(world, 1.0f);
+        if (clip.w <= 0.0f) continue;                       // behind the camera
+        const glm::vec3 ndc = glm::vec3(clip) / clip.w;
+        const float sx = vx + (ndc.x * 0.5f + 0.5f) * sw;
+        const float sy = vy + (ndc.y * 0.5f + 0.5f) * sh;   // Vulkan proj already flips Y
+        if (sx < vx - 200.0f || sx > vx + sw + 200.0f ||
+            sy < vy - 80.0f  || sy > vy + sh + 80.0f) continue;
+
+        const ImVec2 ts = ImGui::CalcTextSize(e.name.c_str());
+        plates.push_back({&e, sx, sy, glm::length(world - eye),
+                          ImVec2(sx - ts.x * 0.5f - 6.0f, sy - ts.y - 4.0f),
+                          ImVec2(sx + ts.x * 0.5f + 6.0f, sy + 4.0f)});
+    }
+
+    // Nearest first, so when plates collide the creature in front keeps its
+    // name. A hall this dense otherwise turns into a wall of overlapping text
+    // that labels nothing — an unreadable label is worse than none, because it
+    // also hides the creature behind it.
+    std::sort(plates.begin(), plates.end(),
+              [](const Plate& a, const Plate& b) { return a.dist < b.dist; });
+
+    std::vector<ImVec4> taken;
+    taken.reserve(plates.size());
+    const auto overlaps = [&taken](const ImVec2& tl, const ImVec2& br) {
+        for (const auto& r : taken)
+            if (tl.x < r.z && br.x > r.x && tl.y < r.w && br.y > r.y) return true;
+        return false;
+    };
+
+    for (const auto& p : plates) {
+        const bool isSel = (p.e->id == sel);
+        // The selection always gets its name, even in a crowd — that is the
+        // whole point of selecting it.
+        if (!isSel && overlaps(p.tl, p.br)) {
+            // Leave a tick so a suppressed creature still reads as "labelled,
+            // just not here" rather than as an unidentified body.
+            dl->AddCircleFilled(ImVec2(p.sx, p.sy), 1.6f,
+                                IM_COL32(210, 215, 225, 90));
+            continue;
+        }
+        taken.push_back(ImVec4(p.tl.x, p.tl.y, p.br.x, p.br.y));
+
+        // Fade with distance so the back rows recede instead of shouting.
+        float alpha = isSel ? 1.0f
+                            : glm::clamp(1.0f - (p.dist - 30.0f) / 70.0f, 0.28f, 0.92f);
+        if (!sel.empty() && !isSel) alpha *= 0.55f;         // match the ghosting
+
+        const ImU32 textCol = isSel ? IM_COL32(255, 236, 160, (int)(alpha * 255))
+                                    : IM_COL32(236, 240, 245, (int)(alpha * 255));
+        const ImU32 bgCol   = isSel ? IM_COL32(70, 55, 10, (int)(alpha * 215))
+                                    : IM_COL32(16, 18, 22, (int)(alpha * 165));
+
+        dl->AddRectFilled(p.tl, p.br, bgCol, 4.0f);
+        if (isSel)
+            dl->AddRect(p.tl, p.br, IM_COL32(255, 214, 92, (int)(alpha * 255)), 4.0f, 0, 1.6f);
+        dl->AddText(ImVec2(p.sx - (p.br.x - p.tl.x) * 0.5f + 6.0f, p.tl.y + 3.0f),
+                    textCol, p.e->name.c_str());
+    }
+    dl->PopClipRect();
+}
+
+void Application::focusCameraOn(const glm::vec3& pos, const glm::vec3& target) {
+    if (!camera) return;
+    const glm::vec3 d = target - pos;
+    const float flat = std::sqrt(d.x * d.x + d.z * d.z);
+    if (flat < 1e-4f && std::abs(d.y) < 1e-4f) return;
+
+    // Editor free-cam convention: yaw 0 looks down +X, yaw -90 down -Z
+    // (docs/CoordinateSystem.md; reference_editor_camera_yaw).
+    const float yaw   = glm::degrees(std::atan2(d.z, d.x));
+    const float pitch = glm::degrees(std::atan2(d.y, std::max(flat, 1e-4f)));
+
+    camera->setPosition(pos);
+    camera->setYaw(yaw);
+    camera->setPitch(pitch);
+    // In Free mode the INPUT MANAGER owns the camera pose — the sync block
+    // copies position AND yaw/pitch from it every frame. Writing only to the
+    // Camera looks like it worked for one frame and is then silently reverted,
+    // so the authoritative source has to be set too.
+    if (inputManager) {
+        inputManager->setCameraPosition(pos);
+        inputManager->setYawPitch(yaw, pitch);
+    }
+}
+
+bool Application::stageBestiaryHall(const glm::vec3& origin, float groundY,
+                                    bool groundFromTerrain) {
+    if (!npcManager) return false;
+
+    // Sample the real surface under each creature. Trusting one caller-supplied
+    // height buries half a row in a hillside and floats the other half.
+    const auto surfaceAt = [this](float wx, float wz) -> float {
+        const int qx = static_cast<int>(std::floor(wx));
+        const int qz = static_cast<int>(std::floor(wz));
+        for (int y = 320; y >= -64; --y)
+            if (chunkManager->hasVoxelAt(glm::ivec3(qx, y, qz)))
+                return static_cast<float>(y + 1);
+        return std::numeric_limits<float>::quiet_NaN();
+    };
+
+    float floorY = groundY;
+    Editor::BestiaryHall::GroundSampler sampler;
+    if (groundFromTerrain && chunkManager) {
+        const float atOrigin = surfaceAt(origin.x, origin.z);
+        if (!std::isnan(atOrigin)) floorY = atOrigin;
+        else LOG_WARN("Application",
+                      "bestiary hall: no ground under the origin — using y={}", floorY);
+        // Fall back to the hall floor wherever a column has no ground at all,
+        // so a creature over a hole stands at hall level instead of vanishing
+        // to NaN and taking its nameplate with it.
+        sampler = [surfaceAt, floorY](float wx, float wz) {
+            const float y = surfaceAt(wx, wz);
+            return std::isnan(y) ? floorY : y;
+        };
+    }
+
+    const bool ok = m_bestiaryHall.spawn(npcManager.get(), origin, floorY, sampler);
+    if (ok) {
+        // Open on a view that shows the whole hall, so the first thing you see
+        // is the catalogue rather than the inside of a dragon.
+        focusCameraOn(origin + glm::vec3(0.0f, 26.0f, 40.0f),
+                      origin + glm::vec3(0.0f, 2.0f, -14.0f));
+        m_showBestiaryPanel = true;
+    }
+    return ok;
 }
 
 void Application::toggleCameraMode() {
@@ -16976,6 +17158,62 @@ void Application::processAPICommands() {
             // ================================================================
             // NPC COMMANDS
             // ================================================================
+            } else if (cmd.action == "bestiary_list") {
+                nlohmann::json rigs = nlohmann::json::array();
+                for (const auto& e : m_bestiaryHall.entries()) {
+                    rigs.push_back({
+                        {"id", e.id}, {"name", e.name}, {"category", e.category},
+                        {"animFile", e.animFile}, {"statBlocks", e.statBlocks},
+                        {"boxes", e.boxes}, {"bones", e.bones},
+                        {"height", e.height}, {"width", e.width},
+                        {"spawned", e.spawned},
+                        {"position", {{"x", e.position.x}, {"y", e.position.y},
+                                      {"z", e.position.z}}},
+                        {"clips", {{"Idle", e.clipIdle}, {"Walk", e.clipWalk},
+                                   {"Attack", e.clipAttack}, {"Death", e.clipDeath}}},
+                    });
+                }
+                response = {{"success", true},
+                            {"staged", m_bestiaryHall.isStaged()},
+                            {"selected", m_bestiaryHall.selected()},
+                            {"count", m_bestiaryHall.entries().size()},
+                            {"rigs", rigs}};
+                if (!m_bestiaryHall.lastError().empty())
+                    response["error"] = m_bestiaryHall.lastError();
+
+            } else if (cmd.action == "bestiary_stage") {
+                glm::vec3 origin(0.0f);
+                if (cmd.params.contains("origin")) {
+                    origin.x = cmd.params["origin"].value("x", 0.0f);
+                    origin.y = cmd.params["origin"].value("y", 0.0f);
+                    origin.z = cmd.params["origin"].value("z", 0.0f);
+                }
+                const bool ok = stageBestiaryHall(
+                    origin, cmd.params.value("groundY", 0.0f),
+                    cmd.params.value("groundFromTerrain", true));
+                int staged = 0;
+                for (const auto& e : m_bestiaryHall.entries()) if (e.spawned) ++staged;
+                response = {{"success", ok}, {"staged", staged},
+                            {"total", m_bestiaryHall.entries().size()}};
+                if (!ok) response["error"] = m_bestiaryHall.lastError();
+
+            } else if (cmd.action == "bestiary_select") {
+                const std::string rig = cmd.params.value("rig", "");
+                m_bestiaryHall.select(npcManager.get(), rig);
+                response = {{"success", true}, {"selected", m_bestiaryHall.selected()}};
+                if (!rig.empty() && m_bestiaryHall.selected() != rig)
+                    response = {{"error", "unknown rig: " + rig}};
+                else if (cmd.params.value("focus", false)) {
+                    glm::vec3 p, t;
+                    if (m_bestiaryHall.focusView(rig, p, t)) focusCameraOn(p, t);
+                }
+
+            } else if (cmd.action == "bestiary_play") {
+                const std::string state = cmd.params.value("state", "Idle");
+                const bool all = cmd.params.value("all", true);
+                const int played = m_bestiaryHall.playState(npcManager.get(), state, all);
+                response = {{"success", true}, {"state", state}, {"played", played}};
+
             } else if (cmd.action == "spawn_encounter") {
                 // D&D encounter spawn: [{id, count}] of monster stat-block ids,
                 // each resolved to its visual binding (rig + mapping + faction)
