@@ -303,7 +303,7 @@
   {
     "id": "devil",
     "out": "resources/animated_characters/devil.anim",
-    "_why": "Fiend brute: horns, heavy jaw, clawed oversized hands, hunched bulk.",
+    "_why": "Fiend brute: heavy jaw, clawed oversized hands, hunched bulk, and THREE-SEGMENT swept horns -- a single 0.12 nub is shorter than the head is wide and reads as a bump, not a horn.",
     "boxScales": {
       "forearm": [
         1.3,
@@ -330,20 +330,60 @@
       {
         "bone": "head",
         "size": [
-          0.045,
-          0.12,
-          0.045
+          0.062,
+          0.15,
+          0.062
         ],
         "center": [
-          0.075,
+          0.082,
           0.1,
-          0.02
+          0.005
         ],
         "mirror_x": true,
         "color": [
-          0.16,
+          0.17,
           0.14,
           0.15
+        ],
+        "face_feature": false
+      },
+      {
+        "bone": "head",
+        "size": [
+          0.052,
+          0.14,
+          0.052
+        ],
+        "center": [
+          0.104,
+          0.225,
+          -0.045
+        ],
+        "mirror_x": true,
+        "color": [
+          0.15,
+          0.13,
+          0.14
+        ],
+        "face_feature": false
+      },
+      {
+        "bone": "head",
+        "size": [
+          0.038,
+          0.12,
+          0.038
+        ],
+        "center": [
+          0.118,
+          0.335,
+          -0.11
+        ],
+        "mirror_x": true,
+        "color": [
+          0.13,
+          0.11,
+          0.12
         ],
         "face_feature": false
       },
@@ -385,65 +425,113 @@
   {
     "id": "golem",
     "out": "resources/animated_characters/golem.anim",
-    "_why": "Construct: blocky slab limbs, no neck, oversized shoulders and fists.",
+    "_why": "Construct: slab limbs, pauldrons wider than the hips, a chest plate and effectively no neck -- at 1.2-1.5x it was still just a large man.",
     "boxScales": {
       "forearm": [
-        1.45,
-        1.05,
-        1.45
+        1.6,
+        1.1,
+        1.6
       ],
       "hand": [
-        1.5,
-        1.5,
-        1.5
+        1.75,
+        1.7,
+        1.75
       ],
       "arm": [
-        1.3,
-        1.0,
-        1.3
+        1.5,
+        1.05,
+        1.5
       ],
       "leg": [
-        1.25,
+        1.45,
         1.0,
-        1.25
+        1.45
+      ],
+      "foot": [
+        1.45,
+        1.25,
+        1.45
       ],
       "neck": [
-        1.4,
-        0.6,
-        1.4
+        1.6,
+        0.35,
+        1.6
       ],
       "spine": [
-        1.2,
+        1.35,
+        1.05,
+        1.35
+      ],
+      "hips": [
+        1.4,
         1.0,
-        1.2
+        1.4
+      ],
+      "head": [
+        0.85,
+        0.8,
+        0.85
+      ],
+      "shoulder": [
+        1.5,
+        1.25,
+        1.5
       ]
     },
     "extras": [
       {
         "bone": "spine2",
         "size": [
-          0.42,
-          0.1,
-          0.24
+          0.54,
+          0.15,
+          0.31
         ],
         "center": [
           0.0,
-          0.1,
+          0.12,
           0.0
         ],
         "face_feature": false
       },
       {
-        "bone": "head",
+        "bone": "spine2",
         "size": [
-          0.2,
-          0.16,
-          0.18
+          0.21,
+          0.23,
+          0.25
+        ],
+        "center": [
+          0.27,
+          0.05,
+          0.0
+        ],
+        "mirror_x": true,
+        "face_feature": false
+      },
+      {
+        "bone": "spine2",
+        "size": [
+          0.34,
+          0.26,
+          0.1
         ],
         "center": [
           0.0,
-          0.02,
-          0.02
+          -0.05,
+          0.13
+        ]
+      },
+      {
+        "bone": "head",
+        "size": [
+          0.23,
+          0.09,
+          0.21
+        ],
+        "center": [
+          0.0,
+          0.09,
+          0.01
         ]
       }
     ]
@@ -575,7 +663,7 @@
   {
     "id": "angel",
     "out": "resources/animated_characters/angel.anim",
-    "_why": "Celestial: tall, broad shoulders, feathered wing slabs swept back.",
+    "_why": "Celestial: tall, broad shoulders, and wings that actually SPREAD -- four tapering slabs stepping out and up (to x 0.50), not two thin plates pinned to the spine at x 0.19.",
     "boxScales": {
       "shoulder": [
         1.2,
@@ -597,19 +685,39 @@
       {
         "bone": "spine2",
         "size": [
-          0.06,
-          0.42,
-          0.2
+          0.075,
+          0.56,
+          0.3
         ],
         "center": [
-          0.13,
           0.16,
-          -0.1
+          0.2,
+          -0.13
         ],
         "mirror_x": true,
         "color": [
+          0.96,
           0.95,
+          0.9
+        ],
+        "face_feature": false
+      },
+      {
+        "bone": "spine2",
+        "size": [
+          0.065,
+          0.5,
+          0.32
+        ],
+        "center": [
+          0.29,
+          0.36,
+          -0.21
+        ],
+        "mirror_x": true,
+        "color": [
           0.94,
+          0.93,
           0.88
         ],
         "face_feature": false
@@ -617,20 +725,40 @@
       {
         "bone": "spine2",
         "size": [
-          0.05,
-          0.3,
-          0.16
+          0.055,
+          0.42,
+          0.27
         ],
         "center": [
-          0.19,
-          0.06,
-          -0.16
+          0.41,
+          0.47,
+          -0.29
         ],
         "mirror_x": true,
         "color": [
           0.92,
           0.91,
           0.85
+        ],
+        "face_feature": false
+      },
+      {
+        "bone": "spine2",
+        "size": [
+          0.045,
+          0.3,
+          0.19
+        ],
+        "center": [
+          0.5,
+          0.52,
+          -0.35
+        ],
+        "mirror_x": true,
+        "color": [
+          0.9,
+          0.89,
+          0.83
         ],
         "face_feature": false
       }

@@ -6,7 +6,7 @@
       "name": "Aquatic (archetype)",
       "category": "Aquatic",
       "animFile": "resources/animated_characters/forge_shark.anim",
-      "representative": "reef-shark",
+      "representative": "killer-whale",
       "statBlocks": 8,
       "archetypes": [
         "aquatic_true"
@@ -31,7 +31,7 @@
       "name": "Cephalopod (archetype)",
       "category": "Aquatic",
       "animFile": "resources/animated_characters/forge_cephalopod.anim",
-      "representative": "octopus",
+      "representative": "kraken",
       "statBlocks": 4,
       "archetypes": [
         "cephalopod_true"
@@ -56,7 +56,7 @@
       "name": "Serpent (archetype)",
       "category": "Aquatic",
       "animFile": "resources/animated_characters/forge_serpent.anim",
-      "representative": "constrictor-snake",
+      "representative": "purple-worm",
       "statBlocks": 8,
       "archetypes": [
         "serpent_true"
@@ -81,7 +81,7 @@
       "name": "Alpine Ibex",
       "category": "Beasts",
       "animFile": "resources/animated_characters/forge_ibex.anim",
-      "representative": "goat",
+      "representative": "gorgon",
       "statBlocks": 3,
       "archetypes": [
         "caprine"
@@ -106,7 +106,7 @@
       "name": "Boar",
       "category": "Beasts",
       "animFile": "resources/animated_characters/forge_boar.anim",
-      "representative": "boar",
+      "representative": "giant-boar",
       "statBlocks": 3,
       "archetypes": [
         "suine"
@@ -131,16 +131,16 @@
       "name": "Brown Bear",
       "category": "Beasts",
       "animFile": "resources/animated_characters/forge_bear.anim",
-      "representative": "brown-bear",
+      "representative": "polar-bear",
       "statBlocks": 5,
       "archetypes": [
         "ursine"
       ],
       "bind": {
-        "width": 0.645,
-        "height": 1.35,
-        "depth": 1.721,
-        "footY": -0.005
+        "width": 0.765,
+        "height": 1.6,
+        "depth": 2.04,
+        "footY": -0.006
       },
       "clips": {
         "Idle": "idle",
@@ -156,7 +156,7 @@
       "name": "Dire Wolf",
       "category": "Beasts",
       "animFile": "resources/animated_characters/forge_direwolf.anim",
-      "representative": "dire-wolf",
+      "representative": "giant-hyena",
       "statBlocks": 12,
       "archetypes": [
         "canine"
@@ -181,16 +181,16 @@
       "name": "Great Ape (archetype)",
       "category": "Beasts",
       "animFile": "resources/animated_characters/forge_ape.anim",
-      "representative": "ape",
+      "representative": "giant-ape",
       "statBlocks": 3,
       "archetypes": [
         "ape_true"
       ],
       "bind": {
-        "width": 0.647,
-        "height": 1.3,
-        "depth": 1.672,
-        "footY": -0.005
+        "width": 0.923,
+        "height": 1.7,
+        "depth": 1.832,
+        "footY": -0.015
       },
       "clips": {
         "Idle": "idle",
@@ -198,15 +198,15 @@
         "Attack": "attack",
         "Death": "death"
       },
-      "boxes": 2177,
-      "bones": 30
+      "boxes": 1274,
+      "bones": 26
     },
     {
       "id": "forge_feline",
       "name": "Great Cat (archetype)",
       "category": "Beasts",
       "animFile": "resources/animated_characters/forge_feline.anim",
-      "representative": "cat",
+      "representative": "saber-toothed-tiger",
       "statBlocks": 6,
       "archetypes": [
         "feline_true"
@@ -231,7 +231,7 @@
       "name": "Griffon",
       "category": "Beasts",
       "animFile": "resources/animated_characters/forge_griffon.anim",
-      "representative": "griffon",
+      "representative": "androsphinx",
       "statBlocks": 7,
       "archetypes": [
         "griffon"
@@ -256,7 +256,7 @@
       "name": "Pachyderm (archetype)",
       "category": "Beasts",
       "animFile": "resources/animated_characters/forge_pachyderm.anim",
-      "representative": "elephant",
+      "representative": "mammoth",
       "statBlocks": 4,
       "archetypes": [
         "pachyderm_true"
@@ -281,7 +281,7 @@
       "name": "Quad Horse",
       "category": "Beasts",
       "animFile": "resources/animated_characters/quad_horse.anim",
-      "representative": "riding-horse",
+      "representative": "draft-horse",
       "statBlocks": 9,
       "archetypes": [
         "equine"
@@ -306,7 +306,7 @@
       "name": "Raptor (archetype)",
       "category": "Beasts",
       "animFile": "resources/animated_characters/forge_raptor.anim",
-      "representative": "eagle",
+      "representative": "roc",
       "statBlocks": 11,
       "archetypes": [
         "raptor_true"
@@ -331,7 +331,7 @@
       "name": "Sprawling Reptile (archetype)",
       "category": "Beasts",
       "animFile": "resources/animated_characters/forge_reptile.anim",
-      "representative": "lizard",
+      "representative": "giant-crocodile",
       "statBlocks": 9,
       "archetypes": [
         "reptile_true"
@@ -356,7 +356,7 @@
       "name": "Stag",
       "category": "Beasts",
       "animFile": "resources/animated_characters/stag.anim",
-      "representative": "deer",
+      "representative": "giant-elk",
       "statBlocks": 3,
       "archetypes": [
         "cervine"
@@ -381,7 +381,7 @@
       "name": "Theropod (archetype)",
       "category": "Beasts",
       "animFile": "resources/animated_characters/forge_theropod.anim",
-      "representative": "axe-beak",
+      "representative": "tyrannosaurus-rex",
       "statBlocks": 3,
       "archetypes": [
         "theropod_true"
@@ -406,7 +406,7 @@
       "name": "Elemental",
       "category": "Constructs & Elementals",
       "animFile": "resources/animated_characters/elemental.anim",
-      "representative": "fire-elemental",
+      "representative": "earth-elemental",
       "statBlocks": 11,
       "archetypes": [
         "elemental_true"
@@ -431,16 +431,16 @@
       "name": "Golem",
       "category": "Constructs & Elementals",
       "animFile": "resources/animated_characters/golem.anim",
-      "representative": "animated-armor",
+      "representative": "iron-golem",
       "statBlocks": 7,
       "archetypes": [
         "golem_true"
       ],
       "bind": {
-        "width": 1.909,
-        "height": 1.85,
-        "depth": 0.422,
-        "footY": -0.025
+        "width": 1.935,
+        "height": 1.851,
+        "depth": 0.506,
+        "footY": -0.071
       },
       "clips": {
         "Idle": "idle",
@@ -448,7 +448,7 @@
         "Attack": "attack",
         "Death": "death_front"
       },
-      "boxes": 1118,
+      "boxes": 1121,
       "bones": 65
     },
     {
@@ -681,15 +681,15 @@
       "name": "Angel",
       "category": "Fiends & Celestials",
       "animFile": "resources/animated_characters/angel.anim",
-      "representative": "deva",
+      "representative": "solar",
       "statBlocks": 3,
       "archetypes": [
         "angel_true"
       ],
       "bind": {
         "width": 1.85,
-        "height": 1.85,
-        "depth": 0.443,
+        "height": 2.002,
+        "depth": 0.702,
         "footY": -0.025
       },
       "clips": {
@@ -698,7 +698,7 @@
         "Attack": "attack",
         "Death": "death_front"
       },
-      "boxes": 1120,
+      "boxes": 1124,
       "bones": 65
     },
     {
@@ -706,14 +706,14 @@
       "name": "Devil",
       "category": "Fiends & Celestials",
       "animFile": "resources/animated_characters/devil.anim",
-      "representative": "barbed-devil",
+      "representative": "balor",
       "statBlocks": 19,
       "archetypes": [
         "devil_true"
       ],
       "bind": {
         "width": 1.897,
-        "height": 1.861,
+        "height": 2.003,
         "depth": 0.404,
         "footY": -0.025
       },
@@ -723,7 +723,7 @@
         "Attack": "attack",
         "Death": "death_front"
       },
-      "boxes": 1121,
+      "boxes": 1125,
       "bones": 65
     },
     {
@@ -781,7 +781,7 @@
       "name": "Humanoid",
       "category": "Humanoids",
       "animFile": "resources/animated_characters/humanoid.anim",
-      "representative": "acolyte",
+      "representative": "air-elemental",
       "statBlocks": 50,
       "archetypes": [
         "humanoid",
@@ -807,7 +807,7 @@
       "name": "Ogre",
       "category": "Humanoids",
       "animFile": "resources/animated_characters/ogre.anim",
-      "representative": "ogre",
+      "representative": "storm-giant",
       "statBlocks": 10,
       "archetypes": [
         "giant_true",
@@ -833,7 +833,7 @@
       "name": "Orc Warrior",
       "category": "Humanoids",
       "animFile": "resources/animated_characters/orc_warrior.anim",
-      "representative": "orc",
+      "representative": "merrow",
       "statBlocks": 7,
       "archetypes": [
         "orc_warrior"
@@ -858,7 +858,7 @@
       "name": "Skeleton Warrior",
       "category": "Humanoids",
       "animFile": "resources/animated_characters/skeleton_warrior.anim",
-      "representative": "skeleton",
+      "representative": "minotaur-skeleton",
       "statBlocks": 6,
       "archetypes": [
         "skeleton_warrior"
@@ -883,7 +883,7 @@
       "name": "Taur (archetype)",
       "category": "Humanoids",
       "animFile": "resources/animated_characters/forge_taur.anim",
-      "representative": "centaur",
+      "representative": "guardian-naga",
       "statBlocks": 7,
       "archetypes": [
         "taur_true"
@@ -933,7 +933,7 @@
       "name": "Zombie",
       "category": "Humanoids",
       "animFile": "resources/animated_characters/zombie.anim",
-      "representative": "zombie",
+      "representative": "ogre-zombie",
       "statBlocks": 6,
       "archetypes": [
         "zombie"
@@ -958,7 +958,7 @@
       "name": "Ooze (archetype)",
       "category": "Oozes & Plants",
       "animFile": "resources/animated_characters/forge_ooze.anim",
-      "representative": "gray-ooze",
+      "representative": "gelatinous-cube",
       "statBlocks": 8,
       "archetypes": [
         "ooze_true"
@@ -983,7 +983,7 @@
       "name": "Plant (archetype)",
       "category": "Oozes & Plants",
       "animFile": "resources/animated_characters/forge_plant.anim",
-      "representative": "shrieker",
+      "representative": "treant",
       "statBlocks": 7,
       "archetypes": [
         "plant_true"
@@ -1008,7 +1008,7 @@
       "name": "Bat (archetype)",
       "category": "Vermin & Swarms",
       "animFile": "resources/animated_characters/forge_bat.anim",
-      "representative": "bat",
+      "representative": "giant-bat",
       "statBlocks": 5,
       "archetypes": [
         "bat_true"
@@ -1033,7 +1033,7 @@
       "name": "Giant Spider",
       "category": "Vermin & Swarms",
       "animFile": "resources/animated_characters/forge_spider_giant.anim",
-      "representative": "giant_spider",
+      "representative": "phase-spider",
       "statBlocks": 5,
       "archetypes": [
         "arachnid"
@@ -1058,7 +1058,7 @@
       "name": "Insectoid (archetype)",
       "category": "Vermin & Swarms",
       "animFile": "resources/animated_characters/forge_beetle.anim",
-      "representative": "giant-fire-beetle",
+      "representative": "remorhaz",
       "statBlocks": 10,
       "archetypes": [
         "beetle_true"
@@ -1083,7 +1083,7 @@
       "name": "Rodent (archetype)",
       "category": "Vermin & Swarms",
       "animFile": "resources/animated_characters/forge_rodent.anim",
-      "representative": "rat",
+      "representative": "giant-badger",
       "statBlocks": 8,
       "archetypes": [
         "rodent_true"
@@ -1108,16 +1108,16 @@
       "name": "Scorpion (archetype)",
       "category": "Vermin & Swarms",
       "animFile": "resources/animated_characters/forge_scorpion.anim",
-      "representative": "scorpion",
+      "representative": "giant-scorpion",
       "statBlocks": 2,
       "archetypes": [
         "scorpion_true"
       ],
       "bind": {
-        "width": 0.867,
+        "width": 0.743,
         "height": 0.6,
-        "depth": 0.667,
-        "footY": -0.0
+        "depth": 0.743,
+        "footY": 0.0
       },
       "clips": {
         "Idle": "idle",
@@ -1125,8 +1125,8 @@
         "Attack": "attack",
         "Death": "death"
       },
-      "boxes": 748,
-      "bones": 37
+      "boxes": 833,
+      "bones": 39
     },
     {
       "id": "forge_swarm",

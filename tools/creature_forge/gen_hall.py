@@ -228,11 +228,18 @@ def build() -> tuple[dict, list]:
         if not anim:
             errors.append(f"archetype '{arch_id}' has no animFile")
             continue
-        e = by_anim.setdefault(anim, {"archetypes": [], "monsters": [], "repr": ""})
+        e = by_anim.setdefault(anim, {"archetypes": [], "monsters": [], "repr": "",
+                                      "_repr_scale": -1.0})
         e["archetypes"].append(arch_id)
         e["monsters"].extend(members)
-        if not e["repr"] and members:
-            e["repr"] = members[0]
+        # Representative = the LARGEST member, not the first one listed. It
+        # supplies the hall's tint, and an archetype named "Great Cat" whose
+        # representative is the housecat gets a housecat's colouring. Size is
+        # the best available proxy for "most characteristic of this archetype".
+        for m in members:
+            s = float(arch["members"][m].get("scale", 1.0))
+            if s > e["_repr_scale"]:
+                e["_repr_scale"], e["repr"] = s, m
 
     entries = []
     unbound = []

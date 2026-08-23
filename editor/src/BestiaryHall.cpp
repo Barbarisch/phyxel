@@ -162,7 +162,29 @@ bool BestiaryHall::spawn(Core::NPCManager* npcs, const glm::vec3& origin,
                         : Core::MonsterVisualRegistry::instance().get(e->representative);
 
                 nlohmann::json vparams = {{"animFile", e->animFile}};
-                if (vis && !vis->appearance.is_null()) vparams["appearance"] = vis->appearance;
+                if (vis && !vis->appearance.is_null()) {
+                    // Keep the palette, DROP every *Scale key. A binding's
+                    // scale belongs to one family member, and the first member
+                    // is often the runt: the "Great Cat" archetype was being
+                    // staged as a housecat (heightScale 0.3), the scorpion at
+                    // 0.2, the sprawling reptile at 0.28. The hall is a
+                    // catalogue of RIGS, so each is shown at the size it was
+                    // authored at. (Appearance scale shrinks bone lengths but
+                    // NOT the grounding capsule, so a scaled-down rig also
+                    // hovers — the shrunken cat floated 0.15 clear of the
+                    // ground.)
+                    nlohmann::json app = vis->appearance;
+                    if (app.is_object()) {
+                        for (auto it = app.begin(); it != app.end();) {
+                            const std::string& k = it.key();
+                            const bool isScale =
+                                k.size() >= 5 &&
+                                k.compare(k.size() - 5, 5, "Scale") == 0;
+                            it = isScale ? app.erase(it) : std::next(it);
+                        }
+                    }
+                    vparams["appearance"] = app;
+                }
 
                 e->npcName = kNamePrefix + e->id;
                 auto visual = Core::CharacterVisualResolver::resolve(vparams, e->npcName);

@@ -322,6 +322,34 @@ Two API traps found while chasing it: `set_day_night`'s `time` param and a `/api
 both leave `timeOfDay` pinned at 12.0, and *enabling* day/night resets ambient to 1.0 — so lower
 ambient only sticks with day/night disabled.
 
+## 2026-08-23 - OPEN: the imported `stag` rig stands VERTICALLY (antlers reach the ground)
+
+Reported from the Bestiary Hall and confirmed on Release: the stag renders as an upright column —
+body vertical, legs splayed at the base, head/antlers pitched down to ground level. Its BIND pose is
+fine (FK over `stag.anim` gives width 1.25 x height 1.95 x depth 2.25, a proper horizontal
+quadruped, with the antler geometry inside the `Head` bone at y 1.47-1.93 and feet at -0.03), so
+the geometry is not the problem — the ANIMATION is.
+
+The bound `Idle` clip carries large CONSTANT rotations that look like a rest-pose rebase that never
+happened on import: `Back` sits at -69.1 deg elevation for all 101 keys, `BackUpperLeg.*` at -82 deg,
+`Neck1` at -40 deg. A clip whose every key holds the same big offset is describing a different rest
+orientation than the bind pose it is being applied to. `quad_horse` is likely the same family of
+problem (it is the other imported rig that also cannot play Attack).
+
+Not fixed. The stag has 13 clips (`Idle`, `Idle_2`, `Idle_Headlow`, `Eating`, `Gallop`, ...), so a
+cheap mitigation may be re-binding `Idle` to a clip whose rest orientation matches — but an offline
+FK probe of the candidates returned an identical head extent for all of them, which means the probe
+itself was not applying the pose correctly and should not be trusted. Next step: re-derive the
+import's rest-pose rebase rather than shopping for a clip that happens to look upright.
+
+## 2026-08-23 - REQUEST: elementals need VFX, not geometry
+
+The `elemental` variant reads as a humanoid because it IS one — an amorphous creature is exactly
+what a rigid box skeleton cannot express. Sculpting it further (swollen torso, tapered base) has
+already been tried and it still reads as a person. The honest fix is particle/VFX support attached
+to a character (swirling motes, a flame or dust body), which the Spell VFX system already has the
+primitives for. Logged rather than bodged into the mesh.
+
 ## 2026-08-23 - OPEN: engine dies during clear_region while the Bestiary Hall is staged
 
 Hit twice, reproducibly, while preparing the Bestiary Hall demo arena: with the hall staged
