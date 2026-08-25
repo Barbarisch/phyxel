@@ -102,20 +102,20 @@
       "bones": 31
     },
     {
-      "id": "forge_boar",
-      "name": "Boar",
+      "id": "bear_meshy",
+      "name": "Bear Meshy",
       "category": "Beasts",
-      "animFile": "resources/animated_characters/forge_boar.anim",
-      "representative": "giant-boar",
-      "statBlocks": 3,
+      "animFile": "resources/animated_characters/bear_meshy.anim",
+      "representative": "polar-bear",
+      "statBlocks": 4,
       "archetypes": [
-        "suine"
+        "meshy_ursine"
       ],
       "bind": {
-        "width": 0.531,
-        "height": 0.85,
-        "depth": 1.541,
-        "footY": -0.0
+        "width": 0.95,
+        "height": 1.2,
+        "depth": 1.95,
+        "footY": 0.025
       },
       "clips": {
         "Idle": "idle",
@@ -123,16 +123,41 @@
         "Attack": "attack",
         "Death": "death"
       },
-      "boxes": 1156,
-      "bones": 30
+      "boxes": 2603,
+      "bones": 27
+    },
+    {
+      "id": "boar_meshy",
+      "name": "Boar Meshy",
+      "category": "Beasts",
+      "animFile": "resources/animated_characters/boar_meshy.anim",
+      "representative": "giant-boar",
+      "statBlocks": 3,
+      "archetypes": [
+        "meshy_suine"
+      ],
+      "bind": {
+        "width": 0.65,
+        "height": 1.1,
+        "depth": 1.55,
+        "footY": -0.025
+      },
+      "clips": {
+        "Idle": "idle",
+        "Walk": "walk",
+        "Attack": "attack",
+        "Death": "death"
+      },
+      "boxes": 1333,
+      "bones": 27
     },
     {
       "id": "forge_bear",
       "name": "Brown Bear",
       "category": "Beasts",
       "animFile": "resources/animated_characters/forge_bear.anim",
-      "representative": "polar-bear",
-      "statBlocks": 5,
+      "representative": "owlbear",
+      "statBlocks": 1,
       "archetypes": [
         "ursine"
       ],
@@ -152,20 +177,20 @@
       "bones": 30
     },
     {
-      "id": "forge_direwolf",
-      "name": "Dire Wolf",
+      "id": "elk_meshy",
+      "name": "Elk Meshy",
       "category": "Beasts",
-      "animFile": "resources/animated_characters/forge_direwolf.anim",
-      "representative": "giant-hyena",
-      "statBlocks": 12,
+      "animFile": "resources/animated_characters/elk_meshy.anim",
+      "representative": "giant-elk",
+      "statBlocks": 3,
       "archetypes": [
-        "canine"
+        "meshy_cervine"
       ],
       "bind": {
-        "width": 0.383,
-        "height": 1.15,
-        "depth": 1.965,
-        "footY": -0.0
+        "width": 1.25,
+        "height": 2.45,
+        "depth": 2.25,
+        "footY": 0.025
       },
       "clips": {
         "Idle": "idle",
@@ -173,8 +198,8 @@
         "Attack": "attack",
         "Death": "death"
       },
-      "boxes": 1192,
-      "bones": 32
+      "boxes": 2978,
+      "bones": 27
     },
     {
       "id": "forge_ape",
@@ -252,6 +277,81 @@
       "bones": 41
     },
     {
+      "id": "horse_meshy",
+      "name": "Horse Meshy",
+      "category": "Beasts",
+      "animFile": "resources/animated_characters/horse_meshy.anim",
+      "representative": "draft-horse",
+      "statBlocks": 9,
+      "archetypes": [
+        "meshy_equine"
+      ],
+      "bind": {
+        "width": 0.65,
+        "height": 1.9,
+        "depth": 2.25,
+        "footY": 0.025
+      },
+      "clips": {
+        "Idle": "idle",
+        "Walk": "walk",
+        "Attack": "attack",
+        "Death": "death"
+      },
+      "boxes": 2806,
+      "bones": 27
+    },
+    {
+      "id": "monster_dino",
+      "name": "Monster Dino",
+      "category": "Beasts",
+      "animFile": "resources/animated_characters/monster_dino.anim",
+      "representative": "tyrannosaurus-rex",
+      "statBlocks": 2,
+      "archetypes": [
+        "quaternius_dino"
+      ],
+      "bind": {
+        "width": 2.074,
+        "height": 1.933,
+        "depth": 1.268,
+        "footY": -0.025
+      },
+      "clips": {
+        "Idle": "Idle",
+        "Walk": "Walk",
+        "Attack": "Punch",
+        "Death": "Death"
+      },
+      "boxes": 3090,
+      "bones": 44
+    },
+    {
+      "id": "monster_frog",
+      "name": "Monster Frog",
+      "category": "Beasts",
+      "animFile": "resources/animated_characters/monster_frog.anim",
+      "representative": "giant-toad",
+      "statBlocks": 2,
+      "archetypes": [
+        "quaternius_frog"
+      ],
+      "bind": {
+        "width": 1.193,
+        "height": 0.886,
+        "depth": 0.652,
+        "footY": -0.025
+      },
+      "clips": {
+        "Idle": "Idle",
+        "Walk": "Walk",
+        "Attack": "Punch",
+        "Death": "Death"
+      },
+      "boxes": 736,
+      "bones": 44
+    },
+    {
       "id": "forge_pachyderm",
       "name": "Pachyderm (archetype)",
       "category": "Beasts",
@@ -275,31 +375,6 @@
       },
       "boxes": 4530,
       "bones": 32
-    },
-    {
-      "id": "quad_horse",
-      "name": "Quad Horse",
-      "category": "Beasts",
-      "animFile": "resources/animated_characters/quad_horse.anim",
-      "representative": "draft-horse",
-      "statBlocks": 9,
-      "archetypes": [
-        "equine"
-      ],
-      "bind": {
-        "width": 0.652,
-        "height": 1.8,
-        "depth": 2.3,
-        "footY": 0.125
-      },
-      "clips": {
-        "Idle": "idle",
-        "Walk": "walk",
-        "Attack": "",
-        "Death": "death"
-      },
-      "boxes": 2193,
-      "bones": 43
     },
     {
       "id": "forge_raptor",
@@ -332,7 +407,7 @@
       "category": "Beasts",
       "animFile": "resources/animated_characters/forge_reptile.anim",
       "representative": "giant-crocodile",
-      "statBlocks": 9,
+      "statBlocks": 7,
       "archetypes": [
         "reptile_true"
       ],
@@ -352,37 +427,12 @@
       "bones": 32
     },
     {
-      "id": "stag",
-      "name": "Stag",
-      "category": "Beasts",
-      "animFile": "resources/animated_characters/stag.anim",
-      "representative": "giant-elk",
-      "statBlocks": 3,
-      "archetypes": [
-        "cervine"
-      ],
-      "bind": {
-        "width": 1.25,
-        "height": 1.95,
-        "depth": 2.251,
-        "footY": -0.025
-      },
-      "clips": {
-        "Idle": "idle",
-        "Walk": "walk",
-        "Attack": "",
-        "Death": "death"
-      },
-      "boxes": 3050,
-      "bones": 32
-    },
-    {
       "id": "forge_theropod",
       "name": "Theropod (archetype)",
       "category": "Beasts",
       "animFile": "resources/animated_characters/forge_theropod.anim",
-      "representative": "tyrannosaurus-rex",
-      "statBlocks": 3,
+      "representative": "axe-beak",
+      "statBlocks": 2,
       "archetypes": [
         "theropod_true"
       ],
@@ -400,6 +450,31 @@
       },
       "boxes": 535,
       "bones": 32
+    },
+    {
+      "id": "wolf_meshy",
+      "name": "Wolf Meshy",
+      "category": "Beasts",
+      "animFile": "resources/animated_characters/wolf_meshy.anim",
+      "representative": "giant-hyena",
+      "statBlocks": 12,
+      "archetypes": [
+        "meshy_canine"
+      ],
+      "bind": {
+        "width": 0.35,
+        "height": 0.9,
+        "depth": 1.35,
+        "footY": -0.025
+      },
+      "clips": {
+        "Idle": "idle",
+        "Walk": "walk",
+        "Attack": "attack",
+        "Death": "death"
+      },
+      "boxes": 825,
+      "bones": 27
     },
     {
       "id": "elemental",
@@ -706,8 +781,8 @@
       "name": "Devil",
       "category": "Fiends & Celestials",
       "animFile": "resources/animated_characters/devil.anim",
-      "representative": "balor",
-      "statBlocks": 19,
+      "representative": "vrock",
+      "statBlocks": 7,
       "archetypes": [
         "devil_true"
       ],
@@ -750,6 +825,56 @@
       },
       "boxes": 1118,
       "bones": 65
+    },
+    {
+      "id": "monster_bluedemon",
+      "name": "Monster Bluedemon",
+      "category": "Fiends & Celestials",
+      "animFile": "resources/animated_characters/monster_bluedemon.anim",
+      "representative": "bone-devil",
+      "statBlocks": 6,
+      "archetypes": [
+        "quaternius_bluedemon"
+      ],
+      "bind": {
+        "width": 2.031,
+        "height": 1.683,
+        "depth": 1.316,
+        "footY": -0.025
+      },
+      "clips": {
+        "Idle": "Idle",
+        "Walk": "Walk",
+        "Attack": "Punch",
+        "Death": "Death"
+      },
+      "boxes": 3166,
+      "bones": 44
+    },
+    {
+      "id": "monster_demon",
+      "name": "Monster Demon",
+      "category": "Fiends & Celestials",
+      "animFile": "resources/animated_characters/monster_demon.anim",
+      "representative": "balor",
+      "statBlocks": 6,
+      "archetypes": [
+        "quaternius_demon"
+      ],
+      "bind": {
+        "width": 2.318,
+        "height": 1.834,
+        "depth": 1.282,
+        "footY": -0.025
+      },
+      "clips": {
+        "Idle": "Idle",
+        "Walk": "Walk",
+        "Attack": "Punch",
+        "Death": "Death"
+      },
+      "boxes": 3255,
+      "bones": 44
     },
     {
       "id": "goblin",
@@ -803,6 +928,81 @@
       "bones": 65
     },
     {
+      "id": "monster_orc",
+      "name": "Monster Orc",
+      "category": "Humanoids",
+      "animFile": "resources/animated_characters/monster_orc.anim",
+      "representative": "orc",
+      "statBlocks": 2,
+      "archetypes": [
+        "quaternius_orc"
+      ],
+      "bind": {
+        "width": 2.055,
+        "height": 1.916,
+        "depth": 1.12,
+        "footY": -0.056
+      },
+      "clips": {
+        "Idle": "Idle",
+        "Walk": "Walk",
+        "Attack": "Punch",
+        "Death": "Death"
+      },
+      "boxes": 3500,
+      "bones": 44
+    },
+    {
+      "id": "monster_tribal",
+      "name": "Monster Tribal",
+      "category": "Humanoids",
+      "animFile": "resources/animated_characters/monster_tribal.anim",
+      "representative": "gnoll",
+      "statBlocks": 2,
+      "archetypes": [
+        "quaternius_tribal"
+      ],
+      "bind": {
+        "width": 2.083,
+        "height": 2.335,
+        "depth": 0.964,
+        "footY": -0.025
+      },
+      "clips": {
+        "Idle": "Idle",
+        "Walk": "Walk",
+        "Attack": "Punch",
+        "Death": "Death"
+      },
+      "boxes": 3023,
+      "bones": 44
+    },
+    {
+      "id": "monster_yeti",
+      "name": "Monster Yeti",
+      "category": "Humanoids",
+      "animFile": "resources/animated_characters/monster_yeti.anim",
+      "representative": "bugbear",
+      "statBlocks": 1,
+      "archetypes": [
+        "quaternius_yeti"
+      ],
+      "bind": {
+        "width": 2.067,
+        "height": 1.685,
+        "depth": 1.014,
+        "footY": -0.025
+      },
+      "clips": {
+        "Idle": "Idle",
+        "Walk": "Walk",
+        "Attack": "Punch",
+        "Death": "Death"
+      },
+      "boxes": 2745,
+      "bones": 44
+    },
+    {
       "id": "ogre",
       "name": "Ogre",
       "category": "Humanoids",
@@ -834,7 +1034,7 @@
       "category": "Humanoids",
       "animFile": "resources/animated_characters/orc_warrior.anim",
       "representative": "merrow",
-      "statBlocks": 7,
+      "statBlocks": 1,
       "archetypes": [
         "orc_warrior"
       ],
@@ -954,6 +1154,31 @@
       "bones": 65
     },
     {
+      "id": "monster_mushroomking",
+      "name": "Monster Mushroomking",
+      "category": "Oozes & Plants",
+      "animFile": "resources/animated_characters/monster_mushroomking.anim",
+      "representative": "violet-fungus",
+      "statBlocks": 2,
+      "archetypes": [
+        "quaternius_mushroom"
+      ],
+      "bind": {
+        "width": 2.161,
+        "height": 2.163,
+        "depth": 1.301,
+        "footY": -0.055
+      },
+      "clips": {
+        "Idle": "Idle",
+        "Walk": "Walk",
+        "Attack": "Punch",
+        "Death": "Death"
+      },
+      "boxes": 4667,
+      "bones": 44
+    },
+    {
       "id": "forge_ooze",
       "name": "Ooze (archetype)",
       "category": "Oozes & Plants",
@@ -984,7 +1209,7 @@
       "category": "Oozes & Plants",
       "animFile": "resources/animated_characters/forge_plant.anim",
       "representative": "treant",
-      "statBlocks": 7,
+      "statBlocks": 5,
       "archetypes": [
         "plant_true"
       ],

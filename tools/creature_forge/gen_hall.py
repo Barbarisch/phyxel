@@ -54,8 +54,14 @@ CATEGORY_RULES = [
     ("xorn", "Exotics"),
     ("otyugh", "Exotics"),
     ("devil", "Fiends & Celestials"),
+    ("demon", "Fiends & Celestials"),
     ("angel", "Fiends & Celestials"),
     ("hag", "Fiends & Celestials"),
+    ("mushroom", "Oozes & Plants"),
+    ("frog", "Beasts"),
+    ("dino", "Beasts"),
+    ("yeti", "Humanoids"),
+    ("tribal", "Humanoids"),
     ("elemental", "Constructs & Elementals"),
     ("golem", "Constructs & Elementals"),
     ("ooze", "Oozes & Plants"),
@@ -195,15 +201,26 @@ def titleize(stem: str) -> str:
     return " ".join(w.capitalize() for w in s.split("_"))
 
 
-def resolve_clips(af) -> dict:
-    have = {c.name.lower() for c in af.clips}
+def resolve_clips(af, mapping=None) -> dict:
+    """Resolve each hall state to a playable clip.
+
+    `mapping` is the binding archetype's animationMapping -- it must be
+    consulted FIRST, because that is what the engine applies at spawn. The
+    roster once ignored it and reported the stag as unable to attack while the
+    staged stag could headbutt fine (its binding maps Attack ->
+    Attack_Headbutt); playState then skipped a perfectly capable rig.
+    """
+    have = {c.name.lower(): c.name for c in af.clips}
     out = {}
     for state, chains in CLIP_FALLBACKS.items():
         pick = ""
-        for chain in chains:
+        mapped = (mapping or {}).get(state, "")
+        if mapped and mapped.lower() in have:
+            pick = have[mapped.lower()]
+        for chain in ([] if pick else chains):
             for name in chain:
                 if name in have:
-                    pick = name
+                    pick = have[name]
                     break
             if pick:
                 break
@@ -229,7 +246,11 @@ def build() -> tuple[dict, list]:
             errors.append(f"archetype '{arch_id}' has no animFile")
             continue
         e = by_anim.setdefault(anim, {"archetypes": [], "monsters": [], "repr": "",
-                                      "_repr_scale": -1.0})
+                                      "_repr_scale": -1.0, "mapping": {}})
+        # archetype-level mapping (member-level merges are per-monster; the
+        # hall stages one creature per rig, so archetype level is the truth
+        # that matters here)
+        e["mapping"].update(arch.get("animationMapping") or {})
         e["archetypes"].append(arch_id)
         e["monsters"].extend(members)
         # Representative = the LARGEST member, not the first one listed. It
@@ -263,7 +284,7 @@ def build() -> tuple[dict, list]:
             continue
 
         stem = Path(anim).stem
-        clips = resolve_clips(af)
+        clips = resolve_clips(af, info.get("mapping"))
         missing = [s for s, c in clips.items() if not c]
         entries.append({
             "id": stem,

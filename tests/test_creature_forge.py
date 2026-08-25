@@ -801,14 +801,18 @@ def test_hall_every_rig_can_at_least_idle_and_die(hall):
 
 def test_hall_clip_claims_match_the_actual_rig(hall):
     """The panel greys out states based on these strings; if one names a clip
-    the .anim does not contain, the button lights up and does nothing."""
+    the .anim does not contain, the button lights up and does nothing.
+    Comparison is case-insensitive because the roster preserves the rig's own
+    clip case (imported packs use 'Idle'/'Punch'; forge rigs use lowercase),
+    while existence is what this test is actually about."""
     from anim_pipeline import anim_format
     for e in hall["entries"]:
         af = anim_format.parse(ROOT / e["animFile"])
         have = {c.name.lower() for c in af.clips}
         for state, clip in e["clips"].items():
             if clip:
-                assert clip in have, f"{e['id']} claims {state}->{clip}, not in rig"
+                assert clip.lower() in have, \
+                    f"{e['id']} claims {state}->{clip}, not in rig"
 
 
 def test_hall_entries_are_unique_and_named(hall):
