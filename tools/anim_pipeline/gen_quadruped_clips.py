@@ -110,10 +110,22 @@ def skeleton_map(af):
         if behind:
             tail_chain = chain_of(min(behind, key=lambda i: gp[i][2]))
 
+    # Spine: the bones BETWEEN the root and the neck base. They belong to no
+    # leaf chain, so chain-based transfer skips them — and on mocap rigs the
+    # whole body motion (a death fall, an attack coil) is authored exactly
+    # there. Found by walking the head chain's base back up to the root.
+    spine = []
+    if head_chain:
+        cur = by_id[head_chain[0]].parent_id
+        while cur >= 0 and cur != root:
+            spine.append(cur)
+            cur = by_id[cur].parent_id
+        spine.reverse()                           # [after-root .. neck-base-parent]
+
     foot_y = min(gp[leg["foot"]][1] for leg in legs) if legs else 0.0
     top_y = max(p[1] for p in gp.values())
     return dict(root=root, by_id=by_id, gp=gp, legs=legs,
-                head=head_chain, tail=tail_chain,
+                head=head_chain, tail=tail_chain, spine=spine,
                 body_h=top_y - foot_y, shoulder_h=gp[root][1] - foot_y)
 
 

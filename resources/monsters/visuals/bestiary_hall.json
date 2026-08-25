@@ -152,31 +152,6 @@
       "bones": 27
     },
     {
-      "id": "forge_bear",
-      "name": "Brown Bear",
-      "category": "Beasts",
-      "animFile": "resources/animated_characters/forge_bear.anim",
-      "representative": "owlbear",
-      "statBlocks": 1,
-      "archetypes": [
-        "ursine"
-      ],
-      "bind": {
-        "width": 0.765,
-        "height": 1.6,
-        "depth": 2.04,
-        "footY": -0.006
-      },
-      "clips": {
-        "Idle": "idle",
-        "Walk": "walk",
-        "Attack": "attack",
-        "Death": "death"
-      },
-      "boxes": 2298,
-      "bones": 30
-    },
-    {
       "id": "elk_meshy",
       "name": "Elk Meshy",
       "category": "Beasts",
@@ -350,6 +325,31 @@
       },
       "boxes": 736,
       "bones": 44
+    },
+    {
+      "id": "forge_bear",
+      "name": "Owlbear (stand-in: forge bear)",
+      "category": "Beasts",
+      "animFile": "resources/animated_characters/forge_bear.anim",
+      "representative": "owlbear",
+      "statBlocks": 1,
+      "archetypes": [
+        "ursine"
+      ],
+      "bind": {
+        "width": 0.765,
+        "height": 1.6,
+        "depth": 2.04,
+        "footY": -0.006
+      },
+      "clips": {
+        "Idle": "idle",
+        "Walk": "walk",
+        "Attack": "attack",
+        "Death": "death"
+      },
+      "boxes": 2298,
+      "bones": 30
     },
     {
       "id": "forge_pachyderm",
