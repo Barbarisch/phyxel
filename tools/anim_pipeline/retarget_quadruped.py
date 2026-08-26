@@ -63,6 +63,31 @@ DEFAULT_CLIPS = ("Idle=idle,Walk=walk,Gallop=run,"
                  "Attack_Headbutt=attack,Attack=attack,Death=death")
 
 
+def enforce_quat_continuity(channels):
+    """Normalize every rot key and keep consecutive keys in one hemisphere.
+
+    q and -q are the same rotation, and composed quaternions (q_from_to
+    chains, delta products) flip hemisphere freely between frames. An offline
+    sampler that sign-corrects during interpolation hides that completely —
+    but the ENGINE lerps raw neighboring keys, and lerping across a sign flip
+    passes through a near-zero quaternion, which renders as the whole bone's
+    geometry shearing and collapsing BETWEEN keys. At 28 keys per clip a
+    character lives between keys almost every frame: the retargeted bear
+    looked fine at every sampled instant of offline FK and mangled on screen.
+    """
+    for ch in channels:
+        prev = None
+        fixed = []
+        for t, q in ch.rot_keys:
+            n = math.sqrt(sum(c * c for c in q)) or 1.0
+            q = tuple(c / n for c in q)
+            if prev is not None and sum(q[i] * prev[i] for i in range(4)) < 0.0:
+                q = tuple(-c for c in q)
+            fixed.append((t, q))
+            prev = q
+        ch.rot_keys = fixed
+
+
 # ---- pose sampling ----------------------------------------------------------
 
 def _lerp(a, b, w):
@@ -243,6 +268,7 @@ def retarget_clip(src_af, src_sk, clip, dst_af, dst_sk, out_name):
                     d_dst = q_mul(q_mul(q_conj(R_dp), seg), R_dp)
                     keys.append((t, q_mul(d_dst, db.rot)))
                 channels.append(Channel(d_id, rot_keys=keys))
+        enforce_quat_continuity(channels)
 
         # Height-profile match: rotations fold the limbs but nothing lowers a
         # high-set root — animation has no gravity, so a Meshy hips-at-0.65
@@ -301,6 +327,8 @@ def retarget_clip(src_af, src_sk, clip, dst_af, dst_sk, out_name):
             knee_keys.append((t, knee_local))
         channels.append(Channel(hip, rot_keys=hip_keys))
         channels.append(Channel(knee, rot_keys=knee_keys))
+
+    enforce_quat_continuity(channels)
 
     # walk speed carries over, scaled by leg proportion (no-slide contract)
     speed = None

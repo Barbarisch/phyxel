@@ -322,6 +322,40 @@ Two API traps found while chasing it: `set_day_night`'s `time` param and a `/api
 both leave `timeOfDay` pinned at 12.0, and *enabling* day/night resets ambient to 1.0 — so lower
 ambient only sticks with day/night disabled.
 
+## 2026-08-26 - TABLED: imported-rig characters render UNPOSED (vertical) beyond ~5-7u
+
+User-visible: Meshy/Quaternius-class rigs in the hall look "really fucked up" — the bear rears
+bolt upright, head buried. TABLED by user decision after a long session; this entry is the full
+trail so the next attempt does not repeat it.
+
+**What is ESTABLISHED (each point measured, most twice):**
+- The clip FILES are sound: offline FK sweeps (33 samples/cycle) hold bind within tolerance;
+  key quat convention (XYZW), Bone-line convention, engine parser, `updateAnimation`,
+  `blendAnimation` defaults, and `interpolateRotation` were each read and are all consistent.
+- The failure is **camera-distance-dependent with a ~5-7u threshold**: the SAME instance
+  renders a correct horizontal bear when the camera is within ~4u and a coherent VERTICAL
+  (raw-GLB-frame) bear beyond it. Reproduced repeatedly with 12 identical `bear_meshy` NPCs;
+  which instances look broken in a group shot is just which ones are past the threshold.
+- It is NOT the character LOD tier: `POST /api/debug/characters {"lod1":0,"lod2":0}` (LOD
+  disabled) changes nothing.
+- It is NOT the anim-update LOD gate (thresholds 30/60/120/220u — far above 6u).
+- It is NOT the CPU pose path: a temporary diagnostic in the parts-sync loop showed every
+  instance syncing all 20 bone groups with 0 skips every tick (the `boneOffsets` gate never
+  fires); the FSM also keeps advancing on "frozen" instances, and a commanded Attack state
+  change does not unfreeze the visual.
+- The vertical pose is a COHERENT whole-body rotation ≈ the root bind rotation (Meshy bakes
+  ~90° X into every bone from the GLB import). Forge rigs are equally affected but INVISIBLY —
+  their bind rotations are ~identity, so an unposed forge rig just looks like a statue. That is
+  why this shipped unnoticed: the bug predates the bestiary work and only imported rigs expose it.
+- Next suspect when resumed (was mid-read when tabled): the instanced character draw path in
+  `RenderCoordinator::buildCharacterDraws` — specifically whether characters inside ~6u take a
+  different (correct) route than the instanced `m_charDrawsMain` path, and how
+  `boneModels[boneBase + inBoneIndex]` resolves for the far group. The distance that matters is
+  per-CHARACTER camera distance; find what else keys off it besides `lodForDistanceSq`.
+
+Meanwhile the retargeted mocap clips (quat-continuity-enforced) are committed and gated; they are
+not the problem and should not be reverted when this is picked back up.
+
 ## 2026-08-23 - OPEN: the imported `stag` rig stands VERTICALLY (antlers reach the ground)
 
 Reported from the Bestiary Hall and confirmed on Release: the stag renders as an upright column —
