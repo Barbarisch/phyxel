@@ -92,6 +92,25 @@ mortar/cleaver + one caption word — → `gen_items.py` flat boards → materia
 + room_program.json `sign_item`). All 5 asset-request rows flipped conformant
 (`asset_requests.py --check` clean).
 
+### M3d — SIGN MOUNT v2 — SHIPPED 2026-08-27 (user feedback round 2)
+- **Orientation fixed at the ROOT**: a z-projected board's BACK face rendered its art rotated
+  180° (the "upside-down smithy"). Settled by crop-verified A/B across four candidate UV
+  mappings (analytical derivations kept losing to per-face quad conventions + greedy-merge):
+  the -Z face samples the OPPOSITE image slice reversed (`offset 1-fn, scale -sn`, both axes)
+  — boards are now genuinely two-sided (KinematicVoxelManager buildFaces case 1).
+- **Projecting signs HANG from a real bracket**: `SignMount.bracketCells` — wrought-iron arm
+  anchored in the wall, scroll tip, diagonal brace, hanger links — stamped as static Metal
+  micro voxels by the furnish stage (L4: 25 micros, displaced 0, visible over the tavern door).
+- **World-probe clearance**: planSignMount takes a `solidAt` micro-probe (cube/subcube/micro,
+  the place()-ledger occupancy rule); a projecting pose that would intersect an eave/jetty
+  repairs to FLUSH; flush blocked above the door repairs to BESIDE the door (right, then left,
+  at door height — probe-gated so a blind beside-pose can never cover a window); then skip
+  with the reason. Recovers the 8 skipped-for-eave signs. `SignMount` suite 13 tests
+  (4 new, red-first). Response gains `beside_door`/`bracket_cells`; `over_door` is now honest.
+- Evidence: docs/evidence/cityforge_m3d_sign_bracket_{north,south}.png (both faces readable).
+- Punted (logged): loosely-hanging signs that swing on collision — needs a hinge constraint
+  on fixed item props (KinematicAnimator has hinges but no physics coupling).
+
 ### M4 — `tenement` typology (apartments) — TODO (user-confirmed want)
 2–3 story stacked one-room dwellings, shared stair, gable-to-street; core-ring weighted.
 Generative multi-story mechanism exists (inn chambers). Requires grounded room program +

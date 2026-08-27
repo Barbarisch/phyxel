@@ -462,3 +462,26 @@ subset (large rigs only vs small rigs only) to separate "rig count" from "rig si
 - **Business signs missing in settlements**: user reports no trade signs on built-city shops.
   sign_item exists only for tavern; the other 5 trades are the open asset_requests rows.
   ALSO verify the settlement build path actually reaches planSignMount.
+
+## 2026-08-27 - pre-existing red: ForgeGateTeeth.AllowInvalidSkipsProgramGateEnforcement
+
+Deterministic failure on Release at commit 2e02c019 AND with pre-CityForge
+FurnitureCatalog + data files (A/B'd): an allow_invalid build refuses at REALIZE
+("chimney from the fireplace in 'kitchen' would rise through the middle of
+room 'chamber_1' on story 1"), where the test expects allow_invalid to defer the
+program-gate error and reach later gates. NOT caused by the sign/fence/density
+work (verified by stash A/B). Likely a hearth-siting drift from an earlier
+committed session; needs its own bisect. The rest of the 18-suite forge sweep
+(129 tests) is green.
+
+## 2026-08-27 - SignMount v2 punts (CityForgePlan M3d)
+
+- **Swinging signs**: user wants projecting boards to hang LOOSELY and swing from collisions.
+  Item props are fixed kinematic bodies; KinematicAnimator has hinge parts but no physics
+  coupling, and VoxelDynamicsWorld has no constraint type for a hinged fixed prop. Needs a
+  hinge-constraint feature before signs (or lanterns, chains) can dangle.
+- **Flush boards vs windows**: the world probe sees AIR at a window opening, so an over-door
+  flush board could in principle cover a window hole (beside-door poses are probe-gated but
+  air-blind the same way). A window-aware check needs the AssemblyPlan portals, not occupancy.
+- **KinematicVoxelManager x-axis surface faces (2/3)** were left on the legacy mapping - no
+  x-axis-projected assets exist; fix like case 1 (opposite-slice reversed) when one appears.
