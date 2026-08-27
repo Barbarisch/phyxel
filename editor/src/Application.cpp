@@ -12999,6 +12999,9 @@ void Application::registerSettlementCommands() {
         deps.templates     = objectTemplateManager ? &*objectTemplateManager : nullptr;
         deps.locations     = locationRegistry ? &*locationRegistry : nullptr;
         deps.npcs          = npcManager ? &*npcManager : nullptr;
+        // M3c: without this every settlement interior loses its item props — tableware AND
+        // the painted trade-sign items (all signs fell back to the blank board).
+        deps.itemProps     = itemPropManager ? &*itemPropManager : nullptr;
         deps.pushUndo      = [this](const glm::ivec3& a, const glm::ivec3& b,
                                     const std::string& label) {
             pushUndoSnapshot(chunkManager, snapshotManager.get(), a, b, label);
@@ -13228,6 +13231,8 @@ void Application::registerWorldForgeCommands() {
         d.settlement.templates     = objectTemplateManager ? &*objectTemplateManager : nullptr;
         d.settlement.locations     = locationRegistry ? &*locationRegistry : nullptr;
         d.settlement.npcs          = npcManager ? &*npcManager : nullptr;
+        d.settlement.itemProps     = itemPropManager ? &*itemPropManager : nullptr;   // M3c signs
+
         d.settlement.pushUndo = [this](const glm::ivec3& a, const glm::ivec3& b,
                                        const std::string& label) {
             pushUndoSnapshot(chunkManager, snapshotManager.get(), a, b, label);

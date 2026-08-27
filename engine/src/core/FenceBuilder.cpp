@@ -106,5 +106,19 @@ bool fenceGateWindow(int runLenMicro, int gateWidthCubes, int& loMicro, int& hiM
     return true;
 }
 
+bool fenceGateWindowAt(int runLenMicro, int gateWidthCubes, int preferredCentreMicro,
+                       int& loMicro, int& hiMicro) {
+    if (runLenMicro <= 0 || gateWidthCubes <= 0) return false;
+    const int cubeSpan = (runLenMicro + 8) / 9;
+    if (cubeSpan < gateWidthCubes) return false;
+    // Cube-aligned like the legacy window, but the gate's start cube tracks the door: centre
+    // the gate on preferredCentreMicro, then clamp the whole window inside the run's cube span.
+    int startCube = (preferredCentreMicro - gateWidthCubes * 9 / 2 + 4) / 9;
+    startCube = std::max(0, std::min(startCube, cubeSpan - gateWidthCubes));
+    loMicro = startCube * 9;
+    hiMicro = loMicro + gateWidthCubes * 9;
+    return true;
+}
+
 }  // namespace Core
 }  // namespace Phyxel

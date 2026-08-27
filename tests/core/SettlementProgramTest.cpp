@@ -90,3 +90,46 @@ TEST(SettlementProgramTest, MalformedJsonRejected) {
     EXPECT_FALSE(reg.loadFromJson(nlohmann::json{{"tiers", 1}}));   // no "eras" map
     EXPECT_EQ(reg.size(), 0u);
 }
+
+// CityForgePlan M3b (RED on the identity stub): `density` is the caller's settlement->city
+// lever. 1.0 = identity (legacy byte-compatible); >1 = tighter blocks, shallower plots,
+// smaller setbacks, more buildings, fewer fences; <1 = the reverse. All bounded.
+TEST(SettlementProgramTest, DensityScalesThePreset) {
+    SettlementProgramRegistry reg;
+    if (!loadShipped(reg)) GTEST_SKIP() << "settlement_program.json not reachable from CWD";
+    const SettlementTierPreset* city = reg.get("medieval", "city");
+    ASSERT_NE(city, nullptr);
+
+    // Identity: density 1.0 changes NOTHING (legacy compatibility).
+    const SettlementTierPreset same = applyDensity(*city, 1.0);
+    EXPECT_EQ(same.blocksMin, city->blocksMin);
+    EXPECT_EQ(same.blocksMax, city->blocksMax);
+    EXPECT_EQ(same.plot.depthMin, city->plot.depthMin);
+    EXPECT_EQ(same.plot.depthMax, city->plot.depthMax);
+    EXPECT_EQ(same.setback.max, city->setback.max);
+    EXPECT_EQ(same.buildingsMax, city->buildingsMax);
+    EXPECT_DOUBLE_EQ(same.fenceFraction, city->fenceFraction);
+
+    // Dense: blocks + plots tighten, buildings rise, fences thin.
+    const SettlementTierPreset dense = applyDensity(*city, 2.0);
+    EXPECT_LT(dense.blocksMin, city->blocksMin);
+    EXPECT_LT(dense.blocksMax, city->blocksMax);
+    EXPECT_LT(dense.plot.depthMax, city->plot.depthMax);
+    EXPECT_GT(dense.buildingsMax, city->buildingsMax);
+    EXPECT_LT(dense.fenceFraction, city->fenceFraction);
+    // Bounds hold: nothing scaled below its structural floor.
+    EXPECT_GE(dense.blocksMin, 8);
+    EXPECT_GE(dense.plot.depthMin, 6);
+    EXPECT_GE(dense.plot.sideGap, 0);
+    EXPECT_LE(dense.blocksMin, dense.blocksMax);
+    EXPECT_LE(dense.plot.depthMin, dense.plot.depthMax);
+
+    // Sparse: the reverse direction.
+    const SettlementTierPreset sparse = applyDensity(*city, 0.5);
+    EXPECT_GT(sparse.blocksMax, city->blocksMax);
+    EXPECT_LT(sparse.buildingsMax, city->buildingsMax);
+
+    // Out-of-range densities clamp instead of exploding.
+    const SettlementTierPreset wild = applyDensity(*city, 100.0);
+    EXPECT_EQ(wild.blocksMin, applyDensity(*city, 2.0).blocksMin);
+}

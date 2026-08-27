@@ -186,6 +186,22 @@ Validate when each lands; required layer noted so the plan is set up front.
   clears (found live: 5 registered, zero standing; the registry lies, scan the world). L4: seed-7
   160×160 city — statue+well+3 stalls standing on the plaza post-sweep
   (docs/evidence/cityforge_m1_square_{north,iso}.png).
+  **✅ SLICE 5 — FENCE POLICY + DENSITY + TRADE SIGNS (2026-08-27, CityForgePlan M3/M3b/M3c):**
+  `shouldFencePlot` (core ring never fenced / <1-cube building clearance unfenced / seeded tier
+  `fences.fraction`) + `fenceGateWindowAt` (gate tracks the paver's front-door spur anchor) —
+  `FencePolicyTest` 4 red-first. `applyDensity` (`density` request param, 0.5–2 clamped+echoed):
+  sqrt-scaled blocks/plot-depth + linear buildings — LINEAR block scaling measured 42→33 buildings
+  at 1.5 (starves the infill it exists to feed) before sqrt fixed it. **SECONDARY-LANE INFILL
+  ROWS**: block interiors host burgage rows fronting each lane segment behind a plotFree occupancy
+  guard (axes allocate first) — the city stops being axes-only (33 → 42 base, **65 at density
+  1.5**, red-first `DensityRaisesTheBuildingCount` + full-suite no-overlap). **Sign root cause**:
+  the settlement path passed NO ItemPropManager, so every sign item (Pony included) silently fell
+  back to the blank hanging_sign board and settlement interiors lost ALL item props — deps wired
+  (settlement + worldforge callers); five authored trade boards (gen_trade_signs.py symbol-first
+  art → gen_items.py → materials/items/room_program) close all 5 asset-request rows
+  (`asset_requests.py --check` clean). L4 dense city: 24 painted signs hung / 8 skipped-for-eave
+  honestly / 0 blank fallbacks (log-counted), 17 fenced / 48 unfenced-by-policy
+  (docs/evidence/cityforge_m3b_dense_{top,core}.png, cityforge_m3c_sign_items.png).
   **✅ SLICE 2 — STREETS ARE REAL GEOMETRY (2026-07-09, `StreetPaver`):** `planStreetPaving` (pure) grades
   each street's centerline via `planTerrainPath`, broadcasts a LEVEL cross-section across the full width,
   and runs a spur from every front door to the street (meeting the STREET's surface, first-writer);

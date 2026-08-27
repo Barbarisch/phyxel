@@ -68,6 +68,11 @@ CATALOG_META = {
     "rug_oriental": ("Oriental Rug", "A hand-knotted oriental rug, one fine cell thick.", "rug", ["item", "rug", "decor", "projected-surface"]),
     "rug_test":     ("Rug (Projection Test)", "Surface-projection test rug.", "rug", ["item", "rug", "test"]),
     "sign_prancing_pony": ("Sign: The Prancing Pony", "A thin hanging tavern sign board.", "sign", ["item", "sign", "decor", "tavern"]),
+    "sign_blacksmith":    ("Sign: Smithy", "A hanging blacksmith trade sign (anvil and hammer).", "sign", ["item", "sign", "decor", "blacksmith", "trade"]),
+    "sign_bakery":        ("Sign: Bakery", "A hanging bakery trade sign (the guild pretzel).", "sign", ["item", "sign", "decor", "bakery", "trade"]),
+    "sign_general_store": ("Sign: Goods", "A hanging general-store trade sign (merchant's balance).", "sign", ["item", "sign", "decor", "general_store", "trade"]),
+    "sign_apothecary":    ("Sign: Herbs", "A hanging apothecary trade sign (mortar and pestle).", "sign", ["item", "sign", "decor", "apothecary", "trade"]),
+    "sign_butcher":       ("Sign: Butcher", "A hanging butcher trade sign (cleaver).", "sign", ["item", "sign", "decor", "butcher", "trade"]),
     "lantern":      ("Hooded Lantern", "A steel-framed glass lantern with a carry ring.", "light", ["item", "lantern", "light", "dungeon"]),
     "oil_lamp":     ("Oil Lamp", "A squat clay oil lamp with a wick flame.", "light", ["item", "lamp", "light", "house"]),
     "candle":       ("Candle", "A bare wax candle stub, lit.", "light", ["item", "candle", "light", "table"]),
@@ -1037,6 +1042,33 @@ def gen_sign_prancing_pony():
                            54, 40, OUT_ITEMS, rim="#5a4632")
 
 
+def _trade_sign(name):
+    # Default trade-sign boards (CityForgePlan M3c): square art (gen_trade_signs.py),
+    # so the board is square too — 40x40 cells (~1.48 m), inside the medieval
+    # projection limit the tavern board grounded (1375 ale-stake ordinance).
+    return _flat_projected(name, name, "z", 40, 40, OUT_ITEMS, rim="#5a4632")
+
+
+def gen_sign_blacksmith():
+    return _trade_sign("sign_blacksmith")
+
+
+def gen_sign_bakery():
+    return _trade_sign("sign_bakery")
+
+
+def gen_sign_general_store():
+    return _trade_sign("sign_general_store")
+
+
+def gen_sign_apothecary():
+    return _trade_sign("sign_apothecary")
+
+
+def gen_sign_butcher():
+    return _trade_sign("sign_butcher")
+
+
 def gen_rug_woven():
     # Loose furnishing, NOT baked microcubes: a 1.5 x 2.0 u woven rug, ONE cell
     # thick (grid 27 -> 3.7 cm), with the rug_oriental image projected across
@@ -1085,6 +1117,8 @@ ALL = [
     gen_pickaxe, gen_torch,
     gen_tome_arcane, gen_tome_fire, gen_tome_necromantic,
     gen_rug_oriental, gen_rug_test, gen_sign_prancing_pony,
+    gen_sign_blacksmith, gen_sign_bakery, gen_sign_general_store,
+    gen_sign_apothecary, gen_sign_butcher,
 ]
 
 

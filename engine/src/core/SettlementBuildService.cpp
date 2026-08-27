@@ -71,6 +71,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
     NPCManager* const npcManager                     = deps.npcs;
     const auto pushUndo                              = deps.pushUndo;
     const auto addPointLight                         = deps.addPointLight;   // M5
+    ItemPropManager* const itemPropManager           = deps.itemProps;       // M3c signs/tableware
 
         const auto& p = params;
         const int W = p.value("width", 52), D = p.value("depth", 36);
@@ -143,6 +144,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         const unsigned seed = static_cast<unsigned>(p.value("seed", static_cast<int>(varietySeed)));
         Core::SettlementProgramRegistry programReg;
         const Core::SettlementTierPreset* tierP = nullptr;
+        // M3b density lever ("a very dense city"): clamped [0.5, 2]; 1.0 = identity. The
+        // densified copy must outlive every use of tierP in this planning pass.
+        const double density = std::clamp(p.value("density", 1.0), 0.5, 2.0);
+        Core::SettlementTierPreset densified;
         if (programMode) {
             if (!programReg.loadFromFile("resources/settlement_program.json")) {
                 res.error = {{"error", "settlement_program.json failed to load"}};
@@ -153,6 +158,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 res.error = {{"error", "unknown era/tier: " + era + "/" + tierName},
                      {"known_eras", programReg.eras()}, {"known_tiers", programReg.tiers(era)}};
                 return res;
+            }
+            if (density != 1.0) {
+                densified = Core::applyDensity(*tierP, density);
+                tierP = &densified;
             }
             if (tierP->morphology == "cluster") {
                 // cluster reuses the legacy scatter/grid layout; the tier contributes its weighted
@@ -518,7 +527,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                                    std::to_string(buildings.size());
             buildingUnits.push_back({ph, [chunkManager, placedObjectManager, objectTemplateManager,
                                           locationRegistry, npcManager, pushUndo, addPointLight,
-                                          bp, bp2, seatInUnit,
+                                          itemPropManager, bp, bp2, seatInUnit,
                                           bw, bd, bw2, bd2, oy, lotFailures = res.lotFailures,
                                           lotIndex = static_cast<int>(i),
                                           typ1 = var.typology, typ2 = var2.typology]() mutable {
@@ -538,6 +547,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 deps.npcs          = npcManager ? &*npcManager : nullptr;
                 deps.pushUndo      = pushUndo;   // forwarded by the caller (editor: undo snapshot)
                 deps.addPointLight = addPointLight;   // M5: light settlement interiors too
+                deps.itemProps     = itemPropManager; // M3c: sign items + tableware in settlements
                 seat(bp, bw, bd);
                 const auto res1 = Core::StructureBuildService::buildV2(bp, deps);
                 if (!res1.contains("error")) return;
@@ -827,7 +837,9 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         if ((terrain || mainStreetMode) && chunkManager && !layout.plots.empty()) {
             units.push_back({"fencing parcels",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, layout, msl, doorCenters, ox, oz, terrainTopAt, mainStreetMode,
-                 fl9, rem9, emitMicro, pathsJsonP, sharedPaved]() {
+                 fl9, rem9, emitMicro, pathsJsonP, sharedPaved, seed,
+                 fenceFraction = (programMode && tierP ? tierP->fenceFraction : 1.0),
+                 coreRing = (programMode && tierP ? tierP->coreRing : 0)]() {
             if (!chunkManager) return;
             auto& pathsJson = *pathsJsonP;
             auto& pavedCols = *sharedPaved;
@@ -849,8 +861,18 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 if (it != gtMemo.end()) return it->second;
                 const int v = terrainTopAt(cx, cz); gtMemo[k] = v; return v;
             };
+            // Fence POLICY (CityForgePlan M3): core ring unfenced, flush buildings unfenced,
+            // seeded fraction of the rest — shouldFencePlot owns the rules.
+            Core::FencePolicy fencePol;
+            fencePol.fraction = fenceFraction;
+            if (mainStreetMode && msl.hasSquare && coreRing > 0) {
+                fencePol.hasCore = true;
+                fencePol.coreRing = coreRing;
+                fencePol.coreCu = msl.marketSquare.x + msl.marketSquare.w / 2;
+                fencePol.coreCv = msl.marketSquare.z + msl.marketSquare.d / 2;
+            }
             Core::StructureResult fenceBatch;   // bulk emit — one place() for ALL parcels
-            long fenceMicros = 0; int parcels = 0;
+            long fenceMicros = 0; int parcels = 0, unfenced = 0;
             for (size_t pi = 0; pi < layout.plots.size(); ++pi) {
                 const auto& pl = layout.plots[pi];
                 const Core::Rect& pr = pl.rect;
@@ -858,8 +880,16 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 // Gate side: a main-street parcel opens onto ITS street (the burgage frontage);
                 // a scatter parcel faces the settlement centroid / path network.
                 char gate;
+                int doorRunMicroX = -1, doorRunMicroZ = -1;   // front-door midpoint (local micro)
                 if (mainStreetMode && pi < msl.assigned.size()) {
-                    gate = msl.assigned[pi].streetSide;
+                    const auto& ap = msl.assigned[pi];
+                    gate = ap.streetSide;
+                    if (!Core::shouldFencePlot(static_cast<int>(pi), seed, pr, ap.footprint,
+                                               fencePol)) { ++unfenced; continue; }
+                    // The gate must land on the FRONT DOOR: the paver's spur anchor is the
+                    // footprint's front-wall midpoint — project it onto the gate side's run.
+                    doorRunMicroX = (ap.footprint.x + ap.footprint.w / 2) * 9 + 4;
+                    doorRunMicroZ = (ap.footprint.z + ap.footprint.d / 2) * 9 + 4;
                 } else {
                     const double pcx = ox + pr.x + pr.w / 2.0, pcz = oz + pr.z + pr.d / 2.0;
                     gate = (std::abs(scx - pcx) > std::abs(scz - pcz)) ? (scx > pcx ? 'E' : 'W')
@@ -879,12 +909,16 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     if (!prof.ok) return;
                     int gLo = -1, gHi = -1;
                     if (run.side == gate) {
-                        // Cube-aligned gate window, EXACTLY the legacy centering: derive
-                        // the cube span (runLenMicro = (cubes-1)*9+1, so ceil-div
-                        // recovers it) and center in cubes — the naive micro formula
-                        // drifted up to 4 micro off the old center on odd spans
-                        // (auditor-caught).
-                        Core::fenceGateWindow(runLenMicro, gateW, gLo, gHi);
+                        // Cube-aligned gate window. With a known front door (main-street
+                        // plots) the gate TRACKS the door's run coordinate (M3 — user find:
+                        // gates didn't match the entrance path); otherwise the legacy
+                        // centred window (its centering nuance is auditor-pinned).
+                        const int pref = run.alongX ? doorRunMicroX - run.fromMicro
+                                                    : doorRunMicroZ - run.fromMicro;
+                        if (doorRunMicroX >= 0)
+                            Core::fenceGateWindowAt(runLenMicro, gateW, pref, gLo, gHi);
+                        else
+                            Core::fenceGateWindow(runLenMicro, gateW, gLo, gHi);
                     }
                     for (const auto& c : prof.cells) {
                         if (c.u >= gLo && c.u < gHi) continue;                 // gate opening
@@ -912,9 +946,11 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             }
             fenceMicros = Core::StructureGenerator::place(chunkManager, fenceBatch).placed;
             chunkManager->rebuildOccupancyFromChunks();
-            LOG_INFO_FMT("Settlement", "fences: " << parcels << " parcels, " << fenceMicros
+            LOG_INFO_FMT("Settlement", "fences: " << parcels << " parcels fenced, " << unfenced
+                         << " unfenced by policy, " << fenceMicros
                          << " micros (picket, " << fH << "-micro tall, posts @" << fSp << ")");
             pathsJson["parcels"] = parcels;
+            pathsJson["unfenced_by_policy"] = unfenced;
             pathsJson["fence_micros"] = fenceMicros;
             pathsJson["fence_type"] = Core::fenceTypeToString(fenceType);
             }});
@@ -1082,9 +1118,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
 
         nlohmann::json programJson = nlohmann::json::object();
         if (programMode && tierP) {
-            // Echo {era, tier, seed} so a live build is exactly reproducible (determinism contract).
+            // Echo {era, tier, seed, density} so a live build is exactly reproducible
+            // (determinism contract; density echoes CLAMPED so the caller sees what applied).
             programJson = {{"era", era}, {"tier", tierName}, {"seed", seed},
-                           {"morphology", tierP->morphology}};
+                           {"density", density}, {"morphology", tierP->morphology}};
             if (mainStreetMode) {
                 programJson["main_street"] = {{"x", ox + msl.mainStreet.x}, {"z", oz + msl.mainStreet.z},
                                               {"w", msl.mainStreet.w}, {"d", msl.mainStreet.d}};

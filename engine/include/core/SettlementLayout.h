@@ -95,6 +95,25 @@ struct FencePlan {
     bool ok = false;
 };
 
+/// Fence POLICY inputs for one settlement (CityForgePlan M3): which plots get a fence at all.
+struct FencePolicy {
+    bool   hasCore = false;   ///< true when a market square exists (core-ring rule applies)
+    int    coreCu = 0;        ///< square centre (cubes, settlement-local x)
+    int    coreCv = 0;        ///< square centre (cubes, settlement-local z)
+    int    coreRing = 0;      ///< Chebyshev radius (cubes); 0 = no core rule
+    double fraction = 1.0;    ///< seeded share of eligible plots that get fenced (tier data)
+};
+
+/// Whether plot `plotIndex` gets a perimeter fence. Three rules, in order (M3, user-settled):
+/// 1. CORE RING: a plot whose centre lies within `coreRing` of the square centre is NEVER
+///    fenced (city cores are built to the street, not fenced crofts).
+/// 2. CLEARANCE: a building within < 1 cube of its plot boundary on ANY side goes unfenced —
+///    a fence flush against a wall reads wrong (and setback-0 urban rows shouldn't be caged).
+/// 3. FRACTION: the survivors draw seeded-deterministically; `fraction` of them are fenced.
+/// Deterministic in (plotIndex, seed).
+bool shouldFencePlot(int plotIndex, unsigned seed, const Rect& plot, const Rect& footprint,
+                     const FencePolicy& pol);
+
 /// Enclose `parcel` (a plot rect, cubes) with a fence on its whole perimeter, leaving a gate of
 /// `gateWidth` cubes centred on `gateSide` ('N'=+z, 'S'=-z, 'E'=+x, 'W'=-x). The yard is the parcel
 /// minus the building inside it (the fence doesn't touch the building). Returns ok=false if the parcel

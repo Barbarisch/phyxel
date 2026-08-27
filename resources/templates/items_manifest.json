@@ -376,7 +376,7 @@
       0.037,
       2.0
     ],
-    "file": "rug_oriental.voxel",
+    "file": "items/rug_oriental.voxel",
     "grid": 27
   },
   "rug_test": {
@@ -386,7 +386,7 @@
       0.037,
       1.4815
     ],
-    "file": "rug_test.voxel",
+    "file": "test/rug_test.voxel",
     "grid": 27
   },
   "rug_woven": {
@@ -409,6 +409,56 @@
     "file": "items/scroll.voxel",
     "grid": 81
   },
+  "sign_apothecary": {
+    "cells": 1600,
+    "dims_units": [
+      1.4815,
+      1.4815,
+      0.037
+    ],
+    "file": "items/sign_apothecary.voxel",
+    "grid": 27
+  },
+  "sign_bakery": {
+    "cells": 1600,
+    "dims_units": [
+      1.4815,
+      1.4815,
+      0.037
+    ],
+    "file": "items/sign_bakery.voxel",
+    "grid": 27
+  },
+  "sign_blacksmith": {
+    "cells": 1600,
+    "dims_units": [
+      1.4815,
+      1.4815,
+      0.037
+    ],
+    "file": "items/sign_blacksmith.voxel",
+    "grid": 27
+  },
+  "sign_butcher": {
+    "cells": 1600,
+    "dims_units": [
+      1.4815,
+      1.4815,
+      0.037
+    ],
+    "file": "items/sign_butcher.voxel",
+    "grid": 27
+  },
+  "sign_general_store": {
+    "cells": 1600,
+    "dims_units": [
+      1.4815,
+      1.4815,
+      0.037
+    ],
+    "file": "items/sign_general_store.voxel",
+    "grid": 27
+  },
   "sign_prancing_pony": {
     "cells": 2160,
     "dims_units": [
@@ -416,7 +466,7 @@
       1.4815,
       0.037
     ],
-    "file": "sign_prancing_pony.voxel",
+    "file": "items/sign_prancing_pony.voxel",
     "grid": 27
   },
   "spear": {
@@ -586,7 +636,7 @@
       0.0494,
       0.2963
     ],
-    "file": "tome_arcane.voxel",
+    "file": "items/tome_arcane.voxel",
     "grid": 81
   },
   "tome_fire": {
@@ -596,7 +646,7 @@
       0.0494,
       0.2963
     ],
-    "file": "tome_fire.voxel",
+    "file": "items/tome_fire.voxel",
     "grid": 81
   },
   "tome_necromantic": {
@@ -606,7 +656,7 @@
       0.0494,
       0.2963
     ],
-    "file": "tome_necromantic.voxel",
+    "file": "items/tome_necromantic.voxel",
     "grid": 81
   },
   "torch": {

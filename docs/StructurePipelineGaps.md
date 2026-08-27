@@ -446,3 +446,19 @@ subset (large rigs only vs small rigs only) to separate "rig count" from "rig si
 - **Typology glut at city tier**: seed 7 drew 7 taverns / 5 blacksmiths out of 33 buildings
   (weights alone, no per-typology cap). A city should not be 21% taverns; wants a max-share
   cap in the draw (CityForgePlan M3).
+
+## 2026-08-27 - CityForge user-feedback backlog (docs/CityForgePlan.md)
+
+- **Floating foliage after settlement builds**: leftover canopy/trunk pieces hang in the air
+  around cleared plots and streets (parcel clearing + road-corridor felling remove cells in
+  their own bands; a tree whose trunk sat inside the band leaves its overhanging canopy
+  orphaned in the air outside it). Fix shape: felling must remove the CONNECTED tree
+  (flood Log*->Leaf* from the removed trunk), not just the cells inside the corridor.
+- **Elevation handling**: settlement placement wants gentle-hill tolerance - flatten only where
+  a pad/street needs it and keep surrounding relief (today's terrain mode reads flat/terraced).
+- **Interior light bleed**: placed interior point lights illuminate through walls; exterior
+  walls read bright at night. Engine-level: lights have no voxel occlusion (blocklight Phase 2
+  / shadowed point lights are the fix; see project_lighting_overhaul).
+- **Business signs missing in settlements**: user reports no trade signs on built-city shops.
+  sign_item exists only for tavern; the other 5 trades are the open asset_requests rows.
+  ALSO verify the settlement build path actually reaches planSignMount.

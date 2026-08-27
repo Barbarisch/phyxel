@@ -401,6 +401,7 @@ MainStreetLayout planCityLayout(const SettlementTierPreset& tier, int W, int D,
     const int exHi = std::max(squ + sqW, uc1) + tier.blocksMin;
     std::vector<std::pair<int, int>> vertBands;            // (u0, u1) of perpendicular streets
     vertBands.push_back({uc0, uc1});
+    std::vector<std::array<int, 3>> laneSegs;              // {u, v0, v1} straight lane runs (infill)
     {
         int u = endMargin, k = 0;
         while (true) {
@@ -419,6 +420,7 @@ MainStreetLayout planCityLayout(const SettlementTierPreset& tier, int W, int D,
                 const int run = std::min(C - v,
                                          drawIn(k * 131 + seg, 73, tier.blocksMin, tier.blocksMax));
                 out.base.streets.push_back(mkRect(uSeg, v, lw, run));
+                laneSegs.push_back({uSeg, v, v + run});
                 uMin = std::min(uMin, uSeg);
                 uMax = std::max(uMax, uSeg);
                 v += run;
@@ -451,6 +453,19 @@ MainStreetLayout planCityLayout(const SettlementTierPreset& tier, int W, int D,
     const int sqCu = squ + sqW / 2, sqCv = sqv + sqD / 2;  // square centre (u/v frame)
     int count = 0;
     const int depthCap = tier.plot.depthMax + tier.setback.max + 2;
+    // Occupancy guard: the axis rows avoid each other by band construction, but the
+    // secondary-lane INFILL rows (M3b) share block interiors with everything — a candidate
+    // plot must not cross any street rect or any already-assigned plot.
+    auto rectsOverlap = [](const Rect& a, const Rect& b) {
+        return a.x < b.x1() && b.x < a.x1() && a.z < b.z1() && b.z < a.z1();
+    };
+    auto plotFree = [&](const Rect& r) {
+        for (const auto& s : out.base.streets)
+            if (rectsOverlap(r, s)) return false;
+        for (const auto& pl : out.base.plots)
+            if (rectsOverlap(r, pl.rect)) return false;
+        return true;
+    };
     auto allocRow = [&](int runFrom, int runTo, int streetEdge, bool plusDepth, bool alongU,
                         int availDepth) {
         if (availDepth < 4) return;
@@ -458,6 +473,7 @@ MainStreetLayout planCityLayout(const SettlementTierPreset& tier, int W, int D,
         int guard = 0;
         while (count < tier.buildingsMax && ++guard < 64) {
             bool fit = false;
+            bool blocked = false;   // a draw fit the run but collided with existing occupancy
             const int redraws = static_cast<int>(std::max<size_t>(1, tier.typologyWeights.size()));
             for (int t = 0; t < redraws && !fit; ++t) {
                 // ring membership from the FRONTAGE MIDPOINT (market adjacency is about frontage).
@@ -499,9 +515,11 @@ MainStreetLayout planCityLayout(const SettlementTierPreset& tier, int W, int D,
                                                     tier.plot.depthMax),
                                              minDepth, availDepth);
                 const int vPlot = plusDepth ? streetEdge : streetEdge - depth;
+                const Rect plotRect = alongU ? mkRect(cursor, vPlot, frontage, depth)
+                                             : mkRect(vPlot, cursor, depth, frontage);
+                if (!plotFree(plotRect)) { blocked = true; continue; }
                 AssignedPlot ap;
-                ap.plot.rect = alongU ? mkRect(cursor, vPlot, frontage, depth)
-                                      : mkRect(vPlot, cursor, depth, frontage);
+                ap.plot.rect = plotRect;
                 ap.plot.row = plusDepth ? 0 : 1;
                 ap.plot.col = count;
                 ap.typology = typ;
@@ -519,7 +537,13 @@ MainStreetLayout planCityLayout(const SettlementTierPreset& tier, int W, int D,
                 ++count;
                 fit = true;
             }
-            if (!fit) break;
+            if (!fit) {
+                // A positional collision (infill meeting an axis row / the main-street band)
+                // is not the end of the run — step past it and keep filling. A run with no
+                // room at all still terminates (guard bounds the walk).
+                if (blocked) { cursor += 2; continue; }
+                break;
+            }
         }
     };
 
@@ -552,6 +576,27 @@ MainStreetLayout planCityLayout(const SettlementTierPreset& tier, int W, int D,
             allocRow(sLo, sHi, uc1, true, false, std::min(depthCap, rightGap));
             allocRow(sLo, sHi, uc0, false, false, std::min(depthCap, leftGap));
         }
+    }
+
+    // ---- SECONDARY-LANE INFILL ROWS (M3b density): the block interiors host burgage rows
+    // fronting each lane segment. Without these, the two axes' FIXED frontage caps the city
+    // and raising density only adds streets that eat it (measured live: 33 -> 26 buildings
+    // at density 1.5). The axes allocate FIRST (prime frontage); infill fills what remains,
+    // guarded by plotFree against every street and already-assigned plot.
+    for (const auto& segRun : laneSegs) {
+        const int uSeg = segRun[0], sv0 = segRun[1], sv1 = segRun[2];
+        // Depth available per side: to the nearest OTHER vertical band (this lane's own
+        // band contains uSeg and is skipped); the occupancy guard catches everything else.
+        int leftGap = uSeg - endMargin, rightGap = (L - endMargin) - (uSeg + lw);
+        for (const auto& vb : vertBands) {
+            if (vb.first <= uSeg && uSeg + lw <= vb.second) continue;   // own band
+            if (vb.second <= uSeg) leftGap = std::min(leftGap, uSeg - vb.second - 1);
+            if (vb.first >= uSeg + lw) rightGap = std::min(rightGap, vb.first - (uSeg + lw) - 1);
+        }
+        const int rf = sv0 + 1, rt = sv1 - 1;
+        if (rt - rf < 6) continue;
+        allocRow(rf, rt, uSeg + lw, true, false, std::min(depthCap, rightGap));
+        allocRow(rf, rt, uSeg, false, false, std::min(depthCap, leftGap));
     }
 
     out.ok = !out.assigned.empty();
@@ -715,6 +760,31 @@ SquareDressing planSquareDressing(const MainStreetLayout& msl, const PublicSpec&
 
     out.ok = true;
     return out;
+}
+
+bool shouldFencePlot(int plotIndex, unsigned seed, const Rect& plot, const Rect& footprint,
+                     const FencePolicy& pol) {
+    // 1. CORE RING: city cores are built to the street, not fenced crofts.
+    if (pol.hasCore && pol.coreRing > 0) {
+        const int pcu = plot.x + plot.w / 2, pcv = plot.z + plot.d / 2;
+        if (std::max(std::abs(pcu - pol.coreCu), std::abs(pcv - pol.coreCv)) <= pol.coreRing)
+            return false;
+    }
+    // 2. CLEARANCE: a fence needs >= 1 cube of yard between the building wall and the plot
+    // boundary on every side — flush setback-0 rows go unfenced (they read caged otherwise).
+    const int gapW = footprint.x - plot.x;
+    const int gapE = plot.x1() - footprint.x1();
+    const int gapS = footprint.z - plot.z;
+    const int gapN = plot.z1() - footprint.z1();
+    if (std::min(std::min(gapW, gapE), std::min(gapS, gapN)) < 1) return false;
+    // 3. FRACTION: seeded per-plot draw (same avalanche family as drawTypology, its own salt).
+    if (pol.fraction < 1.0) {
+        unsigned x = static_cast<unsigned>(plotIndex) * 2654435761u + seed * 2246822519u
+                   + 977u * 40503u;
+        x ^= x >> 16; x *= 2246822519u; x ^= x >> 13;
+        if ((x % 1000u) >= static_cast<unsigned>(pol.fraction * 1000.0)) return false;
+    }
+    return true;
 }
 
 std::vector<YardProp> planYardProps(const AssignedPlot& ap, unsigned seed) {

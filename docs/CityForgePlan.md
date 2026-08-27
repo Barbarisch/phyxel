@@ -66,21 +66,57 @@ by 2·(laneWidth−1) drift), full 87-test settlement sweep green, L4 seed-7 cit
 with visible doglegs (docs/evidence/cityforge_m2_meander_top.png). Main + cross axes stay
 straight on purpose (they host the burgage frontages).
 
-### M3 — Density & palette (quick wins, if time)
-- Core ring: no picket fences (city cores aren't fenced crofts) — fence gate keyed off ring
-  membership; data flag `core_fences: false` (city only).
-- Palette: dedupe glut (7 taverns) — cap per-typology share in the draw for business types;
-  or weight tune in data. Smallest honest change: weights tune + a `max_count` per typology.
+### M3 — Fences that behave — SHIPPED 2026-08-27 (user-approved rules)
+`shouldFencePlot` (pure, `FencePolicyTest` red-first): (1) core-ring plots NEVER fenced;
+(2) a building within <1 cube of its plot boundary goes unfenced (flush setback-0 rows aren't
+caged — the user's "more space between fence and structure"); (3) seeded per-plot fraction,
+tier data `fences.fraction` (village .85 / town .7 / city .5; absent = 1.0 legacy). Gate now
+TRACKS the front door: `fenceGateWindowAt` centres the cube-aligned gate on the paver's spur
+anchor (footprint front-wall midpoint), clamped inside the run. Result surfaces
+`unfenced_by_policy`.
 
-### M4 — `tenement` typology (apartments) — NEXT session (needs archetype sheet)
+### M3b — Density knob — SHIPPED 2026-08-27 ("a very dense city")
+`density` request param on `/api/settlement/build` (0.5–2, clamped, echoed in
+`program.density`): `applyDensity` (pure, red-first test) scales blocks/plot-depth/side-gap/
+setback DOWN and buildings UP (bounded: blocks ≥8, depth ≥6), and thins fenceFraction.
+1.0 = identity, legacy byte-compatible.
+
+### M3c — Business SIGN ITEMS — SHIPPED 2026-08-27
+ROOT CAUSE of "no signs": the settlement path never passed ItemPropManager
+(`SettlementBuildService` had no `itemProps` dep), so EVERY sign item — the tavern's Pony
+included — silently fell back to the blank `hanging_sign` board (26 blank boards counted in
+the placed-object dump), and settlement interiors got no tableware items either. Deps wired
+end-to-end (settlement + worldforge callers). Plus five authored default trade boards
+(`tools/gen_trade_signs.py` art — symbol-first per medieval practice: anvil/pretzel/balance/
+mortar/cleaver + one caption word — → `gen_items.py` flat boards → materials.json + items.json
++ room_program.json `sign_item`). All 5 asset-request rows flipped conformant
+(`asset_requests.py --check` clean).
+
+### M4 — `tenement` typology (apartments) — TODO (user-confirmed want)
 2–3 story stacked one-room dwellings, shared stair, gable-to-street; core-ring weighted.
 Generative multi-story mechanism exists (inn chambers). Requires grounded room program +
 furnishing recipes + conformant assets first (REFUSE-ON-ANY-GAP applies).
 
-### M5 — `town_hall` typology (civic) — NEXT session (needs archetype sheet)
+### M5 — `town_hall` typology (civic) — TODO (user-confirmed want)
 Guildhall/moot-hall fronting the square on a RESERVED civic plot (layout change: civic plot
 reservation). Constraint: 7-cube cruck span caps hall width — aisled frame style is the known
 open gap (StructureForge queue #5).
+
+### M6 — `mansion` typology — TODO (user-asked 2026-08-27)
+Urban magnate house beyond manor_hall: courtyard/L-plan, high wealth tier. Needs archetype
+sheet; L-plan multi-story (KI-5g) is a known owed mechanism.
+
+### M7 — Castle / keep + town WALLS — TODO (user-asked 2026-08-27)
+The city edge earns a circuit wall + gatehouses (place_town_wall #42 is L0 in the ledger);
+castle/keep as a reserved precinct anchored off the axes. Big: needs its own plan (wall
+grounding, gate alignment with arriving WorldForge roads, keep typology).
+
+### Polish backlog (user feedback 2026-08-27, logged in StructurePipelineGaps)
+- Floating foliage: leftover canopy pieces hang in the air after site clearing/felling.
+- Terrain: settlement placement should tolerate gentle elevation — flatten locally where a
+  building needs it, keep hills elsewhere (today's look is too flat/terraced).
+- Interior point lights BLEED through walls — exterior walls glow at night (engine lighting:
+  no occlusion on placed lights; blocklight phase 2 is the real fix).
 
 ### Logged follow-ups (docs/StructurePipelineGaps.md)
 - Residents job counter reports 0 while residents spawn (baseline evidence above).
@@ -88,3 +124,4 @@ open gap (StructureForge queue #5).
   infill rows are the real density lever after M4.
 - MCP `get_job_status` claims "No game project is loaded" while the engine has one (HTTP
   `/api/jobs` fine).
+- Typology glut: 7 taverns / 33 buildings — per-typology max-share cap in the draw.

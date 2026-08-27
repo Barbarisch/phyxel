@@ -329,6 +329,28 @@ TEST(CityLayoutTest, SecondaryLanesMeander) {
         << "meander too rare (" << totalJogs << " jogs over " << laneCount << " lanes)";
 }
 
+// M3b density (RED while only the axes host frontages): a denser preset must yield MORE
+// buildings, not fewer. Without secondary-lane infill rows, extra density only adds streets
+// that EAT the axes' fixed frontage (measured live: 33 -> 26 buildings at density 1.5).
+TEST(CityLayoutTest, DensityRaisesTheBuildingCount) {
+    Fixture f;
+    if (!f.ok) GTEST_SKIP() << "canon files not reachable from CWD";
+    const auto base = planCityLayout(*f.city, W, D, f.rreg, 7);
+    const auto dense = planCityLayout(applyDensity(*f.city, 1.5), W, D, f.rreg, 7);
+    ASSERT_TRUE(base.ok && dense.ok);
+    EXPECT_GT(dense.assigned.size(), base.assigned.size())
+        << "density 1.5 must add buildings (base " << base.assigned.size() << ")";
+    // And the infill must stay legal: no plot overlaps any street or another plot.
+    for (size_t i = 0; i < dense.assigned.size(); ++i) {
+        const Rect& p = dense.assigned[i].plot.rect;
+        for (const auto& s : dense.base.streets)
+            EXPECT_FALSE(overlaps(p, s)) << "dense plot " << i << " overlaps a street";
+        for (size_t j = i + 1; j < dense.assigned.size(); ++j)
+            EXPECT_FALSE(overlaps(p, dense.assigned[j].plot.rect))
+                << "dense plots " << i << "/" << j << " overlap";
+    }
+}
+
 TEST(CityLayoutTest, DeterministicInSeed) {
     Fixture f;
     if (!f.ok) GTEST_SKIP() << "canon files not reachable from CWD";

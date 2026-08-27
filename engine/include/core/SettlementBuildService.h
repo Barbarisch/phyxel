@@ -48,6 +48,7 @@ namespace Core {
 class PlacedObjectManager;
 class LocationRegistry;
 class NPCManager;
+class ItemPropManager;
 
 /// Top solid voxel of a WORLD column — the elevation primitive the whole settlement
 /// pipeline seats against. `floraBlind` skips flora so ELEVATION decisions (grading,
@@ -69,6 +70,11 @@ public:
         ObjectTemplateManager* templates = nullptr;      ///< optional: props/furniture need it
         LocationRegistry* locations = nullptr;           ///< optional: location auto-registration
         NPCManager* npcs = nullptr;                      ///< optional: nav rebuild + residents
+        /// Optional: forwarded to each building's StructureBuildService::Deps. Without it
+        /// settlement interiors get NO item props at all — tableware on tables AND the
+        /// painted trade-sign items silently downgrade (every sign fell back to the blank
+        /// hanging_sign board; found from the user's city review 2026-08-27).
+        ItemPropManager* itemProps = nullptr;
         /// Optional undo hook (the editor snapshots each region before destructive ops).
         std::function<void(const glm::ivec3& minCorner, const glm::ivec3& maxCorner,
                            const std::string& label)> pushUndo;

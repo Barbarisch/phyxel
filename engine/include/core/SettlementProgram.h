@@ -80,10 +80,22 @@ struct SettlementTierPreset {
 
     PublicSpec pub;
 
+    /// Share of eligible plots that get a perimeter fence (CityForgePlan M3). Eligibility
+    /// (core ring, building clearance) is decided by shouldFencePlot; absent key = 1.0 = the
+    /// legacy everything-fenced behaviour.
+    double fenceFraction = 1.0;
+
     std::map<std::string, std::string> sources;  ///< per-value provenance (grounding rule)
 
     bool hasSource(const std::string& key) const { return sources.find(key) != sources.end(); }
 };
+
+/// CityForgePlan M3b — the caller's DENSITY lever ("a very dense city"): scale a tier preset
+/// toward tighter blocks, shallower plots, smaller setbacks and more buildings (density > 1)
+/// or the reverse (density < 1). density is clamped to [0.5, 2.0]; density == 1.0 returns the
+/// preset UNCHANGED (identity — legacy calls stay byte-compatible). Bounded so no scaled value
+/// can break a layout invariant (blocks >= 8, plot depth >= 6, side gap >= 0, fraction 0..1).
+SettlementTierPreset applyDensity(const SettlementTierPreset& t, double density);
 
 class SettlementProgramRegistry {
 public:
