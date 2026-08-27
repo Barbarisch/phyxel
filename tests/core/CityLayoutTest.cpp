@@ -373,6 +373,34 @@ TEST(CityLayoutTest, TypologyCapsBoundTheServiceGlut) {
     }
 }
 
+// M5 (RED before the town_hall program + core weight): a city has exactly ONE seat of
+// government, and it stands on the market place — core-ring membership is how the engine
+// expresses market adjacency, so the moot hall must be drawn from the CORE palette.
+TEST(CityLayoutTest, TheCityHasOneTownHallAndItStandsByTheMarket) {
+    Fixture f;
+    if (!f.ok) GTEST_SKIP() << "canon files not reachable from CWD";
+    ASSERT_NE(f.rreg.get("town_hall"), nullptr) << "town_hall room program must exist";
+    int seenSeeds = 0;
+    for (unsigned seed : {3u, 7u, 11u, 19u}) {
+        const auto l = planCityLayout(*f.city, W, D, f.rreg, seed);
+        ASSERT_TRUE(l.ok && l.hasSquare);
+        const int sqCx = l.marketSquare.x + l.marketSquare.w / 2;
+        const int sqCz = l.marketSquare.z + l.marketSquare.d / 2;
+        int halls = 0;
+        for (const auto& ap : l.assigned) {
+            if (ap.typology != "town_hall") continue;
+            ++halls;
+            const int cx = ap.plot.rect.x + ap.plot.rect.w / 2;
+            const int cz = ap.plot.rect.z + ap.plot.rect.d / 2;
+            EXPECT_LE(std::max(std::abs(cx - sqCx), std::abs(cz - sqCz)), f.city->coreRing + 12)
+                << "seed " << seed << ": the moot hall is nowhere near the market place";
+        }
+        EXPECT_LE(halls, 1) << "seed " << seed << ": " << halls << " town halls in one city";
+        if (halls == 1) ++seenSeeds;
+    }
+    EXPECT_GT(seenSeeds, 0) << "no city across 4 seeds got a town hall at all";
+}
+
 TEST(CityLayoutTest, DeterministicInSeed) {
     Fixture f;
     if (!f.ok) GTEST_SKIP() << "canon files not reachable from CWD";

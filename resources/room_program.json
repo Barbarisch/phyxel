@@ -20,6 +20,32 @@
         "windows.size": "STYLIZED — NO metric source for a humble window opening (the 12-18 in figure is 11th-c castle windows, wrong class); 1x1 cube = the smallest carvable opening on the cube portal grid, KNOWN OVERSIZED vs the qualitative 'small shuttered opening' record; pending Brunskill (1971) / Weald & Downland build records / HE HEAG102. Openings are SHUTTERED AIR, never Glass: glazing unaffordable for ordinary households before Elizabeth I (1558+) (buildingconservation.com early-casement article)"
       }
     },
+    "town_hall": {
+      "wealth_tier": "high",
+      "description": "Moot hall / town house — the seat of town government: a public hall at ground with a secure muniment (records + town arms) beside it, and the council chamber above reached by a generated stair. CityForgePlan M5.",
+      "width_min": 6,
+      "width_max": 7,
+      "bay_length": 4,
+      "bays": 4,
+      "proportion_max": 3.0,
+      "stories": 2,
+      "upper_purpose": "council_chamber",
+      "windows": { "width": 1, "height": 1, "per_bay": 1.0, "walls": "front" },
+      "rooms": [
+        { "id": "public_hall", "purpose": "council_hall", "bays": 2 },
+        { "id": "muniment", "purpose": "service", "bays": 1 },
+        { "id": "armoury", "purpose": "service", "bays": 1 }
+      ],
+      "source": "Market-house form (civic hall over a public ground floor) — Thaxted Guildhall (Essex, c.1450) and Ledbury Market House (Herefordshire, 1617) are the surviving type. Full sheet: docs/structure-generation/archetypes/town_hall.md",
+      "sources": {
+        "rooms": "the archetype's required spaces are a public/market floor + the civic hall + a secure muniment/armoury (town_hall.md §5). Ground public_hall and the generated upper council chamber both use the CIVIC recipe (council board + benches + chair of office + muniment chest + candle stand); muniment/armoury use 'service' (chests, barrels). All pieces are already-conformant assets — no new assets.",
+        "_civic_has_no_hearth": "DISCLOSED: the sheet lists a hearth in the civic hall, and the engine does NOT place one. Reason, measured not guessed: a ground-floor hearth's stack rises through the middle of the council chamber above and the realizer's flue gate REFUSES it ('no silent lean'). Rather than fake a chimney or drop the upper hall, the civic recipe ships hearthless; the real fix (hearth siting that prefers stacks landing on an upper-room wall) is logged in docs/StructurePipelineGaps.md.",
+        "width_max": "7 m = the timber-frame span this engine builds (shared with hall_house/tavern); Thaxted Guildhall is ~6 m wide, so the type genuinely fits the span — no aisled frame needed for a MOOT hall (a grand arcaded town hall would)",
+        "bays": "4 bays ~= 16 m long: Thaxted Guildhall's three-storey range and Ledbury's 17-bay market house bracket it; REASONED within that range, not measured",
+        "stories": "2: public floor + civic hall above, the defining market-house arrangement (CITED, town_hall.md)",
+        "_not_modelled": "DISCLOSED omissions vs the archetype sheet: the OPEN ARCADE ground floor (the realizer has no open-story/column mechanism — the engine builds an enclosed public hall instead), the bell turret, and the lock-up cell. Each is a mechanism gap, not a data gap; none is faked."
+      }
+    },
     "tenement": {
       "wealth_tier": "humble",
       "description": "Urban rental row unit ('rents') — two storeys, one room per floor: an all-purpose ground room (hearth, table, chest) with a single chamber above, gable to the street; rows form by contiguous burgage packing. CityForgePlan M4 — the medieval 'apartment'.",

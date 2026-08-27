@@ -132,10 +132,25 @@ mortar/cleaver + one caption word — → `gen_items.py` flat boards → materia
   live** incl. all 35 tenement households (was 28). Evidence:
   docs/evidence/cityforge_m4_tenement_{city_top,street}.png.
 
-### M5 — `town_hall` typology (civic) — TODO (user-confirmed want)
-Guildhall/moot-hall fronting the square on a RESERVED civic plot (layout change: civic plot
-reservation). Constraint: 7-cube cruck span caps hall width — aisled frame style is the known
-open gap (StructureForge queue #5).
+### M5 — `town_hall` typology (civic) — SHIPPED 2026-08-27
+The span worry was unfounded: the surviving MOOT-HALL / market-house type (Thaxted Guildhall
+c.1450 ~6 m wide; Ledbury Market House 1617) fits the engine's 7 m timber span — only a grand
+arcaded town hall needs an aisled frame. So M5 is another DATA commit + one small recipe:
+- `town_hall` room program: public hall (2 bays) + muniment + armoury at ground, council
+  chamber generated above with its own stair; wealth tier high.
+- New **CIVIC purpose** (`FurniturePlacer`): council board (required) + benches + chair of
+  office + muniment chest + candle stand, from already-conformant assets. Checked BEFORE the
+  dwelling matches, since "council_hall"/"council_chamber" contain "hall"/"chamber".
+- Reaches the market place by being drawn from the CORE-ring palette, capped at 1 — a town has
+  one seat of government. Gets an `official` resident (bailiff/clerk).
+- **The engine refused a hearth and I did not fake one**: a ground-floor stack rises through
+  the middle of the council chamber, so the flue gate refuses ("no silent lean"). The civic
+  recipe ships hearthless and the real fix (hearth siting scored on what the stack hits
+  upstairs) is logged. Arcade / bell turret / lock-up are disclosed mechanism gaps.
+- Red-first `CityLayoutTest.TheCityHasOneTownHallAndItStandsByTheMarket` (≤1 per city, within
+  the core ring, appears across seeds) — falsifiability A/B'd by zeroing the core weight.
+  L4: builds clean, 13 fixtures, stone two-storey civic hall
+  (docs/evidence/cityforge_m5_town_hall.png).
 
 ### M6 — `mansion` typology — TODO (user-asked 2026-08-27)
 Urban magnate house beyond manor_hall: courtyard/L-plan, high wealth tier. Needs archetype

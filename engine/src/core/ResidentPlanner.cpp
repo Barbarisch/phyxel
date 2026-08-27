@@ -9,6 +9,7 @@ std::string ResidentPlanner::roleForLocation(const Location& loc) {
     // deriveLocations sets Location.name to the building typology.
     if (loc.type == LocationType::Tavern) return "innkeeper";
     if (loc.type == LocationType::Work) {
+        if (loc.name == "town_hall")     return "official";   // the moot hall's bailiff/clerk
         if (loc.name == "blacksmith")    return "blacksmith";
         if (loc.name == "bakery")        return "baker";
         if (loc.name == "butcher")       return "butcher";

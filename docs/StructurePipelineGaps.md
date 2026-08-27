@@ -515,3 +515,21 @@ floating-foliage class for SETTLEMENT builds. Still open:
   (measured 8640 cells for a 2-plot hamlet), which is what removed the L4 control tree before
   the sweep ran. Separate concern from orphans; a "fell whole trees, do not slice them" pass
   would be the real fix for the look.
+
+## 2026-08-27 - M5 town_hall: what the engine refused, and what is owed
+
+- **Civic hall ships HEARTHLESS, by refusal not by choice**: a ground-floor hearth's stack rises
+  through the middle of the council chamber above, and the realizer's flue gate refuses it
+  ("no silent lean"). Correct gate, real limitation. OWED: hearth siting that prefers a stack
+  landing on an upper-room WALL (it already reserves stack columns; it does not yet score
+  candidate hearth poses by what the stack hits upstairs). Same family as the pre-existing
+  ForgeGateTeeth.AllowInvalidSkipsProgramGateEnforcement red.
+- **Not modelled vs the archetype sheet** (disclosed in room_program sources, never faked):
+  the OPEN ARCADE ground floor (no open-story/column mechanism in the realizer), the bell
+  turret, the lock-up cell.
+- **No civic PLOT reservation**: the moot hall reaches the market place only by being drawn
+  from the core-ring palette with a cap of 1. A reserved civic plot fronting the square is the
+  better form (and would let the hall face the place deliberately).
+- **Typology cannot request a STYLE**: the town hall draws its style from the same independent
+  hash as every dwelling, so it can come up timber. A civic typology wanting ashlar has no way
+  to say so.

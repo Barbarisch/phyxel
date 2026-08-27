@@ -70,7 +70,7 @@ namespace {
 LocationType locationTypeForTypology(const std::string& t) {
     if (t == "tavern") return LocationType::Tavern;
     if (t == "blacksmith" || t == "bakery" || t == "general_store" ||
-        t == "apothecary" || t == "butcher")
+        t == "apothecary" || t == "butcher" || t == "town_hall")
         return LocationType::Work;
     if (t == "croft" || t == "longhouse" || t == "hall_house" || t == "manor_hall" ||
         t == "tenement")
