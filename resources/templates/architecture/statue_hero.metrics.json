@@ -1,0 +1,15 @@
+{
+  "schema_version": "asset_metrics.v1",
+  "template_name": "statue_hero",
+  "overall_min": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "overall_max": [
+    1.6666666666666667,
+    4.111111111111111,
+    1.6666666666666667
+  ],
+  "interaction_points": []
+}

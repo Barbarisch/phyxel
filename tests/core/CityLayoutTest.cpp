@@ -116,9 +116,24 @@ TEST(CityLayoutTest, SecondaryStreetsSliceJitteredBlocks) {
     }
     ASSERT_GE(bands.size(), 3u) << "no secondary streets — the quarter is one undivided strip";
     std::sort(bands.begin(), bands.end());
-    for (size_t i = 1; i < bands.size(); ++i) {
-        const int gap = bands[i].first - bands[i - 1].second;
-        EXPECT_GE(gap, f.city->blocksMin - 2) << "blocks " << i << " degenerate (" << gap << ")";
+    // A meandering lane (M2) emits several rects whose u-ranges overlap — merge each lane's
+    // segments into ONE band before checking block gaps (the block is lane-to-lane space).
+    std::vector<std::pair<int, int>> merged;
+    for (const auto& b : bands) {
+        if (!merged.empty() && b.first <= merged.back().second) {
+            merged.back().second = std::max(merged.back().second, b.second);
+        } else {
+            merged.push_back(b);
+        }
+    }
+    ASSERT_GE(merged.size(), 3u);
+    // Two neighbouring lanes can each drift up to (laneWidth-1) toward one another via jogs,
+    // so the block-gap floor relaxes by 2*(laneWidth-1) vs the straight-lane bound.
+    const int drift = 2 * (f.city->street.laneWidth - 1);
+    for (size_t i = 1; i < merged.size(); ++i) {
+        const int gap = merged[i].first - merged[i - 1].second;
+        EXPECT_GE(gap, f.city->blocksMin - 2 - drift)
+            << "blocks " << i << " degenerate (" << gap << ")";
         EXPECT_LE(gap, f.city->blocksMax + f.city->blocksMin)
             << "block " << i << " oversized (" << gap << ")";
     }
@@ -249,6 +264,69 @@ TEST(CityLayoutTest, ProbeWalksSquareToStreetEndAndCrossRow) {
             << "cross-row frontage unreachable from the square";
         break;
     }
+}
+
+// MEANDER (CityForgePlan M2, RED on straight lanes): secondary lanes are CHAINS of straight
+// runs with seeded lateral jogs — a lane is the set of lane-width perpendicular rects that
+// chain end-to-end (consecutive runs share an edge overlap >= 1 cube, so the walk never
+// breaks). Across seeds, jogged lanes must exist; every jog must keep the edge overlap.
+TEST(CityLayoutTest, SecondaryLanesMeander) {
+    Fixture f;
+    if (!f.ok) GTEST_SKIP() << "canon files not reachable from CWD";
+    int laneCount = 0, joggedLanes = 0, totalJogs = 0;
+    for (unsigned seed : {3u, 7u, 11u, 19u}) {
+        const auto l = planCityLayout(*f.city, W, D, f.rreg, seed);
+        ASSERT_TRUE(l.ok);
+        const bool alongX = l.mainStreet.w >= l.mainStreet.d;
+        const int lw = f.city->street.laneWidth;
+        // Collect lane-width perpendicular SEGMENTS as (u0, v0, v1) in the u/v frame.
+        struct Seg { int u, v0, v1; };
+        std::vector<Seg> segs;
+        for (const auto& s : l.base.streets) {
+            const int width = alongX ? s.w : s.d;
+            const int span = alongX ? s.d : s.w;
+            const bool perp = alongX ? (s.d > s.w) : (s.w > s.d);
+            if (!perp || width != lw || span <= 0) continue;
+            segs.push_back(alongX ? Seg{s.x, s.z, s.z1()} : Seg{s.z, s.x, s.x1()});
+        }
+        // Chain segments into lanes: next run starts where the previous ended, |du| < lw.
+        std::sort(segs.begin(), segs.end(), [](const Seg& a, const Seg& b) {
+            if (a.v0 != b.v0) return a.v0 < b.v0;
+            return a.u < b.u;
+        });
+        std::vector<bool> used(segs.size(), false);
+        for (size_t i = 0; i < segs.size(); ++i) {
+            if (used[i]) continue;
+            used[i] = true;
+            int jogs = 0, curU = segs[i].u, curV1 = segs[i].v1;
+            bool extended = true;
+            while (extended) {
+                extended = false;
+                for (size_t j = 0; j < segs.size(); ++j) {
+                    if (used[j] || segs[j].v0 != curV1) continue;
+                    if (std::abs(segs[j].u - curU) >= lw) continue;   // no edge overlap: not this lane
+                    if (segs[j].u != curU) {
+                        ++jogs;
+                        // the jog must preserve a shared edge run of >= 1 cube (walkable corner)
+                        EXPECT_LT(std::abs(segs[j].u - curU), lw)
+                            << "seed " << seed << ": jog severs the lane";
+                    }
+                    used[j] = true;
+                    curU = segs[j].u;
+                    curV1 = segs[j].v1;
+                    extended = true;
+                    break;
+                }
+            }
+            ++laneCount;
+            if (jogs > 0) ++joggedLanes;
+            totalJogs += jogs;
+        }
+    }
+    ASSERT_GT(laneCount, 0) << "no secondary lanes at all";
+    EXPECT_GT(joggedLanes, 0) << "no lane meanders across 4 seeds — streets are ruler-straight";
+    EXPECT_GE(totalJogs * 2, laneCount)
+        << "meander too rare (" << totalJogs << " jogs over " << laneCount << " lanes)";
 }
 
 TEST(CityLayoutTest, DeterministicInSeed) {

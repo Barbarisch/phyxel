@@ -169,6 +169,23 @@ Validate when each lands; required layer noted so the plan is set up front.
   the village-only planner first. Flush setback-0 doors count as trivially connected spurs (live
   find: 11/21 read "too steep" on flat ground; `DoorOnTheStreetEdgeCountsAsConnected` pins it).
   L4: 140×60 seed-3 town = 21 buildings, 8 street rects, square+well+lane circuit all visible.
+  **✅ SLICE 4 — MARKET DRESSING + MEANDER (2026-08-26, `place_public_spaces` #43 + `lay_street_network`
+  #39, CityForgePlan M1/M2):** `planSquareDressing` (pure) dresses the square: civic STATUE at the
+  market-cross spot (kept only while every through band retains ≥2 cubes clear each side), the tier
+  well centre (town, legacy anchor bit-compatible) or relocated to the largest corner pad (city),
+  trestle STALLS flush against the pad street-edges, fronts to the street (rot 0/90/180/270 = +Z/−X/
+  −Z/+X). Assets `market_stall` (striped Wool/Linen canopy, counter ships EMPTY — goods are item
+  props later) + `statue_hero` (StoneTiles figure over StoneBricks plinth, material A/B'd live) via
+  regen_furniture.py, canon rows in object_dimensions.json. `MarketDressingTest` 4 tests red-first
+  (inside-square / band-clearance / pairwise ≥1 / centre pin / legacy well anchor / determinism /
+  L3 flood: every prop reachable from the street). City secondaries now MEANDER: seeded lateral
+  jogs |1..laneWidth−1| per run chain (edge-overlap ≥1 preserved ⇒ connected), pinned red-first by
+  `CityLayoutTest.SecondaryLanesMeander` across 4 seeds + existing L3 street walk.
+  **⚑ ORDERING:** dressing runs in its own unit AFTER "street sweep" — the square is inside the
+  swept road band, and dressing placed before the sweep registers props whose voxels the sweep then
+  clears (found live: 5 registered, zero standing; the registry lies, scan the world). L4: seed-7
+  160×160 city — statue+well+3 stalls standing on the plaza post-sweep
+  (docs/evidence/cityforge_m1_square_{north,iso}.png).
   **✅ SLICE 2 — STREETS ARE REAL GEOMETRY (2026-07-09, `StreetPaver`):** `planStreetPaving` (pure) grades
   each street's centerline via `planTerrainPath`, broadcasts a LEVEL cross-section across the full width,
   and runs a spur from every front door to the street (meeting the STREET's surface, first-writer);

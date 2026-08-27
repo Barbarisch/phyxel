@@ -49,6 +49,8 @@ struct PublicSpec {
     bool well = false;
     int  marketW = 0;  ///< market square dims; 0 = no square
     int  marketD = 0;
+    int  stalls = 0;   ///< market stalls dressed onto the square's corner pads (0 = none)
+    bool statue = false;  ///< civic statue at the square centre (city); well moves to a pad
 };
 
 /// One settlement tier: a complete, grounded preset for the layout algorithm.

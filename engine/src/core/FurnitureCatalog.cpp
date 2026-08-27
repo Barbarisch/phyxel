@@ -52,6 +52,8 @@ const std::map<std::string, std::string>& table() {
         {"chopping_block", "chopping_block"}, // butcher: the chopping block (defining work fixture)
         {"meat_rail",      "meat_rail"},      // butcher: freestanding rail of iron hooks (hanging meat)
         {"well",       "well"},        // yard/square: masonry well-head (settlement placer, not rooms)
+        {"market_stall", "market_stall"}, // square: trestle stall w/ striped canopy (planSquareDressing)
+        {"statue_hero",  "statue_hero"},  // square: civic statue on plinth (planSquareDressing)
         {"woodpile",   "woodpile"},    // yard: firewood stack (rear toft — planYardProps)
         {"garden_bed", "garden_bed"},  // yard: raised kitchen-garden bed (rear toft — planYardProps)
         {"chair",      "chair"},       // walnut side chair — the head-of-table seat (quality A)

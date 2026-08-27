@@ -407,8 +407,32 @@ MainStreetLayout planCityLayout(const SettlementTierPreset& tier, int W, int D,
             u += drawIn(k++, 71, tier.blocksMin, tier.blocksMax);
             if (u + lw >= L - endMargin) break;
             if (u + lw >= exLo && u <= exHi) { u = exHi; continue; }
-            out.base.streets.push_back(mkRect(u, 0, lw, C));
-            vertBands.push_back({u, u + lw});
+            // MEANDER (CityForgePlan M2): the lane is a CHAIN of straight runs with seeded
+            // lateral jogs of |1..lw-1| cubes — medieval streets bend at plot boundaries, not
+            // at surveyed angles. Consecutive runs share an edge overlap of >= 1 cube (jog
+            // magnitude < lane width), so the lane stays one connected walkable network.
+            // Jogs are bounded to the lane's own block: never into the crossroads exclusion
+            // zone, never past the end margins.
+            int uSeg = u, v = 0, seg = 0;
+            int uMin = u, uMax = u;
+            while (v < C) {
+                const int run = std::min(C - v,
+                                         drawIn(k * 131 + seg, 73, tier.blocksMin, tier.blocksMax));
+                out.base.streets.push_back(mkRect(uSeg, v, lw, run));
+                uMin = std::min(uMin, uSeg);
+                uMax = std::max(uMax, uSeg);
+                v += run;
+                if (v >= C) break;
+                int jog = drawIn(k * 131 + seg, 77, -(lw - 1), lw - 1);
+                int uNext = uSeg + jog;
+                uNext = std::max(uNext, endMargin);
+                uNext = std::min(uNext, L - endMargin - lw);
+                if (uNext + lw >= exLo && uNext <= exHi) uNext = uSeg;   // stay out of the axis zone
+                uSeg = uNext;
+                ++seg;
+            }
+            vertBands.push_back({uMin, uMax + lw});
+            u = uMax;                                       // next block gap from the far extent
         }
     }
     std::sort(vertBands.begin(), vertBands.end());
@@ -531,6 +555,165 @@ MainStreetLayout planCityLayout(const SettlementTierPreset& tier, int W, int D,
     }
 
     out.ok = !out.assigned.empty();
+    return out;
+}
+
+SquareDressing planSquareDressing(const MainStreetLayout& msl, const PublicSpec& pub,
+                                  unsigned seed) {
+    SquareDressing out;
+    if (!msl.hasSquare) return out;                       // honest: nothing to dress
+    if (!pub.well && !pub.statue && pub.stalls <= 0) return out;
+    const Rect& sq = msl.marketSquare;
+
+    // Canonical cube footprints, ceil of the shipped template extents (regen_furniture.py):
+    // statue 1.67 m sq -> 2x2, stall 2.2W x 1.2D m -> 3x2 (front +Z at rot 0), well 1.22 -> 2x2.
+    constexpr int kStatueW = 2, kStatueD = 2;
+    constexpr int kStallW = 3, kStallD = 2;
+    constexpr int kWellW = 2, kWellD = 2;
+
+    auto overlaps = [](const Rect& a, const Rect& b) {
+        return a.x < b.x1() && b.x < a.x1() && a.z < b.z1() && b.z < a.z1();
+    };
+
+    // THROUGH BANDS: every street rect (not the square itself) clipped to the square. These are
+    // the carriageways the dressing must keep clear.
+    std::vector<Rect> bands;
+    for (const auto& s : msl.base.streets) {
+        if (s.x == sq.x && s.z == sq.z && s.w == sq.w && s.d == sq.d) continue;
+        const int x0 = std::max(s.x, sq.x), x1 = std::min(s.x1(), sq.x1());
+        const int z0 = std::max(s.z, sq.z), z1 = std::min(s.z1(), sq.z1());
+        if (x0 < x1 && z0 < z1) bands.push_back(Rect{x0, z0, x1 - x0, z1 - z0});
+    }
+
+    // PADS: the square minus the through bands, cut on the bands' edge lines — the classic
+    // market-place corners. 1-cube inset from the square PERIMETER (building doors front the
+    // square; their thresholds must stay clear).
+    std::vector<int> xs = {sq.x + 1, sq.x1() - 1}, zs = {sq.z + 1, sq.z1() - 1};
+    for (const auto& b : bands) {
+        if (b.x > sq.x) xs.push_back(b.x);
+        if (b.x1() < sq.x1()) xs.push_back(b.x1());
+        if (b.z > sq.z) zs.push_back(b.z);
+        if (b.z1() < sq.z1()) zs.push_back(b.z1());
+    }
+    std::sort(xs.begin(), xs.end()); xs.erase(std::unique(xs.begin(), xs.end()), xs.end());
+    std::sort(zs.begin(), zs.end()); zs.erase(std::unique(zs.begin(), zs.end()), zs.end());
+    std::vector<Rect> pads;
+    for (size_t i = 0; i + 1 < xs.size(); ++i)
+        for (size_t j = 0; j + 1 < zs.size(); ++j) {
+            Rect cell{xs[i], zs[j], xs[i + 1] - xs[i], zs[j + 1] - zs[j]};
+            if (cell.w <= 0 || cell.d <= 0) continue;
+            bool inBand = false;
+            for (const auto& b : bands)
+                if (overlaps(cell, b)) { inBand = true; break; }
+            if (!inBand) pads.push_back(cell);
+        }
+    // Deterministic pad order: largest first (well anchor), stable tiebreak by position.
+    std::sort(pads.begin(), pads.end(), [](const Rect& a, const Rect& b) {
+        const int aa = a.w * a.d, bb = b.w * b.d;
+        if (aa != bb) return aa > bb;
+        if (a.x != b.x) return a.x < b.x;
+        return a.z < b.z;
+    });
+
+    std::vector<Rect> occupied;                            // placed prop rects (for clearance)
+    auto clearOf = [&](const Rect& r) {
+        const Rect g{r.x - 1, r.z - 1, r.w + 2, r.d + 2};  // >= 1 cube pairwise clearance
+        for (const auto& o : occupied)
+            if (overlaps(g, o)) return false;
+        return true;
+    };
+    auto put = [&](const std::string& type, int cx, int cz, int w, int d, int rot) {
+        out.props.push_back({type, cx, cz, w, d, rot});
+        occupied.push_back(Rect{cx, cz, w, d});
+    };
+
+    // ---- STATUE at the square centre (the market-cross spot). It stands in the carriageway,
+    // which is legal only while every through band keeps >= 2 cubes clear on BOTH sides —
+    // else it falls back to the largest pad.
+    const int scx = sq.x + sq.w / 2 - kStatueW / 2, scz = sq.z + sq.d / 2 - kStatueD / 2;
+    bool statueAtCentre = pub.statue;
+    if (pub.statue) {
+        const Rect sr{scx, scz, kStatueW, kStatueD};
+        for (const auto& b : bands) {
+            if (!overlaps(sr, b)) continue;
+            const bool alongX = b.w >= b.d;
+            const int lo = alongX ? sr.z - b.z : sr.x - b.x;
+            const int hi = alongX ? b.z1() - sr.z1() : b.x1() - sr.x1();
+            if (lo < 2 || hi < 2) { statueAtCentre = false; break; }
+        }
+        if (statueAtCentre) put("statue_hero", scx, scz, kStatueW, kStatueD, 0);
+    }
+
+    // ---- WELL. Legacy anchor = the square-centre CELL (bit-compatible town behaviour). With a
+    // statue on the centre the well moves to the centre of the largest pad.
+    if (pub.well) {
+        if (!statueAtCentre) {
+            put("well", sq.x + sq.w / 2, sq.z + sq.d / 2, kWellW, kWellD, 0);
+        } else {
+            for (const auto& pad : pads) {
+                const int wx = pad.x + (pad.w - kWellW) / 2, wz = pad.z + (pad.d - kWellD) / 2;
+                if (pad.w < kWellW || pad.d < kWellD) continue;
+                if (!clearOf(Rect{wx, wz, kWellW, kWellD})) continue;
+                put("well", wx, wz, kWellW, kWellD, 0);
+                break;
+            }
+        }
+    }
+    // A statue requested but displaced from the centre lands on the next free pad (after the well
+    // so the well keeps the biggest pad).
+    if (pub.statue && !statueAtCentre) {
+        for (const auto& pad : pads) {
+            const int px = pad.x + (pad.w - kStatueW) / 2, pz = pad.z + (pad.d - kStatueD) / 2;
+            if (pad.w < kStatueW || pad.d < kStatueD) continue;
+            if (!clearOf(Rect{px, pz, kStatueW, kStatueD})) continue;
+            put("statue_hero", px, pz, kStatueW, kStatueD, 0);
+            break;
+        }
+    }
+
+    // ---- STALLS: rows flush against each pad's through-band edge, fronts facing the street.
+    // Front convention (ObjectTemplateManager rotateOffset): rot 0 -> +Z, 90 -> -X, 180 -> -Z,
+    // 270 -> +X. A band on the pad's z-max side wants front +Z (rot 0); z-min side -Z (180);
+    // x-max +X (270); x-min -X (90). Stall pitch = width + 1 (browsing gap).
+    int remaining = std::max(0, pub.stalls);
+    const unsigned rot0 = seed % 4;                        // seeded pad rotation for variety
+    for (size_t pi = 0; pi < pads.size() && remaining > 0; ++pi) {
+        const Rect& pad = pads[(pi + rot0) % pads.size()];
+        // Which pad edge touches a band? Prefer the longest shared run.
+        struct EdgePick { char side = 0; int run = 0; };
+        EdgePick pick;
+        for (const auto& b : bands) {
+            const int xr = std::min(pad.x1(), b.x1()) - std::max(pad.x, b.x);
+            const int zr = std::min(pad.z1(), b.z1()) - std::max(pad.z, b.z);
+            if (b.z1() == pad.z && xr > pick.run) pick = {'S', xr};   // band below (z-min)
+            if (b.z == pad.z1() && xr > pick.run) pick = {'N', xr};   // band above (z-max)
+            if (b.x1() == pad.x && zr > pick.run) pick = {'W', zr};
+            if (b.x == pad.x1() && zr > pick.run) pick = {'E', zr};
+        }
+        if (pick.side == 0 || pick.run < kStallW) continue;           // pad fronts no street
+        const bool horiz = (pick.side == 'S' || pick.side == 'N');    // row runs along X
+        const int rot = pick.side == 'N' ? 0 : pick.side == 'S' ? 180
+                       : pick.side == 'W' ? 90 : 270;
+        const int w = horiz ? kStallW : kStallD;                      // rotated footprint
+        const int d = horiz ? kStallD : kStallW;
+        // Row anchor: flush on the band edge, marching along the shared run.
+        const int runLo = horiz ? std::max(pad.x, sq.x + 1) : std::max(pad.z, sq.z + 1);
+        const int runHi = horiz ? std::min(pad.x1(), sq.x1() - 1) : std::min(pad.z1(), sq.z1() - 1);
+        const int fixed = pick.side == 'S' ? pad.z : pick.side == 'N' ? pad.z1() - d
+                        : pick.side == 'W' ? pad.x : pad.x1() - w;
+        for (int run = runLo; run + (horiz ? kStallW : kStallW) <= runHi && remaining > 0;
+             run += kStallW + 1) {
+            const int cx = horiz ? run : fixed;
+            const int cz = horiz ? fixed : run;
+            const Rect r{cx, cz, w, d};
+            if (r.x1() > sq.x1() - 1 || r.z1() > sq.z1() - 1) break;  // perimeter inset
+            if (!clearOf(r)) continue;
+            put("market_stall", cx, cz, w, d, rot);
+            --remaining;
+        }
+    }
+
+    out.ok = true;
     return out;
 }
 

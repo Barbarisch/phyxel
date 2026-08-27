@@ -428,3 +428,21 @@ subset (large rigs only vs small rigs only) to separate "rig count" from "rig si
 - **MonsterRegistry had no loader call anywhere**: fixed as a lazy load inside the
   spawn_encounter handler — a proper boot-time load (WorldInitializer) would also serve
   hand-keyed turn-based combats whose acting id happens to equal a stat-block id.
+
+## 2026-08-26 - CityForge baseline gaps (logged at M0, docs/CityForgePlan.md)
+
+- **Residents job counter regression**: seed-7 city build (SettlementTest, 160x160, Release)
+  reported `residents: {planned: 28, spawned: 0}` in the job result while 28 resident NPCs
+  were live in the world (outliner + Entities count). The counter was made "shape-robust"
+  2026-08-18; something has re-broken the spawned tally for the sync-world path. Cosmetic but
+  it is exactly the kind of always-zero ledger the displaced-voxels lesson warns about.
+- **Secondary streets host no frontages**: planCityLayout allocates burgage rows only on the
+  main + cross axes; every block interior is empty grass, which is the single biggest reason
+  a 160x160 "city" reads as a spread-out village. Secondary-street infill rows are the real
+  density lever (after tenement typology exists).
+- **MCP get_job_status false "No game project is loaded"**: the running engine had
+  SettlementTest loaded (engine_running agreed) yet the MCP tool refused; HTTP /api/jobs
+  works. Drive jobs over HTTP until fixed.
+- **Typology glut at city tier**: seed 7 drew 7 taverns / 5 blacksmiths out of 33 buildings
+  (weights alone, no per-typology cap). A city should not be 21% taverns; wants a max-share
+  cap in the draw (CityForgePlan M3).

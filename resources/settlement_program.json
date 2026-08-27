@@ -51,9 +51,10 @@
           "plot": { "frontage": "from_typology", "depth_min": 14, "depth_max": 24, "side_gap": 0 },
           "setback": { "min": 0, "max": 1 },
           "typology_weights": { "hall_house": 2, "croft": 2, "tavern": 1, "blacksmith": 1, "general_store": 1, "bakery": 1, "apothecary": 1, "butcher": 1 },
-          "public": { "well": true, "market_square": { "w": 12, "d": 12 } },
+          "public": { "well": true, "market_square": { "w": 12, "d": 12, "stalls": 4 } },
           "sources": {
             "morphology": "market town = main street + market place, burgage series with back lanes: Tait, PSAS 138 (2009) burgage-plot morphology; market places commonly a WIDENED main street (Schofield & Vince, Medieval Towns) — the Phase-4 square straddles the street per that form",
+            "public.market_square.stalls": "trestle stalls ('standings') on the market place: Schofield & Vince, Medieval Towns — count REASONED to the square's pad capacity",
             "street.material": "town-street paving is attested (murage/pavage grants, Schofield & Vince) — Cobblestone is the settlement `dry_stone` sett material already in materials.json",
             "street.main_width": "NEEDS-RESEARCH — same as village; town main streets wider than village (two carts + stalls)",
             "plot.side_gap": "0 = contiguous burgage series (party boundaries), per the burgage-row form (Tait 2009)",
@@ -74,8 +75,10 @@
           "typology_weights": { "hall_house": 3, "croft": 2, "longhouse": 1, "tavern": 1, "blacksmith": 1, "manor_hall": 1 },
           "core_typology_weights": { "tavern": 2, "general_store": 2, "bakery": 1, "apothecary": 1, "butcher": 1, "hall_house": 2 },
           "core_ring": 24,
-          "public": { "well": true, "market_square": { "w": 16, "d": 16 } },
+          "public": { "well": true, "market_square": { "w": 16, "d": 16, "stalls": 6, "statue": true } },
           "sources": {
+            "public.market_square.stalls": "as town — trestle 'standings' on the place; count REASONED for a 16x16 square",
+            "public.market_square.statue": "DESIGN DECISION (fantasy setting): civic statue at the market-cross spot — the period-strict centrepiece is the market cross (docs/CityForgePlan.md M1)",
             "morphology": "organic-accretion city form (pre-planned medieval growth): Schofield & Vince, Medieval Towns — street networks accreted from AXES + infill, not surveyed grids. Implementation: crossroads axes meeting at the market square + secondary streets at seeded-JITTERED intervals (the bounded chaos) — DESIGN DECISION disclosed",
             "buildings": "REASONED: a city QUARTER at this engine's buildable scale, not a whole city",
             "street.main_width": "NEEDS-RESEARCH — principal city streets carried through-traffic + encroachment; wider than town main streets",

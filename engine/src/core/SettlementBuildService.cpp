@@ -926,7 +926,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // Skips are COUNTED, never silent.
         if (mainStreetMode && placedObjectManager && objectTemplateManager && chunkManager) {
             units.push_back({"yard props + well",
-                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, msl, ox, oz, seed, terrainTopAt, pubWell = tierP->pub.well, propsJsonP]() {
+                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, msl, ox, oz, seed, terrainTopAt, pubSpec = tierP->pub, propsJsonP]() {
             if (!chunkManager || !placedObjectManager || !objectTemplateManager) return;
             int propsPlaced = 0, propsSkipped = 0;
             auto spawnProp = [&](const std::string& type, int cx, int cz, int rot) -> bool {
@@ -941,17 +941,16 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 for (const auto& yp : Core::planYardProps(ap, seed))
                     (spawnProp(yp.type, ox + yp.cx, oz + yp.cz, yp.rotDeg) ? ++propsPlaced
                                                                            : ++propsSkipped);
-            if (pubWell) {
-                int wcx, wcz;
-                if (msl.hasSquare) {                  // the town well anchors the market square
-                    wcx = ox + msl.marketSquare.x + msl.marketSquare.w / 2;
-                    wcz = oz + msl.marketSquare.z + msl.marketSquare.d / 2;
-                } else {                              // village: the main street's verge, mid-length
-                    const Core::Rect& ms = msl.mainStreet;
-                    const bool msAlongX = ms.w >= ms.d;
-                    wcx = ox + (msAlongX ? ms.x + ms.w / 2 : ms.x + 1);
-                    wcz = oz + (msAlongX ? ms.z + 1 : ms.z + ms.d / 2);
-                }
+            // Square features (well/statue/stalls) are NOT placed here: the square is part of
+            // the swept road band, and the late "street sweep" unit clears whole cells over it
+            // — anything dressed onto the square before the sweep is silently erased (found
+            // live 2026-08-26: stalls registered but voxel-gone). The dedicated "square
+            // dressing" unit AFTER the sweep owns them now.
+            if (!msl.hasSquare && pubSpec.well) {     // village: the main street's verge, mid-length
+                const Core::Rect& ms = msl.mainStreet;
+                const bool msAlongX = ms.w >= ms.d;
+                const int wcx = ox + (msAlongX ? ms.x + ms.w / 2 : ms.x + 1);
+                const int wcz = oz + (msAlongX ? ms.z + 1 : ms.z + ms.d / 2);
                 (spawnProp("well", wcx, wcz, 0) ? ++propsPlaced : ++propsSkipped);
             }
             LOG_INFO_FMT("Settlement", "yard props: " << propsPlaced << " placed, "
@@ -997,6 +996,38 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                          << sharedRoadBand->size() << " band cells, " << restamped
                          << " paving micros re-stamped");
         }});
+
+        // SQUARE DRESSING after the sweep (CityForgePlan M1): statue at the market-cross spot,
+        // the tier well (centre, or relocated off the statue), stalls on the corner pads. It
+        // MUST run after "street sweep" — the square is inside the swept road band, so dressing
+        // placed earlier gets its cells cleared (observed live 2026-08-26: 5 props registered,
+        // zero voxels standing). Before "nav rebuild" so the grid sees the props.
+        if (programMode && tierP && mainStreetMode && placedObjectManager && objectTemplateManager &&
+            chunkManager && msl.hasSquare) {
+            units.push_back({"square dressing",
+                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, msl, ox, oz, seed, terrainTopAt, pubSpec = tierP->pub, propsJsonP]() {
+            if (!chunkManager || !placedObjectManager || !objectTemplateManager) return;
+            int placed = 0, skipped = 0;
+            const auto dress = Core::planSquareDressing(msl, pubSpec, seed);
+            for (const auto& p : dress.props) {
+                const std::string tmpl = Core::FurnitureCatalog::templateFor(p.type);
+                bool ok = false;
+                if (!tmpl.empty() && objectTemplateManager->getTemplate(tmpl)) {
+                    const int cx = ox + p.cx, cz = oz + p.cz;
+                    const int gy = terrainTopAt(cx, cz) + 1;   // stand on the plaza paving
+                    ok = !placedObjectManager
+                              ->placeTemplateMicro(tmpl, glm::ivec3(cx * 9, gy * 9, cz * 9),
+                                                   p.rotDeg, "")
+                              .empty();
+                }
+                (ok ? ++placed : ++skipped);
+            }
+            chunkManager->rebuildOccupancyFromChunks();
+            LOG_INFO_FMT("Settlement", "square dressing: " << placed << " placed, "
+                         << skipped << " skipped");
+            (*propsJsonP)["square_dressing"] = {{"placed", placed}, {"skipped", skipped}};
+            }});
+        }
 
         // Nav rebuild after EVERYTHING: per-building builds refresh their own boxes
         // (StructureBuildService onRegionChanged), but street paving / terraces / fence

@@ -57,6 +57,8 @@ SettlementTierPreset SettlementProgramRegistry::parse(const std::string& era,
         if (pb.contains("market_square") && pb["market_square"].is_object()) {
             t.pub.marketW = pb["market_square"].value("w", 0);
             t.pub.marketD = pb["market_square"].value("d", 0);
+            t.pub.stalls  = pb["market_square"].value("stalls", 0);
+            t.pub.statue  = pb["market_square"].value("statue", false);
         }
     }
     if (rec.contains("sources") && rec["sources"].is_object())

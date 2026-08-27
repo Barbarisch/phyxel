@@ -158,6 +158,30 @@ MainStreetLayout planMainStreetLayout(const SettlementTierPreset& tier, int W, i
 MainStreetLayout planCityLayout(const SettlementTierPreset& tier, int W, int D,
                                 const RoomProgramRegistry& rooms, unsigned seed);
 
+/// One market-square feature sited by planSquareDressing (statue / stall / relocated well).
+struct SquareProp {
+    std::string type;    ///< FurnitureCatalog type ("statue_hero" | "market_stall" | "well")
+    int cx = 0, cz = 0;  ///< min-corner cube position, settlement-local (anchor of the ROTATED box)
+    int w = 1, d = 1;    ///< cube footprint AFTER rotation
+    int rotDeg = 0;      ///< 0=+Z | 90=-X | 180=-Z | 270=+X front (stalls face their street)
+};
+
+struct SquareDressing {
+    std::vector<SquareProp> props;
+    bool ok = false;     ///< false = no square to dress (caller keeps the legacy well path)
+};
+
+/// Dress the market square (place_public_spaces #43, CityForgePlan M1): the square is split by its
+/// THROUGH-STREET bands (streets crossing the square) into corner PADS. `pub.statue` puts the civic
+/// statue at the square centre — the historical market-cross spot, in the carriageway, legal only
+/// because every through band keeps >= 2 cubes clear on each side (enforced; else the statue moves
+/// to a pad). The tier well moves to the centre of the largest pad when the statue takes the centre,
+/// else it keeps the legacy centre anchor. `pub.stalls` trestle stalls fill the pads flush against
+/// the through-street edges (fronts to the street, 1-cube pitch gap), 1 cube clear of the square
+/// perimeter, never overlapping each other or the well (>= 1 cube clearance). Honest degradation:
+/// pads too small host fewer/no stalls. Deterministic in (msl, pub, seed).
+SquareDressing planSquareDressing(const MainStreetLayout& msl, const PublicSpec& pub, unsigned seed);
+
 /// One yard prop sited on a parcel (place_yard_props #29 / place_garden #25 minimum slice).
 struct YardProp {
     std::string type;    ///< FurnitureCatalog type ("woodpile" | "garden_bed")

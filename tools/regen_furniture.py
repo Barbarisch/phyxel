@@ -103,6 +103,8 @@ class Model:
 # canonical architecture/well.voxel trips the asset_index stem-collision guard.
 OUT_DIR_OVERRIDE = {
     "well": "resources/templates/architecture",
+    "market_stall": "resources/templates/architecture",
+    "statue_hero": "resources/templates/architecture",
 }
 
 
@@ -1170,6 +1172,121 @@ def gen_garden_bed():
     write("garden_bed", header, m.emit_lines([]), m)
 
 
+def gen_market_stall():
+    # market_stall: open trestle market stall (square/market dressing). Grounded
+    # (object_dimensions 'market_stall', REASONED): ~2.0 m stallboard frontage x ~1.0 m board
+    # depth, counter at 0.85 m (trestle working height), striped cloth canopy sloping 2.2 -> 1.9 m
+    # with a short front overhang. Counter ships EMPTY on purpose — structure gen stocks goods as
+    # item props (the back-bar precedent, 2026-08-07). Facing +Z (customer side).
+    W, D = 18, 9            # counter plan: 2.0 x 1.0 m
+    CTR = 7                 # counter board top at y=7 (0.78-0.85 m band)
+    POST_H = 20             # rear posts to 2.2 m
+    FRONT_H = 17            # front canopy edge 1.9 m
+    OVER = 2                # canopy front overhang (micro)
+    m = Model()
+    # posts: 2x2 micro at the four counter corners (rear pair full height, front pair to canopy)
+    for (px, pz, h) in ((0, 0, POST_H), (W - 2, 0, POST_H),
+                        (0, D - 2, FRONT_H), (W - 2, D - 2, FRONT_H)):
+        m.fill(px, px + 1, 0, h - 1, pz, pz + 1, "Wood")
+    # trestle end boards under the counter (read as A-frame supports)
+    for px in (1, W - 2):
+        m.fill(px, px, 0, CTR - 1, 1, D - 2, "Wood")
+    # counter board: full plan, 1 micro thick, WoodPlanks
+    m.fill(0, W - 1, CTR, CTR, 0, D - 1, "WoodPlanks")
+    # rear rail (goods could hang here) at 1.7 m
+    m.fill(0, W - 1, 15, 15, 0, 0, "Wood")
+    # canopy: sloped striped cloth, rear y=POST_H-1 falling 1 micro per 3 depth, overhang front
+    for z in range(0, D + OVER):
+        y = (POST_H - 1) - (z * (POST_H - FRONT_H)) // (D + OVER - 1)
+        for x in range(-1, W + 1):
+            mat = "Wool" if (x // 3) % 2 == 0 else "Linen"   # madder/ecru stripes along X
+            m.cells[(x, y, z)] = mat
+    # one stock crate tucked under the counter (visual weight; goods themselves are item props)
+    m.box_shell(4, 9, 0, 4, 2, D - 3, "Wood", faces=("x", "z", "ymax"))
+    # normalize: shift so min corner is 0 (canopy used x=-1)
+    (mnx, mny, mnz), _ = m.bounds()
+    m.cells = {(x - mnx, y - mny, z - mnz): mat for (x, y, z), mat in m.cells.items()}
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         market_stall\n"
+        "# display_name: Market Stall (Trestle Stall)\n"
+        "# description:  An open trestle market stall — plank counter, post frame, striped cloth\n"
+        "#               canopy. Counter ships empty; goods are stocked as item props.\n"
+        "# category:     prop\n"
+        "# subcategory:  square\n"
+        "# tags:         market, stall, trestle, square, trade, settlement\n"
+        "# materials:    Wood, WoodPlanks, Wool, Linen\n"
+        "# facing:       +Z (customer side; rear rail at z=0)\n"
+        "# bounds:       ~2.2W x 2.2H x 1.2D m (grounded object_dimensions 'market_stall')\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("market_stall", header, m.emit_lines([]), m)
+
+
+def gen_statue_hero():
+    # statue_hero: stone civic statue on a stepped plinth (market-square centrepiece). Grounded
+    # (object_dimensions 'statue_hero', REASONED): heroic-scale figure ~2.2 m over a ~1.2 m
+    # plinth, 1.5 m stepped base. Monochrome stone (Stone figure over StoneBricks base) so it
+    # reads as sculpture, not an NPC. Sword-at-rest pose: both hands on a greatsword point-down.
+    # Facing +Z. DESIGN DECISION: fantasy statue over the period-strict market cross.
+    m = Model()
+    # ---- plinth (StoneBricks, ~1.44 m): 15x15x3 base step, 12x12x2 step, 9x9 die, 11x11 cornice
+    m.fill(0, 14, 0, 2, 0, 14, "StoneBricks")
+    m.fill(1, 13, 3, 4, 1, 13, "StoneBricks")
+    m.fill(3, 11, 5, 11, 3, 11, "StoneBricks")
+    m.fill(2, 12, 12, 12, 2, 12, "StoneBricks")    # cornice course
+    base_y = 13                                     # figure stands on the cornice
+    cx = 7                                          # centre column (15-wide base -> centre 7)
+    S = "StoneTiles"   # smooth dressed stone — A/B'd vs Stone/Sandstone 2026-08-26, best figure read
+    # ---- figure (Stone), 24 micro tall = 2.67 m (~1.4x life, heroic)
+    # legs y+0..7: two 3-wide columns with a 1-micro stance gap; boots 1 micro proud at front
+    for lx in (cx - 3, cx + 1):
+        m.fill(lx, lx + 2, base_y + 1, base_y + 7, cx - 2, cx + 1, S)
+        m.fill(lx, lx + 2, base_y + 1, base_y + 1, cx + 2, cx + 2, S)     # boot toe
+    m.fill(cx - 3, cx + 3, base_y + 1, base_y + 1, cx - 2, cx + 1, S)     # foot course joins stance
+    # torso y+8..15: 7 wide x 4 deep, belt course 1 proud
+    m.fill(cx - 3, cx + 3, base_y + 8, base_y + 15, cx - 2, cx + 1, S)
+    m.fill(cx - 4, cx + 4, base_y + 9, base_y + 9, cx - 2, cx + 1, S)     # belt
+    # shoulder/pauldron line y+15..16: 11 wide (proud of the arms)
+    m.fill(cx - 5, cx + 5, base_y + 15, base_y + 16, cx - 2, cx + 1, S)
+    # arms: 2-wide columns SEPARATED from the torso by a 1-micro gap, forearms forward to the grip
+    for ax0 in (cx - 5, cx + 4):
+        m.fill(ax0, ax0 + 1, base_y + 10, base_y + 14, cx - 1, cx, S)     # upper arm hangs
+        m.fill(ax0, ax0 + 1, base_y + 8, base_y + 10, cx + 1, cx + 3, S)  # forearm reaches +Z
+    # gauntlets meet stacked on the grip, centre front
+    m.fill(cx - 1, cx + 1, base_y + 7, base_y + 9, cx + 3, cx + 4, S)
+    # cape: full-width slab down the back, flaring one step at the hem
+    m.fill(cx - 4, cx + 4, base_y + 4, base_y + 15, cx - 3, cx - 3, S)
+    m.fill(cx - 5, cx + 5, base_y + 1, base_y + 3, cx - 4, cx - 3, S)     # hem flare
+    # head y+17..20: 4x4 with brow ledge; helm crest fin along Z
+    m.fill(cx - 2, cx + 1, base_y + 17, base_y + 20, cx - 2, cx + 1, S)
+    m.fill(cx - 2, cx + 1, base_y + 19, base_y + 19, cx + 2, cx + 2, S)   # brow/visor ledge
+    m.fill(cx, cx, base_y + 21, base_y + 23, cx - 2, cx + 1, S)           # crest fin
+    # greatsword point-down in front: blade from the cornice to the grip, wide crossguard
+    m.fill(cx, cx, base_y + 1, base_y + 6, cx + 3, cx + 3, S)             # blade (1 micro edge-on)
+    m.fill(cx - 3, cx + 3, base_y + 6, base_y + 6, cx + 3, cx + 3, S)     # crossguard
+    m.fill(cx, cx, base_y + 10, base_y + 10, cx + 3, cx + 3, S)           # pommel above hands
+    header = (
+        "# ==========================================================\n"
+        "# ASSET METADATA\n"
+        "# name:         statue_hero\n"
+        "# display_name: Statue (Hero with Greatsword)\n"
+        "# description:  A stone civic statue — armored figure at rest on a greatsword, on a\n"
+        "#               stepped masonry plinth. Market-square centrepiece.\n"
+        "# category:     prop\n"
+        "# subcategory:  square\n"
+        "# tags:         statue, monument, square, civic, stone, settlement\n"
+        "# materials:    StoneTiles, StoneBricks\n"
+        "# facing:       +Z\n"
+        "# bounds:       ~1.44W x 3.7H x 1.44D m (grounded object_dimensions 'statue_hero')\n"
+        "# method:       tools/regen_furniture.py (deterministic, canon-proportioned)\n"
+        "# =========================================================="
+    )
+    write("statue_hero", header, m.emit_lines([]), m)
+
+
 if __name__ == "__main__":
     gen_chest()
     gen_fireplace()
@@ -1196,6 +1313,8 @@ if __name__ == "__main__":
     gen_meat_rail()
     gen_hanging_sign()
     gen_well()
+    gen_market_stall()
+    gen_statue_hero()
     gen_woodpile()
     gen_garden_bed()
     gen_bed()
