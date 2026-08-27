@@ -147,7 +147,15 @@ castle/keep as a reserved precinct anchored off the axes. Big: needs its own pla
 grounding, gate alignment with arriving WorldForge roads, keep typology).
 
 ### Polish backlog (user feedback 2026-08-27, logged in StructurePipelineGaps)
-- Floating foliage: leftover canopy pieces hang in the air after site clearing/felling.
+- ~~Floating foliage~~ — **FIXED 2026-08-27** for settlement builds: `planOrphanedFloraSweep`
+  (`core/FloraSweep.h`, pure + probe-driven) finds tree matter that can no longer reach support
+  THROUGH tree matter and returns it; a new work unit runs it after every clearer (incl. the
+  street sweep). Conservative by construction: a component touching the scan box is LEFT ALONE
+  (its support may lie outside), which is why the box carries a canopy-radius margin — an edge
+  tree loses its trunk inside the rect and hangs its crown outside it. `FloraSweepTest` 6 tests
+  red-first incl. the healthy-neighbour false-positive guard. L4: a planted raw-voxel tree with
+  its trunk cut → 78 cells found / 78 cleared, scan confirms 0 remain
+  (docs/evidence/floating_canopy_{before,after}.png). Coverage limits logged in the gaps doc.
 - Terrain: settlement placement should tolerate gentle elevation — flatten locally where a
   building needs it, keep hills elsewhere (today's look is too flat/terraced).
 - Interior point lights BLEED through walls — exterior walls glow at night (engine lighting:

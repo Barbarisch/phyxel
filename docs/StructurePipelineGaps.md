@@ -498,3 +498,20 @@ committed session; needs its own bisect. The rest of the 18-suite forge sweep
   would remove the hidden C++ coupling; logged rather than done.
 - **Residents `spawned` counter still reports 0** while residents ARE live (69 planned / 69
   live / counter 0). Second sighting; the counter reads a shape the sync path doesn't fill.
+
+## 2026-08-27 - orphaned-canopy sweep: what it does NOT cover
+
+The sweep (FloraSweep.h, settlement unit "clearing orphaned canopy") closes the
+floating-foliage class for SETTLEMENT builds. Still open:
+
+- **Other clearers do not sweep**: single `build_structure` pads, `clear_region`, and the
+  destruction path can each orphan canopy with no sweep behind them. The planner is generic
+  (pure, probe-driven) - wiring it into those paths is a small follow-up each.
+- **A tree taller than the scan band is skipped**: the box tops out at maxGround+44, and a
+  component touching the box shell is deliberately left alone (support unknown). A redwood
+  whose crown exceeds the band therefore never sweeps. Conservative and honest, but it means
+  very tall species can still leave floaters.
+- **Site prep still deletes healthy trees wholesale**: parcel clearing wipes plots + margin 4
+  (measured 8640 cells for a 2-plot hamlet), which is what removed the L4 control tree before
+  the sweep ran. Separate concern from orphans; a "fell whole trees, do not slice them" pass
+  would be the real fix for the look.

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <climits>
 #include <cmath>
 #include <map>
 #include <memory>
@@ -12,8 +13,10 @@
 #include <vector>
 
 #include "core/ChunkManager.h"
+#include "core/DamageSystem.h"
 #include "core/DimensionCanon.h"
 #include "core/FenceBuilder.h"
+#include "core/FloraSweep.h"
 #include "core/FurnitureCatalog.h"
 #include "core/LocationRegistry.h"
 #include "core/NPCManager.h"
@@ -1032,6 +1035,60 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                          << sharedRoadBand->size() << " band cells, " << restamped
                          << " paving micros re-stamped");
         }});
+
+        // ORPHANED-CANOPY SWEEP (user find 2026-08-27: "leftover foliage and pieces of trees
+        // floating in the air"). Every site-prep pass clears flora inside its OWN band —
+        // plot boxes, the road corridor, building pads — so a tree whose TRUNK stood in one
+        // of them keeps whatever reached outside it, hanging with nothing underneath.
+        // planOrphanedFloraSweep finds tree matter that can no longer reach support THROUGH
+        // tree matter and returns it for removal; components touching the scan box are left
+        // alone (their support may lie outside it — a healthy neighbour's overhang).
+        // Runs AFTER every clearer, including the street sweep.
+        if (chunkManager) {
+            units.push_back({"clearing orphaned canopy",
+                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
+                 ox, oz, W, D, terrainTopAt, pathsJsonP]() {
+            if (!chunkManager) return;
+            // Vertical band: from just under the lowest ground in the rect to well above the
+            // tallest canopy. A tree TALLER than the band touches the box top and is left
+            // alone (conservative by design — see FloraSweep.h).
+            int gMin = INT_MAX, gMax = INT_MIN;
+            for (int x = ox; x <= ox + W; x += 4)
+                for (int z = oz; z <= oz + D; z += 4) {
+                    const int g = terrainTopAt(x, z);
+                    gMin = std::min(gMin, g);
+                    gMax = std::max(gMax, g);
+                }
+            if (gMin == INT_MAX) return;
+            // Margin = a canopy radius beyond the settlement rect: site prep clears INSIDE
+            // the rect, so an edge tree loses its trunk in-rect while its canopy hangs
+            // OUTSIDE it. A 2-cube margin missed exactly that case (measured).
+            constexpr int kCanopyMargin = 8;
+            Core::SweepBounds bounds;
+            bounds.min = glm::ivec3(ox - kCanopyMargin, gMin - 1, oz - kCanopyMargin);
+            bounds.max = glm::ivec3(ox + W + kCanopyMargin, gMax + 44, oz + D + kCanopyMargin);
+            auto isFlora = [chunkManager](const glm::ivec3& p) {
+                return DamageSystem::isTreeMatterCell(chunkManager, p);
+            };
+            auto isSolid = [chunkManager](const glm::ivec3& p) {
+                return chunkManager->hasVoxelAt(p);
+            };
+            const auto orphans = Core::planOrphanedFloraSweep(bounds, isFlora, isSolid);
+            std::map<Chunk*, std::vector<glm::ivec3>> byChunk;
+            for (const auto& wp : orphans)
+                if (Chunk* ch = chunkManager->getChunkAtFast(wp))
+                    byChunk[ch].push_back(wp - ch->getWorldOrigin());
+            int cleared = 0;
+            for (auto& [ch, cells] : byChunk) {
+                cleared += ch->clearCellsBulk(cells);
+                chunkManager->markChunkDirty(ch);
+            }
+            if (cleared > 0) chunkManager->rebuildOccupancyFromChunks();
+            LOG_INFO_FMT("Settlement", "orphaned canopy: " << orphans.size()
+                         << " cells found, " << cleared << " cleared");
+            (*pathsJsonP)["orphaned_canopy_cleared"] = cleared;
+            }});
+        }
 
         // SQUARE DRESSING after the sweep (CityForgePlan M1): statue at the market-cross spot,
         // the tier well (centre, or relocated off the statue), stalls on the corner pads. It
