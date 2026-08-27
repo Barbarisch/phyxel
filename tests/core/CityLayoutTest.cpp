@@ -351,6 +351,28 @@ TEST(CityLayoutTest, DensityRaisesTheBuildingCount) {
     }
 }
 
+// M4 palette caps (RED before parse+enforcement): weights set FLAVOUR, caps bind COUNTS —
+// the measured density-1.5 city drew 16 blacksmiths of 65 buildings. A capped typology's
+// draw redraws; housing (uncapped) absorbs the difference.
+TEST(CityLayoutTest, TypologyCapsBoundTheServiceGlut) {
+    Fixture f;
+    if (!f.ok) GTEST_SKIP() << "canon files not reachable from CWD";
+    ASSERT_FALSE(f.city->typologyCaps.empty())
+        << "city preset declares typology_caps (data) — the parser must carry them";
+    for (unsigned seed : {3u, 7u, 19u}) {
+        const auto l = planCityLayout(applyDensity(*f.city, 1.5), W, D, f.rreg, seed);
+        ASSERT_TRUE(l.ok);
+        std::map<std::string, int> counts;
+        for (const auto& ap : l.assigned) ++counts[ap.typology];
+        for (const auto& [typ, cap] : f.city->typologyCaps)
+            EXPECT_LE(counts[typ], cap)
+                << "seed " << seed << ": " << counts[typ] << " x " << typ
+                << " exceeds its cap of " << cap;
+        // The cap must not starve the city: housing absorbs the redraws.
+        EXPECT_GE(l.assigned.size(), 20u) << "seed " << seed << " city collapsed under caps";
+    }
+}
+
 TEST(CityLayoutTest, DeterministicInSeed) {
     Fixture f;
     if (!f.ok) GTEST_SKIP() << "canon files not reachable from CWD";

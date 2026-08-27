@@ -111,10 +111,26 @@ mortar/cleaver + one caption word — → `gen_items.py` flat boards → materia
 - Punted (logged): loosely-hanging signs that swing on collision — needs a hinge constraint
   on fixed item props (KinematicAnimator has hinges but no physics coupling).
 
-### M4 — `tenement` typology (apartments) — TODO (user-confirmed want)
-2–3 story stacked one-room dwellings, shared stair, gable-to-street; core-ring weighted.
-Generative multi-story mechanism exists (inn chambers). Requires grounded room program +
-furnishing recipes + conformant assets first (REFUSE-ON-ANY-GAP applies).
+### M4 — `tenement` typology (apartments) + palette CAPS — SHIPPED 2026-08-27
+- **Archetype sheet first** (`docs/structure-generation/archetypes/tenement.md`): grounded on
+  **Our Lady's Row, Goodramgate, York (1316)** — England's earliest surviving purpose-built
+  rental row, two storeys, ONE ROOM PER FLOOR per unit. Two DESIGN DECISIONS disclosed in the
+  sheet + the data `sources`: gable-to-street (the row's own frontage runs eaves-on; burgage
+  packing wants gable-on and the allocator recreates the row read anyway) and 2 bays deep (the
+  documented ~4.5 m depth cannot host the forge's generated stair — the traversal gate would
+  refuse; medieval ladder-stairs aren't modelled). Jetty is NOT faked — logged as wanted.
+- **Pure DATA commit**: `room_program.json` `tenement` reuses the croft `living` recipe below
+  and the inn `bedchamber` recipe above — both already conformant, so REFUSE-ON-ANY-GAP is
+  satisfied by construction and no new assets were needed.
+- **Palette caps** (`typology_caps`, city data): weights set FLAVOUR, caps bind COUNTS. Red
+  test measured the glut first (7 taverns / 6 smithies vs caps 3 / 2 across 3 seeds); a capped
+  draw now redraws and housing absorbs it. Enforced in BOTH planners (main-street + city).
+- **Fixed while wiring**: `tenement` was missing from `locationTypeForTypology`'s Home list, so
+  its units derived as `Custom` locations and the ResidentPlanner skipped them (0 residents).
+- **L4** (seed 7, density 1.5, 160×160): 72 buildings, **35 tenements**, 0 lot failures, every
+  cap honored (tavern 3, blacksmith 2, store 2, bakery 1 — was 16 smithies), **69 residents
+  live** incl. all 35 tenement households (was 28). Evidence:
+  docs/evidence/cityforge_m4_tenement_{city_top,street}.png.
 
 ### M5 — `town_hall` typology (civic) — TODO (user-confirmed want)
 Guildhall/moot-hall fronting the square on a RESERVED civic plot (layout change: civic plot

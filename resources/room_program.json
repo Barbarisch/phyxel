@@ -20,6 +20,29 @@
         "windows.size": "STYLIZED — NO metric source for a humble window opening (the 12-18 in figure is 11th-c castle windows, wrong class); 1x1 cube = the smallest carvable opening on the cube portal grid, KNOWN OVERSIZED vs the qualitative 'small shuttered opening' record; pending Brunskill (1971) / Weald & Downland build records / HE HEAG102. Openings are SHUTTERED AIR, never Glass: glazing unaffordable for ordinary households before Elizabeth I (1558+) (buildingconservation.com early-casement article)"
       }
     },
+    "tenement": {
+      "wealth_tier": "humble",
+      "description": "Urban rental row unit ('rents') — two storeys, one room per floor: an all-purpose ground room (hearth, table, chest) with a single chamber above, gable to the street; rows form by contiguous burgage packing. CityForgePlan M4 — the medieval 'apartment'.",
+      "width_min": 4,
+      "width_max": 5,
+      "bay_length": 4,
+      "bays": 2,
+      "proportion_max": 2.5,
+      "stories": 2,
+      "upper_purpose": "bedchamber",
+      "windows": { "width": 1, "height": 1, "per_bay": 0.5, "walls": "front" },
+      "rooms": [
+        { "id": "ground_room", "purpose": "living", "bays": 2 }
+      ],
+      "source": "Our Lady's Row, Goodramgate, York (1316) — England's earliest surviving purpose-built rental row: two storeys, ONE ROOM PER FLOOR per unit. Full sheet: docs/structure-generation/archetypes/tenement.md",
+      "sources": {
+        "rooms": "one room up, one room down per dwelling — the documented Our Lady's Row unit plan (Wikipedia, Our Lady's Row; RCHME York vol. 5). Ground purpose REUSES the croft 'living' recipe; upper REUSES the inn 'bedchamber' recipe — both conformant, no new assets (REFUSE-ON-ANY-GAP satisfied by construction)",
+        "stories": "two storeys, jettied — CITED for Our Lady's Row (jetty itself NOT modelled; disclosed in the sheet, never faked)",
+        "width_min": "unit frontage ~4.5-5.5 m (≈15-18 ft, commonly quoted for Our Lady's Row — NEEDS-VERIFY vs RCHME before citing as measured); engine 4-5 stays inside that envelope",
+        "bays": "DESIGN DECISION, disclosed: the documented ~4.5 m unit depth cannot host the forge's generated stair (the traversal gate would refuse); 2 bays x 4 m gives the stair an honest run. Medieval ladder-stairs are not modelled",
+        "entrance": "DESIGN DECISION, disclosed: gable-to-street (narrow-frontage burgage economics + core packing); Our Lady's Row itself runs eaves-on — the allocator's contiguous packing recreates the ROW read either way"
+      }
+    },
     "longhouse": {
       "description": "Peasant longhouse — dwelling end (inner room + hall) + cross passage + byre, under one roof.",
       "wealth_tier": "humble",

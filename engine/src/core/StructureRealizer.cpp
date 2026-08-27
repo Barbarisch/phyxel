@@ -72,7 +72,8 @@ LocationType locationTypeForTypology(const std::string& t) {
     if (t == "blacksmith" || t == "bakery" || t == "general_store" ||
         t == "apothecary" || t == "butcher")
         return LocationType::Work;
-    if (t == "croft" || t == "longhouse" || t == "hall_house" || t == "manor_hall")
+    if (t == "croft" || t == "longhouse" || t == "hall_house" || t == "manor_hall" ||
+        t == "tenement")
         return LocationType::Home;
     return LocationType::Custom;
 }

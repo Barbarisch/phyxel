@@ -216,6 +216,19 @@ Validate when each lands; required layer noted so the plan is set up front.
   self-check). L4 both faces readable on the mounted tavern board
   (docs/evidence/cityforge_m3d_sign_bracket_{north,south}.png). Punts logged: swinging signs
   (hinge constraint gap), window-blind flush check, x-axis surface faces.
+  **✅ SLICE 7 — TENEMENT TYPOLOGY + PALETTE CAPS (2026-08-27, CityForgePlan M4):** the city gets
+  HOUSING. `tenement` = a grounded DATA commit (archetype sheet first, per the standing rule:
+  Our Lady's Row, York 1316 — two storeys, one room per floor; gable-on and 2-bay depth are
+  DISCLOSED design decisions, the latter because the documented ~4.5 m depth cannot host the
+  forge's generated stair). Reuses the croft `living` + inn `bedchamber` recipes, so
+  REFUSE-ON-ANY-GAP holds with ZERO new assets. `typology_caps` bind per-typology COUNTS in
+  both planners (weights keep setting flavour), red-first
+  `CityLayoutTest.TypologyCapsBoundTheServiceGlut` measuring the real glut (7 taverns / 6
+  smithies vs caps 3 / 2, 3 seeds). Wiring bug found + fixed: a typology absent from
+  `locationTypeForTypology`'s Home list derives as a Custom location and silently gets NO
+  residents. **L4** seed-7 density-1.5 city: 72 buildings / 35 tenements / 0 lot failures /
+  every cap honored / 69 residents live incl. all 35 tenement households (baseline: 33
+  buildings, 16 smithies, 28 residents) — docs/evidence/cityforge_m4_tenement_*.png.
   **✅ SLICE 2 — STREETS ARE REAL GEOMETRY (2026-07-09, `StreetPaver`):** `planStreetPaving` (pure) grades
   each street's centerline via `planTerrainPath`, broadcasts a LEVEL cross-section across the full width,
   and runs a spur from every front door to the street (meeting the STREET's surface, first-writer);

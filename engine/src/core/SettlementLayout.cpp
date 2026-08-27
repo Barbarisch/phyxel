@@ -263,6 +263,13 @@ MainStreetLayout planMainStreetLayout(const SettlementTierPreset& tier, int W, i
     int cursors[2] = {endMargin, endMargin};
     bool open[2] = {true, true};
     int count = 0;
+    // M4 typology caps: weights set FLAVOUR, caps bind COUNTS (a town supports a few of
+    // each trade, not a smithy glut). A capped draw redraws; absent = uncapped.
+    std::map<std::string, int> typCounts;
+    auto typCapped = [&](const std::string& t) {
+        auto it = tier.typologyCaps.find(t);
+        return it != tier.typologyCaps.end() && typCounts[t] >= it->second;
+    };
     while ((open[0] || open[1]) && count < tier.buildingsMax) {
         bool placedThisRound = false;
         for (int side = 0; side < 2 && count < tier.buildingsMax; ++side) {
@@ -279,6 +286,7 @@ MainStreetLayout planMainStreetLayout(const SettlementTierPreset& tier, int W, i
                                                      static_cast<unsigned>(t));
                 const RoomProgram* rp = rooms.get(typ);
                 if (!rp) continue;                              // unknown typology: skip this draw
+                if (typCapped(typ)) continue;                   // M4: caps bind counts — redraw
                 const int natLong  = std::max(1, (int)std::lround(rp->bays * rp->bayLength));
                 const int natShort = std::max(1, (int)std::lround(rp->widthMax > 0 ? rp->widthMax
                                                                                    : rp->widthMin));
@@ -313,6 +321,7 @@ MainStreetLayout planMainStreetLayout(const SettlementTierPreset& tier, int W, i
                 out.base.plots.push_back(ap.plot);
                 out.assigned.push_back(ap);
                 cursors[side] = u + frontage + tier.plot.sideGap;
+                ++typCounts[typ];
                 ++count;
                 fit = true;
                 placedThisRound = true;
@@ -452,6 +461,13 @@ MainStreetLayout planCityLayout(const SettlementTierPreset& tier, int W, int D,
     // and keeps tight setbacks; the fringe draws the base palette at +1 setback (looser edges).
     const int sqCu = squ + sqW / 2, sqCv = sqv + sqD / 2;  // square centre (u/v frame)
     int count = 0;
+    // M4 typology caps (shared across every row of the quarter): weights set FLAVOUR,
+    // caps bind COUNTS — measured red: 16 blacksmiths / 65 buildings at density 1.5.
+    std::map<std::string, int> typCounts;
+    auto typCapped = [&](const std::string& t) {
+        auto it = tier.typologyCaps.find(t);
+        return it != tier.typologyCaps.end() && typCounts[t] >= it->second;
+    };
     const int depthCap = tier.plot.depthMax + tier.setback.max + 2;
     // Occupancy guard: the axis rows avoid each other by band construction, but the
     // secondary-lane INFILL rows (M3b) share block interiors with everything — a candidate
@@ -508,6 +524,7 @@ MainStreetLayout planCityLayout(const SettlementTierPreset& tier, int W, int D,
                     core = actual;
                 }
                 if (!rp) continue;
+                if (typCapped(typ)) continue;                   // M4: caps bind counts — redraw
                 const int minDepth = dDim + setb + 1;
                 if (minDepth > availDepth) continue;
                 if (cursor + frontage > runTo) continue;
@@ -534,6 +551,7 @@ MainStreetLayout planCityLayout(const SettlementTierPreset& tier, int W, int D,
                 out.base.plots.push_back(ap.plot);
                 out.assigned.push_back(ap);
                 cursor += frontage + tier.plot.sideGap;
+                ++typCounts[typ];
                 ++count;
                 fit = true;
             }

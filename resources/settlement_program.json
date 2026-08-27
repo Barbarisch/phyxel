@@ -76,8 +76,9 @@
           "plot": { "frontage": "from_typology", "depth_min": 12, "depth_max": 18, "side_gap": 0 },
           "setback": { "min": 0, "max": 1 },
           "blocks": { "min": 18, "max": 30 },
-          "typology_weights": { "hall_house": 3, "croft": 2, "longhouse": 1, "tavern": 1, "blacksmith": 1, "manor_hall": 1 },
-          "core_typology_weights": { "tavern": 2, "general_store": 2, "bakery": 1, "apothecary": 1, "butcher": 1, "hall_house": 2 },
+          "typology_weights": { "hall_house": 3, "croft": 2, "longhouse": 1, "tenement": 3, "tavern": 1, "blacksmith": 1, "manor_hall": 1 },
+          "core_typology_weights": { "tavern": 2, "general_store": 2, "bakery": 1, "apothecary": 1, "butcher": 1, "hall_house": 2, "tenement": 4 },
+          "typology_caps": { "tavern": 3, "blacksmith": 2, "bakery": 2, "apothecary": 2, "butcher": 2, "general_store": 3, "manor_hall": 1 },
           "core_ring": 24,
           "public": { "well": true, "market_square": { "w": 16, "d": 16, "stalls": 6, "statue": true } },
           "fences": { "fraction": 0.5 },
@@ -89,7 +90,8 @@
             "buildings": "REASONED: a city QUARTER at this engine's buildable scale, not a whole city",
             "street.main_width": "NEEDS-RESEARCH — principal city streets carried through-traffic + encroachment; wider than town main streets",
             "blocks": "REASONED 18-30 m secondary-street spacing: burgage depth (12-18) + circulation; no measured medieval block-spacing source consulted yet (candidate: Conzen town-plan analysis, Alnwick) — NEEDS-RESEARCH",
-            "core_typology_weights": "market-adjacency of trades: shops/inns cluster on the market place and principal streets (Schofield & Vince; standard burgage-rent gradient reasoning) — ratios REASONED",
+            "core_typology_weights": "market-adjacency of trades: shops/inns cluster on the market place and principal streets (Schofield & Vince; standard burgage-rent gradient reasoning) — ratios REASONED; tenement heavy in the core (urban rental rows pack the dense quarter — Our Lady's Row form, docs/structure-generation/archetypes/tenement.md)",
+            "typology_caps": "REASONED service-count bound: a quarter of ~30-65 buildings supports a FEW of each trade, not 16 smithies (the measured density-1.5 glut, CityForgePlan). Weighted draws redraw past a capped typology; caps bind COUNTS, weights still set flavour",
             "core_ring": "REASONED ~24 m 'market frontage' radius — the first plot rows around the square; no measured source",
             "typology_weights": "dwelling-heavy fringe mix + a manor_hall (urban magnate house); ratios REASONED"
           }

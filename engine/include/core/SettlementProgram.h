@@ -74,6 +74,11 @@ struct SettlementTierPreset {
     /// City tier: the shop-heavy palette drawn INSIDE the core ring around the market square
     /// (trades cluster on the market place — the burgage-rent gradient). Empty = no ring split.
     std::map<std::string, int> coreTypologyWeights;
+
+    /// Per-typology COUNT caps (CityForgePlan M4): weights set flavour, caps bind counts —
+    /// a quarter supports a few of each trade, not 16 smithies (measured at density 1.5).
+    /// A capped typology's draw redraws; absent from the map = uncapped. Empty = legacy.
+    std::map<std::string, int> typologyCaps;
     int coreRing = 0;      ///< core-ring radius (cubes) around the square centre; 0 = unused
     int blocksMin = 18;    ///< secondary-street spacing range (cubes) — the jittered city blocks
     int blocksMax = 30;

@@ -485,3 +485,16 @@ committed session; needs its own bisect. The rest of the 18-suite forge sweep
   air-blind the same way). A window-aware check needs the AssemblyPlan portals, not occupancy.
 - **KinematicVoxelManager x-axis surface faces (2/3)** were left on the legacy mapping - no
   x-axis-projected assets exist; fix like case 1 (opposite-slice reversed) when one appears.
+
+## 2026-08-27 - M4 tenement findings
+
+- **PlacedObject metadata carries no `typology`**: assembly_plan.plan has corners/walls/roof/
+  stairs/etc but not the typology that produced it, so "what did this city actually build?"
+  can only be answered from the forge LOG or from resident-NPC ids (res_<typology>_<x>_<z>).
+  A typology field on the structure's metadata would make live composition auditable.
+- **New typologies must be added to `locationTypeForTypology`** (StructureRealizer.cpp) or they
+  derive as Custom locations and get NO residents - silent, since the build itself succeeds.
+  Hit by `tenement` (0 residents until fixed). A data-driven map (room_program `location_type`)
+  would remove the hidden C++ coupling; logged rather than done.
+- **Residents `spawned` counter still reports 0** while residents ARE live (69 planned / 69
+  live / counter 0). Second sighting; the counter reads a shape the sync path doesn't fill.

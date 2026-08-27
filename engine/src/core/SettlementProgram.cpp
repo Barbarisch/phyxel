@@ -78,6 +78,9 @@ SettlementTierPreset SettlementProgramRegistry::parse(const std::string& era,
         for (auto it = rec["core_typology_weights"].begin();
              it != rec["core_typology_weights"].end(); ++it)
             if (it.value().is_number()) t.coreTypologyWeights[it.key()] = it.value().get<int>();
+    if (rec.contains("typology_caps") && rec["typology_caps"].is_object())
+        for (auto it = rec["typology_caps"].begin(); it != rec["typology_caps"].end(); ++it)
+            if (it.value().is_number()) t.typologyCaps[it.key()] = it.value().get<int>();
     t.coreRing = rec.value("core_ring", 0);
     if (rec.contains("blocks") && rec["blocks"].is_object()) {
         t.blocksMin = rec["blocks"].value("min", t.blocksMin);
