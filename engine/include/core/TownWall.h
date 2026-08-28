@@ -23,6 +23,8 @@
 #include <string>
 #include <vector>
 
+#include <glm/glm.hpp>
+
 #include "core/BuildingProgram.h"   // Rect
 
 namespace Phyxel {
@@ -35,9 +37,19 @@ struct TownWallSpec {
     int         thicknessCubes = 2;   ///< band thickness (>=2 gives a walkable top)
     int         gateWidthCubes = 5;   ///< minimum gate opening; widened to the street
     int         marginCubes = 2;      ///< clear gap between the built site and the band
-    bool        towers = true;        ///< square corner towers
+    bool        towers = true;        ///< corner towers
     int         towerSize = 4;
     int         towerExtraHeight = 3;
+    /// "round" (default) | "square". Mural towers on a curtain wall are USUALLY round after
+    /// the 12th century — a drum sheds missiles and has no corner to undermine, and Conwy
+    /// (this spec's own grounding) carries 21 drum towers. Square remains available for the
+    /// earlier form. NB a tower HOUSE is rectangular; that is a different building.
+    std::string towerShape = "round";
+    /// "parapet" (default) | "conical". The two attested tops, split regionally rather than
+    /// chosen by taste: English/Welsh drums take a crenellated parapet with the roof flat
+    /// behind it (Conwy, Caernarfon, Beaumaris); French and German towers take the conical
+    /// "pepperpot" roof (Carcassonne, the Loire châteaux). A bare cylinder is neither.
+    std::string towerCap = "parapet";
     bool        crenellations = true; ///< merlon/crenel parapet on the wall top
     std::string material = "StoneBricks";
 };
@@ -76,6 +88,11 @@ struct TownWallPlan {
 /// the site is too small to enclose, or the band would hit a building.
 TownWallPlan planTownWall(const Rect& site, const std::vector<Rect>& streets,
                           const std::vector<Rect>& footprints, const TownWallSpec& spec);
+
+/// The cube cells a tower actually occupies inside its bounding rect — "square" fills it,
+/// "round" keeps the inscribed disc. Pure and shared, so the stamper and the tests agree on
+/// what round MEANS instead of each deciding separately (offsets are rect-relative).
+std::vector<glm::ivec2> towerFootprintCells(const Rect& bbox, const std::string& shape);
 
 } // namespace Core
 } // namespace Phyxel

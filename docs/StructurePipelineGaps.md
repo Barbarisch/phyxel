@@ -599,3 +599,23 @@ The settlement path always passes the array, which is why tenements build in cit
 same typology "failed" from a hand-written direct call. When a direct build fails a gate that
 the settlement passes, DIFF THE PARAMS against SettlementBuildService makeBp before diagnosing
 the engine. Verified by building the same tower with the settlement's param shape: clean.
+
+## 2026-08-28 - tower tops: a roof needs a room under it (user)
+
+Round drum towers + two attested tops shipped (TownWallSpec tower_shape / tower_cap):
+- **Round is the curtain-wall default**, grounded on Conwy's 21 drum towers - the same source
+  the wall spec already cited while building SQUARE corner towers. A tower HOUSE stays
+  rectangular; that is a different building and was already correct.
+- **Parapet (English/Welsh) vs conical "pepperpot" (French/German)** is a regional split
+  expressed as data, not a taste call: Conwy/Caernarfon/Beaumaris vs Carcassonne/the Loire.
+- **USER RULE, now enforced: if a character cannot stand under it, it is not a roof.** The
+  first cone sat straight on a SOLID drum - a stone point on a lump. Under a cone the drum's
+  top is now hollow (rim = chamber wall, interior stops short), giving a measured 3-cube /
+  27-micro chamber against the engine's 16-micro agent box. Verified by scanning the tower's
+  centre column live: solid y17-23, AIR y24-26, slate cone y27-31.
+- The cone also rises 2 courses per inward step, so it stands about as tall as it is wide; a
+  one-course-per-step cone measured as a stubby cap and read as a stone lid.
+
+STILL OWED on towers: no ACCESS to the chamber or the wall-walk (no stair, no door) - the room
+under the cone is real but unreachable, which is the next thing to fix; the parapet tower is
+still solid below its deck; no arrow loops.

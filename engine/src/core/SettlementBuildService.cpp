@@ -1106,15 +1106,64 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                             (r.side == 'S' && z == o.z)  || (r.side == 'N' && z == o.z1() - 1);
                         column(x, z, spec.heightCubes, spec.crenellations && outerCourse);
                     }
-            // Corner towers: taller, crenellated all round.
-            for (const auto& tw : wp.towers)
-                for (int x = tw.x; x < tw.x1(); ++x)
-                    for (int z = tw.z; z < tw.z1(); ++z) {
-                        const bool edge = x == tw.x || x == tw.x1() - 1 ||
-                                          z == tw.z || z == tw.z1() - 1;
-                        column(x, z, spec.heightCubes + spec.towerExtraHeight,
-                               spec.crenellations && edge);
-                    }
+            // Corner towers: taller than the curtain, and topped the way real drums are —
+            // a crenellated PARAPET (English/Welsh: Conwy, Caernarfon) or a CONICAL roof
+            // (French/German: Carcassonne, the Loire). A bare cylinder is neither, which is
+            // what the first pass built.
+            const int towerH = spec.heightCubes + spec.towerExtraHeight;
+            const bool conical = (spec.towerCap == "conical");
+            for (const auto& tw : wp.towers) {
+                const auto cells = Core::towerFootprintCells(tw, spec.towerShape);
+                std::set<std::pair<int, int>> body;
+                for (const auto& c : cells) body.insert({tw.x + c.x, tw.z + c.y});
+                // A roof needs a room under it. The engine's agent box is 16 micro (~1.78 m),
+                // so a cone sitting straight on a solid drum is not a roof at all — it is a
+                // stone point on a lump. Under a CONE the top of the drum is therefore hollow:
+                // the rim runs full height as the chamber wall, the interior stops kChamber
+                // courses short to leave standing room. (A PARAPET tower stays solid on
+                // purpose — its flat top IS the fighting deck you stand on, behind the merlons.)
+                constexpr int kChamberCubes = 3;          // 3 m clear vs the 1.78 m agent box
+                for (const auto& [wx, wz] : body) {
+                    // A rim cell is one missing a 4-neighbour — on a drum that is the
+                    // curved face, which is exactly where merlons belong.
+                    const bool rim = !body.count({wx + 1, wz}) || !body.count({wx - 1, wz}) ||
+                                     !body.count({wx, wz + 1}) || !body.count({wx, wz - 1});
+                    const int h = (conical && !rim) ? std::max(1, towerH - kChamberCubes)
+                                                    : towerH;
+                    column(wx, wz, h, spec.crenellations && !conical && rim);
+                }
+                if (!conical) continue;
+                // CONICAL ("pepperpot") ROOF: rings of shrinking radius above the drum. The
+                // rise is kRise courses PER inward step, so the cone stands about as tall as
+                // it is wide — a one-course-per-step cone is a stubby cap, not a roof (built
+                // that first and it read as a stone lid). Slate over the stone drum.
+                constexpr int kRise = 2;
+                const int cxA = tw.x, czA = tw.z;
+                int y = 0;
+                for (int lvl = 1;; ++lvl) {
+                    Core::Rect shrunk{cxA + lvl, czA + lvl, tw.w - 2 * lvl, tw.d - 2 * lvl};
+                    if (shrunk.w <= 0 || shrunk.d <= 0) break;
+                    for (int rise = 0; rise < kRise; ++rise, ++y)
+                        for (const auto& c : Core::towerFootprintCells(shrunk, spec.towerShape)) {
+                            const int wx = ox + shrunk.x + c.x, wz = oz + shrunk.z + c.y;
+                            const int base = terrainTopAt(wx, wz) + 1;
+                            Core::VoxelPlacement v;
+                            v.position = glm::ivec3(wx, base + towerH + y, wz);
+                            v.material = "Slate";
+                            batch.voxels.push_back(v);
+                            toClear.push_back(v.position);
+                        }
+                }
+                // Finial: one course closing the apex so the cone ends in a point, not a hole.
+                {
+                    const int wx = ox + cxA + tw.w / 2, wz = oz + czA + tw.d / 2;
+                    Core::VoxelPlacement v;
+                    v.position = glm::ivec3(wx, terrainTopAt(wx, wz) + 1 + towerH + y, wz);
+                    v.material = "Slate";
+                    batch.voxels.push_back(v);
+                    toClear.push_back(v.position);
+                }
+            }
 
             // Clear the wall line first (trees, undergrowth, anything standing in it), then
             // stamp — so the circuit is a pure function of the plan, not of what grew there.

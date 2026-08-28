@@ -207,6 +207,50 @@ TEST(TownWallTest, ThePlanIsTranslationInvariant) {
     }
 }
 
+// Mural towers on a curtain wall are round after the 12th century — a drum sheds missiles and
+// has no corner to undermine — and Conwy, this spec's own grounding, carries 21 drum towers.
+// "Round" has to MEAN something at cube resolution: the corners go, the cardinal points stay
+// (an octagon with its corners bitten off is not a tower), and it is symmetric.
+TEST(TownWallTest, RoundTowersAreActuallyRound) {
+    const Rect bbox{0, 0, 6, 6};
+    const auto round = towerFootprintCells(bbox, "round");
+    const auto square = towerFootprintCells(bbox, "square");
+    ASSERT_EQ(square.size(), 36u) << "square must fill its rect";
+    EXPECT_LT(round.size(), square.size()) << "round kept every cell — it is not round";
+    EXPECT_GT(round.size(), square.size() / 2) << "round ate too much — that is a cross, not a drum";
+
+    std::set<std::pair<int, int>> in;
+    for (const auto& c : round) in.insert({c.x, c.y});
+    // Corners out, cardinal points in.
+    for (auto c : {std::pair{0, 0}, {0, 5}, {5, 0}, {5, 5}})
+        EXPECT_FALSE(in.count(c)) << "corner (" << c.first << "," << c.second << ") survived";
+    for (auto c : {std::pair{0, 3}, {5, 2}, {2, 0}, {3, 5}})
+        EXPECT_TRUE(in.count(c)) << "cardinal point (" << c.first << "," << c.second
+                                 << ") is missing — the drum reads as a clipped octagon";
+    // Symmetric under both mirrors.
+    for (const auto& c : in) {
+        EXPECT_TRUE(in.count({5 - c.first, c.second})) << "not symmetric in x";
+        EXPECT_TRUE(in.count({c.first, 5 - c.second})) << "not symmetric in z";
+    }
+}
+
+TEST(TownWallTest, TowerShapeAndCapAreDataNotTaste) {
+    TownWallSpec s = citySpec();
+    EXPECT_EQ(s.towerShape, "round") << "the curtain-wall default follows Conwy";
+    EXPECT_EQ(s.towerCap, "parapet") << "English/Welsh default; conical is the continental form";
+
+    // Both caps and both shapes must plan without complaint — the choice is regional data.
+    for (const char* shape : {"round", "square"})
+        for (const char* cap : {"parapet", "conical"}) {
+            TownWallSpec v = s;
+            v.towerShape = shape;
+            v.towerCap = cap;
+            const auto p = planTownWall(site(), crossroadStreets(), {}, v);
+            EXPECT_TRUE(p.ok) << shape << "/" << cap << " refused: " << p.refusal;
+            EXPECT_EQ(p.towers.size(), 4u);
+        }
+}
+
 TEST(TownWallTest, DeterministicForTheSameSite) {
     const auto a = planTownWall(site(), crossroadStreets(), {}, citySpec());
     const auto b = planTownWall(site(), crossroadStreets(), {}, citySpec());

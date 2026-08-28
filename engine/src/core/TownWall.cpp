@@ -1,6 +1,7 @@
 #include "core/TownWall.h"
 
 #include <algorithm>
+#include <cmath>
 
 namespace Phyxel {
 namespace Core {
@@ -32,6 +33,29 @@ struct GateWant {
 };
 
 }  // namespace
+
+std::vector<glm::ivec2> towerFootprintCells(const Rect& bbox, const std::string& shape) {
+    std::vector<glm::ivec2> cells;
+    if (bbox.w <= 0 || bbox.d <= 0) return cells;
+    if (shape != "round") {                                  // square: the whole rect
+        for (int x = 0; x < bbox.w; ++x)
+            for (int z = 0; z < bbox.d; ++z) cells.push_back({x, z});
+        return cells;
+    }
+    // Inscribed disc, measured from CELL CENTRES so the drum is symmetric on both parities
+    // of size. The +0.35 lets the rim cells that are mostly inside the circle count — without
+    // it a small drum loses its cardinal points and reads as an octagon with the corners
+    // bitten off rather than as a tower.
+    const double cx = (bbox.w - 1) / 2.0, cz = (bbox.d - 1) / 2.0;
+    const double r = std::min(bbox.w, bbox.d) / 2.0;
+    for (int x = 0; x < bbox.w; ++x)
+        for (int z = 0; z < bbox.d; ++z) {
+            const double dx = x - cx, dz = z - cz;
+            if (dx * dx + dz * dz <= (r - 0.5 + 0.35) * (r - 0.5 + 0.35) + 1e-9)
+                cells.push_back({x, z});
+        }
+    return cells;
+}
 
 TownWallPlan planTownWall(const Rect& site, const std::vector<Rect>& streets,
                           const std::vector<Rect>& footprints, const TownWallSpec& spec) {

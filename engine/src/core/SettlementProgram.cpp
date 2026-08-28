@@ -104,6 +104,8 @@ SettlementTierPreset SettlementProgramRegistry::parse(const std::string& era,
         t.walls.gateWidthCubes   = w.value("gate_width", t.walls.gateWidthCubes);
         t.walls.marginCubes      = w.value("margin", t.walls.marginCubes);
         t.walls.towers           = w.value("towers", t.walls.towers);
+        t.walls.towerShape       = w.value("tower_shape", t.walls.towerShape);
+        t.walls.towerCap         = w.value("tower_cap", t.walls.towerCap);
         t.walls.towerSize        = w.value("tower_size", t.walls.towerSize);
         t.walls.towerExtraHeight = w.value("tower_extra_height", t.walls.towerExtraHeight);
         t.walls.crenellations    = w.value("crenellations", t.walls.crenellations);
