@@ -64,6 +64,10 @@ RoomProgram RoomProgramRegistry::parse(const std::string& name, const nlohmann::
     p.proportionMax = rec.value("proportion_max", 0.0);
     p.stories = std::max(1, rec.value("stories", 1));
     p.upperPurpose = rec.value("upper_purpose", "");
+    p.upperPlan    = rec.value("upper_plan", "");
+    if (rec.contains("upper_purposes") && rec["upper_purposes"].is_array())
+        for (const auto& v : rec["upper_purposes"])
+            if (v.is_string()) p.upperPurposeByStory.push_back(v.get<std::string>());
     p.wealthTier = rec.value("wealth_tier", std::string("humble"));
     p.entrance = rec.value("entrance", "");
     p.entranceOpposed = rec.value("entrance_opposed", false);

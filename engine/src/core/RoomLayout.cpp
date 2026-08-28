@@ -380,6 +380,16 @@ static void addTypologyWindows(RoomLayout& rl, int W, int D, const WindowSpec& s
 // The gallery runs the full LENGTH along one side and holds the stair emergence
 // (kStairStripCubes wide, matching the well siting in generateStoryStairs); every
 // chamber opens off it, so no chamber is ever transited to reach another.
+/// ONE room filling the floor — the TOWER plan (stacked single rooms over a store). Not a
+/// degenerate case of the inn plan: a tower has no gallery because it has no chambers to
+/// serve, and forcing it through generateUpperChambers gives it a gallery its short length
+/// cannot carry (the upper floor came out unreachable — measured on tower_house).
+static RoomLayout generateUpperSingleRoom(int W, int D, const std::string& purpose) {
+    RoomProgram up;
+    up.rooms.push_back({"chamber", purpose.empty() ? "chamber" : purpose, 1.0});
+    return generateRoomLayoutFromProgram(W, D, up);
+}
+
 static RoomLayout generateUpperChambers(int W, int D, const std::string& purpose) {
     RoomLayout out;
     const bool lengthIsX = (W >= D);
@@ -523,6 +533,52 @@ static void generateStoryStairs(BuildingProgram& program) {
     }
 }
 
+// The entrance must not open into the STAIR SHAFT. The well hugs one wall for most of its
+// length (stairWellRect insets only the foot), so on a SHORT building the centred exterior
+// door lands inside the shaft and the building cannot be entered — every upper floor then
+// reports "unreachable" even though the stair itself is built correctly. Measured on
+// tower_house 6x8: door at (0,4), well at [0,1 2x6]. A long building escapes by luck — the
+// tavern's door sits at z=8, exactly one cube past its well — which is why this went unseen.
+//
+// Only a COLLIDING door moves, so every plan that was already clear is untouched.
+static void keepEntranceClearOfStairs(BuildingProgram& program) {
+    if (program.stories.empty() || program.stories[0].stairs.empty()) return;
+    const int W = program.footprintW, D = program.footprintD;
+    const Rect well = program.stories[0].stairs[0].rect;
+    auto inWell = [&](int x, int z) {
+        return x >= well.x && x < well.x1() && z >= well.z && z < well.z1();
+    };
+    // The cell a door on this wall actually opens into (one step inward).
+    auto inwardCell = [&](int px, int pz, int& cx, int& cz) {
+        cx = px; cz = pz;
+        if (px == 0)      cx = 0;
+        else if (px == W) cx = W - 1;
+        if (pz == 0)      cz = 0;
+        else if (pz == D) cz = D - 1;
+    };
+    for (auto& p : program.stories[0].portals) {
+        if (p.kind != "door" || (p.a != "exterior" && p.b != "exterior")) continue;
+        int cx = 0, cz = 0;
+        inwardCell(p.px, p.pz, cx, cz);
+        if (!inWell(cx, cz)) continue;                       // already clear — leave it alone
+
+        // Try the other walls' midpoints; take the first that does not open into the shaft.
+        const int candidates[4][2] = {{W / 2, 0}, {W / 2, D}, {0, D / 2}, {W, D / 2}};
+        for (const auto& c : candidates) {
+            int tx = 0, tz = 0;
+            inwardCell(c[0], c[1], tx, tz);
+            if (inWell(tx, tz)) continue;
+            LOG_INFO_FMT("RoomLayout", "entrance moved off the stair shaft: ("
+                         << p.px << "," << p.pz << ") -> (" << c[0] << "," << c[1] << ")");
+            p.px = c[0];
+            p.pz = c[1];
+            break;
+        }
+        // No clear wall (a footprint entirely spanned by its own shaft): left as-is, and the
+        // realized traversal gate refuses it honestly rather than shipping a sealed building.
+    }
+}
+
 bool autofillRoomLayout(BuildingProgram& program, unsigned seed, const RoomProgram* typology) {
     const int W = program.footprintW, D = program.footprintD;
     if (W <= 0 || D <= 0) return false;                      // no footprint -> nothing to fill
@@ -577,7 +633,15 @@ bool autofillRoomLayout(BuildingProgram& program, unsigned seed, const RoomProgr
         }
         // upper floor of a multi-story typology: grounded guest chambers (linear, landing = room 0).
         if (rl.rooms.empty() && i != 0 && typology && typology->stories > 1) {
-            rl = generateUpperChambers(W, D, typology->upperPurpose);
+            // Per-story purpose when the typology names one (a tower is store -> hall ->
+            // chamber); otherwise the single upperPurpose for every floor (an inn's lodging).
+            const size_t up = static_cast<size_t>(i) - 1;
+            const std::string purpose = up < typology->upperPurposeByStory.size()
+                                            ? typology->upperPurposeByStory[up]
+                                            : typology->upperPurpose;
+            rl = (typology->upperPlan == "single")
+                     ? generateUpperSingleRoom(W, D, purpose)
+                     : generateUpperChambers(W, D, purpose);
             if (!rl.rooms.empty()) typologyApplied = true;
         }
         if (rl.rooms.empty()) {
@@ -614,6 +678,7 @@ bool autofillRoomLayout(BuildingProgram& program, unsigned seed, const RoomProgr
 
     // Generate the connecting stair(s) for any multi-story building (the missing circulation).
     generateStoryStairs(program);
+    keepEntranceClearOfStairs(program);   // the door must not open into the shaft
     return typologyApplied;
 }
 

@@ -20,6 +20,32 @@
         "windows.size": "STYLIZED — NO metric source for a humble window opening (the 12-18 in figure is 11th-c castle windows, wrong class); 1x1 cube = the smallest carvable opening on the cube portal grid, KNOWN OVERSIZED vs the qualitative 'small shuttered opening' record; pending Brunskill (1971) / Weald & Downland build records / HE HEAG102. Openings are SHUTTERED AIR, never Glass: glazing unaffordable for ordinary households before Elizabeth I (1558+) (buildingconservation.com early-casement article)"
       }
     },
+    "tower_house": {
+      "wealth_tier": "high",
+      "description": "Tower house / tower keep — a compact thick-walled stone tower: a store at ground, the hall above it, private chambers stacked over that, reached by a generated stair. The lord's fortified residence, and the keep form this engine can actually structure. CityForgePlan M8.",
+      "width_min": 5,
+      "width_max": 8,
+      "bay_length": 4,
+      "bays": 2,
+      "proportion_max": 1.8,
+      "stories": 3,
+      "upper_purpose": "chamber",
+      "upper_purposes": ["tower_hall", "chamber"],
+      "upper_plan": "single",
+      "windows": { "width": 1, "height": 1, "per_bay": 0.5, "walls": "front" },
+      "rooms": [
+        { "id": "vault", "purpose": "service", "bays": 2 }
+      ],
+      "source": "Tower house — GROUNDED MINIMUM 6.1 x 4.9 x 12.2 m (20 x 16 x 40 ft), the dimensional standard set by the Henry VI statute of 1429 for the Irish '£10 castles'. Stacked single rooms over a vaulted store is the defining plan. Full sheet: docs/structure-generation/archetypes/tower_house.md",
+      "sources": {
+        "width_min": "the 1429 statute's 4.9 m short side is the attested MINIMUM; 5 cubes is that minimum, 8 the upper end of the compact tower form",
+        "bays": "2 bays x 4 m = 8 m long, against the statute's 6.1 m minimum long side — inside the real range for a compact tower",
+        "stories": "3: the statute's 12.2 m height over a vaulted store implies 3-4 stacked floors. Rooms STACK (one per floor) — that is the tower plan, not a simplification",
+        "rooms": "one room per floor. Ground = the store/vault ('service' recipe); the hall and the private chambers above are generated stories ('chamber' -> the bedchamber recipe). Both recipes are already conformant — no new assets",
+        "_not_modelled": "DISCLOSED deviations from the sheet, none faked: (1) the FIRST-FLOOR ENTRANCE with a removable stair, and a ground vault with no external door, are the tower's defining defensive trick — the engine doors every building at ground level, so this tower is entered at the bottom; (2) no mural/spiral stair in the wall thickness (the generated stair is a normal one); (3) no crenellated parapet on the roof (buildings get roofs, not battlements — the town WALL has crenellations); (4) no vaulting.",
+        "_why_not_a_great_tower": "The Dover/Rochester-scale KEEP (docs/structure-generation/archetypes/keep.md, 21-30 m square) is NOT shipped, and not because of a width cap — widthMax is per-typology data. A great tower of that span needs an internal CROSS-WALL (which is exactly why Rochester and Dover have one: floors cannot span the full width). This engine's room model divides a plan along the LONG axis only, so every room would be full-width and a 14 m clear span would be implied. That is a mechanism gap, logged in docs/StructurePipelineGaps.md, not something to fake with a wide empty box."
+      }
+    },
     "town_hall": {
       "wealth_tier": "high",
       "description": "Moot hall / town house — the seat of town government: a public hall at ground with a secure muniment (records + town arms) beside it, and the council chamber above reached by a generated stair. CityForgePlan M5.",

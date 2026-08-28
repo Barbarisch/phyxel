@@ -90,6 +90,18 @@ struct RoomProgram {
 
     int    stories = 1;                      ///< number of stories the typology generates (>=1)
     std::string upperPurpose;                ///< room purpose for AUTO-generated upper floors
+    /// How an auto-generated upper floor is laid out. "chambers" (default) = the inn plan:
+    /// a gallery serving several chambers. "single" = ONE room filling the floor — the TOWER
+    /// plan, where stacked single rooms over a store is the defining form, not a shortcut.
+    /// A tower forced through the chambers plan gets a gallery it has no length for and the
+    /// upper floor comes out unreachable (measured on tower_house before this existed).
+    std::string upperPlan;                   ///< "" / "chambers" (default) | "single"
+    /// PER-STORY purposes for auto-generated upper floors (json `upper_purposes`, an array),
+    /// index 0 = the first floor above ground. A tower is store -> HALL -> chamber: the floors
+    /// differ, and a single `upper_purpose` cannot say so. With every floor private, the
+    /// circulation gate correctly refuses chamber-through-chamber; with a hall between them
+    /// the route is public and the plan is the real one. Falls back to upperPurpose.
+    std::vector<std::string> upperPurposeByStory;
                                              ///< (e.g. "bedchamber" = inn guest chambers); ""=generic
     std::string wealthTier = "humble";       ///< "humble" | "middling" | "high" — drives the
                                              ///< tier-filtered furnishing recipes (status, the

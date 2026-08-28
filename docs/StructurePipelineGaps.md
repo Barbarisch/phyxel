@@ -575,3 +575,27 @@ LESSON worth generalising: "deterministic" needs BOTH halves proven - the plan i
 function (unit test, translation-invariant), AND the stamping owns its cells (live A/B at two
 origins). Any future placer that writes into terrain should get the same two-part treatment;
 a plan-only determinism test would have passed while the world quietly differed.
+
+## 2026-08-28 - M8 tower house: three real fixes, and a harness trap that cost the most
+
+Building the keep form surfaced three genuine engine gaps, all fixed:
+- **Upper floors were always the INN plan.** generateUpperChambers (gallery + chambers) was the
+  only auto layout, so a TOWER - stacked single rooms, the defining form - got a gallery its
+  short length cannot carry. Typologies can now declare `upper_plan: "single"`.
+- **`upper_purpose` is one value for every floor.** A tower is store -> hall -> chamber; with
+  every upper floor private the circulation gate correctly refused chamber-through-chamber.
+  Typologies can now declare `upper_purposes: [...]` per floor.
+- **The entrance could open INTO the stair shaft.** stairWellRect insets only the foot, so the
+  well hugs one wall for most of its length; on a SHORT building the centred exterior door
+  landed inside the shaft, the building could not be entered, and every upper floor reported
+  "unreachable" while the stair was built correctly. The tavern escapes by one cube (door z=8,
+  well z1-7), which is why it was never seen. keepEntranceClearOfStairs moves a COLLIDING door
+  only, so existing plans are untouched (parity digests green).
+
+**THE TRAP (cost more than all three): `/api/structure/build` takes `stories` as an ARRAY of
+story objects, `[{"height":3}]`, not an integer.** Passing `"stories": 3` yields a degenerate
+program whose upper floors are unreachable - and the failure looks exactly like a geometry bug.
+The settlement path always passes the array, which is why tenements build in cities but the
+same typology "failed" from a hand-written direct call. When a direct build fails a gate that
+the settlement passes, DIFF THE PARAMS against SettlementBuildService makeBp before diagnosing
+the engine. Verified by building the same tower with the settlement's param shape: clean.
