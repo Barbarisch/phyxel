@@ -1036,6 +1036,90 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                          << " paving micros re-stamped");
         }});
 
+        // CIRCUIT WALL (place_town_wall #42, CityForgePlan M7). The band sits OUTSIDE the
+        // built site, so it cannot land on a plot; every street that reaches the edge gets a
+        // gate, and an ungateable street REFUSES the whole circuit rather than walling a road
+        // in. Runs after the buildings so nothing later clears it, before the nav rebuild so
+        // pathing sees both the wall and its gateways.
+        if (chunkManager && programMode && tierP && tierP->walls.enabled) {
+            units.push_back({"raising the town wall",
+                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
+                 spec = tierP->walls, layout, buildings, ox, oz, W, D, terrainTopAt, pathsJsonP]() {
+            if (!chunkManager) return;
+            std::vector<Core::Rect> footprints;
+            footprints.reserve(buildings.size());
+            for (const auto& b : buildings) footprints.push_back(b.footprint);
+            const Core::TownWallPlan wp = Core::planTownWall(
+                Core::Rect{0, 0, W, D}, layout.streets, footprints, spec);
+            if (!wp.ok) {
+                LOG_WARN_FMT("Settlement", "town wall REFUSED: " << wp.refusal);
+                (*pathsJsonP)["town_wall"] = {{"built", false}, {"refusal", wp.refusal}};
+                return;
+            }
+            // Gate cells (cube columns left open for the passage) — a set so the run stamp
+            // can skip them without caring which gate they belong to.
+            std::set<std::pair<int, int>> gateCols;
+            for (const auto& g : wp.gates)
+                for (int x = g.opening.x; x < g.opening.x1(); ++x)
+                    for (int z = g.opening.z; z < g.opening.z1(); ++z)
+                        gateCols.insert({x, z});
+
+            constexpr int kGateClearCubes = 4;   // headroom under the gate lintel
+            Core::StructureResult batch;
+            auto column = [&](int lx, int lz, int height, bool crenellate) {
+                const int wx = ox + lx, wz = oz + lz;
+                const int base = terrainTopAt(wx, wz) + 1;
+                const bool isGate = gateCols.count({lx, lz}) > 0;
+                // A gate column starts ABOVE the passage: the wall bridges over the road.
+                const int y0 = isGate ? base + kGateClearCubes : base;
+                for (int y = y0; y < base + height; ++y) {
+                    Core::VoxelPlacement v;
+                    v.position = glm::ivec3(wx, y, wz);
+                    v.material = spec.material;
+                    batch.voxels.push_back(v);
+                }
+                // Merlons: every other cell of the OUTER course, one cube proud of the walk.
+                if (crenellate && !isGate && ((lx + lz) % 2 == 0)) {
+                    Core::VoxelPlacement m;
+                    m.position = glm::ivec3(wx, base + height, wz);
+                    m.material = spec.material;
+                    batch.voxels.push_back(m);
+                }
+            };
+
+            // The band: stamp each run, crenellating only its OUTERMOST cube course so the
+            // inner course stays a clear wall-walk.
+            const Core::Rect& o = wp.outerBound;
+            for (const auto& r : wp.runs)
+                for (int x = r.band.x; x < r.band.x1(); ++x)
+                    for (int z = r.band.z; z < r.band.z1(); ++z) {
+                        const bool outerCourse =
+                            (r.side == 'W' && x == o.x)  || (r.side == 'E' && x == o.x1() - 1) ||
+                            (r.side == 'S' && z == o.z)  || (r.side == 'N' && z == o.z1() - 1);
+                        column(x, z, spec.heightCubes, spec.crenellations && outerCourse);
+                    }
+            // Corner towers: taller, crenellated all round.
+            for (const auto& tw : wp.towers)
+                for (int x = tw.x; x < tw.x1(); ++x)
+                    for (int z = tw.z; z < tw.z1(); ++z) {
+                        const bool edge = x == tw.x || x == tw.x1() - 1 ||
+                                          z == tw.z || z == tw.z1() - 1;
+                        column(x, z, spec.heightCubes + spec.towerExtraHeight,
+                               spec.crenellations && edge);
+                    }
+
+            const auto placed = Core::StructureGenerator::place(chunkManager, batch);
+            chunkManager->rebuildOccupancyFromChunks();
+            LOG_INFO_FMT("Settlement", "town wall: " << placed.placed << " cubes, "
+                         << wp.gates.size() << " gates, " << wp.towers.size()
+                         << " towers (displaced " << placed.displaced << ")");
+            (*pathsJsonP)["town_wall"] = {{"built", true}, {"cubes", placed.placed},
+                                          {"gates", wp.gates.size()},
+                                          {"towers", wp.towers.size()},
+                                          {"displaced", placed.displaced}};
+            }});
+        }
+
         // ORPHANED-CANOPY SWEEP (user find 2026-08-27: "leftover foliage and pieces of trees
         // floating in the air"). Every site-prep pass clears flora inside its OWN band —
         // plot boxes, the road corridor, building pads — so a tree whose TRUNK stood in one

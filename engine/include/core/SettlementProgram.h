@@ -19,6 +19,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include "core/TownWall.h"   // TownWallSpec (tier `walls` block)
+
 namespace Phyxel {
 namespace Core {
 
@@ -84,6 +86,10 @@ struct SettlementTierPreset {
     int blocksMax = 30;
 
     PublicSpec pub;
+
+    /// Circuit wall (CityForgePlan M7, place_town_wall #42). Absent `walls` block =
+    /// disabled = legacy behaviour (no wall planned, no world edits).
+    TownWallSpec walls;
 
     /// Share of eligible plots that get a perimeter fence (CityForgePlan M3). Eligibility
     /// (core ring, building clearance) is decided by shouldFencePlot; absent key = 1.0 = the

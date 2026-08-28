@@ -96,6 +96,19 @@ SettlementTierPreset SettlementProgramRegistry::parse(const std::string& era,
             t.pub.statue  = pb["market_square"].value("statue", false);
         }
     }
+    if (rec.contains("walls") && rec["walls"].is_object()) {
+        const auto& w = rec["walls"];
+        t.walls.enabled          = w.value("enabled", false);
+        t.walls.heightCubes      = w.value("height", t.walls.heightCubes);
+        t.walls.thicknessCubes   = w.value("thickness", t.walls.thicknessCubes);
+        t.walls.gateWidthCubes   = w.value("gate_width", t.walls.gateWidthCubes);
+        t.walls.marginCubes      = w.value("margin", t.walls.marginCubes);
+        t.walls.towers           = w.value("towers", t.walls.towers);
+        t.walls.towerSize        = w.value("tower_size", t.walls.towerSize);
+        t.walls.towerExtraHeight = w.value("tower_extra_height", t.walls.towerExtraHeight);
+        t.walls.crenellations    = w.value("crenellations", t.walls.crenellations);
+        t.walls.material         = w.value("material", t.walls.material);
+    }
     if (rec.contains("fences") && rec["fences"].is_object())
         t.fenceFraction = std::clamp(rec["fences"].value("fraction", 1.0), 0.0, 1.0);
     if (rec.contains("sources") && rec["sources"].is_object())

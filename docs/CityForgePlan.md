@@ -156,10 +156,23 @@ arcaded town hall needs an aisled frame. So M5 is another DATA commit + one smal
 Urban magnate house beyond manor_hall: courtyard/L-plan, high wealth tier. Needs archetype
 sheet; L-plan multi-story (KI-5g) is a known owed mechanism.
 
-### M7 — Castle / keep + town WALLS — TODO (user-asked 2026-08-27)
-The city edge earns a circuit wall + gatehouses (place_town_wall #42 is L0 in the ledger);
-castle/keep as a reserved precinct anchored off the axes. Big: needs its own plan (wall
-grounding, gate alignment with arriving WorldForge roads, keep typology).
+### M7 — Town WALLS — SHIPPED 2026-08-28 (castle/keep still TODO)
+`planTownWall` (`core/TownWall.h`, pure) closes placer #42, which had sat at L0. The band sits
+OUTSIDE the built site (site + margin), so it can never land on a plot the burgage allocator
+filled — and a caller passing footprints gets an explicit refusal instead of a wall stamped
+through a house. **The rule that carries the feature: a street reaching the edge MUST get a
+gate**, at least as wide as the street; an ungateable street REFUSES the whole circuit rather
+than silently strangling a road (it would also sever the WorldForge road network). Corner
+towers, crenellated outer course, gate lintels bridging the passage at 4 cubes clear.
+Grounded on Conwy (1283–87: 1.3 km, 21 towers, 3 twin-towered gateways) and York's circuit;
+height 7 / thickness 2 sit inside the attested ~6–10 m × ~1.5–3 m band as REASONED picks.
+`TownWallTest` 7 tests red-first (closure with no third option, gate-per-street + width +
+alignment, refusal when ungateable, never-on-a-building, towers on corners not in gateways,
+determinism). **L4** seed-7 density-1.4 city: 8,679 cubes, **10 gates, 4 towers**, 0 displaced
+buildings, alongside 67 buildings / 34 tenements — and the canopy sweep cleared 453 cells of
+real generator flora in the same run (docs/evidence/cityforge_m7_walled_city_{top,gate}.png).
+**Still TODO:** castle/keep precinct, gatehouse rooms, wall-walk stair access, wall following
+terrain contour rather than a rectangle.
 
 ### Polish backlog (user feedback 2026-08-27, logged in StructurePipelineGaps)
 - ~~Floating foliage~~ — **FIXED 2026-08-27** for settlement builds: `planOrphanedFloraSweep`

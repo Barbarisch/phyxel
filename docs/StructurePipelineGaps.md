@@ -518,7 +518,9 @@ floating-foliage class for SETTLEMENT builds. Still open:
 
 ## 2026-08-27 - M5 town_hall: what the engine refused, and what is owed
 
-- **Civic hall ships HEARTHLESS, by refusal not by choice**: a ground-floor hearth's stack rises
+- **Civic hall ships HEARTHLESS - USER-SETTLED 2026-08-28** ("we can skip a fireplace in the town
+  hall"): the town hall needs no fix. The underlying siting limit still applies to OTHER
+  typologies, so it stays logged below. A ground-floor hearth's stack rises
   through the middle of the council chamber above, and the realizer's flue gate refuses it
   ("no silent lean"). Correct gate, real limitation. OWED: hearth siting that prefers a stack
   landing on an upper-room WALL (it already reserves stack columns; it does not yet score
@@ -533,3 +535,17 @@ floating-foliage class for SETTLEMENT builds. Still open:
 - **Typology cannot request a STYLE**: the town hall draws its style from the same independent
   hash as every dwelling, so it can come up timber. A civic typology wanting ashlar has no way
   to say so.
+
+## 2026-08-28 - town wall (M7) v1 limits
+
+- **The circuit is a RECTANGLE**: the band follows the site rect + margin, not the terrain or
+  the built extent. On sloping ground it will step with the terrain (each column seats on its
+  own surface) but it will not follow a contour, and it encloses the whole rect including empty
+  fringe. A hull around the actual built area is the better form.
+- **No wall-walk ACCESS**: thickness 2 gives a walkable top, but nothing reaches it - stairs or
+  a tower door are owed before the allure is usable.
+- **Gatehouses are openings, not buildings**: a gate is a lintel bridging the passage. No gate
+  towers, no doors, no portcullis.
+- **Wall vs the WorldForge road**: gates align with the SETTLEMENT's streets. An arriving
+  inter-settlement road that does not line up with a street will meet wall, not gate.
+- **Castle / keep precinct** (user-asked): not started.
