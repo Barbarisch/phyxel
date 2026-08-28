@@ -619,3 +619,32 @@ Round drum towers + two attested tops shipped (TownWallSpec tower_shape / tower_
 STILL OWED on towers: no ACCESS to the chamber or the wall-walk (no stair, no door) - the room
 under the cone is real but unreachable, which is the next thing to fix; the parapet tower is
 still solid below its deck; no arrow loops.
+
+## 2026-08-28 - the mural tower became a STRUCTURE (user: "not a dumb pile of voxels")
+
+TowerForge (core/TowerForge.{h,cpp}) plans a tower that works: hollow shaft, spiral stair,
+floors, doorway, arrow loops, fighting deck. The ACCEPTANCE TEST is a TraversalProbe walking
+in the door and climbing to the top chamber - not a screenshot, not a cell count - with a
+sensitivity control that must FAIL when the stair is deleted.
+
+Four defects the probe found, none of which a screenshot would have shown:
+1. **A cube stair is scenery.** The agent steps up 4 micro; a cube is 9. Treads are SUBCUBE
+   plates rising 3. This is the whole reason the stair is sub-voxel.
+2. **A tread flush with the floor still blocks**: a plate at y=3 has its surface at 6, a
+   6-micro lip. The ground storey is floored (surface 3) and the first tread sits at 3.
+3. **The door opened onto the side of the stair.** Winding the spiral from an arbitrary angle
+   put a tread that had already climbed 9 micro directly inside the doorway - the probe never
+   got in (flooded 3558 cells, all at y=0, i.e. it was circling OUTSIDE). The flight now
+   starts AT the door, which is what a newel stair does anyway.
+4. **A discrete circle's ring takes DIAGONAL steps at its corners** and the agent only walks
+   orthogonally: the climb died at (5,1)->(6,2), stuck at y=15. Diagonals are now bridged with
+   the interior cell orthogonally adjacent to both, giving a genuinely 4-connected flight.
+
+Sizing is a REFUSAL, not a fudge: a 6-cube drum reports "the stair consumed the whole interior
+- no room to arrive in" and falls back to solid WITH a warning. 9 cubes (Conwy's own ~9 m
+scale) is the smallest that holds wall + stair + room. The build reports towers_walkable so a
+solid fallback can never be mistaken for a working tower.
+
+STILL OWED: the tower's door is not connected to the wall-walk or the street door-to-door (you
+can enter from outside, but the parapet walk above the curtain has no stair); no floors/ladder
+in the tower_house yet (that typology's battlements flag is still unconsumed).

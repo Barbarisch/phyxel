@@ -17,6 +17,7 @@
 #include "core/DimensionCanon.h"
 #include "core/FenceBuilder.h"
 #include "core/FloraSweep.h"
+#include "core/TowerForge.h"
 #include "core/FurnitureCatalog.h"
 #include "core/LocationRegistry.h"
 #include "core/NPCManager.h"
@@ -1111,26 +1112,94 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             // (French/German: Carcassonne, the Loire). A bare cylinder is neither, which is
             // what the first pass built.
             const int towerH = spec.heightCubes + spec.towerExtraHeight;
+            int towersUsable = 0;
             const bool conical = (spec.towerCap == "conical");
             for (const auto& tw : wp.towers) {
                 const auto cells = Core::towerFootprintCells(tw, spec.towerShape);
                 std::set<std::pair<int, int>> body;
                 for (const auto& c : cells) body.insert({tw.x + c.x, tw.z + c.y});
-                // A roof needs a room under it. The engine's agent box is 16 micro (~1.78 m),
-                // so a cone sitting straight on a solid drum is not a roof at all — it is a
-                // stone point on a lump. Under a CONE the top of the drum is therefore hollow:
-                // the rim runs full height as the chamber wall, the interior stops kChamber
-                // courses short to leave standing room. (A PARAPET tower stays solid on
-                // purpose — its flat top IS the fighting deck you stand on, behind the merlons.)
-                constexpr int kChamberCubes = 3;          // 3 m clear vs the 1.78 m agent box
-                for (const auto& [wx, wz] : body) {
-                    // A rim cell is one missing a 4-neighbour — on a drum that is the
-                    // curved face, which is exactly where merlons belong.
-                    const bool rim = !body.count({wx + 1, wz}) || !body.count({wx - 1, wz}) ||
-                                     !body.count({wx, wz + 1}) || !body.count({wx, wz - 1});
-                    const int h = (conical && !rim) ? std::max(1, towerH - kChamberCubes)
-                                                    : towerH;
-                    column(wx, wz, h, spec.crenellations && !conical && rim);
+                // A TOWER, not a drum-shaped pile: hollow shaft, a spiral stair whose treads
+                // are subcube plates (3 micro — inside the agent's 4-micro step; a cube stair
+                // is scenery), floors to arrive at, a doorway, and arrow loops. Planned by
+                // TowerForge and proven climbable by a TraversalProbe in TowerForgeTest.
+                Core::TowerSpec ts;
+                ts.shape = spec.towerShape;
+                ts.heightCubes = towerH;
+                ts.storeyCubes = 3;
+                ts.arrowLoops = true;
+                ts.battlements = spec.crenellations && !conical;
+                // Face the doorway INTO the town, so the stair is reached from the streets.
+                ts.doorSide = (tw.z <= wp.outerBound.z + 1) ? 'N'
+                            : (tw.z1() >= wp.outerBound.z1() - 1) ? 'S'
+                            : (tw.x <= wp.outerBound.x + 1) ? 'E' : 'W';
+                const Core::TowerPlan tp = Core::planTower(tw, ts);
+                if (!tp.ok) {
+                    // Honest fallback: a tower we cannot make usable is built solid and SAID
+                    // so, rather than shipping a hollow shell nobody can enter.
+                    LOG_WARN_FMT("Settlement", "tower at (" << tw.x << "," << tw.z
+                                 << ") built solid: " << tp.refusal);
+                    for (const auto& [wx, wz] : body) {
+                        const bool rimCell = !body.count({wx + 1, wz}) || !body.count({wx - 1, wz}) ||
+                                             !body.count({wx, wz + 1}) || !body.count({wx, wz - 1});
+                        column(wx, wz, towerH, spec.crenellations && !conical && rimCell);
+                    }
+                } else {
+                    ++towersUsable;
+                    // Stamp the plan. Full 9-micro courses go in as CUBES; the 3-micro
+                    // treads and floor slabs go in as SUBCUBE layers, which is what makes
+                    // the stair climbable at all.
+                    auto towerBaseMicro = [&](int lx, int lz) {
+                        return (terrainTopAt(ox + lx, oz + lz) + 1) * 9;
+                    };
+                    auto emitRange = [&](int lx, int lz, int y0m, int y1m) {
+                        const int wx = ox + lx, wz = oz + lz;
+                        const int baseM = towerBaseMicro(lx, lz);
+                        int y = y0m;
+                        while (y < y1m) {
+                            const int abs = baseM + y;
+                            if (abs % 9 == 0 && y + 9 <= y1m) {
+                                Core::VoxelPlacement v;
+                                v.position = glm::ivec3(wx, abs / 9, wz);
+                                v.material = spec.material;
+                                batch.voxels.push_back(v);
+                                toClear.push_back(v.position);
+                                y += 9;
+                            } else if (abs % 3 == 0 && y + 3 <= y1m) {
+                                const int cubeY = abs / 9, sy = (abs % 9) / 3;
+                                for (int sx = 0; sx < 3; ++sx)
+                                    for (int sz = 0; sz < 3; ++sz) {
+                                        Core::VoxelPlacement v;
+                                        v.position = glm::ivec3(wx, cubeY, wz);
+                                        v.level = Core::VoxelLevel::Subcube;
+                                        v.subcubePos = glm::ivec3(sx, sy, sz);
+                                        v.material = spec.material;
+                                        batch.voxels.push_back(v);
+                                    }
+                                toClear.push_back(glm::ivec3(wx, cubeY, wz));
+                                y += 3;
+                            } else {
+                                ++y;
+                            }
+                        }
+                    };
+                    for (const auto& w : tp.walls)
+                        emitRange(tw.x + w.cx, tw.z + w.cz, w.fromMicroY, w.toMicroY);
+                    for (const auto& pl : tp.plates)
+                        emitRange(tw.x + pl.cx, tw.z + pl.cz, pl.yMicro,
+                                  pl.yMicro + pl.thicknessMicro);
+                    // Merlons on the rim top (the fighting deck), parapet form only.
+                    if (spec.crenellations && !conical)
+                        for (const auto& [wx, wz] : body) {
+                            const bool rimCell = !body.count({wx + 1, wz}) || !body.count({wx - 1, wz}) ||
+                                                 !body.count({wx, wz + 1}) || !body.count({wx, wz - 1});
+                            if (!rimCell || ((wx + wz) % 2)) continue;
+                            const int base = terrainTopAt(ox + wx, oz + wz) + 1;
+                            Core::VoxelPlacement m;
+                            m.position = glm::ivec3(ox + wx, base + towerH, oz + wz);
+                            m.material = spec.material;
+                            batch.voxels.push_back(m);
+                            toClear.push_back(m.position);
+                        }
                 }
                 if (!conical) continue;
                 // CONICAL ("pepperpot") ROOF: rings of shrinking radius above the drum. The
@@ -1180,11 +1249,11 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             chunkManager->rebuildOccupancyFromChunks();
             LOG_INFO_FMT("Settlement", "town wall: " << placed.placed << " cubes, "
                          << wp.gates.size() << " gates, " << wp.towers.size()
-                         << " towers (line cleared " << cleared << ", displaced "
-                         << placed.displaced << ")");
+                         << " towers (" << towersUsable << " walkable), line cleared "
+                         << cleared << ", displaced " << placed.displaced);
             (*pathsJsonP)["town_wall"] = {{"built", true}, {"cubes", placed.placed},
                                           {"gates", wp.gates.size()},
-                                          {"towers", wp.towers.size()},
+                                          {"towers", wp.towers.size()}, {"towers_walkable", towersUsable},
                                           {"line_cleared", cleared},
                                           {"displaced", placed.displaced}};
             }});

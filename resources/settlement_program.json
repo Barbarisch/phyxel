@@ -82,9 +82,9 @@
           "core_ring": 24,
           "public": { "well": true, "market_square": { "w": 16, "d": 16, "stalls": 6, "statue": true } },
           "fences": { "fraction": 0.5 },
-          "walls": { "enabled": true, "height": 7, "thickness": 2, "gate_width": 7, "margin": 2, "towers": true, "tower_shape": "round", "tower_cap": "parapet", "tower_size": 6, "tower_extra_height": 3, "crenellations": true, "material": "StoneBricks" },
+          "walls": { "enabled": true, "height": 7, "thickness": 2, "gate_width": 7, "margin": 2, "towers": true, "tower_shape": "round", "tower_cap": "parapet", "tower_size": 9, "tower_extra_height": 3, "crenellations": true, "material": "StoneBricks" },
           "sources": {
-            "walls": "town/city defences: Conwy (1283-87) survives as a complete circuit - 1.3 km, 21 towers, three twin-towered gateways; York keeps the longest English circuit with its four principal bars. Height 7 / thickness 2 cubes sit inside the attested medieval band (~6-10 m tall, ~1.5-3 m thick) but are REASONED picks, not measured from one wall. Corner towers + crenellated parapet are the type's signature; gate width follows the STREET it serves so a road is never pinched",
+            "walls": "town/city defences: tower_size 9 = a ~9 m drum, Conwy's own scale, and the smallest that holds a wall, a spiral stair AND a room to arrive in (a 6 m drum refuses: the stair eats the whole interior). Conwy (1283-87) survives as a complete circuit - 1.3 km, 21 towers, three twin-towered gateways; York keeps the longest English circuit with its four principal bars. Height 7 / thickness 2 cubes sit inside the attested medieval band (~6-10 m tall, ~1.5-3 m thick) but are REASONED picks, not measured from one wall. Corner towers + crenellated parapet are the type's signature; gate width follows the STREET it serves so a road is never pinched",
             "fences.fraction": "REASONED: city fringe only (the core ring is never fenced — shouldFencePlot rule 1); half the fringe crofts keep enclosures",
             "public.market_square.stalls": "as town — trestle 'standings' on the place; count REASONED for a 16x16 square",
             "public.market_square.statue": "DESIGN DECISION (fantasy setting): civic statue at the market-cross spot — the period-strict centrepiece is the market cross (docs/CityForgePlan.md M1)",
