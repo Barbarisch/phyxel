@@ -163,6 +163,50 @@ TEST(TownWallTest, DisabledSpecPlansNothingAndSaysSo) {
     EXPECT_FALSE(p.refusal.empty());
 }
 
+// PROVENANCE (user challenge 2026-08-28: "make sure the wall is not something you added
+// manually"). The circuit must be a pure function of the PLAN — the same site and streets
+// must yield the same wall wherever it is built, and whatever happens to be growing there.
+// Live A/B found the one way that could break: place() would not overwrite an occupied cell,
+// so a tree standing on the wall line punched a hole in the crenellation and two identical
+// cities differed by exactly the cells where flora stood. The service now clears the wall
+// line before stamping; this pins the PLAN half of that contract.
+TEST(TownWallTest, ThePlanIsTranslationInvariant) {
+    const auto atOrigin = planTownWall(site(), crossroadStreets(), {}, citySpec());
+    ASSERT_TRUE(atOrigin.ok) << atOrigin.refusal;
+
+    // The same settlement planned 5000 cubes away: every run, gate and tower must land on the
+    // same RELATIVE cell. (Settlement-local coords in, so a shift is the identity test.)
+    const int dx = 5000, dz = -3000;
+    Rect moved = site();
+    moved.x += dx; moved.z += dz;
+    std::vector<Rect> movedStreets;
+    for (const auto& s : crossroadStreets())
+        movedStreets.push_back(Rect{s.x + dx, s.z + dz, s.w, s.d});
+    const auto shifted = planTownWall(moved, movedStreets, {}, citySpec());
+    ASSERT_TRUE(shifted.ok) << shifted.refusal;
+
+    ASSERT_EQ(atOrigin.runs.size(), shifted.runs.size());
+    ASSERT_EQ(atOrigin.gates.size(), shifted.gates.size());
+    ASSERT_EQ(atOrigin.towers.size(), shifted.towers.size());
+    for (size_t i = 0; i < atOrigin.runs.size(); ++i) {
+        EXPECT_EQ(atOrigin.runs[i].band.x + dx, shifted.runs[i].band.x);
+        EXPECT_EQ(atOrigin.runs[i].band.z + dz, shifted.runs[i].band.z);
+        EXPECT_EQ(atOrigin.runs[i].band.w, shifted.runs[i].band.w);
+        EXPECT_EQ(atOrigin.runs[i].band.d, shifted.runs[i].band.d);
+        EXPECT_EQ(atOrigin.runs[i].side, shifted.runs[i].side);
+    }
+    for (size_t i = 0; i < atOrigin.gates.size(); ++i) {
+        EXPECT_EQ(atOrigin.gates[i].opening.x + dx, shifted.gates[i].opening.x);
+        EXPECT_EQ(atOrigin.gates[i].opening.z + dz, shifted.gates[i].opening.z);
+        EXPECT_EQ(atOrigin.gates[i].opening.w, shifted.gates[i].opening.w);
+        EXPECT_EQ(atOrigin.gates[i].opening.d, shifted.gates[i].opening.d);
+    }
+    for (size_t i = 0; i < atOrigin.towers.size(); ++i) {
+        EXPECT_EQ(atOrigin.towers[i].x + dx, shifted.towers[i].x);
+        EXPECT_EQ(atOrigin.towers[i].z + dz, shifted.towers[i].z);
+    }
+}
+
 TEST(TownWallTest, DeterministicForTheSameSite) {
     const auto a = planTownWall(site(), crossroadStreets(), {}, citySpec());
     const auto b = planTownWall(site(), crossroadStreets(), {}, citySpec());

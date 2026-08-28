@@ -10,6 +10,14 @@ namespace {
 Rect expand(const Rect& r, int by) {
     return Rect{r.x - by, r.z - by, r.w + 2 * by, r.d + 2 * by};
 }
+/// Midpoint that FLOORS instead of truncating toward zero. Plain `(a+b)/2` shifts the
+/// answer by one cube once the coordinates go negative, so a settlement west or north of
+/// the origin got its gates one cube off from an identical settlement east of it —
+/// caught by ThePlanIsTranslationInvariant, which is exactly what that test is for.
+int midFloor(int a, int b) {
+    const int s = a + b;
+    return (s >= 0) ? (s / 2) : ((s - 1) / 2);
+}
 bool overlaps(const Rect& a, const Rect& b) {
     return a.x < b.x1() && b.x < a.x1() && a.z < b.z1() && b.z < a.z1();
 }
@@ -66,7 +74,7 @@ TownWallPlan planTownWall(const Rect& site, const std::vector<Rect>& streets,
         const int want = std::max(spec.gateWidthCubes, w.streetWidth);
         if (runHi - runLo < want) return false;          // no room between the towers
 
-        const int centre = (w.lo + w.hi) / 2;
+        const int centre = midFloor(w.lo, w.hi);
         int lo = centre - want / 2;
         lo = std::max(runLo, std::min(lo, runHi - want));
 

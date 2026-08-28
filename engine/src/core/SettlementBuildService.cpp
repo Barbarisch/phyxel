@@ -1066,10 +1066,18 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
 
             constexpr int kGateClearCubes = 4;   // headroom under the gate lintel
             Core::StructureResult batch;
+            // The wall must OWN its line. place() will not overwrite an occupied cell, so a
+            // tree standing on the wall line silently punched a hole in the circuit (found by
+            // an A/B of two identical cities: the plans matched cell-for-cell, the WORLD
+            // differed by exactly the cells where flora stood). Every wall column is cleared
+            // before it is stamped, the same way the street grader clears its corridor.
+            std::vector<glm::ivec3> toClear;
             auto column = [&](int lx, int lz, int height, bool crenellate) {
                 const int wx = ox + lx, wz = oz + lz;
                 const int base = terrainTopAt(wx, wz) + 1;
                 const bool isGate = gateCols.count({lx, lz}) > 0;
+                for (int y = base; y <= base + height; ++y)
+                    toClear.push_back(glm::ivec3(wx, y, wz));
                 // A gate column starts ABOVE the passage: the wall bridges over the road.
                 const int y0 = isGate ? base + kGateClearCubes : base;
                 for (int y = y0; y < base + height; ++y) {
@@ -1108,14 +1116,27 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                                spec.crenellations && edge);
                     }
 
+            // Clear the wall line first (trees, undergrowth, anything standing in it), then
+            // stamp — so the circuit is a pure function of the plan, not of what grew there.
+            std::map<Chunk*, std::vector<glm::ivec3>> clearByChunk;
+            for (const auto& wp2 : toClear)
+                if (Chunk* ch = chunkManager->getChunkAtFast(wp2))
+                    clearByChunk[ch].push_back(wp2 - ch->getWorldOrigin());
+            int cleared = 0;
+            for (auto& [ch, cells] : clearByChunk) {
+                cleared += ch->clearCellsBulk(cells);
+                chunkManager->markChunkDirty(ch);
+            }
             const auto placed = Core::StructureGenerator::place(chunkManager, batch);
             chunkManager->rebuildOccupancyFromChunks();
             LOG_INFO_FMT("Settlement", "town wall: " << placed.placed << " cubes, "
                          << wp.gates.size() << " gates, " << wp.towers.size()
-                         << " towers (displaced " << placed.displaced << ")");
+                         << " towers (line cleared " << cleared << ", displaced "
+                         << placed.displaced << ")");
             (*pathsJsonP)["town_wall"] = {{"built", true}, {"cubes", placed.placed},
                                           {"gates", wp.gates.size()},
                                           {"towers", wp.towers.size()},
+                                          {"line_cleared", cleared},
                                           {"displaced", placed.displaced}};
             }});
         }

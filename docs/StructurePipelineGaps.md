@@ -549,3 +549,29 @@ floating-foliage class for SETTLEMENT builds. Still open:
 - **Wall vs the WorldForge road**: gates align with the SETTLEMENT's streets. An arriving
   inter-settlement road that does not line up with a street will meet wall, not gate.
 - **Castle / keep precinct** (user-asked): not started.
+
+## 2026-08-28 - PROVENANCE AUDIT of the wall (user challenge) - two real defects found
+
+The user asked for proof the wall is a deterministic procedural feature, not hand-placement.
+Audit method: (1) enumerate every call site of the planner - exactly ONE production caller,
+the settlement pipeline; (2) confirm the walled city's world edits were only generate_world +
+build_settlement (no place_voxel/fill_region/spawn_template anywhere in the region); (3) build
+the SAME city (same seed/params) at two different origins and diff the wall cell-for-cell.
+
+Check (3) FAILED at first, and found a real defect each time:
+- **Flora punched holes in the circuit.** StructureGenerator::place does not overwrite an
+  occupied cell, so a tree standing on the wall line silently cost that cell - two identical
+  cities differed by exactly the cells where flora stood (e.g. a missing merlon at a z where
+  two Log cells sat). FIXED: the wall unit now CLEARS its line before stamping, like the
+  street grader clears its corridor. Re-run: both cities logged an identical
+  "8770 cubes, 10 gates, 4 towers, line cleared 10688, displaced 348", and a 1741-cell scan
+  of each west wall diffed to ZERO differences.
+- **Gate centring was not translation-invariant.** `(lo+hi)/2` truncates toward zero, so a
+  settlement at negative coordinates put its gates one cube off from an identical settlement
+  at positive ones. FIXED with a flooring midpoint; pinned by
+  TownWallTest.ThePlanIsTranslationInvariant (which is what caught it).
+
+LESSON worth generalising: "deterministic" needs BOTH halves proven - the plan is a pure
+function (unit test, translation-invariant), AND the stamping owns its cells (live A/B at two
+origins). Any future placer that writes into terrain should get the same two-part treatment;
+a plan-only determinism test would have passed while the world quietly differed.
