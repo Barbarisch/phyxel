@@ -5,6 +5,8 @@
 #include "core/HealthComponent.h"
 #include "core/MonsterDefinition.h"
 #include "core/DamageTypes.h"
+#include "core/SpellDefinition.h"
+#include "core/SpellcasterComponent.h"
 #include "scene/Entity.h"
 #include "utils/Logger.h"
 
@@ -196,7 +198,23 @@ void CombatAISystem::decideNextAction() {
 
     const glm::vec3 targetPos = target->getPosition();
 
-    // Try to attack first (TurnActor rejects if out of reach / no action).
+    // A CASTER casts — that is what makes it read as a caster. This sits BEFORE
+    // the melee attempt on purpose: when an ally closed on the wizard, an
+    // attack-first order had it drop fire_bolt (1d10 at range) to club with a
+    // 1d4 fist, which looked like the cast branch was broken. Melee is the
+    // FALLBACK, for when it has nothing castable left.
+    if (m_turnActor.canAct() && m_casterProvider) {
+        if (SpellcasterComponent* sc = m_casterProvider(m_actingId)) {
+            const std::string spellId = chooseSpell(*sc);
+            if (!spellId.empty()) {
+                resolveEnemyCast(enemy, *sc, spellId);
+                m_phase = Phase::Done;   // one action per turn (v1, like attacks)
+                return;
+            }
+        }
+    }
+
+    // Try to attack (TurnActor rejects if out of reach / no action).
     if (m_turnActor.canAct() && m_turnActor.requestAttack(targetPos, m_reachFeet)) {
         m_phase = Phase::Attacking;
         m_attacked = false;
@@ -222,6 +240,107 @@ void CombatAISystem::decideNextAction() {
 // ---------------------------------------------------------------------------
 // Attack resolution (D&D d20 vs AC; damage through the unified funnel)
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Spell selection + resolution (NPC casters — enemies and companions alike)
+// ---------------------------------------------------------------------------
+
+std::string CombatAISystem::chooseSpell(SpellcasterComponent& caster) const {
+    // Highest-level castable DAMAGING prepared spell wins (spend the big one
+    // while it lasts); fall back to a damaging cantrip, which never runs dry.
+    // Heals/utility are deliberately out of scope for v1 — a healer AI needs
+    // ally-HP scoring, which is its own increment.
+    const std::string* best = nullptr;
+    int bestLevel = 0;
+    for (const auto& ks : caster.knownSpells()) {
+        const SpellDefinition* def = SpellRegistry::instance().getSpell(ks.spellId);
+        if (!def || !def->hasDamage()) continue;
+        if (!caster.canCast(ks.spellId, def->level)) continue;   // prepared + slot
+        if (!best || def->level > bestLevel) { best = &ks.spellId; bestLevel = def->level; }
+    }
+    if (best) return *best;
+
+    for (const auto& id : caster.cantrips()) {
+        const SpellDefinition* def = SpellRegistry::instance().getSpell(id);
+        if (def && def->hasDamage()) return id;
+    }
+    return {};
+}
+
+void CombatAISystem::resolveEnemyCast(Scene::Entity* enemyEntity,
+                                      SpellcasterComponent& caster,
+                                      const std::string& spellId) {
+    Scene::Entity* target = (m_registry && !m_targetId.empty())
+                                ? m_registry->getEntity(m_targetId) : nullptr;
+    const SpellDefinition* def = SpellRegistry::instance().getSpell(spellId);
+    if (!target || !isAlive(target) || !def) return;
+
+    // NPCs have no CharacterSheet here, so use the monster-tier defaults the
+    // rest of this system already assumes (prof +2, +3 casting mod ~ a CR 1-4
+    // caster). A sheet-bearing NPC can be upgraded to derived stats later,
+    // exactly as the player was.
+    const int profBonus = 2, castMod = 3;
+    const int saveDC    = 8 + profBonus + castMod;
+    const int spellAtk  = profBonus + castMod;
+
+    const int slotLevel = def->isCantrip() ? 0 : def->level;
+    if (!caster.canCast(spellId, slotLevel)) return;
+
+    DiceExpression dmgExpr = def->isCantrip()
+                                 ? def->cantripDiceAt(caster.characterLevel())
+                                 : def->damageAt(def->level);
+    const int full = std::max(0, m_dice.rollExpression(dmgExpr).total);
+
+    int targetAC = 10;
+    auto* targetHC = target->getHealthComponent();
+    if (targetHC && targetHC->getMaxHealth() > 0.0f) {
+        float frac = targetHC->getHealth() / targetHC->getMaxHealth();
+        targetAC = 8 + static_cast<int>(frac * 6.0f);
+    }
+
+    int dmg = full;
+    std::string how = "auto-hits";
+    switch (def->resolutionType) {
+        case SpellResolutionType::SavingThrow: {
+            const int save = m_dice.roll(DieType::D20, 0).total;
+            const bool saved = save >= saveDC;
+            dmg = !saved ? full : (def->halfDamageOnSave ? full / 2 : 0);
+            how = "save " + std::to_string(save) + " vs DC " + std::to_string(saveDC) +
+                  (saved ? " (saved)" : " (failed)");
+            break;
+        }
+        case SpellResolutionType::AttackRoll: {
+            auto r = AttackResolver::resolveAttack(spellAtk, targetAC, dmgExpr,
+                                                   def->damageType, DamageResistance::Normal,
+                                                   false, false, m_dice);
+            dmg = r.hit ? r.finalDamage : 0;
+            how = "roll " + std::to_string(r.attackTotal) + " vs AC " + std::to_string(targetAC) +
+                  (r.hit ? " (hit)" : " (miss)");
+            break;
+        }
+        default: break;
+    }
+
+    // Spend the slot at commit time — mirrors the player's cast path, so an
+    // NPC caster genuinely runs dry instead of nuking every round.
+    if (slotLevel > 0) caster.spendSlot(slotLevel);
+
+    const std::string casterId = m_actingId, targetId = m_targetId;
+    const DamageType dtype = def->damageType;
+    auto onRelease = [this, casterId, targetId, dmg, dtype]() {
+        Scene::Entity* t = (m_registry && !targetId.empty())
+                               ? m_registry->getEntity(targetId) : nullptr;
+        if (!t || dmg <= 0) return;
+        if (m_combat) m_combat->applyDamage(t, targetId, static_cast<float>(dmg), casterId, dtype);
+        else if (auto* hc = t->getHealthComponent()) hc->takeDamage(static_cast<float>(dmg));
+    };
+
+    LOG_INFO("CombatAI", "NPC '{}' casts '{}' at '{}' for {} ({})",
+             m_actingId, spellId, m_targetId, dmg, how);
+
+    if (m_castExecutor) m_castExecutor(casterId, spellId, target->getPosition(), onRelease);
+    else                onRelease();
+}
 
 void CombatAISystem::resolveEnemyAttack(Scene::Entity* enemyEntity) {
     Scene::Entity* target = (m_registry && !m_targetId.empty())

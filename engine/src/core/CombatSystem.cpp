@@ -117,7 +117,10 @@ DamageEvent CombatSystem::applyDamage(
     if (knockback != glm::vec3(0.0f))
         target->setMoveVelocity(knockback);
 
-    LOG_INFO("Combat", "{} hit {} for {:.1f} damage (actual: {:.1f}){}",
+    // Plain {} only — this logger prints printf-style specs LITERALLY and then
+    // shifts the remaining args, so "{:.1f}" produced
+    // "hit X for {:.1f} damage (actual: {:.1f})4". Fourth instance of this bug.
+    LOG_INFO("Combat", "{} hit {} for {} damage (actual: {}){}",
              sourceId, targetId, amount, actual,
              event.killed ? " — KILLED" : "");
 

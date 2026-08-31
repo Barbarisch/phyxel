@@ -16,6 +16,8 @@
 #include "core/DiceSystem.h"
 #include "core/CharacterSheet.h"
 #include "core/SpellcasterComponent.h"
+#include "core/HealthComponent.h"
+#include "scene/Entity.h"
 #include "core/Inventory.h"
 #include "core/SceneManager.h"
 #include "core/SceneDefinition.h"
@@ -157,6 +159,26 @@ void GameApiService::registerCommands() {
              {"grounded", ch->isGrounded()},
              {"facing_yaw", ch->getYaw()},   // radians; model faces +Z at yaw 0
              {"state", ch->stateToString(ch->getAnimationState())}};
+        if (auto* hc = ch->getHealthComponent()) {
+            r["health"]     = hc->getHealth();
+            r["max_health"] = hc->getMaxHealth();
+        }
+    });
+
+    // POST /api/rpg/entity_health {id} — HP of ANY entity. Damage was
+    // previously invisible to a harness: /api/state carries no HP and
+    // get_player_state had none either, so "did that spell actually hurt
+    // anyone" could only be inferred from logs.
+    reg.on("entity_health", [this](const APICommand& cmd, json& r) {
+        if (!entityRegistry) { r = {{"error", "EntityRegistry not available"}}; return; }
+        const std::string id = cmd.params.value("id", "");
+        Scene::Entity* e = id.empty() ? nullptr : entityRegistry->getEntity(id);
+        if (!e) { r = {{"error", "unknown entity"}, {"id", id}}; return; }
+        auto* hc = e->getHealthComponent();
+        if (!hc) { r = {{"id", id}, {"has_health", false}}; return; }
+        r = {{"id", id}, {"has_health", true},
+             {"health", hc->getHealth()}, {"max_health", hc->getMaxHealth()},
+             {"alive", hc->isAlive()}};
     });
 
     reg.on("list_triggers", [this](const APICommand&, json& r) {

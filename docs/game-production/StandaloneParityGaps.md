@@ -439,6 +439,41 @@ rat, an injected LMB lands in the combat click handler: "Combat click -> cast
 docs/evidence/hearthvale/spellbar_* (armed screenshot: legible stacked bar, guiding_bolt
 glowing).
 
+## 6k. Increment 14 - the RULES bite: slots, derived DCs, NPC casters (2026-08-31)
+
+**Spells cost slots and the DC is the character's own.** The slot machinery
+(SpellcasterComponent + the PHB SpellSlotTable) had been correct and UNBOUND all along:
+casting spent only the action, so a cleric 1 had unlimited level-1 spells and every game
+shared a hardcoded DC 13. `PlayerTurnController::setSpellcaster(component, sheet)` now
+enforces prepared-ness + slot availability, SPENDS the slot (cantrips free), and derives
+save DC / spell attack / cantrip scaling from the caster's ability + the sheet's
+proficiency. `castBlockedReason()` is the ONE authority for "why not" — the cast path,
+the API's `blocked` field and the hotbar's disabled state all read it, so they cannot
+diverge; spell state is checked before turn state so "no slots" is reportable off-turn.
+New: `/api/rpg/spellbook`, `/api/rpg/long_rest`, a `long_rest` trigger action, and
+spellbar labels carrying remaining slots ("Guiding Bolt (2)") that grey out when dry.
+Green 6/6 (docs/evidence/hearthvale/slots_result.txt): DC 10 asserted against the sheet's
+own WIS modifier, exact PHB cleric-1 row, 2→1→0 one slot per cast, refusal with
+blocked="no slots", cantrips still free at zero, long rest restores.
+
+**NPC casters.** `CombatAISystem` gains a CasterProvider seam (host maps entity id →
+SpellcasterComponent, so the core stays agnostic about game.json vs MonsterDefinition)
+plus a CastExecutor mirroring the player's. It picks the highest-level castable damaging
+spell, falls back to a damaging cantrip, and spends real slots. game.json `"casters"`
+authors them. Hearthvale gains the cellar **Warden** (wizard 1, magic_missile ×2 then
+fire_bolt forever). Green 4/4: 10 casts / 0 melee swings, first cast at 10.12 units,
+exactly 2 magic_missiles then 8 fire_bolts, player-side HP 200→169.
+
+Two bugs found by failing checks: the cast branch first sat AFTER the melee attempt, so a
+wizard with an ally adjacent dropped 1d10 fire_bolt to club with a 1d4 fist (a caster
+CASTS — melee is the fallback); and a FOURTH literal-format logger bug in CombatSystem
+("hit X for {:.1f} damage" printed verbatim, args shifted). Also shipped:
+`/api/rpg/entity_health` + HP on get_player_state — **HP was not observable over the API
+at all**, so "did that spell hurt anyone" had been log-only, a verification blind spot.
+
+Open here: healer AI (ally-HP scoring), NPC casters with real sheets (they use monster-tier
+prof +2 / mod +3 defaults), concentration, and slot persistence across saves.
+
 Three findings, each caught by a failing probe check (full detail in spellbar_result.txt):
 load-order (spells parsed before the registry loaded — the loud-drop guard caught it);
 glfwGetCursorPos polls the OS cursor live and diverges from the message-fed input stream

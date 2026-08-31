@@ -1,0 +1,21 @@
+﻿NPC casters via CombatAI - 2026-08-31, Release --test 8101
+RED (pre-fix exe): CombatAI was attack-or-move only; no "NPC ... casts ..." line could
+exist and game.json "casters" was ignored entirely.
+GREEN 4/4:
+  N1 the cellar Warden joins as a 4th combatant, bound as wizard INT lvl 1 (2 slots)
+  N2 it CASTS, never melees: 10 casts, 0 melee swings, first cast at 10.12 units from
+     its target - a genuinely ranged threat
+  N3 real slot economy: magic_missile exactly 2x (its 2 level-1 slots), then fire_bolt
+     8x - the cantrip fallback when it runs dry
+  N4 the damage lands: player-side HP 200 -> 169 across the fight; per-cast damage
+     [7,8,1,0,2,2,0,3,2,5] - real rolls including misses
+TWO BUGS FOUND EN ROUTE:
+ 1. ORDERING: the cast branch first sat AFTER the melee attempt, so when Bram closed on
+    the wizard it dropped fire_bolt (1d10, ranged) to club with a 1d4 fist - and the
+    probe read 0 casts, looking like the feature was dead. A caster CASTS; melee is the
+    fallback for when nothing is castable. Cast branch moved before the attack attempt.
+ 2. Fourth literal-format logger bug: CombatSystem printed
+    "hit X for {:.1f} damage (actual: {:.1f})4" - plain {} only in this logger.
+ALSO SHIPPED: /api/rpg/entity_health {id} + health/max_health on get_player_state. HP was
+NOT observable over the API at all - damage could only be inferred from logs, which is
+why this probe's first damage check could not be written honestly.

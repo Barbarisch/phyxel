@@ -189,6 +189,7 @@ def create_project(
     # the melee pick). Ground click with a spell armed = cancel.
     extra_includes.append('#include "core/SpellcasterComponent.h"')
     extra_members.append('    Phyxel::Core::SpellcasterComponent playerCaster_;  // slots/known spells; bound to playerTurn_')
+    extra_members.append('    std::unordered_map<std::string, Phyxel::Core::SpellcasterComponent> npcCasters_;  // game.json "casters": enemy/companion spell lists for CombatAI')
     extra_members.append('    std::vector<std::string> playerSpells_;  // game.json progression.spells (SpellRegistry ids)')
     extra_members.append('    std::string armedSpell_;        // spellbar-armed spell; empty = melee/move clicks')
     extra_members.append("    Phyxel::Core::ObjectiveTracker objectiveTracker_;  // quest-log spine; game.json \"objectives\" load here")
@@ -294,6 +295,7 @@ def create_project(
         f"    void grantXP(int xp, const char* why);  // awardXP + level-up log/event",
         f"    void faceToward(Phyxel::Scene::AnimatedVoxelCharacter* ch, const glm::vec3& at);",
         f"    void playCastVisual(const std::string& spellId, const glm::vec3& targetPos, std::function<void()> onRelease);",
+        f"    void playCastVisualFor(Phyxel::Scene::AnimatedVoxelCharacter* caster, const std::string& spellId, const glm::vec3& targetPos, std::function<void()> onRelease);",
         f"    void setArmedSpell(const std::string& id);  // spellbar arm/disarm + button highlight",
         f"    void refreshSpellbar();  // repaint labels/slot counts/enabled state from live caster state",
         f"    Phyxel::Scene::AnimatedVoxelCharacter* characterOf(const std::string& entityId);",
@@ -1017,6 +1019,17 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             combatAI_.setEntityRegistry(entityRegistry_.get());
             combatAI_.setBodyProvider(bodyProvider);
             combatAI_.setCombatSystem(combatSystem_.get());
+            // NPC casters (enemies AND companions): game.json "casters" maps an
+            // entity id to {{class, level, spells}}; the AI casts from range and
+            // spends real slots. Non-casters return null and behave as before.
+            combatAI_.setCasterProvider([this](const std::string& id) -> Phyxel::Core::SpellcasterComponent* {{
+                auto it = npcCasters_.find(id);
+                return it == npcCasters_.end() ? nullptr : &it->second;
+            }});
+            combatAI_.setCastExecutor([this](const std::string& casterId, const std::string& spellId,
+                                             const glm::vec3& targetPos, std::function<void()> onRelease) {{
+                playCastVisualFor(characterOf(casterId), spellId, targetPos, std::move(onRelease));
+            }});
             playerTurn_.setCombatDirector(&combatDirector_);
             playerTurn_.setEntityRegistry(entityRegistry_.get());
             playerTurn_.setBodyProvider(bodyProvider);
@@ -1290,6 +1303,43 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     }}
                     LOG_INFO("{class_name}", "Progression: {{}} {{}} (kill_xp={{}}, objective_xp={{}}, spells={{}})",
                              playerSheet_.raceId, cl.classId, killXp_, objectiveXp_, playerSpells_.size());
+                }}
+
+                // "casters": NPC spellcasters (enemies AND companions) the
+                // CombatAI casts with —
+                //   {{"npc_Rat": {{"class":"wizard","level":1,
+                //                 "spells":["fire_bolt","magic_missile"]}}}}
+                // Same slot machinery as the player: leveled spells are prepared
+                // and really spend slots, cantrips are free.
+                if (gameDef.contains("casters") && gameDef["casters"].is_object()) {{
+                    if (Phyxel::Core::SpellRegistry::instance().count() == 0)
+                        Phyxel::Core::SpellRegistry::instance().loadFromDirectory("resources/spells");
+                    for (auto it = gameDef["casters"].begin(); it != gameDef["casters"].end(); ++it) {{
+                        const auto& cj = it.value();
+                        const std::string classId = cj.value("class", "wizard");
+                        const int lvl = std::max(1, cj.value("level", 1));
+                        const auto* cdef = Phyxel::Core::ClassRegistry::instance().getClass(classId);
+                        const std::string abilStr = cdef && !cdef->spellcastingAbility.empty()
+                                                        ? cdef->spellcastingAbility : "INT";
+                        const std::string castType = cdef && !cdef->spellcastingType.empty()
+                                                        ? cdef->spellcastingType : "full";
+                        Phyxel::Core::SpellcasterComponent sc(it.key());
+                        sc.initialize(classId, Phyxel::Core::abilityFromString(abilStr.c_str()),
+                                      lvl, castType);
+                        int learned = 0;
+                        if (cj.contains("spells") && cj["spells"].is_array())
+                            for (const auto& s : cj["spells"]) {{
+                                const std::string sid = s.get<std::string>();
+                                const auto* sd = Phyxel::Core::SpellRegistry::instance().getSpell(sid);
+                                if (!sd) {{ LOG_WARN("{class_name}", "casters['{{}}']: unknown spell '{{}}' dropped", it.key(), sid); continue; }}
+                                if (sd->isCantrip()) sc.learnCantrip(sid);
+                                else                 sc.learnSpell(sid, /*prepared=*/true);
+                                ++learned;
+                            }}
+                        LOG_INFO("{class_name}", "NPC caster '{{}}': {{}} {{}} lvl {{}}, {{}} spell(s), {{}} slot(s)",
+                                 it.key(), classId, abilStr, lvl, learned, sc.slots().totalRemaining());
+                        npcCasters_.emplace(it.key(), std::move(sc));
+                    }}
                 }}
 
                 // PERSISTENT member, not a local: the SceneManager keeps a pointer to
@@ -2208,7 +2258,13 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         void {class_name}::playCastVisual(const std::string& spellId,
                                           const glm::vec3& targetPos,
                                           std::function<void()> onRelease) {{
-            auto* caster = playerCharacter_;
+            playCastVisualFor(playerCharacter_, spellId, targetPos, std::move(onRelease));
+        }}
+
+        void {class_name}::playCastVisualFor(Phyxel::Scene::AnimatedVoxelCharacter* caster,
+                                             const std::string& spellId,
+                                             const glm::vec3& targetPos,
+                                             std::function<void()> onRelease) {{
             glm::vec3 origin = caster ? caster->getPosition() + glm::vec3(0.0f, 1.4f, 0.0f)
                                       : targetPos;
             Phyxel::VfxSpellModifiers mods;

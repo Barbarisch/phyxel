@@ -12,7 +12,8 @@
 namespace Phyxel {
 
 namespace Scene { class Entity; }
-namespace Core { class EntityRegistry; class CombatDirector; class CombatSystem; }
+namespace Core { class EntityRegistry; class CombatDirector; class CombatSystem;
+                 class SpellcasterComponent; }
 
 namespace Core {
 
@@ -61,6 +62,24 @@ public:
     /// player-side turns wait for input, so single-player behavior is unchanged.
     void setPlayerEntityId(const std::string& id)          { m_playerEntityId = id; }
 
+    /// Host-supplied caster lookup: given a combatant's entity id, return its
+    /// SpellcasterComponent (or nullptr for a non-caster). When an acting NPC
+    /// has one, the AI will CAST instead of closing to melee if it holds a
+    /// castable damaging spell and the target is out of reach. Keeps the core
+    /// data-source-agnostic: the host may back it with game.json companions,
+    /// MonsterDefinition spell lists, or anything else.
+    using CasterProvider = std::function<SpellcasterComponent*(const std::string&)>;
+    void setCasterProvider(CasterProvider provider)        { m_casterProvider = std::move(provider); }
+
+    /// Optional cast visual (animation + VFX), mirroring
+    /// PlayerTurnController::CastExecutor: the host plays the cast and invokes
+    /// onRelease at the release frame. Without it, casts resolve immediately.
+    using CastExecutor = std::function<void(const std::string& casterId,
+                                            const std::string& spellId,
+                                            const glm::vec3& targetPos,
+                                            std::function<void()> onRelease)>;
+    void setCastExecutor(CastExecutor exec)                { m_castExecutor = std::move(exec); }
+
     // -----------------------------------------------------------------------
     // Per-frame update
     // -----------------------------------------------------------------------
@@ -87,13 +106,26 @@ private:
     InitiativeTracker* tracker() const;
 
     // Per-turn phase machine (drives one enemy turn across multiple frames).
+    // Casting resolves within the frame it is chosen (the visual, if any, plays
+    // out asynchronously via the executor), so it needs no phase of its own.
     enum class Phase { Idle, Thinking, Moving, Attacking, Done };
 
     void beginEnemyTurn(const std::string& enemyId, Scene::Entity* enemyEntity);
-    void decideNextAction();                 // choose Move / Attack / Done
+    void decideNextAction();                 // choose Cast / Move / Attack / Done
     void resolveEnemyAttack(Scene::Entity* enemyEntity);
     std::string acquireTarget(const glm::vec3& fromPos, const std::string& selfId) const;
     void finishTurn();
+
+    /// The best castable damaging spell for the acting NPC ("" if none): the
+    /// highest-level castable damaging spell it has prepared, else a castable
+    /// damaging cantrip. Slots are enforced through canCast.
+    std::string chooseSpell(SpellcasterComponent& caster) const;
+
+    /// Roll + apply one NPC spell against m_targetId (attack roll / saving
+    /// throw / auto-hit), spending the slot. Routes damage through the same
+    /// CombatSystem funnel as resolveEnemyAttack.
+    void resolveEnemyCast(Scene::Entity* enemyEntity, SpellcasterComponent& caster,
+                          const std::string& spellId);
 
     // -----------------------------------------------------------------------
     // Wiring
@@ -104,6 +136,8 @@ private:
     Party*             m_party    = nullptr;
     EntityRegistry*    m_registry = nullptr;
     BodyProvider       m_bodyProvider;
+    CasterProvider     m_casterProvider;
+    CastExecutor       m_castExecutor;
 
     // -----------------------------------------------------------------------
     // Tuning
