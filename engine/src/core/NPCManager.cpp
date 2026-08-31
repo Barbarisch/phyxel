@@ -11,6 +11,7 @@
 #include "scene/behaviors/ScheduledBehavior.h"
 #include "scene/behaviors/StoryDrivenBehavior.h"
 #include "scene/behaviors/CombatBehavior.h"
+#include "scene/behaviors/RangedCasterBehavior.h"
 #include "ai/Schedule.h"
 #include "core/EntityRegistry.h"
 #include "physics/PhysicsWorld.h"
@@ -123,6 +124,16 @@ Scene::NPCEntity* NPCManager::spawnNPC(const std::string& name, const std::strin
         case NPCBehaviorType::Combat:
             behavior = std::make_unique<Scene::CombatBehavior>();
             break;
+        case NPCBehaviorType::RangedCaster: {
+            // Loadout (spells/faction/tuning) is applied by the host after
+            // spawn via getBehavior() — same pattern as CombatBehavior's
+            // weapon + faction. The cast hook is attached HERE so every caster
+            // routes damage through the host funnel by default.
+            auto rc = std::make_unique<Scene::RangedCasterBehavior>();
+            if (m_casterCastHook) rc->setCastHook(m_casterCastHook);
+            behavior = std::move(rc);
+            break;
+        }
         case NPCBehaviorType::Idle:
         default:
             behavior = std::make_unique<Scene::IdleBehavior>();
@@ -715,6 +726,16 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
         case NPCBehaviorType::Combat:
             behavior = std::make_unique<Scene::CombatBehavior>();
             break;
+        case NPCBehaviorType::RangedCaster: {
+            // Loadout (spells/faction/tuning) is applied by the host after
+            // spawn via getBehavior() — same pattern as CombatBehavior's
+            // weapon + faction. The cast hook is attached HERE so every caster
+            // routes damage through the host funnel by default.
+            auto rc = std::make_unique<Scene::RangedCasterBehavior>();
+            if (m_casterCastHook) rc->setCastHook(m_casterCastHook);
+            behavior = std::move(rc);
+            break;
+        }
         case NPCBehaviorType::Idle:
         default:
             behavior = std::make_unique<Scene::IdleBehavior>();
@@ -815,6 +836,16 @@ Scene::NPCEntity* NPCManager::spawnPhysicsNPC(const std::string& name, const std
         case NPCBehaviorType::Combat:
             behavior = std::make_unique<Scene::CombatBehavior>();
             break;
+        case NPCBehaviorType::RangedCaster: {
+            // Loadout (spells/faction/tuning) is applied by the host after
+            // spawn via getBehavior() — same pattern as CombatBehavior's
+            // weapon + faction. The cast hook is attached HERE so every caster
+            // routes damage through the host funnel by default.
+            auto rc = std::make_unique<Scene::RangedCasterBehavior>();
+            if (m_casterCastHook) rc->setCastHook(m_casterCastHook);
+            behavior = std::move(rc);
+            break;
+        }
         case NPCBehaviorType::Idle:
         default:
             behavior = std::make_unique<Scene::IdleBehavior>();
@@ -926,6 +957,16 @@ Scene::NPCEntity* NPCManager::spawnPhysicsProceduralNPC(const std::string& name,
         case NPCBehaviorType::Combat:
             behavior = std::make_unique<Scene::CombatBehavior>();
             break;
+        case NPCBehaviorType::RangedCaster: {
+            // Loadout (spells/faction/tuning) is applied by the host after
+            // spawn via getBehavior() — same pattern as CombatBehavior's
+            // weapon + faction. The cast hook is attached HERE so every caster
+            // routes damage through the host funnel by default.
+            auto rc = std::make_unique<Scene::RangedCasterBehavior>();
+            if (m_casterCastHook) rc->setCastHook(m_casterCastHook);
+            behavior = std::move(rc);
+            break;
+        }
         case NPCBehaviorType::Idle:
         default:
             behavior = std::make_unique<Scene::IdleBehavior>();

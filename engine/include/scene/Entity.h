@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <string>
 
 namespace Phyxel {
 
@@ -52,10 +53,24 @@ public:
     virtual Core::HealthComponent* getHealthComponent() { return nullptr; }
     virtual const Core::HealthComponent* getHealthComponent() const { return nullptr; }
 
+    // ── Faction / team ───────────────────────────────────────────
+    // Which side this entity fights for. Lives on the ENTITY (not on a
+    // behavior) precisely so one combatant can read ANOTHER's allegiance
+    // during target selection — that is the whole point of teams. Empty =
+    // unaligned, hostile to everyone (the historical free-for-all default).
+    void setFaction(const std::string& f) { faction_ = f; }
+    const std::string& faction() const { return faction_; }
+    /// True when these two should fight: different NAMED factions are hostile;
+    /// an unaligned side (empty tag) is hostile to all, including its own kind.
+    bool hostileTo(const Entity& other) const {
+        return faction_.empty() || other.faction_.empty() || faction_ != other.faction_;
+    }
+
 protected:
     glm::vec3 position = glm::vec3(0.0f);
     glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     glm::vec3 scale = glm::vec3(1.0f);
+    std::string faction_;   ///< team tag; empty = unaligned (hostile to all)
 };
 
 } // namespace Scene

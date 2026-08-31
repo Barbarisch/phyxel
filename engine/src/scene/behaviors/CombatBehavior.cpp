@@ -37,6 +37,11 @@ void CombatBehavior::ensureWired(NPCContext& ctx, AnimatedVoxelCharacter* charac
     if (m_wired || !character) return;
     m_wired = true;
 
+    // Publish our allegiance on the entity so OTHER combatants can see it
+    // when they pick targets (Entity::hostileTo). Without this the tag would
+    // only be visible to ourselves, which is useless for choosing sides.
+    if (ctx.self && !m_faction.empty()) ctx.self->setFaction(m_faction);
+
     // Resolve the moveset from the held weapon via the same mapper the player
     // uses (unarmed = boxing/elbow/kick when no weapon). Lets enemies wield
     // swords/spears/etc. by setting a weapon id.
@@ -84,7 +89,9 @@ void CombatBehavior::ensureWired(NPCContext& ctx, AnimatedVoxelCharacter* charac
             p.coneAngleDeg = 150.0f;  // origin already at the hand
             auto events = combat->performAttack(p, *reg);
             for (const auto& ev : events) {
-                LOG_INFO("CombatAI", "{} hit {} for {:.1f} dmg{}",
+                // Plain {} only — the logger prints printf specs literally and
+                // shifts args (5th instance of this bug in the codebase).
+                LOG_INFO("CombatAI", "{} hit {} for {} dmg{}",
                          selfId, ev.targetId, ev.actualDamage, ev.killed ? " (killed)" : "");
             }
         });
@@ -102,6 +109,12 @@ std::string CombatBehavior::acquireTarget(NPCContext& ctx, const glm::vec3& self
             if (!e || e == ctx.self) continue;          // skip self
             const auto* hp = e->getHealthComponent();
             if (!hp || !hp->isAlive()) continue;         // skip dead / healthless
+            // FACTION: never target an ally. The header always promised this
+            // ("combat NPCs only target entities whose faction differs") but
+            // the check was missing, so any group fight was a free-for-all —
+            // a 20v20 had everyone hitting their nearest neighbour regardless
+            // of side. Allegiance lives on the ENTITY so we can read theirs.
+            if (!ctx.self->hostileTo(*e)) continue;
             const glm::vec3 d = e->getPosition() - selfPos;
             const float d2 = d.x * d.x + d.z * d.z;
             if (d2 < bestD2) { bestD2 = d2; best = id; }

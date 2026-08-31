@@ -21,6 +21,8 @@
 #include "core/DamageTypes.h"
 #include "core/CombatLog.h"
 #include "scene/Entity.h"
+#include <map>
+#include <array>
 #include "core/Inventory.h"
 #include "core/SceneManager.h"
 #include "core/SceneDefinition.h"
@@ -411,6 +413,39 @@ void GameApiService::registerCommands() {
         r = {{"id", id}, {"applied", amount},
              {"health", hc->getHealth()}, {"max_health", hc->getMaxHealth()},
              {"alive", hc->isAlive()}, {"via_funnel", combatSystem != nullptr}};
+    });
+
+    // POST /api/rpg/battle_stats — live roll-up of a REAL-TIME battle: who is
+    // alive per faction, total/remaining HP, and the frame cost. The observable
+    // for large-scale sims, where reading 40 individual entities per poll is
+    // both slow and unreadable.
+    reg.on("battle_stats", [this](const APICommand&, json& r) {
+        if (!entityRegistry) { r = {{"error", "EntityRegistry not available"}}; return; }
+        // faction -> {alive, dead, hp, max_hp}
+        std::map<std::string, std::array<double, 4>> byFaction;
+        int totalAlive = 0, totalDead = 0;
+        for (const char* type : {"animated", "npc"}) {
+            for (const auto& [id, e] : entityRegistry->getEntitiesByType(type)) {
+                if (!e) continue;
+                auto* hc = e->getHealthComponent();
+                const std::string f = e->faction().empty() ? "(unaligned)" : e->faction();
+                auto& slot = byFaction[f];
+                const bool alive = hc && hc->isAlive();
+                if (alive) { slot[0] += 1; ++totalAlive; } else { slot[1] += 1; ++totalDead; }
+                if (hc) { slot[2] += hc->getHealth(); slot[3] += hc->getMaxHealth(); }
+            }
+        }
+        json factions = json::array();
+        for (const auto& [name, s] : byFaction)
+            factions.push_back({{"faction", name}, {"alive", (int)s[0]}, {"dead", (int)s[1]},
+                                {"hp", s[2]}, {"max_hp", s[3]}});
+        r = {{"factions", factions}, {"alive", totalAlive}, {"dead", totalDead},
+             {"combatants", totalAlive + totalDead}};
+        if (runtime) {
+            const float dt = runtime->getLastDeltaTime();
+            r["frame_ms"] = dt * 1000.0f;
+            r["fps"]      = dt > 0.0f ? 1.0f / dt : 0.0f;
+        }
     });
 
     // POST /api/rpg/combat/log {since, limit} — the AI DECISION log: why each

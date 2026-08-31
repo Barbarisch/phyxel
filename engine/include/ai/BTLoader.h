@@ -2,6 +2,7 @@
 
 #include "ai/BehaviorTree.h"
 #include "ai/ActionSystem.h"
+#include "ai/BTActionRegistry.h"
 #include <fstream>
 #include <stdexcept>
 
@@ -119,6 +120,16 @@ private:
     static BTNodePtr parseAction(const nlohmann::json& j) {
         std::string actionType = j.value("action", "");
         std::shared_ptr<NPCAction> action;
+
+        // GAME-REGISTERED ACTIONS FIRST (BTActionRegistry): a game extends the
+        // engine's vocabulary rather than editing the engine, and may also
+        // override a built-in with its own version. This is what lets new AI
+        // be authored as JSON + host-registered verbs, with no engine rebuild.
+        if (!actionType.empty()) {
+            if (auto custom = BTActionRegistry::instance().create(actionType, j)) {
+                return std::make_shared<ActionNode>(std::move(custom));
+            }
+        }
 
         if (actionType == "MoveTo") {
             float x = j.value("x", 0.0f);

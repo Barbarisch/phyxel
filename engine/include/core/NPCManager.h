@@ -43,7 +43,8 @@ enum class NPCBehaviorType {
     Follow,          ///< Follow the player entity (party companions in exploration)
     BehaviorTree,    ///< AI-driven via BehaviorTree / UtilityAI
     Scheduled,       ///< Schedule-driven: time-aware behavior tree
-    Combat           ///< Real-time melee enemy (CombatBehavior): approach/strafe/attack/back-off
+    Combat,          ///< Real-time melee enemy (CombatBehavior): approach/strafe/attack/back-off
+    RangedCaster     ///< Real-time spellcaster (RangedCasterBehavior): hold range, cast on cooldown
 };
 
 /// NPCManager owns NPC entities and manages their lifecycle.
@@ -162,6 +163,16 @@ public:
     /// Get total NPC count.
     size_t getNPCCount() const { return m_npcs.size(); }
 
+    /// Cast hook handed to every RangedCasterBehavior this manager spawns, so
+    /// real-time spell damage goes through the host's cast visual + damage
+    /// funnel instead of the raw-damage fallback. Set once at startup.
+    using CasterCastHook = std::function<void(const std::string& casterId,
+                                              const std::string& spellId,
+                                              const std::string& targetId,
+                                              const glm::vec3& targetPos,
+                                              float damage)>;
+    void setCasterCastHook(CasterCastHook hook) { m_casterCastHook = std::move(hook); }
+
     /// Visit every live NPC (suspension sweeps on combat edges, bulk queries).
     void forEachNPC(const std::function<void(Scene::NPCEntity&)>& fn) {
         for (auto& [name, npc] : m_npcs) if (npc) fn(*npc);
@@ -230,6 +241,7 @@ private:
 
     /// Owns all NPC entities. Key = NPC name.
     std::unordered_map<std::string, std::unique_ptr<Scene::NPCEntity>> m_npcs;
+    CasterCastHook m_casterCastHook;   ///< handed to RangedCasterBehavior on spawn
     Scene::AnimatedVoxelCharacter::WaterHooks m_waterHooks;  // copied onto each spawn (Phase E)
 
     /// Cached .anim templates: animFile -> {skeleton, voxelModel, clips}

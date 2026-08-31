@@ -73,7 +73,10 @@ private:
 
 public:
     /// Faction tag — combat NPCs only target entities whose faction differs
-    /// (empty = hostile to everyone, the default). Lets two NPCs duel.
+    /// (empty = hostile to everyone, the default). Lets two NPCs duel, and
+    /// lets N-vs-N battles hold their lines. Mirrored onto the OWNING ENTITY
+    /// on the first update, because target selection has to read the
+    /// allegiance of OTHER combatants, not just its own.
     void setFaction(const std::string& f) { m_faction = f; }
     /// Equip a weapon by item id; the moveset is resolved from it like the
     /// player's held weapon (empty = unarmed). Set before the first update.

@@ -190,6 +190,9 @@ def create_project(
     # the melee pick). Ground click with a spell armed = cancel.
     extra_includes.append('#include "core/SpellcasterComponent.h"')
     extra_includes.append('#include "core/CombatLog.h"')
+    # Behavior-tree action vocabulary registered by this game (registerBehaviorActions)
+    extra_includes.append('#include "ai/BTActionRegistry.h"')
+    extra_includes.append('#include "ai/ActionSystem.h"')
     extra_members.append('    Phyxel::Core::SpellcasterComponent playerCaster_;  // slots/known spells; bound to playerTurn_')
     extra_members.append('    std::unordered_map<std::string, Phyxel::Core::SpellcasterComponent> npcCasters_;  // game.json "casters": enemy/companion spell lists for CombatAI')
     extra_members.append('    std::unordered_map<std::string, Phyxel::Core::CombatTactics> npcTactics_;  // game.json "combat_ai": per-NPC tactical profile')
@@ -303,6 +306,7 @@ def create_project(
         f"    void playCastVisual(const std::string& spellId, const glm::vec3& targetPos, std::function<void()> onRelease);",
         f"    void playCastVisualFor(Phyxel::Scene::AnimatedVoxelCharacter* caster, const std::string& spellId, const glm::vec3& targetPos, std::function<void()> onRelease);",
         f"    void setArmedSpell(const std::string& id);  // spellbar arm/disarm + button highlight",
+        f"    void registerBehaviorActions();  // this game's BT action verbs (BTActionRegistry)",
         f"    void refreshSpellbar();  // repaint labels/slot counts/enabled state from live caster state",
         f"    Phyxel::Scene::AnimatedVoxelCharacter* characterOf(const std::string& entityId);",
         f"    void faceCombatants();  // everyone faces the nearest opposing-side combatant",
@@ -747,6 +751,25 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             npcManager_->setPhysicsWorld(engine.getPhysicsWorld());
             npcManager_->setChunkManager(engine.getChunkManager());  // NavGrid needs a chunk source (pathfinding + test-API reachability)
             npcManager_->setEntityRegistry(entityRegistry_.get());
+            registerBehaviorActions();
+            // Real-time casters (RangedCasterBehavior) route their spells
+            // through the SAME cast visual + damage funnel as everyone else.
+            // Without this they fall back to raw takeDamage: no VFX, no death
+            // events, no logs — a 20v20 where combatants died of nothing.
+            npcManager_->setCasterCastHook(
+                [this](const std::string& casterId, const std::string& spellId,
+                       const std::string& targetId, const glm::vec3& targetPos, float damage) {{
+                    auto* target = entityRegistry_ ? entityRegistry_->getEntity(targetId) : nullptr;
+                    playCastVisualFor(characterOf(casterId), spellId, targetPos,
+                        [this, target, targetId, casterId, damage]() {{
+                            if (!target) return;
+                            if (combatSystem_)
+                                combatSystem_->applyDamage(target, targetId, damage, casterId,
+                                                           Phyxel::Core::DamageType::Fire);
+                            else if (auto* hc = target->getHealthComponent())
+                                hc->takeDamage(damage);
+                        }});
+                }});
 
             dialogueSystem_ = std::make_unique<Phyxel::UI::DialogueSystem>();
             speechBubbleManager_ = std::make_unique<Phyxel::UI::SpeechBubbleManager>();
@@ -2405,6 +2428,145 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             const float dx = at.x - from.x, dz = at.z - from.z;
             if (dx * dx + dz * dz < 0.01f) return;   // on top of each other — keep facing
             ch->setFacingYaw(std::atan2(dx, dz));
+        }}
+
+        // ====================================================================
+        // Behavior-tree ACTION VOCABULARY (game-side, no engine changes)
+        // ====================================================================
+        // These are the verbs this GAME offers to JSON-authored behavior trees.
+        // They live here, not in the engine, which is the point: adding a new
+        // kind of fighter should be a game-side edit (a ~2 minute build) or
+        // pure data, never an engine rebuild.
+        //
+        // Author a behavior in game.json / a .bt.json file:
+        //   {{"type":"Selector","children":[
+        //      {{"type":"Action","action":"flee_below","hp":0.3}},
+        //      {{"type":"Action","action":"keep_distance","range":14}},
+        //      {{"type":"Action","action":"cast_at_enemy","spell":"fire_bolt",
+        //        "cooldown":2.0,"damage":9}},
+        //      {{"type":"Action","action":"charge_enemy","speed":1.0}}]}}
+        void {class_name}::registerBehaviorActions() {{
+            auto& reg = Phyxel::AI::BTActionRegistry::instance();
+
+            // Nearest hostile (faction-aware) — the shared helper the verbs use.
+            auto nearestFoe = [](Phyxel::AI::ActionContext& ctx) -> Phyxel::Scene::Entity* {{
+                if (!ctx.entityRegistry || !ctx.self) return nullptr;
+                Phyxel::Scene::Entity* best = nullptr;
+                float bestD2 = 1e9f;
+                for (const char* type : {{"animated", "npc"}}) {{
+                    for (const auto& [id, e] : ctx.entityRegistry->getEntitiesByType(type)) {{
+                        if (!e || e == ctx.self) continue;
+                        auto* hc = e->getHealthComponent();
+                        if (!hc || !hc->isAlive()) continue;
+                        if (!ctx.self->hostileTo(*e)) continue;
+                        const glm::vec3 d = e->getPosition() - ctx.self->getPosition();
+                        const float d2 = d.x * d.x + d.z * d.z;
+                        if (d2 < bestD2) {{ bestD2 = d2; best = e; }}
+                    }}
+                }}
+                return best;
+            }};
+            auto charOf = [](Phyxel::Scene::Entity* e) -> Phyxel::Scene::AnimatedVoxelCharacter* {{
+                if (auto* npc = dynamic_cast<Phyxel::Scene::NPCEntity*>(e)) return npc->getAnimatedCharacter();
+                return dynamic_cast<Phyxel::Scene::AnimatedVoxelCharacter*>(e);
+            }};
+
+            // charge_enemy: close on the nearest foe and swing in reach.
+            reg.add("charge_enemy", [nearestFoe, charOf](const nlohmann::json& p) {{
+                const float speed = p.value("speed", 1.0f);
+                const float reach = p.value("reach", 2.0f);
+                return Phyxel::AI::makeAction("charge_enemy",
+                    [nearestFoe, charOf, speed, reach](float, Phyxel::AI::ActionContext& ctx) {{
+                        auto* foe = nearestFoe(ctx);
+                        auto* me  = charOf(ctx.self);
+                        if (!foe || !me) return Phyxel::AI::ActionStatus::Failure;
+                        glm::vec3 to = foe->getPosition() - ctx.self->getPosition(); to.y = 0.0f;
+                        const float d = glm::length(to);
+                        if (d > 1e-4f) me->setFacingYaw(std::atan2(to.x / d, to.z / d));
+                        if (d <= reach) {{ me->setControlInput(0.0f, 0.0f, 0.0f); me->lightAttack(); }}
+                        else            {{ me->setControlInput(-speed, 0.0f, 0.0f); }}
+                        return Phyxel::AI::ActionStatus::Running;
+                    }});
+            }});
+
+            // keep_distance: hold a stand-off band from the nearest foe.
+            reg.add("keep_distance", [nearestFoe, charOf](const nlohmann::json& p) {{
+                const float want  = p.value("range", 12.0f);
+                const float speed = p.value("speed", 0.8f);
+                return Phyxel::AI::makeAction("keep_distance",
+                    [nearestFoe, charOf, want, speed](float, Phyxel::AI::ActionContext& ctx) {{
+                        auto* foe = nearestFoe(ctx);
+                        auto* me  = charOf(ctx.self);
+                        if (!foe || !me) return Phyxel::AI::ActionStatus::Failure;
+                        glm::vec3 to = foe->getPosition() - ctx.self->getPosition(); to.y = 0.0f;
+                        const float d = glm::length(to);
+                        if (d > 1e-4f) me->setFacingYaw(std::atan2(to.x / d, to.z / d));
+                        if (d < want * 0.6f)      me->setControlInput(speed, 0.0f, 0.0f);   // back off
+                        else if (d > want * 1.2f) me->setControlInput(-speed, 0.0f, 0.0f);  // close in
+                        else                      me->setControlInput(0.0f, 0.0f, 0.0f);
+                        return Phyxel::AI::ActionStatus::Running;
+                    }});
+            }});
+
+            // cast_at_enemy: throw a spell on a cooldown, through the game's
+            // own cast visual + the damage funnel.
+            reg.add("cast_at_enemy", [this, nearestFoe, charOf](const nlohmann::json& p) {{
+                const std::string spell = p.value("spell", "fire_bolt");
+                const float cooldown    = p.value("cooldown", 2.0f);
+                const float damage      = p.value("damage", 8.0f);
+                const float range       = p.value("range", 30.0f);
+                auto timer = std::make_shared<float>(0.0f);
+                return Phyxel::AI::makeAction("cast_at_enemy",
+                    [this, nearestFoe, charOf, spell, cooldown, damage, range, timer]
+                    (float dt, Phyxel::AI::ActionContext& ctx) {{
+                        if (*timer > 0.0f) *timer -= dt;
+                        auto* foe = nearestFoe(ctx);
+                        if (!foe) return Phyxel::AI::ActionStatus::Failure;
+                        glm::vec3 to = foe->getPosition() - ctx.self->getPosition(); to.y = 0.0f;
+                        const float d = glm::length(to);
+                        if (d > range) return Phyxel::AI::ActionStatus::Failure;
+                        if (auto* me = charOf(ctx.self))
+                            if (d > 1e-4f) me->setFacingYaw(std::atan2(to.x / d, to.z / d));
+                        if (*timer <= 0.0f) {{
+                            *timer = cooldown;
+                            const std::string tid = ctx.entityRegistry
+                                ? ctx.entityRegistry->getEntityId(foe) : std::string();
+                            const std::string sid = ctx.selfId;
+                            const glm::vec3 tp = foe->getPosition();
+                            playCastVisualFor(charOf(ctx.self), spell, tp,
+                                [this, foe, tid, sid, damage]() {{
+                                    if (combatSystem_)
+                                        combatSystem_->applyDamage(foe, tid, damage, sid,
+                                                                   Phyxel::Core::DamageType::Fire);
+                                }});
+                        }}
+                        return Phyxel::AI::ActionStatus::Running;
+                    }});
+            }});
+
+            // flee_below: run from the nearest foe under an hp fraction.
+            reg.add("flee_below", [nearestFoe, charOf](const nlohmann::json& p) {{
+                const float frac  = p.value("hp", 0.3f);
+                const float speed = p.value("speed", 1.0f);
+                return Phyxel::AI::makeAction("flee_below",
+                    [nearestFoe, charOf, frac, speed](float, Phyxel::AI::ActionContext& ctx) {{
+                        auto* hc = ctx.self ? ctx.self->getHealthComponent() : nullptr;
+                        if (!hc || hc->getMaxHealth() <= 0.0f) return Phyxel::AI::ActionStatus::Failure;
+                        if (hc->getHealth() / hc->getMaxHealth() >= frac)
+                            return Phyxel::AI::ActionStatus::Failure;   // not afraid yet
+                        auto* foe = nearestFoe(ctx);
+                        auto* me  = charOf(ctx.self);
+                        if (!foe || !me) return Phyxel::AI::ActionStatus::Failure;
+                        glm::vec3 away = ctx.self->getPosition() - foe->getPosition(); away.y = 0.0f;
+                        const float d = glm::length(away);
+                        if (d > 1e-4f) me->setFacingYaw(std::atan2(away.x / d, away.z / d));
+                        me->setControlInput(-speed, 0.0f, 0.0f);
+                        return Phyxel::AI::ActionStatus::Running;
+                    }});
+            }});
+
+            LOG_INFO("{class_name}", "Behavior actions registered: {{}}",
+                     static_cast<int>(reg.names().size()));
         }}
 
         // Arm/disarm a spellbar spell. The armed slot glows ember through the

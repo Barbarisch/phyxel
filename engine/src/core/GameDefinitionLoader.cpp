@@ -21,6 +21,8 @@
 #include "scene/AnimatedVoxelCharacter.h"
 #include "scene/behaviors/ScheduledBehavior.h"
 #include "scene/behaviors/StoryDrivenBehavior.h"
+#include "scene/behaviors/CombatBehavior.h"
+#include "scene/behaviors/RangedCasterBehavior.h"
 #include "ai/Schedule.h"
 #include "ai/BTLoader.h"
 #include "graphics/Camera.h"
@@ -836,6 +838,10 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
             behaviorType = NPCBehaviorType::BehaviorTree;
         } else if (behaviorStr == "scheduled") {
             behaviorType = NPCBehaviorType::Scheduled;
+        } else if (behaviorStr == "combat") {
+            behaviorType = NPCBehaviorType::Combat;        // real-time melee
+        } else if (behaviorStr == "caster") {
+            behaviorType = NPCBehaviorType::RangedCaster;  // real-time spellcaster
         }
 
         std::string npcRole = npcDef.value("role", "");
@@ -852,6 +858,35 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
             continue;
         }
         result.npcsSpawned++;
+
+        // FACTION + real-time combat loadout. "faction" picks the side (empty =
+        // unaligned, hostile to everyone); it is published on the ENTITY so
+        // other combatants can read it when choosing targets. Melee fighters
+        // take a "weapon"; casters take "spells" plus range/cooldown tuning.
+        const std::string faction = npcDef.value("faction", "");
+        if (!faction.empty()) npc->setFaction(faction);
+        if (behaviorType == NPCBehaviorType::Combat) {
+            if (auto* cb = dynamic_cast<Scene::CombatBehavior*>(npc->getBehavior())) {
+                if (!faction.empty()) cb->setFaction(faction);
+                if (npcDef.contains("weapon")) cb->setWeapon(npcDef["weapon"].get<std::string>());
+                if (npcDef.contains("aggro_range"))    cb->setAggroRange(npcDef["aggro_range"].get<float>());
+                if (npcDef.contains("attack_damage"))  cb->setAttackDamage(npcDef["attack_damage"].get<float>());
+                if (npcDef.contains("attack_cooldown"))cb->setAttackCooldown(npcDef["attack_cooldown"].get<float>());
+            }
+        } else if (behaviorType == NPCBehaviorType::RangedCaster) {
+            if (auto* rb = dynamic_cast<Scene::RangedCasterBehavior*>(npc->getBehavior())) {
+                if (!faction.empty()) rb->setFaction(faction);
+                if (npcDef.contains("spells") && npcDef["spells"].is_array()) {
+                    std::vector<std::string> spells;
+                    for (const auto& s : npcDef["spells"]) spells.push_back(s.get<std::string>());
+                    rb->setSpells(std::move(spells));
+                }
+                if (npcDef.contains("aggro_range"))     rb->setAggroRange(npcDef["aggro_range"].get<float>());
+                if (npcDef.contains("preferred_range")) rb->setPreferredRange(npcDef["preferred_range"].get<float>());
+                if (npcDef.contains("cast_cooldown"))   rb->setCastCooldown(npcDef["cast_cooldown"].get<float>());
+                if (npcDef.contains("spell_damage"))    rb->setDamage(npcDef["spell_damage"].get<float>());
+            }
+        }
 
         // Race/definition gait flavor: FSM state -> clip overrides (halfling
         // scamper, ogre prowl) resolved by CharacterVisualResolver.
