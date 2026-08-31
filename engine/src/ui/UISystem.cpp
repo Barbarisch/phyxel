@@ -306,11 +306,20 @@ void UISystem::addWorldLabel(glm::vec2 screenPos, const std::string& text,
     worldLabels_.push_back({screenPos, text, textColor, bgAlpha});
 }
 
+void UISystem::addNameplate(const Nameplate& plate) {
+    if (plate.name.empty()) return;
+    nameplates_.push_back(plate);
+}
+
 void UISystem::render(VkCommandBuffer cmd) {
     // Draw whenever there are visible screens OR queued world labels (a speech
     // bubble can show with no HUD panel visible).
-    if (!initialized_ || (!hasVisibleScreens() && worldLabels_.empty())) {
+    // Nameplates count as content too — without them in this guard, a scene
+    // with no visible HUD screens would silently drop every queued plate.
+    if (!initialized_ ||
+        (!hasVisibleScreens() && worldLabels_.empty() && nameplates_.empty())) {
         worldLabels_.clear();
+        nameplates_.clear();
         return;
     }
 
@@ -347,6 +356,78 @@ void UISystem::render(VkCommandBuffer cmd) {
                        wl.textColor, theme_.textScale);
     }
     worldLabels_.clear();
+
+    // Combat NAMEPLATES: name + health bar (+ targeting subtitle + selection
+    // bracket) above each character. Drawn after the labels so a selected
+    // target reads clearly over everything else.
+    for (const auto& np : nameplates_) {
+        const float s      = np.scale;
+        const float barW   = 84.0f * s;
+        const float barH   = 7.0f  * s;
+        const float nameSc = theme_.textScale * 0.75f * s;
+        const float subSc  = theme_.textScale * 0.6f  * s;
+        const float nameH  = font_.lineHeight(nameSc);
+        const float subH   = np.subtitle.empty() ? 0.0f : font_.lineHeight(subSc);
+
+        // Layout, anchored at the head: the BAR sits on the anchor line, the
+        // NAME stacks above it, and the targeting subtitle hangs BELOW — so
+        // the wide readout never crowds the name or the bracket.
+        const float barTop = np.screenPos.y - barH;
+
+        // Health bar: green -> amber -> red as it drains, on a dark backing.
+        const float f = glm::clamp(np.hpFrac, 0.0f, 1.0f);
+        const glm::vec4 fill = (f > 0.6f) ? glm::vec4(0.35f, 0.75f, 0.35f, 0.95f)
+                             : (f > 0.3f) ? glm::vec4(0.85f, 0.70f, 0.25f, 0.95f)
+                                          : glm::vec4(0.80f, 0.25f, 0.22f, 0.95f);
+        const glm::vec2 barPos(np.screenPos.x - barW * 0.5f, barTop);
+        renderer_.drawRect(barPos - glm::vec2(1.0f), {barW + 2.0f, barH + 2.0f},
+                           {0.03f, 0.03f, 0.05f, 0.85f});
+        renderer_.drawRect(barPos, {barW * f, barH}, fill);
+
+        // Name, directly above the bar.
+        const float nameW  = font_.measureText(np.name, nameSc);
+        const float nameY  = barTop - 2.0f * s - nameH;
+        const glm::vec4 nameCol = np.selected ? glm::vec4(1.0f, 0.85f, 0.45f, 1.0f)
+                                : np.hostile  ? glm::vec4(0.95f, 0.62f, 0.55f, 1.0f)
+                                              : glm::vec4(0.62f, 0.90f, 0.72f, 1.0f);
+        renderer_.drawRect({np.screenPos.x - nameW * 0.5f - 4.0f, nameY},
+                           {nameW + 8.0f, nameH},
+                           {0.04f, 0.04f, 0.06f, np.selected ? 0.80f : 0.55f});
+        font_.drawText(&renderer_, np.name, {np.screenPos.x - nameW * 0.5f, nameY},
+                       nameCol, nameSc);
+
+        // Targeting readout below the bar, on its own dark plate so it stays
+        // legible over bright terrain.
+        if (!np.subtitle.empty()) {
+            const float w  = font_.measureText(np.subtitle, subSc);
+            const float sy = np.screenPos.y + 3.0f * s;
+            renderer_.drawRect({np.screenPos.x - w * 0.5f - 4.0f, sy},
+                               {w + 8.0f, subH}, {0.04f, 0.04f, 0.06f, 0.78f});
+            font_.drawText(&renderer_, np.subtitle,
+                           {np.screenPos.x - w * 0.5f, sy}, {0.98f, 0.90f, 0.62f, 1.0f}, subSc);
+        }
+
+        // Selection bracket: corner ticks around the name+bar block, so the
+        // current target is unmistakable at a glance.
+        if (np.selected) {
+            const float halfW = std::max(barW, nameW + 12.0f) * 0.5f + 6.0f;
+            const float top   = nameY - 3.0f;
+            const float bot   = np.screenPos.y + 3.0f;
+            const float t     = 2.0f;            // tick thickness
+            const float len   = 10.0f * s;       // tick length
+            const glm::vec4 c(1.0f, 0.78f, 0.35f, 0.95f);
+            const float L = np.screenPos.x - halfW, R = np.screenPos.x + halfW - t;
+            renderer_.drawRect({L, top}, {len, t}, c);
+            renderer_.drawRect({L, top}, {t, len}, c);
+            renderer_.drawRect({R - len + t, top}, {len, t}, c);
+            renderer_.drawRect({R, top}, {t, len}, c);
+            renderer_.drawRect({L, bot - t}, {len, t}, c);
+            renderer_.drawRect({L, bot - len}, {t, len}, c);
+            renderer_.drawRect({R - len + t, bot - t}, {len, t}, c);
+            renderer_.drawRect({R, bot - len}, {t, len}, c);
+        }
+    }
+    nameplates_.clear();
 
     renderer_.endFrame(cmd);
 }

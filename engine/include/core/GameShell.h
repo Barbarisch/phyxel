@@ -18,6 +18,7 @@ class TriggerSystem;
 class EntityRegistry;
 class CombatDirector;
 class CombatAISystem;
+class CombatSystem;
 class PlayerTurnController;
 class CharacterSheet;
 class Inventory;
@@ -77,6 +78,7 @@ protected:
     // Turn-based combat trio (see GameApiService) — override all three or none.
     virtual CombatDirector*       apiCombatDirector() { return nullptr; }
     virtual CombatAISystem*       apiCombatAI()       { return nullptr; }
+    virtual CombatSystem*         apiCombatSystem()   { return nullptr; }  // damage funnel
     virtual PlayerTurnController* apiPlayerTurn()     { return nullptr; }
     virtual CharacterSheet*       apiPlayerSheet()    { return nullptr; }  // progression
     virtual Inventory*            apiInventory()      { return nullptr; }  // loot/persistence

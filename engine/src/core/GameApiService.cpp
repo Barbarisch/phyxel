@@ -17,6 +17,9 @@
 #include "core/CharacterSheet.h"
 #include "core/SpellcasterComponent.h"
 #include "core/HealthComponent.h"
+#include "core/CombatSystem.h"
+#include "core/DamageTypes.h"
+#include "core/CombatLog.h"
 #include "scene/Entity.h"
 #include "core/Inventory.h"
 #include "core/SceneManager.h"
@@ -379,6 +382,68 @@ void GameApiService::registerCommands() {
                              {"prepared", ks.prepared},
                              {"blocked", playerTurn->castBlockedReason(ks.spellId)}});
         r["spells"] = known;
+    });
+
+    // POST /api/rpg/entity_damage {id, amount} — apply damage directly.
+    // Test-harness affordance: AI reactions that only trigger in a narrow HP
+    // window (a healer's threshold, a morale break) cannot be tested by hoping
+    // the dice land there. This sets up the CONDITION deterministically; what
+    // is under test is the AI's RESPONSE to it.
+    reg.on("entity_damage", [this](const APICommand& cmd, json& r) {
+        if (!entityRegistry) { r = {{"error", "EntityRegistry not available"}}; return; }
+        const std::string id = cmd.params.value("id", "");
+        Scene::Entity* e = id.empty() ? nullptr : entityRegistry->getEntity(id);
+        if (!e) { r = {{"error", "unknown entity"}, {"id", id}}; return; }
+        auto* hc = e->getHealthComponent();
+        if (!hc) { r = {{"error", "entity has no health"}, {"id", id}}; return; }
+        const float amount = cmd.params.value("amount", 0.0f);
+        if (amount > 0.0f) {
+            // Route through the FUNNEL, not hc->takeDamage: the funnel is what
+            // raises death events, removes the combatant, and resolves the
+            // encounter. Damaging the component directly left enemies at 0 HP
+            // but "alive" to the CombatDirector, so the fight never ended
+            // (measured — it wedged a whole probe run).
+            if (combatSystem)
+                combatSystem->applyDamage(e, id, amount, "test_api", DamageType::Physical);
+            else
+                hc->takeDamage(amount);
+        }
+        r = {{"id", id}, {"applied", amount},
+             {"health", hc->getHealth()}, {"max_health", hc->getMaxHealth()},
+             {"alive", hc->isAlive()}, {"via_funnel", combatSystem != nullptr}};
+    });
+
+    // POST /api/rpg/combat/log {since, limit} — the AI DECISION log: why each
+    // combatant did what it did (targets weighed, tactic that fired, what was
+    // rejected and on what grounds, roll outcomes). Separate from the engine
+    // log on purpose. Poll with the returned next_index.
+    reg.on("combat/log", [](const APICommand& cmd, json& r) {
+        r = CombatLog::instance().toJson(cmd.params.value("since", 0u),
+                                         cmd.params.value("limit", 200u));
+    });
+
+    // POST /api/rpg/combat/log_clear — reset the decision log.
+    reg.on("combat/log_clear", [](const APICommand&, json& r) {
+        CombatLog::instance().clear();
+        r = {{"ok", true}};
+    });
+
+    // POST /api/rpg/combat/ai_plan {entity_id} — what this NPC's tactical
+    // profile would choose right now vs what a plain nearest-foe AI would.
+    // When the two differ, the profile is provably doing the choosing.
+    reg.on("combat/ai_plan", [this](const APICommand& cmd, json& r) {
+        if (!combatAI) { r = {{"error", "combat AI not available"}}; return; }
+        const std::string id = cmd.params.value("entity_id", "");
+        if (id.empty()) { r = {{"error", "entity_id required"}}; return; }
+        const auto p = combatAI->planFor(id);
+        r = {{"entity_id", id},
+             {"target_by_priority", p.targetByPriority},
+             {"nearest", p.nearest},
+             {"priority", p.priority},
+             {"preferred_range_feet", p.preferredRangeFeet},
+             {"flee_below_hp", p.fleeBelowHpFrac},
+             {"heal_ally_below", p.healAllyBelowFrac},
+             {"wounded_ally", p.woundedAlly}};
     });
 
     // POST /api/rpg/long_rest — restore all spell slots (the authoring hook is

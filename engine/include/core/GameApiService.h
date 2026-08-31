@@ -19,6 +19,7 @@ class EngineAPIServer;
 class CommandRegistry;
 class CombatDirector;
 class CombatAISystem;
+class CombatSystem;
 class PlayerTurnController;
 class CharacterSheet;
 class Inventory;
@@ -72,6 +73,7 @@ public:
     // HTTP-thread rpg handler, which must queue intents).
     CombatDirector*       combatDirector = nullptr;
     CombatAISystem*       combatAI = nullptr;
+    CombatSystem*         combatSystem = nullptr;   // damage funnel (death events)
     PlayerTurnController* playerTurn = nullptr;
     CharacterSheet*       playerSheet = nullptr;   // progression: /api/rpg/sheet command
     Inventory*            inventory = nullptr;     // loot: /api/rpg/inventory command

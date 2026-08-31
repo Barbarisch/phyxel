@@ -137,6 +137,24 @@ public:
     void addWorldLabel(glm::vec2 screenPos, const std::string& text,
                        glm::vec4 textColor, float bgAlpha);
 
+    /// Queue a combat NAMEPLATE above a character for THIS frame: name, a
+    /// health bar, an optional subtitle (targeting readout), and a selection
+    /// bracket. Without these you cannot tell who is who, who is hurt, or who
+    /// you are about to hit — the tactical view shows figures, not identities.
+    ///   hpFrac   0..1; the bar turns amber then red as it falls
+    ///   selected draws the bracket + a brighter plate (the current target)
+    ///   hostile  tints the name (enemy red / ally green)
+    struct Nameplate {
+        glm::vec2   screenPos;      ///< anchor: the character's head, in pixels
+        std::string name;
+        std::string subtitle;       ///< e.g. "AC 13 · 65% to hit" (may be empty)
+        float       hpFrac  = 1.0f;
+        bool        selected = false;
+        bool        hostile  = true;
+        float       scale    = 1.0f; ///< shrink distant plates
+    };
+    void addNameplate(const Nameplate& plate);
+
 private:
     UIRenderer renderer_;
     BitmapFont font_;
@@ -181,6 +199,7 @@ private:
         float bgAlpha;
     };
     std::vector<WorldLabel> worldLabels_;
+    std::vector<Nameplate>  nameplates_;   // per-frame, drawn + cleared in render()
 };
 
 } // namespace UI

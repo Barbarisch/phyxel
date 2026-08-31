@@ -21,6 +21,7 @@ void GameShell::startTestApi(EngineRuntime& engine, int port, const std::string&
     gameApi_.playerProvider   = [this]() { return apiPlayer(); };
     gameApi_.combatDirector   = apiCombatDirector();
     gameApi_.combatAI         = apiCombatAI();
+    gameApi_.combatSystem     = apiCombatSystem();
     gameApi_.playerTurn       = apiPlayerTurn();
     gameApi_.playerSheet      = apiPlayerSheet();
     gameApi_.inventory        = apiInventory();

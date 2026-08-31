@@ -189,11 +189,14 @@ def create_project(
     # slot to ARM, click an enemy to CAST (routes through castSpell instead of
     # the melee pick). Ground click with a spell armed = cancel.
     extra_includes.append('#include "core/SpellcasterComponent.h"')
+    extra_includes.append('#include "core/CombatLog.h"')
     extra_members.append('    Phyxel::Core::SpellcasterComponent playerCaster_;  // slots/known spells; bound to playerTurn_')
     extra_members.append('    std::unordered_map<std::string, Phyxel::Core::SpellcasterComponent> npcCasters_;  // game.json "casters": enemy/companion spell lists for CombatAI')
     extra_members.append('    std::unordered_map<std::string, Phyxel::Core::CombatTactics> npcTactics_;  // game.json "combat_ai": per-NPC tactical profile')
     extra_members.append('    std::vector<std::string> playerSpells_;  // game.json progression.spells (SpellRegistry ids)')
     extra_members.append('    std::string armedSpell_;        // spellbar-armed spell; empty = melee/move clicks')
+    extra_members.append('    std::string hoveredTarget_;     // combatant under the cursor (nameplate + targeting readout)')
+    extra_members.append('    int nameplateDiagFrame_ = 0;    // throttle for the nameplate diagnostic')
     extra_members.append("    Phyxel::Core::ObjectiveTracker objectiveTracker_;  // quest-log spine; game.json \"objectives\" load here")
     extra_members.append("    Phyxel::Core::PlayerProfile playerProfile_;        // persisted to the active scene's world DB (player_state table)")
     extra_members.append("    std::string loadingSceneName_;  // destination scene shown on the loading screen")
@@ -279,6 +282,7 @@ def create_project(
         "    Phyxel::Scene::AnimatedVoxelCharacter* apiPlayer() override { return playerCharacter_; }",
         "    Phyxel::Core::CombatDirector*       apiCombatDirector() override { return &combatDirector_; }",
         "    Phyxel::Core::CombatAISystem*       apiCombatAI() override       { return &combatAI_; }",
+        "    Phyxel::Core::CombatSystem*         apiCombatSystem() override   { return combatSystem_.get(); }",
         "    Phyxel::Core::PlayerTurnController* apiPlayerTurn() override     { return &playerTurn_; }",
         "    Phyxel::Core::CharacterSheet*       apiPlayerSheet() override    { return &playerSheet_; }",
         "    Phyxel::Core::Inventory*            apiInventory() override      { return &inventory_; }",
@@ -1242,6 +1246,15 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     // down birds-eye), isometric (angled ortho), third_person...
                     combatCameraRig_ = gameDef["combat"].value("camera", "overhead");
                     LOG_INFO("{class_name}", "Combat mode: {{}} (camera: {{}})", mode, combatCameraRig_);
+                    // AI decision log -> its own JSONL file, separate from the
+                    // engine log. Off with {{"combat": {{"decision_log": false}}}}.
+                    if (gameDef["combat"].value("decision_log", true)) {{
+                        Phyxel::Core::CombatLog::instance().setFile("combat_log.jsonl");
+                        LOG_INFO("{class_name}", "AI decision log: combat_log.jsonl "
+                                 "(also GET-able via POST /api/rpg/combat/log)");
+                    }} else {{
+                        Phyxel::Core::CombatLog::instance().setEnabled(false);
+                    }}
                 }}
 
                 // "progression": {{"class","race","kill_xp","objective_xp"}} — the
@@ -1705,6 +1718,27 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // attack (enemy under cursor) or move (ground point) through the
             // same PlayerTurnController pick the test API uses. Edge-triggered;
             // cursor is free during combat (updateCursorMode).
+            // HOVER TARGETING: resolve whatever the cursor is over each frame
+            // so the nameplate under it lights up with its AC / hit chance
+            // BEFORE you commit to the click. Uses the same pick the click
+            // itself uses, so what you see is what you will hit.
+            if (combatDirector_.inCombat() && !inDialogue && renderCoordinator_) {{
+                hoveredTarget_.clear();
+                if (auto* cam = engine.getCamera()) {{
+                    double mx = 0.0, my = 0.0;
+                    input->getCurrentMousePosition(mx, my);
+                    const glm::uvec2 vp = renderCoordinator_->getSwapChainSize();
+                    const float groundY = playerCharacter_ ? playerCharacter_->getPosition().y : 0.0f;
+                    auto pick = playerTurn_.resolvePick(
+                        *cam, {{static_cast<float>(mx), static_cast<float>(my)}},
+                        {{static_cast<float>(vp.x), static_cast<float>(vp.y)}}, groundY);
+                    if (pick.kind == Phyxel::Core::PlayerTurnController::PickResult::Kind::Attack)
+                        hoveredTarget_ = pick.targetId;
+                }}
+            }} else {{
+                hoveredTarget_.clear();
+            }}
+
             // Tactical camera control. Mouse-look is deliberately off during
             // combat (it used to leak into pitch and bury the camera under the
             // floor), so the BG3-style view gets its own explicit controls:
@@ -1768,9 +1802,16 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 }}
                                 setArmedSpell("");
                             }} else {{
+                                // Clicking a foe SELECTS it — the bracket and
+                                // targeting readout persist after the swing —
+                                // as well as attacking it.
+                                auto pk = playerTurn_.resolvePick(*cam, click, vps, groundY);
+                                if (pk.kind == Phyxel::Core::PlayerTurnController::PickResult::Kind::Attack)
+                                    playerTurn_.setSelectedTarget(pk.targetId);
                                 const char* resolved = playerTurn_.requestPickAt(*cam, click, vps, groundY);
-                                LOG_INFO("{class_name}", "Combat click ({{}}, {{}}) -> {{}}",
-                                         static_cast<int>(mx), static_cast<int>(my), resolved);
+                                LOG_INFO("{class_name}", "Combat click ({{}}, {{}}) -> {{}} (selected '{{}}')",
+                                         static_cast<int>(mx), static_cast<int>(my), resolved,
+                                         playerTurn_.selectedTarget());
                             }}
                         }}
                     }}
@@ -1973,6 +2014,18 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (npcManager_) npcManager_->update(dt);
             if (storyEngine_) storyEngine_->update(dt);
             if (speechBubbleManager_) speechBubbleManager_->update(dt);
+
+            // AI decision log clock (separate from the engine log — it records
+            // WHY each combatant chose what it chose; see combat_log.jsonl and
+            // POST /api/rpg/combat/log).
+            Phyxel::Core::CombatLog::instance().tick(dt);
+
+            // VFX: the director drains queued casts into the particle system
+            // and integrates it. WITHOUT this the standalone spawns spell
+            // effects that never tick and never draw — the VfxDirector logged
+            // "Cast 'guiding_bolt' ... (1 emissions)" while the screen showed
+            // nothing at all. (Editor parity: Application.cpp ~3436.)
+            if (renderCoordinator_) renderCoordinator_->updateVfx(dt);
 
             // Update interaction manager with player position. Front is
             // EXPLICITLY zero: the engine's default playerFront is +Z, which
@@ -2240,7 +2293,13 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         auto* win = engine.getWindowManager();
                         float sw = win ? static_cast<float>(win->getWidth()) : 1280.0f;
                         float sh = win ? static_cast<float>(win->getHeight()) : 720.0f;
-                        const auto& view = renderCoordinator_->getCachedViewMatrix();
+                        // ABSOLUTE view, not the cached RENDER view: the render
+                        // matrix is camera-relative (eye at origin) for float
+                        // precision, so projecting absolute world positions
+                        // through it puts everything behind the camera and
+                        // every world overlay silently vanishes. This affected
+                        // speech bubbles and the "[E] Interact" prompt too.
+                        const glm::mat4 view = renderCoordinator_->getWorldViewMatrix();
                         const auto& proj = renderCoordinator_->getCachedProjectionMatrix();
                         glm::vec2 sp;
                         if (speechBubbleManager_) {{
@@ -2259,6 +2318,63 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 if (Phyxel::UI::UISystem::worldToScreen(npc->getPosition() + glm::vec3(0.0f, 2.0f, 0.0f), view, proj, sw, sh, sp))
                                     ui->addWorldLabel(sp, txt, glm::vec4(1.0f, 1.0f, 0.6f, 1.0f), 0.8f);
                             }}
+                        }}
+
+                        // COMBAT NAMEPLATES: name + health bar over every
+                        // combatant, a targeting readout (AC / hit chance /
+                        // reach) on the one under the cursor, and a selection
+                        // bracket on the current target. The tactical view
+                        // shows figures; without these you cannot tell who is
+                        // who, who is hurt, or who you are about to hit.
+                        if (combatDirector_.inCombat() && entityRegistry_) {{
+                            const std::string sel = playerTurn_.selectedTarget();
+                            const std::string hov = hoveredTarget_;
+                            int npQueued = 0, npProjFail = 0, npNoEntity = 0;
+                            for (const auto& p : combatDirector_.initiative().turnOrder()) {{
+                                auto* e = entityRegistry_->getEntity(p.entityId);
+                                if (!e) {{ ++npNoEntity; continue; }}
+                                auto* hc = e->getHealthComponent();
+                                if (hc && !hc->isAlive()) continue;
+                                if (!Phyxel::UI::UISystem::worldToScreen(
+                                        e->getPosition() + glm::vec3(0.0f, 2.15f, 0.0f),
+                                        view, proj, sw, sh, sp)) {{ ++npProjFail; continue; }}
+
+                                Phyxel::UI::UISystem::Nameplate np;
+                                np.screenPos = sp;
+                                // Strip the "npc_" prefix — players read names.
+                                np.name = p.entityId.rfind("npc_", 0) == 0
+                                              ? p.entityId.substr(4) : p.entityId;
+                                np.hpFrac = (hc && hc->getMaxHealth() > 0.0f)
+                                              ? hc->getHealth() / hc->getMaxHealth() : 1.0f;
+                                np.hostile  = !p.isPlayer;
+                                np.selected = (p.entityId == sel || p.entityId == hov);
+                                // Distance falloff so a far plate does not
+                                // shout as loudly as the one in your face.
+                                float d = playerCharacter_
+                                    ? glm::length(e->getPosition() - playerCharacter_->getPosition())
+                                    : 10.0f;
+                                np.scale = glm::clamp(1.35f - d * 0.025f, 0.75f, 1.15f);
+                                // Targeting readout on the hovered/selected foe.
+                                if (!p.isPlayer && np.selected) {{
+                                    const int pct = static_cast<int>(
+                                        playerTurn_.hitChanceVs(p.entityId) * 100.0f);
+                                    np.subtitle = "AC " + std::to_string(playerTurn_.targetAC(p.entityId)) +
+                                                  "  " + std::to_string(pct) + "% to hit  " +
+                                                  (playerTurn_.inReachOf(p.entityId) ? "[in reach]"
+                                                                                     : "[out of reach]");
+                                }}
+                                ui->addNameplate(np);
+                                ++npQueued;
+                            }}
+                            // Throttled diagnostic: if plates are invisible, this
+                            // says whether they were queued at all and where the
+                            // projection went (screen coords of the last one).
+                            if (++nameplateDiagFrame_ % 120 == 0)
+                                LOG_INFO("{class_name}",
+                                         "nameplates: queued={{}} projFail={{}} noEntity={{}} lastPx=({{}},{{}}) screen={{}}x{{}}",
+                                         npQueued, npProjFail, npNoEntity,
+                                         static_cast<int>(sp.x), static_cast<int>(sp.y),
+                                         static_cast<int>(sw), static_cast<int>(sh));
                         }}
                     }}
                 }}
