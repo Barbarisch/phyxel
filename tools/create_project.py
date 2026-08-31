@@ -2410,6 +2410,85 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                          static_cast<int>(sp.x), static_cast<int>(sp.y),
                                          static_cast<int>(sw), static_cast<int>(sh));
                         }}
+
+                        // REAL-TIME NAMEPLATES. The block above walks the
+                        // CombatDirector's initiative order, so it draws nothing
+                        // in a real-time battle — there is no encounter and no
+                        // turn order. The battle sim therefore never showed a
+                        // single health bar, which is the one thing you actually
+                        // need to read a 200-body melee: who is hurt, and which
+                        // side they are on.
+                        //
+                        // Iterates live entities instead of initiative, and is
+                        // bounded for BOTH cost and legibility: 400 plates is an
+                        // unreadable wall of text, so only combatants within
+                        // kRtPlateRange of the CAMERA (not the player — the sim
+                        // camera is detached and flies free of it) get one, and
+                        // names are dropped past kRtNameRange so distant ranks
+                        // are bars only.
+                        else if (entityRegistry_ && engine_ && engine_->getCamera()) {{
+                            constexpr float kRtPlateRange = 42.0f;   // bars within this
+                            constexpr float kRtNameRange  = 20.0f;   // names within this
+                            constexpr int   kRtPlateCap   = 80;      // hard cap, nearest-first
+                            const glm::vec3 eye = engine_->getCamera()->getPosition();
+
+                            // The id comes from the REGISTRY KEY — Scene::Entity has no
+                            // getId(); the registry is what knows an entity's id.
+                            struct RtPlate {{ float d; Phyxel::Scene::Entity* e; std::string id; }};
+                            std::vector<RtPlate> near;
+                            near.reserve(128);
+                            for (const char* type : {{"npc", "animated"}}) {{
+                                for (const auto& [id, e] : entityRegistry_->getEntitiesByType(type)) {{
+                                    if (!e) continue;
+                                    auto* hc = e->getHealthComponent();
+                                    if (!hc || !hc->isAlive()) continue;   // dead men wear no plates
+                                    const float d = glm::length(e->getPosition() - eye);
+                                    if (d > kRtPlateRange) continue;
+                                    near.push_back({{d, e, id}});
+                                }}
+                            }}
+                            // Nearest-first, then cap: when a brawl overflows the
+                            // budget the plates you keep are the ones you can see.
+                            std::sort(near.begin(), near.end(),
+                                      [](const RtPlate& a, const RtPlate& b) {{ return a.d < b.d; }});
+                            if (static_cast<int>(near.size()) > kRtPlateCap)
+                                near.resize(kRtPlateCap);
+
+                            // Read the player's faction through the Entity base: the concrete
+                            // character classes declare their own protected `faction` member,
+                            // which shadows Entity::faction() at the derived type.
+                            const auto* playerEnt =
+                                static_cast<const Phyxel::Scene::Entity*>(playerCharacter_);
+                            const std::string myFaction = playerEnt
+                                ? playerEnt->faction() : std::string(Phyxel::Scene::Entity::kNeutralFaction);
+                            int rtQueued = 0;
+                            for (const auto& rp : near) {{
+                                if (!Phyxel::UI::UISystem::worldToScreen(
+                                        rp.e->getPosition() + glm::vec3(0.0f, 2.15f, 0.0f),
+                                        view, proj, sw, sh, sp)) continue;
+                                auto* hc = rp.e->getHealthComponent();
+                                Phyxel::UI::UISystem::Nameplate np;
+                                np.screenPos = sp;
+                                if (rp.d <= kRtNameRange)
+                                    np.name = rp.id.rfind("npc_", 0) == 0 ? rp.id.substr(4) : rp.id;
+                                np.hpFrac = (hc && hc->getMaxHealth() > 0.0f)
+                                              ? hc->getHealth() / hc->getMaxHealth() : 1.0f;
+                                // Colour by SIDE, not by "is it an enemy of the
+                                // camera": the spectator is neutral, so relative
+                                // hostility would paint both armies the same.
+                                np.hostile = rp.e->faction() != myFaction;
+                                np.selected = (rp.id == hoveredTarget_);
+                                np.scale = glm::clamp(1.25f - rp.d * 0.018f, 0.6f, 1.1f);
+                                ui->addNameplate(np);
+                                ++rtQueued;
+                            }}
+                            if (++nameplateDiagFrame_ % 180 == 0)
+                                LOG_INFO("{class_name}",
+                                         "rt nameplates: queued={{}} inRange={{}} eye=({{}},{{}},{{}})",
+                                         rtQueued, static_cast<int>(near.size()),
+                                         static_cast<int>(eye.x), static_cast<int>(eye.y),
+                                         static_cast<int>(eye.z));
+                        }}
                     }}
                 }}
 
