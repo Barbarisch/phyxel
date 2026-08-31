@@ -391,7 +391,19 @@ private:
         // Spans derive from the same terrain + bake the column samples do — one lifetime.
         m_waterSpanCache.clear(); m_waterSpanCacheOrder.clear();
     }
-    static constexpr size_t kColumnCacheMax = 128;   // ~1024 samples/entry; FIFO eviction
+    // ~1024 samples/entry (~64-80 KB); FIFO eviction.
+    //
+    // ⚑SIZED BY THE WATER BLOCK'S PADDED AREA, NOT BY FEEL. waterSpansForBlock pads a request by
+    // kWaterExtentSteps on every side and then resolves that whole area THROUGH this cache; if one
+    // padded area does not fit, FIFO evicts entries the same scan is about to ask for again and the
+    // amortization the design leans on collapses into constant recomputation.
+    //
+    // 128 was correct at margin 48 (a chunk padded to 128x128 spans 5x5 = 25 chunk columns). The
+    // 48->256 correctness fix (kWaterExtentSteps, WorldGenerator.cpp) grew that to 544x544 = 18x18
+    // = 324 columns WITHOUT resizing this, so every water block thrashed a 128-entry cache. 512
+    // holds a padded area with headroom (~40 MB). A static_assert in waterSpansForBlock now fails
+    // the build if the extent is raised past what this can hold, so it cannot break silently twice.
+    static constexpr size_t kColumnCacheMax = 512;
     std::unordered_map<uint64_t, std::shared_ptr<const std::vector<ColumnSample>>> m_columnCache;
     std::vector<uint64_t> m_columnCacheOrder;
     std::unordered_map<uint64_t, std::shared_ptr<const ChunkColumnSpans>> m_waterSpanCache;

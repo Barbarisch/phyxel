@@ -222,6 +222,21 @@ git history) and should be done fresh when needed rather than kept.
 
 ## 6. Open work, in order
 
+0. **⚠️ OPEN — `waterSpanAt` cost after the 48→256 extent raise (found 2026-08-31).**
+   `WaterOccupancyTest.GeneratedChunksHoldTheirWaterSpans` takes **410.9 s** (measured, Debug).
+   That single test is ~1/3 of the entire unit suite's runtime (14.6 min for the other 2679
+   tests). Cause NOT established. `ee1ebef8` raised `kWaterExtentSteps` 48→256 for a real
+   correctness reason (the floating wall) — the extent is not the thing to change.
+   - **Ruled out:** column-cache thrashing. The padded area for a chunk request is 544² =
+     18×18 = 324 chunk columns, and `kColumnCacheMax` was 128 — so one padded block genuinely
+     could not fit and FIFO evicted what it was about to re-read. Raising the cache to 512
+     (2026-08-31) **did not measurably help**: still 410.9 s. The invariant fix was kept for
+     its own sake, but it is NOT the performance answer.
+   - **Next suspect, unmeasured:** raw sampling volume + poor locality. `findWetColumn` in that
+     test ring-walks probes at 100-unit spacing out to r=3000; a ring walk jumps around
+     spatially, so overlapping padded areas may not be reused no matter how big the cache is.
+     Measure cache hit rate before changing anything else.
+
 1. ~~**Spans in chunks** — storage + persistence~~ **DONE** (`b5906ad0`, 2026-08-04 — §2 layer 1).
    Still owed from it: streaming-world L4 (generation-time spans at scale + the added
    per-chunk-column flood cost measured on a real streaming boot).
