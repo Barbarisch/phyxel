@@ -23,6 +23,7 @@
 #include "scene/behaviors/StoryDrivenBehavior.h"
 #include "scene/behaviors/CombatBehavior.h"
 #include "scene/behaviors/RangedCasterBehavior.h"
+#include "ai/CommandStructure.h"
 #include "ai/Schedule.h"
 #include "ai/BTLoader.h"
 #include "graphics/Camera.h"
@@ -685,6 +686,14 @@ void GameDefinitionLoader::loadPlayer(const json& playerDef, GameSubsystems& sub
 
     Scene::Entity* entity = sub.entitySpawner(type, glm::vec3(x, y, z), visual.animFile);
     if (entity) {
+        // FACTION for the player, same vocabulary as NPCs. Without this the
+        // player is always UNALIGNED — which means hostile to everyone, so a
+        // spectator standing near a battle gets cut down by both armies
+        // (measured: the observer died mid-simulation while tagged "neutral"
+        // in the game definition, because nothing read that tag).
+        if (playerDef.contains("faction"))
+            entity->setFaction(playerDef["faction"].get<std::string>());
+
         // Apply appearance to animated characters
         if (type == "animated") {
             auto* animChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity);
@@ -865,10 +874,37 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
         // take a "weapon"; casters take "spells" plus range/cooldown tuning.
         const std::string faction = npcDef.value("faction", "");
         if (!faction.empty()) npc->setFaction(faction);
+
+        // CHAIN OF COMMAND: "squad" puts this NPC under an officer's orders;
+        // "rank":"officer" (or "leader") makes it the one giving them. Squads
+        // are created on first mention so authoring order does not matter.
+        if (sub.commandStructure && npcDef.contains("squad")) {
+            const std::string squadId = npcDef["squad"].get<std::string>();
+            const std::string rank = npcDef.value("rank", "");
+            if (!sub.commandStructure->squad(squadId))
+                sub.commandStructure->createSquad(squadId, faction);
+            const bool isLeader = (rank == "officer" || rank == "leader" ||
+                                   rank == "sergeant" || rank == "captain");
+            sub.commandStructure->addMember(squadId, "npc_" + name, isLeader);
+            // The RALLY point is where the squad formed up — a running mean of
+            // its members' spawn positions. Without this it stays (0,0,0) and a
+            // "fall back" order marches the squad to the corner of the world.
+            if (auto* sq = sub.commandStructure->squad(squadId)) {
+                const float n = static_cast<float>(sq->members.size());
+                sq->rally += (glm::vec3(x, y, z) - sq->rally) / n;
+            }
+        }
         if (behaviorType == NPCBehaviorType::Combat) {
             if (auto* cb = dynamic_cast<Scene::CombatBehavior*>(npc->getBehavior())) {
                 if (!faction.empty()) cb->setFaction(faction);
                 if (npcDef.contains("weapon")) cb->setWeapon(npcDef["weapon"].get<std::string>());
+                // TACTICAL: "intelligence" (3-18) drives reaction speed, cover
+                // discipline, obedience and target choice; the chunk manager
+                // gives it line-of-sight so it can find cover at all.
+                if (npcDef.contains("intelligence"))
+                    cb->setIntelligence(npcDef["intelligence"].get<int>());
+                cb->setChunkManager(sub.chunkManager);
+                if (sub.commandStructure) cb->setCommandStructure(sub.commandStructure);
                 if (npcDef.contains("aggro_range"))    cb->setAggroRange(npcDef["aggro_range"].get<float>());
                 if (npcDef.contains("attack_damage"))  cb->setAttackDamage(npcDef["attack_damage"].get<float>());
                 if (npcDef.contains("attack_cooldown"))cb->setAttackCooldown(npcDef["attack_cooldown"].get<float>());

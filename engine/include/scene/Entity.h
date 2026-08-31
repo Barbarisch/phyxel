@@ -60,9 +60,19 @@ public:
     // unaligned, hostile to everyone (the historical free-for-all default).
     void setFaction(const std::string& f) { faction_ = f; }
     const std::string& faction() const { return faction_; }
+    /// The reserved tag for NON-COMBATANTS: nobody attacks a "neutral", and a
+    /// neutral attacks nobody. Spectators, shopkeepers and quest-givers need
+    /// this — without it an observer standing near a battle is just a target,
+    /// because "unaligned" (empty) means hostile to EVERYONE, which is the
+    /// opposite of harmless. (Measured: both armies broke off to kill the
+    /// camera operator.)
+    static constexpr const char* kNeutralFaction = "neutral";
+
     /// True when these two should fight: different NAMED factions are hostile;
-    /// an unaligned side (empty tag) is hostile to all, including its own kind.
+    /// an unaligned side (empty tag) is hostile to all, including its own kind;
+    /// "neutral" is hostile to nobody and attacked by nobody.
     bool hostileTo(const Entity& other) const {
+        if (faction_ == kNeutralFaction || other.faction_ == kNeutralFaction) return false;
         return faction_.empty() || other.faction_.empty() || faction_ != other.faction_;
     }
 

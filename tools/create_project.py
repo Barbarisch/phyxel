@@ -192,6 +192,8 @@ def create_project(
     extra_includes.append('#include "core/CombatLog.h"')
     # Behavior-tree action vocabulary registered by this game (registerBehaviorActions)
     extra_includes.append('#include "ai/BTActionRegistry.h"')
+    extra_includes.append('#include "ai/CommandStructure.h"')
+    extra_members.append("    Phyxel::AI::CommandStructure command_;  // squads + orders (game.json squad/rank)")
     extra_includes.append('#include "ai/ActionSystem.h"')
     extra_members.append('    Phyxel::Core::SpellcasterComponent playerCaster_;  // slots/known spells; bound to playerTurn_')
     extra_members.append('    std::unordered_map<std::string, Phyxel::Core::SpellcasterComponent> npcCasters_;  // game.json "casters": enemy/companion spell lists for CombatAI')
@@ -307,6 +309,8 @@ def create_project(
         f"    void playCastVisualFor(Phyxel::Scene::AnimatedVoxelCharacter* caster, const std::string& spellId, const glm::vec3& targetPos, std::function<void()> onRelease);",
         f"    void setArmedSpell(const std::string& id);  // spellbar arm/disarm + button highlight",
         f"    void registerBehaviorActions();  // this game's BT action verbs (BTActionRegistry)",
+        f"    void installDoctrine();          // how this game's officers decide",
+        f"    void updateCommand(float dt);    // per-frame squad situation + orders",
         f"    void refreshSpellbar();  // repaint labels/slot counts/enabled state from live caster state",
         f"    Phyxel::Scene::AnimatedVoxelCharacter* characterOf(const std::string& entityId);",
         f"    void faceCombatants();  // everyone faces the nearest opposing-side combatant",
@@ -752,6 +756,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             npcManager_->setChunkManager(engine.getChunkManager());  // NavGrid needs a chunk source (pathfinding + test-API reachability)
             npcManager_->setEntityRegistry(entityRegistry_.get());
             registerBehaviorActions();
+            installDoctrine();
             // Real-time casters (RangedCasterBehavior) route their spells
             // through the SAME cast visual + damage funnel as everyone else.
             // Without this they fall back to raw takeDamage: no VFX, no death
@@ -1015,6 +1020,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             faceToward(characterOf(ev.targetId), atk->getPosition());
                     return;
                 }}
+                // An officer's death costs his squad its orders — the engine
+                // keeps the last one but stops issuing new ones, so a
+                // decapitated squad fights on without coordination.
+                command_.notifyDeath(ev.targetId);
                 triggers_.onEvent("entity_died", {{{{"id", ev.targetId}}}});
                 if (ev.targetId == "player") {{
                     triggers_.onEvent("player_died", {{{{"id", ev.targetId}}}});
@@ -1421,6 +1430,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 subsystems.storyEngine     = storyEngine_.get();
                 subsystems.camera          = engine.getCamera();
                 subsystems.triggerSystem   = &triggers_;  // game.json "triggers" load here
+                subsystems.commandStructure = &command_;  // game.json "squad"/"rank" load here
 
                 // Wire up entity spawner so the loader can create the player
                 subsystems.entitySpawner = [this](const std::string& type,
@@ -2035,6 +2045,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             }});
 
             if (npcManager_) npcManager_->update(dt);
+            updateCommand(dt);   // officers re-evaluate on their own cadence
             if (storyEngine_) storyEngine_->update(dt);
             if (speechBubbleManager_) speechBubbleManager_->update(dt);
 
@@ -2428,6 +2439,80 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             const float dx = at.x - from.x, dz = at.z - from.z;
             if (dx * dx + dz * dz < 0.01f) return;   // on top of each other — keep facing
             ch->setFacingYaw(std::atan2(dx, dz));
+        }}
+
+        // ====================================================================
+        // DOCTRINE — how this game's officers decide (game-side policy)
+        // ====================================================================
+        // The engine owns squads, order propagation and the "officer is dead"
+        // degradation; WHICH order gets issued is a game decision, so it lives
+        // here. Swap this function and the same armies fight a different war.
+        void {class_name}::installDoctrine() {{
+            command_.setDecisionInterval(3.0f);
+            command_.setDoctrine([](const Phyxel::AI::CommandStructure::SquadSituation& s) {{
+                using Order = Phyxel::AI::CommandStructure::Order;
+                const float strength = s.strength > 0
+                    ? static_cast<float>(s.alive) / s.strength : 1.0f;
+
+                // Shattered or badly bloodied: break off.
+                if (strength <= 0.34f || s.healthFraction < 0.3f) return Order::FallBack;
+                // Hurt but holding together: dig in and make them come.
+                if (strength <= 0.6f || s.healthFraction < 0.55f) return Order::Hold;
+                // Strong and the enemy is close: try to take them in the side.
+                if (s.nearestEnemyDist < 26.0f && strength > 0.8f) return Order::Flank;
+                return Order::Advance;
+            }});
+        }}
+
+        // Per-frame command tick: build each squad's situation from live
+        // entities, let the doctrine issue orders, and log the changes so a
+        // battle's command decisions are readable after the fact.
+        void {class_name}::updateCommand(float dt) {{
+            if (!entityRegistry_) return;
+            command_.update(dt,
+                [this](const Phyxel::AI::CommandStructure::Squad& sq) {{
+                    Phyxel::AI::CommandStructure::SquadSituation sit;
+                    sit.strength = static_cast<int>(sq.members.size());
+                    glm::vec3 sum(0.0f);
+                    float hpSum = 0.0f;
+                    for (const auto& id : sq.members) {{
+                        auto* e = entityRegistry_->getEntity(id);
+                        if (!e) continue;
+                        auto* hc = e->getHealthComponent();
+                        if (!hc || !hc->isAlive()) continue;
+                        ++sit.alive;
+                        sum += e->getPosition();
+                        hpSum += (hc->getMaxHealth() > 0.0f)
+                                     ? hc->getHealth() / hc->getMaxHealth() : 1.0f;
+                    }}
+                    if (sit.alive > 0) {{
+                        sit.centre = sum / static_cast<float>(sit.alive);
+                        sit.healthFraction = hpSum / sit.alive;
+                    }}
+                    // Nearest hostile + enemy centre of mass.
+                    glm::vec3 esum(0.0f);
+                    int ecount = 0;
+                    for (const char* type : {{"animated", "npc"}}) {{
+                        for (const auto& [id, e] : entityRegistry_->getEntitiesByType(type)) {{
+                            if (!e) continue;
+                            auto* hc = e->getHealthComponent();
+                            if (!hc || !hc->isAlive()) continue;
+                            if (e->faction() == sq.faction) continue;
+                            if (e->faction() == Phyxel::Scene::Entity::kNeutralFaction) continue;
+                            esum += e->getPosition(); ++ecount;
+                            const float d = glm::length(e->getPosition() - sit.centre);
+                            if (d < sit.nearestEnemyDist) sit.nearestEnemyDist = d;
+                            if (d < 30.0f) ++sit.enemiesNear;
+                        }}
+                    }}
+                    if (ecount > 0) sit.enemyCentre = esum / static_cast<float>(ecount);
+                    return sit;
+                }},
+                [](const Phyxel::AI::CommandStructure::Squad& sq,
+                   Phyxel::AI::CommandStructure::Order o) {{
+                    LOG_INFO("Command", "squad '{{}}' ({{}}) -> {{}}", sq.id, sq.faction,
+                             Phyxel::AI::CommandStructure::orderName(o));
+                }});
         }}
 
         // ====================================================================

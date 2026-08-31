@@ -10,6 +10,7 @@
 #include "utils/Logger.h"
 
 #include <cmath>
+#include <random>
 #include <cstdlib>
 
 namespace Phyxel {
@@ -98,6 +99,14 @@ void CombatBehavior::ensureWired(NPCContext& ctx, AnimatedVoxelCharacter* charac
     }
 }
 
+// Uniform [0,1). Thread-local so 400 combatants rolling every tick don't
+// contend on a shared generator.
+static float frand01() {
+    static thread_local std::mt19937 rng(std::random_device{}());
+    static thread_local std::uniform_real_distribution<float> d(0.0f, 1.0f);
+    return d(rng);
+}
+
 std::string CombatBehavior::acquireTarget(NPCContext& ctx, const glm::vec3& selfPos) const {
     if (!ctx.entityRegistry) return "";
     // Nearest LIVE opponent that isn't us — the player ("animated") OR another
@@ -116,7 +125,19 @@ std::string CombatBehavior::acquireTarget(NPCContext& ctx, const glm::vec3& self
             // of side. Allegiance lives on the ENTITY so we can read theirs.
             if (!ctx.self->hostileTo(*e)) continue;
             const glm::vec3 d = e->getPosition() - selfPos;
-            const float d2 = d.x * d.x + d.z * d.z;
+            float d2 = d.x * d.x + d.z * d.z;
+            // INTELLIGENCE shapes target choice: a bright fighter discounts
+            // distance for wounded enemies and finishes them, a dull one just
+            // swings at whatever is closest. (Scoring in squared-distance
+            // space, so a badly hurt foe "feels" nearer than it is.)
+            if (m_intelligence >= 12) {
+                if (const auto* hp = e->getHealthComponent()) {
+                    if (hp->getMaxHealth() > 0.0f) {
+                        const float frac = hp->getHealth() / hp->getMaxHealth();
+                        d2 *= (0.35f + 0.65f * frac);   // hurt => more attractive
+                    }
+                }
+            }
             if (d2 < bestD2) { bestD2 = d2; best = id; }
         }
     };
@@ -173,6 +194,128 @@ void CombatBehavior::update(float dt, NPCContext& ctx) {
     const float dist = glm::length(toTarget);
     const glm::vec3 dir = dist > 1e-4f ? toTarget / dist : glm::vec3(0.0f, 0.0f, 1.0f);
 
+    // ── TACTICAL LAYER ──────────────────────────────────────────
+    // Re-evaluated on an INTELLIGENCE-scaled cadence: a dull soldier keeps
+    // doing whatever it was doing for over a second, a sharp one reconsiders
+    // several times a second. Between evaluations the previous intent stands,
+    // which is what makes low-INT troops look committed and stupid.
+    m_thinkTimer -= dt;
+    if (m_coverCooldown > 0.0f) m_coverCooldown -= dt;
+
+    if (m_thinkTimer <= 0.0f) {
+        m_thinkTimer = reactionDelay();
+
+        const auto* hc = ctx.self->getHealthComponent();
+        const float hpFrac = (hc && hc->getMaxHealth() > 0.0f)
+                                 ? hc->getHealth() / hc->getMaxHealth() : 1.0f;
+
+        // 1) Squad order — obeyed only as far as intelligence allows. A dim
+        //    trooper hears "fall back" and charges anyway.
+        AI::CommandStructure::Order order = AI::CommandStructure::Order::Advance;
+        bool obeying = false;
+        if (m_command) {
+            order = m_command->orderFor(ctx.selfId);
+            obeying = (frand01() < obedience());
+            if (order != AI::CommandStructure::Order::Advance) {
+                if (obeying) ++m_ordersObeyed; else ++m_ordersIgnored;
+            }
+        }
+
+        // 2) Cover: worth taking when hurt, or when ordered to hold, and only
+        //    if this NPC is disciplined enough to think of it.
+        const bool wantsCover =
+            m_chunks && (hpFrac < 0.6f ||
+                         (obeying && order == AI::CommandStructure::Order::Hold));
+        if (wantsCover && m_coverCooldown <= 0.0f && frand01() < coverDiscipline()) {
+            m_coverCooldown = 2.5f;
+            auto spot = AI::TacticalSpace::findCover(*m_chunks, selfPos,
+                                                     target->getPosition(), 14.0f);
+            if (spot.found) {
+                m_takingCover = true;
+                m_coverPos = spot.position;
+                m_intent = "cover";
+                ++m_coverTaken;
+            } else {
+                // Wanted cover, the ground had none. Worth counting separately:
+                // it is the difference between "the layer never fires" and
+                // "the layer fires and the battlefield is open".
+                ++m_coverDenied;
+            }
+        }
+
+        // 3) Orders that override the default charge.
+        if (obeying && !m_takingCover) {
+            switch (order) {
+                case AI::CommandStructure::Order::FallBack:
+                    m_intent = "fall_back";
+                    break;
+                case AI::CommandStructure::Order::Flank:
+                    m_intent = "flank";
+                    break;
+                case AI::CommandStructure::Order::Hold:
+                    // Anchor on the ground we are standing on the moment the
+                    // order lands. Without an anchor "hold" was a label with no
+                    // behaviour — the soldier reported holding while charging.
+                    if (!m_holding) { m_holdAnchor = selfPos; m_holding = true; }
+                    m_intent = "hold";
+                    break;
+                default:
+                    m_intent = "engage";
+                    break;
+            }
+            if (order != AI::CommandStructure::Order::Hold) m_holding = false;
+        } else if (!m_takingCover) {
+            m_intent = "engage";   // free-lancing: charge the nearest foe
+            m_holding = false;
+        }
+    }
+
+    // Drop cover once healthy again, or once we have arrived and the threat
+    // can no longer see us (job done — resume the fight from here).
+    if (m_takingCover) {
+        glm::vec3 toCover = m_coverPos - selfPos; toCover.y = 0.0f;
+        const float coverDist = glm::length(toCover);
+        if (coverDist < 1.2f) {
+            // Arrived. Hold the cover we just paid to reach — without anchoring
+            // here, the very next approach branch would charge straight back
+            // out of it and the whole move would be wasted.
+            m_takingCover = false;
+            m_holdAnchor  = selfPos;
+            m_holding     = true;
+            m_intent      = "hold";
+        } else {
+            const glm::vec3 cdir = toCover / std::max(coverDist, 1e-4f);
+            if (character) {
+                character->setFacingYaw(std::atan2(cdir.x, cdir.z));
+                character->setControlInput(-m_moveSpeed, 0.0f, 0.0f);
+            }
+            return;   // moving to cover is this frame's whole job
+        }
+    }
+
+    // FALL BACK: run for the rally point instead of fighting.
+    if (std::string(m_intent) == "fall_back" && m_command) {
+        if (const auto* sq = m_command->squadOf(ctx.selfId)) {
+            glm::vec3 toRally = sq->rally - selfPos; toRally.y = 0.0f;
+            const float d = glm::length(toRally);
+            if (d > 2.0f && character) {
+                const glm::vec3 rdir = toRally / d;
+                character->setFacingYaw(std::atan2(rdir.x, rdir.z));
+                character->setControlInput(-m_moveSpeed, 0.0f, 0.0f);
+                return;
+            }
+        }
+    }
+
+    // FLANK: approach on an arc rather than straight down the enemy's front.
+    if (std::string(m_intent) == "flank" && dist > m_attackRange * 2.0f && character) {
+        const glm::vec3 side(-dir.z, 0.0f, dir.x);
+        const glm::vec3 arc = glm::normalize(dir * 0.6f + side * m_strafeSign * 0.8f);
+        character->setFacingYaw(std::atan2(arc.x, arc.z));
+        character->setControlInput(-m_moveSpeed, 0.0f, 0.0f);
+        return;
+    }
+
     // Lose the target once it leaves aggro range (+hysteresis).
     if (dist > m_aggroRange * 1.3f) {
         m_targetId.clear();
@@ -221,6 +364,18 @@ void CombatBehavior::update(float dt, NPCContext& ctx) {
     }
 
     if (dist > m_attackRange) {           // --- Approach ---
+        // HOLD means hold: a squad told to stand its ground gives up at most a
+        // couple of paces of the ground it was ordered to keep, and makes the
+        // enemy come to it. Chasing would turn every "hold the ridge" into the
+        // same general charge.
+        if (m_holding) {
+            glm::vec3 drift = selfPos - m_holdAnchor; drift.y = 0.0f;
+            if (glm::length(drift) > 2.5f) {
+                m_state = State::Strafe;
+                drive(0.0f, 0.0f);        // stand fast, already facing the target
+                return;
+            }
+        }
         m_state = State::Approach;
         drive(-m_moveSpeed, 0.0f);        // run toward the target to close fast
         return;

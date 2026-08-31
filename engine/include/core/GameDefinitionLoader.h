@@ -34,6 +34,8 @@ namespace UI {
 class DialogueSystem;
 }
 
+namespace AI { class CommandStructure; }
+
 namespace Story {
 class StoryEngine;
 class CharacterAgent;
@@ -142,6 +144,11 @@ struct GameSubsystems {
     /// Shared agent that drives Guided/Autonomous NPCs (StoryDrivenBehavior). Non-owning;
     /// must outlive the spawned NPCs. Typically one RuleBasedCharacterAgent for all NPCs.
     Story::CharacterAgent* characterAgent = nullptr;
+
+    /// Squads / orders for tactical NPCs (game.json "squad" + "rank" on an NPC,
+    /// "squads" at the top level). Non-owning; when null, combatants fight as
+    /// individuals exactly as before.
+    AI::CommandStructure* commandStructure = nullptr;
 
     /// When true, loadWorld applies world CONFIG (recipe, terrain params, streaming
     /// generation + radii) but skips terrain generation + flora. Set by hosts whose

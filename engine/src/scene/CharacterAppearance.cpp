@@ -1,5 +1,6 @@
 #include "scene/CharacterAppearance.h"
 #include "graphics/Animation.h"
+#include "utils/Logger.h"
 #include <algorithm>
 #include <functional>
 #include <unordered_map>
@@ -578,6 +579,23 @@ void CharacterAppearance::applyProportionsFrom(const CharacterAppearance& preset
 static glm::vec4 readColor(const nlohmann::json& j, const std::string& key, const glm::vec4& def) {
     if (!j.contains(key)) return def;
     const auto& c = j[key];
+    // ARRAY form [r,g,b] / [r,g,b,a] — the way colours are written nearly
+    // everywhere else in this project's data (and the obvious thing to type).
+    // This used to fall through to value() below, which THROWS type_error.306
+    // on a non-object; nothing caught it, so a colour written as an array
+    // aborted the whole game during NPC spawn with no message at all
+    // (0xc0000409, zero diagnostics — it cost a long bisect to find).
+    if (c.is_array()) {
+        glm::vec4 out = def;
+        for (size_t i = 0; i < c.size() && i < 4; ++i)
+            if (c[i].is_number()) out[static_cast<int>(i)] = c[i].get<float>();
+        return out;
+    }
+    if (!c.is_object()) {
+        LOG_WARN("CharacterAppearance",
+                 "colour '{}' must be an object or array — ignoring", key);
+        return def;
+    }
     return glm::vec4(
         c.value("r", def.r),
         c.value("g", def.g),

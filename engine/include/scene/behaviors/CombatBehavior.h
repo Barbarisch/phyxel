@@ -2,8 +2,11 @@
 
 #include "scene/NPCBehavior.h"
 #include "ai/PerceptionSystem.h"
+#include "ai/CommandStructure.h"
+#include "ai/TacticalSpace.h"
 #include <string>
 #include <glm/glm.hpp>
+#include <glm/gtc/constants.hpp>
 
 namespace Phyxel {
 namespace Scene {
@@ -81,12 +84,79 @@ public:
     /// Equip a weapon by item id; the moveset is resolved from it like the
     /// player's held weapon (empty = unarmed). Set before the first update.
     void setWeapon(const std::string& id) { m_weaponId = id; }
+
+    // ── Tactical layer ──────────────────────────────────────────
+    // INTELLIGENCE (D&D-ish 3..18) is the single dial that separates a mob
+    // from soldiers. It is not a damage stat — it changes HOW the NPC thinks:
+    //   * reaction delay   — dull troops dither before re-deciding
+    //   * cover discipline — the chance it breaks line of sight when hurt
+    //   * obedience        — whether it follows its squad's order or just
+    //                        charges the nearest enemy like everyone used to
+    //   * target choice    — bright fighters finish the wounded
+    // Every effect is observable in play, which is the point: you should be
+    // able to SEE which side is better led.
+    void setIntelligence(int score) { m_intelligence = score; }
+    int  intelligence() const { return m_intelligence; }
+
+    /// Squad orders. Optional — unsquadded NPCs behave exactly as before.
+    void setCommandStructure(AI::CommandStructure* cs) { m_command = cs; }
+
+    /// Voxel world used for line-of-sight and cover search (null = no cover).
+    void setChunkManager(ChunkManager* cm) { m_chunks = cm; }
+
+    /// Current tactical intent, for debug overlays and the decision log.
+    const char* intentName() const { return m_intent; }
     /// The equipped weapon item id (empty = unarmed). Used by the host to draw
     /// the held weapon visual.
     const std::string& getWeaponId() const { return m_weaponId; }
 private:
     std::string m_faction;
     std::string m_weaponId;
+
+    // ── Tactical state ──────────────────────────────────────────
+    int   m_intelligence = 10;          ///< 3..18; 10 = unremarkable
+    AI::CommandStructure* m_command = nullptr;   // not owned
+    ChunkManager*         m_chunks  = nullptr;   // not owned
+    const char* m_intent = "engage";    ///< debug label for the current intent
+
+    bool      m_takingCover = false;
+    glm::vec3 m_coverPos{0.0f};
+    float     m_coverCooldown = 0.0f;   ///< don't re-search every frame
+    float     m_thinkTimer    = 0.0f;   ///< intelligence-scaled reaction delay
+    glm::vec3 m_holdAnchor{0.0f};       ///< ground given up on a Hold order
+    bool      m_holding = false;        ///< anchor is valid
+
+    // Cumulative tallies. An instantaneous census of intents badly undercounts
+    // cover, because moving to cover is a TRANSIT state that ends the moment
+    // the fighter arrives — a poll every 10 s catches almost none of them.
+    // These count the DECISIONS, which is what "does the tactical layer fire?"
+    // actually asks.
+    int m_coverTaken   = 0;   ///< times this NPC broke off to take cover
+    int m_coverDenied  = 0;   ///< times it wanted cover and the ground offered none
+    int m_ordersObeyed = 0;   ///< times it acted on a squad order
+    int m_ordersIgnored = 0;  ///< times it free-lanced instead
+
+public:
+    int coverTaken()    const { return m_coverTaken; }
+    int coverDenied()   const { return m_coverDenied; }
+    int ordersObeyed()  const { return m_ordersObeyed; }
+    int ordersIgnored() const { return m_ordersIgnored; }
+
+private:
+
+    /// Derived from intelligence: seconds between tactical re-evaluations.
+    float reactionDelay() const {
+        const float t = glm::clamp((m_intelligence - 3) / 15.0f, 0.0f, 1.0f);
+        return 1.4f - t * 1.25f;        // INT 3 -> 1.4s, INT 18 -> 0.15s
+    }
+    /// Probability this NPC actually uses cover when it should.
+    float coverDiscipline() const {
+        return glm::clamp((m_intelligence - 6) / 12.0f, 0.0f, 0.95f);
+    }
+    /// Probability it obeys its squad's order rather than free-lancing.
+    float obedience() const {
+        return glm::clamp((m_intelligence - 4) / 14.0f, 0.0f, 1.0f);
+    }
 };
 
 } // namespace Scene

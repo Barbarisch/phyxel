@@ -1,0 +1,265 @@
+{
+  "mode": "control",
+  "samples": [
+    {
+      "tag": "t00",
+      "t": 1.1,
+      "alive": 191,
+      "fps": 23.5,
+      "melee_alive": 112,
+      "tactical": 0,
+      "tactical_fraction": 0.0,
+      "cover_taken": 0,
+      "orders_obeyed": 0,
+      "by_faction": {
+        "azure": {
+          "engage": 55
+        },
+        "crimson": {
+          "engage": 57
+        }
+      },
+      "tallies": {
+        "azure": {
+          "cover_taken": 0,
+          "cover_denied": 0,
+          "orders_obeyed": 0,
+          "orders_ignored": 0
+        },
+        "crimson": {
+          "cover_taken": 0,
+          "cover_denied": 0,
+          "orders_obeyed": 0,
+          "orders_ignored": 0
+        }
+      },
+      "shot": "tac_control_t00.png"
+    },
+    {
+      "tag": "t01",
+      "t": 11.2,
+      "alive": 172,
+      "fps": 26.2,
+      "melee_alive": 101,
+      "tactical": 0,
+      "tactical_fraction": 0.0,
+      "cover_taken": 0,
+      "orders_obeyed": 0,
+      "by_faction": {
+        "azure": {
+          "engage": 50
+        },
+        "crimson": {
+          "engage": 51
+        }
+      },
+      "tallies": {
+        "azure": {
+          "cover_taken": 0,
+          "cover_denied": 0,
+          "orders_obeyed": 0,
+          "orders_ignored": 0
+        },
+        "crimson": {
+          "cover_taken": 0,
+          "cover_denied": 0,
+          "orders_obeyed": 0,
+          "orders_ignored": 0
+        }
+      },
+      "shot": "tac_control_t01.png"
+    },
+    {
+      "tag": "t02",
+      "t": 21.3,
+      "alive": 159,
+      "fps": 24.6,
+      "melee_alive": 96,
+      "tactical": 0,
+      "tactical_fraction": 0.0,
+      "cover_taken": 0,
+      "orders_obeyed": 0,
+      "by_faction": {
+        "azure": {
+          "engage": 48
+        },
+        "crimson": {
+          "engage": 48
+        }
+      },
+      "tallies": {
+        "azure": {
+          "cover_taken": 0,
+          "cover_denied": 0,
+          "orders_obeyed": 0,
+          "orders_ignored": 0
+        },
+        "crimson": {
+          "cover_taken": 0,
+          "cover_denied": 0,
+          "orders_obeyed": 0,
+          "orders_ignored": 0
+        }
+      },
+      "shot": "tac_control_t02.png"
+    },
+    {
+      "tag": "t03",
+      "t": 33.4,
+      "alive": 145,
+      "fps": 25.3,
+      "melee_alive": 86,
+      "tactical": 0,
+      "tactical_fraction": 0.0,
+      "cover_taken": 0,
+      "orders_obeyed": 0,
+      "by_faction": {
+        "azure": {
+          "engage": 44
+        },
+        "crimson": {
+          "engage": 42
+        }
+      },
+      "tallies": {
+        "azure": {
+          "cover_taken": 0,
+          "cover_denied": 0,
+          "orders_obeyed": 0,
+          "orders_ignored": 0
+        },
+        "crimson": {
+          "cover_taken": 0,
+          "cover_denied": 0,
+          "orders_obeyed": 0,
+          "orders_ignored": 0
+        }
+      },
+      "shot": "tac_control_t03.png"
+    },
+    {
+      "tag": "t04",
+      "t": 47.6,
+      "alive": 128,
+      "fps": 27.8,
+      "melee_alive": 76,
+      "tactical": 0,
+      "tactical_fraction": 0.0,
+      "cover_taken": 0,
+      "orders_obeyed": 0,
+      "by_faction": {
+        "azure": {
+          "engage": 39
+        },
+        "crimson": {
+          "engage": 37
+        }
+      },
+      "tallies": {
+        "azure": {
+          "cover_taken": 0,
+          "cover_denied": 0,
+          "orders_obeyed": 0,
+          "orders_ignored": 0
+        },
+        "crimson": {
+          "cover_taken": 0,
+          "cover_denied": 0,
+          "orders_obeyed": 0,
+          "orders_ignored": 0
+        }
+      },
+      "shot": "tac_control_t04.png"
+    },
+    {
+      "tag": "t05",
+      "t": 63.2,
+      "alive": 116,
+      "fps": 26.0,
+      "melee_alive": 68,
+      "tactical": 0,
+      "tactical_fraction": 0.0,
+      "cover_taken": 0,
+      "orders_obeyed": 0,
+      "by_faction": {
+        "azure": {
+          "engage": 35
+        },
+        "crimson": {
+          "engage": 33
+        }
+      },
+      "tallies": {
+        "azure": {
+          "cover_taken": 0,
+          "cover_denied": 0,
+          "orders_obeyed": 0,
+          "orders_ignored": 0
+        },
+        "crimson": {
+          "cover_taken": 0,
+          "cover_denied": 0,
+          "orders_obeyed": 0,
+          "orders_ignored": 0
+        }
+      },
+      "shot": "tac_control_t05.png"
+    },
+    {
+      "tag": "t06",
+      "t": 81.3,
+      "alive": 102,
+      "fps": 26.4,
+      "melee_alive": 60,
+      "tactical": 0,
+      "tactical_fraction": 0.0,
+      "cover_taken": 0,
+      "orders_obeyed": 0,
+      "by_faction": {
+        "azure": {
+          "engage": 28
+        },
+        "crimson": {
+          "engage": 32
+        }
+      },
+      "tallies": {
+        "azure": {
+          "cover_taken": 0,
+          "cover_denied": 0,
+          "orders_obeyed": 0,
+          "orders_ignored": 0
+        },
+        "crimson": {
+          "cover_taken": 0,
+          "cover_denied": 0,
+          "orders_obeyed": 0,
+          "orders_ignored": 0
+        }
+      },
+      "shot": "tac_control_t06.png"
+    }
+  ],
+  "order_changes": 0,
+  "orders": {},
+  "peak_tactical_fraction": 0.0,
+  "cover_taken_total": 0,
+  "orders_obeyed_total": 0,
+  "final_tallies": {
+    "azure": {
+      "cover_taken": 0,
+      "cover_denied": 0,
+      "orders_obeyed": 0,
+      "orders_ignored": 0
+    },
+    "crimson": {
+      "cover_taken": 0,
+      "cover_denied": 0,
+      "orders_obeyed": 0,
+      "orders_ignored": 0
+    }
+  },
+  "intents_seen": [
+    "engage"
+  ]
+}

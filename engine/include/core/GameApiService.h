@@ -3,6 +3,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <glm/glm.hpp>   // cameraControl pose
 
 namespace Phyxel {
 namespace Graphics { class RenderCoordinator; }
@@ -74,6 +75,9 @@ public:
     CombatDirector*       combatDirector = nullptr;
     CombatAISystem*       combatAI = nullptr;
     CombatSystem*         combatSystem = nullptr;   // damage funnel (death events)
+    /// Park/release the camera (GameShell::setDetachedCamera) for the
+    /// set_camera command — spectator framing for harnesses and screenshots.
+    std::function<void(bool, const glm::vec3&, float, float)> cameraControl;
     PlayerTurnController* playerTurn = nullptr;
     CharacterSheet*       playerSheet = nullptr;   // progression: /api/rpg/sheet command
     Inventory*            inventory = nullptr;     // loot: /api/rpg/inventory command

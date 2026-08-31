@@ -49,6 +49,17 @@ protected:
                               Scene::AnimatedVoxelCharacter* character,
                               bool driveCharacter = true);
 
+    /// Park the camera at a fixed pose, bypassing the rig entirely (spectator /
+    /// harness framing). Pass detach=false to hand control back to the rig.
+    void setDetachedCamera(bool detach, const glm::vec3& pos = {},
+                           float yaw = 0.0f, float pitch = 0.0f) {
+        cameraDetached_  = detach;
+        detachedCamPos_  = pos;
+        detachedCamYaw_  = yaw;
+        detachedCamPitch_ = pitch;
+    }
+    bool cameraDetached() const { return cameraDetached_; }
+
     // Defaults used when the scene's camera block doesn't name one.
     virtual std::string defaultRigName() const { return "first_person"; }
     virtual std::string defaultSchemeName() const { return "fps"; }
@@ -87,6 +98,11 @@ private:
     GameplayCameraController cameraController_;
     std::string cameraResolvedScene_;
     bool cameraResolved_ = false;
+    // Detached spectator camera (see setDetachedCamera).
+    bool      cameraDetached_   = false;
+    glm::vec3 detachedCamPos_{0.0f};
+    float     detachedCamYaw_   = 0.0f;
+    float     detachedCamPitch_ = 0.0f;
     GameApiService gameApi_;
 };
 

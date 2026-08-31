@@ -32,6 +32,8 @@
 #include "ui/GameScreen.h"
 #include "ui/UISystem.h"
 #include "scene/AnimatedVoxelCharacter.h"
+#include "scene/NPCEntity.h"
+#include "scene/behaviors/CombatBehavior.h"
 #include "utils/PerformanceMonitor.h"
 #include "utils/Logger.h"
 
@@ -415,6 +417,23 @@ void GameApiService::registerCommands() {
              {"alive", hc->isAlive()}, {"via_funnel", combatSystem != nullptr}};
     });
 
+    // POST /api/rpg/set_camera {x,y,z,yaw,pitch,detach} — park the camera at a
+    // fixed pose (detach=true) or hand it back to the gameplay rig
+    // (detach=false). The standalone had NO camera control at all, so a
+    // harness could only photograph whatever was over the player's shoulder —
+    // and an empty frame looked identical to a scene that failed to render.
+    reg.on("set_camera", [this](const APICommand& cmd, json& r) {
+        if (!cameraControl) { r = {{"error", "camera control not available"}}; return; }
+        const bool detach = cmd.params.value("detach", true);
+        cameraControl(detach,
+                      glm::vec3(cmd.params.value("x", 0.0f),
+                                cmd.params.value("y", 0.0f),
+                                cmd.params.value("z", 0.0f)),
+                      cmd.params.value("yaw", 0.0f),
+                      cmd.params.value("pitch", 0.0f));
+        r = {{"ok", true}, {"detached", detach}};
+    });
+
     // POST /api/rpg/battle_stats — live roll-up of a REAL-TIME battle: who is
     // alive per faction, total/remaining HP, and the frame cost. The observable
     // for large-scale sims, where reading 40 individual entities per poll is
@@ -455,6 +474,58 @@ void GameApiService::registerCommands() {
     reg.on("combat/log", [](const APICommand& cmd, json& r) {
         r = CombatLog::instance().toJson(cmd.params.value("since", 0u),
                                          cmd.params.value("limit", 200u));
+    });
+
+    // POST /api/rpg/tactics — what the combatants are actually DOING, per
+    // faction: the distribution of tactical intents (engage / cover / flank /
+    // hold / fall_back) across every live melee fighter. Without this,
+    // "they take cover now" is an unfalsifiable claim about an invisible
+    // state — this is the measurement that can come back all-"engage" and
+    // prove the tactical layer never fired.
+    reg.on("tactics", [this](const APICommand&, json& r) {
+        if (!npcManager) { r = {{"error", "NPCManager not available"}}; return; }
+        // faction -> intent -> count
+        std::map<std::string, std::map<std::string, int>> byFaction;
+        // Cumulative decision tallies per faction: cover taken / denied, orders
+        // obeyed / ignored. The instantaneous intent census undercounts cover
+        // badly (it is a transit state), so these carry the real signal.
+        std::map<std::string, std::array<int, 4>> tallies;
+        int tactical = 0, total = 0;
+        npcManager->forEachNPC([&](Scene::NPCEntity& npc) {
+            auto* cb = dynamic_cast<Scene::CombatBehavior*>(npc.getBehavior());
+            if (!cb) return;
+            const std::string f = npc.faction().empty() ? "(unaligned)" : npc.faction();
+            // Tally the DEAD too — a soldier who took cover and then fell still
+            // took cover, and dropping them would bias the count toward whoever
+            // is winning.
+            auto& t = tallies[f];
+            t[0] += cb->coverTaken();    t[1] += cb->coverDenied();
+            t[2] += cb->ordersObeyed();  t[3] += cb->ordersIgnored();
+
+            auto* hc = npc.getHealthComponent();
+            if (!hc || !hc->isAlive()) return;
+            const std::string intent = cb->intentName();
+            ++byFaction[f][intent];
+            ++total;
+            if (intent != "engage") ++tactical;
+        });
+        json factions = json::array();
+        int coverTotal = 0, orderTotal = 0;
+        for (const auto& [name, t] : tallies) {
+            json counts = json::object();
+            auto it = byFaction.find(name);
+            if (it != byFaction.end())
+                for (const auto& [intent, n] : it->second) counts[intent] = n;
+            coverTotal += t[0];
+            orderTotal += t[2];
+            factions.push_back({{"faction", name}, {"intents", counts},
+                                {"cover_taken", t[0]}, {"cover_denied", t[1]},
+                                {"orders_obeyed", t[2]}, {"orders_ignored", t[3]}});
+        }
+        r = {{"factions", factions}, {"melee_alive", total},
+             {"tactical", tactical},
+             {"cover_taken", coverTotal}, {"orders_obeyed", orderTotal},
+             {"tactical_fraction", total > 0 ? (double)tactical / total : 0.0}};
     });
 
     // POST /api/rpg/combat/log_clear — reset the decision log.
