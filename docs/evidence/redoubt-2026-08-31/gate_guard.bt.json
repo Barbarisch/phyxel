@@ -1,0 +1,18 @@
+{
+  "type": "Selector",
+  "name": "hold_the_gate",
+  "children": [
+    {
+      "type": "Action",
+      "action": "flee_below",
+      "hp": 0.1,
+      "speed": 1.0
+    },
+    {
+      "type": "Action",
+      "action": "charge_enemy",
+      "speed": 0.9,
+      "reach": 2.2
+    }
+  ]
+}

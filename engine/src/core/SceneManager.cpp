@@ -130,8 +130,10 @@ void SceneManager::update(float /*deltaTime*/) {
                     callbacks_.onSceneReady(activeSceneId_);
                 }
 
-                LOG_INFO("SceneManager", "Scene '{}' loaded in {:.1f}ms",
-                         activeSceneId_, ms);
+                // Plain {} only — the logger prints printf specs literally and shifts the
+                // remaining args, so "{:.1f}" renders as the text "{:.1f}" and swallows `ms`.
+                LOG_INFO("SceneManager", "Scene '{}' loaded in {} ms",
+                         activeSceneId_, static_cast<long long>(ms));
             } else {
                 state_ = SceneState::Idle;
                 if (callbacks_.setLoadingScreen) {

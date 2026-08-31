@@ -223,9 +223,13 @@ git history) and should be done fresh when needed rather than kept.
 ## 6. Open work, in order
 
 0. **⚠️ OPEN — `waterSpanAt` cost after the 48→256 extent raise (found 2026-08-31).**
-   `WaterOccupancyTest.GeneratedChunksHoldTheirWaterSpans` takes **410.9 s** (measured, Debug).
-   That single test is ~1/3 of the entire unit suite's runtime (14.6 min for the other 2679
-   tests). Cause NOT established. `ee1ebef8` raised `kWaterExtentSteps` 48→256 for a real
+   TWO tests in `WaterOccupancyTest` dominate the entire unit suite (measured, Debug):
+   `GeneratedChunksHoldTheirWaterSpans` **410.9 s** and
+   `StoredSpansAgreeWithThePerColumnQueryAcrossAWholeChunk` **427.9 s** — the suite's other 25
+   water tests total under 10 ms. At **838.9 s (14.0 min)** the pair costs about as much as the
+   whole remaining 2679-test suite (14.6 min), i.e. they roughly DOUBLE the unit run.
+   Both call the same per-column `waterSpanAt` path over many scattered columns. Cause NOT
+   established. `ee1ebef8` raised `kWaterExtentSteps` 48→256 for a real
    correctness reason (the floating wall) — the extent is not the thing to change.
    - **Ruled out:** column-cache thrashing. The padded area for a chunk request is 544² =
      18×18 = 324 chunk columns, and `kColumnCacheMax` was 128 — so one padded block genuinely

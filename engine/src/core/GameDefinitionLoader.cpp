@@ -20,6 +20,7 @@
 #include "scene/NPCEntity.h"
 #include "scene/AnimatedVoxelCharacter.h"
 #include "scene/behaviors/ScheduledBehavior.h"
+#include "scene/behaviors/BehaviorTreeBehavior.h"
 #include "scene/behaviors/StoryDrivenBehavior.h"
 #include "scene/behaviors/CombatBehavior.h"
 #include "scene/behaviors/RangedCasterBehavior.h"
@@ -930,6 +931,40 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
             if (auto* ch = npc->getAnimatedCharacter()) {
                 for (const auto& [state, clip] : visual.animationMapping)
                     ch->setAnimationMapping(state, clip);
+            }
+        }
+
+        // BEHAVIOR TREE NPCs — "behavior":"behavior_tree" + "behaviorTree":"<file>".
+        //
+        // This used to be handled ONLY inside the Scheduled branch below, so an NPC declared as
+        // "behavior_tree" was given a BehaviorTreeBehavior and then never given its TREE: it stood
+        // still forever, with no error anywhere. A 144-combatant siege authored entirely in JSON
+        // loaded, spawned every NPC, and did not throw a single punch in 78 s because of this.
+        // Loading it here is what makes "author new AI as data" actually true.
+        if (behaviorType == NPCBehaviorType::BehaviorTree) {
+            auto* btb = dynamic_cast<Scene::BehaviorTreeBehavior*>(npc->getBehavior());
+            if (!btb) {
+                LOG_WARN("GameDefinitionLoader",
+                         "NPC {}: behavior_tree requested but the behavior is not a "
+                         "BehaviorTreeBehavior — it will do nothing", name);
+            } else if (!npcDef.contains("behaviorTree")) {
+                LOG_WARN("GameDefinitionLoader",
+                         "NPC {}: behavior 'behavior_tree' with no \"behaviorTree\" file — it "
+                         "will stand still", name);
+            } else {
+                const std::string btFile = npcDef["behaviorTree"].get<std::string>();
+                auto btRoot = AI::BTLoader::fromFile(btFile);
+                if (!btRoot) {
+                    // Loudly, and at INFO/WARN so it survives a Release build: a silently
+                    // brainless NPC is indistinguishable from a broken behaviour.
+                    LOG_WARN("GameDefinitionLoader",
+                             "NPC {}: could not load behavior tree '{}' (missing file or bad "
+                             "JSON) — it will stand still", name, btFile);
+                } else {
+                    btb->setTree(std::move(btRoot));
+                    LOG_INFO("GameDefinitionLoader", "NPC {}: behavior tree '{}' attached",
+                             name, btFile);
+                }
             }
         }
 
