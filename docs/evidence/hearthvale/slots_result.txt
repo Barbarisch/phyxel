@@ -1,0 +1,16 @@
+﻿Spell slots + sheet-derived DC - 2026-08-31, Release --test 8101
+RED (pre-fix exe): /api/rpg/spellbook -> {"error":"unknown action: spellbook"}; casts spent
+only the action, so a cleric 1 had UNLIMITED level-1 spells and a hardcoded DC 13.
+GREEN 6/6:
+  L1 spellbook bound; DC 10 and attack +2 DERIVED (8 + prof 2 + WIS mod 0 / prof + mod),
+     asserted against the sheet's own WIS modifier, not a constant
+  L2 slot table is the PHB cleric-1 row exactly: 2 first-level slots, nothing higher
+  L3 each cast spends exactly one slot: 2 -> 1 -> 0 (instrument = self-targeted
+     cure_wounds; guiding_bolt 4d6 one-shots the 10 HP rat and ends the encounter
+     before a second cast could be measured - scenario lesson, not a code defect)
+  L3b at zero: cast refused with blocked="no slots", and BOTH level-1 spells report
+     the same reason in the spellbook (one authority: castBlockedReason)
+  L4 cantrips remain castable at zero slots (sacred_flame blocked only by turn state)
+  L5 long_rest restores 2/2
+Also shipped: spellbar labels carry remaining slots "Guiding Bolt (2)" and disable when
+depleted; arming a depleted spell is refused; long_rest trigger action for authors.

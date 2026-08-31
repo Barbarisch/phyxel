@@ -5,6 +5,8 @@
 #include "core/HealthComponent.h"
 #include "core/AttackResolver.h"
 #include "core/SpellDefinition.h"
+#include "core/SpellcasterComponent.h"
+#include "core/CharacterSheet.h"
 #include "scene/Entity.h"
 #include "graphics/Camera.h"
 #include "utils/Logger.h"
@@ -162,6 +164,40 @@ std::vector<std::string> PlayerTurnController::aoeTargetsAt(const std::string& s
     return gatherAreaTargets(center, def->areaSizeFeet);
 }
 
+int PlayerTurnController::effectiveSaveDC() const {
+    if (m_caster && m_casterSheet)
+        return m_caster->spellSaveDC(m_casterSheet->proficiencyBonus(), m_casterSheet->attributes);
+    return m_spellSaveDC;
+}
+
+int PlayerTurnController::effectiveSpellAttackBonus() const {
+    if (m_caster && m_casterSheet)
+        return m_caster->spellAttackBonus(m_casterSheet->proficiencyBonus(), m_casterSheet->attributes);
+    return m_spellAttackBonus;
+}
+
+std::string PlayerTurnController::castBlockedReason(const std::string& spellId) const {
+    const SpellDefinition* def = SpellRegistry::instance().getSpell(spellId);
+    if (!def) return "unknown spell";
+    if (m_caster) {
+        // Cantrips are always available; leveled spells need to be prepared AND
+        // have a slot. canCast folds both, so split the message here.
+        if (!def->isCantrip()) {
+            if (!m_caster->hasPrepared(spellId)) return "not prepared";
+            if (!m_caster->slots().canSpend(def->level)) return "no slots";
+        } else if (!m_caster->knowsCantrip(spellId)) {
+            return "not known";
+        }
+    }
+    if (!m_bound) return "not your turn";
+    const auto* p = m_director ? m_director->initiative().find(m_playerId) : nullptr;
+    if (!p) return "not in combat";
+    const bool useBonus = (def->castingTime == CastingTime::BonusAction);
+    if (useBonus ? !p->budget.canBonusAct() : !p->budget.canAct())
+        return useBonus ? "bonus action spent" : "action spent";
+    return "";
+}
+
 bool PlayerTurnController::castSpell(const std::string& spellId, const std::string& targetId) {
     if (!m_bound || spellId.empty()) return false;
 
@@ -176,27 +212,41 @@ bool PlayerTurnController::castSpell(const std::string& spellId, const std::stri
     bool useBonus = (def->castingTime == CastingTime::BonusAction);
     if (useBonus ? !b->canBonusAct() : !b->canAct()) return false;
 
+    // Slot enforcement (only when a real caster is bound — legacy hosts that
+    // never call setSpellcaster keep the old unlimited-cast behavior).
+    const int slotLevel = def->isCantrip() ? 0 : def->level;
+    if (m_caster && !m_caster->canCast(spellId, slotLevel)) {
+        LOG_INFO("PlayerTurn", "Cannot cast '{}': {}", spellId, castBlockedReason(spellId));
+        return false;
+    }
+
     Scene::Entity* target = lookup(targetId);
     glm::vec3 targetPos = target ? target->getPosition() : glm::vec3(0.0f);
     m_selectedTarget = targetId;
     const DamageType dtype = def->damageType;
 
-    DiceExpression dmgExpr = def->isCantrip() ? def->cantripDiceAt(m_casterLevel)
+    // Cantrip dice scale with the caster's REAL level when a sheet is bound.
+    const int casterLvl = m_casterSheet && m_casterSheet->totalLevel() > 0
+                              ? m_casterSheet->totalLevel() : m_casterLevel;
+    DiceExpression dmgExpr = def->isCantrip() ? def->cantripDiceAt(casterLvl)
                                               : def->damageAt(def->level);
 
     // Outcome lists applied at the release frame: damage hits + a single heal.
     std::vector<std::pair<std::string, int>> dmgHits;
     int applyHeal = 0;
 
+    const int saveDC     = effectiveSaveDC();
+    const int spellAtkBn = effectiveSpellAttackBonus();
+
     auto resolveDamageVs = [&](Scene::Entity* t, int full) -> int {
         switch (def->resolutionType) {
             case SpellResolutionType::SavingThrow: {
-                int save = m_dice.roll(DieType::D20, 0).total;   // no sheet -> flat d20
-                bool saved = save >= m_spellSaveDC;
+                int save = m_dice.roll(DieType::D20, 0).total;   // no target sheet -> flat d20
+                bool saved = save >= saveDC;
                 return !saved ? full : (def->halfDamageOnSave ? full / 2 : 0);
             }
             case SpellResolutionType::AttackRoll: {
-                auto r = AttackResolver::resolveAttack(m_spellAttackBonus, pseudoAC(t), dmgExpr,
+                auto r = AttackResolver::resolveAttack(spellAtkBn, pseudoAC(t), dmgExpr,
                                                        dtype, DamageResistance::Normal, false, false, m_dice);
                 return r.hit ? r.finalDamage : 0;
             }
@@ -229,8 +279,15 @@ bool PlayerTurnController::castSpell(const std::string& spellId, const std::stri
         LOG_INFO("PlayerTurn", "Player casts '{}' (utility).", spellId);
     }
 
-    // Spend the budget now (the cast is committed).
+    // Spend the budget AND the slot now (the cast is committed). Cantrips cost
+    // no slot; a leveled spell burns one of its level.
     if (useBonus) b->spendBonusAction(); else b->spendAction();
+    if (m_caster && slotLevel > 0) {
+        m_caster->spendSlot(slotLevel);
+        const auto& s = m_caster->slots();
+        LOG_INFO("PlayerTurn", "Slot spent: level {} ({} of {} left)",
+                 slotLevel, s.remaining[slotLevel - 1], s.maximum[slotLevel - 1]);
+    }
 
     // Apply the pre-rolled outcome at the release frame.
     auto onRelease = [this, dtype, dmgHits, applyHeal, healTarget = targetId]() {

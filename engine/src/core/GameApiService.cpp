@@ -15,6 +15,7 @@
 #include "core/PlayerTurnController.h"
 #include "core/DiceSystem.h"
 #include "core/CharacterSheet.h"
+#include "core/SpellcasterComponent.h"
 #include "core/Inventory.h"
 #include "core/SceneManager.h"
 #include "core/SceneDefinition.h"
@@ -320,8 +321,51 @@ void GameApiService::registerCommands() {
         const std::string spellId  = cmd.params.value("spell_id", "");
         const std::string targetId = cmd.params.value("target_id", "");
         if (spellId.empty()) { r = {{"error", "spell_id required"}}; return; }
+        // Report WHY a refused cast was refused (no slots / not prepared /
+        // action spent) — a bare false made "out of slots" look like a bug.
+        const std::string blocked = playerTurn->castBlockedReason(spellId);
         const bool cast = playerTurn->castSpell(spellId, targetId);
         r = {{"ok", true}, {"cast", cast}};
+        if (!cast && !blocked.empty()) r["blocked"] = blocked;
+    });
+
+    // POST /api/rpg/spellbook — the caster's live spell state: derived DC /
+    // attack bonus, per-level slots, cantrips + prepared spells with the
+    // castable reason for each. The observable behind slot enforcement.
+    reg.on("spellbook", [this](const APICommand&, json& r) {
+        if (!playerTurn) { r = {{"error", "combat not available"}}; return; }
+        r = {{"save_dc", playerTurn->effectiveSaveDC()},
+             {"spell_attack_bonus", playerTurn->effectiveSpellAttackBonus()}};
+        auto* sc = playerTurn->spellcaster();
+        if (!sc) { r["bound"] = false; return; }
+        r["bound"] = true;
+        r["casting_class"] = sc->castingClassId();
+        json slots = json::array();
+        for (int lvl = 1; lvl <= SpellSlots::MAX_SPELL_LEVEL; ++lvl) {
+            const int mx = sc->slots().maximum[lvl - 1];
+            if (mx > 0) slots.push_back({{"level", lvl},
+                                         {"remaining", sc->slots().remaining[lvl - 1]},
+                                         {"maximum", mx}});
+        }
+        r["slots"] = slots;
+        json known = json::array();
+        for (const auto& id : sc->cantrips())
+            known.push_back({{"id", id}, {"cantrip", true},
+                             {"blocked", playerTurn->castBlockedReason(id)}});
+        for (const auto& ks : sc->knownSpells())
+            known.push_back({{"id", ks.spellId}, {"cantrip", false},
+                             {"prepared", ks.prepared},
+                             {"blocked", playerTurn->castBlockedReason(ks.spellId)}});
+        r["spells"] = known;
+    });
+
+    // POST /api/rpg/long_rest — restore all spell slots (the authoring hook is
+    // the long_rest trigger action; this is its test-API twin).
+    reg.on("long_rest", [this](const APICommand&, json& r) {
+        auto* sc = playerTurn ? playerTurn->spellcaster() : nullptr;
+        if (!sc) { r = {{"error", "no spellcaster bound"}}; return; }
+        sc->onLongRest();
+        r = {{"ok", true}, {"slots_remaining", sc->slots().totalRemaining()}};
     });
 
     // Click-to-act: resolve a SCREEN click into attack/move — the same

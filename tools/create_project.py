@@ -187,6 +187,8 @@ def create_project(
     # Spell hotbar (BG3 casting UI): authored spells -> combat spellbar; click a
     # slot to ARM, click an enemy to CAST (routes through castSpell instead of
     # the melee pick). Ground click with a spell armed = cancel.
+    extra_includes.append('#include "core/SpellcasterComponent.h"')
+    extra_members.append('    Phyxel::Core::SpellcasterComponent playerCaster_;  // slots/known spells; bound to playerTurn_')
     extra_members.append('    std::vector<std::string> playerSpells_;  // game.json progression.spells (SpellRegistry ids)')
     extra_members.append('    std::string armedSpell_;        // spellbar-armed spell; empty = melee/move clicks')
     extra_members.append("    Phyxel::Core::ObjectiveTracker objectiveTracker_;  // quest-log spine; game.json \"objectives\" load here")
@@ -293,6 +295,7 @@ def create_project(
         f"    void faceToward(Phyxel::Scene::AnimatedVoxelCharacter* ch, const glm::vec3& at);",
         f"    void playCastVisual(const std::string& spellId, const glm::vec3& targetPos, std::function<void()> onRelease);",
         f"    void setArmedSpell(const std::string& id);  // spellbar arm/disarm + button highlight",
+        f"    void refreshSpellbar();  // repaint labels/slot counts/enabled state from live caster state",
         f"    Phyxel::Scene::AnimatedVoxelCharacter* characterOf(const std::string& entityId);",
         f"    void faceCombatants();  // everyone faces the nearest opposing-side combatant",
         "",
@@ -1075,6 +1078,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     // Authorable save point: {{"type":"save_game"}} persists the
                     // player profile to the active scene's world DB.
                     savePlayerProfile();
+                }} else if (type == "long_rest") {{
+                    // Authorable rest: {{"type":"long_rest"}} restores all spell
+                    // slots (an inn bed, a campfire, a chapter break).
+                    playerCaster_.onLongRest();
+                    refreshSpellbar();
+                    LOG_INFO("{class_name}", "Long rest: {{}} slot(s) restored",
+                             playerCaster_.slots().totalRemaining());
+                    triggers_.onEvent("long_rest", nlohmann::json::object());
                 }} else if (type == "give_item") {{
                     // Authorable loot: {{"type":"give_item","id":"moonpetal_remedy","count":1}}
                     const std::string id = a.value("id", "");
@@ -1250,6 +1261,32 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             else
                                 LOG_WARN("{class_name}", "progression.spells: unknown spell '{{}}' dropped", id);
                         }}
+                    }}
+                    // Real spellcasting state: slot table from the class's
+                    // casting type + level (PHB tables in SpellSlotTable), save
+                    // DC / attack bonus from its casting ability. Authored
+                    // spells are LEARNED — cantrips free, leveled ones prepared
+                    // — so castSpell can enforce prepared-ness and spend slots.
+                    if (!playerSpells_.empty()) {{
+                        const auto* cdef = Phyxel::Core::ClassRegistry::instance().getClass(cl.classId);
+                        const std::string abilStr = cdef && !cdef->spellcastingAbility.empty()
+                                                        ? cdef->spellcastingAbility : "WIS";
+                        const std::string castType = cdef && !cdef->spellcastingType.empty()
+                                                        ? cdef->spellcastingType : "full";
+                        playerCaster_.initialize(cl.classId,
+                                                 Phyxel::Core::abilityFromString(abilStr.c_str()),
+                                                 cl.level, castType);
+                        for (const auto& sid : playerSpells_) {{
+                            const auto* sd = Phyxel::Core::SpellRegistry::instance().getSpell(sid);
+                            if (!sd) continue;
+                            if (sd->isCantrip()) playerCaster_.learnCantrip(sid);
+                            else                 playerCaster_.learnSpell(sid, /*prepared=*/true);
+                        }}
+                        playerTurn_.setSpellcaster(&playerCaster_, &playerSheet_);
+                        LOG_INFO("{class_name}", "Spellcaster: {{}} ({{}}, {{}}) DC {{}} atk +{{}}, {{}} slot(s)",
+                                 cl.classId, abilStr, castType,
+                                 playerTurn_.effectiveSaveDC(), playerTurn_.effectiveSpellAttackBonus(),
+                                 playerCaster_.slots().totalRemaining());
                     }}
                     LOG_INFO("{class_name}", "Progression: {{}} {{}} (kill_xp={{}}, objective_xp={{}}, spells={{}})",
                              playerSheet_.raceId, cl.classId, killXp_, objectiveXp_, playerSpells_.size());
@@ -1612,7 +1649,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 if (pick.kind == Phyxel::Core::PlayerTurnController::PickResult::Kind::Attack) {{
                                     const bool castOk = playerTurn_.castSpell(armedSpell_, pick.targetId);
                                     LOG_INFO("{class_name}", "Combat click -> cast '{{}}' at '{{}}' ({{}})",
-                                             armedSpell_, pick.targetId, castOk ? "ok" : "refused");
+                                             armedSpell_, pick.targetId,
+                                             castOk ? "ok" : playerTurn_.castBlockedReason(armedSpell_).c_str());
                                 }} else {{
                                     LOG_INFO("{class_name}", "Combat click -> cast '{{}}' cancelled", armedSpell_);
                                 }}
@@ -1757,6 +1795,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             }}
                             uisys->addScreen("hud_spellbar", std::move(bar));
                             uisys->showScreen("hud_spellbar");
+                            refreshSpellbar();   // slot counts / disabled state from frame one
                         }}
                     }}
                 }} else {{
@@ -2112,21 +2151,53 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
 
         // Arm/disarm a spellbar spell. The armed slot glows ember through the
         // per-element bg override; everything else reverts to the theme.
+        // Refuses to arm a spell that can't be cast (no slots / not prepared),
+        // reading the SAME castBlockedReason the cast path enforces.
         void {class_name}::setArmedSpell(const std::string& id) {{
+            if (!id.empty()) {{
+                const std::string why = playerTurn_.castBlockedReason(id);
+                // "action spent" / "not your turn" are turn-flow states, not
+                // spell states — arming ahead of your turn is fine.
+                if (why == "no slots" || why == "not prepared" || why == "not known" ||
+                    why == "unknown spell") {{
+                    LOG_INFO("{class_name}", "Cannot arm '{{}}': {{}}", id, why);
+                    refreshSpellbar();
+                    return;
+                }}
+            }}
             armedSpell_ = id;
+            if (!id.empty()) LOG_INFO("{class_name}", "Spell armed: '{{}}'", id);
+            refreshSpellbar();
+        }}
+
+        // Repaint the spellbar from live state: armed = ember, out-of-slots =
+        // dimmed + disabled, and each leveled spell shows its remaining slots.
+        void {class_name}::refreshSpellbar() {{
             if (!renderCoordinator_) return;
             auto* uisys = renderCoordinator_->getUISystem();
             if (!uisys) return;
             auto* bar = uisys->getScreen("hud_spellbar");
             if (!bar) return;
             for (const auto& sid : playerSpells_) {{
-                if (auto* w = bar->findChild("spell_" + sid))
-                    if (auto* b = dynamic_cast<Phyxel::UI::UIButton*>(w))
-                        b->customBg = (sid == id && !id.empty())
-                                          ? glm::vec4(0.85f, 0.55f, 0.20f, 1.0f)
-                                          : glm::vec4(0.0f);
+                auto* w = bar->findChild("spell_" + sid);
+                auto* b = w ? dynamic_cast<Phyxel::UI::UIButton*>(w) : nullptr;
+                if (!b) continue;
+                const auto* sd = Phyxel::Core::SpellRegistry::instance().getSpell(sid);
+                const std::string why = playerTurn_.castBlockedReason(sid);
+                const bool depleted = (why == "no slots" || why == "not prepared");
+                std::string label = sd ? sd->name : sid;
+                if (sd && !sd->isCantrip()) {{
+                    const int lvl = sd->level;
+                    const int left = (lvl >= 1 && lvl <= Phyxel::Core::SpellSlots::MAX_SPELL_LEVEL)
+                                         ? playerCaster_.slots().remaining[lvl - 1] : 0;
+                    label += " (" + std::to_string(left) + ")";   // remaining slots
+                }}
+                b->text = label;
+                b->enabled = !depleted;
+                b->customBg = (sid == armedSpell_ && !armedSpell_.empty())
+                                  ? glm::vec4(0.85f, 0.55f, 0.20f, 1.0f)
+                                  : glm::vec4(0.0f);
             }}
-            if (!id.empty()) LOG_INFO("{class_name}", "Spell armed: '{{}}'", id);
         }}
 
         // Cast visual for the player's spells: cast animation (SpellAnimMapper
