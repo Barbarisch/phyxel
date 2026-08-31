@@ -1,0 +1,106 @@
+{
+  "exploration": {
+    "cam": {
+      "yaw": -135.0,
+      "pitch": -52.0,
+      "pos": {
+        "x": 18.7,
+        "y": 31.3,
+        "z": 31.0
+      }
+    },
+    "geom": {
+      "height_above": 14.3,
+      "ground_dist": 11.3,
+      "boom": 18.2,
+      "elevation_deg": 51.7
+    }
+  },
+  "tactical_default": {
+    "cam": {
+      "yaw": -135.0,
+      "pitch": -52.0,
+      "pos": {
+        "x": 16.3,
+        "y": 29.8,
+        "z": 31.0
+      }
+    },
+    "geom": {
+      "height_above": 12.8,
+      "ground_dist": 9.3,
+      "boom": 15.9,
+      "elevation_deg": 53.9
+    }
+  },
+  "orbited": {
+    "cam": {
+      "yaw": -257.6,
+      "pitch": -52.0,
+      "pos": {
+        "x": 13.1,
+        "y": 31.0,
+        "z": 13.8
+      }
+    },
+    "geom": {
+      "height_above": 14.0,
+      "ground_dist": 11.8,
+      "boom": 18.3,
+      "elevation_deg": 49.9
+    }
+  },
+  "zoomed": {
+    "cam": {
+      "yaw": -257.6,
+      "pitch": -52.0,
+      "pos": {
+        "x": 10.9,
+        "y": 25.1,
+        "z": 19.3
+      }
+    },
+    "geom": {
+      "height_above": 8.1,
+      "ground_dist": 5.9,
+      "boom": 10.0,
+      "elevation_deg": 53.7
+    }
+  },
+  "steep": {
+    "cam": {
+      "yaw": -257.6,
+      "pitch": -68.0,
+      "pos": {
+        "x": 9.9,
+        "y": 25.6,
+        "z": 22.0
+      }
+    },
+    "geom": {
+      "height_above": 8.6,
+      "ground_dist": 3.0,
+      "boom": 9.1,
+      "elevation_deg": 70.8
+    }
+  },
+  "enemy_turn_framing": {
+    "acting": "npc_Rat2",
+    "cam": {
+      "yaw": -257.6,
+      "pitch": -32.0,
+      "pos": {
+        "x": 11.5,
+        "y": 22.8,
+        "z": 17.4
+      }
+    },
+    "geom": {
+      "height_above": 5.8,
+      "ground_dist": 7.9,
+      "boom": 9.8,
+      "elevation_deg": 36.4
+    },
+    "cam_to_actor": 7.0
+  }
+}

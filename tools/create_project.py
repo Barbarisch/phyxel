@@ -182,6 +182,7 @@ def create_project(
     # menuWorld: menu scenes with an authored world get a looping CameraPath
     # orbit behind their UI (PresentationPolish.md §3 Tier 1).
     extra_includes.append('#include "graphics/CameraManager.h"')
+    extra_includes.append('#include "graphics/CameraRig.h"')  # TacticalRig focus framing
     extra_members.append("    Phyxel::Graphics::CameraPath menuCamPath_;  // drives the menuWorld orbit while a menu scene is up")
     extra_members.append("    bool combatLmbHeld_ = false;    // click-to-act edge detection (BG3 mouse combat)")
     # Spell hotbar (BG3 casting UI): authored spells -> combat spellbar; click a
@@ -190,6 +191,7 @@ def create_project(
     extra_includes.append('#include "core/SpellcasterComponent.h"')
     extra_members.append('    Phyxel::Core::SpellcasterComponent playerCaster_;  // slots/known spells; bound to playerTurn_')
     extra_members.append('    std::unordered_map<std::string, Phyxel::Core::SpellcasterComponent> npcCasters_;  // game.json "casters": enemy/companion spell lists for CombatAI')
+    extra_members.append('    std::unordered_map<std::string, Phyxel::Core::CombatTactics> npcTactics_;  // game.json "combat_ai": per-NPC tactical profile')
     extra_members.append('    std::vector<std::string> playerSpells_;  // game.json progression.spells (SpellRegistry ids)')
     extra_members.append('    std::string armedSpell_;        // spellbar-armed spell; empty = melee/move clicks')
     extra_members.append("    Phyxel::Core::ObjectiveTracker objectiveTracker_;  // quest-log spine; game.json \"objectives\" load here")
@@ -1030,6 +1032,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                              const glm::vec3& targetPos, std::function<void()> onRelease) {{
                 playCastVisualFor(characterOf(casterId), spellId, targetPos, std::move(onRelease));
             }});
+            // Tactical profiles (game.json "combat_ai"): how each NPC FIGHTS —
+            // target priority, kiting range, morale, healer thresholds.
+            combatAI_.setTacticsProvider([this](const std::string& id) -> const Phyxel::Core::CombatTactics* {{
+                auto it = npcTactics_.find(id);
+                return it == npcTactics_.end() ? nullptr : &it->second;
+            }});
             playerTurn_.setCombatDirector(&combatDirector_);
             playerTurn_.setEntityRegistry(entityRegistry_.get());
             playerTurn_.setBodyProvider(bodyProvider);
@@ -1342,6 +1350,31 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     }}
                 }}
 
+                // "combat_ai": per-NPC tactical profile —
+                //   {{"npc_Archer": {{"target":"weakest","preferred_range":25,
+                //                    "flee_below_hp":0.3}},
+                //    "npc_Acolyte": {{"heal_ally_below":0.6}}}}
+                // Absent entities keep the default brute profile (nearest foe,
+                // no kiting, fights to the death).
+                if (gameDef.contains("combat_ai") && gameDef["combat_ai"].is_object()) {{
+                    for (auto it = gameDef["combat_ai"].begin(); it != gameDef["combat_ai"].end(); ++it) {{
+                        const auto& tj = it.value();
+                        Phyxel::Core::CombatTactics t;
+                        const std::string pri = tj.value("target", "nearest");
+                        if      (pri == "weakest") t.priority = Phyxel::Core::CombatTactics::Priority::Weakest;
+                        else if (pri == "casters") t.priority = Phyxel::Core::CombatTactics::Priority::Casters;
+                        else if (pri == "focus")   t.priority = Phyxel::Core::CombatTactics::Priority::Focus;
+                        else if (pri != "nearest")
+                            LOG_WARN("{class_name}", "combat_ai['{{}}']: unknown target '{{}}' — using nearest", it.key(), pri);
+                        t.preferredRangeFeet = tj.value("preferred_range", 0.0f);
+                        t.fleeBelowHpFrac    = tj.value("flee_below_hp", 0.0f);
+                        t.healAllyBelowFrac  = tj.value("heal_ally_below", 0.0f);
+                        LOG_INFO("{class_name}", "Tactics '{{}}': target={{}} range={{}}ft flee<{{}} heal<{{}}",
+                                 it.key(), pri, t.preferredRangeFeet, t.fleeBelowHpFrac, t.healAllyBelowFrac);
+                        npcTactics_[it.key()] = t;
+                    }}
+                }}
+
                 // PERSISTENT member, not a local: the SceneManager keeps a pointer to
                 // this for every later scene transition (menu buttons, triggers).
                 auto& subsystems = gameSubsystems_;
@@ -1594,10 +1627,17 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (auto* wm = engine.getWindowManager()) {{
                 const float wheel = wm->getScrollDelta();
                 if (wheel != 0.0f) {{
+                    bool consumed = false;
                     if (auto* ui = renderCoordinator_ ? renderCoordinator_->getUISystem() : nullptr) {{
                         double mx = 0.0, my = 0.0;
                         glfwGetCursorPos(wm->getHandle(), &mx, &my);
-                        ui->handleScroll({{static_cast<float>(mx), static_cast<float>(my)}}, wheel);
+                        consumed = ui->handleScroll({{static_cast<float>(mx), static_cast<float>(my)}}, wheel);
+                    }}
+                    // Unconsumed wheel over the battlefield = tactical ZOOM.
+                    // (A scrollable panel under the cursor still wins.)
+                    if (!consumed && combatDirector_.inCombat()) {{
+                        if (auto* rig = gameplayCamera().rig())
+                            rig->distance = glm::clamp(rig->distance - wheel * 2.0f, 8.0f, 34.0f);
                     }}
                     wm->resetScrollDelta();
                 }}
@@ -1665,6 +1705,28 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // attack (enemy under cursor) or move (ground point) through the
             // same PlayerTurnController pick the test API uses. Edge-triggered;
             // cursor is free during combat (updateCursorMode).
+            // Tactical camera control. Mouse-look is deliberately off during
+            // combat (it used to leak into pitch and bury the camera under the
+            // floor), so the BG3-style view gets its own explicit controls:
+            //   Q / E     orbit the battle
+            //   R / F     raise / lower the angle, inside the rig's band
+            //   wheel     zoom, but only when the UI did not consume it
+            if (combatDirector_.inCombat() && !inDialogue) {{
+                auto* look = engine.getInputManager();
+                auto* rig  = gameplayCamera().rig();
+                const float dt = engine.getLastDeltaTime();
+                if (look && rig) {{
+                    float yaw = look->getYaw(), pitch = look->getPitch();
+                    const float orbitRate = 90.0f;   // deg/sec
+                    if (input->isKeyPressed(GLFW_KEY_Q)) yaw -= orbitRate * dt;
+                    if (input->isKeyPressed(GLFW_KEY_E)) yaw += orbitRate * dt;
+                    if (input->isKeyPressed(GLFW_KEY_R)) pitch -= 45.0f * dt;   // steeper
+                    if (input->isKeyPressed(GLFW_KEY_F)) pitch += 45.0f * dt;   // shallower
+                    pitch = glm::clamp(pitch, rig->pitchClampMin, rig->pitchClampMax);
+                    look->setYawPitch(yaw, pitch);
+                }}
+            }}
+
             if (combatDirector_.inCombat() && playerTurn_.isPlayerTurnActive() &&
                 !inDialogue && renderCoordinator_) {{
                 const bool lmb = input->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
@@ -1780,6 +1842,30 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 playerTurn_.setPlayerEntityId(pid);
                 combatAI_.setPlayerEntityId(pid);   // companions auto-fight; only the human waits
             }}
+            // TACTICAL CAMERA FRAMING: point the combat camera at whoever is
+            // ACTING, not permanently at the player. Without this an enemy
+            // taking its turn 20 units away happens off-screen and the fight
+            // is impossible to follow. The rig anchors between the player and
+            // the actor and widens to hold both.
+            if (auto* trig = dynamic_cast<Phyxel::Graphics::TacticalRig*>(gameplayCamera().rig())) {{
+                bool framed = false;
+                if (combatDirector_.inCombat() && entityRegistry_) {{
+                    const std::string acting = combatDirector_.currentEntityId();
+                    if (!acting.empty()) {{
+                        if (auto* e = entityRegistry_->getEntity(acting)) {{
+                            // The player's own turn frames the player (weight
+                            // 0 keeps the familiar over-the-shoulder framing);
+                            // anyone else's turn pulls the camera their way.
+                            const bool isPlayer = playerCharacter_ &&
+                                                  entityRegistry_->getEntityId(playerCharacter_) == acting;
+                            trig->setFocus(e->getPosition(), isPlayer ? 0.0f : 0.5f);
+                            framed = true;
+                        }}
+                    }}
+                }}
+                if (!framed) trig->clearFocus();
+            }}
+
             // Caster level tracks the live sheet (cantrip dice scale at 5/11/17).
             // Save DC stays the controller default 13 = 8 + prof 2 + mod 3, the
             // standard level-1 full caster (5e PHB math) — deriving it from the
@@ -1807,6 +1893,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     preCombatRig_ = gameplayCamera().rigName();
                     if (gameplayCamera().setRigByName(combatCameraRig_))
                         LOG_INFO("{class_name}", "Tactical camera: '{{}}' (combat)", combatCameraRig_);
+                    // Enter at a good tactical angle regardless of where the
+                    // player happened to be looking. Mouse-look is suppressed
+                    // in combat (the capture fix), so without this the whole
+                    // fight inherits an arbitrary exploration pitch.
+                    if (auto* look = engine.getInputManager())
+                        look->setYawPitch(look->getYaw(), -52.0f);
                     // Spellbar: one button per authored spell (progression.spells).
                     // Click ARMS the spell (ember highlight via the per-element bg
                     // override); the next enemy click casts it. Rebuilt fresh each
