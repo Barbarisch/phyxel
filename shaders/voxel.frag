@@ -54,7 +54,63 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 moonColor;
     float exposure;
     int   tonemapCurve;
+    vec4  skyBodyDirRadius[4];   // (prefix padding to reach occupancyBox below)
+    vec4  skyBodyDisc[4];
+    vec4  skyBodyLitDir[4];
+    vec4  skyBodyLight[4];
+    int   skyBodyCount;
+    ivec4 occupancyBox;   // xyz = box min corner in CHUNK coords, w = 1 when 11/12 are real
 } ubo;
+
+#include "occupancy.glsl"   // U2: the shared occupancy query + light-visibility DDA
+
+// M3 sky visibility stays HERE rather than in occupancy.glsl: it is default-OFF pending
+// M3-REDESIGN (measured at 24.6 ms/frame on a generated town), and only voxel.frag consumes
+// it. Moving it into the shared include would invite the other consumers to adopt a term that
+// is known to be unaffordable in this form.
+/// M3 — how much of the sky hemisphere this surface can see, cosine-weighted, 0..1.
+/// This REPLACES the deleted per-cell skylight flood. The flood decayed 1 per cube cell from the
+/// nearest opening, so a room read 47% of full daylight eight cells from a single doorway and a
+/// sealed room was merely dim. Here the falloff comes out of the geometry: a sealed room sees no
+/// sky and is black, an opening admits exactly the directions that clear it.
+///
+/// Fixed direction set, shared with the CPU mirror — a jittered set would make captures noisy and
+/// incomparable, which is precisely what the M3 gates must do.
+///
+/// ⚠️ REACH is what decides whether a room reads as sealed: a ray that runs out of budget inside a
+/// closed room hits nothing and counts as sky. Measured — at 10 u a diagonal ray inside a 9x7x9
+/// sealed room escaped and its corner read 0.077 instead of 0. Hence the two-rate march: micro
+/// resolution close in (2-micro walls and ledges), coarser beyond, to buy the range a room needs.
+const vec3 PHX_SKY_DIRS[9] = vec3[9](
+    vec3( 0.000,  0.000, 1.000),
+    vec3( 0.500,  0.000, 0.866), vec3(-0.500,  0.000, 0.866),
+    vec3( 0.000,  0.500, 0.866), vec3( 0.000, -0.500, 0.866),
+    vec3( 0.612,  0.612, 0.500), vec3(-0.612,  0.612, 0.500),
+    vec3( 0.612, -0.612, 0.500), vec3(-0.612, -0.612, 0.500)
+);
+
+float phxSkyVisibility(vec3 surfaceWorld, vec3 geomNormal) {
+    if ((ubo.occupancyBox.w & 4) == 0) return 1.0;   // sky tracing off, or occupancy absent
+
+    vec3 Ng = normalize(geomNormal);
+    vec3 up = abs(Ng.y) < 0.999 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    vec3 T = normalize(cross(up, Ng));
+    vec3 B = cross(Ng, T);
+
+    vec3 start = surfaceWorld + Ng * (2.0 / 9.0);
+    const float kReach = 24.0;
+
+    float lit = 0.0, total = 0.0;
+    for (int r = 0; r < 9; ++r) {
+        vec3 d = PHX_SKY_DIRS[r];
+        vec3 dir = normalize(T * d.x + B * d.y + Ng * d.z);
+        float w = max(0.0, dot(dir, Ng));
+        total += w;
+
+        if (!phxDdaHitsSolid(start, start + dir * kReach, 512, ubo.occupancyBox)) lit += w;
+    }
+    return total > 0.0 ? lit / total : 1.0;
+}
 
 layout(set = 0, binding = 1) uniform sampler2DArray textureArray;     // class 0 albedo: 512px
 layout(set = 0, binding = 2) uniform sampler2D shadowMap;             // mid-cascade shadow map
@@ -355,14 +411,25 @@ void main() {
     // from being pitch black before block lights (Phase 2) exist.
     // Sky ambient = soft FILL (never the key light), hemispherical and gated by baked
     // skylight. Model + constants: lighting.glsl.
-    float skyCurve = phxSkyGate(vSkyLight);
-    vec3  color = phxAmbientAtmos(N, vSkyLight, ubo.ambientColor) * albedo;
+    // M3: sky access is TRACED against real geometry, not read from a per-cell flood.
+    // vSkyLight is the M0 placeholder (a constant 1.0); multiplying keeps the vertex path in
+    // place for A/B until M4 decides whether to delete it.
+    float skyVis = vSkyLight * phxSkyVisibility(inWorldPos + ubo.cameraWorld, Ng);
+    float skyCurve = phxSkyGate(skyVis);
+    // Each lighting term is ALSO captured on its own so the debug views below can show one
+    // system at a time. Three systems light this engine and they disagree about geometry (sun =
+    // rasterized shadow maps, per fragment; baked sky/block = one value per CUBE cell; forward
+    // point/spot = per fragment, no occlusion). Telling them apart by eye is guesswork, and
+    // guessing is what made an interior-light bug take days.
+    vec3 dbgAmbient = phxAmbientAtmos(N, skyVis, ubo.ambientColor) * albedo;
+    vec3  color = dbgAmbient;
 
     // Sun (directional) — the KEY light. Cook-Torrance, N·L shading, shadow-mapped. Gated by
     // sky access (curved) so surfaces with no sky exposure don't receive direct sun. This is
     // what casts shadows across the scene whenever the sun isn't directly overhead.
     vec3 sunL = normalize(-ubo.sunDirection);
-    color += pbrBRDF(N, V, sunL, albedo, rough, metallic, ubo.sunColor) * shadowFactor * skyCurve;
+    vec3 dbgDirect = pbrBRDF(N, V, sunL, albedo, rough, metallic, ubo.sunColor) * shadowFactor * skyCurve;
+    color += dbgDirect;
 
     // Moonlight — the same directional model, fed by the atmosphere's phase-scaled moonlight colour,
     // so a new moon contributes literally nothing and a full moon reads clearly. Without this the
@@ -374,17 +441,21 @@ void main() {
     // standard approximation and it is dim enough (~3.5% of sunlight) to be unobjectionable; fitting
     // the cascades to whichever body is dominant is the follow-up that earns real moon shadows.
     if (ubo.moonColor.b > 0.0) {
-        color += pbrBRDF(N, V, normalize(-ubo.moonDirection), albedo, rough, metallic,
+        vec3 m = pbrBRDF(N, V, normalize(-ubo.moonDirection), albedo, rough, metallic,
                          ubo.moonColor) * skyCurve;
+        color += m;
+        dbgDirect += m;   // moon is the same directional system as the sun
     }
 
     // Baked COLOURED block light from emissive voxels (torches/glow/crystals). Omnidirectional
     // fill (the bake stores no direction, like a lightmap) carrying each source's own colour, so a
     // glow block lights its room warm, a blue crystal blue, etc. Independent of sky access, so it's
     // the light source indoors / at night. Per-channel convex falloff for a natural rolloff.
-    color += (vBlockColor * vBlockColor) * albedo;
+    vec3 dbgBlock = (vBlockColor * vBlockColor) * albedo;
+    color += dbgBlock;
 
     // Point lights
+    vec3 dbgForward = vec3(0.0);
     for (uint i = 0u; i < lights.numPointLights && i < 32u; i++) {
         vec3 lightPos = lights.pointLights[i].positionAndRadius.xyz;
         float radius = lights.pointLights[i].positionAndRadius.w;
@@ -394,8 +465,19 @@ void main() {
         float dist = length(toLight);
         if (dist < radius) {
             vec3 ldir = toLight / dist;
-            float atten = calcAttenuation(dist, radius);
-            color += pbrBRDF(N, V, ldir, albedo, rough, metallic, lightColor * intensity * atten);
+            // Skip the trace when the surface faces away: pbrBRDF already returns black there, so
+            // tracing would cost a march to change nothing. This is also why the reported
+            // "wall lit from inside" bug was never the BRDF's fault — it is geometry the light
+            // reaches around, which only a visibility term can cut.
+            if (dot(N, ldir) > 0.0) {
+                float vis = phxLightVisibility(inWorldPos + ubo.cameraWorld, Ng,
+                                               lightPos + ubo.cameraWorld, ubo.occupancyBox);
+                if (vis > 0.0) {
+                    float atten = calcAttenuation(dist, radius);
+                    dbgForward += pbrBRDF(N, V, ldir, albedo, rough, metallic,
+                                          lightColor * intensity * atten);
+                }
+            }
         }
     }
 
@@ -412,12 +494,22 @@ void main() {
         float dist = length(toLight);
         if (dist < radius) {
             vec3 ldir = toLight / dist;
-            float atten = calcAttenuation(dist, radius);
             float theta = dot(-ldir, spotDir);
             float spotFactor = smoothstep(outerCone, innerCone, theta);
-            color += pbrBRDF(N, V, ldir, albedo, rough, metallic, lightColor * intensity * atten * spotFactor);
+            // Trace only inside the cone and on facing surfaces — outside either, the contribution
+            // is already zero and a march would be pure cost.
+            if (spotFactor > 0.0 && dot(N, ldir) > 0.0) {
+                float vis = phxLightVisibility(inWorldPos + ubo.cameraWorld, Ng,
+                                               lightPos + ubo.cameraWorld, ubo.occupancyBox);
+                if (vis > 0.0) {
+                    float atten = calcAttenuation(dist, radius);
+                    dbgForward += pbrBRDF(N, V, ldir, albedo, rough, metallic,
+                                          lightColor * intensity * atten * spotFactor);
+                }
+            }
         }
     }
+    color += dbgForward;
 
     // Masked emission (docs/MaskedEmissiveSpec.md): the surface above was lit NORMALLY; now ADD glow
     // from the bright pixels of the albedo (e.g. an enchanted log's cracks) without a per-face flag.
@@ -437,5 +529,86 @@ void main() {
     // dark, or the shadow-only view underneath drowns the signal it exists to show.
     if (ubo.debugShadowMode == 2) { outColor = vec4(0.05, 0.05, 0.06, 1.0); return; }
     if (ubo.debugShadowMode == 1) { outColor = phxShadowOnly(shadowFactor); return; }
+
+    // ---- PER-SYSTEM LIGHTING VIEWS (3..7) ------------------------------------------------
+    // Show ONE lighting system at a time, so "which of the three lit this surface" is read off
+    // the screen instead of inferred. Aerial perspective is deliberately NOT applied to these —
+    // they are the raw contribution, not the final look.
+    //
+    //   3 SKY ACCESS   the baked per-CUBE-CELL skylight, greyscale, no albedo. Cube-stepped by
+    //                  construction: this is the Minecraft-style flood's own resolution.
+    //   4 BLOCK LIGHT  the baked per-cell coloured light from emissive voxels, no albedo.
+    //                  If an EXTERIOR surface glows here with the source indoors, the flood is
+    //                  leaking through the shell.
+    //   5 FORWARD      point + spot lights only. These do NO occlusion test of any kind, so
+    //                  anything lit here was lit without regard to walls.
+    //   6 DIRECT       sun + moon, shadow-mapped against real geometry (sub-voxel accurate).
+    //   7 SKY FILL     the hemispheric ambient term.
+    if (ubo.debugShadowMode == 3) { outColor = vec4(vec3(skyVis), 1.0); return; }
+    if (ubo.debugShadowMode == 4) { outColor = vec4(vBlockColor * vBlockColor, 1.0); return; }
+    if (ubo.debugShadowMode == 5) { outColor = vec4(dbgForward, 1.0); return; }
+    if (ubo.debugShadowMode == 6) { outColor = vec4(dbgDirect, 1.0); return; }
+    if (ubo.debugShadowMode == 7) { outColor = vec4(dbgAmbient, 1.0); return; }
+    // Mode 8 — OCCUPANCY HIT (M1 gate). Asks the GPU occupancy about the fragment's own position,
+    // stepped slightly ALONG the surface normal into the solid, so a surface reports the matter it
+    // belongs to rather than the air in front of it.
+    //   red   = the occupancy agrees this surface is made of solid matter. EXPECTED everywhere a
+    //           chunk voxel is drawn, at cube, subcube and microcube resolution alike.
+    //   green = a surface IS drawn here but the occupancy says its own cell is empty. That is a
+    //           DISAGREEMENT between the mesh and the occupancy, not a normal partial cell —
+    //           green is the defect colour, and a healthy scene has none. (Gap 15 in
+    //           StructurePipelineGaps.md — remove_subcube desyncing the grid — makes green.)
+    //   blue  = outside the covered box, or occupancy not resident: reads as "no occlusion".
+    // NOTE: the probe steps HALF A MICRO CELL along -N into the surface, so a 2-micro wall or a
+    // 3-micro floor reads red on its own faces. Partial cells are not visible as green here; they
+    // are proven instead by /api/debug/light_occupancy's per-micro counts, which report exactly
+    // how many of a cell's 729 micro cells are filled.
+    if (ubo.debugShadowMode == 8) {
+        if ((ubo.occupancyBox.w & 1) == 0) { outColor = vec4(0.0, 0.0, 1.0, 1.0); return; }
+        // inWorldPos is CAMERA-RELATIVE (every GPU position is world - camera); cameraWorld puts
+        // it back into absolute world space, which is what the occupancy is indexed by.
+        vec3 probe = inWorldPos + ubo.cameraWorld - N * (0.5 / 9.0);   // half a micro cell inward
+        ivec3 wm = ivec3(floor(probe * 9.0));
+        bool solid = phxOccupancySolid(wm, ubo.occupancyBox);
+        // Distinguish "outside the box" from "inside but empty": re-ask at the same cell with the
+        // guard already checked, and use the directory reach as the box test.
+        ivec3 cc = ivec3(phxFloorDiv(wm.x, PHX_OCC_MICRO_PER_CHUNK),
+                         phxFloorDiv(wm.y, PHX_OCC_MICRO_PER_CHUNK),
+                         phxFloorDiv(wm.z, PHX_OCC_MICRO_PER_CHUNK)) - ubo.occupancyBox.xyz;
+        bool inBox = cc.x >= 0 && cc.x < PHX_OCC_DIR_X && cc.y >= 0 && cc.y < PHX_OCC_DIR_Y &&
+                     cc.z >= 0 && cc.z < PHX_OCC_DIR_Z;
+        if (!inBox)  { outColor = vec4(0.0, 0.0, 1.0, 1.0); return; }
+        outColor = solid ? vec4(1.0, 0.0, 0.0, 1.0) : vec4(0.0, 1.0, 0.0, 1.0);
+        return;
+    }
+    // Mode 9 — CELL FILL CLASS. Asks the GPU occupancy about all 729 micro cells of the cube this
+    // fragment belongs to and classifies the cell, so that "the shader can read a PARTIALLY filled
+    // cell" is answerable from the GPU side rather than only from the CPU mirror.
+    //   red   = fully solid cell (729/729)
+    //   GREEN = PARTIAL (1..728) — the case the old one-value-per-cell lighting could not
+    //           represent, and the direct cause of the interior wall-base black band
+    //   black = empty cell        blue = uncovered / not resident
+    // Deliberately colour CLASSES, not a gradient: this output passes through AgX, so an intensity
+    // ramp would not survive to be measured, whereas class colours are still separable by
+    // dominant channel. 729 lookups per fragment is heavy and runs ONLY in this mode.
+    if (ubo.debugShadowMode == 9) {
+        if ((ubo.occupancyBox.w & 1) == 0) { outColor = vec4(0.0, 0.0, 1.0, 1.0); return; }
+        vec3 probe = inWorldPos + ubo.cameraWorld - N * (0.5 / 9.0);
+        ivec3 cubeW = ivec3(floor(probe));
+        ivec3 cc = ivec3(phxFloorDiv(cubeW.x, 32), phxFloorDiv(cubeW.y, 32),
+                         phxFloorDiv(cubeW.z, 32)) - ubo.occupancyBox.xyz;
+        if (cc.x < 0 || cc.x >= PHX_OCC_DIR_X || cc.y < 0 || cc.y >= PHX_OCC_DIR_Y ||
+            cc.z < 0 || cc.z >= PHX_OCC_DIR_Z) { outColor = vec4(0.0, 0.0, 1.0, 1.0); return; }
+        int filled = 0;
+        for (int i = 0; i < 729; ++i) {
+            ivec3 inC = ivec3(i % 9, (i / 9) % 9, i / 81);
+            if (phxOccupancySolid(cubeW * 9 + inC, ubo.occupancyBox)) ++filled;
+        }
+        if (filled == 0)        outColor = vec4(0.0, 0.0, 0.0, 1.0);
+        else if (filled == 729) outColor = vec4(1.0, 0.0, 0.0, 1.0);
+        else                    outColor = vec4(0.0, 1.0, 0.0, 1.0);
+        return;
+    }
+
     outColor = vec4(color, textureColor.a);
 }

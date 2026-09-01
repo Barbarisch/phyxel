@@ -389,12 +389,13 @@ void DebrisRenderPipeline::updateInstanceBuffer(const std::vector<DebrisParticle
             // darkens in unlit rooms and warms up near a glow/torch. (debris.frag adds a
             // small fixed directional term on top for form.)
             if (m_lightSampler) {
-                glm::vec4 bl = m_lightSampler(p.position); // sky, blockR, blockG, blockB in 0..1
-                float skyCurve = bl.x * bl.x;
-                glm::vec3 block(bl.y, bl.z, bl.w);
-                glm::vec3 lightFactor = glm::vec3(0.12f + 0.88f * skyCurve) + block * block;
-                lightFactor = glm::min(lightFactor, glm::vec3(2.0f));
-                color = glm::vec4(glm::vec3(color) * lightFactor, color.a);
+                // U1: the sampler now returns a finished LINEAR LIGHT COLOUR (sun + atmosphere
+                // ambient, gated by sky access), instead of the raw baked-light field this used to
+                // reshape itself. The old form multiplied by (0.12 + 0.88*skyCurve) + block^2 off
+                // a field that M0 pinned to a constant, so debris ignored the sun entirely — it
+                // looked identical at noon and midnight.
+                const glm::vec4 lit = m_lightSampler(p.position);
+                color = glm::vec4(glm::vec3(color) * glm::vec3(lit), color.a);
             }
             instances[copiedCount].color = color;
             copiedCount++;

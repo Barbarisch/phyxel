@@ -16,6 +16,7 @@
 #include "graphics/TreeLodMeshRegistry.h"
 #include "graphics/TreeLodRenderPipeline.h"
 #include "graphics/FarTerrainRenderPipeline.h"   // TileDraw (far-cascade caster cache)
+#include "graphics/VoxelLightOccupancyGpu.h"     // M1b: sub-voxel occupancy on the GPU
 #include <functional>
 #include <future>
 #include <memory>
@@ -312,6 +313,46 @@ public:
     void render();
     void drawFrame();
     
+    // ---- M1b light-occupancy observability ----
+    // The M1 gate is "the GPU's view agrees with Chunk::getOccupancyGrid(), INCLUDING partially
+    // filled cells". These exist so that gate is answered with numbers rather than inferred from
+    // a picture, and so an empty pool (physics grids never built) is visible instead of silently
+    // reading as open sky.
+    VoxelLightOccupancyGpu::Stats lightOccupancyStats() const {
+        return m_lightOccupancy ? m_lightOccupancy->stats() : VoxelLightOccupancyGpu::Stats{};
+    }
+    bool lightOccupancyReady() const { return m_lightOccupancy && m_lightOccupancy->ready(); }
+    size_t lightOccupancyLoadedChunks() const { return m_lightOccLoadedChunks; }
+    /// The position actually used to centre the box last frame — NOT re-read from the camera here,
+    /// so "the box did not follow" and "the camera did not move" stay distinguishable.
+    glm::vec3 lightOccupancyCentreSource() const { return m_lightOccCentreSource; }
+    /// Run the M2 visibility march against the LIVE pool, using the same code the shader mirrors.
+    /// Lets a specific "is this point lit by that light" question be answered as data instead of
+    /// inferred from a screenshot, where wall shadow and terrain relief are indistinguishable.
+    LightVisibility lightOccupancyVisibility(const glm::vec3& surfaceWorld,
+                                             const glm::vec3& geomNormal,
+                                             const glm::vec3& lightWorld) const {
+        if (!m_lightOccupancy) return {};
+        return m_lightOccupancy->visibility(surfaceWorld, geomNormal, lightWorld);
+    }
+    /// M3 sky access at a point, from the live pool — the CPU mirror of phxSkyVisibility.
+    float lightOccupancySkyVisibility(const glm::vec3& surfaceWorld,
+                                      const glm::vec3& geomNormal) const {
+        return m_lightOccupancy ? m_lightOccupancy->skyVisibility(surfaceWorld, geomNormal) : 1.0f;
+    }
+    std::vector<glm::ivec3> lightOccupancySampleMixedCubes(size_t maxN) const {
+        return m_lightOccupancy ? m_lightOccupancy->sampleMixedCubes(maxN)
+                                : std::vector<glm::ivec3>{};
+    }
+    glm::ivec3 lightOccupancyBoxMinChunk() const {
+        return m_lightOccupancy ? m_lightOccupancy->boxMinChunk() : glm::ivec3(0);
+    }
+    size_t lightOccupancyOutOfBoxChunks() const { return m_lightOccOutOfBox; }
+    /// Query the LAST FLUSHED pool with the shader's own addressing. `worldMicro` = world unit * 9.
+    bool lightOccupancySolidAt(const glm::ivec3& worldMicro) const {
+        return m_lightOccupancy && m_lightOccupancy->solidAtMicro(worldMicro);
+    }
+
     // Render distance management
     void setMaxChunkRenderDistance(float distance);
     void setChunkInclusionDistance(float distance) { chunkInclusionDistance = distance; }
@@ -559,6 +600,13 @@ public:
     float getBloomIntensity() const { return m_bloomIntensity; }
     float getBloomThreshold() const { return m_bloomThreshold; }
     float getBloomKnee() const { return m_bloomKnee; }
+    /// Live A/B for the "spots, not a glow" diagnosis: widen the blur without resizing buffers.
+    /// 1.0 = shipped width. See PostProcessor::BlurPush::radiusScale.
+    void  setBloomRadiusScale(float s);
+    float getBloomRadiusScale() const { return m_bloomRadiusScale; }
+    /// Firefly clamp multiplier, live. 8 = shipped; a huge value disables the clamp.
+    void  setBloomClampMul(float c);
+    float getBloomClampMul() const { return m_bloomClampMul; }
     int  getTonemapCurve() const { return m_tonemapCurve; }
 
     void setCachedViewMatrix(const glm::mat4& view) { cachedViewMatrix = view; }
@@ -806,6 +854,33 @@ private:
     Input::InputManager* inputManager;
     Camera* camera;
     ChunkManager* chunkManager;
+
+    // ---- M1b: sub-voxel occupancy, mirrored to the GPU for the lighting rebuild ----
+    // Source of truth stays Physics::VoxelOccupancyGrid on each Chunk; this only mirrors it.
+    // A chunk is re-flattened only when its grid's revision() moves, so an edit in one chunk
+    // does not re-walk every resident chunk.
+    std::unique_ptr<VoxelLightOccupancyGpu> m_lightOccupancy;
+    /// Keyed by chunk WORLD ORIGIN, not directory slot — the box moves with the viewer, so a slot
+    /// is not a stable identity for a chunk.
+    struct LightOccOriginHash {
+        size_t operator()(const glm::ivec3& v) const noexcept {
+            return (static_cast<size_t>(v.x) * 73856093u) ^ (static_cast<size_t>(v.y) * 19349663u)
+                 ^ (static_cast<size_t>(v.z) * 83492791u);
+        }
+    };
+    std::unordered_map<glm::ivec3, uint32_t, LightOccOriginHash> m_lightOccRevisions;
+    size_t m_lightOccLoadedChunks = 0;   ///< chunks resident in ChunkManager last scan
+    size_t m_lightOccOutOfBox = 0;       ///< loaded but outside the directory box -> NOT occluding
+    glm::vec3 m_lightOccCentreSource{0.0f};   ///< what was fed to setViewCentre last frame
+    // U1: the frame's sun and atmosphere-ambient colours, cached for CPU-side consumers that shade
+    // outside a scene shader (currently the debris particle sampler). Kept here rather than
+    // re-derived, so debris cannot drift from what the shaders were given.
+    glm::vec3 m_lastSunColor{1.0f};
+    glm::vec3 m_lastAmbientColor{0.0f};
+    /// Re-flatten changed chunks (budgeted), drop departed ones, and flush once. Chunks not yet
+    /// uploaded report "not solid", i.e. they degrade to NO OCCLUSION — never to wrong geometry.
+    void updateLightOccupancy();
+
     // Water-layer P1: identity of the last hydrology bake uploaded to the sea pipeline. Starts
     // at a sentinel (not nullptr) so the FIRST frame always uploads — the no-bake form binds the
     // 1×1 dry dummy that keeps the sea drawing in flat mode on non-procedural worlds.
@@ -847,6 +922,8 @@ private:
     float m_bloomIntensity = 0.0f;   // DEFAULT OFF and MUST STAY OFF -- bloom is broken, see above
     float m_bloomThreshold = 1.0f;
     float m_bloomKnee = 0.5f;
+    float m_bloomRadiusScale = 1.0f;   // live blur-width A/B; 1.0 = shipped
+    float m_bloomClampMul = 8.0f;      // live firefly-clamp A/B; 8 = shipped
     float m_exposure = 8.0f;   // calibrated: puts a noon lit surface near 0.16-0.19
                                // linear with 0.00% clipped (measured, exposure sweep)
     int   m_tonemapCurve = 1;   // 1 = AgX, 0 = none (the pre-tonemap look, for A/B)

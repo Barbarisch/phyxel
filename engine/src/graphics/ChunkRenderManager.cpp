@@ -53,6 +53,11 @@ void ChunkRenderManager::resetMeshTimingStats() {
 // so gentle gradients never band into flat blocky steps). Raise tolerance (or toggle smooth off) only
 // as an opt-in perf lever; the default prioritizes look.
 bool ChunkRenderManager::s_smoothLighting = true;
+// M3-REDESIGN. Default OFF until the bake cost is measured on a real chunk load.
+ChunkRenderManager::SkyVisibilityFn ChunkRenderManager::s_skyVisibility;
+bool   ChunkRenderManager::s_bakeSkyVisibility = false;
+double ChunkRenderManager::s_lastSkyBakeMs = 0.0;
+size_t ChunkRenderManager::s_lastSkyBakeCells = 0;
 int  ChunkRenderManager::s_mergeTolerance = 0;
 bool ChunkRenderManager::s_foliageEnabled = true;
 float ChunkRenderManager::s_foliageDensity = 0.25f;   // 0.5 still read as a solid mass
@@ -72,6 +77,7 @@ inline float foliageCellHash01(int wx, int wy, int wz) {
 // path stays reachable via POST /api/debug/fine_merge {"enabled":false} for A/B. Re-mesh cost of the
 // merged path measured acceptable before flipping this default.
 bool ChunkRenderManager::s_fineGreedyMerge = true;
+int  ChunkRenderManager::s_floodBypass = 0;
 
 ChunkRenderManager::ChunkRenderManager()
     : numInstances(0)
@@ -421,249 +427,79 @@ void ChunkRenderManager::rebuildCubeFaces(
         }
     }
 
-    // --- What blocks LIGHT (m_lightOpaque; see the header for why this is NOT m_solidVis) -------
-    // Built here, between the cube scan (which fills solidVis/cellMat) and the two flood fills that
-    // consume it. Sub-voxel geometry occludes; transparent materials do not.
-    m_lightOpaque.assign(N * N * N, 0);
-    m_subFill.assign(N * N * N, 0);
-    {
-        // Sub-voxel volume per CUBE cell, in micro-equivalents. Same leaf iteration and bounds
-        // guards as buildSubMicroOccupancy, but accumulating volume instead of leaf-slot keys — so
-        // this costs one increment per leaf voxel and needs no hashing.
-        auto addFill = [&](const glm::ivec3& parentWorldPos, int amount) {
-            glm::ivec3 lp = parentWorldPos - worldOrigin;
-            if (lp.x < 0 || lp.x >= N || lp.y < 0 || lp.y >= N || lp.z < 0 || lp.z >= N) return;
-            uint16_t& f = m_subFill[cellIdx(lp.x, lp.y, lp.z)];
-            f = static_cast<uint16_t>(std::min(729, static_cast<int>(f) + amount));
-        };
-        // BILLBOARDED (leaf) sub-voxels are deliberately excluded. A canopy is thousands of leaf
-        // subcubes, so counting them would flip every forest floor from full sky to near-black in
-        // one step. Whether canopies should cast baked shade is a real look question, but it is a
-        // SEPARATE decision from "a building's roof must not leak daylight", and it deserves its own
-        // measurement. Structural sub-voxel geometry (the actual bug) occludes; foliage does not
-        // — which leaves forests exactly as they render today.
-        std::unordered_map<std::string, bool> foliageMat;   // material name -> billboarded
-        auto isFoliage = [&](const std::string& name) -> bool {
-            auto it = foliageMat.find(name);
-            if (it != foliageMat.end()) return it->second;
-            const auto* md = reg.getMaterial(name);
-            bool b = md && md->billboarded;
-            foliageMat.emplace(name, b);
-            return b;
-        };
-        for (const auto& sc : subcubes) {
-            if (!sc || sc->isBroken() || !sc->isVisible()) continue;
-            if (isFoliage(sc->getMaterialName())) continue;
-            addFill(sc->getPosition(), 27);          // one subcube = 27 microcells
-        }
-        for (const auto& mc : microcubes) {
-            if (!mc || mc->isBroken() || !mc->isVisible()) continue;
-            if (isFoliage(mc->getMaterialName())) continue;
-            addFill(mc->getParentCubePosition(), 1);
-        }
-        for (int cell = 0; cell < N * N * N; ++cell) {
-            bool blocks = solidVis[cell] != 0;
-            if (blocks) {
-                const int m = cellMat[cell];
-                // reserved bit1 = transparent (material alpha < 0.99). Glass is a window, not a
-                // wall: it must pass skylight or a glazed room bakes pitch black. Leaf materials
-                // are alpha 1.0 (they are `billboarded`, not transparent), so canopies keep casting
-                // the dappled shade they cast today.
-                if (m >= 0 && (matFaces[m].reserved & 0x2u) != 0u) blocks = false;
-            }
-            m_lightOpaque[cell] = (blocks || m_subFill[cell] >= kLightOpaqueFill) ? 1u : 0u;
-        }
-    }
-    std::vector<uint8_t>& lightOpaque = m_lightOpaque;
+    // --- LIGHT FIELD REMOVED (lighting rebuild M0, 2026-08-29) --------------------------------
+    // The Minecraft-style per-cell flood lived here: a per-cube-cell opacity mask
+    // (m_lightOpaque / m_subFill) plus two BFS floods — 4-bit skylight and 4-bit RGB block light,
+    // each decaying 1 per cell.
+    //
+    // Deleted rather than repaired, because its defects are properties of the MODEL and not bugs
+    // in the implementation:
+    //   * ONE light value per CUBE cell, while generated walls are 2 micro and floors 3 micro. A
+    //     cell that is 1/3 floor and 2/3 standing room can hold only one answer, so it is marked
+    //     opaque and carries sky=0 — a hard black band one cube tall along every interior wall
+    //     base. Measured live: 240/255 on the wall above the junction, 3.6/255 at it.
+    //   * Linear decay, not attenuation. Measured 14,13,12,11,10,9,8,7 along a row from a single
+    //     doorway: 47% of full daylight eight cells inside a building.
+    //   * No direction, no inverse-square, no bounce, no dependence on the receiving normal.
+    //
+    // Until the replacement lands (traced sky-dome visibility + traced point-light visibility
+    // against the sub-voxel occupancy grid), the field carries a DEFINED PLACEHOLDER rather than
+    // being left at zero: skylight uniform 15, block light zero.
+    //
+    // ⚑ Why not zero: skylight also GATES the sun and the ambient term (voxel.frag multiplies both
+    // by phxSkyGate(vSkyLight)), so zeroing it renders the entire world black and hides the
+    // replacement's behaviour instead of exposing it. With 15 the outdoors is approximately right
+    // and interiors are uniformly, visibly WRONG — which is the state M2/M3 have to remove, and it
+    // stays honest about the fact that nothing is lighting interiors yet.
+    //
+    // The per-corner vertex-light words in InstanceData are deliberately KEPT and still fed from
+    // these arrays. Whether the replacement needs them at all is decided in M4.
+    m_lightOpaque.clear();
+    m_subFill.clear();
+    m_skyLight.assign(static_cast<size_t>(N) * N * N, uint8_t(15));
+    m_blockR.assign(static_cast<size_t>(N) * N * N, uint8_t(0));
+    m_blockG.assign(static_cast<size_t>(N) * N * N, uint8_t(0));
+    m_blockB.assign(static_cast<size_t>(N) * N * N, uint8_t(0));
 
-    // --- Baked skylight (Phase 1, per-chunk) ---
-    // Air cells open to the top of the chunk receive full sky (15) straight down through air
-    // (lossless), then light spreads to neighbouring air cells at -1 per step via BFS. Air that
-    // can't reach a source (a sealed room) stays 0 -> genuinely dark interiors. Boundaries fall
-    // back to open sky in skyLightAt(); cross-chunk bleed is a later phase.
-    m_skyLight.assign(N * N * N, 0);
-    {
-        std::deque<int> q;
-        // Is the world directly above this column's chunk-top open to the sky? We can't assume
-        // the chunk top (y=31) is exposed — a structure's roof often lives in the chunk ABOVE
-        // (e.g. a room ceiling at world y=32). Walk upward through neighbouring chunks; if any
-        // opaque cube is found the column is roofed, so its top air must NOT be seeded as sky
-        // (BFS will instead light it through windows/holes). Without a neighbour lookup we fall
-        // back to assuming open (correct for single-chunk content like a freestanding box).
-        constexpr int kSkyProbeHeight = 96;  // ~3 chunks; enough for typical buildings
-        // Fast path: the caller precomputed which columns are open to the sky (from the chunks
-        // above) — an O(1) lookup instead of probing ~96 cells per column. Fallback (no mask):
-        // the original per-cell getNeighborCube probe.
-        auto columnOpenAbove = [&](int x, int z) -> bool {
-            if (columnOpenMask) return (*columnOpenMask)[x * 32 + z] != 0;
-            if (!getNeighborCube) return true;
-            for (int wy = N; wy < N + kSkyProbeHeight; ++wy) {
-                if (getNeighborCube(worldOrigin + glm::ivec3(x, wy, z)))
-                    return false;  // roofed somewhere above
-            }
-            return true;
+    // ---- M3-REDESIGN: BAKE sky visibility by TRACING, not flooding -----------------------------
+    // The flood decayed 1 per cube cell from the nearest opening, which is not light transport;
+    // this traces the real sub-voxel geometry and stores the answer in the same slot, so the
+    // shader reads one interpolated value again instead of marching 9 rays per fragment.
+    //
+    // Only AIR cells adjacent to something solid are traced. Those are the only cells a face ever
+    // samples, and tracing all 32768 would be wasted on solid rock and open air alike.
+    //
+    // ⚠️ Traced from the cell CENTRE with an up normal. The wall-base band this rebuild exists to
+    // kill came from a MIXED cell being marked opaque and forced to 0; tracing has no notion of
+    // opacity, so a cell that is one-third floor and two-thirds room reports what its air actually
+    // sees. The per-corner interpolation in static_voxel.vert then smooths across cells as before.
+    if (s_bakeSkyVisibility && s_skyVisibility) {
+        const auto bakeStart = std::chrono::high_resolution_clock::now();
+        size_t traced = 0;
+        const glm::vec3 origin(worldOrigin);
+        auto solidAt = [&](int x, int y, int z) -> bool {
+            if (x < 0 || y < 0 || z < 0 || x >= N || y >= N || z >= N) return false;
+            return m_solidVis[cellIdx(x, y, z)] != 0;   // filled above: 1 = visible cube here
         };
-        // Column seed: from the top, full sky straight down through air until the first solid —
-        // but only for columns actually exposed to the sky above the chunk.
-        for (int x = 0; x < N; ++x) {
-            for (int z = 0; z < N; ++z) {
-                if (!columnOpenAbove(x, z)) continue;  // roofed: no direct sky into this column
-                for (int y = N - 1; y >= 0; --y) {
-                    int cell = cellIdx(x, y, z);
-                    if (lightOpaque[cell]) break;  // blocked: cells below are not direct sky
-                    m_skyLight[cell] = 15;
-                    q.push_back(cell);
-                }
-            }
+        for (int x = 0; x < N; ++x)
+        for (int y = 0; y < N; ++y)
+        for (int z = 0; z < N; ++z) {
+            if (solidAt(x, y, z)) continue;                       // inside rock: never sampled
+            const bool touches = solidAt(x - 1, y, z) || solidAt(x + 1, y, z) ||
+                                 solidAt(x, y - 1, z) || solidAt(x, y + 1, z) ||
+                                 solidAt(x, y, z - 1) || solidAt(x, y, z + 1);
+            if (!touches) continue;                                // open air keeps the full 15
+            const glm::vec3 p = origin + glm::vec3(x + 0.5f, y + 0.5f, z + 0.5f);
+            const float v = s_skyVisibility(p, glm::vec3(0.0f, 1.0f, 0.0f));
+            m_skyLight[cellIdx(x, y, z)] =
+                static_cast<uint8_t>(glm::clamp(v, 0.0f, 1.0f) * 15.0f + 0.5f);
+            ++traced;
         }
-        // Cross-chunk seed: pull skylight in from neighbouring chunks across the 6 boundary planes
-        // so light bleeds across chunk seams (e.g. an opening/window in the adjacent chunk).
-        if (m_neighborLight) {
-            auto seed = [&](int x, int y, int z, int ox, int oy, int oz) {
-                int cell = cellIdx(x, y, z);
-                if (lightOpaque[cell]) return;
-                BakedLight nl;
-                if (m_neighborLight(worldOrigin + glm::ivec3(x + ox, y + oy, z + oz), nl) && nl.sky > 1) {
-                    uint8_t v = static_cast<uint8_t>(nl.sky - 1);
-                    if (m_skyLight[cell] < v) { m_skyLight[cell] = v; q.push_back(cell); }
-                }
-            };
-            for (int a = 0; a < N; ++a) for (int b = 0; b < N; ++b) {
-                seed(0, a, b, -1, 0, 0); seed(N - 1, a, b, 1, 0, 0);
-                seed(a, 0, b, 0, -1, 0); seed(a, N - 1, b, 0, 1, 0);
-                seed(a, b, 0, 0, 0, -1); seed(a, b, N - 1, 0, 0, 1);
-            }
-        }
-        // BFS relaxation: spread to air neighbours at -1 per step.
-        const int ndx[6] = {1, -1, 0, 0, 0, 0};
-        const int ndy[6] = {0, 0, 1, -1, 0, 0};
-        const int ndz[6] = {0, 0, 0, 0, 1, -1};
-        while (!q.empty()) {
-            int cell = q.front(); q.pop_front();
-            int level = m_skyLight[cell];
-            if (level <= 1) continue;
-            int cz = cell % 32;
-            int cy = (cell / 32) % 32;
-            int cx = cell / 1024;
-            for (int d = 0; d < 6; ++d) {
-                int nx = cx + ndx[d], ny = cy + ndy[d], nz = cz + ndz[d];
-                if (nx < 0 || nx >= N || ny < 0 || ny >= N || nz < 0 || nz >= N) continue;
-                int ncell = cellIdx(nx, ny, nz);
-                if (lightOpaque[ncell]) continue;  // opaque blocks light
-                uint8_t nl = static_cast<uint8_t>(level - 1);
-                if (m_skyLight[ncell] < nl) {
-                    m_skyLight[ncell] = nl;
-                    q.push_back(ncell);
-                }
-            }
-        }
+        s_lastSkyBakeCells = traced;
+        s_lastSkyBakeMs = std::chrono::duration<double, std::milli>(
+            std::chrono::high_resolution_clock::now() - bakeStart).count();
     }
 
-    // --- Baked coloured block light (Phase 2 + colour + cross-chunk bleed) ---
-    // Emissive voxels flood-fill light into surrounding air at -1 per step (per RGB channel),
-    // blocked by opaque voxels, tinted by each material's colour, AND bleeding in from emissive
-    // sources in neighbouring chunks via the boundary seed. So a glow block lights its room warm,
-    // a blue crystal lights it blue, even across a chunk seam.
-    m_blockR.assign(N * N * N, 0);
-    m_blockG.assign(N * N * N, 0);
-    m_blockB.assign(N * N * N, 0);
-    {
-        std::deque<int> q;
-        auto bump = [&](int cell, uint8_t r, uint8_t g, uint8_t b) {
-            bool up = false;
-            if (m_blockR[cell] < r) { m_blockR[cell] = r; up = true; }
-            if (m_blockG[cell] < g) { m_blockG[cell] = g; up = true; }
-            if (m_blockB[cell] < b) { m_blockB[cell] = b; up = true; }
-            if (up) q.push_back(cell);
-        };
-        for (int cell = 0; cell < N * N * N; ++cell) {
-            int m = cellMat[cell];
-            // Seed on the precomputed emissive COLOUR being non-zero (not the reserved emissive bit),
-            // so MASKED-emissive materials (enchanted log) cast their dim crack-light too.
-            if (m >= 0 && (matFaces[m].emR | matFaces[m].emG | matFaces[m].emB)) {
-                bump(cell, matFaces[m].emR, matFaces[m].emG, matFaces[m].emB);
-            }
-        }
-        // Seed block light from emissive (glow material) OR flaming/smoldering sub-microcubes,
-        // at their parent cube cell. This reuses the torch/glow firelight path for state=flaming
-        // (Phase 2b) AND makes emissive subcube light sources actually illuminate their room.
-        // Hue from the material colorTint (glow) or the per-voxel tint (flaming); brightest channel
-        // scaled to 15 (flaming) / 9 (smoldering), like the cube emissive seed.
-        auto seedVoxelLight = [&](const glm::ivec3& parentWorldPos, const std::string& matName,
-                                  uint32_t tint, uint8_t state) {
-            glm::ivec3 lp = parentWorldPos - worldOrigin;
-            if (lp.x < 0 || lp.x >= N || lp.y < 0 || lp.y >= N || lp.z < 0 || lp.z >= N) return;
-            glm::vec3 hue(0.0f); float scale = 0.0f;
-            if (state == 1u || state == 2u) {                 // flaming / smoldering -> per-voxel tint
-                hue = glm::vec3((tint >> 16) & 0xFFu, (tint >> 8) & 0xFFu, tint & 0xFFu) / 255.0f;
-                scale = (state == 1u) ? 15.0f : 9.0f;
-            } else {
-                const auto* md = reg.getMaterial(matName);
-                if (!md || (!md->emissive && md->emissiveStrength <= 0.0f)) return;
-                hue = md->physics.colorTint;
-                scale = md->emissive ? 15.0f : glm::clamp(md->emissiveStrength * 4.0f, 2.0f, 10.0f);
-            }
-            float mx = std::max(hue.x, std::max(hue.y, std::max(hue.z, 0.0001f)));
-            float s = scale / mx;
-            bump(cellIdx(lp.x, lp.y, lp.z),
-                 static_cast<uint8_t>(glm::clamp(hue.x * s, 0.0f, 15.0f) + 0.5f),
-                 static_cast<uint8_t>(glm::clamp(hue.y * s, 0.0f, 15.0f) + 0.5f),
-                 static_cast<uint8_t>(glm::clamp(hue.z * s, 0.0f, 15.0f) + 0.5f));
-        };
-        for (const auto& sc : subcubes) {
-            if (!sc || sc->isBroken() || !sc->isVisible()) continue;
-            if (sc->getState() == 1u) m_flamingVoxels.push_back(sc->getWorldPosition()); // fire VFX seed
-            if (sc->getState() == 0) {
-                const auto* scMd = reg.getMaterial(sc->getMaterialName());
-                if (scMd && !scMd->emissive && scMd->emissiveStrength <= 0.0f) continue;
-            }
-            seedVoxelLight(sc->getPosition(), sc->getMaterialName(), sc->getTint(), sc->getState());
-        }
-        for (const auto& mc : microcubes) {
-            if (!mc || mc->isBroken() || !mc->isVisible()) continue;
-            if (mc->getState() == 1u) m_flamingVoxels.push_back(mc->getWorldPosition()); // fire VFX seed
-            if (mc->getState() == 0) {
-                const auto* mcMd = reg.getMaterial(mc->getMaterialName());
-                if (mcMd && !mcMd->emissive && mcMd->emissiveStrength <= 0.0f) continue;
-            }
-            seedVoxelLight(mc->getParentCubePosition(), mc->getMaterialName(), mc->getTint(), mc->getState());
-        }
-        // Cross-chunk seed from neighbouring chunks' baked block colour across the 6 boundary planes.
-        if (m_neighborLight) {
-            auto seed = [&](int x, int y, int z, int ox, int oy, int oz) {
-                int cell = cellIdx(x, y, z);
-                if (lightOpaque[cell]) return;
-                BakedLight nl;
-                if (m_neighborLight(worldOrigin + glm::ivec3(x + ox, y + oy, z + oz), nl)) {
-                    bump(cell, nl.r > 0 ? nl.r - 1 : 0, nl.g > 0 ? nl.g - 1 : 0, nl.b > 0 ? nl.b - 1 : 0);
-                }
-            };
-            for (int a = 0; a < N; ++a) for (int b = 0; b < N; ++b) {
-                seed(0, a, b, -1, 0, 0); seed(N - 1, a, b, 1, 0, 0);
-                seed(a, 0, b, 0, -1, 0); seed(a, N - 1, b, 0, 1, 0);
-                seed(a, b, 0, 0, 0, -1); seed(a, b, N - 1, 0, 0, 1);
-            }
-        }
-        const int ndx[6] = {1, -1, 0, 0, 0, 0};
-        const int ndy[6] = {0, 0, 1, -1, 0, 0};
-        const int ndz[6] = {0, 0, 0, 0, 1, -1};
-        while (!q.empty()) {
-            int cell = q.front(); q.pop_front();
-            uint8_t r = m_blockR[cell], g = m_blockG[cell], b = m_blockB[cell];
-            if (r <= 1 && g <= 1 && b <= 1) continue;
-            int cz = cell % 32;
-            int cy = (cell / 32) % 32;
-            int cx = cell / 1024;
-            uint8_t pr = r > 0 ? r - 1 : 0, pg = g > 0 ? g - 1 : 0, pb = b > 0 ? b - 1 : 0;
-            for (int d = 0; d < 6; ++d) {
-                int nx = cx + ndx[d], ny = cy + ndy[d], nz = cz + ndz[d];
-                if (nx < 0 || nx >= N || ny < 0 || ny >= N || nz < 0 || nz >= N) continue;
-                int ncell = cellIdx(nx, ny, nz);
-                if (lightOpaque[ncell]) continue;  // light fills air, blocked by opaque
-                bump(ncell, pr, pg, pb);
-            }
-        }
-    }
 
     // Snapshot this chunk's boundary light (the 6 faces neighbours sample) and flag if it changed
     // since last rebuild. ChunkManager re-meshes neighbours when it did, so cross-chunk bleed

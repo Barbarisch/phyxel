@@ -120,5 +120,11 @@ void main() {
         return;
     }
     if (ubo.debugShadowMode == 1) { outColor = phxShadowOnly(shadowFactor); return; }
+    // D4: grass implements no per-SYSTEM isolation view (modes 3-9). A pass that does not
+    // implement a view must render flat dark in it, or it drowns the signal the view exists to
+    // show — measured: a mode-5 capture read 62% "lit" with a single light in the scene, because
+    // grass and sky ignored the mode entirely. This is the same rule foliage.frag already applies
+    // to the grass wind view (mode 2), generalised.
+    if (ubo.debugShadowMode >= 3) { outColor = vec4(0.02, 0.02, 0.025, 1.0); return; }
     outColor = vec4(lit, 1.0);
 }

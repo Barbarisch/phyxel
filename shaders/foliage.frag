@@ -123,5 +123,8 @@ void main() {
     // dark, or the shadow-only view underneath drowns the signal it exists to show.
     if (ubo.debugShadowMode == 2) { outColor = vec4(0.05, 0.05, 0.06, 1.0); return; }
     if (ubo.debugShadowMode == 1) { outColor = phxShadowOnly(shadowFactor); return; }
+    // D4: same rule as grass — a per-system view this pass does not implement must go flat dark
+    // rather than swamp the measurement.
+    if (ubo.debugShadowMode >= 3) { outColor = vec4(0.02, 0.02, 0.025, 1.0); return; }
     outColor = vec4(lit, 1.0);
 }

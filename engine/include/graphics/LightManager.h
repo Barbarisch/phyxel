@@ -94,7 +94,17 @@ public:
     /// Returns true if any lights have changed since the last getGPUData() call.
     bool isDirty() const { return dirty_; }
 
+    /// How many ENABLED point lights exist beyond the upload budget this frame. 0 means every light
+    /// in the world is being uploaded. Non-zero is not an error — it is the budget doing its job —
+    /// but it is the number to watch when a scene looks under-lit.
+    size_t droppedPointLights() const;
+    size_t storedPointLights() const { return pointLights_.size(); }
+    size_t storedSpotLights() const { return spotLights_.size(); }
+
 private:
+    /// Purely a leak tripwire. Storage is unbounded by design (U3.1); this only warns once if the
+    /// count reaches a level that suggests something is registering lights and never removing them.
+    static constexpr size_t kStorageWarnThreshold = 4096;
     struct PointLightEntry {
         int id;
         PointLight light;
@@ -109,7 +119,13 @@ private:
     int nextId_ = 1;
     glm::vec3 viewerWorld_{0.0f};   ///< see setViewerWorld
     bool dirty_ = true;
+    bool warnedPointStorage_ = false;
+    bool warnedSpotStorage_ = false;
     LightBufferGPU gpuBuffer_;
+
+    /// Distance from the viewer to a light's sphere of influence (negative = viewer inside it).
+    /// Lower is more relevant. See getGPUData for why radius is subtracted.
+    float relevance(const glm::vec3& position, float radius) const;
 
     // Helper to find entries by ID
     PointLightEntry* findPointLight(int id);

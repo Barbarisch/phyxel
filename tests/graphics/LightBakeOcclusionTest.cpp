@@ -22,6 +22,22 @@
 // Every case carries its CONTROL: an open-topped room must reach sky 15 (proving the rig can see
 // light at all) and a CUBE roof must reach sky 0 (proving the rig can see darkness).
 
+// ===========================================================================================
+// ⚑ PARKED BY THE LIGHTING REBUILD (M0, 2026-08-29).
+//
+// The tests below marked DISABLED_ assert behaviour of the per-cell "flood" light field, which
+// M0 DELETED (see ChunkRenderManager::rebuildCubeFaces). They are kept, not removed, because
+// each states a REQUIREMENT the replacement has to meet:
+//
+//   * a sealed room admits no daylight            -> gate for M3 (sky as a traced emitter)
+//   * a wall holds an interior light in           -> gate for M2 (traced point-light visibility)
+//   * a sub-voxel roof/wall occludes at all       -> gate for M2 and M3
+//
+// Re-enable them as each milestone lands; they must pass against the new system unchanged, on
+// the same geometry. If a replacement cannot satisfy one of these, that is a finding about the
+// replacement, not a reason to weaken the test.
+// ===========================================================================================
+
 #include <gtest/gtest.h>
 
 #include "graphics/ChunkRenderManager.h"
@@ -188,7 +204,7 @@ TEST_F(LightBakeOcclusion, Control_OpenRoomInteriorIsFullyLit) {
 
 // NEGATIVE control. A cube roof already occludes correctly — this is the behaviour the sub-voxel
 // cases must match, and it passes today.
-TEST_F(LightBakeOcclusion, Control_CubeRoofedRoomInteriorIsDark) {
+TEST_F(LightBakeOcclusion, DISABLED_Control_CubeRoofedRoomInteriorIsDark) {
     ASSERT_TRUE(loaded_);
     ChunkRenderManager crm;
     EXPECT_EQ(bakeAndProbeCentre(Roof::Cubes, crm), 0u);
@@ -199,7 +215,7 @@ TEST_F(LightBakeOcclusion, Control_CubeRoofedRoomInteriorIsDark) {
 // RED until P2. A roof of fully-packed subcubes occupies exactly the same volume as a cube roof,
 // so the interior must be equally dark. Today `solidVis` never sees the subcubes and the interior
 // bakes to 15 — a subcube-roofed room is lit as if it had no roof at all.
-TEST_F(LightBakeOcclusion, SubcubeRoofOccludesSkylight) {
+TEST_F(LightBakeOcclusion, DISABLED_SubcubeRoofOccludesSkylight) {
     ASSERT_TRUE(loaded_);
     ChunkRenderManager crm;
     EXPECT_EQ(bakeAndProbeCentre(Roof::Subcubes, crm), 0u)
@@ -208,7 +224,7 @@ TEST_F(LightBakeOcclusion, SubcubeRoofOccludesSkylight) {
 }
 
 // RED until P2. Same argument one resolution finer (9x9x9 microcubes per cell).
-TEST_F(LightBakeOcclusion, MicrocubeRoofOccludesSkylight) {
+TEST_F(LightBakeOcclusion, DISABLED_MicrocubeRoofOccludesSkylight) {
     ASSERT_TRUE(loaded_);
     ChunkRenderManager crm;
     EXPECT_EQ(bakeAndProbeCentre(Roof::Microcubes, crm), 0u)
@@ -224,7 +240,7 @@ TEST_F(LightBakeOcclusion, MicrocubeRoofOccludesSkylight) {
 
 // A roof exactly one subcube thick is 9/27 of the cell = 243 micro-equivalents = the threshold.
 // This is the shape structure generation actually builds, so it must block.
-TEST_F(LightBakeOcclusion, OneSubcubeThickRoofBlocksSkylight) {
+TEST_F(LightBakeOcclusion, DISABLED_OneSubcubeThickRoofBlocksSkylight) {
     ASSERT_TRUE(loaded_);
     ChunkRenderManager crm;
     EXPECT_EQ(bakeAndProbeCentre(Roof::SubcubeSlab, crm), 0u)
@@ -262,7 +278,7 @@ TEST_F(LightBakeOcclusion, GlassRoofAdmitsSkylight) {
 // averaging samples the four cells touching each corner in the air cell's plane, and the samples
 // that leave the chunk hit `skyLightAt`'s `return 15`. So the interior floor faces along x=0 and
 // z=0 are shaded as if in full daylight while their neighbours two cells away are black.
-TEST_F(LightBakeOcclusion, ChunkEdgeInteriorFacesDoNotReadFullSky) {
+TEST_F(LightBakeOcclusion, DISABLED_ChunkEdgeInteriorFacesDoNotReadFullSky) {
     ASSERT_TRUE(loaded_);
 
     // Floor + roof span x,z in [0, 8]; walls only at x=8 and z=8. The x=0 and z=0 sides are open

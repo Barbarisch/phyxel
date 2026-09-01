@@ -1,0 +1,173 @@
+// ============================================================================================
+// occupancy.glsl — THE sub-voxel occupancy query and light-visibility trace, shared by every
+// shader that shades a light. Sibling of lighting.glsl.
+//
+// WHY THIS EXISTS (docs/UnifiedLightingPlan.md U2 / D14). The visibility term lived inside
+// voxel.frag alone, while THREE shaders shade point lights: voxel, character and
+// transparent_voxel. So a lantern sealed inside a stone room correctly stopped lighting the
+// world's voxels — and went right on lighting any CHARACTER standing outside it, and shining
+// through GLASS. The reported bug was reported fixed while two thirds of the surfaces that can
+// be lit still had no occlusion at all.
+//
+// CONTRACT, deliberately narrower than lighting.glsl's. lighting.glsl is pure functions with no
+// implicit reads of anything. That is impossible here: the occupancy IS two storage buffers, so
+// this file declares bindings 11 and 12. What it does NOT do is read any shader's UBO — the
+// `occBox` value is passed in as a parameter, because voxel.frag, character.frag and
+// transparent_voxel.frag each declare a different prefix of the shared uniform block and none of
+// them can be assumed to have reached the same field.
+//
+// Include this ONLY from a shader whose pipeline uses the shared set-0 layout (every scene
+// pipeline does — they all take vulkanDevice.getDescriptorSetLayout()).
+//
+// occBox: xyz = the covered box's min corner in CHUNK coords (it follows the viewer),
+//         w   = bitfield — bit0 occupancy readable, bit1 light tracing on, bit2 sky tracing on.
+// ============================================================================================
+
+#ifndef PHYXEL_OCCUPANCY_GLSL
+#define PHYXEL_OCCUPANCY_GLSL
+
+layout(std430, set = 0, binding = 11) readonly buffer OccDirectory { uint occDir[]; };
+layout(std430, set = 0, binding = 12) readonly buffer OccPool      { uint occPool[]; };
+
+const uint  PHX_OCC_NO_CHUNK        = 0xFFFFFFFFu;
+const int   PHX_OCC_DIR_X           = 32;
+const int   PHX_OCC_DIR_Y           = 16;
+const int   PHX_OCC_DIR_Z           = 32;
+const int   PHX_OCC_CUBE_WORDS      = 1024;   // 32^3 bits
+const int   PHX_OCC_MICRO_WORDS     = 23;     // 729 bits
+const int   PHX_OCC_MICRO_PER_CHUNK = 288;    // 32 cubes * 9 micro
+
+// Floor-divide. GLSL's / truncates toward zero exactly like C++'s, so this must exist for the same
+// reason floorDiv does in VoxelLightOccupancy.cpp: world coordinates go negative, and truncation
+// folds the two chunks either side of zero onto one directory slot.
+int phxFloorDiv(int a, int b) {
+    int q = a / b;
+    int r = a - q * b;
+    return (r != 0 && ((r < 0) != (b < 0))) ? q - 1 : q;
+}
+
+/// Is this world MICRO position (world unit * 9) inside solid matter?
+/// THE line-for-line mirror of Phyxel::Graphics::packedPoolSolidAt — that C++ function exists
+/// precisely so this addressing is unit-tested before it ever runs on a GPU, where a mistake
+/// produces a picture nobody can debug. If you change one, change BOTH.
+/// Returns false outside the covered box or when occupancy is absent — degrading to "no
+/// occlusion", never to invented geometry.
+bool phxOccupancySolid(ivec3 worldMicro, ivec4 occBox) {
+    if ((occBox.w & 1) == 0) return false;
+
+    ivec3 chunkCoord = ivec3(phxFloorDiv(worldMicro.x, PHX_OCC_MICRO_PER_CHUNK),
+                             phxFloorDiv(worldMicro.y, PHX_OCC_MICRO_PER_CHUNK),
+                             phxFloorDiv(worldMicro.z, PHX_OCC_MICRO_PER_CHUNK));
+    ivec3 c = chunkCoord - occBox.xyz;
+    if (c.x < 0 || c.x >= PHX_OCC_DIR_X ||
+        c.y < 0 || c.y >= PHX_OCC_DIR_Y ||
+        c.z < 0 || c.z >= PHX_OCC_DIR_Z) return false;
+
+    uint base = occDir[c.x + c.y * PHX_OCC_DIR_X + c.z * PHX_OCC_DIR_X * PHX_OCC_DIR_Y];
+    if (base == PHX_OCC_NO_CHUNK) return false;
+
+    // Chunk-local micro coords. Positive modulo, same reason as phxFloorDiv.
+    ivec3 local = worldMicro - chunkCoord * PHX_OCC_MICRO_PER_CHUNK;
+
+    ivec3 cube = local / 9;
+    int ci = cube.z + cube.y * 32 + cube.x * 1024;
+
+    uint solidBase = base + 1u;
+    if (((occPool[solidBase + uint(ci >> 5)] >> uint(ci & 31)) & 1u) != 0u) return true;
+
+    uint mixedBase = solidBase + uint(PHX_OCC_CUBE_WORDS);
+    if (((occPool[mixedBase + uint(ci >> 5)] >> uint(ci & 31)) & 1u) == 0u) return false;
+
+    // Binary search the ascending mixed-cube index list.
+    uint n = occPool[base];
+    uint idxBase = mixedBase + uint(PHX_OCC_CUBE_WORDS);
+    uint lo = 0u, hi = n;
+    while (lo < hi) {
+        uint mid = (lo + hi) >> 1u;
+        if (occPool[idxBase + mid] < uint(ci)) lo = mid + 1u; else hi = mid;
+    }
+    if (lo >= n || occPool[idxBase + lo] != uint(ci)) return false;
+
+    ivec3 inCube = local - cube * 9;
+    int bit = inCube.x + inCube.y * 9 + inCube.z * 81;
+    uint microBase = idxBase + n + lo * uint(PHX_OCC_MICRO_WORDS);
+    return ((occPool[microBase + uint(bit >> 5)] >> uint(bit & 31)) & 1u) != 0u;
+}
+
+// --------------------------------------------------------------------------------------------
+// THE TRAVERSAL — Amanatides & Woo DDA in MICRO space. Visits every micro cell the segment
+// crosses, in order, and cannot skip one. CPU mirror: ddaHitsSolid() in VoxelLightOccupancy.cpp.
+//
+// This replaced a fixed-step march, which was structurally wrong rather than mistuned (D0): a
+// fixed step is only safe when it is smaller than the thinnest feature; the thinnest feature is
+// 1/9 u, so covering a 24 u ray safely costs ~432 samples. The two-rate compromise that made that
+// affordable coarsened beyond 3 u and stepped straight over 1-micro roofs — a sealed room read
+// 0.536 sky instead of 0, at the ONE wall thickness a hand-built rig had not used.
+// --------------------------------------------------------------------------------------------
+bool phxDdaHitsSolid(vec3 fromWorld, vec3 toWorld, int maxCells, ivec4 occBox) {
+    vec3 a = fromWorld * 9.0, b = toWorld * 9.0;
+    vec3 d = b - a;
+    float len = length(d);
+    if (len < 1e-6) return false;
+    vec3 dir = d / len;
+
+    ivec3 cell = ivec3(floor(a));
+    ivec3 last = ivec3(floor(b));
+
+    ivec3 stp;
+    vec3 tMax, tDelta;
+    for (int i = 0; i < 3; ++i) {
+        if (dir[i] > 1e-9) {
+            stp[i] = 1;
+            tMax[i] = (float(cell[i] + 1) - a[i]) / dir[i];
+            tDelta[i] = 1.0 / dir[i];
+        } else if (dir[i] < -1e-9) {
+            stp[i] = -1;
+            tMax[i] = (a[i] - float(cell[i])) / -dir[i];
+            tDelta[i] = 1.0 / -dir[i];
+        } else {
+            stp[i] = 0;
+            tMax[i] = 3.4e38;
+            tDelta[i] = 3.4e38;
+        }
+    }
+
+    for (int n = 0; n < maxCells; ++n) {
+        if (phxOccupancySolid(cell, occBox)) return true;
+        if (cell == last) return false;
+        if (tMax.x < tMax.y) {
+            if (tMax.x < tMax.z) { cell.x += stp.x; tMax.x += tDelta.x; }
+            else                 { cell.z += stp.z; tMax.z += tDelta.z; }
+        } else {
+            if (tMax.y < tMax.z) { cell.y += stp.y; tMax.y += tDelta.y; }
+            else                 { cell.z += stp.z; tMax.z += tDelta.z; }
+        }
+        if (tMax.x > len && tMax.y > len && tMax.z > len) return false;
+    }
+    return false;
+}
+
+/// Visibility between a surface point and a light, both in ABSOLUTE world units.
+/// 1.0 = nothing solid between them, 0.0 = something is.
+///
+/// ⚠️ `geomNormal` must be the GEOMETRIC face normal, NOT a normal-mapped one: offsetting the ray
+/// origin along a tilted normal can slide it along the surface, or back into it, instead of
+/// clearing it.
+///
+/// Two guards: start 2 micro cells along the normal (or the surface shadows itself and every lit
+/// face goes black), and stop 1 micro cell short of the light (so a fixture embedded in its own
+/// sconce does not occlude itself).
+float phxLightVisibility(vec3 surfaceWorld, vec3 geomNormal, vec3 lightWorld, ivec4 occBox) {
+    if ((occBox.w & 2) == 0) return 1.0;   // light tracing off / no occupancy
+
+    vec3 start = surfaceWorld + geomNormal * (2.0 / 9.0);
+    vec3 delta = lightWorld - start;
+    float dist = length(delta);
+    if (dist < 1e-4) return 1.0;
+    vec3 dir = delta / dist;
+
+    vec3 target = start + dir * max(dist - (1.0 / 9.0), 0.0);
+    return phxDdaHitsSolid(start, target, 512, occBox) ? 0.0 : 1.0;
+}
+
+#endif // PHYXEL_OCCUPANCY_GLSL

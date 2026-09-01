@@ -7,7 +7,15 @@ near-cascade plan; it now records the full 3-cascade system.
 |---|---|---|---|---|---|
 | Near | 40 u | 4096² | 0.0195 u | chunks (48 u margin) + characters + kinematic + dynamic + **grass (only here)** | blade shadows resolve; receivers min-compose with mid |
 | Mid | 420 u | 8192² | 0.1125 u | chunks (GPU-driven multidraw, default ON) + characters + kinematic + dynamic + foliage | the original map; D1 stats live here |
-| Far | 1600 u | 4096² | ~0.9 u | chunks (multidraw) + **far terrain tiles + far-tree/structure LOD meshes** (depth-only variants, cached last-frame draw lists) | recorded every `s_farShadowCadence`=4 frames (skip = no clear = map persists); far_terrain.frag + far_tree_mesh.frag receive |
+| Far | 1600 u | 4096² | ~0.9 u | **far terrain tiles + far-tree/structure LOD meshes ONLY** (depth-only variants, cached last-frame draw lists). **NO chunk casters** — see note below | recorded every `s_farShadowCadence`=4 frames (skip = no clear = map persists); far_terrain.frag + far_tree_mesh.frag receive |
+
+> ⚠️ **The Far row used to say "chunks (multidraw) + …". That was wrong** and is corrected here
+> (2026-08-30). `RenderCoordinator::renderShadowPass` guards the chunk loop with
+> `cascade != kCascadeFar`, and the GPU-driven multidraw path is gated to `kCascadeMid`. The
+> exclusion is DELIBERATE and measured: far-terrain tiles underlap the resident chunks (their
+> quantised surface sits just below the real one), so tile depth already approximates what chunks
+> would write, while drawing ~900 chunks on every 4th (cadence) frame spiked the shadow pass to
+> ~20 ms and produced visible judder.
 
 **Far cascade verification (2026-08-06):** shadow-only view = every LOD tree to the horizon
 casts a directional shadow; lit view = grounded shadows across the whole band, 56 FPS at the

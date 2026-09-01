@@ -206,6 +206,12 @@ struct UniformBufferObject {
     alignas(16) glm::vec4 skyBodyLitDir[4]{};
     alignas(16) glm::vec4 skyBodyLight[4]{};
     alignas(4)  int skyBodyCount = 0;
+    // ---- Sub-voxel light occupancy (docs/UnifiedLightingPlan.md M1b/M2) ----------------------
+    // Appended per the trailing-field rule: every existing truncated GLSL block stays valid.
+    // occupancyBox : xyz = min corner of the covered box in CHUNK coords (it follows the viewer),
+    //                w   = 1 when bindings 11/12 hold real occupancy, 0 when they hold the inert
+    //                      fallback. The shader MUST check w before reading either buffer.
+    alignas(16) glm::ivec4 occupancyBox{0, 0, 0, 0};
 };
 
 class VulkanDevice {
@@ -413,6 +419,37 @@ public:
         shadowMapFarImageView = imageView;
         shadowMapFarSampler = sampler;
     }
+    /// Sub-voxel light occupancy buffers (bindings 11/12) — docs/UnifiedLightingPlan.md.
+    /// Both null is legal: the descriptors then fall back to a valid buffer that the shader never
+    /// reads, because setLightOccupancyReady(false) leaves the guard flag clear.
+    void setLightOccupancyResources(VkBuffer directory, VkBuffer pool) {
+        lightOccupancyDirBuffer = directory;
+        lightOccupancyPoolBuffer = pool;
+    }
+    VkBuffer getLightOccupancyDirBuffer() const { return lightOccupancyDirBuffer; }
+
+    /// Per-frame: where the covered box sits (chunk coords) and whether it holds real data.
+    /// `ready == false` leaves the shader guard clear, so the fallback binding is never read.
+    /// w is a BITFIELD, so no extra std140 field is needed:
+    ///   bit 0 (1) = occupancy readable (0 = buffers hold the inert fallback — do not read them)
+    ///   bit 1 (2) = M2 point/spot light visibility tracing on
+    ///   bit 2 (4) = M3 sky visibility tracing on
+    void setLightOccupancyBox(const glm::ivec3& boxMinChunk, bool ready) {
+        int w = 0;
+        if (ready) {
+            w |= 1;
+            if (m_lightTracing) w |= 2;
+            if (m_skyTracing)   w |= 4;
+        }
+        m_occupancyBox = glm::ivec4(boxMinChunk, w);
+    }
+    /// A/B switches for the M2 and M3 terms, so each one's effect and cost are measurable
+    /// independently against the same scene rather than argued about.
+    void setLightTracingEnabled(bool on) { m_lightTracing = on; }
+    bool isLightTracingEnabled() const { return m_lightTracing; }
+    void setSkyTracingEnabled(bool on) { m_skyTracing = on; }
+    bool isSkyTracingEnabled() const { return m_skyTracing; }
+
     /// Per-frame far-cascade state (rangeEnd 0 disables).
     void setFarShadowCascade(const glm::mat4& lightSpace, float rangeEnd, float depthRange) {
         m_farLightSpace = lightSpace;
@@ -623,6 +660,10 @@ private:
     float       m_nearCascadeRangeEnd = 0.0f;   // 0 = near cascade off
     float       m_nearCascadeDepthRange = 1.0f;
     VkImageView shadowMapFarImageView = VK_NULL_HANDLE;    // far cascade (binding 10)
+    // Sub-voxel light occupancy (bindings 11/12). NOT owned here — VoxelLightOccupancyGpu owns
+    // the memory; these are borrowed handles for descriptor writes only.
+    VkBuffer lightOccupancyDirBuffer = VK_NULL_HANDLE;
+    VkBuffer lightOccupancyPoolBuffer = VK_NULL_HANDLE;
     VkSampler   shadowMapFarSampler = VK_NULL_HANDLE;
     glm::mat4   m_farLightSpace{1.0f};
     float       m_farCascadeRangeEnd = 0.0f;    // 0 = far cascade off
@@ -645,6 +686,13 @@ private:
     bool framebufferResized = false;
     AtmosphereUniforms m_atmosphere{};  ///< see setAtmosphereUniforms
     int  m_debugShadowMode = 0;   ///< shadow-only debug view (see setDebugShadowMode)
+    glm::ivec4 m_occupancyBox{0, 0, 0, 0};   ///< xyz = box min chunk, w = 0 none / 1 read / 2 trace
+    bool m_lightTracing = true;              ///< M2 point/spot visibility (default ON)
+    /// M3 traced sky access. DEFAULT OFF — measured at 24.6 ms/frame on a generated medieval town
+    /// (Release, GpuProfiler): Static Geometry 0.142 -> 24.604 ms, 275 -> 35 fps. Correct, and far
+    /// too expensive to ship per-fragment. See docs/UnifiedLightingPlan.md D1 / M3-REDESIGN.
+    /// Enable for measurement with POST /api/debug/light_occupancy?sky=1.
+    bool m_skyTracing = false;
     float m_shadowDepthRange = 1.0f;  ///< world-unit light-volume depth span (bias normalization)
 
     // Helper methods for swapchain

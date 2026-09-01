@@ -9,6 +9,7 @@
 //   finalColor = mix(accum.rgb / accum.a, opaqueColor, reveal)
 
 #extension GL_GOOGLE_include_directive : require
+#include "lighting.glsl"   // U1: THE shared ambient / shadow model — glass is not a special case
 
 layout(location = 0) in flat uint textureIndex;
 layout(location = 1) in vec2 texCoord;
@@ -16,6 +17,9 @@ layout(location = 2) in vec4 shadowCoord;
 layout(location = 3) in flat uint flags;
 layout(location = 4) in vec3 inNormal;
 layout(location = 5) in vec3 inWorldPos;
+// U1: static_voxel.vert already emits this; the transparent pass simply never declared it, which
+// is why glass had no sky gating at all.
+layout(location = 6) in float vSkyLight;
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -27,10 +31,45 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     float ambientLight;
     float emissiveMultiplier;
     vec3 cameraPosition;
+    // U2: prefix padding out to occupancyBox. std140 offsets must match the C++
+    // UniformBufferObject EXACTLY or occupancyBox reads the wrong bytes. `cameraWorld` and
+    // `ambientColor` become available as a side effect, and U1 needs both.
+    mat4  reflectedViewProj;
+    float elapsedTime;
+    mat4  viewProj;
+    mat4  biasedLightSpace;
+    vec3  cameraWorld;
+    int   debugShadowMode;
+    float shadowDepthRange;
+    vec4  grassDisplacers[16];
+    vec4  grassDisplacersAux[16];
+    ivec4 grassDisplacerMeta;
+    mat4  biasedLightSpaceNear;
+    vec4  shadowCascadeNear;
+    mat4  lightSpaceMatrixNear;
+    mat4  biasedLightSpaceFar;
+    vec4  shadowCascadeFar;
+    mat4  lightSpaceMatrixFar;
+    vec3  ambientColor;
+    vec3  hazeHorizonColor;
+    vec3  hazeZenithColor;
+    vec3  moonDirection;
+    vec3  moonColor;
+    float exposure;
+    int   tonemapCurve;
+    vec4  skyBodyDirRadius[4];
+    vec4  skyBodyDisc[4];
+    vec4  skyBodyLitDir[4];
+    vec4  skyBodyLight[4];
+    int   skyBodyCount;
+    ivec4 occupancyBox;
 } ubo;
+
+#include "occupancy.glsl"   // U2 / D14: glass gets the same visibility term as stone
 
 layout(set = 0, binding = 1) uniform sampler2DArray textureArray;
 layout(set = 0, binding = 2) uniform sampler2D shadowMap;
+layout(set = 0, binding = 9) uniform sampler2D shadowMapNear;   // U1: the near cascade
 
 struct PointLightGPU {
     vec4 positionAndRadius;
@@ -80,16 +119,8 @@ float calcAttenuation(float d, float radius) {
     return atten * falloff;
 }
 
-const vec2 poissonDisk[16] = vec2[](
-    vec2(-0.94201624,  -0.39906216), vec2( 0.94558609, -0.76890725),
-    vec2(-0.094184101, -0.92938870), vec2( 0.34495938,  0.29387760),
-    vec2(-0.91588581,   0.45771432), vec2(-0.81544232, -0.87912464),
-    vec2(-0.38277543,   0.27676845), vec2( 0.97484398,  0.75648379),
-    vec2( 0.44323325,  -0.97511554), vec2( 0.53742981, -0.47373420),
-    vec2(-0.26496911,  -0.41893023), vec2( 0.79197514,  0.19090188),
-    vec2(-0.24188840,   0.99706507), vec2(-0.81409955,  0.91437590),
-    vec2( 0.19984126,   0.78641367), vec2( 0.14383161, -0.14100790)
-);
+// U1: the private 16-tap poissonDisk that lived here is gone — lighting.glsl owns the filter and
+// its kPoisson16, so there is one disk and one bias policy rather than a copy per pass.
 
 void main() {
     // OIT is temporarily disabled: transparent voxels now render in the opaque pass
@@ -121,20 +152,23 @@ void main() {
         sunSpec = pow(max(dot(normal, halfVec), 0.0), 64.0) * 0.3;
     }
 
-    // PCF shadow
-    float shadowFactor = 1.0;
-    if (shadowCoord.z > -1.0 && shadowCoord.z < 1.0 && shadowCoord.w > 0.0) {
-        float shadowSum = 0.0;
-        vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
-        for (int i = 0; i < 16; i++) {
-            float pcfDepth = texture(shadowMap, shadowCoord.xy + poissonDisk[i] * texelSize * 1.5).r;
-            if (shadowCoord.z - 0.005 > pcfDepth) shadowSum += 1.0;
-        }
-        shadowFactor = 1.0 - (shadowSum / 16.0);
+    // U1 — SHARED shadow + ambient. This pass ran its own 16-tap PCF with a hardcoded 0.005 raw
+    // depth bias and sampled the MID map only, and its ambient was a FLAT `vec3(ubo.ambientLight)`
+    // — the legacy 0..1 day/night scalar, not the atmosphere's physical sky radiance the rest of
+    // the world has used since 2026-08-10. Glass was therefore lit by a different engine than the
+    // stone beside it: no near or far cascade, no hemisphere tint, no sky colour.
+    float shadowFactor = phxShadowPCSS(shadowMap, shadowCoord, diff, gl_FragCoord.xy,
+                                       ubo.shadowDepthRange);
+    if (ubo.shadowCascadeNear.x > 0.0) {
+        vec4 nearCoord = ubo.biasedLightSpaceNear * vec4(inWorldPos, 1.0);
+        shadowFactor = min(shadowFactor,
+                           phxShadowPCSS(shadowMapNear, nearCoord, diff, gl_FragCoord.xy,
+                                         ubo.shadowCascadeNear.y));
     }
 
-    vec3 ambient = vec3(ubo.ambientLight);
-    vec3 sunContrib = (diff * ubo.sunColor + sunSpec * ubo.sunColor) * shadowFactor;
+    vec3 ambient = phxAmbientAtmos(normal, vSkyLight, ubo.ambientColor);
+    vec3 sunContrib = (diff * ubo.sunColor + sunSpec * ubo.sunColor)
+                    * shadowFactor * phxSkyGate(vSkyLight);
     vec3 finalLight = ambient + sunContrib;
 
     // Point lights
@@ -148,10 +182,17 @@ void main() {
         if (dist < radius) {
             vec3 ldir = toLight / dist;
             float ndotl = max(dot(normal, ldir), 0.0);
-            float atten = calcAttenuation(dist, radius);
-            vec3 h = normalize(ldir + viewDir);
-            float pSpec = pow(max(dot(normal, h), 0.0), 32.0) * 0.3;
-            finalLight += lightColor * intensity * (ndotl + pSpec) * atten;
+            // U2 / D14: a lantern used to shine straight THROUGH a glass wall, because this loop
+            // had no visibility term while voxel.frag did. `normal` is the geometric face normal
+            // (this shader does no normal mapping), so it is the correct ray-origin offset.
+            if (ndotl > 0.0 &&
+                phxLightVisibility(inWorldPos + ubo.cameraWorld, normal,
+                                   lightPos + ubo.cameraWorld, ubo.occupancyBox) > 0.0) {
+                float atten = calcAttenuation(dist, radius);
+                vec3 h = normalize(ldir + viewDir);
+                float pSpec = pow(max(dot(normal, h), 0.0), 32.0) * 0.3;
+                finalLight += lightColor * intensity * (ndotl + pSpec) * atten;
+            }
         }
     }
 

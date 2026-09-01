@@ -33,6 +33,7 @@ void VoxelOccupancyGrid::setCube(const glm::ivec3& lp, bool filled) {
     if (!validLocal(lp)) return;
     int idx = cubeIdx(lp);
     filled ? m_cubes.set(idx) : m_cubes.reset(idx);
+    ++m_revision;
 }
 
 bool VoxelOccupancyGrid::isCubeFilled(const glm::ivec3& lp) const {
@@ -53,6 +54,7 @@ void VoxelOccupancyGrid::markSubdivided(const glm::ivec3& lp, bool subdivided) {
         for (uint32_t si = 0; si < 27; ++si)
             m_microcubeFilled.erase(base | si);
     }
+    ++m_revision;
 }
 
 bool VoxelOccupancyGrid::isSubdivided(const glm::ivec3& lp) const {
@@ -70,6 +72,7 @@ void VoxelOccupancyGrid::setSubcube(const glm::ivec3& lp, const glm::ivec3& sp, 
         m_subcubeFilled[key] |= (1u << bit);
     else
         m_subcubeFilled[key] &= ~(1u << bit);
+    ++m_revision;
 }
 
 bool VoxelOccupancyGrid::isSubcubeFilled(const glm::ivec3& lp, const glm::ivec3& sp) const {
@@ -89,6 +92,7 @@ void VoxelOccupancyGrid::markSubcubeSubdivided(const glm::ivec3& lp, const glm::
         m_subcubeSubdiv[key] |= (1u << bit);
     else
         m_subcubeSubdiv[key] &= ~(1u << bit);
+    ++m_revision;
 }
 
 bool VoxelOccupancyGrid::isSubcubeSubdivided(const glm::ivec3& lp, const glm::ivec3& sp) const {
@@ -110,6 +114,7 @@ void VoxelOccupancyGrid::setMicrocube(const glm::ivec3& lp, const glm::ivec3& sp
         m_microcubeFilled[key] |= (1u << bit);
     else
         m_microcubeFilled[key] &= ~(1u << bit);
+    ++m_revision;
 }
 
 bool VoxelOccupancyGrid::isMicrocubeFilled(const glm::ivec3& lp, const glm::ivec3& sp,
@@ -224,6 +229,7 @@ void VoxelOccupancyGrid::clear() {
     m_subcubeFilled.clear();
     m_subcubeSubdiv.clear();
     m_microcubeFilled.clear();
+    ++m_revision;
 }
 
 } // namespace Physics
