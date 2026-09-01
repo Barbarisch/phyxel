@@ -112,6 +112,18 @@ void RangedCasterBehavior::update(float dt, NPCContext& ctx) {
 
     // Cast whenever the cooldown is up and we are anywhere in the band — a
     // real-time caster keeps up sustained fire rather than nova-ing once.
+    // WALLS STOP SPELLS. This behavior had no notion of the world — only a
+    // distance check — so a mage sealed inside a fort shot attackers straight
+    // through the stonework. A blocked caster holds fire and CLOSES instead of
+    // standing there dry-firing at a wall, which is what a real one would do.
+    if (m_chunks && !AI::TacticalSpace::canSee(*m_chunks, selfPos, target->getPosition())) {
+        m_lastShotBlocked = true;
+        m_state = State::Close;
+        drive(-m_moveSpeed, 0.0f);     // move to clear the corner / regain sight
+        return;
+    }
+    m_lastShotBlocked = false;
+
     if (m_cooldownTimer <= 0.0f && !m_spells.empty() && dist <= m_aggroRange) {
         const std::string& spellId = m_spells[m_nextSpell % m_spells.size()];
         ++m_nextSpell;

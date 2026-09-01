@@ -37,6 +37,23 @@ public:
         return hasLineOfSight(cm, fromFeet + up, toFeet + up);
     }
 
+    /// Can a walker actually WALK the straight line from `fromFeet` to
+    /// `toFeet`? This is NOT a sight test and must not be confused with one:
+    /// a chest-high wall blocks walking but not vision, and a waist-high rail
+    /// blocks neither. Combat AI that "charged" on a sight check walked into
+    /// the outside of a fort wall, stacked up against it and was shot to pieces
+    /// without a single defender taking damage — the direct route looked clear
+    /// because the defenders were visible over the parapet.
+    ///
+    /// Walks the segment sampling the ground under each step, and fails on the
+    /// first rise taller than `maxStepUp`, drop deeper than `maxDrop`, or point
+    /// where the body does not fit. Cheap enough to run per-NPC per-decision;
+    /// it is the gate that decides whether the expensive A* request is needed.
+    static bool directRouteWalkable(ChunkManager& cm, const glm::vec3& fromFeet,
+                                    const glm::vec3& toFeet,
+                                    float maxStepUp = 1.05f, float maxDrop = 4.0f,
+                                    float step = 0.75f);
+
     /// A cover spot: somewhere to stand that breaks line of sight to a threat.
     struct CoverSpot {
         glm::vec3 position{0.0f};

@@ -4,7 +4,9 @@
 #include "ai/PerceptionSystem.h"
 #include "ai/CommandStructure.h"
 #include "ai/TacticalSpace.h"
+#include "core/PathService.h"
 #include <string>
+#include <vector>
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
 
@@ -104,6 +106,13 @@ public:
     /// Voxel world used for line-of-sight and cover search (null = no cover).
     void setChunkManager(ChunkManager* cm) { m_chunks = cm; }
 
+    /// Give this fighter the shared async pathfinder. Without it, combat
+    /// movement is a straight line at the target and ANY wall defeats it — the
+    /// horde in the Redoubt siege walked into the outside of a fort and was
+    /// shot to pieces without ever finding the open gate. Non-owning; the
+    /// service is owned by NPCManager and outlives the behavior.
+    void setPathService(Core::PathService* ps) { m_pathService = ps; }
+
     /// Current tactical intent, for debug overlays and the decision log.
     const char* intentName() const { return m_intent; }
     /// The equipped weapon item id (empty = unarmed). Used by the host to draw
@@ -117,7 +126,20 @@ private:
     int   m_intelligence = 10;          ///< 3..18; 10 = unremarkable
     AI::CommandStructure* m_command = nullptr;   // not owned
     ChunkManager*         m_chunks  = nullptr;   // not owned
+    Core::PathService*    m_pathService = nullptr;  // not owned
     const char* m_intent = "engage";    ///< debug label for the current intent
+
+    // ── Pathing around obstacles ────────────────────────────────
+    // Combat movement is a straight line whenever the straight line WORKS —
+    // that is the common case in an open field and costs nothing. A* is only
+    // requested when directRouteWalkable() says the way is blocked, so 200
+    // fighters in the open generate zero path queries.
+    std::vector<glm::vec3> m_pathWaypoints;
+    size_t m_pathIdx        = 0;
+    uint64_t m_pathHandle   = 0;        ///< outstanding async request (0 = none)
+    float m_repathTimer     = 0.0f;     ///< cooldown between path requests
+    glm::vec3 m_pathGoal{0.0f};         ///< goal the current path was built for
+    bool  m_routeBlocked    = false;    ///< last walkability verdict (telemetry)
 
     bool      m_takingCover = false;
     glm::vec3 m_coverPos{0.0f};

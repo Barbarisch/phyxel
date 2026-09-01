@@ -363,6 +363,81 @@ void CombatBehavior::update(float dt, NPCContext& ctx) {
         return;
     }
 
+    // ── APPROACH ROUTING ────────────────────────────────────────
+    // Walk straight when the straight line is actually WALKABLE; ask the shared
+    // async pathfinder only when it is not. Before this, approach was always a
+    // straight line and any wall defeated it outright: the Redoubt horde walked
+    // into the outside of a fort, stacked against the face and was shot down
+    // without ever finding the open gate.
+    //
+    // The gate is deliberately a WALKABILITY test, not line-of-sight. A
+    // defender on a parapet is plainly visible while the ground route to them
+    // is blocked, so a sight check would keep reporting "just go straight".
+    if (dist > m_attackRange && m_chunks) {
+        if (m_repathTimer > 0.0f) m_repathTimer -= dt;
+
+        const glm::vec3 goal = target->getPosition();
+        m_routeBlocked = !AI::TacticalSpace::directRouteWalkable(*m_chunks, selfPos, goal);
+
+        // The goal moved far from what the current path was built for: that
+        // path leads somewhere the target has left.
+        if (!m_pathWaypoints.empty() && glm::length(goal - m_pathGoal) > 6.0f) {
+            m_pathWaypoints.clear();
+            m_pathIdx = 0;
+        }
+
+        // Collect a finished async result.
+        if (m_pathHandle != 0 && m_pathService) {
+            Core::NavGraph::PathResult res;
+            if (m_pathService->tryGetResult(m_pathHandle, res)) {
+                m_pathHandle = 0;
+                if (res.found && res.waypoints.size() > 1) {
+                    m_pathWaypoints = std::move(res.waypoints);
+                    m_pathIdx = 1;            // [0] is where we already stand
+                    m_pathGoal = goal;
+                }
+            }
+        }
+
+        if (!m_routeBlocked) {
+            // Open ground: drop any path and charge. Costs nothing, and keeps
+            // 200 fighters in a field from generating a single A* query.
+            m_pathWaypoints.clear();
+            m_pathIdx = 0;
+        } else {
+            if (m_pathIdx < m_pathWaypoints.size()) {
+                // Follow the route. Advance past waypoints we have reached.
+                glm::vec3 wp = m_pathWaypoints[m_pathIdx];
+                glm::vec3 toWp = wp - selfPos; toWp.y = 0.0f;
+                while (glm::length(toWp) < 1.2f && m_pathIdx + 1 < m_pathWaypoints.size()) {
+                    ++m_pathIdx;
+                    wp = m_pathWaypoints[m_pathIdx];
+                    toWp = wp - selfPos; toWp.y = 0.0f;
+                }
+                const float wpDist = glm::length(toWp);
+                if (wpDist > 0.35f && character) {
+                    const glm::vec3 wdir = toWp / wpDist;
+                    character->setFacingYaw(std::atan2(wdir.x, wdir.z));
+                    character->setControlInput(-m_moveSpeed, 0.0f, 0.0f);
+                    m_state = State::Approach;
+                    return;                    // routing owns this frame
+                }
+                if (m_pathIdx + 1 >= m_pathWaypoints.size()) {
+                    m_pathWaypoints.clear();   // arrived at the end of the route
+                    m_pathIdx = 0;
+                }
+            } else if (m_pathHandle == 0 && m_pathService && m_repathTimer <= 0.0f) {
+                // Blocked with no route: ask for one. Nearer fighters win the
+                // queue — they are the ones the player is watching, and a
+                // 400-body battle must not starve them behind distant ranks.
+                Core::NavAgentProfile prof;   // default: 2 tall, 1 step, 4 drop
+                const int priority = static_cast<int>(1000.0f - std::min(dist, 999.0f));
+                m_pathHandle = m_pathService->requestPath(prof, selfPos, goal, priority);
+                m_repathTimer = 1.5f;          // don't hammer the queue
+            }
+        }
+    }
+
     if (dist > m_attackRange) {           // --- Approach ---
         // HOLD means hold: a squad told to stand its ground gives up at most a
         // couple of paces of the ground it was ordered to keep, and makes the

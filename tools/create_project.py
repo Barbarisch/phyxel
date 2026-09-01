@@ -192,6 +192,7 @@ def create_project(
     extra_includes.append('#include "core/CombatLog.h"')
     # Behavior-tree action vocabulary registered by this game (registerBehaviorActions)
     extra_includes.append('#include "ai/BTActionRegistry.h"')
+    extra_includes.append('#include "ai/TacticalSpace.h"')   # LOS for the combat verbs
     extra_includes.append('#include "ai/CommandStructure.h"')
     extra_members.append("    Phyxel::AI::CommandStructure command_;  // squads + orders (game.json squad/rank)")
     extra_includes.append('#include "ai/ActionSystem.h"')
@@ -2672,11 +2673,51 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         auto* foe = nearestFoe(ctx);
                         auto* me  = charOf(ctx.self);
                         if (!foe || !me) return Phyxel::AI::ActionStatus::Failure;
-                        glm::vec3 to = foe->getPosition() - ctx.self->getPosition(); to.y = 0.0f;
+                        const glm::vec3 selfPos = ctx.self->getPosition();
+                        const glm::vec3 foePos  = foe->getPosition();
+                        glm::vec3 to = foePos - selfPos; to.y = 0.0f;
                         const float d = glm::length(to);
                         if (d > 1e-4f) me->setFacingYaw(std::atan2(to.x / d, to.z / d));
-                        if (d <= reach) {{ me->setControlInput(0.0f, 0.0f, 0.0f); me->lightAttack(); }}
-                        else            {{ me->setControlInput(-speed, 0.0f, 0.0f); }}
+
+                        // A WALL BETWEEN US IS NOT A TARGET IN REACH. This used
+                        // to be a bare distance test, so two fighters on
+                        // opposite faces of a wall were each "within reach" of
+                        // the other and both stood there swinging at stone —
+                        // the thin-air punching — while a besieging horde
+                        // stalled against a rampart instead of finding the gate.
+                        const bool blocked =
+                            ctx.chunkManager &&
+                            !Phyxel::AI::TacticalSpace::canSee(*ctx.chunkManager, selfPos, foePos);
+
+                        // Telemetry, because "the fix did nothing" and "the fix
+                        // never ran" look identical from outside and have cost
+                        // four measurement rounds. A null chunkManager here
+                        // means every wall check silently no-ops.
+                        {{
+                            static int s_chargeTick = 0;
+                            if ((++s_chargeTick % 600) == 0)
+                                LOG_INFO("{class_name}",
+                                         "charge_enemy: world={{}} blocked={{}} d={{}}",
+                                         ctx.chunkManager ? "yes" : "NULL",
+                                         blocked ? 1 : 0, static_cast<int>(d));
+                        }}
+
+                        if (d <= reach && !blocked) {{
+                            me->setControlInput(0.0f, 0.0f, 0.0f);
+                            me->lightAttack();
+                        }} else if (blocked) {{
+                            // Slide ALONG the obstacle rather than into it. No
+                            // pathfinder is reachable from a BT action, so this
+                            // is deliberately a local rule: skirting a wall
+                            // finds a gate eventually, standing at it never does.
+                            const glm::vec3 dir = (d > 1e-4f) ? to / d : glm::vec3(1, 0, 0);
+                            const glm::vec3 side(-dir.z, 0.0f, dir.x);
+                            const glm::vec3 slide = glm::normalize(dir * 0.35f + side * 0.94f);
+                            me->setFacingYaw(std::atan2(slide.x, slide.z));
+                            me->setControlInput(-speed, 0.0f, 0.0f);
+                        }} else {{
+                            me->setControlInput(-speed, 0.0f, 0.0f);
+                        }}
                         return Phyxel::AI::ActionStatus::Running;
                     }});
             }});
@@ -2714,9 +2755,22 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         if (*timer > 0.0f) *timer -= dt;
                         auto* foe = nearestFoe(ctx);
                         if (!foe) return Phyxel::AI::ActionStatus::Failure;
-                        glm::vec3 to = foe->getPosition() - ctx.self->getPosition(); to.y = 0.0f;
+                        const glm::vec3 selfPos = ctx.self->getPosition();
+                        const glm::vec3 foePos  = foe->getPosition();
+                        glm::vec3 to = foePos - selfPos; to.y = 0.0f;
                         const float d = glm::length(to);
                         if (d > range) return Phyxel::AI::ActionStatus::Failure;
+
+                        // WALLS STOP SPELLS. This was a bare distance test, so
+                        // an archer sealed behind a rampart shot attackers
+                        // straight through the stonework. Returning Failure (not
+                        // Running) lets the Selector fall through to the next
+                        // child — the caster repositions instead of standing
+                        // there discharging into a wall.
+                        if (ctx.chunkManager &&
+                            !Phyxel::AI::TacticalSpace::canSee(*ctx.chunkManager, selfPos, foePos))
+                            return Phyxel::AI::ActionStatus::Failure;
+
                         if (auto* me = charOf(ctx.self))
                             if (d > 1e-4f) me->setFacingYaw(std::atan2(to.x / d, to.z / d));
                         if (*timer <= 0.0f) {{

@@ -134,6 +134,57 @@ TEST_F(TacticalSpaceTest, CoverStaysWithinTheSearchRadius) {
     EXPECT_LE(glm::length(d), 6.0f + 0.01f);
 }
 
+// ── directRouteWalkable ──────────────────────────────────────────────────
+// The Redoubt failure in one test: the horde could SEE defenders over the
+// parapet, "charged" on that basis, and walked into the outside of the wall.
+// Walking and seeing are different questions and must not share an answer.
+
+TEST_F(TacticalSpaceTest, OpenGroundIsWalkable) {
+    EXPECT_TRUE(AI::TacticalSpace::directRouteWalkable(cm, feet(4, 16), feet(28, 16)));
+}
+
+TEST_F(TacticalSpaceTest, AWallStopsAWalkerWhileTheDefenderOnItStaysVisible) {
+    // THE Redoubt case. A rampart with defenders standing ON it: the attacker
+    // can see them perfectly well, and cannot walk to them. Charging on a sight
+    // check piled 120 bodies against the outside of a fort wall.
+    //
+    // (An earlier version of this test claimed a 2-voxel wall blocks walking
+    // but not sight. It does not - its top sits at y=19, above a 1.6u eye at
+    // y=18.6 - and with whole voxels no wall occupies that band at all. The
+    // real geometry is an ELEVATED defender, which is what the fort had.)
+    for (int z = 12; z <= 20; ++z) pillar(16, z, 2);
+
+    const glm::vec3 attacker = feet(4, 16);
+    const glm::vec3 onRampart(16.0f, 19.0f, 16.0f);   // standing on the wall top
+
+    EXPECT_FALSE(AI::TacticalSpace::directRouteWalkable(cm, attacker, onRampart))
+        << "the wall face must stop a walker";
+    EXPECT_TRUE(AI::TacticalSpace::canSee(cm, attacker, onRampart))
+        << "control: the defender on the parapet IS visible - which is exactly "
+           "why an LOS check is the wrong gate for movement";
+}
+
+TEST_F(TacticalSpaceTest, ASingleStepUpIsWalkable) {
+    // One voxel is a step, not a wall. Refusing it would make AI treat every
+    // kerb as impassable and path around the world.
+    for (int z = 12; z <= 20; ++z) pillar(16, z, 1);
+    EXPECT_TRUE(AI::TacticalSpace::directRouteWalkable(cm, feet(4, 16), feet(28, 16)));
+}
+
+TEST_F(TacticalSpaceTest, AGapInTheWallIsWalkable) {
+    // Wall with a gate. The route THROUGH the gap must read as walkable, or a
+    // pathfinder would never be told the direct line is fine and every fighter
+    // would re-path forever.
+    for (int z = 10; z <= 22; ++z) {
+        if (z >= 15 && z <= 17) continue;      // the gate
+        pillar(16, z, 3);
+    }
+    EXPECT_TRUE(AI::TacticalSpace::directRouteWalkable(cm, feet(4, 16), feet(28, 16)))
+        << "the line runs straight through the gap";
+    EXPECT_FALSE(AI::TacticalSpace::directRouteWalkable(cm, feet(4, 20), feet(28, 20)))
+        << "control: the same wall off to the side still blocks";
+}
+
 TEST_F(TacticalSpaceTest, GroundHeightLandsOnTopOfTheSurface) {
     // Dropping from above the floor puts the feet at y=17, on top of y=16.
     EXPECT_FLOAT_EQ(AI::TacticalSpace::groundHeight(cm, 5.0f, 5.0f, 24.0f), 17.0f);

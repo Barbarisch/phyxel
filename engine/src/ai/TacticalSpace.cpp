@@ -49,6 +49,35 @@ bool TacticalSpace::isStandable(ChunkManager& cm, const glm::vec3& pos,
     return true;
 }
 
+bool TacticalSpace::directRouteWalkable(ChunkManager& cm, const glm::vec3& fromFeet,
+                                        const glm::vec3& toFeet,
+                                        float maxStepUp, float maxDrop, float step) {
+    glm::vec3 d = toFeet - fromFeet;
+    d.y = 0.0f;
+    const float dist = glm::length(d);
+    if (dist < 0.01f) return true;
+    d /= dist;
+
+    const int steps = static_cast<int>(dist / std::max(0.1f, step));
+    // Start from the ground under our own feet, not from feet.y: on a slope the
+    // caller's y may already be a fraction above the surface, which would read
+    // as a phantom step at the first sample.
+    float prevY = groundHeight(cm, fromFeet.x, fromFeet.z, fromFeet.y + 2.0f);
+
+    for (int i = 1; i <= steps; ++i) {
+        const glm::vec3 p = fromFeet + d * (step * static_cast<float>(i));
+        // Search for ground from well above the previous sample so a rising
+        // wall is FOUND (its top) rather than missed by starting below it.
+        const float gy = groundHeight(cm, p.x, p.z, prevY + 6.0f, 24.0f);
+        const float rise = gy - prevY;
+        if (rise > maxStepUp)  return false;   // a wall, or a step too tall to mount
+        if (rise < -maxDrop)   return false;   // a cliff we would not survive walking off
+        if (!isStandable(cm, glm::vec3(p.x, gy, p.z))) return false;  // no headroom / no floor
+        prevY = gy;
+    }
+    return true;
+}
+
 TacticalSpace::CoverSpot TacticalSpace::findCover(ChunkManager& cm,
                                                   const glm::vec3& origin,
                                                   const glm::vec3& threat,

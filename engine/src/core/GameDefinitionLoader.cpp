@@ -926,6 +926,9 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
                 if (npcDef.contains("intelligence"))
                     cb->setIntelligence(npcDef["intelligence"].get<int>());
                 cb->setChunkManager(sub.chunkManager);
+                // Shared async pathfinder: without it approach is a straight
+                // line and any wall stops the fighter dead against its face.
+                if (sub.npcManager) cb->setPathService(sub.npcManager->getPathService());
                 if (sub.commandStructure) cb->setCommandStructure(sub.commandStructure);
                 if (npcDef.contains("aggro_range"))    cb->setAggroRange(npcDef["aggro_range"].get<float>());
                 if (npcDef.contains("attack_damage"))  cb->setAttackDamage(npcDef["attack_damage"].get<float>());
@@ -934,6 +937,8 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
         } else if (behaviorType == NPCBehaviorType::RangedCaster) {
             if (auto* rb = dynamic_cast<Scene::RangedCasterBehavior*>(npc->getBehavior())) {
                 if (!faction.empty()) rb->setFaction(faction);
+                // Line of sight: without the world, a caster fires through walls.
+                rb->setChunkManager(sub.chunkManager);
                 if (npcDef.contains("spells") && npcDef["spells"].is_array()) {
                     std::vector<std::string> spells;
                     for (const auto& s : npcDef["spells"]) spells.push_back(s.get<std::string>());

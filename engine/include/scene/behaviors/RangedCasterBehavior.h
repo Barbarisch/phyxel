@@ -1,6 +1,7 @@
 #pragma once
 
 #include "scene/NPCBehavior.h"
+#include "ai/TacticalSpace.h"
 
 #include <functional>
 #include <string>
@@ -57,6 +58,12 @@ public:
                                         float damage)>;
     void setCastHook(CastHook hook) { m_castHook = std::move(hook); }
 
+    /// Voxel world, for line-of-sight. WITHOUT this a caster fires through
+    /// walls: it had no notion of the world at all, only a distance check, so
+    /// a mage inside a sealed fort happily shot attackers on the far side of
+    /// the stonework. When set, a target that cannot be SEEN is not cast at.
+    void setChunkManager(ChunkManager* cm) { m_chunks = cm; }
+
     const std::string& targetId() const { return m_targetId; }
     const char* stateName() const;
 
@@ -76,6 +83,8 @@ private:
     float m_castCooldown   = 2.5f;   ///< seconds between casts
     float m_moveSpeed      = 0.8f;   ///< control-input magnitude
     float m_damage         = 6.0f;   ///< per cast (host may override per spell)
+    ChunkManager* m_chunks = nullptr;  ///< not owned; null = legacy no-LOS behaviour
+    bool m_lastShotBlocked = false;    ///< telemetry: last cast withheld by a wall
     float m_cooldownTimer  = 0.0f;
     size_t m_nextSpell     = 0;
     bool  m_publishedFaction = false;
