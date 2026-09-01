@@ -1172,6 +1172,40 @@ otherwise have been reported as a spectacular and entirely fictional win.
 >
 > Until one is chosen, M4/U7 stay blocked, because they cannot delete a field the scaffold depends
 > on.
+>
+> ### ✅ EXIT CHOSEN AND UNDER WAY 2026-09-01 — and the 24.6 ms was never real
+>
+> **The number that retired per-fragment tracing was measured at settings the bake itself does not
+> use.** D1 ran the shader at **9 rays / reach 24 / 512 cells**. M3-REDESIGN then established, by
+> measurement with a doorway control, that **5 rays / reach 16** seals a room at every wall
+> thickness — and shipped the bake at those settings. Nobody re-ran the per-fragment path at them.
+>
+> Re-measured on Release, generated town, fixed pose (70,60,40 yaw −120 pitch −18), pipeline stats
+> off, `GpuProfiler` scopes, sky OFF/ON interleaved twice, medians:
+>
+> | | Static Geometry | Scene Pass |
+> |---|---|---|
+> | **D1 — 9 rays / 24 u / 512** | **24.604 ms** | 26.262 ms |
+> | **now — 5 rays / 16 u / 288** | **5.166 ms** | 6.257 ms |
+> | sky OFF control | 0.299 ms | 1.439 ms |
+>
+> **The sky term costs +4.87 ms, not +24.46 ms — 5× less, for the quality the bake already
+> ships.** The premise of M3-REDESIGN does not survive its own settings.
+>
+> ⚠️ **Scene is comparable, not identical.** `POST /api/settlement/build` returned no `placed`
+> count, so this town is not verified to match D1's 14,356-mixed-cube scene; 16 visible chunks and
+> 18,586 shadow instances. The OFF baselines line up closely (0.299 vs 0.142 ms Static Geometry,
+> 1.439 vs 1.271 ms Scene Pass), so the scenes are the same order — but the honest claim is
+> "same-order scene, 5× cheaper sky", not "identical scene".
+>
+> **This is the exit. M3 goes back to being traced per fragment, as specified, and the bake and
+> `m_skyLight` are deleted by M4/U7.** Remaining work before the bake can be removed:
+> 1. close the gap between 4.87 ms and free — the trace is currently **ungated**, unlike M2's
+>    visibility term, which measured free precisely because `dot(N, ldir) > 0` meant almost no
+>    marches ran;
+> 2. confirm the traced path still seals a generated interior at the live L4 rig D21 established
+>    (interior 0 / boundary 12 / exterior 15);
+> 3. then delete `s_bakeSkyVisibility`, the bake block, and `m_skyLight` — which is M4/U7 unblocked.
 
 Sky visibility is now computed at CHUNK-BAKE time by tracing the occupancy, and stored in the same
 per-cell field the deleted flood used — so the shader reads one interpolated value again instead of

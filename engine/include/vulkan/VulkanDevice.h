@@ -692,7 +692,22 @@ private:
     /// (Release, GpuProfiler): Static Geometry 0.142 -> 24.604 ms, 275 -> 35 fps. Correct, and far
     /// too expensive to ship per-fragment. See docs/UnifiedLightingPlan.md D1 / M3-REDESIGN.
     /// Enable for measurement with POST /api/debug/light_occupancy?sky=1.
-    bool m_skyTracing = false;
+    // DEFAULT ON since 2026-09-01. This is M3 as the directive specified it: sky visibility TRACED
+    // against real geometry, with no stored per-cell field.
+    //
+    // It shipped off because D1 measured it at 24.6 ms/frame -- and that measurement is what pushed
+    // sky visibility into a per-cell bake, reinstating the exact storage M0 existed to delete. But
+    // D1 ran the shader at 9 rays / reach 24 / 512 cells, while the bake itself was shipped at
+    // 5 rays / reach 16 after measurement showed those still seal a room at every wall thickness.
+    // The per-fragment path was never re-measured at the bake's own settings.
+    //
+    // Measured on Release, generated town, fixed pose, sky OFF/ON interleaved (Static Geometry):
+    //     9 rays / 24 u / 512   24.604 ms      <- the number that retired this path
+    //     5 rays / 16 u / 288    5.166 ms
+    //     + normal-ray gate      2.997 ms      <- vs a 0.318 ms sky-OFF control
+    // The sky term costs +2.68 ms, not +24.46 ms: 9.1x less. And it seals a generated interior --
+    // sky_probe reads 0.0 inside an engine-built hall_house, 0.79-0.92 outside.
+    bool m_skyTracing = true;
     float m_shadowDepthRange = 1.0f;  ///< world-unit light-volume depth span (bias normalization)
 
     // Helper methods for swapchain

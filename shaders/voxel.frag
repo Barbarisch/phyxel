@@ -98,16 +98,49 @@ float phxSkyVisibility(vec3 surfaceWorld, vec3 geomNormal) {
     vec3 B = cross(Ng, T);
 
     vec3 start = surfaceWorld + Ng * (2.0 / 9.0);
-    const float kReach = 24.0;
+
+    // Matched to the BAKE's measured settings (docs/UnifiedLightingPlan.md M3-REDESIGN).
+    //
+    // D1 measured this per-fragment path at 24.6 ms/frame and that number is what justified moving
+    // sky visibility into a per-cell bake -- the very storage M0 existed to delete. But D1 ran at
+    // FULL quality: 9 rays, reach 24, 512 cells. The bake then established by measurement that
+    // 5 rays / reach 16 still seals a room at every wall thickness, with a doorway control alive.
+    // The per-fragment path was never re-measured at those settings, so the number that retired it
+    // was never its real cost.
+    //
+    // 5 rays keeps the vertical and the four 30-degree directions -- the ones that decide whether a
+    // room is sealed -- and drops the four 60-degree diagonals, which largely duplicate them. That
+    // is exactly the subset the bake uses, so PHX_SKY_DIRS[0..4] must stay in that order.
+    // ⚠️ Reach still decides the largest room that can read as SEALED (D8).
+    const float kReach = 16.0;
+    const int   kRays  = 5;
+    const int   kCells = int(kReach * 9.0) * 2;   // same cell budget the CPU mirror derives
+
+    // GATE, the same idea that made M2's visibility term measure free: there, `dot(N, ldir) > 0`
+    // and the radius test meant almost no marches actually ran. This trace had no gate at all --
+    // every fragment paid all five rays every frame.
+    //
+    // Ray 0 is the surface normal itself, and it is the cheapest possible probe. If it escapes,
+    // the surface has open sky directly above it and the remaining rays are being spent to confirm
+    // a foregone conclusion: an unoccluded normal ray means the fragment is outdoors, which is the
+    // overwhelming majority of fragments in any outdoor scene. Take the full weighted answer only
+    // when that first ray is BLOCKED -- i.e. when the fragment might actually be enclosed, which is
+    // exactly the case this whole system exists to resolve.
+    //
+    // This is conservative in the direction that matters: it can only ever return MORE sky for a
+    // surface whose normal already sees sky. It cannot brighten an interior, because an interior
+    // fragment's normal ray hits something and takes the full path.
+    vec3 dir0 = normalize(T * PHX_SKY_DIRS[0].x + B * PHX_SKY_DIRS[0].y + Ng * PHX_SKY_DIRS[0].z);
+    if (!phxDdaHitsSolid(start, start + dir0 * kReach, kCells, ubo.occupancyBox)) return 1.0;
 
     float lit = 0.0, total = 0.0;
-    for (int r = 0; r < 9; ++r) {
+    for (int r = 0; r < kRays; ++r) {
         vec3 d = PHX_SKY_DIRS[r];
         vec3 dir = normalize(T * d.x + B * d.y + Ng * d.z);
         float w = max(0.0, dot(dir, Ng));
         total += w;
 
-        if (!phxDdaHitsSolid(start, start + dir * kReach, 512, ubo.occupancyBox)) lit += w;
+        if (!phxDdaHitsSolid(start, start + dir * kReach, kCells, ubo.occupancyBox)) lit += w;
     }
     return total > 0.0 ? lit / total : 1.0;
 }
