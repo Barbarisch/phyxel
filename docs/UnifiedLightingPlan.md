@@ -830,6 +830,13 @@ source all seven transports read (U4). Deleting it would delete traced sky visib
 per-corner nibbles in `InstanceData` must be kept for the same reason — they are how the baked value
 reaches `voxel.frag`, and the per-corner interpolation is what smooths it across cells.
 
+⚠️ **This is a DEFERRAL, not a reversal — see the contradiction note at the head of M3-REDESIGN
+(raised 2026-09-01).** Stated flatly like this, the paragraph above reads as though the directive
+changed its mind about deleting per-cell light storage. It did not. `m_skyLight` survives only
+because the bake — an explicitly **temporary scaffold** — depends on it. **M4/U7 are blocked, not
+cancelled**, and they unblock the moment the bake has an exit (M5 being the one that resolves the
+contradiction rather than managing it). Do not read this as "the field is permanent now".
+
 **Still deletable, and this is what U7 now means:**
 * `m_blockR` / `m_blockG` / `m_blockB` — pinned to 0 since M0, with no writer. Three N³ byte arrays
   per chunk paying memory and upload bandwidth for zeros.
@@ -1117,6 +1124,54 @@ otherwise have been reported as a spectacular and entirely fictional win.
 ---
 
 ## ✅ M3-REDESIGN — DONE 2026-08-30. Option 1 (bake) implemented and gated.
+
+> ### 🔴 UNRESOLVED CONTRADICTION WITH THE DIRECTIVE — raised by the user 2026-09-01
+>
+> **"I thought we were getting rid of the bake."** Correct, and this document had stopped saying so.
+>
+> The directive's objection to the flood was **architectural, not just numerical**: *"it is not an
+> opacity bug, it is a **storage resolution** bug ... any scheme storing one light value per cube
+> cell reproduces it."* M3 was specified as sky **traced** against real geometry; M4/U7 were to
+> **delete** `m_skyLight` and the per-corner vertex words.
+>
+> M3-REDESIGN, on cost grounds alone (24.6 ms/frame, 275→35 fps), did the opposite:
+> 1. it **reinstated the exact per-cell field M0 deleted** — this section says so in its own next
+>    sentence, *"stored in the same per-cell field the deleted flood used"*;
+> 2. it **cancelled the M4/U7 deletion** — U7 now reads *"`m_skyLight` must now be KEPT"*;
+> 3. it reintroduced per-cube-cell quantisation of light, plus staleness coupling (the
+>    occupancy-flush ordering rule) and a per-chunk streaming cost.
+>
+> **What is genuinely better than the flood**, and why this was not a silly decision: the *values*
+> are traced against real sub-voxel geometry, so a sealed room reads 0 and a doorway produces real
+> falloff instead of a linear 1-per-cell ramp; and the wall-base band is avoided because cells are
+> traced from their centre rather than marked opaque. **What is not better:** the condemned storage
+> property is back, and the plan never re-ratified it — it recorded the consequence in U7 as settled
+> fact and moved on.
+>
+> ⚠️ **And the drift compounded.** The 2026-08-31 session treated *"turn the bake on by default"* as
+> **the main goal**, and spent itself making the bake 4.8× faster (option 4) and teaching its gather
+> to see sub-voxel walls (D21). Both are real fixes to real defects — and both **further entrench a
+> component this plan intended to delete.** Optimising the scaffold is how the scaffold becomes the
+> building.
+>
+> **Status: the bake is a TEMPORARY SCAFFOLD, not the destination.** It stays for now because it is
+> the only thing that makes interiors dark at a shippable cost. It does not get treated as the
+> answer, and "enable the bake" is **not** the main goal.
+>
+> **Exits, to be chosen deliberately rather than by default:**
+> * **M5 — radiance cascades.** The design's actual endgame (parking condition *expired
+>   2026-08-11*), which subsumes sky visibility as a byproduct **and** delivers the indirect bounce
+>   committed to in the directive. If M5 lands, every hour spent on the per-cell sky cache is
+>   deleted work. **This is the one that resolves the contradiction rather than managing it.**
+> * **Make per-fragment tracing affordable.** The 24.6 ms was the naive shape — 9 rays × full DDA,
+>   every fragment, every frame, no reuse. It is now 5 rays / 16 u, and M2's visibility term
+>   measured *free* because its `dot(N,L) > 0` gate means almost no marches actually run. Half-rate
+>   evaluation and temporal reuse have never been tried.
+> * **Cache, but not per-cube-cell** — keep an intermediate while dropping the resolution property
+>   the directive condemned.
+>
+> Until one is chosen, M4/U7 stay blocked, because they cannot delete a field the scaffold depends
+> on.
 
 Sky visibility is now computed at CHUNK-BAKE time by tracing the occupancy, and stored in the same
 per-cell field the deleted flood used — so the shader reads one interpolated value again instead of
