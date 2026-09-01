@@ -12,6 +12,8 @@
 #include <vector>
 #include <optional>
 #include <unordered_set>
+#include <cmath>
+#include <functional>
 
 namespace Phyxel {
     class ChunkManager;       // Forward declaration for voxel collision queries
@@ -187,6 +189,31 @@ namespace Scene {
         // hosts to lock the body's heading to the camera yaw so movement follows
         // the view. Turn input still rotates currentYaw when this isn't driven.
         void setFacingYaw(float yawRadians) { currentYaw = yawRadians; }
+
+        /// Desynchronise this character's LOOPING locomotion from every other
+        /// character's. Without it, a crowd that changes state on the same frame
+        /// starts every walk cycle at phase 0 and advances by the same dt
+        /// forever: an army marching in perfect lockstep, which reads as one
+        /// puppet driving every body. There is no shared controller involved -
+        /// there was simply no phase variance.
+        void setPhaseJitterSeed(float seed01) { m_phaseJitter = wrapPhase(seed01); }
+        float phaseJitter() const { return m_phaseJitter; }
+
+        /// Wrap any float into [0,1). Static and free of character state so the
+        /// contract is testable without a physics world and a loaded rig.
+        static float wrapPhase(float s) {
+            const float w = s - std::floor(s);
+            return (w < 0.0f || w >= 1.0f) ? 0.0f : w;   // guards NaN/inf
+        }
+
+        /// The phase a given entity id maps to. Lives beside the thing that
+        /// consumes it so the spawner and the tests cannot drift apart on the
+        /// formula. Hashed (not random) so a character keeps the SAME phase each
+        /// time it re-enters Walk - a re-rolled phase would visibly twitch.
+        static float phaseSeedForId(const std::string& entityId) {
+            const size_t h = std::hash<std::string>{}(entityId);
+            return static_cast<float>(h % 10007u) / 10007.0f;
+        }
         glm::vec3 getForwardDirection() const;
 
         // Animation playback control (for editor scrubbing / pause)
@@ -659,6 +686,12 @@ namespace Scene {
 
         int currentClipIndex = -1;
         float animTime = 0.0f;
+
+        // Per-character phase offset for LOOPING locomotion, in [0,1) of the
+        // clip. Seeded once at spawn (NPCManager) via phaseSeedForId, so it is
+        // stable for the life of the character. Zero by default: an unseeded
+        // character behaves exactly as before, starting loops at 0.
+        float m_phaseJitter = 0.0f;
 
         // One-shot dedup of "clip missing Speed" warnings emitted from the
         // movement step. Keyed by clip name.

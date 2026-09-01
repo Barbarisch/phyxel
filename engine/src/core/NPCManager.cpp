@@ -185,6 +185,16 @@ Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, cons
         m_entityRegistry->registerEntity(npc.get(), entityId, "npc");
     }
 
+    // Desynchronise this NPC's looping locomotion from every other NPC's.
+    // Hashed from the id so it is STABLE across re-entries into Walk (and
+    // across runs) rather than random per state change — a character whose
+    // phase jumped every time it started walking would twitch. Without this a
+    // crowd that changes state together marches in perfect lockstep and reads
+    // as one puppet driving every body.
+    if (auto* ch = npc->getAnimatedCharacter())
+        ch->setPhaseJitterSeed(
+            Scene::AnimatedVoxelCharacter::phaseSeedForId(entityId));
+
     // Wire context
     npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry, m_chunkManager, m_raycastVisualizer);
     npc->setCombatSystem(m_combatSystem);
@@ -755,6 +765,16 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
     if (m_entityRegistry) {
         m_entityRegistry->registerEntity(npc.get(), entityId, "npc");
     }
+
+    // Desynchronise this NPC's looping locomotion from every other NPC's.
+    // Hashed from the id so it is STABLE across re-entries into Walk (and
+    // across runs) rather than random per state change — a character whose
+    // phase jumped every time it started walking would twitch. Without this a
+    // crowd that changes state together marches in perfect lockstep and reads
+    // as one puppet driving every body.
+    if (auto* ch = npc->getAnimatedCharacter())
+        ch->setPhaseJitterSeed(
+            Scene::AnimatedVoxelCharacter::phaseSeedForId(entityId));
     npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry, m_chunkManager, m_raycastVisualizer);
     npc->setCombatSystem(m_combatSystem);
     if (m_navGraph) npc->setNavGraph(m_navGraph.get());
