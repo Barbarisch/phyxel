@@ -2622,25 +2622,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         // path (Application.cpp): resolve the item, build a kinematic mesh,
         // attach it to the character's grip bone, then follow that bone.
         //
-        // The behavior's weapon string is a PROFILE name (longsword, battleaxe)
-        // while the registry keys on item ids (iron_sword, battle_axe), so the
-        // two vocabularies are mapped here rather than forcing scenes to know
-        // engine item ids.
-        static std::string weaponItemIdFor(const std::string& profile) {{
-            static const std::unordered_map<std::string, std::string> kMap = {{
-                {{"longsword",  "iron_sword"}},  {{"sword",      "iron_sword"}},
-                {{"shortsword", "short_sword"}}, {{"short_sword","short_sword"}},
-                {{"battleaxe",  "battle_axe"}},  {{"axe",        "battle_axe"}},
-                {{"mace",       "mace"}},        {{"maul",       "maul"}},
-                {{"warhammer",  "warhammer"}},   {{"spear",      "spear"}},
-                {{"staff",      "staff_arcane"}},
-            }};
-            auto it = kMap.find(profile);
-            if (it != kMap.end()) return it->second;
-            // Fall through to the raw name: a scene may legitimately name a
-            // real item id directly.
-            return profile;
-        }}
+        // NOTE: no profile->id mapping here any more. GameDefinitionLoader
+        // canonicalises the weapon name when it calls setWeapon(), so the id on
+        // the behavior is ALREADY a real ItemRegistry id. A second mapping in
+        // this file could drift from the engine's and produce the exact split
+        // that caused fighters to carry swords while throwing punches: the
+        // visible model resolved, the moveset did not.
 
         void {class_name}::equipNpcWeapons() {{
             if (!npcManager_ || !kinematicVoxelManager_ || !weaponTemplates_) return;
@@ -2656,7 +2643,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     profile = cb->getWeaponId();
                 if (profile.empty()) return;
 
-                const std::string itemId = weaponItemIdFor(profile);
+                const std::string itemId = profile;   // already canonical (see loader)
                 const auto* def = Phyxel::Core::ItemRegistry::instance().getItem(itemId);
                 if (!def) {{ ++missingItem; return; }}
 

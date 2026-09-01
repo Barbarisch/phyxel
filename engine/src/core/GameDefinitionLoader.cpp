@@ -832,6 +832,32 @@ void GameDefinitionLoader::loadLocations(const json& locationsDef, GameSubsystem
 // NPCs
 // ============================================================================
 
+namespace {
+
+/// Map a friendly weapon name from game.json onto a real ItemRegistry id.
+///
+/// Scenes speak in profiles ("longsword", "battleaxe"); the item registry keys
+/// on ids ("iron_sword", "battle_axe"). Everything that reads a weapon —
+/// the melee MOVESET (MeleeAnimMapper via ItemRegistry::getItem) and the visible
+/// held model — must resolve the SAME id, or a fighter ends up carrying a sword
+/// while throwing punches, which is exactly what happened.
+///
+/// Unknown names pass through unchanged so a scene may name a real item id
+/// directly, and so a genuinely unknown weapon still reaches the registry lookup
+/// (and its miss) rather than being silently rewritten.
+std::string canonicalWeaponId(const std::string& name) {
+    static const std::unordered_map<std::string, std::string> kAliases = {
+        {"longsword",  "iron_sword"},  {"sword",       "iron_sword"},
+        {"shortsword", "short_sword"}, {"short_sword", "short_sword"},
+        {"battleaxe",  "battle_axe"},  {"axe",         "battle_axe"},
+        {"greataxe",   "battle_axe"},  {"staff",       "staff_arcane"},
+    };
+    auto it = kAliases.find(name);
+    return it == kAliases.end() ? name : it->second;
+}
+
+}  // namespace
+
 void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, GameDefinitionResult& result) {
     if (!sub.npcManager) {
         result.error = "NPCManager not available for NPC spawning";
@@ -919,7 +945,15 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
         if (behaviorType == NPCBehaviorType::Combat) {
             if (auto* cb = dynamic_cast<Scene::CombatBehavior*>(npc->getBehavior())) {
                 if (!faction.empty()) cb->setFaction(faction);
-                if (npcDef.contains("weapon")) cb->setWeapon(npcDef["weapon"].get<std::string>());
+                // CANONICALISE THE WEAPON NAME ONCE, HERE. CombatBehavior resolves
+                // its melee moveset with ItemRegistry::getItem(weaponId); a friendly
+                // profile name like "longsword" is not an item id, the lookup returns
+                // null, and the fighter swings the UNARMED boxing chain while visibly
+                // holding a sword. Aliasing in the loader means the moveset AND the
+                // visible model resolve from the same id — two mapping layers that can
+                // disagree is what produced that split in the first place.
+                if (npcDef.contains("weapon"))
+                    cb->setWeapon(canonicalWeaponId(npcDef["weapon"].get<std::string>()));
                 // TACTICAL: "intelligence" (3-18) drives reaction speed, cover
                 // discipline, obedience and target choice; the chunk manager
                 // gives it line-of-sight so it can find cover at all.
