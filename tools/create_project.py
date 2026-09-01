@@ -195,6 +195,15 @@ def create_project(
     extra_includes.append('#include "ai/TacticalSpace.h"')   # LOS for the combat verbs
     extra_includes.append('#include "ai/CommandStructure.h"')
     extra_members.append("    Phyxel::AI::CommandStructure command_;  // squads + orders (game.json squad/rank)")
+    extra_includes.append('#include "core/KinematicVoxelManager.h"')
+    extra_includes.append('#include "core/ItemRegistry.h"')
+    extra_includes.append('#include "core/ItemPropManager.h"')
+    extra_includes.append('#include "scene/behaviors/CombatBehavior.h"')
+    extra_includes.append('#include <glm/gtx/euler_angles.hpp>')   # eulerAngleYXZ for grip rotation
+    extra_members.append("    std::unique_ptr<Phyxel::Core::KinematicVoxelManager> kinematicVoxelManager_;  // holds NPC weapon meshes")
+    extra_members.append("    std::unique_ptr<Phyxel::ObjectTemplateManager> weaponTemplates_;  // loads the weapon .voxel models on demand")
+    extra_members.append("    struct HeldWeapon { std::string kinId; int anchorId = -1; std::string itemId; };")
+    extra_members.append("    std::unordered_map<std::string, HeldWeapon> npcHeld_;  // entityId -> attached weapon")
     extra_includes.append('#include "ai/ActionSystem.h"')
     extra_members.append('    Phyxel::Core::SpellcasterComponent playerCaster_;  // slots/known spells; bound to playerTurn_')
     extra_members.append('    std::unordered_map<std::string, Phyxel::Core::SpellcasterComponent> npcCasters_;  // game.json "casters": enemy/companion spell lists for CombatAI')
@@ -311,6 +320,8 @@ def create_project(
         f"    void setArmedSpell(const std::string& id);  // spellbar arm/disarm + button highlight",
         f"    void registerBehaviorActions();  // this game's BT action verbs (BTActionRegistry)",
         f"    void installDoctrine();          // how this game's officers decide",
+        f"    void equipNpcWeapons();          // attach game.json \"weapon\" models to grip bones",
+        f"    void updateHeldWeapons();        // follow the grip bone each frame",
         f"    void updateCommand(float dt);    // per-frame squad situation + orders",
         f"    void refreshSpellbar();  // repaint labels/slot counts/enabled state from live caster state",
         f"    Phyxel::Scene::AnimatedVoxelCharacter* characterOf(const std::string& entityId);",
@@ -756,6 +767,37 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             npcManager_->setPhysicsWorld(engine.getPhysicsWorld());
             npcManager_->setChunkManager(engine.getChunkManager());  // NavGrid needs a chunk source (pathfinding + test-API reachability)
             npcManager_->setEntityRegistry(entityRegistry_.get());
+
+            // ── VISIBLE WEAPONS ────────────────────────────────────────────
+            // An NPC's game.json "weapon" only ever set a damage/animation
+            // profile string: soldiers fought a whole battle bare-handed while
+            // the axes and swords existed as assets nobody attached. The engine
+            // has the grip metadata (ItemDefinition::held: bone, offset, euler,
+            // scale) and the character can resolve the bone, but the wire
+            // between them lived ONLY in the editor — another standalone parity
+            // gap. This is that wire, ported.
+            // Its own template manager: a generated game has none, and the
+            // weapon models must come from somewhere. Templates load on demand
+            // (one .voxel per distinct weapon) rather than scanning the whole
+            // library at boot.
+            weaponTemplates_ = std::make_unique<Phyxel::ObjectTemplateManager>(
+                engine.getChunkManager(), nullptr);
+            kinematicVoxelManager_ = std::make_unique<Phyxel::Core::KinematicVoxelManager>();
+            kinematicVoxelManager_->setPhysicsWorld(engine.getPhysicsWorld());
+            // BISECT: is handing the render coordinator a kinematic manager what
+            // killed the 3D pass? PHYXEL_NO_KIN_RENDER=1 skips the hookup so the
+            // two states can be compared on the same binary.
+            if (renderCoordinator_ && !std::getenv("PHYXEL_NO_KIN_RENDER"))
+                renderCoordinator_->setKinematicVoxelManager(kinematicVoxelManager_.get());
+            // items.json was loaded only by the editor, so a shipped game had an
+            // EMPTY item registry and every weapon lookup missed silently.
+            const int loadedItems =
+                Phyxel::Core::ItemRegistry::instance().loadFromFile("resources/items.json");
+            if (loadedItems <= 0)
+                LOG_WARN("{class_name}", "items.json loaded {{}} items - NPC weapons will be invisible",
+                         loadedItems);
+            else
+                LOG_INFO("{class_name}", "item registry: {{}} items", loadedItems);
             registerBehaviorActions();
             installDoctrine();
             // Real-time casters (RangedCasterBehavior) route their spells
@@ -1635,6 +1677,11 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     }}
                 }}
 
+                // NPCs exist now, so their weapons can be hung on their grips.
+                // Must run AFTER the definition load — before it there is
+                // nobody to equip.
+                equipNpcWeapons();
+
                 // Restore the saved player profile (camera pose + health + XP/level)
                 // from the active scene's world DB, if one was saved by a previous
                 // run. Succeeds here only for WORLD-start games (the DB is open);
@@ -2075,6 +2122,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
 
             if (npcManager_) npcManager_->update(dt);
             updateCommand(dt);   // officers re-evaluate on their own cadence
+            updateHeldWeapons(); // weapons ride the grip bone; without this they
+                                 // stay frozen where the character spawned
             if (storyEngine_) storyEngine_->update(dt);
             if (speechBubbleManager_) speechBubbleManager_->update(dt);
 
@@ -2555,6 +2604,138 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         // The engine owns squads, order propagation and the "officer is dead"
         // degradation; WHICH order gets issued is a game decision, so it lives
         // here. Swap this function and the same armies fight a different war.
+        // ====================================================================
+        // VISIBLE NPC WEAPONS
+        // ====================================================================
+        // game.json "weapon" named a damage/animation profile and nothing else,
+        // so an entire army fought bare-handed while 22 weapon models sat in
+        // resources/templates/weapons/. Ported from the editor's NPC held-item
+        // path (Application.cpp): resolve the item, build a kinematic mesh,
+        // attach it to the character's grip bone, then follow that bone.
+        //
+        // The behavior's weapon string is a PROFILE name (longsword, battleaxe)
+        // while the registry keys on item ids (iron_sword, battle_axe), so the
+        // two vocabularies are mapped here rather than forcing scenes to know
+        // engine item ids.
+        static std::string weaponItemIdFor(const std::string& profile) {{
+            static const std::unordered_map<std::string, std::string> kMap = {{
+                {{"longsword",  "iron_sword"}},  {{"sword",      "iron_sword"}},
+                {{"shortsword", "short_sword"}}, {{"short_sword","short_sword"}},
+                {{"battleaxe",  "battle_axe"}},  {{"axe",        "battle_axe"}},
+                {{"mace",       "mace"}},        {{"maul",       "maul"}},
+                {{"warhammer",  "warhammer"}},   {{"spear",      "spear"}},
+                {{"staff",      "staff_arcane"}},
+            }};
+            auto it = kMap.find(profile);
+            if (it != kMap.end()) return it->second;
+            // Fall through to the raw name: a scene may legitimately name a
+            // real item id directly.
+            return profile;
+        }}
+
+        void {class_name}::equipNpcWeapons() {{
+            if (!npcManager_ || !kinematicVoxelManager_ || !weaponTemplates_) return;
+            int equipped = 0, missingItem = 0, missingTemplate = 0, noGrip = 0;
+
+            npcManager_->forEachNPC([&](Phyxel::Scene::NPCEntity& npc) {{
+                auto* ch = npc.getAnimatedCharacter();
+                if (!ch) return;
+
+                // The weapon profile lives on whichever combat behavior this NPC has.
+                std::string profile;
+                if (auto* cb = dynamic_cast<Phyxel::Scene::CombatBehavior*>(npc.getBehavior()))
+                    profile = cb->getWeaponId();
+                if (profile.empty()) return;
+
+                const std::string itemId = weaponItemIdFor(profile);
+                const auto* def = Phyxel::Core::ItemRegistry::instance().getItem(itemId);
+                if (!def) {{ ++missingItem; return; }}
+
+                // Load on first use, keyed by item id so repeats are free.
+                //
+                // items.json stores templateFile RELATIVE to resources/templates
+                // ("weapons/sword_long.voxel"), while loadTemplate resolves
+                // against the working directory. Passing it through unprefixed
+                // failed all 120 fighters with noTemplate while the files sat
+                // right there on disk.
+                const Phyxel::VoxelTemplate* tmpl = weaponTemplates_->getTemplate(itemId);
+                if (!tmpl) {{
+                    const std::string full = "resources/templates/" + def->templateFile;
+                    if (!weaponTemplates_->loadTemplate(full, itemId))
+                        weaponTemplates_->loadTemplate(def->templateFile, itemId);  // absolute/bare fallback
+                    tmpl = weaponTemplates_->getTemplate(itemId);
+                }}
+                if (!tmpl) {{
+                    if (missingTemplate == 0)
+                        LOG_WARN("{class_name}", "weapon template not loadable: {{}} (item {{}})",
+                                 def->templateFile, itemId);
+                    ++missingTemplate;
+                    return;
+                }}
+
+                auto voxels = Phyxel::Core::ItemPropManager::voxelsFromTemplate(*tmpl);
+                if (voxels.empty()) {{ ++missingTemplate; return; }}
+
+                // BAKE held.scale, exactly as ItemPropManager::buildPropGeometry
+                // does. voxelsFromTemplate returns RAW template geometry; for a
+                // fine-voxel item ("# grid: 81") that is ~81x too big. Skipping
+                // this drew a sword the size of a house next to each fighter -
+                // the attachment was fine, the geometry was unusable.
+                const float heldScale = def->held.scale > 0.0f ? def->held.scale : 1.0f;
+                if (heldScale != 1.0f)
+                    for (auto& v : voxels) {{ v.localPos *= heldScale; v.scale *= heldScale; }}
+
+                // NPCManager registers entities as "npc_" + name; key the same
+                // way so updateHeldWeapons can find the owner again.
+                const std::string entityId = npc.getName();
+                HeldWeapon hw;
+                hw.kinId = kinematicVoxelManager_->add("npcheld_" + entityId, std::move(voxels));
+                hw.anchorId = ch->attachToBone(def->held.gripBone, glm::vec3(0.02f),
+                                               def->held.gripOffset, glm::vec4(0.0f),
+                                               "npc_held_anchor");
+                if (hw.anchorId < 0) {{
+                    // No grip bone on this rig: drop the mesh rather than leave
+                    // a weapon floating at the world origin.
+                    kinematicVoxelManager_->remove(hw.kinId);
+                    ++noGrip;
+                    return;
+                }}
+                hw.itemId = itemId;
+                npcHeld_[entityId] = hw;
+                ++equipped;
+            }});
+
+            LOG_INFO("{class_name}",
+                     "NPC weapons: equipped={{}} unknownItem={{}} noTemplate={{}} noGripBone={{}}",
+                     equipped, missingItem, missingTemplate, noGrip);
+        }}
+
+        void {class_name}::updateHeldWeapons() {{
+            if (npcHeld_.empty() || !kinematicVoxelManager_ || !npcManager_) return;
+            for (auto it = npcHeld_.begin(); it != npcHeld_.end(); ) {{
+                auto* npc = npcManager_->getNPC(it->first);   // keyed by NPC NAME
+                auto* ch = npc ? npc->getAnimatedCharacter() : nullptr;
+                const auto* hd = Phyxel::Core::ItemRegistry::instance().getItem(it->second.itemId);
+                if (!ch || !hd) {{
+                    // Owner gone: take its weapon with it, or the mesh is
+                    // orphaned mid-air for the rest of the battle.
+                    kinematicVoxelManager_->remove(it->second.kinId);
+                    it = npcHeld_.erase(it);
+                    continue;
+                }}
+                glm::vec3 pos; glm::quat rot;
+                if (ch->getAttachmentTransform(it->second.anchorId, pos, rot)) {{
+                    const auto& h = hd->held;
+                    glm::mat4 t = glm::translate(glm::mat4(1.0f), pos) * glm::mat4_cast(rot);
+                    t = t * glm::eulerAngleYXZ(glm::radians(h.gripEulerDeg.y),
+                                               glm::radians(h.gripEulerDeg.x),
+                                               glm::radians(h.gripEulerDeg.z));
+                    kinematicVoxelManager_->setTransform(it->second.kinId, t);
+                }}
+                ++it;
+            }}
+        }}
+
         void {class_name}::installDoctrine() {{
             command_.setDecisionInterval(3.0f);
             command_.setDoctrine([](const Phyxel::AI::CommandStructure::SquadSituation& s) {{
