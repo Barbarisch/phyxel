@@ -14,7 +14,6 @@
 #include <string>
 #include <unordered_map>
 #include <algorithm>
-#include <thread>      // M3-REDESIGN option 4: the sky bake traces cells in parallel
 #include <deque>
 #include <atomic>
 #include <chrono>
@@ -56,26 +55,6 @@ void ChunkRenderManager::resetMeshTimingStats() {
 bool ChunkRenderManager::s_smoothLighting = true;
 // M3-REDESIGN. Default OFF until the bake cost is measured on a real chunk load.
 ChunkRenderManager::SkyVisibilityFn ChunkRenderManager::s_skyVisibility;
-ChunkRenderManager::CubeOccupancyFn ChunkRenderManager::s_cubeOccupancy;
-bool   ChunkRenderManager::s_gatherFromPool = true;
-// STAYS OFF -- the flip to true was attempted 2026-08-31 and REVERTED when its L4 gate failed.
-// See docs/UnifiedLightingPlan.md D21.
-//
-// The cost blocker IS gone: parallelising the per-cell trace took the bake from 14.38 ms/chunk to
-// 2.978 ms measured (4.8x, identical cell count), clearing the 6 ms dirty-chunk budget, and the
-// seal test still passes at every wall thickness. That work stands.
-//
-// But enabling it changed NOTHING in a live engine, because of a separate defect the speed work
-// uncovered: the bake gathers "air cells adjacent to something solid" from m_solidVis, which is
-// CUBE-LEVEL ONLY, while generated buildings are built from SUB-VOXEL walls. Cells beside a 2-micro
-// wall are therefore never gathered and never traced. Measured: last_sky_bake_cells pinned at
-// exactly 1024 (= 32x32, the flat ground layer, the only full-cube geometry present) and every
-// interior cell of an engine-generated hall_house still reading sky=15.
-//
-// Turning this on before D21 is fixed would pay the bake cost and deliver no enclosure.
-bool   ChunkRenderManager::s_bakeSkyVisibility = false;
-double ChunkRenderManager::s_lastSkyBakeMs = 0.0;
-size_t ChunkRenderManager::s_lastSkyBakeCells = 0;
 int  ChunkRenderManager::s_mergeTolerance = 0;
 bool ChunkRenderManager::s_foliageEnabled = true;
 float ChunkRenderManager::s_foliageDensity = 0.25f;   // 0.5 still read as a solid mass
@@ -491,128 +470,15 @@ void ChunkRenderManager::rebuildCubeFaces(
     // kill came from a MIXED cell being marked opaque and forced to 0; tracing has no notion of
     // opacity, so a cell that is one-third floor and two-thirds room reports what its air actually
     // sees. The per-corner interpolation in static_voxel.vert then smooths across cells as before.
-    // OPTION 4 (docs/UnifiedLightingPlan.md): the trace is PARALLEL over cells.
+    // ---- SKY VISIBILITY IS TRACED PER FRAGMENT, NOT BAKED ------------------------------------
+    // The chunk-bake that used to live here wrote traced sky access into m_skyLight -- the same
+    // per-cell field the deleted flood used. It existed only because D1 measured per-fragment
+    // tracing at 24.6 ms/frame, and that measurement was taken at 9 rays / reach 24 / 512 cells,
+    // NOT at the 5 rays / reach 16 the bake itself shipped at. Re-measured at the bake's own
+    // settings, plus a normal-ray gate, the per-fragment path costs +2.68 ms -- 9.1x less -- and
+    // seals a generated interior (sky_probe 0.0 inside, 0.79-0.92 outside).
     //
-    // Serially this measured 14.38 ms/chunk against a 6 ms budget for ALL dirty-chunk work in a
-    // frame, which is the only reason sky visibility ships disabled. The loop is embarrassingly
-    // parallel -- each cell writes only its own m_skyLight slot and reads only m_solidVis (already
-    // filled) -- and the query is a CONST read of the last-flushed occupancy pool, which the
-    // updateLightOccupancy()-before-updateDirtyChunks() ordering guarantees is not being mutated.
-    // So this is wall time divided by cores for identical output, rather than the quality trade
-    // that dropping rays or reach would have been.
-    //
-    // Two-phase on purpose: gather the cells worth tracing first (a trivial scan of 32768), then
-    // trace that vector in parallel. Parallelising the raw triple loop would either need a
-    // 3D-index decode per item or an atomic counter, and the gather is nearly free next to ~14 us
-    // per traced cell.
-    if (s_bakeSkyVisibility && s_skyVisibility) {
-        const auto bakeStart = std::chrono::high_resolution_clock::now();
-        const glm::vec3 origin(worldOrigin);
-
-        // D21 FIX. The gather has to see SUB-VOXEL geometry.
-        //
-        // `m_solidVis` is cube-resolution ("1 = a visible CUBE occupies the cell"), so a generated
-        // building -- whose walls and floors are subcubes and microcubes by the engine's own detail
-        // rule -- registered as EMPTY. Air cells beside those walls failed the `touches` test below,
-        // were never traced, and kept the full-sky default. Measured before this fix: on an
-        // engine-generated hall_house, `last_sky_bake_cells` sat at exactly 1024 (32x32 -- the flat
-        // ground layer, the only full-cube geometry in the world) and all 289 sampled interior cells
-        // read sky = 15.
-        //
-        // The packed occupancy pool carries the sub-voxel truth AND, per the M3-REDESIGN ordering
-        // rule, is flushed before updateDirtyChunks() runs -- so unlike the mesher's own sub-voxel
-        // occupancy it actually exists at bake time. That is what makes this the fix that avoids
-        // the buildSubMicroOccupancy-after-rebuildCubeFaces inversion (D5).
-        //
-        // Falls back to m_solidVis when no pool is installed (unit tests that drive rebuildAllFaces
-        // directly), so the cube-only behaviour remains reachable and testable.
-        // Runtime-switchable so the pool gather can be A/B'd against the old cube-only one in a
-        // live engine (`?gather_pool=0`). Without this, "did the gather fix change anything?" can
-        // only be answered by rebuilding, which is how an unattributed result gets claimed as a fix.
-        const bool usePool = s_gatherFromPool && static_cast<bool>(s_cubeOccupancy);
-
-        // "Anything here at all" -- solid OR sub-voxel content. This is what decides whether a
-        // neighbouring air cell is worth tracing.
-        auto occupiedAt = [&](int x, int y, int z) -> bool {
-            if (x < 0 || y < 0 || z < 0 || x >= N || y >= N || z >= N) return false;
-            if (!usePool) return m_solidVis[cellIdx(x, y, z)] != 0;
-            return s_cubeOccupancy(glm::ivec3(worldOrigin.x + x, worldOrigin.y + y,
-                                              worldOrigin.z + z)) != 0;
-        };
-
-        // "Fully solid" -- the only cells safe to SKIP. A mixed cell is mostly air and is exactly
-        // the case the wall-base band came from, so it must still be traced.
-        auto fullySolidAt = [&](int x, int y, int z) -> bool {
-            if (x < 0 || y < 0 || z < 0 || x >= N || y >= N || z >= N) return false;
-            if (!usePool) return m_solidVis[cellIdx(x, y, z)] != 0;
-            return s_cubeOccupancy(glm::ivec3(worldOrigin.x + x, worldOrigin.y + y,
-                                              worldOrigin.z + z)) == 2;   // CubeOccupancy::Solid
-        };
-
-        // Phase 1 -- gather. Only AIR cells adjacent to something solid are ever sampled by a face.
-        //
-        // ⚠️ A PLAIN LOCAL, deliberately. This was `static thread_local` and it CRASHED the engine:
-        // variables with static or thread storage duration are NOT captured by a lambda -- the name
-        // resolves, inside the lambda body, to the EXECUTING thread's instance. So every worker
-        // thread saw its own empty vector and indexed out of bounds. A per-call allocation is
-        // nothing against ~14 us per traced cell; do not "optimise" this back.
-        std::vector<int> bakeCells;
-        bakeCells.reserve(2048);
-        for (int x = 0; x < N; ++x)
-        for (int y = 0; y < N; ++y)
-        for (int z = 0; z < N; ++z) {
-            if (fullySolidAt(x, y, z)) continue;                  // inside rock: never sampled
-            // A MIXED cell traces itself: it is mostly air, a face sits in it, and forcing such a
-            // cell to a single opaque value is precisely the wall-base band M0 existed to kill.
-            const bool self = occupiedAt(x, y, z);
-            const bool touches = self ||
-                                 occupiedAt(x - 1, y, z) || occupiedAt(x + 1, y, z) ||
-                                 occupiedAt(x, y - 1, z) || occupiedAt(x, y + 1, z) ||
-                                 occupiedAt(x, y, z - 1) || occupiedAt(x, y, z + 1);
-            if (!touches) continue;                                // open air keeps the full 15
-            bakeCells.push_back(cellIdx(x, y, z));
-        }
-
-        // Phase 2 -- trace, in parallel. cellIdx is z + y*N + x*N*N, so it inverts exactly.
-        const auto traceOne = [&](int idx) {
-            const int x =  idx / (N * N);
-            const int y = (idx / N) % N;
-            const int z =  idx % N;
-            const glm::vec3 p = origin + glm::vec3(x + 0.5f, y + 0.5f, z + 0.5f);
-            const float v = s_skyVisibility(p, glm::vec3(0.0f, 1.0f, 0.0f));
-            m_skyLight[idx] = static_cast<uint8_t>(glm::clamp(v, 0.0f, 1.0f) * 15.0f + 0.5f);
-        };
-
-        const size_t cellCount = bakeCells.size();
-        // Below this, thread hand-off costs more than it saves; a sparse chunk stays serial.
-        constexpr size_t kParallelThreshold = 64;
-        unsigned hw = std::thread::hardware_concurrency();
-        if (hw == 0) hw = 1;
-        // Leave a core for the rest of the frame; this runs INSIDE the frame, not on a worker.
-        const unsigned workers = std::min<unsigned>(hw > 2 ? hw - 1 : 1, 16u);
-
-        if (cellCount < kParallelThreshold || workers <= 1) {
-            for (int idx : bakeCells) traceOne(idx);
-        } else {
-            std::vector<std::thread> pool;
-            pool.reserve(workers);
-            const size_t chunkSpan = (cellCount + workers - 1) / workers;
-            for (unsigned w = 0; w < workers; ++w) {
-                const size_t begin = w * chunkSpan;
-                if (begin >= cellCount) break;
-                const size_t end = std::min(begin + chunkSpan, cellCount);
-                pool.emplace_back([&, begin, end] {
-                    for (size_t i = begin; i < end; ++i) traceOne(bakeCells[i]);
-                });
-            }
-            for (auto& t : pool) t.join();
-        }
-
-        s_lastSkyBakeCells = cellCount;
-        s_lastSkyBakeMs = std::chrono::duration<double, std::milli>(
-            std::chrono::high_resolution_clock::now() - bakeStart).count();
-    }
-
+    // So the storage M0 deleted stays deleted. See docs/UnifiedLightingPlan.md M3-REDESIGN.
 
     // Snapshot this chunk's boundary light (the 6 faces neighbours sample) and flag if it changed
     // since last rebuild. ChunkManager re-meshes neighbours when it did, so cross-chunk bleed

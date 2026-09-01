@@ -1198,14 +1198,43 @@ otherwise have been reported as a spectacular and entirely fictional win.
 > 1.439 vs 1.271 ms Scene Pass), so the scenes are the same order — but the honest claim is
 > "same-order scene, 5× cheaper sky", not "identical scene".
 >
-> **This is the exit. M3 goes back to being traced per fragment, as specified, and the bake and
-> `m_skyLight` are deleted by M4/U7.** Remaining work before the bake can be removed:
-> 1. close the gap between 4.87 ms and free — the trace is currently **ungated**, unlike M2's
->    visibility term, which measured free precisely because `dot(N, ldir) > 0` meant almost no
->    marches ran;
-> 2. confirm the traced path still seals a generated interior at the live L4 rig D21 established
->    (interior 0 / boundary 12 / exterior 15);
-> 3. then delete `s_bakeSkyVisibility`, the bake block, and `m_skyLight` — which is M4/U7 unblocked.
+> **This is the exit. M3 goes back to being traced per fragment, as specified.**
+>
+> ### ✅ THE BAKE IS DELETED 2026-09-01. The contradiction is resolved, not managed.
+>
+> 1. **Gated the trace** — the same idea that made M2's visibility term measure free (`dot(N,ldir)>0`
+>    plus a radius test meant almost no marches ran); this trace had **no gate at all**. Ray 0 is the
+>    surface normal and the cheapest probe: if it escapes, the fragment is outdoors and the other
+>    four rays confirm a foregone conclusion. It can only ever return **more** sky for a surface
+>    whose normal already sees sky, so it cannot brighten an interior — an interior fragment's normal
+>    ray is blocked and takes the full path.
+>    **Static Geometry 5.166 → 2.997 ms**, against a 0.318 ms sky-OFF control.
+>    **The sky term costs +2.68 ms where D1 measured +24.46 ms — 9.1× less.**
+> 2. **`m_skyTracing` now defaults ON.** Traced sky is the shipped mechanism.
+> 3. **The bake block, `s_bakeSkyVisibility`, `s_lastSkyBakeMs/Cells`, the D21 pool gather
+>    (`s_cubeOccupancy`, `s_gatherFromPool`), and the `bake_sky` / `gather_pool` API surface are all
+>    DELETED.** Builds clean; lighting suite 63/63.
+>
+> **Verified at runtime with the bake gone**, on the engine's own generator — an engine-built
+> `hall_house` (`placed: 13822`) at its reported position, `sky_probe` along y=18 z=1:
+>
+> | x | −3 | −2 | −1 | **0–4** | 5 | 6 | 7 |
+> |---|---|---|---|---|---|---|---|
+> | sky | 0.92 | 0.92 | 0.79 | **0.00** | 0.71 | 0.79 | 0.92 |
+>
+> **Interior exactly 0, exterior 0.79–0.92, real falloff at the boundary — with no stored per-cell
+> light field anywhere in the path.** That is M3 as the directive specified it.
+>
+> ⚠️ **Honest caveats.** `sky_probe` queries the CPU mirror at its own default 9 rays / 24 u, so it
+> proves the *geometry* seals, not that it seals at the shader's 5/16 — that rests on the
+> doorway-controlled gate and the `M3REDESIGN` unit test, both at 5/16. The town used for the timing
+> is *comparable to* D1's, not verified identical (`settlement/build` returned no `placed` count).
+> And +2.68 ms/frame is not free: it is a real GPU cost paid every frame, traded against a bake that
+> cost 5.59 ms of CPU per streamed chunk.
+>
+> **M4/U7 are now genuinely unblocked** — `m_skyLight` has no writer left. Deleting the field, the
+> per-corner `InstanceData` words and the seven transports is the next step, and it is the deletion
+> the directive asked for.
 
 Sky visibility is now computed at CHUNK-BAKE time by tracing the occupancy, and stored in the same
 per-cell field the deleted flood used — so the shader reads one interpolated value again instead of

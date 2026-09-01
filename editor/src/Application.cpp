@@ -8381,18 +8381,6 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
             vulkanDevice->setSkyTracingEnabled(cmd.params.value("sky", true));
         // M3-REDESIGN: bake sky visibility at mesh time instead of tracing per fragment.
         // Changing it re-meshes, since the value is stored in the chunk's light field.
-        if (cmd.params.contains("gather_pool")) {
-            Phyxel::Graphics::ChunkRenderManager::setGatherFromPool(
-                cmd.params.value("gather_pool", true));
-        }
-        if (cmd.params.contains("bake_sky")) {
-            const bool on = cmd.params.value("bake_sky", false);
-            Phyxel::Graphics::ChunkRenderManager::setBakeSkyVisibility(on);
-            if (chunkManager) {
-                for (size_t i = 0; i < chunkManager->chunks.size(); ++i)
-                    chunkManager->markChunkDirty(i);
-            }
-        }
         const auto st = renderCoordinator->lightOccupancyStats();
         const glm::vec3 camPos = renderCoordinator->lightOccupancyCentreSource();
         const glm::ivec3 box  = renderCoordinator->lightOccupancyBoxMinChunk();
@@ -8416,10 +8404,6 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
             {"light_tracing",       vulkanDevice && vulkanDevice->isLightTracingEnabled()},
             {"sky_tracing",         vulkanDevice && vulkanDevice->isSkyTracingEnabled()},
             // M3-REDESIGN: the baked alternative, and what its last bake cost.
-            {"bake_sky",            Phyxel::Graphics::ChunkRenderManager::getBakeSkyVisibility()},
-            {"gather_pool",         Phyxel::Graphics::ChunkRenderManager::getGatherFromPool()},
-            {"last_sky_bake_ms",    Phyxel::Graphics::ChunkRenderManager::lastSkyBakeMs()},
-            {"last_sky_bake_cells", Phyxel::Graphics::ChunkRenderManager::lastSkyBakeCells()},
         };
 
         // Optional VISIBILITY PROBE (M2). Answers "does this light reach that surface point"

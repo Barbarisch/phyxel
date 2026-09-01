@@ -1490,13 +1490,6 @@ void EngineAPIServer::setupRoutes() {
         if (req.has_param("sky"))
             params["sky"] = (req.get_param_value("sky") == "1" ||
                              req.get_param_value("sky") == "true");
-        if (req.has_param("bake_sky"))
-            params["bake_sky"] = (req.get_param_value("bake_sky") == "1" ||
-                                  req.get_param_value("bake_sky") == "true");
-        // D21 A/B: gather bake cells from the sub-voxel pool (1) or the cube-only m_solidVis (0).
-        if (req.has_param("gather_pool"))
-            params["gather_pool"] = (req.get_param_value("gather_pool") == "1" ||
-                                     req.get_param_value("gather_pool") == "true");
         json result = queueAndWait("light_occupancy", params, 30000);
         res.set_content(result.dump(), "application/json");
     });
