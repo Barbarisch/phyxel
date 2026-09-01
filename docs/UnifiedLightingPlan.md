@@ -1498,6 +1498,69 @@ direct path. **Gate:** a written decision per gap — close or accept.
 **D11 — Roof striping.** `N·L` on stepped faces approximating a slope. Survives this entire rebuild
 and is still untracked separately. **Gate:** own doc entry, or an explicit "accepted".
 
+**D21 — ⚠️ DIAGNOSIS RETRACTED 2026-08-31. THE EVIDENCE BELOW WAS MEASURED IN THE WRONG PLACE.**
+
+> **Read this before the entry below.** Every "all cells read 15" measurement in D21 was taken
+> around x≈36–48 and x≈54–71, because I passed `"origin": {...}` to
+> `POST /api/structure/build` and assumed the building landed there. **It did not.** The build
+> response's own `locations` field reports
+> `{"id":"hall_house_-2_1","position":{"x":-1.5,"y":17.0,"z":1.5}}` — the generator **ignored the
+> requested origin** and placed the structure near the world origin. `placed: 13822` was true; my
+> probes were 60+ units away, sampling empty air, and `/api/world/voxel` at the cells I probed
+> returns `exists: false` because *there is nothing there*, not because enclosure failed.
+>
+> **What survives:** the code observation, which was made by reading and is independent of the
+> measurements — `m_solidVis` really is cube-resolution (`:350`, *"1 = a visible CUBE occupies the
+> cell"*) and generated buildings really are sub-voxel, so the gather really is blind to a 2-micro
+> wall. That is a latent defect.
+>
+> **What does NOT survive:** the claim that this is what produced the observed symptom, and
+> therefore the claim that it is what blocks the main goal. `last_sky_bake_cells = 1024` is equally
+> well explained by "the chunks I dirtied contain nothing but flat ground" — which, with the
+> building at the world origin, is exactly what they contained. **A single-sample statistic from
+> whichever chunk happened to mesh last was never evidence about a specific building.**
+>
+> **The gather fix (option 2, pool-based `packedPoolCubeOccupancy`) is implemented and builds, but
+> it is UNPROVEN against any symptom.** It must not be described as fixing D21 until re-measured at
+> the building's real location. `s_bakeSkyVisibility` stays `false` meanwhile.
+>
+> ### ✅ RE-MEASURED AT THE REAL LOCATION — diagnosis CONFIRMED, fix ATTRIBUTED (2026-08-31)
+>
+> Same engine, same session, same cells, **one variable** — `?gather_pool=0/1`, a live switch added
+> for exactly this reason, so the fix could be attributed by measurement rather than asserted.
+> Engine-generated `hall_house` (`placed: 13822`) at its reported position `(-1.5, 17.0, 1.5)`;
+> line probe at `y=18, z=1`:
+>
+> | gather | bake cells | ms | sky at x = −4…7 | dark (<12) |
+> |---|---|---|---|---|
+> | **pool (the fix)** | **1290** | 5.59 | `15 15 15 15 · 0 0 0 0 0 · 12 · 15 15` | **5 / 12** |
+> | cube-only (pre-fix) | **1024** | 2.56 | `15 15 15 15 15 15 15 15 15 15 15 15` | **0 / 12** |
+>
+> **Interior reads 0, the boundary cell reads 12, the exterior positive control stays 15.** The
+> cube-only path reproduces the pinned **1024** exactly, and 1024 → 1290 is the sub-voxel walls
+> becoming visible to the gather. **The original diagnosis was correct; only its evidence was
+> gathered in the wrong place.** Both statements need to stand together — the retraction above was
+> right at the time it was written.
+>
+> ⚠️ **The cost moved, and not in a comfortable direction: 2.56 ms → 5.59 ms.** The gather now runs
+> a pool query per cell over all 32768, and traces 26% more cells. That is still inside the 6 ms
+> dirty-chunk budget, **but only just, and that budget covers ALL dirty-chunk work in a frame, not
+> one chunk.** The 4.8× won by parallelising the trace has been substantially spent by the gather.
+> **`s_bakeSkyVisibility` therefore stays `false`**: L4 conditions 1 and 2 are met, condition 3 (no
+> streaming hitch) is not evidenced, and a 5.59 ms single-chunk cost against a 6 ms whole-frame
+> budget is not something to enable on the strength of a static-scene probe.
+> **Next, and it is now a cost problem again rather than a correctness one:** parallelise the gather
+> (it is the same embarrassingly-parallel shape as the trace), or hoist the per-cell pool lookup —
+> the directory slot is constant for a whole chunk, so it is being recomputed 32768 times.
+>
+> **Method lesson, and it is the same one this document keeps relearning:** I verified the build
+> *response* (`placed: 13822`, `failed: 0`) and then verified *the world* — but at coordinates I
+> had assumed rather than at coordinates the engine reported. Verifying the world is only worth
+> anything if you verify it **where the thing actually is**. The `locations` field was in the
+> response the whole time.
+
+*Original entry follows, retained so the reasoning and its error stay legible.*
+
 **D21 — 🔴 THE SKY BAKE NEVER TRACES A GENERATED INTERIOR. Its cell gather is CUBE-LEVEL; buildings
 are SUB-VOXEL. This, not cost, is what blocks the main goal.** *(Found 2026-08-31 by trying to turn
 the bake on and measuring the result.)*

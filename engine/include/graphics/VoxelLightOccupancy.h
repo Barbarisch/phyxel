@@ -227,5 +227,30 @@ float packedPoolSkyVisibility(const PackedOccupancyPool& packed,
 /// keeps them honest before any GLSL exists.
 bool packedPoolSolidAt(const PackedOccupancyPool& packed, const glm::ivec3& worldMicro);
 
+/// Cube-level occupancy of one CUBE cell. Three states, because the bake needs to tell them apart.
+enum class CubeOccupancy : uint8_t {
+    Empty = 0,   ///< nothing at all: neither a full cube nor any sub-voxel content
+    Mixed = 1,   ///< carries sub-voxel detail — a 2-micro wall, a 3-micro floor
+    Solid = 2,   ///< the whole cube is filled
+};
+
+/// Cube-resolution occupancy for the M3 bake's CELL GATHER (docs/UnifiedLightingPlan.md D21).
+///
+/// The gather used `m_solidVis`, which is cube-level ONLY — it records "a visible CUBE occupies this
+/// cell" and knows nothing about sub-voxel content. Generated buildings are built from subcubes and
+/// microcubes, so their walls registered as EMPTY: cells beside them failed the "touches something
+/// solid" test, were never traced, and kept full sky. Measured symptom: `last_sky_bake_cells` pinned
+/// at exactly 1024 (the flat ground layer, the only full-cube geometry) while every interior of an
+/// engine-generated building read sky = 15.
+///
+/// This asks the packed pool instead, which carries the sub-voxel truth and — per the M3-REDESIGN
+/// ordering rule — is already flushed before `updateDirtyChunks()` runs. That sidesteps the
+/// `buildSubMicroOccupancy`-after-`rebuildCubeFaces` inversion (D5) that makes the mesher's own
+/// sub-voxel data unavailable at bake time.
+///
+/// `worldCube` is a world position in CUBE units. Two bit tests and a directory lookup — no micro
+/// mask decode — so scanning all 32768 cells of a chunk stays cheap.
+CubeOccupancy packedPoolCubeOccupancy(const PackedOccupancyPool& packed, const glm::ivec3& worldCube);
+
 }  // namespace Graphics
 }  // namespace Phyxel

@@ -178,6 +178,17 @@ RenderCoordinator::RenderCoordinator(
                  : 1.0f;
         });
 
+    // D21: the bake's CELL GATHER asks the pool, not the mesher's cube-only m_solidVis. Without
+    // this a generated building's sub-voxel walls are invisible to the gather, no interior cell is
+    // ever traced, and the bake produces a uniformly sky-lit interior at full cost.
+    // 0 = empty, 1 = mixed (sub-voxel content), 2 = fully solid.
+    ChunkRenderManager::setCubeOccupancyFn(
+        [this](const glm::ivec3& worldCube) -> uint8_t {
+            return m_lightOccupancy
+                 ? static_cast<uint8_t>(m_lightOccupancy->cubeOccupancy(worldCube))
+                 : uint8_t(0);
+        });
+
     // Trigger descriptor set update to bind the shadow map(s) and the occupancy buffers
     vulkanDevice->updateDescriptorSetsWithTexture();
 

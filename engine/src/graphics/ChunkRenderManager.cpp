@@ -56,6 +56,8 @@ void ChunkRenderManager::resetMeshTimingStats() {
 bool ChunkRenderManager::s_smoothLighting = true;
 // M3-REDESIGN. Default OFF until the bake cost is measured on a real chunk load.
 ChunkRenderManager::SkyVisibilityFn ChunkRenderManager::s_skyVisibility;
+ChunkRenderManager::CubeOccupancyFn ChunkRenderManager::s_cubeOccupancy;
+bool   ChunkRenderManager::s_gatherFromPool = true;
 // STAYS OFF -- the flip to true was attempted 2026-08-31 and REVERTED when its L4 gate failed.
 // See docs/UnifiedLightingPlan.md D21.
 //
@@ -506,9 +508,45 @@ void ChunkRenderManager::rebuildCubeFaces(
     if (s_bakeSkyVisibility && s_skyVisibility) {
         const auto bakeStart = std::chrono::high_resolution_clock::now();
         const glm::vec3 origin(worldOrigin);
-        auto solidAt = [&](int x, int y, int z) -> bool {
+
+        // D21 FIX. The gather has to see SUB-VOXEL geometry.
+        //
+        // `m_solidVis` is cube-resolution ("1 = a visible CUBE occupies the cell"), so a generated
+        // building -- whose walls and floors are subcubes and microcubes by the engine's own detail
+        // rule -- registered as EMPTY. Air cells beside those walls failed the `touches` test below,
+        // were never traced, and kept the full-sky default. Measured before this fix: on an
+        // engine-generated hall_house, `last_sky_bake_cells` sat at exactly 1024 (32x32 -- the flat
+        // ground layer, the only full-cube geometry in the world) and all 289 sampled interior cells
+        // read sky = 15.
+        //
+        // The packed occupancy pool carries the sub-voxel truth AND, per the M3-REDESIGN ordering
+        // rule, is flushed before updateDirtyChunks() runs -- so unlike the mesher's own sub-voxel
+        // occupancy it actually exists at bake time. That is what makes this the fix that avoids
+        // the buildSubMicroOccupancy-after-rebuildCubeFaces inversion (D5).
+        //
+        // Falls back to m_solidVis when no pool is installed (unit tests that drive rebuildAllFaces
+        // directly), so the cube-only behaviour remains reachable and testable.
+        // Runtime-switchable so the pool gather can be A/B'd against the old cube-only one in a
+        // live engine (`?gather_pool=0`). Without this, "did the gather fix change anything?" can
+        // only be answered by rebuilding, which is how an unattributed result gets claimed as a fix.
+        const bool usePool = s_gatherFromPool && static_cast<bool>(s_cubeOccupancy);
+
+        // "Anything here at all" -- solid OR sub-voxel content. This is what decides whether a
+        // neighbouring air cell is worth tracing.
+        auto occupiedAt = [&](int x, int y, int z) -> bool {
             if (x < 0 || y < 0 || z < 0 || x >= N || y >= N || z >= N) return false;
-            return m_solidVis[cellIdx(x, y, z)] != 0;   // filled above: 1 = visible cube here
+            if (!usePool) return m_solidVis[cellIdx(x, y, z)] != 0;
+            return s_cubeOccupancy(glm::ivec3(worldOrigin.x + x, worldOrigin.y + y,
+                                              worldOrigin.z + z)) != 0;
+        };
+
+        // "Fully solid" -- the only cells safe to SKIP. A mixed cell is mostly air and is exactly
+        // the case the wall-base band came from, so it must still be traced.
+        auto fullySolidAt = [&](int x, int y, int z) -> bool {
+            if (x < 0 || y < 0 || z < 0 || x >= N || y >= N || z >= N) return false;
+            if (!usePool) return m_solidVis[cellIdx(x, y, z)] != 0;
+            return s_cubeOccupancy(glm::ivec3(worldOrigin.x + x, worldOrigin.y + y,
+                                              worldOrigin.z + z)) == 2;   // CubeOccupancy::Solid
         };
 
         // Phase 1 -- gather. Only AIR cells adjacent to something solid are ever sampled by a face.
@@ -523,10 +561,14 @@ void ChunkRenderManager::rebuildCubeFaces(
         for (int x = 0; x < N; ++x)
         for (int y = 0; y < N; ++y)
         for (int z = 0; z < N; ++z) {
-            if (solidAt(x, y, z)) continue;                       // inside rock: never sampled
-            const bool touches = solidAt(x - 1, y, z) || solidAt(x + 1, y, z) ||
-                                 solidAt(x, y - 1, z) || solidAt(x, y + 1, z) ||
-                                 solidAt(x, y, z - 1) || solidAt(x, y, z + 1);
+            if (fullySolidAt(x, y, z)) continue;                  // inside rock: never sampled
+            // A MIXED cell traces itself: it is mostly air, a face sits in it, and forcing such a
+            // cell to a single opaque value is precisely the wall-base band M0 existed to kill.
+            const bool self = occupiedAt(x, y, z);
+            const bool touches = self ||
+                                 occupiedAt(x - 1, y, z) || occupiedAt(x + 1, y, z) ||
+                                 occupiedAt(x, y - 1, z) || occupiedAt(x, y + 1, z) ||
+                                 occupiedAt(x, y, z - 1) || occupiedAt(x, y, z + 1);
             if (!touches) continue;                                // open air keeps the full 15
             bakeCells.push_back(cellIdx(x, y, z));
         }

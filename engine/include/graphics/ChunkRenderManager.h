@@ -52,6 +52,21 @@ public:
     // further down for what this is and why it is injected).
     using SkyVisibilityFn = std::function<float(const glm::vec3& worldPos, const glm::vec3& normal)>;
     static SkyVisibilityFn s_skyVisibility;
+
+    /// Cube-level occupancy for the sky bake's CELL GATHER (docs/UnifiedLightingPlan.md D21).
+    /// Returns 0 empty / 1 mixed (sub-voxel content) / 2 fully solid, matching CubeOccupancy.
+    ///
+    /// Separate from s_skyVisibility on purpose: that one answers "how much sky does this point
+    /// see", this one answers "is this cell worth asking about at all". The gather used to answer
+    /// the second question from `m_solidVis`, which is cube-resolution and therefore blind to the
+    /// sub-voxel walls every generated building is made of.
+    using CubeOccupancyFn = std::function<uint8_t(const glm::ivec3& worldCube)>;
+    static CubeOccupancyFn s_cubeOccupancy;
+
+    /// D21 A/B switch: gather bake cells from the sub-voxel pool (true) or from the cube-only
+    /// m_solidVis (false, the pre-fix behaviour). Live-switchable so the fix can be attributed by
+    /// measurement instead of asserted.
+    static bool s_gatherFromPool;
     static bool   s_bakeSkyVisibility;
     static double s_lastSkyBakeMs;
     static size_t s_lastSkyBakeCells;
@@ -101,6 +116,9 @@ public:
     // spans chunks (a wall in the next chunk must occlude), while this class is the mesher. The
     // callback takes a world position and a normal and returns 0..1 sky access.
     static void setSkyVisibilityFn(SkyVisibilityFn fn) { s_skyVisibility = std::move(fn); }
+    static void setCubeOccupancyFn(CubeOccupancyFn fn) { s_cubeOccupancy = std::move(fn); }
+    static void setGatherFromPool(bool on) { s_gatherFromPool = on; }
+    static bool getGatherFromPool() { return s_gatherFromPool; }
     /// Default OFF until its bake cost is MEASURED — a slow bake would stall chunk streaming, which
     /// is a worse failure than the flat interiors it replaces.
     static void setBakeSkyVisibility(bool on) { s_bakeSkyVisibility = on; }

@@ -414,5 +414,37 @@ bool packedPoolSolidAt(const PackedOccupancyPool& packed, const glm::ivec3& worl
     return (packed.pool[microBase + static_cast<size_t>(bit >> 5)] >> (bit & 31)) & 1u;
 }
 
+CubeOccupancy packedPoolCubeOccupancy(const PackedOccupancyPool& packed,
+                                      const glm::ivec3& worldCube) {
+    if (packed.directory.empty()) return CubeOccupancy::Empty;   // never packed — no occluders
+
+    // Address through the micro path so there is ONE addressing implementation to be wrong.
+    // A cube's min corner in micro units lands inside that cube by construction.
+    const glm::ivec3 worldMicro = worldCube * ChunkLightOccupancy::kMicroPerAxis;
+    const int slot = PackedOccupancyPool::directoryIndexForMicro(worldMicro, packed.boxMinChunk);
+    if (slot < 0) return CubeOccupancy::Empty;                   // outside the resident box
+    const uint32_t base = packed.directory[static_cast<size_t>(slot)];
+    if (base == PackedOccupancyPool::kNoChunk) return CubeOccupancy::Empty;
+
+    constexpr int W = ChunkLightOccupancy::kCubeWords;
+    const int mpc = ChunkLightOccupancy::kChunk * ChunkLightOccupancy::kMicroPerAxis;
+    auto mod = [mpc](int v) { const int m = v % mpc; return m < 0 ? m + mpc : m; };
+    const glm::ivec3 local{mod(worldMicro.x), mod(worldMicro.y), mod(worldMicro.z)};
+    const glm::ivec3 cube{local.x / ChunkLightOccupancy::kMicroPerAxis,
+                          local.y / ChunkLightOccupancy::kMicroPerAxis,
+                          local.z / ChunkLightOccupancy::kMicroPerAxis};
+    const int ci = ChunkLightOccupancy::cubeIndex(cube);
+
+    const size_t solidBase = base + 1;
+    if ((packed.pool[solidBase + (static_cast<size_t>(ci) >> 5)] >> (ci & 31)) & 1u)
+        return CubeOccupancy::Solid;
+
+    const size_t mixedBase = solidBase + W;
+    if ((packed.pool[mixedBase + (static_cast<size_t>(ci) >> 5)] >> (ci & 31)) & 1u)
+        return CubeOccupancy::Mixed;
+
+    return CubeOccupancy::Empty;
+}
+
 }  // namespace Graphics
 }  // namespace Phyxel

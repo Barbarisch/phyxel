@@ -111,6 +111,13 @@ public:
         return packedPoolSkyVisibility(m_packed, surfaceWorld, geomNormal, reach, rays);
     }
 
+    /// Cube-level occupancy against the last flushed pool, for the M3 bake's cell gather (D21).
+    /// The gather must see SUB-VOXEL walls; the mesher's own `m_solidVis` is cube-only and reports
+    /// a 2-micro wall as empty, which left every generated interior untraced.
+    CubeOccupancy cubeOccupancy(const glm::ivec3& worldCube) const {
+        return packedPoolCubeOccupancy(m_packed, worldCube);
+    }
+
     /// The M2 visibility march against the last flushed pool — the CPU mirror of the shader's.
     LightVisibility visibility(const glm::vec3& surfaceWorld, const glm::vec3& geomNormal,
                                const glm::vec3& lightWorld) const {
