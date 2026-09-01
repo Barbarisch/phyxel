@@ -1681,7 +1681,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     }}
                     // Unconsumed wheel over the battlefield = tactical ZOOM.
                     // (A scrollable panel under the cursor still wins.)
-                    if (!consumed && combatDirector_.inCombat()) {{
+                    // Not gated on inCombat() — same reason as the Q/E/R/F
+                    // orbit below: a real-time battle has no encounter, so
+                    // gating on one left the sim with no zoom at all.
+                    if (!consumed) {{
                         if (auto* rig = gameplayCamera().rig())
                             rig->distance = glm::clamp(rig->distance - wheel * 2.0f, 8.0f, 34.0f);
                     }}
@@ -1778,17 +1781,42 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             //   Q / E     orbit the battle
             //   R / F     raise / lower the angle, inside the rig's band
             //   wheel     zoom, but only when the UI did not consume it
-            if (combatDirector_.inCombat() && !inDialogue) {{
+            //
+            // NOT gated on inCombat(). It used to be, which meant a REAL-TIME
+            // battle - the mode built to be watched - had no camera controls
+            // whatsoever: no turn-based encounter, so this block never ran, and
+            // there is no other binding. The player could only trudge around on
+            // WASD. Orbiting the view is useful whenever you are not in a
+            // dialogue, so that is the only thing it asks now.
+            if (!inDialogue) {{
                 auto* look = engine.getInputManager();
                 auto* rig  = gameplayCamera().rig();
                 const float dt = engine.getLastDeltaTime();
                 if (look && rig) {{
                     float yaw = look->getYaw(), pitch = look->getPitch();
                     const float orbitRate = 90.0f;   // deg/sec
-                    if (input->isKeyPressed(GLFW_KEY_Q)) yaw -= orbitRate * dt;
-                    if (input->isKeyPressed(GLFW_KEY_E)) yaw += orbitRate * dt;
-                    if (input->isKeyPressed(GLFW_KEY_R)) pitch -= 45.0f * dt;   // steeper
-                    if (input->isKeyPressed(GLFW_KEY_F)) pitch += 45.0f * dt;   // shallower
+                    // ARROW KEYS are the primary controls because they are the
+                    // only ones with NO conflict. The original Q/E/R/F set was
+                    // half-broken: E is bound to Interact and F to Attack in the
+                    // default action map (GameSettings.cpp), so orbiting right
+                    // also poked NPCs and "shallower" swung the player's weapon
+                    // instead of tilting the camera. Q and R are conflict-free
+                    // and stay as aliases; E and F are gone.
+                    // Every direction also has a LETTER alias. Not for comfort:
+                    // the test API resolves keys by name through stringToKey,
+                    // which does not know "LEFT"/"RIGHT"/"UP"/"DOWN", so an
+                    // arrows-only scheme is unverifiable by the harness — and an
+                    // unverifiable control is one I cannot honestly report as
+                    // working. Q/T orbit, R/G pitch; all four are free of the
+                    // default action map (unlike E=Interact and F=Attack).
+                    const bool left  = input->isKeyPressed(GLFW_KEY_LEFT)  || input->isKeyPressed(GLFW_KEY_Q);
+                    const bool right = input->isKeyPressed(GLFW_KEY_RIGHT) || input->isKeyPressed(GLFW_KEY_T);
+                    const bool up    = input->isKeyPressed(GLFW_KEY_UP)    || input->isKeyPressed(GLFW_KEY_R);
+                    const bool down  = input->isKeyPressed(GLFW_KEY_DOWN)  || input->isKeyPressed(GLFW_KEY_G);
+                    if (left)  yaw   -= orbitRate * dt;
+                    if (right) yaw   += orbitRate * dt;
+                    if (up)    pitch -= 45.0f * dt;   // steeper
+                    if (down)  pitch += 45.0f * dt;   // shallower
                     pitch = glm::clamp(pitch, rig->pitchClampMin, rig->pitchClampMax);
                     look->setYawPitch(yaw, pitch);
                 }}
