@@ -144,10 +144,11 @@ void ChunkRenderManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
 }
 
 uint8_t ChunkRenderManager::skyLightAt(int x, int y, int z) const {
-    if (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32) {
-        if (m_skyLight.empty()) return 15;
-        return m_skyLight[static_cast<size_t>(z + y * 32 + x * 1024)];
-    }
+    // M4/U7: the per-cell skylight ARRAY IS GONE. Enclosure is resolved by the per-fragment trace
+    // (phxSkyVisibility), not by a stored field -- which is what the directive asked for, and what
+    // M0 deleted the flood to achieve. This returns uniform open sky so the vertex path stays a
+    // no-op multiply until the varying itself is retired.
+    if (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32) return 15;
     // Out-of-chunk: read the neighbour chunk's baked light if available, else assume open sky.
     if (m_neighborLight) {
         BakedLight nl;
@@ -173,9 +174,9 @@ void ChunkRenderManager::blockLightAt(int x, int y, int z, uint8_t& r, uint8_t& 
 
 bool ChunkRenderManager::bakedLightResolvable(int x, int y, int z, BakedLight& out) const {
     if (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32) {
-        if (m_skyLight.empty() || m_blockR.empty()) return false;
+        if (m_blockR.empty()) return false;
         size_t i = static_cast<size_t>(z + y * 32 + x * 1024);
-        out.sky = m_skyLight[i];
+        out.sky = 15;   // M4: no stored skylight; the trace owns enclosure
         out.r = m_blockR[i]; out.g = m_blockG[i]; out.b = m_blockB[i];
         return true;
     }
@@ -190,7 +191,6 @@ void ChunkRenderManager::clearForUniform() {
     std::vector<InstanceData>().swap(m_dirScratch);
     numInstances = 0;
     m_dirRangeOffsets.fill(0);
-    std::vector<uint8_t>().swap(m_skyLight);
     std::vector<uint8_t>().swap(m_blockR);
     std::vector<uint8_t>().swap(m_blockG);
     std::vector<uint8_t>().swap(m_blockB);
@@ -210,10 +210,10 @@ void ChunkRenderManager::clearForUniform() {
 }
 
 bool ChunkRenderManager::bakedLightAt(int x, int y, int z, BakedLight& out) const {
-    if (m_skyLight.empty() || m_blockR.empty()) return false;
+    if (m_blockR.empty()) return false;
     if (x < 0 || x >= 32 || y < 0 || y >= 32 || z < 0 || z >= 32) return false;
     size_t i = static_cast<size_t>(z + y * 32 + x * 1024);
-    out.sky = m_skyLight[i];
+    out.sky = 15;   // M4: no stored skylight; the trace owns enclosure
     out.r = m_blockR[i]; out.g = m_blockG[i]; out.b = m_blockB[i];
     return true;
 }
@@ -453,7 +453,6 @@ void ChunkRenderManager::rebuildCubeFaces(
     // these arrays. Whether the replacement needs them at all is decided in M4.
     m_lightOpaque.clear();
     m_subFill.clear();
-    m_skyLight.assign(static_cast<size_t>(N) * N * N, uint8_t(15));
     m_blockR.assign(static_cast<size_t>(N) * N * N, uint8_t(0));
     m_blockG.assign(static_cast<size_t>(N) * N * N, uint8_t(0));
     m_blockB.assign(static_cast<size_t>(N) * N * N, uint8_t(0));
@@ -488,7 +487,7 @@ void ChunkRenderManager::rebuildCubeFaces(
         border.reserve(6 * N * N * 2);
         auto pk = [&](int x, int y, int z) {
             int c = cellIdx(x, y, z);
-            border.push_back(static_cast<uint8_t>((m_skyLight[c] & 0xF) | ((m_blockR[c] & 0xF) << 4)));
+            border.push_back(static_cast<uint8_t>(15u | ((m_blockR[c] & 0xF) << 4)));
             border.push_back(static_cast<uint8_t>((m_blockG[c] & 0xF) | ((m_blockB[c] & 0xF) << 4)));
         };
         for (int a = 0; a < N; ++a) for (int b = 0; b < N; ++b) {

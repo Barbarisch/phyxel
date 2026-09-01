@@ -994,7 +994,36 @@ See the RESULT sections below for what each measured, and what each did NOT veri
 ### M3 — Sky as an emitter ⚠️ CORRECT BUT DEFAULT-OFF
 All gates pass; measured at 24.6 ms/frame, so it ships disabled pending **M3-REDESIGN** (see D1).
 
-### M4 — Retire the transport, re-derive exposure — NOT STARTED
+### M4 — Retire the transport ⚠️ SKY HALF DONE 2026-09-01; block half + exposure remain
+
+**`m_skyLight` is DELETED.** With the bake gone it had no writer and was a constant 15, so removing
+the N³ array is byte-identical by construction: `skyLightAt()` returns uniform open sky, the vertex
+path packs the same nibbles it packed before, and `voxel.frag`'s `vSkyLight *` multiply — a
+documented no-op against a constant 1.0 — is dropped. Enclosure now comes from **one** place, the
+per-fragment trace.
+
+*Verified:* engine-generated `hall_house` (`placed: 13822`), `sky_probe` along y=18 z=1 reads
+`0.92 0.92 0.79 | 0.00 ×5 | 0.71 0.79 0.92` — **unchanged from before the deletion**, which is
+exactly the "fixed-pose A/B is identical" this gate asks for. Frame renders at 298 fps with the
+generated doorway visibly dark. Lighting suite 63/63; the only red in the wider filter is D19.
+
+⚠️ **The gate said "instance size shrinks measurably". IT DID NOT, and here is why.** `inLight` is
+**dual-purpose**: bits 0–15 are the sky nibbles, **bits 16–31 carry the greedy-merge extents**
+(`fineSizeU/V`, `static_voxel.vert:102-103`). The field cannot be removed — only the light half of
+it freed. The 8 bytes that *would* shrink `InstanceData` are `inLight2`/`inLight3`, which carry
+**block** light, and U7 explicitly sequences those behind **U3.2** ("do not delete until U3.2 has
+chosen"). So the storage win is real but still gated, and claiming M4 complete here would be false.
+
+**Remaining in M4/U7:**
+* `m_blockR/G/B` + `inLight2`/`inLight3` + `vBlockColor` — the 8-byte shrink. **Gated on U3.2.**
+* The other five skylight transports (`kinematic_voxel` `pc.bakedLight.x`, `dynamic_voxel`
+  `inDebrisLight`, `character/grass/foliage` `vSky`) still feed a `vSkyLight` no one reads for
+  chunks. They are harmless constants now, but they are dead weight and belong in this deletion.
+* **Re-derive `m_exposure`** (still 8.0, calibrated against both the deleted flood *and* a
+  since-corrected AgX curve). D18 unblocked this — the HUD no longer rides the grade, so changing
+  exposure no longer restyles the UI.
+
+### M4 — original specification
 Delete the per-corner vertex light words and their `InstanceData` fields if M2/M3 do not need them.
 `vSkyLight` is still multiplied into the traced sky term ON PURPOSE so this stage can A/B before
 deleting. Re-derive `m_exposure` (still 8.0, calibrated against both the deleted flood *and* a

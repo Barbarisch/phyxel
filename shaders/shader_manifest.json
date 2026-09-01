@@ -378,7 +378,7 @@
     },
     "voxel.frag": {
       "built": true,
-      "sources": "ff0327ac93e406cba45bcac2c27097ef3cf93587dcd28f4fc922b0e786e3f3e4",
+      "sources": "69f8f1e967f3cd2d763eb2c1c13e603fb518278897148ca0d6d25af18541d66e",
       "spv_present": true
     },
     "water.frag": {

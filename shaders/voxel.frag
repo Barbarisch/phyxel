@@ -444,10 +444,11 @@ void main() {
     // from being pitch black before block lights (Phase 2) exist.
     // Sky ambient = soft FILL (never the key light), hemispherical and gated by baked
     // skylight. Model + constants: lighting.glsl.
-    // M3: sky access is TRACED against real geometry, not read from a per-cell flood.
-    // vSkyLight is the M0 placeholder (a constant 1.0); multiplying keeps the vertex path in
-    // place for A/B until M4 decides whether to delete it.
-    float skyVis = vSkyLight * phxSkyVisibility(inWorldPos + ubo.cameraWorld, Ng);
+    // M3/M4: sky access is TRACED against real geometry. There is no per-cell skylight field left
+    // to multiply by -- the flood M0 deleted, and the bake that briefly reinstated it, are both
+    // gone. vSkyLight is a uniform 1.0 from the vertex stage and the multiply was a no-op, so it
+    // is dropped rather than kept as decoration.
+    float skyVis = phxSkyVisibility(inWorldPos + ubo.cameraWorld, Ng);
     float skyCurve = phxSkyGate(skyVis);
     // Each lighting term is ALSO captured on its own so the debug views below can show one
     // system at a time. Three systems light this engine and they disagree about geometry (sun =
