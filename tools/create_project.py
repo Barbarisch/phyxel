@@ -784,11 +784,11 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 engine.getChunkManager(), nullptr);
             kinematicVoxelManager_ = std::make_unique<Phyxel::Core::KinematicVoxelManager>();
             kinematicVoxelManager_->setPhysicsWorld(engine.getPhysicsWorld());
-            // BISECT: is handing the render coordinator a kinematic manager what
-            // killed the 3D pass? PHYXEL_NO_KIN_RENDER=1 skips the hookup so the
-            // two states can be compared on the same binary.
-            if (renderCoordinator_ && !std::getenv("PHYXEL_NO_KIN_RENDER"))
-                renderCoordinator_->setKinematicVoxelManager(kinematicVoxelManager_.get());
+            // NOTE: the render hookup CANNOT happen here — renderCoordinator_ is
+            // not constructed until later in this function. Doing it here left
+            // `if (renderCoordinator_)` false, the call never ran, and weapons
+            // attached correctly to hands and were simply never drawn. See the
+            // hookup after the RenderCoordinator is created.
             // items.json was loaded only by the editor, so a shipped game had an
             // EMPTY item registry and every weapon lookup missed silently.
             const int loadedItems =
@@ -904,6 +904,15 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // — the world renders as empty terrain with an invisible (but loaded +
             // camera-followed) body. (game-dev feedback round 5 — UIShowcase.)
             renderCoordinator_->setEntities(&entities_);
+            // Held NPC weapons are kinematic voxel objects; without this the
+            // renderer has no idea they exist. They still attach to grip bones
+            // and track them correctly — telemetry showed weapon and owner
+            // positions matching to within a unit — they are simply never drawn.
+            // An earlier version of this hookup sat ~100 lines above, BEFORE the
+            // RenderCoordinator was constructed, where `if (renderCoordinator_)`
+            // was quietly false.
+            if (kinematicVoxelManager_)
+                renderCoordinator_->setKinematicVoxelManager(kinematicVoxelManager_.get());
 {hud_setup}
 
             // JSON-driven menu renderer for sceneType:"menu" scenes. MUST be
@@ -2724,7 +2733,26 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     continue;
                 }}
                 glm::vec3 pos; glm::quat rot;
-                if (ch->getAttachmentTransform(it->second.anchorId, pos, rot)) {{
+                const bool gotXform = ch->getAttachmentTransform(it->second.anchorId, pos, rot);
+                // WHERE IS THE WEAPON, ACTUALLY? "equipped=N" only proves the
+                // attach call returned an id. If getAttachmentTransform fails we
+                // never call setTransform and the mesh stays wherever add() put
+                // it - i.e. nowhere near the hand. Report the owner's position
+                // beside the weapon's so the two can be compared directly.
+                {{
+                    static int s_heldTick = 0;
+                    if ((++s_heldTick % 300) == 1) {{
+                        const glm::vec3 owner = ch->getPosition();
+                        LOG_INFO("{class_name}",
+                                 "held '{{}}': xform={{}} weapon=({{}},{{}},{{}}) owner=({{}},{{}},{{}})",
+                                 it->second.itemId, gotXform ? "ok" : "FAIL",
+                                 static_cast<int>(pos.x), static_cast<int>(pos.y),
+                                 static_cast<int>(pos.z),
+                                 static_cast<int>(owner.x), static_cast<int>(owner.y),
+                                 static_cast<int>(owner.z));
+                    }}
+                }}
+                if (gotXform) {{
                     const auto& h = hd->held;
                     glm::mat4 t = glm::translate(glm::mat4(1.0f), pos) * glm::mat4_cast(rot);
                     t = t * glm::eulerAngleYXZ(glm::radians(h.gripEulerDeg.y),
