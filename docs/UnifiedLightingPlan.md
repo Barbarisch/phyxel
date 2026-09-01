@@ -1157,6 +1157,102 @@ before — it is the cost this redesign moved, not removed. Options, in order of
 2. amortise it — bake a chunk's cells across several frames, starting from the full-sky default;
 3. reduce further (3 rays, or shorter reach) — but reach is what decides the largest room that
    reads as sealed (D8), so this trades a real quality property.
+
+### ✳️ OPTION 4 added 2026-08-31 — PARALLELISE THE BAKE. Preferred over 1–3, and here is why.
+
+**This is the main goal's blocking item** (see the status note below: with the bake off,
+`m_skyLight` is pinned to 15 and interiors are lit as if outdoors), so the cheapest sufficient fix
+wins.
+
+Established by reading, not assumed:
+* **The bake loop is embarrassingly parallel.** Each cell writes only its own
+  `m_skyLight[cellIdx(x,y,z)]` and reads only `m_solidVis` (already filled) plus the callback. No
+  cell depends on another — unlike the BFS flood it replaced, which was inherently sequential.
+* **The query is safe to call concurrently.** `VoxelLightOccupancyGpu::skyVisibility` is `const`
+  (`VoxelLightOccupancyGpu.h:109`) and delegates to the free function `packedPoolSkyVisibility`
+  over `m_packed` — pure reads of the *last flushed* pool. The M3-REDESIGN ordering rule already
+  guarantees the pool is flushed before `updateDirtyChunks()` runs, so it is not mutating underneath.
+* **Cost is per-cell and dominated by the query.** ~1024 traced cells at ~14 µs each; the 32768-cell
+  scan that finds them is trivial by comparison. So wall time divides by core count.
+
+**Why this beats the other three:**
+* vs **1 (mesh worker)** — `DirtyChunkTracker::updateDirtyChunks` processes chunks *inline on the
+  calling thread* under a budget with adaptive backoff (its own comment: *"a single chunk remesh
+  (full mesh + light bake) can cost far more than the whole budget"*). Moving meshing off-thread
+  means making chunk state and GPU buffer handoff thread-safe — a large change with a large blast
+  radius, for a stage that is not the actual problem.
+* vs **2 (amortise)** — leaves a chunk visibly wrong for several frames while it converges from the
+  full-sky default, i.e. a visible pop on every newly-streamed chunk.
+* vs **3 (fewer rays/reach)** — spends a measured quality property (D8: reach decides the largest
+  room that can read as sealed) to buy time we can get for free.
+
+Option 4 is **contained entirely within the bake block**, changes no threading contract elsewhere,
+and keeps rays and reach exactly where measurement put them.
+
+**Gate:** `s_lastSkyBakeMs` for a chunk of comparable traced-cell count falls **below the 6 ms
+dirty-chunk budget**, with `s_lastSkyBakeCells` unchanged (same work, less wall time), and the
+sealed/open readings still 0 and 15 with the doorway control alive — the same gate M3-REDESIGN
+passed, because a faster bake that changes the answer is not a faster bake.
+
+### ✅ OPTION 4 RESULT 2026-08-31 — 4.8× faster, under budget. Cost half of the gate MET.
+
+Release, LightingGates, bake forced by toggling a voxel to dirty a chunk, read back through
+`GET /api/debug/light_occupancy` (`last_sky_bake_ms` / `last_sky_bake_cells`), 6 runs:
+
+| | cells traced | ms/chunk | µs/cell |
+|---|---|---|---|
+| **serial (recorded baseline)** | 1024 | **14.380** | 14.04 |
+| **parallel — median of 6** | **1029** | **2.978** | **2.89** |
+
+Range across the 6 runs 2.788–3.314 ms, so it is reproducible, not a lucky sample. **Cell count is
+unchanged (1029 vs 1024 — same chunk shape, same work), so this is wall time divided, not work
+skipped.** 14.380 → 2.978 ms is **4.8×**, and it clears the **6 ms dirty-chunk budget** that was the
+sole reason sky visibility shipped disabled.
+
+⚠️ **A CRASH, and the reason is worth keeping — it is a language trap, not a typo.** The gather
+buffer was first written as `static thread_local std::vector<int> bakeCells`. That crashed the
+engine on the first real bake. **Variables with static or thread storage duration are NOT captured
+by a lambda** — the name resolves, inside the lambda body, to the *executing* thread's instance. So
+every worker thread saw its own empty vector and indexed out of bounds. It is now a plain local with
+a `reserve`; a per-call allocation is nothing against ~14 µs per traced cell. The comment in
+`ChunkRenderManager.cpp` says so, because this reads like a harmless optimisation.
+
+Also worth recording: **`const` was not what made the query safe.** `packedPoolSkyVisibility` was
+*read* and confirmed genuinely pure — locals only, no `static`, no `mutable`, reading `packed` and a
+const global. A `const` method can still touch shared mutable state, so the guarantee came from
+reading the body, not from the signature.
+
+**Threading shape:** `min(hardware_concurrency - 1, 16)` workers, one core left for the rest of the
+frame because this runs *inside* the frame rather than on a worker; chunks with fewer than 64 cells
+to trace stay serial, where thread hand-off would cost more than it saves.
+
+**Correctness half of the gate — MET.** `LightWallMatrixTest.M3REDESIGN_BakeSettingsStillSealARoom
+AtEveryWallThickness` **passes** (298 ms), so sealed rooms still read sealed at all five wall
+thicknesses with the doorway control alive: the parallel bake produces the same answer, not a
+faster wrong one. Whole lighting suite green — **63/63 in ~2.1 s** (LightWallMatrix 6,
+VoxelLightOccupancy 26, LightManager 27, LightBakeOcclusion 3, LightBleed 1).
+
+⚠️ **What "under budget" does and does not mean.** The 6 ms budget covers **all** dirty-chunk work in
+a frame, not one chunk. At 2.978 ms that is ~2 chunks per frame; at 14.38 ms a **single** chunk blew
+the whole budget 2.4× over. So the change does not make streaming free — it makes
+`updateDirtyChunks(budgetMs)`'s budget-and-backoff mechanism work as designed instead of being
+overrun by every individual chunk. Heavy streaming still queues chunks across frames, which is the
+intended behaviour.
+
+### DECISION 2026-08-31 — turn the sky bake ON by default (`s_bakeSkyVisibility = true`)
+
+The bake shipped disabled for exactly one stated reason — the streaming cost — and that reason is
+now measured away. Leaving it off would mean the engine keeps `m_skyLight` pinned to 15 and lights
+interiors as if outdoors, which is the M0 hole this entire rebuild exists to climb out of. **This is
+the step that makes "a dark room is dark because nothing emits into it" true.**
+
+**L4 gate for the flip — measured in a live engine, not asserted:**
+1. an interior reads substantially darker than the exterior at the same pose, with the exterior as
+   the positive control (if the exterior also darkens, something global changed, not enclosure);
+2. the ordering sealed < window < door < open matches the baseline this plan already recorded;
+3. no streaming hitch: frame time while flying through fresh chunks stays comparable to bake-off.
+**If any of these fail, the flip is reverted rather than explained away.**
+
 ⚠️ **Ordering dependency introduced:** `updateLightOccupancy()` now runs BEFORE
 `updateDirtyChunks()`, because a chunk meshed before its own geometry reached the pool would bake as
 if the world were empty and read fully sky-lit indoors. Occupancy comes from the physics grid, which
@@ -1401,6 +1497,64 @@ direct path. **Gate:** a written decision per gap — close or accept.
 
 **D11 — Roof striping.** `N·L` on stepped faces approximating a slope. Survives this entire rebuild
 and is still untracked separately. **Gate:** own doc entry, or an explicit "accepted".
+
+**D21 — 🔴 THE SKY BAKE NEVER TRACES A GENERATED INTERIOR. Its cell gather is CUBE-LEVEL; buildings
+are SUB-VOXEL. This, not cost, is what blocks the main goal.** *(Found 2026-08-31 by trying to turn
+the bake on and measuring the result.)*
+
+**The flip to `s_bakeSkyVisibility = true` was made and then REVERTED**, per the L4 gate written
+above ("if any of these fail, the flip is reverted rather than explained away").
+
+**What was measured, in a live Release engine on an ENGINE-GENERATED building**
+(`POST /api/structure/build` schema v2, `hall_house`, footprint `[5,7]` — `placed: 13822`, chimney
+built, generator's own report listing `dark_rooms: service/hall/solar`):
+
+* A 17×17 horizontal slice of `/api/world/baked_light` at `y=18` read **15 in all 289 cells**.
+  Min 15, max 15, zero cells below 8. **No enclosure anywhere.**
+* `bake_sky: true`, and the bake was demonstrably running — `last_sky_bake_ms` 2.5–2.9 ms.
+* The occupancy pool **did** receive the building: `mixed_cubes` 12 → **199**, `pool_words`
+  51513 → 56001. So the walls are visible to the tracer.
+* **The tell: `last_sky_bake_cells` was pinned at exactly 1024** — every bake, before and after the
+  building was placed, including after forcing a re-bake of the building's own chunk. 1024 = 32×32 =
+  one flat layer.
+
+**Diagnosis.** The gather (`ChunkRenderManager.cpp`, phase 1 of the bake) selects cells with:
+```cpp
+solidAt(x,y,z) := m_solidVis[cellIdx(x,y,z)] != 0
+```
+and `m_solidVis` is **cube resolution only** — `:350` `m_solidVis.assign(N*N*N, 0); // 1 = a visible
+CUBE occupies the cell`. Generated buildings obey the engine's own sub-voxel detail rule, so their
+walls and floors are subcubes/microcubes and register **nothing** in `m_solidVis`. Air cells beside
+them fail the `touches` test, are never gathered, are never traced, and keep the default 15. The
+only geometry that qualifies in a flat test world is the ground — exactly 1024 cells, which is the
+constant that was showing up.
+
+**This is the same class of bug M0 was created to fix.** The wall-base band was a *storage*
+resolution bug; this is a *gather* resolution bug. Both come from asking a cube-level structure
+about sub-voxel geometry.
+
+⚠️ **Why the unit gate did not catch it — a real hole in the validation ladder.**
+`LightWallMatrixTest.M3REDESIGN_BakeSettingsStillSealARoomAtEveryWallThickness` **passes**, and it is
+not a bad test: the *tracer* genuinely seals rooms at every wall thickness. What is untested is
+**which cells the tracer is invoked on**. L2 covers the trace; nothing covers the gather. A test can
+be green, honest, and still leave the feature inert in the live engine.
+
+**Candidate fixes, none free — the ordering trap is the reason it looks like this:**
+1. Gather from sub-voxel occupancy instead of `m_solidVis`. ⚠️ Blocked by the ordering trap this
+   document already records: `buildSubMicroOccupancy` runs **after** `rebuildCubeFaces`, so leaf
+   sub-voxel occupancy does not exist yet at bake time (the same inversion logged as D5).
+2. Gather from the **GPU occupancy pool**, which does hold sub-voxel data and is already flushed
+   before `updateDirtyChunks()` by the M3-REDESIGN ordering rule. Needs a cheap cube-level
+   "solid-or-mixed" query so the 32768-cell scan stays trivial.
+3. Reorder the mesher so sub-voxel occupancy precedes the bake — the cleanest semantically, the
+   largest blast radius, and squarely on top of D5.
+
+**Gate (unchanged in spirit, plus the hole that let this through):** the same live rig — an
+engine-generated `hall_house`, the slice at `y=18` — must show a dark interior region inside a field
+of 15, with the exterior staying at 15 as the positive control; `last_sky_bake_cells` must exceed
+1024 on a chunk containing a building, proving cells beside sub-voxel walls were actually gathered.
+**And add a test that pins the GATHER, not just the trace** — otherwise the next fix is equally
+free to be green and inert.
 
 **D20 — FIRST-EVER SYNCHRONIZATION-VALIDATION RUN. Blur pass is CLEAN; two more sync defects found,
 plus four other VUID classes.** *(2026-08-31, required by U5's close-out list.)*
