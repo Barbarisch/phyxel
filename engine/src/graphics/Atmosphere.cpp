@@ -108,7 +108,10 @@ glm::vec3 viewerPosition(float altitudeM) {
 /// instant the sun's centre passes 0 elevation. The band is roughly the sun's angular diameter,
 /// which is also about the size of the real refraction/limb effect.
 float horizonFade(float sinElevation) {
-    const float band = kSunAngularRadius * 2.0f;
+    // PHYSICAL radius, deliberately not the stylized drawn one: how fast sunlight dies as the sun
+    // dips is set by the real disc crossing the real horizon, and must not change because we chose
+    // to draw a bigger sun. See the size note in Atmosphere.h.
+    const float band = kSunPhysicalAngularRadius * 2.0f;
     const float t = glm::clamp((sinElevation + band) / (2.0f * band), 0.0f, 1.0f);
     return t * t * (3.0f - 2.0f * t);   // smoothstep
 }
@@ -187,8 +190,12 @@ glm::vec3 skyRadiance(const glm::vec3& dirIn, const glm::vec3& toSun, float alti
         sumM += t * d.mie * ds;
     }
 
+    // Airglow is added AFTER the scattering integral, not fed through it: it is emission from the
+    // upper atmosphere rather than sunlight being redirected, so it does not depend on where the sun
+    // is. That is exactly what makes it a night floor.
     return kSolarIrradiance * (sumR * kRayleighScattering * pr
-                             + sumM * glm::vec3(kMieScattering) * pm);
+                             + sumM * glm::vec3(kMieScattering) * pm)
+         + kAirglow;
 }
 
 glm::vec3 skyIrradiance(const glm::vec3& toSun, float altitudeM) {

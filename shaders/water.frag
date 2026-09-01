@@ -1,5 +1,15 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
+#include "lighting.glsl"   // shared lighting model
+
+// ⚠️ Water used to skip the tone map entirely, so a lake sat on a different response curve than
+// the shore it met. It was then given its own phxTonemap call -- which fixed the divergence but
+// tone-mapped BEFORE blending, since water is a blended pass.
+//
+// Both problems are gone: there is now exactly ONE tone map, in post_process.frag, applied after
+// compositing. This shader outputs LINEAR HDR and must keep doing so. Do not re-add a tone map here
+// -- it would double-compress water against the rest of the frame.
+#extension GL_GOOGLE_include_directive : require
 //
 // water.frag — the flat sea-level plane.
 //
@@ -25,7 +35,30 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     uint numInstances;
     float ambientLight;
     float emissiveMultiplier;
-    vec3 cameraPosition;
+    vec3  cameraPosition;
+    mat4  reflectedViewProj;
+    float elapsedTime;
+    mat4  viewProj;
+    mat4  biasedLightSpace;
+    vec3  cameraWorld;
+    int   debugShadowMode;
+    float shadowDepthRange;
+    vec4  grassDisplacers[16];
+    vec4  grassDisplacersAux[16];
+    ivec4 grassDisplacerMeta;
+    mat4  biasedLightSpaceNear;
+    vec4  shadowCascadeNear;
+    mat4  lightSpaceMatrixNear;
+    mat4  biasedLightSpaceFar;
+    vec4  shadowCascadeFar;
+    mat4  lightSpaceMatrixFar;
+    vec3  ambientColor;
+    vec3  hazeHorizonColor;
+    vec3  hazeZenithColor;
+    vec3  moonDirection;
+    vec3  moonColor;
+    float exposure;
+    int   tonemapCurve;
 } ubo;
 
 layout(set = 1, binding = 0) uniform sampler2D refractionTex;
@@ -165,4 +198,5 @@ void main() {
     // Screen-space reflection replaces it inside shadeWaterSurface, where it composes correctly
     // with Fresnel and the ripple normal instead of being blended over the finished colour.
     outColor = shadeWaterSurface(inp);
+    outColor.rgb = outColor.rgb;
 }

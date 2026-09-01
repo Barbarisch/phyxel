@@ -1,4 +1,5 @@
 #include "graphics/FarTerrainMesher.h"
+#include "core/WorldForgePlan.h"
 #include "graphics/TreeSpeciesTable.h"
 #include "core/WorldGenerator.h"
 
@@ -88,14 +89,66 @@ FarTileMesh FarTerrainMesher::buildTile(const FarTileKey& key, int step) {
     auto q = [&](int i, int j) -> int& { return qGrid[size_t(i + 1) + size_t(j + 1) * G]; };
     auto biomeAt = [&](int i, int j) -> int& { return biomeGrid[size_t(i + 1) + size_t(j + 1) * G]; };
 
+    // WorldForge far roads (docs/WorldForge.md): the min-corner point sample misses a
+    // 5-6 u road in a coarse cell (step 8 rendered dashes, step 16 mostly lost it —
+    // FarTerrainMesherTest.RoadsShowInFarTiles, red-first). Widen the acceptance to
+    // halfWidth + step/2 at the CELL CENTRE: any cell the road passes through reads as
+    // road, so the far ribbon stays continuous at every ring (a 1-cell-wide line is the
+    // correct far-map thickness). Near columns are untouched — this is far-tile-only.
+    const WorldForgePlan* roadPlan = m_generator->worldForge();
+    // FOOTPRINT-MIN heights: a cell is `step` wide, but its height used to come from ONE
+    // sample at its min-corner — a cell whose sample landed on the high side of an
+    // intra-cell slope rendered its whole flat top up to `step` cubes ABOVE the true
+    // terrain across the rest of its footprint. Wherever such a cell overlapped resident
+    // chunks (streaming frontier, hide-check gaps) it poked THROUGH the real ground as
+    // offset, unlit, non-raycastable geometry flickering with the camera (the
+    // user-reported "false voxels"). Each cell now takes the MINIMUM surface over its 4
+    // footprint corners + centre, then quantizes down — it can no longer stand above any
+    // true surface point it covers (sub-sample dips excepted). Corner samples are shared
+    // between neighbouring cells, and the same rule reproduces the adjacent tile's border
+    // cells exactly, so tiles still seam.
+    const int C = N + 3;   // corner grid: i = -1 .. N+1
+    std::vector<int> cornerY(size_t(C) * C);
+    auto corner = [&](int i, int j) -> int& { return cornerY[size_t(i + 1) + size_t(j + 1) * C]; };
+    for (int j = -1; j <= N + 1; ++j)
+        for (int i = -1; i <= N + 1; ++i)
+            corner(i, j) = m_generator
+                               ->sampleSurface(mesh.originXZ.x + i * step, mesh.originXZ.y + j * step)
+                               .surfaceY;
     for (int j = -1; j <= N; ++j) {
         for (int i = -1; i <= N; ++i) {
-            WorldGenerator::ColumnSample col =
-                m_generator->sampleSurface(mesh.originXZ.x + i * step, mesh.originXZ.y + j * step);
-            q(i, j) = quantizeTop(col.surfaceY, step);
+            WorldGenerator::ColumnSample col = m_generator->sampleSurface(
+                mesh.originXZ.x + i * step + step / 2, mesh.originXZ.y + j * step + step / 2);
+            int minSurf =
+                std::min({corner(i, j), corner(i + 1, j), corner(i, j + 1), corner(i + 1, j + 1),
+                          col.surfaceY});
+            // Near rings (steps 2/4) can overlap RESIDENT chunks, so their bound must be
+            // EXACT: scan every column of the footprint (4/16 samples). Far rings keep
+            // the 5-point approximation — they never reach residency, and their footprints
+            // (64/256 columns) would make the exact scan the dominant tile-build cost.
+            if (step <= 4) {
+                for (int dz = 0; dz < step; ++dz)
+                    for (int dx = 0; dx < step; ++dx)
+                        minSurf = std::min(
+                            minSurf, m_generator
+                                         ->sampleSurface(mesh.originXZ.x + i * step + dx,
+                                                         mesh.originXZ.y + j * step + dz)
+                                         .surfaceY);
+            }
+            q(i, j) = quantizeTop(minSurf, step);
             biomeAt(i, j) = col.biomeIndex;
-            if (i >= 0 && i < N && j >= 0 && j < N)
+            if (i >= 0 && i < N && j >= 0 && j < N) {
+                if (roadPlan && col.roadClass == 0 && col.riverOrder == 0 &&
+                    col.bridgeDeckY == INT_MIN) {
+                    const auto hit = roadPlan->roadAt(
+                        mesh.originXZ.x + i * step + step * 0.5f,
+                        mesh.originXZ.y + j * step + step * 0.5f);
+                    if (hit.cls > 0 &&
+                        hit.dist <= WorldForgePlan::roadHalfWidth(hit.cls) + step * 0.5f)
+                        col.surfaceMat = WorldForgePlan::roadMaterial(hit.cls);
+                }
                 topMat[size_t(i) + size_t(j) * N] = std::move(col.surfaceMat);
+            }
         }
     }
 

@@ -222,6 +222,20 @@ public:
     bool saveAllChunks();
     bool saveDirtyChunks();
 
+    /// Evict EVERY resident chunk through the same two-phase teardown as distance
+    /// eviction (far-LOD handoff, chunkMap erase, DEFERRED deletion — an in-flight frame
+    /// may still reference the buffers, so never free inline) — EXCEPT that dirty chunks
+    /// are DISCARDED, not saved: persisting them would smuggle old-generator content back
+    /// into the re-streamed world as stale saved islands. The streaming pump re-requests
+    /// everything on its next pass — this is the "the generator changed, re-stream the
+    /// world" primitive (WorldForge live apply). Returns the number of chunks evicted.
+    size_t evictAllChunks();
+
+    /// Drop the per-column surface-band cache. Terrain is static per world so the cache
+    /// never expires on its own — but a live generator change (road grading moves
+    /// surfaceY) invalidates it wholesale.
+    void clearSurfaceBandCache() { m_surfaceBandCache.clear(); }
+
     // Accessors
     WorldStorage* getWorldStorage() const { return worldStorage; }
 

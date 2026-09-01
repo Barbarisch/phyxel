@@ -1,0 +1,893 @@
+{
+  "name": "forge_spider_giant",
+  "_template": "SRD giant spider. Engine arachnid contract: bones leg1_coxa_* (substring) + exact thorax/abdomen; _L-suffix side convention mirrors via the forge's suffix rule. Root chain runs abdomen->cephalothorax; 4 L-leg chains mirror to 8. Attack = fang lunge; death = leg curl + drop.",
+  "palette": {
+    "carapace": {
+      "color": "#3a3430",
+      "rough": 0.85
+    },
+    "abdomen": {
+      "color": "#453c33",
+      "rough": 0.9
+    },
+    "leg": {
+      "color": "#332e29",
+      "rough": 0.85
+    },
+    "fang": {
+      "color": "#c9bfa8",
+      "rough": 0.5
+    },
+    "eye": {
+      "color": "#a01818",
+      "rough": 0.2
+    },
+    "mark": {
+      "color": "#6b5a3a",
+      "rough": 0.9
+    }
+  },
+  "shading": {
+    "gradient": {
+      "top": 0.12,
+      "bottom": -0.22
+    },
+    "noise": {
+      "size": 0.018,
+      "amount": 0.1
+    }
+  },
+  "smooth_angle": 50,
+  "joints": {
+    "abdomen": [
+      0,
+      0.52,
+      -0.42
+    ],
+    "thorax": {
+      "from": "abdomen",
+      "up": 0.02,
+      "fwd": 0.3
+    },
+    "cephalothorax": {
+      "from": "thorax",
+      "up": 0.0,
+      "fwd": 0.22
+    },
+    "head_hub": {
+      "from": "cephalothorax",
+      "up": 0.0,
+      "fwd": 0.14
+    },
+    "leg1_coxa_L": {
+      "from": "cephalothorax",
+      "side": 0.14,
+      "up": 0.02,
+      "fwd": 0.1
+    },
+    "leg1_femur_L": {
+      "from": "leg1_coxa_L",
+      "side": 0.24,
+      "up": 0.16,
+      "fwd": 0.1
+    },
+    "leg1_tibia_L": {
+      "from": "leg1_femur_L",
+      "side": 0.2,
+      "up": -0.28,
+      "fwd": 0.08,
+      "ground": 0.02
+    },
+    "leg2_coxa_L": {
+      "from": "cephalothorax",
+      "side": 0.15,
+      "up": 0.02,
+      "fwd": 0.02
+    },
+    "leg2_femur_L": {
+      "from": "leg2_coxa_L",
+      "side": 0.26,
+      "up": 0.17,
+      "fwd": 0.03
+    },
+    "leg2_tibia_L": {
+      "from": "leg2_femur_L",
+      "side": 0.22,
+      "up": -0.29,
+      "fwd": 0.02,
+      "ground": 0.02
+    },
+    "leg3_coxa_L": {
+      "from": "thorax",
+      "side": 0.15,
+      "up": 0.02,
+      "fwd": 0.0
+    },
+    "leg3_femur_L": {
+      "from": "leg3_coxa_L",
+      "side": 0.26,
+      "up": 0.17,
+      "fwd": -0.03
+    },
+    "leg3_tibia_L": {
+      "from": "leg3_femur_L",
+      "side": 0.22,
+      "up": -0.29,
+      "fwd": -0.03,
+      "ground": 0.02
+    },
+    "leg4_coxa_L": {
+      "from": "thorax",
+      "side": 0.14,
+      "up": 0.02,
+      "fwd": -0.09
+    },
+    "leg4_femur_L": {
+      "from": "leg4_coxa_L",
+      "side": 0.24,
+      "up": 0.16,
+      "fwd": -0.11
+    },
+    "leg4_tibia_L": {
+      "from": "leg4_femur_L",
+      "side": 0.2,
+      "up": -0.28,
+      "fwd": -0.09,
+      "ground": 0.02
+    }
+  },
+  "chains": {
+    "body": [
+      "abdomen",
+      "thorax",
+      "cephalothorax",
+      "head_hub"
+    ],
+    "leg1_L": [
+      "leg1_coxa_L",
+      "leg1_femur_L",
+      "leg1_tibia_L"
+    ],
+    "leg2_L": [
+      "leg2_coxa_L",
+      "leg2_femur_L",
+      "leg2_tibia_L"
+    ],
+    "leg3_L": [
+      "leg3_coxa_L",
+      "leg3_femur_L",
+      "leg3_tibia_L"
+    ],
+    "leg4_L": [
+      "leg4_coxa_L",
+      "leg4_femur_L",
+      "leg4_tibia_L"
+    ]
+  },
+  "attach": {
+    "leg1_L": "cephalothorax",
+    "leg2_L": "cephalothorax",
+    "leg3_L": "thorax",
+    "leg4_L": "thorax"
+  },
+  "mirror": [
+    "leg1_L",
+    "leg2_L",
+    "leg3_L",
+    "leg4_L"
+  ],
+  "body_plan": {
+    "root": "cephalothorax",
+    "grip": "head_hub",
+    "leg_terminals": [
+      "tibia"
+    ]
+  },
+  "volumes": [
+    {
+      "chain": "body",
+      "material": "abdomen",
+      "frame": "up",
+      "sides": 14,
+      "profile": [
+        [
+          0.0,
+          0.24,
+          0.2,
+          {
+            "exp": 2.2
+          }
+        ],
+        [
+          0.3,
+          0.26,
+          0.22,
+          {
+            "exp": 2.2
+          }
+        ],
+        [
+          0.48,
+          0.15,
+          0.13,
+          {
+            "sharp": true
+          }
+        ],
+        [
+          0.62,
+          0.17,
+          0.14,
+          {
+            "sharp": true
+          }
+        ],
+        [
+          0.85,
+          0.15,
+          0.12
+        ],
+        [
+          1.0,
+          0.1,
+          0.085
+        ]
+      ],
+      "caps": [
+        "dome",
+        "dome"
+      ],
+      "colors": {
+        "arcs": [
+          {
+            "from": 0,
+            "to": 40,
+            "color": "#6b5a3a"
+          }
+        ]
+      }
+    },
+    {
+      "chain": "leg1_L",
+      "material": "leg",
+      "sides": 7,
+      "profile": [
+        [
+          0,
+          0.045,
+          0.045
+        ],
+        [
+          0.5,
+          0.035,
+          0.035
+        ],
+        [
+          1,
+          0.018,
+          0.018
+        ]
+      ],
+      "caps": [
+        "none",
+        "dome"
+      ]
+    },
+    {
+      "chain": "leg2_L",
+      "material": "leg",
+      "sides": 7,
+      "profile": [
+        [
+          0,
+          0.048,
+          0.048
+        ],
+        [
+          0.5,
+          0.037,
+          0.037
+        ],
+        [
+          1,
+          0.018,
+          0.018
+        ]
+      ],
+      "caps": [
+        "none",
+        "dome"
+      ]
+    },
+    {
+      "chain": "leg3_L",
+      "material": "leg",
+      "sides": 7,
+      "profile": [
+        [
+          0,
+          0.048,
+          0.048
+        ],
+        [
+          0.5,
+          0.037,
+          0.037
+        ],
+        [
+          1,
+          0.018,
+          0.018
+        ]
+      ],
+      "caps": [
+        "none",
+        "dome"
+      ]
+    },
+    {
+      "chain": "leg4_L",
+      "material": "leg",
+      "sides": 7,
+      "profile": [
+        [
+          0,
+          0.045,
+          0.045
+        ],
+        [
+          0.5,
+          0.035,
+          0.035
+        ],
+        [
+          1,
+          0.018,
+          0.018
+        ]
+      ],
+      "caps": [
+        "none",
+        "dome"
+      ]
+    }
+  ],
+  "parts": [
+    {
+      "type": "spike",
+      "host": "head_hub",
+      "material": "fang",
+      "offset": [
+        0.045,
+        -0.03,
+        0.05
+      ],
+      "dir": [
+        0.1,
+        -0.85,
+        0.55
+      ],
+      "sides": 5,
+      "segments": [
+        {
+          "len": 0.09,
+          "r": 0.022,
+          "taper": true
+        }
+      ],
+      "mirrored": true
+    },
+    {
+      "type": "eye",
+      "host": "head_hub",
+      "material": "eye",
+      "size": 0.022,
+      "anchor": {
+        "chain": "body",
+        "t": 0.88,
+        "around": 55
+      }
+    },
+    {
+      "type": "eye",
+      "host": "head_hub",
+      "material": "eye",
+      "size": 0.016,
+      "anchor": {
+        "chain": "body",
+        "t": 0.94,
+        "around": 40
+      }
+    }
+  ],
+  "combat": true,
+  "animations": {
+    "idle": {
+      "duration": 2.0,
+      "loop": true,
+      "tracks": {
+        "abdomen": {
+          "ty": [
+            [
+              0,
+              0
+            ],
+            [
+              0.5,
+              0.012
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        },
+        "leg1_femur_L": {
+          "rz": [
+            [
+              0,
+              0
+            ],
+            [
+              0.5,
+              3
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        },
+        "leg3_femur_L": {
+          "rz": [
+            [
+              0,
+              3
+            ],
+            [
+              0.5,
+              0
+            ],
+            [
+              1,
+              3
+            ]
+          ]
+        }
+      }
+    },
+    "attack": {
+      "duration": 0.7,
+      "loop": false,
+      "hit_fraction": 0.5,
+      "tracks": {
+        "abdomen": {
+          "tz": [
+            [
+              0,
+              0
+            ],
+            [
+              0.2,
+              -0.06
+            ],
+            [
+              0.5,
+              0.3
+            ],
+            [
+              0.72,
+              0.3
+            ],
+            [
+              1,
+              0
+            ]
+          ],
+          "ty": [
+            [
+              0,
+              0
+            ],
+            [
+              0.2,
+              0.06
+            ],
+            [
+              0.5,
+              -0.02
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        },
+        "thorax": {
+          "rx": [
+            [
+              0,
+              0
+            ],
+            [
+              0.2,
+              -12
+            ],
+            [
+              0.5,
+              14
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        },
+        "leg1_coxa_L": {
+          "rx": [
+            [
+              0,
+              0
+            ],
+            [
+              0.25,
+              -35
+            ],
+            [
+              0.5,
+              20
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        },
+        "leg1_coxa_R": {
+          "rx": [
+            [
+              0,
+              0
+            ],
+            [
+              0.25,
+              -35
+            ],
+            [
+              0.5,
+              20
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        }
+      }
+    },
+    "death": {
+      "_note": "Curl angles stay modest: mid-leg boxes belong to a joint they sit BEFORE, so large rotations tear them from the parent (anim_integrity gate). The down-read comes from the body drop, not the curl.",
+      "duration": 1.0,
+      "loop": false,
+      "tracks": {
+        "abdomen": {
+          "ty": [
+            [
+              0,
+              0
+            ],
+            [
+              0.6,
+              -0.26
+            ],
+            [
+              1,
+              -0.34
+            ]
+          ],
+          "rx": [
+            [
+              0,
+              0
+            ],
+            [
+              0.7,
+              -10
+            ],
+            [
+              1,
+              -14
+            ]
+          ]
+        },
+        "leg1_femur_L": {
+          "rz": [
+            [
+              0,
+              0
+            ],
+            [
+              0.7,
+              -16
+            ],
+            [
+              1,
+              -20
+            ]
+          ]
+        },
+        "leg2_femur_L": {
+          "rz": [
+            [
+              0,
+              0
+            ],
+            [
+              0.7,
+              -16
+            ],
+            [
+              1,
+              -20
+            ]
+          ]
+        },
+        "leg3_femur_L": {
+          "rz": [
+            [
+              0,
+              0
+            ],
+            [
+              0.7,
+              -16
+            ],
+            [
+              1,
+              -20
+            ]
+          ]
+        },
+        "leg4_femur_L": {
+          "rz": [
+            [
+              0,
+              0
+            ],
+            [
+              0.7,
+              -16
+            ],
+            [
+              1,
+              -20
+            ]
+          ]
+        },
+        "leg1_tibia_L": {
+          "rz": [
+            [
+              0,
+              0
+            ],
+            [
+              0.7,
+              14
+            ],
+            [
+              1,
+              18
+            ]
+          ]
+        },
+        "leg2_tibia_L": {
+          "rz": [
+            [
+              0,
+              0
+            ],
+            [
+              0.7,
+              14
+            ],
+            [
+              1,
+              18
+            ]
+          ]
+        },
+        "leg3_tibia_L": {
+          "rz": [
+            [
+              0,
+              0
+            ],
+            [
+              0.7,
+              14
+            ],
+            [
+              1,
+              18
+            ]
+          ]
+        },
+        "leg4_tibia_L": {
+          "rz": [
+            [
+              0,
+              0
+            ],
+            [
+              0.7,
+              14
+            ],
+            [
+              1,
+              18
+            ]
+          ]
+        }
+      }
+    },
+    "move": {
+      "duration": 0.55,
+      "loop": true,
+      "mirror_phase": 0.5,
+      "tracks": {
+        "leg1_coxa_L": {
+          "ry": [
+            [
+              0,
+              -14
+            ],
+            [
+              0.5,
+              16
+            ],
+            [
+              1,
+              -14
+            ]
+          ],
+          "rz": [
+            [
+              0,
+              0
+            ],
+            [
+              0.25,
+              10
+            ],
+            [
+              0.5,
+              0
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        },
+        "leg2_coxa_L": {
+          "ry": [
+            [
+              0,
+              15
+            ],
+            [
+              0.5,
+              -13
+            ],
+            [
+              1,
+              15
+            ]
+          ],
+          "rz": [
+            [
+              0,
+              0
+            ],
+            [
+              0.75,
+              10
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        },
+        "leg3_coxa_L": {
+          "ry": [
+            [
+              0,
+              -13
+            ],
+            [
+              0.5,
+              15
+            ],
+            [
+              1,
+              -13
+            ]
+          ],
+          "rz": [
+            [
+              0,
+              0
+            ],
+            [
+              0.25,
+              10
+            ],
+            [
+              0.5,
+              0
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        },
+        "leg4_coxa_L": {
+          "ry": [
+            [
+              0,
+              14
+            ],
+            [
+              0.5,
+              -16
+            ],
+            [
+              1,
+              14
+            ]
+          ],
+          "rz": [
+            [
+              0,
+              0
+            ],
+            [
+              0.75,
+              10
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        },
+        "abdomen": {
+          "ty": [
+            [
+              0,
+              0
+            ],
+            [
+              0.25,
+              0.015
+            ],
+            [
+              0.5,
+              0
+            ],
+            [
+              0.75,
+              0.015
+            ],
+            [
+              1,
+              0
+            ]
+          ]
+        }
+      }
+    }
+  }
+}

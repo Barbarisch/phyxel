@@ -120,7 +120,11 @@ bool GrassRenderPipeline::initialize(VkDevice device, VkPhysicalDevice physicalD
 
 void GrassRenderPipeline::recreatePipeline(VkRenderPass renderPass, VkExtent2D extent) {
     (void)renderPass; (void)extent;
-    LOG_WARN("GrassRenderPipeline", "recreatePipeline called — use initialize() after resize");
+    // No-op BY DESIGN now that the viewport is dynamic: this pipeline no longer bakes the
+    // swapchain extent, so a resize needs no pipeline rebuild. Viewport/scissor are set once per
+    // render pass (PostProcessor::begin*RenderPass) and inherited by everything drawn in it.
+    // The advice this used to print -- "use initialize() after resize" -- was never wired up
+    // anywhere, which is exactly why foliage detached from its trunks after a resize.
 }
 
 void GrassRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D extent,
@@ -169,6 +173,20 @@ void GrassRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D ext
     viewportState.sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewportState.viewportCount = 1;
     viewportState.pViewports    = &viewport;
+    // DYNAMIC viewport/scissor. The extent captured above is only a creation-time default: this
+    // pipeline is created ONCE and never re-created, so a baked viewport goes stale the instant the
+    // window resizes and this pass then rasterises at the OLD size while the main chunk pipeline
+    // (which was always dynamic) uses the new one. That is what made tree foliage detach from its
+    // trunks after a resize. Both are now set once per render pass -- see PostProcessor's
+    // begin*RenderPass -- and every pipeline drawn in that pass inherits them.
+    // Shadow pipelines deliberately keep a STATIC viewport: they render into a fixed-size shadow
+    // map, so the baked extent is correct there.
+    VkDynamicState dynStates[2] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    VkPipelineDynamicStateCreateInfo dynState{};
+    dynState.sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynState.dynamicStateCount = 2;
+    dynState.pDynamicStates    = dynStates;
+
     viewportState.scissorCount  = 1;
     viewportState.pScissors     = &scissor;
 
@@ -228,6 +246,8 @@ void GrassRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D ext
     pipelineInfo.layout              = m_pipelineLayout;
     pipelineInfo.renderPass          = renderPass;
     pipelineInfo.subpass             = 0;
+    pipelineInfo.pDynamicState = &dynState;
+
     if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipeline) != VK_SUCCESS) {
         throw std::runtime_error("failed to create GrassRenderPipeline");
     }
@@ -324,6 +344,21 @@ glm::vec3 cellHashOf(int cx, int cy, int cz) {
     return {wrap(cx), wrap(cy), wrap(cz)};
 }
 
+/// vnoise2p from grass.vert — smooth bilinear value noise in [0,1], LATTICE-PERIODIC with
+/// period `rep` cells so the field tiles seamlessly with the 2048-unit hash-domain wrap
+/// (which passes through the world origin). Callers pass rep = 2048 / worldPeriod; only
+/// divisor periods are exactly seamless — the shipped meadow/patch periods are.
+float vnoise2p(glm::vec2 p, float rep) {
+    glm::vec2 i = glm::floor(p), f = glm::fract(p);
+    f = f * f * (3.0f - 2.0f * f);
+    auto wrapCell = [rep](glm::vec2 c) { return glm::mod(c, glm::vec2(rep)); };
+    const float a = hash21(wrapCell(i));
+    const float b = hash21(wrapCell(i + glm::vec2(1.0f, 0.0f)));
+    const float c = hash21(wrapCell(i + glm::vec2(0.0f, 1.0f)));
+    const float d = hash21(wrapCell(i + glm::vec2(1.0f, 1.0f)));
+    return glm::mix(glm::mix(a, b, f.x), glm::mix(c, d, f.x), f.y);
+}
+
 } // namespace
 
 float GrassRenderPipeline::sepGuaranteed(uint32_t blades) {
@@ -357,6 +392,25 @@ glm::vec2 GrassRenderPipeline::bladeRootLocal(int cx, int cy, int cz, uint32_t b
     return cellCtr + jitter;
 }
 
+float GrassRenderPipeline::meadowHeightMulAt(int cx, int cz, glm::vec2 rootLocal,
+                                             const Params& p) {
+    // MUST MIRROR grass.vert's meadow block. Kept in the same shape as the shader on purpose.
+    // The field samples the BLADE ROOT, not the voxel corner: a corner-sampled field is
+    // piecewise constant per voxel, and its plateaus made the voxel/chunk grid readable in
+    // grass height (the red state of GrassMeadowSeamTest).
+    const glm::vec3 ch = cellHashOf(cx, 0, cz);
+    const glm::vec2 sample = glm::vec2{ch.x, ch.z} + rootLocal;
+
+    const float mScale  = std::max(p.meadowScale, 1.0f);
+    const float mDetail = std::max(p.meadowDetailScale, 1.0f);
+    const float mW      = std::min(std::max(p.meadowDetailWeight, 0.0f), 1.0f);
+    const float meadow  = vnoise2p(sample / mScale, 2048.0f / mScale) * (1.0f - mW)
+                        + vnoise2p(sample / mDetail + 41.7f, 2048.0f / mDetail) * mW;
+
+    const float t = glm::smoothstep(0.06f, 0.94f, meadow);
+    return glm::mix(p.heightMin, p.heightMax, t);
+}
+
 float GrassRenderPipeline::densityFracAt(float dist, float radius) {
     const float r = (radius > 1e-3f) ? radius : 1e-3f;
     const float t = std::min(1.0f, std::max(0.0f, dist / r));
@@ -367,7 +421,7 @@ float GrassRenderPipeline::densityFracAt(float dist, float radius) {
 float GrassRenderPipeline::bladeWidthAt(float dist, float radius, uint32_t bladesPerVoxel,
                                         float widthScale, bool boxy) {
     const float df = densityFracAt(dist, radius);
-    float w = (boxy ? 0.040f : 0.036f)
+    float w = (boxy ? 0.040f : 0.042f)
             * std::min(1.0f / std::sqrt(std::max(df, 0.02f)), 2.6f)
             * std::max(widthScale, 0.001f);
     // SUB-PIXEL FLOOR (grass.vert): holds a blade at ~1 screen pixel so far grass stops flickering.
@@ -497,7 +551,7 @@ void GrassRenderPipeline::renderShadow(VkCommandBuffer cmd, VkDescriptorSet uboS
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1,
                             &uboSet, 0, nullptr);
 
-    const uint32_t vertsPerBlade = 18;   // must match grass.vert (SEGMENTS*6)
+    const uint32_t vertsPerBlade = 24;   // must match grass.vert (SEGMENTS*6)
 
     GrassPush pc{};
     pc.bladeHeight    = m_params.bladeHeight;
@@ -559,7 +613,7 @@ void GrassRenderPipeline::render(VkCommandBuffer cmd, VkDescriptorSet uboSet,
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipeline);
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &uboSet, 0, nullptr);
 
-    const uint32_t vertsPerBlade = 18;  // 3 stacked segments/blade (must match SEGMENTS*6 in grass.vert)
+    const uint32_t vertsPerBlade = 24;  // 4 stacked segments/blade (must match SEGMENTS*6 in grass.vert)
 
     GrassPush pc{};
     pc.bladeHeight    = m_params.bladeHeight;

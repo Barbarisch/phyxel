@@ -144,6 +144,106 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **★ BESTIARY FORGE — 12 D&D SRD CREATURES + FULL RPG WIRING, SHIPPED 2026-08-21.**
+  Two lanes: **creature_forge specs** (dire wolf, boar, brown bear quadrupeds; giant spider
+  arachnid; young red dragon + griffon dragon-class with folded MEMBRANE wings — ground-only,
+  flight punted) via `tools/creature_forge/bestiary.json` manifest
+  (`gen_creature.py --manifest ... [--only id]`), and **humanoid variants** (goblin, orc_warrior,
+  skeleton_warrior, zombie, troll — plus reused ogre.anim) via
+  `tools/anim_pipeline/derive_humanoid_variant.py` + `humanoid_variants.json` (same 65-bone
+  skeleton + 84 clips + clip_meta = full melee/IK/death stack free). All combat species carry
+  idle/walk/attack/death, attack clip_meta (hitFrameFraction), and FULL generated body plans
+  (Attack/Death clipDefaults). **RPG wiring:** `resources/monsters/visuals/bindings.json`
+  (monsterId → rig/mapping/faction; NOTE srd ids are HYPHENATED: dire-wolf, brown-bear) →
+  `MonsterVisualRegistry` → **`spawn_encounter`** (MCP + `POST /api/encounter/spawn`): resolves
+  stat block + binding, spawns Combat NPCs on a golden-angle ring with a SHARED faction (empty
+  faction = hostile-to-all = pack fights itself), HP from averageHP, `NPCEntity.monsterId` set so
+  turn-based `CombatAISystem` uses the real stat block (registry is lazy-loaded there — it had NO
+  loader call anywhere before). L4: dire wolf spawned behavior=combat HUNTED AND KILLED the test
+  player unaided; death clips end down and hold (gates: required_clips, death_pose ≤65% centroid).
+  ⚑ Forge bug fixed 2026-08-21: `_mirror_axis_keys` wrapped a non-looping clip's final key to t=0
+  (mirrored side snapped to end pose instantly) — caught by the anim_integrity gate on the
+  spider. ⚑ Structural spec rules the gates enforce: lunges on the ROOT bone only; attached-chain
+  root joints inside host mass; modest joint angles (mid-chain boxes belong to a joint they sit
+  before). ⚑ SRD 5.1 attribution: `docs/ATTRIBUTION.md`. Punts logged in StructurePipelineGaps
+  2026-08-21 (flight, natural melee family, defender AC, Quaternius overlap, boot-time registry
+  load).
+
+- **CREATURE FORGE — SHIPPED + L4-VERIFIED 2026-08-21 (`tools/creature_forge/`).**
+  L4 evidence (Release, LodTest streaming world): FaunaSpawner spawned 4 forge_ibex from
+  biomes.json (proof: each fauna spawn logged "Loaded Animations (2)" — forge_ibex is the ONLY
+  2-clip fauna rig; natives are 12-13), all wandering; render stats 5 characters / 2,621 parts /
+  **dropped 0**. Spawn+ground+walk verified visually in CharacterTestbed (Debug); an RGB probe
+  rig proved per-box .anim colors reach the renderer with correct channels. ⚑ NEW GAP LOGGED
+  (StructurePipelineGaps.md 2026-08-21): character parts wash out under direct sun / go
+  slate-navy in ambient — engine character-lighting issue affecting ALL rigs, not a forge
+  defect; keep spec shading gradients gentle. Python port of the
+  anyCreature ACS compiler front half (MIT; verdict + full eval: `docs/EngineAdvancesResearch.md`
+  §9): one JSON spec (joints → chains → swept superellipse volumes → curve/spike/membrane/fin/
+  eye/paw parts → degree keyframe tracks with `mirror_phase`) compiles to a voxel `.anim` rig
+  via `anim_pipeline/anim_format.py` — membership-function voxelization at 0.05, greedy
+  per-(bone,color) box merge, explicit per-box colors, `ground_ref` + measured walk `Speed`
+  (finalize_quadruped in-process). CLI: `python tools/creature_forge/gen_creature.py
+  specs/ibex.json --out resources/animated_characters/forge_ibex.anim --target-height 1.05`.
+  Deterministic gates in `creature_forge/checks.py` (balance/limb-clearance/root-containment/
+  anim-integrity/budget ≤13107 boxes/anim_lint); 32-test suite `tests/test_creature_forge.py`
+  (reference = vendored anyCreature wolf; balance gate proven red on a cantilever spec).
+  First species **forge_ibex** (31 bones, ~1.4k boxes, quadruped names: exact Pelvis/Chest +
+  *Paw*/*Tail*) wired as Tundra(w2)/Snow(w1) fauna — `FaunaSpawner::walkSpeedFor` ibex=0.790
+  (5%-consistency test pins table vs clip Speed). ⚑ Anim parse cache never invalidates:
+  regenerate → RESTART engine. ⚑ Never name outputs with wolf/spider/dragon substrings
+  (CharacterVisualResolver filename trap). ⚑ `proportion` gate is WARN-only (the extracted
+  0.923 threshold blocks anyCreature's own wolf — re-derive before hardening). Deferred: AI
+  silhouette-recognition gate as a skill over `orbit_screenshots`; `coil` curve op.
+
+- **★ WORLDFORGE — M0-M2 BUILT + Release-L4-VERIFIED 2026-08-16 (docs/WorldForge.md).** The
+  world-scale planning layer over terrain-v2: settlement SITING (scored hydro-grid candidates:
+  relief/water/biome, derived per-site seeds), inter-settlement ROADS as a generation-time
+  field (`ColumnSample.roadClass`, riverOrder pattern — pure f(world position), seam-free,
+  flora-gated corridor, Dirt/Gravel/Cobblestone by class from settlement_program.json), and an
+  orchestrated realization job (`worldforge_build`: streaming-focus residency → per-site
+  `SettlementBuildService` with the plan's seed → `WorldForgeLedger` checkpoints in
+  world_meta). User decisions: bake job (not lazy stream-in), gen-time roads (not runtime
+  paving), region scale 3-8 sites. 37 unit tests red-before-green across 4 suites; **live
+  Release run: 3/3 sites built (town 7 bldgs + 2 villages, 1 lot failure honestly surfaced),
+  idempotent re-run = 0 queued, plan hash 5102375980102752933 stable across process restarts,
+  DB deletion, and Debug/Release**. Roads verified voxel-by-voxel (gravel band scan) + visually.
+  Also shipped: **recipe-seed authority fix** (applyRecipe adopts recipe.seed — the DB finally
+  owns it), `ChunkManager::setStreamingFocusOverride` (+`worldforge_focus` debug command),
+  `/api/worldforge/*` + MCP tools, canonical test world `worldforge_test.json`.
+  ⚑ **Debug streaming crawls ~7 chunks/min in forest** (flora stamping) — generation_pending
+  pinned at its 48 cap LOOKS like the pump-death bug but is crawl; verify on Release only.
+  ⚑ **Never teleport the player into unstreamed terrain** (falls forever, chunks can't follow;
+  one silent crash) — use the focus override. ⚑ Remote-site residents fall through evicted
+  chunks → worldforge builds pass residents:false (gap logged). V1 punts logged in
+  StructurePipelineGaps 2026-08-16 (bridges/grading/street-fusion/live-apply/far-roads/lazy).
+  **M3 COMPLETE 2026-08-17** (`WorldForgeStressTest` + live): 8-site/2048u world built 8/8
+  on Release (4 lot failures honest, idempotent re-run), Mountains world degrades honestly,
+  delete-DB regeneration reproduced the road scan CELL-EXACT (88/88 Gravel), road walkability
+  measured 0% (canonical) / 0.69% (mountains) unclimbable 1u steps. New hazard logged: the
+  player at spawn falls while a bake owns residency (park/respawn around bakes). Small
+  remainders: full TraversalProbe agent-walk, road-arrival street orientation. Memory:
+  `project_worldforge.md`. **COMMITTED 2026-08-18 (5c09b04b, dc1b1339, 8681c65c) plus:**
+  **BRIDGES V1 (eedf0bd7)** — every order≥3 crossing bakes a `WorldForgeBridgeSpan`;
+  `generateChunk` emits a Wood plank deck (the one above-surface emission; crossing
+  detection moved to the carve-accurate meander-warped `channelAt` at 2 u steps — the raw
+  FlowField line sits ~a channel-width off the carved bed; L4 voxel scan + ravine
+  screenshot, `BridgeVis` project; bridges changed ALL plan hashes → pre-bridge ledgers
+  refuse re-runs by design). **ContinuousLodPlan M4 RAN (9c9a249f)** — the density wall is
+  measured retired at the settlement operating point (merge ON 269,618 faces / 135-145 FPS
+  vs OFF 1,764,780 / 27.5 FPS, Perlin hills + 25 engine-built buildings; the historic
+  24-26 ms shadow wall reproduced un-merged at CONSTANT 466 draws → shadow cost = instance
+  volume, not draws; §7b M4 RESULT + docs/evidence/lod_m4_density_wall.jsonl).
+  **RESIDENTS PERSIST (5c2be28b) + STREET ORIENTATION (1caaf2b8), 2026-08-18:** locations
+  persist in `world_meta["locations"]` at every save point; the new `ResidentSpawner` (the
+  FaunaSpawner pattern) re-derives townsfolk from them — per-settlement clustering (each
+  keeps its own tavern), spawn on ground-resident, despawn BEFORE evict (the y=-233k
+  free-fall hazard closed by construction), identical deterministic respawn on reload
+  (L4: same 7 names back after restart). NPCs are never stored. And settlements now turn
+  their main street toward the first arriving road (`street_axis` from the plan;
+  `chooseStreetAxis` bounded preference — terrain still wins). Physical street↔road paving
+  junction remains the logged gap.
+
 - **★ CHIMNEY FORGE — SHIPPED 2026-08-10 (`HearthForge`).** The chimney was the last
   structural element built AFTER the shell: the furnish pass stamped a stack into a
   finished building, **displacing ~600 already-built cells per tavern** (measured in

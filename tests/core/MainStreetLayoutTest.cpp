@@ -228,6 +228,49 @@ TEST(MainStreetLayoutTest, ChooseStreetAxisFindsTheFlatValley) {
     EXPECT_LE(pick.crossOffset, 9);   // band [offset, offset+5) inside/centred on the valley floor
 }
 
+// Road-arrival bias (WorldForge street orientation): on comparable terrain the preferred
+// axis (the one the arriving road runs along) wins over the long-axis tiebreak — but never
+// over genuinely hostile terrain. Red-before-green against the ignored-parameter stub.
+TEST(MainStreetLayoutTest, ChooseStreetAxisHonorsRoadPreference) {
+    // Uniform terrain, LONG axis X: unbiased pick is X (the tiebreak); preferring Z flips it.
+    auto flat = [](int x, int z) { (void)x; (void)z; return 10; };
+    const auto site = analyzeSite(40, 20, 3, flat, {}, 1, 1);
+    EXPECT_EQ(chooseStreetAxis(site, 5).axis, 'X') << "baseline: long axis without preference";
+    EXPECT_EQ(chooseStreetAxis(site, 5, 0, 'Z').axis, 'Z')
+        << "the arriving road's axis must win on comparable terrain";
+    // Terrain still wins: a flat valley along Z with steep ground elsewhere ignores an X
+    // preference (the street must not climb the walls to meet the road).
+    auto valley = [](int x, int z) {
+        (void)z;
+        return (x >= 8 && x < 13) ? 10 : 10 + 3 * std::abs(x - 10);
+    };
+    const auto vsite = analyzeSite(24, 24, 3, valley, {}, 1, 1);
+    EXPECT_EQ(chooseStreetAxis(vsite, 5, 0, 'X').axis, 'Z')
+        << "hostile terrain overrides the road preference";
+}
+
+// Lateral arrival preference: on comparable terrain the band lands where the road arrives
+// (so street and road meet head-on), but a flat valley elsewhere still wins. Red-first
+// against the ignored-parameter stub.
+TEST(MainStreetLayoutTest, ChooseStreetAxisHonorsArrivalOffset) {
+    auto flat = [](int x, int z) { (void)x; (void)z; return 10; };
+    const auto site = analyzeSite(40, 20, 3, flat, {}, 1, 1);
+    // Baseline on flat ground: the offset search keeps the FIRST (lowest) band.
+    const auto base = chooseStreetAxis(site, 5, 0, 'X');
+    ASSERT_EQ(base.axis, 'X');
+    ASSERT_EQ(base.crossOffset, 0);
+    // Preferring band start 9 moves the band there on flat ground.
+    const auto biased = chooseStreetAxis(site, 5, 0, 'X', 9);
+    EXPECT_EQ(biased.axis, 'X');
+    EXPECT_EQ(biased.crossOffset, 9) << "flat ground must defer to the arrival offset";
+    // Terrain still wins: a flat valley band at z=2..6 with steep ground elsewhere ignores
+    // a far-away preferred offset.
+    auto valley = [](int x, int z) { (void)x; return (z >= 2 && z < 7) ? 10 : 10 + 3 * std::abs(z - 4); };
+    const auto vsite = analyzeSite(40, 20, 3, valley, {}, 1, 1);
+    const auto vpick = chooseStreetAxis(vsite, 5, 0, 'X', 14);
+    EXPECT_LE(std::abs(vpick.crossOffset - 2), 1) << "hostile terrain overrides the offset bias";
+}
+
 // RED (found live 2026-07-09, 80x44 Perlin village -> axis Z offset 0, a 2-building one-sided strip):
 // the scorer compared TOTAL band relief, so the SHORT axis (fewer cells) always won on uniformly
 // noisy terrain. Score must be PER-CELL; on uniform terrain the LONG axis wins (more street = more

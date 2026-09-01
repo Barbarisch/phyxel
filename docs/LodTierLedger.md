@@ -34,6 +34,15 @@ non-render distance systems (streaming residency, sim LOD) listed below the line
 
 **No far tier exists for:** water (other session owns Phase B), kinematic voxel LOD
 (8d is cull-only — no face coarsening at distance), GPU debris, VFX.
+**WorldForge roads DO render in the far-terrain tiles (corrected 2026-08-18 — the
+2026-08-16 "no far tier for roads" entry here was WRONG):** tile columns sample
+`sampleSurface`, which stamps road material, and the mesher's private generator copy
+carries the baked plan — P-DERIVED holds with zero far-terrain code (pinned by
+`FarTerrainMesherTest.RoadsShowInFarTiles`, steps 2 and 4; live-corroborated from an
+elevated camera). The coarse-ring thinning residual was RESOLVED same day: the mesher
+tests each far column's cell centre against roadAt widened by step/2, so the ribbon is
+continuous at every ring (the RoadsShowInFarTiles continuity assertion pins ≥ 0.8× the
+centerline arc length in road columns per step, 2 through 16).
 
 ### Non-render distance systems (for completeness — do not confuse with render LOD)
 

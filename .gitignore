@@ -288,3 +288,4 @@ canvas_digest_actual.txt
 # (docs/evidence/). The global *.log rule above was silently swallowing the engine
 # logs that ARE the evidence, leaving only hand-copied excerpts in git.
 !docs/evidence/*.log
+phyxel.log.*

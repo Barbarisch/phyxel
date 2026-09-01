@@ -1,4 +1,13 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
+#include "lighting.glsl"   // phxTonemap — THE single tone map for the whole frame
+
+// Tone mapping lives HERE, not in the scene shaders, and that ordering matters twice over:
+//   1. It runs AFTER compositing. Ten shaders each tone-mapping their own output meant every
+//      blended pass (water, OIT glass) was tone-mapped BEFORE it was blended, which is simply the
+//      wrong order -- you cannot correctly blend two independently compressed images.
+//   2. It leaves the scene target as linear HDR. A per-shader AgX clamped everything to ~1.0, so
+//      there were no highlights above white left for bloom to find.
 
 layout (location = 0) in vec2 inUV;
 layout (location = 0) out vec4 outColor;
@@ -8,6 +17,14 @@ layout (set = 0, binding = 1) uniform sampler2D bloomBlur;
 layout (set = 0, binding = 2) uniform sampler2D ssaoTex;
 layout (set = 0, binding = 3) uniform sampler2D oitAccum;   // OIT accumulation (RGBA16F)
 layout (set = 0, binding = 4) uniform sampler2D oitReveal;  // OIT reveal factor (R8_UNORM)
+
+// Exposure + curve arrive as push constants rather than a UBO: two scalars, changed per frame by
+// POST /api/debug/tonemap, and this pass owns no descriptor set beyond its samplers.
+layout(push_constant) uniform GradePush {
+    float exposure;
+    int   curve;      // 0 = linear (A/B control), 1 = AgX
+    float bloom;      // bloom intensity; 0 disables it entirely (the A/B control)
+} grade;
 
 // EDITOR-PARITY COMPOSITE.
 //
@@ -42,5 +59,14 @@ void main()
         color = mix(transparentColor, color, reveal);
     }
 
-    outColor = vec4(color, 1.0);
+    // Bloom is ADDED BEFORE the tone map, because bloom is light -- it has to go through the same
+    // response curve as everything else. Adding it after would paste display-referred haze on top of
+    // a tone-mapped image and blow the highlights straight back out.
+    // ⛔ BROKEN: bloom produces SPOTS/BLOTCHES, not a smooth glow (confirmed 2026-08-15). Ships with
+    //    grade.bloom == 0 so this branch never runs. See PostProcessor.h for the suspected cause.
+    if (grade.bloom > 0.0) {
+        color += texture(bloomBlur, inUV).rgb * grade.bloom;
+    }
+
+    outColor = vec4(phxTonemap(color, grade.exposure, grade.curve), 1.0);
 }

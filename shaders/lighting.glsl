@@ -260,14 +260,25 @@ const float kAgxMaxEv =   4.026069;
 // skews hues as it compresses (bright orange drifts yellow, bright blue drifts cyan), and the inset
 // keeps the three channels from separating. Values are the reference AgX minimal matrices; GLSL mat3
 // constructors take COLUMNS.
+//
+// ⚠️ THESE LITERALS ARE TRANSPOSED ON PURPOSE. The matrices are published ROW-MAJOR (each row sums
+// to 1.0, which is what preserves neutrals), but GLSL's mat3(...) constructor consumes COLUMNS. The
+// first version of this file listed the published rows directly and so used both matrices
+// transposed: grey stopped mapping to grey. Round-tripping 0.18 grey gave (0.176, 0.153, 0.211) --
+// blue high, green low -- and every surface in the engine picked up a pale violet cast with lifted
+// blacks. The user described it as "everything looks like it's under a blacklight", which is exactly
+// right. The comment two lines up already said "constructors take COLUMNS"; the values ignored it.
+//
+// Each line below is therefore a COLUMN of the published matrix. Invariant, worth a test if this is
+// ever touched: mat * vec3(g) must return vec3(g) for any g.
 const mat3 kAgxInset = mat3(
-    0.8566271533,  0.0951212405,  0.0482516061,
-    0.1373189729,  0.7612419906,  0.1014390365,
-    0.1118982130,  0.0767994186,  0.8113023684);
+    0.8566271533,  0.1373189729,  0.1118982130,   // column 0
+    0.0951212405,  0.7612419906,  0.0767994186,   // column 1
+    0.0482516061,  0.1014390365,  0.8113023684);  // column 2
 const mat3 kAgxOutset = mat3(
-     1.1271005818, -0.1106066431, -0.0164939387,
-    -0.1413297635,  1.1578237022, -0.0164939387,
-    -0.1413297635, -0.1106066431,  1.2519364066);
+     1.1271005818, -0.1413297635, -0.1413297635,  // column 0
+    -0.1106066431,  1.1578237022, -0.1106066431,  // column 1
+    -0.0164939387, -0.0164939387,  1.2519364066); // column 2
 
 /// 6th-order polynomial fit of the AgX sigmoid — cheaper than the piecewise original and visually
 /// indistinguishable across the encoded range.

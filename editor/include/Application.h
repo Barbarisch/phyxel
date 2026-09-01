@@ -2,6 +2,7 @@
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+#include <array>
 #include <chrono>
 #include "core/Types.h"
 #include "vulkan/VulkanDevice.h"
@@ -23,6 +24,7 @@
 #include "input/InputController.h"
 #include "core/ChunkManager.h"
 #include "core/FaunaSpawner.h"
+#include "core/ResidentSpawner.h"
 #include "core/ForceSystem.h"
 // WorldInitializer now lives in engine/ and is used by EngineRuntime internally
 #include "core/ObjectTemplateManager.h"
@@ -104,6 +106,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <array>
 #include <chrono>
 #include <thread>
 #include <glm/glm.hpp>
@@ -332,6 +335,8 @@ private:
     std::unique_ptr<Core::NPCManager> npcManager;
     Core::FaunaSpawner m_faunaSpawner;   // biome-driven wildlife population
     bool m_faunaConfigured = false;
+    Core::ResidentSpawner m_residentSpawner;   // settlement residents from persisted Locations
+    bool m_residentSpawnerConfigured = false;
     float m_farTreeExclusionPoll = 0.0f;   ///< 1s cadence for far-tree structure exclusions
     std::unique_ptr<Core::InteractionManager> interactionManager;
     std::unique_ptr<Core::InteractionProfileManager> interactionProfileManager;
@@ -530,6 +535,7 @@ private:
     // domain at a time). Called once during init.
     void registerWaterCommands();
     void registerSettlementCommands();   // build_settlement: compose a settlement (subdivide+populate+build each)
+    void registerWorldForgeCommands();   // worldforge_*: world-scale plan preview/apply/status/map (docs/WorldForge.md)
     void registerDoorCommands();
     void registerLightCommands();
     void registerSnapshotCommands();
@@ -779,6 +785,34 @@ private:
 
     std::unique_ptr<Editor::CameraPanel> m_cameraPanel;        // Dockable camera management
     bool m_showCameraPanel = false;
+
+    // World Map panel (WorldForge minimap rendered in-engine): texture + the window it
+    // covers (for the hover→world-coordinate readout). Refresh-driven, never per frame.
+    // Per-frame jitter trace (see the update-loop recorder + the "frame_trace" command).
+    struct FrameTraceSample {
+        uint64_t frame = 0;
+        glm::vec3 charPos{0.0f};
+        glm::vec3 partPos{0.0f};   // first active ragdoll part (a render input)
+        glm::vec3 camPos{0.0f};
+        float camYaw = 0.0f;
+        float dtMs = 0.0f;   // frame delta in ms - hitch spikes make orbits snap
+    };
+    static constexpr size_t kFrameTraceLen = 240;
+    std::array<FrameTraceSample, kFrameTraceLen> m_frameTrace{};
+    uint64_t m_frameTraceCounter = 0;
+
+    bool m_showWorldMapPanel = false;
+    bool m_worldMapTried = false;        // gates auto-render to once; failures need Refresh
+    void* m_worldMapTex = nullptr;
+    int m_worldMapZoom = 0;              // 0 = region, 1 = 4x on camera, 2 = 16x on camera
+    float m_worldMapX0 = 0.0f, m_worldMapZ0 = 0.0f, m_worldMapSize = 1.0f;
+    // Fill `img` (px*px RGB) with the biome/water/road/site map for the given world
+    // window — the SAME renderer the worldforge_minimap API serves. False + *err when the
+    // world has no hydrology bake.
+    bool renderWorldMapImage(int px, float cx, float cz, float radius,
+                             std::vector<unsigned char>& img, std::string* err);
+    void refreshWorldMapTexture();
+    void renderWorldMapPanel();
 
     std::unique_ptr<Editor::TextureEditorPanel> m_textureEditor; // Dockable texture pixel editor
     bool m_showTextureEditor = false;

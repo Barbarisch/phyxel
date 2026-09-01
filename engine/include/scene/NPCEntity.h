@@ -150,7 +150,14 @@ public:
         bool hasAdvantage    = false,
         bool hasDisadvantage = false);
 
+    /// resources/monsters stat-block id this NPC embodies ("" = none).
+    /// Turn-based CombatAISystem prefers this over the entity-id guess when
+    /// resolving the monster's AC/attacks from MonsterRegistry.
+    void setMonsterId(const std::string& id) { m_monsterId = id; }
+    const std::string& getMonsterId() const { return m_monsterId; }
+
 private:
+    std::string m_monsterId;
     std::string m_name;
     std::unique_ptr<AnimatedVoxelCharacter> m_character;
     std::unique_ptr<NPCBehavior> m_behavior;

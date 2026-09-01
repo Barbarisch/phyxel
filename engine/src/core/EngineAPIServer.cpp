@@ -1035,6 +1035,21 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // POST /api/debug/sky -- celestial bodies, live.
+    // Body: { "reset": bool } | { "sizeScale": float } | { "bodies": [...] }; responds with the
+    // resulting list, so it also serves as a query. See graphics/CelestialBody.h for the schema.
+    srv.Post("/api/debug/sky", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("set_sky", params, 5000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
     // POST /api/debug/tonemap — exposure + tone curve, live.
     // Body: { "exposure": float (opt), "curve": int (opt; 0 = none/raw linear, 1 = AgX) }
     // Exists because the atmosphere model emits physical radiance, so exposure must be calibrated
@@ -1239,6 +1254,105 @@ void EngineAPIServer::setupRoutes() {
             res.status = 400;
             res.set_content(err.dump(), "application/json");
         }
+    });
+
+    // ====================================================================
+    // WorldForge — world-scale settlement/road planning (docs/WorldForge.md).
+    // POST /api/worldforge/plan   {siteCount?, regionRadius?, minSpacing?, maxSpacing?,
+    //                              sitePins?} — pure preview bake (no mutation); {} returns
+    //                              the applied plan.
+    // POST /api/worldforge/apply  {same params, force?} — persist into the world recipe
+    //                              (world.db); refuses on a world with saved chunks unless
+    //                              force. restart_required: streamed chunks pick the plan up
+    //                              on the next project load.
+    // GET  /api/worldforge/status — enabled/applied/plan_hash/site+road counts.
+    // GET  /api/worldforge/map    — ASCII overview map (water/rivers/roads/sites).
+    // ====================================================================
+    srv.Post("/api/worldforge/plan", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("worldforge_plan", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+    srv.Post("/api/worldforge/apply", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("worldforge_apply", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+    srv.Post("/api/worldforge/build", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("worldforge_build", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+    srv.Post("/api/worldforge/focus", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("worldforge_focus", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+    srv.Get("/api/worldforge/status", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("worldforge_status", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+    srv.Get("/api/worldforge/map", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("step")) params["step"] = std::stoi(req.get_param_value("step"));
+        json result = queueAndWait("worldforge_map", params);
+        res.set_content(result.dump(), "application/json");
+    });
+    // GET /api/debug/frame_trace — per-frame character/camera position ring (jitter hunts).
+    srv.Get("/api/debug/frame_trace", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("frame_trace", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+    // POST /api/ui/panel — toggle an editor panel: {"panel": "world_map", "visible": true}.
+    srv.Post("/api/ui/panel", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("set_panel_visible", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const std::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", e.what()}}.dump(), "application/json");
+        }
+    });
+    // GET /api/worldforge/minimap — render the biome-colored PNG world map (hillshade,
+    // water, roads, bridges, site markers) and return its path. ?px= pixels (64-1024),
+    // ?x=&z=&radius= world window (default: the full hydrology region), ?filename= .
+    // Sampling is px^2 sampleSurface calls on the game loop — the 30 s window covers the
+    // 1024px worst case on Release.
+    srv.Get("/api/worldforge/minimap",
+            [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("px")) params["px"] = std::stoi(req.get_param_value("px"));
+        if (req.has_param("x")) params["x"] = std::stof(req.get_param_value("x"));
+        if (req.has_param("z")) params["z"] = std::stof(req.get_param_value("z"));
+        if (req.has_param("radius")) params["radius"] = std::stof(req.get_param_value("radius"));
+        if (req.has_param("filename")) params["filename"] = req.get_param_value("filename");
+        json result = queueAndWait("worldforge_minimap", params, 30000);
+        res.set_content(result.dump(), "application/json");
     });
 
     // ====================================================================
@@ -3065,6 +3179,21 @@ void EngineAPIServer::setupRoutes() {
         try {
             json params = json::parse(req.body);
             json result = queueAndWait("spawn_npc", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/encounter/spawn — Spawn a D&D encounter: a list of monster
+    // stat-block ids, each resolved to its visual binding and spawned as a
+    // hostile Combat NPC sharing one faction.
+    srv.Post("/api/encounter/spawn", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("spawn_encounter", params);
             res.set_content(result.dump(), "application/json");
         } catch (const json::exception& e) {
             json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};

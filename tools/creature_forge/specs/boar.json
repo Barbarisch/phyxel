@@ -1,0 +1,187 @@
+{
+  "name": "forge_boar",
+  "_template": "SRD boar: stocky, low-slung, heavy-shouldered charger with upcurved tusks. Quadruped contract bones (Pelvis/Chest/*Paw). Attack = goring charge; death = keel over.",
+  "palette": {
+    "fur_body":  {"color": "#5d4f41", "rough": 0.95},
+    "fur_head":  {"color": "#544737", "rough": 0.95},
+    "bristle":   {"color": "#3f352a", "rough": 0.95},
+    "fur_leg":   {"color": "#4a3f33", "rough": 0.95},
+    "tusk":      {"color": "#d8cfc0", "rough": 0.5},
+    "snout":     {"color": "#7a6355", "rough": 0.7},
+    "hoof":      {"color": "#241f19", "rough": 0.6},
+    "eye":       {"color": "#2b1d12", "rough": 0.25}
+  },
+  "shading": {
+    "gradient": {"top": 0.12, "bottom": -0.22},
+    "noise": {"size": 0.018, "amount": 0.12}
+  },
+  "smooth_angle": 50,
+  "joints": {
+    "Pelvis":     [0, 0.52, -0.38],
+    "Rump":       {"from": "Pelvis", "up": -0.03, "fwd": -0.14},
+    "Spine":      {"from": "Pelvis", "up": 0.03, "fwd": 0.30},
+    "Chest":      {"from": "Spine", "up": 0.01, "fwd": 0.26},
+    "NeckB":      {"from": "Chest", "up": 0.02, "fwd": 0.14},
+    "NeckT":      {"from": "NeckB", "up": 0.01, "fwd": 0.08},
+    "HeadRoot":   {"from": "NeckT", "up": 0.0, "fwd": 0.03},
+    "Skull":      {"from": "HeadRoot", "up": 0.02, "fwd": 0.09},
+    "Brow":       {"from": "Skull", "up": 0.0, "fwd": 0.08},
+    "Muzzle":     {"from": "Brow", "up": -0.04, "fwd": 0.11},
+    "NoseTip":    {"from": "Muzzle", "up": -0.01, "fwd": 0.08},
+    "TailRoot":   {"from": "Pelvis", "up": 0.02, "fwd": -0.07},
+    "Tail1":      {"from": "TailRoot", "up": -0.05, "fwd": -0.04},
+    "LFrontRoot": {"from": "Chest", "side": 0.10, "fwd": -0.01},
+    "LFrontKnee": {"from": "LFrontRoot", "side": 0.01, "up": -0.22, "fwd": -0.01},
+    "LFrontShin": {"from": "LFrontKnee", "up": -0.18, "fwd": 0.01},
+    "LFrontPaw":  {"from": "LFrontShin", "fwd": 0.05, "ground": 0.03},
+    "LBackRoot":  {"from": "Pelvis", "side": 0.09, "fwd": 0.01},
+    "LBackKnee":  {"from": "LBackRoot", "side": 0.02, "up": -0.19, "fwd": 0.07},
+    "LBackHock":  {"from": "LBackKnee", "up": -0.15, "fwd": -0.08},
+    "LBackPaw":   {"from": "LBackHock", "fwd": 0.07, "ground": 0.03}
+  },
+  "chains": {
+    "body":   ["Rump", "Pelvis", "Spine", "Chest", "NeckB", "NeckT"],
+    "head":   ["HeadRoot", "Skull", "Brow", "Muzzle", "NoseTip"],
+    "tail":   ["TailRoot", "Tail1"],
+    "LFront": ["LFrontRoot", "LFrontKnee", "LFrontShin", "LFrontPaw"],
+    "LBack":  ["LBackRoot", "LBackKnee", "LBackHock", "LBackPaw"]
+  },
+  "attach": {
+    "head":   "NeckT",
+    "tail":   "Pelvis",
+    "LFront": "Chest",
+    "LBack":  "Pelvis"
+  },
+  "mirror": ["LFront", "LBack"],
+  "volumes": [
+    {
+      "chain": "body", "material": "fur_body", "frame": "up", "sides": 14,
+      "profile": [
+        [0.0, 0.15, 0.17],
+        [0.14, 0.21, 0.26, {"bias": -0.10}],
+        [0.42, 0.22, 0.29, {"bias": -0.12}],
+        [0.66, 0.23, 0.30, {"bias": -0.10, "sharp": true}],
+        [0.85, 0.19, 0.24, {"sharp": true}],
+        [1.0, 0.15, 0.18]
+      ],
+      "caps": ["dome", "dome"],
+      "colors": {"arcs": [
+        {"from": 0, "to": 46, "color": "#3f352a"},
+        {"from": 135, "to": 180, "color": "#8a7a66"}
+      ]}
+    },
+    {
+      "chain": "head", "material": "fur_head", "frame": "up", "sides": 12,
+      "profile": [
+        [0.0, 0.14, 0.16],
+        [0.25, 0.16, 0.17, {"sharp": true}],
+        [0.55, 0.12, 0.12],
+        [0.85, 0.075, 0.07],
+        [1.0, 0.055, 0.05]
+      ],
+      "caps": ["none", "dome"],
+      "colors": {"arcs": [
+        {"from": 0, "to": 48, "color": "#3f352a"}
+      ]}
+    },
+    {
+      "chain": "tail", "material": "fur_body", "sides": 6,
+      "profile": [[0, 0.03, 0.03], [1, 0.015, 0.015]],
+      "caps": ["none", "dome"]
+    },
+    {
+      "chain": "LFront", "material": "fur_leg", "sides": 8,
+      "profile": [
+        [0, 0.085, 0.10],
+        [0.55, 0.05, 0.055],
+        [1, 0.04, 0.036]
+      ],
+      "caps": ["none", "dome"]
+    },
+    {
+      "chain": "LBack", "material": "fur_leg", "sides": 8,
+      "profile": [
+        [0, 0.095, 0.11],
+        [0.35, 0.07, 0.085, {"exp": 2.3}],
+        [1, 0.04, 0.036]
+      ],
+      "caps": ["none", "dome"]
+    }
+  ],
+  "parts": [
+    {
+      "type": "curve", "host": "Muzzle", "material": "tusk", "mirrored": true,
+      "offset": [0.045, -0.045, 0.06],
+      "dir": [0.35, 0.25, 0.9],
+      "sides": 6,
+      "segments": [
+        {"len": 0.05, "r": 0.016, "rise": 25},
+        {"len": 0.045, "r": 0.011, "rise": 40, "taper": true}
+      ]
+    },
+    {
+      "type": "spike", "host": "NoseTip", "material": "snout",
+      "offset": [0, 0.0, 0.015],
+      "dir": [0, -0.1, 1],
+      "sides": 8,
+      "segments": [{"len": 0.035, "r": 0.038}]
+    },
+    {
+      "type": "eye", "host": "Brow", "material": "eye", "size": 0.02,
+      "anchor": {"chain": "head", "t": 0.38, "around": 58}
+    },
+    {
+      "type": "paw", "host": "LFrontPaw", "material": "hoof",
+      "size": [0.07, 0.06, 0.09], "mirrored": true
+    },
+    {
+      "type": "paw", "host": "LBackPaw", "material": "hoof",
+      "size": [0.075, 0.06, 0.10], "mirrored": true
+    }
+  ],
+  "combat": true,
+  "animations": {
+    "idle": {
+      "duration": 2.2, "loop": true,
+      "tracks": {
+        "NeckB":  {"rx": [[0, -2], [0.5, 2], [1, -2]]},
+        "Skull":  {"rx": [[0, 3], [0.4, -3], [0.7, 2], [1, 3]]},
+        "Tail1":  {"ry": [[0, 12], [0.5, -12], [1, 12]]},
+        "Pelvis": {"ty": [[0, 0], [0.5, 0.006], [1, 0]]}
+      }
+    },
+    "attack": {
+      "duration": 0.75, "loop": false, "hit_fraction": 0.5,
+      "tracks": {
+        "Rump":   {"tz": [[0, 0], [0.2, -0.08], [0.5, 0.34], [0.72, 0.34], [1, 0]],
+                   "ty": [[0, 0], [0.2, 0.02], [0.5, -0.03], [1, 0]]},
+        "NeckB":  {"rx": [[0, 0], [0.2, -16], [0.5, 24], [0.75, 18], [1, 0]]},
+        "Skull":  {"rx": [[0, 0], [0.2, -14], [0.5, 22], [1, 0]],
+                   "rz": [[0, 0], [0.35, -10], [0.5, 12], [0.65, -6], [1, 0]]}
+      }
+    },
+    "death": {
+      "duration": 1.1, "loop": false,
+      "tracks": {
+        "Rump":   {"rz": [[0, 0], [0.35, 24], [0.7, 72], [1, 84]],
+                   "ty": [[0, 0], [0.35, -0.05], [0.7, -0.22], [1, -0.30]]},
+        "NeckB":  {"rx": [[0, 0], [0.6, 10], [1, 14]]},
+        "LFrontKnee": {"rx": [[0, 0], [0.6, 30], [1, 40]]},
+        "LBackKnee":  {"rx": [[0, 0], [0.6, -30], [1, -40]]}
+      }
+    },
+    "move": {
+      "duration": 0.62, "loop": true, "mirror_phase": 0.5,
+      "tracks": {
+        "LFrontRoot": {"rx": [[0, -24], [0.5, 26], [1, -24]]},
+        "LFrontKnee": {"rx": [[0, 10], [0.25, 26], [0.5, -6], [1, 10]]},
+        "LFrontShin": {"rx": [[0, -10], [0.35, -24], [0.6, 8], [1, -10]]},
+        "LBackRoot":  {"rx": [[0, 22], [0.5, -20], [1, 22]]},
+        "LBackKnee":  {"rx": [[0, -8], [0.3, -26], [0.6, 10], [1, -8]]},
+        "LBackHock":  {"rx": [[0, 8], [0.4, 22], [0.7, -6], [1, 8]]},
+        "Rump":       {"ty": [[0, 0], [0.25, 0.02], [0.5, 0], [0.75, 0.02], [1, 0]]},
+        "NeckB":      {"rx": [[0, 2], [0.5, -2], [1, 2]]}
+      }
+    }
+  }
+}

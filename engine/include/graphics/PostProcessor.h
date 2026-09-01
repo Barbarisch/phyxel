@@ -35,6 +35,34 @@ public:
     
     void draw(VkCommandBuffer commandBuffer, VkFramebuffer swapchainFramebuffer);
 
+    // The editor does NOT call draw() -- RenderCoordinator inlines the sequence so it can slot
+    // ImGui into the swapchain pass. These two ARE that sequence, split:
+    //   compositeToGrade(cmd);                     // post_process.frag -> gradeImage
+    //   beginPostProcessRenderPass(cmd, swapFb);
+    //   drawBlit(cmd);                             // gradeImage -> swapchain
+    //   <ImGui>
+    //   endPostProcessRenderPass(cmd);
+    // Calling drawQuad() inside the swapchain pass is now a render-pass incompatibility -- the
+    // composite pipeline is built against gradeRenderPass. Symptom if you get this wrong: a blank
+    // editor viewport, because nothing ever writes gradeImage.
+    // Exposure + tone curve for THE frame's single tone map, which lives in post_process.frag.
+    // Pushed as push constants at composite time; RenderCoordinator sets these each frame from the
+    // same values it uploads to the scene UBO, so the two can never drift apart.
+    void setTonemap(float exposure, int curve) { m_gradeExposure = exposure; m_gradeCurve = curve; }
+
+    // Bloom knobs, live-tunable via POST /api/debug/tonemap. intensity 0 = off.
+    void setBloom(float intensity, float threshold, float knee) {
+        m_bloomIntensity = (intensity > 0.0f) ? intensity : 0.0f;
+        if (threshold > 0.0f) m_bloomThreshold = threshold;
+        if (knee >= 0.0f) m_bloomKnee = knee;
+    }
+    float getBloomIntensity() const { return m_bloomIntensity; }
+    float getBloomThreshold() const { return m_bloomThreshold; }
+    float getBloomKnee() const { return m_bloomKnee; }
+
+    void compositeToGrade(VkCommandBuffer commandBuffer);
+    void drawBlit(VkCommandBuffer commandBuffer);
+
     /// Run the SSAO + blur passes. Call after the scene pass, before post-process.
     void renderSSAO(VkCommandBuffer commandBuffer, const glm::mat4& proj);
 
@@ -76,6 +104,11 @@ public:
     VkRenderPass getSceneRenderPass() const { return sceneRenderPass; }
     VkRenderPass getPostProcessRenderPass() const { return postProcessRenderPass; }
     VkImageView getOffscreenImageView() const { return offscreenImageView; }
+
+    // THE image the editor viewport should sample. getOffscreenImageView() is the RAW scene
+    // image -- linear, un-composited, no bloom/SSAO/OIT. Sampling that is why post-process
+    // defects shipped unseen for years. Point viewports here instead.
+    VkImageView getGradeImageView() const { return gradeImageView; }
     VkSampler getOffscreenSampler() const { return offscreenSampler; }
 
     // SSAO is OFF by default because its output is currently UNUSED: post_process.frag
@@ -115,6 +148,56 @@ private:
     VkPipelineLayout blurPipelineLayout = VK_NULL_HANDLE;
     VkDescriptorSetLayout blurDescriptorSetLayout = VK_NULL_HANDLE;
     std::array<VkDescriptorSet, 2> blurDescriptorSets = {VK_NULL_HANDLE, VK_NULL_HANDLE};
+
+    // Grade Resources -- the composited, tone-mapped image.
+    // post_process.frag renders HERE, not to the swapchain; the swapchain pass is then a plain
+    // blit of this image. Both the editor viewport and a packaged game therefore show the same
+    // composited pixels. Same format as the scene image (R16G16B16A16_SFLOAT) so pointing the
+    // editor at it is a drop-in swap for offscreenImageView.
+    VkImage gradeImage = VK_NULL_HANDLE;
+    VkDeviceMemory gradeImageMemory = VK_NULL_HANDLE;
+    VkImageView gradeImageView = VK_NULL_HANDLE;
+    VkFramebuffer gradeFramebuffer = VK_NULL_HANDLE;
+    VkRenderPass gradeRenderPass = VK_NULL_HANDLE;
+
+    // Blit (grade image -> swapchain)
+    VkDescriptorSetLayout blitDescriptorSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSet blitDescriptorSet = VK_NULL_HANDLE;
+    VkPipelineLayout blitPipelineLayout = VK_NULL_HANDLE;
+    VkPipeline blitPipeline = VK_NULL_HANDLE;
+
+    // Must match the GradePush block in post_process.frag.
+    struct GradePush { float exposure; int curve; float bloom; };
+    float m_gradeExposure = 8.0f;   // mirrors RenderCoordinator's calibrated default
+    int   m_gradeCurve = 1;         // 1 = AgX
+
+    // Bloom blurs at REDUCED resolution. 10 full-res gaussian passes cost ~11% of frame time; the
+    // blur is a low-frequency effect, so running it at half res is visually near-free and quarters
+    // the fill. The bright-pass downsample happens in the vkCmdBlitImage that seeds blurImages[0]
+    // (VK_FILTER_LINEAR), so it doubles as the box prefilter.
+    static constexpr uint32_t kBloomDownscale = 2;
+    uint32_t bloomWidth()  const { return (width  / kBloomDownscale) > 0 ? (width  / kBloomDownscale) : 1u; }
+    uint32_t bloomHeight() const { return (height / kBloomDownscale) > 0 ? (height / kBloomDownscale) : 1u; }
+
+    // Must match the PushConstants block in blur.frag.
+    struct BlurPush { int horizontal; float threshold; float knee; };
+// ⛔ BLOOM IS BROKEN -- DO NOT ENABLE. Confirmed by the user 2026-08-15: at any visible intensity it
+// produces SPOTS/BLOTCHES across the frame rather than a smooth glow. Default is 0 (off) and it must
+// stay that way until fixed.
+//
+// Suspected cause, NOT yet confirmed: isolated very bright pixels (the sky pass draws stars/airglow
+// from per-pixel hash noise; grass/character sub-pixel speckle is a known defect --
+// RenderOptimization.md:489,513) clear the bright-pass and each becomes a blob -- classic bloom
+// "fireflies". The half-res blur doubles the width of every blob, which is why they read as spots.
+// Likely fixes to try: clamp each bright-pass tap so one pixel cannot dominate the kernel; and/or
+// exclude the star/airglow term from what seeds bloom. Diagnose by measuring WHERE the on-vs-off
+// difference lands (per-region), not by eyeballing screenshots.
+    // Bloom. Threshold is in SCENE-REFERRED linear units, i.e. pre-exposure radiance -- only the sun,
+    // sky near it, emissives and specular hits clear 1.0. It has to sit above the diffuse range or
+    // bloom becomes the blurred-copy-of-everything that got it disabled the first time.
+    float m_bloomThreshold = 1.0f;
+    float m_bloomKnee = 0.5f;
+    float m_bloomIntensity = 0.0f;  // DEFAULT OFF and MUST STAY OFF -- see the banner above
 
     // Post Process Resources
     VkRenderPass postProcessRenderPass = VK_NULL_HANDLE;
@@ -195,6 +278,13 @@ private:
     bool createSceneFramebuffer();
     bool createBlurFramebuffers(uint32_t width, uint32_t height);
     bool createPostProcessRenderPass();
+    bool createGradeRenderPass();
+    bool createGradeResources();       // size-dependent: image + view + framebuffer
+    bool createBlitDescriptorSetLayout();
+    bool createBlitPipeline();
+    bool createBlitDescriptorSet();
+    void updateBlitDescriptor();       // re-point at gradeImageView (MUST run after every resize)
+    void beginGradeRenderPass(VkCommandBuffer commandBuffer);
     bool createDescriptorSetLayout();
     bool createBlurDescriptorSetLayout();
     bool createPipeline();

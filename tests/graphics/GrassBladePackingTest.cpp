@@ -40,6 +40,10 @@ using Phyxel::Graphics::GrassRenderPipeline;
 namespace {
 
 constexpr float kRadius = 224.0f;
+// NOT the shipped default (55 as of 2026-08-21; Params{} is the authority and
+// PackingBudgetHoldsAtShippedDefaults reads it live). 140 is kept as a deliberately DENSER
+// stress count — if packing holds at 140 it holds at every smaller count, since spacing is
+// monotone in N.
 constexpr uint32_t kDefaultBlades = 140;
 
 struct Root {

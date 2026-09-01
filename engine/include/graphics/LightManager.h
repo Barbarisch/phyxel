@@ -74,6 +74,21 @@ public:
 
     // --- GPU Upload ---
     /// Pack all enabled lights into the GPU buffer struct. Call once per frame before upload.
+    /// Origin that uploaded light positions are expressed RELATIVE TO.
+    ///
+    /// ⚠️ This exists because the renderer is camera-relative (docs/CameraRelativeRendering.md):
+    /// every position reaching the GPU is (world - camera), and `ubo.cameraPosition` is deliberately
+    /// zero. Light positions were being uploaded in ABSOLUTE world space and then subtracted from
+    /// camera-relative fragment positions, so every point and spot light was displaced by the
+    /// camera's own world position -- correct only near the origin, and increasingly wrong the
+    /// further a world extends. Both consumers (voxel.frag and character.frag) work in the relative
+    /// space, so relativizing here fixes them together.
+    ///
+    /// Subtraction happens on the CPU rather than in the shader on purpose: here both operands are
+    /// full-range and the result is small, whereas reconstructing an absolute fragment position on
+    /// the GPU would do the arithmetic at the worst possible magnitude.
+    void setViewerWorld(const glm::vec3& viewerWorld);
+
     const LightBufferGPU& getGPUData();
 
     /// Returns true if any lights have changed since the last getGPUData() call.
@@ -92,6 +107,7 @@ private:
     std::vector<PointLightEntry> pointLights_;
     std::vector<SpotLightEntry> spotLights_;
     int nextId_ = 1;
+    glm::vec3 viewerWorld_{0.0f};   ///< see setViewerWorld
     bool dirty_ = true;
     LightBufferGPU gpuBuffer_;
 

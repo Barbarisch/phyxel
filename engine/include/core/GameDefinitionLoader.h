@@ -123,6 +123,11 @@ struct GameDefinitionResult {
     bool cameraModeSet = false;  ///< definition's camera block carried an explicit "mode"
     std::string cameraRig;       ///< authored camera.mode name (incl overhead/isometric); resolve via Graphics::makeCameraRig
     std::string controlScheme;   ///< authored camera.controlScheme name; resolve via Input::makeControlScheme
+    /// Raw "sky" block from the definition, if present. NOT parsed here: turning it into
+    /// SkyBodies needs graphics/CelestialBody.h, and engine/core must not depend on
+    /// graphics. The caller applies it (see Application, load_game_definition).
+    json skyDefinition;
+    bool skyLoaded = false;
     bool storyLoaded = false;
 
     json toJson() const;

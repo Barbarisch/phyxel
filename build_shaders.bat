@@ -75,7 +75,7 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
-    echo Compiling sky shaders (atmosphere)...
+    echo Compiling sky shaders ^(atmosphere^)...
     %GLSLANG% -fshader-stage=vert -I. shaders\sky.vert -o shaders\sky.vert.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile sky vertex shader
@@ -121,7 +121,7 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
-    echo Compiling sky shaders (atmosphere)...
+    echo Compiling sky shaders ^(atmosphere^)...
     %GLSLANG% -fshader-stage=vert -I. shaders\sky.vert -o shaders\sky.vert.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile sky vertex shader
@@ -145,6 +145,7 @@ if defined USE_GLSLC (
 
     echo Compiling post-process fragment shader...
     %GLSLANG% -fshader-stage=frag -I. shaders\post_process.frag -o shaders\post_process.frag.spv
+    %GLSLANG% -fshader-stage=frag -I. shaders\blit.frag -o shaders\blit.frag.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile post-process fragment shader
         pause
@@ -380,7 +381,7 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
-    echo Compiling sky shaders (atmosphere)...
+    echo Compiling sky shaders ^(atmosphere^)...
     %GLSLANG% -V -I. shaders\sky.vert -o shaders\sky.vert.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile sky vertex shader
@@ -426,7 +427,7 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
-    echo Compiling sky shaders (atmosphere)...
+    echo Compiling sky shaders ^(atmosphere^)...
     %GLSLANG% -V -I. shaders\sky.vert -o shaders\sky.vert.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile sky vertex shader
@@ -466,6 +467,7 @@ if defined USE_GLSLC (
 
     echo Compiling post-process fragment shader...
     %GLSLANG% -V -I. shaders\post_process.frag -o shaders\post_process.frag.spv
+    %GLSLANG% -V -I. shaders\blit.frag -o shaders\blit.frag.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile post-process fragment shader
         pause
@@ -700,7 +702,7 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-    echo Compiling sky shaders (atmosphere)...
+    echo Compiling sky shaders ^(atmosphere^)...
     %GLSLANG% -V -I. shaders\sky.vert -o shaders\sky.vert.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile sky vertex shader
@@ -722,7 +724,7 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-    echo Compiling sky shaders (atmosphere)...
+    echo Compiling sky shaders ^(atmosphere^)...
     %GLSLANG% -V -I. shaders\sky.vert -o shaders\sky.vert.spv
     if %errorlevel% neq 0 (
         echo ERROR: Failed to compile sky vertex shader
@@ -931,6 +933,12 @@ if %errorlevel% neq 0 (
     pause
     exit /b 1
 )
+
+REM Record the source hashes these .spv were built from, so a later edit to a shared include
+REM (lighting.glsl is #included by eleven shaders) cannot silently leave them stale. See
+REM tools/shader_manifest.py -- this is the guard for the bug that shipped a pink world.
+python "%~dp0tools\shader_manifest.py" --update
+if %errorlevel% neq 0 echo WARNING: could not update shaders\shader_manifest.json ^(is python on PATH?^)
 
 echo All shaders compiled successfully!
 REM pause

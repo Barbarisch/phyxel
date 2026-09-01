@@ -62,6 +62,69 @@ the Vulkan Y-flip rides inside `camUp`), deliberately not from `inverse(viewProj
 reverse-Z with an infinite far plane, and un-projecting a clip point is three chances to get a
 convention wrong.
 
+### Apparent size of the sun and moon — a stylized choice
+Both bodies are drawn at **5× life size** (`kSunSizeScale`), i.e. ~2.7° across instead of ~0.5°. At
+true size each is a ten-pixel dot and the moon's phase is invisible; oversizing is the near-universal
+game convention for exactly that reason.
+
+⚠️ **Drawn size must not affect light timing.** The horizon fade — how fast direct sunlight dies as
+the sun dips — uses `kSunPhysicalAngularRadius`, not the stylized radius, because it models the real
+disc crossing the real horizon. Deriving it from the drawn size would leave the sun lighting the
+world ~2.7° below the horizon (shadows at dusk). Pinned by
+`AtmosphereTest.StylizedDiscSizeDoesNotAffectLightTiming` and `NoDirectSunlightBelowTheHorizon`.
+
+⚠️ Disc edge softening (`kDiscEdgeAngle`) is an **absolute angle**, not a fraction of the radius. As
+a fraction it scaled with the disc, so at 5× the antialiasing band was 5× wider and the sun read as a
+soft blob.
+
+### Configuring the sky — multiple suns and moons
+Celestial bodies are **data**, not two hardcoded cases (`graphics/CelestialBody.h`). A body is a
+disc with a size, an orbit, and a way of getting its light: it either **emits** (a star) or
+**reflects** another body's light (a moon, which therefore has phases).
+
+Author it in `game.json`:
+
+```json
+"sky": { "bodies": [
+  { "name": "sun",  "angularDiameterDeg": 2.7, "emissive": true,  "periodDays": 1.0 },
+  { "name": "luna", "angularDiameterDeg": 7.0, "emissive": false, "litBy": 0,
+    "albedo": 0.12, "lightScale": 0.25,
+    "periodDays": 1.037, "phaseOffset": 0.5,  "tint": [0.62, 0.78, 1.0] },
+  { "name": "rust", "angularDiameterDeg": 4.5, "emissive": false, "litBy": 0,
+    "albedo": 0.18, "lightScale": 0.25,
+    "periodDays": 0.7,  "phaseOffset": 0.62, "planeTiltDeg": 28.0,
+    "tint": [1.0, 0.45, 0.30] }
+]}
+```
+
+| Field | Meaning |
+|---|---|
+| `angularDiameterDeg` | Drawn size. Real bodies are ~0.5°; the default 2.68 is 5× life, deliberately. |
+| `discBrightness` | Disc brightness. Defaults to 24 for a star, **2.2 for a reflective body** — a star's value on a moon clips the disc to white and destroys its tint. |
+| `tint` | Colour of both the disc and the light it gives. |
+| `emissive` / `litBy` | A star, or lit by body index `litBy` (`-1` = the first star). |
+| `albedo`, `lightScale` | Reflectance, and the honest cheat knob for how much light it delivers. |
+| `castsLight` | `false` = drawn but contributes no light at all. |
+| `periodDays` | Days per circuit. 1.0 = once per in-game day. |
+| `phaseOffset` | Where in the circuit it starts, in turns. At `periodDays: 1`, this **is** the phase. |
+| `planeTiltDeg` | Tilt out of the sun's plane, so a body traces a visibly different arc. |
+
+Live tuning, no rebuild — `POST /api/debug/sky`:
+`{"reset": true}` · `{"sizeScale": 2.0}` · `{"bodies": [...]}`. Always responds with the resulting
+list, so it also serves as a query.
+
+⚠️ **Only ONE body can cast shadows.** The cascades are fitted to a single direction, so the
+brightest light-contributing body currently *above the horizon* owns them and every other body adds
+**unshadowed** light. On a moonless night there is no caster and the cascades are left alone rather
+than fitted to a light below the ground.
+
+⚠️ **The sky's scattering follows the primary STAR, never the dominant light.** "What lights the
+ground right now" becomes the moon at night; "what illuminates the atmosphere" is always the sun.
+Conflating them renders a full daylight sky at midnight.
+
+⚠️ Missing, empty or malformed `sky` falls back to the default sun + moon. A world with no sun is
+never what was meant.
+
 ### The moon
 `DayNightCycle` places the moon by lagging the sun's hour angle by `2*pi*phase`, with the phase from
 WorldClock's 28-day cycle — so a **full moon rises at sunset because the geometry says so**. The
@@ -209,17 +272,57 @@ Blinn-Phong, mid cascade only) and the water shaders. They will read brighter th
 
 ## 6. Post-processing
 
-`shaders/post_process.frag` composites scene colour + OIT transparency and nothing else. The
-swapchain is `B8G8R8A8_SRGB`, so the hardware applies the linear→sRGB encode — **do not add a manual
-`pow(1/2.2)`**.
+**The grade pass (shipped 2026-08-15, `94927b07`).** `shaders/post_process.frag` composites scene
+colour + OIT transparency **and applies the frame's single tone map**, rendering into an offscreen
+*grade image* rather than straight to the swapchain. The swapchain pass is then a plain blit
+(`shaders/blit.frag`), and the **editor viewport samples the same grade image**
+(`PostProcessor::getGradeImageView()`), so the editor and a packaged game show identical composited
+pixels. That permanently retires the class of bug where a post-process defect shipped invisible to
+the editor — which is why bloom, SSAO and the tone map sat disabled for so long.
 
-Disabled, with resources still bound so the pipeline layout is unchanged:
-- **bloom** — the blur input has no brightness threshold, so it added a blurred copy of the whole
-  frame (~2× brightness).
-- **SSAO** — depth-derivative normals degenerate at grazing angles and draw a dark band across
-  screen centre. `PostProcessor.h ssaoEnabled = false`, and nothing consumes its output.
+The swapchain is `B8G8R8A8_SRGB`, so hardware applies the linear→sRGB encode — **do not add a manual
+`pow(1/2.2)`** anywhere in this pass. Double gamma was a real shipped bug.
 
-Re-enable either only once it renders in the editor preview too.
+⚠️ **The editor does NOT call `PostProcessor::draw()`.** `RenderCoordinator` inlines the sequence so
+it can slot ImGui into the swapchain pass, so the composite must be driven via
+`compositeToGrade()` + `drawBlit()`. This trap bit twice: first leaving the grade image unwritten
+(blank viewport), then leaving `renderBloom` uncalled (bloom a silent no-op at any intensity).
+`compositeToGrade()` therefore **owns** the bloom pass, so both call sites are correct by
+construction. Do not move it back out.
+
+### ⛔ Bloom is BROKEN — do not enable
+
+Confirmed by the user 2026-08-15: at any visible intensity bloom produces **spots / blotches across
+the frame** rather than a smooth glow. It ships **off** (`bloom = 0.0`) and must stay off. The knob
+remains live purely so it can be debugged, and `POST /api/debug/tonemap` returns a `warning` field
+whenever intensity is set above zero.
+
+What *is* built and believed correct:
+- a soft-knee **bright-pass** on the first blur iteration only (re-thresholding every pass erodes the
+  highlight to nothing);
+- **R16F** blur targets — they were `R8G8B8A8_UNORM`, which clamped every highlight to 1.0 at the
+  seeding blit, so bloom could not tell the sun from a white wall;
+- the threshold is authored in **post-exposure** units (1.0 = "this would clip") and divided by
+  exposure before reaching the shader, because the scene target holds *physical radiance* where a lit
+  noon surface is ~0.02–0.2;
+- the blur chain runs at **half resolution** (`kBloomDownscale`), which took the cost from ~11% to
+  ~6% of frame time.
+
+Suspected cause of the spots, **not yet confirmed**: isolated very bright pixels survive the
+bright-pass and each becomes a blob — classic **fireflies**. Candidate sources are the sky pass's
+stars/airglow (per-pixel hash noise) and the known grass/character sub-pixel speckle
+(`RenderOptimization.md:489,513`). The half-res blur doubles the width of every blob, which is why
+they read as *spots* rather than fine sparkle. First things to try: clamp each bright-pass tap so one
+pixel cannot dominate the kernel, and/or exclude the star/airglow term from what seeds bloom.
+
+**Diagnose it by measuring, not by looking.** An earlier claim that the spots were "only in the sky"
+came from eyeballing two screenshots and is unverified. Measure *where* the bloom-on vs bloom-off
+difference lands, per region — and always against a control, because this scene animates (see §7).
+
+### SSAO — still disabled
+Depth-derivative normals degenerate at grazing angles and draw a dark band across screen centre.
+`PostProcessor.h ssaoEnabled = false`, and nothing consumes its output. A forward renderer has no
+normal buffer; fixing it properly means adding a normal attachment to the scene pass.
 
 ---
 
@@ -239,6 +342,26 @@ Use the rig; do not judge by eye.
 ⚠️ Identical statistics across *different* scene states mean a **stale frame**, not a result. Settle
 ≥ 2.5 s and take two screenshots, keeping the second.
 
+### What the sky pass costs — measured, RELEASE
+Toggle it with `POST /api/debug/sky {"enabled": false}`; that toggle exists **to make this
+measurable**, since the pass otherwise always draws and there is nothing to subtract.
+
+LightingLab, Release, 1600×900, median of 20 samples per state, sky ON minus sky OFF:
+
+| Pose | Δ frame time |
+|---|---|
+| Looking up (most of the frame is raymarched sky) | **+0.10 ms** |
+| Horizon (realistic gameplay mix) | **+0.15 ms** |
+| Looking down (geometry covers nearly all sky pixels) | **+0.03 ms** |
+
+**≈0.1 ms — negligible.** A full-screen 12-step view march with a 5-step inner sun march was the
+obvious thing to suspect, and it is not worth optimising: a sky-view LUT would buy back a tenth of a
+millisecond. If the LUT is ever built it should be for **accuracy** (multiple scattering, the blue
+hour), not for speed.
+
+⚠️ `/api/debug/engine_timing` reports identical `cpuFrameTime` and `gpuFrameTime`, so these are
+frame times, **not** an isolated GPU measurement. Treat the split as unmeasured.
+
 **Reference measurements** (LightingLab, exposure 8, AgX, viewport region): noon exterior mean 0.145
 with 0.00 % clipped; golden hour 0.160; hearth interior 0.245 with 0.00 % clipped (was **29.72 %**
 before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
@@ -251,9 +374,10 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 |---|---|
 | **Blue hour** | Single scattering cannot produce it — the twilight zenith measures B/R = 0.94. Needs a multiple-scattering LUT. Pinned as `DISABLED_TwilightZenithIsBlue_NeedsMultipleScattering`. |
 | **Moon shadows** | Moonlight is unshadowed; the cascades are fitted to the sun. Fitting to the dominant body earns real moon shadows. |
-| **No stars / airglow** | A new-moon night is genuinely black. |
+| ~~No stars / airglow~~ | SHIPPED — stars + airglow render. Note they are a *suspect* in the bloom spots (§6). |
 | **No real AO** | AO is implicit in the skylight nibbles, so it vanishes outdoors (sky = 15) and indoors (sky = 0). A dedicated per-corner AO channel fits in the 16 spare bits of `light2`/`light3`. |
-| **No editor-visible grade pass** | Blocks bloom, AA and a proper post-process tone map. |
+| **Bloom produces spots** | ⛔ BROKEN, ships off. Spots/blotches instead of a glow; suspected fireflies from bright single pixels (sky star/airglow noise, grass speckle), widened by the half-res blur. See §6. |
+| **No AA** | The grade pass now exists, so FXAA/TAA is unblocked but not built. |
 | **Point lights** | See §4 — unshadowed, wrong coordinate space, double-counted, not persisted. |
 | **Metals** | No environment/IBL term, so they read dark except in direct light. |
 | **T-junction cracks / character speckle** | Open render defects at greedy-merge borders; see `RenderOptimization.md`. |

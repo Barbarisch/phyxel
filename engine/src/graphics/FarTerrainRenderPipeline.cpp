@@ -252,6 +252,20 @@ void FarTerrainRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2
     viewportState.sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewportState.viewportCount = 1;
     viewportState.pViewports    = &viewport;
+    // DYNAMIC viewport/scissor. The extent captured above is only a creation-time default: this
+    // pipeline is created ONCE and never re-created, so a baked viewport goes stale the instant the
+    // window resizes and this pass then rasterises at the OLD size while the main chunk pipeline
+    // (which was always dynamic) uses the new one. That is what made tree foliage detach from its
+    // trunks after a resize. Both are now set once per render pass -- see PostProcessor's
+    // begin*RenderPass -- and every pipeline drawn in that pass inherits them.
+    // Shadow pipelines deliberately keep a STATIC viewport: they render into a fixed-size shadow
+    // map, so the baked extent is correct there.
+    VkDynamicState dynStates[2] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    VkPipelineDynamicStateCreateInfo dynState{};
+    dynState.sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynState.dynamicStateCount = 2;
+    dynState.pDynamicStates    = dynStates;
+
     viewportState.scissorCount  = 1;
     viewportState.pScissors     = &scissor;
 
@@ -329,6 +343,8 @@ void FarTerrainRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2
     pipelineInfo.layout              = m_pipelineLayout;
     pipelineInfo.renderPass          = renderPass;
     pipelineInfo.subpass             = 0;
+    pipelineInfo.pDynamicState = &dynState;
+
     if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipeline) != VK_SUCCESS) {
         throw std::runtime_error("failed to create FarTerrainRenderPipeline");
     }

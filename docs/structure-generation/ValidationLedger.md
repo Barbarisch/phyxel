@@ -121,10 +121,32 @@ floor scan, paths…).
 
 Validate when each lands; required layer noted so the plan is set up front.
 
-- **Settlement (38–49):** layout placers → **L2** (no overlap, fit): **`site_settlement` 38 — 🟡 partial**
-  (2026-07-09: `chooseStreetAxis` picks the flattest straight spine alignment over a `BuildabilityMap` —
-  `MainStreetLayoutTest.ChooseStreetAxisFindsTheFlatValley`; "why-here" site JUSTIFICATION + growth
-  seed still M), **`subdivide_plots` 40 — ✅ L2** (`SettlementLayoutTest`: plots no-overlap + street-gap + fit + min;
+- **Settlement (38–49):** layout placers → **L2** (no overlap, fit): **`site_settlement` 38 — ✅ L2 at
+  WORLD scale (2026-08-16, WorldForge — docs/WorldForge.md)**: `WorldForgePlan::bake` scores hydrology-grid
+  candidates on footprint-window relief / water proximity / surface hostility with deterministic greedy
+  selection + spacing constraints and a derived per-site seed — `WorldForgePlanTest` (13 L2 invariants on
+  real bake output over a dendritic-valley fixture, red-before-green vs a stub bake: determinism,
+  dry/spacing/region/clamp, road connectivity via union-find, standing-water avoidance, order≥3 crossing
+  records, honest degradation on an all-ocean region). Within-footprint street-axis half remains the
+  2026-07-09 `chooseStreetAxis` (`MainStreetLayoutTest.ChooseStreetAxisFindsTheFlatValley`); road-arrival
+  orientation still M (StructurePipelineGaps 2026-08-16). **NEW row — inter-settlement roads (WorldForge
+  M1) — ✅ L2 + L4**: generation-time road field (`ColumnSample.roadClass`, riverOrder pattern) —
+  `RoadFieldSeamTest` (stamp invariant, river/sea exclusivity, generator-copy identity, flora gate — all
+  red-first) + live gravel-band scan on the WorldForgeTest world. **NEW row — realization ledger
+  (WorldForge M2) — ✅ L3**: `WorldForgeBuildFlowTest` (headless state machine: tier-ordered builds,
+  refusals recorded not thrown, residency_timeout bounded, idempotent re-run, site filter — red-first vs
+  a stub orchestrator). **NEW row — `place_bridges` 44 (WorldForge, docs/WorldForge.md "Bridges") — ✅ L2 +
+  L3 + L4 (2026-08-17..20)**: deck emission + carve-accurate crossing detection (`CrossingsGetBridgeSpans`,
+  `BridgeDeckEmittedOverOrder3Channel`, both red-first); rails/piers (`BridgeRailsGuardDeckEdgesAndPiersReachTheBed`
+  — ≥80% per-side edge coverage + zero walkway intrusions, the intrusion assertion caught the
+  endpoint-arc rail bug live; `BridgePiersStandSolidOnALongSpan` — solid at every level, mountain fixture);
+  **L3** `BridgeCrossingIsAgentWalkable` (TraversalProbe bank-to-bank with 1-cube hop, STRICT walker between
+  the parapets, sensitivity control that must fail on a walkway wall) + `GradedRoadsAreStepWalkableOnMountains`
+  (road GRADING with two-sided deck pins: 0/6656 centerline walk-surface steps over 1 cube on the mountain
+  8-site network, red-first at 45 → 3 → 1 → 0; superseded the short-lived abutment ramp); **L4** live
+  Release scan+screenshots (BridgeVis: 5-wide deck y=65, both parapets, hover probe Subcube/WoodPlanks —
+  docs/evidence/bridge_rails_*.png). Owed: >96 u channels undecked, flat decks, parapet post rhythm.
+  **`subdivide_plots` 40 — ✅ L2** (`SettlementLayoutTest`: plots no-overlap + street-gap + fit + min;
   street[] artifact tested; auditor PASS), `zone_districts` 41, `place_town_wall` 42, `place_public_spaces`
   43, **`populate_plots` 45 — ✅ L2** (one building/plot inset by yard, composed-world non-overlap, setback=0
   boundary; auditor PASS), `compose_compound` 46. Circulation → **L3** (traversable/connected):

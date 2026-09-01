@@ -43,10 +43,19 @@ const float kOzoneCenter        = 25000.0;
 const float kOzoneWidth         = 15000.0;
 
 const vec3  kSolarIrradiance    = vec3(1.0, 0.97, 0.92);
-const float kSunAngularRadius   = 0.004675;
-const float kMoonAngularRadius  = 0.004525;
+// Apparent size of the sun and moon: a deliberate STYLIZED choice, 5x life size. At true size both
+// are ~0.5 deg -- a ten-pixel dot -- and the moon's per-pixel phase terminator is invisible. See the
+// full note in Atmosphere.h. kSun/kMoonPhysicalAngularRadius are the real values, kept because the
+// HORIZON FADE must stay physical: how fast sunlight dies as the sun sets cannot depend on how big
+// we chose to draw it.
+const float kSunSizeScale             = 5.0;
+const float kSunPhysicalAngularRadius = 0.004675;
+const float kMoonPhysicalAngularRadius = 0.004525;
+const float kSunAngularRadius   = 0.023375;   // = kSunPhysicalAngularRadius  * kSunSizeScale
+const float kMoonAngularRadius  = 0.022625;   // = kMoonPhysicalAngularRadius * kSunSizeScale
 const float kMoonAlbedo         = 0.12;
 const vec3  kMoonlightTint      = vec3(0.62, 0.78, 1.0);
+const vec3  kAirglow            = vec3(0.000022, 0.000034, 0.000037);
 const float kMoonlightScale     = 0.25;
 
 // ---- Look constants: rendering-only, no CPU counterpart, deliberately not physical ------------
@@ -57,8 +66,18 @@ const float kMoonlightScale     = 0.25;
 // setting sun's disc reddens on its own.
 const float kSunDiscBrightness  = 24.0;
 const float kMoonDiscBrightness = 2.2;
-// Softening of the disc edge as a fraction of angular radius, for anti-aliasing.
-const float kDiscEdgeSoftness   = 0.14;
+// Disc edge softening for anti-aliasing, as an ABSOLUTE ANGLE in radians (~1.3 px at a typical
+// field of view). It used to be a FRACTION of the radius, which was fine at life size but scales
+// with the disc: at 5x the stylized size that fraction became a 5x wider blur in angle, turning a
+// crisp sun into a soft blob. An absolute angle keeps the edge the same sharpness at any disc size.
+const float kDiscEdgeAngle      = 0.0009;
+
+// Stars. Rendering-only, no CPU counterpart -- they are points of light in the sky, not a term in
+// the light the world receives.
+const float kStarDensity    = 340.0;   // cells across the sphere: higher = more, smaller stars
+const float kStarThreshold  = 0.92;    // fraction of cells with NO star (higher = sparser)
+const float kStarBrightness = 0.010;
+const float kStarSize       = 0.055;   // angular radius as a fraction of a cell
 
 const int   kViewSteps = 12;
 const int   kSunSteps  = 5;
@@ -140,7 +159,8 @@ float phxPhaseMie(float mu, float g) {
 // Smooth the horizon crossing over roughly the sun's angular diameter, so the key light fades
 // instead of snapping off between two frames.
 float phxHorizonFade(float sinElevation) {
-    float band = kSunAngularRadius * 2.0;
+    // PHYSICAL radius, not the stylized drawn one -- see the size note above.
+    float band = kSunPhysicalAngularRadius * 2.0;
     return smoothstep(0.0, 1.0, clamp((sinElevation + band) / (2.0 * band), 0.0, 1.0));
 }
 
@@ -198,6 +218,42 @@ vec3 phxSkyRadiance(vec3 dir, vec3 toSun, float altitudeM) {
     return kSolarIrradiance * (sumR * kRayleighScattering * pr + sumM * vec3(kMieScattering) * pm);
 }
 
+// ---- Stars ------------------------------------------------------------------------------------
+
+float phxHash13(vec3 p) {
+    p = fract(p * 0.1031);
+    p += dot(p, p.yzx + 33.33);
+    return fract((p.x + p.y) * p.z);
+}
+
+/// Procedural starfield. The view direction is quantised into cells on the sphere and a jittered
+/// star is placed in some of them, so stars are a function of WORLD direction and therefore stay
+/// fixed to the sky as the camera turns -- a screen-space starfield swims, which reads instantly as
+/// wrong. No texture, no vertex data.
+///
+/// `skyLuma` fades them out as the sky brightens, so daylight hides them without any explicit
+/// time-of-day test: the sky's own radiance is the mask.
+vec3 phxStars(vec3 dir, float skyLuma) {
+    vec3 p = dir * kStarDensity;
+    vec3 cell = floor(p);
+    float h = phxHash13(cell);
+    if (h < kStarThreshold) return vec3(0.0);
+
+    vec3 jitter = vec3(phxHash13(cell + 1.7), phxHash13(cell + 3.1), phxHash13(cell + 5.3));
+    vec3 starDir = normalize(cell + jitter);
+    float d = length(dir - starDir);
+    float core = 1.0 - smoothstep(0.0, kStarSize / kStarDensity * 6.0, d);
+    if (core <= 0.0) return vec3(0.0);
+
+    // Vary brightness and a little colour per star, so the field does not read as uniform dots.
+    float mag = 0.35 + 0.65 * phxHash13(cell + 11.3);
+    float warm = phxHash13(cell + 7.9);
+    vec3 tint = mix(vec3(0.80, 0.86, 1.0), vec3(1.0, 0.88, 0.75), warm);
+
+    float dayFade = 1.0 / (1.0 + skyLuma * 900.0);
+    return tint * (core * core * mag * kStarBrightness * dayFade);
+}
+
 // ---- Celestial bodies ------------------------------------------------------------------------
 
 /// Antialiased coverage of a disc of angular radius `radius` centred on `bodyDir`.
@@ -205,7 +261,7 @@ float phxDiscCoverage(vec3 dir, vec3 bodyDir, float radius) {
     float cosAng = dot(normalize(dir), bodyDir);
     // Work in angle rather than cosine so the soft edge has a constant angular width.
     float ang = acos(clamp(cosAng, -1.0, 1.0));
-    return 1.0 - smoothstep(radius * (1.0 - kDiscEdgeSoftness), radius * (1.0 + kDiscEdgeSoftness), ang);
+    return 1.0 - smoothstep(radius - kDiscEdgeAngle, radius + kDiscEdgeAngle, ang);
 }
 
 /// The sun's disc, already reddened by the same transmittance that colours the directional light,
@@ -255,12 +311,66 @@ vec3 phxMoonDisc(vec3 dir, vec3 toMoon, vec3 toSun, float altitudeM) {
          * phxTransmittanceToSun(toMoon, altitudeM);
 }
 
-/// Everything behind the geometry: sky plus both bodies. `toMoon` may be any direction; the moon
-/// simply contributes nothing while it is below the horizon (its transmittance is zero there).
-vec3 phxAtmosphere(vec3 dir, vec3 toSun, vec3 toMoon, float altitudeM) {
-    vec3 c = phxSkyRadiance(dir, toSun, altitudeM);
-    c += phxSunDisc(dir, toSun, altitudeM);
-    c += phxMoonDisc(dir, toMoon, toSun, altitudeM);
+/// A GENERIC celestial body disc — the one function that draws suns and moons alike.
+///   bodyDir   unit vector TOWARD the body
+///   radius    drawn angular radius (radians)
+///   discColor colour x brightness
+///   litDir    unit vector toward whatever illuminates it (ignored when not reflective)
+///   reflective 1 = has a phase (a moon), 0 = emits its own light (a star)
+/// Reflective bodies get their terminator from GEOMETRY: the sphere's normal at each pixel tested
+/// against litDir. Nothing passes a phase in, so the drawn phase can never disagree with where the
+/// bodies actually are.
+vec3 phxBodyDisc(vec3 dir, vec3 bodyDir, float radius, vec3 discColor,
+                 vec3 litDir, float reflective, float altitudeM) {
+    float cov = phxDiscCoverage(dir, bodyDir, radius);
+    if (cov <= 0.0) return vec3(0.0);
+
+    vec3 d = normalize(dir);
+    float ang = acos(clamp(dot(d, bodyDir), -1.0, 1.0));
+
+    float shade;
+    if (reflective > 0.5) {
+        // Tangent frame on the disc; reconstruct the sphere normal at this pixel.
+        vec3 up = abs(bodyDir.y) > 0.99 ? vec3(1.0, 0.0, 0.0) : vec3(0.0, 1.0, 0.0);
+        vec3 tx = normalize(cross(up, bodyDir));
+        vec3 ty = cross(bodyDir, tx);
+        float u = dot(d, tx) / radius;
+        float v = dot(d, ty) / radius;
+        float r2 = u * u + v * v;
+        if (r2 > 1.0) return vec3(0.0);
+        vec3 n = normalize(tx * u + ty * v - bodyDir * sqrt(max(0.0, 1.0 - r2)));
+        float lit = max(0.0, dot(n, litDir));
+        // Soft terminator (the real one is not razor sharp and a hard step aliases badly at this
+        // angular size) plus a little earthshine so the dark limb stays faintly present.
+        shade = smoothstep(0.0, 0.12, lit) * (0.06 + 0.94 * lit);
+    } else {
+        // Limb darkening: a star is measurably dimmer at its edge, which is what stops it reading
+        // as a flat sticker.
+        float r = clamp(ang / radius, 0.0, 1.0);
+        shade = 0.6 + 0.4 * sqrt(max(0.0, 1.0 - r * r));
+    }
+
+    // Every body is reddened by the same transmittance that colours the light it casts, so a setting
+    // sun and the light it throws can never disagree.
+    return discColor * shade * cov * phxTransmittanceToSun(bodyDir, altitudeM);
+}
+
+/// Everything behind the geometry: the scattered sky plus every body.
+/// `toSun` drives the SKY's scattering (the primary star); the bodies draw themselves.
+vec3 phxAtmosphereBodies(vec3 dir, vec3 toSun, float altitudeM,
+                         vec4 dirRadius[4], vec4 disc[4], vec4 litDir[4], int count) {
+    vec3 c = phxSkyRadiance(dir, toSun, altitudeM) + kAirglow;
+
+    // Stars sit BEHIND everything else in the sky and fade against the sky's own brightness, so no
+    // time-of-day test is needed. Faded out below the horizon too: there is no sky down there, and
+    // in a world without terrain to cover it the starfield would otherwise wrap under the viewer.
+    float skyLuma = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    float aboveHorizon = smoothstep(-0.04, 0.06, dir.y);
+    if (aboveHorizon > 0.0) c += phxStars(dir, skyLuma) * aboveHorizon;
+    for (int i = 0; i < count && i < 4; ++i) {
+        c += phxBodyDisc(dir, dirRadius[i].xyz, dirRadius[i].w, disc[i].rgb,
+                         litDir[i].xyz, disc[i].w, altitudeM);
+    }
     return c;
 }
 

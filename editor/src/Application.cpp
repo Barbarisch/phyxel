@@ -64,6 +64,10 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/Chunk.h"
 #include "core/LodChunkMesh.h"
 #include "core/WorldGenerator.h"
+#include "core/WorldForgeBuildService.h"
+#include "core/WorldForgeLedger.h"
+#include "core/WorldForgePlan.h"
+#include "core/WorldRecipe.h"
 #include "core/HydrologyMap.h"
 #include "core/WaterProfile.h"   // v4 W3: derived-profile probe in water_look
 #include "core/WaterOccupancy.h" // grounded water grid: buildOpenWaterSpan decides per-column wetness
@@ -76,6 +80,8 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/AssetManager.h"
 #include "core/GameDefinitionLoader.h"
 #include "core/CharacterVisualResolver.h"  // race/preset -> animFile+appearance (single spawn path)
+#include "core/MonsterDefinition.h"        // stat blocks for spawn_encounter
+#include "core/MonsterVisualRegistry.h"    // monsterId -> rig binding (spawn_encounter)
 #include "core/StructureGenerator.h"
 #include "core/StructureBuildService.h"
 #include "core/SettlementBuildService.h"
@@ -491,6 +497,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // if-chain). Handlers read subsystems (waterManager, …) lazily at dispatch, so order is free.
     registerWaterCommands();
     registerSettlementCommands();
+    registerWorldForgeCommands();
     registerDoorCommands();
     registerLightCommands();
     registerSnapshotCommands();
@@ -1985,6 +1992,20 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             // Item props restored from the DB need their kinematic render groups back.
             if (itemPropManager) itemPropManager->rebuildFromPlacedObjects();
 
+            // Restore persisted world locations (world_meta["locations"]): the
+            // ResidentSpawner re-derives every settlement's townsfolk from these, so a
+            // reloaded world keeps its residents without persisting a single NPC.
+            if (locationRegistry && ws->hasMeta("locations")) {
+                try {
+                    locationRegistry->fromJson(nlohmann::json::parse(ws->getMeta("locations")));
+                    LOG_INFO_FMT("Application", "Locations restored from world.db: "
+                                 << locationRegistry->size());
+                } catch (const std::exception& e) {
+                    LOG_WARN_FMT("Application", "world_meta locations failed to parse: "
+                                 << e.what() << " (residents will not respawn)");
+                }
+            }
+
             // Respawn runtime-spawned entities (Phase 2b) with their persisted uuids, via the
             // same factory spawn_entity uses. createAnimatedCharacter rebinds `animatedCharacter`
             // (it's the player factory), so save/restore it — the authored player is set up
@@ -2869,6 +2890,9 @@ void Application::run() {
                 m_cameraPanel->render(&m_showCameraPanel);
             }
 
+            // World Map panel (WorldForge minimap, in-engine)
+            renderWorldMapPanel();
+
 #ifdef _WIN32
             // Render terminal panel as a dockable window
             if (m_terminalPanel && m_showTerminal) {
@@ -3532,6 +3556,19 @@ void Application::update(float deltaTime) {
         }
     }
 
+    // Settlement residents as a streaming population (ResidentSpawner): spawn where a
+    // location's ground is resident, despawn on evict, respawn identically on return —
+    // driven by the PERSISTED LocationRegistry, so reloaded worlds keep their townsfolk.
+    // Works in any world with locations (streaming or fixed).
+    if (npcManager && chunkManager && locationRegistry) {
+        if (!m_residentSpawnerConfigured) {
+            m_residentSpawner.configure(&*locationRegistry, npcManager.get(), chunkManager);
+            m_residentSpawner.setEnabled(true);
+            m_residentSpawnerConfigured = true;
+        }
+        m_residentSpawner.update(deltaTime);
+    }
+
     // Update combat system (invulnerability timers)
     if (combatSystem) {
         combatSystem->update(deltaTime);
@@ -3760,6 +3797,34 @@ void Application::update(float deltaTime) {
             if (it != entities.end()) entities.erase(it, entities.end());
             animatedCharacter = nullptr;
         }
+    }
+
+    // Per-frame jitter trace (diagnostic, cheap): ring buffer of the character + camera
+    // positions at FRAME rate — API polling is ~10 Hz and rounds, which hid a per-frame
+    // oscillation during the third-person jitter hunt. Dumped by the "frame_trace"
+    // command; whichever series oscillates per frame names the culprit.
+    {
+        auto& ring = m_frameTrace;
+        FrameTraceSample s;
+        s.frame = m_frameTraceCounter++;
+        if (animatedCharacter) {
+            s.charPos = animatedCharacter->getPosition();
+            // One RENDER input too: the first active part's world position. The entity
+            // position proved frozen while the rendered character visibly jittered, so
+            // the oscillator (if CPU-side) must live in the part/bone transforms the
+            // instance build consumes.
+            for (const auto& p : animatedCharacter->getParts()) {
+                if (!p.active) continue;
+                s.partPos = p.worldPos;
+                break;
+            }
+        }
+        if (camera) {
+            s.camPos = camera->getPosition();
+            s.camYaw = camera->getYaw();
+        }
+        s.dtMs = deltaTime * 1000.0f;
+        ring[s.frame % kFrameTraceLen] = s;
     }
 
     // Camera sync
@@ -4084,11 +4149,17 @@ void Application::update(float deltaTime) {
     
     // NOTE: Frustum culling is now handled in renderStaticGeometry()
 
-    // Sync Camera to InputManager for other systems (Audio, Scripts, etc.)
-    // Only sync if NOT in Free mode, otherwise InputManager is the master
+    // Sync the camera POSITION to InputManager for other systems (audio listener, scripts).
+    // ⚠️ Never write yaw/pitch back here: the input yaw is the MOUSE-LOOK ACCUMULATOR, and
+    // this block runs late in the frame — any mouse deltas that arrived after the camera
+    // took its yaw were ERASED by the write-back, reverting the view by exactly those
+    // counts. Measured live (frame trace, third-person orbit): backward yaw kicks of
+    // 1-4 degrees — all multiples of the 0.3° mouse quantum — punctuating a steady drag,
+    // i.e. the long-standing "character jitters in third person, never in Free cam" (Free
+    // skipped this block, which is why it was immune). Yaw/pitch sync on MODE SWITCHES
+    // (toggleCameraMode) is the correct, race-free place and already exists.
     if (camera && inputManager && camera->getMode() != Graphics::CameraMode::Free) {
         inputManager->setCameraPosition(camera->getPosition());
-        inputManager->setYawPitch(camera->getYaw(), camera->getPitch());
     }
 
     // Update view and projection matrices for Vulkan rendering
@@ -6119,6 +6190,13 @@ void Application::autoLoadGameDefinition() {
         };
 
         auto result = Core::GameDefinitionLoader::load(gameDef, subsystems);
+    // Apply the definition's "sky" block, if it carried one. The loader deliberately passes it
+    // through unparsed (engine/core must not depend on graphics), so this is where a game project's
+    // celestial bodies actually take effect. Absent = keep the default sun + moon.
+    if (result.skyLoaded && renderCoordinator) {
+        renderCoordinator->setSkyBodies(Graphics::SkyBodies::fromJson(result.skyDefinition));
+    }
+
         if (result.success) {
             LOG_INFO("Application", "Game definition loaded: {} chunks, {} structures, {} NPCs", result.chunksGenerated, result.structuresPlaced, result.npcsSpawned);
 
@@ -12787,6 +12865,631 @@ void Application::registerSettlementCommands() {
     });
 }
 
+// worldforge_* — world-scale planning commands (docs/WorldForge.md M0). The plan itself is
+// engine-side (WorldForgePlan, baked by the streaming WorldGenerator); the editor exposes
+// preview/apply/status/map. All commands require a streaming world (hydrology + the plan
+// live on the streaming generator).
+void Application::registerWorldForgeCommands() {
+    auto& reg = m_commandRegistry;
+
+    auto streamingGen = [this]() -> Phyxel::WorldGenerator* {
+        return chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+    };
+    auto noGen = [](nlohmann::json& r) {
+        r = {{"error", "worldforge requires a streaming world (game.json world.streaming: true)"}};
+    };
+
+    // Pure preview: bake a plan for the given params (or report the applied one) — NO world
+    // mutation, no recipe write. Empty params → the currently applied plan.
+    reg.on("worldforge_plan", [this, streamingGen, noGen](const Core::APICommand& cmd,
+                                                          nlohmann::json& r) {
+        Phyxel::WorldGenerator* g = streamingGen();
+        if (!g) return noGen(r);
+        if (cmd.params.empty()) {
+            if (const Phyxel::WorldForgePlan* p = g->worldForge()) {
+                r = {{"success", true}, {"applied", true}, {"plan", p->toJson()},
+                     {"plan_hash", std::to_string(p->planHash())}};
+            } else {
+                r = {{"success", true}, {"applied", false},
+                     {"message", "worldforge disabled for this world; pass params to preview"}};
+            }
+            return;
+        }
+        nlohmann::json pj = cmd.params;
+        if (!pj.contains("enabled")) pj["enabled"] = true;
+        const auto t0 = std::chrono::steady_clock::now();
+        auto plan = g->previewWorldForge(Phyxel::WorldForgeParams::fromJson(pj));
+        if (!plan) {
+            r = {{"error", "no hydrology bake on this world (heightmap/Flat worlds have no "
+                           "worldforge plan — logged gap)"}};
+            return;
+        }
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now() - t0).count();
+        r = {{"success", true}, {"applied", false}, {"plan", plan->toJson()},
+             {"plan_hash", std::to_string(plan->planHash())}, {"bake_ms", ms}};
+    });
+
+    // Persist params into the world recipe (world.db world_meta) and — when the world has
+    // NO saved chunks — apply LIVE: stop the gen workers (fresh generator snapshots are
+    // re-taken from the live generator on the next pump), evict every resident chunk
+    // through the deferred-deletion teardown, drop the stale derived caches, refresh the
+    // far-terrain mesher's private generator copy, and let the pump re-stream the world
+    // under the new plan. No restart. Falls back to restart_required only for the force
+    // path on a world with saved chunks (re-streaming those would destroy built
+    // settlements / player edits — the seam warning stands).
+    reg.on("worldforge_apply", [this, streamingGen, noGen](const Core::APICommand& cmd,
+                                                           nlohmann::json& r) {
+        Phyxel::WorldGenerator* g = streamingGen();
+        if (!g) return noGen(r);
+        Phyxel::WorldStorage* storage = chunkManager->getWorldStorage();
+        if (!storage) {
+            r = {{"error", "no world storage - worldforge_apply persists into world.db"}};
+            return;
+        }
+        nlohmann::json pj = cmd.params;
+        pj.erase("force");
+        if (!pj.contains("enabled")) pj["enabled"] = true;
+        const Phyxel::WorldForgeParams p =
+            Phyxel::WorldForgeParams::fromJson(pj).clamped();
+        const size_t savedChunks = storage->getChunkCount();
+        if (savedChunks > 0 && !cmd.params.value("force", false)) {
+            r = {{"error", "world.db already holds " + std::to_string(savedChunks) +
+                           " saved chunks - enabling worldforge now would seam them against "
+                           "fresh road-stamped terrain. Regenerate the world (delete world.db) "
+                           "or pass {\"force\": true} to accept the seams."},
+                 {"saved_chunks", savedChunks}};
+            return;
+        }
+        const bool live = savedChunks == 0;
+        if (live) {
+            // Live-path guards, BEFORE any state is written:
+            // - an in-flight main-thread job (worldforge_build) holds a raw pointer to
+            //   the CURRENT plan for its whole lifetime — re-baking under it is a
+            //   use-after-free;
+            // - a draining boot DB backlog would be lost by the worker stop (those
+            //   chunks would never load).
+            if (mainThreadJobs && mainThreadJobs->anyActive()) {
+                r = {{"error", "a main-thread job is running (worldforge_build?) - a live "
+                               "apply would re-bake the plan out from under it. Retry when "
+                               "/api/jobs drains."}};
+                return;
+            }
+            if (chunkManager->m_streamingManager.hasDeferredDbLoads()) {
+                r = {{"error", "boot DB backlog still draining - retry in a few seconds"}};
+                return;
+            }
+        }
+        Phyxel::WorldRecipe recipe = storage->hasMeta("recipe")
+            ? Phyxel::WorldRecipe::fromJson(storage->getMeta("recipe"))
+            : g->makeRecipe();
+        recipe.worldforge = p;
+        if (!storage->setMeta("recipe", recipe.toJson())) {
+            r = {{"error", "failed to write recipe to world.db"}};
+            return;
+        }
+        g->setWorldForgeParams(p);   // re-bake on the live generator (main thread)
+        const Phyxel::WorldForgePlan* plan = g->worldForge();
+        r = {{"success", true},
+             {"params", p.toJson()},
+             {"plan_hash", plan ? std::to_string(plan->planHash()) : ""},
+             {"sites", plan ? static_cast<int>(plan->sites().size()) : 0},
+             {"roads", plan ? static_cast<int>(plan->roads().size()) : 0}};
+        if (live) {
+            const size_t evictedChunks = chunkManager->restreamWorldLive();
+            if (renderCoordinator) {
+                if (auto* ft = renderCoordinator->getFarTerrainManager()) {
+                    // The far mesher samples through its own private generator copy —
+                    // refresh it or the far field keeps drawing the OLD plan's roads.
+                    if (ft->isConfigured()) {
+                        ft->configure(*g);
+                        // configure() refreshes the WANTED set but keeps resident tiles:
+                        // their meshes still carry the OLD plan's graded road terraces,
+                        // which poke up through the re-streamed terrain (user-reported
+                        // "low LOD stuff clipping into the world"). Drop them all — the
+                        // worker rebuilds against the new plan. Wait-idle first: tile
+                        // buffers may still be referenced by an in-flight frame.
+                        if (vulkanDevice) vkDeviceWaitIdle(vulkanDevice->getDevice());
+                        ft->clearTiles();
+                    }
+                }
+            }
+            r["restart_required"] = false;
+            r["live_applied"] = true;
+            r["evicted_chunks"] = evictedChunks;
+            r["note"] = "plan applied LIVE - the world is re-streaming under the new plan";
+        } else {
+            r["restart_required"] = true;
+            r["note"] = "force apply on a world with saved chunks: recipe persisted; reload "
+                        "the project so streamed chunks pick up the plan";
+        }
+    });
+
+    reg.on("worldforge_status", [this, streamingGen, noGen](const Core::APICommand&,
+                                                            nlohmann::json& r) {
+        Phyxel::WorldGenerator* g = streamingGen();
+        if (!g) return noGen(r);
+        const Phyxel::WorldForgePlan* p = g->worldForge();
+        r = {{"success", true},
+             {"enabled", g->worldForgeParams().enabled},
+             {"applied", p != nullptr},
+             {"plan_hash", p ? std::to_string(p->planHash()) : ""},
+             {"sites", p ? static_cast<int>(p->sites().size()) : 0},
+             {"roads", p ? static_cast<int>(p->roads().size()) : 0}};
+        if (Phyxel::WorldStorage* storage = chunkManager->getWorldStorage())
+            if (storage->hasMeta("worldforge_ledger"))
+                r["ledger"] = nlohmann::json::parse(
+                    Phyxel::WorldForgeLedger::fromJson(storage->getMeta("worldforge_ledger"))
+                        .toJson());
+    });
+
+    // Realize the applied plan's settlements (docs/WorldForge.md M2): an async self-chaining
+    // MainThreadJobs job — per site: streaming-focus residency → SettlementBuildService (the
+    // site's DERIVED seed) → ledger checkpoint. Refusals are recorded outcomes. Poll via
+    // /api/jobs. {"sites": [ids]} restricts; {"residency_timeout_s": N} bounds each site's wait.
+    reg.on("worldforge_build", [this, streamingGen, noGen](const Core::APICommand& cmd,
+                                                           nlohmann::json& r) {
+        Phyxel::WorldGenerator* g = streamingGen();
+        if (!g) return noGen(r);
+        const Phyxel::WorldForgePlan* plan = g->worldForge();
+        if (!plan) {
+            r = {{"error", "no applied worldforge plan (worldforge_apply + reload first)"}};
+            return;
+        }
+        if (!mainThreadJobs) {
+            r = {{"error", "job system unavailable"}};
+            return;
+        }
+        Core::WorldForgeBuildService::Deps d;
+        d.settlement.chunkManager  = chunkManager;
+        d.settlement.placedObjects = placedObjectManager ? &*placedObjectManager : nullptr;
+        d.settlement.templates     = objectTemplateManager ? &*objectTemplateManager : nullptr;
+        d.settlement.locations     = locationRegistry ? &*locationRegistry : nullptr;
+        d.settlement.npcs          = npcManager ? &*npcManager : nullptr;
+        d.settlement.pushUndo = [this](const glm::ivec3& a, const glm::ivec3& b,
+                                       const std::string& label) {
+            pushUndoSnapshot(chunkManager, snapshotManager.get(), a, b, label);
+        };
+        if (renderCoordinator)
+            d.settlement.addPointLight = [this](const glm::vec3& p, const glm::vec3& c,
+                                                float intensity, float radius) {
+                return renderCoordinator->getLightManager().addPointLight(p, c, intensity,
+                                                                          radius);
+            };
+        d.plan = plan;
+        d.worldSeed = g->getSeed();
+        // Residency driver: WALK the streaming anchor toward the site (64 u per call, one
+        // call per residency poll) instead of teleporting it — an instant far anchor jump
+        // is the recorded "spawn-swap never finished booting" streaming fragility (it
+        // wedged the gen pipeline on the first live run: generation_pending froze at 48).
+        // Restore player residency + the load radii when the job finishes.
+        auto savedDist = std::make_shared<std::optional<std::pair<float, float>>>();
+        d.focusResidency = [this, savedDist](const glm::vec3& target, float radius) {
+            if (!*savedDist)
+                *savedDist = std::make_pair(chunkManager->loadDistance,
+                                            chunkManager->unloadDistance);
+            chunkManager->loadDistance = std::max(chunkManager->loadDistance, radius);
+            chunkManager->unloadDistance =
+                std::max(chunkManager->unloadDistance, radius + 96.0f);
+            constexpr float kFocusStep = 64.0f;   // ~2 chunks per poll — a fast player, not a teleport
+            const glm::vec3 cur = chunkManager->streamingAnchor();
+            const glm::vec3 to = target - cur;
+            const float dist = glm::length(to);
+            chunkManager->setStreamingFocusOverride(
+                dist <= kFocusStep ? target : cur + to * (kFocusStep / dist));
+        };
+        d.releaseFocus = [this, savedDist] {
+            chunkManager->clearStreamingFocusOverride();
+            if (*savedDist) {
+                chunkManager->loadDistance = (*savedDist)->first;
+                chunkManager->unloadDistance = (*savedDist)->second;
+                savedDist->reset();
+            }
+        };
+        // Ready when the footprint's centre + corners all have their surface chunk resident
+        // (the settlement grounding gate then re-verifies every column for real).
+        d.residencyReady = [this, streamingGen](const Phyxel::WorldForgeSite& site) {
+            Phyxel::WorldGenerator* gen = streamingGen();
+            if (!gen) return false;
+            auto resident = [&](int wx, int wz) {
+                const int sy = gen->sampleSurface(wx, wz).surfaceY;
+                return chunkManager->getChunkAtFast(glm::ivec3(wx, sy, wz)) != nullptr;
+            };
+            const int hw = site.width / 2, hd = site.depth / 2;
+            return resident(site.pos.x, site.pos.y) &&
+                   resident(site.pos.x - hw, site.pos.y - hd) &&
+                   resident(site.pos.x + hw, site.pos.y - hd) &&
+                   resident(site.pos.x - hw, site.pos.y + hd) &&
+                   resident(site.pos.x + hw, site.pos.y + hd);
+        };
+        if (Phyxel::WorldStorage* storage = chunkManager->getWorldStorage()) {
+            d.loadLedger = [storage] {
+                return storage->hasMeta("worldforge_ledger")
+                    ? storage->getMeta("worldforge_ledger") : std::string();
+            };
+            d.saveLedger = [storage](const std::string& s) {
+                storage->setMeta("worldforge_ledger", s);
+            };
+        }
+        // Checkpoint = chunks AND placed-object records AND locations together (the
+        // atomic-persistence rule: records save only where chunks save; chunks-only would
+        // leave ghost voxels without assembly_plan records on reload; locations are what
+        // make the site's residents respawnable).
+        d.checkpointWorld = [this] {
+            chunkManager->saveAllChunks();
+            if (auto* ws = chunkManager->m_streamingManager.getWorldStorage()) {
+                if (placedObjectManager) placedObjectManager->saveToDb(ws->getDb());
+                if (locationRegistry)
+                    ws->setMeta("locations", locationRegistry->toJson().dump());
+            }
+        };
+        d.residencyTimeoutSeconds = std::max(5, cmd.params.value("residency_timeout_s", 120));
+        std::vector<int> siteFilter;
+        if (cmd.params.contains("sites") && cmd.params["sites"].is_array())
+            for (const auto& s : cmd.params["sites"]) siteFilter.push_back(s.get<int>());
+        Core::WorldForgeBuildService::start(*mainThreadJobs, d, siteFilter, r);
+    });
+
+    // Editor UI: toggle dockable panels remotely (agents verifying UI features, demo
+    // driving). {"panel": "world_map", "visible": true}. Extend the map as panels grow.
+    reg.on("set_panel_visible", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        const std::string panel = cmd.params.value("panel", "");
+        const bool visible = cmd.params.value("visible", true);
+        if (panel == "world_map") m_showWorldMapPanel = visible;
+        else if (panel == "camera") m_showCameraPanel = visible;
+        else if (panel == "properties") m_showProperties = visible;
+        else {
+            r = {{"error", "unknown panel '" + panel + "' (world_map, camera, properties)"}};
+            return;
+        }
+        r = {{"success", true}, {"panel", panel}, {"visible", visible}};
+    });
+
+    // Diagnostic: dump the per-frame character/camera trace ring (see the update-loop
+    // recorder). Full float precision — this exists because the polling API rounds.
+    reg.on("frame_trace", [this](const Core::APICommand&, nlohmann::json& r) {
+        nlohmann::json rows = nlohmann::json::array();
+        const uint64_t n = std::min<uint64_t>(m_frameTraceCounter, kFrameTraceLen);
+        const uint64_t start = m_frameTraceCounter - n;
+        for (uint64_t f = start; f < m_frameTraceCounter; ++f) {
+            const auto& s = m_frameTrace[f % kFrameTraceLen];
+            rows.push_back({{"f", s.frame},
+                            {"cx", s.charPos.x}, {"cy", s.charPos.y}, {"cz", s.charPos.z},
+                            {"bx", s.partPos.x}, {"by", s.partPos.y}, {"bz", s.partPos.z},
+                            {"px", s.camPos.x}, {"py", s.camPos.y}, {"pz", s.camPos.z},
+                            {"yaw", s.camYaw}, {"dt", s.dtMs}});
+        }
+        r = {{"success", true}, {"frames", rows}};
+    });
+
+    // Dev/verification: anchor the streaming pump at a world (x,z) without moving the
+    // player (chunks stream there through the normal throttled path). {} clears.
+    reg.on("worldforge_focus", [this, streamingGen, noGen](const Core::APICommand& cmd,
+                                                           nlohmann::json& r) {
+        Phyxel::WorldGenerator* g = streamingGen();
+        if (!g) return noGen(r);
+        if (!cmd.params.contains("x") || !cmd.params.contains("z")) {
+            chunkManager->clearStreamingFocusOverride();
+            r = {{"success", true}, {"focused", false}};
+            return;
+        }
+        const int x = cmd.params["x"].get<int>();
+        const int z = cmd.params["z"].get<int>();
+        const int sy = g->sampleSurface(x, z).surfaceY;
+        chunkManager->setStreamingFocusOverride(glm::vec3(static_cast<float>(x),
+                                                          static_cast<float>(sy),
+                                                          static_cast<float>(z)));
+        r = {{"success", true}, {"focused", true}, {"x", x}, {"z", z}, {"surface_y", sy}};
+    });
+
+    // ASCII map of the plan over the hydrology region: '~' standing water, 'r' order>=3
+    // river, '=' road, T/V/H town/village/hamlet sites, '.' land. ASCII ONLY (the JSON
+    // pipe mojibakes non-ASCII — recorded gotcha).
+    reg.on("worldforge_map", [this, streamingGen, noGen](const Core::APICommand& cmd,
+                                                         nlohmann::json& r) {
+        Phyxel::WorldGenerator* g = streamingGen();
+        if (!g) return noGen(r);
+        const Phyxel::WorldForgePlan* plan = g->worldForge();
+        const Phyxel::HydrologyMap* hydro = g->hydrology();
+        const Phyxel::FlowField* flow = g->riverNetwork();
+        if (!plan || !hydro || !flow) {
+            r = {{"error", "no applied worldforge plan (worldforge_apply + reload first)"}};
+            return;
+        }
+        const int step = std::max(1, cmd.params.value("step", 4));  // bake cells per char
+        std::vector<std::string> lines;
+        for (int cz = 0; cz < hydro->cellsZ(); cz += step) {
+            std::string line;
+            for (int cx = 0; cx < hydro->cellsX(); cx += step) {
+                const float x = hydro->originX() + (cx + 0.5f) * hydro->cellSize();
+                const float z = hydro->originZ() + (cz + 0.5f) * hydro->cellSize();
+                char c = '.';
+                if (hydro->hasWater(x, z)) c = '~';
+                else if (flow->orderAt(x, z) >= 3) c = 'r';
+                // A road is a few cubes wide; at coarse map steps the sample point almost
+                // never lands ON it — mark the char cell if the centerline passes through it.
+                else if (plan->roadAt(x, z).dist <= step * hydro->cellSize() * 0.5f) c = '=';
+                line.push_back(c);
+            }
+            lines.push_back(std::move(line));
+        }
+        for (const auto& s : plan->sites()) {
+            const int cx = static_cast<int>((s.pos.x - hydro->originX()) / hydro->cellSize()) / step;
+            const int cz = static_cast<int>((s.pos.y - hydro->originZ()) / hydro->cellSize()) / step;
+            if (cz >= 0 && cz < static_cast<int>(lines.size()) && cx >= 0 &&
+                cx < static_cast<int>(lines[cz].size()))
+                lines[cz][cx] = s.tier == "town" ? 'T' : (s.tier == "village" ? 'V' : 'H');
+        }
+        r = {{"success", true}, {"legend", "~ water | r river(order>=3) | = road | T/V/H sites | . land"},
+             {"cell_units", hydro->cellSize() * step}, {"lines", lines}};
+    });
+
+    // worldforge_minimap: a real IMAGE of the world — biome-colored terrain with hillshade,
+    // depth-shaded water, rivers, roads (graded corridors included), bridge decks, and site
+    // markers — rendered PURE from the generator (sampleSurface per pixel), so it shows the
+    // whole planned world including never-visited terrain, chunk residency irrelevant.
+    // Writes a PNG (stb) and returns the absolute path. {px, x, z, radius, filename} all
+    // optional; the default window is the full hydrology bake region.
+    reg.on("worldforge_minimap", [this, streamingGen, noGen](const Core::APICommand& cmd,
+                                                             nlohmann::json& r) {
+        Phyxel::WorldGenerator* g = streamingGen();
+        if (!g) return noGen(r);
+        const Phyxel::HydrologyMap* hydro = g->hydrology();
+        if (!hydro) {
+            r = {{"error", "no hydrology bake (streaming height-based world required)"}};
+            return;
+        }
+        const Phyxel::WorldForgePlan* plan = g->worldForge();   // optional — map works planless
+
+        const int px = std::clamp(cmd.params.value("px", 256), 64, 1024);
+        const float regionW = hydro->cellsX() * hydro->cellSize();
+        const float defCx = hydro->originX() + regionW * 0.5f;
+        const float defCz = hydro->originZ() + hydro->cellsZ() * hydro->cellSize() * 0.5f;
+        const float cx = cmd.params.value("x", defCx);
+        const float cz = cmd.params.value("z", defCz);
+        const float radius = cmd.params.value("radius", regionW * 0.5f);
+        const float x0 = cx - radius, z0 = cz - radius;
+        const float stepU = (2.0f * radius) / static_cast<float>(px);
+        std::string path = cmd.params.value("filename", std::string("worldforge_map.png"));
+
+        const auto t0 = std::chrono::steady_clock::now();
+        std::vector<unsigned char> img;
+        std::string mapErr;
+        if (!renderWorldMapImage(px, cx, cz, radius, img, &mapErr)) {
+            r = {{"error", mapErr}};
+            return;
+        }
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now() - t0)
+                            .count();
+        if (!stbi_write_png(path.c_str(), px, px, 3, img.data(), px * 3)) {
+            r = {{"error", "failed to write " + path}};
+            return;
+        }
+        r = {{"success", true},
+             {"path", std::filesystem::absolute(path).string()},
+             {"px", px},
+             {"world", {{"x0", x0}, {"z0", z0}, {"size", 2.0f * radius}}},
+             {"units_per_pixel", stepU},
+             {"sample_ms", ms},
+             {"legend", "terrain biome colors + NW hillshade | blue water (depth-shaded) | "
+                        "tan/gray roads | brown bridge decks | squares: red town, orange "
+                        "village, yellow hamlet | magenta cross: camera"}};
+    });
+}
+
+// The world-map renderer shared by the worldforge_minimap API and the in-engine World
+// Map panel: biome-colored terrain + NW hillshade + depth-shaded water + roads
+// (centerline-marked at coarse zooms) + bridge decks + site markers + camera cross,
+// sampled PURE from the generator — chunk residency irrelevant.
+bool Application::renderWorldMapImage(int px, float cx, float cz, float radius,
+                                      std::vector<unsigned char>& img, std::string* err) {
+    Phyxel::WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+    const Phyxel::HydrologyMap* hydro = g ? g->hydrology() : nullptr;
+    if (!g || !hydro) {
+        if (err) *err = "no hydrology bake (streaming height-based world required)";
+        return false;
+    }
+    const Phyxel::WorldForgePlan* plan = g->worldForge();
+    const float x0 = cx - radius, z0 = cz - radius;
+    const float stepU = (2.0f * radius) / static_cast<float>(px);
+
+    auto matColor = [](const std::string& m) -> glm::ivec3 {
+        if (m == "Grass") return {86, 125, 70};
+        if (m == "GrassForest") return {56, 96, 50};
+        if (m == "GrassSavanna") return {168, 146, 80};
+        if (m == "Sand") return {194, 178, 128};
+        if (m == "Snow") return {235, 240, 245};
+        if (m == "SnowGrass") return {198, 205, 198};
+        if (m == "Stone") return {130, 130, 130};
+        if (m == "Dirt") return {110, 84, 60};
+        if (m == "Gravel") return {150, 145, 140};
+        if (m == "Cobblestone") return {122, 120, 116};
+        return {140, 120, 100};
+    };
+
+    std::vector<int> hgt(static_cast<size_t>(px) * px, 0);
+    img.assign(static_cast<size_t>(px) * px * 3, 0);
+    std::vector<uint8_t> isWater(static_cast<size_t>(px) * px, 0);
+    for (int pz = 0; pz < px; ++pz) {
+        for (int pxx = 0; pxx < px; ++pxx) {
+            const float wx = x0 + (pxx + 0.5f) * stepU;
+            const float wz = z0 + (pz + 0.5f) * stepU;
+            const auto col = g->sampleSurface(static_cast<int>(std::floor(wx)),
+                                              static_cast<int>(std::floor(wz)));
+            const size_t i = static_cast<size_t>(pz) * px + pxx;
+            hgt[i] = col.surfaceY;
+            glm::ivec3 c = matColor(col.surfaceMat);
+            const float wl = hydro->waterLevelAt(wx, wz);
+            const bool standing = hydro->hasWater(wx, wz) &&
+                                  wl > static_cast<float>(col.surfaceY);
+            if (col.bridgeDeckY != INT_MIN && col.bridgeDeckY > col.surfaceY) {
+                c = {146, 96, 52};                       // bridge deck
+            } else if (standing || col.riverOrder > 0) {
+                const float depth = standing ? wl - static_cast<float>(col.surfaceY)
+                                             : static_cast<float>(col.riverOrder);
+                const float t = std::min(depth / 12.0f, 1.0f);
+                c = {static_cast<int>(70 - 50 * t), static_cast<int>(130 - 80 * t),
+                     static_cast<int>(190 - 80 * t)};
+                isWater[i] = 1;
+            } else if (col.roadClass == 3) {
+                c = {200, 198, 190};                     // highway (Cobblestone)
+            } else if (col.roadClass == 2) {
+                c = {180, 175, 165};                     // road (Gravel)
+            } else if (col.roadClass == 1) {
+                c = {139, 105, 60};                      // track (Dirt)
+            } else if (plan && stepU > 4.0f) {
+                // Coarse zoom: a 5 u road is sub-pixel — mark the pixel when the
+                // centerline passes through it (the ASCII map's trick), or the road
+                // network vanishes from exactly the view meant to show it.
+                const auto rhit = plan->roadAt(wx, wz);
+                if (rhit.cls > 0 && rhit.dist <= stepU * 0.75f)
+                    c = rhit.cls == 1 ? glm::ivec3(139, 105, 60)
+                                      : glm::ivec3(190, 186, 178);
+            }
+            img[i * 3 + 0] = static_cast<unsigned char>(c.r);
+            img[i * 3 + 1] = static_cast<unsigned char>(c.g);
+            img[i * 3 + 2] = static_cast<unsigned char>(c.b);
+        }
+    }
+    // Hillshade (land only): light from the NW — brighten slopes facing it, darken away.
+    for (int pz = 0; pz < px - 1; ++pz)
+        for (int pxx = 0; pxx < px - 1; ++pxx) {
+            const size_t i = static_cast<size_t>(pz) * px + pxx;
+            if (isWater[i]) continue;
+            const int dh = (hgt[i] - hgt[i + 1]) + (hgt[i] - hgt[i + px]);
+            const float shade = std::clamp(1.0f + dh * 0.035f, 0.70f, 1.25f);
+            for (int k = 0; k < 3; ++k)
+                img[i * 3 + k] = static_cast<unsigned char>(
+                    std::min(255.0f, img[i * 3 + k] * shade));
+        }
+    // Site markers: filled tier-colored squares with a white border.
+    auto drawSquare = [&](int mx, int mz, int half, glm::ivec3 fill) {
+        for (int dz = -half - 1; dz <= half + 1; ++dz)
+            for (int dx = -half - 1; dx <= half + 1; ++dx) {
+                const int qx = mx + dx, qz = mz + dz;
+                if (qx < 0 || qz < 0 || qx >= px || qz >= px) continue;
+                const bool border = std::abs(dx) > half || std::abs(dz) > half;
+                const glm::ivec3 c = border ? glm::ivec3(255, 255, 255) : fill;
+                const size_t i = (static_cast<size_t>(qz) * px + qx) * 3;
+                img[i] = static_cast<unsigned char>(c.r);
+                img[i + 1] = static_cast<unsigned char>(c.g);
+                img[i + 2] = static_cast<unsigned char>(c.b);
+            }
+    };
+    if (plan) {
+        for (const auto& s : plan->sites()) {
+            const int mx = static_cast<int>((s.pos.x - x0) / stepU);
+            const int mz = static_cast<int>((s.pos.y - z0) / stepU);
+            if (mx < 0 || mz < 0 || mx >= px || mz >= px) continue;
+            if (s.tier == "town") drawSquare(mx, mz, 3, {220, 40, 40});
+            else if (s.tier == "village") drawSquare(mx, mz, 2, {240, 150, 40});
+            else drawSquare(mx, mz, 2, {240, 220, 60});
+        }
+    }
+    // Camera marker: a magenta cross where the viewer currently is.
+    if (camera) {
+        const glm::vec3 cp = camera->getPosition();
+        const int mx = static_cast<int>((cp.x - x0) / stepU);
+        const int mz = static_cast<int>((cp.z - z0) / stepU);
+        for (int d = -4; d <= 4; ++d) {
+            auto put = [&](int qx, int qz) {
+                if (qx < 0 || qz < 0 || qx >= px || qz >= px) return;
+                const size_t i = (static_cast<size_t>(qz) * px + qx) * 3;
+                img[i] = 255; img[i + 1] = 0; img[i + 2] = 255;
+            };
+            put(mx + d, mz);
+            put(mx, mz + d);
+        }
+    }
+    return true;
+}
+
+void Application::refreshWorldMapTexture() {
+    Phyxel::WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+    const Phyxel::HydrologyMap* hydro = g ? g->hydrology() : nullptr;
+    if (!hydro || !vulkanDevice) {
+        m_worldMapTex = nullptr;
+        return;
+    }
+    const float regionHalf = hydro->cellsX() * hydro->cellSize() * 0.5f;
+    float cx = hydro->originX() + regionHalf;
+    float cz = hydro->originZ() + hydro->cellsZ() * hydro->cellSize() * 0.5f;
+    float radius = regionHalf;
+    if (m_worldMapZoom > 0 && camera) {
+        const glm::vec3 cp = camera->getPosition();
+        cx = cp.x;
+        cz = cp.z;
+        radius = regionHalf / (m_worldMapZoom == 1 ? 4.0f : 16.0f);
+    }
+    const int px = 384;
+    std::vector<unsigned char> img;
+    std::string err;
+    if (!renderWorldMapImage(px, cx, cz, radius, img, &err)) {
+        m_worldMapTex = nullptr;
+        return;
+    }
+    // Round-trip through a PNG on disk: loadImGuiTexture is the one existing path from
+    // pixels to an ImGui-usable Vulkan texture, and refresh cadence is a button click.
+    const std::string path = "worldmap_panel.png";
+    if (!stbi_write_png(path.c_str(), px, px, 3, img.data(), px * 3)) {
+        m_worldMapTex = nullptr;
+        return;
+    }
+    vulkanDevice->releaseImGuiTexture(path);
+    m_worldMapTex = vulkanDevice->loadImGuiTexture(path);
+    m_worldMapX0 = cx - radius;
+    m_worldMapZ0 = cz - radius;
+    m_worldMapSize = 2.0f * radius;
+}
+
+void Application::renderWorldMapPanel() {
+    if (!m_showWorldMapPanel) return;
+    ImGui::SetNextWindowSize(ImVec2(420, 480), ImGuiCond_FirstUseEver);
+    // NoScrollbar: the map image is sized to FIT the window below — letting a scrollbar
+    // appear shrinks the content width, which shrinks the image, which removes the
+    // scrollbar, which grows the image again: a per-frame size oscillation (the "super
+    // jittery window" bug, reported live).
+    if (ImGui::Begin("World Map", &m_showWorldMapPanel,
+                     ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse)) {
+        static const char* kZooms[] = {"Region", "4x (camera)", "16x (camera)"};
+        bool refresh = false;
+        ImGui::SetNextItemWidth(140.0f);
+        if (ImGui::Combo("##worldmap_zoom", &m_worldMapZoom, kZooms, 3)) refresh = true;
+        ImGui::SameLine();
+        if (ImGui::Button("Refresh")) refresh = true;
+        // First open renders once. A FAILED render must not retry every frame — the
+        // renderer samples the whole window and waits for the GPU, so a per-frame retry
+        // is a slideshow; m_worldMapTried gates it to explicit refreshes.
+        if (!m_worldMapTex && !m_worldMapTried) refresh = true;
+        if (refresh) {
+            refreshWorldMapTexture();
+            m_worldMapTried = true;
+        }
+        if (m_worldMapTex) {
+            // Fit BOTH dimensions: width of the content region, height of what remains
+            // after the legend line. Never overflow the window (see NoScrollbar above).
+            const ImVec2 avail = ImGui::GetContentRegionAvail();
+            const float legendH = ImGui::GetTextLineHeightWithSpacing();
+            const float side = std::max(64.0f, std::min(avail.x, avail.y - legendH - 4.0f));
+            const ImVec2 imgPos = ImGui::GetCursorScreenPos();
+            ImGui::Image(reinterpret_cast<ImTextureID>(m_worldMapTex), ImVec2(side, side));
+            if (ImGui::IsItemHovered()) {
+                const ImVec2 m = ImGui::GetMousePos();
+                const float wx = m_worldMapX0 + (m.x - imgPos.x) / side * m_worldMapSize;
+                const float wz = m_worldMapZ0 + (m.y - imgPos.y) / side * m_worldMapSize;
+                ImGui::SetTooltip("world (%.0f, %.0f)", wx, wz);
+            }
+            ImGui::TextDisabled("town / village / hamlet squares - magenta cross = camera");
+        } else {
+            ImGui::TextWrapped(
+                "No map available - the World Map needs a streaming height-based world "
+                "(hydrology bake). Press Refresh to retry.");
+        }
+    }
+    ImGui::End();
+}
+
 // Door management commands, migrated from the static handleDoorCommand() helper onto the
 // CommandRegistry. Handlers read doorManager/placedObjectManager lazily at dispatch.
 void Application::registerDoorCommands() {
@@ -13273,9 +13976,57 @@ void Application::registerEffectsCommands() {
             renderCoordinator->setExposure(cmd.params["exposure"].get<float>());
         if (cmd.params.contains("curve"))
             renderCoordinator->setTonemapCurve(cmd.params["curve"].get<int>());
+        // Bloom rides on this endpoint because it is the same question -- how the frame is graded --
+        // and it wants the same look-then-tune loop rather than a rebuild per trial.
+        if (cmd.params.contains("bloom") || cmd.params.contains("bloomThreshold") ||
+            cmd.params.contains("bloomKnee")) {
+            float bi = cmd.params.value("bloom", renderCoordinator->getBloomIntensity());
+            float bt = cmd.params.value("bloomThreshold", renderCoordinator->getBloomThreshold());
+            float bk = cmd.params.value("bloomKnee", renderCoordinator->getBloomKnee());
+            renderCoordinator->setBloom(bi, bt, bk);
+        }
         r = {{"success", true},
              {"exposure", renderCoordinator->getExposure()},
-             {"curve", renderCoordinator->getTonemapCurve()}};
+             {"curve", renderCoordinator->getTonemapCurve()},
+             {"bloom", renderCoordinator->getBloomIntensity()},
+             {"bloomThreshold", renderCoordinator->getBloomThreshold()},
+             {"bloomKnee", renderCoordinator->getBloomKnee()}};
+        // Bloom is knowingly broken (spots/blotches, not a glow). The knob still works so it can be
+        // debugged, but anything that turns it on gets told, rather than discovering it in a frame.
+        if (renderCoordinator->getBloomIntensity() > 0.0f) {
+            r["warning"] = "BLOOM IS BROKEN: produces spots/blotches, not a smooth glow. "
+                           "Enabled here for debugging only -- do not ship it on. "
+                           "See docs/LightingPipeline.md.";
+        }
+    });
+
+    // Celestial bodies, live. "Multiple moons" and "make them bigger" are the two things this
+    // exists for, and both are tuning questions -- they want to be answered by looking at the sky,
+    // not by waiting for a rebuild. The bodies are placed and uploaded every frame, so a change
+    // here shows on the very next one.
+    //   { "reset": true }            -> back to the default sun + moon
+    //   { "sizeScale": 2.0 }         -> multiply every body's drawn size
+    //   { "bodies": [ ... ] }        -> replace the list wholesale (see SkyBodies::fromJson)
+    // Always responds with the resulting list, so it doubles as a query.
+    reg.on("set_sky", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) { r = {{"success", false}, {"error", "no render coordinator"}}; return; }
+        if (cmd.params.contains("enabled")) {
+            renderCoordinator->setSkyEnabled(cmd.params["enabled"].get<bool>());
+        }
+        if (cmd.params.value("reset", false)) {
+            renderCoordinator->setSkyBodies(Graphics::SkyBodies::defaultSky());
+        }
+        if (cmd.params.contains("bodies")) {
+            renderCoordinator->setSkyBodies(Graphics::SkyBodies::fromJson(cmd.params));
+        }
+        if (cmd.params.contains("sizeScale")) {
+            renderCoordinator->getSkyBodiesMutable()
+                .scaleAllSizes(cmd.params["sizeScale"].get<float>());
+        }
+        r = renderCoordinator->getSkyBodies().toJson();
+        r["success"] = true;
+        r["count"] = static_cast<int>(renderCoordinator->getSkyBodies().bodies.size());
+        r["enabled"] = renderCoordinator->getSkyEnabled();
     });
 
     // Fine (sub/microcube) greedy-merge toggle — live A/B for docs/BinaryGreedyMeshingPlan.md.
@@ -13632,7 +14383,7 @@ void Application::registerEffectsCommands() {
     reg.on("load_state", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         (void)cmd;
         nlohmann::json out = {{"success", true}};
-        size_t genPending = 0, dirty = 0, idle = 0, unmeshed = 0, resident = 0;
+        size_t genPending = 0, dirty = 0, idle = 0, unmeshed = 0, resident = 0, ghosts = 0;
         if (chunkManager) {
             genPending = chunkManager->streamingManagerRO().pendingGenerationCount();
             dirty = chunkManager->dirtyTracker().getDirtyCount();
@@ -13641,9 +14392,19 @@ void Application::registerEffectsCommands() {
                 if (!c) continue;
                 ++resident;
                 if (c->getNumInstances() == 0) ++unmeshed;   // air OR not-yet-meshed
+                // GHOST detector: a vector entry whose coord maps to a DIFFERENT object
+                // renders forever but is unreachable by every voxel query (the
+                // "terraces poking out of the meadow" / lingering-Outliner bug). Must
+                // always read 0 — the one-object-per-coord guard in
+                // generateOrLoadChunk enforces it at the source.
+                const glm::ivec3 cc =
+                    Utils::CoordinateUtils::worldToChunkCoord(c->getWorldOrigin());
+                if (chunkManager->getChunkAtCoord(cc) != c.get()) ++ghosts;
             }
         }
         out["chunks"] = {{"resident", resident},
+                         {"chunk_map", chunkManager ? chunkManager->chunkMap.size() : 0},
+                         {"ghosts", ghosts},
                          {"generation_pending", genPending},
                          {"remesh_pending", dirty},
                          {"remesh_idle_pending", idle},
@@ -15008,6 +15769,13 @@ void Application::processAPICommands() {
                             };
 
                             auto loadResult = Core::GameDefinitionLoader::load(defJson, subsystems);
+    // Apply the definition's "sky" block, if it carried one. The loader deliberately passes it
+    // through unparsed (engine/core must not depend on graphics), so this is where a game project's
+    // celestial bodies actually take effect. Absent = keep the default sun + moon.
+    if (loadResult.skyLoaded && renderCoordinator) {
+        renderCoordinator->setSkyBodies(Graphics::SkyBodies::fromJson(loadResult.skyDefinition));
+    }
+
                             response = loadResult.toJson();
                             response["reloaded"] = true;
 
@@ -15074,6 +15842,12 @@ void Application::processAPICommands() {
                             auto* ws = chunkManager->m_streamingManager.getWorldStorage();
                             if (ws) {
                                 placedObjectManager->saveToDb(ws->getDb());
+                                // Locations persist WITH the world (world_meta["locations"]):
+                                // they are what makes a reloaded settlement'S residents
+                                // respawnable (ResidentSpawner reads them; NPCs themselves
+                                // stay derived state, never stored).
+                                if (locationRegistry)
+                                    ws->setMeta("locations", locationRegistry->toJson().dump());
                                 // Persist runtime-spawned entities (Phase 2b): refresh their
                                 // last position from the live entity, then write the recipes.
                                 if (entityRegistry) {
@@ -16202,6 +16976,100 @@ void Application::processAPICommands() {
             // ================================================================
             // NPC COMMANDS
             // ================================================================
+            } else if (cmd.action == "spawn_encounter") {
+                // D&D encounter spawn: [{id, count}] of monster stat-block ids,
+                // each resolved to its visual binding (rig + mapping + faction)
+                // and spawned as a hostile Combat NPC. All members share one
+                // faction — an empty faction is hostile to EVERYONE, so a pack
+                // without one would fight itself.
+                if (!npcManager) {
+                    response = {{"error", "NPCManager not available"}};
+                } else if (!cmd.params.contains("monsters") ||
+                           !cmd.params["monsters"].is_array() ||
+                           cmd.params["monsters"].empty()) {
+                    response = {{"error", "spawn_encounter needs monsters: [{id, count}]"}};
+                } else {
+                    Core::MonsterVisualRegistry::instance().ensureLoaded();
+                    // MonsterRegistry has no self-load: stat blocks were only
+                    // ever registered by tests, so lazy-load the shipped set
+                    // here (also un-stubs turn-based CombatAISystem lookups).
+                    if (Core::MonsterRegistry::instance().count() == 0) {
+                        int n = Core::MonsterRegistry::instance()
+                                    .loadFromDirectory("resources/monsters");
+                        LOG_INFO("Application", "Loaded {} monster stat blocks", n);
+                    }
+                    float cx = 0, cy = 20, cz = 0;
+                    if (cmd.params.contains("position")) {
+                        cx = cmd.params["position"].value("x", 0.0f);
+                        cy = cmd.params["position"].value("y", 20.0f);
+                        cz = cmd.params["position"].value("z", 0.0f);
+                    }
+                    const float radius = cmd.params.value("radius", 4.0f);
+                    // The whole encounter shares ONE faction (explicit param,
+                    // else the first monster's binding faction): mixed packs
+                    // with differing binding factions would fight each other.
+                    std::string encFaction = cmd.params.value("faction", std::string{});
+
+                    nlohmann::json spawned = nlohmann::json::array();
+                    std::string err;
+                    int k = 0;
+                    for (const auto& entry : cmd.params["monsters"]) {
+                        const std::string monsterId = entry.value("id", "");
+                        const int count = std::max(1, entry.value("count", 1));
+                        const Core::MonsterDefinition* def =
+                            Core::MonsterRegistry::instance().getMonster(monsterId);
+                        if (!def) { err = "unknown monster stat block: " + monsterId; break; }
+                        const Core::MonsterVisual* vis =
+                            Core::MonsterVisualRegistry::instance().get(monsterId);
+                        if (!vis) { err = "no visual binding for monster: " + monsterId; break; }
+                        if (encFaction.empty()) encFaction = vis->faction;
+
+                        for (int i = 0; i < count; ++i, ++k) {
+                            // deterministic scatter on a ring — no RNG
+                            const float ang = 2.39996f * k;  // golden angle
+                            const float r   = radius * (0.35f + 0.65f * ((k % 5) / 4.0f));
+                            glm::vec3 pos(cx + r * std::cos(ang), cy, cz + r * std::sin(ang));
+                            std::string npcName = monsterId + "_" + std::to_string(k);
+
+                            nlohmann::json vparams = {{"animFile", vis->animFile}};
+                            if (!vis->appearance.is_null())
+                                vparams["appearance"] = vis->appearance;
+                            auto visual = Core::CharacterVisualResolver::resolve(vparams, npcName);
+
+                            Scene::NPCEntity* npc = npcManager->spawnNPC(
+                                npcName, visual.animFile, pos,
+                                Core::NPCBehaviorType::Combat, {}, 2.0f, 2.0f,
+                                visual.appearance);
+                            if (!npc) { err = "failed to spawn " + npcName; break; }
+
+                            if (auto* ch = npc->getAnimatedCharacter()) {
+                                for (const auto& [state, clip] : visual.animationMapping)
+                                    ch->setAnimationMapping(state, clip);
+                                for (const auto& [state, clip] : vis->animationMapping)
+                                    ch->setAnimationMapping(state, clip);
+                            }
+                            if (auto* cb = dynamic_cast<Scene::CombatBehavior*>(npc->getBehavior()))
+                                cb->setFaction(encFaction);
+                            npc->setMonsterId(monsterId);
+                            if (auto* hp = npc->getHealthComponent()) {
+                                hp->setMaxHealth(static_cast<float>(def->averageHP));
+                                hp->setHealth(static_cast<float>(def->averageHP));
+                            }
+                            spawned.push_back(npcName);
+                        }
+                        if (!err.empty()) break;
+                    }
+                    if (!err.empty() && spawned.empty()) {
+                        response = {{"error", err}};
+                    } else {
+                        response = {{"success", err.empty()}, {"spawned", spawned}};
+                        if (!err.empty()) response["error"] = err;
+                        if (gameEventLog)
+                            gameEventLog->emit("encounter_spawned",
+                                               {{"count", spawned.size()}});
+                    }
+                }
+
             } else if (cmd.action == "spawn_npc") {
                 if (!npcManager) {
                     response = {{"error", "NPCManager not available"}};
@@ -16291,6 +17159,18 @@ void Application::processAPICommands() {
                                 if (auto* cb = dynamic_cast<Scene::CombatBehavior*>(npc->getBehavior()))
                                     cb->setWeapon(cmd.params.value("weapon", std::string{}));
                             }
+                            // Faction gates combat targeting: an empty faction is
+                            // hostile to EVERYONE, so a spawned monster pack would
+                            // fight itself unless the caller sets a shared tag.
+                            if (behaviorType == Core::NPCBehaviorType::Combat &&
+                                cmd.params.contains("faction")) {
+                                if (auto* cb = dynamic_cast<Scene::CombatBehavior*>(npc->getBehavior()))
+                                    cb->setFaction(cmd.params.value("faction", std::string{}));
+                            }
+                            // Stat-block link: lets turn-based CombatAISystem look up
+                            // the monster's real AC/attacks instead of the fallback.
+                            if (cmd.params.contains("monsterId"))
+                                npc->setMonsterId(cmd.params.value("monsterId", std::string{}));
                             response = {{"success", true}, {"name", name}, {"behavior", behaviorStr},
                                         {"procedural", procedural}, {"role", role}, {"driveMode", driveModeStr},
                                         {"position", {{"x", x}, {"y", y}, {"z", z}}}};
@@ -16710,6 +17590,13 @@ void Application::processAPICommands() {
                 };
 
                 auto loadResult = Core::GameDefinitionLoader::load(cmd.params, subsystems);
+    // Apply the definition's "sky" block, if it carried one. The loader deliberately passes it
+    // through unparsed (engine/core must not depend on graphics), so this is where a game project's
+    // celestial bodies actually take effect. Absent = keep the default sun + moon.
+    if (loadResult.skyLoaded && renderCoordinator) {
+        renderCoordinator->setSkyBodies(Graphics::SkyBodies::fromJson(loadResult.skyDefinition));
+    }
+
                 response = loadResult.toJson();
 
                 // Render distance + far-terrain LOD from the world block (parity with
@@ -16772,6 +17659,13 @@ void Application::processAPICommands() {
                     nlohmann::json fakeDef = {{"npcs", npcArray}};
 
                     auto loadResult = Core::GameDefinitionLoader::load(fakeDef, subsystems);
+    // Apply the definition's "sky" block, if it carried one. The loader deliberately passes it
+    // through unparsed (engine/core must not depend on graphics), so this is where a game project's
+    // celestial bodies actually take effect. Absent = keep the default sun + moon.
+    if (loadResult.skyLoaded && renderCoordinator) {
+        renderCoordinator->setSkyBodies(Graphics::SkyBodies::fromJson(loadResult.skyDefinition));
+    }
+
                     response = loadResult.toJson();
                 }
 
@@ -17337,13 +18231,19 @@ void Application::processAPICommands() {
                             ctx.setProgress(1.0f, "Save complete");
                             return {{"success", ok}, {"dirty_only", dirtyOnly}};
                         };
-                        desc.mainThreadFinalize = [evSave, cmSave, pomSave](nlohmann::json& result) {
+                        Core::LocationRegistry* locSave =
+                            locationRegistry ? &*locationRegistry : nullptr;
+                        desc.mainThreadFinalize = [evSave, cmSave, pomSave,
+                                                   locSave](nlohmann::json& result) {
                             // Placed-object records save WITH the chunks (atomic world save —
                             // the ghost-record rule). Main thread: the registry isn't locked
                             // for the background chunk write.
                             if (pomSave && cmSave && result.value("success", false)) {
                                 auto* ws = cmSave->m_streamingManager.getWorldStorage();
                                 if (ws) pomSave->saveToDb(ws->getDb());
+                                // Locations ride the same save point (resident persistence).
+                                if (ws && locSave)
+                                    ws->setMeta("locations", locSave->toJson().dump());
                             }
                             if (evSave) {
                                 evSave->emit("world_saved", {{"async", true}});
@@ -17606,6 +18506,7 @@ void Application::renderMainMenuBar() {
             ImGui::MenuItem("Properties", nullptr, &m_showProperties);
             ImGui::MenuItem("World Outliner", nullptr, &m_showWorldOutliner);
             ImGui::MenuItem("Camera", nullptr, &m_showCameraPanel);
+            ImGui::MenuItem("World Map", nullptr, &m_showWorldMapPanel);
 #ifdef _WIN32
             ImGui::MenuItem("Terminal", nullptr, &m_showTerminal);
 #endif

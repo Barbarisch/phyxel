@@ -6,6 +6,7 @@
 #include "utils/Frustum.h"
 #include "graphics/LightManager.h"
 #include "graphics/DayNightCycle.h"
+#include "graphics/CelestialBody.h"
 #include "graphics/WindSystem.h"
 #include "utils/PerformanceMonitor.h"
 #include "utils/PerformanceProfiler.h"
@@ -521,9 +522,43 @@ public:
     // The atmosphere returns physical RADIANCE, so exposure is the unit conversion that makes it
     // visible at all rather than an optional grade. Live-settable because calibrating it against a
     // rebuild cycle would be unbearable: the whole point is to measure, adjust, measure.
+    /// The sky's celestial bodies. Replacing the list takes effect on the next frame -- the
+    /// bodies are placed and uploaded per frame, so nothing needs a rebuild or a relight.
+    void setSkyBodies(const SkyBodies& s) { m_skyBodies = s; }
+    const SkyBodies& getSkyBodies() const { return m_skyBodies; }
+    SkyBodies& getSkyBodiesMutable() { return m_skyBodies; }
+
+    /// Sky pass on/off. Exists so the pass can be MEASURED: it is a full-screen raymarch and
+    /// the only way to know what it costs is to render the same pose without it. Default ON;
+    /// with it off the scene clears to the DayNightCycle colour, as it did before the pass.
+    void setSkyEnabled(bool on) { m_skyEnabled = on; }
+    bool getSkyEnabled() const { return m_skyEnabled; }
+
     void setExposure(float e) { m_exposure = (e > 0.0f) ? e : 1.0f; }
     float getExposure() const { return m_exposure; }
     void setTonemapCurve(int c) { m_tonemapCurve = c; }
+// ⛔ BLOOM IS BROKEN -- DO NOT ENABLE. Confirmed by the user 2026-08-15: at any visible intensity it
+// produces SPOTS/BLOTCHES across the frame rather than a smooth glow. Default is 0 (off) and it must
+// stay that way until fixed.
+//
+// Suspected cause, NOT yet confirmed: isolated very bright pixels (the sky pass draws stars/airglow
+// from per-pixel hash noise; grass/character sub-pixel speckle is a known defect --
+// RenderOptimization.md:489,513) clear the bright-pass and each becomes a blob -- classic bloom
+// "fireflies". The half-res blur doubles the width of every blob, which is why they read as spots.
+// Likely fixes to try: clamp each bright-pass tap so one pixel cannot dominate the kernel; and/or
+// exclude the star/airglow term from what seeds bloom. Diagnose by measuring WHERE the on-vs-off
+// difference lands (per-region), not by eyeballing screenshots.
+    // Bloom. Threshold is SCENE-REFERRED (pre-exposure radiance), so only the sun, sky near it,
+    // emissives and specular hits clear it -- keep it above the diffuse range or bloom degenerates
+    // into a blurred copy of the whole frame, which is what got it disabled for years.
+    void setBloom(float intensity, float threshold, float knee) {
+        m_bloomIntensity = (intensity >= 0.0f) ? intensity : 0.0f;
+        if (threshold > 0.0f) m_bloomThreshold = threshold;
+        if (knee >= 0.0f) m_bloomKnee = knee;
+    }
+    float getBloomIntensity() const { return m_bloomIntensity; }
+    float getBloomThreshold() const { return m_bloomThreshold; }
+    float getBloomKnee() const { return m_bloomKnee; }
     int  getTonemapCurve() const { return m_tonemapCurve; }
 
     void setCachedViewMatrix(const glm::mat4& view) { cachedViewMatrix = view; }
@@ -739,6 +774,16 @@ private:
     glm::vec3 m_farShadowCullCenter{0.0f};
     float     m_farShadowCullRadius = 1.0f;
     int       m_farShadowFrameCounter = 0;
+    // Latched-fit state: the camera the fit matrix is relative to, and whether this frame
+    // records the caster pass. Between cadence refits the scene samples the map through
+    // the LATCHED matrix rebased only for camera translation — never a fresh fit, whose
+    // center swings with camera rotation and shears the sample window off the stale map
+    // (the far-field shadow flicker fixed 2026-08-21).
+    glm::dvec3 m_farFitCamWorld{0.0};
+    float      m_farFitDepthRange = 1.0f;
+    float      m_farFitDist = 0.0f;
+    bool       m_farFitValid = false;
+    bool       m_farRenderThisFrame = false;
     std::unique_ptr<PostProcessor> postProcessor;
     std::unique_ptr<GpuProfiler> gpuProfiler;
     // D1 shadow-pass diagnosis: chunks/instances drawn by the shadow pass this frame (stashed here
@@ -802,6 +847,17 @@ private:
     // Exposure default: the atmosphere's noon sunlit diffuse radiance lands near 0.1, so roughly a
     // 6x scale puts a lit surface in the middle of the display range before AgX rolls the top off.
     // Calibrated by measurement (tools/lighting_stats.py), not by eye.
+    // The sky's suns and moons. Defaults to one sun + one moon, so an unconfigured world is
+    // unchanged; extra bodies are configuration (graphics/CelestialBody.h).
+    SkyBodies m_skyBodies = SkyBodies::defaultSky();
+    // Direction TOWARD the primary star. The sky pass scatters against THIS, not against
+    // sunDirection -- which now tracks whichever body owns the shadow cascades and becomes
+    // the moon at night. Using the latter renders a daylight sky at midnight.
+    glm::vec3 m_skyStarDir{0.0f, 1.0f, 0.0f};
+    bool m_skyEnabled = true;   ///< see setSkyEnabled (measurement instrument)
+    float m_bloomIntensity = 0.0f;   // DEFAULT OFF and MUST STAY OFF -- bloom is broken, see above
+    float m_bloomThreshold = 1.0f;
+    float m_bloomKnee = 0.5f;
     float m_exposure = 8.0f;   // calibrated: puts a noon lit surface near 0.16-0.19
                                // linear with 0.00% clipped (measured, exposure sweep)
     int   m_tonemapCurve = 1;   // 1 = AgX, 0 = none (the pre-tonemap look, for A/B)

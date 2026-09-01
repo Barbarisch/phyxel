@@ -520,6 +520,92 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="worldforge_plan",
+            description="WorldForge: preview the world-scale settlement + road plan (pure bake, no world "
+                        "mutation). With no params, returns the plan applied to the current world. Requires "
+                        "a streaming world (game.json world.streaming: true). Returns sites (pos/tier/seed/"
+                        "scores), road polylines with river crossings, clamped params echo, and plan_hash.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "siteCount": {"type": "integer", "description": "Settlements to site (clamped 3-8)"},
+                    "regionRadius": {"type": "number", "description": "World units from the region centre (clamped 512-8192)"},
+                    "minSpacing": {"type": "number", "description": "Hard minimum between site centres"},
+                    "maxSpacing": {"type": "number", "description": "Soft cohesion distance (farther candidates score-halved)"},
+                    "sitePins": {"type": "array", "description": "Pinned site centres, seated verbatim first",
+                                 "items": {"type": "object", "properties": {"x": {"type": "integer"}, "z": {"type": "integer"}}}}
+                }
+            }
+        ),
+        Tool(
+            name="worldforge_apply",
+            description="WorldForge: persist plan params into the world recipe (world.db world_meta). "
+                        "REFUSES on a world that already has saved chunks unless force:true (roads stamp at "
+                        "generation time; enabling them mid-world seams old chunks against new). "
+                        "restart_required: reload the project so streamed chunks pick up the plan.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "siteCount": {"type": "integer"},
+                    "regionRadius": {"type": "number"},
+                    "minSpacing": {"type": "number"},
+                    "maxSpacing": {"type": "number"},
+                    "sitePins": {"type": "array", "items": {"type": "object", "properties": {"x": {"type": "integer"}, "z": {"type": "integer"}}}},
+                    "enabled": {"type": "boolean", "description": "Set false to disable worldforge for this world", "default": True},
+                    "force": {"type": "boolean", "description": "Apply even though the world has saved chunks (accepts terrain seams)", "default": False}
+                }
+            }
+        ),
+        Tool(
+            name="worldforge_build",
+            description="WorldForge: realize the applied plan's settlements as an async job (returns job_id; "
+                        "poll get_job_status). Per site: streaming-focus residency, SettlementBuildService with "
+                        "the plan's derived seed, ledger checkpoint (world_meta worldforge_ledger). Refused "
+                        "sites (grounding/residency_timeout) are recorded outcomes, surfaced in the result. "
+                        "Idempotent: sites already 'built' in the ledger are skipped.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "sites": {"type": "array", "items": {"type": "integer"},
+                              "description": "Restrict to these site ids (default: all pending)"},
+                    "residency_timeout_s": {"type": "integer", "default": 120,
+                                            "description": "Per-site bound on waiting for chunk residency"}
+                }
+            }
+        ),
+        Tool(
+            name="worldforge_status",
+            description="WorldForge: enabled/applied state, plan hash, and site/road counts for the current world.",
+            inputSchema={"type": "object", "properties": {}}
+        ),
+        Tool(
+            name="worldforge_map",
+            description="WorldForge: ASCII overview map of the applied plan — '~' water, 'r' order>=3 river, "
+                        "'=' road, T/V/H sites, '.' land. One char per `step` hydrology cells (128u each).",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "step": {"type": "integer", "description": "Bake cells per character (default 4 = 512u/char)", "default": 4}
+                }
+            }
+        ),
+        Tool(
+            name="worldforge_minimap",
+            description="WorldForge: render a biome-colored PNG world map (hillshaded terrain, depth-shaded "
+                        "water, roads, bridge decks, site markers, camera cross) pure from the generator — "
+                        "shows the WHOLE planned world, chunk residency irrelevant. Returns the PNG path.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "px": {"type": "integer", "description": "Image size in pixels, 64-1024 (default 256)"},
+                    "x": {"type": "number", "description": "Window centre world X (default: hydrology region centre)"},
+                    "z": {"type": "number", "description": "Window centre world Z"},
+                    "radius": {"type": "number", "description": "Window half-extent in world units (default: full region)"},
+                    "filename": {"type": "string", "description": "Output PNG path (default worldforge_map.png)"}
+                }
+            }
+        ),
+        Tool(
             name="list_structure_types",
             description="List all available procedural structure types with their parameters and defaults.",
             inputSchema={
@@ -1651,14 +1737,42 @@ async def list_tools() -> list[Tool]:
                     "position": {"type": "object", "description": "Spawn position {x,y,z}", "properties": {
                         "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}
                     }},
-                    "behavior": {"type": "string", "description": "Behavior type: idle or patrol", "enum": ["idle", "patrol", "wander"], "default": "idle"},
+                    "behavior": {"type": "string", "description": "Behavior type. 'combat' (alias 'aggressive') = real-time hostile melee (seeks + attacks the player and differing-faction NPCs).", "enum": ["idle", "patrol", "wander", "combat", "aggressive", "behavior_tree", "scheduled"], "default": "idle"},
                     "waypoints": {"type": "array", "description": "Patrol waypoints [{x,y,z}, ...] (required for patrol)", "items": {
                         "type": "object", "properties": {"x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}
                     }},
                     "walkSpeed": {"type": "number", "description": "Walk speed for patrol (default 2.0)", "default": 2.0},
-                    "waitTime": {"type": "number", "description": "Wait time at waypoints (default 2.0)", "default": 2.0}
+                    "waitTime": {"type": "number", "description": "Wait time at waypoints (default 2.0)", "default": 2.0},
+                    "weapon": {"type": "string", "description": "Weapon item id to equip (combat behavior only)"},
+                    "faction": {"type": "string", "description": "Combat faction tag. Combat NPCs only target entities of a DIFFERENT faction; empty = hostile to everyone (including each other). Always set a shared faction when spawning a group."},
+                    "monsterId": {"type": "string", "description": "resources/monsters stat-block id (e.g. 'goblin') — links this NPC to its D&D stats for turn-based combat."},
+                    "role": {"type": "string", "description": "Role tag used for seeded appearance (e.g. guard, merchant)"},
+                    "driveMode": {"type": "string", "description": "'animated' (kinematic, default) or 'physics'", "enum": ["animated", "physics"]}
                 },
                 "required": ["name"]
+            }
+        ),
+        Tool(
+            name="spawn_encounter",
+            description="Spawn a D&D encounter: a list of monster stat-block ids (resources/monsters/, e.g. goblin, dire-wolf, brown-bear, giant_spider) each resolved to its visual binding (resources/monsters/visuals/bindings.json) and spawned as a hostile Combat NPC. All members share one faction so the pack fights the player, not itself. Each NPC carries its monsterId so turn-based combat resolves the real stat block.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "monsters": {"type": "array", "description": "Monsters to spawn: [{id, count}]", "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "string", "description": "Monster stat-block id"},
+                            "count": {"type": "integer", "description": "How many (default 1)", "default": 1}
+                        },
+                        "required": ["id"]
+                    }},
+                    "position": {"type": "object", "description": "Encounter center {x,y,z}", "properties": {
+                        "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}
+                    }},
+                    "radius": {"type": "number", "description": "Scatter radius around the center (default 4)", "default": 4},
+                    "faction": {"type": "string", "description": "Override the shared faction (default: each monster's binding faction)"}
+                },
+                "required": ["monsters", "position"]
             }
         ),
         Tool(
@@ -4707,6 +4821,29 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
     elif name == "build_structure":
         return await api_post("/api/structure/build", args)
 
+    # --- WorldForge (docs/WorldForge.md) ---
+    elif name == "worldforge_plan":
+        return await api_post("/api/worldforge/plan", args)
+
+    elif name == "worldforge_apply":
+        return await api_post("/api/worldforge/apply", args)
+
+    elif name == "worldforge_build":
+        return await api_post("/api/worldforge/build", args)
+
+    elif name == "worldforge_status":
+        return await api_get("/api/worldforge/status")
+
+    elif name == "worldforge_map":
+        step = args.get("step", 4)
+        return await api_get(f"/api/worldforge/map?step={step}")
+
+    elif name == "worldforge_minimap":
+        from urllib.parse import urlencode
+        q = urlencode({k: v for k, v in args.items()
+                       if k in ("px", "x", "z", "radius", "filename")})
+        return await api_get(f"/api/worldforge/minimap{'?' + q if q else ''}")
+
     elif name == "list_structure_types":
         return await api_get("/api/structure/types")
 
@@ -5212,7 +5349,18 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
             body["walkSpeed"] = args["walkSpeed"]
         if "waitTime" in args:
             body["waitTime"] = args["waitTime"]
+        for key in ("weapon", "faction", "monsterId", "role", "driveMode"):
+            if key in args:
+                body[key] = args[key]
         return await api_post("/api/npc/spawn", body)
+
+    elif name == "spawn_encounter":
+        body = {"monsters": args["monsters"], "position": args["position"]}
+        if "radius" in args:
+            body["radius"] = args["radius"]
+        if "faction" in args:
+            body["faction"] = args["faction"]
+        return await api_post("/api/encounter/spawn", body)
 
     elif name == "remove_npc":
         return await api_post("/api/npc/remove", {"name": args["name"]})

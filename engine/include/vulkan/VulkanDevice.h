@@ -191,6 +191,21 @@ struct UniformBufferObject {
     alignas(16) glm::vec3 moonColor{0.0f};           // moonlight, already scaled by lunar phase
     alignas(4)  float exposure = 1.0f;               // linear scale applied before the tonemap
     alignas(4)  int   tonemapCurve = 1;              // 0 = none (raw linear), 1 = AgX
+    // ---- Celestial bodies (graphics/CelestialBody.h; 2026-08-13) -----------------------------
+    // The sky's suns and moons as DATA, so "two moons" is configuration rather than code. Capped at
+    // kMaxSkyBodies: the arrays cost 16 bytes per vec4 per body and the shaders loop over them, so
+    // this is deliberately a small number rather than unbounded. Raise it here and in
+    // atmosphere.glsl's kMaxSkyBodies together.
+    // Appended per the trailing-field rule: every existing truncated GLSL block stays valid.
+    //   dirRadius : xyz = unit vector TOWARD the body, w = drawn angular radius (radians)
+    //   disc      : rgb = disc colour x brightness,    w = 1 if REFLECTIVE (has a phase), else 0
+    //   litDir    : xyz = unit vector toward whatever lights it, w = 1 if it owns the shadow cascades
+    //   light     : rgb = light this body delivers to the world (0 if it contributes none)
+    alignas(16) glm::vec4 skyBodyDirRadius[4]{};
+    alignas(16) glm::vec4 skyBodyDisc[4]{};
+    alignas(16) glm::vec4 skyBodyLitDir[4]{};
+    alignas(16) glm::vec4 skyBodyLight[4]{};
+    alignas(4)  int skyBodyCount = 0;
 };
 
 class VulkanDevice {
@@ -255,6 +270,13 @@ public:
         glm::vec3 moonColor{0.0f};
         float exposure = 1.0f;
         int   tonemapCurve = 1;   // 0 = none (raw linear), 1 = AgX
+        // Celestial bodies, already placed and lit for this frame (see graphics/CelestialBody.h).
+        static constexpr int kMaxSkyBodies = 4;
+        glm::vec4 bodyDirRadius[kMaxSkyBodies]{};
+        glm::vec4 bodyDisc[kMaxSkyBodies]{};
+        glm::vec4 bodyLitDir[kMaxSkyBodies]{};
+        glm::vec4 bodyLight[kMaxSkyBodies]{};
+        int bodyCount = 0;
     };
     void setAtmosphereUniforms(const AtmosphereUniforms& a) { m_atmosphere = a; }
     const AtmosphereUniforms& getAtmosphereUniforms() const { return m_atmosphere; }
@@ -299,7 +321,7 @@ public:
     // matrix per bone group so instances can index their own transform, which is what
     // lets a whole character render in a single draw.
     bool createCharacterBoneBuffer(uint32_t maxBones);
-    void updateCharacterBoneBuffer(const std::vector<glm::mat4>& bones);
+    void updateCharacterBoneBuffer(uint32_t frameIndex, const std::vector<glm::mat4>& bones);
     void cleanupCharacterBoneBuffer();
     uint32_t getMaxCharacterBones() const { return maxCharacterBones; }
     
@@ -363,7 +385,11 @@ public:
     void* loadImGuiTexture(const std::string& path);
 
     /// Free all textures loaded via loadImGuiTexture.
-    void cleanupImGuiTextures();    
+    void cleanupImGuiTextures();
+
+    /// Free ONE cached ImGui texture so the same path can be reloaded with fresh pixels
+    /// (waits for the device to go idle — refresh-button cadence, never per frame).
+    void releaseImGuiTexture(const std::string& path);
     
     // Shadow map resources
     void setShadowMapResources(VkImageView imageView, VkSampler sampler) {
@@ -538,9 +564,14 @@ private:
     uint32_t maxCharacterInstances = 0;
 
     // Character bone-transform SSBO (binding 8)
-    VkBuffer characterBoneBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory characterBoneBufferMemory = VK_NULL_HANDLE;
-    void* characterBoneMapped = nullptr;      // persistent map (HOST_COHERENT)
+    // Character bone SSBO — PER FRAME IN FLIGHT. A single shared buffer memcpy'd every
+    // frame raced the GPU: an in-flight frame read the NEXT frame's camera-relative bone
+    // matrices against its own older view, shifting the character by the camera's
+    // between-frame translation — the "character jitters in third person orbit, never in
+    // free-cam rotation" bug (rotation leaves camera-relative positions unchanged).
+    std::vector<VkBuffer> characterBoneBuffers;
+    std::vector<VkDeviceMemory> characterBoneBufferMemories;
+    std::vector<void*> characterBoneMapped;   // persistent maps (HOST_COHERENT)
     uint32_t maxCharacterBones = 0;
     
     std::vector<VkBuffer> uniformBuffers;

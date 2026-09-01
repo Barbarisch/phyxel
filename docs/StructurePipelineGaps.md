@@ -63,3 +63,270 @@ what the engine did instead, the workaround used, and what a real fix looks like
 - **Real fix:** apply the same type→typology alias in the v2 path (or refuse a `type` that
   contradicts the resolved typology), and accept the object footprint shape or reject it with
   a message naming the array form.
+
+## 2026-08-16 - WorldForge V1 punts (docs/WorldForge.md), logged so nothing is silently "done"
+
+- **Bridges at river crossings:** the world plan MARKS every order>=3 crossing on a road
+  (position + Strahler order, in the plan JSON and `WorldForgeRoad::crossings`), but nothing is
+  built there - the road stops at the carved channel and resumes on the far bank. Real fix:
+  ValidationLedger placer #44 `place_bridges`, consuming the crossing records (order -> span/width
+  from the same Doll-et-al channel-geometry tables the carve uses).
+- ~~Road grading~~ **RESOLVED 2026-08-20**: per-road slope-limited grade profile baked in
+  the plan (lower envelope + junction reconciliation + two-sided bridge-deck pins);
+  sampleColumn pulls corridor surfaceY to it (cut AND fill). Mountain network measured
+  0/6656 centerline steps over 1 cube (was 45). The 2026-08-20-morning abutment ramp was
+  REMOVED same day - deck pins subsume it.
+- **Road-to-street fusion:** roads terminate at the settlement footprint edge; the settlement's
+  own street network doesn't orient toward or join the arriving road (`chooseStreetAxis` knows
+  nothing about the plan). Real fix: pass the road arrival bearing into settlement layout.
+- ~~Live apply~~ **RESOLVED 2026-08-21**: worldforge_apply applies LIVE on worlds with no
+  saved chunks - ChunkManager::restreamWorldLive() stops the gen workers (fresh generator
+  snapshots re-taken on the next pump), evicts every resident chunk (deferred deletion;
+  DIRTY chunks are DISCARDED, not saved - saving them smuggled old-plan content back as
+  stale islands, observed live), clears the surface-band + evicted-LOD caches, and the
+  far-terrain mesher re-configures its private generator copy. Guards: in-flight
+  worldforge_build (raw plan pointer - UAF), draining boot DB backlog. Saved-chunk worlds
+  keep the refusal / force+restart path. WorldForgeLiveApplyTest pins bare-apply staleness,
+  restream pickup, and fresh-generator seam equality on the real async pump.
+- **Heightmap/Flat worlds:** no hydrology bake -> no WorldForge plan (surfaced as an error).
+  Same family as the "far-terrain heightmap worlds skip the hydrology bake" gap.
+- **Roads at distance:** no far tier renders roads beyond chunk residency (far-terrain tiles
+  carry no road channel) - a P-DERIVED violation at distance, noted in LodTierLedger.
+- **Lazy realization:** settlements only realize via the orchestrated `worldforge_build` job;
+  there is no build-on-stream-in for unbounded exploration (deliberate V1 scope decision).
+
+## 2026-08-16 - streaming "wedge" during worldforge_build was Debug-build CRAWL, not pump death (RETRACTED in part, kept for the measurements)
+
+- **CORRECTION (same day, measured):** a controlled A/B after cancelling the job showed the pump
+  ALIVE at ~7 chunks/min (18->29 resident over 90 s, plain focus, no job) - the "freeze" was a full
+  48-slot request queue draining at Debug-crawl speed in a forest/creek region (dense flora stamping
+  is a recorded 450-625 ms/chunk; plus water spans + fine ponds). generation_pending pinned at its
+  cap is NORMAL at that rate. The anchor-jump-wedge theory is therefore UNPROVEN here; the walking
+  anchor + wall-clock residency deadline shipped anyway (good hygiene, and the recorded spawn-swap
+  boot gap still stands). The residency-scale lesson is real: a town footprint needs ~150-300
+  resident chunks = 20-40 min PER SITE on Debug - worldforge_build verification belongs on RELEASE
+  (163 chunks/s measured), per the standing "never size an investment off Debug" rule.
+- **What happened:** the first live `worldforge_build` run set the new streaming focus override
+  (ChunkManager::setStreamingFocusOverride) directly to a site ~630 u from the player - an instant
+  anchor teleport. Within ~2 min the generation pipeline froze: `/api/debug/load_state` pinned at
+  `generation_pending: 48` with resident count crawling, zero ChunkStreaming log lines after
+  21:12:12, engine/API/game-loop alive throughout, job residency polls ticking normally. Clearing
+  the override did NOT revive generation - the wedge is permanent once entered. Same signature as
+  the recorded "streaming pump dies after ~2 h uptime" open bug (chunk count freezes, zero
+  ChunkStreaming logs, silent gen-worker death + pending-slot leak hypothesis), triggered here in
+  minutes by the anchor jump; also consistent with the recorded "spawn-swap to a far coordinate
+  never finished booting" gap. Note also an earlier full CRASH this session: a player teleport into
+  unstreamed terrain at (-102,701) killed the process silently ~2 min later while the player
+  free-fell to y=-516k (chunks only load within loadDistance of the player's 3D position, so a
+  falling player outruns its own terrain forever).
+- **Workaround (shipped in worldforge_build):** the focus driver now WALKS the anchor 64 u per
+  residency poll instead of teleporting; plus a wall-clock residency deadline so a wedged pump
+  surfaces as `refused: residency_timeout`, never a hang.
+- **Real fix:** the recorded pump-death fix shape (gen-worker heartbeat + dead-worker restart +
+  pending-slot reclaim), plus making a large anchor delta safe in ChunkStreamingManager (it is
+  reachable from ordinary gameplay: teleports, scene transitions, respawns).
+
+## 2026-08-16 - remote-settlement residents fall through evicted terrain (worldforge_build measurement)
+
+- **What happened:** the first complete `worldforge_build` run (Release, 3 sites) spawned 15
+  scheduled residents across the sites; when the job released the streaming focus, the remote
+  sites' chunks evicted and every resident free-fell through the missing occupancy grids
+  (observed positions y=-4.5k to -234k). Residents are also not DB-persisted (recorded gap), so
+  they'd vanish on reload regardless.
+- **Workaround (shipped):** `WorldForgeBuildService::settlementParamsFor` passes
+  `"residents": false` - worldforge-built settlements ship without residents in V1.
+- **Real fix:** persist Location/resident records with the settlement (the recorded persistence
+  gap) and re-spawn residents on chunk stream-in near a built site - which also fixes plain
+  `build_settlement` towns after any reload, not just worldforge ones. NPC ground-truth also
+  wants the "kinematic bodies wedge when chunks evict" family fixed (fauna D1).
+
+## 2026-08-17 - player loses ground while worldforge_build owns residency (operational hazard)
+
+- **What happened:** during a worldforge_build (and manual `worldforge_focus`), the streaming
+  anchor moves to the build site, the spawn area's chunks evict once outside unloadDistance, and
+  the parked player free-falls through the vanished floor (observed at y=-2938 on the 8-site run).
+  The job restores the player anchor at the end, but the player is deep underground by then.
+- **Workaround:** world-BAKING is an authoring activity - keep the player parked and respawn
+  (force_respawn / reload) after the bake; or run bakes before entering play.
+- **Real fix options:** freeze player physics while a residency override is active; or a dual
+  anchor (player + focus) with a small player-side keep-alive ring; ties into the recorded
+  "falling player outruns its own terrain" teleport hazard.
+- **RESOLVED 2026-08-20 - kinematic residency gate** (AnimatedVoxelCharacter::
+  kinematicResidencyHold): on a streaming world, when the chunk at the feet AND the chunk
+  below are both absent from chunkMap, the ground is UNKNOWN (all-air chunks stay
+  resident, so absence = not-yet-streamed) and the character holds in place - zero
+  vertical velocity, grounded stance - releasing the instant residency returns. Covers
+  BOTH this hazard and the teleport-into-unstreamed-terrain family, for the player and
+  every NPC on the same controller. The chunk-below escape keeps jumps above the streamed
+  surface band under normal gravity; static worlds are untouched
+  (CharacterResidencyGateTest, 4 tests, red-first: held character fell 19.8u/2s before).
+
+## 2026-08-17 (later) - bridges V1 shipped; remaining bridge gaps
+
+Placer #44 V1 landed (docs/WorldForge.md "Bridges"): flat Wood plank decks span every
+order>=3 crossing, baked in the plan and emitted per-column by generateChunk; L4-verified
+(voxel scan + in-ravine screenshot, BridgeVis project). The 2026-08-16 "bridges" punt above
+is superseded. Still open, logged here so they are not silently "done":
+- ~~Railings/piers/abutments~~ **RESOLVED 2026-08-20**: deck-edge columns raise a
+  2/3-voxel WoodPlanks subcube parapet (span interior only - clamped-distance endpoint
+  arcs would have walled off the bridge ENTRANCE, caught red by the walkway-intrusion
+  assertion), spans >= 24 u get solid Stone piers bed-to-deck at ~12 u stations, pier
+  columns emit no water span. All derived per query - plan hashes unchanged, ledgers
+  stay valid. Residual: no parapet post rhythm/openings.
+- 2026-08-20 (later): the M3-owed TraversalProbe agent walk landed as L3 tests
+  (BridgeCrossingIsAgentWalkable + BridgeAbutmentRampStepsTheLowBankUp) and drove two
+  emission changes: decks are now strictly span-interior (the clamped-distance check had
+  grown a floating deck DISC beyond each endpoint), and genuinely-low banks get a stepped
+  Stone ABUTMENT RAMP (1 cube per 2u, reach 8u) so the deck mounts along the road line -
+  the abutment-massing residual above is partially closed. Natural terrain steps > 1 cube
+  on approaches BEYOND the ramp remain the road-grading gap (unchanged).
+- Channels wider than 96 u yield NO deck (bake log warns) - big rivers stay uncrossable.
+- Decks are flat; no arc/clearance shaping for tall boat traffic (cosmetic for now).
+- Plan-hash note: the bridges field changes all plan hashes; pre-bridge realization ledgers
+  refuse re-runs with the stale-ledger guard (by design - regenerate or clear the ledger).
+
+## 2026-08-18 - RESOLVED: resident persistence + free-falling remote residents (ResidentSpawner)
+
+Both 2026-08-16/17 resident gaps above are closed by core/ResidentSpawner (the FaunaSpawner
+pattern driven by PERSISTED Locations):
+- Locations now persist in world_meta["locations"] at every save point (sync save_world,
+  async save job, worldforge checkpoints) and restore at project load.
+- Residents are DERIVED state, never stored: the spawner clusters locations into settlements
+  (union-find, 64u links - each settlement keeps its own tavern), plans via ResidentPlanner,
+  spawns when a location's ground voxel is resident, despawns BEFORE eviction can drop them,
+  respawns identically (deterministic names) on return or reload, and adopts build-spawned
+  NPCs by name. Settlement builds via worldforge pass residents:false; the spawner owns them.
+- L4 (Release, canonical 3-site world): 7 town residents spawned during the bake, despawned
+  cleanly when the focus walked away (0 falling - previously y=-233k), 15 locations restored
+  after reload, the SAME 7 names respawned on stream-in, despawned again on evict.
+- Note: one reload in this verification hit the RECORDED intermittent boot hang
+  (reference_engine_boot_hang: init stalls while the API answers; log froze mid chunk-load
+  16s after boot, before the spawner ever ticked). Not reproduced on retry; still open.
+
+## 2026-08-18 - road-arrival street orientation shipped; physical junction still open
+
+The 2026-08-16 "road-to-street fusion" gap is HALF closed: worldforge builds now pass
+{"street_axis"} derived from the first arriving road's bearing, and chooseStreetAxis takes
+a bounded per-cell preference (1500 in the x1000 relief score - tips comparable terrain
+toward the road's axis, never overrides water/cliffs or a decisively flatter spine;
+ChooseStreetAxisHonorsRoadPreference red-first). Still open: the PHYSICAL junction - the
+road terminates at the settlement footprint edge and the main street starts inside it, so
+a few unpaved cubes can separate them; full fusion means extending the street paving (or
+the road) to meet at the boundary.
+
+## 2026-08-18 (later) - street-road junction closed (both halves)
+
+The remaining physical-junction gap above is now closed: roads trim to the footprint
+boundary (+1 inset, was +8 - RoadsReachTheFootprintEdge red-first), and chooseStreetAxis
+takes a bounded lateral preference (30/cube capped 1500) fed by street_offset = the road's
+arrival center in site-local coords, so the main street lands where the road actually
+enters. L4 (fresh canonical world): site 0's street chose "axis Z offset 65" = exactly the
+requested arrival alignment - the street runs along the road's final approach and meets its
+end head-on. Note for scans: street paving is MICRO-resolution Cobblestone - cube-level
+surface scans do not show it (misread this before finding it in the paving logs).
+
+## 2026-08-18 - far-road LOD: already worked, now pinned; coarse-ring thinning remains
+
+The "roads have no far tier" gap logged 2026-08-16 (and echoed in LodTierLedger) was WRONG
+about the present: far-terrain tiles sample sampleSurface per column, which has stamped
+road material since M1, and FarTerrainManager::configure copies the CONFIGURED streaming
+generator - the worldforge plan rides the copy. Roads therefore render in far tiles with
+zero far-terrain code (FarTerrainMesherTest.RoadsShowInFarTiles pins steps 2 and 4;
+corroborated live from an elevated camera - a gravel line crossing far snowfield tiles).
+Both docs corrected. REMAINING (real): point-sampling thins a 5-6u road at coarse rings -
+step 8 renders dashes, step 16 mostly loses it (beyond ~2 km). Fix shape: a supersampled
+road hit per far column (query roadAt at 2-3 subpositions, majority wins) or a widened
+roadHalfWidth for far sampling only.
+
+## 2026-08-18 (later) - far-road thinning RESOLVED (supersampled far columns)
+
+The coarse-ring residual above is closed: FarTerrainMesher now tests each far column
+CELL CENTRE against roadAt with acceptance halfWidth + step/2, so any cell the road passes
+through reads as road - the far ribbon is continuous at every ring (1-cell-wide line, the
+correct far-map thickness). Near columns untouched (far-tile-only widening). Red-first:
+the RoadsShowInFarTiles continuity assertion (road-column area >= 0.8x the centerline arc
+length per step) measured 38 columns for 461u of road at step 8 before the fix.
+
+## 2026-08-20 - silent engine death on BridgeVis (Release), second sighting
+
+During the road-grading L4 look (Release, BridgeVis fresh world, ~15 min uptime: focus
+walk, streaming settled, orbit screenshots, then a slow API voxel-scan), the process died
+with NO crash line - the log just stops. The last minute is exclusively a wedged fauna
+NPC spamming "[PatrolBehavior] STUCK (replan): pos=(-2357.75,65,-2387.3), pathNode=0/0"
+every 1.5 s (the recorded "kinematic bodies wedge when chunks evict" fauna family - the
+NPC sits exactly at deck height 65 near the bridge). First sighting was 2026-08-17 during
+a teleport-fall (that trigger is now fixed by the residency gate; this one had no fall).
+No repro, no stack. Two leads for a future session: (a) the wedged-NPC replan loop as a
+correlate, (b) phyxel.log is 11.5M lines - rotate it; a log-write failure would be
+invisible. Logged, not chased.
+
+## 2026-08-21 - third-person "feet jitter" triage: sim exonerated, it is the no-AA speckle
+
+User report: in locked 3rd person, orbiting the camera makes the character's feet/ground
+look like they micro-adjust; moving the character does not. Measured live (10 Hz trace
+during a user-performed RMB orbit): player position FROZEN to the millimeter (zero
+variance, all axes), camera boom rigid at exactly 4.000u, grounding never fired, and the
+shadow fit already does world-anchored texel snapping (RenderCoordinator fitVolume). Every
+simulation-side suspect is exonerated. The visible effect is the RECORDED sub-pixel
+speckle defect (docs/RenderOptimization.md:489,513 - no AA): grass blades and voxel edges
+re-rasterize under any view change, most visible at the ground contact, masked by whole-
+view motion, invisible at rest. Fix = the WorldRenderV2 M3 anti-aliasing milestone, not a
+tweak. (Same session: the map-panel scrollbar oscillation and the stale far-tile terraces
+were real bugs, fixed in e11b51d6.)
+
+## 2026-08-21 - OPEN: bald grass strips along terrain step contours (evidence trail)
+
+User-visible: bare "staircase" strips along 1-cube step contours in meadows, reading as
+broken LOD; view-angle contrast makes them pop. Established by measurement on BridgeVis:
+- World data CORRECT: streamed voxels == generator surface on 109/110 columns (the one
+  outlier is a tree); forced remesh is a no-op (mesh faithful to data).
+- NOT far-terrain tiles (disabled via /api/debug/far_terrain -> artifact persists,
+  tiles_drawn 0), NOT occlusion culling (disabled -> identical frame), NOT ghost chunks
+  (one-object-per-coord guard added d32dcece; ghosts counter reads 0), NOT the shader
+  edge taper (edgeTaperFloor=1.0 -> strips stay bald; the shader only scales height,
+  never discards), NOT the blade PLANTING scan (GrassBladeCoverageTest: terraced floor
+  gets 1024/1024 blade instances headless).
+- With bladeWidth 3x, most of the strip fills in EXCEPT clean RECTANGULAR bald patches
+  hugging the upper side of step edges - rectangle-shaped absence suggests something
+  structural (merged-quad-correlated? per-instance-range?) rather than per-cell logic.
+Next session's tool: a debug overlay coloring each grass-topped cell by whether a blade
+INSTANCE exists for it in the live chunk buffer (CPU-side dump of m_grassInstances per
+chunk via an API route) - that splits "instances absent" from "instances invisible" in
+one look. Related open defects in the same visual family: T-junction cracks at
+greedy-merge borders, no-AA sub-pixel speckle.
+
+## 2026-08-21 - OPEN: character parts wash out under direct sun / go slate-navy in ambient
+
+Observed during creature_forge L4 (CharacterTestbed, Debug + LodTest, Release): animated-character
+box albedo renders with far higher lighting contrast than terrain. Mid-brown albedo (~0.55) reads
+near-white on sun-facing faces and desaturated slate-blue on ambient-only faces (noon: all vertical
+faces). NOT an asset defect: an RGB probe rig (pure red/green/blue boxes) proved per-box .anim
+colors reach the renderer with correct channels; the imported fox control washes out identically.
+Effect: every fauna rig's authored palette is only recognizable at oblique sun angles; at noon or
+in canopy shade creatures read grey. Suspect the character instancing path lacks the warmer
+ambient/bounce terms terrain gets from lighting.glsl (characters were tuned pre-lighting-revamp).
+Next probe: render one character + one terrain block with IDENTICAL albedo side by side and diff
+the lit values per face orientation. Workaround used by creature_forge: keep spec `shading.gradient`
+gentle (bottom -0.22, not anyCreature's -0.88) so the engine's own contrast doesn't compound it.
+
+## 2026-08-21 - Bestiary Forge punts (logged at M6)
+
+- **Flight locomotion for winged rigs**: forge_dragon_young / forge_griffon ship folded-wing,
+  ground-only. The engine has no flying gait class for spawned NPCs (the dragon body plan is
+  ground clips too). A flight tier needs: airborne capsule mode, a Fly FSM state + clips, and
+  wing-beat membrane animation (membrane bones exist and are animatable today).
+- **Natural-weapon melee family**: CombatBehavior installs the 'unarmed' weapon moveset for
+  every NPC; forge monsters route Attack through body-plan clipDefaults instead, which works
+  but bypasses the family system (no light/heavy chains, no block). A 'natural' family
+  (bite/claw/slam) in melee_anim_families.json + a per-species family hook on CombatBehavior
+  would unify them.
+- **Turn-based defender AC**: CombatAISystem derives a pseudo-AC from HP% for generic
+  entities; now that NPCs carry monsterId, the defender's real AC could come from its stat
+  block the same way the attacker's attacks now do.
+- **Quaternius monster_* overlap**: monster_orc/monster_dragon etc. duplicate bestiary roles
+  with no clip_meta and (dragon) a missing idle clip. DECISION: keep them (unknown consumers,
+  zero maintenance); bindings.json points only at the new rigs; revisit retirement after a
+  consumer inventory.
+- **MonsterRegistry had no loader call anywhere**: fixed as a lazy load inside the
+  spawn_encounter handler — a proper boot-time load (WorldInitializer) would also serve
+  hand-keyed turn-based combats whose acting id happens to equal a stat-block id.

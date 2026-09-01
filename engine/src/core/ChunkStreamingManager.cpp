@@ -507,6 +507,32 @@ void ChunkStreamingManager::unloadDistantChunks(const glm::vec3& position, float
     }
 }
 
+size_t ChunkStreamingManager::evictAllChunks() {
+    auto& chunks = m_getChunks();
+    auto& chunkMap = m_getChunkMap();
+    size_t evicted = 0, discardedDirty = 0;
+    for (auto& chunk : chunks) {
+        if (!chunk) continue;
+        // Per-chunk teardown as in unloadDistantChunks, with ONE deliberate difference:
+        // dirty chunks are DISCARDED, not saved. Saving them here persisted OLD-plan
+        // content that would later reload as stale islands inside the re-streamed world —
+        // the exact seam a live apply must not create (it also tripped the saved-chunk
+        // guard on the NEXT apply: 9 ambient-dirty chunks, observed live). A live
+        // re-stream means "regenerate this world"; unsaved edits go with it, and the
+        // count is surfaced so nothing is silently lost.
+        if (chunk->getIsDirty()) ++discardedDirty;
+        if (m_onChunkEvicted) m_onChunkEvicted(*chunk);
+        chunkMap.erase(Utils::CoordinateUtils::worldToChunkCoord(chunk->getWorldOrigin()));
+        m_pendingDeletion.push_back(std::move(chunk));
+        ++evicted;
+    }
+    chunks.clear();
+    LOG_INFO_FMT("ChunkStreaming", "Evicted ALL " << evicted
+                 << " resident chunks (live re-stream, " << discardedDirty
+                 << " dirty discarded); deletion deferred to the next pump");
+    return evicted;
+}
+
 bool ChunkStreamingManager::saveChunk(Chunk* chunk) {
     if (!worldStorage || !chunk) return false;
     // Serialize against the async worker's off-thread DB loads.
@@ -716,6 +742,16 @@ void ChunkStreamingManager::pumpDeferredDbLoads(const glm::vec3& position) {
 }
 
 bool ChunkStreamingManager::generateOrLoadChunk(const glm::ivec3& chunkCoord) {
+    // ONE chunk object per coord, ever. Without this guard the sync path could land a
+    // SECOND object for an already-resident coord: chunkMap[coord] was overwritten (new
+    // wins for queries) while the old object stayed in the render vector — a GHOST that
+    // draws forever but no voxel query can reach. Live symptom: bare, undecorated,
+    // pre-recipe terrain terraces "poking out of" the real meadow near spawn (the boot
+    // window before the async workers start sync-generates with the pre-recipe
+    // generator; the properly-generated chunk then orphaned it). Same family as the
+    // recorded "empty chunks linger in the Outliner" bug. The async drain has had this
+    // guard all along ("superseded"); the sync path now matches it.
+    if (getChunkAtCoord(chunkCoord)) return true;
     if (!worldStorage) {
         // Fallback: create empty chunk via callback
         m_createChunk(Utils::CoordinateUtils::chunkCoordToOrigin(chunkCoord));

@@ -17,6 +17,7 @@
 #include <vector>
 #include <unordered_map>
 #include <memory>
+#include <optional>
 #include <shared_mutex>
 #include <functional>
 
@@ -109,6 +110,11 @@ public:
     float loadDistance = 256.0f;   // Distance to load chunks (8 chunks; >= render distance so streamed chunks are loaded before they'd render)
     float unloadDistance = 352.0f; // Distance to unload chunks (11 chunks * 32 units)
     glm::vec3 playerPosition = glm::vec3(0.0f); // Player position for streaming
+private:
+    // WorldForge M2: while set, streaming anchors here instead of playerPosition (see
+    // setStreamingFocusOverride). Main-thread only, like playerPosition.
+    std::optional<glm::vec3> m_streamingFocusOverride;
+public:
 
     // Streaming world generation (Phase 1: the generation wire). When enabled, chunks
     // streamed in by ChunkStreamingManager are filled by this generator instead of the
@@ -166,6 +172,16 @@ public:
     bool initializeWorldStorage(const std::string& worldPath);
     void disconnectWorldStorage();
     void setPlayerPosition(const glm::vec3& position) { playerPosition = position; }
+
+    // Streaming FOCUS override (WorldForge M2, docs/WorldForge.md): while set, the streaming
+    // pump anchors on this position instead of the player, so an orchestration job can drive
+    // residency at a remote build site through the normal throttled streaming path (never a
+    // bulk generate — that wedges the game loop for minutes). playerPosition keeps updating
+    // underneath; clearing the override hands residency straight back to the player.
+    void setStreamingFocusOverride(const glm::vec3& pos) { m_streamingFocusOverride = pos; }
+    void clearStreamingFocusOverride() { m_streamingFocusOverride.reset(); }
+    bool hasStreamingFocusOverride() const { return m_streamingFocusOverride.has_value(); }
+    glm::vec3 streamingAnchor() const { return m_streamingFocusOverride.value_or(playerPosition); }
 
     // Enable/disable streaming world generation and configure the generator. Pass
     // enabled=true with a generation type + seed to make streamed-in chunks generate
@@ -268,6 +284,16 @@ public:
 
     // Bulk clear all voxels in a chunk (instant, single rebuild)
     bool clearChunk(const glm::ivec3& chunkCoord);
+
+    /// LIVE re-stream after the streaming generator changed (WorldForge live apply): stop
+    /// the async gen workers (their private generator snapshots are stale — fresh copies
+    /// are re-taken from the live generator on the next pump), evict EVERY resident chunk
+    /// through the deferred-deletion teardown, and drop the derived caches nothing else
+    /// clears (per-column surface band, evicted-LOD blobs of pre-change terrain). The
+    /// pump then re-streams the world under the new plan. Returns chunks evicted.
+    /// Caller contract: apply the generator change FIRST (e.g. setWorldForgeParams), and
+    /// refuse while a worldforge_build job is in flight or boot DB loads are pending.
+    size_t restreamWorldLive();
 
     // Cube manipulation helpers
     Cube* getCubeAt(const glm::ivec3& worldPos);          // Get cube at world position

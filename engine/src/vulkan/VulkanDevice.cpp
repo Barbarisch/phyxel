@@ -1320,39 +1320,59 @@ bool VulkanDevice::createCharacterBoneBuffer(uint32_t maxBones) {
     maxCharacterBones = maxBones;
     VkDeviceSize bufferSize = sizeof(glm::mat4) * maxCharacterBones;
 
-    createBuffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                 characterBoneBuffer, characterBoneBufferMemory);
-
-    if (characterBoneBufferMemory != VK_NULL_HANDLE) {
-        vkMapMemory(device, characterBoneBufferMemory, 0, bufferSize, 0, &characterBoneMapped);
-        if (characterBoneMapped) memset(characterBoneMapped, 0, bufferSize);
+    // PER FRAME IN FLIGHT (see the header note): one buffer per concurrent frame, indexed
+    // by the frame slot, so rewriting this frame's bones can never race a previous
+    // frame's in-flight reads. Bones are camera-relative — a raced overwrite shifted the
+    // character by the camera's between-frame translation (the third-person orbit jitter).
+    characterBoneBuffers.assign(MAX_FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
+    characterBoneBufferMemories.assign(MAX_FRAMES_IN_FLIGHT, VK_NULL_HANDLE);
+    characterBoneMapped.assign(MAX_FRAMES_IN_FLIGHT, nullptr);
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+        createBuffer(bufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                     characterBoneBuffers[i], characterBoneBufferMemories[i]);
+        if (characterBoneBufferMemories[i] != VK_NULL_HANDLE) {
+            vkMapMemory(device, characterBoneBufferMemories[i], 0, bufferSize, 0,
+                        &characterBoneMapped[i]);
+            if (characterBoneMapped[i]) memset(characterBoneMapped[i], 0, bufferSize);
+        }
     }
 
-    LOG_INFO("Vulkan", "Created character bone SSBO ({} matrices, {} bytes)",
-             maxCharacterBones, static_cast<uint64_t>(bufferSize));
+    LOG_INFO("Vulkan", "Created character bone SSBOs x{} ({} matrices, {} bytes each)",
+             MAX_FRAMES_IN_FLIGHT, maxCharacterBones, static_cast<uint64_t>(bufferSize));
     return true;
 }
 
-void VulkanDevice::updateCharacterBoneBuffer(const std::vector<glm::mat4>& bones) {
-    if (bones.empty() || characterBoneMapped == nullptr) return;
+void VulkanDevice::updateCharacterBoneBuffer(uint32_t frameIndex,
+                                             const std::vector<glm::mat4>& bones) {
+    if (bones.empty() || frameIndex >= characterBoneMapped.size() ||
+        characterBoneMapped[frameIndex] == nullptr)
+        return;
     const uint32_t count = std::min(static_cast<uint32_t>(bones.size()), maxCharacterBones);
-    memcpy(characterBoneMapped, bones.data(), sizeof(glm::mat4) * count);
+    memcpy(characterBoneMapped[frameIndex], bones.data(), sizeof(glm::mat4) * count);
 }
 
 void VulkanDevice::cleanupCharacterBoneBuffer() {
-    if (characterBoneBufferMemory != VK_NULL_HANDLE && characterBoneMapped != nullptr) {
-        vkUnmapMemory(device, characterBoneBufferMemory);
-        characterBoneMapped = nullptr;
+    for (size_t i = 0; i < characterBoneBuffers.size(); ++i) {
+        if (i < characterBoneBufferMemories.size() &&
+            characterBoneBufferMemories[i] != VK_NULL_HANDLE &&
+            i < characterBoneMapped.size() && characterBoneMapped[i] != nullptr) {
+            vkUnmapMemory(device, characterBoneBufferMemories[i]);
+            characterBoneMapped[i] = nullptr;
+        }
+        if (characterBoneBuffers[i] != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, characterBoneBuffers[i], nullptr);
+            characterBoneBuffers[i] = VK_NULL_HANDLE;
+        }
+        if (i < characterBoneBufferMemories.size() &&
+            characterBoneBufferMemories[i] != VK_NULL_HANDLE) {
+            vkFreeMemory(device, characterBoneBufferMemories[i], nullptr);
+            characterBoneBufferMemories[i] = VK_NULL_HANDLE;
+        }
     }
-    if (characterBoneBuffer != VK_NULL_HANDLE) {
-        vkDestroyBuffer(device, characterBoneBuffer, nullptr);
-        characterBoneBuffer = VK_NULL_HANDLE;
-    }
-    if (characterBoneBufferMemory != VK_NULL_HANDLE) {
-        vkFreeMemory(device, characterBoneBufferMemory, nullptr);
-        characterBoneBufferMemory = VK_NULL_HANDLE;
-    }
+    characterBoneBuffers.clear();
+    characterBoneBufferMemories.clear();
+    characterBoneMapped.clear();
 }
 
 void VulkanDevice::updateAtlasUVBuffer(const std::vector<glm::vec4>& uvs, uint32_t fallbackIndex,
@@ -1564,12 +1584,13 @@ bool VulkanDevice::createDescriptorSets() {
 
         vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
 
-        // Character bone SSBO (binding 8). Single buffer shared by all frames in flight:
-        // it is rewritten once per frame before any pass reads it, exactly like the
-        // character instance buffer it accompanies.
-        if (characterBoneBuffer != VK_NULL_HANDLE) {
+        // Character bone SSBO (binding 8) — PER FRAME IN FLIGHT. The old single shared
+        // buffer was rewritten each frame while a previous frame's draws could still be
+        // reading it on the GPU; bones are camera-relative, so the race displaced the
+        // character by the camera's between-frame translation (third-person orbit jitter).
+        if (i < characterBoneBuffers.size() && characterBoneBuffers[i] != VK_NULL_HANDLE) {
             VkDescriptorBufferInfo boneInfo{};
-            boneInfo.buffer = characterBoneBuffer;
+            boneInfo.buffer = characterBoneBuffers[i];
             boneInfo.offset = 0;
             boneInfo.range  = sizeof(glm::mat4) * maxCharacterBones;
 
@@ -1691,6 +1712,13 @@ void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& vie
     ubo.moonColor         = m_atmosphere.moonColor;
     ubo.exposure          = m_atmosphere.exposure;
     ubo.tonemapCurve      = m_atmosphere.tonemapCurve;
+    ubo.skyBodyCount      = m_atmosphere.bodyCount;
+    for (int i = 0; i < AtmosphereUniforms::kMaxSkyBodies; ++i) {
+        ubo.skyBodyDirRadius[i] = m_atmosphere.bodyDirRadius[i];
+        ubo.skyBodyDisc[i]      = m_atmosphere.bodyDisc[i];
+        ubo.skyBodyLitDir[i]    = m_atmosphere.bodyLitDir[i];
+        ubo.skyBodyLight[i]     = m_atmosphere.bodyLight[i];
+    }
     ubo.biasedLightSpaceFar = kShadowBiasMat * m_farLightSpace;
     ubo.shadowCascadeFar =
         glm::vec4(m_farCascadeRangeEnd, m_farCascadeDepthRange, 0.0f, 0.0f);
@@ -3095,6 +3123,19 @@ void* VulkanDevice::loadImGuiTexture(const std::string& path) {
     imguiTextureCache_[path] = entry;
     LOG_INFO("Vulkan", "Loaded ImGui texture '{}' ({}x{})", path, w, h);
     return reinterpret_cast<void*>(entry.descriptorSet);
+}
+
+void VulkanDevice::releaseImGuiTexture(const std::string& path) {
+    auto it = imguiTextureCache_.find(path);
+    if (it == imguiTextureCache_.end()) return;
+    vkDeviceWaitIdle(device);
+    auto& entry = it->second;
+    if (entry.descriptorSet != VK_NULL_HANDLE) ImGui_ImplVulkan_RemoveTexture(entry.descriptorSet);
+    if (entry.sampler != VK_NULL_HANDLE) vkDestroySampler(device, entry.sampler, nullptr);
+    if (entry.view != VK_NULL_HANDLE) vkDestroyImageView(device, entry.view, nullptr);
+    if (entry.image != VK_NULL_HANDLE) vkDestroyImage(device, entry.image, nullptr);
+    if (entry.memory != VK_NULL_HANDLE) vkFreeMemory(device, entry.memory, nullptr);
+    imguiTextureCache_.erase(it);
 }
 
 void VulkanDevice::cleanupImGuiTextures() {

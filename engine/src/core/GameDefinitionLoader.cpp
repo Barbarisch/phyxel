@@ -182,6 +182,13 @@ GameDefinitionResult GameDefinitionLoader::load(const json& definition, GameSubs
         loadCamera(definition["camera"], subsystems, result);
     }
 
+    // "sky": the celestial bodies (graphics/CelestialBody.h). Passed through unparsed for the
+    // layering reason above; absent means the caller keeps the default sun + moon.
+    if (definition.contains("sky")) {
+        result.skyDefinition = definition["sky"];
+        result.skyLoaded = true;
+    }
+
     if (definition.contains("locations")) {
         loadLocations(definition["locations"], subsystems, result);
         if (!result.error.empty()) return result;
@@ -296,6 +303,16 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
         LOG_INFO("GameDefinitionLoader", "World: floraOverride applied to " +
                  std::to_string(recipe.biomes.size()) + " biome tunes (test-world knob)");
     }
+    // WorldForge params (docs/WorldForge.md): game.json world.worldforge → the recipe, so the
+    // DB owns the plan config from first load. Presence of the block implies enabled unless it
+    // says otherwise. Like every recipe field, a STORED recipe wins on later loads.
+    if (worldDef.contains("worldforge") && worldDef["worldforge"].is_object()) {
+        nlohmann::json wf = worldDef["worldforge"];
+        if (!wf.contains("enabled")) wf["enabled"] = true;
+        recipe.worldforge = WorldForgeParams::fromJson(wf);
+        LOG_INFO("GameDefinitionLoader", "World: worldforge params from game.json (siteCount=" +
+                 std::to_string(recipe.worldforge.siteCount) + ")");
+    }
     if (WorldStorage* storage = sub.chunkManager ? sub.chunkManager->getWorldStorage() : nullptr) {
         if (storage->hasMeta("recipe")) {
             recipe = WorldRecipe::fromJson(storage->getMeta("recipe"));
@@ -324,6 +341,10 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
         // No world storage (ephemeral host / tests): still rebake with the game.json params.
         generator.applyRecipe(recipe);
     }
+    // The recipe may own a different seed than game.json (the DB is the source of truth;
+    // applyRecipe adopts recipe.seed) — everything downstream (streaming config, logs) must
+    // use the seed the generator actually runs with.
+    seed = generator.getSeed();
 
     // Streaming terrain (Phase 1b): when enabled, chunks generate and evict around the
     // player at runtime instead of being limited to the up-front bounded set below. The

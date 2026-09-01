@@ -6,6 +6,7 @@
 #include <nlohmann/json.hpp>
 
 #include "core/WorldConstants.h"
+#include "core/WorldForgeParams.h"
 
 namespace Phyxel {
 
@@ -58,6 +59,9 @@ struct WorldRecipe {
     float seaLevelY = Core::kSeaLevelY;
     std::vector<BiomeTune> biomes;
     std::vector<SplinePoint> heightSpline; // continentalness → base elevation; empty = engine default
+    // WorldForge world-scale plan params (docs/WorldForge.md). Disabled by default; a
+    // disabled block writes NO key, so legacy recipe JSON stays byte-identical.
+    WorldForgeParams worldforge;
 
     std::string toJson() const {
         nlohmann::json root;
@@ -95,6 +99,7 @@ struct WorldRecipe {
             for (const auto& p : heightSpline) sp.push_back({{"x", p.x}, {"y", p.y}});
             root["heightSpline"] = sp;
         }
+        if (worldforge.enabled) root["worldforge"] = worldforge.toJson();
         return root.dump(2);
     }
 
@@ -144,6 +149,8 @@ struct WorldRecipe {
             if (root.contains("heightSpline") && root["heightSpline"].is_array())
                 for (const auto& p : root["heightSpline"])
                     r.heightSpline.push_back({p.value("x", 0.0f), p.value("y", 0.0f)});
+            if (root.contains("worldforge"))
+                r.worldforge = WorldForgeParams::fromJson(root["worldforge"]);
         } catch (...) {
             // Bad/empty input -> caller falls back to synthesizing from the category library.
         }

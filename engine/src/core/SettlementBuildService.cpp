@@ -208,8 +208,22 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 // The spine picks the FLATTEST straight alignment over the site, then plots whose
                 // footprint touches an unbuildable cell are dropped with a surfaced count
                 // (graceful degradation, TerrainAwareSettlement.md).
+                // Optional road-arrival bias ({"street_axis": "x"|"z"}, WorldForge passes it):
+                // prefer the spine axis the arriving road runs along; terrain still wins.
+                char prefAxis = 0;
+                const std::string sa = p.value("street_axis", std::string());
+                if (sa == "x" || sa == "X") prefAxis = 'X';
+                else if (sa == "z" || sa == "Z") prefAxis = 'Z';
+                // Optional lateral arrival preference ({"street_offset": site-local cross
+                // coordinate of the road's arrival CENTER}): converted to a band start so
+                // street and road meet head-on where terrain allows.
+                int prefOffset = -1;
+                if (p.contains("street_offset") && p["street_offset"].is_number_integer())
+                    prefOffset = std::max(0, p["street_offset"].get<int>() -
+                                                 tierP->street.mainWidth / 2);
                 const Core::StreetAxisChoice pick =
-                    Core::chooseStreetAxis(site, tierP->street.mainWidth, tierP->plot.depthMin);
+                    Core::chooseStreetAxis(site, tierP->street.mainWidth, tierP->plot.depthMin,
+                                           prefAxis, prefOffset);
                 msl = cityMode
                     ? Core::planCityLayout(*tierP, W, D, roomReg, seed)   // city picks its own axes
                     : Core::planMainStreetLayout(*tierP, W, D, roomReg, seed,
@@ -998,8 +1012,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // locations the buildings just registered — the smith works the smithy, everyone
         // sleeps at home and hits the tavern in the evening (ResidentPlanner). Runs after
         // the nav rebuild so residents can path from frame one. Program-mode default ON;
-        // {"residents": false} opts out. NOT persisted: NPCs live in memory like the
-        // locations they reference — a reloaded world has neither (known follow-up).
+        // {"residents": false} opts out (worldforge builds do — the ResidentSpawner owns
+        // their lifecycle). NPCs are DERIVED state, never persisted; the LOCATIONS persist
+        // (world_meta["locations"]) and the ResidentSpawner re-derives identical residents
+        // on reload/stream-in, adopting any this unit spawned by their deterministic names.
         const bool spawnResidents = programMode && p.value("residents", true);
         if (spawnResidents) {
             const int rW = W, rD = D, rOx = ox, rOz = oz;

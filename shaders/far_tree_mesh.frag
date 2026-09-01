@@ -123,5 +123,5 @@ void main() {
     if (ubo.debugShadowMode == 1) { outColor = phxShadowOnly(shadowF); return; }
     color = phxAerialPerspective(color, vWorldPos - ubo.cameraWorld,
                                  ubo.sunDirection, ubo.sunColor, ubo.hazeHorizonColor, ubo.hazeZenithColor);
-    outColor = vec4(phxTonemap(color, ubo.exposure, ubo.tonemapCurve), 1.0);
+    outColor = vec4(color, 1.0);
 }

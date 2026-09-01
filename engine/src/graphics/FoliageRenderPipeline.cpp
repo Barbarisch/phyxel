@@ -90,7 +90,11 @@ bool FoliageRenderPipeline::initialize(VkDevice device, VkPhysicalDevice physica
 
 void FoliageRenderPipeline::recreatePipeline(VkRenderPass renderPass, VkExtent2D extent) {
     (void)renderPass; (void)extent;
-    LOG_WARN("FoliageRenderPipeline", "recreatePipeline called — use initialize() after resize");
+    // No-op BY DESIGN now that the viewport is dynamic: this pipeline no longer bakes the
+    // swapchain extent, so a resize needs no pipeline rebuild. Viewport/scissor are set once per
+    // render pass (PostProcessor::begin*RenderPass) and inherited by everything drawn in it.
+    // The advice this used to print -- "use initialize() after resize" -- was never wired up
+    // anywhere, which is exactly why foliage detached from its trunks after a resize.
 }
 
 void FoliageRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D extent,
@@ -138,6 +142,20 @@ void FoliageRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D e
     viewportState.sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewportState.viewportCount = 1;
     viewportState.pViewports    = &viewport;
+    // DYNAMIC viewport/scissor. The extent captured above is only a creation-time default: this
+    // pipeline is created ONCE and never re-created, so a baked viewport goes stale the instant the
+    // window resizes and this pass then rasterises at the OLD size while the main chunk pipeline
+    // (which was always dynamic) uses the new one. That is what made tree foliage detach from its
+    // trunks after a resize. Both are now set once per render pass -- see PostProcessor's
+    // begin*RenderPass -- and every pipeline drawn in that pass inherits them.
+    // Shadow pipelines deliberately keep a STATIC viewport: they render into a fixed-size shadow
+    // map, so the baked extent is correct there.
+    VkDynamicState dynStates[2] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+    VkPipelineDynamicStateCreateInfo dynState{};
+    dynState.sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+    dynState.dynamicStateCount = 2;
+    dynState.pDynamicStates    = dynStates;
+
     viewportState.scissorCount  = 1;
     viewportState.pScissors     = &scissor;
 
@@ -197,6 +215,8 @@ void FoliageRenderPipeline::createPipeline(VkRenderPass renderPass, VkExtent2D e
     pipelineInfo.layout              = m_pipelineLayout;
     pipelineInfo.renderPass          = renderPass;
     pipelineInfo.subpass             = 0;
+    pipelineInfo.pDynamicState = &dynState;
+
     if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_pipeline) != VK_SUCCESS) {
         throw std::runtime_error("failed to create FoliageRenderPipeline");
     }
@@ -460,6 +480,20 @@ bool FoliageRenderPipeline::initializeKinematic(VkRenderPass renderPass, VkExten
         viewportState.sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
         viewportState.viewportCount = 1;
         viewportState.pViewports    = &viewport;
+        // DYNAMIC viewport/scissor. The extent captured above is only a creation-time default: this
+        // pipeline is created ONCE and never re-created, so a baked viewport goes stale the instant the
+        // window resizes and this pass then rasterises at the OLD size while the main chunk pipeline
+        // (which was always dynamic) uses the new one. That is what made tree foliage detach from its
+        // trunks after a resize. Both are now set once per render pass -- see PostProcessor's
+        // begin*RenderPass -- and every pipeline drawn in that pass inherits them.
+        // Shadow pipelines deliberately keep a STATIC viewport: they render into a fixed-size shadow
+        // map, so the baked extent is correct there.
+        VkDynamicState dynStates[2] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+        VkPipelineDynamicStateCreateInfo dynState{};
+        dynState.sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynState.dynamicStateCount = 2;
+        dynState.pDynamicStates    = dynStates;
+
         viewportState.scissorCount  = 1;
         viewportState.pScissors     = &scissor;
 
@@ -519,6 +553,8 @@ bool FoliageRenderPipeline::initializeKinematic(VkRenderPass renderPass, VkExten
         pipelineInfo.layout              = m_kinPipelineLayout;
         pipelineInfo.renderPass          = renderPass;
         pipelineInfo.subpass             = 0;
+        pipelineInfo.pDynamicState = &dynState;
+
         if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_kinPipeline) != VK_SUCCESS) {
             throw std::runtime_error("failed to create kinematic foliage pipeline");
         }

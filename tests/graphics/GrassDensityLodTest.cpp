@@ -28,7 +28,7 @@ using Phyxel::Graphics::GrassRenderPipeline;
 namespace {
 
 constexpr uint32_t kClump   = GrassRenderPipeline::kBladesPerClump;
-constexpr uint32_t kBlades  = 140;    // the shipped default
+constexpr uint32_t kBlades  = 140;    // stress count, NOT the shipped default (55 — see Params{})
 constexpr float    kRadius  = 224.0f; // the shipped default
 
 } // namespace

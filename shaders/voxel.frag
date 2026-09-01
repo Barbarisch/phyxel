@@ -343,7 +343,7 @@ void main() {
         vec3 tint = vBlockColor;
         float m = max(tint.r, max(tint.g, max(tint.b, 0.001)));
         tint = (m > 0.05) ? tint / m : vec3(1.0);  // hue only; fall back to white if unknown
-        outColor = vec4(phxTonemap(albedo * ubo.emissiveMultiplier * tint, ubo.exposure, ubo.tonemapCurve), textureColor.a);
+        outColor = vec4(albedo * ubo.emissiveMultiplier * tint, textureColor.a);
         return;
     }
 
@@ -437,5 +437,5 @@ void main() {
     // dark, or the shadow-only view underneath drowns the signal it exists to show.
     if (ubo.debugShadowMode == 2) { outColor = vec4(0.05, 0.05, 0.06, 1.0); return; }
     if (ubo.debugShadowMode == 1) { outColor = phxShadowOnly(shadowFactor); return; }
-    outColor = vec4(phxTonemap(color, ubo.exposure, ubo.tonemapCurve), textureColor.a);
+    outColor = vec4(color, textureColor.a);
 }
