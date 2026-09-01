@@ -374,6 +374,14 @@ void CombatBehavior::update(float dt, NPCContext& ctx) {
     // defender on a parapet is plainly visible while the ground route to them
     // is blocked, so a sight check would keep reporting "just go straight".
     if (dist > m_attackRange && m_chunks) {
+        // Take the path service from the CONTEXT, not from a pointer cached at
+        // spawn. NPCManager::buildNavGrid() is what creates and starts the
+        // service, and it necessarily runs AFTER the scene (and its NPCs) load —
+        // so anything captured at spawn time is null forever. That is precisely
+        // how two fighters ended up standing at a wall face for 100 s without
+        // once stepping sideways toward the gap.
+        if (!m_pathService && ctx.pathService) m_pathService = ctx.pathService;
+
         if (m_repathTimer > 0.0f) m_repathTimer -= dt;
 
         const glm::vec3 goal = target->getPosition();

@@ -1686,6 +1686,23 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     }}
                 }}
 
+                // NAVIGATION. buildNavGrid() constructs the NavGraph AND creates
+                // and starts the PathService; without it getPathService() returns
+                // null and every combat path request is silently skipped. A
+                // shipped game never called it — only two debug API endpoints did,
+                // lazily — so NPCs in a standalone had no pathfinder at all and
+                // walked into walls forever. Measured: two fighters either side of
+                // a 3-tall wall with one gap 30u away stood at the wall face for
+                // 100 s and never moved a millimetre along it.
+                //
+                // Must run AFTER the scene loads: it needs loaded chunks to derive
+                // its bounds, and warns + returns if the chunk map is empty.
+                if (npcManager_) {{
+                    npcManager_->buildNavGrid();
+                    LOG_INFO("{class_name}", "navigation: pathService={{}}",
+                             npcManager_->getPathService() ? "running" : "NULL");
+                }}
+
                 // NPCs exist now, so their weapons can be hung on their grips.
                 // Must run AFTER the definition load — before it there is
                 // nobody to equip.
