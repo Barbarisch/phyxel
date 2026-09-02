@@ -280,7 +280,10 @@ LightVisibility packedPoolLightVisibility(const PackedOccupancyPool& packed,
     // through walls. cappedOut now means only "the step had to coarsen past micro resolution".
     // Stop one micro cell short of the light so a fixture embedded in its own sconce does not
     // occlude itself.
-    const glm::vec3 target = start + dir * std::max(dist - (1.0f / 9.0f), 0.0f);
+    // Half a voxel, NOT 1 micro -- must stay identical to occupancy.glsl's kSelfSkip, which carries
+    // the reasoning: an emissive voxel (U3.2) is solid with its light at the cell centre, so a 1/9
+    // skip left the march ending 0.5 u inside the emitter and it occluded its own light entirely.
+    const glm::vec3 target = start + dir * std::max(dist - 0.5f, 0.0f);
 
     int cells = 0;
     glm::ivec3 hit{0};

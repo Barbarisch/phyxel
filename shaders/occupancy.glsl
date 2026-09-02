@@ -166,7 +166,18 @@ float phxLightVisibility(vec3 surfaceWorld, vec3 geomNormal, vec3 lightWorld, iv
     if (dist < 1e-4) return 1.0;
     vec3 dir = delta / dist;
 
-    vec3 target = start + dir * max(dist - (1.0 / 9.0), 0.0);
+    // Stop HALF A VOXEL short of the light, not 1 micro.
+    //
+    // U3.2 made emissive voxels real lights, and an emissive voxel is SOLID with its light at the
+    // cell CENTRE -- so at 1/9 the march ended 0.5 units deep inside the emitter and every ray hit
+    // it. The emitter occluded its own light, completely: a glow block in a night meadow lit
+    // nothing, and the blades around it were silhouettes rather than lit grass (measured).
+    //
+    // Half a voxel is exactly the emitter's own half-extent, so this skips the emitting cell and
+    // nothing else. A light sitting closer than 0.5 u to a wall could shine through it; that case
+    // is bounded by the sealed-box gates (LightWallMatrix), which are the control for this constant.
+    const float kSelfSkip = 0.5;
+    vec3 target = start + dir * max(dist - kSelfSkip, 0.0);
     return phxDdaHitsSolid(start, target, 512, occBox) ? 0.0 : 1.0;
 }
 

@@ -110,6 +110,9 @@ layout(location = 6) out vec4  vShadowCoord; // biased light-space coord (shadow
 // is to answer "is the wind actually doing anything" without a rebuild.
 layout(location = 7) out float vWindLean;
 layout(location = 8) out vec4 vShadowCoordNear;   // near-cascade receiving coord
+// U3.3: point/spot lights need a position to attenuate from. Camera-relative, matching the
+// convention voxel.frag uses (add ubo.cameraWorld to get true world).
+layout(location = 9) out vec3 vWorldPos;
 
 // Cheap hash -> [0,1)
 float hash21(vec2 p) {
@@ -591,5 +594,6 @@ void main() {
     // shadows. Out-of-volume coords fail phxShadowCoordValid in the frag → min() no-op.
     vShadowCoordNear = ubo.biasedLightSpaceNear * vec4(worldPos, 1.0);
 
+    vWorldPos   = worldPos;   // U3.3: camera-relative, for the point-light loop in grass.frag
     gl_Position = ubo.viewProj * vec4(worldPos, 1.0);
 }

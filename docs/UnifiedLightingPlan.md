@@ -558,8 +558,49 @@ Do not theorise further before running it; three hypotheses have already failed 
    the upload budget.
    ⚠️ Also depends on **U5's bloom fix** to be worth anything visually — bloom is what makes an
    emissive fixture read as glowing, and it currently ships off.
-3. **Vegetation reads the light SSBO** so a campfire lights the grass around it — this is a
-   REGRESSION introduced by M0 deleting the block-light flood, not a pre-existing gap.
+3. **✅ DONE 2026-09-01 — vegetation reads the light SSBO.** *(closes D15 for grass + foliage)*
+
+   `grass.frag` and `foliage.frag` now declare the light SSBO (binding 3), extend their std140 UBO
+   prefix to reach `occupancyBox`, include `occupancy.glsl`, and run a point-light loop gated by
+   **the same `phxLightVisibility` stone uses** — so a torch inside a house does not light the lawn
+   outside. `grass.vert` gained a `vWorldPos` varying; foliage already had one.
+
+   A blade and a leaf card have no meaningful normal (both are camera-facing cutouts, and the sun
+   term deliberately avoids per-blade N·L because it makes the field sparkle), so both light as
+   upward-facing diffuse receivers: **attenuation and occlusion shape the pool, not card facing.**
+   The dead `vBlock` term — a constant 0 since M0 — is removed in both.
+
+   **Gate met, measured on a night meadow** (timeOfDay 23, one `glow` voxel placed via the world
+   API, no `/api/light` call): viewport mean luminance **5.108 → 48.563**, with **322,652 pixels
+   (56.3%)** brightening and **302,208 of them un-saturated** — i.e. grass being lit, not the block
+   itself being visible. Falloff into darkness at the edges. 91/91 in the lighting+grass filter, no
+   Vulkan validation errors.
+
+   ### 🔴 The bug this exposed: AN EMISSIVE VOXEL OCCLUDED ITS OWN LIGHT, COMPLETELY.
+
+   First attempt lit nothing — measured 20,831 px in a tight box around the block, and inspection
+   showed those blades were **silhouettes against the bright block, not lit grass.**
+
+   `phxLightVisibility` stopped its march `1/9` short of the light. That was fine while every light
+   sat in air. **U3.2 made emissive voxels lights, and an emissive voxel is SOLID with its light at
+   the cell CENTRE** — so the march ended 0.5 u *inside* the emitter and every ray hit it. Fixed by
+   stopping **half a voxel** short (`kSelfSkip = 0.5`), exactly the emitter's own half-extent, in
+   both `occupancy.glsl` and its CPU mirror (which must stay identical).
+   *Control:* the sealed-box gates are what bound this constant — a light closer than 0.5 u to a
+   wall could shine through it. **`LightWallMatrix` + `LightBleed` + occupancy: 60/60 green after
+   the change**, so it does not leak.
+   **This defect was invisible until U3.2 existed**, and it would have silently halved every future
+   emissive fixture.
+
+   ⚠️ **NOT tested at runtime: foliage.** It compiles and is wired identically, but `LightingGates`
+   has `flora.density: 0` — there are no trees in it, so no leaf card was ever drawn. Grass is
+   verified; foliage is verified only by construction.
+
+   ⚠️ **`far_terrain` and `far_tree_mesh`: DECIDED sun-only, not wired.** They render beyond ~900 u,
+   where a light of radius ≤ 15 u subtends nothing; wiring the loop would cost per-fragment work
+   across a huge screen area for no visible result. Recorded here rather than left blank, per D15's
+   own "decide per pass" wording. **Revisit trigger:** if emissive lights ever gain radii on the
+   order of a settlement.
 *Gate:* placing a `glow` voxel with no accompanying point light lights the room, with occlusion; a
 camp fire lights surrounding grass; a 100-fixture city has no permanently-dark fixture; the nearest
 light to the player is always among those uploaded.
@@ -1548,7 +1589,14 @@ second include or an explicit sampler-style parameterisation).
 mirror surface — zero exterior contribution in each, with live positive controls. D4 (debug modes in
 `character.frag`/`grass.frag`) is a prerequisite for seeing (a) at all.
 
-**D15 — A TORCH DOES NOT LIGHT GRASS, FOLIAGE, FAR TERRAIN, FAR TREES OR WATER.**
+**D15 — ✅ MOSTLY CLOSED BY U3.3 2026-09-01.** Grass and foliage read the light SSBO and use the
+shared visibility term; measured on a night meadow, one glow voxel took viewport mean luminance
+5.108 → 48.563 with 302k un-saturated pixels lit. `far_terrain` / `far_tree_mesh` are a written
+ACCEPT (sun-only: beyond ~900 u a ≤15 u light subtends nothing). **Still open: WATER**, which was
+listed in this item and has not been touched. Foliage is verified by construction only — the test
+world has no trees.
+
+**D15 — (original) A TORCH DOES NOT LIGHT GRASS, FOLIAGE, FAR TERRAIN, FAR TREES OR WATER.**
 None of those shaders read the light SSBO. Vegetation is sun + ambient only, so a campfire in a
 meadow lights the ground voxels and leaves every blade around it unlit. Previously the block-light
 flood covered this; M0 deleted it, so this is a REGRESSION introduced by this rebuild, not a
