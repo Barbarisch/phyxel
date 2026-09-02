@@ -929,6 +929,40 @@ because the bake — an explicitly **temporary scaffold** — depends on it. **M
 cancelled**, and they unblock the moment the bake has an exit (M5 being the one that resolves the
 contradiction rather than managing it). Do not read this as "the field is permanent now".
 
+### ✅ U7 STAGE 1 DONE 2026-09-01 — InstanceData 24 → 16 bytes
+
+U3.2 chose point lights, so block light is confirmed dead and this deletion is unblocked.
+`InstanceData::light2` / `light3` are removed from **both** hand-synced struct copies (`Types.h` and
+`vulkan/VulkanDevice.h`), from both vertex attribute tables (7 → 5 entries), and from every writer
+(`ChunkRenderManager` ×8, `LodChunkMesh` ×2). Tint moves location 7 → 5.
+
+`packedData 4 + textureIndex 2 + reserved 2 + light 4 + tint 4` = **16 bytes, was 24 — a third off
+every chunk face instance.** That is M4's previously-unmet *"instance size shrinks measurably"*.
+
+The location shift is contained: three shaders bind this buffer and only `static_voxel.vert` reads
+past location 4. `shadow.vert` stops at 4 (it reads `inLight` purely for the fine-merge extents in
+bits 16-31, which is exactly why that field could not be deleted) and `debug_voxel.vert` at 3.
+`static_voxel.vert` also stops decoding the dead per-corner skylight nibbles — sky is traced per
+fragment and `m_skyLight` is gone, so they were a uniform 15.
+
+Removed `DISABLED_InteriorWallFaceCornersAtTheFloorAverageInSolidZeros`, which read those words to
+measure the wall-base band — a property of the flood, which no longer exists. Replaced with a
+comment rather than deleted silently.
+
+**232/233** in the affected suites (the red is the pre-existing D19). Verified at runtime on the
+engine's own generator: a `hall_house` (`placed: 13822`) renders with textures and tint intact —
+which is what proves the tint relocation — dark interior through the doorway, 182 fps.
+
+⚠️ **STAGE 2 STILL OPEN.** `vBlockColor` is still declared by `static_voxel`, `dynamic_voxel` and
+`kinematic_voxel`, and `voxel.frag`'s debug view 4 still reads it; the `m_blockR/G/B` CPU arrays are
+still allocated and uploaded. All carry constant zero. Split deliberately so the vertex-layout
+change stays independently testable.
+
+⚠️ **Process note, second occurrence in one session:** `git add -u engine editor shaders tests docs`
+swept nine unrelated CityForge/test/doc files into this commit. Amended out, their working-tree
+changes preserved. **Stage lighting files by explicit path; never `-u` a whole directory in a tree
+that carries another workstream.**
+
 **Still deletable, and this is what U7 now means:**
 * `m_blockR` / `m_blockG` / `m_blockB` — pinned to 0 since M0, with no writer. Three N³ byte arrays
   per chunk paying memory and upload bandwidth for zeros.
