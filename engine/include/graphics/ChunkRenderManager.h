@@ -192,6 +192,20 @@ public:
     // ember (see Graphics::FireEmitterManager). Empty for chunks with no fire.
     const std::vector<glm::vec3>& getFlamingVoxels() const { return m_flamingVoxels; }
 
+    /// U3.2 — an emissive voxel IS a light. One emitter model: radiance x visibility.
+    ///
+    /// The deleted flood already enumerated these; it seeded a per-cell BFS with them. This
+    /// collects the same voxels and hands them to LightManager as real point lights, so a glow
+    /// block occludes correctly (M2's visibility term), obeys inverse-square, and depends on the
+    /// receiving normal -- none of which a flood could do.
+    struct EmissiveLight {
+        glm::vec3 worldPos;   ///< centre of the emitting voxel, in world units
+        glm::vec3 color;      ///< hue: material colorTint, or the per-voxel tint when burning
+        float     intensity;  ///< 0..1, from the material's emissive strength
+        float     radius;     ///< reach, scaled with intensity
+    };
+    const std::vector<EmissiveLight>& getEmissiveLights() const { return m_emissiveLights; }
+
     void rebuildSubcubeFaces(
         const std::vector<std::unique_ptr<Subcube>>& subcubes,
         const glm::ivec3& worldOrigin
@@ -434,6 +448,7 @@ private:
 
     // World positions of state=flaming leaf voxels found on the last rebuild (fire VFX seeds).
     std::vector<glm::vec3> m_flamingVoxels;
+    std::vector<EmissiveLight> m_emissiveLights;   // U3.2: emissive voxels, as real lights
 
     // Member variables
     std::vector<InstanceData> faces;           // Visible faces (CPU pre-filtered)

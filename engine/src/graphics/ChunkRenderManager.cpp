@@ -205,6 +205,7 @@ void ChunkRenderManager::clearForUniform() {
     m_grassInstances.clear();
     m_foliageInstances.clear();
     m_flamingVoxels.clear();
+    m_emissiveLights.clear();
     m_lightBordersChanged = false;
     needsUpdate = false;   // nothing to upload; draws are skipped by numInstances == 0
 }
@@ -321,6 +322,7 @@ void ChunkRenderManager::rebuildCubeFaces(
 
     // Reset the flaming-voxel seed list; the sub/micro light-seed loops below refill it.
     m_flamingVoxels.clear();
+    m_emissiveLights.clear();
     // Reset grass blade instances; refilled by the grass scan after neighbour solidity is known.
     m_grassInstances.clear();
     // Reset foliage card instances; refilled by the leaf scans in this (cube) + the subcube pass.
@@ -469,6 +471,100 @@ void ChunkRenderManager::rebuildCubeFaces(
     // kill came from a MIXED cell being marked opaque and forced to 0; tracing has no notion of
     // opacity, so a cell that is one-third floor and two-thirds room reports what its air actually
     // sees. The per-corner interpolation in static_voxel.vert then smooths across cells as before.
+    // ---- U3.2: EMISSIVE VOXELS ARE LIGHTS -------------------------------------------------------
+    //
+    // The deleted flood already walked exactly these voxels -- it just seeded a per-cell BFS with
+    // them, which is not light transport: no inverse-square, no direction, no dependence on the
+    // receiving normal, and no occlusion beyond a per-cell opacity bit. This restores the walk and
+    // emits real point lights, so a glow block obeys the same rule as every other emitter and is
+    // occluded by M2's traced visibility term.
+    //
+    // Seeding rules recovered from the flood (commit 089ff2cb):
+    //   state 1/2 (flaming/smoldering) -> hue from the PER-VOXEL tint, scale 15 / 9
+    //   otherwise                      -> require md->emissive || md->emissiveStrength > 0,
+    //                                     hue from md->physics.colorTint,
+    //                                     scale 15 (emissive) or clamp(strength*4, 2, 10)
+    // The masked-emissive branch is what gives the enchanted log its dim crack-light, so it keeps
+    // its own scale rather than collapsing into the boolean.
+    //
+    // Cubes carry no tint/state (only sub- and microcubes can burn), so they take the material path.
+    {
+        auto& matReg = Phyxel::Core::MaterialRegistry::instance();
+        auto unpackTint = [](uint32_t t) -> glm::vec3 {
+            if (t == 0u) return glm::vec3(1.0f);            // untinted == white, not black
+            return glm::vec3(float((t >> 16) & 0xFFu), float((t >> 8) & 0xFFu),
+                             float(t & 0xFFu)) / 255.0f;
+        };
+        auto emit = [&](const glm::ivec3& worldCell, const std::string& matName,
+                        const glm::vec3& voxelTint, uint32_t state, float sizeScale) {
+            glm::vec3 hue(1.0f);
+            float scale15 = 0.0f;
+            if (state == 1u || state == 2u) {                // burning: per-voxel tint
+                hue = voxelTint;
+                scale15 = (state == 1u) ? 15.0f : 9.0f;
+            } else {
+                const auto* md = matName.empty() ? nullptr : matReg.getMaterial(matName);
+                if (!md || (!md->emissive && md->emissiveStrength <= 0.0f)) return;
+                hue = md->physics.colorTint;
+                scale15 = md->emissive ? 15.0f
+                                       : glm::clamp(md->emissiveStrength * 4.0f, 2.0f, 10.0f);
+            }
+            if (scale15 <= 0.0f) return;
+            const float t = scale15 / 15.0f;                 // 0..1
+            EmissiveLight e;
+            e.worldPos  = glm::vec3(worldCell) + glm::vec3(0.5f);
+            e.color     = glm::max(hue, glm::vec3(0.0f));
+            e.intensity = t;
+            // A full-strength glow block lit roughly its room under the old flood (15 cells at
+            // 1-per-cell decay), so that reach is the anchor rather than a new invented constant.
+            e.radius    = glm::max(2.0f, 15.0f * t * sizeScale);
+            m_emissiveLights.push_back(e);
+        };
+
+        // ⚠️ CUBES COME FROM THE PALETTE STORE, NOT THE `cubes` VECTOR.
+        // Phase 4.2b flipped authority to ChunkVoxelStore, so a chunk built the normal way has an
+        // EMPTY `cubes` vector and all its voxels in the store. Walking `cubes` found zero emitters
+        // on a world with six glow blocks in it -- measured, not guessed. This mirrors
+        // rebuildCubeFaces' own scan so the two cannot disagree about what a cube is.
+        // Store voxels derive their position from the index and are chunk-LOCAL, so worldOrigin is
+        // added here; subcubes and microcubes already report world positions.
+        {
+            const size_t scanN = voxelStore ? ChunkVoxelStore::kVoxels : cubes.size();
+            for (size_t ci = 0; ci < scanN; ++ci) {
+                const Cube* cube = ci < cubes.size() ? cubes[ci].get() : nullptr;
+                const std::string* mn = nullptr;
+                if (cube) {
+                    if (cube->isBroken() || !cube->isVisible()) continue;
+                    mn = &cube->getMaterialName();
+                } else if (voxelStore && voxelStore->solid(ci)) {
+                    if (!voxelStore->visible(ci)) continue;
+                    mn = &voxelStore->material(ci);
+                } else {
+                    continue;
+                }
+                const glm::ivec3 lp = cube
+                    ? cube->getPosition()
+                    : glm::ivec3(static_cast<int>(ci / 1024),
+                                 static_cast<int>((ci % 1024) / 32),
+                                 static_cast<int>(ci % 32));
+                if (lp.x < 0 || lp.x >= N || lp.y < 0 || lp.y >= N || lp.z < 0 || lp.z >= N) continue;
+                emit(worldOrigin + lp, *mn, glm::vec3(1.0f), 0u, 1.0f);
+            }
+        }
+        for (const auto& sc : subcubes) {
+            if (!sc || sc->isBroken() || !sc->isVisible()) continue;
+            if (sc->getState() == 1u) m_flamingVoxels.push_back(sc->getWorldPosition());
+            emit(sc->getPosition(), sc->getMaterialName(), unpackTint(sc->getTint()),
+                 sc->getState(), 0.75f);
+        }
+        for (const auto& mc : microcubes) {
+            if (!mc || mc->isBroken() || !mc->isVisible()) continue;
+            if (mc->getState() == 1u) m_flamingVoxels.push_back(mc->getWorldPosition());
+            emit(mc->getParentCubePosition(), mc->getMaterialName(), unpackTint(mc->getTint()),
+                 mc->getState(), 0.5f);
+        }
+    }
+
     // ---- SKY VISIBILITY IS TRACED PER FRAGMENT, NOT BAKED ------------------------------------
     // The chunk-bake that used to live here wrote traced sky access into m_skyLight -- the same
     // per-cell field the deleted flood used. It existed only because D1 measured per-fragment
@@ -821,6 +917,7 @@ void ChunkRenderManager::buildSubMicroOccupancy(
         uint32_t microKey = subKey * 27u + static_cast<uint32_t>(mp.z + mp.y * 3 + mp.x * 9);
         m_microOcc.insert(microKey);
     }
+
 }
 
 bool ChunkRenderManager::cubeCellSolid(int lx, int ly, int lz) const {

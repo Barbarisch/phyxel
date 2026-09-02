@@ -508,6 +508,45 @@ Do not theorise further before running it; three hypotheses have already failed 
    ⚠️ *Approximation:* relevance is to the VIEWER, not to the view frustum. A light behind the
    camera can still take a slot from one just off-screen ahead. Frustum-aware selection is the
    refinement if this ever shows.
+2. **✅ DONE 2026-09-01 — emissive voxels are real lights.** *(closes D12)*
+
+   The walk the flood used is restored, but it emits **point lights** instead of BFS seeds, so a
+   glow block now obeys the same rule as a torch or a spell: inverse-square, dependent on the
+   receiving normal, and occluded by M2's traced visibility term — none of which a per-cell flood
+   could do. Seeding rules recovered verbatim from the deleted code (commit `089ff2cb`): burning
+   voxels take the per-voxel tint at scale 15/9; otherwise the material must be `emissive` or carry
+   `emissiveStrength > 0`, hue from `physics.colorTint`, scale 15 or
+   `clamp(strength * 4, 2, 10)` — the masked-emissive branch kept separate so the enchanted log
+   keeps its dim crack-light.
+
+   Chunks cache their emitters at bake time (`ChunkRenderManager::EmissiveLight`) and
+   `RenderCoordinator` reconciles the union into `LightManager` **on change**, hashed over
+   position/colour/radius. Not per frame: re-registering every frame would churn light IDs and
+   defeat the id tie-break that keeps U3.1's selection stable.
+
+   **Gate met.** 6 `glow` voxels placed through the WORLD api — no `/api/light` call anywhere —
+   produced **6 registered lights**; removing them returned to **0**, with the log showing the
+   reconcile stepping 3 → 2 → 1 → 0. No leak. Lighting suite 80/80 (the one red in the wider filter
+   is the pre-existing D19).
+
+   ⚠️ **The bug that cost the most here, worth keeping:** the first implementation walked the
+   `cubes` vector and found **zero** emitters on a world containing six glow blocks. **Phase 4.2b
+   flipped authority to `ChunkVoxelStore`** — a normally-built chunk has an EMPTY `cubes` vector and
+   all its voxels in the palette store. The walk now mirrors `rebuildCubeFaces`' own scan so the two
+   cannot disagree about what a cube is. Store voxels are chunk-LOCAL and need `worldOrigin` added;
+   subcubes and microcubes already report world positions.
+
+   ⚠️ **Also restored:** `m_flamingVoxels` had been cleared but never populated since M0 deleted the
+   flood that filled it — so continuous fire VFX had been silently dead. Same walk, so it is fixed
+   here rather than logged as someone else's problem.
+
+   ⚠️ **Self-inflicted, recorded because it nearly shipped:** excising the first draft with
+   index-based text surgery also deleted the **microcube occupancy loop** from
+   `buildSubMicroOccupancy`, turning three `FineFaceMerge` microcube tests red. Caught by running
+   the suite, restored. **Do not edit C++ by computed string offsets.**
+
+   *(original specification kept below)*
+
 2. **Emissive materials register radiance — SPECIFIED 2026-08-30, and smaller than it looked.**
    The enumeration ALREADY EXISTS in the flood M0 deleted, and is recoverable from the diff: it
    walked cubes and subcubes, seeded on `md->emissive || md->emissiveStrength > 0.0f`, took hue from
@@ -1581,7 +1620,11 @@ NOT in the original census.
 path plus `phxLightVisibility`; a lantern behind glass is occluded like a lantern behind stone; the
 misleading "same as voxel.frag" comment is gone.
 
-**D12 — EMISSIVE MATERIALS ARE NOT EMITTERS. The last system still outside the model.**
+**D12 — ✅ CLOSED BY U3.2 2026-09-01.** Emissive voxels are registered as real point lights and go
+through the same visibility term as every other emitter. Gate: 6 glow voxels placed via the world
+API produced 6 lights with no `/api/light` call, and removing them released all 6.
+
+**D12 — (original) EMISSIVE MATERIALS ARE NOT EMITTERS. The last system still outside the model.**
 Raised 2026-08-30. `glow`/`glow_blue`/`glow_green` and the flaming state are **self-shading only**:
 `voxel.frag` computes `albedo * emissiveMultiplier * tint` (plus bloom) and the voxel illuminates
 NOTHING. A point/spot light is the mirror image — it illuminates other surfaces and has no visible

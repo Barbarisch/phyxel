@@ -642,6 +642,12 @@ private:
     std::unique_ptr<UI::UISystem> m_uiSystem;
     UI::HudDataContext m_hudData;
 
+    // U3.2: light IDs owned by emissive voxels, plus a hash of the emitter set so the union is
+    // reconciled on CHANGE rather than rebuilt per frame (which would churn IDs and defeat U3.1's
+    // stable id tie-break).
+    std::vector<int> m_emissiveLightIds;
+    size_t           m_emissiveLightHash = 0;
+
     // Rendering subsystems
     size_t renderStaticGeometry();
     void renderTransparentGeometryOIT(uint32_t frameIndex);

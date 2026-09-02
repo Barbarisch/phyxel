@@ -1172,6 +1172,51 @@ void RenderCoordinator::updateVfx(float dt) {
         fireEmitters->sync(flaming);
     }
 
+    // U3.2 — EMISSIVE VOXELS ARE REAL LIGHTS.
+    //
+    // Same shape as the flame sync above: each chunk caches its own emissive list at bake time,
+    // and this reconciles the union into LightManager. A glow block therefore lights its room
+    // through the SAME path as a torch or a spell -- inverse-square, normal-dependent, and occluded
+    // by M2's traced visibility term -- instead of seeding a per-cell flood that could do none of
+    // those things.
+    //
+    // Reconciled on CHANGE, not per frame: re-registering every frame would churn light IDs and
+    // defeat the id tie-break that keeps U3.1's selection stable frame to frame. The hash is over
+    // position/colour/radius, so a chunk remesh that does not move an emitter costs nothing.
+    if (chunkManager) {
+        size_t h = 1469598103934665603ull;
+        auto mix = [&h](float f) {
+            uint32_t b; std::memcpy(&b, &f, 4);
+            h = (h ^ b) * 1099511628211ull;
+        };
+        size_t count = 0;
+        for (const auto& ch : chunkManager->chunks) {
+            if (!ch) continue;
+            for (const auto& e : ch->getEmissiveLights()) {
+                mix(e.worldPos.x); mix(e.worldPos.y); mix(e.worldPos.z);
+                mix(e.color.r); mix(e.color.g); mix(e.color.b);
+                mix(e.intensity); mix(e.radius);
+                ++count;
+            }
+        }
+        if (h != m_emissiveLightHash || count != m_emissiveLightIds.size()) {
+            for (int id : m_emissiveLightIds) lightManager.removeLight(id);
+            m_emissiveLightIds.clear();
+            m_emissiveLightIds.reserve(count);
+            for (const auto& ch : chunkManager->chunks) {
+                if (!ch) continue;
+                for (const auto& e : ch->getEmissiveLights()) {
+                    const int id = lightManager.addPointLight(e.worldPos, e.color,
+                                                               e.intensity, e.radius);
+                    if (id >= 0) m_emissiveLightIds.push_back(id);
+                }
+            }
+            m_emissiveLightHash = h;
+            LOG_INFO_FMT("Lighting", "U3.2: " << m_emissiveLightIds.size()
+                         << " emissive voxel lights registered (" << count << " emitters found)");
+        }
+    }
+
     if (vfxSystem) vfxSystem->update(dt);
 }
 

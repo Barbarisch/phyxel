@@ -327,6 +327,10 @@ public:
     }
     // World positions of this chunk's state=flaming voxels (fire VFX seeds; see FireEmitterManager).
     const std::vector<glm::vec3>& getFlamingVoxels() const { return renderManager.getFlamingVoxels(); }
+    /// U3.2: this chunk's emissive voxels, as lights (see ChunkRenderManager::EmissiveLight).
+    const std::vector<Graphics::ChunkRenderManager::EmissiveLight>& getEmissiveLights() const {
+        return renderManager.getEmissiveLights();
+    }
 
     void updateVulkanBuffer();                     // Update GPU buffer with face data
 
