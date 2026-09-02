@@ -561,7 +561,13 @@ would just be churn.
 *Gate:* one code path supplies sky access to `voxel.frag`; kinematic and dynamic voxels agree with
 static ones at the same world position.
 
-### ⚠️ U5 — PARTIAL 2026-08-30. Safeguard added; **gate NOT met, because the defect would not reproduce.**
+### ✅ U5 — BLOOM DEFECT FOUND AND FIXED 2026-08-31 (missing read-after-write barrier).
+
+*(Header corrected 2026-09-01. The section below was written before the defect reproduced. The root
+cause was an absent RAW dependency in the blur ping-pong -- not fireflies -- and the measured fix is
+recorded further down. SSAO, editor-vs-standalone grading and the exposure re-derivation remain.)*
+
+### (superseded) U5 — PARTIAL 2026-08-30. Safeguard added; **gate NOT met, because the defect would not reproduce.**
 
 **What was done:** `blur.frag`'s bright-pass had **no upper bound** on a tap, which is the exact
 mechanism `PostProcessor.h` names for the blotching (one very bright pixel clears the threshold,
@@ -820,7 +826,13 @@ Grass casts nothing; far-tree cards, CPU debris and VFX cast nothing; the far ca
 terrain and tree LOD. Each gets a written decision — close or accept, with the reason.
 *Gate:* a table in this document with a decision per row and no blank cells.
 
-### ⚠️ U7 — SCOPE REVISED 2026-08-30. M3-REDESIGN invalidated half of it.
+### ⚠️ U7 — SKY HALF DONE 2026-09-01; BLOCK HALF STILL GATED ON U3.2.
+
+*(Header corrected 2026-09-01: the 2026-08-30 revision below says the skylight field "must now be
+KEPT" because the bake wrote to it. The bake is deleted and that field is deleted with it. What
+remains of U7 is the BLOCK-light storage, which U3.2 still gates.)*
+
+### (superseded) U7 — SCOPE REVISED 2026-08-30. M3-REDESIGN invalidated half of it.
 
 U7 (and M4) said: delete `m_skyLight`, `m_blockR/G/B`, the `lightAt`/`bakedLightAt` accessors and
 the three per-instance light words, because they were a constant nobody needed.
@@ -991,8 +1003,11 @@ cost measurement* — before the next begins.
 ### M2 — Direct light visibility ✅ DONE *(this is the originally reported bug)*
 See the RESULT sections below for what each measured, and what each did NOT verify.
 
-### M3 — Sky as an emitter ⚠️ CORRECT BUT DEFAULT-OFF
-All gates pass; measured at 24.6 ms/frame, so it ships disabled pending **M3-REDESIGN** (see D1).
+### M3 — Sky as an emitter ✅ DONE 2026-09-01, as originally specified
+Traced per fragment against real geometry, **default ON**, no stored per-cell field. The 24.6 ms
+that once retired it was measured at 9 rays / reach 24 / 512 cells; at the 5 rays / reach 16 the
+bake itself shipped at, plus a normal-ray gate, the sky term costs **+2.68 ms** (Static Geometry
+2.997 ms vs a 0.318 ms control). M3-REDESIGN's bake and its per-cell field are both deleted.
 
 ### M4 — Retire the transport ⚠️ SKY HALF DONE 2026-09-01; block half + exposure remain
 
@@ -1644,6 +1659,11 @@ direct path. **Gate:** a written decision per gap — close or accept.
 
 **D11 — Roof striping.** `N·L` on stepped faces approximating a slope. Survives this entire rebuild
 and is still untracked separately. **Gate:** own doc entry, or an explicit "accepted".
+
+**D21 — ⚪ MOOT 2026-09-01: the bake it describes no longer exists.** The gather defect was real and
+was fixed, then deleted along with the bake when M3 went back to per-fragment tracing. Kept for the
+method lessons: verify the world *where the thing actually is*, and note that the structure build
+API ignores the origin passed to it and reports its real position in its locations field.
 
 **D21 — ⚠️ DIAGNOSIS RETRACTED 2026-08-31. THE EVIDENCE BELOW WAS MEASURED IN THE WRONG PLACE.**
 
