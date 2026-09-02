@@ -147,6 +147,61 @@ bool phxDdaHitsSolid(vec3 fromWorld, vec3 toWorld, int maxCells, ivec4 occBox) {
     return false;
 }
 
+/// As phxDdaHitsSolid, but reports the hit. M5 needs it: a bounce has to know what it hit and
+/// which way that surface faces, and re-deriving either from a boolean is impossible.
+///
+/// `hitWorld`  = centre of the micro cell that was hit, in world units.
+/// `hitNormal` = the face normal, taken from the axis the DDA last stepped along. That is exact
+///               for voxel geometry, which is the one place a stepped normal is not an
+///               approximation -- every surface really is axis-aligned.
+bool phxDdaTrace(vec3 fromWorld, vec3 toWorld, int maxCells, ivec4 occBox,
+                 out vec3 hitWorld, out vec3 hitNormal) {
+    hitWorld = toWorld;
+    hitNormal = vec3(0.0, 1.0, 0.0);
+
+    vec3 a = fromWorld * 9.0, b = toWorld * 9.0;
+    vec3 d = b - a;
+    float len = length(d);
+    if (len < 1e-6) return false;
+    vec3 dir = d / len;
+
+    ivec3 cell = ivec3(floor(a));
+    ivec3 last = ivec3(floor(b));
+
+    ivec3 stp;
+    vec3 tMax, tDelta;
+    for (int i = 0; i < 3; ++i) {
+        if (dir[i] > 1e-9) {
+            stp[i] = 1;  tMax[i] = (float(cell[i] + 1) - a[i]) / dir[i];  tDelta[i] = 1.0 / dir[i];
+        } else if (dir[i] < -1e-9) {
+            stp[i] = -1; tMax[i] = (a[i] - float(cell[i])) / -dir[i];     tDelta[i] = 1.0 / -dir[i];
+        } else {
+            stp[i] = 0;  tMax[i] = 3.4e38;                                tDelta[i] = 3.4e38;
+        }
+    }
+
+    int axis = 1;   // which axis produced the most recent step; seeds the face normal
+    for (int n = 0; n < maxCells; ++n) {
+        if (phxOccupancySolid(cell, occBox)) {
+            hitWorld = (vec3(cell) + 0.5) / 9.0;
+            vec3 nrm = vec3(0.0);
+            nrm[axis] = (stp[axis] > 0) ? -1.0 : 1.0;   // face points back along the step
+            hitNormal = nrm;
+            return true;
+        }
+        if (cell == last) return false;
+        if (tMax.x < tMax.y) {
+            if (tMax.x < tMax.z) { cell.x += stp.x; tMax.x += tDelta.x; axis = 0; }
+            else                 { cell.z += stp.z; tMax.z += tDelta.z; axis = 2; }
+        } else {
+            if (tMax.y < tMax.z) { cell.y += stp.y; tMax.y += tDelta.y; axis = 1; }
+            else                 { cell.z += stp.z; tMax.z += tDelta.z; axis = 2; }
+        }
+        if (tMax.x > len && tMax.y > len && tMax.z > len) return false;
+    }
+    return false;
+}
+
 /// Visibility between a surface point and a light, both in ABSOLUTE world units.
 /// 1.0 = nothing solid between them, 0.0 = something is.
 ///

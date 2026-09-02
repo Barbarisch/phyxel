@@ -1397,6 +1397,68 @@ hit point, which the occupancy pool does not carry (it stores solidity only); su
 next design question. **Building the cascade hierarchy before there is anything worth interpolating
 would be optimising an empty field.**
 
+### ✅ M5 — ONE-BOUNCE INDIRECT LIGHT IS WORKING 2026-09-02 (default OFF, quality limit named)
+
+**Built:** probe SSBO (binding 13, 55,296 probes) · `gi_probe.comp` tracing the shared occupancy ·
+`GiProbeField` on the SHARED set-0 layout · explicit COMPUTE→FRAGMENT barrier · weighted trilinear
+sampling · `POST /api/debug/gi`. **`phxDdaTrace`** was added to `occupancy.glsl`: the DDA now reports
+the hit cell and its face normal, taken from the axis it last stepped — exact for voxels, which is
+the one place a stepped normal is not an approximation.
+
+**A probe stores irradiance: sky where a ray escapes, and where it hits, the light LEAVING that
+surface.** Surface albedo is not in the occupancy pool, so `kBounceAlbedo = 0.30` stands in — the
+same constant `lighting.glsl` already calls "a reasonable mid albedo for grass, dirt and stone", so
+the two models cannot drift. A bounce off a shaded wall is dim and off a sunlit lawn is bright,
+because the hit's own `phxSkyVisibility` decides — no second lighting model to keep in sync.
+
+**It visibly works.** The shaded north wall, black in every earlier capture, now reads as lit wood
+with visible grain: the sunlit lawn bouncing onto it. The doorway frame is clean (no M5.1 speckle),
+the interior stays properly dark, and the sky null control is **exactly +0.00**.
+
+#### Four measured corrections, each caught by a gate rather than by eye
+
+| # | symptom | cause | fix |
+|---|---|---|---|
+| 1 | interior +223 / exterior +147 | probes carried emitter light the fragments loop **again** | drop emitters from probes |
+| 2 | uniform −10 | raw open-fraction ≠ `phxAmbientAtmos`'s squared curve | feed the same model |
+| 3 | speckle + darkening | 2 u probes straddling **2–3 micro** walls | validity + front-face weighting |
+| 4 | flat +34 at every height | 6 fixed rays → the down ray hits ground from **any** height, so no solid angle | 18 directions |
+
+**Correction 4 is the one worth keeping.** Distance falloff is not a term to add — it EMERGES from
+sampling the sphere, because a distant surface subtends less solid angle. The falsifiable test:
+bounce from a lawn must weaken with height above it.
+
+| wall band | 6 dirs | 18 dirs |
+|---|---|---|
+| just above grass | +35.95 | **+51.77** |
+| mid | +33.82 / +35.14 | +48.79 / +48.87 |
+| near roof | +35.21 | **+45.44** |
+| sky (null) | +0.00 | **+0.00** |
+
+6 directions: **flat** — a global brightener. 18: a real gradient (51.8 → 45.4).
+
+#### M5.3 temporal amortisation — what makes the quality affordable
+
+18 directions cost **5.473 ms**. Refreshing **1/8 of the grid per frame** takes it to **1.469 ms** —
+18-direction quality for less than 6-direction cost — with the falloff numbers **byte-identical**.
+Safe because of what a probe stores: sky access and bounce off STATIC geometry change only when the
+world does, and direct light is not in this field at all. The visible cost is refresh latency after
+an edit, not error in a static scene.
+
+#### ⚠️ What is NOT done, stated plainly
+
+* **The cascade hierarchy was not built.** M5.2 originally specified near-dense/few-directions and
+  far-sparse/many. The measurements redirected the work: direction count, not probe hierarchy, was
+  what the estimator lacked, and temporal amortisation bought the directions. A hierarchy remains
+  the right way to extend RANGE beyond the 96×48×96 u grid.
+* **The falloff is weak** — 12% across the wall where physics wants more. 18 directions is the
+  cheapest set that resolves it at all; proper accuracy needs more, which amortisation can now buy.
+* **Enabling by default requires re-deriving exposure.** One bounce is real added energy the
+  exposure was never calibrated for, and it was already measured a third of a stop hot (M4).
+  Turning GI on without that is a look regression, so **GI ships default OFF.**
+* **Only `voxel.frag` samples the field.** Grass, foliage, characters and water are unchanged, so
+  this is not a whole-scene result.
+
 **M5.2 — (original) cascade hierarchy.** Near = dense probes / few directions; far = sparse / many. Merge with
 bilinear + directional interpolation.
 **Gate:** M5.1's readings preserved, cost per frame **lower** than M5.1 at equal or better quality,

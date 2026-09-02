@@ -83,18 +83,18 @@ const int PHX_GI_DIM_X = 48;
 const int PHX_GI_DIM_Y = 24;
 const int PHX_GI_DIM_Z = 48;
 
-/// r = sky visibility 0..1, g = validity (0 when the probe is buried in solid).
-vec2 phxProbeAt(ivec3 g) {
+/// rgb = irradiance arriving here (sky + one bounce), a = validity (0 when buried in solid).
+vec4 phxProbeAt(ivec3 g) {
     g = clamp(g, ivec3(0), ivec3(PHX_GI_DIM_X - 1, PHX_GI_DIM_Y - 1, PHX_GI_DIM_Z - 1));
     int idx = g.x + g.y * PHX_GI_DIM_X + g.z * PHX_GI_DIM_X * PHX_GI_DIM_Y;
-    return giField.probes[idx].rg;
+    return giField.probes[idx];
 }
 
 /// Trilinear sample of the probe field at an ABSOLUTE world position.
 /// Returns false when the field is unavailable or the position is outside the grid, so the caller
 /// can fall back to the analytic ambient rather than to black -- degrading to the old look, never
 /// to invented darkness.
-bool phxGiSkyVisibility(vec3 worldPos, vec3 N, out float outSkyVis) {
+bool phxGiIrradiance(vec3 worldPos, vec3 N, out vec3 outIrradiance) {
     if ((ubo.occupancyBox.w & 8) == 0) return false;
     float spacing = max(ubo.giProbeGrid.w, 1e-3);
     vec3 rel = (worldPos - ubo.giProbeGrid.xyz) / spacing;
@@ -116,11 +116,12 @@ bool phxGiSkyVisibility(vec3 worldPos, vec3 N, out float outSkyVis) {
     //
     // If every neighbour is rejected the function reports failure and the caller falls back to the
     // analytic term -- degrading to the old look rather than to invented darkness.
-    float sum = 0.0, wsum = 0.0;
+    vec3 sum = vec3(0.0);
+    float wsum = 0.0;
     for (int i = 0; i < 8; ++i) {
         ivec3 off = ivec3(i & 1, (i >> 1) & 1, (i >> 2) & 1);
-        vec2 pr = phxProbeAt(b + off);
-        if (pr.y < 0.5) continue;                       // buried probe
+        vec4 pr = phxProbeAt(b + off);
+        if (pr.a < 0.5) continue;                       // buried probe
 
         vec3 tri = mix(1.0 - f, f, vec3(off));          // trilinear weight
         float w = tri.x * tri.y * tri.z;
@@ -131,11 +132,11 @@ bool phxGiSkyVisibility(vec3 worldPos, vec3 N, out float outSkyVis) {
         float len = length(toProbe);
         if (len > 1e-4) w *= clamp(dot(toProbe / len, N) * 0.5 + 0.5, 0.0, 1.0);
 
-        sum  += pr.x * w;
+        sum  += pr.rgb * w;
         wsum += w;
     }
     if (wsum < 1e-4) return false;
-    outSkyVis = sum / wsum;
+    outIrradiance = sum / wsum;
     return true;
 }
 
@@ -492,10 +493,20 @@ void main() {
     // document exists to remove. What changes is where the number comes from -- a neighbourhood of
     // traced points rather than this fragment alone -- so a corner away from a window sees less
     // than the sill, which a single per-fragment trace also gives but harder-edged.
-    float ambientSky = skyVis;
-    float giSky;
-    if (phxGiSkyVisibility(inWorldPos + ubo.cameraWorld, N, giSky)) ambientSky = giSky;
-    vec3 dbgAmbient = phxAmbientAtmos(N, ambientSky, ubo.ambientColor) * albedo;
+    // M5.2: the probe field now carries IRRADIANCE -- sky plus one bounce off real geometry --
+    // rather than a sky-access scalar. So it replaces phxAmbientAtmos's sky term outright, and the
+    // normal mix is applied to the probe's own value: the probe says how much light arrives here,
+    // the normal says how much of it a surface at this orientation receives. Reusing the analytic
+    // model's own kGroundBounce/up split keeps the two consistent instead of inventing a second
+    // shading rule.
+    vec3 dbgAmbient;
+    vec3 giIrr;
+    if (phxGiIrradiance(inWorldPos + ubo.cameraWorld, N, giIrr)) {
+        float up = clamp(N.y * 0.5 + 0.5, 0.0, 1.0);
+        dbgAmbient = mix(giIrr * 0.30, giIrr, up) * albedo;
+    } else {
+        dbgAmbient = phxAmbientAtmos(N, skyVis, ubo.ambientColor) * albedo;
+    }
     vec3  color = dbgAmbient;
 
     // Sun (directional) — the KEY light. Cook-Torrance, N·L shading, shadow-mapped. Gated by

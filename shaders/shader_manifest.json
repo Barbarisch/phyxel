@@ -13,7 +13,7 @@
     },
     "character.frag": {
       "built": true,
-      "sources": "0dc4b3174c77c241b8eba75a4ab014830c8f1c145ea2250122e5ee341255f393",
+      "sources": "4a383198b77a8d1fcb176e31b77f815e84e50ad7e2ec0935613aeefbc0ebeda1",
       "spv_present": true
     },
     "character.vert": {
@@ -113,7 +113,7 @@
     },
     "foliage.frag": {
       "built": true,
-      "sources": "6e54861e6129258b13b6984f1b734e5ff260276049acc5e9fa357eb10618b1f6",
+      "sources": "7833d4ea38385cee83c82ed82ee24952ebb9b82d840a1b3eec017f608851bbba",
       "spv_present": true
     },
     "foliage.vert": {
@@ -138,17 +138,17 @@
     },
     "gi_probe.comp": {
       "built": false,
-      "sources": "d440fab1fcef4b29bd4ba2aa2b3d4af7273bdf4419a677dd9606fb37808b5af9",
+      "sources": "7ec79cd55fb1b01e60acc26f5e6b818cbdc0af6a95cba03ddc8dce44704eec68",
       "spv_present": true
     },
     "grass.frag": {
       "built": true,
-      "sources": "adf5718eff5091793596341cbe41e0d2b4b5f8c7bfcc3ac37302b7283b01da7c",
+      "sources": "7a75a7bb6b6130160f0b2002010bfd25c46e6f2817c46e483b1a97b34c7a77b4",
       "spv_present": true
     },
     "grass.vert": {
       "built": true,
-      "sources": "19fe1e5a6b44e16a1ffd84503c7b7507d7afccfa02833bb058d7a9d5ee4971a5",
+      "sources": "5f68fca9ae8e3a1005c60b33611c1b853538218d89e91acf3aadc8b1fc0ea998",
       "spv_present": true
     },
     "grass_shadow.frag": {
@@ -358,7 +358,7 @@
     },
     "transparent_voxel.frag": {
       "built": true,
-      "sources": "443e4dfbfa7c8e59701335a392e99cae07d8d4172a3900c825249fd27ad4153a",
+      "sources": "56565d23527495882d745feede4887f2c4a89ab9b96ac3f42a5954e1be9d8e58",
       "spv_present": true
     },
     "ui.frag": {
@@ -383,7 +383,7 @@
     },
     "voxel.frag": {
       "built": true,
-      "sources": "15fd8b34a96c819ecffedb545244f25b4e04061a5789cbb81f824eecd53181c4",
+      "sources": "016c57bd9dfc1416f4effa8bf6dee53f8e1bbf9508367684634d2d27d8c10e77",
       "spv_present": true
     },
     "water.frag": {

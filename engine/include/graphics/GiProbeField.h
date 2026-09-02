@@ -41,6 +41,10 @@ public:
     static constexpr int kDimZ = 48;
     static constexpr int kProbeCount = kDimX * kDimY * kDimZ;   // 55,296
     static constexpr float kSpacing = 2.0f;
+    /// M5.3: probes refresh in slices, one slice per frame. MUST match kPhases in gi_probe.comp.
+    /// Safe because a probe stores sky access and bounce off STATIC geometry -- quantities that
+    /// change only when the world does. Direct light is not in this field; it stays per fragment.
+    static constexpr uint32_t kPhases = 8;
 
     bool initialize(Vulkan::VulkanDevice* device);
     void cleanup();
@@ -49,7 +53,8 @@ public:
     /// frame (it carries occupancy 11/12, the light SSBO 3, and this field at 13).
     void recordUpdate(VkCommandBuffer cmd, VkDescriptorSet set,
                       const glm::vec3& gridOrigin, const glm::vec3& ambientColor,
-                      const glm::ivec4& occBox);
+                      const glm::ivec4& occBox,
+                      const glm::vec3& sunDirection, const glm::vec3& sunColor);
 
     VkBuffer buffer() const { return m_buffer; }
 
@@ -63,6 +68,7 @@ private:
     VkDeviceMemory   m_memory   = VK_NULL_HANDLE;
     VkPipeline       m_pipeline = VK_NULL_HANDLE;
     VkPipelineLayout m_layout   = VK_NULL_HANDLE;
+    uint32_t         m_phase    = 0;   // M5.3 refresh slice
 };
 
 }  // namespace Graphics

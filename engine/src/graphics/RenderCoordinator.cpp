@@ -3793,7 +3793,8 @@ void RenderCoordinator::drawFrame() {
                                  vulkanDevice->getDescriptorSet(currentFrame),
                                  glm::vec3(GiProbeField::gridFor(camera->getPosition())),
                                  m_lastAmbientColor,
-                                 vulkanDevice->getOccupancyBox());
+                                 vulkanDevice->getOccupancyBox(),
+                                 sunDirection, m_lastSunColor);
     }
 
     // Begin Scene Render Pass (Offscreen)

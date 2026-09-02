@@ -25,9 +25,11 @@ layout(local_size_x = 64) in;
 
 layout(push_constant) uniform GiPush {
     vec4  originAndSpacing;  // xyz = world position of probe (0,0,0); w = spacing in world units
-    ivec4 dims;              // xyz = probe counts per axis; w = number of point lights to read
+    ivec4 dims;              // xyz = probe counts per axis; w = M5.3 phase (which slice to refresh)
     vec4  ambientColor;      // sky radiance (the same value the fragment ambient model uses)
     ivec4 occBox;            // as everywhere else: xyz box min chunk, w = guard bitfield
+    vec4  sunDirection;      // M5.2: needed to light the surface a bounce ray lands on
+    vec4  sunColor;
 } pc;
 
 #include "occupancy.glsl"    // bindings 11/12 + phxDdaHitsSolid + phxLightVisibility
@@ -66,15 +68,48 @@ layout(std430, set = 0, binding = 13) writeonly buffer GiProbes {
 // Vertical plus four at 30 degrees off vertical -- the subset phxSkyVisibility keeps, and the one
 // the bake's doorway-controlled gate validated. Cosine-weighted by the upward component, because
 // sky arrives from above; a horizontal ray contributes nothing to sky access.
-const vec3 GI_DIRS[5] = vec3[5](
-    vec3( 0.000, 1.000,  0.000),
-    vec3( 0.500, 0.866,  0.000), vec3(-0.500, 0.866,  0.000),
-    vec3( 0.000, 0.866,  0.500), vec3( 0.000, 0.866, -0.500)
+// FULL SPHERE, 18 directions, uniform weights.
+//
+// SIX was not enough, and the falloff test is what proved it. Bounce from a sunlit lawn must weaken
+// with height above that lawn; measured with 6 axis directions, four wall bands from just-above-
+// grass to near-the-roof all gained the SAME +33.8..+36.0, i.e. a global brightener rather than
+// indirect light. The reason is structural: with 6 fixed rays the downward one hits the ground with
+// weight 1/6 from ANY height inside the reach, so the estimator has no solid-angle falloff at all.
+//
+// Distance falloff is not something to add as a fudge -- it EMERGES from sampling the sphere
+// properly, because a distant surface subtends a smaller solid angle and therefore captures fewer
+// rays. 18 directions (6 axis + 12 edge midpoints) is the cheapest set that starts to resolve that.
+// This is also exactly why the cascade hierarchy is specified as "far = sparse probes, MANY
+// directions": direction count is what buys angular accuracy.
+const vec3 GI_DIRS[18] = vec3[18](
+    vec3( 0.0,  1.0,  0.0), vec3( 0.0, -1.0,  0.0),
+    vec3( 1.0,  0.0,  0.0), vec3(-1.0,  0.0,  0.0),
+    vec3( 0.0,  0.0,  1.0), vec3( 0.0,  0.0, -1.0),
+    vec3( 0.707,  0.707, 0.0), vec3(-0.707,  0.707, 0.0),
+    vec3( 0.707, -0.707, 0.0), vec3(-0.707, -0.707, 0.0),
+    vec3( 0.0,  0.707,  0.707), vec3( 0.0,  0.707, -0.707),
+    vec3( 0.0, -0.707,  0.707), vec3( 0.0, -0.707, -0.707),
+    vec3( 0.707, 0.0,  0.707), vec3(-0.707, 0.0,  0.707),
+    vec3( 0.707, 0.0, -0.707), vec3(-0.707, 0.0, -0.707)
 );
+// M5.3 -- TEMPORAL AMORTISATION.
+//
+// 18 directions gave real distance falloff where 6 gave none, but cost 5.473 ms against 1.7 ms.
+// Quality here is bought with direction count, and a full-grid refresh every frame cannot pay for
+// it. So refresh a SLICE per frame instead: each probe is updated every kPhases frames, and the
+// dispatch is 1/kPhases the size.
+//
+// This is safe precisely because of what a probe stores. Sky access and bounce off static geometry
+// change only when the WORLD changes, so a probe a few frames stale is not wrong in the way a stale
+// direct light would be -- and direct light is not in this field at all (it stays per fragment,
+// where it belongs). The visible cost is refresh latency after an edit, not error in a static
+// scene.
+const uint kPhases = 8u;
 
 void main() {
-    uint idx = gl_GlobalInvocationID.x;
     uint total = uint(pc.dims.x * pc.dims.y * pc.dims.z);
+    // Map this invocation to one probe of this frame's slice.
+    uint idx = gl_GlobalInvocationID.x * kPhases + uint(pc.dims.w);
     if (idx >= total) return;
 
     // Decode the probe's grid position. z-minor, matching the engine's index convention.
@@ -86,56 +121,56 @@ void main() {
     float spacing = pc.originAndSpacing.w;
     vec3 world = pc.originAndSpacing.xyz + vec3(float(px), float(py), float(pz)) * spacing;
 
-    // ---- WHAT A PROBE STORES, and why this is a scalar rather than irradiance -----------------
+    // ---- WHAT A PROBE STORES: IRRADIANCE, INCLUDING ONE BOUNCE --------------------------------
     //
-    // The first version stored full irradiance -- sky radiance PLUS every emitter's contribution --
-    // and the gate caught two errors at once (measured: interior +223 but exterior +146 and lit
-    // wall +114, i.e. a global brightener rather than indirect fill):
+    // M5.1 stored sky VISIBILITY, and M5.2 step 1 proved that architecture sound but empty: it was
+    // smoothing a scalar phxSkyVisibility already computes exactly, per fragment, so the measured
+    // benefit was +0.78 on a base of 24.4. Smoothing a number you can compute exactly is not
+    // indirect light.
     //
-    //   1. DOUBLE COUNTING. The fragment shaders already loop the same lights, with a per-fragment
-    //      visibility term and a proper normal. Probes adding them again lit everything twice.
-    //   2. WRONG CURVE. phxAmbientAtmos applies skyLight SQUARED, mixes ground/sky by the normal
-    //      and adds a floor. A raw linear open-fraction is a different, brighter function.
+    // A probe now stores the irradiance actually arriving at its position:
+    //   ray escapes -> sky radiance from that direction
+    //   ray hits    -> the light LEAVING that surface, which is what a bounce is
     //
-    // So a probe stores exactly ONE thing: how much sky this point can see, 0..1 -- the same
-    // quantity phxSkyVisibility returns per fragment. The fragment then feeds it into the SAME
-    // phxAmbientAtmos it always used. That makes the probe field a drop-in for the traced scalar
-    // rather than a second, competing lighting model -- which is this document's whole thesis.
-    //
-    // Emitters are deliberately NOT here. Probe-carried emitter light is only correct if it
-    // REPLACES the per-fragment loop rather than adding to it; that is a later increment.
+    // Surface albedo is not in the occupancy pool (it stores solidity only), so one constant stands
+    // in for it. That is the standard approximation and it is honest at this resolution -- the
+    // alternative is carrying a per-voxel material id through the pool, which is a much larger
+    // change for a second-order effect. kGroundBounce = 0.30 in lighting.glsl is the engine's own
+    // existing "reasonable mid albedo for grass, dirt and stone"; the same number is used here so
+    // the two models cannot drift apart.
+    const float kBounceAlbedo = 0.30;
+
     const float kReach = 16.0;
     const int   kCells = int(kReach * 9.0) * 2;
+    vec3  sunL = normalize(-pc.sunDirection.xyz);
 
-    // The same early-out the fragment path uses: if the vertical ray escapes, this point has open
-    // sky overhead and the remaining rays confirm a foregone conclusion. Without this a probe
-    // disagreed with a fragment at exactly the places that matter most -- everywhere outdoors.
-    float skyVis;
-    if (!phxDdaHitsSolid(world, world + GI_DIRS[0] * kReach, kCells, pc.occBox)) {
-        skyVis = 1.0;
-    } else {
-        float lit = 0.0, total = 0.0;
-        for (int d = 0; d < 5; ++d) {
-            float w = max(GI_DIRS[d].y, 0.0);          // cosine weight toward the sky
-            total += w;
-            if (!phxDdaHitsSolid(world, world + normalize(GI_DIRS[d]) * kReach, kCells, pc.occBox))
-                lit += w;
+    vec3 irradiance = vec3(0.0);
+    float wsum = 0.0;
+    for (int d = 0; d < 18; ++d) {
+        vec3 dir = GI_DIRS[d];
+        const float w = 1.0;                // uniform over the sphere -- this is irradiance
+        wsum += w;
+
+        vec3 hitPos, hitN;
+        if (!phxDdaTrace(world, world + dir * kReach, kCells, pc.occBox, hitPos, hitN)) {
+            // Escaped: this direction sees the sky dome, which wraps to the horizon, so a
+            // horizontal escape through a doorway carries light just as a vertical one does.
+            irradiance += pc.ambientColor.rgb * w;
+            continue;
         }
-        skyVis = total > 0.0 ? lit / total : 1.0;
-    }
 
-    // M5.2 step 1 -- PROBE VALIDITY.
-    //
-    // M5.1's gate failed with speckle at wall boundaries and a uniform darkening, because trilinear
-    // interpolation over a 2 u grid straddling a 2-3 MICRO wall mixes probes on both sides of it.
-    // A large share of those bad neighbours are simply BURIED: probes inside the ground plane or
-    // inside a wall, whose traced sky access is legitimately ~0 and which then drag down every
-    // fragment near them.
-    //
-    // A buried probe describes a point no surface can see, so it should carry no weight at all.
-    // This is the cheap half of DDGI's visibility weighting: it cannot reject a probe that is in
-    // open air on the WRONG SIDE of a wall (that needs per-direction depth), but it removes the
-    // dominant contributor here for one occupancy lookup per probe.
+        // ONE BOUNCE. How lit is the surface we hit? Its own sky access answers that, and it is the
+        // same phxSkyVisibility every fragment uses -- so a bounce off a wall in shadow is dim and
+        // a bounce off a sunlit lawn is bright, without a second lighting model to keep in sync.
+        float hitSky = phxSkyVisibility(hitPos, hitN, pc.occBox);
+        float ndl    = max(dot(hitN, sunL), 0.0);
+        vec3 outgoing = kBounceAlbedo * (pc.ambientColor.rgb * hitSky * hitSky
+                                       + pc.sunColor.rgb * ndl * hitSky * hitSky);
+        irradiance += outgoing * w;
+    }
+    if (wsum > 0.0) irradiance /= wsum;
+
     float valid = phxOccupancySolid(ivec3(floor(world * 9.0)), pc.occBox) ? 0.0 : 1.0;
-    gi.probes[idx] = vec4(skyVis, valid, 0.0, 1.0);
+
+    gi.probes[idx] = vec4(irradiance, valid);
 }

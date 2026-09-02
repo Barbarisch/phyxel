@@ -18,6 +18,8 @@ struct GiPush {
     glm::ivec4 dims;
     glm::vec4  ambientColor;
     glm::ivec4 occBox;
+    glm::vec4  sunDirection;   // M5.2: lights the surface a bounce ray lands on
+    glm::vec4  sunColor;
 };
 }  // namespace
 
@@ -107,7 +109,8 @@ bool GiProbeField::initialize(Vulkan::VulkanDevice* device) {
 
 void GiProbeField::recordUpdate(VkCommandBuffer cmd, VkDescriptorSet set,
                                 const glm::vec3& gridOrigin, const glm::vec3& ambientColor,
-                                const glm::ivec4& occBox) {
+                                const glm::ivec4& occBox,
+                                const glm::vec3& sunDirection, const glm::vec3& sunColor) {
     if (m_pipeline == VK_NULL_HANDLE || set == VK_NULL_HANDLE) return;
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);
@@ -115,12 +118,19 @@ void GiProbeField::recordUpdate(VkCommandBuffer cmd, VkDescriptorSet set,
 
     GiPush push{};
     push.originAndSpacing = glm::vec4(gridOrigin, kSpacing);
-    push.dims = glm::ivec4(kDimX, kDimY, kDimZ, 0);
+    // M5.3: w carries this frame's refresh PHASE. Each probe is updated once every kPhases
+    // frames and the dispatch shrinks to match, which is what makes 18 directions affordable.
+    push.dims = glm::ivec4(kDimX, kDimY, kDimZ, static_cast<int>(m_phase));
     push.ambientColor = glm::vec4(ambientColor, 0.0f);
     push.occBox = occBox;
+    push.sunDirection = glm::vec4(sunDirection, 0.0f);
+    push.sunColor = glm::vec4(sunColor, 0.0f);
     vkCmdPushConstants(cmd, m_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push), &push);
 
-    vkCmdDispatch(cmd, (kProbeCount + 63) / 64, 1, 1);
+    // Only 1/kPhases of the grid this frame. Must match kPhases in gi_probe.comp.
+    const uint32_t slice = (kProbeCount + kPhases - 1) / kPhases;
+    vkCmdDispatch(cmd, (slice + 63) / 64, 1, 1);
+    m_phase = (m_phase + 1) % kPhases;
 
     // READ-AFTER-WRITE, and it is spelled out because this plan has already been bitten once:
     // the bloom blur ping-ponged ten passes with no dependency at all, and the result was bloom
