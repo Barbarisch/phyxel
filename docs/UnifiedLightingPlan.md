@@ -1251,7 +1251,82 @@ since-corrected AgX curve — never re-derived).
 against the M3 captures at fixed poses with `lighting_stats.py --compare`; all eleven
 `lighting.glsl` consumers re-verified.
 
-### M5 — Indirect bounce — NOT STARTED
+### M5 — Indirect bounce — SCOPED 2026-09-01, gate defined, not yet implemented
+
+M5's own text said *"gate to be defined once D1 has real numbers"*. D1 has them, so this is that
+definition. **Nothing is built yet** — this section is the plan the standing FeatureDesignKeys gate
+requires *before* implementation, not a claim of progress.
+
+#### Why this is now the cheap milestone, not the expensive one
+
+The research's parking condition (`EngineAdvancesResearch.md` §4) was *"park until render-perf lands
+— GI on top of an unmerged 412k-face scene compounds the wrong thing"*. That expired 2026-08-11.
+More importantly, **the infrastructure cascades need was built by M1–U3 for other reasons**:
+
+| what cascades need | status |
+|---|---|
+| a GPU structure to ray-march | ✅ `VoxelLightOccupancy` pool, sub-voxel, viewer-following (M1) |
+| a DDA that cannot skip thin geometry | ✅ `phxDdaHitsSolid`, shared in `occupancy.glsl` (D0/U2) |
+| every emitter in one queryable place | ✅ `LightManager` SSBO; emissive voxels included (U3.2) |
+| a sky radiance model | ✅ traced `phxSkyVisibility` + the atmosphere (M3) |
+| a receiver model to feed | ✅ one `lighting.glsl` model, all consumers (U1) |
+
+The research literally names the enabler: *"A voxel grid gives free ray-marching structure (DDA
+through chunk occupancy) for cascade interval tracing."* That is `phxDdaHitsSolid`, already written,
+already unit-tested against a CPU mirror.
+
+#### Design keys, answered here rather than discovered later
+
+* **Procedural-generation stage?** No. This is a render-time field; it must not become world state,
+  and it must not be baked per chunk — that is the mistake M3-REDESIGN made and this plan spent a
+  session undoing. **Probes are a render-side cache keyed on world position, rebuilt from geometry,
+  never persisted.**
+* **Chunks must not be visible.** A probe grid is a *cost* structure. Its spacing may bound work; it
+  may never make appearance depend on chunk boundaries. Pinned by a chunked-vs-whole-region equality
+  test in the style of `FloraMarginTest`.
+* **API?** `POST /api/debug/gi {enabled, cascades, probeSpacing}` plus a **bounce-only debug view**
+  (a new `debugShadowMode`). ⚠️ Adding a mode **requires raising the clamp** in
+  `set_debug_shadow_mode` or the new mode silently selects the previous one — a footgun this
+  document has already recorded biting once.
+* **Test world?** The `LightingGates` flat world plus one engine-generated `hall_house` — the same
+  rig every gate in this document has used, so results are comparable to what is already recorded.
+
+#### Increments, each independently gated
+
+**M5.1 — ONE cascade, no hierarchy.** A single coarse probe grid over the viewer's neighbourhood.
+Each probe traces N directions with the existing DDA, gathering sky (via `phxSkyVisibility`) and
+emitter radiance (via the light SSBO). `voxel.frag` samples the probe field **in place of the flat
+`phxAmbientAtmos` fill**, trilinearly. No merging, no cascade levels.
+*Why first:* it proves storage, tracing, sampling and cost in isolation. If M5.1 is unaffordable,
+the hierarchy cannot save it, and that is worth knowing before building the hierarchy.
+**Gate:** in a window-lit room, wall corners **away from the window** read measurably brighter than
+with ambient-only, while a **sealed room stays black** (the bounce must not invent light — that is
+the failure mode a probe grid makes easy). Both measured through `/api/world/baked_light`-style
+structured queries or the bounce-only view, never from a screenshot. Cost measured on the D1 town at
+the D1 pose so it is comparable to every other number in this document.
+
+**M5.2 — cascade hierarchy.** Near = dense probes / few directions; far = sparse / many. Merge with
+bilinear + directional interpolation.
+**Gate:** M5.1's readings preserved, cost per frame **lower** than M5.1 at equal or better quality,
+and no visible seam between cascade levels (the classic failure) — measured as a luminance
+discontinuity across the level boundary, not eyeballed.
+
+**M5.3 — temporal reuse.** Amortise probe updates across frames.
+**Gate:** no visible lag on a moving light (carry a torch), measured frame-to-frame like the U5
+determinism check; cost falls again.
+
+#### Honest risks, stated before starting
+
+* **Cost.** Scene Pass is already 6.15 ms with traced sky + lights; the sky term alone is ~2.7 ms and
+  grass enclosure ~1.8 ms. GI is additive on top of that. **M5.1's measurement is a go/no-go, not a
+  formality.**
+* **Light leaking through thin walls** is the characteristic probe-grid artifact, and this engine's
+  walls are 2–3 micro. Probe spacing coarser than a wall will leak. The sealed-room half of the
+  M5.1 gate exists specifically to catch it, and the `LightWallMatrix` thicknesses are the rig.
+* **It must not resurrect stored per-cell light.** A probe field is a render cache, not world state.
+  If it starts being persisted or baked per chunk, it has become the thing M0 deleted.
+
+### M5 — (original) Indirect bounce — NOT STARTED
 Radiance cascades on the M1 structure (`EngineAdvancesResearch.md` §4; parking condition **expired**
 2026-08-11). Removes the 32-light cap as a side effect — a city already exceeds it and logs fixtures
 as UNLIT.
