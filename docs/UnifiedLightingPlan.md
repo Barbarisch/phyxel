@@ -1177,9 +1177,42 @@ chosen"). So the storage win is real but still gated, and claiming M4 complete h
 * The other five skylight transports (`kinematic_voxel` `pc.bakedLight.x`, `dynamic_voxel`
   `inDebrisLight`, `character/grass/foliage` `vSky`) still feed a `vSkyLight` no one reads for
   chunks. They are harmless constants now, but they are dead weight and belong in this deletion.
-* **Re-derive `m_exposure`** (still 8.0, calibrated against both the deleted flood *and* a
-  since-corrected AgX curve). D18 unblocked this — the HUD no longer rides the grade, so changing
-  exposure no longer restyles the UI.
+### ✅ M4 — `m_exposure` RE-DERIVED 2026-09-01 (measured; default NOT changed)
+
+8.0 was calibrated against two things that no longer exist: the per-cell flood (deleted by M0) and a
+transposed AgX curve (corrected in `20341333`). Re-derived on the engine's own generator —
+`hall_house` on grass, noon, sun fixed, one pose giving sunlit ground, a lit roof, a shadowed wall
+and sky in a single frame.
+
+**First attempt could not decide it, and that is itself a result.** A clipped/crushed histogram over
+the viewport showed **0.000% clipped at every exposure from 2 to 16** — AgX is holding the highlights,
+so the tone curve is not the constraint — while "crushed" fell monotonically with exposure. That
+metric only says *brighter is better*, which is not a calibration; most of those crushed pixels are
+the shadowed wall and dark interior, which SHOULD be dark.
+
+**Re-measured against reference surfaces**, which is what exposure actually converts:
+
+| exposure | sunlit grass | sunlit roof | shadowed wall | sky |
+|---|---|---|---|---|
+| 3.0 | 102.1 | 17.1 | 6.8 | 88.5 |
+| 4.0 | 114.9 | 23.2 | 10.6 | 101.2 |
+| **5.0** | **124.9** | 28.7 | 14.5 | 111.3 |
+| 6.0 | 133.1 | 33.6 | 18.1 | 119.6 |
+| **8.0 (current)** | **146.0** | 42.2 | 24.6 | 132.8 |
+| 11.0 | 160.0 | 52.7 | 32.9 | 147.3 |
+
+Mid-grey on an 8-bit display is ~118. Grass has a real albedo of roughly 0.25, so a sunlit lawn
+should sit **just above** mid-grey — which is **exposure ≈ 5.0** (124.9). **At the shipped 8.0 it
+reads 146**, about a third of a stop hot: sunlit diffuse is being pushed into the upper mid-tones and
+everything shadowed is lifted with it.
+
+⚠️ **The default is NOT changed.** This is a whole-game look decision, not a correctness fix —
+nothing clips at either value — and this plan's standing rule is to report measurements and let the
+user judge. Before/after captures at the same pose were handed over for that call.
+⚠️ **What this did NOT test:** one scene, one time of day, one biome. Night, dawn/dusk, snow and
+desert are untested, and exposure interacts with everything today's work changed (traced sky
+replacing the flood, emissive voxels as lights). A single noon lawn is a calibration reference, not
+a proof across the day cycle.
 
 ### M4 — original specification
 Delete the per-corner vertex light words and their `InstanceData` fields if M2/M3 do not need them.
