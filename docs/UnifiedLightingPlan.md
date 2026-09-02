@@ -1356,7 +1356,48 @@ first gate run were wrong — the camera framed the OUTSIDE wall, so "interior" 
 through a doorway and "lit wall" was mostly sky. The conclusion rests on the speckle and on the
 uniform sign of the deltas, not on those labels.
 
-**M5.2 — cascade hierarchy.** Near = dense probes / few directions; far = sparse / many. Merge with
+### ✅ M5.2 step 1 DONE 2026-09-02 — probe weighting fixes the leak; the field is now sound but empty
+
+The M5.1 failure was leakage, so the fix is DDGI's idea rather than a finer grid. Two weights, both
+aimed at the measured artifact:
+
+* **validity** — `gi_probe.comp` marks a probe buried in solid (one `phxOccupancySolid` lookup).
+  Such a probe describes a point no surface can see, and its legitimately-zero sky access was
+  dragging down every fragment near it. Zero weight.
+* **front-face** — a probe BEHIND the shading surface is on the far side of it by definition, which
+  is exactly the wrong-side-of-the-wall neighbour that leaks. Weighted by how much it lies in the
+  hemisphere the surface faces.
+
+If every neighbour is rejected the sampler reports failure and the caller falls back to the analytic
+term — degrading to the old look, never to invented darkness.
+
+**Measured, same pose and rig as the M5.1 failure:**
+
+| region | M5.1 | M5.2 step 1 |
+|---|---|---|
+| interior (through doorway) | −12.83 | **+0.78** |
+| exterior grass | −10.02 | −4.28 |
+| wall (control) | −9.68 | **−0.11** |
+| `GI Probes` scope | 0.45 ms | **0.256 ms** |
+
+**The wall control at −0.11 is the result that matters**: the field no longer globally darkens the
+scene, which is what a control existing to detect. And the **speckle around the doorway frame is
+visually gone** — the frame reads as clean stone where M5.1 rendered a dense dotted mess.
+
+⚠️ **But the benefit is small, and that is the honest headline: +0.78 on a base of 24.4 is 3%.**
+The architecture is now sound — no leak, no global shift, cheap — and it is **carrying almost
+nothing**, because a probe currently stores the SAME sky-visibility quantity `phxSkyVisibility`
+already computes per fragment. Smoothing a number the fragment can compute exactly is not indirect
+light.
+
+**So the real M5.2 is now clearly identified, and it is not the cascade hierarchy.** Probes must
+gather **radiance from surfaces** — albedo × the light arriving there — not just sky access. That
+is the bounce, and it is the thing the directive committed to. It needs surface albedo at a ray's
+hit point, which the occupancy pool does not carry (it stores solidity only); supplying it is the
+next design question. **Building the cascade hierarchy before there is anything worth interpolating
+would be optimising an empty field.**
+
+**M5.2 — (original) cascade hierarchy.** Near = dense probes / few directions; far = sparse / many. Merge with
 bilinear + directional interpolation.
 **Gate:** M5.1's readings preserved, cost per frame **lower** than M5.1 at equal or better quality,
 and no visible seam between cascade levels (the classic failure) — measured as a luminance

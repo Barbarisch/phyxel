@@ -124,5 +124,18 @@ void main() {
         skyVis = total > 0.0 ? lit / total : 1.0;
     }
 
-    gi.probes[idx] = vec4(skyVis, 0.0, 0.0, 1.0);
+    // M5.2 step 1 -- PROBE VALIDITY.
+    //
+    // M5.1's gate failed with speckle at wall boundaries and a uniform darkening, because trilinear
+    // interpolation over a 2 u grid straddling a 2-3 MICRO wall mixes probes on both sides of it.
+    // A large share of those bad neighbours are simply BURIED: probes inside the ground plane or
+    // inside a wall, whose traced sky access is legitimately ~0 and which then drag down every
+    // fragment near them.
+    //
+    // A buried probe describes a point no surface can see, so it should carry no weight at all.
+    // This is the cheap half of DDGI's visibility weighting: it cannot reject a probe that is in
+    // open air on the WRONG SIDE of a wall (that needs per-direction depth), but it removes the
+    // dominant contributor here for one occupancy lookup per probe.
+    float valid = phxOccupancySolid(ivec3(floor(world * 9.0)), pc.occBox) ? 0.0 : 1.0;
+    gi.probes[idx] = vec4(skyVis, valid, 0.0, 1.0);
 }
