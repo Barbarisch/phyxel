@@ -45,9 +45,9 @@ struct InstanceData {
     uint32_t packedData;      // 15 bits position (5+5+5), 6 bits face mask, 11 bits available for future features
     uint16_t textureIndex;    // Texture atlas index (0-65535)
     uint16_t reserved;        // Flags: bit0 emissive, bit1 transparent, bits2-9 alpha, bit10 mirror, bits11-14 damage
-    uint32_t light;           // Smooth lighting: bits0-15 = 4 per-corner skylight nibbles (corner = vertexID&3)
-    uint32_t light2;          // Per-corner block light: corner0 RGB (bits0-11) | corner1 RGB (bits12-23)
-    uint32_t light3;          // Per-corner block light: corner2 RGB (bits0-11) | corner3 RGB (bits12-23)
+    // U7: bits0-15 used to be per-corner skylight nibbles; sky is traced per fragment now, so they
+    // are free. Bits 16-31 are the fine-face-merge extents and are LIVE (shadow.vert reads them).
+    uint32_t light;
     uint32_t tint;            // Per-voxel 0xRRGGBB tint multiplier (0xFFFFFF = none). MUST match Phyxel::InstanceData.
 
     static VkVertexInputBindingDescription getBindingDescription() {
@@ -59,7 +59,7 @@ struct InstanceData {
     }
 
     static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
-        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(7);
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(5);  // U7: was 7
 
         attributeDescriptions[0].binding = 1;
         attributeDescriptions[0].location = 1;
@@ -81,20 +81,11 @@ struct InstanceData {
         attributeDescriptions[3].format = VK_FORMAT_R32_UINT;  // uint32 baked light (corner skies)
         attributeDescriptions[3].offset = offsetof(InstanceData, light);
 
+        // U7: the two block-light words are gone, so tint moves from location 7 to 5.
         attributeDescriptions[4].binding = 1;
         attributeDescriptions[4].location = 5;
-        attributeDescriptions[4].format = VK_FORMAT_R32_UINT;  // uint32 per-corner block light (corners 0,1)
-        attributeDescriptions[4].offset = offsetof(InstanceData, light2);
-
-        attributeDescriptions[5].binding = 1;
-        attributeDescriptions[5].location = 6;
-        attributeDescriptions[5].format = VK_FORMAT_R32_UINT;  // uint32 per-corner block light (corners 2,3)
-        attributeDescriptions[5].offset = offsetof(InstanceData, light3);
-
-        attributeDescriptions[6].binding = 1;
-        attributeDescriptions[6].location = 7;
-        attributeDescriptions[6].format = VK_FORMAT_R32_UINT;  // uint32 per-voxel tint (0xRRGGBB)
-        attributeDescriptions[6].offset = offsetof(InstanceData, tint);
+        attributeDescriptions[4].format = VK_FORMAT_R32_UINT;  // uint32 per-voxel tint (0xRRGGBB)
+        attributeDescriptions[4].offset = offsetof(InstanceData, tint);
 
         return attributeDescriptions;
     }

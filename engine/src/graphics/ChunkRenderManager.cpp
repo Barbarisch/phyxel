@@ -873,8 +873,6 @@ void ChunkRenderManager::rebuildCubeFaces(
                     inst.textureIndex = mf.tex[faceID];
                     inst.reserved = mf.reserved | (static_cast<uint16_t>(faceDmg[mi]) << 11);
                     inst.light  = lite;   // 4 corner skies (bits0-15)
-                    inst.light2 = lite2;  // per-corner block RGB (corners 0,1)
-                    inst.light3 = lite3;  // per-corner block RGB (corners 2,3)
                     faces.push_back(inst);
                 }
             }
@@ -1091,8 +1089,6 @@ void ChunkRenderManager::rebuildSubcubeFaces(
                                        | (static_cast<uint32_t>(bg & 0xF) << 4)
                                        | (static_cast<uint32_t>(bb & 0xF) << 8);
                         faceInstance.light  = static_cast<uint32_t>(skyV & 0xF) * 0x1111u;
-                        faceInstance.light2 = rgb12 | (rgb12 << 12);  // corners 0,1
-                        faceInstance.light3 = rgb12 | (rgb12 << 12);  // corners 2,3
                     }
                 }
                 faces.push_back(faceInstance);
@@ -1253,8 +1249,6 @@ void ChunkRenderManager::rebuildMicrocubeFaces(
                                        | (static_cast<uint32_t>(bg & 0xF) << 4)
                                        | (static_cast<uint32_t>(bb & 0xF) << 8);
                         faceInstance.light  = static_cast<uint32_t>(skyV & 0xF) * 0x1111u;
-                        faceInstance.light2 = rgb12 | (rgb12 << 12);  // corners 0,1
-                        faceInstance.light3 = rgb12 | (rgb12 << 12);  // corners 2,3
                     }
                 }
                 faces.push_back(faceInstance);
@@ -1415,8 +1409,6 @@ void ChunkRenderManager::rebuildMicrocubeFacesMerged(
                     inst.tint = key.tint;
                     inst.light  = Phyxel::InstanceDataUtils::packFineExtentsIntoLight(
                                       lightSky, uint32_t(uExt), uint32_t(vExt));
-                    inst.light2 = light23;
-                    inst.light3 = light23;
                     faces.push_back(inst);
                 }
             }
@@ -1579,8 +1571,6 @@ void ChunkRenderManager::rebuildSubcubeFacesMerged(
                 inst.tint = key.tint;
                 inst.light  = Phyxel::InstanceDataUtils::packFineExtentsIntoLight(
                                   key.lightSky, uint32_t(uExt), uint32_t(vExt));
-                inst.light2 = key.light23;
-                inst.light3 = key.light23;
                 faces.push_back(inst);
             }
             // Reset only the cells we touched, so the mask/used stay clean for the next slice.

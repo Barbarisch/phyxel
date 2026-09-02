@@ -348,7 +348,7 @@
     },
     "static_voxel.vert": {
       "built": true,
-      "sources": "b39411206576db8c4e6f153a678137b0bf5a6b2615092c4ba375d73bdd97c174",
+      "sources": "520e7fa24fcd9d7fcdd45e512219b7f74ab77c00ce3e08210fd5d59b6357165b",
       "spv_present": true
     },
     "transparent_voxel.frag": {

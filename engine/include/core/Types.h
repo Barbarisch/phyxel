@@ -83,16 +83,17 @@ struct InstanceData {
     uint32_t packedData;      // 15 bits position (5+5+5), 6 bits face mask, 11 bits available for future features
     uint16_t textureIndex;    // Texture atlas index (0-65535)
     uint16_t reserved;        // Flags: bit0 emissive, bit1 transparent, bits2-9 alpha, bit10 mirror, bits11-14 damage
-    uint32_t light = 0;       // Smooth lighting: bits0-15 = 4 per-corner skylight nibbles (corner = vertexID&3)
-    uint32_t light2 = 0;      // Per-corner block light: corner0 RGB (bits0-11) | corner1 RGB (bits12-23)
-    uint32_t light3 = 0;      // Per-corner block light: corner2 RGB (bits0-11) | corner3 RGB (bits12-23)
+    // U7: bits0-15 USED TO carry 4 per-corner skylight nibbles. Sky is traced per fragment now
+    // (M3/M4), so those bits are free. Bits 16-31 are the fine-face-merge extents and are LIVE --
+    // shadow.vert reads this attribute for them, which is why the field cannot be removed.
+    uint32_t light = 0;
     uint32_t tint = 0xFFFFFFu; // Per-voxel 0xRRGGBB tint multiplier (0xFFFFFF = none). Decouples color
                                // from material (docs/VoxelAppearanceModel.md). MUST also be mirrored in
                                // Phyxel::Vulkan::InstanceData (vulkan/VulkanDevice.h) — see [[dual struct]].
-    // Total: 24 bytes
+    // Total: 16 bytes (was 24; U7 removed the two dead block-light words)
 
     static VkVertexInputBindingDescription getBindingDescription();
-    static std::array<VkVertexInputAttributeDescription, 7> getAttributeDescriptions();  // + tint
+    static std::array<VkVertexInputAttributeDescription, 5> getAttributeDescriptions();  // + tint
 };
 
 // Grass blade instance — ONE per exposed grass-topped voxel (material Grass/GrassForest/

@@ -426,74 +426,12 @@ TEST_F(LightWallMatrix, DISABLED_LightDoesNotTravelAlongTheInsideOfAWall) {
 // This reads the actual per-corner nibbles out of the emitted faces, which is the only way to see
 // it: it is invisible in the per-cell field and only appears once the corners are averaged.
 // ---------------------------------------------------------------------------------------------
-TEST_F(LightWallMatrix, DISABLED_InteriorWallFaceCornersAtTheFloorAverageInSolidZeros) {
-    // THE CHANNEL MATTERS, and getting it wrong twice is how this test previously returned a
-    // clean result for a defect that is plainly visible. A live bypass experiment settled it:
-    // zeroing BLOCK light collapsed the wall 173.9 -> 6.8 while forcing skylight uniform moved it
-    // 0.4, and with both floods off the band inverted (band 24.5 vs wall 18.2, i.e. gone). The
-    // band lives in the BLOCK channel, whose per-corner values are in light2/light3 — NOT in
-    // `light`, which carries skylight and is what the first two attempts read.
-    Room r = buildSealedBox(StructureRealizer::thicknessMicro(0.222));   // timber, 2 micro
-    // Source at the SAME HEIGHT as the junction, matching the live case: the glow sat at y=18 and
-    // the band was at y=18, so a plain radial falloff cannot explain the band being darker than
-    // the wall above it.
-    r.cubes.push_back(std::make_unique<Cube>(glm::ivec3(kMid, kLo + 1, kMid), "glow"));
-    ChunkRenderManager crm;
-    crm.rebuildAllFaces(r.cubes, r.subs, r.micros, glm::ivec3(0, 0, 0));
-
-    // Block-light corners live in light2/light3 (two corners each, 4 bits per channel); skylight
-    // corners are the four nibbles of `light`. Report BOTH per row so the mechanism is visible.
-    // MEAN, not min/max: every row contains some zero corner (wall ends, ceiling junction), so
-    // extremes do not discriminate — the first run of this reported min 0 for BOTH rows and
-    // looked like "no difference" when the means differ. Apparent brightness is the average.
-    auto rowReport = [&](int y, const char* what) {
-        int lo = 99, hi = -1, n = 0;
-        long sum = 0; int cnt = 0;
-        for (const auto& f : crm.getFaces()) {
-            const int fx = static_cast<int>(f.packedData & 0x1Fu);
-            const int fy = static_cast<int>((f.packedData >> 5) & 0x1Fu);
-            const int fz = static_cast<int>((f.packedData >> 10) & 0x1Fu);
-            if (fy != y) continue;
-            // -Z wall run: it meets the floor, which is the junction the report is about.
-            if (fz != kLo || fx <= kLo || fx >= kHi) continue;
-            // BLOCK light per corner: light2 holds corners 0,1 and light3 corners 2,3, each as
-            // 12 bits of RGB (4 bits per channel). Take the brightest channel per corner.
-            for (int c = 0; c < 4; ++c) {
-                const uint32_t word = (c < 2) ? f.light2 : f.light3;
-                const uint32_t sh = (c & 1) ? 12u : 0u;
-                const int cr = static_cast<int>((word >> (sh + 0u)) & 0xFu);
-                const int cg = static_cast<int>((word >> (sh + 4u)) & 0xFu);
-                const int cb = static_cast<int>((word >> (sh + 8u)) & 0xFu);
-                const int v = std::max({cr, cg, cb});
-                lo = std::min(lo, v); hi = std::max(hi, v);
-                sum += v; ++cnt;
-            }
-            ++n;
-        }
-        std::cout << "    " << what << " (y=" << y << "): faces=" << n
-                  << "  corner BLOCK mean=" << std::fixed << std::setprecision(2)
-                  << (cnt ? static_cast<double>(sum) / cnt : -1.0)
-                  << "  min=" << (n ? lo : -1) << "  max=" << (n ? hi : -1) << "\n";
-        return std::pair<double, int>{cnt ? static_cast<double>(sum) / cnt : -1.0, n ? lo : -1};
-    };
-
-    std::cout << "\n  Interior -Z wall, per-corner BLOCK light by row. Emitter is at the SAME "
-                 "height\n  as the bottom row, so radial falloff alone cannot make it darker.\n";
-    const auto bottom = rowReport(kLo + 1, "bottom row (touches floor)");
-    const auto middle = rowReport(kLo + 2, "row above           ");
-    const auto upper  = rowReport(kLo + 3, "two rows above      ");
-    std::cout << "\n";
-
-    // A record, not a verdict on "correct": is the row touching the floor pulled DOWN relative to
-    // rows further from it? If so the band comes from the corner rule averaging solid neighbours
-    // as zero light, and no per-cell change can address it.
-    ASSERT_GT(middle.first, 0.0) << "the wall is not lit at all — the rig proves nothing";
-    std::cout << "    means bottom / +1 / +2: " << bottom.first << " / " << middle.first
-              << " / " << upper.first
-              << (bottom.first < middle.first
-                      ? "   -> bottom row IS darker\n"
-                      : "   -> bottom row is NOT darker here\n");
-}
+// U7 (docs/UnifiedLightingPlan.md): DISABLED_InteriorWallFaceCornersAtTheFloorAverageInSolidZeros
+// was REMOVED here 2026-09-01. It read InstanceData::light2 / light3 -- the per-corner BLOCK-light
+// words -- to measure the wall-base black band. Those fields no longer exist: block light was
+// pinned to 0 from M0 onward, U3.2 made emissive voxels real point lights instead, and U7 deleted
+// the two attributes (InstanceData 24 -> 16 bytes). The band it investigated was a property of the
+// per-cell flood, which is gone. Kept as a note rather than a silently deleted test.
 
 // The rig's own control: a stone_keep-thickness box is a solid cube shell. If light escapes THIS,
 // the harness is broken and every number above is meaningless.

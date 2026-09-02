@@ -69,8 +69,8 @@ VkVertexInputBindingDescription InstanceData::getBindingDescription() {
     return desc;
 }
 
-std::array<VkVertexInputAttributeDescription, 7> InstanceData::getAttributeDescriptions() {
-    std::array<VkVertexInputAttributeDescription, 7> desc{};
+std::array<VkVertexInputAttributeDescription, 5> InstanceData::getAttributeDescriptions() {
+    std::array<VkVertexInputAttributeDescription, 5> desc{};
 
     // Packed data (position + face mask + future bits)
     desc[0].binding = 1;
@@ -96,23 +96,14 @@ std::array<VkVertexInputAttributeDescription, 7> InstanceData::getAttributeDescr
     desc[3].format = VK_FORMAT_R32_UINT;  // uint32_t light
     desc[3].offset = offsetof(InstanceData, light);
 
-    // Per-corner block light (corners 0,1)
+    // U7: the two per-corner block-light words are GONE. Block light was pinned to 0 from M0
+    // onward and U3.2 chose point lights for emissive voxels, so nothing ever wrote them again.
+    // Tint therefore moves up from location 7 to location 5 -- static_voxel.vert is the only
+    // consumer (shadow.vert and debug_voxel.vert stop at location 4).
     desc[4].binding = 1;
-    desc[4].location = 5;  // layout(location = 5) in uint inLight2
-    desc[4].format = VK_FORMAT_R32_UINT;  // uint32_t light2
-    desc[4].offset = offsetof(InstanceData, light2);
-
-    // Per-corner block light (corners 2,3)
-    desc[5].binding = 1;
-    desc[5].location = 6;  // layout(location = 6) in uint inLight3
-    desc[5].format = VK_FORMAT_R32_UINT;  // uint32_t light3
-    desc[5].offset = offsetof(InstanceData, light3);
-
-    // Per-voxel tint (0xRRGGBB multiplier; 0xFFFFFF = none)
-    desc[6].binding = 1;
-    desc[6].location = 7;  // layout(location = 7) in uint inTint
-    desc[6].format = VK_FORMAT_R32_UINT;  // uint32_t tint
-    desc[6].offset = offsetof(InstanceData, tint);
+    desc[4].location = 5;  // layout(location = 5) in uint inTint
+    desc[4].format = VK_FORMAT_R32_UINT;  // uint32_t tint
+    desc[4].offset = offsetof(InstanceData, tint);
 
     return desc;
 }
