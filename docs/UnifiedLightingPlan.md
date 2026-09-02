@@ -1174,9 +1174,37 @@ chosen"). So the storage win is real but still gated, and claiming M4 complete h
 
 **Remaining in M4/U7:**
 * `m_blockR/G/B` + `inLight2`/`inLight3` + `vBlockColor` — the 8-byte shrink. **Gated on U3.2.**
-* The other five skylight transports (`kinematic_voxel` `pc.bakedLight.x`, `dynamic_voxel`
-  `inDebrisLight`, `character/grass/foliage` `vSky`) still feed a `vSkyLight` no one reads for
-  chunks. They are harmless constants now, but they are dead weight and belong in this deletion.
+### ✅ M4 — VEGETATION SKY TRANSPORT RETIRED 2026-09-01, and it was hiding a real hole
+
+The `vSky` varying on grass and foliage was fed by the flood M0 deleted, so it had been **a constant
+1.0** — meaning **grass and leaves inside a building were lit exactly like grass in open field.**
+Deleting the dead transport without replacing it would have left that hole permanently.
+
+`PHX_SKY_DIRS` + `phxSkyVisibility` are now in **`occupancy.glsl`**, taking `occBox` as a parameter
+like `phxLightVisibility` does (that file's contract forbids implicit UBO reads). `voxel.frag`,
+`grass` and `foliage` share **one** sky term. Vegetation traces with an up normal — a blade and a
+leaf card are camera-facing cutouts with no meaningful normal of their own.
+
+⚠️ **IT COSTS, and the optimisation I expected to pay for it did not.** Measured on the Grass GPU
+scope, same pose:
+
+| | Grass scope |
+|---|---|
+| before (no sky term) | 1.240 ms |
+| per-FRAGMENT trace | 3.284 ms |
+| per-VERTEX trace (shipped) | **3.003 ms** |
+
+I moved the trace to the vertex stage reasoning that sky access varies at world scale while a blade
+is ~0.05–0.1 u wide, so per-fragment re-answers the same question many times. **The reasoning was
+right and the gain was 8%** — grass blades are stacked quads generated procedurally, so the shader
+is vertex-dense enough that invocation count barely changed. Kept the vertex version: marginally
+cheaper and semantically the correct frequency, but it is **not** the fix.
+
+**So grass enclosure costs ~1.8 ms.** That is a real trade — correct indoor vegetation against frame
+time — and it is recorded rather than buried. The lever that would actually help is reducing
+invocations (fewer blades, or a coarser sky term sampled per grass INSTANCE and passed through the
+instance buffer), not moving the same work between stages. 111/112 in the affected suites; the red
+is the pre-existing D19.
 ### ✅ M4 — `m_exposure` RE-DERIVED 2026-09-01 (measured; default NOT changed)
 
 8.0 was calibrated against two things that no longer exist: the per-cell flood (deleted by M0) and a

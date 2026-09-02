@@ -10,11 +10,11 @@ layout(location = 0) in flat uint vTex;    // grass texture index (class bit 15 
 layout(location = 1) in vec2  vUV;         // colour-sample UV
 layout(location = 2) in float vGrad;       // 0 base .. 1 tip
 layout(location = 3) in float vSide;       // -1..1 across blade width
-layout(location = 4) in float vSky;        // baked skylight 0..1
 layout(location = 6) in vec4  vShadowCoord; // biased light-space coord (shadow RECEIVING)
 layout(location = 7) in float vWindLean;   // wind debug: lean fraction, 0 upright .. 0.9 at cap
 layout(location = 8) in vec4  vShadowCoordNear; // near-cascade coord (fine texels)
 layout(location = 9) in vec3  vWorldPos;        // U3.3: camera-relative pos, for point lights
+layout(location = 4) in float vSky;            // M4: TRACED sky visibility, computed per blade vertex
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -132,8 +132,13 @@ void main() {
         shadowFactor = min(shadowFactor,
                            phxShadowFast(shadowMapNear, vShadowCoordNear,
                                          ubo.shadowCascadeNear.y));
-    vec3  ambient = phxAmbientAtmos(vec3(0.0, 1.0, 0.0), vSky, ubo.ambientColor);
-    vec3  sunTerm = ubo.sunColor * (0.85 * shadowFactor * phxSkyGate(vSky));
+    // M4: vSky is TRACED now (in grass.vert, per blade vertex) rather than read from the dead
+    // per-instance nibble the flood used to fill. Grass inside a house is finally darker than grass
+    // in the open. Tracing per VERTEX rather than per fragment because sky access varies at world
+    // scale and a blade is ~0.05-0.1 u wide -- per fragment cost 3.284 ms against 1.240 ms.
+    float sky = vSky;
+    vec3  ambient = phxAmbientAtmos(vec3(0.0, 1.0, 0.0), sky, ubo.ambientColor);
+    vec3  sunTerm = ubo.sunColor * (0.85 * shadowFactor * phxSkyGate(sky));
 
     // U3.3 — POINT/SPOT LIGHTS ON GRASS, with the same visibility term stone gets.
     //

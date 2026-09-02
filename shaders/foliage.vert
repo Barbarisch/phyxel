@@ -52,7 +52,6 @@ layout(push_constant) uniform PushConstants {
 
 layout(location = 0) out flat uint vTex;    // leaf texture index
 layout(location = 1) out vec2  vCard;       // card-plane coords in [-1,1] (mask UV)
-layout(location = 2) out float vSky;        // baked skylight 0..1
 layout(location = 4) out float vShade;      // per-card shading (hashed, for leaf-to-leaf variation)
 layout(location = 5) out flat uint vMaskV;  // per-card mask variant (bit0 flipX, bit1 flipY, bit2 swap)
 layout(location = 6) out vec4  vShadowCoord; // biased light-space coord (shadow RECEIVING)
@@ -73,7 +72,6 @@ void main() {
     float sx = float((packed >> 15) & 0x3u);
     float sy = float((packed >> 17) & 0x3u);
     float sz = float((packed >> 19) & 0x3u);
-    vSky   = float((packed >> 21) & 0xFu) / 15.0;
     vTex = inTex & 0xFFFFu;
 
     // Subcube centre in world space: cube-local + (sub + 0.5)/3 (subcube = 1/3 cube).

@@ -40,7 +40,6 @@ layout(push_constant) uniform PushConstants {
 
 layout(location = 0) out flat uint vTex;
 layout(location = 1) out vec2  vCard;
-layout(location = 2) out float vSky;
 layout(location = 4) out float vShade;
 layout(location = 5) out flat uint vMaskV;
 layout(location = 6) out vec4  vShadowCoord;
@@ -60,7 +59,6 @@ void main() {
     float sx = float((packed >> 15) & 0x3u);
     float sy = float((packed >> 17) & 0x3u);
     float sz = float((packed >> 19) & 0x3u);
-    vSky   = float((packed >> 21) & 0xFu) / 15.0;
     vTex = inTex & 0xFFFFu;
 
     // Subcube centre in FRAGMENT-LOCAL space; world via the rigid transform.
