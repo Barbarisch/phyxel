@@ -368,7 +368,6 @@ private:
     // Baked per-cell COLORED block light (32x32x32, each channel 0-15): flood-filled from emissive
     // voxels in their material colour (physics.colorTint), so a torch glows warm, a crystal blue,
     // etc. Three channels propagate independently (correct colour blending where lights overlap).
-    std::vector<uint8_t> m_blockR, m_blockG, m_blockB;
     // Block light colour of the air cell at local (x,y,z); 0 if out of chunk bounds (no source).
     void blockLightAt(int x, int y, int z, uint8_t& r, uint8_t& g, uint8_t& b) const;
 

@@ -158,12 +158,10 @@ uint8_t ChunkRenderManager::skyLightAt(int x, int y, int z) const {
 }
 
 void ChunkRenderManager::blockLightAt(int x, int y, int z, uint8_t& r, uint8_t& g, uint8_t& b) const {
-    if (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32) {
-        if (m_blockR.empty()) { r = g = b = 0; return; }
-        size_t i = static_cast<size_t>(z + y * 32 + x * 1024);
-        r = m_blockR[i]; g = m_blockG[i]; b = m_blockB[i];
-        return;
-    }
+    // U7 stage 2: the per-cell block-light ARRAYS ARE GONE. Emissive voxels are real point lights
+    // now (U3.2), so there is no baked block-light field to read -- and there had been no writer
+    // since M0 deleted the flood, so this returned zeros regardless.
+    if (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32) { r = g = b = 0; return; }
     // Out-of-chunk: read the neighbour chunk's baked block colour if available, else none.
     r = g = b = 0;
     if (m_neighborLight) {
@@ -174,10 +172,9 @@ void ChunkRenderManager::blockLightAt(int x, int y, int z, uint8_t& r, uint8_t& 
 
 bool ChunkRenderManager::bakedLightResolvable(int x, int y, int z, BakedLight& out) const {
     if (x >= 0 && x < 32 && y >= 0 && y < 32 && z >= 0 && z < 32) {
-        if (m_blockR.empty()) return false;
         size_t i = static_cast<size_t>(z + y * 32 + x * 1024);
         out.sky = 15;   // M4: no stored skylight; the trace owns enclosure
-        out.r = m_blockR[i]; out.g = m_blockG[i]; out.b = m_blockB[i];
+        out.r = out.g = out.b = 0;   // U7: no block-light field exists
         return true;
     }
     if (m_neighborLight) return m_neighborLight(m_lightWorldOrigin + glm::ivec3(x, y, z), out);
@@ -191,9 +188,6 @@ void ChunkRenderManager::clearForUniform() {
     std::vector<InstanceData>().swap(m_dirScratch);
     numInstances = 0;
     m_dirRangeOffsets.fill(0);
-    std::vector<uint8_t>().swap(m_blockR);
-    std::vector<uint8_t>().swap(m_blockG);
-    std::vector<uint8_t>().swap(m_blockB);
     std::vector<uint8_t>().swap(m_solidVis);
     std::vector<int>().swap(m_cellMat);
     std::vector<uint8_t>().swap(m_cellDamage);
@@ -211,11 +205,10 @@ void ChunkRenderManager::clearForUniform() {
 }
 
 bool ChunkRenderManager::bakedLightAt(int x, int y, int z, BakedLight& out) const {
-    if (m_blockR.empty()) return false;
     if (x < 0 || x >= 32 || y < 0 || y >= 32 || z < 0 || z >= 32) return false;
     size_t i = static_cast<size_t>(z + y * 32 + x * 1024);
     out.sky = 15;   // M4: no stored skylight; the trace owns enclosure
-    out.r = m_blockR[i]; out.g = m_blockG[i]; out.b = m_blockB[i];
+        out.r = out.g = out.b = 0;   // U7: no block-light field exists
     return true;
 }
 
@@ -455,9 +448,6 @@ void ChunkRenderManager::rebuildCubeFaces(
     // these arrays. Whether the replacement needs them at all is decided in M4.
     m_lightOpaque.clear();
     m_subFill.clear();
-    m_blockR.assign(static_cast<size_t>(N) * N * N, uint8_t(0));
-    m_blockG.assign(static_cast<size_t>(N) * N * N, uint8_t(0));
-    m_blockB.assign(static_cast<size_t>(N) * N * N, uint8_t(0));
 
     // ---- M3-REDESIGN: BAKE sky visibility by TRACING, not flooding -----------------------------
     // The flood decayed 1 per cube cell from the nearest opening, which is not light transport;
@@ -581,10 +571,13 @@ void ChunkRenderManager::rebuildCubeFaces(
     {
         std::vector<uint8_t> border;
         border.reserve(6 * N * N * 2);
-        auto pk = [&](int x, int y, int z) {
-            int c = cellIdx(x, y, z);
-            border.push_back(static_cast<uint8_t>(15u | ((m_blockR[c] & 0xF) << 4)));
-            border.push_back(static_cast<uint8_t>((m_blockG[c] & 0xF) | ((m_blockB[c] & 0xF) << 4)));
+        // U7: both bytes are now constants -- sky is uniform (traced per fragment instead) and
+        // block light no longer exists. The snapshot is kept because ChunkManager uses its CHANGE
+        // to decide whether to re-mesh neighbours; with constants it simply never reports a change,
+        // which is correct: there is no cross-chunk baked light left to ripple.
+        auto pk = [&](int, int, int) {
+            border.push_back(static_cast<uint8_t>(15u));
+            border.push_back(static_cast<uint8_t>(0u));
         };
         for (int a = 0; a < N; ++a) for (int b = 0; b < N; ++b) {
             pk(0, a, b);     pk(N - 1, a, b);

@@ -11,7 +11,6 @@ layout(location = 1) in vec2  vUV;         // colour-sample UV
 layout(location = 2) in float vGrad;       // 0 base .. 1 tip
 layout(location = 3) in float vSide;       // -1..1 across blade width
 layout(location = 4) in float vSky;        // baked skylight 0..1
-layout(location = 5) in vec3  vBlock;      // baked block light 0..1/channel
 layout(location = 6) in vec4  vShadowCoord; // biased light-space coord (shadow RECEIVING)
 layout(location = 7) in float vWindLean;   // wind debug: lean fraction, 0 upright .. 0.9 at cap
 layout(location = 8) in vec4  vShadowCoordNear; // near-cascade coord (fine texels)

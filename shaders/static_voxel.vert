@@ -59,7 +59,6 @@ layout(location = 3) out flat uint flags;         // pass flags to frag shader
 layout(location = 4) out vec3 outNormal;          // pass normal to frag shader
 layout(location = 5) out vec3 outWorldPos;        // pass world position to frag shader
 layout(location = 6) out float vSkyLight;          // baked skylight, normalized 0..1 — SMOOTH (interpolated per-corner)
-layout(location = 7) out vec3  vBlockColor;        // baked coloured block light, 0..1/channel — SMOOTH (interpolated per-corner)
 layout(location = 8) out vec3  vTint;              // per-voxel tint (low 24 bits of inTint)
 layout(location = 9) out flat uint vState;         // per-voxel state (high byte of inTint): 0 normal,1 flaming,2 smoldering,3 charred,4 wet
 layout(location = 10) out flat vec3 vChunkBaseAbs; // exact absolute chunk origin (varied-hash seed)
@@ -403,5 +402,4 @@ void main() {
     // declare location 7 and voxel.frag's debug view 4 reads it; block light has been a constant 0
     // since M0 regardless, so emitting 0 here changes nothing. Stage 2 removes the varying and the
     // m_blockR/G/B arrays behind it.
-    vBlockColor = vec3(0.0);
 }

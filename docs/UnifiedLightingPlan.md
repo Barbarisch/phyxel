@@ -953,7 +953,36 @@ comment rather than deleted silently.
 engine's own generator: a `hall_house` (`placed: 13822`) renders with textures and tint intact —
 which is what proves the tint relocation — dark interior through the doorway, 182 fps.
 
-⚠️ **STAGE 2 STILL OPEN.** `vBlockColor` is still declared by `static_voxel`, `dynamic_voxel` and
+### ✅ U7 STAGE 2 DONE 2026-09-01 — block light is gone from the engine entirely
+
+Removed: the `vBlockColor` varying from `static_voxel` / `dynamic_voxel` / `kinematic_voxel` and from
+`voxel.frag`; the `vBlock` varying from `grass` / `grass_shadow` / `foliage` / `foliage_kinematic`
+and both their fragment shaders; and the `m_blockR/G/B` CPU arrays with `blockLightAt` behind them.
+Locations are left non-contiguous rather than renumbered — GLSL does not require contiguity, and
+renumbering would have touched every consumer for no gain.
+
+**Debug view 4 was the block-light view.** Kept as an explicit black rather than removed, so the
+mode numbering and its clamp stay stable for existing tooling; emissive voxels are ordinary point
+lights now, so **mode 5** is where they show.
+
+**The cross-chunk border snapshot is now two constants.** It is retained because `ChunkManager`
+re-meshes neighbours when it CHANGES; with constants it never reports a change, which is correct —
+there is no cross-chunk baked light left to ripple.
+
+⚠️ **One real thing was lost, and it is logged rather than buried.** `voxel.frag` used
+`vBlockColor` to tint an emissive block's SELF-illumination by its own hue, so a `glow_blue` block
+read blue. That varying has been a constant 0 since M0, so the `m > 0.05` test already failed and it
+**already fell back to white** — the feature has been dead for the whole rebuild. It now reads
+`vTint` instead: behaviour-identical for untinted voxels, strictly better for tinted ones.
+**NOT restored:** material-level emissive hue. A `glow_blue` block with no per-voxel tint still
+self-illuminates white, because the material's `colorTint` is not carried into the shader. U3.2
+already reads exactly that CPU-side for the light colour, so carrying it through is the fix.
+
+*Verified:* 235/236 in the affected suites (the red is D19), and the U3.3 night-meadow result is
+unchanged — mean luminance 5.108 → 48.578 with 302,194 un-saturated lit pixels, against 48.563 /
+302,208 before stage 2. A 14-pixel difference is noise.
+
+⚠️ **(superseded) STAGE 2 STILL OPEN.** `vBlockColor` is still declared by `static_voxel`, `dynamic_voxel` and
 `kinematic_voxel`, and `voxel.frag`'s debug view 4 still reads it; the `m_blockR/G/B` CPU arrays are
 still allocated and uploaded. All carry constant zero. Split deliberately so the vertex-layout
 change stays independently testable.

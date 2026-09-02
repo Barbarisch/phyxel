@@ -10,7 +10,6 @@
 layout(location = 0) in flat uint vTex;    // leaf texture index (class bit 15 + layer bits 0-14)
 layout(location = 1) in vec2  vCard;       // card-plane coords in [-1,1]
 layout(location = 2) in float vSky;        // baked skylight 0..1
-layout(location = 3) in vec3  vBlock;      // baked block light 0..1/channel
 layout(location = 4) in float vShade;      // per-card brightness variation
 layout(location = 5) in flat uint vMaskV;  // per-card mask variant (bit0 flipX, bit1 flipY, bit2 swap)
 layout(location = 6) in vec4  vShadowCoord; // biased light-space coord (shadow RECEIVING)

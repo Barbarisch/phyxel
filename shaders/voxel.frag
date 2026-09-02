@@ -9,7 +9,9 @@ layout(location = 3) in flat uint flags;         // from vertex shader
 layout(location = 4) in vec3 inNormal;           // from vertex shader
 layout(location = 5) in vec3 inWorldPos;         // from vertex shader
 layout(location = 6) in float vSkyLight;          // baked skylight 0..1 — SMOOTH (interpolated per-corner)
-layout(location = 7) in vec3  vBlockColor;        // baked coloured block light 0..1/channel — SMOOTH (interpolated per-corner)
+// U7 stage 2: location 7 (vBlockColor) is GONE. Block light was pinned to 0 from M0 and U3.2
+// made emissive voxels real point lights, so nothing wrote it. Locations 8/9 keep their numbers;
+// GLSL does not require contiguous locations, so nothing renumbers.
 layout(location = 8) in vec3  vTint;              // per-voxel tint multiplier (1,1,1 = none). Decouples color from material.
 layout(location = 9) in flat uint vState;         // per-voxel state: 0 normal,1 flaming,2 smoldering,3 charred,4 wet
 layout(location = 10) in flat vec3 vChunkBaseAbs; // exact absolute chunk origin (varied-hash seed)
@@ -429,7 +431,14 @@ void main() {
     if (isEmissive) {
         // Tint the self-illumination by the block's own emitted colour (its baked block-light hue)
         // so a blue-glow block reads blue, a green one green, etc. — not just the texture colour.
-        vec3 tint = vBlockColor;
+        // U7 stage 2: was vBlockColor, which had been a constant 0 since M0 -- so `m` was always
+        // below the 0.05 floor and this ALREADY fell back to white. Using the per-voxel tint is
+        // behaviour-identical for untinted voxels and strictly better for tinted ones.
+        // ⚠️ NOT restored: material-level emissive hue. A `glow_blue` block with no per-voxel tint
+        // still self-illuminates white, because the material's colorTint is not carried into this
+        // shader. U3.2 already reads that CPU-side for the light colour; carrying it here is the
+        // fix, logged rather than silently lost.
+        vec3 tint = vTint;
         float m = max(tint.r, max(tint.g, max(tint.b, 0.001)));
         tint = (m > 0.05) ? tint / m : vec3(1.0);  // hue only; fall back to white if unknown
         outColor = vec4(albedo * ubo.emissiveMultiplier * tint, textureColor.a);
@@ -485,7 +494,7 @@ void main() {
     // fill (the bake stores no direction, like a lightmap) carrying each source's own colour, so a
     // glow block lights its room warm, a blue crystal blue, etc. Independent of sky access, so it's
     // the light source indoors / at night. Per-channel convex falloff for a natural rolloff.
-    vec3 dbgBlock = (vBlockColor * vBlockColor) * albedo;
+    vec3 dbgBlock = vec3(0.0);   // U7 stage 2: block light no longer exists
     color += dbgBlock;
 
     // Point lights
@@ -579,7 +588,10 @@ void main() {
     //   6 DIRECT       sun + moon, shadow-mapped against real geometry (sub-voxel accurate).
     //   7 SKY FILL     the hemispheric ambient term.
     if (ubo.debugShadowMode == 3) { outColor = vec4(vec3(skyVis), 1.0); return; }
-    if (ubo.debugShadowMode == 4) { outColor = vec4(vBlockColor * vBlockColor, 1.0); return; }
+    // Mode 4 was the BLOCK-LIGHT view. Block light is deleted (U7); emissive voxels are ordinary
+    // point lights now, so MODE 5 (forward point/spot) is where they show. Kept as black rather
+    // than removed so the mode numbering and its clamp stay stable for existing tooling.
+    if (ubo.debugShadowMode == 4) { outColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
     if (ubo.debugShadowMode == 5) { outColor = vec4(dbgForward, 1.0); return; }
     if (ubo.debugShadowMode == 6) { outColor = vec4(dbgDirect, 1.0); return; }
     if (ubo.debugShadowMode == 7) { outColor = vec4(dbgAmbient, 1.0); return; }
