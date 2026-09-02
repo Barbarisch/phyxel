@@ -13,6 +13,7 @@
 #include "utils/GpuProfiler.h"
 #include "scene/Entity.h"
 #include "ui/HudDataContext.h"
+#include "graphics/GiProbeField.h"   // M5.1
 #include "graphics/TreeLodMeshRegistry.h"
 #include "graphics/TreeLodRenderPipeline.h"
 #include "graphics/FarTerrainRenderPipeline.h"   // TileDraw (far-cascade caster cache)
@@ -540,6 +541,11 @@ public:
     bool initUISystem();
     UI::UISystem* getUISystem() { return m_uiSystem.get(); }
 
+    /// M5.1 GI probe field. Default OFF: this increment exists to be MEASURED before it ships.
+    void setGiEnabled(bool on) { m_giEnabled = on; }
+    bool getGiEnabled() const { return m_giEnabled; }
+    bool giAvailable() const { return m_giProbes != nullptr; }
+
     /// Shared HUD data-binding context. Hosts (editor Application, standalone game)
     /// register named providers here; the render loop applies them to the "hud"
     /// screen each frame before drawing (single source of truth). See docs/HudSystem.md.
@@ -645,6 +651,11 @@ private:
     // U3.2: light IDs owned by emissive voxels, plus a hash of the emitter set so the union is
     // reconciled on CHANGE rather than rebuilt per frame (which would churn IDs and defeat U3.1's
     // stable id tie-break).
+    // M5.1: indirect-light probe field. A RENDER CACHE keyed on world position -- never persisted,
+    // never per chunk (see the M3-REDESIGN contradiction note in the plan).
+    std::unique_ptr<GiProbeField> m_giProbes;
+    bool m_giEnabled = false;
+
     std::vector<int> m_emissiveLightIds;
     size_t           m_emissiveLightHash = 0;
 

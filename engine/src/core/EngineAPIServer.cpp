@@ -1071,6 +1071,20 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // POST /api/debug/gi -- M5.1 indirect-light probe field. Body: { "enabled": bool }
+    // Default OFF; this increment ships behind a toggle so its cost can be A/B tested live.
+    srv.Post("/api/debug/gi", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("set_gi", params, 5000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
     // POST /api/debug/tonemap — exposure + tone curve, live.
     // Body: { "exposure": float (opt), "curve": int (opt; 0 = none/raw linear, 1 = AgX) }
     // Exists because the atmosphere model emits physical radiance, so exposure must be calibrated

@@ -179,6 +179,16 @@ RenderCoordinator::RenderCoordinator(
         });
 
 
+    // M5.1 -- indirect-light probe field. Created BEFORE the descriptor update below so binding 13
+    // is written with the real buffer rather than the inert fallback.
+    m_giProbes = std::make_unique<GiProbeField>();
+    if (m_giProbes->initialize(vulkanDevice)) {
+        vulkanDevice->setGiProbeBuffer(m_giProbes->buffer());
+    } else {
+        LOG_WARN("RenderCoordinator", "M5.1 probe field unavailable; GI stays off");
+        m_giProbes.reset();
+    }
+
     // Trigger descriptor set update to bind the shadow map(s) and the occupancy buffers
     vulkanDevice->updateDescriptorSetsWithTexture();
 
@@ -1170,6 +1180,15 @@ void RenderCoordinator::updateVfx(float dt) {
             flaming.insert(flaming.end(), fv.begin(), fv.end());
         }
         fireEmitters->sync(flaming);
+    }
+
+    // M5.1 -- refresh the probe grid origin each frame. Snapped to the probe lattice inside
+    // gridFor(), because an unsnapped grid slides under the sampler and every probe changes every
+    // frame, which reads as a crawl over every surface.
+    if (m_giProbes && camera) {
+        const glm::vec4 grid = GiProbeField::gridFor(camera->getPosition());
+        vulkanDevice->setGiProbeGrid(grid);
+        vulkanDevice->setGiEnabled(m_giEnabled);
     }
 
     // U3.2 — EMISSIVE VOXELS ARE REAL LIGHTS.
@@ -3763,6 +3782,19 @@ void RenderCoordinator::drawFrame() {
     // Runtime-toggleable via POST /api/debug/water_ssr — that toggle is the A/B control for every
     // before/after capture and the escape hatch if SSR misbehaves.
     m_waterReflectionActive = m_waterSsrEnabled;
+
+    // M5.1 — update the indirect-light probe field. OUTSIDE and BEFORE the scene render pass: a
+    // compute dispatch cannot be recorded inside a render pass, and the fragment shaders that
+    // sample the field run inside it. recordUpdate() issues the COMPUTE_WRITE -> FRAGMENT_READ
+    // barrier itself; see the note there about why that is spelled out rather than assumed.
+    if (m_giProbes && m_giEnabled && camera) {
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), vulkanDevice->getCommandBuffer(currentFrame), "GI Probes");
+        m_giProbes->recordUpdate(vulkanDevice->getCommandBuffer(currentFrame),
+                                 vulkanDevice->getDescriptorSet(currentFrame),
+                                 glm::vec3(GiProbeField::gridFor(camera->getPosition())),
+                                 m_lastAmbientColor,
+                                 vulkanDevice->getOccupancyBox());
+    }
 
     // Begin Scene Render Pass (Offscreen)
     postProcessor->beginSceneRenderPass(vulkanDevice->getCommandBuffer(currentFrame));

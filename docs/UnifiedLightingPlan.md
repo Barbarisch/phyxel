@@ -1305,6 +1305,57 @@ the failure mode a probe grid makes easy). Both measured through `/api/world/bak
 structured queries or the bounce-only view, never from a screenshot. Cost measured on the D1 town at
 the D1 pose so it is comparable to every other number in this document.
 
+### ⚠️ M5.1 RESULT 2026-09-01 — BUILT, GATE FAILED. Probe spacing cannot resolve this engine's walls.
+
+**Ships DEFAULT OFF** behind `POST /api/debug/gi {"enabled":bool}`. The infrastructure works; the
+approach as specified does not, and the gate is what says so.
+
+**What was built:** binding 13 probe SSBO (55,296 probes, 864 KB) with the documented six-place
+descriptor recipe; `gi_probe.comp` filling it against the shared occupancy via `phxDdaHitsSolid`;
+`GiProbeField` owning buffer + pipeline against the SHARED set-0 layout (so `occupancy.glsl`'s
+hardcoded bindings 11/12 work unchanged); a COMPUTE→FRAGMENT barrier written explicitly, because
+D20 taught this document what an unsynchronised compute→read looks like; trilinear sampling in
+`voxel.frag`.
+
+**Cost is NOT the problem — it is cheap.** `GI Probes` scope **0.45–0.65 ms**, and Scene Pass did
+not rise (7.36 → 7.08 ms, i.e. inside noise). The research's "high cost" verdict was about building
+a new lighting pipeline; because M1–U3 had already built the pieces, the dispatch itself is minor.
+
+**The gate failed on CORRECTNESS, in three measured stages:**
+
+| attempt | interior | exterior grass | "lit wall" | verdict |
+|---|---|---|---|---|
+| probes store full irradiance | +223.09 | +146.54 | +114.60 | global brightener |
+| store sky scalar, 6 axis dirs | −14.10 | −10.49 | −10.81 | uniformly darker |
+| dirs matched to the fragment path | −12.83 | −10.02 | −9.68 | still uniformly darker |
+
+Errors 1 and 2 were mine and are instructive: **(1) double counting** — probes carried emitter
+irradiance while the fragment shaders loop the same lights, so everything lit twice; **(2) a
+mismatched curve** — `phxAmbientAtmos` squares sky access, mixes ground/sky by normal and adds a
+floor, while a raw open-fraction is a different, brighter function. Fixing both made probes a
+drop-in for the traced scalar rather than a competing model, which is the right shape.
+
+**Attempt 3 is the real finding, and it is structural.** Matching the direction set and the
+normal-ray early-out barely moved the number, and the capture shows why: **heavy speckle around the
+doorway frame.** Trilinear interpolation over a 2 u grid straddling a **2–3 micro** wall mixes
+probes on both sides of it. Outdoor fragments get pulled down by neighbours buried in wall or
+ground; boundary fragments alternate between the two. **This is exactly the leak this section's own
+risk list predicted** ("probe spacing coarser than a wall will leak"), arriving as darkening and
+aliasing rather than as light through walls.
+
+**Not fixable by tuning spacing.** Matching a 3-micro wall needs ~0.33 u probes — 216× the probes
+for the same volume. The standard answer is **probe visibility weighting** (DDGI's depth/Chebyshev
+test): each probe also stores distance-to-geometry per direction, and a sampling fragment rejects
+probes on the far side of a surface. That is a real design addition, not a constant to retune, and
+it belongs in M5.2 ahead of the cascade hierarchy — **a hierarchy of leaking probes leaks at every
+level.**
+
+⚠️ **What this did NOT test:** only `voxel.frag` samples the field; grass, foliage, characters and
+water still use their own path, so this is not a whole-scene result. And the region labels in the
+first gate run were wrong — the camera framed the OUTSIDE wall, so "interior" was grass seen
+through a doorway and "lit wall" was mostly sky. The conclusion rests on the speckle and on the
+uniform sign of the deltas, not on those labels.
+
 **M5.2 — cascade hierarchy.** Near = dense probes / few directions; far = sparse / many. Merge with
 bilinear + directional interpolation.
 **Gate:** M5.1's readings preserved, cost per frame **lower** than M5.1 at equal or better quality,

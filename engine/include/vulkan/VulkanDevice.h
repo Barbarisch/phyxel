@@ -203,6 +203,14 @@ struct UniformBufferObject {
     //                w   = 1 when bindings 11/12 hold real occupancy, 0 when they hold the inert
     //                      fallback. The shader MUST check w before reading either buffer.
     alignas(16) glm::ivec4 occupancyBox{0, 0, 0, 0};
+
+    // ---- M5.1 GI probe field (docs/UnifiedLightingPlan.md) -----------------------------------
+    // Appended at the END, per the same trailing-field rule: every shader that declares a prefix
+    // ending at occupancyBox stays byte-for-byte valid and needs no edit.
+    // xyz = world position of probe (0,0,0), snapped to the probe lattice so the field does not
+    // shimmer as the viewer moves; w = probe spacing in world units.
+    // Guarded by bit 3 of occupancyBox.w -- do not read binding 13 unless it is set.
+    alignas(16) glm::vec4 giProbeGrid{0.0f, 0.0f, 0.0f, 2.0f};
 };
 
 class VulkanDevice {
@@ -419,18 +427,32 @@ public:
     }
     VkBuffer getLightOccupancyDirBuffer() const { return lightOccupancyDirBuffer; }
 
+    /// M5.1 GI probe field (binding 13). Null is legal -- the descriptor falls back to a valid
+    /// buffer the shader never reads, because the guard bit stays clear.
+    void setGiProbeBuffer(VkBuffer buf) { giProbeBuffer = buf; }
+    VkBuffer getGiProbeBuffer() const { return giProbeBuffer; }
+    /// The occupancy box + guard bitfield, as the shaders see it (M5.1 needs it for the compute pass).
+    glm::ivec4 getOccupancyBox() const { return m_occupancyBox; }
+    /// M5.1: probe-field extent, so the shader can map a world position to a probe index.
+    /// xyz = grid origin in WORLD units (probe 0,0,0), w = probe spacing.
+    void setGiProbeGrid(const glm::vec4& originAndSpacing) { m_giProbeGrid = originAndSpacing; }
+    void setGiEnabled(bool on) { m_giEnabled = on; }
+    bool isGiEnabled() const { return m_giEnabled; }
+
     /// Per-frame: where the covered box sits (chunk coords) and whether it holds real data.
     /// `ready == false` leaves the shader guard clear, so the fallback binding is never read.
     /// w is a BITFIELD, so no extra std140 field is needed:
     ///   bit 0 (1) = occupancy readable (0 = buffers hold the inert fallback — do not read them)
     ///   bit 1 (2) = M2 point/spot light visibility tracing on
     ///   bit 2 (4) = M3 sky visibility tracing on
+    ///   bit 3 (8) = M5 GI probe field readable (0 = binding 13 holds the inert fallback)
     void setLightOccupancyBox(const glm::ivec3& boxMinChunk, bool ready) {
         int w = 0;
         if (ready) {
             w |= 1;
             if (m_lightTracing) w |= 2;
             if (m_skyTracing)   w |= 4;
+            if (m_giEnabled)    w |= 8;
         }
         m_occupancyBox = glm::ivec4(boxMinChunk, w);
     }
@@ -653,6 +675,9 @@ private:
     VkImageView shadowMapFarImageView = VK_NULL_HANDLE;    // far cascade (binding 10)
     // Sub-voxel light occupancy (bindings 11/12). NOT owned here — VoxelLightOccupancyGpu owns
     // the memory; these are borrowed handles for descriptor writes only.
+    VkBuffer giProbeBuffer = VK_NULL_HANDLE;
+    glm::vec4 m_giProbeGrid{0.0f, 0.0f, 0.0f, 2.0f};
+    bool m_giEnabled = false;
     VkBuffer lightOccupancyDirBuffer = VK_NULL_HANDLE;
     VkBuffer lightOccupancyPoolBuffer = VK_NULL_HANDLE;
     VkSampler   shadowMapFarSampler = VK_NULL_HANDLE;

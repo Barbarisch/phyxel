@@ -62,9 +62,57 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec4  skyBodyLight[4];
     int   skyBodyCount;
     ivec4 occupancyBox;   // xyz = box min corner in CHUNK coords, w = 1 when 11/12 are real
+    vec4  giProbeGrid;    // M5.1: xyz = probe (0,0,0) world position, w = spacing
 } ubo;
 
-#include "occupancy.glsl"   // U2: the shared occupancy query + light-visibility DDA
+#include "occupancy.glsl"
+
+// ---- M5.1: THE INDIRECT-LIGHT PROBE FIELD (docs/UnifiedLightingPlan.md) --------------------
+// A coarse grid of SKY-VISIBILITY probes around the viewer, filled by gi_probe.comp against the
+// same occupancy this shader traces. The value feeds the same phxAmbientAtmos the analytic path
+// uses -- what changes is where the sky-access number comes from: a neighbourhood of traced points
+// rather than this fragment alone.
+//
+// Guarded by bit 3 of occupancyBox.w. When clear, binding 13 holds the inert fallback buffer and
+// must not be read -- the same contract bindings 11/12 use.
+layout(std430, set = 0, binding = 13) readonly buffer GiProbes {
+    vec4 probes[];
+} giField;
+
+const int PHX_GI_DIM_X = 48;
+const int PHX_GI_DIM_Y = 24;
+const int PHX_GI_DIM_Z = 48;
+
+float phxProbeAt(ivec3 g) {
+    g = clamp(g, ivec3(0), ivec3(PHX_GI_DIM_X - 1, PHX_GI_DIM_Y - 1, PHX_GI_DIM_Z - 1));
+    int idx = g.x + g.y * PHX_GI_DIM_X + g.z * PHX_GI_DIM_X * PHX_GI_DIM_Y;
+    return giField.probes[idx].r;   // sky visibility 0..1 -- see gi_probe.comp for why a scalar
+}
+
+/// Trilinear sample of the probe field at an ABSOLUTE world position.
+/// Returns false when the field is unavailable or the position is outside the grid, so the caller
+/// can fall back to the analytic ambient rather than to black -- degrading to the old look, never
+/// to invented darkness.
+bool phxGiSkyVisibility(vec3 worldPos, out float outSkyVis) {
+    if ((ubo.occupancyBox.w & 8) == 0) return false;
+    float spacing = max(ubo.giProbeGrid.w, 1e-3);
+    vec3 rel = (worldPos - ubo.giProbeGrid.xyz) / spacing;
+    if (any(lessThan(rel, vec3(0.0))) ||
+        rel.x > float(PHX_GI_DIM_X - 1) ||
+        rel.y > float(PHX_GI_DIM_Y - 1) ||
+        rel.z > float(PHX_GI_DIM_Z - 1)) return false;
+
+    ivec3 b = ivec3(floor(rel));
+    vec3  f = rel - vec3(b);
+    float c000 = phxProbeAt(b + ivec3(0,0,0)), c100 = phxProbeAt(b + ivec3(1,0,0));
+    float c010 = phxProbeAt(b + ivec3(0,1,0)), c110 = phxProbeAt(b + ivec3(1,1,0));
+    float c001 = phxProbeAt(b + ivec3(0,0,1)), c101 = phxProbeAt(b + ivec3(1,0,1));
+    float c011 = phxProbeAt(b + ivec3(0,1,1)), c111 = phxProbeAt(b + ivec3(1,1,1));
+    float x00 = mix(c000, c100, f.x), x10 = mix(c010, c110, f.x);
+    float x01 = mix(c001, c101, f.x), x11 = mix(c011, c111, f.x);
+    outSkyVis = mix(mix(x00, x10, f.y), mix(x01, x11, f.y), f.z);
+    return true;
+}
 
 // M3 sky visibility stays HERE rather than in occupancy.glsl: it is default-OFF pending
 // M3-REDESIGN (measured at 24.6 ms/frame on a generated town), and only voxel.frag consumes
@@ -404,7 +452,25 @@ void main() {
     // rasterized shadow maps, per fragment; baked sky/block = one value per CUBE cell; forward
     // point/spot = per fragment, no occlusion). Telling them apart by eye is guesswork, and
     // guessing is what made an interior-light bug take days.
-    vec3 dbgAmbient = phxAmbientAtmos(N, skyVis, ubo.ambientColor) * albedo;
+    // M5.1: the probe field replaces the ANALYTIC ambient where it is available. The analytic term
+    // is a hemisphere lookup gated by this fragment's own sky access -- it cannot know that the
+    // corner of a room is further from the window than the sill is, because it has no notion of
+    // anywhere but here. The probe field does, having traced the geometry from points spread
+    // through the space.
+    //
+    // Falls back to the analytic term when the field is unavailable or the fragment is outside the
+    // grid, so the failure mode is "the old look", never invented darkness. `skyVis` still gates the
+    // SUN below either way -- probes carry indirect, not direct.
+    // The probe field supplies the SKY-ACCESS SCALAR, and it is fed into the same
+    // phxAmbientAtmos the analytic path uses. That is deliberate: a probe field that ran its own
+    // ambient maths would be a SECOND lighting model, which is the exact failure this whole
+    // document exists to remove. What changes is where the number comes from -- a neighbourhood of
+    // traced points rather than this fragment alone -- so a corner away from a window sees less
+    // than the sill, which a single per-fragment trace also gives but harder-edged.
+    float ambientSky = skyVis;
+    float giSky;
+    if (phxGiSkyVisibility(inWorldPos + ubo.cameraWorld, giSky)) ambientSky = giSky;
+    vec3 dbgAmbient = phxAmbientAtmos(N, ambientSky, ubo.ambientColor) * albedo;
     vec3  color = dbgAmbient;
 
     // Sun (directional) — the KEY light. Cook-Torrance, N·L shading, shadow-mapped. Gated by

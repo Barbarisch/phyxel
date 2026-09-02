@@ -136,6 +136,11 @@
       "sources": "f942d87b339bb899aa77b0c7e0ef359932265f26007dec7666e90f8ddab78a49",
       "spv_present": true
     },
+    "gi_probe.comp": {
+      "built": false,
+      "sources": "8c02689d97ee7f0392715dcc9a52e564c03e9f862cc190fc72afce50a5bbf36c",
+      "spv_present": true
+    },
     "grass.frag": {
       "built": true,
       "sources": "adf5718eff5091793596341cbe41e0d2b4b5f8c7bfcc3ac37302b7283b01da7c",
@@ -378,7 +383,7 @@
     },
     "voxel.frag": {
       "built": true,
-      "sources": "b74a4adee47edb6be47f6bcb667a8a4bdef6a8b6cc26fd7b480dc7c536bb42a3",
+      "sources": "b722dc008fd36a2d32372151a94ae938a54e1d94c2fe435811063558c9ff3587",
       "spv_present": true
     },
     "water.frag": {

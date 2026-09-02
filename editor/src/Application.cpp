@@ -14400,6 +14400,15 @@ void Application::registerEffectsCommands() {
     // unit conversion that has to be CALIBRATED against measurements (tools/lighting_stats.py) rather
     // than guessed — and calibrating against a rebuild cycle would be unbearable.
     // curve 0 = none (raw linear, the pre-tonemap look, for A/B); 1 = AgX.
+    reg.on("set_gi", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) { r = {{"success", false}, {"error", "no render coordinator"}}; return; }
+        if (cmd.params.contains("enabled"))
+            renderCoordinator->setGiEnabled(cmd.params.value("enabled", false));
+        r = {{"success", true},
+             {"enabled", renderCoordinator->getGiEnabled()},
+             {"available", renderCoordinator->giAvailable()}};
+    });
+
     reg.on("set_tonemap", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!renderCoordinator) { r = {{"success", false}, {"error", "no render coordinator"}}; return; }
         if (cmd.params.contains("exposure"))
