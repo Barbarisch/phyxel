@@ -8,6 +8,7 @@
 #include "scene/interaction/PlacementTool.h"
 #include "scene/interaction/DestructionTool.h"
 #include "core/AudioSystem.h"
+#include "core/SoundRegistry.h"
 #include <glm/glm.hpp>
 #include <climits>
 #include <functional>
@@ -149,6 +150,11 @@ public:
     /// Set PlacedObjectManager for furniture activation detection.
     void setPlacedObjectManager(Core::PlacedObjectManager* m) { m_placedObjects = m; }
 
+    /// Event-catalog audio (voxel.place / furniture.activate as 3D events at
+    /// the interaction point). Optional: without it the legacy direct-file 2D
+    /// path plays, so a missed wiring degrades, never silences.
+    void setSoundRegistry(Core::SoundRegistry* r) { m_soundRegistry = r; }
+
     /// Set DynamicFurnitureManager for activating furniture on hit.
     void setDynamicFurnitureManager(Core::DynamicFurnitureManager* m) { m_dynamicFurniture = m; }
 
@@ -210,6 +216,11 @@ private:
 
     // Audio System
     Core::AudioSystem* m_audioSystem;
+    Core::SoundRegistry* m_soundRegistry = nullptr;  ///< optional; direct-file fallback when unset
+
+    /// Shared place-feedback: 3D catalog event at the placed voxel, or the
+    /// legacy 2D direct-file play when no registry is wired.
+    void playPlaceSound(bool hadHover, const glm::ivec3& placedPos);
 
     // NavGrid / NPC callback — fired after any interactive voxel add/remove
     std::function<void(const glm::ivec3&)> m_onVoxelChanged;

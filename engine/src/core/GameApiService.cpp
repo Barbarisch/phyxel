@@ -20,6 +20,9 @@
 #include "core/CombatSystem.h"
 #include "core/DamageTypes.h"
 #include "core/CombatLog.h"
+#include "core/AudioSystem.h"
+#include "core/AmbienceDirector.h"
+#include "core/AssetManager.h"
 #include "scene/Entity.h"
 #include <map>
 #include <array>
@@ -153,6 +156,47 @@ void GameApiService::registerCommands() {
         r = {{"visible_chunk_count", s.visibleChunkCount},
              {"total_visible_faces", s.totalVisibleFaces},
              {"far_tiles_drawn", s.farTilesDrawn}};
+    });
+
+    // Audio observability: listener pose + pool counts, straight from the real
+    // AudioSystem (getListenerPosition reads back from miniaudio, not a cache).
+    // This is what makes "the listener follows the camera in a SHIPPED game"
+    // falsifiable — before the EngineRuntime::endFrame() wiring, packaged games
+    // never updated the listener and had no way to even observe that.
+    reg.on("get_audio_state", [this](const APICommand&, json& r) {
+        Core::AudioSystem* audio = runtime ? runtime->getAudioSystem() : nullptr;
+        if (!audio) { r = {{"error", "AudioSystem not available"}}; return; }
+        const glm::vec3 lp = audio->getListenerPosition();
+        r = {{"success", true},
+             {"listener", {{"x", lp.x}, {"y", lp.y}, {"z", lp.z}}},
+             {"active_sounds", audio->activeSoundCount()},
+             {"pooled_sounds", audio->pooledSoundCount()},
+             {"active_loops", audio->activeLoopCount()}};
+        if (auto* amb = runtime->getAmbienceDirector()) {
+            r["ambience"] = {{"context", amb->activeContext()},
+                             {"crossfades", amb->crossfadeCount()}};
+        }
+    });
+
+    // Fire a sound through the real AudioSystem (2D, or 3D when x/y/z given) so
+    // a harness can exercise playback + pool behavior in the shipped build.
+    reg.on("play_sound", [this](const APICommand& cmd, json& r) {
+        Core::AudioSystem* audio = runtime ? runtime->getAudioSystem() : nullptr;
+        if (!audio) { r = {{"error", "AudioSystem not available"}}; return; }
+        const std::string file = cmd.params.value("file", "");
+        if (file.empty()) { r = {{"error", "Missing 'file' field"}}; return; }
+        const std::string path = Core::AssetManager::instance().resolveSound(file);
+        const float volume = cmd.params.value("volume", 1.0f);
+        if (cmd.params.contains("x") && cmd.params.contains("y") && cmd.params.contains("z")) {
+            glm::vec3 pos(cmd.params["x"].get<float>(), cmd.params["y"].get<float>(),
+                          cmd.params["z"].get<float>());
+            audio->playSound3D(path, pos, AudioChannel::SFX, volume);
+            r = {{"success", true}, {"mode", "3D"}, {"file", file}};
+        } else {
+            audio->playSound(path, AudioChannel::SFX, volume);
+            r = {{"success", true}, {"mode", "2D"}, {"file", file}};
+        }
+        r["active_sounds"] = audio->activeSoundCount();
     });
 
     reg.on("get_player_state", [this](const APICommand&, json& r) {

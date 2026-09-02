@@ -1,0 +1,261 @@
+{
+  "_comment": "Provenance ledger for every shipped audio file \u00e2\u20ac\u201d the audio analog of resources/textures/source/CC0_SOURCES.json. One row per file: either {generator, script, deterministic, verified} for synthesized audio or {source_url, license, author} for fetched assets. CatalogValidation (tests/core/AudioSystemTest.cpp) fails if a disk file has no row. 'verified' = the byte hash was reproduced by re-running the generator on the date given.",
+  "files": {
+    "click.wav": {
+      "generator": "procedural",
+      "script": "tools/generate_sounds.py (generate_click: 1 kHz sine, exp decay, 0.1 s)",
+      "deterministic": true,
+      "verified": "2026-09-01 regenerated, md5 8001f98efbfe1da50b02f616efe6c5f1 byte-identical"
+    },
+    "whoosh.wav": {
+      "generator": "procedural",
+      "script": "tools/generate_sounds.py (generate_whoosh: windowed noise + 5 Hz LFO, 1.0 s)",
+      "deterministic": false,
+      "note": "unseeded random.uniform \u00e2\u20ac\u201d shipped bytes (md5 91a7e88c...) not reproducible; format and duration match the generator exactly"
+    },
+    "place.wav": {
+      "generator": "procedural",
+      "script": "historical generate_click-format output (8864 bytes = 0.1 s mono 16-bit 44.1 kHz); exact parameters unrecorded",
+      "deterministic": false,
+      "note": "predates provenance tracking (file dated 2025-12-11)"
+    },
+    "test.wav": {
+      "generator": "procedural",
+      "script": "historical generate_whoosh-format output (88244 bytes = 1.0 s mono 16-bit 44.1 kHz); exact parameters unrecorded",
+      "deterministic": false,
+      "note": "predates provenance tracking (file dated 2025-12-11); debug asset, not referenced by gameplay"
+    },
+    "axe_chop.wav": {
+      "generator": "procedural",
+      "script": "tools/gen_chop_sound.py (crack + 90 Hz knock + rumble, rng seed 7, 0.28 s)",
+      "deterministic": true,
+      "verified": "2026-09-01 regenerated, md5 d46f259b057dd706157fd7f78e4cf43d byte-identical"
+    },
+    "hit.wav": {
+      "generator": "procedural",
+      "script": "tools/gen_hit_sound.py (woody click + 180 Hz tap, rng seed 11, 0.15 s)",
+      "deterministic": true,
+      "verified": "2026-09-01 generated + regenerated, md5 cffda5671f936b32978e49e20455deb1 byte-identical"
+    },
+    "sfx/cave_drip.wav": {
+      "generator": "procedural",
+      "script": "tools/gen_ambience_beds.py (plink + resonant tail, seed 41)",
+      "deterministic": true,
+      "verified": "2026-09-01 regenerated, md5 784d42c7588a88014bbda13dd5c470a6 byte-identical"
+    },
+    "sfx/wind_gust.wav": {
+      "generator": "procedural",
+      "script": "tools/gen_ambience_beds.py (lowpassed swell, seed 43)",
+      "deterministic": true,
+      "verified": "2026-09-01 regenerated, md5 9883235be44c4535914a603f59cdf4be byte-identical"
+    },
+    "sfx/birds/songbird_bird_noise_11_wav_507255.mp3": {
+      "source_url": "https://freesound.org/people/SpaceJoe/sounds/507255/",
+      "license": "CC0-1.0",
+      "author": "SpaceJoe",
+      "freesound_id": 507255,
+      "query": "bird chirp tweet",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
+    },
+    "sfx/birds/songbird_bird_noise_13_wav_507261.mp3": {
+      "source_url": "https://freesound.org/people/SpaceJoe/sounds/507261/",
+      "license": "CC0-1.0",
+      "author": "SpaceJoe",
+      "freesound_id": 507261,
+      "query": "bird chirp tweet",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
+    },
+    "sfx/birds/songbird_bird_noise_6_wav_507264.mp3": {
+      "source_url": "https://freesound.org/people/SpaceJoe/sounds/507264/",
+      "license": "CC0-1.0",
+      "author": "SpaceJoe",
+      "freesound_id": 507264,
+      "query": "bird chirp tweet",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
+    },
+    "sfx/birds/songbird_bird_noise_7_wav_507266.mp3": {
+      "source_url": "https://freesound.org/people/SpaceJoe/sounds/507266/",
+      "license": "CC0-1.0",
+      "author": "SpaceJoe",
+      "freesound_id": 507266,
+      "query": "bird chirp tweet",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
+    },
+    "sfx/birds/blackbird_turdus_merula_06_wav_189526.mp3": {
+      "source_url": "https://freesound.org/people/tinga/sounds/189526/",
+      "license": "CC0-1.0",
+      "author": "tinga",
+      "freesound_id": 189526,
+      "query": "blackbird song",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
+    },
+    "sfx/birds/blackbird_turdus_merula_03_wav_189521.mp3": {
+      "source_url": "https://freesound.org/people/tinga/sounds/189521/",
+      "license": "CC0-1.0",
+      "author": "tinga",
+      "freesound_id": 189521,
+      "query": "blackbird song",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
+    },
+    "sfx/birds/blackbird_turdus_merula_19_wav_189549.mp3": {
+      "source_url": "https://freesound.org/people/tinga/sounds/189549/",
+      "license": "CC0-1.0",
+      "author": "tinga",
+      "freesound_id": 189549,
+      "query": "blackbird song",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
+    },
+    "sfx/birds/crow_raven_croak_or_crow_caw_716962.mp3": {
+      "source_url": "https://freesound.org/people/fudgealtoid/sounds/716962/",
+      "license": "CC0-1.0",
+      "author": "fudgealtoid",
+      "freesound_id": 716962,
+      "query": "crow call caw",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
+    },
+    "sfx/birds/owl_owl_recording_763652.mp3": {
+      "source_url": "https://freesound.org/people/smllfrey84/sounds/763652/",
+      "license": "CC0-1.0",
+      "author": "smllfrey84",
+      "freesound_id": 763652,
+      "query": "owl hoot night",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
+    },
+    "sfx/birds/owl_owl_wav_398734.mp3": {
+      "source_url": "https://freesound.org/people/Anthousai/sounds/398734/",
+      "license": "CC0-1.0",
+      "author": "Anthousai",
+      "freesound_id": 398734,
+      "query": "owl hoot night",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
+    },
+    "sfx/insects/cricket_cricketsample_1_wav_341855.mp3": {
+      "source_url": "https://freesound.org/people/nervousneal/sounds/341855/",
+      "license": "CC0-1.0",
+      "author": "nervousneal",
+      "freesound_id": 341855,
+      "query": "cricket chirp single",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
+    },
+    "sfx/insects/cricket_cricketsample_2_wav_341856.mp3": {
+      "source_url": "https://freesound.org/people/nervousneal/sounds/341856/",
+      "license": "CC0-1.0",
+      "author": "nervousneal",
+      "freesound_id": 341856,
+      "query": "cricket chirp single",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
+    },
+    "sfx/insects/cricket_single_cricket_chirping_close_perspective_01_753271.mp3": {
+      "source_url": "https://freesound.org/people/HECKFRICKER/sounds/753271/",
+      "license": "CC0-1.0",
+      "author": "HECKFRICKER",
+      "freesound_id": 753271,
+      "query": "cricket chirp single",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
+    },
+    "sfx/insects/cicada_river_and_cicadas_1_437061.mp3": {
+      "source_url": "https://freesound.org/people/SamuelGremaud/sounds/437061/",
+      "license": "CC0-1.0",
+      "author": "SamuelGremaud",
+      "freesound_id": 437061,
+      "query": "cicada",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
+    },
+    "sfx/insects/cicada_cicadas_in_japan_wav_643877.mp3": {
+      "source_url": "https://freesound.org/people/cartoonrob/sounds/643877/",
+      "license": "CC0-1.0",
+      "author": "cartoonrob",
+      "freesound_id": 643877,
+      "query": "cicada",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
+    },
+    "sfx/animals/frog_frogs_on_a_summer_night_3_mp3_396490.mp3": {
+      "source_url": "https://freesound.org/people/macdaddyno1/sounds/396490/",
+      "license": "CC0-1.0",
+      "author": "macdaddyno1",
+      "freesound_id": 396490,
+      "query": "frog croak pond",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
+    },
+    "sfx/animals/frog_frogs_croaking_wav_391520.mp3": {
+      "source_url": "https://freesound.org/people/Kamix0/sounds/391520/",
+      "license": "CC0-1.0",
+      "author": "Kamix0",
+      "freesound_id": 391520,
+      "query": "frog croak pond",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
+    },
+    "ambience/forest_bed.wav": {
+      "source_url": "https://freesound.org/people/kvgarlic/sounds/669113/",
+      "license": "CC0-1.0",
+      "author": "kvgarlic",
+      "freesound_id": 669113,
+      "query": "forest wind trees leaves ambience",
+      "note": "centered 45s segment of the OGG preview, mono, RMS-normalized to 0.05, 1.5s equal-power loop-conditioned + seam-asserted (fetch_cc0_beds.py)"
+    },
+    "ambience/enchanted_bed.wav": {
+      "source_url": "https://freesound.org/people/bajko/sounds/378048/",
+      "license": "CC0-1.0",
+      "author": "bajko",
+      "freesound_id": 378048,
+      "query": "forest night calm ambience atmosphere",
+      "note": "centered 45s segment of the OGG preview, mono, RMS-normalized to 0.05, 1.5s equal-power loop-conditioned + seam-asserted (fetch_cc0_beds.py)"
+    },
+    "ambience/jungle_bed.wav": {
+      "source_url": "https://freesound.org/people/paulprit/sounds/724054/",
+      "license": "CC0-1.0",
+      "author": "paulprit",
+      "freesound_id": 724054,
+      "query": "jungle rainforest insects ambience",
+      "note": "centered 35s segment of the OGG preview, mono, RMS-normalized to 0.05, 1.5s equal-power loop-conditioned + seam-asserted (fetch_cc0_beds.py)"
+    },
+    "ambience/plains_bed.wav": {
+      "source_url": "https://freesound.org/people/felix.blume/sounds/666176/",
+      "license": "CC0-1.0",
+      "author": "felix.blume",
+      "freesound_id": 666176,
+      "query": "wind in dry grass",
+      "note": "centered 45s segment of the OGG preview, mono, RMS-normalized to 0.05, 1.5s equal-power loop-conditioned + seam-asserted (fetch_cc0_beds.py)"
+    },
+    "ambience/savanna_bed.wav": {
+      "source_url": "https://freesound.org/people/felix.blume/sounds/666177/",
+      "license": "CC0-1.0",
+      "author": "felix.blume",
+      "freesound_id": 666177,
+      "query": "wind in dry grass tree",
+      "note": "centered 45s segment of the OGG preview, mono, RMS-normalized to 0.05, 1.5s equal-power loop-conditioned + seam-asserted (fetch_cc0_beds.py)"
+    },
+    "ambience/desert_bed.wav": {
+      "source_url": "https://freesound.org/people/szegvari/sounds/557552/",
+      "license": "CC0-1.0",
+      "author": "szegvari",
+      "freesound_id": 557552,
+      "query": "desert wind sand ambience",
+      "note": "centered 45s segment of the OGG preview, mono, RMS-normalized to 0.05, 1.5s equal-power loop-conditioned + seam-asserted (fetch_cc0_beds.py)"
+    },
+    "ambience/snow_bed.wav": {
+      "source_url": "https://freesound.org/people/TRP/sounds/574284/",
+      "license": "CC0-1.0",
+      "author": "TRP",
+      "freesound_id": 574284,
+      "query": "winter wind forest ambience",
+      "note": "centered 45s segment of the OGG preview, mono, RMS-normalized to 0.05, 1.5s equal-power loop-conditioned + seam-asserted (fetch_cc0_beds.py)"
+    },
+    "ambience/tundra_bed.wav": {
+      "source_url": "https://freesound.org/people/zuggamasta/sounds/610412/",
+      "license": "CC0-1.0",
+      "author": "zuggamasta",
+      "freesound_id": 610412,
+      "query": "arctic wind ambience",
+      "note": "centered 45s segment of the OGG preview, mono, RMS-normalized to 0.05, 1.5s equal-power loop-conditioned + seam-asserted (fetch_cc0_beds.py)"
+    },
+    "ambience/cave_bed.wav": {
+      "source_url": "https://freesound.org/people/Kinoton/sounds/421826/",
+      "license": "CC0-1.0",
+      "author": "Kinoton",
+      "freesound_id": 421826,
+      "query": "cave ambience drone deep",
+      "note": "centered 45s segment of the OGG preview, mono, RMS-normalized to 0.05, 1.5s equal-power loop-conditioned + seam-asserted (fetch_cc0_beds.py)"
+    }
+  }
+}

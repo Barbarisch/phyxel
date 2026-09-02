@@ -308,11 +308,22 @@ void VoxelInteractionSystem::breakCubeAtPosition(const glm::ivec3& worldPos) {
     m_manipulator.breakCubeAtPosition(worldPos, m_debugFlags.disableBreakingForces);
 }
 
+void VoxelInteractionSystem::playPlaceSound(bool hadHover, const glm::ivec3& placedPos) {
+    // Catalog path: a 3D "voxel.place" at the placed voxel's center — placing a
+    // block to your left now sounds like it. Legacy path (registry unset): the
+    // old 2D direct-file play, so missed wiring degrades instead of silencing.
+    if (m_soundRegistry && hadHover) {
+        m_soundRegistry->playEvent("voxel.place", glm::vec3(placedPos) + glm::vec3(0.5f));
+    } else if (m_audioSystem) {
+        m_audioSystem->playSound(Core::AssetManager::instance().resolveSound("place.wav"));
+    }
+}
+
 void VoxelInteractionSystem::placeVoxelAtHover() {
     bool hadHover = m_hasHoveredCube && m_currentHoveredLocation.isValid();
     glm::ivec3 placedPos = hadHover ? m_currentHoveredLocation.getAdjacentPlacementPosition() : glm::ivec3(0);
     if (m_placementTool->placeVoxel(createContext())) {
-        if (m_audioSystem) m_audioSystem->playSound(Core::AssetManager::instance().resolveSound("place.wav"));
+        playPlaceSound(hadHover, placedPos);
         if (m_onVoxelChanged && hadHover) m_onVoxelChanged(placedPos);
     }
 }
@@ -321,7 +332,7 @@ void VoxelInteractionSystem::placeSubcubeAtHover() {
     bool hadHover = m_hasHoveredCube && m_currentHoveredLocation.isValid();
     glm::ivec3 placedPos = hadHover ? m_currentHoveredLocation.getAdjacentPlacementPosition() : glm::ivec3(0);
     if (m_placementTool->placeSubcube(createContext())) {
-        if (m_audioSystem) m_audioSystem->playSound(Core::AssetManager::instance().resolveSound("place.wav"));
+        playPlaceSound(hadHover, placedPos);
         if (m_onVoxelChanged && hadHover) m_onVoxelChanged(placedPos);
     }
 }
@@ -330,7 +341,7 @@ void VoxelInteractionSystem::placeMicrocubeAtHover() {
     bool hadHover = m_hasHoveredCube && m_currentHoveredLocation.isValid();
     glm::ivec3 placedPos = hadHover ? m_currentHoveredLocation.getAdjacentPlacementPosition() : glm::ivec3(0);
     if (m_placementTool->placeMicrocube(createContext())) {
-        if (m_audioSystem) m_audioSystem->playSound(Core::AssetManager::instance().resolveSound("place.wav"));
+        playPlaceSound(hadHover, placedPos);
         if (m_onVoxelChanged && hadHover) m_onVoxelChanged(placedPos);
     }
 }
@@ -569,7 +580,13 @@ bool VoxelInteractionSystem::tryActivateFurnitureAtHover(const glm::vec3& camera
     bool activated = m_dynamicFurniture->activate(objId);
     if (activated) {
         LOG_INFO_FMT("VoxelInteraction", "Activated furniture '" << objId << "'");
-        if (m_audioSystem) {
+        // 3D thunk at the furniture itself via the event catalog; legacy 2D
+        // direct-file fallback when no registry is wired. (This call site was
+        // the hit.wav dead reference — silent for months because nothing
+        // validated that the file existed. CatalogValidation now does.)
+        if (m_soundRegistry) {
+            m_soundRegistry->playEvent("furniture.activate", glm::vec3(worldPos) + glm::vec3(0.5f));
+        } else if (m_audioSystem) {
             m_audioSystem->playSound(Core::AssetManager::instance().resolveSound("hit.wav"));
         }
     }

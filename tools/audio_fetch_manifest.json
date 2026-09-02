@@ -1,0 +1,19 @@
+{
+  "_comment": "Fetch manifest for fetch_cc0_sounds.py — per-slot Freesound CC0 queries. dir is relative to resources/sounds/; prefix names the files; count = how many variants (variation pools kill repetition fatigue). Durations bound one-shot length for ambience scatter. exclude = lowercase substrings that disqualify a result by name (loops, synths, foreground contamination).",
+  "slots": [
+    { "query": "bird chirp tweet",     "dir": "sfx/birds", "prefix": "songbird", "count": 4, "minSec": 1, "maxSec": 8,
+      "exclude": ["loop", "synth", "robot", "8bit", "8-bit", "toy", "whistle imitation"] },
+    { "query": "blackbird song",       "dir": "sfx/birds", "prefix": "blackbird", "count": 3, "minSec": 2, "maxSec": 10,
+      "exclude": ["loop", "synth"] },
+    { "query": "crow call caw",        "dir": "sfx/birds", "prefix": "crow", "count": 2, "minSec": 1, "maxSec": 6,
+      "exclude": ["loop", "dog", "cat", "synth"] },
+    { "query": "owl hoot night",       "dir": "sfx/birds", "prefix": "owl", "count": 2, "minSec": 1, "maxSec": 8,
+      "exclude": ["loop", "synth"] },
+    { "query": "cricket chirp single", "dir": "sfx/insects", "prefix": "cricket", "count": 3, "minSec": 1, "maxSec": 10,
+      "exclude": ["loop", "synth"] },
+    { "query": "cicada",               "dir": "sfx/insects", "prefix": "cicada", "count": 2, "minSec": 3, "maxSec": 12,
+      "exclude": ["loop", "robot", "chime", "synth", "music"] },
+    { "query": "frog croak pond",      "dir": "sfx/animals", "prefix": "frog", "count": 2, "minSec": 1, "maxSec": 8,
+      "exclude": ["loop", "synth"] }
+  ]
+}

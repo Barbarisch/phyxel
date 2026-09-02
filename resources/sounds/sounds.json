@@ -1,0 +1,113 @@
+{
+  "_comment": "Sound event catalog — gameplay code names EVENTS, not files (docs/SoundSystemV2.md §4.1). Each event: files = variation pool (one picked at random per play), volume/pitch = [min,max] uniform jitter ranges, channel = Master|SFX|Music|Voice bus, spatial = whether the caller is expected to supply a world position. Loaded by Core::SoundRegistry; CatalogValidation asserts every referenced file exists on disk and every disk file has a SOURCES.json provenance row.",
+  "events": {
+    "voxel.place": {
+      "files": ["place.wav"],
+      "volume": [0.9, 1.0],
+      "pitch": [0.95, 1.05],
+      "channel": "SFX",
+      "spatial": true
+    },
+    "furniture.activate": {
+      "files": ["hit.wav"],
+      "volume": [0.85, 1.0],
+      "pitch": [0.92, 1.08],
+      "channel": "SFX",
+      "spatial": true
+    },
+    "chop.impact.trunk": {
+      "files": ["axe_chop.wav"],
+      "volume": [0.85, 0.95],
+      "pitch": [0.94, 1.06],
+      "channel": "SFX",
+      "spatial": true
+    },
+    "chop.impact.leaves": {
+      "files": ["whoosh.wav"],
+      "volume": [0.8, 0.95],
+      "pitch": [0.95, 1.1],
+      "channel": "SFX",
+      "spatial": true
+    },
+    "ui.click": {
+      "files": ["click.wav"],
+      "volume": [1.0, 1.0],
+      "pitch": [1.0, 1.0],
+      "channel": "SFX",
+      "spatial": false
+    },
+    "amb.cave.drip": {
+      "files": ["sfx/cave_drip.wav"],
+      "volume": [0.4, 0.8],
+      "pitch": [0.85, 1.25],
+      "channel": "Ambience",
+      "spatial": true
+    },
+    "amb.wind.gust": {
+      "files": ["sfx/wind_gust.wav"],
+      "volume": [0.4, 0.7],
+      "pitch": [0.9, 1.1],
+      "channel": "Ambience",
+      "spatial": true
+    },
+    "amb.bird.songbird": {
+      "files": ["sfx/birds/songbird_bird_noise_11_wav_507255.mp3",
+                "sfx/birds/songbird_bird_noise_13_wav_507261.mp3",
+                "sfx/birds/songbird_bird_noise_6_wav_507264.mp3",
+                "sfx/birds/songbird_bird_noise_7_wav_507266.mp3"],
+      "volume": [0.35, 0.65],
+      "pitch": [0.95, 1.05],
+      "channel": "Ambience",
+      "spatial": true
+    },
+    "amb.bird.blackbird": {
+      "files": ["sfx/birds/blackbird_turdus_merula_03_wav_189521.mp3",
+                "sfx/birds/blackbird_turdus_merula_06_wav_189526.mp3",
+                "sfx/birds/blackbird_turdus_merula_19_wav_189549.mp3"],
+      "volume": [0.35, 0.6],
+      "pitch": [0.97, 1.03],
+      "channel": "Ambience",
+      "spatial": true
+    },
+    "amb.bird.crow": {
+      "files": ["sfx/birds/crow_raven_croak_or_crow_caw_716962.mp3"],
+      "volume": [0.4, 0.7],
+      "pitch": [0.92, 1.08],
+      "channel": "Ambience",
+      "spatial": true
+    },
+    "amb.bird.owl": {
+      "files": ["sfx/birds/owl_owl_recording_763652.mp3",
+                "sfx/birds/owl_owl_wav_398734.mp3"],
+      "volume": [0.35, 0.6],
+      "pitch": [0.95, 1.05],
+      "channel": "Ambience",
+      "spatial": true
+    },
+    "amb.insect.cricket": {
+      "files": ["sfx/insects/cricket_cricketsample_1_wav_341855.mp3",
+                "sfx/insects/cricket_cricketsample_2_wav_341856.mp3",
+                "sfx/insects/cricket_single_cricket_chirping_close_perspective_01_753271.mp3"],
+      "volume": [0.3, 0.55],
+      "pitch": [0.95, 1.08],
+      "channel": "Ambience",
+      "spatial": true
+    },
+    "amb.insect.cicada": {
+      "files": ["sfx/insects/cicada_cicadas_in_japan_wav_643877.mp3",
+                "sfx/insects/cicada_river_and_cicadas_1_437061.mp3"],
+      "volume": [0.25, 0.45],
+      "pitch": [0.95, 1.05],
+      "channel": "Ambience",
+      "spatial": true
+    },
+    "amb.animal.frog": {
+      "files": ["sfx/animals/frog_frogs_croaking_wav_391520.mp3",
+                "sfx/animals/frog_frogs_on_a_summer_night_3_mp3_396490.mp3"],
+      "volume": [0.35, 0.6],
+      "pitch": [0.95, 1.05],
+      "channel": "Ambience",
+      "spatial": true
+    }
+  }
+}
