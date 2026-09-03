@@ -146,7 +146,50 @@ RenderCoordinator::RenderCoordinator(
         shadowMapFar.reset();
     }
 
-    // Trigger descriptor set update to bind the shadow map(s)
+    // Sub-voxel light occupancy (bindings 11/12). Created HERE, before the descriptor write below,
+    // rather than lazily on first frame — a later creation would mean rewriting descriptor sets
+    // that in-flight frames may be using.
+    m_lightOccupancy = std::make_unique<VoxelLightOccupancyGpu>();
+    if (m_lightOccupancy->initialize(vulkanDevice->getDevice(), vulkanDevice->getPhysicalDevice())) {
+        vulkanDevice->setLightOccupancyResources(m_lightOccupancy->directoryBuffer(),
+                                                 m_lightOccupancy->poolBuffer());
+    } else {
+        LOG_ERROR("RenderCoordinator", "light occupancy init failed — lighting will see no "
+                                       "occluders (bindings fall back to an inert buffer)");
+        m_lightOccupancy.reset();
+    }
+
+    // M3-REDESIGN: give the mesher a sky-visibility query backed by the occupancy pool, so the
+    // bake can see geometry in NEIGHBOURING chunks (a wall next door must occlude). The pool is
+    // the only structure that spans chunks, which is why this is injected rather than derived
+    // inside ChunkRenderManager.
+    // Cost/quality point chosen by MEASUREMENT, not taste. At the full per-probe quality
+    // (9 rays, 24 u) the bake cost 39.89 ms for 1024 cells on one chunk — versus a 6 ms budget for
+    // ALL dirty-chunk work in a frame, so a single chunk would hitch streaming. 5 rays keeps the
+    // vertical and the four 30-degree directions (the ones that decide whether a room is sealed)
+    // and drops the four 60-degree diagonals, which mostly duplicate them; 16 u still exceeds any
+    // interior in the structure library.
+    // ⚠️ Reach is what decides the largest room that reads as SEALED (D8). Lowering it below the
+    // biggest generated interior would make large halls read as lit.
+    ChunkRenderManager::setSkyVisibilityFn(
+        [this](const glm::vec3& worldPos, const glm::vec3& normal) -> float {
+            return m_lightOccupancy
+                 ? m_lightOccupancy->skyVisibility(worldPos, normal, /*reach*/ 16.0f, /*rays*/ 5)
+                 : 1.0f;
+        });
+
+
+    // M5.1 -- indirect-light probe field. Created BEFORE the descriptor update below so binding 13
+    // is written with the real buffer rather than the inert fallback.
+    m_giProbes = std::make_unique<GiProbeField>();
+    if (m_giProbes->initialize(vulkanDevice)) {
+        vulkanDevice->setGiProbeBuffer(m_giProbes->buffer());
+    } else {
+        LOG_WARN("RenderCoordinator", "M5.1 probe field unavailable; GI stays off");
+        m_giProbes.reset();
+    }
+
+    // Trigger descriptor set update to bind the shadow map(s) and the occupancy buffers
     vulkanDevice->updateDescriptorSetsWithTexture();
 
     // Initialize PostProcessor
@@ -211,11 +254,23 @@ RenderCoordinator::RenderCoordinator(
         postProcessor->getSceneRenderPass(),
         vulkanDevice->getSwapChainExtent()
     );
-    // Phase 4c: break-debris samples the baked light field (darkens indoors, lit by glow).
-    debrisPipeline->setLightSampler([cm = chunkManager](const glm::vec3& wp) -> glm::vec4 {
-        if (!cm) return glm::vec4(1.0f);
-        auto bl = cm->sampleBakedLight(glm::ivec3(glm::floor(wp)));
-        return glm::vec4(bl.sky, bl.r, bl.g, bl.b) / 15.0f;
+    // U1 (docs/UnifiedLightingPlan.md): debris is lit by the SAME sun and atmosphere as the rest
+    // of the world. It previously sampled only the baked light field, which M0 pinned to a
+    // constant — so debris looked identical at noon and at midnight, and `debris.frag`'s small
+    // fixed directional term was the only thing giving it any form.
+    //
+    // No normal is available here (this shades a whole particle, not a face), so the sun is
+    // applied as an unlit-hemisphere average rather than N·L; `debris.frag` still supplies the
+    // directional form term on top. Sky access still gates the sun, so debris in a sealed room
+    // stays dark.
+    debrisPipeline->setLightSampler([this, cm = chunkManager](const glm::vec3& wp) -> glm::vec4 {
+        float sky = 1.0f;
+        if (cm) sky = glm::clamp(cm->sampleBakedLight(glm::ivec3(glm::floor(wp))).sky / 15.0f,
+                                 0.0f, 1.0f);
+        const float skyGate = sky * sky;                   // matches lighting.glsl's phxSkyGate
+        const glm::vec3 ambient = m_lastAmbientColor;      // atmosphere sky irradiance
+        const glm::vec3 sun     = m_lastSunColor * (0.5f * skyGate);   // hemisphere-averaged
+        return glm::vec4(ambient + sun, 1.0f);
     });
 
     // Initialize VFX particle system + its additive instanced-cube renderer.
@@ -712,7 +767,93 @@ RenderCoordinator::LodTierThresholds RenderCoordinator::lodTierThresholds() cons
     return t;
 }
 
-RenderCoordinator::~RenderCoordinator() = default;
+void RenderCoordinator::setBloomRadiusScale(float s) {
+    m_bloomRadiusScale = (s > 0.0f) ? s : 1.0f;
+}
+
+void RenderCoordinator::setBloomClampMul(float c) {
+    m_bloomClampMul = (c > 0.0f) ? c : 8.0f;
+}
+
+RenderCoordinator::~RenderCoordinator() {
+    // Explicit, not `= default`: the light-occupancy buffers must be released while the Vulkan
+    // device is still alive.
+    if (m_lightOccupancy) m_lightOccupancy->cleanup();
+}
+
+// ---------------------------------------------------------------------------------------------
+// M1b — mirror Physics::VoxelOccupancyGrid onto the GPU.
+//
+// This does NOT derive occupancy. It flattens what the physics grid already says, so the CPU's
+// idea of solidity and the GPU's cannot drift. See VoxelLightOccupancy.h for why the physics
+// grid is the source rather than the mesher (the mesher builds sub-voxel occupancy AFTER it bakes
+// faces — defect D5 — so anything sourced from it sees stale sub-voxel geometry).
+// ---------------------------------------------------------------------------------------------
+void RenderCoordinator::updateLightOccupancy() {
+    if (!chunkManager || !vulkanDevice || !m_lightOccupancy) return;
+
+    // The covered box follows the viewer. Chunk-quantised, so this is a no-op until the camera
+    // crosses a chunk boundary. Done BEFORE the residency scan so this frame's scan is measured
+    // against the box the flush will actually pack with.
+    const glm::ivec3 boxBefore = m_lightOccupancy->boxMinChunk();
+    if (camera) {
+        m_lightOccCentreSource = camera->getPosition();
+        m_lightOccupancy->setViewCentre(m_lightOccCentreSource);
+    }
+    if (m_lightOccupancy->boxMinChunk() != boxBefore) {
+        // The box moved: chunks it dropped must be re-offered, so their cached revisions are stale.
+        m_lightOccRevisions.clear();
+    }
+
+    // Budgeted so first-frame residency (hundreds of chunks) spreads over frames instead of
+    // stalling. A chunk that has not been flattened yet is simply absent from the pool, which
+    // reads as "no occlusion" — wrong-but-bright for a frame or two, never wrong-and-solid.
+    constexpr int kChunksPerFrame = 24;
+    int budget = kChunksPerFrame;
+
+    std::unordered_set<glm::ivec3, LightOccOriginHash> seen;
+    seen.reserve(chunkManager->chunkMap.size());
+
+    m_lightOccLoadedChunks = chunkManager->chunkMap.size();
+    m_lightOccOutOfBox = 0;
+
+    for (auto& [coord, chunk] : chunkManager->chunkMap) {
+        if (!chunk) continue;
+        const glm::ivec3 origin = chunk->getWorldOrigin();
+        // Outside the covered box. NOT harmless: those chunks occlude no light, so a structure
+        // out there would light as if it had no walls. Counted so that shows up as a number here
+        // instead of as an unexplained bright interior.
+        if (PackedOccupancyPool::directoryIndex(origin, m_lightOccupancy->boxMinChunk()) < 0) {
+            ++m_lightOccOutOfBox;
+            continue;
+        }
+        seen.insert(origin);
+
+        const uint32_t rev = chunk->getOccupancyGrid().revision();
+        const auto it = m_lightOccRevisions.find(origin);
+        if (it != m_lightOccRevisions.end() && it->second == rev) continue;   // unchanged
+
+        if (budget-- <= 0) continue;            // next frame
+        m_lightOccupancy->setChunk(origin, buildLightOccupancy(chunk->getOccupancyGrid()));
+        m_lightOccRevisions[origin] = rev;
+    }
+
+    // Drop chunks that have unloaded. Without this their geometry would keep occluding light in
+    // air the player can now walk through.
+    for (auto it = m_lightOccRevisions.begin(); it != m_lightOccRevisions.end(); ) {
+        if (seen.count(it->first)) { ++it; continue; }
+        m_lightOccupancy->removeChunk(it->first);
+        it = m_lightOccRevisions.erase(it);
+    }
+
+    m_lightOccupancy->flushIfDirty();
+
+    // Tell the shaders where the box sits and that the buffers are real. Done AFTER the flush so
+    // the box the shader addresses against is the one the pool was actually packed with — a frame
+    // where those disagree would read every chunk at the wrong offset.
+    vulkanDevice->setLightOccupancyBox(m_lightOccupancy->stats().boxMinChunk,
+                                       m_lightOccupancy->ready());
+}
 
 void RenderCoordinator::drawSky(VkCommandBuffer cmd) {
     if (!m_skyEnabled) return;
@@ -786,12 +927,23 @@ bool RenderCoordinator::initUISystem() {
     m_uiSystem = std::make_unique<UI::UISystem>(
         vulkanDevice, windowManager->getWidth(), windowManager->getHeight());
 
-    // Init against the SCENE render pass (offscreen HDR target), NOT the swapchain
-    // post-process pass. The game HUD must render into the offscreen image so it is
-    // (a) visible in the editor viewport — which samples the offscreen image — and
-    // (b) carried to the swapchain by post-process for standalone builds. This keeps
-    // the game HUD entirely off ImGui (see docs/HudSystem.md §2a, §5).
-    if (!m_uiSystem->initialize(postProcessor->getSceneRenderPass())) {
+    // Init against the POST-PROCESS (swapchain) render pass — NOT the scene pass.
+    //
+    // The HUD used to init against the scene pass so it landed in the offscreen HDR image and was
+    // therefore visible in the editor's docked viewport. That also put it INSIDE the grade:
+    // `compositeToGrade` ran bloom and AgX over it as if it were world geometry. Because
+    // `ui.frag` writes authored display-referred colours (0..1) into a buffer holding physical
+    // radiance — where a lit noon surface is only ~0.02-0.2 — every HUD pixel sat 4-8x above the
+    // bright-pass threshold (1.0/exposure = 0.125) and bloomed harder than the sunlit world, and
+    // an authored 0.5 tonemapped as AgX(4.0), i.e. near-white.
+    //
+    // UI belongs in display space, after the grade. See docs/UnifiedLightingPlan.md D18 for the
+    // measurements, and note this RESTORES the original contract still documented on
+    // UISystem::render ("call inside the post-process render pass").
+    //
+    // The editor viewport case is handled by placement instead: the HUD draws after ImGui and is
+    // rectangled into the docked viewport via UIRenderer::setViewportRect().
+    if (!m_uiSystem->initialize(postProcessor->getPostProcessRenderPass())) {
         LOG_ERROR("RenderCoordinator", "Failed to initialize UISystem");
         m_uiSystem.reset();
         return false;
@@ -1028,6 +1180,60 @@ void RenderCoordinator::updateVfx(float dt) {
             flaming.insert(flaming.end(), fv.begin(), fv.end());
         }
         fireEmitters->sync(flaming);
+    }
+
+    // M5.1 -- refresh the probe grid origin each frame. Snapped to the probe lattice inside
+    // gridFor(), because an unsnapped grid slides under the sampler and every probe changes every
+    // frame, which reads as a crawl over every surface.
+    if (m_giProbes && camera) {
+        const glm::vec4 grid = GiProbeField::gridFor(camera->getPosition());
+        vulkanDevice->setGiProbeGrid(grid);
+        vulkanDevice->setGiEnabled(m_giEnabled);
+    }
+
+    // U3.2 — EMISSIVE VOXELS ARE REAL LIGHTS.
+    //
+    // Same shape as the flame sync above: each chunk caches its own emissive list at bake time,
+    // and this reconciles the union into LightManager. A glow block therefore lights its room
+    // through the SAME path as a torch or a spell -- inverse-square, normal-dependent, and occluded
+    // by M2's traced visibility term -- instead of seeding a per-cell flood that could do none of
+    // those things.
+    //
+    // Reconciled on CHANGE, not per frame: re-registering every frame would churn light IDs and
+    // defeat the id tie-break that keeps U3.1's selection stable frame to frame. The hash is over
+    // position/colour/radius, so a chunk remesh that does not move an emitter costs nothing.
+    if (chunkManager) {
+        size_t h = 1469598103934665603ull;
+        auto mix = [&h](float f) {
+            uint32_t b; std::memcpy(&b, &f, 4);
+            h = (h ^ b) * 1099511628211ull;
+        };
+        size_t count = 0;
+        for (const auto& ch : chunkManager->chunks) {
+            if (!ch) continue;
+            for (const auto& e : ch->getEmissiveLights()) {
+                mix(e.worldPos.x); mix(e.worldPos.y); mix(e.worldPos.z);
+                mix(e.color.r); mix(e.color.g); mix(e.color.b);
+                mix(e.intensity); mix(e.radius);
+                ++count;
+            }
+        }
+        if (h != m_emissiveLightHash || count != m_emissiveLightIds.size()) {
+            for (int id : m_emissiveLightIds) lightManager.removeLight(id);
+            m_emissiveLightIds.clear();
+            m_emissiveLightIds.reserve(count);
+            for (const auto& ch : chunkManager->chunks) {
+                if (!ch) continue;
+                for (const auto& e : ch->getEmissiveLights()) {
+                    const int id = lightManager.addPointLight(e.worldPos, e.color,
+                                                               e.intensity, e.radius);
+                    if (id >= 0) m_emissiveLightIds.push_back(id);
+                }
+            }
+            m_emissiveLightHash = h;
+            LOG_INFO_FMT("Lighting", "U3.2: " << m_emissiveLightIds.size()
+                         << " emissive voxel lights registered (" << count << " emitters found)");
+        }
     }
 
     if (vfxSystem) vfxSystem->update(dt);
@@ -2911,6 +3117,12 @@ void RenderCoordinator::drawFrame() {
         // Budgeted so a large dirty backlog (async world-gen/fill finalize) spreads
         // over frames instead of stalling for seconds — standalones flush here.
         constexpr double kDirtyChunkBudgetMs = 6.0;
+        // M3-REDESIGN ORDERING: the occupancy must be current BEFORE meshing, because the sky
+        // bake traces against it — a chunk meshed before its own geometry reached the pool would
+        // bake as if the world were empty and read fully sky-lit indoors. Occupancy comes from the
+        // physics grid, which is populated at chunk LOAD and does not depend on meshing, so this
+        // ordering is safe in the other direction.
+        updateLightOccupancy();
         chunkManager->updateDirtyChunks(kDirtyChunkBudgetMs);
     }
 
@@ -3261,6 +3473,9 @@ void RenderCoordinator::drawFrame() {
                 a.bodyLight[i]     = glm::vec4(m_skyBodies.lightColors[i], 0.0f);
             }
             if (vulkanDevice) vulkanDevice->setAtmosphereUniforms(a);
+            // U1: cache what the shaders were just given, so CPU-side shading (debris particles)
+            // uses the SAME values rather than deriving its own.
+            m_lastAmbientColor = a.ambientColor;
 
             // The sun's own colour comes from the same transmittance as its rendered disc, so the
             // two can never disagree. Only when the cycle is driving time — with it off, the fixed
@@ -3378,6 +3593,7 @@ void RenderCoordinator::drawFrame() {
     // Seconds since first frame — drives grass wind + growth in the shaders (UBO.elapsedTime).
     static const auto renderStartTime = std::chrono::high_resolution_clock::now();
     float elapsedTime = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - renderStartTime).count();
+    m_lastSunColor = sunColor;   // U1: same value the shaders get, for the debris CPU sampler
     vulkanDevice->updateUniformBuffer(currentFrame, view, proj, lightSpaceMatrix, sunDirection, sunColor, static_cast<uint32_t>(chunkStats.totalCubes), ambientLightStrength, emissiveMultiplier, cameraPos, elapsedTime);
 
     // Camera-relative rendering: hand the true camera position to pipelines that push their
@@ -3566,6 +3782,20 @@ void RenderCoordinator::drawFrame() {
     // Runtime-toggleable via POST /api/debug/water_ssr — that toggle is the A/B control for every
     // before/after capture and the escape hatch if SSR misbehaves.
     m_waterReflectionActive = m_waterSsrEnabled;
+
+    // M5.1 — update the indirect-light probe field. OUTSIDE and BEFORE the scene render pass: a
+    // compute dispatch cannot be recorded inside a render pass, and the fragment shaders that
+    // sample the field run inside it. recordUpdate() issues the COMPUTE_WRITE -> FRAGMENT_READ
+    // barrier itself; see the note there about why that is spelled out rather than assumed.
+    if (m_giProbes && m_giEnabled && camera) {
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), vulkanDevice->getCommandBuffer(currentFrame), "GI Probes");
+        m_giProbes->recordUpdate(vulkanDevice->getCommandBuffer(currentFrame),
+                                 vulkanDevice->getDescriptorSet(currentFrame),
+                                 glm::vec3(GiProbeField::gridFor(camera->getPosition())),
+                                 m_lastAmbientColor,
+                                 vulkanDevice->getOccupancyBox(),
+                                 sunDirection, m_lastSunColor);
+    }
 
     // Begin Scene Render Pass (Offscreen)
     postProcessor->beginSceneRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
@@ -3858,20 +4088,9 @@ void RenderCoordinator::drawFrame() {
             }
         }
 
-        // Game HUD / custom UI (non-ImGui) — on top of all geometry AND water, into the
-        // offscreen image. Shows in the editor viewport AND is carried to the swapchain by
-        // post-process for standalone builds. See docs/HudSystem.md.
-        if (m_uiSystem) {
-            // Pull live game state into the HUD widgets before drawing (single source of
-            // truth — hosts register providers on hudData(); widgets just mirror values).
-            // Applied to every screen so independently-anchored HUD panels (health,
-            // combat round/turn/action, …) all bind; menu screens have no binds (no-op).
-            for (const auto& [name, vis] : m_uiSystem->getScreenList()) {
-                if (auto* s = m_uiSystem->getScreen(name)) UI::applyHudBindings(s, m_hudData);
-            }
-            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Custom UI");
-            m_uiSystem->render(vulkanDevice->getCommandBuffer(currentFrame));
-        }
+        // (Game HUD / custom UI MOVED OUT of the scene pass 2026-08-30 — it is drawn in the
+        //  post-process pass, after the grade, so it is neither bloomed nor tonemapped.
+        //  See docs/UnifiedLightingPlan.md D18 and the draw site after ImGui below.)
 
         postProcessor->endWaterRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
     }
@@ -3896,16 +4115,14 @@ void RenderCoordinator::drawFrame() {
         // map can never drift from what the rest of the frame was lit for.
         postProcessor->setTonemap(m_exposure, m_tonemapCurve);
         postProcessor->setBloom(m_bloomIntensity, m_bloomThreshold, m_bloomKnee);
+        postProcessor->setBloomRadiusScale(m_bloomRadiusScale);
+        postProcessor->setBloomClampMul(m_bloomClampMul);
         postProcessor->compositeToGrade(vulkanDevice->getCommandBuffer(currentFrame));
     }
 
     // Swapchain pass: now just a blit of the graded image, with ImGui drawn on top.
     postProcessor->beginPostProcessRenderPass(vulkanDevice->getCommandBuffer(currentFrame), vulkanDevice->getSwapChainFramebuffer(imageIndex));
     postProcessor->drawBlit(vulkanDevice->getCommandBuffer(currentFrame));
-
-    // (Game HUD / custom UI is now rendered inside the SCENE pass — into the
-    // offscreen image — so it is visible in the editor viewport and stays off ImGui.
-    // See the scene-pass render call above and docs/HudSystem.md §5.)
 
     // Render ImGui on top
     // Scripting console rendering is handled in Application::run() before endFrame()
@@ -3914,7 +4131,26 @@ void RenderCoordinator::drawFrame() {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "ImGui");
         imguiRenderer->render(currentFrame, imageIndex);
     }
-    
+
+    // Game HUD / custom UI (non-ImGui) — AFTER the grade, so it is neither bloomed nor
+    // tonemapped, and AFTER ImGui, which is not optional: in the editor the viewport is an
+    // ImGui *image* of the offscreen texture, so a HUD drawn before ImGui would be painted
+    // over by that image and disappear. See docs/UnifiedLightingPlan.md D18.
+    //
+    // Placement: the host sets a viewport rect (editor -> its docked viewport rect; standalone
+    // -> leaves it unset, meaning fill the window).
+    if (m_uiSystem) {
+        // Pull live game state into the HUD widgets before drawing (single source of
+        // truth — hosts register providers on hudData(); widgets just mirror values).
+        // Applied to every screen so independently-anchored HUD panels (health,
+        // combat round/turn/action, …) all bind; menu screens have no binds (no-op).
+        for (const auto& [name, vis] : m_uiSystem->getScreenList()) {
+            if (auto* s = m_uiSystem->getScreen(name)) UI::applyHudBindings(s, m_hudData);
+        }
+        GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Custom UI");
+        m_uiSystem->render(vulkanDevice->getCommandBuffer(currentFrame));
+    }
+
     // End Post Process Render Pass
     postProcessor->endPostProcessRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
     vulkanDevice->endCommandBuffer(currentFrame);

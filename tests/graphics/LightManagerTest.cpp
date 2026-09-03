@@ -32,14 +32,22 @@ TEST(LightManagerTest, AddPointLight_FromStruct) {
     EXPECT_FLOAT_EQ(retrieved->radius, 25.0f);
 }
 
-TEST(LightManagerTest, AddPointLight_CapacityLimit) {
+// ⚠️ BEHAVIOUR DELIBERATELY CHANGED (U3.1, docs/UnifiedLightingPlan.md). This test previously
+// asserted that addPointLight REFUSES past MAX_POINT_LIGHTS and returns -1. That was the bug, not
+// the contract: storage was capped with no distance culling, no priority and no eviction, so the
+// first 32 lights ever REGISTERED won permanently wherever they were in the world — a torch in the
+// player's hand contributed nothing if 32 lights existed anywhere, and city fixtures logged
+// "light capacity reached" and stayed dark forever.
+// MAX_POINT_LIGHTS is now an UPLOAD budget; storage is unbounded.
+TEST(LightManagerTest, AddPointLight_AcceptsBeyondTheUploadBudget) {
     LightManager mgr;
-    for (uint32_t i = 0; i < MAX_POINT_LIGHTS; i++) {
-        EXPECT_GE(mgr.addPointLight(glm::vec3(static_cast<float>(i), 0, 0)), 0);
+    for (uint32_t i = 0; i < MAX_POINT_LIGHTS * 3; i++) {
+        EXPECT_GE(mgr.addPointLight(glm::vec3(static_cast<float>(i), 0, 0)), 0)
+            << "light " << i << " was refused; the cap is an upload budget, not a storage limit";
     }
-    // Should fail at capacity
-    EXPECT_EQ(mgr.addPointLight(glm::vec3(999, 0, 0)), -1);
-    EXPECT_EQ(mgr.getPointLightCount(), MAX_POINT_LIGHTS);
+    EXPECT_EQ(mgr.getPointLightCount(), MAX_POINT_LIGHTS * 3);
+    // ...but only the budget is ever uploaded.
+    EXPECT_EQ(mgr.getGPUData().numPointLights, MAX_POINT_LIGHTS);
 }
 
 TEST(LightManagerTest, RemovePointLight) {
@@ -84,13 +92,109 @@ TEST(LightManagerTest, AddSpotLight_ReturnsValidId) {
     EXPECT_EQ(mgr.getSpotLightCount(), 1u);
 }
 
-TEST(LightManagerTest, AddSpotLight_CapacityLimit) {
+// Same deliberate change as the point-light case above.
+TEST(LightManagerTest, AddSpotLight_AcceptsBeyondTheUploadBudget) {
     LightManager mgr;
-    for (uint32_t i = 0; i < MAX_SPOT_LIGHTS; i++) {
+    for (uint32_t i = 0; i < MAX_SPOT_LIGHTS * 3; i++) {
         EXPECT_GE(mgr.addSpotLight(glm::vec3(static_cast<float>(i), 0, 0), glm::vec3(0, -1, 0)), 0);
     }
-    EXPECT_EQ(mgr.addSpotLight(glm::vec3(999, 0, 0), glm::vec3(0, -1, 0)), -1);
-    EXPECT_EQ(mgr.getSpotLightCount(), MAX_SPOT_LIGHTS);
+    EXPECT_EQ(mgr.getSpotLightCount(), MAX_SPOT_LIGHTS * 3);
+    EXPECT_EQ(mgr.getGPUData().numSpotLights, MAX_SPOT_LIGHTS);
+}
+
+// =============================================================================================
+// U3.1 GATE — spatial selection. "The nearest light to the player is always among those
+// uploaded", and "a 100-fixture city has no permanently-dark fixture."
+// =============================================================================================
+
+TEST(LightManagerTest, U31_TheNearestLightIsAlwaysUploadedNoMatterWhenItWasRegistered) {
+    LightManager mgr;
+    // Fill the budget with distant lights FIRST, so under the old first-come rule they would own
+    // every slot forever.
+    for (uint32_t i = 0; i < MAX_POINT_LIGHTS; i++) {
+        mgr.addPointLight(glm::vec3(1000.0f + static_cast<float>(i), 0, 0), glm::vec3(1), 1.0f, 5.0f);
+    }
+    // Now the torch in the player's hand — registered LAST, and the whole point of the fix.
+    const int torch = mgr.addPointLight(glm::vec3(0.5f, 0, 0), glm::vec3(1, 0.8f, 0.5f), 2.0f, 8.0f);
+    ASSERT_GE(torch, 0);
+
+    mgr.setViewerWorld(glm::vec3(0.0f));
+    const auto& gpu = mgr.getGPUData();
+    ASSERT_EQ(gpu.numPointLights, MAX_POINT_LIGHTS);
+
+    bool torchUploaded = false;
+    for (uint32_t i = 0; i < gpu.numPointLights; ++i) {
+        // Positions are viewer-relative, and the viewer is at the origin here.
+        if (glm::length(glm::vec3(gpu.pointLights[i].positionAndRadius) - glm::vec3(0.5f, 0, 0))
+                < 1e-4f) {
+            torchUploaded = true;
+        }
+    }
+    EXPECT_TRUE(torchUploaded)
+        << "the nearest light was not uploaded — first-come selection is still in force";
+    EXPECT_EQ(mgr.droppedPointLights(), 1u) << "exactly one distant light should have lost its slot";
+}
+
+TEST(LightManagerTest, U31_TheUploadedSetFollowsTheViewer) {
+    LightManager mgr;
+    // Two clusters, far apart. Each is exactly the budget size, so only one can be uploaded.
+    for (uint32_t i = 0; i < MAX_POINT_LIGHTS; i++)
+        mgr.addPointLight(glm::vec3(-500.0f, 0, static_cast<float>(i)), glm::vec3(1), 1.0f, 4.0f);
+    for (uint32_t i = 0; i < MAX_POINT_LIGHTS; i++)
+        mgr.addPointLight(glm::vec3(500.0f, 0, static_cast<float>(i)), glm::vec3(1), 1.0f, 4.0f);
+
+    auto meanX = [&mgr](const glm::vec3& viewer) {
+        mgr.setViewerWorld(viewer);
+        const auto& g = mgr.getGPUData();
+        float sum = 0.0f;
+        for (uint32_t i = 0; i < g.numPointLights; ++i)
+            sum += g.pointLights[i].positionAndRadius.x + viewer.x;   // back to world space
+        return sum / static_cast<float>(std::max(1u, g.numPointLights));
+    };
+
+    EXPECT_LT(meanX(glm::vec3(-500.0f, 0, 0)), -400.0f)
+        << "standing in the west cluster, the east cluster was uploaded instead";
+    EXPECT_GT(meanX(glm::vec3(500.0f, 0, 0)), 400.0f)
+        << "the uploaded set did not follow the viewer across the world";
+}
+
+TEST(LightManagerTest, U31_ABigDistantLightBeatsATinyNearerOneOnlyWhenItsRadiusReaches) {
+    // Relevance is distance to the light's SPHERE, not to its centre — otherwise a hearth whose
+    // glow fills a room loses its slot to a candle just outside the room.
+    LightManager mgr;
+    mgr.setViewerWorld(glm::vec3(0.0f));
+    const int hearth = mgr.addPointLight(glm::vec3(20, 0, 0), glm::vec3(1), 3.0f, 30.0f); // reaches
+    const int candle = mgr.addPointLight(glm::vec3(15, 0, 0), glm::vec3(1), 0.5f, 2.0f);  // does not
+    ASSERT_GE(hearth, 0);
+    ASSERT_GE(candle, 0);
+
+    const auto lights = mgr.getPointLights();
+    ASSERT_EQ(lights.size(), 2u);
+    // Both fit in the budget, so this asserts the ORDERING the selector would use.
+    const auto& gpu = mgr.getGPUData();
+    ASSERT_EQ(gpu.numPointLights, 2u);
+    EXPECT_NEAR(gpu.pointLights[0].positionAndRadius.x, 20.0f, 1e-4f)
+        << "the hearth whose radius reaches the viewer should rank first";
+}
+
+TEST(LightManagerTest, U31_SelectionIsStableBetweenFramesAtEqualRelevance) {
+    // Two lights at identical relevance must not swap places frame to frame — that would flicker.
+    LightManager mgr;
+    mgr.setViewerWorld(glm::vec3(0.0f));
+    for (uint32_t i = 0; i < MAX_POINT_LIGHTS + 4; i++)
+        mgr.addPointLight(glm::vec3(0, 0, 10.0f), glm::vec3(1), 1.0f, 5.0f);   // all identical
+
+    std::vector<float> first;
+    const auto& a = mgr.getGPUData();
+    for (uint32_t i = 0; i < a.numPointLights; ++i) first.push_back(a.pointLights[i].colorAndIntensity.w);
+
+    mgr.setViewerWorld(glm::vec3(0.0f, 0.0f, 0.0f));   // force a repack with no actual change
+    mgr.setViewerWorld(glm::vec3(0.0f, 0.0f, 1e-6f));
+    mgr.setViewerWorld(glm::vec3(0.0f));
+    const auto& b = mgr.getGPUData();
+    ASSERT_EQ(a.numPointLights, b.numPointLights);
+    for (uint32_t i = 0; i < b.numPointLights; ++i)
+        EXPECT_FLOAT_EQ(first[i], b.pointLights[i].colorAndIntensity.w);
 }
 
 TEST(LightManagerTest, UpdateSpotLight) {

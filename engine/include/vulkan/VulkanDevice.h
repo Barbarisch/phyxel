@@ -45,9 +45,9 @@ struct InstanceData {
     uint32_t packedData;      // 15 bits position (5+5+5), 6 bits face mask, 11 bits available for future features
     uint16_t textureIndex;    // Texture atlas index (0-65535)
     uint16_t reserved;        // Flags: bit0 emissive, bit1 transparent, bits2-9 alpha, bit10 mirror, bits11-14 damage
-    uint32_t light;           // Smooth lighting: bits0-15 = 4 per-corner skylight nibbles (corner = vertexID&3)
-    uint32_t light2;          // Per-corner block light: corner0 RGB (bits0-11) | corner1 RGB (bits12-23)
-    uint32_t light3;          // Per-corner block light: corner2 RGB (bits0-11) | corner3 RGB (bits12-23)
+    // U7: bits0-15 used to be per-corner skylight nibbles; sky is traced per fragment now, so they
+    // are free. Bits 16-31 are the fine-face-merge extents and are LIVE (shadow.vert reads them).
+    uint32_t light;
     uint32_t tint;            // Per-voxel 0xRRGGBB tint multiplier (0xFFFFFF = none). MUST match Phyxel::InstanceData.
 
     static VkVertexInputBindingDescription getBindingDescription() {
@@ -59,7 +59,7 @@ struct InstanceData {
     }
 
     static std::vector<VkVertexInputAttributeDescription> getAttributeDescriptions() {
-        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(7);
+        std::vector<VkVertexInputAttributeDescription> attributeDescriptions(5);  // U7: was 7
 
         attributeDescriptions[0].binding = 1;
         attributeDescriptions[0].location = 1;
@@ -81,20 +81,11 @@ struct InstanceData {
         attributeDescriptions[3].format = VK_FORMAT_R32_UINT;  // uint32 baked light (corner skies)
         attributeDescriptions[3].offset = offsetof(InstanceData, light);
 
+        // U7: the two block-light words are gone, so tint moves from location 7 to 5.
         attributeDescriptions[4].binding = 1;
         attributeDescriptions[4].location = 5;
-        attributeDescriptions[4].format = VK_FORMAT_R32_UINT;  // uint32 per-corner block light (corners 0,1)
-        attributeDescriptions[4].offset = offsetof(InstanceData, light2);
-
-        attributeDescriptions[5].binding = 1;
-        attributeDescriptions[5].location = 6;
-        attributeDescriptions[5].format = VK_FORMAT_R32_UINT;  // uint32 per-corner block light (corners 2,3)
-        attributeDescriptions[5].offset = offsetof(InstanceData, light3);
-
-        attributeDescriptions[6].binding = 1;
-        attributeDescriptions[6].location = 7;
-        attributeDescriptions[6].format = VK_FORMAT_R32_UINT;  // uint32 per-voxel tint (0xRRGGBB)
-        attributeDescriptions[6].offset = offsetof(InstanceData, tint);
+        attributeDescriptions[4].format = VK_FORMAT_R32_UINT;  // uint32 per-voxel tint (0xRRGGBB)
+        attributeDescriptions[4].offset = offsetof(InstanceData, tint);
 
         return attributeDescriptions;
     }
@@ -206,6 +197,20 @@ struct UniformBufferObject {
     alignas(16) glm::vec4 skyBodyLitDir[4]{};
     alignas(16) glm::vec4 skyBodyLight[4]{};
     alignas(4)  int skyBodyCount = 0;
+    // ---- Sub-voxel light occupancy (docs/UnifiedLightingPlan.md M1b/M2) ----------------------
+    // Appended per the trailing-field rule: every existing truncated GLSL block stays valid.
+    // occupancyBox : xyz = min corner of the covered box in CHUNK coords (it follows the viewer),
+    //                w   = 1 when bindings 11/12 hold real occupancy, 0 when they hold the inert
+    //                      fallback. The shader MUST check w before reading either buffer.
+    alignas(16) glm::ivec4 occupancyBox{0, 0, 0, 0};
+
+    // ---- M5.1 GI probe field (docs/UnifiedLightingPlan.md) -----------------------------------
+    // Appended at the END, per the same trailing-field rule: every shader that declares a prefix
+    // ending at occupancyBox stays byte-for-byte valid and needs no edit.
+    // xyz = world position of probe (0,0,0), snapped to the probe lattice so the field does not
+    // shimmer as the viewer moves; w = probe spacing in world units.
+    // Guarded by bit 3 of occupancyBox.w -- do not read binding 13 unless it is set.
+    alignas(16) glm::vec4 giProbeGrid{0.0f, 0.0f, 0.0f, 2.0f};
 };
 
 class VulkanDevice {
@@ -413,6 +418,51 @@ public:
         shadowMapFarImageView = imageView;
         shadowMapFarSampler = sampler;
     }
+    /// Sub-voxel light occupancy buffers (bindings 11/12) — docs/UnifiedLightingPlan.md.
+    /// Both null is legal: the descriptors then fall back to a valid buffer that the shader never
+    /// reads, because setLightOccupancyReady(false) leaves the guard flag clear.
+    void setLightOccupancyResources(VkBuffer directory, VkBuffer pool) {
+        lightOccupancyDirBuffer = directory;
+        lightOccupancyPoolBuffer = pool;
+    }
+    VkBuffer getLightOccupancyDirBuffer() const { return lightOccupancyDirBuffer; }
+
+    /// M5.1 GI probe field (binding 13). Null is legal -- the descriptor falls back to a valid
+    /// buffer the shader never reads, because the guard bit stays clear.
+    void setGiProbeBuffer(VkBuffer buf) { giProbeBuffer = buf; }
+    VkBuffer getGiProbeBuffer() const { return giProbeBuffer; }
+    /// The occupancy box + guard bitfield, as the shaders see it (M5.1 needs it for the compute pass).
+    glm::ivec4 getOccupancyBox() const { return m_occupancyBox; }
+    /// M5.1: probe-field extent, so the shader can map a world position to a probe index.
+    /// xyz = grid origin in WORLD units (probe 0,0,0), w = probe spacing.
+    void setGiProbeGrid(const glm::vec4& originAndSpacing) { m_giProbeGrid = originAndSpacing; }
+    void setGiEnabled(bool on) { m_giEnabled = on; }
+    bool isGiEnabled() const { return m_giEnabled; }
+
+    /// Per-frame: where the covered box sits (chunk coords) and whether it holds real data.
+    /// `ready == false` leaves the shader guard clear, so the fallback binding is never read.
+    /// w is a BITFIELD, so no extra std140 field is needed:
+    ///   bit 0 (1) = occupancy readable (0 = buffers hold the inert fallback — do not read them)
+    ///   bit 1 (2) = M2 point/spot light visibility tracing on
+    ///   bit 2 (4) = M3 sky visibility tracing on
+    ///   bit 3 (8) = M5 GI probe field readable (0 = binding 13 holds the inert fallback)
+    void setLightOccupancyBox(const glm::ivec3& boxMinChunk, bool ready) {
+        int w = 0;
+        if (ready) {
+            w |= 1;
+            if (m_lightTracing) w |= 2;
+            if (m_skyTracing)   w |= 4;
+            if (m_giEnabled)    w |= 8;
+        }
+        m_occupancyBox = glm::ivec4(boxMinChunk, w);
+    }
+    /// A/B switches for the M2 and M3 terms, so each one's effect and cost are measurable
+    /// independently against the same scene rather than argued about.
+    void setLightTracingEnabled(bool on) { m_lightTracing = on; }
+    bool isLightTracingEnabled() const { return m_lightTracing; }
+    void setSkyTracingEnabled(bool on) { m_skyTracing = on; }
+    bool isSkyTracingEnabled() const { return m_skyTracing; }
+
     /// Per-frame far-cascade state (rangeEnd 0 disables).
     void setFarShadowCascade(const glm::mat4& lightSpace, float rangeEnd, float depthRange) {
         m_farLightSpace = lightSpace;
@@ -623,6 +673,13 @@ private:
     float       m_nearCascadeRangeEnd = 0.0f;   // 0 = near cascade off
     float       m_nearCascadeDepthRange = 1.0f;
     VkImageView shadowMapFarImageView = VK_NULL_HANDLE;    // far cascade (binding 10)
+    // Sub-voxel light occupancy (bindings 11/12). NOT owned here — VoxelLightOccupancyGpu owns
+    // the memory; these are borrowed handles for descriptor writes only.
+    VkBuffer giProbeBuffer = VK_NULL_HANDLE;
+    glm::vec4 m_giProbeGrid{0.0f, 0.0f, 0.0f, 2.0f};
+    bool m_giEnabled = false;
+    VkBuffer lightOccupancyDirBuffer = VK_NULL_HANDLE;
+    VkBuffer lightOccupancyPoolBuffer = VK_NULL_HANDLE;
     VkSampler   shadowMapFarSampler = VK_NULL_HANDLE;
     glm::mat4   m_farLightSpace{1.0f};
     float       m_farCascadeRangeEnd = 0.0f;    // 0 = far cascade off
@@ -645,6 +702,28 @@ private:
     bool framebufferResized = false;
     AtmosphereUniforms m_atmosphere{};  ///< see setAtmosphereUniforms
     int  m_debugShadowMode = 0;   ///< shadow-only debug view (see setDebugShadowMode)
+    glm::ivec4 m_occupancyBox{0, 0, 0, 0};   ///< xyz = box min chunk, w = 0 none / 1 read / 2 trace
+    bool m_lightTracing = true;              ///< M2 point/spot visibility (default ON)
+    /// M3 traced sky access. DEFAULT OFF — measured at 24.6 ms/frame on a generated medieval town
+    /// (Release, GpuProfiler): Static Geometry 0.142 -> 24.604 ms, 275 -> 35 fps. Correct, and far
+    /// too expensive to ship per-fragment. See docs/UnifiedLightingPlan.md D1 / M3-REDESIGN.
+    /// Enable for measurement with POST /api/debug/light_occupancy?sky=1.
+    // DEFAULT ON since 2026-09-01. This is M3 as the directive specified it: sky visibility TRACED
+    // against real geometry, with no stored per-cell field.
+    //
+    // It shipped off because D1 measured it at 24.6 ms/frame -- and that measurement is what pushed
+    // sky visibility into a per-cell bake, reinstating the exact storage M0 existed to delete. But
+    // D1 ran the shader at 9 rays / reach 24 / 512 cells, while the bake itself was shipped at
+    // 5 rays / reach 16 after measurement showed those still seal a room at every wall thickness.
+    // The per-fragment path was never re-measured at the bake's own settings.
+    //
+    // Measured on Release, generated town, fixed pose, sky OFF/ON interleaved (Static Geometry):
+    //     9 rays / 24 u / 512   24.604 ms      <- the number that retired this path
+    //     5 rays / 16 u / 288    5.166 ms
+    //     + normal-ray gate      2.997 ms      <- vs a 0.318 ms sky-OFF control
+    // The sky term costs +2.68 ms, not +24.46 ms: 9.1x less. And it seals a generated interior --
+    // sky_probe reads 0.0 inside an engine-built hall_house, 0.79-0.92 outside.
+    bool m_skyTracing = true;
     float m_shadowDepthRange = 1.0f;  ///< world-unit light-volume depth span (bias normalization)
 
     // Helper methods for swapchain

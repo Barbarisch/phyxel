@@ -319,8 +319,18 @@ public:
     bool bakedLightAt(const glm::ivec3& localPos, BakedLight& out) const {
         return renderManager.bakedLightAt(localPos.x, localPos.y, localPos.z, out);
     }
+    // Per-cell LIGHT-OPACITY axis mask (bit0 X, bit1 Y, bit2 Z). False if this chunk isn't baked.
+    // Exposed so the API can report WHY a cell passed light instead of leaving it to inference —
+    // "this wall blocks and the identical opposite wall doesn't" is only answerable with this.
+    bool lightOpaqueAt(const glm::ivec3& localPos, uint8_t& mask) const {
+        return renderManager.lightOpaqueAt(localPos.x, localPos.y, localPos.z, mask);
+    }
     // World positions of this chunk's state=flaming voxels (fire VFX seeds; see FireEmitterManager).
     const std::vector<glm::vec3>& getFlamingVoxels() const { return renderManager.getFlamingVoxels(); }
+    /// U3.2: this chunk's emissive voxels, as lights (see ChunkRenderManager::EmissiveLight).
+    const std::vector<Graphics::ChunkRenderManager::EmissiveLight>& getEmissiveLights() const {
+        return renderManager.getEmissiveLights();
+    }
 
     void updateVulkanBuffer();                     // Update GPU buffer with face data
 

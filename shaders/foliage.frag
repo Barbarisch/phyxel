@@ -9,8 +9,6 @@
 
 layout(location = 0) in flat uint vTex;    // leaf texture index (class bit 15 + layer bits 0-14)
 layout(location = 1) in vec2  vCard;       // card-plane coords in [-1,1]
-layout(location = 2) in float vSky;        // baked skylight 0..1
-layout(location = 3) in vec3  vBlock;      // baked block light 0..1/channel
 layout(location = 4) in float vShade;      // per-card brightness variation
 layout(location = 5) in flat uint vMaskV;  // per-card mask variant (bit0 flipX, bit1 flipY, bit2 swap)
 layout(location = 6) in vec4  vShadowCoord; // biased light-space coord (shadow RECEIVING)
@@ -57,7 +55,37 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 moonColor;
     float exposure;
     int   tonemapCurve;
+    // ---- U3.3 prefix: std140 is positional, so occupancyBox needs every field ahead of it ----
+    vec4  skyBodyDirRadius[4];
+    vec4  skyBodyDisc[4];
+    vec4  skyBodyLitDir[4];
+    vec4  skyBodyLight[4];
+    int   skyBodyCount;
+    ivec4 occupancyBox;   // xyz = box min corner (chunk coords), w = 1 when 11/12 are real
 } ubo;
+
+#include "occupancy.glsl"   // U3.3 / D15: leaves get the SAME visibility term as stone
+
+// U3.3 -- a campfire lights the canopy above it. Same regression as grass: the block-light flood
+// that used to reach foliage through vBlock was deleted by M0 and nothing replaced it.
+struct PointLightGPU {
+    vec4 positionAndRadius;
+    vec4 colorAndIntensity;
+};
+struct SpotLightGPU {
+    vec4 positionAndRadius;
+    vec4 directionAndInnerCone;
+    vec4 colorAndIntensity;
+    vec4 outerConeAndPadding;
+};
+layout(std430, set = 0, binding = 3) readonly buffer LightBuffer {
+    uint numPointLights;
+    uint numSpotLights;
+    uint _pad0;
+    uint _pad1;
+    PointLightGPU pointLights[32];
+    SpotLightGPU spotLights[16];
+} lights;
 
 layout(set = 0, binding = 9) uniform sampler2D shadowMapNear;   // near cascade
 
@@ -105,8 +133,11 @@ void main() {
                            phxShadowFast(shadowMapNear,
                                          ubo.biasedLightSpaceNear * vec4(vWorldPos, 1.0),
                                          ubo.shadowCascadeNear.y));
-    float skyGate = phxSkyGate(vSky);
-    vec3  fill    = phxAmbientAtmos(vec3(0.0, 1.0, 0.0), vSky, ubo.ambientColor);
+    // M4: vSky is GONE (constant 1.0 since M0). Leaf cards trace sky like everything else, so a
+    // canopy interior and a leaf under a roof finally differ from one in open air.
+    float sky     = phxSkyVisibility(vWorldPos + ubo.cameraWorld, vec3(0.0, 1.0, 0.0), ubo.occupancyBox);
+    float skyGate = phxSkyGate(sky);
+    vec3  fill    = phxAmbientAtmos(vec3(0.0, 1.0, 0.0), sky, ubo.ambientColor);
     vec3  sunTerm = ubo.sunColor * (0.7 * shadowFactor * skyGate);
 
     // Backlit TRANSMISSION: looking toward the sun through foliage, shadowed leaves glow —
@@ -117,11 +148,36 @@ void main() {
     float backlit  = pow(max(dot(viewDir, rayDir), 0.0), 6.0);
     float trans    = backlit * (1.0 - shadowFactor * 0.6) * (0.25 + 0.75 * skyGate) * 0.9;
 
-    vec3 lit = (col * (fill + sunTerm) + col * trans * ubo.sunColor + col * vBlock * 0.5) * vShade;
+    // U3.3 -- point/spot lights on leaf cards. A card has no single meaningful normal (it is a
+    // billboarded quad), so light it as an upward-facing diffuse receiver: attenuation and
+    // occlusion shape the result, not card orientation. vBlock is the M0 placeholder (constant 0);
+    // this replaces it with real transport.
+    vec3 lampTerm = vec3(0.0);
+    {
+        const vec3 up = vec3(0.0, 1.0, 0.0);
+        vec3 worldP = vWorldPos + ubo.cameraWorld;
+        for (uint i = 0u; i < lights.numPointLights && i < 32u; ++i) {
+            vec3  lp     = lights.pointLights[i].positionAndRadius.xyz;
+            float radius = lights.pointLights[i].positionAndRadius.w;
+            float dist   = length(lp - vWorldPos);
+            if (dist >= radius) continue;
+            if (phxLightVisibility(worldP, up, lp + ubo.cameraWorld, ubo.occupancyBox) <= 0.0)
+                continue;
+            float atten = clamp(1.0 - dist / radius, 0.0, 1.0);
+            atten *= atten;
+            lampTerm += lights.pointLights[i].colorAndIntensity.xyz
+                      * lights.pointLights[i].colorAndIntensity.w * atten;
+        }
+    }
+
+    vec3 lit = (col * (fill + sunTerm + lampTerm) + col * trans * ubo.sunColor) * vShade;
 
     // Debug view 2 is the GRASS WIND ramp. Everything that is not grass must go flat and
     // dark, or the shadow-only view underneath drowns the signal it exists to show.
     if (ubo.debugShadowMode == 2) { outColor = vec4(0.05, 0.05, 0.06, 1.0); return; }
     if (ubo.debugShadowMode == 1) { outColor = phxShadowOnly(shadowFactor); return; }
+    // D4: same rule as grass — a per-system view this pass does not implement must go flat dark
+    // rather than swamp the measurement.
+    if (ubo.debugShadowMode >= 3) { outColor = vec4(0.02, 0.02, 0.025, 1.0); return; }
     outColor = vec4(lit, 1.0);
 }

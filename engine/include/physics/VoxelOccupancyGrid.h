@@ -67,12 +67,20 @@ public:
 
     void clear();
 
+    // Bumped by every mutation. A consumer that mirrors this grid elsewhere (the GPU light
+    // occupancy) polls it to rebuild only the chunks that actually changed, instead of rebuilding
+    // every resident chunk on any edit. Deliberately lives HERE rather than as a separate dirty
+    // set owned by a caller: a flag that can be forgotten at a mutation site silently serves stale
+    // geometry, and stale occupancy shows up as light passing through a wall.
+    uint32_t revision() const { return m_revision; }
+
     // Broad chunk-level AABB for fast pre-rejection
     glm::vec3 chunkWorldMin() const { return glm::vec3(m_origin); }
     glm::vec3 chunkWorldMax() const { return glm::vec3(m_origin) + glm::vec3(CHUNK_SIZE); }
 
 private:
     glm::ivec3 m_origin{0};
+    uint32_t m_revision = 0;
 
     // Dense cube-level bitsets: 32³ = 32768 bits = 4 KB each
     std::bitset<32*32*32> m_cubes;

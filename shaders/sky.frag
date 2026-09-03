@@ -82,5 +82,8 @@ void main() {
 
     // The SAME exposure and curve the world uses. A sky with its own would drift from the ground it
     // meets, and that seam is the most visible artifact available.
+    // D4: the sky fills most of a frame and implements no per-system isolation view, so in modes
+    // 3-9 it must go dark rather than swamp the measurement those views exist to make.
+    if (ubo.debugShadowMode >= 3) { outColor = vec4(0.01, 0.01, 0.015, 1.0); return; }
     outColor = vec4(radiance, 1.0);
 }

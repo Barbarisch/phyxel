@@ -26,9 +26,9 @@ layout(location = 1) in uint inPackedData;      // per-instance: packed position
 layout(location = 2) in uint inTextureIndex;    // per-instance texture atlas index
 layout(location = 3) in uint inFlags;           // per-instance flags (emissive, etc.)
 layout(location = 4) in uint inLight;           // per-instance: 4 per-corner skylight nibbles (bits0-15)
-layout(location = 5) in uint inLight2;          // per-instance: per-corner block RGB (corner0 bits0-11, corner1 bits12-23)
-layout(location = 6) in uint inLight3;          // per-instance: per-corner block RGB (corner2 bits0-11, corner3 bits12-23)
-layout(location = 7) in uint inTint;            // per-instance: packed 0xRRGGBB tint (0xFFFFFF = none)
+// U7: the two per-corner block-light attributes are GONE (pinned to 0 since M0; U3.2 made emissive
+// voxels real point lights instead), so tint moves up from location 7 to 5.
+layout(location = 5) in uint inTint;            // per-instance: packed 0xRRGGBB tint (0xFFFFFF = none)
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -59,7 +59,6 @@ layout(location = 3) out flat uint flags;         // pass flags to frag shader
 layout(location = 4) out vec3 outNormal;          // pass normal to frag shader
 layout(location = 5) out vec3 outWorldPos;        // pass world position to frag shader
 layout(location = 6) out float vSkyLight;          // baked skylight, normalized 0..1 — SMOOTH (interpolated per-corner)
-layout(location = 7) out vec3  vBlockColor;        // baked coloured block light, 0..1/channel — SMOOTH (interpolated per-corner)
 layout(location = 8) out vec3  vTint;              // per-voxel tint (low 24 bits of inTint)
 layout(location = 9) out flat uint vState;         // per-voxel state (high byte of inTint): 0 normal,1 flaming,2 smoldering,3 charred,4 wet
 layout(location = 10) out flat vec3 vChunkBaseAbs; // exact absolute chunk origin (varied-hash seed)
@@ -392,15 +391,15 @@ void main() {
     // the in-plane (bit0,bit1) of the cube vertex (vertexID is 0-7 cube corners; faceOffset uses
     // only bits 0-1), so mask with 3. Outputting per-vertex (non-flat) lets the rasterizer
     // interpolate it, turning blocky per-face steps into smooth gradients + ambient occlusion.
-    uint corner = vertexID & 3u;
-    uint cornerSky = (inLight >> (corner * 4u)) & 0xFu;
-    vSkyLight = float(cornerSky) / 15.0;
-    // Smooth per-corner block light: corners 0,1 in inLight2, corners 2,3 in inLight3
-    // (12 bits each: R bits0-3, G bits4-7, B bits8-11). Interpolated like skylight.
-    uint blkSrc   = (corner < 2u) ? inLight2 : inLight3;
-    uint blkShift = (corner < 2u) ? (corner * 12u) : ((corner - 2u) * 12u);
-    uint rgb12 = (blkSrc >> blkShift) & 0xFFFu;
-    vBlockColor = vec3(float(rgb12 & 0xFu),
-                       float((rgb12 >> 4u) & 0xFu),
-                       float((rgb12 >> 8u) & 0xFu)) / 15.0;
+    // U7/M4: the per-corner SKYLIGHT nibbles in inLight bits0-15 are dead -- sky access is traced
+    // per fragment now (M3), and m_skyLight is deleted, so those nibbles were a uniform 15 and
+    // voxel.frag no longer multiplies by vSkyLight. Emitting a constant keeps the varying slot
+    // (dynamic_voxel.vert and kinematic_voxel.vert still declare location 6) without pretending a
+    // per-corner value exists. Bits 16-31 of inLight remain LIVE as the fine-merge extents.
+    vSkyLight = 1.0;
+    // U7 stage 1: the two per-corner block-light ATTRIBUTES are removed from InstanceData (24 -> 16
+    // bytes). The varying stays for now because dynamic_voxel.vert and kinematic_voxel.vert still
+    // declare location 7 and voxel.frag's debug view 4 reads it; block light has been a constant 0
+    // since M0 regardless, so emitting 0 here changes nothing. Stage 2 removes the varying and the
+    // m_blockR/G/B arrays behind it.
 }

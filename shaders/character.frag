@@ -57,7 +57,17 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3  moonColor;
     float exposure;
     int   tonemapCurve;
+    // U2: prefix padding to reach occupancyBox. Not otherwise read here; the std140 offsets must
+    // match the C++ UniformBufferObject exactly or occupancyBox lands on the wrong bytes.
+    vec4  skyBodyDirRadius[4];
+    vec4  skyBodyDisc[4];
+    vec4  skyBodyLitDir[4];
+    vec4  skyBodyLight[4];
+    int   skyBodyCount;
+    ivec4 occupancyBox;   // xyz = box min corner (chunk coords), w = bitfield (see occupancy.glsl)
 } ubo;
+
+#include "occupancy.glsl"   // U2 / D14: the same visibility term voxel.frag uses
 
 // Point light (32 bytes, std430)
 struct PointLightGPU {
@@ -85,17 +95,9 @@ layout(std430, set = 0, binding = 3) readonly buffer LightBuffer {
 // Sun shadow map (shared set-0 binding 2, same as voxel.frag). Characters now RECEIVE
 // sun shadows so a character standing in a building's shadow is darkened like the world.
 layout(set = 0, binding = 2) uniform sampler2D shadowMap;
-
-const vec2 poissonDisk[16] = vec2[](
-    vec2(-0.94201624,  -0.39906216), vec2( 0.94558609,  -0.76890725),
-    vec2(-0.094184101, -0.92938870), vec2( 0.34495938,   0.29387760),
-    vec2(-0.91588581,   0.45771432), vec2(-0.81544232,  -0.87912464),
-    vec2(-0.38277543,   0.27676845), vec2( 0.97484398,   0.75648379),
-    vec2( 0.44323325,  -0.97511554), vec2( 0.53742981,  -0.47373420),
-    vec2(-0.26496911,  -0.41893023), vec2( 0.79197514,   0.19090188),
-    vec2(-0.24188840,   0.99706507), vec2(-0.81409955,   0.91437590),
-    vec2( 0.19984126,   0.78641367), vec2( 0.14383161,  -0.14100790)
-);
+// U1: the NEAR cascade, which this pass previously did not sample at all.
+layout(set = 0, binding = 9) uniform sampler2D shadowMapNear;
+// (the private 16-tap poissonDisk that used to live here is gone — lighting.glsl owns the filter)
 
 layout(location = 0) out vec4 outColor;
 
@@ -126,23 +128,27 @@ void main() {
     float sky        = fragBakedLight.x;
     vec3  blockColor = fragBakedLight.yzw;
     float skyCurve   = sky * sky;
-    const float kSkyFill = 0.35;
+    // U1: a private `const float kSkyFill = 0.35;` sat here, left over from before this pass moved
+    // to phxAmbientAtmos. It had no readers and contradicted the shared model's own kSkyFill.
+    // Deleted rather than left to be "restored" by a later reader.
 
-    // Sun shadow: light-space coord computed here (the vert has no UBO binding), using the
-    // CPU-precombined bias*lightSpace matrix — one mat4*vec4 instead of a mat4*mat4 per fragment.
+    // U1 — SHARED shadow model. This pass used to run its own 16-tap PCF with a hardcoded
+    // `kShadowBias = 0.0009`, a RAW NORMALIZED-DEPTH constant. lighting.glsl documents that exact
+    // policy as the bug it was created to fix: a raw constant's PHYSICAL size scales with the
+    // shadow distance (0.26 u at 40 u, 0.85 u at 420 u — taller than a grass blade), so the bias
+    // meant something different at every cascade. phxShadowBias authors it in WORLD units and
+    // divides by the fitted volume's depth span, so it means the same thing everywhere.
+    //
+    // It also sampled the MID map only, while grass and foliage have min-composed the NEAR cascade
+    // since 2026-08-06 — characters were the last receiver still missing fine contact shadows.
     vec4 shadowCoord = ubo.biasedLightSpace * vec4(fragWorldPos, 1.0);
-    float shadowFactor = 1.0;
-    bool inShadowMap = shadowCoord.x >= 0.0 && shadowCoord.x <= 1.0 &&
-                       shadowCoord.y >= 0.0 && shadowCoord.y <= 1.0;
-    if (inShadowMap && shadowCoord.z > -1.0 && shadowCoord.z < 1.0 && shadowCoord.w > 0.0) {
-        float shadowSum = 0.0;
-        vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
-        const float kShadowBias = 0.0009; // slightly larger than world's 0.0006 (chars aren't greedy-merged casters)
-        for (int i = 0; i < 16; i++) {
-            float pcfDepth = texture(shadowMap, shadowCoord.xy + poissonDisk[i] * texelSize * 1.5).r;
-            if (shadowCoord.z - kShadowBias > pcfDepth) shadowSum += 1.0;
-        }
-        shadowFactor = 1.0 - (shadowSum / 16.0);
+    float shadowFactor = phxShadowPCSS(shadowMap, shadowCoord, diff, gl_FragCoord.xy,
+                                       ubo.shadowDepthRange);
+    if (ubo.shadowCascadeNear.x > 0.0) {
+        vec4 nearCoord = ubo.biasedLightSpaceNear * vec4(fragWorldPos, 1.0);
+        shadowFactor = min(shadowFactor,
+                           phxShadowPCSS(shadowMapNear, nearCoord, diff, gl_FragCoord.xy,
+                                         ubo.shadowCascadeNear.y));
     }
 
     // Shared hemispheric fill driven by the atmosphere, so a character's shaded side goes cool
@@ -158,6 +164,11 @@ void main() {
     }
     finalLight += blockColor * blockColor; // omnidirectional warm/colored fill from baked block light
 
+    // D4 (prerequisite for U2's gate): characters had NO debug views at all, so the one thing the
+    // M2 gate needs to see on a character — its forward point/spot contribution in isolation —
+    // was unmeasurable. Accumulated separately here and emitted under mode 5, matching voxel.frag.
+    vec3 dbgForward = vec3(0.0);
+
     // Point lights
     for (uint i = 0u; i < lights.numPointLights && i < 32u; i++) {
         vec3 lightPos = lights.pointLights[i].positionAndRadius.xyz;
@@ -170,13 +181,20 @@ void main() {
         if (dist < radius) {
             vec3 ldir = toLight / dist;
             float ndotl = max(dot(normal, ldir), 0.0);
-            float atten = calcAttenuation(dist, radius);
-            float pSpec = 0.0;
-            if (ndotl > 0.0) {
+            // U2 / D14: a lantern sealed inside a stone room used to light a character standing
+            // OUTSIDE it, because this loop had no visibility term at all while voxel.frag did.
+            // `normal` is the geometric normal here — characters are not normal-mapped — so it is
+            // safe to use as the ray-origin offset.
+            if (ndotl > 0.0 &&
+                phxLightVisibility(fragWorldPos + ubo.cameraWorld, normal,
+                                   lightPos + ubo.cameraWorld, ubo.occupancyBox) > 0.0) {
+                float atten = calcAttenuation(dist, radius);
                 vec3 h = normalize(ldir + viewDir);
-                pSpec = pow(max(dot(normal, h), 0.0), 32.0) * 0.3;
+                float pSpec = pow(max(dot(normal, h), 0.0), 32.0) * 0.3;
+                vec3 contrib = lightColor * intensity * (ndotl + pSpec) * atten;
+                finalLight += contrib;
+                dbgForward += contrib;
             }
-            finalLight += lightColor * intensity * (ndotl + pSpec) * atten;
         }
     }
 
@@ -195,15 +213,20 @@ void main() {
         if (dist < radius) {
             vec3 ldir = toLight / dist;
             float ndotl = max(dot(normal, ldir), 0.0);
-            float atten = calcAttenuation(dist, radius);
             float theta = dot(-ldir, spotDir);
             float spotFactor = smoothstep(outerCone, innerCone, theta);
-            float sSpec = 0.0;
-            if (ndotl > 0.0) {
+            // Trace only inside the cone and on facing surfaces — outside either the contribution
+            // is already zero and a march would be pure cost.
+            if (ndotl > 0.0 && spotFactor > 0.0 &&
+                phxLightVisibility(fragWorldPos + ubo.cameraWorld, normal,
+                                   lightPos + ubo.cameraWorld, ubo.occupancyBox) > 0.0) {
+                float atten = calcAttenuation(dist, radius);
                 vec3 h = normalize(ldir + viewDir);
-                sSpec = pow(max(dot(normal, h), 0.0), 32.0) * 0.3;
+                float sSpec = pow(max(dot(normal, h), 0.0), 32.0) * 0.3;
+                vec3 contrib = lightColor * intensity * (ndotl + sSpec) * atten * spotFactor;
+                finalLight += contrib;
+                dbgForward += contrib;
             }
-            finalLight += lightColor * intensity * (ndotl + sSpec) * atten * spotFactor;
         }
     }
 
@@ -211,5 +234,25 @@ void main() {
     // RagdollCharacter::setRenderAlpha). It only becomes visible when the
     // character is drawn through the blend-enabled translucent pipeline;
     // opaque characters carry a = 1 and are unaffected.
+    // Debug views, matching voxel.frag's numbering so a capture means the same thing on every
+    // surface. Mode 5 is THE M2/U2 gate view: the forward point/spot term alone.
+    if (ubo.debugShadowMode == 1) { outColor = phxShadowOnly(shadowFactor); return; }
+    if (ubo.debugShadowMode == 2) { outColor = vec4(0.05, 0.05, 0.06, 1.0); return; }
+    if (ubo.debugShadowMode == 5) { outColor = vec4(dbgForward, 1.0); return; }
+    // Mode 8 — OCCUPANCY BINDING HEALTH, same colours as voxel.frag's mode 8. This is the view
+    // that answers "did the std140 prefix in THIS shader actually reach ubo.occupancyBox", which
+    // is the whole risk when a shader declares a long prefix to reach a trailing field: a wrong
+    // offset reads neighbouring bytes and the visibility term silently disables itself.
+    //   blue = occupancy not readable here (w bit0 clear) — misaligned, or genuinely absent
+    //   red  = readable, and this fragment's own cell reads SOLID
+    //   green= readable, and its cell reads empty (normal for a character standing in air)
+    if (ubo.debugShadowMode == 8) {
+        if ((ubo.occupancyBox.w & 1) == 0) { outColor = vec4(0.0, 0.0, 1.0, 1.0); return; }
+        vec3 probe = fragWorldPos + ubo.cameraWorld - normal * (0.5 / 9.0);
+        bool solid = phxOccupancySolid(ivec3(floor(probe * 9.0)), ubo.occupancyBox);
+        outColor = solid ? vec4(1.0, 0.0, 0.0, 1.0) : vec4(0.0, 1.0, 0.0, 1.0);
+        return;
+    }
+
     outColor = vec4(fragColor.rgb * finalLight, fragColor.a);
 }

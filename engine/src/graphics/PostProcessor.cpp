@@ -383,21 +383,38 @@ bool PostProcessor::createSceneRenderPass() {
     std::array<VkAttachmentDescription, 2> attachments = {colorAttachment, depthAttachment};
     
     // Dependencies
+    //
+    // D20a (docs/UnifiedLightingPlan.md) — DEPTH MUST APPEAR HERE TOO. This pass has two
+    // attachments: colour (0) and DEPTH (1). Both dependencies used to name only
+    // COLOR_ATTACHMENT_OUTPUT / COLOR_ATTACHMENT_WRITE, so the depth attachment's LOAD_OP_CLEAR --
+    // which writes at EARLY_FRAGMENT_TESTS with DEPTH_STENCIL_ATTACHMENT_WRITE -- was not
+    // synchronised against the layout transition. Synchronization validation reported it 10x per
+    // run as SYNC-HAZARD-WRITE-AFTER-WRITE ("clears the depth aspect of attachment 1 ... must allow
+    // VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT at EARLY_FRAGMENT_TESTS").
+    //
+    // LATE_FRAGMENT_TESTS is included on the src side because that is where the PREVIOUS frame's
+    // depth writes retire.
     std::array<VkSubpassDependency, 2> dependencies;
 
     dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
     dependencies[0].dstSubpass = 0;
-    dependencies[0].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependencies[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[0].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
+                                   VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+                                   VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependencies[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT |
+                                    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+                                    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
     dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
     dependencies[1].srcSubpass = 0;
     dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
-    dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+                                   VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
     dependencies[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT |
+                                    VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
     dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
     dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
@@ -1213,13 +1230,45 @@ bool PostProcessor::createBlurRenderPass() {
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
 
-    VkSubpassDependency dependency{};
-    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-    dependency.dstSubpass = 0;
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.srcAccessMask = 0;
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    // U5 / docs/UnifiedLightingPlan.md — READ-AFTER-WRITE ACROSS THE PING-PONG.
+    //
+    // renderBlur() runs 10 passes that alternate between the two blur images: pass i WRITES
+    // blurImages[out] as a colour attachment, and pass i+1 SAMPLES that same image. There is no
+    // barrier inside that loop, so this render pass's dependencies are the only synchronisation
+    // there is.
+    //
+    // This used to declare a single dependency with srcAccessMask = 0 and both stage masks set to
+    // COLOR_ATTACHMENT_OUTPUT — write-vs-write only. The fragment-shader READ never appeared in any
+    // dependency, so the sampled data was neither made available nor visible: a textbook RAW hazard,
+    // repeated ten times per frame.
+    //
+    // MEASURED CONSEQUENCE (before this fix): on a completely static scene, bloom-ON frame mean
+    // oscillated over a 3.983 range while bloom-OFF held to 0.085 — 47x — i.e. bloom was not a
+    // deterministic function of its input. That non-determinism is the leading explanation for the
+    // "spots/blotches, not a smooth glow" defect, and for why the firefly clamp changed nothing.
+    //
+    // Standard Vulkan validation does NOT check synchronisation, which is why this survived a clean
+    // validation run. The pair below mirrors createSceneRenderPass()'s dependencies.
+    std::array<VkSubpassDependency, 2> dependencies{};
+
+    // WAR: do not start writing the attachment until prior sampling of it has finished.
+    dependencies[0].srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependencies[0].dstSubpass = 0;
+    dependencies[0].srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    dependencies[0].srcAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    dependencies[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependencies[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[0].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+
+    // RAW: make this pass's writes available and visible to the NEXT pass's sampler. This is the
+    // one that was missing.
+    dependencies[1].srcSubpass = 0;
+    dependencies[1].dstSubpass = VK_SUBPASS_EXTERNAL;
+    dependencies[1].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependencies[1].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies[1].dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    dependencies[1].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    dependencies[1].dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
     VkRenderPassCreateInfo renderPassInfo{};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -1227,8 +1276,8 @@ bool PostProcessor::createBlurRenderPass() {
     renderPassInfo.pAttachments = &colorAttachment;
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
-    renderPassInfo.dependencyCount = 1;
-    renderPassInfo.pDependencies = &dependency;
+    renderPassInfo.dependencyCount = static_cast<uint32_t>(dependencies.size());
+    renderPassInfo.pDependencies = dependencies.data();
 
     if (vkCreateRenderPass(device->getDevice(), &renderPassInfo, nullptr, &blurRenderPass) != VK_SUCCESS) {
         return false;
@@ -1529,6 +1578,8 @@ void PostProcessor::renderBloom(VkCommandBuffer commandBuffer) {
         const float exposureRel = (m_gradeExposure > 0.0f) ? m_gradeExposure : 1.0f;
         bp.threshold  = (i == 0) ? (m_bloomThreshold / exposureRel) : 0.0f;
         bp.knee       = m_bloomKnee / exposureRel;
+        bp.radiusScale = m_bloomRadiusScale;   // 1.0 = shipped; >1 widens the blur (see header)
+        bp.clampMul    = m_bloomClampMul;      // 8 = shipped firefly clamp; huge = disabled
         vkCmdPushConstants(commandBuffer, blurPipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(bp), &bp);
         
         vkCmdDraw(commandBuffer, 3, 1, 0, 0);
@@ -1945,7 +1996,12 @@ bool PostProcessor::createWaterRenderPass() {
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
         VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT |
             VK_ACCESS_TRANSFER_READ_BIT,
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
+        // D20b (docs/UnifiedLightingPlan.md): colorAtt.loadOp is LOAD_OP_LOAD, and a loadOp of LOAD
+        // is a READ of the attachment -- so COLOR_ATTACHMENT_READ has to be permitted here, not just
+        // WRITE. Without it, synchronization validation reported SYNC-HAZARD-READ-AFTER-WRITE 10x
+        // per run ("must allow VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT at COLOR_ATTACHMENT_OUTPUT").
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT |
+            VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT,
         VK_DEPENDENCY_BY_REGION_BIT };
     // Our color writes must be visible to the later samplers (post-process / OIT resolve).
     deps[1] = { 0, VK_SUBPASS_EXTERNAL,

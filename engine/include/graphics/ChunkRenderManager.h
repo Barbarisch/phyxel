@@ -48,6 +48,12 @@ public:
     // (recovers most of the perf lost to smoothing; gentle gradients re-merge, imperceptibly).
     static bool s_smoothLighting;
     static int  s_mergeTolerance;
+    // M3-REDESIGN. The alias must be declared BEFORE the member that uses it (see the accessors
+    // further down for what this is and why it is injected).
+    using SkyVisibilityFn = std::function<float(const glm::vec3& worldPos, const glm::vec3& normal)>;
+    static SkyVisibilityFn s_skyVisibility;
+
+
     // Billboarded foliage: when ON, the mesher skips solid faces for "billboarded" leaf subcubes
     // and collects foliage card instances instead (FoliageRenderPipeline draws them). Toggling
     // requires a chunk re-bake. Default ON.
@@ -66,9 +72,35 @@ public:
     // to the pre-merge engine. Increment 1 uses it to emit ONE hand-forged merged subcube quad
     // (the encoding spike that proves extents-in-light-word rendering); later increments gate the
     // real fine mesher on it for live A/B. See docs/BinaryGreedyMeshingPlan.md.
+    // --- FLOOD BYPASS (2026-08-29) -------------------------------------------------------------
+    // Turn the Minecraft-style per-cell flood OFF and see whether an artifact survives. If it
+    // vanishes the flood owns it; if it persists the flood is innocent and the cause is elsewhere.
+    // That is a direct experiment, and it replaces arguing from screenshots about which of three
+    // lighting systems produced a given band.
+    //
+    // Bit 1 = skylight forced UNIFORM 15 (removes the flood's spatial variation without making
+    //         the world black — zeroing skylight would gate off the sun and ambient too, which
+    //         tells you nothing).
+    // Bit 2 = block light forced to ZERO (removes emissive-voxel flood entirely).
+    // Requires a re-bake to take effect, like s_smoothLighting; the API triggers one.
+    static int s_floodBypass;
+    static void setFloodBypass(int mask) { s_floodBypass = mask; }
+    static int  getFloodBypass()         { return s_floodBypass; }
+
     static bool s_fineGreedyMerge;
     static void setFineGreedyMerge(bool on) { s_fineGreedyMerge = on; }
     static bool getFineGreedyMerge()        { return s_fineGreedyMerge; }
+    // ---- M3-REDESIGN: BAKED sky visibility ------------------------------------------------
+    // Per-fragment sky tracing was correct and unshippable: 24.6 ms/frame on a generated town,
+    // 275 -> 35 fps (D1). The cost is per fragment per frame for a quantity that only changes when
+    // the WORLD changes, so it moves to chunk-bake time and the shader reads one interpolated
+    // value again — which is what the deleted flood's storage was for.
+    //
+    // The query is INJECTED rather than reached for: the occupancy pool lives in the renderer and
+    // spans chunks (a wall in the next chunk must occlude), while this class is the mesher. The
+    // callback takes a world position and a normal and returns 0..1 sky access.
+    static void setSkyVisibilityFn(SkyVisibilityFn fn) { s_skyVisibility = std::move(fn); }
+
     static void setSmoothLighting(bool on) { s_smoothLighting = on; }
     static void setMergeTolerance(int t)   { s_mergeTolerance = t < 0 ? 0 : t; }
     static bool getSmoothLighting()        { return s_smoothLighting; }
@@ -143,10 +175,36 @@ public:
     // Read this chunk's baked light at a local cell (for neighbours). Returns false if not baked.
     bool bakedLightAt(int x, int y, int z, BakedLight& out) const;
 
+    /// Diagnostic: the per-cell light-opacity AXIS MASK the bake and the dynamic-light volume
+    /// both read (bit 0 = blocks along X, 1 = Y, 2 = Z). Returns false if this chunk has no
+    /// baked opacity (never meshed, or released as a uniform chunk). Exists so a test can ask
+    /// "does the engine think THIS cell is a wall" directly, instead of inferring it from how
+    /// light behaved — the two are different questions and conflating them hides bugs.
+    bool lightOpaqueAt(int x, int y, int z, uint8_t& mask) const {
+        if (m_lightOpaque.empty()) return false;
+        if (x < 0 || x >= 32 || y < 0 || y >= 32 || z < 0 || z >= 32) return false;
+        mask = m_lightOpaque[static_cast<size_t>(z + y * 32 + x * 1024)];
+        return true;
+    }
+
     // World positions of this chunk's state=flaming leaf voxels, collected on the
     // last rebuild. The fire VFX manager reads these to spawn a flame tongue per
     // ember (see Graphics::FireEmitterManager). Empty for chunks with no fire.
     const std::vector<glm::vec3>& getFlamingVoxels() const { return m_flamingVoxels; }
+
+    /// U3.2 — an emissive voxel IS a light. One emitter model: radiance x visibility.
+    ///
+    /// The deleted flood already enumerated these; it seeded a per-cell BFS with them. This
+    /// collects the same voxels and hands them to LightManager as real point lights, so a glow
+    /// block occludes correctly (M2's visibility term), obeys inverse-square, and depends on the
+    /// receiving normal -- none of which a flood could do.
+    struct EmissiveLight {
+        glm::vec3 worldPos;   ///< centre of the emitting voxel, in world units
+        glm::vec3 color;      ///< hue: material colorTint, or the per-voxel tint when burning
+        float     intensity;  ///< 0..1, from the material's emissive strength
+        float     radius;     ///< reach, scaled with intensity
+    };
+    const std::vector<EmissiveLight>& getEmissiveLights() const { return m_emissiveLights; }
 
     void rebuildSubcubeFaces(
         const std::vector<std::unique_ptr<Subcube>>& subcubes,
@@ -304,14 +362,12 @@ private:
     // Baked per-cell skylight for this chunk (32x32x32, value 0-15 per air cell; solid=0).
     // Computed in rebuildCubeFaces from chunk occupancy; consumed by all three face builders
     // to set per-face light. Phase 1: per-chunk only (boundaries fall back to open sky).
-    std::vector<uint8_t> m_skyLight;
     // Skylight of the air cell at local (x,y,z); 15 (open sky) if out of chunk bounds.
     uint8_t skyLightAt(int x, int y, int z) const;
 
     // Baked per-cell COLORED block light (32x32x32, each channel 0-15): flood-filled from emissive
     // voxels in their material colour (physics.colorTint), so a torch glows warm, a crystal blue,
     // etc. Three channels propagate independently (correct colour blending where lights overlap).
-    std::vector<uint8_t> m_blockR, m_blockG, m_blockB;
     // Block light colour of the air cell at local (x,y,z); 0 if out of chunk bounds (no source).
     void blockLightAt(int x, int y, int z, uint8_t& r, uint8_t& g, uint8_t& b) const;
 
@@ -342,7 +398,17 @@ private:
     //   * TRANSPARENT materials do NOT occlude. Glass was blocking skylight completely, so a glazed
     //     room baked pitch dark.
     // Pinned by tests/graphics/LightBakeOcclusionTest.cpp.
-    std::vector<uint8_t>  m_lightOpaque;  // 1 = blocks skylight and block light
+    // Per-cell light opacity as a 3-BIT AXIS MASK: bit 0 blocks travel along X, bit 1 along Y,
+    // bit 2 along Z. Non-zero means "blocks something"; kOpaqueAllAxes means "blocks everything".
+    // It became per-axis on 2026-08-28: opacity is a question about the cross-section a ray
+    // crosses, and the scalar fill fraction it replaced could not tell a thin full-face WALL from
+    // a scattered handful of decorative subcubes. See the coverage block in rebuildCubeFaces.
+    std::vector<uint8_t>  m_lightOpaque;
+    static constexpr uint8_t kOpaqueAllAxes = 0x7;
+    /// Does cell `cell` block light travelling along `axis` (0=X, 1=Y, 2=Z)?
+    bool blocksAxis(int cell, int axis) const {
+        return (m_lightOpaque[cell] & (1u << axis)) != 0u;
+    }
     // Sub-voxel fill per cell in MICRO-equivalents (a subcube = 27, a microcube = 1, full = 729).
     // A cell counts as light-opaque at or above kLightOpaqueFill: the volume of one full
     // subcube-thick slab (243 = 729/3), which is what a 1-subcube wall or roof actually occupies.
@@ -381,6 +447,7 @@ private:
 
     // World positions of state=flaming leaf voxels found on the last rebuild (fire VFX seeds).
     std::vector<glm::vec3> m_flamingVoxels;
+    std::vector<EmissiveLight> m_emissiveLights;   // U3.2: emissive voxels, as real lights
 
     // Member variables
     std::vector<InstanceData> faces;           // Visible faces (CPU pre-filtered)

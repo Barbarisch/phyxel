@@ -87,6 +87,20 @@ public:
     uint32_t getScreenWidth() const { return screenWidth_; }
     uint32_t getScreenHeight() const { return screenHeight_; }
 
+    /// Place the HUD inside a sub-rect of the target, in target pixels.
+    ///
+    /// The HUD is authored in its own logical space of screenWidth_ x screenHeight_ and is mapped
+    /// to NDC by the vertex push constant; the Vulkan viewport transform then lands that NDC square
+    /// wherever this rect says, scaling to fit. So this is purely placement — widget layout is
+    /// unaffected.
+    ///
+    /// Needed since the HUD moved to the post-process pass (docs/UnifiedLightingPlan.md D18): the
+    /// editor draws it over its DOCKED viewport image rather than the whole window. A zero/negative
+    /// size means "fill the target", which is what a standalone game wants.
+    void setViewportRect(float x, float y, float w, float h) {
+        viewportX_ = x; viewportY_ = y; viewportW_ = w; viewportH_ = h;
+    }
+
 private:
     bool createPipeline(VkRenderPass renderPass);
     bool createDescriptorResources();
@@ -101,6 +115,9 @@ private:
     Vulkan::VulkanDevice* device_;
     uint32_t screenWidth_;
     uint32_t screenHeight_;
+
+    // Sub-rect placement — see setViewportRect(). w<=0 means "fill the target".
+    float viewportX_ = 0.0f, viewportY_ = 0.0f, viewportW_ = 0.0f, viewportH_ = 0.0f;
 
     // Vulkan resources
     VkPipeline pipeline_ = VK_NULL_HANDLE;

@@ -149,8 +149,6 @@ void LodChunkMesh::emitFaces(const LodVolume& volume,
             // Flat full-bright lighting: the coarse path has no baked per-corner light yet, and
             // inventing one would be worse than being visibly uniform. Tracked as C4 follow-up.
             inst.light = 0xFFFFu;
-            inst.light2 = 0;
-            inst.light3 = 0;
             inst.tint = 0xFFFFFFu;
             out.push_back(inst);
         }

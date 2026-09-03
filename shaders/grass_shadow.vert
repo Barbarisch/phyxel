@@ -111,8 +111,6 @@ layout(location = 0) out flat uint vTex;   // grass texture index
 layout(location = 1) out vec2  vUV;        // colour-sample UV into the grass tile
 layout(location = 2) out float vGrad;      // 0 at blade base .. 1 at tip (silhouette + AO)
 layout(location = 3) out float vSide;      // -1..1 across blade width (silhouette taper)
-layout(location = 4) out float vSky;       // baked skylight 0..1
-layout(location = 5) out vec3  vBlock;     // baked block light 0..1/channel
 layout(location = 6) out vec4  vShadowCoord; // biased light-space coord (shadow RECEIVING)
 // WIND DEBUG (ubo.debugShadowMode == 2): how far the wind is pushing THIS vertex, as a fraction
 // of its own arc length — i.e. sin(lean angle), 0 = upright, 0.9 = at the lean cap. Published
@@ -162,10 +160,6 @@ void main() {
     float lx = float(packed & 0x1Fu);
     float ly = float((packed >> 5) & 0x1Fu);
     float lz = float((packed >> 10) & 0x1Fu);
-    vSky      = float((packed >> 15) & 0xFu) / 15.0;
-    vBlock    = vec3(float((packed >> 19) & 0xFu),
-                     float((packed >> 23) & 0xFu),
-                     float((packed >> 27) & 0xFu)) / 15.0;
     vTex = inTex & 0xFFFFu;
 
     // Min corner of the voxel's top face, CAMERA-RELATIVE (all position math below).

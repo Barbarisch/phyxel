@@ -52,7 +52,6 @@ layout(location = 3) out flat uint flags;
 layout(location = 4) out vec3      outNormal;
 layout(location = 5) out vec3      outWorldPos;
 layout(location = 6) out float vSkyLight;          // baked skylight (must match voxel.frag: non-flat)
-layout(location = 7) out vec3  vBlockColor;        // baked block light (must match voxel.frag: non-flat)
 layout(location = 8) out vec3  vTint;              // per-voxel tint (decoded from inFaceId high bits)
 layout(location = 9) out flat uint vState;         // per-voxel state — not carried on the kinematic path yet (always 0)
 layout(location = 10) out flat vec3 vChunkBaseAbs; // varied-hash seed — unused (flags=0 disables varied here)
@@ -131,7 +130,6 @@ void main() {
     texCoord     = uv;
     outWorldPos  = worldPos;
     vSkyLight    = pc.bakedLight.x;    // Phase 4: baked skylight sampled at the object's position
-    vBlockColor  = pc.bakedLight.yzw;  // Phase 4: baked block light (glow/spell) at the object
 
     gl_Position = ubo.viewProj * vec4(worldPos, 1.0);
 }
