@@ -260,6 +260,47 @@ bool ddaHitsSolid(const PackedOccupancyPool& packed, const glm::vec3& from, cons
     return false;
 }
 
+/// World-unit length of the contiguous SOLID run containing `lightWorld`, measured outward along
+/// `dirOut`. 0.0 when the light sits in air. Mirrors occupancy.glsl's phxEmitterRunLength exactly —
+/// see it for why the emitter's body is measured rather than assumed to be a fixed size.
+float emitterRunLength(const PackedOccupancyPool& packed, const glm::vec3& lightWorld,
+                       const glm::vec3& dirOut, int maxCells) {
+    const glm::vec3 a = lightWorld * 9.0f;   // micro space
+    glm::ivec3 cell{static_cast<int>(std::floor(a.x)), static_cast<int>(std::floor(a.y)),
+                    static_cast<int>(std::floor(a.z))};
+
+    glm::ivec3 step;
+    glm::vec3 tMax, tDelta;
+    for (int i = 0; i < 3; ++i) {
+        if (dirOut[i] > 1e-9f) {
+            step[i] = 1;
+            tMax[i] = (static_cast<float>(cell[i] + 1) - a[i]) / dirOut[i];
+            tDelta[i] = 1.0f / dirOut[i];
+        } else if (dirOut[i] < -1e-9f) {
+            step[i] = -1;
+            tMax[i] = (a[i] - static_cast<float>(cell[i])) / -dirOut[i];
+            tDelta[i] = 1.0f / -dirOut[i];
+        } else {
+            step[i] = 0;
+            tMax[i] = std::numeric_limits<float>::max();
+            tDelta[i] = std::numeric_limits<float>::max();
+        }
+    }
+
+    float t = 0.0f;   // micro units travelled so far
+    for (int n = 0; n < maxCells; ++n) {
+        if (!packedPoolSolidAt(packed, cell)) return t / 9.0f;   // reached air: the run ends here
+        if (tMax.x < tMax.y) {
+            if (tMax.x < tMax.z) { t = tMax.x; cell.x += step.x; tMax.x += tDelta.x; }
+            else                 { t = tMax.z; cell.z += step.z; tMax.z += tDelta.z; }
+        } else {
+            if (tMax.y < tMax.z) { t = tMax.y; cell.y += step.y; tMax.y += tDelta.y; }
+            else                 { t = tMax.z; cell.z += step.z; tMax.z += tDelta.z; }
+        }
+    }
+    return t / 9.0f;
+}
+
 }  // namespace
 
 LightVisibility packedPoolLightVisibility(const PackedOccupancyPool& packed,
@@ -275,15 +316,14 @@ LightVisibility packedPoolLightVisibility(const PackedOccupancyPool& packed,
     if (dist < 1e-4f) return out;
     const glm::vec3 dir = delta / dist;
 
-    // Adaptive step — mirrors the shader exactly. See phxLightVisibility for why a fixed step with
-    // a fixed cap was wrong: it stopped short and reported "visible", so distant lights shone
-    // through walls. cappedOut now means only "the step had to coarsen past micro resolution".
-    // Stop one micro cell short of the light so a fixture embedded in its own sconce does not
-    // occlude itself.
-    // Half a voxel, NOT 1 micro -- must stay identical to occupancy.glsl's kSelfSkip, which carries
-    // the reasoning: an emissive voxel (U3.2) is solid with its light at the cell centre, so a 1/9
-    // skip left the march ending 0.5 u inside the emitter and it occluded its own light entirely.
-    const glm::vec3 target = start + dir * std::max(dist - 0.5f, 0.0f);
+    // Stop short of the light by the MEASURED extent of the emitter's own body — must stay identical
+    // to occupancy.glsl's phxLightVisibility, which carries the full reasoning. Briefly: an emissive
+    // voxel is solid with its light at the cell centre, so it occludes its own light; stopping a flat
+    // half voxel short fixed that and let ANY light within 0.5 u of a wall shine through the wall (a
+    // hearth's flame sits in a firebox cut into masonry, and lit the lawn outside the house).
+    // Measuring the run excludes exactly the emitter and nothing else.
+    const float runEnd = emitterRunLength(packed, lightWorld, -dir, /*maxCells=*/32);
+    const glm::vec3 target = start + dir * std::max(dist - runEnd - (0.1f / 9.0f), 0.0f);
 
     int cells = 0;
     glm::ivec3 hit{0};

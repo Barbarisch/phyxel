@@ -2960,3 +2960,60 @@ Extending the modes to `character.frag` and `grass.frag` is a prerequisite for t
 characters.
 
 
+
+---
+
+## ✅ D22 — THE SELF-OCCLUSION GUARD WAS THICKER THAN A WALL. Found AND FIXED 2026-09-02.
+
+**Reported by the user, from a screenshot:** the hearth of an engine-generated `hall_house` was
+casting a warm pool on the **grass outside the building**, well away from the doorway. Introduced by
+U3.3 (`d9967b02`), not pre-existing.
+
+**Mechanism.** `phxLightVisibility` has to exclude an emitter from its own shadow test: U3.2 made
+emissive voxels real lights, and an emissive voxel is *solid* with its light at the cell centre, so a
+ray run all the way to the light always hits the emitter. U3.3 solved that by stopping the ray a flat
+**half voxel** short of the light — the emitter's own half-extent.
+
+That constant is a blind spot, and it is **thicker than the geometry it was meant to skip**. A
+generated hearth's flame is measured into the firebox (`StructureForge.cpp` `place_lights`, the
+`em.exact` branch), which is a cavity cut into a masonry wall — so the wall sits **less than 0.5 u**
+from the flame on the outward side and was never tested at all. Interior rays were unaffected (they
+cross open air), which is exactly why the interior "looked decent" and only the outside was wrong.
+
+Measured on the live scene (`hall_house`, seed 11, footprint 5×7, `placed=13822`, one point light at
+`(0.606, 17.745, 2.846)`), ground visibility at y=17.3, along z=3:
+
+| | x = −6 … −2 (outside the wall) | x = 2 … 4 (room side) |
+|---|---|---|
+| **before** | `# # # # #` — lit lawn | lit |
+| **after** | all `.` — blocked | still lit |
+
+**Fix.** Measure the emitter instead of assuming its size: `phxEmitterRunLength` walks outward from
+the light while cells are solid and returns where that run ends, and the shadow ray stops there. A
+glow block excludes exactly itself; a flame in air excludes nothing, so the masonry around it blocks
+normally. No constant to tune.
+
+⚠️ **Direction matters, and it cost the first attempt.** Reversing the shadow ray to run
+light→surface expresses the same idea more directly and is **wrong**: it spends the cell budget
+crossing the empty distance first, so a distant light stops finding a wall standing right next to the
+receiver. `VoxelLightOccupancy.ADistantLightStillGetsOccludedRatherThanRunningOutOfSteps` caught it.
+The shadow ray stays surface→light; only the bounded run measurement walks outward.
+
+**Accepted ambiguity:** an emissive voxel placed flush against a wall shares one solid run with that
+wall and still lights through it. That is the one case where the emitter's body is not separable from
+the occluder by geometry alone.
+
+**Gate (L2 deterministic + L4 live), red-before-green:**
+* New `VoxelLightOccupancy.AFlameInACavityIsBlockedByTheMasonryAroundIt` — a flame in air 0.389 u
+  from 3 micro of masonry. **Shown RED against the old constant** ("firelight reached the lawn"),
+  green after. Its control asserts the room side stays lit, so a fix that merely blocks the hearth
+  everywhere fails it.
+* New `VoxelLightOccupancy.AnEmissiveVoxelStillLightsThroughItsOwnBody` — passes under *both* the old
+  and the new code, pinning the behaviour U3.3 existed to provide.
+* All 31 `LightWallMatrixTraced` + `VoxelLightOccupancy` tests green.
+* Live hearth ON/OFF delta at 02:00, day 16: **exterior +0.037** (noise), **interior +24.249**.
+
+**Why every existing sealed-box gate missed it:** the `LightWallMatrix` rigs place the light in open
+interior air. None of them puts an emitter in a cavity with occluding geometry inside half a voxel —
+which is precisely the shape the structure generator builds. That gap is now closed by the first test
+above.

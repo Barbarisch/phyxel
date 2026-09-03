@@ -202,6 +202,47 @@ bool phxDdaTrace(vec3 fromWorld, vec3 toWorld, int maxCells, ivec4 occBox,
     return false;
 }
 
+/// How far the contiguous SOLID run containing a light extends, measured outward from the light
+/// along `dirOut`, in world units. 0.0 when the light sits in air -- which is the common case and
+/// costs a single cell lookup.
+///
+/// This is how the emitter's own body gets excluded from its own shadow test. That body is whatever
+/// solid the light is embedded in, so it is found by walking, not assumed to be some fixed size: a
+/// glow block reports its own half-extent, a flame in a firebox reports 0, and the masonry around
+/// that firebox is therefore NOT excluded and still blocks.
+///
+/// Bounded to `maxCells` because an emitter is small; a light genuinely buried deep in rock stops
+/// at the bound and lights nothing, which is the right answer for a buried light.
+float phxEmitterRunLength(vec3 lightWorld, vec3 dirOut, int maxCells, ivec4 occBox) {
+    vec3 a = lightWorld * 9.0;                 // micro space
+    ivec3 cell = ivec3(floor(a));
+
+    ivec3 stp;
+    vec3 tMax, tDelta;
+    for (int i = 0; i < 3; ++i) {
+        if (dirOut[i] > 1e-9) {
+            stp[i] = 1;  tMax[i] = (float(cell[i] + 1) - a[i]) / dirOut[i];  tDelta[i] = 1.0 / dirOut[i];
+        } else if (dirOut[i] < -1e-9) {
+            stp[i] = -1; tMax[i] = (a[i] - float(cell[i])) / -dirOut[i];     tDelta[i] = 1.0 / -dirOut[i];
+        } else {
+            stp[i] = 0;  tMax[i] = 3.4e38;                                   tDelta[i] = 3.4e38;
+        }
+    }
+
+    float t = 0.0;   // micro units travelled so far
+    for (int n = 0; n < maxCells; ++n) {
+        if (!phxOccupancySolid(cell, occBox)) return t / 9.0;   // reached air: the run ends here
+        if (tMax.x < tMax.y) {
+            if (tMax.x < tMax.z) { t = tMax.x; cell.x += stp.x; tMax.x += tDelta.x; }
+            else                 { t = tMax.z; cell.z += stp.z; tMax.z += tDelta.z; }
+        } else {
+            if (tMax.y < tMax.z) { t = tMax.y; cell.y += stp.y; tMax.y += tDelta.y; }
+            else                 { t = tMax.z; cell.z += stp.z; tMax.z += tDelta.z; }
+        }
+    }
+    return t / 9.0;
+}
+
 /// Visibility between a surface point and a light, both in ABSOLUTE world units.
 /// 1.0 = nothing solid between them, 0.0 = something is.
 ///
@@ -210,8 +251,8 @@ bool phxDdaTrace(vec3 fromWorld, vec3 toWorld, int maxCells, ivec4 occBox,
 /// clearing it.
 ///
 /// Two guards: start 2 micro cells along the normal (or the surface shadows itself and every lit
-/// face goes black), and stop 1 micro cell short of the light (so a fixture embedded in its own
-/// sconce does not occlude itself).
+/// face goes black), and stop short of the light by the MEASURED extent of the emitter's own body
+/// rather than by a fixed distance (see phxEmitterRunLength).
 float phxLightVisibility(vec3 surfaceWorld, vec3 geomNormal, vec3 lightWorld, ivec4 occBox) {
     if ((occBox.w & 2) == 0) return 1.0;   // light tracing off / no occupancy
 
@@ -221,18 +262,34 @@ float phxLightVisibility(vec3 surfaceWorld, vec3 geomNormal, vec3 lightWorld, iv
     if (dist < 1e-4) return 1.0;
     vec3 dir = delta / dist;
 
-    // Stop HALF A VOXEL short of the light, not 1 micro.
+    // STOP SHORT BY THE EMITTER'S OWN SIZE -- measured, not a constant.
     //
-    // U3.2 made emissive voxels real lights, and an emissive voxel is SOLID with its light at the
-    // cell CENTRE -- so at 1/9 the march ended 0.5 units deep inside the emitter and every ray hit
-    // it. The emitter occluded its own light, completely: a glow block in a night meadow lit
-    // nothing, and the blades around it were silhouettes rather than lit grass (measured).
+    // The problem: U3.2 made emissive voxels real lights, and an emissive voxel is SOLID with its
+    // light at the cell CENTRE, so a march running all the way to the light always hits the emitter
+    // itself and a glow block lit nothing at all (measured: blades around it were silhouettes).
     //
-    // Half a voxel is exactly the emitter's own half-extent, so this skips the emitting cell and
-    // nothing else. A light sitting closer than 0.5 u to a wall could shine through it; that case
-    // is bounded by the sealed-box gates (LightWallMatrix), which are the control for this constant.
-    const float kSelfSkip = 0.5;
-    vec3 target = start + dir * max(dist - kSelfSkip, 0.0);
+    // The first fix stopped the march a flat HALF VOXEL short. That worked for a free-standing glow
+    // block and opened a hole for everything else: a light within 0.5 u of a wall never had the wall
+    // tested and shone straight through it. Not hypothetical -- a generated hearth's flame sits in a
+    // firebox cut into a masonry wall, and its firelight was landing on the lawn OUTSIDE the house.
+    // The sealed-box gates missed it because those rigs put the light in open interior air, never in
+    // a cavity with masonry inside half a voxel of the flame.
+    //
+    // So measure the emitter instead of guessing it: walk outward from the light while cells are
+    // solid, and stop the shadow ray where that run ends. A glow block excludes exactly itself; a
+    // flame in air excludes nothing and the masonry around it blocks normally.
+    //
+    // The measuring walk runs light-to-surface, but the SHADOW ray still runs surface-to-light. That
+    // direction matters: reversing it spends the cell budget crossing the empty distance first, so a
+    // distant light stopped finding a wall standing right next to the receiver (caught by
+    // ADistantLightStillGetsOccludedRatherThanRunningOutOfSteps). The measuring walk is bounded to a
+    // few cells, so it cannot run out.
+    //
+    // Remaining ambiguity, deliberately accepted: an emissive voxel placed flush against a wall
+    // shares one solid run with that wall and still lights through it. That is the one case where
+    // "the emitter's own body" is genuinely not separable from the occluder by geometry alone.
+    float runEnd = phxEmitterRunLength(lightWorld, -dir, 32, occBox);
+    vec3 target = start + dir * max(dist - runEnd - (0.1 / 9.0), 0.0);
     return phxDdaHitsSolid(start, target, 512, occBox) ? 0.0 : 1.0;
 }
 

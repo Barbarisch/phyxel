@@ -777,6 +777,61 @@ TEST(VoxelLightOccupancy, ADistantLightStillGetsOccludedRatherThanRunningOutOfSt
     EXPECT_GT(near.steps, 0) << "the traversal visited no cells at all";
 }
 
+TEST(VoxelLightOccupancy, AFlameInACavityIsBlockedByTheMasonryAroundIt) {
+    // Found live, in the engine's OWN generated hall_house: the hearth's firelight was landing on
+    // the lawn outside the building. Every sealed-box gate passed, because they all place the light
+    // in open interior air — none of them puts it in a cavity with masonry a fraction of a voxel
+    // away, which is exactly what a firebox is.
+    //
+    // The mechanism was the self-occlusion guard. An emissive voxel is solid with its light at the
+    // cell centre, so it occludes its own light; the guard stopped the shadow ray a flat HALF VOXEL
+    // short of the light. That blind spot is thicker than the wall it needs to see, so the wall was
+    // never tested at all. The rig below reproduces that geometry to scale.
+    VoxelOccupancyGrid g;
+    g.setChunkOrigin({0, 0, 0});
+    for (int y = 4; y <= 8; ++y)
+    for (int z = 6; z <= 10; ++z)
+    for (int my = 0; my < 9; ++my)
+    for (int mz = 0; mz < 9; ++mz)
+    for (int mx = 0; mx < 3; ++mx)        // 3 micro (1/3 voxel) of masonry at the cell's -x edge
+        addMicrocube(g, {10, y, z}, {mx / 3, my / 3, mz / 3}, {mx % 3, my % 3, mz % 3});
+    const auto pool = packOccupancyPool({{glm::ivec3{0, 0, 0}, buildLightOccupancy(g)}}, kOriginBox);
+
+    // The flame sits in air in the cavity, 0.389 u from the wall's outer face — INSIDE the old
+    // half-voxel blind spot, which is the whole point of the rig.
+    const glm::vec3 flame{10.0f + 3.5f / 9.0f, 6.5f, 8.5f};
+    const glm::vec3 toLight{1.0f, 0.0f, 0.0f};
+
+    EXPECT_FALSE(packedPoolLightVisibility(pool, {7.0f, 6.5f, 8.5f}, toLight, flame).visible)
+        << "firelight reached the lawn through 3 micro of masonry — the self-occlusion guard is "
+           "blanking more than the emitter itself";
+
+    // Control, and the behaviour that must be PRESERVED: the room side of the same hearth stays
+    // lit. A fix that simply blocks the hearth everywhere would pass the assertion above.
+    EXPECT_TRUE(packedPoolLightVisibility(pool, {14.0f, 6.5f, 8.5f}, {-1.0f, 0.0f, 0.0f},
+                                          flame).visible)
+        << "the hearth stopped lighting its own room";
+}
+
+TEST(VoxelLightOccupancy, AnEmissiveVoxelStillLightsThroughItsOwnBody) {
+    // The other half of the same guard, and the reason it exists at all (U3.2/U3.3): an emissive
+    // voxel IS a light, and it IS solid, with the light at its centre. Without excluding the
+    // emitter's own body every such light self-occludes completely — measured live as a glow block
+    // in a night meadow lighting nothing, with the blades around it rendered as silhouettes.
+    VoxelOccupancyGrid g;
+    g.setChunkOrigin({0, 0, 0});
+    addSolidCube(g, {20, 6, 8});
+    const auto pool = packOccupancyPool({{glm::ivec3{0, 0, 0}, buildLightOccupancy(g)}}, kOriginBox);
+
+    const glm::vec3 glow{20.5f, 6.5f, 8.5f};   // dead centre of the solid cube
+    EXPECT_TRUE(packedPoolLightVisibility(pool, {24.0f, 6.5f, 8.5f}, {-1.0f, 0.0f, 0.0f},
+                                          glow).visible)
+        << "a glow block occluded its own light";
+    EXPECT_TRUE(packedPoolLightVisibility(pool, {20.5f, 10.0f, 8.5f}, {0.0f, -1.0f, 0.0f},
+                                          glow).visible)
+        << "a glow block occluded its own light from above";
+}
+
 // ---------------------------------------------------------------------------------------------
 // M3 — SKY AS AN EMITTER. The replacement for the deleted per-cell skylight flood.
 //
