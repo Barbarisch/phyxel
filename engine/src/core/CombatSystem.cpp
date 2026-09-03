@@ -1,11 +1,13 @@
 #include "core/CombatSystem.h"
 #include "core/EntityRegistry.h"
+#include "core/SoundRegistry.h"
 #include "core/HealthComponent.h"
 #include "scene/Entity.h"
 #include "scene/AnimatedVoxelCharacter.h"
 #include "utils/Logger.h"
 
 #include <glm/gtc/constants.hpp>
+#include <cctype>
 #include <cmath>
 
 namespace Phyxel {
@@ -75,10 +77,19 @@ std::vector<DamageEvent> CombatSystem::performAttack(
         glm::vec3 knockback = dirToTarget * params.knockbackForce;
         knockback.y = params.knockbackForce * 0.3f; // Slight upward lift
 
+        // Weapons CLASH when the target is mid-swing themselves — two blades
+        // trading blows ring metal-on-metal instead of a body hit. (Pure
+        // audio flavor: damage is unchanged; parry MECHANICS are a separate
+        // feature.)
+        bool clash = false;
+        if (auto* animTarget = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity)) {
+            clash = animTarget->getAnimationState() == Scene::AnimatedCharacterState::Attack;
+        }
+
         // Deal damage through the single damage entry point.
         DamageEvent event = applyDamage(entity, entityId, params.damage,
                                         params.attackerId, params.damageType,
-                                        knockback, hitBoneName);
+                                        knockback, hitBoneName, clash);
         events.push_back(event);
     }
 
@@ -92,7 +103,8 @@ DamageEvent CombatSystem::applyDamage(
     const std::string& sourceId,
     DamageType type,
     const glm::vec3& knockback,
-    const std::string& hitBone)
+    const std::string& hitBone,
+    bool weaponsClash)
 {
     DamageEvent event;
     event.attackerId = sourceId;
@@ -123,6 +135,42 @@ DamageEvent CombatSystem::applyDamage(
     LOG_INFO("Combat", "{} hit {} for {} damage (actual: {}){}",
              sourceId, targetId, amount, actual,
              event.killed ? " — KILLED" : "");
+
+    // Combat audio at the point of impact — the target's position, so a fight
+    // to your left SOUNDS to your left. Emitted here (the single damage entry
+    // point) so real-time NPC brawls, turn-based combat, and player swings all
+    // sound identical in every host, editor or shipped game.
+    if (m_soundRegistry) {
+        const glm::vec3 pos = target->getPosition();
+        if (actual <= 0.0f) {
+            // Fully absorbed (armor/resistance): metal ring, no vocal.
+            m_soundRegistry->playEvent("combat.impact.metal", pos);
+        } else {
+            // Impact keyed by DAMAGE TYPE so a fire bolt cracks and an ice
+            // shard shatters instead of everything slapping like a fist:
+            // "combat.impact.<type>" (lowercased enum name — fire/ice/
+            // lightning/...) falling back to the generic flesh hit. Purely
+            // data-driven: adding the event to sounds.json IS the feature.
+            // Physical hits on a mid-swing target ring METAL — blades met.
+            std::string typeName = damageTypeToString(type);
+            for (auto& c : typeName) c = static_cast<char>(::tolower(c));
+            const bool physical = (type == DamageType::Physical ||
+                                   type == DamageType::Bludgeoning ||
+                                   type == DamageType::Piercing ||
+                                   type == DamageType::Slashing);
+            if (weaponsClash && physical) {
+                m_soundRegistry->playEvent("combat.impact.metal", pos);
+            } else {
+                m_soundRegistry->playEventOr("combat.impact." + typeName,
+                                             "combat.impact.flesh", pos);
+            }
+            if (event.killed) {
+                m_soundRegistry->playEvent("combat.death.scream", pos);
+            } else {
+                m_soundRegistry->playEvent("combat.grunt.pain", pos);
+            }
+        }
+    }
 
     if (m_onDamage) m_onDamage(event);
     return event;

@@ -3,9 +3,21 @@
 #include "scene/AnimatedVoxelCharacter.h"
 #include "core/EntityRegistry.h"
 #include "core/HealthComponent.h"
+#include "core/CombatSystem.h"
+#include "core/SoundRegistry.h"
 #include "utils/Logger.h"
 
 #include <cmath>
+#include <random>
+
+namespace {
+// Uniform [0,1). Thread-local: many casters roll every cast without contention.
+float casterRand01() {
+    static thread_local std::mt19937 rng(std::random_device{}());
+    static thread_local std::uniform_real_distribution<float> d(0.0f, 1.0f);
+    return d(rng);
+}
+} // namespace
 
 namespace Phyxel {
 namespace Scene {
@@ -124,10 +136,29 @@ void RangedCasterBehavior::update(float dt, NPCContext& ctx) {
     }
     m_lastShotBlocked = false;
 
+    // DESYNC: every caster used to tick the same cooldown from the same
+    // frame-zero and walk its spell list from index 0 — sixteen casters
+    // firing the identical spell in unison, every 3.5 s, forever (user-heard
+    // defect). Stagger the FIRST cast randomly across a full cooldown window,
+    // jitter every subsequent cooldown ±20%, and pick each spell at random.
+    if (!m_cooldownSeeded) {
+        m_cooldownSeeded = true;
+        m_cooldownTimer = casterRand01() * m_castCooldown;
+    }
+
     if (m_cooldownTimer <= 0.0f && !m_spells.empty() && dist <= m_aggroRange) {
-        const std::string& spellId = m_spells[m_nextSpell % m_spells.size()];
-        ++m_nextSpell;
-        m_cooldownTimer = m_castCooldown;
+        const std::string& spellId =
+            m_spells[static_cast<size_t>(casterRand01() * m_spells.size()) % m_spells.size()];
+        m_cooldownTimer = m_castCooldown * (0.8f + 0.4f * casterRand01());
+
+        // Cast sound at the caster, keyed by SPELL: "combat.cast.<spellId>"
+        // (fire_bolt whooshes, magic_missile zaps) falling back to the
+        // generic cast. Impact audio comes from applyDamage keyed by the
+        // spell's damage type.
+        if (ctx.combatSystem) {
+            if (auto* snd = ctx.combatSystem->getSoundRegistry())
+                snd->playEventOr("combat.cast." + spellId, "combat.cast", selfPos);
+        }
 
         if (m_castHook) {
             m_castHook(ctx.selfId, spellId, m_targetId, target->getPosition(), m_damage);

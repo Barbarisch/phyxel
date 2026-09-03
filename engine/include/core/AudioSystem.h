@@ -56,8 +56,12 @@ public:
 
     // Play a 3D sound at a specific position. Sounds whose effective gain
     // lands below -60 dB at the current listener distance are culled (never
-    // started) rather than mixed inaudibly forever.
-    void playSound3D(const std::string& filePath, const glm::vec3& position, AudioChannel channel = AudioChannel::SFX, float volume = 1.0f, const glm::vec3& velocity = glm::vec3(0.0f), float pitch = 1.0f);
+    // started) rather than mixed inaudibly forever. `minDistance` is the
+    // inverse-rolloff reference distance in meters (gain = minDistance/dist
+    // beyond it): 1 = intimate default; raise it for sounds that must CARRY —
+    // a battle cry at minDistance 5 is full-volume to 5 m and still half
+    // volume at 10 m, where the default would leave it at a tenth.
+    void playSound3D(const std::string& filePath, const glm::vec3& position, AudioChannel channel = AudioChannel::SFX, float volume = 1.0f, const glm::vec3& velocity = glm::vec3(0.0f), float pitch = 1.0f, float minDistance = 1.0f);
 
     // Background music (looping, one track at a time). fadeMs > 0 crossfades:
     // the outgoing track fades out while the new one fades in (equal duration).

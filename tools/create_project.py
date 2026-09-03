@@ -1041,6 +1041,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // All of it no-ops until an encounter begins (start_combat trigger action
             // or POST /api/rpg/combat/start on the test API).
             combatSystem_ = std::make_unique<Phyxel::Core::CombatSystem>();
+            // Combat audio: impacts/grunts/death screams at the target from
+            // applyDamage, swings/battle cries from CombatBehavior — shipped
+            // games sound like the editor (StandaloneParityGaps discipline).
+            combatSystem_->setSoundRegistry(engine.getSoundRegistry());
             combatSystem_->setInvulnerabilityQuery([](const Phyxel::Scene::Entity* e) -> bool {{
                 if (const auto* a = dynamic_cast<const Phyxel::Scene::AnimatedVoxelCharacter*>(e))
                     return a->isDodgeInvulnerable();

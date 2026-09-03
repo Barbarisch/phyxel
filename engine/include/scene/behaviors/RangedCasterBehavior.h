@@ -86,7 +86,8 @@ private:
     ChunkManager* m_chunks = nullptr;  ///< not owned; null = legacy no-LOS behaviour
     bool m_lastShotBlocked = false;    ///< telemetry: last cast withheld by a wall
     float m_cooldownTimer  = 0.0f;
-    size_t m_nextSpell     = 0;
+    size_t m_nextSpell     = 0;      // legacy sequential index (spells now pick at random)
+    bool   m_cooldownSeeded = false; // first-cast stagger applied once (anti-lockstep)
     bool  m_publishedFaction = false;
 };
 

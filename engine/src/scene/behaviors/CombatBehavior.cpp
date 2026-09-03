@@ -3,6 +3,7 @@
 #include "scene/AnimatedVoxelCharacter.h"
 #include "core/EntityRegistry.h"
 #include "core/CombatSystem.h"
+#include "core/SoundRegistry.h"
 #include "core/HealthComponent.h"
 #include "core/MeleeAnimMapper.h"
 #include "core/ItemRegistry.h"
@@ -64,6 +65,7 @@ void CombatBehavior::ensureWired(NPCContext& ctx, AnimatedVoxelCharacter* charac
     character->setMoveset(std::move(ms));
     LOG_DEBUG("CombatAI", "{} moveset family '{}' (weapon '{}')",
               ctx.selfId, md.family, m_weaponId.empty() ? "(none)" : m_weaponId);
+    m_soundFamily = md.family;  // keys the swing sound: combat.swing.<family>
     // The visible held weapon is managed by the host (Application::updateNpcHeldItems),
     // which uses the same item template + grip orientation as the player's held item.
 
@@ -166,6 +168,15 @@ void CombatBehavior::update(float dt, NPCContext& ctx) {
     const bool curDead = cur && (!cur->getHealthComponent() ||
                                  !cur->getHealthComponent()->isAlive());
     if (!cur || curDead) m_targetId = acquireTarget(ctx, selfPos);
+
+    // Battle cry on FIRST engagement of the fight (not every retarget — a
+    // 20v20 where everyone re-screams per kill is a wall of noise). 50%
+    // chance so charges sound like a mob, not a choir; 3D at the crier.
+    if (!m_hadTarget && !m_targetId.empty() && ctx.combatSystem) {
+        if (auto* snd = ctx.combatSystem->getSoundRegistry()) {
+            if (frand01() < 0.5f) snd->playEvent("combat.cry.battle", selfPos);
+        }
+    }
 
     Scene::Entity* target = (ctx.entityRegistry && !m_targetId.empty())
                                 ? ctx.entityRegistry->getEntity(m_targetId) : nullptr;
@@ -467,6 +478,20 @@ void CombatBehavior::update(float dt, NPCContext& ctx) {
     // In range.
     if (!attacking && m_cooldownTimer <= 0.0f && character) {   // --- Attack ---
         m_state = State::Attack;
+        // Swing whoosh at the attacking hand as the swing STARTS (the impact
+        // sounds come from CombatSystem::applyDamage at the hit frame).
+        // Keyed by moveset family — an axe chop whooshes heavier than a
+        // rapier stab — with the generic pool as fallback. Most swings also
+        // carry a short EFFORT CRY (user feedback: fighters should shout with
+        // their swings, not just once per fight).
+        if (ctx.combatSystem) {
+            if (auto* snd = ctx.combatSystem->getSoundRegistry()) {
+                snd->playEventOr("combat.swing." + m_soundFamily, "combat.swing",
+                                 character->getAttackOrigin());
+                if (frand01() < 0.6f)
+                    snd->playEvent("combat.cry.attack", selfPos);
+            }
+        }
         const float roll = std::rand() / static_cast<float>(RAND_MAX);
         if (roll < 0.30f) {
             character->heavyAttack();       // committed strong attack
@@ -478,7 +503,9 @@ void CombatBehavior::update(float dt, NPCContext& ctx) {
             // replaying the first link every cooldown.
             m_comboTimer = 0.45f + (std::rand() / static_cast<float>(RAND_MAX)) * 0.85f;
         }
-        m_cooldownTimer = m_attackCooldown;
+        // ±15% cooldown jitter so a line of fighters doesn't swing (and
+        // whoosh) in metronome lockstep.
+        m_cooldownTimer = m_attackCooldown * (0.85f + 0.3f * frand01());
         m_recoverTimer  = m_recoverTime;
         drive(0.0f, 0.0f);
     } else if (attacking) {               // mid-swing: hold ground (don't cancel)

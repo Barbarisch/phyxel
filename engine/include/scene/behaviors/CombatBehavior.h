@@ -121,6 +121,7 @@ public:
 private:
     std::string m_faction;
     std::string m_weaponId;
+    std::string m_soundFamily;   ///< moveset family (slash_1h/chop_axe/...) keys combat.swing.<family>
 
     // ── Tactical state ──────────────────────────────────────────
     int   m_intelligence = 10;          ///< 3..18; 10 = unremarkable

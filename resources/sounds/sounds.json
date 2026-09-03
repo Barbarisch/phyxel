@@ -1,113 +1,518 @@
 {
-  "_comment": "Sound event catalog — gameplay code names EVENTS, not files (docs/SoundSystemV2.md §4.1). Each event: files = variation pool (one picked at random per play), volume/pitch = [min,max] uniform jitter ranges, channel = Master|SFX|Music|Voice bus, spatial = whether the caller is expected to supply a world position. Loaded by Core::SoundRegistry; CatalogValidation asserts every referenced file exists on disk and every disk file has a SOURCES.json provenance row.",
+  "_comment": "Sound event catalog \u00e2\u20ac\u201d gameplay code names EVENTS, not files (docs/SoundSystemV2.md \u00c2\u00a74.1). Each event: files = variation pool (one picked at random per play), volume/pitch = [min,max] uniform jitter ranges, channel = Master|SFX|Music|Voice bus, spatial = whether the caller is expected to supply a world position. Loaded by Core::SoundRegistry; CatalogValidation asserts every referenced file exists on disk and every disk file has a SOURCES.json provenance row.",
   "events": {
     "voxel.place": {
-      "files": ["place.wav"],
-      "volume": [0.9, 1.0],
-      "pitch": [0.95, 1.05],
+      "files": [
+        "place.wav"
+      ],
+      "volume": [
+        0.9,
+        1.0
+      ],
+      "pitch": [
+        0.95,
+        1.05
+      ],
       "channel": "SFX",
       "spatial": true
     },
     "furniture.activate": {
-      "files": ["hit.wav"],
-      "volume": [0.85, 1.0],
-      "pitch": [0.92, 1.08],
+      "files": [
+        "hit.wav"
+      ],
+      "volume": [
+        0.85,
+        1.0
+      ],
+      "pitch": [
+        0.92,
+        1.08
+      ],
       "channel": "SFX",
       "spatial": true
     },
     "chop.impact.trunk": {
-      "files": ["axe_chop.wav"],
-      "volume": [0.85, 0.95],
-      "pitch": [0.94, 1.06],
+      "files": [
+        "axe_chop.wav"
+      ],
+      "volume": [
+        0.85,
+        0.95
+      ],
+      "pitch": [
+        0.94,
+        1.06
+      ],
       "channel": "SFX",
       "spatial": true
     },
     "chop.impact.leaves": {
-      "files": ["whoosh.wav"],
-      "volume": [0.8, 0.95],
-      "pitch": [0.95, 1.1],
+      "files": [
+        "whoosh.wav"
+      ],
+      "volume": [
+        0.8,
+        0.95
+      ],
+      "pitch": [
+        0.95,
+        1.1
+      ],
       "channel": "SFX",
       "spatial": true
     },
     "ui.click": {
-      "files": ["click.wav"],
-      "volume": [1.0, 1.0],
-      "pitch": [1.0, 1.0],
+      "files": [
+        "click.wav"
+      ],
+      "volume": [
+        1.0,
+        1.0
+      ],
+      "pitch": [
+        1.0,
+        1.0
+      ],
       "channel": "SFX",
       "spatial": false
     },
     "amb.cave.drip": {
-      "files": ["sfx/cave_drip.wav"],
-      "volume": [0.4, 0.8],
-      "pitch": [0.85, 1.25],
+      "files": [
+        "sfx/cave_drip.wav"
+      ],
+      "volume": [
+        0.4,
+        0.8
+      ],
+      "pitch": [
+        0.85,
+        1.25
+      ],
       "channel": "Ambience",
       "spatial": true
     },
     "amb.wind.gust": {
-      "files": ["sfx/wind_gust.wav"],
-      "volume": [0.4, 0.7],
-      "pitch": [0.9, 1.1],
+      "files": [
+        "sfx/wind_gust.wav"
+      ],
+      "volume": [
+        0.4,
+        0.7
+      ],
+      "pitch": [
+        0.9,
+        1.1
+      ],
       "channel": "Ambience",
       "spatial": true
     },
     "amb.bird.songbird": {
-      "files": ["sfx/birds/songbird_bird_noise_11_wav_507255.mp3",
-                "sfx/birds/songbird_bird_noise_13_wav_507261.mp3",
-                "sfx/birds/songbird_bird_noise_6_wav_507264.mp3",
-                "sfx/birds/songbird_bird_noise_7_wav_507266.mp3"],
-      "volume": [0.35, 0.65],
-      "pitch": [0.95, 1.05],
+      "files": [
+        "sfx/birds/songbird_bird_noise_11_wav_507255.wav",
+        "sfx/birds/songbird_bird_noise_13_wav_507261.wav",
+        "sfx/birds/songbird_bird_noise_6_wav_507264.wav",
+        "sfx/birds/songbird_bird_noise_7_wav_507266.wav"
+      ],
+      "volume": [
+        0.35,
+        0.65
+      ],
+      "pitch": [
+        0.95,
+        1.05
+      ],
       "channel": "Ambience",
       "spatial": true
     },
     "amb.bird.blackbird": {
-      "files": ["sfx/birds/blackbird_turdus_merula_03_wav_189521.mp3",
-                "sfx/birds/blackbird_turdus_merula_06_wav_189526.mp3",
-                "sfx/birds/blackbird_turdus_merula_19_wav_189549.mp3"],
-      "volume": [0.35, 0.6],
-      "pitch": [0.97, 1.03],
+      "files": [
+        "sfx/birds/blackbird_turdus_merula_03_wav_189521.wav",
+        "sfx/birds/blackbird_turdus_merula_06_wav_189526.wav",
+        "sfx/birds/blackbird_turdus_merula_19_wav_189549.wav"
+      ],
+      "volume": [
+        0.35,
+        0.6
+      ],
+      "pitch": [
+        0.97,
+        1.03
+      ],
       "channel": "Ambience",
       "spatial": true
     },
     "amb.bird.crow": {
-      "files": ["sfx/birds/crow_raven_croak_or_crow_caw_716962.mp3"],
-      "volume": [0.4, 0.7],
-      "pitch": [0.92, 1.08],
+      "files": [
+        "sfx/birds/crow_raven_croak_or_crow_caw_716962.wav"
+      ],
+      "volume": [
+        0.4,
+        0.7
+      ],
+      "pitch": [
+        0.92,
+        1.08
+      ],
       "channel": "Ambience",
       "spatial": true
     },
     "amb.bird.owl": {
-      "files": ["sfx/birds/owl_owl_recording_763652.mp3",
-                "sfx/birds/owl_owl_wav_398734.mp3"],
-      "volume": [0.35, 0.6],
-      "pitch": [0.95, 1.05],
+      "files": [
+        "sfx/birds/owl_owl_recording_763652.wav",
+        "sfx/birds/owl_owl_wav_398734.wav"
+      ],
+      "volume": [
+        0.35,
+        0.6
+      ],
+      "pitch": [
+        0.95,
+        1.05
+      ],
       "channel": "Ambience",
       "spatial": true
     },
     "amb.insect.cricket": {
-      "files": ["sfx/insects/cricket_cricketsample_1_wav_341855.mp3",
-                "sfx/insects/cricket_cricketsample_2_wav_341856.mp3",
-                "sfx/insects/cricket_single_cricket_chirping_close_perspective_01_753271.mp3"],
-      "volume": [0.3, 0.55],
-      "pitch": [0.95, 1.08],
+      "files": [
+        "sfx/insects/cricket_cricketsample_1_wav_341855.wav",
+        "sfx/insects/cricket_cricketsample_2_wav_341856.wav",
+        "sfx/insects/cricket_single_cricket_chirping_close_perspective_01_753271.wav"
+      ],
+      "volume": [
+        0.3,
+        0.55
+      ],
+      "pitch": [
+        0.95,
+        1.08
+      ],
       "channel": "Ambience",
       "spatial": true
     },
     "amb.insect.cicada": {
-      "files": ["sfx/insects/cicada_cicadas_in_japan_wav_643877.mp3",
-                "sfx/insects/cicada_river_and_cicadas_1_437061.mp3"],
-      "volume": [0.25, 0.45],
-      "pitch": [0.95, 1.05],
+      "files": [
+        "sfx/insects/cicada_cicadas_in_japan_wav_643877.wav",
+        "sfx/insects/cicada_river_and_cicadas_1_437061.wav"
+      ],
+      "volume": [
+        0.25,
+        0.45
+      ],
+      "pitch": [
+        0.95,
+        1.05
+      ],
       "channel": "Ambience",
       "spatial": true
     },
     "amb.animal.frog": {
-      "files": ["sfx/animals/frog_frogs_croaking_wav_391520.mp3",
-                "sfx/animals/frog_frogs_on_a_summer_night_3_mp3_396490.mp3"],
-      "volume": [0.35, 0.6],
-      "pitch": [0.95, 1.05],
+      "files": [
+        "sfx/animals/frog_frogs_croaking_wav_391520.wav",
+        "sfx/animals/frog_frogs_on_a_summer_night_3_mp3_396490.wav"
+      ],
+      "volume": [
+        0.35,
+        0.6
+      ],
+      "pitch": [
+        0.95,
+        1.05
+      ],
       "channel": "Ambience",
       "spatial": true
+    },
+    "combat.swing": {
+      "files": [
+        "sfx/combat/swing_whoosh_03_733890.wav",
+        "sfx/combat/swing_woosh_1_614084.wav",
+        "sfx/combat/swing_fx_swoosh_slow_475133.wav",
+        "sfx/combat/swing_wooden_stick_swing_1_2_485277.wav"
+      ],
+      "volume": [
+        0.5,
+        0.7
+      ],
+      "pitch": [
+        0.9,
+        1.12
+      ],
+      "channel": "SFX",
+      "spatial": true,
+      "minDistance": 2.0
+    },
+    "combat.impact.flesh": {
+      "files": [
+        "sfx/combat/flesh_slap_hit_on_the_face_or_shoulder_539163.wav",
+        "sfx/combat/flesh_huge_slap_in_the_face_564230.wav",
+        "sfx/combat/flesh_blocking_arm_with_hand_321810.wav"
+      ],
+      "volume": [
+        0.6,
+        0.85
+      ],
+      "pitch": [
+        0.85,
+        1.05
+      ],
+      "channel": "SFX",
+      "spatial": true,
+      "minDistance": 2.0
+    },
+    "combat.impact.metal": {
+      "files": [
+        "sfx/combat/clang_sword_clash_2_wav_326841.wav",
+        "sfx/combat/clang_sword_clash_15_wav_326787.wav",
+        "sfx/combat/clang_sword_clash_46_wav_326795.wav",
+        "sfx/combat/clang_sword_clash_57_wav_326862.wav"
+      ],
+      "volume": [
+        0.55,
+        0.8
+      ],
+      "pitch": [
+        0.92,
+        1.08
+      ],
+      "channel": "SFX",
+      "spatial": true,
+      "minDistance": 2.0
+    },
+    "combat.grunt.pain": {
+      "files": [
+        "sfx/combat/grunt_voice_adultmale_paingrunts_07_wav_547205.wav",
+        "sfx/combat/grunt_voice_adultmale_paingrunts_14_wav_547193.wav",
+        "sfx/combat/grunt_voice_adultmale_paingrunts_15_wav_547198.wav",
+        "sfx/combat/grunt_voice_adultmale_paingrunts_18_wav_547197.wav",
+        "sfx/combat/grunt2_male_grunting_in_pain_464486.wav",
+        "sfx/combat/grunt2_male_attack_grunt_464485.wav"
+      ],
+      "volume": [
+        0.6,
+        0.85
+      ],
+      "pitch": [
+        0.85,
+        1.15
+      ],
+      "channel": "SFX",
+      "spatial": true,
+      "minDistance": 2.5
+    },
+    "combat.death.scream": {
+      "files": [
+        "sfx/combat/death_voice_adultmale_deathscream_04_wav_547181.wav",
+        "sfx/combat/death_voice_adultmale_deathscream_09_wav_547190.wav",
+        "sfx/combat/death_voice_adultmale_deathscream_10_wav_547189.wav",
+        "sfx/combat/death_human_male_scream_2_243376.wav",
+        "sfx/combat/death2_human_male_scream_3_243381.wav",
+        "sfx/combat/death2_human_male_scream_4_243380.wav",
+        "sfx/combat/death2_reverse_guy_screaming_sound_effect_728068.wav"
+      ],
+      "volume": [
+        0.7,
+        0.9
+      ],
+      "pitch": [
+        0.9,
+        1.1
+      ],
+      "channel": "SFX",
+      "spatial": true,
+      "minDistance": 5.0
+    },
+    "combat.cry.battle": {
+      "files": [
+        "sfx/combat/battlecry_soldier_shouts_germans_deep_620471.wav",
+        "sfx/combat/battlecry_soldier_shouts_germans_high_620472.wav",
+        "sfx/combat/battlecry2_studio_roar_265554.wav"
+      ],
+      "volume": [
+        0.65,
+        0.85
+      ],
+      "pitch": [
+        0.9,
+        1.1
+      ],
+      "channel": "SFX",
+      "spatial": true,
+      "minDistance": 5.0
+    },
+    "combat.swing.two_handed": {
+      "files": [
+        "sfx/combat/swingheavy_big_swoosh_234547.wav",
+        "sfx/combat/swingheavy_swing_1_5_485250.wav"
+      ],
+      "volume": [
+        0.55,
+        0.75
+      ],
+      "pitch": [
+        0.8,
+        0.95
+      ],
+      "channel": "SFX",
+      "spatial": true,
+      "minDistance": 2.0
+    },
+    "combat.swing.chop_axe": {
+      "files": [
+        "sfx/combat/swingheavy_big_swoosh_234547.wav",
+        "sfx/combat/swingheavy_swing_1_5_485250.wav"
+      ],
+      "volume": [
+        0.55,
+        0.75
+      ],
+      "pitch": [
+        0.75,
+        0.9
+      ],
+      "channel": "SFX",
+      "spatial": true,
+      "minDistance": 2.0
+    },
+    "combat.cast": {
+      "files": [
+        "sfx/magic/castmagic_magic_spell_effect_delayed_786290.wav",
+        "sfx/magic/castmagic_rpgpowerup_wav_577965.wav",
+        "sfx/magic/castmagic_apply_rpg_577961.wav"
+      ],
+      "volume": [
+        0.8,
+        1.0
+      ],
+      "pitch": [
+        0.9,
+        1.1
+      ],
+      "channel": "SFX",
+      "spatial": true,
+      "minDistance": 6.0
+    },
+    "combat.cast.fire_bolt": {
+      "files": [
+        "sfx/magic/castfire_fireball_683179.wav",
+        "sfx/magic/castfire_fire_wav_530355.wav",
+        "sfx/magic/castfire_power_up_683185.wav"
+      ],
+      "volume": [
+        0.8,
+        1.0
+      ],
+      "pitch": [
+        0.9,
+        1.1
+      ],
+      "channel": "SFX",
+      "spatial": true,
+      "minDistance": 6.0
+    },
+    "combat.impact.fire": {
+      "files": [
+        "sfx/magic/explosion_explosion01_wav_434426.wav",
+        "sfx/magic/explosion_bass_impact_3_617043.wav",
+        "sfx/magic/explosion_real_explosion_recording_new_year_s_eve_no_effec_784163.wav",
+        "sfx/magic/impactfire_fire_burst_flash_539972.wav"
+      ],
+      "volume": [
+        0.85,
+        1.0
+      ],
+      "pitch": [
+        0.9,
+        1.1
+      ],
+      "channel": "SFX",
+      "spatial": true,
+      "minDistance": 6.0
+    },
+    "combat.impact.ice": {
+      "files": [
+        "sfx/magic/impactice_icebrk_break04_inmotionaudio_freesamplesunday_719973.wav",
+        "sfx/magic/impactice_break_something_ice_glass_422633.wav"
+      ],
+      "volume": [
+        0.75,
+        0.95
+      ],
+      "pitch": [
+        0.9,
+        1.1
+      ],
+      "channel": "SFX",
+      "spatial": true,
+      "minDistance": 4.0
+    },
+    "combat.impact.cold": {
+      "files": [
+        "sfx/magic/impactice_icebrk_break04_inmotionaudio_freesamplesunday_719973.wav",
+        "sfx/magic/impactice_break_something_ice_glass_422633.wav"
+      ],
+      "volume": [
+        0.75,
+        0.95
+      ],
+      "pitch": [
+        0.9,
+        1.1
+      ],
+      "channel": "SFX",
+      "spatial": true,
+      "minDistance": 4.0
+    },
+    "combat.impact.lightning": {
+      "files": [
+        "sfx/magic/thunder_thunder_krak_w_poland_20_05_2013_188767.wav",
+        "sfx/magic/impactlightning_static_voice_585798.wav"
+      ],
+      "volume": [
+        0.8,
+        1.0
+      ],
+      "pitch": [
+        0.9,
+        1.15
+      ],
+      "channel": "SFX",
+      "spatial": true,
+      "minDistance": 6.0
+    },
+    "combat.cast.ray_of_frost": {
+      "files": [
+        "sfx/magic/castmagic_magic_spell_effect_delayed_786290.wav",
+        "sfx/magic/castmagic_rpgpowerup_wav_577965.wav",
+        "sfx/magic/castmagic_apply_rpg_577961.wav"
+      ],
+      "volume": [
+        0.8,
+        1.0
+      ],
+      "pitch": [
+        0.78,
+        0.9
+      ],
+      "channel": "SFX",
+      "spatial": true,
+      "minDistance": 6.0
+    },
+    "combat.cry.attack": {
+      "files": [
+        "sfx/combat/attackcry_short_male_scream_823246.wav",
+        "sfx/combat/attackcry2_dude_wav_256557.wav",
+        "sfx/combat/grunt2_male_attack_grunt_464485.wav"
+      ],
+      "volume": [
+        0.55,
+        0.75
+      ],
+      "pitch": [
+        0.85,
+        1.15
+      ],
+      "channel": "SFX",
+      "spatial": true,
+      "minDistance": 3.0
     }
   }
 }

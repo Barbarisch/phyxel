@@ -1874,6 +1874,10 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             return a->isDodgeInvulnerable();
         return false;
     });
+    // Combat audio (impacts/grunts/screams from applyDamage; swings/cries in
+    // CombatBehavior via getSoundRegistry) — engine-level, so it works
+    // identically here and in standalone games.
+    combatSystem->setSoundRegistry(runtime ? runtime->getSoundRegistry() : nullptr);
     // Real-time combat NPCs (CombatBehavior) deal damage through this system.
     if (npcManager) npcManager->setCombatSystem(combatSystem.get());
     // Turn-based enemy AI resolves its damage through the same system.

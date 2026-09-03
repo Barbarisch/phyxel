@@ -49,142 +49,6 @@
       "deterministic": true,
       "verified": "2026-09-01 regenerated, md5 9883235be44c4535914a603f59cdf4be byte-identical"
     },
-    "sfx/birds/songbird_bird_noise_11_wav_507255.mp3": {
-      "source_url": "https://freesound.org/people/SpaceJoe/sounds/507255/",
-      "license": "CC0-1.0",
-      "author": "SpaceJoe",
-      "freesound_id": 507255,
-      "query": "bird chirp tweet",
-      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
-    },
-    "sfx/birds/songbird_bird_noise_13_wav_507261.mp3": {
-      "source_url": "https://freesound.org/people/SpaceJoe/sounds/507261/",
-      "license": "CC0-1.0",
-      "author": "SpaceJoe",
-      "freesound_id": 507261,
-      "query": "bird chirp tweet",
-      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
-    },
-    "sfx/birds/songbird_bird_noise_6_wav_507264.mp3": {
-      "source_url": "https://freesound.org/people/SpaceJoe/sounds/507264/",
-      "license": "CC0-1.0",
-      "author": "SpaceJoe",
-      "freesound_id": 507264,
-      "query": "bird chirp tweet",
-      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
-    },
-    "sfx/birds/songbird_bird_noise_7_wav_507266.mp3": {
-      "source_url": "https://freesound.org/people/SpaceJoe/sounds/507266/",
-      "license": "CC0-1.0",
-      "author": "SpaceJoe",
-      "freesound_id": 507266,
-      "query": "bird chirp tweet",
-      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
-    },
-    "sfx/birds/blackbird_turdus_merula_06_wav_189526.mp3": {
-      "source_url": "https://freesound.org/people/tinga/sounds/189526/",
-      "license": "CC0-1.0",
-      "author": "tinga",
-      "freesound_id": 189526,
-      "query": "blackbird song",
-      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
-    },
-    "sfx/birds/blackbird_turdus_merula_03_wav_189521.mp3": {
-      "source_url": "https://freesound.org/people/tinga/sounds/189521/",
-      "license": "CC0-1.0",
-      "author": "tinga",
-      "freesound_id": 189521,
-      "query": "blackbird song",
-      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
-    },
-    "sfx/birds/blackbird_turdus_merula_19_wav_189549.mp3": {
-      "source_url": "https://freesound.org/people/tinga/sounds/189549/",
-      "license": "CC0-1.0",
-      "author": "tinga",
-      "freesound_id": 189549,
-      "query": "blackbird song",
-      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
-    },
-    "sfx/birds/crow_raven_croak_or_crow_caw_716962.mp3": {
-      "source_url": "https://freesound.org/people/fudgealtoid/sounds/716962/",
-      "license": "CC0-1.0",
-      "author": "fudgealtoid",
-      "freesound_id": 716962,
-      "query": "crow call caw",
-      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
-    },
-    "sfx/birds/owl_owl_recording_763652.mp3": {
-      "source_url": "https://freesound.org/people/smllfrey84/sounds/763652/",
-      "license": "CC0-1.0",
-      "author": "smllfrey84",
-      "freesound_id": 763652,
-      "query": "owl hoot night",
-      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
-    },
-    "sfx/birds/owl_owl_wav_398734.mp3": {
-      "source_url": "https://freesound.org/people/Anthousai/sounds/398734/",
-      "license": "CC0-1.0",
-      "author": "Anthousai",
-      "freesound_id": 398734,
-      "query": "owl hoot night",
-      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
-    },
-    "sfx/insects/cricket_cricketsample_1_wav_341855.mp3": {
-      "source_url": "https://freesound.org/people/nervousneal/sounds/341855/",
-      "license": "CC0-1.0",
-      "author": "nervousneal",
-      "freesound_id": 341855,
-      "query": "cricket chirp single",
-      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
-    },
-    "sfx/insects/cricket_cricketsample_2_wav_341856.mp3": {
-      "source_url": "https://freesound.org/people/nervousneal/sounds/341856/",
-      "license": "CC0-1.0",
-      "author": "nervousneal",
-      "freesound_id": 341856,
-      "query": "cricket chirp single",
-      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
-    },
-    "sfx/insects/cricket_single_cricket_chirping_close_perspective_01_753271.mp3": {
-      "source_url": "https://freesound.org/people/HECKFRICKER/sounds/753271/",
-      "license": "CC0-1.0",
-      "author": "HECKFRICKER",
-      "freesound_id": 753271,
-      "query": "cricket chirp single",
-      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
-    },
-    "sfx/insects/cicada_river_and_cicadas_1_437061.mp3": {
-      "source_url": "https://freesound.org/people/SamuelGremaud/sounds/437061/",
-      "license": "CC0-1.0",
-      "author": "SamuelGremaud",
-      "freesound_id": 437061,
-      "query": "cicada",
-      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
-    },
-    "sfx/insects/cicada_cicadas_in_japan_wav_643877.mp3": {
-      "source_url": "https://freesound.org/people/cartoonrob/sounds/643877/",
-      "license": "CC0-1.0",
-      "author": "cartoonrob",
-      "freesound_id": 643877,
-      "query": "cicada",
-      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
-    },
-    "sfx/animals/frog_frogs_on_a_summer_night_3_mp3_396490.mp3": {
-      "source_url": "https://freesound.org/people/macdaddyno1/sounds/396490/",
-      "license": "CC0-1.0",
-      "author": "macdaddyno1",
-      "freesound_id": 396490,
-      "query": "frog croak pond",
-      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
-    },
-    "sfx/animals/frog_frogs_croaking_wav_391520.mp3": {
-      "source_url": "https://freesound.org/people/Kamix0/sounds/391520/",
-      "license": "CC0-1.0",
-      "author": "Kamix0",
-      "freesound_id": 391520,
-      "query": "frog croak pond",
-      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed"
-    },
     "ambience/forest_bed.wav": {
       "source_url": "https://freesound.org/people/kvgarlic/sounds/669113/",
       "license": "CC0-1.0",
@@ -256,6 +120,518 @@
       "freesound_id": 421826,
       "query": "cave ambience drone deep",
       "note": "centered 45s segment of the OGG preview, mono, RMS-normalized to 0.05, 1.5s equal-power loop-conditioned + seam-asserted (fetch_cc0_beds.py)"
+    },
+    "sfx/combat/battlecry2_studio_roar_265554.wav": {
+      "source_url": "https://freesound.org/people/AugustSandberg/sounds/265554/",
+      "license": "CC0-1.0",
+      "author": "AugustSandberg",
+      "freesound_id": 265554,
+      "query": "war cry charge yell",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/battlecry_soldier_shouts_germans_deep_620471.wav": {
+      "source_url": "https://freesound.org/people/JD_Brick_Productions/sounds/620471/",
+      "license": "CC0-1.0",
+      "author": "JD_Brick_Productions",
+      "freesound_id": 620471,
+      "query": "battle cry war shout",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/battlecry_soldier_shouts_germans_high_620472.wav": {
+      "source_url": "https://freesound.org/people/JD_Brick_Productions/sounds/620472/",
+      "license": "CC0-1.0",
+      "author": "JD_Brick_Productions",
+      "freesound_id": 620472,
+      "query": "battle cry war shout",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/clang_sword_clash_15_wav_326787.wav": {
+      "source_url": "https://freesound.org/people/JohnBuhr/sounds/326787/",
+      "license": "CC0-1.0",
+      "author": "JohnBuhr",
+      "freesound_id": 326787,
+      "query": "sword clash metal clang",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/clang_sword_clash_2_wav_326841.wav": {
+      "source_url": "https://freesound.org/people/JohnBuhr/sounds/326841/",
+      "license": "CC0-1.0",
+      "author": "JohnBuhr",
+      "freesound_id": 326841,
+      "query": "sword clash metal clang",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/clang_sword_clash_46_wav_326795.wav": {
+      "source_url": "https://freesound.org/people/JohnBuhr/sounds/326795/",
+      "license": "CC0-1.0",
+      "author": "JohnBuhr",
+      "freesound_id": 326795,
+      "query": "sword clash metal clang",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/clang_sword_clash_57_wav_326862.wav": {
+      "source_url": "https://freesound.org/people/JohnBuhr/sounds/326862/",
+      "license": "CC0-1.0",
+      "author": "JohnBuhr",
+      "freesound_id": 326862,
+      "query": "sword clash metal clang",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/death2_human_male_scream_3_243381.wav": {
+      "source_url": "https://freesound.org/people/JohnsonBrandEditing/sounds/243381/",
+      "license": "CC0-1.0",
+      "author": "JohnsonBrandEditing",
+      "freesound_id": 243381,
+      "query": "man scream agony",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/death2_human_male_scream_4_243380.wav": {
+      "source_url": "https://freesound.org/people/JohnsonBrandEditing/sounds/243380/",
+      "license": "CC0-1.0",
+      "author": "JohnsonBrandEditing",
+      "freesound_id": 243380,
+      "query": "man scream agony",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/death2_reverse_guy_screaming_sound_effect_728068.wav": {
+      "source_url": "https://freesound.org/people/Mastersoundboy2005/sounds/728068/",
+      "license": "CC0-1.0",
+      "author": "Mastersoundboy2005",
+      "freesound_id": 728068,
+      "query": "man scream agony",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/death_human_male_scream_2_243376.wav": {
+      "source_url": "https://freesound.org/people/JohnsonBrandEditing/sounds/243376/",
+      "license": "CC0-1.0",
+      "author": "JohnsonBrandEditing",
+      "freesound_id": 243376,
+      "query": "death scream male",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/death_voice_adultmale_deathscream_04_wav_547181.wav": {
+      "source_url": "https://freesound.org/people/MrFossy/sounds/547181/",
+      "license": "CC0-1.0",
+      "author": "MrFossy",
+      "freesound_id": 547181,
+      "query": "death scream male",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/death_voice_adultmale_deathscream_09_wav_547190.wav": {
+      "source_url": "https://freesound.org/people/MrFossy/sounds/547190/",
+      "license": "CC0-1.0",
+      "author": "MrFossy",
+      "freesound_id": 547190,
+      "query": "death scream male",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/death_voice_adultmale_deathscream_10_wav_547189.wav": {
+      "source_url": "https://freesound.org/people/MrFossy/sounds/547189/",
+      "license": "CC0-1.0",
+      "author": "MrFossy",
+      "freesound_id": 547189,
+      "query": "death scream male",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/flesh_blocking_arm_with_hand_321810.wav": {
+      "source_url": "https://freesound.org/people/mmasonghi/sounds/321810/",
+      "license": "CC0-1.0",
+      "author": "mmasonghi",
+      "freesound_id": 321810,
+      "query": "punch impact body hit",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/flesh_huge_slap_in_the_face_564230.wav": {
+      "source_url": "https://freesound.org/people/njjjjjjjjjjjjjjjjjjjjjjjj/sounds/564230/",
+      "license": "CC0-1.0",
+      "author": "njjjjjjjjjjjjjjjjjjjjjjjj",
+      "freesound_id": 564230,
+      "query": "punch impact body hit",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/flesh_slap_hit_on_the_face_or_shoulder_539163.wav": {
+      "source_url": "https://freesound.org/people/khenshom/sounds/539163/",
+      "license": "CC0-1.0",
+      "author": "khenshom",
+      "freesound_id": 539163,
+      "query": "punch impact body hit",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/grunt2_male_attack_grunt_464485.wav": {
+      "source_url": "https://freesound.org/people/elynch0901/sounds/464485/",
+      "license": "CC0-1.0",
+      "author": "elynch0901",
+      "freesound_id": 464485,
+      "query": "attack grunt",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/grunt2_male_grunting_in_pain_464486.wav": {
+      "source_url": "https://freesound.org/people/elynch0901/sounds/464486/",
+      "license": "CC0-1.0",
+      "author": "elynch0901",
+      "freesound_id": 464486,
+      "query": "attack grunt",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/grunt_voice_adultmale_paingrunts_07_wav_547205.wav": {
+      "source_url": "https://freesound.org/people/MrFossy/sounds/547205/",
+      "license": "CC0-1.0",
+      "author": "MrFossy",
+      "freesound_id": 547205,
+      "query": "male pain voice",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/grunt_voice_adultmale_paingrunts_14_wav_547193.wav": {
+      "source_url": "https://freesound.org/people/MrFossy/sounds/547193/",
+      "license": "CC0-1.0",
+      "author": "MrFossy",
+      "freesound_id": 547193,
+      "query": "male pain voice",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/grunt_voice_adultmale_paingrunts_15_wav_547198.wav": {
+      "source_url": "https://freesound.org/people/MrFossy/sounds/547198/",
+      "license": "CC0-1.0",
+      "author": "MrFossy",
+      "freesound_id": 547198,
+      "query": "male pain voice",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/grunt_voice_adultmale_paingrunts_18_wav_547197.wav": {
+      "source_url": "https://freesound.org/people/MrFossy/sounds/547197/",
+      "license": "CC0-1.0",
+      "author": "MrFossy",
+      "freesound_id": 547197,
+      "query": "male pain voice",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/swing_fx_swoosh_slow_475133.wav": {
+      "source_url": "https://freesound.org/people/bolkmar/sounds/475133/",
+      "license": "CC0-1.0",
+      "author": "bolkmar",
+      "freesound_id": 475133,
+      "query": "sword swing whoosh",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/swing_whoosh_03_733890.wav": {
+      "source_url": "https://freesound.org/people/velcronator/sounds/733890/",
+      "license": "CC0-1.0",
+      "author": "velcronator",
+      "freesound_id": 733890,
+      "query": "sword swing whoosh",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/swing_wooden_stick_swing_1_2_485277.wav": {
+      "source_url": "https://freesound.org/people/Joao_Janz/sounds/485277/",
+      "license": "CC0-1.0",
+      "author": "Joao_Janz",
+      "freesound_id": 485277,
+      "query": "sword swing whoosh",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/swing_woosh_1_614084.wav": {
+      "source_url": "https://freesound.org/people/mateusboga/sounds/614084/",
+      "license": "CC0-1.0",
+      "author": "mateusboga",
+      "freesound_id": 614084,
+      "query": "sword swing whoosh",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/swingheavy_big_swoosh_234547.wav": {
+      "source_url": "https://freesound.org/people/Electroviolence/sounds/234547/",
+      "license": "CC0-1.0",
+      "author": "Electroviolence",
+      "freesound_id": 234547,
+      "query": "heavy whoosh",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/swingheavy_fx_swoosh_slow_475133.wav": {
+      "source_url": "https://freesound.org/people/bolkmar/sounds/475133/",
+      "license": "CC0-1.0",
+      "author": "bolkmar",
+      "freesound_id": 475133,
+      "query": "heavy whoosh",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/swingheavy_swing_1_5_485250.wav": {
+      "source_url": "https://freesound.org/people/Joao_Janz/sounds/485250/",
+      "license": "CC0-1.0",
+      "author": "Joao_Janz",
+      "freesound_id": 485250,
+      "query": "heavy whoosh",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/magic/castfire_fire_wav_530355.wav": {
+      "source_url": "https://freesound.org/people/danielpodlovics/sounds/530355/",
+      "license": "CC0-1.0",
+      "author": "danielpodlovics",
+      "freesound_id": 530355,
+      "query": "fire whoosh",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/magic/castfire_fireball_683179.wav": {
+      "source_url": "https://freesound.org/people/NearTheAtmoshphere/sounds/683179/",
+      "license": "CC0-1.0",
+      "author": "NearTheAtmoshphere",
+      "freesound_id": 683179,
+      "query": "fire whoosh",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/magic/castfire_power_up_683185.wav": {
+      "source_url": "https://freesound.org/people/NearTheAtmoshphere/sounds/683185/",
+      "license": "CC0-1.0",
+      "author": "NearTheAtmoshphere",
+      "freesound_id": 683185,
+      "query": "fire whoosh",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/magic/castmagic_apply_rpg_577961.wav": {
+      "source_url": "https://freesound.org/people/colorsCrimsonTears/sounds/577961/",
+      "license": "CC0-1.0",
+      "author": "colorsCrimsonTears",
+      "freesound_id": 577961,
+      "query": "magic spell cast",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/magic/castmagic_magic_spell_effect_delayed_786290.wav": {
+      "source_url": "https://freesound.org/people/SecureSubset/sounds/786290/",
+      "license": "CC0-1.0",
+      "author": "SecureSubset",
+      "freesound_id": 786290,
+      "query": "magic spell cast",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/magic/castmagic_rpgpowerup_wav_577965.wav": {
+      "source_url": "https://freesound.org/people/colorsCrimsonTears/sounds/577965/",
+      "license": "CC0-1.0",
+      "author": "colorsCrimsonTears",
+      "freesound_id": 577965,
+      "query": "magic spell cast",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/magic/explosion_bass_impact_3_617043.wav": {
+      "source_url": "https://freesound.org/people/D4XX/sounds/617043/",
+      "license": "CC0-1.0",
+      "author": "D4XX",
+      "freesound_id": 617043,
+      "query": "explosion",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/magic/explosion_explosion01_wav_434426.wav": {
+      "source_url": "https://freesound.org/people/V-ktor/sounds/434426/",
+      "license": "CC0-1.0",
+      "author": "V-ktor",
+      "freesound_id": 434426,
+      "query": "explosion",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/magic/explosion_real_explosion_recording_new_year_s_eve_no_effec_784163.wav": {
+      "source_url": "https://freesound.org/people/modusmogulus/sounds/784163/",
+      "license": "CC0-1.0",
+      "author": "modusmogulus",
+      "freesound_id": 784163,
+      "query": "explosion",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/magic/impactfire_burst_fireworks_nova_sound_wav_347119.wav": {
+      "source_url": "https://freesound.org/people/NovaSoundTechnology/sounds/347119/",
+      "license": "CC0-1.0",
+      "author": "NovaSoundTechnology",
+      "freesound_id": 347119,
+      "query": "fire burst",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/magic/impactfire_fire_burst_flash_539972.wav": {
+      "source_url": "https://freesound.org/people/Za-Games/sounds/539972/",
+      "license": "CC0-1.0",
+      "author": "Za-Games",
+      "freesound_id": 539972,
+      "query": "fire burst",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/magic/impactice_break_something_ice_glass_422633.wav": {
+      "source_url": "https://freesound.org/people/Aurelon/sounds/422633/",
+      "license": "CC0-1.0",
+      "author": "Aurelon",
+      "freesound_id": 422633,
+      "query": "ice shatter",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/magic/impactice_icebrk_break04_inmotionaudio_freesamplesunday_719973.wav": {
+      "source_url": "https://freesound.org/people/InMotionAudio/sounds/719973/",
+      "license": "CC0-1.0",
+      "author": "InMotionAudio",
+      "freesound_id": 719973,
+      "query": "ice shatter",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/magic/impactlightning_static_voice_585798.wav": {
+      "source_url": "https://freesound.org/people/colorsCrimsonTears/sounds/585798/",
+      "license": "CC0-1.0",
+      "author": "colorsCrimsonTears",
+      "freesound_id": 585798,
+      "query": "electric zap",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/magic/thunder_thunder_krak_w_poland_20_05_2013_188767.wav": {
+      "source_url": "https://freesound.org/people/vonz/sounds/188767/",
+      "license": "CC0-1.0",
+      "author": "vonz",
+      "freesound_id": 188767,
+      "query": "thunder crack",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/birds/blackbird_turdus_merula_03_wav_189521.wav": {
+      "source_url": "https://freesound.org/people/tinga/sounds/189521/",
+      "license": "CC0-1.0",
+      "author": "tinga",
+      "freesound_id": 189521,
+      "query": "blackbird song",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/birds/blackbird_turdus_merula_06_wav_189526.wav": {
+      "source_url": "https://freesound.org/people/tinga/sounds/189526/",
+      "license": "CC0-1.0",
+      "author": "tinga",
+      "freesound_id": 189526,
+      "query": "blackbird song",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/birds/blackbird_turdus_merula_19_wav_189549.wav": {
+      "source_url": "https://freesound.org/people/tinga/sounds/189549/",
+      "license": "CC0-1.0",
+      "author": "tinga",
+      "freesound_id": 189549,
+      "query": "blackbird song",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/birds/crow_raven_croak_or_crow_caw_716962.wav": {
+      "source_url": "https://freesound.org/people/fudgealtoid/sounds/716962/",
+      "license": "CC0-1.0",
+      "author": "fudgealtoid",
+      "freesound_id": 716962,
+      "query": "crow call caw",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/birds/owl_owl_recording_763652.wav": {
+      "source_url": "https://freesound.org/people/smllfrey84/sounds/763652/",
+      "license": "CC0-1.0",
+      "author": "smllfrey84",
+      "freesound_id": 763652,
+      "query": "owl hoot night",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/birds/owl_owl_wav_398734.wav": {
+      "source_url": "https://freesound.org/people/Anthousai/sounds/398734/",
+      "license": "CC0-1.0",
+      "author": "Anthousai",
+      "freesound_id": 398734,
+      "query": "owl hoot night",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/birds/songbird_bird_noise_11_wav_507255.wav": {
+      "source_url": "https://freesound.org/people/SpaceJoe/sounds/507255/",
+      "license": "CC0-1.0",
+      "author": "SpaceJoe",
+      "freesound_id": 507255,
+      "query": "bird chirp tweet",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/birds/songbird_bird_noise_13_wav_507261.wav": {
+      "source_url": "https://freesound.org/people/SpaceJoe/sounds/507261/",
+      "license": "CC0-1.0",
+      "author": "SpaceJoe",
+      "freesound_id": 507261,
+      "query": "bird chirp tweet",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/birds/songbird_bird_noise_6_wav_507264.wav": {
+      "source_url": "https://freesound.org/people/SpaceJoe/sounds/507264/",
+      "license": "CC0-1.0",
+      "author": "SpaceJoe",
+      "freesound_id": 507264,
+      "query": "bird chirp tweet",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/birds/songbird_bird_noise_7_wav_507266.wav": {
+      "source_url": "https://freesound.org/people/SpaceJoe/sounds/507266/",
+      "license": "CC0-1.0",
+      "author": "SpaceJoe",
+      "freesound_id": 507266,
+      "query": "bird chirp tweet",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/insects/cicada_cicadas_in_japan_wav_643877.wav": {
+      "source_url": "https://freesound.org/people/cartoonrob/sounds/643877/",
+      "license": "CC0-1.0",
+      "author": "cartoonrob",
+      "freesound_id": 643877,
+      "query": "cicada",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/insects/cicada_river_and_cicadas_1_437061.wav": {
+      "source_url": "https://freesound.org/people/SamuelGremaud/sounds/437061/",
+      "license": "CC0-1.0",
+      "author": "SamuelGremaud",
+      "freesound_id": 437061,
+      "query": "cicada",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/insects/cricket_cricketsample_1_wav_341855.wav": {
+      "source_url": "https://freesound.org/people/nervousneal/sounds/341855/",
+      "license": "CC0-1.0",
+      "author": "nervousneal",
+      "freesound_id": 341855,
+      "query": "cricket chirp single",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/insects/cricket_cricketsample_2_wav_341856.wav": {
+      "source_url": "https://freesound.org/people/nervousneal/sounds/341856/",
+      "license": "CC0-1.0",
+      "author": "nervousneal",
+      "freesound_id": 341856,
+      "query": "cricket chirp single",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/insects/cricket_single_cricket_chirping_close_perspective_01_753271.wav": {
+      "source_url": "https://freesound.org/people/HECKFRICKER/sounds/753271/",
+      "license": "CC0-1.0",
+      "author": "HECKFRICKER",
+      "freesound_id": 753271,
+      "query": "cricket chirp single",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/animals/frog_frogs_croaking_wav_391520.wav": {
+      "source_url": "https://freesound.org/people/Kamix0/sounds/391520/",
+      "license": "CC0-1.0",
+      "author": "Kamix0",
+      "freesound_id": 391520,
+      "query": "frog croak pond",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/animals/frog_frogs_on_a_summer_night_3_mp3_396490.wav": {
+      "source_url": "https://freesound.org/people/macdaddyno1/sounds/396490/",
+      "license": "CC0-1.0",
+      "author": "macdaddyno1",
+      "freesound_id": 396490,
+      "query": "frog croak pond",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/attackcry2_dude_wav_256557.wav": {
+      "source_url": "https://freesound.org/people/Skiggz/sounds/256557/",
+      "license": "CC0-1.0",
+      "author": "Skiggz",
+      "freesound_id": 256557,
+      "query": "male yell",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
+    },
+    "sfx/combat/attackcry_short_male_scream_823246.wav": {
+      "source_url": "https://freesound.org/people/ihitokage/sounds/823246/",
+      "license": "CC0-1.0",
+      "author": "ihitokage",
+      "freesound_id": 823246,
+      "query": "fight shout",
+      "note": "preview-quality mp3 (token auth); OAuth2 for original if needed; RMS-normalized + transcoded to WAV by tools/normalize_oneshots.py"
     }
   }
 }

@@ -218,7 +218,7 @@ void AudioSystem::playSound(const std::string& filePath, AudioChannel channel, f
     impl->activeSounds.push_back(soundPtr);
 }
 
-void AudioSystem::playSound3D(const std::string& filePath, const glm::vec3& position, AudioChannel channel, float volume, const glm::vec3& velocity, float pitch) {
+void AudioSystem::playSound3D(const std::string& filePath, const glm::vec3& position, AudioChannel channel, float volume, const glm::vec3& velocity, float pitch, float minDistance) {
     if (!impl->isInitialized) return;
 
     // Audibility cull. With the inverse attenuation model (gain =
@@ -236,7 +236,8 @@ void AudioSystem::playSound3D(const std::string& filePath, const glm::vec3& posi
         glm::vec3 toSource = position - glm::vec3(lp.x, lp.y, lp.z);
         float dist = glm::length(toSource);
         constexpr float kInaudibleGain = 0.001f;  // -60 dB
-        if (dist > 1.0f && (volume / dist) < kInaudibleGain) {
+        // Effective inverse-model gain: volume * minDistance / dist.
+        if (dist > minDistance && (volume * minDistance / dist) < kInaudibleGain) {
             return;  // would be inaudible — don't burn a voice on it
         }
     }
@@ -276,6 +277,7 @@ void AudioSystem::playSound3D(const std::string& filePath, const glm::vec3& posi
     ma_sound_set_velocity(&soundPtr->sound, velocity.x, velocity.y, velocity.z);
     ma_sound_set_volume(&soundPtr->sound, volume);
     ma_sound_set_pitch(&soundPtr->sound, pitch);
+    ma_sound_set_min_distance(&soundPtr->sound, minDistance);  // set ALWAYS: pooled sounds carry the last value
     ma_sound_set_spatialization_enabled(&soundPtr->sound, MA_TRUE);
     
     ma_sound_start(&soundPtr->sound);

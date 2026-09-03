@@ -1,19 +1,459 @@
 {
-  "_comment": "Fetch manifest for fetch_cc0_sounds.py — per-slot Freesound CC0 queries. dir is relative to resources/sounds/; prefix names the files; count = how many variants (variation pools kill repetition fatigue). Durations bound one-shot length for ambience scatter. exclude = lowercase substrings that disqualify a result by name (loops, synths, foreground contamination).",
+  "_comment": "Fetch manifest for fetch_cc0_sounds.py \u00e2\u20ac\u201d per-slot Freesound CC0 queries. dir is relative to resources/sounds/; prefix names the files; count = how many variants (variation pools kill repetition fatigue). Durations bound one-shot length for ambience scatter. exclude = lowercase substrings that disqualify a result by name (loops, synths, foreground contamination).",
   "slots": [
-    { "query": "bird chirp tweet",     "dir": "sfx/birds", "prefix": "songbird", "count": 4, "minSec": 1, "maxSec": 8,
-      "exclude": ["loop", "synth", "robot", "8bit", "8-bit", "toy", "whistle imitation"] },
-    { "query": "blackbird song",       "dir": "sfx/birds", "prefix": "blackbird", "count": 3, "minSec": 2, "maxSec": 10,
-      "exclude": ["loop", "synth"] },
-    { "query": "crow call caw",        "dir": "sfx/birds", "prefix": "crow", "count": 2, "minSec": 1, "maxSec": 6,
-      "exclude": ["loop", "dog", "cat", "synth"] },
-    { "query": "owl hoot night",       "dir": "sfx/birds", "prefix": "owl", "count": 2, "minSec": 1, "maxSec": 8,
-      "exclude": ["loop", "synth"] },
-    { "query": "cricket chirp single", "dir": "sfx/insects", "prefix": "cricket", "count": 3, "minSec": 1, "maxSec": 10,
-      "exclude": ["loop", "synth"] },
-    { "query": "cicada",               "dir": "sfx/insects", "prefix": "cicada", "count": 2, "minSec": 3, "maxSec": 12,
-      "exclude": ["loop", "robot", "chime", "synth", "music"] },
-    { "query": "frog croak pond",      "dir": "sfx/animals", "prefix": "frog", "count": 2, "minSec": 1, "maxSec": 8,
-      "exclude": ["loop", "synth"] }
+    {
+      "query": "bird chirp tweet",
+      "dir": "sfx/birds",
+      "prefix": "songbird",
+      "count": 4,
+      "minSec": 1,
+      "maxSec": 8,
+      "exclude": [
+        "loop",
+        "synth",
+        "robot",
+        "8bit",
+        "8-bit",
+        "toy",
+        "whistle imitation"
+      ]
+    },
+    {
+      "query": "blackbird song",
+      "dir": "sfx/birds",
+      "prefix": "blackbird",
+      "count": 3,
+      "minSec": 2,
+      "maxSec": 10,
+      "exclude": [
+        "loop",
+        "synth"
+      ]
+    },
+    {
+      "query": "crow call caw",
+      "dir": "sfx/birds",
+      "prefix": "crow",
+      "count": 2,
+      "minSec": 1,
+      "maxSec": 6,
+      "exclude": [
+        "loop",
+        "dog",
+        "cat",
+        "synth"
+      ]
+    },
+    {
+      "query": "owl hoot night",
+      "dir": "sfx/birds",
+      "prefix": "owl",
+      "count": 2,
+      "minSec": 1,
+      "maxSec": 8,
+      "exclude": [
+        "loop",
+        "synth"
+      ]
+    },
+    {
+      "query": "cricket chirp single",
+      "dir": "sfx/insects",
+      "prefix": "cricket",
+      "count": 3,
+      "minSec": 1,
+      "maxSec": 10,
+      "exclude": [
+        "loop",
+        "synth"
+      ]
+    },
+    {
+      "query": "cicada",
+      "dir": "sfx/insects",
+      "prefix": "cicada",
+      "count": 2,
+      "minSec": 3,
+      "maxSec": 12,
+      "exclude": [
+        "loop",
+        "robot",
+        "chime",
+        "synth",
+        "music"
+      ]
+    },
+    {
+      "query": "frog croak pond",
+      "dir": "sfx/animals",
+      "prefix": "frog",
+      "count": 2,
+      "minSec": 1,
+      "maxSec": 8,
+      "exclude": [
+        "loop",
+        "synth"
+      ]
+    },
+    {
+      "query": "battle cry war shout",
+      "dir": "sfx/combat",
+      "prefix": "battlecry",
+      "count": 4,
+      "minSec": 1,
+      "maxSec": 5,
+      "exclude": [
+        "loop",
+        "synth",
+        "cartoon",
+        "8bit",
+        "8-bit",
+        "robot",
+        "crowd",
+        "child",
+        "music"
+      ]
+    },
+    {
+      "query": "death scream male",
+      "dir": "sfx/combat",
+      "prefix": "death",
+      "count": 4,
+      "minSec": 1,
+      "maxSec": 4,
+      "exclude": [
+        "loop",
+        "synth",
+        "cartoon",
+        "8bit",
+        "8-bit",
+        "wilhelm",
+        "girl",
+        "female",
+        "music",
+        "horror ambience"
+      ]
+    },
+    {
+      "query": "male pain voice",
+      "dir": "sfx/combat",
+      "prefix": "grunt",
+      "count": 4,
+      "minSec": 0,
+      "maxSec": 3,
+      "exclude": [
+        "loop",
+        "synth",
+        "cartoon",
+        "8bit",
+        "8-bit",
+        "zombie",
+        "monster",
+        "music",
+        "moan sexy",
+        "scream"
+      ]
+    },
+    {
+      "query": "sword swing whoosh",
+      "dir": "sfx/combat",
+      "prefix": "swing",
+      "count": 4,
+      "minSec": 0,
+      "maxSec": 3,
+      "exclude": [
+        "loop",
+        "synth",
+        "lightsaber",
+        "laser",
+        "magic",
+        "music"
+      ]
+    },
+    {
+      "query": "sword clash metal clang",
+      "dir": "sfx/combat",
+      "prefix": "clang",
+      "count": 4,
+      "minSec": 0,
+      "maxSec": 4,
+      "exclude": [
+        "loop",
+        "synth",
+        "lightsaber",
+        "laser",
+        "anvil",
+        "bell",
+        "music"
+      ]
+    },
+    {
+      "query": "punch impact body hit",
+      "dir": "sfx/combat",
+      "prefix": "flesh",
+      "count": 3,
+      "minSec": 0,
+      "maxSec": 3,
+      "exclude": [
+        "loop",
+        "synth",
+        "cartoon",
+        "music",
+        "bass",
+        "drum"
+      ]
+    },
+    {
+      "query": "war cry charge yell",
+      "dir": "sfx/combat",
+      "prefix": "battlecry2",
+      "count": 2,
+      "minSec": 1,
+      "maxSec": 5,
+      "exclude": [
+        "loop",
+        "synth",
+        "cartoon",
+        "crowd",
+        "child",
+        "music",
+        "8bit",
+        "8-bit"
+      ]
+    },
+    {
+      "query": "heavy whoosh",
+      "dir": "sfx/combat",
+      "prefix": "swingheavy",
+      "count": 3,
+      "minSec": 0,
+      "maxSec": 3,
+      "exclude": [
+        "loop",
+        "synth",
+        "lightsaber",
+        "laser",
+        "magic",
+        "music",
+        "transition",
+        "wooden_stick",
+        "swoosh_slow",
+        "wooden stick"
+      ]
+    },
+    {
+      "query": "fire whoosh",
+      "dir": "sfx/magic",
+      "prefix": "castfire",
+      "count": 3,
+      "minSec": 0,
+      "maxSec": 4,
+      "exclude": [
+        "loop",
+        "music",
+        "8bit",
+        "8-bit",
+        "cartoon",
+        "bow",
+        "9mm",
+        "gun",
+        "iron",
+        "arrow"
+      ]
+    },
+    {
+      "query": "magic spell cast",
+      "dir": "sfx/magic",
+      "prefix": "castmagic",
+      "count": 3,
+      "minSec": 0,
+      "maxSec": 4,
+      "exclude": [
+        "loop",
+        "music",
+        "8bit",
+        "8-bit",
+        "cartoon",
+        "harp",
+        "chime twinkle",
+        "tree",
+        "burn",
+        "fall"
+      ]
+    },
+    {
+      "query": "fire burst",
+      "dir": "sfx/magic",
+      "prefix": "impactfire",
+      "count": 3,
+      "minSec": 0,
+      "maxSec": 4,
+      "exclude": [
+        "loop",
+        "music",
+        "8bit",
+        "8-bit",
+        "explosion big",
+        "shot",
+        "shooting",
+        "match",
+        "zippo",
+        "lighter"
+      ]
+    },
+    {
+      "query": "ice shatter",
+      "dir": "sfx/magic",
+      "prefix": "impactice",
+      "count": 2,
+      "minSec": 0,
+      "maxSec": 4,
+      "exclude": [
+        "loop",
+        "music",
+        "8bit",
+        "8-bit",
+        "glass bottle"
+      ]
+    },
+    {
+      "query": "electric zap",
+      "dir": "sfx/magic",
+      "prefix": "impactlightning",
+      "count": 2,
+      "minSec": 0,
+      "maxSec": 4,
+      "exclude": [
+        "loop",
+        "music",
+        "8bit",
+        "8-bit",
+        "taser",
+        "buzz",
+        "modulation",
+        "ac_",
+        "hum"
+      ]
+    },
+    {
+      "query": "attack grunt",
+      "dir": "sfx/combat",
+      "prefix": "grunt2",
+      "count": 3,
+      "minSec": 0,
+      "maxSec": 3,
+      "exclude": [
+        "loop",
+        "synth",
+        "cartoon",
+        "zombie",
+        "monster",
+        "music",
+        "sexy",
+        "robot",
+        "lo_fi",
+        "lo-fi",
+        "lofi"
+      ]
+    },
+    {
+      "query": "man scream agony",
+      "dir": "sfx/combat",
+      "prefix": "death2",
+      "count": 3,
+      "minSec": 1,
+      "maxSec": 4,
+      "exclude": [
+        "loop",
+        "synth",
+        "cartoon",
+        "wilhelm",
+        "female",
+        "girl",
+        "music",
+        "horror ambience",
+        "8bit",
+        "8-bit",
+        "scream_2",
+        "scream 2"
+      ]
+    },
+    {
+      "query": "explosion",
+      "dir": "sfx/magic",
+      "prefix": "explosion",
+      "count": 3,
+      "minSec": 1,
+      "maxSec": 5,
+      "exclude": [
+        "loop",
+        "8bit",
+        "8-bit",
+        "nuclear",
+        "distant",
+        "city",
+        "car",
+        "cartoon",
+        "music",
+        "sci-fi",
+        "underwater",
+        "debris only"
+      ]
+    },
+    {
+      "query": "thunder crack",
+      "dir": "sfx/magic",
+      "prefix": "thunder",
+      "count": 2,
+      "minSec": 1,
+      "maxSec": 6,
+      "exclude": [
+        "loop",
+        "rain",
+        "music",
+        "storm ambience",
+        "rumble only",
+        "distant",
+        "finger",
+        "snap"
+      ]
+    },
+    {
+      "query": "fight shout",
+      "dir": "sfx/combat",
+      "prefix": "attackcry",
+      "count": 4,
+      "minSec": 0,
+      "maxSec": 2,
+      "exclude": [
+        "loop",
+        "8bit",
+        "8-bit",
+        "cartoon",
+        "music",
+        "female",
+        "girl",
+        "anime"
+      ]
+    },
+    {
+      "query": "male yell",
+      "dir": "sfx/combat",
+      "prefix": "attackcry2",
+      "count": 2,
+      "minSec": 0,
+      "maxSec": 2,
+      "exclude": [
+        "loop",
+        "8bit",
+        "8-bit",
+        "cartoon",
+        "music",
+        "crowd",
+        "child",
+        "paingrunt",
+        "pain"
+      ]
+    }
   ]
 }

@@ -12,6 +12,7 @@ namespace Phyxel {
 
 namespace Scene { class Entity; }
 namespace Core { class EntityRegistry; }
+namespace Core { class SoundRegistry; }
 
 namespace Core {
 
@@ -86,7 +87,8 @@ public:
         const std::string& sourceId,
         DamageType type = DamageType::Physical,
         const glm::vec3& knockback = glm::vec3(0.0f),
-        const std::string& hitBone = "");
+        const std::string& hitBone = "",
+        bool weaponsClash = false);   ///< target was MID-SWING too → metal clang, not flesh
 
     /// Get/set invulnerability duration (seconds after taking damage).
     float getInvulnerabilityDuration() const { return m_invulnDuration; }
@@ -102,6 +104,16 @@ public:
     using OnDamageCallback = std::function<void(const DamageEvent&)>;
     void setOnDamage(OnDamageCallback cb) { m_onDamage = std::move(cb); }
 
+    /// Combat audio (impact thud/clang, pain grunt, death scream) emitted at
+    /// the target's position from inside applyDamage — the single damage entry
+    /// point — so EVERY host (editor and standalone/packaged games) gets
+    /// combat sound without per-host wiring. Optional: null = silent combat
+    /// (the pre-catalog behavior).
+    void setSoundRegistry(SoundRegistry* registry) { m_soundRegistry = registry; }
+    /// For combat behaviors (swing whoosh, battle cries) — they already carry
+    /// a CombatSystem* in NPCContext, so this needs no extra plumbing.
+    SoundRegistry* getSoundRegistry() const { return m_soundRegistry; }
+
     /// Optional external invulnerability predicate. When set and it returns true
     /// for a candidate target, the hit is skipped (in addition to the post-hit
     /// i-frame timers). Used for dodge i-frames: the host checks the target's
@@ -115,6 +127,7 @@ private:
     std::unordered_map<std::string, float> m_invulnTimers; // entityId → remaining time
     OnDamageCallback m_onDamage;
     InvulnerabilityQuery m_invulnQuery;
+    SoundRegistry* m_soundRegistry = nullptr;
 };
 
 } // namespace Core

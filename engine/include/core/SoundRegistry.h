@@ -34,6 +34,7 @@ public:
         float pitchMin  = 1.0f, pitchMax  = 1.0f;
         AudioChannel channel = AudioChannel::SFX;
         bool spatial = false;             ///< caller is expected to pass a position
+        float minDistance = 1.0f;         ///< inverse-rolloff reference (m) — raise so a sound CARRIES
     };
 
     /// Load the catalog. `catalogPath` is the sounds.json path; file entries
@@ -47,6 +48,17 @@ public:
     /// `volumeScale` multiplies the catalog volume (caller-side emphasis).
     void playEvent(const std::string& name, const std::optional<glm::vec3>& position = std::nullopt,
                    float volumeScale = 1.0f);
+
+    /// Fire `specific` if the catalog defines it, else `fallback`. The
+    /// convention hook for data-keyed variation: "combat.swing.chop_axe" ->
+    /// "combat.swing", "combat.impact.fire" -> "combat.impact.flesh",
+    /// "combat.cast.fire_bolt" -> "combat.cast". Adding a specific event to
+    /// sounds.json changes the sound with zero code changes.
+    void playEventOr(const std::string& specific, const std::string& fallback,
+                     const std::optional<glm::vec3>& position = std::nullopt,
+                     float volumeScale = 1.0f) {
+        playEvent(hasEvent(specific) ? specific : fallback, position, volumeScale);
+    }
 
     bool  hasEvent(const std::string& name) const { return m_events.count(name) > 0; }
     size_t eventCount() const { return m_events.size(); }

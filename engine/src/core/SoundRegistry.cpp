@@ -69,6 +69,7 @@ bool SoundRegistry::load(const std::string& catalogPath) {
         if (ev.contains("pitch"))  parseRange(ev["pitch"],  e.pitchMin,  e.pitchMax);
         e.channel = channelFromString(ev.value("channel", std::string("SFX")));
         e.spatial = ev.value("spatial", false);
+        e.minDistance = ev.value("minDistance", 1.0f);
         events.emplace(name, std::move(e));
     }
 
@@ -111,7 +112,8 @@ void SoundRegistry::playEvent(const std::string& name, const std::optional<glm::
     const float pitch  = jitter(e.pitchMin, e.pitchMax);
 
     if (e.spatial && position.has_value()) {
-        m_audio->playSound3D(file, *position, e.channel, volume, glm::vec3(0.0f), pitch);
+        m_audio->playSound3D(file, *position, e.channel, volume, glm::vec3(0.0f), pitch,
+                             e.minDistance);
     } else {
         m_audio->playSound(file, e.channel, volume, pitch);
     }

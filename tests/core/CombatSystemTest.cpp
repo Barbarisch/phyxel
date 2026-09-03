@@ -488,3 +488,89 @@ TEST(CombatSystemTest, HitsMultipleTargetsInCone) {
     auto events = combat.performAttack(params, registry);
     EXPECT_EQ(events.size(), 2u);
 }
+
+// ============================================================================
+// Combat audio — real PCM through the real AudioSystem + SoundRegistry +
+// CombatSystem chain (deviceless render; the AudioSystemTest instrument).
+// Damage must SOUND: impact+grunt on a survivable hit, death scream on a kill,
+// all 3D at the target. No registry wired = silent, no crash (old behavior).
+// ============================================================================
+
+#include "core/AudioSystem.h"
+#include "core/SoundRegistry.h"
+#include <algorithm>
+#include <cmath>
+#include <filesystem>
+#include <vector>
+
+namespace {
+std::string combatCatalogPath() {
+    for (const char* p : {"resources/sounds/sounds.json", "../resources/sounds/sounds.json",
+                          "../../resources/sounds/sounds.json", "../../../resources/sounds/sounds.json"}) {
+        if (std::filesystem::exists(p)) return p;
+    }
+    return "";
+}
+
+double stereoRmsOf(AudioSystem& audio, double seconds) {
+    const size_t frames = static_cast<size_t>(seconds * 48000);
+    std::vector<float> buf(frames * 2, 0.0f);
+    size_t done = 0;
+    while (done < frames) {
+        size_t got = audio.renderFrames(buf.data() + done * 2, std::min<size_t>(480, frames - done));
+        if (got == 0) break;
+        done += got;
+    }
+    double sum = 0.0;
+    for (size_t i = 0; i < done * 2; ++i) sum += double(buf[i]) * double(buf[i]);
+    return done ? std::sqrt(sum / double(done * 2)) : 0.0;
+}
+} // namespace
+
+TEST(CombatSystemTest, DamageEmitsAudibleImpactAndDeathScream) {
+    std::string catalog = combatCatalogPath();
+    ASSERT_FALSE(catalog.empty()) << "sounds.json not found from test cwd";
+
+    AudioSystem audio;
+    AudioSystemConfig cfg;
+    cfg.deviceless = true; cfg.sampleRate = 48000; cfg.channels = 2;
+    ASSERT_TRUE(audio.initialize(cfg));
+    audio.update(glm::vec3(0.0f), glm::vec3(0, 0, -1), glm::vec3(0, 1, 0));
+
+    SoundRegistry registry;
+    registry.setAudioSystem(&audio);
+    ASSERT_TRUE(registry.load(catalog));
+    ASSERT_TRUE(registry.hasEvent("combat.impact.flesh"));
+    ASSERT_TRUE(registry.hasEvent("combat.death.scream"));
+
+    CombatSystem combat;
+    combat.setSoundRegistry(&registry);
+    EntityRegistry entities;
+
+    auto target = std::make_unique<TestEntity>(glm::vec3(-3.0f, 0, 0), 100.0f);
+    entities.registerEntity(target.get(), "victim", "test");
+
+    // Survivable hit: impact + pain grunt must render real signal.
+    combat.applyDamage(target.get(), "victim", 30.0f, "attacker",
+                       DamageType::Physical, glm::vec3(0.0f), "");
+    EXPECT_GT(stereoRmsOf(audio, 0.6), 1e-5) << "survivable hit rendered silence";
+
+    // Drain, then the kill: death scream must render.
+    stereoRmsOf(audio, 3.0);
+    audio.update(glm::vec3(0.0f), glm::vec3(0, 0, -1), glm::vec3(0, 1, 0));
+    combat.applyDamage(target.get(), "victim", 999.0f, "attacker",
+                       DamageType::Physical, glm::vec3(0.0f), "");
+    EXPECT_GT(stereoRmsOf(audio, 0.8), 1e-5) << "kill rendered silence (no death scream)";
+
+    audio.shutdown();
+}
+
+TEST(CombatSystemTest, NoSoundRegistryMeansSilentCombatNotCrash) {
+    CombatSystem combat;  // no registry wired
+    EntityRegistry entities;
+    auto target = std::make_unique<TestEntity>(glm::vec3(0, 0, -1), 50.0f);
+    entities.registerEntity(target.get(), "t", "test");
+    auto ev = combat.applyDamage(target.get(), "t", 60.0f, "a",
+                                 DamageType::Physical, glm::vec3(0.0f), "");
+    EXPECT_TRUE(ev.killed);  // combat itself unaffected by absent audio
+}

@@ -157,6 +157,56 @@ protected:
 
 } // namespace
 
+// SoundRegistry::playEventOr — the convention hook behind ALL per-weapon /
+// per-spell / per-damage-type variation (combat.swing.chop_axe ->
+// combat.swing, combat.impact.fire -> combat.impact.flesh). Lives here
+// because this file owns the tone-writing + Goertzel instrument. Pins: a
+// DEFINED specific event plays ITS files; an undefined one falls back —
+// measured on rendered PCM, not on hasEvent() alone.
+TEST_F(AmbienceDirectorPcmTest, PlayEventOrResolvesSpecificThenFallback) {
+    {
+        std::ofstream f(dir + "/fallback_catalog.json");
+        f << R"({"events":{
+            "hit.special": {"files": ["beds/forest.wav"], "channel": "SFX", "spatial": false},
+            "hit.generic": {"files": ["beds/desert.wav"], "channel": "SFX", "spatial": false}
+        }})";  // forest.wav = 440 Hz tone, desert.wav = 880 Hz tone
+    }
+    SoundRegistry reg;
+    reg.setAudioSystem(&audio);
+    ASSERT_TRUE(reg.load(dir + "/fallback_catalog.json"));
+
+    // Render WITHOUT run(): run() drives the ambience director, whose Forest
+    // bed is the same 440 Hz tone — it would poison both measurements.
+    auto renderBlock = [&](float seconds) {
+        size_t frames = size_t(seconds * kSR);
+        std::vector<float> b(frames * 2, 0.0f);
+        size_t done = 0;
+        while (done < frames) {
+            size_t got = audio.renderFrames(b.data() + done * 2,
+                                            std::min<size_t>(4800, frames - done));
+            if (!got) break;
+            done += got;
+        }
+        lastFrames = done;
+        return b;
+    };
+
+    // Specific exists: its tone (440) must dominate.
+    reg.playEventOr("hit.special", "hit.generic");
+    auto block = renderBlock(0.4f);
+    EXPECT_GT(goertzel(block, lastFrames, 440.0f), goertzel(block, lastFrames, 880.0f) * 10.0)
+        << "playEventOr ignored the defined specific event";
+
+    renderBlock(2.0f);  // drain the 2 s tone
+    audio.update(glm::vec3(0.0f), glm::vec3(0, 0, -1), glm::vec3(0, 1, 0));
+
+    // Specific missing: the fallback tone (880) must dominate, no warning-spam crash.
+    reg.playEventOr("hit.does_not_exist", "hit.generic");
+    block = renderBlock(0.4f);
+    EXPECT_GT(goertzel(block, lastFrames, 880.0f), goertzel(block, lastFrames, 440.0f) * 10.0)
+        << "playEventOr failed to fall back to the generic event";
+}
+
 // CONTROL: entering the first context plays its bed, identifiable by frequency.
 TEST_F(AmbienceDirectorPcmTest, FirstContextPlaysItsBed) {
     glm::vec3 listener(0.0f, 100.0f, 0.0f);
