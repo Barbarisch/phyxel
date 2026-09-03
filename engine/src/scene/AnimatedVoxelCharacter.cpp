@@ -1552,10 +1552,25 @@ namespace Scene {
             // Start blending
             previousClipIndex = currentClipIndex;
             previousAnimTime = animTime;
-            
+
             currentClipIndex = newClipIndex;
-            animTime = 0.0f;
-            
+            // Looping locomotion starts at this character's OWN phase, not 0.
+            // Two hundred fighters entering Walk on the same frame otherwise
+            // step in perfect unison forever (see m_phaseJitter). One-shots keep
+            // starting at 0 — an Attack that begins mid-swing has no wind-up.
+            {
+                std::string n = clips[newClipIndex].name;
+                std::transform(n.begin(), n.end(), n.begin(), ::tolower);
+                const bool loops = (n.find("idle")  != std::string::npos ||
+                                    n.find("walk")  != std::string::npos ||
+                                    n.find("run")   != std::string::npos ||
+                                    n.find("boxing")!= std::string::npos);
+                const float dur = clips[newClipIndex].duration;
+                animTime = (loops && m_phaseJitter > 0.0f && dur > 0.0f)
+                             ? m_phaseJitter * dur
+                             : 0.0f;
+            }
+
             isBlending = true;
             blendFactor = 0.0f;
         } else {

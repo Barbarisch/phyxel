@@ -1,0 +1,217 @@
+{
+  "steps": [
+    {
+      "step": "steer_arrived",
+      "t": 69.8,
+      "data": {
+        "iter": 3
+      }
+    },
+    {
+      "step": "steer_stopped",
+      "t": 79.8,
+      "data": {
+        "iter": 7
+      }
+    },
+    {
+      "step": "steer_stopped",
+      "t": 86.8,
+      "data": {
+        "iter": 1
+      }
+    },
+    {
+      "step": "encounter",
+      "t": 88.4,
+      "data": {
+        "in_combat": true,
+        "order": [
+          "npc_Rat",
+          "player",
+          "npc_Warden",
+          "npc_Bram"
+        ]
+      }
+    },
+    {
+      "step": "PASS N1 the Warden joins the encounter as a combatant",
+      "t": 88.4,
+      "data": {
+        "order": [
+          "npc_Rat",
+          "player",
+          "npc_Warden",
+          "npc_Bram"
+        ]
+      }
+    },
+    {
+      "step": "warden_distance_at_first_cast",
+      "t": 92.4,
+      "data": {
+        "target": "npc_Bram",
+        "dist": 10.12
+      }
+    },
+    {
+      "step": "hp_series",
+      "t": 154.1,
+      "data": {
+        "hp": [
+          200.0,
+          200.0,
+          200.0,
+          193.0,
+          193.0,
+          193.0,
+          193.0,
+          193.0,
+          193.0,
+          185.0,
+          185.0,
+          185.0,
+          184.0,
+          184.0,
+          183.0,
+          183.0,
+          183.0,
+          183.0,
+          183.0,
+          183.0,
+          183.0,
+          183.0,
+          183.0,
+          183.0,
+          181.0,
+          181.0,
+          181.0,
+          181.0,
+          181.0,
+          179.0,
+          179.0,
+          179.0,
+          179.0,
+          179.0,
+          179.0,
+          179.0,
+          179.0,
+          176.0,
+          176.0,
+          176.0,
+          176.0,
+          176.0,
+          174.0,
+          174.0,
+          174.0,
+          169.0
+        ]
+      }
+    },
+    {
+      "step": "PASS N2 the Warden CASTS (spells preferred over melee, at range)",
+      "t": 154.6,
+      "data": {
+        "casts": 10,
+        "melee_swings": 0,
+        "dist_at_first_cast": 10.12,
+        "lines": [
+          "\u001b[32m[09:40:15.680] [INFO] [CombatAI] NPC 'npc_Warden' casts 'fire_bolt' at 'npc_Bram' for 1 (roll 19 vs AC 13 (hit))\u001b[0m",
+          "\u001b[32m[09:40:22.829] [INFO] [CombatAI] NPC 'npc_Warden' casts 'fire_bolt' at 'npc_Bram' for 0 (roll 7 vs AC 12 (miss))\u001b[0m"
+        ]
+      }
+    },
+    {
+      "step": "PASS N3 real slots: magic_missile at most twice, then the cantrip",
+      "t": 154.6,
+      "data": {
+        "magic_missile": 2,
+        "fire_bolt": 8,
+        "total": 10
+      }
+    },
+    {
+      "step": "PASS N4 warden spells actually damage the player side",
+      "t": 154.6,
+      "data": {
+        "hp_min": 169.0,
+        "hp_max": 200.0,
+        "cast_damage": [
+          "7",
+          "8",
+          "1",
+          "0",
+          "2",
+          "2",
+          "0",
+          "3",
+          "2",
+          "5"
+        ]
+      }
+    }
+  ],
+  "warden_casts": [
+    [
+      "magic_missile",
+      "npc_Bram",
+      "7"
+    ],
+    [
+      "magic_missile",
+      "npc_Bram",
+      "8"
+    ],
+    [
+      "fire_bolt",
+      "npc_Bram",
+      "1"
+    ],
+    [
+      "fire_bolt",
+      "npc_Bram",
+      "0"
+    ],
+    [
+      "fire_bolt",
+      "npc_Bram",
+      "2"
+    ],
+    [
+      "fire_bolt",
+      "npc_Bram",
+      "2"
+    ],
+    [
+      "fire_bolt",
+      "npc_Bram",
+      "0"
+    ],
+    [
+      "fire_bolt",
+      "npc_Bram",
+      "3"
+    ],
+    [
+      "fire_bolt",
+      "npc_Bram",
+      "2"
+    ],
+    [
+      "fire_bolt",
+      "npc_Bram",
+      "5"
+    ]
+  ],
+  "cast_lines": [
+    "\u001b[32m[09:40:15.680] [INFO] [CombatAI] NPC 'npc_Warden' casts 'fire_bolt' at 'npc_Bram' for 1 (roll 19 vs AC 13 (hit))\u001b[0m",
+    "\u001b[32m[09:40:22.829] [INFO] [CombatAI] NPC 'npc_Warden' casts 'fire_bolt' at 'npc_Bram' for 0 (roll 7 vs AC 12 (miss))\u001b[0m",
+    "\u001b[32m[09:40:29.876] [INFO] [CombatAI] NPC 'npc_Warden' casts 'fire_bolt' at 'npc_Bram' for 2 (roll 23 vs AC 12 (hit))\u001b[0m",
+    "\u001b[32m[09:40:36.978] [INFO] [CombatAI] NPC 'npc_Warden' casts 'fire_bolt' at 'npc_Bram' for 2 (roll 14 vs AC 12 (hit))\u001b[0m",
+    "\u001b[32m[09:40:44.082] [INFO] [CombatAI] NPC 'npc_Warden' casts 'fire_bolt' at 'npc_Bram' for 0 (roll 7 vs AC 12 (miss))\u001b[0m",
+    "\u001b[32m[09:40:49.010] [INFO] [CombatAI] NPC 'npc_Warden' casts 'fire_bolt' at 'npc_Bram' for 3 (roll 21 vs AC 12 (hit))\u001b[0m",
+    "\u001b[32m[09:40:56.120] [INFO] [CombatAI] NPC 'npc_Warden' casts 'fire_bolt' at 'npc_Bram' for 2 (roll 21 vs AC 12 (hit))\u001b[0m",
+    "\u001b[32m[09:41:01.075] [INFO] [CombatAI] NPC 'npc_Warden' casts 'fire_bolt' at 'npc_Bram' for 5 (roll 22 vs AC 12 (hit))\u001b[0m"
+  ],
+  "warden_melee_lines": []
+}

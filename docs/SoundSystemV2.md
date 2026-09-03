@@ -1,5 +1,44 @@
 # Sound System v2 — Biome Soundscapes, Music & the Audio Asset Library
 
+> **Status update 2026-09-01: P0 + P2 SHIPPED (uncommitted), plus fixes the 2026-07 read missed.**
+> The runtime audit found the defining defect the §1 source-read could not see: **`AudioSystem::update()`
+> (listener + sound recycling) was only ever called from the editor's loop** — every packaged game had a
+> listener frozen at the origin (all 3D panning relative to world (0,0,0)) and leaked one live decoder per
+> `playSound`. Fixed in `EngineRuntime::endFrame()`; proven at L4 on a rebuilt RpgGapProbe via the new
+> `GET /api/audio/state` (listener follows `set_camera` exactly; mutation check: with the block disabled the
+> listener re-freezes at origin). Shipped and test-pinned (all measured on real PCM via the new **deviceless
+> `AudioSystem::renderFrames()` offline-render seam** — `tests/core/AudioSystemTest.cpp`,
+> `AmbienceDirectorTest.cpp`, 21 tests):
+> real **Master bus** (was aliased onto SFX — red test measured Music at RMS 0.278 with Master=0)
+> + **Ambience bus**; **-60 dB audibility cull** in `playSound3D` (RT60 convention; miniaudio default
+> maxDistance is FLT_MAX so distant sounds otherwise mix forever); shutdown leak of playing sounds fixed;
+> `MA_SOUND_FLAG_STREAM` for music; `playMusic/stopMusic(fadeMs)` crossfade; **`SoundRegistry`** +
+> `resources/sounds/sounds.json` event catalog (all 4 gameplay call sites migrated — place/activate are now
+> **3D at the interaction point**; direct-file fallback if the registry is unset) + `SOURCES.json` provenance
+> (hash-verified rows; catalog + provenance validated by `AudioCatalogTest`); `hit.wav` dead reference fixed
+> (`tools/gen_hit_sound.py`); **`AmbienceDirector`** (P2: per-biome bed + scatter, 3 s hysteresis, 3 s
+> equal-power crossfade, cave override at 12 m depth, day/night bed variants) with
+> `resources/sounds/ambience.json` keyed by biome NAME (worldgen untouched) and 11 deterministic
+> loop-seam-asserted assets from `tools/gen_ambience_beds.py`. L4 on the WaterTest streaming world:
+> Jungle bed at spawn → cave underground → back, crossfades exactly 1→2→3, drip scatter fired.
+> `play_sound`/`list_sounds` now resolve via AssetManager (subfolders, project-overridable);
+> `package_game.py` ships resources/sounds recursively and unconditionally. TTS voices unchanged (still
+> direct-file — correct, they're synthesized). ⚠️ nlohmann trap fixed twice herein: `j.value(...).items()`
+> inline dangles (see memory).
+>
+> **P1 CC0 fetch SHIPPED same day:** `tools/fetch_cc0_sounds.py` + `audio_fetch_manifest.json`
+> (Freesound APIv2, `license:"Creative Commons 0"` filter, name-exclude curation, auto-provenance;
+> token auth = preview mp3s, OAuth2 upgrade path noted). 17 CC0 recordings fetched (songbird/
+> blackbird/crow/owl/cricket/cicada/frog), wired as 7 events + per-biome day/night scatter;
+> TimeProvider wired to DayNightCycle in the editor (standalone defaults to day — parity TODO).
+> Every pool file individually decode-verified (`FetchedNatureEventsRenderAudibly`); the when-filter
+> pinned by `NightScatterIsMuteByDay`; L4 archived in `docs/evidence/nature_scatter_l4_watertest_*.jsonl`.
+> Wikimedia was checked and rejected (bird material is CC BY-SA). Still open: SA3/ACE-Step generation
+> (music/beds), P3 MusicDirector + game-definition audio block, P4 SFX coverage (footsteps/break/doors),
+> Ogg packing, HRTF/occlusion/reverb (miniaudio doesn't do them — needs a custom DSP node; unpromised).
+>
+> Original design (2026-07-09) follows; §1's line numbers predate the above.
+
 > Status: **DESIGN / not yet started** (2026-07-09). This is the plan for giving the engine a
 > real audio identity: a **library of biome-centric ambience + sound effects** (wind, insects,
 > birds, creatures, water, cave drips) and **situational music** (busy medieval city theme,

@@ -16,6 +16,12 @@ class EngineRuntime;
 class NPCManager;
 class TriggerSystem;
 class EntityRegistry;
+class CombatDirector;
+class CombatAISystem;
+class CombatSystem;
+class PlayerTurnController;
+class CharacterSheet;
+class Inventory;
 
 // Engine-side base for standalone game hosts. Scaffolded games subclass THIS
 // instead of GameCallbacks, so shell behavior lives in the engine and fixes
@@ -37,8 +43,22 @@ protected:
     // transition, then runs the shared controller: samples input via the
     // scheme, drives the character (movement, facing, jump/attack/crouch,
     // advances its update), and frames the camera via the rig.
+    // driveCharacter=false: frame the character without steering it (turn-based
+    // combat — the TurnActor owns movement, the camera observes tactically).
     void updateGameplayCamera(EngineRuntime& engine, float dt,
-                              Scene::AnimatedVoxelCharacter* character);
+                              Scene::AnimatedVoxelCharacter* character,
+                              bool driveCharacter = true);
+
+    /// Park the camera at a fixed pose, bypassing the rig entirely (spectator /
+    /// harness framing). Pass detach=false to hand control back to the rig.
+    void setDetachedCamera(bool detach, const glm::vec3& pos = {},
+                           float yaw = 0.0f, float pitch = 0.0f) {
+        cameraDetached_  = detach;
+        detachedCamPos_  = pos;
+        detachedCamYaw_  = yaw;
+        detachedCamPitch_ = pitch;
+    }
+    bool cameraDetached() const { return cameraDetached_; }
 
     // Defaults used when the scene's camera block doesn't name one.
     virtual std::string defaultRigName() const { return "first_person"; }
@@ -66,11 +86,23 @@ protected:
     virtual UI::GameScreen*              apiScreen()            { return nullptr; }
     virtual EntityRegistry*              apiEntityRegistry()    { return nullptr; }
     virtual Scene::AnimatedVoxelCharacter* apiPlayer()          { return nullptr; }
+    // Turn-based combat trio (see GameApiService) — override all three or none.
+    virtual CombatDirector*       apiCombatDirector() { return nullptr; }
+    virtual CombatAISystem*       apiCombatAI()       { return nullptr; }
+    virtual CombatSystem*         apiCombatSystem()   { return nullptr; }  // damage funnel
+    virtual PlayerTurnController* apiPlayerTurn()     { return nullptr; }
+    virtual CharacterSheet*       apiPlayerSheet()    { return nullptr; }  // progression
+    virtual Inventory*            apiInventory()      { return nullptr; }  // loot/persistence
 
 private:
     GameplayCameraController cameraController_;
     std::string cameraResolvedScene_;
     bool cameraResolved_ = false;
+    // Detached spectator camera (see setDetachedCamera).
+    bool      cameraDetached_   = false;
+    glm::vec3 detachedCamPos_{0.0f};
+    float     detachedCamYaw_   = 0.0f;
+    float     detachedCamPitch_ = 0.0f;
     GameApiService gameApi_;
 };
 

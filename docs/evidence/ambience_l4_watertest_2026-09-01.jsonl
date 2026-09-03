@@ -1,0 +1,7 @@
+{"step":"spawn_state","response":{"active_loops":0,"active_sounds":0,"ambience":{"context":"","crossfades":0},"listener":{"x":0.0,"y":0.0,"z":0.0},"pooled_sounds":0,"success":true}}
+{"step":"after_teleport_y5_underground","response":{"active_loops":1,"active_sounds":0,"ambience":{"context":"cave","crossfades":2},"listener":{"x":32.0,"y":5.0,"z":80.0},"pooled_sounds":0,"success":true}}
+{"step":"after_return_to_surface_y60","response":{"active_loops":1,"active_sounds":0,"ambience":{"context":"Jungle","crossfades":3},"listener":{"x":32.0,"y":60.0,"z":80.0},"pooled_sounds":0,"success":true}}
+{"step":"engine_log","line":"[16:21:47.858] [INFO] [Ambience] Loaded 9 ambience contexts from resources/sounds/ambience.json"}
+{"step":"engine_log","line":"[16:22:38.010] [INFO] [Ambience] Context -> 'Jungle' (bed: resources/sounds/ambience/jungle_wind.wav)"}
+{"step":"engine_log","line":"[16:22:41.491] [INFO] [Ambience] Context -> 'cave' (bed: resources/sounds/ambience/cave_rumble.wav)"}
+{"step":"engine_log","line":"[16:22:46.756] [INFO] [Ambience] Context -> 'Jungle' (bed: resources/sounds/ambience/jungle_wind.wav)"}

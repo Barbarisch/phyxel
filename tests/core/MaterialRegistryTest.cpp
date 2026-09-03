@@ -7,6 +7,8 @@
 
 #include <gtest/gtest.h>
 #include "core/MaterialRegistry.h"
+#include <nlohmann/json.hpp>
+#include <fstream>
 #include <set>
 #include <filesystem>
 
@@ -34,9 +36,27 @@ protected:
         registry_ = std::make_unique<MaterialRegistry>();
         std::string path = findMaterialsJson();
         loaded_ = registry_->loadFromJson(path);
+        // The JSON itself is the expected-value source for count/order/name
+        // checks. Hardcoded counts went stale TWICE (94→102, then the 103rd
+        // material landed 2026-08-06 and the "102" tests failed for 13 days) —
+        // never carry a count forward.
+        std::ifstream f(path);
+        if (f.is_open()) {
+            try { f >> json_; } catch (...) {}
+        }
+    }
+
+    /// Names in materials.json array order (= the registry's ID order).
+    std::vector<std::string> jsonNames() const {
+        std::vector<std::string> out;
+        if (json_.contains("materials") && json_["materials"].is_array())
+            for (const auto& m : json_["materials"])
+                out.push_back(m.value("name", ""));
+        return out;
     }
 
     std::unique_ptr<MaterialRegistry> registry_;
+    nlohmann::json json_;
     bool loaded_ = false;
 };
 
@@ -52,16 +72,19 @@ TEST_F(MaterialRegistryTest, LoadsSuccessfully) {
 
 TEST_F(MaterialRegistryTest, HasCorrectMaterialCount) {
     ASSERT_TRUE(loaded_);
-    // resources/materials.json currently defines 102 materials (grew from the original 27 with biome
-    // variants, cloth Linen/Wool, Snow + SnowGrass, LogHeartwood etc.). Keep in sync with the
-    // "materials" array length in materials.json.
-    EXPECT_EQ(registry_->getMaterialCount(), 102);
+    // Registry count == the materials.json array length, read from the SAME
+    // file the registry loaded — a consistency check, not a copied number.
+    const auto names = jsonNames();
+    ASSERT_FALSE(names.empty()) << "could not parse materials.json for expectations";
+    EXPECT_EQ(registry_->getMaterialCount(), static_cast<int>(names.size()));
 }
 
 TEST_F(MaterialRegistryTest, HasCorrectTextureCount) {
     ASSERT_TRUE(loaded_);
-    // 102 materials × 6 face textures = 612 texture slots. Keep in sync with materials.json.
-    EXPECT_EQ(registry_->getTextureCount(), 612);
+    // Every material carries 6 face-texture slots.
+    const auto names = jsonNames();
+    ASSERT_FALSE(names.empty());
+    EXPECT_EQ(registry_->getTextureCount(), static_cast<int>(names.size()) * 6);
     // Total splits across the two resolution classes (512 + 1024).
     EXPECT_EQ(registry_->getTextureCount(0) + registry_->getTextureCount(1),
               registry_->getTextureCount());
@@ -73,27 +96,17 @@ TEST_F(MaterialRegistryTest, HasCorrectTextureCount) {
 
 TEST_F(MaterialRegistryTest, MaterialIDs_MatchJSON) {
     ASSERT_TRUE(loaded_);
-    // IDs assigned by JSON array order (alphabetical after system materials).
-    // LogHeartwood was inserted at index 10 (after Log), shifting every ID below by +1.
-    EXPECT_EQ(registry_->getMaterialID("Default"),      0);
-    EXPECT_EQ(registry_->getMaterialID("Dirt"),         1);
-    EXPECT_EQ(registry_->getMaterialID("Grass"),        2);
-    EXPECT_EQ(registry_->getMaterialID("Stone"),        3);
-    EXPECT_EQ(registry_->getMaterialID("Cobblestone"),  4);
-    EXPECT_EQ(registry_->getMaterialID("StoneBricks"),  5);
-    EXPECT_EQ(registry_->getMaterialID("Sand"),         6);
-    EXPECT_EQ(registry_->getMaterialID("Gravel"),       7);
-    EXPECT_EQ(registry_->getMaterialID("Wood"),         8);
-    EXPECT_EQ(registry_->getMaterialID("Log"),          9);
-    EXPECT_EQ(registry_->getMaterialID("LogHeartwood"), 10);
-    EXPECT_EQ(registry_->getMaterialID("Bricks"),      11);
-    EXPECT_EQ(registry_->getMaterialID("Sandstone"),   12);
-    EXPECT_EQ(registry_->getMaterialID("Glass"),       13);
-    EXPECT_EQ(registry_->getMaterialID("Metal"),       14);
-    EXPECT_EQ(registry_->getMaterialID("Gold"),        15);
-    EXPECT_EQ(registry_->getMaterialID("Ice"),         16);
-    EXPECT_EQ(registry_->getMaterialID("Leaf"),        17);
-    EXPECT_EQ(registry_->getMaterialID("glow"),        18);
+    // IDs are assigned by JSON array order. Check EVERY material against its
+    // array index (the old 19 hardcoded rows went stale whenever a material
+    // was inserted mid-array).
+    const auto names = jsonNames();
+    ASSERT_FALSE(names.empty());
+    for (size_t i = 0; i < names.size(); ++i) {
+        EXPECT_EQ(registry_->getMaterialID(names[i]), static_cast<int>(i))
+            << "'" << names[i] << "' expected at JSON index " << i;
+    }
+    // Anchor: Default is the id-0 fallback material by contract.
+    EXPECT_EQ(registry_->getMaterialID("Default"), 0);
 }
 
 TEST_F(MaterialRegistryTest, UnknownMaterial_FallsBackToDefault) {
@@ -231,11 +244,14 @@ TEST_F(MaterialRegistryTest, HasMaterial_KnownMaterials) {
 
 TEST_F(MaterialRegistryTest, GetAllMaterialNames_HasAll) {
     ASSERT_TRUE(loaded_);
+    // Set equality against materials.json: same size, every JSON name present.
     auto names = registry_->getAllMaterialNames();
-    // = materials.json "materials" array length (102 since LogHeartwood, the
-    // raw cut-wood material added by the axe-chop kerf arc, ef000eb).
-    EXPECT_EQ(static_cast<int>(names.size()), 102);
-    EXPECT_TRUE(registry_->hasMaterial("LogHeartwood"));
+    const auto expect = jsonNames();
+    ASSERT_FALSE(expect.empty());
+    EXPECT_EQ(names.size(), expect.size());
+    const std::set<std::string> have(names.begin(), names.end());
+    for (const auto& n : expect)
+        EXPECT_TRUE(have.count(n)) << "registry missing JSON material '" << n << "'";
 }
 
 // ============================================================================

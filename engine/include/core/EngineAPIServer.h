@@ -296,14 +296,17 @@ public:
     using RpgHandler = std::function<json(const std::string& action, const json& params)>;
     void setRpgHandler(RpgHandler handler) { m_rpgHandler = std::move(handler); }
 
-private:
-    void serverThread();
-    void setupRoutes();
-
     /// Helper: queue a command and wait for the game loop to process it.
     /// Returns the JSON response from the game loop handler.
     /// Times out after timeoutMs.
+    /// Public so an external host (GameApiService) can bounce its rpg-handler
+    /// actions through the queue — those handlers otherwise run on the HTTP
+    /// thread, which must never touch game state directly.
     json queueAndWait(const std::string& action, const json& params, int timeoutMs = 5000);
+
+private:
+    void serverThread();
+    void setupRoutes();
 
     /// Queue a command asynchronously — returns immediately with a token ID.
     /// The result can be polled via GET /api/async/:id.

@@ -24,7 +24,9 @@ public:
     void update(float dt, NPCContext& ctx) override;
     void onInteract(Entity* interactor) override;
     void onEvent(const std::string& eventType, const nlohmann::json& data) override;
-    std::string getBehaviorName() const override { return m_wander ? "Wander" : "Patrol"; }
+    std::string getBehaviorName() const override {
+        return m_follow ? "Follow" : (m_wander ? "Wander" : "Patrol");
+    }
 
     /// Enable WANDER mode (fauna roaming): instead of cycling a fixed waypoint
     /// list, roam to random points within `radius` of `anchor`, pausing a
@@ -32,6 +34,17 @@ public:
     /// (A*, stuck recovery, separation, decel). Seeds an initial target now.
     void setWanderMode(const glm::vec3& anchor, float radius,
                        float minWait = 1.5f, float maxWait = 5.0f);
+
+    /// Enable FOLLOW mode (party companions): continuously walk toward the
+    /// entity `targetId`, stopping inside `followDist` and resuming past a
+    /// small hysteresis. Repaths when the target strays `repathDist` from the
+    /// last pathed goal; snap-teleports to the target's side when left more
+    /// than `teleportDist` behind (BG3-style catch-up so a companion can never
+    /// be lost to a failed path). Reuses the full patrol nav stack.
+    /// followDist 3.0 ≈ two body-widths behind the player; teleportDist 40
+    /// is beyond the overhead tactical camera's framing, i.e. "genuinely lost".
+    void setFollowMode(const std::string& targetId, float followDist = 3.0f,
+                       float repathDist = 2.0f, float teleportDist = 40.0f);
 
     // Runtime modification
     void setWaypoints(const std::vector<glm::vec3>& waypoints);
@@ -76,6 +89,19 @@ private:
     float m_wanderRadius = 8.0f;
     float m_wanderMinWait = 1.5f;
     float m_wanderMaxWait = 5.0f;
+
+    // Follow mode (party companions)
+    bool m_follow = false;
+    std::string m_followTargetId;
+    float m_followDist = 3.0f;
+    float m_followRepathDist = 2.0f;
+    float m_followTeleportDist = 40.0f;
+    glm::vec3 m_lastFollowGoal{0.0f};   ///< target pos we last pathed toward
+    bool m_followHolding = false;       ///< inside followDist, standing by
+
+    /// Follow-mode per-frame steering. Returns true when it fully handled the
+    /// frame (holding in the deadzone / teleport catch-up / target missing).
+    bool updateFollowTarget(NPCContext& ctx, const glm::vec3& pos);
 
     /// Check the next PROBE_LOOKAHEAD path nodes against the live NavGrid.
     /// Calls invalidatePath() if any node's cell is no longer valid.

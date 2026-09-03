@@ -12,7 +12,9 @@
 namespace Phyxel {
 
 namespace Scene { class Entity; }
-namespace Core { class CombatDirector; class EntityRegistry; class CombatSystem; }
+namespace Graphics { class Camera; }
+namespace Core { class CombatDirector; class EntityRegistry; class CombatSystem;
+                 class SpellcasterComponent; struct CharacterSheet; }
 
 namespace Core {
 
@@ -51,6 +53,29 @@ public:
 
     /// Walk the player toward a world point, spending movement.
     bool requestMove(const glm::vec3& worldPoint);
+
+    // ── Click-to-act (BG3 mouse combat) ─────────────────────────────────────
+    // Resolve a screen click under ANY camera projection (perspective third-
+    // person or the orthographic tactical overhead) into a combat intent: a
+    // living enemy combatant near the cursor → Attack; otherwise the ground
+    // point under the cursor → Move. Projection-agnostic (inverse view-proj).
+    struct PickResult {
+        enum class Kind { None, Attack, Move };
+        Kind kind = Kind::None;
+        std::string targetId;      // Attack
+        glm::vec3 point{0.0f};     // Move destination (on y = groundY)
+    };
+    PickResult resolvePick(const Graphics::Camera& cam, glm::vec2 screenPx,
+                           glm::vec2 viewportPx, float groundY) const;
+    /// Project an entity's position (chest height) to screen pixels. Returns
+    /// false if the entity is unknown or behind the camera. Shares the exact
+    /// math resolvePick uses — probes verify one and trust the other.
+    bool screenOf(const Graphics::Camera& cam, const std::string& entityId,
+                  glm::vec2 viewportPx, glm::vec2& outPx) const;
+    /// resolvePick + execute (Attack → select+requestAttack; Move → requestMove).
+    /// Returns "attack" / "move" / "none" for callers to report.
+    const char* requestPickAt(const Graphics::Camera& cam, glm::vec2 screenPx,
+                              glm::vec2 viewportPx, float groundY);
 
     /// Attack a target entity by id (must be in reach + action available).
     bool requestAttack(const std::string& targetId);
@@ -125,6 +150,26 @@ public:
     void setSpellSaveDC(int dc)        { m_spellSaveDC = dc; }
     void setCasterLevel(int lvl)       { if (lvl > 0) m_casterLevel = lvl; }
 
+    /// Bind the caster's REAL spellcasting state. Once set, castSpell enforces
+    /// known/prepared + slot availability and SPENDS a slot for leveled spells
+    /// (cantrips stay free), and the save DC / spell attack bonus derive from
+    /// the component's casting ability + the sheet's proficiency instead of the
+    /// stopgap constants above. Either pointer may be null (unbound = old
+    /// behavior); the caller owns both.
+    void setSpellcaster(SpellcasterComponent* caster, const CharacterSheet* sheet) {
+        m_caster = caster;
+        m_casterSheet = sheet;
+    }
+    SpellcasterComponent* spellcaster() const { return m_caster; }
+
+    /// Effective save DC / spell attack bonus (derived when a caster is bound).
+    int effectiveSaveDC() const;
+    int effectiveSpellAttackBonus() const;
+
+    /// Why a spell can't be cast right now: "" when it CAN. Drives the hotbar's
+    /// disabled state and the refusal log — one authority, no divergence.
+    std::string castBlockedReason(const std::string& spellId) const;
+
 private:
     void beginPlayerTurn(Scene::Entity* playerEntity);
     void unbind();
@@ -154,12 +199,16 @@ private:
     std::string m_damageDice  = "1d6+3";
     DamageType  m_damageType  = DamageType::Physical;
 
-    // Spellcasting profile (stopgap, like the pseudo-AC — replace with the
-    // caster's real sheet/spellcaster component later).
+    // Spellcasting profile. FALLBACKS only — used when no SpellcasterComponent
+    // is bound (setSpellcaster). With one bound, DC/attack derive from the
+    // caster's ability + proficiency and slots are really spent.
     int          m_spellAttackBonus = 5;
     int          m_spellSaveDC      = 13;
     int          m_casterLevel      = 1;
     CastExecutor m_castExecutor;
+
+    SpellcasterComponent* m_caster      = nullptr;   // not owned
+    const CharacterSheet* m_casterSheet = nullptr;   // not owned
 };
 
 } // namespace Core

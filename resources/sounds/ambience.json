@@ -1,0 +1,73 @@
+{
+  "_comment": "AmbienceDirector config (docs/SoundSystemV2.md §4.2). Contexts are keyed by BIOME NAME (resources/biomes.json) plus the synthetic 'cave' context (listener deeper than undergroundDepth below the sampled surface). Deliberately a separate file, NOT biomes.json blocks — worldgen stays audio-free. bed = looping file relative to this dir (string, or {day, night} variants); scatter = one-shot events fired at random 3D points on a ring around the listener: interval [min,max] seconds, radius [min,max] m horizontal, yOffset [min,max] m vertical (birds up in the canopy, insects/frogs at ground level), when = day|night|always. Scatter events must exist in sounds.json (CatalogValidation). Bird/insect/frog one-shots are CC0 Freesound recordings (fetch_cc0_sounds.py; provenance in SOURCES.json).",
+  "contexts": {
+    "Forest": {
+      "bed": "ambience/forest_bed.wav",
+      "scatter": [
+        { "event": "amb.bird.songbird",  "interval": [5, 18],  "when": "day",   "radius": [8, 25],  "yOffset": [3, 12] },
+        { "event": "amb.bird.blackbird", "interval": [10, 30], "when": "day",   "radius": [10, 25], "yOffset": [3, 12] },
+        { "event": "amb.bird.owl",       "interval": [15, 45], "when": "night", "radius": [10, 30], "yOffset": [3, 12] },
+        { "event": "amb.insect.cricket", "interval": [4, 12],  "when": "night", "radius": [4, 15],  "yOffset": [0, 1] }
+      ]
+    },
+    "EnchantedForest": {
+      "bed": "ambience/enchanted_bed.wav",
+      "scatter": [
+        { "event": "amb.bird.songbird", "interval": [8, 25],  "when": "day",   "radius": [8, 25],  "yOffset": [3, 12] },
+        { "event": "amb.bird.owl",      "interval": [12, 35], "when": "night", "radius": [10, 30], "yOffset": [3, 12] }
+      ]
+    },
+    "Jungle": {
+      "bed": "ambience/jungle_bed.wav",
+      "scatter": [
+        { "event": "amb.bird.songbird",  "interval": [3, 10],  "when": "day",   "radius": [6, 20],  "yOffset": [4, 15] },
+        { "event": "amb.insect.cicada",  "interval": [8, 25],  "when": "day",   "radius": [6, 18],  "yOffset": [2, 10] },
+        { "event": "amb.animal.frog",    "interval": [6, 20],  "when": "night", "radius": [4, 15],  "yOffset": [0, 1] },
+        { "event": "amb.insect.cricket", "interval": [3, 10],  "when": "night", "radius": [4, 15],  "yOffset": [0, 1] }
+      ]
+    },
+    "Plains": {
+      "bed": "ambience/plains_bed.wav",
+      "scatter": [
+        { "event": "amb.bird.songbird",  "interval": [10, 30], "when": "day",   "radius": [10, 30], "yOffset": [2, 10] },
+        { "event": "amb.wind.gust",      "interval": [12, 30], "when": "always","radius": [15, 30], "yOffset": [2, 10] },
+        { "event": "amb.insect.cricket", "interval": [4, 12],  "when": "night", "radius": [4, 15],  "yOffset": [0, 1] }
+      ]
+    },
+    "Savanna": {
+      "bed": "ambience/savanna_bed.wav",
+      "scatter": [
+        { "event": "amb.insect.cicada",  "interval": [10, 30], "when": "day",   "radius": [8, 20],  "yOffset": [1, 6] },
+        { "event": "amb.wind.gust",      "interval": [10, 25], "when": "always","radius": [15, 30], "yOffset": [2, 10] },
+        { "event": "amb.insect.cricket", "interval": [5, 15],  "when": "night", "radius": [4, 15],  "yOffset": [0, 1] }
+      ]
+    },
+    "Desert": {
+      "bed": "ambience/desert_bed.wav",
+      "scatter": [
+        { "event": "amb.bird.crow",      "interval": [25, 60], "when": "day",   "radius": [15, 35], "yOffset": [5, 20] },
+        { "event": "amb.wind.gust",      "interval": [8, 20],  "when": "always","radius": [15, 30], "yOffset": [1, 8] },
+        { "event": "amb.insect.cricket", "interval": [8, 25],  "when": "night", "radius": [4, 15],  "yOffset": [0, 1] }
+      ]
+    },
+    "Snow": {
+      "bed": "ambience/snow_bed.wav",
+      "scatter": [
+        { "event": "amb.bird.crow", "interval": [30, 70], "when": "day", "radius": [15, 35], "yOffset": [5, 20] }
+      ]
+    },
+    "Tundra": {
+      "bed": "ambience/tundra_bed.wav",
+      "scatter": [
+        { "event": "amb.bird.crow", "interval": [25, 60], "when": "day",    "radius": [15, 35], "yOffset": [5, 20] },
+        { "event": "amb.wind.gust", "interval": [10, 22], "when": "always", "radius": [15, 30], "yOffset": [2, 10] }
+      ]
+    },
+    "cave": {
+      "bed": "ambience/cave_bed.wav",
+      "scatter": [
+        { "event": "amb.cave.drip", "interval": [4, 15], "when": "always", "radius": [3, 12], "yOffset": [-2, 4] }
+      ]
+    }
+  }
+}

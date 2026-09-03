@@ -1,0 +1,9 @@
+﻿Theme+animation probe run 2026-08-19 11:27 (Release Hearthvale.exe --test 8101, cwd build\Release)
+T1a PASS ember button warm: px(640,384) = R173 G129 B89 (R > B+40)
+T1b PASS red baseline fails same check: shot_1787151745775.png px = R137 G137 B149 (grey, pre-theme)
+T2a PASS submenu open animates: early-vs-settled 196,573 changed px in panel region
+T3  PASS settled stable: settled-vs-settled+1s 4,367 changed px (background orbit noise)
+T2b PASS reopen replays: 200,827 changed px early-vs-settled on second open
+VERDICT: PASS (5/5)
+Shots: theme_anim_menu_ember.png (rust buttons, amber title), theme_anim_lore_early.png
+(lore title mid-fade, panel still in delay), theme_anim_lore_settled.png.

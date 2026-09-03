@@ -1,0 +1,300 @@
+{
+  "runs": [
+    {
+      "tag": "runA",
+      "steps": [
+        {
+          "step": "boot",
+          "t": 15.3,
+          "data": {
+            "scene_id": "main_menu",
+            "scene_type": "menu",
+            "screen": "playing",
+            "source": "shell",
+            "success": true,
+            "transitioning": false,
+            "visible_menus": [
+              "menu:main"
+            ]
+          }
+        },
+        {
+          "step": "in_town",
+          "t": 18.3,
+          "data": {
+            "screen": {
+              "scene_id": "town",
+              "scene_type": "world",
+              "screen": "playing",
+              "source": "shell",
+              "success": true,
+              "transitioning": false,
+              "visible_menus": []
+            },
+            "pos": [
+              16.0,
+              16.0
+            ]
+          }
+        },
+        {
+          "step": "calibrate",
+          "t": 19.6,
+          "data": {
+            "W": [
+              -0.71,
+              -0.71
+            ],
+            "D": [
+              0.71,
+              -0.71
+            ],
+            "S": [
+              0.71,
+              0.71
+            ],
+            "A": [
+              -0.71,
+              0.71
+            ]
+          }
+        },
+        {
+          "step": "after_accept",
+          "t": 23.7,
+          "data": {
+            "log_check": "see hv_runA.log for dialogue lines"
+          }
+        },
+        {
+          "step": "steer_scene_changed",
+          "t": 47.7,
+          "data": {
+            "iter": 30,
+            "scene": "cellar"
+          }
+        },
+        {
+          "step": "cellar_arrival",
+          "t": 49.7,
+          "data": {
+            "result": "scene_changed",
+            "screen": {
+              "scene_id": "cellar",
+              "scene_type": "world",
+              "screen": "playing",
+              "source": "shell",
+              "success": true,
+              "transitioning": false,
+              "visible_menus": []
+            },
+            "pos": [
+              10.022080421447754,
+              26.022079467773438
+            ]
+          }
+        },
+        {
+          "step": "steer_arrived",
+          "t": 59.2,
+          "data": {
+            "iter": 13,
+            "pos": [
+              15.8,
+              17.2
+            ]
+          }
+        },
+        {
+          "step": "remedy",
+          "t": 60.2,
+          "data": {
+            "result": "arrived",
+            "find_remedy_fired": true
+          }
+        },
+        {
+          "step": "steer_scene_changed",
+          "t": 67.1,
+          "data": {
+            "iter": 9,
+            "scene": "town"
+          }
+        },
+        {
+          "step": "back_in_town",
+          "t": 69.2,
+          "data": {
+            "result": "scene_changed",
+            "screen": {
+              "scene_id": "town",
+              "scene_type": "world",
+              "screen": "playing",
+              "source": "shell",
+              "success": true,
+              "transitioning": false,
+              "visible_menus": []
+            },
+            "pos": [
+              15.94267749786377,
+              16.057323455810547
+            ]
+          }
+        },
+        {
+          "step": "steer_arrived",
+          "t": 70.3,
+          "data": {
+            "iter": 2,
+            "pos": [
+              16.3,
+              16.4
+            ]
+          }
+        },
+        {
+          "step": "finale",
+          "t": 75.9,
+          "data": {
+            "screen": {
+              "scene_id": "town",
+              "scene_type": "world",
+              "screen": "victory",
+              "source": "shell",
+              "success": true,
+              "transitioning": false,
+              "visible_menus": [
+                "victory:main"
+              ]
+            },
+            "win_fired": true
+          }
+        }
+      ]
+    },
+    {
+      "tag": "runB",
+      "steps": [
+        {
+          "step": "boot",
+          "t": 90.9,
+          "data": {
+            "scene_id": "main_menu",
+            "scene_type": "menu",
+            "screen": "playing",
+            "source": "shell",
+            "success": true,
+            "transitioning": false,
+            "visible_menus": [
+              "menu:main"
+            ]
+          }
+        },
+        {
+          "step": "restored_state",
+          "t": 90.9,
+          "data": {
+            "camera": {
+              "pitch": -30.0,
+              "position": {
+                "x": 50.0,
+                "y": 50.0,
+                "z": 50.0
+              },
+              "yaw": -135.0
+            },
+            "entities": []
+          }
+        }
+      ]
+    },
+    {
+      "tag": "runC",
+      "steps": [
+        {
+          "step": "boot",
+          "t": 106.1,
+          "data": {
+            "scene_id": "main_menu",
+            "scene_type": "menu",
+            "screen": "playing",
+            "source": "shell",
+            "success": true,
+            "transitioning": false,
+            "visible_menus": [
+              "menu:main"
+            ]
+          }
+        },
+        {
+          "step": "sequence_break",
+          "t": 114.7,
+          "data": {
+            "screen": {
+              "scene_id": "town",
+              "scene_type": "world",
+              "screen": "playing",
+              "source": "shell",
+              "success": true,
+              "transitioning": false,
+              "visible_menus": []
+            },
+            "win_fired": false,
+            "note": "victory without find_remedy = dialogue conditions needed"
+          }
+        }
+      ]
+    }
+  ],
+  "log_runA": [
+    "\u001b[31m[15:20:37.732] [ERROR] [Vulkan] Failed to allocate reflection descriptor sets!\u001b[0m",
+    "\u001b[32m[15:20:37.761] [INFO] [Hearthvale] Loaded 2 objective(s) from game.json\u001b[0m",
+    "\u001b[32m[15:20:37.761] [INFO] [HUD] HUD panel 'hud_objectives' loaded\u001b[0m",
+    "\u001b[32m[15:20:37.761] [INFO] [HUD] HUD panel 'hud_dialogue' loaded\u001b[0m",
+    "\u001b[32m[15:20:37.761] [INFO] [HUD] HUD panel 'hud_ai_dialogue' loaded\u001b[0m",
+    "\u001b[32m[15:20:37.761] [INFO] [Hearthvale] Loading screen shown (-> 'Main Menu')\u001b[0m",
+    "\u001b[32m[15:20:37.761] [INFO] [Hearthvale] Loading screen dismissed\u001b[0m",
+    "\u001b[32m[15:20:38.925] [INFO] [GameDefinitionLoader] Triggers: loaded 2\u001b[0m",
+    "\u001b[31m[15:20:40.933] [ERROR] [Character] Clip 'idle' (state=Run) has no Speed line; using fallback 8 m/s. Add `Speed <val>` to the clip in the .anim file.\u001b[0m",
+    "\u001b[32m[15:21:09.915] [INFO] [TriggerSystem] Trigger 'to_cellar' fired (when: entity_reached_region)\u001b[0m",
+    "\u001b[32m[15:21:09.938] [INFO] [Hearthvale] Loading screen shown (-> 'The Old Cellar')\u001b[0m",
+    "\u001b[32m[15:21:10.110] [INFO] [GameDefinitionLoader] Triggers: loaded 2\u001b[0m",
+    "\u001b[32m[15:21:10.110] [INFO] [Hearthvale] Loading screen dismissed\u001b[0m",
+    "\u001b[31m[15:21:10.110] [ERROR] [Character] Clip 'idle' (state=BackwardWalk) has no Speed line; using fallback 1.5 m/s. Add `Speed <val>` to the clip in the .anim file.\u001b[0m",
+    "\u001b[32m[15:21:20.505] [INFO] [TriggerSystem] Trigger 'find_remedy' fired (when: entity_reached_region)\u001b[0m",
+    "\u001b[32m[15:21:20.506] [INFO] [Hearthvale] Player profile saved (player_state table)\u001b[0m",
+    "\u001b[32m[15:21:29.352] [INFO] [TriggerSystem] Trigger 'back_to_town' fired (when: entity_reached_region)\u001b[0m",
+    "\u001b[32m[15:21:29.373] [INFO] [Hearthvale] Loading screen shown (-> 'Hearthvale Town')\u001b[0m",
+    "\u001b[32m[15:21:29.549] [INFO] [GameDefinitionLoader] Triggers: loaded 2\u001b[0m",
+    "\u001b[32m[15:21:29.549] [INFO] [Hearthvale] Loading screen dismissed\u001b[0m",
+    "\u001b[31m[15:21:29.549] [ERROR] [Character] Clip 'idle' (state=Strafe) has no Speed line; using fallback 4 m/s. Add `Speed <val>` to the clip in the .anim file.\u001b[0m",
+    "\u001b[31m[15:21:31.820] [ERROR] [Character] Clip 'landing' (state=Walk) has no Speed line; using fallback 2 m/s. Add `Speed <val>` to the clip in the .anim file.\u001b[0m",
+    "\u001b[32m[15:21:32.881] [INFO] [DialogueSystem] Started conversation with 'Elder'\u001b[0m",
+    "\u001b[32m[15:21:34.069] [INFO] [TriggerSystem] Trigger 'win' fired (when: objective_complete)\u001b[0m",
+    "\u001b[32m[15:21:34.073] [INFO] [Hearthvale] Player profile saved (player_state table)\u001b[0m",
+    "\u001b[32m[15:21:35.261] [INFO] [DialogueSystem] Ended conversation with 'Elder'\u001b[0m"
+  ],
+  "log_runB": [
+    "\u001b[31m[15:21:52.777] [ERROR] [Vulkan] Failed to allocate reflection descriptor sets!\u001b[0m",
+    "\u001b[32m[15:21:52.794] [INFO] [Hearthvale] Loaded 2 objective(s) from game.json\u001b[0m",
+    "\u001b[32m[15:21:52.794] [INFO] [HUD] HUD panel 'hud_objectives' loaded\u001b[0m",
+    "\u001b[32m[15:21:52.794] [INFO] [HUD] HUD panel 'hud_dialogue' loaded\u001b[0m",
+    "\u001b[32m[15:21:52.795] [INFO] [HUD] HUD panel 'hud_ai_dialogue' loaded\u001b[0m",
+    "\u001b[32m[15:21:52.795] [INFO] [Hearthvale] Loading screen shown (-> 'Main Menu')\u001b[0m",
+    "\u001b[32m[15:21:52.795] [INFO] [Hearthvale] Loading screen dismissed\u001b[0m"
+  ],
+  "log_runC": [
+    "\u001b[31m[15:22:08.579] [ERROR] [Vulkan] Failed to allocate reflection descriptor sets!\u001b[0m",
+    "\u001b[32m[15:22:08.594] [INFO] [Hearthvale] Loaded 2 objective(s) from game.json\u001b[0m",
+    "\u001b[32m[15:22:08.595] [INFO] [HUD] HUD panel 'hud_objectives' loaded\u001b[0m",
+    "\u001b[32m[15:22:08.595] [INFO] [HUD] HUD panel 'hud_dialogue' loaded\u001b[0m",
+    "\u001b[32m[15:22:08.595] [INFO] [HUD] HUD panel 'hud_ai_dialogue' loaded\u001b[0m",
+    "\u001b[32m[15:22:08.595] [INFO] [Hearthvale] Loading screen shown (-> 'Main Menu')\u001b[0m",
+    "\u001b[32m[15:22:08.595] [INFO] [Hearthvale] Loading screen dismissed\u001b[0m",
+    "\u001b[32m[15:22:09.615] [INFO] [GameDefinitionLoader] Triggers: loaded 2\u001b[0m",
+    "\u001b[32m[15:22:11.733] [INFO] [DialogueSystem] Started conversation with 'Elder'\u001b[0m",
+    "\u001b[32m[15:22:12.940] [INFO] [DialogueSystem] Ended conversation with 'Elder'\u001b[0m",
+    "\u001b[32m[15:22:12.960] [INFO] [DialogueSystem] Started conversation with 'Elder'\u001b[0m",
+    "\u001b[32m[15:22:13.021] [INFO] [DialogueSystem] Ended conversation with 'Elder'\u001b[0m"
+  ]
+}

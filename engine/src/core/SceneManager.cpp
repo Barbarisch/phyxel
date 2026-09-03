@@ -130,8 +130,10 @@ void SceneManager::update(float /*deltaTime*/) {
                     callbacks_.onSceneReady(activeSceneId_);
                 }
 
-                LOG_INFO("SceneManager", "Scene '{}' loaded in {:.1f}ms",
-                         activeSceneId_, ms);
+                // Plain {} only — the logger prints printf specs literally and shifts the
+                // remaining args, so "{:.1f}" renders as the text "{:.1f}" and swallows `ms`.
+                LOG_INFO("SceneManager", "Scene '{}' loaded in {} ms",
+                         activeSceneId_, static_cast<long long>(ms));
             } else {
                 state_ = SceneState::Idle;
                 if (callbacks_.setLoadingScreen) {
@@ -239,6 +241,32 @@ void SceneManager::executeLoad() {
         // Fire onEnter script if provided
         if (!scene->onEnterScript.empty() && callbacks_.runScript) {
             callbacks_.runScript(scene->onEnterScript);
+        }
+
+        // menuWorld: a menu scene MAY author a world (worldDatabase +
+        // definition.world) to render BEHIND its UI — the BG3-style living
+        // title screen. Loaded like world-scene terrain but with no player,
+        // no NPCs, no physics (nothing walks here; the host typically orbits
+        // a CameraPath over it). playerDefaults are never merged for menus.
+        if (subsystems_->chunkManager && scene->definition.contains("world") &&
+            !scene->resolvedWorldPath.empty()) {
+            auto* cm = subsystems_->chunkManager;
+            cm->saveDirtyChunks();
+            cm->clearAllGlobalDynamicSubcubes();
+            cm->clearAllGlobalDynamicCubes();
+            cm->clearAllGlobalDynamicMicrocubes();
+            cm->cleanup();
+            cm->disconnectWorldStorage();
+            if (cm->initializeWorldStorage(scene->resolvedWorldPath)) {
+                auto result = GameDefinitionLoader::load(scene->definition, *subsystems_);
+                if (result.success) {
+                    LOG_INFO("SceneManager", "menuWorld loaded behind menu scene '{}'",
+                             scene->id);
+                } else {
+                    LOG_WARN("SceneManager", "menuWorld load failed for '{}': {}",
+                             scene->id, result.error);
+                }
+            }
         }
 
         // Notify host so it can build and show the menu UI

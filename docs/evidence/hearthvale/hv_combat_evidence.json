@@ -1,0 +1,699 @@
+{
+  "steps": [
+    {
+      "step": "combat_state_boot",
+      "t": 50.9,
+      "data": {
+        "active": false,
+        "current_entity": "",
+        "in_combat": false,
+        "mode": "turn_based",
+        "player_turn": false,
+        "round": 0,
+        "turn_order": {
+          "active": false,
+          "currentIndex": 0,
+          "defaultSpeed": 30,
+          "order": [],
+          "round": 0
+        }
+      }
+    },
+    {
+      "step": "initial_dirs",
+      "t": 60.2,
+      "data": {
+        "W": [
+          -0.71,
+          -0.71
+        ],
+        "D": [
+          0.71,
+          -0.71
+        ],
+        "S": [
+          0.71,
+          0.71
+        ],
+        "A": [
+          -0.71,
+          0.71
+        ]
+      }
+    },
+    {
+      "step": "facing_dialogue",
+      "t": 61.4,
+      "data": {
+        "facing_yaw": 2.9437003135681152,
+        "expected_bearing": 0.6131887502005069,
+        "err_rad": 2.331
+      }
+    },
+    {
+      "step": "steer_arrived",
+      "t": 65.3,
+      "data": {
+        "iter": 2,
+        "pos": [
+          16.0,
+          13.9
+        ]
+      }
+    },
+    {
+      "step": "recruited",
+      "t": 69.5,
+      "data": {
+        "note": "party_joined expected in log"
+      }
+    },
+    {
+      "step": "steer_stopped",
+      "t": 94.8,
+      "data": {
+        "iter": 32
+      }
+    },
+    {
+      "step": "in_cellar",
+      "t": 96.8,
+      "data": {
+        "scene": "cellar",
+        "pos": [
+          10.068338394165039,
+          25.93166160583496
+        ],
+        "rat": [
+          15.0,
+          17.0,
+          13.0
+        ]
+      }
+    },
+    {
+      "step": "camera_exploration",
+      "t": 96.8,
+      "data": {
+        "cam_above_player": 4.4,
+        "cam_horiz_dist": 4.3,
+        "pitch": -30.0
+      }
+    },
+    {
+      "step": "steer_stopped",
+      "t": 98.7,
+      "data": {
+        "iter": 2
+      }
+    },
+    {
+      "step": "encounter_started",
+      "t": 99.7,
+      "data": {
+        "active": true,
+        "current_entity": "player",
+        "in_combat": true,
+        "mode": "turn_based",
+        "player_turn": true,
+        "round": 1,
+        "turn_order": {
+          "active": true,
+          "currentIndex": 0,
+          "defaultSpeed": 30,
+          "order": [
+            {
+              "budget": {
+                "action": true,
+                "bonusAction": true,
+                "freeObjectInteraction": true,
+                "movementRemaining": 30,
+                "reaction": true
+              },
+              "entityId": "player",
+              "hasActedThisRound": false,
+              "initiativeModifier": 3,
+              "initiativeRoll": 11,
+              "isPlayer": true,
+              "isSurprised": false
+            },
+            {
+              "budget": {
+                "action": true,
+                "bonusAction": true,
+                "freeObjectInteraction": true,
+                "movementRemaining": 30,
+                "reaction": true
+              },
+              "entityId": "npc_Bram",
+              "hasActedThisRound": false,
+              "initiativeModifier": 1,
+              "initiativeRoll": 11,
+              "isPlayer": true,
+              "isSurprised": false
+            },
+            {
+              "budget": {
+                "action": true,
+                "bonusAction": true,
+                "freeObjectInteraction": true,
+                "movementRemaining": 30,
+                "reaction": true
+              },
+              "entityId": "npc_Rat",
+              "hasActedThisRound": false,
+              "initiativeModifier": 1,
+              "initiativeRoll": 4,
+              "isPlayer": false,
+              "isSurprised": false
+            }
+          ],
+          "round": 1
+        }
+      }
+    },
+    {
+      "step": "party_in_combat",
+      "t": 99.7,
+      "data": {
+        "combatants": 3,
+        "ids": [
+          "player",
+          "npc_Bram",
+          "npc_Rat"
+        ]
+      }
+    },
+    {
+      "step": "facing_combat_start",
+      "t": 100.8,
+      "data": {
+        "facing_yaw": 2.820849657058716,
+        "expected_bearing": 2.8208497275218782,
+        "err_rad": 0.0
+      }
+    },
+    {
+      "step": "camera_combat",
+      "t": 100.8,
+      "data": {
+        "cam_above_player": 30.0,
+        "cam_horiz_dist": 0.0,
+        "pitch": -89.0
+      }
+    },
+    {
+      "step": "wasd_suppressed",
+      "t": 101.6,
+      "data": {
+        "before": [
+          11.020112991333008,
+          24.97988510131836
+        ],
+        "after": [
+          11.020112991333008,
+          24.97988510131836
+        ],
+        "moved": 0.0
+      }
+    },
+    {
+      "step": "targeting",
+      "t": 101.6,
+      "data": {
+        "attack_bonus": 5,
+        "distance": 12.623674392700195,
+        "hit_chance": 0.6000000238418579,
+        "in_reach": false,
+        "target_ac": 14,
+        "target_id": "npc_Rat"
+      }
+    },
+    {
+      "step": "click_move",
+      "t": 101.7,
+      "data": {
+        "at": [
+          803,
+          494
+        ],
+        "resolved": "move"
+      }
+    },
+    {
+      "step": "click_attack",
+      "t": 109.9,
+      "data": {
+        "at": [
+          661,
+          355
+        ],
+        "resolved": "attack"
+      }
+    },
+    {
+      "step": "click_attack",
+      "t": 117.6,
+      "data": {
+        "at": [
+          661,
+          355
+        ],
+        "resolved": "attack"
+      }
+    },
+    {
+      "step": "encounter_self_resolved",
+      "t": 121.2,
+      "data": {
+        "iter": 12,
+        "state": {
+          "active": false,
+          "current_entity": "",
+          "in_combat": false,
+          "mode": "turn_based",
+          "player_turn": false,
+          "round": 0,
+          "turn_order": {
+            "active": false,
+            "currentIndex": 0,
+            "defaultSpeed": 30,
+            "order": [],
+            "round": 0
+          }
+        }
+      }
+    },
+    {
+      "step": "combat_final",
+      "t": 121.2,
+      "data": {
+        "state": {
+          "active": false,
+          "current_entity": "",
+          "in_combat": false,
+          "mode": "turn_based",
+          "player_turn": false,
+          "round": 0,
+          "turn_order": {
+            "active": false,
+            "currentIndex": 0,
+            "defaultSpeed": 30,
+            "order": [],
+            "round": 0
+          }
+        },
+        "rounds_seen": [
+          1,
+          2,
+          3
+        ],
+        "rat_still_listed": true
+      }
+    },
+    {
+      "step": "camera_restored",
+      "t": 122.2,
+      "data": {
+        "cam_above_player": 3.0,
+        "cam_horiz_dist": 4.3,
+        "pitch": -30.0
+      }
+    },
+    {
+      "step": "sheet_after_kill",
+      "t": 122.3,
+      "data": {
+        "sheet": {
+          "armorClass": 10,
+          "armorProficiencies": [],
+          "attributes": {
+            "charisma": {
+              "base": 10,
+              "equipment": 0,
+              "modifier": 0,
+              "racial": 0,
+              "temporary": 0,
+              "total": 10
+            },
+            "constitution": {
+              "base": 10,
+              "equipment": 0,
+              "modifier": 0,
+              "racial": 0,
+              "temporary": 0,
+              "total": 10
+            },
+            "dexterity": {
+              "base": 10,
+              "equipment": 0,
+              "modifier": 0,
+              "racial": 0,
+              "temporary": 0,
+              "total": 10
+            },
+            "intelligence": {
+              "base": 10,
+              "equipment": 0,
+              "modifier": 0,
+              "racial": 0,
+              "temporary": 0,
+              "total": 10
+            },
+            "strength": {
+              "base": 10,
+              "equipment": 0,
+              "modifier": 0,
+              "racial": 0,
+              "temporary": 0,
+              "total": 10
+            },
+            "wisdom": {
+              "base": 10,
+              "equipment": 0,
+              "modifier": 0,
+              "racial": 0,
+              "temporary": 0,
+              "total": 10
+            }
+          },
+          "availableASIs": 0,
+          "characterId": "",
+          "classes": [
+            {
+              "classId": "fighter",
+              "level": 1,
+              "subclassId": ""
+            }
+          ],
+          "currentHP": 0,
+          "deathSaves": {
+            "failures": 0,
+            "stable": false,
+            "successes": 0
+          },
+          "earnedFeatureIds": [],
+          "experiencePoints": 100,
+          "featIds": [],
+          "hitDicePools": [],
+          "initiative": 0,
+          "languages": [],
+          "maxHP": 0,
+          "name": "player",
+          "raceId": "human",
+          "savingThrowProficiencies": [],
+          "skills": [],
+          "speed": 30,
+          "temporaryHP": 0,
+          "toolProficiencies": [],
+          "weaponProficiencies": []
+        },
+        "success": true
+      }
+    },
+    {
+      "step": "steer_arrived",
+      "t": 133.6,
+      "data": {
+        "iter": 19,
+        "pos": [
+          14.9,
+          15.6
+        ]
+      }
+    },
+    {
+      "step": "inventory_after_pickup",
+      "t": 134.6,
+      "data": {
+        "creative": true,
+        "hotbar": [
+          {
+            "count": 1,
+            "material": "moonpetal_remedy",
+            "max_stack": 64,
+            "selected": true,
+            "slot": 0
+          },
+          {
+            "empty": true,
+            "selected": false,
+            "slot": 1
+          },
+          {
+            "empty": true,
+            "selected": false,
+            "slot": 2
+          },
+          {
+            "empty": true,
+            "selected": false,
+            "slot": 3
+          },
+          {
+            "empty": true,
+            "selected": false,
+            "slot": 4
+          },
+          {
+            "empty": true,
+            "selected": false,
+            "slot": 5
+          },
+          {
+            "empty": true,
+            "selected": false,
+            "slot": 6
+          },
+          {
+            "empty": true,
+            "selected": false,
+            "slot": 7
+          },
+          {
+            "empty": true,
+            "selected": false,
+            "slot": 8
+          }
+        ],
+        "selected_slot": 0,
+        "size": 36,
+        "slots": [
+          {
+            "count": 1,
+            "material": "moonpetal_remedy",
+            "max_stack": 64,
+            "slot": 0
+          }
+        ]
+      }
+    },
+    {
+      "step": "steer_stopped",
+      "t": 141.4,
+      "data": {
+        "iter": 9
+      }
+    },
+    {
+      "step": "steer_arrived",
+      "t": 144.5,
+      "data": {
+        "iter": 2,
+        "pos": [
+          16.3,
+          16.3
+        ]
+      }
+    },
+    {
+      "step": "finale",
+      "t": 149.6,
+      "data": {
+        "screen": {
+          "scene_id": "town",
+          "scene_type": "world",
+          "screen": "victory",
+          "source": "shell",
+          "success": true,
+          "transitioning": false,
+          "visible_menus": [
+            "victory:main"
+          ]
+        },
+        "xp": 300,
+        "classes": [
+          {
+            "classId": "fighter",
+            "level": 2,
+            "subclassId": ""
+          }
+        ],
+        "inventory_after_turnin": {
+          "creative": true,
+          "hotbar": [
+            {
+              "empty": true,
+              "selected": true,
+              "slot": 0
+            },
+            {
+              "empty": true,
+              "selected": false,
+              "slot": 1
+            },
+            {
+              "empty": true,
+              "selected": false,
+              "slot": 2
+            },
+            {
+              "empty": true,
+              "selected": false,
+              "slot": 3
+            },
+            {
+              "empty": true,
+              "selected": false,
+              "slot": 4
+            },
+            {
+              "empty": true,
+              "selected": false,
+              "slot": 5
+            },
+            {
+              "empty": true,
+              "selected": false,
+              "slot": 6
+            },
+            {
+              "empty": true,
+              "selected": false,
+              "slot": 7
+            },
+            {
+              "empty": true,
+              "selected": false,
+              "slot": 8
+            }
+          ],
+          "selected_slot": 0,
+          "size": 36,
+          "slots": []
+        }
+      }
+    },
+    {
+      "step": "sheet_after_relaunch",
+      "t": 171.7,
+      "data": {
+        "xp": 300,
+        "classes": [
+          {
+            "classId": "fighter",
+            "level": 2,
+            "subclassId": ""
+          }
+        ]
+      }
+    }
+  ],
+  "log": [
+    "\u001b[31m[10:20:03.437] [ERROR] [Vulkan] Failed to allocate reflection descriptor sets!\u001b[0m",
+    "\u001b[32m[10:20:03.638] [INFO] [Hearthvale] Loaded 2 objective(s) from game.json\u001b[0m",
+    "\u001b[32m[10:20:03.638] [INFO] [Hearthvale] Combat mode: turn_based (camera: overhead)\u001b[0m",
+    "\u001b[32m[10:20:03.661] [INFO] [Hearthvale] Progression: human fighter (kill_xp=100, objective_xp=100)\u001b[0m",
+    "\u001b[32m[10:20:03.662] [INFO] [HUD] HUD panel 'hud_objectives' loaded\u001b[0m",
+    "\u001b[32m[10:20:03.662] [INFO] [HUD] HUD panel 'hud_combat_banner' loaded\u001b[0m",
+    "\u001b[32m[10:20:03.662] [INFO] [HUD] HUD panel 'hud_combat_order' loaded\u001b[0m",
+    "\u001b[32m[10:20:03.662] [INFO] [HUD] HUD panel 'hud_combat_turn' loaded\u001b[0m",
+    "\u001b[32m[10:20:03.662] [INFO] [HUD] HUD panel 'hud_combat_action' loaded\u001b[0m",
+    "\u001b[32m[10:20:05.755] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:05.755] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:05.755] [INFO] [Character]   [36] attack (Duration: 1.25s)\u001b[0m",
+    "\u001b[32m[10:20:05.755] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)\u001b[0m",
+    "\u001b[32m[10:20:05.755] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)\u001b[0m",
+    "\u001b[32m[10:20:05.756] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)\u001b[0m",
+    "\u001b[32m[10:20:05.771] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:05.771] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:05.771] [INFO] [Character]   [36] attack (Duration: 1.25s)\u001b[0m",
+    "\u001b[32m[10:20:05.771] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)\u001b[0m",
+    "\u001b[32m[10:20:05.771] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)\u001b[0m",
+    "\u001b[32m[10:20:05.772] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)\u001b[0m",
+    "\u001b[32m[10:20:05.780] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:05.780] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:05.780] [INFO] [Character]   [36] attack (Duration: 1.25s)\u001b[0m",
+    "\u001b[32m[10:20:05.780] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)\u001b[0m",
+    "\u001b[32m[10:20:05.780] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)\u001b[0m",
+    "\u001b[32m[10:20:05.781] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)\u001b[0m",
+    "\u001b[31m[10:20:12.316] [ERROR] [Character] Clip 'idle' (state=Run) has no Speed line; using fallback 8 m/s. Add `Speed <val>` to the clip in the .anim file.\u001b[0m",
+    "\u001b[32m[10:20:48.020] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:48.020] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:48.021] [INFO] [Character]   [36] attack (Duration: 1.25s)\u001b[0m",
+    "\u001b[32m[10:20:48.021] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)\u001b[0m",
+    "\u001b[32m[10:20:48.021] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)\u001b[0m",
+    "\u001b[32m[10:20:48.021] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)\u001b[0m",
+    "\u001b[32m[10:20:48.027] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:48.027] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:48.027] [INFO] [Character]   [36] attack (Duration: 1.25s)\u001b[0m",
+    "\u001b[32m[10:20:48.027] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)\u001b[0m",
+    "\u001b[32m[10:20:48.027] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)\u001b[0m",
+    "\u001b[32m[10:20:48.028] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)\u001b[0m",
+    "\u001b[32m[10:20:48.034] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:48.034] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:20:48.034] [INFO] [Character]   [36] attack (Duration: 1.25s)\u001b[0m",
+    "\u001b[32m[10:20:48.034] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)\u001b[0m",
+    "\u001b[32m[10:20:48.034] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)\u001b[0m",
+    "\u001b[32m[10:20:48.035] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)\u001b[0m",
+    "\u001b[31m[10:20:48.035] [ERROR] [Character] Clip 'idle' (state=Strafe) has no Speed line; using fallback 4 m/s. Add `Speed <val>` to the clip in the .anim file.\u001b[0m",
+    "\u001b[31m[10:20:50.258] [ERROR] [Character] Clip 'landing' (state=Strafe) has no Speed line; using fallback 4 m/s. Add `Speed <val>` to the clip in the .anim file.\u001b[0m",
+    "\u001b[32m[10:20:51.184] [INFO] [Hearthvale] Combat encounter started: 3 combatants (trigger 'guard_post')\u001b[0m",
+    "\u001b[32m[10:20:51.207] [INFO] [Hearthvale] Tactical camera: 'overhead' (combat)\u001b[0m",
+    "\u001b[31m[10:20:57.674] [ERROR] [Character] Clip 'idle' (state=Run) has no Speed line; using fallback 8 m/s. Add `Speed <val>` to the clip in the .anim file.\u001b[0m",
+    "\u001b[31m[10:21:00.756] [ERROR] [Character] Clip 'idle' (state=Run) has no Speed line; using fallback 8 m/s. Add `Speed <val>` to the clip in the .anim file.\u001b[0m",
+    "\u001b[32m[10:21:02.319] [INFO] [Character] hit frame: clip='attack' t=0.538337 scaledDur=1.25 frac=0.430669\u001b[0m",
+    "\u001b[32m[10:21:03.100] [INFO] [Combat] npc_Rat hit player for {:.1f} damage (actual: {:.1f})3\u001b[0m",
+    "\u001b[32m[10:21:03.100] [INFO] [CombatAI] NPC 'npc_Rat' hits 'player' for 3 (1d4) damage (roll 18 vs AC 14).\u001b[0m",
+    "DEBUG: Selected TargetAnim=attack",
+    "\u001b[32m[10:21:04.065] [INFO] [Character] hit frame: clip='attack' t=0.507656 scaledDur=1.25 frac=0.406125\u001b[0m",
+    "DEBUG: Selected TargetAnim=attack",
+    "\u001b[32m[10:21:04.824] [INFO] [PlayerTurn] Player misses 'npc_Rat' (roll 11 vs AC 14).\u001b[0m",
+    "DEBUG: Selected TargetAnim=attack",
+    "\u001b[32m[10:21:07.219] [INFO] [Character] hit frame: clip='attack' t=0.541712 scaledDur=1.25 frac=0.43337\u001b[0m",
+    "DEBUG: Selected TargetAnim=attack",
+    "\u001b[32m[10:21:07.996] [INFO] [Combat] npc_Bram hit npc_Rat for {:.1f} damage (actual: {:.1f})2\u001b[0m",
+    "\u001b[32m[10:21:07.996] [INFO] [CombatAI] NPC 'npc_Bram' hits 'npc_Rat' for 2 (1d4) damage (roll 14 vs AC 14).\u001b[0m",
+    "\u001b[32m[10:21:09.205] [INFO] [Character] hit frame: clip='attack' t=0.53503 scaledDur=1.25 frac=0.428024\u001b[0m",
+    "\u001b[32m[10:21:09.985] [INFO] [Combat] npc_Rat hit npc_Bram for {:.1f} damage (actual: {:.1f})1\u001b[0m",
+    "\u001b[32m[10:21:09.985] [INFO] [CombatAI] NPC 'npc_Rat' hits 'npc_Bram' for 1 (1d4) damage (roll 20 vs AC 14).\u001b[0m",
+    "DEBUG: Selected TargetAnim=attack",
+    "\u001b[32m[10:21:11.518] [INFO] [Character] hit frame: clip='attack' t=0.512146 scaledDur=1.25 frac=0.409717\u001b[0m",
+    "DEBUG: Selected TargetAnim=attack",
+    "\u001b[32m[10:21:12.266] [INFO] [Combat] player hit npc_Rat for {:.1f} damage (actual: {:.1f})8\u001b[0m",
+    "\u001b[32m[10:21:12.267] [INFO] [PlayerTurn] Player hits 'npc_Rat' for 8 (1d6+3) damage (roll 19 vs AC 12).\u001b[0m",
+    "\u001b[32m[10:21:12.267] [INFO] [Hearthvale] Camera restored: 'third_person' (combat over)\u001b[0m",
+    "\u001b[31m[10:21:20.593] [ERROR] [UIRenderer] Failed to load UI image 'resources/textures/source/moonpetal_remedy_top.png' (can't fopen)\u001b[0m",
+    "\u001b[32m[10:21:34.594] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:21:34.594] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:21:34.594] [INFO] [Character]   [36] attack (Duration: 1.25s)\u001b[0m",
+    "\u001b[32m[10:21:34.594] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)\u001b[0m",
+    "\u001b[32m[10:21:34.594] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)\u001b[0m",
+    "\u001b[32m[10:21:34.595] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)\u001b[0m",
+    "\u001b[32m[10:21:34.601] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:21:34.601] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:21:34.601] [INFO] [Character]   [36] attack (Duration: 1.25s)\u001b[0m",
+    "\u001b[32m[10:21:34.601] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)\u001b[0m",
+    "\u001b[32m[10:21:34.601] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)\u001b[0m",
+    "\u001b[32m[10:21:34.602] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)\u001b[0m",
+    "\u001b[32m[10:21:34.607] [INFO] [Character]   [14] left_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:21:34.607] [INFO] [Character]   [17] right_turn (Duration: 1.16667s)\u001b[0m",
+    "\u001b[32m[10:21:34.608] [INFO] [Character]   [36] attack (Duration: 1.25s)\u001b[0m",
+    "\u001b[32m[10:21:34.608] [INFO] [Character]   [40] melee_attack_down (Duration: 2.25s)\u001b[0m",
+    "\u001b[32m[10:21:34.608] [INFO] [Character]   [41] melee_attack_horizontal (Duration: 2.375s)\u001b[0m",
+    "\u001b[32m[10:21:34.608] [INFO] [Character]   [80] ogre_jump_attack (Duration: 3.66667s)\u001b[0m",
+    "\u001b[31m[10:21:34.609] [ERROR] [Character] Clip 'idle' (state=Run) has no Speed line; using fallback 8 m/s. Add `Speed <val>` to the clip in the .anim file.\u001b[0m",
+    "\u001b[31m[10:21:36.856] [ERROR] [Character] Clip 'landing' (state=Walk) has no Speed line; using fallback 2 m/s. Add `Speed <val>` to the clip in the .anim file.\u001b[0m",
+    "\u001b[32m[10:21:39.061] [INFO] [TriggerSystem] Trigger 'win' fired (when: objective_complete)\u001b[0m"
+  ]
+}

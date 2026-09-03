@@ -1,0 +1,41 @@
+﻿TACTICAL COMBAT: profiles, 3 encounters, nameplates + targeting - 2026-08-31
+User ask: "multiple encounters, multiple enemy types, advanced enemy ai tactics", then
+"health bars over character, character names over characters, and the ability to select a
+character fire some kind of targetting mechanism", plus "a detailed combat log ... that
+actually indicates why a character ai made a particular decision".
+
+TACTICS 6/6 (hv_tactics_probe.py, three played encounters):
+  T1 three encounters fire in sequence with their authored rosters
+  T2 pack focus-fire: both Rats attack the SAME target every round
+  T3 kiting: Archer withdraws 1->7 and 5->7 units; Warden 2->6
+  T4 weakest-priority MEASURED, not inferred: 41 sampled moments where the profile's pick
+     differed from a nearest-AI's, all 41 confirmed picking the LOWER-HP foe
+     (via the new POST /api/rpg/combat/ai_plan counterfactual endpoint)
+  T5 healing: "npc_Acolyte HEALS npc_Warden with cure_wounds (hp was 53%)"
+  T6 morale: "npc_Cultist FLEES from npc_Bram (hp 30%)"
+
+NAMEPLATES + TARGETING (nameplates_targeting.png): name plate, colour-coded health bar
+(green/amber/red), selection bracket, and a live readout on the hovered foe
+("AC 14  60% to hit  [out of reach]") resolved through the SAME pick the click uses.
+
+FOUR BUGS FOUND, all the same family (a subsystem the EDITOR wires and the shipped
+scaffold does not):
+ 1. VFX never ticked: RenderCoordinator::updateVfx is called ONLY in Application.cpp, so
+    spells queued effects that never animated or drew ("why don't i see any spell effects").
+ 2. World overlays projected through the CAMERA-RELATIVE render view matrix (eye at the
+    origin, for float precision at continental coordinates). Absolute world positions came
+    out behind the camera: worldToScreen rejected 3/3 combatants (queued=0 projFail=3).
+    This silently broke speech bubbles and the "[E] Interact" prompt in EVERY shipped game
+    too. Fixed at the source: RenderCoordinator::getWorldViewMatrix() + a doc note on the
+    cached one saying not to project through it.
+ 3. My own entity_damage test command called hc->takeDamage directly, bypassing the
+    CombatSystem funnel that raises death events - enemies sat at 0 HP but "alive" to the
+    director and the encounter never ended (wedged a whole probe run). Now routed through
+    the funnel.
+ 4. UISystem::render early-out ignored nameplates_, so plates would vanish in any scene
+    with no visible HUD screen.
+
+THE DECISION LOG EARNED ITS KEEP: when the morale test kept failing, combat_log.jsonl
+showed npc_Cultist taking exactly ONE turn ("turn starts at 100% hp") and never acting
+again - the wound landed after its only turn and it died before the next. From damage
+lines alone that reads as broken flee logic. Sample: combat_log_sample.jsonl.

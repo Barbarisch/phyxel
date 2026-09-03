@@ -1,0 +1,117 @@
+[32m[13:29:25.526] [INFO] [main] Hearthvale starting[0m
+[32m[13:29:25.529] [INFO] [InputManager] InputManager created[0m
+[32m[13:29:25.576] [INFO] [Audio] Audio System Initialized.[0m
+[33m[13:29:25.576] [WARN] [TTS] Piper assets not found (run tools/setup_piper.py) — NPC voices disabled[0m
+[32m[13:29:25.576] [INFO] [WorldInitializer] Initializing Phyxel Application...[0m
+[32m[13:29:25.576] [INFO] [WorldInitializer] Logging system initialized (check logging.ini for configuration)[0m
+[32m[13:29:25.576] [INFO] [WorldInitializer] Initializing window[0m
+[32m[13:29:25.576] [INFO] [WindowManager] Initializing GLFW window system[0m
+[32m[13:29:25.602] [INFO] [WindowManager] Window created: 1280x720 'Hearthvale'[0m
+[32m[13:29:25.602] [INFO] [WorldInitializer] Window initialization complete[0m
+[32m[13:29:25.604] [INFO] [Vulkan] Instance API version requested: 1.2 (loader offers 1.4)[0m
+[32m[13:29:26.235] [INFO] [Vulkan] Vulkan surface created successfully[0m
+[32m[13:29:26.236] [INFO] [Vulkan] C2 capability set: multiDrawIndirect=yes drawIndirectFirstInstance=yes gl_DrawID(1.1)=yes drawIndirectCount(1.2)=yes deviceApi=1.4[0m
+[32m[13:29:26.245] [INFO] [Vulkan] Compute queue family: 0 (shared with graphics)[0m
+[32m[13:29:26.263] [INFO] [Vulkan] Swapchain created successfully[0m
+[32m[13:29:26.263] [INFO] [Vulkan] Framebuffers created successfully[0m
+[32m[13:29:26.264] [INFO] [Rendering] Debug graphics pipeline created successfully[0m
+[32m[13:29:26.264] [INFO] [Rendering] Debug line pipeline created successfully[0m
+[32m[13:29:26.264] [INFO] [Vulkan] Command buffers created successfully[0m
+[32m[13:29:26.265] [INFO] [Vulkan] Compute resources initialized (2 command buffers)[0m
+[32m[13:29:26.266] [INFO] [Vulkan] Created light SSBO buffers (2064 bytes each)[0m
+[32m[13:29:26.266] [INFO] [Vulkan] Created atlas UV SSBO buffers (24592 bytes each)[0m
+[32m[13:29:26.267] [INFO] [Vulkan] Created character bone SSBO (65536 matrices, 4194304 bytes)[0m
+[32m[13:29:26.267] [INFO] [Vulkan] Sync objects created successfully[0m
+[32m[13:29:26.267] [INFO] [WorldInitializer] Vulkan subsystem initialized successfully[0m
+[32m[13:29:26.267] [INFO] [WorldInitializer] Initializing texture atlas system...[0m
+[32m[13:29:26.268] [INFO] [MaterialRegistry] Loaded 103 materials (618 texture slots) from resources/materials.json[0m
+[32m[13:29:28.181] [INFO] [AtlasManager] Built texture array class 0: 438 layers @ 512x512 (albedo + normal/rough)[0m
+[32m[13:29:37.512] [INFO] [AtlasManager] Built texture array class 1: 180 layers @ 1024x1024 (albedo + normal/rough)[0m
+[32m[13:29:37.631] [INFO] [AtlasManager] Loaded BC7 cache albedo class 0 (146 MB)[0m
+[32m[13:29:37.678] [INFO] [Vulkan] BC7 texture array uploaded (class 0, 438 layers @ 512x512, 10 mips, 146 MB)[0m
+[32m[13:29:37.782] [INFO] [AtlasManager] Loaded BC7 cache nr class 0 (146 MB)[0m
+[32m[13:29:37.820] [INFO] [Vulkan] BC7 texture array uploaded (class 2, 438 layers @ 512x512, 10 mips, 146 MB)[0m
+[32m[13:29:38.008] [INFO] [AtlasManager] Loaded BC7 cache albedo class 1 (240 MB)[0m
+[32m[13:29:38.086] [INFO] [Vulkan] BC7 texture array uploaded (class 1, 180 layers @ 1024x1024, 11 mips, 240 MB)[0m
+[32m[13:29:38.279] [INFO] [AtlasManager] Loaded BC7 cache nr class 1 (240 MB)[0m
+[32m[13:29:38.355] [INFO] [Vulkan] BC7 texture array uploaded (class 3, 180 layers @ 1024x1024, 11 mips, 240 MB)[0m
+[32m[13:29:38.355] [INFO] [Vulkan] Updated atlas SSBO (count512=438, count1024=180, fallback=0)[0m
+[32m[13:29:38.355] [INFO] [WorldInitializer] Populated atlas SSBO with material PBR props (512 class=438, 1024 class=180)[0m
+[32m[13:29:38.355] [INFO] [WorldInitializer] Texture atlas system initialized successfully[0m
+[32m[13:29:38.355] [INFO] [Chunk] Physics world set for proper dynamic object cleanup[0m
+[32m[13:29:38.356] [INFO] [WorldStorage] [WORLD_STORAGE] Opened database: worlds/default.db[0m
+[32m[13:29:38.363] [INFO] [WorldStorage] [WORLD_STORAGE] WorldStorage initialized successfully[0m
+[32m[13:29:38.363] [INFO] [ChunkStreaming] World storage initialized: worlds/default.db[0m
+[32m[13:29:38.363] [INFO] [WorldStorage] [WORLD_STORAGE] Found 0 chunks in database[0m
+[32m[13:29:38.363] [INFO] [ChunkStreaming] No chunks found in database[0m
+[32m[13:29:38.363] [INFO] [WorldInitializer] No chunks found in database - starting with EMPTY world for Python scripting[0m
+[32m[13:29:38.363] [INFO] [Chunk] Rebuilding faces for all loaded chunks with cross-chunk culling...[0m
+[32m[13:29:38.363] [INFO] [Chunk] Face rebuilding complete for 0 chunks[0m
+[32m[13:29:38.363] [INFO] [Chunk] Initializing voxel hash maps for all 0 chunks...[0m
+[32m[13:29:38.363] [INFO] [Chunk] Completed voxel map initialization for optimized O(1) hover detection[0m
+[32m[13:29:38.363] [INFO] [WorldInitializer] Created 0 chunks for testing[0m
+[32m[13:29:38.363] [INFO] [InputManager] InputManager initialized successfully[0m
+[32m[13:29:38.363] [INFO] [Physics] PhysicsWorld initialized (VoxelDynamicsWorld)[0m
+[32m[13:29:38.363] [INFO] [WorldInitializer] Physics subsystem initialized successfully (static cubes excluded)[0m
+[32m[13:29:38.363] [INFO] [WorldInitializer] Creating chunk physics bodies...[0m
+[32m[13:29:38.363] [INFO] [WorldInitializer] Assets loaded successfully[0m
+[32m[13:29:38.365] [INFO] [UI] Loaded terminal font: JetBrains Mono Nerd Font (bundled)[0m
+[32m[13:29:38.365] [INFO] [WorldInitializer] Application initialized successfully![0m
+[32m[13:29:38.365] [INFO] [EngineRuntime] Engine runtime initialized successfully[0m
+[32m[13:29:38.365] [INFO] [Hearthvale] Initializing...[0m
+[32m[13:29:38.365] [INFO] [GameSettings] No settings file found at 'settings.json', using defaults[0m
+[32m[13:29:38.365] [INFO] [AI] LLMClient created (provider=anthropic, model=claude-sonnet-5)[0m
+[32m[13:29:38.366] [INFO] [AI] ConversationMemory initialized[0m
+[32m[13:29:38.366] [INFO] [AI] AIConversationService initialized (configured=0)[0m
+[32m[13:29:38.366] [INFO] [Hearthvale] AI Conversation Service ready (configured=no)[0m
+[32m[13:29:38.406] [INFO] [ShadowMap] C2.1 chunk-data SSBO ready (16384 entries) + indirect buffer (16384 commands)[0m
+[32m[13:29:38.410] [INFO] [ShadowMap] C2.1 chunk-data SSBO ready (16384 entries) + indirect buffer (16384 commands)[0m
+[32m[13:29:38.415] [INFO] [ShadowMap] C2.1 chunk-data SSBO ready (16384 entries) + indirect buffer (16384 commands)[0m
+[32m[13:29:38.419] [INFO] [Rendering] Debug graphics pipeline created successfully[0m
+[32m[13:29:38.419] [INFO] [Rendering] Debug line pipeline created successfully[0m
+[32m[13:29:38.419] [INFO] [RenderPipeline] OIT transparent pipeline created[0m
+[32m[13:29:38.419] [INFO] [RenderPipeline] Sky pipeline created (atmospheric sky + sun + moon)[0m
+[32m[13:29:38.419] [INFO] [RenderPipeline] Mirror pipeline created[0m
+[32m[13:29:38.419] [INFO] [RenderPipeline] Reflection scene pipeline created[0m
+[31m[13:29:38.420] [ERROR] [Vulkan] Failed to allocate reflection descriptor sets![0m
+[32m[13:29:38.420] [INFO] [Vulkan] Framebuffers created successfully[0m
+[32m[13:29:38.421] [INFO] [UI] Loaded terminal font: JetBrains Mono Nerd Font (bundled)[0m
+[32m[13:29:38.428] [INFO] [Water] sea clipmap: 4 levels, 14785 verts, 29312 tris, reach 1024u[0m
+[32m[13:29:38.429] [INFO] [KinematicVoxelPipeline] Initialized (max 131072 face instances)[0m
+[32m[13:29:38.429] [INFO] [GrassRenderPipeline] Initialized (grass blade layer)[0m
+[32m[13:29:38.429] [INFO] [GrassRenderPipeline] Shadow caster initialized (grass casts shadows)[0m
+[32m[13:29:38.430] [INFO] [FoliageRenderPipeline] Initialized (leaf card layer)[0m
+[32m[13:29:38.430] [INFO] [FoliageRenderPipeline] Shadow caster initialized (dappled canopy shadows)[0m
+[32m[13:29:38.430] [INFO] [FoliageRenderPipeline] Kinematic foliage initialized (falling canopies keep cards)[0m
+[32m[13:29:38.430] [INFO] [FarTerrainRenderPipeline] Initialized (far-terrain LOD tiles)[0m
+[32m[13:29:38.430] [INFO] [FarTerrainRenderPipeline] Far-cascade shadow caster variant initialized[0m
+[32m[13:29:38.431] [INFO] [FarTreeRenderPipeline] Initialized (far-tree impostors)[0m
+[32m[13:29:38.431] [INFO] [TreeLodRenderPipeline] Initialized (instanced far-tree LOD meshes)[0m
+[32m[13:29:38.431] [INFO] [TreeLodRenderPipeline] Far-cascade shadow caster variant initialized[0m
+[32m[13:29:38.431] [INFO] [UIRenderer] Initialized (1280x720)[0m
+[32m[13:29:38.434] [INFO] [UIRenderer] Font atlas uploaded (512x512)[0m
+[32m[13:29:38.434] [INFO] [BitmapFont] Loaded TTF 'resources/fonts/JetBrainsMonoNerdFontMono-Regular.ttf' baked @ 48px (norm {:.3f})[0m
+[32m[13:29:38.434] [INFO] [RenderCoordinator] UISystem initialized successfully[0m
+[32m[13:29:38.435] [INFO] [Hearthvale] Loaded 2 objective(s) from game.json[0m
+[32m[13:29:38.435] [INFO] [HUD] Loaded engine default HUD (resources/ui/default_hud.json)[0m
+[32m[13:29:38.435] [INFO] [HUD] HUD panel 'hud_health' loaded[0m
+[32m[13:29:38.435] [INFO] [HUD] HUD panel 'hud_hotbar' loaded[0m
+[32m[13:29:38.435] [INFO] [HUD] HUD panel 'hud_objectives' loaded[0m
+[32m[13:29:38.435] [INFO] [HUD] HUD panel 'hud_dialogue' loaded[0m
+[32m[13:29:38.435] [INFO] [HUD] HUD panel 'hud_combat_banner' loaded[0m
+[32m[13:29:38.435] [INFO] [HUD] HUD panel 'hud_combat_order' loaded[0m
+[32m[13:29:38.435] [INFO] [HUD] HUD panel 'hud_combat_turn' loaded[0m
+[32m[13:29:38.435] [INFO] [HUD] HUD panel 'hud_combat_action' loaded[0m
+[32m[13:29:38.435] [INFO] [HUD] HUD panel 'hud_ai_dialogue' loaded[0m
+[32m[13:29:38.435] [INFO] [HUD] HUD panel 'hud_countdown' loaded[0m
+[32m[13:29:38.435] [INFO] [SceneManager] Loaded manifest with 3 scene(s), startScene='main_menu'[0m
+[32m[13:29:38.435] [INFO] [SceneManager] Loading initial scene: 'main_menu'[0m
+[32m[13:29:38.435] [INFO] [Hearthvale] Loading screen shown (-> 'Main Menu')[0m
+[32m[13:29:38.435] [INFO] [Hearthvale] Loading screen dismissed[0m
+[32m[13:29:38.435] [INFO] [SceneManager] Scene 'main_menu' loaded in {:.1f}ms[0m
+[32m[13:29:38.435] [INFO] [Hearthvale] Loaded multi-scene game (3 scenes)[0m
+[32m[13:29:38.435] [INFO] [Hearthvale] Game initialized[0m
+[32m[13:29:38.460] [INFO] [EngineAPIServer] HTTP API server started on port 8101[0m
+[32m[13:29:38.460] [INFO] [GameApiService] Standalone test API listening on 127.0.0.1:8101 (Hearthvale)[0m
+[33m[13:29:38.460] [WARN] [GameShell] *** TEST API ENABLED on 127.0.0.1:8101 — dev/test build, do NOT ship ***[0m
+[32m[13:29:38.461] [INFO] [WaterPipeline] Water-layer levels bound: 1x1 cells, origin (0, 0), cell 0 (invCell 0 = flat-sea; negative = grounded/off-grid-dry)[0m

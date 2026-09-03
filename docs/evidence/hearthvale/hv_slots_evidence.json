@@ -1,0 +1,195 @@
+{
+  "steps": [
+    {
+      "step": "spellbook",
+      "t": 25.3,
+      "data": {
+        "bound": true,
+        "casting_class": "cleric",
+        "save_dc": 10,
+        "slots": [
+          {
+            "level": 1,
+            "maximum": 2,
+            "remaining": 2
+          }
+        ],
+        "spell_attack_bonus": 2,
+        "spells": [
+          {
+            "blocked": "not your turn",
+            "cantrip": true,
+            "id": "sacred_flame"
+          },
+          {
+            "blocked": "not your turn",
+            "cantrip": false,
+            "id": "guiding_bolt",
+            "prepared": true
+          },
+          {
+            "blocked": "not your turn",
+            "cantrip": false,
+            "id": "cure_wounds",
+            "prepared": true
+          }
+        ]
+      }
+    },
+    {
+      "step": "PASS L1 spellbook bound with sheet-derived DC + attack bonus",
+      "t": 25.3,
+      "data": {
+        "dc": 10,
+        "expected_dc": 10,
+        "atk": 2,
+        "expected_atk": 2,
+        "wis_mod": 0
+      }
+    },
+    {
+      "step": "PASS L2 PHB cleric-1 slot table (2 first-level, none higher)",
+      "t": 25.3,
+      "data": {
+        "slots": [
+          {
+            "level": 1,
+            "maximum": 2,
+            "remaining": 2
+          }
+        ]
+      }
+    },
+    {
+      "step": "steer_arrived",
+      "t": 32.5,
+      "data": {
+        "iter": 3
+      }
+    },
+    {
+      "step": "steer_stopped",
+      "t": 42.5,
+      "data": {
+        "iter": 7
+      }
+    },
+    {
+      "step": "steer_stopped",
+      "t": 49.5,
+      "data": {
+        "iter": 1
+      }
+    },
+    {
+      "step": "encounter",
+      "t": 51.0,
+      "data": {
+        "in_combat": true
+      }
+    },
+    {
+      "step": "cast_cure",
+      "t": 51.1,
+      "data": {
+        "i": 0,
+        "resp": {
+          "cast": true,
+          "ok": true
+        },
+        "slots_left": 1
+      }
+    },
+    {
+      "step": "cast_cure",
+      "t": 57.4,
+      "data": {
+        "i": 6,
+        "resp": {
+          "cast": true,
+          "ok": true
+        },
+        "slots_left": 0
+      }
+    },
+    {
+      "step": "PASS L3 both slots spend, one per cast, down to zero",
+      "t": 57.4,
+      "data": {
+        "casts": [
+          {
+            "i": 0,
+            "resp": {
+              "cast": true,
+              "ok": true
+            },
+            "slots_left": 1
+          },
+          {
+            "i": 6,
+            "resp": {
+              "cast": true,
+              "ok": true
+            },
+            "slots_left": 0
+          }
+        ]
+      }
+    },
+    {
+      "step": "PASS L3b leveled spells refuse with 'no slots' at zero",
+      "t": 57.4,
+      "data": {
+        "cast_resp": {
+          "blocked": "no slots",
+          "cast": false,
+          "ok": true
+        },
+        "book": {
+          "sacred_flame": {
+            "blocked": "action spent",
+            "cantrip": true,
+            "id": "sacred_flame"
+          },
+          "guiding_bolt": {
+            "blocked": "no slots",
+            "cantrip": false,
+            "id": "guiding_bolt",
+            "prepared": true
+          },
+          "cure_wounds": {
+            "blocked": "no slots",
+            "cantrip": false,
+            "id": "cure_wounds",
+            "prepared": true
+          }
+        }
+      }
+    },
+    {
+      "step": "PASS L4 cantrips stay castable at zero slots",
+      "t": 57.4,
+      "data": {
+        "sacred_flame": {
+          "blocked": "action spent",
+          "cantrip": true,
+          "id": "sacred_flame"
+        },
+        "slots_left": 0
+      }
+    },
+    {
+      "step": "PASS L5 long rest restores the slots",
+      "t": 57.5,
+      "data": {
+        "slots": [
+          {
+            "level": 1,
+            "maximum": 2,
+            "remaining": 2
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-{
+﻿{
   "_comment": "Data-driven fallback main menu / title screen (docs/HudSystem.md §11a). Loaded by UI::loadGameScreenInto(ui,\"mainmenu\",...) into mainmenu:* screens; replaces ImGui renderMainMenu. Used by games WITHOUT a sceneType:\"menu\" start scene (games that DO have one render that menu scene instead). {{title}} resolves via MenuActions.onResolveVariable; buttons: start_game / open_settings / quit_game.",
   "background_type": "solid",
   "background_color": [0.05, 0.05, 0.10, 1.0],
@@ -6,7 +6,7 @@
   "panels": {
     "main": {
       "children": [
-        { "type": "label",  "id": "mainmenu_title", "text": "{{title}}", "font": "title", "position": [640, 200], "size": [700, 70] },
+        { "type": "label", "align": "center",  "id": "mainmenu_title", "text": "{{title}}", "font": "title", "position": [640, 200], "size": [700, 70] },
         { "type": "button", "id": "mainmenu_new",      "text": "New Game", "position": [540, 330], "size": [200, 48], "action": { "type": "start_game" } },
         { "type": "button", "id": "mainmenu_options",  "text": "Options",  "position": [540, 390], "size": [200, 48], "action": { "type": "open_settings" } },
         { "type": "button", "id": "mainmenu_quit",     "text": "Quit",     "position": [540, 450], "size": [200, 48], "action": { "type": "quit_game" } }

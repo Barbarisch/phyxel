@@ -11,6 +11,8 @@
 #include <gtest/gtest.h>
 #include "core/WorldGenerator.h"
 #include <glm/glm.hpp>
+#include <algorithm>
+#include <iostream>
 #include <map>
 #include <set>
 #include <string>
@@ -24,6 +26,12 @@ TEST(BiomeReachabilityTest, EveryBiomeIsSelectedSomewhere) {
     std::map<std::string, long> counts;
     const int STEP = 17;          // prime-ish stride to avoid aliasing with the noise lattice
     const int SPAN = 6000;        // world units each way -> ~500k samples/seed
+    // The achievable climate range is recorded DURING the first seed's pass rather than in a
+    // second sweep of its own. The diagnostic block below used to re-run an identical 500k-sample
+    // traversal over seed 12345 purely to compute these four numbers — a whole extra pass (25% of
+    // this test's ~78 s) for a printout. Same generator, same seed, same frequency, same STEP/SPAN,
+    // so the values are identical; only the redundant work is gone.
+    float tmin = 1e9f, tmax = -1e9f, mmin = 1e9f, mmax = -1e9f;
     for (uint32_t seed : {12345u, 999u, 2024u}) {
         WorldGenerator gen(WorldGenerator::GenerationType::Perlin, seed);
         // Traverse the climate space fast so a moderate area covers many independent climate
@@ -31,30 +39,24 @@ TEST(BiomeReachabilityTest, EveryBiomeIsSelectedSomewhere) {
         // it densely). Reachability is a property of the range, not the spatial scale.
         gen.getTerrainParams().climateFrequency = 0.05f;
         const auto& biomes = gen.getBiomes();
+        const bool isDiagnosticSeed = (seed == 12345u);
         for (int x = -SPAN; x <= SPAN; x += STEP)
             for (int z = -SPAN; z <= SPAN; z += STEP) {
                 auto col = gen.sampleSurface(x, z);
                 if (col.biomeIndex >= 0 && col.biomeIndex < static_cast<int>(biomes.size()))
                     counts[biomes[col.biomeIndex].name] += 1;
+                if (isDiagnosticSeed) {
+                    tmin = std::min(tmin, col.temperature); tmax = std::max(tmax, col.temperature);
+                    mmin = std::min(mmin, col.moisture);    mmax = std::max(mmax, col.moisture);
+                }
             }
     }
 
     // Diagnostic: observed achievable climate range + per-biome selection counts.
-    {
-        WorldGenerator g(WorldGenerator::GenerationType::Perlin, 12345u);
-        g.getTerrainParams().climateFrequency = 0.05f;
-        float tmin = 1e9f, tmax = -1e9f, mmin = 1e9f, mmax = -1e9f;
-        for (int x = -SPAN; x <= SPAN; x += STEP)
-            for (int z = -SPAN; z <= SPAN; z += STEP) {
-                auto c = g.sampleSurface(x, z);
-                tmin = std::min(tmin, c.temperature); tmax = std::max(tmax, c.temperature);
-                mmin = std::min(mmin, c.moisture);    mmax = std::max(mmax, c.moisture);
-            }
-        std::cout << "[reach] achievable temp [" << tmin << "," << tmax << "] moisture ["
-                  << mmin << "," << mmax << "]\n";
-        for (const auto& kv : counts)
-            std::cout << "[reach] " << kv.first << " = " << kv.second << "\n";
-    }
+    std::cout << "[reach] achievable temp [" << tmin << "," << tmax << "] moisture ["
+              << mmin << "," << mmax << "]\n";
+    for (const auto& kv : counts)
+        std::cout << "[reach] " << kv.first << " = " << kv.second << "\n";
 
     // Known PRE-EXISTING unreachable biome: Desert's climate centre (0.8, 0.175) sits outside the
     // achievable range (temp/moist ≈ [0.21, 0.79]) — it is never selected on HEAD, independent of

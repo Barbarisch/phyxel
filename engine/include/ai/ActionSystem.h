@@ -8,6 +8,7 @@
 
 namespace Phyxel {
 
+class ChunkManager;
 namespace Scene { class Entity; }
 namespace Core { class EntityRegistry; class AStarPathfinder; }
 namespace UI { class SpeechBubbleManager; }
@@ -34,6 +35,15 @@ struct ActionContext {
     Core::EntityRegistry* entityRegistry = nullptr;
     UI::SpeechBubbleManager* speechBubbleManager = nullptr;
     Blackboard* blackboard = nullptr;
+    /// The voxel world, for line-of-sight and walkability (AI::TacticalSpace).
+    ///
+    /// Without this a game-registered action cannot tell whether a wall stands
+    /// between it and its target, so every tactical verb degrades to a distance
+    /// check: "charge_enemy" attacked through stonework at anything within
+    /// reach, which is how two fighters on opposite faces of a wall both stood
+    /// there swinging at nothing. A behaviour vocabulary that cannot see the
+    /// world cannot make tactical decisions. May be null in bare unit tests.
+    ChunkManager* chunkManager = nullptr;
 };
 
 // ============================================================================

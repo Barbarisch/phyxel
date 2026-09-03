@@ -54,6 +54,12 @@ struct UITheme {
     float buttonHeight = 40.0f;
     float sliderHeight = 24.0f;
     float borderWidth  = 2.0f;
+
+    // Runtime-only (NOT an authored theme value): seconds since the screen being
+    // rendered was last shown. UISystem sets this per screen before rendering it;
+    // widgets read it to drive appear animations. Defaults far past any animation
+    // so hosts that never stamp it render the settled state.
+    float screenElapsed = 1.0e9f;
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -137,6 +143,23 @@ public:
     /// from the named float provider each frame (>0.5 → visible). Used to show a HUD
     /// element only in certain states (e.g. "combat.inCombat").
     std::string visibleWhen;
+
+    // ── Appear animation (menu polish) ──────────────────────────
+    // Same schema as the retired ImGui GameMenuRenderer so existing authored
+    // menus (menu_demo.json, MenuEditorPanel) keep working: JSON "animation"
+    // (fade_in / slide_in_left / slide_in_right / slide_in_up),
+    // "animation_delay", "animation_duration". All types fade alpha in; slides
+    // additionally offset 80px along their axis, ease-out cubic. Driven by
+    // UITheme::screenElapsed — replays every time the screen is (re)shown.
+    enum class AppearAnim { None, FadeIn, SlideInLeft, SlideInRight, SlideInUp };
+    AppearAnim appearAnim = AppearAnim::None;
+    float appearDelay    = 0.0f;
+    float appearDuration = 0.4f;
+
+    /// Evaluate the appear animation at `elapsed` seconds since screen show.
+    /// Returns false when no animation applies (none authored, or settled) —
+    /// callers skip the renderer anim push entirely in that case.
+    bool computeAppear(float elapsed, float& alphaOut, glm::vec2& offsetOut) const;
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -152,8 +175,30 @@ public:
     bool handleDrag(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) override;
     void handleHover(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) override;
 
+    /// Contain children to the panel's box (default). JSON "clip": false opts
+    /// out for intentional overhang. Panels with zero size never clip.
+    bool clipChildren = true;
+
+    /// Scrollable content (JSON "scrollable": true): the mouse wheel over the
+    /// panel shifts children vertically, content clips to the box, and a slim
+    /// scrollbar renders when content overflows. Quest logs, long lists,
+    /// dialogue histories. Both free and flow layouts.
+    bool scrollable = false;
+    float scrollOffset = 0.0f;    ///< current scroll in px (0 = top), clamped in render
+    float contentHeight = 0.0f;   ///< measured during render
+
+    /// Wheel input. Returns true when consumed (hit a scrollable panel whose
+    /// content overflows). Recurses into children first so nested scrollables
+    /// win over their parents.
+    bool handleScroll(glm::vec2 mousePos, glm::vec2 widgetPos, float delta, const UITheme& theme);
+
     /// Add a child widget. Panel owns it.
     void addChild(std::unique_ptr<UIWidget> widget);
+
+private:
+    void drawScrollbar(UIRenderer* renderer, const UITheme& theme, glm::vec2 pos);
+
+public:
 
     /// Find a child by id (recursive).
     UIWidget* findChild(const std::string& childId);
@@ -185,6 +230,19 @@ public:
     std::string text;
     bool isTitle = false;     // uses titleColor + titleScale if true
     float wrapWidth = 0.0f;   // >0 = word-wrap to this pixel width (multi-line)
+    /// Horizontal alignment relative to `position.x`:
+    ///   Left   (default) — text STARTS at position.x (historical behavior)
+    ///   Center           — text is centered ON position.x (what every shipped
+    ///                      screen JSON authored: position 640 = screen center)
+    ///   Right            — text ENDS at position.x
+    enum class HAlign { Left, Center, Right };
+    HAlign align = HAlign::Left;
+
+    // Per-element overrides (JSON "color" / "scale"). alpha 0 / scale 0 = unset
+    // → theme colors and scales apply. Scale is absolute font scale (theme body
+    // text is 2.0, titles 3.0).
+    glm::vec4 customColor = {0, 0, 0, 0};
+    float customScale = 0.0f;
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -201,6 +259,13 @@ public:
 
     std::string text;
     std::function<void()> onClick;
+
+    // Per-element overrides (JSON "color" = text, "bg" = background,
+    // "bgHover" = hover background; unset hover = bg lightened 25%).
+    // alpha 0 = unset → theme colors apply.
+    glm::vec4 customColor   = {0, 0, 0, 0};
+    glm::vec4 customBg      = {0, 0, 0, 0};
+    glm::vec4 customBgHover = {0, 0, 0, 0};
 };
 
 // ════════════════════════════════════════════════════════════════

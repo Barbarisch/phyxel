@@ -26,6 +26,12 @@ public:
     // Inventory (stored as JSON blob)
     nlohmann::json inventoryData = nlohmann::json::array();
 
+    // Progression (StandaloneParityGaps.md — the save-format expansion):
+    // XP + total level round-trip so a shipped game's character growth
+    // survives relaunch. The host re-levels the sheet up to `level` on load.
+    int xp = 0;
+    int level = 1;
+
     nlohmann::json toJson() const {
         return {
             {"camera", {
@@ -36,7 +42,9 @@ public:
             {"maxHealth", maxHealth},
             {"spawnPoint", {{"x", spawnPoint.x}, {"y", spawnPoint.y}, {"z", spawnPoint.z}}},
             {"deathCount", deathCount},
-            {"inventory", inventoryData}
+            {"inventory", inventoryData},
+            {"xp", xp},
+            {"level", level}
         };
     }
 
@@ -57,6 +65,8 @@ public:
         if (j.contains("inventory")) {
             inventoryData = j["inventory"];
         }
+        xp    = j.value("xp", 0);
+        level = j.value("level", 1);
     }
 
     bool saveToDb(sqlite3* db, const std::string& playerId = "default") const {

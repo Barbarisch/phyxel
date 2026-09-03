@@ -3,6 +3,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <glm/glm.hpp>   // cameraControl pose
 
 namespace Phyxel {
 namespace Graphics { class RenderCoordinator; }
@@ -17,6 +18,12 @@ class EntityRegistry;
 class APICommandQueue;
 class EngineAPIServer;
 class CommandRegistry;
+class CombatDirector;
+class CombatAISystem;
+class CombatSystem;
+class PlayerTurnController;
+class CharacterSheet;
+class Inventory;
 
 // ============================================================================
 // GameApiService — opt-in HTTP API host for STANDALONE (packaged) games.
@@ -61,6 +68,19 @@ public:
     // The player character can be rebuilt/reassigned across scenes, so resolve it
     // fresh each call rather than caching a pointer.
     std::function<Scene::AnimatedVoxelCharacter*()> playerProvider;
+    // Turn-based combat (all-or-nothing trio; null = combat endpoints report
+    // "not available"). Commands run on the game-loop thread via pump(), so
+    // handlers may call these directly — no intent mutex (unlike the editor's
+    // HTTP-thread rpg handler, which must queue intents).
+    CombatDirector*       combatDirector = nullptr;
+    CombatAISystem*       combatAI = nullptr;
+    CombatSystem*         combatSystem = nullptr;   // damage funnel (death events)
+    /// Park/release the camera (GameShell::setDetachedCamera) for the
+    /// set_camera command — spectator framing for harnesses and screenshots.
+    std::function<void(bool, const glm::vec3&, float, float)> cameraControl;
+    PlayerTurnController* playerTurn = nullptr;
+    CharacterSheet*       playerSheet = nullptr;   // progression: /api/rpg/sheet command
+    Inventory*            inventory = nullptr;     // loot: /api/rpg/inventory command
     std::string projectName;  // reported by project_info (identifies the running game)
 
     // Construct the queue+server, wire handlers, and start listening on `port`.

@@ -1,0 +1,26 @@
+{
+  "type": "Selector",
+  "name": "hold_the_wall",
+  "children": [
+    {
+      "type": "Action",
+      "action": "flee_below",
+      "hp": 0.2,
+      "speed": 1.1
+    },
+    {
+      "type": "Action",
+      "action": "cast_at_enemy",
+      "spell": "fire_bolt",
+      "cooldown": 2.2,
+      "damage": 7.0,
+      "range": 26.0
+    },
+    {
+      "type": "Action",
+      "action": "keep_distance",
+      "range": 15.0,
+      "speed": 0.9
+    }
+  ]
+}

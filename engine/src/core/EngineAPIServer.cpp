@@ -4779,6 +4779,14 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // GET /api/audio/state — Listener pose + active/pooled sound counts, read
+    // back from the live AudioSystem. The probe that makes "the listener
+    // follows the camera" falsifiable at runtime (editor AND standalone).
+    srv.Get("/api/audio/state", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("get_audio_state", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
     // POST /api/audio/play — Play a sound (2D or 3D)
     srv.Post("/api/audio/play", [this](const httplib::Request& req, httplib::Response& res) {
         try {

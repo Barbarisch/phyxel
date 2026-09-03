@@ -1,0 +1,22 @@
+﻿Spellcasting beat in the SHIPPED game - 2026-08-19 14:17, Release --test 8101
+RED (pre-cast exe, captured first): POST /api/rpg/combat/player_cast ->
+  {"error":"unknown action: combat/player_cast"}
+GREEN 5/5 (single clean run):
+  S1 player_cast accepted on the player's turn (cast=true, action budget spent -
+     HUD shows Action:- Bonus:Y right after, from [out of reach])
+  S2 real resolution: "Player casts 'guiding_bolt' at 'npc_Rat' -> 15 dmg."
+     (spell attack roll + 4d6 through PlayerTurnController; the previous run
+     also recorded a MISS -> 0 dmg - the d20 is real)
+  S3a encounter resolved BY MAGIC ONLY (no melee click issued): one bolt,
+     15 vs 10 maxHealth, rat dead, combat over in 1 player action
+  S3b kill XP=100 landed on the CLERIC sheet (class swap fighter->cleric,
+     5e thresholds class-independent so the level-2 turn-in beat is intact)
+  S4 visual cast: SpellAnimMapper plan selected + VfxDirector emission per
+     cast ("Cast 'guiding_bolt' as spell_1"), release ~0.55s after the request
+     = the cast animation played to its release frame
+Wiring shipped: SpellRegistry boot-load in the scaffold (was editor-only ->
+every shipped cast failed "Unknown spell"), playCastVisual ported from the
+editor host, combat/player_cast API command, casterLevel tracks the sheet.
+CHECKER LESSON: "castSpell: N segment(s)" is LOG_DEBUG - invisible in Release;
+S4's first pattern FAILed while the behavior was plainly in the timestamps.
+Release-visible observables only.

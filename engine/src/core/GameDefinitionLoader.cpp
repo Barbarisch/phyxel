@@ -20,7 +20,11 @@
 #include "scene/NPCEntity.h"
 #include "scene/AnimatedVoxelCharacter.h"
 #include "scene/behaviors/ScheduledBehavior.h"
+#include "scene/behaviors/BehaviorTreeBehavior.h"
 #include "scene/behaviors/StoryDrivenBehavior.h"
+#include "scene/behaviors/CombatBehavior.h"
+#include "scene/behaviors/RangedCasterBehavior.h"
+#include "ai/CommandStructure.h"
 #include "ai/Schedule.h"
 #include "ai/BTLoader.h"
 #include "graphics/Camera.h"
@@ -704,6 +708,14 @@ void GameDefinitionLoader::loadPlayer(const json& playerDef, GameSubsystems& sub
 
     Scene::Entity* entity = sub.entitySpawner(type, glm::vec3(x, y, z), visual.animFile);
     if (entity) {
+        // FACTION for the player, same vocabulary as NPCs. Without this the
+        // player is always UNALIGNED — which means hostile to everyone, so a
+        // spectator standing near a battle gets cut down by both armies
+        // (measured: the observer died mid-simulation while tagged "neutral"
+        // in the game definition, because nothing read that tag).
+        if (playerDef.contains("faction"))
+            entity->setFaction(playerDef["faction"].get<std::string>());
+
         // Apply appearance to animated characters
         if (type == "animated") {
             auto* animChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity);
@@ -820,6 +832,32 @@ void GameDefinitionLoader::loadLocations(const json& locationsDef, GameSubsystem
 // NPCs
 // ============================================================================
 
+namespace {
+
+/// Map a friendly weapon name from game.json onto a real ItemRegistry id.
+///
+/// Scenes speak in profiles ("longsword", "battleaxe"); the item registry keys
+/// on ids ("iron_sword", "battle_axe"). Everything that reads a weapon —
+/// the melee MOVESET (MeleeAnimMapper via ItemRegistry::getItem) and the visible
+/// held model — must resolve the SAME id, or a fighter ends up carrying a sword
+/// while throwing punches, which is exactly what happened.
+///
+/// Unknown names pass through unchanged so a scene may name a real item id
+/// directly, and so a genuinely unknown weapon still reaches the registry lookup
+/// (and its miss) rather than being silently rewritten.
+std::string canonicalWeaponId(const std::string& name) {
+    static const std::unordered_map<std::string, std::string> kAliases = {
+        {"longsword",  "iron_sword"},  {"sword",       "iron_sword"},
+        {"shortsword", "short_sword"}, {"short_sword", "short_sword"},
+        {"battleaxe",  "battle_axe"},  {"axe",         "battle_axe"},
+        {"greataxe",   "battle_axe"},  {"staff",       "staff_arcane"},
+    };
+    auto it = kAliases.find(name);
+    return it == kAliases.end() ? name : it->second;
+}
+
+}  // namespace
+
 void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, GameDefinitionResult& result) {
     if (!sub.npcManager) {
         result.error = "NPCManager not available for NPC spawning";
@@ -851,10 +889,16 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
             }
         } else if (behaviorStr == "wander") {
             behaviorType = NPCBehaviorType::Wander;   // roam near spawn (fauna)
+        } else if (behaviorStr == "follow") {
+            behaviorType = NPCBehaviorType::Follow;   // party companion: follow the player
         } else if (behaviorStr == "behavior_tree") {
             behaviorType = NPCBehaviorType::BehaviorTree;
         } else if (behaviorStr == "scheduled") {
             behaviorType = NPCBehaviorType::Scheduled;
+        } else if (behaviorStr == "combat") {
+            behaviorType = NPCBehaviorType::Combat;        // real-time melee
+        } else if (behaviorStr == "caster") {
+            behaviorType = NPCBehaviorType::RangedCaster;  // real-time spellcaster
         }
 
         std::string npcRole = npcDef.value("role", "");
@@ -872,12 +916,115 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
         }
         result.npcsSpawned++;
 
+        // FACTION + real-time combat loadout. "faction" picks the side (empty =
+        // unaligned, hostile to everyone); it is published on the ENTITY so
+        // other combatants can read it when choosing targets. Melee fighters
+        // take a "weapon"; casters take "spells" plus range/cooldown tuning.
+        const std::string faction = npcDef.value("faction", "");
+        if (!faction.empty()) npc->setFaction(faction);
+
+        // CHAIN OF COMMAND: "squad" puts this NPC under an officer's orders;
+        // "rank":"officer" (or "leader") makes it the one giving them. Squads
+        // are created on first mention so authoring order does not matter.
+        if (sub.commandStructure && npcDef.contains("squad")) {
+            const std::string squadId = npcDef["squad"].get<std::string>();
+            const std::string rank = npcDef.value("rank", "");
+            if (!sub.commandStructure->squad(squadId))
+                sub.commandStructure->createSquad(squadId, faction);
+            const bool isLeader = (rank == "officer" || rank == "leader" ||
+                                   rank == "sergeant" || rank == "captain");
+            sub.commandStructure->addMember(squadId, "npc_" + name, isLeader);
+            // The RALLY point is where the squad formed up — a running mean of
+            // its members' spawn positions. Without this it stays (0,0,0) and a
+            // "fall back" order marches the squad to the corner of the world.
+            if (auto* sq = sub.commandStructure->squad(squadId)) {
+                const float n = static_cast<float>(sq->members.size());
+                sq->rally += (glm::vec3(x, y, z) - sq->rally) / n;
+            }
+        }
+        if (behaviorType == NPCBehaviorType::Combat) {
+            if (auto* cb = dynamic_cast<Scene::CombatBehavior*>(npc->getBehavior())) {
+                if (!faction.empty()) cb->setFaction(faction);
+                // CANONICALISE THE WEAPON NAME ONCE, HERE. CombatBehavior resolves
+                // its melee moveset with ItemRegistry::getItem(weaponId); a friendly
+                // profile name like "longsword" is not an item id, the lookup returns
+                // null, and the fighter swings the UNARMED boxing chain while visibly
+                // holding a sword. Aliasing in the loader means the moveset AND the
+                // visible model resolve from the same id — two mapping layers that can
+                // disagree is what produced that split in the first place.
+                if (npcDef.contains("weapon"))
+                    cb->setWeapon(canonicalWeaponId(npcDef["weapon"].get<std::string>()));
+                // TACTICAL: "intelligence" (3-18) drives reaction speed, cover
+                // discipline, obedience and target choice; the chunk manager
+                // gives it line-of-sight so it can find cover at all.
+                if (npcDef.contains("intelligence"))
+                    cb->setIntelligence(npcDef["intelligence"].get<int>());
+                cb->setChunkManager(sub.chunkManager);
+                // Shared async pathfinder: without it approach is a straight
+                // line and any wall stops the fighter dead against its face.
+                if (sub.npcManager) cb->setPathService(sub.npcManager->getPathService());
+                if (sub.commandStructure) cb->setCommandStructure(sub.commandStructure);
+                if (npcDef.contains("aggro_range"))    cb->setAggroRange(npcDef["aggro_range"].get<float>());
+                if (npcDef.contains("attack_damage"))  cb->setAttackDamage(npcDef["attack_damage"].get<float>());
+                if (npcDef.contains("attack_cooldown"))cb->setAttackCooldown(npcDef["attack_cooldown"].get<float>());
+            }
+        } else if (behaviorType == NPCBehaviorType::RangedCaster) {
+            if (auto* rb = dynamic_cast<Scene::RangedCasterBehavior*>(npc->getBehavior())) {
+                if (!faction.empty()) rb->setFaction(faction);
+                // Line of sight: without the world, a caster fires through walls.
+                rb->setChunkManager(sub.chunkManager);
+                if (npcDef.contains("spells") && npcDef["spells"].is_array()) {
+                    std::vector<std::string> spells;
+                    for (const auto& s : npcDef["spells"]) spells.push_back(s.get<std::string>());
+                    rb->setSpells(std::move(spells));
+                }
+                if (npcDef.contains("aggro_range"))     rb->setAggroRange(npcDef["aggro_range"].get<float>());
+                if (npcDef.contains("preferred_range")) rb->setPreferredRange(npcDef["preferred_range"].get<float>());
+                if (npcDef.contains("cast_cooldown"))   rb->setCastCooldown(npcDef["cast_cooldown"].get<float>());
+                if (npcDef.contains("spell_damage"))    rb->setDamage(npcDef["spell_damage"].get<float>());
+            }
+        }
+
         // Race/definition gait flavor: FSM state -> clip overrides (halfling
         // scamper, ogre prowl) resolved by CharacterVisualResolver.
         if (!visual.animationMapping.empty()) {
             if (auto* ch = npc->getAnimatedCharacter()) {
                 for (const auto& [state, clip] : visual.animationMapping)
                     ch->setAnimationMapping(state, clip);
+            }
+        }
+
+        // BEHAVIOR TREE NPCs — "behavior":"behavior_tree" + "behaviorTree":"<file>".
+        //
+        // This used to be handled ONLY inside the Scheduled branch below, so an NPC declared as
+        // "behavior_tree" was given a BehaviorTreeBehavior and then never given its TREE: it stood
+        // still forever, with no error anywhere. A 144-combatant siege authored entirely in JSON
+        // loaded, spawned every NPC, and did not throw a single punch in 78 s because of this.
+        // Loading it here is what makes "author new AI as data" actually true.
+        if (behaviorType == NPCBehaviorType::BehaviorTree) {
+            auto* btb = dynamic_cast<Scene::BehaviorTreeBehavior*>(npc->getBehavior());
+            if (!btb) {
+                LOG_WARN("GameDefinitionLoader",
+                         "NPC {}: behavior_tree requested but the behavior is not a "
+                         "BehaviorTreeBehavior — it will do nothing", name);
+            } else if (!npcDef.contains("behaviorTree")) {
+                LOG_WARN("GameDefinitionLoader",
+                         "NPC {}: behavior 'behavior_tree' with no \"behaviorTree\" file — it "
+                         "will stand still", name);
+            } else {
+                const std::string btFile = npcDef["behaviorTree"].get<std::string>();
+                auto btRoot = AI::BTLoader::fromFile(btFile);
+                if (!btRoot) {
+                    // Loudly, and at INFO/WARN so it survives a Release build: a silently
+                    // brainless NPC is indistinguishable from a broken behaviour.
+                    LOG_WARN("GameDefinitionLoader",
+                             "NPC {}: could not load behavior tree '{}' (missing file or bad "
+                             "JSON) — it will stand still", name, btFile);
+                } else {
+                    btb->setTree(std::move(btRoot));
+                    LOG_INFO("GameDefinitionLoader", "NPC {}: behavior tree '{}' attached",
+                             name, btFile);
+                }
             }
         }
 

@@ -1,0 +1,9 @@
+﻿Lore scroll probe run 2026-08-19 11:02 (Release Hearthvale.exe --test 8101, cwd build\Release)
+click Lore -> consumed=True
+noise floor (no input, panel region): changed_px=0
+ui_scroll {x:640,y:320,delta:-3} -> consumed=True
+panel region diff A vs B: mean=78.184 changed_px=46205
+round-trip (scroll back up) diff vs A: changed_px=0 (bit-identical)
+click Back -> consumed=True, screen back to menu:main
+VERDICT: PASS (3/3)
+shots archived: lore_scroll_top.png (thumb at top), lore_scroll_down.png (thumb at bottom, last line revealed, first lines clipped at top edge)

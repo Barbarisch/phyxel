@@ -19,6 +19,15 @@ void GameShell::startTestApi(EngineRuntime& engine, int port, const std::string&
     gameApi_.screen           = apiScreen();
     gameApi_.entityRegistry   = apiEntityRegistry();
     gameApi_.playerProvider   = [this]() { return apiPlayer(); };
+    gameApi_.combatDirector   = apiCombatDirector();
+    gameApi_.combatAI         = apiCombatAI();
+    gameApi_.combatSystem     = apiCombatSystem();
+    gameApi_.cameraControl    = [this](bool detach, const glm::vec3& p, float yaw, float pitch) {
+        setDetachedCamera(detach, p, yaw, pitch);
+    };
+    gameApi_.playerTurn       = apiPlayerTurn();
+    gameApi_.playerSheet      = apiPlayerSheet();
+    gameApi_.inventory        = apiInventory();
     gameApi_.projectName      = name;
     if (gameApi_.start(port))
         LOG_WARN("GameShell", "*** TEST API ENABLED on 127.0.0.1:{} — dev/test build, do NOT ship ***", port);
@@ -28,10 +37,24 @@ void GameShell::pumpTestApi() { gameApi_.pump(); }
 void GameShell::stopTestApi() { gameApi_.stop(); }
 
 void GameShell::updateGameplayCamera(EngineRuntime& engine, float dt,
-                                     Scene::AnimatedVoxelCharacter* character) {
+                                     Scene::AnimatedVoxelCharacter* character,
+                                     bool driveCharacter) {
     auto* input = engine.getInputManager();
     auto* cam   = engine.getCamera();
     if (!input || !cam) return;
+
+    // DETACHED camera (harness / spectator): a fixed pose owns the camera and
+    // the rig is skipped entirely. Without this there was no way to look at
+    // anything except over the player's shoulder — a 40-character battle could
+    // only be photographed by standing the player next to it, and a screenshot
+    // of an empty sky was indistinguishable from a battle that never rendered.
+    if (cameraDetached_) {
+        cam->setPosition(detachedCamPos_);
+        cam->setYaw(detachedCamYaw_);
+        cam->setPitch(detachedCamPitch_);
+        if (character) character->update(dt);   // world keeps running
+        return;
+    }
 
     // Resolve the rig + scheme from the active scene's camera block — once, and
     // again whenever the active scene changes (each scene may author its own
@@ -72,7 +95,8 @@ void GameShell::updateGameplayCamera(EngineRuntime& engine, float dt,
         cameraResolvedScene_ = sceneId;
     }
 
-    cameraController_.update(dt, *input, character, *cam);
+    cameraController_.update(dt, *input, character, *cam,
+                             /*advanceCharacter=*/true, driveCharacter);
 
     // Update-LOD: publish the viewer position so AnimatedVoxelCharacter can tick
     // distant characters at a reduced rate. This is the standalone-game analog of

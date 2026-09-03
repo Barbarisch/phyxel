@@ -365,9 +365,19 @@ packaged/standalone build** (can't run a standalone in this environment).
 ### 3. Menu feature parity (editor path works; polish missing)
 `UI::loadMenuInto` covers background (solid/image), absolute layout, label/button/image,
 button actions, and submenu panels. Not ported from `GameMenuRenderer`:
-- [ ] Per-element **animations** (fade_in / slide_in_left / slide_in_right + delays).
-- [ ] Per-element **custom fonts and text colors** (currently theme colors; needs UILabel
-  custom color + per-widget font/size).
+- [x] Per-element **animations** (fade_in / slide_in_left / slide_in_right / slide_in_up +
+  delays) — DONE 2026-08-19 on UISystem widgets (same JSON schema as the old renderer;
+  UIWidget::computeAppear + UIRenderer anim stack + per-screen show timestamps; replays on
+  every screen show). Pixel-verified early-vs-settled on Hearthvale.
+- [x] **Named themes** — DONE 2026-08-19: `"theme"` key on menuLayout/screen JSONs (preset
+  name from `resources/ui/themes/` — slate/ember/parchment — or inline key overrides),
+  applied to the global UITheme via `MenuDefinition::applyTheme`.
+- [x] Per-element **custom colors + text scale** — DONE 2026-08-19: labels take `"color"`
+  ([r,g,b(,a)] 0-1) + `"scale"` (absolute font scale; body=2, title=3), buttons take
+  `"color"` (text) / `"bg"` / `"bgHover"` (unset hover = bg +25%); parsed on BOTH build
+  paths, alpha-0 sentinel = theme. Pixel-verified on Hearthvale (Quit bg vs Begin bg,
+  subtitle glyph cores R-B 17→54). Custom FONTS (different typefaces) remain open — one
+  bitmap font today.
 - [x] **`{{token}}` interpolation** in menu labels/buttons — DONE. `MenuActions.onResolveVariable`
   resolves `{{playtime}}` / `{{story.<var>}}` at menu load (static); unknown tokens left literal.
   Verified live. (NOTE: static at load — a live-updating clock would need per-frame re-resolution.)

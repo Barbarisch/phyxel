@@ -30,6 +30,8 @@
 #include "core/ObjectTemplateManager.h"
 #include "core/RuntimeEntityStore.h"
 #include "core/AudioSystem.h"
+#include "core/SoundRegistry.h"
+#include "core/AmbienceDirector.h"
 #include "core/ChopManager.h"
 #include "scripting/ScriptingSystem.h"
 #include "ai/AISystem.h"

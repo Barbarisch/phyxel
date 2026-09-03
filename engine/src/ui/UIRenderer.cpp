@@ -334,6 +334,36 @@ void UIRenderer::pushQuad(glm::vec2 pos, glm::vec2 size, glm::vec2 uvMin, glm::v
                           glm::vec4 color, VkDescriptorSet set, float mode) {
     if (vertices_.size() + 4 > MAX_VERTICES) return;
 
+    // Appear animation: offset slides the quad, alpha fades it. Applied BEFORE
+    // the clip so entering content is clipped at its panel's edge (see pushAnim).
+    if (!animStack_.empty()) {
+        pos += animStack_.back().second;
+        color.a *= animStack_.back().first;
+        if (color.a <= 0.003f) return;   // fully faded — skip the quad
+    }
+
+    // CPU clip against the active clip rect (single choke point — every rect,
+    // image, and glyph flows through here, so panels can contain their content
+    // without breaking the one-draw-call batching a GPU scissor would split).
+    // Quads partially inside are clamped with proportionally-adjusted UVs.
+    if (!clipStack_.empty()) {
+        const glm::vec4& c = clipStack_.back();   // x, y, xMax, yMax
+        const float x0 = pos.x,           y0 = pos.y;
+        const float x1 = pos.x + size.x,  y1 = pos.y + size.y;
+        const float cx0 = std::max(x0, c.x), cy0 = std::max(y0, c.y);
+        const float cx1 = std::min(x1, c.z), cy1 = std::min(y1, c.w);
+        if (cx0 >= cx1 || cy0 >= cy1) return;     // fully outside
+        if (cx0 != x0 || cy0 != y0 || cx1 != x1 || cy1 != y1) {
+            const glm::vec2 uvSpan = uvMax - uvMin;
+            const float w = size.x > 0.0f ? size.x : 1.0f;
+            const float h = size.y > 0.0f ? size.y : 1.0f;
+            uvMin = {uvMin.x + uvSpan.x * (cx0 - x0) / w, uvMin.y + uvSpan.y * (cy0 - y0) / h};
+            uvMax = {uvMax.x - uvSpan.x * (x1 - cx1) / w, uvMax.y - uvSpan.y * (y1 - cy1) / h};
+            pos  = {cx0, cy0};
+            size = {cx1 - cx0, cy1 - cy0};
+        }
+    }
+
     // Start a new draw run when the texture/descriptor set or sampling mode changes.
     if (runs_.empty() || runs_.back().set != set || runs_.back().mode != mode) {
         runs_.push_back({set, mode, static_cast<uint32_t>(indices_.size()), 0});

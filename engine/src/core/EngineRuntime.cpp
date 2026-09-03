@@ -3,6 +3,9 @@
 #include "core/AssetManager.h"
 #include "core/WorldInitializer.h"
 #include "core/AudioSystem.h"
+#include "core/SoundRegistry.h"
+#include "core/AmbienceDirector.h"
+#include "core/WorldGenerator.h"
 #include "ai/TTSService.h"
 #include "core/LocationRegistry.h"
 #include "core/SceneManager.h"
@@ -76,6 +79,36 @@ bool EngineRuntime::initialize(const EngineConfig& config) {
         LOG_ERROR("EngineRuntime", "Failed to initialize AudioSystem");
         // Non-critical — continue
     }
+
+    // Sound event catalog (resources/sounds/sounds.json) — gameplay names
+    // events, the catalog names files. Non-critical: a missing catalog logs
+    // and playEvent() no-ops (call sites keep their direct-file fallback).
+    soundRegistry_ = std::make_unique<SoundRegistry>();
+    soundRegistry_->setAudioSystem(audioSystem_.get());
+    soundRegistry_->load(AssetManager::instance().resolveSound("sounds.json"));
+
+    // Biome soundscapes: bed + scatter per biome at the listener column.
+    // Non-critical (missing config = no ambience); the biome sampler goes
+    // through the streaming generator, so non-streaming worlds simply hold
+    // silence (sampler returns false).
+    ambienceDirector_ = std::make_unique<AmbienceDirector>();
+    ambienceDirector_->setAudioSystem(audioSystem_.get());
+    ambienceDirector_->setSoundRegistry(soundRegistry_.get());
+    ambienceDirector_->load(AssetManager::instance().resolveSound("ambience.json"));
+    ambienceDirector_->setBiomeSampler(
+        [this](float x, float z, AmbienceDirector::BiomeSample& out) -> bool {
+            WorldGenerator* gen =
+                chunkManager_ ? chunkManager_->getStreamingGenerator() : nullptr;
+            if (!gen) return false;
+            auto col = gen->sampleSurface(static_cast<int>(std::floor(x)),
+                                          static_cast<int>(std::floor(z)));
+            const auto& biomes = gen->getBiomes();
+            if (col.biomeIndex < 0 || col.biomeIndex >= static_cast<int>(biomes.size()))
+                return false;
+            out.biome    = biomes[col.biomeIndex].name;
+            out.surfaceY = col.surfaceY;
+            return true;
+        });
 
     // Local Piper TTS for NPC voices. Non-critical: no-ops if assets are absent.
     ttsService_ = std::make_unique<AI::TTSService>();
@@ -228,7 +261,9 @@ void EngineRuntime::shutdown() {
     // TTS worker calls into AudioSystem — stop it before audio goes away.
     if (ttsService_) { ttsService_->shutdown(); ttsService_.reset(); }
 
-    // Audio
+    // Audio (director + registry first — they hold raw AudioSystem pointers)
+    ambienceDirector_.reset();
+    soundRegistry_.reset();
     audioSystem_.reset();
 
     // Window (GLFW)
@@ -288,6 +323,29 @@ void EngineRuntime::endFrame() {
     // is populated for standalone games too (the editor does this in its own loop).
     // Powers an in-game FPS readout and the test API's /api/debug/engine_timing.
     if (performanceMonitor_) performanceMonitor_->updateFrameTiming(lastDeltaTime_);
+
+    // Drive the audio listener from the engine camera + recycle finished sounds.
+    // This MUST live in the engine frame loop, not the editor's: before this,
+    // AudioSystem::update() was called only from the editor's Application loop,
+    // so packaged games (a) never moved the listener — every 3D sound panned
+    // relative to the world origin — and (b) never recycled finished sounds,
+    // leaking one live decoder per playSound call, unbounded. Same defect family
+    // as "shipped games had NO pathfinder at all" (53a361c9). The editor runs
+    // its own loop and never calls endFrame(), so this does not double-update.
+    if (audioSystem_ && camera_) {
+        const glm::vec3 pos = camera_->getPosition();
+        glm::vec3 velocity(0.0f);
+        if (hasLastListenerPos_ && lastDeltaTime_ > 0.0f) {
+            velocity = (pos - lastListenerPos_) / lastDeltaTime_;
+        }
+        lastListenerPos_    = pos;
+        hasLastListenerPos_ = true;
+        audioSystem_->update(pos, camera_->getFront(), camera_->getUp(), velocity);
+
+        // Biome soundscape follows the same listener.
+        if (ambienceDirector_) ambienceDirector_->update(lastDeltaTime_, pos);
+    }
+
     ++frameCount_;
 }
 
@@ -309,6 +367,8 @@ Physics::PhysicsWorld*      EngineRuntime::getPhysicsWorld()           const { r
 Timer*                      EngineRuntime::getTimer()                  const { return timer_.get(); }
 ChunkManager*               EngineRuntime::getChunkManager()           const { return chunkManager_.get(); }
 AudioSystem*                EngineRuntime::getAudioSystem()            const { return audioSystem_.get(); }
+SoundRegistry*              EngineRuntime::getSoundRegistry()          const { return soundRegistry_.get(); }
+AmbienceDirector*           EngineRuntime::getAmbienceDirector()       const { return ambienceDirector_.get(); }
 AI::TTSService*             EngineRuntime::getTTSService()             const { return ttsService_.get(); }
 Input::InputManager*        EngineRuntime::getInputManager()           const { return inputManager_.get(); }
 ForceSystem*                EngineRuntime::getForceSystem()            const { return forceSystem_.get(); }

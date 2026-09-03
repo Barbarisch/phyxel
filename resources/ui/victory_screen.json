@@ -1,4 +1,4 @@
-{
+﻿{
   "_comment": "Data-driven victory / game-complete screen (docs/HudSystem.md §11a). Loaded by UI::loadGameScreenInto(ui,\"victory\",...) into victory:<panel> screens; replaces ImGui renderVictoryScreen. {{title}} resolves via MenuActions.onResolveVariable. Buttons: show_credits / main_menu / quit_game.",
   "background_type": "solid",
   "background_color": [0.05, 0.05, 0.10, 1.0],
@@ -6,8 +6,8 @@
   "panels": {
     "main": {
       "children": [
-        { "type": "label",  "id": "victory_title",   "text": "VICTORY!", "font": "title", "position": [640, 170], "size": [500, 70] },
-        { "type": "label",  "id": "victory_message", "text": "You have completed {{title}}.", "position": [640, 270], "size": [800, 32] },
+        { "type": "label", "align": "center",  "id": "victory_title",   "text": "VICTORY!", "font": "title", "position": [640, 170], "size": [500, 70] },
+        { "type": "label", "align": "center",  "id": "victory_message", "text": "You have completed {{title}}.", "position": [640, 270], "size": [800, 32] },
         { "type": "button", "id": "victory_credits",  "text": "Credits",   "position": [540, 360], "size": [200, 48], "action": { "type": "show_credits" } },
         { "type": "button", "id": "victory_mainmenu", "text": "Main Menu", "position": [540, 420], "size": [200, 48], "action": { "type": "main_menu" } },
         { "type": "button", "id": "victory_quit",     "text": "Quit",      "position": [540, 480], "size": [200, 48], "action": { "type": "quit_game" } }

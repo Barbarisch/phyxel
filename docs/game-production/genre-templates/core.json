@@ -14,6 +14,7 @@
     "pause_menu": { "required": "L3", "desc": "Resume / settings / quit-to-menu." },
     "options": { "required": "L2", "desc": "Settings: audio / graphics / controls." },
     "hud": { "required": "L3", "desc": "In-game HUD (health / score / objective) appropriate to the game." },
+    "presentation": { "required": "L2", "feel": "pending", "desc": "Screens STYLED, not defaults: font chosen (menu fonts array), labels aligned (align: center on titles), background beyond the default solid (menuWorld orbit / image / scrim), reviewed at target resolution via /api/screenshot captures. See recipes/menus-and-style.md - a game is not done with a default-font-on-black title." },
     "intro": { "required": "L3", "desc": "Opening: cinematic or intro sequence." },
     "tutorial": { "required": "L3", "desc": "Teaches the core loop (contextual, one mechanic at a time, repeatable) - distinct from intro." },
     "victory_screen": { "required": "L3", "desc": "Win / results screen." },

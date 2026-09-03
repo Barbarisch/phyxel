@@ -11,6 +11,7 @@
 #include "scene/behaviors/ScheduledBehavior.h"
 #include "scene/behaviors/StoryDrivenBehavior.h"
 #include "scene/behaviors/CombatBehavior.h"
+#include "scene/behaviors/RangedCasterBehavior.h"
 #include "ai/Schedule.h"
 #include "core/EntityRegistry.h"
 #include "physics/PhysicsWorld.h"
@@ -103,6 +104,17 @@ Scene::NPCEntity* NPCManager::spawnNPC(const std::string& name, const std::strin
             behavior = std::move(patrol);
             break;
         }
+        case NPCBehaviorType::Follow: {
+            // Party companion: follow the player entity. Speed 4.5 outruns the
+            // default walk pace so the follower closes distance (convergence is
+            // measured at L4, and the follow-mode catch-up teleport backstops a
+            // sprinting player); waitTime is irrelevant in follow mode.
+            auto follow = std::make_unique<Scene::PatrolBehavior>(
+                std::vector<glm::vec3>{}, 4.5f, 0.0f);
+            follow->setFollowMode("player");
+            behavior = std::move(follow);
+            break;
+        }
         case NPCBehaviorType::BehaviorTree:
             behavior = std::make_unique<Scene::BehaviorTreeBehavior>();
             break;
@@ -112,6 +124,16 @@ Scene::NPCEntity* NPCManager::spawnNPC(const std::string& name, const std::strin
         case NPCBehaviorType::Combat:
             behavior = std::make_unique<Scene::CombatBehavior>();
             break;
+        case NPCBehaviorType::RangedCaster: {
+            // Loadout (spells/faction/tuning) is applied by the host after
+            // spawn via getBehavior() — same pattern as CombatBehavior's
+            // weapon + faction. The cast hook is attached HERE so every caster
+            // routes damage through the host funnel by default.
+            auto rc = std::make_unique<Scene::RangedCasterBehavior>();
+            if (m_casterCastHook) rc->setCastHook(m_casterCastHook);
+            behavior = std::move(rc);
+            break;
+        }
         case NPCBehaviorType::Idle:
         default:
             behavior = std::make_unique<Scene::IdleBehavior>();
@@ -121,10 +143,16 @@ Scene::NPCEntity* NPCManager::spawnNPC(const std::string& name, const std::strin
     return spawnNPCWithBehavior(name, animFile, position, std::move(behavior), appearance);
 }
 
-Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, const std::string& animFile,
+Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, const std::string& animFileIn,
                                                      const glm::vec3& position,
                                                      std::unique_ptr<Scene::NPCBehavior> behavior,
                                                      const Scene::CharacterAppearance& appearance) {
+    // Default an empty anim file exactly like the game.json loader does — the
+    // two spawn paths had two conventions, and an ""-spawned NPC has NO RIG,
+    // which silently stalls turn-based combat when the TurnActor can't bind
+    // its body (the Hearthvale companion-respawn hunt, 2026-08-19).
+    const std::string animFile = animFileIn.empty()
+        ? std::string("resources/animated_characters/humanoid.anim") : animFileIn;
     if (m_npcs.count(name)) {
         LOG_WARN("NPCManager", "NPC '{}' already exists", name);
         return nullptr;
@@ -156,6 +184,16 @@ Scene::NPCEntity* NPCManager::spawnNPCWithBehavior(const std::string& name, cons
     if (m_entityRegistry) {
         m_entityRegistry->registerEntity(npc.get(), entityId, "npc");
     }
+
+    // Desynchronise this NPC's looping locomotion from every other NPC's.
+    // Hashed from the id so it is STABLE across re-entries into Walk (and
+    // across runs) rather than random per state change — a character whose
+    // phase jumped every time it started walking would twitch. Without this a
+    // crowd that changes state together marches in perfect lockstep and reads
+    // as one puppet driving every body.
+    if (auto* ch = npc->getAnimatedCharacter())
+        ch->setPhaseJitterSeed(
+            Scene::AnimatedVoxelCharacter::phaseSeedForId(entityId));
 
     // Wire context
     npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry, m_chunkManager, m_raycastVisualizer);
@@ -679,6 +717,16 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
             behavior = std::move(patrol);
             break;
         }
+        case NPCBehaviorType::Follow: {
+            // Party companion: follow the player entity. Speed 4.5 outruns the
+            // default walk pace (convergence measured at L4; the follow-mode
+            // catch-up teleport backstops a sprinting player).
+            auto follow = std::make_unique<Scene::PatrolBehavior>(
+                std::vector<glm::vec3>{}, 4.5f, 0.0f);
+            follow->setFollowMode("player");
+            behavior = std::move(follow);
+            break;
+        }
         case NPCBehaviorType::BehaviorTree:
             behavior = std::make_unique<Scene::BehaviorTreeBehavior>();
             break;
@@ -688,6 +736,16 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
         case NPCBehaviorType::Combat:
             behavior = std::make_unique<Scene::CombatBehavior>();
             break;
+        case NPCBehaviorType::RangedCaster: {
+            // Loadout (spells/faction/tuning) is applied by the host after
+            // spawn via getBehavior() — same pattern as CombatBehavior's
+            // weapon + faction. The cast hook is attached HERE so every caster
+            // routes damage through the host funnel by default.
+            auto rc = std::make_unique<Scene::RangedCasterBehavior>();
+            if (m_casterCastHook) rc->setCastHook(m_casterCastHook);
+            behavior = std::move(rc);
+            break;
+        }
         case NPCBehaviorType::Idle:
         default:
             behavior = std::make_unique<Scene::IdleBehavior>();
@@ -707,6 +765,16 @@ Scene::NPCEntity* NPCManager::spawnProceduralNPC(const std::string& name, const 
     if (m_entityRegistry) {
         m_entityRegistry->registerEntity(npc.get(), entityId, "npc");
     }
+
+    // Desynchronise this NPC's looping locomotion from every other NPC's.
+    // Hashed from the id so it is STABLE across re-entries into Walk (and
+    // across runs) rather than random per state change — a character whose
+    // phase jumped every time it started walking would twitch. Without this a
+    // crowd that changes state together marches in perfect lockstep and reads
+    // as one puppet driving every body.
+    if (auto* ch = npc->getAnimatedCharacter())
+        ch->setPhaseJitterSeed(
+            Scene::AnimatedVoxelCharacter::phaseSeedForId(entityId));
     npc->setContext(m_entityRegistry, m_lightManager, m_speechBubbleManager, entityId, m_dayNightCycle, m_locationRegistry, m_chunkManager, m_raycastVisualizer);
     npc->setCombatSystem(m_combatSystem);
     if (m_navGraph) npc->setNavGraph(m_navGraph.get());
@@ -769,6 +837,16 @@ Scene::NPCEntity* NPCManager::spawnPhysicsNPC(const std::string& name, const std
             behavior = std::move(patrol);
             break;
         }
+        case NPCBehaviorType::Follow: {
+            // Party companion: follow the player entity. Speed 4.5 outruns the
+            // default walk pace (convergence measured at L4; the follow-mode
+            // catch-up teleport backstops a sprinting player).
+            auto follow = std::make_unique<Scene::PatrolBehavior>(
+                std::vector<glm::vec3>{}, 4.5f, 0.0f);
+            follow->setFollowMode("player");
+            behavior = std::move(follow);
+            break;
+        }
         case NPCBehaviorType::BehaviorTree:
             behavior = std::make_unique<Scene::BehaviorTreeBehavior>();
             break;
@@ -778,6 +856,16 @@ Scene::NPCEntity* NPCManager::spawnPhysicsNPC(const std::string& name, const std
         case NPCBehaviorType::Combat:
             behavior = std::make_unique<Scene::CombatBehavior>();
             break;
+        case NPCBehaviorType::RangedCaster: {
+            // Loadout (spells/faction/tuning) is applied by the host after
+            // spawn via getBehavior() — same pattern as CombatBehavior's
+            // weapon + faction. The cast hook is attached HERE so every caster
+            // routes damage through the host funnel by default.
+            auto rc = std::make_unique<Scene::RangedCasterBehavior>();
+            if (m_casterCastHook) rc->setCastHook(m_casterCastHook);
+            behavior = std::move(rc);
+            break;
+        }
         case NPCBehaviorType::Idle:
         default:
             behavior = std::make_unique<Scene::IdleBehavior>();
@@ -870,6 +958,16 @@ Scene::NPCEntity* NPCManager::spawnPhysicsProceduralNPC(const std::string& name,
             behavior = std::move(patrol);
             break;
         }
+        case NPCBehaviorType::Follow: {
+            // Party companion: follow the player entity. Speed 4.5 outruns the
+            // default walk pace (convergence measured at L4; the follow-mode
+            // catch-up teleport backstops a sprinting player).
+            auto follow = std::make_unique<Scene::PatrolBehavior>(
+                std::vector<glm::vec3>{}, 4.5f, 0.0f);
+            follow->setFollowMode("player");
+            behavior = std::move(follow);
+            break;
+        }
         case NPCBehaviorType::BehaviorTree:
             behavior = std::make_unique<Scene::BehaviorTreeBehavior>();
             break;
@@ -879,6 +977,16 @@ Scene::NPCEntity* NPCManager::spawnPhysicsProceduralNPC(const std::string& name,
         case NPCBehaviorType::Combat:
             behavior = std::make_unique<Scene::CombatBehavior>();
             break;
+        case NPCBehaviorType::RangedCaster: {
+            // Loadout (spells/faction/tuning) is applied by the host after
+            // spawn via getBehavior() — same pattern as CombatBehavior's
+            // weapon + faction. The cast hook is attached HERE so every caster
+            // routes damage through the host funnel by default.
+            auto rc = std::make_unique<Scene::RangedCasterBehavior>();
+            if (m_casterCastHook) rc->setCastHook(m_casterCastHook);
+            behavior = std::move(rc);
+            break;
+        }
         case NPCBehaviorType::Idle:
         default:
             behavior = std::make_unique<Scene::IdleBehavior>();

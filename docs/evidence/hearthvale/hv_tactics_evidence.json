@@ -1,0 +1,711 @@
+{
+  "steps": [
+    {
+      "step": "encounter_pack",
+      "t": 75.1,
+      "data": {
+        "in_combat": true,
+        "order": [
+          "npc_Rat2",
+          "npc_Bram",
+          "player",
+          "npc_Rat"
+        ]
+      }
+    },
+    {
+      "step": "encounter_closed_out_pack",
+      "t": 111.9,
+      "data": {
+        "note": "probe ended the fight via the damage API after observing tactics"
+      }
+    },
+    {
+      "step": "encounter_warden",
+      "t": 120.8,
+      "data": {
+        "in_combat": true,
+        "order": [
+          "npc_Archer",
+          "npc_Warden",
+          "player",
+          "npc_Bram",
+          "npc_Acolyte"
+        ]
+      }
+    },
+    {
+      "step": "shot_nameplates",
+      "t": 122.2,
+      "data": {
+        "file": "nameplates_hover.png"
+      }
+    },
+    {
+      "step": "setup_wound_warden",
+      "t": 122.3,
+      "data": {
+        "alive": true,
+        "applied": 14.0,
+        "health": 16.0,
+        "id": "npc_Warden",
+        "max_health": 30.0,
+        "via_funnel": true
+      }
+    },
+    {
+      "step": "encounter_closed_out_warden",
+      "t": 162.5,
+      "data": {
+        "note": "probe ended the fight via the damage API after observing tactics"
+      }
+    },
+    {
+      "step": "encounter_horror",
+      "t": 171.4,
+      "data": {
+        "in_combat": true,
+        "order": [
+          "player",
+          "npc_Horror",
+          "npc_Bram",
+          "npc_Cultist",
+          "npc_Cultist2"
+        ]
+      }
+    },
+    {
+      "step": "setup_wound_cultist",
+      "t": 171.4,
+      "data": {
+        "alive": true,
+        "applied": 42.0,
+        "health": 18.0,
+        "id": "npc_Cultist",
+        "max_health": 60.0,
+        "via_funnel": true
+      }
+    },
+    {
+      "step": "encounter_closed_out_horror",
+      "t": 211.3,
+      "data": {
+        "note": "probe ended the fight via the damage API after observing tactics"
+      }
+    },
+    {
+      "step": "PASS T1 three separate encounters fire along the approach",
+      "t": 214.8,
+      "data": {
+        "rosters": {
+          "pack": [
+            "npc_Bram",
+            "npc_Rat",
+            "npc_Rat2"
+          ],
+          "warden": [
+            "npc_Acolyte",
+            "npc_Archer",
+            "npc_Bram",
+            "npc_Warden"
+          ],
+          "horror": [
+            "npc_Bram",
+            "npc_Cultist",
+            "npc_Cultist2",
+            "npc_Horror"
+          ]
+        }
+      }
+    },
+    {
+      "step": "PASS T2 pack focus-fire: both Rats attack the same target",
+      "t": 214.8,
+      "data": {
+        "targets": {
+          "npc_Rat2": [
+            "npc_Bram",
+            "npc_Bram",
+            "npc_Bram",
+            "npc_Bram",
+            "npc_Bram"
+          ],
+          "npc_Rat": [
+            "npc_Bram",
+            "npc_Bram",
+            "npc_Bram",
+            "npc_Bram"
+          ]
+        },
+        "shared": [
+          "npc_Bram"
+        ]
+      }
+    },
+    {
+      "step": "PASS T3 kiting: a ranged NPC withdraws to its preferred range",
+      "t": 214.8,
+      "data": {
+        "kites": [
+          [
+            "npc_Archer",
+            "npc_Bram",
+            "5",
+            "7"
+          ],
+          [
+            "npc_Warden",
+            "player",
+            "2",
+            "6"
+          ],
+          [
+            "npc_Archer",
+            "npc_Bram",
+            "1",
+            "7"
+          ],
+          [
+            "npc_Archer",
+            "player",
+            "3",
+            "7"
+          ]
+        ]
+      }
+    },
+    {
+      "step": "PASS T4 weakest-priority MEASURABLY overrides nearest (picked the lower-HP foe)",
+      "t": 214.8,
+      "data": {
+        "divergent_samples": 41,
+        "confirmed": 41,
+        "example": {
+          "who": "npc_Archer",
+          "priority": "weakest",
+          "picked": "npc_Bram",
+          "nearest": "player",
+          "wounded_ally": "",
+          "hp": {
+            "player": 92.0,
+            "npc_Bram": 89.0
+          }
+        }
+      }
+    },
+    {
+      "step": "PASS T5 the Acolyte heals the wounded ally",
+      "t": 214.8,
+      "data": {
+        "heals": [
+          "\u001b[32m[11:01:25.415] [INFO] [CombatAI] NPC 'npc_Acolyte' HEALS 'npc_Warden' with 'cure_wounds' for 2 (hp was 53%)\u001b[0m",
+          "\u001b[32m[11:01:35.873] [INFO] [CombatAI] NPC 'npc_Acolyte' HEALS 'npc_Warden' with 'cure_wounds' for 1 (hp was 60%)\u001b[0m"
+        ]
+      }
+    },
+    {
+      "step": "PASS T6 the wounded Cultist breaks and flees",
+      "t": 214.8,
+      "data": {
+        "flees": [
+          "\u001b[32m[11:02:14.759] [INFO] [CombatAI] NPC 'npc_Cultist' FLEES from 'npc_Bram' (hp 30%)\u001b[0m",
+          "\u001b[32m[11:02:17.125] [INFO] [CombatAI] NPC 'npc_Cultist' FLEES from 'npc_Bram' (hp 30%)\u001b[0m",
+          "\u001b[32m[11:02:26.960] [INFO] [CombatAI] NPC 'npc_Cultist' FLEES from 'npc_Bram' (hp 30%)\u001b[0m"
+        ]
+      }
+    }
+  ],
+  "encounters": [
+    {
+      "tag": "pack",
+      "order": [
+        "npc_Rat2",
+        "npc_Bram",
+        "player",
+        "npc_Rat"
+      ]
+    },
+    {
+      "tag": "warden",
+      "order": [
+        "npc_Archer",
+        "npc_Warden",
+        "player",
+        "npc_Bram",
+        "npc_Acolyte"
+      ]
+    },
+    {
+      "tag": "horror",
+      "order": [
+        "player",
+        "npc_Horror",
+        "npc_Bram",
+        "npc_Cultist",
+        "npc_Cultist2"
+      ]
+    }
+  ],
+  "kite_lines": [
+    "\u001b[32m[11:01:15.398] [INFO] [CombatAI] NPC 'npc_Archer' KITES away from 'npc_Bram' (5 -> 7 units)\u001b[0m",
+    "\u001b[32m[11:01:18.629] [INFO] [CombatAI] NPC 'npc_Warden' KITES away from 'player' (2 -> 6 units)\u001b[0m",
+    "\u001b[32m[11:01:26.077] [INFO] [CombatAI] NPC 'npc_Archer' KITES away from 'npc_Bram' (1 -> 7 units)\u001b[0m",
+    "\u001b[32m[11:01:36.534] [INFO] [CombatAI] NPC 'npc_Archer' KITES away from 'player' (3 -> 7 units)\u001b[0m",
+    "\u001b[32m[11:01:45.527] [INFO] [CombatAI] NPC 'npc_Acolyte' KITES away from 'npc_Bram' (3 -> 4 units)\u001b[0m",
+    "\u001b[32m[11:01:46.817] [INFO] [CombatAI] NPC 'npc_Archer' KITES away from 'player' (3 -> 7 units)\u001b[0m"
+  ],
+  "flee_lines": [
+    "\u001b[32m[11:02:14.759] [INFO] [CombatAI] NPC 'npc_Cultist' FLEES from 'npc_Bram' (hp 30%)\u001b[0m",
+    "\u001b[32m[11:02:17.125] [INFO] [CombatAI] NPC 'npc_Cultist' FLEES from 'npc_Bram' (hp 30%)\u001b[0m",
+    "\u001b[32m[11:02:26.960] [INFO] [CombatAI] NPC 'npc_Cultist' FLEES from 'npc_Bram' (hp 30%)\u001b[0m",
+    "\u001b[32m[11:02:29.340] [INFO] [CombatAI] NPC 'npc_Cultist' FLEES from 'npc_Bram' (hp 30%)\u001b[0m",
+    "\u001b[32m[11:02:38.714] [INFO] [CombatAI] NPC 'npc_Cultist' FLEES from 'npc_Bram' (hp 30%)\u001b[0m",
+    "\u001b[32m[11:02:41.060] [INFO] [CombatAI] NPC 'npc_Cultist' FLEES from 'npc_Bram' (hp 30%)\u001b[0m"
+  ],
+  "heal_lines": [
+    "\u001b[32m[11:01:25.415] [INFO] [CombatAI] NPC 'npc_Acolyte' HEALS 'npc_Warden' with 'cure_wounds' for 2 (hp was 53%)\u001b[0m",
+    "\u001b[32m[11:01:35.873] [INFO] [CombatAI] NPC 'npc_Acolyte' HEALS 'npc_Warden' with 'cure_wounds' for 1 (hp was 60%)\u001b[0m"
+  ],
+  "plan_samples": [
+    {
+      "who": "npc_Rat2",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 100.0
+      }
+    },
+    {
+      "who": "npc_Rat",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "player",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 100.0
+      }
+    },
+    {
+      "who": "npc_Rat2",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 100.0
+      }
+    },
+    {
+      "who": "npc_Rat",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "player",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 100.0
+      }
+    },
+    {
+      "who": "npc_Rat2",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 100.0
+      }
+    },
+    {
+      "who": "npc_Rat",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "player",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 100.0
+      }
+    },
+    {
+      "who": "npc_Rat2",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 100.0
+      }
+    },
+    {
+      "who": "npc_Rat",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "player",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 100.0
+      }
+    },
+    {
+      "who": "npc_Rat2",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 100.0
+      }
+    },
+    {
+      "who": "npc_Rat",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "player",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 100.0
+      }
+    },
+    {
+      "who": "npc_Rat2",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 100.0
+      }
+    },
+    {
+      "who": "npc_Rat",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 100.0
+      }
+    },
+    {
+      "who": "npc_Rat2",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 97.0
+      }
+    },
+    {
+      "who": "npc_Rat",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 97.0
+      }
+    },
+    {
+      "who": "npc_Rat2",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 97.0
+      }
+    },
+    {
+      "who": "npc_Rat",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 97.0
+      }
+    },
+    {
+      "who": "npc_Rat2",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 97.0
+      }
+    },
+    {
+      "who": "npc_Rat",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 97.0
+      }
+    },
+    {
+      "who": "npc_Rat2",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 97.0
+      }
+    },
+    {
+      "who": "npc_Rat",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 97.0
+      }
+    },
+    {
+      "who": "npc_Rat2",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 97.0
+      }
+    },
+    {
+      "who": "npc_Rat",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 97.0
+      }
+    },
+    {
+      "who": "npc_Rat2",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 97.0
+      }
+    },
+    {
+      "who": "npc_Rat",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 97.0
+      }
+    },
+    {
+      "who": "npc_Rat2",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 96.0
+      }
+    },
+    {
+      "who": "npc_Rat",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 96.0
+      }
+    },
+    {
+      "who": "npc_Rat2",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 96.0
+      }
+    },
+    {
+      "who": "npc_Rat",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 96.0
+      }
+    },
+    {
+      "who": "npc_Rat2",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 92.0
+      }
+    },
+    {
+      "who": "npc_Rat",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 92.0
+      }
+    },
+    {
+      "who": "npc_Rat2",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 92.0
+      }
+    },
+    {
+      "who": "npc_Rat",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 92.0
+      }
+    },
+    {
+      "who": "npc_Rat2",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 92.0
+      }
+    },
+    {
+      "who": "npc_Rat",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 92.0
+      }
+    },
+    {
+      "who": "npc_Rat2",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 92.0
+      }
+    },
+    {
+      "who": "npc_Rat",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 92.0
+      }
+    },
+    {
+      "who": "npc_Rat2",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 92.0
+      }
+    },
+    {
+      "who": "npc_Rat",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 92.0
+      }
+    },
+    {
+      "who": "npc_Rat2",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 92.0
+      }
+    },
+    {
+      "who": "npc_Rat",
+      "priority": "focus",
+      "picked": "npc_Bram",
+      "nearest": "npc_Bram",
+      "wounded_ally": "",
+      "hp": {
+        "player": 100.0,
+        "npc_Bram": 92.0
+      }
+    }
+  ]
+}

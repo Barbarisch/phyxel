@@ -73,6 +73,14 @@ public:
     void setBehavior(std::unique_ptr<NPCBehavior> behavior);
     NPCBehavior* getBehavior() const { return m_behavior.get(); }
 
+    /// Suspend the behavior while a turn-based encounter owns this body — the
+    /// CharacterTurnBody drives it through the same velocity/control inputs the
+    /// behavior writes, so a live behavior (Follow's deadzone hold, patrol
+    /// steering) stalls the encounter. Hosts toggle this on the combat edges;
+    /// the behavior object keeps its state and resumes untouched.
+    void setBehaviorSuspended(bool suspended) { m_behaviorSuspended = suspended; }
+    bool isBehaviorSuspended() const { return m_behaviorSuspended; }
+
     // Interaction
     float getInteractionRadius() const { return m_interactionRadius; }
     void setInteractionRadius(float radius) { m_interactionRadius = radius; }
@@ -153,6 +161,7 @@ private:
     std::string m_name;
     std::unique_ptr<AnimatedVoxelCharacter> m_character;
     std::unique_ptr<NPCBehavior> m_behavior;
+    bool m_behaviorSuspended = false;   ///< turn-based combat owns the body (see setBehaviorSuspended)
     std::unique_ptr<UI::DialogueProvider> m_dialogueProvider;
     NPCContext m_context;
     float m_interactionRadius = 3.0f;

@@ -1,0 +1,198 @@
+﻿{
+  "name": "Hearthvale",
+  "description": "Vertical-slice RPG increment 1: menu -> town -> cellar quest loop with dialogue-driven objectives, loading screens, save/reload, and a real victory. No combat yet (increment 2 forces CombatDirector).",
+  "version": "0.1",
+
+  "scenes": [
+    {
+      "id": "main_menu",
+      "name": "Main Menu",
+      "sceneType": "menu",
+      "transitionStyle": "fade",
+      "menuLayout": {
+        "background_type": "solid",
+        "background_color": [0.05, 0.04, 0.08, 1.0],
+        "start_panel": "main",
+        "panels": {
+          "main": {
+            "children": [
+              { "type": "label", "id": "title", "text": "HEARTHVALE", "font": "title", "position": [640, 180], "size": [600, 70] },
+              { "type": "label", "id": "sub", "text": "A remedy for the Elder's fever", "position": [640, 260], "size": [700, 28] },
+              { "type": "button", "id": "start", "text": "Begin", "position": [540, 360], "size": [200, 48], "action": { "type": "transition_scene", "target": "town" } },
+              { "type": "button", "id": "quit", "text": "Quit", "position": [540, 420], "size": [200, 48], "action": { "type": "quit_game" } }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "town",
+      "name": "Hearthvale Town",
+      "worldDatabase": "worlds/town.db",
+      "transitionStyle": "loading_screen",
+      "definition": {
+        "world": { "type": "Flat", "seed": 11, "from": { "x": -1, "y": 0, "z": -1 }, "to": { "x": 1, "y": 0, "z": 1 } },
+        "camera": { "position": { "x": 26, "y": 23, "z": 26 }, "yaw": -135, "pitch": -20, "mode": "third_person" },
+        "npcs": [
+          {
+            "name": "Elder",
+            "position": { "x": 18, "y": 18, "z": 18 },
+            "behavior": "idle",
+            "dialogue": {
+              "id": "elder_quest",
+              "startNodeId": "start",
+              "nodes": [
+                {
+                  "id": "start",
+                  "speaker": "Elder",
+                  "text": "This fever will take me before winter does. A moonpetal remedy sits forgotten in the old cellar east of town. Will you fetch it?",
+                  "choices": [
+                    { "text": "I'll find your remedy.", "nextNodeId": "accepted" },
+                    { "text": "I have your remedy.", "nextNodeId": "turn_in",
+                      "condition": { "variable": "remedy_found", "equals": true } },
+                    { "text": "Not now.", "nextNodeId": "declined" }
+                  ]
+                },
+                {
+                  "id": "accepted",
+                  "speaker": "Elder",
+                  "text": "Bless you. The cellar door sticks - shoulder it. Bring the remedy straight back to me.",
+                  "actions": [
+                    { "type": "set_story_variable", "name": "quest_accepted", "value": true }
+                  ]
+                },
+                { "id": "declined", "speaker": "Elder", "text": "Then I will wait, and cough." },
+                {
+                  "id": "turn_in",
+                  "speaker": "Elder",
+                  "text": "The moonpetal... yes, that is it. You have my thanks, and Hearthvale's.",
+                  "actions": [
+                    { "type": "remove_item", "id": "moonpetal_remedy", "count": 1 },
+                    { "type": "complete_objective", "id": "report_back" }
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "triggers": [
+          {
+            "id": "to_cellar",
+            "when": { "event": "entity_reached_region", "entity": "player",
+                      "region": { "from": { "x": 26, "y": 16, "z": 14 }, "to": { "x": 30, "y": 22, "z": 18 } } },
+            "then": [ { "type": "transition_scene", "target": "cellar" } ],
+            "once": true
+          },
+          {
+            "id": "win",
+            "when": { "event": "objective_complete", "id": "report_back" },
+            "then": [ { "type": "save_game" }, { "type": "show_victory" } ],
+            "once": true
+          }
+        ]
+      }
+    },
+    {
+      "id": "cellar",
+      "name": "The Old Cellar",
+      "worldDatabase": "worlds/cellar.db",
+      "transitionStyle": "loading_screen",
+      "definition": {
+        "world": { "type": "Flat", "seed": 12, "from": { "x": -1, "y": 0, "z": -1 }, "to": { "x": 1, "y": 0, "z": 1 } },
+        "camera": { "position": { "x": 24, "y": 22, "z": 24 }, "yaw": -135, "pitch": -18, "mode": "third_person" },
+        "player": { "type": "animated", "position": { "x": 10, "y": 20, "z": 26 } },
+        "structures": [
+          { "type": "fill", "from": { "x": 15, "y": 16, "z": 15 }, "to": { "x": 17, "y": 16, "z": 17 }, "material": "glow", "_comment": "the remedy shelf - glowing so it reads as the objective" }
+        ],
+        "npcs": [
+          {
+            "name": "Rat",
+            "position": { "x": 15, "y": 18, "z": 13 },
+            "behavior": "idle",
+            "maxHealth": 10,
+            "_comment": "guards the remedy; the guard_post trigger pulls it into turn-based combat; ~2 hits to kill"
+          }
+        ],
+        "triggers": [
+          {
+            "id": "guard_post",
+            "when": { "event": "entity_reached_region", "entity": "player",
+                      "region": { "from": { "x": 11, "y": 16, "z": 10 }, "to": { "x": 13, "y": 22, "z": 28 } } },
+            "then": [
+              { "type": "start_combat", "participants": [
+                { "entity_id": "player", "player_side": true, "initiative_bonus": 3 },
+                { "entity_id": "npc_Rat", "initiative_bonus": 1 }
+              ] }
+            ],
+            "once": true
+          },
+          {
+            "id": "rat_slain",
+            "when": { "event": "entity_died", "id": "npc_Rat" },
+            "then": [
+              { "type": "set_story_variable", "name": "cellar_cleared", "value": true },
+              { "type": "save_game" }
+            ],
+            "once": true
+          },
+          {
+            "id": "find_remedy",
+            "when": { "event": "entity_reached_region", "entity": "player",
+                      "region": { "from": { "x": 14, "y": 16, "z": 14 }, "to": { "x": 18, "y": 22, "z": 18 } } },
+            "then": [
+              { "type": "complete_objective", "id": "find_remedy" },
+              { "type": "set_story_variable", "name": "remedy_found", "value": true },
+              { "type": "give_item", "id": "moonpetal_remedy", "count": 1 },
+              { "type": "save_game" }
+            ],
+            "once": true
+          },
+          {
+            "id": "back_to_town",
+            "when": { "event": "entity_reached_region", "entity": "player",
+                      "region": { "from": { "x": 4, "y": 16, "z": 14 }, "to": { "x": 8, "y": 22, "z": 18 } } },
+            "then": [ { "type": "transition_scene", "target": "town" } ],
+            "once": true
+          }
+        ]
+      }
+    }
+  ],
+
+  "startScene": "main_menu",
+
+  "combat": { "mode": "turn_based", "camera": "overhead" },
+
+  "progression": {
+    "class": "fighter",
+    "race": "human",
+    "kill_xp": 100,
+    "objective_xp": 100,
+    "_comment": "rat + 2 objectives = 300 XP = fighter level 2 exactly (5e threshold) - the level-up lands on the final turn-in"
+  },
+
+  "objectives": [
+    { "id": "find_remedy", "title": "Find the moonpetal remedy", "description": "Search the old cellar east of town.", "category": "main" },
+    { "id": "report_back", "title": "Bring the remedy to the Elder", "description": "Return to Hearthvale and speak with the Elder.", "category": "main" }
+  ],
+
+  "playerDefaults": {
+    "type": "animated",
+    "position": { "x": 16, "y": 20, "z": 16 }
+  },
+
+  "globalStory": {
+    "arcs": [
+      {
+        "id": "elders_fever",
+        "name": "The Elder's Fever",
+        "constraintMode": "Guided",
+        "beats": [
+          { "id": "b1", "description": "Accept the Elder's request", "type": "Hard" },
+          { "id": "b2", "description": "Recover the remedy from the cellar", "type": "Hard" },
+          { "id": "b3", "description": "Return it to the Elder", "type": "Hard" }
+        ]
+      }
+    ]
+  }
+}

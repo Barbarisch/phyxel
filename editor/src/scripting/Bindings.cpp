@@ -137,6 +137,7 @@ PYBIND11_EMBEDDED_MODULE(phyxel, m) {
         .value("SFX", Core::AudioChannel::SFX)
         .value("Music", Core::AudioChannel::Music)
         .value("Voice", Core::AudioChannel::Voice)
+        .value("Ambience", Core::AudioChannel::Ambience)
         .export_values();
 
     // Expose AudioSystem

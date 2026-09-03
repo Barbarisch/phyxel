@@ -1,0 +1,15 @@
+﻿Facing-follows-movement, 2026-08-19 15:20 (user report: characters backpedal/sidestep
+instead of turning toward where they're going)
+AUDIT: NPC patrol/follow (setMoveVelocity) already auto-faces velocity
+(AnimatedVoxelCharacter.cpp ~3331); combat TurnActor faces its target
+(CharacterTurnBody.h:57). The offender was the PLAYER: coupleFacingToYaw locked facing
+to the CAMERA every frame, so S/A/D moonwalked.
+RED (pre-fix exe, per-key facing-vs-bearing): W err 0.0deg, A err 90.0, S err 180.0,
+D err 90.0 - the moonwalk quantified. Strafe/backpedal were also SLOWER
+(dist 2.4 / 1.23 / 0.74 / 0.3 per identical press).
+FIX (GameplayCameraController, both hosts): action-RPG locomotion - WASD is
+camera-relative, body turns to the world move direction and drives pure forward
+(the CharacterTurnBody pattern); idle keeps last facing (no camera-orbit spin);
+attack edge snaps facing to the camera aim so swings go where the player looks;
+dodge still owns its facing.
+GREEN: 4/4 keys err 0.0deg, uniform full-speed displacement ~2.4u every direction.

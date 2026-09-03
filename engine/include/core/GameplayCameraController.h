@@ -9,6 +9,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
 #include <algorithm>
+#include <cmath>
 #include <memory>
 #include <string>
 
@@ -59,17 +60,57 @@ public:
     // itself. Hosts that already advance the character elsewhere (e.g. the editor's
     // entity loop) pass false so it isn't double-updated; the control inputs set here
     // then apply on that host's next character update.
+    //
+    // driveCharacter: when false, the scheme's control intent is NOT applied to the
+    // character (no WASD/jump/attack/facing) but the character still advances and
+    // the rig still frames it — for turn-based combat, where the TurnActor owns
+    // movement and the camera becomes a tactical observer (BG3-style).
     void update(float dt, Input::InputManager& input,
                 Scene::AnimatedVoxelCharacter* character, Graphics::Camera& camera,
-                bool advanceCharacter = true) {
+                bool advanceCharacter = true, bool driveCharacter = true) {
         if (!rig_ || !scheme_) return;
 
-        if (scheme_->wantsAlwaysOnLook()) input.setMouseCaptured(true);
+        // Capture is SYMMETRIC with driving. Setting it only on driveCharacter
+        // frames (and never clearing) left mouseCaptured latched through
+        // turn-based combat and dialogue — the host frees the OS cursor for
+        // click-targeting, but that is WindowManager state, so every mouse move
+        // made to click an enemy kept integrating into InputManager yaw/pitch
+        // until pitch pinned at its +-89 clamp ("camera under the floor" after
+        // combat). setMouseCaptured re-latches firstMouse on the false->true
+        // edge, so re-capturing after combat does not integrate the cursor-park
+        // jump. Pinned by GameplayCameraControllerTest.
+        if (scheme_->wantsAlwaysOnLook()) input.setMouseCaptured(driveCharacter);
 
         const Input::ControlIntent in = scheme_->sample(input, dt);
 
-        if (character) {
-            character->setControlInput(in.forward, in.turn, in.strafe);
+        if (character && driveCharacter) {
+            if (in.coupleFacingToYaw && !character->isDodging()) {
+                // Action-RPG locomotion (the "characters should face where they
+                // walk" rule): the WASD vector is CAMERA-relative; the body
+                // TURNS to the world-space move direction and walks forward
+                // along it. The old camera-coupled facing made S/A/D backpedal
+                // and sidestep — a character moonwalking across town. Idle
+                // keeps the last facing (no camera-orbit spin); attacks snap
+                // the aim to the camera below. Same face-then-drive-forward
+                // pattern CharacterTurnBody uses for combat approaches.
+                const float mag = std::min(1.0f, std::sqrt(in.forward * in.forward +
+                                                           in.strafe * in.strafe));
+                if (mag > 0.05f) {
+                    const float camYaw = glm::radians(90.0f - in.yaw);   // world yaw of camera-forward
+                    // atan2(x,z) convention: dir(θ) = (sin θ, cos θ). Stick
+                    // forward is NEGATIVE in.forward (W drives forward -= 1).
+                    const glm::vec2 fwd(std::sin(camYaw), std::cos(camYaw));
+                    const glm::vec2 right(std::sin(camYaw + glm::half_pi<float>()),
+                                          std::cos(camYaw + glm::half_pi<float>()));
+                    const glm::vec2 move = fwd * (-in.forward) + right * in.strafe;
+                    character->setFacingYaw(std::atan2(move.x, move.y));
+                    character->setControlInput(-mag, 0.0f, 0.0f);   // pure forward
+                } else {
+                    character->setControlInput(0.0f, 0.0f, 0.0f);
+                }
+            } else {
+                character->setControlInput(in.forward, in.turn, in.strafe);
+            }
             character->setSprint(in.sprint);
             character->setCrouch(in.crouch);
 
@@ -89,6 +130,10 @@ public:
             const bool attackPressed = in.attack || in.heavy;
             if (attackPressed) {
                 if (!attackHeld_) {
+                    // Aim the swing where the player is LOOKING — facing follows
+                    // movement now, so the attack edge re-couples to the camera.
+                    if (in.coupleFacingToYaw && !character->isDodging())
+                        character->setFacingYaw(glm::radians(90.0f - in.yaw));
                     if (in.heavy) character->heavyAttack();
                     else          character->lightAttack();
                 }
@@ -105,13 +150,26 @@ public:
             if (in.dodge) { if (!dodgeHeld_) character->dodgeFromInput(); dodgeHeld_ = true; }
             else          { dodgeHeld_ = false; }
 
-            // Don't stomp the body heading while dodging — enterDodge() snaps the
-            // facing to the roll direction, and the camera-coupled yaw would fight it.
-            if (in.coupleFacingToYaw && !character->isDodging())
-                character->setFacingYaw(glm::radians(90.0f - in.yaw));
-
-            if (advanceCharacter) character->update(dt);
+            // (Facing is handled up top now: movement direction while moving,
+            // last facing while idle, camera aim on the attack edge. The old
+            // per-frame camera-coupled setFacingYaw lived here.)
         }
+
+        // Suppression EDGE: zero the latched control exactly once when driving
+        // stops — setControlInput persists frame-to-frame, so a movement key
+        // held at the moment combat started would otherwise keep walking the
+        // character through the encounter. Once only: the TurnActor drives the
+        // body through the SAME setControlInput during its turns
+        // (CharacterTurnBody.h:58), so a per-frame zero would fight it.
+        if (character && !driveCharacter && wasDriving_) {
+            character->setControlInput(0.0f, 0.0f, 0.0f);
+            character->setSprint(false);
+        }
+        wasDriving_ = driveCharacter;
+
+        // Advance regardless of driveCharacter — animations and TurnActor-driven
+        // motion must keep running while the tactical camera merely observes.
+        if (character && advanceCharacter) character->update(dt);
 
         const glm::vec3 target = character ? character->getCameraTrackPosition()
                                            : camera.getPosition();
@@ -127,6 +185,7 @@ private:
     bool jumpHeld_   = false;
     bool attackHeld_ = false;
     bool dodgeHeld_  = false;
+    bool wasDriving_ = true;   // driveCharacter edge detection (see update)
 };
 
 } // namespace Core

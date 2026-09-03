@@ -1,0 +1,148 @@
+{
+  "name": "RpgGapProbe",
+  "description": "Minimal 2-scene probe game to measure editor-vs-standalone parity gaps at runtime: complete_objective handling, loading_screen transition, victory screen, dialogue/NPC presence.",
+  "version": "1.0",
+
+  "scenes": [
+    {
+      "id": "town",
+      "name": "Town",
+      "worldDatabase": "worlds/town.db",
+      "transitionStyle": "loading_screen",
+      "definition": {
+        "world": {
+          "type": "Flat",
+          "seed": 7,
+          "from": { "x": -1, "y": 0, "z": -1 },
+          "to":   { "x": 1,  "y": 0, "z": 1  }
+        },
+        "camera": {
+          "position": { "x": 28, "y": 24, "z": 28 },
+          "yaw": -135,
+          "pitch": -20
+        },
+        "npcs": [
+          {
+            "name": "Elder",
+            "position": { "x": 18, "y": 18, "z": 18 },
+            "animFile": "character.anim",
+            "behavior": "idle",
+            "dialogue": {
+              "id": "elder_talk",
+              "startNodeId": "start",
+              "nodes": [
+                {
+                  "id": "start",
+                  "speaker": "Elder",
+                  "text": "Bring peace to the cellar and you shall be rewarded."
+                }
+              ]
+            }
+          }
+        ],
+        "triggers": [
+          {
+            "id": "win_quest",
+            "when": { "event": "probe_manual_win" },
+            "then": [
+              { "type": "complete_objective", "id": "main_quest" },
+              { "type": "show_victory" }
+            ],
+            "once": true
+          },
+          {
+            "id": "quest_chain",
+            "when": { "event": "objective_complete", "id": "main_quest" },
+            "then": [
+              { "type": "set_story_variable", "name": "quest_done", "value": true }
+            ],
+            "once": true
+          },
+          {
+            "id": "to_cellar",
+            "when": { "event": "probe_manual_travel" },
+            "then": [
+              { "type": "transition_scene", "target": "cellar" }
+            ],
+            "once": false
+          },
+          {
+            "id": "save_point",
+            "when": { "event": "probe_manual_save" },
+            "then": [
+              { "type": "save_game" }
+            ],
+            "once": false
+          },
+          {
+            "id": "graceful_quit",
+            "when": { "event": "probe_manual_quit" },
+            "then": [
+              { "type": "quit_game" }
+            ],
+            "once": false
+          }
+        ]
+      }
+    },
+    {
+      "id": "cellar",
+      "name": "Cellar",
+      "worldDatabase": "worlds/cellar.db",
+      "transitionStyle": "loading_screen",
+      "definition": {
+        "world": {
+          "type": "Flat",
+          "seed": 8,
+          "from": { "x": -1, "y": 0, "z": -1 },
+          "to":   { "x": 1,  "y": 0, "z": 1  }
+        },
+        "camera": {
+          "position": { "x": 24, "y": 22, "z": 24 },
+          "yaw": -135,
+          "pitch": -15
+        },
+        "triggers": [
+          {
+            "id": "back_to_town",
+            "when": { "event": "probe_manual_return" },
+            "then": [
+              { "type": "transition_scene", "target": "town" }
+            ],
+            "once": false
+          }
+        ]
+      }
+    }
+  ],
+
+  "startScene": "town",
+
+  "objectives": [
+    {
+      "id": "main_quest",
+      "title": "Peace in the Cellar",
+      "description": "Bring peace to the cellar and report back to the Elder.",
+      "category": "main"
+    }
+  ],
+
+  "playerDefaults": {
+    "type": "animated",
+    "position": { "x": 16, "y": 20, "z": 16 }
+  },
+
+  "globalStory": {
+    "arcs": [
+      {
+        "id": "main_quest",
+        "name": "Peace in the Cellar",
+        "constraintMode": "Guided",
+        "beats": [
+          { "id": "b1", "description": "Speak with the Elder", "type": "Hard" },
+          { "id": "b2", "description": "Visit the cellar", "type": "Hard" }
+        ]
+      }
+    ]
+  }
+}

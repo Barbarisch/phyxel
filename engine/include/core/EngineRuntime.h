@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/EngineConfig.h"
+#include <glm/glm.hpp>
 #include <memory>
 #include <functional>
 
@@ -37,6 +38,8 @@ namespace Core {
 class WorldInitializer;
 class GameCallbacks;
 class AudioSystem;
+class SoundRegistry;
+class AmbienceDirector;
 class SceneManager;
 
 /**
@@ -117,6 +120,8 @@ public:
     Timer*                      getTimer()                  const;
     ChunkManager*               getChunkManager()           const;
     AudioSystem*                getAudioSystem()            const;
+    SoundRegistry*              getSoundRegistry()          const;
+    AmbienceDirector*           getAmbienceDirector()       const;
     AI::TTSService*             getTTSService()             const;
     Input::InputManager*        getInputManager()           const;
     ForceSystem*                getForceSystem()            const;
@@ -152,6 +157,10 @@ private:
     bool quitRequested_ = false;
     int  frameCount_ = 0;
     float lastDeltaTime_ = 0.0f;
+
+    // Audio-listener state for velocity derivation (endFrame).
+    glm::vec3 lastListenerPos_{0.0f};
+    bool      hasLastListenerPos_ = false;
     double lastFrameTime_ = 0.0;
 
     // ========================================================================
@@ -183,6 +192,8 @@ private:
 
     // Audio
     std::unique_ptr<AudioSystem>             audioSystem_;
+    std::unique_ptr<SoundRegistry>           soundRegistry_;
+    std::unique_ptr<AmbienceDirector>        ambienceDirector_;
     std::unique_ptr<AI::TTSService>          ttsService_;
 
     // Camera

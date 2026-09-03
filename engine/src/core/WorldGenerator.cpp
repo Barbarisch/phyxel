@@ -828,7 +828,21 @@ void WorldGenerator::waterSpansForBlock(int minX, int minZ, int w, int d,
     // `columnsForChunk` already memoizes a whole chunk's samples. Going through it means the margin
     // is paid once per chunk-of-terrain across a streaming session instead of once per chunk-of-water,
     // so the amortized cost collapses toward one sample per column. A padded area spans at most 5x5
-    // chunk columns, comfortably inside the 128-entry cache.
+    // chunk columns, and kColumnCacheMax is sized to hold that whole padded area at once.
+    //
+    // The span is checked at COMPILE TIME rather than described in prose: the previous version of
+    // this comment claimed "at most 5x5 chunk columns, comfortably inside the 128-entry cache",
+    // which was true at margin 48 and silently became false at 256 (18x18 = 324 columns vs a
+    // 128-entry FIFO cache — every block evicting what it was about to re-read). Raising the
+    // extent again now fails the build instead of quietly destroying the amortization.
+    {
+        constexpr int    kPaddedSide = 32 + 2 * kWaterExtentSteps;      // a chunk request, padded
+        constexpr size_t kChunkSpan  = static_cast<size_t>(kPaddedSide / 32 + 2);  // worst-case, both edges
+        static_assert(kChunkSpan * kChunkSpan <= kColumnCacheMax,
+                      "kWaterExtentSteps grew past what kColumnCacheMax can hold: one padded water "
+                      "block no longer fits the column cache, so FIFO will thrash it. Raise "
+                      "kColumnCacheMax (WorldGenerator.h) to at least kChunkSpan^2.");
+    }
     auto floorDiv = [](int a, int b) { return (a >= 0) ? (a / b) : -(((-a) + b - 1) / b); };
     const int c0x = floorDiv(px, 32), c1x = floorDiv(px + pw - 1, 32);
     const int c0z = floorDiv(pz, 32), c1z = floorDiv(pz + pd - 1, 32);

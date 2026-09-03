@@ -1,0 +1,32 @@
+﻿20 vs 20 REAL-TIME BATTLE SIMULATION - 2026-08-31
+User ask: "complex battle simulations ... 20 vs 20 characters, a combination of casters and
+melee characters. make it realtime and not turn based".
+
+RESULT 5/5: azure wins at 111.8s with 11 survivors.
+  B1 both armies intact at start (20 v 20, 41 entities incl. the observer)
+  B2 FACTION COHERENCE: 328 damage events, ZERO friendly fire
+  B3 29 casualties; crimson wiped, azure 11 alive
+  B4 388 real-time casts (magic_missile 190, ray_of_frost 120, fire_bolt 78)
+  B5 PERF: median 11.89 ms (84 fps), p95 15.74 ms with 40 animated combatants,
+     Release build, full animation + physics + grass.
+     NOTE the earlier artillery-wipe run measured 31 ms / 32 fps while ~40 characters
+     were ATTACKING simultaneously; 84 fps here reflects a battle that thins out as it
+     resolves. Combat animation, not character count, is the cost.
+
+THREE RUNS, THREE DISTINCT FAILURES - each a real defect, not a flaky test:
+ RUN 1 everyone died with ZERO combat log lines. The caster cast hook was never wired, so
+   RangedCasterBehavior fell to its raw-takeDamage fallback: no CombatSystem, no death
+   events, no VFX, no logs - combatants died of nothing. Also the 5th literal-format
+   logger bug (CombatBehavior "{:.1f}") hid melee hits, and casts were logged at DEBUG
+   (invisible in Release - a lesson already in my notes, repeated anyway). And the
+   UNALIGNED observer was murdered by both armies: unaligned means hostile to everyone,
+   so a spectator inside a 40u aggro radius is just a target.
+ RUN 2 nothing happened AT ALL: aggro 26 with the lines 28u apart meant nobody could ever
+   see anyone. (FPS 89 with 40 idle characters vs 32 mid-fight - the cost is combat.)
+ RUN 3 (this one) passes. The generator now ASSERTS the geometry both ways:
+   line gap < aggro < observer distance, so neither failure can recur silently.
+
+ENGINE FIXES THIS INCREMENT: CombatBehavior::acquireTarget never checked m_faction despite
+the header promising it (any group fight was a free-for-all); faction now lives on
+Scene::Entity so combatants can read each OTHER's allegiance. NPCManager attaches the cast
+hook at spawn so real-time spell damage always goes through the funnel.

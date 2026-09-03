@@ -616,8 +616,20 @@ public:
     int  getTonemapCurve() const { return m_tonemapCurve; }
 
     void setCachedViewMatrix(const glm::mat4& view) { cachedViewMatrix = view; }
+    /// The RENDER view matrix: camera-RELATIVE (eye at the origin, rotation
+    /// only) for float precision at continental coordinates — the GPU gets
+    /// (world - cameraPos). Do NOT project absolute world positions through
+    /// this; use getWorldViewMatrix() for that.
     const glm::mat4& getCachedViewMatrix() const { return cachedViewMatrix; }
     const glm::mat4& getCachedProjectionMatrix() const { return cachedProjectionMatrix; }
+
+    /// View matrix in ABSOLUTE world space, for CPU-side world->screen
+    /// projection (UI overlays: speech bubbles, interaction prompts, combat
+    /// nameplates). Projecting through the camera-relative render matrix put
+    /// every absolute position "behind the camera" — world overlays silently
+    /// vanished (measured 3/3 rejections). Anything doing worldToScreen wants
+    /// THIS one.
+    glm::mat4 getWorldViewMatrix() const;
     void setProjectionMatrixNeedsUpdate(bool needsUpdate) { projectionMatrixNeedsUpdate = needsUpdate; }
     
     uint32_t getCurrentFrame() const { return currentFrame; }
@@ -629,6 +641,10 @@ public:
     /// Returns an empty vector on failure. Must be called from the main thread.
     /// Output: width*height*4 bytes of RGBA data, top-to-bottom row order.
     std::vector<uint8_t> captureScreenshot();
+
+    /// Swapchain dimensions for captureScreenshot consumers that don't hold a
+    /// VulkanDevice (the standalone test API's screenshot endpoint).
+    glm::uvec2 getSwapChainSize() const;
 
 private:
     const std::vector<std::unique_ptr<Scene::Entity>>* entities = nullptr;

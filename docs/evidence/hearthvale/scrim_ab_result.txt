@@ -1,0 +1,12 @@
+﻿Scrim A/B + title art pass, 2026-08-19 (Release Hearthvale.exe, no engine changes - data only)
+CLAIM TESTED: 'scrim alpha not compositing over menuWorld' (open issue since the menuWorld arc).
+METHOD: same build, same world, only menuLayout background_color alpha changed in deployed
+game.json; sampled identical background coordinates.
+  alpha 0.45: grass px (200,600)=(123,134,114) [shot_1787151745775 era + re-measured]
+  alpha 0.95: (200,600)=(60,56,75)  <- strongly darkened
+  alpha 0.62: (~80-111 range at 3 samples, camera at different orbit point)
+0.45 result matches (1-a)*world + a*scrim for raw grass ~(209,234,187): alpha IS compositing.
+VERDICT: misdiagnosis - engine works; 0.45 was too subtle. Hearthvale now ships 0.62.
+ALSO: the screen-filling pale-blue blob = the 4x5x4 'glow' centerpiece's emissive bloom
+(scrim_062_glowblob.png). Replaced with StoneBricks pillar + single glow lantern voxel
+(title.db deleted to rebake). Final: title_final_lantern.png.

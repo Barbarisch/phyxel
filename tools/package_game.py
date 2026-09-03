@@ -80,6 +80,7 @@ REQUIRED_RESOURCES = [
     "resources/ui/credits_screen.json",
     "resources/ui/settings_screen.json",
     "resources/ui/mainmenu_screen.json",
+    "resources/ui/loading_screen.json",
 ]
 
 # The default animation file an animated character/NPC falls back to when the
@@ -482,14 +483,19 @@ def package_game(
                         files_copied += 1
 
     # ── 9. Sound files ──────────────────────────────────────────────────
-    if include_all_resources:
-        sounds_src = PHYXEL_ROOT / "resources" / "sounds"
-        if sounds_src.exists():
-            for f in sounds_src.iterdir():
-                if f.is_file():
-                    dst = output_dir / "resources" / "sounds" / f.name
-                    if copy_file_safe(f, dst):
-                        files_copied += 1
+    # ALWAYS shipped (like fonts), and recursively: engine-level gameplay SFX
+    # (voxel place, furniture activate, chop) plus the sounds.json event
+    # catalog, ambience.json, and the ambience/ + sfx/ subdirs all live here —
+    # a game that ships without them plays silence for built-in interactions.
+    sounds_src = PHYXEL_ROOT / "resources" / "sounds"
+    if sounds_src.exists():
+        for root, dirs, files_list in os.walk(sounds_src):
+            for f in files_list:
+                src = Path(root) / f
+                rel = src.relative_to(PHYXEL_ROOT)
+                dst = output_dir / rel
+                if copy_file_safe(src, dst):
+                    files_copied += 1
 
     # ── 10. Recipe files (story system) ─────────────────────────────────
     if include_all_resources or needs.get("has_story"):

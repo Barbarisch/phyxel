@@ -10,6 +10,23 @@
 #include "core/AStarPathfinder.h"
 #include "core/TriggerSystem.h"
 #include "core/EntityRegistry.h"
+#include "core/CombatDirector.h"
+#include "core/CombatAISystem.h"
+#include "core/PlayerTurnController.h"
+#include "core/DiceSystem.h"
+#include "core/CharacterSheet.h"
+#include "core/SpellcasterComponent.h"
+#include "core/HealthComponent.h"
+#include "core/CombatSystem.h"
+#include "core/DamageTypes.h"
+#include "core/CombatLog.h"
+#include "core/AudioSystem.h"
+#include "core/AmbienceDirector.h"
+#include "core/AssetManager.h"
+#include "scene/Entity.h"
+#include <map>
+#include <array>
+#include "core/Inventory.h"
 #include "core/SceneManager.h"
 #include "core/SceneDefinition.h"
 #include "graphics/RenderCoordinator.h"
@@ -18,11 +35,16 @@
 #include "ui/GameScreen.h"
 #include "ui/UISystem.h"
 #include "scene/AnimatedVoxelCharacter.h"
+#include "scene/NPCEntity.h"
+#include "scene/behaviors/CombatBehavior.h"
 #include "utils/PerformanceMonitor.h"
 #include "utils/Logger.h"
 
 #include <GLFW/glfw3.h>
+#include "stb_image_write.h"
 #include <cctype>
+#include <chrono>
+#include <filesystem>
 
 namespace Phyxel {
 namespace Core {
@@ -77,7 +99,17 @@ bool GameApiService::start(int port) {
             }
         }
         json state = {{"entities", entities}, {"entity_count", entities.size()}};
-        if (runtime && runtime->getInputManager()) {
+        // Report the REAL rig-driven camera, not InputManager's free-cam copy —
+        // a rig (third_person/overhead) repositions Graphics::Camera every frame
+        // and never writes back to InputManager, so the copy goes stale the
+        // moment gameplay cameras engage. (Found by the BG3 tactical-camera
+        // probe: the API showed the boot pose through an entire rig swap.)
+        if (runtime && runtime->getCamera()) {
+            auto* cam = runtime->getCamera();
+            const glm::vec3 c = cam->getPosition();
+            state["camera"] = {{"position", {{"x", c.x}, {"y", c.y}, {"z", c.z}}},
+                               {"yaw", cam->getYaw()}, {"pitch", cam->getPitch()}};
+        } else if (runtime && runtime->getInputManager()) {
             auto* im = runtime->getInputManager();
             const glm::vec3 c = im->getCameraPosition();
             state["camera"] = {{"position", {{"x", c.x}, {"y", c.y}, {"z", c.z}}},
@@ -94,6 +126,14 @@ bool GameApiService::start(int port) {
             return {{"fps", fps}, {"cpuFrameTime", ft.cpuFrameTime}};
         }
         return {{"fps", fps}};
+    });
+
+    // /api/rpg/<action> (incl. combat/*) — bounce through the command queue so
+    // the handlers run on the game-loop thread via pump(), same as every other
+    // command. (The editor's rpg handler runs on the HTTP thread and must queue
+    // player intents itself; here the queue does that uniformly.)
+    server_->setRpgHandler([this](const std::string& action, const json& params) -> json {
+        return server_->queueAndWait(action, params);
     });
 
     registerCommands();
@@ -118,6 +158,47 @@ void GameApiService::registerCommands() {
              {"far_tiles_drawn", s.farTilesDrawn}};
     });
 
+    // Audio observability: listener pose + pool counts, straight from the real
+    // AudioSystem (getListenerPosition reads back from miniaudio, not a cache).
+    // This is what makes "the listener follows the camera in a SHIPPED game"
+    // falsifiable — before the EngineRuntime::endFrame() wiring, packaged games
+    // never updated the listener and had no way to even observe that.
+    reg.on("get_audio_state", [this](const APICommand&, json& r) {
+        Core::AudioSystem* audio = runtime ? runtime->getAudioSystem() : nullptr;
+        if (!audio) { r = {{"error", "AudioSystem not available"}}; return; }
+        const glm::vec3 lp = audio->getListenerPosition();
+        r = {{"success", true},
+             {"listener", {{"x", lp.x}, {"y", lp.y}, {"z", lp.z}}},
+             {"active_sounds", audio->activeSoundCount()},
+             {"pooled_sounds", audio->pooledSoundCount()},
+             {"active_loops", audio->activeLoopCount()}};
+        if (auto* amb = runtime->getAmbienceDirector()) {
+            r["ambience"] = {{"context", amb->activeContext()},
+                             {"crossfades", amb->crossfadeCount()}};
+        }
+    });
+
+    // Fire a sound through the real AudioSystem (2D, or 3D when x/y/z given) so
+    // a harness can exercise playback + pool behavior in the shipped build.
+    reg.on("play_sound", [this](const APICommand& cmd, json& r) {
+        Core::AudioSystem* audio = runtime ? runtime->getAudioSystem() : nullptr;
+        if (!audio) { r = {{"error", "AudioSystem not available"}}; return; }
+        const std::string file = cmd.params.value("file", "");
+        if (file.empty()) { r = {{"error", "Missing 'file' field"}}; return; }
+        const std::string path = Core::AssetManager::instance().resolveSound(file);
+        const float volume = cmd.params.value("volume", 1.0f);
+        if (cmd.params.contains("x") && cmd.params.contains("y") && cmd.params.contains("z")) {
+            glm::vec3 pos(cmd.params["x"].get<float>(), cmd.params["y"].get<float>(),
+                          cmd.params["z"].get<float>());
+            audio->playSound3D(path, pos, AudioChannel::SFX, volume);
+            r = {{"success", true}, {"mode", "3D"}, {"file", file}};
+        } else {
+            audio->playSound(path, AudioChannel::SFX, volume);
+            r = {{"success", true}, {"mode", "2D"}, {"file", file}};
+        }
+        r["active_sounds"] = audio->activeSoundCount();
+    });
+
     reg.on("get_player_state", [this](const APICommand&, json& r) {
         Scene::AnimatedVoxelCharacter* ch = playerProvider ? playerProvider() : nullptr;
         if (!ch) { r = {{"success", false}, {"error", "No player character"}}; return; }
@@ -127,7 +208,28 @@ void GameApiService::registerCommands() {
              {"position", {{"x", p.x}, {"y", p.y}, {"z", p.z}}},
              {"velocity", {{"x", v.x}, {"y", v.y}, {"z", v.z}}},
              {"grounded", ch->isGrounded()},
+             {"facing_yaw", ch->getYaw()},   // radians; model faces +Z at yaw 0
              {"state", ch->stateToString(ch->getAnimationState())}};
+        if (auto* hc = ch->getHealthComponent()) {
+            r["health"]     = hc->getHealth();
+            r["max_health"] = hc->getMaxHealth();
+        }
+    });
+
+    // POST /api/rpg/entity_health {id} — HP of ANY entity. Damage was
+    // previously invisible to a harness: /api/state carries no HP and
+    // get_player_state had none either, so "did that spell actually hurt
+    // anyone" could only be inferred from logs.
+    reg.on("entity_health", [this](const APICommand& cmd, json& r) {
+        if (!entityRegistry) { r = {{"error", "EntityRegistry not available"}}; return; }
+        const std::string id = cmd.params.value("id", "");
+        Scene::Entity* e = id.empty() ? nullptr : entityRegistry->getEntity(id);
+        if (!e) { r = {{"error", "unknown entity"}, {"id", id}}; return; }
+        auto* hc = e->getHealthComponent();
+        if (!hc) { r = {{"id", id}, {"has_health", false}}; return; }
+        r = {{"id", id}, {"has_health", true},
+             {"health", hc->getHealth()}, {"max_health", hc->getMaxHealth()},
+             {"alive", hc->isAlive()}};
     });
 
     reg.on("list_triggers", [this](const APICommand&, json& r) {
@@ -160,6 +262,394 @@ void GameApiService::registerCommands() {
             return;
         }
         r = {{"success", false}, {"error", "Provide 'id' or 'event'"}};
+    });
+
+    // --- Turn-based combat (POST /api/rpg/combat/<action>) -------------------
+    // Runs on the game-loop thread (pump()), so player intents apply directly —
+    // no pending-intent mutex (contrast: editor Application.cpp rpg handler).
+    reg.on("combat/state", [this](const APICommand&, json& r) {
+        if (!combatDirector) { r = {{"error", "combat not available"}}; return; }
+        r = {{"mode",           combatModeToString(combatDirector->mode())},
+             {"in_combat",      combatDirector->inCombat()},
+             {"active",         combatDirector->initiative().isCombatActive()},
+             {"round",          combatDirector->currentRound()},
+             {"current_entity", combatDirector->currentEntityId()},
+             {"player_turn",    combatDirector->isPlayerTurn()},
+             {"turn_order",     combatDirector->initiative().toJson()}};
+    });
+
+    reg.on("combat/start", [this](const APICommand& cmd, json& r) {
+        if (!combatDirector) { r = {{"error", "combat not available"}}; return; }
+        std::vector<CombatDirector::Combatant> combatants;
+        if (cmd.params.contains("participants") && cmd.params["participants"].is_array())
+            for (const auto& p : cmd.params["participants"]) {
+                std::string eid = p.value("entity_id", "");
+                if (eid.empty()) continue;
+                CombatDirector::Combatant c;
+                c.entityId        = eid;
+                c.isPlayerSide    = p.value("player_side", false);
+                c.initiativeBonus = p.value("initiative_bonus", 0);
+                c.speed           = p.value("speed", 30);
+                combatants.push_back(c);
+            }
+        if (combatDirector->inCombat()) combatDirector->endEncounter();
+        DiceSystem dice;
+        combatDirector->beginEncounter(combatants, dice);
+        r = {{"ok", true}, {"state", combatDirector->toJson()}};
+    });
+
+    reg.on("combat/player_move", [this](const APICommand& cmd, json& r) {
+        if (!playerTurn) { r = {{"error", "combat not available"}}; return; }
+        glm::vec3 pt(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f),
+                     cmd.params.value("z", 0.0f));
+        r = {{"ok", playerTurn->requestMove(pt)}};
+    });
+
+    reg.on("combat/player_attack", [this](const APICommand& cmd, json& r) {
+        if (!playerTurn) { r = {{"error", "combat not available"}}; return; }
+        const std::string tid = cmd.params.value("target_id", "");
+        playerTurn->setSelectedTarget(tid);
+        r = {{"ok", playerTurn->requestAttack(tid)}};
+    });
+
+    reg.on("combat/end_turn", [this](const APICommand&, json& r) {
+        if (!playerTurn) { r = {{"error", "combat not available"}}; return; }
+        playerTurn->endTurn();
+        r = {{"ok", true}};
+    });
+
+    reg.on("combat/next_turn", [this](const APICommand&, json& r) {
+        if (!combatDirector) { r = {{"error", "combat not available"}}; return; }
+        if (!combatDirector->inCombat()) { r = {{"error", "no active combat"}}; return; }
+        std::string next = combatDirector->advanceTurn();
+        r = {{"ok", true}, {"next_entity", next}, {"round", combatDirector->currentRound()}};
+    });
+
+    reg.on("combat/end", [this](const APICommand&, json& r) {
+        if (!combatDirector) { r = {{"error", "combat not available"}}; return; }
+        combatDirector->endEncounter();
+        r = {{"ok", true}};
+    });
+
+    reg.on("combat/set_mode", [this](const APICommand& cmd, json& r) {
+        if (!combatDirector) { r = {{"error", "combat not available"}}; return; }
+        combatDirector->setMode(combatModeFromString(cmd.params.value("mode", "real_time")));
+        r = {{"ok", true}, {"mode", combatModeToString(combatDirector->mode())}};
+    });
+
+    // GET/POST /api/rpg/sheet — the player's character sheet (progression:
+    // XP, level, classes, HP). Null until the host wires a sheet.
+    reg.on("sheet", [this](const APICommand&, json& r) {
+        if (!playerSheet) { r = {{"error", "character sheet not available"}}; return; }
+        r = {{"success", true}, {"sheet", playerSheet->toJson()}};
+    });
+
+    // GET/POST /api/rpg/inventory — the player's inventory (loot/persistence).
+    reg.on("inventory", [this](const APICommand&, json& r) {
+        if (!inventory) { r = {{"error", "inventory not available"}}; return; }
+        r = {{"success", true}, {"inventory", inventory->toJson()}};
+    });
+
+    // POST /api/rpg/ui_scroll {x, y, delta} — wheel input at a screen point
+    // (delta > 0 = wheel up). Drives the same UISystem::handleScroll the
+    // shipped game's real wheel uses.
+    reg.on("ui_scroll", [this](const APICommand& cmd, json& r) {
+        auto* ui = renderCoordinator ? renderCoordinator->getUISystem() : nullptr;
+        if (!ui) { r = {{"error", "UISystem not available"}}; return; }
+        const bool consumed = ui->handleScroll(
+            {cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f)},
+            cmd.params.value("delta", 0.0f));
+        r = {{"ok", true}, {"consumed", consumed}};
+    });
+
+    // GET /api/screenshot — capture the current frame to screenshots/<ts>.png.
+    // The pixel-verification unlock for shipped games: probes can now PROVE
+    // rendering claims (HUD panels, text centering/clipping, menu animation =
+    // two captures that differ) instead of stopping at "providers are live".
+    reg.on("capture_screenshot", [this](const APICommand&, json& r) {
+        if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
+        auto pixels = renderCoordinator->captureScreenshot();
+        if (pixels.empty()) { r = {{"error", "Screenshot capture failed"}}; return; }
+        const glm::uvec2 wh = renderCoordinator->getSwapChainSize();
+        std::error_code ec;
+        std::filesystem::create_directories("screenshots", ec);
+        const auto now = std::chrono::system_clock::now();
+        const auto ms  = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             now.time_since_epoch()).count();
+        const std::string path = "screenshots/shot_" + std::to_string(ms) + ".png";
+        if (!stbi_write_png(path.c_str(), static_cast<int>(wh.x), static_cast<int>(wh.y),
+                            4, pixels.data(), static_cast<int>(wh.x) * 4)) {
+            r = {{"error", "Failed to write PNG"}};
+            return;
+        }
+        r = {{"success", true}, {"path", path}, {"width", wh.x}, {"height", wh.y}};
+    });
+
+    // POST /api/rpg/combat/player_cast {spell_id, target_id} — cast on the
+    // player's turn through PlayerTurnController::castSpell (budget spend,
+    // cantrip scaling, save/attack-roll resolution, AoE, release-frame damage
+    // via the host's cast executor). Same funnel a spell hotbar will use.
+    reg.on("combat/player_cast", [this](const APICommand& cmd, json& r) {
+        if (!playerTurn) { r = {{"error", "combat not available"}}; return; }
+        const std::string spellId  = cmd.params.value("spell_id", "");
+        const std::string targetId = cmd.params.value("target_id", "");
+        if (spellId.empty()) { r = {{"error", "spell_id required"}}; return; }
+        // Report WHY a refused cast was refused (no slots / not prepared /
+        // action spent) — a bare false made "out of slots" look like a bug.
+        const std::string blocked = playerTurn->castBlockedReason(spellId);
+        const bool cast = playerTurn->castSpell(spellId, targetId);
+        r = {{"ok", true}, {"cast", cast}};
+        if (!cast && !blocked.empty()) r["blocked"] = blocked;
+    });
+
+    // POST /api/rpg/spellbook — the caster's live spell state: derived DC /
+    // attack bonus, per-level slots, cantrips + prepared spells with the
+    // castable reason for each. The observable behind slot enforcement.
+    reg.on("spellbook", [this](const APICommand&, json& r) {
+        if (!playerTurn) { r = {{"error", "combat not available"}}; return; }
+        r = {{"save_dc", playerTurn->effectiveSaveDC()},
+             {"spell_attack_bonus", playerTurn->effectiveSpellAttackBonus()}};
+        auto* sc = playerTurn->spellcaster();
+        if (!sc) { r["bound"] = false; return; }
+        r["bound"] = true;
+        r["casting_class"] = sc->castingClassId();
+        json slots = json::array();
+        for (int lvl = 1; lvl <= SpellSlots::MAX_SPELL_LEVEL; ++lvl) {
+            const int mx = sc->slots().maximum[lvl - 1];
+            if (mx > 0) slots.push_back({{"level", lvl},
+                                         {"remaining", sc->slots().remaining[lvl - 1]},
+                                         {"maximum", mx}});
+        }
+        r["slots"] = slots;
+        json known = json::array();
+        for (const auto& id : sc->cantrips())
+            known.push_back({{"id", id}, {"cantrip", true},
+                             {"blocked", playerTurn->castBlockedReason(id)}});
+        for (const auto& ks : sc->knownSpells())
+            known.push_back({{"id", ks.spellId}, {"cantrip", false},
+                             {"prepared", ks.prepared},
+                             {"blocked", playerTurn->castBlockedReason(ks.spellId)}});
+        r["spells"] = known;
+    });
+
+    // POST /api/rpg/entity_damage {id, amount} — apply damage directly.
+    // Test-harness affordance: AI reactions that only trigger in a narrow HP
+    // window (a healer's threshold, a morale break) cannot be tested by hoping
+    // the dice land there. This sets up the CONDITION deterministically; what
+    // is under test is the AI's RESPONSE to it.
+    reg.on("entity_damage", [this](const APICommand& cmd, json& r) {
+        if (!entityRegistry) { r = {{"error", "EntityRegistry not available"}}; return; }
+        const std::string id = cmd.params.value("id", "");
+        Scene::Entity* e = id.empty() ? nullptr : entityRegistry->getEntity(id);
+        if (!e) { r = {{"error", "unknown entity"}, {"id", id}}; return; }
+        auto* hc = e->getHealthComponent();
+        if (!hc) { r = {{"error", "entity has no health"}, {"id", id}}; return; }
+        const float amount = cmd.params.value("amount", 0.0f);
+        if (amount > 0.0f) {
+            // Route through the FUNNEL, not hc->takeDamage: the funnel is what
+            // raises death events, removes the combatant, and resolves the
+            // encounter. Damaging the component directly left enemies at 0 HP
+            // but "alive" to the CombatDirector, so the fight never ended
+            // (measured — it wedged a whole probe run).
+            if (combatSystem)
+                combatSystem->applyDamage(e, id, amount, "test_api", DamageType::Physical);
+            else
+                hc->takeDamage(amount);
+        }
+        r = {{"id", id}, {"applied", amount},
+             {"health", hc->getHealth()}, {"max_health", hc->getMaxHealth()},
+             {"alive", hc->isAlive()}, {"via_funnel", combatSystem != nullptr}};
+    });
+
+    // POST /api/rpg/set_camera {x,y,z,yaw,pitch,detach} — park the camera at a
+    // fixed pose (detach=true) or hand it back to the gameplay rig
+    // (detach=false). The standalone had NO camera control at all, so a
+    // harness could only photograph whatever was over the player's shoulder —
+    // and an empty frame looked identical to a scene that failed to render.
+    reg.on("set_camera", [this](const APICommand& cmd, json& r) {
+        if (!cameraControl) { r = {{"error", "camera control not available"}}; return; }
+        const bool detach = cmd.params.value("detach", true);
+        cameraControl(detach,
+                      glm::vec3(cmd.params.value("x", 0.0f),
+                                cmd.params.value("y", 0.0f),
+                                cmd.params.value("z", 0.0f)),
+                      cmd.params.value("yaw", 0.0f),
+                      cmd.params.value("pitch", 0.0f));
+        r = {{"ok", true}, {"detached", detach}};
+    });
+
+    // POST /api/rpg/battle_stats — live roll-up of a REAL-TIME battle: who is
+    // alive per faction, total/remaining HP, and the frame cost. The observable
+    // for large-scale sims, where reading 40 individual entities per poll is
+    // both slow and unreadable.
+    reg.on("battle_stats", [this](const APICommand&, json& r) {
+        if (!entityRegistry) { r = {{"error", "EntityRegistry not available"}}; return; }
+        // faction -> {alive, dead, hp, max_hp}
+        std::map<std::string, std::array<double, 4>> byFaction;
+        int totalAlive = 0, totalDead = 0;
+        for (const char* type : {"animated", "npc"}) {
+            for (const auto& [id, e] : entityRegistry->getEntitiesByType(type)) {
+                if (!e) continue;
+                auto* hc = e->getHealthComponent();
+                const std::string f = e->faction().empty() ? "(unaligned)" : e->faction();
+                auto& slot = byFaction[f];
+                const bool alive = hc && hc->isAlive();
+                if (alive) { slot[0] += 1; ++totalAlive; } else { slot[1] += 1; ++totalDead; }
+                if (hc) { slot[2] += hc->getHealth(); slot[3] += hc->getMaxHealth(); }
+            }
+        }
+        json factions = json::array();
+        for (const auto& [name, s] : byFaction)
+            factions.push_back({{"faction", name}, {"alive", (int)s[0]}, {"dead", (int)s[1]},
+                                {"hp", s[2]}, {"max_hp", s[3]}});
+        r = {{"factions", factions}, {"alive", totalAlive}, {"dead", totalDead},
+             {"combatants", totalAlive + totalDead}};
+        if (runtime) {
+            const float dt = runtime->getLastDeltaTime();
+            r["frame_ms"] = dt * 1000.0f;
+            r["fps"]      = dt > 0.0f ? 1.0f / dt : 0.0f;
+        }
+    });
+
+    // POST /api/rpg/combat/log {since, limit} — the AI DECISION log: why each
+    // combatant did what it did (targets weighed, tactic that fired, what was
+    // rejected and on what grounds, roll outcomes). Separate from the engine
+    // log on purpose. Poll with the returned next_index.
+    reg.on("combat/log", [](const APICommand& cmd, json& r) {
+        r = CombatLog::instance().toJson(cmd.params.value("since", 0u),
+                                         cmd.params.value("limit", 200u));
+    });
+
+    // POST /api/rpg/tactics — what the combatants are actually DOING, per
+    // faction: the distribution of tactical intents (engage / cover / flank /
+    // hold / fall_back) across every live melee fighter. Without this,
+    // "they take cover now" is an unfalsifiable claim about an invisible
+    // state — this is the measurement that can come back all-"engage" and
+    // prove the tactical layer never fired.
+    reg.on("tactics", [this](const APICommand&, json& r) {
+        if (!npcManager) { r = {{"error", "NPCManager not available"}}; return; }
+        // faction -> intent -> count
+        std::map<std::string, std::map<std::string, int>> byFaction;
+        // Cumulative decision tallies per faction: cover taken / denied, orders
+        // obeyed / ignored. The instantaneous intent census undercounts cover
+        // badly (it is a transit state), so these carry the real signal.
+        std::map<std::string, std::array<int, 4>> tallies;
+        int tactical = 0, total = 0;
+        npcManager->forEachNPC([&](Scene::NPCEntity& npc) {
+            auto* cb = dynamic_cast<Scene::CombatBehavior*>(npc.getBehavior());
+            if (!cb) return;
+            const std::string f = npc.faction().empty() ? "(unaligned)" : npc.faction();
+            // Tally the DEAD too — a soldier who took cover and then fell still
+            // took cover, and dropping them would bias the count toward whoever
+            // is winning.
+            auto& t = tallies[f];
+            t[0] += cb->coverTaken();    t[1] += cb->coverDenied();
+            t[2] += cb->ordersObeyed();  t[3] += cb->ordersIgnored();
+
+            auto* hc = npc.getHealthComponent();
+            if (!hc || !hc->isAlive()) return;
+            const std::string intent = cb->intentName();
+            ++byFaction[f][intent];
+            ++total;
+            if (intent != "engage") ++tactical;
+        });
+        json factions = json::array();
+        int coverTotal = 0, orderTotal = 0;
+        for (const auto& [name, t] : tallies) {
+            json counts = json::object();
+            auto it = byFaction.find(name);
+            if (it != byFaction.end())
+                for (const auto& [intent, n] : it->second) counts[intent] = n;
+            coverTotal += t[0];
+            orderTotal += t[2];
+            factions.push_back({{"faction", name}, {"intents", counts},
+                                {"cover_taken", t[0]}, {"cover_denied", t[1]},
+                                {"orders_obeyed", t[2]}, {"orders_ignored", t[3]}});
+        }
+        r = {{"factions", factions}, {"melee_alive", total},
+             {"tactical", tactical},
+             {"cover_taken", coverTotal}, {"orders_obeyed", orderTotal},
+             {"tactical_fraction", total > 0 ? (double)tactical / total : 0.0}};
+    });
+
+    // POST /api/rpg/combat/log_clear — reset the decision log.
+    reg.on("combat/log_clear", [](const APICommand&, json& r) {
+        CombatLog::instance().clear();
+        r = {{"ok", true}};
+    });
+
+    // POST /api/rpg/combat/ai_plan {entity_id} — what this NPC's tactical
+    // profile would choose right now vs what a plain nearest-foe AI would.
+    // When the two differ, the profile is provably doing the choosing.
+    reg.on("combat/ai_plan", [this](const APICommand& cmd, json& r) {
+        if (!combatAI) { r = {{"error", "combat AI not available"}}; return; }
+        const std::string id = cmd.params.value("entity_id", "");
+        if (id.empty()) { r = {{"error", "entity_id required"}}; return; }
+        const auto p = combatAI->planFor(id);
+        r = {{"entity_id", id},
+             {"target_by_priority", p.targetByPriority},
+             {"nearest", p.nearest},
+             {"priority", p.priority},
+             {"preferred_range_feet", p.preferredRangeFeet},
+             {"flee_below_hp", p.fleeBelowHpFrac},
+             {"heal_ally_below", p.healAllyBelowFrac},
+             {"wounded_ally", p.woundedAlly}};
+    });
+
+    // POST /api/rpg/long_rest — restore all spell slots (the authoring hook is
+    // the long_rest trigger action; this is its test-API twin).
+    reg.on("long_rest", [this](const APICommand&, json& r) {
+        auto* sc = playerTurn ? playerTurn->spellcaster() : nullptr;
+        if (!sc) { r = {{"error", "no spellcaster bound"}}; return; }
+        sc->onLongRest();
+        r = {{"ok", true}, {"slots_remaining", sc->slots().totalRemaining()}};
+    });
+
+    // Click-to-act: resolve a SCREEN click into attack/move — the same
+    // PlayerTurnController::requestPickAt the shipped game's LMB uses, so a
+    // probe clicking the rat exercises the player's real path.
+    reg.on("combat/player_pick", [this](const APICommand& cmd, json& r) {
+        if (!playerTurn || !runtime) { r = {{"error", "combat not available"}}; return; }
+        auto* cam = runtime->getCamera();
+        auto* rc  = renderCoordinator;
+        if (!cam || !rc) { r = {{"error", "camera not available"}}; return; }
+        const glm::uvec2 vp = rc->getSwapChainSize();
+        float groundY = cmd.params.value("ground_y", -10000.0f);
+        if (groundY <= -9999.0f) {
+            if (auto* p = playerProvider ? playerProvider() : nullptr)
+                groundY = p->getPosition().y;
+            else groundY = 0.0f;
+        }
+        const char* resolved = playerTurn->requestPickAt(
+            *cam, {cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f)},
+            {static_cast<float>(vp.x), static_cast<float>(vp.y)}, groundY);
+        r = {{"ok", true}, {"resolved", resolved}};
+    });
+
+    reg.on("combat/screen_of", [this](const APICommand& cmd, json& r) {
+        if (!playerTurn || !runtime) { r = {{"error", "combat not available"}}; return; }
+        auto* cam = runtime->getCamera();
+        auto* rc  = renderCoordinator;
+        if (!cam || !rc) { r = {{"error", "camera not available"}}; return; }
+        const glm::uvec2 vp = rc->getSwapChainSize();
+        glm::vec2 px;
+        if (!playerTurn->screenOf(*cam, cmd.params.value("entity_id", ""),
+                                  {static_cast<float>(vp.x), static_cast<float>(vp.y)}, px)) {
+            r = {{"ok", false}, {"error", "entity unknown or off-screen"}};
+            return;
+        }
+        r = {{"ok", true}, {"x", px.x}, {"y", px.y}};
+    });
+
+    reg.on("combat/targeting_info", [this](const APICommand& cmd, json& r) {
+        if (!playerTurn) { r = {{"error", "combat not available"}}; return; }
+        const std::string tid = cmd.params.value("target_id", "");
+        r = {{"target_id",    tid},
+             {"attack_bonus", playerTurn->attackBonus()},
+             {"target_ac",    playerTurn->targetAC(tid)},
+             {"hit_chance",   playerTurn->hitChanceVs(tid)},
+             {"distance",     playerTurn->distanceTo(tid)},
+             {"in_reach",     playerTurn->inReachOf(tid)}};
     });
 
     reg.on("inject_input", [this](const APICommand& cmd, json& r) {

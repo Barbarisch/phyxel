@@ -122,6 +122,10 @@ void BehaviorTreeBehavior::update(float dt, NPCContext& ctx) {
     actCtx.entityRegistry = ctx.entityRegistry;
     actCtx.speechBubbleManager = ctx.speechBubbleManager;
     actCtx.blackboard = &m_blackboard;
+    // The voxel world was already on the NPC context and simply never forwarded,
+    // so every game-registered action was blind to walls and could only compare
+    // distances (see ActionContext::chunkManager).
+    actCtx.chunkManager = ctx.chunkManager;
 
     // Tick the brain or tree
     if (m_brain) {

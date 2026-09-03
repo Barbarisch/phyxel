@@ -1,0 +1,90 @@
+{
+  "steps": [
+    {
+      "step": "screen_initial",
+      "t": 55.4,
+      "data": {
+        "scene_id": "main_menu",
+        "scene_type": "menu",
+        "screen": "playing",
+        "source": "shell",
+        "success": true,
+        "transitioning": false,
+        "visible_menus": [
+          "menu:main"
+        ]
+      }
+    },
+    {
+      "step": "click_begin",
+      "t": 55.4,
+      "data": {
+        "consumed": true,
+        "success": true,
+        "x": 640.0,
+        "y": 384.0
+      }
+    },
+    {
+      "step": "after_begin",
+      "t": 58.5,
+      "data": {
+        "scene_id": "town",
+        "scene_type": "world",
+        "screen": "playing",
+        "source": "shell",
+        "success": true,
+        "transitioning": false,
+        "visible_menus": []
+      }
+    },
+    {
+      "step": "town_state",
+      "t": 58.5,
+      "data": {
+        "entities": [
+          "player",
+          "npc_Elder"
+        ],
+        "camera": {
+          "pitch": -30.0,
+          "position": {
+            "x": 50.0,
+            "y": 50.0,
+            "z": 50.0
+          },
+          "yaw": -135.0
+        }
+      }
+    },
+    {
+      "step": "triggers",
+      "t": 58.5,
+      "data": {
+        "ids": [
+          "to_cellar",
+          "win"
+        ]
+      }
+    }
+  ],
+  "log": [
+    "\u001b[33m[13:08:13.440] [WARN] [TTS] Piper assets not found (run tools/setup_piper.py) \u2014 NPC voices disabled\u001b[0m",
+    "\u001b[32m[13:09:05.742] [INFO] [RenderPipeline] Reflection scene pipeline created\u001b[0m",
+    "\u001b[31m[13:09:05.743] [ERROR] [Vulkan] Failed to allocate reflection descriptor sets!\u001b[0m",
+    "\u001b[32m[13:09:08.161] [INFO] [Hearthvale] Loaded 2 objective(s) from game.json\u001b[0m",
+    "\u001b[32m[13:09:08.183] [INFO] [HUD] HUD panel 'hud_objectives' loaded\u001b[0m",
+    "\u001b[32m[13:09:08.184] [INFO] [SceneManager] Loaded manifest with 3 scene(s), startScene='main_menu'\u001b[0m",
+    "\u001b[32m[13:09:08.184] [INFO] [SceneManager] Loading initial scene: 'main_menu'\u001b[0m",
+    "\u001b[32m[13:09:08.184] [INFO] [Hearthvale] Loading screen shown (-> 'Main Menu')\u001b[0m",
+    "\u001b[32m[13:09:08.184] [INFO] [Hearthvale] Loading screen dismissed\u001b[0m",
+    "\u001b[32m[13:09:08.184] [INFO] [SceneManager] Scene 'main_menu' loaded in {:.1f}ms\u001b[0m",
+    "\u001b[32m[13:09:08.184] [INFO] [Hearthvale] Loaded multi-scene game (3 scenes)\u001b[0m",
+    "\u001b[33m[13:09:08.221] [WARN] [GameShell] *** TEST API ENABLED on 127.0.0.1:8101 \u2014 dev/test build, do NOT ship ***\u001b[0m",
+    "\u001b[32m[13:09:08.645] [INFO] [SceneManager] Beginning transition: 'main_menu' -> 'town'\u001b[0m",
+    "\u001b[32m[13:09:08.645] [INFO] [SceneManager] Unloading scene 'main_menu'...\u001b[0m",
+    "\u001b[32m[13:09:08.645] [INFO] [SceneManager] Scene 'main_menu' unloaded\u001b[0m",
+    "\u001b[33m[13:09:09.845] [WARN] [NPCEntity] Failed to load anim file 'character.anim' for NPC 'Elder'\u001b[0m",
+    "\u001b[32m[13:09:09.845] [INFO] [SceneManager] Scene 'town' loaded in {:.1f}ms\u001b[0m"
+  ]
+}

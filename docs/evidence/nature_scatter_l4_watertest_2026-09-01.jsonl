@@ -1,0 +1,4 @@
+{"step":"day_start_1000h","response":{"active_loops":1,"active_sounds":0,"ambience":{"context":"Jungle","crossfades":1},"listener":{"x":32.0,"y":60.0,"z":80.0},"pooled_sounds":0,"success":true}}
+{"step":"day_after_30s","response":{"active_loops":1,"active_sounds":0,"ambience":{"context":"Jungle","crossfades":1},"listener":{"x":32.0,"y":60.0,"z":80.0},"pooled_sounds":4,"success":true}}
+{"step":"night_start_2300h","response":{"active_loops":1,"active_sounds":1,"ambience":{"context":"Jungle","crossfades":1},"listener":{"x":32.0,"y":60.0,"z":80.0},"pooled_sounds":4,"success":true}}
+{"step":"night_after_30s","response":{"active_loops":1,"active_sounds":1,"ambience":{"context":"Jungle","crossfades":1},"listener":{"x":32.0,"y":60.0,"z":80.0},"pooled_sounds":7,"success":true}}

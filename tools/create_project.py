@@ -135,6 +135,86 @@ def create_project(
     extra_members.append("    Phyxel::Core::TriggerSystem triggers_;  // declarative when/then win conditions (game.json \"triggers\")")
     extra_includes.append('#include "core/GameDefinitionLoader.h"')
     extra_members.append("    Phyxel::Core::GameSubsystems gameSubsystems_;  // persistent: the SceneManager keeps a pointer to it")
+    # Editor-parity gameplay state (docs/game-production/StandaloneParityGaps.md §1):
+    # objectives + persistence exist in the SHIPPED game, not just the editor host.
+    extra_includes.append('#include "core/ObjectiveTracker.h"')
+    extra_includes.append('#include "core/PlayerProfile.h"')
+    # Turn-based combat in the SHIPPED game (StandaloneParityGaps.md §1, CombatDirector
+    # row): the same director/AI/player-turn stack the editor wires (Application.cpp
+    # ~554-589 + 1847-1859), minus editor-only cast visuals. game.json "combat.mode"
+    # selects the ruleset; a "start_combat" trigger action begins authored encounters.
+    extra_includes.append('#include "core/CombatDirector.h"')
+    extra_includes.append('#include "core/CombatAISystem.h"')
+    extra_includes.append('#include "core/PlayerTurnController.h"')
+    extra_includes.append('#include "core/CombatSystem.h"')
+    # Spellcasting (shipped-game parity with the editor's cast path)
+    extra_includes.append('#include "core/VfxDirector.h"')
+    extra_includes.append('#include "core/SpellVfxMapper.h"')
+    extra_includes.append('#include "core/SpellDefinition.h"')
+    extra_includes.append('#include "core/SpellAnimMapper.h"')
+    extra_includes.append('#include "core/Party.h"')
+    extra_includes.append('#include "core/DiceSystem.h"')
+    extra_includes.append('#include "scene/CharacterTurnBody.h"')
+    extra_includes.append('#include "scene/NPCEntity.h"')
+    extra_members.append("    Phyxel::Core::CombatDirector combatDirector_;        // initiative + turn order (single source of combat truth)")
+    extra_members.append("    Phyxel::Core::CombatAISystem combatAI_;              // runs enemy turns through TurnActor")
+    extra_members.append("    Phyxel::Core::PlayerTurnController playerTurn_;      // player intents -> the same TurnActor path")
+    extra_members.append("    Phyxel::Core::Party rpgParty_;")
+    extra_members.append("    std::unique_ptr<Phyxel::Core::CombatSystem> combatSystem_;  // the applyDamage funnel")
+    extra_members.append("    std::unordered_map<Phyxel::Scene::AnimatedVoxelCharacter*, std::unique_ptr<Phyxel::Scene::CharacterTurnBody>> turnBodies_;")
+    # Progression: kill/quest XP -> CharacterProgression::awardXP -> level-up.
+    # Authored via game.json "progression" {class, race, kill_xp, objective_xp}.
+    extra_includes.append('#include "core/CharacterSheet.h"')
+    extra_includes.append('#include "core/CharacterProgression.h"')
+    extra_includes.append('#include "core/ClassDefinition.h"')
+    extra_members.append("    Phyxel::Core::CharacterSheet playerSheet_;  // progression: XP/level/classes")
+    extra_members.append("    int killXp_ = 0;       // XP per enemy killed (game.json progression.kill_xp)")
+    extra_members.append("    int objectiveXp_ = 0;  // XP per objective completed (progression.objective_xp)")
+    extra_members.append("    bool profileRestored_ = false;  // profile restore runs ONCE per session, at the first world-scene load (a menu-start game has no world DB open at boot)")
+    # Inventory: loot via the give_item trigger action; persists in the profile blob.
+    extra_includes.append('#include "core/Inventory.h"')
+    extra_members.append("    Phyxel::Core::Inventory inventory_;  // player inventory (loot; persisted via PlayerProfile)")
+    # BG3-style tactical camera: swap to an overhead/isometric rig while an
+    # encounter runs, restore the scene's rig after (combat.camera in game.json).
+    extra_members.append('    std::string combatCameraRig_ = "overhead";  // rig while in combat (game.json combat.camera)')
+    extra_members.append("    std::string preCombatRig_;      // rig to restore when the encounter ends")
+    extra_members.append("    bool wasInCombat_ = false;      // combat camera edge detection")
+    # menuWorld: menu scenes with an authored world get a looping CameraPath
+    # orbit behind their UI (PresentationPolish.md §3 Tier 1).
+    extra_includes.append('#include "graphics/CameraManager.h"')
+    extra_includes.append('#include "graphics/CameraRig.h"')  # TacticalRig focus framing
+    extra_members.append("    Phyxel::Graphics::CameraPath menuCamPath_;  // drives the menuWorld orbit while a menu scene is up")
+    extra_members.append("    bool combatLmbHeld_ = false;    // click-to-act edge detection (BG3 mouse combat)")
+    # Spell hotbar (BG3 casting UI): authored spells -> combat spellbar; click a
+    # slot to ARM, click an enemy to CAST (routes through castSpell instead of
+    # the melee pick). Ground click with a spell armed = cancel.
+    extra_includes.append('#include "core/SpellcasterComponent.h"')
+    extra_includes.append('#include "core/CombatLog.h"')
+    # Behavior-tree action vocabulary registered by this game (registerBehaviorActions)
+    extra_includes.append('#include "ai/BTActionRegistry.h"')
+    extra_includes.append('#include "ai/TacticalSpace.h"')   # LOS for the combat verbs
+    extra_includes.append('#include "ai/CommandStructure.h"')
+    extra_members.append("    Phyxel::AI::CommandStructure command_;  // squads + orders (game.json squad/rank)")
+    extra_includes.append('#include "core/KinematicVoxelManager.h"')
+    extra_includes.append('#include "core/ItemRegistry.h"')
+    extra_includes.append('#include "core/ItemPropManager.h"')
+    extra_includes.append('#include "scene/behaviors/CombatBehavior.h"')
+    extra_includes.append('#include <glm/gtx/euler_angles.hpp>')   # eulerAngleYXZ for grip rotation
+    extra_members.append("    std::unique_ptr<Phyxel::Core::KinematicVoxelManager> kinematicVoxelManager_;  // holds NPC weapon meshes")
+    extra_members.append("    std::unique_ptr<Phyxel::ObjectTemplateManager> weaponTemplates_;  // loads the weapon .voxel models on demand")
+    extra_members.append("    struct HeldWeapon { std::string kinId; int anchorId = -1; std::string itemId; };")
+    extra_members.append("    std::unordered_map<std::string, HeldWeapon> npcHeld_;  // entityId -> attached weapon")
+    extra_includes.append('#include "ai/ActionSystem.h"')
+    extra_members.append('    Phyxel::Core::SpellcasterComponent playerCaster_;  // slots/known spells; bound to playerTurn_')
+    extra_members.append('    std::unordered_map<std::string, Phyxel::Core::SpellcasterComponent> npcCasters_;  // game.json "casters": enemy/companion spell lists for CombatAI')
+    extra_members.append('    std::unordered_map<std::string, Phyxel::Core::CombatTactics> npcTactics_;  // game.json "combat_ai": per-NPC tactical profile')
+    extra_members.append('    std::vector<std::string> playerSpells_;  // game.json progression.spells (SpellRegistry ids)')
+    extra_members.append('    std::string armedSpell_;        // spellbar-armed spell; empty = melee/move clicks')
+    extra_members.append('    std::string hoveredTarget_;     // combatant under the cursor (nameplate + targeting readout)')
+    extra_members.append('    int nameplateDiagFrame_ = 0;    // throttle for the nameplate diagnostic')
+    extra_members.append("    Phyxel::Core::ObjectiveTracker objectiveTracker_;  // quest-log spine; game.json \"objectives\" load here")
+    extra_members.append("    Phyxel::Core::PlayerProfile playerProfile_;        // persisted to the active scene's world DB (player_state table)")
+    extra_members.append("    std::string loadingSceneName_;  // destination scene shown on the loading screen")
 
     # Menu-scene support: a JSON-driven menu renderer for sceneType:"menu" scenes.
     # When the loaded game uses menu scenes, the SceneManager drives the flow and
@@ -195,6 +275,7 @@ def create_project(
         *sorted(set(extra_includes)),
         "#include <memory>",
         "#include <vector>",
+        "#include <unordered_map>",
         "",
         "// GameShell is the engine-side base for standalone games: it owns the",
         "// gameplay camera + character control loop (rig/scheme resolved from each",
@@ -214,6 +295,12 @@ def create_project(
         "    Phyxel::UI::GameScreen* apiScreen() override { return &screen_; }",
         "    Phyxel::Core::TriggerSystem* apiTriggerSystem() override { return &triggers_; }",
         "    Phyxel::Scene::AnimatedVoxelCharacter* apiPlayer() override { return playerCharacter_; }",
+        "    Phyxel::Core::CombatDirector*       apiCombatDirector() override { return &combatDirector_; }",
+        "    Phyxel::Core::CombatAISystem*       apiCombatAI() override       { return &combatAI_; }",
+        "    Phyxel::Core::CombatSystem*         apiCombatSystem() override   { return combatSystem_.get(); }",
+        "    Phyxel::Core::PlayerTurnController* apiPlayerTurn() override     { return &playerTurn_; }",
+        "    Phyxel::Core::CharacterSheet*       apiPlayerSheet() override    { return &playerSheet_; }",
+        "    Phyxel::Core::Inventory*            apiInventory() override      { return &inventory_; }",
         *([
             "    Phyxel::Core::EntityRegistry* apiEntityRegistry() override { return entityRegistry_.get(); }",
             "    Phyxel::Core::NPCManager* apiNPCManager() override { return npcManager_.get(); }",
@@ -223,6 +310,22 @@ def create_project(
         f"    bool loadGameDefinition(Phyxel::Core::EngineRuntime& engine);",
         f"    Phyxel::Scene::Entity* spawnEntity(const std::string& type, const glm::vec3& pos, const std::string& animFile);",
         f"    void updateCursorMode(Phyxel::Core::EngineRuntime& engine);",
+        f"    void savePlayerProfile();   // camera+health -> active scene world DB",
+        f"    bool loadPlayerProfile();   // world DB -> camera+health (boot / save points)",
+        f"    void applyAudioSettings();  // settings_ volumes -> EngineRuntime AudioSystem",
+        f"    void grantXP(int xp, const char* why);  // awardXP + level-up log/event",
+        f"    void faceToward(Phyxel::Scene::AnimatedVoxelCharacter* ch, const glm::vec3& at);",
+        f"    void playCastVisual(const std::string& spellId, const glm::vec3& targetPos, std::function<void()> onRelease);",
+        f"    void playCastVisualFor(Phyxel::Scene::AnimatedVoxelCharacter* caster, const std::string& spellId, const glm::vec3& targetPos, std::function<void()> onRelease);",
+        f"    void setArmedSpell(const std::string& id);  // spellbar arm/disarm + button highlight",
+        f"    void registerBehaviorActions();  // this game's BT action verbs (BTActionRegistry)",
+        f"    void installDoctrine();          // how this game's officers decide",
+        f"    void equipNpcWeapons();          // attach game.json \"weapon\" models to grip bones",
+        f"    void updateHeldWeapons();        // follow the grip bone each frame",
+        f"    void updateCommand(float dt);    // per-frame squad situation + orders",
+        f"    void refreshSpellbar();  // repaint labels/slot counts/enabled state from live caster state",
+        f"    Phyxel::Scene::AnimatedVoxelCharacter* characterOf(const std::string& entityId);",
+        f"    void faceCombatants();  // everyone faces the nearest opposing-side combatant",
         "",
         "    float elapsed_ = 0.0f;",
         f"    Phyxel::Core::EngineRuntime* engine_ = nullptr;",
@@ -434,6 +537,113 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     auto* hc = playerCharacter_ ? playerCharacter_->getHealthComponent() : nullptr;
                     return hc ? hc->getMaxHealth() : 100.0f;
                 });
+
+                // Combat panels (initiative order, turn label, action budget, hit
+                // chance) — the same providers the editor registers, wired to the
+                // standalone's own combat stack. Hidden until combat.inCombat flips.
+                hud.setFloat("combat.inCombat",         [this]{ return combatDirector_.inCombat() ? 1.0f : 0.0f; });
+                hud.setFloat("combat.playerTurnActive", [this]{ return playerTurn_.isPlayerTurnActive() ? 1.0f : 0.0f; });
+                hud.setText ("combat.roundText", [this]{
+                    char buf[32];
+                    snprintf(buf, sizeof(buf), "COMBAT  -  Round %d", combatDirector_.currentRound());
+                    return std::string(buf);
+                });
+                hud.setText ("combat.turnLabel", [this]{
+                    if (combatDirector_.isPlayerTurn()) return std::string("YOUR TURN");
+                    std::string id = combatDirector_.currentEntityId();
+                    return id.empty() ? std::string("") : (id + "'s Turn");
+                });
+                hud.setText ("combat.budgetText", [this]{
+                    const auto* b = playerTurn_.budget();
+                    if (!b) return std::string("");
+                    char buf[64];
+                    snprintf(buf, sizeof(buf), "Action:%s  Bonus:%s  Move:%.1f",
+                             b->action ? "Y" : "-", b->bonusAction ? "Y" : "-",
+                             playerTurn_.movementRemainingUnits());
+                    return std::string(buf);
+                });
+                hud.setText ("combat.hitChanceText", [this]{
+                    const std::string& tgt = playerTurn_.selectedTarget();
+                    if (tgt.empty()) return std::string("");
+                    char buf[96];
+                    snprintf(buf, sizeof(buf), "%s: %.0f%% to hit (AC %d)%s",
+                             tgt.c_str(), playerTurn_.hitChanceVs(tgt) * 100.0f, playerTurn_.targetAC(tgt),
+                             playerTurn_.inReachOf(tgt) ? "" : "  [out of reach]");
+                    return std::string(buf);
+                });
+                hud.setList("combat.turn_order", [this]() {
+                    std::vector<Phyxel::UI::HudRecord> rows;
+                    const auto& tracker = combatDirector_.initiative();
+                    if (!tracker.isCombatActive()) return rows;
+                    const std::string& cur = combatDirector_.currentEntityId();
+                    for (const auto& p : tracker.turnOrder()) {
+                        Phyxel::UI::HudRecord r;
+                        float hp = 0.0f, maxHp = 1.0f;
+                        if (entityRegistry_) {
+                            if (auto* e = entityRegistry_->getEntity(p.entityId)) {
+                                if (auto* hc = e->getHealthComponent()) { hp = hc->getHealth(); maxHp = hc->getMaxHealth(); }
+                            }
+                        }
+                        bool active = (p.entityId == cur);
+                        r.floats["hp"] = hp;
+                        r.floats["maxHp"] = maxHp;
+                        r.floats["hpFrac"] = (maxHp > 0.0f) ? hp / maxHp : 0.0f;
+                        r.floats["active"] = active ? 1.0f : 0.0f;
+                        r.texts["name"] = p.entityId;
+                        char buf[64];
+                        snprintf(buf, sizeof(buf), "%s%s [%d]  %d/%d",
+                                 active ? "> " : "  ", p.entityId.c_str(), p.initiativeRoll,
+                                 (int)(hp + 0.5f), (int)(maxHp + 0.5f));
+                        r.texts["label"] = buf;
+                        rows.push_back(std::move(r));
+                    }
+                    return rows;
+                });
+
+                // Objectives (quest log) — [x] when complete; .any gates visibility.
+                hud.setFloat("objectives.any", [this] {
+                    for (const auto* o : objectiveTracker_.getAllObjectives())
+                        if (o && !o->hidden && o->status != Phyxel::Core::Objective::Status::Failed) return 1.0f;
+                    return 0.0f;
+                });
+                hud.setList("objectives", [this]() {
+                    std::vector<Phyxel::UI::HudRecord> rows;
+                    for (const auto* o : objectiveTracker_.getAllObjectives()) {
+                        if (!o || o->hidden || o->status == Phyxel::Core::Objective::Status::Failed) continue;
+                        bool done = (o->status == Phyxel::Core::Objective::Status::Completed);
+                        Phyxel::UI::HudRecord r;
+                        r.texts["label"] = std::string(done ? "[x] " : "[ ] ") + o->title;
+                        r.floats["complete"] = done ? 1.0f : 0.0f;
+                        rows.push_back(std::move(r));
+                    }
+                    return rows;
+                });
+
+                // Hotbar — first 9 slots, icon from the item's top-face texture.
+                hud.setFloat("hotbar.any", [this] { return inventory_.size() > 0 ? 1.0f : 0.0f; });
+                hud.setList("hotbar", [this]() {
+                    std::vector<Phyxel::UI::HudRecord> rows;
+                    int n = std::min(inventory_.size(), 9);
+                    int sel = inventory_.getSelectedSlot();
+                    for (int i = 0; i < n; ++i) {
+                        Phyxel::UI::HudRecord r;
+                        auto slot = inventory_.getSlot(i);
+                        if (slot && !slot->itemId.empty()) {
+                            std::string lower;
+                            lower.reserve(slot->itemId.size());
+                            for (char c : slot->itemId) lower += static_cast<char>(std::tolower((unsigned char)c));
+                            r.texts["icon"] = "resources/textures/source/" + lower + "_top.png";
+                            r.texts["count"] = (slot->count > 1) ? std::to_string(slot->count) : std::string();
+                        } else {
+                            r.texts["icon"] = "";
+                            r.texts["count"] = "";
+                        }
+                        r.floats["selected"] = (i == sel) ? 1.0f : 0.0f;
+                        rows.push_back(std::move(r));
+                    }
+                    return rows;
+                });
+
                 // Timer-trigger countdown -> hud_countdown panel (replaces ImGui
                 // renderCountdownHud). Shows the first active countdown's label + time.
                 hud.setFloat("countdown.active", [this]() {
@@ -473,6 +683,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         #include "core/ChunkStreamingManager.h"
         #include "core/WorldStorage.h"
         #include "core/InteractionManager.h"
+        #include "core/AudioSystem.h"
         #include "utils/PerformanceProfiler.h"
         #include "utils/PerformanceMonitor.h"
         #include "utils/Logger.h"
@@ -481,6 +692,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         #include <GLFW/glfw3.h>
         #include <fstream>
         #include <filesystem>
+        #include <algorithm>
+        #include <cctype>
         #include <optional>
         #include <variant>
 
@@ -519,10 +732,24 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         void {class_name}::updateCursorMode(Phyxel::Core::EngineRuntime& engine) {{
             auto* window = engine.getWindowManager();
             if (!window) return;
+            // Test-API mode (--test): an automated harness drives the game — no
+            // human is at the window. NEVER grab the OS cursor: a background
+            // test run must not capture the user's mouse, and a hard-killed
+            // process whose window held a GLFW_CURSOR_DISABLED grab can leave
+            // the cursor locked/confined until the desktop refocuses.
+            // (config.testApiEnabled is set in main() BEFORE init, unlike
+            // testApiRunning(), which only turns true on the first onUpdate.)
+            if (engine.getConfig().testApiEnabled) {{
+                window->setCursorVisible(true);
+                return;
+            }}
             bool inDialogue = dialogueSystem_ && dialogueSystem_->isActive();
-            // A menu scene always wants a free cursor (its buttons are clickable).
+            // A menu scene always wants a free cursor (its buttons are clickable);
+            // so does turn-based combat (BG3-style click-targeting under the
+            // tactical camera).
             bool shouldCapture = !menuSceneActive_ &&
-                                 !Phyxel::UI::isMouseFree(screen_.getState()) && !inDialogue;
+                                 !Phyxel::UI::isMouseFree(screen_.getState()) && !inDialogue &&
+                                 !combatDirector_.inCombat();
             window->setCursorVisible(!shouldCapture);
         }}
 
@@ -540,6 +767,57 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             npcManager_->setPhysicsWorld(engine.getPhysicsWorld());
             npcManager_->setChunkManager(engine.getChunkManager());  // NavGrid needs a chunk source (pathfinding + test-API reachability)
             npcManager_->setEntityRegistry(entityRegistry_.get());
+
+            // ── VISIBLE WEAPONS ────────────────────────────────────────────
+            // An NPC's game.json "weapon" only ever set a damage/animation
+            // profile string: soldiers fought a whole battle bare-handed while
+            // the axes and swords existed as assets nobody attached. The engine
+            // has the grip metadata (ItemDefinition::held: bone, offset, euler,
+            // scale) and the character can resolve the bone, but the wire
+            // between them lived ONLY in the editor — another standalone parity
+            // gap. This is that wire, ported.
+            // Its own template manager: a generated game has none, and the
+            // weapon models must come from somewhere. Templates load on demand
+            // (one .voxel per distinct weapon) rather than scanning the whole
+            // library at boot.
+            weaponTemplates_ = std::make_unique<Phyxel::ObjectTemplateManager>(
+                engine.getChunkManager(), nullptr);
+            kinematicVoxelManager_ = std::make_unique<Phyxel::Core::KinematicVoxelManager>();
+            kinematicVoxelManager_->setPhysicsWorld(engine.getPhysicsWorld());
+            // NOTE: the render hookup CANNOT happen here — renderCoordinator_ is
+            // not constructed until later in this function. Doing it here left
+            // `if (renderCoordinator_)` false, the call never ran, and weapons
+            // attached correctly to hands and were simply never drawn. See the
+            // hookup after the RenderCoordinator is created.
+            // items.json was loaded only by the editor, so a shipped game had an
+            // EMPTY item registry and every weapon lookup missed silently.
+            const int loadedItems =
+                Phyxel::Core::ItemRegistry::instance().loadFromFile("resources/items.json");
+            if (loadedItems <= 0)
+                LOG_WARN("{class_name}", "items.json loaded {{}} items - NPC weapons will be invisible",
+                         loadedItems);
+            else
+                LOG_INFO("{class_name}", "item registry: {{}} items", loadedItems);
+            registerBehaviorActions();
+            installDoctrine();
+            // Real-time casters (RangedCasterBehavior) route their spells
+            // through the SAME cast visual + damage funnel as everyone else.
+            // Without this they fall back to raw takeDamage: no VFX, no death
+            // events, no logs — a 20v20 where combatants died of nothing.
+            npcManager_->setCasterCastHook(
+                [this](const std::string& casterId, const std::string& spellId,
+                       const std::string& targetId, const glm::vec3& targetPos, float damage) {{
+                    auto* target = entityRegistry_ ? entityRegistry_->getEntity(targetId) : nullptr;
+                    playCastVisualFor(characterOf(casterId), spellId, targetPos,
+                        [this, target, targetId, casterId, damage]() {{
+                            if (!target) return;
+                            if (combatSystem_)
+                                combatSystem_->applyDamage(target, targetId, damage, casterId,
+                                                           Phyxel::Core::DamageType::Fire);
+                            else if (auto* hc = target->getHealthComponent())
+                                hc->takeDamage(damage);
+                        }});
+                }});
 
             dialogueSystem_ = std::make_unique<Phyxel::UI::DialogueSystem>();
             speechBubbleManager_ = std::make_unique<Phyxel::UI::SpeechBubbleManager>();
@@ -584,6 +862,11 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 in->setInvertY(settings_.invertY);
             }}
 
+            // Apply persisted volume settings to the engine's AudioSystem at boot.
+            // Without this the sliders only mutate settings_ fields and the mixer
+            // never hears about them (StandaloneParityGaps.md §1, AudioSystem row).
+            applyAudioSettings();
+
             // AI conversation service — enables LLM-driven NPC dialogue
             aiConversationService_ = std::make_unique<Phyxel::AI::AIConversationService>(
                 storyEngine_.get(), entityRegistry_.get(), dialogueSystem_.get());
@@ -621,6 +904,15 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // — the world renders as empty terrain with an invisible (but loaded +
             // camera-followed) body. (game-dev feedback round 5 — UIShowcase.)
             renderCoordinator_->setEntities(&entities_);
+            // Held NPC weapons are kinematic voxel objects; without this the
+            // renderer has no idea they exist. They still attach to grip bones
+            // and track them correctly — telemetry showed weapon and owner
+            // positions matching to within a unit — they are simply never drawn.
+            // An earlier version of this hookup sat ~100 lines above, BEFORE the
+            // RenderCoordinator was constructed, where `if (renderCoordinator_)`
+            // was quietly false.
+            if (kinematicVoxelManager_)
+                renderCoordinator_->setKinematicVoxelManager(kinematicVoxelManager_.get());
 {hud_setup}
 
             // JSON-driven menu renderer for sceneType:"menu" scenes. MUST be
@@ -675,6 +967,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // Wire NPC interaction callback — priority: AI conversation > tree dialogue
             interactionManager_->setInteractCallback([this](Phyxel::Scene::NPCEntity* npc) {{
                 if (!dialogueSystem_ || !npc) return;
+                // Speakers face each other for the conversation (the camera-coupled
+                // player facing is suppressed while dialogue is active, so the snap
+                // holds — see the updateGameplayCamera call).
+                if (playerCharacter_) {{
+                    faceToward(playerCharacter_, npc->getPosition());
+                    if (auto* npcCh = npc->getAnimatedCharacter())
+                        faceToward(npcCh, playerCharacter_->getPosition());
+                }}
                 auto* provider = npc->getDialogueProvider();
 
                 // AI conversation via direct LLM
@@ -726,9 +1026,128 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 cam->setDistanceFromTarget(4.0f);
             }}
 
+            // Completing an objective (from any caller: trigger action, gameplay
+            // code) feeds the "objective_complete" event back into the trigger
+            // system, so quest chains compose declaratively:
+            //   {{when: {{event: "objective_complete", id: "main_quest"}}, then: [...]}}
+            // Mirrors the editor host's ObjectiveTracker wiring.
+            objectiveTracker_.onCompleted = [this](const std::string& id) {{
+                triggers_.onEvent("objective_complete", {{{{"id", id}}}});
+                if (objectiveXp_ > 0) grantXP(objectiveXp_, id.c_str());
+            }};
+
+            // Turn-based combat stack — the same director/AI/player-turn wiring the
+            // editor host has (docs/TurnBasedCombat.md; StandaloneParityGaps.md §1).
+            // All of it no-ops until an encounter begins (start_combat trigger action
+            // or POST /api/rpg/combat/start on the test API).
+            combatSystem_ = std::make_unique<Phyxel::Core::CombatSystem>();
+            combatSystem_->setInvulnerabilityQuery([](const Phyxel::Scene::Entity* e) -> bool {{
+                if (const auto* a = dynamic_cast<const Phyxel::Scene::AnimatedVoxelCharacter*>(e))
+                    return a->isDodgeInvulnerable();
+                return false;
+            }});
+            // Damage reactions + DECLARATIVE death hooks. Every kill emits
+            // "entity_died" {{id}} into the trigger system (gate quests on a
+            // specific kill), and the encounter resolves itself: the dead
+            // combatant leaves the initiative; when no enemy-side combatant
+            // remains, combat ends and "combat_victory" fires (the player's
+            // death fires "player_died" for game-over wiring instead).
+            combatSystem_->setOnDamage([this](const Phyxel::Core::DamageEvent& ev) {{
+                if (!entityRegistry_) return;
+                Phyxel::Scene::Entity* tgt = entityRegistry_->getEntity(ev.targetId);
+                if (tgt) {{
+                    Phyxel::Scene::AnimatedVoxelCharacter* hitChar = nullptr;
+                    if (auto* npcE = dynamic_cast<Phyxel::Scene::NPCEntity*>(tgt)) hitChar = npcE->getAnimatedCharacter();
+                    else hitChar = dynamic_cast<Phyxel::Scene::AnimatedVoxelCharacter*>(tgt);
+                    if (hitChar) {{
+                        if (ev.killed) hitChar->die();
+                        else           hitChar->hitReact(ev.actualDamage >= 11.0f);
+                    }}
+                }}
+                if (!ev.killed) {{
+                    // A surviving defender snaps to face its attacker (hit react
+                    // plays toward the threat, and the counter-attack lines up).
+                    if (!ev.attackerId.empty())
+                        if (auto* atk = characterOf(ev.attackerId))
+                            faceToward(characterOf(ev.targetId), atk->getPosition());
+                    return;
+                }}
+                // An officer's death costs his squad its orders — the engine
+                // keeps the last one but stops issuing new ones, so a
+                // decapitated squad fights on without coordination.
+                command_.notifyDeath(ev.targetId);
+                triggers_.onEvent("entity_died", {{{{"id", ev.targetId}}}});
+                if (ev.targetId == "player") {{
+                    triggers_.onEvent("player_died", {{{{"id", ev.targetId}}}});
+                    return;
+                }}
+                if (killXp_ > 0) grantXP(killXp_, ev.targetId.c_str());
+                if (combatDirector_.inCombat()) {{
+                    combatDirector_.removeCombatant(ev.targetId);
+                    bool enemyRemains = false;
+                    for (const auto& p : combatDirector_.initiative().turnOrder())
+                        if (!p.isPlayer) {{ enemyRemains = true; break; }}
+                    if (!enemyRemains) {{
+                        combatDirector_.endEncounter();
+                        LOG_INFO("{class_name}", "Encounter won — last enemy fell ('{{}}')", ev.targetId);
+                        triggers_.onEvent("combat_victory", {{{{"last_kill", ev.targetId}}}});
+                    }}
+                }}
+            }});
+            if (npcManager_) npcManager_->setCombatSystem(combatSystem_.get());
+            auto bodyProvider = [this](Phyxel::Scene::Entity* e) -> Phyxel::Core::ITurnActorBody* {{
+                Phyxel::Scene::AnimatedVoxelCharacter* ch = nullptr;
+                if (auto* npc = dynamic_cast<Phyxel::Scene::NPCEntity*>(e)) ch = npc->getAnimatedCharacter();
+                else ch = dynamic_cast<Phyxel::Scene::AnimatedVoxelCharacter*>(e);
+                if (!ch) return nullptr;
+                auto& slot = turnBodies_[ch];
+                if (!slot) slot = std::make_unique<Phyxel::Scene::CharacterTurnBody>(ch);
+                return slot.get();
+            }};
+            combatAI_.setCombatDirector(&combatDirector_);
+            combatAI_.setParty(&rpgParty_);
+            combatAI_.setEntityRegistry(entityRegistry_.get());
+            combatAI_.setBodyProvider(bodyProvider);
+            combatAI_.setCombatSystem(combatSystem_.get());
+            // NPC casters (enemies AND companions): game.json "casters" maps an
+            // entity id to {{class, level, spells}}; the AI casts from range and
+            // spends real slots. Non-casters return null and behave as before.
+            combatAI_.setCasterProvider([this](const std::string& id) -> Phyxel::Core::SpellcasterComponent* {{
+                auto it = npcCasters_.find(id);
+                return it == npcCasters_.end() ? nullptr : &it->second;
+            }});
+            combatAI_.setCastExecutor([this](const std::string& casterId, const std::string& spellId,
+                                             const glm::vec3& targetPos, std::function<void()> onRelease) {{
+                playCastVisualFor(characterOf(casterId), spellId, targetPos, std::move(onRelease));
+            }});
+            // Tactical profiles (game.json "combat_ai"): how each NPC FIGHTS —
+            // target priority, kiting range, morale, healer thresholds.
+            combatAI_.setTacticsProvider([this](const std::string& id) -> const Phyxel::Core::CombatTactics* {{
+                auto it = npcTactics_.find(id);
+                return it == npcTactics_.end() ? nullptr : &it->second;
+            }});
+            playerTurn_.setCombatDirector(&combatDirector_);
+            playerTurn_.setEntityRegistry(entityRegistry_.get());
+            playerTurn_.setBodyProvider(bodyProvider);
+            playerTurn_.setCombatSystem(combatSystem_.get());
+            // Spellcasting in the SHIPPED game: the registry only auto-loaded in
+            // the editor before, so every cast failed "Unknown spell" here.
+            if (Phyxel::Core::SpellRegistry::instance().count() == 0)
+                Phyxel::Core::SpellRegistry::instance().loadFromDirectory("resources/spells");
+            // Cast visual: animation via SpellAnimMapper + VFX via the
+            // VfxDirector, damage applied at the release frame — the same
+            // playCastVisual flow the editor host runs (Application.cpp ~5558).
+            playerTurn_.setCastExecutor(
+                [this](const std::string& spellId, const std::string&,
+                       const glm::vec3& targetPos, std::function<void()> onRelease) {{
+                    playCastVisual(spellId, targetPos, std::move(onRelease));
+                }});
+
             // Declarative trigger actions (game.json "triggers"): wire to the shell.
             // Conditions like {{when: {{event: "player_jumped"}}}} can drive
             // show_victory / show_credits / transition_scene / quit_game with no code.
+            // Vocabulary is EDITOR-PARITY (StandaloneParityGaps.md §3): a game.json
+            // authored + tested in the editor must not change behavior when packaged.
             triggers_.setActionExecutor([this](const nlohmann::json& a, const std::string& tid) {{
                 const std::string type = a.value("type", "");
                 if (type == "transition_scene") {{
@@ -754,6 +1173,93 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         else if (val.is_number_integer()) ws.setVariable(name, val.get<int>());
                         else if (val.is_number_float())   ws.setVariable(name, val.get<float>());
                         else if (val.is_string())         ws.setVariable(name, val.get<std::string>());
+                    }}
+                }} else if (type == "complete_objective") {{
+                    // Editor-parity: {{"type":"complete_objective","id":"main_quest"}}
+                    const std::string id = a.value("id", "");
+                    if (!objectiveTracker_.completeObjective(id))
+                        LOG_WARN("{class_name}", "complete_objective: unknown objective '{{}}' (trigger '{{}}')", id, tid);
+                }} else if (type == "fail_objective") {{
+                    const std::string id = a.value("id", "");
+                    if (!objectiveTracker_.failObjective(id))
+                        LOG_WARN("{class_name}", "fail_objective: unknown objective '{{}}' (trigger '{{}}')", id, tid);
+                }} else if (type == "save_game") {{
+                    // Authorable save point: {{"type":"save_game"}} persists the
+                    // player profile to the active scene's world DB.
+                    savePlayerProfile();
+                }} else if (type == "long_rest") {{
+                    // Authorable rest: {{"type":"long_rest"}} restores all spell
+                    // slots (an inn bed, a campfire, a chapter break).
+                    playerCaster_.onLongRest();
+                    refreshSpellbar();
+                    LOG_INFO("{class_name}", "Long rest: {{}} slot(s) restored",
+                             playerCaster_.slots().totalRemaining());
+                    triggers_.onEvent("long_rest", nlohmann::json::object());
+                }} else if (type == "give_item") {{
+                    // Authorable loot: {{"type":"give_item","id":"moonpetal_remedy","count":1}}
+                    const std::string id = a.value("id", "");
+                    const int count = a.value("count", 1);
+                    if (!id.empty()) {{
+                        const int leftover = inventory_.addItem(id, count);
+                        LOG_INFO("{class_name}", "Item received: {{}} x{{}} (trigger '{{}}')", id, count - leftover, tid);
+                        triggers_.onEvent("item_received", {{{{"id", id}}, {{"count", count - leftover}}}});
+                    }}
+                }} else if (type == "remove_item") {{
+                    const std::string id = a.value("id", "");
+                    if (!id.empty()) inventory_.removeItem(id, a.value("count", 1));
+                }} else if (type == "join_party") {{
+                    // Recruit a companion (usually from a dialogue node action):
+                    //   {{"type":"join_party","entity_id":"npc_Bram","name":"Bram"}}
+                    // The member persists in rpgParty_; on every world-scene load
+                    // the shell respawns absent members near the player, and
+                    // start_combat auto-enlists them on the player's side.
+                    const std::string eid  = a.value("entity_id", "");
+                    const std::string name = a.value("name", "");
+                    if (!eid.empty() && !name.empty()) {{
+                        rpgParty_.addMember(eid, name, playerSheet_.totalLevel() > 0 ? playerSheet_.totalLevel() : 1);
+                        LOG_INFO("{class_name}", "'{{}}' joined the party ({{}})", name, eid);
+                        triggers_.onEvent("party_joined", {{{{"id", eid}}, {{"name", name}}}});
+                    }}
+                }} else if (type == "start_combat") {{
+                    // Authored encounter: {{"type":"start_combat","participants":
+                    //   [{{"entity_id":"player","player_side":true}},
+                    //    {{"entity_id":"npc_Rat","initiative_bonus":2}}]}}
+                    std::vector<Phyxel::Core::CombatDirector::Combatant> combatants;
+                    if (a.contains("participants") && a["participants"].is_array()) {{
+                        for (const auto& p : a["participants"]) {{
+                            const std::string eid = p.value("entity_id", "");
+                            if (eid.empty()) continue;
+                            Phyxel::Core::CombatDirector::Combatant c;
+                            c.entityId        = eid;
+                            c.isPlayerSide    = p.value("player_side", false);
+                            c.initiativeBonus = p.value("initiative_bonus", 0);
+                            c.speed           = p.value("speed", 30);
+                            combatants.push_back(c);
+                        }}
+                    }}
+                    // Party members auto-enlist on the player's side (skip any the
+                    // author already listed explicitly).
+                    for (const auto& m : rpgParty_.getMembers()) {{
+                        if (!m.isAlive) continue;
+                        bool listed = false;
+                        for (const auto& c : combatants)
+                            if (c.entityId == m.entityId) {{ listed = true; break; }}
+                        if (listed || !entityRegistry_ || !entityRegistry_->getEntity(m.entityId)) continue;
+                        Phyxel::Core::CombatDirector::Combatant c;
+                        c.entityId        = m.entityId;
+                        c.isPlayerSide    = true;
+                        c.initiativeBonus = 1;
+                        combatants.push_back(c);
+                    }}
+                    if (combatants.empty()) {{
+                        LOG_WARN("{class_name}", "start_combat: no participants (trigger '{{}}')", tid);
+                    }} else {{
+                        if (combatDirector_.inCombat()) combatDirector_.endEncounter();
+                        Phyxel::Core::DiceSystem dice;
+                        combatDirector_.beginEncounter(combatants, dice);
+                        faceCombatants();   // square off — everyone faces the enemy
+                        LOG_INFO("{class_name}", "Combat encounter started: {{}} combatants (trigger '{{}}')",
+                                 combatants.size(), tid);
                     }}
                 }} else {{
                     LOG_WARN("{class_name}", "Unhandled trigger action '{{}}' (trigger '{{}}')", type, tid);
@@ -798,6 +1304,174 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     }}
                 }}
 
+                // Top-level "objectives" array -> the quest log. Authorable in
+                // game.json (the editor only gets objectives via MCP at runtime;
+                // a shipped game needs them in the definition):
+                //   "objectives": [{{"id":"main_quest","title":"...","description":"...",
+                //                   "category":"main","priority":0,"hidden":false}}]
+                if (gameDef.contains("objectives") && gameDef["objectives"].is_array()) {{
+                    for (const auto& o : gameDef["objectives"]) {{
+                        objectiveTracker_.addObjective(
+                            o.value("id", ""), o.value("title", ""),
+                            o.value("description", ""), o.value("category", "main"),
+                            o.value("priority", 0), o.value("hidden", false));
+                    }}
+                    LOG_INFO("{class_name}", "Loaded {{}} objective(s) from game.json",
+                             gameDef["objectives"].size());
+                }}
+
+                // "combat": {{"mode": "turn_based"|"real_time"}} — the per-game
+                // ruleset (mirrors the editor's combat.mode application).
+                if (gameDef.contains("combat") && gameDef["combat"].is_object()) {{
+                    const std::string mode = gameDef["combat"].value("mode", "real_time");
+                    combatDirector_.setMode(Phyxel::Core::combatModeFromString(mode));
+                    // "camera": the rig used while an encounter runs (BG3-style
+                    // tactical view). Any registered rig name: overhead (straight-
+                    // down birds-eye), isometric (angled ortho), third_person...
+                    combatCameraRig_ = gameDef["combat"].value("camera", "overhead");
+                    LOG_INFO("{class_name}", "Combat mode: {{}} (camera: {{}})", mode, combatCameraRig_);
+                    // AI decision log -> its own JSONL file, separate from the
+                    // engine log. Off with {{"combat": {{"decision_log": false}}}}.
+                    if (gameDef["combat"].value("decision_log", true)) {{
+                        Phyxel::Core::CombatLog::instance().setFile("combat_log.jsonl");
+                        LOG_INFO("{class_name}", "AI decision log: combat_log.jsonl "
+                                 "(also GET-able via POST /api/rpg/combat/log)");
+                    }} else {{
+                        Phyxel::Core::CombatLog::instance().setEnabled(false);
+                    }}
+                }}
+
+                // "progression": {{"class","race","kill_xp","objective_xp"}} — the
+                // player levels a real CharacterSheet through
+                // CharacterProgression::awardXP. Class data comes from the SAME
+                // resources/classes/*.json the editor uses (packaged with the game).
+                if (gameDef.contains("progression") && gameDef["progression"].is_object()) {{
+                    const auto& prog = gameDef["progression"];
+                    namespace fs = std::filesystem;
+                    if (fs::exists("resources/classes"))
+                        for (const auto& f : fs::directory_iterator("resources/classes"))
+                            if (f.path().extension() == ".json")
+                                Phyxel::Core::ClassRegistry::instance().loadFromFile(f.path().string());
+                    playerSheet_.name   = "player";
+                    playerSheet_.raceId = prog.value("race", "human");
+                    Phyxel::Core::ClassLevel cl;
+                    cl.classId = prog.value("class", "fighter");
+                    cl.level   = 1;
+                    playerSheet_.classes.clear();
+                    playerSheet_.classes.push_back(cl);
+                    playerSheet_.experiencePoints = 0;
+                    killXp_      = prog.value("kill_xp", 0);
+                    objectiveXp_ = prog.value("objective_xp", 0);
+                    // "spells": authored castable list (SpellRegistry ids) — the
+                    // combat spellbar builds from this. Unknown ids are dropped
+                    // LOUDLY here rather than rendering a dead button. The
+                    // registry load is lazy/idempotent and MUST also happen here:
+                    // this parse runs before the combat wiring's load, and an
+                    // empty registry silently dropped every authored spell once.
+                    if (Phyxel::Core::SpellRegistry::instance().count() == 0)
+                        Phyxel::Core::SpellRegistry::instance().loadFromDirectory("resources/spells");
+                    playerSpells_.clear();
+                    if (prog.contains("spells") && prog["spells"].is_array()) {{
+                        for (const auto& s : prog["spells"]) {{
+                            const std::string id = s.get<std::string>();
+                            if (Phyxel::Core::SpellRegistry::instance().getSpell(id))
+                                playerSpells_.push_back(id);
+                            else
+                                LOG_WARN("{class_name}", "progression.spells: unknown spell '{{}}' dropped", id);
+                        }}
+                    }}
+                    // Real spellcasting state: slot table from the class's
+                    // casting type + level (PHB tables in SpellSlotTable), save
+                    // DC / attack bonus from its casting ability. Authored
+                    // spells are LEARNED — cantrips free, leveled ones prepared
+                    // — so castSpell can enforce prepared-ness and spend slots.
+                    if (!playerSpells_.empty()) {{
+                        const auto* cdef = Phyxel::Core::ClassRegistry::instance().getClass(cl.classId);
+                        const std::string abilStr = cdef && !cdef->spellcastingAbility.empty()
+                                                        ? cdef->spellcastingAbility : "WIS";
+                        const std::string castType = cdef && !cdef->spellcastingType.empty()
+                                                        ? cdef->spellcastingType : "full";
+                        playerCaster_.initialize(cl.classId,
+                                                 Phyxel::Core::abilityFromString(abilStr.c_str()),
+                                                 cl.level, castType);
+                        for (const auto& sid : playerSpells_) {{
+                            const auto* sd = Phyxel::Core::SpellRegistry::instance().getSpell(sid);
+                            if (!sd) continue;
+                            if (sd->isCantrip()) playerCaster_.learnCantrip(sid);
+                            else                 playerCaster_.learnSpell(sid, /*prepared=*/true);
+                        }}
+                        playerTurn_.setSpellcaster(&playerCaster_, &playerSheet_);
+                        LOG_INFO("{class_name}", "Spellcaster: {{}} ({{}}, {{}}) DC {{}} atk +{{}}, {{}} slot(s)",
+                                 cl.classId, abilStr, castType,
+                                 playerTurn_.effectiveSaveDC(), playerTurn_.effectiveSpellAttackBonus(),
+                                 playerCaster_.slots().totalRemaining());
+                    }}
+                    LOG_INFO("{class_name}", "Progression: {{}} {{}} (kill_xp={{}}, objective_xp={{}}, spells={{}})",
+                             playerSheet_.raceId, cl.classId, killXp_, objectiveXp_, playerSpells_.size());
+                }}
+
+                // "casters": NPC spellcasters (enemies AND companions) the
+                // CombatAI casts with —
+                //   {{"npc_Rat": {{"class":"wizard","level":1,
+                //                 "spells":["fire_bolt","magic_missile"]}}}}
+                // Same slot machinery as the player: leveled spells are prepared
+                // and really spend slots, cantrips are free.
+                if (gameDef.contains("casters") && gameDef["casters"].is_object()) {{
+                    if (Phyxel::Core::SpellRegistry::instance().count() == 0)
+                        Phyxel::Core::SpellRegistry::instance().loadFromDirectory("resources/spells");
+                    for (auto it = gameDef["casters"].begin(); it != gameDef["casters"].end(); ++it) {{
+                        const auto& cj = it.value();
+                        const std::string classId = cj.value("class", "wizard");
+                        const int lvl = std::max(1, cj.value("level", 1));
+                        const auto* cdef = Phyxel::Core::ClassRegistry::instance().getClass(classId);
+                        const std::string abilStr = cdef && !cdef->spellcastingAbility.empty()
+                                                        ? cdef->spellcastingAbility : "INT";
+                        const std::string castType = cdef && !cdef->spellcastingType.empty()
+                                                        ? cdef->spellcastingType : "full";
+                        Phyxel::Core::SpellcasterComponent sc(it.key());
+                        sc.initialize(classId, Phyxel::Core::abilityFromString(abilStr.c_str()),
+                                      lvl, castType);
+                        int learned = 0;
+                        if (cj.contains("spells") && cj["spells"].is_array())
+                            for (const auto& s : cj["spells"]) {{
+                                const std::string sid = s.get<std::string>();
+                                const auto* sd = Phyxel::Core::SpellRegistry::instance().getSpell(sid);
+                                if (!sd) {{ LOG_WARN("{class_name}", "casters['{{}}']: unknown spell '{{}}' dropped", it.key(), sid); continue; }}
+                                if (sd->isCantrip()) sc.learnCantrip(sid);
+                                else                 sc.learnSpell(sid, /*prepared=*/true);
+                                ++learned;
+                            }}
+                        LOG_INFO("{class_name}", "NPC caster '{{}}': {{}} {{}} lvl {{}}, {{}} spell(s), {{}} slot(s)",
+                                 it.key(), classId, abilStr, lvl, learned, sc.slots().totalRemaining());
+                        npcCasters_.emplace(it.key(), std::move(sc));
+                    }}
+                }}
+
+                // "combat_ai": per-NPC tactical profile —
+                //   {{"npc_Archer": {{"target":"weakest","preferred_range":25,
+                //                    "flee_below_hp":0.3}},
+                //    "npc_Acolyte": {{"heal_ally_below":0.6}}}}
+                // Absent entities keep the default brute profile (nearest foe,
+                // no kiting, fights to the death).
+                if (gameDef.contains("combat_ai") && gameDef["combat_ai"].is_object()) {{
+                    for (auto it = gameDef["combat_ai"].begin(); it != gameDef["combat_ai"].end(); ++it) {{
+                        const auto& tj = it.value();
+                        Phyxel::Core::CombatTactics t;
+                        const std::string pri = tj.value("target", "nearest");
+                        if      (pri == "weakest") t.priority = Phyxel::Core::CombatTactics::Priority::Weakest;
+                        else if (pri == "casters") t.priority = Phyxel::Core::CombatTactics::Priority::Casters;
+                        else if (pri == "focus")   t.priority = Phyxel::Core::CombatTactics::Priority::Focus;
+                        else if (pri != "nearest")
+                            LOG_WARN("{class_name}", "combat_ai['{{}}']: unknown target '{{}}' — using nearest", it.key(), pri);
+                        t.preferredRangeFeet = tj.value("preferred_range", 0.0f);
+                        t.fleeBelowHpFrac    = tj.value("flee_below_hp", 0.0f);
+                        t.healAllyBelowFrac  = tj.value("heal_ally_below", 0.0f);
+                        LOG_INFO("{class_name}", "Tactics '{{}}': target={{}} range={{}}ft flee<{{}} heal<{{}}",
+                                 it.key(), pri, t.preferredRangeFeet, t.fleeBelowHpFrac, t.healAllyBelowFrac);
+                        npcTactics_[it.key()] = t;
+                    }}
+                }}
+
                 // PERSISTENT member, not a local: the SceneManager keeps a pointer to
                 // this for every later scene transition (menu buttons, triggers).
                 auto& subsystems = gameSubsystems_;
@@ -808,6 +1482,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 subsystems.storyEngine     = storyEngine_.get();
                 subsystems.camera          = engine.getCamera();
                 subsystems.triggerSystem   = &triggers_;  // game.json "triggers" load here
+                subsystems.commandStructure = &command_;  // game.json "squad"/"rank" load here
 
                 // Wire up entity spawner so the loader can create the player
                 subsystems.entitySpawner = [this](const std::string& type,
@@ -854,6 +1529,11 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             if (entityRegistry_) entityRegistry_->clear();
                             entities_.clear();
                             playerCharacter_ = nullptr;
+                            // Turn bodies wrap per-scene characters — clear them with
+                            // the entities or the map dangles across transitions; end
+                            // any encounter still running against the old scene.
+                            if (combatDirector_.inCombat()) combatDirector_.endEncounter();
+                            turnBodies_.clear();
                         }};
                         cb.clearNPCs = [this]() {{
                             if (!npcManager_) return;
@@ -863,6 +1543,27 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         cb.endDialogue = [this]() {{
                             if (dialogueSystem_ && dialogueSystem_->isActive())
                                 dialogueSystem_->endConversation();
+                        }};
+                        // Loading screen for transitionStyle:"loading_screen" (the
+                        // DEFAULT style — without this callback the SceneManager's
+                        // setLoadingScreen calls silently no-op and transitions show
+                        // a frozen frame; StandaloneParityGaps.md §2). ScreenState::
+                        // Loading drives the data-driven "loading:*" overlay in
+                        // onRender. onSceneReady (below) or the hide call returns
+                        // the shell to Playing, whichever the SceneManager fires.
+                        cb.setLoadingScreen = [this](bool show, const std::string& sceneName) {{
+                            if (show) {{
+                                loadingSceneName_ = sceneName;
+                                if (!menuSceneActive_ &&
+                                    screen_.getState() != Phyxel::UI::ScreenState::Loading) {{
+                                    LOG_INFO("{class_name}", "Loading screen shown (-> '{{}}')", sceneName);
+                                    screen_.setState(Phyxel::UI::ScreenState::Loading);
+                                }}
+                            }} else if (screen_.getState() == Phyxel::UI::ScreenState::Loading) {{
+                                LOG_INFO("{class_name}", "Loading screen dismissed");
+                                screen_.setState(Phyxel::UI::ScreenState::Playing);
+                            }}
+                            if (engine_) updateCursorMode(*engine_);
                         }};
                         cb.onMenuSceneLoaded = [this](const Phyxel::Core::SceneDefinition& scene) {{
                             // Menu scenes render via the UISystem (custom-Vulkan, no ImGui).
@@ -887,6 +1588,33 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 menuSceneActive_ = true;
                                 if (engine_) updateCursorMode(*engine_);
                             }}
+                            // menuWorld camera orbit: "cameraPath" in the menu
+                            // scene's definition — waypoints [{{position,yaw,
+                            // pitch,dwell}}], "loop" (default true). The world
+                            // itself was loaded by the SceneManager.
+                            menuCamPath_.stop();
+                            menuCamPath_.clearWaypoints();
+                            const auto& sdef = scene.definition;
+                            if (sdef.contains("cameraPath") && sdef["cameraPath"].is_object()) {{
+                                const auto& cp = sdef["cameraPath"];
+                                if (cp.contains("waypoints") && cp["waypoints"].is_array()) {{
+                                    for (const auto& wj : cp["waypoints"]) {{
+                                        Phyxel::Graphics::CameraWaypoint wp;
+                                        const auto& p = wj.value("position", nlohmann::json::object());
+                                        wp.position = {{p.value("x", 0.0f), p.value("y", 0.0f), p.value("z", 0.0f)}};
+                                        wp.yaw       = wj.value("yaw", 0.0f);
+                                        wp.pitch     = wj.value("pitch", 0.0f);
+                                        wp.dwellTime = wj.value("dwell", 0.0f);
+                                        menuCamPath_.addWaypoint(wp);
+                                    }}
+                                }}
+                                if (menuCamPath_.waypointCount() >= 2) {{
+                                    menuCamPath_.setLooping(cp.value("loop", true));
+                                    menuCamPath_.play();
+                                    LOG_INFO("{class_name}", "menuWorld camera path playing ({{}} waypoints)",
+                                             menuCamPath_.waypointCount());
+                                }}
+                            }}
                         }};
                         cb.onSceneReady = [this](const std::string& /*sceneId*/) {{
                             auto* smgr = engine_ ? engine_->getSceneManager() : nullptr;
@@ -905,6 +1633,35 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             }}
                             if (!Phyxel::UI::isGameRunning(screen_.getState())) {{
                                 screen_.setState(Phyxel::UI::ScreenState::Playing);
+                            }}
+                            // First WORLD scene of the session: the scene's DB is
+                            // now open and the player spawned — restore the saved
+                            // profile. ONE attempt per session: re-entering a scene
+                            // mid-run must never rewind live progress to an older
+                            // save in that scene's DB.
+                            if (!profileRestored_) {{
+                                profileRestored_ = true;
+                                if (loadPlayerProfile())
+                                    LOG_INFO("{class_name}", "Restored saved player profile");
+                            }}
+                            // Companions travel WITH the player: scene loads clear
+                            // all entities, so respawn absent party members near
+                            // the player on every world scene, in FOLLOW mode —
+                            // they walk with the player in exploration (BG3-style)
+                            // and start_combat auto-enlists them on the player's
+                            // side when an encounter begins.
+                            if (npcManager_ && entityRegistry_ && playerCharacter_) {{
+                                for (const auto& m : rpgParty_.getMembers()) {{
+                                    if (!m.isAlive || entityRegistry_->getEntity(m.entityId)) continue;
+                                    const glm::vec3 at = playerCharacter_->getPosition() + glm::vec3(1.5f, 0.0f, 1.5f);
+                                    // Explicit anim file: spawnNPC does NOT default an empty
+                                    // path (unlike the game.json loader) — a companion spawned
+                                    // with "" has no rig, so the combat TurnActor can never
+                                    // bind its body and its turn stalls the whole encounter.
+                                    if (npcManager_->spawnNPC(m.name, "resources/animated_characters/humanoid.anim",
+                                                              at, Phyxel::Core::NPCBehaviorType::Follow))
+                                        LOG_INFO("{class_name}", "Companion '{{}}' rejoined at the player's side", m.name);
+                                }}
                             }}
                             if (engine_) updateCursorMode(*engine_);
                         }};
@@ -929,6 +1686,37 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     }}
                 }}
 
+                // NAVIGATION. buildNavGrid() constructs the NavGraph AND creates
+                // and starts the PathService; without it getPathService() returns
+                // null and every combat path request is silently skipped. A
+                // shipped game never called it — only two debug API endpoints did,
+                // lazily — so NPCs in a standalone had no pathfinder at all and
+                // walked into walls forever. Measured: two fighters either side of
+                // a 3-tall wall with one gap 30u away stood at the wall face for
+                // 100 s and never moved a millimetre along it.
+                //
+                // Must run AFTER the scene loads: it needs loaded chunks to derive
+                // its bounds, and warns + returns if the chunk map is empty.
+                if (npcManager_) {{
+                    npcManager_->buildNavGrid();
+                    LOG_INFO("{class_name}", "navigation: pathService={{}}",
+                             npcManager_->getPathService() ? "running" : "NULL");
+                }}
+
+                // NPCs exist now, so their weapons can be hung on their grips.
+                // Must run AFTER the definition load — before it there is
+                // nobody to equip.
+                equipNpcWeapons();
+
+                // Restore the saved player profile (camera pose + health + XP/level)
+                // from the active scene's world DB, if one was saved by a previous
+                // run. Succeeds here only for WORLD-start games (the DB is open);
+                // menu-start games restore in onSceneReady at the first world scene.
+                if (!profileRestored_ && loadPlayerProfile()) {{
+                    profileRestored_ = true;
+                    LOG_INFO("{class_name}", "Restored saved player profile");
+                }}
+
                 // Sync input manager with camera after definition load
                 auto* input = engine.getInputManager();
                 auto* cam = engine.getCamera();
@@ -951,6 +1739,32 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (!input) return;
 
             auto state = screen_.getState();
+
+            // Mouse wheel -> scrollable UI panels (quest logs, lore pages,
+            // long lists). Consumed by the topmost scrollable under the
+            // cursor; the delta is reset either way so it can't leak into
+            // other consumers as a stale value.
+            if (auto* wm = engine.getWindowManager()) {{
+                const float wheel = wm->getScrollDelta();
+                if (wheel != 0.0f) {{
+                    bool consumed = false;
+                    if (auto* ui = renderCoordinator_ ? renderCoordinator_->getUISystem() : nullptr) {{
+                        double mx = 0.0, my = 0.0;
+                        glfwGetCursorPos(wm->getHandle(), &mx, &my);
+                        consumed = ui->handleScroll({{static_cast<float>(mx), static_cast<float>(my)}}, wheel);
+                    }}
+                    // Unconsumed wheel over the battlefield = tactical ZOOM.
+                    // (A scrollable panel under the cursor still wins.)
+                    // Not gated on inCombat() — same reason as the Q/E/R/F
+                    // orbit below: a real-time battle has no encounter, so
+                    // gating on one left the sim with no zoom at all.
+                    if (!consumed) {{
+                        if (auto* rig = gameplayCamera().rig())
+                            rig->distance = glm::clamp(rig->distance - wheel * 2.0f, 8.0f, 34.0f);
+                    }}
+                    wm->resetScrollDelta();
+                }}
+            }}
 
             // ESC: pause/resume toggle, or close dialogue. EDGE-TRIGGERED — isKeyPressed
             // is held-state, so without this a held ESC would toggle pause every frame.
@@ -1009,6 +1823,138 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (Phyxel::UI::isGameRunning(screen_.getState()) && !inDialogue && !menuSceneActive_) {{
                 input->processInput(engine.getLastDeltaTime());
             }}
+
+            // BG3 mouse combat: on the player's turn, a left click resolves to
+            // attack (enemy under cursor) or move (ground point) through the
+            // same PlayerTurnController pick the test API uses. Edge-triggered;
+            // cursor is free during combat (updateCursorMode).
+            // HOVER TARGETING: resolve whatever the cursor is over each frame
+            // so the nameplate under it lights up with its AC / hit chance
+            // BEFORE you commit to the click. Uses the same pick the click
+            // itself uses, so what you see is what you will hit.
+            if (combatDirector_.inCombat() && !inDialogue && renderCoordinator_) {{
+                hoveredTarget_.clear();
+                if (auto* cam = engine.getCamera()) {{
+                    double mx = 0.0, my = 0.0;
+                    input->getCurrentMousePosition(mx, my);
+                    const glm::uvec2 vp = renderCoordinator_->getSwapChainSize();
+                    const float groundY = playerCharacter_ ? playerCharacter_->getPosition().y : 0.0f;
+                    auto pick = playerTurn_.resolvePick(
+                        *cam, {{static_cast<float>(mx), static_cast<float>(my)}},
+                        {{static_cast<float>(vp.x), static_cast<float>(vp.y)}}, groundY);
+                    if (pick.kind == Phyxel::Core::PlayerTurnController::PickResult::Kind::Attack)
+                        hoveredTarget_ = pick.targetId;
+                }}
+            }} else {{
+                hoveredTarget_.clear();
+            }}
+
+            // Tactical camera control. Mouse-look is deliberately off during
+            // combat (it used to leak into pitch and bury the camera under the
+            // floor), so the BG3-style view gets its own explicit controls:
+            //   Q / E     orbit the battle
+            //   R / F     raise / lower the angle, inside the rig's band
+            //   wheel     zoom, but only when the UI did not consume it
+            //
+            // NOT gated on inCombat(). It used to be, which meant a REAL-TIME
+            // battle - the mode built to be watched - had no camera controls
+            // whatsoever: no turn-based encounter, so this block never ran, and
+            // there is no other binding. The player could only trudge around on
+            // WASD. Orbiting the view is useful whenever you are not in a
+            // dialogue, so that is the only thing it asks now.
+            if (!inDialogue) {{
+                auto* look = engine.getInputManager();
+                auto* rig  = gameplayCamera().rig();
+                const float dt = engine.getLastDeltaTime();
+                if (look && rig) {{
+                    float yaw = look->getYaw(), pitch = look->getPitch();
+                    const float orbitRate = 90.0f;   // deg/sec
+                    // ARROW KEYS are the primary controls because they are the
+                    // only ones with NO conflict. The original Q/E/R/F set was
+                    // half-broken: E is bound to Interact and F to Attack in the
+                    // default action map (GameSettings.cpp), so orbiting right
+                    // also poked NPCs and "shallower" swung the player's weapon
+                    // instead of tilting the camera. Q and R are conflict-free
+                    // and stay as aliases; E and F are gone.
+                    // Every direction also has a LETTER alias. Not for comfort:
+                    // the test API resolves keys by name through stringToKey,
+                    // which does not know "LEFT"/"RIGHT"/"UP"/"DOWN", so an
+                    // arrows-only scheme is unverifiable by the harness — and an
+                    // unverifiable control is one I cannot honestly report as
+                    // working. Q/T orbit, R/G pitch; all four are free of the
+                    // default action map (unlike E=Interact and F=Attack).
+                    const bool left  = input->isKeyPressed(GLFW_KEY_LEFT)  || input->isKeyPressed(GLFW_KEY_Q);
+                    const bool right = input->isKeyPressed(GLFW_KEY_RIGHT) || input->isKeyPressed(GLFW_KEY_T);
+                    const bool up    = input->isKeyPressed(GLFW_KEY_UP)    || input->isKeyPressed(GLFW_KEY_R);
+                    const bool down  = input->isKeyPressed(GLFW_KEY_DOWN)  || input->isKeyPressed(GLFW_KEY_G);
+                    if (left)  yaw   -= orbitRate * dt;
+                    if (right) yaw   += orbitRate * dt;
+                    if (up)    pitch -= 45.0f * dt;   // steeper
+                    if (down)  pitch += 45.0f * dt;   // shallower
+                    pitch = glm::clamp(pitch, rig->pitchClampMin, rig->pitchClampMax);
+                    look->setYawPitch(yaw, pitch);
+                }}
+            }}
+
+            if (combatDirector_.inCombat() && playerTurn_.isPlayerTurnActive() &&
+                !inDialogue && renderCoordinator_) {{
+                const bool lmb = input->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
+                if (lmb && !combatLmbHeld_) {{
+                    auto* cam = engine.getCamera();
+                    if (cam) {{
+                        // Cursor position through the InputManager's message-fed
+                        // cache, NOT glfwGetCursorPos: GLFW polls the OS cursor
+                        // live in normal cursor mode, which diverges from the
+                        // event stream the rest of input uses (and from injected
+                        // WM_MOUSEMOVE in test harnesses).
+                        double mx = 0.0, my = 0.0;
+                        input->getCurrentMousePosition(mx, my);
+                        const glm::vec2 click{{static_cast<float>(mx), static_cast<float>(my)}};
+                        // UI first: HUD widgets (the spellbar) consume the click
+                        // before any world pick — no other path routes real
+                        // clicks into the UISystem during combat gameplay.
+                        bool uiConsumed = false;
+                        if (auto* uisys = renderCoordinator_->getUISystem())
+                            uiConsumed = uisys->injectClick(click);
+                        if (uiConsumed)
+                            LOG_INFO("{class_name}", "Combat click ({{}}, {{}}) -> UI",
+                                     static_cast<int>(mx), static_cast<int>(my));
+                        if (!uiConsumed) {{
+                            const glm::uvec2 vp = renderCoordinator_->getSwapChainSize();
+                            const glm::vec2 vps{{static_cast<float>(vp.x), static_cast<float>(vp.y)}};
+                            const float groundY = playerCharacter_ ? playerCharacter_->getPosition().y : 0.0f;
+                            if (!armedSpell_.empty()) {{
+                                // Armed cast: an enemy under the cursor takes the
+                                // spell; anything else cancels the arm (BG3-style).
+                                auto pick = playerTurn_.resolvePick(*cam, click, vps, groundY);
+                                if (pick.kind == Phyxel::Core::PlayerTurnController::PickResult::Kind::Attack) {{
+                                    const bool castOk = playerTurn_.castSpell(armedSpell_, pick.targetId);
+                                    LOG_INFO("{class_name}", "Combat click -> cast '{{}}' at '{{}}' ({{}})",
+                                             armedSpell_, pick.targetId,
+                                             castOk ? "ok" : playerTurn_.castBlockedReason(armedSpell_).c_str());
+                                }} else {{
+                                    LOG_INFO("{class_name}", "Combat click -> cast '{{}}' cancelled", armedSpell_);
+                                }}
+                                setArmedSpell("");
+                            }} else {{
+                                // Clicking a foe SELECTS it — the bracket and
+                                // targeting readout persist after the swing —
+                                // as well as attacking it.
+                                auto pk = playerTurn_.resolvePick(*cam, click, vps, groundY);
+                                if (pk.kind == Phyxel::Core::PlayerTurnController::PickResult::Kind::Attack)
+                                    playerTurn_.setSelectedTarget(pk.targetId);
+                                const char* resolved = playerTurn_.requestPickAt(*cam, click, vps, groundY);
+                                LOG_INFO("{class_name}", "Combat click ({{}}, {{}}) -> {{}} (selected '{{}}')",
+                                         static_cast<int>(mx), static_cast<int>(my), resolved,
+                                         playerTurn_.selectedTarget());
+                            }}
+                        }}
+                    }}
+                }}
+                combatLmbHeld_ = lmb;
+            }} else {{
+                combatLmbHeld_ = false;
+            }}
         }}
 
         void {class_name}::onUpdate(Phyxel::Core::EngineRuntime& engine, float dt) {{
@@ -1028,8 +1974,15 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             }}
 
             // A menu scene is showing: SceneManager + the menu renderer drive things;
-            // skip world/gameplay simulation entirely.
-            if (menuSceneActive_) return;
+            // skip world/gameplay simulation — but keep the menuWorld camera
+            // orbiting (the living title screen).
+            if (menuSceneActive_) {{
+                if (menuCamPath_.isPlaying()) {{
+                    if (auto* cam = engine.getCamera()) menuCamPath_.update(dt, *cam);
+                }}
+                return;
+            }}
+            if (menuCamPath_.isPlaying()) menuCamPath_.stop();   // gameplay owns the camera now
 
             if (!Phyxel::UI::isGameRunning(screen_.getState())) return;
 
@@ -1043,11 +1996,144 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // after transitions), samples input, moves the body, frames the
             // camera. See docs/CameraControlSystem.md.
             if (playerCharacter_) {{
-                updateGameplayCamera(engine, dt, playerCharacter_);
+                // During turn-based combat the TurnActor owns movement: the camera
+                // keeps framing the player (tactical rig) but WASD is suppressed.
+                // Same during dialogue — the speakers hold their mutual facing
+                // (camera-coupled facing would stomp it every frame).
+                const bool talking = dialogueSystem_ && dialogueSystem_->isActive();
+                updateGameplayCamera(engine, dt, playerCharacter_,
+                                     /*driveCharacter=*/!combatDirector_.inCombat() && !talking);
 
                 // Gameplay events -> declarative triggers (win conditions).
                 if (playerCharacter_->consumeJustJumped()) triggers_.onEvent("player_jumped");
                 if (playerCharacter_->consumeJustLanded()) triggers_.onEvent("player_landed");
+            }}
+
+            // Turn-based combat: enemy AI + the player-turn controller tick every
+            // frame; both no-op unless an encounter is active. (Mirrors the editor
+            // loop — Application.cpp ~3540; the player turn self-binds in tick.)
+            combatAI_.tick(dt);
+            if (playerCharacter_ && entityRegistry_) {{
+                const std::string pid = entityRegistry_->getEntityId(playerCharacter_);
+                playerTurn_.setPlayerEntityId(pid);
+                combatAI_.setPlayerEntityId(pid);   // companions auto-fight; only the human waits
+            }}
+            // TACTICAL CAMERA FRAMING: point the combat camera at whoever is
+            // ACTING, not permanently at the player. Without this an enemy
+            // taking its turn 20 units away happens off-screen and the fight
+            // is impossible to follow. The rig anchors between the player and
+            // the actor and widens to hold both.
+            if (auto* trig = dynamic_cast<Phyxel::Graphics::TacticalRig*>(gameplayCamera().rig())) {{
+                bool framed = false;
+                if (combatDirector_.inCombat() && entityRegistry_) {{
+                    const std::string acting = combatDirector_.currentEntityId();
+                    if (!acting.empty()) {{
+                        if (auto* e = entityRegistry_->getEntity(acting)) {{
+                            // The player's own turn frames the player (weight
+                            // 0 keeps the familiar over-the-shoulder framing);
+                            // anyone else's turn pulls the camera their way.
+                            const bool isPlayer = playerCharacter_ &&
+                                                  entityRegistry_->getEntityId(playerCharacter_) == acting;
+                            trig->setFocus(e->getPosition(), isPlayer ? 0.0f : 0.5f);
+                            framed = true;
+                        }}
+                    }}
+                }}
+                if (!framed) trig->clearFocus();
+            }}
+
+            // Caster level tracks the live sheet (cantrip dice scale at 5/11/17).
+            // Save DC stays the controller default 13 = 8 + prof 2 + mod 3, the
+            // standard level-1 full caster (5e PHB math) — deriving it from the
+            // sheet's casting ability is a follow-up.
+            playerTurn_.setCasterLevel(playerSheet_.totalLevel());
+            playerTurn_.tick(dt);
+
+            // BG3-style tactical camera: entering combat swaps to the authored
+            // combat rig (default overhead birds-eye) and frees the cursor for
+            // click-targeting; leaving combat restores the scene's rig. (WASD
+            // suppression happens at the updateGameplayCamera call above via
+            // driveCharacter=false.)
+            const bool inCombatNow = combatDirector_.inCombat();
+            if (inCombatNow != wasInCombat_) {{
+                // Turn-based combat owns every body on the field: suspend NPC
+                // behaviors for the encounter (a live Follow/patrol behavior
+                // writes velocity every frame and stalls its TurnActor turn —
+                // the L4 probe caught Bram's follow deadzone freezing the
+                // whole encounter). Resumed on the exit edge.
+                if (npcManager_)
+                    npcManager_->forEachNPC([inCombatNow](Phyxel::Scene::NPCEntity& n) {{
+                        n.setBehaviorSuspended(inCombatNow);
+                    }});
+                if (inCombatNow) {{
+                    preCombatRig_ = gameplayCamera().rigName();
+                    if (gameplayCamera().setRigByName(combatCameraRig_))
+                        LOG_INFO("{class_name}", "Tactical camera: '{{}}' (combat)", combatCameraRig_);
+                    // Enter at a good tactical angle regardless of where the
+                    // player happened to be looking. Mouse-look is suppressed
+                    // in combat (the capture fix), so without this the whole
+                    // fight inherits an arbitrary exploration pitch.
+                    if (auto* look = engine.getInputManager())
+                        look->setYawPitch(look->getYaw(), -52.0f);
+                    // Spellbar: one button per authored spell (progression.spells).
+                    // Click ARMS the spell (ember highlight via the per-element bg
+                    // override); the next enemy click casts it. Rebuilt fresh each
+                    // encounter, torn down on the exit edge.
+                    if (!playerSpells_.empty() && renderCoordinator_) {{
+                        if (auto* uisys = renderCoordinator_->getUISystem()) {{
+                            uisys->removeScreen("hud_spellbar");
+                            // The root panel is sized to EXACTLY the bar strip:
+                            // a freeLayout UIPanel consumes every click inside
+                            // its bounds (modal semantics), so a fullscreen
+                            // transparent root would eat all combat clicks —
+                            // it ate the cast clicks on the first probe run.
+                            // Vertical stack on the right edge, below the
+                            // Initiative panel and clear of the action panel +
+                            // item hotbar. 220px wide fits the longest SRD-ish
+                            // name ("Sacred Flame", 12 chars at 16px/char).
+                            const float bw = 220.0f, bh = 34.0f, gap = 8.0f;
+                            const float totalH = (bh + gap) * playerSpells_.size() - gap;
+                            auto bar = std::make_unique<Phyxel::UI::UIPanel>();
+                            bar->freeLayout = true;
+                            bar->showBackground = false;
+                            bar->anchor = Phyxel::UI::Anchor::TopLeft;
+                            bar->offset = {{uisys->width() - bw - 20.0f, 530.0f}};
+                            bar->size = {{bw, totalH}};
+                            float y = 0.0f;
+                            for (const auto& sid : playerSpells_) {{
+                                auto btn = std::make_unique<Phyxel::UI::UIButton>();
+                                const auto* sdef = Phyxel::Core::SpellRegistry::instance().getSpell(sid);
+                                btn->id = "spell_" + sid;
+                                btn->text = sdef ? sdef->name : sid;
+                                btn->position = {{0.0f, y}};
+                                btn->size = {{bw, bh}};
+                                btn->onClick = [this, sid] {{ setArmedSpell(armedSpell_ == sid ? "" : sid); }};
+                                bar->addChild(std::move(btn));
+                                y += bh + gap;
+                            }}
+                            uisys->addScreen("hud_spellbar", std::move(bar));
+                            uisys->showScreen("hud_spellbar");
+                            refreshSpellbar();   // slot counts / disabled state from frame one
+                        }}
+                    }}
+                }} else {{
+                    const std::string back = preCombatRig_.empty() ? "third_person" : preCombatRig_;
+                    // No look snapshot/restore here anymore: the old "pitch
+                    // scrambled to +89 during the tactical phase" defect was the
+                    // InputManager mouseCaptured leak, fixed at the root in
+                    // GameplayCameraController (capture now releases while the
+                    // controller isn't driving, so free-cursor click-targeting
+                    // never integrates into look). Pinned by
+                    // GameplayCameraControllerTest.
+                    if (gameplayCamera().setRigByName(back))
+                        LOG_INFO("{class_name}", "Camera restored: '{{}}' (combat over)", back);
+                    if (renderCoordinator_)
+                        if (auto* uisys = renderCoordinator_->getUISystem())
+                            uisys->removeScreen("hud_spellbar");
+                    armedSpell_.clear();
+                }}
+                wasInCombat_ = inCombatNow;
+                if (engine_) updateCursorMode(*engine_);
             }}
 
             // Advance trigger timers/regions and run fired actions (gameplay only —
@@ -1061,12 +2147,33 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             }});
 
             if (npcManager_) npcManager_->update(dt);
+            updateCommand(dt);   // officers re-evaluate on their own cadence
+            updateHeldWeapons(); // weapons ride the grip bone; without this they
+                                 // stay frozen where the character spawned
             if (storyEngine_) storyEngine_->update(dt);
             if (speechBubbleManager_) speechBubbleManager_->update(dt);
 
-            // Update interaction manager with player position
+            // AI decision log clock (separate from the engine log — it records
+            // WHY each combatant chose what it chose; see combat_log.jsonl and
+            // POST /api/rpg/combat/log).
+            Phyxel::Core::CombatLog::instance().tick(dt);
+
+            // VFX: the director drains queued casts into the particle system
+            // and integrates it. WITHOUT this the standalone spawns spell
+            // effects that never tick and never draw — the VfxDirector logged
+            // "Cast 'guiding_bolt' ... (1 emissions)" while the screen showed
+            // nothing at all. (Editor parity: Application.cpp ~3436.)
+            if (renderCoordinator_) renderCoordinator_->updateVfx(dt);
+
+            // Update interaction manager with player position. Front is
+            // EXPLICITLY zero: the engine's default playerFront is +Z, which
+            // silently arms a north-facing 90° view cone — any NPC standing
+            // SOUTH of the player was uninteractable (the Hearthvale "Bram
+            // won't talk" hunt). Under camera-coupled facing a view cone is
+            // meaningless anyway; BG3-style proximity interact = nearest NPC
+            // in radius, any direction.
             if (interactionManager_ && playerCharacter_) {{
-                interactionManager_->update(dt, playerCharacter_->getPosition());
+                interactionManager_->update(dt, playerCharacter_->getPosition(), glm::vec3(0.0f));
             }}
 
             if (dialogueSystem_) dialogueSystem_->update(dt);
@@ -1100,6 +2207,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 case Phyxel::UI::ScreenState::Victory:  want = "victory";  break;
                                 case Phyxel::UI::ScreenState::Credits:  want = "credits";  break;
                                 case Phyxel::UI::ScreenState::Settings: want = "settings"; break;
+                                case Phyxel::UI::ScreenState::Loading:  want = "loading";  break;
                                 default: break;
                             }}
                         }}
@@ -1111,6 +2219,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 a.onResolveVariable = [this](const std::string& t) -> std::optional<std::string> {{
                                     if (t == "title")   return std::string("{class_name}");
                                     if (t == "tagline") return std::string("{game_tagline}");
+                                    if (t == "loading_target") return loadingSceneName_;
                                     // {{keybind.<Action>}} -> current key for the keybindings sub-panel rows.
                                     if (t.rfind("keybind.", 0) == 0) {{
                                         const auto* b = settings_.findBinding(t.substr(8));
@@ -1161,9 +2270,9 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                     auto* win = engine_ ? engine_->getWindowManager() : nullptr;
                                     auto* cam = engine_ ? engine_->getCamera() : nullptr;
                                     if (k == "fov")                   {{ settings_.fov = v; if (cam) cam->setZoom(v); }}
-                                    else if (k == "masterVolume")     {{ settings_.masterVolume = v; }}
-                                    else if (k == "musicVolume")      {{ settings_.musicVolume = v; }}
-                                    else if (k == "sfxVolume")        {{ settings_.sfxVolume = v; }}
+                                    else if (k == "masterVolume")     {{ settings_.masterVolume = v; applyAudioSettings(); }}
+                                    else if (k == "musicVolume")      {{ settings_.musicVolume = v; applyAudioSettings(); }}
+                                    else if (k == "sfxVolume")        {{ settings_.sfxVolume = v; applyAudioSettings(); }}
                                     else if (k == "mouseSensitivity") {{ settings_.mouseSensitivity = v; if (cam) cam->setMouseSensitivity(v); }}
                                     else if (k == "fullscreen")       {{ settings_.fullscreen = (v > 0.5f); if (win) win->setFullscreen(settings_.fullscreen); }}
                                     else if (k == "vsync") {{
@@ -1322,7 +2431,13 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         auto* win = engine.getWindowManager();
                         float sw = win ? static_cast<float>(win->getWidth()) : 1280.0f;
                         float sh = win ? static_cast<float>(win->getHeight()) : 720.0f;
-                        const auto& view = renderCoordinator_->getCachedViewMatrix();
+                        // ABSOLUTE view, not the cached RENDER view: the render
+                        // matrix is camera-relative (eye at origin) for float
+                        // precision, so projecting absolute world positions
+                        // through it puts everything behind the camera and
+                        // every world overlay silently vanishes. This affected
+                        // speech bubbles and the "[E] Interact" prompt too.
+                        const glm::mat4 view = renderCoordinator_->getWorldViewMatrix();
                         const auto& proj = renderCoordinator_->getCachedProjectionMatrix();
                         glm::vec2 sp;
                         if (speechBubbleManager_) {{
@@ -1342,6 +2457,142 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                     ui->addWorldLabel(sp, txt, glm::vec4(1.0f, 1.0f, 0.6f, 1.0f), 0.8f);
                             }}
                         }}
+
+                        // COMBAT NAMEPLATES: name + health bar over every
+                        // combatant, a targeting readout (AC / hit chance /
+                        // reach) on the one under the cursor, and a selection
+                        // bracket on the current target. The tactical view
+                        // shows figures; without these you cannot tell who is
+                        // who, who is hurt, or who you are about to hit.
+                        if (combatDirector_.inCombat() && entityRegistry_) {{
+                            const std::string sel = playerTurn_.selectedTarget();
+                            const std::string hov = hoveredTarget_;
+                            int npQueued = 0, npProjFail = 0, npNoEntity = 0;
+                            for (const auto& p : combatDirector_.initiative().turnOrder()) {{
+                                auto* e = entityRegistry_->getEntity(p.entityId);
+                                if (!e) {{ ++npNoEntity; continue; }}
+                                auto* hc = e->getHealthComponent();
+                                if (hc && !hc->isAlive()) continue;
+                                if (!Phyxel::UI::UISystem::worldToScreen(
+                                        e->getPosition() + glm::vec3(0.0f, 2.15f, 0.0f),
+                                        view, proj, sw, sh, sp)) {{ ++npProjFail; continue; }}
+
+                                Phyxel::UI::UISystem::Nameplate np;
+                                np.screenPos = sp;
+                                // Strip the "npc_" prefix — players read names.
+                                np.name = p.entityId.rfind("npc_", 0) == 0
+                                              ? p.entityId.substr(4) : p.entityId;
+                                np.hpFrac = (hc && hc->getMaxHealth() > 0.0f)
+                                              ? hc->getHealth() / hc->getMaxHealth() : 1.0f;
+                                np.hostile  = !p.isPlayer;
+                                np.selected = (p.entityId == sel || p.entityId == hov);
+                                // Distance falloff so a far plate does not
+                                // shout as loudly as the one in your face.
+                                float d = playerCharacter_
+                                    ? glm::length(e->getPosition() - playerCharacter_->getPosition())
+                                    : 10.0f;
+                                np.scale = glm::clamp(1.35f - d * 0.025f, 0.75f, 1.15f);
+                                // Targeting readout on the hovered/selected foe.
+                                if (!p.isPlayer && np.selected) {{
+                                    const int pct = static_cast<int>(
+                                        playerTurn_.hitChanceVs(p.entityId) * 100.0f);
+                                    np.subtitle = "AC " + std::to_string(playerTurn_.targetAC(p.entityId)) +
+                                                  "  " + std::to_string(pct) + "% to hit  " +
+                                                  (playerTurn_.inReachOf(p.entityId) ? "[in reach]"
+                                                                                     : "[out of reach]");
+                                }}
+                                ui->addNameplate(np);
+                                ++npQueued;
+                            }}
+                            // Throttled diagnostic: if plates are invisible, this
+                            // says whether they were queued at all and where the
+                            // projection went (screen coords of the last one).
+                            if (++nameplateDiagFrame_ % 120 == 0)
+                                LOG_INFO("{class_name}",
+                                         "nameplates: queued={{}} projFail={{}} noEntity={{}} lastPx=({{}},{{}}) screen={{}}x{{}}",
+                                         npQueued, npProjFail, npNoEntity,
+                                         static_cast<int>(sp.x), static_cast<int>(sp.y),
+                                         static_cast<int>(sw), static_cast<int>(sh));
+                        }}
+
+                        // REAL-TIME NAMEPLATES. The block above walks the
+                        // CombatDirector's initiative order, so it draws nothing
+                        // in a real-time battle — there is no encounter and no
+                        // turn order. The battle sim therefore never showed a
+                        // single health bar, which is the one thing you actually
+                        // need to read a 200-body melee: who is hurt, and which
+                        // side they are on.
+                        //
+                        // Iterates live entities instead of initiative, and is
+                        // bounded for BOTH cost and legibility: 400 plates is an
+                        // unreadable wall of text, so only combatants within
+                        // kRtPlateRange of the CAMERA (not the player — the sim
+                        // camera is detached and flies free of it) get one, and
+                        // names are dropped past kRtNameRange so distant ranks
+                        // are bars only.
+                        else if (entityRegistry_ && engine_ && engine_->getCamera()) {{
+                            constexpr float kRtPlateRange = 42.0f;   // bars within this
+                            constexpr float kRtNameRange  = 20.0f;   // names within this
+                            constexpr int   kRtPlateCap   = 80;      // hard cap, nearest-first
+                            const glm::vec3 eye = engine_->getCamera()->getPosition();
+
+                            // The id comes from the REGISTRY KEY — Scene::Entity has no
+                            // getId(); the registry is what knows an entity's id.
+                            struct RtPlate {{ float d; Phyxel::Scene::Entity* e; std::string id; }};
+                            std::vector<RtPlate> near;
+                            near.reserve(128);
+                            for (const char* type : {{"npc", "animated"}}) {{
+                                for (const auto& [id, e] : entityRegistry_->getEntitiesByType(type)) {{
+                                    if (!e) continue;
+                                    auto* hc = e->getHealthComponent();
+                                    if (!hc || !hc->isAlive()) continue;   // dead men wear no plates
+                                    const float d = glm::length(e->getPosition() - eye);
+                                    if (d > kRtPlateRange) continue;
+                                    near.push_back({{d, e, id}});
+                                }}
+                            }}
+                            // Nearest-first, then cap: when a brawl overflows the
+                            // budget the plates you keep are the ones you can see.
+                            std::sort(near.begin(), near.end(),
+                                      [](const RtPlate& a, const RtPlate& b) {{ return a.d < b.d; }});
+                            if (static_cast<int>(near.size()) > kRtPlateCap)
+                                near.resize(kRtPlateCap);
+
+                            // Read the player's faction through the Entity base: the concrete
+                            // character classes declare their own protected `faction` member,
+                            // which shadows Entity::faction() at the derived type.
+                            const auto* playerEnt =
+                                static_cast<const Phyxel::Scene::Entity*>(playerCharacter_);
+                            const std::string myFaction = playerEnt
+                                ? playerEnt->faction() : std::string(Phyxel::Scene::Entity::kNeutralFaction);
+                            int rtQueued = 0;
+                            for (const auto& rp : near) {{
+                                if (!Phyxel::UI::UISystem::worldToScreen(
+                                        rp.e->getPosition() + glm::vec3(0.0f, 2.15f, 0.0f),
+                                        view, proj, sw, sh, sp)) continue;
+                                auto* hc = rp.e->getHealthComponent();
+                                Phyxel::UI::UISystem::Nameplate np;
+                                np.screenPos = sp;
+                                if (rp.d <= kRtNameRange)
+                                    np.name = rp.id.rfind("npc_", 0) == 0 ? rp.id.substr(4) : rp.id;
+                                np.hpFrac = (hc && hc->getMaxHealth() > 0.0f)
+                                              ? hc->getHealth() / hc->getMaxHealth() : 1.0f;
+                                // Colour by SIDE, not by "is it an enemy of the
+                                // camera": the spectator is neutral, so relative
+                                // hostility would paint both armies the same.
+                                np.hostile = rp.e->faction() != myFaction;
+                                np.selected = (rp.id == hoveredTarget_);
+                                np.scale = glm::clamp(1.25f - rp.d * 0.018f, 0.6f, 1.1f);
+                                ui->addNameplate(np);
+                                ++rtQueued;
+                            }}
+                            if (++nameplateDiagFrame_ % 180 == 0)
+                                LOG_INFO("{class_name}",
+                                         "rt nameplates: queued={{}} inRange={{}} eye=({{}},{{}},{{}})",
+                                         rtQueued, static_cast<int>(near.size()),
+                                         static_cast<int>(eye.x), static_cast<int>(eye.y),
+                                         static_cast<int>(eye.z));
+                        }}
                     }}
                 }}
 
@@ -1351,9 +2602,647 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (renderCoordinator_) renderCoordinator_->render();
         }}
 
+        // ── Editor-parity persistence + audio (StandaloneParityGaps.md §1) ──────
+
+        void {class_name}::applyAudioSettings() {{
+            auto* audio = engine_ ? engine_->getAudioSystem() : nullptr;
+            if (!audio) return;
+            audio->setChannelVolume(Phyxel::Core::AudioChannel::Master, settings_.masterVolume);
+            audio->setChannelVolume(Phyxel::Core::AudioChannel::Music,  settings_.musicVolume);
+            audio->setChannelVolume(Phyxel::Core::AudioChannel::SFX,    settings_.sfxVolume);
+        }}
+
+        // ── Facing (dialogue + combat juice) ────────────────────────────────────
+        // Characters that talk or fight LOOK at each other. Convention matches
+        // CharacterTurnBody: model faces +Z at yaw 0, yaw = atan2(dx, dz).
+
+        void {class_name}::faceToward(Phyxel::Scene::AnimatedVoxelCharacter* ch, const glm::vec3& at) {{
+            if (!ch) return;
+            const glm::vec3 from = ch->getPosition();
+            const float dx = at.x - from.x, dz = at.z - from.z;
+            if (dx * dx + dz * dz < 0.01f) return;   // on top of each other — keep facing
+            ch->setFacingYaw(std::atan2(dx, dz));
+        }}
+
+        // ====================================================================
+        // DOCTRINE — how this game's officers decide (game-side policy)
+        // ====================================================================
+        // The engine owns squads, order propagation and the "officer is dead"
+        // degradation; WHICH order gets issued is a game decision, so it lives
+        // here. Swap this function and the same armies fight a different war.
+        // ====================================================================
+        // VISIBLE NPC WEAPONS
+        // ====================================================================
+        // game.json "weapon" named a damage/animation profile and nothing else,
+        // so an entire army fought bare-handed while 22 weapon models sat in
+        // resources/templates/weapons/. Ported from the editor's NPC held-item
+        // path (Application.cpp): resolve the item, build a kinematic mesh,
+        // attach it to the character's grip bone, then follow that bone.
+        //
+        // NOTE: no profile->id mapping here any more. GameDefinitionLoader
+        // canonicalises the weapon name when it calls setWeapon(), so the id on
+        // the behavior is ALREADY a real ItemRegistry id. A second mapping in
+        // this file could drift from the engine's and produce the exact split
+        // that caused fighters to carry swords while throwing punches: the
+        // visible model resolved, the moveset did not.
+
+        void {class_name}::equipNpcWeapons() {{
+            if (!npcManager_ || !kinematicVoxelManager_ || !weaponTemplates_) return;
+            int equipped = 0, missingItem = 0, missingTemplate = 0, noGrip = 0;
+
+            npcManager_->forEachNPC([&](Phyxel::Scene::NPCEntity& npc) {{
+                auto* ch = npc.getAnimatedCharacter();
+                if (!ch) return;
+
+                // The weapon profile lives on whichever combat behavior this NPC has.
+                std::string profile;
+                if (auto* cb = dynamic_cast<Phyxel::Scene::CombatBehavior*>(npc.getBehavior()))
+                    profile = cb->getWeaponId();
+                if (profile.empty()) return;
+
+                const std::string itemId = profile;   // already canonical (see loader)
+                const auto* def = Phyxel::Core::ItemRegistry::instance().getItem(itemId);
+                if (!def) {{ ++missingItem; return; }}
+
+                // Load on first use, keyed by item id so repeats are free.
+                //
+                // items.json stores templateFile RELATIVE to resources/templates
+                // ("weapons/sword_long.voxel"), while loadTemplate resolves
+                // against the working directory. Passing it through unprefixed
+                // failed all 120 fighters with noTemplate while the files sat
+                // right there on disk.
+                const Phyxel::VoxelTemplate* tmpl = weaponTemplates_->getTemplate(itemId);
+                if (!tmpl) {{
+                    const std::string full = "resources/templates/" + def->templateFile;
+                    if (!weaponTemplates_->loadTemplate(full, itemId))
+                        weaponTemplates_->loadTemplate(def->templateFile, itemId);  // absolute/bare fallback
+                    tmpl = weaponTemplates_->getTemplate(itemId);
+                }}
+                if (!tmpl) {{
+                    if (missingTemplate == 0)
+                        LOG_WARN("{class_name}", "weapon template not loadable: {{}} (item {{}})",
+                                 def->templateFile, itemId);
+                    ++missingTemplate;
+                    return;
+                }}
+
+                auto voxels = Phyxel::Core::ItemPropManager::voxelsFromTemplate(*tmpl);
+                if (voxels.empty()) {{ ++missingTemplate; return; }}
+
+                // BAKE held.scale, exactly as ItemPropManager::buildPropGeometry
+                // does. voxelsFromTemplate returns RAW template geometry; for a
+                // fine-voxel item ("# grid: 81") that is ~81x too big. Skipping
+                // this drew a sword the size of a house next to each fighter -
+                // the attachment was fine, the geometry was unusable.
+                const float heldScale = def->held.scale > 0.0f ? def->held.scale : 1.0f;
+                if (heldScale != 1.0f)
+                    for (auto& v : voxels) {{ v.localPos *= heldScale; v.scale *= heldScale; }}
+
+                // NPCManager registers entities as "npc_" + name; key the same
+                // way so updateHeldWeapons can find the owner again.
+                const std::string entityId = npc.getName();
+                HeldWeapon hw;
+                hw.kinId = kinematicVoxelManager_->add("npcheld_" + entityId, std::move(voxels));
+                hw.anchorId = ch->attachToBone(def->held.gripBone, glm::vec3(0.02f),
+                                               def->held.gripOffset, glm::vec4(0.0f),
+                                               "npc_held_anchor");
+                if (hw.anchorId < 0) {{
+                    // No grip bone on this rig: drop the mesh rather than leave
+                    // a weapon floating at the world origin.
+                    kinematicVoxelManager_->remove(hw.kinId);
+                    ++noGrip;
+                    return;
+                }}
+                hw.itemId = itemId;
+                npcHeld_[entityId] = hw;
+                ++equipped;
+            }});
+
+            LOG_INFO("{class_name}",
+                     "NPC weapons: equipped={{}} unknownItem={{}} noTemplate={{}} noGripBone={{}}",
+                     equipped, missingItem, missingTemplate, noGrip);
+        }}
+
+        void {class_name}::updateHeldWeapons() {{
+            if (npcHeld_.empty() || !kinematicVoxelManager_ || !npcManager_) return;
+            for (auto it = npcHeld_.begin(); it != npcHeld_.end(); ) {{
+                auto* npc = npcManager_->getNPC(it->first);   // keyed by NPC NAME
+                auto* ch = npc ? npc->getAnimatedCharacter() : nullptr;
+                const auto* hd = Phyxel::Core::ItemRegistry::instance().getItem(it->second.itemId);
+                if (!ch || !hd) {{
+                    // Owner gone: take its weapon with it, or the mesh is
+                    // orphaned mid-air for the rest of the battle.
+                    kinematicVoxelManager_->remove(it->second.kinId);
+                    it = npcHeld_.erase(it);
+                    continue;
+                }}
+                glm::vec3 pos; glm::quat rot;
+                const bool gotXform = ch->getAttachmentTransform(it->second.anchorId, pos, rot);
+                // WHERE IS THE WEAPON, ACTUALLY? "equipped=N" only proves the
+                // attach call returned an id. If getAttachmentTransform fails we
+                // never call setTransform and the mesh stays wherever add() put
+                // it - i.e. nowhere near the hand. Report the owner's position
+                // beside the weapon's so the two can be compared directly.
+                {{
+                    static int s_heldTick = 0;
+                    if ((++s_heldTick % 300) == 1) {{
+                        const glm::vec3 owner = ch->getPosition();
+                        LOG_INFO("{class_name}",
+                                 "held '{{}}': xform={{}} weapon=({{}},{{}},{{}}) owner=({{}},{{}},{{}})",
+                                 it->second.itemId, gotXform ? "ok" : "FAIL",
+                                 static_cast<int>(pos.x), static_cast<int>(pos.y),
+                                 static_cast<int>(pos.z),
+                                 static_cast<int>(owner.x), static_cast<int>(owner.y),
+                                 static_cast<int>(owner.z));
+                    }}
+                }}
+                if (gotXform) {{
+                    const auto& h = hd->held;
+                    glm::mat4 t = glm::translate(glm::mat4(1.0f), pos) * glm::mat4_cast(rot);
+                    t = t * glm::eulerAngleYXZ(glm::radians(h.gripEulerDeg.y),
+                                               glm::radians(h.gripEulerDeg.x),
+                                               glm::radians(h.gripEulerDeg.z));
+                    kinematicVoxelManager_->setTransform(it->second.kinId, t);
+                }}
+                ++it;
+            }}
+        }}
+
+        void {class_name}::installDoctrine() {{
+            command_.setDecisionInterval(3.0f);
+            command_.setDoctrine([](const Phyxel::AI::CommandStructure::SquadSituation& s) {{
+                using Order = Phyxel::AI::CommandStructure::Order;
+                const float strength = s.strength > 0
+                    ? static_cast<float>(s.alive) / s.strength : 1.0f;
+
+                // Shattered or badly bloodied: break off.
+                if (strength <= 0.34f || s.healthFraction < 0.3f) return Order::FallBack;
+                // Hurt but holding together: dig in and make them come.
+                if (strength <= 0.6f || s.healthFraction < 0.55f) return Order::Hold;
+                // Strong and the enemy is close: try to take them in the side.
+                if (s.nearestEnemyDist < 26.0f && strength > 0.8f) return Order::Flank;
+                return Order::Advance;
+            }});
+        }}
+
+        // Per-frame command tick: build each squad's situation from live
+        // entities, let the doctrine issue orders, and log the changes so a
+        // battle's command decisions are readable after the fact.
+        void {class_name}::updateCommand(float dt) {{
+            if (!entityRegistry_) return;
+            command_.update(dt,
+                [this](const Phyxel::AI::CommandStructure::Squad& sq) {{
+                    Phyxel::AI::CommandStructure::SquadSituation sit;
+                    sit.strength = static_cast<int>(sq.members.size());
+                    glm::vec3 sum(0.0f);
+                    float hpSum = 0.0f;
+                    for (const auto& id : sq.members) {{
+                        auto* e = entityRegistry_->getEntity(id);
+                        if (!e) continue;
+                        auto* hc = e->getHealthComponent();
+                        if (!hc || !hc->isAlive()) continue;
+                        ++sit.alive;
+                        sum += e->getPosition();
+                        hpSum += (hc->getMaxHealth() > 0.0f)
+                                     ? hc->getHealth() / hc->getMaxHealth() : 1.0f;
+                    }}
+                    if (sit.alive > 0) {{
+                        sit.centre = sum / static_cast<float>(sit.alive);
+                        sit.healthFraction = hpSum / sit.alive;
+                    }}
+                    // Nearest hostile + enemy centre of mass.
+                    glm::vec3 esum(0.0f);
+                    int ecount = 0;
+                    for (const char* type : {{"animated", "npc"}}) {{
+                        for (const auto& [id, e] : entityRegistry_->getEntitiesByType(type)) {{
+                            if (!e) continue;
+                            auto* hc = e->getHealthComponent();
+                            if (!hc || !hc->isAlive()) continue;
+                            if (e->faction() == sq.faction) continue;
+                            if (e->faction() == Phyxel::Scene::Entity::kNeutralFaction) continue;
+                            esum += e->getPosition(); ++ecount;
+                            const float d = glm::length(e->getPosition() - sit.centre);
+                            if (d < sit.nearestEnemyDist) sit.nearestEnemyDist = d;
+                            if (d < 30.0f) ++sit.enemiesNear;
+                        }}
+                    }}
+                    if (ecount > 0) sit.enemyCentre = esum / static_cast<float>(ecount);
+                    return sit;
+                }},
+                [](const Phyxel::AI::CommandStructure::Squad& sq,
+                   Phyxel::AI::CommandStructure::Order o) {{
+                    LOG_INFO("Command", "squad '{{}}' ({{}}) -> {{}}", sq.id, sq.faction,
+                             Phyxel::AI::CommandStructure::orderName(o));
+                }});
+        }}
+
+        // ====================================================================
+        // Behavior-tree ACTION VOCABULARY (game-side, no engine changes)
+        // ====================================================================
+        // These are the verbs this GAME offers to JSON-authored behavior trees.
+        // They live here, not in the engine, which is the point: adding a new
+        // kind of fighter should be a game-side edit (a ~2 minute build) or
+        // pure data, never an engine rebuild.
+        //
+        // Author a behavior in game.json / a .bt.json file:
+        //   {{"type":"Selector","children":[
+        //      {{"type":"Action","action":"flee_below","hp":0.3}},
+        //      {{"type":"Action","action":"keep_distance","range":14}},
+        //      {{"type":"Action","action":"cast_at_enemy","spell":"fire_bolt",
+        //        "cooldown":2.0,"damage":9}},
+        //      {{"type":"Action","action":"charge_enemy","speed":1.0}}]}}
+        void {class_name}::registerBehaviorActions() {{
+            auto& reg = Phyxel::AI::BTActionRegistry::instance();
+
+            // Nearest hostile (faction-aware) — the shared helper the verbs use.
+            auto nearestFoe = [](Phyxel::AI::ActionContext& ctx) -> Phyxel::Scene::Entity* {{
+                if (!ctx.entityRegistry || !ctx.self) return nullptr;
+                Phyxel::Scene::Entity* best = nullptr;
+                float bestD2 = 1e9f;
+                for (const char* type : {{"animated", "npc"}}) {{
+                    for (const auto& [id, e] : ctx.entityRegistry->getEntitiesByType(type)) {{
+                        if (!e || e == ctx.self) continue;
+                        auto* hc = e->getHealthComponent();
+                        if (!hc || !hc->isAlive()) continue;
+                        if (!ctx.self->hostileTo(*e)) continue;
+                        const glm::vec3 d = e->getPosition() - ctx.self->getPosition();
+                        const float d2 = d.x * d.x + d.z * d.z;
+                        if (d2 < bestD2) {{ bestD2 = d2; best = e; }}
+                    }}
+                }}
+                return best;
+            }};
+            auto charOf = [](Phyxel::Scene::Entity* e) -> Phyxel::Scene::AnimatedVoxelCharacter* {{
+                if (auto* npc = dynamic_cast<Phyxel::Scene::NPCEntity*>(e)) return npc->getAnimatedCharacter();
+                return dynamic_cast<Phyxel::Scene::AnimatedVoxelCharacter*>(e);
+            }};
+
+            // charge_enemy: close on the nearest foe and swing in reach.
+            reg.add("charge_enemy", [nearestFoe, charOf](const nlohmann::json& p) {{
+                const float speed = p.value("speed", 1.0f);
+                const float reach = p.value("reach", 2.0f);
+                return Phyxel::AI::makeAction("charge_enemy",
+                    [nearestFoe, charOf, speed, reach](float, Phyxel::AI::ActionContext& ctx) {{
+                        auto* foe = nearestFoe(ctx);
+                        auto* me  = charOf(ctx.self);
+                        if (!foe || !me) return Phyxel::AI::ActionStatus::Failure;
+                        const glm::vec3 selfPos = ctx.self->getPosition();
+                        const glm::vec3 foePos  = foe->getPosition();
+                        glm::vec3 to = foePos - selfPos; to.y = 0.0f;
+                        const float d = glm::length(to);
+                        if (d > 1e-4f) me->setFacingYaw(std::atan2(to.x / d, to.z / d));
+
+                        // A WALL BETWEEN US IS NOT A TARGET IN REACH. This used
+                        // to be a bare distance test, so two fighters on
+                        // opposite faces of a wall were each "within reach" of
+                        // the other and both stood there swinging at stone —
+                        // the thin-air punching — while a besieging horde
+                        // stalled against a rampart instead of finding the gate.
+                        const bool blocked =
+                            ctx.chunkManager &&
+                            !Phyxel::AI::TacticalSpace::canSee(*ctx.chunkManager, selfPos, foePos);
+
+                        // Telemetry, because "the fix did nothing" and "the fix
+                        // never ran" look identical from outside and have cost
+                        // four measurement rounds. A null chunkManager here
+                        // means every wall check silently no-ops.
+                        {{
+                            static int s_chargeTick = 0;
+                            if ((++s_chargeTick % 600) == 0)
+                                LOG_INFO("{class_name}",
+                                         "charge_enemy: world={{}} blocked={{}} d={{}}",
+                                         ctx.chunkManager ? "yes" : "NULL",
+                                         blocked ? 1 : 0, static_cast<int>(d));
+                        }}
+
+                        if (d <= reach && !blocked) {{
+                            me->setControlInput(0.0f, 0.0f, 0.0f);
+                            me->lightAttack();
+                        }} else if (blocked) {{
+                            // Slide ALONG the obstacle rather than into it. No
+                            // pathfinder is reachable from a BT action, so this
+                            // is deliberately a local rule: skirting a wall
+                            // finds a gate eventually, standing at it never does.
+                            const glm::vec3 dir = (d > 1e-4f) ? to / d : glm::vec3(1, 0, 0);
+                            const glm::vec3 side(-dir.z, 0.0f, dir.x);
+                            const glm::vec3 slide = glm::normalize(dir * 0.35f + side * 0.94f);
+                            me->setFacingYaw(std::atan2(slide.x, slide.z));
+                            me->setControlInput(-speed, 0.0f, 0.0f);
+                        }} else {{
+                            me->setControlInput(-speed, 0.0f, 0.0f);
+                        }}
+                        return Phyxel::AI::ActionStatus::Running;
+                    }});
+            }});
+
+            // keep_distance: hold a stand-off band from the nearest foe.
+            reg.add("keep_distance", [nearestFoe, charOf](const nlohmann::json& p) {{
+                const float want  = p.value("range", 12.0f);
+                const float speed = p.value("speed", 0.8f);
+                return Phyxel::AI::makeAction("keep_distance",
+                    [nearestFoe, charOf, want, speed](float, Phyxel::AI::ActionContext& ctx) {{
+                        auto* foe = nearestFoe(ctx);
+                        auto* me  = charOf(ctx.self);
+                        if (!foe || !me) return Phyxel::AI::ActionStatus::Failure;
+                        glm::vec3 to = foe->getPosition() - ctx.self->getPosition(); to.y = 0.0f;
+                        const float d = glm::length(to);
+                        if (d > 1e-4f) me->setFacingYaw(std::atan2(to.x / d, to.z / d));
+                        if (d < want * 0.6f)      me->setControlInput(speed, 0.0f, 0.0f);   // back off
+                        else if (d > want * 1.2f) me->setControlInput(-speed, 0.0f, 0.0f);  // close in
+                        else                      me->setControlInput(0.0f, 0.0f, 0.0f);
+                        return Phyxel::AI::ActionStatus::Running;
+                    }});
+            }});
+
+            // cast_at_enemy: throw a spell on a cooldown, through the game's
+            // own cast visual + the damage funnel.
+            reg.add("cast_at_enemy", [this, nearestFoe, charOf](const nlohmann::json& p) {{
+                const std::string spell = p.value("spell", "fire_bolt");
+                const float cooldown    = p.value("cooldown", 2.0f);
+                const float damage      = p.value("damage", 8.0f);
+                const float range       = p.value("range", 30.0f);
+                auto timer = std::make_shared<float>(0.0f);
+                return Phyxel::AI::makeAction("cast_at_enemy",
+                    [this, nearestFoe, charOf, spell, cooldown, damage, range, timer]
+                    (float dt, Phyxel::AI::ActionContext& ctx) {{
+                        if (*timer > 0.0f) *timer -= dt;
+                        auto* foe = nearestFoe(ctx);
+                        if (!foe) return Phyxel::AI::ActionStatus::Failure;
+                        const glm::vec3 selfPos = ctx.self->getPosition();
+                        const glm::vec3 foePos  = foe->getPosition();
+                        glm::vec3 to = foePos - selfPos; to.y = 0.0f;
+                        const float d = glm::length(to);
+                        if (d > range) return Phyxel::AI::ActionStatus::Failure;
+
+                        // WALLS STOP SPELLS. This was a bare distance test, so
+                        // an archer sealed behind a rampart shot attackers
+                        // straight through the stonework. Returning Failure (not
+                        // Running) lets the Selector fall through to the next
+                        // child — the caster repositions instead of standing
+                        // there discharging into a wall.
+                        if (ctx.chunkManager &&
+                            !Phyxel::AI::TacticalSpace::canSee(*ctx.chunkManager, selfPos, foePos))
+                            return Phyxel::AI::ActionStatus::Failure;
+
+                        if (auto* me = charOf(ctx.self))
+                            if (d > 1e-4f) me->setFacingYaw(std::atan2(to.x / d, to.z / d));
+                        if (*timer <= 0.0f) {{
+                            *timer = cooldown;
+                            const std::string tid = ctx.entityRegistry
+                                ? ctx.entityRegistry->getEntityId(foe) : std::string();
+                            const std::string sid = ctx.selfId;
+                            const glm::vec3 tp = foe->getPosition();
+                            playCastVisualFor(charOf(ctx.self), spell, tp,
+                                [this, foe, tid, sid, damage]() {{
+                                    if (combatSystem_)
+                                        combatSystem_->applyDamage(foe, tid, damage, sid,
+                                                                   Phyxel::Core::DamageType::Fire);
+                                }});
+                        }}
+                        return Phyxel::AI::ActionStatus::Running;
+                    }});
+            }});
+
+            // flee_below: run from the nearest foe under an hp fraction.
+            reg.add("flee_below", [nearestFoe, charOf](const nlohmann::json& p) {{
+                const float frac  = p.value("hp", 0.3f);
+                const float speed = p.value("speed", 1.0f);
+                return Phyxel::AI::makeAction("flee_below",
+                    [nearestFoe, charOf, frac, speed](float, Phyxel::AI::ActionContext& ctx) {{
+                        auto* hc = ctx.self ? ctx.self->getHealthComponent() : nullptr;
+                        if (!hc || hc->getMaxHealth() <= 0.0f) return Phyxel::AI::ActionStatus::Failure;
+                        if (hc->getHealth() / hc->getMaxHealth() >= frac)
+                            return Phyxel::AI::ActionStatus::Failure;   // not afraid yet
+                        auto* foe = nearestFoe(ctx);
+                        auto* me  = charOf(ctx.self);
+                        if (!foe || !me) return Phyxel::AI::ActionStatus::Failure;
+                        glm::vec3 away = ctx.self->getPosition() - foe->getPosition(); away.y = 0.0f;
+                        const float d = glm::length(away);
+                        if (d > 1e-4f) me->setFacingYaw(std::atan2(away.x / d, away.z / d));
+                        me->setControlInput(-speed, 0.0f, 0.0f);
+                        return Phyxel::AI::ActionStatus::Running;
+                    }});
+            }});
+
+            LOG_INFO("{class_name}", "Behavior actions registered: {{}}",
+                     static_cast<int>(reg.names().size()));
+        }}
+
+        // Arm/disarm a spellbar spell. The armed slot glows ember through the
+        // per-element bg override; everything else reverts to the theme.
+        // Refuses to arm a spell that can't be cast (no slots / not prepared),
+        // reading the SAME castBlockedReason the cast path enforces.
+        void {class_name}::setArmedSpell(const std::string& id) {{
+            if (!id.empty()) {{
+                const std::string why = playerTurn_.castBlockedReason(id);
+                // "action spent" / "not your turn" are turn-flow states, not
+                // spell states — arming ahead of your turn is fine.
+                if (why == "no slots" || why == "not prepared" || why == "not known" ||
+                    why == "unknown spell") {{
+                    LOG_INFO("{class_name}", "Cannot arm '{{}}': {{}}", id, why);
+                    refreshSpellbar();
+                    return;
+                }}
+            }}
+            armedSpell_ = id;
+            if (!id.empty()) LOG_INFO("{class_name}", "Spell armed: '{{}}'", id);
+            refreshSpellbar();
+        }}
+
+        // Repaint the spellbar from live state: armed = ember, out-of-slots =
+        // dimmed + disabled, and each leveled spell shows its remaining slots.
+        void {class_name}::refreshSpellbar() {{
+            if (!renderCoordinator_) return;
+            auto* uisys = renderCoordinator_->getUISystem();
+            if (!uisys) return;
+            auto* bar = uisys->getScreen("hud_spellbar");
+            if (!bar) return;
+            for (const auto& sid : playerSpells_) {{
+                auto* w = bar->findChild("spell_" + sid);
+                auto* b = w ? dynamic_cast<Phyxel::UI::UIButton*>(w) : nullptr;
+                if (!b) continue;
+                const auto* sd = Phyxel::Core::SpellRegistry::instance().getSpell(sid);
+                const std::string why = playerTurn_.castBlockedReason(sid);
+                const bool depleted = (why == "no slots" || why == "not prepared");
+                std::string label = sd ? sd->name : sid;
+                if (sd && !sd->isCantrip()) {{
+                    const int lvl = sd->level;
+                    const int left = (lvl >= 1 && lvl <= Phyxel::Core::SpellSlots::MAX_SPELL_LEVEL)
+                                         ? playerCaster_.slots().remaining[lvl - 1] : 0;
+                    label += " (" + std::to_string(left) + ")";   // remaining slots
+                }}
+                b->text = label;
+                b->enabled = !depleted;
+                b->customBg = (sid == armedSpell_ && !armedSpell_.empty())
+                                  ? glm::vec4(0.85f, 0.55f, 0.20f, 1.0f)
+                                  : glm::vec4(0.0f);
+            }}
+        }}
+
+        // Cast visual for the player's spells: cast animation (SpellAnimMapper
+        // family plan) + spell VFX, with damage/heal applied at the RELEASE
+        // frame. Mirrors the editor host (Application::playCastVisual) so a
+        // spell looks the same shipped as it does in the editor. Falls back to
+        // immediate VFX+resolution when no animation plan is available.
+        void {class_name}::playCastVisual(const std::string& spellId,
+                                          const glm::vec3& targetPos,
+                                          std::function<void()> onRelease) {{
+            playCastVisualFor(playerCharacter_, spellId, targetPos, std::move(onRelease));
+        }}
+
+        void {class_name}::playCastVisualFor(Phyxel::Scene::AnimatedVoxelCharacter* caster,
+                                             const std::string& spellId,
+                                             const glm::vec3& targetPos,
+                                             std::function<void()> onRelease) {{
+            glm::vec3 origin = caster ? caster->getPosition() + glm::vec3(0.0f, 1.4f, 0.0f)
+                                      : targetPos;
+            Phyxel::VfxSpellModifiers mods;
+            Phyxel::VfxCastContext ctx;
+            ctx.caster = origin;
+            ctx.targets.push_back(targetPos);
+            auto fire = [this, spellId, mods, ctx, onRelease]() {{
+                auto* d = renderCoordinator_ ? renderCoordinator_->getVfxDirector() : nullptr;
+                if (d) d->cast(Phyxel::resolveSpellVfx(spellId, mods), ctx);
+                if (onRelease) onRelease();
+            }};
+            bool animated = false;
+            if (caster) {{
+                auto& reg = Phyxel::Core::SpellRegistry::instance();
+                auto& mapper = Phyxel::Core::SpellAnimMapper::instance();
+                if (!mapper.isLoaded())
+                    mapper.loadConfig("resources/spells/anim/spell_anim_families.json");
+                const auto* def = reg.getSpell(spellId);
+                if (def && mapper.isLoaded()) {{
+                    auto plan = mapper.resolve(*def, 2, [caster](const std::string& clip) {{
+                        for (const auto& c : caster->getAnimationClips())
+                            if (c.name == clip) return c.duration;
+                        return 0.0f;
+                    }});
+                    if (plan.valid) {{
+                        std::vector<Phyxel::Scene::AnimatedVoxelCharacter::CastSegment> segs;
+                        for (const auto& s : plan.segments) segs.push_back({{s.clip, s.speed, s.loops}});
+                        glm::vec3 dd = targetPos - caster->getPosition();
+                        if (glm::length(glm::vec2(dd.x, dd.z)) > 0.01f)
+                            caster->setFacingYaw(std::atan2(dd.x, dd.z));
+                        caster->setOnCastRelease(fire);
+                        animated = caster->castSpell(segs);
+                    }}
+                }}
+            }}
+            if (!animated) fire();   // fallback: immediate VFX + resolution
+        }}
+
+        Phyxel::Scene::AnimatedVoxelCharacter* {class_name}::characterOf(const std::string& entityId) {{
+            if (!entityRegistry_) return nullptr;
+            auto* e = entityRegistry_->getEntity(entityId);
+            if (!e) return nullptr;
+            if (auto* npc = dynamic_cast<Phyxel::Scene::NPCEntity*>(e)) return npc->getAnimatedCharacter();
+            return dynamic_cast<Phyxel::Scene::AnimatedVoxelCharacter*>(e);
+        }}
+
+        void {class_name}::faceCombatants() {{
+            const auto& order = combatDirector_.initiative().turnOrder();
+            for (const auto& me : order) {{
+                auto* meCh = characterOf(me.entityId);
+                if (!meCh) continue;
+                float bestD2 = 1e30f;
+                const Phyxel::Scene::AnimatedVoxelCharacter* target = nullptr;
+                for (const auto& other : order) {{
+                    if (other.isPlayer == me.isPlayer) continue;   // face the OPPOSING side
+                    auto* oCh = characterOf(other.entityId);
+                    if (!oCh) continue;
+                    const glm::vec3 d = oCh->getPosition() - meCh->getPosition();
+                    const float d2 = d.x * d.x + d.z * d.z;
+                    if (d2 < bestD2) {{ bestD2 = d2; target = oCh; }}
+                }}
+                if (target) faceToward(meCh, target->getPosition());
+            }}
+        }}
+
+        void {class_name}::grantXP(int xp, const char* why) {{
+            if (playerSheet_.classes.empty()) return;   // no progression authored
+            Phyxel::Core::DiceSystem dice;
+            const int before = playerSheet_.totalLevel();
+            const bool leveled = Phyxel::Core::CharacterProgression::awardXP(
+                playerSheet_, xp, dice, /*autoLevel=*/true, /*useAverageHP=*/true);
+            LOG_INFO("{class_name}", "+{{}} XP ({{}}) — total {{}} XP, level {{}}",
+                     xp, why, playerSheet_.experiencePoints, playerSheet_.totalLevel());
+            if (leveled) {{
+                LOG_INFO("{class_name}", "LEVEL UP! {{}} -> {{}}", before, playerSheet_.totalLevel());
+                triggers_.onEvent("player_level_up", {{{{"level", playerSheet_.totalLevel()}}}});
+            }}
+        }}
+
+        void {class_name}::savePlayerProfile() {{
+            auto* cm = engine_ ? engine_->getChunkManager() : nullptr;
+            auto* ws = cm ? cm->m_streamingManager.getWorldStorage() : nullptr;
+            if (!ws || !ws->getDb()) {{
+                LOG_WARN("{class_name}", "savePlayerProfile: no world database open");
+                return;
+            }}
+            if (auto* cam = engine_->getCamera()) {{
+                playerProfile_.cameraPosition = cam->getPosition();
+                playerProfile_.cameraYaw     = cam->getYaw();
+                playerProfile_.cameraPitch   = cam->getPitch();
+            }}
+            if (auto* hc = playerCharacter_ ? playerCharacter_->getHealthComponent() : nullptr) {{
+                playerProfile_.health    = hc->getHealth();
+                playerProfile_.maxHealth = hc->getMaxHealth();
+            }}
+            if (!playerSheet_.classes.empty()) {{
+                playerProfile_.xp    = playerSheet_.experiencePoints;
+                playerProfile_.level = playerSheet_.totalLevel();
+            }}
+            playerProfile_.inventoryData = inventory_.toJson();
+            if (playerProfile_.saveToDb(ws->getDb())) {{
+                LOG_INFO("{class_name}", "Player profile saved (player_state table)");
+            }} else {{
+                LOG_WARN("{class_name}", "Player profile save FAILED");
+            }}
+        }}
+
+        bool {class_name}::loadPlayerProfile() {{
+            auto* cm = engine_ ? engine_->getChunkManager() : nullptr;
+            auto* ws = cm ? cm->m_streamingManager.getWorldStorage() : nullptr;
+            if (!ws || !ws->getDb()) return false;
+            if (!playerProfile_.loadFromDb(ws->getDb())) return false;
+            if (auto* cam = engine_->getCamera()) {{
+                cam->setPosition(playerProfile_.cameraPosition);
+                cam->setYaw(playerProfile_.cameraYaw);
+                cam->setPitch(playerProfile_.cameraPitch);
+            }}
+            if (auto* hc = playerCharacter_ ? playerCharacter_->getHealthComponent() : nullptr) {{
+                hc->setMaxHealth(playerProfile_.maxHealth);
+                hc->setHealth(playerProfile_.health);
+            }}
+            if (!playerProfile_.inventoryData.is_null() && !playerProfile_.inventoryData.empty())
+                inventory_.fromJson(playerProfile_.inventoryData);
+            // Progression restore: XP round-trips directly; LEVEL is rebuilt by
+            // re-running levelUp so class HP/hit-dice accrue properly (average
+            // HP, deterministic — matches how the XP was originally earned).
+            if (!playerSheet_.classes.empty() && playerProfile_.xp > 0) {{
+                playerSheet_.experiencePoints = playerProfile_.xp;
+                Phyxel::Core::DiceSystem dice;
+                while (playerSheet_.totalLevel() < playerProfile_.level) {{
+                    auto res = Phyxel::Core::CharacterProgression::levelUp(
+                        playerSheet_, playerSheet_.classes[0].classId, dice, /*useAverageHP=*/true);
+                    if (!res.success) break;
+                }}
+                LOG_INFO("{class_name}", "Progression restored: {{}} XP, level {{}}",
+                         playerSheet_.experiencePoints, playerSheet_.totalLevel());
+            }}
+            return true;
+        }}
+
         void {class_name}::onShutdown() {{
             LOG_INFO("{class_name}", "Shutting down...");
+            // Release any cursor grab FIRST — quitting from Playing otherwise
+            // tears the window down while it holds GLFW_CURSOR_DISABLED, which
+            // can leave the OS cursor confined/hidden until the desktop refocuses.
+            if (engine_ && engine_->getWindowManager())
+                engine_->getWindowManager()->setCursorVisible(true);
             stopTestApi();  // stop the test API before tearing down subsystems it references
+            savePlayerProfile();  // quit-save: profile -> active scene's world DB
             settings_.saveToFile("settings.json");
             renderCoordinator_.reset();
             entities_.clear();

@@ -12,6 +12,9 @@
 namespace Phyxel {
 namespace UI {
 
+// Defined further down with the other element parsers; used by both build paths.
+static glm::vec4 parseElemColor(const nlohmann::json& el, const char* key);
+
 Anchor MenuDefinition::parseAnchor(const std::string& str) {
     if (str == "TopLeft")      return Anchor::TopLeft;
     if (str == "TopCenter")    return Anchor::TopCenter;
@@ -34,6 +37,11 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         w->text = j.value("text", "");
         w->isTitle = j.value("isTitle", false);
         w->wrapWidth = j.value("wrapWidth", 0.0f);
+        // "align": "center" -> text centered ON position.x; "right" -> ends at it.
+        // Default left (start at position.x) preserves every existing layout.
+        const std::string al = j.value("align", "left");
+        if (al == "center")      w->align = UILabel::HAlign::Center;
+        else if (al == "right")  w->align = UILabel::HAlign::Right;
         w->bind = j.value("bind", "");
         w->visibleWhen = j.value("visibleWhen", "");
         w->visible = j.value("visible", true);
@@ -44,6 +52,12 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         if (j.contains("position") && j["position"].is_array() && j["position"].size() >= 2) {
             w->position = {j["position"][0].get<float>(), j["position"][1].get<float>()};
         }
+        // An authored width finally MEANS something: wrap to it unless the
+        // author set an explicit wrapWidth. Ends the "text runs out of its
+        // box" default — labels with no size stay unbounded single-line.
+        if (w->wrapWidth <= 0.0f && w->size.x > 0.0f) w->wrapWidth = w->size.x;
+        w->customColor = parseElemColor(j, "color");
+        w->customScale = j.value("scale", 0.0f);
         return w;
     }
 
@@ -60,6 +74,9 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         if (j.contains("position") && j["position"].is_array() && j["position"].size() >= 2) {
             w->position = {j["position"][0].get<float>(), j["position"][1].get<float>()};
         }
+        w->customColor   = parseElemColor(j, "color");
+        w->customBg      = parseElemColor(j, "bg");
+        w->customBgHover = parseElemColor(j, "bgHover");
         return w;
     }
 
@@ -208,6 +225,8 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         w->title = j.value("title", "");
         w->showBackground = j.value("showBackground", true);
         w->freeLayout = j.value("freeLayout", false);
+        w->clipChildren = j.value("clip", true);
+        w->scrollable = j.value("scrollable", false);
         w->visibleWhen = j.value("visibleWhen", "");
         w->visible = j.value("visible", true);
         w->enabled = j.value("enabled", true);
@@ -566,7 +585,39 @@ static std::string resolveTokens(const std::string& text, const MenuActions& act
     return out;
 }
 
+// Appear-animation fields, shared by every element type on both build paths.
+// Schema matches the retired ImGui GameMenuRenderer ("animation" /
+// "animation_delay" / "animation_duration") so existing authored menus keep
+// working. Unknown animation names are ignored (renders settled).
+// Per-element color: [r,g,b] or [r,g,b,a] floats 0-1. Returns alpha-0 (the
+// "unset → use theme" sentinel) when absent or malformed.
+static glm::vec4 parseElemColor(const nlohmann::json& el, const char* key) {
+    if (!el.contains(key)) return {0, 0, 0, 0};
+    const auto& v = el[key];
+    if (!v.is_array() || v.size() < 3) return {0, 0, 0, 0};
+    return {v[0].get<float>(), v[1].get<float>(), v[2].get<float>(),
+            v.size() >= 4 ? v[3].get<float>() : 1.0f};
+}
+
+static void parseAppearAnim(const nlohmann::json& el, UIWidget& w) {
+    const std::string anim = el.value("animation", "");
+    if (anim.empty()) return;
+    if      (anim == "fade_in")        w.appearAnim = UIWidget::AppearAnim::FadeIn;
+    else if (anim == "slide_in_left")  w.appearAnim = UIWidget::AppearAnim::SlideInLeft;
+    else if (anim == "slide_in_right") w.appearAnim = UIWidget::AppearAnim::SlideInRight;
+    else if (anim == "slide_in_up")    w.appearAnim = UIWidget::AppearAnim::SlideInUp;
+    else return;
+    w.appearDelay    = el.value("animation_delay", 0.0f);
+    w.appearDuration = el.value("animation_duration", 0.4f);
+}
+
 static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, float sx, float sy,
+        const MenuActions& actions, UISystem& ui, const std::string& startPanel,
+        const std::string& nsPrefix);
+
+// The per-type builder. buildMenuElement (below) wraps it to apply the common
+// appear-animation fields, so nested panel children get them too.
+static std::unique_ptr<UIWidget> buildMenuElementInner(const nlohmann::json& el, float sx, float sy,
         const MenuActions& actions, UISystem& ui, const std::string& startPanel,
         const std::string& nsPrefix) {
     std::string type = el.value("type", "");
@@ -581,12 +632,41 @@ static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, floa
         w->text = resolveTokens(el.value("text", ""), actions);
         w->isTitle = (el.value("font", "") == "title");
         w->position = posv; w->size = sizev;
+        // Same align/wrap semantics as MenuDefinition::buildWidget — this is the
+        // OTHER label path (menu scenes + intro/victory/credits/loading overlays);
+        // the screenshot probe caught it missing the align parse entirely.
+        const std::string al = el.value("align", "left");
+        if (al == "center")      w->align = UILabel::HAlign::Center;
+        else if (al == "right")  w->align = UILabel::HAlign::Right;
+        w->wrapWidth = el.value("wrapWidth", 0.0f) * sx;
+        if (w->wrapWidth <= 0.0f && el.contains("size") && sizev.x > 0.0f)
+            w->wrapWidth = sizev.x;   // authored width bounds the text
+        w->customColor = parseElemColor(el, "color");
+        w->customScale = el.value("scale", 0.0f);
         return w;
     }
     if (type == "image") {
         auto w = std::make_unique<UIImage>();
         w->imagePath = el.value("image", el.value("imagePath", ""));
         w->position = posv; w->size = sizev;
+        return w;
+    }
+    if (type == "panel") {
+        // Nested panel inside a menu screen — the container for scrollable
+        // content (lore pages, credits rolls, long option lists). Children
+        // recurse through this same builder, so anything a screen can hold,
+        // a panel can hold.
+        auto w = std::make_unique<UIPanel>();
+        w->id = el.value("id", "");
+        w->position = posv; w->size = sizev;
+        w->freeLayout = true;
+        w->showBackground = el.value("showBackground", true);
+        w->clipChildren = el.value("clip", true);
+        w->scrollable = el.value("scrollable", false);
+        if (el.contains("children") && el["children"].is_array())
+            for (const auto& c : el["children"])
+                if (auto cw = buildMenuElement(c, sx, sy, actions, ui, startPanel, nsPrefix))
+                    w->addChild(std::move(cw));
         return w;
     }
     if (type == "button") {
@@ -611,6 +691,9 @@ static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, floa
             else if (at == "close_submenu"){ w->onClick = [uip, startPanel, nsPrefix]{ showOnlyInNamespace(*uip, nsPrefix, nsPrefix + startPanel); }; }
             else if (at == "rebind")       { auto cb = actions.onRebindKey; std::string b = a.value("binding", ""); w->onClick = [cb, b] { if (cb) cb(b); }; }
         }
+        w->customColor   = parseElemColor(el, "color");
+        w->customBg      = parseElemColor(el, "bg");
+        w->customBgHover = parseElemColor(el, "bgHover");
         return w;
     }
     // Settings widgets — slider / checkbox / dropdown carrying a "setting" key are
@@ -669,6 +752,87 @@ static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, floa
     return nullptr;
 }
 
+static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, float sx, float sy,
+        const MenuActions& actions, UISystem& ui, const std::string& startPanel,
+        const std::string& nsPrefix) {
+    auto w = buildMenuElementInner(el, sx, sy, actions, ui, startPanel, nsPrefix);
+    if (w) parseAppearAnim(el, *w);
+    return w;
+}
+
+// Theme spec: a string names a preset (resources/ui/themes/<name>.json), an
+// object applies inline. Colors are [r,g,b] or [r,g,b,a] floats 0-1; dimension
+// keys are numbers. Unknown keys warn (typos should not fail silently); missing
+// keys keep their current value, so a theme may override just two colors.
+static void applyThemeJson(UITheme& t, const nlohmann::json& j) {
+    auto col = [&](const char* key, glm::vec4& out) {
+        if (!j.contains(key)) return true;
+        const auto& v = j[key];
+        if (!v.is_array() || v.size() < 3) return false;
+        out = {v[0].get<float>(), v[1].get<float>(), v[2].get<float>(),
+               v.size() >= 4 ? v[3].get<float>() : 1.0f};
+        return true;
+    };
+    auto num = [&](const char* key, float& out) {
+        if (!j.contains(key)) return true;
+        if (!j[key].is_number()) return false;
+        out = j[key].get<float>();
+        return true;
+    };
+    static const char* known[] = {
+        "panelBg","panelBorder","textColor","titleColor","disabledColor",
+        "buttonBg","buttonHover","buttonActive","buttonText",
+        "sliderTrack","sliderFill","sliderKnob","checkboxBg","checkboxCheck",
+        "dropdownBg","dropdownItem",
+        "textScale","titleScale","padding","itemSpacing","buttonHeight",
+        "sliderHeight","borderWidth","name","description"};
+    for (auto it = j.begin(); it != j.end(); ++it) {
+        bool ok = false;
+        for (const char* k : known) if (it.key() == k) { ok = true; break; }
+        if (!ok) LOG_WARN("Menu", "Theme: unknown key '{}' ignored", it.key());
+    }
+    bool ok = true;
+    ok &= col("panelBg", t.panelBg);           ok &= col("panelBorder", t.panelBorder);
+    ok &= col("textColor", t.textColor);       ok &= col("titleColor", t.titleColor);
+    ok &= col("disabledColor", t.disabledColor);
+    ok &= col("buttonBg", t.buttonBg);         ok &= col("buttonHover", t.buttonHover);
+    ok &= col("buttonActive", t.buttonActive); ok &= col("buttonText", t.buttonText);
+    ok &= col("sliderTrack", t.sliderTrack);   ok &= col("sliderFill", t.sliderFill);
+    ok &= col("sliderKnob", t.sliderKnob);
+    ok &= col("checkboxBg", t.checkboxBg);     ok &= col("checkboxCheck", t.checkboxCheck);
+    ok &= col("dropdownBg", t.dropdownBg);     ok &= col("dropdownItem", t.dropdownItem);
+    ok &= num("textScale", t.textScale);       ok &= num("titleScale", t.titleScale);
+    ok &= num("padding", t.padding);           ok &= num("itemSpacing", t.itemSpacing);
+    ok &= num("buttonHeight", t.buttonHeight); ok &= num("sliderHeight", t.sliderHeight);
+    ok &= num("borderWidth", t.borderWidth);
+    if (!ok) LOG_WARN("Menu", "Theme: one or more malformed values were skipped");
+}
+
+void applyTheme(UISystem& ui, const nlohmann::json& spec) {
+    if (spec.is_string()) {
+        const std::string name = spec.get<std::string>();
+        const std::string path = "resources/ui/themes/" + name + ".json";
+        std::ifstream f(path);
+        if (!f.is_open()) {
+            LOG_ERROR("Menu", "Theme preset '{}' not found at {} — keeping current theme",
+                      name, path);
+            return;
+        }
+        try {
+            nlohmann::json j; f >> j;
+            applyThemeJson(ui.getTheme(), j);
+            LOG_INFO("Menu", "Applied theme preset '{}'", name);
+        } catch (const std::exception& e) {
+            LOG_ERROR("Menu", "Theme preset '{}' failed to parse: {}", name, e.what());
+        }
+    } else if (spec.is_object()) {
+        applyThemeJson(ui.getTheme(), spec);
+        LOG_INFO("Menu", "Applied inline theme");
+    } else if (!spec.is_null()) {
+        LOG_WARN("Menu", "\"theme\" must be a preset name or an object — ignored");
+    }
+}
+
 void loadHudInto(UISystem& ui, const nlohmann::json* gameHud) {
     nlohmann::json hudDef;
     if (gameHud && !gameHud->is_null()) {
@@ -705,6 +869,8 @@ void loadHudInto(UISystem& ui, const nlohmann::json* gameHud) {
 void loadMenuInto(UISystem& ui, const nlohmann::json& layout, const MenuActions& actions) {
     unloadMenuFrom(ui);
     if (!layout.is_object() || !layout.contains("panels") || !layout["panels"].is_object()) return;
+
+    if (layout.contains("theme")) applyTheme(ui, layout["theme"]);
 
     const float W = static_cast<float>(ui.width());
     const float H = static_cast<float>(ui.height());
@@ -780,6 +946,8 @@ static void loadOverlayFromFile(UISystem& ui, const std::string& nsPrefix,
         return;
     }
     if (!layout.is_object() || !layout.contains("panels") || !layout["panels"].is_object()) return;
+
+    if (layout.contains("theme")) applyTheme(ui, layout["theme"]);
 
     const float W = static_cast<float>(ui.width());
     const float H = static_cast<float>(ui.height());

@@ -317,16 +317,48 @@ bool VulkanDevice::pickPhysicalDevice() {
     std::vector<VkPhysicalDevice> devices(deviceCount);
     vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
+    // Prefer a DISCRETE GPU among suitable devices — never "first suitable".
+    // On hybrid laptops the integrated GPU can enumerate as GPU0 (and the
+    // order can CHANGE with driver/Windows updates), so first-suitable
+    // silently put the whole engine on the iGPU: measured on ARES (Intel
+    // RaptorLake iGPU = GPU0, RTX 1000 Ada = GPU1) as ~13 FPS on a radius-3
+    // world with the NVIDIA card at 0% utilization, misdiagnosed twice
+    // before anyone checked WHICH device was rendering. Tie-break falls back
+    // to the first suitable device of any type.
+    VkPhysicalDevice firstSuitable = VK_NULL_HANDLE;
+    VkPhysicalDevice firstDiscrete = VK_NULL_HANDLE;
     for (const auto& device : devices) {
-        if (isDeviceSuitable(device)) {
-            physicalDevice = device;
-            break;
+        if (!isDeviceSuitable(device)) continue;
+        VkPhysicalDeviceProperties props;
+        vkGetPhysicalDeviceProperties(device, &props);
+        if (firstSuitable == VK_NULL_HANDLE) firstSuitable = device;
+        if (firstDiscrete == VK_NULL_HANDLE &&
+            props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+            firstDiscrete = device;
         }
     }
+    physicalDevice = (firstDiscrete != VK_NULL_HANDLE) ? firstDiscrete : firstSuitable;
 
     if (physicalDevice == VK_NULL_HANDLE) {
         LOG_ERROR("Vulkan", "Failed to find a suitable GPU!");
         return false;
+    }
+
+    // ALWAYS log the selection — the missing line that would have caught the
+    // iGPU misselection immediately.
+    {
+        VkPhysicalDeviceProperties props;
+        vkGetPhysicalDeviceProperties(physicalDevice, &props);
+        const char* type =
+            props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU   ? "discrete" :
+            props.deviceType == VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU ? "INTEGRATED" :
+            props.deviceType == VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU    ? "virtual" :
+            props.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU            ? "CPU" : "other";
+        LOG_INFO("Vulkan", "Selected GPU: {} ({}, {} device(s) enumerated)",
+                 props.deviceName, type, deviceCount);
+        if (props.deviceType != VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
+            LOG_WARN("Vulkan", "Rendering on a NON-DISCRETE GPU — expect severely reduced performance");
+        }
     }
 
     return true;

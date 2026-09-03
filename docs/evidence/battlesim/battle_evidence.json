@@ -1,0 +1,491 @@
+{
+  "samples": [
+    {
+      "t": 0.0,
+      "alive": 41,
+      "dead": 0,
+      "frame_ms": 15.5,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 20,
+        "crimson": 20
+      }
+    },
+    {
+      "t": 3.0,
+      "alive": 41,
+      "dead": 0,
+      "frame_ms": 9.76,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 20,
+        "crimson": 20
+      }
+    },
+    {
+      "t": 6.0,
+      "alive": 41,
+      "dead": 0,
+      "frame_ms": 9.23,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 20,
+        "crimson": 20
+      }
+    },
+    {
+      "t": 9.1,
+      "alive": 41,
+      "dead": 0,
+      "frame_ms": 20.11,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 20,
+        "crimson": 20
+      }
+    },
+    {
+      "t": 12.1,
+      "alive": 40,
+      "dead": 1,
+      "frame_ms": 11.9,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 20,
+        "crimson": 19
+      }
+    },
+    {
+      "t": 15.1,
+      "alive": 40,
+      "dead": 1,
+      "frame_ms": 9.13,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 20,
+        "crimson": 19
+      }
+    },
+    {
+      "t": 18.1,
+      "alive": 40,
+      "dead": 1,
+      "frame_ms": 12.36,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 20,
+        "crimson": 19
+      }
+    },
+    {
+      "t": 21.1,
+      "alive": 40,
+      "dead": 1,
+      "frame_ms": 13.56,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 20,
+        "crimson": 19
+      }
+    },
+    {
+      "t": 24.2,
+      "alive": 40,
+      "dead": 1,
+      "frame_ms": 10.6,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 20,
+        "crimson": 19
+      }
+    },
+    {
+      "t": 27.2,
+      "alive": 40,
+      "dead": 1,
+      "frame_ms": 11.39,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 20,
+        "crimson": 19
+      }
+    },
+    {
+      "t": 30.2,
+      "alive": 40,
+      "dead": 1,
+      "frame_ms": 15.6,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 20,
+        "crimson": 19
+      }
+    },
+    {
+      "t": 33.2,
+      "alive": 28,
+      "dead": 13,
+      "frame_ms": 11.61,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 14,
+        "crimson": 13
+      }
+    },
+    {
+      "t": 36.2,
+      "alive": 28,
+      "dead": 13,
+      "frame_ms": 11.38,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 14,
+        "crimson": 13
+      }
+    },
+    {
+      "t": 39.3,
+      "alive": 26,
+      "dead": 15,
+      "frame_ms": 12.05,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 14,
+        "crimson": 11
+      }
+    },
+    {
+      "t": 42.3,
+      "alive": 26,
+      "dead": 15,
+      "frame_ms": 9.39,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 14,
+        "crimson": 11
+      }
+    },
+    {
+      "t": 45.3,
+      "alive": 26,
+      "dead": 15,
+      "frame_ms": 11.56,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 14,
+        "crimson": 11
+      }
+    },
+    {
+      "t": 48.3,
+      "alive": 26,
+      "dead": 15,
+      "frame_ms": 16.07,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 14,
+        "crimson": 11
+      }
+    },
+    {
+      "t": 51.4,
+      "alive": 25,
+      "dead": 16,
+      "frame_ms": 14.1,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 14,
+        "crimson": 10
+      }
+    },
+    {
+      "t": 54.4,
+      "alive": 23,
+      "dead": 18,
+      "frame_ms": 11.72,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 14,
+        "crimson": 8
+      }
+    },
+    {
+      "t": 57.4,
+      "alive": 23,
+      "dead": 18,
+      "frame_ms": 12.67,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 14,
+        "crimson": 8
+      }
+    },
+    {
+      "t": 60.5,
+      "alive": 21,
+      "dead": 20,
+      "frame_ms": 15.34,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 12,
+        "crimson": 8
+      }
+    },
+    {
+      "t": 63.5,
+      "alive": 20,
+      "dead": 21,
+      "frame_ms": 9.55,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 12,
+        "crimson": 7
+      }
+    },
+    {
+      "t": 66.5,
+      "alive": 19,
+      "dead": 22,
+      "frame_ms": 12.82,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 12,
+        "crimson": 6
+      }
+    },
+    {
+      "t": 69.5,
+      "alive": 19,
+      "dead": 22,
+      "frame_ms": 9.35,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 12,
+        "crimson": 6
+      }
+    },
+    {
+      "t": 72.5,
+      "alive": 19,
+      "dead": 22,
+      "frame_ms": 11.89,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 12,
+        "crimson": 6
+      }
+    },
+    {
+      "t": 75.5,
+      "alive": 18,
+      "dead": 23,
+      "frame_ms": 11.68,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 12,
+        "crimson": 5
+      }
+    },
+    {
+      "t": 78.5,
+      "alive": 18,
+      "dead": 23,
+      "frame_ms": 15.63,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 12,
+        "crimson": 5
+      }
+    },
+    {
+      "t": 81.5,
+      "alive": 16,
+      "dead": 25,
+      "frame_ms": 15.74,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 11,
+        "crimson": 4
+      }
+    },
+    {
+      "t": 84.6,
+      "alive": 15,
+      "dead": 26,
+      "frame_ms": 11.47,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 11,
+        "crimson": 3
+      }
+    },
+    {
+      "t": 87.6,
+      "alive": 15,
+      "dead": 26,
+      "frame_ms": 11.48,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 11,
+        "crimson": 3
+      }
+    },
+    {
+      "t": 90.6,
+      "alive": 15,
+      "dead": 26,
+      "frame_ms": 13.19,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 11,
+        "crimson": 3
+      }
+    },
+    {
+      "t": 93.6,
+      "alive": 15,
+      "dead": 26,
+      "frame_ms": 12.64,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 11,
+        "crimson": 3
+      }
+    },
+    {
+      "t": 96.6,
+      "alive": 15,
+      "dead": 26,
+      "frame_ms": 11.25,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 11,
+        "crimson": 3
+      }
+    },
+    {
+      "t": 99.7,
+      "alive": 14,
+      "dead": 27,
+      "frame_ms": 10.8,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 11,
+        "crimson": 2
+      }
+    },
+    {
+      "t": 102.7,
+      "alive": 14,
+      "dead": 27,
+      "frame_ms": 9.28,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 11,
+        "crimson": 2
+      }
+    },
+    {
+      "t": 105.7,
+      "alive": 13,
+      "dead": 28,
+      "frame_ms": 11.79,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 11,
+        "crimson": 1
+      }
+    },
+    {
+      "t": 108.7,
+      "alive": 13,
+      "dead": 28,
+      "frame_ms": 12.32,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 11,
+        "crimson": 1
+      }
+    },
+    {
+      "t": 111.8,
+      "alive": 12,
+      "dead": 29,
+      "frame_ms": 15.66,
+      "factions": {
+        "(unaligned)": 1,
+        "azure": 11,
+        "crimson": 0
+      }
+    }
+  ],
+  "initial": {
+    "alive": 41,
+    "combatants": 41,
+    "dead": 0,
+    "factions": [
+      {
+        "alive": 1,
+        "dead": 0,
+        "faction": "(unaligned)",
+        "hp": 100.0,
+        "max_hp": 100.0
+      },
+      {
+        "alive": 20,
+        "dead": 0,
+        "faction": "azure",
+        "hp": 920.0,
+        "max_hp": 1040.0
+      },
+      {
+        "alive": 20,
+        "dead": 0,
+        "faction": "crimson",
+        "hp": 920.0,
+        "max_hp": 1040.0
+      }
+    ],
+    "fps": 106.78512573242188,
+    "frame_ms": 9.36460018157959
+  },
+  "final": {
+    "alive": 12,
+    "combatants": 41,
+    "dead": 29,
+    "factions": [
+      {
+        "alive": 1,
+        "dead": 0,
+        "faction": "(unaligned)",
+        "hp": 100.0,
+        "max_hp": 100.0
+      },
+      {
+        "alive": 11,
+        "dead": 9,
+        "faction": "azure",
+        "hp": 440.0,
+        "max_hp": 1040.0
+      },
+      {
+        "alive": 0,
+        "dead": 20,
+        "faction": "crimson",
+        "hp": 0.0,
+        "max_hp": 1040.0
+      }
+    ],
+    "fps": 77.61203002929688,
+    "frame_ms": 12.884599685668945
+  },
+  "hits_total": 328,
+  "friendly_fire": [],
+  "casts": 388,
+  "perf": {
+    "median_ms": 11.89,
+    "p95_ms": 15.74,
+    "median_fps": 84.1,
+    "samples": 38
+  }
+}

@@ -1,0 +1,725 @@
+{
+  "name": "BattleSim",
+  "description": "20 vs 20 real-time battle simulation: mixed melee and casters, two factions, no turns. A scale + behavior stress test for the combat stack.",
+  "version": "0.1",
+  "scenes": [
+    {
+      "id": "battle",
+      "name": "Battle Simulation",
+      "sceneType": "world",
+      "transitionStyle": "fade",
+      "worldDatabase": "worlds/battle.db",
+      "definition": {
+        "world": {
+          "type": "Flat",
+          "seed": 7,
+          "from": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "to": {
+            "x": 2,
+            "y": 0,
+            "z": 1
+          }
+        },
+        "player": {
+          "type": "animated",
+          "position": {
+            "x": 30,
+            "y": 18,
+            "z": 78
+          },
+          "_comment": "observer: 45+ units off the flank, beyond every aggro radius"
+        },
+        "camera": {
+          "position": {
+            "x": 30,
+            "y": 46,
+            "z": 74
+          },
+          "yaw": -90,
+          "pitch": -42,
+          "mode": "third_person"
+        },
+        "npcs": [
+          {
+            "name": "crimson_M00",
+            "position": {
+              "x": 22.0,
+              "y": 18,
+              "z": 8.0
+            },
+            "behavior": "combat",
+            "faction": "crimson",
+            "maxHealth": 60,
+            "weapon": "longsword",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "crimson_M01",
+            "position": {
+              "x": 22.0,
+              "y": 18,
+              "z": 10.4
+            },
+            "behavior": "combat",
+            "faction": "crimson",
+            "maxHealth": 60,
+            "weapon": "longsword",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "crimson_M02",
+            "position": {
+              "x": 22.0,
+              "y": 18,
+              "z": 12.8
+            },
+            "behavior": "combat",
+            "faction": "crimson",
+            "maxHealth": 60,
+            "weapon": "longsword",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "crimson_M03",
+            "position": {
+              "x": 22.0,
+              "y": 18,
+              "z": 15.2
+            },
+            "behavior": "combat",
+            "faction": "crimson",
+            "maxHealth": 60,
+            "weapon": "longsword",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "crimson_M04",
+            "position": {
+              "x": 22.0,
+              "y": 18,
+              "z": 17.6
+            },
+            "behavior": "combat",
+            "faction": "crimson",
+            "maxHealth": 60,
+            "weapon": "longsword",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "crimson_M05",
+            "position": {
+              "x": 22.0,
+              "y": 18,
+              "z": 20.0
+            },
+            "behavior": "combat",
+            "faction": "crimson",
+            "maxHealth": 60,
+            "weapon": "longsword",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "crimson_M06",
+            "position": {
+              "x": 22.0,
+              "y": 18,
+              "z": 22.4
+            },
+            "behavior": "combat",
+            "faction": "crimson",
+            "maxHealth": 60,
+            "weapon": "longsword",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "crimson_M07",
+            "position": {
+              "x": 22.0,
+              "y": 18,
+              "z": 24.8
+            },
+            "behavior": "combat",
+            "faction": "crimson",
+            "maxHealth": 60,
+            "weapon": "longsword",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "crimson_M08",
+            "position": {
+              "x": 22.0,
+              "y": 18,
+              "z": 27.2
+            },
+            "behavior": "combat",
+            "faction": "crimson",
+            "maxHealth": 60,
+            "weapon": "longsword",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "crimson_M09",
+            "position": {
+              "x": 22.0,
+              "y": 18,
+              "z": 29.599999999999998
+            },
+            "behavior": "combat",
+            "faction": "crimson",
+            "maxHealth": 60,
+            "weapon": "longsword",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "crimson_M10",
+            "position": {
+              "x": 22.0,
+              "y": 18,
+              "z": 32.0
+            },
+            "behavior": "combat",
+            "faction": "crimson",
+            "maxHealth": 60,
+            "weapon": "longsword",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "crimson_M11",
+            "position": {
+              "x": 22.0,
+              "y": 18,
+              "z": 34.4
+            },
+            "behavior": "combat",
+            "faction": "crimson",
+            "maxHealth": 60,
+            "weapon": "longsword",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "crimson_C00",
+            "position": {
+              "x": 17.0,
+              "y": 18,
+              "z": 9.2
+            },
+            "behavior": "caster",
+            "faction": "crimson",
+            "maxHealth": 40,
+            "spells": [
+              "fire_bolt",
+              "magic_missile"
+            ],
+            "aggro_range": 34.0,
+            "preferred_range": 14.0,
+            "cast_cooldown": 3.5,
+            "spell_damage": 5.0
+          },
+          {
+            "name": "crimson_C01",
+            "position": {
+              "x": 17.0,
+              "y": 18,
+              "z": 12.799999999999999
+            },
+            "behavior": "caster",
+            "faction": "crimson",
+            "maxHealth": 40,
+            "spells": [
+              "fire_bolt",
+              "magic_missile"
+            ],
+            "aggro_range": 34.0,
+            "preferred_range": 14.0,
+            "cast_cooldown": 3.5,
+            "spell_damage": 5.0
+          },
+          {
+            "name": "crimson_C02",
+            "position": {
+              "x": 17.0,
+              "y": 18,
+              "z": 16.4
+            },
+            "behavior": "caster",
+            "faction": "crimson",
+            "maxHealth": 40,
+            "spells": [
+              "fire_bolt",
+              "magic_missile"
+            ],
+            "aggro_range": 34.0,
+            "preferred_range": 14.0,
+            "cast_cooldown": 3.5,
+            "spell_damage": 5.0
+          },
+          {
+            "name": "crimson_C03",
+            "position": {
+              "x": 17.0,
+              "y": 18,
+              "z": 20.0
+            },
+            "behavior": "caster",
+            "faction": "crimson",
+            "maxHealth": 40,
+            "spells": [
+              "fire_bolt",
+              "magic_missile"
+            ],
+            "aggro_range": 34.0,
+            "preferred_range": 14.0,
+            "cast_cooldown": 3.5,
+            "spell_damage": 5.0
+          },
+          {
+            "name": "crimson_C04",
+            "position": {
+              "x": 17.0,
+              "y": 18,
+              "z": 23.599999999999998
+            },
+            "behavior": "caster",
+            "faction": "crimson",
+            "maxHealth": 40,
+            "spells": [
+              "fire_bolt",
+              "magic_missile"
+            ],
+            "aggro_range": 34.0,
+            "preferred_range": 14.0,
+            "cast_cooldown": 3.5,
+            "spell_damage": 5.0
+          },
+          {
+            "name": "crimson_C05",
+            "position": {
+              "x": 17.0,
+              "y": 18,
+              "z": 27.2
+            },
+            "behavior": "caster",
+            "faction": "crimson",
+            "maxHealth": 40,
+            "spells": [
+              "fire_bolt",
+              "magic_missile"
+            ],
+            "aggro_range": 34.0,
+            "preferred_range": 14.0,
+            "cast_cooldown": 3.5,
+            "spell_damage": 5.0
+          },
+          {
+            "name": "crimson_C06",
+            "position": {
+              "x": 17.0,
+              "y": 18,
+              "z": 30.799999999999997
+            },
+            "behavior": "caster",
+            "faction": "crimson",
+            "maxHealth": 40,
+            "spells": [
+              "fire_bolt",
+              "magic_missile"
+            ],
+            "aggro_range": 34.0,
+            "preferred_range": 14.0,
+            "cast_cooldown": 3.5,
+            "spell_damage": 5.0
+          },
+          {
+            "name": "crimson_C07",
+            "position": {
+              "x": 17.0,
+              "y": 18,
+              "z": 34.39999999999999
+            },
+            "behavior": "caster",
+            "faction": "crimson",
+            "maxHealth": 40,
+            "spells": [
+              "fire_bolt",
+              "magic_missile"
+            ],
+            "aggro_range": 34.0,
+            "preferred_range": 14.0,
+            "cast_cooldown": 3.5,
+            "spell_damage": 5.0
+          },
+          {
+            "name": "azure_M00",
+            "position": {
+              "x": 38.0,
+              "y": 18,
+              "z": 8.0
+            },
+            "behavior": "combat",
+            "faction": "azure",
+            "maxHealth": 60,
+            "weapon": "battleaxe",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "azure_M01",
+            "position": {
+              "x": 38.0,
+              "y": 18,
+              "z": 10.4
+            },
+            "behavior": "combat",
+            "faction": "azure",
+            "maxHealth": 60,
+            "weapon": "battleaxe",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "azure_M02",
+            "position": {
+              "x": 38.0,
+              "y": 18,
+              "z": 12.8
+            },
+            "behavior": "combat",
+            "faction": "azure",
+            "maxHealth": 60,
+            "weapon": "battleaxe",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "azure_M03",
+            "position": {
+              "x": 38.0,
+              "y": 18,
+              "z": 15.2
+            },
+            "behavior": "combat",
+            "faction": "azure",
+            "maxHealth": 60,
+            "weapon": "battleaxe",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "azure_M04",
+            "position": {
+              "x": 38.0,
+              "y": 18,
+              "z": 17.6
+            },
+            "behavior": "combat",
+            "faction": "azure",
+            "maxHealth": 60,
+            "weapon": "battleaxe",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "azure_M05",
+            "position": {
+              "x": 38.0,
+              "y": 18,
+              "z": 20.0
+            },
+            "behavior": "combat",
+            "faction": "azure",
+            "maxHealth": 60,
+            "weapon": "battleaxe",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "azure_M06",
+            "position": {
+              "x": 38.0,
+              "y": 18,
+              "z": 22.4
+            },
+            "behavior": "combat",
+            "faction": "azure",
+            "maxHealth": 60,
+            "weapon": "battleaxe",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "azure_M07",
+            "position": {
+              "x": 38.0,
+              "y": 18,
+              "z": 24.8
+            },
+            "behavior": "combat",
+            "faction": "azure",
+            "maxHealth": 60,
+            "weapon": "battleaxe",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "azure_M08",
+            "position": {
+              "x": 38.0,
+              "y": 18,
+              "z": 27.2
+            },
+            "behavior": "combat",
+            "faction": "azure",
+            "maxHealth": 60,
+            "weapon": "battleaxe",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "azure_M09",
+            "position": {
+              "x": 38.0,
+              "y": 18,
+              "z": 29.599999999999998
+            },
+            "behavior": "combat",
+            "faction": "azure",
+            "maxHealth": 60,
+            "weapon": "battleaxe",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "azure_M10",
+            "position": {
+              "x": 38.0,
+              "y": 18,
+              "z": 32.0
+            },
+            "behavior": "combat",
+            "faction": "azure",
+            "maxHealth": 60,
+            "weapon": "battleaxe",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "azure_M11",
+            "position": {
+              "x": 38.0,
+              "y": 18,
+              "z": 34.4
+            },
+            "behavior": "combat",
+            "faction": "azure",
+            "maxHealth": 60,
+            "weapon": "battleaxe",
+            "aggro_range": 26.0,
+            "attack_damage": 7.0,
+            "attack_cooldown": 1.6
+          },
+          {
+            "name": "azure_C00",
+            "position": {
+              "x": 43.0,
+              "y": 18,
+              "z": 9.2
+            },
+            "behavior": "caster",
+            "faction": "azure",
+            "maxHealth": 40,
+            "spells": [
+              "ray_of_frost",
+              "magic_missile"
+            ],
+            "aggro_range": 34.0,
+            "preferred_range": 14.0,
+            "cast_cooldown": 3.5,
+            "spell_damage": 5.0
+          },
+          {
+            "name": "azure_C01",
+            "position": {
+              "x": 43.0,
+              "y": 18,
+              "z": 12.799999999999999
+            },
+            "behavior": "caster",
+            "faction": "azure",
+            "maxHealth": 40,
+            "spells": [
+              "ray_of_frost",
+              "magic_missile"
+            ],
+            "aggro_range": 34.0,
+            "preferred_range": 14.0,
+            "cast_cooldown": 3.5,
+            "spell_damage": 5.0
+          },
+          {
+            "name": "azure_C02",
+            "position": {
+              "x": 43.0,
+              "y": 18,
+              "z": 16.4
+            },
+            "behavior": "caster",
+            "faction": "azure",
+            "maxHealth": 40,
+            "spells": [
+              "ray_of_frost",
+              "magic_missile"
+            ],
+            "aggro_range": 34.0,
+            "preferred_range": 14.0,
+            "cast_cooldown": 3.5,
+            "spell_damage": 5.0
+          },
+          {
+            "name": "azure_C03",
+            "position": {
+              "x": 43.0,
+              "y": 18,
+              "z": 20.0
+            },
+            "behavior": "caster",
+            "faction": "azure",
+            "maxHealth": 40,
+            "spells": [
+              "ray_of_frost",
+              "magic_missile"
+            ],
+            "aggro_range": 34.0,
+            "preferred_range": 14.0,
+            "cast_cooldown": 3.5,
+            "spell_damage": 5.0
+          },
+          {
+            "name": "azure_C04",
+            "position": {
+              "x": 43.0,
+              "y": 18,
+              "z": 23.599999999999998
+            },
+            "behavior": "caster",
+            "faction": "azure",
+            "maxHealth": 40,
+            "spells": [
+              "ray_of_frost",
+              "magic_missile"
+            ],
+            "aggro_range": 34.0,
+            "preferred_range": 14.0,
+            "cast_cooldown": 3.5,
+            "spell_damage": 5.0
+          },
+          {
+            "name": "azure_C05",
+            "position": {
+              "x": 43.0,
+              "y": 18,
+              "z": 27.2
+            },
+            "behavior": "caster",
+            "faction": "azure",
+            "maxHealth": 40,
+            "spells": [
+              "ray_of_frost",
+              "magic_missile"
+            ],
+            "aggro_range": 34.0,
+            "preferred_range": 14.0,
+            "cast_cooldown": 3.5,
+            "spell_damage": 5.0
+          },
+          {
+            "name": "azure_C06",
+            "position": {
+              "x": 43.0,
+              "y": 18,
+              "z": 30.799999999999997
+            },
+            "behavior": "caster",
+            "faction": "azure",
+            "maxHealth": 40,
+            "spells": [
+              "ray_of_frost",
+              "magic_missile"
+            ],
+            "aggro_range": 34.0,
+            "preferred_range": 14.0,
+            "cast_cooldown": 3.5,
+            "spell_damage": 5.0
+          },
+          {
+            "name": "azure_C07",
+            "position": {
+              "x": 43.0,
+              "y": 18,
+              "z": 34.39999999999999
+            },
+            "behavior": "caster",
+            "faction": "azure",
+            "maxHealth": 40,
+            "spells": [
+              "ray_of_frost",
+              "magic_missile"
+            ],
+            "aggro_range": 34.0,
+            "preferred_range": 14.0,
+            "cast_cooldown": 3.5,
+            "spell_damage": 5.0
+          }
+        ],
+        "triggers": []
+      }
+    }
+  ],
+  "combat": {
+    "mode": "real_time",
+    "decision_log": false,
+    "_comment": "real-time: CombatBehavior/RangedCasterBehavior drive every frame; no CombatDirector turns. Decision log off \u2014 40 NPCs would flood it."
+  },
+  "playerDefaults": {
+    "type": "animated",
+    "maxHealth": 100
+  }
+}

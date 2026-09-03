@@ -4727,6 +4727,19 @@ void RenderCoordinator::renderEntities(VkCommandBuffer commandBuffer) {
 // Screenshot Capture
 // ============================================================================
 
+glm::mat4 RenderCoordinator::getWorldViewMatrix() const {
+    // Absolute (eye-at-camera) view for CPU-side world->screen projection.
+    // The cached render matrix is camera-RELATIVE, so it must never be used
+    // for this — see getCachedViewMatrix's note.
+    return camera ? camera->getViewMatrix() : glm::mat4(1.0f);
+}
+
+glm::uvec2 RenderCoordinator::getSwapChainSize() const {
+    if (!vulkanDevice) return {0, 0};
+    const VkExtent2D e = vulkanDevice->getSwapChainExtent();
+    return {e.width, e.height};
+}
+
 std::vector<uint8_t> RenderCoordinator::captureScreenshot() {
     VkDevice device = vulkanDevice->getDevice();
     VkExtent2D extent = vulkanDevice->getSwapChainExtent();

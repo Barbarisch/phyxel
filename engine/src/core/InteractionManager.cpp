@@ -182,10 +182,24 @@ void InteractionManager::update(float dt, const glm::vec3& playerPos, const glm:
 }
 
 void InteractionManager::tryInteract(Scene::Entity* playerEntity) {
-    LOG_WARN("InteractionManager", "tryInteract: cooldown={:.3f} nearNPC={} nearType='{}' nearObj='{}'",
+    // NOTE: plain {} only — this logger prints "{:.3f}"-style specs literally
+    // and then MISALIGNS the remaining args (burned us twice).
+    LOG_WARN("InteractionManager", "tryInteract: cooldown={} nearNPC={} nearType='{}' nearObj='{}'",
              m_cooldownTimer, (m_nearestNPC != nullptr),
              m_nearest.found ? m_nearest.type : "",
              m_nearest.found ? m_nearest.objectId : "");
+    // Diagnostic sweep when nothing was in range: dump every "npc"-typed
+    // entity with distance/cast/radius so a dead interact is explainable
+    // from the log alone (the Hearthvale Bram case).
+    if (!m_nearestNPC && m_registry && playerEntity) {
+        for (const auto& [id, entity] : m_registry->getEntitiesByType("npc")) {
+            auto* npc = dynamic_cast<Scene::NPCEntity*>(entity);
+            const glm::vec3 d = entity->getPosition() - playerEntity->getPosition();
+            LOG_WARN("InteractionManager", "  npc '{}': dist={} castOK={} radius={}",
+                     id, glm::length(d), (npc != nullptr),
+                     npc ? npc->getInteractionRadius() : -1.0f);
+        }
+    }
     if (m_cooldownTimer > 0.0f) { LOG_WARN("InteractionManager", "  -> blocked by cooldown"); return; }
 
     // Determine if NPC wins priority

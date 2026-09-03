@@ -1,0 +1,23 @@
+﻿BG3-style TACTICAL camera - 2026-08-31 (user: "i dont like the top down camera angle. hard to
+follow. we need a baldurs gate 3 style camera. closer to the action, but still 3rd person or
+ariel in some way to show the battle")
+BEFORE: combat used OverheadRig - pitch -89 (straight down) in ORTHOGRAPHIC projection. No
+perspective, no height cues, no facing: combatants read as flat blobs on a plane
+(spellbar_armed.png / spellcast_mid_combat.png show it).
+AFTER: TacticalRig - PERSPECTIVE, angled (~48-52 deg default), close (14u boom), fov 50.
+Pitch is clamped to a tactical band [-68,-32] so it can never flip to straight-down or drop
+to ground level.
+CONTROLS (mouse-look is off during combat by design - the capture fix - so the camera gets
+explicit controls): Q/E orbit, R/F steepen/shallow, wheel zoom (only when the UI did not
+consume it, so scrollable panels still win).
+MEASURED across one live fight:
+  default   yaw -135.0  pitch -52.0  boom 15.9  elevation 53.9 deg
+  orbited   yaw -257.6 (Q x6)        boom 17.9
+  zoomed    boom 15.9 -> 10.0 (wheel x5)
+  steep     pitch -52 -> -68 (R x6), elevation 70.8 deg
+ACTION FRAMING (the "show the battle" half): the rig takes a focus point; the scaffold sets it
+to whoever is ACTING each frame. On the player's turn the framing stays over-the-shoulder
+(weight 0); on an enemy's turn the anchor slides halfway to the actor and the boom widens by
+half their separation, so both stay in frame. Measured on npc_Rat2's turn: camera 7.0 units
+from the acting rat, 3 combatants visible (cam_enemy_turn.png). Without this an enemy acting
+20 units away happened entirely off-screen.

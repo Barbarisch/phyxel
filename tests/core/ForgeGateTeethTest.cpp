@@ -244,7 +244,19 @@ TEST(ForgeGateTeeth, AllowInvalidSkipsProgramGateEnforcement) {
     params["allow_invalid"] = true;
     auto res = StructureBuildService::buildV2(params, deps);
     ASSERT_TRUE(res.contains("error")) << res.dump();
-    EXPECT_NE(res["error"].get<std::string>().find("ungrounded"), std::string::npos)
+    // The INVARIANT: the program gate proceeded (enforcement skipped) and the
+    // refusal came from a LATER stage. Do not pin WHICH later gate refuses —
+    // the original assertion pinned the grounding gate's "ungrounded" message
+    // and went stale the day the realize-stage chimney-siting check started
+    // refusing this rig first (still a later gate, invariant intact).
+    EXPECT_NE(res.value("refused_at", std::string()), "validate_program")
         << "allow_invalid should defer to the LATER gates, not fail at the program gate: "
         << res.dump();
+    bool programProceeded = false;
+    if (res.contains("gates") && res["gates"].is_array())
+        for (const auto& g : res["gates"])
+            if (g.value("stage", "") == "validate_program")
+                programProceeded = (g.value("outcome", "") == "proceeded");
+    EXPECT_TRUE(programProceeded)
+        << "gate trail must show validate_program proceeded under allow_invalid: " << res.dump();
 }

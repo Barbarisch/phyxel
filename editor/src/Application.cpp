@@ -267,6 +267,9 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         forceSystem,
         audioSystem
     );
+    // Event-catalog audio: place/activate become 3D events at the interaction
+    // point (falls back to the legacy 2D direct-file path if unset).
+    voxelInteractionSystem->setSoundRegistry(runtime->getSoundRegistry());
     LOG_INFO("Application", "VoxelInteractionSystem initialized successfully!");
 
     // Wire up material provider: in asset editor mode use m_assetEditorMaterial,
@@ -1546,21 +1549,25 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     apiServer->setSoundListHandler([this]() -> nlohmann::json {
         nlohmann::json result;
         nlohmann::json sounds = nlohmann::json::array();
-        // List available sound files from resources/sounds/
-        std::string soundDir = "resources/sounds";
+        // List available sound files from the configured sounds dir (project-
+        // overridable via EngineConfig.soundsSubdir — not a hardcoded path).
+        // Recursive: the library organizes into subfolders (ambience/, sfx/...),
+        // and names are reported relative so they round-trip into play_sound.
+        std::string soundDir = Core::AssetManager::instance().soundsDir();
         if (std::filesystem::exists(soundDir)) {
-            for (const auto& entry : std::filesystem::directory_iterator(soundDir)) {
+            for (const auto& entry : std::filesystem::recursive_directory_iterator(soundDir)) {
                 if (entry.is_regular_file()) {
                     std::string ext = entry.path().extension().string();
                     if (ext == ".wav" || ext == ".mp3" || ext == ".ogg" || ext == ".flac") {
-                        sounds.push_back(entry.path().filename().string());
+                        sounds.push_back(std::filesystem::relative(entry.path(), soundDir)
+                                             .generic_string());
                     }
                 }
             }
         }
         result["sounds"] = sounds;
         result["count"] = sounds.size();
-        result["channels"] = nlohmann::json::array({"Master", "SFX", "Music", "Voice"});
+        result["channels"] = nlohmann::json::array({"Master", "SFX", "Music", "Voice", "Ambience"});
         return result;
     });
 
@@ -1649,6 +1656,14 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         npcManager->setLightManager(&renderCoordinator->getLightManager());
         npcManager->setDayNightCycle(&renderCoordinator->getDayNightCycle());
         renderCoordinator->setNPCManager(npcManager.get());
+
+        // Ambience day/night gating: birds by day, owls/crickets/frogs by
+        // night (ambience.json "when" fields). Without this provider the
+        // director treats every hour as day and night scatter never fires.
+        if (auto* amb = runtime ? runtime->getAmbienceDirector() : nullptr) {
+            auto* cycle = &renderCoordinator->getDayNightCycle();
+            amb->setTimeProvider([cycle]() { return cycle->getTimeOfDay(); });
+        }
     }
     if (locationRegistry) {
         npcManager->setLocationRegistry(locationRegistry);
@@ -4219,6 +4234,10 @@ void Application::update(float deltaTime) {
     if (audioSystem) {
         glm::vec3 velocity = (deltaTime > 0.0f) ? (cameraPos - lastCameraPos) / deltaTime : glm::vec3(0.0f);
         audioSystem->update(cameraPos, cameraFront, cameraUp, velocity);
+        // Biome soundscape (the editor runs its own loop, not
+        // EngineRuntime::endFrame — standalone games get this there).
+        if (auto* amb = runtime ? runtime->getAmbienceDirector() : nullptr)
+            amb->update(deltaTime, cameraPos);
     }
     lastCameraPos = cameraPos;
 
@@ -9671,8 +9690,12 @@ bool Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, floa
             }
         }
         // Impact audio at the contact point: a solid wood THUNK for trunk
-        // bites, the soft whoosh for leaf swipes.
-        if (audioSystem)
+        // bites, the soft whoosh for leaf swipes — catalog events (with
+        // per-play pitch/volume jitter so repeated chops don't machine-gun),
+        // direct-file fallback if the registry isn't up.
+        if (auto* sndReg = runtime ? runtime->getSoundRegistry() : nullptr)
+            sndReg->playEvent(trunk ? "chop.impact.trunk" : "chop.impact.leaves", hitCenter);
+        else if (audioSystem)
             audioSystem->playSound3D(trunk ? "resources/sounds/axe_chop.wav"
                                            : "resources/sounds/whoosh.wav",
                                      hitCenter, Core::AudioChannel::SFX, 0.9f);
@@ -15241,6 +15264,7 @@ void Application::registerEnvAudioCommands() {
         if (s == "SFX") return Core::AudioChannel::SFX;
         if (s == "Music") return Core::AudioChannel::Music;
         if (s == "Voice") return Core::AudioChannel::Voice;
+        if (s == "Ambience") return Core::AudioChannel::Ambience;
         return deflt;
     };
 
@@ -15267,7 +15291,10 @@ void Application::registerEnvAudioCommands() {
         if (!audioSystem) return noAudio(r);
         std::string file = cmd.params.value("file", "");
         if (file.empty()) { r = {{"error", "Missing 'file' field"}}; return; }
-        std::string path = "resources/sounds/" + file;
+        // resolveSound, not a hardcoded "resources/sounds/" prefix — a game
+        // project's own sounds dir (EngineConfig.soundsSubdir) works too, and
+        // subfolder-organized libraries (ambience/, sfx/break/) resolve.
+        std::string path = Core::AssetManager::instance().resolveSound(file);
         float volume = cmd.params.value("volume", 1.0f);
         Core::AudioChannel channel = channelFrom(cmd.params.value("channel", std::string("SFX")), Core::AudioChannel::SFX);
         if (cmd.params.contains("x") && cmd.params.contains("y") && cmd.params.contains("z")) {
@@ -15287,6 +15314,22 @@ void Application::registerEnvAudioCommands() {
         float volume = cmd.params.value("volume", 1.0f);
         audioSystem->setChannelVolume(channelFrom(channelStr, Core::AudioChannel::Master), volume);
         r = {{"success", true}, {"channel", channelStr}, {"volume", volume}};
+    });
+
+    // GET /api/audio/state — same probe GameApiService serves in standalone
+    // builds: listener pose read back from miniaudio + pool counts.
+    reg.on("get_audio_state", [this, noAudio](const Core::APICommand&, nlohmann::json& r) {
+        if (!audioSystem) return noAudio(r);
+        const glm::vec3 lp = audioSystem->getListenerPosition();
+        r = {{"success", true},
+             {"listener", {{"x", lp.x}, {"y", lp.y}, {"z", lp.z}}},
+             {"active_sounds", audioSystem->activeSoundCount()},
+             {"pooled_sounds", audioSystem->pooledSoundCount()},
+             {"active_loops", audioSystem->activeLoopCount()}};
+        if (auto* amb = runtime ? runtime->getAmbienceDirector() : nullptr) {
+            r["ambience"] = {{"context", amb->activeContext()},
+                             {"crossfades", amb->crossfadeCount()}};
+        }
     });
 }
 

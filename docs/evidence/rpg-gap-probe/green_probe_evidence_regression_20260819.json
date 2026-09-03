@@ -1,0 +1,355 @@
+{
+  "probe_started": "2026-08-19 12:10:58",
+  "steps": [
+    {
+      "step": "fresh_dbs",
+      "data": {
+        "deleted": true
+      },
+      "t": 0.0
+    },
+    {
+      "step": "launch",
+      "data": {
+        "log": "green_runA.log",
+        "pid": 24264
+      },
+      "t": 0.04
+    },
+    {
+      "step": "screen_initial",
+      "data": {
+        "scene_id": "town",
+        "scene_type": "world",
+        "screen": "playing",
+        "source": "shell",
+        "success": true,
+        "transitioning": false,
+        "visible_menus": []
+      },
+      "t": 51.75
+    },
+    {
+      "step": "list_triggers",
+      "data": {
+        "ids": [
+          "win_quest",
+          "quest_chain",
+          "to_cellar",
+          "save_point",
+          "graceful_quit"
+        ]
+      },
+      "t": 51.77
+    },
+    {
+      "step": "fire_win_quest",
+      "data": {
+        "executed": [
+          "complete_objective",
+          "show_victory"
+        ],
+        "id": "win_quest",
+        "mode": "direct",
+        "success": true
+      },
+      "t": 51.79
+    },
+    {
+      "step": "quest_chain_state",
+      "data": {
+        "fired": true,
+        "id": "quest_chain",
+        "once": true,
+        "then": [
+          {
+            "name": "quest_done",
+            "type": "set_story_variable",
+            "value": true
+          }
+        ],
+        "when": {
+          "event": "objective_complete",
+          "id": "main_quest"
+        }
+      },
+      "t": 52.81
+    },
+    {
+      "step": "screen_after_win",
+      "data": {
+        "scene_id": "town",
+        "scene_type": "world",
+        "screen": "victory",
+        "source": "shell",
+        "success": true,
+        "transitioning": false,
+        "visible_menus": [
+          "victory:main"
+        ]
+      },
+      "t": 52.85
+    },
+    {
+      "step": "fire_to_cellar",
+      "data": {
+        "executed": [
+          "transition_scene"
+        ],
+        "id": "to_cellar",
+        "mode": "direct",
+        "success": true
+      },
+      "t": 53.38
+    },
+    {
+      "step": "transition_states_to_cellar",
+      "data": {
+        "states_seen": [
+          "loading",
+          "playing"
+        ]
+      },
+      "t": 61.41
+    },
+    {
+      "step": "fire_back_to_town",
+      "data": {
+        "executed": [
+          "transition_scene"
+        ],
+        "id": "back_to_town",
+        "mode": "direct",
+        "success": true
+      },
+      "t": 61.45
+    },
+    {
+      "step": "transition_states_back_to_town",
+      "data": {
+        "states_seen": [
+          "loading",
+          "playing"
+        ]
+      },
+      "t": 69.45
+    },
+    {
+      "step": "fire_save_point",
+      "data": {
+        "executed": [
+          "save_game"
+        ],
+        "id": "save_point",
+        "mode": "direct",
+        "success": true
+      },
+      "t": 69.48
+    },
+    {
+      "step": "fire_graceful_quit",
+      "data": {
+        "executed": [
+          "quit_game"
+        ],
+        "id": "graceful_quit",
+        "mode": "direct",
+        "success": true
+      },
+      "t": 69.99
+    },
+    {
+      "step": "process_exit",
+      "data": {
+        "returncode": 0
+      },
+      "t": 72.49
+    },
+    {
+      "step": "db_player_state",
+      "data": {
+        "rows": [
+          [
+            "default",
+            {
+              "camera": {
+                "pitch": -20.0,
+                "x": 16.0,
+                "y": 18.90770149230957,
+                "yaw": -135.0,
+                "z": 16.0
+              },
+              "deathCount": 0,
+              "health": 100.0,
+              "inventory": {
+                "creative": true,
+                "hotbar": [
+                  {
+                    "empty": true,
+                    "selected": true,
+                    "slot": 0
+                  },
+                  {
+                    "empty": true,
+                    "selected": false,
+                    "slot": 1
+                  },
+                  {
+                    "empty": true,
+                    "selected": false,
+                    "slot": 2
+                  },
+                  {
+                    "empty": true,
+                    "selected": false,
+                    "slot": 3
+                  },
+                  {
+                    "empty": true,
+                    "selected": false,
+                    "slot": 4
+                  },
+                  {
+                    "empty": true,
+                    "selected": false,
+                    "slot": 5
+                  },
+                  {
+                    "empty": true,
+                    "selected": false,
+                    "slot": 6
+                  },
+                  {
+                    "empty": true,
+                    "selected": false,
+                    "slot": 7
+                  },
+                  {
+                    "empty": true,
+                    "selected": false,
+                    "slot": 8
+                  }
+                ],
+                "selected_slot": 0,
+                "size": 36,
+                "slots": []
+              },
+              "level": 1,
+              "maxHealth": 100.0,
+              "spawnPoint": {
+                "x": 16.0,
+                "y": 25.0,
+                "z": 16.0
+              },
+              "xp": 0
+            }
+          ]
+        ]
+      },
+      "t": 73.0
+    },
+    {
+      "step": "launch",
+      "data": {
+        "log": "green_runB.log",
+        "pid": 55392
+      },
+      "t": 73.0
+    },
+    {
+      "step": "runB_screen",
+      "data": {
+        "scene_id": "town",
+        "scene_type": "world",
+        "screen": "playing",
+        "source": "shell",
+        "success": true,
+        "transitioning": false,
+        "visible_menus": []
+      },
+      "t": 88.66
+    },
+    {
+      "step": "runB_state",
+      "data": {
+        "camera": {
+          "pitch": -20.0,
+          "position": {
+            "x": 16.0,
+            "y": 18.90770149230957,
+            "z": 16.0
+          },
+          "yaw": -135.0
+        },
+        "entities": [
+          {
+            "id": "player",
+            "position": {
+              "x": 16.0,
+              "y": 17.0,
+              "z": 16.0
+            },
+            "type": "animated",
+            "uuid": "2c928c59-962b-4e9d-bc89-12382d8f8540"
+          },
+          {
+            "id": "npc_Elder",
+            "position": {
+              "x": 18.0,
+              "y": 17.0,
+              "z": 18.0
+            },
+            "type": "npc",
+            "uuid": "bf33460a-1b4f-4d01-9549-aaaf2f0d97b8"
+          }
+        ],
+        "entity_count": 2
+      },
+      "t": 88.69
+    }
+  ],
+  "green_runA.log": [
+    "\u001b[33m[12:10:58.765] [WARN] [TTS] Piper assets not found (run tools/setup_piper.py) \u2014 NPC voices disabled\u001b[0m",
+    "\u001b[31m[12:11:47.404] [ERROR] [Vulkan] Failed to allocate reflection descriptor sets!\u001b[0m",
+    "\u001b[32m[12:11:47.771] [INFO] [RpgGapProbe] Loaded 1 objective(s) from game.json\u001b[0m",
+    "\u001b[32m[12:11:47.773] [INFO] [HUD] HUD panel 'hud_objectives' loaded\u001b[0m",
+    "\u001b[32m[12:11:47.774] [INFO] [SceneManager] Loaded manifest with 2 scene(s), startScene='town'\u001b[0m",
+    "\u001b[32m[12:11:47.774] [INFO] [SceneManager] Loading initial scene: 'town'\u001b[0m",
+    "\u001b[32m[12:11:47.774] [INFO] [RpgGapProbe] Loading screen shown (-> 'Town')\u001b[0m",
+    "\u001b[33m[12:11:49.444] [WARN] [NPCEntity] Failed to load anim file 'character.anim' for NPC 'Elder'\u001b[0m",
+    "\u001b[32m[12:11:49.444] [INFO] [RpgGapProbe] Loading screen dismissed\u001b[0m",
+    "\u001b[32m[12:11:49.445] [INFO] [SceneManager] Scene 'town' loaded in {:.1f}ms\u001b[0m",
+    "\u001b[33m[12:11:49.483] [WARN] [GameShell] *** TEST API ENABLED on 127.0.0.1:8100 \u2014 dev/test build, do NOT ship ***\u001b[0m",
+    "\u001b[32m[12:11:50.020] [INFO] [TriggerSystem] Trigger 'quest_chain' fired (when: objective_complete)\u001b[0m",
+    "\u001b[32m[12:11:51.605] [INFO] [SceneManager] Beginning transition: 'town' -> 'cellar'\u001b[0m",
+    "\u001b[32m[12:11:51.605] [INFO] [RpgGapProbe] Loading screen shown (-> 'Cellar')\u001b[0m",
+    "\u001b[32m[12:11:51.605] [INFO] [SceneManager] Unloading scene 'town'...\u001b[0m",
+    "\u001b[32m[12:11:51.608] [INFO] [SceneManager] Scene 'town' unloaded\u001b[0m",
+    "\u001b[32m[12:11:51.831] [INFO] [RpgGapProbe] Loading screen dismissed\u001b[0m",
+    "\u001b[32m[12:11:51.831] [INFO] [SceneManager] Scene 'cellar' loaded in {:.1f}ms\u001b[0m",
+    "\u001b[32m[12:11:59.675] [INFO] [SceneManager] Beginning transition: 'cellar' -> 'town'\u001b[0m",
+    "\u001b[32m[12:11:59.675] [INFO] [RpgGapProbe] Loading screen shown (-> 'Town')\u001b[0m",
+    "\u001b[32m[12:11:59.675] [INFO] [SceneManager] Unloading scene 'cellar'...\u001b[0m",
+    "\u001b[32m[12:11:59.677] [INFO] [SceneManager] Scene 'cellar' unloaded\u001b[0m",
+    "\u001b[33m[12:11:59.856] [WARN] [NPCEntity] Failed to load anim file 'character.anim' for NPC 'Elder'\u001b[0m",
+    "\u001b[32m[12:11:59.856] [INFO] [SceneManager] Restored re-entry position ({:.1f}, {:.1f}, {:.1f}) for scene '16'\u001b[0m",
+    "\u001b[32m[12:11:59.856] [INFO] [RpgGapProbe] Loading screen dismissed\u001b[0m",
+    "\u001b[32m[12:11:59.856] [INFO] [SceneManager] Scene 'town' loaded in {:.1f}ms\u001b[0m",
+    "\u001b[32m[12:12:07.714] [INFO] [RpgGapProbe] Player profile saved (player_state table)\u001b[0m",
+    "\u001b[32m[12:12:08.248] [INFO] [RpgGapProbe] Player profile saved (player_state table)\u001b[0m"
+  ],
+  "green_runB.log": [
+    "\u001b[33m[12:12:11.604] [WARN] [TTS] Piper assets not found (run tools/setup_piper.py) \u2014 NPC voices disabled\u001b[0m",
+    "\u001b[31m[12:12:25.732] [ERROR] [Vulkan] Failed to allocate reflection descriptor sets!\u001b[0m",
+    "\u001b[32m[12:12:25.750] [INFO] [RpgGapProbe] Loaded 1 objective(s) from game.json\u001b[0m",
+    "\u001b[32m[12:12:25.750] [INFO] [HUD] HUD panel 'hud_objectives' loaded\u001b[0m",
+    "\u001b[32m[12:12:25.750] [INFO] [SceneManager] Loaded manifest with 2 scene(s), startScene='town'\u001b[0m",
+    "\u001b[32m[12:12:25.750] [INFO] [SceneManager] Loading initial scene: 'town'\u001b[0m",
+    "\u001b[32m[12:12:25.750] [INFO] [RpgGapProbe] Loading screen shown (-> 'Town')\u001b[0m",
+    "\u001b[33m[12:12:26.797] [WARN] [NPCEntity] Failed to load anim file 'character.anim' for NPC 'Elder'\u001b[0m",
+    "\u001b[32m[12:12:26.798] [INFO] [RpgGapProbe] Loading screen dismissed\u001b[0m",
+    "\u001b[32m[12:12:26.798] [INFO] [RpgGapProbe] Restored saved player profile\u001b[0m",
+    "\u001b[32m[12:12:26.798] [INFO] [SceneManager] Scene 'town' loaded in {:.1f}ms\u001b[0m",
+    "\u001b[33m[12:12:26.832] [WARN] [GameShell] *** TEST API ENABLED on 127.0.0.1:8100 \u2014 dev/test build, do NOT ship ***\u001b[0m"
+  ]
+}

@@ -1,0 +1,89 @@
+{
+  "steps": [
+    {
+      "step": "steer_arrived",
+      "t": 65.0,
+      "data": {
+        "iter": 2
+      }
+    },
+    {
+      "step": "steer_stopped",
+      "t": 92.5,
+      "data": {
+        "iter": 30
+      }
+    },
+    {
+      "step": "steer_stopped",
+      "t": 100.4,
+      "data": {
+        "iter": 2
+      }
+    },
+    {
+      "step": "encounter",
+      "t": 102.0,
+      "data": {
+        "in_combat": true
+      }
+    },
+    {
+      "step": "PASS B1 spellbar button consumes the click",
+      "t": 103.1,
+      "data": {
+        "consumed": true,
+        "success": true,
+        "x": 1150.0,
+        "y": 589.0
+      }
+    },
+    {
+      "step": "shot_armed",
+      "t": 104.1,
+      "data": {
+        "path": "screenshots/shot_1787166353280.png"
+      }
+    },
+    {
+      "step": "PASS B2 armed button glows ember vs neighbor",
+      "t": 104.2,
+      "data": {
+        "armed": [
+          255,
+          216,
+          137
+        ],
+        "unarmed": [
+          173,
+          129,
+          89
+        ]
+      }
+    },
+    {
+      "step": "combat_resolved",
+      "t": 117.6,
+      "data": {
+        "iter": 6
+      }
+    },
+    {
+      "step": "PASS B3 encounter resolved by HOTBAR casts (real cursor + injected LMB)",
+      "t": 117.6,
+      "data": {
+        "hotbar_casts": 2
+      }
+    }
+  ],
+  "armed_lines": [
+    "\u001b[32m[15:05:52.434] [INFO] [Hearthvale] Spell armed: 'guiding_bolt'\u001b[0m",
+    "\u001b[32m[15:06:02.312] [INFO] [Hearthvale] Spell armed: 'guiding_bolt'\u001b[0m"
+  ],
+  "cast_lines": [
+    "\u001b[32m[15:06:02.829] [INFO] [Hearthvale] Combat click -> cast 'guiding_bolt' at 'npc_Rat' (ok)\u001b[0m"
+  ],
+  "player_casts": [
+    "\u001b[32m[15:06:02.825] [INFO] [PlayerTurn] Player casts 'guiding_bolt' at 'npc_Rat' -> 18 dmg.\u001b[0m"
+  ]
+}
