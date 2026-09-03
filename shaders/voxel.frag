@@ -1,6 +1,7 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
 #include "lighting.glsl"   // shared ambient / shadow / aerial-perspective model
+#include "wind.glsl"       // wind debug view (mode 3): per-pixel gust-field map on terrain
 
 layout(location = 0) in flat uint textureIndex;  // from vertex shader
 layout(location = 1) in vec2 texCoord;           // from vertex shader
@@ -54,6 +55,16 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 moonColor;
     float exposure;
     int   tonemapCurve;
+    // Celestial bodies (prefix padding to reach the wind-debug fields below).
+    vec4 skyBodyDirRadius[4];
+    vec4 skyBodyDisc[4];
+    vec4 skyBodyLitDir[4];
+    vec4 skyBodyLight[4];
+    int  skyBodyCount;
+    // Wind debug view (mode 3): A = dirX/dirZ/scrollX/scrollZ, B = gustScale/aniso/base/gustAmp
+    // (base+gustAmp pre-multiplied by the grass master strength on the CPU).
+    vec4 windDebugA;
+    vec4 windDebugB;
 } ubo;
 
 layout(set = 0, binding = 1) uniform sampler2DArray textureArray;     // class 0 albedo: 512px
@@ -433,6 +444,26 @@ void main() {
     // camera-relative in this pass, so it IS the camera->fragment vector.
     color = phxAerialPerspective(color, inWorldPos, ubo.sunDirection, ubo.sunColor, ubo.hazeHorizonColor, ubo.hazeZenithColor);
 
+    // Debug view 3 — WIND FIELD MAP: the terrain itself painted by the gust field, white
+    // (calm) -> red -> black (peak lean), evaluated per PIXEL with the exact windGustAtEx the
+    // grass runs. This is the ground truth for the field's SHAPE: mode 2's per-blade colouring
+    // cannot show whether a front is a line or a wave (blades are noisy, sub-pixel at distance,
+    // and end-on from above). Grass hides itself in this mode so the map is unobstructed.
+    if (ubo.debugShadowMode == 3) {
+        // Absolute world position, wrapped to the hash domain (same recipe as the varied hash:
+        // camera-relative fragment pos minus relative chunk origin recovers the chunk-local
+        // offset exactly, then the absolute origin re-anchors it).
+        vec3 wpAbs = vChunkBaseAbs + (inWorldPos - vChunkBaseRel);
+        float g = windGustAt(mod(wpAbs.xz, 2048.0), ubo.windDebugA.zw, ubo.windDebugA.xy,
+                             ubo.windDebugB.x, ubo.windDebugB.y);
+        // Ramp on the RAW field value (not the amplitude-scaled lean): the map's job is the
+        // field's SHAPE, and thresholds tied to speed/gustAmp washed it out to near-white at
+        // moderate settings. g = gust^2 in [0,1], typical swing ~0.05-0.55 (probe measured).
+        vec3 c = mix(vec3(1.0), vec3(0.85, 0.05, 0.05), smoothstep(0.06, 0.30, g));
+        c      = mix(c, vec3(0.0),                      smoothstep(0.32, 0.60, g));
+        outColor = vec4(c, 1.0);
+        return;
+    }
     // Debug view 2 is the GRASS WIND ramp. Everything that is not grass must go flat and
     // dark, or the shadow-only view underneath drowns the signal it exists to show.
     if (ubo.debugShadowMode == 2) { outColor = vec4(0.05, 0.05, 0.06, 1.0); return; }

@@ -3399,6 +3399,16 @@ void RenderCoordinator::drawFrame() {
     windSystem.tick(elapsedTime);
     if (grassPipeline)   grassPipeline->params().wind   = windSystem.state();
     if (foliagePipeline) foliagePipeline->params().wind = windSystem.state();
+    // Wind debug view (debugShadowMode 3): hand the field scalars to the shared UBO so TERRAIN
+    // fragments can paint the gust field as a per-pixel map (voxel.frag). base/gustAmp carry the
+    // grass master strength so the map's intensity ramp matches what blades actually do.
+    if (vulkanDevice) {
+        const auto& ws = windSystem.state();
+        const float k = grassPipeline ? grassPipeline->params().windStrength : 1.0f;
+        vulkanDevice->setWindDebugUniforms(
+            glm::vec4(ws.dir.x, ws.dir.y, ws.scroll.x, ws.scroll.y),
+            glm::vec4(ws.gustScale, ws.aniso, ws.base * k, ws.gustAmp * k));
+    }
 
     // Grass interaction displacers (docs/VegetationWindPlan.md Phase 4 v1): characters within
     // the grass radius bend blades aside. Collected from the same sources the character passes

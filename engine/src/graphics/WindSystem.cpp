@@ -64,18 +64,16 @@ void WindSystem::tick(float t) {
     m_state.gustAmp = 1.5f * speed * (0.25f + 0.75f * gusty);
 
     // Gust field shape: stronger wind drives faster-travelling fronts; gustier weather forms
-    // larger coherent fronts (lower spatial frequency) that read as waves sweeping the field.
-    // Calibrated so the default speed 0.35 gives 2.5 u/s — the approved travel rate. The old
-    // 2.0 + 10.0*speed put the default at 5.5, which read as hurried.
-    m_state.gustSpeed = 1.0f + 4.3f * speed;
-    // Calibrated so the default gustiness 0.45 gives 0.045 — fronts ~22u deep, and ~110u
-    // crosswind once State::aniso stretches them. Gustier weather still means longer fronts.
-    // (History, so nobody relitigates it from half the story: an earlier pass lowered this to
-    // 0.024-0.010*gusty for 42-71u fronts, then it was tuned BACK by eye — at that size a front
-    // was larger than anything you could see moving. This curve is the surviving verdict.)
+    // larger coherent patches (lower spatial frequency) that read as waves sweeping the field.
+    // RECALIBRATED 2026-09-03 to land on the user-approved look at the new defaults
+    // (speed 1.0, gustiness 0.5 -> gustSpeed 10 u/s, gustScale 0.020, i.e. ~30x65u patches
+    // with the gradient-noise field at aniso 2.2). The old curves (1+4.3*speed,
+    // 0.055-0.022*gusty) were tuned for the pre-gradient value-noise field, whose lattice
+    // plateaus made features read ~2x larger than the same frequency does now.
     // NOTE this OVERWRITES the header default every update — setting State in the header alone
     // does nothing, which is a good way to convince yourself a knob is broken.
-    m_state.gustScale = 0.055f - 0.022f * gusty;
+    m_state.gustSpeed = 1.0f + 9.0f * speed;
+    m_state.gustScale = 0.030f - 0.020f * gusty;
 
     // Tuning overrides last, so they win over the derivation instead of being erased by it.
     if (m_settings.gustScaleOverride > 0.0f) m_state.gustScale = m_settings.gustScaleOverride;

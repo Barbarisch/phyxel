@@ -18,12 +18,14 @@ class WindSystem {
 public:
     /// User-facing knobs (POST /api/debug/wind). These are drift targets, not per-frame values.
     struct Settings {
-        // DEFAULTS ARE THE 2026-08-05 APPROVED LOOK, tuned live against the wind debug view
-        // (/api/debug/shadow {"mode":2}) and signed off by eye. Changing any of them changes the
-        // shipped wind; the derivations below are calibrated so THESE values land on it.
+        // DEFAULTS ARE THE 2026-09-03 APPROVED LOOK (supersedes 2026-08-05), tuned live by the
+        // user against the mode-3 field map + the real grass and signed off ("this is
+        // acceptable"): lively weather with ~30x65u organic gust patches sweeping at 10 u/s.
+        // The derivations in tick() are calibrated so THESE values land on the approved
+        // gustScale 0.02 / gustSpeed 10 — change one and the other must move.
         float dirDegrees = 15.0f;  ///< mean direction in the XZ plane (0 = +X, CCW toward +Z)
-        float speed      = 0.35f;  ///< 0 = dead calm (vegetation perfectly still) .. 1 = storm
-        float gustiness  = 0.45f;  ///< 0 = steady laminar flow .. 1 = strongly gusting
+        float speed      = 1.0f;   ///< 0 = dead calm (vegetation perfectly still) .. 2 = storm
+        float gustiness  = 0.5f;   ///< 0 = steady laminar flow .. 1 = strongly gusting
         /// TUNING OVERRIDES (negative = derive from speed/gustiness as normal).
         /// gustScale/gustSpeed are normally recomputed every update() from speed+gustiness, which
         /// means a value poked into State lasts exactly one frame — long enough to look like the
@@ -42,19 +44,18 @@ public:
         float     base      = 0.0f;        ///< steady bend strength (normalized, ~0..1)
         float     gustAmp   = 0.0f;        ///< gust bend amplitude riding on top of base
         /// Gust spatial frequency (1 / world units). RE-DERIVED every tick() as
-        /// 0.055 - 0.022*gustiness (0.045 at defaults: fronts ~22u deep, ~110u crosswind with
-        /// aniso) — this initializer never survives a frame; use Settings::gustScaleOverride to
-        /// actually pin it. (A 2026-08-05 pass lowered the curve for 42-71u fronts and was tuned
-        /// back by eye; the .cpp comment carries that verdict.)
-        float     gustScale = 0.045f;
-        float     gustSpeed = 6.0f;        ///< gust front travel speed (world units / second)
-        /// How many times longer a gust front is CROSSWIND than along-wind. 1 = isotropic blobs
-        /// (what shipped before 2026-08-05 - scrolled lumps, which is why wind never read as
-        /// sweeping across a field). Higher stretches fronts into bands that cross the meadow.
-        /// MEASURED with tools/wind_field_probe.py, which evaluates windGustAt on the CPU:
-        /// aniso 1.0 -> 0.92x measured; aniso 5.0 at gustScale 0.018 -> 3.40x, i.e. fronts about
-        /// 31u deep and 107u wide, taking ~4.5s to pass at gustSpeed 7.
-        float     aniso     = 5.0f;
+        /// 0.030 - 0.020*gustiness (0.020 at defaults: patches ~30u along-wind, ~65u crosswind
+        /// with aniso) — this initializer never survives a frame; use Settings::gustScaleOverride
+        /// to actually pin it.
+        float     gustScale = 0.020f;
+        float     gustSpeed = 10.0f;       ///< gust front travel speed (world units / second)
+        /// How many times longer a gust patch is CROSSWIND than along-wind. 1 = isotropic blobs.
+        /// ⚑5.0 -> 2.2 on 2026-09-03: at 5.0 a front was 110-300u long crosswind — LONGER THAN A
+        ///  SMALL WORLD IS WIDE, so every gust crossed the field edge-to-edge and read as a
+        ///  straight full-width line no matter how wavy its edges were. 2.2 keeps patches
+        ///  elongated (cat's paws) while several fit on even a 96u-wide stage. Not derived from
+        ///  speed/gustiness; persists across ticks.
+        float     aniso     = 2.2f;
         /// ACCUMULATED gust-field scroll, world units. Integrated as dir*gustSpeed*dt every tick.
         /// ⚑THIS MUST NOT BE RECOMPUTED AS dir*gustSpeed*t. The wind DIRECTION wanders (+/-18 deg
         ///  at default gustiness), and multiplying a wandering direction by ELAPSED TIME means a

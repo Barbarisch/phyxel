@@ -336,6 +336,9 @@ void main() {
 
     float H = pc.bladeHeight * heightMul * edgeTaper * (0.94 + 0.12 * h2);
     if (boxy) H = max(round(H * 9.0), 2.0) / 9.0;
+    // Wind debug view 3 (voxel.frag): the TERRAIN paints the gust field per pixel; blades hide
+    // so the map is unobstructed (zero height = zero-area triangles = no fragments).
+    if (ubo.debugShadowMode == 3) H = 0.0;
 
     // Sprout-in growth: staggered start per blade, then held at full height.
     float plant = h0 * pc.growDuration * 0.6;
@@ -512,9 +515,23 @@ void main() {
     // it was the flutter and response-spread reductions made at the same time, not this.
     // The jitter was SPATIAL, not temporal — small isotropic blobs (12u across) rather than
     // field-scale fronts. That is fixed in windGustAt by anisotropy, where it actually lives.
-    float gust = windGustAt(fieldP, vec2(pc.windScrollX, pc.windScrollZ), wd,
-                            pc.gustScale, pc.windAniso);
+    float meander;   // local front-meander in [-0.5, 0.5] — the warp noise (wind.glsl)
+    float gust = windGustAtEx(fieldP, vec2(pc.windScrollX, pc.windScrollZ), wd,
+                              pc.gustScale, pc.windAniso, meander);
     float bend = (pc.windBase + pc.gustAmp * gust) * response * pc.windStrength * windDamp;
+
+    // SWAY SWIRL (2026-09-03, part of the straight-front fix): rotate this blade's sway heading
+    // by the local front meander, so grass inside a gust FANS where the front bulges instead of
+    // combing in lockstep along the one global heading — a wavy band of uniformly-combed blades
+    // still reads mechanical. Reuses the warp noise already computed by windGustAtEx (zero extra
+    // samples), so the swirl is spatially coherent, travels with the field, and can never
+    // desynchronise neighbours into shimmer (the per-blade-variation trap above). ±0.5 * 0.45
+    // rad = up to ~±13 degrees. Wind-0 stillness holds: bend and flutter are both 0 at speed 0,
+    // so the rotated axis multiplies nothing.
+    const float kSwirlRad = 0.45;
+    float swirlA = meander * kSwirlRad;
+    float swirlC = cos(swirlA), swirlS = sin(swirlA);
+    vec2  wdl = vec2(wd.x * swirlC - wd.y * swirlS, wd.x * swirlS + wd.y * swirlC);
 
     // Gentle slow flutter perpendicular to the wind, amplitude ∝ local gust strength — calm air
     // means calm grass (windBase+gustAmp are both 0 at speed 0, so everything below is exactly 0).
@@ -523,7 +540,17 @@ void main() {
     // "boiling grass" look. The phase is now DOMINANTLY SPATIAL and low-frequency, so neighbours
     // agree and the flutter reads as a slow ripple crossing the field. Frequency 1.9 -> 0.6 Hz,
     // amplitude 0.055 -> 0.018, per-blade phase contribution cut to a fifth.
-    float phase   = (cellHash.x + root2.x) * 0.55 + (cellHash.z + root2.y) * 0.43
+    // ⚑THE PHASE MUST NOT BE LINEAR IN POSITION (2026-09-03, user: "i still see the straight
+    // lines"). The old phase — 0.55*x + 0.43*z — makes sin(wt + k·p) a PLANE WAVE: perfectly
+    // straight parallel ripple lines ~9u apart sweeping the field at ~16 u/s, faster and
+    // crisper than any gust front, and therefore THE straight lines the eye locks onto (the
+    // wind sheen made them luminous). No amount of gust-field warping can fix a straight line
+    // manufactured downstream of the gust field. The phase is now a smooth 2D noise of
+    // position (~8u features, period divides the 2048 wrap): iso-phase contours are blobs, so
+    // the flutter reads as organic shimmering patches. Neighbours within a couple of voxels
+    // still agree (the anti-boiling doctrine above constrains PER-BLADE phase, which stays at
+    // the same small h3 weight); travel across the field remains the gust field's job.
+    float phase   = vnoise2p(fieldP * 0.125, 256.0) * 6.2831853
                   + h3 * 1.2566371;   // 0.2 * 2pi
     float flutter = sin(ubo.elapsedTime * max(pc.flutterFreq, 0.0) * 6.2831853 + phase) * 0.018
                   * (pc.gustAmp * gust + 0.15 * pc.windBase) * pc.windStrength * windDamp;
@@ -545,7 +572,7 @@ void main() {
     // to BOTH: a pushed blade bows over and hugs the ground, it doesn't stretch sideways.
     float bendExp = mix(1.3, 2.4, stiffness);
     float profile = pow(v, bendExp);
-    vec2 swayDir = wd * bend + vec2(-wd.y, wd.x) * flutter + pushXZ + restSway;
+    vec2 swayDir = wdl * bend + vec2(-wdl.y, wdl.x) * flutter + pushXZ + restSway;
     float swayMag = length(swayDir);
     if (swayMag > 1.4) swayDir *= 1.4 / swayMag;   // total-bend clamp (wind + push composed)
     vec3 windOffset = vec3(swayDir.x, 0.0, swayDir.y) * (profile * H * 2.0);

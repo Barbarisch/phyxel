@@ -99,6 +99,19 @@ void main() {
     vec3  sunTerm = ubo.sunColor * (0.85 * shadowFactor * phxSkyGate(vSky));
     vec3  lit = col * ao * (ambient + sunTerm) + col * vBlock * 0.5;
 
+    // ── WIND SHEEN (2026-09-03) ─────────────────────────────────────────────────────────────
+    // A gust crossing a real field is seen as a LIGHT band sweeping the grass — bent blades tilt
+    // their faces toward the sky/sun and brighten — far more than as silhouette displacement,
+    // which is sub-pixel past ~20u. Blades here are lit with a fixed up-normal (no per-blade
+    // N·L), so without this term bending changes their shading by exactly nothing and wind is
+    // invisible at any distance ("almost impossible to see", user). Brightness rides the lean
+    // fraction: upright ~0.9x, bowed in a gust up to ~1.4x — gust waves read as travelling
+    // luminance bands at every distance. Quadratic so the static rest-lean (~0.1) barely
+    // registers; time-independent at wind 0 (rest lean is static), so the stillness invariant
+    // holds. Gated by skylight so cave/indoor grass doesn't glow.
+    float sheen = clamp(vWindLean / 0.9, 0.0, 1.0);
+    lit *= 1.0 + (0.5 * sheen * sheen - 0.10) * phxSkyGate(vSky);
+
     // ── WIND DEBUG VIEW (POST /api/debug/shadow {"mode":2}) ─────────────────────────────────
     // Colours every blade by how hard the wind is pushing it RIGHT NOW, so a passing gust reads as
     // a coloured band sweeping the field and a dead field reads as uniformly dark. Added because

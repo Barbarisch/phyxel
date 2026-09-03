@@ -51,12 +51,12 @@ public:
         /// shadow casting at all. Rides the previously-unused `widthScale` push constant, so
         /// no push-constant layout change. POST /api/debug/grass {"bladeWidth": N}.
         float    bladeWidthScale = 1.0f;
-        /// Master wind amplitude. Raised 0.50 -> 1.0 on 2026-08-21 (user: "wind is way too
-        /// slight"; target = lively meadow). At the WindSystem defaults this lands a ~15 degree
-        /// average lean with gusts bowing blades to ~43 degrees — computed from
-        /// leanSin ≈ 2*(base + gustAmp*gust)*windStrength, verified in the wind debug view.
-        /// The lean cap (64 degrees) makes raising this safe.
-        float    windStrength   = 1.0f;   ///< master wind amplitude (scaled by blade height in-shader)
+        /// Master wind amplitude. 1.0 -> 1.5 on 2026-09-03, part of the user-approved wind look
+        /// (with WindSystem defaults speed 1.0 / gustiness 0.5): gust cores now saturate the
+        /// 64-degree lean cap, so gusts read as patches of flattened grass sweeping through.
+        /// The lean cap + length preservation make raising this safe — blades pin at the cap
+        /// instead of stretching or sinking. (History: 0.13 -> 0.50 -> 1.0 -> 1.5.)
+        float    windStrength   = 1.5f;   ///< master wind amplitude (scaled by blade height in-shader)
         float    growDuration   = 6.0f;   ///< seconds for the sprout-in ramp
         /// Blades on a FULLY grassy voxel. Raised 30 -> 55 on 2026-08-21 (user: "noticeably
         /// denser"), together with the patch-field coverage (mean keep ~83%, so ~46 visible in

@@ -14231,8 +14231,13 @@ void Application::registerEffectsCommands() {
         //       "is the wind actually moving?" was costing whole rounds to answer by eye.
         // ⚑This used to collapse every non-zero value to 1 (`!= 0 ? 1 : 0`), so mode 2 silently
         //  selected the shadow view — the request appeared to work and showed the wrong thing.
+        //   3 = WIND FIELD MAP — terrain painted by the gust field itself (white calm -> red ->
+        //       black at peak lean; grass blades hide so the map is unobstructed). The per-pixel
+        //       ground view of the field's SHAPE: mode 2's per-blade colouring could never show
+        //       whether a front is a straight line or a wave (blades are noisy and sub-pixel at
+        //       distance) — that gap cost a whole afternoon of wrong wind diagnoses on 2026-09-03.
         if (cmd.params.contains("mode") && vulkanDevice)
-            vulkanDevice->setDebugShadowMode(std::clamp(cmd.params["mode"].get<int>(), 0, 2));
+            vulkanDevice->setDebugShadowMode(std::clamp(cmd.params["mode"].get<int>(), 0, 3));
         r = {{"success", true},
              {"distance", Graphics::RenderCoordinator::s_shadowDistance},
              {"near_enabled", Graphics::RenderCoordinator::s_nearShadowEnabled},

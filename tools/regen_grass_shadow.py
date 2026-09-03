@@ -26,10 +26,14 @@ NOTE: build_shaders.bat does not track #include dependencies, so after regenerat
 recompile BOTH grass shaders (running build_shaders.bat does this).
 """
 import io
+import os
 import sys
 
-SRC = 'G:/Github/phyxel/shaders/grass.vert'
-DST = 'G:/Github/phyxel/shaders/grass_shadow.vert'
+# Repo-relative (derived from this script's location): the old hardcoded G:/Github/phyxel
+# paths silently targeted a different checkout on any other machine.
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SRC = os.path.join(_ROOT, 'shaders', 'grass.vert')
+DST = os.path.join(_ROOT, 'shaders', 'grass_shadow.vert')
 
 BANNER = '''
 // ===========================================================================================

@@ -3,8 +3,10 @@
 **Status:** Phase 1 SHIPPED (2026-07-11) — shared WindSystem + travelling gust field live in
 grass/foliage/foliage-shadow; `/api/debug/wind` up. **Phase 4 v1 SHIPPED (2026-07-18)** —
 stateless character displacers part + flatten grass (`/api/debug/grass {pushStrength}`), plus
-full-face tuft distribution fix. Phases 2–3 + 4 v2 (trail bend-field) planned. · **Owner workstream:**
-rendering / vegetation
+full-face tuft distribution fix. **WIND FIELD OVERHAUL SHIPPED + user-approved (2026-09-03)** —
+gradient noise + integer hash + domain warp + broad swell + wind sheen + mode-3 field map; see
+"The straight-line campaign" below. Phases 2–3 + 4 v2 (trail bend-field) planned. · **Owner
+workstream:** rendering / vegetation
 **Related:** `docs/RenderOptimization.md`, grass blade layer (`GrassRenderPipeline`), leaf cards
 (`FoliageRenderPipeline`), `/api/debug/grass`, `/api/debug/foliage`.
 **User intent (verbatim goals):** wind that isn't "randomish"; grass that isn't "just a single
@@ -187,9 +189,23 @@ The ramp is `sqrt`-scaled: linear against the cap put the entire still-to-peak r
 wind inside the first segment, so everything read as one flat blue — true, but useless.
 
 Debug view selector (the UBO field is still named `debugShadowMode` historically):
-`0` off · `1` shadow-only · `2` grass wind.
+`0` off · `1` shadow-only · `2` grass wind · `3` **wind field map** (see 2026-09-03 below).
 ⚠️ The handler used to collapse every non-zero value to `1`, so `mode: 2` silently selected the
 shadow view and *appeared to work*. It now clamps to the valid range instead.
+
+### Wind FIELD map — `POST /api/debug/shadow {"mode":3}` (2026-09-03, user-requested)
+
+**The definitive instrument for the field's SHAPE — use it before mode 2 and before arguing.**
+The terrain itself is painted per pixel by the exact `windGustAtEx` the grass runs (white calm →
+red → black at high gust; ramp is on the RAW field value so it stays legible at any speed); grass
+blades hide themselves so the map is unobstructed. Wind scalars reach `voxel.frag` via trailing
+UBO fields (`windDebugA/B`, written each frame by RenderCoordinator after `WindSystem::tick`).
+
+Why it exists: mode 2 colours per-blade LEAN, which cannot answer "is this front a line or a
+wave" — blades are noisy, sub-pixel past the mid-field, and edge-on from above (a top-down
+frame-diff of a windy meadow measured **zero** changed pixels). An afternoon of wrong wind
+diagnoses (2026-09-03) ended within *minutes* of this view existing: the user looked at the map
+and immediately identified straight-line artifacts that survived two rounds of upstream fixes.
 
 **What it found in one sitting**, none of which was visible by staring at the grass:
 - Blades were leaning **11% of the available range** — motion too small for any frequency to rescue.
@@ -204,24 +220,80 @@ Also expose `scrollX`/`scrollZ` on `/api/debug/wind`: that is the gust field's *
 "is the wind actually moving?" is answerable from the API. Without it the question cost a whole
 debugging round and produced a confidently wrong answer.
 
-### Shipped wind defaults (approved 2026-08-05)
+### Shipped wind defaults (approved 2026-09-03; supersedes 2026-08-05)
 
-Tuned live against the debug view and signed off by eye. The derivations in `WindSystem::tick` are
-**calibrated so these Settings land on these numbers** — change one and the other must move.
+Tuned live by the user against the mode-3 field map + the real grass, signed off ("this is
+acceptable"). The derivations in `WindSystem::tick` are **calibrated so these Settings land on
+these numbers** — change one and the other must move.
 
 | knob | default | meaning |
 |---|---|---|
-| `speed` | 0.35 | drives `base`, `gustAmp`, `gustSpeed` together |
-| `gustiness` | 0.45 | swell vs steady lean; also sets front size |
-| `windStrength` (grass) | **0.50** | master amplitude; was 0.13 → ~11% of the lean cap |
-| `flutterFreq` | **1.8 Hz** | local blade quiver — NOT the front travel rate |
-| `aniso` | 5.0 | crosswind stretch; 1.0 = the old isotropic blobs |
-| derived `gustSpeed` | 2.5 u/s | front travel |
-| derived `gustScale` | 0.045 | fronts ~22 u deep, ~110 u crosswind |
+| `speed` | **1.0** | drives `base`, `gustAmp`, `gustSpeed` together (was 0.35) |
+| `gustiness` | **0.5** | swell vs steady lean; also sets patch size |
+| `windStrength` (grass) | **1.5** | master amplitude; gust cores now saturate the 64° lean cap |
+| `flutterFreq` | 1.8 Hz | local blade quiver — NOT the front travel rate |
+| `aniso` | **2.2** | crosswind stretch (was 5.0 — see the straight-line ledger below) |
+| derived `gustSpeed` | **10 u/s** | patch travel (curve now `1 + 9·speed`) |
+| derived `gustScale` | **0.020** | patches ~21 u along-wind, ~44 u crosswind (measured) |
 
 ⚑ **Two frequencies, easily confused.** `gustSpeed` is how fast a *front crosses the field*;
 `flutterFreq` is how fast a *blade quivers in place*. Slow fronts with no flutter read as static
 grass that occasionally leans.
+
+### The straight-line campaign (2026-09-03) — five stacked causes, one afternoon
+
+**Defect (user, repeatedly):** wind pushed grass as a *straight line* sweeping the field — "I
+expect it more in a wave shape." It took **five distinct fixes** because straight lines were being
+manufactured at five independent layers; each fix was "confidently wrong" until the mode-3 field
+map (above) existed and both parties could see the same picture. Recorded in causal order — every
+one of these is a real bug class to check for in any future field-driven system:
+
+1. **Anisotropic stretch of smooth noise has ruled-line iso-contours.** Fixed with a **domain
+   warp** (`windGustAtEx`): the along-wind coordinate is offset by a noise varying along the
+   crosswind coordinate, so front edges meander and travel with the field (`kWindWarpAmp 0.7`,
+   `kWindWarpCrossFreq 1.3`, `kWindWarpAlongFreq 0.35`); the fine octave got its own lower
+   `kWindFineAniso 2.0` so it roughens edges instead of striping along them; `grass.vert` rotates
+   the sway heading by the same meander (±~13°, `kSwirlRad 0.45`) so gusts fan instead of combing.
+2. **`g²` shaping thinned every gust to a crest hairline.** A **broad swell octave**
+   (`kWindBroadFreq 0.35`, weight 0.40, aniso 2.0), summed before the shaping, gives gusts body —
+   wide bent regions instead of a moving line. Same commit: **wind sheen** in `grass.frag` (lean
+   drives brightness ~0.9–1.4×, sky-gated) — bending previously changed a blade's shading by
+   exactly nothing, so wind was invisible past ~20 u at ANY field shape; a gust now reads as a
+   light band at every distance. And the **flutter phase became noise-based**: the old
+   `0.55·x + 0.43·z` linear phase made `sin(ωt + k·p)` a literal plane wave — perfectly straight
+   ripple lines ~9 u apart sweeping at ~16 u/s.
+3. **Fronts were longer than the world.** At aniso 5 a front ran 110–300 u crosswind; a 96 u-wide
+   stage is crossed edge-to-edge by every front = a full-width straight line *by construction*,
+   however wavy its edges. `aniso` 5.0 → 2.2; feature size re-tuned so several patches fit any
+   reasonable stage. ⚑Check weather-feature size against WORLD size, not against a 512 u probe
+   image.
+4. **Value noise is a straight-line factory.** Its extrema sit ON the lattice lines and the cubic
+   fade is only C1, so every cell edge is a curvature crease (Mach band) — rotated and stretched
+   into "straight lines all over" (user, one glance at the field map). Replaced with **gradient
+   (Perlin-style) noise, quintic C2 fade** (`windValueNoise` keeps its name; feature size per
+   lattice cell roughly halves, hence the gustScale recalibration).
+5. **The float hash fails in straight lines.** The classic `fract(p·[127.1, 311.7])` hash decays
+   with |input| in float32 and its failures correlate along lattice rows/columns — faint straight
+   creases one broad-octave cell apart, invisible to the float64 CPU probe. Replaced with an
+   **integer avalanche hash** of the (whole-number) lattice coords: magnitude-immune,
+   platform-deterministic.
+
+**Measured** (`tools/wind_field_probe.py` — the exact CPU mirror; re-synced, it had drifted: no
+`g²`, stale fine octave): at shipped defaults, patches 21.5 u along × 44.5 u crosswind
+(aniso 2.07×), front travel 30 u over 3 s against 30 expected (corr 1.00), no lattice artifacts.
+`orientation_concentration` R (1.0 = ruled lines) 0.956 → 0.735, and the residual is honest
+elongation, not creases. Field images + runs in `docs/evidence/wind_field_*.png` +
+`wind_warp_probe_20260903.txt`. Wind-0 stillness invariant survives every change (all new terms
+scale with speed-derived amplitudes; rest lean + sheen are time-independent) — runtime-verified
+0/582,800 viewport pixels differ, plus `WindSystemTest`.
+
+**Process lesson (the expensive one):** four consecutive diagnoses were asserted from theory and
+were wrong or incomplete; the streak ended only when the *observable* was instrumented — screen
+frame-diffs, then the mode-3 map. Also caught along the way: `/api/debug/wind` override keys are
+`gustScale`/`gustSpeed` (NOT `*Override` — those silently no-op), the docs referenced a
+`GrassShaderMirrorTest` that does not exist (mirror is verified by direct diff; the test is still
+worth writing), and `regen_grass_shadow.py` had hardcoded `G:/Github/phyxel` paths (now
+repo-relative).
 
 ⚑ **A varying direction must never enter a transform scaled by position or time.** This bug class
 appeared twice in one session: the scroll was `dir × gustSpeed × elapsedTime` (a heading change

@@ -1745,6 +1745,8 @@ void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& vie
     ubo.exposure          = m_atmosphere.exposure;
     ubo.tonemapCurve      = m_atmosphere.tonemapCurve;
     ubo.skyBodyCount      = m_atmosphere.bodyCount;
+    ubo.windDebugA        = m_windDebugA;   // wind debug view (mode 3): field scalars
+    ubo.windDebugB        = m_windDebugB;
     for (int i = 0; i < AtmosphereUniforms::kMaxSkyBodies; ++i) {
         ubo.skyBodyDirRadius[i] = m_atmosphere.bodyDirRadius[i];
         ubo.skyBodyDisc[i]      = m_atmosphere.bodyDisc[i];

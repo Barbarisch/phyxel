@@ -206,6 +206,16 @@ struct UniformBufferObject {
     alignas(16) glm::vec4 skyBodyLitDir[4]{};
     alignas(16) glm::vec4 skyBodyLight[4]{};
     alignas(4)  int skyBodyCount = 0;
+    // ---- Wind debug view (debugShadowMode 3; 2026-09-03) ------------------------------------
+    // The shared WindSystem state, so TERRAIN fragments can evaluate the gust field per pixel
+    // and paint it as a map (white calm -> red -> black at peak). Exists because judging the
+    // gust field's SHAPE through per-blade lean colours (mode 2) proved impossible — blades
+    // are noisy, sub-pixel at distance, and invisible from above. Written every frame by
+    // RenderCoordinator right after WindSystem::tick. Appended per the trailing-field rule.
+    //   A: x = dirX, y = dirZ, z = scrollX, w = scrollZ
+    //   B: x = gustScale, y = aniso, z = windBase*strength, w = gustAmp*strength
+    alignas(16) glm::vec4 windDebugA{1.0f, 0.0f, 0.0f, 0.0f};
+    alignas(16) glm::vec4 windDebugB{0.045f, 5.0f, 0.0f, 0.0f};
 };
 
 class VulkanDevice {
@@ -280,6 +290,10 @@ public:
     };
     void setAtmosphereUniforms(const AtmosphereUniforms& a) { m_atmosphere = a; }
     const AtmosphereUniforms& getAtmosphereUniforms() const { return m_atmosphere; }
+
+    /// Wind debug view (mode 3): per-frame wind-field scalars for the terrain field map.
+    /// See UniformBufferObject::windDebugA/B for the packing.
+    void setWindDebugUniforms(const glm::vec4& a, const glm::vec4& b) { m_windDebugA = a; m_windDebugB = b; }
 
     void setDebugShadowMode(int mode) { m_debugShadowMode = mode; }
     int  getDebugShadowMode() const   { return m_debugShadowMode; }
@@ -644,6 +658,8 @@ private:
     // Window resize handling
     bool framebufferResized = false;
     AtmosphereUniforms m_atmosphere{};  ///< see setAtmosphereUniforms
+    glm::vec4 m_windDebugA{1.0f, 0.0f, 0.0f, 0.0f};  ///< see setWindDebugUniforms
+    glm::vec4 m_windDebugB{0.045f, 5.0f, 0.0f, 0.0f};
     int  m_debugShadowMode = 0;   ///< shadow-only debug view (see setDebugShadowMode)
     float m_shadowDepthRange = 1.0f;  ///< world-unit light-volume depth span (bias normalization)
 
