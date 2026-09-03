@@ -63,18 +63,13 @@ const float kBiasSlopeWorld   = 0.18;   // extra for grazing-lit surfaces
 const float kBiasFoliageWorld = 0.14;
 
 // ---- Ambient --------------------------------------------------------------------------------
-/// Hemispherical sky/ground ambient fill for a surface.
-///   N               surface normal (world)
-///   skyLight        baked skylight 0..1 for this fragment
-///   ambientStrength ubo.ambientLight (day/night master)
-/// Returns the multiplier to apply to albedo. Gated by a squared skylight curve so interiors
-/// fall off fast and stay dramatically dimmer than open sky.
-vec3 phxAmbient(vec3 N, float skyLight, float ambientStrength) {
-    float skyCurve = skyLight * skyLight;
-    float fill     = ambientStrength * skyCurve * kSkyFill;
-    vec3  tint     = mix(kGroundTint, kSkyTint, clamp(N.y * 0.5 + 0.5, 0.0, 1.0));
-    return fill * tint + kAmbientFloor;
-}
+// U1: `phxAmbient` — the legacy hemispheric model driven by the 0..1 `ubo.ambientLight` scalar —
+// WAS DELETED HERE (2026-08-30). It had ZERO callers: every consumer had already moved to
+// phxAmbientAtmos, which multiplies the atmosphere's physical sky radiance instead. Keeping a
+// second ambient model around, with its own constants in the same file, is exactly the trap this
+// file's own header warns about — someone eventually calls the wrong one and the passes desync.
+// kSkyTint / kGroundTint / kSkyFill / kAmbientFloor above are its constants and are likewise dead;
+// they are retained only until U1 finishes removing the last `ubo.ambientLight` readers.
 
 /// Hemispherical fill driven by the ATMOSPHERE instead of a constant tint pair. `skyColor` is
 /// Atmosphere::skyIrradiance for the current sun, so the fill is cool blue by day, warm at sunset

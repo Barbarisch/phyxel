@@ -6,6 +6,7 @@
 #include "stb_image.h"   // implementation lives in VulkanDevice.cpp
 #include <cstring>
 #include <array>
+#include <algorithm>   // std::max — viewport rect clamping
 
 namespace Phyxel {
 namespace UI {
@@ -430,10 +431,20 @@ void UIRenderer::endFrame(VkCommandBuffer cmd) {
     // Bind pipeline
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline_);
 
-    // Set viewport/scissor
-    VkViewport viewport{0.0f, 0.0f, (float)screenWidth_, (float)screenHeight_, 0.0f, 1.0f};
+    // Set viewport/scissor. Both are DYNAMIC state, so the placement rect costs nothing here —
+    // no pipeline variant, no recreation. The push constant below keeps mapping HUD-logical pixels
+    // to the full NDC square; this viewport transform is what lands that square in the rect.
+    const bool haveRect = (viewportW_ > 0.0f && viewportH_ > 0.0f);
+    const float vpX = haveRect ? viewportX_ : 0.0f;
+    const float vpY = haveRect ? viewportY_ : 0.0f;
+    const float vpW = haveRect ? viewportW_ : (float)screenWidth_;
+    const float vpH = haveRect ? viewportH_ : (float)screenHeight_;
+
+    VkViewport viewport{vpX, vpY, vpW, vpH, 0.0f, 1.0f};
     vkCmdSetViewport(cmd, 0, 1, &viewport);
-    VkRect2D scissor{{0, 0}, {screenWidth_, screenHeight_}};
+    // Scissor is integer and must not go negative or the validation layer rejects it.
+    VkRect2D scissor{{(int32_t)std::max(0.0f, vpX), (int32_t)std::max(0.0f, vpY)},
+                     {(uint32_t)std::max(0.0f, vpW), (uint32_t)std::max(0.0f, vpH)}};
     vkCmdSetScissor(cmd, 0, 1, &scissor);
 
     // Bind vertex/index buffers

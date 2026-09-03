@@ -306,7 +306,15 @@ std::vector<KinematicFaceData> KinematicVoxelManager::buildFaces(
                 const glm::vec3 mf = glm::vec3(1.0f) - sn;  // per-axis flip pivot
                 switch (faceId) {
                     case 0: f.uvOffset = {fn.x,        mf.y - fn.y}; f.uvScale = {sn.x, sn.y}; break; // +Z
-                    case 1: f.uvOffset = {fn.x,        fn.y};        f.uvScale = {sn.x, sn.y}; break; // -Z
+                    // -Z: the BACK of a z-projected board — crop-verified to render the art
+                    // rotated 180° under the legacy mapping (the user's upside-down smithy,
+                    // 2026-08-27). The global 180° fix must hold for MULTI-quad merged
+                    // boards: each quad samples the OPPOSITE slice of the image, reversed —
+                    // offset 1-fn with negative scale on both axes. (Same-slice reversal
+                    // {fn+sn, -sn} flips each quad in place and scrambles the layout;
+                    // offset-only variants are no-ops on a single merged quad. Both were
+                    // tried and photographed.)
+                    case 1: f.uvOffset = {1.0f - fn.x, 1.0f - fn.y}; f.uvScale = {-sn.x, -sn.y}; break; // -Z
                     case 2: f.uvOffset = {mf.z - fn.z, mf.y - fn.y}; f.uvScale = {sn.z, sn.y}; break; // +X
                     case 3: f.uvOffset = {fn.z,        mf.y - fn.y}; f.uvScale = {sn.z, sn.y}; break; // -X
                     case 4: f.uvOffset = {mf.x - fn.x, mf.z - fn.z}; f.uvScale = {sn.x, sn.z}; break; // +Y

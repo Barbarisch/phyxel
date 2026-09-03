@@ -455,8 +455,15 @@ class TestBestiarySpecies:
         plan = derive_plan(compiled, entry["id"])
         names = [b.name for b in compiled.af.bones]
         assert plan["rootBone"] in names
-        min_legs = {"quadruped": 4, "arachnid": 8, "dragon": 4}.get(
-            entry["morphology"], 2)
+        # Leg count is a property of the CREATURE, not of the morphology label:
+        # a serpent legitimately has none and a bird has two, while both still
+        # read as 'quadruped' to the engine's bone heuristic. The binding
+        # contract that actually matters is the plan score below.
+        if entry.get("legless"):
+            min_legs = 0
+        else:
+            min_legs = entry.get("legs", {"quadruped": 4, "arachnid": 8,
+                                          "dragon": 4}.get(entry["morphology"], 2))
         assert len(plan["legs"]) >= min_legs
         assert plan["segments"], "segments must not be empty"
         assert _plan_score(plan, names) >= 3
@@ -508,7 +515,137 @@ def test_required_clips_rule_blocks_combat_without_attack():
 
 
 # ---------------------------------------------------------------------------
-# 7. Voxelization geometry units
+# 7. Bestiary bindings: every SRD stat block resolves to a usable rig
+# ---------------------------------------------------------------------------
+
+MONSTER_DIR = ROOT / "resources" / "monsters"
+BINDINGS = MONSTER_DIR / "visuals" / "bindings.json"
+RIG_DIR = ROOT / "resources" / "animated_characters"
+
+
+def _all_stat_block_ids():
+    ids = set()
+    for f in sorted(MONSTER_DIR.glob("*.json")):
+        data = json.loads(f.read_text(encoding="utf-8"))
+        entries = data if isinstance(data, list) else data.get("monsters", [])
+        for m in entries:
+            if isinstance(m, dict) and m.get("id"):
+                ids.add(m["id"])
+    return ids
+
+
+def _rig_clip_names(anim_path: Path):
+    """Clip names without a full parse — the MODEL section is huge."""
+    names = []
+    for line in anim_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        if line.startswith("ANIMATION "):
+            names.append(line.split(None, 1)[1].strip().lower())
+    return names
+
+
+@pytest.fixture(scope="module")
+def bindings():
+    if not BINDINGS.exists():
+        pytest.skip("bindings.json not generated yet")
+    return json.loads(BINDINGS.read_text(encoding="utf-8"))
+
+
+def _binding_items(bindings):
+    return {k: v for k, v in bindings.items()
+            if not k.startswith("_") and isinstance(v, dict)}
+
+
+def test_every_stat_block_has_a_binding(bindings):
+    """The completeness gate: a stat block added without a binding fails here,
+    and spawn_encounter would otherwise error at runtime instead."""
+    unbound = _all_stat_block_ids() - set(_binding_items(bindings))
+    assert not unbound, (f"{len(unbound)} stat blocks without a visual binding: "
+                         f"{sorted(unbound)[:15]}")
+
+
+def test_no_binding_points_at_a_missing_rig(bindings):
+    missing = [(k, v["animFile"]) for k, v in _binding_items(bindings).items()
+               if not (ROOT / v["animFile"]).exists()]
+    assert not missing, missing
+
+
+# How the ENGINE actually resolves each state, so a rig counts as capable if any
+# accepted clip exists (AnimatedVoxelCharacter::die() probes death_front/back
+# directly; CombatBehavior installs the unarmed moveset for humanoid rigs).
+_STATE_CLIPS = {
+    "Idle":   ("idle",),
+    "Walk":   ("walk",),
+    "Attack": ("attack", "boxing", "elbow_punch", "kick", "punch"),
+    "Death":  ("death", "death_front", "death_back"),
+}
+
+
+def test_bound_rigs_are_combat_capable(bindings):
+    """Bindings must not point at walk-only (*_meshy) or flight-only
+    (monster_dragon) rigs: the FSM would hold a stale clip while damage still
+    fires, which reads as a T-posing monster that still hurts you."""
+    bad = []
+    for mid, v in sorted(_binding_items(bindings).items()):
+        rig = ROOT / v["animFile"]
+        if not rig.exists():
+            continue
+        clips = set(_rig_clip_names(rig))
+        mapping = {k: c.lower() for k, c in (v.get("animationMapping") or {}).items()}
+        for state, accepted in _STATE_CLIPS.items():
+            if any(c in clips for c in accepted):
+                continue
+            if mapping.get(state, "") in clips:      # explicit override resolves it
+                continue
+            bad.append(f"{mid} -> {rig.name} cannot play {state}")
+    assert not bad, bad[:15]
+
+
+def test_tint_and_alpha_in_range(bindings):
+    for mid, v in _binding_items(bindings).items():
+        tint = v.get("tint", [1, 1, 1])
+        assert len(tint) == 3 and all(0.0 <= c <= 2.0 for c in tint), (mid, tint)
+        assert 0.05 <= v.get("alpha", 1.0) <= 1.0, (mid, v.get("alpha"))
+
+
+def test_no_stat_block_is_still_approximated():
+    """Every SRD stat block now rides a rig built for its own body — the
+    approximation backlog is empty, and that is the claim most likely to rot
+    quietly. A new stat block bound to a `standin_*` archetype must carry an
+    `approx` tag (gen_bindings.py enforces that), so the tag reappearing here
+    is the honest signal that "336/336 final fidelity" has stopped being true.
+    Re-approximating is allowed; letting the docs keep saying otherwise is not."""
+    spec = json.loads((ROOT / "tools" / "creature_forge" /
+                       "bindings_map.json").read_text(encoding="utf-8"))
+    approximated = {
+        mid: ov["approx"]
+        for arch in spec["archetypes"].values()
+        for mid, ov in arch.get("members", {}).items()
+        if isinstance(ov, dict) and ov.get("approx")
+    }
+    assert not approximated, (
+        "stat blocks riding a stand-in rig: " + repr(approximated) +
+        " — either build the rig or update the coverage claim in "
+        "docs/AgentContext.md and the bestiary memory")
+
+
+def test_bindings_are_regenerable(tmp_path):
+    """bindings.json is generated from bindings_map.json — hand edits get lost,
+    so the checked-in file must match a fresh generation exactly."""
+    import subprocess
+    gen = ROOT / "tools" / "creature_forge" / "gen_bindings.py"
+    if not gen.exists():
+        pytest.skip("gen_bindings.py not written yet")
+    out = tmp_path / "bindings.json"
+    r = subprocess.run([sys.executable, str(gen), "--out", str(out)],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert json.loads(out.read_text(encoding="utf-8")) == \
+        json.loads(BINDINGS.read_text(encoding="utf-8")), \
+        "bindings.json is stale — re-run tools/creature_forge/gen_bindings.py"
+
+
+# ---------------------------------------------------------------------------
+# 8. Voxelization geometry units
 # ---------------------------------------------------------------------------
 
 class TestVoxelGeometry:
@@ -576,3 +713,114 @@ class TestVoxelGeometry:
         paw = [bx for bx in compiled.af.boxes
                if bx.size == pytest.approx((0.2, 0.1, 0.3))]
         assert len(paw) == 1
+
+
+# ---------------------------------------------------------------------------
+# 9. Bestiary Hall roster
+#
+# The hall stages every rig at once so the whole creature library can be judged
+# in one frame. Its roster is GENERATED (tools/creature_forge/gen_hall.py) and
+# the engine trusts three things from it that are cheap to get wrong: the
+# measured bind footprint (used for spacing and nameplate height), the
+# engine-resolved clip per state (used to grey out what a rig cannot do), and
+# the promise that every staged rig is one a real stat block actually uses.
+
+
+HALL = ROOT / "resources" / "monsters" / "visuals" / "bestiary_hall.json"
+
+
+@pytest.fixture(scope="module")
+def hall():
+    if not HALL.exists():
+        pytest.skip("hall roster not generated yet")
+    return json.loads(HALL.read_text(encoding="utf-8"))
+
+
+def test_hall_roster_is_regenerable(tmp_path):
+    """Hand edits to the roster get silently overwritten on the next run, so
+    the checked-in file must equal a fresh generation."""
+    import subprocess
+    gen = ROOT / "tools" / "creature_forge" / "gen_hall.py"
+    if not gen.exists():
+        pytest.skip("gen_hall.py not written yet")
+    r = subprocess.run([sys.executable, str(gen), "--check"],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_hall_covers_every_rig_a_stat_block_uses(hall, bindings):
+    """The hall is the bestiary's shop window: if a rig carries live stat
+    blocks it must be on stage, or the demo quietly under-reports the library."""
+    staged = {e["id"] for e in hall["entries"]}
+    bound = {Path(v["animFile"]).stem
+             for v in _binding_items(bindings).values() if v.get("animFile")}
+    missing = sorted(bound - staged)
+    assert not missing, f"rigs bound to stat blocks but absent from the hall: {missing}"
+
+
+def test_hall_footprints_are_measured_not_guessed(hall):
+    """Spacing and nameplate height both come from these numbers. A zero or
+    absurd extent means the FK walk broke, and the hall would either stack
+    creatures on top of each other or float every label into the sky."""
+    for e in hall["entries"]:
+        b = e["bind"]
+        assert 0.05 < b["height"] < 30.0, (e["id"], b)
+        assert 0.05 < b["width"] < 30.0, (e["id"], b)
+        assert 0.05 < b["depth"] < 30.0, (e["id"], b)
+        # The rig origin sits at (or very near) the creature's feet; the hall
+        # subtracts footY to plant it, so a wild value would bury or levitate it.
+        assert -1.0 < b["footY"] < 1.0, (e["id"], b)
+
+
+def test_hall_footprint_matches_the_authored_target_height(hall):
+    """Spot-check the FK against specs whose target_height is known, so a
+    silently wrong transform cannot pass as 'some plausible number'."""
+    expected = {
+        "forge_tarrasque": 7.0,
+        "forge_dragon_ancient": 6.0,
+        "forge_hydra": 3.6,
+        "forge_dragon_turtle": 3.4,
+        "forge_otyugh": 2.1,
+        "forge_xorn": 1.55,
+    }
+    by_id = {e["id"]: e for e in hall["entries"]}
+    for rig, want in expected.items():
+        assert rig in by_id, f"{rig} missing from the hall"
+        got = by_id[rig]["bind"]["height"]
+        assert got == pytest.approx(want, abs=0.02), (rig, got, want)
+
+
+def test_hall_every_rig_can_at_least_idle_and_die(hall):
+    """Idle is what a staged creature does by default and Death is the clip the
+    bestiary most needs to look right. A rig missing either would stand in
+    T-pose on the shelf."""
+    bad = [e["id"] for e in hall["entries"]
+           if not e["clips"].get("Idle") or not e["clips"].get("Death")]
+    assert not bad, f"rigs that cannot idle or die: {bad}"
+
+
+def test_hall_clip_claims_match_the_actual_rig(hall):
+    """The panel greys out states based on these strings; if one names a clip
+    the .anim does not contain, the button lights up and does nothing.
+    Comparison is case-insensitive because the roster preserves the rig's own
+    clip case (imported packs use 'Idle'/'Punch'; forge rigs use lowercase),
+    while existence is what this test is actually about."""
+    from anim_pipeline import anim_format
+    for e in hall["entries"]:
+        af = anim_format.parse(ROOT / e["animFile"])
+        have = {c.name.lower() for c in af.clips}
+        for state, clip in e["clips"].items():
+            if clip:
+                assert clip.lower() in have, \
+                    f"{e['id']} claims {state}->{clip}, not in rig"
+
+
+def test_hall_entries_are_unique_and_named(hall):
+    ids = [e["id"] for e in hall["entries"]]
+    assert len(ids) == len(set(ids)), "duplicate rig ids in the hall"
+    for e in hall["entries"]:
+        assert e["name"].strip(), e["id"]
+        assert e["category"].strip(), e["id"]
+        # A staged rig with no stat blocks is library dead weight; gen_hall
+        # deliberately leaves those off the stage.
+        assert e["statBlocks"] > 0, e["id"]

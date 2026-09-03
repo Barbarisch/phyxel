@@ -24,6 +24,8 @@ def _resolve_map(defs: dict, lookup_extra: dict | None = None) -> dict:
     resolved = {}
     pending = []
     for name, d in defs.items():
+        if name.startswith("_"):
+            continue          # annotation key, same convention as every other section
         if isinstance(d, (list, tuple)):
             resolved[name] = (float(d[0]), float(d[1]), float(d[2]))
         else:

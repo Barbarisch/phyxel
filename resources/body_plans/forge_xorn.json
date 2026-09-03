@@ -1,0 +1,84 @@
+{
+  "id": "forge_xorn",
+  "morphology": "quadruped",
+  "gaitClass": "quadruped_clips",
+  "rootBone": "Pelvis",
+  "hipAliases": [
+    "pelvis",
+    "hip"
+  ],
+  "gripBone": "Pelvis",
+  "capsule": {
+    "mode": "xz_extent",
+    "minHalfWidth": 0.2,
+    "maxHalfWidth": 0.93
+  },
+  "legs": [
+    {
+      "id": "leg1",
+      "upper": "L1Root",
+      "mid": "L1Mid",
+      "foot": "L1Paw",
+      "footIK": false
+    },
+    {
+      "id": "leg2",
+      "upper": "L2Root",
+      "mid": "L2Mid",
+      "foot": "L2Paw",
+      "footIK": false
+    },
+    {
+      "id": "leg3",
+      "upper": "L3Root",
+      "mid": "L3Mid",
+      "foot": "L3Paw",
+      "footIK": false
+    }
+  ],
+  "segments": [
+    {
+      "bone": "Pelvis",
+      "isArm": false
+    },
+    {
+      "bone": "Chest",
+      "isArm": false
+    },
+    {
+      "bone": "Crown",
+      "isArm": false
+    },
+    {
+      "bone": "A1Root",
+      "isArm": false
+    },
+    {
+      "bone": "A2Root",
+      "isArm": false
+    },
+    {
+      "bone": "A3Root",
+      "isArm": false
+    },
+    {
+      "bone": "L1Root",
+      "isArm": false
+    },
+    {
+      "bone": "L2Root",
+      "isArm": false
+    },
+    {
+      "bone": "L3Root",
+      "isArm": false
+    }
+  ],
+  "clipDefaults": {
+    "Idle": "idle",
+    "Walk": "walk",
+    "StartWalk": "walk",
+    "Attack": "attack",
+    "Death": "death"
+  }
+}

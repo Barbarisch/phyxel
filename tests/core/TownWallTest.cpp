@@ -1,0 +1,264 @@
+#include <gtest/gtest.h>
+
+#include <set>
+
+#include "core/TownWall.h"
+
+using namespace Phyxel::Core;
+
+// ============================================================================
+// Circuit wall (place_town_wall #42, CityForgePlan M7). The invariants that
+// make a wall a wall rather than decoration:
+//   * the band CLOSES — no accidental gap you can walk through
+//   * every street reaching the edge gets a gate at least as wide as itself
+//     (walling a road in severs the settlement; the planner must never do it
+//     silently)
+//   * the band never lands on a building the allocator already placed
+// RED baseline: planTownWall returns ok=false / "not implemented".
+// ============================================================================
+
+namespace {
+
+TownWallSpec citySpec() {
+    TownWallSpec s;
+    s.enabled = true;
+    s.heightCubes = 7;
+    s.thicknessCubes = 2;
+    s.gateWidthCubes = 5;
+    s.marginCubes = 2;
+    s.towers = true;
+    s.towerSize = 4;
+    return s;
+}
+
+/// The site the city planner would hand us, with a main street spanning it E-W
+/// and a cross street spanning it N-S (the crossroads form).
+Rect site() { return Rect{0, 0, 120, 90}; }
+std::vector<Rect> crossroadStreets() {
+    return {Rect{0, 42, 120, 7},    // main street, full width, along X
+            Rect{56, 0, 7, 90}};    // cross street, full depth, along Z
+}
+
+bool overlaps(const Rect& a, const Rect& b) {
+    return a.x < b.x1() && b.x < a.x1() && a.z < b.z1() && b.z < a.z1();
+}
+
+/// Every cube cell covered by the plan's runs, minus its gates.
+std::set<std::pair<int, int>> wallCells(const TownWallPlan& p) {
+    std::set<std::pair<int, int>> cells;
+    for (const auto& r : p.runs)
+        for (int x = r.band.x; x < r.band.x1(); ++x)
+            for (int z = r.band.z; z < r.band.z1(); ++z) cells.insert({x, z});
+    for (const auto& g : p.gates)
+        for (int x = g.opening.x; x < g.opening.x1(); ++x)
+            for (int z = g.opening.z; z < g.opening.z1(); ++z) cells.erase({x, z});
+    return cells;
+}
+
+}  // namespace
+
+TEST(TownWallTest, TheCircuitClosesAroundTheSite) {
+    const auto p = planTownWall(site(), crossroadStreets(), {}, citySpec());
+    ASSERT_TRUE(p.ok) << p.refusal;
+
+    // The band encloses the site with the spec's margin, and is thickness deep.
+    EXPECT_EQ(p.innerBound.x, site().x - 2);
+    EXPECT_EQ(p.innerBound.w, site().w + 4);
+    EXPECT_EQ(p.outerBound.x, p.innerBound.x - 2);
+    EXPECT_EQ(p.outerBound.w, p.innerBound.w + 4);
+
+    // CLOSURE: walk the outer ring; every cell is wall or gate — no third option.
+    const auto cells = wallCells(p);
+    std::set<std::pair<int, int>> gateCells;
+    for (const auto& g : p.gates)
+        for (int x = g.opening.x; x < g.opening.x1(); ++x)
+            for (int z = g.opening.z; z < g.opening.z1(); ++z) gateCells.insert({x, z});
+
+    const Rect& o = p.outerBound;
+    int holes = 0;
+    for (int x = o.x; x < o.x1(); ++x)
+        for (int z = o.z; z < o.z1(); ++z) {
+            const bool onRing = x < o.x + 2 || x >= o.x1() - 2 || z < o.z + 2 || z >= o.z1() - 2;
+            if (!onRing) continue;                       // interior, not part of the band
+            if (!cells.count({x, z}) && !gateCells.count({x, z})) ++holes;
+        }
+    EXPECT_EQ(holes, 0) << holes << " cells of the circuit are neither wall nor gate";
+}
+
+TEST(TownWallTest, EveryStreetReachingTheEdgeGetsAGateWideEnoughForIt) {
+    const auto streets = crossroadStreets();
+    const auto p = planTownWall(site(), streets, {}, citySpec());
+    ASSERT_TRUE(p.ok) << p.refusal;
+
+    // The crossroads form reaches all four sides -> four gates.
+    EXPECT_EQ(p.gates.size(), 4u) << "a crossroads city needs a gate on every side";
+    std::set<char> sides;
+    for (const auto& g : p.gates) {
+        sides.insert(g.side);
+        const int w = (g.side == 'N' || g.side == 'S') ? g.opening.w : g.opening.d;
+        EXPECT_GE(w, 5) << "gate on side " << g.side << " is narrower than the spec minimum";
+        EXPECT_GE(w, g.streetWidth) << "gate on side " << g.side << " pinches its own street";
+    }
+    EXPECT_EQ(sides.size(), 4u);
+
+    // Each gate must actually LINE UP with its street, not merely exist.
+    for (const auto& g : p.gates) {
+        bool aligned = false;
+        for (const auto& s : streets) {
+            const bool alongX = s.w >= s.d;
+            if ((g.side == 'N' || g.side == 'S') && !alongX &&
+                g.opening.x <= s.x && g.opening.x1() >= s.x1()) aligned = true;
+            if ((g.side == 'E' || g.side == 'W') && alongX &&
+                g.opening.z <= s.z && g.opening.z1() >= s.z1()) aligned = true;
+        }
+        EXPECT_TRUE(aligned) << "gate on side " << g.side << " does not span its street";
+    }
+}
+
+TEST(TownWallTest, AGatelessCircuitIsRefusedNotSilentlyBuilt) {
+    // A street reaching the edge that the planner cannot gate (gate wider than the
+    // side allows) must REFUSE — never strangle the road.
+    TownWallSpec s = citySpec();
+    s.gateWidthCubes = 400;                       // impossible on a 120x90 site
+    const auto p = planTownWall(site(), crossroadStreets(), {}, s);
+    EXPECT_FALSE(p.ok);
+    EXPECT_FALSE(p.refusal.empty()) << "refused without saying why";
+}
+
+TEST(TownWallTest, TheBandNeverLandsOnABuilding) {
+    // A building sitting where the band would run must be caught, not paved over.
+    const Rect intruder{-3, 40, 6, 8};            // straddles the west band
+    const auto bad = planTownWall(site(), crossroadStreets(), {intruder}, citySpec());
+    EXPECT_FALSE(bad.ok) << "the wall would have been stamped through a building";
+
+    // Buildings inside the site are fine — the band sits outside them by construction.
+    const Rect inside{10, 10, 8, 6};
+    const auto good = planTownWall(site(), crossroadStreets(), {inside}, citySpec());
+    ASSERT_TRUE(good.ok) << good.refusal;
+    for (const auto& r : good.runs)
+        EXPECT_FALSE(overlaps(r.band, inside)) << "band overlaps an interior building";
+}
+
+TEST(TownWallTest, CornerTowersStandAtTheCorners) {
+    const auto p = planTownWall(site(), crossroadStreets(), {}, citySpec());
+    ASSERT_TRUE(p.ok) << p.refusal;
+    ASSERT_EQ(p.towers.size(), 4u) << "a circuit wants a tower at each corner";
+    const Rect& o = p.outerBound;
+    for (const auto& t : p.towers) {
+        const bool atX = (t.x == o.x) || (t.x1() == o.x1());
+        const bool atZ = (t.z == o.z) || (t.z1() == o.z1());
+        EXPECT_TRUE(atX && atZ) << "tower at (" << t.x << "," << t.z << ") is not on a corner";
+    }
+    // Towers must not block a gate.
+    for (const auto& t : p.towers)
+        for (const auto& g : p.gates)
+            EXPECT_FALSE(overlaps(t, g.opening)) << "a tower was planted in a gateway";
+}
+
+TEST(TownWallTest, DisabledSpecPlansNothingAndSaysSo) {
+    TownWallSpec off;                              // enabled = false
+    const auto p = planTownWall(site(), crossroadStreets(), {}, off);
+    EXPECT_FALSE(p.ok);
+    EXPECT_TRUE(p.runs.empty());
+    EXPECT_FALSE(p.refusal.empty());
+}
+
+// PROVENANCE (user challenge 2026-08-28: "make sure the wall is not something you added
+// manually"). The circuit must be a pure function of the PLAN — the same site and streets
+// must yield the same wall wherever it is built, and whatever happens to be growing there.
+// Live A/B found the one way that could break: place() would not overwrite an occupied cell,
+// so a tree standing on the wall line punched a hole in the crenellation and two identical
+// cities differed by exactly the cells where flora stood. The service now clears the wall
+// line before stamping; this pins the PLAN half of that contract.
+TEST(TownWallTest, ThePlanIsTranslationInvariant) {
+    const auto atOrigin = planTownWall(site(), crossroadStreets(), {}, citySpec());
+    ASSERT_TRUE(atOrigin.ok) << atOrigin.refusal;
+
+    // The same settlement planned 5000 cubes away: every run, gate and tower must land on the
+    // same RELATIVE cell. (Settlement-local coords in, so a shift is the identity test.)
+    const int dx = 5000, dz = -3000;
+    Rect moved = site();
+    moved.x += dx; moved.z += dz;
+    std::vector<Rect> movedStreets;
+    for (const auto& s : crossroadStreets())
+        movedStreets.push_back(Rect{s.x + dx, s.z + dz, s.w, s.d});
+    const auto shifted = planTownWall(moved, movedStreets, {}, citySpec());
+    ASSERT_TRUE(shifted.ok) << shifted.refusal;
+
+    ASSERT_EQ(atOrigin.runs.size(), shifted.runs.size());
+    ASSERT_EQ(atOrigin.gates.size(), shifted.gates.size());
+    ASSERT_EQ(atOrigin.towers.size(), shifted.towers.size());
+    for (size_t i = 0; i < atOrigin.runs.size(); ++i) {
+        EXPECT_EQ(atOrigin.runs[i].band.x + dx, shifted.runs[i].band.x);
+        EXPECT_EQ(atOrigin.runs[i].band.z + dz, shifted.runs[i].band.z);
+        EXPECT_EQ(atOrigin.runs[i].band.w, shifted.runs[i].band.w);
+        EXPECT_EQ(atOrigin.runs[i].band.d, shifted.runs[i].band.d);
+        EXPECT_EQ(atOrigin.runs[i].side, shifted.runs[i].side);
+    }
+    for (size_t i = 0; i < atOrigin.gates.size(); ++i) {
+        EXPECT_EQ(atOrigin.gates[i].opening.x + dx, shifted.gates[i].opening.x);
+        EXPECT_EQ(atOrigin.gates[i].opening.z + dz, shifted.gates[i].opening.z);
+        EXPECT_EQ(atOrigin.gates[i].opening.w, shifted.gates[i].opening.w);
+        EXPECT_EQ(atOrigin.gates[i].opening.d, shifted.gates[i].opening.d);
+    }
+    for (size_t i = 0; i < atOrigin.towers.size(); ++i) {
+        EXPECT_EQ(atOrigin.towers[i].x + dx, shifted.towers[i].x);
+        EXPECT_EQ(atOrigin.towers[i].z + dz, shifted.towers[i].z);
+    }
+}
+
+// Mural towers on a curtain wall are round after the 12th century — a drum sheds missiles and
+// has no corner to undermine — and Conwy, this spec's own grounding, carries 21 drum towers.
+// "Round" has to MEAN something at cube resolution: the corners go, the cardinal points stay
+// (an octagon with its corners bitten off is not a tower), and it is symmetric.
+TEST(TownWallTest, RoundTowersAreActuallyRound) {
+    const Rect bbox{0, 0, 6, 6};
+    const auto round = towerFootprintCells(bbox, "round");
+    const auto square = towerFootprintCells(bbox, "square");
+    ASSERT_EQ(square.size(), 36u) << "square must fill its rect";
+    EXPECT_LT(round.size(), square.size()) << "round kept every cell — it is not round";
+    EXPECT_GT(round.size(), square.size() / 2) << "round ate too much — that is a cross, not a drum";
+
+    std::set<std::pair<int, int>> in;
+    for (const auto& c : round) in.insert({c.x, c.y});
+    // Corners out, cardinal points in.
+    for (auto c : {std::pair{0, 0}, {0, 5}, {5, 0}, {5, 5}})
+        EXPECT_FALSE(in.count(c)) << "corner (" << c.first << "," << c.second << ") survived";
+    for (auto c : {std::pair{0, 3}, {5, 2}, {2, 0}, {3, 5}})
+        EXPECT_TRUE(in.count(c)) << "cardinal point (" << c.first << "," << c.second
+                                 << ") is missing — the drum reads as a clipped octagon";
+    // Symmetric under both mirrors.
+    for (const auto& c : in) {
+        EXPECT_TRUE(in.count({5 - c.first, c.second})) << "not symmetric in x";
+        EXPECT_TRUE(in.count({c.first, 5 - c.second})) << "not symmetric in z";
+    }
+}
+
+TEST(TownWallTest, TowerShapeAndCapAreDataNotTaste) {
+    TownWallSpec s = citySpec();
+    EXPECT_EQ(s.towerShape, "round") << "the curtain-wall default follows Conwy";
+    EXPECT_EQ(s.towerCap, "parapet") << "English/Welsh default; conical is the continental form";
+
+    // Both caps and both shapes must plan without complaint — the choice is regional data.
+    for (const char* shape : {"round", "square"})
+        for (const char* cap : {"parapet", "conical"}) {
+            TownWallSpec v = s;
+            v.towerShape = shape;
+            v.towerCap = cap;
+            const auto p = planTownWall(site(), crossroadStreets(), {}, v);
+            EXPECT_TRUE(p.ok) << shape << "/" << cap << " refused: " << p.refusal;
+            EXPECT_EQ(p.towers.size(), 4u);
+        }
+}
+
+TEST(TownWallTest, DeterministicForTheSameSite) {
+    const auto a = planTownWall(site(), crossroadStreets(), {}, citySpec());
+    const auto b = planTownWall(site(), crossroadStreets(), {}, citySpec());
+    ASSERT_EQ(a.runs.size(), b.runs.size());
+    ASSERT_EQ(a.gates.size(), b.gates.size());
+    for (size_t i = 0; i < a.gates.size(); ++i) {
+        EXPECT_EQ(a.gates[i].side, b.gates[i].side);
+        EXPECT_EQ(a.gates[i].opening.x, b.gates[i].opening.x);
+        EXPECT_EQ(a.gates[i].opening.z, b.gates[i].opening.z);
+    }
+}

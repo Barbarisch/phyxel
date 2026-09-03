@@ -97,10 +97,8 @@ def detect_legs(af):
     by_id = {b.id: b for b in af.bones}
     gp, _ = bind_fk(af)
     leaves = [b.id for b in af.bones if b.id not in kids]
-    feet = sorted(leaves, key=lambda i: gp[i][1])[:4]   # 4 lowest tips
 
-    legs = []
-    for foot in feet:
+    def chain_up(foot):
         chain = [foot]
         cur = foot
         while True:
@@ -109,15 +107,32 @@ def detect_legs(af):
                 break
             chain.append(par)
             cur = par
-        chain = list(reversed(chain))            # [hip .. foot]
+        return list(reversed(chain))             # [hip .. foot]
+
+    # A real leg is a CHAIN (hip..knee..foot); IK helper bones (PoleTarget.*)
+    # are single leaves hanging straight off the body, and they sit low enough
+    # to beat actual feet to the "4 lowest tips" on several imported rigs —
+    # which mis-rolled the leg map. Chain length is the geometric tell.
+    feet = [i for i in sorted(leaves, key=lambda i: gp[i][1])
+            if len(chain_up(i)) >= 2][:4]
+
+    legs = []
+    for foot in feet:
+        chain = chain_up(foot)
         hip, foot_id = chain[0], chain[-1]
         hy, fy = gp[hip][1], gp[foot_id][1]
         mid_y = (hy + fy) * 0.5
         interior = chain[1:-1] or [chain[len(chain)//2]]
         knee = min(interior, key=lambda i: abs(gp[i][1] - mid_y))
         rest = gp[foot_id]
-        front = rest[2] > 0                       # +Z is forward
-        left = rest[0] > 0                        # +X is left
+        # Classify against the FEET CENTROID, not absolute zero: several
+        # imported rigs park the whole body off-origin (every stag/bull foot
+        # sits at z > 0), which made all four legs read as "front" and
+        # collapsed the role map to two legs.
+        cz = sum(gp[f][2] for f in feet) / len(feet)
+        cx = sum(gp[f][0] for f in feet) / len(feet)
+        front = rest[2] > cz                      # +Z is forward
+        left = rest[0] > cx                       # +X is left
         # lateral-sequence walk footfall: LH, LF, RH, RF
         phase = {(False, True): 0.00, (True, True): 0.25,
                  (False, False): 0.50, (True, False): 0.75}[(front, left)]

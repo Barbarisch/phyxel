@@ -4,7 +4,7 @@
 grass/foliage/foliage-shadow; `/api/debug/wind` up. **Phase 4 v1 SHIPPED (2026-07-18)** —
 stateless character displacers part + flatten grass (`/api/debug/grass {pushStrength}`), plus
 full-face tuft distribution fix. **WIND FIELD OVERHAUL SHIPPED + user-approved (2026-09-03)** —
-gradient noise + integer hash + domain warp + broad swell + wind sheen + mode-3 field map; see
+gradient noise + integer hash + domain warp + broad swell + wind sheen + mode-10 field map; see
 "The straight-line campaign" below. Phases 2–3 + 4 v2 (trail bend-field) planned. · **Owner
 workstream:** rendering / vegetation
 **Related:** `docs/RenderOptimization.md`, grass blade layer (`GrassRenderPipeline`), leaf cards
@@ -189,11 +189,11 @@ The ramp is `sqrt`-scaled: linear against the cap put the entire still-to-peak r
 wind inside the first segment, so everything read as one flat blue — true, but useless.
 
 Debug view selector (the UBO field is still named `debugShadowMode` historically):
-`0` off · `1` shadow-only · `2` grass wind · `3` **wind field map** (see 2026-09-03 below).
+`0` off · `1` shadow-only · `2` grass wind · `3`-`9` per-system lighting views (UnifiedLightingPlan) · `10` **wind field map** (see 2026-09-03 below).
 ⚠️ The handler used to collapse every non-zero value to `1`, so `mode: 2` silently selected the
 shadow view and *appeared to work*. It now clamps to the valid range instead.
 
-### Wind FIELD map — `POST /api/debug/shadow {"mode":3}` (2026-09-03, user-requested)
+### Wind FIELD map — `POST /api/debug/shadow {"mode":10}` (2026-09-03, user-requested; renumbered 3->10 in the lighting merge — the per-system lighting views own 3-9)
 
 **The definitive instrument for the field's SHAPE — use it before mode 2 and before arguing.**
 The terrain itself is painted per pixel by the exact `windGustAtEx` the grass runs (white calm →
@@ -222,7 +222,7 @@ debugging round and produced a confidently wrong answer.
 
 ### Shipped wind defaults (approved 2026-09-03; supersedes 2026-08-05)
 
-Tuned live by the user against the mode-3 field map + the real grass, signed off ("this is
+Tuned live by the user against the mode-10 field map + the real grass, signed off ("this is
 acceptable"). The derivations in `WindSystem::tick` are **calibrated so these Settings land on
 these numbers** — change one and the other must move.
 
@@ -289,7 +289,7 @@ scale with speed-derived amplitudes; rest lean + sheen are time-independent) —
 
 **Process lesson (the expensive one):** four consecutive diagnoses were asserted from theory and
 were wrong or incomplete; the streak ended only when the *observable* was instrumented — screen
-frame-diffs, then the mode-3 map. Also caught along the way: `/api/debug/wind` override keys are
+frame-diffs, then the mode-10 map. Also caught along the way: `/api/debug/wind` override keys are
 `gustScale`/`gustSpeed` (NOT `*Override` — those silently no-op), the docs referenced a
 `GrassShaderMirrorTest` that does not exist (mirror is verified by direct diff; the test is still
 worth writing), and `regen_grass_shadow.py` had hardcoded `G:/Github/phyxel` paths (now

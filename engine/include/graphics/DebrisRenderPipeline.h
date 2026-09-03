@@ -36,6 +36,14 @@ public:
     // Phase 4c: sample the baked light field at a world position so break-debris darkens
     // in unlit interiors and picks up glow/spell light (folded into per-particle color on
     // upload; debris.vert/.frag unchanged). Returns vec4(sky, blockR, blockG, blockB) 0..1.
+    /// U1: returns the LIGHT AT A WORLD POSITION as a linear colour (rgb; w unused).
+    ///
+    /// This used to return the raw baked-light field — vec4(skylight, blockR, blockG, blockB) —
+    /// which the pipeline then turned into a brightness factor of its own. That field is now a
+    /// constant (M0 deleted the flood), so debris was lit by a fixed number plus `debris.frag`'s
+    /// small fixed directional term, and never saw the sun at all. Returning a finished light
+    /// colour instead lets the caller — which has the atmosphere and the sun — decide, and keeps
+    /// debris on the same lighting the rest of the world uses.
     using LightSampler = std::function<glm::vec4(const glm::vec3& worldPos)>;
     void setLightSampler(LightSampler fn) { m_lightSampler = std::move(fn); }
 

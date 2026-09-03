@@ -130,6 +130,13 @@ public:
     using VoxelQueryHandler = std::function<json(int x, int y, int z)>;
     void setVoxelQueryHandler(VoxelQueryHandler handler) { m_voxelQueryHandler = std::move(handler); }
 
+    /// Read the BAKED per-cell light at a world cell: skylight + coloured block light, each 0-15.
+    /// Exists because the baked field had no observable at all — its behaviour could only be
+    /// inferred from screenshots, and a screenshot cannot tell an interior wall from a prop that
+    /// ignores the debug view. Inferring it from pixels produced several wrong diagnoses.
+    using BakedLightQueryHandler = std::function<json(int x, int y, int z)>;
+    void setBakedLightQueryHandler(BakedLightQueryHandler h) { m_bakedLightQueryHandler = std::move(h); }
+
     /// Handler that returns full world state snapshot.
     using WorldStateHandler = std::function<json()>;
     void setWorldStateHandler(WorldStateHandler handler) { m_worldStateHandler = std::move(handler); }
@@ -330,6 +337,7 @@ private:
     EntityDetailHandler m_entityDetailHandler;
     CameraHandler m_cameraHandler;
     VoxelQueryHandler m_voxelQueryHandler;
+    BakedLightQueryHandler m_bakedLightQueryHandler;
     WorldStateHandler m_worldStateHandler;
     SegmentDebugHandler m_segmentDebugHandler;
     ScreenshotHandler m_screenshotHandler;

@@ -13,6 +13,7 @@
 #include "core/AssetRequestLedger.h"
 #include "core/BuildingProgram.h"
 #include "core/BuildingProgramValidator.h"
+#include "core/Chunk.h"
 #include "core/ChunkManager.h"
 #include "core/DamageSystem.h"
 #include "core/FurnitureCatalog.h"
@@ -843,7 +844,9 @@ StructureForge::StageReport StructureForge::stagePlace(Context& ctx) {
 StructureForge::SignMount StructureForge::planSignMount(
         WallSide side, int wallOuterMicro, int alongCenterMicro,
         int floorMicroY, int doorHeadMicroY, int roofApexMicroY,
-        float boardW, float boardH, float boardT) {
+        float boardW, float boardH, float boardT,
+        const std::function<bool(const glm::ivec3&)>& solidAt,
+        int doorWidthMicro) {
     SignMount m;
     // Grounded limits (see RealizedStructureValidator::checkSignClearance).
     constexpr int kMinClearMicro = 22;   // >= 8 ft above grade
@@ -858,30 +861,49 @@ StructureForge::SignMount StructureForge::planSignMount(
     constexpr int kMaxProjMicro  = 19;   // <= 7 ft (1375 London ale-stake ordinance)
 
     const int boardHMicro = std::max(1, (int)std::ceil(boardH * 9.0f));
+    const int boardWMicro = std::max(1, (int)std::ceil(boardW * 9.0f));
+    const int boardTMicro = std::max(1, (int)std::ceil(boardT * 9.0f));
     const int minBottom = std::max(floorMicroY + kMinClearMicro, doorHeadMicroY + 1);
-    m.boardBottomMicroY = minBottom;
-    if (roofApexMicroY > 0 && m.boardBottomMicroY + boardHMicro > roofApexMicroY) {
-        m.boardBottomMicroY = roofApexMicroY - boardHMicro;   // tuck under the eave
-        if (m.boardBottomMicroY < minBottom) {
-            m.skipReason = "no room above the door head under the eave "
-                           "(roof apex too low for a clearing sign)";
-            return m;
-        }
-    }
 
-    // Outward normal of the wall the door sits in.
+    // Wall frame: outward normal (world axis + sign) and the along-wall axis.
     const bool onX = (side == WallSide::MinusX || side == WallSide::PlusX);
-    const float nSign = (side == WallSide::MinusX || side == WallSide::MinusZ)
-                        ? -1.0f : 1.0f;
+    const int nSign = (side == WallSide::MinusX || side == WallSide::MinusZ) ? -1 : 1;
+    // A world-micro cell from (out, along, y): `out` counts micro cells OUTWARD from
+    // the wall's outer face (0 = the face's own column), `along` is absolute micro.
+    auto cellAt = [&](int out, int along, int y) {
+        // outward cell k sits at face + nSign*(k+ (nSign>0 ? 0 : 1))... anchor: the
+        // face column itself is the outermost WALL cell for a negative-normal wall
+        // (face micro belongs to the wall) — offset symmetric via nSign*out.
+        const int o = wallOuterMicro + nSign * out - (nSign < 0 ? 1 : 0);
+        return onX ? glm::ivec3(o, y, along) : glm::ivec3(along, y, o);
+    };
+    auto boxClear = [&](int out0, int out1, int along0, int along1, int y0, int y1) {
+        if (!solidAt) return true;                       // no probe: geometric mode
+        for (int out = out0; out <= out1; ++out)
+            for (int along = along0; along <= along1; ++along)
+                for (int y = y0; y <= y1; ++y)
+                    if (solidAt(cellAt(out, along, y))) return false;
+        return true;
+    };
 
-    // FORM BY FIT: bracket first, facade as the bounded repair.
-    const int projProjecting = std::max(1, (int)std::ceil(boardW * 9.0f));
-    const int projFlush      = std::max(1, (int)std::ceil(boardT * 9.0f));
-    float outOffset;   // board center offset from the wall face, along the normal
-    if (projProjecting <= kMaxProjMicro) {
+    // ---------------- PROJECTING form (the authentic bracket sign) --------------
+    auto tryProjecting = [&]() -> bool {
+        if (boardWMicro > kMaxProjMicro) return false;
+        int bottom = minBottom;
+        const int armY = bottom + boardHMicro + 2;       // arm 2 micro above board top
+        if (roofApexMicroY > 0 && armY + 1 > roofApexMicroY) {
+            bottom = roofApexMicroY - 1 - 2 - boardHMicro;   // tuck arm under the apex
+            if (bottom < minBottom) return false;
+        }
+        const int armY2 = bottom + boardHMicro + 2;
+        // The board box (thin along the wall) + the bracket envelope must be AIR.
+        const int halfT = std::max(1, boardTMicro / 2 + 1);
+        if (!boxClear(1, boardWMicro + 1, alongCenterMicro - halfT,
+                      alongCenterMicro + halfT, bottom, armY2 + 1))
+            return false;
         m.form = "projecting";
-        m.projectionMicro = projProjecting;
-        outOffset = boardW * 0.5f;          // juts out half its width
+        m.projectionMicro = boardWMicro;
+        m.boardBottomMicroY = bottom;
         // local +X -> outward normal
         switch (side) {
             case WallSide::PlusX:  m.rotationDeg = 0;   break;
@@ -889,10 +911,47 @@ StructureForge::SignMount StructureForge::planSignMount(
             case WallSide::MinusX: m.rotationDeg = 180; break;
             case WallSide::PlusZ:  m.rotationDeg = 270; break;
         }
-    } else {
+        // BRACKET (user 2026-08-27: a projecting board must HANG from something):
+        // wrought-iron arm anchored in the wall's outermost column, out over the
+        // board, with a diagonal brace beneath and two hanger links to the board top.
+        m.bracketCells.clear();
+        for (int out = 0; out <= boardWMicro + 1; ++out)
+            m.bracketCells.push_back(cellAt(out, alongCenterMicro, armY2));
+        m.bracketCells.push_back(cellAt(boardWMicro + 1, alongCenterMicro, armY2 - 1)); // scroll tip
+        // Short diagonal brace under the arm root — bounded at 2 steps so it never
+        // descends into the board's own body (arm rides 2 micro above the board top).
+        for (int k = 1; k <= std::min(2, boardWMicro / 2); ++k)
+            m.bracketCells.push_back(cellAt(k, alongCenterMicro, armY2 - k));
+        for (int q : {boardWMicro / 4 + 1, (3 * boardWMicro) / 4})                       // hangers
+            m.bracketCells.push_back(cellAt(q, alongCenterMicro, armY2 - 1));
+        const float outOffset = boardW * 0.5f;
+        const float face = wallOuterMicro / 9.0f, along = alongCenterMicro / 9.0f;
+        m.worldPos.y = m.boardBottomMicroY / 9.0f;
+        if (onX) { m.worldPos.x = face + nSign * outOffset; m.worldPos.z = along; }
+        else     { m.worldPos.z = face + nSign * outOffset; m.worldPos.x = along; }
+        return true;
+    };
+
+    // ---------------- FLUSH form (facade board) --------------------------------
+    // `alongC` lets the bounded repair slide the board BESIDE the door; `bottom`
+    // drops beside-door boards to door height (they no longer overhang the way).
+    auto tryFlush = [&](int alongC, int bottom, bool overTheDoor) -> bool {
+        if (roofApexMicroY > 0 && bottom + boardHMicro > roofApexMicroY) {
+            bottom = roofApexMicroY - boardHMicro;
+            // A board OVER the door may never tuck below the 8-ft/lintel floor —
+            // it would obscure the doorway (the original refusal contract). Only
+            // the beside-door pose is allowed down at door height.
+            if (overTheDoor && bottom < minBottom) return false;
+            if (bottom < floorMicroY + 9) return false;  // never at ankle height
+        }
+        const int halfW = boardWMicro / 2 + 1;
+        if (!boxClear(1, boardTMicro + 1, alongC - halfW, alongC + halfW,
+                      bottom, bottom + boardHMicro))
+            return false;
         m.form = "flush";
-        m.projectionMicro = projFlush;
-        outOffset = boardT * 0.5f + 0.01f;  // barely proud of the cladding
+        m.projectionMicro = boardTMicro;
+        m.boardBottomMicroY = bottom;
+        m.bracketCells.clear();
         // local +Z (the painted face) -> outward normal
         switch (side) {
             case WallSide::PlusZ:  m.rotationDeg = 0;   break;
@@ -900,19 +959,44 @@ StructureForge::SignMount StructureForge::planSignMount(
             case WallSide::MinusZ: m.rotationDeg = 180; break;
             case WallSide::MinusX: m.rotationDeg = 270; break;
         }
+        const float outOffset = boardT * 0.5f + 0.01f;   // barely proud of the cladding
+        const float face = wallOuterMicro / 9.0f, along = alongC / 9.0f;
+        m.worldPos.y = m.boardBottomMicroY / 9.0f;
+        if (onX) { m.worldPos.x = face + nSign * outOffset; m.worldPos.z = along; }
+        else     { m.worldPos.z = face + nSign * outOffset; m.worldPos.x = along; }
+        return true;
+    };
+
+    // FORM BY FIT, then BY WORLD: bracket first; a blocked/oversized projection
+    // repairs to flush above the door; a blocked flush repairs to BESIDE the door
+    // (right, then left, at door-head height); only then skip — with the reason.
+    const int besideShift = doorWidthMicro / 2 + boardWMicro / 2 + 2;
+    const int besideBottom = std::max(floorMicroY + 9, doorHeadMicroY - boardHMicro);
+    // Beside-door poses are PROBE-GATED: without a world probe there is no way to
+    // know the wall beside the door is blank (a window would be covered), so
+    // geometric mode keeps the v1 contract (over-the-door or refuse).
+    if (!tryProjecting() &&
+        !tryFlush(alongCenterMicro, minBottom, /*overTheDoor=*/true) &&
+        !(solidAt && tryFlush(alongCenterMicro + besideShift, besideBottom, false)) &&
+        !(solidAt && tryFlush(alongCenterMicro - besideShift, besideBottom, false))) {
+        m.skipReason = solidAt
+            ? "no clear mount: projecting, flush and both beside-door poses all "
+              "intersect built geometry or sit below the clearance floor"
+            : "no room above the door head under the eave "
+              "(roof apex too low for a clearing sign)";
+        return m;
     }
 
     // GATE (not a guess): the same validator the furniture board answers to.
-    const ValidationReport sc = RealizedStructureValidator::checkSignClearance(
-        m.boardBottomMicroY, floorMicroY, m.projectionMicro, kMinClearMicro,
-        kMaxProjMicro, doorHeadMicroY);
-    if (!sc.ok()) { m.skipReason = sc.summary(); return m; }
-
-    const float face  = wallOuterMicro / 9.0f;
-    const float along = alongCenterMicro / 9.0f;
-    m.worldPos.y = m.boardBottomMicroY / 9.0f;
-    if (onX) { m.worldPos.x = face + nSign * outOffset; m.worldPos.z = along; }
-    else     { m.worldPos.z = face + nSign * outOffset; m.worldPos.x = along; }
+    // Beside-door FLUSH boards sit at door height by design — they project only
+    // their thickness, so the 8-ft overhead rule for projecting signs does not
+    // apply; the validator gates the forms that DO overhang the way.
+    if (m.form == "projecting" || m.boardBottomMicroY >= minBottom) {
+        const ValidationReport sc = RealizedStructureValidator::checkSignClearance(
+            m.boardBottomMicroY, floorMicroY, m.projectionMicro, kMinClearMicro,
+            kMaxProjMicro, doorHeadMicroY);
+        if (!sc.ok()) { m.skipReason = sc.summary(); m.ok = false; return m; }
+    }
     m.ok = true;
     return m;
 }
@@ -1561,13 +1645,55 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                     boardW = dims.x; boardH = dims.y; boardT = dims.z;
                 }
             }
+            // WORLD PROBE (SignMount v2): the mount must not intersect anything already
+            // built — eaves, jetties, chimneys (user find 2026-08-27: boards buried in
+            // roofs). Same cube-OR-subcube-OR-microcube solidity the place() ledger uses.
+            std::function<bool(const glm::ivec3&)> solidAt;
+            if (auto* cm = ctx.deps.chunkManager) {
+                solidAt = [cm](const glm::ivec3& wm) {
+                    auto fdiv = [](int a) { return a >= 0 ? a / 9 : (a - 8) / 9; };
+                    const glm::ivec3 cube(fdiv(wm.x), fdiv(wm.y), fdiv(wm.z));
+                    Chunk* ch = cm->getChunkAtFast(cube);
+                    if (!ch) return false;
+                    const glm::ivec3 lp = Utils::CoordinateUtils::worldToLocalCoord(cube);
+                    if (ch->getVoxelStore().solid(lp.z + lp.y * 32 + lp.x * 1024)) return true;
+                    const glm::ivec3 mi(wm.x - cube.x * 9, wm.y - cube.y * 9, wm.z - cube.z * 9);
+                    const glm::ivec3 sub(mi.x / 3, mi.y / 3, mi.z / 3);
+                    const glm::ivec3 mic(mi.x % 3, mi.y % 3, mi.z % 3);
+                    return ch->getSubcubeAt(lp, sub) != nullptr ||
+                           ch->getMicrocubeAt(lp, sub, mic) != nullptr;
+                };
+            }
+            const int doorWidthMicro = door ? std::max(1, door->width) * 9 : 9;
             const SignMount mount = planSignMount(
                 side, wallOuterMicro, alongCenterMicro, floorMicroY, doorHeadMicroY,
-                roofApexWorldMicro, boardW, boardH, boardT);
+                roofApexWorldMicro, boardW, boardH, boardT, solidAt, doorWidthMicro);
             if (!mount.ok) {
                 LOG_WARN("StructureBuild", "place_signage: SKIPPED — " + mount.skipReason);
                 response["signage_skipped"] = mount.skipReason;
             } else {
+                // A projecting board HANGS from a real wrought-iron bracket: static
+                // Metal micro voxels anchored in the wall (user 2026-08-27 — no more
+                // floating boards). Stamped before the board so the sign hangs FROM it.
+                if (!mount.bracketCells.empty() && ctx.deps.chunkManager) {
+                    StructureResult bracket;
+                    for (const auto& c : mount.bracketCells) {
+                        auto fdiv = [](int a) { return a >= 0 ? a / 9 : (a - 8) / 9; };
+                        VoxelPlacement v;
+                        v.position = glm::ivec3(fdiv(c.x), fdiv(c.y), fdiv(c.z));
+                        const glm::ivec3 mi(c.x - v.position.x * 9, c.y - v.position.y * 9,
+                                            c.z - v.position.z * 9);
+                        v.level = VoxelLevel::Microcube;
+                        v.subcubePos = glm::ivec3(mi.x / 3, mi.y / 3, mi.z / 3);
+                        v.microcubePos = glm::ivec3(mi.x % 3, mi.y % 3, mi.z % 3);
+                        v.material = "Metal";
+                        bracket.voxels.push_back(v);
+                    }
+                    const auto br = StructureGenerator::place(ctx.deps.chunkManager, bracket);
+                    LOG_INFO_FMT("StructureBuild", "place_signage: bracket "
+                                 << br.placed << " Metal micros (displaced "
+                                 << br.displaced << ")");
+                }
                 std::string sid;
                 if (signTmpl) {
                     // The real painted board: a fine-voxel ITEM prop (static-first,
@@ -1606,7 +1732,12 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
                         {"clearance_micro", mount.boardBottomMicroY - floorMicroY},
                         {"above_lintel_micro", mount.boardBottomMicroY - doorHeadMicroY},
                         {"projection_micro", mount.projectionMicro},
-                        {"over_door", door != nullptr},
+                        // beside_door: the flush board REPAIRED sideways off the door column
+                        // (bottom at door height); over_door: it crowns the doorway.
+                        {"beside_door", mount.form == "flush" &&
+                                        mount.boardBottomMicroY <= doorHeadMicroY},
+                        {"over_door", mount.boardBottomMicroY > doorHeadMicroY},
+                        {"bracket_cells", mount.bracketCells.size()},
                         {"clearance_ok", true}};   // gated: only reached when ok
                     placedObjectManager->setMetadata(sid, "signage", sj);
                     response["signage"] = sj;

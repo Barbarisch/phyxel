@@ -50,6 +50,10 @@ int MonsterVisualRegistry::ensureLoaded() {
         }
         if (v.contains("appearance")) mv.appearance = v["appearance"];
         mv.faction = v.value("faction", std::string{"monsters"});
+        if (v.contains("tint") && v["tint"].is_array() && v["tint"].size() == 3) {
+            for (int i = 0; i < 3; ++i) mv.tint[i] = v["tint"][i].get<float>();
+        }
+        mv.alpha = v.value("alpha", 1.0f);
         m_visuals[mv.monsterId] = std::move(mv);
     }
     LOG_INFO("MonsterVisual", "loaded {} monster visual bindings", m_visuals.size());

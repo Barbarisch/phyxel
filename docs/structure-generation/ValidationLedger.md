@@ -169,6 +169,66 @@ Validate when each lands; required layer noted so the plan is set up front.
   the village-only planner first. Flush setback-0 doors count as trivially connected spurs (live
   find: 11/21 read "too steep" on flat ground; `DoorOnTheStreetEdgeCountsAsConnected` pins it).
   L4: 140×60 seed-3 town = 21 buildings, 8 street rects, square+well+lane circuit all visible.
+  **✅ SLICE 4 — MARKET DRESSING + MEANDER (2026-08-26, `place_public_spaces` #43 + `lay_street_network`
+  #39, CityForgePlan M1/M2):** `planSquareDressing` (pure) dresses the square: civic STATUE at the
+  market-cross spot (kept only while every through band retains ≥2 cubes clear each side), the tier
+  well centre (town, legacy anchor bit-compatible) or relocated to the largest corner pad (city),
+  trestle STALLS flush against the pad street-edges, fronts to the street (rot 0/90/180/270 = +Z/−X/
+  −Z/+X). Assets `market_stall` (striped Wool/Linen canopy, counter ships EMPTY — goods are item
+  props later) + `statue_hero` (StoneTiles figure over StoneBricks plinth, material A/B'd live) via
+  regen_furniture.py, canon rows in object_dimensions.json. `MarketDressingTest` 4 tests red-first
+  (inside-square / band-clearance / pairwise ≥1 / centre pin / legacy well anchor / determinism /
+  L3 flood: every prop reachable from the street). City secondaries now MEANDER: seeded lateral
+  jogs |1..laneWidth−1| per run chain (edge-overlap ≥1 preserved ⇒ connected), pinned red-first by
+  `CityLayoutTest.SecondaryLanesMeander` across 4 seeds + existing L3 street walk.
+  **⚑ ORDERING:** dressing runs in its own unit AFTER "street sweep" — the square is inside the
+  swept road band, and dressing placed before the sweep registers props whose voxels the sweep then
+  clears (found live: 5 registered, zero standing; the registry lies, scan the world). L4: seed-7
+  160×160 city — statue+well+3 stalls standing on the plaza post-sweep
+  (docs/evidence/cityforge_m1_square_{north,iso}.png).
+  **✅ SLICE 5 — FENCE POLICY + DENSITY + TRADE SIGNS (2026-08-27, CityForgePlan M3/M3b/M3c):**
+  `shouldFencePlot` (core ring never fenced / <1-cube building clearance unfenced / seeded tier
+  `fences.fraction`) + `fenceGateWindowAt` (gate tracks the paver's front-door spur anchor) —
+  `FencePolicyTest` 4 red-first. `applyDensity` (`density` request param, 0.5–2 clamped+echoed):
+  sqrt-scaled blocks/plot-depth + linear buildings — LINEAR block scaling measured 42→33 buildings
+  at 1.5 (starves the infill it exists to feed) before sqrt fixed it. **SECONDARY-LANE INFILL
+  ROWS**: block interiors host burgage rows fronting each lane segment behind a plotFree occupancy
+  guard (axes allocate first) — the city stops being axes-only (33 → 42 base, **65 at density
+  1.5**, red-first `DensityRaisesTheBuildingCount` + full-suite no-overlap). **Sign root cause**:
+  the settlement path passed NO ItemPropManager, so every sign item (Pony included) silently fell
+  back to the blank hanging_sign board and settlement interiors lost ALL item props — deps wired
+  (settlement + worldforge callers); five authored trade boards (gen_trade_signs.py symbol-first
+  art → gen_items.py → materials/items/room_program) close all 5 asset-request rows
+  (`asset_requests.py --check` clean). L4 dense city: 24 painted signs hung / 8 skipped-for-eave
+  honestly / 0 blank fallbacks (log-counted), 17 fenced / 48 unfenced-by-policy
+  (docs/evidence/cityforge_m3b_dense_{top,core}.png, cityforge_m3c_sign_items.png).
+  **✅ SLICE 6 — SIGN MOUNT v2 (2026-08-27, place_signage #47, CityForgePlan M3d):** two-sided
+  boards fixed at the RENDER root (a z-projected board's back face drew its art rotated 180° —
+  the user's upside-down smithy; the fix is opposite-slice-reversed UVs `{1-fn, -sn}` on the -Z
+  face, settled by crop-verified A/B across four mappings — offset-only variants are no-ops on a
+  single merged quad and same-slice reversal scrambles multi-quad boards; both photographed).
+  Projecting signs HANG from a stamped wrought-iron BRACKET (SignMount.bracketCells → static
+  Metal micros, arm anchored in the wall + brace + hanger links; L4 25 micros / displaced 0).
+  planSignMount gained a world micro-occupancy probe (`solidAt`, the place()-ledger rule) with
+  bounded repairs: blocked projection → flush over door → flush BESIDE the door at door height
+  (probe-gated — a blind beside-pose could cover a window) → honest skip. `SignMount` 13 tests
+  (4 new red-first: bracket-exists/anchors/reaches, blocked→flush, blocked→beside, final-pose
+  self-check). L4 both faces readable on the mounted tavern board
+  (docs/evidence/cityforge_m3d_sign_bracket_{north,south}.png). Punts logged: swinging signs
+  (hinge constraint gap), window-blind flush check, x-axis surface faces.
+  **✅ SLICE 7 — TENEMENT TYPOLOGY + PALETTE CAPS (2026-08-27, CityForgePlan M4):** the city gets
+  HOUSING. `tenement` = a grounded DATA commit (archetype sheet first, per the standing rule:
+  Our Lady's Row, York 1316 — two storeys, one room per floor; gable-on and 2-bay depth are
+  DISCLOSED design decisions, the latter because the documented ~4.5 m depth cannot host the
+  forge's generated stair). Reuses the croft `living` + inn `bedchamber` recipes, so
+  REFUSE-ON-ANY-GAP holds with ZERO new assets. `typology_caps` bind per-typology COUNTS in
+  both planners (weights keep setting flavour), red-first
+  `CityLayoutTest.TypologyCapsBoundTheServiceGlut` measuring the real glut (7 taverns / 6
+  smithies vs caps 3 / 2, 3 seeds). Wiring bug found + fixed: a typology absent from
+  `locationTypeForTypology`'s Home list derives as a Custom location and silently gets NO
+  residents. **L4** seed-7 density-1.5 city: 72 buildings / 35 tenements / 0 lot failures /
+  every cap honored / 69 residents live incl. all 35 tenement households (baseline: 33
+  buildings, 16 smithies, 28 residents) — docs/evidence/cityforge_m4_tenement_*.png.
   **✅ SLICE 2 — STREETS ARE REAL GEOMETRY (2026-07-09, `StreetPaver`):** `planStreetPaving` (pure) grades
   each street's centerline via `planTerrainPath`, broadcasts a LEVEL cross-section across the full width,
   and runs a spur from every front door to the street (meeting the STREET's surface, first-writer);

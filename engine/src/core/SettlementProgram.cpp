@@ -1,11 +1,43 @@
 #include "core/SettlementProgram.h"
 
+#include <algorithm>
+#include <cmath>
 #include <fstream>
 
 #include "utils/Logger.h"
 
 namespace Phyxel {
 namespace Core {
+
+SettlementTierPreset applyDensity(const SettlementTierPreset& t, double density) {
+    const double d = std::clamp(density, 0.5, 2.0);
+    if (d == 1.0) return t;                            // identity: legacy byte-compatible
+    SettlementTierPreset out = t;
+    // Blocks and plot depth scale by SQRT(density): both-sided lane infill needs a block to
+    // hold two plot depths, so linear tightening starves the very rows density exists to add
+    // (measured: linear at 1.5 dropped 42 -> 33 buildings; sqrt raises it instead).
+    const double sq = std::sqrt(d);
+    auto scaleDown = [&](int v, int floor_, double by) {   // tighter as density rises
+        return std::max(floor_, static_cast<int>(std::lround(v / by)));
+    };
+    auto scaleUp = [&](int v, int cap) {                   // more as density rises
+        return std::min(cap, std::max(1, static_cast<int>(std::lround(v * d))));
+    };
+    out.blocksMin = scaleDown(t.blocksMin, 8, sq);
+    out.blocksMax = std::max(out.blocksMin, scaleDown(t.blocksMax, 10, sq));
+    // Plots: shallower tofts (floor 6; the allocator still clamps to each typology's minDepth).
+    out.plot.depthMin = scaleDown(t.plot.depthMin, 6, sq);
+    out.plot.depthMax = std::max(out.plot.depthMin, scaleDown(t.plot.depthMax, 8, sq));
+    out.plot.sideGap = std::max(0, static_cast<int>(std::lround(t.plot.sideGap / d)));
+    // Setbacks: dense frontages build to the street line.
+    out.setback.max = std::max(t.setback.min, static_cast<int>(std::lround(t.setback.max / d)));
+    // More (or fewer) buildings, bounded well above any real tier.
+    out.buildingsMin = scaleUp(t.buildingsMin, 400);
+    out.buildingsMax = std::max(out.buildingsMin, scaleUp(t.buildingsMax, 400));
+    // Dense quarters keep fewer enclosures.
+    out.fenceFraction = std::clamp(t.fenceFraction / d, 0.0, 1.0);
+    return out;
+}
 
 SettlementTierPreset SettlementProgramRegistry::parse(const std::string& era,
                                                       const std::string& tier,
@@ -46,6 +78,9 @@ SettlementTierPreset SettlementProgramRegistry::parse(const std::string& era,
         for (auto it = rec["core_typology_weights"].begin();
              it != rec["core_typology_weights"].end(); ++it)
             if (it.value().is_number()) t.coreTypologyWeights[it.key()] = it.value().get<int>();
+    if (rec.contains("typology_caps") && rec["typology_caps"].is_object())
+        for (auto it = rec["typology_caps"].begin(); it != rec["typology_caps"].end(); ++it)
+            if (it.value().is_number()) t.typologyCaps[it.key()] = it.value().get<int>();
     t.coreRing = rec.value("core_ring", 0);
     if (rec.contains("blocks") && rec["blocks"].is_object()) {
         t.blocksMin = rec["blocks"].value("min", t.blocksMin);
@@ -57,8 +92,27 @@ SettlementTierPreset SettlementProgramRegistry::parse(const std::string& era,
         if (pb.contains("market_square") && pb["market_square"].is_object()) {
             t.pub.marketW = pb["market_square"].value("w", 0);
             t.pub.marketD = pb["market_square"].value("d", 0);
+            t.pub.stalls  = pb["market_square"].value("stalls", 0);
+            t.pub.statue  = pb["market_square"].value("statue", false);
         }
     }
+    if (rec.contains("walls") && rec["walls"].is_object()) {
+        const auto& w = rec["walls"];
+        t.walls.enabled          = w.value("enabled", false);
+        t.walls.heightCubes      = w.value("height", t.walls.heightCubes);
+        t.walls.thicknessCubes   = w.value("thickness", t.walls.thicknessCubes);
+        t.walls.gateWidthCubes   = w.value("gate_width", t.walls.gateWidthCubes);
+        t.walls.marginCubes      = w.value("margin", t.walls.marginCubes);
+        t.walls.towers           = w.value("towers", t.walls.towers);
+        t.walls.towerShape       = w.value("tower_shape", t.walls.towerShape);
+        t.walls.towerCap         = w.value("tower_cap", t.walls.towerCap);
+        t.walls.towerSize        = w.value("tower_size", t.walls.towerSize);
+        t.walls.towerExtraHeight = w.value("tower_extra_height", t.walls.towerExtraHeight);
+        t.walls.crenellations    = w.value("crenellations", t.walls.crenellations);
+        t.walls.material         = w.value("material", t.walls.material);
+    }
+    if (rec.contains("fences") && rec["fences"].is_object())
+        t.fenceFraction = std::clamp(rec["fences"].value("fraction", 1.0), 0.0, 1.0);
     if (rec.contains("sources") && rec["sources"].is_object())
         for (auto it = rec["sources"].begin(); it != rec["sources"].end(); ++it)
             if (it.value().is_string()) t.sources[it.key()] = it.value().get<std::string>();

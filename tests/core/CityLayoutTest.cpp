@@ -116,9 +116,24 @@ TEST(CityLayoutTest, SecondaryStreetsSliceJitteredBlocks) {
     }
     ASSERT_GE(bands.size(), 3u) << "no secondary streets — the quarter is one undivided strip";
     std::sort(bands.begin(), bands.end());
-    for (size_t i = 1; i < bands.size(); ++i) {
-        const int gap = bands[i].first - bands[i - 1].second;
-        EXPECT_GE(gap, f.city->blocksMin - 2) << "blocks " << i << " degenerate (" << gap << ")";
+    // A meandering lane (M2) emits several rects whose u-ranges overlap — merge each lane's
+    // segments into ONE band before checking block gaps (the block is lane-to-lane space).
+    std::vector<std::pair<int, int>> merged;
+    for (const auto& b : bands) {
+        if (!merged.empty() && b.first <= merged.back().second) {
+            merged.back().second = std::max(merged.back().second, b.second);
+        } else {
+            merged.push_back(b);
+        }
+    }
+    ASSERT_GE(merged.size(), 3u);
+    // Two neighbouring lanes can each drift up to (laneWidth-1) toward one another via jogs,
+    // so the block-gap floor relaxes by 2*(laneWidth-1) vs the straight-lane bound.
+    const int drift = 2 * (f.city->street.laneWidth - 1);
+    for (size_t i = 1; i < merged.size(); ++i) {
+        const int gap = merged[i].first - merged[i - 1].second;
+        EXPECT_GE(gap, f.city->blocksMin - 2 - drift)
+            << "blocks " << i << " degenerate (" << gap << ")";
         EXPECT_LE(gap, f.city->blocksMax + f.city->blocksMin)
             << "block " << i << " oversized (" << gap << ")";
     }
@@ -249,6 +264,141 @@ TEST(CityLayoutTest, ProbeWalksSquareToStreetEndAndCrossRow) {
             << "cross-row frontage unreachable from the square";
         break;
     }
+}
+
+// MEANDER (CityForgePlan M2, RED on straight lanes): secondary lanes are CHAINS of straight
+// runs with seeded lateral jogs — a lane is the set of lane-width perpendicular rects that
+// chain end-to-end (consecutive runs share an edge overlap >= 1 cube, so the walk never
+// breaks). Across seeds, jogged lanes must exist; every jog must keep the edge overlap.
+TEST(CityLayoutTest, SecondaryLanesMeander) {
+    Fixture f;
+    if (!f.ok) GTEST_SKIP() << "canon files not reachable from CWD";
+    int laneCount = 0, joggedLanes = 0, totalJogs = 0;
+    for (unsigned seed : {3u, 7u, 11u, 19u}) {
+        const auto l = planCityLayout(*f.city, W, D, f.rreg, seed);
+        ASSERT_TRUE(l.ok);
+        const bool alongX = l.mainStreet.w >= l.mainStreet.d;
+        const int lw = f.city->street.laneWidth;
+        // Collect lane-width perpendicular SEGMENTS as (u0, v0, v1) in the u/v frame.
+        struct Seg { int u, v0, v1; };
+        std::vector<Seg> segs;
+        for (const auto& s : l.base.streets) {
+            const int width = alongX ? s.w : s.d;
+            const int span = alongX ? s.d : s.w;
+            const bool perp = alongX ? (s.d > s.w) : (s.w > s.d);
+            if (!perp || width != lw || span <= 0) continue;
+            segs.push_back(alongX ? Seg{s.x, s.z, s.z1()} : Seg{s.z, s.x, s.x1()});
+        }
+        // Chain segments into lanes: next run starts where the previous ended, |du| < lw.
+        std::sort(segs.begin(), segs.end(), [](const Seg& a, const Seg& b) {
+            if (a.v0 != b.v0) return a.v0 < b.v0;
+            return a.u < b.u;
+        });
+        std::vector<bool> used(segs.size(), false);
+        for (size_t i = 0; i < segs.size(); ++i) {
+            if (used[i]) continue;
+            used[i] = true;
+            int jogs = 0, curU = segs[i].u, curV1 = segs[i].v1;
+            bool extended = true;
+            while (extended) {
+                extended = false;
+                for (size_t j = 0; j < segs.size(); ++j) {
+                    if (used[j] || segs[j].v0 != curV1) continue;
+                    if (std::abs(segs[j].u - curU) >= lw) continue;   // no edge overlap: not this lane
+                    if (segs[j].u != curU) {
+                        ++jogs;
+                        // the jog must preserve a shared edge run of >= 1 cube (walkable corner)
+                        EXPECT_LT(std::abs(segs[j].u - curU), lw)
+                            << "seed " << seed << ": jog severs the lane";
+                    }
+                    used[j] = true;
+                    curU = segs[j].u;
+                    curV1 = segs[j].v1;
+                    extended = true;
+                    break;
+                }
+            }
+            ++laneCount;
+            if (jogs > 0) ++joggedLanes;
+            totalJogs += jogs;
+        }
+    }
+    ASSERT_GT(laneCount, 0) << "no secondary lanes at all";
+    EXPECT_GT(joggedLanes, 0) << "no lane meanders across 4 seeds — streets are ruler-straight";
+    EXPECT_GE(totalJogs * 2, laneCount)
+        << "meander too rare (" << totalJogs << " jogs over " << laneCount << " lanes)";
+}
+
+// M3b density (RED while only the axes host frontages): a denser preset must yield MORE
+// buildings, not fewer. Without secondary-lane infill rows, extra density only adds streets
+// that EAT the axes' fixed frontage (measured live: 33 -> 26 buildings at density 1.5).
+TEST(CityLayoutTest, DensityRaisesTheBuildingCount) {
+    Fixture f;
+    if (!f.ok) GTEST_SKIP() << "canon files not reachable from CWD";
+    const auto base = planCityLayout(*f.city, W, D, f.rreg, 7);
+    const auto dense = planCityLayout(applyDensity(*f.city, 1.5), W, D, f.rreg, 7);
+    ASSERT_TRUE(base.ok && dense.ok);
+    EXPECT_GT(dense.assigned.size(), base.assigned.size())
+        << "density 1.5 must add buildings (base " << base.assigned.size() << ")";
+    // And the infill must stay legal: no plot overlaps any street or another plot.
+    for (size_t i = 0; i < dense.assigned.size(); ++i) {
+        const Rect& p = dense.assigned[i].plot.rect;
+        for (const auto& s : dense.base.streets)
+            EXPECT_FALSE(overlaps(p, s)) << "dense plot " << i << " overlaps a street";
+        for (size_t j = i + 1; j < dense.assigned.size(); ++j)
+            EXPECT_FALSE(overlaps(p, dense.assigned[j].plot.rect))
+                << "dense plots " << i << "/" << j << " overlap";
+    }
+}
+
+// M4 palette caps (RED before parse+enforcement): weights set FLAVOUR, caps bind COUNTS —
+// the measured density-1.5 city drew 16 blacksmiths of 65 buildings. A capped typology's
+// draw redraws; housing (uncapped) absorbs the difference.
+TEST(CityLayoutTest, TypologyCapsBoundTheServiceGlut) {
+    Fixture f;
+    if (!f.ok) GTEST_SKIP() << "canon files not reachable from CWD";
+    ASSERT_FALSE(f.city->typologyCaps.empty())
+        << "city preset declares typology_caps (data) — the parser must carry them";
+    for (unsigned seed : {3u, 7u, 19u}) {
+        const auto l = planCityLayout(applyDensity(*f.city, 1.5), W, D, f.rreg, seed);
+        ASSERT_TRUE(l.ok);
+        std::map<std::string, int> counts;
+        for (const auto& ap : l.assigned) ++counts[ap.typology];
+        for (const auto& [typ, cap] : f.city->typologyCaps)
+            EXPECT_LE(counts[typ], cap)
+                << "seed " << seed << ": " << counts[typ] << " x " << typ
+                << " exceeds its cap of " << cap;
+        // The cap must not starve the city: housing absorbs the redraws.
+        EXPECT_GE(l.assigned.size(), 20u) << "seed " << seed << " city collapsed under caps";
+    }
+}
+
+// M5 (RED before the town_hall program + core weight): a city has exactly ONE seat of
+// government, and it stands on the market place — core-ring membership is how the engine
+// expresses market adjacency, so the moot hall must be drawn from the CORE palette.
+TEST(CityLayoutTest, TheCityHasOneTownHallAndItStandsByTheMarket) {
+    Fixture f;
+    if (!f.ok) GTEST_SKIP() << "canon files not reachable from CWD";
+    ASSERT_NE(f.rreg.get("town_hall"), nullptr) << "town_hall room program must exist";
+    int seenSeeds = 0;
+    for (unsigned seed : {3u, 7u, 11u, 19u}) {
+        const auto l = planCityLayout(*f.city, W, D, f.rreg, seed);
+        ASSERT_TRUE(l.ok && l.hasSquare);
+        const int sqCx = l.marketSquare.x + l.marketSquare.w / 2;
+        const int sqCz = l.marketSquare.z + l.marketSquare.d / 2;
+        int halls = 0;
+        for (const auto& ap : l.assigned) {
+            if (ap.typology != "town_hall") continue;
+            ++halls;
+            const int cx = ap.plot.rect.x + ap.plot.rect.w / 2;
+            const int cz = ap.plot.rect.z + ap.plot.rect.d / 2;
+            EXPECT_LE(std::max(std::abs(cx - sqCx), std::abs(cz - sqCz)), f.city->coreRing + 12)
+                << "seed " << seed << ": the moot hall is nowhere near the market place";
+        }
+        EXPECT_LE(halls, 1) << "seed " << seed << ": " << halls << " town halls in one city";
+        if (halls == 1) ++seenSeeds;
+    }
+    EXPECT_GT(seenSeeds, 0) << "no city across 4 seeds got a town hall at all";
 }
 
 TEST(CityLayoutTest, DeterministicInSeed) {

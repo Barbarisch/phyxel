@@ -83,5 +83,13 @@ std::vector<FenceRun> planParcelFenceRuns(int prX, int prZ, int prW, int prD);
 /// its own copy of the rule it validates stops being a check the moment either drifts.
 bool fenceGateWindow(int runLenMicro, int gateWidthCubes, int& loMicro, int& hiMicro);
 
+/// Gate window ALIGNED to the front door (CityForgePlan M3): like fenceGateWindow but the
+/// gate's cube span is centred as close to `preferredCentreMicro` (run-local micro, e.g. the
+/// building's front-wall midpoint projected onto the run) as the run allows — clamped so the
+/// full gate stays inside the run. Cube-aligned like the legacy window. Returns false when the
+/// run can't host the gate at all.
+bool fenceGateWindowAt(int runLenMicro, int gateWidthCubes, int preferredCentreMicro,
+                       int& loMicro, int& hiMicro);
+
 }  // namespace Core
 }  // namespace Phyxel

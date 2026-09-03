@@ -1547,7 +1547,37 @@ bool VulkanDevice::createDescriptorSetLayout() {
     shadowFarBinding.pImmutableSamplers = nullptr;
     shadowFarBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    std::array<VkDescriptorSetLayoutBinding, 11> bindings = {uboLayoutBinding, samplerLayoutBinding, shadowMapLayoutBinding, lightBufferBinding, atlasUVBinding, samplerHiLayoutBinding, normal512Binding, normal1024Binding, charBoneBinding, shadowNearBinding, shadowFarBinding};
+    // Sub-voxel light occupancy (bindings 11 + 12) — docs/UnifiedLightingPlan.md M1b/M2. The
+    // directory resolves a world position to a chunk blob in one indexed read; the pool holds the
+    // blobs. Appended at the END, for the same reason bindings 9/10 were: this set-0 layout is
+    // shared by every scene shader and renumbering would break all of them at once.
+    VkDescriptorSetLayoutBinding occDirBinding{};
+    occDirBinding.binding = 11;
+    occDirBinding.descriptorCount = 1;
+    occDirBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    occDirBinding.pImmutableSamplers = nullptr;
+    // COMPUTE too: M5's probe-update pass traces the same occupancy the fragment shaders do.
+    occDirBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
+
+    VkDescriptorSetLayoutBinding occPoolBinding{};
+    occPoolBinding.binding = 12;
+    occPoolBinding.descriptorCount = 1;
+    occPoolBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    occPoolBinding.pImmutableSamplers = nullptr;
+    occPoolBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
+
+    // GI probe field (binding 13) -- docs/UnifiedLightingPlan.md M5.1. Written by the probe-update
+    // compute pass, read by the scene fragment shaders. Appended at the END for the same reason
+    // 9/10 and 11/12 were: this set-0 layout is shared by every scene shader and renumbering breaks
+    // all of them at once.
+    VkDescriptorSetLayoutBinding giProbeBinding{};
+    giProbeBinding.binding = 13;
+    giProbeBinding.descriptorCount = 1;
+    giProbeBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    giProbeBinding.pImmutableSamplers = nullptr;
+    giProbeBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
+
+    std::array<VkDescriptorSetLayoutBinding, 14> bindings = {uboLayoutBinding, samplerLayoutBinding, shadowMapLayoutBinding, lightBufferBinding, atlasUVBinding, samplerHiLayoutBinding, normal512Binding, normal1024Binding, charBoneBinding, shadowNearBinding, shadowFarBinding, occDirBinding, occPoolBinding, giProbeBinding};
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
@@ -1568,7 +1598,9 @@ bool VulkanDevice::createDescriptorPool() {
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[1].descriptorCount = MAX_FRAMES_IN_FLIGHT * 7; // albedo 512/1024 + normal 512/1024 + shadow mid/near/far
     poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    poolSizes[2].descriptorCount = MAX_FRAMES_IN_FLIGHT * 3; // Light + Atlas UV + character bones
+    // bindings 3,4,8 + light-occupancy directory/pool (11,12)
+    // M5.1: +1 for the GI probe buffer (binding 13).
+    poolSizes[2].descriptorCount = MAX_FRAMES_IN_FLIGHT * 6;
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1727,6 +1759,11 @@ void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& vie
     ubo.cameraWorld = cameraPosition;
     ubo.debugShadowMode = m_debugShadowMode;
     ubo.shadowDepthRange = m_shadowDepthRange;
+    // Light occupancy: the box the shader must address against, plus the guard flag that says
+    // whether bindings 11/12 are real. Zero w = the inert fallback is bound; the shader must not
+    // read the buffers at all.
+    ubo.occupancyBox = m_occupancyBox;
+    ubo.giProbeGrid  = m_giProbeGrid;   // M5.1
     ubo.elapsedTime = elapsedTime;
     ubo.viewProj = proj * view;
     ubo.biasedLightSpace = kShadowBiasMat * lightSpaceMatrix;
@@ -1745,7 +1782,7 @@ void VulkanDevice::updateUniformBuffer(uint32_t frameIndex, const glm::mat4& vie
     ubo.exposure          = m_atmosphere.exposure;
     ubo.tonemapCurve      = m_atmosphere.tonemapCurve;
     ubo.skyBodyCount      = m_atmosphere.bodyCount;
-    ubo.windDebugA        = m_windDebugA;   // wind debug view (mode 3): field scalars
+    ubo.windDebugA        = m_windDebugA;   // wind debug view (mode 10): field scalars
     ubo.windDebugB        = m_windDebugB;
     for (int i = 0; i < AtmosphereUniforms::kMaxSkyBodies; ++i) {
         ubo.skyBodyDirRadius[i] = m_atmosphere.bodyDirRadius[i];
@@ -1824,9 +1861,12 @@ bool VulkanDevice::createReflectionBuffers() {
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = MAX_FRAMES_IN_FLIGHT;
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[1].descriptorCount = MAX_FRAMES_IN_FLIGHT * 6; // bindings 1,2,5,6,7,9
+    // NOTE 2026-08-29: this was 6 and the layout already declared binding 10 (far cascade) — the
+    // same one-short mistake as before, re-introduced when binding 10 was appended without
+    // updating this count. Samplers in the layout are 1,2,5,6,7,9,10 = 7.
+    poolSizes[1].descriptorCount = MAX_FRAMES_IN_FLIGHT * 7; // bindings 1,2,5,6,7,9,10
     poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-    poolSizes[2].descriptorCount = MAX_FRAMES_IN_FLIGHT * 3; // bindings 3,4,8
+    poolSizes[2].descriptorCount = MAX_FRAMES_IN_FLIGHT * 5; // bindings 3,4,8,11,12
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -2921,7 +2961,7 @@ void VulkanDevice::updateDescriptorSetsWithTexture() {
         shadowFarInfo.sampler = shadowMapFarSampler ? shadowMapFarSampler
                                 : (shadowMapSampler ? shadowMapSampler : textureAtlasSampler);
 
-        std::array<VkWriteDescriptorSet, 10> descriptorWrites{};
+        std::array<VkWriteDescriptorSet, 13> descriptorWrites{};
 
         // UBO write
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -3011,6 +3051,52 @@ void VulkanDevice::updateDescriptorSetsWithTexture() {
         descriptorWrites[9].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         descriptorWrites[9].descriptorCount = 1;
         descriptorWrites[9].pImageInfo = &shadowFarInfo;
+
+        // Light-occupancy directory / pool (bindings 11, 12). Same fallback contract as bindings
+        // 9/10: when the occupancy is absent these point at the light SSBO — a real, correctly
+        // sized buffer — so the binding is always VALID, and the shader's occupancyReady flag is
+        // 0, so it is never read. An invalid or null buffer here is a validation error; a
+        // wrongly-read one would be phantom geometry.
+        VkDescriptorBufferInfo occDirInfo{};
+        occDirInfo.buffer = lightOccupancyDirBuffer ? lightOccupancyDirBuffer : lightBuffers[i];
+        occDirInfo.offset = 0;
+        occDirInfo.range  = VK_WHOLE_SIZE;
+
+        VkDescriptorBufferInfo occPoolInfo{};
+        occPoolInfo.buffer = lightOccupancyPoolBuffer ? lightOccupancyPoolBuffer : lightBuffers[i];
+        occPoolInfo.offset = 0;
+        occPoolInfo.range  = VK_WHOLE_SIZE;
+
+        descriptorWrites[10].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[10].dstSet = descriptorSets[i];
+        descriptorWrites[10].dstBinding = 11;
+        descriptorWrites[10].dstArrayElement = 0;
+        descriptorWrites[10].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[10].descriptorCount = 1;
+        descriptorWrites[10].pBufferInfo = &occDirInfo;
+
+        descriptorWrites[11].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[11].dstSet = descriptorSets[i];
+        descriptorWrites[11].dstBinding = 12;
+        descriptorWrites[11].dstArrayElement = 0;
+        descriptorWrites[11].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[11].descriptorCount = 1;
+        descriptorWrites[11].pBufferInfo = &occPoolInfo;
+
+        // M5.1 GI probes. Same fallback contract as 11/12: a valid buffer the shader never reads,
+        // because the guard bit in occupancyBox.w stays clear until the field is real.
+        VkDescriptorBufferInfo giInfo{};
+        giInfo.buffer = giProbeBuffer ? giProbeBuffer : lightBuffers[i];
+        giInfo.offset = 0;
+        giInfo.range  = VK_WHOLE_SIZE;
+
+        descriptorWrites[12].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[12].dstSet = descriptorSets[i];
+        descriptorWrites[12].dstBinding = 13;
+        descriptorWrites[12].dstArrayElement = 0;
+        descriptorWrites[12].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[12].descriptorCount = 1;
+        descriptorWrites[12].pBufferInfo = &giInfo;
 
         vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
     }

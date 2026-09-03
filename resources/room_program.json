@@ -20,6 +20,81 @@
         "windows.size": "STYLIZED — NO metric source for a humble window opening (the 12-18 in figure is 11th-c castle windows, wrong class); 1x1 cube = the smallest carvable opening on the cube portal grid, KNOWN OVERSIZED vs the qualitative 'small shuttered opening' record; pending Brunskill (1971) / Weald & Downland build records / HE HEAG102. Openings are SHUTTERED AIR, never Glass: glazing unaffordable for ordinary households before Elizabeth I (1558+) (buildingconservation.com early-casement article)"
       }
     },
+    "tower_house": {
+      "wealth_tier": "high",
+      "description": "Tower house / tower keep — a compact thick-walled stone tower: a store at ground, the hall above it, private chambers stacked over that, reached by a generated stair. The lord's fortified residence, and the keep form this engine can actually structure. CityForgePlan M8.",
+      "width_min": 5,
+      "width_max": 8,
+      "bay_length": 4,
+      "bays": 2,
+      "proportion_max": 1.8,
+      "stories": 3,
+      "upper_purpose": "chamber",
+      "upper_purposes": ["tower_hall", "chamber"],
+      "upper_plan": "single",
+      "windows": { "width": 1, "height": 1, "per_bay": 0.5, "walls": "front" },
+      "rooms": [
+        { "id": "vault", "purpose": "service", "bays": 2 }
+      ],
+      "source": "Tower house — GROUNDED MINIMUM 6.1 x 4.9 x 12.2 m (20 x 16 x 40 ft), the dimensional standard set by the Henry VI statute of 1429 for the Irish '£10 castles'. Stacked single rooms over a vaulted store is the defining plan. Full sheet: docs/structure-generation/archetypes/tower_house.md",
+      "sources": {
+        "width_min": "the 1429 statute's 4.9 m short side is the attested MINIMUM; 5 cubes is that minimum, 8 the upper end of the compact tower form",
+        "bays": "2 bays x 4 m = 8 m long, against the statute's 6.1 m minimum long side — inside the real range for a compact tower",
+        "stories": "3: the statute's 12.2 m height over a vaulted store implies 3-4 stacked floors. Rooms STACK (one per floor) — that is the tower plan, not a simplification",
+        "rooms": "one room per floor. Ground = the store/vault ('service' recipe); the hall and the private chambers above are generated stories ('chamber' -> the bedchamber recipe). Both recipes are already conformant — no new assets",
+        "_not_modelled": "DISCLOSED deviations from the sheet, none faked: (1) the FIRST-FLOOR ENTRANCE with a removable stair, and a ground vault with no external door, are the tower's defining defensive trick — the engine doors every building at ground level, so this tower is entered at the bottom; (2) no mural/spiral stair in the wall thickness (the generated stair is a normal one); (3) no crenellated parapet on the roof (buildings get roofs, not battlements — the town WALL has crenellations); (4) no vaulting.",
+        "_why_not_a_great_tower": "The Dover/Rochester-scale KEEP (docs/structure-generation/archetypes/keep.md, 21-30 m square) is NOT shipped, and not because of a width cap — widthMax is per-typology data. A great tower of that span needs an internal CROSS-WALL (which is exactly why Rochester and Dover have one: floors cannot span the full width). This engine's room model divides a plan along the LONG axis only, so every room would be full-width and a 14 m clear span would be implied. That is a mechanism gap, logged in docs/StructurePipelineGaps.md, not something to fake with a wide empty box."
+      }
+    },
+    "town_hall": {
+      "wealth_tier": "high",
+      "description": "Moot hall / town house — the seat of town government: a public hall at ground with a secure muniment (records + town arms) beside it, and the council chamber above reached by a generated stair. CityForgePlan M5.",
+      "width_min": 6,
+      "width_max": 7,
+      "bay_length": 4,
+      "bays": 4,
+      "proportion_max": 3.0,
+      "stories": 2,
+      "upper_purpose": "council_chamber",
+      "windows": { "width": 1, "height": 1, "per_bay": 1.0, "walls": "front" },
+      "rooms": [
+        { "id": "public_hall", "purpose": "council_hall", "bays": 2 },
+        { "id": "muniment", "purpose": "service", "bays": 1 },
+        { "id": "armoury", "purpose": "service", "bays": 1 }
+      ],
+      "source": "Market-house form (civic hall over a public ground floor) — Thaxted Guildhall (Essex, c.1450) and Ledbury Market House (Herefordshire, 1617) are the surviving type. Full sheet: docs/structure-generation/archetypes/town_hall.md",
+      "sources": {
+        "rooms": "the archetype's required spaces are a public/market floor + the civic hall + a secure muniment/armoury (town_hall.md §5). Ground public_hall and the generated upper council chamber both use the CIVIC recipe (council board + benches + chair of office + muniment chest + candle stand); muniment/armoury use 'service' (chests, barrels). All pieces are already-conformant assets — no new assets.",
+        "_civic_has_no_hearth": "USER-SETTLED 2026-08-28: the town hall skips the fireplace — do not re-litigate. Background: the sheet lists a hearth in the civic hall, but a ground-floor stack rises through the middle of the council chamber above and the realizer's flue gate REFUSES it ('no silent lean'). Rather than fake a chimney or drop the upper hall, the civic recipe ships hearthless. (The general hearth-siting improvement is still logged in docs/StructurePipelineGaps.md for OTHER typologies; it is no longer needed for this one.)",
+        "width_max": "7 m = the timber-frame span this engine builds (shared with hall_house/tavern); Thaxted Guildhall is ~6 m wide, so the type genuinely fits the span — no aisled frame needed for a MOOT hall (a grand arcaded town hall would)",
+        "bays": "4 bays ~= 16 m long: Thaxted Guildhall's three-storey range and Ledbury's 17-bay market house bracket it; REASONED within that range, not measured",
+        "stories": "2: public floor + civic hall above, the defining market-house arrangement (CITED, town_hall.md)",
+        "_not_modelled": "DISCLOSED omissions vs the archetype sheet: the OPEN ARCADE ground floor (the realizer has no open-story/column mechanism — the engine builds an enclosed public hall instead), the bell turret, and the lock-up cell. Each is a mechanism gap, not a data gap; none is faked."
+      }
+    },
+    "tenement": {
+      "wealth_tier": "humble",
+      "description": "Urban rental row unit ('rents') — two storeys, one room per floor: an all-purpose ground room (hearth, table, chest) with a single chamber above, gable to the street; rows form by contiguous burgage packing. CityForgePlan M4 — the medieval 'apartment'.",
+      "width_min": 4,
+      "width_max": 5,
+      "bay_length": 4,
+      "bays": 2,
+      "proportion_max": 2.5,
+      "stories": 2,
+      "upper_purpose": "bedchamber",
+      "windows": { "width": 1, "height": 1, "per_bay": 0.5, "walls": "front" },
+      "rooms": [
+        { "id": "ground_room", "purpose": "living", "bays": 2 }
+      ],
+      "source": "Our Lady's Row, Goodramgate, York (1316) — England's earliest surviving purpose-built rental row: two storeys, ONE ROOM PER FLOOR per unit. Full sheet: docs/structure-generation/archetypes/tenement.md",
+      "sources": {
+        "rooms": "one room up, one room down per dwelling — the documented Our Lady's Row unit plan (Wikipedia, Our Lady's Row; RCHME York vol. 5). Ground purpose REUSES the croft 'living' recipe; upper REUSES the inn 'bedchamber' recipe — both conformant, no new assets (REFUSE-ON-ANY-GAP satisfied by construction)",
+        "stories": "two storeys, jettied — CITED for Our Lady's Row (jetty itself NOT modelled; disclosed in the sheet, never faked)",
+        "width_min": "unit frontage ~4.5-5.5 m (≈15-18 ft, commonly quoted for Our Lady's Row — NEEDS-VERIFY vs RCHME before citing as measured); engine 4-5 stays inside that envelope",
+        "bays": "DESIGN DECISION, disclosed: the documented ~4.5 m unit depth cannot host the forge's generated stair (the traversal gate would refuse); 2 bays x 4 m gives the stair an honest run. Medieval ladder-stairs are not modelled",
+        "entrance": "DESIGN DECISION, disclosed: gable-to-street (narrow-frontage burgage economics + core packing); Our Lady's Row itself runs eaves-on — the allocator's contiguous packing recreates the ROW read either way"
+      }
+    },
     "longhouse": {
       "description": "Peasant longhouse — dwelling end (inner room + hall) + cross passage + byre, under one roof.",
       "wealth_tier": "humble",
@@ -96,6 +171,7 @@
       }
     },
     "blacksmith": {
+      "sign_item": "prop_sign_blacksmith",
       "wealth_tier": "middling",
       "_grounding_note": "Program (forge floor on the forge->anvil->quench work triangle + a customer-facing storefront/yard) grounded in the smithing record (Beautiful Iron, Wikipedia Forge). FOOTPRINT scale anchored to an EXCAVATED smithy: the Jamestown (James Fort) metalworking structure was 16x20 ft = 4.9x6.1 m (Historic Jamestowne archaeology, 2006). That grounds the forge-WORKSPACE scale (~5x6 m, one ~4 m bay wide); the 2nd bay (the customer storefront) is a disclosed DESIGN DECISION by analogy to the grounded ~4 m timber bay (croft/longhouse/hall_house) -- the same honest basis as the tavern bay frame. (An earlier draft mis-cited the Anderson shop, Colonial Williamsburg; that text was not on the cited page -- corrected to Jamestown.) See docs/structure-generation/archetypes/blacksmith.md.",
       "description": "Village smithy -- open-fronted single-story timber-frame workshop: forge floor (forge on the vented back wall, anvil within a step, quench/slack tub beside it) + a customer-facing storefront/yard. Fire-managed: non-combustible around the forge.",
@@ -118,6 +194,7 @@
       }
     },
     "general_store": {
+      "sign_item": "prop_sign_general_store",
       "wealth_tier": "middling",
       "_grounding_note": "Program (a street-facing SALESROOM at the front of the burgage plot + a STOREROOM behind) is grounded in the medieval urban-shop record: the front of a burgage plot facing the street was the business space (shop/workshop), with storage/living to the rear (RuralHistoria; burgageplots.info 'the burgage plot as a workplace'). FOOTPRINT scale anchored to documented burgage FRONTAGE: plot widths ran c. 5 m (one perch) to ~17 m, MODAL ~8 m / typical 2 perches ~10 m, lengths tens of metres (Tait, 'Burgage plot patterns and dimensions in four Scottish burghs', PSAS 138 (2009), journals.socantscot.org/.../view/9724). A general store = the NARROW end of that range (~5-6 m / 1-1.2 perch frontage), NOT the typical 8-10 m. The 2-bay depth (~8 m) is a disclosed DESIGN DECISION by analogy to the grounded ~4 m timber bay (croft/longhouse/hall_house) and sits well within documented plot depths (tens of m) -- same honest basis as the tavern/blacksmith bay frame. (grounding-auditor 2026-06-28: corrected the PSAS citation from the Edinburgh-only paper /9686 to the four-burgh paper /9724, and the frontage floor from a 5.5 m misread of '5.5 yards' to ~5 m = one perch 5.03 m.)",
       "description": "Town general store / merchant's shop -- single-story timber building on a burgage frontage: a street-facing salesroom (sales counter + shelved goods + barrels) and a storeroom behind (stock: barrels, crates, coffers).",
@@ -138,6 +215,7 @@
       }
     },
     "bakery": {
+      "sign_item": "prop_sign_bakery",
       "wealth_tier": "middling",
       "_grounding_note": "Program (a BAKEHOUSE with the masonry oven + a kneading/work surface, and a customer SALESROOM/shopfront selling the bread) is grounded in the medieval baking record: the bakehouse was the dedicated oven-room workspace (en.wikipedia.org/wiki/Bakehouse_(building)); commercial bakers baked and SOLD bread under the Assize of Bread, so a town bakery has a shopfront as well as the bakehouse (RuralHistoria burgage front-business pattern). FOOTPRINT on a burgage frontage like the general_store (documented 5-17 m, narrow-end shop ~6 m; Tait PSAS 138 (2009)). The OVEN is the grounded commercial dome (object_dimensions 'oven_bread': ~0.9 m interior, williamrubel.com), VENTED on the back wall + chimney (place_chimney), fire-managed like the forge. The 2-bay frame is a disclosed DESIGN DECISION (~4 m timber bay analogy) -- same honest basis as tavern/blacksmith/general_store.",
       "description": "Town bakery -- single-story timber building on a burgage frontage: a bakehouse (the vented masonry bread oven + a kneading counter + flour barrels) and a street salesroom selling the bread.",
@@ -158,6 +236,7 @@
       }
     },
     "apothecary": {
+      "sign_item": "prop_sign_apothecary",
       "wealth_tier": "middling",
       "_grounding_note": "Program (a DISPENSARY/shopfront -- a dispensing counter with shelves of labeled jars/bottles BEHIND it -- plus a rear STOREROOM for stock) is grounded in the apothecary-shop record: 'drug jars lined shelves behind the counter where prescriptions were made up', the apothecary moving between customers and stock (manyheadedmonster.com 'The World in a Jar' -- EARLY MODERN England c.1550-1800; larsdatter.com = period image refs). PERIOD CAVEAT: the cited prose is early modern; the counter + shelved-jars dispensary form is plausibly medieval (albarello drug jars predate 1550) but not directly attested medieval -- evidence for the LAYOUT (cf. the tavern's New-Inn TYPE cite). FOOTPRINT on a burgage frontage like the general_store (Tait PSAS 138 (2009); narrow shop ~5-6 m). All fixtures reuse grounded assets (counter; back_bar shelving, which carries jars/bottles; coffer; candelabra for the dim apothecary light). The 2-bay frame is a disclosed DESIGN DECISION (~4 m timber bay analogy) -- same basis as the other shops.",
       "description": "Town apothecary / herbalist -- single-story timber building on a burgage frontage: a dispensary (dispensing counter + shelves of jars/bottles behind + a coffer + a candelabra) and a rear storeroom of stock.",
@@ -178,6 +257,7 @@
       }
     },
     "butcher": {
+      "sign_item": "prop_sign_butcher",
       "wealth_tier": "middling",
       "_grounding_note": "Program (a street-facing SHAMBLES shopfront -- a stall-board/display counter, the chopping block, a rail of meat hooks -- with a back room for slaughter/storage) is grounded in the medieval butcher record: the Shambles were streets of butchers' shops 'many complete with a slaughterhouse at the back', with low display windowsills (stall boards) and meat-HOOKS on the shop fronts (historyofyork.org.uk/themes/medieval/the-shambles; asparadventures.com York Shambles). The chopping BLOCK is an attested trade tool (choppingblocks.com) but NOT quoted in those Shambles pages; interior meat RAILS are a Victorian-era form (buildingourpast.com), a disclosed post-medieval analogy. FOOTPRINT on a burgage frontage like the other shops (Tait PSAS 138 (2009); narrow ~5-6 m). 2-bay frame is a disclosed DESIGN DECISION (~4 m timber bay analogy).",
       "description": "Town butcher's shop (the shambles) -- single-story timber building on a burgage frontage: a shopfront (stall-board counter + chopping block + a rail of meat hooks) and a back room (slaughter/storage).",

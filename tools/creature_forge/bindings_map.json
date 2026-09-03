@@ -1,0 +1,2682 @@
+{
+  "_comment": "Reuse map: archetype rig -> the SRD stat blocks it embodies. Source of truth for resources/monsters/visuals/bindings.json \u2014 regenerate with `python tools/creature_forge/gen_bindings.py` (never hand-edit the output). Per-member overrides: tint [r,g,b] multiplies the rig's box colors (the ONLY recolor lever that reaches creature_forge rigs, whose boxes carry explicit colors), scale -> appearance heightScale+bulkScale, alpha < 1 for incorporeals, plus animationMapping/faction/appearance passthrough. `approx` names the archetype a later wave should move this member to \u2014 coverage is complete now, fidelity improves per wave.",
+  "archetypes": {
+    "humanoid": {
+      "animFile": "resources/animated_characters/humanoid.anim",
+      "faction": "monsters",
+      "members": {
+        "acolyte": {},
+        "archmage": {},
+        "assassin": {},
+        "bandit": {},
+        "bandit-captain": {},
+        "berserker": {},
+        "commoner": {},
+        "cult-fanatic": {},
+        "cultist": {},
+        "druid": {},
+        "gladiator": {},
+        "guard": {},
+        "knight": {},
+        "mage": {},
+        "noble": {},
+        "priest": {},
+        "scout": {},
+        "spy": {},
+        "thug": {},
+        "veteran": {},
+        "drow": {
+          "tint": [
+            0.55,
+            0.5,
+            0.62
+          ]
+        },
+        "deep-gnome-svirfneblin": {
+          "tint": [
+            0.72,
+            0.72,
+            0.68
+          ],
+          "scale": 0.72
+        },
+        "duergar": {
+          "tint": [
+            0.75,
+            0.68,
+            0.6
+          ],
+          "scale": 0.82
+        },
+        "doppelganger": {
+          "tint": [
+            0.82,
+            0.8,
+            0.86
+          ]
+        },
+        "merfolk": {
+          "tint": [
+            0.6,
+            0.85,
+            0.85
+          ]
+        },
+        "sahuagin": {
+          "tint": [
+            0.5,
+            0.75,
+            0.7
+          ]
+        },
+        "werebear-human": {},
+        "wereboar-human": {},
+        "wererat-human": {},
+        "weretiger-human": {},
+        "werewolf-human": {},
+        "werebear-hybrid": {
+          "tint": [
+            0.75,
+            0.6,
+            0.45
+          ],
+          "scale": 1.15
+        },
+        "wereboar-hybrid": {
+          "tint": [
+            0.7,
+            0.6,
+            0.5
+          ],
+          "scale": 1.08
+        },
+        "wererat-hybrid": {
+          "tint": [
+            0.65,
+            0.6,
+            0.55
+          ],
+          "scale": 0.95
+        },
+        "weretiger-hybrid": {
+          "tint": [
+            0.95,
+            0.75,
+            0.45
+          ],
+          "scale": 1.1
+        },
+        "werewolf-hybrid": {
+          "tint": [
+            0.6,
+            0.58,
+            0.55
+          ],
+          "scale": 1.1
+        },
+        "grimlock": {
+          "tint": [
+            0.7,
+            0.68,
+            0.62
+          ]
+        },
+        "sprite": {
+          "tint": [
+            0.8,
+            1.0,
+            0.8
+          ],
+          "scale": 0.35
+        },
+        "homunculus": {
+          "tint": [
+            0.7,
+            0.65,
+            0.5
+          ],
+          "scale": 0.4
+        },
+        "half-red-dragon-veteran": {
+          "tint": [
+            1.0,
+            0.6,
+            0.55
+          ]
+        }
+      }
+    },
+    "goblin": {
+      "animFile": "resources/animated_characters/goblin.anim",
+      "faction": "monsters",
+      "members": {
+        "goblin": {},
+        "kobold": {
+          "tint": [
+            0.9,
+            0.62,
+            0.45
+          ],
+          "scale": 0.62
+        }
+      }
+    },
+    "orc_warrior": {
+      "animFile": "resources/animated_characters/orc_warrior.anim",
+      "faction": "monsters",
+      "members": {
+        "merrow": {
+          "tint": [
+            0.5,
+            0.75,
+            0.7
+          ],
+          "scale": 1.3
+        }
+      }
+    },
+    "skeleton_warrior": {
+      "animFile": "resources/animated_characters/skeleton_warrior.anim",
+      "faction": "undead",
+      "members": {
+        "skeleton": {},
+        "minotaur-skeleton": {
+          "scale": 1.35
+        },
+        "lich": {
+          "tint": [
+            0.7,
+            0.75,
+            0.8
+          ]
+        },
+        "mummy": {
+          "tint": [
+            0.85,
+            0.78,
+            0.6
+          ]
+        },
+        "mummy-lord": {
+          "tint": [
+            0.9,
+            0.82,
+            0.62
+          ],
+          "scale": 1.05
+        },
+        "wight": {
+          "tint": [
+            0.65,
+            0.68,
+            0.72
+          ]
+        }
+      }
+    },
+    "zombie": {
+      "animFile": "resources/animated_characters/zombie.anim",
+      "faction": "undead",
+      "members": {
+        "zombie": {},
+        "ghoul": {
+          "tint": [
+            0.7,
+            0.72,
+            0.6
+          ]
+        },
+        "ghast": {
+          "tint": [
+            0.68,
+            0.7,
+            0.55
+          ],
+          "scale": 1.05
+        },
+        "ogre-zombie": {
+          "tint": [
+            0.7,
+            0.75,
+            0.6
+          ],
+          "scale": 1.5
+        },
+        "vampire-spawn": {
+          "tint": [
+            0.75,
+            0.65,
+            0.7
+          ]
+        },
+        "vampire-vampire": {
+          "tint": [
+            0.8,
+            0.68,
+            0.72
+          ],
+          "scale": 1.05
+        }
+      }
+    },
+    "ogre": {
+      "animFile": "resources/animated_characters/ogre.anim",
+      "faction": "monsters",
+      "members": {
+        "ogre": {}
+      }
+    },
+    "troll": {
+      "animFile": "resources/animated_characters/troll.anim",
+      "faction": "monsters",
+      "members": {
+        "troll": {}
+      }
+    },
+    "ursine": {
+      "animFile": "resources/animated_characters/forge_bear.anim",
+      "faction": "beasts",
+      "members": {
+        "owlbear": {
+          "tint": [
+            0.85,
+            0.75,
+            0.55
+          ],
+          "scale": 1.1
+        }
+      }
+    },
+    "suine": {
+      "animFile": "resources/animated_characters/forge_boar.anim",
+      "faction": "beasts",
+      "members": {
+        "warthog-placeholder": {
+          "skip": true
+        }
+      }
+    },
+    "caprine": {
+      "animFile": "resources/animated_characters/forge_ibex.anim",
+      "faction": "beasts",
+      "members": {
+        "goat": {
+          "scale": 0.85
+        },
+        "giant-goat": {
+          "scale": 1.25
+        },
+        "gorgon": {
+          "tint": [
+            0.55,
+            0.6,
+            0.65
+          ],
+          "scale": 1.4
+        }
+      }
+    },
+    "arachnid": {
+      "animFile": "resources/animated_characters/forge_spider_giant.anim",
+      "faction": "monsters",
+      "members": {
+        "giant_spider": {},
+        "giant-spider": {},
+        "spider": {
+          "scale": 0.2
+        },
+        "giant-wolf-spider": {
+          "tint": [
+            0.7,
+            0.6,
+            0.5
+          ],
+          "scale": 0.7
+        },
+        "phase-spider": {
+          "tint": [
+            0.7,
+            0.8,
+            1.0
+          ],
+          "scale": 1.05,
+          "alpha": 0.85
+        }
+      }
+    },
+    "dragon_young": {
+      "animFile": "resources/animated_characters/forge_dragon_young.anim",
+      "faction": "dragons",
+      "members": {
+        "young-black-dragon": {
+          "tint": [
+            0.38,
+            0.38,
+            0.44
+          ]
+        },
+        "young-blue-dragon": {
+          "tint": [
+            0.45,
+            0.62,
+            1.15
+          ]
+        },
+        "young-green-dragon": {
+          "tint": [
+            0.45,
+            0.78,
+            0.45
+          ]
+        },
+        "young-red-dragon": {
+          "tint": [
+            1.15,
+            0.45,
+            0.38
+          ]
+        },
+        "young-white-dragon": {
+          "tint": [
+            1.3,
+            1.35,
+            1.4
+          ]
+        },
+        "young-brass-dragon": {
+          "tint": [
+            1.2,
+            0.92,
+            0.45
+          ]
+        },
+        "young-bronze-dragon": {
+          "tint": [
+            0.95,
+            0.72,
+            0.4
+          ]
+        },
+        "young-copper-dragon": {
+          "tint": [
+            1.15,
+            0.6,
+            0.4
+          ]
+        },
+        "young-gold-dragon": {
+          "tint": [
+            1.3,
+            1.05,
+            0.4
+          ]
+        },
+        "young-silver-dragon": {
+          "tint": [
+            1.15,
+            1.2,
+            1.3
+          ]
+        },
+        "young_red_dragon": {
+          "tint": [
+            1.15,
+            0.45,
+            0.38
+          ]
+        },
+        "wyvern": {
+          "tint": [
+            0.7,
+            0.65,
+            0.55
+          ],
+          "scale": 0.9
+        }
+      }
+    },
+    "griffon": {
+      "animFile": "resources/animated_characters/forge_griffon.anim",
+      "faction": "beasts",
+      "members": {
+        "griffon": {},
+        "hippogriff": {
+          "tint": [
+            0.85,
+            0.75,
+            0.6
+          ]
+        },
+        "pegasus": {
+          "tint": [
+            1.3,
+            1.3,
+            1.3
+          ]
+        },
+        "chimera": {
+          "tint": [
+            0.9,
+            0.7,
+            0.5
+          ],
+          "scale": 1.2
+        },
+        "manticore": {
+          "tint": [
+            0.85,
+            0.6,
+            0.5
+          ],
+          "scale": 1.1
+        },
+        "androsphinx": {
+          "tint": [
+            1.05,
+            0.9,
+            0.6
+          ],
+          "scale": 1.3
+        },
+        "gynosphinx": {
+          "tint": [
+            1.0,
+            0.88,
+            0.65
+          ],
+          "scale": 1.2
+        }
+      }
+    },
+    "aquatic": {
+      "animFile": "resources/animated_characters/monster_fish.anim",
+      "faction": "beasts",
+      "members": {
+        "merrow-placeholder": {
+          "skip": true
+        }
+      },
+      "animationMapping": {
+        "Attack": "Punch",
+        "Run": "Run"
+      }
+    },
+    "incorporeal": {
+      "animFile": "resources/animated_characters/humanoid.anim",
+      "faction": "undead",
+      "members": {
+        "ghost": {
+          "tint": [
+            0.8,
+            0.9,
+            1.0
+          ],
+          "alpha": 0.4
+        },
+        "specter": {
+          "tint": [
+            0.62,
+            0.72,
+            0.9
+          ],
+          "alpha": 0.38
+        },
+        "wraith": {
+          "tint": [
+            0.45,
+            0.5,
+            0.68
+          ],
+          "alpha": 0.45,
+          "scale": 1.1
+        },
+        "shadow": {
+          "tint": [
+            0.3,
+            0.3,
+            0.42
+          ],
+          "alpha": 0.5
+        },
+        "will-o-wisp": {
+          "tint": [
+            0.85,
+            1.05,
+            0.85
+          ],
+          "alpha": 0.55,
+          "scale": 0.3
+        },
+        "vampire-mist": {
+          "tint": [
+            0.72,
+            0.62,
+            0.72
+          ],
+          "alpha": 0.35
+        },
+        "air-elemental": {
+          "tint": [
+            0.88,
+            0.92,
+            1.0
+          ],
+          "alpha": 0.32,
+          "scale": 1.2
+        },
+        "invisible-stalker": {
+          "tint": [
+            0.85,
+            0.9,
+            0.98
+          ],
+          "alpha": 0.22
+        },
+        "cloaker": {
+          "tint": [
+            0.5,
+            0.46,
+            0.55
+          ],
+          "alpha": 0.7,
+          "scale": 1.2
+        },
+        "darkmantle": {
+          "tint": [
+            0.42,
+            0.4,
+            0.48
+          ],
+          "alpha": 0.75,
+          "scale": 0.6
+        }
+      }
+    },
+    "feline_true": {
+      "animFile": "resources/animated_characters/forge_feline.anim",
+      "faction": "beasts",
+      "members": {
+        "cat": {
+          "tint": [
+            0.95,
+            0.85,
+            0.75
+          ],
+          "scale": 0.3
+        },
+        "panther": {
+          "tint": [
+            0.32,
+            0.3,
+            0.35
+          ],
+          "scale": 0.85
+        },
+        "lion": {
+          "tint": [
+            1.05,
+            0.92,
+            0.68
+          ]
+        },
+        "tiger": {
+          "tint": [
+            1.1,
+            0.78,
+            0.42
+          ],
+          "scale": 1.0
+        },
+        "saber-toothed-tiger": {
+          "tint": [
+            1.0,
+            0.88,
+            0.66
+          ],
+          "scale": 1.15
+        },
+        "weretiger-tiger": {
+          "tint": [
+            1.1,
+            0.8,
+            0.5
+          ],
+          "scale": 0.95
+        }
+      }
+    },
+    "standin_fox": {
+      "animFile": "resources/animated_characters/fox.anim",
+      "faction": "beasts",
+      "members": {
+        "fox-placeholder": {
+          "skip": true
+        }
+      }
+    },
+    "rodent_true": {
+      "animFile": "resources/animated_characters/forge_rodent.anim",
+      "faction": "beasts",
+      "members": {
+        "rat": {
+          "tint": [
+            0.72,
+            0.66,
+            0.6
+          ],
+          "scale": 0.45
+        },
+        "giant-rat": {
+          "tint": [
+            0.72,
+            0.66,
+            0.6
+          ],
+          "scale": 0.9
+        },
+        "giant-rat-diseased": {
+          "tint": [
+            0.62,
+            0.66,
+            0.55
+          ],
+          "scale": 0.9
+        },
+        "wererat-rat": {
+          "tint": [
+            0.68,
+            0.62,
+            0.58
+          ],
+          "scale": 1.0
+        },
+        "weasel": {
+          "tint": [
+            1.0,
+            0.82,
+            0.55
+          ],
+          "scale": 0.5
+        },
+        "giant-weasel": {
+          "tint": [
+            1.0,
+            0.82,
+            0.55
+          ],
+          "scale": 1.1
+        },
+        "badger": {
+          "tint": [
+            0.85,
+            0.85,
+            0.82
+          ],
+          "scale": 0.7
+        },
+        "giant-badger": {
+          "tint": [
+            0.85,
+            0.85,
+            0.82
+          ],
+          "scale": 1.2
+        }
+      }
+    },
+    "reptile_true": {
+      "animFile": "resources/animated_characters/forge_reptile.anim",
+      "faction": "beasts",
+      "members": {
+        "lizard": {
+          "tint": [
+            0.85,
+            0.95,
+            0.7
+          ],
+          "scale": 0.28
+        },
+        "giant-lizard": {
+          "tint": [
+            0.85,
+            0.95,
+            0.7
+          ],
+          "scale": 1.15
+        },
+        "crocodile": {
+          "tint": [
+            0.8,
+            0.85,
+            0.75
+          ],
+          "scale": 1.5
+        },
+        "giant-crocodile": {
+          "tint": [
+            0.8,
+            0.85,
+            0.75
+          ],
+          "scale": 2.3
+        },
+        "basilisk": {
+          "tint": [
+            0.75,
+            0.8,
+            0.85
+          ],
+          "scale": 1.1
+        },
+        "frog": {
+          "tint": [
+            0.7,
+            1.0,
+            0.6
+          ],
+          "scale": 0.22
+        },
+        "bulette": {
+          "tint": [
+            0.7,
+            0.68,
+            0.62
+          ],
+          "scale": 1.8
+        }
+      }
+    },
+    "pachyderm_true": {
+      "animFile": "resources/animated_characters/forge_pachyderm.anim",
+      "faction": "beasts",
+      "members": {
+        "elephant": {
+          "tint": [
+            0.95,
+            0.95,
+            0.95
+          ]
+        },
+        "mammoth": {
+          "tint": [
+            0.85,
+            0.68,
+            0.5
+          ],
+          "scale": 1.15
+        },
+        "rhinoceros": {
+          "tint": [
+            0.8,
+            0.82,
+            0.85
+          ],
+          "scale": 0.85
+        },
+        "triceratops": {
+          "tint": [
+            0.8,
+            0.9,
+            0.7
+          ],
+          "scale": 0.95
+        }
+      }
+    },
+    "raptor_true": {
+      "animFile": "resources/animated_characters/forge_raptor.anim",
+      "faction": "beasts",
+      "members": {
+        "eagle": {
+          "tint": [
+            0.9,
+            0.72,
+            0.5
+          ],
+          "scale": 0.9
+        },
+        "giant-eagle": {
+          "tint": [
+            0.9,
+            0.72,
+            0.5
+          ],
+          "scale": 2.0
+        },
+        "hawk": {
+          "tint": [
+            0.95,
+            0.8,
+            0.6
+          ],
+          "scale": 0.62
+        },
+        "blood-hawk": {
+          "tint": [
+            1.1,
+            0.55,
+            0.5
+          ],
+          "scale": 0.75
+        },
+        "owl": {
+          "tint": [
+            0.95,
+            0.9,
+            0.78
+          ],
+          "scale": 0.62
+        },
+        "giant-owl": {
+          "tint": [
+            0.95,
+            0.9,
+            0.78
+          ],
+          "scale": 2.0
+        },
+        "raven": {
+          "tint": [
+            0.35,
+            0.35,
+            0.42
+          ],
+          "scale": 0.55
+        },
+        "vulture": {
+          "tint": [
+            0.6,
+            0.55,
+            0.5
+          ],
+          "scale": 1.0
+        },
+        "giant-vulture": {
+          "tint": [
+            0.6,
+            0.55,
+            0.5
+          ],
+          "scale": 2.0
+        },
+        "roc": {
+          "tint": [
+            0.65,
+            0.6,
+            0.55
+          ],
+          "scale": 5.0
+        },
+        "harpy": {
+          "tint": [
+            0.85,
+            0.78,
+            0.62
+          ],
+          "scale": 1.7
+        }
+      }
+    },
+    "serpent_true": {
+      "animFile": "resources/animated_characters/forge_serpent.anim",
+      "faction": "beasts",
+      "members": {
+        "constrictor-snake": {
+          "tint": [
+            0.9,
+            0.85,
+            0.7
+          ],
+          "scale": 1.2
+        },
+        "giant-constrictor-snake": {
+          "tint": [
+            0.9,
+            0.85,
+            0.7
+          ],
+          "scale": 2.6
+        },
+        "poisonous-snake": {
+          "tint": [
+            0.75,
+            0.95,
+            0.7
+          ],
+          "scale": 0.55
+        },
+        "giant-poisonous-snake": {
+          "tint": [
+            0.75,
+            0.95,
+            0.7
+          ],
+          "scale": 1.4
+        },
+        "grick": {
+          "tint": [
+            0.6,
+            0.55,
+            0.62
+          ],
+          "scale": 1.1
+        },
+        "behir": {
+          "tint": [
+            0.55,
+            0.7,
+            1.15
+          ],
+          "scale": 3.2
+        },
+        "purple-worm": {
+          "tint": [
+            0.75,
+            0.55,
+            0.8
+          ],
+          "scale": 4.5
+        },
+        "couatl": {
+          "tint": [
+            1.0,
+            0.9,
+            0.55
+          ],
+          "scale": 1.4
+        }
+      }
+    },
+    "dragon_wyrmling": {
+      "animFile": "resources/animated_characters/forge_dragon_wyrmling.anim",
+      "faction": "dragons",
+      "members": {
+        "black-dragon-wyrmling": {
+          "tint": [
+            0.38,
+            0.38,
+            0.44
+          ]
+        },
+        "blue-dragon-wyrmling": {
+          "tint": [
+            0.45,
+            0.62,
+            1.15
+          ]
+        },
+        "green-dragon-wyrmling": {
+          "tint": [
+            0.45,
+            0.78,
+            0.45
+          ]
+        },
+        "red-dragon-wyrmling": {
+          "tint": [
+            1.15,
+            0.45,
+            0.38
+          ]
+        },
+        "white-dragon-wyrmling": {
+          "tint": [
+            1.3,
+            1.35,
+            1.4
+          ]
+        },
+        "brass-dragon-wyrmling": {
+          "tint": [
+            1.2,
+            0.92,
+            0.45
+          ]
+        },
+        "bronze-dragon-wyrmling": {
+          "tint": [
+            0.95,
+            0.72,
+            0.4
+          ]
+        },
+        "copper-dragon-wyrmling": {
+          "tint": [
+            1.15,
+            0.6,
+            0.4
+          ]
+        },
+        "gold-dragon-wyrmling": {
+          "tint": [
+            1.3,
+            1.05,
+            0.4
+          ]
+        },
+        "silver-dragon-wyrmling": {
+          "tint": [
+            1.15,
+            1.2,
+            1.3
+          ]
+        },
+        "pseudodragon": {
+          "tint": [
+            1.05,
+            0.55,
+            0.5
+          ],
+          "scale": 0.45
+        }
+      }
+    },
+    "dragon_adult": {
+      "animFile": "resources/animated_characters/forge_dragon_adult.anim",
+      "faction": "dragons",
+      "members": {
+        "adult-black-dragon": {
+          "tint": [
+            0.38,
+            0.38,
+            0.44
+          ]
+        },
+        "adult-blue-dragon": {
+          "tint": [
+            0.45,
+            0.62,
+            1.15
+          ]
+        },
+        "adult-green-dragon": {
+          "tint": [
+            0.45,
+            0.78,
+            0.45
+          ]
+        },
+        "adult-red-dragon": {
+          "tint": [
+            1.15,
+            0.45,
+            0.38
+          ]
+        },
+        "adult-white-dragon": {
+          "tint": [
+            1.3,
+            1.35,
+            1.4
+          ]
+        },
+        "adult-brass-dragon": {
+          "tint": [
+            1.2,
+            0.92,
+            0.45
+          ]
+        },
+        "adult-bronze-dragon": {
+          "tint": [
+            0.95,
+            0.72,
+            0.4
+          ]
+        },
+        "adult-copper-dragon": {
+          "tint": [
+            1.15,
+            0.6,
+            0.4
+          ]
+        },
+        "adult-gold-dragon": {
+          "tint": [
+            1.3,
+            1.05,
+            0.4
+          ]
+        },
+        "adult-silver-dragon": {
+          "tint": [
+            1.15,
+            1.2,
+            1.3
+          ]
+        }
+      }
+    },
+    "dragon_ancient": {
+      "animFile": "resources/animated_characters/forge_dragon_ancient.anim",
+      "faction": "dragons",
+      "members": {
+        "ancient-black-dragon": {
+          "tint": [
+            0.38,
+            0.38,
+            0.44
+          ]
+        },
+        "ancient-blue-dragon": {
+          "tint": [
+            0.45,
+            0.62,
+            1.15
+          ]
+        },
+        "ancient-green-dragon": {
+          "tint": [
+            0.45,
+            0.78,
+            0.45
+          ]
+        },
+        "ancient-red-dragon": {
+          "tint": [
+            1.15,
+            0.45,
+            0.38
+          ]
+        },
+        "ancient-white-dragon": {
+          "tint": [
+            1.3,
+            1.35,
+            1.4
+          ]
+        },
+        "ancient-brass-dragon": {
+          "tint": [
+            1.2,
+            0.92,
+            0.45
+          ]
+        },
+        "ancient-bronze-dragon": {
+          "tint": [
+            0.95,
+            0.72,
+            0.4
+          ]
+        },
+        "ancient-copper-dragon": {
+          "tint": [
+            1.15,
+            0.6,
+            0.4
+          ]
+        },
+        "ancient-gold-dragon": {
+          "tint": [
+            1.3,
+            1.05,
+            0.4
+          ]
+        },
+        "ancient-silver-dragon": {
+          "tint": [
+            1.15,
+            1.2,
+            1.3
+          ]
+        }
+      }
+    },
+    "devil_true": {
+      "animFile": "resources/animated_characters/devil.anim",
+      "faction": "fiends",
+      "members": {
+        "vrock": {
+          "tint": [
+            0.72,
+            0.78,
+            0.55
+          ],
+          "scale": 1.2
+        },
+        "quasit": {
+          "tint": [
+            0.5,
+            0.45,
+            0.55
+          ],
+          "scale": 0.45
+        },
+        "imp": {
+          "tint": [
+            0.9,
+            0.45,
+            0.45
+          ],
+          "scale": 0.42
+        },
+        "lemure": {
+          "tint": [
+            0.72,
+            0.6,
+            0.55
+          ],
+          "scale": 0.85
+        },
+        "succubus-incubus": {
+          "tint": [
+            0.98,
+            0.72,
+            0.75
+          ],
+          "scale": 0.95
+        },
+        "erinyes": {
+          "tint": [
+            0.88,
+            0.55,
+            0.55
+          ]
+        },
+        "rakshasa": {
+          "tint": [
+            0.92,
+            0.62,
+            0.5
+          ]
+        },
+        "hell-hound-placeholder": {
+          "skip": true
+        }
+      }
+    },
+    "golem_true": {
+      "animFile": "resources/animated_characters/golem.anim",
+      "faction": "monsters",
+      "members": {
+        "animated-armor": {
+          "tint": [
+            0.72,
+            0.75,
+            0.82
+          ]
+        },
+        "clay-golem": {
+          "tint": [
+            0.85,
+            0.6,
+            0.45
+          ],
+          "scale": 1.25
+        },
+        "stone-golem": {
+          "tint": [
+            0.65,
+            0.65,
+            0.62
+          ],
+          "scale": 1.4
+        },
+        "iron-golem": {
+          "tint": [
+            0.5,
+            0.53,
+            0.6
+          ],
+          "scale": 1.5
+        },
+        "flesh-golem": {
+          "tint": [
+            0.68,
+            0.72,
+            0.6
+          ],
+          "scale": 1.2
+        },
+        "shield-guardian": {
+          "tint": [
+            0.66,
+            0.7,
+            0.74
+          ],
+          "scale": 1.3
+        },
+        "gargoyle": {
+          "tint": [
+            0.55,
+            0.55,
+            0.58
+          ],
+          "scale": 0.95
+        },
+        "helmed-placeholder": {
+          "skip": true
+        }
+      }
+    },
+    "elemental_true": {
+      "animFile": "resources/animated_characters/elemental.anim",
+      "faction": "monsters",
+      "members": {
+        "fire-elemental": {
+          "tint": [
+            1.3,
+            0.6,
+            0.3
+          ],
+          "scale": 1.2
+        },
+        "water-elemental": {
+          "tint": [
+            0.6,
+            0.82,
+            1.05
+          ],
+          "scale": 1.2
+        },
+        "earth-elemental": {
+          "tint": [
+            0.65,
+            0.6,
+            0.55
+          ],
+          "scale": 1.35
+        },
+        "magmin": {
+          "tint": [
+            1.25,
+            0.6,
+            0.35
+          ],
+          "scale": 0.6
+        },
+        "azer": {
+          "tint": [
+            1.1,
+            0.78,
+            0.5
+          ],
+          "scale": 0.9
+        },
+        "dust-mephit": {
+          "tint": [
+            0.72,
+            0.7,
+            0.62
+          ],
+          "scale": 0.55
+        },
+        "ice-mephit": {
+          "tint": [
+            0.72,
+            0.92,
+            1.12
+          ],
+          "scale": 0.55
+        },
+        "magma-mephit": {
+          "tint": [
+            1.25,
+            0.55,
+            0.3
+          ],
+          "scale": 0.55
+        },
+        "steam-mephit": {
+          "tint": [
+            0.92,
+            0.96,
+            1.0
+          ],
+          "scale": 0.55
+        },
+        "djinni": {
+          "tint": [
+            0.72,
+            0.92,
+            1.12
+          ],
+          "scale": 1.35
+        },
+        "efreeti": {
+          "tint": [
+            1.22,
+            0.65,
+            0.4
+          ],
+          "scale": 1.35
+        }
+      }
+    },
+    "hag_true": {
+      "animFile": "resources/animated_characters/hag.anim",
+      "faction": "monsters",
+      "members": {
+        "green-hag": {
+          "tint": [
+            0.55,
+            0.78,
+            0.5
+          ]
+        },
+        "sea-hag": {
+          "tint": [
+            0.55,
+            0.72,
+            0.68
+          ]
+        },
+        "night-hag": {
+          "tint": [
+            0.5,
+            0.45,
+            0.55
+          ]
+        },
+        "dryad": {
+          "tint": [
+            0.72,
+            0.88,
+            0.6
+          ]
+        },
+        "medusa": {
+          "tint": [
+            0.72,
+            0.88,
+            0.68
+          ]
+        },
+        "satyr": {
+          "tint": [
+            0.82,
+            0.7,
+            0.5
+          ]
+        }
+      }
+    },
+    "angel_true": {
+      "animFile": "resources/animated_characters/angel.anim",
+      "faction": "celestials",
+      "members": {
+        "deva": {
+          "tint": [
+            1.2,
+            1.15,
+            0.92
+          ],
+          "scale": 1.1
+        },
+        "planetar": {
+          "tint": [
+            1.15,
+            1.1,
+            0.98
+          ],
+          "scale": 1.25
+        },
+        "solar": {
+          "tint": [
+            1.28,
+            1.22,
+            0.95
+          ],
+          "scale": 1.35
+        },
+        "couatl-placeholder": {
+          "skip": true
+        }
+      }
+    },
+    "aquatic_true": {
+      "animFile": "resources/animated_characters/forge_shark.anim",
+      "faction": "beasts",
+      "members": {
+        "reef-shark": {
+          "tint": [
+            0.85,
+            0.9,
+            0.95
+          ],
+          "scale": 1.2
+        },
+        "hunter-shark": {
+          "tint": [
+            0.75,
+            0.82,
+            0.9
+          ],
+          "scale": 1.8
+        },
+        "giant-shark": {
+          "tint": [
+            0.68,
+            0.75,
+            0.85
+          ],
+          "scale": 2.6
+        },
+        "killer-whale": {
+          "tint": [
+            0.35,
+            0.38,
+            0.45
+          ],
+          "scale": 2.8
+        },
+        "quipper": {
+          "tint": [
+            0.9,
+            1.0,
+            0.7
+          ],
+          "scale": 0.3
+        },
+        "sea-horse": {
+          "tint": [
+            1.1,
+            0.95,
+            0.55
+          ],
+          "scale": 0.25
+        },
+        "giant-sea-horse": {
+          "tint": [
+            1.1,
+            0.95,
+            0.55
+          ],
+          "scale": 1.1
+        },
+        "plesiosaurus": {
+          "tint": [
+            0.6,
+            0.78,
+            0.8
+          ],
+          "scale": 1.9
+        }
+      }
+    },
+    "cephalopod_true": {
+      "animFile": "resources/animated_characters/forge_cephalopod.anim",
+      "faction": "beasts",
+      "members": {
+        "octopus": {
+          "tint": [
+            1.0,
+            0.72,
+            0.7
+          ],
+          "scale": 0.35
+        },
+        "giant-octopus": {
+          "tint": [
+            1.0,
+            0.72,
+            0.7
+          ],
+          "scale": 1.6
+        },
+        "kraken": {
+          "tint": [
+            0.55,
+            0.6,
+            0.75
+          ],
+          "scale": 4.5
+        },
+        "aboleth": {
+          "tint": [
+            0.62,
+            0.85,
+            0.78
+          ],
+          "scale": 1.8
+        }
+      }
+    },
+    "bat_true": {
+      "animFile": "resources/animated_characters/forge_bat.anim",
+      "faction": "beasts",
+      "members": {
+        "bat": {
+          "tint": [
+            0.75,
+            0.7,
+            0.72
+          ],
+          "scale": 0.45
+        },
+        "giant-bat": {
+          "tint": [
+            0.75,
+            0.7,
+            0.72
+          ],
+          "scale": 1.8
+        },
+        "vampire-bat": {
+          "tint": [
+            0.8,
+            0.6,
+            0.65
+          ],
+          "scale": 1.1
+        },
+        "stirge": {
+          "tint": [
+            1.05,
+            0.6,
+            0.6
+          ],
+          "scale": 0.6
+        },
+        "flying-snake": {
+          "tint": [
+            0.7,
+            1.05,
+            0.7
+          ],
+          "scale": 0.6
+        }
+      }
+    },
+    "scorpion_true": {
+      "animFile": "resources/animated_characters/forge_scorpion.anim",
+      "faction": "beasts",
+      "members": {
+        "scorpion": {
+          "tint": [
+            0.9,
+            0.85,
+            0.7
+          ],
+          "scale": 0.2
+        },
+        "giant-scorpion": {
+          "tint": [
+            0.9,
+            0.85,
+            0.7
+          ],
+          "scale": 1.4
+        }
+      }
+    },
+    "beetle_true": {
+      "animFile": "resources/animated_characters/forge_beetle.anim",
+      "faction": "beasts",
+      "members": {
+        "giant-fire-beetle": {
+          "tint": [
+            1.15,
+            0.6,
+            0.4
+          ],
+          "scale": 0.6
+        },
+        "giant-centipede": {
+          "tint": [
+            0.95,
+            0.8,
+            0.45
+          ],
+          "scale": 0.7
+        },
+        "giant-wasp": {
+          "tint": [
+            1.1,
+            0.95,
+            0.4
+          ],
+          "scale": 0.9
+        },
+        "crab": {
+          "tint": [
+            1.1,
+            0.7,
+            0.6
+          ],
+          "scale": 0.35
+        },
+        "giant-crab": {
+          "tint": [
+            1.1,
+            0.7,
+            0.6
+          ],
+          "scale": 1.1
+        },
+        "ankheg": {
+          "tint": [
+            0.95,
+            0.85,
+            0.55
+          ],
+          "scale": 2.0
+        },
+        "chuul": {
+          "tint": [
+            0.85,
+            0.95,
+            0.6
+          ],
+          "scale": 2.0
+        },
+        "remorhaz": {
+          "tint": [
+            1.15,
+            0.7,
+            0.5
+          ],
+          "scale": 2.6
+        },
+        "ettercap": {
+          "tint": [
+            0.8,
+            0.75,
+            0.6
+          ],
+          "scale": 1.4
+        },
+        "rust-monster": {
+          "tint": [
+            1.15,
+            0.7,
+            0.45
+          ],
+          "scale": 1.2
+        }
+      }
+    },
+    "taur_true": {
+      "animFile": "resources/animated_characters/forge_taur.anim",
+      "faction": "monsters",
+      "members": {
+        "centaur": {
+          "tint": [
+            0.95,
+            0.82,
+            0.65
+          ]
+        },
+        "lamia": {
+          "tint": [
+            1.0,
+            0.85,
+            0.6
+          ],
+          "scale": 1.05
+        },
+        "marilith": {
+          "tint": [
+            0.85,
+            0.6,
+            0.65
+          ],
+          "scale": 1.05
+        },
+        "guardian-naga": {
+          "tint": [
+            0.8,
+            1.05,
+            0.7
+          ],
+          "scale": 1.1
+        },
+        "spirit-naga": {
+          "tint": [
+            0.75,
+            0.65,
+            0.95
+          ],
+          "scale": 1.05
+        },
+        "salamander": {
+          "tint": [
+            1.2,
+            0.62,
+            0.42
+          ],
+          "scale": 1.05
+        },
+        "drider": {
+          "tint": [
+            0.65,
+            0.55,
+            0.68
+          ],
+          "scale": 1.0
+        }
+      }
+    },
+    "swarm_true": {
+      "animFile": "resources/animated_characters/forge_swarm.anim",
+      "faction": "beasts",
+      "members": {
+        "swarm-of-rats": {
+          "tint": [
+            0.85,
+            0.78,
+            0.7
+          ]
+        },
+        "swarm-of-bats": {
+          "tint": [
+            0.6,
+            0.56,
+            0.62
+          ]
+        },
+        "swarm-of-insects": {
+          "tint": [
+            0.65,
+            0.6,
+            0.45
+          ]
+        },
+        "swarm-of-beetles": {
+          "tint": [
+            0.5,
+            0.5,
+            0.45
+          ]
+        },
+        "swarm-of-centipedes": {
+          "tint": [
+            0.95,
+            0.8,
+            0.45
+          ]
+        },
+        "swarm-of-poisonous-snakes": {
+          "tint": [
+            0.7,
+            0.95,
+            0.65
+          ]
+        },
+        "swarm-of-quippers": {
+          "tint": [
+            0.85,
+            0.95,
+            0.75
+          ]
+        },
+        "swarm-of-ravens": {
+          "tint": [
+            0.42,
+            0.42,
+            0.5
+          ]
+        },
+        "swarm-of-spiders": {
+          "tint": [
+            0.6,
+            0.55,
+            0.55
+          ]
+        },
+        "swarm-of-wasps": {
+          "tint": [
+            1.1,
+            0.95,
+            0.4
+          ]
+        }
+      }
+    },
+    "ooze_true": {
+      "animFile": "resources/animated_characters/forge_ooze.anim",
+      "faction": "monsters",
+      "members": {
+        "gray-ooze": {
+          "tint": [
+            0.62,
+            0.66,
+            0.62
+          ]
+        },
+        "black-pudding": {
+          "tint": [
+            0.3,
+            0.3,
+            0.33
+          ],
+          "scale": 1.3
+        },
+        "ochre-jelly": {
+          "tint": [
+            1.05,
+            0.8,
+            0.35
+          ],
+          "scale": 1.15
+        },
+        "gelatinous-cube": {
+          "tint": [
+            0.8,
+            1.0,
+            0.88
+          ],
+          "alpha": 0.45,
+          "scale": 1.5
+        },
+        "gibbering-mouther": {
+          "tint": [
+            0.95,
+            0.8,
+            0.75
+          ],
+          "scale": 0.95
+        },
+        "mimic": {
+          "tint": [
+            0.8,
+            0.62,
+            0.45
+          ],
+          "scale": 1.0
+        },
+        "rug-of-smothering": {
+          "tint": [
+            0.85,
+            0.55,
+            0.5
+          ],
+          "scale": 1.2
+        },
+        "flying-sword": {
+          "tint": [
+            0.75,
+            0.78,
+            0.85
+          ],
+          "scale": 0.5
+        }
+      }
+    },
+    "plant_true": {
+      "animFile": "resources/animated_characters/forge_plant.anim",
+      "faction": "monsters",
+      "members": {
+        "awakened-shrub": {
+          "tint": [
+            0.75,
+            0.95,
+            0.6
+          ],
+          "scale": 0.7
+        },
+        "awakened-tree": {
+          "tint": [
+            0.7,
+            0.65,
+            0.5
+          ],
+          "scale": 2.6
+        },
+        "treant": {
+          "tint": [
+            0.68,
+            0.62,
+            0.48
+          ],
+          "scale": 3.2
+        },
+        "shambling-mound": {
+          "tint": [
+            0.6,
+            0.72,
+            0.5
+          ],
+          "scale": 1.8
+        },
+        "roper": {
+          "tint": [
+            0.7,
+            0.68,
+            0.62
+          ],
+          "scale": 1.9
+        }
+      }
+    },
+    "theropod_true": {
+      "animFile": "resources/animated_characters/forge_theropod.anim",
+      "faction": "beasts",
+      "members": {
+        "axe-beak": {
+          "tint": [
+            0.95,
+            0.88,
+            0.7
+          ],
+          "scale": 0.9
+        },
+        "cockatrice": {
+          "tint": [
+            0.9,
+            0.85,
+            0.6
+          ],
+          "scale": 0.4
+        }
+      }
+    },
+    "ape_true": {
+      "animFile": "resources/animated_characters/forge_ape.anim",
+      "faction": "beasts",
+      "members": {
+        "ape": {
+          "tint": [
+            0.62,
+            0.58,
+            0.55
+          ]
+        },
+        "baboon": {
+          "tint": [
+            0.85,
+            0.72,
+            0.55
+          ],
+          "scale": 0.5
+        },
+        "giant-ape": {
+          "tint": [
+            0.55,
+            0.52,
+            0.5
+          ],
+          "scale": 2.4
+        }
+      }
+    },
+    "giant_true": {
+      "animFile": "resources/animated_characters/ogre.anim",
+      "faction": "monsters",
+      "members": {
+        "hill-giant": {
+          "tint": [
+            0.85,
+            0.75,
+            0.6
+          ],
+          "scale": 1.7
+        },
+        "stone-giant": {
+          "tint": [
+            0.72,
+            0.72,
+            0.7
+          ],
+          "scale": 1.8
+        },
+        "frost-giant": {
+          "tint": [
+            0.82,
+            0.92,
+            1.0
+          ],
+          "scale": 1.85
+        },
+        "fire-giant": {
+          "tint": [
+            0.9,
+            0.6,
+            0.5
+          ],
+          "scale": 1.85
+        },
+        "cloud-giant": {
+          "tint": [
+            0.88,
+            0.9,
+            0.98
+          ],
+          "scale": 1.95
+        },
+        "storm-giant": {
+          "tint": [
+            0.72,
+            0.82,
+            0.98
+          ],
+          "scale": 2.05
+        },
+        "ettin": {
+          "tint": [
+            0.78,
+            0.7,
+            0.58
+          ],
+          "scale": 1.5
+        },
+        "oni": {
+          "tint": [
+            0.62,
+            0.78,
+            0.68
+          ],
+          "scale": 1.4
+        },
+        "minotaur": {
+          "tint": [
+            0.72,
+            0.58,
+            0.45
+          ],
+          "scale": 1.35
+        }
+      }
+    },
+    "hydra_true": {
+      "animFile": "resources/animated_characters/forge_hydra.anim",
+      "faction": "beasts",
+      "members": {
+        "hydra": {
+          "tint": [
+            0.72,
+            0.95,
+            0.68
+          ]
+        }
+      }
+    },
+    "tarrasque_true": {
+      "animFile": "resources/animated_characters/forge_tarrasque.anim",
+      "faction": "monsters",
+      "members": {
+        "tarrasque": {
+          "tint": [
+            0.95,
+            0.72,
+            0.55
+          ]
+        }
+      }
+    },
+    "dragon_turtle_true": {
+      "animFile": "resources/animated_characters/forge_dragon_turtle.anim",
+      "faction": "beasts",
+      "members": {
+        "dragon-turtle": {
+          "tint": [
+            0.62,
+            0.86,
+            0.88
+          ]
+        }
+      }
+    },
+    "otyugh_true": {
+      "animFile": "resources/animated_characters/forge_otyugh.anim",
+      "faction": "monsters",
+      "members": {
+        "otyugh": {
+          "tint": [
+            0.88,
+            0.8,
+            0.55
+          ]
+        }
+      }
+    },
+    "xorn_true": {
+      "animFile": "resources/animated_characters/forge_xorn.anim",
+      "faction": "monsters",
+      "members": {
+        "xorn": {
+          "tint": [
+            0.78,
+            0.74,
+            0.66
+          ]
+        }
+      }
+    },
+    "quaternius_orc": {
+      "animFile": "resources/animated_characters/monster_orc.anim",
+      "faction": "monsters",
+      "animationMapping": {
+        "Attack": "Punch"
+      },
+      "members": {
+        "orc": {
+          "scale": 1.0
+        },
+        "hobgoblin": {
+          "scale": 0.95,
+          "tint": [
+            0.85,
+            0.75,
+            0.7
+          ]
+        }
+      }
+    },
+    "quaternius_tribal": {
+      "animFile": "resources/animated_characters/monster_tribal.anim",
+      "faction": "monsters",
+      "animationMapping": {
+        "Attack": "Punch"
+      },
+      "members": {
+        "gnoll": {
+          "scale": 0.92,
+          "tint": [
+            0.85,
+            0.72,
+            0.55
+          ]
+        },
+        "tribal-warrior": {
+          "scale": 0.8
+        }
+      }
+    },
+    "quaternius_yeti": {
+      "animFile": "resources/animated_characters/monster_yeti.anim",
+      "faction": "monsters",
+      "animationMapping": {
+        "Attack": "Punch"
+      },
+      "members": {
+        "bugbear": {
+          "scale": 1.05,
+          "tint": [
+            0.72,
+            0.58,
+            0.42
+          ]
+        }
+      }
+    },
+    "quaternius_demon": {
+      "animFile": "resources/animated_characters/monster_demon.anim",
+      "faction": "monsters",
+      "animationMapping": {
+        "Attack": "Punch"
+      },
+      "members": {
+        "balor": {
+          "scale": 2.2,
+          "tint": [
+            1.0,
+            0.55,
+            0.4
+          ]
+        },
+        "pit-fiend": {
+          "scale": 2.0,
+          "tint": [
+            1.0,
+            0.5,
+            0.45
+          ]
+        },
+        "glabrezu": {
+          "scale": 1.7
+        },
+        "nalfeshnee": {
+          "scale": 1.6,
+          "tint": [
+            0.9,
+            0.7,
+            0.55
+          ]
+        },
+        "hezrou": {
+          "scale": 1.4,
+          "tint": [
+            0.6,
+            0.75,
+            0.5
+          ]
+        },
+        "horned-devil": {
+          "scale": 1.5,
+          "tint": [
+            0.95,
+            0.6,
+            0.5
+          ]
+        }
+      }
+    },
+    "quaternius_bluedemon": {
+      "animFile": "resources/animated_characters/monster_bluedemon.anim",
+      "faction": "monsters",
+      "animationMapping": {
+        "Attack": "Punch"
+      },
+      "members": {
+        "barbed-devil": {
+          "scale": 1.1,
+          "tint": [
+            0.95,
+            0.6,
+            0.55
+          ]
+        },
+        "bearded-devil": {
+          "scale": 1.1,
+          "tint": [
+            0.8,
+            0.65,
+            0.55
+          ]
+        },
+        "bone-devil": {
+          "scale": 1.5,
+          "tint": [
+            0.95,
+            0.93,
+            0.85
+          ]
+        },
+        "chain-devil": {
+          "scale": 1.1,
+          "tint": [
+            0.6,
+            0.6,
+            0.65
+          ]
+        },
+        "ice-devil": {
+          "scale": 1.4,
+          "tint": [
+            0.75,
+            0.9,
+            1.0
+          ]
+        },
+        "dretch": {
+          "scale": 0.75,
+          "tint": [
+            0.7,
+            0.75,
+            0.6
+          ]
+        }
+      }
+    },
+    "quaternius_dino": {
+      "animFile": "resources/animated_characters/monster_dino.anim",
+      "faction": "monsters",
+      "animationMapping": {
+        "Attack": "Punch"
+      },
+      "members": {
+        "tyrannosaurus-rex": {
+          "scale": 2.6,
+          "tint": [
+            0.75,
+            0.72,
+            0.6
+          ]
+        },
+        "lizardfolk": {
+          "scale": 1.0,
+          "tint": [
+            0.65,
+            0.8,
+            0.55
+          ]
+        }
+      }
+    },
+    "quaternius_frog": {
+      "animFile": "resources/animated_characters/monster_frog.anim",
+      "faction": "beasts",
+      "animationMapping": {
+        "Attack": "Punch"
+      },
+      "members": {
+        "giant-frog": {
+          "scale": 1.0
+        },
+        "giant-toad": {
+          "scale": 1.3,
+          "tint": [
+            0.75,
+            0.7,
+            0.5
+          ]
+        }
+      }
+    },
+    "quaternius_mushroom": {
+      "animFile": "resources/animated_characters/monster_mushroomking.anim",
+      "faction": "monsters",
+      "animationMapping": {
+        "Attack": "Punch"
+      },
+      "members": {
+        "shrieker": {
+          "scale": 0.55,
+          "tint": [
+            0.9,
+            0.85,
+            0.7
+          ]
+        },
+        "violet-fungus": {
+          "scale": 0.7,
+          "tint": [
+            0.75,
+            0.55,
+            0.9
+          ]
+        }
+      }
+    },
+    "meshy_ursine": {
+      "animFile": "resources/animated_characters/bear_meshy.anim",
+      "faction": "beasts",
+      "members": {
+        "brown-bear": {},
+        "black-bear": {
+          "tint": [
+            0.45,
+            0.4,
+            0.4
+          ],
+          "scale": 0.85
+        },
+        "polar-bear": {
+          "tint": [
+            1.35,
+            1.35,
+            1.3
+          ],
+          "scale": 1.1
+        },
+        "werebear-bear": {
+          "tint": [
+            0.8,
+            0.65,
+            0.5
+          ]
+        }
+      }
+    },
+    "meshy_cervine": {
+      "animFile": "resources/animated_characters/elk_meshy.anim",
+      "faction": "beasts",
+      "members": {
+        "deer": {
+          "scale": 0.85
+        },
+        "elk": {
+          "scale": 1.1
+        },
+        "giant-elk": {
+          "scale": 1.5
+        }
+      }
+    },
+    "meshy_equine": {
+      "animFile": "resources/animated_characters/horse_meshy.anim",
+      "faction": "beasts",
+      "members": {
+        "riding-horse": {},
+        "draft-horse": {
+          "scale": 1.15
+        },
+        "warhorse": {
+          "scale": 1.1
+        },
+        "pony": {
+          "scale": 0.75
+        },
+        "mule": {
+          "tint": [
+            0.7,
+            0.65,
+            0.6
+          ],
+          "scale": 0.85
+        },
+        "camel": {
+          "tint": [
+            0.95,
+            0.85,
+            0.65
+          ],
+          "scale": 1.05
+        },
+        "nightmare": {
+          "tint": [
+            0.35,
+            0.32,
+            0.38
+          ],
+          "scale": 1.05
+        },
+        "unicorn": {
+          "tint": [
+            1.3,
+            1.3,
+            1.28
+          ],
+          "scale": 1.05
+        },
+        "warhorse-skeleton": {
+          "tint": [
+            0.9,
+            0.88,
+            0.78
+          ],
+          "scale": 1.0
+        }
+      }
+    },
+    "meshy_canine": {
+      "animFile": "resources/animated_characters/wolf_meshy.anim",
+      "faction": "beasts",
+      "members": {
+        "dire-wolf": {},
+        "wolf": {
+          "scale": 0.82
+        },
+        "jackal": {
+          "tint": [
+            0.95,
+            0.85,
+            0.6
+          ],
+          "scale": 0.6
+        },
+        "hyena": {
+          "tint": [
+            0.95,
+            0.85,
+            0.65
+          ],
+          "scale": 0.8
+        },
+        "giant-hyena": {
+          "tint": [
+            0.95,
+            0.85,
+            0.65
+          ],
+          "scale": 1.15
+        },
+        "worg": {
+          "tint": [
+            0.6,
+            0.55,
+            0.55
+          ],
+          "scale": 1.05
+        },
+        "winter-wolf": {
+          "tint": [
+            1.25,
+            1.3,
+            1.35
+          ],
+          "scale": 1.15
+        },
+        "blink-dog": {
+          "tint": [
+            0.95,
+            0.8,
+            0.6
+          ],
+          "scale": 0.85
+        },
+        "death-dog": {
+          "tint": [
+            0.6,
+            0.5,
+            0.45
+          ],
+          "scale": 0.9
+        },
+        "hell-hound": {
+          "tint": [
+            1.1,
+            0.5,
+            0.35
+          ],
+          "scale": 0.95
+        },
+        "mastiff": {
+          "tint": [
+            0.9,
+            0.75,
+            0.55
+          ],
+          "scale": 0.8
+        },
+        "werewolf-wolf": {
+          "tint": [
+            0.75,
+            0.72,
+            0.7
+          ],
+          "scale": 0.95
+        }
+      }
+    },
+    "meshy_suine": {
+      "animFile": "resources/animated_characters/boar_meshy.anim",
+      "faction": "beasts",
+      "members": {
+        "boar": {},
+        "giant-boar": {
+          "scale": 1.35
+        },
+        "wereboar-boar": {
+          "tint": [
+            0.85,
+            0.75,
+            0.65
+          ]
+        }
+      }
+    }
+  }
+}

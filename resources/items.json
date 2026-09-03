@@ -362,6 +362,131 @@
       "fixed": true
     },
     {
+      "id": "prop_sign_blacksmith",
+      "name": "Sign: Smithy",
+      "type": 1,
+      "description": "A hanging blacksmith trade sign.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "items/sign_blacksmith.voxel",
+      "holdable": true,
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          0,
+          0,
+          0
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      },
+      "fixed": true
+    },
+    {
+      "id": "prop_sign_bakery",
+      "name": "Sign: Bakery",
+      "type": 1,
+      "description": "A hanging bakery trade sign.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "items/sign_bakery.voxel",
+      "holdable": true,
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          0,
+          0,
+          0
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      },
+      "fixed": true
+    },
+    {
+      "id": "prop_sign_general_store",
+      "name": "Sign: Goods",
+      "type": 1,
+      "description": "A hanging general-store trade sign.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "items/sign_general_store.voxel",
+      "holdable": true,
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          0,
+          0,
+          0
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      },
+      "fixed": true
+    },
+    {
+      "id": "prop_sign_apothecary",
+      "name": "Sign: Herbs",
+      "type": 1,
+      "description": "A hanging apothecary trade sign.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "items/sign_apothecary.voxel",
+      "holdable": true,
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          0,
+          0,
+          0
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      },
+      "fixed": true
+    },
+    {
+      "id": "prop_sign_butcher",
+      "name": "Sign: Butcher",
+      "type": 1,
+      "description": "A hanging butcher trade sign.",
+      "stackable": false,
+      "maxStack": 1,
+      "templateFile": "items/sign_butcher.voxel",
+      "holdable": true,
+      "held": {
+        "gripBone": "RightHand",
+        "gripOffset": [
+          0,
+          0,
+          0
+        ],
+        "gripEulerDeg": [
+          0,
+          0,
+          0
+        ],
+        "scale": 1.0
+      },
+      "fixed": true
+    },
+    {
       "id": "prop_tome_arcane",
       "name": "Arcane Tome",
       "type": 1,

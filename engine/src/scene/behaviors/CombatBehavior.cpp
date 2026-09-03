@@ -125,6 +125,14 @@ std::string CombatBehavior::acquireTarget(NPCContext& ctx, const glm::vec3& self
             // the check was missing, so any group fight was a free-for-all —
             // a 20v20 had everyone hitting their nearest neighbour regardless
             // of side. Allegiance lives on the ENTITY so we can read theirs.
+            //
+            // This supersedes the behaviour-level faction comparison written
+            // independently for spawn_encounter packs (which tore themselves
+            // apart before reaching the player). Nothing is lost: onSpawn
+            // above copies m_faction onto the entity, and spawn_encounter sets
+            // exactly that, so a pack still reads as one side here — while the
+            // entity-level tag additionally understands "neutral", which the
+            // behaviour-level comparison could not express.
             if (!ctx.self->hostileTo(*e)) continue;
             const glm::vec3 d = e->getPosition() - selfPos;
             float d2 = d.x * d.x + d.z * d.z;

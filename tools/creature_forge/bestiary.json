@@ -41,11 +41,11 @@
     "id": "forge_bear",
     "spec": "specs/bear.json",
     "out": "resources/animated_characters/forge_bear.anim",
-    "target_height": 1.35,
+    "target_height": 1.6,
     "morphology": "quadruped",
     "monsterId": "brown-bear",
     "combat": true,
-    "display": "Brown Bear"
+    "display": "Owlbear (stand-in: forge bear)"
   },
   {
     "_comment": "=== SRD bestiary: arachnid (M5) ==="
@@ -82,5 +82,272 @@
     "monsterId": "griffon",
     "combat": true,
     "display": "Griffon"
+  },
+  {
+    "id": "forge_feline",
+    "spec": "specs/feline.json",
+    "out": "resources/animated_characters/forge_feline.anim",
+    "target_height": 1.0,
+    "morphology": "quadruped",
+    "monsterId": "lion",
+    "combat": true,
+    "display": "Great Cat (archetype)"
+  },
+  {
+    "id": "forge_rodent",
+    "spec": "specs/rodent.json",
+    "out": "resources/animated_characters/forge_rodent.anim",
+    "target_height": 0.45,
+    "morphology": "quadruped",
+    "monsterId": "giant-rat",
+    "combat": true,
+    "display": "Rodent (archetype)"
+  },
+  {
+    "id": "forge_reptile",
+    "spec": "specs/reptile.json",
+    "out": "resources/animated_characters/forge_reptile.anim",
+    "target_height": 0.65,
+    "morphology": "quadruped",
+    "monsterId": "crocodile",
+    "combat": true,
+    "display": "Sprawling Reptile (archetype)"
+  },
+  {
+    "id": "forge_pachyderm",
+    "spec": "specs/pachyderm.json",
+    "out": "resources/animated_characters/forge_pachyderm.anim",
+    "target_height": 1.8,
+    "morphology": "quadruped",
+    "monsterId": "elephant",
+    "combat": true,
+    "display": "Pachyderm (archetype)"
+  },
+  {
+    "id": "forge_raptor",
+    "spec": "specs/raptor.json",
+    "out": "resources/animated_characters/forge_raptor.anim",
+    "target_height": 0.55,
+    "morphology": "quadruped",
+    "monsterId": "eagle",
+    "combat": true,
+    "display": "Raptor (archetype)",
+    "legs": 2
+  },
+  {
+    "id": "forge_serpent",
+    "spec": "specs/serpent.json",
+    "out": "resources/animated_characters/forge_serpent.anim",
+    "target_height": 0.35,
+    "morphology": "quadruped",
+    "monsterId": "constrictor-snake",
+    "combat": true,
+    "legless": true,
+    "display": "Serpent (archetype)"
+  },
+  {
+    "id": "forge_dragon_wyrmling",
+    "spec": "specs/young_dragon.json",
+    "out": "resources/animated_characters/forge_dragon_wyrmling.anim",
+    "target_height": 0.75,
+    "morphology": "dragon",
+    "monsterId": "black-dragon-wyrmling",
+    "combat": true,
+    "display": "Dragon Wyrmling"
+  },
+  {
+    "id": "forge_dragon_adult",
+    "spec": "specs/young_dragon.json",
+    "out": "resources/animated_characters/forge_dragon_adult.anim",
+    "target_height": 3.2,
+    "morphology": "dragon",
+    "monsterId": "adult-red-dragon",
+    "combat": true,
+    "display": "Adult Dragon"
+  },
+  {
+    "id": "forge_dragon_ancient",
+    "spec": "specs/young_dragon.json",
+    "out": "resources/animated_characters/forge_dragon_ancient.anim",
+    "target_height": 6.0,
+    "morphology": "dragon",
+    "monsterId": "ancient-red-dragon",
+    "combat": true,
+    "display": "Ancient Dragon"
+  },
+  {
+    "id": "forge_shark",
+    "spec": "specs/shark.json",
+    "out": "resources/animated_characters/forge_shark.anim",
+    "target_height": 0.5,
+    "morphology": "quadruped",
+    "monsterId": "reef-shark",
+    "combat": true,
+    "legless": true,
+    "display": "Aquatic (archetype)"
+  },
+  {
+    "id": "forge_cephalopod",
+    "spec": "specs/cephalopod.json",
+    "out": "resources/animated_characters/forge_cephalopod.anim",
+    "target_height": 0.8,
+    "morphology": "arachnid",
+    "monsterId": "giant-octopus",
+    "combat": true,
+    "display": "Cephalopod (archetype)"
+  },
+  {
+    "id": "forge_bat",
+    "spec": "specs/bat.json",
+    "out": "resources/animated_characters/forge_bat.anim",
+    "target_height": 0.3,
+    "morphology": "quadruped",
+    "monsterId": "giant-bat",
+    "combat": true,
+    "legs": 2,
+    "display": "Bat (archetype)"
+  },
+  {
+    "id": "forge_scorpion",
+    "spec": "specs/scorpion.json",
+    "out": "resources/animated_characters/forge_scorpion.anim",
+    "target_height": 0.6,
+    "morphology": "arachnid",
+    "monsterId": "giant-scorpion",
+    "combat": true,
+    "display": "Scorpion (archetype)"
+  },
+  {
+    "id": "forge_beetle",
+    "spec": "specs/beetle.json",
+    "out": "resources/animated_characters/forge_beetle.anim",
+    "target_height": 0.5,
+    "morphology": "arachnid",
+    "monsterId": "giant-fire-beetle",
+    "combat": true,
+    "legs": 6,
+    "display": "Insectoid (archetype)"
+  },
+  {
+    "id": "forge_taur",
+    "spec": "specs/taur.json",
+    "out": "resources/animated_characters/forge_taur.anim",
+    "target_height": 1.7,
+    "morphology": "quadruped",
+    "monsterId": "centaur",
+    "combat": true,
+    "display": "Taur (archetype)"
+  },
+  {
+    "id": "forge_swarm",
+    "spec": "specs/swarm.json",
+    "out": "resources/animated_characters/forge_swarm.anim",
+    "target_height": 0.4,
+    "morphology": "quadruped",
+    "monsterId": "swarm-of-rats",
+    "combat": true,
+    "legless": true,
+    "display": "Swarm (archetype)"
+  },
+  {
+    "id": "forge_ooze",
+    "spec": "specs/ooze.json",
+    "out": "resources/animated_characters/forge_ooze.anim",
+    "target_height": 0.9,
+    "morphology": "quadruped",
+    "monsterId": "gray-ooze",
+    "combat": true,
+    "legless": true,
+    "display": "Ooze (archetype)"
+  },
+  {
+    "id": "forge_plant",
+    "spec": "specs/plant.json",
+    "out": "resources/animated_characters/forge_plant.anim",
+    "target_height": 1.0,
+    "morphology": "quadruped",
+    "monsterId": "shrieker",
+    "combat": true,
+    "legless": true,
+    "display": "Plant (archetype)"
+  },
+  {
+    "id": "forge_theropod",
+    "spec": "specs/theropod.json",
+    "out": "resources/animated_characters/forge_theropod.anim",
+    "target_height": 1.6,
+    "morphology": "quadruped",
+    "monsterId": "axe-beak",
+    "combat": true,
+    "legs": 2,
+    "display": "Theropod (archetype)"
+  },
+  {
+    "id": "forge_ape",
+    "spec": "specs/ape.json",
+    "out": "resources/animated_characters/forge_ape.anim",
+    "target_height": 1.7,
+    "morphology": "quadruped",
+    "monsterId": "ape",
+    "combat": true,
+    "display": "Great Ape (archetype)"
+  },
+  {
+    "_comment": "=== SRD bestiary: exotics (W8) - the five bodies no archetype could honestly stand in for ==="
+  },
+  {
+    "id": "forge_hydra",
+    "spec": "specs/hydra.json",
+    "out": "resources/animated_characters/forge_hydra.anim",
+    "target_height": 3.6,
+    "morphology": "quadruped",
+    "monsterId": "hydra",
+    "combat": true,
+    "legs": 4,
+    "display": "Hydra (five necks)"
+  },
+  {
+    "id": "forge_tarrasque",
+    "spec": "specs/tarrasque.json",
+    "out": "resources/animated_characters/forge_tarrasque.anim",
+    "target_height": 7.0,
+    "morphology": "quadruped",
+    "monsterId": "tarrasque",
+    "combat": true,
+    "legs": 2,
+    "display": "Tarrasque (Gargantuan biped)"
+  },
+  {
+    "id": "forge_dragon_turtle",
+    "spec": "specs/dragon_turtle.json",
+    "out": "resources/animated_characters/forge_dragon_turtle.anim",
+    "target_height": 3.4,
+    "morphology": "quadruped",
+    "monsterId": "dragon-turtle",
+    "combat": true,
+    "legs": 4,
+    "display": "Dragon Turtle (shelled)"
+  },
+  {
+    "id": "forge_otyugh",
+    "spec": "specs/otyugh.json",
+    "out": "resources/animated_characters/forge_otyugh.anim",
+    "target_height": 2.1,
+    "morphology": "quadruped",
+    "monsterId": "otyugh",
+    "combat": true,
+    "legs": 3,
+    "display": "Otyugh (tripod, tentacled)"
+  },
+  {
+    "id": "forge_xorn",
+    "spec": "specs/xorn.json",
+    "out": "resources/animated_characters/forge_xorn.anim",
+    "target_height": 1.55,
+    "morphology": "quadruped",
+    "monsterId": "xorn",
+    "combat": true,
+    "legs": 3,
+    "display": "Xorn (three-fold radial)"
   }
 ]

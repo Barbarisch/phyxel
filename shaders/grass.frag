@@ -10,11 +10,11 @@ layout(location = 0) in flat uint vTex;    // grass texture index (class bit 15 
 layout(location = 1) in vec2  vUV;         // colour-sample UV
 layout(location = 2) in float vGrad;       // 0 base .. 1 tip
 layout(location = 3) in float vSide;       // -1..1 across blade width
-layout(location = 4) in float vSky;        // baked skylight 0..1
-layout(location = 5) in vec3  vBlock;      // baked block light 0..1/channel
 layout(location = 6) in vec4  vShadowCoord; // biased light-space coord (shadow RECEIVING)
 layout(location = 7) in float vWindLean;   // wind debug: lean fraction, 0 upright .. 0.9 at cap
 layout(location = 8) in vec4  vShadowCoordNear; // near-cascade coord (fine texels)
+layout(location = 9) in vec3  vWorldPos;        // U3.3: camera-relative pos, for point lights
+layout(location = 4) in float vSky;            // M4: TRACED sky visibility, computed per blade vertex
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -52,7 +52,44 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec3 moonColor;
     float exposure;
     int   tonemapCurve;
+    // ---- U3.3 prefix ------------------------------------------------------------------------
+    // std140 is positional: to READ occupancyBox this shader must declare every field ahead of it,
+    // even the ones it never touches. These four sky-body arrays are pure padding here.
+    vec4  skyBodyDirRadius[4];
+    vec4  skyBodyDisc[4];
+    vec4  skyBodyLitDir[4];
+    vec4  skyBodyLight[4];
+    int   skyBodyCount;
+    ivec4 occupancyBox;   // xyz = box min corner (chunk coords), w = 1 when 11/12 are real
 } ubo;
+
+#include "occupancy.glsl"   // U3.3 / D15: grass gets the SAME visibility term as stone
+
+// U3.3 — A CAMPFIRE LIGHTS THE GRASS AROUND IT.
+//
+// This was a REGRESSION, not a pre-existing gap: before M0, the block-light flood reached grass
+// through vBlock. M0 deleted the flood and nothing replaced it, so vegetation went sun-and-ambient
+// only and a torch in a meadow lit the ground voxels while every blade around it stayed dark.
+// Reading the light SSBO puts grass on the same emitter model as everything else -- and with U3.2,
+// "a torch" now includes any emissive voxel.
+struct PointLightGPU {
+    vec4 positionAndRadius;     // xyz = position, w = radius
+    vec4 colorAndIntensity;     // xyz = color, w = intensity
+};
+struct SpotLightGPU {
+    vec4 positionAndRadius;
+    vec4 directionAndInnerCone;
+    vec4 colorAndIntensity;
+    vec4 outerConeAndPadding;
+};
+layout(std430, set = 0, binding = 3) readonly buffer LightBuffer {
+    uint numPointLights;
+    uint numSpotLights;
+    uint _pad0;
+    uint _pad1;
+    PointLightGPU pointLights[32];
+    SpotLightGPU spotLights[16];
+} lights;
 
 layout(set = 0, binding = 1) uniform sampler2DArray textureArray;    // 512px albedo class
 layout(set = 0, binding = 2) uniform sampler2D      shadowMap;       // sun shadows on grass
@@ -95,9 +132,44 @@ void main() {
         shadowFactor = min(shadowFactor,
                            phxShadowFast(shadowMapNear, vShadowCoordNear,
                                          ubo.shadowCascadeNear.y));
-    vec3  ambient = phxAmbientAtmos(vec3(0.0, 1.0, 0.0), vSky, ubo.ambientColor);
-    vec3  sunTerm = ubo.sunColor * (0.85 * shadowFactor * phxSkyGate(vSky));
-    vec3  lit = col * ao * (ambient + sunTerm) + col * vBlock * 0.5;
+    // M4: vSky is TRACED now (in grass.vert, per blade vertex) rather than read from the dead
+    // per-instance nibble the flood used to fill. Grass inside a house is finally darker than grass
+    // in the open. Tracing per VERTEX rather than per fragment because sky access varies at world
+    // scale and a blade is ~0.05-0.1 u wide -- per fragment cost 3.284 ms against 1.240 ms.
+    float sky = vSky;
+    vec3  ambient = phxAmbientAtmos(vec3(0.0, 1.0, 0.0), sky, ubo.ambientColor);
+    vec3  sunTerm = ubo.sunColor * (0.85 * shadowFactor * phxSkyGate(sky));
+
+    // U3.3 — POINT/SPOT LIGHTS ON GRASS, with the same visibility term stone gets.
+    //
+    // A blade has no meaningful normal (it is a camera-facing cutout card, and the sun term above
+    // deliberately avoids per-blade N·L because it makes the field sparkle). So light it as a
+    // diffuse receiver facing UP: attenuation and occlusion carry the effect, not orientation.
+    // That keeps a campfire's pool of light shaped by geometry rather than by blade facing.
+    vec3 lampTerm = vec3(0.0);
+    {
+        const vec3 up = vec3(0.0, 1.0, 0.0);
+        vec3 worldP = vWorldPos + ubo.cameraWorld;
+        for (uint i = 0u; i < lights.numPointLights && i < 32u; ++i) {
+            vec3  lp     = lights.pointLights[i].positionAndRadius.xyz;
+            float radius = lights.pointLights[i].positionAndRadius.w;
+            vec3  toL    = lp - vWorldPos;
+            float dist   = length(toL);
+            if (dist >= radius) continue;
+            // Gate BEFORE the march, exactly as voxel.frag does -- this is what keeps the
+            // visibility term near-free: almost no fragment actually traces.
+            if (phxLightVisibility(worldP, up, lp + ubo.cameraWorld, ubo.occupancyBox) <= 0.0)
+                continue;
+            float atten = clamp(1.0 - dist / radius, 0.0, 1.0);
+            atten *= atten;
+            lampTerm += lights.pointLights[i].colorAndIntensity.xyz
+                      * lights.pointLights[i].colorAndIntensity.w * atten;
+        }
+    }
+
+    // vBlock is the M0 placeholder (a constant 0 -- the flood that fed it is gone). The lamp term
+    // above is what replaces it, and it is real transport rather than a decayed per-cell field.
+    vec3  lit = col * ao * (ambient + sunTerm + lampTerm);
 
     // ── WIND SHEEN (2026-09-03) ─────────────────────────────────────────────────────────────
     // A gust crossing a real field is seen as a LIGHT band sweeping the grass — bent blades tilt
@@ -133,5 +205,11 @@ void main() {
         return;
     }
     if (ubo.debugShadowMode == 1) { outColor = phxShadowOnly(shadowFactor); return; }
+    // D4: grass implements no per-SYSTEM isolation view (modes 3-9). A pass that does not
+    // implement a view must render flat dark in it, or it drowns the signal the view exists to
+    // show — measured: a mode-5 capture read 62% "lit" with a single light in the scene, because
+    // grass and sky ignored the mode entirely. This is the same rule foliage.frag already applies
+    // to the grass wind view (mode 2), generalised.
+    if (ubo.debugShadowMode >= 3) { outColor = vec4(0.02, 0.02, 0.025, 1.0); return; }
     outColor = vec4(lit, 1.0);
 }

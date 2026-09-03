@@ -854,6 +854,11 @@ void RenderPipeline::cleanup() {
         reflectionInstancedCharacterPipeline = VK_NULL_HANDLE;
     }
 
+    if (translucentInstancedCharacterPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, translucentInstancedCharacterPipeline, nullptr);
+        translucentInstancedCharacterPipeline = VK_NULL_HANDLE;
+    }
+
     if (characterPipelineLayout != VK_NULL_HANDLE) {
         vkDestroyPipelineLayout(device, characterPipelineLayout, nullptr);
         characterPipelineLayout = VK_NULL_HANDLE;
@@ -1522,6 +1527,34 @@ bool RenderPipeline::createInstancedCharacterPipeline() {
         LOG_ERROR("Rendering", "Failed to create instanced character graphics pipeline!");
         return false;
     }
+
+    // Translucent variant: identical pipeline with alpha blending on and depth
+    // WRITE off, for characters whose per-character alpha is < 1 (incorporeal
+    // undead — see RagdollCharacter::setRenderAlpha). Depth test stays on so
+    // they are still occluded by the world; not writing depth is what lets two
+    // translucent bodies overlap without punching holes in each other. The
+    // opaque pipeline above is untouched, and RenderCoordinator keeps these
+    // characters in a separate batch list drawn after the opaque ones — so
+    // nothing about ordinary character rendering changes.
+    colorBlendAttachment.blendEnable = VK_TRUE;
+    colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+    colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+    colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+    colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+    colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+    colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+    depthStencil.depthWriteEnable = VK_FALSE;
+    if (translucentInstancedCharacterPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(vulkanDevice.getDevice(), translucentInstancedCharacterPipeline, nullptr);
+        translucentInstancedCharacterPipeline = VK_NULL_HANDLE;
+    }
+    if (vkCreateGraphicsPipelines(vulkanDevice.getDevice(), VK_NULL_HANDLE, 1, &pipelineInfo,
+                                  nullptr, &translucentInstancedCharacterPipeline) != VK_SUCCESS) {
+        LOG_ERROR("Rendering", "Failed to create translucent character graphics pipeline!");
+        return false;
+    }
+    colorBlendAttachment.blendEnable = VK_FALSE;
+    depthStencil.depthWriteEnable = VK_TRUE;
 
     // Reflection variant: identical pipeline but FRONT_BIT culling. Characters drawn into the
     // mirror reflection are seen through the reflected view (mainView * reflMat), which has

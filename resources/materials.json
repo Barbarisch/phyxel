@@ -2716,6 +2716,156 @@
       }
     },
     {
+      "name": "sign_blacksmith",
+      "resolution": 512,
+      "description": "Projected surface: blacksmith trade sign (anvil and hammer).",
+      "physics": {
+        "mass": 0.3,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 1.0,
+        "bondStrength": 0.5,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.7
+      },
+      "textures": {
+        "side_n": "sign_blacksmith.png",
+        "side_s": "sign_blacksmith.png",
+        "side_e": "sign_blacksmith.png",
+        "side_w": "sign_blacksmith.png",
+        "top": "sign_blacksmith.png",
+        "bottom": "sign_blacksmith.png"
+      }
+    },
+    {
+      "name": "sign_bakery",
+      "resolution": 512,
+      "description": "Projected surface: bakery trade sign (the guild pretzel).",
+      "physics": {
+        "mass": 0.3,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 1.0,
+        "bondStrength": 0.5,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.7
+      },
+      "textures": {
+        "side_n": "sign_bakery.png",
+        "side_s": "sign_bakery.png",
+        "side_e": "sign_bakery.png",
+        "side_w": "sign_bakery.png",
+        "top": "sign_bakery.png",
+        "bottom": "sign_bakery.png"
+      }
+    },
+    {
+      "name": "sign_general_store",
+      "resolution": 512,
+      "description": "Projected surface: general-store trade sign (merchant's balance).",
+      "physics": {
+        "mass": 0.3,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 1.0,
+        "bondStrength": 0.5,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.7
+      },
+      "textures": {
+        "side_n": "sign_general_store.png",
+        "side_s": "sign_general_store.png",
+        "side_e": "sign_general_store.png",
+        "side_w": "sign_general_store.png",
+        "top": "sign_general_store.png",
+        "bottom": "sign_general_store.png"
+      }
+    },
+    {
+      "name": "sign_apothecary",
+      "resolution": 512,
+      "description": "Projected surface: apothecary trade sign (mortar and pestle).",
+      "physics": {
+        "mass": 0.3,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 1.0,
+        "bondStrength": 0.5,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.7
+      },
+      "textures": {
+        "side_n": "sign_apothecary.png",
+        "side_s": "sign_apothecary.png",
+        "side_e": "sign_apothecary.png",
+        "side_w": "sign_apothecary.png",
+        "top": "sign_apothecary.png",
+        "bottom": "sign_apothecary.png"
+      }
+    },
+    {
+      "name": "sign_butcher",
+      "resolution": 512,
+      "description": "Projected surface: butcher trade sign (cleaver).",
+      "physics": {
+        "mass": 0.3,
+        "friction": 0.6,
+        "restitution": 0.1,
+        "linearDamping": 0.2,
+        "angularDamping": 0.3,
+        "breakForceMultiplier": 1.0,
+        "bondStrength": 0.5,
+        "angularVelocityScale": 1.0,
+        "colorTint": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "metallic": 0.0,
+        "roughness": 0.7
+      },
+      "textures": {
+        "side_n": "sign_butcher.png",
+        "side_s": "sign_butcher.png",
+        "side_e": "sign_butcher.png",
+        "side_w": "sign_butcher.png",
+        "top": "sign_butcher.png",
+        "bottom": "sign_butcher.png"
+      }
+    },
+    {
       "name": "tome_arcane",
       "resolution": 512,
       "description": "Projected surface: arcane tome cover.",

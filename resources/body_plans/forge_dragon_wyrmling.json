@@ -1,0 +1,107 @@
+{
+  "id": "forge_dragon_wyrmling",
+  "morphology": "dragon",
+  "gaitClass": "dragon_clips",
+  "rootBone": "pelvis",
+  "hipAliases": [
+    "pelvis",
+    "hip"
+  ],
+  "gripBone": "head",
+  "capsule": {
+    "mode": "xz_extent",
+    "minHalfWidth": 0.2,
+    "maxHalfWidth": 0.73
+  },
+  "legs": [
+    {
+      "id": "lback",
+      "upper": "LBackRoot",
+      "mid": "LBackHock",
+      "foot": "LBackPaw",
+      "footIK": false
+    },
+    {
+      "id": "lfront",
+      "upper": "LFrontRoot",
+      "mid": "LFrontShin",
+      "foot": "LFrontPaw",
+      "footIK": false
+    },
+    {
+      "id": "rback",
+      "upper": "RBackRoot",
+      "mid": "RBackHock",
+      "foot": "RBackPaw",
+      "footIK": false
+    },
+    {
+      "id": "rfront",
+      "upper": "RFrontRoot",
+      "mid": "RFrontShin",
+      "foot": "RFrontPaw",
+      "footIK": false
+    }
+  ],
+  "segments": [
+    {
+      "bone": "pelvis",
+      "isArm": false
+    },
+    {
+      "bone": "belly",
+      "isArm": false
+    },
+    {
+      "bone": "chest",
+      "isArm": false
+    },
+    {
+      "bone": "neck_1",
+      "isArm": false
+    },
+    {
+      "bone": "wing_root_L",
+      "isArm": false
+    },
+    {
+      "bone": "wing_trail_L",
+      "isArm": false
+    },
+    {
+      "bone": "tail_1",
+      "isArm": false
+    },
+    {
+      "bone": "wing_root_R",
+      "isArm": false
+    },
+    {
+      "bone": "wing_trail_R",
+      "isArm": false
+    },
+    {
+      "bone": "LBackRoot",
+      "isArm": false
+    },
+    {
+      "bone": "LFrontRoot",
+      "isArm": false
+    },
+    {
+      "bone": "RBackRoot",
+      "isArm": false
+    },
+    {
+      "bone": "RFrontRoot",
+      "isArm": false
+    }
+  ],
+  "clipDefaults": {
+    "Idle": "idle",
+    "Walk": "walk",
+    "StartWalk": "walk",
+    "Attack": "attack",
+    "Death": "death"
+  }
+}

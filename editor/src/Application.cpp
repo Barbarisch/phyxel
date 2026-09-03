@@ -714,6 +714,34 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         return result;
     });
 
+    // Baked per-cell light, as numbers. The stored light field is the engine's largest
+    // unobservable: it decides whether a room is dark, gates the sun, and is cube-resolution —
+    // and until now the only way to look at it was to photograph a surface and guess.
+    apiServer->setBakedLightQueryHandler([this](int x, int y, int z) -> nlohmann::json {
+        nlohmann::json r;
+        r["position"] = {{"x", x}, {"y", y}, {"z", z}};
+        if (!chunkManager) { r["error"] = "no chunk manager"; return r; }
+        const auto bl = chunkManager->sampleBakedLight(glm::ivec3(x, y, z));
+        r["sky"] = bl.sky;                       // 0-15, open-sky exposure
+        r["block"] = {{"r", bl.r}, {"g", bl.g}, {"b", bl.b}};   // 0-15 per channel
+        auto* cube = chunkManager->getCubeAt(glm::ivec3(x, y, z));
+        r["solid_cube"] = (cube != nullptr);     // so an air/solid mix-up is visible, not guessed
+        // The opacity mask that DECIDED the sky value above: which axes this cell blocks.
+        // Without it, "this cell passed light" leaves you guessing whether the geometry or the
+        // flood is at fault.
+        if (const auto* ch = chunkManager->getChunkAtCoord(
+                Utils::CoordinateUtils::worldToChunkCoord(glm::ivec3(x, y, z)))) {
+            uint8_t mask = 0;
+            if (ch->lightOpaqueAt(Utils::CoordinateUtils::worldToLocalCoord(glm::ivec3(x, y, z)),
+                                  mask)) {
+                r["opaque_mask"] = mask;
+                r["blocks"] = {{"x", (mask & 1u) != 0}, {"y", (mask & 2u) != 0},
+                               {"z", (mask & 4u) != 0}};
+            }
+        }
+        return r;
+    });
+
     apiServer->setWorldStateHandler([this]() -> nlohmann::json {
         nlohmann::json state;
         state["entities"] = entityRegistry->toJson();
@@ -2194,6 +2222,20 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     m_textureEditor = std::make_unique<Editor::TextureEditorPanel>();
     m_textureEditor->setVulkanDevice(vulkanDevice);
 
+    // Bestiary Hall — the roster load is allowed to fail quietly here (the
+    // panel surfaces the reason on open); a missing roster must never stop the
+    // editor from starting.
+    m_bestiaryHall.loadRoster("resources/monsters/visuals/bestiary_hall.json");
+    m_bestiaryPanel = std::make_unique<Editor::BestiaryPanel>();
+    m_bestiaryPanel->setHall(&m_bestiaryHall);
+    m_bestiaryPanel->setNPCManager(npcManager.get());
+    m_bestiaryPanel->onFocusCamera = [this](const glm::vec3& pos, const glm::vec3& target) {
+        focusCameraOn(pos, target);
+    };
+    m_bestiaryPanel->onStageHall = [this]() {
+        return stageBestiaryHall(glm::vec3(0.0f, 0.0f, 0.0f), 0.0f, true);
+    };
+
     m_worldOutliner->setEntityRegistry(entityRegistry.get());
     m_worldOutliner->setNPCManager(npcManager.get());
     m_worldOutliner->setPlacedObjectManager(placedObjectManager.get());
@@ -2908,6 +2950,12 @@ void Application::run() {
             if (m_cameraPanel && m_showCameraPanel) {
                 m_cameraPanel->render(&m_showCameraPanel);
             }
+
+            if (m_bestiaryPanel && m_showBestiaryPanel) {
+                m_bestiaryPanel->tick(deltaTime);
+                m_bestiaryPanel->render(&m_showBestiaryPanel);
+            }
+            renderBestiaryNameplates();
 
             // World Map panel (WorldForge minimap, in-engine)
             renderWorldMapPanel();
@@ -5314,6 +5362,168 @@ void Application::setChunkInclusionDistance(float distance) {
         
         LOG_INFO_FMT("Application", "Chunk inclusion distance updated to: " << distance);
     }
+}
+
+void Application::renderBestiaryNameplates() {
+    if (!m_showBestiaryNameplates || !m_bestiaryHall.isStaged()) return;
+    if (!windowManager || !camera) return;
+
+    // The scene renders into the DOCKED Viewport window, not the OS window, so
+    // NDC has to be mapped into that sub-rect. Using the window size instead
+    // puts every plate off its creature by the width of the side panels.
+    const float vx = m_viewportPosX,  vy = m_viewportPosY;
+    const float sw = m_viewportSizeW, sh = m_viewportSizeH;
+    if (sw < 2.0f || sh < 2.0f) return;      // viewport hasn't laid out yet
+
+    const glm::vec3 eye = camera->getPosition();
+    const std::string& sel = m_bestiaryHall.selected();
+
+    // FOREGROUND, not background: the background list draws BEHIND ImGui
+    // windows, and the viewport is one — plates rendered there are invisible.
+    // Clipped to the viewport so labels never spill over the docked panels.
+    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    dl->PushClipRect(ImVec2(vx, vy), ImVec2(vx + sw, vy + sh), true);
+
+    struct Plate {
+        const Editor::BestiaryHall::Entry* e;
+        float sx, sy, dist;
+        ImVec2 tl, br;
+    };
+    std::vector<Plate> plates;
+    plates.reserve(m_bestiaryHall.entries().size());
+
+    for (const auto& e : m_bestiaryHall.entries()) {
+        if (!e.spawned) continue;
+
+        // Anchor just above the rig's MEASURED height so the plate clears a
+        // tarrasque and still hugs a rodent.
+        const glm::vec3 world = e.position + glm::vec3(0.0f, e.height + e.footY + 0.45f, 0.0f);
+
+        const glm::vec4 clip = cachedProjectionMatrix * cachedViewMatrix * glm::vec4(world, 1.0f);
+        if (clip.w <= 0.0f) continue;                       // behind the camera
+        const glm::vec3 ndc = glm::vec3(clip) / clip.w;
+        const float sx = vx + (ndc.x * 0.5f + 0.5f) * sw;
+        const float sy = vy + (ndc.y * 0.5f + 0.5f) * sh;   // Vulkan proj already flips Y
+        if (sx < vx - 200.0f || sx > vx + sw + 200.0f ||
+            sy < vy - 80.0f  || sy > vy + sh + 80.0f) continue;
+
+        const ImVec2 ts = ImGui::CalcTextSize(e.name.c_str());
+        plates.push_back({&e, sx, sy, glm::length(world - eye),
+                          ImVec2(sx - ts.x * 0.5f - 6.0f, sy - ts.y - 4.0f),
+                          ImVec2(sx + ts.x * 0.5f + 6.0f, sy + 4.0f)});
+    }
+
+    // Nearest first, so when plates collide the creature in front keeps its
+    // name. A hall this dense otherwise turns into a wall of overlapping text
+    // that labels nothing — an unreadable label is worse than none, because it
+    // also hides the creature behind it.
+    std::sort(plates.begin(), plates.end(),
+              [](const Plate& a, const Plate& b) { return a.dist < b.dist; });
+
+    std::vector<ImVec4> taken;
+    taken.reserve(plates.size());
+    const auto overlaps = [&taken](const ImVec2& tl, const ImVec2& br) {
+        for (const auto& r : taken)
+            if (tl.x < r.z && br.x > r.x && tl.y < r.w && br.y > r.y) return true;
+        return false;
+    };
+
+    for (const auto& p : plates) {
+        const bool isSel = (p.e->id == sel);
+        // The selection always gets its name, even in a crowd — that is the
+        // whole point of selecting it.
+        if (!isSel && overlaps(p.tl, p.br)) {
+            // Leave a tick so a suppressed creature still reads as "labelled,
+            // just not here" rather than as an unidentified body.
+            dl->AddCircleFilled(ImVec2(p.sx, p.sy), 1.6f,
+                                IM_COL32(210, 215, 225, 90));
+            continue;
+        }
+        taken.push_back(ImVec4(p.tl.x, p.tl.y, p.br.x, p.br.y));
+
+        // Fade with distance so the back rows recede instead of shouting.
+        float alpha = isSel ? 1.0f
+                            : glm::clamp(1.0f - (p.dist - 30.0f) / 70.0f, 0.28f, 0.92f);
+        if (!sel.empty() && !isSel) alpha *= 0.55f;         // match the ghosting
+
+        const ImU32 textCol = isSel ? IM_COL32(255, 236, 160, (int)(alpha * 255))
+                                    : IM_COL32(236, 240, 245, (int)(alpha * 255));
+        const ImU32 bgCol   = isSel ? IM_COL32(70, 55, 10, (int)(alpha * 215))
+                                    : IM_COL32(16, 18, 22, (int)(alpha * 165));
+
+        dl->AddRectFilled(p.tl, p.br, bgCol, 4.0f);
+        if (isSel)
+            dl->AddRect(p.tl, p.br, IM_COL32(255, 214, 92, (int)(alpha * 255)), 4.0f, 0, 1.6f);
+        dl->AddText(ImVec2(p.sx - (p.br.x - p.tl.x) * 0.5f + 6.0f, p.tl.y + 3.0f),
+                    textCol, p.e->name.c_str());
+    }
+    dl->PopClipRect();
+}
+
+void Application::focusCameraOn(const glm::vec3& pos, const glm::vec3& target) {
+    if (!camera) return;
+    const glm::vec3 d = target - pos;
+    const float flat = std::sqrt(d.x * d.x + d.z * d.z);
+    if (flat < 1e-4f && std::abs(d.y) < 1e-4f) return;
+
+    // Editor free-cam convention: yaw 0 looks down +X, yaw -90 down -Z
+    // (docs/CoordinateSystem.md; reference_editor_camera_yaw).
+    const float yaw   = glm::degrees(std::atan2(d.z, d.x));
+    const float pitch = glm::degrees(std::atan2(d.y, std::max(flat, 1e-4f)));
+
+    camera->setPosition(pos);
+    camera->setYaw(yaw);
+    camera->setPitch(pitch);
+    // In Free mode the INPUT MANAGER owns the camera pose — the sync block
+    // copies position AND yaw/pitch from it every frame. Writing only to the
+    // Camera looks like it worked for one frame and is then silently reverted,
+    // so the authoritative source has to be set too.
+    if (inputManager) {
+        inputManager->setCameraPosition(pos);
+        inputManager->setYawPitch(yaw, pitch);
+    }
+}
+
+bool Application::stageBestiaryHall(const glm::vec3& origin, float groundY,
+                                    bool groundFromTerrain) {
+    if (!npcManager) return false;
+
+    // Sample the real surface under each creature. Trusting one caller-supplied
+    // height buries half a row in a hillside and floats the other half.
+    const auto surfaceAt = [this](float wx, float wz) -> float {
+        const int qx = static_cast<int>(std::floor(wx));
+        const int qz = static_cast<int>(std::floor(wz));
+        for (int y = 320; y >= -64; --y)
+            if (chunkManager->hasVoxelAt(glm::ivec3(qx, y, qz)))
+                return static_cast<float>(y + 1);
+        return std::numeric_limits<float>::quiet_NaN();
+    };
+
+    float floorY = groundY;
+    Editor::BestiaryHall::GroundSampler sampler;
+    if (groundFromTerrain && chunkManager) {
+        const float atOrigin = surfaceAt(origin.x, origin.z);
+        if (!std::isnan(atOrigin)) floorY = atOrigin;
+        else LOG_WARN("Application",
+                      "bestiary hall: no ground under the origin — using y={}", floorY);
+        // Fall back to the hall floor wherever a column has no ground at all,
+        // so a creature over a hole stands at hall level instead of vanishing
+        // to NaN and taking its nameplate with it.
+        sampler = [surfaceAt, floorY](float wx, float wz) {
+            const float y = surfaceAt(wx, wz);
+            return std::isnan(y) ? floorY : y;
+        };
+    }
+
+    const bool ok = m_bestiaryHall.spawn(npcManager.get(), origin, floorY, sampler);
+    if (ok) {
+        // Open on a view that shows the whole hall, so the first thing you see
+        // is the catalogue rather than the inside of a dragon.
+        focusCameraOn(origin + glm::vec3(0.0f, 26.0f, 40.0f),
+                      origin + glm::vec3(0.0f, 2.0f, -14.0f));
+        m_showBestiaryPanel = true;
+    }
+    return ok;
 }
 
 void Application::toggleCameraMode() {
@@ -8177,6 +8387,208 @@ static bool handleDynamicFurnitureCommand(
 bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann::json& response) {
     using json = nlohmann::json;
     const std::string& action = cmd.action;
+
+    if (action == "light_occupancy") {
+        // M1b gate instrument. Two things, both as numbers:
+        //   1. pool health — resident chunks, mixed cells, words used, chunks DROPPED for space.
+        //      An empty pool means the physics grids were never built, which would otherwise show
+        //      up only as "lighting sees no walls" and be blamed on the tracer.
+        //   2. agreement — for a given cell, what the GPU pool says at each of the 729 micro
+        //      positions vs what Chunk::getOccupancyGrid() says. Disagreement anywhere is the
+        //      M1 gate failing, and partially-filled cells are the case that matters.
+        if (!renderCoordinator) { response = {{"error", "no render coordinator"}}; return true; }
+        // A/B switch for the M2 light-visibility trace, on the same endpoint as its diagnostics.
+        if (cmd.params.contains("trace") && vulkanDevice)
+            vulkanDevice->setLightTracingEnabled(cmd.params.value("trace", true));
+        if (cmd.params.contains("sky") && vulkanDevice)
+            vulkanDevice->setSkyTracingEnabled(cmd.params.value("sky", true));
+        // M3-REDESIGN: bake sky visibility at mesh time instead of tracing per fragment.
+        // Changing it re-meshes, since the value is stored in the chunk's light field.
+        const auto st = renderCoordinator->lightOccupancyStats();
+        const glm::vec3 camPos = renderCoordinator->lightOccupancyCentreSource();
+        const glm::ivec3 box  = renderCoordinator->lightOccupancyBoxMinChunk();
+        response = {
+            {"ready",               renderCoordinator->lightOccupancyReady()},
+            {"resident_chunks",     st.residentChunks},
+            {"mixed_cubes",         st.mixedCubes},
+            {"pool_words",          st.poolWords},
+            {"pool_capacity_words", st.poolCapacityWords},
+            {"dropped_chunks",      st.droppedChunks},
+            {"last_pack_ms",        st.lastPackMs},
+            // Coverage. loaded - out_of_box - resident = still queued behind the per-frame budget.
+            // out_of_box > 0 means those chunks occlude NOTHING: the directory covers only
+            // x,z in [-256,256) and y in [-64,192).
+            {"loaded_chunks",       renderCoordinator->lightOccupancyLoadedChunks()},
+            {"out_of_box_chunks",   renderCoordinator->lightOccupancyOutOfBoxChunks()},
+            // The box's own position, so "the box did not follow the camera" is distinguishable
+            // from "the camera did not move" without guessing between them.
+            {"box_min_chunk",       {box.x, box.y, box.z}},
+            {"box_centre_source",   {camPos.x, camPos.y, camPos.z}},
+            {"light_tracing",       vulkanDevice && vulkanDevice->isLightTracingEnabled()},
+            {"sky_tracing",         vulkanDevice && vulkanDevice->isSkyTracingEnabled()},
+            // M3-REDESIGN: the baked alternative, and what its last bake cost.
+        };
+
+        // Optional VISIBILITY PROBE (M2). Answers "does this light reach that surface point"
+        // as data. A screen A/B on a real world cannot separate a wall's shadow from terrain
+        // relief occluding a grazing ray; this can, point by point.
+        if (cmd.params.contains("lx")) {
+            const glm::vec3 s(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f),
+                              cmd.params.value("z", 0.0f));
+            const glm::vec3 l(cmd.params.value("lx", 0.0f), cmd.params.value("ly", 0.0f),
+                              cmd.params.value("lz", 0.0f));
+            const glm::vec3 n(cmd.params.value("nx", 0.0f), cmd.params.value("ny", 1.0f),
+                              cmd.params.value("nz", 0.0f));
+            const auto v = renderCoordinator->lightOccupancyVisibility(s, n, l);
+            response["visibility"] = {
+                {"surface", {s.x, s.y, s.z}},
+                {"light",   {l.x, l.y, l.z}},
+                {"normal",  {n.x, n.y, n.z}},
+                {"visible", v.visible},
+                {"steps",   v.steps},
+                {"capped",  v.cappedOut},
+            };
+            if (!v.visible) {
+                response["visibility"]["first_hit_micro"] =
+                    {v.firstHitMicro.x, v.firstHitMicro.y, v.firstHitMicro.z};
+                response["visibility"]["first_hit_cube"] =
+                    {static_cast<int>(std::floor(v.firstHitMicro.x / 9.0)),
+                     static_cast<int>(std::floor(v.firstHitMicro.y / 9.0)),
+                     static_cast<int>(std::floor(v.firstHitMicro.z / 9.0))};
+            }
+            return true;
+        }
+
+        // Optional SKY PROBE (M3). "How much sky can this surface see", as a number, so the
+        // sealed < opening < open ordering is measured rather than read off a screenshot.
+        if (cmd.params.contains("sky_probe")) {
+            const glm::vec3 s(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f),
+                              cmd.params.value("z", 0.0f));
+            const glm::vec3 n(cmd.params.value("nx", 0.0f), cmd.params.value("ny", 1.0f),
+                              cmd.params.value("nz", 0.0f));
+            response["sky_probe"] = {
+                {"surface", {s.x, s.y, s.z}},
+                {"normal",  {n.x, n.y, n.z}},
+                {"sky_visibility", renderCoordinator->lightOccupancySkyVisibility(s, n)},
+            };
+            return true;
+        }
+
+        // Optional MIXED-CELL AUDIT. Samples cells that actually carry sub-voxel detail and runs
+        // the full 729-cell comparison on each, in ONE game-loop hop. A blind sweep over the world
+        // cost seconds per cell and hit zero partial cells, which proved nothing about the very
+        // case this layer exists for; this aims the check instead of hunting for it.
+        if (cmd.params.contains("mixed_audit")) {
+            const size_t want = static_cast<size_t>(std::max(1, cmd.params.value("mixed_audit", 32)));
+            const auto cells = renderCoordinator->lightOccupancySampleMixedCubes(want);
+            int audited = 0, partial = 0, disagreeing = 0, fullySolid = 0, empty = 0;
+            json failures = json::array();
+            json partialCells = json::array();   // so a camera can be AIMED at a partial cell
+            int minFill = 730, maxFill = -1;
+            for (const auto& wp : cells) {
+                Chunk* ch = chunkManager
+                          ? chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp))
+                          : nullptr;
+                if (!ch) continue;
+                const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+                const auto& grid = ch->getOccupancyGrid();
+                int cpu = 0, gpu = 0, bad = 0;
+                for (int my = 0; my < 9; ++my)
+                for (int mx = 0; mx < 9; ++mx)
+                for (int mz = 0; mz < 9; ++mz) {
+                    const glm::ivec3 sp(mx / 3, my / 3, mz / 3), mp(mx % 3, my % 3, mz % 3);
+                    bool c = false;
+                    if (grid.isCubeFilled(lp)) {
+                        if (!grid.isSubdivided(lp)) c = true;
+                        else if (grid.isSubcubeFilled(lp, sp))
+                            c = !grid.isSubcubeSubdivided(lp, sp) ||
+                                 grid.isMicrocubeFilled(lp, sp, mp);
+                    }
+                    const bool g = renderCoordinator->lightOccupancySolidAt(
+                        {wp.x * 9 + mx, wp.y * 9 + my, wp.z * 9 + mz});
+                    if (c) ++cpu;
+                    if (g) ++gpu;
+                    if (c != g) ++bad;
+                }
+                ++audited;
+                minFill = std::min(minFill, cpu);
+                maxFill = std::max(maxFill, cpu);
+                if (cpu == 729) ++fullySolid;
+                else if (cpu == 0) ++empty;
+                else {
+                    ++partial;
+                    if (partialCells.size() < 12)
+                        partialCells.push_back({{"world", {wp.x, wp.y, wp.z}}, {"fill", cpu}});
+                }
+                if (bad > 0) {
+                    ++disagreeing;
+                    if (failures.size() < 5)
+                        failures.push_back({{"world", {wp.x, wp.y, wp.z}},
+                                            {"cpu", cpu}, {"gpu", gpu}, {"bad", bad}});
+                }
+            }
+            response["mixed_audit"] = {
+                {"sampled",        cells.size()},
+                {"audited",        audited},
+                {"partial",        partial},        // the case M1 exists for
+                {"fully_solid",    fullySolid},
+                {"empty",          empty},
+                {"disagreeing",    disagreeing},
+                {"min_micro_fill", minFill > 729 ? 0 : minFill},
+                {"max_micro_fill", maxFill < 0 ? 0 : maxFill},
+                {"failures",       failures},
+                {"partial_cells",  partialCells},
+            };
+            return true;
+        }
+
+        // Optional per-cell agreement check.
+        if (cmd.params.contains("x") && cmd.params.contains("y") && cmd.params.contains("z")) {
+            const glm::ivec3 wp(cmd.params.value("x", 0), cmd.params.value("y", 0),
+                                cmd.params.value("z", 0));
+            Chunk* ch = chunkManager
+                      ? chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp))
+                      : nullptr;
+            if (!ch) { response["cell_error"] = "no chunk at cell"; return true; }
+            const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+            const auto& grid = ch->getOccupancyGrid();
+
+            int gpuSolid = 0, cpuSolid = 0, disagree = 0;
+            glm::ivec3 firstBad(-1);
+            for (int my = 0; my < 9; ++my)
+            for (int mx = 0; mx < 9; ++mx)
+            for (int mz = 0; mz < 9; ++mz) {
+                // CPU answer, walking the grid the same way buildLightOccupancy does.
+                const glm::ivec3 sp(mx / 3, my / 3, mz / 3);
+                const glm::ivec3 mp(mx % 3, my % 3, mz % 3);
+                bool cpu = false;
+                if (grid.isCubeFilled(lp)) {
+                    if (!grid.isSubdivided(lp))                    cpu = true;
+                    else if (grid.isSubcubeFilled(lp, sp))
+                        cpu = !grid.isSubcubeSubdivided(lp, sp) ||
+                               grid.isMicrocubeFilled(lp, sp, mp);
+                }
+                const glm::ivec3 worldMicro(wp.x * 9 + mx, wp.y * 9 + my, wp.z * 9 + mz);
+                const bool gpu = renderCoordinator->lightOccupancySolidAt(worldMicro);
+                if (cpu) ++cpuSolid;
+                if (gpu) ++gpuSolid;
+                if (cpu != gpu) { if (disagree == 0) firstBad = {mx, my, mz}; ++disagree; }
+            }
+            response["cell"] = {
+                {"world",          {wp.x, wp.y, wp.z}},
+                {"cpu_micro_solid", cpuSolid},          // out of 729
+                {"gpu_micro_solid", gpuSolid},
+                {"disagreements",   disagree},
+                {"agrees",          disagree == 0},
+                // "partial" is the case M1 exists for: a cell that is neither empty nor full,
+                // e.g. a 3-micro floor slab (243) or a 2-micro wall.
+                {"partial",         cpuSolid > 0 && cpuSolid < 729},
+            };
+            if (disagree > 0)
+                response["cell"]["first_disagreement_micro"] = {firstBad.x, firstBad.y, firstBad.z};
+        }
+        return true;
+    }
 
     if (action == "occupancy_cell") {
         // P1 audit instrument (SubcubeCollisionPlan): one cell's occupancy-grid
@@ -12844,6 +13256,9 @@ void Application::registerSettlementCommands() {
         deps.templates     = objectTemplateManager ? &*objectTemplateManager : nullptr;
         deps.locations     = locationRegistry ? &*locationRegistry : nullptr;
         deps.npcs          = npcManager ? &*npcManager : nullptr;
+        // M3c: without this every settlement interior loses its item props — tableware AND
+        // the painted trade-sign items (all signs fell back to the blank board).
+        deps.itemProps     = itemPropManager ? &*itemPropManager : nullptr;
         deps.pushUndo      = [this](const glm::ivec3& a, const glm::ivec3& b,
                                     const std::string& label) {
             pushUndoSnapshot(chunkManager, snapshotManager.get(), a, b, label);
@@ -13073,6 +13488,8 @@ void Application::registerWorldForgeCommands() {
         d.settlement.templates     = objectTemplateManager ? &*objectTemplateManager : nullptr;
         d.settlement.locations     = locationRegistry ? &*locationRegistry : nullptr;
         d.settlement.npcs          = npcManager ? &*npcManager : nullptr;
+        d.settlement.itemProps     = itemPropManager ? &*itemPropManager : nullptr;   // M3c signs
+
         d.settlement.pushUndo = [this](const glm::ivec3& a, const glm::ivec3& b,
                                        const std::string& label) {
             pushUndoSnapshot(chunkManager, snapshotManager.get(), a, b, label);
@@ -13983,6 +14400,19 @@ void Application::registerEffectsCommands() {
         r = {{"success", ok}, {"id", id}};
     });
 
+    // FLOOD BYPASS — disable the Minecraft-style per-cell flood and see what survives.
+    // mask bit1 = skylight forced uniform 15, bit2 = block light forced 0. Re-bakes on change.
+    // Exists so "which system owns this artifact" is answered by switching a system OFF rather
+    // than by reasoning about screenshots.
+    reg.on("set_flood_bypass", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (cmd.params.contains("mask"))
+            Graphics::ChunkRenderManager::setFloodBypass(
+                std::clamp(cmd.params["mask"].get<int>(), 0, 3));
+        if (chunkManager) chunkManager->rebuildAllChunkLighting();
+        r = {{"success", true}, {"mask", Graphics::ChunkRenderManager::getFloodBypass()},
+             {"note", "bit1=uniform skylight, bit2=no block light"}};
+    });
+
     reg.on("set_smooth_lighting", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (cmd.params.contains("enabled"))
             Graphics::ChunkRenderManager::setSmoothLighting(cmd.params["enabled"].get<bool>());
@@ -13997,6 +14427,15 @@ void Application::registerEffectsCommands() {
     // unit conversion that has to be CALIBRATED against measurements (tools/lighting_stats.py) rather
     // than guessed — and calibrating against a rebuild cycle would be unbearable.
     // curve 0 = none (raw linear, the pre-tonemap look, for A/B); 1 = AgX.
+    reg.on("set_gi", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) { r = {{"success", false}, {"error", "no render coordinator"}}; return; }
+        if (cmd.params.contains("enabled"))
+            renderCoordinator->setGiEnabled(cmd.params.value("enabled", false));
+        r = {{"success", true},
+             {"enabled", renderCoordinator->getGiEnabled()},
+             {"available", renderCoordinator->giAvailable()}};
+    });
+
     reg.on("set_tonemap", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!renderCoordinator) { r = {{"success", false}, {"error", "no render coordinator"}}; return; }
         if (cmd.params.contains("exposure"))
@@ -14012,12 +14451,19 @@ void Application::registerEffectsCommands() {
             float bk = cmd.params.value("bloomKnee", renderCoordinator->getBloomKnee());
             renderCoordinator->setBloom(bi, bt, bk);
         }
+        // Live blur-width A/B for the blotching diagnosis (see PostProcessor::BlurPush).
+        if (cmd.params.contains("bloomRadius"))
+            renderCoordinator->setBloomRadiusScale(cmd.params["bloomRadius"].get<float>());
+        if (cmd.params.contains("bloomClamp"))
+            renderCoordinator->setBloomClampMul(cmd.params["bloomClamp"].get<float>());
         r = {{"success", true},
              {"exposure", renderCoordinator->getExposure()},
              {"curve", renderCoordinator->getTonemapCurve()},
              {"bloom", renderCoordinator->getBloomIntensity()},
              {"bloomThreshold", renderCoordinator->getBloomThreshold()},
-             {"bloomKnee", renderCoordinator->getBloomKnee()}};
+             {"bloomKnee", renderCoordinator->getBloomKnee()},
+             {"bloomRadius", renderCoordinator->getBloomRadiusScale()},
+             {"bloomClamp", renderCoordinator->getBloomClampMul()}};
         // Bloom is knowingly broken (spots/blotches, not a glow). The knob still works so it can be
         // debugged, but anything that turns it on gets told, rather than discovering it in a frame.
         if (renderCoordinator->getBloomIntensity() > 0.0f) {
@@ -14233,15 +14679,33 @@ void Application::registerEffectsCommands() {
         //       (near-black upright, blue slight, green moderate, yellow/red at the lean cap), so
         //       a passing gust reads as a coloured band crossing the field. Added because
         //       "is the wind actually moving?" was costing whole rounds to answer by eye.
+        //   --- PER-SYSTEM LIGHTING VIEWS (2026-08-28) ---------------------------------------
+        //   Three systems light this engine and they disagree about what geometry is: the sun is
+        //   shadow-mapped against real (sub-voxel) geometry per fragment; the baked sky/block
+        //   flood is ONE value per CUBE cell; forward point/spot lights do no occlusion test at
+        //   all. Which of them produced a given artifact was being decided by eye, and that cost
+        //   days on an interior-light bug. These views answer it by isolating one system:
+        //   3 = SKY ACCESS  — baked per-cell skylight, greyscale, albedo stripped
+        //   4 = BLOCK LIGHT — baked per-cell coloured light from emissive voxels, albedo stripped
+        //   5 = FORWARD     — point + spot only (the unoccluded ones)
+        //   6 = DIRECT      — sun + moon, shadow-mapped
+        //   7 = SKY FILL    — hemispheric ambient term
         // ⚑This used to collapse every non-zero value to 1 (`!= 0 ? 1 : 0`), so mode 2 silently
         //  selected the shadow view — the request appeared to work and showed the wrong thing.
-        //   3 = WIND FIELD MAP — terrain painted by the gust field itself (white calm -> red ->
-        //       black at peak lean; grass blades hide so the map is unobstructed). The per-pixel
+        //   10 = WIND FIELD MAP — terrain painted by the gust field itself (white calm -> red ->
+        //       black at peak; grass blades hide so the map is unobstructed). The per-pixel
         //       ground view of the field's SHAPE: mode 2's per-blade colouring could never show
         //       whether a front is a straight line or a wave (blades are noisy and sub-pixel at
         //       distance) — that gap cost a whole afternoon of wrong wind diagnoses on 2026-09-03.
+        //       (Was mode 3 pre-merge; the lighting arc's per-system views own 3-9.)
+        //  Raising the clamp is REQUIRED when adding a mode; a clamp left at the old max makes a
+        //  new mode silently select the last one, which is the same failure wearing a new hat.
         if (cmd.params.contains("mode") && vulkanDevice)
-            vulkanDevice->setDebugShadowMode(std::clamp(cmd.params["mode"].get<int>(), 0, 3));
+            // ⚠️ RAISE THIS UPPER BOUND WHENEVER A MODE IS ADDED. Forgetting silently clamps the
+            // new mode to the previous one, so the view "works" while showing the wrong system —
+            // that has already cost a debugging session once. 8 = occupancy hit, 9 = cell fill
+            // class, 10 = wind field map.
+            vulkanDevice->setDebugShadowMode(std::clamp(cmd.params["mode"].get<int>(), 0, 10));
         r = {{"success", true},
              {"distance", Graphics::RenderCoordinator::s_shadowDistance},
              {"near_enabled", Graphics::RenderCoordinator::s_nearShadowEnabled},
@@ -17028,6 +17492,62 @@ void Application::processAPICommands() {
             // ================================================================
             // NPC COMMANDS
             // ================================================================
+            } else if (cmd.action == "bestiary_list") {
+                nlohmann::json rigs = nlohmann::json::array();
+                for (const auto& e : m_bestiaryHall.entries()) {
+                    rigs.push_back({
+                        {"id", e.id}, {"name", e.name}, {"category", e.category},
+                        {"animFile", e.animFile}, {"statBlocks", e.statBlocks},
+                        {"boxes", e.boxes}, {"bones", e.bones},
+                        {"height", e.height}, {"width", e.width},
+                        {"spawned", e.spawned},
+                        {"position", {{"x", e.position.x}, {"y", e.position.y},
+                                      {"z", e.position.z}}},
+                        {"clips", {{"Idle", e.clipIdle}, {"Walk", e.clipWalk},
+                                   {"Attack", e.clipAttack}, {"Death", e.clipDeath}}},
+                    });
+                }
+                response = {{"success", true},
+                            {"staged", m_bestiaryHall.isStaged()},
+                            {"selected", m_bestiaryHall.selected()},
+                            {"count", m_bestiaryHall.entries().size()},
+                            {"rigs", rigs}};
+                if (!m_bestiaryHall.lastError().empty())
+                    response["error"] = m_bestiaryHall.lastError();
+
+            } else if (cmd.action == "bestiary_stage") {
+                glm::vec3 origin(0.0f);
+                if (cmd.params.contains("origin")) {
+                    origin.x = cmd.params["origin"].value("x", 0.0f);
+                    origin.y = cmd.params["origin"].value("y", 0.0f);
+                    origin.z = cmd.params["origin"].value("z", 0.0f);
+                }
+                const bool ok = stageBestiaryHall(
+                    origin, cmd.params.value("groundY", 0.0f),
+                    cmd.params.value("groundFromTerrain", true));
+                int staged = 0;
+                for (const auto& e : m_bestiaryHall.entries()) if (e.spawned) ++staged;
+                response = {{"success", ok}, {"staged", staged},
+                            {"total", m_bestiaryHall.entries().size()}};
+                if (!ok) response["error"] = m_bestiaryHall.lastError();
+
+            } else if (cmd.action == "bestiary_select") {
+                const std::string rig = cmd.params.value("rig", "");
+                m_bestiaryHall.select(npcManager.get(), rig);
+                response = {{"success", true}, {"selected", m_bestiaryHall.selected()}};
+                if (!rig.empty() && m_bestiaryHall.selected() != rig)
+                    response = {{"error", "unknown rig: " + rig}};
+                else if (cmd.params.value("focus", false)) {
+                    glm::vec3 p, t;
+                    if (m_bestiaryHall.focusView(rig, p, t)) focusCameraOn(p, t);
+                }
+
+            } else if (cmd.action == "bestiary_play") {
+                const std::string state = cmd.params.value("state", "Idle");
+                const bool all = cmd.params.value("all", true);
+                const int played = m_bestiaryHall.playState(npcManager.get(), state, all);
+                response = {{"success", true}, {"state", state}, {"played", played}};
+
             } else if (cmd.action == "spawn_encounter") {
                 // D&D encounter spawn: [{id, count}] of monster stat-block ids,
                 // each resolved to its visual binding (rig + mapping + faction)
@@ -17099,6 +17619,12 @@ void Application::processAPICommands() {
                                     ch->setAnimationMapping(state, clip);
                                 for (const auto& [state, clip] : vis->animationMapping)
                                     ch->setAnimationMapping(state, clip);
+                                // Palette-family recolor + incorporeal opacity. Forge
+                                // rigs bake explicit box colors, so this multiply is
+                                // the only lever that reaches them.
+                                ch->setRenderTint(glm::vec3(vis->tint[0], vis->tint[1],
+                                                            vis->tint[2]));
+                                ch->setRenderAlpha(vis->alpha);
                             }
                             if (auto* cb = dynamic_cast<Scene::CombatBehavior*>(npc->getBehavior()))
                                 cb->setFaction(encFaction);
@@ -21803,6 +22329,18 @@ void Application::renderDockableViewport() {
             m_viewportSizeW = size.x;
             m_viewportSizeH = size.y;
             ImGui::Image((ImTextureID)m_viewportTextureId, size);
+
+            // The game HUD now draws in the post-process pass, AFTER the grade and after ImGui,
+            // so it is neither bloomed nor tonemapped (docs/UnifiedLightingPlan.md D18). It is no
+            // longer inside the offscreen image the ImGui::Image above displays, so it has to be
+            // placed over that image explicitly — otherwise it would cover the whole editor window.
+            // Set every frame: the docked viewport moves and resizes.
+            if (renderCoordinator) {
+                if (auto* ui = renderCoordinator->getUISystem()) {
+                    ui->getRenderer()->setViewportRect(m_viewportPosX, m_viewportPosY,
+                                                       m_viewportSizeW, m_viewportSizeH);
+                }
+            }
         }
         m_viewportHovered = ImGui::IsWindowHovered();
         m_viewportFocused = ImGui::IsWindowFocused();

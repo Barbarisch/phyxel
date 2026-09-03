@@ -105,6 +105,28 @@ public:
     uint32_t partsVersion() const { return m_partsVersion; }
     void bumpPartsVersion() { ++m_partsVersion; m_lodCache.clear(); }
 
+    /// Whole-character color multiply and opacity, applied where the renderer bakes
+    /// its instance blob. This is the ONLY recolor lever that works on rigs whose
+    /// boxes carry explicit colors (creature_forge output): the appearance-region
+    /// palette only fills boxes that left their color unset. One neutral rig plus a
+    /// tint therefore covers a whole palette family — ten dragon colors, a winter
+    /// wolf, a polar bear — without a near-duplicate rig per variant.
+    /// Alpha < 1 additionally routes the character to the translucent draw.
+    void setRenderTint(const glm::vec3& t) {
+        if (t == m_renderTint) return;
+        m_renderTint = t;
+        bumpPartsVersion();   // instance colors are baked — force a blob rebuild
+    }
+    const glm::vec3& getRenderTint() const { return m_renderTint; }
+
+    void setRenderAlpha(float a) {
+        if (a == m_renderAlpha) return;
+        m_renderAlpha = a;
+        bumpPartsVersion();
+    }
+    float getRenderAlpha() const { return m_renderAlpha; }
+    bool isTranslucent() const { return m_renderAlpha < 0.999f; }
+
     void setFaction(Faction f) { faction = f; }
     Faction getFaction() const { return faction; }
 
@@ -236,6 +258,8 @@ protected:
     mutable size_t m_partGroupsBuiltSize = 0;
     mutable std::unordered_map<int, LodLevel> m_lodCache;   ///< level -> decimated parts
     mutable uint32_t m_partsVersion = 1;   ///< see partsVersion() (bumped from const rebuild)
+    glm::vec3 m_renderTint{1.0f};          ///< see setRenderTint
+    float     m_renderAlpha = 1.0f;        ///< see setRenderAlpha
 };
 
 } // namespace Scene

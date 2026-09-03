@@ -83,6 +83,7 @@ public:
     /// on the first update, because target selection has to read the
     /// allegiance of OTHER combatants, not just its own.
     void setFaction(const std::string& f) { m_faction = f; }
+    const std::string& faction() const { return m_faction; }
     /// Equip a weapon by item id; the moveset is resolved from it like the
     /// player's held weapon (empty = unarmed). Set before the first update.
     void setWeapon(const std::string& id) { m_weaponId = id; }

@@ -1,0 +1,139 @@
+{
+  "id": "forge_scorpion",
+  "morphology": "arachnid",
+  "gaitClass": "arachnid_clips",
+  "rootBone": "cephalothorax",
+  "hipAliases": [
+    "pelvis",
+    "hip"
+  ],
+  "gripBone": "head_hub",
+  "capsule": {
+    "mode": "xz_extent",
+    "minHalfWidth": 0.2,
+    "maxHalfWidth": 0.37
+  },
+  "legs": [
+    {
+      "id": "leg1_l",
+      "upper": "leg1_coxa_L",
+      "mid": "leg1_femur_L",
+      "foot": "leg1_tibia_L",
+      "footIK": false
+    },
+    {
+      "id": "leg1_r",
+      "upper": "leg1_coxa_R",
+      "mid": "leg1_femur_R",
+      "foot": "leg1_tibia_R",
+      "footIK": false
+    },
+    {
+      "id": "leg2_l",
+      "upper": "leg2_coxa_L",
+      "mid": "leg2_femur_L",
+      "foot": "leg2_tibia_L",
+      "footIK": false
+    },
+    {
+      "id": "leg2_r",
+      "upper": "leg2_coxa_R",
+      "mid": "leg2_femur_R",
+      "foot": "leg2_tibia_R",
+      "footIK": false
+    },
+    {
+      "id": "leg3_l",
+      "upper": "leg3_coxa_L",
+      "mid": "leg3_femur_L",
+      "foot": "leg3_tibia_L",
+      "footIK": false
+    },
+    {
+      "id": "leg3_r",
+      "upper": "leg3_coxa_R",
+      "mid": "leg3_femur_R",
+      "foot": "leg3_tibia_R",
+      "footIK": false
+    },
+    {
+      "id": "leg4_l",
+      "upper": "leg4_coxa_L",
+      "mid": "leg4_femur_L",
+      "foot": "leg4_tibia_L",
+      "footIK": false
+    },
+    {
+      "id": "leg4_r",
+      "upper": "leg4_coxa_R",
+      "mid": "leg4_femur_R",
+      "foot": "leg4_tibia_R",
+      "footIK": false
+    }
+  ],
+  "segments": [
+    {
+      "bone": "abdomen",
+      "isArm": false
+    },
+    {
+      "bone": "thorax",
+      "isArm": false
+    },
+    {
+      "bone": "cephalothorax",
+      "isArm": false
+    },
+    {
+      "bone": "head_hub",
+      "isArm": false
+    },
+    {
+      "bone": "pincer_L_1",
+      "isArm": false
+    },
+    {
+      "bone": "pincer_R_1",
+      "isArm": false
+    },
+    {
+      "bone": "leg1_coxa_L",
+      "isArm": false
+    },
+    {
+      "bone": "leg1_coxa_R",
+      "isArm": false
+    },
+    {
+      "bone": "leg2_coxa_L",
+      "isArm": false
+    },
+    {
+      "bone": "leg2_coxa_R",
+      "isArm": false
+    },
+    {
+      "bone": "leg3_coxa_L",
+      "isArm": false
+    },
+    {
+      "bone": "leg3_coxa_R",
+      "isArm": false
+    },
+    {
+      "bone": "leg4_coxa_L",
+      "isArm": false
+    },
+    {
+      "bone": "leg4_coxa_R",
+      "isArm": false
+    }
+  ],
+  "clipDefaults": {
+    "Idle": "idle",
+    "Walk": "walk",
+    "StartWalk": "walk",
+    "Attack": "attack",
+    "Death": "death"
+  }
+}

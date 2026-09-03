@@ -1,0 +1,198 @@
+# CityForge — pushing `tier:"city"` from "big village" to "city" (2026-08-26)
+
+**Goal.** `POST /api/settlement/build {tier:"city"}` should produce something that *reads* as a
+fantasy city: a dressed market centre (stalls + statue), meandering streets, vertical/civic
+massing (tenement + town hall typologies), dense core. The engine generates everything
+(provenance rule: no hand-placement presented as generator output).
+
+**Baseline measured 2026-08-26** (SettlementTest, Flat 6×6 chunks at x/z 320–511, seed 7,
+160×160, Release): 33/33 buildings built, 5 streets, 259,820 paved columns, 51 yard props,
+28 residents live (job counter said `spawned: 0` — counter regression, entities exist; logged).
+Honest read: spread-out village. Square = wider pavement + well. All 1–2 story cottages behind
+picket fences. Straight streets. 7 taverns / 5 blacksmiths from thin palette weights.
+
+## Design keys (docs/FeatureDesignKeys.md — answered up front)
+
+- **Pipeline stage:** all work lands in the settlement generation stage (SettlementLayout →
+  StreetPaver → SettlementBuildService units), downstream of terrain/flora, upstream of nothing.
+  Layout stays a pure function of (tier preset, W, D, seed) — chunk-independent by construction,
+  so no chunk-visibility risk. No render-side changes.
+- **API:** no new endpoints; `settlement_program.json` gains data keys (echoed via the existing
+  program echo in the build response). Unknown keys absent = legacy behavior byte-identical.
+- **Aesthetic:** new assets (market_stall, statue) are micro/subcube-resolution architecture
+  templates via the deterministic `regen_furniture.py` pipeline — no full-cube prop bodies.
+- **Visual test plan:** small world = the existing SettlementTest flat region; L4 = rebuild the
+  same seed-7 city and orbit-screenshot the square + streets; deterministic checks are the
+  primary gate (L2 invariant tests + L3 walkability probes), screenshots corroborate only.
+
+## Milestones
+
+### M1 — Market centre dressing (stalls + statue) ✦ SHIPPED 2026-08-26
+- **Assets** (`tools/regen_furniture.py` → `resources/templates/architecture/`):
+  - `market_stall` — timber trestle stall: plank counter ~1.8×0.9 m at ~0.9 m, posts to ~2.2 m,
+    pitched cloth canopy (Linen/Wool stripes). Dims REASONED from trestle-table + market-cross
+    stall norms (6 ft stallboard); NEEDS-RESEARCH tag carried in the header like other
+    settlement `sources`.
+  - `statue_hero` — stone figure (~2.2 m, heroic scale) on a stepped plinth (~1.3 m);
+    Stone/StoneBricks. Fantasy-setting deliberate choice; the period-strict alternative (market
+    cross) noted for a later era pack.
+- **Placement:** new pure planner `planSquareDressing(square, throughStreets, wellRect, seed,
+  spec)` in SettlementLayout → consumed by a new SettlementBuildService unit after
+  "yard props + well". Statue at square centre; well relocated to a corner pad; stalls fill the
+  four corner pads (square minus the two through-street bands minus 1-cube clearance), fronts
+  facing the nearest street. Data: `public.market_square` gains `{"stalls": N, "statue": true}`
+  (city: statue + stalls; town: stalls only, well stays centre). Absent keys = today's output.
+- **Validation:** L2 red-first `MarketDressingTest` — inside-square, no street-band overlap, no
+  pairwise overlap + ≥1 cube clearance, statue centred, well not displaced onto a stall,
+  deterministic in seed. L3: flood-walk from each through-street into every corner pad and to
+  each stall front (dressing must not wall the square). L4: seed-7 rebuild + orbit shots.
+
+**M1 status:** assets shipped (stall canopy A/B'd; statue figure StoneTiles after a Stone/Sandstone
+A/B — dark Stone reads as a totem); `planSquareDressing` + `MarketDressingTest` (4 tests, red-first)
+green; service wired. **⚑ ORDERING FOOTGUN (found live):** the square is inside the swept road
+band — the late "street sweep" unit clears whole cells over it, so dressing placed in the
+yard-props unit registered 5 props while the world had ZERO standing voxels (registry said yes,
+scan_region said Dirt — verify the WORLD, not the registry). Dressing now runs in its own unit
+AFTER "street sweep", before "nav rebuild".
+
+### M2 — Meandering streets ✦ SHIPPED 2026-08-26
+Secondary lanes (which host no frontages — safe to bend) are now CHAINS of straight runs with
+seeded lateral jogs of 1..laneWidth−1 cubes; consecutive runs keep an edge overlap ≥ 1 cube so
+every lane stays one connected walkable network, and jogs never enter the crossroads exclusion
+zone or the end margins. `vertBands` carries each lane's u-band union so plot rows and cross-row
+depth stay honest. **Validated:** `CityLayoutTest.SecondaryLanesMeander` red-first (0 jogs/16
+lanes → green across 4 seeds), jitter-band test adapted to merged lane bands (gap floor relaxed
+by 2·(laneWidth−1) drift), full 87-test settlement sweep green, L4 seed-7 city = 17 street rects
+with visible doglegs (docs/evidence/cityforge_m2_meander_top.png). Main + cross axes stay
+straight on purpose (they host the burgage frontages).
+
+### M3 — Fences that behave — SHIPPED 2026-08-27 (user-approved rules)
+`shouldFencePlot` (pure, `FencePolicyTest` red-first): (1) core-ring plots NEVER fenced;
+(2) a building within <1 cube of its plot boundary goes unfenced (flush setback-0 rows aren't
+caged — the user's "more space between fence and structure"); (3) seeded per-plot fraction,
+tier data `fences.fraction` (village .85 / town .7 / city .5; absent = 1.0 legacy). Gate now
+TRACKS the front door: `fenceGateWindowAt` centres the cube-aligned gate on the paver's spur
+anchor (footprint front-wall midpoint), clamped inside the run. Result surfaces
+`unfenced_by_policy`.
+
+### M3b — Density knob — SHIPPED 2026-08-27 ("a very dense city")
+`density` request param on `/api/settlement/build` (0.5–2, clamped, echoed in
+`program.density`): `applyDensity` (pure, red-first test) scales blocks/plot-depth/side-gap/
+setback DOWN and buildings UP (bounded: blocks ≥8, depth ≥6), and thins fenceFraction.
+1.0 = identity, legacy byte-compatible.
+
+### M3c — Business SIGN ITEMS — SHIPPED 2026-08-27
+ROOT CAUSE of "no signs": the settlement path never passed ItemPropManager
+(`SettlementBuildService` had no `itemProps` dep), so EVERY sign item — the tavern's Pony
+included — silently fell back to the blank `hanging_sign` board (26 blank boards counted in
+the placed-object dump), and settlement interiors got no tableware items either. Deps wired
+end-to-end (settlement + worldforge callers). Plus five authored default trade boards
+(`tools/gen_trade_signs.py` art — symbol-first per medieval practice: anvil/pretzel/balance/
+mortar/cleaver + one caption word — → `gen_items.py` flat boards → materials.json + items.json
++ room_program.json `sign_item`). All 5 asset-request rows flipped conformant
+(`asset_requests.py --check` clean).
+
+### M3d — SIGN MOUNT v2 — SHIPPED 2026-08-27 (user feedback round 2)
+- **Orientation fixed at the ROOT**: a z-projected board's BACK face rendered its art rotated
+  180° (the "upside-down smithy"). Settled by crop-verified A/B across four candidate UV
+  mappings (analytical derivations kept losing to per-face quad conventions + greedy-merge):
+  the -Z face samples the OPPOSITE image slice reversed (`offset 1-fn, scale -sn`, both axes)
+  — boards are now genuinely two-sided (KinematicVoxelManager buildFaces case 1).
+- **Projecting signs HANG from a real bracket**: `SignMount.bracketCells` — wrought-iron arm
+  anchored in the wall, scroll tip, diagonal brace, hanger links — stamped as static Metal
+  micro voxels by the furnish stage (L4: 25 micros, displaced 0, visible over the tavern door).
+- **World-probe clearance**: planSignMount takes a `solidAt` micro-probe (cube/subcube/micro,
+  the place()-ledger occupancy rule); a projecting pose that would intersect an eave/jetty
+  repairs to FLUSH; flush blocked above the door repairs to BESIDE the door (right, then left,
+  at door height — probe-gated so a blind beside-pose can never cover a window); then skip
+  with the reason. Recovers the 8 skipped-for-eave signs. `SignMount` suite 13 tests
+  (4 new, red-first). Response gains `beside_door`/`bracket_cells`; `over_door` is now honest.
+- Evidence: docs/evidence/cityforge_m3d_sign_bracket_{north,south}.png (both faces readable).
+- Punted (logged): loosely-hanging signs that swing on collision — needs a hinge constraint
+  on fixed item props (KinematicAnimator has hinges but no physics coupling).
+
+### M4 — `tenement` typology (apartments) + palette CAPS — SHIPPED 2026-08-27
+- **Archetype sheet first** (`docs/structure-generation/archetypes/tenement.md`): grounded on
+  **Our Lady's Row, Goodramgate, York (1316)** — England's earliest surviving purpose-built
+  rental row, two storeys, ONE ROOM PER FLOOR per unit. Two DESIGN DECISIONS disclosed in the
+  sheet + the data `sources`: gable-to-street (the row's own frontage runs eaves-on; burgage
+  packing wants gable-on and the allocator recreates the row read anyway) and 2 bays deep (the
+  documented ~4.5 m depth cannot host the forge's generated stair — the traversal gate would
+  refuse; medieval ladder-stairs aren't modelled). Jetty is NOT faked — logged as wanted.
+- **Pure DATA commit**: `room_program.json` `tenement` reuses the croft `living` recipe below
+  and the inn `bedchamber` recipe above — both already conformant, so REFUSE-ON-ANY-GAP is
+  satisfied by construction and no new assets were needed.
+- **Palette caps** (`typology_caps`, city data): weights set FLAVOUR, caps bind COUNTS. Red
+  test measured the glut first (7 taverns / 6 smithies vs caps 3 / 2 across 3 seeds); a capped
+  draw now redraws and housing absorbs it. Enforced in BOTH planners (main-street + city).
+- **Fixed while wiring**: `tenement` was missing from `locationTypeForTypology`'s Home list, so
+  its units derived as `Custom` locations and the ResidentPlanner skipped them (0 residents).
+- **L4** (seed 7, density 1.5, 160×160): 72 buildings, **35 tenements**, 0 lot failures, every
+  cap honored (tavern 3, blacksmith 2, store 2, bakery 1 — was 16 smithies), **69 residents
+  live** incl. all 35 tenement households (was 28). Evidence:
+  docs/evidence/cityforge_m4_tenement_{city_top,street}.png.
+
+### M5 — `town_hall` typology (civic) — SHIPPED 2026-08-27
+The span worry was unfounded: the surviving MOOT-HALL / market-house type (Thaxted Guildhall
+c.1450 ~6 m wide; Ledbury Market House 1617) fits the engine's 7 m timber span — only a grand
+arcaded town hall needs an aisled frame. So M5 is another DATA commit + one small recipe:
+- `town_hall` room program: public hall (2 bays) + muniment + armoury at ground, council
+  chamber generated above with its own stair; wealth tier high.
+- New **CIVIC purpose** (`FurniturePlacer`): council board (required) + benches + chair of
+  office + muniment chest + candle stand, from already-conformant assets. Checked BEFORE the
+  dwelling matches, since "council_hall"/"council_chamber" contain "hall"/"chamber".
+- Reaches the market place by being drawn from the CORE-ring palette, capped at 1 — a town has
+  one seat of government. Gets an `official` resident (bailiff/clerk).
+- **The engine refused a hearth and I did not fake one**: a ground-floor stack rises through
+  the middle of the council chamber, so the flue gate refuses ("no silent lean"). The civic
+  recipe ships hearthless and the real fix (hearth siting scored on what the stack hits
+  upstairs) is logged. Arcade / bell turret / lock-up are disclosed mechanism gaps.
+- Red-first `CityLayoutTest.TheCityHasOneTownHallAndItStandsByTheMarket` (≤1 per city, within
+  the core ring, appears across seeds) — falsifiability A/B'd by zeroing the core weight.
+  L4: builds clean, 13 fixtures, stone two-storey civic hall
+  (docs/evidence/cityforge_m5_town_hall.png).
+
+### M6 — `mansion` typology — TODO (user-asked 2026-08-27)
+Urban magnate house beyond manor_hall: courtyard/L-plan, high wealth tier. Needs archetype
+sheet; L-plan multi-story (KI-5g) is a known owed mechanism.
+
+### M7 — Town WALLS — SHIPPED 2026-08-28 (castle/keep still TODO)
+`planTownWall` (`core/TownWall.h`, pure) closes placer #42, which had sat at L0. The band sits
+OUTSIDE the built site (site + margin), so it can never land on a plot the burgage allocator
+filled — and a caller passing footprints gets an explicit refusal instead of a wall stamped
+through a house. **The rule that carries the feature: a street reaching the edge MUST get a
+gate**, at least as wide as the street; an ungateable street REFUSES the whole circuit rather
+than silently strangling a road (it would also sever the WorldForge road network). Corner
+towers, crenellated outer course, gate lintels bridging the passage at 4 cubes clear.
+Grounded on Conwy (1283–87: 1.3 km, 21 towers, 3 twin-towered gateways) and York's circuit;
+height 7 / thickness 2 sit inside the attested ~6–10 m × ~1.5–3 m band as REASONED picks.
+`TownWallTest` 7 tests red-first (closure with no third option, gate-per-street + width +
+alignment, refusal when ungateable, never-on-a-building, towers on corners not in gateways,
+determinism). **L4** seed-7 density-1.4 city: 8,679 cubes, **10 gates, 4 towers**, 0 displaced
+buildings, alongside 67 buildings / 34 tenements — and the canopy sweep cleared 453 cells of
+real generator flora in the same run (docs/evidence/cityforge_m7_walled_city_{top,gate}.png).
+**Still TODO:** castle/keep precinct, gatehouse rooms, wall-walk stair access, wall following
+terrain contour rather than a rectangle.
+
+### Polish backlog (user feedback 2026-08-27, logged in StructurePipelineGaps)
+- ~~Floating foliage~~ — **FIXED 2026-08-27** for settlement builds: `planOrphanedFloraSweep`
+  (`core/FloraSweep.h`, pure + probe-driven) finds tree matter that can no longer reach support
+  THROUGH tree matter and returns it; a new work unit runs it after every clearer (incl. the
+  street sweep). Conservative by construction: a component touching the scan box is LEFT ALONE
+  (its support may lie outside), which is why the box carries a canopy-radius margin — an edge
+  tree loses its trunk inside the rect and hangs its crown outside it. `FloraSweepTest` 6 tests
+  red-first incl. the healthy-neighbour false-positive guard. L4: a planted raw-voxel tree with
+  its trunk cut → 78 cells found / 78 cleared, scan confirms 0 remain
+  (docs/evidence/floating_canopy_{before,after}.png). Coverage limits logged in the gaps doc.
+- Terrain: settlement placement should tolerate gentle elevation — flatten locally where a
+  building needs it, keep hills elsewhere (today's look is too flat/terraced).
+- Interior point lights BLEED through walls — exterior walls glow at night (engine lighting:
+  no occlusion on placed lights; blocklight phase 2 is the real fix).
+
+### Logged follow-ups (docs/StructurePipelineGaps.md)
+- Residents job counter reports 0 while residents spawn (baseline evidence above).
+- Secondary streets host no building frontages — block interiors stay empty grass; secondary
+  infill rows are the real density lever after M4.
+- MCP `get_job_status` claims "No game project is loaded" while the engine has one (HTTP
+  `/api/jobs` fine).
+- Typology glut: 7 taverns / 33 buildings — per-typology max-share cap in the draw.

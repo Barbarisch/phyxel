@@ -1,0 +1,246 @@
+{
+  "name": "forge_dragon_turtle",
+  "_template": "Dragon turtle archetype (shelled). A vast domed carapace over a squat four-flipper body, with a draconic neck and head out the front and a spiked tail out the back. The shell is a SWEPT VOLUME on a short two-joint chain running nose-to-tail with a very wide, very shallow profile - a dome is just a tube whose radius dwarfs its length, so no new primitive is needed. Neutral sea-slate palette FOR tinting.",
+  "palette": {
+    "shell": { "color": "#6b7268", "rough": 0.92 },
+    "plastron": { "color": "#a8a894", "rough": 0.9 },
+    "hide_body": { "color": "#6f7a6e", "rough": 0.9 },
+    "hide_neck": { "color": "#75806f", "rough": 0.9 },
+    "hide_limb": { "color": "#6c7668", "rough": 0.9 },
+    "hide_tail": { "color": "#68715f", "rough": 0.9 },
+    "horn": { "color": "#c8c2a8", "rough": 0.4 },
+    "claw": { "color": "#39392f", "rough": 0.55 },
+    "eye": { "color": "#20a0b8", "rough": 0.2 }
+  },
+  "shading": {
+    "_note": "Engine lights character parts with high contrast (open gap) - keep the ramp gentle.",
+    "gradient": { "top": 0.14, "bottom": -0.2 },
+    "noise": { "size": 0.022, "amount": 0.1 }
+  },
+  "smooth_angle": 55,
+  "joints": {
+    "Pelvis": [0, 0.34, -0.28],
+    "Rump": { "from": "Pelvis", "up": -0.02, "fwd": -0.13 },
+    "Spine": { "from": "Pelvis", "up": 0.02, "fwd": 0.3 },
+    "Chest": { "from": "Spine", "up": 0.0, "fwd": 0.22 },
+
+    "_note_shell": "The carapace rides ABOVE the body chain on its own two-joint spine so the dome's own axis is horizontal - swept along the body chain instead, its shallow profile would have been read as a flattened barrel and swallowed the neck root.",
+    "ShellBack": { "from": "Pelvis", "up": 0.16, "fwd": -0.06 },
+    "ShellFront": { "from": "ShellBack", "fwd": 0.44 },
+
+    "NeckA": { "from": "Chest", "up": 0.08, "fwd": 0.16 },
+    "NeckB": { "from": "NeckA", "up": 0.11, "fwd": 0.14 },
+    "HeadRoot": { "from": "NeckB", "up": 0.04, "fwd": 0.09 },
+    "Skull": { "from": "HeadRoot", "up": 0.02, "fwd": 0.11 },
+    "Brow": { "from": "Skull", "up": 0.0, "fwd": 0.07 },
+    "Muzzle": { "from": "Brow", "up": -0.025, "fwd": 0.12 },
+    "NoseTip": { "from": "Muzzle", "up": -0.015, "fwd": 0.07 },
+
+    "TailRoot": { "from": "Pelvis", "up": 0.01, "fwd": -0.12 },
+    "Tail1": { "from": "TailRoot", "up": -0.02, "fwd": -0.2 },
+    "Tail2": { "from": "Tail1", "up": -0.02, "fwd": -0.15 },
+    "TailTip": { "from": "Tail2", "up": -0.01, "fwd": -0.19 },
+
+    "_note_flippers": "Flippers, not legs: a broad flat paddle instead of a paw, angled down and out. The body plan still calls the terminals legs because grounding needs a support polygon.",
+    "LFrontRoot": { "from": "Chest", "side": 0.16, "up": -0.02, "fwd": 0.0 },
+    "LFrontMid": { "from": "LFrontRoot", "side": 0.13, "up": -0.11, "fwd": 0.04 },
+    "LFrontPaw": { "from": "LFrontMid", "side": 0.05, "fwd": 0.05, "ground": 0.02 },
+
+    "LBackRoot": { "from": "Pelvis", "side": 0.15, "up": -0.02, "fwd": 0.0 },
+    "LBackMid": { "from": "LBackRoot", "side": 0.12, "up": -0.14, "fwd": -0.02 },
+    "LBackPaw": { "from": "LBackMid", "side": 0.04, "fwd": 0.04, "ground": 0.02 }
+  },
+  "chains": {
+    "body": ["Rump", "Pelvis", "Spine", "Chest"],
+    "shell": ["ShellBack", "ShellFront"],
+    "neck": ["NeckA", "NeckB", "HeadRoot", "Skull", "Brow", "Muzzle", "NoseTip"],
+    "tail": ["TailRoot", "Tail1", "Tail2", "TailTip"],
+    "LFront": ["LFrontRoot", "LFrontMid", "LFrontPaw"],
+    "LBack": ["LBackRoot", "LBackMid", "LBackPaw"]
+  },
+  "attach": {
+    "shell": "Pelvis",
+    "neck": "Chest",
+    "tail": "Pelvis",
+    "LFront": "Chest",
+    "LBack": "Pelvis"
+  },
+  "mirror": ["LFront", "LBack"],
+  "volumes": [
+    {
+      "chain": "body",
+      "material": "hide_body",
+      "frame": "up",
+      "sides": 12,
+      "profile": [
+        [0.0, 0.14, 0.12],
+        [0.35, 0.2, 0.15],
+        [0.7, 0.2, 0.15],
+        [1.0, 0.16, 0.12]
+      ],
+      "caps": ["dome", "dome"],
+      "colors": { "arcs": [{ "from": 140, "to": 180, "color": "#a8a894" }] }
+    },
+    {
+      "chain": "shell",
+      "material": "shell",
+      "frame": "up",
+      "sides": 18,
+      "_note": "exp 3.2 flattens the superellipse toward a rounded slab - a true ellipse here reads as a beetle's wing case, not a turtle's carapace.",
+      "profile": [
+        [0.0, 0.3, 0.2, { "exp": 3.2 }],
+        [0.3, 0.37, 0.25, { "exp": 3.2 }],
+        [0.62, 0.37, 0.25, { "exp": 3.2 }],
+        [1.0, 0.29, 0.19, { "exp": 3.2 }]
+      ],
+      "caps": ["dome", "dome"],
+      "colors": {
+        "arcs": [
+          { "from": 0, "to": 34, "color": "#586055" },
+          { "from": 150, "to": 180, "color": "#a8a894" }
+        ]
+      }
+    },
+    {
+      "chain": "neck",
+      "material": "hide_neck",
+      "frame": "up",
+      "sides": 12,
+      "profile": [
+        [0.0, 0.11, 0.11],
+        [0.28, 0.085, 0.09],
+        [0.52, 0.1, 0.098, { "sharp": true, "exp": 2.3 }],
+        [0.74, 0.088, 0.076],
+        [1.0, 0.045, 0.036]
+      ],
+      "caps": ["none", "dome"],
+      "colors": { "arcs": [{ "from": 142, "to": 180, "color": "#b0b49a" }] }
+    },
+    {
+      "chain": "tail",
+      "material": "hide_tail",
+      "sides": 9,
+      "profile": [
+        [0.0, 0.11, 0.1],
+        [0.4, 0.075, 0.075],
+        [0.75, 0.05, 0.05],
+        [1.0, 0.025, 0.025]
+      ],
+      "caps": ["none", "dome"]
+    },
+    {
+      "chain": "LFront",
+      "material": "hide_limb",
+      "frame": "up",
+      "sides": 9,
+      "profile": [
+        [0.0, 0.075, 0.07],
+        [0.55, 0.085, 0.042],
+        [1.0, 0.07, 0.028]
+      ],
+      "caps": ["none", "dome"]
+    },
+    {
+      "chain": "LBack",
+      "material": "hide_limb",
+      "frame": "up",
+      "sides": 9,
+      "profile": [
+        [0.0, 0.075, 0.07],
+        [0.55, 0.08, 0.04],
+        [1.0, 0.065, 0.026]
+      ],
+      "caps": ["none", "dome"]
+    }
+  ],
+  "parts": [
+    { "type": "eye", "host": "Brow", "material": "eye", "size": 0.02, "anchor": { "chain": "neck", "t": 0.72, "around": 60 } },
+    { "type": "eye", "host": "Brow", "material": "eye", "size": 0.02, "anchor": { "chain": "neck", "t": 0.72, "around": -60 } },
+    {
+      "type": "spike", "host": "Skull", "material": "horn",
+      "offset": [0.05, 0.05, 0.0], "dir": [0.4, 0.75, 0.5], "sides": 6,
+      "segments": [{ "len": 0.1, "r": 0.024 }, { "len": 0.07, "r": 0.01 }],
+      "mirrored": true
+    },
+    {
+      "type": "spike", "host": "ShellBack", "material": "horn",
+      "offset": [0.0, 0.19, 0.05], "dir": [0, 1, -0.2], "sides": 5,
+      "segments": [{ "len": 0.08, "r": 0.035 }]
+    },
+    {
+      "type": "spike", "host": "ShellFront", "material": "horn",
+      "offset": [0.0, 0.19, -0.06], "dir": [0, 1, 0.2], "sides": 5,
+      "segments": [{ "len": 0.08, "r": 0.035 }]
+    },
+    {
+      "type": "spike", "host": "Tail1", "material": "horn",
+      "offset": [0, 0.05, 0], "dir": [0, 1, -0.4], "sides": 5,
+      "segments": [{ "len": 0.05, "r": 0.02 }]
+    },
+    { "type": "paw", "host": "LFrontPaw", "material": "claw", "size": [0.14, 0.025, 0.1], "mirrored": true },
+    { "type": "paw", "host": "LBackPaw", "material": "claw", "size": [0.13, 0.025, 0.09], "mirrored": true }
+  ],
+  "combat": true,
+  "animations": {
+    "idle": {
+      "duration": 3.4,
+      "loop": true,
+      "_note": "Slow and heavy - a turtle that idles at a lizard's tempo reads as a small animal filmed close up.",
+      "tracks": {
+        "NeckA": { "rx": [[0, -3], [0.5, 4], [1, -3]] },
+        "Skull": { "ry": [[0, 5], [0.4, -6], [0.8, 4], [1, 5]] },
+        "Tail1": { "ry": [[0, -4], [0.5, 4], [1, -4]] },
+        "Rump": { "ty": [[0, 0], [0.5, 0.005], [1, 0]] }
+      }
+    },
+    "attack": {
+      "duration": 0.75,
+      "loop": false,
+      "hit_fraction": 0.48,
+      "_note": "The neck coils back into the shell and fires - the classic snapping-turtle bite. Translation stays on Rump, the skeleton root. The lunge distance is large because attack_reach measures the head against the BIND front, and this neck already sits fully extended at rest: rotation alone barely gains ground, so the body has to travel.",
+      "tracks": {
+        "Rump": {
+          "tz": [[0, 0], [0.22, -0.07], [0.48, 0.34], [0.72, 0.3], [1, 0]],
+          "ty": [[0, 0], [0.22, 0.02], [0.48, -0.01], [1, 0]]
+        },
+        "NeckA": { "rx": [[0, 0], [0.22, -34], [0.48, 42], [0.72, 30], [1, 0]] },
+        "NeckB": { "rx": [[0, 0], [0.22, -20], [0.48, 26], [1, 0]] },
+        "Muzzle": { "rx": [[0, 0], [0.35, -16], [0.52, 14], [1, 0]] },
+        "LFrontRoot": { "rz": [[0, 0], [0.3, 18], [0.6, 4], [1, 0]] }
+      }
+    },
+    "death": {
+      "duration": 1.5,
+      "loop": false,
+      "_note": "Rolls onto its side - the one death a shelled animal reads clearly. Must END DOWN; the engine freezes the last frame.",
+      "tracks": {
+        "Rump": {
+          "rz": [[0, 0], [0.35, 20], [0.7, 56], [1, 78]],
+          "ty": [[0, 0], [0.35, -0.05], [0.7, -0.13], [1, -0.18]]
+        },
+        "NeckA": { "rx": [[0, 0], [0.5, 18], [1, 30]], "ry": [[0, 0], [1, 20]] },
+        "NeckB": { "rx": [[0, 0], [1, 24]] },
+        "LFrontRoot": { "rz": [[0, 0], [0.7, 24], [1, 32]] },
+        "LBackRoot": { "rz": [[0, 0], [0.7, 20], [1, 28]] },
+        "Tail1": { "ry": [[0, 0], [1, 26]] }
+      }
+    },
+    "move": {
+      "duration": 1.25,
+      "loop": true,
+      "mirror_phase": 0.5,
+      "tracks": {
+        "LBackRoot": { "rx": [[0, -14], [0.5, 16], [1, -14]] },
+        "LBackMid": { "rx": [[0, 8], [0.3, 20], [0.6, -6], [1, 8]] },
+        "LFrontRoot": { "rx": [[0, 14], [0.5, -14], [1, 14]] },
+        "LFrontMid": { "rx": [[0, -6], [0.35, 16], [0.7, -8], [1, -6]] },
+        "Rump": { "ty": [[0, 0], [0.25, 0.012], [0.5, 0], [0.75, 0.012], [1, 0]], "ry": [[0, -3], [0.5, 3], [1, -3]] },
+        "NeckA": { "ry": [[0, 4], [0.5, -4], [1, 4]] },
+        "Tail1": { "ry": [[0, 5], [0.5, -5], [1, 5]] }
+      }
+    }
+  },
+  "body_plan": {
+    "leg_terminals": ["lfrontpaw", "rfrontpaw", "lbackpaw", "rbackpaw"]
+  }
+}

@@ -96,8 +96,8 @@ def build(spec: dict, joints: dict, joints_r: dict) -> Skel:
     # 4. loose joints
     in_chain = {jn for names in sk.chains.values() for jn in names}
     for jn in spec["joints"]:
-        if jn in sk.index or jn in in_chain:
-            continue
+        if jn.startswith("_") or jn in sk.index or jn in in_chain:
+            continue          # annotation key, not a loose joint
         host = attach.get(jn)
         if host is None:
             raise SpecError(f"loose joint '{jn}' is in no chain and has no attach entry")

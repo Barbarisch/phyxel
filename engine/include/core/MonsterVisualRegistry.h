@@ -26,6 +26,13 @@ struct MonsterVisual {
     std::map<std::string, std::string> animationMapping;  // FSM state -> clip
     nlohmann::json appearance;  // optional CharacterAppearance JSON block
     std::string faction = "monsters";
+    // Whole-character color multiply + opacity (RagdollCharacter::setRenderTint /
+    // setRenderAlpha). This is how one neutral archetype rig covers a palette
+    // family: forge rigs carry explicit box colors, which the appearance-region
+    // palette cannot touch. alpha < 1 also routes the character to the
+    // translucent draw (incorporeal undead).
+    float tint[3] = {1.0f, 1.0f, 1.0f};
+    float alpha = 1.0f;
 };
 
 class MonsterVisualRegistry {

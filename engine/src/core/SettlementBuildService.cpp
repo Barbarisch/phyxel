@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <climits>
 #include <cmath>
 #include <map>
 #include <memory>
@@ -12,8 +13,11 @@
 #include <vector>
 
 #include "core/ChunkManager.h"
+#include "core/DamageSystem.h"
 #include "core/DimensionCanon.h"
 #include "core/FenceBuilder.h"
+#include "core/FloraSweep.h"
+#include "core/TowerForge.h"
 #include "core/FurnitureCatalog.h"
 #include "core/LocationRegistry.h"
 #include "core/NPCManager.h"
@@ -71,6 +75,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
     NPCManager* const npcManager                     = deps.npcs;
     const auto pushUndo                              = deps.pushUndo;
     const auto addPointLight                         = deps.addPointLight;   // M5
+    ItemPropManager* const itemPropManager           = deps.itemProps;       // M3c signs/tableware
 
         const auto& p = params;
         const int W = p.value("width", 52), D = p.value("depth", 36);
@@ -143,6 +148,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         const unsigned seed = static_cast<unsigned>(p.value("seed", static_cast<int>(varietySeed)));
         Core::SettlementProgramRegistry programReg;
         const Core::SettlementTierPreset* tierP = nullptr;
+        // M3b density lever ("a very dense city"): clamped [0.5, 2]; 1.0 = identity. The
+        // densified copy must outlive every use of tierP in this planning pass.
+        const double density = std::clamp(p.value("density", 1.0), 0.5, 2.0);
+        Core::SettlementTierPreset densified;
         if (programMode) {
             if (!programReg.loadFromFile("resources/settlement_program.json")) {
                 res.error = {{"error", "settlement_program.json failed to load"}};
@@ -153,6 +162,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 res.error = {{"error", "unknown era/tier: " + era + "/" + tierName},
                      {"known_eras", programReg.eras()}, {"known_tiers", programReg.tiers(era)}};
                 return res;
+            }
+            if (density != 1.0) {
+                densified = Core::applyDensity(*tierP, density);
+                tierP = &densified;
             }
             if (tierP->morphology == "cluster") {
                 // cluster reuses the legacy scatter/grid layout; the tier contributes its weighted
@@ -518,7 +531,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                                    std::to_string(buildings.size());
             buildingUnits.push_back({ph, [chunkManager, placedObjectManager, objectTemplateManager,
                                           locationRegistry, npcManager, pushUndo, addPointLight,
-                                          bp, bp2, seatInUnit,
+                                          itemPropManager, bp, bp2, seatInUnit,
                                           bw, bd, bw2, bd2, oy, lotFailures = res.lotFailures,
                                           lotIndex = static_cast<int>(i),
                                           typ1 = var.typology, typ2 = var2.typology]() mutable {
@@ -538,6 +551,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 deps.npcs          = npcManager ? &*npcManager : nullptr;
                 deps.pushUndo      = pushUndo;   // forwarded by the caller (editor: undo snapshot)
                 deps.addPointLight = addPointLight;   // M5: light settlement interiors too
+                deps.itemProps     = itemPropManager; // M3c: sign items + tableware in settlements
                 seat(bp, bw, bd);
                 const auto res1 = Core::StructureBuildService::buildV2(bp, deps);
                 if (!res1.contains("error")) return;
@@ -827,7 +841,9 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         if ((terrain || mainStreetMode) && chunkManager && !layout.plots.empty()) {
             units.push_back({"fencing parcels",
                 [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, layout, msl, doorCenters, ox, oz, terrainTopAt, mainStreetMode,
-                 fl9, rem9, emitMicro, pathsJsonP, sharedPaved]() {
+                 fl9, rem9, emitMicro, pathsJsonP, sharedPaved, seed,
+                 fenceFraction = (programMode && tierP ? tierP->fenceFraction : 1.0),
+                 coreRing = (programMode && tierP ? tierP->coreRing : 0)]() {
             if (!chunkManager) return;
             auto& pathsJson = *pathsJsonP;
             auto& pavedCols = *sharedPaved;
@@ -849,8 +865,18 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 if (it != gtMemo.end()) return it->second;
                 const int v = terrainTopAt(cx, cz); gtMemo[k] = v; return v;
             };
+            // Fence POLICY (CityForgePlan M3): core ring unfenced, flush buildings unfenced,
+            // seeded fraction of the rest — shouldFencePlot owns the rules.
+            Core::FencePolicy fencePol;
+            fencePol.fraction = fenceFraction;
+            if (mainStreetMode && msl.hasSquare && coreRing > 0) {
+                fencePol.hasCore = true;
+                fencePol.coreRing = coreRing;
+                fencePol.coreCu = msl.marketSquare.x + msl.marketSquare.w / 2;
+                fencePol.coreCv = msl.marketSquare.z + msl.marketSquare.d / 2;
+            }
             Core::StructureResult fenceBatch;   // bulk emit — one place() for ALL parcels
-            long fenceMicros = 0; int parcels = 0;
+            long fenceMicros = 0; int parcels = 0, unfenced = 0;
             for (size_t pi = 0; pi < layout.plots.size(); ++pi) {
                 const auto& pl = layout.plots[pi];
                 const Core::Rect& pr = pl.rect;
@@ -858,8 +884,16 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 // Gate side: a main-street parcel opens onto ITS street (the burgage frontage);
                 // a scatter parcel faces the settlement centroid / path network.
                 char gate;
+                int doorRunMicroX = -1, doorRunMicroZ = -1;   // front-door midpoint (local micro)
                 if (mainStreetMode && pi < msl.assigned.size()) {
-                    gate = msl.assigned[pi].streetSide;
+                    const auto& ap = msl.assigned[pi];
+                    gate = ap.streetSide;
+                    if (!Core::shouldFencePlot(static_cast<int>(pi), seed, pr, ap.footprint,
+                                               fencePol)) { ++unfenced; continue; }
+                    // The gate must land on the FRONT DOOR: the paver's spur anchor is the
+                    // footprint's front-wall midpoint — project it onto the gate side's run.
+                    doorRunMicroX = (ap.footprint.x + ap.footprint.w / 2) * 9 + 4;
+                    doorRunMicroZ = (ap.footprint.z + ap.footprint.d / 2) * 9 + 4;
                 } else {
                     const double pcx = ox + pr.x + pr.w / 2.0, pcz = oz + pr.z + pr.d / 2.0;
                     gate = (std::abs(scx - pcx) > std::abs(scz - pcz)) ? (scx > pcx ? 'E' : 'W')
@@ -879,12 +913,16 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     if (!prof.ok) return;
                     int gLo = -1, gHi = -1;
                     if (run.side == gate) {
-                        // Cube-aligned gate window, EXACTLY the legacy centering: derive
-                        // the cube span (runLenMicro = (cubes-1)*9+1, so ceil-div
-                        // recovers it) and center in cubes — the naive micro formula
-                        // drifted up to 4 micro off the old center on odd spans
-                        // (auditor-caught).
-                        Core::fenceGateWindow(runLenMicro, gateW, gLo, gHi);
+                        // Cube-aligned gate window. With a known front door (main-street
+                        // plots) the gate TRACKS the door's run coordinate (M3 — user find:
+                        // gates didn't match the entrance path); otherwise the legacy
+                        // centred window (its centering nuance is auditor-pinned).
+                        const int pref = run.alongX ? doorRunMicroX - run.fromMicro
+                                                    : doorRunMicroZ - run.fromMicro;
+                        if (doorRunMicroX >= 0)
+                            Core::fenceGateWindowAt(runLenMicro, gateW, pref, gLo, gHi);
+                        else
+                            Core::fenceGateWindow(runLenMicro, gateW, gLo, gHi);
                     }
                     for (const auto& c : prof.cells) {
                         if (c.u >= gLo && c.u < gHi) continue;                 // gate opening
@@ -912,9 +950,11 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             }
             fenceMicros = Core::StructureGenerator::place(chunkManager, fenceBatch).placed;
             chunkManager->rebuildOccupancyFromChunks();
-            LOG_INFO_FMT("Settlement", "fences: " << parcels << " parcels, " << fenceMicros
+            LOG_INFO_FMT("Settlement", "fences: " << parcels << " parcels fenced, " << unfenced
+                         << " unfenced by policy, " << fenceMicros
                          << " micros (picket, " << fH << "-micro tall, posts @" << fSp << ")");
             pathsJson["parcels"] = parcels;
+            pathsJson["unfenced_by_policy"] = unfenced;
             pathsJson["fence_micros"] = fenceMicros;
             pathsJson["fence_type"] = Core::fenceTypeToString(fenceType);
             }});
@@ -926,7 +966,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // Skips are COUNTED, never silent.
         if (mainStreetMode && placedObjectManager && objectTemplateManager && chunkManager) {
             units.push_back({"yard props + well",
-                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, msl, ox, oz, seed, terrainTopAt, pubWell = tierP->pub.well, propsJsonP]() {
+                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, msl, ox, oz, seed, terrainTopAt, pubSpec = tierP->pub, propsJsonP]() {
             if (!chunkManager || !placedObjectManager || !objectTemplateManager) return;
             int propsPlaced = 0, propsSkipped = 0;
             auto spawnProp = [&](const std::string& type, int cx, int cz, int rot) -> bool {
@@ -941,17 +981,16 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 for (const auto& yp : Core::planYardProps(ap, seed))
                     (spawnProp(yp.type, ox + yp.cx, oz + yp.cz, yp.rotDeg) ? ++propsPlaced
                                                                            : ++propsSkipped);
-            if (pubWell) {
-                int wcx, wcz;
-                if (msl.hasSquare) {                  // the town well anchors the market square
-                    wcx = ox + msl.marketSquare.x + msl.marketSquare.w / 2;
-                    wcz = oz + msl.marketSquare.z + msl.marketSquare.d / 2;
-                } else {                              // village: the main street's verge, mid-length
-                    const Core::Rect& ms = msl.mainStreet;
-                    const bool msAlongX = ms.w >= ms.d;
-                    wcx = ox + (msAlongX ? ms.x + ms.w / 2 : ms.x + 1);
-                    wcz = oz + (msAlongX ? ms.z + 1 : ms.z + ms.d / 2);
-                }
+            // Square features (well/statue/stalls) are NOT placed here: the square is part of
+            // the swept road band, and the late "street sweep" unit clears whole cells over it
+            // — anything dressed onto the square before the sweep is silently erased (found
+            // live 2026-08-26: stalls registered but voxel-gone). The dedicated "square
+            // dressing" unit AFTER the sweep owns them now.
+            if (!msl.hasSquare && pubSpec.well) {     // village: the main street's verge, mid-length
+                const Core::Rect& ms = msl.mainStreet;
+                const bool msAlongX = ms.w >= ms.d;
+                const int wcx = ox + (msAlongX ? ms.x + ms.w / 2 : ms.x + 1);
+                const int wcz = oz + (msAlongX ? ms.z + 1 : ms.z + ms.d / 2);
                 (spawnProp("well", wcx, wcz, 0) ? ++propsPlaced : ++propsSkipped);
             }
             LOG_INFO_FMT("Settlement", "yard props: " << propsPlaced << " placed, "
@@ -997,6 +1036,314 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                          << sharedRoadBand->size() << " band cells, " << restamped
                          << " paving micros re-stamped");
         }});
+
+        // CIRCUIT WALL (place_town_wall #42, CityForgePlan M7). The band sits OUTSIDE the
+        // built site, so it cannot land on a plot; every street that reaches the edge gets a
+        // gate, and an ungateable street REFUSES the whole circuit rather than walling a road
+        // in. Runs after the buildings so nothing later clears it, before the nav rebuild so
+        // pathing sees both the wall and its gateways.
+        if (chunkManager && programMode && tierP && tierP->walls.enabled) {
+            units.push_back({"raising the town wall",
+                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
+                 spec = tierP->walls, layout, buildings, ox, oz, W, D, terrainTopAt, pathsJsonP]() {
+            if (!chunkManager) return;
+            std::vector<Core::Rect> footprints;
+            footprints.reserve(buildings.size());
+            for (const auto& b : buildings) footprints.push_back(b.footprint);
+            const Core::TownWallPlan wp = Core::planTownWall(
+                Core::Rect{0, 0, W, D}, layout.streets, footprints, spec);
+            if (!wp.ok) {
+                LOG_WARN_FMT("Settlement", "town wall REFUSED: " << wp.refusal);
+                (*pathsJsonP)["town_wall"] = {{"built", false}, {"refusal", wp.refusal}};
+                return;
+            }
+            // Gate cells (cube columns left open for the passage) — a set so the run stamp
+            // can skip them without caring which gate they belong to.
+            std::set<std::pair<int, int>> gateCols;
+            for (const auto& g : wp.gates)
+                for (int x = g.opening.x; x < g.opening.x1(); ++x)
+                    for (int z = g.opening.z; z < g.opening.z1(); ++z)
+                        gateCols.insert({x, z});
+
+            constexpr int kGateClearCubes = 4;   // headroom under the gate lintel
+            Core::StructureResult batch;
+            // The wall must OWN its line. place() will not overwrite an occupied cell, so a
+            // tree standing on the wall line silently punched a hole in the circuit (found by
+            // an A/B of two identical cities: the plans matched cell-for-cell, the WORLD
+            // differed by exactly the cells where flora stood). Every wall column is cleared
+            // before it is stamped, the same way the street grader clears its corridor.
+            std::vector<glm::ivec3> toClear;
+            auto column = [&](int lx, int lz, int height, bool crenellate) {
+                const int wx = ox + lx, wz = oz + lz;
+                const int base = terrainTopAt(wx, wz) + 1;
+                const bool isGate = gateCols.count({lx, lz}) > 0;
+                for (int y = base; y <= base + height; ++y)
+                    toClear.push_back(glm::ivec3(wx, y, wz));
+                // A gate column starts ABOVE the passage: the wall bridges over the road.
+                const int y0 = isGate ? base + kGateClearCubes : base;
+                for (int y = y0; y < base + height; ++y) {
+                    Core::VoxelPlacement v;
+                    v.position = glm::ivec3(wx, y, wz);
+                    v.material = spec.material;
+                    batch.voxels.push_back(v);
+                }
+                // Merlons: every other cell of the OUTER course, one cube proud of the walk.
+                if (crenellate && !isGate && ((lx + lz) % 2 == 0)) {
+                    Core::VoxelPlacement m;
+                    m.position = glm::ivec3(wx, base + height, wz);
+                    m.material = spec.material;
+                    batch.voxels.push_back(m);
+                }
+            };
+
+            // The band: stamp each run, crenellating only its OUTERMOST cube course so the
+            // inner course stays a clear wall-walk.
+            const Core::Rect& o = wp.outerBound;
+            for (const auto& r : wp.runs)
+                for (int x = r.band.x; x < r.band.x1(); ++x)
+                    for (int z = r.band.z; z < r.band.z1(); ++z) {
+                        const bool outerCourse =
+                            (r.side == 'W' && x == o.x)  || (r.side == 'E' && x == o.x1() - 1) ||
+                            (r.side == 'S' && z == o.z)  || (r.side == 'N' && z == o.z1() - 1);
+                        column(x, z, spec.heightCubes, spec.crenellations && outerCourse);
+                    }
+            // Corner towers: taller than the curtain, and topped the way real drums are —
+            // a crenellated PARAPET (English/Welsh: Conwy, Caernarfon) or a CONICAL roof
+            // (French/German: Carcassonne, the Loire). A bare cylinder is neither, which is
+            // what the first pass built.
+            const int towerH = spec.heightCubes + spec.towerExtraHeight;
+            int towersUsable = 0;
+            const bool conical = (spec.towerCap == "conical");
+            for (const auto& tw : wp.towers) {
+                const auto cells = Core::towerFootprintCells(tw, spec.towerShape);
+                std::set<std::pair<int, int>> body;
+                for (const auto& c : cells) body.insert({tw.x + c.x, tw.z + c.y});
+                // A TOWER, not a drum-shaped pile: hollow shaft, a spiral stair whose treads
+                // are subcube plates (3 micro — inside the agent's 4-micro step; a cube stair
+                // is scenery), floors to arrive at, a doorway, and arrow loops. Planned by
+                // TowerForge and proven climbable by a TraversalProbe in TowerForgeTest.
+                Core::TowerSpec ts;
+                ts.shape = spec.towerShape;
+                ts.heightCubes = towerH;
+                ts.storeyCubes = 3;
+                ts.arrowLoops = true;
+                ts.battlements = spec.crenellations && !conical;
+                // Face the doorway INTO the town, so the stair is reached from the streets.
+                ts.doorSide = (tw.z <= wp.outerBound.z + 1) ? 'N'
+                            : (tw.z1() >= wp.outerBound.z1() - 1) ? 'S'
+                            : (tw.x <= wp.outerBound.x + 1) ? 'E' : 'W';
+                const Core::TowerPlan tp = Core::planTower(tw, ts);
+                if (!tp.ok) {
+                    // Honest fallback: a tower we cannot make usable is built solid and SAID
+                    // so, rather than shipping a hollow shell nobody can enter.
+                    LOG_WARN_FMT("Settlement", "tower at (" << tw.x << "," << tw.z
+                                 << ") built solid: " << tp.refusal);
+                    for (const auto& [wx, wz] : body) {
+                        const bool rimCell = !body.count({wx + 1, wz}) || !body.count({wx - 1, wz}) ||
+                                             !body.count({wx, wz + 1}) || !body.count({wx, wz - 1});
+                        column(wx, wz, towerH, spec.crenellations && !conical && rimCell);
+                    }
+                } else {
+                    ++towersUsable;
+                    // Stamp the plan. Full 9-micro courses go in as CUBES; the 3-micro
+                    // treads and floor slabs go in as SUBCUBE layers, which is what makes
+                    // the stair climbable at all.
+                    auto towerBaseMicro = [&](int lx, int lz) {
+                        return (terrainTopAt(ox + lx, oz + lz) + 1) * 9;
+                    };
+                    auto emitRange = [&](int lx, int lz, int y0m, int y1m) {
+                        const int wx = ox + lx, wz = oz + lz;
+                        const int baseM = towerBaseMicro(lx, lz);
+                        int y = y0m;
+                        while (y < y1m) {
+                            const int abs = baseM + y;
+                            if (abs % 9 == 0 && y + 9 <= y1m) {
+                                Core::VoxelPlacement v;
+                                v.position = glm::ivec3(wx, abs / 9, wz);
+                                v.material = spec.material;
+                                batch.voxels.push_back(v);
+                                toClear.push_back(v.position);
+                                y += 9;
+                            } else if (abs % 3 == 0 && y + 3 <= y1m) {
+                                const int cubeY = abs / 9, sy = (abs % 9) / 3;
+                                for (int sx = 0; sx < 3; ++sx)
+                                    for (int sz = 0; sz < 3; ++sz) {
+                                        Core::VoxelPlacement v;
+                                        v.position = glm::ivec3(wx, cubeY, wz);
+                                        v.level = Core::VoxelLevel::Subcube;
+                                        v.subcubePos = glm::ivec3(sx, sy, sz);
+                                        v.material = spec.material;
+                                        batch.voxels.push_back(v);
+                                    }
+                                toClear.push_back(glm::ivec3(wx, cubeY, wz));
+                                y += 3;
+                            } else {
+                                ++y;
+                            }
+                        }
+                    };
+                    for (const auto& w : tp.walls)
+                        emitRange(tw.x + w.cx, tw.z + w.cz, w.fromMicroY, w.toMicroY);
+                    for (const auto& pl : tp.plates)
+                        emitRange(tw.x + pl.cx, tw.z + pl.cz, pl.yMicro,
+                                  pl.yMicro + pl.thicknessMicro);
+                    // Merlons on the rim top (the fighting deck), parapet form only.
+                    if (spec.crenellations && !conical)
+                        for (const auto& [wx, wz] : body) {
+                            const bool rimCell = !body.count({wx + 1, wz}) || !body.count({wx - 1, wz}) ||
+                                                 !body.count({wx, wz + 1}) || !body.count({wx, wz - 1});
+                            if (!rimCell || ((wx + wz) % 2)) continue;
+                            const int base = terrainTopAt(ox + wx, oz + wz) + 1;
+                            Core::VoxelPlacement m;
+                            m.position = glm::ivec3(ox + wx, base + towerH, oz + wz);
+                            m.material = spec.material;
+                            batch.voxels.push_back(m);
+                            toClear.push_back(m.position);
+                        }
+                }
+                if (!conical) continue;
+                // CONICAL ("pepperpot") ROOF: rings of shrinking radius above the drum. The
+                // rise is kRise courses PER inward step, so the cone stands about as tall as
+                // it is wide — a one-course-per-step cone is a stubby cap, not a roof (built
+                // that first and it read as a stone lid). Slate over the stone drum.
+                constexpr int kRise = 2;
+                const int cxA = tw.x, czA = tw.z;
+                int y = 0;
+                for (int lvl = 1;; ++lvl) {
+                    Core::Rect shrunk{cxA + lvl, czA + lvl, tw.w - 2 * lvl, tw.d - 2 * lvl};
+                    if (shrunk.w <= 0 || shrunk.d <= 0) break;
+                    for (int rise = 0; rise < kRise; ++rise, ++y)
+                        for (const auto& c : Core::towerFootprintCells(shrunk, spec.towerShape)) {
+                            const int wx = ox + shrunk.x + c.x, wz = oz + shrunk.z + c.y;
+                            const int base = terrainTopAt(wx, wz) + 1;
+                            Core::VoxelPlacement v;
+                            v.position = glm::ivec3(wx, base + towerH + y, wz);
+                            v.material = "Slate";
+                            batch.voxels.push_back(v);
+                            toClear.push_back(v.position);
+                        }
+                }
+                // Finial: one course closing the apex so the cone ends in a point, not a hole.
+                {
+                    const int wx = ox + cxA + tw.w / 2, wz = oz + czA + tw.d / 2;
+                    Core::VoxelPlacement v;
+                    v.position = glm::ivec3(wx, terrainTopAt(wx, wz) + 1 + towerH + y, wz);
+                    v.material = "Slate";
+                    batch.voxels.push_back(v);
+                    toClear.push_back(v.position);
+                }
+            }
+
+            // Clear the wall line first (trees, undergrowth, anything standing in it), then
+            // stamp — so the circuit is a pure function of the plan, not of what grew there.
+            std::map<Chunk*, std::vector<glm::ivec3>> clearByChunk;
+            for (const auto& wp2 : toClear)
+                if (Chunk* ch = chunkManager->getChunkAtFast(wp2))
+                    clearByChunk[ch].push_back(wp2 - ch->getWorldOrigin());
+            int cleared = 0;
+            for (auto& [ch, cells] : clearByChunk) {
+                cleared += ch->clearCellsBulk(cells);
+                chunkManager->markChunkDirty(ch);
+            }
+            const auto placed = Core::StructureGenerator::place(chunkManager, batch);
+            chunkManager->rebuildOccupancyFromChunks();
+            LOG_INFO_FMT("Settlement", "town wall: " << placed.placed << " cubes, "
+                         << wp.gates.size() << " gates, " << wp.towers.size()
+                         << " towers (" << towersUsable << " walkable), line cleared "
+                         << cleared << ", displaced " << placed.displaced);
+            (*pathsJsonP)["town_wall"] = {{"built", true}, {"cubes", placed.placed},
+                                          {"gates", wp.gates.size()},
+                                          {"towers", wp.towers.size()}, {"towers_walkable", towersUsable},
+                                          {"line_cleared", cleared},
+                                          {"displaced", placed.displaced}};
+            }});
+        }
+
+        // ORPHANED-CANOPY SWEEP (user find 2026-08-27: "leftover foliage and pieces of trees
+        // floating in the air"). Every site-prep pass clears flora inside its OWN band —
+        // plot boxes, the road corridor, building pads — so a tree whose TRUNK stood in one
+        // of them keeps whatever reached outside it, hanging with nothing underneath.
+        // planOrphanedFloraSweep finds tree matter that can no longer reach support THROUGH
+        // tree matter and returns it for removal; components touching the scan box are left
+        // alone (their support may lie outside it — a healthy neighbour's overhang).
+        // Runs AFTER every clearer, including the street sweep.
+        if (chunkManager) {
+            units.push_back({"clearing orphaned canopy",
+                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
+                 ox, oz, W, D, terrainTopAt, pathsJsonP]() {
+            if (!chunkManager) return;
+            // Vertical band: from just under the lowest ground in the rect to well above the
+            // tallest canopy. A tree TALLER than the band touches the box top and is left
+            // alone (conservative by design — see FloraSweep.h).
+            int gMin = INT_MAX, gMax = INT_MIN;
+            for (int x = ox; x <= ox + W; x += 4)
+                for (int z = oz; z <= oz + D; z += 4) {
+                    const int g = terrainTopAt(x, z);
+                    gMin = std::min(gMin, g);
+                    gMax = std::max(gMax, g);
+                }
+            if (gMin == INT_MAX) return;
+            // Margin = a canopy radius beyond the settlement rect: site prep clears INSIDE
+            // the rect, so an edge tree loses its trunk in-rect while its canopy hangs
+            // OUTSIDE it. A 2-cube margin missed exactly that case (measured).
+            constexpr int kCanopyMargin = 8;
+            Core::SweepBounds bounds;
+            bounds.min = glm::ivec3(ox - kCanopyMargin, gMin - 1, oz - kCanopyMargin);
+            bounds.max = glm::ivec3(ox + W + kCanopyMargin, gMax + 44, oz + D + kCanopyMargin);
+            auto isFlora = [chunkManager](const glm::ivec3& p) {
+                return DamageSystem::isTreeMatterCell(chunkManager, p);
+            };
+            auto isSolid = [chunkManager](const glm::ivec3& p) {
+                return chunkManager->hasVoxelAt(p);
+            };
+            const auto orphans = Core::planOrphanedFloraSweep(bounds, isFlora, isSolid);
+            std::map<Chunk*, std::vector<glm::ivec3>> byChunk;
+            for (const auto& wp : orphans)
+                if (Chunk* ch = chunkManager->getChunkAtFast(wp))
+                    byChunk[ch].push_back(wp - ch->getWorldOrigin());
+            int cleared = 0;
+            for (auto& [ch, cells] : byChunk) {
+                cleared += ch->clearCellsBulk(cells);
+                chunkManager->markChunkDirty(ch);
+            }
+            if (cleared > 0) chunkManager->rebuildOccupancyFromChunks();
+            LOG_INFO_FMT("Settlement", "orphaned canopy: " << orphans.size()
+                         << " cells found, " << cleared << " cleared");
+            (*pathsJsonP)["orphaned_canopy_cleared"] = cleared;
+            }});
+        }
+
+        // SQUARE DRESSING after the sweep (CityForgePlan M1): statue at the market-cross spot,
+        // the tier well (centre, or relocated off the statue), stalls on the corner pads. It
+        // MUST run after "street sweep" — the square is inside the swept road band, so dressing
+        // placed earlier gets its cells cleared (observed live 2026-08-26: 5 props registered,
+        // zero voxels standing). Before "nav rebuild" so the grid sees the props.
+        if (programMode && tierP && mainStreetMode && placedObjectManager && objectTemplateManager &&
+            chunkManager && msl.hasSquare) {
+            units.push_back({"square dressing",
+                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo, msl, ox, oz, seed, terrainTopAt, pubSpec = tierP->pub, propsJsonP]() {
+            if (!chunkManager || !placedObjectManager || !objectTemplateManager) return;
+            int placed = 0, skipped = 0;
+            const auto dress = Core::planSquareDressing(msl, pubSpec, seed);
+            for (const auto& p : dress.props) {
+                const std::string tmpl = Core::FurnitureCatalog::templateFor(p.type);
+                bool ok = false;
+                if (!tmpl.empty() && objectTemplateManager->getTemplate(tmpl)) {
+                    const int cx = ox + p.cx, cz = oz + p.cz;
+                    const int gy = terrainTopAt(cx, cz) + 1;   // stand on the plaza paving
+                    ok = !placedObjectManager
+                              ->placeTemplateMicro(tmpl, glm::ivec3(cx * 9, gy * 9, cz * 9),
+                                                   p.rotDeg, "")
+                              .empty();
+                }
+                (ok ? ++placed : ++skipped);
+            }
+            chunkManager->rebuildOccupancyFromChunks();
+            LOG_INFO_FMT("Settlement", "square dressing: " << placed << " placed, "
+                         << skipped << " skipped");
+            (*propsJsonP)["square_dressing"] = {{"placed", placed}, {"skipped", skipped}};
+            }});
+        }
 
         // Nav rebuild after EVERYTHING: per-building builds refresh their own boxes
         // (StructureBuildService onRegionChanged), but street paving / terraces / fence
@@ -1051,9 +1398,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
 
         nlohmann::json programJson = nlohmann::json::object();
         if (programMode && tierP) {
-            // Echo {era, tier, seed} so a live build is exactly reproducible (determinism contract).
+            // Echo {era, tier, seed, density} so a live build is exactly reproducible
+            // (determinism contract; density echoes CLAMPED so the caller sees what applied).
             programJson = {{"era", era}, {"tier", tierName}, {"seed", seed},
-                           {"morphology", tierP->morphology}};
+                           {"density", density}, {"morphology", tierP->morphology}};
             if (mainStreetMode) {
                 programJson["main_street"] = {{"x", ox + msl.mainStreet.x}, {"z", oz + msl.mainStreet.z},
                                               {"w", msl.mainStreet.w}, {"d", msl.mainStreet.d}};

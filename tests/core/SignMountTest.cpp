@@ -76,19 +76,31 @@ TEST(SignMount, TheDeclaredSignIsARealHoldableItem) {
         << def->templateFile << " missing on disk";
 }
 
-// A business typology with no authored sign must NOT silently borrow the
-// tavern's — that is exactly the substitution the pipeline exists to prevent.
-TEST(SignMount, TypologiesWithoutASignAssetDeclareNothing) {
+// Every declared sign_item must resolve to a REAL registered, holdable item with a
+// template on disk — never a borrowed or invented name (the substitution the pipeline
+// exists to prevent). Since 2026-08-27 all five trades own authored default boards
+// (gen_trade_signs.py); residential typologies still declare nothing.
+TEST(SignMount, EveryDeclaredSignAssetResolvesAndHomesStayBlank) {
     RoomProgramRegistry reg;
     ASSERT_TRUE(loadCanon(reg));
+    ItemRegistry::instance().loadFromFile("resources/items.json");
     for (const char* name : {"blacksmith", "bakery", "apothecary", "butcher",
                              "general_store"}) {
         const RoomProgram* p = reg.get(name);
         if (!p) continue;
-        EXPECT_TRUE(p->signItem.empty())
-            << name << " claims sign asset '" << p->signItem
-            << "' — no such asset was authored; it must stay empty so the build "
-               "records an asset request instead of hanging the wrong sign";
+        ASSERT_FALSE(p->signItem.empty())
+            << name << " lost its authored default trade sign";
+        const auto* def = ItemRegistry::instance().getItem(p->signItem);
+        ASSERT_NE(def, nullptr) << name << " declares unregistered sign '" << p->signItem << "'";
+        EXPECT_TRUE(def->holdable) << "spawnProp refuses non-holdable items";
+        ASSERT_FALSE(def->templateFile.empty());
+        EXPECT_TRUE(fs::exists("resources/templates/" + def->templateFile))
+            << def->templateFile << " missing on disk";
+    }
+    for (const char* name : {"croft", "longhouse", "hall_house", "manor_hall"}) {
+        const RoomProgram* p = reg.get(name);
+        if (!p) continue;
+        EXPECT_TRUE(p->signItem.empty()) << name << " is not a trade; no sign";
     }
 }
 
@@ -196,4 +208,86 @@ TEST(SignMount, EveryWallPutsTheBoardOutside) {
         EXPECT_GT((along - face) * c.sign, 0.0f)
             << "board center is on the INSIDE of the wall face";
     }
+}
+
+// ---------------------------------------------------------------------------
+// 3. SignMount v2 (user feedback 2026-08-27): a projecting sign HANGS from a
+//    real bracket, a blocked projection repairs to flush, a blocked flush
+//    repairs to BESIDE the door, and the final pose never intersects the world.
+//    RED baseline: bracketCells empty; no probe-driven repairs exist.
+// ---------------------------------------------------------------------------
+
+TEST(SignMount, AProjectingSignHangsFromARealBracket) {
+    const auto m = StructureForge::planSignMount(
+        StructureForge::WallSide::MinusX, 360, 400, kFloor, kDoorHead, kNoApex,
+        /*boardW=*/1.48f, /*boardH=*/1.48f, /*boardT=*/kPonyT);
+    ASSERT_TRUE(m.ok) << m.skipReason;
+    ASSERT_EQ(m.form, "projecting");
+    ASSERT_FALSE(m.bracketCells.empty()) << "a projecting board floats in the air; "
+                                            "it must hang from a wrought-iron bracket";
+    const int boardTop = m.boardBottomMicroY + 14;   // 1.48 u = 14 micro (ceil)
+    bool touchesWall = false, reachesBoard = false;
+    for (const auto& c : m.bracketCells) {
+        EXPECT_GE(c.y, boardTop) << "bracket cell inside the board body";
+        // -X wall, outer face micro 360: the bracket lives OUTSIDE the face (x <= 360),
+        // anchored INTO its outermost micro column.
+        EXPECT_LE(c.x, 360);
+        if (c.x >= 359) touchesWall = true;
+        if (c.x <= 360 - m.projectionMicro / 2) reachesBoard = true;
+    }
+    EXPECT_TRUE(touchesWall) << "the bracket arm never anchors into the wall";
+    EXPECT_TRUE(reachesBoard) << "the bracket arm stops short of the board it hangs";
+}
+
+TEST(SignMount, ABlockedProjectionRepairsToFlush) {
+    // A fake EAVE: everything outside the wall face at y >= 30 is solid; the wall
+    // plane itself (and the beside-door band under the eave) stays clear.
+    auto solid = [](const glm::ivec3& c) { return c.x < 360 && c.y >= 30; };
+    const auto m = StructureForge::planSignMount(
+        StructureForge::WallSide::MinusX, 360, 400, kFloor, kDoorHead, kNoApex,
+        /*boardW=*/1.48f, /*boardH=*/1.48f, /*boardT=*/kPonyT, solid);
+    ASSERT_TRUE(m.ok) << "a blocked projection must REPAIR, not vanish: " << m.skipReason;
+    EXPECT_EQ(m.form, "flush") << "board+bracket intersect the eave; flush is the repair";
+}
+
+TEST(SignMount, ABlockedFlushMountGoesBesideTheDoor) {
+    // Solid over the door span above the head (a low jetty), clear elsewhere.
+    auto solid = [](const glm::ivec3& c) {
+        return c.x < 360 && c.y > kDoorHead && c.z >= 395 && c.z <= 405;
+    };
+    const auto m = StructureForge::planSignMount(
+        StructureForge::WallSide::MinusX, 360, 400, kFloor, kDoorHead, kNoApex,
+        /*boardW=*/1.48f, /*boardH=*/1.48f, /*boardT=*/kPonyT, solid,
+        /*doorWidthMicro=*/9);
+    ASSERT_TRUE(m.ok) << "blocked above the door must repair BESIDE it: " << m.skipReason;
+    EXPECT_EQ(m.form, "flush");
+    // Beside = shifted along the wall clear of the door reveal, sitting at door height.
+    EXPECT_GE(std::abs(m.worldPos.z - 400.0f / 9.0f), (9 / 2 + 14 / 2) / 9.0f - 0.01f)
+        << "the beside pose still overlaps the door span";
+    EXPECT_LE(m.boardBottomMicroY, kDoorHead) << "beside-the-door boards sit at door height";
+}
+
+TEST(SignMount, TheChosenPoseNeverIntersectsTheWorld) {
+    // Probe that records consultation and reports a solid eave slab.
+    std::vector<glm::ivec3> asked;
+    auto solid = [&asked](const glm::ivec3& c) {
+        asked.push_back(c);
+        return c.x < 360 && c.y >= 30;
+    };
+    const auto m = StructureForge::planSignMount(
+        StructureForge::WallSide::MinusX, 360, 400, kFloor, kDoorHead, kNoApex,
+        /*boardW=*/1.48f, /*boardH=*/1.48f, /*boardT=*/kPonyT, solid);
+    ASSERT_TRUE(m.ok) << m.skipReason;
+    ASSERT_FALSE(asked.empty()) << "a probe was supplied but never consulted";
+    // Self-check the FINAL pose against the same slab: board box must be all air.
+    const int bh = 14, bt = 2;
+    const float wx = m.worldPos.x * 9.0f, wz = m.worldPos.z * 9.0f;
+    for (int y = m.boardBottomMicroY; y < m.boardBottomMicroY + bh; ++y)
+        for (int dz = -bt / 2; dz <= bt / 2; ++dz) {
+            const glm::ivec3 c((int)std::floor(wx), y, (int)std::floor(wz) + dz);
+            EXPECT_FALSE(c.x < 360 && c.y >= 30)
+                << "final pose intersects the solid eave at y=" << y;
+        }
+    for (const auto& c : m.bracketCells)
+        EXPECT_FALSE(c.x < 360 && c.y >= 30) << "bracket intersects the eave";
 }

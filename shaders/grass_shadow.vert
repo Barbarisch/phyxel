@@ -57,7 +57,26 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 biasedLightSpaceNear;
     vec4 shadowCascadeNear;     // x = range end (0 = off), y = near depthRange
     mat4 lightSpaceMatrixNear;  // raw near matrix (caster pass only)
+    // ---- prefix to reach occupancyBox (std140 is positional; these are padding here) ----------
+    mat4 biasedLightSpaceFar;
+    vec4 shadowCascadeFar;
+    mat4 lightSpaceMatrixFar;
+    vec3 ambientColor;
+    vec3 hazeHorizonColor;
+    vec3 hazeZenithColor;
+    vec3 moonDirection;
+    vec3 moonColor;
+    float exposure;
+    int   tonemapCurve;
+    vec4  skyBodyDirRadius[4];
+    vec4  skyBodyDisc[4];
+    vec4  skyBodyLitDir[4];
+    vec4  skyBodyLight[4];
+    int   skyBodyCount;
+    ivec4 occupancyBox;
 } ubo;
+
+#include "occupancy.glsl"   // M4: grass traces its own sky, per BLADE VERTEX (see below)
 
 layout(push_constant) uniform PushConstants {
     vec3  chunkBaseOffset;   // chunk world origin
@@ -111,8 +130,6 @@ layout(location = 0) out flat uint vTex;   // grass texture index
 layout(location = 1) out vec2  vUV;        // colour-sample UV into the grass tile
 layout(location = 2) out float vGrad;      // 0 at blade base .. 1 at tip (silhouette + AO)
 layout(location = 3) out float vSide;      // -1..1 across blade width (silhouette taper)
-layout(location = 4) out float vSky;       // baked skylight 0..1
-layout(location = 5) out vec3  vBlock;     // baked block light 0..1/channel
 layout(location = 6) out vec4  vShadowCoord; // biased light-space coord (shadow RECEIVING)
 // WIND DEBUG (ubo.debugShadowMode == 2): how far the wind is pushing THIS vertex, as a fraction
 // of its own arc length — i.e. sin(lean angle), 0 = upright, 0.9 = at the lean cap. Published
@@ -120,6 +137,14 @@ layout(location = 6) out vec4  vShadowCoord; // biased light-space coord (shadow
 // is to answer "is the wind actually doing anything" without a rebuild.
 layout(location = 7) out float vWindLean;
 layout(location = 8) out vec4 vShadowCoordNear;   // near-cascade receiving coord
+// U3.3: point/spot lights need a position to attenuate from. Camera-relative, matching the
+// convention voxel.frag uses (add ubo.cameraWorld to get true world).
+layout(location = 9) out vec3 vWorldPos;
+// M4: sky visibility, TRACED -- not the dead per-instance nibble this slot used to carry.
+// Computed here rather than per fragment: sky access varies at WORLD scale, while a blade is
+// ~0.05-0.1 u wide, so a per-fragment trace re-answers the same question for every fragment of the
+// same blade. Measured: per-fragment took the Grass scope 1.240 -> 3.284 ms.
+layout(location = 4) out float vSky;
 
 // Cheap hash -> [0,1)
 float hash21(vec2 p) {
@@ -162,10 +187,6 @@ void main() {
     float lx = float(packed & 0x1Fu);
     float ly = float((packed >> 5) & 0x1Fu);
     float lz = float((packed >> 10) & 0x1Fu);
-    vSky      = float((packed >> 15) & 0xFu) / 15.0;
-    vBlock    = vec3(float((packed >> 19) & 0xFu),
-                     float((packed >> 23) & 0xFu),
-                     float((packed >> 27) & 0xFu)) / 15.0;
     vTex = inTex & 0xFFFFu;
 
     // Min corner of the voxel's top face, CAMERA-RELATIVE (all position math below).
@@ -336,9 +357,10 @@ void main() {
 
     float H = pc.bladeHeight * heightMul * edgeTaper * (0.94 + 0.12 * h2);
     if (boxy) H = max(round(H * 9.0), 2.0) / 9.0;
-    // Wind debug view 3 (voxel.frag): the TERRAIN paints the gust field per pixel; blades hide
+    // Wind debug view 10 (voxel.frag): the TERRAIN paints the gust field per pixel; blades hide
     // so the map is unobstructed (zero height = zero-area triangles = no fragments).
-    if (ubo.debugShadowMode == 3) H = 0.0;
+    // (Was mode 3 pre-merge; the lighting arc's per-system views own 3-9.)
+    if (ubo.debugShadowMode == 10) H = 0.0;
 
     // Sprout-in growth: staggered start per blade, then held at full height.
     float plant = h0 * pc.growDuration * 0.6;
@@ -628,5 +650,8 @@ void main() {
     // shadows. Out-of-volume coords fail phxShadowCoordValid in the frag → min() no-op.
     vShadowCoordNear = ubo.biasedLightSpaceNear * vec4(worldPos, 1.0);
 
+    vWorldPos   = worldPos;   // U3.3: camera-relative, for the point-light loop in grass.frag
+    vSky        = phxSkyVisibility(worldPos + ubo.cameraWorld, vec3(0.0, 1.0, 0.0),
+                                   ubo.occupancyBox);
     gl_Position = ubo.lightSpaceMatrix * vec4(worldPos, 1.0);
 }

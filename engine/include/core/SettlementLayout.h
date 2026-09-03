@@ -95,6 +95,25 @@ struct FencePlan {
     bool ok = false;
 };
 
+/// Fence POLICY inputs for one settlement (CityForgePlan M3): which plots get a fence at all.
+struct FencePolicy {
+    bool   hasCore = false;   ///< true when a market square exists (core-ring rule applies)
+    int    coreCu = 0;        ///< square centre (cubes, settlement-local x)
+    int    coreCv = 0;        ///< square centre (cubes, settlement-local z)
+    int    coreRing = 0;      ///< Chebyshev radius (cubes); 0 = no core rule
+    double fraction = 1.0;    ///< seeded share of eligible plots that get fenced (tier data)
+};
+
+/// Whether plot `plotIndex` gets a perimeter fence. Three rules, in order (M3, user-settled):
+/// 1. CORE RING: a plot whose centre lies within `coreRing` of the square centre is NEVER
+///    fenced (city cores are built to the street, not fenced crofts).
+/// 2. CLEARANCE: a building within < 1 cube of its plot boundary on ANY side goes unfenced —
+///    a fence flush against a wall reads wrong (and setback-0 urban rows shouldn't be caged).
+/// 3. FRACTION: the survivors draw seeded-deterministically; `fraction` of them are fenced.
+/// Deterministic in (plotIndex, seed).
+bool shouldFencePlot(int plotIndex, unsigned seed, const Rect& plot, const Rect& footprint,
+                     const FencePolicy& pol);
+
 /// Enclose `parcel` (a plot rect, cubes) with a fence on its whole perimeter, leaving a gate of
 /// `gateWidth` cubes centred on `gateSide` ('N'=+z, 'S'=-z, 'E'=+x, 'W'=-x). The yard is the parcel
 /// minus the building inside it (the fence doesn't touch the building). Returns ok=false if the parcel
@@ -157,6 +176,30 @@ MainStreetLayout planMainStreetLayout(const SettlementTierPreset& tier, int W, i
 /// whole downstream pipeline (paver, fences, props, well) is shared. Deterministic in (tier,W,D,seed).
 MainStreetLayout planCityLayout(const SettlementTierPreset& tier, int W, int D,
                                 const RoomProgramRegistry& rooms, unsigned seed);
+
+/// One market-square feature sited by planSquareDressing (statue / stall / relocated well).
+struct SquareProp {
+    std::string type;    ///< FurnitureCatalog type ("statue_hero" | "market_stall" | "well")
+    int cx = 0, cz = 0;  ///< min-corner cube position, settlement-local (anchor of the ROTATED box)
+    int w = 1, d = 1;    ///< cube footprint AFTER rotation
+    int rotDeg = 0;      ///< 0=+Z | 90=-X | 180=-Z | 270=+X front (stalls face their street)
+};
+
+struct SquareDressing {
+    std::vector<SquareProp> props;
+    bool ok = false;     ///< false = no square to dress (caller keeps the legacy well path)
+};
+
+/// Dress the market square (place_public_spaces #43, CityForgePlan M1): the square is split by its
+/// THROUGH-STREET bands (streets crossing the square) into corner PADS. `pub.statue` puts the civic
+/// statue at the square centre — the historical market-cross spot, in the carriageway, legal only
+/// because every through band keeps >= 2 cubes clear on each side (enforced; else the statue moves
+/// to a pad). The tier well moves to the centre of the largest pad when the statue takes the centre,
+/// else it keeps the legacy centre anchor. `pub.stalls` trestle stalls fill the pads flush against
+/// the through-street edges (fronts to the street, 1-cube pitch gap), 1 cube clear of the square
+/// perimeter, never overlapping each other or the well (>= 1 cube clearance). Honest degradation:
+/// pads too small host fewer/no stalls. Deterministic in (msl, pub, seed).
+SquareDressing planSquareDressing(const MainStreetLayout& msl, const PublicSpec& pub, unsigned seed);
 
 /// One yard prop sited on a parcel (place_yard_props #29 / place_garden #25 minimum slice).
 struct YardProp {

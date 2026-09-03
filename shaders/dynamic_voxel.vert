@@ -50,7 +50,6 @@ layout(location = 3) out flat uint flags;         // pass flags to frag shader
 layout(location = 4) out vec3 outNormal;          // pass normal to frag shader
 layout(location = 5) out vec3 outWorldPos;        // pass world position to frag shader
 layout(location = 6) out float vSkyLight;          // baked skylight (must match voxel.frag: non-flat)
-layout(location = 7) out vec3  vBlockColor;        // baked block light (must match voxel.frag: non-flat)
 layout(location = 8) out vec3  vTint;              // per-voxel tint — debris path has no tint channel, always 1.0
 layout(location = 9) out flat uint vState;         // per-voxel state — not carried on debris path (always 0)
 layout(location = 10) out flat vec3 vChunkBaseAbs; // varied-hash seed — unused (flags=0 disables varied here)
@@ -276,9 +275,6 @@ void main() {
     outWorldPos = worldPos;
     // Baked light sampled at spawn (Phase 4c): debris darkens in unlit interiors + picks up glow.
     vSkyLight   = float(inDebrisLight & 0xFu) / 15.0;
-    vBlockColor = vec3(float((inDebrisLight >> 4u)  & 0xFu),
-                       float((inDebrisLight >> 8u)  & 0xFu),
-                       float((inDebrisLight >> 12u) & 0xFu)) / 15.0;
 
     // Pass texture data to fragment shader
     textureIndex = inTextureIndex;

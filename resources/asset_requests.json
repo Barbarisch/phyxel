@@ -1,3 +1,79 @@
 {
-  "requests": []
+  "requests": [
+    {
+      "category": "item",
+      "dims": "NEEDS-RESEARCH",
+      "first_seen": "unknown",
+      "requested_by": [
+        {
+          "purpose": "signage",
+          "reason": "unmapped",
+          "typology": "apothecary"
+        }
+      ],
+      "status": "conformant",
+      "type": "sign_apothecary",
+      "resolution": "2026-08-27: authored default trade board prop_sign_apothecary (gen_trade_signs.py art + gen_items.py flat board), registered in materials.json/items.json, wired as room_program.json sign_item."
+    },
+    {
+      "category": "item",
+      "dims": "NEEDS-RESEARCH",
+      "first_seen": "unknown",
+      "requested_by": [
+        {
+          "purpose": "signage",
+          "reason": "unmapped",
+          "typology": "bakery"
+        }
+      ],
+      "status": "conformant",
+      "type": "sign_bakery",
+      "resolution": "2026-08-27: authored default trade board prop_sign_bakery (gen_trade_signs.py art + gen_items.py flat board), registered in materials.json/items.json, wired as room_program.json sign_item."
+    },
+    {
+      "category": "item",
+      "dims": "NEEDS-RESEARCH",
+      "first_seen": "unknown",
+      "requested_by": [
+        {
+          "purpose": "signage",
+          "reason": "unmapped",
+          "typology": "blacksmith"
+        }
+      ],
+      "status": "conformant",
+      "type": "sign_blacksmith",
+      "resolution": "2026-08-27: authored default trade board prop_sign_blacksmith (gen_trade_signs.py art + gen_items.py flat board), registered in materials.json/items.json, wired as room_program.json sign_item."
+    },
+    {
+      "category": "item",
+      "dims": "NEEDS-RESEARCH",
+      "first_seen": "unknown",
+      "requested_by": [
+        {
+          "purpose": "signage",
+          "reason": "unmapped",
+          "typology": "general_store"
+        }
+      ],
+      "status": "conformant",
+      "type": "sign_general_store",
+      "resolution": "2026-08-27: authored default trade board prop_sign_general_store (gen_trade_signs.py art + gen_items.py flat board), registered in materials.json/items.json, wired as room_program.json sign_item."
+    },
+    {
+      "category": "item",
+      "dims": "NEEDS-RESEARCH",
+      "first_seen": "unknown",
+      "requested_by": [
+        {
+          "purpose": "signage",
+          "reason": "unmapped",
+          "typology": "tavern"
+        }
+      ],
+      "status": "conformant",
+      "type": "sign_tavern",
+      "resolution": "2026-08-27: tavern already owned prop_sign_prancing_pony; this row was recorded because the settlement build path never passed ItemPropManager, so the item could not resolve and the forge honestly fell back. The deps wiring is fixed (SettlementBuildService.Deps.itemProps)."
+    }
+  ]
 }

@@ -51,6 +51,16 @@ class Compiled:
     options: Options
     warnings: list = field(default_factory=list)
     direct_box_bones: set = field(default_factory=set)
+    #: factor target_height applied to the spec-space rig (1.0 = unscaled).
+    scale: float = 1.0
+
+    @property
+    def voxel_world(self) -> float:
+        """Voxel edge length in the SHIPPED rig's units. Voxelization happens
+        in spec space and target_height rescales afterwards, so any tolerance
+        expressed in voxels has to be scaled or a creature fails a gate purely
+        for being large (an ancient dragon is the same spec as a wyrmling)."""
+        return self.options.voxel_size * self.scale
 
     def bind_world_positions(self) -> dict:
         """Bone name -> bind world position, from the finished AnimFile
@@ -193,6 +203,7 @@ def compile_spec(spec: dict, options: Options = None) -> Compiled:
         })
 
     # ---- target height rescale --------------------------------------------
+    applied_scale = 1.0
     if options.target_height:
         ys = []
         world_pos = {b.id: None for b in af.bones}
@@ -207,6 +218,7 @@ def compile_spec(spec: dict, options: Options = None) -> Compiled:
             ys.append(bp[1] + bx.center[1] + bx.size[1] / 2)
         height = (max(ys) - min(ys)) if ys else 1.0
         s = options.target_height / height
+        applied_scale = s
         for b in af.bones:
             b.pos = tuple(c * s for c in b.pos)
         for bx in af.boxes:
@@ -221,12 +233,27 @@ def compile_spec(spec: dict, options: Options = None) -> Compiled:
     ensure_ground_ref(af)
     walk = af.clip("walk")
     if walk is not None:
+        # measure_walk_speed derives the no-slide speed from how far a planted
+        # FOOT sweeps during stance. A legless creature has no stance, so the
+        # measurement degenerates to ~0 and the engine would translate a frozen
+        # snake across the ground — hence the spec-authored override.
+        override = spec.get("walk_speed")
         spd = measure_walk_speed(af, clip_name="walk")
-        if spd:
+        if override:
+            walk.speed = round(float(override), 3)
+            if spd and abs(spd - override) > 0.5 * override:
+                warnings.append(
+                    f"spec walk_speed {override} overrides the measured "
+                    f"{spd:.3f} — intended for legless/gliding rigs; a legged "
+                    "creature should trust the measurement")
+        elif spd and spd >= 0.05:
             walk.speed = round(spd, 3)
         else:
-            warnings.append("walk clip present but no measurable stance sweep; "
-                            "Speed not stamped (engine will foot-slide)")
+            warnings.append(
+                f"walk speed measurement degenerate ({spd if spd else 0:.3f}) — "
+                "no planted foot to measure. Set spec 'walk_speed' explicitly "
+                "or the creature will slide")
 
     return Compiled(af=af, spec=spec, sk=sk, grid=grid, options=options,
-                    warnings=warnings, direct_box_bones=direct_bones)
+                    warnings=warnings, direct_box_bones=direct_bones,
+                    scale=applied_scale)

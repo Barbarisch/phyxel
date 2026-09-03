@@ -33,6 +33,7 @@
 // BuildingHarness.ForgeParityDigests.
 // ============================================================================
 
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -86,6 +87,11 @@ public:
         glm::vec3   worldPos{0.0f};
         int         projectionMicro = 0;   ///< how far the board juts from the wall
         int         boardBottomMicroY = 0;
+        /// PROJECTING form only: the wrought-iron BRACKET the board hangs from —
+        /// world-micro cells (arm out from the wall over the board, diagonal brace,
+        /// hanger links) the caller stamps as static Metal micro voxels. A projecting
+        /// sign is never a floating board (user find 2026-08-27).
+        std::vector<glm::ivec3> bracketCells;
     };
 
     /// Choose the sign's mount BY FIT against the grounded projecting-sign code
@@ -101,9 +107,16 @@ public:
     /// its normal axis; `alongCenterMicro` the door's center on the other axis.
     /// Board dimensions are in world units, MEASURED from the item template
     /// (never assumed): `boardW` across the face, `boardH` up, `boardT` thickness.
+    /// `solidAt` (optional): world-micro solidity probe (cube OR subcube OR microcube).
+    /// When present, the chosen pose is VERIFIED against the real world — a projecting
+    /// board+bracket that would intersect anything (an eave, a jetty, a chimney) repairs
+    /// to FLUSH; a flush board blocked above the door repairs to BESIDE the door (right,
+    /// then left, needs `doorWidthMicro`); only then does the sign skip, with the reason.
     static SignMount planSignMount(WallSide side, int wallOuterMicro, int alongCenterMicro,
                                    int floorMicroY, int doorHeadMicroY, int roofApexMicroY,
-                                   float boardW, float boardH, float boardT);
+                                   float boardW, float boardH, float boardT,
+                                   const std::function<bool(const glm::ivec3&)>& solidAt = nullptr,
+                                   int doorWidthMicro = 9);
 
 private:
     struct Context;   // defined in StructureForge.cpp (heavy members stay internal)

@@ -11,7 +11,7 @@
   "capsule": {
     "mode": "xz_extent",
     "minHalfWidth": 0.2,
-    "maxHalfWidth": 0.8
+    "maxHalfWidth": 1.02
   },
   "legs": [
     {

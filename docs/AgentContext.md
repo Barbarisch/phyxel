@@ -144,6 +144,65 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **★ BESTIARY FORGE II — FULL SRD COVERAGE (336/336 bound), W1 SHIPPED 2026-08-22.**
+  Every D&D stat block the engine ships now resolves to a spawnable rig. Coverage is
+  **generated, not hand-written**: `tools/creature_forge/bindings_map.json` (archetype rig →
+  stat blocks, per-member tint/scale/alpha/approx) → `gen_bindings.py` →
+  `resources/monsters/visuals/bindings.json`, validating every id bound exactly once + every
+  rig able to play Idle/Walk/Attack/Death **through the engine's real resolution** (literal
+  clip / humanoid `death_front|death_back` probe / unarmed moveset / animationMapping). That
+  gate caught the Quaternius families on first run (fauna attack = `Attack_Headbutt`, monster
+  pack = `Punch`) — both now carry archetype-level mappings instead of firing damage on a
+  stale clip. **KEYSTONE: per-character tint+alpha** (`RagdollCharacter::setRenderTint/
+  setRenderAlpha`, baked into the RenderCoordinator instance blob, invalidated via
+  `bumpPartsVersion`) — forge rigs bake explicit box colors that `appearance.skinTone` cannot
+  touch, so tint is the ONLY recolor lever for them: it gives 10 dragon colors per age tier,
+  palette families (winter wolf, polar bear) and incorporeal alpha from single rigs.
+  **Status 2026-08-22: COMPLETE — 336/336 on final-fidelity rigs, ZERO approximations.**
+  The backlog is empty and `test_no_stat_block_is_still_approximated` keeps it that way (an
+  `approx` tag reappearing fails the suite, so the coverage claim cannot rot silently).
+  ~35 archetype rigs total. Highlights: binding
+  factory + 336 coverage · quadruped set (feline/rodent/reptile/pachyderm/ape) · raptor +
+  theropod · **serpent, shark, ooze, plant, swarm = zero-leg rigs** (engine allows it: plans
+  iterate whatever legs[] holds, foot IK is 2-leg opt-in, grounding sweeps from the root) ·
+  cephalopod + scorpion + beetle on the ARACHNID contract · taur (quadruped barrel + humanoid
+  torso) · **all 40 dragons from ONE spec × 4 age-tier builds × 10 binding tints** · 10
+  humanoid variants (goblin/orc/skeleton/zombie/troll/devil/golem/elemental/hag/angel) +
+  giants on the ogre rig · **the five exotics** (W8): hydra (five necks, each its own chain —
+  odd fan-out has no mirror partner; they spread OUTWARD before rising or they share one
+  column and steal each other's voxels), tarrasque (Gargantuan biped on the theropod's balance
+  solution), dragon turtle (a carapace is a swept tube whose radius dwarfs its length, on its
+  own horizontal spine; `exp` 3.2 flattens it toward a slab), otyugh (tripod — centreline
+  foreleg pumping at DOUBLE rate so it lands with each rear leg in turn), xorn (three-fold
+  radial, nothing mirrored; walk hand-phased in thirds because `mirror_phase` offsets a chain
+  against a partner these legs do not have).
+  ⚠️ **`attack_reach` measures the head against the BIND front**, so a rig whose neck already
+  sits extended at rest gains almost nothing from rotation — the lunge has to actually travel
+  (it refused the turtle and the otyugh until their `tz` roughly doubled). ⚠️ **`walk_speed` in
+  a spec is for LEGLESS rigs only**; a legged creature trusts the measurement (the gate caught
+  a hand-guessed 0.62 on the xorn against a measured 0.255).
+  **TRANSLUCENT CHARACTERS (W6) SHIPPED**: alpha now survives the shader chain
+  (character_instanced.vert + character.vert varying vec3→vec4, character.frag outputs
+  fragColor.a), a blend-enabled **depth-write-off** pipeline variant sits beside the opaque one
+  (`getTranslucentInstancedCharacterPipeline`), and `RenderCoordinator` draws translucent
+  characters in a SECOND pass after the opaque ones (`CharacterDraw.translucent`, filtered by
+  `renderInstancedCharacters(..., translucentPass)`). ⚠️ The shadow exclusion is a SEPARATE
+  list: `m_charBatches` is built independently of `m_charDrawsMain`, so filtering the main
+  draws alone left ghosts casting solid shadows (measured: drawn_shadow 3 of 3). Translucent
+  characters are now skipped when building `m_charBatches`. Verified live: ghost + specter
+  see-through with grass visible through them, opaque orc unchanged in the same frame.
+  Pinned by `tests/scene/CharacterTranslucencyTest.cpp`.
+  ⚠️ **SCALE TRUTHS (cost several hours; do not re-derive):** `voxel_size` is applied in SPEC
+  space and `target_height` rescales AFTERWARDS, so (a) box count is **scale-independent** —
+  every dragon tier is 994 boxes, coarsening the grid for big creatures only destroys detail
+  and empties thin bones; (b) anything derived from the grid is in spec units — the collision
+  capsule was, giving an ancient dragon a wyrmling's radius (now derived from the finished rig:
+  0.73/1.03/3.12/5.86 across tiers); (c) gate tolerances expressed in voxels must use
+  `Compiled.voxel_world` (voxel × applied scale) or a spec fails purely for being large.
+  ⚠️ `measure_walk_speed` needs a planted foot — legless rigs must author `walk_speed` in the
+  spec (a degenerate measurement now warns). Plan:
+  `C:\Users\jack\.claude\plans\starry-humming-magpie.md`.
+
 - **★ BESTIARY FORGE — 12 D&D SRD CREATURES + FULL RPG WIRING, SHIPPED 2026-08-21.**
   Two lanes: **creature_forge specs** (dire wolf, boar, brown bear quadrupeds; giant spider
   arachnid; young red dragon + griffon dragon-class with folded MEMBRANE wings — ground-only,

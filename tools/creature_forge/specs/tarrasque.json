@@ -1,0 +1,289 @@
+{
+  "name": "forge_tarrasque",
+  "_template": "Tarrasque archetype (exotic). A Gargantuan armoured biped: carapace-plated barrel, two forward-sweeping horns, a mouth that takes up most of the skull, small heavy forelimbs and a mace-thick tail. The pelvis/leg/foot geometry starts from the theropod archetype - that is the arrangement the balance gate already accepted (hips under the mass, long digitigrade foot) - and the tarrasque only adds weight above it. See _note_balance in joints for the one deliberate departure. Neutral slate-brown palette FOR tinting.",
+  "palette": {
+    "hide_body": { "color": "#7a7064", "rough": 0.95 },
+    "hide_head": { "color": "#726859", "rough": 0.95 },
+    "hide_tail": { "color": "#6d6457", "rough": 0.95 },
+    "hide_leg": { "color": "#746a5d", "rough": 0.95 },
+    "carapace": { "color": "#5a5348", "rough": 0.85 },
+    "horn": { "color": "#cfc6ae", "rough": 0.4 },
+    "claw": { "color": "#3c382f", "rough": 0.55 },
+    "eye": { "color": "#c03018", "rough": 0.2 }
+  },
+  "shading": {
+    "_note": "Engine lights character parts with high contrast (open gap) - keep the ramp gentle.",
+    "gradient": { "top": 0.13, "bottom": -0.22 },
+    "noise": { "size": 0.016, "amount": 0.11 }
+  },
+  "smooth_angle": 50,
+  "joints": {
+    "_note_balance": "Pelvis, LBack* and the foot offsets are the theropod's numbers, with the shin lengthened (hock -0.15 -> -0.19) to break a 50:50 segment rhythm; the foot is ground-pinned and the pelvis is absolute, so that only deepens the crouch. Balance is re-checked on every build, not assumed. The tarrasque's extra mass goes into the barrel and tail, which sit fore and aft of the hips respectively - adding it to the chest alone would push the centroid past the toes and the balance gate would (correctly) refuse.",
+
+    "Pelvis": [0, 0.6, -0.1],
+    "Rump": { "from": "Pelvis", "up": 0.02, "fwd": -0.12 },
+    "Spine": { "from": "Pelvis", "up": 0.04, "fwd": 0.19 },
+    "Chest": { "from": "Spine", "up": 0.02, "fwd": 0.14 },
+    "NeckB": { "from": "Chest", "up": 0.07, "fwd": 0.08 },
+    "NeckT": { "from": "NeckB", "up": 0.04, "fwd": 0.06 },
+
+    "HeadRoot": { "from": "NeckT", "up": 0.03, "fwd": 0.02 },
+    "Skull": { "from": "HeadRoot", "up": 0.02, "fwd": 0.07 },
+    "Brow": { "from": "Skull", "up": 0.005, "fwd": 0.05 },
+    "Muzzle": { "from": "Brow", "up": -0.02, "fwd": 0.07 },
+    "NoseTip": { "from": "Muzzle", "up": -0.015, "fwd": 0.04 },
+
+    "TailRoot": { "from": "Pelvis", "up": 0.015, "fwd": -0.17 },
+    "Tail1": { "from": "TailRoot", "up": 0.0, "fwd": -0.27 },
+    "Tail2": { "from": "Tail1", "up": -0.01, "fwd": -0.21 },
+    "Tail3": { "from": "Tail2", "up": -0.01, "fwd": -0.27 },
+    "TailTip": { "from": "Tail3", "up": 0.0, "fwd": -0.18 },
+
+    "LFrontRoot": { "from": "Chest", "side": 0.12, "up": 0.02, "fwd": -0.01 },
+    "LFrontKnee": { "from": "LFrontRoot", "side": 0.05, "up": -0.1, "fwd": 0.03 },
+    "LFrontShin": { "from": "LFrontKnee", "side": 0.01, "up": -0.07, "fwd": 0.04 },
+    "LFrontPaw": { "from": "LFrontShin", "up": -0.02, "fwd": 0.04 },
+
+    "LBackRoot": { "from": "Pelvis", "side": 0.08, "fwd": -0.012 },
+    "LBackKnee": { "from": "LBackRoot", "side": 0.01, "up": -0.16, "fwd": 0.04 },
+    "LBackHock": { "from": "LBackKnee", "up": -0.19, "fwd": -0.06 },
+    "LBackPaw": { "from": "LBackHock", "fwd": 0.07, "ground": 0.03 }
+  },
+  "chains": {
+    "body": ["Rump", "Pelvis", "Spine", "Chest", "NeckB", "NeckT"],
+    "head": ["HeadRoot", "Skull", "Brow", "Muzzle", "NoseTip"],
+    "tail": ["TailRoot", "Tail1", "Tail2", "Tail3", "TailTip"],
+    "LFront": ["LFrontRoot", "LFrontKnee", "LFrontShin", "LFrontPaw"],
+    "LBack": ["LBackRoot", "LBackKnee", "LBackHock", "LBackPaw"]
+  },
+  "attach": {
+    "head": "NeckT",
+    "tail": "Pelvis",
+    "LFront": "Chest",
+    "LBack": "Pelvis"
+  },
+  "mirror": ["LFront", "LBack"],
+  "volumes": [
+    {
+      "chain": "body",
+      "material": "hide_body",
+      "frame": "up",
+      "sides": 14,
+      "profile": [
+        [0.0, 0.13, 0.14],
+        [0.25, 0.2, 0.23, { "bias": -0.08 }],
+        [0.55, 0.21, 0.25, { "bias": -0.1 }],
+        [0.8, 0.15, 0.18, { "sharp": true }],
+        [1.0, 0.1, 0.11]
+      ],
+      "caps": ["dome", "dome"],
+      "colors": {
+        "arcs": [
+          { "from": 0, "to": 52, "color": "#4e483e" },
+          { "from": 140, "to": 180, "color": "#b9ae98" }
+        ]
+      }
+    },
+    {
+      "chain": "head",
+      "material": "hide_head",
+      "frame": "up",
+      "sides": 12,
+      "profile": [
+        [0.0, 0.1, 0.1],
+        [0.32, 0.12, 0.115, { "sharp": true, "exp": 2.5 }],
+        [0.68, 0.105, 0.085],
+        [1.0, 0.06, 0.05]
+      ],
+      "caps": ["none", "dome"],
+      "colors": {
+        "arcs": [
+          { "from": 0, "to": 50, "color": "#4e483e" },
+          { "from": 150, "to": 180, "color": "#9c5a4e" }
+        ]
+      }
+    },
+    {
+      "chain": "tail",
+      "material": "hide_tail",
+      "sides": 10,
+      "profile": [
+        [0.0, 0.16, 0.17],
+        [0.35, 0.125, 0.13],
+        [0.7, 0.085, 0.085],
+        [0.88, 0.095, 0.095, { "sharp": true }],
+        [1.0, 0.05, 0.05]
+      ],
+      "caps": ["none", "dome"]
+    },
+    {
+      "chain": "LFront",
+      "material": "hide_leg",
+      "sides": 9,
+      "profile": [
+        [0.0, 0.055, 0.055],
+        [0.6, 0.04, 0.04],
+        [1.0, 0.03, 0.03]
+      ],
+      "caps": ["none", "dome"]
+    },
+    {
+      "chain": "LBack",
+      "material": "hide_leg",
+      "sides": 10,
+      "profile": [
+        [0.0, 0.075, 0.075],
+        [0.55, 0.045, 0.045],
+        [1.0, 0.034, 0.034]
+      ],
+      "caps": ["none", "dome"]
+    }
+  ],
+  "parts": [
+    {
+      "type": "eye",
+      "host": "Brow",
+      "material": "eye",
+      "size": 0.022,
+      "anchor": { "chain": "head", "t": 0.38, "around": 60 }
+    },
+    {
+      "type": "eye",
+      "host": "Brow",
+      "material": "eye",
+      "size": 0.022,
+      "anchor": { "chain": "head", "t": 0.38, "around": -60 }
+    },
+    {
+      "type": "spike",
+      "host": "Skull",
+      "material": "horn",
+      "offset": [0.055, 0.055, 0.0],
+      "dir": [0.35, 0.5, 1],
+      "sides": 6,
+      "segments": [{ "len": 0.09, "r": 0.028 }, { "len": 0.07, "r": 0.012 }],
+      "mirrored": true
+    },
+    {
+      "type": "spike",
+      "host": "NeckB",
+      "material": "carapace",
+      "offset": [0, 0.07, 0],
+      "dir": [0, 1, -0.35],
+      "sides": 5,
+      "segments": [{ "len": 0.07, "r": 0.03 }]
+    },
+    {
+      "type": "spike",
+      "host": "Chest",
+      "material": "carapace",
+      "offset": [0, 0.12, 0],
+      "dir": [0, 1, -0.3],
+      "sides": 5,
+      "segments": [{ "len": 0.1, "r": 0.04 }]
+    },
+    {
+      "type": "spike",
+      "host": "Spine",
+      "material": "carapace",
+      "offset": [0, 0.13, 0],
+      "dir": [0, 1, -0.25],
+      "sides": 5,
+      "segments": [{ "len": 0.11, "r": 0.045 }]
+    },
+    {
+      "type": "spike",
+      "host": "Pelvis",
+      "material": "carapace",
+      "offset": [0, 0.12, 0],
+      "dir": [0, 1, -0.3],
+      "sides": 5,
+      "segments": [{ "len": 0.09, "r": 0.04 }]
+    },
+    {
+      "type": "spike",
+      "host": "Tail1",
+      "material": "carapace",
+      "offset": [0, 0.1, 0],
+      "dir": [0, 1, -0.5],
+      "sides": 5,
+      "segments": [{ "len": 0.07, "r": 0.028 }]
+    },
+    {
+      "type": "paw",
+      "host": "LFrontPaw",
+      "material": "claw",
+      "size": [0.08, 0.035, 0.11],
+      "mirrored": true
+    },
+    {
+      "type": "paw",
+      "host": "LBackPaw",
+      "material": "claw",
+      "size": [0.1, 0.038, 0.2],
+      "mirrored": true
+    }
+  ],
+  "combat": true,
+  "animations": {
+    "idle": {
+      "duration": 2.6,
+      "loop": true,
+      "tracks": {
+        "NeckB": { "rx": [[0, -3], [0.5, 3], [1, -3]] },
+        "Skull": { "ry": [[0, 5], [0.35, -6], [0.75, 4], [1, 5]] },
+        "Tail1": { "ry": [[0, -5], [0.5, 5], [1, -5]] },
+        "Pelvis": { "ty": [[0, 0], [0.5, 0.006], [1, 0]] }
+      }
+    },
+    "attack": {
+      "duration": 0.7,
+      "loop": false,
+      "hit_fraction": 0.45,
+      "_note": "A bite that carries the whole body forward - the translation lives on Rump, the skeleton root, because a lunge keyed mid-chain tears the bone off its parent.",
+      "tracks": {
+        "Rump": {
+          "tz": [[0, 0], [0.2, -0.05], [0.45, 0.24], [0.7, 0.22], [1, 0]],
+          "ty": [[0, 0], [0.2, 0.05], [0.45, -0.03], [1, 0]]
+        },
+        "NeckB": { "rx": [[0, 0], [0.2, -22], [0.45, 28], [0.7, 20], [1, 0]] },
+        "Skull": { "rx": [[0, 0], [0.2, -16], [0.45, 24], [1, 0]] },
+        "Muzzle": { "rx": [[0, 0], [0.3, -18], [0.5, 12], [1, 0]] },
+        "LFrontRoot": { "rz": [[0, 0], [0.25, 28], [0.5, 8], [1, 0]] },
+        "Tail1": { "ry": [[0, 0], [0.35, 16], [1, 0]] }
+      }
+    },
+    "death": {
+      "duration": 1.4,
+      "loop": false,
+      "tracks": {
+        "Rump": {
+          "rz": [[0, 0], [0.4, 24], [0.75, 64], [1, 80]],
+          "ty": [[0, 0], [0.4, -0.1], [0.75, -0.26], [1, -0.34]]
+        },
+        "NeckB": { "rx": [[0, 0], [0.6, 16], [1, 22]] },
+        "Skull": { "rx": [[0, 0], [1, 14]] },
+        "LFrontRoot": { "rz": [[0, 0], [0.7, 22], [1, 30]] },
+        "LBackKnee": { "rx": [[0, 0], [0.6, 26], [1, 36]] },
+        "Tail1": { "ry": [[0, 0], [1, 22]] }
+      }
+    },
+    "move": {
+      "duration": 0.85,
+      "loop": true,
+      "mirror_phase": 0.5,
+      "tracks": {
+        "LBackRoot": { "rx": [[0, -20], [0.5, 22], [1, -20]] },
+        "LBackKnee": { "rx": [[0, 12], [0.3, 26], [0.6, -8], [1, 12]] },
+        "LBackHock": { "rx": [[0, -8], [0.4, -20], [0.7, 8], [1, -8]] },
+        "Rump": { "ty": [[0, 0], [0.25, 0.022], [0.5, 0], [0.75, 0.022], [1, 0]] },
+        "NeckB": { "rx": [[0, 4], [0.5, -4], [1, 4]] },
+        "Tail1": { "ry": [[0, 7], [0.5, -7], [1, 7]] },
+        "LFrontRoot": { "rz": [[0, 0], [0.5, 7], [1, 0]] }
+      }
+    }
+  },
+  "body_plan": {
+    "leg_terminals": ["backpaw", "lbackpaw", "rbackpaw"]
+  }
+}

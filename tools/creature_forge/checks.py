@@ -227,13 +227,20 @@ def _rule_root_containment(compiled, out):
     vol_chains = {v["chain"] for v in spec.get("volumes", [])}
     bone_pts = _bone_points(compiled)
     world = compiled.bind_world_positions()
-    tol = 2.5 * compiled.options.voxel_size
+    tol = 2.5 * compiled.voxel_world
     for cn in vol_chains:
         if cn not in attach:
             continue
         root_joint = spec["chains"][cn][0]
         rp = world[root_joint]
-        chain_bones = set(sk.chains[cn])
+        # A joint shared with another chain IS the connection (a serpent's body
+        # and tail are one tube through Pelvis), so it counts as host mass
+        # rather than as part of the limb being checked.
+        shared = set()
+        for other_cn, other in sk.chains.items():
+            if other_cn != cn:
+                shared |= set(other)
+        chain_bones = set(sk.chains[cn]) - shared
         others = [p for name, pl in bone_pts.items()
                   if name not in chain_bones for p in _downsample(pl)]
         if not others:
@@ -260,7 +267,7 @@ def _rule_part_attachment(compiled, out):
         if not near:
             continue
         d = _min_dist([hp], near)
-        if d > 0.015 * height + 3.0 * compiled.options.voxel_size:
+        if d > 0.015 * height + 3.0 * compiled.voxel_world:
             out.append(Finding("BLOCK", "part_attachment",
                                f"part '{part['type']}' host '{host}' is "
                                f"{d:.3f} from any geometry"))
@@ -283,7 +290,7 @@ def _rule_mirror_distortion(compiled, out):
                 # spec mirroring is exact X-negation; only grid quantization
                 # can differ, so a sub-2-voxel absolute delta is never a
                 # real distortion (short extents make the RATIO explode)
-                if abs(le - re) <= 2.0 * compiled.options.voxel_size:
+                if abs(le - re) <= 2.0 * compiled.voxel_world:
                     continue
                 ratio = (re / le) if le > 1e-6 else 99.0
                 if ratio < 0.70 or ratio > 1.30:
@@ -309,7 +316,7 @@ def _rule_touch(compiled, out):
                                f"touch pair {pair} has a side with no geometry"))
             continue
         d = _min_dist(_downsample(pa), _downsample(pb))
-        if d > 0.01 * height + 2.0 * compiled.options.voxel_size:
+        if d > 0.01 * height + 2.0 * compiled.voxel_world:
             out.append(Finding("BLOCK", "touch",
                                f"declared touch {pair} gap {d:.3f}"))
 
@@ -344,7 +351,7 @@ def _rule_anim_integrity(compiled, out):
     """FK-pose box centers at 5 phases of each clip; a parent-child gap that
     grows by more than 2 voxels over bind means the joint tears."""
     af = compiled.af
-    vs = compiled.options.voxel_size
+    vs = compiled.voxel_world
     by_bone_local = {}
     for bx in af.boxes:
         by_bone_local.setdefault(bx.bone_id, []).append(bx.center)
@@ -467,12 +474,18 @@ def _rule_death_pose(compiled, out):
     ground = min_y(bind)
     bind_h = centroid_y(bind) - ground
     final_h = centroid_y(final) - ground
-    if bind_h > 1e-6 and final_h > 0.65 * bind_h:
+    # "Collapsed" cannot mean a fixed fraction of bind height: a serpent (or an
+    # ooze) already lies on the ground, so there is no 35% left to give. The
+    # floor says a creature whose mass is already within a few voxels of the
+    # ground is as down as it can get, however tall the gate would like it.
+    floor = 3.0 * compiled.voxel_world
+    if bind_h > 1e-6 and final_h > max(0.65 * bind_h, floor):
         out.append(Finding(
             "BLOCK", "death_pose",
             f"death clip ends with centroid at {final_h / bind_h:.0%} of bind "
-            "height — the engine freezes the last frame, so the creature must "
-            "end DOWN (<= 65%)"))
+            f"height ({final_h:.3f} above ground) — the engine freezes the last "
+            "frame, so the creature must end DOWN (<= 65% of bind height, or "
+            f"within {floor:.2f} of the ground)"))
 
 
 def _rule_lint(compiled, out):

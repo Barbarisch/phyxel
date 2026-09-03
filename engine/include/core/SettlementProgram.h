@@ -19,6 +19,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include "core/TownWall.h"   // TownWallSpec (tier `walls` block)
+
 namespace Phyxel {
 namespace Core {
 
@@ -49,6 +51,8 @@ struct PublicSpec {
     bool well = false;
     int  marketW = 0;  ///< market square dims; 0 = no square
     int  marketD = 0;
+    int  stalls = 0;   ///< market stalls dressed onto the square's corner pads (0 = none)
+    bool statue = false;  ///< civic statue at the square centre (city); well moves to a pad
 };
 
 /// One settlement tier: a complete, grounded preset for the layout algorithm.
@@ -72,16 +76,37 @@ struct SettlementTierPreset {
     /// City tier: the shop-heavy palette drawn INSIDE the core ring around the market square
     /// (trades cluster on the market place — the burgage-rent gradient). Empty = no ring split.
     std::map<std::string, int> coreTypologyWeights;
+
+    /// Per-typology COUNT caps (CityForgePlan M4): weights set flavour, caps bind counts —
+    /// a quarter supports a few of each trade, not 16 smithies (measured at density 1.5).
+    /// A capped typology's draw redraws; absent from the map = uncapped. Empty = legacy.
+    std::map<std::string, int> typologyCaps;
     int coreRing = 0;      ///< core-ring radius (cubes) around the square centre; 0 = unused
     int blocksMin = 18;    ///< secondary-street spacing range (cubes) — the jittered city blocks
     int blocksMax = 30;
 
     PublicSpec pub;
 
+    /// Circuit wall (CityForgePlan M7, place_town_wall #42). Absent `walls` block =
+    /// disabled = legacy behaviour (no wall planned, no world edits).
+    TownWallSpec walls;
+
+    /// Share of eligible plots that get a perimeter fence (CityForgePlan M3). Eligibility
+    /// (core ring, building clearance) is decided by shouldFencePlot; absent key = 1.0 = the
+    /// legacy everything-fenced behaviour.
+    double fenceFraction = 1.0;
+
     std::map<std::string, std::string> sources;  ///< per-value provenance (grounding rule)
 
     bool hasSource(const std::string& key) const { return sources.find(key) != sources.end(); }
 };
+
+/// CityForgePlan M3b — the caller's DENSITY lever ("a very dense city"): scale a tier preset
+/// toward tighter blocks, shallower plots, smaller setbacks and more buildings (density > 1)
+/// or the reverse (density < 1). density is clamped to [0.5, 2.0]; density == 1.0 returns the
+/// preset UNCHANGED (identity — legacy calls stay byte-compatible). Bounded so no scaled value
+/// can break a layout invariant (blocks >= 8, plot depth >= 6, side gap >= 0, fraction 0..1).
+SettlementTierPreset applyDensity(const SettlementTierPreset& t, double density);
 
 class SettlementProgramRegistry {
 public:

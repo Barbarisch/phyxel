@@ -555,6 +555,27 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // GET /api/world/baked_light?x=0&y=0&z=0 — the BAKED per-cell light at a world cell.
+    // Returns skylight and coloured block light, each 0-15, straight from the chunk that owns
+    // the cell. This is the only way to read the stored light field as NUMBERS; before it, its
+    // behaviour could only be guessed at from screenshots.
+    // ====================================================================
+    srv.Get("/api/world/baked_light", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!m_bakedLightQueryHandler) {
+            json err = {{"error", "Baked light query handler not configured"}};
+            res.status = 503;
+            res.set_content(err.dump(), "application/json");
+            return;
+        }
+        int x = 0, y = 0, z = 0;
+        if (req.has_param("x")) x = std::stoi(req.get_param_value("x"));
+        if (req.has_param("y")) y = std::stoi(req.get_param_value("y"));
+        if (req.has_param("z")) z = std::stoi(req.get_param_value("z"));
+        json result = m_bakedLightQueryHandler(x, y, z);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
     // POST /api/world/voxel — Place a voxel
     // Body: { "x": 0, "y": 0, "z": 0, "material": "stone" (optional) }
     // ====================================================================
@@ -1050,6 +1071,20 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // POST /api/debug/gi -- M5.1 indirect-light probe field. Body: { "enabled": bool }
+    // Default OFF; this increment ships behind a toggle so its cost can be A/B tested live.
+    srv.Post("/api/debug/gi", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("set_gi", params, 5000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
     // POST /api/debug/tonemap — exposure + tone curve, live.
     // Body: { "exposure": float (opt), "curve": int (opt; 0 = none/raw linear, 1 = AgX) }
     // Exists because the atmosphere model emits physical radiance, so exposure must be calibrated
@@ -1058,6 +1093,21 @@ void EngineAPIServer::setupRoutes() {
         try {
             json params = req.body.empty() ? json::object() : json::parse(req.body);
             json result = queueAndWait("set_tonemap", params, 5000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/debug/flood_bypass — switch the per-cell light flood OFF and re-bake, to test by
+    // EXPERIMENT which lighting system owns an artifact. Body: { "mask": 0..3 }
+    //   bit1 = skylight forced uniform 15   bit2 = block light forced 0
+    srv.Post("/api/debug/flood_bypass", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_flood_bypass", params, 60000);   // re-bakes all chunks
             res.set_content(result.dump(), "application/json");
         } catch (const json::exception& e) {
             json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
@@ -1238,9 +1288,13 @@ void EngineAPIServer::setupRoutes() {
     // POST /api/settlement/build — Compose a whole settlement (the engine drives
     // the layout, then queues one building build per plot).
     // PROGRAM MODE (preferred): { "era":"medieval", "tier":"hamlet|village|town|city",
-    //         "seed":3, "position":{...}, "width":80, "depth":40, "terrain":bool }
+    //         "seed":3, "position":{...}, "width":80, "depth":40, "terrain":bool,
+    //         "density":1.0 }
     //   — morphology/palette/plot sizing come from resources/settlement_program.json
     //     (village = main-street burgage rows; unknown era/tier is a surfaced error).
+    //   — density (0.5..2, clamped, echoed back in program.density): the settlement→city
+    //     lever — tighter blocks/plots/setbacks + more buildings at >1 ("a very dense
+    //     city"); 1.0 = legacy identity.
     // LEGACY: { "position":{...}, "width":52, "depth":36, "cols":2, "rows":2,
     //         "street_width":4, "setback":2, "min_building":8, "typology":"hall_house" }
     // ====================================================================
@@ -1417,6 +1471,40 @@ void EngineAPIServer::setupRoutes() {
         if (req.has_param("y")) params["y"] = std::stoi(req.get_param_value("y"));
         if (req.has_param("z")) params["z"] = std::stoi(req.get_param_value("z"));
         json result = queueAndWait("occupancy_cell", params, 10000);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
+    // GET /api/debug/light_occupancy[?x=&y=&z=] — the lighting rebuild's M1b instrument.
+    // No args: pool health (resident chunks / mixed cells / words / DROPPED chunks).
+    // With a cell: per-micro agreement between the GPU pool and Chunk::getOccupancyGrid().
+    // ====================================================================
+    srv.Get("/api/debug/light_occupancy", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("x")) params["x"] = std::stoi(req.get_param_value("x"));
+        if (req.has_param("y")) params["y"] = std::stoi(req.get_param_value("y"));
+        if (req.has_param("z")) params["z"] = std::stoi(req.get_param_value("z"));
+        if (req.has_param("mixed_audit"))
+            params["mixed_audit"] = std::stoi(req.get_param_value("mixed_audit"));
+        for (const char* k : {"lx", "ly", "lz", "nx", "ny", "nz"})
+            if (req.has_param(k)) params[k] = std::stof(req.get_param_value(k));
+        // x/y/z as FLOATS when a visibility probe is requested (a surface point is not a cell).
+        if (req.has_param("lx")) {
+            for (const char* k : {"x", "y", "z"})
+                if (req.has_param(k)) params[k] = std::stof(req.get_param_value(k));
+        }
+        if (req.has_param("trace"))
+            params["trace"] = (req.get_param_value("trace") == "1" ||
+                               req.get_param_value("trace") == "true");
+        if (req.has_param("sky_probe")) {
+            params["sky_probe"] = true;
+            for (const char* k : {"x", "y", "z"})
+                if (req.has_param(k)) params[k] = std::stof(req.get_param_value(k));
+        }
+        if (req.has_param("sky"))
+            params["sky"] = (req.get_param_value("sky") == "1" ||
+                             req.get_param_value("sky") == "true");
+        json result = queueAndWait("light_occupancy", params, 30000);
         res.set_content(result.dump(), "application/json");
     });
 
@@ -3194,6 +3282,56 @@ void EngineAPIServer::setupRoutes() {
         try {
             json params = json::parse(req.body);
             json result = queueAndWait("spawn_encounter", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ── Bestiary Hall ────────────────────────────────────────────────────
+    // The demo stage that shows every creature rig at once. Exposed over HTTP
+    // (not just the panel) so a harness can stage it, walk the roster, drive
+    // each clip and screenshot the result without a human clicking anything.
+
+    // GET /api/bestiary/list — roster + staged state + per-rig clip support
+    srv.Get("/api/bestiary/list", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("bestiary_list", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/bestiary/stage — stage (or re-stage) the whole hall
+    srv.Post("/api/bestiary/stage", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("bestiary_stage", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/bestiary/select — {"rig":"forge_hydra"} ("" clears); ghosts the rest
+    srv.Post("/api/bestiary/select", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("bestiary_select", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/bestiary/play — {"state":"Attack","all":true}
+    srv.Post("/api/bestiary/play", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("bestiary_play", params);
             res.set_content(result.dump(), "application/json");
         } catch (const json::exception& e) {
             json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};

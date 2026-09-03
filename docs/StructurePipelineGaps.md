@@ -309,6 +309,104 @@ Next probe: render one character + one terrain block with IDENTICAL albedo side 
 the lit values per face orientation. Workaround used by creature_forge: keep spec `shading.gradient`
 gentle (bottom -0.22, not anyCreature's -0.88) so the engine's own contrast doesn't compound it.
 
+**2026-08-22 reproduction (still open, still not an asset defect).** Hit again during the W8
+exotics L4 in CharacterTestbed on Release. At the project's default `ambientStrength` 1.0 with the
+sun straight down, all five new rigs plus a *previously-shipped* `forge_bear` spawned beside them
+render essentially WHITE — the control is what rules out the new rigs. Dropping ambient to 0.12
+makes form fully readable but colour still reads slate-blue rather than the authored grey-green
+(`.anim` Box lines carry the right values, e.g. 0.406/0.406/0.375). So the two halves of this gap
+are one gap seen at two ambient levels, not two bugs. Practical note for the next L4: binding
+`tint` cannot compensate — it multiplies an albedo the lighting is already crushing. Verify rig
+SHAPE by bone probe plus a low-ambient screenshot; do not try to judge palette in this scene.
+Two API traps found while chasing it: `set_day_night`'s `time` param and a `/api/daynight` POST
+both leave `timeOfDay` pinned at 12.0, and *enabling* day/night resets ambient to 1.0 — so lower
+ambient only sticks with day/night disabled.
+
+## 2026-08-26 - TABLED: imported-rig characters render UNPOSED (vertical) beyond ~5-7u
+
+User-visible: Meshy/Quaternius-class rigs in the hall look "really fucked up" — the bear rears
+bolt upright, head buried. TABLED by user decision after a long session; this entry is the full
+trail so the next attempt does not repeat it.
+
+**What is ESTABLISHED (each point measured, most twice):**
+- The clip FILES are sound: offline FK sweeps (33 samples/cycle) hold bind within tolerance;
+  key quat convention (XYZW), Bone-line convention, engine parser, `updateAnimation`,
+  `blendAnimation` defaults, and `interpolateRotation` were each read and are all consistent.
+- The failure is **camera-distance-dependent with a ~5-7u threshold**: the SAME instance
+  renders a correct horizontal bear when the camera is within ~4u and a coherent VERTICAL
+  (raw-GLB-frame) bear beyond it. Reproduced repeatedly with 12 identical `bear_meshy` NPCs;
+  which instances look broken in a group shot is just which ones are past the threshold.
+- It is NOT the character LOD tier: `POST /api/debug/characters {"lod1":0,"lod2":0}` (LOD
+  disabled) changes nothing.
+- It is NOT the anim-update LOD gate (thresholds 30/60/120/220u — far above 6u).
+- It is NOT the CPU pose path: a temporary diagnostic in the parts-sync loop showed every
+  instance syncing all 20 bone groups with 0 skips every tick (the `boneOffsets` gate never
+  fires); the FSM also keeps advancing on "frozen" instances, and a commanded Attack state
+  change does not unfreeze the visual.
+- The vertical pose is a COHERENT whole-body rotation ≈ the root bind rotation (Meshy bakes
+  ~90° X into every bone from the GLB import). Forge rigs are equally affected but INVISIBLY —
+  their bind rotations are ~identity, so an unposed forge rig just looks like a statue. That is
+  why this shipped unnoticed: the bug predates the bestiary work and only imported rigs expose it.
+- Next suspect when resumed (was mid-read when tabled): the instanced character draw path in
+  `RenderCoordinator::buildCharacterDraws` — specifically whether characters inside ~6u take a
+  different (correct) route than the instanced `m_charDrawsMain` path, and how
+  `boneModels[boneBase + inBoneIndex]` resolves for the far group. The distance that matters is
+  per-CHARACTER camera distance; find what else keys off it besides `lodForDistanceSq`.
+
+Meanwhile the retargeted mocap clips (quat-continuity-enforced) are committed and gated; they are
+not the problem and should not be reverted when this is picked back up.
+
+## 2026-08-23 - OPEN: the imported `stag` rig stands VERTICALLY (antlers reach the ground)
+
+Reported from the Bestiary Hall and confirmed on Release: the stag renders as an upright column —
+body vertical, legs splayed at the base, head/antlers pitched down to ground level. Its BIND pose is
+fine (FK over `stag.anim` gives width 1.25 x height 1.95 x depth 2.25, a proper horizontal
+quadruped, with the antler geometry inside the `Head` bone at y 1.47-1.93 and feet at -0.03), so
+the geometry is not the problem — the ANIMATION is.
+
+The bound `Idle` clip carries large CONSTANT rotations that look like a rest-pose rebase that never
+happened on import: `Back` sits at -69.1 deg elevation for all 101 keys, `BackUpperLeg.*` at -82 deg,
+`Neck1` at -40 deg. A clip whose every key holds the same big offset is describing a different rest
+orientation than the bind pose it is being applied to. `quad_horse` is likely the same family of
+problem (it is the other imported rig that also cannot play Attack).
+
+Not fixed. The stag has 13 clips (`Idle`, `Idle_2`, `Idle_Headlow`, `Eating`, `Gallop`, ...), so a
+cheap mitigation may be re-binding `Idle` to a clip whose rest orientation matches — but an offline
+FK probe of the candidates returned an identical head extent for all of them, which means the probe
+itself was not applying the pose correctly and should not be trusted. Next step: re-derive the
+import's rest-pose rebase rather than shopping for a clip that happens to look upright.
+
+## 2026-08-23 - REQUEST: elementals need VFX, not geometry
+
+The `elemental` variant reads as a humanoid because it IS one — an amorphous creature is exactly
+what a rigid box skeleton cannot express. Sculpting it further (swollen torso, tapered base) has
+already been tried and it still reads as a person. The honest fix is particle/VFX support attached
+to a character (swirling motes, a flame or dust body), which the Spell VFX system already has the
+primitives for. Logged rather than bodged into the mesh.
+
+## 2026-08-23 - OPEN: engine dies during clear_region while the Bestiary Hall is staged
+
+Hit twice, reproducibly, while preparing the Bestiary Hall demo arena: with the hall staged
+(46 NPCs, 46 DISTINCT rigs), a `clear_region` job kills the process outright — no ERROR line, no
+exception, the log just stops mid-job (`Job N started: clear_region` is the last entry). Both times
+the world edits made in that session were lost with it, which is a second-order trap: the terrain
+silently reverts to its pre-edit state on the next launch and the next attempt looks like the clear
+"didn't apply".
+
+**It is NOT simply "many characters during a terrain edit."** Discriminating test run the same
+session: 46 NPCs spawned the ordinary way (`spawn_encounter`, 16 goblins + 15 wolves + 15 orcs)
+survived two back-to-back `clear_region` calls over the same volume with no crash. `clear_region`
+with nothing staged is also fine (4 calls, clean). So the trigger involves something the hall does
+that an encounter does not. Candidates, untested: 46 distinct `.anim` templates resident at once
+(vs 3); the very large rigs the hall stages (tarrasque 7u, ancient dragon 6u) grounding big capsules
+against an occupancy grid mid-rebuild; or `NPCBehaviorType::Idle` vs `Combat` taking a different
+grounding path.
+
+Not yet root-caused — no stack was captured. **Workaround in the meantime: prepare the arena
+BEFORE staging the hall, and do not edit terrain while it is up.** Next probe: attach a debugger (or
+enable crash dumps) and clear terrain with the hall staged; if that is slow, bisect by staging a hall
+subset (large rigs only vs small rigs only) to separate "rig count" from "rig size".
+
 ## 2026-08-21 - Bestiary Forge punts (logged at M6)
 
 - **Flight locomotion for winged rigs**: forge_dragon_young / forge_griffon ship folded-wing,
@@ -330,3 +428,223 @@ gentle (bottom -0.22, not anyCreature's -0.88) so the engine's own contrast does
 - **MonsterRegistry had no loader call anywhere**: fixed as a lazy load inside the
   spawn_encounter handler — a proper boot-time load (WorldInitializer) would also serve
   hand-keyed turn-based combats whose acting id happens to equal a stat-block id.
+
+## 2026-08-26 - CityForge baseline gaps (logged at M0, docs/CityForgePlan.md)
+
+- **Residents job counter regression**: seed-7 city build (SettlementTest, 160x160, Release)
+  reported `residents: {planned: 28, spawned: 0}` in the job result while 28 resident NPCs
+  were live in the world (outliner + Entities count). The counter was made "shape-robust"
+  2026-08-18; something has re-broken the spawned tally for the sync-world path. Cosmetic but
+  it is exactly the kind of always-zero ledger the displaced-voxels lesson warns about.
+- **Secondary streets host no frontages**: planCityLayout allocates burgage rows only on the
+  main + cross axes; every block interior is empty grass, which is the single biggest reason
+  a 160x160 "city" reads as a spread-out village. Secondary-street infill rows are the real
+  density lever (after tenement typology exists).
+- **MCP get_job_status false "No game project is loaded"**: the running engine had
+  SettlementTest loaded (engine_running agreed) yet the MCP tool refused; HTTP /api/jobs
+  works. Drive jobs over HTTP until fixed.
+- **Typology glut at city tier**: seed 7 drew 7 taverns / 5 blacksmiths out of 33 buildings
+  (weights alone, no per-typology cap). A city should not be 21% taverns; wants a max-share
+  cap in the draw (CityForgePlan M3).
+
+## 2026-08-27 - CityForge user-feedback backlog (docs/CityForgePlan.md)
+
+- **Floating foliage after settlement builds**: leftover canopy/trunk pieces hang in the air
+  around cleared plots and streets (parcel clearing + road-corridor felling remove cells in
+  their own bands; a tree whose trunk sat inside the band leaves its overhanging canopy
+  orphaned in the air outside it). Fix shape: felling must remove the CONNECTED tree
+  (flood Log*->Leaf* from the removed trunk), not just the cells inside the corridor.
+- **Elevation handling**: settlement placement wants gentle-hill tolerance - flatten only where
+  a pad/street needs it and keep surrounding relief (today's terrain mode reads flat/terraced).
+- **Interior light bleed**: placed interior point lights illuminate through walls; exterior
+  walls read bright at night. Engine-level: lights have no voxel occlusion (blocklight Phase 2
+  / shadowed point lights are the fix; see project_lighting_overhaul).
+- **Business signs missing in settlements**: user reports no trade signs on built-city shops.
+  sign_item exists only for tavern; the other 5 trades are the open asset_requests rows.
+  ALSO verify the settlement build path actually reaches planSignMount.
+
+## 2026-08-27 - pre-existing red: ForgeGateTeeth.AllowInvalidSkipsProgramGateEnforcement
+
+Deterministic failure on Release at commit 2e02c019 AND with pre-CityForge
+FurnitureCatalog + data files (A/B'd): an allow_invalid build refuses at REALIZE
+("chimney from the fireplace in 'kitchen' would rise through the middle of
+room 'chamber_1' on story 1"), where the test expects allow_invalid to defer the
+program-gate error and reach later gates. NOT caused by the sign/fence/density
+work (verified by stash A/B). Likely a hearth-siting drift from an earlier
+committed session; needs its own bisect. The rest of the 18-suite forge sweep
+(129 tests) is green.
+
+## 2026-08-27 - SignMount v2 punts (CityForgePlan M3d)
+
+- **Swinging signs**: user wants projecting boards to hang LOOSELY and swing from collisions.
+  Item props are fixed kinematic bodies; KinematicAnimator has hinge parts but no physics
+  coupling, and VoxelDynamicsWorld has no constraint type for a hinged fixed prop. Needs a
+  hinge-constraint feature before signs (or lanterns, chains) can dangle.
+- **Flush boards vs windows**: the world probe sees AIR at a window opening, so an over-door
+  flush board could in principle cover a window hole (beside-door poses are probe-gated but
+  air-blind the same way). A window-aware check needs the AssemblyPlan portals, not occupancy.
+- **KinematicVoxelManager x-axis surface faces (2/3)** were left on the legacy mapping - no
+  x-axis-projected assets exist; fix like case 1 (opposite-slice reversed) when one appears.
+
+## 2026-08-27 - M4 tenement findings
+
+- **PlacedObject metadata carries no `typology`**: assembly_plan.plan has corners/walls/roof/
+  stairs/etc but not the typology that produced it, so "what did this city actually build?"
+  can only be answered from the forge LOG or from resident-NPC ids (res_<typology>_<x>_<z>).
+  A typology field on the structure's metadata would make live composition auditable.
+- **New typologies must be added to `locationTypeForTypology`** (StructureRealizer.cpp) or they
+  derive as Custom locations and get NO residents - silent, since the build itself succeeds.
+  Hit by `tenement` (0 residents until fixed). A data-driven map (room_program `location_type`)
+  would remove the hidden C++ coupling; logged rather than done.
+- **Residents `spawned` counter still reports 0** while residents ARE live (69 planned / 69
+  live / counter 0). Second sighting; the counter reads a shape the sync path doesn't fill.
+
+## 2026-08-27 - orphaned-canopy sweep: what it does NOT cover
+
+The sweep (FloraSweep.h, settlement unit "clearing orphaned canopy") closes the
+floating-foliage class for SETTLEMENT builds. Still open:
+
+- **Other clearers do not sweep**: single `build_structure` pads, `clear_region`, and the
+  destruction path can each orphan canopy with no sweep behind them. The planner is generic
+  (pure, probe-driven) - wiring it into those paths is a small follow-up each.
+- **A tree taller than the scan band is skipped**: the box tops out at maxGround+44, and a
+  component touching the box shell is deliberately left alone (support unknown). A redwood
+  whose crown exceeds the band therefore never sweeps. Conservative and honest, but it means
+  very tall species can still leave floaters.
+- **Site prep still deletes healthy trees wholesale**: parcel clearing wipes plots + margin 4
+  (measured 8640 cells for a 2-plot hamlet), which is what removed the L4 control tree before
+  the sweep ran. Separate concern from orphans; a "fell whole trees, do not slice them" pass
+  would be the real fix for the look.
+
+## 2026-08-27 - M5 town_hall: what the engine refused, and what is owed
+
+- **Civic hall ships HEARTHLESS - USER-SETTLED 2026-08-28** ("we can skip a fireplace in the town
+  hall"): the town hall needs no fix. The underlying siting limit still applies to OTHER
+  typologies, so it stays logged below. A ground-floor hearth's stack rises
+  through the middle of the council chamber above, and the realizer's flue gate refuses it
+  ("no silent lean"). Correct gate, real limitation. OWED: hearth siting that prefers a stack
+  landing on an upper-room WALL (it already reserves stack columns; it does not yet score
+  candidate hearth poses by what the stack hits upstairs). Same family as the pre-existing
+  ForgeGateTeeth.AllowInvalidSkipsProgramGateEnforcement red.
+- **Not modelled vs the archetype sheet** (disclosed in room_program sources, never faked):
+  the OPEN ARCADE ground floor (no open-story/column mechanism in the realizer), the bell
+  turret, the lock-up cell.
+- **No civic PLOT reservation**: the moot hall reaches the market place only by being drawn
+  from the core-ring palette with a cap of 1. A reserved civic plot fronting the square is the
+  better form (and would let the hall face the place deliberately).
+- **Typology cannot request a STYLE**: the town hall draws its style from the same independent
+  hash as every dwelling, so it can come up timber. A civic typology wanting ashlar has no way
+  to say so.
+
+## 2026-08-28 - town wall (M7) v1 limits
+
+- **The circuit is a RECTANGLE**: the band follows the site rect + margin, not the terrain or
+  the built extent. On sloping ground it will step with the terrain (each column seats on its
+  own surface) but it will not follow a contour, and it encloses the whole rect including empty
+  fringe. A hull around the actual built area is the better form.
+- **No wall-walk ACCESS**: thickness 2 gives a walkable top, but nothing reaches it - stairs or
+  a tower door are owed before the allure is usable.
+- **Gatehouses are openings, not buildings**: a gate is a lintel bridging the passage. No gate
+  towers, no doors, no portcullis.
+- **Wall vs the WorldForge road**: gates align with the SETTLEMENT's streets. An arriving
+  inter-settlement road that does not line up with a street will meet wall, not gate.
+- **Castle / keep precinct** (user-asked): not started.
+
+## 2026-08-28 - PROVENANCE AUDIT of the wall (user challenge) - two real defects found
+
+The user asked for proof the wall is a deterministic procedural feature, not hand-placement.
+Audit method: (1) enumerate every call site of the planner - exactly ONE production caller,
+the settlement pipeline; (2) confirm the walled city's world edits were only generate_world +
+build_settlement (no place_voxel/fill_region/spawn_template anywhere in the region); (3) build
+the SAME city (same seed/params) at two different origins and diff the wall cell-for-cell.
+
+Check (3) FAILED at first, and found a real defect each time:
+- **Flora punched holes in the circuit.** StructureGenerator::place does not overwrite an
+  occupied cell, so a tree standing on the wall line silently cost that cell - two identical
+  cities differed by exactly the cells where flora stood (e.g. a missing merlon at a z where
+  two Log cells sat). FIXED: the wall unit now CLEARS its line before stamping, like the
+  street grader clears its corridor. Re-run: both cities logged an identical
+  "8770 cubes, 10 gates, 4 towers, line cleared 10688, displaced 348", and a 1741-cell scan
+  of each west wall diffed to ZERO differences.
+- **Gate centring was not translation-invariant.** `(lo+hi)/2` truncates toward zero, so a
+  settlement at negative coordinates put its gates one cube off from an identical settlement
+  at positive ones. FIXED with a flooring midpoint; pinned by
+  TownWallTest.ThePlanIsTranslationInvariant (which is what caught it).
+
+LESSON worth generalising: "deterministic" needs BOTH halves proven - the plan is a pure
+function (unit test, translation-invariant), AND the stamping owns its cells (live A/B at two
+origins). Any future placer that writes into terrain should get the same two-part treatment;
+a plan-only determinism test would have passed while the world quietly differed.
+
+## 2026-08-28 - M8 tower house: three real fixes, and a harness trap that cost the most
+
+Building the keep form surfaced three genuine engine gaps, all fixed:
+- **Upper floors were always the INN plan.** generateUpperChambers (gallery + chambers) was the
+  only auto layout, so a TOWER - stacked single rooms, the defining form - got a gallery its
+  short length cannot carry. Typologies can now declare `upper_plan: "single"`.
+- **`upper_purpose` is one value for every floor.** A tower is store -> hall -> chamber; with
+  every upper floor private the circulation gate correctly refused chamber-through-chamber.
+  Typologies can now declare `upper_purposes: [...]` per floor.
+- **The entrance could open INTO the stair shaft.** stairWellRect insets only the foot, so the
+  well hugs one wall for most of its length; on a SHORT building the centred exterior door
+  landed inside the shaft, the building could not be entered, and every upper floor reported
+  "unreachable" while the stair was built correctly. The tavern escapes by one cube (door z=8,
+  well z1-7), which is why it was never seen. keepEntranceClearOfStairs moves a COLLIDING door
+  only, so existing plans are untouched (parity digests green).
+
+**THE TRAP (cost more than all three): `/api/structure/build` takes `stories` as an ARRAY of
+story objects, `[{"height":3}]`, not an integer.** Passing `"stories": 3` yields a degenerate
+program whose upper floors are unreachable - and the failure looks exactly like a geometry bug.
+The settlement path always passes the array, which is why tenements build in cities but the
+same typology "failed" from a hand-written direct call. When a direct build fails a gate that
+the settlement passes, DIFF THE PARAMS against SettlementBuildService makeBp before diagnosing
+the engine. Verified by building the same tower with the settlement's param shape: clean.
+
+## 2026-08-28 - tower tops: a roof needs a room under it (user)
+
+Round drum towers + two attested tops shipped (TownWallSpec tower_shape / tower_cap):
+- **Round is the curtain-wall default**, grounded on Conwy's 21 drum towers - the same source
+  the wall spec already cited while building SQUARE corner towers. A tower HOUSE stays
+  rectangular; that is a different building and was already correct.
+- **Parapet (English/Welsh) vs conical "pepperpot" (French/German)** is a regional split
+  expressed as data, not a taste call: Conwy/Caernarfon/Beaumaris vs Carcassonne/the Loire.
+- **USER RULE, now enforced: if a character cannot stand under it, it is not a roof.** The
+  first cone sat straight on a SOLID drum - a stone point on a lump. Under a cone the drum's
+  top is now hollow (rim = chamber wall, interior stops short), giving a measured 3-cube /
+  27-micro chamber against the engine's 16-micro agent box. Verified by scanning the tower's
+  centre column live: solid y17-23, AIR y24-26, slate cone y27-31.
+- The cone also rises 2 courses per inward step, so it stands about as tall as it is wide; a
+  one-course-per-step cone measured as a stubby cap and read as a stone lid.
+
+STILL OWED on towers: no ACCESS to the chamber or the wall-walk (no stair, no door) - the room
+under the cone is real but unreachable, which is the next thing to fix; the parapet tower is
+still solid below its deck; no arrow loops.
+
+## 2026-08-28 - the mural tower became a STRUCTURE (user: "not a dumb pile of voxels")
+
+TowerForge (core/TowerForge.{h,cpp}) plans a tower that works: hollow shaft, spiral stair,
+floors, doorway, arrow loops, fighting deck. The ACCEPTANCE TEST is a TraversalProbe walking
+in the door and climbing to the top chamber - not a screenshot, not a cell count - with a
+sensitivity control that must FAIL when the stair is deleted.
+
+Four defects the probe found, none of which a screenshot would have shown:
+1. **A cube stair is scenery.** The agent steps up 4 micro; a cube is 9. Treads are SUBCUBE
+   plates rising 3. This is the whole reason the stair is sub-voxel.
+2. **A tread flush with the floor still blocks**: a plate at y=3 has its surface at 6, a
+   6-micro lip. The ground storey is floored (surface 3) and the first tread sits at 3.
+3. **The door opened onto the side of the stair.** Winding the spiral from an arbitrary angle
+   put a tread that had already climbed 9 micro directly inside the doorway - the probe never
+   got in (flooded 3558 cells, all at y=0, i.e. it was circling OUTSIDE). The flight now
+   starts AT the door, which is what a newel stair does anyway.
+4. **A discrete circle's ring takes DIAGONAL steps at its corners** and the agent only walks
+   orthogonally: the climb died at (5,1)->(6,2), stuck at y=15. Diagonals are now bridged with
+   the interior cell orthogonally adjacent to both, giving a genuinely 4-connected flight.
+
+Sizing is a REFUSAL, not a fudge: a 6-cube drum reports "the stair consumed the whole interior
+- no room to arrive in" and falls back to solid WITH a warning. 9 cubes (Conwy's own ~9 m
+scale) is the smallest that holds wall + stair + room. The build reports towers_walkable so a
+solid fallback can never be mistaken for a working tower.
+
+STILL OWED: the tower's door is not connected to the wall-walk or the street door-to-door (you
+can enter from outside, but the parapet walk above the curtain has no stair); no floors/ladder
+in the tower_house yet (that typology's battlements flag is still unconsumed).

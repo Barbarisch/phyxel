@@ -59,6 +59,12 @@ public:
     float getBloomIntensity() const { return m_bloomIntensity; }
     float getBloomThreshold() const { return m_bloomThreshold; }
     float getBloomKnee() const { return m_bloomKnee; }
+    /// Blur width multiplier. 1.0 = shipped. Live A/B for the blotching diagnosis.
+    void  setBloomRadiusScale(float s) { m_bloomRadiusScale = (s > 0.0f) ? s : 1.0f; }
+    float getBloomRadiusScale() const { return m_bloomRadiusScale; }
+    /// Firefly clamp multiplier. 8 = shipped; a huge value disables the clamp entirely.
+    void  setBloomClampMul(float c) { m_bloomClampMul = (c > 0.0f) ? c : 8.0f; }
+    float getBloomClampMul() const { return m_bloomClampMul; }
 
     void compositeToGrade(VkCommandBuffer commandBuffer);
     void drawBlit(VkCommandBuffer commandBuffer);
@@ -180,7 +186,12 @@ private:
     uint32_t bloomHeight() const { return (height / kBloomDownscale) > 0 ? (height / kBloomDownscale) : 1u; }
 
     // Must match the PushConstants block in blur.frag.
-    struct BlurPush { int horizontal; float threshold; float knee; };
+    // `radiusScale` multiplies the gaussian's texel offsets, so the blur can be widened at runtime
+    // without resizing the bloom buffers. It exists to TEST the blotching hypothesis live: the
+    // chain is 5 passes per axis of a 9-tap gaussian at half res, which composes to sigma ~3.8
+    // texels ~ 7.6 screen px. A ~15 px halo cannot read as a glow — every bright thing keeps its
+    // shape and becomes a SPOT. 1.0 = shipped behaviour.
+    struct BlurPush { int horizontal; float threshold; float knee; float radiusScale; float clampMul; };
 // ⛔ BLOOM IS BROKEN -- DO NOT ENABLE. Confirmed by the user 2026-08-15: at any visible intensity it
 // produces SPOTS/BLOTCHES across the frame rather than a smooth glow. Default is 0 (off) and it must
 // stay that way until fixed.
@@ -198,6 +209,8 @@ private:
     float m_bloomThreshold = 1.0f;
     float m_bloomKnee = 0.5f;
     float m_bloomIntensity = 0.0f;  // DEFAULT OFF and MUST STAY OFF -- see the banner above
+    float m_bloomRadiusScale = 1.0f;  // 1.0 = shipped blur width; see BlurPush::radiusScale
+    float m_bloomClampMul = 8.0f;     // firefly clamp; see BlurPush::clampMul
 
     // Post Process Resources
     VkRenderPass postProcessRenderPass = VK_NULL_HANDLE;

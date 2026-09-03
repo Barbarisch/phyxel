@@ -91,6 +91,11 @@ std::string canonicalPurpose(const std::string& purpose) {
     auto has = [&](const char* k) { return p.find(k) != std::string::npos; };
     if (has("taproom") || has("tap"))                          return "taproom";
     if (has("kitchen"))                                        return "kitchen";
+    // HEARTHLESS HALL before the generic checks: "council_hall"/"moot_chamber"/"tower_hall"
+    // contain "hall"/"chamber" and would otherwise fall into the dwelling recipes (which
+    // carry a fireplace — see the recipe for why these rooms cannot).
+    if (has("council") || has("civic") || has("moot") || has("tower_hall"))
+        return "hearthless_hall";
     if (has("bed") || has("chamber") || has("solar"))          return "bedchamber";
     if (has("hall") || has("living") || has("great"))          return "hall";
     if (has("forge") || has("smith") || has("anvil"))          return "forge";
@@ -109,6 +114,14 @@ std::vector<Piece> hardcodedRecipeFor(const std::string& canon) {
     if (canon == "kitchen")    return {{"counter", false}, {"fireplace", false}, {"stool", false}};
     if (canon == "bedchamber") return {{"bed", false}, {"chest", false}, {"stool", false}, {"wardrobe", false}, {"rug", true}};
     if (canon == "hall")       return {{"fireplace", false}, {"table", true}, {"bench", false}, {"chair", false}};
+    // HEARTHLESS HALL — a board, benches, a chair, a chest, a light. Used by the town hall's
+    // council rooms and by a tower house's hall. The missing hearth is a REFUSAL, not taste:
+    // the flue gate (StructureRealizer, "no silent lean") turns down a stack that would rise
+    // through the middle of the single room above, which is what both of these buildings have.
+    // TWO typologies now want a hearth they cannot route, so the owed fix — hearth siting that
+    // prefers a stack landing on an upper-room WALL — is logged in StructurePipelineGaps.
+    if (canon == "hearthless_hall")
+        return {{"table", true}, {"bench", false}, {"chair", false}, {"chest", false}, {"candle_stand", false}};
     if (canon == "forge")      return {{"forge_hearth", false}, {"anvil", true}, {"bellows", false}, {"tool_rack", false}, {"barrel", false}};
     if (canon == "bakehouse")  return {{"oven_bread", false}, {"counter", false}, {"barrel", false}};
     if (canon == "shambles")   return {{"counter", false}, {"chopping_block", true}, {"meat_rail", false}, {"barrel", false}};
@@ -282,8 +295,8 @@ std::vector<FurniturePlacement> FurniturePlacer::placeSurfaceClutter(
 
 std::vector<std::string> FurniturePlacer::knownPurposes() {
     // One representative per recipe branch in recipeFor(); their union is the full vocabulary.
-    return {"taproom", "kitchen", "bedchamber", "hall", "store", "forge", "salesroom", "bakehouse",
-            "dispensary", "shambles", "other"};
+    return {"taproom", "kitchen", "bedchamber", "hall", "hearthless_hall", "store", "forge", "salesroom",
+            "bakehouse", "dispensary", "shambles", "other"};
 }
 
 std::vector<FixtureLabel> FurniturePlacer::labelFixtures(
