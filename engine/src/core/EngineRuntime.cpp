@@ -1,4 +1,5 @@
 #include "core/EngineRuntime.h"
+#include <algorithm>
 #include "core/GameCallbacks.h"
 #include "core/AssetManager.h"
 #include "core/WorldInitializer.h"
@@ -186,6 +187,12 @@ void EngineRuntime::run(GameCallbacks& game) {
             }
             game.onMenuSceneLoaded(*this, sceneDef.id);
         };
+        // Synthetic input must not survive a scene change: a held walk key injected by
+        // a harness before the transition would otherwise drive the freshly spawned
+        // character through the first (long) frames of the new scene (G-81).
+        cbs.onTransitionBegin = [this]() {
+            if (inputManager_) inputManager_->releaseAllInjected();
+        };
         cbs.onSceneReady = [this, &game](const std::string& sceneId) {
             // Leaving a menu scene — unload the renderer
             const auto* active = sceneManager_->getActiveScene();
@@ -297,6 +304,9 @@ void EngineRuntime::quit() {
 // Manual frame control
 // ============================================================================
 
+// Longest simulation step one frame may take (matches the editor's MAX_DELTA).
+static constexpr float kMaxFrameDelta = 0.25f;
+
 float EngineRuntime::beginFrame() {
     performanceProfiler_->startFrame();
 
@@ -311,6 +321,11 @@ float EngineRuntime::beginFrame() {
     double currentTime = glfwGetTime();
     float dt = static_cast<float>(currentTime - lastFrameTime_);
     lastFrameTime_ = currentTime;
+    // Clamp the step exactly as the editor loop does (Application MAX_DELTA): a stall
+    // (scene load, NavGraph build behind the loading screen, a debugger break) must not
+    // be replayed as seconds of simulation in one frame - the shipped Ravenmere build
+    // handed a ~7 s delta to every subsystem after a scene re-entry (G-81).
+    dt = std::min(dt, kMaxFrameDelta);
     lastDeltaTime_ = dt;
 
     timer_->update();

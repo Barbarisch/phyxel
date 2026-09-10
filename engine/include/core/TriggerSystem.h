@@ -80,6 +80,16 @@ public:
     nlohmann::json listTriggers() const;
     size_t count() const { return m_triggers.size(); }
 
+    /// Region triggers as (id, region json {from,to}) - the anchors a load-time
+    /// self-check paths to (WorldHealth). Fired ones included; the caller decides.
+    std::vector<std::pair<std::string, nlohmann::json>> regionTriggers() const {
+        std::vector<std::pair<std::string, nlohmann::json>> out;
+        for (const auto& t : m_triggers)
+            if (t.event == "entity_reached_region" && t.when.contains("region"))
+                out.emplace_back(t.id, t.when["region"]);
+        return out;
+    }
+
     /// Load a game definition's "triggers" array. Returns how many were added.
     int loadFromJson(const nlohmann::json& triggersArray);
 

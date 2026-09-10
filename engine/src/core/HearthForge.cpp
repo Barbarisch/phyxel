@@ -1,4 +1,5 @@
 #include "core/HearthForge.h"
+#include "core/FurniturePlacer.h"
 
 #include <algorithm>
 #include <climits>
@@ -212,6 +213,134 @@ int HearthForge::siteIntoProgram(ProgStory& story,
         story.fixtures.push_back(f);
     }
     return static_cast<int>(sited.size());
+}
+
+bool HearthForge::stackCrossesUpperRoomMiddle(const Rect& sc, const BuildingProgram& program,
+                                              int story, std::string* which) {
+    for (size_t si = static_cast<size_t>(story) + 1; si < program.stories.size(); ++si)
+        for (const auto& rm : program.stories[si].rooms) {
+            const int ox0 = std::max(sc.x, rm.rect.x), ox1 = std::min(sc.x1(), rm.rect.x1());
+            const int oz0 = std::max(sc.z, rm.rect.z), oz1 = std::min(sc.z1(), rm.rect.z1());
+            if (ox1 <= ox0 || oz1 <= oz0) continue;              // does not cross this room
+            // Against a wall is fine - and so is the first cube in from it: a thick
+            // exterior wall (stone, 0.667 m) pushes the flue of a hearth that backs
+            // onto it into cube 1, which reads as a chimney BREAST along that wall,
+            // not a column through the floor (Ravenmere lot 3: refused on the
+            // upstairs landing for exactly this one-cube offset).
+            constexpr int kBreastBand = 1;
+            if (ox0 <= rm.rect.x + kBreastBand || ox1 >= rm.rect.x1() - kBreastBand ||
+                oz0 <= rm.rect.z + kBreastBand || oz1 >= rm.rect.z1() - kBreastBand) continue;
+            if (which) *which = rm.id + " on story " + std::to_string(si);
+            return true;
+        }
+    return false;
+}
+
+int HearthForge::siteAllStories(BuildingProgram& program,
+                                const std::map<std::string, Footprint>& footprints,
+                                int extTMicro, int intTMicro, const std::string& wealthTier,
+                                std::vector<std::string>* notes) {
+    constexpr int kMaxResiteAttempts = 8;
+    int sited = 0;
+    // Stories in order, ACCUMULATING each stack's column: an upstairs hearth may not be
+    // sited on top of the stack rising from the one below it. Mirrors
+    // FurniturePlacer::planReservedRects exactly.
+    std::vector<Rect> stacksBelow;
+    for (size_t si = 0; si < program.stories.size(); ++si) {
+        ProgStory& st = program.stories[si];
+        std::vector<Rect> reserved = stairRectsForStory(program, static_cast<int>(si));
+        reserved.insert(reserved.end(), stacksBelow.begin(), stacksBelow.end());
+
+        int sx0 = INT_MAX, sz0 = INT_MAX, sx1 = INT_MIN, sz1 = INT_MIN;
+        std::map<std::string, Rect> rooms;
+        for (const auto& rm : st.rooms) {
+            rooms[rm.id] = rm.rect;
+            sx0 = std::min(sx0, rm.rect.x);   sz0 = std::min(sz0, rm.rect.z);
+            sx1 = std::max(sx1, rm.rect.x1()); sz1 = std::max(sz1, rm.rect.z1());
+        }
+        const Rect stFootprint{sx0, sz0, sx1 - sx0, sz1 - sz0};
+
+        int count = 0;
+        int baseline = -1;                       // hearths the unblotted siting produced
+        std::vector<ProgFixture> lastGood;       // the previous attempt's fixtures
+        for (int attempt = 0; attempt < kMaxResiteAttempts; ++attempt) {
+            count = siteIntoProgram(st, footprints, extTMicro, intTMicro, reserved, wealthTier);
+            if (baseline < 0) baseline = count;
+            if (count < baseline) {
+                // The blots left the placer no wall for it and it DROPPED the hearth. A lost
+                // hearth is a silent failure; a stack the realizer refuses is a loud one.
+                // Keep the previous siting and say so.
+                st.fixtures = lastGood;
+                count = baseline;
+                if (notes)
+                    notes->push_back("hearth re-siting on story " + std::to_string(si) +
+                                     " would LOSE the hearth - kept the previous spot; the "
+                                     "realizer will refuse this program if its stack still "
+                                     "rises through a room above");
+                break;
+            }
+            lastGood = st.fixtures;
+            std::vector<Rect> blots;
+            for (const auto& fx : st.fixtures) {
+                if (!isVented(fx.type)) continue;
+                auto it = rooms.find(fx.room);
+                if (it == rooms.end()) continue;
+                const Rect stack = poseOf(fx, it->second, stFootprint, extTMicro, intTMicro).stackCubes;
+                std::string which;
+                if (!stackCrossesUpperRoomMiddle(stack, program, static_cast<int>(si), &which)) continue;
+                // Forbid this spot (and its neighbours along both axes) and let the heavy pass
+                // find another wall for it. A hearth on the same partition one cell over would
+                // cross the same chamber, so the blot is deliberately wider than the footprint.
+                blots.push_back(Rect{fx.rect.x - 2, fx.rect.z - 2, fx.rect.w + 4, fx.rect.d + 4});
+                if (notes)
+                    notes->push_back("hearth '" + fx.type + "' in '" + fx.room + "' at (" +
+                                     std::to_string(fx.rect.x) + "," + std::to_string(fx.rect.z) +
+                                     ") would rise through the middle of " + which +
+                                     " -> re-siting (attempt " + std::to_string(attempt + 1) + ")");
+            }
+            if (blots.empty()) break;
+            reserved.insert(reserved.end(), blots.begin(), blots.end());
+            if (attempt == kMaxResiteAttempts - 1 && notes)
+                notes->push_back("hearth re-siting EXHAUSTED on story " + std::to_string(si) +
+                                 " - the realizer will refuse this program");
+        }
+        sited += count;
+
+        for (const auto& fx : st.fixtures) {
+            if (!isVented(fx.type)) continue;
+            auto it = rooms.find(fx.room);
+            if (it == rooms.end()) continue;
+            stacksBelow.push_back(poseOf(fx, it->second, stFootprint, extTMicro, intTMicro).stackCubes);
+            // The chimney breast DISPLACES any window on the wall it backs onto (the furnish
+            // pass let the vented piece take window cells for exactly this reason): drop
+            // the exterior window portals whose span overlaps the hearth along that wall,
+            // so the realizer never cuts a window into masonry.
+            const glm::ivec3 bd = FurniturePlacer::backDirFor(it->second, fx.rect);
+            const Rect& rm = it->second;
+            auto& portals = st.portals;
+            const size_t before = portals.size();
+            portals.erase(std::remove_if(portals.begin(), portals.end(), [&](const ProgPortal& po) {
+                if (po.kind != "window") return false;
+                if (po.a != "exterior" && po.b != "exterior") return false;
+                const int w = std::max(1, po.width);
+                if (bd.x != 0) {                                    // backs an x-wall
+                    const int coord = bd.x < 0 ? rm.x : rm.x1();
+                    if (po.px != coord) return false;
+                    return po.pz < fx.rect.z + fx.rect.d && fx.rect.z < po.pz + w;
+                }
+                if (bd.z != 0) {                                    // backs a z-wall
+                    const int coord = bd.z < 0 ? rm.z : rm.z1();
+                    if (po.pz != coord) return false;
+                    return po.px < fx.rect.x + fx.rect.w && fx.rect.x < po.px + w;
+                }
+                return false;
+            }), portals.end());
+            if (notes && portals.size() != before)
+                notes->push_back("hearth '" + fx.type + "' in '" + fx.room + "' displaced " +
+                                 std::to_string(before - portals.size()) + " window(s) on its wall");
+        }
+    }
+    return sited;
 }
 
 HearthForge::Pose HearthForge::poseOf(const ProgFixture& fx, const Rect& room,

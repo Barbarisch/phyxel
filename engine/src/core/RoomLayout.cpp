@@ -234,10 +234,46 @@ RoomLayout generateRoomLayoutFromProgram(int W, int D, const RoomProgram& typolo
                 out.portals.push_back(b);
             }
         } else {
-            if (r0.x == 0)         { e.px = 0; e.pz = r0.z + r0.d / 2; out.portals.push_back(e); }
-            else if (r0.z == 0)    { e.px = r0.x + r0.w / 2; e.pz = 0; out.portals.push_back(e); }
-            else if (r0.x1() == W) { e.px = W; e.pz = r0.z + r0.d / 2; out.portals.push_back(e); }
-            else if (r0.z1() == D) { e.px = r0.x + r0.w / 2; e.pz = D; out.portals.push_back(e); }
+            // No grounded entrance wall for this typology (tavern, shops, hall...). The door
+            // must still face the STREET: the settlement plans its paving spur and door
+            // anchor at the front wall's midpoint, and a door on the rear wall opens into
+            // the toft where the yard props live (Ravenmere G-64: the tavern's only door
+            // faced the back garden; every commercial building was enterable only from
+            // behind). Prefer the room that spans the front wall's midpoint, then any room
+            // touching the front wall; only without a usable hint fall back to the legacy
+            // perimeter-first pick on room 0 (correct for narrow burgage frontages).
+            bool placed = false;
+            if (front == "x0" || front == "x1" || front == "z0" || front == "z1") {
+                const bool onX = (front[0] == 'x');
+                const int coord = (front[1] == '0') ? 0 : (onX ? W : D);
+                const int mid = onX ? D / 2 : W / 2;
+                auto touches = [&](const Rect& r) {
+                    return onX ? ((coord == 0 ? r.x == 0 : r.x1() == W))
+                               : ((coord == 0 ? r.z == 0 : r.z1() == D));
+                };
+                auto spansMid = [&](const Rect& r) {
+                    return onX ? (mid >= r.z && mid < r.z1()) : (mid >= r.x && mid < r.x1());
+                };
+                const ProgRoom* pick = nullptr;
+                for (const auto& room : out.rooms)
+                    if (touches(room.rect) && spansMid(room.rect)) { pick = &room; break; }
+                if (!pick)
+                    for (const auto& room : out.rooms)
+                        if (touches(room.rect)) { pick = &room; break; }
+                if (pick) {
+                    e.b = pick->id;
+                    if (onX) { e.px = coord; e.pz = spansMid(pick->rect) ? mid : pick->rect.z + pick->rect.d / 2; }
+                    else     { e.pz = coord; e.px = spansMid(pick->rect) ? mid : pick->rect.x + pick->rect.w / 2; }
+                    out.portals.push_back(e);
+                    placed = true;
+                }
+            }
+            if (!placed) {
+                if (r0.x == 0)         { e.px = 0; e.pz = r0.z + r0.d / 2; out.portals.push_back(e); }
+                else if (r0.z == 0)    { e.px = r0.x + r0.w / 2; e.pz = 0; out.portals.push_back(e); }
+                else if (r0.x1() == W) { e.px = W; e.pz = r0.z + r0.d / 2; out.portals.push_back(e); }
+                else if (r0.z1() == D) { e.px = r0.x + r0.w / 2; e.pz = D; out.portals.push_back(e); }
+            }
         }
     }
     return out;

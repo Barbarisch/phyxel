@@ -45,7 +45,15 @@ void TriggerSystem::update(float dt, const PositionResolver& resolvePos) {
             glm::vec3 pos;
             if (!resolvePos(entity, pos)) { t.wasInside = false; continue; }
             const bool inside = t.when.contains("region") && regionContains(t.when["region"], pos);
-            if (inside && !t.wasInside) fire(t);
+            if (inside && !t.wasInside) {
+                // The position that satisfied the region is the evidence a playtest needs
+                // (Ravenmere run 37: the harness read the player 1.3 m outside the hatch
+                // region when 'to_cellar' fired - which entity/position the trigger saw
+                // could not be told from the log).
+                LOG_INFO("TriggerSystem", "Trigger '{}' region entered by '{}' at ({}, {}, {})",
+                         t.id, entity, pos.x, pos.y, pos.z);
+                fire(t);
+            }
             t.wasInside = inside;
         }
     }

@@ -1,4 +1,5 @@
 #include "core/GameApiService.h"
+#include "ui/DialogueSystem.h"
 
 #include "core/APICommandQueue.h"
 #include "core/CommandRegistry.h"
@@ -70,6 +71,7 @@ static const char* screenStateStr(UI::ScreenState s) {
         case S::Loading:          return "loading";
         case S::Victory:          return "victory";
         case S::Credits:          return "credits";
+        case S::GameOver:         return "game_over";
     }
     return "unknown";
 }
@@ -230,6 +232,42 @@ void GameApiService::registerCommands() {
         r = {{"id", id}, {"has_health", true},
              {"health", hc->getHealth()}, {"max_health", hc->getMaxHealth()},
              {"alive", hc->isAlive()}};
+    });
+
+    // POST /api/rpg/dialogue_state — what the player sees in the dialogue box: state,
+    // speaker, node id, full text, and the VISIBLE choices (after conditions) with their
+    // indices. A harness choosing options by blind index picked the wrong branch the moment
+    // a gate changed (Ravenmere run 12: "tracks" instead of "relic") — G-47.
+    reg.on("dialogue_state", [this](const APICommand&, json& r) {
+        if (!dialogueSystem) { r = {{"error", "DialogueSystem not available"}}; return; }
+        const auto st = dialogueSystem->getState();
+        const char* stName = "inactive";
+        switch (st) {
+            case UI::DialogueState::Typing:               stName = "typing"; break;
+            case UI::DialogueState::WaitingForInput:      stName = "waiting_for_input"; break;
+            case UI::DialogueState::ChoiceSelection:      stName = "choice_selection"; break;
+            case UI::DialogueState::AITextInput:          stName = "ai_text_input"; break;
+            case UI::DialogueState::AIWaitingForResponse: stName = "ai_waiting"; break;
+            default: break;
+        }
+        json choices = json::array();
+        int idx = 0;
+        for (const auto& c : dialogueSystem->getAvailableChoices())
+            choices.push_back({{"index", idx++}, {"text", c.text}, {"target", c.targetNodeId},
+                               {"skill_check", c.skillCheckJson.is_object()}});
+        r = {{"active", dialogueSystem->isActive()}, {"state", stName},
+             {"speaker", dialogueSystem->getCurrentSpeaker()}, {"node", dialogueSystem->getCurrentNodeId()},
+             {"text", dialogueSystem->getCurrentText()}, {"choices", choices}};
+    });
+
+    // The load-time self-check (WorldHealth, WalkabilityGateAndPlaytestLoop layer B):
+    // reachable anchors from the spawn + terrain under the spawn, as of the last scene ready.
+    reg.on("world_health", [this](const APICommand&, json& r) {
+        if (!worldHealthProvider) { r = {{"error", "no WorldHealth provider"}}; return; }
+        json rep = worldHealthProvider();
+        if (rep.is_null()) { r = {{"error", "no WorldHealth report yet (no world scene ready)"}}; return; }
+        r = rep;
+        r["success"] = true;
     });
 
     reg.on("list_triggers", [this](const APICommand&, json& r) {
@@ -733,17 +771,52 @@ void GameApiService::registerCommands() {
         else      r = {{"x", x}, {"z", z}, {"walkable", false}, {"message", "Cell not in grid"}};
     });
 
-    reg.on("navgrid_path", [this](const APICommand& cmd, json& r) {
+    // The 3D NavGraph route - what NPCs actually walk (the navgrid_path below is the
+    // legacy 2.5D grid the harness used to steer with; it reads the topmost voxel as the
+    // floor and cannot enter a building - Ravenmere G-60). Same shape as the editor's.
+    reg.on("navgraph_path", [this](const APICommand& cmd, json& r) {
         if (!npcManager) { r = {{"error", "NPCManager not available"}}; return; }
-        if (!npcManager->getNavGrid()) npcManager->buildNavGrid();  // lazy build (see navgrid_cell)
-        if (!npcManager->getPathfinder()) { r = {{"error", "Pathfinder not available"}}; return; }
-        int x1 = cmd.params.value("x1", 0), z1 = cmd.params.value("z1", 0);
-        int x2 = cmd.params.value("x2", 0), z2 = cmd.params.value("z2", 0);
-        auto res = npcManager->getPathfinder()->findPath(
-            glm::vec3(x1 + 0.5f, 0.0f, z1 + 0.5f), glm::vec3(x2 + 0.5f, 0.0f, z2 + 0.5f));
+        if (!npcManager->getNavGraph()) npcManager->buildNavGrid();
+        auto* graph = npcManager->getNavGraph();
+        if (!graph) { r = {{"error", "NavGraph not available"}}; return; }
+        const float x1 = cmd.params.value("x1", 0.0f), y1 = cmd.params.value("y1", 17.0f);
+        const float z1 = cmd.params.value("z1", 0.0f);
+        const float x2 = cmd.params.value("x2", 0.0f), y2 = cmd.params.value("y2", 17.0f);
+        const float z2 = cmd.params.value("z2", 0.0f);
+        NavAgentProfile agent;
+        auto result = graph->findPath(glm::vec3(x1, y1, z1), glm::vec3(x2, y2, z2), agent);
         json wps = json::array();
-        for (const auto& w : res.waypoints) wps.push_back({{"x", w.x}, {"y", w.y}, {"z", w.z}});
-        r = {{"found", res.found}, {"waypoints", wps}, {"nodesExpanded", res.nodesExpanded}};
+        if (result.found) {
+            const auto smooth = result.waypoints.size() > 2
+                ? graph->smoothWaypoints(result.waypoints, agent) : result.waypoints;
+            for (const auto& w : smooth) wps.push_back({{"x", w.x}, {"y", w.y}, {"z", w.z}});
+        }
+        r = {{"found", result.found}, {"waypoints", wps}, {"nodesExpanded", result.nodesExpanded}};
+    });
+
+    reg.on("navgrid_path", [this](const APICommand& cmd, json& r) {
+        // RETIRED as an oracle (WalkabilityGateAndPlaytestLoop increment 4, G-60): the 2.5D
+        // NavGrid read the TOPMOST voxel as the floor and could not enter a building. The
+        // command name stays for old harnesses but is answered by the sub-cube NavGraph -
+        // the structure NPCs actually walk - and says so.
+        if (!npcManager) { r = {{"error", "NPCManager not available"}}; return; }
+        if (!npcManager->getNavGraph()) npcManager->buildNavGrid();
+        auto* graph = npcManager->getNavGraph();
+        if (!graph) { r = {{"error", "NavGraph not available"}}; return; }
+        const float x1 = cmd.params.value("x1", 0.0f), y1 = cmd.params.value("y1", 17.0f);
+        const float z1 = cmd.params.value("z1", 0.0f);
+        const float x2 = cmd.params.value("x2", 0.0f), y2 = cmd.params.value("y2", 17.0f);
+        const float z2 = cmd.params.value("z2", 0.0f);
+        NavAgentProfile agent;
+        auto result = graph->findPath(glm::vec3(x1, y1, z1), glm::vec3(x2, y2, z2), agent);
+        json wps = json::array();
+        if (result.found) {
+            const auto smooth = result.waypoints.size() > 2
+                ? graph->smoothWaypoints(result.waypoints, agent) : result.waypoints;
+            for (const auto& w : smooth) wps.push_back({{"x", w.x}, {"y", w.y}, {"z", w.z}});
+        }
+        r = {{"found", result.found}, {"waypoints", wps}, {"nodesExpanded", result.nodesExpanded},
+             {"legacy", true}, {"backed_by", "navgraph"}};
     });
 
     reg.on("project_info", [this](const APICommand&, json& r) {

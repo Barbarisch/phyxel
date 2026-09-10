@@ -1,0 +1,12 @@
+[   18.2] [boot] {"scene_id": "main_menu", "scene_type": "menu", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": ["menu:main"], "fps": 52.7}
+[   31.3] [in_town] {"screen": {"scene_id": "town", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [-36.0, 15.0], "npcs": ["npc_Ada", "npc_Aldric", "npc_Bram", "npc_Gerrit", "npc_Hobb", "npc_Maera", "npc_Old Moll", "npc_Pell", "npc_Se
+[   32.7] [dirs] {"W": [-0.71, -0.71], "D": [-0.71, 0.71], "S": [0.71, 0.71], "A": [0.71, -0.71], "WD": [-1.0, 0.0], "WA": [-0.0, -1.0], "SD": [0.0, 1.0], "SA": [1.0, -0.0], "fps": 9.8}
+[   32.8] [path] {"to": [-12, 14.5], "waypoints": 2, "tried": 1, "fps": 9.6}
+[   57.7] [reeve_accept] {"steer": "arrived", "seen": [{"node": "start", "choices": ["Tell me about the children.", "[Persuasion DC 12] Release the poacher W", "Nothing for now."]}, {"node": "children", "choices": ["I'll find them.", "Wolves don't open barrows."]}], "fps": 12.2}
+[   62.7] [reeve_persuade_wren] {"seen": [{"node": "start", "choices": ["[Persuasion DC 12] Release the poacher W", "Nothing for now."]}], "persuaded": false, "refused": true, "fps": 12.1}
+[   62.8] [path] {"to": [-14, -9.5], "waypoints": 9, "tried": 1, "fps": 12.1}
+[  132.8] [maera] {"steer": "arrived", "seen": [{"node": "start", "choices": ["The Reeve sent me. What do you know of t", "Just passing through."]}], "fps": 32.8}
+[  132.8] [path] {"to": [-24.5, 13.5], "waypoints": 6, "tried": 1, "fps": 33.4}
+[  263.7] [path] {"to": [-24.5, 8.5], "waypoints": 2, "tried": 1, "fps": 14.6}
+[  329.7] [steer_stuck] {"target": [-24.5, 8.5], "pos": [-25.444541931152344, 11.268486976623535], "fps": 15.9}
+[  329.8] [path] {"to": [-25.5, -2.5], "waypoints": 5, "tried": 1, "fps": 16.0}

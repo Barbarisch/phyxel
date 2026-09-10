@@ -18,6 +18,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "graphics/DeferredBufferReclaim.h"  // B1 deferred buffer free (docs/ChunkUpdateHitchPlan.md)
 #include "graphics/ChunkArenaSystem.h"       // Phase 4.3 region arenas (docs/RegionArenaPlan.md)
 #include "core/MaterialRegistry.h"
+#include "core/TraversalProbe.h"
 #include "core/GameSettings.h"   // Core::stringToKey for inject_input
 #include "core/AtlasManager.h"
 #include "core/VfxSystem.h"
@@ -1691,16 +1692,32 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         // must not monopolize the burst cap); rings + slowdown + current push only.
         npcManager->setCharacterWaterHooks(std::move(npcHooks));
     }
-    // Static placed objects (wells, woodpiles, furniture) are NOT chunk voxels, so
-    // pathfinding routed straight through them and NPCs treadmilled against their
-    // collision. Feed their boxes to the nav build as obstacles. Structures excluded:
-    // their walls ARE chunk voxels and a whole-bbox block would seal doorways.
+    // Nav obstacles = what characters collide with that is NOT chunk voxels:
+    //   * "item" props are kinematic bodies (fine-voxel items never static-bake): feed
+    //     their per-body boxes (ItemPropManager::worldBoxes) so a sign hanging over a doorway
+    //     does not cost the door a whole cube of headroom (Ravenmere G-54: the cube
+    //     bbox of the tavern sign sealed the back door);
+    //   * activated dynamic furniture: its voxels left the chunks for a body - pass the
+    //     registry bbox (coarse; the body AABB is the follow-up);
+    //   * static-stamped "template" objects are SKIPPED: their voxels are in the chunks
+    //     and the micro-mode graph samples them directly. Feeding their bboxes made a
+    //     stale record without voxels (G-62 phantom woodpile) a wall on the doorstep.
+    //   * structures: walls ARE chunk voxels; a whole-bbox block would seal doorways.
     npcManager->setNavObstacleProvider([this]() {
-        std::vector<std::pair<glm::ivec3, glm::ivec3>> boxes;
+        std::vector<std::pair<glm::vec3, glm::vec3>> boxes;
         if (!placedObjectManager) return boxes;
         for (const auto& obj : placedObjectManager->list()) {
             if (obj.category == "structure") continue;
-            boxes.push_back({obj.boundingMin, obj.boundingMax});
+            if (obj.category == "item") {
+                // Per-body boxes, not the union AABB (see ItemPropManager::worldBoxes). A
+                // registry record the prop manager does not know has NO body - nothing to
+                // collide with - so it contributes nothing; the integer registry bbox is
+                // exactly the coarse box that sealed the tavern door (G-54, L4 2026-09-09).
+                if (itemPropManager) itemPropManager->worldBoxes(obj.id, boxes);
+                continue;
+            }
+            if (dynamicFurnitureManager && dynamicFurnitureManager->isActive(obj.id))
+                boxes.push_back({glm::vec3(obj.boundingMin), glm::vec3(obj.boundingMax) + 1.0f});
         }
         return boxes;
     });
@@ -5634,6 +5651,10 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
         // Play default animation if available
         animatedCharacter->playAnimation("idle"); 
         LOG_INFO("Application", "Loaded animated character model: " + animFile);
+        std::string motionError;
+                *animatedCharacter, motionError)) {
+        } else if (!motionError.empty()) {
+        }
 
         // Propagate character archetype to interaction system
         if (interactionManager) {
@@ -7514,7 +7535,8 @@ static bool handleNavGridQueryCommand(
     const Core::APICommand& cmd,
     nlohmann::json& response,
     Core::NPCManager* npcManager,
-    Core::EntityRegistry* entityRegistry)
+    Core::EntityRegistry* entityRegistry,
+    ChunkManager* chunkManager)
 {
     if (cmd.action == "navgrid_cell") {
         if (!npcManager || !npcManager->getNavGrid()) {
@@ -7579,6 +7601,89 @@ static bool handleNavGridQueryCommand(
                     waypoints.push_back({{"x", wp.x}, {"y", wp.y}, {"z", wp.z}});
             }
             response = {{"found", result.found}, {"waypoints", waypoints}};
+        }
+        return true;
+
+    } else if (cmd.action == "traversal_probe") {
+        // Diagnostic: run the walkability gate's TraversalProbe flood from a micro feet
+        // position on the live ChunkManager occupancy and report what it reached plus
+        // why each first step succeeded or failed (WalkabilityGateAndPlaytestLoop: the
+        // instrument comes before the guess - regen #10's "reached 1/24659" starts).
+        if (!chunkManager) {
+            response = {{"error", "ChunkManager not available"}};
+        } else {
+            const int sx = cmd.params.value("x", 0), sy = cmd.params.value("y", 0), sz = cmd.params.value("z", 0);
+            const int radiusCells = cmd.params.value("radius", 6);
+            const std::function<bool(int, int, int)> occ = [chunkManager](int x, int y, int z) {
+                return chunkManager->occupiedMicro(glm::ivec3(x, y, z));
+            };
+            Core::AgentBox box;
+            Core::TraversalProbe probe(occ, box);
+            const glm::ivec3 lo(sx - radiusCells * 9, sy - 18, sz - radiusCells * 9);
+            const glm::ivec3 hi(sx + radiusCells * 9, sy + 30, sz + radiusCells * 9);
+            const int settled = probe.settle(sx, sy, sz, lo.y);
+            const int feet = (settled == INT_MIN ? sy : settled);
+            nlohmann::json steps = nlohmann::json::array();
+            static const int ddx[4] = {1, -1, 0, 0}, ddz[4] = {0, 0, 1, -1};
+            for (int d = 0; d < 4; ++d) {
+                nlohmann::json hs = nlohmann::json::array();
+                for (int h = 0; h <= box.maxStepUpMicro; ++h)
+                    hs.push_back({{"h", h}, {"fits", probe.fits(sx + ddx[d], feet + h, sz + ddz[d])},
+                                  {"supported", probe.supported(sx + ddx[d], feet + h, sz + ddz[d])}});
+                steps.push_back({{"dx", ddx[d]}, {"dz", ddz[d]}, {"tries", hs}});
+            }
+            nlohmann::json reached = nlohmann::json::array();
+            int count = 0;
+            if (settled != INT_MIN) {
+                const auto cells = probe.flood(glm::ivec3(sx, settled, sz), lo, hi);
+                count = static_cast<int>(cells.size());
+                for (size_t i = 0; i < cells.size() && i < 24; ++i)
+                    reached.push_back({cells[i].x, cells[i].y, cells[i].z});
+            }
+            response = {{"start", {sx, sy, sz}}, {"settled_feet", settled},
+                        {"fits_at_start", probe.fits(sx, feet, sz)},
+                        {"supported_at_start", probe.supported(sx, feet, sz)},
+                        {"reached", count}, {"sample", reached}, {"first_steps", steps},
+                        {"bounds", {{lo.x, lo.y, lo.z}, {hi.x, hi.y, hi.z}}}};
+        }
+        return true;
+
+    } else if (cmd.action == "navgraph_column") {
+        // Diagnostic dump of one NavGraph column: every surface with its micro feet height,
+        // headroom, 4-direction edges + lateral slack, plus which cubes above the ground are
+        // obstacle-overlay cells (placed-object boxes) vs chunk voxel types. This is how a
+        // "path not found" is LOCATED (WalkabilityGateAndPlaytestLoop.md).
+        if (!npcManager || !npcManager->getNavGraph()) {
+            response = {{"error", "NavGraph not available"}};
+        } else {
+            const int x = cmd.params.value("x", 0), z = cmd.params.value("z", 0);
+            const int y0 = cmd.params.value("y0", 0), y1 = cmd.params.value("y1", 64);
+            auto* graph = npcManager->getNavGraph();
+            nlohmann::json surfaces = nlohmann::json::array();
+            for (const auto& s : graph->columnSurfaces(x, z)) {
+                surfaces.push_back({{"floorY", s.floorY}, {"feetMicro", s.floorTopMicro},
+                                    {"feetY", s.floorTopMicro / 9.0f},
+                                    {"headroomMicro", s.headroomMicro},
+                                    {"edge", {s.edge[0], s.edge[1], s.edge[2], s.edge[3]}},
+                                    {"slack", {s.slack[0], s.slack[1], s.slack[2], s.slack[3]}},
+                                    {"open", s.openCell()}});
+            }
+            nlohmann::json cubes = nlohmann::json::array();
+            for (int y = y0; y <= y1; ++y) {
+                const glm::ivec3 c(x, y, z);
+                const auto t = chunkManager ? chunkManager->getVoxelTypeAt(c) : VoxelLocation::EMPTY;
+                const bool obst = npcManager->isNavObstacleCell(c);
+                if (t == VoxelLocation::EMPTY && !obst) continue;
+                nlohmann::json boxes = nlohmann::json::array();
+                for (const auto& [lo, hi] : npcManager->navObstacleBoxesAt(c))
+                    boxes.push_back({{"lo", {lo.x, lo.y, lo.z}}, {"hi", {hi.x, hi.y, hi.z}}});
+                cubes.push_back({{"y", y},
+                                 {"voxel", t == VoxelLocation::CUBE ? "cube" : t == VoxelLocation::SUBDIVIDED ? "partial" : "empty"},
+                                 {"obstacle", obst}, {"boxes_micro", boxes}});
+            }
+            response = {{"x", x}, {"z", z}, {"micro_mode", graph->microMode()},
+                        {"surfaces", surfaces}, {"cubes", cubes},
+                        {"edge_dirs", {"+x", "-x", "+z", "-z"}}};
         }
         return true;
 
@@ -15703,7 +15808,7 @@ void Application::processAPICommands() {
                 }
 
             // Handle NavGrid/movement state queries (avoids nesting depth limit)
-            } else if (handleNavGridQueryCommand(cmd, response, npcManager.get(), entityRegistry.get())) {
+            } else if (handleNavGridQueryCommand(cmd, response, npcManager.get(), entityRegistry.get(), chunkManager)) {
                 // handled
 
             } else if (cmd.action == "spawn_entity") {
@@ -20627,7 +20732,32 @@ void Application::loadAnimClipMetaFromFile(const std::string& animFile) {
             if (eq == std::string::npos) continue;
             std::string k = kv.substr(0, eq);
             if (k == "type") { meta.clipType = kv.substr(eq + 1); continue; }
-            float v = std::stof(kv.substr(eq + 1));
+
+            // Clip headers also contain string-valued routing metadata such as
+            // castFamily, castRole, meleeFamily, and meleeRole.  The tuner does
+            // not edit those fields, so ignore every unrecognized key before
+            // attempting numeric conversion.  Previously std::stof received
+            // values such as "slash_1h" and aborted anim-editor startup.
+            const bool numericKey =
+                k == "warpEnabled"       || k == "authoredFallDist" ||
+                k == "takeoffEnd"        || k == "contactFrame"     ||
+                k == "warpScaleMin"      || k == "warpScaleMax"     ||
+                k == "hitFrameFraction"  || k == "interruptible"    ||
+                k == "interruptAfter"    || k == "footIKEnabled"    ||
+                k == "stairStepHeight"   || k == "stairStepDepth"   ||
+                k == "contactFrame1"     || k == "contactFrame2"    ||
+                k == "footIKSurfaceReach"|| k == "footIKBodyRange";
+            if (!numericKey) continue;
+
+            float v = 0.0f;
+            try {
+                v = std::stof(kv.substr(eq + 1));
+            } catch (const std::exception&) {
+                LOG_WARN("Application",
+                         "Anim Editor: ignoring invalid numeric metadata '{}={}' for clip '{}'",
+                         k, kv.substr(eq + 1), name);
+                continue;
+            }
             if      (k == "warpEnabled")      meta.warpEnabled      = (v != 0.0f);
             else if (k == "authoredFallDist") meta.authoredFallDist = v;
             else if (k == "takeoffEnd")       meta.takeoffEnd       = v;

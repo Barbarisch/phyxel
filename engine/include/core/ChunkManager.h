@@ -374,7 +374,10 @@ public:
     /// See ChunkVoxelManager::subVoxelFloor (WaterSystemV3 Phase 4B).
     float subVoxelFloor(const glm::ivec3& worldPos) const;
     VoxelLocation::Type getVoxelTypeAt(const glm::ivec3& worldPos) const;
-    
+    /// Static sub-voxel occupancy at world MICRO coords (cube*9 + 0..8). See
+    /// ChunkVoxelQuerySystem::occupiedMicro — the NavGraph's Partial-cube sampler.
+    bool occupiedMicro(const glm::ivec3& micro) const;
+
     // Perform occlusion culling across chunks (check cube neighbors across chunk boundaries)
     void performOcclusionCulling();
     

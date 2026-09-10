@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <chrono>
 #include <climits>
+#include <sstream>
+#include <functional>
+#include "utils/CoordinateUtils.h"
 #include <cmath>
 #include <map>
 #include <memory>
@@ -16,6 +19,8 @@
 #include "core/DamageSystem.h"
 #include "core/DimensionCanon.h"
 #include "core/FenceBuilder.h"
+#include "core/SettlementWalkability.h"
+#include "core/TraversalProbe.h"
 #include "core/FloraSweep.h"
 #include "core/TowerForge.h"
 #include "core/FurnitureCatalog.h"
@@ -328,6 +333,14 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // it -> the felled trunk RETIRES as static voxels across the street; measured,
         // deterministic at seed 3) — swept again after the buildings, before nav rebuild.
         auto sharedRoadBand = std::make_shared<std::vector<glm::ivec3>>();
+        // Front doors of the buildings that actually BUILT: marker cell (2 out from the
+        // door, from the forge's front-door location), footprint, threshold micro.
+        struct FrontDoor {
+            glm::ivec3 marker; glm::ivec4 foot; int thresholdMicro;
+            std::string typology;    ///< for the gate's route labels
+            nlohmann::json rooms;    ///< [{story, purpose, rect:[x,z,w,d]}] building-local cubes
+        };
+        auto sharedFrontDoors = std::make_shared<std::vector<FrontDoor>>();
         // Per-micro-column pavement stamp ({x, startRow, z, surface}, micro coords) so the
         // sweep can re-stamp the paving it clears along with the debris.
         auto sharedStamp = std::make_shared<std::vector<glm::ivec4>>();
@@ -534,7 +547,8 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                                           itemPropManager, bp, bp2, seatInUnit,
                                           bw, bd, bw2, bd2, oy, lotFailures = res.lotFailures,
                                           lotIndex = static_cast<int>(i),
-                                          typ1 = var.typology, typ2 = var2.typology]() mutable {
+                                          typ1 = var.typology, typ2 = var2.typology,
+                                          sharedFrontDoors]() mutable {
                 if (!chunkManager) return;
                 auto seat = [&](nlohmann::json& p, int w, int d) {
                     if (!seatInUnit) return;
@@ -552,14 +566,29 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 deps.pushUndo      = pushUndo;   // forwarded by the caller (editor: undo snapshot)
                 deps.addPointLight = addPointLight;   // M5: light settlement interiors too
                 deps.itemProps     = itemPropManager; // M3c: sign items + tableware in settlements
+                auto recordDoor = [&](const nlohmann::json& res, const nlohmann::json& prog, int w, int d) {
+                    const int x = prog["position"].value("x", 0), z = prog["position"].value("z", 0);
+                    if (!res.contains("locations") || !res["locations"].is_array()) return;
+                    for (const auto& L : res["locations"]) {
+                        const auto& P = L["position"];
+                        sharedFrontDoors->push_back({glm::ivec3(static_cast<int>(std::floor(P.value("x", 0.0f))),
+                                                               static_cast<int>(std::floor(P.value("y", 0.0f))),
+                                                               static_cast<int>(std::floor(P.value("z", 0.0f)))),
+                                                     glm::ivec4(x, z, w, d),
+                                                     res.value("floor_top_micro", -1),
+                                                     prog.value("typology", std::string("?")),
+                                                     res.value("rooms", nlohmann::json::array())});
+                        break;   // one front door per building
+                    }
+                };
                 seat(bp, bw, bd);
                 const auto res1 = Core::StructureBuildService::buildV2(bp, deps);
-                if (!res1.contains("error")) return;
+                if (!res1.contains("error")) { recordDoor(res1, bp, bw, bd); return; }
                 LOG_WARN_FMT("Settlement", "lot " << lotIndex << " (" << typ1 << ") refused: "
                              << res1["error"].dump() << " — re-rolling the variant");
                 seat(bp2, bw2, bd2);
                 const auto res2 = Core::StructureBuildService::buildV2(bp2, deps);
-                if (!res2.contains("error")) return;
+                if (!res2.contains("error")) { recordDoor(res2, bp2, bw2, bd2); return; }
                 LOG_WARN_FMT("Settlement", "lot " << lotIndex << " re-roll (" << typ2
                              << ") ALSO refused: " << res2["error"].dump()
                              << " — lot left EMPTY (recorded)");
@@ -876,7 +905,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 fencePol.coreCv = msl.marketSquare.z + msl.marketSquare.d / 2;
             }
             Core::StructureResult fenceBatch;   // bulk emit — one place() for ALL parcels
-            long fenceMicros = 0; int parcels = 0, unfenced = 0;
+            long fenceMicros = 0; int parcels = 0, unfenced = 0, pinchedRuns = 0;
             for (size_t pi = 0; pi < layout.plots.size(); ++pi) {
                 const auto& pl = layout.plots[pi];
                 const Core::Rect& pr = pl.rect;
@@ -945,14 +974,45 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 // the corner intersections; one post per corner (endPosts mechanism),
                 // perpendicular rails reach it (duplicate cells at the shared corner
                 // column are deduped by place()).
-                for (const auto& run : Core::planParcelFenceRuns(pr.x, pr.z, pr.w, pr.d))
+                // Ravenmere G-78: a plane that would leave less than the settlement's built
+                // corridor minimum of clear width against a NEIGHBOUR's wall is dropped (the
+                // side stays open). The minimum is SettlementWalkability's
+                // kMinCorridorWidthCubes (2 cubes: the agent box needs 5 micro, boundaries are
+                // planned per cube while fences/walls eat micro rows off both faces, and it is
+                // the fence stamper's own gate width) - the measured 1.0 m alley with a proud
+                // corner quoin (1/3 cube) left 0.11 m of slack.
+                constexpr int kMinAlleyCells = Core::kMinCorridorWidthCubes;
+                std::vector<Core::CubeRect> nbs;
+                if (mainStreetMode)
+                    for (size_t j = 0; j < msl.assigned.size(); ++j) {
+                        if (j == pi) continue;
+                        const auto& f = msl.assigned[j].footprint;
+                        nbs.push_back({f.x, f.z, f.w, f.d});
+                    }
+                auto runs = Core::planParcelFenceRuns(pr.x, pr.z, pr.w, pr.d);
+                bool droppedSide[4] = {false, false, false, false};   // W, E, S, N
+                auto sideIdx = [](char c) { return c == 'W' ? 0 : c == 'E' ? 1 : c == 'S' ? 2 : 3; };
+                for (const auto& run : runs)
+                    if (Core::fenceRunPinchesNeighbour(run, pr.x, pr.z, pr.w, pr.d, nbs, kMinAlleyCells)) {
+                        droppedSide[sideIdx(run.side)] = true;
+                        ++pinchedRuns;
+                    }
+                for (auto run : runs) {
+                    if (droppedSide[sideIdx(run.side)]) continue;
+                    // A surviving run must not plant its corner post on the dropped plane's
+                    // pinch line either: pull it back by the alley width.
+                    if (!Core::trimFenceRunAtDroppedCorners(run, droppedSide[0], droppedSide[1],
+                                                            droppedSide[2], droppedSide[3], kMinAlleyCells))
+                        continue;
                     stampEdge(run);
+                }
             }
             fenceMicros = Core::StructureGenerator::place(chunkManager, fenceBatch).placed;
             chunkManager->rebuildOccupancyFromChunks();
             LOG_INFO_FMT("Settlement", "fences: " << parcels << " parcels fenced, " << unfenced
-                         << " unfenced by policy, " << fenceMicros
-                         << " micros (picket, " << fH << "-micro tall, posts @" << fSp << ")");
+                         << " unfenced by policy, " << pinchedRuns << " runs dropped (alley < 2 cells to a neighbour wall), "
+                         << fenceMicros << " micros (picket, " << fH << "-micro tall, posts @" << fSp << ")");
+            pathsJson["fence_runs_dropped_for_alley"] = pinchedRuns;
             pathsJson["parcels"] = parcels;
             pathsJson["unfenced_by_policy"] = unfenced;
             pathsJson["fence_micros"] = fenceMicros;
@@ -1345,6 +1405,293 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             }});
         }
 
+        // DOORSTEPS (Ravenmere G-68): a threshold higher than the character's auto step
+        // (4 micro = 0.44 m) is a wall to NPCs and the player alike. The hall's 0.5 m stone
+        // slab sat 5 micro above its paved spur. Runs AFTER the street sweep (the swept band
+        // covers every paved column incl. spurs and would erase a stoop painted earlier) and
+        // before the nav rebuild. Measurement-driven: reads the paving under the doorstep
+        // and stoops up to the threshold in <= 4-micro risers, one cell per step outward.
+        if (mainStreetMode && chunkManager) {
+            units.push_back({"doorsteps",
+                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
+                 sharedFrontDoors, emitMicro, fl9, pathsJsonP,
+                 stepMat = (programMode && tierP ? tierP->street.material : std::string("Cobblestone"))]() {
+            if (!chunkManager) return;
+            constexpr int kStepUpMicro = 4;          // AnimatedVoxelCharacter::m_maxStepHeight = 4/9 m
+            constexpr int kMaxSteps = 4;
+            auto solidMicro = [chunkManager](int mx, int my, int mz) {
+                return chunkManager->occupiedMicro(glm::ivec3(mx, my, mz));
+            };
+            // Highest solid micro at a column centre below `fromMicroY` (exclusive), or INT_MIN.
+            auto topBelow = [&](int cx, int cz, int fromMicroY) {
+                const int mx = cx * 9 + 4, mz = cz * 9 + 4;
+                for (int my = fromMicroY - 1; my > fromMicroY - 40; --my)
+                    if (solidMicro(mx, my, mz)) return my;
+                return INT_MIN;
+            };
+            // Erase every solid micro cell in a column between two micro heights (inclusive
+            // bottom, exclusive top) - the fence slats/rails, a yard prop's spill - so the
+            // approach band is AIR above the paving before the stoop is laid. Subcubes are
+            // removed whole (nothing walkable is authored as a subcube in the band).
+            int approachMicrosCleared = 0;
+            auto clearAbove = [&](int cx, int cz, int fromMicro, int toMicro) {
+                const glm::ivec3 cube0(cx, 0, cz);
+                for (int my = fromMicro; my < toMicro; ++my) {
+                    const int cy = fl9(my);
+                    const glm::ivec3 cube(cx, cy, cz);
+                    Chunk* ch = chunkManager->getChunkAtFast(cube);
+                    if (!ch) continue;
+                    const glm::ivec3 lp = Utils::CoordinateUtils::worldToLocalCoord(cube);
+                    const int ry = my - cy * 9;
+                    for (int dx = 0; dx < 9; ++dx)
+                        for (int dz = 0; dz < 9; ++dz) {
+                            if (!chunkManager->occupiedMicro(glm::ivec3(cx * 9 + dx, my, cz * 9 + dz))) continue;
+                            if (chunkManager->getVoxelTypeAt(cube) == VoxelLocation::CUBE) continue;   // a full cube is terrain/wall: not ours
+                            const glm::ivec3 sp(dx / 3, ry / 3, dz / 3), mp(dx % 3, ry % 3, dz % 3);
+                            if (ch->hasSubcubeAt(lp, sp)) { if (ch->removeSubcube(lp, sp)) approachMicrosCleared += 27; }
+                            else if (ch->removeMicrocube(lp, sp, mp)) ++approachMicrosCleared;
+                        }
+                    chunkManager->markChunkDirty(ch);
+                }
+                (void)cube0;
+            };
+            int stooped = 0, steps = 0, skipped = 0;
+            Core::StructureResult out;
+            for (const auto& fd : *sharedFrontDoors) {
+                if (fd.thresholdMicro < 0) { ++skipped; continue; }
+                const int fx = fd.foot.x, fz = fd.foot.y, fw = fd.foot.z, fdp = fd.foot.w;
+                // Outward normal from where the marker sits relative to the footprint.
+                int nx = 0, nz = 0;
+                if (fd.marker.x < fx)            nx = -1;
+                else if (fd.marker.x >= fx + fw) nx = +1;
+                else if (fd.marker.z < fz)       nz = -1;
+                else                             nz = +1;
+                // The wall cube the door is cut through, and the first cell outside it.
+                const int wallX = nx < 0 ? fx : nx > 0 ? fx + fw - 1 : fd.marker.x;
+                const int wallZ = nz < 0 ? fz : nz > 0 ? fz + fdp - 1 : fd.marker.z;
+                const int threshold = fd.thresholdMicro;             // feet micro inside
+                // DOOR-APPROACH BAND (G-72): the two cells outside the door must be air over
+                // the paving up to the character's height - the parcel fence ran across the
+                // hall's doorstep (its gate sat at the front wall's midpoint, the door did not).
+                for (int k = 1; k <= 2; ++k) {
+                    const int cx = wallX + nx * k, cz = wallZ + nz * k;
+                    const int groundTop = topBelow(cx, cz, threshold + 9);
+                    if (groundTop == INT_MIN) continue;
+                    clearAbove(cx, cz, groundTop + 1, groundTop + 1 + 18);
+                }
+                bool any = false;
+                for (int k = 1; k <= kMaxSteps; ++k) {
+                    const int cx = wallX + nx * k, cz = wallZ + nz * k;
+                    const int groundTop = topBelow(cx, cz, threshold);  // paving / ground top
+                    if (groundTop == INT_MIN) break;
+                    const int feetOutside = groundTop + 1;
+                    const int stepFeet = threshold - kStepUpMicro * k;  // this step's standing level
+                    if (stepFeet <= feetOutside) break;                  // riser from here is already <= step
+                    // Fill the cell up to the step's top (exclusive at stepFeet) from EACH
+                    // micro column's own top: the centre column decides the riser, but a
+                    // stoop laid from the centre's height alone floats over lower columns
+                    // (regen #10: a 3-micro slab at 156..158 over air at 153..155 beside the
+                    // croft's door - the gate's start flood could not get under or onto it).
+                    for (int dx = 0; dx < 9; ++dx)
+                        for (int dz = 0; dz < 9; ++dz) {
+                            const int mx = cx * 9 + dx, mz = cz * 9 + dz;
+                            int colTop = INT_MIN;
+                            for (int my = stepFeet - 1; my > stepFeet - 40; --my)
+                                if (solidMicro(mx, my, mz)) { colTop = my; break; }
+                            if (colTop == INT_MIN) colTop = groundTop;
+                            for (int my = colTop + 1; my < stepFeet; ++my)
+                                emitMicro(out, mx, my, mz, stepMat);
+                        }
+                    ++steps; any = true;
+                    if (stepFeet - feetOutside <= kStepUpMicro) break;   // the next riser is climbable
+                }
+                if (any) ++stooped;
+            }
+            long placed = 0;
+            if (!out.voxels.empty()) {
+                placed = Core::StructureGenerator::place(chunkManager, out).placed;
+                chunkManager->rebuildOccupancyFromChunks();
+            }
+            LOG_INFO_FMT("Settlement", "doorsteps: " << stooped << " of " << sharedFrontDoors->size()
+                         << " front doors stooped (" << steps << " steps, " << placed
+                         << " micros; " << skipped << " without a threshold); approach band cleared "
+                         << approachMicrosCleared << " micros");
+            (*pathsJsonP)["doorsteps"] = {{"doors", sharedFrontDoors->size()}, {"stooped", stooped},
+                                          {"steps", steps}, {"micros", placed},
+                                          {"approach_cleared_micros", approachMicrosCleared}};
+            }});
+        }
+
+        // WALKABILITY GATE (WalkabilityGateAndPlaytestLoop increment 1, layer A). On the
+        // REALIZED occupancy - buildings, fences, paving, doorsteps, static furniture, all
+        // as the chunks hold them - walk the routes a resident needs: street -> the passage
+        // cell inside every front door, and that passage -> every ground-floor room centre.
+        // The agent is the engine character's box (TraversalProbe AgentBox). A blocked route
+        // is reported LOCATED (pinch coordinates) in the log and the job result; it is a
+        // generator defect record, never patched here. Item props (fine-voxel, not chunk
+        // voxels) are not in this occupancy yet - see the loop doc.
+        if (mainStreetMode && chunkManager) {
+            units.push_back({"walkability gate",
+                [chunkManager, placedObjectManager, objectTemplateManager, locationRegistry, npcManager, pushUndo,
+                 sharedFrontDoors, pathsJsonP]() {
+            if (!chunkManager) return;
+            const std::function<bool(int, int, int)> occ = [chunkManager](int x, int y, int z) {
+                return chunkManager->occupiedMicro(glm::ivec3(x, y, z));
+            };
+            auto topBelow = [&](int cx, int cz, int fromMicroY) {
+                const int mx = cx * 9 + 4, mz = cz * 9 + 4;
+                for (int my = fromMicroY - 1; my > fromMicroY - 40; --my)
+                    if (occ(mx, my, mz)) return my;
+                return INT_MIN;
+            };
+            Core::AgentBox box;   // == the engine character
+            Core::TraversalProbe probe(occ, box);
+            // Seat a route endpoint: the lowest feet level at/above the column's top where
+            // the WHOLE box fits and is supported (regen #9: a 1-micro-thick paving stamp on
+            // uneven terrain and a threshold recorded as the surface micro left the start
+            // box a micro inside the ground -> "reached 1/24659" / START-UNSUPPORTED, probe
+            // artefacts reported as town defects). INT_MIN when nothing seats within 10 micro.
+            auto seatFeet = [&](int cx, int cz, int hintMicroY) {
+                const int top = topBelow(cx, cz, hintMicroY + 9);
+                if (top == INT_MIN) return INT_MIN;
+                const int mx = cx * 9 + 4, mz = cz * 9 + 4;
+                for (int y = top + 1; y <= top + 10; ++y)
+                    if (probe.fits(mx, y, mz) && probe.supported(mx, y, mz)) return y;
+                return INT_MIN;
+            };
+            nlohmann::json routesJ = nlohmann::json::array();
+            int walkable = 0, blocked = 0, skipped = 0;
+            for (const auto& fd : *sharedFrontDoors) {
+                if (fd.thresholdMicro < 0) { ++skipped; continue; }
+                const int fx = fd.foot.x, fz = fd.foot.y, fw = fd.foot.z, fdp = fd.foot.w;
+                int nx = 0, nz = 0;
+                if (fd.marker.x < fx)            nx = -1;
+                else if (fd.marker.x >= fx + fw) nx = +1;
+                else if (fd.marker.z < fz)       nz = -1;
+                else                             nz = +1;
+                int wallX = nx < 0 ? fx : nx > 0 ? fx + fw - 1 : fd.marker.x;
+                int wallZ = nz < 0 ? fz : nz > 0 ? fz + fdp - 1 : fd.marker.z;
+                // The marker is not always in front of the door (regen #14: house_14's
+                // location sat at the footprint's corner column, 5 cells out on the street,
+                // while its door is 4 cells along the wall). FIND the door along the marker's
+                // wall: the opening whose wall cell and inside cell both seat the agent at the
+                // threshold, nearest to the marker; the marker column is the fallback.
+                {
+                    int best = INT_MAX;
+                    const int len = (nz != 0) ? fw : fdp;
+                    for (int k = 0; k < len; ++k) {
+                        const int cx = (nz != 0) ? fx + k : wallX;
+                        const int cz = (nz != 0) ? wallZ : fz + k;
+                        if (seatFeet(cx, cz, fd.thresholdMicro) == INT_MIN) continue;
+                        if (seatFeet(cx - nx, cz - nz, fd.thresholdMicro) == INT_MIN) continue;
+                        const int dist = (nz != 0) ? std::abs(cx - fd.marker.x) : std::abs(cz - fd.marker.z);
+                        if (dist < best) { best = dist; wallX = cx; wallZ = cz; }
+                    }
+                }
+                const int passX = wallX - nx, passZ = wallZ - nz;          // one cell inside the door
+                const int streetFeet = seatFeet(fd.marker.x, fd.marker.z, fd.thresholdMicro);
+                const int passFeet = seatFeet(passX, passZ, fd.thresholdMicro);
+                const std::string tag = fd.typology + " @" + std::to_string(fx) + "," + std::to_string(fz);
+                if (streetFeet == INT_MIN || passFeet == INT_MIN) {
+                    LOG_WARN_FMT("Settlement", "walkability: " << tag << " endpoint does not seat (street "
+                                 << streetFeet << " at marker (" << fd.marker.x << "," << fd.marker.z << "), passage "
+                                 << passFeet << " at cell (" << passX << "," << passZ << "), threshold "
+                                 << fd.thresholdMicro << ", foot " << fx << "," << fz << " " << fw << "x" << fdp
+                                 << ") - probe input, skipped");
+                    ++skipped; continue;
+                }
+                std::vector<Core::WalkRoute> routes;
+                Core::WalkRoute in;
+                in.label = tag + ": street -> door";
+                in.from = glm::ivec3(fd.marker.x * 9 + 4, streetFeet, fd.marker.z * 9 + 4);
+                in.to   = glm::ivec3(passX * 9 + 4, passFeet, passZ * 9 + 4);
+                in.goalRadiusMicro = 4;
+                routes.push_back(in);
+                for (const auto& rm : fd.rooms) {
+                    if (rm.value("story", 0) != 0) continue;
+                    const auto& rc = rm["rect"];
+                    if (!rc.is_array() || rc.size() < 4) continue;
+                    const int rx = fx + rc[0].get<int>(), rz = fz + rc[1].get<int>();
+                    const int rw = rc[2].get<int>(), rd = rc[3].get<int>();
+                    Core::WalkRoute r;
+                    r.label = tag + ": door -> " + rm.value("purpose", std::string("room"));
+                    r.from = in.to;
+                    const int rcx = rx + rw / 2, rcz = rz + rd / 2;
+                    const int roomFeet = seatFeet(rcx, rcz, fd.thresholdMicro);
+                    // A room centre that does not seat is itself a finding (a fixture on the
+                    // centre cell is normal - the goal box is 9 micro wide and a story tall).
+                    r.to = glm::ivec3(rcx * 9 + 4, roomFeet == INT_MIN ? fd.thresholdMicro : roomFeet, rcz * 9 + 4);
+                    r.goalRadiusMicro = 4;
+                    routes.push_back(r);
+                }
+                // The band's floor must sit BELOW every endpoint: a threshold two cubes above
+                // the street put the street start under the band's floor, and the flood's
+                // bounds check broke out of the step loop at h=0 - "reached 1/24659" for
+                // five doors in regen #10 (the traversal_probe diagnostic floods 8641 cells
+                // from the same point with a sane band).
+                // ...and its walls must enclose every endpoint with a margin. The recorded
+                // footprint's w/d do not always match the marker's side of the building (a
+                // rotated typology), and regen #12's gate-time diagnostics showed every first
+                // step fitting and supported while the flood still reached one cell: the
+                // start lay OUTSIDE the x/z band, so no neighbour passed the bounds check.
+                glm::ivec3 bandLo = in.from, bandHi = in.from;
+                auto grow = [&](const glm::ivec3& p) { bandLo = glm::min(bandLo, p); bandHi = glm::max(bandHi, p); };
+                grow(in.to);
+                for (const auto& r : routes) { grow(r.from); grow(r.to); }
+                grow(glm::ivec3(fx * 9, in.from.y, fz * 9));
+                grow(glm::ivec3((fx + fw) * 9, in.from.y, (fz + fdp) * 9));
+                const glm::ivec3 lo(bandLo.x - 6 * 9, bandLo.y - 18, bandLo.z - 6 * 9);
+                const glm::ivec3 hi(bandHi.x + 6 * 9, bandHi.y + 30, bandHi.z + 6 * 9);
+                const auto rep = Core::checkRoutes(occ, box, routes, lo, hi, /*diagnose=*/true);
+                walkable += rep.walkable; blocked += rep.blocked;
+                for (const auto& rr : rep.routes) {
+                    nlohmann::json j = {{"label", rr.label}, {"walkable", rr.walkable}};
+                    if (!rr.walkable) {
+                        // A 1-cell start set is either a sealed start or a probe artefact:
+                        // record the first-step verdicts (fits/supported per direction and
+                        // step height) AT GATE TIME - regen #10/#11 reported five such starts
+                        // that the same flood on the saved world does not reproduce.
+                        if (rr.reachedFromStart <= 1) {
+                            const glm::ivec3 st = rr.pinchFrom;
+                            static const int ddx[4] = {1, -1, 0, 0}, ddz[4] = {0, 0, 1, -1};
+                            std::ostringstream fs;
+                            fs << "start (" << st.x << "," << st.y << "," << st.z << ") fits=" << probe.fits(st.x, st.y, st.z)
+                               << " sup=" << probe.supported(st.x, st.y, st.z) << " occ_below=" << occ(st.x, st.y - 1, st.z);
+                            for (int d = 0; d < 4; ++d) {
+                                fs << " | d(" << ddx[d] << "," << ddz[d] << ")";
+                                for (int h = 0; h <= box.maxStepUpMicro; ++h)
+                                    fs << " h" << h << ":" << (probe.fits(st.x + ddx[d], st.y + h, st.z + ddz[d]) ? "F" : "-")
+                                       << (probe.supported(st.x + ddx[d], st.y + h, st.z + ddz[d]) ? "S" : "-");
+                            }
+                            LOG_WARN_FMT("Settlement", "walkability: first-step diagnostics " << rr.label << ": " << fs.str());
+                            j["first_steps"] = fs.str();
+                        }
+                        j["pinch_from"] = {rr.pinchFrom.x, rr.pinchFrom.y, rr.pinchFrom.z};
+                        j["pinch_to"] = {rr.pinchTo.x, rr.pinchTo.y, rr.pinchTo.z};
+                        j["pinch_gap_micro"] = rr.pinchGapMicro;
+                        j["reached_from_start"] = rr.reachedFromStart;
+                        j["reached_from_goal"] = rr.reachedFromGoal;
+                        j["start_unsupported"] = rr.startUnsupported;
+                        j["goal_unsupported"] = rr.goalUnsupported;
+                        LOG_WARN_FMT("Settlement", "walkability: BLOCKED " << rr.label
+                                     << " pinch (" << rr.pinchFrom.x << "," << rr.pinchFrom.y << "," << rr.pinchFrom.z
+                                     << ")->(" << rr.pinchTo.x << "," << rr.pinchTo.y << "," << rr.pinchTo.z
+                                     << ") gap " << rr.pinchGapMicro << " micro; reached "
+                                     << rr.reachedFromStart << "/" << rr.reachedFromGoal
+                                     << (rr.startUnsupported ? " START-UNSUPPORTED" : "")
+                                     << (rr.goalUnsupported ? " GOAL-UNSUPPORTED" : ""));
+                    }
+                    routesJ.push_back(j);
+                }
+            }
+            LOG_INFO_FMT("Settlement", "walkability gate: " << walkable << " walkable, " << blocked
+                         << " blocked over " << (walkable + blocked) << " routes ("
+                         << sharedFrontDoors->size() << " front doors, " << skipped << " skipped)");
+            (*pathsJsonP)["walkability"] = {{"routes", routesJ}, {"walkable", walkable},
+                                            {"blocked", blocked}, {"failed", blocked}, {"skipped", skipped}};
+            }});
+        }
+
         // Nav rebuild after EVERYTHING: per-building builds refresh their own boxes
         // (StructureBuildService onRegionChanged), but street paving / terraces / fence
         // spurs mutate terrain outside those boxes, and on a fresh world the grid may not
@@ -1376,23 +1723,35 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     locs.push_back(loc);
                 }
                 auto plans = Core::ResidentPlanner::planResidents(locs);
-                int spawned = 0;
+                int spawned = 0, adopted = 0, failed = 0;
                 for (const auto& pl : plans) {
+                    // The live ResidentSpawner (streaming/reload path) spawns a resident as
+                    // soon as its building's locations land - by the same deterministic name.
+                    // ADOPT it (schedule refreshed from the final plan) instead of failing on
+                    // "already exists" and reporting a bogus 0/N (Ravenmere G-70).
+                    if (auto* existing = npcManager->getNPC(pl.name)) {
+                        if (auto* sb = dynamic_cast<Scene::ScheduledBehavior*>(existing->getBehavior()))
+                            sb->setSchedule(pl.schedule);
+                        ++adopted;
+                        continue;
+                    }
                     auto* npc = npcManager->spawnProceduralNPC(
                         pl.name, "resources/animated_characters/humanoid.anim",
                         pl.spawnPos + glm::vec3(0.0f, 1.0f, 0.0f),
                         Core::NPCBehaviorType::Scheduled, pl.role);
                     if (!npc) {
                         LOG_WARN_FMT("Settlement", "resident spawn FAILED: " << pl.name);
+                        ++failed;
                         continue;
                     }
                     if (auto* sb = dynamic_cast<Scene::ScheduledBehavior*>(npc->getBehavior()))
                         sb->setSchedule(pl.schedule);
                     ++spawned;
                 }
-                LOG_INFO_FMT("Settlement", "residents: " << spawned << "/" << plans.size()
-                             << " spawned");
-                (*residentsJsonP) = {{"spawned", spawned}, {"planned", plans.size()}};
+                LOG_INFO_FMT("Settlement", "residents: " << spawned << " spawned + " << adopted
+                             << " adopted of " << plans.size() << " planned (" << failed << " failed)");
+                (*residentsJsonP) = {{"spawned", spawned}, {"adopted", adopted}, {"failed", failed},
+                                     {"planned", plans.size()}};
             }});
         }
 

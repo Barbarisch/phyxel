@@ -736,6 +736,10 @@ VoxelLocation::Type ChunkManager::getVoxelTypeAt(const glm::ivec3& worldPos) con
     return m_voxelQuerySystem.getVoxelTypeAt(worldPos);
 }
 
+bool ChunkManager::occupiedMicro(const glm::ivec3& micro) const {
+    return m_voxelQuerySystem.occupiedMicro(micro);
+}
+
 bool ChunkManager::removeCube(const glm::ivec3& worldPos) {
     return m_voxelModificationSystem.removeCube(worldPos);
 }

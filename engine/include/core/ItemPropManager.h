@@ -150,6 +150,14 @@ public:
     /// makes every goblet a full-cube click target — neighbors on a crowded
     /// shelf then steal each other's clicks. False if the id is not a prop.
     bool worldAabb(const std::string& placedObjectId, glm::vec3& lo, glm::vec3& hi) const;
+    /// World-space AABB of EACH collision box of the prop's compound (its greedy-merged
+    /// body boxes pushed through the last synced pose), appended to `out`. The union
+    /// AABB above is a click target; for navigation it lies: a hanging sign's bracket
+    /// (high, at the wall) and board (low, out from the wall) union into a box whose
+    /// low-at-the-wall corner is empty space — and that corner cut the tavern door's
+    /// headroom (Ravenmere G-54). False if the id is not a prop.
+    bool worldBoxes(const std::string& placedObjectId,
+                    std::vector<std::pair<glm::vec3, glm::vec3>>& out) const;
 
     /// Convert a voxel template to kinematic voxels (template-local space).
     /// Shared with DynamicFurnitureManager — the single source of truth for

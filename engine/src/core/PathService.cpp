@@ -136,6 +136,7 @@ void PathService::workerLoop() {
         // the 4-connected grid. Worker-side, so the main thread pays nothing for it.
         if (result.found && result.waypoints.size() > 2)
             result.waypoints = m_graph->smoothWaypoints(result.waypoints, req.agent);
+        if (result.found) result.arriveRadius = m_graph->arrivalRadii(result.waypoints);
 
         {
             std::lock_guard<std::mutex> lock(m_mutex);

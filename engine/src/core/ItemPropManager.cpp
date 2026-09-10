@@ -152,6 +152,31 @@ bool ItemPropManager::worldAabb(const std::string& placedObjectId,
     return true;
 }
 
+bool ItemPropManager::worldBoxes(const std::string& placedObjectId,
+                                 std::vector<std::pair<glm::vec3, glm::vec3>>& out) const {
+    const Prop* p = get(placedObjectId);
+    if (!p) return false;
+    if (p->localBoxes.empty()) {              // no compound recorded: the union AABB is all we have
+        glm::vec3 lo, hi;
+        if (worldAabb(placedObjectId, lo, hi)) out.push_back({lo, hi});
+        return true;
+    }
+    for (const auto& b : p->localBoxes) {
+        glm::vec3 lo(std::numeric_limits<float>::max());
+        glm::vec3 hi(std::numeric_limits<float>::lowest());
+        for (int i = 0; i < 8; ++i) {
+            const glm::vec3 c(b.offset.x + ((i & 1) ? b.halfExtents.x : -b.halfExtents.x),
+                              b.offset.y + ((i & 2) ? b.halfExtents.y : -b.halfExtents.y),
+                              b.offset.z + ((i & 4) ? b.halfExtents.z : -b.halfExtents.z));
+            const glm::vec3 w = glm::vec3(p->lastTransform * glm::vec4(c, 1.0f));
+            lo = glm::min(lo, w);
+            hi = glm::max(hi, w);
+        }
+        out.push_back({lo, hi});
+    }
+    return true;
+}
+
 std::vector<KinematicVoxel> ItemPropManager::voxelsFromTemplate(const VoxelTemplate& tmpl) {
     // Fine-grid templates hold ALL geometry in the fine tier (parse contract);
     // greedy-merge it into arbitrary-scale boxes the renderer draws directly.

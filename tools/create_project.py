@@ -128,11 +128,16 @@ def create_project(
     extra_includes.append('#include "ui/GameScreen.h"')
     extra_includes.append('#include "ui/GameMenus.h"')
     extra_includes.append('#include "core/TriggerSystem.h"')
+    extra_includes.append('#include "core/WorldHealth.h"')
+    extra_includes.append('#include <filesystem>')
+    extra_includes.append('#include <fstream>')
+    extra_includes.append('#include "core/LocationRegistry.h"')
     extra_members.append("    std::unique_ptr<Phyxel::Graphics::RenderCoordinator> renderCoordinator_;")
     extra_members.append("    Phyxel::Scene::AnimatedVoxelCharacter* playerCharacter_ = nullptr;")
     extra_members.append("    std::vector<std::unique_ptr<Phyxel::Scene::Entity>> entities_;")
     extra_members.append("    Phyxel::UI::GameScreen screen_;")
     extra_members.append("    Phyxel::Core::TriggerSystem triggers_;  // declarative when/then win conditions (game.json \"triggers\")")
+    extra_members.append("    nlohmann::json lastWorldHealth_;  // WorldHealth::check on every world scene ready (layer B self-check)")
     extra_includes.append('#include "core/GameDefinitionLoader.h"')
     extra_members.append("    Phyxel::Core::GameSubsystems gameSubsystems_;  // persistent: the SceneManager keeps a pointer to it")
     # Editor-parity gameplay state (docs/game-production/StandaloneParityGaps.md §1):
@@ -174,6 +179,10 @@ def create_project(
     # Inventory: loot via the give_item trigger action; persists in the profile blob.
     extra_includes.append('#include "core/Inventory.h"')
     extra_members.append("    Phyxel::Core::Inventory inventory_;  // player inventory (loot; persisted via PlayerProfile)")
+    extra_members.append("    bool endTurnKeyDown_ = false;  // Space = End Turn edge detector (turn-based combat)")
+    extra_members.append("    bool dlgKeyDown_[6] = {};      // edge detectors for E, Enter, 1-4 (dialogue keys)")
+    extra_members.append("    bool victoryEmitted_ = false;  // combat_victory fired once per encounter (kill path OR escape path)")
+    extra_members.append("    bool loseAutoGameOver_ = true; // player death -> game-over screen (game.json lose.auto_game_over)")
     # BG3-style tactical camera: swap to an overhead/isometric rig while an
     # encounter runs, restore the scene's rig after (combat.camera in game.json).
     extra_members.append('    std::string combatCameraRig_ = "overhead";  // rig while in combat (game.json combat.camera)')
@@ -226,6 +235,7 @@ def create_project(
     extra_includes.append('#include "ui/UISystem.h"')
     extra_includes.append('#include "ui/HudDataContext.h"')
     extra_includes.append('#include "core/HealthComponent.h"')
+    extra_includes.append('#include "core/RpgItem.h"')   # combat_ai "weapon" -> damage dice
     extra_members.append("    std::unique_ptr<Phyxel::UI::GameMenuRenderer> gameMenuRenderer_;")
     extra_members.append("    bool menuSceneActive_ = false;  // a sceneType:\"menu\" scene is currently shown")
     extra_members.append("    std::string activeDataScreen_;  // which data-driven overlay is loaded: pause/intro/victory/credits (replaces ImGui ScreenState screens)")
@@ -294,6 +304,7 @@ def create_project(
         "    Phyxel::Graphics::RenderCoordinator* apiRenderCoordinator() override { return renderCoordinator_.get(); }",
         "    Phyxel::UI::GameScreen* apiScreen() override { return &screen_; }",
         "    Phyxel::Core::TriggerSystem* apiTriggerSystem() override { return &triggers_; }",
+        "    nlohmann::json apiWorldHealth() override { return lastWorldHealth_; }",
         "    Phyxel::Scene::AnimatedVoxelCharacter* apiPlayer() override { return playerCharacter_; }",
         "    Phyxel::Core::CombatDirector*       apiCombatDirector() override { return &combatDirector_; }",
         "    Phyxel::Core::CombatAISystem*       apiCombatAI() override       { return &combatAI_; }",
@@ -301,6 +312,7 @@ def create_project(
         "    Phyxel::Core::PlayerTurnController* apiPlayerTurn() override     { return &playerTurn_; }",
         "    Phyxel::Core::CharacterSheet*       apiPlayerSheet() override    { return &playerSheet_; }",
         "    Phyxel::Core::Inventory*            apiInventory() override      { return &inventory_; }",
+        "    Phyxel::UI::DialogueSystem*         apiDialogueSystem() override { return dialogueSystem_.get(); }",
         *([
             "    Phyxel::Core::EntityRegistry* apiEntityRegistry() override { return entityRegistry_.get(); }",
             "    Phyxel::Core::NPCManager* apiNPCManager() override { return npcManager_.get(); }",
@@ -842,6 +854,18 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     if (!var) return std::nullopt;
                     return std::visit([](const auto& v) {{ return nlohmann::json(v); }}, var->value);
                 }});
+            // Skill-check choices ("skillCheck": {{"skill":"Persuasion","dc":15}}) roll
+            // against the PLAYER's sheet: skill bonus (proficiency-aware) or raw ability
+            // modifier. Reputation gates have no faction ledger in the shell yet -> 0.
+            // (Ravenmere gap G-03: DialogueSkillCheck existed but nothing wired it.)
+            dialogueSystem_->setSkillBonusResolver([this](const Phyxel::Core::DialogueSkillCheck& c) -> int {{
+                switch (c.type) {{
+                    case Phyxel::Core::DialogueCheckType::SkillCheck:   return playerSheet_.skillBonus(c.skill);
+                    case Phyxel::Core::DialogueCheckType::AbilityCheck: return playerSheet_.attributes.modifier(c.ability);
+                    case Phyxel::Core::DialogueCheckType::ReputationGate: return 0;
+                }}
+                return 0;
+            }});
 
             // Interaction manager — detects player proximity to NPCs, handles E-key
             interactionManager_ = std::make_unique<Phyxel::Core::InteractionManager>();
@@ -1082,8 +1106,31 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 command_.notifyDeath(ev.targetId);
                 triggers_.onEvent("entity_died", {{{{"id", ev.targetId}}}});
                 if (ev.targetId == "player") {{
+                    // The player is DEAD. Until 2026-09-08 this only emitted an event
+                    // nobody listened to: the encounter ran on with a corpse taking
+                    // turns and the screen stayed "playing" (Ravenmere gap G-38).
+                    // Now: the encounter ends, and unless game.json opts out with
+                    // "lose": {{"auto_game_over": false}} (to script its own
+                    // player_died trigger) the game-over screen comes up.
+                    if (combatDirector_.inCombat()) combatDirector_.endEncounter();
                     triggers_.onEvent("player_died", {{{{"id", ev.targetId}}}});
+                    if (loseAutoGameOver_) {{
+                        LOG_INFO("{class_name}", "Player died — game over");
+                        screen_.showGameOver();
+                        if (engine_) updateCursorMode(*engine_);
+                    }}
                     return;
+                }}
+                // A fallen COMPANION stays fallen: mark the party ledger so the next scene
+                // load does not quietly resurrect them (Ravenmere run 6: Bram died to a
+                // wolf on the farm and "rejoined at the player's side" in the barrow —
+                // gap G-41). A long rest brings the party back (see long_rest).
+                if (auto* member = rpgParty_.getMember(ev.targetId)) {{
+                    rpgParty_.setAlive(ev.targetId, false);
+                    LOG_INFO("{class_name}", "Companion '{{}}' has fallen — they return after a long rest", member->name);
+                    triggers_.onEvent("companion_died", {{{{"id", ev.targetId}}, {{"name", member->name}}}});
+                    if (combatDirector_.inCombat()) combatDirector_.removeCombatant(ev.targetId);
+                    return;   // no kill XP for losing a friend
                 }}
                 if (killXp_ > 0) grantXP(killXp_, ev.targetId.c_str());
                 if (combatDirector_.inCombat()) {{
@@ -1094,7 +1141,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     if (!enemyRemains) {{
                         combatDirector_.endEncounter();
                         LOG_INFO("{class_name}", "Encounter won — last enemy fell ('{{}}')", ev.targetId);
-                        triggers_.onEvent("combat_victory", {{{{"last_kill", ev.targetId}}}});
+                        victoryEmitted_ = true;
+                        triggers_.onEvent("combat_victory", {{{{"last_kill", ev.targetId}}, {{"reason", "last_enemy_killed"}}}});
                     }}
                 }}
             }});
@@ -1129,6 +1177,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             combatAI_.setTacticsProvider([this](const std::string& id) -> const Phyxel::Core::CombatTactics* {{
                 auto it = npcTactics_.find(id);
                 return it == npcTactics_.end() ? nullptr : &it->second;
+            }});
+            // The player's ARMOR CLASS is their sheet's — not the HP-based pseudo-AC that
+            // made the wounded easier to hit (G-44). Companions/NPCs: 0 = let the AI use the
+            // stat block or the fallback.
+            combatAI_.setACProvider([this](const std::string& id) -> int {{
+                return id == "player" ? playerSheet_.armorClass : 0;
             }});
             playerTurn_.setCombatDirector(&combatDirector_);
             playerTurn_.setEntityRegistry(entityRegistry_.get());
@@ -1167,6 +1221,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 }} else if (type == "show_credits") {{
                     screen_.showCredits();
                     if (engine_) updateCursorMode(*engine_);
+                }} else if (type == "show_game_over") {{
+                    // Authorable lose condition (a timer ran out, an ally you had to
+                    // protect died, …) — the fail twin of show_victory (G-38).
+                    if (combatDirector_.inCombat()) combatDirector_.endEncounter();
+                    screen_.showGameOver();
+                    if (engine_) updateCursorMode(*engine_);
                 }} else if (type == "set_story_variable") {{
                     // {{"type":"set_story_variable","name":"flag","value":true}}
                     const std::string name = a.value("name", "");
@@ -1187,6 +1247,23 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     const std::string id = a.value("id", "");
                     if (!objectiveTracker_.failObjective(id))
                         LOG_WARN("{class_name}", "fail_objective: unknown objective '{{}}' (trigger '{{}}')", id, tid);
+                }} else if (type == "reveal_objective" || type == "hide_objective") {{
+                    // Quest chains: author later steps "hidden": true and surface them
+                    // when the previous step completes (Ravenmere gap G-06).
+                    //   {{"type":"reveal_objective","id":"main_2"}}
+                    const std::string id = a.value("id", "");
+                    if (!objectiveTracker_.setHidden(id, type == "hide_objective"))
+                        LOG_WARN("{class_name}", "{{}}: unknown objective '{{}}' (trigger '{{}}')", type, id, tid);
+                    else
+                        LOG_INFO("{class_name}", "Objective '{{}}' {{}} (trigger '{{}}')", id,
+                                 type == "hide_objective" ? "hidden" : "revealed", tid);
+                }} else if (type == "add_objective") {{
+                    //   {{"type":"add_objective","id":"x","title":"...","description":"...","category":"side","priority":0,"hidden":false}}
+                    const std::string id = a.value("id", "");
+                    if (id.empty() || !objectiveTracker_.addObjective(id, a.value("title", ""), a.value("description", ""),
+                                                                      a.value("category", "main"), a.value("priority", 0),
+                                                                      a.value("hidden", false)))
+                        LOG_WARN("{class_name}", "add_objective: rejected '{{}}' (trigger '{{}}')", id, tid);
                 }} else if (type == "save_game") {{
                     // Authorable save point: {{"type":"save_game"}} persists the
                     // player profile to the active scene's world DB.
@@ -1198,6 +1275,17 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     refreshSpellbar();
                     LOG_INFO("{class_name}", "Long rest: {{}} slot(s) restored",
                              playerCaster_.slots().totalRemaining());
+                    // House rule for a short game: a long rest also brings fallen
+                    // companions back (they respawn at the player's side on the next
+                    // scene load). Heals the player to full as well.
+                    for (const auto& m : rpgParty_.getMembers()) {{
+                        if (!m.isAlive) {{
+                            rpgParty_.setAlive(m.entityId, true);
+                            LOG_INFO("{class_name}", "Long rest: '{{}}' recovers and will rejoin at the next area", m.name);
+                        }}
+                    }}
+                    if (playerCharacter_)
+                        if (auto* hc = playerCharacter_->getHealthComponent()) hc->setHealth(hc->getMaxHealth());
                     triggers_.onEvent("long_rest", nlohmann::json::object());
                 }} else if (type == "give_item") {{
                     // Authorable loot: {{"type":"give_item","id":"moonpetal_remedy","count":1}}
@@ -1324,6 +1412,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                              gameDef["objectives"].size());
                 }}
 
+                // "lose": {{"auto_game_over": true}} — player death shows the game-over
+                // screen (default). Set false to script the lose path yourself with a
+                // player_died trigger (respawn, cutscene, …). (G-38)
+                if (gameDef.contains("lose") && gameDef["lose"].is_object())
+                    loseAutoGameOver_ = gameDef["lose"].value("auto_game_over", true);
+
                 // "combat": {{"mode": "turn_based"|"real_time"}} — the per-game
                 // ruleset (mirrors the editor's combat.mode application).
                 if (gameDef.contains("combat") && gameDef["combat"].is_object()) {{
@@ -1364,6 +1458,26 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     playerSheet_.classes.clear();
                     playerSheet_.classes.push_back(cl);
                     playerSheet_.experiencePoints = 0;
+                    // "abilities": {{"str":14,"dex":10,"con":14,"int":8,"wis":16,"cha":12}} — a
+                    // pre-made needs real scores (all-10s made every roll +0, G-30);
+                    // "armor_class": 18 — armor is not modelled on the sheet yet, so the
+                    // authored AC stands in for chain mail + shield (G-43/G-44).
+                    if (prog.contains("abilities") && prog["abilities"].is_object()) {{
+                        const auto& ab = prog["abilities"];
+                        playerSheet_.attributes.setAll(ab.value("str", 10), ab.value("dex", 10), ab.value("con", 10),
+                                                       ab.value("int", 10), ab.value("wis", 10), ab.value("cha", 10));
+                    }}
+                    playerSheet_.recalculate();
+                    if (prog.contains("armor_class") && prog["armor_class"].is_number_integer())
+                        playerSheet_.armorClass = prog["armor_class"].get<int>();
+                    LOG_INFO("{class_name}", "Player sheet: AC {{}}, STR {{}} DEX {{}} CON {{}} INT {{}} WIS {{}} CHA {{}}",
+                             playerSheet_.armorClass,
+                             playerSheet_.attributes.get(Phyxel::Core::AbilityType::Strength).total(),
+                             playerSheet_.attributes.get(Phyxel::Core::AbilityType::Dexterity).total(),
+                             playerSheet_.attributes.get(Phyxel::Core::AbilityType::Constitution).total(),
+                             playerSheet_.attributes.get(Phyxel::Core::AbilityType::Intelligence).total(),
+                             playerSheet_.attributes.get(Phyxel::Core::AbilityType::Wisdom).total(),
+                             playerSheet_.attributes.get(Phyxel::Core::AbilityType::Charisma).total());
                     killXp_      = prog.value("kill_xp", 0);
                     objectiveXp_ = prog.value("objective_xp", 0);
                     // "spells": authored castable list (SpellRegistry ids) — the
@@ -1470,6 +1584,20 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         t.preferredRangeFeet = tj.value("preferred_range", 0.0f);
                         t.fleeBelowHpFrac    = tj.value("flee_below_hp", 0.0f);
                         t.healAllyBelowFrac  = tj.value("heal_ally_below", 0.0f);
+                        // "weapon": an rpg_items id ("mace", "shortsword") -> damage dice from the
+                        // item; "attack_bonus": to-hit. Companions fight with real weapons (G-45).
+                        t.attackBonus = tj.value("attack_bonus", -1);
+                        if (tj.contains("damage_dice") && tj["damage_dice"].is_string())
+                            t.damageDice = tj["damage_dice"].get<std::string>();
+                        if (tj.contains("weapon") && tj["weapon"].is_string()) {{
+                            auto& items = Phyxel::Core::RpgItemRegistry::instance();
+                            if (items.count() == 0) items.loadFromDirectory("resources/rpg_items");
+                            const std::string wid = tj["weapon"].get<std::string>();
+                            if (const auto* item = items.getItem(wid); item && item->hasWeaponDamage())
+                                t.damageDice = item->damageDice.toString();
+                            else
+                                LOG_WARN("{class_name}", "combat_ai['{{}}']: unknown weapon '{{}}' (resources/rpg_items)", it.key(), wid);
+                        }}
                         LOG_INFO("{class_name}", "Tactics '{{}}': target={{}} range={{}}ft flee<{{}} heal<{{}}",
                                  it.key(), pri, t.preferredRangeFeet, t.fleeBelowHpFrac, t.healAllyBelowFrac);
                         npcTactics_[it.key()] = t;
@@ -1513,6 +1641,23 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     // box for AI conversations. (docs/HudSystem.md §11a.)
                     if (dialogueSystem_)
                         Phyxel::UI::setupAIDialogue(*hudUi, renderCoordinator_->hudData(), dialogueSystem_.get());
+                    // The default HUD ships an "End Turn" button (hud_combat_action /
+                    // combat_end_turn) that only the EDITOR used to bind — in a shipped
+                    // game it rendered and did nothing, so a player who did not want to
+                    // attack could never hand the turn over (Ravenmere gap G-02). Mirror
+                    // Application::bindCombatHudButtons.
+                    for (const auto& [screenName, vis] : hudUi->getScreenList()) {{
+                        auto* scr = hudUi->getScreen(screenName);
+                        if (!scr) continue;
+                        if (auto* w = scr->findChild("combat_end_turn"); w && w->type() == Phyxel::UI::WidgetType::Button) {{
+                            static_cast<Phyxel::UI::UIButton*>(w)->onClick = [this] {{
+                                if (combatDirector_.inCombat() && playerTurn_.isPlayerTurnActive()) {{
+                                    LOG_INFO("{class_name}", "End Turn (button)");
+                                    playerTurn_.endTurn();
+                                }}
+                            }};
+                        }}
+                    }}
                 }}
 
                 // Multi-scene: delegate to SceneManager
@@ -1620,11 +1765,70 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 }}
                             }}
                         }};
-                        cb.onSceneReady = [this](const std::string& /*sceneId*/) {{
+                        cb.onSceneReady = [this](const std::string& sceneId) {{
                             auto* smgr = engine_ ? engine_->getSceneManager() : nullptr;
                             const auto* active = smgr ? smgr->getActiveScene() : nullptr;
                             bool isMenu = active && active->sceneType == Phyxel::Core::SceneType::Menu;
                             if (isMenu) return;  // keep the menu visible
+                            // The NavGrid describes ONE world. It was built once at boot (on the
+                            // menu scene's 3x3 title world: 96x96 cells, all walkable) and never
+                            // again, so in the town the spawn was "not in grid" and every path
+                            // went straight through the buildings — NPCs and the harness walked
+                            // into walls (Ravenmere gap G-53). Rebuild it for each world scene
+                            // from the chunks this scene actually loaded.
+                            if (npcManager_) {{
+                                npcManager_->buildNavGrid();
+                                LOG_INFO("{class_name}", "navigation: NavGrid rebuilt for scene (pathService={{}})",
+                                         npcManager_->getPathService() ? "running" : "NULL");
+                            }}
+                            // WORLD HEALTH (WalkabilityGateAndPlaytestLoop layer B): from the
+                            // spawn, path to every NPC, trigger region and location on the graph
+                            // just built, and check there is terrain under the spawn at all. A
+                            // failure is a generator defect that escaped the settlement gate -
+                            // or an empty world (G-84). Logged here, served as world_health.
+                            if (engine_ && playerCharacter_) {{
+                                std::vector<Phyxel::Core::WorldHealthAnchor> anchors;
+                                if (npcManager_)
+                                    npcManager_->forEachNPC([&](Phyxel::Scene::NPCEntity& npc) {{
+                                        anchors.push_back({{npc.getName(), "npc", npc.getPosition(), false, 0}});
+                                    }});
+                                for (const auto& [tid, region] : triggers_.regionTriggers()) {{
+                                    const auto& a = region["from"]; const auto& b = region["to"];
+                                    glm::vec3 c((a.value("x", 0.0f) + b.value("x", 0.0f)) * 0.5f,
+                                                std::min(a.value("y", 0.0f), b.value("y", 0.0f)) + 1.0f,
+                                                (a.value("z", 0.0f) + b.value("z", 0.0f)) * 0.5f);
+                                    anchors.push_back({{tid, "trigger", c, false, 0}});
+                                }}
+                                if (auto* locs = engine_->getLocationRegistry())
+                                    for (const auto& [lid, loc] : locs->getAllLocations())
+                                        anchors.push_back({{lid, "location", loc.position, false, 0}});
+                                auto* cm = engine_->getChunkManager();
+                                const auto rep = Phyxel::Core::WorldHealth::check(
+                                    npcManager_ ? npcManager_->getNavGraph() : nullptr,
+                                    [cm](const glm::ivec3& cube) {{ return cm && cm->hasVoxelAt(cube); }},
+                                    playerCharacter_->getPosition(), std::move(anchors));
+                                lastWorldHealth_ = rep.toJson();
+                                if (rep.ok()) LOG_INFO("{class_name}", "{{}}", rep.summary());
+                                else          LOG_WARN("{class_name}", "{{}}", rep.summary());
+                                // Layer C: every failure is a defect record (playtest/defects.jsonl
+                                // next to the executable) - the fix loop's input, one line each.
+                                if (!rep.ok()) {{
+                                    std::filesystem::create_directories("playtest");
+                                    std::ofstream df("playtest/defects.jsonl", std::ios::app);
+                                    const std::string when = Phyxel::Core::WorldHealth::timestamp();
+                                    auto line = [&](const std::string& invariant, const glm::vec3& pos,
+                                                    const std::string& route, const std::string& evidence) {{
+                                        nlohmann::json j = {{{{"when", when}}, {{"source", "selfcheck"}}, {{"scene", sceneId}},
+                                                            {{"pos", {{pos.x, pos.y, pos.z}}}}, {{"route_label", route}},
+                                                            {{"invariant", invariant}}, {{"evidence", evidence}}}};
+                                        df << j.dump() << "\\n";
+                                    }};
+                                    if (!rep.terrainUnderSpawn) line("terrain_under_spawn", rep.spawn, "spawn", "no voxel within 8 cubes below the spawn");
+                                    if (!rep.graphAvailable) line("navgraph_available", rep.spawn, "spawn", "no NavGraph at scene ready");
+                                    for (const auto& an : rep.anchors)
+                                        if (!an.reachable) line("anchor_reachable_from_spawn", an.pos, "spawn -> " + an.kind + " " + an.id, "WorldHealth: no path");
+                                }}
+                            }}
                             // A world scene is ready: drop any menu and hand control to
                             // gameplay. Setting Playing must NOT depend on a menu having
                             // been shown — a game whose startScene is a world scene
@@ -1672,6 +1876,30 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         sm->setCallbacks(cb);
 
                         sm->loadManifest(manifest);
+                        // "globalStory": {{"world": {{"variables": {{...}}}}, "arcs": [...]}} — the
+                        // manifest parsed this block but NOTHING consumed it, so every
+                        // dialogue condition on an authored initial variable failed closed
+                        // (Ravenmere gap G-26). Apply the initial variables ONCE here (not
+                        // per scene — a scene re-entry must not reset quest progress).
+                        if (storyEngine_ && gameDef.contains("globalStory") && gameDef["globalStory"].is_object()) {{
+                            const nlohmann::json& gs = gameDef["globalStory"];
+                            int applied = 0;
+                            if (gs.contains("world") && gs["world"].is_object() &&
+                                gs["world"].contains("variables") && gs["world"]["variables"].is_object()) {{
+                                const nlohmann::json& vars = gs["world"]["variables"];
+                                auto& ws = storyEngine_->getWorldState();
+                                for (auto it = vars.begin(); it != vars.end(); ++it) {{
+                                    const nlohmann::json& val = it.value();
+                                    if      (val.is_boolean())        ws.setVariable(it.key(), val.get<bool>());
+                                    else if (val.is_number_integer()) ws.setVariable(it.key(), val.get<int>());
+                                    else if (val.is_number_float())   ws.setVariable(it.key(), val.get<float>());
+                                    else if (val.is_string())         ws.setVariable(it.key(), val.get<std::string>());
+                                    else continue;
+                                    ++applied;
+                                }}
+                            }}
+                            LOG_INFO("{class_name}", "globalStory: {{}} initial story variable(s) applied", applied);
+                        }}
                         sm->loadStartScene();
                         // Drive the first frame so the scene actually loads
                         sm->update(0.0f);
@@ -1795,8 +2023,22 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             const bool aiTyping = dialogueSystem_ && dialogueSystem_->isActive() &&
                                   dialogueSystem_->isAIConversation();
 
+            // Dialogue keys are EDGE-triggered. isKeyPressed() is level-triggered, so a
+            // key held across two frames (any 100 ms press at 10-20 FPS, or a normal
+            // human press at 60) advanced TWO nodes: Ravenmere's Bram fired his
+            // join_party action twice on one Enter, and the same Enter that ended a
+            // conversation re-opened it (gap G-29).
+            auto dlgEdge = [&](int glfwKey, int slot) {{
+                const bool down = input->isKeyPressed(glfwKey);
+                const bool edge = down && !dlgKeyDown_[slot];
+                dlgKeyDown_[slot] = down;
+                return edge;
+            }};
+            const bool eEdge     = dlgEdge(GLFW_KEY_E, 0);
+            const bool enterEdge = dlgEdge(GLFW_KEY_ENTER, 1);
+
             // E key: interact with NPC / advance a TREE dialogue.
-            if (!aiTyping && Phyxel::UI::isGameRunning(state) && input->isKeyPressed(GLFW_KEY_E)) {{
+            if (!aiTyping && Phyxel::UI::isGameRunning(state) && eEdge) {{
                 if (dialogueSystem_ && dialogueSystem_->isActive()) {{
                     dialogueSystem_->advanceDialogue();
                 }} else if (interactionManager_) {{
@@ -1805,16 +2047,15 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             }}
 
             // Enter key: advance a TREE dialogue (AI submits via the text field).
-            if (!aiTyping && dialogueSystem_ && dialogueSystem_->isActive() && input->isKeyPressed(GLFW_KEY_ENTER)) {{
+            if (!aiTyping && dialogueSystem_ && dialogueSystem_->isActive() && enterEdge) {{
                 dialogueSystem_->advanceDialogue();
             }}
 
             // Number keys 1-4: select TREE dialogue choices.
-            if (!aiTyping && dialogueSystem_ && dialogueSystem_->isActive()) {{
-                for (int k = GLFW_KEY_1; k <= GLFW_KEY_4; ++k) {{
-                    if (input->isKeyPressed(k)) {{
-                        dialogueSystem_->selectChoice(k - GLFW_KEY_1);
-                    }}
+            for (int k = GLFW_KEY_1; k <= GLFW_KEY_4; ++k) {{
+                const bool choiceEdge = dlgEdge(k, 2 + (k - GLFW_KEY_1));
+                if (!aiTyping && dialogueSystem_ && dialogueSystem_->isActive() && choiceEdge) {{
+                    dialogueSystem_->selectChoice(k - GLFW_KEY_1);
                 }}
             }}
 
@@ -1826,6 +2067,13 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             bool inDialogue = dialogueSystem_ && dialogueSystem_->isActive();
             if (Phyxel::UI::isGameRunning(screen_.getState()) && !inDialogue && !menuSceneActive_) {{
                 input->processInput(engine.getLastDeltaTime());
+            }} else {{
+                // processInput is the only thing that ages INJECTED keys. When it is
+                // gated off (dialogue / pause / menu scene) an injected key never
+                // released, so every edge-triggered binding saw it held forever —
+                // the harness could not pick a second dialogue choice or close the
+                // pause menu (Ravenmere gap G-33). Age the injections regardless.
+                input->tickInjection(engine.getLastDeltaTime());
             }}
 
             // BG3 mouse combat: on the player's turn, a left click resolves to
@@ -1898,6 +2146,19 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     pitch = glm::clamp(pitch, rig->pitchClampMin, rig->pitchClampMax);
                     look->setYawPitch(yaw, pitch);
                 }}
+            }}
+
+            // SPACE ends the player's turn (edge-triggered). Keyboard twin of the
+            // HUD's End Turn button; WASD is dead in turn-based combat so Space is
+            // free (Ravenmere gap G-02).
+            {{
+                const bool endKey = input->isKeyPressed(GLFW_KEY_SPACE);
+                if (endKey && !endTurnKeyDown_ && combatDirector_.inCombat() &&
+                    playerTurn_.isPlayerTurnActive() && !inDialogue) {{
+                    LOG_INFO("{class_name}", "End Turn (Space)");
+                    playerTurn_.endTurn();
+                }}
+                endTurnKeyDown_ = endKey;
             }}
 
             if (combatDirector_.inCombat() && playerTurn_.isPlayerTurnActive() &&
@@ -2135,7 +2396,19 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         if (auto* uisys = renderCoordinator_->getUISystem())
                             uisys->removeScreen("hud_spellbar");
                     armedSpell_.clear();
+                    // The encounter can also end WITHOUT a last kill: the last hostile
+                    // ESCAPED (morale flee, CombatAISystem G-31). Quest triggers gate
+                    // on combat_victory, so emit it here too — once per encounter, and
+                    // only if the player side is still standing.
+                    auto* playerHc = playerCharacter_ ? playerCharacter_->getHealthComponent() : nullptr;
+                    if (!victoryEmitted_ && !combatDirector_.playerSideWiped() &&
+                        (!playerHc || playerHc->isAlive())) {{
+                        victoryEmitted_ = true;
+                        LOG_INFO("{class_name}", "Encounter over — the last hostile escaped");
+                        triggers_.onEvent("combat_victory", {{{{"last_kill", ""}}, {{"reason", "enemies_escaped"}}}});
+                    }}
                 }}
+                if (inCombatNow) victoryEmitted_ = false;   // enter edge: arm for this encounter
                 wasInCombat_ = inCombatNow;
                 if (engine_) updateCursorMode(*engine_);
             }}
@@ -2210,6 +2483,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 case Phyxel::UI::ScreenState::Intro:    want = "intro";    break;
                                 case Phyxel::UI::ScreenState::Victory:  want = "victory";  break;
                                 case Phyxel::UI::ScreenState::Credits:  want = "credits";  break;
+                                case Phyxel::UI::ScreenState::GameOver: want = "game_over"; break;
                                 case Phyxel::UI::ScreenState::Settings: want = "settings"; break;
                                 case Phyxel::UI::ScreenState::Loading:  want = "loading";  break;
                                 default: break;
@@ -2375,6 +2649,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 case Phyxel::UI::ScreenState::Intro:
                 case Phyxel::UI::ScreenState::Victory:
                 case Phyxel::UI::ScreenState::Credits:
+                case Phyxel::UI::ScreenState::GameOver:
                     // Intro / Victory / Credits are now data-driven "intro:*" /
                     // "victory:*" / "credits:*" UISystem overlays loaded + driven by the
                     // reconcile above (no ImGui). Enter Victory from gameplay with

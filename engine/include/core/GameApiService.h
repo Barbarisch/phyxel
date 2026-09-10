@@ -1,4 +1,5 @@
 #pragma once
+#include <nlohmann/json.hpp>
 
 #include <functional>
 #include <memory>
@@ -8,7 +9,7 @@
 namespace Phyxel {
 namespace Graphics { class RenderCoordinator; }
 namespace Scene { class AnimatedVoxelCharacter; }
-namespace UI { class GameScreen; }
+namespace UI { class GameScreen; class DialogueSystem; }
 namespace Core {
 
 class EngineRuntime;
@@ -64,10 +65,13 @@ public:
     NPCManager*                  npcManager = nullptr;        // NavGrid reachability
     TriggerSystem*               triggers = nullptr;          // list/fire triggers
     UI::GameScreen*              screen = nullptr;            // REAL screen state
+    UI::DialogueSystem*          dialogueSystem = nullptr;    // dialogue_state: node + visible choices (harness observability, Ravenmere G-47)
     EntityRegistry*              entityRegistry = nullptr;    // /api/state entities
     // The player character can be rebuilt/reassigned across scenes, so resolve it
     // fresh each call rather than caching a pointer.
     std::function<Scene::AnimatedVoxelCharacter*()> playerProvider;
+    /// The host's latest WorldHealth report (WorldHealth::check on scene ready), or null.
+    std::function<nlohmann::json()> worldHealthProvider;
     // Turn-based combat (all-or-nothing trio; null = combat endpoints report
     // "not available"). Commands run on the game-loop thread via pump(), so
     // handlers may call these directly — no intent mutex (unlike the editor's

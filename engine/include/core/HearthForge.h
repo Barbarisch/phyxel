@@ -127,6 +127,26 @@ public:
                                const std::vector<Rect>& reservedRects,
                                const std::string& wealthTier);
 
+    /// Does a stack rising from `story` come up in the MIDDLE of a room on any story
+    /// above? Against an upper room's wall line is fine (it reads as a chimney breast);
+    /// through the floor of the room is a column through the chamber. ONE definition,
+    /// shared by the siting below and the realizer's routing gate, so what the forge
+    /// accepts is exactly what the realizer builds. `which` names the offending room.
+    static bool stackCrossesUpperRoomMiddle(const Rect& stackCubes, const BuildingProgram& program,
+                                            int story, std::string* which = nullptr);
+
+    /// Site every story's hearths the way the furnish pass will reserve them (stair wells +
+    /// the stacks rising from below), AND keep each stack off the middle of the rooms above:
+    /// a violating hearth is re-sited with its spot reserved (bounded attempts) instead of
+    /// being handed to the realizer, which must refuse it (Ravenmere G-69: the tavern lot
+    /// was left EMPTY because the kitchen flue rose through an upstairs chamber once the
+    /// street-facing entrance moved the stair). Returns how many hearths were sited;
+    /// `notes` receives one line per re-site / unresolved stack for the build log.
+    static int siteAllStories(BuildingProgram& program,
+                              const std::map<std::string, Footprint>& footprints,
+                              int extTMicro, int intTMicro, const std::string& wealthTier,
+                              std::vector<std::string>* notes = nullptr);
+
     /// Stair wells touching `storyIndex`, derived from the PROGRAM — the same rects
     /// FurniturePlacer::planStairRects reads off the realized plan, available before
     /// realize (which is when hearths must be sited). Mirrors the realizer's filters

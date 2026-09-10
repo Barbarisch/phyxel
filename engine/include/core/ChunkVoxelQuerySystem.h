@@ -80,7 +80,13 @@ public:
     
     // Get voxel type (EMPTY, CUBE, SUBDIVIDED)
     VoxelLocation::Type getVoxelTypeAt(const glm::ivec3& worldPos) const;
-    
+
+    /// Sub-voxel occupancy at world MICRO coordinates (cube * 9 + 0..8 per axis): true if
+    /// that 1/9-m cell is solid — a full cube, a subcube covering it, or a microcube at it.
+    /// Unloaded chunk reads false. Static chunk content only (dynamic bodies are not voxels).
+    /// This is the sampler the sub-cube-aware NavGraph uses for Partial cubes.
+    bool occupiedMicro(const glm::ivec3& micro) const;
+
 private:
     // Callbacks for accessing chunk data
     ChunkMapAccessFunc m_chunkMapAccess;

@@ -84,6 +84,10 @@ bool allClear(const MicroCanvas& c, int x0, int x1, int y0, int y1, int z0, int 
 // Exterior DOOR at cube (0,3), west wall (x=0), 1 cube wide, 2 cubes tall.
 // Opening box in micro: x [0,9) (through-axis), z [27,36), y [wBase, wBase+18).
 // Wall band occupies x [0,3) (timber_cottage exterior 0.333 m -> 3 micro).
+// 2026-09-09 (Ravenmere G-77): the door LINTEL sits in the wall ABOVE the opening
+// (y [wBase+18, wBase+20)), not inside it - the opening is the clear height. The canon
+// (object_dimensions.json door_interior clear_h 2.03 m) needs 2.0 m clear; painting the
+// lintel inside left 1.78 m, under the humanoid's head.
 TEST(FinishForgeTest, ExteriorDoorIsFramedNotRawHole) {
     auto r = build();
     ASSERT_TRUE(r.ok) << r.error;
@@ -92,19 +96,19 @@ TEST(FinishForgeTest, ExteriorDoorIsFramedNotRawHole) {
 
     // JAMBS: solid cells inside the opening's side bands (within the wall band depth),
     // spanning door height. Raw hole = all air here -> RED today.
-    EXPECT_TRUE(anyOccupied(c, 0, 3, wb + 2, wb + 16, 27, 29))
+    EXPECT_TRUE(anyOccupied(c, 0, 3, wb + 2, wb + 18, 27, 29))
         << "south jamb missing: door opening's -z side band is raw air";
-    EXPECT_TRUE(anyOccupied(c, 0, 3, wb + 2, wb + 16, 34, 36))
+    EXPECT_TRUE(anyOccupied(c, 0, 3, wb + 2, wb + 18, 34, 36))
         << "north jamb missing: door opening's +z side band is raw air";
 
-    // LINTEL: solid band across the head of the clear span, inside the opening box.
-    EXPECT_TRUE(anyOccupied(c, 0, 3, wb + 16, wb + 18, 30, 33))
+    // LINTEL: solid band across the head of the clear span, in the wall ABOVE the opening.
+    EXPECT_TRUE(anyOccupied(c, 0, 3, wb + 18, wb + 20, 30, 33))
         << "lintel missing: door head band is raw air";
 
-    // CLEAR PASSAGE (guards over-framing; GREEN before and after): the centre strip
-    // of the doorway stays walk-through air for its full depth.
-    EXPECT_TRUE(allClear(c, 0, 9, wb + 2, wb + 15, 30, 33))
-        << "door centre strip must stay clear after framing";
+    // CLEAR PASSAGE (guards over-framing): the centre strip of the doorway stays
+    // walk-through air for its full depth and the FULL 2.0 m (18 micro) clear height.
+    EXPECT_TRUE(allClear(c, 0, 9, wb + 2, wb + 18, 30, 33))
+        << "door centre strip must stay clear (2.0 m) after framing";
 }
 
 // Exterior WINDOW at cube (0,6), 1 cube, sits on the realizer's 1-cube sill offset.

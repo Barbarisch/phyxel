@@ -1,4 +1,5 @@
 #pragma once
+#include "core/AgentProfile.h"
 
 // ============================================================================
 // TraversalProbe — a character-sized box stepped through a voxel world in a
@@ -26,7 +27,7 @@ namespace Core {
 
 struct AgentBox {
     int halfWidthMicro = 2;    ///< ~0.25 m footprint half-extent (m_originalHalfWidth)
-    int heightMicro    = 16;   ///< ~1.75 m standing height (clearance the box needs above its feet)
+    int heightMicro    = kAgentHeightMicro;   ///< 1.87 m standing height incl. head clearance (AgentProfile.h)
     int maxStepUpMicro = 4;    ///< ~0.44 m auto step-up (m_maxStepHeight = 4/9 m)
 };
 

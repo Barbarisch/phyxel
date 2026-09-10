@@ -56,8 +56,8 @@ TEST(NavObstacleTest, ObstacleBoxesBlockAndRerouteNavGraph) {
     // A 3-cube-tall obstacle wall at x=15, z=4..27 (gaps at both z ends): the path
     // must reroute around it and no node may sit inside a blocked column.
     npc.setNavObstacleProvider([]() {
-        return std::vector<std::pair<glm::ivec3, glm::ivec3>>{
-            {glm::ivec3(15, 16, 4), glm::ivec3(15, 18, 27)}};
+        return std::vector<std::pair<glm::vec3, glm::vec3>>{
+            {glm::vec3(15, 16, 4), glm::vec3(16, 19, 28)}};   // cubes x15, y16..18, z4..27
     });
     npc.buildNavGrid();
     auto r2 = npc.getNavGraph()->findPath(from, to, agent);
@@ -66,8 +66,8 @@ TEST(NavObstacleTest, ObstacleBoxesBlockAndRerouteNavGraph) {
 
     // Full-span wall (z=0..31): no way around on this chunk -> honestly not found.
     npc.setNavObstacleProvider([]() {
-        return std::vector<std::pair<glm::ivec3, glm::ivec3>>{
-            {glm::ivec3(15, 16, 0), glm::ivec3(15, 18, 31)}};
+        return std::vector<std::pair<glm::vec3, glm::vec3>>{
+            {glm::vec3(15, 16, 0), glm::vec3(16, 19, 32)}};
     });
     npc.buildNavGrid();
     auto r3 = npc.getNavGraph()->findPath(from, to, agent);
@@ -76,8 +76,8 @@ TEST(NavObstacleTest, ObstacleBoxesBlockAndRerouteNavGraph) {
     // Oversized boxes (a mis-fed structure bbox) are SKIPPED, not applied: the
     // 40x40x40 box would cover the whole chunk, but the path must stay open.
     npc.setNavObstacleProvider([]() {
-        return std::vector<std::pair<glm::ivec3, glm::ivec3>>{
-            {glm::ivec3(0, 0, 0), glm::ivec3(39, 39, 39)}};
+        return std::vector<std::pair<glm::vec3, glm::vec3>>{
+            {glm::vec3(0, 0, 0), glm::vec3(40, 40, 40)}};
     });
     npc.buildNavGrid();
     auto r4 = npc.getNavGraph()->findPath(from, to, agent);

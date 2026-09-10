@@ -116,3 +116,74 @@ TEST(FenceCornerTest, EveryCornerHasOnePostAndRailsReachIt) {
         }
     }
 }
+
+
+// Ravenmere G-78 (2026-09-09): the tavern's east wall face was 1 cell from the next
+// parcel's picket line - a 1.0 m alley, 0.67 m at the corner quoin, the only street->
+// shrine route with 0.11 m of slack. A parcel plane that would leave < 2 clear cells
+// against a neighbouring footprint is a pinch and must be dropped. RED on the old
+// code: no such rule existed (every run was stamped).
+TEST(FenceCornerTest, RunsPinchingANeighbourWallAreDropped) {
+    using Phyxel::Core::CubeRect;
+    using Phyxel::Core::fenceRunPinchesNeighbour;
+    using Phyxel::Core::planParcelFenceRuns;
+    // Parcel x 10..15, z 0..7. Its W plane is at x=10.
+    const int prX = 10, prZ = 0, prW = 6, prD = 8;
+    const auto runs = planParcelFenceRuns(prX, prZ, prW, prD);
+    auto runOf = [&](char side) {
+        for (const auto& r : runs) if (r.side == side) return r;
+        ADD_FAILURE() << "no run for side " << side; return runs.front();
+    };
+    // A neighbour whose east wall cube is x=8: one clear cell (x=9) before the W plane.
+    std::vector<CubeRect> oneCell  = {{2, 0, 7, 8}};
+    // The same neighbour one cell further west: two clear cells (x=8, 9).
+    std::vector<CubeRect> twoCells = {{1, 0, 7, 8}};
+    EXPECT_TRUE (fenceRunPinchesNeighbour(runOf('W'), prX, prZ, prW, prD, oneCell,  2)) << "1-cell alley must pinch";
+    EXPECT_FALSE(fenceRunPinchesNeighbour(runOf('W'), prX, prZ, prW, prD, twoCells, 2)) << "2-cell alley is a corridor";
+    // The other planes do not face that neighbour.
+    EXPECT_FALSE(fenceRunPinchesNeighbour(runOf('E'), prX, prZ, prW, prD, oneCell, 2));
+    EXPECT_FALSE(fenceRunPinchesNeighbour(runOf('N'), prX, prZ, prW, prD, oneCell, 2));
+    EXPECT_FALSE(fenceRunPinchesNeighbour(runOf('S'), prX, prZ, prW, prD, oneCell, 2));
+    // No overlap along the run: a neighbour beside the plane but past the parcel's end.
+    std::vector<CubeRect> pastTheEnd = {{2, 20, 7, 8}};
+    EXPECT_FALSE(fenceRunPinchesNeighbour(runOf('W'), prX, prZ, prW, prD, pastTheEnd, 2));
+    // N plane (an INNER plane, 8 micro inside the parcel edge at z=7): a neighbour whose
+    // wall starts at z=9 leaves 1 cell + 8 micro = 17 micro < 18 -> pinch; at z=10 it is fine.
+    std::vector<CubeRect> northClose = {{10, 9, 6, 5}};
+    std::vector<CubeRect> northOk    = {{10, 10, 6, 5}};
+    EXPECT_TRUE (fenceRunPinchesNeighbour(runOf('N'), prX, prZ, prW, prD, northClose, 2));
+    EXPECT_FALSE(fenceRunPinchesNeighbour(runOf('N'), prX, prZ, prW, prD, northOk, 2));
+    // A footprint INSIDE the parcel (its own building) is never a pinch for its own planes.
+    std::vector<CubeRect> own = {{11, 1, 4, 5}};
+    for (const auto& r : runs) EXPECT_FALSE(fenceRunPinchesNeighbour(r, prX, prZ, prW, prD, own, 2)) << r.side;
+}
+
+
+// Regen #7 after the pinch rule: the west plane was dropped but the south plane's corner
+// post still stood on the pinch line beside the quoin (0.67 m). A surviving run must be
+// pulled back by the alley width at every end whose corner plane was dropped, and it then
+// owns its (moved) end posts.
+TEST(FenceCornerTest, SurvivingRunsPullBackFromADroppedCorner) {
+    using Phyxel::Core::planParcelFenceRuns;
+    using Phyxel::Core::trimFenceRunAtDroppedCorners;
+    const int prX = 10, prZ = 0, prW = 6, prD = 8;
+    for (auto run : planParcelFenceRuns(prX, prZ, prW, prD)) {
+        const int from0 = run.fromMicro, to0 = run.toMicro;
+        const bool keep = trimFenceRunAtDroppedCorners(run, /*W*/true, false, false, false, 2);
+        if (run.side == 'W') { continue; }               // the dropped plane itself is never stamped
+        EXPECT_TRUE(keep) << run.side;
+        if (run.side == 'S' || run.side == 'N') {
+            EXPECT_EQ(run.fromMicro, from0 + 18) << run.side << " must start 2 cells east of the dropped W plane";
+            EXPECT_EQ(run.toMicro, to0) << run.side << " far end untouched";
+            EXPECT_TRUE(run.cornerPosts) << "a trimmed run posts its free end";
+        } else {                                            // E plane: no corner with W
+            EXPECT_EQ(run.fromMicro, from0); EXPECT_EQ(run.toMicro, to0);
+        }
+    }
+    // Dropping both S and N leaves the W/E planes trimmed at both ends; a 2-cell-deep
+    // parcel would have nothing left.
+    for (auto run : planParcelFenceRuns(prX, prZ, prW, 4)) {
+        if (run.alongX) continue;
+        EXPECT_FALSE(trimFenceRunAtDroppedCorners(run, false, false, true, true, 2)) << run.side;
+    }
+}

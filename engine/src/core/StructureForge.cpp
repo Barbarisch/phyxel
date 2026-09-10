@@ -264,34 +264,13 @@ int StructureForge::siteHearths(Context& ctx) {
     const int intT = StructureRealizer::thicknessMicro(
         ctx.style.thicknessOf("interior_wall", 0.222));
     const std::string wealthTier = ctx.rp ? ctx.rp->wealthTier : "";
-    int sited = 0;
-    // Stories in order, ACCUMULATING each stack's column: an upstairs hearth may not
-    // be sited on top of the stack rising from the one below it. This mirrors
-    // FurniturePlacer::planReservedRects exactly — if the two disagreed, the furnish
-    // pass would furnish around a hearth that is not where the shell built it.
-    std::vector<Rect> stacksBelow;
-    for (size_t si = 0; si < ctx.program.stories.size(); ++si) {
-        auto reserved = HearthForge::stairRectsForStory(ctx.program, static_cast<int>(si));
-        reserved.insert(reserved.end(), stacksBelow.begin(), stacksBelow.end());
-        ProgStory& st = ctx.program.stories[si];
-        sited += HearthForge::siteIntoProgram(st, footprints, extT, intT, reserved, wealthTier);
-
-        int sx0 = INT_MAX, sz0 = INT_MAX, sx1 = INT_MIN, sz1 = INT_MIN;
-        std::map<std::string, Rect> rooms;
-        for (const auto& rm : st.rooms) {
-            rooms[rm.id] = rm.rect;
-            sx0 = std::min(sx0, rm.rect.x);   sz0 = std::min(sz0, rm.rect.z);
-            sx1 = std::max(sx1, rm.rect.x1()); sz1 = std::max(sz1, rm.rect.z1());
-        }
-        const Rect stFootprint{sx0, sz0, sx1 - sx0, sz1 - sz0};
-        for (const auto& fx : st.fixtures) {
-            if (!HearthForge::isVented(fx.type)) continue;
-            auto it = rooms.find(fx.room);
-            if (it == rooms.end()) continue;
-            stacksBelow.push_back(
-                HearthForge::poseOf(fx, it->second, stFootprint, extT, intT).stackCubes);
-        }
-    }
+    // Every story, stairs + stacks-below reserved, AND each stack kept off the middle of
+    // the rooms above (HearthForge::siteAllStories) - a violating stack used to surface
+    // only as a realize-time REFUSAL that emptied the lot (Ravenmere G-69).
+    std::vector<std::string> notes;
+    const int sited = HearthForge::siteAllStories(ctx.program, footprints, extT, intT,
+                                                  wealthTier, &notes);
+    for (const auto& n : notes) LOG_WARN_FMT("StructureBuild", "place_hearths: " << n);
     return sited;
 }
 
@@ -760,6 +739,12 @@ StructureForge::StageReport StructureForge::stagePlace(Context& ctx) {
         ctx.floorYByStory.push_back(oy + ft / 9);
         ctx.surfaceMicroYByStory.push_back(oy * 9 + ft);
     }
+    // The ground-floor THRESHOLD (walkable surface micro-Y at the entrance) for whoever
+    // must meet it - the settlement's doorstep unit stoops the paving up to it when the
+    // riser exceeds the character's auto step (Ravenmere G-68: a 5-micro threshold at
+    // the hall, 4-micro auto step, nobody could enter).
+    if (!ctx.surfaceMicroYByStory.empty())
+        ctx.response["floor_top_micro"] = ctx.surfaceMicroYByStory[0];
     // Exterior-wall thickness in micro — MUST equal what the REALIZER built (its
     // converter CLAMPS to [1,9]), not the raw style value: a stone_keep authors 3.0 m
     // and an unclamped 27-micro inset pushes furniture out of narrow rooms (dropped).
@@ -813,13 +798,17 @@ StructureForge::StageReport StructureForge::stagePlace(Context& ctx) {
     // assembly_plan): typology + purposed rooms. assembly_plan records geometry only —
     // without this, "which building is the bakery / where is the chamber" is
     // unanswerable after the build response is gone.
+    nlohmann::json roomsJ = nlohmann::json::array();
+    for (size_t si = 0; si < ctx.program.stories.size(); ++si)
+        for (const auto& rm : ctx.program.stories[si].rooms)
+            roomsJ.push_back({{"story", static_cast<int>(si)},
+                              {"purpose", rm.purpose},
+                              {"rect", rm.rect.toJson()}});
+    // The rooms travel in the response too: the settlement's walkability gate routes
+    // street -> door -> every ground-floor room centre on the REALIZED world
+    // (WalkabilityGateAndPlaytestLoop increment 1).
+    ctx.response["rooms"] = roomsJ;
     if (placedObjectManager && !ctx.objectId.empty()) {
-        nlohmann::json roomsJ = nlohmann::json::array();
-        for (size_t si = 0; si < ctx.program.stories.size(); ++si)
-            for (const auto& rm : ctx.program.stories[si].rooms)
-                roomsJ.push_back({{"story", static_cast<int>(si)},
-                                  {"purpose", rm.purpose},
-                                  {"rect", rm.rect.toJson()}});
         placedObjectManager->setMetadata(ctx.objectId, "building",
             {{"typology", ctx.typ}, {"function", ctx.program.function},
              {"style", ctx.program.style}, {"rooms", roomsJ}});

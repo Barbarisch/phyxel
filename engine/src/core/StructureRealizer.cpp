@@ -307,6 +307,20 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                     int cx = alongZ ? p.px - (p.px == W ? 1 : 0) : p.px + k;
                     int cz = alongZ ? p.pz + k : p.pz - (p.pz == D ? 1 : 0);
                     rec(cx * 9, oyBase, cz * 9, 9, oyTop - oyBase, 9, "", "clear");   // carve to air
+                    // The PASSAGE cell - one step inward from the wall cube. An interior
+                    // partition is centred on the room boundary and straddles both cubes;
+                    // a thick one (stone_keep: 1.0 m -> 9 micro) fills 5/9 of the very cell
+                    // a cross-passage door opens into, so the reveal is open and the way in
+                    // is masonry (Ravenmere hall house_6: door surface present, no edge
+                    // inward, 0/21 interior samples reachable). Carve the passage cell to the
+                    // door head: the screens-passage opening. Only a DOOR needs it, and only
+                    // inside the footprint (a winged plan's notch keeps its wall).
+                    if (p.kind == "door" || p.kind == "arch") {
+                        const int ix = alongZ ? (p.px == W ? cx - 1 : cx + 1) : cx;
+                        const int iz = alongZ ? cz : (p.pz == D ? cz - 1 : cz + 1);
+                        if (inFoot(ix, iz))
+                            rec(ix * 9, oyBase, iz * 9, 9, oyTop - oyBase, 9, "", "passage");
+                    }
                 }
 
                 // ---- finish_forge P1: FRAME the opening (cut_openings leaves no raw holes).
@@ -335,7 +349,15 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
                     const int kJamb   = isWindow ? 2 : 1;
                     const int kLintel = isWindow ? 3 : 2;
                     const int w = std::max(1, p.width);
-                    const int jambTop = oyTop - kLintel;
+                    // A DOOR's lintel sits in the wall ABOVE the opening, not inside it: the
+                    // canon says an interior door is 2.03 m clear (object_dimensions.json,
+                    // DimensionCanonTest), the opening is 2 cubes = 2.0 m, and a lintel
+                    // painted inside left 1.78 m - under which the 1.82 m humanoid could not
+                    // pass any generated door (Ravenmere run 32, CharacterDoorFunnelTest).
+                    // Only when the wall continues above (a story taller than the door);
+                    // a door reaching the wall top keeps the lintel inside. Windows unchanged.
+                    const bool lintelAbove = !isWindow && (oyTop + kLintel <= wTop);
+                    const int jambTop = lintelAbove ? oyTop : oyTop - kLintel;
                     // ---- finish_forge P3: window INFILL — no more open-air holes (the "ruin"
                     // read). GROUNDED default = shuttered (glazing unaffordable pre-1558, croft
                     // windows.size source); "glass" only where a typology cites it. Shutters are
@@ -862,20 +884,14 @@ StructureRealizer::ShellResult StructureRealizer::realizeShell(const BuildingPro
             // reads as a breast, one in the middle of the floor is a column through
             // the room. That is a REFUSAL, not a silent lean.
             const Rect sc = HearthForge::stackCubeRect(rec);
-            for (size_t si = static_cast<size_t>(rec.story) + 1; si < program.stories.size(); ++si)
-                for (const auto& rm : program.stories[si].rooms) {
-                    const int ox0 = std::max(sc.x, rm.rect.x), ox1 = std::min(sc.x1(), rm.rect.x1());
-                    const int oz0 = std::max(sc.z, rm.rect.z), oz1 = std::min(sc.z1(), rm.rect.z1());
-                    if (ox1 <= ox0 || oz1 <= oz0) continue;              // does not cross this room
-                    if (ox0 == rm.rect.x || ox1 == rm.rect.x1() ||
-                        oz0 == rm.rect.z || oz1 == rm.rect.z1()) continue;   // against a wall: fine
-                    res.ok = false;
-                    res.error = "chimney from the " + rec.type + " in '" + rec.room +
-                                "' would rise through the middle of room '" + rm.id +
-                                "' on story " + std::to_string(si) +
-                                " — re-site the hearth (no silent lean)";
-                    return res;
-                }
+            std::string which;   // the same rule the forge sited against (HearthForge::siteAllStories)
+            if (HearthForge::stackCrossesUpperRoomMiddle(sc, program, rec.story, &which)) {
+                res.ok = false;
+                res.error = "chimney from the " + rec.type + " in '" + rec.room +
+                            "' would rise through the middle of room '" + which +
+                            "' — re-site the hearth (no silent lean)";
+                return res;
+            }
             HearthForge::paintStack(c, rec, apex + HearthForge::kRidgeClearanceMicro);
         }
         LOG_INFO_FMT("StructureRealizer", "place_chimney: " << plan.hearths.size()

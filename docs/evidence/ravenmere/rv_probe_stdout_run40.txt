@@ -1,0 +1,26 @@
+[   19.4] [boot] {"scene_id": "main_menu", "scene_type": "menu", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": ["menu:main"], "fps": 57.5}
+[   33.6] [in_town] {"screen": {"scene_id": "town", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [-36.0, 15.0], "npcs": ["npc_Ada", "npc_Aldric", "npc_Bram", "npc_Gerrit", "npc_Hobb", "npc_Maera", "npc_Old Moll", "npc_Pell", "npc_Se
+[   36.3] [dirs] {"W": [-0.71, -0.71], "D": [-0.71, 0.71], "S": [0.71, 0.71], "A": [0.71, -0.71], "WD": [-1.0, -0.0], "WA": [0.0, -1.0], "SD": [-0.0, 1.0], "SA": [1.0, 0.0], "fps": 7.1}
+[   36.3] [path] {"to": [-12, 14.5], "waypoints": 2, "tried": 1, "fps": 7.5}
+[   56.5] [reeve_accept] {"steer": "arrived", "seen": [{"node": "start", "choices": ["Tell me about the children.", "[Persuasion DC 12] Release the poacher W", "Nothing for now."]}, {"node": "children", "choices": ["I'll find them.", "Wolves don't open barrows."]}], "fps": 12.5}
+[   61.6] [reeve_persuade_wren] {"seen": [{"node": "start", "choices": ["[Persuasion DC 12] Release the poacher W", "Nothing for now."]}], "persuaded": false, "refused": true, "fps": 12.5}
+[   61.6] [path] {"to": [-14, -9.5], "waypoints": 11, "tried": 1, "fps": 12.7}
+[  114.3] [maera] {"steer": "arrived", "seen": [{"node": "start", "choices": ["The Reeve sent me. What do you know of t", "Just passing through."]}], "fps": 34.4}
+[  114.3] [path] {"to": [-24.5, 13.5], "waypoints": 10, "tried": 1, "fps": 33.6}
+[  138.9] [path] {"to": [-24.5, 8.5], "waypoints": 2, "tried": 1, "fps": 15.1}
+[  142.5] [path] {"to": [-25.5, -2.5], "waypoints": 4, "tried": 1, "fps": 16.4}
+[  163.2] [bram_recruit] {"steer": ["arrived", "arrived", "arrived"], "party": {"error": "unknown action: party"}, "pos": [-25.637502670288086, -2.0241518020629883], "fps": 17.3}
+[  163.3] [path] {"to": [-26.5, 9.5], "waypoints": 6, "tried": 1, "fps": 17.3}
+[  177.5] [precise_scene_changed] {"to": [-26.5, 9.5], "trace": [[0, -26.47, 7.51, "SD"], [1, -26.47, 8.19, "SD"], [2, -26.47, 8.88, "SD"]], "fps": 71.4}
+[  181.6] [cellar] {"steer": "stopped", "scene": {"scene_id": "cellar", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [10.0, 22.0], "fps": 40.5}
+[  181.6] [path] {"to": [12, 18.5], "waypoints": 5, "tried": 1, "fps": 43.1}
+[  256.7] [precise_unreached] {"to": [12, 18.5], "trace": [[48, 12.33, 20.0, "WA"], [49, 12.33, 20.0, "WA"], [50, 12.33, 20.0, "WA"], [51, 12.33, 20.0, "WA"], [52, 12.33, 20.0, "WA"], [53, 12.33, 20.0, "WA"], [54, 12.33, 20.0, "WA"], [55, 12.33, 20.0, "WA"], [56, 12.33, 20.0, "WA"], [57, 12.33, 20.0, "WA"], [58, 12.33, 20.0, "WA
+[  258.2] [rats_encounter] {"steer": "stopped", "in_combat": true, "order": {"active": true, "currentIndex": 2, "defaultSpeed": 30, "order": [{"budget": {"action": false, "bonusAction": true, "freeObjectInteraction": true, "movementRemaining": 7, "reaction": true}, "entityId": "npc_Rat2", "hasActedThisRound": true, "initiativ
+[  298.6] [rats_fight] {"resolved": true, "rounds": 6, "turns": [{"round": 1, "target": "npc_Rat2", "dist": 1.4, "how": "melee", "ok": true, "blocked": null}, {"round": 2, "target": "npc_Rat", "dist": 1.4, "how": "melee", "ok": true, "blocked": null}, {"round": 3, "target": "npc_Rat2", "dist": 1.4, "how": "melee", "ok": t
+[  298.7] [rats_cleared_var] {"rats_dead_trigger": true, "sheet": {"sheet": {"armorClass": 18, "armorProficiencies": [], "attributes": {"charisma": {"base": 12, "equipment": 0, "modifier": 1, "racial": 0, "temporary": 0, "total": 12}, "constitution": {"base": 14, "equipment": 0, "modifier": 2, "racial": 0, "temporary": 0, "tota
+[  298.7] [path] {"to": [10, 26.6], "waypoints": 3, "tried": 1, "fps": 49.0}
+[  305.6] [precise_scene_changed] {"to": [10, 26.6], "trace": [[0, 10.63, 20.5, "SD"], [1, 10.63, 21.49, "SD"], [2, 10.63, 22.48, "SD"], [3, 10.63, 23.36, "SD"], [4, 10.63, 24.1, "SD"], [5, 10.63, 24.75, "SD"]], "fps": 1178.0}
+[  309.7] [back_in_town] {"steer": "stopped", "scene": {"scene_id": "town", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [-36.0, 15.0], "player_state_pos": {"x": -36.0, "y": -73.94700622558594, "z": 15.0}, "fps": 860.4}
+[  311.2] [no_path] {"from": [-36.0, 15.0], "to": [-24.5, 13.5], "tried": 153, "fps": 810.8}
+[  404.9] [steer_stuck] {"target": [-24.5, 13.5], "pos": [-25.862714767456055, 14.080009460449219], "fps": 785.2}
+[  404.9] [path] {"to": [-24.5, 8.5], "waypoints": 3, "tried": 1, "fps": 977.8}

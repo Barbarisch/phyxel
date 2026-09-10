@@ -212,3 +212,42 @@ TEST(OpeningsLayoutTest, FrontHintFlipsTheEntranceToTheStreetWall) {
             EXPECT_EQ(w.pz, 6) << "window at (" << w.px << "," << w.pz
                                << ") not on the street-facing front";
 }
+
+// ---------------------------------------------------------------------------
+// Ravenmere G-64 (2026-09-09): typologies WITHOUT a grounded entrance wall (tavern, shops,
+// town hall) took the legacy perimeter-first pick and ignored the street hint, so the
+// Raven's Rest's only door opened onto the rear toft — every commercial building in the
+// generated town was enterable only from behind, while the settlement paved its spur
+// to the front wall's midpoint. The street hint must place the door on the front wall.
+// ---------------------------------------------------------------------------
+TEST(OpeningsLayoutTest, FrontHintPlacesTheUngroundedEntranceOnTheStreetWall) {
+    ASSERT_NE(registry().get("tavern"), nullptr);
+    ASSERT_TRUE(registry().get("tavern")->entrance.empty()) << "precondition: tavern has no grounded entrance wall";
+    struct Case { const char* front; int W, D; };
+    for (const Case c : {Case{"z1", 9, 18}, Case{"z0", 9, 18}, Case{"x0", 18, 9}, Case{"x1", 18, 9},
+                         Case{"z1", 18, 9}, Case{"x0", 9, 18}}) {
+        BuildingProgram p;
+        p.name = "gen"; p.style = "timber_cottage"; p.typology = "tavern";
+        p.footprintW = c.W; p.footprintD = c.D; p.substructure = "slab"; p.front = c.front;
+        ProgStory s; s.height = 3; p.stories.push_back(s);
+        autofillRoomLayout(p, 1u, registry().get("tavern"));
+        const ProgPortal* e = exteriorDoor(p.stories[0]);
+        ASSERT_NE(e, nullptr) << "front " << c.front;
+        const std::string f = c.front;
+        if (f == "z1")      EXPECT_EQ(e->pz, c.D) << "front z1: door not on the +z (street) wall";
+        else if (f == "z0") EXPECT_EQ(e->pz, 0)   << "front z0: door not on the -z (street) wall";
+        else if (f == "x0") EXPECT_EQ(e->px, 0)   << "front x0: door not on the -x (street) wall";
+        else                EXPECT_EQ(e->px, c.W) << "front x1: door not on the +x (street) wall";
+        // The door opens into a room that actually touches that wall (no door into a partition).
+        bool intoTouchingRoom = false;
+        for (const auto& r : p.stories[0].rooms) {
+            if (r.id != e->b) continue;
+            intoTouchingRoom = (f == "z1") ? r.rect.z1() == c.D : (f == "z0") ? r.rect.z == 0
+                             : (f == "x0") ? r.rect.x == 0 : r.rect.x1() == c.W;
+        }
+        EXPECT_TRUE(intoTouchingRoom) << "front " << c.front << ": door room does not touch the front wall";
+    }
+    // Without a hint the legacy pick stands (a narrow burgage frontage on x0/z0).
+    BuildingProgram p = autofill("tavern", 9, 18);
+    ASSERT_NE(exteriorDoor(p.stories[0]), nullptr);
+}

@@ -96,3 +96,59 @@ TEST(TypologyHouseTraversalTest, SealedInteriorBlocksRoomToRoom) {
     EXPECT_FALSE(walkBetween(sh, *service, *solar, p.footprintW, p.footprintD))
         << "character crossed SOLID interior partitions — the traversal proof has no teeth";
 }
+
+
+// Ravenmere G-71 (2026-09-09): the town hall (a hall_house in the stone_keep style, interior
+// partitions 1.0 m) had its street door cut cleanly - and the cell it opened into was 5/9
+// masonry: the service|hall screen is centred on the room boundary and a 9-micro band
+// straddles both cubes, one of which is the cross-passage's first step. The realizer now
+// carves the passage cell inside every exterior door to the door head. RED on the old
+// code: the character-box cannot step in from the reveal.
+namespace {
+StyleProfile keepStyle() {
+    StyleProfileRegistry reg;
+    reg.loadFromJson(nlohmann::json::parse(R"({
+        "stone_keep": { "roof_style":"gable", "foundation":"crawlspace",
+            "thickness": { "exterior_wall":0.667, "interior_wall":1.0, "foundation_wall":0.667,
+                           "floor":0.5, "ceiling":0.333 },
+            "materials": { "structure":"Stone", "floor":"Wood", "roof":"Wood", "foundation":"Stone" },
+            "roof": { "pitch":0.8 } } })"));
+    return *reg.get("stone_keep");
+}
+} // namespace
+
+TEST(TypologyHouseTraversalTest, EntranceOpensIntoAClearPassageWithThickPartitions) {
+    BuildingProgram p = hallHouseProgram();
+    p.style = "stone_keep";
+    const ProgRoom* service = roomByPurpose(p.stories[0], "service");
+    const ProgRoom* hall    = roomByPurpose(p.stories[0], "hall");
+    ASSERT_NE(service, nullptr); ASSERT_NE(hall, nullptr);
+    const ProgPortal* door = nullptr;
+    for (const auto& po : p.stories[0].portals)
+        if (po.kind == "door" && (po.a == "exterior" || po.b == "exterior")) { door = &po; break; }
+    ASSERT_NE(door, nullptr) << "hall_house has a cross-passage door";
+    auto sh = StructureRealizer::realizeShell(p, keepStyle());
+    ASSERT_TRUE(sh.ok) << sh.error;
+    const int W = p.footprintW, D = p.footprintD;
+    const int floorY = sh.floorTopByStory.empty() ? sh.floorTopMicro : sh.floorTopByStory[0];
+    // Feet in the reveal: the wall cube the door is cut through, at the door's centre.
+    const bool onX = (door->px == 0 || door->px == W);
+    const int wallCx = onX ? (door->px == W ? W - 1 : 0) : door->px;
+    const int wallCz = onX ? door->pz : (door->pz == D ? D - 1 : 0);
+    const glm::ivec3 start(wallCx * 9 + 4, floorY, wallCz * 9 + 4);
+    TraversalProbe probe([&](int x, int y, int z) { return sh.canvas.occupiedMicro(x, y, z); },
+                         AgentBox{2, 16, 4});
+    ASSERT_TRUE(probe.fits(start.x, start.y, start.z)) << "precondition: the reveal itself is open";
+    auto goalOf = [&](const ProgRoom& r) {
+        const int gx = (r.rect.x + r.rect.w / 2) * 9 + 4, gz = (r.rect.z + r.rect.d / 2) * 9 + 4;
+        return std::make_pair(glm::ivec3(gx - 2, floorY - 1, gz - 2), glm::ivec3(gx + 2, floorY + 1, gz + 2));
+    };
+    const glm::ivec3 lo(0, floorY - 2, 0), hi(W * 9, floorY + 28, D * 9);
+    auto g1 = goalOf(*service), g2 = goalOf(*hall);
+    const bool intoService = probe.reachable(start, g1.first, g1.second, lo, hi);
+    const bool intoHall    = probe.reachable(start, g2.first, g2.second, lo, hi);
+    EXPECT_TRUE(intoService || intoHall)
+        << "the character cannot step in from the door reveal: the 1.0 m screen fills the passage cell";
+    EXPECT_TRUE(intoService && intoHall)
+        << "the cross-passage must serve BOTH rooms it runs between";
+}

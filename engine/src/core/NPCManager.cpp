@@ -20,6 +20,7 @@
 #include "graphics/AnimationSystem.h"
 #include "utils/Logger.h"
 #include <limits>
+#include <cmath>
 
 namespace Phyxel {
 namespace Core {
@@ -435,11 +436,13 @@ void NPCManager::buildNavGrid() {
     // fresh one pointing at the new graph.
     if (m_pathService) m_pathService->stop();
 
-    // Rasterize static NON-VOXEL obstacles (placed templates: wells, woodpiles,
-    // furniture) into a blocked-cell set the graph treats as solid. Rebuilt here —
+    // Rasterize NON-VOXEL obstacles (kinematic item props, activated dynamic furniture)
+    // into a MICRO-precise overlay the graph samples like sub-cube geometry. Rebuilt here —
     // AFTER the old path service stopped, BEFORE the new graph builds — so no worker
     // reads the set while it changes. Oversized boxes are skipped, not truncated.
     m_navObstacles.clear();
+    m_navObstacleBoxes.clear();
+    m_navObstacleIndex.clear();
     if (m_obstacleProvider) {
         constexpr int64_t kMaxBoxCells = 32768;   // a 32^3 box; bigger = likely a structure, skip
         auto packCell = [](const glm::ivec3& p) -> int64_t {
@@ -447,57 +450,79 @@ void NPCManager::buildNavGrid() {
                    (static_cast<int64_t>(static_cast<uint32_t>(p.x) & 0xFFFFFF) << 24) |
                    static_cast<int64_t>(static_cast<uint32_t>(p.z) & 0xFFFFFF);
         };
+        auto divFloor = [](int a) { return a >= 0 ? a / 9 : -((-a + 8) / 9); };
         int skipped = 0;
         for (const auto& [lo, hi] : m_obstacleProvider()) {
-            const int64_t vol = static_cast<int64_t>(hi.x - lo.x + 1) *
-                                (hi.y - lo.y + 1) * (hi.z - lo.z + 1);
+            NavObstacleBox b;
+            b.lo = glm::ivec3(static_cast<int>(std::floor(lo.x * 9.0f)),
+                              static_cast<int>(std::floor(lo.y * 9.0f)),
+                              static_cast<int>(std::floor(lo.z * 9.0f)));
+            b.hi = glm::ivec3(static_cast<int>(std::ceil(hi.x * 9.0f)),
+                              static_cast<int>(std::ceil(hi.y * 9.0f)),
+                              static_cast<int>(std::ceil(hi.z * 9.0f)));
+            if (b.hi.x <= b.lo.x || b.hi.y <= b.lo.y || b.hi.z <= b.lo.z) { ++skipped; continue; }
+            const glm::ivec3 cl(divFloor(b.lo.x), divFloor(b.lo.y), divFloor(b.lo.z));
+            const glm::ivec3 ch(divFloor(b.hi.x - 1), divFloor(b.hi.y - 1), divFloor(b.hi.z - 1));
+            const int64_t vol = static_cast<int64_t>(ch.x - cl.x + 1) *
+                                (ch.y - cl.y + 1) * (ch.z - cl.z + 1);
             if (vol <= 0 || vol > kMaxBoxCells) { ++skipped; continue; }
-            for (int x = lo.x; x <= hi.x; ++x)
-                for (int y = lo.y; y <= hi.y; ++y)
-                    for (int z = lo.z; z <= hi.z; ++z)
-                        m_navObstacles.insert(packCell(glm::ivec3(x, y, z)));
+            const uint32_t id = static_cast<uint32_t>(m_navObstacleBoxes.size());
+            m_navObstacleBoxes.push_back(b);
+            for (int x = cl.x; x <= ch.x; ++x)
+                for (int y = cl.y; y <= ch.y; ++y)
+                    for (int z = cl.z; z <= ch.z; ++z) {
+                        const int64_t k = packCell(glm::ivec3(x, y, z));
+                        m_navObstacles.insert(k);
+                        m_navObstacleIndex[k].push_back(id);
+                    }
         }
         if (!m_navObstacles.empty() || skipped > 0)
-            LOG_INFO_FMT("NPCManager", "nav obstacles: " << m_navObstacles.size()
-                         << " blocked cells (" << skipped << " oversized boxes skipped)");
+            LOG_INFO_FMT("NPCManager", "nav obstacles: " << m_navObstacleBoxes.size() << " boxes over "
+                         << m_navObstacles.size() << " cubes, micro-precise (" << skipped
+                         << " degenerate/oversized boxes skipped)");
     }
 
     // Composite nav solidity = what characters actually collide with:
-    //   1. cube voxels (hasVoxelAt),
-    //   2. the static-occupancy grids' UPPER-CELL content — micro-thin geometry
-    //      (parcel fences) fills a cell's height and must block, while thin FLOOR
-    //      sheets (street paving micros in the bottom of a cell) must stay
-    //      walkable, so only content above ~step height (y+0.34) blocks;
-    //   3. the placed-object obstacle overlay (wells, furniture — not voxels at all).
-    // Without 2 and 3 the graph routed straight through fences/props and NPCs
-    // treadmilled against their collision (measured live, 6/14 never converged).
+    //   1. chunk voxels at SUB-CUBE resolution — the graph classifies each cube as
+    //      Empty / Solid / Partial and samples Partial cubes at 1/9 m against the
+    //      agent's footprint (NavGraph micro mode). This is what makes a framed
+    //      door (1-micro jambs + 2-micro lintel inside open cubes) passable and a
+    //      6-micro wall band, a parcel fence's rails or a shutter leaf solid —
+    //      the earlier "any non-EMPTY cube is solid" rule made every generated
+    //      door a wall (Ravenmere G-54, measured: street -> tavern `found:false`).
+    //      Thin FLOOR sheets (paving / 1/3 slabs) become exact standing heights
+    //      instead of a full-cube step. The former static-occupancy-grid
+    //      "upper-cell" rule is retired: those grids mirror the same chunk voxels.
+    //   2. the NON-VOXEL obstacle overlay (kinematic item props, activated dynamic
+    //      furniture), rasterized at MICRO precision so a hanging sign or a stool is
+    //      exactly as big as its body. Without it the graph routed straight through
+    //      props and NPCs treadmilled against their collision (measured live, 6/14
+    //      never converged); as a cube-rounded overlay it sealed doorways instead.
     {
-        Physics::VoxelDynamicsWorld* vw =
-            m_physicsWorld ? m_physicsWorld->getVoxelWorld() : nullptr;
-        auto packCell = [](const glm::ivec3& p) -> int64_t {
-            return (static_cast<int64_t>(static_cast<uint16_t>(p.y)) << 48) |
-                   (static_cast<int64_t>(static_cast<uint32_t>(p.x) & 0xFFFFFF) << 24) |
-                   static_cast<int64_t>(static_cast<uint32_t>(p.z) & 0xFFFFFF);
-        };
-        if (vw || !m_navObstacles.empty()) {
-            m_navGraph = std::make_unique<NavGraph>(
-                VoxelQueryFunc([this, vw, packCell](const glm::ivec3& p) {
-                    if (m_chunkManager && m_chunkManager->hasVoxelAt(p)) return true;
-                    if (!m_navObstacles.empty() && m_navObstacles.count(packCell(p)) > 0)
-                        return true;
-                    if (vw) {
-                        const glm::vec3 lo(static_cast<float>(p.x), p.y + 0.34f,
-                                           static_cast<float>(p.z));
-                        const glm::vec3 hi(p.x + 1.0f, p.y + 1.0f, p.z + 1.0f);
-                        if (vw->anyStaticSolidInAABB(lo, hi)) return true;
-                    }
-                    return false;
-                }));
-        } else {
-            m_navGraph = std::make_unique<NavGraph>(m_chunkManager);
-        }
+        ChunkManager* cm = m_chunkManager;
+        m_navGraph = std::make_unique<NavGraph>(
+            CellFillFunc([this, cm](const glm::ivec3& p) -> CellFill {
+                const int ob = navObstacleFill(p);
+                if (ob == 2) return CellFill::Solid;
+                switch (cm->getVoxelTypeAt(p)) {
+                    case VoxelLocation::CUBE:  return CellFill::Solid;
+                    case VoxelLocation::EMPTY: return ob == 1 ? CellFill::Partial : CellFill::Empty;
+                    default:                   return CellFill::Partial;
+                }
+            }),
+            MicroQueryFunc([this, cm](const glm::ivec3& micro) {
+                return cm->occupiedMicro(micro) || navObstacleMicro(micro);
+            }));
     }
-    m_navGraph->buildRegion(minXZ, maxXZ, NavAgentProfile{});
+    {
+        const auto t0 = std::chrono::high_resolution_clock::now();
+        m_navGraph->buildRegion(minXZ, maxXZ, NavAgentProfile{});
+        const double ms = std::chrono::duration<double, std::milli>(
+            std::chrono::high_resolution_clock::now() - t0).count();
+        LOG_INFO("NPCManager", "Built NavGraph ({} mode): {} columns, {} surfaces in {} ms",
+                 m_navGraph->microMode() ? "micro" : "cube",
+                 m_navGraph->columnCount(), m_navGraph->surfaceCount(), static_cast<int>(ms));
+    }
     m_pathService = std::make_unique<PathService>(m_navGraph.get());
     m_pathService->start();
 
@@ -512,21 +537,56 @@ void NPCManager::buildNavGrid() {
             patrol->invalidatePath();
         }
 
-        // Check if NPC is stuck on a nearWall cell and relocate
+        // Check if the NPC stands somewhere the walker graph has no surface and relocate.
         glm::vec3 pos = npc->getPosition();
-        const NavCell* cell = m_navGrid->getCell(
-            static_cast<int>(std::floor(pos.x)),
-            static_cast<int>(std::floor(pos.z)));
-        if (cell && cell->nearWall) {
-            const NavCell* safe = m_navGrid->findNearestNonWall(pos);
-            if (safe) {
-                glm::vec3 safePos(
-                    static_cast<float>(safe->x) + 0.5f,
-                    static_cast<float>(safe->surfaceY) + 1.0f,
-                    static_cast<float>(safe->z) + 0.5f);
-                npc->setPosition(safePos);
-                LOG_INFO("NPCManager", "Relocated NPC '{}' from nearWall ({},{}) to ({},{},{})",
-                         name, cell->x, cell->z, safePos.x, safePos.y, safePos.z);
+        if (m_navGraph && m_navGraph->microMode()) {
+            // MICRO mode (Ravenmere G-86): decide on the sub-cube NavGraph, never on the
+            // legacy 2.5D grid. The grid's nearWall rule flagged every cell beside anything
+            // tall (a tree trunk at the street edge) and its "safe" cell carried the
+            // TOPMOST voxel as the surface - Gerrit was lifted from the street onto the
+            // canopy 5 m up, where no walker could reach him. Here: if the NPC's own cell
+            // has a surface within a cube of his feet he stays; otherwise the nearest
+            // column (spiral, <= 3 cells) with such a surface takes him, at ITS feet level.
+            if (!m_navGraph->surfaceAt(pos).valid()) {
+                const int cx = static_cast<int>(std::floor(pos.x));
+                const int cz = static_cast<int>(std::floor(pos.z));
+                const int feetMicro = static_cast<int>(std::floor(pos.y * 9.0f));
+                bool moved = false;
+                for (int r = 1; r <= 3 && !moved; ++r)
+                    for (int dx = -r; dx <= r && !moved; ++dx)
+                        for (int dz = -r; dz <= r && !moved; ++dz) {
+                            if (std::max(std::abs(dx), std::abs(dz)) != r) continue;
+                            for (const NavSurface& sf : m_navGraph->columnSurfaces(cx + dx, cz + dz)) {
+                                if (std::abs(sf.floorTopMicro - feetMicro) > 9) continue;   // same storey only
+                                glm::vec3 safePos(static_cast<float>(cx + dx) + 0.5f,
+                                                  static_cast<float>(sf.floorTopMicro) / 9.0f,
+                                                  static_cast<float>(cz + dz) + 0.5f);
+                                npc->setPosition(safePos);
+                                LOG_INFO("NPCManager", "Relocated NPC '{}' from an unwalkable cell ({},{}) to ({},{},{})",
+                                         name, cx, cz, safePos.x, safePos.y, safePos.z);
+                                moved = true;
+                                break;
+                            }
+                        }
+                if (!moved)
+                    LOG_WARN("NPCManager", "NPC '{}' stands at ({},{},{}) with no walkable surface within 3 cells",
+                             name, pos.x, pos.y, pos.z);
+            }
+        } else {
+            const NavCell* cell = m_navGrid->getCell(
+                static_cast<int>(std::floor(pos.x)),
+                static_cast<int>(std::floor(pos.z)));
+            if (cell && cell->nearWall) {
+                const NavCell* safe = m_navGrid->findNearestNonWall(pos);
+                if (safe) {
+                    glm::vec3 safePos(
+                        static_cast<float>(safe->x) + 0.5f,
+                        static_cast<float>(safe->surfaceY) + 1.0f,
+                        static_cast<float>(safe->z) + 0.5f);
+                    npc->setPosition(safePos);
+                    LOG_INFO("NPCManager", "Relocated NPC '{}' from nearWall ({},{}) to ({},{},{})",
+                             name, cell->x, cell->z, safePos.x, safePos.y, safePos.z);
+                }
             }
         }
     }
@@ -534,6 +594,58 @@ void NPCManager::buildNavGrid() {
     LOG_INFO("NPCManager", "Built NavGrid: XZ [{},{}] to [{},{}], {} cells ({} walkable)",
              minXZ.x, minXZ.y, maxXZ.x, maxXZ.y,
              m_navGrid->cellCount(), m_navGrid->walkableCellCount());
+}
+
+int NPCManager::navObstacleFill(const glm::ivec3& cube) const {
+    if (m_navObstacleIndex.empty()) return 0;
+    const int64_t key = (static_cast<int64_t>(static_cast<uint16_t>(cube.y)) << 48) |
+                        (static_cast<int64_t>(static_cast<uint32_t>(cube.x) & 0xFFFFFF) << 24) |
+                         static_cast<int64_t>(static_cast<uint32_t>(cube.z) & 0xFFFFFF);
+    auto it = m_navObstacleIndex.find(key);
+    if (it == m_navObstacleIndex.end()) return 0;
+    const glm::ivec3 clo = cube * 9, chi = cube * 9 + 9;
+    for (uint32_t id : it->second) {
+        const NavObstacleBox& b = m_navObstacleBoxes[id];
+        if (b.lo.x <= clo.x && b.lo.y <= clo.y && b.lo.z <= clo.z &&
+            b.hi.x >= chi.x && b.hi.y >= chi.y && b.hi.z >= chi.z) return 2;   // covers the cube
+    }
+    return 1;
+}
+
+bool NPCManager::navObstacleMicro(const glm::ivec3& micro) const {
+    if (m_navObstacleIndex.empty()) return false;
+    auto divFloor = [](int a) { return a >= 0 ? a / 9 : -((-a + 8) / 9); };
+    const glm::ivec3 cube(divFloor(micro.x), divFloor(micro.y), divFloor(micro.z));
+    const int64_t key = (static_cast<int64_t>(static_cast<uint16_t>(cube.y)) << 48) |
+                        (static_cast<int64_t>(static_cast<uint32_t>(cube.x) & 0xFFFFFF) << 24) |
+                         static_cast<int64_t>(static_cast<uint32_t>(cube.z) & 0xFFFFFF);
+    auto it = m_navObstacleIndex.find(key);
+    if (it == m_navObstacleIndex.end()) return false;
+    for (uint32_t id : it->second) {
+        const NavObstacleBox& b = m_navObstacleBoxes[id];
+        if (micro.x >= b.lo.x && micro.x < b.hi.x && micro.y >= b.lo.y && micro.y < b.hi.y &&
+            micro.z >= b.lo.z && micro.z < b.hi.z) return true;
+    }
+    return false;
+}
+
+std::vector<std::pair<glm::ivec3, glm::ivec3>> NPCManager::navObstacleBoxesAt(const glm::ivec3& cube) const {
+    std::vector<std::pair<glm::ivec3, glm::ivec3>> out;
+    const int64_t key = (static_cast<int64_t>(static_cast<uint16_t>(cube.y)) << 48) |
+                        (static_cast<int64_t>(static_cast<uint32_t>(cube.x) & 0xFFFFFF) << 24) |
+                         static_cast<int64_t>(static_cast<uint32_t>(cube.z) & 0xFFFFFF);
+    auto it = m_navObstacleIndex.find(key);
+    if (it == m_navObstacleIndex.end()) return out;
+    for (uint32_t id : it->second) out.push_back({m_navObstacleBoxes[id].lo, m_navObstacleBoxes[id].hi});
+    return out;
+}
+
+bool NPCManager::isNavObstacleCell(const glm::ivec3& cube) const {
+    if (m_navObstacles.empty()) return false;
+    const int64_t key = (static_cast<int64_t>(static_cast<uint16_t>(cube.y)) << 48) |
+                        (static_cast<int64_t>(static_cast<uint32_t>(cube.x) & 0xFFFFFF) << 24) |
+                         static_cast<int64_t>(static_cast<uint32_t>(cube.z) & 0xFFFFFF);
+    return m_navObstacles.count(key) > 0;
 }
 
 namespace {

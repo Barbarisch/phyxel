@@ -82,6 +82,7 @@ private:
     // Built-in mover state (mirrors StoryDrivenBehavior's; extraction into a shared
     // NavMover is a queued cleanup — story's copy is live-verified, left untouched).
     std::vector<glm::vec3> m_path;
+    std::vector<float>     m_pathRadius;   ///< per-waypoint arrival radius (NavGraph slack); may be empty
     size_t    m_pathIndex = 0;
     bool      m_pathPending = false;
     uint64_t  m_pathHandle = 0;

@@ -21,6 +21,12 @@
 namespace Phyxel {
 namespace Scene {
 
+/// Collision-box height above the model's voxel extent (head room + sole). Grounded against
+/// the door canon: interior doors are 2.03 m clear (object_dimensions.json), the realizer
+/// cuts 2.0 m, the humanoid model is 1.82 m - a 0.3 m margin made a 2.12 m box that no door
+/// admitted. 0.05 m matches the horizontal overlap skin.
+static constexpr float kControllerHeadClearance = 0.05f;
+
     // Update-LOD viewer state (set once per frame by the host before character updates).
     glm::vec3 AnimatedVoxelCharacter::s_viewerPos  = glm::vec3(0.0f);
     bool      AnimatedVoxelCharacter::s_viewerValid = false;
@@ -75,6 +81,19 @@ namespace Scene {
 
     void AnimatedVoxelCharacter::resolveKinematicMovement(float dt) {
         if (m_kinFrozen) return;  // anim editor: position is set externally
+        // A long frame is integrated as several short ones. The axis-separated resolve
+        // only tests the END of each step, so a step longer than the body (a 7 s frame
+        // after a loading-screen stall, walk key held: 10.5 m in one go) lands beyond
+        // the wall in free air and passes straight through it - Ravenmere G-81 sent
+        // the player into unstreamed terrain and an endless fall. 1/30 s at sprint
+        // speed is ~0.1 m per step, well under the half-width, so nothing is skipped.
+        static constexpr float kMaxKinStep = 1.0f / 30.0f;
+        if (dt > kMaxKinStep * 1.001f) {
+            const int n = static_cast<int>(std::ceil(dt / kMaxKinStep));
+            const float sub = dt / static_cast<float>(n);
+            for (int i = 0; i < n; ++i) resolveKinematicMovement(sub);
+            return;
+        }
         auto* voxelWorld = physicsWorld ? physicsWorld->getVoxelWorld() : nullptr;
         const float halfW = m_originalHalfWidth;
         const float halfH = m_originalHalfHeight;
@@ -391,22 +410,44 @@ namespace Scene {
                 return true;
             };
 
-            worldPosition.x += m_kinVelocity.x * dt;
-            {
+            auto hitsSomething = [&]() {
                 glm::vec3 c = xzTestCenter();
-                if (voxelWorld->overlapsTerrain(c, charHE) || voxelWorld->overlapsAnyBody(c, charHE)) {
-                    if (!tryStepUp())
-                        worldPosition.x -= m_kinVelocity.x * dt;
+                return voxelWorld->overlapsTerrain(c, charHE) || voxelWorld->overlapsAnyBody(c, charHE);
+            };
+            // DOORWAY FUNNEL. A generated door is a 0.78 m clear reveal (grounded: real
+            // openings 0.76-0.81 m) and the controller is 0.52 m wide, so a walk-in has
+            // 13 cm of slack a side; approaching a few centimetres off the reveal's centre
+            // clips a jamb, and the axis-separated resolve used to revert the move outright
+            // - the player stood pinned in front of an open door (Ravenmere run 31: aligned
+            // to 12 cm, stuck). When the move on one axis is blocked, look for a small
+            // lateral shift on the OTHER axis that frees it (up to a quarter body width, both
+            // ways, nearest first) and take the move from there: the same sliding a real
+            // body does off a door frame. Walls without an opening still stop the move.
+            auto funnel = [&](float& moveAxis, float& lateralAxis, float moveDelta) -> bool {
+                const float steps[] = { 0.03f, 0.06f, 0.09f, 0.12f };
+                const float maxShift = std::max(0.03f, halfW * 0.5f);
+                for (float d : steps) {
+                    if (d > maxShift + 1e-4f) break;
+                    for (float sgn : { 1.0f, -1.0f }) {
+                        lateralAxis += sgn * d;
+                        if (!hitsSomething()) return true;   // shifted position + move is clear
+                        lateralAxis -= sgn * d;
+                    }
                 }
+                (void)moveAxis; (void)moveDelta;
+                return false;
+            };
+
+            worldPosition.x += m_kinVelocity.x * dt;
+            if (hitsSomething()) {
+                if (!tryStepUp() && !funnel(worldPosition.x, worldPosition.z, m_kinVelocity.x * dt))
+                    worldPosition.x -= m_kinVelocity.x * dt;
             }
 
             worldPosition.z += m_kinVelocity.z * dt;
-            {
-                glm::vec3 c = xzTestCenter();
-                if (voxelWorld->overlapsTerrain(c, charHE) || voxelWorld->overlapsAnyBody(c, charHE)) {
-                    if (!tryStepUp())
-                        worldPosition.z -= m_kinVelocity.z * dt;
-                }
+            if (hitsSomething()) {
+                if (!tryStepUp() && !funnel(worldPosition.z, worldPosition.x, m_kinVelocity.z * dt))
+                    worldPosition.z -= m_kinVelocity.z * dt;
             }
         } else {
             // No voxel world — integrate freely (fallback, should not happen in normal use)
@@ -814,8 +855,11 @@ namespace Scene {
             else { minY = std::min(minY, y); maxY = std::max(maxY, y); }
         }
 
-        // Add padding for head volume top and foot sole bottom
-        return (maxY - minY) + 0.3f;
+        // Head/sole clearance. Was 0.3 m: a 1.82 m humanoid got a 2.12 m collision box and
+        // could not pass ANY generated door (1.78 m clear reveal, canon 2.03 m) - measured in
+        // the Ravenmere town (run 32) and pinned by CharacterDoorFunnelTest. 5 cm is the
+        // skin the horizontal overlap test already assumes (charHE.y = halfH - 0.05).
+        return (maxY - minY) + kControllerHeadClearance;
     }
 
     // X-span of a skeleton's torso at bind pose (joint positions). Forearm,
@@ -916,7 +960,7 @@ namespace Scene {
             if (vMinY <= vMaxY) { minY = vMinY; maxY = vMaxY; }
         }
 
-        float characterHeight = (maxY - minY) + 0.3f;
+        float characterHeight = (maxY - minY) + kControllerHeadClearance;   // see getModelHeight
         if (characterHeight < 0.5f) characterHeight = 1.0f;
 
         // For imported rigs, bake the draw's fixed visual lift into the offset so the lowest
@@ -1712,6 +1756,16 @@ namespace Scene {
                 m_currentAttackClip = "attack";
             }
         }
+    }
+
+        if (!source) return false;
+        m_lastMotionPose.clear();
+        return true;
+    }
+
+        m_lastMotionPose.clear();
+    }
+
     }
 
     bool AnimatedVoxelCharacter::reloadAnimations(const std::string& animFile) {
@@ -3762,6 +3816,57 @@ namespace Scene {
                 animSystem.updateAnimation(skeleton, clips[currentClipIndex], evalTime, loop);
             }
             m_prevAnimTime = animTime;
+
+            // Optional provider override for locomotion only. The clip pose has
+            // already been evaluated and is therefore the exact fallback/base
+            // for unmapped bones. Gameplay-critical authored states never enter
+            // this path. Provider sampling is nonblocking by contract.
+            const bool providerLocomotion =
+                currentState == AnimatedCharacterState::Idle ||
+                currentState == AnimatedCharacterState::StartWalk ||
+                currentState == AnimatedCharacterState::Walk ||
+                currentState == AnimatedCharacterState::Run ||
+                currentState == AnimatedCharacterState::BackwardWalk ||
+                currentState == AnimatedCharacterState::StopWalk ||
+                currentState == AnimatedCharacterState::StopRun ||
+                currentState == AnimatedCharacterState::StrafeLeft ||
+                currentState == AnimatedCharacterState::StrafeRight ||
+                currentState == AnimatedCharacterState::WalkStrafeLeft ||
+                currentState == AnimatedCharacterState::WalkStrafeRight ||
+                currentState == AnimatedCharacterState::TurnLeft ||
+                currentState == AnimatedCharacterState::TurnRight;
+                Motion::MotionIntent intent;
+                const glm::vec3 forward = getForwardDirection();
+                const glm::vec3 right(forward.z, 0.0f, -forward.x);
+                glm::vec3 desired = forward * (-currentForwardInput) +
+                                    right * currentStrafeInput;
+                const float desiredLength = glm::length(desired);
+                if (desiredLength > 1.0e-5f) desired /= desiredLength;
+                intent.movementDirection = desired;
+                intent.facingDirection = forward;
+                intent.targetSpeed = glm::length(glm::vec2(m_kinVelocity.x, m_kinVelocity.z));
+
+                Motion::LocalPoseFrame providerFrame;
+                    std::vector<glm::quat> basePose;
+                    basePose.reserve(skeleton.bones.size());
+                    for (const Bone& bone : skeleton.bones)
+                        basePose.push_back(bone.currentRotation);
+                        constexpr float kProviderBlendSeconds = 0.15f;
+                            deltaTime / kProviderBlendSeconds);
+                        for (std::size_t i = 0; i < skeleton.bones.size(); ++i)
+                            skeleton.bones[i].currentRotation = glm::slerp(
+                    }
+                }
+                    m_lastMotionPose.size() == skeleton.bones.size()) {
+                    constexpr float kProviderBlendSeconds = 0.15f;
+                        deltaTime / kProviderBlendSeconds);
+                    for (std::size_t i = 0; i < skeleton.bones.size(); ++i)
+                        skeleton.bones[i].currentRotation = glm::slerp(
+                            skeleton.bones[i].currentRotation, m_lastMotionPose[i],
+                }
+            } else if (!providerLocomotion) {
+                m_lastMotionPose.clear();
+            }
 
             // Root motion extraction.
             //

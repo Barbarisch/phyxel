@@ -739,7 +739,8 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
         // Which of the 4 walls carry a door/window (avoid backing furniture onto them), and the
         // in-room cells next to each opening (so a deep piece doesn't block a doorway).
         bool doorWall[4] = {false, false, false, false};
-        std::set<std::pair<int, int>> blocked;   // doorway thresholds inside this room
+        std::set<std::pair<int, int>> blocked;       // cells inside EVERY opening (doors + windows)
+        std::set<std::pair<int, int>> blockedDoors;  // cells inside PASSABLE openings only
         for (const auto& po : story.portals) {
             if (po.a != room.id && po.b != room.id) continue;
             if (po.px == rx)        doorWall[0] = true;
@@ -749,16 +750,26 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
             for (int dx = -1; dx <= 0; ++dx)
                 for (int dz = -1; dz <= 0; ++dz) {
                     const int cx = po.px + dx, cz = po.pz + dz;
-                    if (cx >= rx && cx < rx + rw && cz >= rz && cz < rz + rd) blocked.insert({cx, cz});
+                    if (cx >= rx && cx < rx + rw && cz >= rz && cz < rz + rd) {
+                        blocked.insert({cx, cz});
+                        if (po.passable()) blockedDoors.insert({cx, cz});
+                    }
                 }
         }
+        // A VENTED piece is allowed on window cells: its chimney breast DISPLACES the window
+        // (HearthForge::siteAllStories drops the portal it covers), because the alternative
+        // - every windowed exterior wall refused - is what put the Ravenmere kitchen
+        // fireplace on the interior partition and its stack through the chamber above.
+        const std::set<std::pair<int, int>>* activeBlocked = &blocked;
         // KI-5d: reserved rects (stair bases + arriving stair wells) + a 1-cell landing
         // margin — furniture used to be placed straight onto stair cells.
         for (const auto& rr : reservedRects)
             for (int x = rr.x - 1; x < rr.x + rr.w + 1; ++x)
                 for (int z = rr.z - 1; z < rr.z + rr.d + 1; ++z)
-                    if (x >= rx && x < rx + rw && z >= rz && z < rz + rd)
+                    if (x >= rx && x < rx + rw && z >= rz && z < rz + rd) {
                         blocked.insert({x, z});
+                        blockedDoors.insert({x, z});   // stairs + stacks bind vented pieces too
+                    }
 
         std::set<std::pair<int, int>> occupied;
         auto footprintOf = [&](const std::string& type) -> Footprint {
@@ -791,7 +802,7 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
             for (const auto& c : cells) {
                 if (c.first < rx || c.first >= rx + rw || c.second < rz || c.second >= rz + rd)
                     return false;                               // out of room
-                if (occupied.count(c) || blocked.count(c)) return false;  // overlap / doorway
+                if (occupied.count(c) || activeBlocked->count(c)) return false;  // overlap / doorway
             }
             return true;
         };
@@ -932,6 +943,7 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
             reps = std::min(reps, 12);
             for (int rep = 0; rep < reps; ++rep) {
             bool placed = false;
+            activeBlocked = isVentedType(piece.type) ? &blockedDoors : &blocked;
 
             // CEILING-hung pieces (chandelier) float over the room centre and reserve NO floor
             // cells — a chandelier belongs directly ABOVE the centred table, not in a fight with
@@ -1004,6 +1016,26 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
                     std::stable_sort(order, order + n, [&](int a, int b) {
                         if (doorWall[a] != doorWall[b]) return !doorWall[a];   // keep non-door first
                         return clearance(a) > clearance(b);
+                    });
+                }
+                // A VENTED piece backs onto an EXTERIOR wall first: its stack rises straight
+                // up, and on the outer wall it meets every upper room at that room's own
+                // edge (a chimney breast); on an interior partition it comes up wherever
+                // the chambers above happen to be divided - through the middle of one in
+                // the Ravenmere tavern (G-69), which the realizer must refuse. Exterior =
+                // this room's edge is the story footprint's edge (the KI-5b test above).
+                if (isVentedType(piece.type)) {
+                    auto exterior = [&](int w) {
+                        return (w == 0) ? rx == fpMinX : (w == 1) ? rx + rw == fpMaxX1
+                             : (w == 2) ? rz == fpMinZ : rz + rd == fpMaxZ1;
+                    };
+                    // doorWall[] also marks WINDOW walls, and every exterior long wall carries
+                    // windows, so keeping the "no openings first" group order would push both
+                    // exterior walls last - exactly the interior-partition siting that put the
+                    // stack through the chamber. Exterior wins outright; the `blocked` cells
+                    // still keep the hearth off the openings themselves.
+                    std::stable_sort(order, order + n, [&](int a, int b) {
+                        return exterior(a) && !exterior(b);
                     });
                 }
                 for (int k = 0; k < n && !placed; ++k) {

@@ -1,0 +1,8 @@
+[   15.7] [boot] {"scene_id": "main_menu", "scene_type": "menu", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": ["menu:main"], "fps": 68.9}
+[   26.4] [in_town] {"screen": {"scene_id": "town", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [-36.0, 15.0], "npcs": ["npc_Ada", "npc_Aldric", "npc_Bram", "npc_Gerrit", "npc_Hobb", "npc_Maera", "npc_Old Moll", "npc_Pell", "npc_Se
+[   27.8] [dirs] {"W": [-0.71, -0.71], "D": [-0.71, 0.71], "S": [0.71, 0.71], "A": [0.71, -0.71], "fps": 34.8}
+[   40.7] [steer_arrived] {"iter": 14, "pos": [-13.6, 14.5], "fps": 20.1}
+[   47.0] [reeve_accept] {"steer": "arrived", "seen": [{"node": "start", "choices": ["Tell me about the children.", "[Persuasion DC 12] Release the poacher W", "Nothing for now."]}, {"node": "children", "choices": ["I'll find them.", "Wolves don't open barrows."]}], "fps": 20.0}
+[   51.7] [reeve_persuade_wren] {"seen": [{"node": "start", "choices": ["[Persuasion DC 12] Release the poacher W", "Nothing for now."]}], "persuaded": true, "refused": false, "fps": 19.6}
+[  155.5] [steer_stuck] {"target": [-14, -9.5], "pos": [-6.122584342956543, 11.366722106933594], "fps": 16.2}
+[  159.4] [maera] {"steer": "stuck", "seen": [{"node": "start", "choices": ["I'm hunting whoever took the children. I", "You're free. Aldric agreed.", "Enjoy the week."]}, {"MISSING": "What do you know of the barrow"}], "fps": 16.9}

@@ -80,7 +80,7 @@ void ScheduledBehavior::updateMovement(float dt, NPCContext& ctx) {
             if (ctx.pathService->tryGetResult(m_pathHandle, res)) {
                 m_pathPending = false;
                 m_pathHandle = 0;
-                if (res.found) { m_path = std::move(res.waypoints); m_pathIndex = 0; }
+                if (res.found) { m_path = std::move(res.waypoints); m_pathRadius = std::move(res.arriveRadius); m_pathIndex = 0; }
                 else m_replanCooldown = 3.0f;   // failed route: back off before retrying
             }
         }
@@ -125,9 +125,16 @@ void ScheduledBehavior::updateMovement(float dt, NPCContext& ctx) {
             }
             return;
         }
+        // Advance at the waypoint's own radius: a waypoint kept at a TIGHT crossing (door
+        // reveal, fence/wall residual) was proven by the sweep only within a micro or so
+        // of the cell centre, so it must be hit to 0.15 m, not the open-ground 0.5 m
+        // (Ravenmere G-79: the street->shrine route's 0.11 m-slack gap).
+        auto radiusAt = [&](size_t i) {
+            return i < m_pathRadius.size() ? m_pathRadius[i] : Core::NavGraph::kArriveLoose;
+        };
         while (m_pathIndex < m_path.size()) {
             glm::vec3 d = m_path[m_pathIndex] - pos;
-            if (glm::length(glm::vec2(d.x, d.z)) < 0.5f) ++m_pathIndex;
+            if (glm::length(glm::vec2(d.x, d.z)) < radiusAt(m_pathIndex)) ++m_pathIndex;
             else break;
         }
         if (m_pathIndex >= m_path.size()) {          // path exhausted; replan next frame
@@ -142,7 +149,11 @@ void ScheduledBehavior::updateMovement(float dt, NPCContext& ctx) {
 
     glm::vec3 diff = steerTo - pos;
     const float stepXZ = glm::length(glm::vec2(diff.x, diff.z));
-    if (stepXZ < 0.4f) { ctx.self->setMoveVelocity(glm::vec3(0.0f)); return; }
+    // The "close enough, stop" band applies to the final destination; an intermediate
+    // tight waypoint (radius 0.15 m) must keep being approached inside 0.4 m.
+    const bool finalLeg = m_path.empty() || m_pathIndex + 1 >= m_path.size();
+    if (finalLeg && stepXZ < 0.4f) { ctx.self->setMoveVelocity(glm::vec3(0.0f)); return; }
+    if (stepXZ < 0.02f) { ctx.self->setMoveVelocity(glm::vec3(0.0f)); return; }
     glm::vec3 dir = glm::normalize(glm::vec3(diff.x, 0.0f, diff.z));
     // Repeatedly stuck on the same spot: the blocker is likely nav-INVISIBLE (placed
     // furniture — e.g. the street well — isn't chunk voxels, so replans return the
@@ -182,6 +193,7 @@ void ScheduledBehavior::updateMovement(float dt, NPCContext& ctx) {
 
 void ScheduledBehavior::replanPath(NPCContext& ctx, const glm::vec3& from, const glm::vec3& to) {
     m_path.clear();
+    m_pathRadius.clear();
     m_pathIndex = 0;
     m_pathTarget = to;
     m_hasPathTarget = true;
@@ -202,6 +214,7 @@ void ScheduledBehavior::replanPath(NPCContext& ctx, const glm::vec3& from, const
         m_path = result.waypoints.size() > 2
                      ? ctx.navGraph->smoothWaypoints(result.waypoints, agent)
                      : std::move(result.waypoints);
+        m_pathRadius = ctx.navGraph->arrivalRadii(m_path);
     } else {
         m_replanCooldown = 3.0f;   // failed sync route: back off (no per-frame A* spam)
     }

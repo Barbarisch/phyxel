@@ -1,0 +1,15 @@
+[   48.8] [boot] {"scene_id": "main_menu", "scene_type": "menu", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": ["menu:main"], "fps": 53.2}
+[   62.2] [in_town] {"screen": {"scene_id": "town", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [-36.0, 15.0], "npcs": ["npc_Ada", "npc_Aldric", "npc_Bram", "npc_Gerrit", "npc_Hobb", "npc_Maera", "npc_Old Moll", "npc_Pell", "npc_Se
+[   63.6] [dirs] {"W": [-0.71, -0.71], "D": [-0.71, 0.71], "S": [0.71, 0.71], "A": [0.71, -0.71], "WD": [-1.0, 0.0], "WA": [-0.0, -1.0], "SD": [0.0, 1.0], "SA": [1.0, -0.0], "fps": 9.4}
+[   63.6] [path] {"to": [-12, 14.5], "waypoints": 2, "tried": 1, "fps": 9.8}
+[   63.7] [steer_arrived] {"iter": 0, "pos": [-38.7, 14.7], "fps": 9.9}
+[   73.3] [steer_arrived] {"iter": 10, "pos": [-12.6, 14.7], "fps": 11.9}
+[   80.0] [reeve_accept] {"steer": "arrived", "seen": [{"node": "start", "choices": ["Tell me about the children.", "[Persuasion DC 12] Release the poacher W", "Nothing for now."]}, {"node": "children", "choices": ["I'll find them.", "Wolves don't open barrows."]}], "fps": 12.3}
+[   85.1] [reeve_persuade_wren] {"seen": [{"node": "start", "choices": ["[Persuasion DC 12] Release the poacher W", "Nothing for now."]}], "persuaded": true, "refused": false, "fps": 12.4}
+[   85.1] [path] {"to": [-14, -9.5], "waypoints": 9, "tried": 1, "fps": 12.3}
+[   85.2] [steer_arrived] {"iter": 0, "pos": [-12.6, 14.7], "fps": 12.3}
+[   87.4] [steer_arrived] {"iter": 3, "pos": [-16.5, 12.5], "fps": 18.8}
+[   87.9] [steer_arrived] {"iter": 1, "pos": [-17.1, 11.9], "fps": 18.4}
+[   89.2] [steer_arrived] {"iter": 2, "pos": [-19.5, 11.9], "fps": 18.1}
+[  119.5] [steer_stuck] {"target": [-20.5, -5.5], "pos": [-23.781606674194336, 11.252519607543945], "fps": 17.8}
+[  149.6] [steer_stuck] {"target": [-18.5, -5.5], "pos": [-23.88042640686035, 11.339310646057129], "fps": 18.2}

@@ -1,0 +1,85 @@
+[   17.3] [boot] {"scene_id": "main_menu", "scene_type": "menu", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": ["menu:main"], "fps": 63.4}
+[   30.5] [in_town] {"screen": {"scene_id": "town", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [-36.0, 15.0], "npcs": ["npc_Ada", "npc_Aldric", "npc_Bram", "npc_Gerrit", "npc_Hobb", "npc_Maera", "npc_Old Moll", "npc_Pell", "npc_Se
+[   33.2] [dirs] {"W": [-0.71, -0.71], "D": [-0.71, 0.71], "S": [0.71, 0.71], "A": [0.71, -0.71], "WD": [-1.0, -0.0], "WA": [0.0, -1.0], "SD": [-0.0, 1.0], "SA": [1.0, 0.0], "fps": 7.3}
+[   33.4] [path] {"to": [-12, 14.5], "waypoints": 2, "tried": 1, "fps": 7.2}
+[   56.2] [reeve_accept] {"steer": "arrived", "seen": [{"node": "start", "choices": ["Tell me about the children.", "[Persuasion DC 12] Release the poacher W", "Nothing for now."]}, {"node": "children", "choices": ["I'll find them.", "Wolves don't open barrows."]}], "fps": 12.4}
+[   61.2] [reeve_persuade_wren] {"seen": [{"node": "start", "choices": ["[Persuasion DC 12] Release the poacher W", "Nothing for now."]}], "persuaded": false, "refused": true, "fps": 12.4}
+[   61.3] [path] {"to": [-14, -9.5], "waypoints": 11, "tried": 1, "fps": 12.5}
+[   97.4] [maera] {"steer": "arrived", "seen": [{"node": "start", "choices": ["The Reeve sent me. What do you know of t", "Just passing through."]}], "fps": 35.7}
+[   97.4] [path] {"to": [-24.5, 13.5], "waypoints": 10, "tried": 1, "fps": 36.0}
+[  127.6] [path] {"to": [-24.5, 8.5], "waypoints": 3, "tried": 1, "fps": 15.1}
+[  132.9] [path] {"to": [-25.5, -2.5], "waypoints": 4, "tried": 1, "fps": 15.9}
+[  139.3] [precise_scene_changed] {"to": [-24.5, 8.5], "trace": [[0, -24.37, 8.8, "WA"], [1, -24.37, 8.31, "D"], [2, -24.72, 8.66, "A"], [3, -24.38, 8.31, "D"], [4, -24.72, 8.66, "A"]], "fps": 37.8}
+[  139.3] [scene_changed_midwalk] {"to": [-25.5, -2.5], "fps": 37.9}
+[  140.4] [bram_recruit] {"steer": ["arrived", "arrived", "scene_changed"], "party": {"error": "unknown action: party"}, "pos": [12.011134147644043, 19.988866806030273], "fps": 38.8}
+[  144.6] [no_path] {"from": [12.0, 20.0], "to": [-26.5, 9.5], "tried": 153, "fps": 39.3}
+[  144.6] [steer_stopped] {"iter": 0, "pos": [12.011134147644043, 19.988866806030273], "fps": 40.1}
+[  148.6] [cellar] {"steer": "stopped", "scene": {"scene_id": "cellar", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [12.011134147644043, 19.988866806030273], "fps": 39.6}
+[  148.7] [path] {"to": [12, 18.5], "waypoints": 2, "tried": 1, "fps": 38.3}
+[  150.2] [rats_encounter] {"steer": "stopped", "in_combat": true, "order": {"active": true, "currentIndex": 2, "defaultSpeed": 30, "order": [{"budget": {"action": false, "bonusAction": true, "freeObjectInteraction": true, "movementRemaining": 6, "reaction": true}, "entityId": "npc_Rat2", "hasActedThisRound": true, "initiativ
+[  184.0] [rats_fight] {"resolved": true, "rounds": 7, "turns": [{"round": 1, "target": "npc_Rat2", "dist": 1.5, "how": "melee", "ok": true, "blocked": null}, {"round": 2, "target": "npc_Rat", "dist": 1.5, "how": "melee", "ok": true, "blocked": null}, {"round": 3, "target": "npc_Rat", "dist": 1.5, "how": "melee", "ok": tr
+[  184.1] [rats_cleared_var] {"rats_dead_trigger": true, "sheet": {"sheet": {"armorClass": 18, "armorProficiencies": [], "attributes": {"charisma": {"base": 12, "equipment": 0, "modifier": 1, "racial": 0, "temporary": 0, "total": 12}, "constitution": {"base": 14, "equipment": 0, "modifier": 2, "racial": 0, "temporary": 0, "tota
+[  184.2] [path] {"to": [10, 26.6], "waypoints": 3, "tried": 1, "fps": 48.2}
+[  196.6] [precise_scene_changed] {"to": [10, 26.6], "trace": [[0, 10.64, 20.51, "SD"], [1, 10.64, 21.48, "SD"], [2, 10.64, 22.46, "SD"], [3, 10.64, 23.34, "SD"], [4, 10.64, 24.06, "SD"], [5, 10.64, 24.69, "SD"]], "fps": 41.7}
+[  200.8] [back_in_town] {"steer": "stopped", "scene": {"scene_id": "town", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [-36.0, 15.0], "fps": 6.4}
+[  201.3] [path] {"to": [-24.5, 13.5], "waypoints": 4, "tried": 1, "fps": 6.3}
+[  232.0] [path] {"to": [-24.5, 8.5], "waypoints": 2, "tried": 1, "fps": 15.4}
+[  235.9] [path] {"to": [-24.5, -0.5], "waypoints": 2, "tried": 1, "fps": 25.7}
+[  246.4] [hobb_paid] {"steer": "arrived", "seen": [{"node": "start", "choices": ["[Persuasion DC 10] Surely a hero drinks ", "Your cellar is clear.", "Just the ale."]}], "inventory": {"inventory": {"creative": true, "hotbar": [{"count": 20, "material": "gold_crown", "max_stack": 64, "selected": true, "slot": 0}, {"empty
+[  246.4] [path] {"to": [-24.5, 8.5], "waypoints": 2, "tried": 1, "fps": 12.6}
+[  254.0] [path] {"to": [-24.5, 13.5], "waypoints": 2, "tried": 1, "fps": 24.6}
+[  257.3] [path] {"to": [-18, 15], "waypoints": 2, "tried": 1, "fps": 18.6}
+[  262.4] [path] {"to": [20, 15], "waypoints": 3, "tried": 1, "fps": 25.4}
+[  284.9] [path] {"to": [60, 15], "waypoints": 2, "tried": 1, "fps": 29.3}
+[  307.8] [precise_scene_changed] {"to": [60, 15], "trace": [[26, 46.8, 14.52, "SA"], [27, 47.79, 14.52, "SA"], [28, 48.77, 14.52, "SA"], [29, 49.84, 14.52, "SA"], [30, 50.83, 14.52, "SA"], [31, 51.86, 14.52, "SA"], [32, 52.89, 14.52, "SA"], [33, 53.91, 14.52, "SA"], [34, 54.92, 14.52, "SA"], [35, 55.89, 14.52, "SA"], [36, 56.8, 14.
+[  311.8] [farm] {"steer": "stopped", "scene": {"scene_id": "farm", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [6.0, 16.0], "fps": 69.8}
+[  311.9] [path] {"to": [14.5, 16], "waypoints": 2, "tried": 1, "fps": 75.0}
+[  322.6] [dunstan] {"steer": "arrived", "seen": [{"node": "start", "choices": ["I'll deal with the wolves.", "Show me the north fence."]}], "fps": 53.6}
+[  322.6] [path] {"to": [26, 9], "waypoints": 7, "tried": 1, "fps": 58.8}
+[  395.5] [precise_unreached] {"to": [24.5, 11.5], "trace": [[48, 22.06, 12.31, "SA"], [49, 22.06, 12.31, "SA"], [50, 22.06, 12.31, "SA"], [51, 22.06, 12.31, "SA"], [52, 22.06, 12.31, "SA"], [53, 22.06, 12.31, "SA"], [54, 22.06, 12.31, "SA"], [55, 22.06, 12.31, "SA"], [56, 22.06, 12.31, "SA"], [57, 22.06, 12.31, "SA"], [58, 22.0
+[  397.1] [wolves_encounter] {"steer": "stopped", "state": {"active": true, "current_entity": "player", "in_combat": true, "mode": "turn_based", "player_turn": true, "round": 1, "turn_order": {"active": true, "currentIndex": 2, "defaultSpeed": 30, "order": [{"budget": {"action": false, "bonusAction": true, "freeObjectInteractio
+[  459.3] [wolves_fight] {"resolved": true, "rounds": 10, "turns": [{"round": 1, "target": "npc_AlphaWolf", "dist": 1.5, "how": "melee", "ok": true, "blocked": null}, {"round": 2, "target": "npc_AlphaWolf", "dist": 1.5, "how": "melee", "ok": true, "blocked": null}, {"round": 3, "target": "npc_AlphaWolf", "dist": 1.5, "how":
+[  459.4] [path] {"to": [16, 17.5], "waypoints": 5, "tried": 1, "fps": 78.9}
+[  474.9] [dunstan_paid] {"steer": "arrived", "seen": [{"node": "start", "choices": ["The wolves are dead.", "Show me the north fence."]}], "inv": {"inventory": {"creative": true, "hotbar": [{"count": 30, "material": "gold_crown", "max_stack": 64, "selected": true, "slot": 0}, {"empty": true, "selected": false, "slot": 1}, 
+[  474.9] [path] {"to": [16, 27.5], "waypoints": 2, "tried": 1, "fps": 56.5}
+[  483.0] [tracks] {"steer": "stopped", "fired": true, "fps": 55.5}
+[  483.1] [path] {"to": [9.5, 26], "waypoints": 2, "tried": 1, "fps": 58.3}
+[  492.9] [oswin_first] {"steer": "arrived", "seen": [{"node": "start", "choices": ["What grimoire?", "Goodbye, then."]}], "fps": 56.7}
+[  493.0] [path] {"to": [2, 16], "waypoints": 2, "tried": 1, "fps": 56.6}
+[  506.4] [precise_scene_changed] {"to": [2, 16], "trace": [[1, 9.72, 25.85, "W"], [2, 9.06, 25.19, "W"], [3, 8.39, 24.53, "W"], [4, 7.73, 23.87, "W"], [5, 7.07, 23.21, "W"], [6, 6.41, 22.55, "W"], [7, 5.75, 21.88, "W"], [8, 5.08, 21.22, "W"], [9, 4.43, 20.56, "W"], [10, 3.77, 19.9, "W"], [11, 3.11, 19.25, "WA"], [12, 3.11, 18.5, "W
+[  510.8] [town_again] {"steer": "stopped", "scene": {"scene_id": "town", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [-36.0, 15.0], "fps": 6.9}
+[  511.0] [path] {"to": [-12, 14.5], "waypoints": 4, "tried": 1, "fps": 6.9}
+[  559.0] [reeve_tracks] {"steer": "arrived", "seen": [{"node": "start", "choices": ["I found tracks at Hollin Farm. They lead", "Nothing for now."]}], "wren_unlock": true, "fps": 13.3}
+[  559.0] [path] {"to": [-5, 13], "waypoints": 4, "tried": 1, "fps": 13.5}
+[  586.2] [wren_recruit] {"steer": "arrived", "seen": [{"node": "start", "choices": ["I'm hunting whoever took the children. I", "You're free. Aldric agreed.", "Enjoy the week."]}], "party": {"error": "unknown action: party"}, "fps": 16.0}
+[  586.2] [path] {"to": [60, 15], "waypoints": 3, "tried": 1, "fps": 16.1}
+[  625.8] [precise_scene_changed] {"to": [60, 15], "trace": [[31, 47.0, 14.47, "SA"], [32, 48.01, 14.47, "SA"], [33, 48.99, 14.47, "SA"], [34, 50.04, 14.47, "SA"], [35, 51.02, 14.47, "SA"], [36, 52.05, 14.47, "SA"], [37, 53.07, 14.47, "SA"], [38, 54.09, 14.47, "SA"], [39, 55.09, 14.47, "SA"], [40, 56.05, 14.47, "SA"], [41, 56.96, 14
+[  629.8] [farm2] {"steer": "stopped", "scene": {"scene_id": "farm", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "fps": 70.7}
+[  629.9] [path] {"to": [9.5, 26], "waypoints": 2, "tried": 1, "fps": 72.6}
+[  642.3] [oswin_join] {"steer": "arrived", "seen": [{"node": "start", "choices": ["I'm going into the barrow. Come and fetc", "What grimoire?", "Goodbye, then."]}], "party": {"error": "unknown action: party"}, "fps": 53.1}
+[  642.3] [path] {"to": [16, 30.5], "waypoints": 2, "tried": 1, "fps": 57.1}
+[  652.8] [barrow] {"steer": "arrived", "scene": {"scene_id": "farm", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [15.493782043457031, 29.86804962158203], "enter": null, "fps": 56.8}
+[  652.9] [path] {"to": [16, 36], "waypoints": 2, "tried": 1, "fps": 56.3}
+[  656.1] [precise_scene_changed] {"to": [16, 36], "trace": [[0, 15.49, 29.59, "SD"]], "fps": 228.2}
+[  659.4] [steer_stopped] {"iter": 4, "pos": [16.0, 37.992794036865234], "fps": 30.9}
+[  660.9] [antechamber] {"steer": "stopped", "state": {"active": true, "current_entity": "npc_Wren", "in_combat": true, "mode": "turn_based", "player_turn": true, "round": 1, "turn_order": {"active": true, "currentIndex": 0, "defaultSpeed": 30, "order": [{"budget": {"action": true, "bonusAction": true, "freeObjectInteracti
+[  699.7] [antechamber_fight] {"resolved": true, "rounds": 4, "turns": [{"round": 1, "target": "npc_Skeleton", "dist": 6.4, "how": "sacred_flame", "ok": true, "blocked": null}, {"round": 2, "target": "npc_Skeleton", "dist": 6.4, "how": "sacred_flame", "ok": true, "blocked": null}, {"round": 3, "target": "npc_Skeleton", "dist": 6
+[  699.8] [path] {"to": [24, 41], "waypoints": 2, "tried": 3, "fps": 36.5}
+[  706.4] [grimoire] {"steer": "arrived", "fired": true, "fps": 39.3}
+[  706.4] [path] {"to": [16, 21], "waypoints": 3, "tried": 1, "fps": 37.9}
+[  781.2] [precise_unreached] {"to": [16, 21], "trace": [[48, 17.12, 23.94, "WA"], [49, 17.12, 23.94, "WA"], [50, 17.12, 23.94, "WA"], [51, 17.12, 23.94, "WA"], [52, 17.12, 23.94, "WA"], [53, 17.12, 23.94, "WA"], [54, 17.12, 23.94, "WA"], [55, 17.12, 23.94, "WA"], [56, 17.12, 23.94, "WA"], [57, 17.12, 23.94, "WA"], [58, 17.12, 2
+[  782.8] [crypt] {"steer": "stopped", "state": {"active": true, "current_entity": "player", "in_combat": true, "mode": "turn_based", "player_turn": true, "round": 1, "turn_order": {"active": true, "currentIndex": 1, "defaultSpeed": 30, "order": [{"budget": {"action": true, "bonusAction": true, "freeObjectInteraction
+[  817.6] [crypt_fight] {"resolved": true, "rounds": 5, "turns": [{"round": 1, "target": "npc_Skeleton3", "dist": 10.3, "how": "sacred_flame", "ok": true, "blocked": null}, {"round": 2, "target": "npc_Skeleton3", "dist": 6.1, "how": "sacred_flame", "ok": true, "blocked": null}, {"round": 3, "target": "npc_Skeleton3", "dist
+[  817.7] [priest] {"priest_slain": true, "sheet": {"sheet": {"armorClass": 18, "armorProficiencies": [], "attributes": {"charisma": {"base": 12, "equipment": 0, "modifier": 1, "racial": 0, "temporary": 0, "total": 12}, "constitution": {"base": 14, "equipment": 0, "modifier": 2, "racial": 0, "temporary": 0, "total": 1
+[  817.7] [path] {"to": [16, 12.0], "waypoints": 2, "tried": 1, "fps": 25.4}
+[  825.9] [relic] {"steer": "stopped", "fired": true, "inv": {"inventory": {"creative": true, "hotbar": [{"count": 30, "material": "gold_crown", "max_stack": 64, "selected": true, "slot": 0}, {"count": 1, "material": "oswin_grimoire", "max_stack": 64, "selected": false, "slot": 1}, {"count": 1, "material": "hollow_re
+[  826.0] [path] {"to": [16, 46.5], "waypoints": 2, "tried": 1, "fps": 32.9}
+[  846.8] [precise_scene_changed] {"to": [16, 46.5], "trace": [[22, 16.5, 35.73, "SD"], [23, 16.5, 36.73, "SD"], [24, 16.5, 37.71, "SD"], [25, 16.5, 38.68, "SD"], [26, 16.5, 39.68, "SD"], [27, 16.5, 40.71, "SD"], [28, 16.5, 41.76, "SD"], [29, 16.5, 42.83, "SD"], [30, 16.5, 43.69, "SD"], [31, 16.5, 44.46, "SD"], [32, 16.5, 45.12, "SD
+[  850.8] [farm3] {"steer": "stopped", "scene": {"scene_id": "farm", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "fps": 73.0}
+[  850.9] [path] {"to": [2, 16], "waypoints": 2, "tried": 1, "fps": 69.8}
+[  860.7] [precise_scene_changed] {"to": [2, 16], "trace": [[0, 6.39, 16.39, "WD"], [1, 5.48, 16.39, "WD"], [2, 4.73, 16.39, "WD"], [3, 4.15, 16.39, "WD"], [4, 3.67, 16.39, "WD"], [5, 3.24, 16.39, "WD"]], "fps": 4.0}
+[  865.1] [town_final] {"steer": "stopped", "scene": {"scene_id": "town", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "fps": 6.6}
+[  865.3] [path] {"to": [-12, 14.5], "waypoints": 4, "tried": 1, "fps": 6.6}
+[  909.4] [finale] {"steer": "arrived", "seen": [{"node": "start", "choices": ["I found tracks at Hollin Farm. They lead", "The Hollow Priest is dead. I have his re", "Nothing for now."]}, {"node": "relic", "choices": ["Take it. Lock it away.", "No. Maera will know what to do with it."]}], "screen": {"scene_id": "town
+[  910.0] [final_screenshot] {"height": 720, "path": "screenshots/shot_1788986816010.png", "success": true, "width": 1280, "fps": 4.0}
+evidence written

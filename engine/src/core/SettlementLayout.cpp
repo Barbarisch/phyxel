@@ -805,6 +805,11 @@ bool shouldFencePlot(int plotIndex, unsigned seed, const Rect& plot, const Rect&
     return true;
 }
 
+/// Clear band kept between a rear-wall prop and the building: the walkability gate's minimum
+/// corridor (SettlementWalkability::kMinCorridorWidthCubes = 2, grounded in the agent box),
+/// so a back door's approach is never closed by the firewood stacked "by the door".
+constexpr int kDoorApproachCubes = 2;
+
 std::vector<YardProp> planYardProps(const AssignedPlot& ap, unsigned seed) {
     std::vector<YardProp> out;
     const Rect& pl = ap.plot.rect;
@@ -847,13 +852,19 @@ std::vector<YardProp> planYardProps(const AssignedPlot& ap, unsigned seed) {
             int cx, cz;
             if (rearIsZ) {
                 cx = draw(salt + t, rx0, rx1 - p.w);
-                if (nearBuilding) cz = (ap.streetSide == 'S') ? rz0 : rz1 - p.d;
+                // "Hugging" the rear wall keeps a DOOR-APPROACH band clear: an opposed back
+                // door (hall_house/longhouse) or a rear service door opens onto this strip,
+                // and the woodpile stamped against the wall sealed the Raven's Rest's back
+                // door (Ravenmere G-55, run 25). Setback = kDoorApproachCubes.
+                if (nearBuilding) cz = (ap.streetSide == 'S') ? rz0 + kDoorApproachCubes
+                                                              : rz1 - p.d - kDoorApproachCubes;
                 else              cz = (ap.streetSide == 'S')
                                         ? draw(salt + 17 + t, rz0 + 2, rz1 - p.d)
                                         : draw(salt + 17 + t, rz0, rz1 - p.d - 2);
             } else {
                 cz = draw(salt + t, rz0, rz1 - p.d);
-                if (nearBuilding) cx = (ap.streetSide == 'W') ? rx0 : rx1 - p.w;
+                if (nearBuilding) cx = (ap.streetSide == 'W') ? rx0 + kDoorApproachCubes
+                                                              : rx1 - p.w - kDoorApproachCubes;
                 else              cx = (ap.streetSide == 'W')
                                         ? draw(salt + 17 + t, rx0 + 2, rx1 - p.w)
                                         : draw(salt + 17 + t, rx0, rx1 - p.w - 2);

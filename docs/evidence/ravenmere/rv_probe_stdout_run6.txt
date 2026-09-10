@@ -1,0 +1,60 @@
+[   49.3] [boot] {"scene_id": "main_menu", "scene_type": "menu", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": ["menu:main"]}
+[   58.5] [in_town] {"screen": {"scene_id": "town", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [-36.0, 15.0], "npcs": ["npc_Ada", "npc_Aldric", "npc_Bram", "npc_Gerrit", "npc_Hobb", "npc_Maera", "npc_Old Moll", "npc_Pell", "npc_Se
+[   59.8] [dirs] {"W": [-0.71, -0.71], "D": [-0.71, 0.71], "S": [0.71, 0.71], "A": [0.71, -0.71]}
+[   73.9] [steer_arrived] {"iter": 17, "pos": [-13.2, 14.1]}
+[   80.4] [reeve_accept] {"steer": "arrived", "accepted_hint": "expect main_1 complete in log", "screen": {"scene_id": "town", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}}
+[   85.0] [reeve_persuade_wren] {"persuaded": null, "refused": null}
+[   97.5] [steer_arrived] {"iter": 15, "pos": [-14.4, -8.2]}
+[  102.1] [maera] {"steer": "arrived"}
+[  108.0] [steer_arrived] {"iter": 8, "pos": [-24.0, -8.1]}
+[  111.0] [steer_arrived] {"iter": 5, "pos": [-25.0, -3.9]}
+[  115.1] [steer_arrived] {"iter": 6, "pos": [-25.7, 2.7]}
+[  121.5] [bram_recruit] {"steer": ["arrived", "arrived", "arrived"], "party": {"error": "unknown action: party"}, "pos": [-25.697067260742188, 2.7083544731140137]}
+[  124.4] [steer_stopped] {"iter": 4, "pos": [10.0, 22.0]}
+[  128.4] [cellar] {"steer": "stopped", "scene": {"scene_id": "cellar", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [10.0, 22.0]}
+[  130.2] [steer_stopped] {"iter": 3, "pos": [12.025415420532227, 19.974584579467773]}
+[  131.7] [rats_encounter] {"steer": "stopped", "in_combat": true, "order": {"active": true, "currentIndex": 0, "defaultSpeed": 30, "order": [{"budget": {"action": true, "bonusAction": true, "freeObjectInteraction": true, "movementRemaining": 30, "reaction": true}, "entityId": "player", "hasActedThisRound": false, "initiative
+[  165.6] [rats_fight] {"resolved": true, "rounds": 4, "turns": [{"round": 1, "target": "npc_Rat", "dist": 6.1, "how": "sacred_flame", "ok": true, "blocked": null}, {"round": 2, "target": "npc_Rat2", "dist": 1.5, "how": "melee", "ok": true, "blocked": null}, {"round": 3, "target": "npc_Rat3", "dist": 1.5, "how": "melee", 
+[  165.6] [rats_cleared_var] {"rats_dead_trigger": true, "sheet": {"sheet": {"armorClass": 10, "armorProficiencies": [], "attributes": {"charisma": {"base": 10, "equipment": 0, "modifier": 0, "racial": 0, "temporary": 0, "total": 10}, "constitution": {"base": 10, "equipment": 0, "modifier": 0, "racial": 0, "temporary": 0, "tota
+[  170.6] [steer_stopped] {"iter": 7, "pos": [-36.0, 15.0]}
+[  174.6] [back_in_town] {"steer": "stopped", "scene": {"scene_id": "town", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [-36.0, 15.0]}
+[  183.6] [steer_arrived] {"iter": 10, "pos": [-24.7, -1.6]}
+[  188.2] [hobb_paid] {"steer": "arrived", "inventory": {"inventory": {"creative": true, "hotbar": [{"empty": true, "selected": true, "slot": 0}, {"empty": true, "selected": false, "slot": 1}, {"empty": true, "selected": false, "slot": 2}, {"empty": true, "selected": false, "slot": 3}, {"empty": true, "selected": false, 
+[  188.7] [steer_arrived] {"iter": 1, "pos": [-25.3, -2.0]}
+[  191.8] [steer_arrived] {"iter": 5, "pos": [-25.0, -6.9]}
+[  203.7] [steer_arrived] {"iter": 14, "pos": [-17.7, 13.3]}
+[  223.0] [steer_arrived] {"iter": 22, "pos": [18.3, 15.1]}
+[  245.4] [steer_stopped] {"iter": 25, "pos": [6.272566795349121, 16.18523597717285]}
+[  249.4] [farm] {"steer": "stopped", "scene": {"scene_id": "farm", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [6.272566795349121, 16.18523597717285]}
+[  253.6] [steer_arrived] {"iter": 6, "pos": [13.0, 15.5]}
+[  258.2] [dunstan] {"steer": "arrived"}
+[  264.6] [steer_stopped] {"iter": 7, "pos": [22.03447723388672, 7.818873405456543]}
+[  266.1] [wolves_encounter] {"steer": "stopped", "state": {"active": true, "current_entity": "npc_AlphaWolf", "in_combat": true, "mode": "turn_based", "player_turn": false, "round": 1, "turn_order": {"active": true, "currentIndex": 0, "defaultSpeed": 30, "order": [{"budget": {"action": true, "bonusAction": true, "freeObjectInt
+[  329.0] [wolves_fight] {"resolved": true, "rounds": 7, "turns": [{"round": 1, "target": "npc_AlphaWolf", "dist": 1.5, "how": "melee", "ok": true, "blocked": null}, {"round": 2, "target": "npc_AlphaWolf", "dist": 1.5, "how": "melee", "ok": true, "blocked": null}, {"round": 3, "target": "npc_Wolf", "dist": 1.6, "how": "sacr
+[  333.7] [steer_arrived] {"iter": 6, "pos": [16.3, 16.2]}
+[  338.3] [dunstan_paid] {"steer": "arrived", "inv": {"inventory": {"creative": true, "hotbar": [{"empty": true, "selected": true, "slot": 0}, {"empty": true, "selected": false, "slot": 1}, {"empty": true, "selected": false, "slot": 2}, {"empty": true, "selected": false, "slot": 3}, {"empty": true, "selected": false, "slot"
+[  344.4] [steer_stopped] {"iter": 8, "pos": [15.9741792678833, 26.2919979095459]}
+[  344.4] [tracks] {"steer": "stopped", "fired": true}
+[  347.7] [steer_arrived] {"iter": 5, "pos": [10.8, 26.0]}
+[  352.3] [oswin_first] {"steer": "arrived"}
+[  357.1] [steer_stopped] {"iter": 5, "pos": [-36.237056732177734, 14.838896751403809]}
+[  361.1] [town_again] {"steer": "stopped", "scene": {"scene_id": "town", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [-36.237056732177734, 14.838896751403809]}
+[  373.6] [steer_arrived] {"iter": 15, "pos": [-13.5, 14.7]}
+[  378.2] [reeve_tracks] {"steer": "arrived", "wren_unlock": true}
+[  382.7] [steer_arrived] {"iter": 6, "pos": [-6.5, 13.0]}
+[  387.2] [wren_recruit] {"steer": "arrived", "party": {"error": "unknown action: party"}}
+[  422.7] [steer_stopped] {"iter": 39, "pos": [6.278076648712158, 16.188980102539062]}
+[  426.7] [farm2] {"steer": "stopped", "scene": {"scene_id": "farm", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}}
+[  431.9] [steer_arrived] {"iter": 7, "pos": [9.6, 24.5]}
+[  436.6] [oswin_join] {"steer": "arrived", "party": {"error": "unknown action: party"}}
+[  440.7] [steer_arrived] {"iter": 6, "pos": [15.8, 29.6]}
+[  444.8] [barrow] {"steer": "arrived", "scene": {"scene_id": "farm", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [15.841554641723633, 29.607458114624023], "enter": null}
+[  450.2] [steer_stopped] {"iter": 6, "pos": [15.798754692077637, 37.979122161865234]}
+[  451.8] [antechamber] {"steer": "stopped", "state": {"active": true, "current_entity": "npc_Skeleton", "in_combat": true, "mode": "turn_based", "player_turn": false, "round": 1, "turn_order": {"active": true, "currentIndex": 0, "defaultSpeed": 30, "order": [{"budget": {"action": true, "bonusAction": true, "freeObjectInte
+[  474.5] [antechamber_fight] {"resolved": true, "rounds": 2, "turns": [{"round": 1, "target": "npc_Skeleton", "dist": 1.4, "how": "melee", "ok": true, "blocked": null}, {"round": 2, "target": "npc_Skeleton2", "dist": 1.5, "how": "melee", "ok": true, "blocked": null}], "enemy_hp": {"npc_Skeleton": 0.0, "npc_Skeleton2": 0.0, "npc
+[  478.8] [steer_arrived] {"iter": 6, "pos": [22.9, 41.1]}
+[  478.9] [grimoire] {"steer": "arrived", "fired": true}
+[  489.2] [steer_stopped] {"iter": 11, "pos": [14.607283592224121, 23.9967041015625]}
+[  490.7] [crypt] {"steer": "stopped", "state": {"active": true, "current_entity": "npc_Bram", "in_combat": true, "mode": "turn_based", "player_turn": true, "round": 1, "turn_order": {"active": true, "currentIndex": 0, "defaultSpeed": 30, "order": [{"budget": {"action": true, "bonusAction": true, "freeObjectInteracti
+[  891.2] [crypt_fight] {"resolved": false, "rounds": 2, "turns": [{"round": 1, "target": "npc_Cultist2", "dist": 10.3, "how": "sacred_flame", "ok": true, "blocked": null}], "enemy_hp": {"npc_HollowPriest": 22.0, "npc_Cultist2": 0.0, "npc_Skeleton3": 9.0}, "player_hp": 88.0}
+[  891.3] [priest] {"priest_slain": false, "sheet": {"sheet": {"armorClass": 10, "armorProficiencies": [], "attributes": {"charisma": {"base": 10, "equipment": 0, "modifier": 0, "racial": 0, "temporary": 0, "total": 10}, "constitution": {"base": 10, "equipment": 0, "modifier": 0, "racial": 0, "temporary": 0, "total": 

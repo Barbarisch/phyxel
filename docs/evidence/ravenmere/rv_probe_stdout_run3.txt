@@ -1,0 +1,8 @@
+[   46.8] [boot] {"scene_id": "main_menu", "scene_type": "menu", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": ["menu:main"]}
+[   55.9] [in_town] {"screen": {"scene_id": "town", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [-36.0, 15.0], "npcs": ["npc_Ada", "npc_Aldric", "npc_Bram", "npc_Gerrit", "npc_Hobb", "npc_Maera", "npc_Old Moll", "npc_Pell", "npc_Se
+[   57.2] [dirs] {"W": [-0.71, -0.71], "D": [-0.71, 0.71], "S": [0.71, 0.71], "A": [0.71, -0.71]}
+[   71.2] [steer_arrived] {"iter": 17, "pos": [-13.1, 14.8]}
+[   76.0] [reeve_accept] {"steer": "arrived", "accepted_hint": "expect main_1 complete in log", "screen": {"scene_id": "town", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}}
+[  194.2] [steer_stuck] {"target": [-14, -9.5], "pos": [-13.07409954071045, 14.844074249267578]}
+[  197.6] [maera] {"steer": "stuck"}
+[  316.6] [steer_stuck] {"target": [-25, -8], "pos": [-13.07409954071045, 14.844074249267578]}

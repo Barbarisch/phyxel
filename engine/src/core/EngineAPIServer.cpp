@@ -5033,6 +5033,34 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // GET /api/navgraph/column?x=&z=[&y0=&y1=] — dump one NavGraph column
+    // (surfaces, micro feet heights, edges + lateral slack, obstacle cells)
+    // ====================================================================
+    // GET /api/walk/probe?x=&y=&z=[&radius=] - the walkability gate's TraversalProbe flood
+    // from a micro feet position (diagnostic; see WalkabilityGateAndPlaytestLoop.md).
+    srv.Get("/api/walk/probe", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        for (const char* k : {"x", "y", "z", "radius"})
+            if (req.has_param(k)) params[k] = std::stoi(req.get_param_value(k));
+        json result = queueAndWait("traversal_probe", params, 30000);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    srv.Get("/api/navgraph/column", [this](const httplib::Request& req, httplib::Response& res) {
+        if (!req.has_param("x") || !req.has_param("z")) {
+            res.status = 400;
+            res.set_content(json{{"error", "x, z parameters required"}}.dump(), "application/json");
+            return;
+        }
+        json params = {{"x", std::stoi(req.get_param_value("x"))},
+                       {"z", std::stoi(req.get_param_value("z"))}};
+        if (req.has_param("y0")) params["y0"] = std::stoi(req.get_param_value("y0"));
+        if (req.has_param("y1")) params["y1"] = std::stoi(req.get_param_value("y1"));
+        json result = queueAndWait("navgraph_column", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
     // GET /api/navgrid/path?x1=&z1=&x2=&z2= — Compute A* path
     // ====================================================================
     srv.Get("/api/navgrid/path", [this](const httplib::Request& req, httplib::Response& res) {

@@ -204,3 +204,40 @@ TEST(SettlementBuildServiceTest, PlanningIsDeterministicInTheSeed) {
         << "a different seed produced an IDENTICAL settlement - the seed is not wired through, so "
            "the determinism check above is vacuous";
 }
+
+
+// WalkabilityGateAndPlaytestLoop increment 1: with a world present, the plan carries a
+// "walkability gate" unit that runs AFTER every unit that changes occupancy (buildings,
+// fences, sweep, doorsteps) and BEFORE the nav rebuild - the gate measures the world
+// the residents will get. RED on the old code: no such unit was planned.
+#include "core/ChunkManager.h"
+TEST(SettlementBuildServiceTest, TheWalkabilityGateRunsOnTheFinishedWorldBeforeNav) {
+    Phyxel::ChunkManager cm;
+    cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
+    // An empty ChunkManager has no terrain: the grounding pre-check would refuse the
+    // site, and this test is about the UNIT ORDER of a world-gated plan, not siting.
+    nlohmann::json params = {{"era", "medieval"}, {"tier", "village"}, {"seed", 7},
+                             {"position", {{"x", 0}, {"y", 16}, {"z", 0}}}, {"width", 80}, {"depth", 48},
+                             {"allow_ungrounded", true}};
+    SettlementBuildService::Deps deps;
+    deps.chunkManager = &cm;
+    const auto plan = SettlementBuildService::plan(params, deps);
+    ASSERT_TRUE(plan.ok()) << plan.error.dump();
+    int gate = -1, doorsteps = -1, nav = -1, lastBuilding = -1, fences = -1, sweep = -1;
+    for (size_t i = 0; i < plan.units.size(); ++i) {
+        const std::string& l = plan.units[i].label;
+        if (l == "walkability gate") gate = (int)i;
+        if (l == "doorsteps") doorsteps = (int)i;
+        if (l == "nav rebuild") nav = (int)i;
+        if (l == "fencing parcels") fences = (int)i;
+        if (l == "street sweep") sweep = (int)i;
+        if (l.rfind("building ", 0) == 0) lastBuilding = (int)i;
+    }
+    ASSERT_GE(gate, 0) << "no walkability gate unit was planned";
+    ASSERT_GE(nav, 0); ASSERT_GE(doorsteps, 0); ASSERT_GE(lastBuilding, 0);
+    EXPECT_GT(gate, lastBuilding) << "the gate must see every building";
+    EXPECT_GT(gate, doorsteps)    << "the gate must see the stoops";
+    EXPECT_GT(gate, fences)       << "the gate must see the fences";
+    EXPECT_GT(gate, sweep)        << "the gate must see the swept streets";
+    EXPECT_LT(gate, nav)          << "the gate reports before the graph is built on the same world";
+}

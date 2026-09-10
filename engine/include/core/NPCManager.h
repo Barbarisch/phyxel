@@ -68,13 +68,18 @@ public:
     void setLocationRegistry(LocationRegistry* registry) { m_locationRegistry = registry; }
     /// Set the chunk manager for NPC line-of-sight raycasting.
     void setChunkManager(ChunkManager* mgr) { m_chunkManager = mgr; }
-    /// Provider of static obstacle boxes (inclusive world-cube min/max) that are NOT
-    /// chunk voxels — placed templates (wells, woodpiles, furniture). Without this the
+    /// Provider of obstacle boxes for things characters collide with that are NOT chunk
+    /// voxels — kinematic item props, activated dynamic furniture. Without this the
     /// NavGraph routes straight through them and characters treadmill against their
     /// collision (measured: village residents orbiting the street well for minutes).
-    /// Snapshotted into a blocked-cell set at each buildNavGrid().
+    /// Boxes are PRECISE world-space AABBs (min inclusive, max exclusive, metres) and are
+    /// rasterized at 1/9 m into the micro-mode graph at each buildNavGrid(): a tavern sign
+    /// hanging 2 m over a doorway no longer costs the door a whole cube of headroom (the
+    /// cube-rounded overlay did exactly that in the Ravenmere town, G-54). Static-stamped
+    /// templates must NOT be fed here — their voxels are in the chunks and sampled directly
+    /// — or a stale registry record (G-62) becomes a phantom wall.
     using ObstacleBoxProvider =
-        std::function<std::vector<std::pair<glm::ivec3, glm::ivec3>>()>;
+        std::function<std::vector<std::pair<glm::vec3, glm::vec3>>()>;
     void setNavObstacleProvider(ObstacleBoxProvider p) { m_obstacleProvider = std::move(p); }
 
     /// SPAWN GATE (user directive 2026-07-28: "it should be impossible (by default) to
@@ -213,6 +218,17 @@ public:
     /// Get the 3D navigation graph (Layer 1; may be null if not built yet).
     NavGraph* getNavGraph() const { return m_navGraph.get(); }
 
+    /// Diagnostic: is this world cube blocked by the placed-object obstacle overlay
+    /// (snapshotted at the last buildNavGrid)? Lets a column dump explain WHY a cell
+    /// has no surface — chunk voxels or a prop's bounding box.
+    bool isNavObstacleCell(const glm::ivec3& cube) const;
+    /// Obstacle overlay alone, by cube: 0 none, 1 partial, 2 fully covered.
+    int navObstacleFill(const glm::ivec3& cube) const;
+    /// Obstacle overlay alone, at world MICRO coordinates (cube*9 + 0..8).
+    bool navObstacleMicro(const glm::ivec3& micro) const;
+    /// Diagnostic: the obstacle boxes (micro coords, lo inclusive / hi exclusive) touching a cube.
+    std::vector<std::pair<glm::ivec3, glm::ivec3>> navObstacleBoxesAt(const glm::ivec3& cube) const;
+
     /// Get the async path service (Layer 1 cross-cutting; may be null if not built yet).
     PathService* getPathService() const { return m_pathService.get(); }
 
@@ -234,8 +250,13 @@ private:
     LocationRegistry* m_locationRegistry = nullptr;
     ChunkManager* m_chunkManager = nullptr;
     bool m_allowEmbeddedSpawns = false;                     ///< spawn-gate escape hatch (see setter)
-    ObstacleBoxProvider m_obstacleProvider;                 ///< static nav obstacles (see setter)
-    std::unordered_set<int64_t> m_navObstacles;             ///< rasterized cells (rebuilt per buildNavGrid)
+    ObstacleBoxProvider m_obstacleProvider;                 ///< non-voxel nav obstacles (see setter)
+    std::unordered_set<int64_t> m_navObstacles;             ///< cubes touched by any box (rebuilt per buildNavGrid)
+    /// Obstacle boxes in MICRO coordinates (lo inclusive, hi exclusive) + a cube -> box index,
+    /// so the micro sampler answers "is this 1/9-m cell inside a prop" in O(boxes in cube).
+    struct NavObstacleBox { glm::ivec3 lo{0}; glm::ivec3 hi{0}; };
+    std::vector<NavObstacleBox> m_navObstacleBoxes;
+    std::unordered_map<int64_t, std::vector<uint32_t>> m_navObstacleIndex;
     RaycastVisualizer* m_raycastVisualizer = nullptr;
     CombatSystem* m_combatSystem = nullptr;
 

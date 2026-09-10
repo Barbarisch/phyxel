@@ -111,3 +111,22 @@ TEST(YardPropsTest, DeterministicInSeed) {
         EXPECT_EQ(a[i].rotDeg, b[i].rotDeg);
     }
 }
+
+// Ravenmere G-55 (run 25, 2026-09-09): the woodpile stamped hard against the rear wall sat
+// on the Raven's Rest's back-door threshold and sealed it for NPC navigation. A prop that
+// "hugs" the rear wall must keep the gate's minimum corridor (2 cubes, grounded in the
+// agent box) between itself and the building, on every street side.
+TEST(YardPropsTest, RearWallPropsKeepTheDoorApproachClear) {
+    for (const AssignedPlot& ap : {southPlot(), westPlot()}) {
+        const auto props = planYardProps(ap, 7);
+        ASSERT_FALSE(props.empty());
+        for (const auto& p : props) {
+            const int gap = (ap.streetSide == 'S') ? p.cz - ap.footprint.z1()
+                          : (ap.streetSide == 'N') ? ap.footprint.z - (p.cz + p.d)
+                          : (ap.streetSide == 'W') ? p.cx - ap.footprint.x1()
+                                                   : ap.footprint.x - (p.cx + p.w);
+            EXPECT_GE(gap, 2) << p.type << " sits " << gap << " cubes from the rear wall (street "
+                              << ap.streetSide << ") — the back-door approach is closed";
+        }
+    }
+}

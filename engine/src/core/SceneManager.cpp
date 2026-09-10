@@ -71,6 +71,7 @@ bool SceneManager::transitionTo(const std::string& sceneId) {
     if (!activeSceneId_.empty()) {
         state_ = SceneState::Unloading;
         LOG_INFO("SceneManager", "Beginning transition: '{}' -> '{}'", activeSceneId_, sceneId);
+        if (callbacks_.onTransitionBegin) callbacks_.onTransitionBegin();
     } else {
         state_ = SceneState::Loading;
         LOG_INFO("SceneManager", "Loading initial scene: '{}'", sceneId);
@@ -365,7 +366,7 @@ void SceneManager::executeLoad() {
     if (reIt != reentryStates_.end() && reIt->second.visited && subsystems_->camera) {
         auto& rs = reIt->second;
         subsystems_->camera->setPosition(glm::vec3(rs.lastPlayerX, rs.lastPlayerY, rs.lastPlayerZ));
-        LOG_INFO("SceneManager", "Restored re-entry position ({:.1f}, {:.1f}, {:.1f}) for scene '{}'",
+        LOG_INFO("SceneManager", "Restored re-entry position ({}, {}, {}) for scene '{}'",
                  rs.lastPlayerX, rs.lastPlayerY, rs.lastPlayerZ, targetSceneId_);
     }
 

@@ -73,6 +73,30 @@ struct FenceRun {
 /// planes missed each other by up to 8 micro and rails stopped a cube short.
 std::vector<FenceRun> planParcelFenceRuns(int prX, int prZ, int prW, int prD);
 
+/// A neighbouring building footprint in settlement-local cubes (x, z, w, d).
+struct CubeRect { int x = 0, z = 0, w = 0, d = 0; };
+
+/// Ravenmere G-78 (2026-09-09): a parcel fence must not leave a sub-corridor residual
+/// against a NEIGHBOURING building. The tavern's east wall face sat 1 cell from the next
+/// parcel's picket line: a 1.0 m alley, 0.67 m at the corner quoin, and the only
+/// street->shrine route threaded it with 0.11 m of lateral slack. True when `run` (one
+/// of the four parcel planes) would leave fewer than `minAlleyCells` clear cells between
+/// itself and any neighbour footprint on the OUTSIDE of that plane, over an overlapping
+/// span along the run. The caller drops such a run (the side stays unfenced - the same
+/// outcome the flush-building policy already produces). N/E planes sit 8 micro inside
+/// their parcel's outer edge, which is counted toward the clear width.
+bool fenceRunPinchesNeighbour(const FenceRun& run, int prX, int prZ, int prW, int prD,
+                              const std::vector<CubeRect>& neighbours, int minAlleyCells);
+
+/// When a plane is dropped for pinching, the two runs that met it at its corners still
+/// plant their CORNER POSTS on the pinch line (regen #7: the west plane went, the south
+/// plane's corner post at (-20,-5) still stood 0.67 m from the tavern's quoin). Shorten
+/// a surviving run by `cells` at every end whose corner plane was dropped; a trimmed run
+/// owns its end posts (the post moves inward with the run). Returns false when nothing
+/// is left of the run.
+bool trimFenceRunAtDroppedCorners(FenceRun& run, bool droppedW, bool droppedE,
+                                  bool droppedS, bool droppedN, int cells);
+
 /// The GATE WINDOW cut into a run: the half-open micro span [lo, hi) of `run` that is
 /// left open so a character can walk in. Cube-ALIGNED and centred (a naive micro-space
 /// formula drifts up to 4 micro off centre on odd spans -- an auditor-caught defect).

@@ -130,4 +130,22 @@ VoxelLocation::Type ChunkVoxelQuerySystem::getVoxelTypeAt(const glm::ivec3& worl
     return chunk->getVoxelType(localPos);
 }
 
+bool ChunkVoxelQuerySystem::occupiedMicro(const glm::ivec3& micro) const {
+    auto divFloor = [](int a) { return a >= 0 ? a / 9 : -((-a + 8) / 9); };
+    const glm::ivec3 cube(divFloor(micro.x), divFloor(micro.y), divFloor(micro.z));
+    const Chunk* chunk = getChunkAtCoord(worldToChunkCoord(cube));
+    if (!chunk) return false;
+    const glm::ivec3 local = worldToLocalCoord(cube);
+    switch (chunk->getVoxelType(local)) {
+        case VoxelLocation::EMPTY: return false;
+        case VoxelLocation::CUBE:  return true;
+        default: break;
+    }
+    const glm::ivec3 off = micro - cube * 9;          // 0..8 on every axis
+    const glm::ivec3 sp  = off / 3;                   // subcube 0..2
+    const glm::ivec3 mp  = off - sp * 3;              // microcube within it, 0..2
+    if (chunk->hasSubcubeAt(local, sp)) return true;  // a subcube covers all 27 of its micro cells
+    return chunk->getMicrocubeAt(local, sp, mp) != nullptr;
+}
+
 } // namespace Phyxel

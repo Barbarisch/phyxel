@@ -1,0 +1,122 @@
+{
+ "doorstep->Hobb (bar)": {
+  "navgraph": {
+   "found": false,
+   "waypoints": [],
+   "err": null
+  },
+  "navgrid": {
+   "found": false,
+   "waypoints": 0,
+   "err": null
+  }
+ },
+ "doorstep->street": {
+  "navgraph": {
+   "found": true,
+   "waypoints": [
+    {
+     "x": -24.5,
+     "y": 18.0,
+     "z": -7.5
+    },
+    {
+     "x": -29.5,
+     "y": 17.0,
+     "z": -6.5
+    },
+    {
+     "x": -37.5,
+     "y": 18.0,
+     "z": 5.5
+    },
+    {
+     "x": -37.5,
+     "y": 18.0,
+     "z": 12.5
+    },
+    {
+     "x": -17.5,
+     "y": 18.0,
+     "z": 15.5
+    }
+   ],
+   "err": null
+  },
+  "navgrid": {
+   "found": false,
+   "waypoints": 0,
+   "err": null
+  }
+ },
+ "street->Hobb (bar)": {
+  "navgraph": {
+   "found": false,
+   "waypoints": [],
+   "err": null
+  },
+  "navgrid": {
+   "found": false,
+   "waypoints": 0,
+   "err": null
+  }
+ },
+ "street->Bram (stair rail)": {
+  "navgraph": {
+   "found": false,
+   "waypoints": [],
+   "err": null
+  },
+  "navgrid": {
+   "found": false,
+   "waypoints": 0,
+   "err": null
+  }
+ },
+ "street->hatch behind tavern": {
+  "navgraph": {
+   "found": true,
+   "waypoints": [
+    {
+     "x": -35.5,
+     "y": 18.0,
+     "z": 15.5
+    },
+    {
+     "x": -24.5,
+     "y": 18.0,
+     "z": 12.5
+    }
+   ],
+   "err": null
+  },
+  "navgrid": {
+   "found": false,
+   "waypoints": 0,
+   "err": null
+  }
+ },
+ "street->street (control)": {
+  "navgraph": {
+   "found": true,
+   "waypoints": [
+    {
+     "x": -35.5,
+     "y": 18.0,
+     "z": 15.5
+    },
+    {
+     "x": -12.5,
+     "y": 18.0,
+     "z": 14.5
+    }
+   ],
+   "err": null
+  },
+  "navgrid": {
+   "found": true,
+   "waypoints": 4,
+   "err": null
+  }
+ }
+}

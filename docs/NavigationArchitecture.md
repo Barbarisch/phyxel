@@ -130,12 +130,35 @@ exactly the existing `rebuildRegion` pattern, extended to multi-level), and is s
 to reason about on a grid world. Recast remains the fallback if free-form geometry or
 mature crowd avoidance is ever needed (see Alternatives).
 
+**Sub-cube occupancy (2026-09-08, Ravenmere G-54).** Generated buildings are subcube/
+microcube geometry: a framed door is two 1-micro jambs + a 2-micro lintel inside otherwise
+open cubes around a 7-micro (0.78 m) × 16-micro (1.78 m) clear reveal. Classifying a cube
+as solid whenever it is not EMPTY made every framed door a wall to NPC navigation (measured
+live in the shipped Ravenmere town: `navgraph_path` street → tavern `found:false`). Layer 1
+therefore has a **MICRO mode** (the runtime default via `NavGraph(ChunkManager*)`): cubes are
+`Empty / Solid / Partial` (`CellFillFunc`), Partial cubes are sampled at 1/9 m
+(`MicroQueryFunc` = `ChunkManager::occupiedMicro`) against the agent's footprint (centre +
+4 corners at ±2 micro — the same box the settlement gate's `TraversalProbe` walks), feet
+heights and headroom are stored in micro (`NavSurface::floorTopMicro`, `headroomMicro`),
+and **edges are swept centre→centre in 1-micro steps at build time** and stored per surface
+(`edge[4]`), so no world reads happen on the PathService thread and a 1-micro wall sheet at a
+cell edge blocks the crossing even though the cell itself is standable. Path smoothing only
+follows swept edges (no corner-cutting through sub-cube walls). The old `VoxelQueryFunc`
+constructor keeps CUBE mode for legacy tests. Pinned by `tests/core/NavGraphMicroTest.cpp`.
+
 **Agent capability profile** — paths depend on the agent, so queries take a profile:
 ```cpp
 struct NavAgentProfile { int height = 2; int stepHeight = 1; int jumpHeight = 1;
-                         int maxFallY = 4; bool canClimb = true; };
+                         int maxFallY = 4; bool canClimb = true;
+                         // MICRO mode, grounded in AnimatedVoxelCharacter:
+                         int halfWidthMicro = 2;   // 0.25 m (m_originalHalfWidth)
+                         int heightMicro    = 16;  // ~1.75 m
+                         int stepUpMicro    = 4;   // 4/9 m (m_maxStepHeight) };
 ```
-(height gates headroom; capabilities gate which jump/climb/fall edges are usable).
+(height gates headroom; capabilities gate which jump/climb/fall edges are usable). The micro
+fields equal the gate's `AgentBox`, so "walkable by construction" and "pathable at runtime"
+are one statement. Note the cube-mode `stepHeight = 1` (a full 1 m step) was never something
+the character could climb — its auto step is 4/9 m — so micro mode uses 4 micro.
 
 **Chunk-tiling** — each chunk owns the surfaces/links for its columns, built when the
 chunk loads and discarded when it unloads (fits `ChunkStreamingManager`). Cross-chunk

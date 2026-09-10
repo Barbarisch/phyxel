@@ -1,0 +1,64 @@
+[   15.2] [boot] {"scene_id": "main_menu", "scene_type": "menu", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": ["menu:main"], "fps": 53.3}
+[   26.5] [in_town] {"screen": {"scene_id": "town", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [-36.0, 15.0], "npcs": ["npc_Ada", "npc_Aldric", "npc_Bram", "npc_Gerrit", "npc_Hobb", "npc_Maera", "npc_Old Moll", "npc_Pell", "npc_Se
+[   27.9] [dirs] {"W": [-0.71, -0.71], "D": [-0.71, 0.71], "S": [0.71, 0.71], "A": [0.71, -0.71], "WD": [-1.0, 0.0], "WA": [-0.0, -1.0], "SD": [0.0, 1.0], "SA": [1.0, -0.0], "fps": 36.6}
+[   28.0] [path] {"to": [-12, 14.5], "waypoints": 2, "tried": 1, "fps": 35.7}
+[   28.5] [steer_arrived] {"iter": 1, "pos": [-38.0, 14.5], "fps": 25.6}
+[   37.7] [steer_arrived] {"iter": 10, "pos": [-13.0, 14.5], "fps": 18.3}
+[   44.3] [reeve_accept] {"steer": "arrived", "seen": [{"node": "start", "choices": ["Tell me about the children.", "[Persuasion DC 12] Release the poacher W", "Nothing for now."]}, {"node": "children", "choices": ["I'll find them.", "Wolves don't open barrows."]}], "fps": 18.9}
+[   49.2] [reeve_persuade_wren] {"seen": [{"node": "start", "choices": ["[Persuasion DC 12] Release the poacher W", "Nothing for now."]}], "persuaded": true, "refused": false, "fps": 19.0}
+[   49.3] [path] {"to": [-14, -9.5], "waypoints": 14, "tried": 1, "fps": 19.1}
+[   49.3] [steer_arrived] {"iter": 0, "pos": [-13.0, 14.5], "fps": 18.5}
+[   56.3] [steer_arrived] {"iter": 8, "pos": [5.3, 14.5], "fps": 15.6}
+[   58.2] [steer_arrived] {"iter": 3, "pos": [8.2, 11.6], "fps": 15.2}
+[   58.8] [steer_arrived] {"iter": 1, "pos": [8.2, 10.6], "fps": 14.0}
+[   60.1] [steer_arrived] {"iter": 2, "pos": [6.8, 8.8], "fps": 14.1}
+[   62.3] [steer_arrived] {"iter": 3, "pos": [6.8, 3.5], "fps": 17.4}
+[   64.3] [steer_arrived] {"iter": 3, "pos": [3.8, 0.4], "fps": 23.2}
+[   64.9] [steer_arrived] {"iter": 1, "pos": [3.2, -0.2], "fps": 22.5}
+[   67.7] [steer_arrived] {"iter": 4, "pos": [-1.7, -5.1], "fps": 21.9}
+[   72.6] [steer_arrived] {"iter": 5, "pos": [-6.1, -5.3], "fps": 21.8}
+[   73.7] [steer_arrived] {"iter": 2, "pos": [-7.7, -6.8], "fps": 23.1}
+[   74.3] [steer_arrived] {"iter": 1, "pos": [-8.7, -6.8], "fps": 23.5}
+[   76.1] [steer_arrived] {"iter": 3, "pos": [-11.2, -9.3], "fps": 26.1}
+[   77.2] [steer_arrived] {"iter": 2, "pos": [-13.2, -9.3], "fps": 26.2}
+[   81.7] [maera] {"steer": "arrived", "seen": [{"node": "start", "choices": ["The Reeve sent me. What do you know of t", "Just passing through."]}], "fps": 26.4}
+[   81.7] [path] {"to": [-25, -9], "waypoints": 2, "tried": 1, "fps": 25.2}
+[   82.3] [steer_arrived] {"iter": 1, "pos": [-14.0, -9.3], "fps": 25.4}
+[   86.3] [steer_arrived] {"iter": 5, "pos": [-23.9, -9.3], "fps": 24.1}
+[   96.7] [door_threaded] {"door_x": -25.0, "attempt": 0, "pos": [-24.9, -5.5], "fps": 13.9}
+[  103.4] [bram_recruit] {"steer": ["arrived", true, true], "party": {"error": "unknown action: party"}, "pos": [-24.902748107910156, -5.536619663238525], "fps": 13.8}
+[  147.6] [door_threaded] {"door_x": -25.0, "attempt": 0, "pos": [-25.3, -7.6], "fps": 20.2}
+[  150.4] [steer_arrived] {"iter": 4, "pos": [-19.2, -7.6], "fps": 17.0}
+[  200.2] [steer_stuck] {"target": [-19.0, 12.6], "pos": [-28.397602081298828, 4.947639465332031], "fps": 15.6}
+[  224.9] [steer_stopped] {"iter": 21, "pos": [10.0, 22.0], "fps": 252.2}
+[  229.0] [cellar] {"steer": "stopped", "scene": {"scene_id": "cellar", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [10.0, 22.0], "fps": 42.9}
+[  229.0] [path] {"to": [12, 18.5], "waypoints": 3, "tried": 1, "fps": 43.1}
+[  229.6] [steer_arrived] {"iter": 1, "pos": [10.7, 22.0], "fps": 42.9}
+[  230.7] [steer_arrived] {"iter": 2, "pos": [11.9, 20.8], "fps": 43.8}
+[  231.3] [steer_stopped] {"iter": 1, "pos": [11.887845039367676, 19.966466903686523], "fps": 38.8}
+[  232.8] [rats_encounter] {"steer": "stopped", "in_combat": true, "order": {"active": true, "currentIndex": 0, "defaultSpeed": 30, "order": [{"budget": {"action": true, "bonusAction": true, "freeObjectInteraction": true, "movementRemaining": 16, "reaction": true}, "entityId": "npc_Rat2", "hasActedThisRound": false, "initiati
+[  274.6] [rats_fight] {"resolved": true, "rounds": 5, "turns": [{"round": 1, "target": "npc_Rat3", "dist": 1.5, "how": "melee", "ok": true, "blocked": null}, {"round": 2, "target": "npc_Rat", "dist": 1.5, "how": "melee", "ok": true, "blocked": null}, {"round": 3, "target": "npc_Rat2", "dist": 1.5, "how": "melee", "ok": t
+[  274.6] [rats_cleared_var] {"rats_dead_trigger": true, "sheet": {"sheet": {"armorClass": 18, "armorProficiencies": [], "attributes": {"charisma": {"base": 12, "equipment": 0, "modifier": 1, "racial": 0, "temporary": 0, "total": 12}, "constitution": {"base": 14, "equipment": 0, "modifier": 2, "racial": 0, "temporary": 0, "tota
+[  274.7] [path] {"to": [10, 26.6], "waypoints": 3, "tried": 1, "fps": 47.8}
+[  274.8] [steer_arrived] {"iter": 0, "pos": [11.9, 20.0], "fps": 48.8}
+[  277.4] [steer_arrived] {"iter": 4, "pos": [11.4, 24.6], "fps": 41.7}
+[  282.7] [steer_stopped] {"iter": 1, "pos": [-36.0, 15.0], "fps": 170.1}
+[  286.8] [back_in_town] {"steer": "stopped", "scene": {"scene_id": "town", "scene_type": "world", "screen": "playing", "source": "shell", "success": true, "transitioning": false, "visible_menus": []}, "pos": [-36.0, 15.0], "fps": 7.5}
+[  287.0] [path] {"to": [-25, -9], "waypoints": 11, "tried": 1, "fps": 7.7}
+[  287.2] [steer_arrived] {"iter": 0, "pos": [-36.0, 15.0], "fps": 7.6}
+[  288.4] [steer_arrived] {"iter": 2, "pos": [-38.2, 13.9], "fps": 28.9}
+[  288.9] [steer_arrived] {"iter": 1, "pos": [-38.8, 13.3], "fps": 31.4}
+[  292.5] [steer_arrived] {"iter": 5, "pos": [-38.8, 5.2], "fps": 50.1}
+[  294.7] [steer_arrived] {"iter": 4, "pos": [-36.4, 2.1], "fps": 56.2}
+[  298.1] [steer_arrived] {"iter": 5, "pos": [-30.8, -3.6], "fps": 47.3}
+[  299.7] [steer_arrived] {"iter": 3, "pos": [-30.3, -5.9], "fps": 45.5}
+[  300.6] [steer_arrived] {"iter": 2, "pos": [-29.3, -6.9], "fps": 41.1}
+[  301.6] [steer_arrived] {"iter": 2, "pos": [-27.8, -6.9], "fps": 34.8}
+[  303.2] [steer_arrived] {"iter": 3, "pos": [-25.6, -9.1], "fps": 33.4}
+[  303.2] [steer_arrived] {"iter": 0, "pos": [-25.6, -9.1], "fps": 33.5}
+[  310.6] [door_threaded] {"door_x": -25.0, "attempt": 0, "pos": [-25.2, -5.5], "fps": 14.5}
+[  393.9] [hobb_paid] {"steer": false, "seen": [{"node": "start", "choices": ["The children are missing. I could use a ", "Another time."]}, {"MISSING": "Your cellar is clear"}], "inventory": {"inventory": {"creative": true, "hotbar": [{"empty": true, "selected": true, "slot": 0}, {"empty": true, "selected": false, "slot
+[  429.9] [door_threaded] {"door_x": -25.0, "attempt": 0, "pos": [-25.3, -7.6], "fps": 23.5}
+[  436.5] [no_path] {"from": [-25.3, -7.6], "to": [-18, 15], "tried": 153, "fps": 23.3}
+[  550.8] [steer_stuck] {"target": [-18, 15], "pos": [-28.54510498046875, 9.316719055175781], "fps": 18.9}
+[  558.9] [no_path] {"from": [-28.5, 9.3], "to": [20, 15], "tried": 153, "fps": 19.3}

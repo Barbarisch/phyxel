@@ -95,6 +95,49 @@ std::vector<FenceRun> planParcelFenceRuns(int prX, int prZ, int prW, int prD) {
     return runs;
 }
 
+bool fenceRunPinchesNeighbour(const FenceRun& run, int prX, int prZ, int prW, int prD,
+                              const std::vector<CubeRect>& neighbours, int minAlleyCells) {
+    if (run.toMicro <= run.fromMicro || minAlleyCells <= 0) return false;
+    auto divFloor = [](int a, int b) { return (a >= 0) ? a / b : -((-a + b - 1) / b); };
+    // Inclusive cube span of the run along its axis.
+    const int s0 = divFloor(run.fromMicro, 9), s1 = divFloor(run.toMicro - 1, 9);
+    // N/E planes sit at micro row 0 of the parcel's LAST cube: 8 micro of that cube lie
+    // between the fence and the parcel's outer edge and count as clear width.
+    const bool innerPlane = (run.side == 'N' || run.side == 'E');
+    for (const CubeRect& nb : neighbours) {
+        const int n0 = run.alongX ? nb.x : nb.z;
+        const int n1 = run.alongX ? nb.x + nb.w - 1 : nb.z + nb.d - 1;
+        if (n1 < s0 || n0 > s1) continue;                      // no overlap along the run
+        int gapCells;                                          // clear cells outside the plane
+        switch (run.side) {
+            case 'S': gapCells = prZ - (nb.z + nb.d); break;   // neighbour on the -z side
+            case 'N': gapCells = nb.z - (prZ + prD); break;    // neighbour on the +z side
+            case 'W': gapCells = prX - (nb.x + nb.w); break;   // neighbour on the -x side
+            case 'E': gapCells = nb.x - (prX + prW); break;    // neighbour on the +x side
+            default:  continue;
+        }
+        if (gapCells < 0) continue;                            // not outside this plane
+        const int clearMicro = gapCells * 9 + (innerPlane ? 8 : 0);
+        if (clearMicro < minAlleyCells * 9) return true;
+    }
+    return false;
+}
+
+bool trimFenceRunAtDroppedCorners(FenceRun& run, bool droppedW, bool droppedE,
+                                  bool droppedS, bool droppedN, int cells) {
+    const int trim = std::max(0, cells) * 9;
+    bool trimmed = false;
+    if (run.alongX) {                       // S/N planes: corners with the W (start) / E (end) planes
+        if (droppedW) { run.fromMicro += trim; trimmed = true; }
+        if (droppedE) { run.toMicro   -= trim; trimmed = true; }
+    } else {                                // W/E planes: corners with the S (start) / N (end) planes
+        if (droppedS) { run.fromMicro += trim; trimmed = true; }
+        if (droppedN) { run.toMicro   -= trim; trimmed = true; }
+    }
+    if (trimmed) run.cornerPosts = true;   // the run's ends are now free ends: post them
+    return run.toMicro - run.fromMicro >= 9;
+}
+
 bool fenceGateWindow(int runLenMicro, int gateWidthCubes, int& loMicro, int& hiMicro) {
     if (runLenMicro <= 0 || gateWidthCubes <= 0) return false;
     // runLenMicro = (cubes-1)*9 + 1, so ceil-div recovers the cube span; centre in CUBES.

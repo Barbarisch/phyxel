@@ -126,6 +126,7 @@ private:
     // Path-following state (used when a NavGraph is available via NPCContext;
     // otherwise movement falls back to direct-line steering).
     std::vector<glm::vec3> m_path;
+    std::vector<float>     m_pathRadius;   ///< per-waypoint arrival radius (NavGraph slack, G-79); may be empty
     size_t                 m_pathIndex = 0;
     glm::vec3              m_pathTarget{0.0f};   // destination the current path was planned for
     bool                  m_hasPathTarget = false;

@@ -1,4 +1,5 @@
 #pragma once
+#include <nlohmann/json.hpp>
 
 #include "core/GameCallbacks.h"
 #include "core/GameplayCameraController.h"
@@ -83,6 +84,8 @@ protected:
     virtual Graphics::RenderCoordinator* apiRenderCoordinator() { return nullptr; }
     virtual NPCManager*                  apiNPCManager()        { return nullptr; }
     virtual TriggerSystem*               apiTriggerSystem()     { return nullptr; }
+    /// Latest WorldHealth report (null when none) - see WorldHealth.h.
+    virtual nlohmann::json               apiWorldHealth()       { return nlohmann::json(); }
     virtual UI::GameScreen*              apiScreen()            { return nullptr; }
     virtual EntityRegistry*              apiEntityRegistry()    { return nullptr; }
     virtual Scene::AnimatedVoxelCharacter* apiPlayer()          { return nullptr; }
@@ -93,6 +96,7 @@ protected:
     virtual PlayerTurnController* apiPlayerTurn()     { return nullptr; }
     virtual CharacterSheet*       apiPlayerSheet()    { return nullptr; }  // progression
     virtual Inventory*            apiInventory()      { return nullptr; }  // loot/persistence
+    virtual UI::DialogueSystem*   apiDialogueSystem() { return nullptr; }  // dialogue_state (G-47)
 
 private:
     GameplayCameraController cameraController_;
