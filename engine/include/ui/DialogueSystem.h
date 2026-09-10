@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ui/DialogueData.h"
+#include "core/DialogueSkillCheck.h"
 #include <string>
 #include <vector>
 #include <functional>
@@ -112,6 +113,7 @@ public:
     const std::string& getCurrentEmotion() const { return m_currentEmotion; }
     /// Available choices (empty if not in ChoiceSelection state or linear node).
     const std::vector<DialogueChoice>& getAvailableChoices() const { return m_availableChoices; }
+    const std::string& getCurrentNodeId() const { return m_currentNodeId; }
     /// The NPC entity in conversation (may be nullptr for dynamic dialogues).
     Scene::NPCEntity* getConversationNPC() const { return m_npc; }
 
@@ -150,6 +152,15 @@ public:
     /// when the variable doesn't exist. Wire to StoryEngine's WorldState.
     using VariableResolver = std::function<std::optional<nlohmann::json>(const std::string& name)>;
     void setVariableResolver(VariableResolver resolver) { m_variableResolver = std::move(resolver); }
+
+    /// Skill-check choices (DialogueChoice::skillCheckJson): the host returns the
+    /// PLAYER's bonus for a check — skill bonus / ability modifier from the
+    /// CharacterSheet, or the reputation SCORE for a ReputationGate. The
+    /// DialogueSystem rolls the d20 itself and branches pass/fail. Without a
+    /// resolver the bonus is 0 (the check still rolls, so a game with no sheet
+    /// still gets a fair d20 gate instead of a dead option).
+    using SkillBonusResolver = std::function<int(const Core::DialogueSkillCheck& check)>;
+    void setSkillBonusResolver(SkillBonusResolver resolver) { m_skillBonusResolver = std::move(resolver); }
 
     /// Optional local TTS for speaking NPC lines. Null = text-only (default).
     void setTTSService(AI::TTSService* tts) { m_tts = tts; }
@@ -211,6 +222,8 @@ private:
     EventSink m_eventSink;
     ActionExecutor m_actionExecutor;
     VariableResolver m_variableResolver;
+    SkillBonusResolver m_skillBonusResolver;
+    Core::DiceSystem m_checkDice;   ///< d20 for dialogue skill checks
 };
 
 } // namespace UI

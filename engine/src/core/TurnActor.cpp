@@ -44,6 +44,7 @@ bool TurnActor::requestMove(const glm::vec3& target) {
 
     m_moveTarget  = target;
     m_pendingFeet = 0.0f;
+    m_noProgressSec = 0.0f;
     m_activity    = Activity::Moving;
     return true;
 }
@@ -81,6 +82,14 @@ void TurnActor::tick(float dt) {
             }
             // Advance and debit budget by the distance actually travelled.
             float movedUnits = m_body->stepToward(m_moveTarget, dt);
+            // A body that cannot get anywhere (blocked by a wall or an ally it stands inside)
+            // would otherwise stay Moving forever and freeze the turn (G-42).
+            if (movedUnits <= 1e-4f) {
+                m_noProgressSec += dt;
+                if (m_noProgressSec >= kMoveStallSec) { stopAndIdle(); break; }
+            } else {
+                m_noProgressSec = 0.0f;
+            }
             m_pendingFeet += unitsToFeet(movedUnits);
             int wholeFeet = static_cast<int>(std::floor(m_pendingFeet));
             if (wholeFeet > 0) {

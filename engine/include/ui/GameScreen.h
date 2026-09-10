@@ -17,7 +17,8 @@ enum class ScreenState {
     KeybindingRebind, // Keybinding rebind screen — mouse free, waiting for key press
     Loading,        // Scene transition loading screen — mouse free, game logic paused
     Victory,        // Game-complete/victory screen — mouse free, game logic paused
-    Credits         // Credits roll — mouse free, game logic paused
+    Credits,        // Credits roll — mouse free, game logic paused
+    GameOver        // Lose/fail screen — mouse free, game logic paused (Ravenmere gap G-38)
 };
 
 /// Returns true if the game world simulation should tick in this state.
@@ -66,6 +67,9 @@ public:
 
     /// Show the credits roll (from Victory, MainMenu, or anywhere).
     void showCredits();
+    /// Show the game-over / fail screen (the lose-condition entry point — callable
+    /// from any state, typically Playing when the player dies).
+    void showGameOver();
 
     /// Resume gameplay from Paused or Inventory.
     void resume();

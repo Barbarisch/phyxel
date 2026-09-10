@@ -74,12 +74,38 @@ void DialogueSystem::selectChoice(int index) {
         });
     }
 
-    if (choice.targetNodeId.empty()) {
+    // Skill-check choice: roll it (Ravenmere gap G-03 — the check type existed but
+    // nothing could author or resolve one). Pass -> targetNodeId, fail -> failNodeId.
+    std::string target = choice.targetNodeId;
+    if (choice.skillCheckJson.is_object()) {
+        const Core::DialogueSkillCheck check = Core::DialogueSkillCheck::fromJson(choice.skillCheckJson);
+        const int bonus = m_skillBonusResolver ? m_skillBonusResolver(check) : 0;
+        bool passed = false;
+        int roll = 0, total = 0;
+        if (check.type == Core::DialogueCheckType::ReputationGate) {
+            passed = check.resolveReputation(bonus);   // bonus = reputation score
+            total = bonus;
+        } else {
+            const auto r = check.resolve(bonus, m_checkDice);
+            passed = r.passed; roll = r.roll; total = r.total;
+        }
+        LOG_INFO("DialogueSystem", "Skill check {} on '{}': roll {} + {} = {} vs DC {} -> {}",
+                 check.label(), m_npcName, roll, bonus, total, check.dc, passed ? "PASS" : "FAIL");
+        const nlohmann::json ev = {{"tree", m_tree ? m_tree->id : ""}, {"node", m_currentNodeId},
+                                   {"speaker", m_npcName}, {"check", check.label()},
+                                   {"roll", roll}, {"bonus", bonus}, {"total", total},
+                                   {"dc", check.dc}, {"passed", passed}};
+        if (m_gameEventLog) m_gameEventLog->emit("dialogue_skill_check", ev);
+        if (m_eventSink) m_eventSink("dialogue_skill_check", ev);
+        if (!passed) target = choice.failNodeId;
+    }
+
+    if (target.empty()) {
         endConversation();
         return;
     }
 
-    loadNode(choice.targetNodeId);
+    loadNode(target);
 }
 
 void DialogueSystem::endConversation() {
@@ -209,6 +235,12 @@ void DialogueSystem::loadNode(const std::string& nodeId) {
         if (choice.condition && !choice.condition()) continue;
         if (!evaluateCondition(choice.conditionJson)) continue;
         m_availableChoices.push_back(choice);
+        // A skill-check choice wears its gate on its sleeve: "[Persuasion DC 15] text".
+        if (choice.skillCheckJson.is_object()) {
+            const Core::DialogueSkillCheck check = Core::DialogueSkillCheck::fromJson(choice.skillCheckJson);
+            auto& shown = m_availableChoices.back();
+            if (shown.text.rfind("[", 0) != 0) shown.text = check.label() + " " + shown.text;
+        }
     }
 
     m_state = DialogueState::Typing;

@@ -103,6 +103,9 @@ public:
 
     bool canMove() const { return m_budget && m_budget->canMove(); }
     bool canAct()  const { return m_budget && m_budget->canAct(); }
+    /// Where the driven BODY is (the live character), as opposed to the entity record — the
+    /// two can disagree, which is exactly what a stall diagnostic needs to show (G-42).
+    glm::vec3 bodyPosition() const { return m_body ? m_body->position() : glm::vec3(0.0f); }
 
     /// Remaining movement this turn, in feet (budget units) and world units.
     int   movementRemainingFeet()  const { return m_budget ? m_budget->movementRemaining : 0; }
@@ -136,9 +139,11 @@ private:
 
     bool  m_attackSawActive = false;  // have we observed the swing actually start?
     float m_attackTimer     = 0.0f;   // safety timeout for the attack handshake
+    float m_noProgressSec   = 0.0f;   // Moving with ~zero displacement (blocked body) — G-42
 
     static constexpr float kArriveEpsUnits   = 0.30f;  // "reached" threshold (XZ)
     static constexpr float kAttackTimeoutSec = 3.0f;   // give up waiting on a swing
+    static constexpr float kMoveStallSec     = 1.5f;   // give up a move that makes no progress
 };
 
 } // namespace Core

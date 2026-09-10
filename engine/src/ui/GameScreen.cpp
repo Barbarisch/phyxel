@@ -62,6 +62,10 @@ void GameScreen::showCredits() {
     setState(ScreenState::Credits);
 }
 
+void GameScreen::showGameOver() {
+    setState(ScreenState::GameOver);
+}
+
 void GameScreen::resume() {
     if (m_state == ScreenState::Paused || m_state == ScreenState::Inventory) {
         setState(ScreenState::Playing);
@@ -83,6 +87,7 @@ void GameScreen::goBack() {
         case ScreenState::Intro:
         case ScreenState::Victory:
         case ScreenState::Credits:
+        case ScreenState::GameOver:
             // The standard flow: intro continues to the menu; victory/credits
             // return to the menu.
             setState(ScreenState::MainMenu);

@@ -7,7 +7,9 @@
 #include "core/SpellDefinition.h"
 #include "core/SpellcasterComponent.h"
 #include "core/CharacterSheet.h"
+#include "core/MonsterDefinition.h"
 #include "scene/Entity.h"
+#include "scene/NPCEntity.h"
 #include "graphics/Camera.h"
 #include "utils/Logger.h"
 
@@ -33,6 +35,13 @@ Scene::Entity* PlayerTurnController::lookup(const std::string& id) const {
 }
 
 int PlayerTurnController::pseudoAC(Scene::Entity* e) {
+    // A stat-block NPC (monsterId, from game.json or spawn_npc/spawn_encounter) has a REAL
+    // armor class — use it (G-05). Otherwise fall back to the HP% yardstick below.
+    if (auto* npc = dynamic_cast<Scene::NPCEntity*>(e)) {
+        if (!npc->getMonsterId().empty())
+            if (const MonsterDefinition* def = MonsterRegistry::instance().getMonster(npc->getMonsterId()))
+                return def->armorClass;
+    }
     // Generic entities have no CharacterSheet — derive AC from HP% (mirrors the
     // enemy AI so both sides use the same yardstick until real sheets are wired).
     auto* hc = e ? e->getHealthComponent() : nullptr;
@@ -79,8 +88,18 @@ void PlayerTurnController::tick(float dt) {
 
     // Bind on the player's turn; unbind when it is someone else's turn.
     if (cur == m_playerId && !cur.empty()) {
+        Scene::Entity* e = m_registry ? m_registry->getEntity(m_playerId) : nullptr;
+        // A DEAD player takes no turns: skip straight past (the host decides whether
+        // that is game over or the companions fight on). Before this, a corpse kept
+        // attacking and ending turns in Ravenmere run 5 (gap G-38).
+        if (e) {
+            if (const auto* hc = e->getHealthComponent(); hc && !hc->isAlive()) {
+                if (m_bound) unbind();
+                m_director->advanceTurn();
+                return;
+            }
+        }
         if (!m_bound) {
-            Scene::Entity* e = m_registry ? m_registry->getEntity(m_playerId) : nullptr;
             beginPlayerTurn(e);
         }
     } else {

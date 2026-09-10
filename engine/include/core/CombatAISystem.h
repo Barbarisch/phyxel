@@ -46,6 +46,12 @@ struct CombatTactics {
     /// Healer. When > 0 and a living ALLY is below this HP fraction, the NPC
     /// spends its action healing that ally (needs a castable healing spell).
     float healAllyBelowFrac = 0.0f;
+
+    /// Attack profile for a combatant WITHOUT a stat block (companions, authored NPCs):
+    /// weapon damage dice ("1d8+2") and to-hit bonus. Empty / <0 = fall back to the
+    /// historical unarmed 1d4 / +3 (Ravenmere gap G-45: Bram punched wolves for 1d4).
+    std::string damageDice;
+    int         attackBonus = -1;
 };
 
 /// Drives enemy turns in D&D combat.
@@ -115,6 +121,13 @@ public:
     /// a combatant means the default brute profile.
     using TacticsProvider = std::function<const CombatTactics*(const std::string&)>;
     void setTacticsProvider(TacticsProvider provider)      { m_tacticsProvider = std::move(provider); }
+
+    /// Host-supplied ARMOR CLASS for a defender (the player's CharacterSheet, a companion's
+    /// sheet, …). Return <= 0 for "no opinion" and the AI falls back to the stat block or
+    /// the HP-based pseudo-AC. Without this the PLAYER was hit against `8 + HP%·6` — a
+    /// death spiral where the wounded get easier to hit (Ravenmere gap G-44).
+    using ACProvider = std::function<int(const std::string& entityId)>;
+    void setACProvider(ACProvider provider)                 { m_acProvider = std::move(provider); }
 
     // -----------------------------------------------------------------------
     // Per-frame update
@@ -212,6 +225,7 @@ private:
     CasterProvider     m_casterProvider;
     CastExecutor       m_castExecutor;
     TacticsProvider    m_tacticsProvider;
+    ACProvider         m_acProvider;
 
     // -----------------------------------------------------------------------
     // Tuning
@@ -237,6 +251,24 @@ private:
     /// can each hold their own focus.
     std::string m_focusEnemySide;   ///< target the ENEMY side is focusing
     std::string m_focusPlayerSide;  ///< target the PLAYER side is focusing
+
+    /// MORALE → ESCAPE. A broken combatant that has fled kEscapeFleeTurns turns in a
+    /// row and is still ≥ kEscapeDistanceFeet from its foe has LEFT the fight: it is
+    /// removed from the encounter (deferred to finishTurn so the initiative index is
+    /// not pulled out from under the acting turn). Without this a fleeing enemy
+    /// kited forever and the encounter could never resolve (Ravenmere gap G-31).
+    static constexpr int   kEscapeFleeTurns     = 2;
+    static constexpr float kEscapeDistanceFeet  = 45.0f;   // > one 30 ft move + 5 ft reach + margin
+    std::unordered_map<std::string, int> m_fleeStreak;    ///< consecutive flee turns per combatant
+    std::string m_escapePending;                          ///< combatant to remove after this turn
+    bool        m_fledThisTurn = false;                   ///< the streak counts TURNS: one flee per turn
+
+    /// A turn must always END. decideNextAction re-enters after every completed move; when a
+    /// move completes without changing anything (a body that cannot get closer, a reach test
+    /// that disagrees with the entity positions) the AI re-decided forever — Ravenmere run 6
+    /// froze a fight on a companion's turn for minutes (gap G-42). Cap decisions per turn.
+    static constexpr int kMaxDecisionsPerTurn = 12;
+    int m_decisionsThisTurn = 0;
 
     DiceSystem m_dice;
 };

@@ -14,6 +14,7 @@
 #include "core/GameEventLog.h"
 #include "core/TriggerSystem.h"
 #include "core/HealthComponent.h"
+#include "core/MonsterDefinition.h"
 #include "core/LocationRegistry.h"
 #include "core/MaterialRegistry.h"
 #include "core/PlacedObjectManager.h"
@@ -1051,7 +1052,33 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
             }
         }
 
-        // Configure health if provided
+        // D&D stat block: "monsterId": "wolf" names a MonsterRegistry entry (resources/monsters).
+        // Combat then uses its attacks / to-hit / AC, and — unless the author overrides with
+        // maxHealth/health below — its average HP. Authorable in game.json since 2026-09-08;
+        // it used to be reachable only through the spawn_npc / spawn_encounter API
+        // (Ravenmere gap G-05).
+        if (npcDef.contains("monsterId") && npcDef["monsterId"].is_string()) {
+            const std::string monsterId = npcDef["monsterId"].get<std::string>();
+            auto& monsters = MonsterRegistry::instance();
+            if (monsters.count() == 0) {
+                const int n = monsters.loadFromDirectory("resources/monsters");
+                LOG_INFO("GameDefinitionLoader", "Loaded {} monster stat blocks for game.json monsterId", n);
+            }
+            if (const MonsterDefinition* def = monsters.getMonster(monsterId)) {
+                npc->setMonsterId(monsterId);
+                if (auto* health = npc->getHealthComponent()) {
+                    health->setMaxHealth(static_cast<float>(def->averageHP));
+                    health->setHealth(static_cast<float>(def->averageHP));
+                }
+                LOG_INFO("GameDefinitionLoader", "NPC '{}' uses stat block '{}' (AC {}, {} hp, CR {})",
+                         name, monsterId, def->armorClass, def->averageHP, def->challengeRating);
+            } else {
+                LOG_WARN("GameDefinitionLoader", "NPC '{}': unknown monsterId '{}' — no such stat block in resources/monsters",
+                         name, monsterId);
+            }
+        }
+
+        // Configure health if provided (overrides the stat block's average HP)
         if (npcDef.contains("health") || npcDef.contains("maxHealth")) {
             auto* health = npc->getHealthComponent();
             if (health) {
@@ -1062,10 +1089,13 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
                 if (npcDef.contains("health")) {
                     health->setHealth(npcDef["health"].get<float>());
                 }
-                if (npcDef.contains("invulnerable")) {
-                    health->setInvulnerable(npcDef["invulnerable"].get<bool>());
-                }
             }
+        }
+        // "invulnerable" stands on its own — it used to be applied ONLY when health/maxHealth
+        // was also authored, so a plain `"invulnerable": true` quest-giver was killable (G-34).
+        if (npcDef.contains("invulnerable") && npcDef["invulnerable"].is_boolean()) {
+            if (auto* health = npc->getHealthComponent())
+                health->setInvulnerable(npcDef["invulnerable"].get<bool>());
         }
 
         // Set up dialogue if provided

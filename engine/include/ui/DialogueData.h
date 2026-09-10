@@ -22,6 +22,16 @@ struct DialogueChoice {
     ///   host-wired variable resolver; fails CLOSED (choice hidden) when the
     ///   variable is missing. Empty/null = no condition.
     nlohmann::json conditionJson;
+    /// Optional D&D check gate (serialized; see Core::DialogueSkillCheck::fromJson):
+    ///   {"skill":"Persuasion","dc":15}            — 1d20 + skill bonus vs DC
+    ///   {"type":"AbilityCheck","ability":"INT","dc":12}
+    ///   {"type":"ReputationGate","factionId":"guild","minimumTier":"Friendly"}
+    /// The choice text is shown with the check's label ("[Persuasion DC 15] …");
+    /// on selection the DialogueSystem rolls through the host-wired bonus resolver
+    /// and jumps to targetNodeId on a pass or failNodeId on a fail (ends the
+    /// conversation when failNodeId is empty). Empty/null = plain choice.
+    nlohmann::json skillCheckJson;
+    std::string failNodeId;   ///< where a FAILED check leads ("" = end conversation)
 };
 
 /// A single node in a dialogue tree — one "page" of conversation.
@@ -89,6 +99,12 @@ struct DialogueTree {
                         // programmatically. The declarative form IS serialized:
                         if (choiceJson.contains("condition") && choiceJson["condition"].is_object()) {
                             choice.conditionJson = choiceJson["condition"];
+                        }
+                        if (choiceJson.contains("skillCheck") && choiceJson["skillCheck"].is_object()) {
+                            choice.skillCheckJson = choiceJson["skillCheck"];
+                            choice.failNodeId = choiceJson.value("failNodeId", "");
+                            if (choice.failNodeId.empty())
+                                choice.failNodeId = choice.skillCheckJson.value("failNodeId", "");
                         }
                         node.choices.push_back(std::move(choice));
                     }

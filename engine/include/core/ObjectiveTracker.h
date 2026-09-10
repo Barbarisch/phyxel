@@ -62,6 +62,16 @@ public:
         return true;
     }
 
+    /// Reveal (hidden=false) or hide an objective without changing its status — the
+    /// quest-chain primitive a `reveal_objective` trigger/dialogue action needs so a
+    /// later step can be authored hidden and surfaced when its prerequisite completes.
+    bool setHidden(const std::string& id, bool hidden) {
+        auto it = m_objectives.find(id);
+        if (it == m_objectives.end()) return false;
+        it->second.hidden = hidden;
+        return true;
+    }
+
     bool failObjective(const std::string& id) {
         auto it = m_objectives.find(id);
         if (it == m_objectives.end()) return false;

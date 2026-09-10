@@ -85,6 +85,11 @@ public:
     void injectKey(int glfwKey, float holdSeconds);
     void injectMouseButton(int glfwButton, float holdSeconds);
     void releaseAllInjected();
+    /// Age injected holds and drop expired ones. processInput() calls this, but a host
+    /// that gates processInput (no movement while in dialogue / paused / on a menu scene)
+    /// MUST call it itself every frame — otherwise an injected key never releases there
+    /// and every edge-triggered binding sees it held forever (Ravenmere gap G-33).
+    void tickInjection(float deltaTime);
     size_t injectedCount() const { return injectedKeys_.size() + injectedButtons_.size(); }
     
     // Action registration (Application registers what happens on key press)
@@ -159,7 +164,6 @@ private:
     // so injected keys/buttons are indistinguishable from real hardware state.
     bool keyHeld(int key) const;       // injected OR glfwGetKey == GLFW_PRESS
     bool mouseHeld(int button) const;  // injected OR glfwGetMouseButton == GLFW_PRESS
-    void tickInjection(float deltaTime); // decrement holds, drop expired
 
     // Injected key/button -> seconds remaining. Main-thread only (see injectKey).
     std::unordered_map<int, float> injectedKeys_;

@@ -117,6 +117,8 @@ void CombatAISystem::beginEnemyTurn(const std::string& enemyId, Scene::Entity* e
     m_thinkAccum = 0.0f;
     m_attacked   = false;
     m_targetId.clear();
+    m_fledThisTurn = false;
+    m_decisionsThisTurn = 0;
 
     if (m_director) CombatLog::instance().setRound(m_director->currentRound());
     {
@@ -171,10 +173,20 @@ void CombatAISystem::beginEnemyTurn(const std::string& enemyId, Scene::Entity* e
 void CombatAISystem::finishTurn() {
     m_turnActor.end();
     LOG_DEBUG("CombatAI", "NPC '{}' ends turn.", m_actingId);
+    const std::string escapee = (m_escapePending == m_actingId) ? m_escapePending : std::string();
+    m_escapePending.clear();
     m_actingId.clear();
     m_phase = Phase::Idle;
     if (m_director) m_director->advanceTurn();
     else if (m_tracker) m_tracker->endTurn();
+    // Deferred ESCAPE removal: only after the turn has advanced, so the initiative
+    // index is never pulled out from under the acting combatant. removeCombatant
+    // auto-ends the encounter when the escapee was the last hostile (G-31).
+    if (!escapee.empty()) {
+        m_fleeStreak.erase(escapee);
+        if (m_director) m_director->removeCombatant(escapee);
+        else if (m_tracker) m_tracker->removeParticipant(escapee);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -349,6 +361,28 @@ void CombatAISystem::decideNextAction() {
     Scene::Entity* enemy = m_registry ? m_registry->getEntity(m_actingId) : nullptr;
     if (!enemy) { m_phase = Phase::Done; return; }
 
+    // Stall guard (G-42): a turn that keeps re-deciding without resolving ends here, loudly,
+    // instead of freezing the encounter.
+    if (++m_decisionsThisTurn > kMaxDecisionsPerTurn) {
+        const glm::vec3 ePos = enemy->getPosition();
+        const glm::vec3 bPos = m_turnActor.isBound() ? m_turnActor.bodyPosition() : ePos;
+        Scene::Entity* tgt = (m_registry && !m_targetId.empty()) ? m_registry->getEntity(m_targetId) : nullptr;
+        const glm::vec3 tPos = tgt ? tgt->getPosition() : glm::vec3(0.0f);
+        LOG_WARN("CombatAI", "NPC '{}' turn STALLED after {} decisions — ending it. entity=({},{},{}) body=({},{},{}) target '{}'=({},{},{}) canAct={} canMove={}",
+                 m_actingId, m_decisionsThisTurn - 1,
+                 (int)ePos.x, (int)ePos.y, (int)ePos.z, (int)bPos.x, (int)bPos.y, (int)bPos.z,
+                 m_targetId, (int)tPos.x, (int)tPos.y, (int)tPos.z,
+                 m_turnActor.canAct() ? 1 : 0, m_turnActor.canMove() ? 1 : 0);
+        CombatLog::instance().add(m_actingId, "turn", "stalled",
+            "turn STALLED: " + std::to_string(m_decisionsThisTurn - 1) +
+            " decisions without an attack, cast or completed move — ending the turn",
+            {{"decisions", m_decisionsThisTurn - 1}, {"target", m_targetId},
+             {"body_x", bPos.x}, {"body_z", bPos.z}, {"entity_x", ePos.x}, {"entity_z", ePos.z},
+             {"can_act", m_turnActor.canAct()}, {"can_move", m_turnActor.canMove()}});
+        m_phase = Phase::Done;
+        return;
+    }
+
     // Validate / re-acquire the target (it may have died or moved).
     Scene::Entity* target = (m_registry && !m_targetId.empty())
                                 ? m_registry->getEntity(m_targetId) : nullptr;
@@ -372,6 +406,31 @@ void CombatAISystem::decideNextAction() {
     if (tac.fleeBelowHpFrac > 0.0f && hpFraction(enemy) < tac.fleeBelowHpFrac) {
         const int pct = static_cast<int>(hpFraction(enemy) * 100.0f);
         const int thr = static_cast<int>(tac.fleeBelowHpFrac * 100.0f);
+        // ESCAPED: it has run for kEscapeFleeTurns turns and is clear of its foe — it is
+        // out of the encounter (removed after this turn in finishTurn). G-31.
+        {
+            glm::vec3 gap = selfPos - target->getPosition(); gap.y = 0.0f;
+            const float gapLen = std::sqrt(gap.x * gap.x + gap.z * gap.z);
+            const int streak = m_fleeStreak.count(m_actingId) ? m_fleeStreak[m_actingId] : 0;
+            // Only the FIRST decision of a turn may escape: a turn's leftover movement
+            // re-enters decideNextAction, and counting that as another flee let a wolf
+            // "flee twice" and vanish inside one turn (caught by CombatAISystemEscapeTest).
+            if (!m_fledThisTurn && streak >= kEscapeFleeTurns &&
+                gapLen >= m_turnActor.feetToUnits(kEscapeDistanceFeet)) {
+                // NB: the Logger's {} placeholders take no format spec — a "{:.1f}" prints
+                // verbatim and shifts every following argument (the 5th such bug found).
+                LOG_INFO("CombatAI", "NPC '{}' ESCAPES the encounter (fled {} turns, {} u from '{}', hp {}%)",
+                         m_actingId, streak, static_cast<int>(gapLen + 0.5f), m_targetId, pct);
+                CombatLog::instance().add(m_actingId, "action", "escaped",
+                    "ESCAPED: fled " + std::to_string(streak) + " turns in a row and is " +
+                    std::to_string(static_cast<int>(gapLen)) + " u clear of " + m_targetId +
+                    " — it leaves the fight",
+                    {{"hp_pct", pct}, {"flee_turns", streak}, {"from", m_targetId}});
+                m_escapePending = m_actingId;
+                m_phase = Phase::Done;
+                return;
+            }
+        }
         if (m_turnActor.canMove()) {
             glm::vec3 away = selfPos - target->getPosition(); away.y = 0.0f;
             const float len = std::sqrt(away.x * away.x + away.z * away.z);
@@ -379,6 +438,7 @@ void CombatAISystem::decideNextAction() {
                 away /= len;
                 const glm::vec3 dest = selfPos + away * m_turnActor.feetToUnits(30.0f);
                 if (m_turnActor.requestMove(dest)) {
+                    if (!m_fledThisTurn) { ++m_fleeStreak[m_actingId]; m_fledThisTurn = true; }
                     LOG_INFO("CombatAI", "NPC '{}' FLEES from '{}' (hp {}%)",
                              m_actingId, m_targetId, pct);
                     CombatLog::instance().add(m_actingId, "action", "flee",
@@ -398,6 +458,7 @@ void CombatAISystem::decideNextAction() {
         m_phase = Phase::Done;
         return;
     }
+    m_fleeStreak.erase(m_actingId);   // fighting this turn → the flee streak resets
 
     // ── HEALER ── A wounded ally outranks hurting the enemy.
     if (tac.healAllyBelowFrac > 0.0f && m_turnActor.canAct() && m_casterProvider) {
@@ -730,6 +791,13 @@ void CombatAISystem::resolveEnemyAttack(Scene::Entity* enemyEntity) {
         if (!npc->getMonsterId().empty()) statBlockId = npc->getMonsterId();
     }
 
+    // Authored attack profile (combat_ai weapon / attack_bonus) — companions and hand-authored
+    // NPCs without a stat block fight with their weapon instead of a 1d4 fist (G-45).
+    {
+        const CombatTactics& atk = tacticsFor(m_actingId);
+        if (!atk.damageDice.empty()) damageDiceStr = atk.damageDice;
+        if (atk.attackBonus >= 0)    attackBonus   = atk.attackBonus;
+    }
     if (const MonsterDefinition* def = MonsterRegistry::instance().getMonster(statBlockId)) {
         if (!def->attacks.empty()) {
             const auto& atk = def->attacks[0];
@@ -746,10 +814,23 @@ void CombatAISystem::resolveEnemyAttack(Scene::Entity* enemyEntity) {
         }
     }
 
-    // Generic entities have no CharacterSheet — derive a pseudo-AC from HP%.
+    // Generic entities have no CharacterSheet — derive a pseudo-AC from HP%. A stat-block
+    // target (monsterId — e.g. a companion-side summon or an NPC-vs-NPC skirmish) uses its
+    // real armor class (G-05).
     int targetAC = 10;
+    bool acFromStatBlock = false;
+    if (m_acProvider) {
+        const int hostAC = m_acProvider(m_targetId);
+        if (hostAC > 0) { targetAC = hostAC; acFromStatBlock = true; }   // sheet AC wins (G-44)
+    }
+    if (!acFromStatBlock) if (auto* tnpc = dynamic_cast<Scene::NPCEntity*>(target)) {
+        if (!tnpc->getMonsterId().empty())
+            if (const MonsterDefinition* tdef = MonsterRegistry::instance().getMonster(tnpc->getMonsterId())) {
+                targetAC = tdef->armorClass; acFromStatBlock = true;
+            }
+    }
     auto* targetHC = target->getHealthComponent();
-    if (targetHC && targetHC->getMaxHealth() > 0.0f) {
+    if (!acFromStatBlock && targetHC && targetHC->getMaxHealth() > 0.0f) {
         float frac = targetHC->getHealth() / targetHC->getMaxHealth();
         targetAC = 8 + static_cast<int>(frac * 6.0f);
     }

@@ -563,3 +563,27 @@ animation, so the packaged build matches what runs from `build/Debug/`.
 | `transition_scene` | Switch to a different scene |
 | `add_scene` / `remove_scene` | Modify scenes at runtime |
 | `save_scene_manifest` | Persist the manifest to disk |
+
+## RPG Authoring Keys (shipped games, 2026-09-08 — from the Ravenmere build)
+
+These landed while building the Ravenmere party RPG (`docs/game-production/RavenmereGapLedger.md`
+has the reasons). All are read by the generated standalone (`create_project.py`); the editor host
+executes only the subset noted.
+
+| Key / action | Where | Meaning |
+|---|---|---|
+| `npcs[].monsterId` | loader (both hosts) | Name a `resources/monsters` stat block (`"wolf"`, `"skeleton"`, `"cult-fanatic"`…). HP = the block's average (a `maxHealth` override wins), AC + attacks come from the block in turn-based combat. Unknown ids warn. |
+| `npcs[].invulnerable` | loader (both hosts) | Now applied on its own (it used to require `health`/`maxHealth` beside it). |
+| `choices[].skillCheck` + `failNodeId` | DialogueSystem (both hosts; the bonus resolver is wired in the standalone) | `{"skill":"Persuasion","dc":12}` / `{"type":"AbilityCheck","ability":"INT","dc":10}`. The option shows as `[Persuasion DC 12] …`; picking it rolls d20 + the player's sheet bonus, jumps to `nextNodeId` on a pass or `failNodeId` on a fail (empty = ends the conversation), and emits `dialogue_skill_check {roll,bonus,total,dc,passed}` for triggers. |
+| `globalStory.world.variables` | standalone | Initial story variables, applied ONCE after the manifest loads. Without them a `{"equals": false}` condition on an unset variable hides the choice (conditions fail closed). |
+| `reveal_objective` / `hide_objective` / `add_objective` | standalone executor (trigger `then` + dialogue `actions`) | Author later quest steps `"hidden": true` and surface them from the previous step: `{"when":{"event":"objective_complete","id":"main_1"},"then":[{"type":"reveal_objective","id":"main_2"}]}`. Note: a trigger's `then` must be non-empty. |
+| `show_game_over` | standalone executor | The fail twin of `show_victory` — `ScreenState::GameOver`, `resources/ui/game_over_screen.json` (Main Menu / Quit). |
+| `lose.auto_game_over` (top level, default `true`) | standalone | Player death ends the encounter and shows game-over. Set `false` to script your own `player_died` trigger. A dead player never takes a turn. |
+| `combat_victory` `{reason}` | standalone event | Now also fires when the last hostile ESCAPES (`reason: "enemies_escaped"`): an enemy with `combat_ai.flee_below_hp` that has fled two turns and is ≥45 ft from its foe leaves the encounter instead of kiting forever. |
+| `companion_died` | standalone event | A dead party member stays dead (no free respawn at the next scene) until a `long_rest` action, which also heals the player. |
+
+Input in the shipped game: **Space** ends the player's turn (the HUD's End Turn button works too);
+dialogue keys (E / Enter / 1-4) are edge-triggered; injected test-API keys age even while a
+dialogue or menu is open.
+| `progression.abilities` `{str,dex,con,int,wis,cha}` + `progression.armor_class` | standalone | A pre-made with real scores and AC (all-10s / AC 10 made every roll +0 and the cleric a glass cannon). Armor is not yet modelled on the sheet, so `armor_class` stands in for worn armor. |
+| `combat_ai[id].weapon` / `damage_dice` / `attack_bonus` | standalone | Companions and hand-authored NPCs without a `monsterId` fight with a real weapon (`"weapon": "mace"` looks up `resources/rpg_items`) instead of the unarmed 1d4 / +3 fallback. The player is attacked against their SHEET armor class, not the HP-based pseudo-AC. |
