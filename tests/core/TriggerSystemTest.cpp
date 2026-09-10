@@ -232,3 +232,29 @@ TEST(TriggerSystemTest, HudCountdownExposesRemainingTime) {
         if (t.value("id", "") == "jump_hud") sawHud = t.value("hud", false);
     EXPECT_TRUE(sawHud);
 }
+
+// WalkabilityGateAndPlaytestLoop increment 7 (Ravenmere G-80): a scene transition on a floor
+// plate fired the moment anyone milling about the storeroom stepped on it. With
+// `when.interact: true` the region fires only on an "interact" event whose position lies
+// inside it - never on entry. RED on the old code: entry fired it.
+TEST(TriggerSystemTest, InteractGatedRegionFiresOnlyOnTheInteractKeyInside) {
+    Phyxel::Core::TriggerSystem ts;
+    int fired = 0;
+    ts.setActionExecutor([&](const nlohmann::json&, const std::string&) { ++fired; });
+    ts.loadFromJson(nlohmann::json::parse(R"([{"id":"to_cellar","when":{"event":"entity_reached_region","entity":"player",
+        "interact":true,"marker":"trapdoor","region":{"from":{"x":-27,"y":16,"z":9},"to":{"x":-26,"y":21,"z":10}}},
+        "then":[{"type":"transition_scene","target":"cellar"}],"once":true}])"));
+    glm::vec3 pos(-26.5f, 17.5f, 9.5f);
+    auto resolver = [&](const std::string&, glm::vec3& out) { out = pos; return true; };
+    ts.update(0.016f, resolver); ts.update(0.016f, resolver);
+    EXPECT_EQ(fired, 0) << "an interact-gated region must not fire on entry";
+    ts.onEvent("interact", {{"entity", "player"}, {"x", -24.5f}, {"y", 17.5f}, {"z", 8.5f}});
+    ts.update(0.016f, resolver);
+    EXPECT_EQ(fired, 0) << "an interact outside the region must not fire it";
+    ts.onEvent("interact", {{"entity", "player"}, {"x", -26.5f}, {"y", 17.5f}, {"z", 9.5f}});
+    ts.update(0.016f, resolver);
+    EXPECT_EQ(fired, 1) << "an interact inside the region fires it";
+    ts.onEvent("interact", {{"entity", "player"}, {"x", -26.5f}, {"y", 17.5f}, {"z", 9.5f}});
+    ts.update(0.016f, resolver);
+    EXPECT_EQ(fired, 1) << "once";
+}

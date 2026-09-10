@@ -152,6 +152,15 @@ def defect(invariant, pos=None, route_label=None, evidence=None, source="probe")
     except Exception as e:
         rec("defect_write_failed", {"error": repr(e)})
 
+def framed_shot(tag, cam, target):
+    """Detach the camera, look from `cam` at `target`, screenshot, re-attach (inc7 visual L4)."""
+    dx, dy, dz = target[0]-cam[0], target[1]-cam[1], target[2]-cam[2]
+    yaw = math.degrees(math.atan2(dz, dx)); pitch = math.degrees(math.atan2(dy, math.hypot(dx, dz)))
+    safe("POST", "/api/rpg/set_camera", {"detach": True, "x": cam[0], "y": cam[1], "z": cam[2], "yaw": yaw, "pitch": pitch})
+    time.sleep(1.2)
+    rec(tag, dict(safe("GET", "/api/screenshot"), cam=cam, target=target, yaw=round(yaw, 1), pitch=round(pitch, 1)))
+    safe("POST", "/api/rpg/set_camera", {"detach": False}); time.sleep(0.5)
+
 def world_health(tag):
     """Layer B: the shipped game's own load-time self-check (WorldHealth::check on scene ready)."""
     r = safe("POST", "/api/rpg/world_health", {})
@@ -438,6 +447,11 @@ try:
 
     # 4. Cellar hatch: inside the tavern (HATCH_X, HATCH_Z) - see the constants at the top
     r = steer_to(dirs, HATCH_X, HATCH_Z, tol=0.5, stop=lambda: screen().get("scene_id") == "cellar")
+    # inc7: the hatch is a visible trapdoor and interact-gated - stand on it and press E.
+    framed_shot("hatch_screenshot", (-24.5, 19.5, 7.5), (-26.5, 17.6, 9.5))
+    if screen().get("scene_id") != "cellar":
+        key("E", 0.1); time.sleep(1.5)
+        rec("hatch_interact", {"scene": screen().get("scene_id"), "pos": player_pos()})
     for _ in range(8):
         if screen().get("scene_id") == "cellar": r = "stopped"; break
         time.sleep(0.5)
@@ -467,6 +481,8 @@ try:
     steer_to(dirs, -24.5, 8.5, tol=0.6)
     steer_to(dirs, -24.5, 13.5, tol=0.6)   # back out through the north door to the street
     steer_to(dirs, -18, 15, tol=2.0); steer_to(dirs, 20, 15, tol=2.0)
+    # inc7: the road exit has a waystone at its verge - stand 5 m short of it and take a picture.
+    steer_to(dirs, 55, 15, tol=1.0); framed_shot("waystone_screenshot", (58.0, 20.0, 11.0), (63.5, 17.5, 15.5))
     r = steer_to(dirs, 60, 15, tol=1.5, max_iter=120, stop=lambda: screen().get("scene_id") == "farm")
     time.sleep(4); rec("farm", {"steer": r, "scene": screen(), "pos": player_pos()})
 

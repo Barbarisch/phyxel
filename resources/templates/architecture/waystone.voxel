@@ -1,0 +1,28 @@
+# ==========================================================
+# ASSET METADATA
+# name:         waystone
+# display_name: Waystone
+# description:  A dressed-stone post 1.7 m tall with a capped top, standing at the verge of a road where the world continues into the next area; the visible scene-transition marker.
+# category:     architecture
+# subcategory:  transition
+# tags:         waystone, marker, road, exit, transition, stone, travel
+# materials:    Stone, StoneBricks
+# facing:       +Z
+# bounds:       1W x 2H x 1D  (X: 0, Y: 0..1, Z: 0 cubes; 1/3-cube post)
+# primitives:   0 C + 5 S + 10 M = 15
+# ==========================================================
+S 0 0 0  1 0 1  Stone
+S 0 0 0  1 1 1  Stone
+S 0 0 0  1 2 1  Stone
+S 0 1 0  1 0 1  Stone
+S 0 1 0  1 1 1  Stone
+M 0 1 0  1 2 1  0 0 0  StoneBricks
+M 0 1 0  1 2 1  0 0 1  StoneBricks
+M 0 1 0  1 2 1  0 0 2  StoneBricks
+M 0 1 0  1 2 1  1 0 0  StoneBricks
+M 0 1 0  1 2 1  1 0 1  StoneBricks
+M 0 1 0  1 2 1  1 0 2  StoneBricks
+M 0 1 0  1 2 1  2 0 0  StoneBricks
+M 0 1 0  1 2 1  2 0 1  StoneBricks
+M 0 1 0  1 2 1  2 0 2  StoneBricks
+M 0 1 0  1 2 1  1 1 1  StoneBricks

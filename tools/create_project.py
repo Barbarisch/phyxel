@@ -211,6 +211,8 @@ def create_project(
     extra_includes.append('#include <glm/gtx/euler_angles.hpp>')   # eulerAngleYXZ for grip rotation
     extra_members.append("    std::unique_ptr<Phyxel::Core::KinematicVoxelManager> kinematicVoxelManager_;  // holds NPC weapon meshes")
     extra_members.append("    std::unique_ptr<Phyxel::ObjectTemplateManager> weaponTemplates_;  // loads the weapon .voxel models on demand")
+    extra_members.append("    std::unique_ptr<Phyxel::ObjectTemplateManager> templates_;        // the whole template library (game.json templates, transition markers)")
+    extra_members.append("    std::unique_ptr<Phyxel::Core::PlacedObjectManager> placedObjects_;  // placed-object registry the loader places into")
     extra_members.append("    struct HeldWeapon { std::string kinId; int anchorId = -1; std::string itemId; };")
     extra_members.append("    std::unordered_map<std::string, HeldWeapon> npcHeld_;  // entityId -> attached weapon")
     extra_includes.append('#include "ai/ActionSystem.h"')
@@ -272,6 +274,7 @@ def create_project(
         extra_members.append("    Phyxel::Core::GameSettings settings_;")
 
     extra_includes.append('#include "core/ObjectTemplateManager.h"')
+    extra_includes.append('#include "core/PlacedObjectManager.h"')
 
     includes_str = "\n".join(sorted(set(extra_includes)))
     members_str = "\n".join(extra_members)
@@ -794,6 +797,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // library at boot.
             weaponTemplates_ = std::make_unique<Phyxel::ObjectTemplateManager>(
                 engine.getChunkManager(), nullptr);
+            // The full template library + a placed-object registry: without them the
+            // GameDefinitionLoader silently skipped every game.json template, item prop
+            // and transition marker in a SHIPPED build (Ravenmere G-65 / G-87 root - the
+            // editor had them, the standalone never did).
+            templates_ = std::make_unique<Phyxel::ObjectTemplateManager>(engine.getChunkManager(), nullptr);
+            templates_->loadTemplates("resources/templates");
+            placedObjects_ = std::make_unique<Phyxel::Core::PlacedObjectManager>(
+                engine.getChunkManager(), templates_.get(), nullptr);
             kinematicVoxelManager_ = std::make_unique<Phyxel::Core::KinematicVoxelManager>();
             kinematicVoxelManager_->setPhysicsWorld(engine.getPhysicsWorld());
             // NOTE: the render hookup CANNOT happen here — renderCoordinator_ is
@@ -1615,6 +1626,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 subsystems.camera          = engine.getCamera();
                 subsystems.triggerSystem   = &triggers_;  // game.json "triggers" load here
                 subsystems.commandStructure = &command_;  // game.json "squad"/"rank" load here
+                subsystems.templateManager = templates_.get();
+                subsystems.placedObjectManager = placedObjects_.get();
 
                 // Wire up entity spawner so the loader can create the player
                 subsystems.entitySpawner = [this](const std::string& type,
@@ -2041,8 +2054,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (!aiTyping && Phyxel::UI::isGameRunning(state) && eEdge) {{
                 if (dialogueSystem_ && dialogueSystem_->isActive()) {{
                     dialogueSystem_->advanceDialogue();
-                }} else if (interactionManager_) {{
-                    interactionManager_->tryInteract(playerCharacter_);
+                }} else {{
+                    if (interactionManager_) interactionManager_->tryInteract(playerCharacter_);
+                    // Interact-gated scene transitions (TransitionMarkers.h): the E press at
+                    // a trapdoor/ladder/waystone site fires its trigger.
+                    if (playerCharacter_) {{
+                        const glm::vec3 pp = playerCharacter_->getPosition();
+                        triggers_.onEvent("interact", {{{{"entity", "player"}}, {{"x", pp.x}}, {{"y", pp.y}}, {{"z", pp.z}}}});
+                    }}
                 }}
             }}
 

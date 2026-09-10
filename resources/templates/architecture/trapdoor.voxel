@@ -1,0 +1,134 @@
+# ==========================================================
+# ASSET METADATA
+# name:         trapdoor
+# display_name: Cellar Trapdoor
+# description:  A one-metre hatch of lapped planks flush with the floor, one microcube thick, with an iron rim, a pull ring and two hinge straps; a scene-transition site you can see and use. Lapped WoodPlanks so it reads against an oak (Wood) floor.
+# category:     architecture
+# subcategory:  transition
+# tags:         trapdoor, hatch, cellar, transition, wood, iron, tavern, storeroom
+# materials:    WoodPlanks, Metal
+# facing:       +Z (hinges on the -Z edge)
+# bounds:       1W x 1H x 1D  (X: 0, Y: 0, Z: 0 cubes; 2 micro tall)
+# primitives:   0 C + 0 S + 121 M = 121
+# ==========================================================
+M 0 0 0  0 0 0  0 0 0  WoodPlanks
+M 0 0 0  0 0 0  0 0 1  WoodPlanks
+M 0 0 0  0 0 0  0 0 2  WoodPlanks
+M 0 0 0  0 0 1  0 0 0  WoodPlanks
+M 0 0 0  0 0 1  0 0 1  WoodPlanks
+M 0 0 0  0 0 1  0 0 2  WoodPlanks
+M 0 0 0  0 0 2  0 0 0  WoodPlanks
+M 0 0 0  0 0 2  0 0 1  WoodPlanks
+M 0 0 0  0 0 2  0 0 2  WoodPlanks
+M 0 0 0  0 0 0  1 0 0  WoodPlanks
+M 0 0 0  0 0 0  1 0 1  WoodPlanks
+M 0 0 0  0 0 0  1 0 2  WoodPlanks
+M 0 0 0  0 0 1  1 0 0  WoodPlanks
+M 0 0 0  0 0 1  1 0 1  WoodPlanks
+M 0 0 0  0 0 1  1 0 2  WoodPlanks
+M 0 0 0  0 0 2  1 0 0  WoodPlanks
+M 0 0 0  0 0 2  1 0 1  WoodPlanks
+M 0 0 0  0 0 2  1 0 2  WoodPlanks
+M 0 0 0  0 0 0  2 0 0  WoodPlanks
+M 0 0 0  0 0 0  2 0 1  WoodPlanks
+M 0 0 0  0 0 0  2 0 2  WoodPlanks
+M 0 0 0  0 0 1  2 0 0  WoodPlanks
+M 0 0 0  0 0 1  2 0 1  WoodPlanks
+M 0 0 0  0 0 1  2 0 2  WoodPlanks
+M 0 0 0  0 0 2  2 0 0  WoodPlanks
+M 0 0 0  0 0 2  2 0 1  WoodPlanks
+M 0 0 0  0 0 2  2 0 2  WoodPlanks
+M 0 0 0  1 0 0  0 0 0  WoodPlanks
+M 0 0 0  1 0 0  0 0 1  WoodPlanks
+M 0 0 0  1 0 0  0 0 2  WoodPlanks
+M 0 0 0  1 0 1  0 0 0  WoodPlanks
+M 0 0 0  1 0 1  0 0 1  WoodPlanks
+M 0 0 0  1 0 1  0 0 2  WoodPlanks
+M 0 0 0  1 0 2  0 0 0  WoodPlanks
+M 0 0 0  1 0 2  0 0 1  WoodPlanks
+M 0 0 0  1 0 2  0 0 2  WoodPlanks
+M 0 0 0  1 0 0  1 0 0  WoodPlanks
+M 0 0 0  1 0 0  1 0 1  WoodPlanks
+M 0 0 0  1 0 0  1 0 2  WoodPlanks
+M 0 0 0  1 0 1  1 0 0  WoodPlanks
+M 0 0 0  1 0 1  1 0 1  WoodPlanks
+M 0 0 0  1 0 1  1 0 2  WoodPlanks
+M 0 0 0  1 0 2  1 0 0  WoodPlanks
+M 0 0 0  1 0 2  1 0 1  WoodPlanks
+M 0 0 0  1 0 2  1 0 2  WoodPlanks
+M 0 0 0  1 0 0  2 0 0  WoodPlanks
+M 0 0 0  1 0 0  2 0 1  WoodPlanks
+M 0 0 0  1 0 0  2 0 2  WoodPlanks
+M 0 0 0  1 0 1  2 0 0  WoodPlanks
+M 0 0 0  1 0 1  2 0 1  WoodPlanks
+M 0 0 0  1 0 1  2 0 2  WoodPlanks
+M 0 0 0  1 0 2  2 0 0  WoodPlanks
+M 0 0 0  1 0 2  2 0 1  WoodPlanks
+M 0 0 0  1 0 2  2 0 2  WoodPlanks
+M 0 0 0  2 0 0  0 0 0  WoodPlanks
+M 0 0 0  2 0 0  0 0 1  WoodPlanks
+M 0 0 0  2 0 0  0 0 2  WoodPlanks
+M 0 0 0  2 0 1  0 0 0  WoodPlanks
+M 0 0 0  2 0 1  0 0 1  WoodPlanks
+M 0 0 0  2 0 1  0 0 2  WoodPlanks
+M 0 0 0  2 0 2  0 0 0  WoodPlanks
+M 0 0 0  2 0 2  0 0 1  WoodPlanks
+M 0 0 0  2 0 2  0 0 2  WoodPlanks
+M 0 0 0  2 0 0  1 0 0  WoodPlanks
+M 0 0 0  2 0 0  1 0 1  WoodPlanks
+M 0 0 0  2 0 0  1 0 2  WoodPlanks
+M 0 0 0  2 0 1  1 0 0  WoodPlanks
+M 0 0 0  2 0 1  1 0 1  WoodPlanks
+M 0 0 0  2 0 1  1 0 2  WoodPlanks
+M 0 0 0  2 0 2  1 0 0  WoodPlanks
+M 0 0 0  2 0 2  1 0 1  WoodPlanks
+M 0 0 0  2 0 2  1 0 2  WoodPlanks
+M 0 0 0  2 0 0  2 0 0  WoodPlanks
+M 0 0 0  2 0 0  2 0 1  WoodPlanks
+M 0 0 0  2 0 0  2 0 2  WoodPlanks
+M 0 0 0  2 0 1  2 0 0  WoodPlanks
+M 0 0 0  2 0 1  2 0 1  WoodPlanks
+M 0 0 0  2 0 1  2 0 2  WoodPlanks
+M 0 0 0  2 0 2  2 0 0  WoodPlanks
+M 0 0 0  2 0 2  2 0 1  WoodPlanks
+M 0 0 0  2 0 2  2 0 2  WoodPlanks
+M 0 0 0  0 0 0  0 1 0  Metal
+M 0 0 0  0 0 0  0 1 1  Metal
+M 0 0 0  0 0 0  0 1 2  Metal
+M 0 0 0  0 0 1  0 1 0  Metal
+M 0 0 0  0 0 1  0 1 1  Metal
+M 0 0 0  0 0 1  0 1 2  Metal
+M 0 0 0  0 0 2  0 1 0  Metal
+M 0 0 0  0 0 2  0 1 1  Metal
+M 0 0 0  0 0 2  0 1 2  Metal
+M 0 0 0  0 0 0  1 1 0  Metal
+M 0 0 0  0 0 2  1 1 2  Metal
+M 0 0 0  0 0 0  2 1 0  Metal
+M 0 0 0  0 0 2  2 1 2  Metal
+M 0 0 0  1 0 0  0 1 0  Metal
+M 0 0 0  1 0 2  0 1 2  Metal
+M 0 0 0  1 0 0  1 1 0  Metal
+M 0 0 0  1 0 2  1 1 2  Metal
+M 0 0 0  1 0 0  2 1 0  Metal
+M 0 0 0  1 0 2  2 1 2  Metal
+M 0 0 0  2 0 0  0 1 0  Metal
+M 0 0 0  2 0 2  0 1 2  Metal
+M 0 0 0  2 0 0  1 1 0  Metal
+M 0 0 0  2 0 2  1 1 2  Metal
+M 0 0 0  2 0 0  2 1 0  Metal
+M 0 0 0  2 0 0  2 1 1  Metal
+M 0 0 0  2 0 0  2 1 2  Metal
+M 0 0 0  2 0 1  2 1 0  Metal
+M 0 0 0  2 0 1  2 1 1  Metal
+M 0 0 0  2 0 1  2 1 2  Metal
+M 0 0 0  2 0 2  2 1 0  Metal
+M 0 0 0  2 0 2  2 1 1  Metal
+M 0 0 0  2 0 2  2 1 2  Metal
+M 0 0 0  1 0 1  0 1 1  Metal
+M 0 0 0  1 0 1  2 1 1  Metal
+M 0 0 0  1 0 1  1 1 0  Metal
+M 0 0 0  1 0 1  1 1 2  Metal
+M 0 0 0  0 0 0  2 1 1  Metal
+M 0 0 0  0 0 0  2 1 2  Metal
+M 0 0 0  2 0 0  0 1 1  Metal
+M 0 0 0  2 0 0  0 1 2  Metal

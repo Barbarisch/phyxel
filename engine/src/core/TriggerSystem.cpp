@@ -9,6 +9,21 @@ namespace Core {
 using nlohmann::json;
 
 void TriggerSystem::onEvent(const std::string& type, const json& data) {
+    // "interact" at a position: fires the INTERACT-GATED region triggers whose region
+    // contains that position (WalkabilityGateAndPlaytestLoop increment 7, Ravenmere
+    // G-80: a scene transition must be a deliberate act at a visible site, not a floor
+    // plate that anyone milling about steps on).
+    if (type == "interact") {
+        const glm::vec3 pos(data.value("x", 0.0f), data.value("y", 0.0f), data.value("z", 0.0f));
+        for (Trigger& t : m_triggers) {
+            if (t.fired && t.once) continue;
+            if (t.event != "entity_reached_region" || !t.when.value("interact", false)) continue;
+            if (!t.when.contains("region") || !regionContains(t.when["region"], pos)) continue;
+            LOG_INFO("TriggerSystem", "Trigger '{}' region interacted with at ({}, {}, {})", t.id, pos.x, pos.y, pos.z);
+            fire(t);
+        }
+        return;
+    }
     for (Trigger& t : m_triggers) {
         if (t.fired && t.once) continue;
         if (t.event != type) continue;
@@ -19,7 +34,8 @@ void TriggerSystem::onEvent(const std::string& type, const json& data) {
         bool payloadMatch = true;
         for (auto it = t.when.begin(); it != t.when.end(); ++it) {
             const std::string& key = it.key();
-            if (key == "event" || key == "seconds" || key == "entity" || key == "region")
+            if (key == "event" || key == "seconds" || key == "entity" || key == "region" ||
+                key == "interact" || key == "marker" || key == "marker_offset")
                 continue;
             if (!data.contains(key) || data[key] != it.value()) { payloadMatch = false; break; }
         }
@@ -45,7 +61,8 @@ void TriggerSystem::update(float dt, const PositionResolver& resolvePos) {
             glm::vec3 pos;
             if (!resolvePos(entity, pos)) { t.wasInside = false; continue; }
             const bool inside = t.when.contains("region") && regionContains(t.when["region"], pos);
-            if (inside && !t.wasInside) {
+            // An interact-gated region never fires on entry; onEvent("interact") does.
+            if (inside && !t.wasInside && !t.when.value("interact", false)) {
                 // The position that satisfied the region is the evidence a playtest needs
                 // (Ravenmere run 37: the harness read the player 1.3 m outside the hatch
                 // region when 'to_cellar' fired - which entity/position the trigger saw

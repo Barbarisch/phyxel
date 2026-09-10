@@ -1,4 +1,6 @@
 #include "core/GameDefinitionLoader.h"
+#include "core/TransitionMarkers.h"
+#include <climits>
 #include "core/ChunkManager.h"
 #include "core/WorldGenerator.h"
 #include "core/WorldRecipe.h"
@@ -213,6 +215,44 @@ GameDefinitionResult GameDefinitionLoader::load(const json& definition, GameSubs
         subsystems.triggerSystem->clear();
         int added = subsystems.triggerSystem->loadFromJson(definition["triggers"]);
         LOG_INFO("GameDefinitionLoader", "Triggers: loaded " + std::to_string(added));
+        // Every scene transition gets a VISIBLE site (TransitionMarkers.h): the prop is
+        // placed here, once per load, at the region the trigger watches.
+        if (subsystems.placedObjectManager) {
+            int placed = 0, failed = 0;
+            for (const auto& m : planTransitionMarkers(definition["triggers"])) {
+                // Seat the prop on the REAL surface at its column, micro-precisely: a
+                // storeroom floor is a sub-cube slab (feet 17.56), so a cube-aligned
+                // trapdoor would float 0.44 m or sink under the slab. Scan the micro
+                // column down from two cubes above the region floor; fall back to the
+                // cube position when nothing is under it (world not loaded yet).
+                std::string id;
+                int topMicro = INT_MIN;
+                if (subsystems.chunkManager) {
+                    const int mx = m.position.x * 9 + 4, mz = m.position.z * 9 + 4;
+                    for (int my = (m.position.y + 2) * 9; my >= (m.position.y - 2) * 9; --my)
+                        if (subsystems.chunkManager->occupiedMicro(glm::ivec3(mx, my, mz))) { topMicro = my; break; }
+                }
+                if (topMicro != INT_MIN)
+                    id = subsystems.placedObjectManager->placeTemplateMicro(
+                        m.templateName, glm::ivec3(m.position.x * 9, topMicro + 1, m.position.z * 9), 0, "");
+                else
+                    id = subsystems.placedObjectManager->placeTemplate(m.templateName, m.position, 0, "");
+                if (id.empty()) {
+                    ++failed;
+                    LOG_WARN("GameDefinitionLoader", "Transition marker '" + m.templateName + "' for trigger '" +
+                             m.triggerId + "' could not be placed at (" + std::to_string(m.position.x) + "," +
+                             std::to_string(m.position.y) + "," + std::to_string(m.position.z) + ")");
+                } else {
+                    ++placed;
+                    LOG_INFO("GameDefinitionLoader", "Transition marker '" + m.templateName + "' placed for trigger '" +
+                             m.triggerId + "' at (" + std::to_string(m.position.x) + "," + std::to_string(m.position.y) +
+                             "," + std::to_string(m.position.z) + ")" + (m.interact ? " [interact]" : ""));
+                }
+            }
+            if (placed || failed)
+                LOG_INFO("GameDefinitionLoader", "Transition markers: " + std::to_string(placed) + " placed, " +
+                         std::to_string(failed) + " failed");
+        }
     }
 
     result.success = true;
