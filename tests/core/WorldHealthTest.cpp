@@ -117,3 +117,24 @@ TEST(WorldHealthTest, AnAnchorBesideAnOpenCellCountsAsReachable) {
     EXPECT_EQ(rep.reachable, 1) << rep.summary();
     EXPECT_TRUE(rep.ok());
 }
+
+// Ravenmere G-88: the east exit's waystone stood on the last generated column and the road
+// led into a black void. A trigger anchor within kExitMarginCubes of the world's edge is
+// reported with the directions that have no ground; an interior one is not.
+TEST(WorldHealthTest, AnExitAtTheWorldsEdgeIsReportedAsFacingAVoid) {
+    FlatWorld w;                       // ground x 0..39, z 0..39 - wider than the 12-cube exit margin
+    for (int x = 0; x < 40; ++x) for (int z = 0; z < 40; ++z) w.fillCube(x, 0, z);
+    auto g = w.graph();
+    g->buildRegion({0, 0}, {39, 39}, NavAgentProfile{});
+    std::vector<WorldHealthAnchor> anchors(2);
+    anchors[0].id = "to_farm";   anchors[0].kind = "trigger"; anchors[0].pos = glm::vec3(38.5f, 1.0f, 20.5f);   // 1 cube from the east edge
+    anchors[1].id = "to_cellar"; anchors[1].kind = "trigger"; anchors[1].pos = glm::vec3(20.5f, 1.0f, 20.5f);   // the middle
+    const auto rep = WorldHealth::check(g.get(), [&](const glm::ivec3& c) { return w.hasVoxel(c); },
+                                        glm::vec3(1.5f, 1.0f, 1.5f), anchors);
+    ASSERT_EQ(rep.anchors.size(), 2u);
+    EXPECT_EQ(rep.anchors[0].voidBeyond, (std::vector<std::string>{"+x"})) << "the edge exit faces a void to +x only";
+    EXPECT_TRUE(rep.anchors[1].voidBeyond.empty()) << "an interior region faces no void";
+    EXPECT_EQ(rep.exitsFacingVoid, 1);
+    EXPECT_FALSE(rep.ok());
+    EXPECT_NE(rep.summary().find("VOID beyond exit 'to_farm'"), std::string::npos) << rep.summary();
+}

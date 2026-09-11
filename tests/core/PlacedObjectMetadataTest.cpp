@@ -50,3 +50,23 @@ TEST(PlacedObjectMetadataTest, NoFixtureKeyWhenUntagged) {
     const PlacedObject restored = PlacedObject::fromJson(obj.toJson());
     EXPECT_FALSE(restored.metadata.contains("fixture"));
 }
+
+// The MICRO pose must survive save/load. Before this (2026-09-10) toJson dropped
+// microAnchor/placedAtMicro, so every fixture loaded from a world DB lost the pose
+// it was placed at: removal fell back to clearing whole cubes, and the loader's
+// transition-marker intact check (own cells at the recorded pose) could never run -
+// a hatch buried in the tavern floor read "already present" off the floor slab.
+TEST(PlacedObjectMetadataTest, MicroPoseRoundTripsThroughJson) {
+    Phyxel::Core::PlacedObject o;
+    o.id = "trapdoor_1"; o.templateName = "trapdoor"; o.category = "template";
+    o.position = {-27, 17, 9}; o.rotation = 90;
+    o.placedAtMicro = true; o.microAnchor = {-243, 156, 81};
+    const auto back = Phyxel::Core::PlacedObject::fromJson(o.toJson());
+    EXPECT_TRUE(back.placedAtMicro);
+    EXPECT_EQ(back.microAnchor, glm::ivec3(-243, 156, 81));
+    EXPECT_EQ(back.rotation, 90);
+    // A record from an older world (no micro fields) loads as cube-placed, not garbage.
+    nlohmann::json legacy = o.toJson(); legacy.erase("placed_at_micro"); legacy.erase("micro_anchor");
+    const auto old = Phyxel::Core::PlacedObject::fromJson(legacy);
+    EXPECT_FALSE(old.placedAtMicro);
+}

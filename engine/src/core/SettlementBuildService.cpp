@@ -80,6 +80,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
     NPCManager* const npcManager                     = deps.npcs;
     const auto pushUndo                              = deps.pushUndo;
     const auto addPointLight                         = deps.addPointLight;   // M5
+    const auto keepClear                             = deps.keepClear;       // designer anchors
     ItemPropManager* const itemPropManager           = deps.itemProps;       // M3c signs/tableware
 
         const auto& p = params;
@@ -543,7 +544,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             const std::string ph = "building " + std::to_string(i + 1) + "/" +
                                    std::to_string(buildings.size());
             buildingUnits.push_back({ph, [chunkManager, placedObjectManager, objectTemplateManager,
-                                          locationRegistry, npcManager, pushUndo, addPointLight,
+                                          locationRegistry, npcManager, pushUndo, addPointLight, keepClear,
                                           itemPropManager, bp, bp2, seatInUnit,
                                           bw, bd, bw2, bd2, oy, lotFailures = res.lotFailures,
                                           lotIndex = static_cast<int>(i),
@@ -566,6 +567,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 deps.pushUndo      = pushUndo;   // forwarded by the caller (editor: undo snapshot)
                 deps.addPointLight = addPointLight;   // M5: light settlement interiors too
                 deps.itemProps     = itemPropManager; // M3c: sign items + tableware in settlements
+                deps.keepClear     = keepClear;       // designer anchors stay furniture-free
                 auto recordDoor = [&](const nlohmann::json& res, const nlohmann::json& prog, int w, int d) {
                     const int x = prog["position"].value("x", 0), z = prog["position"].value("z", 0);
                     if (!res.contains("locations") || !res["locations"].is_array()) return;

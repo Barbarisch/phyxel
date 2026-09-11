@@ -58,3 +58,39 @@ TEST(TransitionMarkersTest, RoadExitWaystoneStandsAtTheVergeNotOnTheRoad) {
     EXPECT_EQ(plan[0].position, glm::ivec3(25, 16, 17));
     EXPECT_TRUE(planTransitionMarkers(nlohmann::json::object()).empty());
 }
+
+// ============================================================================
+// Regen #16 of Ravenmere: every scene load placed the props AGAIN (trapdoor_1 +
+// trapdoor_2 on one cell, waystone_2 seated on top of waystone_1), and a barrel the
+// furnisher parked on the trapdoor cell went unreported. RED before: no helper
+// existed - the loader placed blindly.
+// ============================================================================
+TEST(TransitionMarkersTest, AMarkerAlreadyInTheWorldIsRecognisedAndNotPlacedTwice) {
+    TransitionMarker m; m.triggerId = "to_cellar"; m.templateName = "trapdoor"; m.position = {-27, 16, 9};
+    std::vector<MarkerSiteBox> placed = {
+        {"barrel_6", "barrel", {-28, 17, 9}, {-27, 18, 9}},
+        {"trapdoor_1", "trapdoor", {-27, 17, 9}, {-27, 17, 9}},   // seated one cube up
+    };
+    ASSERT_NE(markerAlreadyPlaced(placed, m), nullptr);
+    EXPECT_EQ(markerAlreadyPlaced(placed, m)->id, "trapdoor_1");
+    // A trapdoor three cubes away is a DIFFERENT site.
+    placed[1].min = placed[1].max = {-24, 17, 9};
+    EXPECT_EQ(markerAlreadyPlaced(placed, m), nullptr);
+    // The same template far below (another storey / the cellar) is not this marker.
+    placed[1].min = placed[1].max = {-27, 10, 9};
+    EXPECT_EQ(markerAlreadyPlaced(placed, m), nullptr);
+}
+
+TEST(TransitionMarkersTest, FurnitureStandingOnTheMarkerCellIsReported) {
+    TransitionMarker m; m.triggerId = "to_cellar"; m.templateName = "trapdoor"; m.position = {-27, 17, 9};
+    const std::vector<MarkerSiteBox> placed = {
+        {"barrel_6", "barrel", {-28, 17, 9}, {-27, 18, 9}},      // covers (-27, 9): ON the hatch
+        {"barrel_5", "barrel", {-28, 17, 7}, {-27, 18, 7}},      // beside it
+        {"wall_lantern_8", "wall_lantern", {-23, 18, 9}, {-23, 19, 9}},
+        {"stool_5", "stool", {-27, 20, 9}, {-27, 21, 9}},        // the storey above
+        {"trapdoor_1", "trapdoor", {-27, 17, 9}, {-27, 17, 9}},  // the marker itself
+    };
+    const auto obs = markerObstructions(placed, m);
+    ASSERT_EQ(obs.size(), 1u);
+    EXPECT_EQ(obs[0], "barrel_6");
+}

@@ -162,6 +162,19 @@ std::vector<Piece> recipeFor(const std::string& purpose, const std::string& weal
         out = hardcodedRecipeFor(canon);
         for (auto& p : out) p.pass = passRankFor(p.type);
     }
+    // EVERY room gets at least one light (Ravenmere G-89, 2026-09-10): the generated
+    // tavern's storeroom and kitchen carried no lighting piece, and a skylight-occluded
+    // interior with no emitter is BLACK at noon - the player could not see the cellar
+    // trapdoor or anything else indoors. The universal minimum is a wall lantern
+    // (object_dimensions `wall_lantern`: a sconce mounted 1.52-1.83 m, the historic
+    // rushlight/lantern bracket of a service room); recipes that already light the
+    // room keep their own fixtures.
+    bool lit = false;
+    for (const auto& p : out) if (p.pass == PASS_LIGHTING) lit = true;
+    if (!lit) {
+        out.push_back({"wall_lantern", false});
+        out.back().pass = PASS_LIGHTING;
+    }
     // M4: order by pass (heavy -> light -> lighting -> clutter). STABLE, so the
     // recipe's declaration order still decides within a pass — placement stays
     // deterministic for a given recipe file.
@@ -261,11 +274,27 @@ std::vector<FurniturePlacement> FurniturePlacer::furnishFromPlan(
         const AssemblyPlan& plan,
         const std::map<std::string, Footprint>& footprints,
         std::vector<UnplacedFixture>* unplaced,
-        const std::string& wealthTier) {
+        const std::string& wealthTier,
+        const std::vector<Rect>& extraReserved) {
+    std::vector<Rect> reserved = planReservedRects(plan, storyIndex);
+    reserved.insert(reserved.end(), extraReserved.begin(), extraReserved.end());
     return furnish(story, origin, floorY, footprints, unplaced,
                    planExteriorThicknessMicro(plan), wealthTier,
-                   planReservedRects(plan, storyIndex),
+                   reserved,
                    planInteriorThicknessMicro(plan));
+}
+
+std::vector<Rect> FurniturePlacer::keepClearRects(const std::vector<KeepClearBox>& boxes,
+                                                  const glm::ivec3& origin, int floorY,
+                                                  int storyHeight) {
+    std::vector<Rect> rects;
+    const int top = floorY + std::max(1, storyHeight);   // exclusive
+    for (const auto& b : boxes) {
+        if (b.max.y < floorY || b.min.y >= top) continue;   // another story
+        const int x0 = b.min.x - origin.x, z0 = b.min.z - origin.z;
+        rects.push_back(Rect{x0, z0, b.max.x - b.min.x + 1, b.max.z - b.min.z + 1});
+    }
+    return rects;
 }
 
 std::vector<FurniturePlacement> FurniturePlacer::placeSurfaceClutter(
@@ -772,6 +801,17 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
                     }
 
         std::set<std::pair<int, int>> occupied;
+        // WALL-MOUNTED pieces (sconce, tool rack) hang at mount height and reserve NO
+        // floor cell: a sconce belongs ABOVE the chest or barrel against that wall, not
+        // in a fight with it for the cell. They need a wall cell whose floor occupant
+        // (if any) tops out BELOW the mount - a wardrobe or back bar still blocks. A
+        // piece of UNKNOWN height (microH 0) is treated as tall (conservative). Regen
+        // #16 of Ravenmere: 12 rooms lost their only light this way ("wall_lantern did
+        // NOT fit" in taproom/chamber/store/bakehouse/backroom).
+        std::map<std::pair<int, int>, int> occupiedTop;    // cell -> tallest occupant (micro)
+        std::set<std::pair<int, int>> hungOccupied;        // cells a hung piece already took
+        bool hung = false;                                  // the piece being placed hangs
+        int hungBottomMicro = 0;                            // its mount height above the floor
         auto footprintOf = [&](const std::string& type) -> Footprint {
             auto it = footprints.find(type);
             return it == footprints.end() ? Footprint{} : it->second;
@@ -802,7 +842,17 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
             for (const auto& c : cells) {
                 if (c.first < rx || c.first >= rx + rw || c.second < rz || c.second >= rz + rd)
                     return false;                               // out of room
-                if (occupied.count(c) || activeBlocked->count(c)) return false;  // overlap / doorway
+                if (activeBlocked->count(c)) return false;      // doorway / stair / stack
+                if (hung) {
+                    if (hungOccupied.count(c)) return false;    // another hung piece
+                    if (occupied.count(c)) {                    // floor piece below: must clear it
+                        auto it = occupiedTop.find(c);
+                        if (it == occupiedTop.end() || it->second <= 0 ||
+                            it->second >= hungBottomMicro) return false;
+                    }
+                } else if (occupied.count(c)) {
+                    return false;                               // overlap
+                }
             }
             return true;
         };
@@ -840,7 +890,18 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
                 mnx = std::min(mnx, c.first);  mnz = std::min(mnz, c.second);
                 mxx = std::max(mxx, c.first);  mxz = std::max(mxz, c.second);
             }
-            for (const auto& c : spanCells) occupied.insert(c);
+            if (hung) {
+                for (const auto& c : spanCells) hungOccupied.insert(c);
+            } else {
+                const int h = footprintOf(type).microH;   // 0 = unknown -> stays "tall"
+                for (const auto& c : spanCells) {
+                    occupied.insert(c);
+                    auto it = occupiedTop.find(c);
+                    if (it == occupiedTop.end()) occupiedTop[c] = std::max(0, h);
+                    else if (h <= 0 || it->second <= 0) it->second = 0;   // unknown = tall
+                    else it->second = std::max(it->second, h);
+                }
+            }
             FurniturePlacement f;
             f.type = type; f.room = room.id; f.rotation = rot;
             f.backDir = backDirOf(mnx, mnz, mxx, mxz);
@@ -944,6 +1005,8 @@ std::vector<FurniturePlacement> FurniturePlacer::furnish(
             for (int rep = 0; rep < reps; ++rep) {
             bool placed = false;
             activeBlocked = isVentedType(piece.type) ? &blockedDoors : &blocked;
+            hung = mountFor(piece.type) == Mount::Wall;
+            hungBottomMicro = hung ? mountedMicroY(piece.type, 0, 0, 0) : 0;
 
             // CEILING-hung pieces (chandelier) float over the room centre and reserve NO floor
             // cells — a chandelier belongs directly ABOVE the centred table, not in a fight with

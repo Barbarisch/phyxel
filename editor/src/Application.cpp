@@ -32,6 +32,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "utils/GpuProfiler.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "scene/AnimatedVoxelCharacter.h"
+#include "scene/motion/MotionBricksSystem.h"
 #include "scene/AppearancePresetRegistry.h"
 #include "graphics/AnimationSystem.h"
 #include "scene/NPCEntity.h"
@@ -90,6 +91,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/StructureRealizer.h"   // Structure Generation v2 (BuildingProgram -> subcube shell)
 #include "core/RoomLayout.h"          // generate_room_layout (#05): auto-fill interiors
 #include "core/SettlementLayout.h"    // build_settlement: subdivide_plots + populate_plots
+#include "core/KeepClear.h"           // build_settlement: trigger regions stay furniture-free
 #include "core/ResidentPlanner.h"     // build_settlement: spawn residents (playable-town)
 #include "core/PathPlanner.h"         // build_settlement: planSettlementPaths (walkable path network)
 #include "core/StreetPaver.h"         // build_settlement: planStreetPaving (streets as real geometry)
@@ -5652,8 +5654,11 @@ Scene::AnimatedVoxelCharacter* Application::createAnimatedCharacter(const glm::v
         animatedCharacter->playAnimation("idle"); 
         LOG_INFO("Application", "Loaded animated character model: " + animFile);
         std::string motionError;
+        if (Scene::Motion::MotionBricksSystem::instance().tryAttachFromEnvironment(
                 *animatedCharacter, motionError)) {
+            LOG_INFO("Application", "MotionBricks locomotion enabled");
         } else if (!motionError.empty()) {
+            LOG_WARN("Application", "MotionBricks unavailable: {}", motionError);
         }
 
         // Propagate character archetype to interaction system
@@ -13364,6 +13369,9 @@ void Application::registerSettlementCommands() {
         // M3c: without this every settlement interior loses its item props — tableware AND
         // the painted trade-sign items (all signs fell back to the blank board).
         deps.itemProps     = itemPropManager ? &*itemPropManager : nullptr;
+        // The scene's transition regions (a cellar hatch) stay furniture-free.
+        if (triggerSystem)
+            deps.keepClear = Core::keepClearFromRegionTriggers(triggerSystem->regionTriggers());
         deps.pushUndo      = [this](const glm::ivec3& a, const glm::ivec3& b,
                                     const std::string& label) {
             pushUndoSnapshot(chunkManager, snapshotManager.get(), a, b, label);
@@ -17085,6 +17093,8 @@ void Application::processAPICommands() {
                     deps.locations     = locationRegistry ? &*locationRegistry : nullptr;
                     deps.npcs          = npcManager ? &*npcManager : nullptr;
                     deps.itemProps     = itemPropManager ? &*itemPropManager : nullptr;
+                    if (triggerSystem)   // designer anchors stay furniture-free
+                        deps.keepClear = Core::keepClearFromRegionTriggers(triggerSystem->regionTriggers());
                     deps.pushUndo      = [&](const glm::ivec3& a, const glm::ivec3& b,
                                              const std::string& label) {
                         pushUndoSnapshot(chunkManager, snapshotManager.get(), a, b, label);

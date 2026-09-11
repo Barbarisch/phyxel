@@ -938,6 +938,68 @@ bool ObjectTemplateManager::spawnTemplateMicro(const std::string& name, const gl
     return spawnOrEraseMicro(name, worldMicro, rotation, /*erase=*/false);
 }
 
+int ObjectTemplateManager::countTemplateMicroPresent(const std::string& name, const glm::ivec3& worldMicro,
+                                                     int rotation, int* total) const {
+    if (total) *total = 0;
+    const VoxelTemplate* tmpl = getTemplate(name);
+    if (!tmpl || !m_chunkManager) return -1;
+    const int rotSteps = ((rotation % 360) + 360) % 360 / 90;
+    // Same expansion + rotation as spawnOrEraseMicro (kept in step by hand: the pose
+    // is anchor + rotated template-local micro cell, pivoting on the micro AABB).
+    struct MCell { glm::ivec3 m; const std::string* mat; };
+    std::vector<MCell> cells;
+    auto addBox = [&](const glm::ivec3& microOrigin, int span, const std::string& mat) {
+        for (int x = 0; x < span; ++x)
+            for (int y = 0; y < span; ++y)
+                for (int z = 0; z < span; ++z) cells.push_back({microOrigin + glm::ivec3(x, y, z), &mat});
+    };
+    for (const auto& c : tmpl->cubes)      addBox(c.relativePos * 9, 9, c.material);
+    for (const auto& s : tmpl->subcubes)   addBox(s.parentRelativePos * 9 + s.subcubePos * 3, 3, s.material);
+    for (const auto& m : tmpl->microcubes) addBox(m.parentRelativePos * 9 + m.subcubePos * 3 + m.microcubePos, 1, m.material);
+    if (cells.empty()) return -1;
+    glm::ivec3 mx(0);
+    for (const auto& c : cells) mx = glm::max(mx, c.m);
+    auto rotMicro = [&](glm::ivec3 p) -> glm::ivec3 {
+        switch (rotSteps) {
+            case 1: return glm::ivec3(mx.z - p.z, p.y, p.x);
+            case 2: return glm::ivec3(mx.x - p.x, p.y, mx.z - p.z);
+            case 3: return glm::ivec3(p.z, p.y, mx.x - p.x);
+            default: return p;
+        }
+    };
+    // A cell counts only when the voxel there carries the TEMPLATE'S material: bare
+    // occupancy was fooled by the storeroom floor slab built through a stale hatch
+    // record (every cell "occupied" - by oak floor, not the hatch's planks and iron).
+    auto floorDiv = [](int a, int b) { int q = a / b, r = a % b; if (r != 0 && (r < 0) != (b < 0)) --q; return q; };
+    auto floorMod = [&](int a, int b) { return a - floorDiv(a, b) * b; };
+    // ...and it must be EXPOSED: a cell whose upper neighbour is neither another cell
+    // of this pose nor air is buried (regen #17: the pre-build trapdoor survived INSIDE
+    // the tavern's floor slab - every cell present, none visible, "already present").
+    std::unordered_set<int64_t> own;
+    auto key = [](const glm::ivec3& v) { return (int64_t(v.x) << 42) ^ (int64_t(v.y) << 21) ^ int64_t(v.z & 0x1FFFFF); };
+    for (const auto& c : cells) own.insert(key(worldMicro + rotMicro(c.m)));
+    int present = 0;
+    for (const auto& c : cells) {
+        const glm::ivec3 gm = worldMicro + rotMicro(c.m);
+        const glm::ivec3 up = gm + glm::ivec3(0, 1, 0);
+        if (!own.count(key(up)) && m_chunkManager->occupiedMicro(up)) continue;   // buried
+        const glm::ivec3 cube(floorDiv(gm.x, 9), floorDiv(gm.y, 9), floorDiv(gm.z, 9));
+        const glm::ivec3 rem(floorMod(gm.x, 9), floorMod(gm.y, 9), floorMod(gm.z, 9));
+        const glm::ivec3 sub(rem.x / 3, rem.y / 3, rem.z / 3), mic(rem.x % 3, rem.y % 3, rem.z % 3);
+        auto it = m_chunkManager->chunkMap.find(Utils::CoordinateUtils::worldToChunkCoord(cube));
+        if (it == m_chunkManager->chunkMap.end() || !it->second) continue;
+        const Chunk* chunk = it->second;
+        const glm::ivec3 lp = Utils::CoordinateUtils::worldToLocalCoord(cube);
+        const std::string* have = nullptr;
+        if (const Microcube* mc = chunk->getMicrocubeAt(lp, sub, mic)) have = &mc->getMaterialName();
+        else if (const Subcube* sc = chunk->getSubcubeAt(lp, sub))     have = &sc->getMaterialName();
+        else if (const Cube* cb = chunk->getCubeAt(lp))                have = &cb->getMaterialName();
+        if (have && *have == *c.mat) ++present;
+    }
+    if (total) *total = static_cast<int>(cells.size());
+    return present;
+}
+
 bool ObjectTemplateManager::spawnOrEraseMicro(const std::string& name, const glm::ivec3& worldMicro,
                                               int rotation, bool erase) {
     const VoxelTemplate* tmpl = getTemplate(name);

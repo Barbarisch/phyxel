@@ -1107,9 +1107,13 @@ StructureForge::StageReport StructureForge::stageFurnish(Context& ctx) {
             // what the realizer BUILT — inside furnishFromPlan; this call site no
             // longer computes side-channels. Placement equivalence pinned
             // field-by-field by FurnishPlanEquivalenceTest.
+            // Designer anchors (transition-trigger regions) are reserved like stair
+            // wells: the furnisher never buries a cellar hatch under a barrel.
+            const auto keepClear = FurniturePlacer::keepClearRects(
+                ctx.deps.keepClear, glm::ivec3(posX, 0, posZ), storyFloorY, story.height);
             auto placements = FurniturePlacer::furnishFromPlan(
                 story, static_cast<int>(si), glm::ivec3(posX, 0, posZ), storyFloorY,
-                ctx.shell.plan, fixtureFootprints, &unplaced, wealthTier);
+                ctx.shell.plan, fixtureFootprints, &unplaced, wealthTier, keepClear);
             // Semantic identity per fixture (room/purpose/ordinal/type), 1:1 with
             // placements — so a session can address "the 2nd bedroom's bed".
             auto labels = FurniturePlacer::labelFixtures(story, placements);

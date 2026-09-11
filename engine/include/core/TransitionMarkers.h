@@ -29,5 +29,27 @@ std::vector<TransitionMarker> planTransitionMarkers(const nlohmann::json& trigge
 /// Templates that sit ON the region (flush / climbable) rather than beside it.
 bool isOnSiteMarker(const std::string& templateName);
 
+/// A placed object's cube box as the loader sees it (named apart from the validators' PlacedBox:
+/// a same-named struct with another layout in one namespace is an ODR crash, found 2026-09-10).
+struct MarkerSiteBox {
+    std::string id;
+    std::string templateName;
+    glm::ivec3  min{0};
+    glm::ivec3  max{0};
+};
+
+/// Idempotence: the marker is ALREADY in the world when a placed object of the same
+/// template stands within one cube of its planned column (any y within two cubes -
+/// a seated prop sits on the real surface, not at the authored region floor).
+/// Regen #16 of Ravenmere: every scene load placed the props again (two trapdoors,
+/// a waystone stacked on a waystone).
+const MarkerSiteBox* markerAlreadyPlaced(const std::vector<MarkerSiteBox>& placed,
+                                     const TransitionMarker& m);
+
+/// Honest reporting: ids of OTHER placed objects whose box covers the marker's cell
+/// (x/z inside, y within [pos.y - 1, pos.y + 2]) - furniture standing on a hatch.
+std::vector<std::string> markerObstructions(const std::vector<MarkerSiteBox>& placed,
+                                            const TransitionMarker& m);
+
 }  // namespace Core
 }  // namespace Phyxel

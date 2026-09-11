@@ -128,6 +128,7 @@ public:
     /// Leave OFF during the initial bulk DB load (buildAllChunkPhysics + rebuildAllChunkFaces
     /// handle that pass) so grids are not registered twice. Default off.
     void setPerChunkPhysics(bool enabled) { m_perChunkPhysics = enabled; }
+    bool perChunkPhysics() const { return m_perChunkPhysics; }
     /// Cap on how many new chunks may be generated per updateStreaming() call (nearest
     /// first) so a single frame's pump cannot generate a whole sphere and hitch.
     /// 0 = unlimited (legacy behavior). Default 0.

@@ -239,6 +239,12 @@ public:
     void rebuildAllChunkFaces(); // Rebuild faces for all chunks with proper cross-chunk culling
     void rebuildAllChunkLighting(); // Re-bake + re-upload every chunk via the cross-chunk path (use after a global lighting-mode change)
     void buildAllChunkPhysics(); // Build collision + register occupancy grids for all chunks (call after bulk DB load)
+    /// Finish ONE chunk loaded from the DB outside the bulk pass: register its static
+    /// collision with the physics world (DB-loaded chunks start with none - characters
+    /// fall through), build its voxel maps, and mesh it (synchronously when `syncMesh`,
+    /// else via the budgeted remesh queue). The streaming pump's stream-in path and the
+    /// definition loader's saved-region path both use this - one finalizer, not two.
+    void finalizeLoadedChunk(Chunk& chunk, bool syncMesh);
     // [no-frozen-engine] touched-chunk counterpart: rebuild collision ONLY for chunks
     // intersecting [minWorld, maxWorld] (world cube coords). buildAllChunkPhysics is
     // O(all chunks) and cost 17-64 s PER BUILDING at settlement scale (~140 chunks);

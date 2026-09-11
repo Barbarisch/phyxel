@@ -403,12 +403,26 @@ def fight(tag, enemy_ids, max_rounds=40):
     if (isinstance(ph_end, dict) and ph_end.get("alive") is False) or screen().get("screen") == "game_over":
         rec("game_over", {"tag": tag, "rounds": rounds_seen, "hp": ph_end.get("health") if isinstance(ph_end, dict) else ph_end})
         raise RuntimeError("player died in " + tag)
-    rec(tag, {"resolved": not fin.get("in_combat"), "rounds": rounds_seen, "turns": log[-12:],
+    # "resolved" means a fight HAPPENED and ended - not merely "not in combat now", which is
+    # also true when combat never started (run 49: rounds 0, every enemy "unknown entity",
+    # and the leg still read resolved:true - the success-flag-is-not-an-outcome trap).
+    fought = rounds_seen > 0
+    rec(tag, {"resolved": fought and not fin.get("in_combat"), "fought": fought, "rounds": rounds_seen, "turns": log[-12:],
               "enemy_hp": {e: hp(e) for e in enemy_ids}, "player_hp": hp("player")})
+    if not fought:
+        raise RuntimeError("no fight happened in " + tag + " (0 rounds; enemies " + ",".join(enemy_ids) + ")")
     return not fin.get("in_combat")
 
+def expect_scene(tag, sid):
+    """A scene leg either lands in its scene or the run is over - run 49 went on for 20
+    minutes recording 'stuck' legs and never-started fights after the second farm visit."""
+    got = screen().get("scene_id")
+    if got != sid:
+        rec("leg_failed", {"tag": tag, "expected": sid, "got": got, "pos": player_pos()})
+        raise RuntimeError(f"leg {tag}: expected scene {sid}, in {got}")
+
 # ═══ RUN A ═══════════════════════════════════════════════════════════════════════════
-proc, fh = launch("runA")
+proc, fh = launch("run_" + time.strftime("%Y%m%d_%H%M%S"))   # one engine log PER RUN - "runA" overwrote run 49's log with run 50's
 try:
     rec("boot", screen())
     api("POST", "/api/ui/click", {"x": 640, "y": 374}); time.sleep(4)   # New Game (button 540,350 200x48)
@@ -456,6 +470,7 @@ try:
         if screen().get("scene_id") == "cellar": r = "stopped"; break
         time.sleep(0.5)
     time.sleep(4); rec("cellar", {"steer": r, "scene": screen(), "pos": player_pos()})
+    expect_scene("cellar", "cellar")
     # rats: region z 16..20 from spawn (10,26)
     r = steer_to(dirs, 12, 18.5, tol=1.0, stop=lambda: combat("state").get("in_combat"))
     time.sleep(1.5); st = combat("state"); rec("rats_encounter", {"steer": r, "in_combat": st.get("in_combat"), "order": st.get("turn_order")})
@@ -464,6 +479,7 @@ try:
     # back up through the exit region (8..12, 26..27)
     r = steer_to(dirs, 10, 26.6, tol=0.5, stop=lambda: screen().get("scene_id") == "town")
     time.sleep(4); rec("back_in_town", {"steer": r, "scene": screen(), "pos": player_pos(), "player_state_pos": safe("POST", "/api/rpg/get_player_state", {}).get("position")})
+    expect_scene("back_in_town", "town")
     world_health("back_in_town")
     if screen().get("scene_id") == "cellar":   # fell back through the trapdoor? climb out again
         steer_to(dirs, 10, 26.6, tol=0.5, stop=lambda: screen().get("scene_id") == "town"); time.sleep(4)
@@ -485,6 +501,7 @@ try:
     steer_to(dirs, 55, 15, tol=1.0); framed_shot("waystone_screenshot", (58.0, 20.0, 11.0), (63.5, 17.5, 15.5))
     r = steer_to(dirs, 60, 15, tol=1.5, max_iter=120, stop=lambda: screen().get("scene_id") == "farm")
     time.sleep(4); rec("farm", {"steer": r, "scene": screen(), "pos": player_pos()})
+    expect_scene("farm", "farm")
 
     # 7. Dunstan (16,16): choice 1 (wolves). Wolves west copse region (22..30, 4..14)
     r = steer_to(dirs, 14.5, 16, tol=1.6); seen = talk_by_text("deal with the wolves"); rec("dunstan", {"steer": r, "seen": seen})
@@ -501,6 +518,7 @@ try:
     # back to town to report tracks: west exit (1..3, 12..20)
     r = steer_to(dirs, 2, 16, tol=1.0, stop=lambda: screen().get("scene_id") == "town")
     time.sleep(4); rec("town_again", {"steer": r, "scene": screen(), "pos": player_pos()})
+    expect_scene("town_again", "town")
 
     # 8. Reeve: "I found tracks" (visible: [tracks, bye] -> 1) ; Wren freed -> recruit (visible: [offer?, freed, bye])
     r = steer_to(dirs, -12, 14.5, tol=1.6, max_iter=140); seen = talk_by_text("found tracks"); rec("reeve_tracks", {"steer": r, "seen": seen, "wren_unlock": fired("wren_unlock")})
@@ -509,9 +527,11 @@ try:
     # 9. Farm again -> Oswin joins -> barrow
     r = steer_to(dirs, 60, 15, tol=1.5, max_iter=140, stop=lambda: screen().get("scene_id") == "farm")
     time.sleep(4); rec("farm2", {"steer": r, "scene": screen()})
+    expect_scene("farm2", "farm")
     r = steer_to(dirs, 9.5, 26, tol=1.6); seen = talk_by_text("Come and fetch it yourself"); rec("oswin_join", {"steer": r, "seen": seen, "party": safe("GET", "/api/rpg/party")})
     r = steer_to(dirs, 16, 30.5, tol=1.0, stop=lambda: screen().get("scene_id") == "barrow")
     time.sleep(4); rec("barrow", {"steer": r, "scene": screen(), "pos": player_pos(), "enter": fired("enter_barrow")})
+    expect_scene("barrow", "barrow")
 
     # 10. antechamber fight (z 34..38), grimoire (22..27, 39..43), crypt fight (z 18..24), boss, relic
     r = steer_to(dirs, 16, 36, tol=1.0, stop=lambda: combat("state").get("in_combat"))
@@ -527,8 +547,10 @@ try:
     # 11. Home: barrow exit (14..18, 46..47) -> farm -> west exit -> town -> Reeve (relic, choice 1 -> "Take it" 1)
     r = steer_to(dirs, 16, 46.5, tol=1.0, max_iter=140, stop=lambda: screen().get("scene_id") == "farm")
     time.sleep(4); rec("farm3", {"steer": r, "scene": screen()})
+    expect_scene("farm3", "farm")
     r = steer_to(dirs, 2, 16, tol=1.0, max_iter=140, stop=lambda: screen().get("scene_id") == "town")
     time.sleep(4); rec("town_final", {"steer": r, "scene": screen()})
+    expect_scene("town_final", "town")
     r = steer_to(dirs, -12, 14.5, tol=1.6, max_iter=160); seen = talk_by_text("I have his relic", "Take it")
     time.sleep(2)
     rec("finale", {"steer": r, "seen": seen, "screen": screen(), "win": fired("win"), "sheet": safe("GET", "/api/rpg/sheet")})

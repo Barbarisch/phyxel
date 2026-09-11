@@ -298,3 +298,57 @@ TEST(GameDefinitionTest, LoadCameraMode) {
     EXPECT_FALSE(result.cameraModeSet);
     EXPECT_EQ(cam.getMode(), Phyxel::Graphics::CameraMode::Free);
 }
+
+// =============================================================================
+// G-93 + run 49: an inline `world` block on a scene whose DB already holds the
+// chunks must NOT regenerate (it replaced Ravenmere's built town with flat terrain
+// twice) - and the refused path must still LOAD the saved region, because nothing
+// else does for a fixed-region scene (run 49: the second farm visit had 2 of 9
+// chunks in memory and the player walked into nothing). Headless: a ChunkManager
+// with a temp world DB, no Vulkan.
+// =============================================================================
+#include "core/ChunkManager.h"
+#include "core/Cube.h"
+#include "core/Chunk.h"
+#include <filesystem>
+
+TEST(GameDefinitionTest, InlineWorldBlockLoadsSavedChunksInsteadOfRegenerating) {
+    const std::string db = (std::filesystem::temp_directory_path() / "gamedef_regen_guard.db").string();
+    { std::error_code ec; std::filesystem::remove(db, ec); }
+    const json def = json::parse(R"({"world":{"type":"Flat","seed":3,"from":{"x":0,"y":0,"z":0},"to":{"x":1,"y":0,"z":0},"flora":false}})");
+    {
+        Phyxel::ChunkManager cm;
+        cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
+        ASSERT_TRUE(cm.initializeWorldStorage(db));
+        GameSubsystems subs; subs.chunkManager = &cm;
+        const auto r = GameDefinitionLoader::load(def, subs);
+        ASSERT_TRUE(r.success) << r.error;
+        EXPECT_EQ(r.chunksGenerated, 2);
+        EXPECT_FALSE(r.worldGenerationRefused);
+        // a deliberate edit the DB must keep
+        cm.addCubeWithMaterial(glm::ivec3(40, 20, 5), "Gold");
+        ASSERT_TRUE(cm.saveAllChunks());
+        cm.disconnectWorldStorage();
+    }
+    Phyxel::ChunkManager cm2;
+    cm2.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
+    ASSERT_TRUE(cm2.initializeWorldStorage(db));
+    GameSubsystems subs2; subs2.chunkManager = &cm2;
+    const auto r2 = GameDefinitionLoader::load(def, subs2);
+    ASSERT_TRUE(r2.success) << r2.error;
+    EXPECT_TRUE(r2.worldGenerationRefused) << "the DB holds the chunks: the inline block must be ignored";
+    EXPECT_EQ(r2.chunksGenerated, 0);
+    // ...and the whole region is IN MEMORY, from the DB, edits included.
+    EXPECT_NE(cm2.getChunkAtCoord(glm::ivec3(0, 0, 0)), nullptr);
+    EXPECT_NE(cm2.getChunkAtCoord(glm::ivec3(1, 0, 0)), nullptr) << "every saved chunk of the region loads, not just the ones something touched";
+    ASSERT_NE(cm2.getCubeAt(glm::ivec3(40, 20, 5)), nullptr) << "the saved edit survived (no regeneration)";
+    EXPECT_EQ(cm2.getCubeAt(glm::ivec3(40, 20, 5))->getMaterialName(), "Gold");
+    // ...FINALIZED like generated chunks: faces built and the collision occupancy grid filled.
+    // The streaming load defers both to a bulk pass this path never ran - the second farm
+    // visit had terrain data and no collision, and every NPC fell through (2026-09-10).
+    const Phyxel::Chunk* c1 = cm2.getChunkAtCoord(glm::ivec3(1, 0, 0));
+    EXPECT_GT(c1->getFaces().size(), 0u) << "loaded chunks must have their faces rebuilt";
+    EXPECT_TRUE(c1->getOccupancyGrid().isCubeFilled(glm::ivec3(8, 20, 5)))
+        << "loaded chunks must have their collision occupancy built (characters fall through otherwise)";
+    std::error_code ec; std::filesystem::remove(db, ec);
+}

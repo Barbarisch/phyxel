@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include "core/ChunkStreamingManager.h"
+#include "core/ChunkManager.h"
 #include "core/Chunk.h"
 #include "core/WorldStorage.h"
 #include "core/WorldGenerator.h"
@@ -255,4 +256,34 @@ TEST_F(ChunkStreamingCallbackTest, StreamInBootStreamingWorldDropsFarInsteadOfDe
     EXPECT_TRUE(nearLoaded.empty());
     EXPECT_FALSE(csm.hasDeferredDbLoads());
     EXPECT_TRUE(chunks.empty());
+}
+
+// ============================================================================
+// createChunk must NEVER shadow a SAVED chunk with an empty one. Every get-or-create
+// caller (template spawn/erase, the definition loader, voxel placement) lands on
+// createChunk when a chunk is not in memory - which on a DB-backed world usually means
+// "not loaded yet". Regen #19 of Ravenmere: a transition-marker erase ran before the
+// town's chunks had loaded, created an empty chunk over the tavern, and the next save
+// wrote it back (1.88 MB -> 775 bytes). RED before the fix: the cube is gone.
+// ============================================================================
+TEST(ChunkStreamingManagerTest, CreateChunkLoadsASavedChunkInsteadOfShadowingIt) {
+    TempDb db;
+    const glm::ivec3 origin(-32, 0, 0);
+    {
+        ChunkManager cm;
+        cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);   // headless: wires the chunk initializer
+        ASSERT_TRUE(cm.initializeWorldStorage(db.str()));
+        cm.createChunk(origin, false);
+        cm.addCubeWithMaterial(glm::ivec3(-27, 17, 9), "Stone");
+        ASSERT_TRUE(cm.saveAllChunks());
+        cm.disconnectWorldStorage();
+    }
+    ChunkManager cm2;
+    cm2.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
+    ASSERT_TRUE(cm2.initializeWorldStorage(db.str()));
+    ASSERT_EQ(cm2.getChunkAtCoord(glm::ivec3(-1, 0, 0)), nullptr) << "nothing loaded yet";
+    cm2.createChunk(origin, false);   // the get-or-create path every placer uses
+    ASSERT_NE(cm2.getChunkAtCoord(glm::ivec3(-1, 0, 0)), nullptr);
+    EXPECT_NE(cm2.getCubeAt(glm::ivec3(-27, 17, 9)), nullptr)
+        << "the saved cube must be there: the chunk was LOADED, not created empty";
 }

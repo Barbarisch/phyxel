@@ -87,3 +87,18 @@ TEST(LightingPass, EmittersPlaceInTheLightingPass) {
     EXPECT_EQ(FurniturePlacer::passRank("fireplace"), 0)
         << "the hearth is a heavy fixture that emits, not a lamp";
 }
+
+// Ravenmere G-89 (2026-09-10): the generated tavern's storeroom and kitchen had no
+// lighting piece, and a skylight-occluded interior with no emitter is BLACK at noon -
+// the player could not see the cellar trapdoor. Every room recipe must carry at least
+// one lighting-pass fixture; rooms without one get a wall lantern. RED on the old code:
+// service, kitchen, bedchamber, hall, salesroom, forge, bakehouse, shambles, default.
+TEST(LightingPass, EveryRoomRecipeCarriesALight) {
+    for (const char* purpose : {"service", "storeroom", "kitchen", "bedchamber", "hall", "taproom", "salesroom",
+                                "forge", "bakehouse", "shambles", "dispensary", "hearthless_hall", "some_unknown_room"}) {
+        bool lit = false;
+        for (const auto& t : FurniturePlacer::requiredFurniture(purpose))
+            if (FurniturePlacer::passRank(t) == 2) lit = true;
+        EXPECT_TRUE(lit) << "room purpose '" << purpose << "' has no light fixture in its recipe";
+    }
+}

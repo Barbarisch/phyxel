@@ -218,8 +218,64 @@ GameDefinitionResult GameDefinitionLoader::load(const json& definition, GameSubs
         // Every scene transition gets a VISIBLE site (TransitionMarkers.h): the prop is
         // placed here, once per load, at the region the trigger watches.
         if (subsystems.placedObjectManager) {
-            int placed = 0, failed = 0;
+            int placed = 0, failed = 0, kept = 0;
+            // What already stands in the world, so a reload never places a marker twice
+            // (regen #16: two trapdoors on one cell, a waystone stacked on a waystone) and
+            // furniture standing on a hatch is REPORTED rather than silently buried.
+            std::vector<MarkerSiteBox> boxes;
+            for (const auto& [oid, po] : subsystems.placedObjectManager->getAllObjects()) {
+                // A structure's box is its whole building - a hatch INSIDE the tavern is
+                // not "covered" by the tavern. Only props (furniture, markers) count.
+                if (po.category == "structure") continue;
+                boxes.push_back({oid, po.templateName, po.boundingMin, po.boundingMax});
+            }
             for (const auto& m : planTransitionMarkers(definition["triggers"])) {
+                // The world may still be loading (DB-backed scenes load chunks lazily):
+                // bring the marker's chunk in before reading or writing voxels there, or
+                // the intact check reads air, the seat scan finds no surface, and (regen
+                // #19) an erase used to create an EMPTY chunk over the saved one.
+                if (subsystems.chunkManager) {
+                    subsystems.chunkManager->ensureChunkAt(m.position);
+                    subsystems.chunkManager->ensureChunkAt(m.position + glm::ivec3(0, 2, 0));
+                }
+                if (const MarkerSiteBox* have = markerAlreadyPlaced(boxes, m)) {
+                    // A record whose voxels are gone (the site was rebuilt over it) is
+                    // stale: drop it and place afresh; otherwise keep the one we have.
+                    bool present = !subsystems.chunkManager;
+                    const auto& all = subsystems.placedObjectManager->getAllObjects();
+                    const auto recIt = all.find(have->id);
+                    if (subsystems.chunkManager && recIt != all.end() && recIt->second.placedAtMicro &&
+                        subsystems.templateManager) {
+                        // Its OWN cells, at its recorded pose: a floor slab built under a stale
+                        // record must not count as the hatch (regen #17 false "present").
+                        int total = 0;
+                        const int n = subsystems.templateManager->countTemplateMicroPresent(
+                            recIt->second.templateName, recIt->second.microAnchor, recIt->second.rotation, &total);
+                        present = (n >= 0 && total > 0 && n * 2 >= total);
+                        LOG_INFO("GameDefinitionLoader", "Transition marker '" + have->id + "' intact check: " +
+                                 std::to_string(n) + "/" + std::to_string(total) + " exposed own cells at micro (" +
+                                 std::to_string(recIt->second.microAnchor.x) + "," + std::to_string(recIt->second.microAnchor.y) +
+                                 "," + std::to_string(recIt->second.microAnchor.z) + ")");
+                    } else if (subsystems.chunkManager) {
+                        const int mx = have->min.x * 9 + 4, mz = have->min.z * 9 + 4;
+                        for (int my = have->min.y * 9; my < (have->max.y + 1) * 9 && !present; ++my)
+                            present = subsystems.chunkManager->occupiedMicro(glm::ivec3(mx, my, mz));
+                    }
+                    if (present) {
+                        ++kept;
+                        for (const auto& ob : markerObstructions(boxes, m))
+                            LOG_WARN("GameDefinitionLoader", "Transition marker '" + have->id +
+                                     "' for trigger '" + m.triggerId + "' is covered by '" + ob + "'");
+                        continue;
+                    }
+                    LOG_WARN("GameDefinitionLoader", "Transition marker '" + have->id + "' for trigger '" +
+                             m.triggerId + "' has no exposed voxels left (built over or buried) - replacing it");
+                    subsystems.placedObjectManager->remove(have->id);
+                }
+                for (const auto& ob : markerObstructions(boxes, m))
+                    LOG_WARN("GameDefinitionLoader", "Transition marker for trigger '" + m.triggerId +
+                             "' at (" + std::to_string(m.position.x) + "," + std::to_string(m.position.z) +
+                             ") is covered by '" + ob + "' - the site is obstructed");
                 // Seat the prop on the REAL surface at its column, micro-precisely: a
                 // storeroom floor is a sub-cube slab (feet 17.56), so a cube-aligned
                 // trapdoor would float 0.44 m or sink under the slab. Scan the micro
@@ -249,9 +305,9 @@ GameDefinitionResult GameDefinitionLoader::load(const json& definition, GameSubs
                              "," + std::to_string(m.position.z) + ")" + (m.interact ? " [interact]" : ""));
                 }
             }
-            if (placed || failed)
+            if (placed || failed || kept)
                 LOG_INFO("GameDefinitionLoader", "Transition markers: " + std::to_string(placed) + " placed, " +
-                         std::to_string(failed) + " failed");
+                         std::to_string(kept) + " already present, " + std::to_string(failed) + " failed");
         }
     }
 
@@ -455,6 +511,45 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
     if (chunkCoords.size() > 64) {
         result.error = "Too many chunks (max 64), got " + std::to_string(chunkCoords.size());
         return;
+    }
+
+    // NEVER regenerate over saved chunks by accident. An inline `world` block on a
+    // scene whose DB already holds those chunks REPLACED a built town with flat
+    // terrain twice (Ravenmere G-48; regen #18, where the following save wrote the
+    // flat world back). The DB is the source of truth once it has the chunks; a
+    // deliberate rebuild says so with `world.regenerate: true`.
+    if (!worldDef.value("regenerate", false) && sub.chunkManager->getWorldStorage()) {
+        size_t saved = 0;
+        for (const auto& cc : chunkCoords)
+            if (sub.chunkManager->getWorldStorage()->chunkExists(cc)) ++saved;
+        if (saved > 0) {
+            LOG_WARN("GameDefinitionLoader", "World: " + std::to_string(saved) + " of " +
+                     std::to_string(chunkCoords.size()) + " chunks are already saved in the world DB - the "
+                     "inline world block is IGNORED (the DB is the source of truth; set "
+                     "world.regenerate=true to overwrite it deliberately)");
+            result.worldGenerationRefused = true;
+            // The region is the DB's now, so LOAD it - the generation path used to bring
+            // every chunk of the range into memory, and nothing else does for a fixed
+            // region (Ravenmere run 49: the second farm visit had 2 of 9 chunks loaded,
+            // the ones a marker check happened to touch; the NavGraph covered two chunks
+            // and the player walked into nothing).
+            int loaded = 0;
+            std::vector<Chunk*> loadedChunks;
+            for (const auto& cc : chunkCoords)
+                if (!sub.chunkManager->getChunkAtCoord(cc) && sub.chunkManager->getWorldStorage()->chunkExists(cc) &&
+                    sub.chunkManager->loadChunk(cc)) {
+                    ++loaded;
+                    if (Chunk* c = sub.chunkManager->getChunkAtCoord(cc)) loadedChunks.push_back(c);
+                }
+            // FINALIZE like generated chunks: the streaming load defers faces and physics to
+            // a bulk pass (buildAllChunkPhysics) that only the no-world-block scene path runs.
+            // Without this the second farm visit had terrain data and NO collision - every
+            // NPC fell to y = -19,000 (editor, 2026-09-10).
+            for (Chunk* chunk : loadedChunks) sub.chunkManager->finalizeLoadedChunk(*chunk, /*syncMesh=*/true);
+            LOG_INFO("GameDefinitionLoader", "World: loaded " + std::to_string(loaded) +
+                     " saved chunks of the region from the DB (faces + physics built)");
+            return;
+        }
     }
 
     std::unordered_set<Chunk*> modifiedChunks;

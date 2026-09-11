@@ -64,16 +64,17 @@ TEST(FurniturePlacerTest, PerStoryFloorYStopsCrossStoryStacking) {
 // overlapping). The with-vs-without contrast is the falsifiable measurement: dimension-blind (1×1)
 // places BOTH (silent overlap); footprint-aware places only the one that fits.
 TEST(FurniturePlacerTest, OversizedSecondPieceSkippedNotOverlapped) {
-    // a service room (recipe: barrel + chest) sized 4×4, no doors
+    // a service room (recipe: barrel + chest + the universal wall lantern, G-89) sized 4×4, no doors
     const auto s = story(R"json({"height":3,"rooms":[{"id":"r","rect":[0,0,4,4],"purpose":"service"}]})json");
     const glm::ivec3 origin{0, 0, 0};
-    // each piece fills the whole 4×4 room
+    // each floor piece fills the whole 4×4 room; the lantern is a 1×1 wall fixture
     const std::map<std::string, Footprint> fp = {{"barrel", {4, 4}}, {"chest", {4, 4}}};
 
-    const auto blind = FurniturePlacer::furnish(s, origin, 10);          // 1×1 -> both placed
-    EXPECT_EQ(blind.size(), 2u) << "dimension-blind should place both (the overlap bug)";
+    const auto blind = FurniturePlacer::furnish(s, origin, 10);          // 1×1 -> all three placed
+    EXPECT_EQ(blind.size(), 3u) << "dimension-blind should place all (the overlap bug)";
 
     const auto aware = FurniturePlacer::furnish(s, origin, 10, fp);      // footprint-aware
+    // The room-filling barrel leaves no free wall cell, so the lantern is skipped too.
     EXPECT_EQ(aware.size(), 1u) << "footprint-aware must skip the second room-filling piece";
 }
 
@@ -371,4 +372,58 @@ TEST(FurniturePlacerTest, TaproomSeatingScalesWithRoomArea) {
         << "seating must scale with the tables";
     EXPECT_GT(countOf(grand, "tavern_table"), countOf(tiny, "tavern_table"))
         << "density did not scale with area at all";
+}
+
+// ============================================================================
+// Regen #16 of Ravenmere: "wall_lantern did NOT fit" in twelve rooms - the sconce
+// competed with the chest and barrel for a FLOOR cell and lost, so the room's only
+// light was dropped. A sconce hangs 14 micro up (mountedMicroY); it must hang ABOVE
+// a low piece against that wall and only yield to a piece tall enough to reach it.
+// RED before the fix: aware.size()==1 (barrel only) in the low case.
+// ============================================================================
+TEST(FurniturePlacerTest, WallLanternHangsAboveLowFurnitureButNotOverTallFurniture) {
+    const auto s = story(R"json({"height":3,"rooms":[{"id":"r","rect":[0,0,4,4],"purpose":"service"}]})json");
+    Footprint lowBarrel; lowBarrel.width = 4; lowBarrel.depth = 4; lowBarrel.microH = 8;    // ~0.9 m
+    Footprint tallBarrel = lowBarrel; tallBarrel.microH = 20;                                // 2.2 m rack
+    Footprint chest; chest.width = 4; chest.depth = 4; chest.microH = 6;
+
+    const auto low = FurniturePlacer::furnish(s, {0, 0, 0}, 10, {{"barrel", lowBarrel}, {"chest", chest}});
+    ASSERT_TRUE(find(low, "barrel") != nullptr);
+    ASSERT_TRUE(find(low, "wall_lantern") != nullptr) << "the sconce hangs above the low barrel";
+    EXPECT_EQ(find(low, "chest"), nullptr) << "the chest still has no floor cell";
+    // The sconce is on a WALL cell of the room (it backs onto a wall), not floating mid-room.
+    const auto* l = find(low, "wall_lantern");
+    EXPECT_TRUE(l->backDir != glm::ivec3(0)) << "a sconce needs a wall";
+
+    const auto tall = FurniturePlacer::furnish(s, {0, 0, 0}, 10, {{"barrel", tallBarrel}, {"chest", chest}});
+    EXPECT_EQ(find(tall, "wall_lantern"), nullptr) << "a 2.2 m rack reaches the mount height";
+
+    // Unknown height (microH 0) stays conservative: treated as tall.
+    Footprint unknown; unknown.width = 4; unknown.depth = 4;
+    const auto unk = FurniturePlacer::furnish(s, {0, 0, 0}, 10, {{"barrel", unknown}, {"chest", chest}});
+    EXPECT_EQ(find(unk, "wall_lantern"), nullptr);
+}
+
+// The designer's trigger region (a cellar hatch) is a KEEP-CLEAR box: on its own
+// storey it reserves the cells it covers; on another storey it reserves nothing.
+TEST(FurniturePlacerTest, KeepClearBoxReservesItsCellsOnItsOwnStoreyOnly) {
+    std::vector<KeepClearBox> boxes = {{{-27, 16, 9}, {-26, 21, 10}, "to_cellar"}};
+    const glm::ivec3 origin{-28, 0, -5};
+    const auto ground = FurniturePlacer::keepClearRects(boxes, origin, 17, 4);
+    ASSERT_EQ(ground.size(), 1u);
+    EXPECT_EQ(ground[0].x, 1); EXPECT_EQ(ground[0].z, 14);
+    EXPECT_EQ(ground[0].w, 2); EXPECT_EQ(ground[0].d, 2);
+    // The region spans y 16..21, so the first floor (y 21..25) still meets it; the
+    // second floor (y 25..) does not.
+    EXPECT_EQ(FurniturePlacer::keepClearRects(boxes, origin, 21, 4).size(), 1u);
+    EXPECT_EQ(FurniturePlacer::keepClearRects(boxes, origin, 25, 4).size(), 0u);
+
+    // And the furnisher honours it: a 1x1 keep-clear in a 4x4 service room leaves that
+    // cell empty of floor pieces.
+    const auto s = story(R"json({"height":3,"rooms":[{"id":"r","rect":[0,0,4,4],"purpose":"service"}]})json");
+    const std::vector<Rect> reserved = {Rect{0, 3, 1, 1}};
+    const auto out = FurniturePlacer::furnish(s, {0, 0, 0}, 10, {{"barrel", {1, 1}}, {"chest", {1, 1}}},
+                                              nullptr, 0, "", reserved);
+    for (const auto& f : out)
+        EXPECT_FALSE(f.worldPos.x == 0 && f.worldPos.z == 3) << f.type << " sits on the keep-clear cell";
 }

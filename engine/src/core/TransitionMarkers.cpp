@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 
 namespace Phyxel {
 namespace Core {
@@ -48,6 +49,39 @@ std::vector<TransitionMarker> planTransitionMarkers(const nlohmann::json& trigge
                                 static_cast<int>(std::floor(cz)));
         m.interact = when.value("interact", false);
         out.push_back(m);
+    }
+    return out;
+}
+
+}  // namespace Core
+}  // namespace Phyxel
+
+// ---------------------------------------------------------------------------
+// Loader-side idempotence + obstruction reporting (pure over MarkerSiteBox lists).
+// ---------------------------------------------------------------------------
+namespace Phyxel {
+namespace Core {
+
+const MarkerSiteBox* markerAlreadyPlaced(const std::vector<MarkerSiteBox>& placed,
+                                     const TransitionMarker& m) {
+    for (const auto& p : placed) {
+        if (p.templateName != m.templateName) continue;
+        if (std::abs(p.min.x - m.position.x) > 1 || std::abs(p.min.z - m.position.z) > 1) continue;
+        if (p.min.y < m.position.y - 2 || p.min.y > m.position.y + 2) continue;
+        return &p;
+    }
+    return nullptr;
+}
+
+std::vector<std::string> markerObstructions(const std::vector<MarkerSiteBox>& placed,
+                                            const TransitionMarker& m) {
+    std::vector<std::string> out;
+    for (const auto& p : placed) {
+        if (p.templateName == m.templateName) continue;
+        if (m.position.x < p.min.x || m.position.x > p.max.x) continue;
+        if (m.position.z < p.min.z || m.position.z > p.max.z) continue;
+        if (p.max.y < m.position.y - 1 || p.min.y > m.position.y + 2) continue;
+        out.push_back(p.id);
     }
     return out;
 }

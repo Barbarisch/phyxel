@@ -33,6 +33,12 @@ nlohmann::json PlacedObject::toJson() const {
         {"rotation", rotation},
         {"bounding_min", {{"x", boundingMin.x}, {"y", boundingMin.y}, {"z", boundingMin.z}}},
         {"bounding_max", {{"x", boundingMax.x}, {"y", boundingMax.y}, {"z", boundingMax.z}}},
+        // The micro pose MUST persist: without it a loaded fixture cannot be removed at
+        // its own resolution (removal falls back to clearing whole cubes - the wall
+        // behind it) and the loader cannot verify a transition marker's own cells
+        // (regen #17: a buried hatch record read "present" off the floor slab).
+        {"placed_at_micro", placedAtMicro},
+        {"micro_anchor", {{"x", microAnchor.x}, {"y", microAnchor.y}, {"z", microAnchor.z}}},
         {"metadata", metadata}
     };
 }
@@ -66,6 +72,12 @@ PlacedObject PlacedObject::fromJson(const nlohmann::json& j) {
         obj.boundingMax.x = j["bounding_max"].value("x", 0);
         obj.boundingMax.y = j["bounding_max"].value("y", 0);
         obj.boundingMax.z = j["bounding_max"].value("z", 0);
+    }
+    obj.placedAtMicro = j.value("placed_at_micro", false);
+    if (j.contains("micro_anchor")) {
+        obj.microAnchor.x = j["micro_anchor"].value("x", 0);
+        obj.microAnchor.y = j["micro_anchor"].value("y", 0);
+        obj.microAnchor.z = j["micro_anchor"].value("z", 0);
     }
     obj.createdAt = std::chrono::system_clock::now();
     return obj;

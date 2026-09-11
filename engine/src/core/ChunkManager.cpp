@@ -81,46 +81,7 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
     // buffer, so this is the per-chunk counterpart to rebuildAllChunkFaces(). Eviction
     // teardown is automatic (the Chunk destructor unregisters its grid and frees its buffer).
     m_streamingManager.setOnChunkStreamedIn([this](Chunk& chunk) {
-        // Air chunks occlude nothing, collide with nothing and mesh to nothing — skip
-        // finalize entirely. Most streamed chunks at flight altitude ARE pure air (the
-        // load sphere spans ~10 vertical chunk bands, terrain occupies ~2), so this
-        // cuts the remesh flood (and its ~50ms-per-chunk drain frames) by that factor.
-        if (!chunk.hasAnySolidVoxel()) return;
-        if (physicsWorld) {
-            chunk.setPhysicsWorld(physicsWorld);
-            chunk.createChunkPhysicsBody();
-        }
-        // Build the O(1) voxel hash maps so hover/raycast (the Properties panel) resolves
-        // voxels in this chunk. DB-loaded streamed chunks don't get the bulk
-        // initializeAllChunkVoxelMaps() pass, so they'd otherwise be invisible to mouse-over.
-        chunk.initializeVoxelMaps();
-        // Meshing (self + the 26 neighbours whose faces toward this chunk changed) goes
-        // through the budgeted DirtyChunkTracker instead of running synchronously here.
-        // The synchronous form did up to 27 full remeshes (skylight + blocklight BFS each)
-        // PER STREAMED CHUNK per pump = multi-second frame hitches while flying. The
-        // dirty queue dedupes shared neighbours and spreads the same work across frames
-        // (kDirtyChunkBudgetMs); chunks pop in a few frames later instead of stalling the
-        // frame. Physics + voxel maps above stay synchronous (cheap, and collision must
-        // exist the moment the chunk does). markChunkForRemesh, NOT markChunkDirty: only
-        // the render mesh is stale — the DB-dirty flag would make eviction re-save every
-        // touched neighbour to SQLite (mass save stalls). Freshly GENERATED chunks are
-        // already DB-dirty via addCube, so persistence is unaffected.
-        markChunkForRemesh(&chunk);
-        // Only the 6 FACE-adjacent neighbours: cross-chunk culling and border-light
-        // seeding both sample the 6 face directions only, so diagonal/corner neighbours
-        // are unaffected by this chunk's arrival (the old 26-neighbour sweep quadrupled
-        // the remesh queue for nothing). IDLE tier: a neighbour re-cull only removes
-        // now-hidden boundary faces + refreshes border light — cosmetic, never holes —
-        // so it waits for a quiet frame instead of competing with must-have meshes
-        // (each full remesh is ~50ms in Debug; 7 per streamed chunk was the moving-
-        // camera FPS drop).
-        static const glm::ivec3 kFaceDirs[6] = {
-            {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
-        glm::ivec3 cc = Utils::CoordinateUtils::worldToChunkCoord(chunk.getWorldOrigin());
-        for (const glm::ivec3& d : kFaceDirs) {
-            if (Chunk* adj = getChunkAtCoord(cc + d))
-                markChunkForRemeshIdle(adj);
-        }
+        finalizeLoadedChunk(chunk, /*syncMesh=*/false);
     });
 
     // Async worker wiring (generation snapshot + main-thread finalize). Wired
@@ -410,6 +371,31 @@ void ChunkManager::createChunks(const std::vector<glm::ivec3>& origins) {
 }
 
 void ChunkManager::createChunk(const glm::ivec3& origin, bool populate) {
+    // NEVER shadow a SAVED chunk with an empty one. Every "get or create" caller
+    // (template spawn/erase, the definition loader, voxel placement) reaches here
+    // when a chunk is not in memory - and on a DB-backed world "not in memory" often
+    // means "not loaded YET". Creating an empty chunk over a saved one and saving
+    // later erased the Ravenmere tavern chunk (1.88 MB -> 775 bytes, regen #19: a
+    // marker erase ran before the town's chunks had loaded). If storage holds this
+    // chunk, load it instead.
+    const glm::ivec3 cc = Utils::CoordinateUtils::worldToChunkCoord(origin);
+    if (!getChunkAtCoord(cc)) {
+        WorldStorage* ws = getWorldStorage();
+        if (ws && ws->chunkExists(cc)) {
+            if (m_streamingManager.loadChunk(cc)) {
+                // In bulk-load mode the streaming manager defers faces + collision to a pass
+                // that a get-or-create caller never runs: finish the chunk here.
+                if (!m_streamingManager.perChunkPhysics())
+                    if (Chunk* c = getChunkAtCoord(cc)) finalizeLoadedChunk(*c, /*syncMesh=*/true);
+                LOG_WARN_FMT("ChunkManager", "createChunk(" << origin.x << "," << origin.y << "," << origin.z
+                             << "): chunk is saved in the world DB - LOADED it instead of creating an empty one");
+                return;
+            }
+            LOG_ERROR_FMT("ChunkManager", "createChunk(" << origin.x << "," << origin.y << "," << origin.z
+                          << "): chunk is saved in the world DB but could not be loaded - refusing to shadow it");
+            return;
+        }
+    }
     m_chunkInitializer.createChunk(origin, populate);
 }
 
@@ -1158,6 +1144,61 @@ std::vector<glm::ivec3> ChunkManager::getAffectedNeighborPositions(const glm::iv
 
 void ChunkManager::updateFacesAtPosition(const glm::ivec3& worldPos) {
     m_faceUpdateCoordinator.updateFacesAtPosition(worldPos);
+}
+
+
+void ChunkManager::finalizeLoadedChunk(Chunk& chunk, bool syncMesh) {
+    // Air chunks occlude nothing, collide with nothing and mesh to nothing — skip
+    // finalize entirely. Most streamed chunks at flight altitude ARE pure air (the
+    // load sphere spans ~10 vertical chunk bands, terrain occupies ~2), so this
+    // cuts the remesh flood (and its ~50ms-per-chunk drain frames) by that factor.
+    if (!chunk.hasAnySolidVoxel()) return;
+    // Static collision: a DB-loaded chunk has NO physics world (Chunk ctor), so
+    // forcePhysicsRebuild alone registers nothing - the farm's NPCs fell to y -910
+    // after a "faces + physics built" load (editor, 2026-09-11).
+    if (physicsWorld) {
+        chunk.setPhysicsWorld(physicsWorld);
+        chunk.createChunkPhysicsBody();
+    }
+    if (syncMesh) {
+        // Load-path finalize: also build the chunk's own occupancy grid the way the
+        // generation path does (forcePhysicsRebuild) - headless tools and tests read it
+        // even when no physics world is attached.
+        chunk.forcePhysicsRebuild();
+        chunk.rebuildFaces();
+        chunk.updateVulkanBuffer();
+    }
+    // Build the O(1) voxel hash maps so hover/raycast (the Properties panel) resolves
+    // voxels in this chunk. DB-loaded streamed chunks don't get the bulk
+    // initializeAllChunkVoxelMaps() pass, so they'd otherwise be invisible to mouse-over.
+    chunk.initializeVoxelMaps();
+    // Meshing (self + the 26 neighbours whose faces toward this chunk changed) goes
+    // through the budgeted DirtyChunkTracker instead of running synchronously here.
+    // The synchronous form did up to 27 full remeshes (skylight + blocklight BFS each)
+    // PER STREAMED CHUNK per pump = multi-second frame hitches while flying. The
+    // dirty queue dedupes shared neighbours and spreads the same work across frames
+    // (kDirtyChunkBudgetMs); chunks pop in a few frames later instead of stalling the
+    // frame. Physics + voxel maps above stay synchronous (cheap, and collision must
+    // exist the moment the chunk does). markChunkForRemesh, NOT markChunkDirty: only
+    // the render mesh is stale — the DB-dirty flag would make eviction re-save every
+    // touched neighbour to SQLite (mass save stalls). Freshly GENERATED chunks are
+    // already DB-dirty via addCube, so persistence is unaffected.
+    markChunkForRemesh(&chunk);
+    // Only the 6 FACE-adjacent neighbours: cross-chunk culling and border-light
+    // seeding both sample the 6 face directions only, so diagonal/corner neighbours
+    // are unaffected by this chunk's arrival (the old 26-neighbour sweep quadrupled
+    // the remesh queue for nothing). IDLE tier: a neighbour re-cull only removes
+    // now-hidden boundary faces + refreshes border light — cosmetic, never holes —
+    // so it waits for a quiet frame instead of competing with must-have meshes
+    // (each full remesh is ~50ms in Debug; 7 per streamed chunk was the moving-
+    // camera FPS drop).
+    static const glm::ivec3 kFaceDirs[6] = {
+        {1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    glm::ivec3 cc = Utils::CoordinateUtils::worldToChunkCoord(chunk.getWorldOrigin());
+    for (const glm::ivec3& d : kFaceDirs) {
+        if (Chunk* adj = getChunkAtCoord(cc + d))
+            markChunkForRemeshIdle(adj);
+    }
 }
 
 } // namespace Phyxel

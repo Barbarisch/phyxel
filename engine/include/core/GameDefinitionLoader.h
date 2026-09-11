@@ -115,6 +115,8 @@ struct GameDefinitionResult {
 
     // Counts of what was created
     int chunksGenerated = 0;
+    /// The inline world block was ignored because the DB already held its chunks (see the WARN).
+    bool worldGenerationRefused = false;
     int structuresPlaced = 0;
     int npcsSpawned = 0;
     int locationsRegistered = 0;

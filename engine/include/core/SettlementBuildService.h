@@ -40,6 +40,8 @@
 #include <glm/glm.hpp>
 #include <nlohmann/json.hpp>
 
+#include "core/KeepClear.h"   // KeepClearBox
+
 namespace Phyxel {
 class ChunkManager;
 class ObjectTemplateManager;
@@ -82,6 +84,9 @@ public:
         /// interiors get real point lights too (engine/core must not link graphics/).
         std::function<int(const glm::vec3& pos, const glm::vec3& color,
                           float intensity, float radius)> addPointLight;
+        /// Forwarded to every building: designer anchors (transition-trigger regions)
+        /// the furnisher must keep clear - see StructureBuildService::Deps::keepClear.
+        std::vector<KeepClearBox> keepClear;
     };
 
     /// One deferred phase of the build. `label` is the progress name shown to the user.

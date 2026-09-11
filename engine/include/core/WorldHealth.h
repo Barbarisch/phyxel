@@ -23,7 +23,15 @@ struct WorldHealthAnchor {
     glm::vec3   pos{0.0f};   ///< feet position (world); a region's centre for triggers
     bool        reachable = false;
     int         waypoints = 0;
+    /// Trigger anchors only: directions ("+x" "-x" "+z" "-z") in which NO terrain exists
+    /// kExitMarginCubes away - the world ends in a void just past a scene exit (G-88).
+    std::vector<std::string> voidBeyond;
 };
+
+/// A scene exit must have this much generated world past it, in every direction, so the
+/// road does not lead into a black wall of nothing (the visible waystone at Ravenmere's
+/// east exit stood on the last generated column).
+constexpr int kExitMarginCubes = 12;
 
 struct WorldHealthReport {
     glm::vec3 spawn{0.0f};
@@ -33,7 +41,8 @@ struct WorldHealthReport {
     int  total = 0;
     std::vector<WorldHealthAnchor> anchors;
 
-    bool ok() const { return terrainUnderSpawn && graphAvailable && reachable == total; }
+    int  exitsFacingVoid = 0;
+    bool ok() const { return terrainUnderSpawn && graphAvailable && reachable == total && exitsFacingVoid == 0; }
     nlohmann::json toJson() const;
     /// One line: "WorldHealth: reachable N/M, terrain under spawn yes/no" + the failures.
     std::string summary() const;

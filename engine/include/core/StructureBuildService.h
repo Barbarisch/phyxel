@@ -24,6 +24,8 @@
 #include <glm/glm.hpp>
 #include <nlohmann/json.hpp>
 
+#include "core/KeepClear.h"   // KeepClearBox
+
 namespace Phyxel {
 class ChunkManager;
 class ObjectTemplateManager;
@@ -55,6 +57,10 @@ public:
         /// nothing illuminates; the build reports lights_registered = 0 honestly.
         std::function<int(const glm::vec3& pos, const glm::vec3& color,
                           float intensity, float radius)> addPointLight;
+        /// Designer anchors the furnisher must keep clear (KeepClear.h): the scene's
+        /// transition-trigger regions. Regen #16 of Ravenmere parked a barrel on the
+        /// cellar trapdoor cell because the generator never heard of the trigger.
+        std::vector<KeepClearBox> keepClear;
     };
 
     /// Full v2 build from build_structure params (expects footprint/stories/...;

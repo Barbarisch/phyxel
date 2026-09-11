@@ -390,6 +390,8 @@ struct ParityGolden { const char* name; uint64_t canvas; uint64_t plan; };
 // Re-pinned 2026-09-10: door lintels moved from inside the 2-cube opening to the wall
 // above it (Ravenmere G-77: 2.0 m clear per the 2.03 m canon; the controller is 1.87 m).
 // Canvas digests only - furnish plans unchanged.
+// Re-pinned again 2026-09-10: every room recipe now carries a light (G-89: unlit interiors) -
+// furnish-plan digests of the 2-room corpus entries changed, canvases unchanged.
 const ParityGolden kParityGoldens[] = {
     {"1-story 7x9",                  0x3173e24bfea323c2ull, 0x4dfffd48fc537c8aull},
     {"1-story 5x6 small",            0xa984ffab1847dbf9ull, 0x9e7527836b571790ull},
@@ -413,14 +415,14 @@ const ParityGolden kParityGoldens[] = {
     // evidence that the change is confined to straight stairs.
     {"2-story straight",             0x11b5b85c150a3beaull, 0x12d2c002bc737e69ull},
     {"3-story straight",             0xd7034d8d053d6138ull, 0xbfbf2401966de44dull},
-    {"2-room connected",             0x12345b13cda06469ull, 0x1d30249fe57607cfull},
+    {"2-room connected",             0x12345b13cda06469ull, 0x4ca8ccadc297d713ull},
     {"gen 7x9 rooms=3 seed1",        0x422e335f9628e09bull, 0xcc4846c86438d39ull},
     {"gen 7x9 rooms=4 seed2",        0x7f0b6a9257314ce9ull, 0xe19f19f2d2cc913ull},
     {"gen 10x12 rooms=5 seed3",      0xdb663b0842d67772ull, 0xa49d846dafb59f77ull},
     {"gen 9x11 rooms=6 seed4",       0x384128ac2957281ull, 0xc3cb3272c9b1e654ull},
     {"autofill 8x10 (core seam)",    0x6dff0df10c9f0156ull, 0xf5dc4bddbda4d7e9ull},
     {"BAD: 3-story NO stairs",       0xdef19c2c0a1fc150ull, 0x1746b964226f5b5bull},
-    {"BAD: 2-room sealed kitchen",   0xb63f5e6577e61f09ull, 0x339ae45e92acd538ull},
+    {"BAD: 2-room sealed kitchen",   0xb63f5e6577e61f09ull, 0xc1e6c792324c25d4ull},
     {"BAD: gen doors stripped",      0x4ae2c23bc88e837dull, 0xebed8e5178fdd1e6ull},
 };
 

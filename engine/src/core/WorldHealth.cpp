@@ -13,9 +13,11 @@ nlohmann::json WorldHealthReport::toJson() const {
     nlohmann::json a = nlohmann::json::array();
     for (const auto& an : anchors)
         a.push_back({{"id", an.id}, {"kind", an.kind}, {"reachable", an.reachable}, {"waypoints", an.waypoints},
-                     {"position", {{"x", an.pos.x}, {"y", an.pos.y}, {"z", an.pos.z}}}});
+                     {"position", {{"x", an.pos.x}, {"y", an.pos.y}, {"z", an.pos.z}}},
+                     {"void_beyond", an.voidBeyond}});
     return {{"ok", ok()}, {"reachable", reachable}, {"total", total},
             {"terrain_under_spawn", terrainUnderSpawn}, {"graph_available", graphAvailable},
+            {"exits_facing_void", exitsFacingVoid},
             {"spawn", {{"x", spawn.x}, {"y", spawn.y}, {"z", spawn.z}}}, {"anchors", a}};
 }
 
@@ -24,10 +26,16 @@ std::string WorldHealthReport::summary() const {
     os << "WorldHealth: reachable " << reachable << "/" << total
        << ", terrain under spawn " << (terrainUnderSpawn ? "yes" : "NO")
        << ", graph " << (graphAvailable ? "ok" : "MISSING");
-    for (const auto& an : anchors)
+    if (exitsFacingVoid) os << ", " << exitsFacingVoid << " exit(s) facing a void";
+    for (const auto& an : anchors) {
         if (!an.reachable)
             os << "\n  UNREACHABLE " << an.kind << " '" << an.id << "' at (" << an.pos.x << ", " << an.pos.y
                << ", " << an.pos.z << ")";
+        if (!an.voidBeyond.empty()) {
+            os << "\n  VOID beyond exit '" << an.id << "' within " << kExitMarginCubes << " m to";
+            for (const auto& d : an.voidBeyond) os << " " << d;
+        }
+    }
     return os.str();
 }
 
@@ -76,6 +84,23 @@ WorldHealthReport WorldHealth::check(const NavGraph* graph, const HasVoxelFunc& 
             }
         }
         if (an.reachable) ++rep.reachable;
+        // A scene exit with no world past it (G-88): sample the ground column
+        // kExitMarginCubes away in each direction; no voxel within 8 cubes below the
+        // anchor's feet there means the road leads into nothing.
+        if (an.kind == "trigger" && hasVoxel) {
+            static const int dirs[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+            static const char* names[4] = {"+x", "-x", "+z", "-z"};
+            const int ax = static_cast<int>(std::floor(an.pos.x)), az = static_cast<int>(std::floor(an.pos.z));
+            const int ay = static_cast<int>(std::floor(an.pos.y));
+            for (int d = 0; d < 4; ++d) {
+                const int sx = ax + dirs[d][0] * kExitMarginCubes, sz = az + dirs[d][1] * kExitMarginCubes;
+                bool ground = false;
+                for (int y = ay + 2; y >= ay - 8 && !ground; --y)
+                    if (hasVoxel(glm::ivec3(sx, y, sz))) ground = true;
+                if (!ground) an.voidBeyond.push_back(names[d]);
+            }
+            if (!an.voidBeyond.empty()) ++rep.exitsFacingVoid;
+        }
     }
     rep.anchors = std::move(anchors);
     return rep;

@@ -24,6 +24,7 @@
 
 #include "core/AssemblyPlan.h"      // AssemblyPlan (Claims Ledger: furnish from the plan)
 #include "core/BuildingProgram.h"   // ProgStory, ProgRoom, ProgPortal, Rect
+#include "core/KeepClear.h"         // KeepClearBox (designer anchors the furnisher must not bury)
 
 namespace Phyxel { class VoxelTemplate; }
 
@@ -126,7 +127,16 @@ public:
         const AssemblyPlan& plan,
         const std::map<std::string, Footprint>& footprints = {},
         std::vector<UnplacedFixture>* unplaced = nullptr,
-        const std::string& wealthTier = "");
+        const std::string& wealthTier = "",
+        const std::vector<Rect>& extraReserved = {});
+
+    /// Keep-clear boxes -> footprint-local reserved rects for ONE story: a box whose
+    /// cube y-range meets [floorY, floorY + storyHeight) reserves the cells it covers.
+    /// (Ravenmere regen #16: the furnisher parked a barrel on the cellar trapdoor's
+    /// trigger cell; the designer's anchors are an input, not something to bury.)
+    static std::vector<Rect> keepClearRects(const std::vector<KeepClearBox>& boxes,
+                                            const glm::ivec3& origin, int floorY,
+                                            int storyHeight);
 
     /// Plan-derivation helpers (exposed for equivalence tests + other consumers).
     /// Thickness comes from the FIRST wall segment of the given type — the realizer

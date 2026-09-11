@@ -88,6 +88,14 @@ public:
     /// cubes over the bbox instead takes the wall behind the furniture with it.
     bool eraseTemplateMicro(const std::string& name, const glm::ivec3& worldMicro, int rotation = 0);
 
+    /// How many of the micro cells spawnTemplateMicro writes for this pose are occupied
+    /// NOW (`total` = the pose's cell count). A placed-object RECORD can outlive its
+    /// voxels - a transition marker placed before a settlement build was built over
+    /// (Ravenmere regen #17: the record said "present", the storeroom floor had no hatch).
+    /// Returns -1 when the template is unknown / no chunk manager.
+    int countTemplateMicroPresent(const std::string& name, const glm::ivec3& worldMicro,
+                                  int rotation, int* total) const;
+
 private:
     /// Shared rasterization for spawn/erase so the two can never drift apart.
     bool spawnOrEraseMicro(const std::string& name, const glm::ivec3& worldMicro,
