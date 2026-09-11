@@ -261,12 +261,10 @@ TEST(LodCharacterizationTest, GrassAndFoliageDefaultsAreUnchanged) {
     // keeping ~83% on average. Budget recomputed per the standing rule: 55 blades * 24 verts
     // (4 segments) ≈ 23M verts/frame at R=224 — the historically-accepted 22.8M operating point.
     EXPECT_EQ(g.bladesPerVoxel, 55u);
-    // UPDATED 2026-09-03: 1.0 -> 1.5, part of the user-approved wind-look overhaul (the
-    // straight-line campaign, docs/VegetationWindPlan.md): with WindSystem defaults speed 1.0 /
-    // gustiness 0.5, gust cores saturate the 64-degree lean cap so gusts read as patches of
-    // flattened grass. The cap + chord length preservation make this safe by construction.
-    // (History: 0.13 -> 0.50 -> 1.0 -> 1.5.)
-    EXPECT_FLOAT_EQ(g.windStrength, 1.5f);
+    // UPDATED 2026-09-11: 1.5 -> 0.22. The previous default deliberately saturated the
+    // 64-degree cap in gust cores, leaving ordinary grass looking permanently blown over.
+    // Default weather now keeps blades mostly upright with occasional visible sway.
+    EXPECT_FLOAT_EQ(g.windStrength, 0.22f);
     // Pinned 2026-08-21 with the pointy-default + seam-free-meadow change: smooth style is the
     // default again (user call), and the meadow periods must DIVIDE 2048 or the field seams at
     // the hash-domain wrap (GrassMeadowSeamTest owns the continuity proof).
