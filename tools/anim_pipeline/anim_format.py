@@ -115,6 +115,16 @@ class AnimFile:
                 return
         self.header_comments.append(new_line)
 
+    def remove_clip_meta(self, clip_name: str) -> bool:
+        """Remove all metadata header lines belonging to ``clip_name``."""
+        before = len(self.header_comments)
+        self.header_comments = [
+            line for line in self.header_comments
+            if not (_parse_clip_meta_line(line)
+                    and _parse_clip_meta_line(line)[0] == clip_name)
+        ]
+        return len(self.header_comments) != before
+
     # -- clip splicing ----------------------------------------------------
     def set_clip(self, clip: Clip) -> bool:
         """Replace a clip with the same name, or append. Returns True if replaced."""

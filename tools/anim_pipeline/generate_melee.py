@@ -282,6 +282,30 @@ SWORD_CHOP = {                            # overhead cut landing forward-low
     "Hips": (2.0, 2.0, 0.0),
     "HipsOffset": (0.0, -0.09, 0.0),      # deep drop under the chop
 }
+SWORD_LOW_COCK_L = {                      # blade loaded low across the left hip
+    "RightArm": (42.0, 0.0, -28.0),
+    "RightForeArm": (12.0, 0.0, -58.0),
+    "RightHand": (0.0, 0.0, -12.0),
+    "LeftArm": (-4.0, 0.0, 16.0),
+    "Spine": (5.0, 10.0, 0.0),
+    "Spine1": (4.0, 10.0, 0.0),
+    "Spine2": (3.0, 8.0, 0.0),
+    "Head": (1.0, 5.0, 0.0),
+    "Hips": (2.0, 8.0, 0.0),
+    "HipsOffset": (0.0, -0.07, 0.0),
+}
+SWORD_RISING_R = {                        # rising diagonal exits above right shoulder
+    "RightArm": (-24.0, 0.0, -105.0),
+    "RightForeArm": (-8.0, 0.0, -16.0),
+    "RightHand": (0.0, 0.0, 4.0),
+    "LeftArm": (8.0, 0.0, 24.0),
+    "Spine": (-2.0, -9.0, 0.0),
+    "Spine1": (-2.0, -9.0, 0.0),
+    "Spine2": (-1.0, -7.0, 0.0),
+    "Head": (-2.0, -4.0, 0.0),
+    "Hips": (0.0, -8.0, 0.0),
+    "HipsOffset": (0.0, -0.03, 0.0),
+}
 SWORD_HEAVY_COCK = {                      # deeper overhead wind with full body coil
     "RightArm": (-15.0, 0.0, -142.0),
     "RightForeArm": (0.0, 0.0, -38.0),
@@ -307,6 +331,63 @@ SWORD_HEAVY_IMPACT = {                    # committed full-weight chop
     "HipsOffset": (0.0, -0.12, 0.0),      # full commitment: sink into the blow
 }
 
+# --- from-scratch sword prototype -------------------------------------------
+# Unlike the combo poses above, this sequence does not borrow lower-body
+# mocap.  It is designed around the hand silhouette: the elbow stays clear of
+# the ribs, opens through contact, and only folds again during recovery.
+SWORD_PROTO_GUARD = {
+    "RightArm": (-18.0, -8.0, -52.0),     # shoulder open; hand in front-right
+    "RightForeArm": (5.0, 8.0, -26.0),    # relaxed bend instead of tucked elbow
+    "RightHand": (0.0, -8.0, -6.0),
+    "LeftArm": (8.0, 0.0, 30.0),          # off-hand forward as a counterweight
+    "LeftForeArm": (0.0, 0.0, 18.0),
+    "Spine": (1.0, -5.0, 0.0),
+    "Spine1": (1.0, -5.0, 0.0),
+    "Spine2": (1.0, -4.0, 0.0),
+    "Head": (0.0, 3.0, 0.0),              # eyes remain on the target
+    "Hips": (0.0, -4.0, 0.0),
+    "HipsOffset": (-0.02, -0.035, 0.0),
+}
+SWORD_PROTO_LOAD = {
+    "RightArm": (-58.0, -10.0, -28.0),    # elbow wide behind the right shoulder
+    "RightForeArm": (-4.0, 10.0, -32.0),  # blade loaded without collapsing inward
+    "RightHand": (0.0, -10.0, -10.0),
+    "LeftArm": (10.0, 0.0, 38.0),
+    "LeftForeArm": (0.0, 0.0, 12.0),
+    "Spine": (1.0, -11.0, 0.0),
+    "Spine1": (1.0, -12.0, 0.0),
+    "Spine2": (1.0, -10.0, 0.0),
+    "Head": (0.0, 8.0, 0.0),              # counter-rotate to track the target
+    "Hips": (0.0, -10.0, 0.0),
+    "HipsOffset": (-0.055, -0.055, -0.015),
+}
+SWORD_PROTO_CONTACT = {
+    "RightArm": (24.0, 2.0, -78.0),       # long arm through the target plane
+    "RightForeArm": (0.0, -4.0, -8.0),    # near extension, never hard locked
+    "RightHand": (0.0, 5.0, 2.0),
+    "LeftArm": (-8.0, 0.0, 12.0),         # counter-swing opens the chest
+    "LeftForeArm": (0.0, 0.0, 8.0),
+    "Spine": (3.0, 5.0, 0.0),
+    "Spine1": (3.0, 7.0, 0.0),
+    "Spine2": (2.0, 6.0, 0.0),
+    "Head": (1.0, -4.0, 0.0),
+    "Hips": (0.0, 7.0, 0.0),              # hips lead the shoulders through contact
+    "HipsOffset": (0.035, -0.075, 0.025),
+}
+SWORD_PROTO_FOLLOW = {
+    "RightArm": (58.0, 10.0, -54.0),      # hand continues well past the left side
+    "RightForeArm": (4.0, -8.0, -16.0),   # elbow folds only after the blade clears
+    "RightHand": (0.0, 8.0, 8.0),
+    "LeftArm": (-14.0, 0.0, 2.0),
+    "LeftForeArm": (0.0, 0.0, 4.0),
+    "Spine": (4.0, 10.0, 0.0),
+    "Spine1": (4.0, 11.0, 0.0),
+    "Spine2": (3.0, 9.0, 0.0),
+    "Head": (1.0, -7.0, 0.0),
+    "Hips": (0.0, 10.0, 0.0),
+    "HipsOffset": (0.055, -0.065, 0.035),
+}
+
 POSES = {
     "rest": REST,
     "stab_back": STAB_BACK,
@@ -328,8 +409,14 @@ POSES = {
     "sword_backhand_r": SWORD_BACKHAND_R,
     "sword_high_cock": SWORD_HIGH_COCK,
     "sword_chop": SWORD_CHOP,
+    "sword_low_cock_l": SWORD_LOW_COCK_L,
+    "sword_rising_r": SWORD_RISING_R,
     "sword_heavy_cock": SWORD_HEAVY_COCK,
     "sword_heavy_impact": SWORD_HEAVY_IMPACT,
+    "sword_proto_guard": SWORD_PROTO_GUARD,
+    "sword_proto_load": SWORD_PROTO_LOAD,
+    "sword_proto_contact": SWORD_PROTO_CONTACT,
+    "sword_proto_follow": SWORD_PROTO_FOLLOW,
 }
 
 
@@ -395,50 +482,8 @@ CLIPS = [
         (0.45, "rest"),
     ], 0.27, "stab_1h", "block"),
 
-    # ---- sword_1h flagship moveset (combat Phase B) ----
-    # All links start/end at sword_guard; the recovery tail (last ~35%) is the
-    # chain window. Block freezes at the guard pose (blockHold 1.0).
-    # 7th element = legs_from (mocap lower body): real footwork + weight
-    # transfer from the melee mocap clips, time-mapped under the authored arms.
-    ("sword1h_guard", 0.5, [
-        (0.00, "rest"),
-        (0.30, "sword_guard"),
-        (0.50, "sword_guard"),
-    ], 0.30, "slash_1h", "block", ("body_block", 0.7, 0.9)),
-
-    ("sword1h_light1", 1.0, [
-        (0.00, "sword_guard"),
-        (0.18, "sword_cock_r"),
-        (0.36, "sword_slash_l"),  # the cut
-        (0.52, "sword_slash_l"),  # impact hold
-        (1.00, "sword_guard"),    # recovery (chain window lives here)
-    ], 0.40, "slash_1h", "light1", ("melee_attack_horizontal", 0.55, 1.75)),
-
-    ("sword1h_light2", 1.0, [
-        (0.00, "sword_guard"),
-        (0.18, "sword_cock_l"),
-        (0.36, "sword_backhand_r"),
-        (0.52, "sword_backhand_r"),
-        (1.00, "sword_guard"),
-    ], 0.40, "slash_1h", "light2", ("melee_attack_horizontal", 0.9, 1.9)),
-
-    ("sword1h_light3", 1.15, [
-        (0.00, "sword_guard"),
-        (0.24, "sword_high_cock"),
-        (0.44, "sword_chop"),
-        (0.62, "sword_chop"),
-        (1.15, "sword_guard"),
-    ], 0.42, "slash_1h", "light3", ("melee_attack_down", 0.5, 1.85)),
-
-    ("sword1h_heavy", 1.9, [
-        (0.00, "sword_guard"),
-        (0.38, "sword_high_cock"),
-        (0.62, "sword_heavy_cock"),   # the souls tell: a beat at full coil
-        (0.88, "sword_heavy_cock"),
-        (1.05, "sword_heavy_impact"),
-        (1.35, "sword_heavy_impact"),
-        (1.90, "sword_guard"),
-    ], 0.57, "slash_1h", "heavy", ("melee_attack_down", 0.15, 2.1)),
+    # sword1h_* is sourced from real Mixamo motion and maintained by
+    # split_sword_mocap.py.  Do not regenerate those clips from pose deltas.
 ]
 
 # Reused Mixamo mocap clips: tag with family/role + hit frames via clip_meta

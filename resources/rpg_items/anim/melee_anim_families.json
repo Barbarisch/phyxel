@@ -4,8 +4,12 @@
   "_comment_movesets": "attacks = the LIGHT chain (input during a swing's chain window plays the next link; ending without input resets). heavy = committed one-shot. block = guard clip held while blocking, frozen at blockHold fraction. speedClass picks rate + chainWindow from speedClasses. Phase A maps existing clips; authored per-weapon movesets replace these slot by slot.",
   "families": {
     "unarmed":    { "attacks": ["boxing", "elbow_punch", "kick"],                       "heavy": "headbutt",          "block": "body_block",  "blockHold": 0.3, "speedClass": "fast" },
-    "slash_1h":   { "attacks": ["sword1h_light1", "sword1h_light2", "sword1h_light3"],     "heavy": "sword1h_heavy", "block": "sword1h_guard", "blockHold": 1.0, "speedClass": "standard" },
+    "slash_1h":   { "attacks": ["sword1h_light1", "sword1h_light2", "sword1h_light3", "sword1h_light4"], "heavy": "sword1h_heavy", "block": "melee_parry", "blockHold": 0.5, "speedClass": "standard" },
     "stab_1h":    { "attacks": ["melee_stab_1h"],                                      "heavy": "melee_stab_1h",     "block": "melee_parry", "blockHold": 0.5, "speedClass": "fast" },
+    "dagger_1h":  { "attacks": ["dagger1h_light1", "dagger1h_light2", "dagger1h_light3"], "heavy": "dagger1h_light3", "block": "melee_parry", "blockHold": 0.5, "speedClass": "fast" },
+    "blunt_1h":   { "attacks": ["blunt1h_light1", "blunt1h_light2", "blunt1h_light3", "blunt1h_light4"], "heavy": "blunt1h_light4", "block": "melee_parry", "blockHold": 0.5, "speedClass": "standard" },
+    "slash_2h":   { "attacks": ["slash2h_light1", "slash2h_light2", "slash2h_light3", "slash2h_light4", "slash2h_light5"], "heavy": "slash2h_heavy", "block": "slash2h_block2", "blockHold": 0.5, "speedClass": "heavy" },
+    "blunt_2h":   { "attacks": ["blunt2h_light1", "blunt2h_light2", "blunt2h_light3", "blunt2h_light4"], "heavy": "blunt2h_heavy", "block": "body_block", "blockHold": 0.3, "speedClass": "heavy" },
     "two_handed": { "attacks": ["melee_chop_2h", "melee_sweep_2h"],                    "heavy": "melee_sweep_2h",    "block": "body_block",  "blockHold": 0.3, "speedClass": "heavy" },
     "spear":      { "attacks": ["melee_thrust_spear"],                                 "heavy": "melee_sweep_2h",    "block": "melee_parry", "blockHold": 0.5, "speedClass": "standard" },
     "chop_axe":   { "attacks": ["chop_1h"],                                            "heavy": "chop_1h",           "block": "body_block",  "blockHold": 0.3, "speedClass": "heavy" }
@@ -22,14 +26,21 @@
   "rules": [
     { "if": { "hasProperty": "Ammunition" }, "family": "unarmed" },
     { "if": { "hasProperty": "Reach" },      "family": "spear" },
+    { "if": { "hasProperty": "TwoHanded", "damageType": "Slashing" }, "family": "slash_2h" },
+    { "if": { "hasProperty": "TwoHanded", "damageType": "Bludgeoning" }, "family": "blunt_2h" },
     { "if": { "hasProperty": "TwoHanded" },  "family": "two_handed" },
     { "if": { "hasProperty": "Heavy" },      "family": "two_handed" },
     { "if": { "damageType": "Piercing" },    "family": "stab_1h" },
+    { "if": { "damageType": "Bludgeoning" }, "family": "blunt_1h" },
     { "if": {},                              "family": "slash_1h" }
   ],
 
   "_comment_overrides": "spear has no Reach property in 5e (it is Thrown+Versatile) but should clearly use the spear thrust; quarterstaff swings read better as two-handed sweeps. Bows fall back to unarmed until a ranged family exists.",
   "weaponOverrides": {
+    "dagger": "dagger_1h",
+    "greatsword": "slash_2h",
+    "maul": "blunt_2h",
+    "greatclub": "blunt_2h",
     "spear": "spear",
     "quarterstaff": "two_handed"
   },
