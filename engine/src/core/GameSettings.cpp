@@ -218,6 +218,12 @@ std::vector<Keybinding> GameSettings::defaultKeybindings() {
         {"PlaceCube",      GLFW_KEY_C,       0},
         {"Attack",         GLFW_KEY_F,       0},
         {"Interact",       GLFW_KEY_E,       0},
+        // MMO (World of Warcraft) defaults, read by Input::MmoScheme. Q/E strafe there;
+        // hosts running that scheme move Interact off E (GameShell::applyMmoBindings).
+        {"StrafeLeft",     GLFW_KEY_Q,       0},
+        {"StrafeRight",    GLFW_KEY_E,       0},
+        {"ToggleAutorun",  GLFW_KEY_NUM_LOCK, 0},
+        {"ToggleWalk",     GLFW_KEY_KP_DIVIDE, 0},
     };
 }
 
@@ -241,6 +247,9 @@ std::string keyToString(int glfwKey) {
     // Common keys
     switch (glfwKey) {
         case GLFW_KEY_SPACE:         return "Space";
+        case GLFW_KEY_NUM_LOCK:      return "NumLock";
+        case GLFW_KEY_KP_DIVIDE:     return "NumpadDivide";
+        case GLFW_KEY_KP_0:          return "Numpad0";
         case GLFW_KEY_ESCAPE:        return "Escape";
         case GLFW_KEY_ENTER:         return "Enter";
         case GLFW_KEY_TAB:           return "Tab";
@@ -324,6 +333,9 @@ int stringToKey(const std::string& name) {
     if (name == "Comma")      return GLFW_KEY_COMMA;
     if (name == "Period")     return GLFW_KEY_PERIOD;
     if (name == "Slash")      return GLFW_KEY_SLASH;
+    if (name == "NumLock")    return GLFW_KEY_NUM_LOCK;      // WoW autorun
+    if (name == "NumpadDivide" || name == "KP_Divide") return GLFW_KEY_KP_DIVIDE;   // WoW walk toggle
+    if (name == "Numpad0" || name == "KP_0") return GLFW_KEY_KP_0;                  // WoW jump alias
     if (name == "Backslash")  return GLFW_KEY_BACKSLASH;
 
     // Fallback: try "Key###" format

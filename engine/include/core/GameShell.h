@@ -35,6 +35,14 @@ class Inventory;
 // menu renderer wiring, triggers) migrates here over time.
 class GameShell : public GameCallbacks {
 public:
+    /// The control scheme a rig implies when game.json authors only `camera.mode`
+    /// (third_person -> WoW-style "wow", first_person -> "fps", else `fallback`).
+    static std::string defaultSchemeForRig(const std::string& rigName, const std::string& fallback) {
+        if (rigName == "third_person" || rigName == "ThirdPerson" || rigName == "third" ||
+            rigName == "wow" || rigName == "mmo" || rigName == "chase") return "wow";
+        if (rigName == "first_person" || rigName == "FirstPerson" || rigName == "first") return "fps";
+        return fallback;
+    }
     GameplayCameraController& gameplayCamera() { return cameraController_; }
 
 protected:
@@ -65,6 +73,9 @@ protected:
     // Defaults used when the scene's camera block doesn't name one.
     virtual std::string defaultRigName() const { return "first_person"; }
     virtual std::string defaultSchemeName() const { return "fps"; }
+    /// The scheme a rig implies when game.json authors only `camera.mode`: a third-person
+    /// rig gets the WoW-style MMO controls, first person gets fps, else defaultSchemeName().
+    std::string schemeForRig(const std::string& rigName) const { return defaultSchemeForRig(rigName, defaultSchemeName()); }
 
     // Hook to tweak a freshly resolved rig's knobs (distance, fov, eyeHeight,
     // orthoScale, pitch clamps) before it takes effect.
@@ -97,7 +108,7 @@ protected:
     virtual PlayerTurnController* apiPlayerTurn()     { return nullptr; }
     virtual ClickToMove*          apiClickToMove()    { return nullptr; }  // walk_to (G-75)
     /// The host's left click at viewport pixels (pointer_click). Default: not available.
-    virtual nlohmann::json        apiPointerClick(float, float) { return nlohmann::json{{"error", "no pointer click handler"}}; }
+    virtual nlohmann::json        apiPointerClick(float, float, const std::string&) { return nlohmann::json{{"error", "no pointer click handler"}}; }
     virtual CharacterSheet*       apiPlayerSheet()    { return nullptr; }  // progression
     virtual Inventory*            apiInventory()      { return nullptr; }  // loot/persistence
     virtual UI::DialogueSystem*   apiDialogueSystem() { return nullptr; }  // dialogue_state (G-47)
@@ -112,6 +123,10 @@ private:
     float     detachedCamYaw_   = 0.0f;
     float     detachedCamPitch_ = 0.0f;
     GameApiService gameApi_;
+    const Graphics::CameraRig*  configuredRig_ = nullptr;     // last rig given its world hooks
+    const Input::ControlScheme* configuredScheme_ = nullptr;  // last scheme given its bindings
+    /// WoW scheme: Q/E strafe, so Interact leaves E for F; bags on B. Restored otherwise.
+    void applyMmoBindings(Input::InputManager& input, bool mmo);
 };
 
 } // namespace Core

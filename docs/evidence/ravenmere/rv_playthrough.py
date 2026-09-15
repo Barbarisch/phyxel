@@ -307,7 +307,7 @@ def talk(choice_keys, settle=0.7, closing_enters=1, linear_hops=0):
     a digit picks a choice; the final node needs Enter (skip) + Enter (end). Linear nodes
     (nextNodeId) need one extra Enter pair each. Never Escape (pause menu)."""
     unpause()
-    key("E", 0.1); time.sleep(settle)
+    key("F", 0.1); time.sleep(settle)
     for c in choice_keys:
         key("Enter", 0.1); time.sleep(0.4)      # skip typewriter -> ChoiceSelection
         key(c, 0.1); time.sleep(settle)         # pick
@@ -326,7 +326,7 @@ def talk_by_text(*wanted, settle=0.6, max_steps=12):
     choice whose text contains the next wanted fragment, or advance/end when there is none.
     Records what it actually saw so a wrong branch is evidence, not a mystery."""
     unpause()
-    key("E", 0.1); time.sleep(settle)
+    key("F", 0.1); time.sleep(settle)
     seen = []; queue = list(wanted)
     for _ in range(max_steps):
         d = dlg()
@@ -479,7 +479,7 @@ try:
     # inc7: the hatch is a visible trapdoor and interact-gated - stand on it and press E.
     framed_shot("hatch_screenshot", (-24.5, 19.5, 7.5), (-26.5, 17.6, 9.5))
     if screen().get("scene_id") != "cellar":
-        key("E", 0.1); time.sleep(1.5)
+        key("F", 0.1); time.sleep(1.5)
         rec("hatch_interact", {"scene": screen().get("scene_id"), "pos": player_pos()})
     for _ in range(8):
         if screen().get("scene_id") == "cellar": r = "stopped"; break

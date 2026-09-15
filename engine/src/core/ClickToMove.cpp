@@ -1,4 +1,5 @@
 #include "core/ClickToMove.h"
+#include "utils/VoxelRayMarch.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
@@ -144,45 +145,20 @@ bool ClickToMove::pickGround(const Graphics::Camera& cam, glm::vec2 screenPx, gl
     if (len < 1e-6f) return false;
     dir /= len;
 
-    // Amanatides-Woo voxel traversal from p0 along dir.
-    glm::ivec3 cell(static_cast<int>(std::floor(p0.x)), static_cast<int>(std::floor(p0.y)),
-                    static_cast<int>(std::floor(p0.z)));
-    glm::ivec3 step;
-    glm::vec3 tMax, tDelta;
-    for (int i = 0; i < 3; ++i) {
-        if (std::abs(dir[i]) < 1e-9f) { step[i] = 0; tMax[i] = 1e30f; tDelta[i] = 1e30f; continue; }
-        step[i] = dir[i] > 0.0f ? 1 : -1;
-        const float boundary = dir[i] > 0.0f ? static_cast<float>(cell[i] + 1) : static_cast<float>(cell[i]);
-        tMax[i] = (boundary - p0[i]) / dir[i];
-        tDelta[i] = 1.0f / std::abs(dir[i]);
+    const Utils::VoxelRayHit h = Utils::marchVoxels(p0, dir, maxDist, solid);
+    if (!h.hit) return false;
+    const glm::vec3 hit = p0 + dir * h.t;
+    outPoint = hit;
+    // Standing point: on the cube's top. Entering through the top face keeps the
+    // exact hit; a side hit is lifted onto the cube and nudged inside it so the
+    // walk goal is the cell, not its edge.
+    outPoint.y = static_cast<float>(h.cube.y + 1);
+    if (h.enteredAxis == 0 || h.enteredAxis == 2) {
+        outPoint.x = std::clamp(hit.x, h.cube.x + 0.05f, h.cube.x + 0.95f);
+        outPoint.z = std::clamp(hit.z, h.cube.z + 0.05f, h.cube.z + 0.95f);
     }
-    float t = 0.0f;
-    int enteredAxis = -1;
-    for (int iter = 0; iter < 4096 && t <= maxDist; ++iter) {
-        if (solid(cell)) {
-            const glm::vec3 hit = p0 + dir * t;
-            outPoint = hit;
-            // Standing point: on the cube's top. Entering through the top face
-            // keeps the exact hit; a side hit is lifted onto the cube.
-            outPoint.y = static_cast<float>(cell.y + 1);
-            if (enteredAxis == 0 || enteredAxis == 2) {
-                // keep x/z of the hit but nudge inside the cube so the walk goal
-                // is the cell, not its edge
-                outPoint.x = std::clamp(hit.x, cell.x + 0.05f, cell.x + 0.95f);
-                outPoint.z = std::clamp(hit.z, cell.z + 0.05f, cell.z + 0.95f);
-            }
-            if (outCube) *outCube = cell;
-            return true;
-        }
-        int axis = 0;
-        if (tMax.y < tMax.x) axis = (tMax.z < tMax.y) ? 2 : 1;
-        else                 axis = (tMax.z < tMax.x) ? 2 : 0;
-        t = tMax[axis];
-        tMax[axis] += tDelta[axis];
-        cell[axis] += step[axis];
-        enteredAxis = axis;
-    }
-    return false;
+    if (outCube) *outCube = h.cube;
+    return true;
 }
 
 } // namespace Core

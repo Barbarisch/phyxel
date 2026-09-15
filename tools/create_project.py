@@ -144,8 +144,13 @@ def create_project(
     extra_members.append("    bool walkLmbHeld_ = false;              // edge guard for out-of-combat clicks")
     extra_members.append("    bool pointerMode_ = false;              // turn-based ruleset: free cursor, LMB is a pointer click")
     extra_members.append("    Phyxel::Core::ClickToMove::Result lastWalkResult_ = Phyxel::Core::ClickToMove::Result::Idle;")
-    extra_members.append("    nlohmann::json pointerClick(Phyxel::Core::EngineRuntime& engine, const glm::vec2& click);")
-    extra_members.append("    nlohmann::json apiPointerClick(float x, float y) override { return engine_ ? pointerClick(*engine_, {x, y}) : nlohmann::json{{\"error\", \"no engine\"}}; }")
+    extra_members.append("    nlohmann::json pointerClick(Phyxel::Core::EngineRuntime& engine, const glm::vec2& click, bool rightButton);")
+    extra_members.append("    nlohmann::json apiPointerClick(float x, float y, const std::string& button) override { return engine_ ? pointerClick(*engine_, {x, y}, button == \"right\") : nlohmann::json{{\"error\", \"no engine\"}}; }")
+    extra_members.append("    bool clickToMoveEnabled_ = false;       // game.json controls.clickToMove (WoW default: off)")
+    extra_members.append("    bool pointerLmbHeld_ = false, pointerRmbHeld_ = false;   // click-vs-drag tracking")
+    extra_members.append("    glm::vec2 pointerLmbPress_{0.0f}, pointerRmbPress_{0.0f};")
+    extra_members.append("    bool pointerDragging_ = false;          // a held button moved past the click threshold")
+    extra_members.append("    bool interactKeyDown_ = false;          // edge guard for the Interact action")
     extra_members.append("    std::unique_ptr<Phyxel::RaycastVisualizer> raycastVisualizer_;   // world-space line pass (target rings)")
     extra_includes.append('#include "core/GameDefinitionLoader.h"')
     extra_members.append("    Phyxel::Core::GameSubsystems gameSubsystems_;  // persistent: the SceneManager keeps a pointer to it")
@@ -846,7 +851,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             bool shouldCapture = !menuSceneActive_ && !pointerMode_ &&
                                  !Phyxel::UI::isMouseFree(screen_.getState()) && !inDialogue &&
                                  !combatDirector_.inCombat();
-            window->setCursorVisible(!shouldCapture);
+            // Pointer-driven games: the cursor is free, and disappears only while a
+            // mouse-button DRAG turns the view (WoW hides it for the drag and puts it
+            // back where it was — GLFW restores the position on re-enable).
+            window->setCursorVisible(!shouldCapture && !(pointerMode_ && pointerDragging_));
         }}
 
         // ====================================================================
@@ -1528,6 +1536,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 if (gameDef.contains("lose") && gameDef["lose"].is_object())
                     loseAutoGameOver_ = gameDef["lose"].value("auto_game_over", true);
 
+                // "controls": {{"clickToMove": bool}} — WoW leaves click-to-move OFF by default
+                // (left click selects, right click interacts); BG3-style games turn it on.
+                if (gameDef.contains("controls") && gameDef["controls"].is_object()) {{
+                    clickToMoveEnabled_ = gameDef["controls"].value("clickToMove", false);
+                    LOG_INFO("{class_name}", "Controls: clickToMove={{}}", clickToMoveEnabled_ ? "on" : "off");
+                }}
                 // "combat": {{"mode": "turn_based"|"real_time"}} — the per-game
                 // ruleset (mirrors the editor's combat.mode application).
                 if (gameDef.contains("combat") && gameDef["combat"].is_object()) {{
@@ -2120,7 +2134,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     // gating on one left the sim with no zoom at all.
                     if (!consumed) {{
                         if (auto* rig = gameplayCamera().rig())
-                            rig->distance = glm::clamp(rig->distance - wheel * 2.0f, 8.0f, 34.0f);
+                            rig->distance = glm::clamp(rig->distance - wheel * rig->zoomStep,
+                                                       rig->distanceMin, rig->distanceMax);
                     }}
                     wm->resetScrollDelta();
                 }}
@@ -2162,7 +2177,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 dlgKeyDown_[slot] = down;
                 return edge;
             }};
-            const bool eEdge     = dlgEdge(GLFW_KEY_E, 0);
+            // Interact is an ACTION (E by default; F under the WoW scheme, where E strafes).
+            const bool interactDown = input->isActionPressed("Interact");
+            const bool eEdge = interactDown && !interactKeyDown_;
+            interactKeyDown_ = interactDown;
             const bool enterEdge = dlgEdge(GLFW_KEY_ENTER, 1);
 
             // E key: interact with NPC / advance a TREE dialogue.
@@ -2284,7 +2302,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // there is no other binding. The player could only trudge around on
             // WASD. Orbiting the view is useful whenever you are not in a
             // dialogue, so that is the only thing it asks now.
-            if (!inDialogue) {{
+            if (!inDialogue && gameplayCamera().rigName() == combatCameraRig_) {{
                 auto* look = engine.getInputManager();
                 auto* rig  = gameplayCamera().rig();
                 const float dt = engine.getLastDeltaTime();
@@ -2338,15 +2356,29 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (pointerMode_ && !combatDirector_.inCombat() && !inDialogue &&
                 renderCoordinator_ && playerCharacter_ &&
                 Phyxel::UI::isGameRunning(screen_.getState())) {{
+                // WoW mouse: a press-and-release WITHOUT movement is a CLICK (left selects,
+                // right interacts / click-to-move when enabled); a press that moves is a
+                // DRAG that the camera scheme owns (left orbits, right steers).
+                double mx = 0.0, my = 0.0;
+                input->getCurrentMousePosition(mx, my);
+                const glm::vec2 at{{static_cast<float>(mx), static_cast<float>(my)}};
+                const float kClickPx = 5.0f;
                 const bool lmb = input->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
-                if (lmb && !walkLmbHeld_ && !input->isMouseCaptured()) {{
-                    double mx = 0.0, my = 0.0;
-                    input->getCurrentMousePosition(mx, my);
-                    pointerClick(engine, {{static_cast<float>(mx), static_cast<float>(my)}});
-                }}
-                walkLmbHeld_ = lmb;
+                const bool rmb = input->isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT);
+                if (lmb && !pointerLmbHeld_) pointerLmbPress_ = at;
+                if (rmb && !pointerRmbHeld_) pointerRmbPress_ = at;
+                const bool lmbMoved = lmb && glm::length(at - pointerLmbPress_) > kClickPx;
+                const bool rmbMoved = rmb && glm::length(at - pointerRmbPress_) > kClickPx;
+                pointerDragging_ = lmbMoved || rmbMoved;
+                if (!lmb && pointerLmbHeld_ && glm::length(at - pointerLmbPress_) <= kClickPx)
+                    pointerClick(engine, pointerLmbPress_, /*rightButton=*/false);
+                if (!rmb && pointerRmbHeld_ && glm::length(at - pointerRmbPress_) <= kClickPx)
+                    pointerClick(engine, pointerRmbPress_, /*rightButton=*/true);
+                pointerLmbHeld_ = lmb;
+                pointerRmbHeld_ = rmb;
             }} else {{
-                walkLmbHeld_ = false;
+                pointerLmbHeld_ = pointerRmbHeld_ = false;
+                pointerDragging_ = false;
             }}
 
             if (combatDirector_.inCombat() && playerTurn_.isPlayerTurnActive() &&
@@ -2414,9 +2446,9 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         // an NPC under the cursor (walk to it, interact on arrival), else the ground
         // under the cursor (walk there). Shared by the real mouse and the test API's
         // pointer_click, so the L4 exercises the shipped path. Returns what happened.
-        nlohmann::json {class_name}::pointerClick(Phyxel::Core::EngineRuntime& engine, const glm::vec2& click) {{
+        nlohmann::json {class_name}::pointerClick(Phyxel::Core::EngineRuntime& engine, const glm::vec2& click, bool rightButton) {{
             nlohmann::json out;
-            out["x"] = click.x; out["y"] = click.y;
+            out["x"] = click.x; out["y"] = click.y; out["button"] = rightButton ? "right" : "left";
             auto* cam = engine.getCamera();
             if (!renderCoordinator_ || !playerCharacter_ || !cam) {{ out["result"] = "no_scene"; return out; }}
             if (combatDirector_.inCombat()) {{ out["result"] = "in_combat"; return out; }}
@@ -2441,7 +2473,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     if (d < best) {{ best = d; hitNpc = &npc; }}
                 }});
             }}
+            if (hitNpc && !rightButton) {{
+                // WoW: a left click on a character SELECTS it (no walking).
+                LOG_INFO("ClickToMove", "click -> select NPC '{{}}'", hitNpc->getName());
+                out["result"] = "selected"; out["npc"] = hitNpc->getName();
+                return out;
+            }}
             if (hitNpc) {{
+                // WoW: a right click on a character INTERACTS (walk into range, then talk).
                 const glm::vec3 npcPos = hitNpc->getPosition();
                 const float standoff = std::max(0.8f, hitNpc->getInteractionRadius() * 0.8f);
                 const bool ok = clickToMove_.requestWalkTo(npcPos, standoff, [this]() {{
@@ -2459,7 +2498,9 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 out["goal"] = {{{{"x", npcPos.x}}, {{"y", npcPos.y}}, {{"z", npcPos.z}}}};
                 return out;
             }}
-            // 2) the ground: first solid cube under the cursor, stand on its top
+            // 2) the ground: click-to-move only when the game enables it (WoW: off; a
+            //    right click on the ground does nothing).
+            if (rightButton || !clickToMoveEnabled_) {{ out["result"] = rightButton ? "none" : "click_to_move_off"; return out; }}
             auto* cm = engine.getChunkManager();
             glm::vec3 point;
             const bool hit = cm && Phyxel::Core::ClickToMove::pickGround(

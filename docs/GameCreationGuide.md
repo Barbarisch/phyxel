@@ -227,9 +227,18 @@ After your world, NPCs, and story are in place, layer on gameplay systems:
   **orthographic** rigs that follow the player (overhead = straight-down map
   view; isometric = classic fixed ~35° 3/4 view).
 - `"controlScheme"` picks how input drives the character:
-  `"fps"` (mouse-look turns the view, W/S walk where you look, A/D strafe —
-  default) | `"tank"` (A/D turn the body, W/S forward/back, RMB orbits the
-  camera).
+  `"wow"` (World of Warcraft: A/D turn, Q/E strafe, left-drag orbits the camera,
+  right-drag steers the body, both buttons run, NumLock autorun, Numpad-/ walk,
+  wheel zoom with wall collision; the cursor stays free and the left button never
+  swings — **the default for `third_person` since 2026-09-15**) | `"fps"`
+  (mouse-look turns the view, W/S walk where you look, A/D strafe — the default
+  for `first_person`) | `"tank"` (A/D turn the body, W/S forward/back, RMB
+  orbits the camera — the editor's classic feel). `"mode": "chase"` is the plain
+  third-person orbit without collision. Under `"wow"` the keyboard Interact moves
+  from E (now strafe-right) to **F** and the inventory to **B**; a right click on
+  an NPC walks to it and talks, a left click selects it.
+- A top-level `"controls": {"clickToMove": true}` makes a left click on the ground
+  walk there along the NPCs' NavGraph (BG3-style). Off by default, as in WoW.
   ```json
   "camera": { "position": {"x":2,"y":24,"z":-6}, "yaw": 90, "pitch": -25,
               "mode": "first_person", "controlScheme": "fps" }
@@ -237,7 +246,8 @@ After your world, NPCs, and story are in place, layer on gameplay systems:
 - Works per scene in multi-scene games (each scene's `definition.camera`) — the
   engine-side `GameShell` re-resolves the rig/scheme on every scene transition,
   so e.g. level1 can be first-person and level2 isometric. Defaults when
-  unauthored: first-person + fps.
+  unauthored: first-person + fps; a `third_person` mode with no `controlScheme`
+  gets `wow`.
 - `set_camera` (MCP/HTTP) accepts the same `mode` values plus `control_scheme`
   for live switching during a dev session; the editor's Camera panel has Rig and
   Scheme combos for the same thing.

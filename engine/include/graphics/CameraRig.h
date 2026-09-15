@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Camera.h"
+#include "utils/VoxelRayMarch.h"
+#include <functional>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <memory>
@@ -42,6 +44,10 @@ public:
     float orthoScale    = 20.0f;   // ortho rigs (half-height in world units)
     float pitchClampMin = -89.0f;
     float pitchClampMax = 89.0f;
+    // Wheel zoom range + step (the host applies the wheel: distance -= wheel * zoomStep).
+    float distanceMin   = 1.0f;
+    float distanceMax   = 30.0f;
+    float zoomStep      = 1.0f;
 };
 
 // Eye at the target + eyeHeight, looking along yaw/pitch.
@@ -107,6 +113,53 @@ public:
     }
 };
 
+// World of Warcraft-style third-person camera (the `third_person` default since
+// 2026-09-15; the plain orbit above stays reachable as "chase"):
+//   * orbits `distance` behind the track point (a wheel zooms it between distanceMin
+//     and distanceMax; WoW: 15 yd x cameraDistanceMaxZoomFactor 1.9 = 28.5 yd max)
+//   * zooming all the way in becomes FIRST PERSON (WoW does the same)
+//   * WALL COLLISION: the boom is shortened to the first solid cube between the
+//     track point and the camera (minus a padding) so the camera never sits inside
+//     a wall; the host supplies `solidAt` from the chunk world
+//   * pitch is clamped to a playable band (no straight-up / straight-down)
+class MmoRig : public ThirdPersonRig {
+public:
+    static constexpr float kFirstPersonBelow = 1.0f;   // distance at/under this = eye view
+    MmoRig() {
+        distance      = 8.0f;
+        distanceMin   = 0.0f;
+        distanceMax   = 24.0f;
+        zoomStep      = 1.0f;
+        eyeHeight     = 1.4f;    // track the upper torso (GameShell overrides per character)
+        pitchClampMin = -85.0f;
+        pitchClampMax = 45.0f;
+    }
+    /// World occupancy for camera collision (a cube is solid?). Null = no collision.
+    std::function<bool(const glm::ivec3&)> solidAt;
+    float collisionPadding = 0.35f;
+
+    /// Boom length actually clear of geometry from `from` looking back along `dir`
+    /// (unit), at most `wanted`. Pure; exposed for tests.
+    float clearBoom(const glm::vec3& from, const glm::vec3& dir, float wanted) const {
+        if (!solidAt || wanted <= 0.0f) return wanted;
+        const Utils::VoxelRayHit h = Utils::marchVoxels(from, dir, wanted, solidAt);
+        if (!h.hit) return wanted;
+        return std::max(0.0f, h.t - collisionPadding);
+    }
+
+    void update(Camera& cam, const glm::vec3& target,
+                float yaw, float pitch, float /*dt*/) override {
+        cam.setProjectionMode(ProjectionMode::Perspective);
+        cam.setYaw(yaw);
+        cam.setPitch(pitch);
+        const glm::vec3 center = target + glm::vec3(0.0f, eyeHeight, 0.0f);
+        if (distance <= kFirstPersonBelow) { cam.setPosition(center); return; }
+        const glm::vec3 back = -cam.getFront();
+        const float boom = clearBoom(center, back, distance);
+        cam.setPosition(center + back * boom);
+    }
+};
+
 // BG3-style TACTICAL camera: a close, angled, PERSPECTIVE over-the-battle view.
 //
 // Why not OverheadRig: straight-down orthographic (pitch -89, no perspective)
@@ -127,6 +180,9 @@ public:
         fov           = 50.0f;   // a touch wide for surrounding context
         pitchClampMin = -68.0f;  // steepest: near-overhead but still angled
         pitchClampMax = -32.0f;  // shallowest: still looking down on the field
+        distanceMin   = 8.0f;    // wheel zoom band (was hard-coded in the shell)
+        distanceMax   = 34.0f;
+        zoomStep      = 2.0f;
     }
 
     /// FRAME THE ACTION, not just the player. The host sets this each frame to
@@ -178,8 +234,11 @@ public:
 inline std::unique_ptr<CameraRig> makeCameraRig(const std::string& name) {
     if (name == "first_person" || name == "FirstPerson" || name == "first")
         return std::make_unique<FirstPersonRig>();
-    if (name == "third_person" || name == "ThirdPerson" || name == "third")
-        return std::make_unique<ThirdPersonRig>();
+    if (name == "third_person" || name == "ThirdPerson" || name == "third" ||
+        name == "wow" || name == "mmo")
+        return std::make_unique<MmoRig>();          // WoW-style is the third-person default
+    if (name == "chase" || name == "Chase")
+        return std::make_unique<ThirdPersonRig>();  // the plain orbit, no collision
     if (name == "overhead" || name == "Overhead" || name == "top_down")
         return std::make_unique<OverheadRig>();
     if (name == "isometric" || name == "Isometric" || name == "iso")

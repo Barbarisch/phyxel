@@ -114,12 +114,17 @@ bool InputManager::mouseHeld(int button) const {
 }
 
 void InputManager::tickInjection(float deltaTime) {
+    // A fresh injection is aged from its SECOND tick: the frame it arrives in must be
+    // able to observe it (processInput ages before the samplers run; at a low frame
+    // rate a short tap would otherwise expire unseen).
     for (auto it = injectedKeys_.begin(); it != injectedKeys_.end();) {
+        if (freshKeys_.erase(it->first)) { ++it; continue; }
         it->second -= deltaTime;
         if (it->second <= 0.0f) it = injectedKeys_.erase(it);
         else ++it;
     }
     for (auto it = injectedButtons_.begin(); it != injectedButtons_.end();) {
+        if (freshButtons_.erase(it->first)) { ++it; continue; }
         it->second -= deltaTime;
         if (it->second <= 0.0f) it = injectedButtons_.erase(it);
         else ++it;
@@ -132,12 +137,14 @@ void InputManager::injectKey(int glfwKey, float holdSeconds) {
                                                   // triggered actions + one movement
                                                   // step reliably register.
     injectedKeys_[glfwKey] = holdSeconds;
+    freshKeys_.insert(glfwKey);
     LOG_DEBUG("InputManager", "Injected key {} for {:.2f}s", glfwKey, holdSeconds);
 }
 
 void InputManager::injectMouseButton(int glfwButton, float holdSeconds) {
     if (holdSeconds <= 0.0f) holdSeconds = 0.1f;
     injectedButtons_[glfwButton] = holdSeconds;
+    freshButtons_.insert(glfwButton);
     LOG_DEBUG("InputManager", "Injected mouse button {} for {:.2f}s", glfwButton, holdSeconds);
 }
 

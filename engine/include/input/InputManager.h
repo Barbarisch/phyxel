@@ -4,6 +4,7 @@
 #include <GLFW/glfw3.h>
 #include <functional>
 #include <unordered_map>
+#include <unordered_set>
 #include <string>
 #include <vector>
 
@@ -168,6 +169,10 @@ private:
     // Injected key/button -> seconds remaining. Main-thread only (see injectKey).
     std::unordered_map<int, float> injectedKeys_;
     std::unordered_map<int, float> injectedButtons_;
+    // Injections that have not yet been observable for a whole frame: tickInjection
+    // skips their first aging so a tap shorter than one frame (a 0.1 s NumLock at
+    // 6 FPS = 0.15 s/frame) is still seen by the frame's samplers (2026-09-15).
+    std::unordered_set<int> freshKeys_, freshButtons_;
     
     // Update camera front vector from yaw/pitch
     void updateCameraVectors();

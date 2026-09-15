@@ -25,6 +25,9 @@ struct ControlIntent {
     float pitch = 0.0f;
 
     bool coupleFacingToYaw = false;  // lock body heading to camera yaw (FPS)?
+    // MMO (World of Warcraft) semantics — see MmoScheme:
+    bool steerFacingToYaw = false;   // RIGHT button held: the body turns with the camera
+    bool followWhenMoving = false;   // camera eases back behind the body while it moves/turns
 
     bool sprint = false;
     bool crouch = false;
@@ -45,6 +48,9 @@ public:
     // calls input.setMouseCaptured() accordingly. Editor-style schemes leave it
     // RMB-gated.
     virtual bool wantsAlwaysOnLook() const { return false; }
+    // MMO schemes: a LEFT-button drag orbits the camera too (the controller captures
+    // the mouse while either button is held).
+    virtual bool leftButtonLooks() const { return false; }
 
     float mouseSensitivity = 0.1f;  // reserved (InputManager owns sensitivity today)
 
@@ -126,14 +132,88 @@ public:
     }
 };
 
+// World of Warcraft-style third-person controls (researched 2026-09-15 — WoW's
+// default key bindings + camera: warcraft.wiki.gg "Key Bindings", Blizzard "Basic
+// Movement and Combat", frostshock.github.io hotkey table, CVar cameraSmoothStyle):
+//   W/S (or Up/Down)   run forward / back      Q / E          strafe
+//   A/D (or Left/Right) TURN the body; with the RIGHT button held they STRAFE
+//   Space              jump                    NumLock        autorun (any W/S cancels)
+//   Numpad /           walk <-> run toggle
+//   LEFT drag          orbit the camera, the body keeps its heading
+//   RIGHT drag         turn the body WITH the camera ("steer")
+//   both buttons       run forward
+//   wheel              zoom (host: rig distance); a full zoom-in is first person
+// The left button is never an attack in this scheme — it selects/clicks. Camera
+// follow (CVar cameraSmoothStyle 4, "adjust camera only when moving"): the camera
+// eases back behind the body while it moves or turns unless a button is held.
+class MmoScheme : public ControlScheme {
+public:
+    static constexpr float kRun  = 1.0f;    // full forward = run (AnimatedVoxelCharacter: |fwd| > 0.6)
+    static constexpr float kWalk = 0.45f;   // walk band: 0.1 < |fwd| < 0.6
+
+    ControlIntent sample(InputManager& input, float /*dt*/) override {
+        ControlIntent in;
+        const bool lmb = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
+        const bool rmb = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT);
+        const bool fwd  = input.isActionPressed("MoveForward");
+        const bool back = input.isActionPressed("MoveBackward");
+
+        // NumLock toggles autorun; any manual forward/back input cancels it (WoW).
+        const bool autoKey = input.isActionPressed("ToggleAutorun");
+        if (autoKey && !autoHeld_) autorun_ = !autorun_;
+        autoHeld_ = autoKey;
+        if (fwd || back) autorun_ = false;
+        // Numpad / toggles walk <-> run.
+        const bool walkKey = input.isActionPressed("ToggleWalk");
+        if (walkKey && !walkHeld_) walking_ = !walking_;
+        walkHeld_ = walkKey;
+        const float mag = walking_ ? kWalk : kRun;
+
+        if (fwd || autorun_ || (lmb && rmb)) in.forward -= mag;   // negative = forward
+        if (back) in.forward += mag;
+
+        const bool left  = input.isActionPressed("MoveLeft");
+        const bool right = input.isActionPressed("MoveRight");
+        if (rmb) { if (left) in.strafe -= mag; if (right) in.strafe += mag; }   // steering: A/D strafe
+        else     { if (left) in.turn -= 1.0f;  if (right) in.turn += 1.0f; }    // A/D turn the body
+        if (input.isActionPressed("StrafeLeft"))  in.strafe -= mag;
+        if (input.isActionPressed("StrafeRight")) in.strafe += mag;
+
+        in.jump   = input.isActionPressed("Jump");
+        in.crouch = input.isActionPressed("Crouch");
+        in.sprint = false;                 // WoW has no sprint; run is the default gait
+        in.attack = in.heavy = false;      // the left button is a pointer / the camera
+        in.block  = false;
+        in.dodge  = false;
+        in.yaw    = input.getYaw();
+        in.pitch  = input.getPitch();
+        in.coupleFacingToYaw = false;
+        in.steerFacingToYaw  = rmb;
+        in.followWhenMoving  = !rmb && !lmb;
+        return in;
+    }
+    bool leftButtonLooks() const override { return true; }
+
+    bool autorun() const { return autorun_; }
+    bool walking() const { return walking_; }
+
+private:
+    bool autorun_ = false, autoHeld_ = false;
+    bool walking_ = false, walkHeld_ = false;
+};
+
 // Name -> scheme factory for data-driven selection (game.json
 // camera.controlScheme, the set_camera MCP tool, the editor panel). Returns
 // nullptr for an unknown name so callers can fall back to a default.
 inline std::unique_ptr<ControlScheme> makeControlScheme(const std::string& name) {
     if (name == "fps" || name == "FPS" || name == "first_person")
         return std::make_unique<FpsScheme>();
-    if (name == "tank" || name == "Tank" || name == "third_person")
+    if (name == "tank" || name == "Tank")
         return std::make_unique<TankScheme>();
+    // "third_person" defaults to the MMO scheme (user direction 2026-09-15: third-person
+    // camera + controls mimic World of Warcraft); "tank" keeps the editor's classic feel.
+    if (name == "wow" || name == "mmo" || name == "WoW" || name == "third_person")
+        return std::make_unique<MmoScheme>();
     return nullptr;
 }
 

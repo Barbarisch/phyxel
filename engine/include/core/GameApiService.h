@@ -91,7 +91,7 @@ public:
     ClickToMove*          clickToMove = nullptr;
     /// The host's pointer click at viewport pixels (the same code a real left click
     /// runs: HUD first, then NPC / ground) - pointer_click {x,y}. Returns what it did.
-    std::function<nlohmann::json(float, float)> pointerClickProvider;
+    std::function<nlohmann::json(float, float, const std::string&)> pointerClickProvider;   // x, y, "left"|"right"
     CharacterSheet*       playerSheet = nullptr;   // progression: /api/rpg/sheet command
     Inventory*            inventory = nullptr;     // loot: /api/rpg/inventory command
     std::string projectName;  // reported by project_info (identifies the running game)

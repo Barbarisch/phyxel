@@ -80,8 +80,14 @@ public:
         // edge, so re-capturing after combat does not integrate the cursor-park
         // jump. Pinned by GameplayCameraControllerTest.
         if (scheme_->wantsAlwaysOnLook()) input.setMouseCaptured(driveCharacter);
+        // MMO schemes: EITHER mouse button held = a look drag (left orbits, right
+        // steers). Symmetric with driving for the same reason as above.
+        else if (scheme_->leftButtonLooks())
+            input.setMouseCaptured(driveCharacter &&
+                                   (input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT) ||
+                                    input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT)));
 
-        const Input::ControlIntent in = scheme_->sample(input, dt);
+        Input::ControlIntent in = scheme_->sample(input, dt);
 
         if (character && driveCharacter) {
             if (in.coupleFacingToYaw && !character->isDodging()) {
@@ -108,6 +114,12 @@ public:
                 } else {
                     character->setControlInput(0.0f, 0.0f, 0.0f);
                 }
+            } else if (in.steerFacingToYaw) {
+                // WoW right-button steer: the body faces the camera every frame;
+                // A/D are strafes now (the scheme already remapped them).
+                if (!character->isDodging())
+                    character->setFacingYaw(glm::radians(90.0f - in.yaw));
+                character->setControlInput(in.forward, 0.0f, in.strafe);
             } else {
                 character->setControlInput(in.forward, in.turn, in.strafe);
             }
@@ -171,10 +183,36 @@ public:
         // motion must keep running while the tactical camera merely observes.
         if (character && advanceCharacter) character->update(dt);
 
+        // CAMERA FOLLOW (WoW cameraSmoothStyle 4, "adjust camera only when moving"):
+        // while the body moves or turns and no button holds the view, ease the
+        // camera yaw back behind the body. Turning with A/D is effectively rigid
+        // (the camera turns with the character); walking after a left-drag orbit
+        // swings it back at a gentler rate.
+        if (character && driveCharacter && in.followWhenMoving) {
+            const bool turning = std::abs(in.turn) > 0.05f;
+            const bool moving  = std::abs(in.forward) > 0.05f || std::abs(in.strafe) > 0.05f;
+            if (turning || moving) {
+                const float behind = 90.0f - glm::degrees(character->getYaw());
+                const float rate = turning ? kFollowTurnRate : kFollowMoveRate;
+                in.yaw = easeYawToward(in.yaw, behind, rate * dt);
+                input.setYawPitch(in.yaw, in.pitch);
+            }
+        }
+
         const glm::vec3 target = character ? character->getCameraTrackPosition()
                                            : camera.getPosition();
         const float pitch = std::clamp(in.pitch, rig_->pitchClampMin, rig_->pitchClampMax);
         rig_->update(camera, target, in.yaw, pitch, dt);
+    }
+
+    static constexpr float kFollowTurnRate = 720.0f;   // deg/s while A/D turn the body
+    static constexpr float kFollowMoveRate = 150.0f;   // deg/s while walking after an orbit
+
+    /// Move `yaw` toward `target` (degrees) by at most `maxStep` along the short arc.
+    static float easeYawToward(float yaw, float target, float maxStep) {
+        float d = std::fmod(target - yaw + 540.0f, 360.0f) - 180.0f;   // (-180, 180]
+        if (std::abs(d) <= maxStep) return target;
+        return yaw + (d > 0.0f ? maxStep : -maxStep);
     }
 
 private:

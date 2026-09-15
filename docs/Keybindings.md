@@ -57,6 +57,18 @@
 > Static/dynamic template spawning (previously **T** / **Shift+T**) is not bound to a key in the
 > current input map — use the Template Spawner ImGui panel or the `spawn_template` tool.
 
+## Third-Person Games (WoW-style `wow` scheme — the `third_person` default since 2026-09-15)
+- **W / S** (or **Up / Down**): run forward / back
+- **A / D** (or **Left / Right**): turn the body; **with the right mouse button held they strafe**
+- **Q / E**: strafe left / right
+- **Space**: jump · **NumLock**: autorun toggle (W or S cancels) · **Numpad /**: walk ⇄ run
+- **Left drag**: orbit the camera (the body keeps its heading; the camera swings back behind you when you move)
+- **Right drag**: turn the body with the camera · **Both buttons held**: run forward
+- **Mouse wheel**: zoom (all the way in = first person; the camera pulls in against walls)
+- **Left click on a character**: select · **Right click on a character**: walk over and talk
+- **F**: interact / talk (E is strafe here) · **B**: inventory
+- Left click on the ground walks there only when the game sets `controls.clickToMove` (off by default, as in WoW)
+
 ## Character Control
 - **K**: only one control target exists (`AnimatedCharacter`) — pressing K just re-asserts it;
   it no longer cycles Physics/Spider/Animated (those ragdoll types were removed with Bullet).

@@ -283,7 +283,8 @@ void GameApiService::registerCommands() {
     // (HUD widgets first, then NPC / ground click-to-move). The L4 for click-to-move.
     reg.on("pointer_click", [this](const APICommand& cmd, json& r) {
         if (!pointerClickProvider) { r = {{"error", "no pointer click provider"}}; return; }
-        r = pointerClickProvider(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f));
+        r = pointerClickProvider(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f),
+                                 cmd.params.value("button", std::string("left")));
         if (!r.contains("success")) r["success"] = true;
     });
     reg.on("walk_status", [this](const APICommand&, json& r) {

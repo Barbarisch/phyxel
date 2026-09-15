@@ -126,6 +126,29 @@ Shipped defaults:
 | `FpsScheme` | mouse → yaw/pitch (always-on look), W/S forward (neg=fwd), A/D strafe, `coupleFacingToYaw=true`. *(This is exactly the loop originally hand-coded into the standalone scaffold's shell — now defined once, correctly.)* |
 | `TankScheme` | A/D → `turn`, W/S forward, mouse orbits only while RMB held. The editor's classic feel. |
 
+**`MmoScheme` (`"wow"`, 2026-09-15 — the `third_person` default).** World of Warcraft's
+defaults, researched from the Warcraft Wiki key-binding table, Blizzard's "Basic Movement
+and Combat" and the `cameraSmoothStyle` CVar: W/S run, A/D **turn** the body (strafe
+while the right button is held), Q/E strafe, Space jump, NumLock autorun (any W/S
+cancels), Numpad-/ walk toggle; **left drag orbits** the camera (body keeps its
+heading), **right drag steers** (body faces the camera every frame), **both buttons
+run forward**; the left button is never a swing. `ControlIntent` gained
+`steerFacingToYaw` / `followWhenMoving` for it, and `GameplayCameraController`
+captures the mouse while either button is held, steers on the right button, and —
+camera follow, WoW style 4 "adjust only when moving" — eases the InputManager yaw
+back behind the body while it moves (150 deg/s) or turns with A/D (720 deg/s,
+effectively rigid) unless a button holds the view. `GameShell::applyMmoBindings`
+moves Interact to F and the inventory to B for this scheme. Pinned by
+`tests/core/MmoControlsTest.cpp`.
+
+**`MmoRig` (`third_person`; the old plain orbit is `"chase"`).** Boom 8 m behind the
+track point, wheel zoom 0–24 m in 1 m steps (`distanceMin/Max/zoomStep` are rig
+knobs now; the tactical rig keeps 8–34 by 2), a full zoom-in becomes first person
+(WoW does the same), pitch clamped to [-85, 45], and **wall collision**: the boom is
+shortened to the first solid cube between the track point and the camera
+(`solidAt`, wired by `GameShell` from the chunk world on every rig swap) minus a
+0.35 m padding, so the camera never sits inside a wall.
+
 > **Not yet implemented:** `TopDownScheme` (WASD along world/screen axes, mouse aims, pairs with
 > overhead/iso rigs) is described below as part of the design but does not exist in code —
 > `engine/include/input/ControlScheme.h`'s `makeControlScheme()` factory only recognizes
