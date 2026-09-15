@@ -449,15 +449,18 @@ PlayerTurnController::PickResult PlayerTurnController::resolvePick(
     const glm::mat4 inv = glm::inverse(vp);
     const glm::vec2 ndcXY(screenPx.x / viewportPx.x * 2.0f - 1.0f,
                           -(screenPx.y / viewportPx.y * 2.0f - 1.0f));
-    const glm::vec4 a = inv * glm::vec4(ndcXY, 0.0f, 1.0f);
-    const glm::vec4 b = inv * glm::vec4(ndcXY, 1.0f, 1.0f);
-    if (std::abs(a.w) < 1e-6f || std::abs(b.w) < 1e-6f) return r;
+    // Infinite reverse-Z projection (Camera.h): NDC z=1 is the near plane, z=0 is
+    // infinity (w=0) - unproject two FINITE depths and intersect the ray, not a
+    // segment, with the ground plane (2026-09-15, found by ClickToMove's pick test).
+    const glm::vec4 a = inv * glm::vec4(ndcXY, 1.0f, 1.0f);
+    const glm::vec4 b = inv * glm::vec4(ndcXY, 0.5f, 1.0f);
+    if (std::abs(a.w) < 1e-9f || std::abs(b.w) < 1e-9f) return r;
     const glm::vec3 p0 = glm::vec3(a) / a.w;
     const glm::vec3 p1 = glm::vec3(b) / b.w;
     const float dy = p1.y - p0.y;
-    if (std::abs(dy) < 1e-4f) return r;                    // ray parallel to ground
+    if (std::abs(dy) < 1e-6f) return r;                    // ray parallel to ground
     const float t = (groundY - p0.y) / dy;
-    if (t < 0.0f || t > 1.0f) return r;                    // plane outside the segment
+    if (t < 0.0f) return r;                                // ground plane behind the camera
     r.kind  = PickResult::Kind::Move;
     r.point = p0 + (p1 - p0) * t;
     return r;

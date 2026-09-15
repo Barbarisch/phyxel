@@ -23,6 +23,7 @@ class CombatDirector;
 class CombatAISystem;
 class CombatSystem;
 class PlayerTurnController;
+class ClickToMove;
 class CharacterSheet;
 class Inventory;
 
@@ -85,6 +86,12 @@ public:
     /// set_camera command — spectator framing for harnesses and screenshots.
     std::function<void(bool, const glm::vec3&, float, float)> cameraControl;
     PlayerTurnController* playerTurn = nullptr;
+    /// Click-to-move walker (walk_to / walk_status) - the harness's steering
+    /// replacement: the SAME NavGraph walk a mouse click makes (G-75).
+    ClickToMove*          clickToMove = nullptr;
+    /// The host's pointer click at viewport pixels (the same code a real left click
+    /// runs: HUD first, then NPC / ground) - pointer_click {x,y}. Returns what it did.
+    std::function<nlohmann::json(float, float)> pointerClickProvider;
     CharacterSheet*       playerSheet = nullptr;   // progression: /api/rpg/sheet command
     Inventory*            inventory = nullptr;     // loot: /api/rpg/inventory command
     std::string projectName;  // reported by project_info (identifies the running game)

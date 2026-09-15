@@ -47,6 +47,12 @@ public:
     virtual bool wantsAlwaysOnLook() const { return false; }
 
     float mouseSensitivity = 0.1f;  // reserved (InputManager owns sensitivity today)
+
+    // Pointer-driven games (turn-based RPGs, BG3-style): the left button is a
+    // POINTER click - click-to-move, click-to-interact, click-to-target - and never
+    // a light/heavy swing. The host sets this from the game's ruleset
+    // (CombatUiBg3 increment 5, 2026-09-15). Look stays RMB-gated as before.
+    bool pointerClicks = false;
 };
 
 // Classic FPS: mouse turns the view, W/S walk along the look direction, A/D
@@ -68,7 +74,7 @@ public:
         in.crouch = input.isActionPressed("Crouch");
         in.jump   = input.isActionPressed("Jump");
         {
-            const bool lmb   = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
+            const bool lmb   = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT) && !pointerClicks;
             const bool shift = in.sprint;
             in.attack = lmb && !shift;
             in.heavy  = lmb && shift;
@@ -106,7 +112,7 @@ public:
         in.crouch = input.isActionPressed("Crouch");
         in.jump   = input.isActionPressed("Jump");
         {
-            const bool lmb = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
+            const bool lmb = input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT) && !pointerClicks;
             in.attack = lmb && !sprint;
             in.heavy  = lmb && sprint;
         }

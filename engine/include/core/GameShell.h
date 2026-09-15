@@ -21,6 +21,7 @@ class CombatDirector;
 class CombatAISystem;
 class CombatSystem;
 class PlayerTurnController;
+class ClickToMove;
 class CharacterSheet;
 class Inventory;
 
@@ -94,6 +95,9 @@ protected:
     virtual CombatAISystem*       apiCombatAI()       { return nullptr; }
     virtual CombatSystem*         apiCombatSystem()   { return nullptr; }  // damage funnel
     virtual PlayerTurnController* apiPlayerTurn()     { return nullptr; }
+    virtual ClickToMove*          apiClickToMove()    { return nullptr; }  // walk_to (G-75)
+    /// The host's left click at viewport pixels (pointer_click). Default: not available.
+    virtual nlohmann::json        apiPointerClick(float, float) { return nlohmann::json{{"error", "no pointer click handler"}}; }
     virtual CharacterSheet*       apiPlayerSheet()    { return nullptr; }  // progression
     virtual Inventory*            apiInventory()      { return nullptr; }  // loot/persistence
     virtual UI::DialogueSystem*   apiDialogueSystem() { return nullptr; }  // dialogue_state (G-47)

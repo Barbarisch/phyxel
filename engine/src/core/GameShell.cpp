@@ -34,6 +34,8 @@ void GameShell::startTestApi(EngineRuntime& engine, int port, const std::string&
         setDetachedCamera(detach, p, yaw, pitch);
     };
     gameApi_.playerTurn       = apiPlayerTurn();
+    gameApi_.clickToMove      = apiClickToMove();
+    gameApi_.pointerClickProvider = [this](float x, float y) { return apiPointerClick(x, y); };
     gameApi_.playerSheet      = apiPlayerSheet();
     gameApi_.inventory        = apiInventory();
     gameApi_.dialogueSystem   = apiDialogueSystem();

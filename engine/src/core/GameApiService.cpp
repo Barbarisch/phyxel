@@ -14,6 +14,7 @@
 #include "core/CombatDirector.h"
 #include "core/CombatAISystem.h"
 #include "core/PlayerTurnController.h"
+#include "core/ClickToMove.h"
 #include "core/DiceSystem.h"
 #include "core/CharacterSheet.h"
 #include "core/SpellcasterComponent.h"
@@ -265,6 +266,36 @@ void GameApiService::registerCommands() {
     // POST /api/rpg/ui_lint - every child a visible HUD panel would cut off and every
     // pair of visible panels that overlap ({defects:[...], count}). The playtest
     // harness asserts count == 0 on each screen it visits.
+    // POST /api/rpg/walk_to {x,y,z,standoff?} - click-to-move by API: the player walks
+    // the NavGraph route to the point (what a mouse click on the ground does), so a
+    // harness no longer steers with injected keys. Reply = whether a route exists.
+    // POST /api/rpg/walk_status - {active, result, goal, walked, waypoints, next}.
+    reg.on("walk_to", [this](const APICommand& cmd, json& r) {
+        if (!clickToMove) { r = {{"error", "no click-to-move walker"}}; return; }
+        const glm::vec3 goal(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f),
+                             cmd.params.value("z", 0.0f));
+        const float standoff = cmd.params.value("standoff", 0.0f);
+        const bool ok = clickToMove->requestWalkTo(goal, standoff);
+        r = {{"success", ok}, {"result", ClickToMove::resultName(clickToMove->lastResult())},
+             {"waypoints", clickToMove->waypoints().size()}};
+    });
+    // POST /api/rpg/pointer_click {x,y} - run the host's left-click handling at a pixel
+    // (HUD widgets first, then NPC / ground click-to-move). The L4 for click-to-move.
+    reg.on("pointer_click", [this](const APICommand& cmd, json& r) {
+        if (!pointerClickProvider) { r = {{"error", "no pointer click provider"}}; return; }
+        r = pointerClickProvider(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f));
+        if (!r.contains("success")) r["success"] = true;
+    });
+    reg.on("walk_status", [this](const APICommand&, json& r) {
+        if (!clickToMove) { r = {{"error", "no click-to-move walker"}}; return; }
+        json wps = json::array();
+        for (const auto& w : clickToMove->waypoints()) wps.push_back({{"x", w.x}, {"y", w.y}, {"z", w.z}});
+        const auto& g = clickToMove->goal();
+        r = {{"success", true}, {"active", clickToMove->active()},
+             {"result", ClickToMove::resultName(clickToMove->lastResult())},
+             {"goal", {{"x", g.x}, {"y", g.y}, {"z", g.z}}}, {"walked", clickToMove->walked()},
+             {"waypoints", wps}, {"next", clickToMove->nextWaypoint()}};
+    });
     reg.on("ui_lint", [this](const APICommand&, json& r) {
         if (!uiLintProvider) { r = {{"error", "no UI lint provider"}}; return; }
         json d = uiLintProvider();

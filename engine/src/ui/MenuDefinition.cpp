@@ -430,8 +430,11 @@ static void applyScalarBind(UIWidget* w, const HudDataContext& ctx) {
     if (!w->visibleWhen.empty()) {
         // Fail-closed: a gated element with no provider registered stays hidden
         // (so e.g. combat panels don't show empty in hosts that lack combat state).
-        auto v = ctx.resolveFloat(w->visibleWhen);
-        w->visible = (v && *v > 0.5f);
+        // A leading '!' negates the key ("hide WHILE a dialogue is up") and stays
+        // fail-closed too: no provider -> hidden either way.
+        const bool negate = w->visibleWhen[0] == '!';
+        auto v = ctx.resolveFloat(negate ? w->visibleWhen.substr(1) : w->visibleWhen);
+        w->visible = v && ((*v > 0.5f) != negate);
     }
     if (w->bind.empty()) return;
     switch (w->type()) {
@@ -482,10 +485,11 @@ static void applyRecord(UIWidget* w, const HudRecord& rec, const HudDataContext*
         }
     }
     if (!w->visibleWhen.empty()) {
-        std::string f = itemField(w->visibleWhen);
+        const bool negate = w->visibleWhen[0] == '!';
+        std::string f = itemField(negate ? w->visibleWhen.substr(1) : w->visibleWhen);
         if (!f.empty()) {
             auto it = rec.floats.find(f);
-            if (it != rec.floats.end()) w->visible = (it->second > 0.5f);
+            if (it != rec.floats.end()) w->visible = ((it->second > 0.5f) != negate);
         }
     }
     if (!w->bind.empty()) {

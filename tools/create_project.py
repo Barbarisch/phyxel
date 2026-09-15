@@ -140,6 +140,12 @@ def create_project(
     extra_members.append("    nlohmann::json lastWorldHealth_;  // WorldHealth::check on every world scene ready (layer B self-check)")
     extra_members.append("    std::string lastLintSignature_;    // visible-screen set the HUD layout lint last ran on")
     extra_members.append("    Phyxel::Core::Currency wallet_;         // the player's money (never an inventory item)")
+    extra_members.append("    Phyxel::Core::ClickToMove clickToMove_;  // click the ground -> walk the NavGraph route (G-75)")
+    extra_members.append("    bool walkLmbHeld_ = false;              // edge guard for out-of-combat clicks")
+    extra_members.append("    bool pointerMode_ = false;              // turn-based ruleset: free cursor, LMB is a pointer click")
+    extra_members.append("    Phyxel::Core::ClickToMove::Result lastWalkResult_ = Phyxel::Core::ClickToMove::Result::Idle;")
+    extra_members.append("    nlohmann::json pointerClick(Phyxel::Core::EngineRuntime& engine, const glm::vec2& click);")
+    extra_members.append("    nlohmann::json apiPointerClick(float x, float y) override { return engine_ ? pointerClick(*engine_, {x, y}) : nlohmann::json{{\"error\", \"no engine\"}}; }")
     extra_members.append("    std::unique_ptr<Phyxel::RaycastVisualizer> raycastVisualizer_;   // world-space line pass (target rings)")
     extra_includes.append('#include "core/GameDefinitionLoader.h"')
     extra_members.append("    Phyxel::Core::GameSubsystems gameSubsystems_;  // persistent: the SceneManager keeps a pointer to it")
@@ -241,6 +247,7 @@ def create_project(
     extra_includes.append('#include "ui/HudDataContext.h"')
     extra_includes.append('#include "graphics/RaycastVisualizer.h"')   # target rings (CombatUiBg3 increment 3)
     extra_includes.append('#include "core/CurrencySystem.h"')   # wallet (CombatUiBg3 increment 4)
+    extra_includes.append('#include "core/ClickToMove.h"')   # click-to-move (CombatUiBg3 increment 5, G-75)
     extra_includes.append('#include "core/HealthComponent.h"')
     extra_includes.append('#include "core/RpgItem.h"')   # combat_ai "weapon" -> damage dice
     extra_members.append("    std::unique_ptr<Phyxel::UI::GameMenuRenderer> gameMenuRenderer_;")
@@ -324,6 +331,7 @@ def create_project(
         "    Phyxel::Core::CombatAISystem*       apiCombatAI() override       { return &combatAI_; }",
         "    Phyxel::Core::CombatSystem*         apiCombatSystem() override   { return combatSystem_.get(); }",
         "    Phyxel::Core::PlayerTurnController* apiPlayerTurn() override     { return &playerTurn_; }",
+        "    Phyxel::Core::ClickToMove*          apiClickToMove() override    { return &clickToMove_; }",
         "    Phyxel::Core::CharacterSheet*       apiPlayerSheet() override    { return &playerSheet_; }",
         "    Phyxel::Core::Inventory*            apiInventory() override      { return &inventory_; }",
         "    Phyxel::UI::DialogueSystem*         apiDialogueSystem() override { return dialogueSystem_.get(); }",
@@ -835,7 +843,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // A menu scene always wants a free cursor (its buttons are clickable);
             // so does turn-based combat (BG3-style click-targeting under the
             // tactical camera).
-            bool shouldCapture = !menuSceneActive_ &&
+            bool shouldCapture = !menuSceneActive_ && !pointerMode_ &&
                                  !Phyxel::UI::isMouseFree(screen_.getState()) && !inDialogue &&
                                  !combatDirector_.inCombat();
             window->setCursorVisible(!shouldCapture);
@@ -1277,6 +1285,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             playerTurn_.setEntityRegistry(entityRegistry_.get());
             playerTurn_.setBodyProvider(bodyProvider);
             playerTurn_.setCombatSystem(combatSystem_.get());
+            // Click-to-move (G-75): the player walks the SAME NavGraph route the NPCs
+            // walk, through the same body adapter the TurnActor drives in combat.
+            clickToMove_.setBodyProvider([this, bodyProvider]() -> Phyxel::Core::ITurnActorBody* {{
+                return playerCharacter_ ? bodyProvider(playerCharacter_) : nullptr;
+            }});
+            clickToMove_.setGraphProvider([this]() -> const Phyxel::Core::NavGraph* {{
+                return npcManager_ ? npcManager_->getNavGraph() : nullptr;
+            }});
             // Spellcasting in the SHIPPED game: the registry only auto-loaded in
             // the editor before, so every cast failed "Unknown spell" here.
             if (Phyxel::Core::SpellRegistry::instance().count() == 0)
@@ -1521,6 +1537,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     // tactical view). Any registered rig name: overhead (straight-
                     // down birds-eye), isometric (angled ortho), third_person...
                     combatCameraRig_ = gameDef["combat"].value("camera", "overhead");
+                    // A turn-based ruleset is POINTER-driven (BG3): the cursor stays free
+                    // during play, LMB clicks the world (move / interact / target) and
+                    // never swings; the camera orbits on RMB-drag as before.
+                    pointerMode_ = (mode == "turn_based");
                     LOG_INFO("{class_name}", "Combat mode: {{}} (camera: {{}})", mode, combatCameraRig_);
                     // AI decision log -> its own JSONL file, separate from the
                     // engine log. Off with {{"combat": {{"decision_log": false}}}}.
@@ -2311,6 +2331,24 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 endTurnKeyDown_ = endKey;
             }}
 
+            // CLICK-TO-MOVE / CLICK-TO-INTERACT outside combat (BG3, Ravenmere G-75).
+            // Pointer-driven games only: a left click walks the player to the ground
+            // point under the cursor along the NPCs' NavGraph, or to an NPC and
+            // interacts on arrival (pointerClick below). WASD cancels a walk.
+            if (pointerMode_ && !combatDirector_.inCombat() && !inDialogue &&
+                renderCoordinator_ && playerCharacter_ &&
+                Phyxel::UI::isGameRunning(screen_.getState())) {{
+                const bool lmb = input->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
+                if (lmb && !walkLmbHeld_ && !input->isMouseCaptured()) {{
+                    double mx = 0.0, my = 0.0;
+                    input->getCurrentMousePosition(mx, my);
+                    pointerClick(engine, {{static_cast<float>(mx), static_cast<float>(my)}});
+                }}
+                walkLmbHeld_ = lmb;
+            }} else {{
+                walkLmbHeld_ = false;
+            }}
+
             if (combatDirector_.inCombat() && playerTurn_.isPlayerTurnActive() &&
                 !inDialogue && renderCoordinator_) {{
                 const bool lmb = input->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
@@ -2372,6 +2410,75 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             }}
         }}
 
+        // One left click at viewport pixels, outside combat: HUD widgets first, then
+        // an NPC under the cursor (walk to it, interact on arrival), else the ground
+        // under the cursor (walk there). Shared by the real mouse and the test API's
+        // pointer_click, so the L4 exercises the shipped path. Returns what happened.
+        nlohmann::json {class_name}::pointerClick(Phyxel::Core::EngineRuntime& engine, const glm::vec2& click) {{
+            nlohmann::json out;
+            out["x"] = click.x; out["y"] = click.y;
+            auto* cam = engine.getCamera();
+            if (!renderCoordinator_ || !playerCharacter_ || !cam) {{ out["result"] = "no_scene"; return out; }}
+            if (combatDirector_.inCombat()) {{ out["result"] = "in_combat"; return out; }}
+            if (auto* uisys = renderCoordinator_->getUISystem(); uisys && uisys->injectClick(click)) {{
+                out["result"] = "ui"; return out;
+            }}
+            const glm::uvec2 vp = renderCoordinator_->getSwapChainSize();
+            const glm::vec2 vps{{static_cast<float>(vp.x), static_cast<float>(vp.y)}};
+            if (click.x < 0.0f || click.y < 0.0f || click.x > vps.x || click.y > vps.y) {{
+                out["result"] = "off_viewport"; return out;   // only the test API can ask this
+            }}
+            // 1) an NPC under the cursor (nearest within 32 px of its chest)
+            Phyxel::Scene::NPCEntity* hitNpc = nullptr;
+            float best = 32.0f;
+            if (npcManager_) {{
+                npcManager_->forEachNPC([&](Phyxel::Scene::NPCEntity& npc) {{
+                    glm::vec2 px;
+                    if (!Phyxel::Core::ClickToMove::projectToScreen(
+                            *cam, npc.getPosition() + glm::vec3(0.0f, 0.9f, 0.0f), vps, px)) return;
+                    if (px.x < 0.0f || px.y < 0.0f || px.x > vps.x || px.y > vps.y) return;   // off-screen
+                    const float d = glm::length(px - click);
+                    if (d < best) {{ best = d; hitNpc = &npc; }}
+                }});
+            }}
+            if (hitNpc) {{
+                const glm::vec3 npcPos = hitNpc->getPosition();
+                const float standoff = std::max(0.8f, hitNpc->getInteractionRadius() * 0.8f);
+                const bool ok = clickToMove_.requestWalkTo(npcPos, standoff, [this]() {{
+                    if (interactionManager_ && playerCharacter_) {{
+                        interactionManager_->update(0.0f, playerCharacter_->getPosition(), glm::vec3(0.0f));
+                        interactionManager_->tryInteract(playerCharacter_);
+                        LOG_INFO("ClickToMove", "arrived at NPC -> interact");
+                    }}
+                }});
+                LOG_INFO("ClickToMove", "click -> NPC '{{}}' at ({{}}, {{}}) standoff {{}}: {{}}",
+                         hitNpc->getName(), npcPos.x, npcPos.z, standoff,
+                         ok ? "walking" : Phyxel::Core::ClickToMove::resultName(clickToMove_.lastResult()));
+                out["result"] = ok ? "walking" : Phyxel::Core::ClickToMove::resultName(clickToMove_.lastResult());
+                out["npc"] = hitNpc->getName();
+                out["goal"] = {{{{"x", npcPos.x}}, {{"y", npcPos.y}}, {{"z", npcPos.z}}}};
+                return out;
+            }}
+            // 2) the ground: first solid cube under the cursor, stand on its top
+            auto* cm = engine.getChunkManager();
+            glm::vec3 point;
+            const bool hit = cm && Phyxel::Core::ClickToMove::pickGround(
+                *cam, click, vps, [cm](const glm::ivec3& c) {{ return cm->hasVoxelAt(c); }}, 200.0f, point);
+            if (!hit) {{
+                LOG_INFO("ClickToMove", "click ({{}}, {{}}) hit nothing solid", static_cast<int>(click.x), static_cast<int>(click.y));
+                out["result"] = "no_hit"; return out;
+            }}
+            const bool ok = clickToMove_.requestWalkTo(point);
+            LOG_INFO("ClickToMove", "click -> ground ({{}}, {{}}, {{}}): {{}} ({{}} waypoints)",
+                     point.x, point.y, point.z,
+                     ok ? "walking" : Phyxel::Core::ClickToMove::resultName(clickToMove_.lastResult()),
+                     clickToMove_.waypoints().size());
+            out["result"] = ok ? "walking" : Phyxel::Core::ClickToMove::resultName(clickToMove_.lastResult());
+            out["goal"] = {{{{"x", point.x}}, {{"y", point.y}}, {{"z", point.z}}}};
+            out["waypoints"] = clickToMove_.waypoints().size();
+            return out;
+        }}
+
         void {class_name}::onUpdate(Phyxel::Core::EngineRuntime& engine, float dt) {{
             lastDt_ = dt;  // remembered for menu-scene animations rendered in onRender
 
@@ -2416,8 +2523,11 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 // Same during dialogue — the speakers hold their mutual facing
                 // (camera-coupled facing would stomp it every frame).
                 const bool talking = dialogueSystem_ && dialogueSystem_->isActive();
+                if (auto* scheme = gameplayCamera().scheme()) scheme->pointerClicks = pointerMode_;
+                // A click-to-move walk owns the body until it ends; WASD cancels it.
                 updateGameplayCamera(engine, dt, playerCharacter_,
-                                     /*driveCharacter=*/!combatDirector_.inCombat() && !talking);
+                                     /*driveCharacter=*/!combatDirector_.inCombat() && !talking &&
+                                                        !clickToMove_.active());
 
                 // Gameplay events -> declarative triggers (win conditions).
                 if (playerCharacter_->consumeJustJumped()) triggers_.onEvent("player_jumped");
@@ -2463,6 +2573,26 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // sheet's casting ability is a follow-up.
             playerTurn_.setCasterLevel(playerSheet_.totalLevel());
             playerTurn_.tick(dt);
+            {{
+                const bool talkingNow = dialogueSystem_ && dialogueSystem_->isActive();
+                auto* inp = engine.getInputManager();
+                const bool moveKey = inp && (inp->isActionPressed("MoveForward") || inp->isActionPressed("MoveBackward") ||
+                                             inp->isActionPressed("MoveLeft") || inp->isActionPressed("MoveRight"));
+                if (clickToMove_.active() && (talkingNow || combatDirector_.inCombat() || moveKey)) {{
+                    clickToMove_.cancel();   // a conversation, an encounter or the keyboard owns the body
+                    LOG_INFO("ClickToMove", "walk cancelled ({{}})", talkingNow ? "dialogue" : combatDirector_.inCombat() ? "combat" : "WASD");
+                }}
+                clickToMove_.tick(dt);
+            }}
+            if (clickToMove_.lastResult() != lastWalkResult_) {{
+                lastWalkResult_ = clickToMove_.lastResult();
+                if (lastWalkResult_ != Phyxel::Core::ClickToMove::Result::Walking && playerCharacter_) {{
+                    const glm::vec3 pp = playerCharacter_->getPosition();
+                    LOG_INFO("ClickToMove", "walk {{}} at ({{}}, {{}}, {{}}) after {{}} m",
+                             Phyxel::Core::ClickToMove::resultName(lastWalkResult_), pp.x, pp.y, pp.z,
+                             clickToMove_.walked());
+                }}
+            }}
 
             // BG3-style tactical camera: entering combat swaps to the authored
             // combat rig (default overhead birds-eye) and frees the cursor for
@@ -2481,6 +2611,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         n.setBehaviorSuspended(inCombatNow);
                     }});
                 if (inCombatNow) {{
+                    clickToMove_.cancel();   // the TurnActor owns the body now
                     preCombatRig_ = gameplayCamera().rigName();
                     if (gameplayCamera().setRigByName(combatCameraRig_))
                         LOG_INFO("{class_name}", "Tactical camera: '{{}}' (combat)", combatCameraRig_);

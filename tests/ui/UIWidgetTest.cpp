@@ -656,3 +656,25 @@ TEST(UIActionBarTest, ClicksReachTheRepeatersGeneratedButtons) {
     EXPECT_FALSE(static_cast<Phyxel::UI::UIButton*>(r->generated[0].get())->hovered);
     EXPECT_TRUE(static_cast<Phyxel::UI::UIButton*>(r->generated[1].get())->hovered);
 }
+
+// G-108: the health panel sat behind the dialogue panel (probe L4 2026-09-15: lint
+// "'hud_health' overlaps 'hud_dialogue' by 274x90 px"). Authoring needs "hide WHILE a
+// dialogue is up": visibleWhen accepts a leading '!' (fail-closed like the plain form -
+// a negated key with no provider still hides). RED before: "!dialogue.active" resolved
+// to no provider -> hidden always.
+TEST(UILayoutTest, VisibleWhenAcceptsANegatedKey) {
+    auto panel = Phyxel::UI::MenuDefinition::buildWidget(nlohmann::json::parse(R"({
+        "type":"panel","id":"hp","size":[100,40],"visibleWhen":"!dialogue.active","children":[]})"));
+    ASSERT_NE(panel, nullptr);
+    Phyxel::UI::HudDataContext ctx;
+    float active = 0.0f;
+    ctx.setFloat("dialogue.active", [&] { return active; });
+    Phyxel::UI::applyHudBindings(panel.get(), ctx);
+    EXPECT_TRUE(panel->visible) << "no dialogue -> shown";
+    active = 1.0f;
+    Phyxel::UI::applyHudBindings(panel.get(), ctx);
+    EXPECT_FALSE(panel->visible) << "dialogue up -> hidden";
+    Phyxel::UI::HudDataContext none;
+    Phyxel::UI::applyHudBindings(panel.get(), none);
+    EXPECT_FALSE(panel->visible) << "no provider stays fail-closed even when negated";
+}

@@ -54,7 +54,8 @@
         ]
       }
     ],
-    "autoSize": true
+    "autoSize": true,
+    "visibleWhen": "!dialogue.active"
   },
   {
     "id": "hud_hotbar",
@@ -229,6 +230,11 @@
           22
         ]
       }
+    ],
+    "autoSize": true,
+    "maxSize": [
+      1100,
+      420
     ]
   },
   {
