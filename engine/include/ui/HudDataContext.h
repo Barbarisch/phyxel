@@ -37,10 +37,20 @@ public:
     using FloatProvider = std::function<float()>;
     using TextProvider  = std::function<std::string()>;
     using ListProvider  = std::function<std::vector<HudRecord>()>;
+    /// A click on a data-driven button (JSON "actionBind": "<key>") calls the handler
+    /// with the row's record (CombatUiBg3 increment 4: the action bar's rows carry
+    /// texts["action"] = "attack" | "spell:<id>" | "end_turn" | "use:<item>").
+    using ActionHandler = std::function<void(const HudRecord&)>;
 
     void setFloat(const std::string& key, FloatProvider p) { floatProviders_[key] = std::move(p); }
     void setText (const std::string& key, TextProvider  p) { textProviders_[key]  = std::move(p); }
     void setList (const std::string& key, ListProvider  p) { listProviders_[key]  = std::move(p); }
+    void setAction(const std::string& key, ActionHandler h) { actionHandlers_[key] = std::move(h); }
+    std::optional<ActionHandler> resolveAction(const std::string& key) const {
+        auto it = actionHandlers_.find(key);
+        if (it == actionHandlers_.end() || !it->second) return std::nullopt;
+        return it->second;
+    }
 
     void clear() { floatProviders_.clear(); textProviders_.clear(); listProviders_.clear(); }
 
@@ -68,6 +78,7 @@ private:
     std::unordered_map<std::string, FloatProvider> floatProviders_;
     std::unordered_map<std::string, TextProvider>  textProviders_;
     std::unordered_map<std::string, ListProvider>  listProviders_;
+    std::unordered_map<std::string, ActionHandler> actionHandlers_;
 };
 
 } // namespace UI

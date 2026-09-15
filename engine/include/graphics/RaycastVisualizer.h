@@ -92,6 +92,9 @@ public:
 
     bool isEnabled() const { return m_enabled; }
     void setEnabled(bool enabled) { m_enabled = enabled; }
+    /// Anything queued (or still uploaded) for this frame: gameplay lines - target rings,
+    /// paths - draw whenever present, independent of the F5 raycast debug overlay.
+    bool hasLines() const { return !m_lines.empty() || m_uploadedVertexCount > 0; }
 
 private:
     void generateDebugGeometry();

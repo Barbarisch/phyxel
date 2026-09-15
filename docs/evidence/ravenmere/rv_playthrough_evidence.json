@@ -1,11 +1,11 @@
 {
  "runs": [
   {
-   "tag": "run_20260911_094440",
+   "tag": "run_20260915_143535",
    "steps": [
     {
      "step": "boot",
-     "t": 56.3,
+     "t": 114.4,
      "data": {
       "scene_id": "main_menu",
       "scene_type": "menu",
@@ -16,12 +16,12 @@
       "visible_menus": [
        "menu:main"
       ],
-      "fps": 71.9
+      "fps": 78.6
      }
     },
     {
      "step": "in_town",
-     "t": 74.2,
+     "t": 132.9,
      "data": {
       "screen": {
        "scene_id": "town",
@@ -50,12 +50,22 @@
        "npc_Wren",
        "npc_Wynn"
       ],
-      "fps": 6.7
+      "fps": 6.8
+     }
+    },
+    {
+     "step": "ui_lint",
+     "t": 133.0,
+     "data": {
+      "tag": "in_town",
+      "count": 0,
+      "defects": [],
+      "fps": 6.8
      }
     },
     {
      "step": "world_health",
-     "t": 74.3,
+     "t": 133.2,
      "data": {
       "tag": "in_town",
       "ok": true,
@@ -64,12 +74,12 @@
       "terrain": true,
       "error": null,
       "unreachable": [],
-      "fps": 6.8
+      "fps": 6.9
      }
     },
     {
      "step": "dirs",
-     "t": 77.2,
+     "t": 136.0,
      "data": {
       "W": [
        -0.71,
@@ -103,12 +113,12 @@
        1.0,
        -0.0
       ],
-      "fps": 6.6
+      "fps": 6.7
      }
     },
     {
      "step": "path",
-     "t": 77.4,
+     "t": 136.0,
      "data": {
       "to": [
        -12,
@@ -116,12 +126,12 @@
       ],
       "waypoints": 4,
       "tried": 1,
-      "fps": 7.0
+      "fps": 6.9
      }
     },
     {
      "step": "reeve_accept",
-     "t": 126.8,
+     "t": 163.9,
      "data": {
       "steer": "arrived",
       "seen": [
@@ -141,12 +151,12 @@
         ]
        }
       ],
-      "fps": 10.3
+      "fps": 10.5
      }
     },
     {
      "step": "reeve_persuade_wren",
-     "t": 132.0,
+     "t": 169.0,
      "data": {
       "seen": [
        {
@@ -157,14 +167,14 @@
         ]
        }
       ],
-      "persuaded": true,
-      "refused": false,
-      "fps": 10.2
+      "persuaded": false,
+      "refused": true,
+      "fps": 10.4
      }
     },
     {
      "step": "path",
-     "t": 132.1,
+     "t": 169.1,
      "data": {
       "to": [
        -14,
@@ -172,12 +182,12 @@
       ],
       "waypoints": 11,
       "tried": 1,
-      "fps": 10.3
+      "fps": 10.5
      }
     },
     {
      "step": "maera",
-     "t": 162.6,
+     "t": 214.3,
      "data": {
       "steer": "arrived",
       "seen": [
@@ -189,12 +199,12 @@
         ]
        }
       ],
-      "fps": 25.5
+      "fps": 24.2
      }
     },
     {
      "step": "path",
-     "t": 162.7,
+     "t": 214.3,
      "data": {
       "to": [
        -24.5,
@@ -202,12 +212,12 @@
       ],
       "waypoints": 10,
       "tried": 1,
-      "fps": 25.8
+      "fps": 24.3
      }
     },
     {
      "step": "path",
-     "t": 226.2,
+     "t": 241.8,
      "data": {
       "to": [
        -24.5,
@@ -220,7 +230,7 @@
     },
     {
      "step": "path",
-     "t": 230.1,
+     "t": 250.4,
      "data": {
       "to": [
        -25.5,
@@ -228,12 +238,12 @@
       ],
       "waypoints": 4,
       "tried": 1,
-      "fps": 13.4
+      "fps": 13.5
      }
     },
     {
      "step": "bram_recruit",
-     "t": 246.8,
+     "t": 269.9,
      "data": {
       "steer": [
        "arrived",
@@ -244,15 +254,15 @@
        "error": "unknown action: party"
       },
       "pos": [
-       -25.48759651184082,
-       -2.3819851875305176
+       -25.677879333496094,
+       -2.154003858566284
       ],
-      "fps": 9.7
+      "fps": 9.6
      }
     },
     {
      "step": "path",
-     "t": 246.9,
+     "t": 270.0,
      "data": {
       "to": [
        -26.5,
@@ -260,15 +270,129 @@
       ],
       "waypoints": 6,
       "tried": 1,
-      "fps": 9.6
+      "fps": 9.5
+     }
+    },
+    {
+     "step": "precise_unreached",
+     "t": 304.3,
+     "data": {
+      "to": [
+       -25.5,
+       -2.5
+      ],
+      "trace": [
+       [
+        48,
+        -25.68,
+        -2.0,
+        "WA"
+       ],
+       [
+        49,
+        -25.68,
+        -2.82,
+        "SD"
+       ],
+       [
+        50,
+        -25.68,
+        -2.0,
+        "WA"
+       ],
+       [
+        51,
+        -25.68,
+        -2.86,
+        "SD"
+       ],
+       [
+        52,
+        -25.68,
+        -2.03,
+        "WA"
+       ],
+       [
+        53,
+        -25.68,
+        -2.84,
+        "SD"
+       ],
+       [
+        54,
+        -25.68,
+        -2.02,
+        "WA"
+       ],
+       [
+        55,
+        -25.68,
+        -2.83,
+        "SD"
+       ],
+       [
+        56,
+        -25.68,
+        -2.01,
+        "WA"
+       ],
+       [
+        57,
+        -25.68,
+        -2.83,
+        "SD"
+       ],
+       [
+        58,
+        -25.68,
+        -2.01,
+        "WA"
+       ],
+       [
+        59,
+        -25.68,
+        -2.83,
+        "SD"
+       ]
+      ],
+      "fps": 9.7
+     }
+    },
+    {
+     "step": "replan",
+     "t": 304.3,
+     "data": {
+      "missed": [
+       -25.5,
+       -2.5
+      ],
+      "pos": [
+       -25.677879333496094,
+       -2.00930118560791
+      ],
+      "left": 2,
+      "fps": 9.7
+     }
+    },
+    {
+     "step": "path",
+     "t": 304.4,
+     "data": {
+      "to": [
+       -26.5,
+       9.5
+      ],
+      "waypoints": 6,
+      "tried": 1,
+      "fps": 9.7
      }
     },
     {
      "step": "hatch_screenshot",
-     "t": 260.4,
+     "t": 342.8,
      "data": {
       "height": 720,
-      "path": "screenshots/shot_1789134540776.png",
+      "path": "screenshots/shot_1789497678534.png",
       "success": true,
       "width": 1280,
       "cam": [
@@ -283,24 +407,24 @@
       ],
       "yaw": 135.0,
       "pitch": -33.9,
-      "fps": 12.6
+      "fps": 12.8
      }
     },
     {
      "step": "hatch_interact",
-     "t": 263.7,
+     "t": 345.9,
      "data": {
       "scene": "cellar",
       "pos": [
        10.0,
        22.0
       ],
-      "fps": 4.0
+      "fps": 12.6
      }
     },
     {
      "step": "cellar",
-     "t": 267.8,
+     "t": 350.0,
      "data": {
       "steer": "stopped",
       "scene": {
@@ -316,12 +440,12 @@
        10.0,
        22.0
       ],
-      "fps": 40.5
+      "fps": 32.7
      }
     },
     {
      "step": "path",
-     "t": 267.9,
+     "t": 350.1,
      "data": {
       "to": [
        12,
@@ -329,12 +453,12 @@
       ],
       "waypoints": 5,
       "tried": 1,
-      "fps": 42.2
+      "fps": 32.7
      }
     },
     {
      "step": "precise_unreached",
-     "t": 345.5,
+     "t": 428.2,
      "data": {
       "to": [
        12,
@@ -343,121 +467,91 @@
       "trace": [
        [
         48,
-        12.65,
-        19.9,
+        12.35,
+        20.21,
         "WA"
        ],
        [
         49,
-        12.65,
-        19.9,
+        12.35,
+        20.21,
         "WA"
        ],
        [
         50,
-        12.65,
-        19.9,
+        12.35,
+        20.21,
         "WA"
        ],
        [
         51,
-        12.65,
-        19.9,
+        12.35,
+        20.21,
         "WA"
        ],
        [
         52,
-        12.65,
-        19.9,
+        12.35,
+        20.21,
         "WA"
        ],
        [
         53,
-        12.65,
-        19.9,
+        12.35,
+        20.21,
         "WA"
        ],
        [
         54,
-        12.65,
-        19.9,
+        12.35,
+        20.21,
         "WA"
        ],
        [
         55,
-        12.65,
-        19.9,
+        12.35,
+        20.21,
         "WA"
        ],
        [
         56,
-        12.65,
-        19.9,
+        12.35,
+        20.21,
         "WA"
        ],
        [
         57,
-        12.65,
-        19.9,
+        12.35,
+        20.21,
         "WA"
        ],
        [
         58,
-        12.65,
-        19.9,
+        12.35,
+        20.21,
         "WA"
        ],
        [
         59,
-        12.65,
-        19.9,
+        12.35,
+        20.21,
         "WA"
        ]
       ],
-      "fps": 31.2
+      "fps": 34.4
      }
     },
     {
      "step": "rats_encounter",
-     "t": 347.1,
+     "t": 429.7,
      "data": {
       "steer": "stopped",
       "in_combat": true,
       "order": {
        "active": true,
-       "currentIndex": 2,
+       "currentIndex": 0,
        "defaultSpeed": 30,
        "order": [
-        {
-         "budget": {
-          "action": false,
-          "bonusAction": true,
-          "freeObjectInteraction": true,
-          "movementRemaining": 7,
-          "reaction": true
-         },
-         "entityId": "npc_Rat3",
-         "hasActedThisRound": true,
-         "initiativeModifier": 1,
-         "initiativeRoll": 10,
-         "isPlayer": false,
-         "isSurprised": false
-        },
-        {
-         "budget": {
-          "action": false,
-          "bonusAction": true,
-          "freeObjectInteraction": true,
-          "movementRemaining": 16,
-          "reaction": true
-         },
-         "entityId": "npc_Rat",
-         "hasActedThisRound": true,
-         "initiativeModifier": 1,
-         "initiativeRoll": 9,
-         "isPlayer": false,
-         "isSurprised": false
-        },
         {
          "budget": {
           "action": true,
@@ -469,8 +563,23 @@
          "entityId": "player",
          "hasActedThisRound": false,
          "initiativeModifier": 1,
-         "initiativeRoll": 8,
+         "initiativeRoll": 20,
          "isPlayer": true,
+         "isSurprised": false
+        },
+        {
+         "budget": {
+          "action": true,
+          "bonusAction": true,
+          "freeObjectInteraction": true,
+          "movementRemaining": 30,
+          "reaction": true
+         },
+         "entityId": "npc_Rat3",
+         "hasActedThisRound": false,
+         "initiativeModifier": 1,
+         "initiativeRoll": 16,
+         "isPlayer": false,
          "isSurprised": false
         },
         {
@@ -484,7 +593,7 @@
          "entityId": "npc_Bram",
          "hasActedThisRound": false,
          "initiativeModifier": 1,
-         "initiativeRoll": 5,
+         "initiativeRoll": 9,
          "isPlayer": true,
          "isSurprised": false
         },
@@ -499,28 +608,43 @@
          "entityId": "npc_Rat2",
          "hasActedThisRound": false,
          "initiativeModifier": 1,
-         "initiativeRoll": 2,
+         "initiativeRoll": 8,
+         "isPlayer": false,
+         "isSurprised": false
+        },
+        {
+         "budget": {
+          "action": true,
+          "bonusAction": true,
+          "freeObjectInteraction": true,
+          "movementRemaining": 30,
+          "reaction": true
+         },
+         "entityId": "npc_Rat",
+         "hasActedThisRound": false,
+         "initiativeModifier": 1,
+         "initiativeRoll": 7,
          "isPlayer": false,
          "isSurprised": false
         }
        ],
        "round": 1
       },
-      "fps": 31.2
+      "fps": 34.4
      }
     },
     {
      "step": "rats_fight",
-     "t": 376.2,
+     "t": 475.5,
      "data": {
       "resolved": true,
       "fought": true,
-      "rounds": 4,
+      "rounds": 5,
       "turns": [
        {
         "round": 1,
-        "target": "npc_Rat3",
-        "dist": 1.4,
+        "target": "npc_Rat",
+        "dist": 6.2,
         "how": "melee",
         "ok": true,
         "blocked": null
@@ -543,8 +667,16 @@
        },
        {
         "round": 4,
-        "target": "npc_Rat2",
+        "target": "npc_Rat",
         "dist": 1.4,
+        "how": "melee",
+        "ok": true,
+        "blocked": null
+       },
+       {
+        "round": 5,
+        "target": "npc_Rat2",
+        "dist": 1.5,
         "how": "melee",
         "ok": true,
         "blocked": null
@@ -555,13 +687,13 @@
        "npc_Rat2": 0.0,
        "npc_Rat3": 0.0
       },
-      "player_hp": 81.0,
-      "fps": 46.9
+      "player_hp": 78.0,
+      "fps": 37.4
      }
     },
     {
      "step": "rats_cleared_var",
-     "t": 376.3,
+     "t": 475.6,
      "data": {
       "rats_dead_trigger": true,
       "sheet": {
@@ -661,12 +793,12 @@
        },
        "success": true
       },
-      "fps": 48.8
+      "fps": 39.4
      }
     },
     {
      "step": "path",
-     "t": 376.4,
+     "t": 475.6,
      "data": {
       "to": [
        10,
@@ -674,12 +806,12 @@
       ],
       "waypoints": 3,
       "tried": 2,
-      "fps": 49.5
+      "fps": 40.4
      }
     },
     {
      "step": "precise_scene_changed",
-     "t": 393.1,
+     "t": 493.3,
      "data": {
       "to": [
        10,
@@ -688,59 +820,77 @@
       "trace": [
        [
         0,
-        11.38,
-        19.43,
+        11.57,
+        15.41,
         "SD"
        ],
        [
         1,
-        11.38,
-        20.4,
+        11.57,
+        16.38,
         "SD"
        ],
        [
         2,
-        11.38,
-        21.37,
+        11.57,
+        17.35,
         "SD"
        ],
        [
         3,
-        11.38,
-        22.37,
-        "D"
+        11.57,
+        18.31,
+        "SD"
        ],
        [
         4,
-        10.72,
-        23.02,
+        11.57,
+        19.26,
         "SD"
        ],
        [
         5,
-        10.72,
-        23.86,
+        11.57,
+        20.21,
         "SD"
        ],
        [
         6,
-        10.72,
-        24.53,
-        "D"
+        11.57,
+        21.19,
+        "SD"
        ],
        [
         7,
-        10.32,
-        24.93,
+        11.57,
+        22.17,
         "SD"
+       ],
+       [
+        8,
+        11.57,
+        23.18,
+        "D"
+       ],
+       [
+        9,
+        10.94,
+        23.81,
+        "SD"
+       ],
+       [
+        10,
+        10.94,
+        24.52,
+        "D"
        ]
       ],
-      "fps": 39.5
+      "fps": 39.2
      }
     },
     {
      "step": "back_in_town",
-     "t": 398.1,
+     "t": 499.1,
      "data": {
       "steer": "stopped",
       "scene": {
@@ -761,12 +911,22 @@
        "y": 17.11111068725586,
        "z": 15.0
       },
-      "fps": 6.3
+      "fps": 6.5
+     }
+    },
+    {
+     "step": "ui_lint",
+     "t": 499.4,
+     "data": {
+      "tag": "back_in_town",
+      "count": 0,
+      "defects": [],
+      "fps": 6.4
      }
     },
     {
      "step": "world_health",
-     "t": 398.5,
+     "t": 499.6,
      "data": {
       "tag": "back_in_town",
       "ok": true,
@@ -775,12 +935,12 @@
       "terrain": true,
       "error": null,
       "unreachable": [],
-      "fps": 6.3
+      "fps": 6.5
      }
     },
     {
      "step": "path",
-     "t": 399.0,
+     "t": 500.0,
      "data": {
       "to": [
        -24.5,
@@ -788,12 +948,12 @@
       ],
       "waypoints": 4,
       "tried": 1,
-      "fps": 6.3
+      "fps": 6.5
      }
     },
     {
      "step": "path",
-     "t": 441.1,
+     "t": 531.7,
      "data": {
       "to": [
        -24.5,
@@ -801,12 +961,12 @@
       ],
       "waypoints": 2,
       "tried": 1,
-      "fps": 16.8
+      "fps": 17.0
      }
     },
     {
      "step": "path",
-     "t": 444.7,
+     "t": 535.3,
      "data": {
       "to": [
        -24.5,
@@ -814,12 +974,12 @@
       ],
       "waypoints": 2,
       "tried": 1,
-      "fps": 16.9
+      "fps": 12.6
      }
     },
     {
      "step": "hobb_paid",
-     "t": 456.1,
+     "t": 547.3,
      "data": {
       "steer": "arrived",
       "seen": [
@@ -837,9 +997,7 @@
         "creative": true,
         "hotbar": [
          {
-          "count": 20,
-          "material": "gold_crown",
-          "max_stack": 64,
+          "empty": true,
           "selected": true,
           "slot": 0
          },
@@ -886,23 +1044,16 @@
         ],
         "selected_slot": 0,
         "size": 36,
-        "slots": [
-         {
-          "count": 20,
-          "material": "gold_crown",
-          "max_stack": 64,
-          "slot": 0
-         }
-        ]
+        "slots": []
        },
        "success": true
       },
-      "fps": 7.5
+      "fps": 9.2
      }
     },
     {
      "step": "path",
-     "t": 456.3,
+     "t": 547.4,
      "data": {
       "to": [
        -24.5,
@@ -910,12 +1061,12 @@
       ],
       "waypoints": 2,
       "tried": 1,
-      "fps": 7.5
+      "fps": 9.2
      }
     },
     {
      "step": "path",
-     "t": 462.0,
+     "t": 557.2,
      "data": {
       "to": [
        -24.5,
@@ -923,12 +1074,12 @@
       ],
       "waypoints": 2,
       "tried": 1,
-      "fps": 11.5
+      "fps": 11.4
      }
     },
     {
      "step": "path",
-     "t": 466.3,
+     "t": 562.0,
      "data": {
       "to": [
        -18,
@@ -936,12 +1087,12 @@
       ],
       "waypoints": 2,
       "tried": 1,
-      "fps": 18.1
+      "fps": 17.2
      }
     },
     {
      "step": "path",
-     "t": 470.9,
+     "t": 566.1,
      "data": {
       "to": [
        20,
@@ -949,126 +1100,12 @@
       ],
       "waypoints": 3,
       "tried": 1,
-      "fps": 17.9
-     }
-    },
-    {
-     "step": "precise_unreached",
-     "t": 533.1,
-     "data": {
-      "to": [
-       12.5,
-       14.5
-      ],
-      "trace": [
-       [
-        48,
-        9.7,
-        15.41,
-        "SA"
-       ],
-       [
-        49,
-        9.74,
-        15.38,
-        "SA"
-       ],
-       [
-        50,
-        9.74,
-        15.38,
-        "SA"
-       ],
-       [
-        51,
-        9.74,
-        15.38,
-        "SA"
-       ],
-       [
-        52,
-        9.72,
-        15.36,
-        "SA"
-       ],
-       [
-        53,
-        9.72,
-        15.36,
-        "SA"
-       ],
-       [
-        54,
-        9.72,
-        15.36,
-        "SA"
-       ],
-       [
-        55,
-        9.71,
-        15.33,
-        "SA"
-       ],
-       [
-        56,
-        9.71,
-        15.33,
-        "SA"
-       ],
-       [
-        57,
-        9.71,
-        15.33,
-        "SA"
-       ],
-       [
-        58,
-        9.81,
-        15.19,
-        "SA"
-       ],
-       [
-        59,
-        9.81,
-        15.19,
-        "SA"
-       ]
-      ],
-      "fps": 28.9
-     }
-    },
-    {
-     "step": "replan",
-     "t": 533.1,
-     "data": {
-      "missed": [
-       12.5,
-       14.5
-      ],
-      "pos": [
-       9.812149047851562,
-       15.187310218811035
-      ],
-      "left": 2,
-      "fps": 29.4
+      "fps": 19.6
      }
     },
     {
      "step": "path",
-     "t": 533.1,
-     "data": {
-      "to": [
-       20,
-       15
-      ],
-      "waypoints": 5,
-      "tried": 1,
-      "fps": 29.0
-     }
-    },
-    {
-     "step": "path",
-     "t": 542.4,
+     "t": 588.1,
      "data": {
       "to": [
        55,
@@ -1076,15 +1113,15 @@
       ],
       "waypoints": 2,
       "tried": 1,
-      "fps": 23.3
+      "fps": 23.1
      }
     },
     {
      "step": "waystone_screenshot",
-     "t": 564.3,
+     "t": 609.5,
      "data": {
       "height": 720,
-      "path": "screenshots/shot_1789134844700.png",
+      "path": "screenshots/shot_1789497945253.png",
       "success": true,
       "width": 1280,
       "cam": [
@@ -1099,12 +1136,12 @@
       ],
       "yaw": 39.3,
       "pitch": -19.4,
-      "fps": 21.2
+      "fps": 4.0
      }
     },
     {
      "step": "path",
-     "t": 565.0,
+     "t": 610.2,
      "data": {
       "to": [
        60,
@@ -1112,12 +1149,12 @@
       ],
       "waypoints": 2,
       "tried": 3,
-      "fps": 29.2
+      "fps": 30.4
      }
     },
     {
      "step": "precise_scene_changed",
-     "t": 570.0,
+     "t": 615.0,
      "data": {
       "to": [
        60,
@@ -1126,35 +1163,35 @@
       "trace": [
        [
         0,
-        54.58,
-        15.47,
+        54.56,
+        14.52,
         "SA"
        ],
        [
         1,
-        55.6,
-        15.47,
+        55.57,
+        14.52,
         "SA"
        ],
        [
         2,
-        56.63,
-        15.47,
+        56.56,
+        14.52,
         "SA"
        ],
        [
         3,
-        57.51,
-        15.47,
+        57.4,
+        14.52,
         "SA"
        ]
       ],
-      "fps": 88.1
+      "fps": 85.4
      }
     },
     {
      "step": "farm",
-     "t": 574.1,
+     "t": 619.1,
      "data": {
       "steer": "stopped",
       "scene": {
@@ -1170,12 +1207,12 @@
        6.0,
        16.0
       ],
-      "fps": 67.1
+      "fps": 66.0
      }
     },
     {
      "step": "path",
-     "t": 574.2,
+     "t": 619.2,
      "data": {
       "to": [
        14.5,
@@ -1183,12 +1220,12 @@
       ],
       "waypoints": 2,
       "tried": 1,
-      "fps": 71.4
+      "fps": 68.0
      }
     },
     {
      "step": "dunstan",
-     "t": 584.7,
+     "t": 629.3,
      "data": {
       "steer": "arrived",
       "seen": [
@@ -1200,12 +1237,12 @@
         ]
        }
       ],
-      "fps": 52.9
+      "fps": 55.6
      }
     },
     {
      "step": "path",
-     "t": 584.7,
+     "t": 629.4,
      "data": {
       "to": [
        26,
@@ -1213,12 +1250,12 @@
       ],
       "waypoints": 7,
       "tried": 1,
-      "fps": 55.8
+      "fps": 54.2
      }
     },
     {
      "step": "precise_unreached",
-     "t": 659.9,
+     "t": 708.9,
      "data": {
       "to": [
        24.5,
@@ -1227,112 +1264,1347 @@
       "trace": [
        [
         48,
-        22.04,
-        12.68,
+        21.84,
+        12.88,
         "A"
        ],
        [
         49,
-        22.04,
-        12.68,
+        21.84,
+        12.88,
         "A"
        ],
        [
         50,
-        22.04,
-        12.68,
+        21.84,
+        12.88,
         "A"
        ],
        [
         51,
-        22.04,
-        12.68,
+        21.84,
+        12.88,
         "A"
        ],
        [
         52,
-        22.04,
-        12.68,
+        21.84,
+        12.88,
         "A"
        ],
        [
         53,
-        22.04,
-        12.68,
+        21.84,
+        12.88,
         "A"
        ],
        [
         54,
-        22.04,
-        12.68,
+        21.84,
+        12.88,
         "A"
        ],
        [
         55,
-        22.04,
-        12.68,
+        21.84,
+        12.88,
         "A"
        ],
        [
         56,
-        22.04,
-        12.68,
+        21.84,
+        12.88,
         "A"
        ],
        [
         57,
-        22.04,
-        12.68,
+        21.84,
+        12.88,
         "A"
        ],
        [
         58,
-        22.04,
-        12.68,
+        21.84,
+        12.88,
         "A"
        ],
        [
         59,
-        22.04,
-        12.68,
+        21.84,
+        12.88,
         "A"
        ]
       ],
-      "fps": 30.7
+      "fps": 21.2
      }
     },
     {
      "step": "replan",
-     "t": 659.9,
+     "t": 708.9,
      "data": {
       "missed": [
        24.5,
        11.5
       ],
       "pos": [
-       22.036386489868164,
-       12.683609962463379
+       21.84172821044922,
+       12.881622314453125
       ],
       "left": 2,
-      "fps": 30.7
+      "fps": 21.4
      }
     },
     {
      "step": "path",
-     "t": 660.0,
+     "t": 709.0,
      "data": {
       "to": [
        26,
        9
       ],
-      "waypoints": 6,
+      "waypoints": 3,
       "tried": 1,
-      "fps": 30.0
+      "fps": 20.9
      }
     },
     {
      "step": "wolves_encounter",
-     "t": 661.6,
+     "t": 710.6,
+     "data": {
+      "steer": "stopped",
+      "state": {
+       "active": true,
+       "current_entity": "player",
+       "in_combat": true,
+       "mode": "turn_based",
+       "player_turn": true,
+       "round": 1,
+       "turn_order": {
+        "active": true,
+        "currentIndex": 3,
+        "defaultSpeed": 30,
+        "order": [
+         {
+          "budget": {
+           "action": false,
+           "bonusAction": true,
+           "freeObjectInteraction": true,
+           "movementRemaining": 1,
+           "reaction": true
+          },
+          "entityId": "npc_AlphaWolf",
+          "hasActedThisRound": true,
+          "initiativeModifier": 3,
+          "initiativeRoll": 17,
+          "isPlayer": false,
+          "isSurprised": false
+         },
+         {
+          "budget": {
+           "action": false,
+           "bonusAction": true,
+           "freeObjectInteraction": true,
+           "movementRemaining": 15,
+           "reaction": true
+          },
+          "entityId": "npc_Wolf",
+          "hasActedThisRound": true,
+          "initiativeModifier": 2,
+          "initiativeRoll": 13,
+          "isPlayer": false,
+          "isSurprised": false
+         },
+         {
+          "budget": {
+           "action": false,
+           "bonusAction": true,
+           "freeObjectInteraction": true,
+           "movementRemaining": 19,
+           "reaction": true
+          },
+          "entityId": "npc_Bram",
+          "hasActedThisRound": true,
+          "initiativeModifier": 1,
+          "initiativeRoll": 12,
+          "isPlayer": true,
+          "isSurprised": false
+         },
+         {
+          "budget": {
+           "action": true,
+           "bonusAction": true,
+           "freeObjectInteraction": true,
+           "movementRemaining": 30,
+           "reaction": true
+          },
+          "entityId": "player",
+          "hasActedThisRound": false,
+          "initiativeModifier": 1,
+          "initiativeRoll": 5,
+          "isPlayer": true,
+          "isSurprised": false
+         },
+         {
+          "budget": {
+           "action": true,
+           "bonusAction": true,
+           "freeObjectInteraction": true,
+           "movementRemaining": 30,
+           "reaction": true
+          },
+          "entityId": "npc_Wolf2",
+          "hasActedThisRound": false,
+          "initiativeModifier": 2,
+          "initiativeRoll": 3,
+          "isPlayer": false,
+          "isSurprised": false
+         }
+        ],
+        "round": 1
+       }
+      },
+      "fps": 21.8
+     }
+    },
+    {
+     "step": "wolves_fight",
+     "t": 768.9,
+     "data": {
+      "resolved": true,
+      "fought": true,
+      "rounds": 8,
+      "turns": [
+       {
+        "round": 1,
+        "target": "npc_AlphaWolf",
+        "dist": 1.5,
+        "how": "melee",
+        "ok": true,
+        "blocked": null
+       },
+       {
+        "round": 2,
+        "target": "npc_Wolf2",
+        "dist": 1.4,
+        "how": "melee",
+        "ok": true,
+        "blocked": null
+       },
+       {
+        "round": 3,
+        "target": "npc_Wolf2",
+        "dist": 1.4,
+        "how": "melee",
+        "ok": true,
+        "blocked": null
+       },
+       {
+        "round": 4,
+        "target": "npc_Wolf2",
+        "dist": 1.4,
+        "how": "melee",
+        "ok": true,
+        "blocked": null
+       },
+       {
+        "round": 5,
+        "target": "npc_AlphaWolf",
+        "dist": 1.5,
+        "how": "melee",
+        "ok": true,
+        "blocked": null
+       },
+       {
+        "round": 6,
+        "target": "npc_AlphaWolf",
+        "dist": 1.5,
+        "how": "melee",
+        "ok": true,
+        "blocked": null
+       },
+       {
+        "round": 7,
+        "target": "npc_AlphaWolf",
+        "dist": 1.5,
+        "how": "melee",
+        "ok": true,
+        "blocked": null
+       },
+       {
+        "round": 8,
+        "target": "npc_AlphaWolf",
+        "dist": 1.5,
+        "how": "melee",
+        "ok": true,
+        "blocked": null
+       }
+      ],
+      "enemy_hp": {
+       "npc_Wolf": 0.0,
+       "npc_Wolf2": 0.0,
+       "npc_Wolf3": {
+        "error": "unknown entity",
+        "id": "npc_Wolf3"
+       },
+       "npc_AlphaWolf": 0.0
+      },
+      "player_hp": 51.0,
+      "fps": 42.8
+     }
+    },
+    {
+     "step": "path",
+     "t": 768.9,
+     "data": {
+      "to": [
+       16,
+       17.5
+      ],
+      "waypoints": 4,
+      "tried": 1,
+      "fps": 44.4
+     }
+    },
+    {
+     "step": "dunstan_paid",
+     "t": 781.8,
+     "data": {
+      "steer": "arrived",
+      "seen": [
+       {
+        "node": "start",
+        "choices": [
+         "The wolves are dead.",
+         "Show me the north fence."
+        ]
+       }
+      ],
+      "inv": {
+       "inventory": {
+        "creative": true,
+        "hotbar": [
+         {
+          "empty": true,
+          "selected": true,
+          "slot": 0
+         },
+         {
+          "empty": true,
+          "selected": false,
+          "slot": 1
+         },
+         {
+          "empty": true,
+          "selected": false,
+          "slot": 2
+         },
+         {
+          "empty": true,
+          "selected": false,
+          "slot": 3
+         },
+         {
+          "empty": true,
+          "selected": false,
+          "slot": 4
+         },
+         {
+          "empty": true,
+          "selected": false,
+          "slot": 5
+         },
+         {
+          "empty": true,
+          "selected": false,
+          "slot": 6
+         },
+         {
+          "empty": true,
+          "selected": false,
+          "slot": 7
+         },
+         {
+          "empty": true,
+          "selected": false,
+          "slot": 8
+         }
+        ],
+        "selected_slot": 0,
+        "size": 36,
+        "slots": []
+       },
+       "success": true
+      },
+      "fps": 54.6
+     }
+    },
+    {
+     "step": "path",
+     "t": 781.9,
+     "data": {
+      "to": [
+       16,
+       27.5
+      ],
+      "waypoints": 2,
+      "tried": 1,
+      "fps": 57.7
+     }
+    },
+    {
+     "step": "tracks",
+     "t": 789.4,
+     "data": {
+      "steer": "stopped",
+      "fired": true,
+      "fps": 55.4
+     }
+    },
+    {
+     "step": "path",
+     "t": 789.4,
+     "data": {
+      "to": [
+       9.5,
+       26
+      ],
+      "waypoints": 2,
+      "tried": 1,
+      "fps": 55.1
+     }
+    },
+    {
+     "step": "oswin_first",
+     "t": 798.7,
+     "data": {
+      "steer": "arrived",
+      "seen": [
+       {
+        "node": "start",
+        "choices": [
+         "What grimoire?",
+         "Goodbye, then."
+        ]
+       }
+      ],
+      "fps": 42.8
+     }
+    },
+    {
+     "step": "path",
+     "t": 798.7,
+     "data": {
+      "to": [
+       2,
+       16
+      ],
+      "waypoints": 3,
+      "tried": 1,
+      "fps": 42.2
+     }
+    },
+    {
+     "step": "precise_scene_changed",
+     "t": 818.6,
+     "data": {
+      "to": [
+       2,
+       16
+      ],
+      "trace": [
+       [
+        0,
+        3.66,
+        17.55,
+        "W"
+       ],
+       [
+        1,
+        3.31,
+        17.2,
+        "WD"
+       ]
+      ],
+      "fps": 67.7
+     }
+    },
+    {
+     "step": "town_again",
+     "t": 824.4,
+     "data": {
+      "steer": "stopped",
+      "scene": {
+       "scene_id": "town",
+       "scene_type": "world",
+       "screen": "playing",
+       "source": "shell",
+       "success": true,
+       "transitioning": false,
+       "visible_menus": []
+      },
+      "pos": [
+       -36.30613708496094,
+       15.0
+      ],
+      "fps": 6.4
+     }
+    },
+    {
+     "step": "path",
+     "t": 824.7,
+     "data": {
+      "to": [
+       -12,
+       14.5
+      ],
+      "waypoints": 4,
+      "tried": 1,
+      "fps": 6.5
+     }
+    },
+    {
+     "step": "reeve_tracks",
+     "t": 890.1,
+     "data": {
+      "steer": "arrived",
+      "seen": [
+       {
+        "node": "start",
+        "choices": [
+         "I found tracks at Hollin Farm. They lead",
+         "Nothing for now."
+        ]
+       }
+      ],
+      "wren_unlock": true,
+      "fps": 11.2
+     }
+    },
+    {
+     "step": "path",
+     "t": 890.2,
+     "data": {
+      "to": [
+       -5,
+       13
+      ],
+      "waypoints": 4,
+      "tried": 1,
+      "fps": 11.1
+     }
+    },
+    {
+     "step": "precise_unreached",
+     "t": 955.1,
+     "data": {
+      "to": [
+       -11.5,
+       14.5
+      ],
+      "trace": [
+       [
+        48,
+        -11.03,
+        14.63,
+        "WD"
+       ],
+       [
+        49,
+        -11.75,
+        14.63,
+        "SA"
+       ],
+       [
+        50,
+        -11.02,
+        14.63,
+        "WD"
+       ],
+       [
+        51,
+        -11.77,
+        14.63,
+        "SA"
+       ],
+       [
+        52,
+        -11.03,
+        14.63,
+        "WD"
+       ],
+       [
+        53,
+        -11.77,
+        14.63,
+        "SA"
+       ],
+       [
+        54,
+        -11.03,
+        14.63,
+        "WD"
+       ],
+       [
+        55,
+        -11.78,
+        14.63,
+        "SA"
+       ],
+       [
+        56,
+        -11.06,
+        14.63,
+        "WD"
+       ],
+       [
+        57,
+        -11.78,
+        14.63,
+        "SA"
+       ],
+       [
+        58,
+        -11.06,
+        14.63,
+        "WD"
+       ],
+       [
+        59,
+        -11.8,
+        14.63,
+        "SA"
+       ]
+      ],
+      "fps": 11.2
+     }
+    },
+    {
+     "step": "replan",
+     "t": 955.2,
+     "data": {
+      "missed": [
+       -11.5,
+       14.5
+      ],
+      "pos": [
+       -11.078536033630371,
+       14.632811546325684
+      ],
+      "left": 2,
+      "fps": 11.2
+     }
+    },
+    {
+     "step": "path",
+     "t": 955.2,
+     "data": {
+      "to": [
+       -5,
+       13
+      ],
+      "waypoints": 4,
+      "tried": 1,
+      "fps": 10.5
+     }
+    },
+    {
+     "step": "precise_unreached",
+     "t": 1003.9,
+     "data": {
+      "to": [
+       -11.5,
+       14.5
+      ],
+      "trace": [
+       [
+        48,
+        -11.09,
+        14.64,
+        "WD"
+       ],
+       [
+        49,
+        -11.83,
+        14.64,
+        "SA"
+       ],
+       [
+        50,
+        -11.12,
+        14.64,
+        "WD"
+       ],
+       [
+        51,
+        -11.86,
+        14.64,
+        "SA"
+       ],
+       [
+        52,
+        -11.14,
+        14.64,
+        "WD"
+       ],
+       [
+        53,
+        -11.77,
+        14.79,
+        "A"
+       ],
+       [
+        54,
+        -11.25,
+        14.28,
+        "D"
+       ],
+       [
+        55,
+        -11.77,
+        14.79,
+        "A"
+       ],
+       [
+        56,
+        -11.25,
+        14.27,
+        "D"
+       ],
+       [
+        57,
+        -11.76,
+        14.79,
+        "A"
+       ],
+       [
+        58,
+        -11.23,
+        14.26,
+        "D"
+       ],
+       [
+        59,
+        -11.75,
+        14.77,
+        "A"
+       ]
+      ],
+      "fps": 10.9
+     }
+    },
+    {
+     "step": "replan",
+     "t": 1003.9,
+     "data": {
+      "missed": [
+       -11.5,
+       14.5
+      ],
+      "pos": [
+       -11.146638870239258,
+       14.388299942016602
+      ],
+      "left": 1,
+      "fps": 10.9
+     }
+    },
+    {
+     "step": "path",
+     "t": 1003.9,
+     "data": {
+      "to": [
+       -5,
+       13
+      ],
+      "waypoints": 4,
+      "tried": 1,
+      "fps": 11.0
+     }
+    },
+    {
+     "step": "precise_unreached",
+     "t": 1050.0,
+     "data": {
+      "to": [
+       -11.5,
+       14.5
+      ],
+      "trace": [
+       [
+        48,
+        -11.1,
+        14.54,
+        "WD"
+       ],
+       [
+        49,
+        -11.82,
+        14.54,
+        "SA"
+       ],
+       [
+        50,
+        -11.11,
+        14.54,
+        "WD"
+       ],
+       [
+        51,
+        -11.85,
+        14.54,
+        "SA"
+       ],
+       [
+        52,
+        -11.13,
+        14.54,
+        "WD"
+       ],
+       [
+        53,
+        -11.78,
+        14.66,
+        "SA"
+       ],
+       [
+        54,
+        -11.04,
+        14.66,
+        "WD"
+       ],
+       [
+        55,
+        -11.79,
+        14.66,
+        "SA"
+       ],
+       [
+        56,
+        -11.08,
+        14.66,
+        "WD"
+       ],
+       [
+        57,
+        -11.82,
+        14.66,
+        "SA"
+       ],
+       [
+        58,
+        -11.09,
+        14.66,
+        "WD"
+       ],
+       [
+        59,
+        -11.83,
+        14.66,
+        "SA"
+       ]
+      ],
+      "fps": 11.2
+     }
+    },
+    {
+     "step": "replan",
+     "t": 1050.0,
+     "data": {
+      "missed": [
+       -11.5,
+       14.5
+      ],
+      "pos": [
+       -11.111968994140625,
+       14.660304069519043
+      ],
+      "left": 0,
+      "fps": 11.2
+     }
+    },
+    {
+     "step": "path",
+     "t": 1050.0,
+     "data": {
+      "to": [
+       -5,
+       13
+      ],
+      "waypoints": 4,
+      "tried": 1,
+      "fps": 10.8
+     }
+    },
+    {
+     "step": "precise_unreached",
+     "t": 1101.4,
+     "data": {
+      "to": [
+       -11.5,
+       14.5
+      ],
+      "trace": [
+       [
+        48,
+        -11.14,
+        14.39,
+        "WD"
+       ],
+       [
+        49,
+        -11.77,
+        14.53,
+        "SA"
+       ],
+       [
+        50,
+        -11.05,
+        14.53,
+        "WD"
+       ],
+       [
+        51,
+        -11.8,
+        14.53,
+        "SA"
+       ],
+       [
+        52,
+        -11.07,
+        14.53,
+        "WD"
+       ],
+       [
+        53,
+        -11.79,
+        14.53,
+        "SA"
+       ],
+       [
+        54,
+        -11.06,
+        14.53,
+        "WD"
+       ],
+       [
+        55,
+        -11.8,
+        14.53,
+        "SA"
+       ],
+       [
+        56,
+        -11.09,
+        14.53,
+        "WD"
+       ],
+       [
+        57,
+        -11.83,
+        14.53,
+        "SA"
+       ],
+       [
+        58,
+        -11.11,
+        14.53,
+        "WD"
+       ],
+       [
+        59,
+        -11.84,
+        14.53,
+        "SA"
+       ]
+      ],
+      "fps": 11.0
+     }
+    },
+    {
+     "step": "wren_recruit",
+     "t": 1114.9,
+     "data": {
+      "steer": "arrived",
+      "seen": [
+       {
+        "node": "start",
+        "choices": [
+         "I'm hunting whoever took the children. I",
+         "You're free. Aldric agreed.",
+         "Enjoy the week."
+        ]
+       }
+      ],
+      "party": {
+       "error": "unknown action: party"
+      },
+      "fps": 14.0
+     }
+    },
+    {
+     "step": "path",
+     "t": 1115.1,
+     "data": {
+      "to": [
+       60,
+       15
+      ],
+      "waypoints": 3,
+      "tried": 3,
+      "fps": 13.8
+     }
+    },
+    {
+     "step": "precise_scene_changed",
+     "t": 1159.3,
+     "data": {
+      "to": [
+       60,
+       15
+      ],
+      "trace": [
+       [
+        28,
+        46.09,
+        14.64,
+        "SA"
+       ],
+       [
+        29,
+        47.26,
+        14.64,
+        "SA"
+       ],
+       [
+        30,
+        48.41,
+        14.64,
+        "SA"
+       ],
+       [
+        31,
+        49.56,
+        14.64,
+        "SA"
+       ],
+       [
+        32,
+        50.62,
+        14.64,
+        "SA"
+       ],
+       [
+        33,
+        51.74,
+        14.64,
+        "SA"
+       ],
+       [
+        34,
+        52.82,
+        14.64,
+        "SA"
+       ],
+       [
+        35,
+        53.87,
+        14.64,
+        "SA"
+       ],
+       [
+        36,
+        54.87,
+        14.64,
+        "SA"
+       ],
+       [
+        37,
+        55.9,
+        14.64,
+        "SA"
+       ],
+       [
+        38,
+        56.92,
+        14.64,
+        "SA"
+       ],
+       [
+        39,
+        57.64,
+        14.64,
+        "SA"
+       ]
+      ],
+      "fps": 86.5
+     }
+    },
+    {
+     "step": "farm2",
+     "t": 1163.4,
+     "data": {
+      "steer": "stopped",
+      "scene": {
+       "scene_id": "farm",
+       "scene_type": "world",
+       "screen": "playing",
+       "source": "shell",
+       "success": true,
+       "transitioning": false,
+       "visible_menus": []
+      },
+      "fps": 68.0
+     }
+    },
+    {
+     "step": "path",
+     "t": 1163.5,
+     "data": {
+      "to": [
+       9.5,
+       26
+      ],
+      "waypoints": 2,
+      "tried": 1,
+      "fps": 66.0
+     }
+    },
+    {
+     "step": "oswin_join",
+     "t": 1175.3,
+     "data": {
+      "steer": "arrived",
+      "seen": [
+       {
+        "node": "start",
+        "choices": [
+         "I'm going into the barrow. Come and fetc",
+         "What grimoire?",
+         "Goodbye, then."
+        ]
+       }
+      ],
+      "party": {
+       "error": "unknown action: party"
+      },
+      "fps": 39.1
+     }
+    },
+    {
+     "step": "path",
+     "t": 1175.3,
+     "data": {
+      "to": [
+       16,
+       30.5
+      ],
+      "waypoints": 2,
+      "tried": 1,
+      "fps": 36.2
+     }
+    },
+    {
+     "step": "precise_scene_changed",
+     "t": 1185.4,
+     "data": {
+      "to": [
+       16,
+       30.5
+      ],
+      "trace": [
+       [
+        0,
+        8.5,
+        25.5,
+        "S"
+       ],
+       [
+        1,
+        9.24,
+        26.24,
+        "S"
+       ],
+       [
+        2,
+        9.9,
+        26.9,
+        "S"
+       ],
+       [
+        3,
+        10.65,
+        27.65,
+        "S"
+       ],
+       [
+        4,
+        11.34,
+        28.34,
+        "S"
+       ],
+       [
+        5,
+        12.11,
+        29.11,
+        "SA"
+       ],
+       [
+        6,
+        13.11,
+        29.11,
+        "S"
+       ],
+       [
+        7,
+        13.66,
+        29.65,
+        "SA"
+       ],
+       [
+        8,
+        14.46,
+        29.65,
+        "SA"
+       ],
+       [
+        9,
+        15.03,
+        29.65,
+        "SA"
+       ],
+       [
+        10,
+        15.43,
+        29.65,
+        "SD"
+       ]
+      ],
+      "fps": 43.1
+     }
+    },
+    {
+     "step": "barrow",
+     "t": 1189.5,
+     "data": {
+      "steer": "stopped",
+      "scene": {
+       "scene_id": "barrow",
+       "scene_type": "world",
+       "screen": "playing",
+       "source": "shell",
+       "success": true,
+       "transitioning": false,
+       "visible_menus": []
+      },
+      "pos": [
+       16.0,
+       44.0
+      ],
+      "enter": true,
+      "fps": 27.9
+     }
+    },
+    {
+     "step": "path",
+     "t": 1189.6,
+     "data": {
+      "to": [
+       16,
+       36
+      ],
+      "waypoints": 2,
+      "tried": 1,
+      "fps": 25.4
+     }
+    },
+    {
+     "step": "precise_unreached",
+     "t": 1266.5,
+     "data": {
+      "to": [
+       16,
+       36
+      ],
+      "trace": [
+       [
+        48,
+        16.64,
+        38.16,
+        "WA"
+       ],
+       [
+        49,
+        16.64,
+        38.16,
+        "WA"
+       ],
+       [
+        50,
+        16.64,
+        38.16,
+        "WA"
+       ],
+       [
+        51,
+        16.64,
+        38.16,
+        "WA"
+       ],
+       [
+        52,
+        16.64,
+        38.16,
+        "WA"
+       ],
+       [
+        53,
+        16.64,
+        38.16,
+        "WA"
+       ],
+       [
+        54,
+        16.64,
+        38.16,
+        "WA"
+       ],
+       [
+        55,
+        16.64,
+        38.16,
+        "WA"
+       ],
+       [
+        56,
+        16.64,
+        38.16,
+        "WA"
+       ],
+       [
+        57,
+        16.64,
+        38.16,
+        "WA"
+       ],
+       [
+        58,
+        16.64,
+        38.16,
+        "WA"
+       ],
+       [
+        59,
+        16.64,
+        38.16,
+        "WA"
+       ]
+      ],
+      "fps": 18.3
+     }
+    },
+    {
+     "step": "antechamber",
+     "t": 1268.1,
      "data": {
       "steer": "stopped",
       "state": {
@@ -1352,13 +2624,319 @@
            "action": false,
            "bonusAction": true,
            "freeObjectInteraction": true,
-           "movementRemaining": 2,
+           "movementRemaining": 13,
            "reaction": true
           },
-          "entityId": "npc_AlphaWolf",
+          "entityId": "npc_Skeleton2",
+          "hasActedThisRound": true,
+          "initiativeModifier": 2,
+          "initiativeRoll": 19,
+          "isPlayer": false,
+          "isSurprised": false
+         },
+         {
+          "budget": {
+           "action": true,
+           "bonusAction": true,
+           "freeObjectInteraction": true,
+           "movementRemaining": 30,
+           "reaction": true
+          },
+          "entityId": "player",
+          "hasActedThisRound": false,
+          "initiativeModifier": 1,
+          "initiativeRoll": 16,
+          "isPlayer": true,
+          "isSurprised": false
+         },
+         {
+          "budget": {
+           "action": true,
+           "bonusAction": true,
+           "freeObjectInteraction": true,
+           "movementRemaining": 30,
+           "reaction": true
+          },
+          "entityId": "npc_Oswin",
+          "hasActedThisRound": false,
+          "initiativeModifier": 1,
+          "initiativeRoll": 14,
+          "isPlayer": true,
+          "isSurprised": false
+         },
+         {
+          "budget": {
+           "action": true,
+           "bonusAction": true,
+           "freeObjectInteraction": true,
+           "movementRemaining": 30,
+           "reaction": true
+          },
+          "entityId": "npc_Wren",
+          "hasActedThisRound": false,
+          "initiativeModifier": 1,
+          "initiativeRoll": 14,
+          "isPlayer": true,
+          "isSurprised": false
+         },
+         {
+          "budget": {
+           "action": true,
+           "bonusAction": true,
+           "freeObjectInteraction": true,
+           "movementRemaining": 30,
+           "reaction": true
+          },
+          "entityId": "npc_Skeleton",
+          "hasActedThisRound": false,
+          "initiativeModifier": 2,
+          "initiativeRoll": 11,
+          "isPlayer": false,
+          "isSurprised": false
+         },
+         {
+          "budget": {
+           "action": true,
+           "bonusAction": true,
+           "freeObjectInteraction": true,
+           "movementRemaining": 30,
+           "reaction": true
+          },
+          "entityId": "npc_Bram",
+          "hasActedThisRound": false,
+          "initiativeModifier": 1,
+          "initiativeRoll": 10,
+          "isPlayer": true,
+          "isSurprised": false
+         },
+         {
+          "budget": {
+           "action": true,
+           "bonusAction": true,
+           "freeObjectInteraction": true,
+           "movementRemaining": 30,
+           "reaction": true
+          },
+          "entityId": "npc_Cultist",
+          "hasActedThisRound": false,
+          "initiativeModifier": 1,
+          "initiativeRoll": 4,
+          "isPlayer": false,
+          "isSurprised": false
+         }
+        ],
+        "round": 1
+       }
+      },
+      "fps": 17.8
+     }
+    },
+    {
+     "step": "antechamber_fight",
+     "t": 1299.5,
+     "data": {
+      "resolved": true,
+      "fought": true,
+      "rounds": 3,
+      "turns": [
+       {
+        "round": 1,
+        "target": "npc_Skeleton2",
+        "dist": 1.5,
+        "how": "melee",
+        "ok": true,
+        "blocked": null
+       },
+       {
+        "round": 2,
+        "target": "npc_Skeleton",
+        "dist": 6.5,
+        "how": "melee",
+        "ok": true,
+        "blocked": null
+       },
+       {
+        "round": 3,
+        "target": "npc_Cultist",
+        "dist": 12.2,
+        "how": "sacred_flame",
+        "ok": true,
+        "blocked": null
+       }
+      ],
+      "enemy_hp": {
+       "npc_Skeleton": 0.0,
+       "npc_Skeleton2": 0.0,
+       "npc_Cultist": 0.0
+      },
+      "player_hp": 100.0,
+      "fps": 32.1
+     }
+    },
+    {
+     "step": "path",
+     "t": 1299.7,
+     "data": {
+      "to": [
+       24,
+       41
+      ],
+      "waypoints": 3,
+      "tried": 3,
+      "fps": 33.4
+     }
+    },
+    {
+     "step": "grimoire",
+     "t": 1312.2,
+     "data": {
+      "steer": "arrived",
+      "fired": true,
+      "fps": 26.6
+     }
+    },
+    {
+     "step": "path",
+     "t": 1312.3,
+     "data": {
+      "to": [
+       16,
+       21
+      ],
+      "waypoints": 3,
+      "tried": 1,
+      "fps": 27.1
+     }
+    },
+    {
+     "step": "precise_unreached",
+     "t": 1385.6,
+     "data": {
+      "to": [
+       16,
+       21
+      ],
+      "trace": [
+       [
+        48,
+        17.24,
+        24.08,
+        "WA"
+       ],
+       [
+        49,
+        17.24,
+        24.08,
+        "WA"
+       ],
+       [
+        50,
+        17.24,
+        24.08,
+        "WA"
+       ],
+       [
+        51,
+        17.24,
+        24.08,
+        "WA"
+       ],
+       [
+        52,
+        17.24,
+        24.08,
+        "WA"
+       ],
+       [
+        53,
+        17.24,
+        24.08,
+        "WA"
+       ],
+       [
+        54,
+        17.24,
+        24.08,
+        "WA"
+       ],
+       [
+        55,
+        17.24,
+        24.08,
+        "WA"
+       ],
+       [
+        56,
+        17.24,
+        24.08,
+        "WA"
+       ],
+       [
+        57,
+        17.24,
+        24.08,
+        "WA"
+       ],
+       [
+        58,
+        17.24,
+        24.08,
+        "WA"
+       ],
+       [
+        59,
+        17.24,
+        24.08,
+        "WA"
+       ]
+      ],
+      "fps": 24.3
+     }
+    },
+    {
+     "step": "crypt",
+     "t": 1387.1,
+     "data": {
+      "steer": "stopped",
+      "state": {
+       "active": true,
+       "current_entity": "player",
+       "in_combat": true,
+       "mode": "turn_based",
+       "player_turn": true,
+       "round": 1,
+       "turn_order": {
+        "active": true,
+        "currentIndex": 2,
+        "defaultSpeed": 30,
+        "order": [
+         {
+          "budget": {
+           "action": true,
+           "bonusAction": true,
+           "freeObjectInteraction": true,
+           "movementRemaining": 30,
+           "reaction": true
+          },
+          "entityId": "npc_Oswin",
+          "hasActedThisRound": true,
+          "initiativeModifier": 1,
+          "initiativeRoll": 18,
+          "isPlayer": true,
+          "isSurprised": false
+         },
+         {
+          "budget": {
+           "action": true,
+           "bonusAction": true,
+           "freeObjectInteraction": true,
+           "movementRemaining": 30,
+           "reaction": true
+          },
+          "entityId": "npc_HollowPriest",
           "hasActedThisRound": true,
           "initiativeModifier": 3,
-          "initiativeRoll": 19,
+          "initiativeRoll": 15,
           "isPlayer": false,
           "isSurprised": false
          },
@@ -1385,1124 +2963,10 @@
            "movementRemaining": 30,
            "reaction": true
           },
-          "entityId": "npc_Bram",
-          "hasActedThisRound": false,
-          "initiativeModifier": 1,
-          "initiativeRoll": 8,
-          "isPlayer": true,
-          "isSurprised": false
-         },
-         {
-          "budget": {
-           "action": true,
-           "bonusAction": true,
-           "freeObjectInteraction": true,
-           "movementRemaining": 30,
-           "reaction": true
-          },
-          "entityId": "npc_Wolf2",
-          "hasActedThisRound": false,
-          "initiativeModifier": 2,
-          "initiativeRoll": 5,
-          "isPlayer": false,
-          "isSurprised": false
-         },
-         {
-          "budget": {
-           "action": true,
-           "bonusAction": true,
-           "freeObjectInteraction": true,
-           "movementRemaining": 30,
-           "reaction": true
-          },
-          "entityId": "npc_Wolf",
-          "hasActedThisRound": false,
-          "initiativeModifier": 2,
-          "initiativeRoll": 3,
-          "isPlayer": false,
-          "isSurprised": false
-         }
-        ],
-        "round": 1
-       }
-      },
-      "fps": 30.7
-     }
-    },
-    {
-     "step": "wolves_fight",
-     "t": 736.3,
-     "data": {
-      "resolved": true,
-      "fought": true,
-      "rounds": 9,
-      "turns": [
-       {
-        "round": 1,
-        "target": "npc_AlphaWolf",
-        "dist": 1.5,
-        "how": "melee",
-        "ok": true,
-        "blocked": null
-       },
-       {
-        "round": 2,
-        "target": "npc_Wolf",
-        "dist": 1.4,
-        "how": "melee",
-        "ok": true,
-        "blocked": null
-       },
-       {
-        "round": 3,
-        "target": "npc_Wolf",
-        "dist": 1.4,
-        "how": "melee",
-        "ok": true,
-        "blocked": null
-       },
-       {
-        "round": 4,
-        "target": "npc_Wolf2",
-        "dist": 1.5,
-        "how": "melee",
-        "ok": true,
-        "blocked": null
-       },
-       {
-        "round": 5,
-        "target": "npc_Wolf2",
-        "dist": 1.5,
-        "how": "melee",
-        "ok": true,
-        "blocked": null
-       },
-       {
-        "round": 6,
-        "target": "npc_Wolf2",
-        "dist": 1.5,
-        "how": "melee",
-        "ok": true,
-        "blocked": null
-       },
-       {
-        "round": 7,
-        "target": "npc_Wolf2",
-        "dist": 1.5,
-        "how": "melee",
-        "ok": true,
-        "blocked": null
-       },
-       {
-        "round": 8,
-        "target": "npc_AlphaWolf",
-        "dist": 21.3,
-        "how": "sacred_flame",
-        "ok": true,
-        "blocked": null
-       }
-      ],
-      "enemy_hp": {
-       "npc_Wolf": 0.0,
-       "npc_Wolf2": 0.0,
-       "npc_Wolf3": {
-        "error": "unknown entity",
-        "id": "npc_Wolf3"
-       },
-       "npc_AlphaWolf": 4.0
-      },
-      "player_hp": 50.0,
-      "fps": 53.3
-     }
-    },
-    {
-     "step": "path",
-     "t": 736.4,
-     "data": {
-      "to": [
-       16,
-       17.5
-      ],
-      "waypoints": 5,
-      "tried": 1,
-      "fps": 52.9
-     }
-    },
-    {
-     "step": "dunstan_paid",
-     "t": 750.6,
-     "data": {
-      "steer": "arrived",
-      "seen": [
-       {
-        "node": "start",
-        "choices": [
-         "The wolves are dead.",
-         "Show me the north fence."
-        ]
-       }
-      ],
-      "inv": {
-       "inventory": {
-        "creative": true,
-        "hotbar": [
-         {
-          "count": 30,
-          "material": "gold_crown",
-          "max_stack": 64,
-          "selected": true,
-          "slot": 0
-         },
-         {
-          "empty": true,
-          "selected": false,
-          "slot": 1
-         },
-         {
-          "empty": true,
-          "selected": false,
-          "slot": 2
-         },
-         {
-          "empty": true,
-          "selected": false,
-          "slot": 3
-         },
-         {
-          "empty": true,
-          "selected": false,
-          "slot": 4
-         },
-         {
-          "empty": true,
-          "selected": false,
-          "slot": 5
-         },
-         {
-          "empty": true,
-          "selected": false,
-          "slot": 6
-         },
-         {
-          "empty": true,
-          "selected": false,
-          "slot": 7
-         },
-         {
-          "empty": true,
-          "selected": false,
-          "slot": 8
-         }
-        ],
-        "selected_slot": 0,
-        "size": 36,
-        "slots": [
-         {
-          "count": 30,
-          "material": "gold_crown",
-          "max_stack": 64,
-          "slot": 0
-         }
-        ]
-       },
-       "success": true
-      },
-      "fps": 56.8
-     }
-    },
-    {
-     "step": "path",
-     "t": 750.6,
-     "data": {
-      "to": [
-       16,
-       27.5
-      ],
-      "waypoints": 2,
-      "tried": 1,
-      "fps": 54.1
-     }
-    },
-    {
-     "step": "tracks",
-     "t": 758.4,
-     "data": {
-      "steer": "stopped",
-      "fired": true,
-      "fps": 54.6
-     }
-    },
-    {
-     "step": "path",
-     "t": 758.4,
-     "data": {
-      "to": [
-       9.5,
-       26
-      ],
-      "waypoints": 2,
-      "tried": 1,
-      "fps": 54.6
-     }
-    },
-    {
-     "step": "oswin_first",
-     "t": 768.1,
-     "data": {
-      "steer": "arrived",
-      "seen": [
-       {
-        "node": "start",
-        "choices": [
-         "What grimoire?",
-         "Goodbye, then."
-        ]
-       }
-      ],
-      "fps": 45.7
-     }
-    },
-    {
-     "step": "path",
-     "t": 768.2,
-     "data": {
-      "to": [
-       2,
-       16
-      ],
-      "waypoints": 3,
-      "tried": 1,
-      "fps": 46.6
-     }
-    },
-    {
-     "step": "precise_scene_changed",
-     "t": 788.6,
-     "data": {
-      "to": [
-       2,
-       16
-      ],
-      "trace": [
-       [
-        0,
-        3.45,
-        17.6,
-        "W"
-       ],
-       [
-        1,
-        3.09,
-        17.24,
-        "WA"
-       ],
-       [
-        2,
-        3.09,
-        16.85,
-        "WD"
-       ]
-      ],
-      "fps": 71.1
-     }
-    },
-    {
-     "step": "town_again",
-     "t": 794.9,
-     "data": {
-      "steer": "stopped",
-      "scene": {
-       "scene_id": "town",
-       "scene_type": "world",
-       "screen": "playing",
-       "source": "shell",
-       "success": true,
-       "transitioning": false,
-       "visible_menus": []
-      },
-      "pos": [
-       -36.29261779785156,
-       15.0
-      ],
-      "fps": 6.1
-     }
-    },
-    {
-     "step": "path",
-     "t": 795.3,
-     "data": {
-      "to": [
-       -12,
-       14.5
-      ],
-      "waypoints": 4,
-      "tried": 1,
-      "fps": 6.0
-     }
-    },
-    {
-     "step": "reeve_tracks",
-     "t": 851.9,
-     "data": {
-      "steer": "arrived",
-      "seen": [
-       {
-        "node": "start",
-        "choices": [
-         "I found tracks at Hollin Farm. They lead",
-         "Nothing for now."
-        ]
-       }
-      ],
-      "wren_unlock": true,
-      "fps": 11.0
-     }
-    },
-    {
-     "step": "path",
-     "t": 852.0,
-     "data": {
-      "to": [
-       -5,
-       13
-      ],
-      "waypoints": 4,
-      "tried": 1,
-      "fps": 11.1
-     }
-    },
-    {
-     "step": "wren_recruit",
-     "t": 870.0,
-     "data": {
-      "steer": "arrived",
-      "seen": [
-       {
-        "node": "start",
-        "choices": [
-         "I'm hunting whoever took the children. I",
-         "You're free. Aldric agreed.",
-         "Enjoy the week."
-        ]
-       }
-      ],
-      "party": {
-       "error": "unknown action: party"
-      },
-      "fps": 13.7
-     }
-    },
-    {
-     "step": "path",
-     "t": 870.2,
-     "data": {
-      "to": [
-       60,
-       15
-      ],
-      "waypoints": 3,
-      "tried": 3,
-      "fps": 13.9
-     }
-    },
-    {
-     "step": "precise_scene_changed",
-     "t": 918.1,
-     "data": {
-      "to": [
-       60,
-       15
-      ],
-      "trace": [
-       [
-        28,
-        46.27,
-        14.67,
-        "SA"
-       ],
-       [
-        29,
-        47.43,
-        14.67,
-        "SA"
-       ],
-       [
-        30,
-        48.59,
-        14.67,
-        "SA"
-       ],
-       [
-        31,
-        49.72,
-        14.67,
-        "SA"
-       ],
-       [
-        32,
-        50.78,
-        14.67,
-        "SA"
-       ],
-       [
-        33,
-        51.9,
-        14.67,
-        "SA"
-       ],
-       [
-        34,
-        52.97,
-        14.67,
-        "SA"
-       ],
-       [
-        35,
-        54.02,
-        14.67,
-        "SA"
-       ],
-       [
-        36,
-        55.04,
-        14.67,
-        "SA"
-       ],
-       [
-        37,
-        56.06,
-        14.67,
-        "SA"
-       ],
-       [
-        38,
-        57.05,
-        14.67,
-        "SA"
-       ],
-       [
-        39,
-        57.77,
-        14.67,
-        "SA"
-       ]
-      ],
-      "fps": 86.8
-     }
-    },
-    {
-     "step": "farm2",
-     "t": 922.2,
-     "data": {
-      "steer": "stopped",
-      "scene": {
-       "scene_id": "farm",
-       "scene_type": "world",
-       "screen": "playing",
-       "source": "shell",
-       "success": true,
-       "transitioning": false,
-       "visible_menus": []
-      },
-      "fps": 63.9
-     }
-    },
-    {
-     "step": "path",
-     "t": 922.2,
-     "data": {
-      "to": [
-       9.5,
-       26
-      ],
-      "waypoints": 2,
-      "tried": 1,
-      "fps": 64.7
-     }
-    },
-    {
-     "step": "oswin_join",
-     "t": 934.1,
-     "data": {
-      "steer": "arrived",
-      "seen": [
-       {
-        "node": "start",
-        "choices": [
-         "I'm going into the barrow. Come and fetc",
-         "What grimoire?",
-         "Goodbye, then."
-        ]
-       }
-      ],
-      "party": {
-       "error": "unknown action: party"
-      },
-      "fps": 39.1
-     }
-    },
-    {
-     "step": "path",
-     "t": 934.1,
-     "data": {
-      "to": [
-       16,
-       30.5
-      ],
-      "waypoints": 2,
-      "tried": 1,
-      "fps": 39.2
-     }
-    },
-    {
-     "step": "precise_scene_changed",
-     "t": 944.2,
-     "data": {
-      "to": [
-       16,
-       30.5
-      ],
-      "trace": [
-       [
-        0,
-        8.59,
-        25.5,
-        "S"
-       ],
-       [
-        1,
-        9.31,
-        26.22,
-        "S"
-       ],
-       [
-        2,
-        10.03,
-        26.94,
-        "S"
-       ],
-       [
-        3,
-        10.7,
-        27.61,
-        "S"
-       ],
-       [
-        4,
-        11.49,
-        28.39,
-        "S"
-       ],
-       [
-        5,
-        12.26,
-        29.17,
-        "SA"
-       ],
-       [
-        6,
-        13.29,
-        29.17,
-        "S"
-       ],
-       [
-        7,
-        13.83,
-        29.71,
-        "SA"
-       ],
-       [
-        8,
-        14.48,
-        29.71,
-        "SA"
-       ],
-       [
-        9,
-        15.06,
-        29.71,
-        "SA"
-       ],
-       [
-        10,
-        15.46,
-        29.71,
-        "SD"
-       ]
-      ],
-      "fps": 47.0
-     }
-    },
-    {
-     "step": "barrow",
-     "t": 948.3,
-     "data": {
-      "steer": "stopped",
-      "scene": {
-       "scene_id": "barrow",
-       "scene_type": "world",
-       "screen": "playing",
-       "source": "shell",
-       "success": true,
-       "transitioning": false,
-       "visible_menus": []
-      },
-      "pos": [
-       16.0,
-       44.0
-      ],
-      "enter": true,
-      "fps": 26.6
-     }
-    },
-    {
-     "step": "path",
-     "t": 948.3,
-     "data": {
-      "to": [
-       16,
-       36
-      ],
-      "waypoints": 2,
-      "tried": 1,
-      "fps": 26.8
-     }
-    },
-    {
-     "step": "precise_unreached",
-     "t": 1025.0,
-     "data": {
-      "to": [
-       16,
-       36
-      ],
-      "trace": [
-       [
-        48,
-        16.63,
-        37.97,
-        "WA"
-       ],
-       [
-        49,
-        16.63,
-        37.97,
-        "WA"
-       ],
-       [
-        50,
-        16.63,
-        37.97,
-        "WA"
-       ],
-       [
-        51,
-        16.63,
-        37.97,
-        "WA"
-       ],
-       [
-        52,
-        16.63,
-        37.97,
-        "WA"
-       ],
-       [
-        53,
-        16.63,
-        37.97,
-        "WA"
-       ],
-       [
-        54,
-        16.63,
-        37.97,
-        "WA"
-       ],
-       [
-        55,
-        16.63,
-        37.97,
-        "WA"
-       ],
-       [
-        56,
-        16.63,
-        37.97,
-        "WA"
-       ],
-       [
-        57,
-        16.63,
-        37.97,
-        "WA"
-       ],
-       [
-        58,
-        16.63,
-        37.97,
-        "WA"
-       ],
-       [
-        59,
-        16.63,
-        37.97,
-        "WA"
-       ]
-      ],
-      "fps": 18.1
-     }
-    },
-    {
-     "step": "antechamber",
-     "t": 1026.6,
-     "data": {
-      "steer": "stopped",
-      "state": {
-       "active": true,
-       "current_entity": "player",
-       "in_combat": true,
-       "mode": "turn_based",
-       "player_turn": true,
-       "round": 1,
-       "turn_order": {
-        "active": true,
-        "currentIndex": 1,
-        "defaultSpeed": 30,
-        "order": [
-         {
-          "budget": {
-           "action": false,
-           "bonusAction": true,
-           "freeObjectInteraction": true,
-           "movementRemaining": 11,
-           "reaction": true
-          },
-          "entityId": "npc_Skeleton",
-          "hasActedThisRound": true,
-          "initiativeModifier": 2,
-          "initiativeRoll": 19,
-          "isPlayer": false,
-          "isSurprised": false
-         },
-         {
-          "budget": {
-           "action": true,
-           "bonusAction": true,
-           "freeObjectInteraction": true,
-           "movementRemaining": 30,
-           "reaction": true
-          },
-          "entityId": "player",
-          "hasActedThisRound": false,
-          "initiativeModifier": 1,
-          "initiativeRoll": 18,
-          "isPlayer": true,
-          "isSurprised": false
-         },
-         {
-          "budget": {
-           "action": true,
-           "bonusAction": true,
-           "freeObjectInteraction": true,
-           "movementRemaining": 30,
-           "reaction": true
-          },
-          "entityId": "npc_Skeleton2",
-          "hasActedThisRound": false,
-          "initiativeModifier": 2,
-          "initiativeRoll": 14,
-          "isPlayer": false,
-          "isSurprised": false
-         },
-         {
-          "budget": {
-           "action": true,
-           "bonusAction": true,
-           "freeObjectInteraction": true,
-           "movementRemaining": 30,
-           "reaction": true
-          },
-          "entityId": "npc_Cultist",
-          "hasActedThisRound": false,
-          "initiativeModifier": 1,
-          "initiativeRoll": 9,
-          "isPlayer": false,
-          "isSurprised": false
-         },
-         {
-          "budget": {
-           "action": true,
-           "bonusAction": true,
-           "freeObjectInteraction": true,
-           "movementRemaining": 30,
-           "reaction": true
-          },
-          "entityId": "npc_Wren",
-          "hasActedThisRound": false,
-          "initiativeModifier": 1,
-          "initiativeRoll": 9,
-          "isPlayer": true,
-          "isSurprised": false
-         },
-         {
-          "budget": {
-           "action": true,
-           "bonusAction": true,
-           "freeObjectInteraction": true,
-           "movementRemaining": 30,
-           "reaction": true
-          },
-          "entityId": "npc_Oswin",
-          "hasActedThisRound": false,
-          "initiativeModifier": 1,
-          "initiativeRoll": 8,
-          "isPlayer": true,
-          "isSurprised": false
-         },
-         {
-          "budget": {
-           "action": true,
-           "bonusAction": true,
-           "freeObjectInteraction": true,
-           "movementRemaining": 30,
-           "reaction": true
-          },
-          "entityId": "npc_Bram",
-          "hasActedThisRound": false,
-          "initiativeModifier": 1,
-          "initiativeRoll": 4,
-          "isPlayer": true,
-          "isSurprised": false
-         }
-        ],
-        "round": 1
-       }
-      },
-      "fps": 18.2
-     }
-    },
-    {
-     "step": "antechamber_fight",
-     "t": 1068.8,
-     "data": {
-      "resolved": true,
-      "fought": true,
-      "rounds": 3,
-      "turns": [
-       {
-        "round": 1,
-        "target": "npc_Skeleton",
-        "dist": 1.3,
-        "how": "melee",
-        "ok": true,
-        "blocked": null
-       },
-       {
-        "round": 2,
-        "target": "npc_Skeleton2",
-        "dist": 1.2,
-        "how": "melee",
-        "ok": true,
-        "blocked": null
-       },
-       {
-        "round": 3,
-        "target": "npc_Cultist",
-        "dist": 1.3,
-        "how": "melee",
-        "ok": true,
-        "blocked": null
-       }
-      ],
-      "enemy_hp": {
-       "npc_Skeleton": 0.0,
-       "npc_Skeleton2": 0.0,
-       "npc_Cultist": 0.0
-      },
-      "player_hp": 81.0,
-      "fps": 32.9
-     }
-    },
-    {
-     "step": "path",
-     "t": 1068.9,
-     "data": {
-      "to": [
-       24,
-       41
-      ],
-      "waypoints": 2,
-      "tried": 3,
-      "fps": 33.7
-     }
-    },
-    {
-     "step": "grimoire",
-     "t": 1074.7,
-     "data": {
-      "steer": "arrived",
-      "fired": true,
-      "fps": 26.3
-     }
-    },
-    {
-     "step": "path",
-     "t": 1074.8,
-     "data": {
-      "to": [
-       16,
-       21
-      ],
-      "waypoints": 3,
-      "tried": 1,
-      "fps": 26.6
-     }
-    },
-    {
-     "step": "precise_unreached",
-     "t": 1155.8,
-     "data": {
-      "to": [
-       16,
-       21
-      ],
-      "trace": [
-       [
-        48,
-        17.08,
-        23.78,
-        "WA"
-       ],
-       [
-        49,
-        17.08,
-        23.78,
-        "WA"
-       ],
-       [
-        50,
-        17.08,
-        23.78,
-        "WA"
-       ],
-       [
-        51,
-        17.08,
-        23.78,
-        "WA"
-       ],
-       [
-        52,
-        17.08,
-        23.78,
-        "WA"
-       ],
-       [
-        53,
-        17.08,
-        23.78,
-        "WA"
-       ],
-       [
-        54,
-        17.08,
-        23.78,
-        "WA"
-       ],
-       [
-        55,
-        17.08,
-        23.78,
-        "WA"
-       ],
-       [
-        56,
-        17.08,
-        23.78,
-        "WA"
-       ],
-       [
-        57,
-        17.08,
-        23.78,
-        "WA"
-       ],
-       [
-        58,
-        17.08,
-        23.78,
-        "WA"
-       ],
-       [
-        59,
-        17.08,
-        23.78,
-        "WA"
-       ]
-      ],
-      "fps": 24.2
-     }
-    },
-    {
-     "step": "crypt",
-     "t": 1157.5,
-     "data": {
-      "steer": "stopped",
-      "state": {
-       "active": true,
-       "current_entity": "player",
-       "in_combat": true,
-       "mode": "turn_based",
-       "player_turn": true,
-       "round": 1,
-       "turn_order": {
-        "active": true,
-        "currentIndex": 6,
-        "defaultSpeed": 30,
-        "order": [
-         {
-          "budget": {
-           "action": true,
-           "bonusAction": true,
-           "freeObjectInteraction": true,
-           "movementRemaining": 30,
-           "reaction": true
-          },
-          "entityId": "npc_Oswin",
-          "hasActedThisRound": true,
-          "initiativeModifier": 1,
-          "initiativeRoll": 14,
-          "isPlayer": true,
-          "isSurprised": false
-         },
-         {
-          "budget": {
-           "action": true,
-           "bonusAction": true,
-           "freeObjectInteraction": true,
-           "movementRemaining": 0,
-           "reaction": true
-          },
-          "entityId": "npc_Bram",
-          "hasActedThisRound": true,
-          "initiativeModifier": 1,
-          "initiativeRoll": 12,
-          "isPlayer": true,
-          "isSurprised": false
-         },
-         {
-          "budget": {
-           "action": false,
-           "bonusAction": true,
-           "freeObjectInteraction": true,
-           "movementRemaining": 23,
-           "reaction": true
-          },
           "entityId": "npc_Skeleton3",
-          "hasActedThisRound": true,
+          "hasActedThisRound": false,
           "initiativeModifier": 2,
-          "initiativeRoll": 11,
+          "initiativeRoll": 14,
           "isPlayer": false,
           "isSurprised": false
          },
@@ -2511,13 +2975,13 @@
            "action": true,
            "bonusAction": true,
            "freeObjectInteraction": true,
-           "movementRemaining": 0,
+           "movementRemaining": 30,
            "reaction": true
           },
           "entityId": "npc_Wren",
-          "hasActedThisRound": true,
+          "hasActedThisRound": false,
           "initiativeModifier": 1,
-          "initiativeRoll": 11,
+          "initiativeRoll": 9,
           "isPlayer": true,
           "isSurprised": false
          },
@@ -2529,11 +2993,11 @@
            "movementRemaining": 30,
            "reaction": true
           },
-          "entityId": "npc_HollowPriest",
-          "hasActedThisRound": true,
-          "initiativeModifier": 3,
-          "initiativeRoll": 7,
-          "isPlayer": false,
+          "entityId": "npc_Bram",
+          "hasActedThisRound": false,
+          "initiativeModifier": 1,
+          "initiativeRoll": 8,
+          "isPlayer": true,
           "isSurprised": false
          },
          {
@@ -2545,37 +3009,22 @@
            "reaction": true
           },
           "entityId": "npc_Cultist2",
-          "hasActedThisRound": true,
-          "initiativeModifier": 1,
-          "initiativeRoll": 4,
-          "isPlayer": false,
-          "isSurprised": false
-         },
-         {
-          "budget": {
-           "action": true,
-           "bonusAction": true,
-           "freeObjectInteraction": true,
-           "movementRemaining": 30,
-           "reaction": true
-          },
-          "entityId": "player",
           "hasActedThisRound": false,
           "initiativeModifier": 1,
-          "initiativeRoll": 3,
-          "isPlayer": true,
+          "initiativeRoll": 2,
+          "isPlayer": false,
           "isSurprised": false
          }
         ],
         "round": 1
        }
       },
-      "fps": 24.5
+      "fps": 24.3
      }
     },
     {
      "step": "crypt_fight",
-     "t": 1204.1,
+     "t": 1441.2,
      "data": {
       "resolved": true,
       "fought": true,
@@ -2584,7 +3033,7 @@
        {
         "round": 1,
         "target": "npc_Skeleton3",
-        "dist": 7.7,
+        "dist": 10.5,
         "how": "sacred_flame",
         "ok": true,
         "blocked": null
@@ -2592,15 +3041,15 @@
        {
         "round": 2,
         "target": "npc_Skeleton3",
-        "dist": 7.7,
-        "how": "sacred_flame",
+        "dist": 1.4,
+        "how": "melee",
         "ok": true,
         "blocked": null
        },
        {
         "round": 3,
-        "target": "npc_Cultist2",
-        "dist": 11.0,
+        "target": "npc_HollowPriest",
+        "dist": 12.1,
         "how": "sacred_flame",
         "ok": true,
         "blocked": null
@@ -2608,7 +3057,7 @@
        {
         "round": 4,
         "target": "npc_HollowPriest",
-        "dist": 11.8,
+        "dist": 12.1,
         "how": "sacred_flame",
         "ok": true,
         "blocked": null
@@ -2616,7 +3065,7 @@
        {
         "round": 5,
         "target": "npc_HollowPriest",
-        "dist": 11.8,
+        "dist": 12.1,
         "how": "sacred_flame",
         "ok": true,
         "blocked": null
@@ -2627,13 +3076,13 @@
        "npc_Cultist2": 0.0,
        "npc_Skeleton3": 0.0
       },
-      "player_hp": 81.0,
-      "fps": 25.4
+      "player_hp": 100.0,
+      "fps": 24.8
      }
     },
     {
      "step": "priest",
-     "t": 1204.2,
+     "t": 1441.3,
      "data": {
       "priest_slain": true,
       "sheet": {
@@ -2709,7 +3158,7 @@
          "channel_divinity",
          "turn_undead"
         ],
-        "experiencePoints": 1150,
+        "experiencePoints": 1200,
         "featIds": [],
         "hitDicePools": [
          {
@@ -2733,12 +3182,12 @@
        },
        "success": true
       },
-      "fps": 25.6
+      "fps": 23.9
      }
     },
     {
      "step": "path",
-     "t": 1204.3,
+     "t": 1441.3,
      "data": {
       "to": [
        16,
@@ -2746,12 +3195,12 @@
       ],
       "waypoints": 2,
       "tried": 1,
-      "fps": 25.9
+      "fps": 23.8
      }
     },
     {
      "step": "relic",
-     "t": 1212.4,
+     "t": 1454.4,
      "data": {
       "steer": "stopped",
       "fired": true,
@@ -2760,23 +3209,21 @@
         "creative": true,
         "hotbar": [
          {
-          "count": 30,
-          "material": "gold_crown",
-          "max_stack": 64,
+          "count": 1,
+          "material": "oswin_grimoire",
+          "max_stack": 1,
           "selected": true,
           "slot": 0
          },
          {
           "count": 1,
-          "material": "oswin_grimoire",
-          "max_stack": 64,
+          "material": "hollow_relic",
+          "max_stack": 1,
           "selected": false,
           "slot": 1
          },
          {
-          "count": 1,
-          "material": "hollow_relic",
-          "max_stack": 64,
+          "empty": true,
           "selected": false,
           "slot": 2
          },
@@ -2815,33 +3262,27 @@
         "size": 36,
         "slots": [
          {
-          "count": 30,
-          "material": "gold_crown",
-          "max_stack": 64,
+          "count": 1,
+          "material": "oswin_grimoire",
+          "max_stack": 1,
           "slot": 0
          },
          {
           "count": 1,
-          "material": "oswin_grimoire",
-          "max_stack": 64,
-          "slot": 1
-         },
-         {
-          "count": 1,
           "material": "hollow_relic",
-          "max_stack": 64,
-          "slot": 2
+          "max_stack": 1,
+          "slot": 1
          }
         ]
        },
        "success": true
       },
-      "fps": 31.6
+      "fps": 32.3
      }
     },
     {
      "step": "path",
-     "t": 1212.4,
+     "t": 1454.5,
      "data": {
       "to": [
        16,
@@ -2854,7 +3295,7 @@
     },
     {
      "step": "precise_scene_changed",
-     "t": 1233.6,
+     "t": 1475.4,
      "data": {
       "to": [
        16,
@@ -2863,83 +3304,83 @@
       "trace": [
        [
         21,
-        16.44,
-        35.21,
+        16.56,
+        34.94,
         "SD"
        ],
        [
         22,
-        16.44,
-        36.19,
+        16.56,
+        36.01,
         "SD"
        ],
        [
         23,
-        16.44,
-        37.19,
+        16.56,
+        37.07,
         "SD"
        ],
        [
         24,
-        16.44,
-        38.18,
+        16.56,
+        38.14,
         "SD"
        ],
        [
         25,
-        16.44,
-        39.24,
+        16.56,
+        39.14,
         "SD"
        ],
        [
         26,
-        16.44,
+        16.56,
         40.25,
         "SD"
        ],
        [
         27,
-        16.44,
-        41.28,
+        16.56,
+        41.24,
         "SD"
        ],
        [
         28,
-        16.44,
-        42.33,
+        16.56,
+        42.25,
         "SD"
        ],
        [
         29,
-        16.44,
-        43.38,
+        16.56,
+        43.25,
         "SD"
        ],
        [
         30,
-        16.44,
-        44.29,
+        16.56,
+        44.13,
         "SD"
        ],
        [
         31,
-        16.44,
-        44.92,
+        16.56,
+        44.86,
         "SD"
        ],
        [
         32,
-        16.44,
-        45.54,
+        16.56,
+        45.44,
         "SD"
        ]
       ],
-      "fps": 93.8
+      "fps": 84.5
      }
     },
     {
      "step": "farm3",
-     "t": 1237.7,
+     "t": 1479.5,
      "data": {
       "steer": "stopped",
       "scene": {
@@ -2951,12 +3392,12 @@
        "transitioning": false,
        "visible_menus": []
       },
-      "fps": 66.0
+      "fps": 67.1
      }
     },
     {
      "step": "path",
-     "t": 1237.7,
+     "t": 1479.6,
      "data": {
       "to": [
        2,
@@ -2969,7 +3410,7 @@
     },
     {
      "step": "precise_scene_changed",
-     "t": 1252.6,
+     "t": 1494.5,
      "data": {
       "to": [
        2.5,
@@ -2978,47 +3419,47 @@
       "trace": [
        [
         0,
-        5.54,
-        15.54,
+        5.55,
+        15.55,
         "WD"
        ],
        [
         1,
-        4.85,
-        15.54,
+        4.86,
+        15.55,
         "WD"
        ],
        [
         2,
-        4.29,
-        15.54,
+        4.31,
+        15.55,
         "WD"
        ],
        [
         3,
-        3.84,
-        15.54,
+        3.86,
+        15.55,
         "WD"
        ],
        [
         4,
-        3.5,
-        15.54,
+        3.53,
+        15.55,
         "WD"
        ],
        [
         5,
-        3.22,
-        15.54,
+        3.26,
+        15.55,
         "WD"
        ]
       ],
-      "fps": 68.5
+      "fps": 69.3
      }
     },
     {
      "step": "replan",
-     "t": 1252.6,
+     "t": 1494.5,
      "data": {
       "missed": [
        2.5,
@@ -3029,12 +3470,12 @@
        15.0
       ],
       "left": 2,
-      "fps": 68.5
+      "fps": 69.3
      }
     },
     {
      "step": "path",
-     "t": 1254.6,
+     "t": 1495.6,
      "data": {
       "to": [
        2,
@@ -3042,12 +3483,12 @@
       ],
       "waypoints": 2,
       "tried": 1,
-      "fps": 4.0
+      "fps": 54.7
      }
     },
     {
      "step": "town_final",
-     "t": 1259.3,
+     "t": 1500.2,
      "data": {
       "steer": "stopped",
       "scene": {
@@ -3059,12 +3500,12 @@
        "transitioning": false,
        "visible_menus": []
       },
-      "fps": 6.2
+      "fps": 6.3
      }
     },
     {
      "step": "path",
-     "t": 1259.7,
+     "t": 1500.6,
      "data": {
       "to": [
        -12,
@@ -3072,12 +3513,12 @@
       ],
       "waypoints": 4,
       "tried": 1,
-      "fps": 6.2
+      "fps": 6.3
      }
     },
     {
      "step": "finale",
-     "t": 1312.8,
+     "t": 1542.5,
      "data": {
       "steer": "arrived",
       "seen": [
@@ -3182,7 +3623,7 @@
          "channel_divinity",
          "turn_undead"
         ],
-        "experiencePoints": 1225,
+        "experiencePoints": 1275,
         "featIds": [],
         "hitDicePools": [
          {
@@ -3206,18 +3647,18 @@
        },
        "success": true
       },
-      "fps": 10.6
+      "fps": 10.7
      }
     },
     {
      "step": "final_screenshot",
-     "t": 1313.5,
+     "t": 1543.2,
      "data": {
       "height": 720,
-      "path": "screenshots/shot_1789135593932.png",
+      "path": "screenshots/shot_1789498879006.png",
       "success": true,
       "width": 1280,
-      "fps": 10.5
+      "fps": 4.0
      }
     }
    ]

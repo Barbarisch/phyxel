@@ -262,6 +262,14 @@ void GameApiService::registerCommands() {
 
     // The load-time self-check (WorldHealth, WalkabilityGateAndPlaytestLoop layer B):
     // reachable anchors from the spawn + terrain under the spawn, as of the last scene ready.
+    // POST /api/rpg/ui_lint - every child a visible HUD panel would cut off and every
+    // pair of visible panels that overlap ({defects:[...], count}). The playtest
+    // harness asserts count == 0 on each screen it visits.
+    reg.on("ui_lint", [this](const APICommand&, json& r) {
+        if (!uiLintProvider) { r = {{"error", "no UI lint provider"}}; return; }
+        json d = uiLintProvider();
+        r = {{"success", true}, {"defects", d}, {"count", d.is_array() ? d.size() : 0}};
+    });
     reg.on("world_health", [this](const APICommand&, json& r) {
         if (!worldHealthProvider) { r = {{"error", "no WorldHealth provider"}}; return; }
         json rep = worldHealthProvider();

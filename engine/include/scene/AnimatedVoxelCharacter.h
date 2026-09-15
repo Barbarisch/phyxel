@@ -185,6 +185,9 @@ namespace Scene {
         float getAnimationProgress() const;
         float getAnimationDuration() const;
         float getYaw() const { return currentYaw; }
+        /// Model-space Y the controller treats as the sole: the draw origin is
+        /// worldPosition - this. Public so tests can measure drawn feet against a floor.
+        float getSkeletonFootOffset() const { return skeletonFootOffset_; }
         // Set absolute facing (radians). Used by first-person/over-the-shoulder
         // hosts to lock the body's heading to the camera yaw so movement follows
         // the view. Turn input still rotates currentYaw when this isn't driven.
@@ -658,7 +661,6 @@ namespace Scene {
         Phyxel::AnimationSystem& getAnimSystemMut() { return animSystem; }
 
         const glm::vec3& getWorldPositionRef() const { return worldPosition; }
-        float getSkeletonFootOffset() const { return skeletonFootOffset_; }
         float getCurrentYaw() const { return currentYaw; }
         Phyxel::ChunkManager* getChunkManagerPtr() const { return m_chunkManager; }
 

@@ -130,6 +130,16 @@ public:
     std::string id;
     glm::vec2 size = {200, 40};
     glm::vec2 position = {0, 0};  // absolute offset within a free-layout parent
+    /// JSON "actionBind": the HudDataContext action a click on this (button) invokes,
+    /// with the repeater row's record. Empty = a plain button.
+    std::string actionBind;
+    /// LAYOUT PASS (2026-09-11): the height this widget needs when given `availWidth`,
+    /// measured BEFORE it renders. Labels wrap and count lines, repeaters sum their
+    /// rows, panels stack their children. Default: the authored size. Auto-sized
+    /// panels use it so content is never cut off by a hand-tuned rectangle.
+    virtual float measureHeight(const BitmapFont* font, const UITheme& theme, float availWidth) const {
+        (void)font; (void)theme; (void)availWidth; return size.y;
+    }
     bool visible = true;
     bool enabled = true;
     bool hovered = false;
@@ -194,6 +204,15 @@ public:
 
     /// Add a child widget. Panel owns it.
     void addChild(std::unique_ptr<UIWidget> widget);
+    /// AUTO-SIZE (JSON "autoSize": true): before anchoring/rendering, the panel's height
+    /// becomes its measured content height; with "maxSize" [w,h] the height caps there and
+    /// the panel turns scrollable. The Objectives panel used to clip its own text, the
+    /// Initiative list its last rows (Ravenmere manual test 2026-09-11).
+    bool autoHeight = false;
+    glm::vec2 maxSize = {0, 0};   ///< 0 = uncapped
+    float measureContentHeight(const BitmapFont* font, const UITheme& theme) const;
+    void applyAutoSize(const BitmapFont* font, const UITheme& theme);
+    float measureHeight(const BitmapFont* font, const UITheme& theme, float availWidth) const override;
 
 private:
     void drawScrollbar(UIRenderer* renderer, const UITheme& theme, glm::vec2 pos);
@@ -230,6 +249,7 @@ public:
     std::string text;
     bool isTitle = false;     // uses titleColor + titleScale if true
     float wrapWidth = 0.0f;   // >0 = word-wrap to this pixel width (multi-line)
+    float measureHeight(const BitmapFont* font, const UITheme& theme, float availWidth) const override;
     /// Horizontal alignment relative to `position.x`:
     ///   Left   (default) — text STARTS at position.x (historical behavior)
     ///   Center           — text is centered ON position.x (what every shipped
@@ -266,6 +286,9 @@ public:
     glm::vec4 customColor   = {0, 0, 0, 0};
     glm::vec4 customBg      = {0, 0, 0, 0};
     glm::vec4 customBgHover = {0, 0, 0, 0};
+    /// Grow the width so the label fits (text + 2*padding); `size.x` is the minimum.
+    /// For data-driven labels (action bar rows) whose length isn't known when authored.
+    bool fitText = false;
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -394,6 +417,11 @@ public:
     std::string itemTemplateJson;   ///< Serialized JSON of one item's widget def
     float itemSpacing = 4.0f;
     bool  horizontal = false;       ///< Lay items left-to-right instead of top-down
+    float measureHeight(const BitmapFont* font, const UITheme& theme, float availWidth) const override;
+    /// Clicks/hover route to the generated items at the positions render() lays them
+    /// out (G-106: without this the action bar swallowed every click).
+    bool handleClick(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) override;
+    void handleHover(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) override;
     std::vector<std::unique_ptr<UIWidget>> generated; ///< managed by the binding pass
 };
 

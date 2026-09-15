@@ -9,12 +9,12 @@ Every step records what the API said; a step that cannot proceed records WHY and
 continues where it can. Evidence lands in rv_playthrough_evidence.json + rv_runA.log.
 Movement is keypress steering (no teleport on the standalone) - slow but honest.
 """
-import math, json, math, subprocess, sys, time, urllib.request
+import math, json, os, subprocess, sys, time, urllib.request
 from pathlib import Path
 
 PORT = 8104
 BASE = f"http://127.0.0.1:{PORT}"
-RELDIR = Path.home() / "Documents/PhyxelProjects/Ravenmere/build/Release"
+RELDIR = Path(os.environ["RV_RELDIR"]) if os.environ.get("RV_RELDIR") else Path.home() / "Documents/PhyxelProjects/Ravenmere/build/Release"   # RV_RELDIR: run against another build tree (build_probe)
 OUT = Path(__file__).parent
 ev = {"runs": []}
 T0 = time.time()
@@ -78,7 +78,13 @@ def launch(tag, wipe_saves=True):
     cur = {"tag": tag, "steps": []}
     ev["runs"].append(cur)
     if wipe_saves:
-        # a fresh run must not inherit a PlayerProfile row; world DBs are the authored bake
+        # a fresh run must not inherit a PlayerProfile row (run 52 read a stale gold_crown x30
+        # inventory from run 51's save); world DBs are the authored bake
+        import sqlite3
+        for f in (RELDIR / "worlds").glob("*.db"):
+            try:
+                c = sqlite3.connect(str(f)); c.execute("DELETE FROM player_state"); c.commit(); c.close()
+            except Exception: pass
         for f in (RELDIR / "worlds").glob("*.db*"):
             if f.name.startswith(("cellar", "farm", "barrow")):
                 for _ in range(10):
@@ -161,8 +167,17 @@ def framed_shot(tag, cam, target):
     rec(tag, dict(safe("GET", "/api/screenshot"), cam=cam, target=target, yaw=round(yaw, 1), pitch=round(pitch, 1)))
     safe("POST", "/api/rpg/set_camera", {"detach": False}); time.sleep(0.5)
 
+def ui_lint(tag):
+    """HUD layout lint (CombatUiBg3 increment 2): cut-off children / overlapping panels = defects."""
+    r = safe("POST", "/api/rpg/ui_lint", {})
+    for d in r.get("defects", []) or []:
+        defect("hud_" + d.get("kind", "layout"), pos=None, route_label=d.get("panel", "") + " / " + d.get("other", ""),
+               evidence=d.get("message", ""), source="hud_lint")
+    rec("ui_lint", {"tag": tag, "count": r.get("count"), "defects": [d.get("message") for d in (r.get("defects") or [])][:6]})
+
 def world_health(tag):
     """Layer B: the shipped game's own load-time self-check (WorldHealth::check on scene ready)."""
+    ui_lint(tag)
     r = safe("POST", "/api/rpg/world_health", {})
     for a in r.get("anchors", []):
         if not a.get("reachable"):

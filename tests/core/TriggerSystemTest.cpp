@@ -258,3 +258,32 @@ TEST(TriggerSystemTest, InteractGatedRegionFiresOnlyOnTheInteractKeyInside) {
     ts.update(0.016f, resolver);
     EXPECT_EQ(fired, 1) << "once";
 }
+
+
+// Run 52 (2026-09-15): the player halted 8 cm outside a one-cube-deep exit region and the
+// scene transition never fired. A region contains a BODY (half-width 2 microcubes = 0.22 m),
+// not a point: standing on the edge counts. RED before: the point test.
+TEST(TriggerSystemTest, RegionCountsTheBodyNotThePoint) {
+    TriggerSystem ts;
+    ActionLog log;
+    ts.setActionExecutor(log.executor());
+    json t = {
+        {"id", "exit"},
+        {"when", {{"event", "entity_reached_region"}, {"entity", "player"},
+                  {"region", {{"from", {{"x", 14}, {"y", 16}, {"z", 46}}},
+                              {"to",   {{"x", 18}, {"y", 22}, {"z", 47}}}}}}},
+        {"then", json::array({{{"type", "quit_game"}}})},
+        {"once", false}
+    };
+    ASSERT_NE(ts.addTrigger(t), "");
+    glm::vec3 pos(16.67f, 17.0f, 45.92f);   // 8 cm short of the z=46 edge, as in run 52
+    auto resolver = [&](const std::string& id, glm::vec3& out) { if (id != "player") return false; out = pos; return true; };
+    ts.update(0.016f, resolver);
+    EXPECT_EQ(log.executed.size(), 1u) << "a body 8 cm outside the box overlaps it";
+    // ...but a body a full 40 cm away does not
+    TriggerSystem ts2; ActionLog log2; ts2.setActionExecutor(log2.executor());
+    ASSERT_NE(ts2.addTrigger(t), "");
+    pos = glm::vec3(16.67f, 17.0f, 45.6f);
+    ts2.update(0.016f, resolver);
+    EXPECT_TRUE(log2.executed.empty());
+}

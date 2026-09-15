@@ -71,6 +71,9 @@ public:
 
     /// Add items to inventory. Returns the number of items that couldn't fit.
     int addItem(const std::string& material, int count = 1);
+    /// Stack size for an item id: its definition's maxStack when stackable, else 1
+    /// (unknown ids are one per slot). Coins never enter an inventory (CurrencySystem).
+    static int stackSizeFor(const std::string& itemId);
 
     /// Add a specific stack (carrying durability / instance uuid). If the stack is unique
     /// (isUnique) and lacks an instance uuid, one is minted. Unique stacks take their own empty

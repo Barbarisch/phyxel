@@ -182,3 +182,22 @@ void WindowManager::scrollCallbackStatic(GLFWwindow* window, double xoffset, dou
 
 } // namespace UI
 } // namespace Phyxel
+
+namespace Phyxel {
+namespace UI {
+
+void WindowManager::setCursorShape(CursorShape shape) {
+    if (!window || shape == cursorShape_) return;
+    const int idx = static_cast<int>(shape);
+    if (!cursors_[idx]) {
+        const int glfwShape = shape == CursorShape::Crosshair ? GLFW_CROSSHAIR_CURSOR
+                            : shape == CursorShape::Hand      ? GLFW_HAND_CURSOR
+                                                              : GLFW_ARROW_CURSOR;
+        cursors_[idx] = glfwCreateStandardCursor(glfwShape);
+    }
+    glfwSetCursor(window, static_cast<GLFWcursor*>(cursors_[idx]));
+    cursorShape_ = shape;
+}
+
+}  // namespace UI
+}  // namespace Phyxel

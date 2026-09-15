@@ -72,6 +72,8 @@ public:
     std::function<Scene::AnimatedVoxelCharacter*()> playerProvider;
     /// The host's latest WorldHealth report (WorldHealth::check on scene ready), or null.
     std::function<nlohmann::json()> worldHealthProvider;
+    /// HUD layout lint over the screens visible right now (UISystem::lintLayout), or null.
+    std::function<nlohmann::json()> uiLintProvider;
     // Turn-based combat (all-or-nothing trio; null = combat endpoints report
     // "not available"). Commands run on the game-loop thread via pump(), so
     // handlers may call these directly — no intent mutex (unlike the editor's

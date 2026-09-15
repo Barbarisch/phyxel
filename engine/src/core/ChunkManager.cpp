@@ -1160,6 +1160,14 @@ void ChunkManager::finalizeLoadedChunk(Chunk& chunk, bool syncMesh) {
         chunk.setPhysicsWorld(physicsWorld);
         chunk.createChunkPhysicsBody();
     }
+    // A DB-loaded chunk arrives in physics BULK mode (Chunk::initializeForLoading) and
+    // only the bulk pass (rebuildAllChunkFaces -> endBulkOperation) ever ended it. In
+    // bulk mode a voxel REMOVE still reaches collision but an ADD is skipped, so the
+    // first edit after the load - Ravenmere's barrow floor, a replace-fill laid on a
+    // revisited scene - left a collision hole the size of the floor and every
+    // character stood one cube INSIDE it (shipped instance, 2026-09-11). The grid is
+    // fresh from createChunkPhysicsBody; from here on edits must apply incrementally.
+    chunk.setPhysicsBulkMode(false);
     if (syncMesh) {
         // Load-path finalize: also build the chunk's own occupancy grid the way the
         // generation path does (forcePhysicsRebuild) - headless tools and tests read it

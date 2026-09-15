@@ -110,6 +110,12 @@ void PlayerTurnController::tick(float dt) {
     if (!m_bound) return;
 
     m_turnActor.tick(dt);
+    // G-102: arrived from an approach -> swing (or give up if the foe moved away).
+    if (!m_approachTargetId.empty() && !m_turnActor.isBusy()) {
+        const std::string id = m_approachTargetId;
+        m_approachTargetId.clear();
+        if (inReachOf(id)) requestAttack(id);
+    }
 
     // Resolve a queued attack once the swing animation completes.
     if (m_resolvingAttack && !m_turnActor.isBusy()) {
@@ -153,6 +159,27 @@ bool PlayerTurnController::requestAttack(const std::string& targetId) {
     Scene::Entity* t = m_registry ? m_registry->getEntity(targetId) : nullptr;
     if (!ptcAlive(t)) return false;
 
+    // G-102: out of reach -> close the distance first, swing on arrival (BG3). The
+    // manual test of 2026-09-11 pressed Attack on a foe 12 u away and nothing happened.
+    // Only when the movement budget covers the walk; otherwise refuse as before.
+    Scene::Entity* self = m_registry ? m_registry->getEntity(m_playerId) : nullptr;
+    if (!m_turnActor.inReach(t->getPosition(), m_reachFeet) && !m_turnActor.isBusy() &&
+        budget() && budget()->action && self) {
+        const glm::vec3 me = self->getPosition();
+        glm::vec3 to = t->getPosition() - me; to.y = 0.0f;
+        const float dist = std::sqrt(to.x * to.x + to.z * to.z);
+        const float reachU = m_turnActor.feetToUnits(m_reachFeet);
+        if (dist > 1e-4f) {
+            const glm::vec3 point = t->getPosition() - (to / dist) * (reachU * 0.75f);
+            const float walk = dist - reachU * 0.75f;
+            if (walk > 0.0f && walk <= m_turnActor.movementRemainingUnits() + 1e-3f &&
+                m_turnActor.requestMove(point)) {
+                m_approachTargetId = targetId;
+                return true;
+            }
+        }
+        return false;
+    }
     if (!m_turnActor.requestAttack(t->getPosition(), m_reachFeet)) return false;
 
     // Damage resolves when the swing completes (see tick()).

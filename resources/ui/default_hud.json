@@ -2,8 +2,14 @@
   {
     "id": "hud_health",
     "anchor": "BottomLeft",
-    "offset": [24, -24],
-    "size": [340, 60],
+    "offset": [
+      24,
+      -112
+    ],
+    "size": [
+      340,
+      60
+    ],
     "showBackground": false,
     "children": [
       {
@@ -14,20 +20,55 @@
         "min": 0,
         "max": 100,
         "value": 100,
-        "size": [320, 36],
-        "fillColor": [0.80, 0.20, 0.22, 1.0],
-        "trackColor": [0.10, 0.10, 0.12, 0.85],
-        "borderColor": [0.85, 0.72, 0.45, 1.0]
+        "size": [
+          320,
+          36
+        ],
+        "fillColor": [
+          0.8,
+          0.2,
+          0.22,
+          1.0
+        ],
+        "trackColor": [
+          0.1,
+          0.1,
+          0.12,
+          0.85
+        ],
+        "borderColor": [
+          0.85,
+          0.72,
+          0.45,
+          1.0
+        ]
+      },
+      {
+        "type": "label",
+        "id": "gold_text",
+        "bind": "player.goldText",
+        "text": "0 gp",
+        "size": [
+          320,
+          24
+        ]
       }
-    ]
+    ],
+    "autoSize": true
   },
   {
     "id": "hud_hotbar",
     "anchor": "BottomCenter",
-    "offset": [0, -12],
-    "size": [624, 88],
+    "offset": [
+      0,
+      -12
+    ],
+    "size": [
+      624,
+      88
+    ],
     "showBackground": false,
-    "visibleWhen": "hotbar.any",
+    "visibleWhen": "hotbar.creative",
     "children": [
       {
         "type": "repeater",
@@ -35,137 +76,426 @@
         "bind": "hotbar",
         "horizontal": true,
         "itemSpacing": 6,
-        "size": [624, 84],
+        "size": [
+          624,
+          84
+        ],
         "item": {
           "type": "panel",
           "showBackground": true,
-          "size": [62, 80],
+          "size": [
+            62,
+            80
+          ],
           "children": [
-            { "type": "image", "id": "slot_icon", "bind": "item.icon", "image": "", "size": [46, 46] },
-            { "type": "label", "id": "slot_count", "bind": "item.count", "text": "", "size": [46, 16] }
+            {
+              "type": "image",
+              "id": "slot_icon",
+              "bind": "item.icon",
+              "image": "",
+              "size": [
+                46,
+                46
+              ]
+            },
+            {
+              "type": "label",
+              "id": "slot_count",
+              "bind": "item.count",
+              "text": "",
+              "size": [
+                46,
+                16
+              ]
+            }
           ]
         }
       }
-    ]
+    ],
+    "autoSize": true
   },
   {
     "id": "hud_objectives",
     "anchor": "TopLeft",
-    "offset": [16, 16],
-    "size": [340, 220],
+    "offset": [
+      16,
+      16
+    ],
+    "size": [
+      340,
+      220
+    ],
     "showBackground": true,
     "visibleWhen": "objectives.any",
     "children": [
-      { "type": "label", "id": "obj_title", "text": "Objectives", "isTitle": true, "size": [320, 28] },
+      {
+        "type": "label",
+        "id": "obj_title",
+        "text": "Objectives",
+        "isTitle": true,
+        "size": [
+          320,
+          28
+        ]
+      },
       {
         "type": "repeater",
         "id": "obj_list",
         "bind": "objectives",
         "itemSpacing": 4,
-        "size": [320, 180],
-        "item": { "type": "label", "bind": "item.label", "text": "", "size": [320, 22] }
+        "size": [
+          320,
+          0
+        ],
+        "item": {
+          "type": "label",
+          "bind": "item.label",
+          "text": "",
+          "size": [
+            320,
+            22
+          ]
+        }
       }
+    ],
+    "autoSize": true,
+    "maxSize": [
+      340,
+      200
     ]
   },
   {
     "id": "hud_dialogue",
     "anchor": "BottomCenter",
-    "offset": [0, -24],
-    "size": [1100, 210],
+    "offset": [
+      0,
+      -24
+    ],
+    "size": [
+      1100,
+      210
+    ],
     "showBackground": true,
     "visibleWhen": "dialogue.active",
     "children": [
-      { "type": "label", "id": "dlg_speaker", "bind": "dialogue.speaker", "text": "", "isTitle": true, "size": [1060, 30] },
-      { "type": "label", "id": "dlg_text", "bind": "dialogue.text", "text": "", "wrapWidth": 1060, "size": [1060, 60] },
+      {
+        "type": "label",
+        "id": "dlg_speaker",
+        "bind": "dialogue.speaker",
+        "text": "",
+        "isTitle": true,
+        "size": [
+          1060,
+          30
+        ]
+      },
+      {
+        "type": "label",
+        "id": "dlg_text",
+        "bind": "dialogue.text",
+        "text": "",
+        "wrapWidth": 1060,
+        "size": [
+          1060,
+          60
+        ]
+      },
       {
         "type": "repeater",
         "id": "dlg_choices",
         "bind": "dialogue.choices",
         "itemSpacing": 4,
-        "size": [1060, 80],
-        "item": { "type": "label", "bind": "item.label", "text": "", "size": [1060, 22] }
+        "size": [
+          1060,
+          80
+        ],
+        "item": {
+          "type": "label",
+          "bind": "item.label",
+          "text": "",
+          "size": [
+            1060,
+            22
+          ]
+        }
       },
-      { "type": "label", "id": "dlg_hint", "text": "[Enter] >>>", "visibleWhen": "dialogue.waiting", "size": [200, 22] }
+      {
+        "type": "label",
+        "id": "dlg_hint",
+        "text": "[Enter] >>>",
+        "visibleWhen": "dialogue.waiting",
+        "size": [
+          200,
+          22
+        ]
+      }
     ]
   },
   {
     "id": "hud_combat_banner",
     "anchor": "TopCenter",
-    "offset": [0, 12],
-    "size": [380, 48],
+    "offset": [
+      0,
+      12
+    ],
+    "size": [
+      460,
+      48
+    ],
     "showBackground": true,
     "visibleWhen": "combat.inCombat",
     "children": [
-      { "type": "label", "id": "combat_round", "bind": "combat.roundText", "text": "COMBAT", "isTitle": true, "size": [360, 30] }
-    ]
+      {
+        "type": "label",
+        "id": "combat_round",
+        "bind": "combat.roundText",
+        "text": "COMBAT",
+        "isTitle": true,
+        "size": [
+          440,
+          30
+        ]
+      }
+    ],
+    "autoSize": true
   },
   {
     "id": "hud_combat_order",
-    "anchor": "CenterRight",
-    "offset": [-16, 0],
-    "size": [280, 320],
+    "anchor": "TopRight",
+    "offset": [
+      -16,
+      72
+    ],
+    "size": [
+      280,
+      320
+    ],
     "showBackground": true,
     "visibleWhen": "combat.inCombat",
     "children": [
-      { "type": "label", "id": "order_title", "text": "Initiative", "isTitle": true, "size": [260, 28] },
+      {
+        "type": "label",
+        "id": "order_title",
+        "text": "Initiative",
+        "isTitle": true,
+        "size": [
+          260,
+          28
+        ]
+      },
       {
         "type": "repeater",
         "id": "order_list",
         "bind": "combat.turn_order",
         "itemSpacing": 6,
-        "size": [260, 260],
-        "item": { "type": "label", "bind": "item.label", "text": "", "size": [260, 22] }
+        "size": [
+          260,
+          0
+        ],
+        "item": {
+          "type": "label",
+          "bind": "item.label",
+          "text": "",
+          "size": [
+            260,
+            22
+          ]
+        }
       }
+    ],
+    "autoSize": true,
+    "maxSize": [
+      280,
+      380
     ]
   },
   {
     "id": "hud_combat_turn",
-    "anchor": "BottomCenter",
-    "offset": [0, -210],
-    "size": [440, 44],
+    "anchor": "TopCenter",
+    "offset": [
+      0,
+      80
+    ],
+    "size": [
+      440,
+      44
+    ],
     "showBackground": true,
     "visibleWhen": "combat.inCombat",
     "children": [
-      { "type": "label", "id": "combat_turn", "bind": "combat.turnLabel", "text": "", "size": [420, 26] }
-    ]
+      {
+        "type": "label",
+        "id": "combat_turn",
+        "bind": "combat.turnLabel",
+        "text": "",
+        "size": [
+          420,
+          26
+        ]
+      }
+    ],
+    "autoSize": true
   },
   {
     "id": "hud_combat_action",
-    "anchor": "BottomCenter",
-    "offset": [0, -120],
-    "size": [480, 130],
+    "anchor": "BottomLeft",
+    "offset": [
+      24,
+      -224
+    ],
+    "size": [
+      480,
+      130
+    ],
     "showBackground": true,
     "visibleWhen": "combat.playerTurnActive",
     "children": [
-      { "type": "label", "id": "combat_budget", "bind": "combat.budgetText", "text": "", "size": [460, 26] },
-      { "type": "label", "id": "combat_hit", "bind": "combat.hitChanceText", "text": "", "size": [460, 26] },
-      { "type": "button", "id": "combat_end_turn", "text": "End Turn", "size": [140, 32] }
-    ]
+      {
+        "type": "label",
+        "id": "combat_hint",
+        "bind": "combat.hintText",
+        "text": "",
+        "size": [
+          460,
+          26
+        ]
+      },
+      {
+        "type": "label",
+        "id": "combat_budget",
+        "bind": "combat.budgetText",
+        "text": "",
+        "size": [
+          460,
+          26
+        ]
+      },
+      {
+        "type": "label",
+        "id": "combat_hit",
+        "bind": "combat.hitChanceText",
+        "text": "",
+        "size": [
+          460,
+          26
+        ]
+      }
+    ],
+    "autoSize": true
   },
   {
-    "_comment": "AI conversation box (free-text chat with an NPC). Visible during an AI conversation; speaker + scrollback history (bound) + a text-input field. Wired by the host (UI::setupAIDialogue): dialogue.aiActive/aiSpeaker/aiHistory providers + the ai_input field's submit -> DialogueSystem::submitPlayerMessage. Replaces the ImGui renderDialogueBox AI branch (docs/HudSystem.md §11a).",
+    "_comment": "AI conversation box (free-text chat with an NPC). Visible during an AI conversation; speaker + scrollback history (bound) + a text-input field. Wired by the host (UI::setupAIDialogue): dialogue.aiActive/aiSpeaker/aiHistory providers + the ai_input field's submit -> DialogueSystem::submitPlayerMessage. Replaces the ImGui renderDialogueBox AI branch (docs/HudSystem.md \u00a711a).",
     "id": "hud_ai_dialogue",
     "anchor": "BottomCenter",
-    "offset": [0, -20],
-    "size": [840, 320],
+    "offset": [
+      0,
+      -20
+    ],
+    "size": [
+      840,
+      320
+    ],
     "showBackground": true,
     "visibleWhen": "dialogue.aiActive",
     "children": [
-      { "type": "label",     "id": "ai_speaker", "bind": "dialogue.aiSpeaker", "text": "", "isTitle": true, "size": [800, 30] },
-      { "type": "label",     "id": "ai_history", "bind": "dialogue.aiHistory", "text": "", "wrapWidth": 800, "size": [800, 210] },
-      { "type": "textinput", "id": "ai_input",   "placeholder": "Type a message — Enter to send,  Esc to end", "size": [800, 34] }
+      {
+        "type": "label",
+        "id": "ai_speaker",
+        "bind": "dialogue.aiSpeaker",
+        "text": "",
+        "isTitle": true,
+        "size": [
+          800,
+          30
+        ]
+      },
+      {
+        "type": "label",
+        "id": "ai_history",
+        "bind": "dialogue.aiHistory",
+        "text": "",
+        "wrapWidth": 800,
+        "size": [
+          800,
+          210
+        ]
+      },
+      {
+        "type": "textinput",
+        "id": "ai_input",
+        "placeholder": "Type a message \u2014 Enter to send,  Esc to end",
+        "size": [
+          800,
+          34
+        ]
+      }
     ]
   },
   {
-    "_comment": "Timer-trigger countdown (top-center). Visible when a timer trigger with hud:true is active; text = '<hudLabel>  M:SS.s'. Bound by the host from TriggerSystem::getActiveCountdowns(). Replaces the ImGui renderCountdownHud (docs/HudSystem.md §11a).",
+    "_comment": "Timer-trigger countdown (top-center). Visible when a timer trigger with hud:true is active; text = '<hudLabel>  M:SS.s'. Bound by the host from TriggerSystem::getActiveCountdowns(). Replaces the ImGui renderCountdownHud (docs/HudSystem.md \u00a711a).",
     "id": "hud_countdown",
     "anchor": "TopCenter",
-    "offset": [0, 64],
-    "size": [520, 44],
+    "offset": [
+      0,
+      64
+    ],
+    "size": [
+      520,
+      44
+    ],
     "showBackground": false,
     "visibleWhen": "countdown.active",
     "children": [
-      { "type": "label", "id": "countdown_text", "bind": "countdown.text", "text": "", "isTitle": true, "size": [500, 36] }
+      {
+        "type": "label",
+        "id": "countdown_text",
+        "bind": "countdown.text",
+        "text": "",
+        "isTitle": true,
+        "size": [
+          500,
+          36
+        ]
+      }
+    ]
+  },
+  {
+    "id": "hud_action_bar",
+    "anchor": "BottomCenter",
+    "offset": [
+      0,
+      -12
+    ],
+    "size": [
+      1000,
+      68
+    ],
+    "showBackground": true,
+    "autoSize": true,
+    "visibleWhen": "combat.inCombat",
+    "children": [
+      {
+        "type": "repeater",
+        "id": "action_list",
+        "bind": "actionbar",
+        "horizontal": true,
+        "itemSpacing": 6,
+        "size": [
+          980,
+          44
+        ],
+        "item": {
+          "type": "button",
+          "id": "slot",
+          "bind": "item.label",
+          "actionBind": "actionbar.use",
+          "fitText": true,
+          "size": [
+            150,
+            44
+          ]
+        }
+      }
     ]
   }
 ]

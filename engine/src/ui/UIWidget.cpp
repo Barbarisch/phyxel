@@ -310,6 +310,70 @@ static std::string wrapText(const BitmapFont* font, const std::string& text,
     return out;
 }
 
+// ---- Layout pass: measure before render (auto-sized panels) ------------------------------
+float UILabel::measureHeight(const BitmapFont* font, const UITheme& theme, float availWidth) const {
+    const float scale = customScale > 0.0f ? customScale : (isTitle ? theme.titleScale : theme.textScale);
+    const float width = wrapWidth > 0.0f ? wrapWidth : availWidth;
+    if (!font) return size.y;
+    if (width <= 0.0f || text.empty()) return font->lineHeight(scale);
+    const std::string wrapped = wrapText(font, text, scale, width);
+    int lines = 1;
+    for (char c : wrapped) if (c == '\n') ++lines;
+    return font->lineHeight(scale) * static_cast<float>(lines);
+}
+
+float UIRepeater::measureHeight(const BitmapFont* font, const UITheme& theme, float availWidth) const {
+    if (generated.empty() || horizontal) return size.y;
+    float h = 0.0f;
+    int n = 0;
+    for (const auto& child : generated) {
+        if (!child->visible) continue;
+        h += child->measureHeight(font, theme, availWidth) + itemSpacing;
+        ++n;
+    }
+    return n > 0 ? h - itemSpacing : 0.0f;
+}
+
+float UIPanel::measureContentHeight(const BitmapFont* font, const UITheme& theme) const {
+    const float inner = size.x - theme.padding * 2.0f;
+    if (freeLayout) {
+        float maxExtent = 0.0f;
+        for (const auto& child : children) {
+            if (!child->visible) continue;
+            maxExtent = std::max(maxExtent, child->position.y + child->measureHeight(font, theme, inner));
+        }
+        return maxExtent + theme.padding;
+    }
+    float h = theme.padding;
+    if (!title.empty() && font) h += font->lineHeight(theme.titleScale) + theme.itemSpacing * 2.0f;
+    int n = 0;
+    for (const auto& child : children) {
+        if (!child->visible) continue;
+        h += child->measureHeight(font, theme, inner) + theme.itemSpacing;
+        ++n;
+    }
+    if (n > 0) h -= theme.itemSpacing;
+    return h + theme.padding;
+}
+
+float UIPanel::measureHeight(const BitmapFont* font, const UITheme& theme, float availWidth) const {
+    (void)availWidth;
+    if (!autoHeight) return size.y;
+    const float h = measureContentHeight(font, theme);
+    return (maxSize.y > 0.0f) ? std::min(h, maxSize.y) : h;
+}
+
+void UIPanel::applyAutoSize(const BitmapFont* font, const UITheme& theme) {
+    // Nested auto panels first (their heights feed this panel's content height).
+    for (auto& child : children)
+        if (auto* p = dynamic_cast<UIPanel*>(child.get())) p->applyAutoSize(font, theme);
+    if (!autoHeight) return;
+    const float h = measureContentHeight(font, theme);
+    if (maxSize.y > 0.0f && h > maxSize.y) { size.y = maxSize.y; scrollable = true; }
+    else size.y = h;
+    if (maxSize.x > 0.0f && size.x > maxSize.x) size.x = maxSize.x;
+}
+
 void UILabel::render(UIRenderer* renderer, const BitmapFont* font,
                      const UITheme& theme, glm::vec2 pos) {
     if (!visible) return;
@@ -365,9 +429,10 @@ void UIButton::render(UIRenderer* renderer, const BitmapFont* font,
     }
     if (!enabled) bg = theme.panelBg;
 
+    float textW = font->measureText(text, theme.textScale);
+    if (fitText) size.x = std::max(size.x, textW + 2.0f * theme.padding);
     renderer->drawRect(pos, size, bg);
 
-    float textW = font->measureText(text, theme.textScale);
     float textH = font->lineHeight(theme.textScale);
     glm::vec2 textPos = {
         pos.x + (size.x - textW) * 0.5f,
@@ -678,6 +743,31 @@ void UIRepeater::render(UIRenderer* renderer, const BitmapFont* font,
         adv += (horizontal ? child->size.x : child->size.y) + itemSpacing;
     }
     if (horizontal) size.x = adv; else size.y = adv;  // report extent for parent layout
+}
+
+bool UIRepeater::handleClick(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) {
+    if (!visible || !enabled) return false;
+    float adv = 0.0f;
+    for (auto& child : generated) {
+        if (!child || !child->visible) continue;
+        glm::vec2 cp = horizontal ? glm::vec2{widgetPos.x + adv, widgetPos.y}
+                                  : glm::vec2{widgetPos.x, widgetPos.y + adv};
+        if (child->handleClick(mousePos, cp, theme)) return true;
+        adv += (horizontal ? child->size.x : child->size.y) + itemSpacing;
+    }
+    return false;
+}
+
+void UIRepeater::handleHover(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) {
+    if (!visible) return;
+    float adv = 0.0f;
+    for (auto& child : generated) {
+        if (!child || !child->visible) continue;
+        glm::vec2 cp = horizontal ? glm::vec2{widgetPos.x + adv, widgetPos.y}
+                                  : glm::vec2{widgetPos.x, widgetPos.y + adv};
+        child->handleHover(mousePos, cp, theme);
+        adv += (horizontal ? child->size.x : child->size.y) + itemSpacing;
+    }
 }
 
 } // namespace UI

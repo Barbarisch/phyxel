@@ -1,4 +1,6 @@
 #include "core/Inventory.h"
+#include "core/ItemRegistry.h"
+#include <algorithm>
 
 #include "core/Uuid.h"
 
@@ -24,6 +26,11 @@ void Inventory::clearSlot(int index) {
     }
 }
 
+int Inventory::stackSizeFor(const std::string& itemId) {
+    const ItemDefinition* def = ItemRegistry::instance().getItem(itemId);
+    return (def && def->stackable) ? std::max(1, def->maxStack) : 1;
+}
+
 int Inventory::addItem(const std::string& material, int count) {
     if (count <= 0) return 0;
     int remaining = count;
@@ -38,12 +45,14 @@ int Inventory::addItem(const std::string& material, int count) {
         }
     }
 
-    // Second pass: fill empty slots
+    // Second pass: fill empty slots. The stack size is the item DEFINITION's (one per
+    // slot when the item is unknown to the registry) - the old literal 64 was Minecraft's.
+    const int stackMax = stackSizeFor(material);
     for (auto& slot : m_slots) {
         if (remaining <= 0) break;
         if (!slot) {
-            int toAdd = std::min(remaining, 64);
-            slot = ItemStack{material, toAdd, 64};
+            int toAdd = std::min(remaining, stackMax);
+            slot = ItemStack{material, toAdd, stackMax};
             remaining -= toAdd;
         }
     }

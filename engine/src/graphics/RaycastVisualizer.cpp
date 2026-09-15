@@ -325,6 +325,7 @@ void RaycastVisualizer::updateBuffers(uint32_t currentFrame) {
     generateDebugGeometry();
 
     if (m_vertices.empty()) {
+        m_uploadedVertexCount = 0;   // nothing this frame: do NOT keep drawing last frame's lines
         m_dataChanged = false;
         return;
     }

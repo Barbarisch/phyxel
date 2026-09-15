@@ -122,7 +122,9 @@ private:
     };
 
     void fire(Trigger& t);
-    static bool regionContains(const nlohmann::json& region, const glm::vec3& p);
+    /// `bodyRadius` widens the region on x/z by the agent's half-width: a body standing
+    /// on the edge is inside. 0 = the exact box.
+    static bool regionContains(const nlohmann::json& region, const glm::vec3& p, float bodyRadius = 0.0f);
 
     std::vector<Trigger> m_triggers;
     std::vector<std::pair<nlohmann::json, std::string>> m_pendingActions; // (action, triggerId)

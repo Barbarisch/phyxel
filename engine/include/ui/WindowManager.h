@@ -33,6 +33,10 @@ public:
     void setTitle(const std::string& title);
     void setSize(int width, int height);
     void setCursorVisible(bool visible);
+    /// Pointer feedback (CombatUiBg3 increment 3): the cursor SAYS what a click will do -
+    /// crosshair over an attackable target, hand over walkable ground, arrow otherwise.
+    enum class CursorShape { Arrow, Crosshair, Hand };
+    void setCursorShape(CursorShape shape);
     void setFullscreen(bool fullscreen);
     bool isFullscreen() const { return fullscreen_; }
     
@@ -62,6 +66,8 @@ public:
     
 private:
     GLFWwindow* window = nullptr;
+    CursorShape cursorShape_ = CursorShape::Arrow;
+    void* cursors_[3] = {nullptr, nullptr, nullptr};   ///< GLFWcursor* per shape, created lazily
     int width = 800;
     int height = 600;
     std::string title = "Phyxel";

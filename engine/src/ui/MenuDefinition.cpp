@@ -66,6 +66,7 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         w->id = j.value("id", "");
         w->text = j.value("text", "");
         w->bind = j.value("bind", "");
+        w->actionBind = j.value("actionBind", "");
         w->visible = j.value("visible", true);
         w->enabled = j.value("enabled", true);
         if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
@@ -77,6 +78,7 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         w->customColor   = parseElemColor(j, "color");
         w->customBg      = parseElemColor(j, "bg");
         w->customBgHover = parseElemColor(j, "bgHover");
+        w->fitText       = j.value("fitText", false);
         return w;
     }
 
@@ -227,6 +229,9 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         w->freeLayout = j.value("freeLayout", false);
         w->clipChildren = j.value("clip", true);
         w->scrollable = j.value("scrollable", false);
+        w->autoHeight = j.value("autoSize", false);
+        if (j.contains("maxSize") && j["maxSize"].is_array() && j["maxSize"].size() == 2)
+            w->maxSize = {j["maxSize"][0].get<float>(), j["maxSize"][1].get<float>()};
         w->visibleWhen = j.value("visibleWhen", "");
         w->visible = j.value("visible", true);
         w->enabled = j.value("enabled", true);
@@ -260,6 +265,9 @@ std::unique_ptr<UIPanel> MenuDefinition::buildFromJson(const nlohmann::json& j) 
     panel->title = j.value("title", "");
     panel->showBackground = j.value("showBackground", true);
     panel->freeLayout = j.value("freeLayout", false);
+    panel->autoHeight = j.value("autoSize", false);
+    if (j.contains("maxSize") && j["maxSize"].is_array() && j["maxSize"].size() == 2)
+        panel->maxSize = {j["maxSize"][0].get<float>(), j["maxSize"][1].get<float>()};
     panel->visibleWhen = j.value("visibleWhen", "");
     panel->visible = j.value("visible", true);
     panel->enabled = j.value("enabled", true);
@@ -451,8 +459,28 @@ static std::string itemField(const std::string& key) {
 }
 
 // Apply one list record to a generated item subtree (binds keyed "item.<field>").
-static void applyRecord(UIWidget* w, const HudRecord& rec) {
+static void applyRecord(UIWidget* w, const HudRecord& rec, const HudDataContext* ctx = nullptr) {
     if (!w) return;
+    if (w->type() == WidgetType::Button) {
+        auto* btn = static_cast<UIButton*>(w);
+        if (!w->bind.empty()) {
+            const std::string f = itemField(w->bind);
+            auto it = rec.texts.find(f);
+            if (it != rec.texts.end()) btn->text = it->second;
+        }
+        auto en = rec.floats.find("enabled");
+        btn->enabled = (en == rec.floats.end()) || en->second > 0.5f;
+        // "armed" rows glow ember (a spell waiting for its target); the theme colour otherwise
+        auto armed = rec.floats.find("armed");
+        btn->customBg = (armed != rec.floats.end() && armed->second > 0.5f) ? glm::vec4(0.85f, 0.45f, 0.15f, 1.0f)
+                                                                            : glm::vec4(0, 0, 0, 0);
+        if (ctx && !w->actionBind.empty()) {
+            if (auto h = ctx->resolveAction(w->actionBind)) {
+                auto handler = *h; HudRecord copy = rec;
+                btn->onClick = [handler, copy] { handler(copy); };
+            }
+        }
+    }
     if (!w->visibleWhen.empty()) {
         std::string f = itemField(w->visibleWhen);
         if (!f.empty()) {
@@ -499,7 +527,7 @@ static void applyRecord(UIWidget* w, const HudRecord& rec) {
         }
     }
     if (w->type() == WidgetType::Panel) {
-        for (auto& c : static_cast<UIPanel*>(w)->children) applyRecord(c.get(), rec);
+        for (auto& c : static_cast<UIPanel*>(w)->children) applyRecord(c.get(), rec, ctx);
     }
 }
 
@@ -524,7 +552,7 @@ void applyHudBindings(UIWidget* root, const HudDataContext& ctx) {
             }
         }
         for (size_t i = 0; i < rep->generated.size() && i < recs.size(); ++i) {
-            applyRecord(rep->generated[i].get(), recs[i]);
+            applyRecord(rep->generated[i].get(), recs[i], &ctx);
         }
         return;  // repeater has no static children to recurse
     }
@@ -663,6 +691,9 @@ static std::unique_ptr<UIWidget> buildMenuElementInner(const nlohmann::json& el,
         w->showBackground = el.value("showBackground", true);
         w->clipChildren = el.value("clip", true);
         w->scrollable = el.value("scrollable", false);
+        w->autoHeight = el.value("autoSize", false);
+        if (el.contains("maxSize") && el["maxSize"].is_array() && el["maxSize"].size() == 2)
+            w->maxSize = {el["maxSize"][0].get<float>() * sx, el["maxSize"][1].get<float>() * sy};
         if (el.contains("children") && el["children"].is_array())
             for (const auto& c : el["children"])
                 if (auto cw = buildMenuElement(c, sx, sy, actions, ui, startPanel, nsPrefix))

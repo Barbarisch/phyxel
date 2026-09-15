@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <iostream>
 #include "ui/UIWidget.h"
 #include "ui/MenuDefinition.h"
 #include <glm/glm.hpp>
@@ -483,4 +484,175 @@ TEST(MenuDefinitionTest, InvisibleButtonIgnoresClick) {
     UITheme theme;
     EXPECT_FALSE(btn.handleClick({100, 20}, {0, 0}, theme));
     EXPECT_FALSE(clicked);
+}
+
+
+// ============================================================================
+// LAYOUT PASS + LINT (docs/game-production/CombatUiBg3.md increment 2). Ravenmere
+// manual test 2026-09-11: the Objectives text ran past its 220 px panel and was
+// clipped, the Initiative list lost its last rows, the spell bar overlapped the
+// Initiative panel. Contract: a label's measured height is its wrapped line count; an
+// auto-sized panel grows to its content and caps into a scrollable box; the lint
+// reports what a fixed panel would cut off and which visible panels overlap.
+// Headless: the default BitmapFont measures 8 px glyphs / 16 px lines.
+// ============================================================================
+#include "ui/UILayoutLint.h"
+#include "ui/BitmapFont.h"
+
+namespace {
+Phyxel::UI::UITheme testTheme() { Phyxel::UI::UITheme th; th.padding = 8.0f; th.itemSpacing = 4.0f; th.textScale = 2.0f; th.titleScale = 3.0f; return th; }
+}
+
+TEST(UILayoutTest, LabelHeightIsItsWrappedLineCount) {
+    Phyxel::UI::BitmapFont font;   // headless: 8x16 glyphs
+    const auto th = testTheme();
+    Phyxel::UI::UILabel l;
+    l.text = "Speak with Reeve Aldric about the missing children";   // 50 chars
+    // at scale 2: 16 px per glyph -> 800 px on one line; 320 px wide -> 20 chars per line -> 3 lines
+    EXPECT_FLOAT_EQ(l.measureHeight(&font, th, 320.0f), 3.0f * font.lineHeight(2.0f));
+    EXPECT_FLOAT_EQ(l.measureHeight(&font, th, 10000.0f), font.lineHeight(2.0f));
+}
+
+TEST(UILayoutTest, AutoSizedPanelGrowsToItsContentAndCapsIntoAScrollBox) {
+    Phyxel::UI::BitmapFont font;
+    const auto th = testTheme();
+    auto panel = std::make_unique<Phyxel::UI::UIPanel>();
+    panel->id = "hud_objectives"; panel->size = {340.0f, 220.0f}; panel->autoHeight = true;
+    for (int i = 0; i < 4; ++i) {
+        auto l = std::make_unique<Phyxel::UI::UILabel>();
+        l->id = "obj_" + std::to_string(i);
+        l->text = "[ ] Speak with Reeve Aldric about the missing children";   // wraps to 3 lines at 324 px inner width
+        l->size = {320.0f, 28.0f};
+        panel->addChild(std::move(l));
+    }
+    panel->applyAutoSize(&font, th);
+    const float line = font.lineHeight(2.0f);
+    // 4 labels x 3 lines + spacing + padding: the panel is as tall as its text, not 220
+    const float expected = th.padding * 2.0f + 4.0f * 3.0f * line + 3.0f * th.itemSpacing;
+    EXPECT_NEAR(panel->size.y, expected, 0.5f);
+    EXPECT_FALSE(panel->scrollable);
+    // with a cap the panel stops there and turns scrollable instead of clipping
+    panel->maxSize = {340.0f, 200.0f};
+    panel->applyAutoSize(&font, th);
+    EXPECT_FLOAT_EQ(panel->size.y, 200.0f);
+    EXPECT_TRUE(panel->scrollable);
+}
+
+TEST(UILayoutTest, LintReportsCutOffChildrenAndOverlappingPanels) {
+    Phyxel::UI::BitmapFont font;
+    const auto th = testTheme();
+    // the shipped Objectives panel as it was: fixed 340x220 with more text than fits
+    auto objectives = std::make_unique<Phyxel::UI::UIPanel>();
+    objectives->id = "hud_objectives"; objectives->size = {340.0f, 220.0f};
+    objectives->anchor = Phyxel::UI::Anchor::TopLeft; objectives->offset = {16.0f, 16.0f};
+    for (int i = 0; i < 4; ++i) {
+        auto l = std::make_unique<Phyxel::UI::UILabel>();
+        l->id = "obj_" + std::to_string(i); l->text = "[ ] Speak with Reeve Aldric about the missing children"; l->size = {320.0f, 28.0f};
+        objectives->addChild(std::move(l));
+    }
+    // a second panel placed right on top of it
+    auto banner = std::make_unique<Phyxel::UI::UIPanel>();
+    banner->id = "hud_combat_banner"; banner->size = {380.0f, 48.0f};
+    banner->anchor = Phyxel::UI::Anchor::TopLeft; banner->offset = {200.0f, 30.0f};
+    const auto defects = Phyxel::UI::lintLayout({objectives.get(), banner.get()}, {1280.0f, 720.0f}, &font, th);
+    int overflow = 0, overlap = 0;
+    for (const auto& d : defects) { if (d.kind == "child_overflow") ++overflow; if (d.kind == "panel_overlap") ++overlap; }
+    EXPECT_GE(overflow, 1) << "the 4th objective is cut off by the 220 px panel";
+    EXPECT_EQ(overlap, 1) << "the banner sits on the objectives panel";
+    // auto-sizing the objectives panel removes the cut-off (and the lint knows it)
+    objectives->autoHeight = true;
+    const auto after = Phyxel::UI::lintLayout({objectives.get()}, {1280.0f, 720.0f}, &font, th);
+    for (const auto& d : after) EXPECT_NE(d.kind, "child_overflow") << d.message;
+}
+
+
+TEST(UILayoutTest, AFullscreenOverlayIsNotAnOverlapPartner) {
+    Phyxel::UI::BitmapFont font;
+    const auto th = testTheme();
+    auto overlay = std::make_unique<Phyxel::UI::UIPanel>();
+    overlay->id = "screen:fade"; overlay->size = {1280.0f, 720.0f}; overlay->anchor = Phyxel::UI::Anchor::TopLeft;
+    auto health = std::make_unique<Phyxel::UI::UIPanel>();
+    health->id = "hud_health"; health->size = {340.0f, 60.0f}; health->anchor = Phyxel::UI::Anchor::BottomLeft; health->offset = {24.0f, -24.0f};
+    const auto defects = Phyxel::UI::lintLayout({overlay.get(), health.get()}, {1280.0f, 720.0f}, &font, th);
+    for (const auto& d : defects) EXPECT_NE(d.kind, "panel_overlap") << d.message;
+    // ...but two ordinary panels still are
+    auto bar = std::make_unique<Phyxel::UI::UIPanel>();
+    bar->id = "hud_hotbar"; bar->size = {624.0f, 88.0f}; bar->anchor = Phyxel::UI::Anchor::BottomCenter; bar->offset = {0.0f, -12.0f};
+    const auto d2 = Phyxel::UI::lintLayout({health.get(), bar.get()}, {1280.0f, 720.0f}, &font, th);
+    int overlap = 0;
+    for (const auto& d : d2) if (d.kind == "panel_overlap") ++overlap;
+    EXPECT_EQ(overlap, 1);
+}
+
+
+// ============================================================================
+// ACTION BAR (CombatUiBg3 increment 4): a repeater of buttons built from JSON takes its
+// labels, enabled/armed state and its CLICK from the bound records - the shell never
+// touches widgets, it publishes rows and one action handler.
+// ============================================================================
+#include "ui/HudDataContext.h"
+TEST(UIActionBarTest, RepeaterButtonsCarryTheirRowsActions) {
+    const auto rep = Phyxel::UI::MenuDefinition::buildWidget(nlohmann::json::parse(R"({
+        "type":"repeater","id":"action_list","bind":"actionbar","horizontal":true,"size":[900,44],
+        "item":{"type":"button","id":"slot","bind":"item.label","actionBind":"actionbar.use","size":[150,44]}})"));
+    ASSERT_NE(rep, nullptr);
+    Phyxel::UI::HudDataContext ctx;
+    ctx.setList("actionbar", [] {
+        std::vector<Phyxel::UI::HudRecord> rows;
+        Phyxel::UI::HudRecord a; a.texts["label"] = "Attack"; a.texts["action"] = "attack"; a.floats["enabled"] = 1.0f; rows.push_back(a);
+        Phyxel::UI::HudRecord b; b.texts["label"] = "Fire Bolt"; b.texts["action"] = "spell:fire_bolt"; b.floats["enabled"] = 0.0f; b.floats["armed"] = 1.0f; rows.push_back(b);
+        return rows;
+    });
+    std::vector<std::string> fired;
+    ctx.setAction("actionbar.use", [&](const Phyxel::UI::HudRecord& r) {
+        fired.push_back(r.texts.count("action") ? r.texts.at("action") : std::string("<no action key>"));
+    });
+    Phyxel::UI::applyHudBindings(rep.get(), ctx);
+    auto* r = static_cast<Phyxel::UI::UIRepeater*>(rep.get());
+    ASSERT_EQ(r->generated.size(), 2u);
+    auto* b0 = dynamic_cast<Phyxel::UI::UIButton*>(r->generated[0].get());
+    auto* b1 = dynamic_cast<Phyxel::UI::UIButton*>(r->generated[1].get());
+    ASSERT_NE(b0, nullptr); ASSERT_NE(b1, nullptr);
+    EXPECT_EQ(b0->text, "Attack");  EXPECT_TRUE(b0->enabled);  EXPECT_FLOAT_EQ(b0->customBg.a, 0.0f);
+    EXPECT_EQ(b1->text, "Fire Bolt"); EXPECT_FALSE(b1->enabled); EXPECT_GT(b1->customBg.a, 0.5f) << "armed rows glow";
+    ASSERT_TRUE(b0->onClick); b0->onClick();
+    ASSERT_TRUE(b1->onClick); b1->onClick();
+    ASSERT_EQ(fired.size(), 2u);
+    EXPECT_EQ(fired[0], "attack");
+    EXPECT_EQ(fired[1], "spell:fire_bolt");
+}
+
+// G-106: a click on a repeater's generated button must reach that button (BG3 action
+// bar). RED before: UIRepeater had no handleClick override, so UIPanel::handleClick
+// stopped at the repeater and the shipped bar swallowed every click (probe L4 2026-09-15:
+// consumed=true, no "Action bar" log line).
+TEST(UIActionBarTest, ClicksReachTheRepeatersGeneratedButtons) {
+    const auto rep = Phyxel::UI::MenuDefinition::buildWidget(nlohmann::json::parse(R"({
+        "type":"repeater","id":"action_list","bind":"actionbar","horizontal":true,"itemSpacing":6,"size":[900,44],
+        "item":{"type":"button","id":"slot","bind":"item.label","actionBind":"actionbar.use","size":[150,44]}})"));
+    ASSERT_NE(rep, nullptr);
+    Phyxel::UI::HudDataContext ctx;
+    ctx.setList("actionbar", [] {
+        std::vector<Phyxel::UI::HudRecord> rows;
+        Phyxel::UI::HudRecord a; a.texts["label"] = "Attack"; a.texts["action"] = "attack"; a.floats["enabled"] = 1.0f; rows.push_back(a);
+        Phyxel::UI::HudRecord b; b.texts["label"] = "End Turn"; b.texts["action"] = "end_turn"; b.floats["enabled"] = 1.0f; rows.push_back(b);
+        return rows;
+    });
+    std::vector<std::string> fired;
+    ctx.setAction("actionbar.use", [&](const Phyxel::UI::HudRecord& r) { fired.push_back(r.texts.at("action")); });
+    Phyxel::UI::applyHudBindings(rep.get(), ctx);
+    Phyxel::UI::UITheme theme;
+    // repeater drawn at (100, 600): button 0 spans x 100..250, button 1 spans 256..406
+    EXPECT_TRUE(rep->handleClick({120.0f, 620.0f}, {100.0f, 600.0f}, theme));
+    EXPECT_TRUE(rep->handleClick({300.0f, 620.0f}, {100.0f, 600.0f}, theme));
+    EXPECT_FALSE(rep->handleClick({253.0f, 620.0f}, {100.0f, 600.0f}, theme)) << "the gap between buttons is not a button";
+    EXPECT_FALSE(rep->handleClick({120.0f, 700.0f}, {100.0f, 600.0f}, theme)) << "below the bar";
+    ASSERT_EQ(fired.size(), 2u);
+    EXPECT_EQ(fired[0], "attack");
+    EXPECT_EQ(fired[1], "end_turn");
+    // hover mirrors the same layout
+    rep->handleHover({300.0f, 620.0f}, {100.0f, 600.0f}, theme);
+    auto* r = static_cast<Phyxel::UI::UIRepeater*>(rep.get());
+    EXPECT_FALSE(static_cast<Phyxel::UI::UIButton*>(r->generated[0].get())->hovered);
+    EXPECT_TRUE(static_cast<Phyxel::UI::UIButton*>(r->generated[1].get())->hovered);
 }

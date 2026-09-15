@@ -588,8 +588,10 @@ bool ChunkVoxelManager::removeCube(
     auto& cubes = m_getCubes();
     if (index < cubes.size()) cubes[index].reset();
     
-    // Remove collision shape with proper memory management
-    m_removeCollision(localPos);
+    // Remove collision shape with proper memory management. Deferred in BULK mode like the
+    // add side is: applying removes but skipping adds turned every replace-write on a bulk-mode
+    // chunk into a collision hole (Ravenmere barrow floor, G-98); endBulkOperation rebuilds.
+    if (!m_isInBulkOperation()) m_removeCollision(localPos);
     
     // Update collision shapes of neighboring cubes that might now be exposed
     m_updateNeighborCollisions(localPos);
@@ -628,7 +630,7 @@ int ChunkVoxelManager::removeCubesBatch(const std::vector<glm::ivec3>& positions
 
         voxelStore.erase(index);
         if (index < cubes.size()) cubes[index].reset();   // drop any materialized overlay
-        m_removeCollision(localPos);
+        if (!m_isInBulkOperation()) m_removeCollision(localPos);   // symmetric with the add side (G-98)
         ++removed;
     }
 

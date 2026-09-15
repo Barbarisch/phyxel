@@ -949,7 +949,11 @@ static constexpr float kControllerHeadClearance = 0.05f;
         bool importedRig = false;
         for (const auto& b : skeleton.bones)
             if (b.name == "ground_ref") { importedRig = true; break; }
-        if (importedRig && !voxelModel.shapes.empty()) {
+        // 2026-09-11 (G-99): EVERY rig grounds on its lowest voxel box, not only imports -
+        // wolf_meshy's bone-grounded sole sat 6 cm inside the floor and the humanoid's 12 cm
+        // above it (measured: CharacterStandingTest.DrawnFeetMeetTheFloorForEveryShippedRig).
+        // The pose goldens' footOffset scalars were re-recorded for this change.
+        if (!voxelModel.shapes.empty()) {
             float vMinY = 1e9f, vMaxY = -1e9f;
             for (const auto& s : voxelModel.shapes) {
                 if (s.boneId < 0 || s.boneId >= static_cast<int>(skeleton.bones.size())) continue;
@@ -967,7 +971,8 @@ static constexpr float kControllerHeadClearance = 0.05f;
         // voxel sits exactly on the ground (the draw adds +k_modelVisualLift; cancel it here).
         // Legacy humanoid path grounds on the bone minY unchanged (golden-pinned).
         static constexpr float k_modelVisualLift = 0.05f;
-        skeletonFootOffset_ = importedRig ? (minY + k_modelVisualLift) : minY;
+        skeletonFootOffset_ = !voxelModel.shapes.empty() ? (minY + k_modelVisualLift) : minY;
+        (void)importedRig;
         m_originalHalfHeight = characterHeight * 0.5f;
 
         if (m_bodyPlan.capsule.mode == Scene::BodyPlan::Capsule::Mode::XZExtent) {

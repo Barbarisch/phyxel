@@ -138,6 +138,9 @@ def create_project(
     extra_members.append("    Phyxel::UI::GameScreen screen_;")
     extra_members.append("    Phyxel::Core::TriggerSystem triggers_;  // declarative when/then win conditions (game.json \"triggers\")")
     extra_members.append("    nlohmann::json lastWorldHealth_;  // WorldHealth::check on every world scene ready (layer B self-check)")
+    extra_members.append("    std::string lastLintSignature_;    // visible-screen set the HUD layout lint last ran on")
+    extra_members.append("    Phyxel::Core::Currency wallet_;         // the player's money (never an inventory item)")
+    extra_members.append("    std::unique_ptr<Phyxel::RaycastVisualizer> raycastVisualizer_;   // world-space line pass (target rings)")
     extra_includes.append('#include "core/GameDefinitionLoader.h"')
     extra_members.append("    Phyxel::Core::GameSubsystems gameSubsystems_;  // persistent: the SceneManager keeps a pointer to it")
     # Editor-parity gameplay state (docs/game-production/StandaloneParityGaps.md §1):
@@ -236,6 +239,8 @@ def create_project(
     extra_includes.append('#include "ui/MenuDefinition.h"')   # loadHudInto / loadMenuInto / MenuActions
     extra_includes.append('#include "ui/UISystem.h"')
     extra_includes.append('#include "ui/HudDataContext.h"')
+    extra_includes.append('#include "graphics/RaycastVisualizer.h"')   # target rings (CombatUiBg3 increment 3)
+    extra_includes.append('#include "core/CurrencySystem.h"')   # wallet (CombatUiBg3 increment 4)
     extra_includes.append('#include "core/HealthComponent.h"')
     extra_includes.append('#include "core/RpgItem.h"')   # combat_ai "weapon" -> damage dice
     extra_members.append("    std::unique_ptr<Phyxel::UI::GameMenuRenderer> gameMenuRenderer_;")
@@ -251,11 +256,17 @@ def create_project(
         extra_members.append("    std::unique_ptr<Phyxel::Core::EntityRegistry> entityRegistry_;")
         extra_members.append("    std::unique_ptr<Phyxel::Core::NPCManager> npcManager_;")
 
+    # The dialogue/speech members are declared UNCONDITIONALLY: the GameShell override
+    # `apiDialogueSystem()` that returns `dialogueSystem_` is always emitted, so a shell
+    # regenerated without a game definition (`--force` alone, 2026-09-11) did not compile
+    # ("'dialogueSystem_': undeclared identifier"). Construction stays conditional; the
+    # override then returns null, which the API reports honestly.
+    extra_includes.append('#include "ui/DialogueSystem.h"')
+    extra_includes.append('#include "ui/SpeechBubbleManager.h"')
+    extra_members.append("    std::unique_ptr<Phyxel::UI::DialogueSystem> dialogueSystem_;")
+    extra_members.append("    std::unique_ptr<Phyxel::UI::SpeechBubbleManager> speechBubbleManager_;")
     if has_npcs or game_definition:
-        extra_includes.append('#include "ui/DialogueSystem.h"')
-        extra_includes.append('#include "ui/SpeechBubbleManager.h"')
-        extra_members.append("    std::unique_ptr<Phyxel::UI::DialogueSystem> dialogueSystem_;")
-        extra_members.append("    std::unique_ptr<Phyxel::UI::SpeechBubbleManager> speechBubbleManager_;")
+        pass
 
     if has_story or game_definition:
         extra_includes.append('#include "story/StoryEngine.h"')
@@ -544,6 +555,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             renderCoordinator_->initUISystem();
             {
                 auto& hud = renderCoordinator_->hudData();
+                hud.setText("player.goldText", [this]() {{ return wallet_.gold > 0 || wallet_.silver > 0 || wallet_.copper > 0 ? wallet_.toString() : std::string("0 gp"); }});
                 hud.setFloat("player.health", [this]() {
                     auto* hc = playerCharacter_ ? playerCharacter_->getHealthComponent() : nullptr;
                     return hc ? hc->getHealth() : 100.0f;
@@ -560,7 +572,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 hud.setFloat("combat.playerTurnActive", [this]{ return playerTurn_.isPlayerTurnActive() ? 1.0f : 0.0f; });
                 hud.setText ("combat.roundText", [this]{
                     char buf[32];
-                    snprintf(buf, sizeof(buf), "COMBAT  -  Round %d", combatDirector_.currentRound());
+                    snprintf(buf, sizeof(buf), "COMBAT - Round %d", combatDirector_.currentRound());
                     return std::string(buf);
                 });
                 hud.setText ("combat.turnLabel", [this]{
@@ -577,6 +589,16 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                              playerTurn_.movementRemainingUnits());
                     return std::string(buf);
                 });
+                // One line that tells the player what to do (the manual test of 2026-09-11:
+                // "I have no idea how to actually do an attack").
+                hud.setText ("combat.hintText", [this]() -> std::string {{
+                    if (!playerTurn_.isPlayerTurnActive()) return "Enemy turn...";
+                    if (!playerTurn_.approachTarget().empty()) return "Closing in on " + playerTurn_.approachTarget().substr(playerTurn_.approachTarget().rfind("npc_", 0) == 0 ? 4 : 0) + "...";
+                    if (!armedSpell_.empty()) return "Cast " + armedSpell_ + ": click a target (click elsewhere to cancel)";
+                    if (!hoveredTarget_.empty()) return "Click to attack " + (hoveredTarget_.rfind("npc_", 0) == 0 ? hoveredTarget_.substr(4) : hoveredTarget_);
+                    if (!playerTurn_.selectedTarget().empty()) return "Target: " + playerTurn_.selectedTarget().substr(playerTurn_.selectedTarget().rfind("npc_", 0) == 0 ? 4 : 0) + "  -  Attack, or click the ground to move";
+                    return "Your turn: click an enemy to attack, the ground to move";
+                }});
                 hud.setText ("combat.hitChanceText", [this]{
                     const std::string& tgt = playerTurn_.selectedTarget();
                     if (tgt.empty()) return std::string("");
@@ -636,6 +658,57 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
 
                 // Hotbar — first 9 slots, icon from the item's top-face texture.
                 hud.setFloat("hotbar.any", [this] { return inventory_.size() > 0 ? 1.0f : 0.0f; });
+                hud.setFloat("hotbar.creative", [] { return 0.0f; });   // a shipped RPG has no Minecraft hotbar
+                // BG3 ACTION BAR (CombatUiBg3 increment 4): one row per thing you can DO on
+                // your turn - Attack, each spell (armed = ember, depleted = disabled), End Turn.
+                // Clicks route through the "actionbar.use" handler with the row's record.
+                hud.setList("actionbar", [this]() {
+                    std::vector<Phyxel::UI::HudRecord> rows;
+                    const bool myTurn = playerTurn_.isPlayerTurnActive();
+                    const bool actionLeft = myTurn && playerTurn_.budget() && playerTurn_.budget()->action;
+                    {
+                        Phyxel::UI::HudRecord r; r.texts["label"] = "Attack"; r.texts["action"] = "attack";
+                        r.floats["enabled"] = actionLeft ? 1.0f : 0.0f; r.floats["armed"] = 0.0f; rows.push_back(r);
+                    }
+                    for (const auto& sid : playerSpells_) {
+                        const auto* sd = Phyxel::Core::SpellRegistry::instance().getSpell(sid);
+                        const std::string why = playerTurn_.castBlockedReason(sid);
+                        const bool depleted = (why == "no slots" || why == "not prepared");
+                        std::string label = sd ? sd->name : sid;
+                        if (sd && !sd->isCantrip()) {
+                            const int lvl = sd->level;
+                            const int left = (lvl >= 1 && lvl <= Phyxel::Core::SpellSlots::MAX_SPELL_LEVEL)
+                                                 ? playerCaster_.slots().remaining[lvl - 1] : 0;
+                            label += " (" + std::to_string(left) + ")";
+                        }
+                        Phyxel::UI::HudRecord r; r.texts["label"] = label; r.texts["action"] = "spell:" + sid;
+                        r.floats["enabled"] = (actionLeft && !depleted) ? 1.0f : 0.0f;
+                        r.floats["armed"] = (armedSpell_ == sid) ? 1.0f : 0.0f; rows.push_back(r);
+                    }
+                    {
+                        Phyxel::UI::HudRecord r; r.texts["label"] = "End Turn"; r.texts["action"] = "end_turn";
+                        r.floats["enabled"] = myTurn ? 1.0f : 0.0f; r.floats["armed"] = 0.0f; rows.push_back(r);
+                    }
+                    return rows;
+                });
+                hud.setAction("actionbar.use", [this](const Phyxel::UI::HudRecord& r) {
+                    const auto it = r.texts.find("action");
+                    const std::string act = it == r.texts.end() ? std::string() : it->second;
+                    if (act == "attack") {
+                        std::string tgt = playerTurn_.selectedTarget();
+                        if (tgt.empty()) tgt = hoveredTarget_;
+                        if (tgt.empty()) { LOG_INFO("ActionBar", "Action bar: Attack with no target selected"); return; }
+                        playerTurn_.setSelectedTarget(tgt);
+                        const bool ok = playerTurn_.requestAttack(tgt);
+                        LOG_INFO("ActionBar", "Action bar: Attack -> '{}' ({})", tgt, ok ? "ok" : "refused");
+                    } else if (act.rfind("spell:", 0) == 0) {
+                        const std::string sid = act.substr(6);
+                        setArmedSpell(armedSpell_ == sid ? "" : sid);
+                    } else if (act == "end_turn") {
+                        playerTurn_.endTurn();
+                        LOG_INFO("ActionBar", "Action bar: End Turn");
+                    }
+                });
                 hud.setList("hotbar", [this]() {
                     std::vector<Phyxel::UI::HudRecord> rows;
                     int n = std::min(inventory_.size(), 9);
@@ -918,6 +991,11 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 }}
             }}
 
+            // World-space line pass (target rings, movement paths - CombatUiBg3 increment 3).
+            // Only the editor used to create one; a shipped game had none, so every ring
+            // queued by the shell went nowhere (probe L4 2026-09-11).
+            raycastVisualizer_ = std::make_unique<Phyxel::RaycastVisualizer>();
+            raycastVisualizer_->initialize(engine.getVulkanDevice());
             // Create the render coordinator
             renderCoordinator_ = std::make_unique<Phyxel::Graphics::RenderCoordinator>(
                 engine.getVulkanDevice(),
@@ -930,7 +1008,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 engine.getChunkManager(),
                 engine.getPerformanceMonitor(),
                 engine.getPerformanceProfiler(),
-                nullptr, nullptr
+                raycastVisualizer_.get(), nullptr
             );
             renderCoordinator_->setNPCManager(npcManager_.get());
             // The player character lives in entities_, NOT the NPCManager. Without
@@ -1302,7 +1380,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     // Authorable loot: {{"type":"give_item","id":"moonpetal_remedy","count":1}}
                     const std::string id = a.value("id", "");
                     const int count = a.value("count", 1);
-                    if (!id.empty()) {{
+                    if (!id.empty() && (id == "gold" || id == "gp" || id == "gold_crown" || id == "gold_crowns" || id == "coins")) {{
+                        // Money is money (CurrencySystem), not a 64-stack in a hotbar slot.
+                        wallet_.addCoins(0, 0, 0, count, 0);
+                        LOG_INFO("{class_name}", "Gold received: {{}} gp (trigger '{{}}') -> {{}}", count, tid, wallet_.toString());
+                        triggers_.onEvent("item_received", {{{{"id", id}}, {{"count", count}}}});
+                    }} else if (!id.empty()) {{
                         const int leftover = inventory_.addItem(id, count);
                         LOG_INFO("{class_name}", "Item received: {{}} x{{}} (trigger '{{}}')", id, count - leftover, tid);
                         triggers_.onEvent("item_received", {{{{"id", id}}, {{"count", count - leftover}}}});
@@ -1662,6 +1745,18 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     for (const auto& [screenName, vis] : hudUi->getScreenList()) {{
                         auto* scr = hudUi->getScreen(screenName);
                         if (!scr) continue;
+                        // Attack button: swings at the selected (or hovered) foe; without one it
+                        // leaves the hint to explain. Same path a click on the foe takes.
+                        if (auto* w = scr->findChild("combat_attack"); w && w->type() == Phyxel::UI::WidgetType::Button) {{
+                            static_cast<Phyxel::UI::UIButton*>(w)->onClick = [this] {{
+                                std::string tgt = playerTurn_.selectedTarget();
+                                if (tgt.empty()) tgt = hoveredTarget_;
+                                if (tgt.empty()) {{ LOG_INFO("{class_name}", "Attack button: no target selected"); return; }}
+                                playerTurn_.setSelectedTarget(tgt);
+                                const bool ok = playerTurn_.requestAttack(tgt);
+                                LOG_INFO("{class_name}", "Attack button -> '{{}}' ({{}})", tgt, ok ? "ok" : "refused");
+                            }};
+                        }}
                         if (auto* w = scr->findChild("combat_end_turn"); w && w->type() == Phyxel::UI::WidgetType::Button) {{
                             static_cast<Phyxel::UI::UIButton*>(w)->onClick = [this] {{
                                 if (combatDirector_.inCombat() && playerTurn_.isPlayerTurnActive()) {{
@@ -2095,6 +2190,31 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 input->tickInjection(engine.getLastDeltaTime());
             }}
 
+            // HUD layout LINT (docs/game-production/CombatUiBg3.md increment 2): whenever the set
+            // of visible screens changes, measure the layout the way the renderer does and
+            // write every cut-off child / overlapping panel pair to playtest/defects.jsonl.
+            // A tester should never be the one to notice "the text doesn't fit".
+            if (auto* lintUi = renderCoordinator_ ? renderCoordinator_->getUISystem() : nullptr) {{
+                std::string visibleSig;
+                for (const auto& n : lintUi->visibleScreenNames()) visibleSig += n + "|";
+                if (visibleSig != lastLintSignature_) {{
+                    lastLintSignature_ = visibleSig;
+                    const nlohmann::json defects = lintUi->lintLayout();
+                    if (defects.is_array() && !defects.empty()) {{
+                        std::filesystem::create_directories("playtest");
+                        std::ofstream df("playtest/defects.jsonl", std::ios::app);
+                        const std::string when = Phyxel::Core::WorldHealth::timestamp();
+                        for (const auto& d : defects) {{
+                            LOG_WARN("{class_name}", "HUD layout: {{}}", d.value("message", std::string()));
+                            nlohmann::json j = {{{{"when", when}}, {{"source", "hud_lint"}}, {{"invariant", "hud_" + d.value("kind", std::string())}},
+                                                {{"route_label", d.value("panel", std::string()) + " / " + d.value("other", std::string())}},
+                                                {{"evidence", d.value("message", std::string())}}, {{"screens", visibleSig}}}};
+                            df << j.dump() << "\\n";
+                        }}
+                    }}
+                }}
+            }}
+
             // BG3 mouse combat: on the player's turn, a left click resolves to
             // attack (enemy under cursor) or move (ground point) through the
             // same PlayerTurnController pick the test API uses. Edge-triggered;
@@ -2115,9 +2235,20 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         {{static_cast<float>(vp.x), static_cast<float>(vp.y)}}, groundY);
                     if (pick.kind == Phyxel::Core::PlayerTurnController::PickResult::Kind::Attack)
                         hoveredTarget_ = pick.targetId;
+                    // The pointer says what the click will do (BG3): crosshair = attack,
+                    // hand = move (your turn), arrow = nothing.
+                    if (auto* win = engine.getWindowManager()) {{
+                        using CS = Phyxel::UI::WindowManager::CursorShape;
+                        win->setCursorShape(!hoveredTarget_.empty() ? CS::Crosshair
+                                            : (playerTurn_.isPlayerTurnActive() &&
+                                               pick.kind == Phyxel::Core::PlayerTurnController::PickResult::Kind::Move)
+                                                ? CS::Hand : CS::Arrow);
+                    }}
                 }}
             }} else {{
                 hoveredTarget_.clear();
+                if (auto* win = engine.getWindowManager())
+                    win->setCursorShape(Phyxel::UI::WindowManager::CursorShape::Arrow);
             }}
 
             // Tactical camera control. Mouse-look is deliberately off during
@@ -2363,7 +2494,9 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     // Click ARMS the spell (ember highlight via the per-element bg
                     // override); the next enemy click casts it. Rebuilt fresh each
                     // encounter, torn down on the exit edge.
-                    if (!playerSpells_.empty() && renderCoordinator_) {{
+                    // The code-built spell bar retired 2026-09-15: spells are rows of the
+                    // data-driven action bar (hud_action_bar) now.
+                    if (false && !playerSpells_.empty() && renderCoordinator_) {{
                         if (auto* uisys = renderCoordinator_->getUISystem()) {{
                             uisys->removeScreen("hud_spellbar");
                             // The root panel is sized to EXACTLY the bar strip:
@@ -2378,10 +2511,13 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             const float bw = 220.0f, bh = 34.0f, gap = 8.0f;
                             const float totalH = (bh + gap) * playerSpells_.size() - gap;
                             auto bar = std::make_unique<Phyxel::UI::UIPanel>();
+                            bar->id = "hud_spellbar";        // the layout lint names panels by id
                             bar->freeLayout = true;
                             bar->showBackground = false;
-                            bar->anchor = Phyxel::UI::Anchor::TopLeft;
-                            bar->offset = {{uisys->width() - bw - 20.0f, 530.0f}};
+                            // Bottom-right, above the action band (health/action bar live in the
+                            // bottom 120 px) and clear of the top-right initiative panel.
+                            bar->anchor = Phyxel::UI::Anchor::BottomRight;
+                            bar->offset = {{-20.0f, -128.0f}};
                             bar->size = {{bw, totalH}};
                             float y = 0.0f;
                             for (const auto& sid : playerSpells_) {{
@@ -2784,6 +2920,27 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                               ? hc->getHealth() / hc->getMaxHealth() : 1.0f;
                                 np.hostile  = !p.isPlayer;
                                 np.selected = (p.entityId == sel || p.entityId == hov);
+                                // A ring at the feet of the hovered/selected foe (and a softer one
+                                // under the acting combatant) - the in-world half of "who am I
+                                // about to hit". Drawn through the debug-line pass, 24 segments.
+                                if (auto* rv = renderCoordinator_->getRaycastVisualizer()) {{
+                                    const bool acting = (p.entityId == combatDirector_.initiative().currentEntityId());
+                                    if (np.selected || acting) {{
+                                        // NOT setRaycastVisualization(true): that F5 debug flag also hides the
+                                        // player (segment-box debugging). Queued lines draw on their own.
+                                        rv->setEnabled(true);   // the visualizer's own upload/render gate (off by default)
+                                        rv->setShowRayPath(false); rv->setShowTraversalBoxes(false);   // rings only, never debug rays
+                                        const glm::vec3 c = e->getPosition() + glm::vec3(0.0f, 0.04f, 0.0f);
+                                        const float rad = np.selected ? 0.62f : 0.5f;
+                                        const glm::vec3 col = np.selected ? (np.hostile ? glm::vec3(0.95f, 0.25f, 0.2f) : glm::vec3(0.3f, 0.9f, 0.4f))
+                                                                          : glm::vec3(0.95f, 0.85f, 0.4f);
+                                        for (int i = 0; i < 24; ++i) {{
+                                            const float a0 = 6.2831853f * i / 24.0f, a1 = 6.2831853f * (i + 1) / 24.0f;
+                                            rv->addLine(c + glm::vec3(std::cos(a0) * rad, 0.0f, std::sin(a0) * rad),
+                                                        c + glm::vec3(std::cos(a1) * rad, 0.0f, std::sin(a1) * rad), col);
+                                        }}
+                                    }}
+                                }}
                                 // Distance falloff so a far plate does not
                                 // shout as loudly as the one in your face.
                                 float d = playerCharacter_
@@ -3492,6 +3649,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 playerProfile_.level = playerSheet_.totalLevel();
             }}
             playerProfile_.inventoryData = inventory_.toJson();
+            playerProfile_.currencyData = {{{{"cp", wallet_.copper}}, {{"sp", wallet_.silver}}, {{"ep", wallet_.electrum}}, {{"gp", wallet_.gold}}, {{"pp", wallet_.platinum}}}};
             if (playerProfile_.saveToDb(ws->getDb())) {{
                 LOG_INFO("{class_name}", "Player profile saved (player_state table)");
             }} else {{
@@ -3515,6 +3673,18 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             }}
             if (!playerProfile_.inventoryData.is_null() && !playerProfile_.inventoryData.empty())
                 inventory_.fromJson(playerProfile_.inventoryData);
+                // Legacy saves (before 2026-09-15) carried coins as inventory ITEMS: move them
+                // to the wallet so an old profile never shows a "gold_crown x30" block again.
+                for (const char* coinId : {{"gold_crown", "gold_crowns", "gold", "gp", "coins"}}) {{
+                    const int n = inventory_.countItem(coinId);
+                    if (n > 0) {{ inventory_.removeItem(coinId, n); wallet_.addCoins(0, 0, 0, n, 0);
+                                 LOG_INFO("{class_name}", "Profile migration: {{}} x{{}} -> wallet ({{}})", coinId, n, wallet_.toString()); }}
+                }}
+                if (playerProfile_.currencyData.is_object() && !playerProfile_.currencyData.empty()) {{
+                    const auto& c = playerProfile_.currencyData;
+                    wallet_ = Phyxel::Core::Currency{{}};
+                    wallet_.addCoins(c.value("cp", 0), c.value("sp", 0), c.value("ep", 0), c.value("gp", 0), c.value("pp", 0));
+                }}
             // Progression restore: XP round-trips directly; LEVEL is rebuilt by
             // re-running levelUp so class HP/hit-dice accrue properly (average
             // HP, deterministic — matches how the XP was originally earned).

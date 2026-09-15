@@ -12,6 +12,8 @@
 #include <utility>
 #include <chrono>
 
+#include <nlohmann/json.hpp>
+
 namespace Phyxel {
     namespace Vulkan { class VulkanDevice; }
     namespace Input { class InputManager; }
@@ -64,6 +66,13 @@ public:
 
     /// Returns true if any screen is currently visible.
     bool hasVisibleScreens() const;
+    /// Layout LINT over the screens visible right now (ui/UILayoutLint.h): every child a
+    /// panel would cut off and every pair of visible panels that overlap. JSON array of
+    /// {kind, panel, other, amount, message}; empty = clean. The shipped shell writes
+    /// these to the playtest defects file whenever the visible set changes.
+    nlohmann::json lintLayout();
+    /// Names of the screens visible right now (sorted) - a cheap signature of the HUD state.
+    std::vector<std::string> visibleScreenNames() const;
 
     /// Get all screen names and their visibility (for API/debug listing).
     std::vector<std::pair<std::string, bool>> getScreenList() const;

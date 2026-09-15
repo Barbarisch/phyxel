@@ -6,6 +6,9 @@
 namespace Phyxel {
 namespace Core {
 
+// Half-width of the agent body regions test against (core/AgentProfile.h: 2 microcubes).
+static constexpr float kBodyRadius = 2.0f / 9.0f;
+
 using nlohmann::json;
 
 void TriggerSystem::onEvent(const std::string& type, const json& data) {
@@ -18,7 +21,7 @@ void TriggerSystem::onEvent(const std::string& type, const json& data) {
         for (Trigger& t : m_triggers) {
             if (t.fired && t.once) continue;
             if (t.event != "entity_reached_region" || !t.when.value("interact", false)) continue;
-            if (!t.when.contains("region") || !regionContains(t.when["region"], pos)) continue;
+            if (!t.when.contains("region") || !regionContains(t.when["region"], pos, kBodyRadius)) continue;
             LOG_INFO("TriggerSystem", "Trigger '{}' region interacted with at ({}, {}, {})", t.id, pos.x, pos.y, pos.z);
             fire(t);
         }
@@ -60,7 +63,7 @@ void TriggerSystem::update(float dt, const PositionResolver& resolvePos) {
             const std::string entity = t.when.value("entity", "player");
             glm::vec3 pos;
             if (!resolvePos(entity, pos)) { t.wasInside = false; continue; }
-            const bool inside = t.when.contains("region") && regionContains(t.when["region"], pos);
+            const bool inside = t.when.contains("region") && regionContains(t.when["region"], pos, kBodyRadius);
             // An interact-gated region never fires on entry; onEvent("interact") does.
             if (inside && !t.wasInside && !t.when.value("interact", false)) {
                 // The position that satisfied the region is the evidence a playtest needs
@@ -102,8 +105,12 @@ void TriggerSystem::fire(Trigger& t) {
     LOG_INFO("TriggerSystem", "Trigger '{}' fired (when: {})", t.id, t.event);
 }
 
-bool TriggerSystem::regionContains(const json& region, const glm::vec3& p) {
+bool TriggerSystem::regionContains(const json& region, const glm::vec3& p, float bodyRadius) {
     if (!region.contains("from") || !region.contains("to")) return false;
+    // The player is a BODY, not a point: a character whose 0.22 m half-width overlaps
+    // the region is in it. Run 52 stopped 8 cm short of a one-cube-deep exit region and
+    // the transition never fired (the waystone stood right there).
+    const float r = std::max(0.0f, bodyRadius);
     const json& a = region["from"];
     const json& b = region["to"];
     const float x0 = std::min(a.value("x", 0.0f), b.value("x", 0.0f));
@@ -112,7 +119,7 @@ bool TriggerSystem::regionContains(const json& region, const glm::vec3& p) {
     const float y1 = std::max(a.value("y", 0.0f), b.value("y", 0.0f));
     const float z0 = std::min(a.value("z", 0.0f), b.value("z", 0.0f));
     const float z1 = std::max(a.value("z", 0.0f), b.value("z", 0.0f));
-    return p.x >= x0 && p.x <= x1 && p.y >= y0 && p.y <= y1 && p.z >= z0 && p.z <= z1;
+    return p.x >= x0 - r && p.x <= x1 + r && p.y >= y0 && p.y <= y1 && p.z >= z0 - r && p.z <= z1 + r;
 }
 
 std::string TriggerSystem::addTrigger(const json& def, std::string* error) {

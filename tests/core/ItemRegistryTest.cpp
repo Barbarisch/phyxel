@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include "core/ItemDefinition.h"
 #include "core/ItemRegistry.h"
+#include "core/MaterialRegistry.h"
 #include "core/Inventory.h"
 
 using namespace Phyxel::Core;
@@ -15,8 +16,9 @@ TEST(ItemDefinitionTest, DefaultValues) {
     EXPECT_EQ(def.type, ItemType::Material);
     EXPECT_EQ(def.toolType, ToolType::None);
     EXPECT_EQ(def.equipSlot, EquipSlot::None);
-    EXPECT_TRUE(def.stackable);
-    EXPECT_EQ(def.maxStack, 64);
+    // 2026-09-11: no Minecraft default - an unauthored item is one per slot.
+    EXPECT_FALSE(def.stackable);
+    EXPECT_EQ(def.maxStack, 1);
     EXPECT_FLOAT_EQ(def.damage, 0.0f);
     EXPECT_FLOAT_EQ(def.speed, 1.0f);
     EXPECT_EQ(def.maxDurability, 0);
@@ -201,6 +203,10 @@ TEST_F(ItemRegistryTest, LoadFromJsonArray) {
 }
 
 TEST_F(ItemRegistryTest, RegisterMaterialItems) {
+    // registerMaterialItems mirrors the MaterialRegistry, which nothing loads in this
+    // process unless a test does: this test used to pass only when MaterialRegistryTest
+    // had run first (order-dependent, found 2026-09-11). Load the data ourselves.
+    Phyxel::Core::MaterialRegistry::instance().loadFromJson("resources/materials.json");
     ItemRegistry::instance().registerMaterialItems();
     // Should have at least the predefined materials: Wood, Metal, Glass, etc.
     EXPECT_TRUE(ItemRegistry::instance().hasItem("Wood"));

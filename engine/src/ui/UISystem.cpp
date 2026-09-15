@@ -1,4 +1,6 @@
 #include "ui/UISystem.h"
+#include "ui/UILayoutLint.h"
+#include <algorithm>
 #include "input/InputManager.h"
 #include "utils/Logger.h"
 #include <GLFW/glfw3.h>
@@ -177,6 +179,7 @@ bool UISystem::handleInput(Input::InputManager* input) {
         auto* panel = entry->panel.get();
 
         // Resolve panel position from anchor
+        panel->applyAutoSize(&font_, theme_);   // layout pass: content decides the height
         glm::vec2 panelPos = resolveAnchor(panel->anchor, {0, 0}, screenSize,
                                             panel->size, panel->offset);
 
@@ -245,6 +248,7 @@ bool UISystem::injectClick(glm::vec2 pos) {
     for (auto* entry : activeScreens) {
         auto* panel = entry->panel.get();
 
+        panel->applyAutoSize(&font_, theme_);   // layout pass: content decides the height
         glm::vec2 panelPos = resolveAnchor(panel->anchor, {0, 0}, screenSize,
                                             panel->size, panel->offset);
         // Update hover so button visuals match, then click.
@@ -263,6 +267,7 @@ bool UISystem::handleScroll(glm::vec2 pos, float delta) {
 
     for (auto* entry : activeScreens) {
         auto* panel = entry->panel.get();
+        panel->applyAutoSize(&font_, theme_);   // layout pass: content decides the height
         glm::vec2 panelPos = resolveAnchor(panel->anchor, {0, 0}, screenSize,
                                             panel->size, panel->offset);
         if (panel->handleScroll(pos, panelPos, delta, theme_)) return true;
@@ -332,6 +337,7 @@ void UISystem::render(VkCommandBuffer cmd) {
         if (!entry.visible || !entry.panel) continue;
         auto* panel = entry.panel.get();
 
+        panel->applyAutoSize(&font_, theme_);   // layout pass: content decides the height
         glm::vec2 panelPos = resolveAnchor(panel->anchor, {0, 0}, screenSize,
                                             panel->size, panel->offset);
 
@@ -434,3 +440,33 @@ void UISystem::render(VkCommandBuffer cmd) {
 
 } // namespace UI
 } // namespace Phyxel
+
+
+namespace Phyxel {
+namespace UI {
+
+std::vector<std::string> UISystem::visibleScreenNames() const {
+    std::vector<std::string> out;
+    for (const auto& [name, entry] : screens_)
+        if (entry.visible && entry.panel) out.push_back(name);
+    std::sort(out.begin(), out.end());
+    return out;
+}
+
+nlohmann::json UISystem::lintLayout() {
+    std::vector<UIPanel*> panels;
+    for (auto& [name, entry] : screens_)
+        if (entry.visible && entry.panel) {
+            if (entry.panel->id.empty()) entry.panel->id = "screen:" + name;   // report by screen, never ''
+            panels.push_back(entry.panel.get());
+        }
+    const glm::vec2 screenSize(static_cast<float>(screenWidth_), static_cast<float>(screenHeight_));
+    nlohmann::json out = nlohmann::json::array();
+    for (const auto& d : Phyxel::UI::lintLayout(panels, screenSize, &font_, theme_))
+        out.push_back({{"kind", d.kind}, {"panel", d.panel}, {"other", d.other},
+                       {"amount", d.amount}, {"message", d.message}});
+    return out;
+}
+
+}  // namespace UI
+}  // namespace Phyxel

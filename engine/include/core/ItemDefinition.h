@@ -229,8 +229,14 @@ struct ItemDefinition {
     EquipSlot equipSlot = EquipSlot::None;
 
     std::string description;            // Flavor text
-    bool stackable = true;              // Whether items can stack
-    int maxStack = 64;                  // Maximum stack size (1 for non-stackable)
+    // Stacking is a per-item DATA decision, not a Minecraft default (user, 2026-09-11:
+    // "this is not minecraft, I don't want 64-sized stacks of material"). Unauthored
+    // items are one per slot; consumables default to a quiver's worth (SRD: a quiver
+    // holds 20 arrows) unless the item says otherwise. Coins are never items - they
+    // go to CurrencySystem.
+    bool stackable = false;             // Whether items can stack
+    int maxStack = 1;                   // Maximum stack size (1 for non-stackable)
+    static constexpr int kDefaultConsumableStack = 20;
 
     // Combat / tool stats
     float damage = 0.0f;               // Base damage
@@ -298,8 +304,10 @@ struct ItemDefinition {
         def.toolType = static_cast<ToolType>(j.value("toolType", 0));
         def.equipSlot = static_cast<EquipSlot>(j.value("equipSlot", 0));
         def.description = j.value("description", "");
-        def.stackable = j.value("stackable", true);
-        def.maxStack = j.value("maxStack", 64);
+        const bool consumable = def.type == ItemType::Consumable;
+        def.stackable = j.value("stackable", consumable);
+        def.maxStack = j.value("maxStack", def.stackable ? (consumable ? kDefaultConsumableStack : 1) : 1);
+        if (def.stackable && def.maxStack < 1) def.maxStack = 1;
         def.damage = j.value("damage", 0.0f);
         def.speed = j.value("speed", 1.0f);
         def.maxDurability = j.value("maxDurability", 0);

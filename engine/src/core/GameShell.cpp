@@ -1,4 +1,6 @@
 #include "core/GameShell.h"
+#include "ui/UISystem.h"
+#include "graphics/RenderCoordinator.h"
 #include "core/EngineRuntime.h"
 #include "core/SceneManager.h"
 #include "graphics/Camera.h"
@@ -20,6 +22,11 @@ void GameShell::startTestApi(EngineRuntime& engine, int port, const std::string&
     gameApi_.entityRegistry   = apiEntityRegistry();
     gameApi_.playerProvider   = [this]() { return apiPlayer(); };
     gameApi_.worldHealthProvider = [this]() { return apiWorldHealth(); };
+    gameApi_.uiLintProvider = [this]() -> nlohmann::json {
+        auto* rc = apiRenderCoordinator();
+        auto* ui = rc ? rc->getUISystem() : nullptr;
+        return ui ? ui->lintLayout() : nlohmann::json();
+    };
     gameApi_.combatDirector   = apiCombatDirector();
     gameApi_.combatAI         = apiCombatAI();
     gameApi_.combatSystem     = apiCombatSystem();

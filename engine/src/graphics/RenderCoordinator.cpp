@@ -3885,10 +3885,9 @@ void RenderCoordinator::drawFrame() {
             renderDynamicSubcubes();
         }
 
-        // Clear transient debug lines before rendering entities
-        if (raycastVisualizer) {
-            raycastVisualizer->beginFrame();
-        }
+        // Transient debug lines are cleared AFTER they are drawn (below), not here: lines
+        // queued during the game update (target rings, CombatUiBg3 increment 3) used to be
+        // wiped before upload, so the shipped game never showed them.
 
         // Render entities (Characters)
         {
@@ -3922,7 +3921,7 @@ void RenderCoordinator::drawFrame() {
     }
     
     // Render raycast visualization if enabled
-    if (raycastVisualizationEnabled && raycastVisualizer) {
+    if (raycastVisualizer && (raycastVisualizationEnabled || raycastVisualizer->hasLines())) {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Debug Lines");
         // Bind debug line pipeline
         renderPipeline->bindDebugLinePipeline(vulkanDevice->getCommandBuffer(currentFrame));
@@ -3930,9 +3929,12 @@ void RenderCoordinator::drawFrame() {
         // Bind descriptor sets for view/projection matrices
         vulkanDevice->bindDescriptorSets(currentFrame, renderPipeline->getGraphicsLayout());
         
-        // Render raycast debug geometry
+        // Upload this frame's lines (no-op when nothing changed) and draw them.
+        raycastVisualizer->updateBuffers(currentFrame);
         raycastVisualizer->render(vulkanDevice->getCommandBuffer(currentFrame), currentFrame);
     }
+    // Clear transient lines once they are on screen; the next frame queues its own.
+    if (raycastVisualizer) raycastVisualizer->beginFrame();
 
     // Render Debris
     if (debrisPipeline && chunkManager) {

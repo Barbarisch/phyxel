@@ -25,6 +25,8 @@ public:
 
     // Inventory (stored as JSON blob)
     nlohmann::json inventoryData = nlohmann::json::array();
+    /// Coins (CurrencySystem::Coins as json) - gold is money, not an inventory item.
+    nlohmann::json currencyData = nlohmann::json::object();
 
     // Progression (StandaloneParityGaps.md — the save-format expansion):
     // XP + total level round-trip so a shipped game's character growth
@@ -43,6 +45,7 @@ public:
             {"spawnPoint", {{"x", spawnPoint.x}, {"y", spawnPoint.y}, {"z", spawnPoint.z}}},
             {"deathCount", deathCount},
             {"inventory", inventoryData},
+            {"currency", currencyData},
             {"xp", xp},
             {"level", level}
         };
@@ -64,6 +67,8 @@ public:
         deathCount = j.value("deathCount", 0);
         if (j.contains("inventory")) {
             inventoryData = j["inventory"];
+        if (j.contains("currency") && j["currency"].is_object())
+            currencyData = j["currency"];
         }
         xp    = j.value("xp", 0);
         level = j.value("level", 1);

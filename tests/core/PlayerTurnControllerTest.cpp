@@ -140,11 +140,12 @@ TEST(PlayerTurnControllerTest, AttackResolvesDamageOnCompletion) {
     EXPECT_LT(target.m_health.getHealth(), 50.0f);   // damage landed via the funnel
 }
 
+// G-102: out of reach AND beyond this turn's movement (30 ft = ~9.1 u): refused, budget intact.
 TEST(PlayerTurnControllerTest, AttackRejectedOutOfReach) {
     CombatDirector dir; startPlayerTurn(dir);
     EntityRegistry reg;
     TestEntity player({0, 0, 0});
-    TestEntity target({20.0f, 0, 0}, 50.0f);   // far away
+    TestEntity target({20.0f, 0, 0}, 50.0f);   // far away: 20 u > 9.1 u of movement
     reg.registerEntity(&player, "player", "animated");
     reg.registerEntity(&target, "enemy", "animated");
     MockBody body;
@@ -306,4 +307,40 @@ TEST(PlayerTurnControllerTest, EndTurnAdvancesAndUnbinds) {
     pc.endTurn();
     EXPECT_FALSE(pc.isPlayerTurnActive());
     EXPECT_EQ(dir.currentEntityId(), "enemy");   // advanced to the next combatant
+}
+
+
+// G-102 (BG3): a foe out of reach but within this turn's movement is APPROACHED, then hit.
+// RED before: requestAttack returned false and the action was never spent (the manual
+// test of 2026-09-11 pressed Attack on a foe 12 u away and nothing happened).
+TEST(PlayerTurnControllerTest, AttackOutOfReachApproachesThenSwings) {
+    DiceSystem::setSeed(7);
+    CombatDirector dir; startPlayerTurn(dir);
+    EntityRegistry reg;
+    CombatSystem combat;
+    TestEntity player({0, 0, 0});
+    TestEntity target({5.0f, 0, 0}, 50.0f);   // 5 u away: out of 5 ft reach, inside 30 ft of movement
+    reg.registerEntity(&player, "player", "animated");
+    reg.registerEntity(&target, "enemy", "animated");
+    MockBody body;
+    PlayerTurnController pc;
+    pc.setCombatDirector(&dir);
+    pc.setEntityRegistry(&reg);
+    pc.setCombatSystem(&combat);
+    pc.setBodyProvider([&](Scene::Entity*) -> ITurnActorBody* { return &body; });
+    pc.setPlayerEntityId("player");
+    pc.setAttackBonus(20);
+    pc.setDamageDice("1d4+4");
+    pc.tick(0.05f);
+    EXPECT_FALSE(pc.inReachOf("enemy"));
+    ASSERT_TRUE(pc.requestAttack("enemy")) << "must approach, not refuse";
+    EXPECT_EQ(pc.approachTarget(), "enemy");
+    EXPECT_TRUE(pc.budget()->action) << "the action is spent on the swing, not the walk";
+    // walk + swing to completion
+    for (int i = 0; i < 400 && (pc.isBusy() || !pc.approachTarget().empty()); ++i) { body.anim(); pc.tick(0.05f); }
+    EXPECT_TRUE(pc.approachTarget().empty());
+    EXPECT_TRUE(pc.inReachOf("enemy"));
+    EXPECT_FALSE(pc.budget()->action) << "arrived and swung";
+    EXPECT_LT(target.m_health.getHealth(), 50.0f) << "the swing landed";
+    EXPECT_LT(pc.budget()->movementRemaining, 30) << "the walk cost movement";
 }

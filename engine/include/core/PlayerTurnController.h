@@ -112,6 +112,8 @@ public:
     const ActionBudget* budget() const;       ///< nullptr if not bound
     float movementRemainingUnits() const { return m_turnActor.movementRemainingUnits(); }
     float reachFeet() const { return m_reachFeet; }
+    /// Foe the player is walking toward to attack (empty when not approaching).
+    const std::string& approachTarget() const { return m_approachTargetId; }
     int   attackBonus() const { return m_attackBonus; }
 
     // -----------------------------------------------------------------------
@@ -193,6 +195,9 @@ private:
     // Pending-attack tracking: resolve damage once when the swing completes.
     bool        m_resolvingAttack = false;
     std::string m_attackTargetId;
+    /// G-102 (BG3): an attack on a foe out of reach first WALKS into reach (movement
+    /// budget permitting) and swings on arrival. Set while the approach is under way.
+    std::string m_approachTargetId;
 
     float       m_reachFeet   = 5.0f;
     int         m_attackBonus = 5;

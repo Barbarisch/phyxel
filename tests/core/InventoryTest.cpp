@@ -3,6 +3,18 @@
 
 using namespace Phyxel::Core;
 
+// The stacking tests below use bare material ids ("Stone", "Wood"). Since 2026-09-11
+// stacking is per-item DATA (no Minecraft 64 default), so the materials the tests rely
+// on are registered here the way items.json authors them: stackable, 64 per slot.
+#include "core/ItemRegistry.h"
+static const bool kInventoryTestMaterials = [] {
+    for (const char* id : {"Stone", "Wood", "Dirt", "Grass"}) {
+        ItemDefinition d; d.id = id; d.name = id; d.type = ItemType::Material; d.stackable = true; d.maxStack = 64;
+        ItemRegistry::instance().registerItem(d);
+    }
+    return true;
+}();
+
 // ============================================================================
 // Construction
 // ============================================================================
@@ -239,4 +251,47 @@ TEST(InventoryTest, ItemStackMergeCheck) {
 TEST(InventoryTest, ItemStackSpaceLeft) {
     ItemStack s{"Stone", 50, 64};
     EXPECT_EQ(s.spaceLeft(), 14);
+}
+
+
+// ============================================================================
+// No Minecraft stacks (user, 2026-09-11). The stack size is the item definition's:
+// a registered consumable stacks to its own maxStack, an unregistered loot id is one
+// per slot, and nothing defaults to 64 any more. RED before: addItem used a literal 64.
+// ============================================================================
+#include "core/ItemRegistry.h"
+TEST(InventoryTest, StackSizeComesFromTheItemDefinitionNotSixtyFour) {
+    auto& reg = ItemRegistry::instance();
+    ItemDefinition potion; potion.id = "test_potion_stack"; potion.name = "Potion"; potion.type = ItemType::Consumable;
+    potion.stackable = true; potion.maxStack = 8;
+    reg.registerItem(potion);
+    ItemDefinition sword; sword.id = "test_sword_stack"; sword.name = "Sword"; sword.type = ItemType::Weapon;   // unauthored stacking
+    reg.registerItem(sword);
+    EXPECT_EQ(Inventory::stackSizeFor("test_potion_stack"), 8);
+    EXPECT_EQ(Inventory::stackSizeFor("test_sword_stack"), 1);
+    EXPECT_EQ(Inventory::stackSizeFor("never_registered_relic"), 1);
+
+    Inventory inv;
+    EXPECT_EQ(inv.addItem("test_potion_stack", 10), 0);
+    EXPECT_EQ(inv.countItem("test_potion_stack"), 10);
+    int potionSlots = 0, maxSeen = 0;
+    for (int i = 0; i < inv.size(); ++i)
+        if (const auto s = inv.getSlot(i); s && s->itemId == "test_potion_stack") { ++potionSlots; maxSeen = std::max(maxSeen, s->count); }
+    EXPECT_EQ(potionSlots, 2) << "8 + 2, not one stack of 10";
+    EXPECT_EQ(maxSeen, 8);
+    Inventory inv2;
+    inv2.addItem("test_sword_stack", 3);
+    int swordSlots = 0;
+    for (int i = 0; i < inv2.size(); ++i)
+        if (const auto s = inv2.getSlot(i); s && s->itemId == "test_sword_stack") { ++swordSlots; EXPECT_EQ(s->count, 1); }
+    EXPECT_EQ(swordSlots, 3) << "a weapon is one per slot";
+}
+
+TEST(ItemDefinitionTest, UnauthoredItemsDoNotStackAndConsumablesStackToAQuiver) {
+    const auto weapon = ItemDefinition::fromJson(nlohmann::json::parse(R"({"id":"w","name":"W","type":2})"));
+    EXPECT_FALSE(weapon.stackable); EXPECT_EQ(weapon.maxStack, 1);
+    const auto potion = ItemDefinition::fromJson(nlohmann::json::parse(R"({"id":"p","name":"P","type":3})"));
+    EXPECT_TRUE(potion.stackable); EXPECT_EQ(potion.maxStack, ItemDefinition::kDefaultConsumableStack);
+    const auto arrows = ItemDefinition::fromJson(nlohmann::json::parse(R"({"id":"a","name":"A","type":0,"stackable":true,"maxStack":20})"));
+    EXPECT_EQ(arrows.maxStack, 20);   // authored stacking still wins
 }
