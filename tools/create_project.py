@@ -3058,9 +3058,19 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             (!dialogueSystem_ || !dialogueSystem_->isActive())) {{
                             if (auto* npc = interactionManager_->getNearestInteractableNPC()) {{
                                 std::string txt = interactionManager_->getActivePromptText();
-                                if (txt.empty()) txt = "[E] Interact";
-                                if (Phyxel::UI::UISystem::worldToScreen(npc->getPosition() + glm::vec3(0.0f, 2.0f, 0.0f), view, proj, sw, sh, sp))
+                                // The prompt names the BOUND interact key (F under the WoW scheme,
+                                // E otherwise) - a hardcoded "[E]" lied after the 2026-09-15 rebinding.
+                                const std::string keyName = "[" + Phyxel::Core::keyToString(
+                                    engine_ && engine_->getInputManager() ? engine_->getInputManager()->getActionKey("Interact") : GLFW_KEY_E) + "]";
+                                if (txt.empty()) txt = keyName + " Interact";
+                                else if (auto pos = txt.find("[E]"); pos != std::string::npos) txt.replace(pos, 3, keyName);
+                                else if (txt[0] != '[') txt = keyName + " " + txt;   // authored text without a key marker
+                                // Stack the prompt ABOVE the nameplate (bar on the head anchor at +2.15 m,
+                                // name above it) instead of on top of it.
+                                if (Phyxel::UI::UISystem::worldToScreen(npc->getPosition() + glm::vec3(0.0f, 2.15f, 0.0f), view, proj, sw, sh, sp)) {{
+                                    sp.y -= 44.0f;
                                     ui->addWorldLabel(sp, txt, glm::vec4(1.0f, 1.0f, 0.6f, 1.0f), 0.8f);
+                                }}
                             }}
                         }}
 
