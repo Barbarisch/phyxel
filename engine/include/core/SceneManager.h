@@ -191,6 +191,12 @@ private:
     std::string targetSceneId_;
     SceneState state_ = SceneState::Idle;
     SceneTransitionResult lastResult_;
+    /// G-115: the Loading step first PRESENTS the loading screen (one update returns
+    /// right after setLoadingScreen(true)) and only executes the synchronous load on the
+    /// following update, so the host renders at least one frame with the overlay. Before
+    /// this the show and hide landed inside one update on the frame that froze for the
+    /// load - the "loading_screen" style authored in game.json was never seen.
+    bool loadingFramePresented_ = false;
 
     // Configuration
     std::string worldsDir_;

@@ -240,6 +240,7 @@ def create_project(
     extra_members.append("    Phyxel::Core::ObjectiveTracker objectiveTracker_;  // quest-log spine; game.json \"objectives\" load here")
     extra_members.append("    Phyxel::Core::PlayerProfile playerProfile_;        // persisted to the active scene's world DB (player_state table)")
     extra_members.append("    std::string loadingSceneName_;  // destination scene shown on the loading screen")
+    extra_members.append("    float loadingHold_ = -1.0f;         // >= 0: loading screen held after the load until the world settles (G-115)")
 
     # Menu-scene support: a JSON-driven menu renderer for sceneType:"menu" scenes.
     # When the loaded game uses menu scenes, the SceneManager drives the flow and
@@ -1845,14 +1846,24 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         cb.setLoadingScreen = [this](bool show, const std::string& sceneName) {{
                             if (show) {{
                                 loadingSceneName_ = sceneName;
-                                if (!menuSceneActive_ &&
-                                    screen_.getState() != Phyxel::UI::ScreenState::Loading) {{
+                                // G-115: a transition OUT of a menu scene showed nothing - the
+                                // menu owned the screen until the world was ready. The menu is
+                                // being left: drop it now and put the loading screen up.
+                                if (menuSceneActive_) {{
+                                    menuSceneActive_ = false;
+                                    if (auto* ui = renderCoordinator_ ? renderCoordinator_->getUISystem() : nullptr)
+                                        Phyxel::UI::unloadMenuFrom(*ui);
+                                }}
+                                if (screen_.getState() != Phyxel::UI::ScreenState::Loading) {{
                                     LOG_INFO("{class_name}", "Loading screen shown (-> '{{}}')", sceneName);
                                     screen_.setState(Phyxel::UI::ScreenState::Loading);
                                 }}
-                            }} else if (screen_.getState() == Phyxel::UI::ScreenState::Loading) {{
-                                LOG_INFO("{class_name}", "Loading screen dismissed");
-                                screen_.setState(Phyxel::UI::ScreenState::Playing);
+                                loadingHold_ = -1.0f;
+                            }} else if (screen_.getState() == Phyxel::UI::ScreenState::Loading && loadingHold_ < 0.0f) {{
+                                // Loaded, but the world is still meshing/lighting (the "black
+                                // first seconds", G-49): hold the loading screen until the dirty
+                                // chunk backlog drains (min 0.5 s, max 4 s), see onUpdate.
+                                loadingHold_ = 0.0f;
                             }}
                             if (engine_) updateCursorMode(*engine_);
                         }};
@@ -1981,7 +1992,9 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 if (auto* ui = renderCoordinator_ ? renderCoordinator_->getUISystem() : nullptr)
                                     Phyxel::UI::unloadMenuFrom(*ui);
                             }}
-                            if (!Phyxel::UI::isGameRunning(screen_.getState())) {{
+                            if (screen_.getState() == Phyxel::UI::ScreenState::Loading) {{
+                                if (loadingHold_ < 0.0f) loadingHold_ = 0.0f;   // settle hold owns the hand-off (G-115)
+                            }} else if (!Phyxel::UI::isGameRunning(screen_.getState())) {{
                                 screen_.setState(Phyxel::UI::ScreenState::Playing);
                             }}
                             // First WORLD scene of the session: the scene's DB is
@@ -2534,6 +2547,22 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // buttons and triggers set the transition; this advances it.
             if (auto* sceneMgr = engine.getSceneManager()) {{
                 sceneMgr->update(dt);
+                // G-115 settle hold: keep the loading screen up after the load until the
+                // remesh backlog drains (>= 0.5 s so it never flashes, <= 4 s regardless).
+                if (loadingHold_ >= 0.0f) {{
+                    loadingHold_ += dt;
+                    auto* cm = engine.getChunkManager();
+                    const size_t dirty = cm ? cm->dirtyTracker().getDirtyCount() : 0;
+                    const bool settled = (loadingHold_ >= 0.5f && dirty == 0) || loadingHold_ >= 4.0f;
+                    if (settled) {{
+                        LOG_INFO("{class_name}", "Loading screen dismissed (settled after {{}} ms, {{}} dirty chunks left)",
+                                 static_cast<int>(loadingHold_ * 1000.0f), dirty);
+                        loadingHold_ = -1.0f;
+                        if (screen_.getState() == Phyxel::UI::ScreenState::Loading)
+                            screen_.setState(Phyxel::UI::ScreenState::Playing);
+                        updateCursorMode(engine);
+                    }}
+                }}
             }}
 
             // A menu scene is showing: SceneManager + the menu renderer drive things;

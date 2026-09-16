@@ -103,16 +103,23 @@ void SceneManager::update(float /*deltaTime*/) {
             }
             executeUnload();
             state_ = SceneState::Loading;
+            // The host may have ignored the show above (a menu scene owned the screen
+            // until the unload): present it again on the next update, then load.
+            loadingFramePresented_ = false;
             break;
         }
 
         case SceneState::Loading: {
-            auto startTime = std::chrono::high_resolution_clock::now();
-
             const auto* target = manifest_.findScene(targetSceneId_);
-            if (callbacks_.setLoadingScreen && target) {
-                callbacks_.setLoadingScreen(true, target->name);
+            if (!loadingFramePresented_) {
+                if (callbacks_.setLoadingScreen && target) {
+                    callbacks_.setLoadingScreen(true, target->name);
+                }
+                loadingFramePresented_ = true;
+                return;   // let the host render this frame with the loading screen up
             }
+            loadingFramePresented_ = false;
+            auto startTime = std::chrono::high_resolution_clock::now();
 
             executeLoad();
 

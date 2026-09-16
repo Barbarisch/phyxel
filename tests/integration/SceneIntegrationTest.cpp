@@ -38,18 +38,20 @@ struct CallbackLog {
 
 SceneManifest buildTestManifest() {
     json scene1Def = {{"world", {{"type", "Flat"}, {"seed", 1}}},
-                      {"camera", {{"position", {10, 20, 10}}}}};
+                      {"camera", {{"position", {{"x", 10}, {"y", 20}, {"z", 10}}}}}};
     json scene2Def = {{"world", {{"type", "Perlin"}, {"seed", 2}}},
-                      {"camera", {{"position", {50, 30, 50}}}}};
-    json scene3Def = {{"camera", {{"position", {5, 5, 5}}}}};
+                      {"camera", {{"position", {{"x", 50}, {"y", 30}, {"z", 50}}}}}};
+    json scene3Def = {{"camera", {{"position", {{"x", 5}, {"y", 5}, {"z", 5}}}}}};
 
     json manifest = {
         {"startScene", "scene_a"},
         {"scenes", json::array({
             {{"id", "scene_a"}, {"name", "Scene A"}, {"worldDatabase", "a.db"},
-             {"transitionStyle", "cut"}, {"world", scene1Def["world"]}, {"camera", scene1Def["camera"]}},
+             // No `world` block: the fixture has no ChunkManager ("orchestration, not real I/O")
+             // and the loader refuses world generation without one (since 2026-09-11).
+             {"transitionStyle", "cut"}, {"camera", scene1Def["camera"]}},
             {{"id", "scene_b"}, {"name", "Scene B"}, {"worldDatabase", "b.db"},
-             {"transitionStyle", "fade"}, {"world", scene2Def["world"]}, {"camera", scene2Def["camera"]}},
+             {"transitionStyle", "fade"}, {"camera", scene2Def["camera"]}},
             {{"id", "scene_c"}, {"name", "Scene C"}, {"worldDatabase", "c.db"},
              {"transitionStyle", "loading_screen"}, {"camera", scene3Def["camera"]}}
         })}
@@ -97,6 +99,10 @@ protected:
         sm.loadManifest(manifest);
     }
 
+    /// Drive the state machine until the transition has finished (G-115: a load takes
+    /// TWO updates now - one presents the loading screen, the next executes the load).
+    void settle() { for (int i = 0; i < 8 && sm.isTransitioning(); ++i) sm.update(0.0f); }
+
     SceneManager sm;
     CallbackLog log;
     std::vector<std::pair<bool, std::string>> loadingScreenState;
@@ -113,7 +119,7 @@ TEST_F(SceneIntegrationTest, LoadStartSceneTransitionsToReady) {
     ASSERT_TRUE(sm.loadStartScene());
     EXPECT_EQ(sm.getState(), SceneState::Loading);
 
-    sm.update(0.0f);
+    settle();
 
     EXPECT_EQ(sm.getState(), SceneState::Ready);
     EXPECT_EQ(sm.getActiveSceneId(), "scene_a");
@@ -122,14 +128,14 @@ TEST_F(SceneIntegrationTest, LoadStartSceneTransitionsToReady) {
 
 TEST_F(SceneIntegrationTest, LoadStartSceneCallsOnSceneReady) {
     sm.loadStartScene();
-    sm.update(0.0f);
+    settle();
 
     EXPECT_TRUE(log.contains("ready:scene_a"));
 }
 
 TEST_F(SceneIntegrationTest, LoadStartSceneShowsAndHidesLoadingScreen) {
     sm.loadStartScene();
-    sm.update(0.0f);
+    settle();
 
     // Loading screen should have been shown then hidden
     ASSERT_GE(loadingScreenState.size(), 2u);
@@ -145,7 +151,7 @@ TEST_F(SceneIntegrationTest, LoadStartSceneShowsAndHidesLoadingScreen) {
 TEST_F(SceneIntegrationTest, TransitionUnloadsAndLoadsCorrectly) {
     // Load initial scene
     sm.loadStartScene();
-    sm.update(0.0f);
+    settle();
     ASSERT_EQ(sm.getActiveSceneId(), "scene_a");
 
     log.clear();
@@ -158,14 +164,14 @@ TEST_F(SceneIntegrationTest, TransitionUnloadsAndLoadsCorrectly) {
     sm.update(0.0f); // unload
     EXPECT_EQ(sm.getState(), SceneState::Loading);
 
-    sm.update(0.0f); // load
+    settle(); // load
     EXPECT_EQ(sm.getState(), SceneState::Ready);
     EXPECT_EQ(sm.getActiveSceneId(), "scene_b");
 }
 
 TEST_F(SceneIntegrationTest, UnloadCallbackOrder) {
     sm.loadStartScene();
-    sm.update(0.0f);
+    settle();
     log.clear();
 
     sm.transitionTo("scene_b");
@@ -186,11 +192,11 @@ TEST_F(SceneIntegrationTest, UnloadCallbackOrder) {
 
 TEST_F(SceneIntegrationTest, TransitionEmitsSceneLoadedEvent) {
     sm.loadStartScene();
-    sm.update(0.0f);
+    settle();
 
     sm.transitionTo("scene_b");
     sm.update(0.0f); // unload
-    sm.update(0.0f); // load
+    settle(); // load
 
     auto result = eventLog->pollSince(0);
     bool found = false;
@@ -211,7 +217,7 @@ TEST_F(SceneIntegrationTest, TransitionEmitsSceneLoadedEvent) {
 
 TEST_F(SceneIntegrationTest, ReentryStateSavesPlayerPosition) {
     sm.loadStartScene();
-    sm.update(0.0f);
+    settle();
 
     // Move camera to a known position
     camera->setPosition(glm::vec3(100.0f, 50.0f, 75.0f));
@@ -219,7 +225,7 @@ TEST_F(SceneIntegrationTest, ReentryStateSavesPlayerPosition) {
     // Transition away — should save position
     sm.transitionTo("scene_b");
     sm.update(0.0f); // unload (saves camera pos)
-    sm.update(0.0f); // load
+    settle(); // load
 
     auto* reentry = sm.getReentryState("scene_a");
     ASSERT_NE(reentry, nullptr);
@@ -231,21 +237,21 @@ TEST_F(SceneIntegrationTest, ReentryStateSavesPlayerPosition) {
 
 TEST_F(SceneIntegrationTest, ReentryStateRestoresOnReturn) {
     sm.loadStartScene();
-    sm.update(0.0f);
+    settle();
 
     // Mark a position in scene_a
     camera->setPosition(glm::vec3(100.0f, 50.0f, 75.0f));
 
     // Go to scene_b
     sm.transitionTo("scene_b");
-    sm.update(0.0f);
-    sm.update(0.0f);
+    settle();
+    settle();
     ASSERT_EQ(sm.getActiveSceneId(), "scene_b");
 
     // Return to scene_a — should restore camera position
     sm.transitionTo("scene_a");
-    sm.update(0.0f);
-    sm.update(0.0f);
+    settle();
+    settle();
     ASSERT_EQ(sm.getActiveSceneId(), "scene_a");
 
     auto pos = camera->getPosition();
@@ -260,26 +266,26 @@ TEST_F(SceneIntegrationTest, ReentryStateRestoresOnReturn) {
 
 TEST_F(SceneIntegrationTest, MultiHopTransition_A_B_C_A) {
     sm.loadStartScene();
-    sm.update(0.0f);
+    settle();
     EXPECT_EQ(sm.getActiveSceneId(), "scene_a");
 
     camera->setPosition(glm::vec3(10, 20, 30));
 
     // A → B
     sm.transitionTo("scene_b");
-    sm.update(0.0f); sm.update(0.0f);
+    settle();
     EXPECT_EQ(sm.getActiveSceneId(), "scene_b");
 
     camera->setPosition(glm::vec3(40, 50, 60));
 
     // B → C
     sm.transitionTo("scene_c");
-    sm.update(0.0f); sm.update(0.0f);
+    settle();
     EXPECT_EQ(sm.getActiveSceneId(), "scene_c");
 
     // C → A (re-entry)
     sm.transitionTo("scene_a");
-    sm.update(0.0f); sm.update(0.0f);
+    settle();
     EXPECT_EQ(sm.getActiveSceneId(), "scene_a");
 
     // Camera should be restored to scene_a's saved position
@@ -296,11 +302,11 @@ TEST_F(SceneIntegrationTest, MultiHopTransition_A_B_C_A) {
 
 TEST_F(SceneIntegrationTest, TransitionTimingIsRecorded) {
     sm.loadStartScene();
-    sm.update(0.0f);
+    settle();
 
     sm.transitionTo("scene_b");
-    sm.update(0.0f);
-    sm.update(0.0f);
+    settle();
+    settle();
 
     auto result = sm.getLastTransitionResult();
     EXPECT_TRUE(result.success);
@@ -315,7 +321,7 @@ TEST_F(SceneIntegrationTest, TransitionTimingIsRecorded) {
 
 TEST_F(SceneIntegrationTest, AddSceneThenTransitionToIt) {
     sm.loadStartScene();
-    sm.update(0.0f);
+    settle();
 
     // Add a new scene at runtime
     SceneDefinition newScene;
@@ -328,13 +334,13 @@ TEST_F(SceneIntegrationTest, AddSceneThenTransitionToIt) {
 
     // Transition to the new scene
     ASSERT_TRUE(sm.transitionTo("bonus"));
-    sm.update(0.0f); sm.update(0.0f);
+    settle();
     EXPECT_EQ(sm.getActiveSceneId(), "bonus");
 }
 
 TEST_F(SceneIntegrationTest, RemoveNonActiveSceneSucceeds) {
     sm.loadStartScene();
-    sm.update(0.0f);
+    settle();
     ASSERT_EQ(sm.getActiveSceneId(), "scene_a");
 
     EXPECT_TRUE(sm.removeScene("scene_c"));
@@ -343,7 +349,7 @@ TEST_F(SceneIntegrationTest, RemoveNonActiveSceneSucceeds) {
 
 TEST_F(SceneIntegrationTest, CannotRemoveActiveScene) {
     sm.loadStartScene();
-    sm.update(0.0f);
+    settle();
 
     EXPECT_FALSE(sm.removeScene("scene_a"));
     EXPECT_NE(sm.findScene("scene_a"), nullptr);
@@ -355,7 +361,7 @@ TEST_F(SceneIntegrationTest, CannotRemoveActiveScene) {
 
 TEST_F(SceneIntegrationTest, AllUnloadCallbacksFire) {
     sm.loadStartScene();
-    sm.update(0.0f);
+    settle();
     log.clear();
 
     sm.transitionTo("scene_b");
@@ -372,16 +378,44 @@ TEST_F(SceneIntegrationTest, AllUnloadCallbacksFire) {
 
 TEST_F(SceneIntegrationTest, LoadCallbacksIncludeNavGridRebuild) {
     sm.loadStartScene();
-    sm.update(0.0f);
+    settle();
     log.clear();
 
     sm.transitionTo("scene_b");
     sm.update(0.0f); // unload
-    sm.update(0.0f); // load
+    settle(); // load
 
     EXPECT_TRUE(log.contains("rebuildNavGrid"));
     EXPECT_TRUE(log.contains("ready:scene_b"));
 
     // rebuildNavGrid should come before onSceneReady
     EXPECT_LT(log.indexOf("rebuildNavGrid"), log.indexOf("ready:scene_b"));
+}
+
+
+// G-115 (manual review 2026-09-16: "load screen after hitting New Game" - there was none).
+// The loading screen must be PRESENTED for a whole frame before the synchronous load
+// runs: one update shows it and returns, the next update loads. RED before: the show and
+// the hide landed inside one update on the frame that froze for the load.
+TEST_F(SceneIntegrationTest, TheLoadingScreenIsPresentedForAFrameBeforeTheLoadRuns) {
+    sm.loadStartScene();
+    sm.update(0.0f);                                  // presents
+    ASSERT_GE(loadingScreenState.size(), 1u);
+    EXPECT_TRUE(loadingScreenState.back().first) << "loading screen shown";
+    EXPECT_FALSE(log.contains("ready:scene_a")) << "the load has NOT run yet - this frame renders the overlay";
+    EXPECT_EQ(sm.getState(), SceneState::Loading);
+    sm.update(0.0f);                                  // loads
+    EXPECT_TRUE(log.contains("ready:scene_a"));
+    EXPECT_FALSE(loadingScreenState.back().first) << "hidden after the load";
+    // World -> world: unload frame (shown), present frame (shown again, no load), load frame.
+    loadingScreenState.clear(); log.clear();
+    ASSERT_TRUE(sm.transitionTo("scene_b"));
+    sm.update(0.0f);                                  // unload
+    EXPECT_EQ(sm.getState(), SceneState::Loading);
+    sm.update(0.0f);                                  // present
+    EXPECT_FALSE(log.contains("ready:scene_b")) << "still one frame of loading screen before the load";
+    EXPECT_TRUE(loadingScreenState.back().first);
+    sm.update(0.0f);                                  // load
+    EXPECT_TRUE(log.contains("ready:scene_b"));
+    EXPECT_EQ(sm.getActiveSceneId(), "scene_b");
 }
