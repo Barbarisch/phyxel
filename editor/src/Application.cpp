@@ -79,6 +79,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "story/StoryWorldLoader.h"
 #include "story/StoryDirectorTypes.h"
 #include "core/EngineConfig.h"
+#include "core/CrashHandler.h"
 #include "core/AssetManager.h"
 #include "core/GameDefinitionLoader.h"
 #include "core/CharacterVisualResolver.h"  // race/preset -> animFile+appearance (single spawn path)
@@ -185,6 +186,7 @@ Application::~Application() {
  * Application handles game-specific setup afterwards.
  */
 bool Application::initialize(const std::string& gameDefinitionPath) {
+    Core::CrashHandler::install("crashes");   // symbolized stack + minidump on an unhandled crash
     // STEP 0: LOAD ENGINE CONFIGURATION
     if (!Core::EngineConfig::loadFromFile("engine.json", engineConfig)) {
         LOG_WARN("Application", "Failed to parse engine.json  --  using defaults");

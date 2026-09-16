@@ -9,6 +9,7 @@
 #include <memory>
 #include <functional>
 #include <vector>
+#include <algorithm>
 #include <utility>
 #include <chrono>
 
@@ -41,8 +42,30 @@ public:
     /// Release all Vulkan resources.
     void cleanup();
 
-    /// Recreate after swapchain resize.
+    /// Recreate after swapchain resize (changes the LOGICAL canvas - the HUD is re-laid out).
     void resize(uint32_t width, uint32_t height);
+
+    /// G-132 (window resize left the UI where it was): the HUD keeps its authored logical
+    /// canvas (the size it was created with) and is PLACED into the window - scaled to fit,
+    /// centred, letterboxed. Widgets, panels and the data-driven screens keep their layout;
+    /// only the placement changes. Call whenever the window size changes.
+    void setWindowSize(uint32_t winW, uint32_t winH);
+    struct Placement { float x = 0.0f, y = 0.0f, scale = 1.0f; };
+    static Placement placementFor(uint32_t winW, uint32_t winH, uint32_t logicalW, uint32_t logicalH) {
+        Placement p;
+        if (winW == 0 || winH == 0 || logicalW == 0 || logicalH == 0) return p;
+        const float sx = static_cast<float>(winW) / static_cast<float>(logicalW);
+        const float sy = static_cast<float>(winH) / static_cast<float>(logicalH);
+        p.scale = std::min(sx, sy);
+        p.x = (static_cast<float>(winW) - logicalW * p.scale) * 0.5f;
+        p.y = (static_cast<float>(winH) - logicalH * p.scale) * 0.5f;
+        return p;
+    }
+    const Placement& placement() const { return placement_; }
+    /// Window pixels -> logical canvas pixels (input and world-anchored labels arrive in window px).
+    glm::vec2 toLogical(glm::vec2 windowPx) const {
+        return (windowPx - glm::vec2(placement_.x, placement_.y)) / std::max(1e-6f, placement_.scale);
+    }
 
     // ── Screen management ───────────────────────────────────────
 
@@ -163,6 +186,9 @@ public:
         float       scale    = 1.0f; ///< shrink distant plates
     };
     void addNameplate(const Nameplate& plate);
+    /// A small filled square at a WINDOW-pixel position (a dot of the target ring, G-105).
+    void addWorldMarker(glm::vec2 windowPx, float sizePx, glm::vec4 color);
+    struct WorldMarker { glm::vec2 pos; float size; glm::vec4 color; };
 
 private:
     UIRenderer renderer_;
@@ -186,6 +212,7 @@ private:
 
     uint32_t screenWidth_;
     uint32_t screenHeight_;
+    Placement placement_;   // logical canvas -> window (setWindowSize)
     bool initialized_ = false;
 
     // Input state
@@ -201,6 +228,7 @@ private:
     std::function<void()> keyCaptureCancelCb_;
 
     // Per-frame world-anchored overlay labels (addWorldLabel), drawn + cleared in render().
+    std::vector<WorldMarker> worldMarkers_;
     struct WorldLabel {
         glm::vec2 screenPos;
         std::string text;

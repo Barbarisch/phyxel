@@ -444,14 +444,15 @@ Standalone games use the standard `GameSettings::defaultKeybindings()`:
 | V | Toggle camera mode (1st/3rd/free) |
 | Tab | Inventory |
 | ESC | Pause menu / back |
-| C | Place cube |
+| C | Character sheet (`ToggleCharacter`; stats/saves/skills from the CharacterSheet, `resources/ui/character_screen.json`) |
 
 `GameSettings::defaultKeybindings()` also registers an `Attack → F` binding, but no code path
 currently reads that action — attack is hardcoded to Left Mouse Button in both `FpsScheme` and
 `TankScheme` (`engine/include/input/ControlScheme.h`). Likewise `Tab`/`ToggleInventory` and
 `C`/`PlaceCube` are registered as rebindable actions but no `isActionPressed()` call consumes them
 in the standalone `GameShell` path yet — treat those two as configured-but-not-yet-wired rather
-than confirmed functional.
+than confirmed functional. (`C`/`ToggleCharacter` IS wired: the shell polls it and opens the
+data-driven character sheet; PlaceCube shares the key but is dead in shipped games.)
 
 These can be rebound in the Settings → Keybindings screen (once wired to gameplay).
 

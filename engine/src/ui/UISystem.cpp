@@ -40,6 +40,12 @@ void UISystem::resize(uint32_t width, uint32_t height) {
     renderer_.resize(width, height);
 }
 
+void UISystem::setWindowSize(uint32_t winW, uint32_t winH) {
+    placement_ = placementFor(winW, winH, screenWidth_, screenHeight_);
+    renderer_.setViewportRect(placement_.x, placement_.y,
+                              screenWidth_ * placement_.scale, screenHeight_ * placement_.scale);
+}
+
 // ── Screen management ───────────────────────────────────────
 
 void UISystem::addScreen(const std::string& name, std::unique_ptr<UIPanel> panel) {
@@ -156,7 +162,7 @@ bool UISystem::handleInput(Input::InputManager* input) {
 
     double mx, my;
     input->getCurrentMousePosition(mx, my);
-    glm::vec2 mousePos(static_cast<float>(mx), static_cast<float>(my));
+    glm::vec2 mousePos = toLogical({static_cast<float>(mx), static_cast<float>(my)});
 
     bool mousePressed = input->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
     bool mouseJustClicked = mousePressed && !wasMousePressed_;
@@ -236,6 +242,7 @@ bool UISystem::handleInput(Input::InputManager* input) {
 
 bool UISystem::injectClick(glm::vec2 pos) {
     if (!initialized_) return false;
+    pos = toLogical(pos);   // window px -> the logical canvas
 
     glm::vec2 screenSize(static_cast<float>(screenWidth_), static_cast<float>(screenHeight_));
     bool consumed = false;
@@ -261,6 +268,7 @@ bool UISystem::injectClick(glm::vec2 pos) {
 
 bool UISystem::handleScroll(glm::vec2 pos, float delta) {
     if (!initialized_ || delta == 0.0f || !hasVisibleScreens()) return false;
+    pos = toLogical(pos);
 
     glm::vec2 screenSize(static_cast<float>(screenWidth_), static_cast<float>(screenHeight_));
     auto activeScreens = visibleScreenSnapshot();
@@ -305,15 +313,19 @@ bool UISystem::worldToScreen(const glm::vec3& worldPos, const glm::mat4& view,
     return true;
 }
 
+void UISystem::addWorldMarker(glm::vec2 windowPx, float sizePx, glm::vec4 color) {
+    worldMarkers_.push_back({toLogical(windowPx), sizePx, color});
+}
+
 void UISystem::addWorldLabel(glm::vec2 screenPos, const std::string& text,
                              glm::vec4 textColor, float bgAlpha) {
     if (text.empty()) return;
-    worldLabels_.push_back({screenPos, text, textColor, bgAlpha});
+    worldLabels_.push_back({toLogical(screenPos), text, textColor, bgAlpha});
 }
 
 void UISystem::addNameplate(const Nameplate& plate) {
     if (plate.name.empty()) return;
-    nameplates_.push_back(plate);
+    Nameplate p = plate; p.screenPos = toLogical(plate.screenPos); nameplates_.push_back(p);
 }
 
 void UISystem::render(VkCommandBuffer cmd) {
@@ -323,6 +335,7 @@ void UISystem::render(VkCommandBuffer cmd) {
     // with no visible HUD screens would silently drop every queued plate.
     if (!initialized_ ||
         (!hasVisibleScreens() && worldLabels_.empty() && nameplates_.empty())) {
+        worldMarkers_.clear();
         worldLabels_.clear();
         nameplates_.clear();
         return;
@@ -346,6 +359,12 @@ void UISystem::render(VkCommandBuffer cmd) {
         panel->render(&renderer_, &font_, theme_, panelPos);
     }
     theme_.screenElapsed = 1.0e9f;   // world labels & any later draws render settled
+
+    // World markers (the target ring's dots, G-105): plain rects in logical space,
+    // under the labels and plates so text stays readable over them.
+    for (const auto& m : worldMarkers_)
+        renderer_.drawRect(m.pos - glm::vec2(m.size * 0.5f), {m.size, m.size}, m.color);
+    worldMarkers_.clear();
 
     // World-anchored overlay labels (speech bubbles / interaction prompts), drawn
     // last so they sit over the HUD. Centered horizontally, box sits ABOVE the
@@ -416,25 +435,9 @@ void UISystem::render(VkCommandBuffer cmd) {
                            {np.screenPos.x - subW * 0.5f, subY}, {0.98f, 0.90f, 0.62f, 1.0f}, subSc);
         }
 
-        // Selection bracket: corner ticks around the whole column, so the
-        // current target is unmistakable at a glance.
-        if (np.selected) {
-            const float halfW = std::max({barW, nameW + 12.0f, subW + 12.0f}) * 0.5f + 6.0f;
-            const float top   = subY - 3.0f;
-            const float bot   = np.screenPos.y + 3.0f;
-            const float t     = 2.0f;            // tick thickness
-            const float len   = 10.0f * s;       // tick length
-            const glm::vec4 c(1.0f, 0.78f, 0.35f, 0.95f);
-            const float L = np.screenPos.x - halfW, R = np.screenPos.x + halfW - t;
-            renderer_.drawRect({L, top}, {len, t}, c);
-            renderer_.drawRect({L, top}, {t, len}, c);
-            renderer_.drawRect({R - len + t, top}, {len, t}, c);
-            renderer_.drawRect({R, top}, {t, len}, c);
-            renderer_.drawRect({L, bot - t}, {len, t}, c);
-            renderer_.drawRect({L, bot - len}, {t, len}, c);
-            renderer_.drawRect({R - len + t, bot - t}, {len, t}, c);
-            renderer_.drawRect({R, bot - len}, {t, len}, c);
-        }
+        // (The yellow corner bracket that used to frame the selected column was retired
+        // 2026-09-16: the animated ground ring is the selection marker now - "a more
+        // obvious visual marker, something like a bright animated circle on the ground".)
     }
     nameplates_.clear();
 

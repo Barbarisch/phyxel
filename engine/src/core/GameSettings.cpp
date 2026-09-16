@@ -120,6 +120,12 @@ void GameSettings::fromJson(const nlohmann::json& j, GameSettings& s) {
             for (const auto& kb : c["keybindings"]) {
                 s.keybindings.push_back(Keybinding::fromJson(kb));
             }
+            // A file written by an older build knows nothing about actions added since
+            // (ToggleCharacter, Ravenmere G-133 - every existing install showed it
+            // "(unbound)"). Merge the defaults for the missing actions; the file's own
+            // bindings, rebinds included, stay as written.
+            for (const auto& d : defaultKeybindings())
+                if (!s.findBinding(d.action)) s.keybindings.push_back(d);
         }
     }
 
@@ -218,6 +224,7 @@ std::vector<Keybinding> GameSettings::defaultKeybindings() {
         {"PlaceCube",      GLFW_KEY_C,       0},
         {"Attack",         GLFW_KEY_F,       0},
         {"Interact",       GLFW_KEY_E,       0},
+        {"ToggleCharacter",GLFW_KEY_C,       0},   // character sheet (Ravenmere G-133)
         // MMO (World of Warcraft) defaults, read by Input::MmoScheme. Q/E strafe there;
         // hosts running that scheme move Interact off E (GameShell::applyMmoBindings).
         {"StrafeLeft",     GLFW_KEY_Q,       0},

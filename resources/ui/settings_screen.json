@@ -65,6 +65,8 @@
         { "type": "button", "id": "kb_Attack",           "text": "{{keybind.Attack}}",          "position": [920, 330], "size": [180, 34], "action": { "type": "rebind", "binding": "Attack" } },
         { "type": "label",  "id": "lbl_Interact",        "text": "Interact",    "position": [700, 380], "size": [220, 30] },
         { "type": "button", "id": "kb_Interact",         "text": "{{keybind.Interact}}",        "position": [920, 376], "size": [180, 34], "action": { "type": "rebind", "binding": "Interact" } },
+        { "type": "label",  "id": "lbl_ToggleCharacter", "text": "Character",   "position": [700, 426], "size": [220, 30] },
+        { "type": "button", "id": "kb_ToggleCharacter",  "text": "{{keybind.ToggleCharacter}}", "position": [920, 422], "size": [180, 34], "action": { "type": "rebind", "binding": "ToggleCharacter" } },
 
         { "type": "button", "id": "kb_back", "text": "Back", "position": [540, 560], "size": [200, 48], "action": { "type": "close_submenu" } }
       ]

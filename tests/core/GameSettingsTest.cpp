@@ -103,8 +103,10 @@ TEST(GameSettingsTest, SaveAndLoad) {
     EXPECT_EQ(s2.resolutionHeight, 1440);
     EXPECT_FLOAT_EQ(s2.fov, 100.0f);
     EXPECT_EQ(s2.vsync, VSyncMode::On);
-    ASSERT_EQ(s2.keybindings.size(), 1u);
-    EXPECT_EQ(s2.keybindings[0].action, "Jump");
+    // The file's own binding survives; actions the file never knew get their defaults
+    // merged in (see LoadMergesActionsMissingFromTheFile), so the list is not just "Jump".
+    ASSERT_NE(s2.findBinding("Jump"), nullptr);
+    EXPECT_EQ(s2.findBinding("Jump")->key, 32);
 
     std::filesystem::remove(path);
 }
@@ -228,4 +230,25 @@ TEST(GameSettingsTest, AIApiKeyNotSerialized) {
     auto j = s.toJson();
     // API key should NOT be in the JSON output (security)
     EXPECT_FALSE(j.contains("ai") && j["ai"].contains("api_key"));
+}
+
+// A settings.json written by an older build lists only the actions that existed then.
+// An engine update that adds an action (ToggleCharacter, Ravenmere G-133) must not leave
+// it unbound in every existing install: loading merges the defaults for missing actions
+// and keeps the file's own bindings (including deliberate rebinds) untouched.
+TEST(GameSettingsTest, LoadMergesActionsMissingFromTheFile) {
+    const std::string path = "test_settings_merge_temp.json";
+    GameSettings s;
+    s.keybindings = {{"Jump", 32, 0}, {"Interact", 70 /* F, a deliberate rebind */, 0}};
+    ASSERT_TRUE(s.saveToFile(path));
+
+    GameSettings s2;
+    ASSERT_TRUE(GameSettings::loadFromFile(path, s2));
+    ASSERT_NE(s2.findBinding("ToggleCharacter"), nullptr) << "new default action not merged in";
+    EXPECT_EQ(s2.findBinding("ToggleCharacter")->key, 67);   // C
+    ASSERT_NE(s2.findBinding("Interact"), nullptr);
+    EXPECT_EQ(s2.findBinding("Interact")->key, 70) << "the file's rebind must win over the default";
+    for (const auto& d : GameSettings::defaultKeybindings())
+        EXPECT_NE(s2.findBinding(d.action), nullptr) << d.action;
+    std::filesystem::remove(path);
 }

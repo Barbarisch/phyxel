@@ -71,6 +71,13 @@ def create_project(
         # ── Find Phyxel engine ──────────────────────────────────
         set(PHYXEL_ROOT "{f'${{CMAKE_CURRENT_SOURCE_DIR}}/{phyxel_path}' if is_relative_path else phyxel_path}"
             CACHE PATH "Path to Phyxel repository root")
+        # Debug info in Release too (no codegen change: /Zi only emits symbols; the
+        # exe links /DEBUG so a .pdb ships beside it). Core::CrashHandler symbolizes
+        # crash stacks from it — without it a crash is "module unknown, offset 0".
+        if(MSVC)
+            set(CMAKE_CXX_FLAGS_RELEASE "${{CMAKE_CXX_FLAGS_RELEASE}} /Zi")
+            set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${{CMAKE_EXE_LINKER_FLAGS_RELEASE}} /DEBUG /OPT:REF /OPT:ICF")
+        endif()
         add_subdirectory(${{PHYXEL_ROOT}} phyxel_build EXCLUDE_FROM_ALL)
 
         # ── Game executable ─────────────────────────────────────
@@ -140,6 +147,7 @@ def create_project(
     extra_members.append("    nlohmann::json lastWorldHealth_;  // WorldHealth::check on every world scene ready (layer B self-check)")
     extra_members.append("    std::string lastLintSignature_;    // visible-screen set the HUD layout lint last ran on")
     extra_members.append("    int lintArmFrames_ = 0;             // frames until the deferred HUD lint runs")
+    extra_members.append("    glm::uvec2 lastUiWindow_{0u, 0u};    // last window size the HUD was placed for (G-132)")
     extra_members.append("    Phyxel::Core::Currency wallet_;         // the player's money (never an inventory item)")
     extra_members.append("    Phyxel::Core::ClickToMove clickToMove_;  // click the ground -> walk the NavGraph route (G-75)")
     extra_members.append("    bool walkLmbHeld_ = false;              // edge guard for out-of-combat clicks")
@@ -152,6 +160,8 @@ def create_project(
     extra_members.append("    glm::vec2 pointerLmbPress_{0.0f}, pointerRmbPress_{0.0f};")
     extra_members.append("    bool pointerDragging_ = false;          // a held button moved past the click threshold")
     extra_members.append("    bool interactKeyDown_ = false;          // edge guard for the Interact action")
+    extra_members.append("    bool characterKeyDown_ = false;         // edge guard for the ToggleCharacter action (G-133)")
+    extra_members.append("    std::optional<std::string> characterSheetToken(const std::string& key) const;  // {{sheet.*}} for character_screen.json")
     extra_members.append("    std::unique_ptr<Phyxel::RaycastVisualizer> raycastVisualizer_;   // world-space line pass (target rings)")
     extra_includes.append('#include "core/GameDefinitionLoader.h"')
     extra_members.append("    Phyxel::Core::GameSubsystems gameSubsystems_;  // persistent: the SceneManager keeps a pointer to it")
@@ -187,6 +197,8 @@ def create_project(
     extra_includes.append('#include "core/CharacterSheet.h"')
     extra_includes.append('#include "core/CharacterProgression.h"')
     extra_includes.append('#include "core/ClassDefinition.h"')
+    extra_includes.append('#include "core/RaceDefinition.h"')
+    extra_includes.append('#include "core/ProficiencySystem.h"')
     extra_members.append("    Phyxel::Core::CharacterSheet playerSheet_;  // progression: XP/level/classes")
     extra_members.append("    int killXp_ = 0;       // XP per enemy killed (game.json progression.kill_xp)")
     extra_members.append("    int objectiveXp_ = 0;  // XP per objective completed (progression.objective_xp)")
@@ -1866,8 +1878,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             // any encounter still running against the old scene.
                             if (combatDirector_.inCombat()) combatDirector_.endEncounter();
                             turnBodies_.clear();
+                            hoveredTarget_.clear();
+                            playerTurn_.setSelectedTarget("");
+                            if (interactionManager_) interactionManager_->clearCache();   // G-130
                         }};
                         cb.clearNPCs = [this]() {{
+                            if (interactionManager_) interactionManager_->clearCache();   // G-130: the cached NPC dies with the scene
                             if (!npcManager_) return;
                             for (const auto& name : npcManager_->getAllNPCNames())
                                 npcManager_->removeNPC(name);
@@ -2204,7 +2220,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 }} else if (state == Phyxel::UI::ScreenState::Playing) {{
                     screen_.togglePause();
                     updateCursorMode(engine);
-                }} else if (state == Phyxel::UI::ScreenState::Paused) {{
+                }} else if (state == Phyxel::UI::ScreenState::Paused ||
+                           state == Phyxel::UI::ScreenState::Character) {{
                     screen_.resume();
                     updateCursorMode(engine);
                 }}
@@ -2234,6 +2251,19 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             const bool interactDown = input->isActionPressed("Interact");
             const bool eEdge = interactDown && !interactKeyDown_;
             interactKeyDown_ = interactDown;
+            // Character sheet (ToggleCharacter, C by default - WoW's character pane;
+            // Ravenmere G-133): Playing <-> Character. Not while a conversation owns
+            // the keyboard.
+            {{
+                const bool charDown = input->isActionPressed("ToggleCharacter");
+                const bool inDialogue = dialogueSystem_ && dialogueSystem_->isActive();
+                if (charDown && !characterKeyDown_ && !inDialogue &&
+                    (state == Phyxel::UI::ScreenState::Playing || state == Phyxel::UI::ScreenState::Character)) {{
+                    screen_.toggleCharacter();
+                    updateCursorMode(engine);
+                }}
+                characterKeyDown_ = charDown;
+            }}
             const bool enterEdge = dlgEdge(GLFW_KEY_ENTER, 1);
 
             // E key: interact with NPC / advance a TREE dialogue.
@@ -2279,6 +2309,13 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 // the harness could not pick a second dialogue choice or close the
                 // pause menu (Ravenmere gap G-33). Age the injections regardless.
                 input->tickInjection(engine.getLastDeltaTime());
+            }}
+
+            // Window resize (G-132): the HUD keeps its logical canvas and is placed into the
+            // window - scaled to fit, centred. Input and world labels convert at the UI's edge.
+            if (auto* rcUi = renderCoordinator_ ? renderCoordinator_->getUISystem() : nullptr) {{
+                const glm::uvec2 vp = renderCoordinator_->getSwapChainSize();
+                if (vp != lastUiWindow_) {{ lastUiWindow_ = vp; rcUi->setWindowSize(vp.x, vp.y); }}
             }}
 
             // HUD layout LINT (docs/game-production/CombatUiBg3.md increment 2): whenever the set
@@ -2606,6 +2643,72 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             }}
         }}
 
+        // Character sheet tokens ({{{{sheet.<key>}}}} in resources/ui/character_screen.json;
+        // Ravenmere G-133). Resolved when the screen opens, from the live CharacterSheet
+        // and the player's HealthComponent, so the sheet shows the CURRENT state.
+        std::optional<std::string> {class_name}::characterSheetToken(const std::string& key) const {{
+            using AT = Phyxel::Core::AbilityType;
+            using Skill = Phyxel::Core::Skill;
+            const auto& s = playerSheet_;
+            auto signedStr = [](int v) {{ return (v >= 0 ? "+" : "") + std::to_string(v); }};
+            auto abilityOf = [](const std::string& k) -> std::optional<AT> {{
+                if (k == "str") return AT::Strength;     if (k == "dex") return AT::Dexterity;
+                if (k == "con") return AT::Constitution; if (k == "int") return AT::Intelligence;
+                if (k == "wis") return AT::Wisdom;       if (k == "cha") return AT::Charisma;
+                return std::nullopt;
+            }};
+            if (key == "name") {{
+                // No character creation yet (G-01): the pre-made has no authored name.
+                return (s.name.empty() || s.name == "player") ? std::string("Adventurer") : s.name;
+            }}
+            if (key == "race") {{
+                const auto* r = Phyxel::Core::RaceRegistry::instance().getRace(s.raceId);
+                return r ? r->name : s.raceId;
+            }}
+            if (key == "class") {{
+                std::string out;
+                for (const auto& cl : s.classes) {{
+                    const auto* c = Phyxel::Core::ClassRegistry::instance().getClass(cl.classId);
+                    if (!out.empty()) out += " / ";
+                    out += c ? c->name : cl.classId;
+                    if (s.classes.size() > 1) out += " " + std::to_string(cl.level);
+                }}
+                return out;
+            }}
+            if (key == "level")       return std::to_string(std::max(1, s.totalLevel()));
+            if (key == "xp")          return std::to_string(s.experiencePoints);
+            if (key == "xp_next")     return std::to_string(Phyxel::Core::CharacterProgression::xpForLevel(std::min(20, std::max(1, s.totalLevel()) + 1)));
+            if (key == "hp" || key == "max_hp") {{
+                auto* hc = playerCharacter_ ? playerCharacter_->getHealthComponent() : nullptr;
+                const int hp    = hc ? static_cast<int>(std::lround(hc->getHealth()))    : s.currentHP;
+                const int maxHp = hc ? static_cast<int>(std::lround(hc->getMaxHealth())) : s.maxHP;
+                return std::to_string(key == "hp" ? hp : maxHp);
+            }}
+            if (key == "ac")          return std::to_string(s.armorClass);
+            if (key == "speed")       return std::to_string(s.speed);
+            if (key == "initiative")  return signedStr(s.initiative);
+            if (key == "proficiency") return signedStr(s.proficiencyBonus());
+            if (auto a = abilityOf(key))                       return std::to_string(s.attributes.score(*a));
+            if (key.size() > 4 && key.compare(key.size() - 4, 4, "_mod") == 0)
+                if (auto a = abilityOf(key.substr(0, key.size() - 4))) return signedStr(s.attributes.modifier(*a));
+            if (key.rfind("save_", 0) == 0)
+                if (auto a = abilityOf(key.substr(5)))         return signedStr(s.savingThrowBonus(*a));
+            if (key.rfind("skill_", 0) == 0) {{
+                const std::string want = key.substr(6);
+                for (int i = 0; i < static_cast<int>(Skill::COUNT); ++i) {{
+                    const auto sk = static_cast<Skill>(i);
+                    std::string n = Phyxel::Core::ProficiencySystem::skillName(sk);
+                    n.erase(std::remove(n.begin(), n.end(), ' '), n.end());   // "Sleight of Hand" -> SleightofHand
+                    if (n.size() != want.size() ||
+                        !std::equal(n.begin(), n.end(), want.begin(), [](char a, char b) {{
+                            return std::tolower(static_cast<unsigned char>(a)) == std::tolower(static_cast<unsigned char>(b)); }}))
+                        continue;
+                    return signedStr(s.skillBonus(sk)) + (s.isProficientWith(sk) ? " *" : "");
+                }}
+            }}
+            return std::nullopt;
+        }}
+
         void {class_name}::onUpdate(Phyxel::Core::EngineRuntime& engine, float dt) {{
             lastDt_ = dt;  // remembered for menu-scene animations rendered in onRender
 
@@ -2919,6 +3022,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 case Phyxel::UI::ScreenState::GameOver: want = "game_over"; break;
                                 case Phyxel::UI::ScreenState::Settings: want = "settings"; break;
                                 case Phyxel::UI::ScreenState::Loading:  want = "loading";  break;
+                                case Phyxel::UI::ScreenState::Character: want = "character"; break;
                                 default: break;
                             }}
                         }}
@@ -2931,10 +3035,16 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                     if (t == "title")   return std::string("{class_name}");
                                     if (t == "tagline") return std::string("{game_tagline}");
                                     if (t == "loading_target") return loadingSceneName_;
+                                    if (t.rfind("sheet.", 0) == 0) return characterSheetToken(t.substr(6));
                                     // {{keybind.<Action>}} -> current key for the keybindings sub-panel rows.
                                     if (t.rfind("keybind.", 0) == 0) {{
                                         const auto* b = settings_.findBinding(t.substr(8));
-                                        if (!b) return std::string("(unbound)");
+                                        if (!b) {{
+                                            // Not in settings.json (an older file) - the live input map still has the default.
+                                            auto* im = engine_ ? engine_->getInputManager() : nullptr;
+                                            const int k = im ? im->getActionKey(t.substr(8)) : 0;
+                                            return k > 0 ? Phyxel::Core::keyToString(k) : std::string("(unbound)");
+                                        }}
                                         std::string s = Phyxel::Core::keyToString(b->key);
                                         if (b->modifiers) s = Phyxel::Core::modifiersToString(b->modifiers) + "+" + s;
                                         return s;
@@ -3219,25 +3329,25 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                               ? hc->getHealth() / hc->getMaxHealth() : 1.0f;
                                 np.hostile  = !p.isPlayer;
                                 np.selected = (p.entityId == sel || p.entityId == hov);
-                                // A ring at the feet of the hovered/selected foe (and a softer one
-                                // under the acting combatant) - the in-world half of "who am I
-                                // about to hit". Drawn through the debug-line pass, 24 segments.
-                                if (auto* rv = renderCoordinator_->getRaycastVisualizer()) {{
+                                // G-105 / G-120: the target ring the user asked for - "a bright animated circle on
+                                // the ground". Drawn as 36 dots projected from a 0.55 m circle at the feet
+                                // through the UI (the debug line pass never drew in the shipped build);
+                                // the dots rotate and pulse. Gold = selected/hovered foe, blue = whoever acts.
+                                {{
                                     const bool acting = (p.entityId == combatDirector_.initiative().currentEntityId());
                                     if (np.selected || acting) {{
-                                        // NOT setRaycastVisualization(true): that F5 debug flag also hides the
-                                        // player (segment-box debugging). Queued lines draw on their own.
-                                        rv->setEnabled(true);   // the visualizer's own upload/render gate (off by default)
-                                        rv->setShowRayPath(false); rv->setShowTraversalBoxes(false);   // rings only, never debug rays
-                                        const glm::vec3 c = e->getPosition() + glm::vec3(0.0f, 0.04f, 0.0f);
-                                        const float rad = np.selected ? 0.62f : 0.5f;
-                                        const glm::vec3 col = np.selected ? (np.hostile ? glm::vec3(0.95f, 0.25f, 0.2f) : glm::vec3(0.3f, 0.9f, 0.4f))
-                                                                          : glm::vec3(0.95f, 0.85f, 0.4f);
-                                        for (int i = 0; i < 24; ++i) {{
-                                            const float a0 = 6.2831853f * i / 24.0f, a1 = 6.2831853f * (i + 1) / 24.0f;
-                                            rv->addLine(c + glm::vec3(std::cos(a0) * rad, 0.0f, std::sin(a0) * rad),
-                                                        c + glm::vec3(std::cos(a1) * rad, 0.0f, std::sin(a1) * rad), col);
-                                        }}
+                                    const float t = static_cast<float>(glfwGetTime());
+                                    const float pulse = 0.65f + 0.35f * std::sin(t * 5.0f);
+                                    const glm::vec4 col = np.selected ? glm::vec4(1.0f, 0.82f, 0.30f, pulse)
+                                                                      : glm::vec4(0.55f, 0.80f, 1.0f, pulse * 0.8f);
+                                    const glm::vec3 feet = e->getPosition() + glm::vec3(0.0f, 0.06f, 0.0f);
+                                    for (int k2 = 0; k2 < 36; ++k2) {{
+                                        const float a = glm::radians(k2 * 10.0f) + t * 1.2f;
+                                        const glm::vec3 wp = feet + glm::vec3(std::cos(a), 0.0f, std::sin(a)) * 0.55f;
+                                        glm::vec2 dp;
+                                        if (Phyxel::UI::UISystem::worldToScreen(wp, view, proj, sw, sh, dp))
+                                            ui->addWorldMarker(dp, np.selected ? 5.0f : 4.0f, col);
+                                    }}
                                     }}
                                 }}
                                 // Distance falloff so a far plate does not

@@ -1072,11 +1072,21 @@ void loadPauseMenuInto(UISystem& ui, const MenuActions& actions) {
 
 void unloadGameScreenFrom(UISystem& ui, const std::string& name) {
     removeScreensWithPrefix(ui, name + ":");
+    // Restore the gameplay HUD screens hidden while the data screen was up (their
+    // per-frame visibleWhen re-gates them). Mirrors unloadPauseMenuFrom.
+    for (const auto& [sn, vis] : ui.getScreenList()) ui.showScreen(sn);
 }
 
 void loadGameScreenInto(UISystem& ui, const std::string& name, const MenuActions& actions) {
-    // Full-screen opaque cover (intro / victory / credits replace the view).
+    // Full-screen cover (intro / victory / credits replace the view; the character
+    // sheet is a translucent scrim over the frozen world). The file's own
+    // background_color wins over this default when it sets one.
     loadOverlayFromFile(ui, name + ":", name + "_screen.json", actions, {0.05f, 0.05f, 0.10f, 1.0f});
+    // Suppress the gameplay HUD underneath, as the pause overlay does: the character
+    // sheet's title sat on the compass strip and its columns over the objectives
+    // panel (probe L4 2026-09-16). unloadGameScreenFrom restores them.
+    for (const auto& [sn, vis] : ui.getScreenList())
+        if (sn.rfind(name + ":", 0) != 0) ui.hideScreen(sn);
 }
 
 void setupAIDialogue(UISystem& ui, HudDataContext& hud, DialogueSystem* dialogue) {

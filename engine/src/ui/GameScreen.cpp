@@ -32,6 +32,14 @@ void GameScreen::toggleInventory() {
     }
 }
 
+void GameScreen::toggleCharacter() {
+    if (m_state == ScreenState::Playing) {
+        setState(ScreenState::Character);
+    } else if (m_state == ScreenState::Character) {
+        setState(ScreenState::Playing);
+    }
+}
+
 void GameScreen::toggleSettings() {
     if (m_state == ScreenState::Paused) {
         m_settingsReturnState = ScreenState::Paused;
@@ -67,7 +75,7 @@ void GameScreen::showGameOver() {
 }
 
 void GameScreen::resume() {
-    if (m_state == ScreenState::Paused || m_state == ScreenState::Inventory) {
+    if (m_state == ScreenState::Paused || m_state == ScreenState::Inventory || m_state == ScreenState::Character) {
         setState(ScreenState::Playing);
     }
 }
@@ -81,6 +89,7 @@ void GameScreen::goBack() {
             setState(m_settingsReturnState);
             break;
         case ScreenState::Inventory:
+        case ScreenState::Character:
         case ScreenState::Paused:
             setState(ScreenState::Playing);
             break;

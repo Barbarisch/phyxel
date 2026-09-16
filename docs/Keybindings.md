@@ -68,6 +68,7 @@
 - **Left click on a character**: select · **Right click on a character**: walk over and talk
 - **F**: interact / talk (E is strafe here) · **B**: inventory
 - Left click on the ground walks there only when the game sets `controls.clickToMove` (off by default, as in WoW)
+- **C**: Character sheet (`ToggleCharacter`) — name/race/class/level/XP, HP/AC/speed/initiative/proficiency, the six abilities, saving throws and all 18 skills (`*` = proficient); C or ESC closes it. Rebindable in Settings → Keybindings.
 
 ## Character Control
 - **K**: only one control target exists (`AnimatedCharacter`) — pressing K just re-asserts it;

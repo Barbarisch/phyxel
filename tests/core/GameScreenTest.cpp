@@ -229,3 +229,41 @@ TEST(GameScreenTest, IsMouseFreeSettings) {
     EXPECT_TRUE(isMouseFree(ScreenState::Settings));
     EXPECT_TRUE(isMouseFree(ScreenState::KeybindingRebind));
 }
+
+// Character sheet (Ravenmere G-133, manual review 2026-09-16: "a character screen
+// would be nice, so I can see my stats"). Playing <-> Character, a free-mouse
+// paused screen like Inventory; resume/goBack/ESC leave it.
+TEST(GameScreenTest, ToggleCharacterSheet) {
+    GameScreen screen;
+    screen.startGame();
+    screen.toggleCharacter();
+    EXPECT_EQ(screen.getState(), ScreenState::Character);
+    screen.toggleCharacter();
+    EXPECT_EQ(screen.getState(), ScreenState::Playing);
+}
+
+TEST(GameScreenTest, CharacterSheetPausesTheGameAndFreesTheMouse) {
+    EXPECT_FALSE(isGameRunning(ScreenState::Character));
+    EXPECT_TRUE(isMouseFree(ScreenState::Character));
+}
+
+TEST(GameScreenTest, ResumeAndBackLeaveTheCharacterSheet) {
+    GameScreen screen;
+    screen.startGame();
+    screen.toggleCharacter();
+    screen.resume();
+    EXPECT_EQ(screen.getState(), ScreenState::Playing);
+    screen.toggleCharacter();
+    screen.goBack();
+    EXPECT_EQ(screen.getState(), ScreenState::Playing);
+}
+
+TEST(GameScreenTest, ToggleCharacterIgnoredOutsidePlaying) {
+    GameScreen screen;
+    screen.toggleCharacter();
+    EXPECT_EQ(screen.getState(), ScreenState::MainMenu);
+    screen.startGame();
+    screen.togglePause();
+    screen.toggleCharacter();
+    EXPECT_EQ(screen.getState(), ScreenState::Paused);
+}

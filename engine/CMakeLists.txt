@@ -51,6 +51,7 @@ if(PLATFORM_WINDOWS)
         nlohmann_json::nlohmann_json
         httplib::httplib
         winhttp
+        dbghelp      # Core::CrashHandler: StackWalk64 / SymFromAddr / MiniDumpWriteDump
     )
     # Propagate library search paths to consumers (needed for add_subdirectory builds)
     target_link_directories(phyxel_core PUBLIC
@@ -64,6 +65,7 @@ elseif(PLATFORM_LINUX)
         pybind11::embed
         nlohmann_json::nlohmann_json
         httplib::httplib
+        ${CMAKE_DL_LIBS}
     )
 endif()
 

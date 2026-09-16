@@ -2,6 +2,7 @@
 #include <iostream>
 #include "ui/UIWidget.h"
 #include "ui/MenuDefinition.h"
+#include "ui/UISystem.h"
 #include <glm/glm.hpp>
 #include <nlohmann/json.hpp>
 
@@ -713,4 +714,25 @@ TEST(UICompassTest, BearingsMapOntoTheStripAroundTheHeading) {
     ASSERT_EQ(c->pois.size(), 1u);
     EXPECT_EQ(c->pois[0].label, "Hollin Farm");
     EXPECT_FLOAT_EQ(c->pois[0].bearing, 100.0f);
+}
+
+// G-132 (manual review 2026-09-16: "window resize doesn't reposition UI", "loading screen
+// not resized"): the HUD keeps its logical canvas and is placed into the window scaled to
+// fit and centred; input arrives in window pixels and maps back onto the canvas.
+TEST(UIPlacementTest, TheLogicalCanvasIsLetterboxedIntoTheWindow) {
+    using U = Phyxel::UI::UISystem;
+    auto p = U::placementFor(1280, 720, 1280, 720);
+    EXPECT_FLOAT_EQ(p.scale, 1.0f); EXPECT_FLOAT_EQ(p.x, 0.0f); EXPECT_FLOAT_EQ(p.y, 0.0f);
+    p = U::placementFor(1920, 1080, 1280, 720);
+    EXPECT_FLOAT_EQ(p.scale, 1.5f) << "same aspect: scales up, no bars";
+    EXPECT_FLOAT_EQ(p.x, 0.0f); EXPECT_FLOAT_EQ(p.y, 0.0f);
+    p = U::placementFor(2560, 1080, 1280, 720);
+    EXPECT_FLOAT_EQ(p.scale, 1.5f) << "ultrawide: height-limited";
+    EXPECT_FLOAT_EQ(p.x, (2560.0f - 1280.0f * 1.5f) * 0.5f) << "centred with side bars";
+    EXPECT_FLOAT_EQ(p.y, 0.0f);
+    p = U::placementFor(1280, 1024, 1280, 720);
+    EXPECT_FLOAT_EQ(p.scale, 1.0f) << "taller window: width-limited";
+    EXPECT_FLOAT_EQ(p.y, (1024.0f - 720.0f) * 0.5f) << "letterbox bars top and bottom";
+    p = U::placementFor(0, 0, 1280, 720);
+    EXPECT_FLOAT_EQ(p.scale, 1.0f) << "a minimised window does not divide by zero";
 }

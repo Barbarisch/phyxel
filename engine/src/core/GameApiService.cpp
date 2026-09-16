@@ -5,6 +5,8 @@
 #include "core/CommandRegistry.h"
 #include "core/EngineAPIServer.h"
 #include "core/EngineRuntime.h"
+#include "ui/WindowManager.h"
+#include <GLFW/glfw3.h>
 #include "core/GameSettings.h"     // Core::stringToKey
 #include "core/NPCManager.h"
 #include "core/NavGrid.h"
@@ -66,6 +68,7 @@ static const char* screenStateStr(UI::ScreenState s) {
         case S::Paused:           return "paused";
         case S::MainMenu:         return "menu";
         case S::Inventory:        return "inventory";
+        case S::Character:        return "character";
         case S::Settings:         return "settings";
         case S::KeybindingRebind: return "settings";
         case S::Intro:            return "intro";
@@ -294,6 +297,14 @@ void GameApiService::registerCommands() {
         r = pointerClickProvider(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f),
                                  cmd.params.value("button", std::string("left")));
         if (!r.contains("success")) r["success"] = true;
+    });
+    // POST /api/rpg/window_resize {w,h} - resize the game window (runs on the game loop).
+    reg.on("window_resize", [this](const APICommand& cmd, json& r) {
+        auto* wm = runtime ? runtime->getWindowManager() : nullptr;
+        if (!wm || !wm->getHandle()) { r = {{"error", "no window"}}; return; }
+        const int w = cmd.params.value("w", 1280), h = cmd.params.value("h", 720);
+        glfwSetWindowSize(wm->getHandle(), w, h);
+        r = {{"success", true}, {"w", w}, {"h", h}};
     });
     reg.on("walk_status", [this](const APICommand&, json& r) {
         if (!clickToMove) { r = {{"error", "no click-to-move walker"}}; return; }

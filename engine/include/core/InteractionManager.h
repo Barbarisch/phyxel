@@ -82,6 +82,11 @@ public:
 
     /// Whether a "Press E to interact" prompt should be shown.
     bool shouldShowPrompt() const { return m_nearestNPC != nullptr || m_nearest.found; }
+    /// Forget the cached nearest NPC / point. MUST be called when entities are torn down
+    /// (scene unload): update() only runs while a player exists, so between the teardown
+    /// and the next update the cached NPCEntity* dangled and the interact prompt called
+    /// into freed memory - the "died, New Game, crash" of 2026-09-16 (G-130).
+    void clearCache() { m_nearestNPC = nullptr; m_nearest.clear(); m_activePromptText.clear(); }
 
     /// Get the prompt text for the currently active interaction.
     const std::string& getActivePromptText() const { return m_activePromptText; }

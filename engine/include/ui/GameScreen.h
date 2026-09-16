@@ -13,6 +13,7 @@ enum class ScreenState {
     Playing,        // Normal gameplay — mouse captured, game running
     Paused,         // Pause overlay — mouse free, game logic paused
     Inventory,      // Inventory screen — mouse free, game logic paused
+    Character,      // Character sheet (stats) - mouse free, game logic paused (Ravenmere G-133)
     Settings,       // Settings screen — mouse free, game logic paused
     KeybindingRebind, // Keybinding rebind screen — mouse free, waiting for key press
     Loading,        // Scene transition loading screen — mouse free, game logic paused
@@ -52,6 +53,9 @@ public:
     /// Open/close inventory (Playing ↔ Inventory).
     void toggleInventory();
 
+    /// Open/close the character sheet (Playing <-> Character).
+    void toggleCharacter();
+
     /// Open/close settings (Paused ↔ Settings, MainMenu ↔ Settings).
     void toggleSettings();
 
@@ -71,7 +75,7 @@ public:
     /// from any state, typically Playing when the player dies).
     void showGameOver();
 
-    /// Resume gameplay from Paused or Inventory.
+    /// Resume gameplay from Paused, Inventory or Character.
     void resume();
 
     /// Go back one level (KeybindingRebind→Settings, Settings→previous, etc.).

@@ -1,4 +1,5 @@
 #include "core/InteractionManager.h"
+#include "core/HealthComponent.h"
 #include "core/EntityRegistry.h"
 #include "core/PlacedObjectManager.h"
 #include "core/InteractionProfileManager.h"
@@ -86,6 +87,8 @@ void InteractionManager::update(float dt, const glm::vec3& playerPos, const glm:
         for (const auto& [id, entity] : npcs) {
             auto* npc = dynamic_cast<Scene::NPCEntity*>(entity);
             if (!npc) continue;
+            // The dead are not interactable (G-131: "[F] Interact shows up on dead characters").
+            if (auto* hc = npc->getHealthComponent(); hc && !hc->isAlive()) continue;
             glm::vec3 diff = npc->getPosition() - playerPos;
             float dist2 = glm::dot(diff, diff);
             float radius = npc->getInteractionRadius();

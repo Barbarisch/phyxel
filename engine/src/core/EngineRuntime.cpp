@@ -2,6 +2,7 @@
 #include <algorithm>
 #include "core/GameCallbacks.h"
 #include "core/AssetManager.h"
+#include "core/CrashHandler.h"
 #include "core/WorldInitializer.h"
 #include "core/AudioSystem.h"
 #include "core/SoundRegistry.h"
@@ -54,6 +55,11 @@ bool EngineRuntime::initialize(const EngineConfig& config) {
     }
 
     config_ = config;
+
+    // Last-chance crash reporter: crashes/crash_<stamp>.{txt,dmp} with a symbolized
+    // stack (Ravenmere G-130 — a shipped game's 0xC0000005 was otherwise a blank
+    // "faulting module: unknown" event-log row).
+    CrashHandler::install("crashes");
 
     // Initialize global AssetManager from config
     AssetManager::instance().initialize(config_);
