@@ -6,6 +6,9 @@
 #include "core/HealthComponent.h"
 #include "core/SpellDefinition.h"
 #include "scene/Entity.h"
+#include "scene/AnimatedVoxelCharacter.h"
+#include "physics/PhysicsWorld.h"
+#include "graphics/Camera.h"
 
 #include <cmath>
 
@@ -343,4 +346,41 @@ TEST(PlayerTurnControllerTest, AttackOutOfReachApproachesThenSwings) {
     EXPECT_FALSE(pc.budget()->action) << "arrived and swung";
     EXPECT_LT(target.m_health.getHealth(), 50.0f) << "the swing landed";
     EXPECT_LT(pc.budget()->movementRemaining, 30) << "the walk cost movement";
+}
+
+
+// G-121 (manual review 2026-09-16: "the mouse over for attacking characters isn't right -
+// I have mouse over a section of the screen that isn't actually over the character").
+// The pick used a 32 px circle around the CHEST point: legs and head missed, and empty
+// screen near the chest hit. The hot zone is now the character's screen box (feet to
+// head, capsule width). RED before: a click on the feet resolved to Move, not Attack.
+TEST(PlayerTurnControllerTest, PickHitsTheWholeCharacterNotAChestCircle) {
+    auto physics = std::make_unique<Physics::PhysicsWorld>();
+    Scene::AnimatedVoxelCharacter enemy(physics.get(), glm::vec3(0.0f, 20.0f, 0.0f));
+    ASSERT_TRUE(enemy.loadModel("resources/animated_characters/humanoid.anim"));
+    CombatDirector dir; startPlayerTurn(dir);
+    EntityRegistry reg;
+    TestEntity player({-6.0f, 20.0f, 0.0f});
+    reg.registerEntity(&player, "player", "animated");
+    reg.registerEntity(&enemy, "enemy", "animated");
+    PlayerTurnController pc;
+    pc.setCombatDirector(&dir);
+    pc.setEntityRegistry(&reg);
+    // Camera 7 m in front of the enemy at chest height, looking at it (+x toward the enemy).
+    Graphics::Camera cam({-7.0f, 21.0f, 0.0f});
+    cam.setYaw(0.0f); cam.setPitch(-5.0f);
+    const glm::vec2 vp{1280.0f, 720.0f};
+    glm::vec2 feetPx, chestPx, headPx;
+    ASSERT_TRUE(pc.screenOf(cam, "enemy", vp, feetPx, 0.05f));
+    ASSERT_TRUE(pc.screenOf(cam, "enemy", vp, chestPx, 0.9f));
+    ASSERT_TRUE(pc.screenOf(cam, "enemy", vp, headPx, enemy.getControllerHalfHeight() * 2.0f - 0.05f));
+    EXPECT_GT(std::fabs(feetPx.y - chestPx.y), 40.0f) << "sanity: the feet are well outside the old 32 px chest circle";
+    EXPECT_EQ(pc.resolvePick(cam, feetPx, vp, 20.0f).kind, PlayerTurnController::PickResult::Kind::Attack) << "click on the feet";
+    EXPECT_EQ(pc.resolvePick(cam, headPx, vp, 20.0f).kind, PlayerTurnController::PickResult::Kind::Attack) << "click on the head";
+    EXPECT_EQ(pc.resolvePick(cam, chestPx, vp, 20.0f).kind, PlayerTurnController::PickResult::Kind::Attack);
+    glm::vec2 mn, mx;
+    ASSERT_TRUE(PlayerTurnController::screenBoxOf(cam, &enemy, vp, mn, mx));
+    const glm::vec2 beside(mx.x + 40.0f, chestPx.y);   // 40 px outside the box, level with the chest
+    EXPECT_NE(pc.resolvePick(cam, beside, vp, 20.0f).kind, PlayerTurnController::PickResult::Kind::Attack)
+        << "empty screen beside the character is not the character";
 }

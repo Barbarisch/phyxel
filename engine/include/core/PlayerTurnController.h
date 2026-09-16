@@ -71,7 +71,12 @@ public:
     /// false if the entity is unknown or behind the camera. Shares the exact
     /// math resolvePick uses — probes verify one and trust the other.
     bool screenOf(const Graphics::Camera& cam, const std::string& entityId,
-                  glm::vec2 viewportPx, glm::vec2& outPx) const;
+                  glm::vec2 viewportPx, glm::vec2& outPx, float yOffset = 0.9f) const;
+    /// G-121: the screen-space box a character occupies (feet to head, capsule width,
+    /// a few px of padding) - the hot zone for hover/click. False when the entity is
+    /// unknown or behind the camera. Public and pure so the pick can be tested.
+    static bool screenBoxOf(const Graphics::Camera& cam, const Scene::Entity* e,
+                            glm::vec2 viewportPx, glm::vec2& outMin, glm::vec2& outMax);
     /// resolvePick + execute (Attack → select+requestAttack; Move → requestMove).
     /// Returns "attack" / "move" / "none" for callers to report.
     const char* requestPickAt(const Graphics::Camera& cam, glm::vec2 screenPx,

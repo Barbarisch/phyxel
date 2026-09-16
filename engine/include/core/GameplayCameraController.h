@@ -51,6 +51,12 @@ public:
         return true;
     }
     const std::string& rigName() const { return rigName_; }
+    /// G-123: let a mouse-button DRAG turn the view while the character is not driven
+    /// (turn-based combat: the tactical camera should still orbit). Drag-gated look is
+    /// safe there - nothing integrates unless a button is held - unlike the always-on
+    /// fps look this flag never touches. The host sets it (combat yes, dialogue no).
+    void setLookWhileNotDriving(bool v) { lookWhileNotDriving_ = v; }
+    bool lookWhileNotDriving() const { return lookWhileNotDriving_; }
     const std::string& schemeName() const { return schemeName_; }
 
     // Sample input -> drive character -> frame the camera. `character` may be null
@@ -83,7 +89,7 @@ public:
         // MMO schemes: EITHER mouse button held = a look drag (left orbits, right
         // steers). Symmetric with driving for the same reason as above.
         else if (scheme_->leftButtonLooks())
-            input.setMouseCaptured(driveCharacter &&
+            input.setMouseCaptured((driveCharacter || lookWhileNotDriving_) &&
                                    (input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT) ||
                                     input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT)));
 
@@ -224,6 +230,7 @@ private:
     bool attackHeld_ = false;
     bool dodgeHeld_  = false;
     bool wasDriving_ = true;   // driveCharacter edge detection (see update)
+    bool lookWhileNotDriving_ = false;
 };
 
 } // namespace Core

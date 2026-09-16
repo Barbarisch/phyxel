@@ -245,3 +245,27 @@ TEST(MmoControlsTest, AnInjectedTapSurvivesTheFrameItArrivesIn) {
     input.tickInjection(0.15f);
     EXPECT_FALSE(input.isMouseButtonPressed(GLFW_MOUSE_BUTTON_RIGHT));
 }
+
+// G-123: in turn-based combat the character is not driven, yet a drag must still orbit
+// the tactical camera - the host says when (combat yes, dialogue no). RED before: the
+// MMO capture rule required driveCharacter, so no drag ever integrated in combat.
+TEST(MmoControlsTest, ADragOrbitsWhileNotDrivingOnlyWhenTheHostAllowsIt) {
+    Core::GameplayCameraController ctl;
+    Input::InputManager input;
+    Graphics::Camera cam;
+    ASSERT_TRUE(ctl.setRigByName("tactical"));
+    ASSERT_TRUE(ctl.setSchemeByName("wow"));
+    input.injectMouseButton(GLFW_MOUSE_BUTTON_RIGHT, 10.0f);
+    ctl.update(kDt, input, nullptr, cam, true, /*drive=*/false);
+    EXPECT_FALSE(input.isMouseCaptured()) << "default: a drag while not driving is ignored (dialogue)";
+    ctl.setLookWhileNotDriving(true);          // the host: combat
+    ctl.update(kDt, input, nullptr, cam, true, false);
+    EXPECT_TRUE(input.isMouseCaptured()) << "combat: the drag captures and orbits";
+    const float yaw0 = input.getYaw();
+    input.handleMouseMove(100.0, 300.0);       // latch
+    input.handleMouseMove(160.0, 300.0);       // drag right
+    EXPECT_NE(input.getYaw(), yaw0) << "the drag turned the view";
+    ctl.setLookWhileNotDriving(false);
+    ctl.update(kDt, input, nullptr, cam, true, false);
+    EXPECT_FALSE(input.isMouseCaptured());
+}

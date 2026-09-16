@@ -2,6 +2,7 @@
 #include "core/CombatDirector.h"
 #include "core/CombatSystem.h"
 #include "core/EntityRegistry.h"
+#include "scene/AnimatedVoxelCharacter.h"
 #include "core/HealthComponent.h"
 #include "core/AttackResolver.h"
 #include "core/SpellDefinition.h"
@@ -412,13 +413,44 @@ static bool worldToScreen(const glm::mat4& viewProj, const glm::vec3& world,
 }
 
 bool PlayerTurnController::screenOf(const Graphics::Camera& cam, const std::string& entityId,
-                                    glm::vec2 viewportPx, glm::vec2& outPx) const {
+                                    glm::vec2 viewportPx, glm::vec2& outPx, float yOffset) const {
     if (!m_registry || viewportPx.x <= 0.0f || viewportPx.y <= 0.0f) return false;
     Scene::Entity* e = m_registry->getEntity(entityId);
     if (!e) return false;
     const glm::mat4 vp = cam.getProjectionMatrix(viewportPx.x / viewportPx.y, 0.1f, 1000.0f)
                        * cam.getViewMatrix();
-    return worldToScreen(vp, e->getPosition() + glm::vec3(0.0f, 0.9f, 0.0f), viewportPx, outPx);
+    return worldToScreen(vp, e->getPosition() + glm::vec3(0.0f, yOffset, 0.0f), viewportPx, outPx);
+}
+
+bool PlayerTurnController::screenBoxOf(const Graphics::Camera& cam, const Scene::Entity* e,
+                                       glm::vec2 viewportPx, glm::vec2& outMin, glm::vec2& outMax) {
+    if (!e || viewportPx.x <= 0.0f || viewportPx.y <= 0.0f) return false;
+    // Height from the character's controller when it has one; a humanoid otherwise.
+    const Scene::AnimatedVoxelCharacter* ch = dynamic_cast<const Scene::AnimatedVoxelCharacter*>(e);
+    if (!ch) if (auto* npc = dynamic_cast<const Scene::NPCEntity*>(e)) ch = npc->getAnimatedCharacter();
+    const float height = ch ? std::max(0.5f, ch->getControllerHalfHeight() * 2.0f) : 1.9f;
+    const float halfW  = 0.45f;   // capsule half-width incl. arms
+    const glm::mat4 vp = cam.getProjectionMatrix(viewportPx.x / viewportPx.y, 0.1f, 1000.0f)
+                       * cam.getViewMatrix();
+    const glm::vec3 feet = e->getPosition();
+    const glm::vec3 up(0.0f, 1.0f, 0.0f);
+    glm::vec3 right = glm::cross(cam.getFront(), up);
+    if (glm::length(right) < 1e-4f) right = glm::vec3(1.0f, 0.0f, 0.0f);
+    right = glm::normalize(right);
+    const glm::vec3 pts[6] = { feet, feet + up * height,
+                               feet + up * (height * 0.5f) + right * halfW, feet + up * (height * 0.5f) - right * halfW,
+                               feet + right * halfW, feet + up * height - right * halfW };
+    outMin = glm::vec2( 1e9f); outMax = glm::vec2(-1e9f);
+    int seen = 0;
+    for (const auto& p : pts) {
+        glm::vec2 s;
+        if (!worldToScreen(vp, p, viewportPx, s)) continue;
+        outMin = glm::min(outMin, s); outMax = glm::max(outMax, s); ++seen;
+    }
+    if (seen < 2) return false;
+    const float pad = 6.0f;
+    outMin -= glm::vec2(pad); outMax += glm::vec2(pad);
+    return true;
 }
 
 PlayerTurnController::PickResult PlayerTurnController::resolvePick(
@@ -429,19 +461,26 @@ PlayerTurnController::PickResult PlayerTurnController::resolvePick(
     const glm::mat4 vp = cam.getProjectionMatrix(viewportPx.x / viewportPx.y, 0.1f, 1000.0f)
                        * cam.getViewMatrix();
 
-    // 1) A living ENEMY combatant near the cursor wins: closest within radius.
-    const float pickRadiusPx = 32.0f;
-    float best = pickRadiusPx;
+    // 1) A living ENEMY combatant under the cursor wins. G-121: the hot zone is the
+    //    character's whole screen box (feet to head, capsule width), not a 32 px circle
+    //    around the chest; overlapping boxes resolve to the one whose centre is nearest.
+    float best = 1e9f;
     for (const auto& p : m_director->initiative().turnOrder()) {
         if (p.isPlayer) continue;
         Scene::Entity* e = m_registry->getEntity(p.entityId);
         if (!e) continue;
         if (auto* hc = e->getHealthComponent(); hc && !hc->isAlive()) continue;
-        glm::vec2 scr;
-        if (!worldToScreen(vp, e->getPosition() + glm::vec3(0.0f, 0.9f, 0.0f), viewportPx, scr))
-            continue;
-        const float d = glm::length(scr - screenPx);
-        if (d < best) { best = d; r.kind = PickResult::Kind::Attack; r.targetId = p.entityId; }
+        glm::vec2 mn, mx;
+        if (screenBoxOf(cam, e, viewportPx, mn, mx)) {
+            if (screenPx.x < mn.x || screenPx.x > mx.x || screenPx.y < mn.y || screenPx.y > mx.y) continue;
+            const float d = glm::length((mn + mx) * 0.5f - screenPx);
+            if (d < best) { best = d; r.kind = PickResult::Kind::Attack; r.targetId = p.entityId; }
+        } else {
+            glm::vec2 scr;   // fallback: the old chest circle
+            if (!worldToScreen(vp, e->getPosition() + glm::vec3(0.0f, 0.9f, 0.0f), viewportPx, scr)) continue;
+            const float d = glm::length(scr - screenPx);
+            if (d < 32.0f && d < best) { best = d; r.kind = PickResult::Kind::Attack; r.targetId = p.entityId; }
+        }
     }
     if (r.kind == PickResult::Kind::Attack) return r;
 

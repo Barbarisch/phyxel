@@ -402,22 +402,25 @@ void UISystem::render(VkCommandBuffer cmd) {
         font_.drawText(&renderer_, np.name, {np.screenPos.x - nameW * 0.5f, nameY},
                        nameCol, nameSc);
 
-        // Targeting readout below the bar, on its own dark plate so it stays
-        // legible over bright terrain.
+        // Targeting readout ABOVE the name (G-122): the column is readout / name / bar,
+        // all above the head anchor, so nothing hangs over the character's face and
+        // the bracket has one box to frame. (It used to hang below the bar, where it
+        // collided with the head, the bracket and any interact prompt.)
+        float subW = 0.0f, subY = nameY;
         if (!np.subtitle.empty()) {
-            const float w  = font_.measureText(np.subtitle, subSc);
-            const float sy = np.screenPos.y + 3.0f * s;
-            renderer_.drawRect({np.screenPos.x - w * 0.5f - 4.0f, sy},
-                               {w + 8.0f, subH}, {0.04f, 0.04f, 0.06f, 0.78f});
+            subW = font_.measureText(np.subtitle, subSc);
+            subY = nameY - 2.0f * s - subH;
+            renderer_.drawRect({np.screenPos.x - subW * 0.5f - 4.0f, subY},
+                               {subW + 8.0f, subH}, {0.04f, 0.04f, 0.06f, 0.78f});
             font_.drawText(&renderer_, np.subtitle,
-                           {np.screenPos.x - w * 0.5f, sy}, {0.98f, 0.90f, 0.62f, 1.0f}, subSc);
+                           {np.screenPos.x - subW * 0.5f, subY}, {0.98f, 0.90f, 0.62f, 1.0f}, subSc);
         }
 
-        // Selection bracket: corner ticks around the name+bar block, so the
+        // Selection bracket: corner ticks around the whole column, so the
         // current target is unmistakable at a glance.
         if (np.selected) {
-            const float halfW = std::max(barW, nameW + 12.0f) * 0.5f + 6.0f;
-            const float top   = nameY - 3.0f;
+            const float halfW = std::max({barW, nameW + 12.0f, subW + 12.0f}) * 0.5f + 6.0f;
+            const float top   = subY - 3.0f;
             const float bot   = np.screenPos.y + 3.0f;
             const float t     = 2.0f;            // tick thickness
             const float len   = 10.0f * s;       // tick length

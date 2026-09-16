@@ -711,8 +711,10 @@ void GameApiService::registerCommands() {
         if (!cam || !rc) { r = {{"error", "camera not available"}}; return; }
         const glm::uvec2 vp = rc->getSwapChainSize();
         glm::vec2 px;
+        // y_offset (m above the feet) picks the point: 0 = feet, 0.9 = chest (default), 1.8 = head.
         if (!playerTurn->screenOf(*cam, cmd.params.value("entity_id", ""),
-                                  {static_cast<float>(vp.x), static_cast<float>(vp.y)}, px)) {
+                                  {static_cast<float>(vp.x), static_cast<float>(vp.y)}, px,
+                                  cmd.params.value("y_offset", 0.9f))) {
             r = {{"ok", false}, {"error", "entity unknown or off-screen"}};
             return;
         }
@@ -760,6 +762,16 @@ void GameApiService::registerCommands() {
                 if (btn >= 0) { im->injectMouseButton(btn, hold); injected.push_back("Mouse" + up); }
                 else unresolved.push_back(m.get<std::string>());
             }
+        // "mouse_move": [dx, dy] - a cursor delta through the same handler the OS cursor
+        // uses (integrates into look only while the mouse is captured, i.e. a drag).
+        if (cmd.params.contains("mouse_move") && cmd.params["mouse_move"].is_array() &&
+            cmd.params["mouse_move"].size() >= 2) {
+            double mx = 0.0, my = 0.0;
+            im->getCurrentMousePosition(mx, my);
+            im->handleMouseMove(mx + cmd.params["mouse_move"][0].get<double>(),
+                                my + cmd.params["mouse_move"][1].get<double>());
+            injected.push_back("MouseMove");
+        }
         r = {{"success", true}, {"injected", injected}, {"hold", hold},
              {"active_injections", im->injectedCount()}};
         if (!unresolved.empty()) r["unresolved"] = unresolved;

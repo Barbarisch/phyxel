@@ -2594,6 +2594,9 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 // (camera-coupled facing would stomp it every frame).
                 const bool talking = dialogueSystem_ && dialogueSystem_->isActive();
                 if (auto* scheme = gameplayCamera().scheme()) scheme->pointerClicks = pointerMode_;
+                // G-123: in combat the body is not driven, but a mouse DRAG still orbits the
+                // tactical camera (never during a conversation - the speakers hold their framing).
+                gameplayCamera().setLookWhileNotDriving(combatDirector_.inCombat() && !talking);
                 // A click-to-move walk owns the body until it ends; WASD cancels it.
                 updateGameplayCamera(engine, dt, playerCharacter_,
                                      /*driveCharacter=*/!combatDirector_.inCombat() && !talking &&
@@ -3083,7 +3086,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                     ui->addWorldLabel(sp, b.text, glm::vec4(1.0f, 1.0f, 1.0f, op), 0.85f * op);
                             }}
                         }}
+                        // No interact prompts during combat (G-120): the fight's plates and
+                        // readouts own that space, and E/F do nothing useful mid-encounter.
                         if (interactionManager_ && interactionManager_->shouldShowPrompt() &&
+                            !combatDirector_.inCombat() &&
                             (!dialogueSystem_ || !dialogueSystem_->isActive())) {{
                             if (auto* npc = interactionManager_->getNearestInteractableNPC()) {{
                                 std::string txt = interactionManager_->getActivePromptText();
@@ -3097,7 +3103,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 // Stack the prompt ABOVE the nameplate (bar on the head anchor at +2.15 m,
                                 // name above it) instead of on top of it.
                                 if (Phyxel::UI::UISystem::worldToScreen(npc->getPosition() + glm::vec3(0.0f, 2.15f, 0.0f), view, proj, sw, sh, sp)) {{
-                                    sp.y -= 44.0f;
+                                    sp.y -= 62.0f;   // above the readout / name / bar column
                                     ui->addWorldLabel(sp, txt, glm::vec4(1.0f, 1.0f, 0.6f, 1.0f), 0.8f);
                                 }}
                             }}
