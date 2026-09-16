@@ -4,6 +4,8 @@
 #include "core/ChunkManager.h"
 #include "core/AStarPathfinder.h"
 #include "core/NavGrid.h"
+#include "core/NavGraph.h"
+#include "core/PathService.h"
 #include "graphics/RaycastVisualizer.h"
 #include "ui/SpeechBubbleManager.h"
 #include "utils/Logger.h"
@@ -95,6 +97,10 @@ void PatrolBehavior::update(float dt, NPCContext& ctx) {
     if (m_follow && updateFollowTarget(ctx, ctx.self->getPosition())) return;
     if (m_waypoints.empty()) return;
 
+    // The NavGraph (when the host built one) is the router; remember it for wander picks.
+    m_usingGraph = (ctx.navGraph != nullptr) || (ctx.pathService != nullptr);
+    if (ctx.navGraph) m_lastGraph = ctx.navGraph;
+
     // Derive forward from entity rotation (model faces +Z; atan2(x,z) yaw convention)
     glm::vec3 forward = ctx.self->getRotation() * glm::vec3(0.0f, 0.0f, 1.0f);
 
@@ -104,7 +110,7 @@ void PatrolBehavior::update(float dt, NPCContext& ctx) {
     // Phase 1 — Forward terrain probe: every PROBE_INTERVAL frames check upcoming
     // path nodes against the live NavGrid. Invalidates stale paths immediately
     // instead of waiting up to 1.5 s for the stuck timer.
-    if (m_pathComputed && !m_pathNodes.empty() && m_pathfinder) {
+    if (!m_usingGraph && m_pathComputed && !m_pathNodes.empty() && m_pathfinder) {
         if (++m_probeFrameCounter >= PROBE_INTERVAL) {
             m_probeFrameCounter = 0;
             validateAheadOfPath();
@@ -153,7 +159,24 @@ void PatrolBehavior::update(float dt, NPCContext& ctx) {
     glm::vec3 target = m_waypoints[m_currentWaypoint];
 
     if (!m_pathComputed) {
-        computePath(pos, target);
+        computePath(ctx, pos, target);
+    }
+    // Async graph query in flight: hold this frame, poll next.
+    if (m_pathPending) {
+        if (ctx.pathService) {
+            Core::NavGraph::PathResult res;
+            if (ctx.pathService->tryGetResult(m_pathHandle, res)) {
+                m_pathPending = false;
+                m_pathHandle = 0;
+                if (res.found && !res.waypoints.empty()) adoptGraphPath(ctx, std::move(res), pos, target);
+                else { m_pathComputed = false; ++m_consecutiveFailedPaths; m_pathRetryTimer = PATH_RETRY_DELAY; }
+            }
+        } else {
+            m_pathPending = false;   // the service went away mid-query
+            m_pathComputed = false;
+        }
+        if (m_pathPending) { ctx.self->setMoveVelocity(glm::vec3(0.0f)); return; }
+        if (!m_pathComputed) { ctx.self->setMoveVelocity(glm::vec3(0.0f)); return; }
     }
 
     // Determine immediate movement target
@@ -161,9 +184,13 @@ void PatrolBehavior::update(float dt, NPCContext& ctx) {
     float arrivalThreshold;
 
     if (!m_pathNodes.empty() && m_currentPathNode < m_pathNodes.size()) {
-        // Following computed path
+        // Following computed path. Graph routes carry their own arrival radius per
+        // waypoint (tight at a door / fence residual, loose on open ground - G-79).
         moveTarget = m_pathNodes[m_currentPathNode];
-        arrivalThreshold = PATH_NODE_THRESHOLD;
+        arrivalThreshold = (m_currentPathNode < m_pathRadius.size())
+                               ? m_pathRadius[m_currentPathNode] : PATH_NODE_THRESHOLD;
+        if (m_currentPathNode + 1 >= m_pathNodes.size())
+            arrivalThreshold = std::max(arrivalThreshold, ARRIVAL_THRESHOLD);   // the waypoint itself
     } else {
         // Direct-line fallback (no pathfinder or path failed)
         moveTarget = target;
@@ -272,8 +299,8 @@ arrived:
     float distFromLast = glm::length(pos - m_lastLoggedPos);
     if (distFromLast < 0.1f) {
         m_stuckTimer += dt;
-        if (m_stuckTimer > 5.0f && m_pathfinder) {
-            // Last-resort: teleport to nearest non-nearWall cell
+        if (m_stuckTimer > 5.0f && m_pathfinder && !m_usingGraph) {
+            // Last-resort (legacy grid only): teleport to nearest non-nearWall cell
             auto* grid = m_pathfinder->getGrid();
             if (grid) {
                 const Core::NavCell* safe = grid->findNearestNonWall(pos);
@@ -353,6 +380,16 @@ glm::vec3 PatrolBehavior::pickWanderTarget() {
     float ang = angDist(rng);
     // uniform-in-disk radius, floored at 2 units so the animal actually travels
     float rmin = std::min(2.0f, m_wanderRadius);
+    // With a NavGraph known, only accept a point that stands on a walkable surface
+    // (a random point inside a building or a wall is what sent the town's wanderers
+    // into the walls - G-124). Up to 8 draws; the last draw is returned regardless.
+    for (int attempt = 0; attempt < 8; ++attempt) {
+        float ang = angDist(rng);
+        float r = rmin + (m_wanderRadius - rmin) * std::sqrt(rDist(rng));
+        const glm::vec3 cand(m_wanderAnchor.x + r * std::cos(ang), m_wanderAnchor.y,
+                             m_wanderAnchor.z + r * std::sin(ang));
+        if (!m_lastGraph || attempt == 7 || m_lastGraph->surfaceAt(cand).valid()) return cand;
+    }
     float r = rmin + (m_wanderRadius - rmin) * std::sqrt(rDist(rng));
     return glm::vec3(m_wanderAnchor.x + r * std::cos(ang),
                      m_wanderAnchor.y,
@@ -377,15 +414,65 @@ void PatrolBehavior::setWaypoints(const std::vector<glm::vec3>& waypoints) {
     m_waitTimer = 0.0f;
     m_pathComputed = false;
     m_pathNodes.clear();
+    m_pathRadius.clear();
     m_pathNodeTypes.clear();
     m_currentPathNode = 0;
     m_linkJumpTriggered = false;
 }
 
-void PatrolBehavior::computePath(const glm::vec3& from, const glm::vec3& to) {
+void PatrolBehavior::adoptGraphPath(NPCContext& ctx, Core::NavGraph::PathResult&& res,
+                                    const glm::vec3& from, const glm::vec3& to) {
+    const Core::NavAgentProfile agent;
+    if (ctx.navGraph && res.waypoints.size() > 2 && res.arriveRadius.empty()) {
+        m_pathNodes  = ctx.navGraph->smoothWaypoints(res.waypoints, agent);
+        m_pathRadius = ctx.navGraph->arrivalRadii(m_pathNodes);
+    } else {
+        m_pathNodes  = std::move(res.waypoints);
+        m_pathRadius = std::move(res.arriveRadius);
+    }
+    m_pathNodeTypes.assign(m_pathNodes.size(), Core::WaypointType::Normal);   // no jump links on the graph
+    m_currentPathNode = 0;
+    m_pathComputed = true;
+    m_consecutiveFailedPaths = 0;
+    LOG_DEBUG("PatrolBehavior", "NavGraph path: ({},{},{}) -> ({},{},{}), {} waypoints",
+              from.x, from.y, from.z, to.x, to.y, to.z, m_pathNodes.size());
+}
+
+void PatrolBehavior::computePath(NPCContext& ctx, const glm::vec3& from, const glm::vec3& to) {
     m_pathComputed = true;
     m_pathNodes.clear();
+    m_pathRadius.clear();
     m_currentPathNode = 0;
+
+    // G-124: route on the NavGraph when the host built one (async via the PathService
+    // when it runs, sync otherwise). The legacy grid below is only the no-graph fallback.
+    if (ctx.pathService || ctx.navGraph) {
+        const Core::NavAgentProfile agent;
+        if (ctx.pathService) {
+            if (m_pathPending && m_pathHandle) ctx.pathService->cancel(m_pathHandle);
+            m_pathHandle  = ctx.pathService->requestPath(agent, from, to);
+            m_pathPending = (m_pathHandle != 0);
+            if (m_pathPending) return;        // adopted (or refused) when the result lands
+        }
+        if (ctx.navGraph) {
+            auto res = ctx.navGraph->findPath(from, to, agent);
+            if (res.found && !res.waypoints.empty()) { adoptGraphPath(ctx, std::move(res), from, to); return; }
+            ++m_consecutiveFailedPaths;
+            m_pathComputed = false;
+            if (m_wander) {
+                // A wander target the graph cannot reach: pick another instead of walking
+                // into the wall it sits behind (the town's "NPCs walk into buildings").
+                m_waypoints = { pickWanderTarget() };
+                m_currentWaypoint = 0;
+                m_pathRetryTimer = 0.25f;
+                return;
+            }
+            m_pathRetryTimer = PATH_RETRY_DELAY;
+            LOG_WARN("PatrolBehavior", "NavGraph: no route ({}/{}) from ({},{},{}) to ({},{},{})",
+                     m_consecutiveFailedPaths, PATH_FAILURE_RETREAT, from.x, from.y, from.z, to.x, to.y, to.z);
+            return;
+        }
+    }
 
     if (!m_pathfinder) {
         LOG_WARN("PatrolBehavior", "No pathfinder set — direct-line fallback from ({},{},{}) to ({},{},{})",

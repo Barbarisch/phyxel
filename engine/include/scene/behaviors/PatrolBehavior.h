@@ -2,6 +2,7 @@
 
 #include "scene/NPCBehavior.h"
 #include "core/AStarPathfinder.h"
+#include "core/NavGraph.h"
 #include "ai/PerceptionSystem.h"
 #include <vector>
 #include <glm/glm.hpp>
@@ -61,13 +62,18 @@ public:
     void setPathfinder(Core::AStarPathfinder* pathfinder) { m_pathfinder = pathfinder; }
 
     /// Invalidate the currently computed path, forcing a recompute on next update.
+    /// (An in-flight PathService query is cancelled by the next computePath.)
     void invalidatePath() {
         m_pathComputed = false;
         m_pathNodes.clear();
         m_pathNodeTypes.clear();
+        m_pathRadius.clear();
         m_currentPathNode = 0;
         m_linkJumpTriggered = false;
     }
+    /// True while the behaviour routes on the context's NavGraph (the 3D, sub-cube-aware
+    /// graph) rather than the legacy 2.5D grid. Set per update from the context.
+    bool usesNavGraph() const { return m_usingGraph; }
 
     /// Expose the current path waypoints for external inspection (e.g. NPCManager path invalidation).
     const std::vector<glm::vec3>& getPathNodes() const { return m_pathNodes; }
@@ -78,7 +84,9 @@ public:
 
 private:
     void updatePerception(float dt, NPCContext& ctx, const glm::vec3& forward);
-    void computePath(const glm::vec3& from, const glm::vec3& to);
+    void computePath(NPCContext& ctx, const glm::vec3& from, const glm::vec3& to);
+    /// Adopt a NavGraph route (smoothed, with per-waypoint arrival radii).
+    void adoptGraphPath(NPCContext& ctx, Core::NavGraph::PathResult&& res, const glm::vec3& from, const glm::vec3& to);
 
     /// Pick a random roam target within m_wanderRadius of m_wanderAnchor.
     glm::vec3 pickWanderTarget();
@@ -116,8 +124,17 @@ private:
     static constexpr float ARRIVAL_THRESHOLD = 0.5f;
     static constexpr float PATH_NODE_THRESHOLD = 0.3f; ///< Tighter threshold for path sub-waypoints
 
-    // Pathfinding
+    // Pathfinding. G-124 (2026-09-16): the context's NavGraph (micro mode - sees doors and
+    // sub-cube walls) is the primary router, async through the PathService when present,
+    // sync otherwise; the legacy 2.5D AStarPathfinder/NavGrid is only the fallback for
+    // hosts without a graph. A route's arrival radii come from the graph (tight at
+    // crossings, loose on open ground), like ScheduledBehavior.
     Core::AStarPathfinder* m_pathfinder = nullptr;
+    bool m_usingGraph = false;                      ///< this update routes on ctx.navGraph
+    const Core::NavGraph* m_lastGraph = nullptr;    ///< remembered for wander-target validation
+    std::vector<float> m_pathRadius;               ///< parallel to m_pathNodes (graph routes)
+    bool     m_pathPending = false;                 ///< PathService query in flight
+    uint64_t m_pathHandle  = 0;
     std::vector<glm::vec3> m_pathNodes;            ///< Current computed sub-waypoints
     std::vector<Core::WaypointType> m_pathNodeTypes; ///< Parallel to m_pathNodes — Normal or LinkJump
     size_t m_currentPathNode = 0;                  ///< Index into m_pathNodes

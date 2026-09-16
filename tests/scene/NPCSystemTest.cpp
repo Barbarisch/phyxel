@@ -6,6 +6,8 @@
 #include "core/InteractionManager.h"
 #include "core/NavGrid.h"
 #include "core/AStarPathfinder.h"
+#include "core/NavGraph.h"
+#include <unordered_set>
 #include "core/EntityRegistry.h"
 #include "scene/Entity.h"
 #include <glm/glm.hpp>
@@ -323,4 +325,82 @@ TEST(NPCContextTest, GetEntityPositionCallback) {
     EXPECT_FLOAT_EQ(pos.x, 5.0f);
     EXPECT_FLOAT_EQ(pos.y, 10.0f);
     EXPECT_FLOAT_EQ(pos.z, 15.0f);
+}
+
+
+// ============================================================================
+// G-124 (manual review 2026-09-16, "NPCs walk into the sides of buildings"):
+// PatrolBehavior (patrol / wander / follow) still routed on the legacy 2.5D
+// AStarPathfinder/NavGrid, which classifies any cube with content as solid - every
+// framed door and thin wall in the generated town is a wall to it (the model
+// G-54/G-60 retired for the PLAYER). The Ravenmere log showed three wanderers in
+// `STUCK (replan)` / `A* exhausted` loops every ~1.5 s. The behaviour must route on
+// the NavGraph (micro mode) when the context offers one, like ScheduledBehavior.
+//
+// The rig: a sub-cube wall across x=3 with a 7-micro-wide door at cell z=2. The
+// legacy grid sees a solid wall (no path); the NavGraph sees the door. A patrol from
+// (1.5, z=4.5) to (5.5, z=4.5) must DETOUR through the door cell instead of walking
+// the straight line through the wall (the stub entity has no collision, so the
+// straight line "arrives" - the assertion is on the ROUTE, not on arrival).
+// RED before: PatrolBehavior ignored ctx.navGraph and fell back to the direct line.
+// ============================================================================
+namespace {
+struct PatrolMicroWorld {
+    std::unordered_set<int64_t> solid;
+    static int64_t key(int x, int y, int z) {
+        return (static_cast<int64_t>(x + 100000) << 42) | (static_cast<int64_t>(y + 100000) << 21) | static_cast<int64_t>(z + 100000);
+    }
+    void fillMicroBox(int x0, int y0, int z0, int w, int h, int d) {
+        for (int x = x0; x < x0 + w; ++x) for (int y = y0; y < y0 + h; ++y) for (int z = z0; z < z0 + d; ++z) solid.insert(key(x, y, z));
+    }
+    void carveMicroBox(int x0, int y0, int z0, int w, int h, int d) {
+        for (int x = x0; x < x0 + w; ++x) for (int y = y0; y < y0 + h; ++y) for (int z = z0; z < z0 + d; ++z) solid.erase(key(x, y, z));
+    }
+    bool micro(int x, int y, int z) const { return solid.count(key(x, y, z)) > 0; }
+    Core::CellFill fill(const glm::ivec3& c) const {
+        int n = 0;
+        for (int x = 0; x < 9; ++x) for (int y = 0; y < 9; ++y) for (int z = 0; z < 9; ++z) n += micro(c.x * 9 + x, c.y * 9 + y, c.z * 9 + z);
+        if (n == 0) return Core::CellFill::Empty;
+        if (n == 729) return Core::CellFill::Solid;
+        return Core::CellFill::Partial;
+    }
+};
+} // namespace
+
+TEST_F(PatrolBehaviorTest, RoutesThroughASubcubeDoorOnTheNavGraphNotThroughTheWall) {
+    PatrolMicroWorld w;
+    w.fillMicroBox(0, 0, 0, 7 * 9, 9, 5 * 9);    // ground cubes y=0 over x 0..6, z 0..4
+    w.fillMicroBox(30, 9, 0, 6, 27, 45);          // wall band in cube column x=3, 3 cubes tall
+    w.carveMicroBox(30, 9, 18 + 1, 6, 18, 7);     // door: 7-micro clear reveal, 2 m tall, in cell z=2
+    Core::NavGraph graph(
+        Core::CellFillFunc([&](const glm::ivec3& c) { return w.fill(c); }),
+        Core::MicroQueryFunc([&](const glm::ivec3& m) { return w.micro(m.x, m.y, m.z); }));
+    Core::NavAgentProfile agent;
+    graph.buildRegion({0, 0}, {6, 4}, agent);
+    const glm::vec3 start(1.5f, 1.0f, 4.5f), goal(5.5f, 1.0f, 4.5f);
+    ASSERT_TRUE(graph.findPath(start, goal, agent).found) << "sanity: the graph routes through the door";
+
+    // The legacy grid on the same world: any content in a cube = solid -> no route.
+    Core::NavGrid legacyGrid([&](const glm::ivec3& c) { return w.fill(c) != Core::CellFill::Empty; });
+    legacyGrid.buildFromRegion({0, 0}, {6, 4});
+    Core::AStarPathfinder legacy(&legacyGrid);
+    EXPECT_FALSE(legacy.findPath(start, goal).found) << "sanity: the 2.5D grid cannot see the door";
+
+    entity->setPosition(start);
+    ctx.navGraph = &graph;
+    Scene::PatrolBehavior patrol({goal}, 2.0f, 100.0f);
+    patrol.setPathfinder(&legacy);     // both offered: the graph must win
+
+    bool passedTheDoor = false; float minX = 99.0f, maxX = -99.0f;
+    const float dt = 0.05f;
+    for (int i = 0; i < 400 && !(glm::distance(entity->getPosition(), goal) < 0.6f); ++i) {   // 20 s
+        patrol.update(dt, ctx);
+        const glm::vec3 p = entity->getPosition() + entity->lastMoveVelocity * dt;
+        entity->setPosition(p);
+        minX = std::min(minX, p.x); maxX = std::max(maxX, p.x);
+        if (p.x > 2.6f && p.x < 4.4f && p.z > 1.8f && p.z < 3.2f) passedTheDoor = true;
+    }
+    EXPECT_TRUE(passedTheDoor) << "the patrol must cross the wall line inside the door cell (z 2..3), "
+                               << "not on the straight line at z=4.5 (x range walked " << minX << ".." << maxX << ")";
+    EXPECT_LT(glm::distance(entity->getPosition(), goal), 0.6f) << "and arrive";
 }
