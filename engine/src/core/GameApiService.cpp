@@ -98,10 +98,18 @@ bool GameApiService::start(int port) {
             if (auto* p = playerProvider()) {
                 const glm::vec3 pos = p->getPosition();
                 entities.push_back({{"id", "player"}, {"type", "animated"},
-                                    {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}}});
+                                    {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}},
+                                    {"yaw", p->getYaw()},                 // logical facing (rad)
+                                    {"strafe_lean", p->getStrafeLean()}}); // drawn-body lean (rad, G-118)
             }
         }
         json state = {{"entities", entities}, {"entity_count", entities.size()}};
+        // The player's facing + drawn-body lean (G-118) - not part of the registry's entity
+        // JSON, so the harness can verify the run-strafe lean numerically.
+        if (playerProvider) {
+            if (auto* p = playerProvider())
+                state["player"] = {{"yaw", p->getYaw()}, {"strafe_lean", p->getStrafeLean()}};
+        }
         // Report the REAL rig-driven camera, not InputManager's free-cam copy —
         // a rig (third_person/overhead) repositions Graphics::Camera every frame
         // and never writes back to InputManager, so the copy goes stale the

@@ -269,3 +269,22 @@ TEST(MmoControlsTest, ADragOrbitsWhileNotDrivingOnlyWhenTheHostAllowsIt) {
     ctl.update(kDt, input, nullptr, cam, true, false);
     EXPECT_FALSE(input.isMouseCaptured());
 }
+
+// G-118 (manual review 2026-09-16: "side stepping while moving forward plays the forward
+// animation which looks weird"). The rig has no diagonal-run clip; the drawn body is
+// angled toward the movement direction while running + strafing (WoW does the same),
+// and the logical facing is untouched. Pure strafes and walks keep their own clips.
+TEST(MmoControlsTest, RunStrafeLeansTheDrawnBodyNotTheLogicalFacing) {
+    using C = Scene::AnimatedVoxelCharacter;
+    EXPECT_FLOAT_EQ(C::strafeLeanFor(-1.0f, 0.0f), 0.0f) << "plain run: no lean";
+    EXPECT_FLOAT_EQ(C::strafeLeanFor(0.0f, 1.0f), 0.0f) << "pure strafe has its own clip";
+    EXPECT_FLOAT_EQ(C::strafeLeanFor(-0.45f, 0.45f), 0.0f) << "walk + strafe has WalkStrafe clips";
+    EXPECT_NEAR(C::strafeLeanFor(-1.0f, 1.0f), C::kStrafeLeanMax, 1e-5f) << "run + right strafe: 45 deg right";
+    EXPECT_NEAR(C::strafeLeanFor(-1.0f, -1.0f), -C::kStrafeLeanMax, 1e-5f) << "run + left strafe: 45 deg left";
+    EXPECT_NEAR(C::strafeLeanFor(-1.0f, 0.5f), std::atan2(0.5f, 1.0f), 1e-5f) << "partial strafe: proportional";
+    auto physics = std::make_unique<Physics::PhysicsWorld>();
+    Scene::AnimatedVoxelCharacter ch(physics.get(), glm::vec3(0.0f, 20.0f, 0.0f));
+    ASSERT_TRUE(ch.loadModel("resources/animated_characters/humanoid.anim"));
+    ch.setFacingYaw(0.0f);
+    EXPECT_FLOAT_EQ(ch.getDrawYaw(), ch.getYaw()) << "no input: drawn = logical";
+}

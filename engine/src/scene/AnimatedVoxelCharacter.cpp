@@ -2778,6 +2778,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
                     }
 
                     // Movement Logic (W key gives negative forward, S gives positive)
+                    m_strafeLeanTarget = strafeLeanFor(currentForwardInput, currentStrafeInput);   // G-118
                     bool isMovingForward = currentForwardInput < -0.01f;
                     bool isMovingBackward = currentForwardInput > 0.01f;
                     bool isMoving = isMovingForward || isMovingBackward;
@@ -3214,6 +3215,12 @@ static constexpr float kControllerHeadClearance = 0.05f;
     }
 
     void AnimatedVoxelCharacter::update(float deltaTime) {
+        // G-118 run-strafe lean: ease the drawn body toward the movement direction.
+        {
+            const float k = std::min(1.0f, deltaTime * 10.0f);
+            m_strafeLean += (m_strafeLeanTarget - m_strafeLean) * k;
+            if (std::abs(m_strafeLean) < 1e-4f) m_strafeLean = 0.0f;
+        }
         // --- Update LOD: defer distant characters to a reduced tick rate.
         // Skipped-frame delta time is banked and folded into the next real tick,
         // so movement/root-motion advance the same distance — only granularity
@@ -4059,7 +4066,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
             visualOrigin.z += m_teeterDirXZ.y * m_teeterAmount * k_teeterMaxOffset;
         }
         glm::mat4 modelMatrix  = glm::translate(glm::mat4(1.0f), visualOrigin);
-        modelMatrix = glm::rotate(modelMatrix, currentYaw, glm::vec3(0, 1, 0));
+        modelMatrix = glm::rotate(modelMatrix, getDrawYaw(), glm::vec3(0, 1, 0));
 
         float animRotation = 0.0f;
         if (currentClipIndex >= 0 && currentClipIndex < static_cast<int>(clips.size())) {
@@ -4132,7 +4139,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
             glm::vec3 visualOrigin = worldPosition - glm::vec3(0.0f, skeletonFootOffset_, 0.0f)
                                    + glm::vec3(0.0f, k_modelVisualLift, 0.0f);
             glm::mat4 attModelMatrix = glm::translate(glm::mat4(1.0f), visualOrigin);
-            attModelMatrix = glm::rotate(attModelMatrix, currentYaw, glm::vec3(0, 1, 0));
+            attModelMatrix = glm::rotate(attModelMatrix, getDrawYaw(), glm::vec3(0, 1, 0));
 
             // Apply animation rotation offset (same as bone loop)
             float animRot = 0.0f;
@@ -4492,7 +4499,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
             visualOrigin.z += m_teeterDirXZ.y * m_teeterAmount * k_teeterMaxOffset;
         }
         glm::mat4 modelMatrix  = glm::translate(glm::mat4(1.0f), visualOrigin);
-        modelMatrix = glm::rotate(modelMatrix, currentYaw, glm::vec3(0, 1, 0));
+        modelMatrix = glm::rotate(modelMatrix, getDrawYaw(), glm::vec3(0, 1, 0));
         glm::mat4 invModel = glm::inverse(modelMatrix);
 
         const bool hasViz = m_raycastVisualizer && m_raycastVisualizer->isEnabled();
@@ -5044,7 +5051,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
         // Compute the same model-to-world transform used by the bone body loop
         glm::vec3 visualOrigin = worldPosition - glm::vec3(0.0f, skeletonFootOffset_, 0.0f);
         glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), visualOrigin);
-        modelMatrix = glm::rotate(modelMatrix, currentYaw, glm::vec3(0, 1, 0));
+        modelMatrix = glm::rotate(modelMatrix, getDrawYaw(), glm::vec3(0, 1, 0));
 
         float animRot = 0.0f;
         if (currentClipIndex >= 0 && currentClipIndex < static_cast<int>(clips.size())) {
@@ -5197,7 +5204,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
         if (!skeleton.bones.empty() && skeleton.bones[0].parentId == -1) {
             glm::vec3 visualOrigin = worldPosition - glm::vec3(0.0f, skeletonFootOffset_, 0.0f);
             glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), visualOrigin);
-            modelMatrix = glm::rotate(modelMatrix, currentYaw, glm::vec3(0, 1, 0));
+            modelMatrix = glm::rotate(modelMatrix, getDrawYaw(), glm::vec3(0, 1, 0));
             float animRot = 0.0f;
             if (currentClipIndex >= 0 && currentClipIndex < static_cast<int>(clips.size())) {
                 auto rit = animationRotationOffsets.find(clips[currentClipIndex].name);

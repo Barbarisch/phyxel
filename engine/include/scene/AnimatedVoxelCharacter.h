@@ -185,6 +185,17 @@ namespace Scene {
         float getAnimationProgress() const;
         float getAnimationDuration() const;
         float getYaw() const { return currentYaw; }
+        /// Drawn yaw = logical facing + the run-strafe lean (G-118).
+        float getDrawYaw() const { return currentYaw + m_strafeLean; }
+        float getStrafeLean() const { return m_strafeLean; }
+        static constexpr float kStrafeLeanMax = 0.785398f;   // 45 deg
+        /// Body lean (radians, +right) for a control input: only while RUNNING forward
+        /// and strafing; a pure strafe or a walk has its own clips and gets none.
+        static float strafeLeanFor(float forward, float strafe) {
+            if (forward >= -0.6f || std::abs(strafe) <= 0.1f) return 0.0f;
+            const float a = std::atan2(strafe, -forward);
+            return a < -kStrafeLeanMax ? -kStrafeLeanMax : (a > kStrafeLeanMax ? kStrafeLeanMax : a);
+        }
         /// Model-space Y the controller treats as the sole: the draw origin is
         /// worldPosition - this. Public so tests can measure drawn feet against a floor.
         float getSkeletonFootOffset() const { return skeletonFootOffset_; }
@@ -803,6 +814,13 @@ namespace Scene {
         float currentTurnInput = 0.0f;
         float currentStrafeInput = 0.0f;
         float currentYaw = 0.0f;
+        // G-118 (2026-09-16): running while strafing (W+Q/E) played the plain forward run
+        // while the body slid diagonally. The rig has no diagonal-run clip, so - as WoW
+        // does - the DRAWN body is angled toward the movement direction (up to 45 deg)
+        // while the logical facing (currentYaw: movement, aiming, root motion) is
+        // untouched. Applied at the model-matrix rotate sites only.
+        float m_strafeLean = 0.0f;         ///< radians, drawn yaw = currentYaw + m_strafeLean
+        float m_strafeLeanTarget = 0.0f;
 
         // Frame-coherent voxel-contact snapshot. Refreshed once per update().
         // Read by edge-teeter / climb-up / climb-down FSM consumers, and by
