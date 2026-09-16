@@ -13,10 +13,12 @@
 #include <thread>
 #include <atomic>
 #include <filesystem>
+#include <iterator>
 #include <fstream>
 
 namespace Phyxel {
 namespace Core {
+namespace { std::string bc7CachePath(int baseSize, const char* tag); }
 
 AtlasManager::AtlasManager() = default;
 AtlasManager::~AtlasManager() = default;
@@ -98,7 +100,7 @@ void AtlasManager::blitLayer(std::vector<uint8_t>& dst, int baseSize, int layer,
     }
 }
 
-bool AtlasManager::buildClass(int resClass) {
+bool AtlasManager::buildClass(int resClass, bool forceDecode) {
     auto& registry = MaterialRegistry::instance();
     AtlasInfo& a = atlas_[resClass & 1];
     const int baseSize = (resClass == 1) ? TEXTURE_SIZE_HI : TEXTURE_SIZE;
@@ -110,7 +112,46 @@ bool AtlasManager::buildClass(int resClass) {
     a.textureCount = layerCount;
     a.layerCount = layerCount;
     a.uvBounds.assign(std::max(1, layerCount), glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
-    if (layerCount == 0) { a.pixels.clear(); return true; }
+    a.fromCache = false;
+    a.bc7Data.clear(); a.bc7LevelOffsets.clear(); a.bc7MipLevels = 0;
+    a.nrBc7Data.clear(); a.nrBc7LevelOffsets.clear(); a.nrBc7MipLevels = 0;
+    if (layerCount == 0) { a.pixels.clear(); a.nrPixels.clear(); return true; }
+
+    // Cache-first (G-114): with both maps' BC7 chains on disk for these exact inputs, skip
+    // the PNG decode entirely - the chains upload as they are. The decode (and the encode)
+    // happen only when an input changed, and their result is written back for next time.
+    if (!forceDecode) {
+        const uint64_t hash = computeSourceHash(resClass);
+        const bool albedoHit = loadBC7File(bc7CachePath(baseSize, "albedo"), hash, baseSize, layerCount,
+                                           a.bc7Data, a.bc7LevelOffsets, a.bc7MipLevels);
+        const bool nrHit = albedoHit && loadBC7File(bc7CachePath(baseSize, "nr"), hash, baseSize, layerCount,
+                                                    a.nrBc7Data, a.nrBc7LevelOffsets, a.nrBc7MipLevels);
+        if (albedoHit && nrHit) {
+            a.pixels.clear(); a.nrPixels.clear();
+            a.fromCache = true;
+            LOG_INFO("AtlasManager", "Texture array class {}: BC7 cache hit, {} layers @ {}px - source decode skipped ({} MB)",
+                     resClass, layerCount, baseSize,
+                     static_cast<int>((a.bc7Data.size() + a.nrBc7Data.size()) / (1024 * 1024)));
+            return true;
+        }
+        a.bc7Data.clear(); a.bc7LevelOffsets.clear(); a.bc7MipLevels = 0;
+        a.nrBc7Data.clear(); a.nrBc7LevelOffsets.clear(); a.nrBc7MipLevels = 0;
+    }
+    decodeClassPixels(resClass);
+    return true;
+}
+
+void AtlasManager::ensurePixels(int resClass) {
+    AtlasInfo& a = atlas_[resClass & 1];
+    if (a.layerCount > 0 && a.pixels.empty()) decodeClassPixels(resClass);
+}
+
+void AtlasManager::decodeClassPixels(int resClass) {
+    auto& registry = MaterialRegistry::instance();
+    AtlasInfo& a = atlas_[resClass & 1];
+    const int baseSize = a.baseSize;
+    const int layerCount = a.layerCount;
+    if (layerCount == 0) { a.pixels.clear(); return; }
 
     const size_t layerBytes = static_cast<size_t>(baseSize) * baseSize * 4;
     a.pixels.assign(layerBytes * layerCount, 0);
@@ -159,17 +200,16 @@ bool AtlasManager::buildClass(int resClass) {
 
     LOG_INFO("AtlasManager", "Built texture array class {}: {} layers @ {}x{} (albedo + normal/rough)",
              resClass, layerCount, baseSize, baseSize);
-    return true;
 }
 
-bool AtlasManager::buildAtlas() {
+bool AtlasManager::buildAtlas(bool forceDecode) {
     auto& registry = MaterialRegistry::instance();
     if (registry.getTextureCount() == 0) {
         LOG_ERROR("AtlasManager", "No textures in MaterialRegistry");
         return false;
     }
     bool ok = true;
-    for (int c = 0; c < NUM_CLASSES; c++) ok = buildClass(c) && ok;
+    for (int c = 0; c < NUM_CLASSES; c++) ok = buildClass(c, forceDecode) && ok;
     return ok;
 }
 
@@ -178,6 +218,8 @@ bool AtlasManager::updateTextureSlot(int slotIndex, const uint8_t* pixels) {
     int cls = (slotIndex & MaterialRegistry::RES_CLASS_BIT) ? 1 : 0;
     int layer = slotIndex & MaterialRegistry::LAYER_MASK;
     if (layer < 0 || layer >= atlas_[cls].layerCount) return false;
+    ensurePixels(cls);
+    atlas_[cls].fromCache = false;
     blitLayer(atlas_[cls].pixels, atlas_[cls].baseSize, layer, pixels);
     return true;
 }
@@ -300,19 +342,39 @@ uint64_t AtlasManager::computeSourceHash(int resClass) const {
             if (e.is_regular_file(ec)) names.push_back(e.path().filename().string());
     }
     std::sort(names.begin(), names.end());
+    // CONTENT-keyed (G-114): name + size + the first and last 64 KB of each file. A build
+    // copies resources/ with fresh modification times, so an mtime key missed on every
+    // post-build boot (re-encoding ~550 MB of BC7); a same-size edit still changes the PNG
+    // stream bytes, which the head/tail digest sees. ~526 files x 128 KB = a tenth of a
+    // second, against 14 s of decode.
+    auto mixFileEdges = [&](const fs::path& p) {
+        std::ifstream f(p, std::ios::binary);
+        if (!f) return;
+        constexpr std::streamsize kEdge = 64 * 1024;
+        std::vector<char> buf(static_cast<size_t>(kEdge));
+        f.read(buf.data(), kEdge);
+        mix(buf.data(), static_cast<size_t>(f.gcount()));
+        f.clear();
+        f.seekg(0, std::ios::end);
+        const std::streamoff end = f.tellg();
+        if (end > kEdge) {
+            f.seekg(end - kEdge, std::ios::beg);
+            f.read(buf.data(), kEdge);
+            mix(buf.data(), static_cast<size_t>(f.gcount()));
+        }
+    };
     for (const auto& name : names) {
         mix(name.data(), name.size());
         fs::path p = fs::path(sourceDirectory_) / name;
         uintmax_t fsz = fs::file_size(p, ec);
-        auto wt = fs::last_write_time(p, ec).time_since_epoch().count();
         mix(&fsz, sizeof(fsz));
-        mix(&wt, sizeof(wt));
+        mixFileEdges(p);
     }
-    fs::path mj = "resources/materials.json";
-    uintmax_t mjsz = fs::file_size(mj, ec);
-    auto mjwt = fs::last_write_time(mj, ec).time_since_epoch().count();
-    mix(&mjsz, sizeof(mjsz));
-    mix(&mjwt, sizeof(mjwt));
+    {
+        std::ifstream mj("resources/materials.json", std::ios::binary);
+        std::string body((std::istreambuf_iterator<char>(mj)), std::istreambuf_iterator<char>());
+        mix(body.data(), body.size());
+    }
     return h;
 }
 
@@ -384,7 +446,8 @@ bool AtlasManager::uploadToGPU(Vulkan::VulkanDevice* device) {
     bool any = false;
     for (int c = 0; c < NUM_CLASSES; c++) {
         AtlasInfo& a = atlas_[c];
-        if (a.layerCount <= 0 || a.pixels.empty()) continue;
+        if (a.layerCount <= 0) continue;
+        if (a.pixels.empty() && !a.fromCache) continue;
         const uint64_t hash = computeSourceHash(c);
 
         // Helper: get a map's BC7 data (load cache, else encode + write cache), then upload.
@@ -395,11 +458,14 @@ bool AtlasManager::uploadToGPU(Vulkan::VulkanDevice* device) {
             bool uploaded = false;
             if (device->bc7Supported()) {
                 std::string path = bc7CachePath(a.baseSize, tag);
-                bool ready = loadBC7File(path, hash, a.baseSize, a.layerCount, bc7, offsets, mips);
+                // Chains already loaded by buildClass (cache-first) upload as they are.
+                bool ready = (!bc7.empty() && mips > 0) ||
+                             loadBC7File(path, hash, a.baseSize, a.layerCount, bc7, offsets, mips);
                 if (ready) {
-                    LOG_INFO("AtlasManager", "Loaded BC7 cache {} class {} ({} MB)",
+                    LOG_INFO("AtlasManager", "BC7 {} class {} ready ({} MB)",
                              tag, c, static_cast<int>(bc7.size() / (1024 * 1024)));
                 } else {
+                    ensurePixels(c);
                     bc7EncodeLayers(srcPixels, a.baseSize, a.layerCount, bc7, offsets, mips);
                     writeBC7File(path, hash, a.baseSize, a.layerCount, bc7, offsets, mips);
                     ready = true;
@@ -410,7 +476,9 @@ bool AtlasManager::uploadToGPU(Vulkan::VulkanDevice* device) {
                 }
             }
             if (!uploaded) {
-                uploaded = device->uploadTextureArray(target, srcPixels.data(), a.baseSize, a.layerCount);
+                ensurePixels(c);
+                uploaded = !srcPixels.empty() &&
+                           device->uploadTextureArray(target, srcPixels.data(), a.baseSize, a.layerCount);
             }
             return uploaded;
         };
@@ -455,7 +523,7 @@ void AtlasManager::updateUVSSBO(Vulkan::VulkanDevice* device) {
 
 bool AtlasManager::hotReload(Vulkan::VulkanDevice* device) {
     LOG_INFO("AtlasManager", "Hot-reloading texture arrays...");
-    if (!buildAtlas()) { LOG_ERROR("AtlasManager", "Failed to rebuild atlas"); return false; }
+    if (!buildAtlas(/*forceDecode=*/true)) { LOG_ERROR("AtlasManager", "Failed to rebuild atlas"); return false; }
     if (!uploadToGPU(device)) { LOG_ERROR("AtlasManager", "Failed to upload atlas to GPU"); return false; }
     updateUVSSBO(device);
     LOG_INFO("AtlasManager", "Hot-reload complete");
@@ -473,6 +541,8 @@ bool AtlasManager::reloadMaterial(const std::string& materialName, Vulkan::Vulka
     if (!mat) return false;
     const int cls = mat->resClass();
     const int baseSize = atlas_[cls].baseSize;
+    ensurePixels(cls);
+    atlas_[cls].fromCache = false;   // edited: the cached chains no longer match
 
     const std::string faceFiles[6] = {
         mat->textures.sideN(), mat->textures.sideS(),
@@ -497,6 +567,7 @@ bool AtlasManager::reloadMaterial(const std::string& materialName, Vulkan::Vulka
 }
 
 bool AtlasManager::saveAtlasPNG(const std::string& path) const {
+    const_cast<AtlasManager*>(this)->ensurePixels(0);
     const AtlasInfo& a = atlas_[0];
     if (a.pixels.empty()) return false;
     int result = stbi_write_png(path.c_str(),
@@ -507,6 +578,7 @@ bool AtlasManager::saveAtlasPNG(const std::string& path) const {
 std::vector<uint8_t> AtlasManager::getTextureSlotPixels(int slotIndex) const {
     int cls = (slotIndex & MaterialRegistry::RES_CLASS_BIT) ? 1 : 0;
     int layer = slotIndex & MaterialRegistry::LAYER_MASK;
+    const_cast<AtlasManager*>(this)->ensurePixels(cls);
     const AtlasInfo& a = atlas_[cls];
     if (layer < 0 || layer >= a.layerCount) return {};
     const size_t layerBytes = static_cast<size_t>(a.baseSize) * a.baseSize * 4;

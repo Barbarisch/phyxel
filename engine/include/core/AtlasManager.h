@@ -53,6 +53,9 @@ public:
         std::vector<uint8_t> nrBc7Data;    // BC7-UNORM compressed mip chain
         std::vector<size_t>  nrBc7LevelOffsets;
         int                  nrBc7MipLevels = 0;
+        /// G-114 (2026-09-16): both maps came from the BC7 disk cache and the source PNGs
+        /// were NOT decoded (`pixels`/`nrPixels` are empty until ensurePixels()).
+        bool                 fromCache = false;
     };
 
     AtlasManager();
@@ -66,8 +69,18 @@ public:
     /// Set the directory containing source PNGs (e.g. "resources/textures/source")
     void setSourceDirectory(const std::string& dir) { sourceDirectory_ = dir; }
 
-    /// Build both resolution-class arrays from MaterialRegistry + source PNGs.
-    bool buildAtlas();
+    /// Build both resolution-class arrays from MaterialRegistry + source PNGs. With a valid
+    /// BC7 cache for a class (albedo + normal/rough) the PNG decode is SKIPPED - the encoded
+    /// mip chains upload directly (boot: ~30 s of decode + encode -> a file read). Pass
+    /// `forceDecode` to always decode (hot reload / editing).
+    bool buildAtlas(bool forceDecode = false);
+    /// Decode a class's source PNGs on demand (the pixel-level editing paths need them).
+    void ensurePixels(int resClass);
+    /// Content-keyed hash of a class's inputs (source PNG names, sizes, head+tail bytes;
+    /// materials.json content; format version; base size). Public for tests: it must NOT
+    /// change when only modification times change (a build copies resources/ with fresh
+    /// mtimes, which made every post-build boot re-encode 550 MB of BC7).
+    uint64_t computeSourceHash(int resClass) const;
 
     /// Get a resolution class's build info (0 = 512, 1 = 1024). Default = class 0.
     const AtlasInfo& getAtlasInfo(int resClass = 0) const { return atlas_[resClass & 1]; }
@@ -102,8 +115,11 @@ private:
     /// Generate a size x size magenta/black fallback texture.
     std::vector<uint8_t> generateFallbackTexture(int size) const;
 
-    /// Build one resolution class's albedo + normal/roughness layer arrays from source PNGs.
-    bool buildClass(int resClass);
+    /// Build one resolution class: cache-first (BC7 chains loaded, decode skipped) unless
+    /// `forceDecode`; otherwise decode the source PNGs into the RGBA layer arrays.
+    bool buildClass(int resClass, bool forceDecode);
+    /// The PNG decode into `pixels` / `nrPixels` (the pre-cache buildClass body).
+    void decodeClassPixels(int resClass);
 
     /// Blit one layer's RGBA into a class array (dst = the target layer buffer) at `layer`.
     void blitLayer(std::vector<uint8_t>& dst, int baseSize, int layer, const uint8_t* texPixels);
@@ -116,8 +132,7 @@ private:
 
     // Per-class, per-map BC7 disk cache, keyed by a hash of the source textures + materials.json
     // + format version + class base size, so a map is re-encoded only when its inputs change.
-    static constexpr uint32_t BC7_CACHE_VERSION = 3;  // bumped for normal/roughness maps
-    uint64_t computeSourceHash(int resClass) const;
+    static constexpr uint32_t BC7_CACHE_VERSION = 4;  // 4: content-keyed hash (G-114)
     bool loadBC7File(const std::string& path, uint64_t hash, int baseSize, int layerCount,
                      std::vector<uint8_t>& outData, std::vector<size_t>& outOffsets, int& outMips) const;
     void writeBC7File(const std::string& path, uint64_t hash, int baseSize, int layerCount,

@@ -1,4 +1,8 @@
 #include <gtest/gtest.h>
+#include <filesystem>
+#include <fstream>
+#include <thread>
+#include <chrono>
 #include "core/AtlasManager.h"
 #include "core/MaterialRegistry.h"
 
@@ -96,4 +100,44 @@ TEST_F(AtlasManagerTest, UVBoundsAreFullTilePerLayer) {
     EXPECT_NEAR(uv0.y, 0.0f, 0.001f);
     EXPECT_NEAR(uv0.z, 1.0f, 0.001f);
     EXPECT_NEAR(uv0.w, 1.0f, 0.001f);
+}
+
+
+// G-114 (manual review 2026-09-16: a blank window for ~50 s at launch). The BC7 disk cache
+// was keyed on source-file modification times, and every build copies resources/ into the
+// exe tree with fresh mtimes - so the first boot after any build re-decoded and re-encoded
+// everything, and even a cache hit still decoded 14 s of PNGs. The key is CONTENT now.
+// RED before: touching a file (new mtime, same bytes) changed the hash.
+TEST(AtlasCacheTest, SourceHashIgnoresModificationTimesButNotContent) {
+    namespace fs = std::filesystem;
+    const fs::path dir = fs::temp_directory_path() / "phyxel_atlas_hash_test";
+    fs::remove_all(dir); fs::create_directories(dir);
+    auto write = [&](const char* name, const std::string& body) {
+        std::ofstream f(dir / name, std::ios::binary | std::ios::trunc); f << body;
+    };
+    write("a.png", std::string(200000, 'a'));       // bigger than the 64 KB edges
+    write("b.png", "bbbb");
+    auto& am = Phyxel::Core::AtlasManager::instance();
+    am.setSourceDirectory(dir.string());
+    const uint64_t h0 = am.computeSourceHash(0);
+    // A later modification time with the same bytes: the same hash.
+    std::this_thread::sleep_for(std::chrono::milliseconds(30));
+    fs::last_write_time(dir / "a.png", fs::file_time_type::clock::now());
+    fs::last_write_time(dir / "b.png", fs::file_time_type::clock::now());
+    EXPECT_EQ(am.computeSourceHash(0), h0) << "mtime alone must not invalidate the cache";
+    // A same-size edit at the END of a big file changes the hash (the tail is digested).
+    { std::string body(200000, 'a'); body.back() = 'z'; write("a.png", body); }
+    const uint64_t h1 = am.computeSourceHash(0);
+    EXPECT_NE(h1, h0) << "a one-byte change in the last 64 KB is seen";
+    // A same-size edit at the START changes it too.
+    { std::string body(200000, 'a'); body.front() = 'z'; write("a.png", body); }
+    EXPECT_NE(am.computeSourceHash(0), h0);
+    EXPECT_NE(am.computeSourceHash(0), h1);
+    // A new file changes it; removing it restores the original.
+    write("c.png", "c");
+    EXPECT_NE(am.computeSourceHash(0), h0);
+    fs::remove(dir / "c.png"); write("a.png", std::string(200000, 'a'));
+    EXPECT_EQ(am.computeSourceHash(0), h0);
+    am.setSourceDirectory("resources/textures/source");
+    fs::remove_all(dir);
 }
