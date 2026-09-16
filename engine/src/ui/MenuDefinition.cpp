@@ -204,6 +204,21 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         return w;
     }
 
+    if (type == "compass") {
+        auto w = std::make_unique<UICompass>();
+        w->id = j.value("id", "");
+        w->bind = j.value("bind", "compass.heading");
+        w->poiBind = j.value("poiBind", "compass.poi");
+        w->visibleWhen = j.value("visibleWhen", "");
+        w->spanDeg = j.value("span", 180.0f);
+        w->visible = j.value("visible", true);
+        if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2)
+            w->size = {j["size"][0].get<float>(), j["size"][1].get<float>()};
+        if (j.contains("position") && j["position"].is_array() && j["position"].size() >= 2)
+            w->position = {j["position"][0].get<float>(), j["position"][1].get<float>()};
+        return w;
+    }
+
     if (type == "repeater") {
         auto w = std::make_unique<UIRepeater>();
         w->id = j.value("id", "");
@@ -441,6 +456,20 @@ static void applyScalarBind(UIWidget* w, const HudDataContext& ctx) {
         case WidgetType::ProgressBar:
             if (auto v = ctx.resolveFloat(w->bind)) static_cast<UIProgressBar*>(w)->value = *v;
             break;
+        case WidgetType::Compass: {
+            auto* c = static_cast<UICompass*>(w);
+            if (auto v = ctx.resolveFloat(w->bind)) c->heading = *v;
+            if (auto l = ctx.resolveList(c->poiBind)) {
+                c->pois.clear();
+                for (const auto& r : *l) {
+                    UICompass::Poi p;
+                    if (auto it = r.texts.find("label"); it != r.texts.end()) p.label = it->second;
+                    if (auto it = r.floats.find("bearing"); it != r.floats.end()) p.bearing = it->second;
+                    c->pois.push_back(std::move(p));
+                }
+            }
+            break;
+        }
         case WidgetType::Label:
             if (auto s = ctx.resolveText(w->bind)) static_cast<UILabel*>(w)->text = *s;
             else if (auto v = ctx.resolveFloat(w->bind)) {

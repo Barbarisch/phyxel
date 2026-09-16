@@ -80,6 +80,23 @@ public:
     nlohmann::json listTriggers() const;
     size_t count() const { return m_triggers.size(); }
 
+    /// Scene EXITS: region triggers whose actions transition to another scene, as
+    /// (trigger id, region json {from,to}, target scene id). Wayfinding (the compass)
+    /// shows these as points of interest named after the target scene.
+    struct ExitRegion { std::string id; nlohmann::json region; std::string targetScene; };
+    std::vector<ExitRegion> exitRegions() const {
+        std::vector<ExitRegion> out;
+        for (const auto& t : m_triggers) {
+            if (t.event != "entity_reached_region" || !t.when.contains("region")) continue;
+            if (!t.actions.is_array()) continue;
+            for (const auto& a : t.actions)
+                if (a.is_object() && a.value("type", "") == "transition_scene") {
+                    out.push_back({t.id, t.when["region"], a.value("scene", "")});
+                    break;
+                }
+        }
+        return out;
+    }
     /// Region triggers as (id, region json {from,to}) - the anchors a load-time
     /// self-check paths to (WorldHealth). Fired ones included; the caller decides.
     std::vector<std::pair<std::string, nlohmann::json>> regionTriggers() const {

@@ -1,5 +1,33 @@
 [
   {
+    "id": "hud_compass",
+    "anchor": "TopCenter",
+    "offset": [
+      0,
+      26
+    ],
+    "size": [
+      476,
+      64
+    ],
+    "showBackground": false,
+    "visibleWhen": "!combat.inCombat",
+    "children": [
+      {
+        "type": "compass",
+        "id": "compass",
+        "bind": "compass.heading",
+        "poiBind": "compass.poi",
+        "span": 180,
+        "size": [
+          460,
+          46
+        ]
+      }
+    ],
+    "autoSize": true
+  },
+  {
     "id": "hud_health",
     "anchor": "BottomLeft",
     "offset": [

@@ -139,6 +139,7 @@ def create_project(
     extra_members.append("    Phyxel::Core::TriggerSystem triggers_;  // declarative when/then win conditions (game.json \"triggers\")")
     extra_members.append("    nlohmann::json lastWorldHealth_;  // WorldHealth::check on every world scene ready (layer B self-check)")
     extra_members.append("    std::string lastLintSignature_;    // visible-screen set the HUD layout lint last ran on")
+    extra_members.append("    int lintArmFrames_ = 0;             // frames until the deferred HUD lint runs")
     extra_members.append("    Phyxel::Core::Currency wallet_;         // the player's money (never an inventory item)")
     extra_members.append("    Phyxel::Core::ClickToMove clickToMove_;  // click the ground -> walk the NavGraph route (G-75)")
     extra_members.append("    bool walkLmbHeld_ = false;              // edge guard for out-of-combat clicks")
@@ -570,6 +571,42 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             {
                 auto& hud = renderCoordinator_->hudData();
                 hud.setText("player.goldText", [this]() {{ return wallet_.gold > 0 || wallet_.silver > 0 || wallet_.copper > 0 ? wallet_.toString() : std::string("0 gp"); }});
+                // Compass (G-117): heading from the camera (0 = north = +z, 90 = east = +x); the
+                // engine's camera front is (cos yaw, ., sin yaw), so the bearing is 90 - yaw.
+                hud.setFloat("compass.heading", [this]() {
+                    auto* cam = engine_ ? engine_->getCamera() : nullptr;
+                    float b = cam ? 90.0f - cam->getYaw() : 0.0f;
+                    b = std::fmod(b, 360.0f); if (b < 0.0f) b += 360.0f;
+                    return b;
+                });
+                // Points of interest: every scene exit (named after the scene it leads to) and
+                // every authored location, as bearings from the player. No quest markers.
+                hud.setList("compass.poi", [this]() {
+                    std::vector<Phyxel::UI::HudRecord> rows;
+                    if (!playerCharacter_) return rows;
+                    const glm::vec3 me = playerCharacter_->getPosition();
+                    auto bearingTo = [&](const glm::vec3& p) {
+                        float b = glm::degrees(std::atan2(p.x - me.x, p.z - me.z));
+                        if (b < 0.0f) b += 360.0f; return b;
+                    };
+                    auto* smgr = engine_ ? engine_->getSceneManager() : nullptr;
+                    for (const auto& ex : triggers_.exitRegions()) {
+                        const auto& r = ex.region;
+                        if (!r.contains("from") || !r.contains("to")) continue;
+                        const glm::vec3 c((r["from"].value("x", 0.0f) + r["to"].value("x", 0.0f)) * 0.5f, me.y,
+                                          (r["from"].value("z", 0.0f) + r["to"].value("z", 0.0f)) * 0.5f);
+                        std::string label = ex.targetScene;
+                        if (smgr) if (const auto* sc = smgr->findScene(ex.targetScene)) if (!sc->name.empty()) label = sc->name;
+                        Phyxel::UI::HudRecord rec; rec.texts["label"] = label; rec.floats["bearing"] = bearingTo(c);
+                        rows.push_back(std::move(rec));
+                    }
+                    if (auto* locs = engine_ ? engine_->getLocationRegistry() : nullptr)
+                        for (const auto& [lid, loc] : locs->getAllLocations()) {
+                            Phyxel::UI::HudRecord rec; rec.texts["label"] = loc.name.empty() ? lid : loc.name;
+                            rec.floats["bearing"] = bearingTo(loc.position); rows.push_back(std::move(rec));
+                        }
+                    return rows;
+                });
                 hud.setFloat("player.health", [this]() {
                     auto* hc = playerCharacter_ ? playerCharacter_->getHealthComponent() : nullptr;
                     return hc ? hc->getHealth() : 100.0f;
@@ -2248,8 +2285,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             if (auto* lintUi = renderCoordinator_ ? renderCoordinator_->getUISystem() : nullptr) {{
                 std::string visibleSig;
                 for (const auto& n : lintUi->visibleScreenNames()) visibleSig += n + "|";
-                if (visibleSig != lastLintSignature_) {{
-                    lastLintSignature_ = visibleSig;
+                // Lint TWO frames after the visible set changes: the render's binding pass
+                // (visibleWhen) has then decided which panels really show. Linting on the
+                // change frame itself reported a combat banner / compass overlap that never
+                // exists (both default visible until bound).
+                if (visibleSig != lastLintSignature_) {{ lastLintSignature_ = visibleSig; lintArmFrames_ = 2; }}
+                if (lintArmFrames_ > 0 && --lintArmFrames_ == 0) {{
                     const nlohmann::json defects = lintUi->lintLayout();
                     if (defects.is_array() && !defects.empty()) {{
                         std::filesystem::create_directories("playtest");

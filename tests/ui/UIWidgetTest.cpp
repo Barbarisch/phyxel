@@ -678,3 +678,39 @@ TEST(UILayoutTest, VisibleWhenAcceptsANegatedKey) {
     Phyxel::UI::applyHudBindings(panel.get(), none);
     EXPECT_FALSE(panel->visible) << "no provider stays fail-closed even when negated";
 }
+
+// G-117 (manual review 2026-09-16: "compass or mini map - directions to go east mean
+// nothing"). The compass strip maps bearings around the camera heading onto the strip:
+// straight ahead sits at the centre, +-span/2 at the edges, anything behind is hidden;
+// wrap-around is handled (heading 350, bearing 10 -> +20 deg, not -340). A JSON
+// "compass" widget binds its heading float and its POI list.
+TEST(UICompassTest, BearingsMapOntoTheStripAroundTheHeading) {
+    using C = Phyxel::UI::UICompass;
+    EXPECT_FLOAT_EQ(C::wrapDeg(190.0f), -170.0f);
+    EXPECT_FLOAT_EQ(C::wrapDeg(-190.0f), 170.0f);
+    ASSERT_TRUE(C::offsetFor(0.0f, 0.0f, 180.0f, 400.0f).has_value());
+    EXPECT_FLOAT_EQ(*C::offsetFor(0.0f, 0.0f, 180.0f, 400.0f), 0.0f) << "dead ahead = centre";
+    EXPECT_FLOAT_EQ(*C::offsetFor(90.0f, 0.0f, 180.0f, 400.0f), 200.0f) << "east on a north heading = right edge";
+    EXPECT_FLOAT_EQ(*C::offsetFor(45.0f, 0.0f, 180.0f, 400.0f), 100.0f);
+    EXPECT_FLOAT_EQ(*C::offsetFor(10.0f, 350.0f, 180.0f, 400.0f), 200.0f / 90.0f * 20.0f) << "wraps across north";
+    EXPECT_FALSE(C::offsetFor(180.0f, 0.0f, 180.0f, 400.0f).has_value()) << "behind: hidden";
+    EXPECT_FALSE(C::offsetFor(120.0f, 0.0f, 180.0f, 400.0f).has_value());
+
+    auto w = Phyxel::UI::MenuDefinition::buildWidget(nlohmann::json::parse(R"({
+        "type":"compass","id":"c","bind":"compass.heading","poiBind":"compass.poi","span":180,"size":[460,30]})"));
+    ASSERT_NE(w, nullptr);
+    auto* c = dynamic_cast<C*>(w.get());
+    ASSERT_NE(c, nullptr);
+    Phyxel::UI::HudDataContext ctx;
+    ctx.setFloat("compass.heading", [] { return 90.0f; });
+    ctx.setList("compass.poi", [] {
+        std::vector<Phyxel::UI::HudRecord> rows;
+        Phyxel::UI::HudRecord r; r.texts["label"] = "Hollin Farm"; r.floats["bearing"] = 100.0f; rows.push_back(r);
+        return rows;
+    });
+    Phyxel::UI::applyHudBindings(w.get(), ctx);
+    EXPECT_FLOAT_EQ(c->heading, 90.0f);
+    ASSERT_EQ(c->pois.size(), 1u);
+    EXPECT_EQ(c->pois[0].label, "Hollin Farm");
+    EXPECT_FLOAT_EQ(c->pois[0].bearing, 100.0f);
+}

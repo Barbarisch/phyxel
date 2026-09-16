@@ -728,6 +728,65 @@ void UIProgressBar::render(UIRenderer* renderer, const BitmapFont* font,
 }
 
 // ════════════════════════════════════════════════════════════════
+// UICompass
+// ════════════════════════════════════════════════════════════════
+
+float UICompass::wrapDeg(float a) {
+    a = std::fmod(a + 180.0f, 360.0f);
+    if (a < 0.0f) a += 360.0f;
+    return a - 180.0f;
+}
+
+std::optional<float> UICompass::offsetFor(float bearing, float heading, float spanDeg, float width) {
+    const float d = wrapDeg(bearing - heading);
+    const float half = spanDeg * 0.5f;
+    if (half <= 0.0f || std::abs(d) > half) return std::nullopt;
+    return d / half * (width * 0.5f);
+}
+
+void UICompass::render(UIRenderer* renderer, const BitmapFont* font,
+                       const UITheme& theme, glm::vec2 pos) {
+    if (!visible || !renderer) return;
+    const float cx = pos.x + size.x * 0.5f;
+    renderer->drawRect(pos, size, {0.04f, 0.04f, 0.06f, 0.55f});
+    // Centre needle
+    renderer->drawRect({cx - 1.0f, pos.y}, {2.0f, size.y}, {1.0f, 0.85f, 0.45f, 0.95f});
+    if (!font) return;
+    const float cardSc = theme.textScale * 0.9f;
+    const float tickSc = theme.textScale * 0.65f;
+    const float textH  = font->lineHeight(cardSc);
+    // Cardinal letters + 45-degree ticks
+    static const char* kCard[8] = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+    for (int i = 0; i < 8; ++i) {
+        const auto off = offsetFor(static_cast<float>(i) * 45.0f, heading, spanDeg, size.x);
+        if (!off) continue;
+        const bool major = (i % 2 == 0);
+        const float sc = major ? cardSc : tickSc;
+        const float tw = font->measureText(kCard[i], sc);
+        const float x = cx + *off;
+        // Two rows INSIDE the strip (anything drawn outside the panel rect is clipped):
+        // points of interest on the top row, the cardinal letters on the bottom row.
+        renderer->drawRect({x - 0.5f, pos.y + size.y - 6.0f}, {1.0f, 6.0f}, {0.85f, 0.85f, 0.85f, 0.7f});
+        font->drawText(renderer, kCard[i], {x - tw * 0.5f, pos.y + size.y - textH - 6.0f},
+                       major ? glm::vec4(1.0f, 1.0f, 1.0f, 1.0f) : glm::vec4(0.8f, 0.8f, 0.8f, 0.9f), sc);
+    }
+    // Points of interest: a tick from the top edge with the label beside it on the top row
+    const float poiSc = theme.textScale * 0.62f;
+    for (const auto& p : pois) {
+        const auto off = offsetFor(p.bearing, heading, spanDeg, size.x);
+        if (!off) continue;
+        const float x = cx + *off;
+        renderer->drawRect({x - 1.5f, pos.y + 1.0f}, {3.0f, 9.0f}, {0.98f, 0.90f, 0.62f, 1.0f});
+        const float tw = font->measureText(p.label, poiSc);
+        const float lh = font->lineHeight(poiSc);
+        float lx = x + 5.0f;                                   // label to the right of the tick...
+        if (lx + tw > pos.x + size.x - 2.0f) lx = x - 5.0f - tw; // ...or to the left near the edge
+        renderer->drawRect({lx - 2.0f, pos.y + 1.0f}, {tw + 4.0f, lh}, {0.04f, 0.04f, 0.06f, 0.75f});
+        font->drawText(renderer, p.label, {lx, pos.y + 1.0f}, {0.98f, 0.90f, 0.62f, 1.0f}, poiSc);
+    }
+}
+
+// ════════════════════════════════════════════════════════════════
 // UIRepeater
 // ════════════════════════════════════════════════════════════════
 

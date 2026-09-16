@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include <string>
 #include <vector>
+#include <optional>
 #include <functional>
 #include <memory>
 
@@ -98,6 +99,7 @@ enum class WidgetType {
     ProgressBar,
     Repeater,
     TextInput,
+    Compass,
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -404,6 +406,31 @@ public:
 // ════════════════════════════════════════════════════════════════
 // UIRepeater — one cloned child per record from a list data-binding
 // ════════════════════════════════════════════════════════════════
+
+/// Wayfinding strip (Ravenmere G-117 / G-51: "directions to go east mean nothing", and
+/// the user wants no quest markers): a horizontal band of cardinal letters that slides
+/// with the camera heading, plus named points of interest (scene exits, authored
+/// locations) as labelled ticks while they are inside the visible span. `bind` is the
+/// heading float key (degrees, 0 = north = +z, 90 = east = +x); `poiBind` the list key
+/// whose records carry texts["label"] + floats["bearing"] (degrees, same convention).
+class UICompass : public UIWidget {
+public:
+    WidgetType type() const override { return WidgetType::Compass; }
+    void render(UIRenderer* renderer, const BitmapFont* font,
+                const UITheme& theme, glm::vec2 pos) override;
+
+    struct Poi { std::string label; float bearing = 0.0f; };
+    std::string poiBind;
+    float heading = 0.0f;           ///< degrees, set by the binding pass
+    float spanDeg = 180.0f;         ///< degrees visible across the strip (±span/2)
+    std::vector<Poi> pois;          ///< set by the binding pass
+
+    /// Where a bearing lands on a strip of `width` px centred on `heading`: the x offset
+    /// from the centre, or std::nullopt when outside the span. Pure; unit-tested.
+    static std::optional<float> offsetFor(float bearing, float heading, float spanDeg, float width);
+    /// Signed shortest difference a - b in (-180, 180].
+    static float wrapDeg(float a);
+};
 
 class UIRepeater : public UIWidget {
 public:
