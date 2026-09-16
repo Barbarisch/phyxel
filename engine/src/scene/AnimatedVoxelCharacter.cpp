@@ -2554,12 +2554,14 @@ static constexpr float kControllerHeadClearance = 0.05f;
                 return m_celebrateClip.empty() ? "taunt" : m_celebrateClip;
             case AnimatedCharacterState::TurnLeft: return "left_turn";
             case AnimatedCharacterState::TurnRight: return "right_turn";
+            // The run-speed strafe clip belongs to the run GAIT (|strafe| > 0.6 - the WoW scheme
+            // strafes at 1.0 with no sprint key), the walk clip to the walk band.
             case AnimatedCharacterState::StrafeLeft:
             case AnimatedCharacterState::WalkStrafeLeft:
-                return isSprinting ? "left_strafe" : "left_strafe_walk";
+                return (isSprinting || std::abs(currentStrafeInput) > 0.6f) ? "left_strafe" : "left_strafe_walk";
             case AnimatedCharacterState::StrafeRight:
             case AnimatedCharacterState::WalkStrafeRight:
-                return isSprinting ? "right_strafe" : "right_strafe_walk";
+                return (isSprinting || std::abs(currentStrafeInput) > 0.6f) ? "right_strafe" : "right_strafe_walk";
             case AnimatedCharacterState::BackwardWalk: return "walking_backward";
             case AnimatedCharacterState::StopWalk: return "female_stop_walking";
             case AnimatedCharacterState::StopRun: return "run_to_stop";

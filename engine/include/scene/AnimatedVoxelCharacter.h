@@ -193,7 +193,10 @@ namespace Scene {
         /// and strafing; a pure strafe or a walk has its own clips and gets none.
         static float strafeLeanFor(float forward, float strafe) {
             if (forward >= -0.6f || std::abs(strafe) <= 0.1f) return 0.0f;
-            const float a = std::atan2(strafe, -forward);
+            // The locomotion integrator moves strafe +1 toward the body's right-hand side,
+            // which for a +Z-facing model is -x: a NEGATIVE yaw offset (manual review
+            // 2026-09-16: the first version leaned the body away from the movement).
+            const float a = -std::atan2(strafe, -forward);
             return a < -kStrafeLeanMax ? -kStrafeLeanMax : (a > kStrafeLeanMax ? kStrafeLeanMax : a);
         }
         /// Model-space Y the controller treats as the sole: the draw origin is

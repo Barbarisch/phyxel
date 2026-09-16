@@ -279,9 +279,9 @@ TEST(MmoControlsTest, RunStrafeLeansTheDrawnBodyNotTheLogicalFacing) {
     EXPECT_FLOAT_EQ(C::strafeLeanFor(-1.0f, 0.0f), 0.0f) << "plain run: no lean";
     EXPECT_FLOAT_EQ(C::strafeLeanFor(0.0f, 1.0f), 0.0f) << "pure strafe has its own clip";
     EXPECT_FLOAT_EQ(C::strafeLeanFor(-0.45f, 0.45f), 0.0f) << "walk + strafe has WalkStrafe clips";
-    EXPECT_NEAR(C::strafeLeanFor(-1.0f, 1.0f), C::kStrafeLeanMax, 1e-5f) << "run + right strafe: 45 deg right";
-    EXPECT_NEAR(C::strafeLeanFor(-1.0f, -1.0f), -C::kStrafeLeanMax, 1e-5f) << "run + left strafe: 45 deg left";
-    EXPECT_NEAR(C::strafeLeanFor(-1.0f, 0.5f), std::atan2(0.5f, 1.0f), 1e-5f) << "partial strafe: proportional";
+    EXPECT_NEAR(C::strafeLeanFor(-1.0f, 1.0f), -C::kStrafeLeanMax, 1e-5f) << "run + right strafe: 45 deg toward the body's right (-yaw)";
+    EXPECT_NEAR(C::strafeLeanFor(-1.0f, -1.0f), C::kStrafeLeanMax, 1e-5f) << "run + left strafe: 45 deg toward the left (+yaw)";
+    EXPECT_NEAR(C::strafeLeanFor(-1.0f, 0.5f), -std::atan2(0.5f, 1.0f), 1e-5f) << "partial strafe: proportional";
     auto physics = std::make_unique<Physics::PhysicsWorld>();
     Scene::AnimatedVoxelCharacter ch(physics.get(), glm::vec3(0.0f, 20.0f, 0.0f));
     ASSERT_TRUE(ch.loadModel("resources/animated_characters/humanoid.anim"));

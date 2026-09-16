@@ -378,6 +378,10 @@ TEST(PlayerTurnControllerTest, PickHitsTheWholeCharacterNotAChestCircle) {
     EXPECT_EQ(pc.resolvePick(cam, feetPx, vp, 20.0f).kind, PlayerTurnController::PickResult::Kind::Attack) << "click on the feet";
     EXPECT_EQ(pc.resolvePick(cam, headPx, vp, 20.0f).kind, PlayerTurnController::PickResult::Kind::Attack) << "click on the head";
     EXPECT_EQ(pc.resolvePick(cam, chestPx, vp, 20.0f).kind, PlayerTurnController::PickResult::Kind::Attack);
+    // Hovering the NAMEPLATE above the head selects too (the plate reads as the character).
+    glm::vec2 platePx;
+    ASSERT_TRUE(pc.screenOf(cam, "enemy", vp, platePx, 2.15f));
+    EXPECT_EQ(pc.resolvePick(cam, {platePx.x, platePx.y - 40.0f}, vp, 20.0f).kind, PlayerTurnController::PickResult::Kind::Attack) << "on the plate";
     glm::vec2 mn, mx;
     ASSERT_TRUE(PlayerTurnController::screenBoxOf(cam, &enemy, vp, mn, mx));
     const glm::vec2 beside(mx.x + 40.0f, chestPx.y);   // 40 px outside the box, level with the chest

@@ -450,6 +450,16 @@ bool PlayerTurnController::screenBoxOf(const Graphics::Camera& cam, const Scene:
     if (seen < 2) return false;
     const float pad = 6.0f;
     outMin -= glm::vec2(pad); outMax += glm::vec2(pad);
+    // The NAMEPLATE column above the head (bar on the head anchor, name + readout stacked
+    // above it, ~64 px, ~120 px wide) is part of the character to a player's eye: hovering
+    // the plate must select it (manual review 2026-09-16, "sometimes it seems right").
+    glm::vec2 headPx;
+    if (worldToScreen(vp, feet + up * 2.15f, viewportPx, headPx)) {
+        outMin.x = std::min(outMin.x, headPx.x - 62.0f);
+        outMax.x = std::max(outMax.x, headPx.x + 62.0f);
+        outMin.y = std::min(outMin.y, headPx.y - 66.0f);
+        outMax.y = std::max(outMax.y, headPx.y + 6.0f);
+    }
     return true;
 }
 

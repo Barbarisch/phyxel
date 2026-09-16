@@ -178,6 +178,8 @@ public:
 
     /// Get re-entry state for a scene.
     const SceneReentryState* getReentryState(const std::string& sceneId) const;
+    /// Forget every scene's re-entry state (a NEW game must not resume old positions).
+    void clearReentryStates() { reentryStates_.clear(); }
 
 private:
     // Transition implementation

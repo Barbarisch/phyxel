@@ -239,6 +239,8 @@ def create_project(
     extra_members.append('    std::string hoveredTarget_;     // combatant under the cursor (nameplate + targeting readout)')
     extra_members.append('    int nameplateDiagFrame_ = 0;    // throttle for the nameplate diagnostic')
     extra_members.append("    Phyxel::Core::ObjectiveTracker objectiveTracker_;  // quest-log spine; game.json \"objectives\" load here")
+    extra_members.append("    nlohmann::json initialObjectives_ = nlohmann::json::array();  // game.json objectives, re-added on New Game")
+    extra_members.append("    void newGame();   // restart from the start scene with a fresh run (G-129)")
     extra_members.append("    Phyxel::Core::PlayerProfile playerProfile_;        // persisted to the active scene's world DB (player_state table)")
     extra_members.append("    std::string loadingSceneName_;  // destination scene shown on the loading screen")
     extra_members.append("    float loadingHold_ = -1.0f;         // >= 0: loading screen held after the load until the world settles (G-115)")
@@ -1558,6 +1560,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 //   "objectives": [{{"id":"main_quest","title":"...","description":"...",
                 //                   "category":"main","priority":0,"hidden":false}}]
                 if (gameDef.contains("objectives") && gameDef["objectives"].is_array()) {{
+                    initialObjectives_ = gameDef["objectives"];
                     for (const auto& o : gameDef["objectives"]) {{
                         objectiveTracker_.addObjective(
                             o.value("id", ""), o.value("title", ""),
@@ -2574,6 +2577,35 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             return out;
         }}
 
+        // NEW GAME from inside a run (G-129, manual review 2026-09-16: "I died, hit New
+        // Game, it did not restart"): before this, start_game only flipped the screen
+        // state to Playing - the dead player and the old scene stayed. A fresh run: end
+        // the encounter/conversation, drop the run's inventory, coins, quest progress and
+        // scene re-entry positions, never resume the old save, and walk the manifest
+        // from its start scene again (the player entity is respawned per scene).
+        void {class_name}::newGame() {{
+            LOG_INFO("{class_name}", "New game: restarting from the start scene");
+            if (combatDirector_.inCombat()) combatDirector_.endEncounter();
+            if (dialogueSystem_ && dialogueSystem_->isActive()) dialogueSystem_->endConversation();
+            clickToMove_.cancel();
+            inventory_.clear();
+            wallet_ = Phyxel::Core::Currency{{}};
+            objectiveTracker_.clear();
+            for (const auto& o : initialObjectives_) {{
+                if (!o.is_object()) continue;
+                objectiveTracker_.addObjective(o.value("id", ""), o.value("title", ""), o.value("description", ""),
+                                               o.value("category", "main"), o.value("priority", 0), o.value("hidden", false));
+            }}
+            profileRestored_ = true;   // a new run never resumes the previous run's save
+            if (auto* sm = engine_ ? engine_->getSceneManager() : nullptr) {{
+                sm->clearReentryStates();
+                if (sm->hasManifest() && !sm->getManifest().startScene.empty()) {{
+                    if (!sm->transitionTo(sm->getManifest().startScene))
+                        LOG_WARN("{class_name}", "New game: could not transition to '{{}}'", sm->getManifest().startScene);
+                }}
+            }}
+        }}
+
         void {class_name}::onUpdate(Phyxel::Core::EngineRuntime& engine, float dt) {{
             lastDt_ = dt;  // remembered for menu-scene animations rendered in onRender
 
@@ -2600,7 +2632,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                  static_cast<int>(loadingHold_ * 1000.0f), dirty);
                         loadingHold_ = -1.0f;
                         if (screen_.getState() == Phyxel::UI::ScreenState::Loading)
-                            screen_.setState(Phyxel::UI::ScreenState::Playing);
+                            screen_.setState(menuSceneActive_ ? Phyxel::UI::ScreenState::MainMenu
+                                                              : Phyxel::UI::ScreenState::Playing);
                         updateCursorMode(engine);
                     }}
                 }}
@@ -2909,7 +2942,15 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                     return std::nullopt;
                                 }};
                                 a.onResume      = [this]() {{ screen_.resume();           if (engine_) updateCursorMode(*engine_); }};
-                                a.onStartGame   = [this]() {{ screen_.startGame();         if (engine_) updateCursorMode(*engine_); }};
+                                a.onStartGame   = [this]() {{
+                                    // New Game while a WORLD scene is active (after Game Over -> Main Menu,
+                                    // or from the pause menu) restarts the run; at boot it just starts.
+                                    auto* sm = engine_ ? engine_->getSceneManager() : nullptr;
+                                    const auto* active = sm ? sm->getActiveScene() : nullptr;
+                                    if (active && active->sceneType != Phyxel::Core::SceneType::Menu) newGame();
+                                    else screen_.startGame();
+                                    if (engine_) updateCursorMode(*engine_);
+                                }};
                                 a.onSettings    = [this]() {{ screen_.toggleSettings();   if (engine_) updateCursorMode(*engine_); }};
                                 a.onMainMenu    = [this]() {{ screen_.returnToMainMenu(); if (engine_) updateCursorMode(*engine_); }};
                                 a.onShowCredits = [this]() {{ screen_.showCredits(); }};
