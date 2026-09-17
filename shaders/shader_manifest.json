@@ -113,7 +113,7 @@
     },
     "foliage.frag": {
       "built": true,
-      "sources": "a43ae5a8b56c51d71697f56d294f354f2b380fa7e2b481a12d70ef38910b4049",
+      "sources": "3278f346086a5e9136d80b6d29b08ee98d12672bbeb1e9749c53d53d3e7be69e",
       "spv_present": true
     },
     "foliage.vert": {

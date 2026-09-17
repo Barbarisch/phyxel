@@ -146,7 +146,7 @@ void main() {
     vec3  rayDir   = normalize(ubo.sunDirection);              // direction sun rays travel
     vec3  viewDir  = normalize(vWorldPos - ubo.cameraPosition);
     float backlit  = pow(max(dot(viewDir, rayDir), 0.0), 6.0);
-    float trans    = backlit * (1.0 - shadowFactor * 0.6) * (0.25 + 0.75 * skyGate) * 0.9;
+    float trans    = backlit * (1.0 - shadowFactor * 0.6) * (0.25 + 0.75 * phxSunGate(skyGate, vShadowCoord)) * 0.9;   // G-135 R1: transmitted sun is direct sun
 
     // U3.3 -- point/spot lights on leaf cards. A card has no single meaningful normal (it is a
     // billboarded quad), so light it as an upward-facing diffuse receiver: attenuation and

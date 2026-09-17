@@ -73,6 +73,16 @@ BACK_BIT relative to the LIGHT — 36 stays required.
 code were corrected 2026-08-05. Still open: the ~1.1% pixel break D1 measured when applying the
 6-index quad to all passes has an unknown cause — the shadow pass stays 36-index until M5
 re-derives it empirically; do not guess a fourth time.
+**LIGHTING / SHADOWS — [`docs/LightingPipeline.md`](docs/LightingPipeline.md) is the CURRENT-STATE
+reference and must be updated in the same commit as any change to `lighting.glsl`, `occupancy.glsl`,
+a receiving shader, the cascade fit, the occupancy traces or the probe field** (§0 receiver matrix +
+rules, §9 change log, then `python tools/lighting_doc_check.py --update`; `build_and_test.ps1` runs
+`--check`). Read §0 BEFORE touching lighting: two answers to one question (a sky trace gating direct
+sun on top of the shadow map) shipped as "low poly shadows" (G-135) because the doc was stale and the
+plan docs have superseded sections. Direct sun = the shadow map wherever it covers the fragment; the
+sky trace owns ambient only. A lighting claim needs the defect IN FRAME in before and after captures
+at the same stated pose — never a frame chosen because it was convenient.
+
 **LOD/distance tiers: [`docs/LodTierLedger.md`](docs/LodTierLedger.md) is the maintained inventory
 of all 8 distance-tiered render systems** (levels, thresholds, transitions, invalidation paths +
 the standing rules for touching any tier). Update it with every tier change.

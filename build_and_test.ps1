@@ -112,6 +112,11 @@ Write-Host "========================================" -ForegroundColor Cyan
 # it. Warn loudly here; do not fail the build, because a stale .spv still compiles and links fine
 # and blocking the build over it would be worse than the warning.
 & python (Join-Path $ScriptDir "tools/shader_manifest.py") --check
+# Lighting model vs its reference doc (docs/LightingPipeline.md section 0.4): a change to the shared
+# lighting includes without a doc update, an undocumented receiver, or a direct-sun term that
+# multiplies a sky gate outside phxSunGate (the G-135 defect) fails here.
+& python (Join-Path $ScriptDir "tools/lighting_doc_check.py") --check
+if ($LASTEXITCODE -ne 0) { Write-Host "lighting_doc_check failed - update docs/LightingPipeline.md" -ForegroundColor Red; exit 1 }
 if ($LASTEXITCODE -ne 0) {
     Write-Host "WARNING: compiled shaders are STALE -- run build_shaders.bat and commit the .spv" -ForegroundColor Red
 }

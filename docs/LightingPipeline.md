@@ -1,23 +1,92 @@
 # Lighting Pipeline
 
-**Last updated: 2026-08-11.** THE reference for how this engine lights a frame.
+**Last updated: 2026-09-17.** THE current-state reference for how this engine lights a frame.
+Every change to a lighting or shadow shader, to the cascade fit, to the occupancy traces, or to
+the probe field **updates this document in the same commit** (see §0.4 — the check in
+`tools/lighting_doc_check.py` fails the build otherwise). Plans and their history live in
+[`UnifiedLightingPlan.md`](UnifiedLightingPlan.md) and [`NearShadowCascade.md`](NearShadowCascade.md);
+those are narratives with superseded sections. **This file states only what is true now.**
 
-> **This document was rewritten on 2026-08-11 because the previous version had become actively
-> misleading.** Dated 2026-05-11, it described a single 4096² shadow map fitted from the scene AABB,
-> a 16-tap Poisson PCF, "No CSM — Phase 5 work", and a post-process pass that "composites SSAO +
-> bloom, tone-maps, gamma-corrects". By August every one of those was false: three cascades had
-> shipped, PCF had been replaced by contact-hardening PCSS, and bloom/SSAO/tone-map had all been
-> deliberately DISABLED. It also never mentioned the baked per-voxel light field, despite
-> `docs/README.md` advertising it as the doc that covered exactly that. The old text is not
-> preserved here — git history has it.
+> **Why this rewrite (2026-09-17).** The previous version (2026-08-11) still described the deleted
+> flood-fill skylight and block light, said the sun was "sky-gated", and called the character shader
+> "not on the shared model". Reading it, an agent concluded the wrong things three times in one day
+> and shipped a wrong shadow fix (Ravenmere G-135). The per-receiver matrix in §0 is derived from the
+> shader source, function by function, and is the thing to keep true.
 
-## The one-paragraph version
+---
 
-A frame is lit by four things: a **physical atmosphere model** that supplies the sun's colour, the
-sky's colour, the ambient fill and the distance haze; a **baked per-voxel light field** that carries
-skylight and coloured block light through the world's geometry; **three sun shadow cascades**; and a
-small number of **dynamic point/spot lights**. All of it is composed in `shaders/lighting.glsl`,
-tone-mapped with AgX, and written to a linear HDR target.
+## 0. The model — what each term answers, who computes it, who consumes it
+
+### 0.1 The questions a lit pixel asks, and the ONE answer to each
+
+| # | Question | The answer (function, file) | Resolution / range | Who may NOT answer it |
+|---|---|---|---|---|
+| A | What colour is the sun / sky fill / haze / moon right now? | Atmosphere model (§1), `Atmosphere.cpp` ↔ `atmosphere.glsl`, into `ubo.sunColor / ambientColor / haze* / moonColor` | per frame | any hand-tuned ramp |
+| B | **Is the straight line to the sun blocked?** (direct sun) | The **shadow map**: `phxShadowPCSS` / `phxShadowFast` in `lighting.glsl`, near ∪ mid cascades (`min`), far cascade for far LOD meshes | near 0.02 u, mid 0.11 u, far ~0.9 u texels; 40 / 420 / 1600 u | the sky trace (D). Inside shadow coverage `phxSunGate` returns 1 — see rule R1 |
+| C | Where does the sun fall once nothing blocks it? | `pbrBRDF` (ground, Cook-Torrance) or Lambert/Blinn-Phong (vegetation, characters, glass) × `ubo.sunColor` | per fragment | — |
+| D | **How much of the sky dome does this point see?** (ambient fill, interiors) | `phxSkyVisibility` in `occupancy.glsl`: 5 rays (up + four at 30°) DDA-marched through the **micro-resolution occupancy** (1/9 u cells), reach 16 u, weighted by cosine; ray 0 escaping short-circuits to 1.0 | per fragment (ground, foliage, glass\*), per blade vertex (grass), per **cell** from the bake (characters, CPU debris) | direct sun (B) inside shadow coverage |
+| E | What is the ambient fill? | `phxAmbientAtmos(N, sky, ubo.ambientColor)`; on the ground the **probe field** (`phxGiIrradiance`, M5, default OFF) replaces the sky scalar with a traced neighbourhood + one bounce when available, else the analytic term | probes 55,296 on a 48×24×48 grid around the viewer | a second ambient formula anywhere |
+| F | Does a point/spot light reach here? | `phxLightVisibility` (`occupancy.glsl`): one DDA from the surface to the emitter, emitter run-length excluded | per fragment, 32 point + 16 spot, forward loop | — |
+| G | Moonlight | same directional path as C, **unshadowed**, gated by `skyVis²` only (no moon shadow map) | — | — |
+| H | Emission | material emissive tint (`isEmissive` path in `voxel.frag`); block light **no longer exists** (U7 stage 2) | — | — |
+| I | Distance haze | `phxAerialPerspective` | per fragment | — |
+| J | Tone map / exposure | **once**, `phxTonemap` in `post_process.frag` (AgX, exposure 8.0) | per frame | scene shaders (none call it any more) |
+
+\* glass gets `vSkyLight`, which `static_voxel.vert` emits as a **constant 1.0** — see gap §8.
+
+### 0.2 Receiver matrix — every shader that lights a surface (from the source, 2026-09-17)
+
+| Shader (pipeline) | Sky access (D) | Ambient (E) | Direct sun (B × C) | Shadow filter / cascades | Moon | Point/spot (F) | Haze | Notes |
+|---|---|---|---|---|---|---|---|---|
+| `voxel.frag` — static chunks, kinematic voxels (doors, furniture), GPU debris | traced per fragment, geometric normal | probe field if on, else analytic | `pbrBRDF × shadow × phxSunGate` | PCSS, mid ∪ near | yes, × skyVis² | yes, with visibility trace | yes | `vSkyLight` varying is a dead constant 1.0; the kinematic `setLightSampler` feed is not read here |
+| `transparent_voxel.frag` — glass | **constant 1.0** (`vSkyLight`) | analytic at sky=1 | Blinn-Phong × shadow × `phxSunGate` (gate of 1 = 1) | PCSS, mid ∪ near | no | yes, with visibility trace | — | glass never darkens indoors (§8) |
+| `grass.frag` (+`grass.vert`) — blades | traced per **blade vertex** (up normal), `vSky` | analytic (up) | `0.85 × shadow × phxSunGate` | **Fast 4-tap**, mid ∪ near | no | yes, with visibility trace | no | wind sheen also × skyGate |
+| `foliage.frag` — leaf cards | traced per fragment (up) | analytic (up) | `0.7 × shadow × phxSunGate` + backlit translucency × (0.25+0.75·phxSunGate) | **Fast 4-tap**, mid ∪ near | no | yes, with visibility trace | no | — |
+| `character.frag` — animated characters | **one value per body**: `ChunkManager::sampleBakedLight` at the feet+1 (the M3 per-cell bake) → `fragBakedLight.x` | analytic (N) | Blinn-Phong × shadow × `phxSunGate` | PCSS, mid ∪ near | yes, × sky² | yes, with visibility trace | no | block-light term from the bake is 0 |
+| CPU debris (`DebrisRenderPipeline` light sampler) | per-cell bake at the body | CPU: `ambient + sun × 0.5 × sky²` | **no shadow map** | — | no | no | — | flat per-body light; the only place the sky gate still scales sun, because there is no map lookup |
+| `far_terrain.frag`, `far_tree_mesh.frag` — far LOD | **constant 1.0** | analytic | `ndl × shadow` | Fast 4-tap, **far cascade only** | no | no | yes | — |
+| `water.frag`, `water_cell.frag`, `water_underwater.frag` | none | own constants | unshadowed | none | — | — | — | own model |
+| `sky.frag` | — | — | — | — | — | — | — | emits the atmosphere |
+
+Shared code: `lighting.glsl` (ambient, shadow filters, `phxSunGate`, haze, tone map) and
+`occupancy.glsl` (occupancy query, DDA, light and sky visibility). **Never re-inline any of it into
+a single shader** — five hand-synced copies is how grass went its whole life with no shadow lookup.
+
+### 0.3 Rules — each one was a shipped defect
+
+- **R1. Direct sun is the shadow map's answer wherever the map covers the fragment.** `phxSunGate`
+  returns 1 inside the fitted volume (blending through the map's 12 % border fade) and the sky
+  gate only outside it. Multiplying the sun by `skyVis²` on top of the map stamped a canopy's
+  five-ray vertical footprint onto the ground as hard 1-m blocks beside the correct shadow —
+  Ravenmere G-135, 2026-09-17. The sky trace owns **ambient**; that is how a sealed room stays dark.
+- **R2. One ambient formula.** Every receiver calls `phxAmbientAtmos`; the probe field only changes
+  where the sky scalar comes from. A receiver with its own ambient maths is a second lighting model.
+- **R3. Near and mid cascades are min-composed, never selected.** `min(near, mid)` is the union of
+  shadows, so a caster recorded in only one map still shades. The near map's border fade is the blend.
+- **R4. Grass casts into the near cascade only, and `GrassRenderPipeline::s_castShadows` is
+  `false` by default** (a camera-following dark disc from above).
+- **R5. Shadow-caster pipelines bake a static viewport: create them against the map they render
+  into; `VK_COMPARE_OP_LESS`, never the scene's reverse-Z compare.**
+- **R6. Occupancy flags gate every trace.** `ubo.occupancyBox.w`: bit0 occupancy readable, bit1
+  light tracing (`VulkanDevice::setLightTracingEnabled`, default ON), bit2 sky tracing
+  (`setSkyTracingEnabled`, default ON), bit3 probe field (`POST /api/debug/gi`, default OFF).
+  With a bit clear the corresponding function returns 1.0 / false and the fallback buffer must not
+  be read.
+- **R7. Measure, never eyeball.** Shadow-only view (debug mode 1) and per-term views (3 sky, 5
+  forward lights, 6 direct, 7 ambient) exist so a term can be isolated; `tools/lighting_stats.py`
+  for numbers. A frame that does not contain the defect proves nothing about it.
+
+### 0.4 Change discipline (enforced)
+
+1. Any change under `shaders/lighting.glsl`, `shaders/occupancy.glsl`, the receiver shaders in
+   §0.2, `RenderCoordinator::fitShadowVolume` / `renderShadowPass`, `gi_probe.comp`, or the
+   occupancy upload **updates §0 (matrix + rules) and appends a line to §9 in the same commit.**
+2. Then run `python tools/lighting_doc_check.py --update`, which stamps the fingerprint of the two
+   shared includes into §9. `build_and_test.ps1` runs `--check`: a shared-include change without a
+   doc update fails the build, and so does any direct-sun term that multiplies a sky gate without
+   going through `phxSunGate` (R1), and any lighting-model shader missing from the matrix.
+3. A visual claim about lighting needs the defect **in frame** in both the before and the after
+   capture, at the same pose, with the pose stated.
 
 ---
 
@@ -137,136 +206,103 @@ position and light. While it was an inert setter, the API (which sets `timeOfDay
 
 ---
 
-## 2. The baked per-voxel light field
+## 2. Sky access — the traced visibility, the per-cell bake, and the probe field
 
-Lives entirely in the chunk mesher: `ChunkRenderManager::rebuildCubeFaces`. There is no
-`LightingSystem` class.
+The flood-filled skylight and the RGB block light of the original engine are **gone** (U7 stage 2
+deleted block light; `static_voxel.vert` emits `vSkyLight = 1.0` as a placeholder). Three sources
+of "how much sky does this point see" remain, and which one a receiver reads is in §0.2:
 
-- **Skylight**: 4 bits/cell. Columns open to the sky seed 15 losslessly downward, then a 6-connected
-  BFS spreads at −1 per step. A sealed room stays 0.
-- **Block light**: 4 bits × RGB, independent channels, same BFS, seeded from emissive materials
-  (hue from `physics.colorTint`, peak 15, or `emissiveStrength × 4` for masked-emissive) and from
-  emissive/flaming sub- and microcubes at their parent cube cell.
-- **Cross-chunk bleed** via a boundary seed plus a border-change ripple that re-meshes the six
-  neighbours; converges because light is monotone and capped.
-- **Smooth lighting + implicit AO**: per quad corner, the light of the four cells touching that
-  corner in the air cell's plane is averaged. Solid cells read 0, so concave corners darken. Only
-  faces whose corners are uniform may greedy-merge (`s_smoothLighting`, `s_mergeTolerance`).
+- **Traced per fragment / per blade vertex** — `phxSkyVisibility` (`occupancy.glsl`). Five rays
+  from the surface (`+ normal × 2/9 u`): the normal, then four at 30° off it; each is a DDA through
+  the sub-voxel occupancy (1/9 u cells, `kReach = 16 u`, `kCells = 288`). Weighted by the cosine
+  to the normal. If the normal ray escapes the answer is 1.0 without tracing the rest (outdoors is
+  the common case). Ground, foliage and grass use this; a sealed room reads 0, a doorway falls off
+  with real geometry.
+- **The per-cell bake** (`ChunkManager::sampleBakedLight` → `m_skyLight`, one value per cube cell,
+  traced at bake time — M3-REDESIGN). Characters (`fragBakedLight.x`, one sample per body at the
+  feet + 1) and CPU debris read it. Note the resolution mismatch with the ground beside them.
+- **The probe field** (M5, `gi_probe.comp`, SSBO binding 13, 48×24×48 probes around the viewer,
+  spacing `ubo.giProbeGrid.w`). A probe stores irradiance: sky where a ray escapes, the light
+  leaving the hit surface otherwise (albedo stands in as 0.30, 18 directions). `voxel.frag` uses it
+  in place of the analytic sky scalar when bit3 is set and the sample is valid; buried and
+  back-facing probes are weighted out, and any failure falls back to the analytic term. **Default
+  OFF**; toggle with `POST /api/debug/gi`.
 
-### What blocks light is NOT `m_solidVis`
-`m_solidVis` answers "is there a visible cube here" and drives face culling and material lookup.
-Light opacity is a separate array, `m_lightOpaque`, and it differs in both directions:
-
-- **Sub-voxel geometry occludes.** Sub-voxel fill is accumulated per cell in micro-equivalents; a
-  cell blocks light at `kLightOpaqueFill = 243` (= 729/3, one subcube-thick slab). Before this,
-  a subcube-built roof was transparent to skylight and generated interiors leaked daylight.
-- **Transparent materials do not occlude.** Glass is a window; it used to bake a glazed room black.
-- **Leaf/billboarded sub-voxels are deliberately excluded** — counting them would flip every forest
-  floor to near-black, which is a separate look decision.
-
-⚠️ **An unresolvable sample must not mean "outdoors".** `skyLightAt` returns 15 for a cell it cannot
-resolve, which is right for a face's own air cell (a chunk-edge exterior face must not go black
-waiting for a stream-in) and **wrong** for the per-corner AO average. The corner average uses
-`bakedLightResolvable()` and skips what it cannot resolve. Pinned by `LightBakeOcclusionTest`.
-
-The bake is inseparable from a full chunk remesh (~40–50 ms/chunk in Debug); there is no light-only
-update path.
+The occupancy the traces read is the same sub-voxel occupancy the mesher builds (subcube and
+microcube leaf-accurate, `m_subOcc` / `m_microOcc`), uploaded as two SSBOs (bindings 11/12) and
+kept current with edits; `POST /api/debug/light_occupancy` reports per-micro counts.
 
 ---
 
-## 3. Shadows — three cascades
+## 3. Shadows — three cascades, one rule
 
-Created in `RenderCoordinator`; design record in [`NearShadowCascade.md`](NearShadowCascade.md).
+Created in `RenderCoordinator` (`fitShadowVolume`, `renderShadowPass`); design record in
+[`NearShadowCascade.md`](NearShadowCascade.md).
 
-| Cascade | Resolution | Distance | Texel | Update |
-|---|---|---|---|---|
-| Near | 4096² | 40 u | 0.0195 u | every frame |
-| Mid | 8192² | 420 u | 0.1125 u | every frame |
-| Far | 4096² | 1600 u | ~0.9 u | on a cadence |
+| Cascade | Resolution | Fit distance | Texel | Casters | Receivers | Update |
+|---|---|---|---|---|---|---|
+| Near | 4096² | 40 u (`s_nearShadowDistance`) | 0.0195 u (fit sphere + 48 u caster margin ⇒ coarser in practice) | chunks, characters, kinematic, dynamic, grass (off by default) | everything within 40 u of the camera, min-composed with mid | every frame |
+| Mid | 8192² | 420 u (`s_shadowDistance`) | 0.1125 u | chunks (GPU-driven multidraw), characters, kinematic, dynamic, foliage | ground, glass, grass, foliage, characters | every frame |
+| Far | 4096² | 1600 u (`s_farShadowDistance`) | ~0.9 u | far terrain tiles + far tree/structure LOD meshes **only** | `far_terrain.frag`, `far_tree_mesh.frag` only | every `s_farShadowCadence` = 4 frames; the sampling matrix is latched to the render |
 
-Fit is a view-frustum **bounding sphere** (rotation-invariant, so no shimmer when turning), texel-
-snapped in the absolute world light frame, `glm::orthoRH_ZO` plus a Vulkan Y-flip.
+**Fit:** the view-frustum slice's bounding sphere (rotation-invariant, no shimmer when turning),
+`+48 u` caster margin on the radius, `kCasterBack = 120 u` pulled toward the light so casters
+between the sun and the volume register, texel-snapped in the absolute light frame,
+`glm::orthoRH_ZO` with the Vulkan Y flip. Chunk casters are culled by the fitted sphere and then
+by the light frustum (`s_shadowFrustumCull`).
 
-Receivers **min-compose**: `min(mid, near)` is the union of shadows, so a caster recorded in only one
-map still shades correctly, and the near map's 12 % border fade *is* the cascade blend.
+**Filters:** contact-hardening **PCSS** (8-tap blocker search, 16-tap Poisson filter whose radius
+scales with occluder distance, per-pixel dither rotation) on ground, glass and characters;
+**Fast 4-tap** on grass, foliage and the far LOD. Bias is authored in world units and divided by the
+volume's depth span so it means the same distance at every fit. Both filters fade to lit over the
+outer 12 % of the map (`phxShadowBorderFade`).
 
-Sampling is contact-hardening **PCSS** (8-tap blocker search, then a 16-tap filter whose radius
-scales with occluder→receiver separation) for solid geometry, and a cheap 4-tap for vegetation.
-Bias is authored in **world units** and divided by the light volume's depth span, so it means the
-same physical distance at every shadow distance.
+**Composition:** `shadow = min(mid, near)` inside 40 u (R3). Then **direct sun =
+BRDF × shadow × phxSunGate(skyGate, midCoord)** — and `phxSunGate` is 1 wherever the mid coord is
+inside the volume (R1). The far cascade is not composed with the others: it serves receivers the
+near/mid maps never see.
 
-⚠️ Any shadow-pass pipeline must use `VK_COMPARE_OP_LESS`, never the scene's reverse-Z compare.
-⚠️ Shadow-caster pipelines bake a static viewport — create them against the map they render into.
-⚠️ Shadow multiplies **only** the sun term. Ambient, block light, point/spot lights and emission are
-all unshadowed.
+⚠️ Shadow multiplies **only** the sun term. Ambient, point/spot lights, emission and moonlight are
+unshadowed (moon: gap §8).
 
-**Known issue:** grass blades cast only into the ~40 u near cascade, whose camera-following coverage
-reads from an elevated camera as a dark disc gliding with the view. `GrassRenderPipeline::s_castShadows`
-defaults **false** as mitigation.
+**Known:** grass blades cast only into the near cascade, whose camera-following coverage reads from
+an elevated camera as a dark disc gliding with the view — `GrassRenderPipeline::s_castShadows`
+defaults **false**.
 
 ---
 
 ## 4. Dynamic point and spot lights
 
-`Light.h` / `LightManager`. **32 point, 16 spot**, uploaded as an SSBO and consumed in a forward loop
-with a full Cook-Torrance evaluation each.
+`Light.h` / `LightManager`: **32 point, 16 spot**, an SSBO, a forward loop per receiver.
+Since M2 every consumer (ground, glass, grass, foliage, characters) runs `phxLightVisibility`
+first: one DDA from the surface toward the emitter, with the emitter's own run-length excluded so a
+lamp inside its own fixture still lights out. A lantern sealed in a stone room no longer lights the
+character outside it or shines through glass. Attenuation is `(1 - d/r)²` on vegetation and a
+`1/(1+ld+qd²)` with hard cutoff on the ground — still not photometric. Emissive chunk voxels are
+registered as real lights (U3.2, "emissive voxel lights registered" at scene load).
 
-Open defects, all real:
-- **They cast no shadows and do no occlusion test** — a chandelier lights through walls.
-- **Positions are absolute world while fragment positions are camera-relative**, so they are only
-  correct near the origin.
-- Attenuation is a hand-rolled `1/(1+ld+qd²)` with a hard cutoff — no inverse-square, no photometric
-  units.
-- Structure-generation fixtures are **double-counted**: the same lamp is an emissive voxel seeding
-  baked block light *and* a registered point light.
-- `LightManager` lights are not world-persisted, so generated lighting does not survive save/load.
-
-The planned resolution is to move static fixtures into the bake (where the flood fill already
-respects walls) and reserve forward lights for dynamic sources.
-
-⚠️ Point/spot intensities were authored against a diffuse term with the Lambert `1/pi` **omitted**.
-That omission was removed on 2026-08-10 when the sun became physical, so every authored intensity is
-now π× dimmer and needs retuning.
+Open: no shadow maps for point lights (occlusion is the binary trace), intensities authored before
+the Lambert `1/π` was restored (2026-08-10) read π× dim, lights are not world-persisted.
 
 ---
 
-## 5. Composition, exposure and tone mapping
+## 5. Composition and exposure
 
-`shaders/lighting.glsl` is THE single source of the scene lighting model — ambient, shadow lookup,
-aerial perspective and the tone curve. It is included by `voxel.frag`, `grass.frag`, `foliage.frag`,
-`far_terrain.frag`, `far_tree_mesh.frag` and `sky.frag`. **Never re-inline a lighting constant or a
-shadow loop into a single shader**; five hand-synced copies is how `grass.frag` went its entire life
-with no shadow lookup at all.
+Order in `voxel.frag`: ambient (probe field or analytic) → direct sun (`pbrBRDF`, shadowed, sun-gated
+per R1) → moon (× skyVis²) → forward point/spot lights (visibility-traced) → masked emission →
+aerial perspective. `post_process.frag` composites scene + OIT and applies **the frame's single
+tone map** (`phxTonemap`, AgX, exposure 8.0 — `POST /api/debug/tonemap`). No scene shader tone-maps
+any more; the editor viewport samples the same grade image as a packaged game.
 
-Order in `voxel.frag`: hemispheric ambient (`phxAmbientAtmos`, driven by the sky colour) → sun
-(Cook-Torrance, shadowed, sky-gated) → moonlight → baked block light → point lights → spot lights →
-masked emission → aerial perspective → `phxTonemap`.
+A physical atmosphere returns radiance (a lit diffuse surface ~0.1), so exposure is required, not
+polish. AgX rather than ACES because ACES bleaches the warm sun the atmosphere produces.
+`phxTonemap` returns linear; the `B8G8R8A8_SRGB` swapchain applies the sRGB encode — never add a
+manual `pow(1/2.2)`.
 
-### Exposure is required, not polish
-A physical atmosphere returns **radiance**: a noon sky is ~0.02 and a lit diffuse surface ~0.1,
-whereas the flat clear colour it replaced was a display-referred 0.45–0.95. Rendering radiance
-straight to an 8-bit display gives a nearly black frame — measured. `phxTonemap(color, exposure,
-curve)` applies exposure and then **AgX**.
-
-AgX rather than ACES: ACES desaturates bright colours toward white, which is the washed-out look
-this work exists to remove and would bleach the warm sun the atmosphere works to produce. AgX does
-its curve in inset primaries and rotates back out, which is where its hue preservation comes from.
-
-⚠️ `phxTonemap` returns **LINEAR**. AgX's own output is display-referred, so it is converted back
-with the 2.2 power. Dropping that step double-gammas the frame.
-
-Live knob: `POST /api/debug/tonemap {"exposure": float, "curve": int}` — curve 0 = none (raw linear,
-for A/B), 1 = AgX. Default exposure **8.0**, calibrated by sweep.
-
-⚠️ **Staging note.** The tone map currently runs in the scene fragment shaders rather than in a
-post-process pass, because **the editor viewport samples the raw offscreen HDR image and never sees
-the swapchain post-process pass**. That is the documented reason bloom, SSAO and an earlier Reinhard
-tone map were disabled — their bugs shipped in packaged games unseen. Until an editor-visible grade
-pass exists, tone mapping in the scene shaders is the only form of it an author can actually see.
-The function lives in one file so moving it later is a deletion, not a rewrite.
-
-**Not yet on the shared model:** `character.frag` (its own `kSkyFill`, no ambient floor, no haze,
-Blinn-Phong, mid cascade only) and the water shaders. They will read brighter than the world.
+**Debug views** (`ubo.debugShadowMode`, `POST /api/debug/shadow {"mode": N}`, Ctrl+F4 cycles):
+1 shadow-only · 2 grass wind ramp · 3 traced sky visibility · 4 (retired, black) · 5 forward
+point/spot · 6 direct sun + moon · 7 ambient · 8 occupancy cells · 9 occupancy classes · 10 wind
+field map (grass hidden).
 
 ---
 
@@ -375,12 +411,27 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 | **Blue hour** | Single scattering cannot produce it — the twilight zenith measures B/R = 0.94. Needs a multiple-scattering LUT. Pinned as `DISABLED_TwilightZenithIsBlue_NeedsMultipleScattering`. |
 | **Moon shadows** | Moonlight is unshadowed; the cascades are fitted to the sun. Fitting to the dominant body earns real moon shadows. |
 | ~~No stars / airglow~~ | SHIPPED — stars + airglow render. Note they are a *suspect* in the bloom spots (§6). |
-| **No real AO** | AO is implicit in the skylight nibbles, so it vanishes outdoors (sky = 15) and indoors (sky = 0). A dedicated per-corner AO channel fits in the 16 spare bits of `light2`/`light3`. |
+| **No real AO** | The per-corner skylight nibbles that gave implicit AO are gone (U7); nothing replaced them. SSAO is disabled (§6). |
 | **Bloom produces spots** | ⛔ BROKEN, ships off. Spots/blotches instead of a glow; suspected fireflies from bright single pixels (sky star/airglow noise, grass speckle), widened by the half-res blur. See §6. |
 | **No AA** | The grade pass now exists, so FXAA/TAA is unblocked but not built. |
-| **Point lights** | See §4 — unshadowed, wrong coordinate space, double-counted, not persisted. |
+| **Point lights** | See §4 — occluded by a binary trace but no shadow maps, intensities π× dim since the Lambert fix, not persisted. |
+| **Glass ignores sky access** | `transparent_voxel.frag` reads `vSkyLight`, which the vertex stage emits as a constant 1.0, so a window in a sealed room is lit as if outdoors. Trace per fragment like the ground. |
+| **Two sky sources side by side** | Characters and CPU debris read the per-cell bake (one value per body); the ground beside them traces per fragment. They disagree at every wall and doorway. |
+| **Far LOD sees full sky** | `far_terrain.frag` / `far_tree_mesh.frag` pass `sky = 1.0` — no interiors at that range, so acceptable, but state it. |
 | **Metals** | No environment/IBL term, so they read dark except in direct light. |
 | **T-junction cracks / character speckle** | Open render defects at greedy-merge borders; see `RenderOptimization.md`. |
+
+## 9. Change log (append a line per lighting/shadow change; the fingerprint line is written by `tools/lighting_doc_check.py --update`)
+
+- 2026-09-17 — foliage translucency (transmitted sun) also goes through `phxSunGate`; caught by the new R1 check on its first run.
+- 2026-09-17 — `phxSunGate`: direct sun is the shadow map's answer inside its coverage; the sky gate only outside it. Applied in voxel/grass/foliage/character/transparent_voxel (Ravenmere G-135). Doc rewritten to the current state; §0 matrix and rules added; check script added.
+- 2026-09-02 — M5 one-bounce probe field working, default OFF (`/api/debug/gi`).
+- 2026-09-01 — U7 stage 2: block light deleted from the engine; vegetation sky transport retired (grass/foliage trace their own sky).
+- 2026-08-30 — M2 point/spot visibility trace on every consumer; M3-REDESIGN per-cell traced bake for non-chunk receivers.
+- 2026-08-15 — single tone map moved to `post_process.frag` (grade pass).
+- 2026-08-06 — near shadow cascade (40 u) shipped; receivers min-compose.
+
+<!-- lighting-model-fingerprint: 10fea6f3d5c08d15 -->
 
 ## Related
 
