@@ -125,22 +125,13 @@ void main() {
     // bright inside shadows and read as a flat carpet. Blades are thin and face every
     // direction, so the fill uses an up normal and the sun a flat wrap rather than a hard
     // per-blade N-dot-L, which would just make the field sparkle.
-    // SAME FILTER AS THE GROUND (Ravenmere G-135, 2026-09-17): grass used the 4-tap
-    // phxShadowFast while the voxel ground under it used contact-hardening PCSS. A tree
-    // canopy of 1/3-u leaf voxels then threw a HARD, 0.33-u stair-stepped shadow onto
-    // the blades and a soft, feathered one onto the bare ground a few metres further
-    // on - "low poly shadows to the left and right of the player, high res in front,
-    // the same trees". One receiver model for both: PCSS with an up normal for the
-    // bias (blades face every direction; the ground's per-face normal has no analogue).
-    float ndlUp = dot(vec3(0.0, 1.0, 0.0), normalize(-ubo.sunDirection));
-    float shadowFactor = phxShadowPCSS(shadowMap, vShadowCoord, ndlUp, gl_FragCoord.xy,
-                                       ubo.shadowDepthRange);
+    float shadowFactor = phxShadowFast(shadowMap, vShadowCoord, ubo.shadowDepthRange);
     // Near cascade: min-compose (union of shadows). This is where blade-on-blade and
     // object-on-blade shadows actually resolve — the mid map's texel is 1.4 blades wide.
     if (ubo.shadowCascadeNear.x > 0.0)
         shadowFactor = min(shadowFactor,
-                           phxShadowPCSS(shadowMapNear, vShadowCoordNear, ndlUp,
-                                         gl_FragCoord.xy, ubo.shadowCascadeNear.y));
+                           phxShadowFast(shadowMapNear, vShadowCoordNear,
+                                         ubo.shadowCascadeNear.y));
     // M4: vSky is TRACED now (in grass.vert, per blade vertex) rather than read from the dead
     // per-instance nibble the flood used to fill. Grass inside a house is finally darker than grass
     // in the open. Tracing per VERTEX rather than per fragment because sky access varies at world
