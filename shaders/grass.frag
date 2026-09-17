@@ -138,7 +138,7 @@ void main() {
     // scale and a blade is ~0.05-0.1 u wide -- per fragment cost 3.284 ms against 1.240 ms.
     float sky = vSky;
     vec3  ambient = phxAmbientAtmos(vec3(0.0, 1.0, 0.0), sky, ubo.ambientColor);
-    vec3  sunTerm = ubo.sunColor * (0.85 * shadowFactor * phxSkyGate(sky));
+    vec3  sunTerm = ubo.sunColor * (0.85 * shadowFactor * phxSunGate(phxSkyGate(sky), vShadowCoord));   // G-135
 
     // U3.3 — POINT/SPOT LIGHTS ON GRASS, with the same visibility term stone gets.
     //

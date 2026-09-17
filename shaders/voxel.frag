@@ -520,7 +520,8 @@ void main() {
     // sky access (curved) so surfaces with no sky exposure don't receive direct sun. This is
     // what casts shadows across the scene whenever the sun isn't directly overhead.
     vec3 sunL = normalize(-ubo.sunDirection);
-    vec3 dbgDirect = pbrBRDF(N, V, sunL, albedo, rough, metallic, ubo.sunColor) * shadowFactor * skyCurve;
+    vec3 dbgDirect = pbrBRDF(N, V, sunL, albedo, rough, metallic, ubo.sunColor) * shadowFactor
+                   * phxSunGate(skyCurve, shadowCoord);   // G-135: the map decides direct sun
     color += dbgDirect;
 
     // Moonlight — the same directional model, fed by the atmosphere's phase-scaled moonlight colour,

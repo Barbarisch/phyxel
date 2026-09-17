@@ -168,7 +168,7 @@ void main() {
 
     vec3 ambient = phxAmbientAtmos(normal, vSkyLight, ubo.ambientColor);
     vec3 sunContrib = (diff * ubo.sunColor + sunSpec * ubo.sunColor)
-                    * shadowFactor * phxSkyGate(vSkyLight);
+                    * shadowFactor * phxSunGate(phxSkyGate(vSkyLight), shadowCoord);   // G-135
     vec3 finalLight = ambient + sunContrib;
 
     // Point lights

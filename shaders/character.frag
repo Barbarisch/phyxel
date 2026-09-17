@@ -154,7 +154,7 @@ void main() {
     // Shared hemispheric fill driven by the atmosphere, so a character's shaded side goes cool
     // with the sky exactly as the world's does.
     vec3 ambient = phxAmbientAtmos(normal, sky, ubo.ambientColor);
-    vec3 finalLight = ambient + (diff + sunSpec) * ubo.sunColor * skyCurve * shadowFactor;
+    vec3 finalLight = ambient + (diff + sunSpec) * ubo.sunColor * phxSunGate(skyCurve, shadowCoord) * shadowFactor;   // G-135
     // Moonlight, matching voxel.frag: unshadowed (the cascades are fitted to the sun), and
     // gated by sky access. Without it a character is black on a moonlit night while the ground
     // around them is lit.

@@ -129,6 +129,18 @@ bool phxShadowCoordValid(vec4 c) {
     return c.w > 0.0 && c.z > -1.0 && c.z < 1.0;
 }
 
+/// DIRECT-SUN GATE (Ravenmere G-135, 2026-09-17). Inside the shadow map's fitted volume the map
+/// IS the answer to "is the sun blocked": a roof, a wall, a canopy are casters, resolved along the
+/// real sun direction. The traced sky visibility is the AMBIENT term's business. Multiplying the
+/// sun by it as well (a leftover from the flood-skylight days, when one number gated both) stamped
+/// a canopy's near-vertical footprint onto the ground as hard, sun-agnostic blocks right beside the
+/// correctly shadowed pixels - the "low poly shadows" next to the player. So: full sun where the map
+/// has data (blending through its 12% border fade), the sky gate only where it has none.
+float phxSunGate(float skyGate, vec4 shadowCoord) {
+    if (!phxShadowCoordValid(shadowCoord)) return skyGate;
+    return mix(skyGate, 1.0, phxShadowBorderFade(shadowCoord.xy));
+}
+
 /// CONTACT-HARDENING shadows (PCSS). A blocker search estimates occluder distance and the
 /// filter widens with occluder->receiver separation, so shadows are sharp where objects meet
 /// the ground and soften with height. A constant-width filter is the single most "CG" thing

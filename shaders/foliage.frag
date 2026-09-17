@@ -138,7 +138,7 @@ void main() {
     float sky     = phxSkyVisibility(vWorldPos + ubo.cameraWorld, vec3(0.0, 1.0, 0.0), ubo.occupancyBox);
     float skyGate = phxSkyGate(sky);
     vec3  fill    = phxAmbientAtmos(vec3(0.0, 1.0, 0.0), sky, ubo.ambientColor);
-    vec3  sunTerm = ubo.sunColor * (0.7 * shadowFactor * skyGate);
+    vec3  sunTerm = ubo.sunColor * (0.7 * shadowFactor * phxSunGate(skyGate, vShadowCoord));   // G-135
 
     // Backlit TRANSMISSION: looking toward the sun through foliage, shadowed leaves glow —
     // light scattering through the blade. Strongest at the rim (partially occluded), damped

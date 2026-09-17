@@ -265,6 +265,14 @@ All currently deliver 1.0, because M0 pinned the flood to `sky = 15`. The storag
 per instance.
 
 ## D. SHADOWS
+
+> **2026-09-17 — direct sun is the shadow map's, not the sky trace's (Ravenmere G-135).** Every
+> receiver multiplied its direct-sun term by `phxSkyGate(skyVis)` as well as by the shadow map — a
+> leftover from the flood era, when one number gated both ambient and sun. Under a tree that stamped
+> the canopy's five-ray vertical footprint onto the ground as hard 1-m blocks beside the correct
+> shadow ("low poly shadows"). `phxSunGate` (lighting.glsl) now returns 1 inside the shadow map's
+> coverage (through its border fade) and the sky gate only outside it. The trace still owns AMBIENT:
+> a sealed room stays dark because it sees no sky, not because the sun is gated.
 Three cascades (near 40 u / mid 420 u / far 1600 u), `VK_CULL_MODE_BACK_BIT`, depth bias 1.25/1.75.
 **Casters:** chunks, characters and kinematics into near+mid; far terrain tiles and tree-LOD meshes
 into far. **Non-casters:** grass (`s_castShadows = false`), far-tree impostor cards, CPU debris, VFX.
