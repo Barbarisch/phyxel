@@ -156,8 +156,16 @@ public:
     void setMonsterId(const std::string& id) { m_monsterId = id; }
     const std::string& getMonsterId() const { return m_monsterId; }
 
+    /// HOSTILE: this NPC fights the player on sight / when engaged (Core::EncounterInitiator,
+    /// Ravenmere G-137). Set by the loader from an NPC's "hostile": true, and by hosts for
+    /// every NPC that carries a combat-AI profile. Factions decide who fights WHOM inside a
+    /// battle; this decides whether a fight starts at all.
+    void setHostile(bool h) { m_hostile = h; }
+    bool isHostile() const { return m_hostile; }
+
 private:
     std::string m_monsterId;
+    bool        m_hostile = false;
     std::string m_name;
     std::unique_ptr<AnimatedVoxelCharacter> m_character;
     std::unique_ptr<NPCBehavior> m_behavior;

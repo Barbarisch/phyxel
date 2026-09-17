@@ -388,3 +388,59 @@ TEST(PlayerTurnControllerTest, PickHitsTheWholeCharacterNotAChestCircle) {
     EXPECT_NE(pc.resolvePick(cam, beside, vp, 20.0f).kind, PlayerTurnController::PickResult::Kind::Attack)
         << "empty screen beside the character is not the character";
 }
+
+// --- G-136: a combat move follows the host's NavGraph route, and the ground pick
+// lands on the VOXEL SURFACE under the cursor, not on a plane at the player's feet.
+TEST(PlayerTurnControllerTest, MoveFollowsThePathProvidersRoute) {
+    CombatDirector dir; startPlayerTurn(dir);
+    EntityRegistry reg;
+    TestEntity player({0, 0, 0});
+    reg.registerEntity(&player, "player", "animated");
+    MockBody body;
+    PlayerTurnController pc;
+    pc.setCombatDirector(&dir);
+    pc.setEntityRegistry(&reg);
+    pc.setBodyProvider([&](Scene::Entity*) -> ITurnActorBody* { return &body; });
+    pc.setPlayerEntityId("player");
+    // The "graph" routes every move through a corner at (3,0,0) — a wall between the
+    // start and the goal at (3,0,3).
+    glm::vec3 askedFrom{-1}, askedTo{-1};
+    pc.setPathProvider([&](const glm::vec3& from, const glm::vec3& to) {
+        askedFrom = from; askedTo = to;
+        return std::vector<glm::vec3>{{3.0f, 0, 0}, to};
+    });
+    pc.tick(0.05f);
+    ASSERT_TRUE(pc.requestMove({3.0f, 0, 3.0f}));
+    EXPECT_NEAR(askedTo.z, 3.0f, 1e-4f);
+    bool passedCorner = false;
+    for (int i = 0; i < 400 && pc.isBusy(); ++i) {
+        pc.tick(0.05f);
+        // within the actor's arrival radius of the corner (a straight diagonal never comes closer than 2.1 u)
+        if (std::abs(body.pos.x - 3.0f) < 0.35f && body.pos.z < 0.35f) passedCorner = true;
+    }
+    EXPECT_TRUE(passedCorner) << "the move ignored the route and cut the corner";
+    EXPECT_NEAR(body.pos.x, 3.0f, 0.35f);
+    EXPECT_NEAR(body.pos.z, 3.0f, 0.35f);
+}
+
+TEST(PlayerTurnControllerTest, GroundPickLandsOnTheVoxelSurfaceNotThePlayersPlane) {
+    CombatDirector dir; startPlayerTurn(dir);
+    EntityRegistry reg;
+    TestEntity player({0, 0, 0});
+    reg.registerEntity(&player, "player", "animated");
+    PlayerTurnController pc;
+    pc.setCombatDirector(&dir);
+    pc.setEntityRegistry(&reg);
+    pc.setPlayerEntityId("player");
+    // Terrain: ground at y<=0 everywhere, plus a 3-cube-high ledge for x >= 5.
+    pc.setSolidProvider([](const glm::ivec3& c) { return c.y <= 0 || (c.x >= 5 && c.y <= 3); });
+    // Camera high above (8,30,0) looking straight down: the screen centre projects to x=8, z=0.
+    Graphics::Camera cam({8.0f, 30.0f, 0.0f});
+    cam.setYaw(0.0f); cam.setPitch(-89.9f);
+    const glm::vec2 vp{1280.0f, 720.0f};
+    const auto r = pc.resolvePick(cam, {640.0f, 360.0f}, vp, /*groundY=*/0.0f);
+    ASSERT_EQ(r.kind, PlayerTurnController::PickResult::Kind::Move);
+    EXPECT_NEAR(r.point.x, 8.0f, 0.6f);
+    EXPECT_NEAR(r.point.z, 0.0f, 0.6f);
+    EXPECT_NEAR(r.point.y, 4.0f, 0.01f) << "the ledge top (cube y=3 -> standing y=4), not the y=0 plane";
+}

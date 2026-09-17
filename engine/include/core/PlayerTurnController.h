@@ -37,6 +37,18 @@ public:
 
     using BodyProvider = std::function<ITurnActorBody*(Scene::Entity*)>;
     void setBodyProvider(BodyProvider p)             { m_bodyProvider = std::move(p); }
+    /// Route planner for moves (G-136): from the body's position to the goal, returning
+    /// the waypoints to walk (the host answers with the NPCs' NavGraph route, e.g.
+    /// ClickToMove::planPath). Empty result = no route (the move is refused). Unset =
+    /// straight line, as before.
+    using PathProvider = std::function<std::vector<glm::vec3>(const glm::vec3& from, const glm::vec3& to)>;
+    void setPathProvider(PathProvider p)             { m_pathProvider = std::move(p); }
+    /// Voxel solidity for the ground pick (G-136): with it, the point under the cursor is
+    /// the first solid cube along the camera ray (its top face), so a click on a slope,
+    /// a ledge or a stair lands where the cursor is; without it the pick falls back to the
+    /// plane at the player's feet.
+    using SolidProvider = std::function<bool(const glm::ivec3&)>;
+    void setSolidProvider(SolidProvider p)           { m_solidProvider = std::move(p); }
 
     /// The controlled player's entity id (must match its id in the encounter).
     void setPlayerEntityId(const std::string& id)    { m_playerId = id; }
@@ -189,6 +201,8 @@ private:
     EntityRegistry* m_registry = nullptr;
     CombatSystem*   m_combat   = nullptr;
     BodyProvider    m_bodyProvider;
+    PathProvider    m_pathProvider;
+    SolidProvider   m_solidProvider;
 
     std::string m_playerId;
     std::string m_selectedTarget;

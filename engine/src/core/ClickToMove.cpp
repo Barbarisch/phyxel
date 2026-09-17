@@ -34,22 +34,10 @@ bool ClickToMove::requestWalkTo(const glm::vec3& goal, float standoff,
     if (active()) cancel();
 
     const glm::vec3 from = b->position();
-    std::vector<glm::vec3> wps;
-    std::vector<float> radii;
-    const NavGraph* graph = m_graph ? m_graph() : nullptr;
-    if (graph) {
-        auto res = graph->findPath(from, goal, m_agent);
-        if (!res.found) { m_result = Result::NoPath; return false; }
-        wps = res.waypoints.size() > 2 ? graph->smoothWaypoints(res.waypoints, m_agent)
-                                       : res.waypoints;
-        radii = graph->arrivalRadii(wps);
-    } else {
-        wps.push_back(goal);   // no navigation in this scene: straight line
-    }
+    std::vector<glm::vec3> wps = planPath(from, goal);
     if (wps.empty()) { m_result = Result::NoPath; return false; }
-    // The graph's last waypoint is a cell CENTRE; the click was a point. Finish
-    // on the point itself so the character stops where the player clicked.
-    wps.back() = glm::vec3(goal.x, wps.back().y, goal.z);
+    std::vector<float> radii;
+    if (const NavGraph* graph = m_graph ? m_graph() : nullptr) radii = graph->arrivalRadii(wps);
     if (radii.size() != wps.size()) radii.assign(wps.size(), NavGraph::kArriveLoose);
     radii.back() = standoff > 0.0f ? standoff : kGoalRadius;
 
@@ -63,6 +51,24 @@ bool ClickToMove::requestWalkTo(const glm::vec3& goal, float standoff,
     m_stallClock = 0.0f;
     m_result = Result::Walking;
     return true;
+}
+
+std::vector<glm::vec3> ClickToMove::planPath(const glm::vec3& from, const glm::vec3& goal) const {
+    std::vector<glm::vec3> wps;
+    const NavGraph* graph = m_graph ? m_graph() : nullptr;
+    if (graph) {
+        auto res = graph->findPath(from, goal, m_agent);
+        if (!res.found) return {};
+        wps = res.waypoints.size() > 2 ? graph->smoothWaypoints(res.waypoints, m_agent)
+                                       : res.waypoints;
+    } else {
+        wps.push_back(goal);   // no navigation in this scene: straight line
+    }
+    if (wps.empty()) return {};
+    // The graph's last waypoint is a cell CENTRE; the click was a point. Finish
+    // on the point itself so the character stops where the player clicked.
+    wps.back() = glm::vec3(goal.x, wps.back().y, goal.z);
+    return wps;
 }
 
 void ClickToMove::cancel() {

@@ -3,6 +3,7 @@
 #include "core/ActionEconomy.h"
 
 #include <glm/glm.hpp>
+#include <vector>
 
 namespace Phyxel {
 namespace Core {
@@ -83,6 +84,16 @@ public:
     /// movement remains.
     bool requestMove(const glm::vec3& target);
 
+    /// Walk a WAYPOINT PATH (the host plans it on the NavGraph), visiting the points
+    /// in order and spending movement as the body travels; stops on the last point,
+    /// when movement runs out, or on a stall. Rejected if busy, out of movement, or
+    /// the path is empty. requestMove(p) == requestMovePath({p}). (Ravenmere G-136:
+    /// a straight line into a wall never reached the click point.)
+    bool requestMovePath(std::vector<glm::vec3> waypoints);
+    /// The path being walked (empty when not moving) and the index of the current waypoint.
+    const std::vector<glm::vec3>& movePath() const { return m_path; }
+    size_t movePathIndex() const { return m_pathIndex; }
+
     /// Attack at `targetPos`. Spends the action. Rejected if busy, the action
     /// is already spent, or the target is beyond `reachFeet`.
     bool requestAttack(const glm::vec3& targetPos, float reachFeet);
@@ -132,7 +143,9 @@ private:
     ActionBudget*   m_budget = nullptr;
     Activity        m_activity = Activity::Idle;
 
-    glm::vec3 m_moveTarget{0.0f};
+    glm::vec3 m_moveTarget{0.0f};          // the current waypoint
+    std::vector<glm::vec3> m_path;         // the whole route (m_moveTarget = m_path[m_pathIndex])
+    size_t    m_pathIndex = 0;
 
     float m_unitsPerFoot = kDefaultWorldUnitsPerFoot;
     float m_pendingFeet  = 0.0f;   // fractional feet carried between ticks

@@ -56,6 +56,12 @@ public:
     /// Stop now (WASD pressed, combat began, scene changed). No-op when idle.
     void cancel();
 
+    /// Plan the route from `from` to `goal` without walking it: the graph's path,
+    /// smoothed, its last point snapped to the goal's XZ; a straight line when the
+    /// scene has no graph; empty when the graph has no route. The combat turn
+    /// controller walks these same waypoints (PlayerTurnController::setPathProvider).
+    std::vector<glm::vec3> planPath(const glm::vec3& from, const glm::vec3& goal) const;
+
     bool active() const { return m_result == Result::Walking; }
     Result lastResult() const { return m_result; }
     const glm::vec3& goal() const { return m_goal; }

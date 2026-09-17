@@ -446,6 +446,23 @@ Standalone games use the standard `GameSettings::defaultKeybindings()`:
 | ESC | Pause menu / back |
 | C | Character sheet (`ToggleCharacter`; stats/saves/skills from the CharacterSheet, `resources/ui/character_screen.json`) |
 
+### How a fight starts (2026-09-17, Ravenmere G-137)
+
+A turn-based encounter begins from an authored `start_combat` trigger **or** from play:
+
+- **Hostiles.** An NPC is hostile when it appears on the enemy side of any `start_combat`
+  action in the game (harvested at load), or when its definition says `"hostile": true`.
+  A `combat_ai` profile does *not* make an NPC hostile - companions carry profiles too.
+- **You engage.** A left click on a hostile starts the fight (the hostiles within 12 m of it
+  join); farther than that the character walks up first. The action bar shows out of
+  combat with your spells: arm one, click a hostile, and it is cast as the opening action
+  of the fight it started.
+- **They engage.** A hostile that sees you within 8 m (eye line clear through the voxels)
+  starts the fight itself. One that fled a fight keeps its distance for 30 s, then may.
+- A `start_combat` region never restarts a running fight, and drops dead participants.
+
+Rules live in `Core::EncounterInitiator`; the shell wires them (`startEncounterAgainst`).
+
 `GameSettings::defaultKeybindings()` also registers an `Attack → F` binding, but no code path
 currently reads that action — attack is hardcoded to Left Mouse Button in both `FpsScheme` and
 `TankScheme` (`engine/include/input/ControlScheme.h`). Likewise `Tab`/`ToggleInventory` and

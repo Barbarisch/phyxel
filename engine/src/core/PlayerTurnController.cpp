@@ -1,4 +1,5 @@
 #include "core/PlayerTurnController.h"
+#include "core/ClickToMove.h"
 #include "core/CombatDirector.h"
 #include "core/CombatSystem.h"
 #include "core/EntityRegistry.h"
@@ -152,6 +153,15 @@ void PlayerTurnController::unbind() {
 
 bool PlayerTurnController::requestMove(const glm::vec3& worldPoint) {
     if (!m_bound) return false;
+    if (m_pathProvider) {
+        std::vector<glm::vec3> route = m_pathProvider(m_turnActor.bodyPosition(), worldPoint);
+        if (route.empty()) {
+            LOG_INFO("PlayerTurn", "Move to ({:.1f}, {:.1f}, {:.1f}) refused: no route",
+                     worldPoint.x, worldPoint.y, worldPoint.z);
+            return false;
+        }
+        return m_turnActor.requestMovePath(std::move(route));
+    }
     return m_turnActor.requestMove(worldPoint);
 }
 
@@ -494,7 +504,18 @@ PlayerTurnController::PickResult PlayerTurnController::resolvePick(
     }
     if (r.kind == PickResult::Kind::Attack) return r;
 
-    // 2) Otherwise: the ground point under the cursor (plane y = groundY).
+    // 2) Otherwise: the ground point under the cursor. With a solidity provider it is
+    //    the first solid cube along the camera ray (standing on its top) — a slope, a
+    //    ledge or a stair under the cursor lands where the cursor is (G-136). Without
+    //    one: the plane y = groundY (the player's feet), as before.
+    if (m_solidProvider) {
+        glm::vec3 hit;
+        if (ClickToMove::pickGround(cam, screenPx, viewportPx, m_solidProvider, 200.0f, hit)) {
+            r.kind  = PickResult::Kind::Move;
+            r.point = hit;
+        }
+        return r;
+    }
     const glm::mat4 inv = glm::inverse(vp);
     const glm::vec2 ndcXY(screenPx.x / viewportPx.x * 2.0f - 1.0f,
                           -(screenPx.y / viewportPx.y * 2.0f - 1.0f));

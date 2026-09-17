@@ -31,6 +31,8 @@ void TurnActor::stopAndIdle() {
     if (m_body) m_body->stop();
     m_activity    = Activity::Idle;
     m_pendingFeet = 0.0f;
+    m_path.clear();
+    m_pathIndex   = 0;
 }
 
 bool TurnActor::inReach(const glm::vec3& targetPos, float reachFeet) const {
@@ -39,10 +41,17 @@ bool TurnActor::inReach(const glm::vec3& targetPos, float reachFeet) const {
 }
 
 bool TurnActor::requestMove(const glm::vec3& target) {
+    return requestMovePath({target});
+}
+
+bool TurnActor::requestMovePath(std::vector<glm::vec3> waypoints) {
     if (!isBound() || isBusy()) return false;
     if (!m_budget->canMove())   return false;
+    if (waypoints.empty())      return false;
 
-    m_moveTarget  = target;
+    m_path        = std::move(waypoints);
+    m_pathIndex   = 0;
+    m_moveTarget  = m_path.front();
     m_pendingFeet = 0.0f;
     m_noProgressSec = 0.0f;
     m_activity    = Activity::Moving;
@@ -70,10 +79,15 @@ void TurnActor::tick(float dt) {
             break;
 
         case Activity::Moving: {
-            // Arrived?
+            // Arrived at the current waypoint? Advance along the path; stop on the last.
             if (horizontalDist(m_body->position(), m_moveTarget) <= kArriveEpsUnits) {
-                stopAndIdle();
-                break;
+                if (m_pathIndex + 1 < m_path.size()) {
+                    m_moveTarget = m_path[++m_pathIndex];
+                    m_noProgressSec = 0.0f;
+                } else {
+                    stopAndIdle();
+                    break;
+                }
             }
             // Out of movement budget?
             if (!m_budget->canMove()) {

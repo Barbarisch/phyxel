@@ -208,3 +208,45 @@ TEST(TurnActorTest, CustomWorldUnitsPerFoot) {
     a.setWorldUnitsPerFoot(-5.0f);  // invalid ignored
     EXPECT_NEAR(a.worldUnitsPerFoot(), 1.0f, 1e-4f);
 }
+
+// --- Path following (Ravenmere G-136: "movement during combat doesn't go to the
+// cursor click point" — the actor walked a straight line into whatever was in the
+// way). A move is now a WAYPOINT PATH the host plans on the NavGraph; the actor
+// visits the waypoints in order and debits the distance actually travelled.
+TEST(TurnActorTest, MovePathVisitsWaypointsInOrder) {
+    MockBody body; ActionBudget b = freshBudget(60);   // 60 ft = 18.3 u
+    TurnActor actor; actor.begin(&body, &b);
+    // An L-shaped detour around an obstacle: 3 u east, then 3 u north.
+    ASSERT_TRUE(actor.requestMovePath({{3.0f, 0, 0}, {3.0f, 0, 3.0f}}));
+    bool passedCorner = false;
+    for (int i = 0; i < 400 && actor.isBusy(); ++i) {
+        actor.tick(0.05f);
+        // within the actor's arrival radius of the corner (a straight diagonal never comes closer than 2.1 u)
+        if (std::abs(body.pos.x - 3.0f) < 0.35f && body.pos.z < 0.35f) passedCorner = true;
+    }
+    EXPECT_FALSE(actor.isBusy());
+    EXPECT_TRUE(passedCorner) << "the body never went through the corner waypoint";
+    EXPECT_NEAR(body.pos.x, 3.0f, 0.35f);
+    EXPECT_NEAR(body.pos.z, 3.0f, 0.35f);
+    // ~6 u = ~19.7 ft walked out of 60.
+    EXPECT_LE(b.movementRemaining, 42);
+    EXPECT_GE(b.movementRemaining, 38);
+}
+
+TEST(TurnActorTest, MovePathStopsMidPathWhenBudgetRunsOut) {
+    MockBody body; ActionBudget b = freshBudget(10);   // 10 ft = 3.05 u
+    TurnActor actor; actor.begin(&body, &b);
+    ASSERT_TRUE(actor.requestMovePath({{4.0f, 0, 0}, {4.0f, 0, 4.0f}}));
+    for (int i = 0; i < 400 && actor.isBusy(); ++i) actor.tick(0.05f);
+    EXPECT_FALSE(actor.isBusy());
+    EXPECT_EQ(b.movementRemaining, 0);
+    EXPECT_LT(body.pos.x, 3.6f) << "ran past the budget";   // stopped on the first leg
+    EXPECT_NEAR(body.pos.z, 0.0f, 0.05f);
+}
+
+TEST(TurnActorTest, EmptyMovePathIsRejected) {
+    MockBody body; ActionBudget b = freshBudget(30);
+    TurnActor actor; actor.begin(&body, &b);
+    EXPECT_FALSE(actor.requestMovePath({}));
+    EXPECT_FALSE(actor.isBusy());
+}

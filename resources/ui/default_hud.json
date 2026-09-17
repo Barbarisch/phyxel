@@ -382,7 +382,7 @@
       130
     ],
     "showBackground": true,
-    "visibleWhen": "combat.playerTurnActive",
+    "visibleWhen": "actionbar.visible",
     "children": [
       {
         "type": "label",
@@ -506,7 +506,7 @@
     ],
     "showBackground": true,
     "autoSize": true,
-    "visibleWhen": "combat.inCombat",
+    "visibleWhen": "actionbar.visible",
     "children": [
       {
         "type": "repeater",

@@ -1058,6 +1058,8 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
         // take a "weapon"; casters take "spells" plus range/cooldown tuning.
         const std::string faction = npcDef.value("faction", "");
         if (!faction.empty()) npc->setFaction(faction);
+        // "hostile": true — fights the player on sight / when engaged (G-137).
+        if (npcDef.value("hostile", false)) npc->setHostile(true);
 
         // CHAIN OF COMMAND: "squad" puts this NPC under an officer's orders;
         // "rank":"officer" (or "leader") makes it the one giving them. Squads

@@ -248,6 +248,13 @@ def create_project(
     extra_members.append('    std::unordered_map<std::string, Phyxel::Core::CombatTactics> npcTactics_;  // game.json "combat_ai": per-NPC tactical profile')
     extra_members.append('    std::vector<std::string> playerSpells_;  // game.json progression.spells (SpellRegistry ids)')
     extra_members.append('    std::string armedSpell_;        // spellbar-armed spell; empty = melee/move clicks')
+    extra_members.append('    Phyxel::Core::EncounterInitiator encounterInitiator_;   // G-137: fights from clicks, sight and opening spells')
+    extra_members.append('    std::string pendingOpeningCast_;                        // spell armed out of combat; cast on the first turn')
+    extra_members.append('    std::vector<std::string> encounterHostiles_;            // the enemy side of the running encounter')
+    extra_members.append('    float aggroClock_ = 0.0f;                               // throttle for the sight scan')
+    extra_members.append('    std::unordered_set<std::string> authoredHostiles_;      // enemy-side ids of every authored start_combat (G-137)')
+    extra_members.append('    void beginEncounterWith(std::vector<Phyxel::Core::CombatDirector::Combatant> combatants, const std::string& reason);')
+    extra_members.append('    bool startEncounterAgainst(const std::string& npcId, const std::string& reason);')
     extra_members.append('    std::string hoveredTarget_;     // combatant under the cursor (nameplate + targeting readout)')
     extra_members.append('    int nameplateDiagFrame_ = 0;    // throttle for the nameplate diagnostic')
     extra_members.append("    Phyxel::Core::ObjectiveTracker objectiveTracker_;  // quest-log spine; game.json \"objectives\" load here")
@@ -270,7 +277,11 @@ def create_project(
     extra_includes.append('#include "core/CurrencySystem.h"')   # wallet (CombatUiBg3 increment 4)
     extra_includes.append('#include "core/ClickToMove.h"')   # click-to-move (CombatUiBg3 increment 5, G-75)
     extra_includes.append('#include "core/HealthComponent.h"')
-    extra_includes.append('#include "core/RpgItem.h"')   # combat_ai "weapon" -> damage dice
+    extra_includes.append('#include "core/RpgItem.h"')
+    extra_includes.append('#include "core/EncounterInitiator.h"')   # fights that start without a trigger (G-137)
+    extra_includes.append('#include <unordered_set>')
+    extra_includes.append('#include "utils/VoxelRayMarch.h"')
+    extra_includes.append('#include "utils/CapsuleOcclusion.h"')   # ring dots hidden behind bodies (G-138)   # combat_ai "weapon" -> damage dice
     extra_members.append("    std::unique_ptr<Phyxel::UI::GameMenuRenderer> gameMenuRenderer_;")
     extra_members.append("    bool menuSceneActive_ = false;  // a sceneType:\"menu\" scene is currently shown")
     extra_members.append("    std::string activeDataScreen_;  // which data-driven overlay is loaded: pause/intro/victory/credits (replaces ImGui ScreenState screens)")
@@ -635,6 +646,13 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 // standalone's own combat stack. Hidden until combat.inCombat flips.
                 hud.setFloat("combat.inCombat",         [this]{ return combatDirector_.inCombat() ? 1.0f : 0.0f; });
                 hud.setFloat("combat.playerTurnActive", [this]{ return playerTurn_.isPlayerTurnActive() ? 1.0f : 0.0f; });
+                // The action bar also shows OUT of combat (spells only): arm one, click a
+                // hostile, and the fight opens with it (G-137).
+                hud.setFloat("actionbar.visible", [this]{
+                    if (playerTurn_.isPlayerTurnActive()) return 1.0f;
+                    const bool talking = dialogueSystem_ && dialogueSystem_->isActive();
+                    return (!combatDirector_.inCombat() && !talking && !playerSpells_.empty()) ? 1.0f : 0.0f;
+                });
                 hud.setText ("combat.roundText", [this]{
                     char buf[32];
                     snprintf(buf, sizeof(buf), "COMBAT - Round %d", combatDirector_.currentRound());
@@ -657,6 +675,9 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 // One line that tells the player what to do (the manual test of 2026-09-11:
                 // "I have no idea how to actually do an attack").
                 hud.setText ("combat.hintText", [this]() -> std::string {{
+                    if (!combatDirector_.inCombat())
+                        return armedSpell_.empty() ? std::string("Arm a spell, then click a foe to open the fight with it")
+                                                   : "Cast " + armedSpell_ + ": click a foe to start the fight (click elsewhere to cancel)";
                     if (!playerTurn_.isPlayerTurnActive()) return "Enemy turn...";
                     if (!playerTurn_.approachTarget().empty()) return "Closing in on " + playerTurn_.approachTarget().substr(playerTurn_.approachTarget().rfind("npc_", 0) == 0 ? 4 : 0) + "...";
                     if (!armedSpell_.empty()) return "Cast " + armedSpell_ + ": click a target (click elsewhere to cancel)";
@@ -731,7 +752,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     std::vector<Phyxel::UI::HudRecord> rows;
                     const bool myTurn = playerTurn_.isPlayerTurnActive();
                     const bool actionLeft = myTurn && playerTurn_.budget() && playerTurn_.budget()->action;
-                    {
+                    const bool outOfCombat = !combatDirector_.inCombat();   // G-137: spells only, armable
+                    if (!outOfCombat) {
                         Phyxel::UI::HudRecord r; r.texts["label"] = "Attack"; r.texts["action"] = "attack";
                         r.floats["enabled"] = actionLeft ? 1.0f : 0.0f; r.floats["armed"] = 0.0f; rows.push_back(r);
                     }
@@ -747,10 +769,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             label += " (" + std::to_string(left) + ")";
                         }
                         Phyxel::UI::HudRecord r; r.texts["label"] = label; r.texts["action"] = "spell:" + sid;
-                        r.floats["enabled"] = (actionLeft && !depleted) ? 1.0f : 0.0f;
+                        r.floats["enabled"] = ((outOfCombat || actionLeft) && !depleted) ? 1.0f : 0.0f;
                         r.floats["armed"] = (armedSpell_ == sid) ? 1.0f : 0.0f; rows.push_back(r);
                     }
-                    {
+                    if (!outOfCombat) {
                         Phyxel::UI::HudRecord r; r.texts["label"] = "End Turn"; r.texts["action"] = "end_turn";
                         r.floats["enabled"] = myTurn ? 1.0f : 0.0f; r.floats["armed"] = 0.0f; rows.push_back(r);
                     }
@@ -1353,6 +1375,16 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             clickToMove_.setGraphProvider([this]() -> const Phyxel::Core::NavGraph* {{
                 return npcManager_ ? npcManager_->getNavGraph() : nullptr;
             }});
+            // Combat moves walk the SAME route (G-136: a straight line into a fence or a
+            // tree stalled short of the click), and the ground pick lands on the voxel
+            // surface under the cursor rather than a plane at the player's feet.
+            playerTurn_.setPathProvider([this](const glm::vec3& from, const glm::vec3& to) {{
+                return clickToMove_.planPath(from, to);
+            }});
+            playerTurn_.setSolidProvider([this](const glm::ivec3& c) {{
+                auto* cm = engine_ ? engine_->getChunkManager() : nullptr;
+                return cm && cm->hasVoxelAt(c);
+            }});
             // Spellcasting in the SHIPPED game: the registry only auto-loaded in
             // the editor before, so every cast failed "Unknown spell" here.
             if (Phyxel::Core::SpellRegistry::instance().count() == 0)
@@ -1513,15 +1545,26 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         c.initiativeBonus = 1;
                         combatants.push_back(c);
                     }}
-                    if (combatants.empty()) {{
-                        LOG_WARN("{class_name}", "start_combat: no participants (trigger '{{}}')", tid);
+                    // A region that re-fires over a battlefield lists CORPSES (probe L4
+                    // 2026-09-17: the antechamber restarted with three dead skeletons):
+                    // drop the dead and the missing; no living enemy = no fight.
+                    int enemiesAlive = 0;
+                    combatants.erase(std::remove_if(combatants.begin(), combatants.end(),
+                        [&](const Phyxel::Core::CombatDirector::Combatant& c) {{
+                            auto* e = entityRegistry_ ? entityRegistry_->getEntity(c.entityId) : nullptr;
+                            const auto* hc = e ? e->getHealthComponent() : nullptr;
+                            const bool alive = e && (!hc || hc->isAlive());
+                            if (alive && !c.isPlayerSide) ++enemiesAlive;
+                            return !alive;
+                        }}), combatants.end());
+                    if (combatants.empty() || enemiesAlive == 0) {{
+                        LOG_WARN("{class_name}", "start_combat (trigger '{{}}'): no living enemy participants - skipped", tid);
+                    }} else if (combatDirector_.inCombat()) {{
+                        // The region fired while a fight (a sighting, an opening spell) is
+                        // already running: never restart it (G-137).
+                        LOG_INFO("{class_name}", "start_combat (trigger '{{}}') skipped: already in combat", tid);
                     }} else {{
-                        if (combatDirector_.inCombat()) combatDirector_.endEncounter();
-                        Phyxel::Core::DiceSystem dice;
-                        combatDirector_.beginEncounter(combatants, dice);
-                        faceCombatants();   // square off — everyone faces the enemy
-                        LOG_INFO("{class_name}", "Combat encounter started: {{}} combatants (trigger '{{}}')",
-                                 combatants.size(), tid);
+                        beginEncounterWith(std::move(combatants), "trigger '" + tid + "'");
                     }}
                 }} else {{
                     LOG_WARN("{class_name}", "Unhandled trigger action '{{}}' (trigger '{{}}')", type, tid);
@@ -1744,6 +1787,30 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                  it.key(), classId, abilStr, lvl, learned, sc.slots().totalRemaining());
                         npcCasters_.emplace(it.key(), std::move(sc));
                     }}
+                }}
+
+                // HOSTILES (G-137): who fights the player on sight / when engaged. The
+                // authored encounters already say so — every enemy-side participant of a
+                // start_combat action, in any scene. (A combat-AI profile is NOT the
+                // signal: companions carry one too, and the first build marked Bram,
+                // Oswin and Wren hostile.) "hostile": true on an NPC also counts (loader).
+                {{
+                    auto harvest = [this](const nlohmann::json& triggers) {{
+                        if (!triggers.is_array()) return;
+                        for (const auto& t : triggers)
+                            for (const auto& a : t.value("then", nlohmann::json::array()))
+                                if (a.value("type", "") == "start_combat")
+                                    for (const auto& pt : a.value("participants", nlohmann::json::array()))
+                                        if (!pt.value("player_side", false) && pt.contains("entity_id"))
+                                            authoredHostiles_.insert(pt["entity_id"].get<std::string>());
+                    }};
+                    if (gameDef.contains("triggers")) harvest(gameDef["triggers"]);
+                    if (gameDef.contains("scenes") && gameDef["scenes"].is_array())
+                        for (const auto& sc : gameDef["scenes"]) {{
+                            if (sc.contains("triggers")) harvest(sc["triggers"]);
+                            if (sc.contains("definition") && sc["definition"].contains("triggers")) harvest(sc["definition"]["triggers"]);
+                        }}
+                    LOG_INFO("{class_name}", "authored hostiles: {{}}", authoredHostiles_.size());
                 }}
 
                 // "combat_ai": per-NPC tactical profile —
@@ -1989,6 +2056,18 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 npcManager_->buildNavGrid();
                                 LOG_INFO("{class_name}", "navigation: NavGrid rebuilt for scene (pathService={{}})",
                                          npcManager_->getPathService() ? "running" : "NULL");
+                                // HOSTILES (G-137): every authored enemy (start_combat participant
+                                // on the enemy side, harvested at load) fights the player on sight /
+                                // when engaged, not only inside its trigger region. "hostile": true
+                                // in the definition also counts (set by the loader).
+                                int hostiles = 0;
+                                npcManager_->forEachNPC([&](Phyxel::Scene::NPCEntity& n) {{
+                                    if (authoredHostiles_.count("npc_" + n.getName()) || authoredHostiles_.count(n.getName()))
+                                        n.setHostile(true);
+                                    if (n.isHostile()) ++hostiles;
+                                }});
+                                encounterInitiator_.clearFled();
+                                LOG_INFO("{class_name}", "hostiles in scene: {{}}", hostiles);
                             }}
                             // WORLD HEALTH (WalkabilityGateAndPlaytestLoop layer B): from the
                             // spawn, path to every NPC, trigger region and location on the graph
@@ -2568,7 +2647,33 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 }});
             }}
             if (hitNpc && !rightButton) {{
-                // WoW: a left click on a character SELECTS it (no walking).
+                // A HOSTILE under the cursor: this is an attack (G-137, "walk up to the
+                // alpha wolf but get nothing"). Close enough -> the fight starts now, with
+                // an armed spell as the opening action; far -> walk up and start it on
+                // arrival. Everyone else: WoW, a left click SELECTS (no walking).
+                const auto* hc = hitNpc->getHealthComponent();
+                if (hitNpc->isHostile() && (!hc || hc->isAlive())) {{
+                    const std::string id = "npc_" + hitNpc->getName();
+                    const glm::vec3 npcPos = hitNpc->getPosition();
+                    const glm::vec3 me = playerCharacter_->getPosition();
+                    const float dist = glm::length(glm::vec2(npcPos.x - me.x, npcPos.z - me.z));
+                    if (!armedSpell_.empty()) pendingOpeningCast_ = armedSpell_;
+                    if (dist <= Phyxel::Core::EncounterInitiator::kGroupRadius) {{
+                        const bool ok = startEncounterAgainst(id, pendingOpeningCast_.empty() ? "attacked by the player"
+                                                                                               : "opening spell '" + pendingOpeningCast_ + "'");
+                        out["result"] = ok ? "engaged" : "engage_failed"; out["npc"] = hitNpc->getName();
+                        return out;
+                    }}
+                    const bool ok = clickToMove_.requestWalkTo(npcPos, 4.0f, [this, id]() {{
+                        startEncounterAgainst(id, "attacked by the player (walked up)");
+                    }});
+                    LOG_INFO("ClickToMove", "click -> hostile '{{}}' {{}} m away: {{}}", hitNpc->getName(), static_cast<int>(dist),
+                             ok ? "walking up to engage" : Phyxel::Core::ClickToMove::resultName(clickToMove_.lastResult()));
+                    out["result"] = ok ? "walking_to_engage" : Phyxel::Core::ClickToMove::resultName(clickToMove_.lastResult());
+                    out["npc"] = hitNpc->getName();
+                    return out;
+                }}
+                if (!armedSpell_.empty()) setArmedSpell("");   // a spell aimed at a friend: disarm
                 LOG_INFO("ClickToMove", "click -> select NPC '{{}}'", hitNpc->getName());
                 out["result"] = "selected"; out["npc"] = hitNpc->getName();
                 return out;
@@ -2707,6 +2812,61 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 }}
             }}
             return std::nullopt;
+        }}
+
+        // Start a turn-based encounter (G-137): every trigger, sighting and opening
+        // action funnels through here so the enemy side is recorded (escapees are
+        // found at the end edge) and the start is logged with its reason.
+        void {class_name}::beginEncounterWith(std::vector<Phyxel::Core::CombatDirector::Combatant> combatants,
+                                               const std::string& reason) {{
+            if (combatants.empty()) return;
+            clickToMove_.cancel();
+            encounterHostiles_.clear();
+            for (const auto& c : combatants) if (!c.isPlayerSide) encounterHostiles_.push_back(c.entityId);
+            Phyxel::Core::DiceSystem dice;
+            combatDirector_.beginEncounter(combatants, dice);
+            faceCombatants();   // square off — everyone faces the enemy
+            LOG_INFO("{class_name}", "Combat encounter started: {{}} combatants ({{}})", combatants.size(), reason);
+        }}
+
+        // The fight the PLAYER or a SIGHTING starts (G-137): the engaged hostile plus
+        // every living hostile within EncounterInitiator::kGroupRadius of it, against the
+        // player and the party. The engaged one is the selected target.
+        bool {class_name}::startEncounterAgainst(const std::string& npcId, const std::string& reason) {{
+            if (combatDirector_.inCombat() || !npcManager_ || !entityRegistry_) return false;
+            std::vector<Phyxel::Core::AggroCandidate> cands;
+            glm::vec3 anchorPos{{0.0f}}; bool found = false;
+            npcManager_->forEachNPC([&](Phyxel::Scene::NPCEntity& n) {{
+                Phyxel::Core::AggroCandidate c;
+                c.id = "npc_" + n.getName(); c.pos = n.getPosition(); c.hostile = n.isHostile();
+                const auto* hc = n.getHealthComponent(); c.alive = !hc || hc->isAlive();
+                if (c.id == npcId) {{ anchorPos = c.pos; found = true; }}
+                cands.push_back(std::move(c));
+            }});
+            if (!found) {{ LOG_WARN("{class_name}", "engage '{{}}': no such NPC", npcId); return false; }}
+            const auto group = Phyxel::Core::EncounterInitiator::gatherGroup(
+                npcId, anchorPos, Phyxel::Core::EncounterInitiator::kGroupRadius, cands);
+            if (group.empty()) {{ LOG_INFO("{class_name}", "engage '{{}}': not a living hostile", npcId); return false; }}
+            std::vector<Phyxel::Core::CombatDirector::Combatant> combatants;
+            {{
+                Phyxel::Core::CombatDirector::Combatant c;
+                c.entityId = "player"; c.isPlayerSide = true; c.initiativeBonus = 1; c.speed = 30;
+                combatants.push_back(c);
+            }}
+            for (const auto& m : rpgParty_.getMembers()) {{
+                if (!m.isAlive || !entityRegistry_->getEntity(m.entityId)) continue;
+                Phyxel::Core::CombatDirector::Combatant c;
+                c.entityId = m.entityId; c.isPlayerSide = true; c.initiativeBonus = 1; c.speed = 30;
+                combatants.push_back(c);
+            }}
+            for (const auto& id : group) {{
+                Phyxel::Core::CombatDirector::Combatant c;
+                c.entityId = id; c.isPlayerSide = false; c.initiativeBonus = 0; c.speed = 30;
+                combatants.push_back(c);
+            }}
+            beginEncounterWith(std::move(combatants), reason);
+            playerTurn_.setSelectedTarget(npcId);
+            return true;
         }}
 
         void {class_name}::onUpdate(Phyxel::Core::EngineRuntime& engine, float dt) {{
@@ -2945,6 +3105,23 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     }}
                 }}
                 if (inCombatNow) victoryEmitted_ = false;   // enter edge: arm for this encounter
+                if (!inCombatNow) {{
+                    // Whoever on the enemy side is still alive ESCAPED (G-31): beaten, not
+                    // brave — it keeps its distance for kFledCooldownSec, then may re-engage
+                    // on sight; a click on it is always a fight (G-137).
+                    const double now = glfwGetTime();
+                    for (const auto& id : encounterHostiles_) {{
+                        auto* e = entityRegistry_ ? entityRegistry_->getEntity(id) : nullptr;
+                        const auto* hc = e ? e->getHealthComponent() : nullptr;
+                        if (e && (!hc || hc->isAlive())) {{
+                            encounterInitiator_.noteFled(id, now);
+                            LOG_INFO("{class_name}", "'{{}}' escaped the encounter: no re-engagement on sight for {{}} s", id,
+                                     static_cast<int>(Phyxel::Core::EncounterInitiator::kFledCooldownSec));
+                        }}
+                    }}
+                    encounterHostiles_.clear();
+                    pendingOpeningCast_.clear();
+                }}
                 wasInCombat_ = inCombatNow;
                 if (engine_) updateCursorMode(*engine_);
             }}
@@ -2960,6 +3137,46 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             }});
 
             if (npcManager_) npcManager_->update(dt);
+
+            // SIGHTINGS (G-137): out of combat, a hostile that sees the player (within
+            // EncounterInitiator::kSightRange, eye line clear through the voxels) starts
+            // the fight itself; an escapee waits out its cooldown first. Scanned 4x/s.
+            aggroClock_ += dt;
+            if (!combatDirector_.inCombat() && npcManager_ && playerCharacter_ && aggroClock_ >= 0.25f &&
+                Phyxel::UI::isGameRunning(screen_.getState()) && !(dialogueSystem_ && dialogueSystem_->isActive())) {{
+                aggroClock_ = 0.0f;
+                auto* cm = engine.getChunkManager();
+                const glm::vec3 me = playerCharacter_->getPosition();
+                const double now = glfwGetTime();
+                auto blocked = [cm](const glm::vec3& a, const glm::vec3& b) -> bool {{
+                    if (!cm) return false;
+                    const glm::vec3 d = b - a; const float len = glm::length(d);
+                    if (len < 1e-3f) return false;
+                    return Phyxel::Utils::marchVoxels(a, d / len, len, [cm](const glm::ivec3& c) {{ return cm->hasVoxelAt(c); }}).hit;
+                }};
+                std::string spotter;
+                npcManager_->forEachNPC([&](Phyxel::Scene::NPCEntity& n) {{
+                    if (!spotter.empty() || !n.isHostile()) return;
+                    const auto* hc = n.getHealthComponent();
+                    if (hc && !hc->isAlive()) return;
+                    const std::string id = "npc_" + n.getName();
+                    if (!encounterInitiator_.mayEngage(id, now)) return;
+                    if (Phyxel::Core::EncounterInitiator::notices(n.getPosition(), me, Phyxel::Core::EncounterInitiator::kSightRange, blocked))
+                        spotter = id;
+                }});
+                if (!spotter.empty()) startEncounterAgainst(spotter, spotter + " spotted the player");
+            }}
+            // OPENING CAST (G-137): a spell armed out of combat is the first action of the
+            // fight it started, released as soon as the player's turn binds.
+            if (!pendingOpeningCast_.empty() && combatDirector_.inCombat() &&
+                playerTurn_.isPlayerTurnActive() && !playerTurn_.isBusy()) {{
+                const std::string spell = pendingOpeningCast_, tgt = playerTurn_.selectedTarget();
+                pendingOpeningCast_.clear();
+                const bool ok = !tgt.empty() && playerTurn_.castSpell(spell, tgt);
+                LOG_INFO("{class_name}", "Opening cast '{{}}' at '{{}}': {{}}", spell, tgt,
+                         ok ? "ok" : playerTurn_.castBlockedReason(spell).c_str());
+                setArmedSpell("");
+            }}
             updateCommand(dt);   // officers re-evaluate on their own cadence
             updateHeldWeapons(); // weapons ride the grip bone; without this they
                                  // stay frozen where the character spawned
@@ -3341,9 +3558,24 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                     const glm::vec4 col = np.selected ? glm::vec4(1.0f, 0.82f, 0.30f, pulse)
                                                                       : glm::vec4(0.55f, 0.80f, 1.0f, pulse * 0.8f);
                                     const glm::vec3 feet = e->getPosition() + glm::vec3(0.0f, 0.06f, 0.0f);
+                                    // G-138: the ring reads as ON THE GROUND only if the body hides the
+                                    // part of it that passes behind: a dot is dropped when the
+                                    // camera->dot sight line crosses any combatant's body capsule
+                                    // (its own included). The UI has no depth buffer; this is the test.
+                                    const glm::vec3 camPos = glm::vec3(glm::inverse(view)[3]);
+                                    std::vector<Phyxel::Utils::BodyCapsule> bodies;
+                                    for (const auto& q : combatDirector_.initiative().turnOrder()) {{
+                                        auto* qe = entityRegistry_ ? entityRegistry_->getEntity(q.entityId) : nullptr;
+                                        const auto* qh = qe ? qe->getHealthComponent() : nullptr;
+                                        if (qe && (!qh || qh->isAlive())) bodies.push_back({{qe->getPosition(), 1.8f, 0.3f}});
+                                    }}
                                     for (int k2 = 0; k2 < 36; ++k2) {{
                                         const float a = glm::radians(k2 * 10.0f) + t * 1.2f;
                                         const glm::vec3 wp = feet + glm::vec3(std::cos(a), 0.0f, std::sin(a)) * 0.55f;
+                                        bool hidden = false;
+                                        for (const auto& bc : bodies)
+                                            if (Phyxel::Utils::segmentHitsCapsule(camPos, wp, bc)) {{ hidden = true; break; }}
+                                        if (hidden) continue;
                                         glm::vec2 dp;
                                         if (Phyxel::UI::UISystem::worldToScreen(wp, view, proj, sw, sh, dp))
                                             ui->addWorldMarker(dp, np.selected ? 5.0f : 4.0f, col);

@@ -717,10 +717,13 @@ void GameApiService::registerCommands() {
                 groundY = p->getPosition().y;
             else groundY = 0.0f;
         }
-        const char* resolved = playerTurn->requestPickAt(
-            *cam, {cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f)},
-            {static_cast<float>(vp.x), static_cast<float>(vp.y)}, groundY);
-        r = {{"ok", true}, {"resolved", resolved}};
+        const glm::vec2 px{cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f)};
+        const glm::vec2 vps{static_cast<float>(vp.x), static_cast<float>(vp.y)};
+        const auto pick = playerTurn->resolvePick(*cam, px, vps, groundY);   // what the click sees
+        const char* resolved = playerTurn->requestPickAt(*cam, px, vps, groundY);
+        r = {{"ok", true}, {"resolved", resolved},
+             {"point", {{"x", pick.point.x}, {"y", pick.point.y}, {"z", pick.point.z}}},
+             {"target", pick.targetId}};
     });
 
     reg.on("combat/screen_of", [this](const APICommand& cmd, json& r) {
