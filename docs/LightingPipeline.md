@@ -24,7 +24,7 @@ those are narratives with superseded sections. **This file states only what is t
 | A | What colour is the sun / sky fill / haze / moon right now? | Atmosphere model (§1), `Atmosphere.cpp` ↔ `atmosphere.glsl`, into `ubo.sunColor / ambientColor / haze* / moonColor` | per frame | any hand-tuned ramp |
 | B | **Is the straight line to the sun blocked?** (direct sun) | The **shadow map**: `phxShadowPCSS` / `phxShadowFast` in `lighting.glsl`, near ∪ mid cascades (`min`), far cascade for far LOD meshes | near 0.02 u, mid 0.11 u, far ~0.9 u texels; 40 / 420 / 1600 u | the sky trace (D). Inside shadow coverage `phxSunGate` returns 1 — see rule R1 |
 | C | Where does the sun fall once nothing blocks it? | `pbrBRDF` (ground, Cook-Torrance) or Lambert/Blinn-Phong (vegetation, characters, glass) × `ubo.sunColor` | per fragment | — |
-| D | **How much of the sky dome does this point see?** (ambient fill, interiors) | `phxSkyVisibility` in `occupancy.glsl`: 5 rays (up + four at 30°) DDA-marched through the **micro-resolution occupancy** (1/9 u cells), reach 16 u, weighted by cosine; ray 0 escaping short-circuits to 1.0 | per fragment (ground, foliage, glass\*), per blade vertex (grass), per **cell** from the bake (characters, CPU debris) | direct sun (B) inside shadow coverage |
+| D | **How much of the sky dome does this point see?** (ambient fill, interiors) | `phxSkyVisibility` in `occupancy.glsl`: 5 rays (up + four at 30°) DDA-marched through the **micro-resolution occupancy** (1/9 u cells), reach 16 u, weighted by cosine; ray 0 escaping short-circuits to 1.0 | per fragment (ground, glass, foliage, characters), per blade vertex (grass), per **cell** from the bake (CPU debris only) | direct sun (B) inside shadow coverage |
 | E | What is the ambient fill? | `phxAmbientAtmos(N, sky, ubo.ambientColor)`; on the ground the **probe field** (`phxGiIrradiance`, M5, default OFF) replaces the sky scalar with a traced neighbourhood + one bounce when available, else the analytic term | probes 55,296 on a 48×24×48 grid around the viewer | a second ambient formula anywhere |
 | F | Does a point/spot light reach here? | `phxLightVisibility` (`occupancy.glsl`): one DDA from the surface to the emitter, emitter run-length excluded | per fragment, 32 point + 16 spot, forward loop | — |
 | G | Moonlight | same directional path as C, **unshadowed**, gated by `skyVis²` only (no moon shadow map) | — | — |
@@ -32,17 +32,16 @@ those are narratives with superseded sections. **This file states only what is t
 | I | Distance haze | `phxAerialPerspective` | per fragment | — |
 | J | Tone map / exposure | **once**, `phxTonemap` in `post_process.frag` (AgX, exposure 8.0) | per frame | scene shaders (none call it any more) |
 
-\* glass gets `vSkyLight`, which `static_voxel.vert` emits as a **constant 1.0** — see gap §8.
 
 ### 0.2 Receiver matrix — every shader that lights a surface (from the source, 2026-09-17)
 
 | Shader (pipeline) | Sky access (D) | Ambient (E) | Direct sun (B × C) | Shadow filter / cascades | Moon | Point/spot (F) | Haze | Notes |
 |---|---|---|---|---|---|---|---|---|
 | `voxel.frag` — static chunks, kinematic voxels (doors, furniture), GPU debris | traced per fragment, geometric normal | probe field if on, else analytic | `pbrBRDF × shadow × phxSunGate` | PCSS, mid ∪ near | yes, × skyVis² | yes, with visibility trace | yes | `vSkyLight` varying is a dead constant 1.0; the kinematic `setLightSampler` feed is not read here |
-| `transparent_voxel.frag` — glass | **constant 1.0** (`vSkyLight`) | analytic at sky=1 | Blinn-Phong × shadow × `phxSunGate` (gate of 1 = 1) | PCSS, mid ∪ near | no | yes, with visibility trace | — | glass never darkens indoors (§8) |
+| `transparent_voxel.frag` — glass | traced per fragment, face normal | analytic | Blinn-Phong × shadow × `phxSunGate` | PCSS, mid ∪ near | no | yes, with visibility trace | — | `vSkyLight` varying is a dead constant 1.0 |
 | `grass.frag` (+`grass.vert`) — blades | traced per **blade vertex** (up normal), `vSky` | analytic (up) | `0.85 × shadow × phxSunGate` | **Fast 4-tap**, mid ∪ near | no | yes, with visibility trace | no | wind sheen also × skyGate |
 | `foliage.frag` — leaf cards | traced per fragment (up) | analytic (up) | `0.7 × shadow × phxSunGate` + backlit translucency × (0.25+0.75·phxSunGate) | **Fast 4-tap**, mid ∪ near | no | yes, with visibility trace | no | — |
-| `character.frag` — animated characters | **one value per body**: `ChunkManager::sampleBakedLight` at the feet+1 (the M3 per-cell bake) → `fragBakedLight.x` | analytic (N) | Blinn-Phong × shadow × `phxSunGate` | PCSS, mid ∪ near | yes, × sky² | yes, with visibility trace | no | block-light term from the bake is 0 |
+| `character.frag` — animated characters | traced per fragment, vertex normal | analytic (N) | Blinn-Phong × shadow × `phxSunGate` | PCSS, mid ∪ near | yes, × sky² | yes, with visibility trace | no | block-light term from the bake is 0 |
 | CPU debris (`DebrisRenderPipeline` light sampler) | per-cell bake at the body | CPU: `ambient + sun × 0.5 × sky²` | **no shadow map** | — | no | no | — | flat per-body light; the only place the sky gate still scales sun, because there is no map lookup |
 | `far_terrain.frag`, `far_tree_mesh.frag` — far LOD | **constant 1.0** | analytic | `ndl × shadow` | Fast 4-tap, **far cascade only** | no | no | yes | — |
 | `water.frag`, `water_cell.frag`, `water_underwater.frag` | none | own constants | unshadowed | none | — | — | — | own model |
@@ -219,8 +218,8 @@ of "how much sky does this point see" remain, and which one a receiver reads is 
   the common case). Ground, foliage and grass use this; a sealed room reads 0, a doorway falls off
   with real geometry.
 - **The per-cell bake** (`ChunkManager::sampleBakedLight` → `m_skyLight`, one value per cube cell,
-  traced at bake time — M3-REDESIGN). Characters (`fragBakedLight.x`, one sample per body at the
-  feet + 1) and CPU debris read it. Note the resolution mismatch with the ground beside them.
+  traced at bake time — M3-REDESIGN). Only CPU debris still reads it (one sample per body); the
+  characters' `fragBakedLight.x` feed is uploaded but no longer read by `character.frag`.
 - **The probe field** (M5, `gi_probe.comp`, SSBO binding 13, 48×24×48 probes around the viewer,
   spacing `ubo.giProbeGrid.w`). A probe stores irradiance: sky where a ray escapes, the light
   leaving the hit surface otherwise (albedo stands in as 0.30, 18 directions). `voxel.frag` uses it
@@ -415,14 +414,15 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 | **Bloom produces spots** | ⛔ BROKEN, ships off. Spots/blotches instead of a glow; suspected fireflies from bright single pixels (sky star/airglow noise, grass speckle), widened by the half-res blur. See §6. |
 | **No AA** | The grade pass now exists, so FXAA/TAA is unblocked but not built. |
 | **Point lights** | See §4 — occluded by a binary trace but no shadow maps, intensities π× dim since the Lambert fix, not persisted. |
-| **Glass ignores sky access** | `transparent_voxel.frag` reads `vSkyLight`, which the vertex stage emits as a constant 1.0, so a window in a sealed room is lit as if outdoors. Trace per fragment like the ground. |
-| **Two sky sources side by side** | Characters and CPU debris read the per-cell bake (one value per body); the ground beside them traces per fragment. They disagree at every wall and doorway. |
+| **CPU debris reads the per-cell bake** | The last consumer of `sampleBakedLight` for lighting (one value per body, no shadow map). Characters and glass moved to the per-fragment trace 2026-09-17. |
+| **Glass pane reads black from inside a sealed room, before and after the sky-trace change** | Lighting Lab window room, pane at eye height in the -Z wall, camera 5 u inside looking at it: mean luminance 0.008 with the constant-1.0 sky AND with the traced sky. Either the glass's own lit term is negligible next to its alpha or the transparent pass does not composite there; the exterior should show through. Untested from outside. Open — measure the OIT composite of a lit pane before changing the glass model again. |
 | **Far LOD sees full sky** | `far_terrain.frag` / `far_tree_mesh.frag` pass `sky = 1.0` — no interiors at that range, so acceptable, but state it. |
 | **Metals** | No environment/IBL term, so they read dark except in direct light. |
 | **T-junction cracks / character speckle** | Open render defects at greedy-merge borders; see `RenderOptimization.md`. |
 
 ## 9. Change log (append a line per lighting/shadow change; the fingerprint line is written by `tools/lighting_doc_check.py --update`)
 
+- 2026-09-17 — glass (`transparent_voxel.frag`) and characters (`character.frag`) trace sky visibility per fragment like the ground; the constant-1.0 glass sky and the one-value-per-body character bake are retired as lighting inputs. Lighting Lab A/B (editor on StructGenTest, `docs/evidence/lab_skysrc_{before,after}_*.png`): a character standing in the door room's doorway — torso seen from INSIDE the dark room mean luminance 0.208 → 0.001, from outside 0.192 → 0.084 (its outward face keeps its p90 0.28). The glass pane seen from inside the sealed window room read 0.008 both before and after — the change did not measurably alter that pose (see §8).
 - 2026-09-17 — foliage translucency (transmitted sun) also goes through `phxSunGate`; caught by the new R1 check on its first run.
 - 2026-09-17 — `phxSunGate`: direct sun is the shadow map's answer inside its coverage; the sky gate only outside it. Applied in voxel/grass/foliage/character/transparent_voxel (Ravenmere G-135). Doc rewritten to the current state; §0 matrix and rules added; check script added.
 - 2026-09-02 — M5 one-bounce probe field working, default OFF (`/api/debug/gi`).

@@ -125,7 +125,11 @@ void main() {
     // Baked light field (Phase 4): characters react to the same skylight + block light
     // as the world, so they darken in sealed rooms and pick up glow/spell light. Mirrors
     // voxel.frag: sky is a FILL (kSkyFill), sun is the KEY gated by skylight, block adds on top.
-    float sky        = fragBakedLight.x;
+    // Sky access TRACED per fragment (2026-09-17), the same phxSkyVisibility the ground beside the
+    // character runs. fragBakedLight.x was ONE per-cell value sampled at the feet for the whole
+    // body, so a character in a doorway was uniformly half-lit while the floor under it resolved
+    // the threshold. Block light (yzw) is still read but is 0 since U7.
+    float sky        = phxSkyVisibility(fragWorldPos + ubo.cameraWorld, normal, ubo.occupancyBox);
     vec3  blockColor = fragBakedLight.yzw;
     float skyCurve   = sky * sky;
     // U1: a private `const float kSkyFill = 0.35;` sat here, left over from before this pass moved

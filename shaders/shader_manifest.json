@@ -13,7 +13,7 @@
     },
     "character.frag": {
       "built": true,
-      "sources": "a9fe35cd3498fc67be933b3923a25703047850f166f9ef19b6a7cd9d00c1582f",
+      "sources": "1df083a1a904af56b4faa3bc23d090968897b6de1f6115eb8971c334e547f648",
       "spv_present": true
     },
     "character.vert": {
@@ -358,7 +358,7 @@
     },
     "transparent_voxel.frag": {
       "built": true,
-      "sources": "fbaa45b1a1c08256b8d78276ed67f0359d56372b3e1042b2cebdb3036397737c",
+      "sources": "72e392435b6534b84179f98cca2cfdc11b721898e50b4744ff1b08744e9e3532",
       "spv_present": true
     },
     "ui.frag": {

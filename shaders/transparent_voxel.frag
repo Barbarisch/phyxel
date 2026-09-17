@@ -166,9 +166,13 @@ void main() {
                                          ubo.shadowCascadeNear.y));
     }
 
-    vec3 ambient = phxAmbientAtmos(normal, vSkyLight, ubo.ambientColor);
+    // Sky access TRACED per fragment like the ground (2026-09-17). vSkyLight is a constant 1.0
+    // from the vertex stage (the per-cell field is gone), which lit a window in a sealed room as
+    // if it stood outdoors. Same five-ray trace, same occupancy, same ambient model.
+    float sky = phxSkyVisibility(inWorldPos + ubo.cameraWorld, normal, ubo.occupancyBox);
+    vec3 ambient = phxAmbientAtmos(normal, sky, ubo.ambientColor);
     vec3 sunContrib = (diff * ubo.sunColor + sunSpec * ubo.sunColor)
-                    * shadowFactor * phxSunGate(phxSkyGate(vSkyLight), shadowCoord);   // G-135
+                    * shadowFactor * phxSunGate(phxSkyGate(sky), shadowCoord);   // G-135
     vec3 finalLight = ambient + sunContrib;
 
     // Point lights
