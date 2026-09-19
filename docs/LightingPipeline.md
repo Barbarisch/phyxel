@@ -251,6 +251,16 @@ deleted block light; `static_voxel.vert` emits `vSkyLight = 1.0` as a placeholde
   Each direction's radiance is deposited into the six **ambient-cube lobes** it faces (weight =
   cosine to the axis), so a probe stores irradiance per hemisphere, not one scalar. A probe buried
   in solid is marked invalid; a freshly valid probe takes the estimate outright.
+- **World-stable (scrolling) addressing.** The grid follows the viewer by re-snapping its origin
+  to the lattice, but a probe is addressed by its world lattice coordinate wrapped into the slot
+  array (`phxWrapSlot`, floor-division — **never GLSL `%`, whose result is undefined for negative
+  operands and was measurably wrong here**), and each slot carries its lattice coordinate as a tag
+  (lobes 2–4 `.a`). A probe therefore keeps its slot and its blended history while it stays inside
+  the grid; a slot that has just scrolled in is recognised by its stale tag, read as invalid until
+  the probe pass rewrites it, and starts fresh. Without this (the first G-141 build, one day) every
+  2 u of camera travel shifted the whole buffer under every surface and the temporal blend spent
+  ~3 s fading the wrong light out: Lighting Lab door-room wall after a camera trip +33 % then
+  −56 % over 3 s; with scrolling the same trips leave it within the field's own noise.
 - **Receivers** call `phxAmbient(worldPos, N, occBox, grid, sky)`: trilinear over the 8 surrounding
   probes, evaluated as `Σ N_axis² × lobe(sign N_axis)`; a neighbour counts only if it is in air,
   in front of the surface plane, and **visible from the surface** (one short DDA ≤ 2√3 u through
@@ -491,7 +501,8 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 | **Interiors beyond the probe grid read as open sky** | The field covers ±48 u (x/z) and ±24 u (y) around the viewer; outside it `phxAmbient` falls back to the open-sky hemisphere, so a distant building's interior is bright until the viewer is within range (visible when looking into a doorway from >40 u). Fix = a far probe cascade (sparse, many directions), per `EngineAdvancesResearch.md` §4. |
 | **Probe bounce albedo is a constant** | `gi_probe.comp` bounces with `kBounceAlbedo = 0.30` for every surface (the occupancy stores solidity, not material), so a white wall and a dark floor bounce alike. A material id in the occupancy pool is the fix. |
 | **Probe angular resolution** | 18 fixed directions per probe: a 1-wide opening is seen only by the probes right at it; the rest of the room fills in by the probe-to-probe bounce, which is what `ambient_model_check.py` A4 measures. |
-| **Probe refresh latency and small-opening flicker** | 1/8 of the grid per frame and a 0.05 temporal blend: a world edit takes ~20 refreshes (~160 frames, ~2.5 s at 60 fps) to reach 2/3 of its final effect; moving fast re-snaps the grid and the fresh band starts from an unblended single estimate. A surface lit only through a 1-wide doorway (≈1% of a probe's sphere) still drifts over seconds — measured ±27% at blend 0.08; 0.05 is shipped and not yet re-measured. More rays per probe is the real fix. |
+| **Small-opening flicker** | A surface lit only through a 1-wide doorway (≈1 % of a probe's sphere) still drifts over seconds even with the camera still: measured ±25–50 % around a value 2× the ambient floor (blend 0.05). Invisible under the AgX toe at game exposure so far, but the fix is more rays per probe (36 at 1/16 of the grid per frame costs the same as 18 at 1/8). |
+| **Probe refresh latency** | 1/8 of the grid per frame and a 0.05 temporal blend: a world edit takes ~20 refreshes (~160 frames, ~2.5 s at 60 fps) to reach 2/3 of its final effect; moving fast re-snaps the grid and the fresh band starts from an unblended single estimate. A surface lit only through a 1-wide doorway (≈1% of a probe's sphere) still drifts over seconds — measured ±27% at blend 0.08; 0.05 is shipped and not yet re-measured. More rays per probe is the real fix. |
 | **Grass under a roof at noon is sunlit** | Lighting Lab sealed room: blades on the floor read 0.041 linear (exposure 16) against 0.0018 on the wall, in both the old and the new ambient model — the sun term, not ambient. Ravenmere G-142. |
 | **Glass pane reads black from inside a sealed room, before and after the sky-trace change** | Lighting Lab window room, pane at eye height in the -Z wall, camera 5 u inside looking at it: mean luminance 0.008 with the constant-1.0 sky AND with the traced sky. Either the glass's own lit term is negligible next to its alpha or the transparent pass does not composite there; the exterior should show through. Untested from outside. Open — measure the OIT composite of a lit pane before changing the glass model again. |
 | **Far LOD sees full sky** | `far_terrain.frag` / `far_tree_mesh.frag` use the open-sky hemisphere — no interiors at that range, and it is exactly the field's own out-of-grid fallback. |
@@ -500,6 +511,7 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 
 ## 9. Change log (append a line per lighting/shadow change; the fingerprint line is written by `tools/lighting_doc_check.py --update`)
 
+- 2026-09-19 (later) — **World-stable probe addressing (Ravenmere G-143).** Slots are addressed by wrapped world lattice coordinate with a per-slot tag, so camera motion no longer shifts the field under surfaces; `phxWrapSlot` uses floor division after GLSL `%` on negative operands produced wrong slots (walls darker and jittery, a micro-roofed room leaking, all cured by the floor form alone). Lab door-room wall after camera trips: +33 % / −56 % → within noise; ambient check still green.
 - 2026-09-19 — **The probe field is THE ambient source; the per-fragment sky trace is deleted (Ravenmere G-141).** Lab: `tools/ambient_model_check.py` RED on the trace (A1 0.37) → GREEN on the field (A1 1.00, A2 0.067, A3 0.99, A4 2.06). Cost table in §7. Also: `phxSegmentBlocked` two-level traversal (+ CPU mirror `packedPoolSegmentBlocked`, `OccupancyTraversalTest`) for every short visibility test; **`gi_probe.comp` gained the `build_shaders.bat` rule it never had (stale .spv since 2026-09-03).** `gi_field.glsl` (new, shared): ambient-cube probes (6 cosine lobes, `GiProbeField::kLobes`), `phxAmbient` / `phxSkyAccessOf`; `gi_probe.comp` deposits its 18 traced directions into the lobes; voxel/transparent_voxel/character/foliage/grass(.vert) call `phxAmbient`; the probe pass bounces off the field (multi-bounce by iteration) with a sun-visibility DDA, rotates its ray set per refresh and blends temporally (finds 1-wide doorways), and receivers keep only probes visible from the surface (no leak through walls); `phxSkyGate` deleted from `lighting.glsl`, `phxSkyVisibility` deleted from `occupancy.glsl`; `gi_probe.comp` gets the `build_shaders.bat` rule it never had (its `.spv` had been stale since 2026-09-03); `grass_shadow.vert` no longer traces (dead work); bindings 11–13 visible to vertex stages; `m_giEnabled` default ON (`/api/debug/gi` = kill switch). Rules R8 (micro-resolution occlusion) and R9 (no receiver traces) added and enforced by the doc check. New rig `tools/ambient_model_check.py` (lab rooms + exterior wall pair 13 u apart + a room sealed by a 1-micro roof, measured with the tone map off at noon). Numbers in the ledger row and in `docs/evidence/ambient_{red_trace,green_probes}.json`.
 - 2026-09-17 — glass (`transparent_voxel.frag`) and characters (`character.frag`) trace sky visibility per fragment like the ground; the constant-1.0 glass sky and the one-value-per-body character bake are retired as lighting inputs. Lighting Lab A/B (editor on StructGenTest, `docs/evidence/lab_skysrc_{before,after}_*.png`): a character standing in the door room's doorway — torso seen from INSIDE the dark room mean luminance 0.208 → 0.001, from outside 0.192 → 0.084 (its outward face keeps its p90 0.28). The glass pane seen from inside the sealed window room read 0.008 both before and after — the change did not measurably alter that pose (see §8).
 - 2026-09-17 — foliage translucency (transmitted sun) also goes through `phxSunGate`; caught by the new R1 check on its first run.
@@ -510,7 +522,7 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 - 2026-08-15 — single tone map moved to `post_process.frag` (grade pass).
 - 2026-08-06 — near shadow cascade (40 u) shipped; receivers min-compose.
 
-<!-- lighting-model-fingerprint: 3ccdffd3e58c096f -->
+<!-- lighting-model-fingerprint: 0b1abdb6ea4cda24 -->
 
 ## Related
 

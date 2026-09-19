@@ -32,8 +32,9 @@
 #include "lighting.glsl"
 #include "occupancy.glsl"   // probe-to-surface visibility (phxDdaHitsSolid)
 
-// PHX_GI_LOBES vec4 per probe, lobe order +X -X +Y -Y +Z -Z; every lobe's .a carries the probe's
-// validity (1 = the probe sits in air). Layout owned by gi_probe.comp / GiProbeField.cpp.
+// PHX_GI_LOBES vec4 per probe, lobe order +X -X +Y -Y +Z -Z. Alphas: lobes 0,1 = validity (1 = the
+// probe sits in air); lobes 2,3,4 = the probe's world lattice coordinate L.xyz (the scrolling tag);
+// lobe 5 = 0. Layout owned by gi_probe.comp / GiProbeField.cpp.
 // The probe pass defines PHX_GI_WRITER: it reads the field (last refresh) to bounce light off it
 // and writes its own slice; everything else is a reader.
 #ifdef PHX_GI_WRITER
@@ -52,19 +53,48 @@ const int PHX_GI_DIM_Z = 48;
 const int PHX_GI_LOBES = 6;
 const float PHX_GI_EDGE_FADE_PROBES = 4.0;   // outer band, in probes, blended into the fallback
 
-int phxProbeIndex(ivec3 g) {
-    g = clamp(g, ivec3(0), ivec3(PHX_GI_DIM_X - 1, PHX_GI_DIM_Y - 1, PHX_GI_DIM_Z - 1));
-    return (g.x + g.y * PHX_GI_DIM_X + g.z * PHX_GI_DIM_X * PHX_GI_DIM_Y) * PHX_GI_LOBES;
+// SCROLLING (world-stable) ADDRESSING. The grid follows the viewer by re-snapping its origin to
+// the 2 u lattice, so probes are addressed by their WORLD lattice coordinate L (world / spacing,
+// an integer) wrapped into the slot array: slot = L mod dims. A probe therefore keeps its slot --
+// and its blended history -- for as long as it stays inside the grid; only the probes that ENTER
+// the grid get a slot whose old contents belong to a probe 96 u away, and those are recognised by
+// the lattice tag stored with the probe (lobes 2..4 .a = L.xyz) and treated as fresh/invalid until
+// the probe pass rewrites them. Without this (the first G-141 build) every 2 u of camera travel
+// shifted the whole buffer under every surface, and the temporal blend then took ~2 s to fade the
+// wrong light out -- "textures go dark and come back while moving" (user, 2026-09-19).
+ivec3 phxProbeLatticeOrigin(vec4 grid) {
+    return ivec3(floor(grid.xyz / max(grid.w, 1e-3) + 0.5));   // origin is a lattice multiple
+}
+/// True modulo (floor division), never GLSL's %, whose result is undefined for negative operands.
+ivec3 phxWrapSlot(ivec3 L) {
+    ivec3 d = ivec3(PHX_GI_DIM_X, PHX_GI_DIM_Y, PHX_GI_DIM_Z);
+    return L - d * ivec3(floor(vec3(L) / vec3(d)));
+}
+int phxProbeSlotBase(ivec3 L, ivec3 o) {
+    ivec3 sl = phxWrapSlot(L);
+    return (sl.x + sl.y * PHX_GI_DIM_X + sl.z * PHX_GI_DIM_X * PHX_GI_DIM_Y) * PHX_GI_LOBES;
+}
+/// Does the slot for lattice coordinate L currently hold THAT probe (and is it in air)?
+float phxProbeValidAt(ivec3 L, ivec3 o) {
+    int base = phxProbeSlotBase(L, o);
+    vec4 l0 = giField.probes[base];
+    if (l0.a < 0.5) return 0.0;
+    if (giField.probes[base + 2].a != float(L.x) ||
+        giField.probes[base + 3].a != float(L.y) ||
+        giField.probes[base + 4].a != float(L.z)) return 0.0;   // stale slot: a probe from elsewhere
+    return 1.0;
 }
 
-/// Ambient-cube evaluation of ONE probe for a surface facing N. Returns rgb; .a = validity.
-vec4 phxProbeIrradianceFor(ivec3 g, vec3 N) {
-    int base = phxProbeIndex(g);
+/// Ambient-cube evaluation of ONE probe (by world lattice coordinate) for a surface facing N.
+/// Returns rgb; .a = validity (in air AND the slot holds this probe).
+vec4 phxProbeIrradianceFor(ivec3 L, ivec3 o, vec3 N) {
+    float valid = phxProbeValidAt(L, o);
+    int base = phxProbeSlotBase(L, o);
     vec4 lx = giField.probes[base + (N.x >= 0.0 ? 0 : 1)];
     vec4 ly = giField.probes[base + (N.y >= 0.0 ? 2 : 3)];
     vec4 lz = giField.probes[base + (N.z >= 0.0 ? 4 : 5)];
     vec3 n2 = N * N;
-    return vec4(lx.rgb * n2.x + ly.rgb * n2.y + lz.rgb * n2.z, lx.a);
+    return vec4(lx.rgb * n2.x + ly.rgb * n2.y + lz.rgb * n2.z, valid);
 }
 
 /// Trilinear sample of the probe field at an ABSOLUTE world position, for a surface facing N.
@@ -104,8 +134,10 @@ bool phxGiIrradiance(vec3 worldPos, vec3 N, ivec4 occBox, vec4 grid,
     vec3 toEdge = min(rel, dims - rel);
     edge = clamp(min(toEdge.x, min(toEdge.y, toEdge.z)) / PHX_GI_EDGE_FADE_PROBES, 0.0, 1.0);
 
-    ivec3 b = ivec3(floor(rel));
+    // Cell [b, b+1] per axis; b is clamped so b+1 never leaves the grid (rel == dims exactly).
+    ivec3 b = min(ivec3(floor(rel)), ivec3(PHX_GI_DIM_X - 2, PHX_GI_DIM_Y - 2, PHX_GI_DIM_Z - 2));
     vec3  f = rel - vec3(b);
+    ivec3 o = phxProbeLatticeOrigin(grid);
     // Start the visibility rays a little off the surface, on its front side, so the surface's own
     // cell never counts as the blocker.
     vec3 from = worldPos + N * (1.5 / 9.0);
@@ -114,8 +146,8 @@ bool phxGiIrradiance(vec3 worldPos, vec3 N, ivec4 occBox, vec4 grid,
     float wsum = 0.0;
     for (int i = 0; i < 8; ++i) {
         ivec3 off = ivec3(i & 1, (i >> 1) & 1, (i >> 2) & 1);
-        vec4 pr = phxProbeIrradianceFor(b + off, N);
-        if (pr.a < 0.5) continue;                       // buried probe
+        vec4 pr = phxProbeIrradianceFor(o + b + off, o, N);
+        if (pr.a < 0.5) continue;                       // buried probe, or a slot not yet rewritten for this position
 
         vec3 probeWorld = grid.xyz + vec3(b + off) * spacing;
         vec3 toProbe = probeWorld - worldPos;

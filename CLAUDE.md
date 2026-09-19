@@ -85,7 +85,9 @@ the G-141 black wall and is deleted — rule R9, enforced); occlusion never depe
 R8). Two traps that each cost a day: (1) every screenshot passes through exposure ×8 + AgX, debug
 views included — read a debug view only with `POST /api/debug/tonemap {"curve":0}` and one grey
 quantity per capture; (2) `gi_probe.comp` had no rule in `build_shaders.bat` for two weeks, so its
-`.spv` was stale — `tools/shader_manifest.py --check` must list every shader. An ambient change runs
+`.spv` was stale — `tools/shader_manifest.py --check` must list every shader; (3) GLSL `%` is
+undefined for negative operands and gave wrong probe slots on this driver — wrap with floor
+division (`phxWrapSlot`). An ambient change runs
 `python tools/ambient_model_check.py --check <tag>` (Lighting Lab, red-before-green numbers). A visual
 claim needs the defect IN FRAME in before and after captures at the same stated pose.
 

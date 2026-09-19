@@ -1,0 +1,40 @@
+{
+  "tag": "bisect_nowrap",
+  "values": {
+    "wall_open": 0.10028215497732162,
+    "wall_street": 0.09985675662755966,
+    "in_control_open": 0.26374632120132446,
+    "in_sealed": 0.017570016905665398,
+    "in_sealed_wall": 0.0017942989943549037,
+    "in_door": 0.019069626927375793,
+    "in_door_wall": 0.0036841321270912886,
+    "in_sealed_micro": 0.017527833580970764
+  },
+  "results": [
+    {
+      "check": "A1 continuity: wall_street / wall_open >= 0.40",
+      "measured": 0.9957480560931854,
+      "pass": true
+    },
+    {
+      "check": "A2 sealed: in_sealed / in_control_open <= 0.08",
+      "measured": 0.06661685444097382,
+      "pass": true
+    },
+    {
+      "check": "A3 resolution: in_sealed_micro / in_sealed <= 1.5",
+      "measured": 0.9975423548377151,
+      "pass": true
+    },
+    {
+      "check": "A3 resolution: in_sealed_micro / in_control_open <= 0.08",
+      "measured": 0.06645691604045284,
+      "pass": true
+    },
+    {
+      "check": "A4 opening: in_door_wall / in_sealed_wall >= 1.5",
+      "measured": 2.0520994768423466,
+      "pass": true
+    }
+  ]
+}

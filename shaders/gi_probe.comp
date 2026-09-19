@@ -119,7 +119,17 @@ void main() {
     int pz = int(idx) / (nx * ny);
 
     float spacing = pc.originAndSpacing.w;
-    vec3 world = pc.originAndSpacing.xyz + vec3(float(px), float(py), float(pz)) * spacing;
+    // SCROLLING: this slot holds whichever lattice coordinate in [o, o + dims) is congruent to it
+    // (see gi_field.glsl). The probe's world position follows from that, not from the slot.
+    ivec3 o = phxProbeLatticeOrigin(pc.originAndSpacing);
+    ivec3 dims3 = ivec3(nx, ny, pc.dims.z);
+    ivec3 sl = ivec3(px, py, pz);
+    ivec3 L = o + phxWrapSlot(sl - o);   // the lattice coordinate in [o, o + dims) congruent to this slot
+    vec3 world = vec3(L) * spacing;
+    int base = phxProbeSlotBase(L, o);
+    bool sameProbe = giField.probes[base + 2].a == float(L.x) &&
+                     giField.probes[base + 3].a == float(L.y) &&
+                     giField.probes[base + 4].a == float(L.z);
 
     // ---- WHAT A PROBE STORES: IRRADIANCE, INCLUDING ONE BOUNCE --------------------------------
     //
@@ -217,11 +227,14 @@ void main() {
     }
 
     float valid = phxOccupancySolid(ivec3(floor(world * 9.0)), pc.occBox) ? 0.0 : 1.0;
+    float prevValid = giField.probes[base].a;
     for (int l = 0; l < 6; ++l) {
         vec3 v = lobeW[l] > 0.0 ? lobe[l] / lobeW[l] : vec3(0.0);
-        vec4 prev = giField.probes[idx * PHX_GI_LOBES + l];
-        // A probe that was buried (or never written) starts from the fresh estimate outright.
-        vec3 blended = (prev.a > 0.5) ? mix(prev.rgb, v, kBlend) : v;
-        giField.probes[idx * PHX_GI_LOBES + l] = vec4(blended, valid);
+        vec4 prev = giField.probes[base + l];
+        // Blend only into OUR OWN history: a slot that held a buried probe, was never written, or
+        // held a probe from the far side of the grid (the slot just scrolled in) starts fresh.
+        vec3 blended = (sameProbe && prevValid > 0.5) ? mix(prev.rgb, v, kBlend) : v;
+        float a = (l < 2) ? valid : (l == 2 ? float(L.x) : (l == 3 ? float(L.y) : (l == 4 ? float(L.z) : 0.0)));
+        giField.probes[base + l] = vec4(blended, a);
     }
 }
