@@ -75,13 +75,19 @@ code were corrected 2026-08-05. Still open: the ~1.1% pixel break D1 measured wh
 re-derives it empirically; do not guess a fourth time.
 **LIGHTING / SHADOWS — [`docs/LightingPipeline.md`](docs/LightingPipeline.md) is the CURRENT-STATE
 reference and must be updated in the same commit as any change to `lighting.glsl`, `occupancy.glsl`,
-a receiving shader, the cascade fit, the occupancy traces or the probe field** (§0 receiver matrix +
-rules, §9 change log, then `python tools/lighting_doc_check.py --update`; `build_and_test.ps1` runs
-`--check`). Read §0 BEFORE touching lighting: two answers to one question (a sky trace gating direct
-sun on top of the shadow map) shipped as "low poly shadows" (G-135) because the doc was stale and the
-plan docs have superseded sections. Direct sun = the shadow map wherever it covers the fragment; the
-sky trace owns ambient only. A lighting claim needs the defect IN FRAME in before and after captures
-at the same stated pose — never a frame chosen because it was convenient.
+`gi_field.glsl`, `gi_probe.comp`, a receiving shader, the cascade fit or the occupancy upload** (§0
+receiver matrix + rules, §9 change log, then `python tools/lighting_doc_check.py --update`;
+`build_and_test.ps1` runs `--check`). Read §0 BEFORE touching lighting. The model, in one line: direct
+sun = the shadow map wherever it covers the fragment; ambient = the probe field (`phxAmbient` in
+`gi_field.glsl`, ambient-cube probes traced through the MICRO-resolution occupancy, default ON); no
+receiver traces its own sky (the per-fragment 5-ray trace produced both G-135 "low poly shadows" and
+the G-141 black wall and is deleted — rule R9, enforced); occlusion never depends on voxel size (rule
+R8). Two traps that each cost a day: (1) every screenshot passes through exposure ×8 + AgX, debug
+views included — read a debug view only with `POST /api/debug/tonemap {"curve":0}` and one grey
+quantity per capture; (2) `gi_probe.comp` had no rule in `build_shaders.bat` for two weeks, so its
+`.spv` was stale — `tools/shader_manifest.py --check` must list every shader. An ambient change runs
+`python tools/ambient_model_check.py --check <tag>` (Lighting Lab, red-before-green numbers). A visual
+claim needs the defect IN FRAME in before and after captures at the same stated pose.
 
 **LOD/distance tiers: [`docs/LodTierLedger.md`](docs/LodTierLedger.md) is the maintained inventory
 of all 8 distance-tiered render systems** (levels, thresholds, transitions, invalidation paths +

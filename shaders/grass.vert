@@ -64,9 +64,11 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec4  skyBodyLight[4];
     int   skyBodyCount;
     ivec4 occupancyBox;
+    vec4  giProbeGrid;    // probe field: xyz = probe (0,0,0) world position, w = spacing
 } ubo;
 
 #include "occupancy.glsl"   // M4: grass traces its own sky, per BLADE VERTEX (see below)
+#include "gi_field.glsl"    // THE ambient term (probe field); G-141: no receiver traces its own sky
 
 layout(push_constant) uniform PushConstants {
     vec3  chunkBaseOffset;   // chunk world origin
@@ -134,7 +136,8 @@ layout(location = 9) out vec3 vWorldPos;
 // Computed here rather than per fragment: sky access varies at WORLD scale, while a blade is
 // ~0.05-0.1 u wide, so a per-fragment trace re-answers the same question for every fragment of the
 // same blade. Measured: per-fragment took the Grass scope 1.240 -> 3.284 ms.
-layout(location = 4) out float vSky;
+layout(location = 4) out float vSky;             // enclosure gate derived from the probe-field ambient (sun-gate fallback, sheen)
+layout(location = 10) out vec3  vAmbient;         // probe-field ambient for an up-facing receiver, per blade vertex
 
 // Cheap hash -> [0,1)
 float hash21(vec2 p) {
@@ -641,7 +644,9 @@ void main() {
     vShadowCoordNear = ubo.biasedLightSpaceNear * vec4(worldPos, 1.0);
 
     vWorldPos   = worldPos;   // U3.3: camera-relative, for the point-light loop in grass.frag
-    vSky        = phxSkyVisibility(worldPos + ubo.cameraWorld, vec3(0.0, 1.0, 0.0),
-                                   ubo.occupancyBox);
+    // AMBIENT per blade VERTEX (a blade is 0.05-0.1 u wide; ambient varies at world scale) from
+    // the probe field -- the same term the ground under the blade gets (gi_field.glsl, G-141).
+    vAmbient    = phxAmbient(worldPos + ubo.cameraWorld, vec3(0.0, 1.0, 0.0), ubo.occupancyBox, ubo.giProbeGrid, ubo.ambientColor);
+    vSky        = phxSkyAccessOf(vAmbient, vec3(0.0, 1.0, 0.0), ubo.ambientColor);
     gl_Position = ubo.viewProj * vec4(worldPos, 1.0);
 }

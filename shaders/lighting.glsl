@@ -85,8 +85,9 @@ vec3 phxAmbientAtmos(vec3 N, float skyLight, vec3 skyColor) {
     return mix(ground, skyColor, up) * (skyCurve * kSkyFillAtmos) + skyColor * kAmbientFloorAtmos;
 }
 
-/// The sun's sky-access gate. Surfaces with no sky exposure receive no direct sun.
-float phxSkyGate(float skyLight) { return skyLight * skyLight; }
+// phxSkyGate (skyLight^2, the sun's sky-access gate) was RETIRED 2026-09-17 (G-141): no receiver
+// has a per-fragment sky scalar any more. The only enclosure gate left is phxSkyAccessOf in
+// gi_field.glsl, derived from the probe-field ambient, and it is used unsquared.
 
 // ---- Shadow bias ----------------------------------------------------------------------------
 /// depthRange = ubo.shadowDepthRange (world-unit span of the fitted light volume).
@@ -131,11 +132,11 @@ bool phxShadowCoordValid(vec4 c) {
 
 /// DIRECT-SUN GATE (Ravenmere G-135, 2026-09-17). Inside the shadow map's fitted volume the map
 /// IS the answer to "is the sun blocked": a roof, a wall, a canopy are casters, resolved along the
-/// real sun direction. The traced sky visibility is the AMBIENT term's business. Multiplying the
-/// sun by it as well (a leftover from the flood-skylight days, when one number gated both) stamped
-/// a canopy's near-vertical footprint onto the ground as hard, sun-agnostic blocks right beside the
-/// correctly shadowed pixels - the "low poly shadows" next to the player. So: full sun where the map
-/// has data (blending through its 12% border fade), the sky gate only where it has none.
+/// real sun direction. `skyGate` is only consulted where the map has NO data (beyond the cascades'
+/// fit, blending through the 12% border fade). Since G-141 that argument is the probe field's
+/// enclosure gate (gi_field.glsl phxSkyAccessOf), not a traced sky scalar -- a second answer to the
+/// "is the sun blocked" question is exactly what stamped canopy footprints onto the ground as the
+/// "low poly shadows" beside the player.
 float phxSunGate(float skyGate, vec4 shadowCoord) {
     if (!phxShadowCoordValid(shadowCoord)) return skyGate;
     return mix(skyGate, 1.0, phxShadowBorderFade(shadowCoord.xy));

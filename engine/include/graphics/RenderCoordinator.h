@@ -670,7 +670,7 @@ private:
     // M5.1: indirect-light probe field. A RENDER CACHE keyed on world position -- never persisted,
     // never per chunk (see the M3-REDESIGN contradiction note in the plan).
     std::unique_ptr<GiProbeField> m_giProbes;
-    bool m_giEnabled = false;
+    bool m_giEnabled = true;    // THE ambient source since G-141 (2026-09-17); POST /api/debug/gi is the kill switch
 
     std::vector<int> m_emissiveLightIds;
     size_t           m_emissiveLightHash = 0;

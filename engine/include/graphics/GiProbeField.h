@@ -40,6 +40,9 @@ public:
     static constexpr int kDimY = 24;
     static constexpr int kDimZ = 48;
     static constexpr int kProbeCount = kDimX * kDimY * kDimZ;   // 55,296
+    /// vec4 per probe: an AMBIENT CUBE (+X -X +Y -Y +Z -Z cosine lobes), mirrored in gi_field.glsl
+    /// and gi_probe.comp (PHX_GI_LOBES). G-141, 2026-09-17.
+    static constexpr int kLobes = 6;
     static constexpr float kSpacing = 2.0f;
     /// M5.3: probes refresh in slices, one slice per frame. MUST match kPhases in gi_probe.comp.
     /// Safe because a probe stores sky access and bounce off STATIC geometry -- quantities that
@@ -69,6 +72,7 @@ private:
     VkPipeline       m_pipeline = VK_NULL_HANDLE;
     VkPipelineLayout m_layout   = VK_NULL_HANDLE;
     uint32_t         m_phase    = 0;   // M5.3 refresh slice
+    uint32_t         m_refresh  = 0;   // counts recordUpdate calls; seeds the ray-set rotation
 };
 
 }  // namespace Graphics

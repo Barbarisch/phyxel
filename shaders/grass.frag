@@ -14,7 +14,8 @@ layout(location = 6) in vec4  vShadowCoord; // biased light-space coord (shadow 
 layout(location = 7) in float vWindLean;   // wind debug: lean fraction, 0 upright .. 0.9 at cap
 layout(location = 8) in vec4  vShadowCoordNear; // near-cascade coord (fine texels)
 layout(location = 9) in vec3  vWorldPos;        // U3.3: camera-relative pos, for point lights
-layout(location = 4) in float vSky;            // M4: TRACED sky visibility, computed per blade vertex
+layout(location = 4) in float vSky;            // enclosure gate from the probe-field ambient (per blade vertex)
+layout(location = 10) in vec3  vAmbient;        // probe-field ambient, per blade vertex (grass.vert)
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -61,9 +62,11 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec4  skyBodyLight[4];
     int   skyBodyCount;
     ivec4 occupancyBox;   // xyz = box min corner (chunk coords), w = 1 when 11/12 are real
+    vec4  giProbeGrid;    // probe field: xyz = probe (0,0,0) world position, w = spacing
 } ubo;
 
 #include "occupancy.glsl"   // U3.3 / D15: grass gets the SAME visibility term as stone
+#include "gi_field.glsl"    // THE ambient term (probe field); G-141: no receiver traces its own sky
 
 // U3.3 — A CAMPFIRE LIGHTS THE GRASS AROUND IT.
 //
@@ -132,13 +135,10 @@ void main() {
         shadowFactor = min(shadowFactor,
                            phxShadowFast(shadowMapNear, vShadowCoordNear,
                                          ubo.shadowCascadeNear.y));
-    // M4: vSky is TRACED now (in grass.vert, per blade vertex) rather than read from the dead
-    // per-instance nibble the flood used to fill. Grass inside a house is finally darker than grass
-    // in the open. Tracing per VERTEX rather than per fragment because sky access varies at world
-    // scale and a blade is ~0.05-0.1 u wide -- per fragment cost 3.284 ms against 1.240 ms.
-    float sky = vSky;
-    vec3  ambient = phxAmbientAtmos(vec3(0.0, 1.0, 0.0), sky, ubo.ambientColor);
-    vec3  sunTerm = ubo.sunColor * (0.85 * shadowFactor * phxSunGate(phxSkyGate(sky), vShadowCoord));   // G-135
+    // AMBIENT comes from the vertex stage (probe field, per blade vertex -- gi_field.glsl, G-141).
+    // Direct sun is the shadow map's answer; vSky only stands in beyond the cascades' coverage.
+    vec3  ambient = vAmbient;
+    vec3  sunTerm = ubo.sunColor * (0.85 * shadowFactor * phxSunGate(vSky, vShadowCoord));   // G-135
 
     // U3.3 — POINT/SPOT LIGHTS ON GRASS, with the same visibility term stone gets.
     //
@@ -182,7 +182,7 @@ void main() {
     // registers; time-independent at wind 0 (rest lean is static), so the stillness invariant
     // holds. Gated by skylight so cave/indoor grass doesn't glow.
     float sheen = clamp(vWindLean / 0.9, 0.0, 1.0);
-    lit *= 1.0 + (0.5 * sheen * sheen - 0.10) * phxSkyGate(vSky);
+    lit *= 1.0 + (0.5 * sheen * sheen - 0.10) * vSky;
 
     // ── WIND DEBUG VIEW (POST /api/debug/shadow {"mode":2}) ─────────────────────────────────
     // Colours every blade by how hard the wind is pushing it RIGHT NOW, so a passing gust reads as

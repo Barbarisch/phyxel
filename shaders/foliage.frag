@@ -62,9 +62,11 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec4  skyBodyLight[4];
     int   skyBodyCount;
     ivec4 occupancyBox;   // xyz = box min corner (chunk coords), w = 1 when 11/12 are real
+    vec4  giProbeGrid;    // probe field: xyz = probe (0,0,0) world position, w = spacing
 } ubo;
 
 #include "occupancy.glsl"   // U3.3 / D15: leaves get the SAME visibility term as stone
+#include "gi_field.glsl"    // THE ambient term (probe field); G-141: no receiver traces its own sky
 
 // U3.3 -- a campfire lights the canopy above it. Same regression as grass: the block-light flood
 // that used to reach foliage through vBlock was deleted by M0 and nothing replaced it.
@@ -133,12 +135,11 @@ void main() {
                            phxShadowFast(shadowMapNear,
                                          ubo.biasedLightSpaceNear * vec4(vWorldPos, 1.0),
                                          ubo.shadowCascadeNear.y));
-    // M4: vSky is GONE (constant 1.0 since M0). Leaf cards trace sky like everything else, so a
-    // canopy interior and a leaf under a roof finally differ from one in open air.
-    float sky     = phxSkyVisibility(vWorldPos + ubo.cameraWorld, vec3(0.0, 1.0, 0.0), ubo.occupancyBox);
-    float skyGate = phxSkyGate(sky);
-    vec3  fill    = phxAmbientAtmos(vec3(0.0, 1.0, 0.0), sky, ubo.ambientColor);
-    vec3  sunTerm = ubo.sunColor * (0.7 * shadowFactor * phxSunGate(skyGate, vShadowCoord));   // G-135
+    // AMBIENT from the probe field (gi_field.glsl, G-141), as an upward-facing receiver: a card
+    // has no single meaningful normal. Direct sun is the shadow map's answer.
+    vec3  fill    = phxAmbient(vWorldPos + ubo.cameraWorld, vec3(0.0, 1.0, 0.0), ubo.occupancyBox, ubo.giProbeGrid, ubo.ambientColor);
+    float skyAcc  = phxSkyAccessOf(fill, vec3(0.0, 1.0, 0.0), ubo.ambientColor);
+    vec3  sunTerm = ubo.sunColor * (0.7 * shadowFactor * phxSunGate(skyAcc, vShadowCoord));   // G-135
 
     // Backlit TRANSMISSION: looking toward the sun through foliage, shadowed leaves glow —
     // light scattering through the blade. Strongest at the rim (partially occluded), damped
@@ -146,7 +147,7 @@ void main() {
     vec3  rayDir   = normalize(ubo.sunDirection);              // direction sun rays travel
     vec3  viewDir  = normalize(vWorldPos - ubo.cameraPosition);
     float backlit  = pow(max(dot(viewDir, rayDir), 0.0), 6.0);
-    float trans    = backlit * (1.0 - shadowFactor * 0.6) * (0.25 + 0.75 * phxSunGate(skyGate, vShadowCoord)) * 0.9;   // G-135 R1: transmitted sun is direct sun
+    float trans    = backlit * (1.0 - shadowFactor * 0.6) * (0.25 + 0.75 * phxSunGate(skyAcc, vShadowCoord)) * 0.9;   // G-135 R1: transmitted sun is direct sun
 
     // U3.3 -- point/spot lights on leaf cards. A card has no single meaningful normal (it is a
     // billboarded quad), so light it as an upward-facing diffuse receiver: attenuation and

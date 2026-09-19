@@ -252,5 +252,22 @@ enum class CubeOccupancy : uint8_t {
 /// mask decode — so scanning all 32768 cells of a chunk stays cheap.
 CubeOccupancy packedPoolCubeOccupancy(const PackedOccupancyPool& packed, const glm::ivec3& worldCube);
 
+/// The MICRO march over a segment (absolute world units): true if any micro cell on it is solid,
+/// EXCEPT the cell containing the end point, which is never tested (the stop-short convention the
+/// light-visibility callers rely on; pinned by OccupancyTraversalTest). This is the traversal every
+/// trace uses (the CPU mirror of phxDdaHitsSolid), exposed so the two-level variant below can be
+/// proven equal to it. `maxCells` caps the walk.
+bool packedPoolSegmentHitsSolid(const PackedOccupancyPool& packed, const glm::vec3& fromWorld,
+                                const glm::vec3& toWorld, int maxCells = 4096);
+
+/// TWO-LEVEL segment test, the CPU mirror of phxSegmentBlocked (occupancy.glsl): walks CUBE cells
+/// and descends to the micro march only inside MIXED cubes. Must return exactly what
+/// packedPoolSegmentHitsSolid returns for the same segment -- OccupancyTraversalTest pins that on
+/// random segments through solid, subcube, microcube and thin-wall geometry across a negative
+/// chunk origin. It exists because the receiver-side probe visibility test (G-141) was 8 micro
+/// marches per fragment and cost 56 ms/frame on the laptop GPU.
+bool packedPoolSegmentBlocked(const PackedOccupancyPool& packed, const glm::vec3& fromWorld,
+                              const glm::vec3& toWorld);
+
 }  // namespace Graphics
 }  // namespace Phyxel

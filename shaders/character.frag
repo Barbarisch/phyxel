@@ -65,9 +65,11 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec4  skyBodyLight[4];
     int   skyBodyCount;
     ivec4 occupancyBox;   // xyz = box min corner (chunk coords), w = bitfield (see occupancy.glsl)
+    vec4  giProbeGrid;    // probe field: xyz = probe (0,0,0) world position, w = spacing
 } ubo;
 
 #include "occupancy.glsl"   // U2 / D14: the same visibility term voxel.frag uses
+#include "gi_field.glsl"    // THE ambient term (probe field); G-141: no receiver traces its own sky
 
 // Point light (32 bytes, std430)
 struct PointLightGPU {
@@ -125,13 +127,13 @@ void main() {
     // Baked light field (Phase 4): characters react to the same skylight + block light
     // as the world, so they darken in sealed rooms and pick up glow/spell light. Mirrors
     // voxel.frag: sky is a FILL (kSkyFill), sun is the KEY gated by skylight, block adds on top.
-    // Sky access TRACED per fragment (2026-09-17), the same phxSkyVisibility the ground beside the
-    // character runs. fragBakedLight.x was ONE per-cell value sampled at the feet for the whole
-    // body, so a character in a doorway was uniformly half-lit while the floor under it resolved
-    // the threshold. Block light (yzw) is still read but is 0 since U7.
-    float sky        = phxSkyVisibility(fragWorldPos + ubo.cameraWorld, normal, ubo.occupancyBox);
+    // AMBIENT from the probe field, the same term the floor under the character gets
+    // (gi_field.glsl, G-141). Evaluated per fragment with the body's normal, so a character in a
+    // doorway resolves the threshold the way the floor does. Block light (yzw) is still read but
+    // is 0 since U7.
+    vec3  ambient    = phxAmbient(fragWorldPos + ubo.cameraWorld, normal, ubo.occupancyBox, ubo.giProbeGrid, ubo.ambientColor);
+    float skyAcc     = phxSkyAccessOf(ambient, normal, ubo.ambientColor);
     vec3  blockColor = fragBakedLight.yzw;
-    float skyCurve   = sky * sky;
     // U1: a private `const float kSkyFill = 0.35;` sat here, left over from before this pass moved
     // to phxAmbientAtmos. It had no readers and contradicted the shared model's own kSkyFill.
     // Deleted rather than left to be "restored" by a later reader.
@@ -155,16 +157,13 @@ void main() {
                                          ubo.shadowCascadeNear.y));
     }
 
-    // Shared hemispheric fill driven by the atmosphere, so a character's shaded side goes cool
-    // with the sky exactly as the world's does.
-    vec3 ambient = phxAmbientAtmos(normal, sky, ubo.ambientColor);
-    vec3 finalLight = ambient + (diff + sunSpec) * ubo.sunColor * phxSunGate(skyCurve, shadowCoord) * shadowFactor;   // G-135
+    vec3 finalLight = ambient + (diff + sunSpec) * ubo.sunColor * phxSunGate(skyAcc, shadowCoord) * shadowFactor;   // G-135
     // Moonlight, matching voxel.frag: unshadowed (the cascades are fitted to the sun), and
     // gated by sky access. Without it a character is black on a moonlit night while the ground
     // around them is lit.
     if (ubo.moonColor.b > 0.0) {
         float moonNdl = max(dot(normal, normalize(-ubo.moonDirection)), 0.0);
-        finalLight += ubo.moonColor * moonNdl * skyCurve;
+        finalLight += ubo.moonColor * moonNdl * skyAcc;
     }
     finalLight += blockColor * blockColor; // omnidirectional warm/colored fill from baked block light
 

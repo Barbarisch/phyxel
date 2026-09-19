@@ -42,7 +42,7 @@ bool GiProbeField::initialize(Vulkan::VulkanDevice* device) {
     m_device = device;
     VkDevice dev = device->getDevice();
 
-    const VkDeviceSize bytes = static_cast<VkDeviceSize>(kProbeCount) * sizeof(glm::vec4);
+    const VkDeviceSize bytes = static_cast<VkDeviceSize>(kProbeCount) * kLobes * sizeof(glm::vec4);
     device->createBuffer(bytes,
                          VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                          VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, m_buffer, m_memory);
@@ -121,7 +121,8 @@ void GiProbeField::recordUpdate(VkCommandBuffer cmd, VkDescriptorSet set,
     // M5.3: w carries this frame's refresh PHASE. Each probe is updated once every kPhases
     // frames and the dispatch shrinks to match, which is what makes 18 directions affordable.
     push.dims = glm::ivec4(kDimX, kDimY, kDimZ, static_cast<int>(m_phase));
-    push.ambientColor = glm::vec4(ambientColor, 0.0f);
+    // .w = refresh counter: seeds the per-probe ray-set rotation (see gi_probe.comp).
+    push.ambientColor = glm::vec4(ambientColor, static_cast<float>(m_refresh++ % 4096u));
     push.occBox = occBox;
     push.sunDirection = glm::vec4(sunDirection, 0.0f);
     push.sunColor = glm::vec4(sunColor, 0.0f);
@@ -140,9 +141,10 @@ void GiProbeField::recordUpdate(VkCommandBuffer cmd, VkDescriptorSet set,
     barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
     barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
     barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    // G-141: grass.vert samples the field per blade VERTEX, so the read side is vertex + fragment.
     vkCmdPipelineBarrier(cmd,
                          VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                         VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                         VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                          0, 1, &barrier, 0, nullptr, 0, nullptr);
 }
 

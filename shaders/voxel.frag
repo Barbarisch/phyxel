@@ -74,99 +74,8 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 
 #include "occupancy.glsl"
 
-// ---- M5.1: THE INDIRECT-LIGHT PROBE FIELD (docs/UnifiedLightingPlan.md) --------------------
-// A coarse grid of SKY-VISIBILITY probes around the viewer, filled by gi_probe.comp against the
-// same occupancy this shader traces. The value feeds the same phxAmbientAtmos the analytic path
-// uses -- what changes is where the sky-access number comes from: a neighbourhood of traced points
-// rather than this fragment alone.
-//
-// Guarded by bit 3 of occupancyBox.w. When clear, binding 13 holds the inert fallback buffer and
-// must not be read -- the same contract bindings 11/12 use.
-layout(std430, set = 0, binding = 13) readonly buffer GiProbes {
-    vec4 probes[];
-} giField;
-
-const int PHX_GI_DIM_X = 48;
-const int PHX_GI_DIM_Y = 24;
-const int PHX_GI_DIM_Z = 48;
-
-/// rgb = irradiance arriving here (sky + one bounce), a = validity (0 when buried in solid).
-vec4 phxProbeAt(ivec3 g) {
-    g = clamp(g, ivec3(0), ivec3(PHX_GI_DIM_X - 1, PHX_GI_DIM_Y - 1, PHX_GI_DIM_Z - 1));
-    int idx = g.x + g.y * PHX_GI_DIM_X + g.z * PHX_GI_DIM_X * PHX_GI_DIM_Y;
-    return giField.probes[idx];
-}
-
-/// Trilinear sample of the probe field at an ABSOLUTE world position.
-/// Returns false when the field is unavailable or the position is outside the grid, so the caller
-/// can fall back to the analytic ambient rather than to black -- degrading to the old look, never
-/// to invented darkness.
-bool phxGiIrradiance(vec3 worldPos, vec3 N, out vec3 outIrradiance) {
-    if ((ubo.occupancyBox.w & 8) == 0) return false;
-    float spacing = max(ubo.giProbeGrid.w, 1e-3);
-    vec3 rel = (worldPos - ubo.giProbeGrid.xyz) / spacing;
-    if (any(lessThan(rel, vec3(0.0))) ||
-        rel.x > float(PHX_GI_DIM_X - 1) ||
-        rel.y > float(PHX_GI_DIM_Y - 1) ||
-        rel.z > float(PHX_GI_DIM_Z - 1)) return false;
-
-    ivec3 b = ivec3(floor(rel));
-    vec3  f = rel - vec3(b);
-
-    // WEIGHTED interpolation, not plain trilinear. Two weights, both aimed at the measured M5.1
-    // failure (speckle and darkening at wall boundaries):
-    //
-    //   validity  -- a probe buried in solid describes a point no surface can see. Zero weight.
-    //   front-face -- a probe BEHIND the shading surface is on the far side of it by definition,
-    //                 so it is exactly the "wrong side of the wall" neighbour that leaks. Weight by
-    //                 how much it lies in the hemisphere the surface actually faces.
-    //
-    // If every neighbour is rejected the function reports failure and the caller falls back to the
-    // analytic term -- degrading to the old look rather than to invented darkness.
-    vec3 sum = vec3(0.0);
-    float wsum = 0.0;
-    for (int i = 0; i < 8; ++i) {
-        ivec3 off = ivec3(i & 1, (i >> 1) & 1, (i >> 2) & 1);
-        vec4 pr = phxProbeAt(b + off);
-        if (pr.a < 0.5) continue;                       // buried probe
-
-        vec3 tri = mix(1.0 - f, f, vec3(off));          // trilinear weight
-        float w = tri.x * tri.y * tri.z;
-
-        // Direction from the shading point toward this probe, in world units.
-        vec3 probeWorld = ubo.giProbeGrid.xyz + (vec3(b + off)) * spacing;
-        vec3 toProbe = probeWorld - worldPos;
-        float len = length(toProbe);
-        if (len > 1e-4) w *= clamp(dot(toProbe / len, N) * 0.5 + 0.5, 0.0, 1.0);
-
-        sum  += pr.rgb * w;
-        wsum += w;
-    }
-    if (wsum < 1e-4) return false;
-    outIrradiance = sum / wsum;
-    return true;
-}
-
-// M3 sky visibility stays HERE rather than in occupancy.glsl: it is default-OFF pending
-// M3-REDESIGN (measured at 24.6 ms/frame on a generated town), and only voxel.frag consumes
-// it. Moving it into the shared include would invite the other consumers to adopt a term that
-// is known to be unaffordable in this form.
-/// M3 — how much of the sky hemisphere this surface can see, cosine-weighted, 0..1.
-/// This REPLACES the deleted per-cell skylight flood. The flood decayed 1 per cube cell from the
-/// nearest opening, so a room read 47% of full daylight eight cells from a single doorway and a
-/// sealed room was merely dim. Here the falloff comes out of the geometry: a sealed room sees no
-/// sky and is black, an opening admits exactly the directions that clear it.
-///
-/// Fixed direction set, shared with the CPU mirror — a jittered set would make captures noisy and
-/// incomparable, which is precisely what the M3 gates must do.
-///
-/// ⚠️ REACH is what decides whether a room reads as sealed: a ray that runs out of budget inside a
-/// closed room hits nothing and counts as sky. Measured — at 10 u a diagonal ray inside a 9x7x9
-/// sealed room escaped and its corner read 0.077 instead of 0. Hence the two-rate march: micro
-/// resolution close in (2-micro walls and ledges), coarser beyond, to buy the range a room needs.
-// U/M4: PHX_SKY_DIRS and phxSkyVisibility MOVED to occupancy.glsl so grass and foliage
-// can use the same traced sky term. It takes occBox as a PARAMETER there, matching
-// phxLightVisibility -- occupancy.glsl's contract forbids implicit buffer reads.
+#include "gi_field.glsl"    // THE ambient term: probe field (ambient cube), fallback = open sky
+                             // (G-141, 2026-09-17: the per-fragment sky trace is no longer a receiver term)
 
 layout(set = 0, binding = 1) uniform sampler2DArray textureArray;     // class 0 albedo: 512px
 layout(set = 0, binding = 2) uniform sampler2D shadowMap;             // mid-cascade shadow map
@@ -466,54 +375,18 @@ void main() {
         return;
     }
 
-    // Sky-ambient is a soft FILL light, not the key. The directional sun (below) is the key
-    // light that gives the scene form + shadows. Keeping ambient near 1.0 washes out all
-    // directionality (everything looks flat/omnidirectionally lit) — so we scale it down to a
-    // fill level. A convex (gamma) curve on skylight makes partial sky fall off fast, so
-    // interiors read dramatically dimmer than outdoors. kAmbientFloor keeps fully-sealed cells
-    // from being pitch black before block lights (Phase 2) exist.
-    // Sky ambient = soft FILL (never the key light), hemispherical and gated by baked
-    // skylight. Model + constants: lighting.glsl.
-    // M3/M4: sky access is TRACED against real geometry. There is no per-cell skylight field left
-    // to multiply by -- the flood M0 deleted, and the bake that briefly reinstated it, are both
-    // gone. vSkyLight is a uniform 1.0 from the vertex stage and the multiply was a no-op, so it
-    // is dropped rather than kept as decoration.
-    float skyVis = phxSkyVisibility(inWorldPos + ubo.cameraWorld, Ng, ubo.occupancyBox);
-    float skyCurve = phxSkyGate(skyVis);
+    // AMBIENT = the probe field (gi_field.glsl), evaluated for this fragment's shading normal.
+    // Rule R2: one ambient formula, one owner. Sky access is not a separate scalar any more: the
+    // only consumers that still want a 0..1 "how enclosed" gate (unshadowed moonlight, direct sun
+    // where the cascades have no coverage) derive it from the ambient itself.
+    vec3  ambientLight = phxAmbient(inWorldPos + ubo.cameraWorld, N, ubo.occupancyBox, ubo.giProbeGrid, ubo.ambientColor);
+    float skyAcc       = phxSkyAccessOf(ambientLight, N, ubo.ambientColor);
     // Each lighting term is ALSO captured on its own so the debug views below can show one
     // system at a time. Three systems light this engine and they disagree about geometry (sun =
     // rasterized shadow maps, per fragment; baked sky/block = one value per CUBE cell; forward
     // point/spot = per fragment, no occlusion). Telling them apart by eye is guesswork, and
     // guessing is what made an interior-light bug take days.
-    // M5.1: the probe field replaces the ANALYTIC ambient where it is available. The analytic term
-    // is a hemisphere lookup gated by this fragment's own sky access -- it cannot know that the
-    // corner of a room is further from the window than the sill is, because it has no notion of
-    // anywhere but here. The probe field does, having traced the geometry from points spread
-    // through the space.
-    //
-    // Falls back to the analytic term when the field is unavailable or the fragment is outside the
-    // grid, so the failure mode is "the old look", never invented darkness. `skyVis` still gates the
-    // SUN below either way -- probes carry indirect, not direct.
-    // The probe field supplies the SKY-ACCESS SCALAR, and it is fed into the same
-    // phxAmbientAtmos the analytic path uses. That is deliberate: a probe field that ran its own
-    // ambient maths would be a SECOND lighting model, which is the exact failure this whole
-    // document exists to remove. What changes is where the number comes from -- a neighbourhood of
-    // traced points rather than this fragment alone -- so a corner away from a window sees less
-    // than the sill, which a single per-fragment trace also gives but harder-edged.
-    // M5.2: the probe field now carries IRRADIANCE -- sky plus one bounce off real geometry --
-    // rather than a sky-access scalar. So it replaces phxAmbientAtmos's sky term outright, and the
-    // normal mix is applied to the probe's own value: the probe says how much light arrives here,
-    // the normal says how much of it a surface at this orientation receives. Reusing the analytic
-    // model's own kGroundBounce/up split keeps the two consistent instead of inventing a second
-    // shading rule.
-    vec3 dbgAmbient;
-    vec3 giIrr;
-    if (phxGiIrradiance(inWorldPos + ubo.cameraWorld, N, giIrr)) {
-        float up = clamp(N.y * 0.5 + 0.5, 0.0, 1.0);
-        dbgAmbient = mix(giIrr * 0.30, giIrr, up) * albedo;
-    } else {
-        dbgAmbient = phxAmbientAtmos(N, skyVis, ubo.ambientColor) * albedo;
-    }
+    vec3 dbgAmbient = ambientLight * albedo;
     vec3  color = dbgAmbient;
 
     // Sun (directional) — the KEY light. Cook-Torrance, N·L shading, shadow-mapped. Gated by
@@ -521,7 +394,7 @@ void main() {
     // what casts shadows across the scene whenever the sun isn't directly overhead.
     vec3 sunL = normalize(-ubo.sunDirection);
     vec3 dbgDirect = pbrBRDF(N, V, sunL, albedo, rough, metallic, ubo.sunColor) * shadowFactor
-                   * phxSunGate(skyCurve, shadowCoord);   // G-135: the map decides direct sun
+                   * phxSunGate(skyAcc, shadowCoord);   // G-135: the map decides direct sun; skyAcc only beyond its coverage
     color += dbgDirect;
 
     // Moonlight — the same directional model, fed by the atmosphere's phase-scaled moonlight colour,
@@ -535,7 +408,7 @@ void main() {
     // the cascades to whichever body is dominant is the follow-up that earns real moon shadows.
     if (ubo.moonColor.b > 0.0) {
         vec3 m = pbrBRDF(N, V, normalize(-ubo.moonDirection), albedo, rough, metallic,
-                         ubo.moonColor) * skyCurve;
+                         ubo.moonColor) * skyAcc;   // unshadowed, so the field's enclosure gate stands in
         color += m;
         dbgDirect += m;   // moon is the same directional system as the sun
     }
@@ -649,20 +522,24 @@ void main() {
     // the screen instead of inferred. Aerial perspective is deliberately NOT applied to these —
     // they are the raw contribution, not the final look.
     //
-    //   3 SKY ACCESS   the baked per-CUBE-CELL skylight, greyscale, no albedo. Cube-stepped by
-    //                  construction: this is the Minecraft-style flood's own resolution.
-    //   4 BLOCK LIGHT  the baked per-cell coloured light from emissive voxels, no albedo.
-    //                  If an EXTERIOR surface glows here with the source indoors, the flood is
-    //                  leaking through the shell.
+    //   3 SKY ACCESS   the probe field's enclosure gate for this fragment (ambient luminance over
+    //                  the open-sky answer for the same normal), greyscale, no albedo.
+    //   4 PROBE FIELD  validity view: R = a visible valid probe found, G = inside the grid,
+    //                  B = the field is readable. G+B without R = floor-only fallback.
     //   5 FORWARD      point + spot lights only. These do NO occlusion test of any kind, so
     //                  anything lit here was lit without regard to walls.
     //   6 DIRECT       sun + moon, shadow-mapped against real geometry (sub-voxel accurate).
-    //   7 SKY FILL     the hemispheric ambient term.
-    if (ubo.debugShadowMode == 3) { outColor = vec4(vec3(skyVis), 1.0); return; }
-    // Mode 4 was the BLOCK-LIGHT view. Block light is deleted (U7); emissive voxels are ordinary
-    // point lights now, so MODE 5 (forward point/spot) is where they show. Kept as black rather
-    // than removed so the mode numbering and its clamp stay stable for existing tooling.
-    if (ubo.debugShadowMode == 4) { outColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+    //   7 AMBIENT      the probe-field ambient term (x albedo).
+    if (ubo.debugShadowMode == 3) { outColor = vec4(vec3(skyAcc), 1.0); return; }
+    // Mode 4 was the BLOCK-LIGHT view (deleted, U7); since G-141 it is the probe-field validity view.
+    if (ubo.debugShadowMode == 4) {
+        // PROBE-FIELD VALIDITY view: R = a visible valid probe neighbour was found, G = inside the
+        // grid, B = the field is flagged readable (bit 3). A surface that is G+B without R is on
+        // the floor-only fallback (a pocket the 2 u lattice cannot reach).
+        vec3 irrT; float edgeT; bool inGridT;
+        float got = phxGiIrradiance(inWorldPos + ubo.cameraWorld, N, ubo.occupancyBox, ubo.giProbeGrid, irrT, edgeT, inGridT) ? 1.0 : 0.0;
+        outColor = vec4(got, inGridT ? 1.0 : 0.0, ((ubo.occupancyBox.w & 8) != 0) ? 1.0 : 0.0, 1.0); return;
+    }
     if (ubo.debugShadowMode == 5) { outColor = vec4(dbgForward, 1.0); return; }
     if (ubo.debugShadowMode == 6) { outColor = vec4(dbgDirect, 1.0); return; }
     if (ubo.debugShadowMode == 7) { outColor = vec4(dbgAmbient, 1.0); return; }

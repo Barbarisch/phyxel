@@ -160,6 +160,14 @@ if defined USE_GLSLC (
         exit /b 1
     )
 
+    echo Compiling GI probe field compute shader...
+    %GLSLANG% -fshader-stage=comp -Ishaders shaders\gi_probe.comp -o shaders\gi_probe.comp.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile gi_probe.comp
+        pause
+        exit /b 1
+    )
+
     echo Compiling particle integrate compute shader...
     %GLSLANG% -fshader-stage=comp -Ishaders shaders\particle_integrate.comp -o shaders\particle_integrate.comp.spv
     if %errorlevel% neq 0 (
@@ -481,6 +489,14 @@ if defined USE_GLSLC (
         pause
         exit /b 1
     )
+    echo Compiling GI probe field compute shader...
+    %GLSLANG% -V -Ishaders shaders\gi_probe.comp -o shaders\gi_probe.comp.spv
+    if %errorlevel% neq 0 (
+        echo ERROR: Failed to compile gi_probe.comp
+        pause
+        exit /b 1
+    )
+
     echo Compiling particle integrate compute shader...
     %GLSLANG% -V -Ishaders shaders\particle_integrate.comp -o shaders\particle_integrate.comp.spv
     if %errorlevel% neq 0 (

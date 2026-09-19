@@ -13,7 +13,7 @@
     },
     "character.frag": {
       "built": true,
-      "sources": "1df083a1a904af56b4faa3bc23d090968897b6de1f6115eb8971c334e547f648",
+      "sources": "fcea941239c10674bf65c8211e037137c690189570acc6066842c35c1ad32579",
       "spv_present": true
     },
     "character.vert": {
@@ -73,7 +73,7 @@
     },
     "far_terrain.frag": {
       "built": true,
-      "sources": "f0ef635da3f10c2f41d3eacf5870cd4ecf24273101d3eb683a32b5aa978e4004",
+      "sources": "d0f581be1dc6304bcd6e50eb0e89d0bb82a1e71ccdba16f38d9f5254920395ac",
       "spv_present": true
     },
     "far_terrain.vert": {
@@ -98,7 +98,7 @@
     },
     "far_tree_mesh.frag": {
       "built": true,
-      "sources": "424a2fe71241bd0fa0fa3012f22886364a364bc39f3dd052137e2433f2845f2a",
+      "sources": "144d548a0fe21ef5b6d09ea875248f9b982b5adc120385880c896c4cca447e39",
       "spv_present": true
     },
     "far_tree_mesh.vert": {
@@ -113,7 +113,7 @@
     },
     "foliage.frag": {
       "built": true,
-      "sources": "3278f346086a5e9136d80b6d29b08ee98d12672bbeb1e9749c53d53d3e7be69e",
+      "sources": "bc9c10c27e7397be0afeb6eb619199820c881d35c3f379af14734521db9f44d0",
       "spv_present": true
     },
     "foliage.vert": {
@@ -137,18 +137,18 @@
       "spv_present": true
     },
     "gi_probe.comp": {
-      "built": false,
-      "sources": "a040cf80ccd7211d7434999786819de1d381bfbb0a791d64a3ffd0bbaf6e0872",
+      "built": true,
+      "sources": "66da5e3fc005a207e3a2d365eba063a641ef967fb1cf3d9540886ef36c412a2f",
       "spv_present": true
     },
     "grass.frag": {
       "built": true,
-      "sources": "68b0023b1e6e25ea84c12561149a666f47e8c1d1e0e29fd3736e3869aa04b376",
+      "sources": "3f4779c994b6fc7486ecf04270ff663e084af490d6d65dda544088b06e8f1c14",
       "spv_present": true
     },
     "grass.vert": {
       "built": true,
-      "sources": "4243b730772a1c76337ba4319109156cf7f06764ace2b8ddb0910cdf20410ad2",
+      "sources": "119a703a14fd990caf3d0493fdc3a49ded74038fe4121023ee2de3a90bad8006",
       "spv_present": true
     },
     "grass_shadow.frag": {
@@ -158,7 +158,7 @@
     },
     "grass_shadow.vert": {
       "built": true,
-      "sources": "db677ea5affde78cde6474cd8610203529239d751941fce33007a228e55390d9",
+      "sources": "fa519889d7a3c18b89f798e6f4950cf9e6800bcc0a7c5df9285a63562ad497e1",
       "spv_present": true
     },
     "kinematic_shadow.vert": {
@@ -228,7 +228,7 @@
     },
     "post_process.frag": {
       "built": true,
-      "sources": "ff25549213809ffff6a26dc98b5db379ec48f90ef636efa9398b10d1c9a3a2b3",
+      "sources": "f1f3223e74d07ac0d80425783bada7658fd87e7db29500164a9dd26a508b89da",
       "spv_present": true
     },
     "post_process.vert": {
@@ -248,7 +248,7 @@
     },
     "sky.frag": {
       "built": true,
-      "sources": "b48ef84e60038ee67c51147afb69eed177e9d74766db16dda07761374697abbb",
+      "sources": "e7ae4bf9c2eacabf3f3e331cffccd96e7384861f52f0156dbebd15ee99586adb",
       "spv_present": true
     },
     "sky.vert": {
@@ -358,7 +358,7 @@
     },
     "transparent_voxel.frag": {
       "built": true,
-      "sources": "72e392435b6534b84179f98cca2cfdc11b721898e50b4744ff1b08744e9e3532",
+      "sources": "af271d088f26a0e092ef288562845c0b52e7d733cf94ab3f7296a80bf2d4eca8",
       "spv_present": true
     },
     "ui.frag": {
@@ -383,12 +383,12 @@
     },
     "voxel.frag": {
       "built": true,
-      "sources": "4a4e4930c850718a823bcf411440034e52343a3d6319698e5877b6669d009521",
+      "sources": "b4913841432b4cd1c9103f2c394a6505fb95b3eca114713ddbcf7ea17ec71e74",
       "spv_present": true
     },
     "water.frag": {
       "built": true,
-      "sources": "2dff744152155d90ccff706cdef5152c96226efa161f7ec220f4a1475b0d68d6",
+      "sources": "b23f5b4cf2e48a255e2a94437348917b1f935163e5b5851fb73810fa8f7cc808",
       "spv_present": true
     },
     "water.vert": {
@@ -398,7 +398,7 @@
     },
     "water_cell.frag": {
       "built": true,
-      "sources": "bde41d1a80a5ac6ad3a8dfdecc24d499b1574de4f4685faa61d8f8464e2a26eb",
+      "sources": "5b4b97fe36d2fe0cc13f5b76c2b30264774cebb249e26c70ec5f14c2fc78a186",
       "spv_present": true
     },
     "water_cell.vert": {
@@ -413,7 +413,7 @@
     },
     "water_underwater.frag": {
       "built": true,
-      "sources": "5d4665bb069d11d2310aeb45315181ae17cd6eaccf00a0867ca347e0cb8f5130",
+      "sources": "fa743d0c0c27da2246315ff6b5f27d752c4d43271c3d99cf9ca6c6332e138fe8",
       "spv_present": true
     }
   }

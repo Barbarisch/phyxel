@@ -94,6 +94,31 @@ bool phxOccupancySolid(ivec3 worldMicro, ivec4 occBox) {
     return ((occPool[microBase + uint(bit >> 5)] >> uint(bit & 31)) & 1u) != 0u;
 }
 
+/// Cube-level state of one CUBE cell: 0 = empty, 1 = MIXED (carries sub-voxel detail), 2 = solid.
+/// The first half of phxOccupancySolid, addressed through the same micro path so there is ONE
+/// addressing implementation to be wrong. CPU mirror: packedPoolCubeOccupancy.
+int phxCubeOccupancy(ivec3 worldCube, ivec4 occBox) {
+    if ((occBox.w & 1) == 0) return 0;
+    ivec3 worldMicro = worldCube * 9;
+    ivec3 chunkCoord = ivec3(phxFloorDiv(worldMicro.x, PHX_OCC_MICRO_PER_CHUNK),
+                             phxFloorDiv(worldMicro.y, PHX_OCC_MICRO_PER_CHUNK),
+                             phxFloorDiv(worldMicro.z, PHX_OCC_MICRO_PER_CHUNK));
+    ivec3 c = chunkCoord - occBox.xyz;
+    if (c.x < 0 || c.x >= PHX_OCC_DIR_X ||
+        c.y < 0 || c.y >= PHX_OCC_DIR_Y ||
+        c.z < 0 || c.z >= PHX_OCC_DIR_Z) return 0;
+    uint base = occDir[c.x + c.y * PHX_OCC_DIR_X + c.z * PHX_OCC_DIR_X * PHX_OCC_DIR_Y];
+    if (base == PHX_OCC_NO_CHUNK) return 0;
+    ivec3 local = worldMicro - chunkCoord * PHX_OCC_MICRO_PER_CHUNK;
+    ivec3 cube = local / 9;
+    int ci = cube.z + cube.y * 32 + cube.x * 1024;
+    uint solidBase = base + 1u;
+    if (((occPool[solidBase + uint(ci >> 5)] >> uint(ci & 31)) & 1u) != 0u) return 2;
+    uint mixedBase = solidBase + uint(PHX_OCC_CUBE_WORDS);
+    if (((occPool[mixedBase + uint(ci >> 5)] >> uint(ci & 31)) & 1u) != 0u) return 1;
+    return 0;
+}
+
 // --------------------------------------------------------------------------------------------
 // THE TRAVERSAL — Amanatides & Woo DDA in MICRO space. Visits every micro cell the segment
 // crosses, in order, and cannot skip one. CPU mirror: ddaHitsSolid() in VoxelLightOccupancy.cpp.
@@ -143,6 +168,87 @@ bool phxDdaHitsSolid(vec3 fromWorld, vec3 toWorld, int maxCells, ivec4 occBox) {
             else                 { cell.z += stp.z; tMax.z += tDelta.z; }
         }
         if (tMax.x > len && tMax.y > len && tMax.z > len) return false;
+    }
+    return false;
+}
+
+/// TWO-LEVEL segment test: does ANY solid matter lie on the segment? Walks CUBE cells (1 u) with
+/// the same Amanatides & Woo stepping, answering each cube from its two bits: solid -> blocked,
+/// empty -> continue, MIXED -> run the micro DDA over just this cube's slice of the segment.
+/// Exactly the answer phxDdaHitsSolid gives (the CPU mirror packedPoolSegmentBlocked is tested
+/// against the micro march on random segments), at a fraction of the cell visits: a 3.5 u segment
+/// costs ~10 cube queries instead of ~80 micro ones, and a 16 u ray ~48 instead of 288 -- which is
+/// what made the probe field's per-fragment leak guard affordable (G-141: 69.6 ms -> see §7).
+/// The micro slice starts 1e-4 u inside its cube so float rounding at a cube boundary cannot
+/// start it in a neighbour the segment never enters; see the note on end-cell semantics below.
+bool phxSegmentBlocked(vec3 fromWorld, vec3 toWorld, ivec4 occBox) {
+    vec3 d = toWorld - fromWorld;
+    float len = length(d);
+    if (len < 1e-6) return false;
+    vec3 dir = d / len;
+
+    ivec3 cell = ivec3(floor(fromWorld));
+    ivec3 last = ivec3(floor(toWorld));
+
+    ivec3 stp;
+    vec3 tMax, tDelta;
+    for (int i = 0; i < 3; ++i) {
+        if (dir[i] > 1e-9) {
+            stp[i] = 1;
+            tMax[i] = (float(cell[i] + 1) - fromWorld[i]) / dir[i];
+            tDelta[i] = 1.0 / dir[i];
+        } else if (dir[i] < -1e-9) {
+            stp[i] = -1;
+            tMax[i] = (fromWorld[i] - float(cell[i])) / -dir[i];
+            tDelta[i] = 1.0 / -dir[i];
+        } else {
+            stp[i] = 0;
+            tMax[i] = 3.4e38;
+            tDelta[i] = 3.4e38;
+        }
+    }
+
+    // SEMANTICS, mirrored exactly. phxDdaHitsSolid tests its START cell, then every cell it steps
+    // into EXCEPT the one containing the END point (its callers stop one cell short of a light on
+    // purpose). So, per cube on the path (n = 0 is the cube the segment starts in):
+    //   solid, not the last cube            -> hit (every micro cell of it on the path is tested);
+    //   solid, last cube, n == 0            -> hit (the start cell is tested);
+    //   solid, last cube, n > 0             -> hit unless the ONLY micro cell of it on the path is the
+    //                                          end cell (first cell inside == end cell);
+    //   mixed                               -> run the micro march over this cube's slice. The slice
+    //                                          starts AT the segment start for n == 0 (so the start
+    //                                          cell is the same cell) and 1e-4 u inside the cube for
+    //                                          n > 0; it ends 1e-4 u past the cube's exit so the slice's
+    //                                          own last cell is tested, and at `len` in the last cube
+    //                                          so only the global end cell is skipped. In the last
+    //                                          cube with n > 0 a slice whose first cell IS the end cell
+    //                                          is skipped outright (the march would test it as a start).
+    float tEnter = 0.0;
+    int maxCubes = int(3.0 * len) + 4;
+    ivec3 endMicro = ivec3(floor(toWorld * 9.0));
+    for (int n = 0; n < maxCubes; ++n) {
+        int st = phxCubeOccupancy(cell, occBox);
+        float tExit = min(min(tMax.x, tMax.y), min(tMax.z, len));
+        float a = (n == 0) ? 0.0 : tEnter + 1e-4;
+        vec3 aPos = fromWorld + dir * a;
+        bool firstIsEnd = (n > 0) && (cell == last) && all(equal(ivec3(floor(aPos * 9.0)), endMicro));
+        if (st == 2) {
+            if (cell != last || n == 0) return true;
+            return !firstIsEnd;
+        }
+        if (st == 1 && !firstIsEnd) {
+            float b = min(tExit + 1e-4, len);
+            if (b > a && phxDdaHitsSolid(aPos, fromWorld + dir * b, 64, occBox)) return true;
+        }
+        if (cell == last || tExit >= len) return false;
+        tEnter = tExit;
+        if (tMax.x < tMax.y) {
+            if (tMax.x < tMax.z) { cell.x += stp.x; tMax.x += tDelta.x; }
+            else                 { cell.z += stp.z; tMax.z += tDelta.z; }
+        } else {
+            if (tMax.y < tMax.z) { cell.y += stp.y; tMax.y += tDelta.y; }
+            else                 { cell.z += stp.z; tMax.z += tDelta.z; }
+        }
     }
     return false;
 }
@@ -293,71 +399,9 @@ float phxLightVisibility(vec3 surfaceWorld, vec3 geomNormal, vec3 lightWorld, iv
     return phxDdaHitsSolid(start, target, 512, occBox) ? 0.0 : 1.0;
 }
 
-// ---- M3: TRACED SKY VISIBILITY -------------------------------------------------------
-// Moved here from voxel.frag so grass and foliage share ONE sky term with stone; leaving
-// it in voxel.frag is how vegetation ended up with a constant 1.0 and no enclosure at all.
-const vec3 PHX_SKY_DIRS[9] = vec3[9](
-    vec3( 0.000,  0.000, 1.000),
-    vec3( 0.500,  0.000, 0.866), vec3(-0.500,  0.000, 0.866),
-    vec3( 0.000,  0.500, 0.866), vec3( 0.000, -0.500, 0.866),
-    vec3( 0.612,  0.612, 0.500), vec3(-0.612,  0.612, 0.500),
-    vec3( 0.612, -0.612, 0.500), vec3(-0.612, -0.612, 0.500)
-);
-
-float phxSkyVisibility(vec3 surfaceWorld, vec3 geomNormal, ivec4 occBox) {
-    if ((occBox.w & 4) == 0) return 1.0;   // sky tracing off, or occupancy absent
-
-    vec3 Ng = normalize(geomNormal);
-    vec3 up = abs(Ng.y) < 0.999 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
-    vec3 T = normalize(cross(up, Ng));
-    vec3 B = cross(Ng, T);
-
-    vec3 start = surfaceWorld + Ng * (2.0 / 9.0);
-
-    // Matched to the BAKE's measured settings (docs/UnifiedLightingPlan.md M3-REDESIGN).
-    //
-    // D1 measured this per-fragment path at 24.6 ms/frame and that number is what justified moving
-    // sky visibility into a per-cell bake -- the very storage M0 existed to delete. But D1 ran at
-    // FULL quality: 9 rays, reach 24, 512 cells. The bake then established by measurement that
-    // 5 rays / reach 16 still seals a room at every wall thickness, with a doorway control alive.
-    // The per-fragment path was never re-measured at those settings, so the number that retired it
-    // was never its real cost.
-    //
-    // 5 rays keeps the vertical and the four 30-degree directions -- the ones that decide whether a
-    // room is sealed -- and drops the four 60-degree diagonals, which largely duplicate them. That
-    // is exactly the subset the bake uses, so PHX_SKY_DIRS[0..4] must stay in that order.
-    // ⚠️ Reach still decides the largest room that can read as SEALED (D8).
-    const float kReach = 16.0;
-    const int   kRays  = 5;
-    const int   kCells = int(kReach * 9.0) * 2;   // same cell budget the CPU mirror derives
-
-    // GATE, the same idea that made M2's visibility term measure free: there, `dot(N, ldir) > 0`
-    // and the radius test meant almost no marches actually ran. This trace had no gate at all --
-    // every fragment paid all five rays every frame.
-    //
-    // Ray 0 is the surface normal itself, and it is the cheapest possible probe. If it escapes,
-    // the surface has open sky directly above it and the remaining rays are being spent to confirm
-    // a foregone conclusion: an unoccluded normal ray means the fragment is outdoors, which is the
-    // overwhelming majority of fragments in any outdoor scene. Take the full weighted answer only
-    // when that first ray is BLOCKED -- i.e. when the fragment might actually be enclosed, which is
-    // exactly the case this whole system exists to resolve.
-    //
-    // This is conservative in the direction that matters: it can only ever return MORE sky for a
-    // surface whose normal already sees sky. It cannot brighten an interior, because an interior
-    // fragment's normal ray hits something and takes the full path.
-    vec3 dir0 = normalize(T * PHX_SKY_DIRS[0].x + B * PHX_SKY_DIRS[0].y + Ng * PHX_SKY_DIRS[0].z);
-    if (!phxDdaHitsSolid(start, start + dir0 * kReach, kCells, occBox)) return 1.0;
-
-    float lit = 0.0, total = 0.0;
-    for (int r = 0; r < kRays; ++r) {
-        vec3 d = PHX_SKY_DIRS[r];
-        vec3 dir = normalize(T * d.x + B * d.y + Ng * d.z);
-        float w = max(0.0, dot(dir, Ng));
-        total += w;
-
-        if (!phxDdaHitsSolid(start, start + dir * kReach, kCells, occBox)) lit += w;
-    }
-    return total > 0.0 ? lit / total : 1.0;
-}
+// phxSkyVisibility / PHX_SKY_DIRS (the M3 per-fragment 5-ray sky trace) were DELETED 2026-09-19
+// (Ravenmere G-141). Ambient is the probe field (gi_field.glsl); the probe pass bounces off the
+// field itself. The CPU mirror (VoxelLightOccupancy::skyVisibility) survives for the per-cell bake
+// that CPU debris still reads -- LightingPipeline.md §8.
 
 #endif // PHYXEL_OCCUPANCY_GLSL

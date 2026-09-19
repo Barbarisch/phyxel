@@ -63,9 +63,11 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec4  skyBodyLight[4];
     int   skyBodyCount;
     ivec4 occupancyBox;
+    vec4  giProbeGrid;    // probe field: xyz = probe (0,0,0) world position, w = spacing
 } ubo;
 
 #include "occupancy.glsl"   // U2 / D14: glass gets the same visibility term as stone
+#include "gi_field.glsl"    // THE ambient term (probe field); G-141: no receiver traces its own sky
 
 layout(set = 0, binding = 1) uniform sampler2DArray textureArray;
 layout(set = 0, binding = 2) uniform sampler2D shadowMap;
@@ -166,13 +168,12 @@ void main() {
                                          ubo.shadowCascadeNear.y));
     }
 
-    // Sky access TRACED per fragment like the ground (2026-09-17). vSkyLight is a constant 1.0
-    // from the vertex stage (the per-cell field is gone), which lit a window in a sealed room as
-    // if it stood outdoors. Same five-ray trace, same occupancy, same ambient model.
-    float sky = phxSkyVisibility(inWorldPos + ubo.cameraWorld, normal, ubo.occupancyBox);
-    vec3 ambient = phxAmbientAtmos(normal, sky, ubo.ambientColor);
+    // AMBIENT from the probe field, the same term stone gets (gi_field.glsl). Direct sun is the
+    // shadow map's answer; the field's enclosure gate only stands in beyond the cascades' coverage.
+    vec3  ambient = phxAmbient(inWorldPos + ubo.cameraWorld, normal, ubo.occupancyBox, ubo.giProbeGrid, ubo.ambientColor);
+    float skyAcc  = phxSkyAccessOf(ambient, normal, ubo.ambientColor);
     vec3 sunContrib = (diff * ubo.sunColor + sunSpec * ubo.sunColor)
-                    * shadowFactor * phxSunGate(phxSkyGate(sky), shadowCoord);   // G-135
+                    * shadowFactor * phxSunGate(skyAcc, shadowCoord);   // G-135
     vec3 finalLight = ambient + sunContrib;
 
     // Point lights

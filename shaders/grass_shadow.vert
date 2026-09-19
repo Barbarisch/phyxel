@@ -74,6 +74,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
     vec4  skyBodyLight[4];
     int   skyBodyCount;
     ivec4 occupancyBox;
+    vec4  giProbeGrid;    // probe field: xyz = probe (0,0,0) world position, w = spacing
 } ubo;
 
 #include "occupancy.glsl"   // M4: grass traces its own sky, per BLADE VERTEX (see below)
@@ -144,7 +145,6 @@ layout(location = 9) out vec3 vWorldPos;
 // Computed here rather than per fragment: sky access varies at WORLD scale, while a blade is
 // ~0.05-0.1 u wide, so a per-fragment trace re-answers the same question for every fragment of the
 // same blade. Measured: per-fragment took the Grass scope 1.240 -> 3.284 ms.
-layout(location = 4) out float vSky;
 
 // Cheap hash -> [0,1)
 float hash21(vec2 p) {
@@ -651,7 +651,7 @@ void main() {
     vShadowCoordNear = ubo.biasedLightSpaceNear * vec4(worldPos, 1.0);
 
     vWorldPos   = worldPos;   // U3.3: camera-relative, for the point-light loop in grass.frag
-    vSky        = phxSkyVisibility(worldPos + ubo.cameraWorld, vec3(0.0, 1.0, 0.0),
-                                   ubo.occupancyBox);
+    // No sky / ambient here: this is the CASTER pass and grass_shadow.frag reads neither (the
+    // per-vertex trace it used to run was dead work).
     gl_Position = ubo.lightSpaceMatrix * vec4(worldPos, 1.0);
 }

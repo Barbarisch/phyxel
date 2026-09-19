@@ -6,7 +6,7 @@
 //
 // One invocation per probe. Each probe traces a small direction set against the SAME sub-voxel
 // occupancy every other lighting consumer uses, and stores HOW MUCH SKY IT CAN SEE (0..1) -- the
-// same quantity phxSkyVisibility returns per fragment. Scene fragment shaders sample it trilinearly
+// indirect light (ambient cube, see gi_field.glsl). Scene shaders sample it trilinearly
 // and feed it into the SAME phxAmbientAtmos they always used, so this is a drop-in for the traced
 // scalar rather than a second lighting model. See the note in main() for why it is not irradiance.
 //
@@ -32,7 +32,9 @@ layout(push_constant) uniform GiPush {
     vec4  sunColor;
 } pc;
 
-#include "occupancy.glsl"    // bindings 11/12 + phxDdaHitsSolid + phxLightVisibility
+#include "occupancy.glsl"    // bindings 11/12 + phxDdaTrace / phxDdaHitsSolid
+#define PHX_GI_WRITER          // read the field (last refresh) AND write this slice
+#include "gi_field.glsl"     // the buffer + phxGiIrradiance, shared with every receiver
 
 struct PointLightGPU {
     vec4 positionAndRadius;
@@ -53,9 +55,7 @@ layout(std430, set = 0, binding = 3) readonly buffer LightBuffer {
     SpotLightGPU spotLights[16];
 } lights;
 
-layout(std430, set = 0, binding = 13) writeonly buffer GiProbes {
-    vec4 probes[];           // r = sky visibility 0..1, a = 1 when written
-} gi;
+// The probe buffer (ambient cube, PHX_GI_LOBES vec4 per probe) is declared by gi_field.glsl.
 
 // THE SAME DIRECTION SET THE FRAGMENT USES, referenced to world up instead of a surface normal.
 //
@@ -65,7 +65,7 @@ layout(std430, set = 0, binding = 13) writeonly buffer GiProbes {
 // phxAmbientAtmos squares that to 0.69. A probe and a fragment MUST agree about what "open sky"
 // means or the field is a different lighting model wearing the same name.
 //
-// Vertical plus four at 30 degrees off vertical -- the subset phxSkyVisibility keeps, and the one
+// (History: an early version used the vertical + four-at-30-degree set of the retired sky trace, the one
 // the bake's doorway-controlled gate validated. Cosine-weighted by the upward component, because
 // sky arrives from above; a horizontal ray contributes nothing to sky access.
 // FULL SPHERE, 18 directions, uniform weights.
@@ -124,7 +124,7 @@ void main() {
     // ---- WHAT A PROBE STORES: IRRADIANCE, INCLUDING ONE BOUNCE --------------------------------
     //
     // M5.1 stored sky VISIBILITY, and M5.2 step 1 proved that architecture sound but empty: it was
-    // smoothing a scalar phxSkyVisibility already computes exactly, per fragment, so the measured
+    // smoothing a scalar the (since retired) per-fragment sky trace computed exactly, so the measured
     // benefit was +0.78 on a base of 24.4. Smoothing a number you can compute exactly is not
     // indirect light.
     //
@@ -144,33 +144,84 @@ void main() {
     const int   kCells = int(kReach * 9.0) * 2;
     vec3  sunL = normalize(-pc.sunDirection.xyz);
 
-    vec3 irradiance = vec3(0.0);
-    float wsum = 0.0;
-    for (int d = 0; d < 18; ++d) {
-        vec3 dir = GI_DIRS[d];
-        const float w = 1.0;                // uniform over the sphere -- this is irradiance
-        wsum += w;
+    // SIX COSINE LOBES, not one scalar. The 18 directions are traced once each; every direction's
+    // radiance is then deposited into each axis lobe it faces, weighted by the cosine to that axis.
+    // A receiver facing N reads sum(N_axis^2 * lobe) -- so a wall gets the light arriving through
+    // its own hemisphere (mostly sideways + up), a floor the light from above, and an open-air probe
+    // reproduces the analytic open-sky answer by construction: the +Y lobe is pure sky, the -Y lobe
+    // is the lit ground's bounce, a horizontal lobe is half of each.
+    vec3 lobe[6];
+    float lobeW[6];
+    for (int l = 0; l < 6; ++l) { lobe[l] = vec3(0.0); lobeW[l] = 0.0; }
+    const float kInvPi = 0.3183098862;
 
+    // ROTATED RAY SET + TEMPORAL BLEND (G-141). With the 18 directions fixed, a probe column on
+    // the even lattice never sends a ray through a 1-wide doorway at an odd coordinate: the
+    // Lighting Lab door room read exactly the same as the sealed room. Rotating the whole set by a
+    // per-probe, per-refresh random rotation (hash of probe index + frame counter) and blending
+    // the new estimate into the stored one (exponential moving average) makes the field integrate
+    // hundreds of distinct directions over a second while paying for 18 per refresh -- the DDGI
+    // recipe. Static scene: converges; edited scene: the old value fades out over ~1/kBlend refreshes.
+    // 0.05: ~20 refreshes (~160 frames) of averaging. At 0.30 the door room flickered 3x between
+    // captures minutes apart -- a 1%-of-sphere opening is hit by 0.18 of 18 rays per refresh, so a
+    // short window is a coin flip (at 0.08 a doorway-lit wall still drifted +-27% over 20 s). The price
+    // is a ~2.5 s fade after a world edit.
+    const float kBlend = 0.05;
+    uint hseed = idx * 747796405u + uint(pc.ambientColor.w) * 2891336453u;
+    hseed ^= hseed >> 16; hseed *= 0x7feb352du; hseed ^= hseed >> 15; hseed *= 0x846ca68bu; hseed ^= hseed >> 16;
+    float ha = float(hseed & 0xFFFFu) / 65535.0;
+    float hb = float((hseed >> 16) & 0xFFFFu) / 65535.0;
+    float yaw = ha * 6.2831853, tilt = acos(1.0 - 2.0 * hb);   // uniform axis tilt, uniform spin
+    float cy = cos(yaw), sy = sin(yaw), ct = cos(tilt), st = sin(tilt);
+    mat3 rot = mat3(cy, 0.0, -sy, 0.0, 1.0, 0.0, sy, 0.0, cy) *      // spin about Y
+               mat3(1.0, 0.0, 0.0, 0.0, ct, st, 0.0, -st, ct);         // tilt about X
+
+    for (int d = 0; d < 18; ++d) {
+        vec3 dir = rot * GI_DIRS[d];
+        vec3 radiance;
         vec3 hitPos, hitN;
         if (!phxDdaTrace(world, world + dir * kReach, kCells, pc.occBox, hitPos, hitN)) {
             // Escaped: this direction sees the sky dome, which wraps to the horizon, so a
             // horizontal escape through a doorway carries light just as a vertical one does.
-            irradiance += pc.ambientColor.rgb * w;
-            continue;
+            radiance = pc.ambientColor.rgb;
+        } else {
+            // BOUNCE off the surface we hit. Its outgoing radiance = albedo x (the indirect light
+            // arriving there) + albedo/pi x (direct sun, if the sun is not blocked). The indirect
+            // part is read from THIS FIELD as of its last refresh, so light hops probe to probe --
+            // a doorway's light reaches the far wall after a few refreshes (2 u per hop, 8 frames
+            // per hop), and interreflection converges geometrically (gain = albedo per bounce).
+            // This replaced the normal-fan sky trace as the bounce estimate (G-141): the trace
+            // under-read every exterior wall, and as the bounce input it dimmed every street.
+            // hitPos is the CENTRE of the solid micro cell that was hit; step out along its normal
+            // to stand on the surface.
+            vec3 surf = hitPos + hitN * (1.0 / 9.0);
+            vec3 indirect; float e; bool inGrid;
+            if (!phxGiIrradiance(surf, hitN, pc.occBox, pc.originAndSpacing, indirect, e, inGrid))
+                indirect = inGrid ? vec3(0.0) : pc.ambientColor.rgb * 0.5;   // unknown: dark in, half sky out
+            float ndl = max(dot(hitN, sunL), 0.0);
+            float sunVis = 0.0;
+            if (ndl > 0.0)
+                // Sun-blocker test for the bounce surface: 8 u is enough for roofs and the walls
+                // that shade an interior; a longer ray buys almost nothing for a 0.30-weighted
+                // second-order term and costs a full extra trace per hit.
+                sunVis = phxSegmentBlocked(surf + hitN * (1.0 / 9.0), surf + sunL * 8.0, pc.occBox) ? 0.0 : 1.0;
+            radiance = kBounceAlbedo * (indirect + pc.sunColor.rgb * ndl * sunVis * kInvPi);
         }
-
-        // ONE BOUNCE. How lit is the surface we hit? Its own sky access answers that, and it is the
-        // same phxSkyVisibility every fragment uses -- so a bounce off a wall in shadow is dim and
-        // a bounce off a sunlit lawn is bright, without a second lighting model to keep in sync.
-        float hitSky = phxSkyVisibility(hitPos, hitN, pc.occBox);
-        float ndl    = max(dot(hitN, sunL), 0.0);
-        vec3 outgoing = kBounceAlbedo * (pc.ambientColor.rgb * hitSky * hitSky
-                                       + pc.sunColor.rgb * ndl * hitSky * hitSky);
-        irradiance += outgoing * w;
+        // Deposit into the lobes this direction faces. Uniform solid angle per direction, so the
+        // cosine alone is the weight and the lobe is a proper hemispherical irradiance estimate.
+        for (int ax = 0; ax < 3; ++ax) {
+            float c = dir[ax];
+            if (c > 0.0)      { lobe[2 * ax]     += radiance * c;  lobeW[2 * ax]     += c;  }
+            else if (c < 0.0) { lobe[2 * ax + 1] += radiance * -c; lobeW[2 * ax + 1] += -c; }
+        }
     }
-    if (wsum > 0.0) irradiance /= wsum;
 
     float valid = phxOccupancySolid(ivec3(floor(world * 9.0)), pc.occBox) ? 0.0 : 1.0;
-
-    gi.probes[idx] = vec4(irradiance, valid);
+    for (int l = 0; l < 6; ++l) {
+        vec3 v = lobeW[l] > 0.0 ? lobe[l] / lobeW[l] : vec3(0.0);
+        vec4 prev = giField.probes[idx * PHX_GI_LOBES + l];
+        // A probe that was buried (or never written) starts from the fresh estimate outright.
+        vec3 blended = (prev.a > 0.5) ? mix(prev.rgb, v, kBlend) : v;
+        giField.probes[idx * PHX_GI_LOBES + l] = vec4(blended, valid);
+    }
 }

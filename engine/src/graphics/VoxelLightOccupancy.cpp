@@ -489,5 +489,78 @@ CubeOccupancy packedPoolCubeOccupancy(const PackedOccupancyPool& packed,
     return CubeOccupancy::Empty;
 }
 
+
+bool packedPoolSegmentHitsSolid(const PackedOccupancyPool& packed, const glm::vec3& fromWorld,
+                                const glm::vec3& toWorld, int maxCells) {
+    return ddaHitsSolid(packed, fromWorld, toWorld, /*skipCells=*/0, maxCells, nullptr, nullptr);
+}
+
+bool packedPoolSegmentBlocked(const PackedOccupancyPool& packed, const glm::vec3& fromWorld,
+                              const glm::vec3& toWorld) {
+    // Line for line the GLSL phxSegmentBlocked. Change one, change both.
+    const glm::vec3 d = toWorld - fromWorld;
+    const float len = glm::length(d);
+    if (len < 1e-6f) return false;
+    const glm::vec3 dir = d / len;
+
+    glm::ivec3 cell{static_cast<int>(std::floor(fromWorld.x)), static_cast<int>(std::floor(fromWorld.y)),
+                    static_cast<int>(std::floor(fromWorld.z))};
+    const glm::ivec3 last{static_cast<int>(std::floor(toWorld.x)), static_cast<int>(std::floor(toWorld.y)),
+                          static_cast<int>(std::floor(toWorld.z))};
+
+    glm::ivec3 step;
+    glm::vec3 tMax, tDelta;
+    for (int i = 0; i < 3; ++i) {
+        if (dir[i] > 1e-9f) {
+            step[i] = 1;
+            tMax[i] = (static_cast<float>(cell[i] + 1) - fromWorld[i]) / dir[i];
+            tDelta[i] = 1.0f / dir[i];
+        } else if (dir[i] < -1e-9f) {
+            step[i] = -1;
+            tMax[i] = (fromWorld[i] - static_cast<float>(cell[i])) / -dir[i];
+            tDelta[i] = 1.0f / -dir[i];
+        } else {
+            step[i] = 0;
+            tMax[i] = std::numeric_limits<float>::max();
+            tDelta[i] = std::numeric_limits<float>::max();
+        }
+    }
+
+    // End-cell semantics mirrored from the micro march, case by case -- see the comment on
+    // phxSegmentBlocked in occupancy.glsl. Change one, change both.
+    float tEnter = 0.0f;
+    const int maxCubes = static_cast<int>(3.0f * len) + 4;
+    const glm::ivec3 endMicro{static_cast<int>(std::floor(toWorld.x * 9.0f)), static_cast<int>(std::floor(toWorld.y * 9.0f)),
+                              static_cast<int>(std::floor(toWorld.z * 9.0f))};
+    for (int n = 0; n < maxCubes; ++n) {
+        const CubeOccupancy st = packedPoolCubeOccupancy(packed, cell);
+        const float tExit = std::min(std::min(tMax.x, tMax.y), std::min(tMax.z, len));
+        const float a = (n == 0) ? 0.0f : tEnter + 1e-4f;
+        const glm::vec3 aPos = fromWorld + dir * a;
+        const glm::ivec3 aMicro{static_cast<int>(std::floor(aPos.x * 9.0f)), static_cast<int>(std::floor(aPos.y * 9.0f)),
+                                static_cast<int>(std::floor(aPos.z * 9.0f))};
+        const bool firstIsEnd = (n > 0) && (cell == last) && (aMicro == endMicro);
+        if (st == CubeOccupancy::Solid) {
+            if (cell != last || n == 0) return true;
+            return !firstIsEnd;
+        }
+        if (st == CubeOccupancy::Mixed && !firstIsEnd) {
+            const float b = std::min(tExit + 1e-4f, len);
+            if (b > a && ddaHitsSolid(packed, aPos, fromWorld + dir * b, 0, 64, nullptr, nullptr))
+                return true;
+        }
+        if (cell == last || tExit >= len) return false;
+        tEnter = tExit;
+        if (tMax.x < tMax.y) {
+            if (tMax.x < tMax.z) { cell.x += step.x; tMax.x += tDelta.x; }
+            else                 { cell.z += step.z; tMax.z += tDelta.z; }
+        } else {
+            if (tMax.y < tMax.z) { cell.y += step.y; tMax.y += tDelta.y; }
+            else                 { cell.z += step.z; tMax.z += tDelta.z; }
+        }
+    }
+    return false;
+}
+
 }  // namespace Graphics
 }  // namespace Phyxel

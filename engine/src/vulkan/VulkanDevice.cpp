@@ -1557,14 +1557,14 @@ bool VulkanDevice::createDescriptorSetLayout() {
     occDirBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     occDirBinding.pImmutableSamplers = nullptr;
     // COMPUTE too: M5's probe-update pass traces the same occupancy the fragment shaders do.
-    occDirBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
+    occDirBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;   // grass.vert reads it per blade vertex
 
     VkDescriptorSetLayoutBinding occPoolBinding{};
     occPoolBinding.binding = 12;
     occPoolBinding.descriptorCount = 1;
     occPoolBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     occPoolBinding.pImmutableSamplers = nullptr;
-    occPoolBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
+    occPoolBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;   // grass.vert reads it per blade vertex
 
     // GI probe field (binding 13) -- docs/UnifiedLightingPlan.md M5.1. Written by the probe-update
     // compute pass, read by the scene fragment shaders. Appended at the END for the same reason
@@ -1575,7 +1575,7 @@ bool VulkanDevice::createDescriptorSetLayout() {
     giProbeBinding.descriptorCount = 1;
     giProbeBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     giProbeBinding.pImmutableSamplers = nullptr;
-    giProbeBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;
+    giProbeBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT;   // grass.vert reads it per blade vertex
 
     std::array<VkDescriptorSetLayoutBinding, 14> bindings = {uboLayoutBinding, samplerLayoutBinding, shadowMapLayoutBinding, lightBufferBinding, atlasUVBinding, samplerHiLayoutBinding, normal512Binding, normal1024Binding, charBoneBinding, shadowNearBinding, shadowFarBinding, occDirBinding, occPoolBinding, giProbeBinding};
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
