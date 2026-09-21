@@ -1,0 +1,162 @@
+{
+  "bar_initial": {
+    "1": "Attack",
+    "2": "Sacred Flame",
+    "3": "Guiding Bolt (2)",
+    "4": "Cure Wounds (2)",
+    "5": "Empty slot",
+    "6": "Empty slot",
+    "7": "Empty slot",
+    "8": "Empty slot",
+    "9": "Empty slot",
+    "0": "Empty slot",
+    "-": "Empty slot",
+    "=": "End Turn"
+  },
+  "spellbook": [
+    "Attack",
+    "Sacred Flame",
+    "Guiding Bolt (2)",
+    "Cure Wounds (2)",
+    "End Turn"
+  ],
+  "live_hover_while_open": {
+    "has_tooltip": true,
+    "source": "live",
+    "success": true,
+    "tooltip": "Attack\nWeapon attack against the selected target.\nUnavailable: no action left this turn",
+    "cursor_over": "Attack"
+  },
+  "drag_book_to_empty": {
+    "result": {
+      "dropped": true,
+      "from": {
+        "x": 300.0,
+        "y": 370.0
+      },
+      "payload": "action:attack",
+      "picked": true,
+      "success": true,
+      "to": {
+        "x": 540.0,
+        "y": 674.0
+      }
+    },
+    "target_key": "5",
+    "source": "Attack",
+    "after": {
+      "1": "Attack",
+      "2": "Sacred Flame",
+      "3": "Guiding Bolt (2)",
+      "4": "Cure Wounds (2)",
+      "5": "Attack",
+      "6": "Empty slot",
+      "7": "Empty slot",
+      "8": "Empty slot",
+      "9": "Empty slot",
+      "0": "Empty slot",
+      "-": "Empty slot",
+      "=": "End Turn"
+    }
+  },
+  "drag1_changed_slots": [
+    "5"
+  ],
+  "swap": {
+    "result": {
+      "dropped": true,
+      "from": {
+        "x": 300.0,
+        "y": 674.0
+      },
+      "payload": "slot:0",
+      "picked": true,
+      "success": true,
+      "to": {
+        "x": 360.0,
+        "y": 674.0
+      }
+    },
+    "a": "1",
+    "b": "2",
+    "before": {
+      "1": "Attack",
+      "2": "Sacred Flame"
+    },
+    "after": {
+      "1": "Sacred Flame",
+      "2": "Attack"
+    }
+  },
+  "swap_changed_slots": [
+    "1",
+    "2"
+  ],
+  "clear": {
+    "result": {
+      "dropped": false,
+      "from": {
+        "x": 300.0,
+        "y": 674.0
+      },
+      "payload": "slot:0",
+      "picked": true,
+      "success": true,
+      "to": {
+        "x": 40.0,
+        "y": 120.0
+      }
+    },
+    "slot": "1",
+    "before": "Sacred Flame",
+    "after": "Empty slot"
+  },
+  "clear_changed_slots": [
+    "1"
+  ],
+  "negative_drag": {
+    "result": {
+      "dropped": false,
+      "from": {
+        "x": 40.0,
+        "y": 120.0
+      },
+      "payload": "",
+      "picked": false,
+      "success": true,
+      "to": {
+        "x": 360.0,
+        "y": 674.0
+      }
+    },
+    "unchanged": true
+  },
+  "arranged": {
+    "1": "Empty slot",
+    "2": "Attack",
+    "3": "Guiding Bolt (2)",
+    "4": "Cure Wounds (2)",
+    "5": "Attack",
+    "6": "Empty slot",
+    "7": "Empty slot",
+    "8": "Empty slot",
+    "9": "Empty slot",
+    "0": "Empty slot",
+    "-": "Empty slot",
+    "=": "End Turn"
+  },
+  "after_relaunch": {
+    "1": "Empty slot",
+    "2": "Attack",
+    "3": "Guiding Bolt (2)",
+    "4": "Cure Wounds (2)",
+    "5": "Attack",
+    "6": "Empty slot",
+    "7": "Empty slot",
+    "8": "Empty slot",
+    "9": "Empty slot",
+    "0": "Empty slot",
+    "-": "Empty slot",
+    "=": "End Turn"
+  }
+}

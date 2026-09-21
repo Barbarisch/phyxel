@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <set>
 #include <iostream>
 #include "ui/UIWidget.h"
 #include "ui/MenuDefinition.h"
@@ -875,4 +876,220 @@ TEST(UIActionBarTest, EverySpellTheEngineLoadsHasAnIcon) {
     EXPECT_TRUE(missing.empty())
         << missing.size() << " action-bar rows have no icon (first: " << missing.front()
         << ") - run: python tools/gen_spell_icons.py";
+}
+
+// ============================================================================
+// DRAG AND DROP (Ravenmere G-150). The retained UI had no drag payload, no drop
+// target and no release event - sliders were the only thing `handleDrag` served.
+// A unified action bar is built entirely on this, so it is tested on its own first.
+//
+// THE CONTROL, in every case below: assert the slots the drag did NOT touch. "slot 5
+// now holds fire_bolt" passes for code that writes fire_bolt into all twelve.
+// ============================================================================
+
+namespace {
+
+// A 4-slot bar of draggable, droppable icon buttons + a 2-entry "spellbook", wired the
+// way the real HUD wires them. Returns the panel; `bar` is the live slot contents.
+struct DragRig {
+    std::unique_ptr<Phyxel::UI::UIWidget> panel;
+    std::vector<std::string> bar{4, ""};
+    std::vector<std::string> book{"spell:fire_bolt", "spell:cure_wounds"};
+    Phyxel::UI::HudDataContext ctx;
+    Phyxel::UI::UITheme theme;
+
+    // Slots laid out at y 600, 52 px wide, 6 px apart, starting x 100:
+    //   slot 0: 100..152   slot 1: 158..210   slot 2: 216..268   slot 3: 274..326
+    // Book entries at y 400, same pitch from x 100.
+    glm::vec2 slotAt(int i) const { return {100.0f + i * 58.0f + 10.0f, 610.0f}; }
+    glm::vec2 bookAt(int i) const { return {100.0f + i * 58.0f + 10.0f, 410.0f}; }
+};
+
+std::unique_ptr<DragRig> makeDragRig() {
+    auto r = std::make_unique<DragRig>();
+    r->ctx.setList("bar", [p = r.get()] {
+        std::vector<Phyxel::UI::HudRecord> rows;
+        for (size_t i = 0; i < p->bar.size(); ++i) {
+            Phyxel::UI::HudRecord rec;
+            rec.floats["slot"] = static_cast<float>(i);
+            rec.texts["payload"] = p->bar[i].empty() ? std::string()
+                                                     : ("slot:" + std::to_string(i));
+            rows.push_back(rec);
+        }
+        return rows;
+    });
+    r->ctx.setList("book", [p = r.get()] {
+        std::vector<Phyxel::UI::HudRecord> rows;
+        for (const auto& id : p->book) {
+            Phyxel::UI::HudRecord rec;
+            rec.texts["payload"] = id;
+            rows.push_back(rec);
+        }
+        return rows;
+    });
+    // The one handler both the bar and the book drop into - the shape the shell uses.
+    r->ctx.setAction("bar.drop", [p = r.get()](const Phyxel::UI::HudRecord& rec) {
+        const std::string drag = rec.texts.count("_drag") ? rec.texts.at("_drag") : "";
+        const bool onTarget = rec.texts.count("_drop") && rec.texts.at("_drop") == "target";
+        if (drag.rfind("slot:", 0) == 0) {
+            const int from = std::stoi(drag.substr(5));
+            if (!onTarget) { p->bar[from].clear(); return; }          // dragged off the bar
+            const int to = static_cast<int>(rec.floats.at("slot"));
+            std::swap(p->bar[from], p->bar[to]);                      // swap, never overwrite
+        } else if (onTarget && drag.rfind("spell:", 0) == 0) {
+            p->bar[static_cast<int>(rec.floats.at("slot"))] = drag.substr(6);
+        }
+    });
+    r->panel = Phyxel::UI::MenuDefinition::buildWidget(nlohmann::json::parse(R"({
+        "type":"panel","id":"rig","size":[900,700],"freeLayout":true,"children":[
+          {"type":"repeater","id":"bar","bind":"bar","horizontal":true,"itemSpacing":6,
+           "position":[100,600],"size":[400,52],
+           "item":{"type":"button","id":"slot","size":[52,52],
+                   "dragBind":"item.payload","dropBind":"bar.drop","actionBind":"bar.use"}},
+          {"type":"repeater","id":"book","bind":"book","horizontal":true,"itemSpacing":6,
+           "position":[100,400],"size":[400,52],
+           "item":{"type":"button","id":"entry","size":[52,52],
+                   "dragBind":"item.payload"}}]})"));
+    Phyxel::UI::applyHudBindings(r->panel.get(), r->ctx);
+    return r;
+}
+
+// Press at `from`, move to `to`, release - the sequence UISystem runs, exercised on the
+// widget tree directly so the test needs no Vulkan device.
+void doDrag(DragRig& r, glm::vec2 from, glm::vec2 to) {
+    r.panel->handleHover(from, {0, 0}, r.theme);
+    Phyxel::UI::UIWidget* src = Phyxel::UI::hoveredDragSource(r.panel.get());
+    if (!src) return;
+    const std::string payload = src->dragPayload;
+    auto sourceDrop = src->onDrop;
+    r.panel->handleHover(to, {0, 0}, r.theme);
+    Phyxel::UI::UIWidget* tgt = Phyxel::UI::hoveredDropTarget(r.panel.get());
+    if (tgt && tgt->onDrop) tgt->onDrop(payload, true);
+    else if (sourceDrop)    sourceDrop(payload, false);
+    Phyxel::UI::applyHudBindings(r.panel.get(), r.ctx);   // rows refresh, as they do per frame
+}
+
+}  // namespace
+
+TEST(UIDragTest, DraggingFromTheSpellbookCopiesRatherThanMoves) {
+    auto r = makeDragRig();
+    doDrag(*r, r->bookAt(0), r->slotAt(2));
+    EXPECT_EQ(r->bar[2], "fire_bolt");
+    EXPECT_EQ(r->book.size(), 2u) << "the spellbook is a catalogue - dragging from it copies";
+    EXPECT_EQ(r->book[0], "spell:fire_bolt");
+    // CONTROL: nothing else moved.
+    EXPECT_EQ(r->bar[0], "");
+    EXPECT_EQ(r->bar[1], "");
+    EXPECT_EQ(r->bar[3], "");
+}
+
+TEST(UIDragTest, DroppingOnAnOccupiedSlotSwapsInsteadOfOverwriting) {
+    auto r = makeDragRig();
+    r->bar = {"fire_bolt", "", "cure_wounds", ""};
+    Phyxel::UI::applyHudBindings(r->panel.get(), r->ctx);
+    doDrag(*r, r->slotAt(0), r->slotAt(2));
+    EXPECT_EQ(r->bar[0], "cure_wounds");
+    EXPECT_EQ(r->bar[2], "fire_bolt");
+    // CONTROL: the count of assignments is conserved - nothing was silently dropped.
+    int filled = 0;
+    for (const auto& a : r->bar) if (!a.empty()) ++filled;
+    EXPECT_EQ(filled, 2);
+    EXPECT_EQ(r->bar[1], "");
+    EXPECT_EQ(r->bar[3], "");
+}
+
+TEST(UIDragTest, DraggingASlotOffTheBarClearsIt) {
+    auto r = makeDragRig();
+    r->bar = {"fire_bolt", "cure_wounds", "", ""};
+    Phyxel::UI::applyHudBindings(r->panel.get(), r->ctx);
+    doDrag(*r, r->slotAt(0), {700.0f, 100.0f});   // empty screen
+    EXPECT_EQ(r->bar[0], "") << "released on nothing must still reach the SOURCE";
+    EXPECT_EQ(r->bar[1], "cure_wounds");
+    EXPECT_EQ(r->bar[2], "");
+    EXPECT_EQ(r->bar[3], "");
+}
+
+TEST(UIDragTest, ADragThatPicksUpNothingChangesNothing) {
+    auto r = makeDragRig();
+    r->bar = {"fire_bolt", "cure_wounds", "", ""};
+    Phyxel::UI::applyHudBindings(r->panel.get(), r->ctx);
+    const auto before = r->bar;
+    doDrag(*r, {700.0f, 100.0f}, r->slotAt(3));   // started over empty screen
+    EXPECT_EQ(r->bar, before) << "a drag from nowhere must not assign anything";
+    // And an EMPTY slot carries no payload, so it cannot be picked up either.
+    doDrag(*r, r->slotAt(2), r->slotAt(3));
+    EXPECT_EQ(r->bar, before);
+}
+
+TEST(UIDragTest, TheDeepestHoveredRowWinsNotThePanelBehindIt) {
+    auto r = makeDragRig();
+    r->bar = {"fire_bolt", "", "", ""};
+    Phyxel::UI::applyHudBindings(r->panel.get(), r->ctx);
+    r->panel->handleHover(r->slotAt(0), {0, 0}, r->theme);
+    auto* src = Phyxel::UI::hoveredDragSource(r->panel.get());
+    ASSERT_NE(src, nullptr);
+    EXPECT_EQ(src->dragPayload, "slot:0");
+    EXPECT_EQ(src->id, "slot") << "the row, not the repeater or the panel";
+}
+
+// STRESS (the scaling axis is drag count x occupancy): the multiset of assignments must
+// be conserved at EVERY step of a long shuffle, not merely at the end - an aggregate
+// check passes even if two steps lose and gain the same entry.
+// Found by LOOKING at the L4 capture, not by any assertion in it: a cleared slot kept
+// drawing the icon it used to hold, because applyRecord only wrote a bound field when the
+// record carried the key - and repeater rows are reused between frames. An absent key
+// means EMPTY. (The tooltip was right, which is exactly why the text assertions missed it.)
+TEST(UIActionBarTest, AClearedRowStopsDrawingWhatItUsedToHold) {
+    const auto rep = Phyxel::UI::MenuDefinition::buildWidget(nlohmann::json::parse(R"({
+        "type":"repeater","id":"bar","bind":"bar","horizontal":true,"size":[400,52],
+        "item":{"type":"button","id":"slot","bind":"item.label","iconBind":"item.icon",
+                "tooltipBind":"item.tooltip","size":[52,52]}})"));
+    ASSERT_NE(rep, nullptr);
+    bool filled = true;
+    Phyxel::UI::HudDataContext ctx;
+    ctx.setList("bar", [&filled] {
+        std::vector<Phyxel::UI::HudRecord> rows;
+        Phyxel::UI::HudRecord r;
+        if (filled) {                       // a filled slot names its picture and its name
+            r.texts["label"] = "Fire Bolt";
+            r.texts["icon"] = "resources/ui/icons/spells/fire_bolt.png";
+            r.texts["tooltip"] = "Fire Bolt\nCantrip";
+        } else {                            // an emptied slot carries NO icon key at all
+            r.texts["tooltip"] = "[1] Empty slot";
+        }
+        rows.push_back(r);
+        return rows;
+    });
+
+    Phyxel::UI::applyHudBindings(rep.get(), ctx);
+    auto* b = dynamic_cast<Phyxel::UI::UIButton*>(
+        static_cast<Phyxel::UI::UIRepeater*>(rep.get())->generated[0].get());
+    ASSERT_NE(b, nullptr);
+    ASSERT_EQ(b->iconPath, "resources/ui/icons/spells/fire_bolt.png");
+
+    filled = false;
+    Phyxel::UI::applyHudBindings(rep.get(), ctx);
+    EXPECT_EQ(b->iconPath, "") << "a cleared slot must stop drawing its old icon";
+    EXPECT_EQ(b->text, "")    << "and stop showing its old label";
+    EXPECT_EQ(b->tooltip, "[1] Empty slot");
+    EXPECT_EQ(b->loadedIcon, -1) << "the cached texture must be invalidated with the path";
+}
+
+TEST(UIDragTest, TwoHundredShufflesConserveEveryAssignment) {
+    auto r = makeDragRig();
+    r->bar = {"fire_bolt", "cure_wounds", "guiding_bolt", "sacred_flame"};
+    Phyxel::UI::applyHudBindings(r->panel.get(), r->ctx);
+    std::multiset<std::string> expected(r->bar.begin(), r->bar.end());
+    unsigned seed = 12345;
+    for (int step = 0; step < 200; ++step) {
+        seed = seed * 1103515245u + 12345u;
+        const int a = static_cast<int>((seed >> 16) % 4);
+        seed = seed * 1103515245u + 12345u;
+        const int b = static_cast<int>((seed >> 16) % 4);
+        doDrag(*r, r->slotAt(a), r->slotAt(b));
+        std::multiset<std::string> now(r->bar.begin(), r->bar.end());
+        ASSERT_EQ(now, expected) << "assignments changed at shuffle step " << step
+                                 << " (" << a << " -> " << b << ")";
+        ASSERT_EQ(r->bar.size(), 4u) << "slot count changed at step " << step;
+    }
 }

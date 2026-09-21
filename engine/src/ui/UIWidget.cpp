@@ -893,19 +893,38 @@ void UIRepeater::handleHover(glm::vec2 mousePos, glm::vec2 widgetPos, const UITh
 // Tooltip lookup (G-148)
 // ════════════════════════════════════════════════════════════════
 
-const UIWidget* hoveredTooltipWidget(const UIWidget* root) {
+// Deepest-hovered-first walk, shared by the tooltip / drag / drop lookups: a hit on an
+// action-bar row must beat one on the bar behind it.
+// W is UIWidget or const UIWidget. unique_ptr<UIWidget>::get() is const-qualified but
+// yields a NON-const pointer, so the const instantiation needs no cast of its own.
+template <typename W, typename Pred>
+static W* hoveredMatching(W* root, Pred pred) {
     if (!root || !root->visible) return nullptr;
-
-    // Children first, so the deepest hovered widget wins: a tooltip on an action-bar row
-    // must beat one on the bar behind it.
     if (root->type() == WidgetType::Panel) {
         for (const auto& c : static_cast<const UIPanel*>(root)->children)
-            if (const UIWidget* hit = hoveredTooltipWidget(c.get())) return hit;
+            if (W* hit = hoveredMatching<W>(c.get(), pred)) return hit;
     } else if (root->type() == WidgetType::Repeater) {
         for (const auto& c : static_cast<const UIRepeater*>(root)->generated)
-            if (const UIWidget* hit = hoveredTooltipWidget(c.get())) return hit;
+            if (W* hit = hoveredMatching<W>(c.get(), pred)) return hit;
     }
-    return (root->hovered && !root->tooltip.empty()) ? root : nullptr;
+    return (root->hovered && pred(root)) ? root : nullptr;
+}
+
+const UIWidget* hoveredTooltipWidget(const UIWidget* root) {
+    return hoveredMatching<const UIWidget>(
+        root, [](const UIWidget* w) { return !w->tooltip.empty(); });
+}
+
+UIWidget* hoveredDragSource(UIWidget* root) {
+    // `enabled` is NOT required: a spell with no slots left is greyed out, and you must
+    // still be able to move it to a different slot.
+    return hoveredMatching<UIWidget>(
+        root, [](const UIWidget* w) { return !w->dragPayload.empty(); });
+}
+
+UIWidget* hoveredDropTarget(UIWidget* root) {
+    return hoveredMatching<UIWidget>(
+        root, [](const UIWidget* w) { return static_cast<bool>(w->onDrop); });
 }
 
 std::string hoveredTooltip(const UIWidget* root) {

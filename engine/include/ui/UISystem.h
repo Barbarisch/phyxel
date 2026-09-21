@@ -126,6 +126,23 @@ public:
     /// handleInput/injectHover, drawn by render().
     const std::string& hoverTooltip() const { return hoverTooltip_; }
 
+    // ── DRAG AND DROP (Ravenmere G-150) ─────────────────────────
+    /// True while a drag is in flight (a press on a draggable widget that has moved past
+    /// the threshold). The pointer draws a ghost of what it is carrying.
+    bool dragActive() const { return dragActive_; }
+    /// What the pointer is carrying ("" when not dragging).
+    const std::string& dragPayload() const { return dragPayload_; }
+
+    /// Drive a whole press-move-release drag from a harness, which has no physical mouse.
+    /// Both points are window px, as injectClick takes. Returns what actually happened so
+    /// a caller can ASSERT it rather than read a screenshot.
+    struct DragResult {
+        bool        picked  = false;   ///< something draggable was under `from`
+        bool        dropped = false;   ///< a drop target was under `to`
+        std::string payload;           ///< what was carried
+    };
+    DragResult injectDrag(glm::vec2 from, glm::vec2 to);
+
     // ── Key capture (keybinding rebind) ──────────────────────────
     // One-shot "press a key" capture for the settings rebind buttons. After
     // beginKeyCapture, handleInput consumes ALL input until the user presses a
@@ -227,6 +244,17 @@ private:
     // Input state
     glm::vec2 lastMousePos_{0.0f, 0.0f};   // logical canvas px, where the tooltip anchors
     std::string hoverTooltip_;             // G-148: text under the pointer this frame
+    // G-150 drag state. The source's drop handler is held BY VALUE, not as a widget
+    // pointer: a repeater rebuilds its rows whenever the row count changes, so a pointer
+    // captured at press time can dangle before release.
+    bool        dragPending_ = false;      // pressed on something draggable, not yet moved
+    bool        dragActive_  = false;      // moved past the threshold: really dragging
+    glm::vec2   dragPressPos_{0.0f, 0.0f}; // where the press landed (the withheld click)
+    std::string dragPayload_;
+    std::string dragIconPath_;
+    int         dragIconTex_ = -1;
+    std::function<void(const std::string&, bool)> dragSourceDrop_;
+    void resetDrag();
     bool wasMousePressed_ = false;
     bool prevBackspace_ = false;  // edge-tracking for the focused text field
     bool prevEnter_ = false;

@@ -69,6 +69,11 @@
 - **F**: interact / talk (E is strafe here) · **B**: inventory
 - Left click on the ground walks there only when the game sets `controls.clickToMove` (off by default, as in WoW)
 - **C**: Character sheet (`ToggleCharacter`) — name/race/class/level/XP, HP/AC/speed/initiative/proficiency, the six abilities, saving throws and all 18 skills (`*` = proficient); C or ESC closes it. Rebindable in Settings → Keybindings.
+- **1-9, 0, -, =**: fire the twelve action-bar slots (Ravenmere G-150). Slot 1 is key `1`.
+  Suppressed while a dialogue is up, because 1-4 are that dialogue's choice keys.
+- **P**: the Abilities panel — the catalogue you DRAG icons from onto the bar. Drag a slot
+  onto another to swap them; drag one off the bar to clear it. The arrangement is saved per
+  player (`PlayerProfile::actionBar`) and survives a relaunch.
 
 ## Character Control
 - **K**: only one control target exists (`AnimatedCharacter`) — pressing K just re-asserts it;

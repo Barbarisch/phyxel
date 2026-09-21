@@ -10028,6 +10028,18 @@ bool Application::dispatchItemAPICommand(const Core::APICommand& cmd, nlohmann::
         return true;
     }
 
+    // G-150: a whole press-move-release drag, same shape as the shipped game's ui_drag.
+    if (cmd.action == "ui_drag") {
+        auto* ui = renderCoordinator ? renderCoordinator->getUISystem() : nullptr;
+        if (!ui) { response = {{"error", "UISystem not available"}}; return true; }
+        const float fx = cmd.params.value("from_x", 0.0f), fy = cmd.params.value("from_y", 0.0f);
+        const float tx = cmd.params.value("to_x", 0.0f),   ty = cmd.params.value("to_y", 0.0f);
+        const auto res = ui->injectDrag(glm::vec2(fx, fy), glm::vec2(tx, ty));
+        response = {{"success", true}, {"picked", res.picked}, {"dropped", res.dropped},
+                    {"payload", res.payload}};
+        return true;
+    }
+
     // G-148: hover WITHOUT clicking, and read back the tooltip that shows. Same shape as
     // the shipped game's ui_hover, so a harness can use one call against either host.
     if (cmd.action == "ui_hover") {

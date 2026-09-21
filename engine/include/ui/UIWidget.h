@@ -164,6 +164,28 @@ public:
     /// element only in certain states (e.g. "combat.inCombat").
     std::string visibleWhen;
 
+    // ── DRAG AND DROP (Ravenmere G-150) ─────────────────────────
+    // A widget with a non-empty payload can be PICKED UP: press and hold on it and the
+    // pointer carries `dragPayload` until release. JSON "drag" is a fixed payload;
+    // "dragBind" pulls one per repeater row ("item.payload").
+    //
+    // A widget with `dropBind` is a DROP TARGET: releasing a drag over it invokes that
+    // HudDataContext action with THIS widget's row plus the reserved keys "_drag" (the
+    // payload) and "_drop" ("target"). Releasing over NOTHING invokes the SOURCE's
+    // handler instead with "_drop" = "none" - which is how "drag a slot off the bar to
+    // clear it" works without any extra machinery.
+    //
+    // A draggable widget's CLICK moves from press to release (and is suppressed entirely
+    // once a drag passes the movement threshold), because otherwise picking up a spell to
+    // rearrange it would also cast it. Widgets with no payload keep click-on-press.
+    std::string dragPayload;
+    std::string dragBind;
+    std::string dropBind;
+    /// Wired by the binding pass from `dropBind`, exactly as onClick is from actionBind.
+    /// UISystem COPIES this by value when a drag starts, so a repeater rebuilding its
+    /// rows mid-drag cannot leave the drag holding a dangling widget.
+    std::function<void(const std::string& payload, bool onTarget)> onDrop;
+
     /// HOVER TEXT (Ravenmere G-148). JSON "tooltip" for a fixed string, or "tooltipBind"
     /// for a repeater row's "item.<field>". An action bar of icons is unreadable without
     /// it: the icon says WHICH thing, the tooltip says what it does — and why it is greyed
@@ -494,6 +516,11 @@ public:
 /// The deepest hovered widget carrying a tooltip, or nullptr. Deepest wins, so a
 /// tooltip on a row beats one on the panel behind it.
 const UIWidget* hoveredTooltipWidget(const UIWidget* root);
+
+/// The deepest hovered widget that can be PICKED UP, or nullptr (G-150).
+UIWidget* hoveredDragSource(UIWidget* root);
+/// The deepest hovered widget that ACCEPTS a drop, or nullptr (G-150).
+UIWidget* hoveredDropTarget(UIWidget* root);
 
 /// Convenience: that widget's tooltip, or "" when nothing under the pointer has one.
 std::string hoveredTooltip(const UIWidget* root);

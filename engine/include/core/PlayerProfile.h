@@ -5,6 +5,8 @@
 #include <string>
 #include <sqlite3.h>
 
+#include "core/ActionBar.h"
+
 namespace Phyxel {
 namespace Core {
 
@@ -34,6 +36,10 @@ public:
     int xp = 0;
     int level = 1;
 
+    // Action-bar layout (G-150). The player arranges the bar by dragging; without this
+    // the arrangement would not survive a relaunch and arranging it would be pointless.
+    ActionBar actionBar;
+
     nlohmann::json toJson() const {
         return {
             {"camera", {
@@ -47,7 +53,8 @@ public:
             {"inventory", inventoryData},
             {"currency", currencyData},
             {"xp", xp},
-            {"level", level}
+            {"level", level},
+            {"actionBar", actionBar.toJson()}
         };
     }
 
@@ -72,6 +79,10 @@ public:
         }
         xp    = j.value("xp", 0);
         level = j.value("level", 1);
+        // Absent in every save written before G-150: loads as "never arranged", which is
+        // the signal for the host to lay out the default bar.
+        if (j.contains("actionBar")) actionBar.fromJson(j["actionBar"]);
+        else                         actionBar = ActionBar{};
     }
 
     bool saveToDb(sqlite3* db, const std::string& playerId = "default") const {

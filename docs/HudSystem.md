@@ -217,6 +217,44 @@ First customer: `hud_action_bar` is now a row of 52 px icon slots (`iconBind: it
 `tools/gen_spell_icons.py` and its tooltip text built by the shell from `SpellRegistry`
 (level, school, range, damage/heal, concentration, description, and why a row is unavailable).
 
+**DRAG AND DROP + a stored action bar - DONE (2026-09-21, Ravenmere G-150).** Any widget can
+be a drag SOURCE (`"drag"` for a fixed payload, `"dragBind"` for a repeater row's
+`item.<field>`) and any widget a drop TARGET (`"dropBind"`, a HudDataContext action wired
+exactly as `actionBind` is). The drop handler receives the TARGET's row plus two reserved
+keys: `_drag` (the payload) and `_drop` (`"target"` / `"none"`). Releasing over nothing
+invokes the SOURCE's handler with `_drop: "none"` - which is how "drag a slot off the bar to
+clear it" works with no extra machinery.
+
+Mechanics worth knowing before authoring with it:
+- A press on a draggable widget WITHHOLDS the click and replays it on release if the pointer
+  never moved past the threshold (6 px, after Windows' own `SM_CXDRAG` of 4 px at 96 DPI).
+  Otherwise picking a spell up to rearrange it would also cast it. Widgets with no payload
+  keep click-on-press, so nothing else changed.
+- `UISystem` draws a ghost of the carried icon at the pointer, over every screen, and
+  suppresses the tooltip while dragging.
+- The source's drop handler is copied BY VALUE at press time: a repeater rebuilds its rows
+  whenever the row count changes, so a widget pointer captured at press can dangle.
+- Harness hook: `POST /api/ui/drag {from_x,from_y,to_x,to_y}` (and the `ui_drag` command on
+  the shipped `--test` host) drives a whole press-move-release and returns
+  `{picked, dropped, payload}`.
+
+**A bound field is CLEARED when its record stops carrying the key** (same commit). Repeater
+rows are reused between frames, so `applyRecord` leaving a field alone when the key was
+absent meant a cleared row kept drawing the previous row's icon and label - the tooltip was
+right, which is exactly why the text assertions missed it. The record is the source of
+truth; an absent key means empty.
+
+**`autoWidth`** on a panel hugs its measured content width, as `autoSize` already did for
+height. `UIWidget::measureWidth` defaults to the authored width; a horizontal repeater sums
+its rows.
+
+**The action bar is the first customer of all of it.** `Core::ActionBar` (header-only, beside
+`PlayerProfile`) is TWELVE stored slots keyed to 1-9, 0, -, = ; the layout persists in
+`PlayerProfile::actionBar` and an absent key in an old save reads as "never arranged", which
+is the signal for the host to lay out a default. `hud_spellbook` is the catalogue you drag
+from (P toggles it), and while it is open the shell drives the FULL `handleInput` pass rather
+than hover alone, because a drag needs press, move and release.
+
 Dialogue stays in `DialogueSystem` for now (its own system); fold under the HUD later.
 
 **Theming (v1 scope):** extend `UITheme` into **named themes loadable from JSON**; ship a

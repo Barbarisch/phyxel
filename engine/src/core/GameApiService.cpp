@@ -858,6 +858,21 @@ void GameApiService::registerCommands() {
              {"tooltip", tip}, {"has_tooltip", !tip.empty()}};
     });
 
+    // G-150: a whole press-move-release drag. Points are window px, as ui_click takes.
+    // Returns what actually happened so a harness asserts it instead of reading a
+    // screenshot: whether anything was picked up, whether a target took it, and what
+    // the payload was.
+    reg.on("ui_drag", [this](const APICommand& cmd, json& r) {
+        auto* ui = renderCoordinator ? renderCoordinator->getUISystem() : nullptr;
+        if (!ui) { r = {{"error", "UISystem not available"}}; return; }
+        const float fx = cmd.params.value("from_x", 0.0f), fy = cmd.params.value("from_y", 0.0f);
+        const float tx = cmd.params.value("to_x", 0.0f),   ty = cmd.params.value("to_y", 0.0f);
+        const auto res = ui->injectDrag(glm::vec2(fx, fy), glm::vec2(tx, ty));
+        r = {{"success", true}, {"picked", res.picked}, {"dropped", res.dropped},
+             {"payload", res.payload},
+             {"from", {{"x", fx}, {"y", fy}}}, {"to", {{"x", tx}, {"y", ty}}}};
+    });
+
     reg.on("navgrid_cell", [this](const APICommand& cmd, json& r) {
         if (!npcManager) { r = {{"error", "NPCManager not available"}}; return; }
         // Lazily build the NavGrid on first use (the world is loaded by now, and

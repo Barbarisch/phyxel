@@ -1166,6 +1166,19 @@ void EngineAPIServer::setupRoutes() {
     // UISystem directly (test hook, bypasses scene transitions). Body: { "layout": {...} }
     // POST /api/ui/unload_menu — remove menu screens.
     // ====================================================================
+    // POST /api/ui/drag {from_x,from_y,to_x,to_y} -> {picked, dropped, payload} (G-150).
+    srv.Post("/api/ui/drag", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("ui_drag", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
     srv.Post("/api/ui/hover", [this](const httplib::Request& req, httplib::Response& res) {
         try {
             json params = json::parse(req.body);

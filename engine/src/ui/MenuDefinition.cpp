@@ -319,6 +319,10 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
     if (w) {
         w->tooltip     = j.value("tooltip", "");
         w->tooltipBind = j.value("tooltipBind", "");
+        // G-150: drag/drop is shared by every widget type, like the tooltip.
+        w->dragPayload = j.value("drag", "");
+        w->dragBind    = j.value("dragBind", "");
+        w->dropBind    = j.value("dropBind", "");
     }
     return w;
 }
@@ -517,14 +521,36 @@ static void applyRecord(UIWidget* w, const HudRecord& rec, const HudDataContext*
     if (!w->tooltipBind.empty()) {
         const std::string f = itemField(w->tooltipBind);
         auto it = rec.texts.find(f);
-        if (it != rec.texts.end()) w->tooltip = it->second;
+        // An ABSENT key means empty, not "leave what was there". Rows are reused between
+        // frames, so keeping the old value shows the previous row's data.
+        w->tooltip = (it != rec.texts.end()) ? it->second : std::string();
+    }
+    // DRAG PAYLOAD (G-150): what this row hands to the pointer when picked up.
+    if (!w->dragBind.empty()) {
+        const std::string f = itemField(w->dragBind);
+        auto it = rec.texts.find(f);
+        w->dragPayload = (it != rec.texts.end()) ? it->second : std::string();
+    }
+    // DROP TARGET (G-150): wired exactly as onClick is from actionBind, and for the same
+    // reason - the handler must carry THIS row, so it knows which slot was dropped on.
+    if (ctx && !w->dropBind.empty()) {
+        if (auto h = ctx->resolveAction(w->dropBind)) {
+            auto handler = *h;
+            HudRecord copy = rec;
+            w->onDrop = [handler, copy](const std::string& payload, bool onTarget) {
+                HudRecord r = copy;
+                r.texts["_drag"] = payload;                       // what was dragged
+                r.texts["_drop"] = onTarget ? "target" : "none";  // where it landed
+                handler(r);
+            };
+        }
     }
     if (w->type() == WidgetType::Button) {
         auto* btn = static_cast<UIButton*>(w);
         if (!w->bind.empty()) {
             const std::string f = itemField(w->bind);
             auto it = rec.texts.find(f);
-            if (it != rec.texts.end()) btn->text = it->second;
+            btn->text = (it != rec.texts.end()) ? it->second : std::string();
         }
         // ICON (G-148): the row names its own PNG. Changing the path invalidates the
         // cached texture index, exactly as UIImage does — rows are reused between frames
@@ -532,9 +558,10 @@ static void applyRecord(UIWidget* w, const HudRecord& rec, const HudDataContext*
         if (!btn->iconBind.empty()) {
             const std::string f = itemField(btn->iconBind);
             auto it = rec.texts.find(f);
-            if (it != rec.texts.end() && btn->iconPath != it->second) {
-                btn->iconPath = it->second;
-                btn->loadedIcon = -1;
+            const std::string want = (it != rec.texts.end()) ? it->second : std::string();
+            if (btn->iconPath != want) {
+                btn->iconPath = want;
+                btn->loadedIcon = -1;   // path changed - reload (cached by the renderer)
             }
         }
         auto en = rec.floats.find("enabled");
@@ -582,8 +609,9 @@ static void applyRecord(UIWidget* w, const HudRecord& rec, const HudDataContext*
                 case WidgetType::Image: {
                     auto* img = static_cast<UIImage*>(w);
                     auto it = rec.texts.find(f);
-                    if (it != rec.texts.end() && img->imagePath != it->second) {
-                        img->imagePath = it->second;
+                    const std::string want = (it != rec.texts.end()) ? it->second : std::string();
+                    if (img->imagePath != want) {
+                        img->imagePath = want;
                         img->loadedTexture = -1;  // path changed — reload (cached by renderer)
                     }
                     // Selection highlight: full-bright icon when selected, dimmed otherwise.

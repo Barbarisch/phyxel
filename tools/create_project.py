@@ -169,6 +169,7 @@ def create_project(
     # objectives + persistence exist in the SHIPPED game, not just the editor host.
     extra_includes.append('#include "core/ObjectiveTracker.h"')
     extra_includes.append('#include "core/PlayerProfile.h"')
+    extra_includes.append('#include "core/ActionBar.h"')
     # Turn-based combat in the SHIPPED game (StandaloneParityGaps.md §1, CombatDirector
     # row): the same director/AI/player-turn stack the editor wires (Application.cpp
     # ~554-589 + 1847-1859), minus editor-only cast visuals. game.json "combat.mode"
@@ -208,6 +209,8 @@ def create_project(
     extra_members.append("    Phyxel::Core::Inventory inventory_;  // player inventory (loot; persisted via PlayerProfile)")
     extra_members.append("    bool endTurnKeyDown_ = false;  // Space = End Turn edge detector (turn-based combat)")
     extra_members.append("    bool dlgKeyDown_[6] = {};      // edge detectors for E, Enter, 1-4 (dialogue keys)")
+    extra_members.append("    bool barKeyDown_[13] = {};     // G-150: edge detectors for the 12 bar keys + the spellbook toggle")
+    extra_members.append("    bool spellbookOpen_ = false;   // G-150: the abilities panel you drag from")
     extra_members.append("    bool victoryEmitted_ = false;  // combat_victory fired once per encounter (kill path OR escape path)")
     extra_members.append("    bool loseAutoGameOver_ = true; // player death -> game-over screen (game.json lose.auto_game_over)")
     # BG3-style tactical camera: swap to an overhead/isometric rig while an
@@ -390,6 +393,9 @@ def create_project(
         f"    void updateHeldWeapons();        // follow the grip bone each frame",
         f"    void updateCommand(float dt);    // per-frame squad situation + orders",
         f"    void refreshSpellbar();  // repaint labels/slot counts/enabled state from live caster state",
+        f"    bool fireActionSlot(int slot);   // G-150: what a bar click or keybind 1-9,0,-,= does",
+        f"    void ensureDefaultActionBar();   // G-150: first-run layout; never overwrites the player's",
+        f"    void onActionBarDrop(const Phyxel::UI::HudRecord& r);  // G-150: a drag landed on the bar",
         f"    Phyxel::Scene::AnimatedVoxelCharacter* characterOf(const std::string& entityId);",
         f"    void faceCombatants();  // everyone faces the nearest opposing-side combatant",
         "",
@@ -748,35 +754,54 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 // BG3 ACTION BAR (CombatUiBg3 increment 4): one row per thing you can DO on
                 // your turn - Attack, each spell (armed = ember, depleted = disabled), End Turn.
                 // Clicks route through the "actionbar.use" handler with the row's record.
-                hud.setList("actionbar", [this]() {
-                    std::vector<Phyxel::UI::HudRecord> rows;
+                // ── UNIFIED ACTION BAR (G-150) ───────────────────────────────────
+                // TWELVE stored slots, not a list derived from whatever the player
+                // happens to know. Empty slots are real and stay put, so the bar does not
+                // change shape when a fight starts, and an arrangement the player made
+                // survives a relaunch (PlayerProfile::actionBar).
+                auto wrapInto = [](const std::string& text, size_t cols, std::string& out) {
+                    size_t lineLen = 0;
+                    for (size_t i = 0; i < text.size(); ) {
+                        size_t j = text.find(' ', i);
+                        if (j == std::string::npos) j = text.size();
+                        const size_t wlen = j - i;
+                        if (lineLen > 0 && lineLen + 1 + wlen > cols) { out += "\\n"; lineLen = 0; }
+                        else if (lineLen > 0) { out += " "; lineLen += 1; }
+                        out.append(text, i, wlen);
+                        lineLen += wlen;
+                        i = j + 1;
+                    }
+                };
+                // One assignment -> the row that draws it. SHARED by the bar and the
+                // spellbook, so a spell reads identically in both and the tooltip text
+                // is written once.
+                auto describe = [this, wrapInto](const Phyxel::Core::ActionSlot& sl,
+                                                 Phyxel::UI::HudRecord& r) {
+                    using K = Phyxel::Core::ActionSlot::Kind;
                     const bool myTurn = playerTurn_.isPlayerTurnActive();
                     const bool actionLeft = myTurn && playerTurn_.budget() && playerTurn_.budget()->action;
-                    const bool outOfCombat = !combatDirector_.inCombat();   // G-137: spells only, armable
-                    // G-148: the bar is a row of ICONS now, so each row carries its picture
-                    // AND the words that used to be printed on it - hovering is the only way
-                    // left to read what a slot does and why it is greyed out.
-                    auto wrapInto = [](const std::string& text, size_t cols, std::string& out) {
-                        size_t lineLen = 0;
-                        for (size_t i = 0; i < text.size(); ) {
-                            size_t j = text.find(' ', i);
-                            if (j == std::string::npos) j = text.size();
-                            const size_t wlen = j - i;
-                            if (lineLen > 0 && lineLen + 1 + wlen > cols) { out += "\\n"; lineLen = 0; }
-                            else if (lineLen > 0) { out += " "; lineLen += 1; }
-                            out.append(text, i, wlen);
-                            lineLen += wlen;
-                            i = j + 1;
-                        }
-                    };
-                    if (!outOfCombat) {
-                        Phyxel::UI::HudRecord r; r.texts["label"] = "Attack"; r.texts["action"] = "attack";
+                    const bool outOfCombat = !combatDirector_.inCombat();
+                    r.floats["enabled"] = 0.0f;
+                    r.floats["armed"] = 0.0f;
+                    if (sl.empty()) return;
+                    if (sl.kind == K::Action && sl.id == "attack") {
+                        r.texts["label"] = "Attack";
                         r.texts["icon"] = "resources/ui/icons/spells/attack.png";
                         r.texts["tooltip"] = std::string("Attack\\nWeapon attack against the selected target.")
                                            + (actionLeft ? "" : "\\nUnavailable: no action left this turn");
-                        r.floats["enabled"] = actionLeft ? 1.0f : 0.0f; r.floats["armed"] = 0.0f; rows.push_back(r);
+                        r.floats["enabled"] = actionLeft ? 1.0f : 0.0f;
+                        return;
                     }
-                    for (const auto& sid : playerSpells_) {
+                    if (sl.kind == K::Action && sl.id == "end_turn") {
+                        r.texts["label"] = "End Turn";
+                        r.texts["icon"] = "resources/ui/icons/spells/end_turn.png";
+                        r.texts["tooltip"] = std::string("End Turn\\nPass the turn to the next combatant.")
+                                           + (myTurn ? "" : "\\nUnavailable: it is not your turn");
+                        r.floats["enabled"] = myTurn ? 1.0f : 0.0f;
+                        return;
+                    }
+                    if (sl.kind == K::Spell) {
+                        const std::string& sid = sl.id;
                         const auto* sd = Phyxel::Core::SpellRegistry::instance().getSpell(sid);
                         const std::string why = playerTurn_.castBlockedReason(sid);
                         const bool depleted = (why == "no slots" || why == "not prepared");
@@ -787,10 +812,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                                  ? playerCaster_.slots().remaining[lvl - 1] : 0;
                             label += " (" + std::to_string(left) + ")";
                         }
-                        Phyxel::UI::HudRecord r; r.texts["label"] = label; r.texts["action"] = "spell:" + sid;
+                        r.texts["label"] = label;
                         // Icons are generated from resources/spells/*.json by
-                        // tools/gen_spell_icons.py; a spell with no PNG falls back to drawing
-                        // its label rather than an empty square.
+                        // tools/gen_spell_icons.py; a spell with no PNG falls back to
+                        // drawing its label rather than an empty square.
                         r.texts["icon"] = "resources/ui/icons/spells/" + sid + ".png";
                         std::string tip = label;
                         if (sd) {
@@ -808,41 +833,78 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             if (sd->requiresConcentration) tip += "\\nConcentration";
                             if (!sd->description.empty()) { tip += "\\n"; wrapInto(sd->description, 38, tip); }
                         }
-                        // Only say "unavailable" when the row actually IS: out of combat a
-                        // spell can be armed (G-137) while castBlockedReason still reports
-                        // "not your turn".
                         const bool rowEnabled = ((outOfCombat || actionLeft) && !depleted);
                         if (!rowEnabled && !why.empty()) tip += "\\nUnavailable: " + why;
                         r.texts["tooltip"] = tip;
                         r.floats["enabled"] = rowEnabled ? 1.0f : 0.0f;
-                        r.floats["armed"] = (armedSpell_ == sid) ? 1.0f : 0.0f; rows.push_back(r);
+                        r.floats["armed"] = (armedSpell_ == sid) ? 1.0f : 0.0f;
+                        return;
                     }
-                    if (!outOfCombat) {
-                        Phyxel::UI::HudRecord r; r.texts["label"] = "End Turn"; r.texts["action"] = "end_turn";
-                        r.texts["icon"] = "resources/ui/icons/spells/end_turn.png";
-                        r.texts["tooltip"] = std::string("End Turn\\nPass the turn to the next combatant.")
-                                           + (myTurn ? "" : "\\nUnavailable: it is not your turn");
-                        r.floats["enabled"] = myTurn ? 1.0f : 0.0f; r.floats["armed"] = 0.0f; rows.push_back(r);
+                    // An ITEM can be assigned, dragged and saved, but nothing can fire it
+                    // yet - this game has no use-item path at all. Say so in the tooltip
+                    // rather than shipping a slot that silently does nothing.
+                    r.texts["label"] = sl.id;
+                    r.texts["icon"] = "resources/ui/icons/items/" + sl.id + ".png";
+                    r.texts["tooltip"] = sl.id + "\\nItem\\nUnavailable: items cannot be used from the bar yet";
+                };
+                // The keybind label for each slot: 1-9, then 0, -, = (the WoW row).
+                auto slotKeyLabel = [](int i) -> std::string {
+                    if (i >= 0 && i <= 8) return std::string(1, static_cast<char>('1' + i));
+                    if (i == 9)  return "0";
+                    if (i == 10) return "-";
+                    if (i == 11) return "=";
+                    return "";
+                };
+                hud.setList("actionbar", [this, describe, slotKeyLabel]() {
+                    std::vector<Phyxel::UI::HudRecord> rows;
+                    const auto& bar = playerProfile_.actionBar;
+                    for (int i = 0; i < Phyxel::Core::ActionBar::SLOT_COUNT; ++i) {
+                        const auto& sl = bar.at(i);
+                        Phyxel::UI::HudRecord r;
+                        r.floats["slot"] = static_cast<float>(i);
+                        describe(sl, r);
+                        // Only a FILLED slot can be picked up; an empty one is a drop
+                        // target and nothing else.
+                        if (!sl.empty()) r.texts["payload"] = "slot:" + std::to_string(i);
+                        const std::string key = slotKeyLabel(i);
+                        if (!sl.empty() && !key.empty()) {
+                            r.texts["tooltip"] = "[" + key + "] " + r.texts["tooltip"];
+                        } else if (sl.empty()) {
+                            r.texts["tooltip"] = "[" + key + "] Empty slot\\nDrag an ability here from the "
+                                                 "abilities panel (P).";
+                        }
+                        rows.push_back(std::move(r));
                     }
                     return rows;
                 });
+                // Everything that CAN go on the bar: the two built-in actions plus every
+                // spell the player knows. Dragging from here copies - this is a
+                // catalogue, not an inventory - which is also how an action dragged off
+                // the bar can be put back.
+                hud.setFloat("spellbook.visible", [this] { return spellbookOpen_ ? 1.0f : 0.0f; });
+                hud.setList("spellbook", [this, describe]() {
+                    std::vector<Phyxel::UI::HudRecord> rows;
+                    using K = Phyxel::Core::ActionSlot::Kind;
+                    auto add = [&](K kind, const std::string& id) {
+                        Phyxel::UI::HudRecord r;
+                        describe(Phyxel::Core::ActionSlot{kind, id}, r);
+                        r.texts["payload"] = std::string(Phyxel::Core::ActionSlot::kindName(kind)) + ":" + id;
+                        // The catalogue shows what a thing IS, never whether you can use
+                        // it this instant - it is not the bar.
+                        r.floats["enabled"] = 1.0f;
+                        rows.push_back(std::move(r));
+                    };
+                    add(K::Action, "attack");
+                    for (const auto& sid : playerSpells_) add(K::Spell, sid);
+                    add(K::Action, "end_turn");
+                    return rows;
+                });
+                hud.setAction("actionbar.drop", [this](const Phyxel::UI::HudRecord& r) {
+                    onActionBarDrop(r);
+                });
                 hud.setAction("actionbar.use", [this](const Phyxel::UI::HudRecord& r) {
-                    const auto it = r.texts.find("action");
-                    const std::string act = it == r.texts.end() ? std::string() : it->second;
-                    if (act == "attack") {
-                        std::string tgt = playerTurn_.selectedTarget();
-                        if (tgt.empty()) tgt = hoveredTarget_;
-                        if (tgt.empty()) { LOG_INFO("ActionBar", "Action bar: Attack with no target selected"); return; }
-                        playerTurn_.setSelectedTarget(tgt);
-                        const bool ok = playerTurn_.requestAttack(tgt);
-                        LOG_INFO("ActionBar", "Action bar: Attack -> '{}' ({})", tgt, ok ? "ok" : "refused");
-                    } else if (act.rfind("spell:", 0) == 0) {
-                        const std::string sid = act.substr(6);
-                        setArmedSpell(armedSpell_ == sid ? "" : sid);
-                    } else if (act == "end_turn") {
-                        playerTurn_.endTurn();
-                        LOG_INFO("ActionBar", "Action bar: End Turn");
-                    }
+                    const auto it = r.floats.find("slot");
+                    if (it != r.floats.end()) fireActionSlot(static_cast<int>(it->second));
                 });
                 hud.setList("hotbar", [this]() {
                     std::vector<Phyxel::UI::HudRecord> rows;
@@ -2234,6 +2296,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 profileRestored_ = true;
                                 if (loadPlayerProfile())
                                     LOG_INFO("{class_name}", "Restored saved player profile");
+                                ensureDefaultActionBar();   // G-150: no-op once arranged
                             }}
                             // Companions travel WITH the player: scene loads clear
                             // all entities, so respawn absent party members near
@@ -2331,6 +2394,9 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     profileRestored_ = true;
                     LOG_INFO("{class_name}", "Restored saved player profile");
                 }}
+                // G-150: lay out the bar for a first run. A no-op once the player has
+                // arranged it, so a restored layout is never overwritten.
+                ensureDefaultActionBar();
 
                 // Sync input manager with camera after definition load
                 auto* input = engine.getInputManager();
@@ -2463,6 +2529,34 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 const bool choiceEdge = dlgEdge(k, 2 + (k - GLFW_KEY_1));
                 if (!aiTyping && dialogueSystem_ && dialogueSystem_->isActive() && choiceEdge) {{
                     dialogueSystem_->selectChoice(k - GLFW_KEY_1);
+                }}
+            }}
+
+            // ── ACTION BAR KEYS (G-150) ──────────────────────────────────────────
+            // 1-9, 0, -, = fire the bar's twelve slots; P opens the abilities panel
+            // you drag from. Gated on dialogue NOT being active because 1-4 are that
+            // dialogue's choice keys - otherwise both would answer the same press,
+            // and picking dialogue option 2 would also cast whatever is in slot 2.
+            {{
+                static const int kBarKeys[Phyxel::Core::ActionBar::SLOT_COUNT] = {{
+                    GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4, GLFW_KEY_5, GLFW_KEY_6,
+                    GLFW_KEY_7, GLFW_KEY_8, GLFW_KEY_9, GLFW_KEY_0,
+                    GLFW_KEY_MINUS, GLFW_KEY_EQUAL
+                }};
+                const bool talking = dialogueSystem_ && dialogueSystem_->isActive();
+                const bool barLive = !aiTyping && !talking && Phyxel::UI::isGameRunning(state);
+                for (int i = 0; i < Phyxel::Core::ActionBar::SLOT_COUNT; ++i) {{
+                    const bool down = input->isKeyPressed(kBarKeys[i]);
+                    const bool edge = down && !barKeyDown_[i];
+                    barKeyDown_[i] = down;
+                    if (edge && barLive) fireActionSlot(i);
+                }}
+                const bool pDown = input->isKeyPressed(GLFW_KEY_P);
+                const bool pEdge = pDown && !barKeyDown_[Phyxel::Core::ActionBar::SLOT_COUNT];
+                barKeyDown_[Phyxel::Core::ActionBar::SLOT_COUNT] = pDown;
+                if (pEdge && barLive) {{
+                    spellbookOpen_ = !spellbookOpen_;
+                    LOG_INFO("ActionBar", "Abilities panel {{}}", spellbookOpen_ ? "opened" : "closed");
                 }}
             }}
 
@@ -3573,7 +3667,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         // without this nothing ever updates hover and the icon-only action
                         // bar could never tell you what its icons are. Hover consumes
                         // nothing. Cursor from the message-fed cache, like the click path.
-                        if (auto* hin = engine.getInputManager()) {{
+                        //
+                        // G-150: while the ABILITIES PANEL is open, drive the FULL input
+                        // pass instead - a drag needs press, move and release, which hover
+                        // alone cannot see. The HUD eating input is fine and expected in
+                        // that window: the player opened a panel to rearrange things.
+                        if (spellbookOpen_) {{
+                            ui->handleInput(engine.getInputManager());
+                        }} else if (auto* hin = engine.getInputManager()) {{
                             double hx = 0.0, hy = 0.0;
                             hin->getCurrentMousePosition(hx, hy);
                             ui->injectHover({{static_cast<float>(hx), static_cast<float>(hy)}});
@@ -4246,6 +4347,94 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             armedSpell_ = id;
             if (!id.empty()) LOG_INFO("{class_name}", "Spell armed: '{{}}'", id);
             refreshSpellbar();
+        }}
+
+        // ── UNIFIED ACTION BAR (G-150) ──────────────────────────────────────
+        // Fire whatever slot `slot` holds. One path for a click and for the keybind, so
+        // the two can never drift apart.
+        bool {class_name}::fireActionSlot(int slot) {{
+            const auto& sl = playerProfile_.actionBar.at(slot);
+            if (sl.empty()) return false;
+            using K = Phyxel::Core::ActionSlot::Kind;
+            if (sl.kind == K::Action && sl.id == "attack") {{
+                std::string tgt = playerTurn_.selectedTarget();
+                if (tgt.empty()) tgt = hoveredTarget_;
+                if (tgt.empty()) {{
+                    LOG_INFO("ActionBar", "Action bar: Attack with no target selected");
+                    return false;
+                }}
+                playerTurn_.setSelectedTarget(tgt);
+                const bool ok = playerTurn_.requestAttack(tgt);
+                LOG_INFO("ActionBar", "Action bar slot {{}}: Attack -> '{{}}' ({{}})",
+                         slot, tgt, ok ? "ok" : "refused");
+                return ok;
+            }}
+            if (sl.kind == K::Action && sl.id == "end_turn") {{
+                playerTurn_.endTurn();
+                LOG_INFO("ActionBar", "Action bar slot {{}}: End Turn", slot);
+                return true;
+            }}
+            if (sl.kind == K::Spell) {{
+                setArmedSpell(armedSpell_ == sl.id ? "" : sl.id);
+                return true;
+            }}
+            // Assignable and saved, but nothing can fire it yet - said out loud rather
+            // than failing silently (docs/game-production/RavenmereGapLedger.md G-151).
+            LOG_INFO("ActionBar", "Action bar slot {{}} holds item '{{}}' - items cannot be used yet",
+                     slot, sl.id);
+            return false;
+        }}
+
+        // First-run layout. Runs only while the bar has NEVER been arranged: once the
+        // player touches it, the arrangement is theirs and is never rewritten - otherwise
+        // clearing your last slot would silently refill the whole bar.
+        void {class_name}::ensureDefaultActionBar() {{
+            auto& bar = playerProfile_.actionBar;
+            if (!bar.isDefault()) return;
+            using K = Phyxel::Core::ActionSlot::Kind;
+            const int last = Phyxel::Core::ActionBar::SLOT_COUNT - 1;
+            bar.assign(0, K::Action, "attack");
+            int next = 1;
+            for (const auto& sid : playerSpells_) {{
+                if (next >= last) break;            // keep the last slot for End Turn
+                bar.assign(next++, K::Spell, sid);
+            }}
+            bar.assign(last, K::Action, "end_turn");
+            LOG_INFO("ActionBar", "Default action bar laid out ({{}} of {{}} slots filled)",
+                     bar.filledCount(), Phyxel::Core::ActionBar::SLOT_COUNT);
+        }}
+
+        // A drag landed. The record is the DROP TARGET's row (or an empty one when the
+        // drag was released over nothing), carrying "_drag" = what was picked up.
+        void {class_name}::onActionBarDrop(const Phyxel::UI::HudRecord& r) {{
+            const auto dragIt = r.texts.find("_drag");
+            if (dragIt == r.texts.end() || dragIt->second.empty()) return;
+            const std::string drag = dragIt->second;
+            const auto dropIt = r.texts.find("_drop");
+            const bool onTarget = dropIt != r.texts.end() && dropIt->second == "target";
+            const auto slotIt = r.floats.find("slot");
+            const int to = slotIt != r.floats.end() ? static_cast<int>(slotIt->second) : -1;
+
+            auto& bar = playerProfile_.actionBar;
+            bool changed = false;
+            if (drag.rfind("slot:", 0) == 0) {{
+                const int from = std::atoi(drag.c_str() + 5);
+                // Released off the bar entirely: that is how you clear a slot.
+                if (!onTarget)      changed = bar.clear(from);
+                else if (to != from) changed = bar.swap(from, to);
+            }} else if (onTarget) {{
+                const auto colon = drag.find(':');
+                if (colon != std::string::npos) {{
+                    changed = bar.assign(to,
+                                         Phyxel::Core::ActionSlot::kindFromString(drag.substr(0, colon)),
+                                         drag.substr(colon + 1));
+                }}
+            }}
+            if (changed) {{
+                LOG_INFO("ActionBar", "Bar drop: '{{}}' -> slot {{}} ({{}})",
+                         drag, to, onTarget ? "assigned" : "cleared");
+                savePlayerProfile();   // the arrangement is worthless if it does not persist
+            }}
         }}
 
         // Repaint the spellbar from live state: armed = ember, out-of-slots =

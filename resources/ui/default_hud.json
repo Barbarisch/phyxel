@@ -501,8 +501,8 @@
       -12
     ],
     "size": [
-      1000,
-      68
+      760,
+      76
     ],
     "showBackground": true,
     "autoWidth": true,
@@ -516,7 +516,7 @@
         "horizontal": true,
         "itemSpacing": 6,
         "size": [
-          980,
+          760,
           52
         ],
         "item": {
@@ -525,7 +525,60 @@
           "bind": "item.label",
           "iconBind": "item.icon",
           "tooltipBind": "item.tooltip",
+          "dragBind": "item.payload",
+          "dropBind": "actionbar.drop",
           "actionBind": "actionbar.use",
+          "iconPadding": 4,
+          "size": [
+            52,
+            52
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "id": "hud_spellbook",
+    "anchor": "Center",
+    "offset": [
+      0,
+      -60
+    ],
+    "size": [
+      700,
+      200
+    ],
+    "showBackground": true,
+    "autoSize": true,
+    "title": "Abilities",
+    "visibleWhen": "spellbook.visible",
+    "children": [
+      {
+        "type": "label",
+        "id": "spellbook_hint",
+        "text": "Drag an ability onto a slot on the action bar. Drag a slot off the bar to clear it. Press P to close.",
+        "size": [
+          660,
+          52
+        ]
+      },
+      {
+        "type": "repeater",
+        "id": "spellbook_list",
+        "bind": "spellbook",
+        "horizontal": true,
+        "itemSpacing": 8,
+        "size": [
+          660,
+          52
+        ],
+        "item": {
+          "type": "button",
+          "id": "entry",
+          "bind": "item.label",
+          "iconBind": "item.icon",
+          "tooltipBind": "item.tooltip",
+          "dragBind": "item.payload",
           "iconPadding": 4,
           "size": [
             52,

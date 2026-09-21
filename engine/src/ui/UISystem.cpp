@@ -127,10 +127,32 @@ static void collectTextInputs(UIWidget* w, std::vector<UITextInput*>& out) {
     }
 }
 
+// The ghost the pointer carries: whatever picture the source was already showing.
+static std::string dragIconOf(const UIWidget* w) {
+    if (!w) return {};
+    if (w->type() == WidgetType::Button) return static_cast<const UIButton*>(w)->iconPath;
+    if (w->type() == WidgetType::Image)  return static_cast<const UIImage*>(w)->imagePath;
+    return {};
+}
+
+// How far the pointer must move before a press becomes a drag rather than a click.
+// Windows' own system drag threshold (SM_CXDRAG) is 4 px at 96 DPI; 6 px in the logical
+// canvas is that, with margin for a shaky hand on a 52 px slot.
+static constexpr float kDragThresholdPx = 6.0f;
+
+void UISystem::resetDrag() {
+    dragPending_ = false;
+    dragActive_  = false;
+    dragPayload_.clear();
+    dragIconPath_.clear();
+    dragIconTex_ = -1;
+    dragSourceDrop_ = {};
+}
+
 bool UISystem::handleInput(Input::InputManager* input) {
     // G-148: with nothing on screen there is nothing to point at, so a tooltip left over
     // from the frame the HUD was up must not keep drawing.
-    if (!initialized_ || !hasVisibleScreens()) { hoverTooltip_.clear(); return false; }
+    if (!initialized_ || !hasVisibleScreens()) { hoverTooltip_.clear(); resetDrag(); return false; }
 
     // ── Key capture (rebind) ─────────────────────────────────────────────────
     // Takes priority over and consumes all other input. Arms only after a
@@ -172,6 +194,8 @@ bool UISystem::handleInput(Input::InputManager* input) {
     bool mousePressed = input->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
     bool mouseJustClicked = mousePressed && !wasMousePressed_;
     bool mouseDragging = mousePressed && wasMousePressed_;
+    // G-150: a drop happens on RELEASE, which nothing needed until now.
+    bool mouseJustReleased = !mousePressed && wasMousePressed_;
     wasMousePressed_ = mousePressed;
 
     glm::vec2 screenSize(static_cast<float>(screenWidth_), static_cast<float>(screenHeight_));
@@ -186,27 +210,70 @@ bool UISystem::handleInput(Input::InputManager* input) {
     // (game-dev feedback round 5 — UIShowcase.)
     auto activeScreens = visibleScreenSnapshot();
 
+    // Pass 1: layout + hover for every visible screen, remembering where each landed so
+    // the click/drag decision below does not redo the anchor maths.
+    std::vector<std::pair<UIPanel*, glm::vec2>> laid;
+    laid.reserve(activeScreens.size());
     for (auto* entry : activeScreens) {
         auto* panel = entry->panel.get();
-
-        // Resolve panel position from anchor
         panel->applyAutoSize(&font_, theme_);   // layout pass: content decides the height
         glm::vec2 panelPos = resolveAnchor(panel->anchor, {0, 0}, screenSize,
                                             panel->size, panel->offset);
-
-        // Hover always updates
         panel->handleHover(mousePos, panelPos, theme_);
         // G-148: the LAST visible screen with a hit wins, matching the draw order - the
         // screen drawn on top is the one the pointer is really over.
         if (std::string t = hoveredTooltip(panel); !t.empty()) hoverTooltip_ = std::move(t);
+        laid.emplace_back(panel, panelPos);
+    }
 
-        if (mouseJustClicked) {
-            if (panel->handleClick(mousePos, panelPos, theme_)) {
-                consumed = true;
+    // ── DRAG AND DROP (G-150) ────────────────────────────────────────────────
+    // Resolved BEFORE clicks: pressing a bar slot to pick it up must not also cast it,
+    // so a press on a draggable widget withholds the click until release.
+    if (mouseJustClicked) {
+        for (auto& [panel, panelPos] : laid) {
+            if (UIWidget* src = hoveredDragSource(panel)) {
+                dragPending_    = true;
+                dragPressPos_   = mousePos;
+                dragPayload_    = src->dragPayload;
+                dragIconPath_   = dragIconOf(src);
+                dragIconTex_    = -1;
+                dragSourceDrop_ = src->onDrop;   // by value - the row may be rebuilt
             }
-        } else if (mouseDragging) {
-            if (panel->handleDrag(mousePos, panelPos, theme_)) {
-                consumed = true;
+        }
+    }
+    if (dragPending_ && !dragActive_ && mouseDragging) {
+        const glm::vec2 d = mousePos - dragPressPos_;
+        if (d.x * d.x + d.y * d.y > kDragThresholdPx * kDragThresholdPx) dragActive_ = true;
+    }
+    if (dragActive_) hoverTooltip_.clear();   // one thing at the pointer at a time
+
+    if (mouseJustReleased && (dragPending_ || dragActive_)) {
+        if (dragActive_) {
+            UIWidget* target = nullptr;
+            for (auto& [panel, panelPos] : laid)
+                if (UIWidget* t = hoveredDropTarget(panel)) target = t;
+            // Released on nothing still reaches the SOURCE, which is how dragging a slot
+            // off the bar clears it.
+            if (target && target->onDrop) target->onDrop(dragPayload_, true);
+            else if (dragSourceDrop_)     dragSourceDrop_(dragPayload_, false);
+        } else {
+            // Never passed the threshold, so it was a click after all. Dispatch it now,
+            // at the press position, since it was withheld on press.
+            for (auto& [panel, panelPos] : laid)
+                if (panel->handleClick(dragPressPos_, panelPos, theme_)) consumed = true;
+        }
+        consumed = true;
+        resetDrag();
+    }
+
+    // Pass 2: ordinary clicks and slider drags, for everything the drag machinery did
+    // not claim this frame.
+    if (!dragPending_ && !dragActive_) {
+        for (auto& [panel, panelPos] : laid) {
+            if (mouseJustClicked) {
+                if (panel->handleClick(mousePos, panelPos, theme_)) consumed = true;
+            } else if (mouseDragging) {
+                if (panel->handleDrag(mousePos, panelPos, theme_)) consumed = true;
             }
         }
     }
@@ -290,6 +357,45 @@ std::string UISystem::injectHover(glm::vec2 pos) {
         if (std::string t = hoveredTooltip(panel); !t.empty()) hoverTooltip_ = std::move(t);
     }
     return hoverTooltip_;
+}
+
+UISystem::DragResult UISystem::injectDrag(glm::vec2 from, glm::vec2 to) {
+    DragResult out;
+    if (!initialized_) return out;
+    const glm::vec2 a = toLogical(from), b = toLogical(to);
+    glm::vec2 screenSize(static_cast<float>(screenWidth_), static_cast<float>(screenHeight_));
+
+    auto layAndHover = [&](glm::vec2 at, std::vector<std::pair<UIPanel*, glm::vec2>>& laid) {
+        laid.clear();
+        for (auto* entry : visibleScreenSnapshot()) {
+            auto* panel = entry->panel.get();
+            panel->applyAutoSize(&font_, theme_);
+            glm::vec2 panelPos = resolveAnchor(panel->anchor, {0, 0}, screenSize,
+                                                panel->size, panel->offset);
+            panel->handleHover(at, panelPos, theme_);
+            laid.emplace_back(panel, panelPos);
+        }
+    };
+
+    std::vector<std::pair<UIPanel*, glm::vec2>> laid;
+    layAndHover(a, laid);
+    std::function<void(const std::string&, bool)> sourceDrop;
+    for (auto& [panel, panelPos] : laid)
+        if (UIWidget* src = hoveredDragSource(panel)) {
+            out.picked = true;
+            out.payload = src->dragPayload;
+            sourceDrop = src->onDrop;
+        }
+    if (!out.picked) return out;
+
+    layAndHover(b, laid);
+    lastMousePos_ = b;
+    UIWidget* target = nullptr;
+    for (auto& [panel, panelPos] : laid)
+        if (UIWidget* t = hoveredDropTarget(panel)) target = t;
+    if (target && target->onDrop) { target->onDrop(out.payload, true); out.dropped = true; }
+    else if (sourceDrop)          { sourceDrop(out.payload, false); }
+    return out;
 }
 
 bool UISystem::handleScroll(glm::vec2 pos, float delta) {
@@ -466,6 +572,20 @@ void UISystem::render(VkCommandBuffer cmd) {
         // obvious visual marker, something like a bright animated circle on the ground".)
     }
     nameplates_.clear();
+
+    // The DRAGGED GHOST (G-150): what the pointer is carrying, drawn over everything so
+    // it is never clipped by the panel it came from or the one it is heading for.
+    if (dragActive_ && !dragIconPath_.empty()) {
+        if (dragIconTex_ == -1) {
+            const int idx = renderer_.loadTexture(dragIconPath_);
+            dragIconTex_ = (idx >= 0) ? idx : -2;
+        }
+        if (dragIconTex_ >= 0) {
+            const float side = 48.0f;
+            renderer_.drawImage(lastMousePos_ - glm::vec2(side * 0.5f), {side, side},
+                                dragIconTex_, {1.0f, 1.0f, 1.0f, 0.85f});
+        }
+    }
 
     // TOOLTIP (G-148), drawn last of all so it sits over every screen, every plate and
     // the panel it belongs to - a tooltip clipped by its own action bar is useless.

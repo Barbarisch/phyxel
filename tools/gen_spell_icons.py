@@ -32,6 +32,11 @@ from PIL import Image, ImageDraw
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SPELL_DIR = os.path.join(REPO, "resources", "spells")
 OUT_DIR = os.path.join(REPO, "resources", "ui", "icons", "spells")
+ITEM_OUT_DIR = os.path.join(REPO, "resources", "ui", "icons", "items")
+# Both item tables the engine loads: the template/tool items the Inventory holds, and the
+# SRD gear the RpgItem registry holds.
+ITEM_FILES = [os.path.join(REPO, "resources", "items.json")]
+ITEM_DIRS = [os.path.join(REPO, "resources", "rpg_items")]
 
 CELL = 16          # glyph grid
 SCALE = 4          # -> 64x64 px
@@ -568,6 +573,37 @@ SCHOOL_GLYPH = {
 # The action-bar rows that are not spells.
 EXTRA = {"attack": ("swords", "steel"), "end_turn": ("hourglass", "bronze")}
 
+# -- Items ------------------------------------------------------------------
+# An item's glyph comes from what it IS, in the same spirit as a spell's coming from its
+# school: a blade reads as a blade, a potion as a potion. Keyed on the id first (so a
+# named thing can have its own picture) then on the coarse category.
+ITEM_GLYPH_BY_WORD = [
+    ("sword",   "swords"),    ("blade",  "swords"),   ("dagger", "swords"),
+    ("axe",     "swords"),    ("mace",   "mace"),     ("hammer", "mace"),
+    ("maul",    "mace"),      ("club",   "mace"),     ("staff",  "mace"),
+    ("spear",   "icicle"),    ("lance",  "icicle"),   ("pike",   "icicle"),
+    ("bow",     "forked_beam"), ("arrow", "darts3"),  ("bolt",   "darts3"),
+    ("shield",  "shield"),    ("armor",  "shield"),   ("mail",   "shield"),
+    ("plate",   "shield"),    ("helm",   "shield"),   ("cloak",  "wing"),
+    ("potion",  "droplets"),  ("elixir", "droplets"), ("flask",  "droplets"),
+    ("scroll",  "rune_eye"),  ("tome",   "rune_eye"), ("book",   "rune_eye"),
+    ("ring",    "no_circle"), ("amulet", "no_circle"),
+    ("torch",   "flame_halo"), ("lantern", "flame_halo"),
+    ("key",     "bell"),      ("rope",   "zigzag"),   ("pick", "mace"),
+    ("shovel",  "cone"),      ("hoe",    "cone"),
+]
+# Colour by what it does, the same rule spells follow: a healing potion is green, a
+# weapon is steel, a magic item is violet.
+ITEM_PAL_BY_WORD = [
+    ("heal",   "heal"),   ("cure",   "heal"),   ("health",  "heal"),
+    ("fire",   "fire"),   ("flame",  "fire"),   ("torch",   "fire"),
+    ("frost",  "cold"),   ("ice",    "cold"),
+    ("holy",   "radiant"), ("sacred", "radiant"),
+    ("poison", "poison"), ("venom",  "poison"),
+    ("magic",  "force"),  ("arcane", "force"),  ("enchanted", "force"),
+    ("gold",   "bronze"), ("copper", "bronze"), ("silver",  "steel"),
+]
+
 
 def parse_glyph(art):
     rows = [r for r in art.strip("\n").split("\n")]
@@ -611,6 +647,52 @@ def render_icon(glyph_name, palette):
     return img.resize((SIZE, SIZE), Image.NEAREST)
 
 
+def load_items():
+    """Every item the engine can load, from both registries. Ids are unique across them."""
+    seen, out = set(), []
+    paths = list(ITEM_FILES)
+    for d in ITEM_DIRS:
+        paths += sorted(glob.glob(os.path.join(d, "*.json")))
+    for f in paths:
+        if not os.path.exists(f):
+            continue
+        data = json.load(open(f, encoding="utf-8"))
+        rows = data if isinstance(data, list) else data.get("items", [])
+        for it in rows:
+            iid = it.get("id")
+            if iid and iid not in seen:
+                seen.add(iid)
+                out.append(it)
+    return out
+
+
+def item_glyph(item):
+    name = (item.get("id", "") + " " + item.get("name", "")).lower()
+    for word, g in ITEM_GLYPH_BY_WORD:
+        if word in name:
+            return g
+    # No word matched: fall back on the coarse shape rather than a blank square.
+    if item.get("isArmor") or item.get("equipSlot") in (2, 3, 4):
+        return "shield"
+    if item.get("isWeapon") or item.get("damage"):
+        return "swords"
+    if item.get("isConsumable") or item.get("stackable"):
+        return "droplets"
+    return "mace"
+
+
+def item_palette(item):
+    name = (item.get("id", "") + " " + item.get("name", "")).lower()
+    for word, p in ITEM_PAL_BY_WORD:
+        if word in name:
+            return p
+    if item.get("requiresAttunement"):
+        return "force"          # a magic item reads as magic
+    if item.get("isConsumable") or item.get("stackable"):
+        return "conjuration"
+    return "steel"
+
+
 def load_spells():
     spells = []
     for f in sorted(glob.glob(os.path.join(SPELL_DIR, "*.json"))):
@@ -652,6 +734,8 @@ def main():
         absent = [s["id"] for s in spells
                   if not os.path.exists(os.path.join(OUT_DIR, s["id"] + ".png"))]
         absent += [n for n in EXTRA if not os.path.exists(os.path.join(OUT_DIR, n + ".png"))]
+        absent += [i["id"] for i in load_items()
+                   if not os.path.exists(os.path.join(ITEM_OUT_DIR, i["id"] + ".png"))]
         for sid in no_glyph:
             print("note: spell '%s' has no glyph of its own (uses its school's)" % sid)
         for sid in absent:
@@ -672,6 +756,14 @@ def main():
     # even before this script is re-run.
     for school, g in SCHOOL_GLYPH.items():
         render_icon(g, school).save(os.path.join(OUT_DIR, "school_" + school + ".png"))
+
+    # Items (G-150): a bar slot may hold one, and nothing else gives it a picture.
+    os.makedirs(ITEM_OUT_DIR, exist_ok=True)
+    items = load_items()
+    for it in items:
+        render_icon(item_glyph(it), item_palette(it)).save(
+            os.path.join(ITEM_OUT_DIR, it["id"] + ".png"))
+    print("%d item icons -> %s" % (len(items), ITEM_OUT_DIR))
 
     for sid, nm, g, p in written:
         print("  %-20s %-22s %-14s %s" % (sid, nm, g, p))
