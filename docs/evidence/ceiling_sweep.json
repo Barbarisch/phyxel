@@ -1,0 +1,65 @@
+[
+  {
+    "camera_y": 20,
+    "ceiling_distance": 30,
+    "field_on": 0.0733921006321907,
+    "no_answer": 0.0733921006321907,
+    "covered": 0.0
+  },
+  {
+    "camera_y": 24,
+    "ceiling_distance": 26,
+    "field_on": 0.06511823832988739,
+    "no_answer": 0.06511823832988739,
+    "covered": 0.0
+  },
+  {
+    "camera_y": 26,
+    "ceiling_distance": 24,
+    "field_on": 0.06098622828722,
+    "no_answer": 0.06098622828722,
+    "covered": 0.0
+  },
+  {
+    "camera_y": 28,
+    "ceiling_distance": 22,
+    "field_on": 0.0581437423825264,
+    "no_answer": 0.05676489323377609,
+    "covered": 1.0
+  },
+  {
+    "camera_y": 30,
+    "ceiling_distance": 20,
+    "field_on": 0.05948081612586975,
+    "no_answer": 0.05262642353773117,
+    "covered": 1.0
+  },
+  {
+    "camera_y": 32,
+    "ceiling_distance": 18,
+    "field_on": 0.06052223965525627,
+    "no_answer": 0.04837581142783165,
+    "covered": 1.0
+  },
+  {
+    "camera_y": 36,
+    "ceiling_distance": 14,
+    "field_on": 0.06278157979249954,
+    "no_answer": 0.04038773104548454,
+    "covered": 1.0
+  },
+  {
+    "camera_y": 40,
+    "ceiling_distance": 10,
+    "field_on": 0.054172053933143616,
+    "no_answer": 0.03209267929196358,
+    "covered": 1.0
+  },
+  {
+    "camera_y": 44,
+    "ceiling_distance": 6,
+    "field_on": 0.04267619177699089,
+    "no_answer": 0.022858507931232452,
+    "covered": 1.0
+  }
+]

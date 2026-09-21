@@ -1,0 +1,44 @@
+[
+  {
+    "pose": "wall_open",
+    "what": "exterior wall, nothing within 16 u",
+    "covered": 0.10091531276702881,
+    "no_answer": 0.02347128838300705,
+    "ratio": 0.23258401266805193
+  },
+  {
+    "pose": "wall_street",
+    "what": "exterior wall facing another 13 u away",
+    "covered": 0.09832405298948288,
+    "no_answer": 0.023471295833587646,
+    "ratio": 0.23871367300225335
+  },
+  {
+    "pose": "in_control_open",
+    "what": "open-roof room, sunlit floor (control: must barely move)",
+    "covered": 0.264148473739624,
+    "no_answer": 0.24758431315422058,
+    "ratio": 0.9372922343600931
+  },
+  {
+    "pose": "in_sealed",
+    "what": "sealed room interior",
+    "covered": 0.01756986230611801,
+    "no_answer": 0.03711339086294174,
+    "ratio": 2.1123324825384926
+  },
+  {
+    "pose": "in_sealed_micro",
+    "what": "room sealed by a ONE-MICRO roof",
+    "covered": 0.01752661168575287,
+    "no_answer": 0.03655867651104927,
+    "ratio": 2.0858952755122253
+  },
+  {
+    "pose": "in_door_wall",
+    "what": "far wall of a room lit only through a 1-wide door",
+    "covered": 0.0042135268449783325,
+    "no_answer": 0.024246880784630775,
+    "ratio": 5.754533358088873
+  }
+]
