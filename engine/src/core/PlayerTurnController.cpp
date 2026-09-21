@@ -153,12 +153,33 @@ void PlayerTurnController::unbind() {
 
 bool PlayerTurnController::requestMove(const glm::vec3& worldPoint) {
     if (!m_bound) return false;
+    // HOST VETO on where a move may go (Ravenmere G-139). The host forbids the scene-exit
+    // regions while an encounter runs, so the player cannot spend their turn walking out of the
+    // fight. SceneManager's guard is what actually prevents the transition; this only stops the
+    // budget being wasted getting there.
+    if (m_destinationFilter && !m_destinationFilter(worldPoint)) {
+        LOG_INFO("PlayerTurn", "Move to ({}, {}, {}) refused: destination is out of bounds for this turn",
+                 worldPoint.x, worldPoint.y, worldPoint.z);
+        return false;
+    }
     if (m_pathProvider) {
         std::vector<glm::vec3> route = m_pathProvider(m_turnActor.bodyPosition(), worldPoint);
         if (route.empty()) {
             LOG_INFO("PlayerTurn", "Move to ({:.1f}, {:.1f}, {:.1f}) refused: no route",
                      worldPoint.x, worldPoint.y, worldPoint.z);
             return false;
+        }
+        // EVERY waypoint, not just the end: a region trigger fires when the player ENTERS it, so
+        // a route that merely rounds a corner through one is just as bad as ending inside it.
+        if (m_destinationFilter) {
+            for (const glm::vec3& wp : route) {
+                if (!m_destinationFilter(wp)) {
+                    LOG_INFO("PlayerTurn", "Move to ({}, {}, {}) refused: the route passes through "
+                             "a region that is out of bounds for this turn",
+                             worldPoint.x, worldPoint.y, worldPoint.z);
+                    return false;
+                }
+            }
         }
         return m_turnActor.requestMovePath(std::move(route));
     }

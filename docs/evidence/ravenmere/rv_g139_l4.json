@@ -1,0 +1,19 @@
+{
+  "combat_active": true,
+  "move_into_exit": {
+    "ok": false
+  },
+  "scene_after_move": "farm",
+  "fire_exit_in_combat": {
+    "executed": [
+      "transition_scene"
+    ],
+    "id": "back_to_town",
+    "mode": "direct",
+    "success": true
+  },
+  "scene_after_firing_in_combat": "farm",
+  "combat_still_active": true,
+  "combat_after_end": false,
+  "scene_after_firing_out_of_combat": "town"
+}

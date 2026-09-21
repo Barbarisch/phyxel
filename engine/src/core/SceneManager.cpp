@@ -1,4 +1,6 @@
 #include "core/SceneManager.h"
+
+#include <string>
 #include "core/GameDefinitionLoader.h"
 #include "core/ChunkManager.h"
 #include "core/EntityRegistry.h"
@@ -60,6 +62,20 @@ bool SceneManager::transitionTo(const std::string& sceneId) {
     if (sceneId == activeSceneId_) {
         LOG_WARN("SceneManager", "Already in scene '{}'", sceneId);
         return false;
+    }
+
+    // HOST VETO (Ravenmere G-139). Every route into a scene change lands here -- region
+    // triggers, menu buttons, the test API -- so one check covers all of them. The engine owns
+    // the refusal; the host owns the policy (Ravenmere refuses while an encounter is running,
+    // after a combat move walked the player through the farm's exit region mid-fight and the
+    // scene changed with the wolves still alive).
+    if (transitionGuard_) {
+        std::string reason;
+        if (!transitionGuard_(sceneId, reason)) {
+            LOG_INFO("SceneManager", "Transition '{}' -> '{}' refused by the host: {}",
+                     activeSceneId_, sceneId, reason.empty() ? std::string("no reason given") : reason);
+            return false;
+        }
     }
 
     targetSceneId_ = sceneId;

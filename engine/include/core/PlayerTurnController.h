@@ -50,6 +50,14 @@ public:
     using SolidProvider = std::function<bool(const glm::ivec3&)>;
     void setSolidProvider(SolidProvider p)           { m_solidProvider = std::move(p); }
 
+    /// A host-supplied VETO on where a combat move may go. Return true if the point is an
+    /// allowed destination. Consulted for the requested point AND for every waypoint of the
+    /// route, because a trigger fires when the player ENTERS its region, not when the move ends.
+    /// Ravenmere G-139: the host forbids the scene-exit regions while an encounter is running,
+    /// so a move cannot spend the player's budget walking them out of the fight.
+    using DestinationFilter = std::function<bool(const glm::vec3& point)>;
+    void setDestinationFilter(DestinationFilter f)   { m_destinationFilter = std::move(f); }
+
     /// The controlled player's entity id (must match its id in the encounter).
     void setPlayerEntityId(const std::string& id)    { m_playerId = id; }
     const std::string& playerEntityId() const        { return m_playerId; }
@@ -203,6 +211,7 @@ private:
     BodyProvider    m_bodyProvider;
     PathProvider    m_pathProvider;
     SolidProvider   m_solidProvider;
+    DestinationFilter m_destinationFilter;
 
     std::string m_playerId;
     std::string m_selectedTarget;

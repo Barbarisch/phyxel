@@ -1385,6 +1385,43 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 auto* cm = engine_ ? engine_->getChunkManager() : nullptr;
                 return cm && cm->hasVoxelAt(c);
             }});
+            // G-139: a combat move must not walk the player out of the fight. The scene-exit
+            // regions are off limits for the whole turn -- a region trigger fires on ENTRY, so
+            // the controller checks every waypoint, not just where the move ends. Out of combat
+            // this filter is never consulted, so walking out normally is unaffected.
+            playerTurn_.setDestinationFilter([this](const glm::vec3& p) {{
+                for (const auto& ex : triggers_.exitRegions()) {{
+                    const auto& r = ex.region;
+                    if (!r.contains("from") || !r.contains("to")) continue;
+                    const float x0 = std::min(r["from"].value("x", 0.0f), r["to"].value("x", 0.0f));
+                    const float x1 = std::max(r["from"].value("x", 0.0f), r["to"].value("x", 0.0f));
+                    const float y0 = std::min(r["from"].value("y", 0.0f), r["to"].value("y", 0.0f));
+                    const float y1 = std::max(r["from"].value("y", 0.0f), r["to"].value("y", 0.0f));
+                    const float z0 = std::min(r["from"].value("z", 0.0f), r["to"].value("z", 0.0f));
+                    const float z1 = std::max(r["from"].value("z", 0.0f), r["to"].value("z", 0.0f));
+                    // A shade of margin, because the mover stops within an arrival radius of the
+                    // waypoint rather than exactly on it.
+                    const float m = 0.5f;
+                    if (p.x >= x0 - m && p.x <= x1 + m &&
+                        p.y >= y0 - 2.0f && p.y <= y1 + 2.0f &&
+                        p.z >= z0 - m && p.z <= z1 + m) return false;
+                }}
+                return true;
+            }});
+            // G-139: no scene change while an encounter is running. This is the engine's own
+            // chokepoint, so it holds for region triggers, menu buttons and the test API alike --
+            // not just for the combat move that surfaced it. The fight has to end first; the
+            // region will fire again on the next entry.
+            if (auto* smg = engine_ ? engine_->getSceneManager() : nullptr) {{
+                smg->setTransitionGuard([this](const std::string& scene, std::string& reason) {{
+                    (void)scene;
+                    if (combatDirector_.inCombat()) {{
+                        reason = "an encounter is running";
+                        return false;
+                    }}
+                    return true;
+                }});
+            }}
             // Spellcasting in the SHIPPED game: the registry only auto-loaded in
             // the editor before, so every cast failed "Unknown spell" here.
             if (Phyxel::Core::SpellRegistry::instance().count() == 0)

@@ -114,6 +114,16 @@ public:
     // Scene transitions
     // ========================================================================
 
+    /// A host-supplied VETO on scene transitions. Return false to refuse, filling `reason`
+    /// for the log line. Every path into a scene change goes through transitionTo -- region
+    /// triggers, menu buttons, the test API -- so a guard here holds for all of them, which is
+    /// why the refusal lives in the engine and only the POLICY lives in the host.
+    /// Ravenmere G-139: a combat move near the farm's west edge walked the player through the
+    /// `back_to_town` region mid-fight and the scene changed with the encounter still running.
+    using TransitionGuard = std::function<bool(const std::string& sceneId, std::string& reason)>;
+    void setTransitionGuard(TransitionGuard g) { transitionGuard_ = std::move(g); }
+    bool hasTransitionGuard() const { return static_cast<bool>(transitionGuard_); }
+
     /// Begin a transition to the named scene. Returns false if the scene ID
     /// is unknown or a transition is already in progress.
     bool transitionTo(const std::string& sceneId);
@@ -204,6 +214,7 @@ private:
     std::string worldsDir_;
     GameSubsystems* subsystems_ = nullptr;
     SceneCallbacks callbacks_;
+    TransitionGuard transitionGuard_;
 
     // Per-scene re-entry tracking
     std::unordered_map<std::string, SceneReentryState> reentryStates_;
