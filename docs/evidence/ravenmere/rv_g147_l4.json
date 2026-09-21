@@ -1,0 +1,23 @@
+{
+  "third_person": {
+    "camera_owner_hidden": false,
+    "characters_drawn_main": 2,
+    "far_tiles_drawn": 0,
+    "total_visible_faces": 75219,
+    "visible_chunk_count": 8
+  },
+  "camera_at_eyes": {
+    "camera_owner_hidden": true,
+    "characters_drawn_main": 2,
+    "far_tiles_drawn": 0,
+    "total_visible_faces": 75219,
+    "visible_chunk_count": 10
+  },
+  "camera_backed_off": {
+    "camera_owner_hidden": false,
+    "characters_drawn_main": 13,
+    "far_tiles_drawn": 0,
+    "total_visible_faces": 75219,
+    "visible_chunk_count": 19
+  }
+}

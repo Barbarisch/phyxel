@@ -1389,6 +1389,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // regions are off limits for the whole turn -- a region trigger fires on ENTRY, so
             // the controller checks every waypoint, not just where the move ends. Out of combat
             // this filter is never consulted, so walking out normally is unaffected.
+            // G-147: zoomed fully in the camera sits at the character's eyes, and a wall can
+            // push the boom into the torso at any zoom. Either way the body would clip through the
+            // near plane, so the renderer drops it from the main pass while the camera is inside
+            // it. The shadow stays.
+            if (renderCoordinator_)
+                renderCoordinator_->setCameraOwnerProvider(
+                    [this]() -> Phyxel::Scene::RagdollCharacter* {{ return playerCharacter_; }});
+
             playerTurn_.setDestinationFilter([this](const glm::vec3& p) {{
                 for (const auto& ex : triggers_.exitRegions()) {{
                     const auto& r = ex.region;

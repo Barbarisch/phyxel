@@ -50,5 +50,17 @@ inline bool segmentHitsCapsule(const glm::vec3& a, const glm::vec3& b, const Bod
     return glm::dot(diff, diff) <= c.radius * c.radius;
 }
 
+/// Is `p` inside the capsule? THE first-person clipping test for the camera's own character
+/// (Ravenmere G-147): MmoRig switches to an eye view when the boom zooms under 1 u, and the boom
+/// is also shortened by wall collision, so either way the camera can end up inside the player's
+/// body and the mesh clips through the near plane. The renderer drops the owner from the MAIN
+/// pass while this is true, and keeps it in the shadow pass so the player still casts a shadow.
+///
+/// Exact, and deliberately the same maths as segmentHitsCapsule with a degenerate segment: one
+/// implementation to be wrong, and it already handles the zero-length case.
+inline bool pointInsideCapsule(const glm::vec3& p, const BodyCapsule& c) {
+    return segmentHitsCapsule(p, p, c);
+}
+
 } // namespace Utils
 } // namespace Phyxel

@@ -542,6 +542,28 @@ public:
     UI::UISystem* getUISystem() { return m_uiSystem.get(); }
 
     /// M5.1 GI probe field. Default OFF: this increment exists to be MEASURED before it ships.
+    /// THE CAMERA'S OWN CHARACTER (Ravenmere G-147). While the camera sits inside this
+    /// character's body capsule it is dropped from the MAIN pass, so its mesh cannot clip through
+    /// the near plane. That happens two ways and this covers both: the MmoRig switches to an eye
+    /// view when the boom zooms under 1 u, and the boom is also shortened by wall collision, which
+    /// can push the camera into the torso with no zoom at all.
+    /// It stays in the SHADOW pass, so the player still casts a shadow — which is what you see in
+    /// every game that hides the body in first person.
+    /// `radius` is the body capsule inflated a little for the near plane; `height` its full height.
+    ///
+    /// A PROVIDER, not a pointer: the host reassigns its player character on every scene load and
+    /// nulls it on unload, so anything captured once at startup is null in a multi-scene game and
+    /// stale after the first transition. Resolved once per frame.
+    using CameraOwnerProvider = std::function<Scene::RagdollCharacter*()>;
+    void setCameraOwnerProvider(CameraOwnerProvider p, float radius = 0.55f, float height = 1.8f) {
+        m_cameraOwnerProvider = std::move(p);
+        m_cameraOwnerRadius = radius;
+        m_cameraOwnerHeight = height;
+    }
+    /// True on the last frame the owner was suppressed — so a harness can assert it, rather than
+    /// a human squinting at a screenshot.
+    bool cameraOwnerHidden() const { return m_cameraOwnerHidden; }
+
     void setGiEnabled(bool on) { m_giEnabled = on; }
     bool getGiEnabled() const { return m_giEnabled; }
     bool giAvailable() const { return m_giProbes != nullptr; }
@@ -670,6 +692,10 @@ private:
     // M5.1: indirect-light probe field. A RENDER CACHE keyed on world position -- never persisted,
     // never per chunk (see the M3-REDESIGN contradiction note in the plan).
     std::unique_ptr<GiProbeField> m_giProbes;
+    CameraOwnerProvider m_cameraOwnerProvider;   // G-147: hidden while the camera is inside it
+    float m_cameraOwnerRadius = 0.55f;
+    float m_cameraOwnerHeight = 1.8f;
+    bool  m_cameraOwnerHidden = false;
     bool m_giEnabled = true;    // THE ambient source since G-141 (2026-09-17); POST /api/debug/gi is the kill switch
 
     std::vector<int> m_emissiveLightIds;

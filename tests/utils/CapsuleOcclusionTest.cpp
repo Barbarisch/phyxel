@@ -43,3 +43,42 @@ TEST(CapsuleOcclusionTest, ASegmentAboveTheHeadDoesNotHit) {
     const glm::vec3 c{5.0f, 17.9f, 10.0f}, d{15.0f, 17.9f, 10.0f};   // chest height
     EXPECT_TRUE(segmentHitsCapsule(c, d, kBody));
 }
+
+// --- Ravenmere G-147: the camera's own character must not clip into first person -------------
+//
+// MmoRig already switches to an eye view when the boom is zoomed under 1 u, and the boom is also
+// shortened by wall collision. Either way the camera ends up INSIDE the player's body and the
+// mesh clips through the near plane. The renderer drops the owner from the MAIN pass (never the
+// shadow pass) while that is true, and this is the predicate it uses.
+//
+// All coordinates here are CAMERA-RELATIVE, which is how RenderCoordinator already works: the
+// camera is the origin, the character's feet are at `rel`.
+
+TEST(CapsuleOcclusionTest, AFirstPersonCameraIsInsideItsOwnBody) {
+    // Boom fully collapsed: the camera sits at the character's eye height, above its own feet.
+    const Phyxel::Utils::BodyCapsule own{glm::vec3(0.0f, -1.4f, 0.0f), 1.8f, 0.45f};
+    EXPECT_TRUE(pointInsideCapsule(glm::vec3(0.0f), own)) << "eye view: the camera is in the head";
+}
+
+TEST(CapsuleOcclusionTest, AThirdPersonCameraIsOutsideItsOwnBody) {
+    // Boom 2.5 u behind at the same height: well clear of the body.
+    const Phyxel::Utils::BodyCapsule own{glm::vec3(0.0f, -1.4f, 2.5f), 1.8f, 0.45f};
+    EXPECT_FALSE(pointInsideCapsule(glm::vec3(0.0f), own));
+    // And a modest zoom, 1.2 u back, is still outside: this must not blank the character during
+    // ordinary close third-person play.
+    const Phyxel::Utils::BodyCapsule near{glm::vec3(0.0f, -1.4f, 1.2f), 1.8f, 0.45f};
+    EXPECT_FALSE(pointInsideCapsule(glm::vec3(0.0f), near));
+}
+
+TEST(CapsuleOcclusionTest, AWallPushingTheCameraIntoTheBodyCountsToo) {
+    // The boom was 5 u but a wall shortened it to 0.3: the camera is inside the torso even though
+    // the player never zoomed in. Same predicate, no special case.
+    const Phyxel::Utils::BodyCapsule own{glm::vec3(0.0f, -1.4f, 0.3f), 1.8f, 0.45f};
+    EXPECT_TRUE(pointInsideCapsule(glm::vec3(0.0f), own));
+}
+
+TEST(CapsuleOcclusionTest, APointAboveOrBelowTheBodyIsOutsideIt) {
+    const Phyxel::Utils::BodyCapsule own{glm::vec3(0.0f, -1.4f, 0.0f), 1.8f, 0.45f};
+    EXPECT_FALSE(pointInsideCapsule(glm::vec3(0.0f, 1.0f, 0.0f), own))  << "above the head";
+    EXPECT_FALSE(pointInsideCapsule(glm::vec3(0.0f, -2.0f, 0.0f), own)) << "below the feet";
+}

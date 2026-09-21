@@ -1,6 +1,8 @@
 #include "graphics/DepthConvention.h"
 #include "graphics/RenderCoordinator.h"
 
+#include "utils/CapsuleOcclusion.h"   // G-147: camera-inside-own-body test
+
 #include "core/LodChunkMesh.h"
 #include "core/WorldConstants.h"   // kSeaLevelY — the shared sea-level datum for sky altitude
 #include "graphics/Atmosphere.h"   // THE scattering model: sun colour, sky fill, haze, moonlight
@@ -4380,6 +4382,9 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
     if (!hasEntities && !hasNPCs) return;
 
     // Collect instanced characters: the animated player + animated/physics NPCs.
+    m_cameraOwnerHidden = false;   // G-147: recomputed per frame from the camera's position
+    Scene::RagdollCharacter* cameraOwner =
+        m_cameraOwnerProvider ? m_cameraOwnerProvider() : nullptr;
     std::vector<Scene::RagdollCharacter*> instancedCharacters;
     if (hasEntities) {
         for (const auto& entity : *entities) {
@@ -4432,8 +4437,20 @@ void RenderCoordinator::buildCharacterFrameData(const glm::mat4& cameraViewProj,
         const float distSq = glm::dot(rel, rel);
         if (distSq > cullDistSq) { ++m_charStats.culled; continue; }
 
-        const bool inMain   = cameraFrustum.intersects(rel, kCharacterCullRadius);
+        bool       inMain   = cameraFrustum.intersects(rel, kCharacterCullRadius);
         const bool inShadow = lightFrustum.intersects(rel, kCharacterCullRadius);
+
+        // G-147: the camera's OWN character, with the camera inside its body — the boom zoomed to
+        // an eye view, or shortened into the torso by a wall. Drop it from the MAIN pass only: it
+        // keeps casting a shadow, which is what every game hiding the body in first person keeps.
+        // `rel` is already camera-relative, so the camera is the origin and `rel` is the feet.
+        if (ch == cameraOwner && cameraOwner && inMain) {
+            const Utils::BodyCapsule own{rel, m_cameraOwnerHeight, m_cameraOwnerRadius};
+            if (Utils::pointInsideCapsule(glm::vec3(0.0f), own)) {
+                inMain = false;
+                m_cameraOwnerHidden = true;
+            }
+        }
         if (!inMain && !inShadow) { ++m_charStats.culled; continue; }
 
         candidates.push_back({ch, distSq, inMain, inShadow});
