@@ -442,7 +442,34 @@ Use the rig; do not judge by eye.
 ⚠️ Identical statistics across *different* scene states mean a **stale frame**, not a result. Settle
 ≥ 2.5 s and take two screenshots, keeping the second.
 
-### What the probe-field ambient costs — measured, RELEASE, laptop RTX 1000 Ada (2026-09-19)
+### What the probe-field ambient costs — measured in the REAL SCENE (2026-09-20)
+
+The 2026-09-19 figures below were taken in the Lighting Lab, which is nearly empty. They are not
+representative and should not be quoted as the cost. Measured in Ravenmere town instead, with
+`tools/ambient_cost.py` reading the engine's own per-pass GPU timings
+(`GET /api/debug/gpu_scopes`, which already reports a `GI Probes` scope), field ON vs OFF at three
+fixed poses, noon, medians of 14-20 frames. Laptop RTX 1000 Ada.
+
+| pose | frame ON | frame OFF | ambient costs | of which probe pass | of which Grass | of which Static Geometry |
+|---|---|---|---|---|---|---|
+| player spawn, down the street | 132.1 | 88.5 | **43.6** | 5.2 | 20.7 | 19.5 |
+| nose to a wall | 87.7 | 35.3 | **52.4** | 5.3 | 20.1 | 7.7 |
+| elevated, west end | 65.2 | 26.2 | **39.0** | 5.1 | 22.3 | 11.5 |
+
+**The probe compute pass is 10-13% of it. The other 87-90% is per-fragment and per-vertex work in
+the receivers**, i.e. the trilinear probe fetch (up to 8 neighbours x 4 SSBO reads) plus the
+`phxSegmentBlocked` visibility test (up to 8 short traces), paid at every shading point.
+
+**Grass alone is +20 to +22 ms in every pose, including the pose with almost no grass on screen.**
+`grass.vert` calls `phxAmbient` per BLADE VERTEX (24 vertices per blade), so the cost tracks blade
+count rather than screen coverage. That is the single largest item and it is a design error in how
+G-141 wired grass up, not a tuning problem.
+
+Implication for optimisation: skipping buried probes before tracing (the probe pass computes
+`valid` *after* its 18 rays) can save at most about half of 5.2 ms out of ~45 ms. Not worth doing
+on its own.
+
+### What the probe-field ambient costs — Lighting Lab only, NOT representative (2026-09-19)
 
 Lighting Lab, `in_door` pose (inside the door room looking at its far wall, grass and rooms in
 frame), frame time via `/api/debug/engine_timing`, ON/OFF interleaved 4 rounds × 8 samples,
