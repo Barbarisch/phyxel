@@ -189,6 +189,68 @@ vec3 phxAmbient(vec3 worldPos, vec3 N, ivec4 occBox, vec4 grid, vec3 skyColor) {
     return inGrid ? floorTerm : open;
 }
 
+/// UP-FACING FAST PATH, for grass. Same field, same lattice, same fallbacks as phxAmbient, but
+/// specialised for a straight-up normal and without the per-neighbour visibility trace.
+///
+/// WHY IT EXISTS. grass.vert evaluates ambient per BLADE VERTEX, 24 per blade (SEGMENTS*6), so its
+/// cost tracks blade COUNT rather than screen coverage. Measured in Ravenmere town 2026-09-20
+/// (tools/ambient_cost.py): the general phxAmbient in grass.vert cost +20 to +22 ms per frame at
+/// every pose, including one with almost no grass on screen -- the single largest item in the
+/// ambient budget, larger than the probe compute pass by four times (G-146).
+///
+/// WHAT IS DROPPED:
+///   - the X and Z lobes. With N = (0,1,0) the ambient-cube weights are N*N = (0,1,0), so those
+///     lobes are multiplied by zero. Dropping them is EXACT, not an approximation.
+///   - the surface-to-probe visibility trace (phxSegmentBlocked, up to 8 short marches). This one
+///     IS an approximation. It exists to stop light leaking through a wall onto an enclosed
+///     surface; a ground blade's neighbours are the lattice corners within one 2 u cell directly
+///     around it, so a wall between them needs an overhang thinner than the probe spacing. The
+///     risk it takes is grass under a low overhang reading slightly too bright, and the gate on it
+///     is the sealed-room floor reading in tools/ambient_model_check.py.
+/// Reads 4 vec4 per neighbour instead of ~7, and traces nothing.
+vec3 phxAmbientUp(vec3 worldPos, ivec4 occBox, vec4 grid, vec3 skyColor) {
+    const vec3 N = vec3(0.0, 1.0, 0.0);
+    vec3 open = phxAmbientAtmos(N, 1.0, skyColor);
+    if ((occBox.w & 8) == 0) return open;
+
+    float spacing = max(grid.w, 1e-3);
+    vec3 rel = (worldPos + N * (0.25 * spacing) - grid.xyz) / spacing;
+    vec3 dims = vec3(PHX_GI_DIM_X - 1, PHX_GI_DIM_Y - 1, PHX_GI_DIM_Z - 1);
+    if (any(lessThan(rel, vec3(0.0))) || any(greaterThan(rel, dims))) return open;
+    vec3 toEdge = min(rel, dims - rel);
+    float edge = clamp(min(toEdge.x, min(toEdge.y, toEdge.z)) / PHX_GI_EDGE_FADE_PROBES, 0.0, 1.0);
+
+    ivec3 b = min(ivec3(floor(rel)), ivec3(PHX_GI_DIM_X - 2, PHX_GI_DIM_Y - 2, PHX_GI_DIM_Z - 2));
+    vec3  f = rel - vec3(b);
+    ivec3 o = phxProbeLatticeOrigin(grid);
+
+    vec3 sum = vec3(0.0);
+    float wsum = 0.0;
+    for (int i = 0; i < 8; ++i) {
+        ivec3 off = ivec3(i & 1, (i >> 1) & 1, (i >> 2) & 1);
+        ivec3 L = o + b + off;
+        int base = phxProbeSlotBase(L, o);
+        vec4 up = giField.probes[base + 2];              // +Y lobe: rgb AND the lattice tag's x
+        if (giField.probes[base].a < 0.5) continue;      // buried probe
+        if (up.a != float(L.x) ||
+            giField.probes[base + 3].a != float(L.y) ||
+            giField.probes[base + 4].a != float(L.z)) continue;   // slot holds a different probe
+
+        vec3 probeWorld = grid.xyz + vec3(L) * spacing;
+        vec3 toProbe = probeWorld - worldPos;
+        float len = length(toProbe);
+        float facing = (len > 1e-4) ? (toProbe.y / len) : 1.0;    // dot(dir, up)
+        if (facing <= 0.0) continue;
+
+        vec3 tri = mix(1.0 - f, f, vec3(off));
+        float w = tri.x * tri.y * tri.z * facing;
+        sum  += up.rgb * w;
+        wsum += w;
+    }
+    if (wsum < 1e-4) return skyColor * kAmbientFloorAtmos;
+    return mix(open, sum / wsum + skyColor * kAmbientFloorAtmos, edge);
+}
+
 /// A 0..1 "how open is this point" scalar DERIVED from the ambient just computed (its luminance
 /// against the open-sky answer for the same normal). For the two consumers that need a gate rather
 /// than a colour: unshadowed moonlight, and direct sun where the shadow maps have no coverage.

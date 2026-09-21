@@ -39,7 +39,7 @@ those are narratives with superseded sections. **This file states only what is t
 |---|---|---|---|---|---|---|---|---|
 | `voxel.frag` — static chunks, kinematic voxels (doors, furniture), GPU debris | probe field, shading normal (`phxSkyAccessOf` for the gates) | `phxAmbient` | `pbrBRDF × shadow × phxSunGate` | PCSS, mid ∪ near | yes, × enclosure gate | yes, with visibility trace | yes | `vSkyLight` varying is a dead constant 1.0; the kinematic `setLightSampler` feed is not read here |
 | `transparent_voxel.frag` — glass | probe field, face normal | `phxAmbient` | Blinn-Phong × shadow × `phxSunGate` | PCSS, mid ∪ near | no | yes, with visibility trace | — | `vSkyLight` varying is a dead constant 1.0 |
-| `grass.frag` (+`grass.vert`) — blades | probe field per **blade vertex** (up normal): `vAmbient`, gate `vSky` | `vAmbient` (= `phxAmbient`, up) | `0.85 × shadow × phxSunGate` | **Fast 4-tap**, mid ∪ near | no | yes, with visibility trace | no | wind sheen also × `vSky`; `grass_shadow.vert` computes neither (caster only) |
+| `grass.frag` (+`grass.vert`) — blades | probe field per **blade vertex** (up normal): `vAmbient`, gate `vSky` | `vAmbient` (= **`phxAmbientUp`**, the up-facing fast path — see §2) | `0.85 × shadow × phxSunGate` | **Fast 4-tap**, mid ∪ near | no | yes, with visibility trace | no | wind sheen also × `vSky`; `grass_shadow.vert` computes neither (caster only) |
 | `foliage.frag` — leaf cards | probe field per fragment (up) | `phxAmbient` (up) | `0.7 × shadow × phxSunGate` + backlit translucency × (0.25+0.75·phxSunGate) | **Fast 4-tap**, mid ∪ near | no | yes, with visibility trace | no | — |
 | `character.frag` — animated characters | probe field per fragment, vertex normal | `phxAmbient` (N) | Blinn-Phong × shadow × `phxSunGate` | PCSS, mid ∪ near | yes, × enclosure gate | yes, with visibility trace | no | block-light term from the bake is 0 |
 | CPU debris (`DebrisRenderPipeline` light sampler) | **per-cell bake** at the body (the last per-cell consumer — §8) | CPU: `ambient + sun × 0.5 × sky²` | **no shadow map** | — | no | no | — | flat per-body light; the only place a sky gate still scales sun, because there is no map lookup and the CPU cannot read the probe field |
@@ -270,6 +270,13 @@ deleted block light; `static_voxel.vert` emits `vSkyLight = 1.0` as a placeholde
   the answer; inside the grid with no reachable probe (a pocket narrower than the 2 u lattice) the
   floor alone. Grass evaluates it per blade vertex (`grass.vert` → `vAmbient`); everything else per
   fragment. Debug view 4 shows the validity outcome per pixel.
+- **The up-facing fast path** `phxAmbientUp(worldPos, occBox, grid, sky)`, used by `grass.vert`
+  only. Identical field, lattice and fallbacks, specialised for N = (0,1,0) and with no
+  per-neighbour visibility trace. Grass evaluates ambient 24 times per blade, so its cost follows
+  blade COUNT rather than screen coverage: the general `phxAmbient` there measured +20 to +22 ms
+  per frame in Ravenmere town at every pose (§7, G-146). Dropping the X and Z lobes is EXACT for an
+  up normal, since their ambient-cube weights are zero; dropping the visibility trace is the one
+  approximation, and it measured at 0.1 % on the indoor-grass band of all three enclosed lab rooms.
 - **The enclosure gate** `phxSkyAccessOf(ambient, N, sky)` (ambient luminance over the open-sky
   answer for the same normal, 0..1, unsquared) is the only "how enclosed is this point" scalar left.
   Two consumers: unshadowed moonlight, and direct sun beyond the shadow cascades' coverage.
@@ -456,6 +463,20 @@ fixed poses, noon, medians of 14-20 frames. Laptop RTX 1000 Ada.
 | nose to a wall | 87.7 | 35.3 | **52.4** | 5.3 | 20.1 | 7.7 |
 | elevated, west end | 65.2 | 26.2 | **39.0** | 5.1 | 22.3 | 11.5 |
 
+**After the grass fast path** (`phxAmbientUp`, same rig and poses, 2026-09-20). Grass ambient is
+essentially gone; the whole frame drops 18 to 21 ms:
+
+| pose | frame ON | ambient costs | of which probe pass | of which Grass | of which Static Geometry |
+|---|---|---|---|---|---|
+| player spawn | 113.7 (was 132.1) | **29.3** (was 43.6) | 5.6 | **0.9** (was 20.7) | 19.8 |
+| nose to a wall | 68.7 (was 87.7) | **32.6** (was 52.4) | 5.6 | **-0.4** (was 20.1) | 8.1 |
+| elevated, west end | 43.9 (was 65.2) | **18.2** (was 39.0) | 5.4 | **1.0** (was 22.3) | 11.6 |
+
+Verified not to change the picture: outdoor grass luminance at two town poses moved -0.09 % to
++2.03 % (`docs/evidence/grass_look_{before,after}.json`, tone map off), the indoor-grass floor band
+of all three enclosed lab rooms moved 0.1 %, and `ambient_model_check.py` stayed green on all five
+invariants. **`Static Geometry` at +8 to +20 ms is now the largest remaining item.**
+
 **The probe compute pass is 10-13% of it. The other 87-90% is per-fragment and per-vertex work in
 the receivers**, i.e. the trilinear probe fetch (up to 8 neighbours x 4 SSBO reads) plus the
 `phxSegmentBlocked` visibility test (up to 8 short traces), paid at every shading point.
@@ -538,6 +559,13 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 
 ## 9. Change log (append a line per lighting/shadow change; the fingerprint line is written by `tools/lighting_doc_check.py --update`)
 
+- 2026-09-20 — **Grass gets an up-facing ambient fast path (`phxAmbientUp`, Ravenmere G-146).**
+  `grass.vert` ran the general `phxAmbient` per blade vertex, 24 per blade, costing +20 to +22 ms
+  per frame in the town at every pose, including one with almost no grass on screen. The fast path
+  drops the zero-weighted X and Z lobes (exact) and the per-neighbour visibility trace (the one
+  approximation): grass ambient falls to about 1 ms and the frame drops 18 to 21 ms. Gated on
+  outdoor pixels (≤2 %), the indoor-grass band (0.1 %) and the five ambient invariants (green).
+  Measured with `tools/ambient_cost.py` against the engine's own per-pass GPU timings.
 - 2026-09-19 (later) — **World-stable probe addressing (Ravenmere G-143).** Slots are addressed by wrapped world lattice coordinate with a per-slot tag, so camera motion no longer shifts the field under surfaces; `phxWrapSlot` uses floor division after GLSL `%` on negative operands produced wrong slots (walls darker and jittery, a micro-roofed room leaking, all cured by the floor form alone). Lab door-room wall after camera trips: +33 % / −56 % → within noise; ambient check still green.
 - 2026-09-19 — **The probe field is THE ambient source; the per-fragment sky trace is deleted (Ravenmere G-141).** Lab: `tools/ambient_model_check.py` RED on the trace (A1 0.37) → GREEN on the field (A1 1.00, A2 0.067, A3 0.99, A4 2.06). Cost table in §7. Also: `phxSegmentBlocked` two-level traversal (+ CPU mirror `packedPoolSegmentBlocked`, `OccupancyTraversalTest`) for every short visibility test; **`gi_probe.comp` gained the `build_shaders.bat` rule it never had (stale .spv since 2026-09-03).** `gi_field.glsl` (new, shared): ambient-cube probes (6 cosine lobes, `GiProbeField::kLobes`), `phxAmbient` / `phxSkyAccessOf`; `gi_probe.comp` deposits its 18 traced directions into the lobes; voxel/transparent_voxel/character/foliage/grass(.vert) call `phxAmbient`; the probe pass bounces off the field (multi-bounce by iteration) with a sun-visibility DDA, rotates its ray set per refresh and blends temporally (finds 1-wide doorways), and receivers keep only probes visible from the surface (no leak through walls); `phxSkyGate` deleted from `lighting.glsl`, `phxSkyVisibility` deleted from `occupancy.glsl`; `gi_probe.comp` gets the `build_shaders.bat` rule it never had (its `.spv` had been stale since 2026-09-03); `grass_shadow.vert` no longer traces (dead work); bindings 11–13 visible to vertex stages; `m_giEnabled` default ON (`/api/debug/gi` = kill switch). Rules R8 (micro-resolution occlusion) and R9 (no receiver traces) added and enforced by the doc check. New rig `tools/ambient_model_check.py` (lab rooms + exterior wall pair 13 u apart + a room sealed by a 1-micro roof, measured with the tone map off at noon). Numbers in the ledger row and in `docs/evidence/ambient_{red_trace,green_probes}.json`.
 - 2026-09-17 — glass (`transparent_voxel.frag`) and characters (`character.frag`) trace sky visibility per fragment like the ground; the constant-1.0 glass sky and the one-value-per-body character bake are retired as lighting inputs. Lighting Lab A/B (editor on StructGenTest, `docs/evidence/lab_skysrc_{before,after}_*.png`): a character standing in the door room's doorway — torso seen from INSIDE the dark room mean luminance 0.208 → 0.001, from outside 0.192 → 0.084 (its outward face keeps its p90 0.28). The glass pane seen from inside the sealed window room read 0.008 both before and after — the change did not measurably alter that pose (see §8).
@@ -549,7 +577,7 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 - 2026-08-15 — single tone map moved to `post_process.frag` (grade pass).
 - 2026-08-06 — near shadow cascade (40 u) shipped; receivers min-compose.
 
-<!-- lighting-model-fingerprint: 0b1abdb6ea4cda24 -->
+<!-- lighting-model-fingerprint: b762b433d082d4da -->
 
 ## Related
 

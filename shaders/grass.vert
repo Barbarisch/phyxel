@@ -646,7 +646,10 @@ void main() {
     vWorldPos   = worldPos;   // U3.3: camera-relative, for the point-light loop in grass.frag
     // AMBIENT per blade VERTEX (a blade is 0.05-0.1 u wide; ambient varies at world scale) from
     // the probe field -- the same term the ground under the blade gets (gi_field.glsl, G-141).
-    vAmbient    = phxAmbient(worldPos + ubo.cameraWorld, vec3(0.0, 1.0, 0.0), ubo.occupancyBox, ubo.giProbeGrid, ubo.ambientColor);
+    // The UP-FACING FAST PATH, not the general phxAmbient: this runs 24x per blade, so its cost
+    // tracks blade count, and the general form measured +20 ms/frame in Ravenmere town at every
+    // pose (G-146). See phxAmbientUp for exactly what it drops and what gates the approximation.
+    vAmbient    = phxAmbientUp(worldPos + ubo.cameraWorld, ubo.occupancyBox, ubo.giProbeGrid, ubo.ambientColor);
     vSky        = phxSkyAccessOf(vAmbient, vec3(0.0, 1.0, 0.0), ubo.ambientColor);
     gl_Position = ubo.viewProj * vec4(worldPos, 1.0);
 }

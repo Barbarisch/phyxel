@@ -1,0 +1,40 @@
+{
+  "tag": "grassfix",
+  "values": {
+    "wall_open": 0.10044655203819275,
+    "wall_street": 0.09983408451080322,
+    "in_control_open": 0.26423007249832153,
+    "in_sealed": 0.01756996288895607,
+    "in_sealed_wall": 0.0017942989943549037,
+    "in_door": 0.01870693266391754,
+    "in_door_wall": 0.00370509154163301,
+    "in_sealed_micro": 0.017527056857943535
+  },
+  "results": [
+    {
+      "check": "A1 continuity: wall_street / wall_open >= 0.40",
+      "measured": 0.993892658258548,
+      "pass": true
+    },
+    {
+      "check": "A2 sealed: in_sealed / in_control_open <= 0.08",
+      "measured": 0.0664946886179243,
+      "pass": true
+    },
+    {
+      "check": "A3 resolution: in_sealed_micro / in_sealed <= 1.5",
+      "measured": 0.9975012165645099,
+      "pass": true
+    },
+    {
+      "check": "A3 resolution: in_sealed_micro / in_control_open <= 0.08",
+      "measured": 0.0663323079008994,
+      "pass": true
+    },
+    {
+      "check": "A4 opening: in_door_wall / in_sealed_wall >= 1.5",
+      "measured": 2.06377408625706,
+      "pass": true
+    }
+  ]
+}
