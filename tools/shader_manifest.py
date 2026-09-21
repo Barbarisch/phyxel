@@ -71,7 +71,9 @@ def source_hash(shader: Path) -> str:
     for src in sorted(transitive_sources(shader), key=lambda p: str(p).lower()):
         h.update(str(src.relative_to(REPO)).replace("\\", "/").encode())
         h.update(b"\0")
-        h.update(src.read_bytes())
+        # Normalised for the same reason as lighting_doc_check's fingerprint: a CRLF
+        # checkout must not read as a stale shader (2026-09-20).
+        h.update(src.read_bytes().replace(bytes([13, 10]), bytes([10])))
         h.update(b"\0")
     return h.hexdigest()
 

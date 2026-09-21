@@ -34,7 +34,9 @@ def fingerprint():
     h = hashlib.sha256()
     for name in SHARED:
         with open(os.path.join(SHADERS, name), 'rb') as f:
-            h.update(f.read())
+        # Normalised: git checks these out as CRLF here while the committed stamp came
+        # from LF bytes, so a raw hash fails on a clean tree (2026-09-20).
+            h.update(f.read().replace(bytes([13, 10]), bytes([10])))
     return h.hexdigest()[:16]
 
 
