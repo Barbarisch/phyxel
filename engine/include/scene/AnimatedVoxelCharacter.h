@@ -3,6 +3,8 @@
 #include "scene/CharacterAppearance.h"
 #include "scene/BodyPlan.h"
 #include "scene/CharacterSkeleton.h"
+#include "scene/motion/MotionSource.h"
+#include "scene/motion/HumanoidRetargeter.h"
 #include "scene/VoxelContactProbe.h"
 #include "graphics/AnimationSystem.h"
 #include "physics/PhysicsWorld.h"
@@ -11,6 +13,7 @@
 #include <functional>
 #include <vector>
 #include <optional>
+#include <memory>
 #include <unordered_set>
 #include <cmath>
 #include <functional>
@@ -272,6 +275,18 @@ namespace Scene {
         // Configurable blend duration
         void setBlendDuration(float duration) { blendDuration = duration; }
         float getBlendDuration() const { return blendDuration; }
+
+        // Optional learned/procedural locomotion source. The existing clip
+        // evaluation remains the base and exact fallback; authored actions are
+        // never routed through this source. An explicit retarget map keeps the
+        // source skeleton out of the character runtime.
+        bool setMotionSource(
+            std::shared_ptr<Motion::IMotionSource> source,
+            const std::vector<Motion::RetargetJoint>& retargetJoints);
+        void clearMotionSource();
+        Motion::MotionSourceStatus getMotionSourceStatus() const;
+        bool usedMotionSourceLastFrame() const { return m_usedMotionSourceLastFrame; }
+        void setMotionSeed(std::uint64_t seed) { m_motionSeed = seed; }
 
         // Force a specific state machine state
         void setAnimationState(AnimatedCharacterState state);
@@ -687,6 +702,14 @@ namespace Scene {
 
         Phyxel::Skeleton skeleton;
         std::vector<Phyxel::AnimationClip> clips;
+
+        std::shared_ptr<Motion::IMotionSource> m_motionSource;
+        std::unique_ptr<Motion::HumanoidRetargeter> m_motionRetargeter;
+        double m_motionClockSeconds = 0.0;
+        bool m_usedMotionSourceLastFrame = false;
+        std::uint64_t m_motionSeed = 0;
+        float m_motionBlendWeight = 0.0f;
+        std::vector<glm::quat> m_lastMotionPose;
         Phyxel::VoxelModel voxelModel;
         Phyxel::AnimationSystem animSystem;
         

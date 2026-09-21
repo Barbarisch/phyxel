@@ -324,6 +324,9 @@ def package_game(
     project_dir: Path | None = None,
     world_db_path: Path | None = None,
     strict: bool = False,
+    motionbricks_runtime: Path | None = None,
+    motionbricks_assets: Path | None = None,
+    motionbricks_notices: Path | None = None,
 ) -> dict:
     """
     Package a complete standalone game directory.
@@ -350,6 +353,20 @@ def package_game(
     files_copied = 0
     is_game_project = project_dir is not None
 
+    # Learned motion is an explicit, license-gated package feature. A partial
+    # bundle is worse than no bundle because runtime fallback would conceal a
+    # broken release, so require DLLs, models/styles, and reviewed notices.
+    requested_motion = any((motionbricks_runtime, motionbricks_assets, motionbricks_notices))
+    if requested_motion:
+        missing = [label for label, path in (
+            ("runtime", motionbricks_runtime), ("assets", motionbricks_assets),
+            ("license notices", motionbricks_notices)) if path is None or not path.exists()]
+        if missing:
+            result["errors"].append(
+                "MotionBricks packaging requires a complete reviewed bundle; missing: "
+                + ", ".join(missing))
+            return result
+
     # ── 1. Game binary ──────────────────────────────────────────────────
     game_exe_name = f"{name}.exe"
     try:
@@ -369,6 +386,21 @@ def package_game(
     if pdb.exists():
         shutil.copy2(pdb, output_dir / f"{name}.pdb")
         files_copied += 1
+
+    if requested_motion:
+        motion_root = output_dir / "motionbricks"
+        for source, destination in (
+            (motionbricks_runtime, motion_root / "runtime"),
+            (motionbricks_assets, motion_root / "assets"),
+            (motionbricks_notices, motion_root / "notices"),
+        ):
+            if source.is_dir():
+                shutil.copytree(source, destination, dirs_exist_ok=True)
+                files_copied += sum(1 for item in destination.rglob("*") if item.is_file())
+            else:
+                destination.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, destination / source.name)
+                files_copied += 1
 
     # ── 2. Compiled shaders ─────────────────────────────────────────────
     shaders_dir = output_dir / "shaders"
@@ -723,6 +755,12 @@ def main() -> None:
              "(default: soft-warn; overrides production.json strictPackaging)",
         action="store_true",
     )
+    parser.add_argument("--motionbricks-runtime", type=Path,
+                        help="Opt-in directory containing motionbricks and GGML DLLs")
+    parser.add_argument("--motionbricks-assets", type=Path,
+                        help="Opt-in verified directory containing g1-f32/ and styles/")
+    parser.add_argument("--motionbricks-notices", type=Path,
+                        help="Reviewed Apache-2.0/NVIDIA model license notice file or directory")
 
     args = parser.parse_args()
 
@@ -786,6 +824,9 @@ def main() -> None:
         project_dir=project_dir,
         world_db_path=world_db_path,
         strict=args.strict,
+        motionbricks_runtime=args.motionbricks_runtime,
+        motionbricks_assets=args.motionbricks_assets,
+        motionbricks_notices=args.motionbricks_notices,
     )
 
     if result["warnings"]:

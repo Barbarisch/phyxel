@@ -1,0 +1,9 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -70,7 +70,7 @@ add_library(motionbricks_static STATIC ${MOTIONBRICKS_SOURCES})
+ add_library(motionbricks::motionbricks_static ALIAS motionbricks_static)
+ set_target_properties(motionbricks_static PROPERTIES
+-    OUTPUT_NAME motionbricks
++    OUTPUT_NAME motionbricks_static
+     EXPORT_NAME motionbricks_static)

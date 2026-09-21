@@ -188,7 +188,20 @@ so this item is now unblocked by that dependency (still not started itself).**
   64 B `DynamicSubcubeInstanceData` likely compresses (quantized rotation, half-float scale) →
   less bandwidth on the debris path at high particle counts.
 
-## 8. MotionBricks — generative character motion (evaluated 2026-08-10) — ❌ DO NOT ADOPT
+## 8. MotionBricks — generative character motion (re-evaluated 2026-09-04) — 🧪 PROTOTYPE
+
+> **2026-09-04 superseding update:** the rejection below correctly describes NVIDIA's original
+> preview as inspected on 2026-08-10, but a new third-party project now changes two decisive facts.
+> [`localai-org/motion-bricks.cpp`](https://github.com/localai-org/motion-bricks.cpp) provides a
+> C++23/GGML CPU+Vulkan runtime behind a stable C ABI v1 and returns root translations plus local
+> XYZW rotations for the model's 34-joint G1 topology. It publishes a pinned, hash-verified ~0.73 GB
+> F32 bundle and 15 converted styles. This removes the Python/PyTorch/MuJoCo integration blocker,
+> but it does **not** remove the G1-to-humanoid retargeting, runtime cost, maturity, or model-license
+> risks. Decision: build a bounded, optional locomotion prototype behind a permanent clip fallback;
+> do not adopt as a required engine dependency. Canonical implementation plan and gates:
+> [`MotionBricksIntegrationPlan.md`](MotionBricksIntegrationPlan.md).
+
+### Original 2026-08-10 evaluation (historical evidence)
 
 **What:** NVIDIA GEAR lab, SIGGRAPH 2026. A generative motion model: VQ-VAE motion tokenizer +
 pose model + root model, driven by **"smart primitives"** — locomotion takes
@@ -240,10 +253,10 @@ framing than the bone-constraint calibration in [`InteractionPipeline.md`](Inter
 
 **Cost:** prohibitive as a runtime (parallel ML stack + renderer contention); medium as an offline
 authoring pipeline, for output that is currently wrong-skeleton and off-aesthetic.
-**Verdict: bookmark, do not build. Re-check trigger — a release shipping a human-skeleton
-checkpoint AND a standard export path (BVH/FBX or ONNX).** That is the version that makes offline
-clip authoring viable; until then the only actionable item is the interface-shape idea above, which
-stands on its own regardless of the model.
+**Original verdict: bookmark, do not build.** Its re-check trigger was a usable runtime/export path.
+The 2026-09-04 C++ port is not a human-skeleton release, but its stable pose-output ABI is sufficient
+to test an explicit retarget stage, so the original runtime conclusion is superseded by the bounded
+prototype above. The original skeleton/aesthetic cautions remain active acceptance gates.
 
 ## 9. anyCreature (ACS) — parametric creature compiler (evaluated 2026-08-21) — ✅ ADOPT THE SPEC (front half ported)
 
@@ -304,9 +317,10 @@ proven on a known-bad cantilever spec). NOT taken: the card workflow, the AI sil
 6. **Hold:** render graph (#5) until pass count forces it.
 7. **Slated (2026-07-09):** ray tracing (#6) — plan in `RayTracingPlan.md`; vegetation wind
    realism — plan in `VegetationWindPlan.md`.
-8. **Rejected (2026-08-10):** MotionBricks (#8) — no work scheduled. Only the smart-primitive
-   *interface shape* survives as an idea for the NPC animation layer; the model itself is
-   re-checkable only on a human-skeleton + standard-export release.
+8. **Prototype planned (re-evaluated 2026-09-04):** MotionBricks (#8) — a third-party native
+   C++/GGML port now supplies a stable pose-output ABI. Implement the optional provider/retarget
+   seam first; runtime adoption still depends on quality, scale, Vulkan-contention, and license
+   gates in `MotionBricksIntegrationPlan.md`.
 9. **Adopted (2026-08-21):** anyCreature ACS spec (#9) — front half ported as
    `tools/creature_forge/` (spec → voxel `.anim` rigs); first species `forge_ibex` live as
    Tundra/Snow fauna. Possible follow-up: a silhouette-recognition gate skill on top of

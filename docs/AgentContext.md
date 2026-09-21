@@ -85,9 +85,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   first** — it is the standing home for external technique/model/library evaluations (what it is,
   why Phyxel, adoption cost, verdict), and the candidate may already have one. Record new
   evaluations there as a dated entry, **including rejections and the reason** — a written "no"
-  stops the next session re-deriving it. Latest: **MotionBricks — ❌ do not adopt (2026-08-10)**;
-  NVIDIA's generative motion model ships only the Unitree G1 robot skeleton and a Python/PyTorch/
-  MuJoCo runtime (no human rig, no BVH/FBX/ONNX, no C++ path) despite the site's UE5 framing.
+  stops the next session re-deriving it. **MotionBricks was re-evaluated 2026-09-04:** NVIDIA's
+  original Python/robot-only preview remains unsuitable directly, but `localai-org/motion-bricks.cpp`
+  now provides a native C++/GGML C ABI and pose output. A bounded optional-locomotion prototype is
+  approved; adoption is not. See `docs/MotionBricksIntegrationPlan.md` for the locked architecture,
+  M0 first slice, quality/performance gates, and permanent clip fallback.
 
 ---
 

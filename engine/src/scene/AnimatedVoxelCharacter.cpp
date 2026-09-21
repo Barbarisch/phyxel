@@ -1763,14 +1763,35 @@ static constexpr float kControllerHeadClearance = 0.05f;
         }
     }
 
+    bool AnimatedVoxelCharacter::setMotionSource(
+        std::shared_ptr<Motion::IMotionSource> source,
+        const std::vector<Motion::RetargetJoint>& retargetJoints) {
         if (!source) return false;
+        auto retargeter = std::make_unique<Motion::HumanoidRetargeter>(skeleton, retargetJoints);
+        if (!retargeter->valid()) return false;
+        m_motionSource = std::move(source);
+        m_motionRetargeter = std::move(retargeter);
+        m_motionClockSeconds = 0.0;
+        m_usedMotionSourceLastFrame = false;
+        m_motionBlendWeight = 0.0f;
         m_lastMotionPose.clear();
+        m_motionSource->reset();
         return true;
     }
 
+    void AnimatedVoxelCharacter::clearMotionSource() {
+        if (m_motionSource) m_motionSource->reset();
+        m_motionSource.reset();
+        m_motionRetargeter.reset();
+        m_motionClockSeconds = 0.0;
+        m_usedMotionSourceLastFrame = false;
+        m_motionBlendWeight = 0.0f;
         m_lastMotionPose.clear();
     }
 
+    Motion::MotionSourceStatus AnimatedVoxelCharacter::getMotionSourceStatus() const {
+        if (m_motionSource) return m_motionSource->status();
+        return Motion::MotionSourceStatus{};
     }
 
     bool AnimatedVoxelCharacter::reloadAnimations(const std::string& animFile) {
@@ -3835,6 +3856,8 @@ static constexpr float kControllerHeadClearance = 0.05f;
             // already been evaluated and is therefore the exact fallback/base
             // for unmapped bones. Gameplay-critical authored states never enter
             // this path. Provider sampling is nonblocking by contract.
+            m_usedMotionSourceLastFrame = false;
+            m_motionClockSeconds += static_cast<double>(deltaTime);
             const bool providerLocomotion =
                 currentState == AnimatedCharacterState::Idle ||
                 currentState == AnimatedCharacterState::StartWalk ||
@@ -3849,6 +3872,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
                 currentState == AnimatedCharacterState::WalkStrafeRight ||
                 currentState == AnimatedCharacterState::TurnLeft ||
                 currentState == AnimatedCharacterState::TurnRight;
+            if (providerLocomotion && m_motionSource && m_motionRetargeter) {
                 Motion::MotionIntent intent;
                 const glm::vec3 forward = getForwardDirection();
                 const glm::vec3 right(forward.z, 0.0f, -forward.x);
@@ -3859,26 +3883,39 @@ static constexpr float kControllerHeadClearance = 0.05f;
                 intent.movementDirection = desired;
                 intent.facingDirection = forward;
                 intent.targetSpeed = glm::length(glm::vec2(m_kinVelocity.x, m_kinVelocity.z));
+                intent.seed = m_motionSeed;
+                m_motionSource->submitIntent(intent);
 
                 Motion::LocalPoseFrame providerFrame;
+                if (m_motionSource->sample(m_motionClockSeconds, providerFrame)) {
                     std::vector<glm::quat> basePose;
                     basePose.reserve(skeleton.bones.size());
                     for (const Bone& bone : skeleton.bones)
                         basePose.push_back(bone.currentRotation);
+                    std::vector<glm::quat> retargeted;
+                    if (m_motionRetargeter->retarget(providerFrame, basePose, retargeted)) {
                         constexpr float kProviderBlendSeconds = 0.15f;
+                        m_motionBlendWeight = std::min(1.0f, m_motionBlendWeight +
                             deltaTime / kProviderBlendSeconds);
                         for (std::size_t i = 0; i < skeleton.bones.size(); ++i)
                             skeleton.bones[i].currentRotation = glm::slerp(
+                                basePose[i], retargeted[i], m_motionBlendWeight);
+                        m_lastMotionPose = std::move(retargeted);
+                        m_usedMotionSourceLastFrame = true;
                     }
                 }
+                if (!m_usedMotionSourceLastFrame && m_motionBlendWeight > 0.0f &&
                     m_lastMotionPose.size() == skeleton.bones.size()) {
                     constexpr float kProviderBlendSeconds = 0.15f;
+                    m_motionBlendWeight = std::max(0.0f, m_motionBlendWeight -
                         deltaTime / kProviderBlendSeconds);
                     for (std::size_t i = 0; i < skeleton.bones.size(); ++i)
                         skeleton.bones[i].currentRotation = glm::slerp(
                             skeleton.bones[i].currentRotation, m_lastMotionPose[i],
+                            m_motionBlendWeight);
                 }
             } else if (!providerLocomotion) {
+                m_motionBlendWeight = 0.0f;
                 m_lastMotionPose.clear();
             }
 

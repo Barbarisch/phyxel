@@ -289,3 +289,10 @@ canvas_digest_actual.txt
 # logs that ARE the evidence, leaving only hand-copied excerpts in git.
 !docs/evidence/*.log
 phyxel.log.*
+
+# Optional MotionBricks build/model caches (reproducible via tools/motionbricks/).
+build_motionbricks*/
+build_mb_*/
+# Crash reports. The .txt is small and useful, the .dmp is tens of MB of process image;
+# copy the report you actually cite into docs/evidence/ instead of committing the folder.
+crashes/
