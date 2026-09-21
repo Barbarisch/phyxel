@@ -456,7 +456,15 @@ void UIButton::render(UIRenderer* renderer, const BitmapFont* font,
 
     float textW = font->measureText(text, theme.textScale);
     if (fitText) size.x = std::max(size.x, textW + 2.0f * theme.padding);
-    renderer->drawRect(pos, size, bg);
+    if (drawFrame) {
+        // Border then inset fill, matching UIPanel's showBackground so a framed button
+        // reads as the same kind of surface (G-150).
+        const float bw = std::max(1.0f, theme.borderWidth * 0.5f);
+        renderer->drawRect(pos, size, theme.panelBorder);
+        renderer->drawRect(pos + glm::vec2(bw), size - glm::vec2(bw * 2.0f), bg);
+    } else {
+        renderer->drawRect(pos, size, bg);
+    }
 
     // ICON (G-148): a button showing a PNG draws the image instead of its label — the
     // label survives as tooltip text. Square, centred, and letterboxed into the box so a

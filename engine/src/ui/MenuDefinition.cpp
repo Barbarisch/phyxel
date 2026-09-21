@@ -87,6 +87,7 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidgetTyped(const nlohmann::json&
         w->iconPath      = j.value("icon", "");
         w->iconBind      = j.value("iconBind", "");
         w->iconPadding   = j.value("iconPadding", 4.0f);
+        w->drawFrame     = j.value("frame", false);
         return w;
     }
 

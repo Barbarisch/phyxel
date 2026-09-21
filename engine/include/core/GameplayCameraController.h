@@ -57,6 +57,14 @@ public:
     /// fps look this flag never touches. The host sets it (combat yes, dialogue no).
     void setLookWhileNotDriving(bool v) { lookWhileNotDriving_ = v; }
     bool lookWhileNotDriving() const { return lookWhileNotDriving_; }
+
+    /// G-150: the UI is holding the mouse button for a DRAG, so it is not a look drag.
+    /// With an MMO scheme either button held IS the look gesture, so dragging a spell
+    /// icon across the screen also orbited the camera. The button belongs to whichever
+    /// gesture claimed it first; while the UI owns it, look is off. The host sets this
+    /// each frame from UISystem::dragActive().
+    void setLookSuppressed(bool v) { lookSuppressed_ = v; }
+    bool lookSuppressed() const { return lookSuppressed_; }
     const std::string& schemeName() const { return schemeName_; }
 
     // Sample input -> drive character -> frame the camera. `character` may be null
@@ -85,7 +93,10 @@ public:
         // combat). setMouseCaptured re-latches firstMouse on the false->true
         // edge, so re-capturing after combat does not integrate the cursor-park
         // jump. Pinned by GameplayCameraControllerTest.
-        if (scheme_->wantsAlwaysOnLook()) input.setMouseCaptured(driveCharacter);
+        // G-150: a UI drag owns the button; nothing may integrate into yaw/pitch while
+        // it does. Checked FIRST so it beats both look models.
+        if (lookSuppressed_) input.setMouseCaptured(false);
+        else if (scheme_->wantsAlwaysOnLook()) input.setMouseCaptured(driveCharacter);
         // MMO schemes: EITHER mouse button held = a look drag (left orbits, right
         // steers). Symmetric with driving for the same reason as above.
         else if (scheme_->leftButtonLooks())
@@ -231,6 +242,7 @@ private:
     bool dodgeHeld_  = false;
     bool wasDriving_ = true;   // driveCharacter edge detection (see update)
     bool lookWhileNotDriving_ = false;
+    bool lookSuppressed_ = false;   // G-150: the UI is dragging with the button held
 };
 
 } // namespace Core

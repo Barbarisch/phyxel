@@ -3121,6 +3121,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 // G-123: in combat the body is not driven, but a mouse DRAG still orbits the
                 // tactical camera (never during a conversation - the speakers hold their framing).
                 gameplayCamera().setLookWhileNotDriving(combatDirector_.inCombat() && !talking);
+                // G-150: while the UI is DRAGGING something, the held mouse button belongs
+                // to that drag - with the MMO scheme either button held is the look
+                // gesture, so dragging a spell icon across the screen also orbited the
+                // camera.
+                {{
+                    auto* dragUi = renderCoordinator_ ? renderCoordinator_->getUISystem() : nullptr;
+                    gameplayCamera().setLookSuppressed(dragUi && dragUi->dragActive());
+                }}
                 // A click-to-move walk owns the body until it ends; WASD cancels it.
                 updateGameplayCamera(engine, dt, playerCharacter_,
                                      /*driveCharacter=*/!combatDirector_.inCombat() && !talking &&

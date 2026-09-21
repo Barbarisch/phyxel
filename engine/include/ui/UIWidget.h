@@ -345,6 +345,11 @@ public:
     int  loadedIcon = -1;    ///< UIRenderer texture index (-1 untried, -2 failed)
     /// Inset of the icon inside the button box, in px per side.
     float iconPadding = 4.0f;
+    /// JSON "frame": draw a border around the box (theme.panelBorder) with the fill inset
+    /// inside it, the way a panel does. An action-bar slot needs it: an EMPTY slot renders
+    /// the disabled background, which is near-identical to the bar's own plate, so without
+    /// a frame the grid of slots is invisible and there is nothing to aim a drag at.
+    bool drawFrame = false;
 };
 
 // ════════════════════════════════════════════════════════════════

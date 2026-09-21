@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <set>
+#include <fstream>
 #include <iostream>
 #include "ui/UIWidget.h"
 #include "ui/MenuDefinition.h"
@@ -1092,4 +1093,36 @@ TEST(UIDragTest, TwoHundredShufflesConserveEveryAssignment) {
                                  << " (" << a << " -> " << b << ")";
         ASSERT_EQ(r->bar.size(), 4u) << "slot count changed at step " << step;
     }
+}
+
+// G-150: an EMPTY action-bar slot renders the disabled background, which is near-identical
+// to the bar's own plate - so without a frame the grid is invisible and there is nothing to
+// aim a drag at. User feedback: "seeing the outline of 'spaces' in the action bar grid
+// would make it easier to visualize".
+TEST(UIActionBarTest, SlotsCanDrawAFrameSoTheGridIsVisible) {
+    const auto framed = Phyxel::UI::MenuDefinition::buildWidget(nlohmann::json::parse(
+        R"({"type":"button","id":"slot","size":[52,52],"frame":true})"));
+    const auto plain = Phyxel::UI::MenuDefinition::buildWidget(nlohmann::json::parse(
+        R"({"type":"button","id":"slot","size":[52,52]})"));
+    ASSERT_NE(framed, nullptr);
+    ASSERT_NE(plain, nullptr);
+    EXPECT_TRUE(dynamic_cast<Phyxel::UI::UIButton*>(framed.get())->drawFrame);
+    EXPECT_FALSE(dynamic_cast<Phyxel::UI::UIButton*>(plain.get())->drawFrame)
+        << "unframed is the default - every other button in every menu must be unchanged";
+}
+
+// The shipped HUD must actually ask for it, or the engine capability changes nothing.
+TEST(UIActionBarTest, TheShippedActionBarAsksForFramedSlots) {
+    std::ifstream f("resources/ui/default_hud.json");
+    ASSERT_TRUE(f.good()) << "run from the repo root";
+    nlohmann::json hud;
+    f >> hud;
+    const nlohmann::json* bar = nullptr;
+    for (const auto& p : hud)
+        if (p.value("id", std::string()) == "hud_action_bar") bar = &p;
+    ASSERT_NE(bar, nullptr) << "hud_action_bar missing from the shipped HUD";
+    const auto& item = (*bar)["children"][0]["item"];
+    EXPECT_TRUE(item.value("frame", false)) << "slots must draw their outline";
+    EXPECT_EQ(item.value("dragBind", std::string()), "item.payload");
+    EXPECT_EQ(item.value("dropBind", std::string()), "actionbar.drop");
 }

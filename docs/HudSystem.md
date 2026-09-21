@@ -238,6 +238,15 @@ Mechanics worth knowing before authoring with it:
   the shipped `--test` host) drives a whole press-move-release and returns
   `{picked, dropped, payload}`.
 
+**Two things the first play session asked for (same day).** A button can draw a `"frame"`
+(border + inset fill, like a panel's `showBackground`): an EMPTY action-bar slot renders the
+disabled background, which is near-identical to the bar's own plate, so without it the grid of
+slots was invisible and there was nothing to aim a drag at. And
+`GameplayCameraController::setLookSuppressed` - with an MMO scheme EITHER mouse button held IS
+the look gesture, so dragging an icon across the screen also orbited the camera; the button
+belongs to whichever gesture claimed it first, and the host sets the flag each frame from
+`UISystem::dragActive()`.
+
 **A bound field is CLEARED when its record stops carrying the key** (same commit). Repeater
 rows are reused between frames, so `applyRecord` leaving a field alone when the key was
 absent meant a cleared row kept drawing the previous row's icon and label - the tooltip was

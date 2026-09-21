@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <GLFW/glfw3.h>
 
 #include "core/GameplayCameraController.h"
 #include "graphics/Camera.h"
@@ -93,4 +94,43 @@ TEST(GameplayCameraControllerTest, CaptureRestoredWhenDrivingResumes) {
     // ...and the NEXT move integrates normally again.
     r.input.handleMouseMove(300.0, 500.0);
     EXPECT_NE(r.input.getPitch(), pitchBefore);
+}
+
+// ============================================================================
+// G-150: a UI DRAG owns the mouse button, so it must not also orbit the camera.
+// User feedback: "when dragging an icon around it [shouldn't] also move the camera".
+// With an MMO scheme either button held IS the look gesture, which is why a drag
+// across the screen spun the view.
+// ============================================================================
+
+TEST(GameplayCameraControllerTest, AUiDragDoesNotAlsoOrbitTheCamera) {
+    Rig r;
+    ASSERT_TRUE(r.ctl.setSchemeByName("mmo"));   // leftButtonLooks: a held button = look
+
+    // CONTROL FIRST: the same gesture, with the UI not dragging, MUST orbit. Without
+    // this, "pitch unchanged" would also pass for a rig that never looks at all.
+    // injectMouseButton, not handleMouseButton: the GLFW callback path asks ImGui whether
+    // it wants the event, and there is no ImGui context in a unit test.
+    r.input.injectMouseButton(GLFW_MOUSE_BUTTON_LEFT, 60.0f);
+    r.frame(true);
+    ASSERT_TRUE(r.input.isMouseCaptured()) << "sanity: a held button is the mmo look drag";
+    const float pitch0 = r.input.getPitch();
+    sweep(r.input, 100.0, 400.0, 100.0, 300.0);
+    ASSERT_NE(r.input.getPitch(), pitch0) << "sanity: that gesture orbits when the UI is idle";
+
+    // Now the UI takes the button for a drag.
+    r.ctl.setLookSuppressed(true);
+    r.frame(true);
+    EXPECT_FALSE(r.input.isMouseCaptured()) << "the drag owns the button, not the camera";
+    const float pitch1 = r.input.getPitch();
+    const float yaw1   = r.input.getYaw();
+    sweep(r.input, 100.0, 300.0, 100.0, 150.0);   // a big drag across the screen
+    sweep(r.input, 100.0, 150.0, 600.0, 150.0);
+    EXPECT_FLOAT_EQ(r.input.getPitch(), pitch1) << "pitch moved while dragging";
+    EXPECT_FLOAT_EQ(r.input.getYaw(), yaw1)     << "yaw moved while dragging";
+
+    // Releasing the drag hands the camera back - suppression must not latch.
+    r.ctl.setLookSuppressed(false);
+    r.frame(true);
+    EXPECT_TRUE(r.input.isMouseCaptured()) << "look must come back after the drop";
 }
