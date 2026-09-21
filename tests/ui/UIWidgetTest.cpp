@@ -736,3 +736,143 @@ TEST(UIPlacementTest, TheLogicalCanvasIsLetterboxedIntoTheWindow) {
     p = U::placementFor(0, 0, 1280, 720);
     EXPECT_FLOAT_EQ(p.scale, 1.0f) << "a minimised window does not divide by zero";
 }
+
+// ============================================================================
+// ACTION BAR ICONS + TOOLTIPS (Ravenmere G-148). User feedback 2026-09-21:
+// "player action bar should show icons not long strings. each spell needs an icon...
+// mouse over of a spell or action should then result in text information".
+// The two halves are one feature: an icon-only bar you cannot hover is LESS readable
+// than the sentences it replaced, so both are tested together here.
+// ============================================================================
+
+TEST(UIActionBarTest, RowsCarryTheirOwnIconAndTooltip) {
+    const auto rep = Phyxel::UI::MenuDefinition::buildWidget(nlohmann::json::parse(R"({
+        "type":"repeater","id":"action_list","bind":"actionbar","horizontal":true,"size":[900,52],
+        "item":{"type":"button","id":"slot","bind":"item.label","iconBind":"item.icon",
+                "tooltipBind":"item.tooltip","actionBind":"actionbar.use","size":[52,52]}})"));
+    ASSERT_NE(rep, nullptr);
+    Phyxel::UI::HudDataContext ctx;
+    ctx.setList("actionbar", [] {
+        std::vector<Phyxel::UI::HudRecord> rows;
+        Phyxel::UI::HudRecord a;
+        a.texts["label"] = "Attack";
+        a.texts["icon"] = "resources/ui/icons/spells/attack.png";
+        a.texts["tooltip"] = "Attack\nWeapon attack against the selected target.";
+        a.floats["enabled"] = 1.0f;
+        rows.push_back(a);
+        Phyxel::UI::HudRecord b;
+        b.texts["label"] = "Fire Bolt";
+        b.texts["icon"] = "resources/ui/icons/spells/fire_bolt.png";
+        b.texts["tooltip"] = "Fire Bolt\nCantrip - Evocation\n1d10 Fire";
+        b.floats["enabled"] = 0.0f;
+        rows.push_back(b);
+        return rows;
+    });
+    Phyxel::UI::applyHudBindings(rep.get(), ctx);
+    auto* r = static_cast<Phyxel::UI::UIRepeater*>(rep.get());
+    ASSERT_EQ(r->generated.size(), 2u);
+    auto* b0 = dynamic_cast<Phyxel::UI::UIButton*>(r->generated[0].get());
+    auto* b1 = dynamic_cast<Phyxel::UI::UIButton*>(r->generated[1].get());
+    ASSERT_NE(b0, nullptr);
+    ASSERT_NE(b1, nullptr);
+    EXPECT_EQ(b0->iconPath, "resources/ui/icons/spells/attack.png");
+    EXPECT_EQ(b1->iconPath, "resources/ui/icons/spells/fire_bolt.png");
+    EXPECT_EQ(b0->tooltip, "Attack\nWeapon attack against the selected target.");
+    EXPECT_EQ(b1->tooltip, "Fire Bolt\nCantrip - Evocation\n1d10 Fire");
+    // The label is still bound - it is what a missing PNG falls back to.
+    EXPECT_EQ(b1->text, "Fire Bolt");
+}
+
+TEST(UIActionBarTest, HoverNamesTheRowUnderThePointerIncludingDisabledOnes) {
+    const auto rep = Phyxel::UI::MenuDefinition::buildWidget(nlohmann::json::parse(R"({
+        "type":"repeater","id":"action_list","bind":"actionbar","horizontal":true,"itemSpacing":6,
+        "size":[900,52],
+        "item":{"type":"button","id":"slot","bind":"item.label","iconBind":"item.icon",
+                "tooltipBind":"item.tooltip","actionBind":"actionbar.use","size":[52,52]}})"));
+    ASSERT_NE(rep, nullptr);
+    Phyxel::UI::HudDataContext ctx;
+    ctx.setList("actionbar", [] {
+        std::vector<Phyxel::UI::HudRecord> rows;
+        Phyxel::UI::HudRecord a;
+        a.texts["label"] = "Attack"; a.texts["tooltip"] = "Attack"; a.floats["enabled"] = 1.0f;
+        rows.push_back(a);
+        Phyxel::UI::HudRecord b;   // depleted: greyed out, and the ONLY way to learn why
+        b.texts["label"] = "Fireball"; b.texts["tooltip"] = "Fireball\nNo spell slots left";
+        b.floats["enabled"] = 0.0f;
+        rows.push_back(b);
+        return rows;
+    });
+    Phyxel::UI::applyHudBindings(rep.get(), ctx);
+    Phyxel::UI::UITheme theme;
+    // drawn at (100, 600): row 0 spans x 100..152, row 1 spans 158..210
+    rep->handleHover({120.0f, 620.0f}, {100.0f, 600.0f}, theme);
+    EXPECT_EQ(Phyxel::UI::hoveredTooltip(rep.get()), "Attack");
+    rep->handleHover({180.0f, 620.0f}, {100.0f, 600.0f}, theme);
+    EXPECT_EQ(Phyxel::UI::hoveredTooltip(rep.get()), "Fireball\nNo spell slots left")
+        << "a greyed row is exactly the one you hover to find out why it is greyed";
+    rep->handleHover({155.0f, 620.0f}, {100.0f, 600.0f}, theme);
+    EXPECT_EQ(Phyxel::UI::hoveredTooltip(rep.get()), "") << "the gap between rows is not a row";
+    rep->handleHover({120.0f, 700.0f}, {100.0f, 600.0f}, theme);
+    EXPECT_EQ(Phyxel::UI::hoveredTooltip(rep.get()), "") << "below the bar";
+}
+
+TEST(UIActionBarTest, AnIconRowStillFiresItsAction) {
+    const auto rep = Phyxel::UI::MenuDefinition::buildWidget(nlohmann::json::parse(R"({
+        "type":"repeater","id":"action_list","bind":"actionbar","horizontal":true,"itemSpacing":6,
+        "size":[900,52],
+        "item":{"type":"button","id":"slot","bind":"item.label","iconBind":"item.icon",
+                "tooltipBind":"item.tooltip","actionBind":"actionbar.use","size":[52,52]}})"));
+    Phyxel::UI::HudDataContext ctx;
+    ctx.setList("actionbar", [] {
+        std::vector<Phyxel::UI::HudRecord> rows;
+        Phyxel::UI::HudRecord a;
+        a.texts["label"] = "Attack"; a.texts["action"] = "attack";
+        a.texts["icon"] = "resources/ui/icons/spells/attack.png";
+        a.texts["tooltip"] = "Attack"; a.floats["enabled"] = 1.0f;
+        rows.push_back(a);
+        return rows;
+    });
+    std::vector<std::string> fired;
+    ctx.setAction("actionbar.use", [&](const Phyxel::UI::HudRecord& r) { fired.push_back(r.texts.at("action")); });
+    Phyxel::UI::applyHudBindings(rep.get(), ctx);
+    Phyxel::UI::UITheme theme;
+    EXPECT_TRUE(rep->handleClick({120.0f, 620.0f}, {100.0f, 600.0f}, theme));
+    ASSERT_EQ(fired.size(), 1u);
+    EXPECT_EQ(fired[0], "attack");
+}
+
+TEST(UIActionBarTest, ADeeperTooltipWinsOverTheOneBehindIt) {
+    auto panel = Phyxel::UI::MenuDefinition::buildWidget(nlohmann::json::parse(R"({
+        "type":"panel","id":"bar","size":[200,60],"freeLayout":true,"tooltip":"the action bar",
+        "children":[{"type":"button","id":"slot","size":[52,52],"position":[10,4],
+                     "tooltip":"Fire Bolt"}]})"));
+    ASSERT_NE(panel, nullptr);
+    Phyxel::UI::UITheme theme;
+    panel->handleHover({130.0f, 610.0f}, {100.0f, 600.0f}, theme);   // over the row
+    EXPECT_EQ(Phyxel::UI::hoveredTooltip(panel.get()), "Fire Bolt");
+    panel->handleHover({190.0f, 650.0f}, {100.0f, 600.0f}, theme);   // bar, but no row
+    EXPECT_EQ(Phyxel::UI::hoveredTooltip(panel.get()), "the action bar");
+}
+
+// The icon set is GENERATED from resources/spells/*.json (tools/gen_spell_icons.py).
+// Adding a spell without re-running it would ship a slot with no picture, which no test
+// of the widget layer can catch - this is the guard that the art tracks the data.
+#include "core/SpellDefinition.h"
+#include <filesystem>
+TEST(UIActionBarTest, EverySpellTheEngineLoadsHasAnIcon) {
+    auto& reg = Phyxel::Core::SpellRegistry::instance();
+    reg.loadFromDirectory("resources/spells");
+    ASSERT_GT(reg.count(), 0u) << "run from the repo root; resources/spells must be readable";
+    std::vector<std::string> missing;
+    for (const auto* sp : reg.getAllSpells()) {
+        if (!std::filesystem::exists("resources/ui/icons/spells/" + sp->id + ".png"))
+            missing.push_back(sp->id);
+    }
+    for (const char* extra : {"attack", "end_turn"}) {
+        if (!std::filesystem::exists(std::string("resources/ui/icons/spells/") + extra + ".png"))
+            missing.push_back(extra);
+    }
+    EXPECT_TRUE(missing.empty())
+        << missing.size() << " action-bar rows have no icon (first: " << missing.front()
+        << ") - run: python tools/gen_spell_icons.py";
+}

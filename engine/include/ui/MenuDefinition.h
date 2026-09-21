@@ -64,6 +64,10 @@ public:
 
 private:
     static Anchor parseAnchor(const std::string& str);
+    /// Per-type construction. buildWidget wraps it to apply the fields every widget
+    /// shares regardless of type (G-148: the tooltip), instead of repeating them in
+    /// each of the twelve type branches.
+    static std::unique_ptr<UIWidget> buildWidgetTyped(const nlohmann::json& j);
 };
 
 class HudDataContext;  // forward decl

@@ -35,6 +35,12 @@ static bool hitTest(glm::vec2 mouse, glm::vec2 pos, glm::vec2 sz) {
            mouse.y >= pos.y && mouse.y < pos.y + sz.y;
 }
 
+// Default hover: a plain box test, so any widget can be a tooltip target (G-148). The
+// types that want more (buttons lighten, sliders track a drag) override this.
+void UIWidget::handleHover(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& /*theme*/) {
+    hovered = visible && hitTest(mousePos, widgetPos, size);
+}
+
 // Compute Y offset where children start inside a panel (matches render layout)
 static float panelContentStartY(const std::string& title, const BitmapFont* font, const UITheme& theme) {
     float y = theme.padding;
@@ -259,6 +265,9 @@ bool UIPanel::handleDrag(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme&
 
 void UIPanel::handleHover(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) {
     if (!visible) return;
+    // The panel itself is a hover target too (G-148), so a tooltip may sit on a container
+    // and act as the fallback when the pointer is over the box but not over a child.
+    hovered = hitTest(mousePos, widgetPos, size);
 
     const glm::vec2 scrollVec = scrollable ? glm::vec2(0.0f, scrollOffset) : glm::vec2(0.0f);
 
@@ -363,10 +372,26 @@ float UIPanel::measureHeight(const BitmapFont* font, const UITheme& theme, float
     return (maxSize.y > 0.0f) ? std::min(h, maxSize.y) : h;
 }
 
+float UIPanel::measureContentWidth(const BitmapFont* font, const UITheme& theme) const {
+    float w = 0.0f;
+    for (const auto& child : children) {
+        if (!child->visible) continue;
+        const float cw = child->measureWidth(font, theme)
+                       + (freeLayout ? child->position.x : 0.0f);
+        w = std::max(w, cw);
+    }
+    return w + theme.padding * 2.0f;
+}
+
 void UIPanel::applyAutoSize(const BitmapFont* font, const UITheme& theme) {
     // Nested auto panels first (their heights feed this panel's content height).
     for (auto& child : children)
         if (auto* p = dynamic_cast<UIPanel*>(child.get())) p->applyAutoSize(font, theme);
+    // Width BEFORE height: the inner width is what the height measurement wraps against.
+    if (autoWidth) {
+        const float w = measureContentWidth(font, theme);
+        size.x = (maxSize.x > 0.0f) ? std::min(w, maxSize.x) : w;
+    }
     if (!autoHeight) return;
     const float h = measureContentHeight(font, theme);
     if (maxSize.y > 0.0f && h > maxSize.y) { size.y = maxSize.y; scrollable = true; }
@@ -433,6 +458,26 @@ void UIButton::render(UIRenderer* renderer, const BitmapFont* font,
     if (fitText) size.x = std::max(size.x, textW + 2.0f * theme.padding);
     renderer->drawRect(pos, size, bg);
 
+    // ICON (G-148): a button showing a PNG draws the image instead of its label — the
+    // label survives as tooltip text. Square, centred, and letterboxed into the box so a
+    // non-square slot never stretches the art.
+    if (!iconPath.empty()) {
+        if (loadedIcon == -1) {
+            const int idx = renderer->loadTexture(iconPath);
+            loadedIcon = (idx >= 0) ? idx : -2;
+        }
+        if (loadedIcon >= 0) {
+            const float side = std::max(1.0f, std::min(size.x, size.y) - 2.0f * iconPadding);
+            const glm::vec2 ip{pos.x + (size.x - side) * 0.5f, pos.y + (size.y - side) * 0.5f};
+            // Greyed rows dim rather than vanish, so you can still see WHAT is unavailable.
+            const float b = enabled ? 1.0f : 0.45f;
+            renderer->drawImage(ip, {side, side}, loadedIcon, {b, b, b, 1.0f});
+            return;
+        }
+        // Load failed: fall through and draw the label, so a missing PNG is a visible
+        // word rather than an empty square you cannot identify.
+    }
+
     float textH = font->lineHeight(theme.textScale);
     glm::vec2 textPos = {
         pos.x + (size.x - textW) * 0.5f,
@@ -453,7 +498,10 @@ bool UIButton::handleClick(glm::vec2 mousePos, glm::vec2 widgetPos, const UIThem
 }
 
 void UIButton::handleHover(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& /*theme*/) {
-    hovered = visible && enabled && hitTest(mousePos, widgetPos, size);
+    // NOT gated on `enabled` (G-148): a greyed-out row is exactly the one you point at to
+    // find out WHY it is greyed, and the tooltip reads this flag. The disabled look is
+    // unaffected — render() forces the disabled background after the hover colour.
+    hovered = visible && hitTest(mousePos, widgetPos, size);
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -804,6 +852,17 @@ void UIRepeater::render(UIRenderer* renderer, const BitmapFont* font,
     if (horizontal) size.x = adv; else size.y = adv;  // report extent for parent layout
 }
 
+float UIRepeater::measureWidth(const BitmapFont* font, const UITheme& theme) const {
+    if (!horizontal) return size.x;
+    // Same walk render() does, so the box a parent sizes to is the box the rows occupy.
+    float adv = 0.0f;
+    for (const auto& child : generated) {
+        if (!child || !child->visible) continue;
+        adv += child->measureWidth(font, theme) + itemSpacing;
+    }
+    return adv > 0.0f ? adv : size.x;
+}
+
 bool UIRepeater::handleClick(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) {
     if (!visible || !enabled) return false;
     float adv = 0.0f;
@@ -819,6 +878,7 @@ bool UIRepeater::handleClick(glm::vec2 mousePos, glm::vec2 widgetPos, const UITh
 
 void UIRepeater::handleHover(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) {
     if (!visible) return;
+    hovered = hitTest(mousePos, widgetPos, size);   // G-148: see UIPanel::handleHover
     float adv = 0.0f;
     for (auto& child : generated) {
         if (!child || !child->visible) continue;
@@ -827,6 +887,30 @@ void UIRepeater::handleHover(glm::vec2 mousePos, glm::vec2 widgetPos, const UITh
         child->handleHover(mousePos, cp, theme);
         adv += (horizontal ? child->size.x : child->size.y) + itemSpacing;
     }
+}
+
+// ════════════════════════════════════════════════════════════════
+// Tooltip lookup (G-148)
+// ════════════════════════════════════════════════════════════════
+
+const UIWidget* hoveredTooltipWidget(const UIWidget* root) {
+    if (!root || !root->visible) return nullptr;
+
+    // Children first, so the deepest hovered widget wins: a tooltip on an action-bar row
+    // must beat one on the bar behind it.
+    if (root->type() == WidgetType::Panel) {
+        for (const auto& c : static_cast<const UIPanel*>(root)->children)
+            if (const UIWidget* hit = hoveredTooltipWidget(c.get())) return hit;
+    } else if (root->type() == WidgetType::Repeater) {
+        for (const auto& c : static_cast<const UIRepeater*>(root)->generated)
+            if (const UIWidget* hit = hoveredTooltipWidget(c.get())) return hit;
+    }
+    return (root->hovered && !root->tooltip.empty()) ? root : nullptr;
+}
+
+std::string hoveredTooltip(const UIWidget* root) {
+    const UIWidget* w = hoveredTooltipWidget(root);
+    return w ? w->tooltip : std::string();
 }
 
 } // namespace UI

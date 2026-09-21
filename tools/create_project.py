@@ -753,8 +753,27 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     const bool myTurn = playerTurn_.isPlayerTurnActive();
                     const bool actionLeft = myTurn && playerTurn_.budget() && playerTurn_.budget()->action;
                     const bool outOfCombat = !combatDirector_.inCombat();   // G-137: spells only, armable
+                    // G-148: the bar is a row of ICONS now, so each row carries its picture
+                    // AND the words that used to be printed on it - hovering is the only way
+                    // left to read what a slot does and why it is greyed out.
+                    auto wrapInto = [](const std::string& text, size_t cols, std::string& out) {
+                        size_t lineLen = 0;
+                        for (size_t i = 0; i < text.size(); ) {
+                            size_t j = text.find(' ', i);
+                            if (j == std::string::npos) j = text.size();
+                            const size_t wlen = j - i;
+                            if (lineLen > 0 && lineLen + 1 + wlen > cols) { out += "\\n"; lineLen = 0; }
+                            else if (lineLen > 0) { out += " "; lineLen += 1; }
+                            out.append(text, i, wlen);
+                            lineLen += wlen;
+                            i = j + 1;
+                        }
+                    };
                     if (!outOfCombat) {
                         Phyxel::UI::HudRecord r; r.texts["label"] = "Attack"; r.texts["action"] = "attack";
+                        r.texts["icon"] = "resources/ui/icons/spells/attack.png";
+                        r.texts["tooltip"] = std::string("Attack\\nWeapon attack against the selected target.")
+                                           + (actionLeft ? "" : "\\nUnavailable: no action left this turn");
                         r.floats["enabled"] = actionLeft ? 1.0f : 0.0f; r.floats["armed"] = 0.0f; rows.push_back(r);
                     }
                     for (const auto& sid : playerSpells_) {
@@ -769,11 +788,40 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                             label += " (" + std::to_string(left) + ")";
                         }
                         Phyxel::UI::HudRecord r; r.texts["label"] = label; r.texts["action"] = "spell:" + sid;
-                        r.floats["enabled"] = ((outOfCombat || actionLeft) && !depleted) ? 1.0f : 0.0f;
+                        // Icons are generated from resources/spells/*.json by
+                        // tools/gen_spell_icons.py; a spell with no PNG falls back to drawing
+                        // its label rather than an empty square.
+                        r.texts["icon"] = "resources/ui/icons/spells/" + sid + ".png";
+                        std::string tip = label;
+                        if (sd) {
+                            tip += "\\n";
+                            tip += sd->isCantrip() ? std::string("Cantrip")
+                                                   : ("Level " + std::to_string(sd->level));
+                            tip += std::string(" - ") + Phyxel::Core::spellSchoolName(sd->school);
+                            if (sd->isSelf)               tip += " - Self";
+                            else if (sd->isTouch)         tip += " - Touch";
+                            else if (sd->rangeInFeet > 0) tip += " - " + std::to_string(sd->rangeInFeet) + " ft";
+                            if (sd->hasDamage())
+                                tip += "\\n" + sd->baseDamage.toString() + " "
+                                     + Phyxel::Core::damageTypeToString(sd->damageType);
+                            if (sd->hasHeal()) tip += "\\nHeals " + sd->healDice.toString();
+                            if (sd->requiresConcentration) tip += "\\nConcentration";
+                            if (!sd->description.empty()) { tip += "\\n"; wrapInto(sd->description, 38, tip); }
+                        }
+                        // Only say "unavailable" when the row actually IS: out of combat a
+                        // spell can be armed (G-137) while castBlockedReason still reports
+                        // "not your turn".
+                        const bool rowEnabled = ((outOfCombat || actionLeft) && !depleted);
+                        if (!rowEnabled && !why.empty()) tip += "\\nUnavailable: " + why;
+                        r.texts["tooltip"] = tip;
+                        r.floats["enabled"] = rowEnabled ? 1.0f : 0.0f;
                         r.floats["armed"] = (armedSpell_ == sid) ? 1.0f : 0.0f; rows.push_back(r);
                     }
                     if (!outOfCombat) {
                         Phyxel::UI::HudRecord r; r.texts["label"] = "End Turn"; r.texts["action"] = "end_turn";
+                        r.texts["icon"] = "resources/ui/icons/spells/end_turn.png";
+                        r.texts["tooltip"] = std::string("End Turn\\nPass the turn to the next combatant.")
+                                           + (myTurn ? "" : "\\nUnavailable: it is not your turn");
                         r.floats["enabled"] = myTurn ? 1.0f : 0.0f; r.floats["armed"] = 0.0f; rows.push_back(r);
                     }
                     return rows;
@@ -3520,6 +3568,16 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 // prompts must go too — feedback #11). (docs/HudSystem.md §11a.)
                 if (state == Phyxel::UI::ScreenState::Playing && renderCoordinator_) {{
                     if (auto* ui = renderCoordinator_->getUISystem()) {{
+                        // G-148: per-frame HOVER for HUD tooltips. handleInput is NOT called
+                        // while playing (the HUD would eat gameplay keys and clicks), so
+                        // without this nothing ever updates hover and the icon-only action
+                        // bar could never tell you what its icons are. Hover consumes
+                        // nothing. Cursor from the message-fed cache, like the click path.
+                        if (auto* hin = engine.getInputManager()) {{
+                            double hx = 0.0, hy = 0.0;
+                            hin->getCurrentMousePosition(hx, hy);
+                            ui->injectHover({{static_cast<float>(hx), static_cast<float>(hy)}});
+                        }}
                         auto* win = engine.getWindowManager();
                         float sw = win ? static_cast<float>(win->getWidth()) : 1280.0f;
                         float sh = win ? static_cast<float>(win->getHeight()) : 720.0f;

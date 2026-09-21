@@ -505,6 +505,7 @@
       68
     ],
     "showBackground": true,
+    "autoWidth": true,
     "autoSize": true,
     "visibleWhen": "actionbar.visible",
     "children": [
@@ -516,17 +517,19 @@
         "itemSpacing": 6,
         "size": [
           980,
-          44
+          52
         ],
         "item": {
           "type": "button",
           "id": "slot",
           "bind": "item.label",
+          "iconBind": "item.icon",
+          "tooltipBind": "item.tooltip",
           "actionBind": "actionbar.use",
-          "fitText": true,
+          "iconPadding": 4,
           "size": [
-            150,
-            44
+            52,
+            52
           ]
         }
       }

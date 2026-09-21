@@ -837,6 +837,27 @@ void GameApiService::registerCommands() {
         r = {{"success", true}, {"consumed", consumed}, {"x", x}, {"y", y}};
     });
 
+    // G-148: move the pointer without clicking and read back the tooltip that appears.
+    // An automated run has no physical mouse, so without this the hover text is
+    // unverifiable except by a human squinting at a screenshot.
+    reg.on("ui_hover", [this](const APICommand& cmd, json& r) {
+        auto* ui = renderCoordinator ? renderCoordinator->getUISystem() : nullptr;
+        if (!ui) { r = {{"error", "UISystem not available"}}; return; }
+        // No coordinates = READ the live hover state instead of injecting one. That is how
+        // a harness checks what the REAL cursor is pointing at, which is the only way to
+        // show the engine drew the tooltip rather than the harness supplying it.
+        if (!cmd.params.contains("x")) {
+            const std::string& live = ui->hoverTooltip();
+            r = {{"success", true}, {"source", "live"},
+                 {"tooltip", live}, {"has_tooltip", !live.empty()}};
+            return;
+        }
+        float x = cmd.params.value("x", 0.0f), y = cmd.params.value("y", 0.0f);
+        std::string tip = ui->injectHover(glm::vec2(x, y));
+        r = {{"success", true}, {"x", x}, {"y", y}, {"source", "injected"},
+             {"tooltip", tip}, {"has_tooltip", !tip.empty()}};
+    });
+
     reg.on("navgrid_cell", [this](const APICommand& cmd, json& r) {
         if (!npcManager) { r = {{"error", "NPCManager not available"}}; return; }
         // Lazily build the NavGrid on first use (the world is loaded by now, and

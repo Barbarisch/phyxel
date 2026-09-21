@@ -1,6 +1,7 @@
 #include "ui/UISystem.h"
 #include "ui/UILayoutLint.h"
 #include <algorithm>
+#include <vector>
 #include "input/InputManager.h"
 #include "utils/Logger.h"
 #include <GLFW/glfw3.h>
@@ -127,7 +128,9 @@ static void collectTextInputs(UIWidget* w, std::vector<UITextInput*>& out) {
 }
 
 bool UISystem::handleInput(Input::InputManager* input) {
-    if (!initialized_ || !hasVisibleScreens()) return false;
+    // G-148: with nothing on screen there is nothing to point at, so a tooltip left over
+    // from the frame the HUD was up must not keep drawing.
+    if (!initialized_ || !hasVisibleScreens()) { hoverTooltip_.clear(); return false; }
 
     // ── Key capture (rebind) ─────────────────────────────────────────────────
     // Takes priority over and consumes all other input. Arms only after a
@@ -163,6 +166,8 @@ bool UISystem::handleInput(Input::InputManager* input) {
     double mx, my;
     input->getCurrentMousePosition(mx, my);
     glm::vec2 mousePos = toLogical({static_cast<float>(mx), static_cast<float>(my)});
+    lastMousePos_ = mousePos;        // G-148: where a tooltip would be drawn
+    hoverTooltip_.clear();
 
     bool mousePressed = input->isMouseButtonPressed(GLFW_MOUSE_BUTTON_LEFT);
     bool mouseJustClicked = mousePressed && !wasMousePressed_;
@@ -191,6 +196,9 @@ bool UISystem::handleInput(Input::InputManager* input) {
 
         // Hover always updates
         panel->handleHover(mousePos, panelPos, theme_);
+        // G-148: the LAST visible screen with a hit wins, matching the draw order - the
+        // screen drawn on top is the one the pointer is really over.
+        if (std::string t = hoveredTooltip(panel); !t.empty()) hoverTooltip_ = std::move(t);
 
         if (mouseJustClicked) {
             if (panel->handleClick(mousePos, panelPos, theme_)) {
@@ -264,6 +272,24 @@ bool UISystem::injectClick(glm::vec2 pos) {
     }
 
     return consumed;
+}
+
+std::string UISystem::injectHover(glm::vec2 pos) {
+    if (!initialized_) return {};
+    pos = toLogical(pos);   // window px -> the logical canvas
+    lastMousePos_ = pos;
+    hoverTooltip_.clear();
+
+    glm::vec2 screenSize(static_cast<float>(screenWidth_), static_cast<float>(screenHeight_));
+    for (auto* entry : visibleScreenSnapshot()) {
+        auto* panel = entry->panel.get();
+        panel->applyAutoSize(&font_, theme_);   // layout pass: content decides the height
+        glm::vec2 panelPos = resolveAnchor(panel->anchor, {0, 0}, screenSize,
+                                            panel->size, panel->offset);
+        panel->handleHover(pos, panelPos, theme_);
+        if (std::string t = hoveredTooltip(panel); !t.empty()) hoverTooltip_ = std::move(t);
+    }
+    return hoverTooltip_;
 }
 
 bool UISystem::handleScroll(glm::vec2 pos, float delta) {
@@ -440,6 +466,41 @@ void UISystem::render(VkCommandBuffer cmd) {
         // obvious visual marker, something like a bright animated circle on the ground".)
     }
     nameplates_.clear();
+
+    // TOOLTIP (G-148), drawn last of all so it sits over every screen, every plate and
+    // the panel it belongs to - a tooltip clipped by its own action bar is useless.
+    // It hangs ABOVE and slightly right of the pointer and is pushed back inside the
+    // canvas at the edges, so the rightmost action-bar slot still reads its own text.
+    if (!hoverTooltip_.empty()) {
+        const float sc    = theme_.textScale;
+        const float tipLineH = font_.lineHeight(sc);
+        const float tipPadX = 8.0f, tipPadY = 6.0f;
+        std::vector<std::string> lines;
+        for (size_t i = 0, j; i <= hoverTooltip_.size(); i = j + 1) {
+            j = hoverTooltip_.find(char(10), i);
+            if (j == std::string::npos) j = hoverTooltip_.size();
+            lines.push_back(hoverTooltip_.substr(i, j - i));
+            if (j == hoverTooltip_.size()) break;
+        }
+        float textW = 0.0f;
+        for (const auto& l : lines) textW = std::max(textW, font_.measureText(l, sc));
+        const glm::vec2 box{textW + tipPadX * 2.0f,
+                            tipLineH * static_cast<float>(lines.size()) + tipPadY * 2.0f};
+        glm::vec2 at{lastMousePos_.x + 14.0f, lastMousePos_.y - box.y - 10.0f};
+        at.x = std::min(at.x, screenSize.x - box.x - 4.0f);
+        at.x = std::max(at.x, 4.0f);
+        if (at.y < 4.0f) at.y = lastMousePos_.y + 20.0f;   // no room above: go below
+        renderer_.drawRect(at - glm::vec2(1.0f), box + glm::vec2(2.0f), {0.62f, 0.56f, 0.40f, 0.95f});
+        renderer_.drawRect(at, box, {0.05f, 0.05f, 0.07f, 0.96f});
+        for (size_t i = 0; i < lines.size(); ++i) {
+            // The first line is the name, the rest are detail - dimmer, so the eye lands
+            // on the name first.
+            const glm::vec4 col = (i == 0) ? glm::vec4(1.0f, 0.93f, 0.76f, 1.0f)
+                                           : glm::vec4(0.82f, 0.82f, 0.86f, 1.0f);
+            font_.drawText(&renderer_, lines[i],
+                           {at.x + tipPadX, at.y + tipPadY + tipLineH * static_cast<float>(i)}, col, sc);
+        }
+    }
 
     renderer_.endFrame(cmd);
 }

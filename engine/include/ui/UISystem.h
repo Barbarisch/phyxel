@@ -117,6 +117,15 @@ public:
     /// true when consumed. delta > 0 = wheel up.
     bool handleScroll(glm::vec2 pos, float delta);
 
+    /// Move the pointer to a screen position WITHOUT clicking, and return the tooltip
+    /// that is showing there ("" = none). This is the hover path a harness has, since an
+    /// automated run has no physical mouse (Ravenmere G-148/G-149).
+    std::string injectHover(glm::vec2 pos);
+
+    /// The tooltip under the pointer as of the last input pass ("" = none). Set by
+    /// handleInput/injectHover, drawn by render().
+    const std::string& hoverTooltip() const { return hoverTooltip_; }
+
     // ── Key capture (keybinding rebind) ──────────────────────────
     // One-shot "press a key" capture for the settings rebind buttons. After
     // beginKeyCapture, handleInput consumes ALL input until the user presses a
@@ -216,6 +225,8 @@ private:
     bool initialized_ = false;
 
     // Input state
+    glm::vec2 lastMousePos_{0.0f, 0.0f};   // logical canvas px, where the tooltip anchors
+    std::string hoverTooltip_;             // G-148: text under the pointer this frame
     bool wasMousePressed_ = false;
     bool prevBackspace_ = false;  // edge-tracking for the focused text field
     bool prevEnter_ = false;

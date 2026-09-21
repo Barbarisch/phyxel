@@ -163,7 +163,8 @@ of named providers the host wires once; widgets reference them by binding key.
 **New HUD widget types** (added to the `UISystem` widget set):
 
 - `ProgressBar` — value/min/max + fill/track colors (health, resource bars).
-- `Icon` — atlas/PNG sprite (status icons, slot contents, dice faces).
+- `Icon` — atlas/PNG sprite (status icons, slot contents, dice faces). The `UIImage`
+  widget, and since G-148 a `button` can draw one in place of its label (`icon` / `iconBind`).
 - `Repeater` — templated children bound to a `list` provider (turn order, hotbar, objectives).
 - `StatReadout` — label + bound value (round counter, action budget).
 
@@ -190,6 +191,31 @@ game gets the full HUD **with zero authoring**. A game's own `"hud"` (object or 
 Verified live: DebrisPushTest with no `hud` block shows HP + hotbar (combat/objectives panels
 hidden until relevant). Follow-up: per-module merge/override (vs all-or-nothing), and bundling
 `resources/ui/` + the font into packaged games.
+
+**Icon buttons + hover TOOLTIPS - DONE (2026-09-21, Ravenmere G-148).** A `button` may carry
+an `"icon"` (fixed PNG path) or `"iconBind"` (a repeater row's `item.<field>`); with an icon it
+draws the picture, letterboxed and centred in its box, instead of its label, and a disabled row
+dims rather than disappears. A PNG that fails to load falls back to drawing the label, so a
+missing file reads as a word and not as a blank square.
+
+Any widget may carry `"tooltip"` / `"tooltipBind"`. `UIWidget::handleHover` now has a default
+box-test implementation, so every widget type is a tooltip target - not only the ones that wanted
+a hover highlight - and `UIButton` no longer requires `enabled` to register hover (a greyed row is
+exactly the one you point at to learn why it is greyed; the disabled LOOK is unchanged, since
+render applies it after the hover colour). `UISystem` resolves the deepest hovered widget with a
+tooltip after each input pass (`hoveredTooltip`) and draws it LAST in `render()`, at the pointer
+and clamped inside the canvas - after every screen and nameplate, so a tooltip is never clipped by
+the panel it belongs to. A `
+` starts a new line; the first line draws brighter.
+
+Harness hook: `POST /api/ui/hover {x,y}` (editor) and the `ui_hover` command (shipped `--test`
+host) move the pointer WITHOUT clicking and return the tooltip text, so hover behaviour is
+assertable instead of read off a screenshot.
+
+First customer: `hud_action_bar` is now a row of 52 px icon slots (`iconBind: item.icon`,
+`tooltipBind: item.tooltip`), its icons generated from `resources/spells/*.json` by
+`tools/gen_spell_icons.py` and its tooltip text built by the shell from `SpellRegistry`
+(level, school, range, damage/heal, concentration, description, and why a row is unavailable).
 
 Dialogue stays in `DialogueSystem` for now (its own system); fold under the HUD later.
 
@@ -394,6 +420,8 @@ button actions, and submenu panels. Not ported from `GameMenuRenderer`:
   default (all-or-nothing); support overriding/adding individual modules.
 - [ ] **Hotbar icons**: currently `material -> resources/textures/source/<lower>_top.png`;
   do proper item icons (atlas-tile UV from the voxel atlas, or per-item icon assets).
+  The action bar's generated set (`tools/gen_spell_icons.py`, G-148) is the pattern to copy.
+- [x] **Hover tooltips** (were ImGui-only, i.e. editor-only) - DONE G-148, see section 7.
 - [ ] Editor **"Game view" toggle**: hide editor chrome (World Outliner/Properties) for a true
   play-preview. Today the HUD just composites into the viewport.
 

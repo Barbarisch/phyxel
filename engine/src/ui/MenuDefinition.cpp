@@ -28,7 +28,10 @@ Anchor MenuDefinition::parseAnchor(const std::string& str) {
     return Anchor::Center;
 }
 
-std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
+// Per-type construction. MenuDefinition::buildWidget wraps this to apply the fields every
+// widget shares whatever its type is (G-148: a tooltip is not a property of being a button),
+// which keeps them out of all twelve branches below.
+std::unique_ptr<UIWidget> MenuDefinition::buildWidgetTyped(const nlohmann::json& j) {
     std::string type = j.value("type", "");
 
     if (type == "label") {
@@ -79,6 +82,11 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         w->customBg      = parseElemColor(j, "bg");
         w->customBgHover = parseElemColor(j, "bgHover");
         w->fitText       = j.value("fitText", false);
+        // G-148: an icon button. "icon" is a fixed PNG path, "iconBind" pulls one per
+        // repeater row ("item.icon"). With an icon the label is not drawn.
+        w->iconPath      = j.value("icon", "");
+        w->iconBind      = j.value("iconBind", "");
+        w->iconPadding   = j.value("iconPadding", 4.0f);
         return w;
     }
 
@@ -245,6 +253,7 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         w->clipChildren = j.value("clip", true);
         w->scrollable = j.value("scrollable", false);
         w->autoHeight = j.value("autoSize", false);
+        w->autoWidth  = j.value("autoWidth", false);
         if (j.contains("maxSize") && j["maxSize"].is_array() && j["maxSize"].size() == 2)
             w->maxSize = {j["maxSize"][0].get<float>(), j["maxSize"][1].get<float>()};
         w->visibleWhen = j.value("visibleWhen", "");
@@ -256,10 +265,10 @@ std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
         if (j.contains("position") && j["position"].is_array() && j["position"].size() >= 2) {
             w->position = {j["position"][0].get<float>(), j["position"][1].get<float>()};
         }
-        if (j.contains("anchor")) w->anchor = parseAnchor(j["anchor"].get<std::string>());
+        if (j.contains("anchor")) w->anchor = MenuDefinition::parseAnchor(j["anchor"].get<std::string>());
         if (j.contains("children") && j["children"].is_array()) {
             for (auto& childJ : j["children"]) {
-                auto child = buildWidget(childJ);
+                auto child = MenuDefinition::buildWidget(childJ);
                 if (child) w->addChild(std::move(child));
             }
         }
@@ -281,6 +290,7 @@ std::unique_ptr<UIPanel> MenuDefinition::buildFromJson(const nlohmann::json& j) 
     panel->showBackground = j.value("showBackground", true);
     panel->freeLayout = j.value("freeLayout", false);
     panel->autoHeight = j.value("autoSize", false);
+    panel->autoWidth  = j.value("autoWidth", false);
     if (j.contains("maxSize") && j["maxSize"].is_array() && j["maxSize"].size() == 2)
         panel->maxSize = {j["maxSize"][0].get<float>(), j["maxSize"][1].get<float>()};
     panel->visibleWhen = j.value("visibleWhen", "");
@@ -290,18 +300,27 @@ std::unique_ptr<UIPanel> MenuDefinition::buildFromJson(const nlohmann::json& j) 
     if (j.contains("size") && j["size"].is_array() && j["size"].size() >= 2) {
         panel->size = {j["size"][0].get<float>(), j["size"][1].get<float>()};
     }
-    if (j.contains("anchor")) panel->anchor = parseAnchor(j["anchor"].get<std::string>());
+    if (j.contains("anchor")) panel->anchor = MenuDefinition::parseAnchor(j["anchor"].get<std::string>());
     if (j.contains("offset") && j["offset"].is_array() && j["offset"].size() >= 2) {
         panel->offset = {j["offset"][0].get<float>(), j["offset"][1].get<float>()};
     }
 
     if (j.contains("children") && j["children"].is_array()) {
         for (auto& childJ : j["children"]) {
-            auto child = buildWidget(childJ);
+            auto child = MenuDefinition::buildWidget(childJ);
             if (child) panel->addChild(std::move(child));
         }
     }
     return panel;
+}
+
+std::unique_ptr<UIWidget> MenuDefinition::buildWidget(const nlohmann::json& j) {
+    auto w = buildWidgetTyped(j);
+    if (w) {
+        w->tooltip     = j.value("tooltip", "");
+        w->tooltipBind = j.value("tooltipBind", "");
+    }
+    return w;
 }
 
 std::unique_ptr<UIPanel> MenuDefinition::buildFromJson(
@@ -493,12 +512,30 @@ static std::string itemField(const std::string& key) {
 // Apply one list record to a generated item subtree (binds keyed "item.<field>").
 static void applyRecord(UIWidget* w, const HudRecord& rec, const HudDataContext* ctx = nullptr) {
     if (!w) return;
+    // TOOLTIP (G-148): shared by every widget type, so it is resolved before the
+    // type-specific work below. "tooltipBind":"item.why" -> rec.texts["why"].
+    if (!w->tooltipBind.empty()) {
+        const std::string f = itemField(w->tooltipBind);
+        auto it = rec.texts.find(f);
+        if (it != rec.texts.end()) w->tooltip = it->second;
+    }
     if (w->type() == WidgetType::Button) {
         auto* btn = static_cast<UIButton*>(w);
         if (!w->bind.empty()) {
             const std::string f = itemField(w->bind);
             auto it = rec.texts.find(f);
             if (it != rec.texts.end()) btn->text = it->second;
+        }
+        // ICON (G-148): the row names its own PNG. Changing the path invalidates the
+        // cached texture index, exactly as UIImage does — rows are reused between frames
+        // and a stale index would show the previous row's icon.
+        if (!btn->iconBind.empty()) {
+            const std::string f = itemField(btn->iconBind);
+            auto it = rec.texts.find(f);
+            if (it != rec.texts.end() && btn->iconPath != it->second) {
+                btn->iconPath = it->second;
+                btn->loadedIcon = -1;
+            }
         }
         auto en = rec.floats.find("enabled");
         btn->enabled = (en == rec.floats.end()) || en->second > 0.5f;
@@ -725,6 +762,7 @@ static std::unique_ptr<UIWidget> buildMenuElementInner(const nlohmann::json& el,
         w->clipChildren = el.value("clip", true);
         w->scrollable = el.value("scrollable", false);
         w->autoHeight = el.value("autoSize", false);
+        w->autoWidth  = el.value("autoWidth", false);
         if (el.contains("maxSize") && el["maxSize"].is_array() && el["maxSize"].size() == 2)
             w->maxSize = {el["maxSize"][0].get<float>() * sx, el["maxSize"][1].get<float>() * sy};
         if (el.contains("children") && el["children"].is_array())

@@ -10028,6 +10028,25 @@ bool Application::dispatchItemAPICommand(const Core::APICommand& cmd, nlohmann::
         return true;
     }
 
+    // G-148: hover WITHOUT clicking, and read back the tooltip that shows. Same shape as
+    // the shipped game's ui_hover, so a harness can use one call against either host.
+    if (cmd.action == "ui_hover") {
+        auto* ui = renderCoordinator ? renderCoordinator->getUISystem() : nullptr;
+        if (!ui) { response = {{"error", "UISystem not available"}}; return true; }
+        if (!cmd.params.contains("x")) {   // no coords = read the LIVE hover, do not move
+            const std::string& live = ui->hoverTooltip();
+            response = {{"success", true}, {"source", "live"},
+                        {"tooltip", live}, {"has_tooltip", !live.empty()}};
+            return true;
+        }
+        float x = cmd.params.value("x", 0.0f);
+        float y = cmd.params.value("y", 0.0f);
+        std::string tip = ui->injectHover(glm::vec2(x, y));
+        response = {{"success", true}, {"x", x}, {"y", y}, {"source", "injected"},
+                    {"tooltip", tip}, {"has_tooltip", !tip.empty()}};
+        return true;
+    }
+
     // UI/menu test hooks: load/unload a GameMenuRenderer-schema menu layout directly
     // into the UISystem (bypasses scene transitions — for verifying menu rendering).
     if (cmd.action == "ui_load_menu") {

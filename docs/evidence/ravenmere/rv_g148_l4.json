@@ -1,0 +1,59 @@
+{
+  "ui_size": [
+    1280,
+    720
+  ],
+  "client_size": [
+    1024,
+    576
+  ],
+  "tooltips": {
+    "Sacred Flame\nCantrip - Evocation - 60 ft\n1d8 Radiant\nFlame-like radiance descends on a\ncreature you can see within range. The\ntarget gains no benefit from cover for\nthis saving throw.": [
+      558,
+      654
+    ],
+    "Guiding Bolt (2)\nLevel 1 - Evocation - 120 ft\n4d6 Radiant\nA flash of light streaks toward a\ncreature. On a hit, deals 4d6 radiant\ndamage and the next attack roll\nagainst the creature before end of\nyour next turn has advantage.": [
+      612,
+      654
+    ],
+    "Cure Wounds (2)\nLevel 1 - Evocation - Touch\nHeals 1d8\nA creature you touch regains 1d8 +\nyour spellcasting modifier HP. +1d8\nper slot level above 1st.": [
+      672,
+      654
+    ]
+  },
+  "off_bar": [
+    "",
+    ""
+  ],
+  "state_keys": [
+    "camera",
+    "entities",
+    "entity_count",
+    "player"
+  ],
+  "captured_over": {
+    "tooltip": "Guiding Bolt (2)\nLevel 1 - Evocation - 120 ft\n4d6 Radiant\nA flash of light streaks toward a\ncreature. On a hit, deals 4d6 radiant\ndamage and the next attack roll\nagainst the creature before end of\nyour next turn has advantage.",
+    "ui_xy": [
+      612,
+      654
+    ],
+    "screen_xy": [
+      650,
+      707
+    ],
+    "live": {
+      "has_tooltip": true,
+      "source": "live",
+      "success": true,
+      "tooltip": "Guiding Bolt (2)\nLevel 1 - Evocation - 120 ft\n4d6 Radiant\nA flash of light streaks toward a\ncreature. On a hit, deals 4d6 radiant\ndamage and the next attack roll\nagainst the creature before end of\nyour next turn has advantage."
+    }
+  },
+  "shot_hover": "C:\\Users\\bpete\\Documents\\GitHub\\phyxel\\docs\\evidence\\ravenmere\\rv_g148_bar_hover.png",
+  "live_off_bar": {
+    "has_tooltip": false,
+    "source": "live",
+    "success": true,
+    "tooltip": ""
+  },
+  "shot_plain": "C:\\Users\\bpete\\Documents\\GitHub\\phyxel\\docs\\evidence\\ravenmere\\rv_g148_bar_plain.png"
+}

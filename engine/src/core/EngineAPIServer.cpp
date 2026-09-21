@@ -1166,6 +1166,21 @@ void EngineAPIServer::setupRoutes() {
     // UISystem directly (test hook, bypasses scene transitions). Body: { "layout": {...} }
     // POST /api/ui/unload_menu — remove menu screens.
     // ====================================================================
+    srv.Post("/api/ui/hover", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("ui_hover", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // POST /api/ui/hover moves the pointer WITHOUT clicking and returns the tooltip shown
+    // there (G-148) - an automated run has no mouse, so hover text is otherwise
+    // unverifiable except by a human reading a screenshot.
     srv.Post("/api/ui/load_menu", [this](const httplib::Request& req, httplib::Response& res) {
         try {
             json params = json::parse(req.body);

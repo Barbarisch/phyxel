@@ -125,8 +125,10 @@ public:
     /// Handle mouse drag (for sliders).
     virtual bool handleDrag(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) { return false; }
 
-    /// Handle mouse hover (for button highlights).
-    virtual void handleHover(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) {}
+    /// Handle mouse hover (for button highlights and tooltips). The default sets
+    /// `hovered` from a plain box test, so ANY widget can carry a tooltip — not only
+    /// the types that wanted a hover highlight.
+    virtual void handleHover(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme);
 
     // Common properties
     std::string id;
@@ -142,6 +144,12 @@ public:
     virtual float measureHeight(const BitmapFont* font, const UITheme& theme, float availWidth) const {
         (void)font; (void)theme; (void)availWidth; return size.y;
     }
+    /// The width this widget needs. Default: the authored width. A horizontal repeater
+    /// sums its rows, so a panel can hug a data-driven row of items (G-148 - the action
+    /// bar's icon slots left the authored 1000 px plate almost entirely empty).
+    virtual float measureWidth(const BitmapFont* font, const UITheme& theme) const {
+        (void)font; (void)theme; return size.x;
+    }
     bool visible = true;
     bool enabled = true;
     bool hovered = false;
@@ -155,6 +163,14 @@ public:
     /// from the named float provider each frame (>0.5 → visible). Used to show a HUD
     /// element only in certain states (e.g. "combat.inCombat").
     std::string visibleWhen;
+
+    /// HOVER TEXT (Ravenmere G-148). JSON "tooltip" for a fixed string, or "tooltipBind"
+    /// for a repeater row's "item.<field>". An action bar of icons is unreadable without
+    /// it: the icon says WHICH thing, the tooltip says what it does — and why it is greyed
+    /// out. Drawn by UISystem at the pointer, after every screen, so it is never clipped
+    /// by the panel it belongs to. Newlines start a new line.
+    std::string tooltip;
+    std::string tooltipBind;
 
     // ── Appear animation (menu polish) ──────────────────────────
     // Same schema as the retired ImGui GameMenuRenderer so existing authored
@@ -211,8 +227,13 @@ public:
     /// the panel turns scrollable. The Objectives panel used to clip its own text, the
     /// Initiative list its last rows (Ravenmere manual test 2026-09-11).
     bool autoHeight = false;
+    /// AUTO-WIDTH (JSON "autoWidth": true): the panel's width becomes its measured content
+    /// width, capped by "maxSize"[0]. Applied BEFORE the height, since the inner width is
+    /// what the height measurement wraps text against.
+    bool autoWidth = false;
     glm::vec2 maxSize = {0, 0};   ///< 0 = uncapped
     float measureContentHeight(const BitmapFont* font, const UITheme& theme) const;
+    float measureContentWidth(const BitmapFont* font, const UITheme& theme) const;
     void applyAutoSize(const BitmapFont* font, const UITheme& theme);
     float measureHeight(const BitmapFont* font, const UITheme& theme, float availWidth) const override;
 
@@ -291,6 +312,17 @@ public:
     /// Grow the width so the label fits (text + 2*padding); `size.x` is the minimum.
     /// For data-driven labels (action bar rows) whose length isn't known when authored.
     bool fitText = false;
+
+    // ── ICON (Ravenmere G-148) ──────────────────────────────────
+    // A button may show a PNG instead of its label: JSON "icon" for a fixed path, or
+    // "iconBind" for a repeater row's "item.<field>". When an icon draws, the label is
+    // NOT drawn — it becomes the tooltip's business. This is why the action bar can be a
+    // row of squares rather than a row of sentences.
+    std::string iconPath;
+    std::string iconBind;
+    int  loadedIcon = -1;    ///< UIRenderer texture index (-1 untried, -2 failed)
+    /// Inset of the icon inside the button box, in px per side.
+    float iconPadding = 4.0f;
 };
 
 // ════════════════════════════════════════════════════════════════
@@ -445,12 +477,26 @@ public:
     float itemSpacing = 4.0f;
     bool  horizontal = false;       ///< Lay items left-to-right instead of top-down
     float measureHeight(const BitmapFont* font, const UITheme& theme, float availWidth) const override;
+    float measureWidth(const BitmapFont* font, const UITheme& theme) const override;
     /// Clicks/hover route to the generated items at the positions render() lays them
     /// out (G-106: without this the action bar swallowed every click).
     bool handleClick(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) override;
     void handleHover(glm::vec2 mousePos, glm::vec2 widgetPos, const UITheme& theme) override;
     std::vector<std::unique_ptr<UIWidget>> generated; ///< managed by the binding pass
 };
+
+// ════════════════════════════════════════════════════════════════
+// Tooltip lookup (Ravenmere G-148)
+// ════════════════════════════════════════════════════════════════
+// Run AFTER handleHover has walked the tree for this frame: these only read the
+// `hovered` flags that pass set, so they need no layout of their own and stay pure.
+
+/// The deepest hovered widget carrying a tooltip, or nullptr. Deepest wins, so a
+/// tooltip on a row beats one on the panel behind it.
+const UIWidget* hoveredTooltipWidget(const UIWidget* root);
+
+/// Convenience: that widget's tooltip, or "" when nothing under the pointer has one.
+std::string hoveredTooltip(const UIWidget* root);
 
 } // namespace UI
 } // namespace Phyxel
