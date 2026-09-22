@@ -1,6 +1,9 @@
 # Voxel Damage Visualization — progressive cracks (P4)
 
-**Status:** **P0 + P1 + P2 complete** on `feature/voxel-damage-cracks`. Design-check gate run **five times**
+**Status:** **P0 + P0.5 + P1 + P2 + P3 built** on `feature/voxel-damage-cracks`.
+⚠️ **P3 is NOT closed: §14's human visual review has not been taken.** Per §7 that review is a
+gate, not a courtesy — the automated evidence below shows the crack EXISTS and is measurable; it
+cannot show that it READS. Design-check gate run **five times**
 (2026-09-22), 21 items found and resolved — see §11 for the full ledger:
 - **Pass 1** → NEEDS WORK, 5 items: API readback, toughness normalization, world-position seeding,
   the geometric-spall position, stage quantization/merge cost (§3.1-3.5).
@@ -711,7 +714,7 @@ Ordered so each phase is provable before the next begins.
 | **P0.5** ✅ | **Cost the V2 sub-voxel storage options on paper** (§3.6's two questions) — per-cell vs. per-parent-cube aggregate, memory measured, no implementation | doc | a costed recommendation exists **before P3 writes the shader** — **DONE, §15. The premise it was built on turned out to be wrong**; does not gate P1/P2 |
 | **P1** ✅ | §3.2 toughness normalization + clamp comment | L2 | R1 Stone/Glass variant red→green — **DONE**, see §13 |
 | **P2** ✅ | §3.5 quantize to 3 stages (field width unchanged) | L2 | stage mapping unit-tested at boundaries 0/1/2/3; R5 still green with stage-gated dirtying — **DONE**, see §13 |
-| **P3** | §4 crack shader (`crack.glsl`, world-seeded) + R2 + R3 | L4 | R2 both parts green incl. its sampled-value guard; R3 meets the written prediction with both controls; **§14 visual review signed off** |
+| **P3** ⚠ | §4 crack shader (`crack.glsl`, world-seeded) + R2 + R3 | L4 | R2 green (18/18); R3 met its written prediction with both controls — **BUILT, see §13. Blocked on §14 sign-off** |
 | **P4** | R4 stage-count A/B in a real scene | L4 | table published; final stage count ratified or revised |
 | **P5** | Per-material `crackStyle` from `brittleS1/S2` | L4 | visual A/B Glass vs Steel vs Stone, same pose; **§14 visual review signed off** |
 | **V2** | **§3.6 sub-voxel damage** — storage design, sub/micro instance bits, subdivision inheritance | L2+L4 | memory cost measured before implementation; cracks visible on a generated building wall; §1 scope boundary retired |
@@ -1255,6 +1258,85 @@ for a caller to reproduce the rendered stage — they need the stage count too. 
 this phase added `damage_stages_max` to the response, and the test now asserts against both echoed
 numbers plus the packed bits, so an external caller can reproduce the engine's result without
 reading engine source (§3.1's stated contract).
+
+
+### P3 — the crack shader — **BUILT, awaiting §14 sign-off**
+
+`shaders/crack.glsl` (new) + `voxel.frag`, committed `.spv`, `LightingPipeline.md` receiver row and
+change log updated, `lighting_doc_check.py --update` stamped.
+
+**The model.** Voronoi edge distance (F2−F1) over a world-space lattice: ~0 exactly on a cell
+boundary and growing toward interiors, so small values trace a CONNECTED NETWORK of cell walls — a
+fracture, not a scatter of blobs. Stage WIDENS that field rather than swapping it, so a voxel
+advancing 1→2→3 shows the same cracks growing (pinned by
+`StageWidensTheSameNetworkRatherThanSwappingIt`). A second octave is admitted from stage ~0.45 so
+the top stage reads as shattering rather than as one wider line. Seeded from `worldPosAbs`, never
+`texCoord`/`sizeU`/`sizeV` (§3.3).
+
+**§4.5 realized:** the darkening moved from the whole face to CRACK PIXELS (×0.18), with a small
+whole-face wear term retained. The old flat `mix(1.0, 0.55, dmg)` is exactly why damage read as
+grime — a uniformly dimmer stone face is a dirty stone face.
+
+#### The legibility failure, and the measurement that caught it
+
+The first P3 build put the fracture lattice on the MICROCUBE grid (1/9 m) to align with V1.5's spall
+chips (§3.4). At 4 units it looked excellent. **At 16 units it measured WORSE than the flat
+darkening it replaced:**
+
+| step | P2 (flat) | P3 first build | P3 shipped |
+|---|---|---|---|
+| 0→1 | 8.90 | 4.55 | **5.69** |
+| 1→2 | 6.85 | **2.08** | **3.78** |
+| 2→3 | 6.32 | **2.02** | **3.83** |
+
+Within-stage noise floor: **2.91**. The first build's upper two steps were INSIDE the noise — a 1 m
+face carries a 9×9 network, ~5 px per cell at 16 units with crack width a fraction of that, so the
+crack was sub-pixel and only the (deliberately weakened) whole-face term remained.
+
+**This is exactly the risk §6.3 wrote down in advance** — *"the rig is optimistic about visibility"*
+— and the cell size was the thing the optimistic rig was hiding. R3 alone would have passed it.
+
+**Fix, without trading away §3.4:** the PRIMARY network moved to the subcube lattice (1/3 m, 3×3 per
+face, ~15 px/cell at 16 units), and the second octave now lands exactly on the microcube lattice
+(×3.0) — so V1.5's chips still fall where fine cracks already are. Whole-face wear 0.88 → 0.78 so
+damage stays legible once cracks do go sub-pixel. **Prediction written before the run: every step
+≥ 3.5 lum. MET** (5.69 / 3.78 / 3.83), all clear of the noise floor.
+
+**Honest reading of that table:** P3's steps are SMALLER than P2's. That is the intended trade —
+P2's larger separation came from crude whole-face dimming that read as dirt. P3 keeps every step
+above the noise floor while adding actual fracture structure. Whether that trade is right is a
+question for §14, not for a luminance table.
+
+#### R2 — seam invariant (18/18 green)
+
+`tests/core/VoxelCrackSeamTest.cpp`: partition-independence across x = 31/32, continuity across the
+seam, stage-monotonicity, and a CPU mirror of the GLSL.
+
+**The drift guard is a pinned SAMPLE TABLE, not a file hash** — §6.2 proposed a content hash and it
+was rejected in implementation: a hash reddens on a comment edit, its only repair is bumping a
+constant, and it therefore trains the exact reflex it was meant to prevent. The secondary tripwire
+instead asserts that crack.glsl still contains the specific CONSTANTS the mirror depends on
+(`kCrackCell`, the width ramp, the ×3.0 octave), which ignores comments and names what moved.
+
+Two defects the guard caught on its own first outing, both worth keeping:
+1. **A table of zeros.** The first generated table was almost entirely 0.0 — cracks are thin lines,
+   so uniform sampling lands in cell interiors and misses them. A guard made of zeros stays green
+   through almost any change to the crack. Now stratified across 0.00/0.25/0.50/0.75/0.98 at every
+   stage plus both style extremes, with a meta-assertion that ≥ 10 samples sit ON cracks.
+2. **Rounded sample coordinates.** Positions printed at `%.4f` did not reproduce: the field runs at
+   ~230 per world unit near an edge, so a 1.9e-6 position shift moved the value by 4.3e-4 and the
+   table failed against the very code that generated it. Fixed by raising generator precision to
+   `%.7f` — NOT by loosening the tolerance, which would have weakened the guard.
+
+#### Still open for P3
+
+- **§6.2's RUNTIME half** (damaged wall straddling x=31/32, captured and diffed) is NOT run. The
+  unit half cannot catch the real mistake — a shader that reads `sizeU` — and the CPU mirror is
+  near-tautological about it. Requires the two-chunk rig with the residency precondition (§6.2).
+- **§14 human review.** The rig is standing in `DamageLab`; `tools/damage_ladder_rig.py`.
+  One observation to put in front of the reviewer rather than decide for them: at 4 units the
+  Voronoi cells read as quite REGULAR and polygonal — closer to a cracked glaze than to stone
+  fissuring. That is a style question (§4.4's `crackStyle`, P5) and squarely §14's call.
 
 ---
 

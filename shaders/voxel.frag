@@ -73,6 +73,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 } ubo;
 
 #include "occupancy.glsl"
+#include "crack.glsl"      // progressive fracture field for damaged voxels (P4)
 
 #include "gi_field.glsl"    // THE ambient term: probe field (ambient cube), fallback = open sky
                              // (G-141, 2026-09-17: the per-fragment sky trace is no longer a receiver term)
@@ -280,11 +281,38 @@ void main() {
         emThreshold = mprops.w;
     }
 
-    // Per-voxel damage (flags bits 11..14, 0..15) from DamageSystem accumulation: damaged
-    // surfaces read as rougher (scuffed/worn) and slightly darker/dirtier.
+    // Per-voxel damage (flags bits 11..14) from DamageSystem accumulation. The packed value
+    // carries kDamageStagesVisible+1 distinct levels spread across the field's full range
+    // ({0,5,10,15} at 3 visible stages), so this still normalizes by 15.0 and the shader needs
+    // no knowledge of the stage count (docs/VoxelDamageVisualization.md §3.5).
     float dmg = float((flags >> 11u) & 0xFu) / 15.0;
-    rough = mix(rough, 1.0, dmg);
-    textureColor.rgb *= mix(1.0, 0.55, dmg);
+    if (dmg > 0.0) {
+        // COST GATE, not a quality tier (§4.6). Pristine is ~100% of voxels in any real scene
+        // and this branch is spatially coherent, so the crack costs only where damage exists.
+        // It bounds COST, never appearance: wherever there IS damage the detail is
+        // unconditional. This is the bladesForDistance pattern.
+        // style = 1.0 (medium, Stone-like) for P3. P5 drives this per material from
+        // brittleS1/brittleS2 so Glass reads dense-and-fine and Steel sparse-and-wide,
+        // from the SAME numbers the physics uses, so look and behaviour cannot drift apart.
+        float crack = crackField(worldPosAbs, inNormal, dmg, 1.0);
+
+        // DARKEN THE CRACK, NOT THE FACE (§4.5). The old code multiplied the entire face by
+        // mix(1.0, 0.55, dmg), which is exactly why damage read as GRIME rather than fracture:
+        // a uniformly dimmer stone face is a dirty stone face. Cracks are self-shadowing
+        // fissures, so the darkening belongs to crack pixels only...
+        textureColor.rgb *= mix(1.0, 0.18, crack);
+
+        // ...with a whole-face term for general wear, so a battered surface still reads as worn
+        // BETWEEN its cracks instead of pristine-with-lines -- and, critically, so damage stays
+        // legible once the crack itself goes sub-pixel at distance. 0.78 is a deliberate middle:
+        // the old flat 0.55 is what made damage read as grime, while 0.88 (the first P3 build)
+        // left the upper stage steps inside the measurement noise at 16 units.
+        textureColor.rgb *= mix(1.0, 0.78, dmg);
+
+        // Roughness follows the same split: broken mineral faces inside a crack scatter far
+        // more than the surface around them.
+        rough = mix(rough, 1.0, max(crack, dmg * 0.25));
+    }
 
     // Discard fully transparent fragments (cutout transparency)
     if (textureColor.a < 0.1) discard;
