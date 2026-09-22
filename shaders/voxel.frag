@@ -248,6 +248,14 @@ float calcAttenuation(float d, float radius) {
 }
 
 void main() {
+    // MEASUREMENT PROBE (G-18, debugShadowMode 11). Return a flat colour BEFORE any shading
+    // work, so the Static Geometry scope measures rasterisation + varying interpolation
+    // only. Comparing mode 11 against mode 0 separates "too many fragment invocations"
+    // (overdraw / quad overshading) from "each invocation is expensive" (the shader body).
+    // A LOWER BOUND on the non-shader cost: the driver may also drop interpolation for
+    // varyings this path never reads. Off by default; not a rendering feature.
+    if (ubo.debugShadowMode == 11) { outColor = vec4(0.5, 0.5, 0.5, 1.0); return; }
+
     // Sample albedo + normal/roughness for this face (handles the mixed-res class split).
     vec4 textureColor;
     vec3 nrmRaw;
@@ -338,6 +346,10 @@ void main() {
     // Shadow: contact-hardening PCSS from the shared model (lighting.glsl). Bias,
     // penumbra, per-pixel dither rotation and border fade all live there, so this pass
     // cannot drift from grass/foliage the way five hand-synced copies did.
+    // BISECT PROBE 12 (G-18): everything up to and including albedo/normal sampling has run.
+    // mode12 - mode11 = the texture cost (two textureGrad calls per fragment).
+    if (ubo.debugShadowMode == 12) { outColor = vec4(textureColor.rgb, 1.0); return; }
+
     float shadowFactor = 1.0;
     if (!isEmissive) {
         float ndlForBias = dot(N, normalize(-ubo.sunDirection));
@@ -375,12 +387,19 @@ void main() {
         return;
     }
 
+    // BISECT PROBE 13 (G-18): albedo + BOTH shadow cascades have run, ambient has not.
+    // mode13 - mode12 = the shadow sampling cost (phxShadowPCSS, twice inside the near range).
+    if (ubo.debugShadowMode == 13) { outColor = vec4(vec3(shadowFactor) * textureColor.rgb, 1.0); return; }
+
     // AMBIENT = the probe field (gi_field.glsl), evaluated for this fragment's shading normal.
     // Rule R2: one ambient formula, one owner. Sky access is not a separate scalar any more: the
     // only consumers that still want a 0..1 "how enclosed" gate (unshadowed moonlight, direct sun
     // where the cascades have no coverage) derive it from the ambient itself.
     vec3  ambientLight = phxAmbient(inWorldPos + ubo.cameraWorld, N, ubo.occupancyBox, ubo.giProbeGrid, ubo.ambientColor);
     float skyAcc       = phxSkyAccessOf(ambientLight, N, ubo.ambientColor);
+    // BISECT PROBE 14 (G-18): + ambient. mode14 - mode13 = the ambient probe lookup, which
+    // should agree with the independent GI on/off A/B in rv_perf3.json.
+    if (ubo.debugShadowMode == 14) { outColor = vec4(ambientLight * textureColor.rgb, 1.0); return; }
     // Each lighting term is ALSO captured on its own so the debug views below can show one
     // system at a time. Three systems light this engine and they disagree about geometry (sun =
     // rasterized shadow maps, per fragment; baked sky/block = one value per CUBE cell; forward
@@ -419,6 +438,10 @@ void main() {
     // the light source indoors / at night. Per-channel convex falloff for a natural rolloff.
     vec3 dbgBlock = vec3(0.0);   // U7 stage 2: block light no longer exists
     color += dbgBlock;
+
+    // BISECT PROBE 15 (G-18): + sun and moon, BEFORE the forward point/spot lights.
+    // mode15 - mode14 = the directional PBR cost; mode0 - mode15 = the light loops + fog.
+    if (ubo.debugShadowMode == 15) { outColor = vec4(color, 1.0); return; }
 
     // Point lights
     vec3 dbgForward = vec3(0.0);
@@ -476,6 +499,10 @@ void main() {
         }
     }
     color += dbgForward;
+    // BISECT PROBE 16 (G-18): + the point/spot light loops, which each run a
+    // phxLightVisibility occupancy march PER LIGHT PER FRAGMENT (up to 32 + 16).
+    // mode16 - mode15 is that cost; mode0 - mode16 is fog/haze/tonemap.
+    if (ubo.debugShadowMode == 16) { outColor = vec4(color, 1.0); return; }
 
     // Masked emission (docs/MaskedEmissiveSpec.md): the surface above was lit NORMALLY; now ADD glow
     // from the bright pixels of the albedo (e.g. an enchanted log's cracks) without a per-face flag.

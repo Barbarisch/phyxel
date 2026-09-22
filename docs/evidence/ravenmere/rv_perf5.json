@@ -1,0 +1,270 @@
+{
+  "near_down": {
+    "mode11": {
+      "fps": 120.95,
+      "visible_chunks": 2.0,
+      "Scene Pass": 0.872,
+      "Static Geometry": 0.037,
+      "Grass": 0.771,
+      "Shadow Pass": 1.569
+    },
+    "mode12": {
+      "fps": 120.746,
+      "visible_chunks": 2.0,
+      "Scene Pass": 0.944,
+      "Static Geometry": 0.244,
+      "Grass": 0.628,
+      "Shadow Pass": 1.572
+    },
+    "mode13": {
+      "fps": 116.614,
+      "visible_chunks": 2.0,
+      "Scene Pass": 1.321,
+      "Static Geometry": 0.798,
+      "Grass": 0.455,
+      "Shadow Pass": 1.571
+    },
+    "mode14": {
+      "fps": 31.546,
+      "visible_chunks": 2.0,
+      "Scene Pass": 24.475,
+      "Static Geometry": 24.289,
+      "Grass": 0.134,
+      "Shadow Pass": 1.57
+    },
+    "mode15": {
+      "fps": 31.045,
+      "visible_chunks": 2.0,
+      "Scene Pass": 24.596,
+      "Static Geometry": 24.355,
+      "Grass": 0.104,
+      "Shadow Pass": 1.575
+    },
+    "mode16": {
+      "fps": 4.0,
+      "visible_chunks": 2.0,
+      "Scene Pass": 261.113,
+      "Static Geometry": 260.623,
+      "Grass": 0.0,
+      "Shadow Pass": 1.582
+    },
+    "mode0": {
+      "fps": 4.0,
+      "visible_chunks": 2.0,
+      "Scene Pass": 261.148,
+      "Static Geometry": 260.658,
+      "Grass": 0.0,
+      "Shadow Pass": 1.59
+    },
+    "breakdown": {
+      "rasterise": 0.037,
+      "textureGrad x2": 0.207,
+      "shadow PCSS": 0.554,
+      "ambient probe": 23.491,
+      "sun+moon PBR": 0.066,
+      "POINT/SPOT LIGHTS": 236.268,
+      "fog/haze/tonemap": 0.035
+    }
+  },
+  "street": {
+    "mode11": {
+      "fps": 71.135,
+      "visible_chunks": 19.0,
+      "Scene Pass": 6.654,
+      "Static Geometry": 0.086,
+      "Grass": 4.672,
+      "Shadow Pass": 1.588
+    },
+    "mode12": {
+      "fps": 70.545,
+      "visible_chunks": 19.0,
+      "Scene Pass": 6.561,
+      "Static Geometry": 0.19,
+      "Grass": 4.662,
+      "Shadow Pass": 1.588
+    },
+    "mode13": {
+      "fps": 68.799,
+      "visible_chunks": 19.0,
+      "Scene Pass": 7.418,
+      "Static Geometry": 1.018,
+      "Grass": 4.663,
+      "Shadow Pass": 1.585
+    },
+    "mode14": {
+      "fps": 31.253,
+      "visible_chunks": 19.0,
+      "Scene Pass": 24.908,
+      "Static Geometry": 18.538,
+      "Grass": 4.645,
+      "Shadow Pass": 1.593
+    },
+    "mode15": {
+      "fps": 30.407,
+      "visible_chunks": 19.0,
+      "Scene Pass": 25.023,
+      "Static Geometry": 18.617,
+      "Grass": 4.658,
+      "Shadow Pass": 1.587
+    },
+    "mode16": {
+      "fps": 10.109,
+      "visible_chunks": 19.0,
+      "Scene Pass": 91.638,
+      "Static Geometry": 85.248,
+      "Grass": 4.615,
+      "Shadow Pass": 1.593
+    },
+    "mode0": {
+      "fps": 10.121,
+      "visible_chunks": 19.0,
+      "Scene Pass": 91.085,
+      "Static Geometry": 84.58,
+      "Grass": 4.648,
+      "Shadow Pass": 1.587
+    },
+    "breakdown": {
+      "rasterise": 0.086,
+      "textureGrad x2": 0.104,
+      "shadow PCSS": 0.828,
+      "ambient probe": 17.52,
+      "sun+moon PBR": 0.079,
+      "POINT/SPOT LIGHTS": 66.631,
+      "fog/haze/tonemap": -0.668
+    }
+  },
+  "far_down": {
+    "mode11": {
+      "fps": 97.789,
+      "visible_chunks": 6.0,
+      "Scene Pass": 6.915,
+      "Static Geometry": 0.057,
+      "Grass": 4.626,
+      "Shadow Pass": 1.519
+    },
+    "mode12": {
+      "fps": 96.363,
+      "visible_chunks": 6.0,
+      "Scene Pass": 7.406,
+      "Static Geometry": 0.153,
+      "Grass": 4.798,
+      "Shadow Pass": 1.527
+    },
+    "mode13": {
+      "fps": 94.469,
+      "visible_chunks": 6.0,
+      "Scene Pass": 7.373,
+      "Static Geometry": 0.507,
+      "Grass": 4.697,
+      "Shadow Pass": 1.525
+    },
+    "mode14": {
+      "fps": 96.543,
+      "visible_chunks": 6.0,
+      "Scene Pass": 7.386,
+      "Static Geometry": 0.511,
+      "Grass": 4.677,
+      "Shadow Pass": 1.534
+    },
+    "mode15": {
+      "fps": 94.044,
+      "visible_chunks": 6.0,
+      "Scene Pass": 7.489,
+      "Static Geometry": 0.555,
+      "Grass": 4.534,
+      "Shadow Pass": 1.522
+    },
+    "mode16": {
+      "fps": 23.26,
+      "visible_chunks": 6.0,
+      "Scene Pass": 39.274,
+      "Static Geometry": 32.337,
+      "Grass": 4.722,
+      "Shadow Pass": 1.521
+    },
+    "mode0": {
+      "fps": 23.757,
+      "visible_chunks": 6.0,
+      "Scene Pass": 39.089,
+      "Static Geometry": 32.388,
+      "Grass": 4.603,
+      "Shadow Pass": 1.524
+    },
+    "breakdown": {
+      "rasterise": 0.057,
+      "textureGrad x2": 0.096,
+      "shadow PCSS": 0.354,
+      "ambient probe": 0.004,
+      "sun+moon PBR": 0.044,
+      "POINT/SPOT LIGHTS": 31.782,
+      "fog/haze/tonemap": 0.051
+    }
+  },
+  "sky_up": {
+    "mode11": {
+      "fps": 115.505,
+      "visible_chunks": 2.0,
+      "Scene Pass": 1.334,
+      "Static Geometry": 0.001,
+      "Grass": 0.786,
+      "Shadow Pass": 1.574
+    },
+    "mode12": {
+      "fps": 112.181,
+      "visible_chunks": 2.0,
+      "Scene Pass": 1.331,
+      "Static Geometry": 0.0,
+      "Grass": 0.784,
+      "Shadow Pass": 1.574
+    },
+    "mode13": {
+      "fps": 118.24,
+      "visible_chunks": 2.0,
+      "Scene Pass": 1.329,
+      "Static Geometry": 0.0,
+      "Grass": 0.781,
+      "Shadow Pass": 1.572
+    },
+    "mode14": {
+      "fps": 113.088,
+      "visible_chunks": 2.0,
+      "Scene Pass": 1.328,
+      "Static Geometry": 0.0,
+      "Grass": 0.779,
+      "Shadow Pass": 1.576
+    },
+    "mode15": {
+      "fps": 115.948,
+      "visible_chunks": 2.0,
+      "Scene Pass": 1.322,
+      "Static Geometry": 0.0,
+      "Grass": 0.761,
+      "Shadow Pass": 1.575
+    },
+    "mode16": {
+      "fps": 115.506,
+      "visible_chunks": 2.0,
+      "Scene Pass": 1.333,
+      "Static Geometry": 0.003,
+      "Grass": 0.785,
+      "Shadow Pass": 1.57
+    },
+    "mode0": {
+      "fps": 115.688,
+      "visible_chunks": 2.0,
+      "Scene Pass": 1.325,
+      "Static Geometry": 0.0,
+      "Grass": 0.776,
+      "Shadow Pass": 1.573
+    },
+    "breakdown": {
+      "rasterise": 0.001,
+      "textureGrad x2": -0.001,
+      "shadow PCSS": 0.0,
+      "ambient probe": 0.0,
+      "sun+moon PBR": 0.0,
+      "POINT/SPOT LIGHTS": 0.003,
+      "fog/haze/tonemap": -0.003
+    }
+  }
+}

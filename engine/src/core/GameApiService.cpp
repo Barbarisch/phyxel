@@ -34,6 +34,8 @@
 #include "core/SceneManager.h"
 #include "core/SceneDefinition.h"
 #include "graphics/RenderCoordinator.h"
+#include "vulkan/VulkanDevice.h"
+#include <algorithm>
 #include "utils/GpuProfiler.h"   // G-18: per-pass GPU timings in the shipped build
 #include "graphics/Camera.h"
 #include "input/InputManager.h"
@@ -871,6 +873,17 @@ void GameApiService::registerCommands() {
     // off to avoid the query overhead) - and nothing in the engine or the editor ever
     // turned them on, so the overdraw counter has reported nothing since the gate landed.
     // Toggled separately from the timing read so a timing run is never perturbed by it.
+    // G-18 MEASUREMENT: the fragment-cost probe. Mode 11 makes voxel.frag return a flat
+    // colour before any shading, so Static Geometry measures rasterisation only - the
+    // discriminator between overdraw and per-fragment shader cost. Mode 0 is normal.
+    reg.on("debug_shadow_mode", [this](const APICommand& cmd, json& r) {
+        auto* dev = runtime ? runtime->getVulkanDevice() : nullptr;
+        if (!dev) { r = {{"error", "VulkanDevice not available"}}; return; }
+        if (cmd.params.contains("mode"))
+            dev->setDebugShadowMode(std::clamp(cmd.params.value("mode", 0), 0, 16));
+        r = {{"success", true}, {"mode", dev->getDebugShadowMode()}};
+    });
+
     // G-18 MEASUREMENT: the ambient/GI kill switch, mirroring the editor's POST /api/debug/gi.
     // The probe field is THE ambient source since G-141, and its per-fragment lookup lives
     // inside the voxel fragment shader - i.e. inside the "Static Geometry" scope. Toggling

@@ -14860,7 +14860,7 @@ void Application::registerEffectsCommands() {
             // new mode to the previous one, so the view "works" while showing the wrong system —
             // that has already cost a debugging session once. 8 = occupancy hit, 9 = cell fill
             // class, 10 = wind field map.
-            vulkanDevice->setDebugShadowMode(std::clamp(cmd.params["mode"].get<int>(), 0, 10));
+            vulkanDevice->setDebugShadowMode(std::clamp(cmd.params["mode"].get<int>(), 0, 11));
         r = {{"success", true},
              {"distance", Graphics::RenderCoordinator::s_shadowDistance},
              {"near_enabled", Graphics::RenderCoordinator::s_nearShadowEnabled},
