@@ -2,6 +2,7 @@
 #include "graphics/ChunkArenaSystem.h"  // Phase 4.3 arena mode (docs/RegionArenaPlan.md)
 #include "graphics/ChunkUpdatePerf.h"   // B0 diagnostic timers (docs/ChunkUpdateHitchPlan.md)
 #include "core/Cube.h"
+#include "core/DamageStage.h"
 #include "core/Subcube.h"
 #include "core/Microcube.h"
 #include "core/ChunkVoxelStore.h"
@@ -364,15 +365,16 @@ void ChunkRenderManager::rebuildCubeFaces(
         if (p.x < 0 || p.x >= N || p.y < 0 || p.y >= N || p.z < 0 || p.z >= N) continue;
         int cell = cellIdx(p.x, p.y, p.z);
         solidVis[cell] = 1;
-        // Per-voxel accumulated damage (DamageSystem) -> 0..15 for shader roughness modulation.
-        // kDamageRef = energy at which a voxel reads as fully worn (prototype constant; a proper
-        // version would normalise by the material's break toughness).
-        {
-            constexpr float kDamageRef = 30.0f;
-            float f = damage / kDamageRef;
-            f = f < 0.0f ? 0.0f : (f > 1.0f ? 1.0f : f);
-            cellDamage[cell] = static_cast<uint8_t>(f * 15.0f + 0.5f);
-        }
+        // Per-voxel accumulated damage (DamageSystem) -> stage 0..15, packed into instance
+        // bits 11-14 and read by voxel.frag. Core::damageStage is the SINGLE SOURCE OF TRUTH:
+        // DamageSystem's graze path quantizes with the same function to decide whether a hit
+        // changed anything visible and the chunk needs re-meshing (3.7). If the two disagreed
+        // the engine would either rebuild for changes no one can see, or skip a rebuild for
+        // one they can -- and a state-only test could not tell.
+        // kDamageDisplayRef is still the prototype global constant; P1 (3.2) replaces it here
+        // with responseFor(material).toughness so a stage means the same fraction of the way
+        // to breaking on every material.
+        cellDamage[cell] = Phyxel::Core::damageStage(damage, Phyxel::Core::kDamageDisplayRef);
         const std::string& mname = *mnamePtr;
         auto it = matIdByName.find(mname);
         if (it == matIdByName.end()) {

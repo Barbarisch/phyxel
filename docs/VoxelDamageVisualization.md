@@ -22,6 +22,9 @@
   (§6.2); and an existing pinned test went unnamed (§9).
 
 This document resolves all of them and is the build plan.
+**Verdict of record for every pass: §12. Running build log (updated as each phase lands): §13.**
+**§14 is the MANUAL VISUAL REVIEW gate — a human looks at it and signs off. P3 and P5 are not done
+without it, and no automated pixel diff substitutes for it.**
 **Parent:** [`DestructionSystemV2.md`](DestructionSystemV2.md) §5(F) "Damage visualization (P4)" and
 §10 Phase 5. That stub (8 lines) is superseded by this document; the roadmap entry stays.
 **Gate:** [`FeatureDesignKeys.md`](FeatureDesignKeys.md). Section 9 below records the gate answers.
@@ -703,9 +706,9 @@ Ordered so each phase is provable before the next begins.
 | **P0.5** | **Cost the V2 sub-voxel storage options on paper** (§3.6's two questions) — per-cell vs. per-parent-cube aggregate, memory measured, no implementation | doc | a costed recommendation exists **before P3 writes the shader**; does not gate P1/P2, which are independent of it |
 | **P1** | §3.2 toughness normalization + clamp comment | L2 | R1 Stone/Glass variant red→green |
 | **P2** | §3.5 quantize to 3 stages (field width unchanged) | L2 | stage mapping unit-tested at boundaries 0/1/2/3; R5 still green with stage-gated dirtying |
-| **P3** | §4 crack shader (`crack.glsl`, world-seeded) + R2 + R3 | L4 | R2 both parts green incl. the hash guard; R3 meets the written prediction with both controls |
+| **P3** | §4 crack shader (`crack.glsl`, world-seeded) + R2 + R3 | L4 | R2 both parts green incl. its sampled-value guard; R3 meets the written prediction with both controls; **§14 visual review signed off** |
 | **P4** | R4 stage-count A/B in a real scene | L4 | table published; final stage count ratified or revised |
-| **P5** | Per-material `crackStyle` from `brittleS1/S2` | L4 | visual A/B Glass vs Steel vs Stone, same pose |
+| **P5** | Per-material `crackStyle` from `brittleS1/S2` | L4 | visual A/B Glass vs Steel vs Stone, same pose; **§14 visual review signed off** |
 | **V2** | **§3.6 sub-voxel damage** — storage design, sub/micro instance bits, subdivision inheritance | L2+L4 | memory cost measured before implementation; cracks visible on a generated building wall; §1 scope boundary retired |
 | **V1.5** | §3.4 geometric spall at stage 3 | L2+L4 | **after V2** (§3.4) — needs its own order-independence test + occupancy regression pass |
 
@@ -890,3 +893,312 @@ Two things are **deliberately out of V1** and stated so they are known punts, no
 - **2026-09-22** — created. Design-check gate run against `FeatureDesignKeys.md`; verdict NEEDS WORK
   with five items; this document resolves all five (§3.1-3.5) and supersedes
   `DestructionSystemV2.md` §5(F). Nothing implemented yet.
+
+---
+
+## 12. Gate verdicts — verdict of record
+
+Each design-check run's verdict, kept verbatim so a later reader can see what was *decided*
+rather than reconstruct it from the change log. §11 records what changed; this records the call.
+
+### Pass 5 — 2026-09-22 — **NEEDS WORK, 5 items** (immediately before P0 began)
+
+> The design (§3.1–3.7) holds for a third consecutive pass. Nothing here requires a redesign, and
+> no design key is violated in a way tuning cannot fix.
+
+| # | Item | Where | Severity |
+|---|---|---|---|
+| **NEW-1** | Damage is lost on **chunk eviction**, not just reload — and no test in the plan can see it, because the rig is a non-evicting flat world | §7 punt, §6 | **Significant** |
+| **NEW-2** | §3.7 names `markChunkDirty` without choosing among three re-mesh tiers; thousands of grazed voxels on the immediate tier is a hitch risk | §3.7 | Moderate |
+| **NEW-3** | R4's 3/7/15 stage A/B has no mechanism, and needs a forced full re-mesh; if it becomes an API knob, the API rules apply | §3.5, §6.4 | Moderate |
+| **NEW-4** | R2's two-chunk rig never asserts the second chunk is resident — same trap pass 3 fixed in §6.3 | §6.2 | Moderate |
+| **NEW-5** | An existing pin (`ChunkVoxelAuthorityTest.cpp:97-101`) is unnamed; §9's "no pinned test" is imprecise. Not broken by §3.2 | §9 | Minor |
+
+**Disposition:** all five resolved in this document before any code was written — see §11
+(fifth pass). NEW-2 was found to be worse than graded during implementation: `markChunkDirty`
+also sets the **DB-dirty** flag, so it would have re-introduced a fixed save-stall regression,
+not merely mis-prioritized a rebuild.
+
+### Passes 1–4 — 2026-09-22 — **NEEDS WORK** (5 / 3 / 3 / 5 items)
+
+Verdicts and item lists are in the status block at the top and itemized in §11. Summary of the
+arc: **pass 1** hit the design proper (API readback, normalization, world-position seeding,
+spall ordering, stage quantization); **pass 2** found the two scope-level defects (sub-voxel
+coverage, graze re-mesh); **passes 3–5 found nothing wrong with the design** — every finding was
+in the validation plan, the phase order, or a mis-stated cost. That pattern is the useful
+signal: the design stabilized after pass 2, and the remaining risk was all in *how it would be
+proven*, not in *what it does*.
+
+---
+
+## 13. Build log
+
+Appended as each phase lands. Every entry states what was built, what was measured, and **which
+tests are expected to be red** — a phase is not done because a suite is green; it is done when
+the phase's gate in §7 is met, and several gates require a specific test to still be failing.
+
+### P0 — API readback + graze re-mesh — **IN PROGRESS** (branch `feature/voxel-damage-cracks`)
+
+Built:
+- **`engine/include/core/DamageStage.h` (new)** — `damageStage()` / `damageStageChanged()`, the
+  single source of truth for "what stage does this voxel display". The **denominator is a
+  parameter**, not baked in, so P1's toughness swap is a one-line change at each call site and the
+  P0-interim mismatch is visible rather than silent. The clamp carries its reason at the site:
+  a stage ≥ 16 would overflow bits 11-14 into **bit 15, the `varied` texture-rotation flag**.
+- **`DamageSystem.cpp`** — graze branch quantizes before/after `addDamage` and calls
+  **`markChunkForRemesh`** on a crossing; flush un-gated to
+  `voxelsBroken > 0 || voxelsStageChanged > 0`.
+- **`DamageSystem.h`** — `DamageResult::voxelsStageChanged`.
+- **`ChunkRenderManager.cpp`** — the mesher now calls the shared `damageStage()` instead of its own
+  inline `kDamageRef` arithmetic, so the graze path and the shader cannot drift apart.
+- **`editor/src/Application.cpp`** — `/api/world/voxel` returns `material`, `damage_tracked`,
+  `damage_energy`, `toughness`, `damage01`, `damage_stage`; `apply_damage` echoes `stage_changed`.
+- **MCP** — `query_voxel` / `apply_damage` descriptions updated to the new contract.
+
+⚠️ **Shipped behaviour corrected, not merely extended.** `/api/world/voxel`'s `exists` previously
+reported a **solid subcube wall as `false`**, because it only tested for a full `Cube`. §3.1 needs
+`damage_tracked:false` on subdivided cells, which presupposes such a cell *exists*; `exists` now
+uses `hasVoxelAt`. Nothing pinned the old value (only the MCP passthrough consumed it), but this is
+a change to a shipped endpoint and is logged as one.
+
+Tests written:
+- `tests/core/VoxelDamageStateTest.cpp` (R1a) — accumulation, quantization at boundaries, the
+  clamp, the coarser-stage-count path, and the stage-transition predicate.
+- `tests/integration/VoxelGrazeRemeshIntegrationTest.cpp` (R5 L2 half) — pure-graze stage change;
+  **`getIsDirty()` stays false** (the tier guard, so a future edit cannot silently promote the
+  graze back to the DB-persisting tier); plus two controls — a sub-stage graze that must request
+  no rebuild, and a proof the same rig *can* break the voxel, so `broken == 0` above means a real
+  pure graze rather than a blast that missed.
+- Placement follows §6.0, **with one correction to it**: §6.0 filed the stage-transition dirty
+  logic under `tests/core/`, but `ChunkManagerTestFixture` derives from `VulkanPhysicsTestFixture`,
+  so a `ChunkManager` cannot be built there at all. The pure predicate is unit-tested in
+  `tests/core/`; the wiring that consumes it is in `tests/integration/`.
+
+**Expected red at P0, by design (§7 P0 gate):**
+`VoxelDamageStateTest.NormalizationIsRelativeToMaterialToughness` — Stone and Glass at the same
+fraction of their *own* toughness must display the same stage, and under the global
+`kDamageDisplayRef = 30` they do not. **A green here during P0 would mean the test is not measuring
+normalization.** It goes green at P1 and not before.
+
+**R1a RESULT — 2026-09-22, Debug, `phyxel_tests.exe --gtest_filter='VoxelDamageStateTest.*'`:**
+**7 tests, 6 passed, 1 failed — and the failure is the designed one.**
+
+```
+[  FAILED  ] VoxelDamageStateTest.NormalizationIsRelativeToMaterialToughness
+G:\Github\phyxel\tests\core\VoxelDamageStateTest.cpp(174): error: Expected equality of these values:
+  stoneStage  Which is: '\xF' (15)
+  glassStage  Which is: '\t' (9)
+Stone and Glass at 50% of their own toughness display different stages (15 vs 9).
+```
+
+This is the P0 gate being met, not a broken build. Two things are worth keeping:
+1. **The measured saturation points match §3.2's table exactly** — the test reports Stone saturating
+   at **27.27%** of the way to breaking and Glass at **85.71%**, against the table's 27.3% / 85.7%.
+   The defect §3.2 describes is real, is this size, and is now measured rather than argued.
+2. **Stone reads 15 while Glass reads 9 at the same real fragility.** Stone is *pinned at maximum
+   damage* while still only half-broken — it has nothing left to say for the remaining 50%, which is
+   the concrete form of "the display is silent for three quarters of the range on the most common
+   structural material."
+
+The other six cover accumulation, quantization at the boundaries, the bit-15 clamp, the coarser
+stage-count path P2 will use, and both directions of the stage-transition predicate.
+
+**R5 (L2 half) RESULT — 2026-09-22, Debug,
+`phyxel_integration_tests.exe --gtest_filter='VoxelGrazeRemeshIntegrationTest.*'`.**
+
+⚠️ **The fix was written before the test was run, so the red was demonstrated RETROACTIVELY** —
+by reverting §3.7's graze block and flush gate to their pre-P0 form, rebuilding, and running. That
+is weaker than writing the test first, and is recorded as what happened rather than dressed up.
+`DamageResult::voxelsStageChanged` was left in the header during the revert, so the tests still
+compiled and failed on **behaviour**, not on a missing symbol.
+
+**RED (pre-P0 graze restored) — 3 failed, 1 passed:**
+```
+[  FAILED  ] VoxelGrazeRemeshIntegrationTest.PureGrazeReportsAStageChange
+  VoxelGrazeRemeshIntegrationTest.cpp(95): error:
+  Expected: (res.voxelsStageChanged) > (0), actual: 0 vs 0
+  a graze from pristine to stage 10 changes what is drawn and must request a re-mesh
+[  FAILED  ] VoxelGrazeRemeshIntegrationTest.GrazeDoesNotMarkTheChunkForDatabasePersistence
+[  FAILED  ] VoxelGrazeRemeshIntegrationTest.SubStageGrazeRequestsNoRebuild
+[       OK ] VoxelGrazeRemeshIntegrationTest.ControlTheSameRigCanBreakTheVoxel
+```
+**GREEN (§3.7 restored) — 4 passed**, with the engine log confirming the shapes:
+`applyDamage E=20 r=1 -> broken=0 grazed=1` (a genuine pure graze) and
+`applyDamage E=220 r=1 -> broken=1 grazed=0 debris=12` (the control).
+
+**Why this red is trustworthy: the control passed while the three graze tests failed.** Had the rig
+been broken — blast missing the voxel, chunk absent, materials unloaded — the control would have
+failed too. Its passing localizes all three failures to the graze path specifically, which is the
+whole point of §6.5 being a separate test from R1 and R3.
+
+**R1b + R5 (L4 half) RESULT — 2026-09-22, live Debug engine, project `DamageLab`.**
+
+Rig exactly as §6.3/§14.1 specify: Flat DB-only world, one chunk (0,0,0), Stone wall
+x ∈ [8,15], y ∈ [17,20], z = 8. `get_terrain_height` returned `surface_y: 16`, confirming the
+pass-3 trap is real and the wall clears it. Verified by reading voxels back, not by trusting
+`fill_region`'s response.
+
+**R1b — the JSON contract is live.** A pristine rig voxel returns:
+```json
+{"position":{"x":10,"y":18,"z":8},"exists":true,"material":"Stone",
+ "damage_tracked":true,"damage_energy":0.0,"toughness":110.0,
+ "damage01":0.0,"damage_stage":0}
+```
+`toughness` echoes materials.json's Stone break block exactly.
+
+**The damage ladder (§14.1), built with pure grazes and read back through §3.1:**
+
+| world x | energy | damage_energy | damage01 | damage_stage |
+|---|---|---|---|---|
+| 8 | — | 0.0 | 0.000 | 0 (control) |
+| 9 | 6 | 6.0 | 0.055 | 3 |
+| 10 | 12 | 12.0 | 0.109 | 6 |
+| 11 | 18 | 18.0 | 0.164 | 9 |
+| 12 | 24 | 24.0 | 0.218 | 12 |
+| 13 | 45 | 45.0 | 0.409 | **15 (max)** |
+| 14, 15 | — | 0.0 | 0.000 | 0 (control) |
+
+**§3.2's defect, now measured live rather than argued:** at x = 13 the voxel is **40.9% of the way
+to breaking and the display is already pinned at maximum**. The remaining **59% of the damage range
+renders no change at all**. That is the "silent for three quarters of the range on the most common
+structural material" claim, confirmed on a running engine.
+
+**R5 L4 — pure grazes changed pixels, with nothing breaking.** All **32/32 wall voxels were still
+present** afterwards, so no break occurred and no break-triggered `updateDirtyChunks()` could have
+re-meshed the chunk as a side effect — which is the precise confound §6.5 exists to rule out. A
+final single graze echoed the new counter:
+```json
+{"broken":0,"grazed":1,"stage_changed":1,"debris":0,"success":true}
+```
+
+**Measured per-column luminance** (`tonemap curve:0` per §14.2, 8 columns sampled across the wall,
+mean over the central half of each column):
+
+| stage | 0 | 3 | 6 | 9 | 12 | 15 | 0 | 0 |
+|---|---|---|---|---|---|---|---|---|
+| mean luminance | 88.72 | 81.15 | 79.07 | 73.43 | 70.41 | 66.14 | 86.96 | 89.50 |
+| Δ vs control | — | -7.57 | -9.64 | -15.29 | -18.30 | -22.58 | -1.76 | +0.79 |
+
+**Controls hold:** the two pristine columns on the far side read within **±1.8** of the near
+pristine control, so the ramp is damage and not a lighting or exposure gradient across the wall.
+
+### P0 visual baseline — what this establishes for P3
+
+This is the "reads as dirty" baseline the crack has to beat, and it is worth stating numerically:
+1. **It is a pure brightness ramp with no structure.** Monotonic darkening, nothing else. There is
+   no fracture, no direction, nothing that suggests *how* the voxel will fail.
+2. **The steps are very subtle.** Consecutive sampled columns are 3 stages apart and differ by only
+   **2.08–5.65** luminance out of 255 — roughly **0.7–1.9 per single stage**, under 1%. A player
+   cannot rank two adjacent stages by eye. This is strong independent support for §3.5's
+   quantization decision: at 3 visible stages each step becomes ~7.5 units instead of ~1.5, which is
+   the difference between legible and invisible. **Feed this into R4 rather than re-deriving it.**
+3. **§3.7 works.** Before P0 this ladder would have rendered as pristine stone until something else
+   dirtied the chunk; the pixels above are the fix, observed.
+
+**Human sign-off (§14):** NOT YET TAKEN. Per §14.5, P0 is a 5-minute baseline look rather than a
+review gate — there is no crack to judge. The rig is left standing in `DamageLab` for that look.
+
+### P0 regression sweep
+
+**Full unit suite: 3,967 tests, 2 failures, 3,765 s (≈63 min, Debug).** Both failures accounted for:
+
+1. `VoxelDamageStateTest.NormalizationIsRelativeToMaterialToughness` — **the intentional P0 red**
+   (§7 P0 gate). Goes green at P1.
+2. `FineFaceMerge.SubcubeMerge_CrossCubeSplitsOnLightBoundaryBetweenCubes` — **PRE-EXISTING, not
+   caused by this work. Verified empirically, not argued:** `ChunkRenderManager.cpp` was reverted to
+   its committed state, rebuilt, and the test re-run — it fails **identically**
+   (`FineFaceMergeTest.cpp:677`, `topSubFaces() 1 vs 2`, "cross-cube must split +Y at the light
+   boundary"). The P0 mesher edit was then restored. Logged here so the next person does not
+   re-bisect it; it is **not** this feature's to fix, and belongs to the subcube light-boundary
+   split path, which P4 does not touch.
+
+**Integration:** `VoxelGrazeRemeshIntegrationTest` 4/4; neighbouring destruction suites
+(`ChopKerf*`, `CoherentCollapse*`, `TreeCollapse*`) **34/34**, no regressions.
+
+**Note on suite cost:** the full Debug unit suite takes about an hour. Run targeted filters while
+iterating and reserve the full sweep for phase boundaries; an unobserved hour-long run is also very
+easy to mistake for a hang (it was, once, during P0).
+
+---
+
+## 14. Manual visual review — human sign-off
+
+**Why this exists as its own gate.** §6 measures pixels; it cannot judge them. R3 asserts "≥ 12% of
+the footprint shifted by > 8/255 luminance" — a crack, a smear and a bruise all satisfy that. The
+feature's stated purpose is that a damaged voxel **reads** as cracked and **tells you** how close it
+is to breaking, and reading is a human act. So this is a gate, not a courtesy: **P3 and P5 are not
+done until it is signed off**, and a green R3 does not substitute for it.
+
+It also runs the other way. The design-keys gate asks whether a feature "matches the voxel
+aesthetic" — that question has no automated test anywhere in this plan, and cannot have one.
+
+### 14.1 The review rig — the damage ladder
+
+One command, identical every time, so a review months apart is comparable.
+
+- **World:** Flat, small, DB-only (never a streaming world — damage does not survive eviction, §7).
+- **Subject:** a full-cube **Stone** wall at x ∈ [8,15], y ∈ [17,20], z = 8 — wholly inside chunk
+  (0,0,0), and **above y = 16** because a Flat world's surface is sea level and anything below it is
+  buried (the pass-3 trap, §6.3).
+- **The ladder:** each column of the wall pre-damaged to a different stage, **0 at the left**, rising
+  to max at the right, with the **pristine column left in frame as the control (C1)**. The whole
+  progression is visible in one screenshot — which is the only way to judge whether the stages are
+  *distinguishable from each other*, as opposed to merely different from pristine.
+- **Full cubes, never a generated building** (§3.6) — a structure's sub-cube walls cannot show damage
+  in V1, so a null result there would look like a broken shader.
+
+### 14.2 Capture protocol — BOTH looks, and this is the part that is easy to get wrong
+
+Automated tests capture with `POST /api/debug/tonemap {"curve":0}` so greys are readable. **A human
+review must not stop there.** Neutral tonemap is a measuring instrument; it is not what the game
+looks like. Shipping a crack that reads perfectly at curve 0 and vanishes under exposure ×8 + AgX
+would pass every test in §6 and be worthless.
+
+So capture each pose **twice**:
+1. **`tonemap curve:0`** — the measurement view, matching R3/R4.
+2. **Shipped tonemapping and default lighting** — the verdict view. **This one decides.**
+
+Poses, per stage-ladder shot: **4 units** (inspection), **16** (combat), **48** (mid), **96** (far) —
+the same ladder R4 measures, so the human verdict and the legibility numbers are directly comparable
+rather than two unrelated opinions. Add one **low sun** shot: cracks are self-shadowing (§4.5) and
+raking light is where that either reads or does not.
+
+### 14.3 The questions being asked
+
+Vague review produces vague results, so the reviewer is answering these, not "does it look good":
+
+1. **Cracked, or dirty?** The shipped look darkens the whole face and reads as grime. Does this read
+   as *fracture*? (This is the entire motivation, §1.)
+2. **Can you rank two voxels by eye?** Put two different stages side by side: can you tell which is
+   closer to breaking without being told? If not, the stage count is wrong — that is R4's decision,
+   and this is the human half of it.
+3. **Does it grow, or does it swap?** Advancing 1→2→3 should look like *the same cracks widening*,
+   not three unrelated patterns (§4.3).
+4. **Voxel aesthetic, or decal?** Does the fracture belong to the surface, or look stamped on it?
+   Does it flow across voxel boundaries as one surface (§3.3)?
+5. **At 48 and 96 units — legible, or speckle?** Does it resolve, or shimmer/sparkle? (The known
+   character/grass sub-pixel speckle is the failure mode to watch for.)
+6. **P5 only — does material read?** Glass dense-and-fine vs Steel sparse-and-wide vs Stone between,
+   without being told which is which.
+
+### 14.4 Recording the verdict
+
+The reviewer's call goes in §13 with the date, as one of: **SIGNED OFF** · **SIGNED OFF WITH NOTES**
+(notes become work items) · **REJECTED** (with what specifically failed). A rejection is a normal
+outcome of a visual gate and is not a defect in the build — it is the gate doing its job.
+
+### 14.5 Slate — when each review happens
+
+| Phase | Reviewable? | What is on screen |
+|---|---|---|
+| **P0** | **Barely — worth 5 minutes, not more** | No crack exists yet. The only visible change is that **a pure graze now appears at all**: before §3.7 a weak hit recorded damage and the surface did not update until something else dirtied the chunk. So the honest P0 demo is a before/after on a pure graze, showing the (crude, dirt-like) darkening appear *promptly*. That same shot doubles as evidence for **why P3 is needed** — it is the "reads as dirty" baseline. |
+| **P1** | No | Normalization changes *which* stage shows, not what a stage looks like. Covered by R1's Stone/Glass red going green. |
+| **P2** | Optional | Stage count drops 15 → 3. Nothing new to look at, but the ladder gets coarser; worth a glance alongside R4. |
+| **P3** | **YES — the main review** | The crack shader. Full §14.1–14.3 protocol. **Gate.** |
+| **P4** | Alongside R4 | The human half of the stage-count decision (question 2 and 5 above), taken at the same poses R4 measures. |
+| **P5** | **YES** | Per-material style. **Gate**, question 6. |
+| **V2 / V1.5** | YES | First time cracks appear on a building; first time the silhouette breaks. |
+
+**Consequence for scheduling:** the first review worth the reviewer's time is **P3**. P0's is a
+5-minute before/after, and is best treated as *establishing the baseline the crack has to beat*
+rather than as a review of anything new.

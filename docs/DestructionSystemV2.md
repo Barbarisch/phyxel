@@ -263,11 +263,23 @@ only on full harvest.
 ### (F) Damage visualization (P4)
 
 > **SUPERSEDED — see [`VoxelDamageVisualization.md`](VoxelDamageVisualization.md)** (2026-09-22).
-> That document is the build plan. Two design-check passes resolved seven items: API readback,
-> toughness normalization, world-position seeding, the geometric-spall position, stage
-> quantization/merge cost, **sub-voxel coverage** (V1 cannot crack a generated building — its
-> walls are sub-cube and carry no damage bits), and **graze re-mesh** (the flush is gated on
-> breaks, so a pure graze never rebuilds). The sketch below is kept for history.
+> That document is the build plan. **Five** design-check passes resolved 21 items, among them:
+> API readback, toughness normalization, world-position seeding, the geometric-spall position,
+> stage quantization/merge cost, **sub-voxel coverage** (V1 cannot crack a generated building —
+> its walls are sub-cube and carry no damage bits), and **graze re-mesh** (the flush was gated on
+> breaks, so a pure graze never rebuilt). The sketch below is kept for history.
+>
+> **Status: P0 built** on `feature/voxel-damage-cracks` — `/api/world/voxel` now returns
+> `damage_energy` / `toughness` / `damage01` / `damage_stage` / `damage_tracked`, `apply_damage`
+> echoes `stage_changed`, and the graze path re-meshes on a stage crossing via
+> **`markChunkForRemesh`** (never `markChunkDirty`, which would also flag the chunk for a
+> pointless SQLite re-save — damage has no DB field). The quantization is shared by the mesher
+> and the graze path through `engine/include/core/DamageStage.h`, so the two cannot drift.
+>
+> ⚠️ **Two scope boundaries, both declared rather than discovered:** V1 renders cracks on
+> **full cubes only** (terrain and cube fills — no generated building, no kinematic furniture, no
+> GPU debris), and **damage does not survive chunk eviction**, so cracks are lost when the player
+> streams the chunk out — not merely on reload. See that document's §1, §3.6, §4 and §7.
 
 `Cube` already stores accumulated damage. Surface a normalized `damage01 = accumulated/toughness` into
 the static voxel instance data (spare bits or a parallel per-voxel buffer) and blend a crack overlay /

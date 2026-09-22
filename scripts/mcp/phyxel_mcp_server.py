@@ -420,7 +420,19 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="query_voxel",
-            description="Check if a voxel exists at the given world coordinates.",
+            description=(
+                "Read the voxel at world (x,y,z): whether it exists, and its accumulated "
+                "destruction damage. Returns {position, exists} plus, for a full cube: "
+                "material, damage_tracked, damage_energy (apply_damage energy units), "
+                "toughness (the denominator, echoed so you can reproduce the fraction), "
+                "damage01 (damage_energy/toughness, 0-1; 1.0 = at break) and damage_stage "
+                "(the quantized value the SHADER receives). A SUBDIVIDED cell (subcubes/"
+                "microcubes -- every generated building wall) reports damage_tracked=false "
+                "with the damage fields omitted: damage accumulation is cube-only by design, "
+                "so such a cell is not pristine, it is untracked. Air reports exists=false "
+                "and omits the damage fields entirely, so 'pristine' and 'not there' are "
+                "never confused."
+            ),
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -3432,7 +3444,11 @@ async def list_tools() -> list[Tool]:
                 "center, attenuated by distance and by solid voxels in the way (shielding); "
                 "voxels past their material toughness break, and the overkill ratio decides "
                 "whether they pop off intact or shatter into subcubes/microcubes (debris spawns "
-                "as GPU particles). Returns broken/grazed/debris counts."
+                "as GPU particles). Returns broken/grazed/debris counts, plus stage_changed: "
+                "the grazed voxels whose damage crossed a VISIBLE damage-stage boundary. Assert "
+                "on stage_changed, not grazed, when you need to know the surface actually "
+                "changed -- grazed only says a hit landed. Read the resulting state back with "
+                "query_voxel."
             ),
             inputSchema={
                 "type": "object",

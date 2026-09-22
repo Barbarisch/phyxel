@@ -29,6 +29,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/MeleeAnimMapper.h"
 #include "core/RpgItem.h"
 #include "core/DamageSystem.h"
+#include "core/DamageStage.h"
 #include "utils/GpuProfiler.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "scene/AnimatedVoxelCharacter.h"
@@ -707,15 +708,66 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         return {{"count", static_cast<int>(arr.size())}, {"boxes", arr}};
     });
 
+    // Per-voxel damage, as numbers. Same argument as the baked-light query below: until now
+    // `apply_damage` returned counts of EVENTS (broken/grazed) and never the resulting STATE,
+    // so "is this voxel damaged, and how close to breaking?" could only be answered by
+    // photographing a surface and guessing (docs/VoxelDamageVisualization.md 3.1).
     apiServer->setVoxelQueryHandler([this](int x, int y, int z) -> nlohmann::json {
         nlohmann::json result;
         result["position"] = {{"x", x}, {"y", y}, {"z", z}};
-        if (chunkManager) {
-            auto* cube = chunkManager->getCubeAt(glm::ivec3(x, y, z));
-            result["exists"] = (cube != nullptr);
-        } else {
+        if (!chunkManager) {
             result["exists"] = false;
+            return result;
         }
+
+        const glm::ivec3 wp(x, y, z);
+        auto* cube = chunkManager->getCubeAt(wp);
+
+        if (!cube) {
+            // No full cube here. Either a SUBDIVIDED cell (subcubes/microcubes -- which is
+            // every generated building wall) or genuinely air. getCubeAt returns null for
+            // both, so hasVoxelAt separates them. NOTE: `exists` previously reported a solid
+            // subcube wall as false, which is wrong -- there is matter there. Corrected here;
+            // nothing pinned the old value.
+            const bool subVoxel = chunkManager->hasVoxelAt(wp);
+            result["exists"] = subVoxel;
+            if (subVoxel) {
+                // Not pristine -- damage is simply not TRACKED at this resolution, because
+                // accumulation is cube-only by design (3.6). Reporting damage01 = 0 would be
+                // a lie, and exactly the lie that lets someone demo cracks on a building, see
+                // nothing, and blame the shader. V1 scope boundary, reported not hidden.
+                result["damage_tracked"] = false;
+            }
+            // Air omits the damage fields entirely rather than reporting 0, so "pristine" and
+            // "not there" can never be confused by a caller.
+            return result;
+        }
+
+        result["exists"] = true;
+        result["damage_tracked"] = true;
+
+        const std::string& material = cube->getMaterialName();
+        result["material"] = material;   // needed to interpret the values below
+
+        // responseFor() reads only MaterialRegistry, so this probe needs no world.
+        Phyxel::DamageSystem probe(nullptr, nullptr);
+        const float toughness = probe.responseFor(material).toughness;
+        const float energy    = cube->getAccumulatedDamage();
+
+        // Units named at the field, and the DENOMINATOR echoed, so a caller can reproduce
+        // damage01 and catch a normalization change without reading engine source.
+        result["damage_energy"] = energy;            // apply_damage `energy` units
+        result["toughness"]     = toughness;         // same units; energy needed to break
+        result["damage01"]      = (toughness > 0.0f) // fraction of break toughness, [0,1]
+                                    ? std::min(1.0f, std::max(0.0f, energy / toughness))
+                                    : 0.0f;
+        // The stage the SHADER actually receives, not a re-derivation: a test asserting only
+        // on damage01 could pass while the rendered surface showed something else.
+        // DURING P0 this still quantizes against the global kDamageDisplayRef, so it and
+        // damage01 disagree for any material whose toughness is not 30. That disagreement IS
+        // the defect P1 (3.2) fixes, and VoxelDamageStateTest's Stone/Glass red measures it.
+        result["damage_stage"] = static_cast<int>(
+            Phyxel::Core::damageStage(energy, Phyxel::Core::kDamageDisplayRef));
         return result;
     });
 
@@ -14469,8 +14521,12 @@ void Application::registerEffectsCommands() {
             dmg.setFragmentManager(&coherentFragmentManager);
         }
         auto dmgResult = dmg.applyDamage(center, radius, energy, type, dir, supportY, collapse, coherent, radii);
+        // stage_changed: grazed voxels whose damage crossed a VISIBLE stage boundary. Echoed
+        // so a caller can assert a pure graze actually moved something -- `grazed` alone says
+        // only that a hit landed, never that the surface now looks different (3.7).
         r = {{"success", true}, {"broken", dmgResult.voxelsBroken},
              {"grazed", dmgResult.voxelsGrazed}, {"debris", dmgResult.debrisSpawned},
+             {"stage_changed", dmgResult.voxelsStageChanged},
              {"coherent_bodies", coherentFragmentManager.count()}};
     });
 

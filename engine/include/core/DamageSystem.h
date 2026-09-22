@@ -15,8 +15,13 @@ namespace Core { class CoherentFragmentManager; }
 // Result of one area-damage application.
 struct DamageResult {
     int voxelsBroken = 0;   // static voxels removed
-    int voxelsGrazed = 0;   // in range but under break threshold (future: accumulate damage)
+    int voxelsGrazed = 0;   // in range but under break threshold (damage accumulated)
     int debrisSpawned = 0;  // dynamic pieces queued (cubes/subcubes/microcubes)
+    // Grazed voxels whose accumulated damage crossed a VISIBLE stage boundary -- the ones
+    // whose appearance actually changed (docs/VoxelDamageVisualization.md 3.7). Echoed by
+    // apply_damage so a caller can assert a graze moved something: `voxelsGrazed` only says
+    // a hit landed, never that the surface now looks any different.
+    int voxelsStageChanged = 0;
 };
 
 // P1 destruction core (see docs/DestructionSystemV2.md). Applies a shaped energy
