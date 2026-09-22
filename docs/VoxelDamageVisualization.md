@@ -332,10 +332,15 @@ Rationale:
 - It keeps the crack model provable end-to-end on a surface that *already* carries the state, so
   red-before-green stays tight and the shader work is validated before the storage design begins.
 - It avoids designing sub-voxel damage storage speculatively while the crack model is unvalidated.
-  **Memory is the open question, and it is not small:** a cube's damage is one float on a materialized
-  overlay `Cube`, but a subcube grid is 27× the cell count and a microcube grid 729×. A naive
-  float-per-cell is not obviously affordable and needs its own design plus measurement — precisely the
-  kind of thing that should not be rushed to unblock a shader.
+  ~~**Memory is the open question, and it is not small:** a cube's damage is one float on a
+  materialized overlay `Cube`, but a subcube grid is 27× the cell count and a microcube grid 729×. A
+  naive float-per-cell is not obviously affordable and needs its own design plus measurement.~~
+  ⚠️ **This premise was WRONG and is retracted — see §15 (P0.5).** It assumed DENSE sub-voxel grids;
+  this engine stores sub-voxels **sparsely** (`std::vector<std::unique_ptr<Subcube>>`, `Chunk.h:76-77`),
+  so undisturbed terrain holds zero of them and "27× / 729×" describes a fully-subdivided chunk that
+  never occurs. Measured cost of per-cell damage: **+8 bytes on a 120-byte `Subcube` (+6.7%)**. The
+  scope boundary itself still stands — V1 ships cube-only — but it stands on *keeping one damage model*
+  and on not designing storage before the crack is validated, **not** on memory.
 - The alternative — building sub-voxel damage as a hard prerequisite — front-loads the biggest design
   risk and delays any visual proof.
   ⚠️ **Not to be confused with §7's `P0.5`**, added in pass 4, which is a *paper costing* of the two
@@ -703,7 +708,7 @@ Ordered so each phase is provable before the next begins.
 | Phase | Work | Depth | Gate to proceed |
 |---|---|---|---|
 | **P0** ✅ | §3.1 API readback (incl. `damage_tracked`) + **§3.7 graze re-mesh** + R1, R5 | L2+L4 | R1 green; R5 green; R1's Stone/Glass variant still **red** (proves it measures normalization) — **DONE**, see §13 |
-| **P0.5** | **Cost the V2 sub-voxel storage options on paper** (§3.6's two questions) — per-cell vs. per-parent-cube aggregate, memory measured, no implementation | doc | a costed recommendation exists **before P3 writes the shader**; does not gate P1/P2, which are independent of it |
+| **P0.5** ✅ | **Cost the V2 sub-voxel storage options on paper** (§3.6's two questions) — per-cell vs. per-parent-cube aggregate, memory measured, no implementation | doc | a costed recommendation exists **before P3 writes the shader** — **DONE, §15. The premise it was built on turned out to be wrong**; does not gate P1/P2 |
 | **P1** ✅ | §3.2 toughness normalization + clamp comment | L2 | R1 Stone/Glass variant red→green — **DONE**, see §13 |
 | **P2** ✅ | §3.5 quantize to 3 stages (field width unchanged) | L2 | stage mapping unit-tested at boundaries 0/1/2/3; R5 still green with stage-gated dirtying — **DONE**, see §13 |
 | **P3** | §4 crack shader (`crack.glsl`, world-seeded) + R2 + R3 | L4 | R2 both parts green incl. its sampled-value guard; R3 meets the written prediction with both controls; **§14 visual review signed off** |
@@ -1334,3 +1339,110 @@ outcome of a visual gate and is not a defect in the build — it is the gate doi
 **Consequence for scheduling:** the first review worth the reviewer's time is **P3**. P0's is a
 5-minute before/after, and is best treated as *establishing the baseline the crack has to beat*
 rather than as a review of anything new.
+
+---
+
+## 15. P0.5 — costing V2 sub-voxel damage storage (paper only)
+
+Required by §7 **before P3 writes the shader**, so the crack model is authored knowing whether it
+generalizes to sub-voxel cells or gets rewritten for them. No code. Answers §3.6's two open questions.
+
+### 15.1 The premise this plan was carrying was WRONG
+
+§3.6 argued V2's memory risk like this:
+
+> *"a subcube grid is 27× the cell count and a microcube grid 729×. A naive float-per-cell is not
+> obviously affordable and needs its own design plus measurement."*
+
+**That assumed DENSE sub-voxel grids. This engine does not have them.** Sub-voxels are stored
+sparsely, one heap object per cell that actually exists:
+
+```cpp
+std::vector<std::unique_ptr<Subcube>>   staticSubcubes;    // Chunk.h:76
+std::vector<std::unique_ptr<Microcube>> staticMicrocubes;  // Chunk.h:77
+```
+
+Only cells that were actually subdivided allocate anything. A chunk of undisturbed terrain holds
+**zero** subcubes and **zero** microcubes. So "27× / 729×" describes the *potential* cell count of a
+fully-subdivided chunk — a configuration that never occurs — not the cost of anything real.
+
+The honest cost of per-cell damage is therefore **4 bytes per sub-voxel that already exists**, and
+the question is not "can we afford a 729× grid" but "what does adding a float to a 120-byte object
+cost".
+
+### 15.2 Measured sizes
+
+Compiled against the real headers (MSVC 19.33, x64, `/std:c++17`):
+
+| type | sizeof | + `unique_ptr` slot | notes |
+|---|---|---|---|
+| `Cube` | **176 B** | +8 | already carries `accumulatedDamage` |
+| `Subcube` | **120 B** | +8 | no damage field |
+| `Microcube` | **128 B** | +8 | no damage field |
+
+Both sub-voxel types are 8-byte aligned and sized to a multiple of 8, so **adding a `float` grows
+each by 8 bytes, not 4** (4 bytes of data + 4 of padding). That is the real per-cell price:
+
+- `Subcube` 120 → 128 B = **+6.7%**
+- `Microcube` 128 → 136 B = **+6.3%**
+
+...of sub-voxel memory only, which is itself a small fraction of a chunk (≈ 1.00 MB/chunk budget,
+`docs/AgentContext.md`), and **zero** in terrain that was never subdivided.
+
+### 15.3 The two options, costed
+
+| | **A. Per-cell field** | **B. Per-parent-cube aggregate** |
+|---|---|---|
+| Storage | +8 B per existing sub-voxel | +8 B per subdivided parent cube |
+| Ratio | — | A costs 9× B for a 1-subcube-thick wall (9 of 27 cells occupied), up to 27× / 729× for fully-packed cells |
+| Fidelity | a single micro chip can crack alone | the whole subdivided cell cracks as one |
+| Merge cost | **worse** — per-cell damage splits sub-voxel merge runs the way §3.5 describes for cubes | **better** — one value per parent, so a wall face stays one run |
+| Fits V1's model? | no — V1's stage is per-cube | **yes** — identical granularity to V1 |
+| Damage accumulation | needs a per-cell `addDamage` path | reuses the existing cube-level path unchanged |
+
+**Recommendation: B, the per-parent-cube aggregate.** Not primarily on memory — A is affordable now
+that the 729× premise is gone — but because:
+
+1. **It matches what the feature actually renders.** A crack is a surface treatment on a wall face.
+   Wall faces are *built from* sub-voxels but are *read* as one surface; the player is judging "how
+   damaged is this wall", not "how damaged is this 11 cm chip".
+2. **It keeps one damage model, not two.** V1's stage is per-cube. B keeps exactly that granularity
+   and changes only *which faces can display it*, so §3.2's normalization, §3.5's quantization and
+   §3.7's re-mesh rule all carry over untouched. A forks the model in two.
+3. **Merge cost points the same way.** Per-cell damage would fragment sub-voxel merge runs, and
+   sub-voxel faces are where face counts are already highest.
+4. **A stays reachable.** B is a strict subset of A's fidelity; if V1.5's geometric spall later needs
+   per-chip state, it can be added then, informed by a shipped crack rather than speculatively.
+
+### 15.4 §3.6's second question — damage on subdivision
+
+**Inherit the parent's `damage01` into the subdivided cell; do not reset.**
+
+Under B this is nearly free: the aggregate simply keeps the value the `Cube` already held. Resetting
+would mean a damaged wall becomes *visually pristine* the instant something subdivides it — which is
+the current V1 behaviour (§3.6 notes damage is silently lost on subdivision) and is only tolerable
+in V1 because every V1 subdivision path is itself destructive.
+
+Note this also removes a V1.5 blocker recorded in §3.4: spalling replaces a cube with sub-voxels, so
+under "reset" a voxel would crack, spall once, then go pristine. Under B + inherit, it stays cracked.
+
+### 15.5 What this means for P3 — the reason P0.5 ran first
+
+**P3's crack model needs no change to generalize.** Under recommendation B, a sub-voxel face
+displays *its parent cell's* stage, which is the same 0..3 value `voxel.frag` already samples from
+instance bits 11-14. So V2 is a **plumbing** job — write `dmgBits` into the two sub-voxel instance
+paths (`ChunkRenderManager.cpp:1062-1064`, `:1222-1224`) and give the aggregate a home — not a
+redesign of the crack.
+
+Concretely, P3 may proceed on these assumptions, and they are now costed rather than hoped:
+- the crack function's inputs stay `(worldPosAbs, faceNormal, damageStage, crackStyle)`;
+- `damageStage` stays 0..`kDamageStagesVisible`, cube-granularity, on every surface;
+- §3.3's world-position seeding is what makes this work — because the field is seeded from world
+  position and **not** from cell size, a 1/3-scale face samples the same continuous fracture field as
+  a full cube, so cracks will flow across a wall built of mixed cube and sub-cube geometry without
+  any per-scale special-casing.
+
+**Still NOT decided here** (V2's own work, not P0.5's): where the aggregate physically lives — on the
+parent `Cube` (simplest, but a subdivided cell's `Cube` may not be materialized) versus a per-chunk
+side table. That is an implementation choice with no bearing on P3, which is why it is deferred
+rather than guessed.
