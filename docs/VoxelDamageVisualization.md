@@ -1,13 +1,25 @@
 # Voxel Damage Visualization — progressive cracks (P4)
 
-**Status:** planned, not built. Design-check gate run **three times** (2026-09-22), 11 items found
-and resolved — see §11 for the full ledger:
+**Status:** **P0 in progress** on `feature/voxel-damage-cracks`. Design-check gate run **five times**
+(2026-09-22), 21 items found and resolved — see §11 for the full ledger:
 - **Pass 1** → NEEDS WORK, 5 items: API readback, toughness normalization, world-position seeding,
   the geometric-spall position, stage quantization/merge cost (§3.1-3.5).
 - **Pass 2** → NEEDS WORK, 3 items: sub-voxel coverage (§3.6), graze re-mesh (§3.7), plus CPU-mirror
   drift, float non-associativity and damage-loss-on-subdivision (§6.2 / §9 / §3.6).
 - **Pass 3** → NEEDS WORK, 3 items, **all in the validation plan — the design held unchanged**: test
   placement (§6.0), a rig buried under terrain (§6.3), an overstated pipeline scope note (§4).
+- **Pass 4** → NEEDS WORK, 5 items, **the design held unchanged again**; one ordering change, one
+  correction, three validation gaps: V1's real coverage vs. phase order (§7 **P0.5**), a
+  mis-attributed materialization cost (§8.4), stage-is-per-merge-run and what it does to R2's rig
+  (§3.3 / §6.2), a file-hash guard that cannot catch divergence (§6.2), and no legibility
+  measurement at gameplay distance (§6.4). Pass 4 also **audited the citations**: 7 of 7
+  load-bearing code references checked verbatim against `main` @ `f3c85c1e` — all accurate.
+- **Pass 5** → NEEDS WORK, 5 items. **The design held a third time**; the findings are one shipped-
+  behaviour discovery and four build-spec defects: damage is lost on **chunk eviction**, not merely on
+  reload (§7 — and no test in this plan could see it); §3.7 named the **wrong re-mesh function**
+  (`markChunkDirty` persists to SQLite — a known save-stall regression); R4's stage-count A/B had **no
+  mechanism** (§6.4); R2's runtime rig spans two chunks and never asserted the second is **resident**
+  (§6.2); and an existing pinned test went unnamed (§9).
 
 This document resolves all of them and is the build plan.
 **Parent:** [`DestructionSystemV2.md`](DestructionSystemV2.md) §5(F) "Damage visualization (P4)" and
@@ -200,6 +212,14 @@ doc warns against. What the world-space field *does* give is a fracture network 
 across voxel and chunk boundaries, so a damaged wall reads as one cracked surface rather than N
 stamped decals. That is the visual win, and it comes free from doing it correctly.
 
+**Be precise about what is continuous: the FIELD, not the STAGE (pass 4).** `damageStage` is folded
+into the merge key (§3.5) and is therefore constant across a merged run and *piecewise-constant per
+voxel* across a damage gradient. So crack **width** steps at every voxel boundary where the
+neighbouring stage differs, even though the crack **geometry** flows through it unbroken. That is the
+intended read — it is how a player sees which voxel is closest to failing — but it means the surface
+is not literally "one continuous cracked plane", and §6.2's seam test must be built knowing it:
+a stage step at x = 31/32 is a legitimate discontinuity, not a UV-seeding bug.
+
 ---
 
 ### 3.4 — Position on geometric spalling (was: unstated)
@@ -313,8 +333,12 @@ Rationale:
   overlay `Cube`, but a subcube grid is 27× the cell count and a microcube grid 729×. A naive
   float-per-cell is not obviously affordable and needs its own design plus measurement — precisely the
   kind of thing that should not be rushed to unblock a shader.
-- The alternative (sub-voxel damage as a prerequisite P0.5) front-loads the biggest design risk and
-  delays any visual proof.
+- The alternative — building sub-voxel damage as a hard prerequisite — front-loads the biggest design
+  risk and delays any visual proof.
+  ⚠️ **Not to be confused with §7's `P0.5`**, added in pass 4, which is a *paper costing* of the two
+  storage options below and writes no code. That one is cheap and is scheduled early precisely
+  because P3's shader should be written knowing which way V2 will go. What is rejected here is
+  *implementing* sub-voxel storage before the crack model is validated.
 
 **What V1 must therefore do, so the boundary is honest rather than hidden:**
 - Declare it in §1 (done) and report it through the API via `damage_tracked:false` (§3.1).
@@ -357,7 +381,26 @@ test would catch it. It needs its own red — **R5, §6.5**.
 
 **Decision:**
 - In the graze branch, compute the damage stage **before and after** `addDamage`. If the stage
-  changed, `markChunkDirty` on that voxel's chunk.
+  changed, **`markChunkForRemesh`** on that voxel's chunk — *not* `markChunkDirty`.
+
+> ⚠️ **Use `markChunkForRemesh`, and nothing else (pass 5 — the first draft named the wrong one).**
+> There are three tiers (`ChunkManager.cpp:910-924`), and they are not interchangeable:
+> - **`markChunkDirty`** also sets the chunk's **DB-dirty flag**, which makes the streaming evictor
+>   re-save the chunk to SQLite (`DirtyChunkTracker.h:65-75`). Damage has **no DB field at all**, so
+>   every one of those writes would persist nothing that changed — pure waste. The header records the
+>   consequence in its own words: *"mass evictions of such chunks caused multi-hundred-ms save
+>   stalls."* A blast grazes thousands of voxels across many chunks (§8.4), so this is precisely the
+>   mass case. **Naming `markChunkDirty` here would have re-introduced a fixed regression.**
+> - **`markChunkForRemesh`** is the budgeted, mesh-only tier, explicitly for "the voxel DATA is
+>   unchanged, only the render mesh is stale." That is exactly a graze: the crack is a re-shade of
+>   existing geometry. **This is the correct tier.**
+> - **`markChunkForRemeshIdle`** is processed only when the primary queue is empty
+>   (`DirtyChunkTracker.h:79-88`), for cosmetic convergence like neighbour re-culls. **Rejected:** a
+>   crack is direct feedback on the player's own blow, so deferring it behind an arbitrary-length
+>   queue would make weak hits feel unresponsive — the exact failure §3.7 exists to fix.
+>
+> Pin it: the §6.5 unit companion asserts the graze path marks the chunk for **re-mesh** and leaves
+> `getIsDirty()` **false**, so a future edit cannot silently promote it back to the DB tier.
 - Un-gate the flush: `if (res.voxelsBroken > 0 || res.voxelsStageChanged > 0) m_cm->updateDirtyChunks();`
 - Add `voxelsStageChanged` to `DamageResult` and echo it from `apply_damage`, so a caller can assert a
   graze actually moved something — the same "echo the resulting state" rule as §3.1. This also makes
@@ -494,17 +537,40 @@ Two parts, and the weak one now has a guard so it cannot quietly become a fake c
   against a CPU mirror of the crack function (precedent: the wind-field probe is the CPU mirror).
   Assert the field over a damaged slab straddling x = 31/32 is bit-identical evaluated as one region
   vs two chunks.
-  **Drift guard (added after the gate re-run):** a hand-ported CPU mirror silently stops matching the
-  GLSL the moment the shader is edited, and the test keeps passing — a check named for a property it
-  no longer measures. So the crack field lives in its own include (`shaders/crack.glsl`, §4.7) and the
-  test asserts that file's content hash matches a recorded constant. Editing the shader fails the
-  guard and forces a deliberate re-port. Same mechanism as `shader_manifest.py` hashing.
+  **Drift guard — assert on VALUES, not on a file hash (revised, pass 4):** a hand-ported CPU mirror
+  silently stops matching the GLSL the moment the shader is edited, and the test keeps passing — a
+  check named for a property it no longer measures. The crack field therefore lives in its own
+  include (`shaders/crack.glsl`, §4.7). The fix first proposed here was to hash that file and pin the
+  digest. **Reject the hash as the primary guard:** it reddens on any edit including a comment, its
+  only repair is bumping a constant, and it therefore trains exactly the reflex it was meant to
+  prevent — bump the digest, skip the re-port. It detects *that the file changed*, never *that the
+  mirror diverged*.
+  **Instead:** pin a table of ~32 sampled field values at fixed `(worldPosAbs, faceNormal, stage)`
+  inputs spanning cell interiors, cell edges and all four stages, and assert the CPU mirror
+  reproduces them to a stated tolerance. A cosmetic shader edit leaves the table green; a real change
+  to the field reddens it *and names the input that moved*. Generating that table from the GLSL
+  offline and checking it in is better still, and is the preferred form if it is cheap.
+  **Keep the file hash as a secondary tripwire** — it says the table may need regenerating — but it
+  must never be the only guard.
   Even guarded, this half is near-tautological and **cannot catch the real mistake** — a shader that
   reads `sizeU`. That is what the runtime half is for.
 - **The one that bites (runtime).** Build a damaged wall across the x = 31/32 chunk boundary, capture
   at a fixed pose, and assert the luminance discontinuity at the seam column does not exceed
   neighbour-column variance. **Fails on a UV-seeded implementation with:**
   `crack(x=31.97)=0.82 vs crack(x=32.03)=0.11, discontinuity 0.71 > tol 0.05`.
+  ⚠️ **Rig precondition, or this test fails for the wrong reason (pass 4).** Per §3.3 the *stage* is
+  piecewise-constant per voxel, so a damage gradient across the seam produces a real and correct
+  luminance step that this assertion would read as a seam defect. **Damage both sides of x = 31/32 to
+  the same quantized `damage_stage`, and assert that through §3.1's readback before capturing.**
+  Verify the resulting *stage*, not the applied energy — two equal `apply_damage` calls can straddle
+  a quantization boundary. With equal stages on both sides, any remaining discontinuity belongs to
+  the crack field, which is exactly what is under test.
+  ⚠️ **Second precondition: BOTH chunks must be resident (pass 5).** This rig spans x = 31/32 by
+  necessity, so the gate's "keep the rig inside ONE chunk" cannot apply — which makes the silent-drop
+  trap *more* live here than anywhere else in this plan, not less. **Assert chunk (0,0,0) and chunk
+  (1,0,0) both exist before filling, and read the voxels back afterwards** (`/api/world/fill` is async
+  and returns no placed count). This is the same class of defect pass 3 found in §6.3's rig — a rig
+  that looks built, is not, and whose null result reads as a broken crack shader.
 
 ### 6.3 R3 — visual (L4 pixel diff)
 
@@ -543,17 +609,64 @@ shifts by > 8/255 luminance; the pristine control shifts < 0.5%.
 - Near camera at 1 voxel = 1 m: cracks fill many pixels here and will be sub-pixel at distance. The
   rig is **optimistic about visibility**, and there is a speckle risk at range alongside the known
   character/grass sub-pixel speckle (`docs/RenderOptimization.md:489,513`).
+  **So R3 proves the crack exists, never that it is legible in play (pass 4).** With ~11 cm fracture
+  cells on a 1 m face (§4.2) the lattice is ~9×9 per face, squarely in that speckle regime once the
+  face covers only a few dozen pixels. **R3 green is not evidence the feature reads** — that is R4's
+  job (§6.4), and P3 may not be called done on R3 alone.
 - Run the **shipped smooth-lighting default**: with it off the mesher collapses per-face light so
   faces merge more freely, and the rig's face counts would lie.
 
-### 6.4 R4 — stage-count / merge-cost A/B (ratifies §3.5)
+### 6.4 R4 — stage-count / merge-cost / legibility A/B (ratifies §3.5)
 
-In a **real settlement scene**, blast a wall to produce a damage gradient, then measure face count and
-frame time at 3 / 7 / 15 stages via `GET /api/debug/gpu_scopes` and `get_render_stats`. Report the
-table. Ship the coarsest quantization that still reads at gameplay distance. Control: the identical
-scene with zero damage, for the un-fragmented baseline.
+**Two axes, both measured — cost and legibility (second axis added pass 4).** Earlier drafts measured
+cost only and left legibility as a judgement call inside the ship criterion ("the coarsest that still
+reads at gameplay distance"). That is half the decision with no number attached, and R3 cannot supply
+it (§6.3).
 
-Report re-mesh counts alongside, since §3.7 ties rebuild frequency to stage transitions.
+**Cost axis.** In a **real settlement scene**, blast a wall to produce a damage gradient, then measure
+face count and frame time at 3 / 7 / 15 stages via `GET /api/debug/gpu_scopes` (scopes nest — never
+sum them) and `get_render_stats`. Report the table. Control: the identical scene with zero damage,
+for the un-fragmented baseline. Report re-mesh counts alongside, since §3.7 ties rebuild frequency to
+stage transitions.
+
+**Legibility axis.** Same scene, same damaged wall, captured at a **ladder of camera distances —
+4 / 16 / 48 / 96 units** — for each stage count, with `POST /api/debug/tonemap {"curve":0}` as in
+§6.3. At each distance, measured against an in-frame pristine control voxel (C1):
+- the fraction of the damaged face's pixels differing from the control by > 8/255 luminance, and
+- the variance across 3 captures at a **fixed** pose, which catches the speckle failure — a crack
+  that shimmers rather than resolves.
+
+**Prediction, written before the run:** legibility falls off monotonically with distance, and the
+3-stage variant stays distinguishable from pristine (≥ 5% of face pixels) further out than the
+15-stage variant, because wider bands survive minification. **If the crack is instead invisible at
+every stage count beyond ~48 units, that is a finding, not a failure** — it means the fracture cell
+size (§4.2, microcube grid) is wrong for gameplay viewing distance and must be re-derived. Far
+cheaper to learn it here than after P5.
+
+**Ship the stage count that is the coarsest acceptable on the cost table AND still legible at the
+distances players actually fight at.** If those two disagree, say so and choose explicitly; do not
+split the difference.
+
+**How the A/B is actually switched (pass 5 — previously unspecified).** The quantization is a literal
+today (`ChunkRenderManager.cpp:370-374`), so "measure at 3 / 7 / 15" silently implied three rebuilds
+of a Release engine plus three scene setups — which is slow enough that it would have been skipped or
+faked. Two constraints decide it:
+- the stage count is baked into **both** the merge key (`:741-744`) and the instance word, so changing
+  it **must force a full re-mesh of every loaded chunk**, not just a shader reload; and
+- an A/B whose arms are separate binaries cannot hold "the exact same frame" fixed, which is what the
+  gate's measure-don't-infer rule requires.
+
+**Decision: a debug endpoint, `POST /api/debug/damage_stages {"stages": N}`**, which sets the
+quantization and triggers a full re-mesh before returning. Per the API key: `stages` is an **ordinal
+count** (not a bit width); **omitted means unchanged**, matching the `/api/debug/*` convention; it is
+**clamped to [1, 15]** at entry with the reason written at the clamp site — *above 15 the quantized
+value overflows bits 11-14 into bit 15, which is the `varied` texture-rotation flag* (§3.2); and the
+response **echoes back the applied `stages` and the number of chunks re-meshed**, so a caller can
+assert the knob took effect rather than trusting a stale binary. It is a debug knob, so it ships
+**default = the shipped stage count** and pins nothing.
+
+**This is P4's only API addition beyond §3.1**, and it exists because a measurement with no mechanism
+does not get made.
 
 ### 6.5 R5 — graze-only re-mesh (L4, red today; proves §3.7)
 
@@ -587,6 +700,7 @@ Ordered so each phase is provable before the next begins.
 | Phase | Work | Depth | Gate to proceed |
 |---|---|---|---|
 | **P0** | §3.1 API readback (incl. `damage_tracked`) + **§3.7 graze re-mesh** + R1, R5 | L2+L4 | R1 green; R5 green; R1's Stone/Glass variant still **red** (proves it measures normalization) |
+| **P0.5** | **Cost the V2 sub-voxel storage options on paper** (§3.6's two questions) — per-cell vs. per-parent-cube aggregate, memory measured, no implementation | doc | a costed recommendation exists **before P3 writes the shader**; does not gate P1/P2, which are independent of it |
 | **P1** | §3.2 toughness normalization + clamp comment | L2 | R1 Stone/Glass variant red→green |
 | **P2** | §3.5 quantize to 3 stages (field width unchanged) | L2 | stage mapping unit-tested at boundaries 0/1/2/3; R5 still green with stage-gated dirtying |
 | **P3** | §4 crack shader (`crack.glsl`, world-seeded) + R2 + R3 | L4 | R2 both parts green incl. the hash guard; R3 meets the written prediction with both controls |
@@ -595,9 +709,40 @@ Ordered so each phase is provable before the next begins.
 | **V2** | **§3.6 sub-voxel damage** — storage design, sub/micro instance bits, subdivision inheritance | L2+L4 | memory cost measured before implementation; cracks visible on a generated building wall; §1 scope boundary retired |
 | **V1.5** | §3.4 geometric spall at stage 3 | L2+L4 | **after V2** (§3.4) — needs its own order-independence test + occupancy regression pass |
 
+**What V1 actually renders on, added up in one place (pass 4).** The exclusions are each declared
+honestly — §1, §3.6, §4 — but never totalled, and the total is the thing worth deciding against:
+**terrain and hand-placed cube fills. Nothing else.** Not generated buildings (§3.6 — every wall is
+sub-cube), not kinematic furniture or doors, not GPU debris (§4 — both pipelines hardcode
+`flags = 0u`). The motivating case, damaging structures, is entirely V2.
+
+That order is defensible: the crack model gets proven on a surface that already carries the state, so
+red-before-green stays tight. But it does mean **P0–P5 ship a feature a player mostly cannot see in a
+normal scene**, and P3 writes a shader without knowing whether it generalizes to sub-voxel cells or
+gets rewritten for them. Hence **P0.5** — the V2 storage decision is *costed* early, on paper.
+§3.6's rejection of a full sub-voxel *implementation* as a prerequisite still stands; this adds a
+paper decision, not the build. Costing it is cheap; discovering it after P5 is not.
+
 Two things are **deliberately out of V1** and stated so they are known punts, not surprises:
-- **Damage persistence** — cracks reset on reload. Pre-existing open question #4
-  (`DestructionSystemV2.md:622-624`); needs a `world.db` schema change.
+- **Damage persistence** — pre-existing open question #4 (`DestructionSystemV2.md:622-624`); needs a
+  `world.db` schema change.
+  ⚠️ **Corrected and upgraded, pass 5 — this is worse than "resets on reload", and it is the one
+  finding that came from shipped behaviour rather than from this document.** Damage lives only on
+  materialized overlay `Cube`s, and the streaming evictor **destroys the chunk object** once the
+  camera passes `unloadRadius` (`ChunkStreamingManager.cpp:465-496`); it saves first only if
+  `getIsDirty()`, and `saveChunk` persists **no damage field** (grep for `damage` across
+  `ChunkStreamingManager.cpp` and `WorldDatabase.cpp` returns nothing). So the real V1 behaviour is:
+  **damage a cliff, walk past the unload radius, walk back — the cracks are gone.** Not on reload.
+  On a stroll.
+  Two things make this sharper than an ordinary punt:
+  1. **It fires in exactly the worlds where V1 has anything to show.** Terrain is V1's entire
+     coverage (above), and terrain worlds are streaming worlds. DB-only worlds *"keep full residency
+     and never evict"* (`ChunkStreamingManager.cpp:199`).
+  2. **No test in this plan can see it.** The R3/R5 rig is a small flat DB-only world — it never
+     evicts. Structurally identical to §3.7: invisible in the test path, live in the real one.
+  **It stays out of V1** — it is a schema change, not a shader change, and V1's value does not depend
+  on it. But it is now a **declared behaviour**, not a discovery waiting to happen: no demo or claim
+  about this feature may describe cracks as persistent, and **V2's gate gains "damage survives a
+  stream-out/stream-in round trip"** as a checklist item alongside the sub-voxel work.
 - **Cracks on buildings** — §3.6 / §1. Requires V2.
 
 ---
@@ -611,9 +756,23 @@ Two things are **deliberately out of V1** and stated so they are known punts, no
 3. **Sub-voxel damage storage + subdivision inheritance.** Promoted out of this list into §3.6 as a
    decided scope boundary with two open V2 questions. Left here as a pointer only.
 4. **Does the store need a damage field?** Damage lives only on materialized overlay `Cube`s
-   (`ChunkRenderManager.cpp:355`, `ChunkVoxelStore.h:19`), so mass grazing materializes mass Cubes.
-   The stress axis for P0/P3: blast-graze a full chunk face and measure Cube count, memory, **and
-   re-mesh count** (§3.7 makes the last one load-bearing).
+   (`ChunkRenderManager.cpp:355`, `ChunkVoxelStore.h:19`); the mesher's store branch is explicitly
+   commented `// store voxels carry no damage`.
+   **Corrected, pass 4.** Earlier drafts read "mass grazing materializes mass Cubes", implying this
+   feature causes the materialization. It does not. `DamageSystem` Phase A calls
+   `m_cm->getCubeAt(wp)` on **every voxel in the blast AABB** (`DamageSystem.cpp:147`), and the
+   ellipsoid reject (`d > 1.0f`) happens *after* it; `getCubeAt` → `getCubeAtFast` → `materializeAt`
+   (`ChunkVoxelQuerySystem.cpp:57-60`, `ChunkVoxelManager.cpp:414-422`) allocates and **retains** a
+   `Cube` in `cubes[index]`. So every blast already materializes its whole bounding box today,
+   damage or no damage. The cost is **pre-existing, larger than this plan implied, and not worsened
+   by P4** — it is also, incidentally, why terrain can crack at all: store-backed terrain gets a real
+   `Cube` to accumulate onto (verified pass 4, and the reason §1's terrain claim holds).
+   Two consequences: (a) the stress axis below measures a largely pre-existing cost, so a bad number
+   is not by itself a reason to block this feature; (b) AABB-wide materialization deserves its own
+   look as a destruction-system issue — filed here rather than silently inherited.
+   The stress axis for P0/P3 stands: blast-graze a full chunk face and measure Cube count, memory,
+   **and re-mesh count** (§3.7 makes the last one load-bearing) — reporting the zero-damage control
+   alongside, so the pre-existing share is visible.
 
 ---
 
@@ -629,8 +788,8 @@ Two things are **deliberately out of V1** and stated so they are known punts, no
 | **Order-independence** | The crack *function* is pure — inputs `(worldPosAbs, faceNormal, damageStage, crackStyle)`, no cross-cell reads, no mutable state — so per-chunk and whole-region evaluation cannot differ. One honest caveat: damage *accumulation* is `accumulatedDamage += amount` (`Cube.h:101`), and float addition is not associative, so overlapping blasts applied in different orders give bit-different totals. The divergence is orders of magnitude below one 3-stage quantization step, so it cannot change a rendered stage — but it is a real non-associativity and is recorded rather than glossed. |
 | **World recipe** | Not needed for V1: damage is not persisted, so no existing world carries crack state a `materials.json` edit could silently change. `crackStyle` is a material appearance property, same class as its texture. Revisit if persistence lands. |
 | **API** | §3.1 — units named per field, denominator echoed, `damage_stage` is the shader's real input, air omits the fields, subdivided cells report `damage_tracked:false` rather than a false zero. `stage_changed` echoed so a graze is assertable (§3.7). Clamp keeps its reason at the site (§3.2). |
-| **Defaults** | Crack rendering ships ON (required). No golden-image test pins voxel surface output, so §6 carries it. |
-| **Visual test plan** | §6 — L2+L4, five red tests each with its failure text, one-chunk full-cube rig, prediction written in advance, controls on R3 and R5, rig-vs-default deltas stated. |
+| **Defaults** | Crack rendering ships ON (required). No golden-image test pins voxel *surface* output, so §6 carries it — but the accumulation contract **is** already pinned: `ChunkVoxelAuthorityTest.cpp:97-101` asserts damage survives re-materialization (`addDamage(10.0f)` → same `Cube` → `10.0f`). §3.2 changes the **mesher's** normalization, not accumulation, so that pin stays green; R1a extends it rather than replacing it (pass 5). The one new default is §6.4's `damage_stages` debug knob, which ships at the shipped stage count and pins nothing. |
+| **Visual test plan** | §6 — L2+L4, five red tests each with its failure text, one-chunk full-cube rig, prediction written in advance, controls on R3 and R5, rig-vs-default deltas stated. R4 measures **legibility across a 4/16/48/96-unit distance ladder** as well as cost, because R3 is near-camera and cannot show whether the crack reads in play (§6.3, §6.4). |
 
 ---
 
@@ -649,7 +808,9 @@ Two things are **deliberately out of V1** and stated so they are known punts, no
 - `resources/materials.json` — `crackStyle` per material (P5)
 - **Tests, split per §6.0** (`tests/` links `phyxel_core` only; the API lives in the editor):
   - `tests/core/VoxelDamageStateTest.cpp` — accumulation + normalization + stage quantization (R1a)
-  - `tests/core/VoxelCrackSeamTest.cpp` — crack-field purity + `crack.glsl` hash guard (§6.2 first half)
+  - `tests/core/VoxelCrackSeamTest.cpp` — crack-field purity + **pinned sampled-value table** for the
+    CPU mirror (~32 inputs across cell interiors/edges/stages), with the `crack.glsl` content hash
+    kept only as a regenerate-the-table tripwire (§6.2 first half)
   - `tests/core/VoxelGrazeDirtyTest.cpp` — stage-transition dirty logic (R5 unit companion)
   - `tests/integration/VoxelDamageApiTest.cpp` — JSON contract: `damage_stage`, `damage01`,
     `damage_tracked`, `stage_changed` (R1b, R5 L2 half)
@@ -661,6 +822,52 @@ Two things are **deliberately out of V1** and stated so they are known punts, no
 
 ## 11. Change log
 
+- **2026-09-22 (fifth pass)** — gate re-run before implementation began; branch
+  `feature/voxel-damage-cracks` cut from this point. **The design held for a third consecutive pass.**
+  One finding came from shipped behaviour and four were defects in the build spec.
+  (a) **Damage is lost on chunk eviction, not on reload** — the evictor destroys the chunk and its
+  materialized `Cube`s (`ChunkStreamingManager.cpp:465-496`) and no damage field is persisted, so
+  cracks vanish when the player walks past `unloadRadius`. It fires only in streaming worlds, which is
+  exactly where V1's terrain coverage lives, and **no test in this plan could observe it** because the
+  rig is a non-evicting flat DB world. Restated in §7 as declared behaviour; added to V2's gate.
+  (b) **§3.7 named the wrong re-mesh function** — `markChunkDirty` also sets the DB-dirty flag
+  (`DirtyChunkTracker.h:65-75`), which would make the evictor re-save chunks for damage that has no DB
+  field, at the "thousands of grazed voxels" scale the header blames for *"multi-hundred-ms save
+  stalls."* Corrected to `markChunkForRemesh` (mesh-only, budgeted), with `markChunkForRemeshIdle`
+  considered and rejected — a crack is direct feedback on the player's own blow and must not sit
+  behind an idle queue. §6.5's unit companion now also asserts `getIsDirty()` stays false.
+  (c) **R4's stage-count A/B had no mechanism** — the quantization is a literal, so 3/7/15 implied
+  three rebuilds and separate frames, which the gate's measure-don't-infer rule forbids; specified
+  `POST /api/debug/damage_stages` (ordinal, omitted-means-unchanged, clamped [1,15] with the bit-15
+  `varied` overflow written at the clamp, echoes applied stages + chunks re-meshed).
+  (d) **R2's runtime rig spans two chunks and never asserted the second was resident** — same class as
+  the pass-3 buried-wall finding, in the test pass 3 did not revisit; residency + read-back is now a
+  stated precondition.
+  (e) **An existing pin went unnamed** — `ChunkVoxelAuthorityTest.cpp:97-101` already guards damage
+  accumulation across re-materialization; §9's "no pinned test" was imprecise. It stays green under
+  §3.2 (which changes the mesher, not accumulation).
+- **2026-09-22 (fourth pass)** — independent review of this document against `main` @ `f3c85c1e`.
+  **Citation audit first:** 7 of 7 load-bearing code references were checked verbatim and all are
+  accurate, including the two the plan leans hardest on — the graze flush gate
+  (`DamageSystem.cpp:304-306`) and the sub-voxel `reserved` writes (`ChunkRenderManager.cpp:1062-1064`,
+  `:1222-1224`). **The design (§3.1-3.7) held unchanged for the second consecutive pass.** Five items,
+  one of them an ordering change: (a) **V1's coverage totals to terrain + cube fills only** — each
+  exclusion was declared but never added up, and the sum means P0-P5 ship something largely invisible
+  in a normal scene; added the total to §7 and inserted **P0.5**, a paper costing of the V2 storage
+  decision before P3 writes the shader (§3.6's rejection of a full sub-voxel *implementation* as a
+  prerequisite stands). (b) **§8.4 mis-attributed the materialization cost** — `DamageSystem` Phase A
+  already calls `getCubeAt` on the entire blast AABB before the ellipsoid reject, so whole-AABB
+  materialization is pre-existing and not caused by damage; corrected, and noted that this is
+  precisely why terrain can crack at all. (c) **Stage is per-merge-run, so §3.3's continuity claim
+  covers the field and not the stage** — recorded, and turned into an explicit **precondition on
+  R2's runtime rig** (equal quantized stage on both sides of x = 31/32, asserted via §3.1), without
+  which that test fails for a legitimate reason and reads as a UV-seeding bug. (d) **R2's
+  `crack.glsl` hash guard demoted to a secondary tripwire** — a content hash reddens on comment edits
+  and is repaired by bumping a constant, training the exact reflex it was meant to prevent; the
+  primary guard is now a pinned table of ~32 sampled field values. (e) **No legibility measurement at
+  gameplay distance** — R3 is near-camera and self-described as optimistic, while R4 measured cost
+  only; R4 gains a 4/16/48/96-unit distance ladder with its own written prediction, and P3 may no
+  longer be called done on R3 alone.
 - **2026-09-22 (third pass)** — gate re-run against this document. **The design (§3.1-3.7) held
   unchanged**; all three findings were in the validation plan and one scope note, and all were
   mechanical (no design change, no scope decision). (a) **Test placement was impossible as filed** —
