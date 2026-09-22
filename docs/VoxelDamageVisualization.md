@@ -1,6 +1,6 @@
 # Voxel Damage Visualization — progressive cracks (P4)
 
-**Status:** **P0 + P1 complete** on `feature/voxel-damage-cracks`. Design-check gate run **five times**
+**Status:** **P0 + P1 + P2 complete** on `feature/voxel-damage-cracks`. Design-check gate run **five times**
 (2026-09-22), 21 items found and resolved — see §11 for the full ledger:
 - **Pass 1** → NEEDS WORK, 5 items: API readback, toughness normalization, world-position seeding,
   the geometric-spall position, stage quantization/merge cost (§3.1-3.5).
@@ -705,7 +705,7 @@ Ordered so each phase is provable before the next begins.
 | **P0** ✅ | §3.1 API readback (incl. `damage_tracked`) + **§3.7 graze re-mesh** + R1, R5 | L2+L4 | R1 green; R5 green; R1's Stone/Glass variant still **red** (proves it measures normalization) — **DONE**, see §13 |
 | **P0.5** | **Cost the V2 sub-voxel storage options on paper** (§3.6's two questions) — per-cell vs. per-parent-cube aggregate, memory measured, no implementation | doc | a costed recommendation exists **before P3 writes the shader**; does not gate P1/P2, which are independent of it |
 | **P1** ✅ | §3.2 toughness normalization + clamp comment | L2 | R1 Stone/Glass variant red→green — **DONE**, see §13 |
-| **P2** | §3.5 quantize to 3 stages (field width unchanged) | L2 | stage mapping unit-tested at boundaries 0/1/2/3; R5 still green with stage-gated dirtying |
+| **P2** ✅ | §3.5 quantize to 3 stages (field width unchanged) | L2 | stage mapping unit-tested at boundaries 0/1/2/3; R5 still green with stage-gated dirtying — **DONE**, see §13 |
 | **P3** | §4 crack shader (`crack.glsl`, world-seeded) + R2 + R3 | L4 | R2 both parts green incl. its sampled-value guard; R3 meets the written prediction with both controls; **§14 visual review signed off** |
 | **P4** | R4 stage-count A/B in a real scene | L4 | table published; final stage count ratified or revised |
 | **P5** | Per-material `crackStyle` from `brittleS1/S2` | L4 | visual A/B Glass vs Steel vs Stone, same pose; **§14 visual review signed off** |
@@ -1190,6 +1190,66 @@ wall ADDED each column's energy to what it already carried: the 0.60 / 0.80 / 0.
 past toughness and **broke**, silently converting a pure-graze rig into a demolition. The script's
 own integrity check (`8/8 columns intact`) caught it; a screenshot would not have. The rig now
 clears the region first, through the JobSystem so the engine keeps rendering.
+
+
+### P2 — three visible stages — **COMPLETE**
+
+**The packing decision, which is the whole of why this phase touched no shader.** The obvious
+implementation drops the emitted range to 0..3 — but `voxel.frag:283` divides the packed value by
+`15.0`, so that would have required editing the fragment shader, which means rebuilding **every**
+shader and committing the `.spv` (glslc does not track `#include` deps), and leaving a bare `3.0` in
+GLSL to be kept in sync with a C++ constant **by hand**. Instead the field stays 4 bits and the 4
+stages are spread across **{0, 5, 10, 15}**, giving the shader 0.0 / 0.33 / 0.67 / 1.0 exactly as
+before. Same merge-fragmentation win, same re-mesh reduction, same perceptual spacing, **no shader
+change, no `.spv` churn, and no C++/GLSL constant that can drift.** What matters for both cost and
+legibility is the NUMBER OF DISTINCT VALUES, not their magnitude.
+
+`damage_stage` is now 0..3 — which is what §3.1 specified all along — and the response gained
+`damage_stages_max` and `damage_stage_bits` (the packed value `voxel.frag` samples).
+
+**RESULT — unit 13/13, integration 4/4.** Beyond the §7 gate (boundaries 0/1/2/3), two tests assert
+the *reasons* for the change rather than its mechanics:
+- `OnlyFourDistinctPackedValuesAcrossTheWholeDamageRange` sweeps 1,001 damage values and requires
+  the continuous gradient to collapse to **exactly 4** distinct packed values. That is the
+  merge-cost property stated as a test instead of trusted — every distinct value is a potential
+  merge-run break.
+- `CoarseStagesBoundTheRemeshCountPerVoxel` walks a voxel pristine → break and pins that it can
+  cause at most **3** rebuilds, where 15 stages meant 15.
+
+**L4, live** (`tools/damage_ladder_rig.py --measure`, same pose as P0/P1):
+
+| stage | 0 | 1 | 2 | 3 |
+|---|---|---|---|---|
+| mean luminance | 88.14 (n=3) | 79.24 (n=2) | 72.39 (n=2) | 66.07 (n=1) |
+
+| step | 0→1 | 1→2 | 2→3 |
+|---|---|---|---|
+| Δ luminance | **8.90** | **6.85** | **6.32** |
+
+**The measurement that settles it is the noise floor, and it was not visible from the design
+argument.** Columns carrying the SAME stage differ by ~1.6–3.2 luminance — ordinary lighting and
+texture variation across the wall. At 15 stages the per-stage step was **~1.40, i.e. BELOW that
+noise**: a single stage transition was literally indistinguishable from the wall's own variation, so
+no amount of squinting could have ranked two adjacent stages. P2's steps sit **2–4× above** the noise
+floor. Pristine controls remain within ±1.2 of each other.
+
+**This does not ratify 3 as the final answer** — it rules out 15. R4 (§6.4) still measures 3 vs 7 vs
+15 for cost AND legibility in a real settlement scene across the distance ladder, and may land on 7.
+`kDamageStagesVisible` carries that caveat in its own doc comment so nobody treats it as settled.
+
+**Two stale-test lessons, logged because it is now a PATTERN rather than an incident.** Both P1 and
+P2 broke a test that had hardcoded a constant meaning "the maximum":
+- At P1 it was the **denominator** (`kDamageDisplayRef`) — caught before it could pass wrongly.
+- At P2 it was the **stage count**: tests said `kDamageStageMax` (15, the 4-bit FIELD WIDTH) where
+  they meant *the top visible stage*. Those were the same number until P2 and silently stopped
+  being. Both now reference `kDamageStagesVisible`, the semantic constant, with the reason in a
+  comment at the assertion.
+
+That second failure earned its keep: it **proved that echoing `toughness` alone is no longer enough**
+for a caller to reproduce the rendered stage — they need the stage count too. That is exactly why
+this phase added `damage_stages_max` to the response, and the test now asserts against both echoed
+numbers plus the packed bits, so an external caller can reproduce the engine's result without
+reading engine source (§3.1's stated contract).
 
 ---
 

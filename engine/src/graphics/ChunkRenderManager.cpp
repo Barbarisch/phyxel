@@ -429,7 +429,14 @@ void ChunkRenderManager::rebuildCubeFaces(
         // `varied` texture-rotation flag (set per material just above), so a stage >= 16 would
         // overflow bits 11-14 into it and silently hash-rotate the face texture -- which on
         // coursed materials breaks pattern continuity at voxel edges.
-        cellDamage[cell] = Phyxel::Core::damageStage(damage, matFaces[cellMat[cell]].toughness);
+        // Quantized to kDamageStagesVisible (P2) and then spread back across the 4-bit field,
+        // so this word takes only 4 distinct values {0,5,10,15} instead of 16. Damage is part of
+        // the merge key below, so every distinct value is a potential merge-run break: fewer
+        // values means wider bands and fewer faces. voxel.frag still divides by 15.0 and needs
+        // no change.
+        cellDamage[cell] = Phyxel::Core::packDamageStage(
+            Phyxel::Core::damageStage(damage, matFaces[cellMat[cell]].toughness,
+                                      Phyxel::Core::kDamageStagesVisible));
     }
 
     // --- LIGHT FIELD REMOVED (lighting rebuild M0, 2026-08-29) --------------------------------

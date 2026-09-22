@@ -25,6 +25,7 @@
 #include <filesystem>
 #include <glm/glm.hpp>
 #include <memory>
+#include <set>
 
 using Phyxel::DamageSystem;
 using Phyxel::Cube;
@@ -33,6 +34,8 @@ using Phyxel::Core::damageStage;
 using Phyxel::Core::damageStageChanged;
 using Phyxel::Core::kDamageDisplayRef;
 using Phyxel::Core::kDamageStageMax;
+using Phyxel::Core::kDamageStagesVisible;
+using Phyxel::Core::packDamageStage;
 
 namespace {
 
@@ -149,6 +152,90 @@ TEST_F(VoxelDamageStateTest, StageChangePredicateIgnoresDamageAboveFullyDamaged)
 }
 
 // ---------------------------------------------------------------------------
+// P2 (3.5) -- three VISIBLE stages, packed back across the full 4-bit field.
+// ---------------------------------------------------------------------------
+
+TEST_F(VoxelDamageStateTest, StageQuantizationAtEveryBoundary) {
+    ASSERT_TRUE(loaded_);
+    // The 7 P2 gate: "stage mapping unit-tested at boundaries 0/1/2/3". Band width is
+    // toughness/3, and damageStage rounds, so a boundary sits at the MIDPOINT between bands:
+    // stage k covers [(k-0.5)/3, (k+0.5)/3) of toughness.
+    const float t = DamageSystem::responseFor("Stone").toughness;
+    struct Case { float frac; int stage; const char* why; };
+    const Case cases[] = {
+        {0.00f, 0, "pristine"},
+        {0.10f, 0, "just below the first boundary (1/6 = 0.1667) -- still pristine"},
+        {0.20f, 1, "just above the first boundary -- hairline"},
+        {0.33f, 1, "mid first band"},
+        {0.45f, 1, "just below the second boundary (0.5)"},
+        {0.55f, 2, "just above the second boundary -- open"},
+        {0.80f, 2, "just below the third boundary (5/6 = 0.8333)"},
+        {0.90f, 3, "just above the third boundary -- failing"},
+        {1.00f, 3, "at the break threshold"},
+        {5.00f, 3, "far past it -- must clamp, never wrap"},
+    };
+    for (const auto& c : cases) {
+        EXPECT_EQ(int(DamageSystem::displayStage("Stone", t * c.frac)), c.stage)
+            << c.frac << "x toughness (" << c.why << ")";
+    }
+}
+
+TEST_F(VoxelDamageStateTest, PackingSpreadsStagesAcrossTheFullFieldRange) {
+    // voxel.frag divides the packed value by 15.0 and was NOT changed for P2, so the 4 stages
+    // must land on {0, 5, 10, 15} -> 0.0 / 0.33 / 0.67 / 1.0. If packing collapsed toward the
+    // bottom of the range the crack would simply render fainter, silently.
+    EXPECT_EQ(int(packDamageStage(0)), 0);
+    EXPECT_EQ(int(packDamageStage(1)), 5);
+    EXPECT_EQ(int(packDamageStage(2)), 10);
+    EXPECT_EQ(int(packDamageStage(3)), 15);
+
+    // The top stage must reach the field maximum exactly: anything less and a fully-damaged
+    // voxel never renders at full strength.
+    EXPECT_EQ(int(packDamageStage(kDamageStagesVisible)), kDamageStageMax);
+
+    // Out of range must clamp, NEVER overflow into bit 15 (the `varied` texture-rotation flag).
+    EXPECT_EQ(int(packDamageStage(99)), kDamageStageMax);
+    EXPECT_EQ(int(packDamageStage(-4)), 0);
+    EXPECT_LE(int(packDamageStage(kDamageStagesVisible * 10)), kDamageStageMax);
+}
+
+TEST_F(VoxelDamageStateTest, OnlyFourDistinctPackedValuesAcrossTheWholeDamageRange) {
+    ASSERT_TRUE(loaded_);
+    // This is the MERGE-COST property, stated as a test rather than trusted. Damage is part of
+    // the greedy-merge key, so every distinct packed value is a potential merge-run break. A
+    // blast produces a continuous damage gradient; what must NOT happen is that gradient
+    // becoming many distinct values and shattering merge runs into thin bands.
+    const float t = DamageSystem::responseFor("Stone").toughness;
+    std::set<int> distinct;
+    for (int i = 0; i <= 1000; ++i) {
+        distinct.insert(int(DamageSystem::displayStageBits("Stone", t * (i / 1000.0f))));
+    }
+    EXPECT_EQ(distinct.size(), 4u)
+        << "a continuous damage gradient must collapse to exactly 4 distinct packed values "
+           "(pristine + 3 stages); more means more merge-run breaks and more faces";
+    EXPECT_EQ(*distinct.begin(), 0);
+    EXPECT_EQ(*distinct.rbegin(), kDamageStageMax);
+}
+
+TEST_F(VoxelDamageStateTest, CoarseStagesBoundTheRemeshCountPerVoxel) {
+    ASSERT_TRUE(loaded_);
+    // 3.7 re-meshes a chunk only when a graze crosses a stage boundary, so the number of
+    // rebuilds a single voxel can ever cause equals the number of boundaries it can cross.
+    // Walk it from pristine to break in 1% steps and count transitions.
+    const float t = DamageSystem::responseFor("Stone").toughness;
+    int transitions = 0;
+    uint8_t prev = DamageSystem::displayStage("Stone", 0.0f);
+    for (int i = 1; i <= 100; ++i) {
+        const uint8_t cur = DamageSystem::displayStage("Stone", t * (i / 100.0f));
+        if (cur != prev) ++transitions;
+        prev = cur;
+    }
+    EXPECT_EQ(transitions, kDamageStagesVisible)
+        << "a voxel must cause at most " << kDamageStagesVisible << " re-meshes over its whole "
+           "life; at the old 15 stages this was 15";
+}
+
+// ---------------------------------------------------------------------------
 // THE P0 RED (3.2 / 7 P1 gate). Expected to FAIL for all of P0.
 // ---------------------------------------------------------------------------
 
@@ -179,23 +266,38 @@ TEST_F(VoxelDamageStateTest, NormalizationIsRelativeToMaterialToughness) {
     // And the whole range is used, rather than saturating early. Under the old global
     // reference of 30, Stone pinned at max by 27% of the way to breaking and said nothing for
     // the remaining 73%.
-    EXPECT_LT(DamageSystem::displayStage("Stone", stoneT * 0.30f), kDamageStageMax)
+    //
+    // NOTE the constant: kDamageStagesVisible (the number of stages the engine DISTINGUISHES),
+    // never kDamageStageMax (the width of the 4-bit field it is packed into). Writing 15 here
+    // is how this test broke at P2 -- it meant "the top stage" and said "the field maximum",
+    // and those stopped being the same number the moment the stage count changed. Same class
+    // of staleness as the hardcoded denominator this test carried before P1.
+    EXPECT_LT(DamageSystem::displayStage("Stone", stoneT * 0.30f), kDamageStagesVisible)
         << "Stone at 30% of the way to breaking must NOT already be at maximum display";
-    EXPECT_EQ(DamageSystem::displayStage("Stone", stoneT), kDamageStageMax)
+    EXPECT_EQ(DamageSystem::displayStage("Stone", stoneT), kDamageStagesVisible)
         << "a voxel at its break threshold must display the top stage";
 }
 
 TEST_F(VoxelDamageStateTest, DisplayStageAgreesWithTheEchoedDenominator) {
     ASSERT_TRUE(loaded_);
-    // /api/world/voxel echoes `toughness` so a caller can reproduce damage01 and the stage
-    // itself. Pin that promise: displayStage(mat, d) must equal damageStage(d, toughness).
+    // /api/world/voxel echoes BOTH `toughness` and `damage_stages_max`, because reproducing
+    // the rendered stage needs both: the denominator says how far along the voxel is, the stage
+    // count says how finely that is reported. Echoing only the denominator was enough at P1 and
+    // stopped being enough at P2 -- which is exactly why the response carries the stage count
+    // rather than leaving callers to assume 15.
     for (const char* mat : {"Stone", "Glass", "Wood", "Metal", "Dirt"}) {
         const float t = DamageSystem::responseFor(mat).toughness;
         ASSERT_GT(t, 0.0f) << mat;
         for (float frac : {0.0f, 0.1f, 0.5f, 0.9f, 1.0f, 2.0f}) {
-            EXPECT_EQ(DamageSystem::displayStage(mat, t * frac), damageStage(t * frac, t))
-                << mat << " at " << frac << "x toughness: the echoed denominator must let a "
-                << "caller reproduce the stage the engine renders";
+            EXPECT_EQ(DamageSystem::displayStage(mat, t * frac),
+                      damageStage(t * frac, t, kDamageStagesVisible))
+                << mat << " at " << frac << "x toughness: the echoed denominator and stage "
+                << "count must let a caller reproduce the stage the engine renders";
+            // And the packed form, which is what voxel.frag actually samples.
+            EXPECT_EQ(DamageSystem::displayStageBits(mat, t * frac),
+                      packDamageStage(damageStage(t * frac, t, kDamageStagesVisible)))
+                << mat << " at " << frac << "x toughness: packed bits must follow from the "
+                << "same two echoed numbers";
         }
     }
 }

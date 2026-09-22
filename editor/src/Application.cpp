@@ -766,8 +766,16 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         // Since P1 (3.2) this is normalized by the material's own toughness, so damage_stage
         // and damage01 now move together for every material -- a caller can check
         // damage_stage ~= round(damage01 * stageMax) and catch a normalization regression.
-        result["damage_stage"] = static_cast<int>(
+        // 0..3 since P2 (3.5): pristine + hairline / open / failing. This is the SEMANTIC
+        // stage. `damage_stage_bits` is the same thing spread across the 4-bit instance field
+        // that voxel.frag actually samples -- both are echoed so a caller can assert on the
+        // stage it reasons about AND on the value the shader receives, without having to know
+        // the packing.
+        result["damage_stage"]      = static_cast<int>(
             Phyxel::DamageSystem::displayStage(material, energy));
+        result["damage_stages_max"] = Phyxel::Core::kDamageStagesVisible;
+        result["damage_stage_bits"] = static_cast<int>(
+            Phyxel::DamageSystem::displayStageBits(material, energy));
         return result;
     });
 

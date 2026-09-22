@@ -27,10 +27,44 @@ namespace Core {
 /// and named, so the two call sites cannot drift apart before then.
 inline constexpr float kDamageDisplayRef = 30.0f;
 
-/// Highest stage index the mesher emits. The instance field is 4 bits wide (11-14), so
-/// 15 is the widest value that fits; 3.5 will lower this to 3 (P2) WITHOUT narrowing the
-/// field, leaving 4-15 reserved.
+/// Widest value the 4-bit instance field (bits 11-14) can hold. This is a HARDWARE limit,
+/// not a design choice -- see kDamageStagesVisible for the number of stages actually used.
 inline constexpr int kDamageStageMax = 15;
+
+/// How many VISIBLE damage stages the engine distinguishes: pristine + 3 (hairline / open /
+/// failing). P2, docs/VoxelDamageVisualization.md 3.5.
+///
+/// Why so few, and why coarser is better rather than merely cheaper:
+///  * MERGE COST. Damage is part of the greedy-merge key by design, so a damage GRADIENT
+///    locally becomes the un-merged case. Fewer distinct levels means wider bands, longer
+///    surviving merge runs, fewer faces. A blast with 16 levels shatters merge runs into ~16
+///    concentric single-voxel-wide bands.
+///  * RE-MESH COUNT. The graze path rebuilds a chunk only when a hit crosses a stage boundary
+///    (3.7), so 3 stages means at most 3 rebuilds per voxel over its whole life, not 16.
+///  * IT IS NOT LEGIBLE ANYWAY. Measured on the live ladder at P1: consecutive stages differ by
+///    ~1.4 luminance out of 255, under 1%. Sixteen perceptually distinct crack stages on a 1 m
+///    face is not a real thing.
+///
+/// STILL A HYPOTHESIS: R4 (6.4) measures 3 vs 7 vs 15 for cost AND legibility in a real
+/// settlement scene and ratifies or revises this. Change it there, with the table, not here.
+inline constexpr int kDamageStagesVisible = 3;
+
+/// Map a visible stage (0..kDamageStagesVisible) onto the 4-bit instance field.
+///
+/// The field stays 4 bits wide and the SHADER IS UNTOUCHED: voxel.frag divides the packed
+/// value by 15.0, so stages spread across {0, 5, 10, 15} give it 0.0 / 0.33 / 0.67 / 1.0
+/// exactly as before. Narrowing the emitted range to 0..3 instead would have required editing
+/// voxel.frag -- which means rebuilding every shader and committing the .spv (glslc does not
+/// track includes), and leaving a bare `3.0` in GLSL that must be kept in sync with a C++
+/// constant by hand. That is a drift bug waiting to happen, for no gain: what matters for both
+/// merge cost and legibility is the NUMBER OF DISTINCT VALUES, not their magnitude.
+inline constexpr uint8_t packDamageStage(int visibleStage,
+                                         int stagesVisible = kDamageStagesVisible) {
+    if (stagesVisible < 1) stagesVisible = 1;
+    if (visibleStage <= 0) return 0;
+    if (visibleStage >= stagesVisible) return static_cast<uint8_t>(kDamageStageMax);
+    return static_cast<uint8_t>((visibleStage * kDamageStageMax + stagesVisible / 2) / stagesVisible);
+}
 
 /**
  * Quantize accumulated damage to a visible stage in [0, stageMax].

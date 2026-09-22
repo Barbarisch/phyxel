@@ -97,7 +97,13 @@ public:
     // to breaking.
     static uint8_t displayStage(const std::string& materialName,
                                 float accumulatedDamage,
-                                int   stageMax = Core::kDamageStageMax);
+                                int   stageMax = Core::kDamageStagesVisible);
+
+    // The 4-bit value the mesher packs into instance bits 11-14 for this voxel: displayStage()
+    // spread back across the field's full range so voxel.frag's `/ 15.0` still yields
+    // 0.0 / 0.33 / 0.67 / 1.0. Kept next to displayStage so the semantic stage and the packed
+    // one can never be computed from different denominators.
+    static uint8_t displayStageBits(const std::string& materialName, float accumulatedDamage);
 
     // STRUCTURAL wood test at any granularity (F6): true when the cell holds Log*
     // at cube or subcube cross-section (micro-only twig wood is cargo, not trunk).

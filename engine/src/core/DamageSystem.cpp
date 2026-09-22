@@ -56,6 +56,11 @@ uint8_t DamageSystem::displayStage(const std::string& materialName,
     return Core::damageStage(accumulatedDamage, responseFor(materialName).toughness, stageMax);
 }
 
+uint8_t DamageSystem::displayStageBits(const std::string& materialName,
+                                       float accumulatedDamage) {
+    return Core::packDamageStage(displayStage(materialName, accumulatedDamage));
+}
+
 int DamageSystem::solidVoxelsBetween(const glm::vec3& a, const glm::vec3& b) const {
     if (!m_cm) return 0;
     glm::vec3 d = b - a;
@@ -203,10 +208,12 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
                 const float before = cube->getAccumulatedDamage();
                 cube->addDamage(reached);
                 const float after  = cube->getAccumulatedDamage();
-                // Same denominator the mesher uses (mr.toughness == responseFor(mat)), so the
-                // boundary this tests is exactly the boundary the shader renders.
-                if (Core::damageStage(before, mr.toughness) !=
-                    Core::damageStage(after,  mr.toughness)) {
+                // Same denominator AND same stage count the mesher uses, so the boundary this
+                // tests is exactly the boundary the shader renders. Since P2 there are only 3
+                // visible stages, so a voxel re-meshes at most 3 times over its whole life
+                // instead of 16 -- coarse stages cut rebuild frequency as well as merge cost.
+                if (Core::damageStage(before, mr.toughness, Core::kDamageStagesVisible) !=
+                    Core::damageStage(after,  mr.toughness, Core::kDamageStagesVisible)) {
                     // markChunkForRemesh, NOT markChunkDirty: markChunkDirty ALSO sets the
                     // chunk's DB-dirty flag, which makes the streaming evictor re-save it to
                     // SQLite (DirtyChunkTracker.h). Damage has no DB field, so every one of
