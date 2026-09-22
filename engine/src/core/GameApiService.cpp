@@ -873,6 +873,16 @@ void GameApiService::registerCommands() {
     // off to avoid the query overhead) - and nothing in the engine or the editor ever
     // turned them on, so the overdraw counter has reported nothing since the gate landed.
     // Toggled separately from the timing read so a timing run is never perturbed by it.
+    // Debug views must be read with the tone curve OFF: every screenshot otherwise passes
+    // through exposure x8 + AgX, which makes a linear probe unreadable.
+    reg.on("set_tonemap", [this](const APICommand& cmd, json& r) {
+        if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
+        if (cmd.params.contains("exposure")) renderCoordinator->setExposure(cmd.params.value("exposure", 1.0f));
+        if (cmd.params.contains("curve"))    renderCoordinator->setTonemapCurve(cmd.params.value("curve", 0));
+        r = {{"success", true}, {"curve", renderCoordinator->getTonemapCurve()},
+             {"exposure", renderCoordinator->getExposure()}};
+    });
+
     // G-18 MEASUREMENT: the fragment-cost probe. Mode 11 makes voxel.frag return a flat
     // colour before any shading, so Static Geometry measures rasterisation only - the
     // discriminator between overdraw and per-fragment shader cost. Mode 0 is normal.
@@ -880,7 +890,7 @@ void GameApiService::registerCommands() {
         auto* dev = runtime ? runtime->getVulkanDevice() : nullptr;
         if (!dev) { r = {{"error", "VulkanDevice not available"}}; return; }
         if (cmd.params.contains("mode"))
-            dev->setDebugShadowMode(std::clamp(cmd.params.value("mode", 0), 0, 16));
+            dev->setDebugShadowMode(std::clamp(cmd.params.value("mode", 0), 0, 18));
         r = {{"success", true}, {"mode", dev->getDebugShadowMode()}};
     });
 

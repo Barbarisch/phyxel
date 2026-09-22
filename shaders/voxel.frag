@@ -444,6 +444,12 @@ void main() {
     if (ubo.debugShadowMode == 15) { outColor = vec4(color, 1.0); return; }
 
     // Point lights
+    // G-18 probes: 17 skips the visibility MARCH but keeps every gate and the BRDF, so
+    // mode0 - mode17 is the march alone; 18 reports how many marches this fragment ran,
+    // which decides whether the answer is "too many lights" or "too costly per light".
+    const bool kSkipMarch  = (ubo.debugShadowMode == 17);
+    const bool kCountOnly  = (ubo.debugShadowMode == 18);
+    float dbgMarchCount = 0.0;
     vec3 dbgForward = vec3(0.0);
     for (uint i = 0u; i < lights.numPointLights && i < 32u; i++) {
         vec3 lightPos = lights.pointLights[i].positionAndRadius.xyz;
@@ -459,7 +465,9 @@ void main() {
             // "wall lit from inside" bug was never the BRDF's fault — it is geometry the light
             // reaches around, which only a visibility term can cut.
             if (dot(N, ldir) > 0.0) {
-                float vis = phxLightVisibility(inWorldPos + ubo.cameraWorld, Ng,
+                dbgMarchCount += 1.0;
+                float vis = (kSkipMarch || kCountOnly) ? 1.0
+                          : phxLightVisibility(inWorldPos + ubo.cameraWorld, Ng,
                                                lightPos + ubo.cameraWorld, ubo.occupancyBox);
                 if (vis > 0.0) {
                     float atten = calcAttenuation(dist, radius);
@@ -488,7 +496,9 @@ void main() {
             // Trace only inside the cone and on facing surfaces — outside either, the contribution
             // is already zero and a march would be pure cost.
             if (spotFactor > 0.0 && dot(N, ldir) > 0.0) {
-                float vis = phxLightVisibility(inWorldPos + ubo.cameraWorld, Ng,
+                dbgMarchCount += 1.0;
+                float vis = (kSkipMarch || kCountOnly) ? 1.0
+                          : phxLightVisibility(inWorldPos + ubo.cameraWorld, Ng,
                                                lightPos + ubo.cameraWorld, ubo.occupancyBox);
                 if (vis > 0.0) {
                     float atten = calcAttenuation(dist, radius);
@@ -499,6 +509,10 @@ void main() {
         }
     }
     color += dbgForward;
+    // PROBE 18: marches performed by THIS fragment, linear in R (count/32), so a readback
+    // with the tone curve off recovers the number. G = 1 marks "some light was in range".
+    if (kCountOnly) { outColor = vec4(dbgMarchCount / 32.0, dbgMarchCount > 0.0 ? 1.0 : 0.0, 0.0, 1.0); return; }
+
     // BISECT PROBE 16 (G-18): + the point/spot light loops, which each run a
     // phxLightVisibility occupancy march PER LIGHT PER FRAGMENT (up to 32 + 16).
     // mode16 - mode15 is that cost; mode0 - mode16 is fog/haze/tonemap.
