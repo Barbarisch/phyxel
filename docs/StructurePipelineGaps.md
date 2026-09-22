@@ -25,14 +25,16 @@ what the engine did instead, the workaround used, and what a real fix looks like
   incident's failure mode **plus** a case where the source does not even compile and nothing says so.
 - **Workaround used:** check the `.spv` mtime by hand after every shader edit, and grep the batch
   output for `ERROR` (the errors ARE printed — they are simply not acted on).
-- **Real fix (two small changes):**
-  1. `build_shaders.bat` must propagate `glslc`'s exit code — fail the run, and do NOT print the
-     success banner, if any invocation returns non-zero. (Beware the known `.bat` trap: unescaped
-     parens in an `echo` inside a block silently kill the block.)
-  2. `tools/shader_manifest.py --check` must refuse to validate a manifest written by the same
-     invocation that built the shaders, or take a `--verify-fresh` mode that compares `.spv` mtimes
-     against their sources rather than trusting the recorded hash. A guard whose input is rewritten
-     by the thing it guards is not a guard.
+- **Real fix — ONE change, not two (revised 2026-09-22).** This was first written up as two fixes;
+  they collapse:
+  **`build_shaders.bat` must propagate `glslc`'s exit code — fail the run, suppress the success
+  banner, and CRITICALLY do not re-record the manifest — if any invocation returns non-zero.**
+  Recording only on a fully successful run is what restores `--check`: a failed build then leaves
+  the OLD manifest against NEW sources, so `--check` reddens on its own with no new mode and no
+  mtime comparison. The second fix originally proposed (`--verify-fresh`) is unnecessary once the
+  manifest stops being written over a failure.
+  (Beware the known `.bat` trap: unescaped parens in an `echo` inside a block silently kill the
+  block.)
 - **Status:** OPEN. Hit during the damage-crack work (P3); logged rather than worked around.
 
 ## 2026-07-05 — asset editor crashes after ~9 hot-reloads (exit 3, silent)

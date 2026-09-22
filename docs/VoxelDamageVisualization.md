@@ -442,6 +442,64 @@ Inputs: `worldPosAbs`, `faceNormal`, `damageStage` (0-3), `crackStyle` (per mate
    behaviour: Glass (s1 = 1.3) gets a dense fine network; Steel (s1 = 4.5) gets sparse wide fissures;
    Stone (1.8) sits between. This is the telegraphing in §1 — surface predicts shatter tier, driven by
    the same numbers the physics uses, so they cannot drift apart.
+
+   ### 4.4a How `crackStyle` REACHES the shader (resolved at gate pass 2 — it was a blocker)
+
+   **Neither obvious route had room.** The instance `reserved` word is **fully allocated**: bit 0
+   emissive, bit 1 transparent, **bits 2-9 quantized alpha**, bit 10 mirror, bits 11-14 damage,
+   bit 15 `varied` (`ChunkRenderManager.cpp:388-390`) — 16 of 16 bits. And the per-material props
+   `vec4` in the atlas SSBO is **fully used**: `metallic`, `roughness`, `emStrength`,
+   `emThreshold` (`voxel.frag:277-281`, packed at `AtlasManager.cpp:498-517`).
+
+   **Decision: widen the per-material props array to a STRIDE OF TWO `vec4`s per layer.**
+   ```
+   props[gi*2 + 0] = (metallic, roughness, emStrength, emThreshold)   // unchanged
+   props[gi*2 + 1] = (crackStyle, 0, 0, 0)                            // 3 floats spare
+   ```
+   Why this rather than reclaiming instance bits:
+   - **`crackStyle` is a per-MATERIAL property, not per-face** — the props array is exactly what
+     that array is for, and the instance word is not.
+   - **No instance-format change**, so the 24-byte `InstanceData` and its hand-synced twin
+     (`reference_dual_instancedata_struct`) are untouched — no ABI churn, no risk to the greedy
+     merge key.
+   - **The alternative is worse:** the only reclaimable bits are the 8-bit alpha (bits 2-9), and
+     narrowing transparency precision to buy an appearance knob trades a shipped feature's fidelity
+     for a new one's convenience.
+   - **Cost is trivial and bounded:** the array is sized by *texture layer*, not by voxel, so this
+     doubles a few KB.
+   - It leaves **3 spare floats per material**, which is the first free slot for per-material
+     appearance data since the props array was repurposed.
+
+   ### 4.4b The `brittleS1` → `style` mapping (was unspecified)
+
+   `crack.glsl` divides by `kCrackCell * style`, so **larger style = larger cells = sparser**.
+   `brittleS1` spans 1.3 (Glass) to 4.5 (Steel), so the direction is already right, but passing it
+   through raw is wrong: style 4.5 gives 1.5 m cells, **larger than a whole voxel**, so a 1 m face
+   would show less than one cell.
+
+   **Mapping: normalize `s1`'s observed range onto a bounded style range.**
+   ```
+   style = 0.75 + (clamp(s1, 1.3, 4.5) - 1.3) / 3.2 * 0.85      // -> [0.75, 1.60]
+   ```
+   | material | `s1` | style | cells per 1 m face |
+   |---|---|---|---|
+   | Glass | 1.3 | 0.75 | ~4.0 — dense, fine |
+   | Stone | 1.8 | 0.88 | ~3.4 |
+   | Wood | 3.5 | 1.33 | ~2.3 |
+   | Steel | 4.5 | 1.60 | ~1.9 — sparse, wide |
+
+   ⚠️ **The floor of 0.75 is load-bearing, not cosmetic.** P3 measured that the *primary* network
+   had to sit on the subcube lattice to stay legible at 16 units; a style below ~0.75 pushes the
+   brittle materials back toward the microcube lattice and **reintroduces the exact sub-pixel
+   failure P3 fixed**. So the range is clamped, and **P4's distance ladder must be re-run at the
+   style extremes**, not only at style 1.0. Like the stage count, this range is a **starting
+   hypothesis to be measured**, not a settled number.
+
+   **Red test for P5 (§7's gate was "visual A/B", which is a comparison, not a measurable claim):**
+   `VoxelCrackSeamTest.StyleChangesCrackDensityMeasurably` — evaluate the CPU mirror over a fixed
+   patch at Glass / Stone / Steel styles and assert the fraction of samples on a crack differs by
+   at least 1.5× between the extremes. **Fails today with:** all three identical, because every
+   material renders at style 1.0. This is L2 and runs before a single pixel is captured.
 5. **Darken the crack, not the face.** The current code darkens the *entire* face
    (`voxel.frag:285`, `textureColor.rgb *= mix(1.0, 0.55, dmg)`) — which is exactly why it reads as
    dirt. Confine the darkening to crack pixels (cracks are self-shadowing) and keep a much smaller
@@ -577,6 +635,17 @@ Two parts, and the weak one now has a guard so it cannot quietly become a fake c
   Verify the resulting *stage*, not the applied energy — two equal `apply_damage` calls can straddle
   a quantization boundary. With equal stages on both sides, any remaining discontinuity belongs to
   the crack field, which is exactly what is under test.
+  ⚠️ **CONTROL, mandatory (gate pass 2).** Measure the luminance discontinuity at a **mid-chunk
+  voxel boundary** in the SAME capture, and require the seam discontinuity to be no worse. Without
+  it the metric cannot separate "no seam defect" from "measuring nothing": a uniformly smooth wall
+  passes trivially, and a legitimate stage step reads as a failure. The control is what makes the
+  threshold mean something.
+  ⚠️ **This test is GREEN ON ARRIVAL, and that must not be dressed up as red-before-green
+  (gate pass 2).** The shipped shader is already world-seeded, so the failure text below cannot be
+  observed without deliberately breaking it. Demonstrate it the way §3.7's red was demonstrated:
+  **temporarily seed `crackField` from `texCoord` instead of `worldPosAbs`, rebuild, observe the
+  seam discontinuity, revert.** Record it in §13 as a retroactive red, stating plainly that it was
+  retroactive.
   ⚠️ **Second precondition: BOTH chunks must be resident (pass 5).** This rig spans x = 31/32 by
   necessity, so the gate's "keep the rig inside ONE chunk" cannot apply — which makes the silent-drop
   trap *more* live here than anywhere else in this plan, not less. **Assert chunk (0,0,0) and chunk
@@ -648,9 +717,24 @@ stage transitions.
 - the variance across 3 captures at a **fixed** pose, which catches the speckle failure — a crack
   that shimmers rather than resolves.
 
-**Prediction, written before the run:** legibility falls off monotonically with distance, and the
-3-stage variant stays distinguishable from pristine (≥ 5% of face pixels) further out than the
-15-stage variant, because wider bands survive minification. **If the crack is instead invisible at
+**Cost-axis prediction, written before the run (gate pass 2 — the first draft's was directional
+and therefore could not fail).** Damage is folded into the merge key, so a radial damage gradient
+breaks merge runs once per distinct stage value: 15 stages produce up to 15 concentric bands, 3
+produce 3. **Predicted: the DAMAGED REGION's face count at 3 stages is at least 2× lower than at 15
+stages.** Total scene face count moves by less, in proportion to the damaged fraction of the scene —
+so report both, and do not quote the scene total as if it were the effect size. **Falsifiable:** if
+the damaged region's face count differs by less than ~1.3× between 3 and 15 stages, merge
+fragmentation is not where the cost lives and §3.5's central cost argument is wrong.
+
+**Pinned tests that move if P4 revises the stage count** (defaults are a pinned contract):
+`VoxelDamageStateTest.StageQuantizationAtEveryBoundary`,
+`.OnlyFourDistinctPackedValuesAcrossTheWholeDamageRange`, and
+`.CoarseStagesBoundTheRemeshCountPerVoxel` all assert against `kDamageStagesVisible` and must be
+updated in the same commit, with the measured table as the reason.
+
+**Legibility prediction, written before the run:** legibility falls off monotonically with distance,
+and the 3-stage variant stays distinguishable from pristine (≥ 5% of face pixels) further out than
+the 15-stage variant, because wider bands survive minification. **If the crack is instead invisible at
 every stage count beyond ~48 units, that is a finding, not a failure** — it means the fracture cell
 size (§4.2, microcube grid) is wrong for gameplay viewing distance and must be re-derived. Far
 cheaper to learn it here than after P5.
@@ -667,6 +751,19 @@ faked. Two constraints decide it:
   it **must force a full re-mesh of every loaded chunk**, not just a shader reload; and
 - an A/B whose arms are separate binaries cannot hold "the exact same frame" fixed, which is what the
   gate's measure-don't-infer rule requires.
+
+⚠️ **The knob cannot set a `constexpr`, and the fix has a threading consequence (gate pass 2).**
+`kDamageStagesVisible` ships as `inline constexpr int` (`DamageStage.h`), so a runtime endpoint
+cannot change it. Making it mutable matters because it is read **per voxel** during chunk meshing,
+and chunk rebuilds run on **worker threads** — a naive mutable global is a cross-thread read in a
+32,768-cell loop.
+
+**Resolved:** make it a `std::atomic<int>` with an accessor, and have every consumer **read it ONCE
+into a local** — the mesher at the top of a chunk rebuild, `DamageSystem` at the top of
+`applyDamage`. That is simultaneously the race fix and the performance answer: a rebuild in flight
+uses one consistent value throughout, there is no atomic load in the inner loop, and the forced
+full re-mesh after a knob change leaves no chunk holding a stale count. The constant keeps its
+doc comment; only its storage class changes.
 
 **Decision: a debug endpoint, `POST /api/debug/damage_stages {"stages": N}`**, which sets the
 quantization and triggers a full re-mesh before returning. Per the API key: `stages` is an **ordinal
@@ -1557,12 +1654,16 @@ Everything still outstanding, in recommended order. §7 remains the authority on
 section exists because the open items were spread across §6.2, §7, §13 and an engine-gap log, and
 "what is next" should be answerable from one place.
 
+**Gate pass 2 (2026-09-22) found 7 items, including 2 BLOCKERS — all resolved in place.** A blocker
+in a plan is a decision not yet made, so both were decided rather than logged: P5's data path
+(§4.4a) and P4's runtime knob (§6.4). Verdict of record: §17.
+
 | # | Item | Where specified | Status | Blocks |
 |---|---|---|---|---|
-| **1** | **`build_shaders.bat` reports success on a FAILED shader compile**, and `shader_manifest.py --check` then passes because the batch rewrites the manifest it is checked against | `StructurePipelineGaps.md` 2026-09-22 | OPEN | Nothing here — but it endangers **every** future shader change in the repo |
-| **2** | **§6.2 RUNTIME seam test** — damaged wall straddling x = 31/32, captured and diffed | §6.2 (rig + residency precondition) | OPEN | **P3 closure** |
-| **3** | **P4 — stage-count A/B**, 3 / 7 / 15 for cost AND legibility across the 4/16/48/96 ladder | §6.4 + the `damage_stages` knob in §6.4 | OPEN | Ratifying or revising P2's choice of 3 |
-| **4** | **P5 — per-material `crackStyle`** from `brittleS1`/`brittleS2` | §4.4, §7 | OPEN | — |
+| **1** | **`build_shaders.bat` reports success on a FAILED shader compile**, and `shader_manifest.py --check` then passes because the batch rewrites the manifest it is checked against | `StructurePipelineGaps.md` 2026-09-22 | **READY** — fix simplified to ONE change at gate 2 | Nothing here — but it endangers **every** future shader change in the repo |
+| **2** | **§6.2 RUNTIME seam test** — damaged wall straddling x = 31/32, captured and diffed | §6.2 — now with the control and the retroactive-red method | **READY** | **P3 closure** |
+| **3** | **P4 — stage-count A/B**, 3 / 7 / 15 for cost AND legibility across the 4/16/48/96 ladder | §6.4 — knob storage resolved, cost prediction added, pinned tests named | **READY** | Ratifying or revising P2's choice of 3 |
+| **4** | **P5 — per-material `crackStyle`** from `brittleS1`/`brittleS2` | §4.4 + **§4.4a data path, §4.4b mapping**, red test named | **READY** | — |
 | 5 | **V2 — sub-voxel damage** (cracks on generated buildings) | §3.6, §15 | OPEN | Retiring §1's scope boundary; also wanted by `FractureModes.md` F1 |
 | 6 | **V1.5 — geometric spall** | §3.4 | OPEN | Depends on V2 |
 
@@ -1587,3 +1688,39 @@ Voronoi cells read as regular and polygonal.
 from rendering (cracks cannot appear on sub-cube building walls) and `FractureModes.md` reached it
 from physics (a carved cube goes visually pristine). That convergence is the strongest argument yet
 for scheduling it sooner than "after P5".
+
+---
+
+## 17. Gate verdict — pass 2 (the remaining work)
+
+### 2026-09-22 — **NEEDS WORK, 7 items, 2 blockers** — all resolved in place
+
+Run against §16 items 1-4, i.e. the next things to be built rather than the whole document.
+
+> No design key is violated; nothing needs redesign. But two items are **not buildable as written**.
+
+| # | Item | Severity | Resolved in |
+|---|---|---|---|
+| 1 | **P5 has no data path for `crackStyle`** — instance `reserved` is 16/16 bits allocated and the material-props `vec4` is 4/4 used | **Blocker** | §4.4a — props array widened to a stride of two `vec4`s |
+| 2 | **P4's knob cannot set a `constexpr`**, and making it mutable adds a cross-thread read during worker-thread meshing | **Blocker** | §6.4 — `std::atomic<int>`, read ONCE per rebuild into a local |
+| 3 | §6.2's runtime seam test names no control | Moderate | §6.2 — mid-chunk boundary in the same capture |
+| 4 | §6.2 is green-on-arrival but framed as red-before-green | Moderate | §6.2 — deliberate `texCoord` break, recorded as retroactive |
+| 5 | P5's `brittleS1` → `style` mapping unspecified, no red test | Moderate | §4.4b — bounded mapping + `StyleChangesCrackDensityMeasurably` |
+| 6 | P4 has only a directional cost prediction, which cannot fail | Moderate | §6.4 — ≥ 2× on the damaged region, with a stated falsifier |
+| 7 | P4 doesn't name the pinned tests asserting `kDamageStagesVisible` | Minor | §6.4 — three named |
+
+**Plus a correction to this session's own gap log** (not a finding against the plan): the
+`build_shaders.bat` fix is **one** change, not two. Recording the manifest only on a fully
+successful run restores `--check` for free — a failed build leaves the old manifest against new
+sources, which reddens by itself. The proposed `--verify-fresh` mode was unnecessary.
+
+**The two blockers were worth the gate on their own**, because both were invisible from the plan
+and only became apparent by reading the code: the instance word is *exactly* full, and the props
+`vec4` is *exactly* full, so P5 — written as a small per-material follow-on — had nowhere to put
+its one float. And `kDamageStagesVisible` is `constexpr`, so P4's endpoint could not have been
+implemented as specified at all.
+
+**Discipline note carried forward from the resolutions:** both §4.4b's style range and §3.5's stage
+count are now explicitly **hypotheses to be measured, not settled numbers**, and both say so where
+the value lives. §4.4b additionally records that the style floor is load-bearing — dropping it
+would reintroduce the sub-pixel legibility failure P3 measured and fixed.
