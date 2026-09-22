@@ -1,5 +1,7 @@
 # Phyxel Keybindings
 
+> **Rebinding.** A shipped game's keys are editable in **Settings > Keybindings** (ESC > Settings). The panel is GENERATED from `GameSettings::defaultKeybindings()` by `tools/gen_keybind_panel.py`, so every default has a row; `--check` and `GameSettingsTest.EveryDefaultBindingIsEditableInTheSettingsPanel` fail if it drifts. Changes save to `settings.json`.
+
 > Verified against `editor/src/input/InputController.cpp` (`setupKeyboardBindings`/
 > `setupMouseBindings`), `engine/include/input/ControlScheme.h`, and `engine/src/core/
 > GameSettings.cpp`. Two behaviors changed significantly from earlier versions of this doc:
@@ -71,7 +73,9 @@
 - **C**: Character sheet (`ToggleCharacter`) — name/race/class/level/XP, HP/AC/speed/initiative/proficiency, the six abilities, saving throws and all 18 skills (`*` = proficient); C or ESC closes it. Rebindable in Settings → Keybindings.
 - **1-9, 0, -, =**: fire the twelve action-bar slots (Ravenmere G-150). Slot 1 is key `1`.
   Suppressed while a dialogue is up, because 1-4 are that dialogue's choice keys.
-- **P**: the Abilities panel — the catalogue you DRAG icons from onto the bar. Drag a slot
+  REBINDABLE since G-153 - they are the named actions `ActionSlot1`..`ActionSlot12`, listed
+  in Settings > Keybindings like everything else.
+- **P** (`ToggleAbilities`, rebindable): the Abilities panel — the catalogue you DRAG icons from onto the bar. Drag a slot
   onto another to swap them; drag one off the bar to clear it. The arrangement is saved per
   player (`PlayerProfile::actionBar`) and survives a relaunch.
 

@@ -2538,20 +2538,17 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // dialogue's choice keys - otherwise both would answer the same press,
             // and picking dialogue option 2 would also cast whatever is in slot 2.
             {{
-                static const int kBarKeys[Phyxel::Core::ActionBar::SLOT_COUNT] = {{
-                    GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4, GLFW_KEY_5, GLFW_KEY_6,
-                    GLFW_KEY_7, GLFW_KEY_8, GLFW_KEY_9, GLFW_KEY_0,
-                    GLFW_KEY_MINUS, GLFW_KEY_EQUAL
-                }};
+                // NAMED ACTIONS, not raw keys: rebindable in Settings -> Keybindings, and a
+                // game that wants the number row for something else just moves them.
                 const bool talking = dialogueSystem_ && dialogueSystem_->isActive();
                 const bool barLive = !aiTyping && !talking && Phyxel::UI::isGameRunning(state);
                 for (int i = 0; i < Phyxel::Core::ActionBar::SLOT_COUNT; ++i) {{
-                    const bool down = input->isKeyPressed(kBarKeys[i]);
+                    const bool down = input->isActionPressed("ActionSlot" + std::to_string(i + 1));
                     const bool edge = down && !barKeyDown_[i];
                     barKeyDown_[i] = down;
                     if (edge && barLive) fireActionSlot(i);
                 }}
-                const bool pDown = input->isKeyPressed(GLFW_KEY_P);
+                const bool pDown = input->isActionPressed("ToggleAbilities");
                 const bool pEdge = pDown && !barKeyDown_[Phyxel::Core::ActionBar::SLOT_COUNT];
                 barKeyDown_[Phyxel::Core::ActionBar::SLOT_COUNT] = pDown;
                 if (pEdge && barLive) {{

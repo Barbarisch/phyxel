@@ -221,7 +221,9 @@ std::vector<Keybinding> GameSettings::defaultKeybindings() {
         {"Crouch",         GLFW_KEY_LEFT_CONTROL, 0},
         {"TogglePause",    GLFW_KEY_ESCAPE,  0},
         {"ToggleInventory",GLFW_KEY_TAB,     0},
-        {"PlaceCube",      GLFW_KEY_C,       0},
+        // "PlaceCube" was removed 2026-09-22: it was bound to C, which is ALSO
+        // ToggleCharacter, and nothing in engine/, editor/ or any generated game ever read
+        // the action - it existed only to collide. A creative game that wants it binds it.
         {"Attack",         GLFW_KEY_F,       0},
         {"Interact",       GLFW_KEY_E,       0},
         {"ToggleCharacter",GLFW_KEY_C,       0},   // character sheet (Ravenmere G-133)
@@ -231,6 +233,23 @@ std::vector<Keybinding> GameSettings::defaultKeybindings() {
         {"StrafeRight",    GLFW_KEY_E,       0},
         {"ToggleAutorun",  GLFW_KEY_NUM_LOCK, 0},
         {"ToggleWalk",     GLFW_KEY_KP_DIVIDE, 0},
+        // ACTION BAR (G-150). Twelve slots on the WoW row, plus the abilities panel you
+        // drag from. Named actions rather than raw key checks, so they are rebindable in
+        // Settings -> Keybindings like everything else - and so a game that wants the
+        // number row for something else can simply move them.
+        {"ActionSlot1",    GLFW_KEY_1,       0},
+        {"ActionSlot2",    GLFW_KEY_2,       0},
+        {"ActionSlot3",    GLFW_KEY_3,       0},
+        {"ActionSlot4",    GLFW_KEY_4,       0},
+        {"ActionSlot5",    GLFW_KEY_5,       0},
+        {"ActionSlot6",    GLFW_KEY_6,       0},
+        {"ActionSlot7",    GLFW_KEY_7,       0},
+        {"ActionSlot8",    GLFW_KEY_8,       0},
+        {"ActionSlot9",    GLFW_KEY_9,       0},
+        {"ActionSlot10",   GLFW_KEY_0,       0},
+        {"ActionSlot11",   GLFW_KEY_MINUS,   0},
+        {"ActionSlot12",   GLFW_KEY_EQUAL,   0},
+        {"ToggleAbilities",GLFW_KEY_P,       0},
     };
 }
 

@@ -1,74 +1,1254 @@
 ﻿{
-  "_comment": "Data-driven settings screen (docs/HudSystem.md §11a). Loaded by UI::loadGameScreenInto(ui,\"settings\",...). Two columns. slider/checkbox/dropdown carry a numeric \"setting\" key (MenuActions.onGetSetting/onSetSetting); textinput carries a string \"setting\" key (onGetSettingText/onSetSettingText). Back = action \"back\". The 'keybindings' sub-panel (open via open_submenu) has one row per action: a label + a key button (action {type:rebind, binding:<Action>}) showing {{keybind.<Action>}}; host wires onRebindKey (key capture). Changes apply live; host saves on Back.",
+  "_comment": "Data-driven settings screen (docs/HudSystem.md \u00a711a). Loaded by UI::loadGameScreenInto(ui,\"settings\",...). Two columns. slider/checkbox/dropdown carry a numeric \"setting\" key (MenuActions.onGetSetting/onSetSetting); textinput carries a string \"setting\" key (onGetSettingText/onSetSettingText). Back = action \"back\". The 'keybindings' sub-panel (open via open_submenu) has one row per action: a label + a key button (action {type:rebind, binding:<Action>}) showing {{keybind.<Action>}}; host wires onRebindKey (key capture). Changes apply live; host saves on Back.",
   "background_type": "solid",
-  "background_color": [0.05, 0.05, 0.10, 1.0],
+  "background_color": [
+    0.05,
+    0.05,
+    0.1,
+    1.0
+  ],
   "start_panel": "main",
   "panels": {
     "main": {
       "children": [
-        { "type": "label", "align": "center", "id": "settings_title", "text": "SETTINGS", "font": "title", "position": [640, 36], "size": [400, 60] },
-
-        { "type": "label",    "id": "hdr_graphics", "text": "Graphics", "position": [160, 110], "size": [200, 28] },
-        { "type": "dropdown", "id": "set_resolution", "label": "Resolution", "setting": "resolution", "options": ["1280 x 720", "1600 x 900", "1920 x 1080"], "position": [160, 140], "size": [400, 30] },
-        { "type": "dropdown", "id": "set_vsync",      "label": "V-Sync",     "setting": "vsync",      "options": ["Off", "On", "Adaptive"],               "position": [160, 184], "size": [400, 30] },
-        { "type": "checkbox", "id": "set_fullscreen", "label": "Fullscreen", "setting": "fullscreen", "position": [160, 228], "size": [400, 30] },
-        { "type": "slider",   "id": "set_fov",        "label": "Field of View", "setting": "fov",        "min": 30,  "max": 120, "position": [160, 268], "size": [400, 30] },
-        { "type": "slider",   "id": "set_brightness", "label": "Brightness",    "setting": "brightness", "min": 0.3, "max": 2.0, "position": [160, 308], "size": [400, 30] },
-
-        { "type": "label",  "id": "hdr_audio", "text": "Audio", "position": [160, 360], "size": [200, 28] },
-        { "type": "slider", "id": "set_master", "label": "Master Volume", "setting": "masterVolume", "min": 0, "max": 1, "position": [160, 390], "size": [400, 30] },
-        { "type": "slider", "id": "set_music",  "label": "Music Volume",  "setting": "musicVolume",  "min": 0, "max": 1, "position": [160, 430], "size": [400, 30] },
-        { "type": "slider", "id": "set_sfx",    "label": "SFX Volume",    "setting": "sfxVolume",    "min": 0, "max": 1, "position": [160, 470], "size": [400, 30] },
-
-        { "type": "label",    "id": "hdr_controls", "text": "Controls", "position": [700, 110], "size": [200, 28] },
-        { "type": "slider",   "id": "set_mousesens", "label": "Mouse Sensitivity", "setting": "mouseSensitivity", "min": 0.01, "max": 1.0, "position": [700, 140], "size": [400, 30] },
-        { "type": "checkbox", "id": "set_inverty",   "label": "Invert Y",          "setting": "invertY",          "position": [700, 184], "size": [400, 30] },
-        { "type": "button",   "id": "set_keybinds",  "text": "Keybindings...",      "position": [700, 224], "size": [400, 34], "action": { "type": "open_submenu", "target": "keybindings" } },
-
-        { "type": "label",     "id": "hdr_ai", "text": "AI (NPC conversations)", "position": [700, 290], "size": [380, 28] },
-        { "type": "dropdown",  "id": "set_aiprovider", "label": "Provider", "setting": "aiProvider", "options": ["anthropic", "openai", "ollama"], "position": [700, 320], "size": [400, 30] },
-        { "type": "label",     "id": "lbl_aimodel", "text": "Model", "position": [700, 366], "size": [200, 26] },
-        { "type": "textinput", "id": "set_aimodel", "setting": "aiModel", "placeholder": "(provider default)", "position": [700, 392], "size": [400, 30] },
-        { "type": "label",     "id": "lbl_aikey", "text": "API Key", "position": [700, 432], "size": [200, 26] },
-        { "type": "textinput", "id": "set_aikey", "setting": "aiApiKey", "placeholder": "(paste API key)", "position": [700, 458], "size": [400, 30] },
-
-        { "type": "button", "id": "settings_back", "text": "Back", "position": [540, 650], "size": [200, 48], "action": { "type": "back" } }
+        {
+          "type": "label",
+          "align": "center",
+          "id": "settings_title",
+          "text": "SETTINGS",
+          "font": "title",
+          "position": [
+            640,
+            36
+          ],
+          "size": [
+            400,
+            60
+          ]
+        },
+        {
+          "type": "label",
+          "id": "hdr_graphics",
+          "text": "Graphics",
+          "position": [
+            160,
+            110
+          ],
+          "size": [
+            200,
+            28
+          ]
+        },
+        {
+          "type": "dropdown",
+          "id": "set_resolution",
+          "label": "Resolution",
+          "setting": "resolution",
+          "options": [
+            "1280 x 720",
+            "1600 x 900",
+            "1920 x 1080"
+          ],
+          "position": [
+            160,
+            140
+          ],
+          "size": [
+            400,
+            30
+          ]
+        },
+        {
+          "type": "dropdown",
+          "id": "set_vsync",
+          "label": "V-Sync",
+          "setting": "vsync",
+          "options": [
+            "Off",
+            "On",
+            "Adaptive"
+          ],
+          "position": [
+            160,
+            184
+          ],
+          "size": [
+            400,
+            30
+          ]
+        },
+        {
+          "type": "checkbox",
+          "id": "set_fullscreen",
+          "label": "Fullscreen",
+          "setting": "fullscreen",
+          "position": [
+            160,
+            228
+          ],
+          "size": [
+            400,
+            30
+          ]
+        },
+        {
+          "type": "slider",
+          "id": "set_fov",
+          "label": "Field of View",
+          "setting": "fov",
+          "min": 30,
+          "max": 120,
+          "position": [
+            160,
+            268
+          ],
+          "size": [
+            400,
+            30
+          ]
+        },
+        {
+          "type": "slider",
+          "id": "set_brightness",
+          "label": "Brightness",
+          "setting": "brightness",
+          "min": 0.3,
+          "max": 2.0,
+          "position": [
+            160,
+            308
+          ],
+          "size": [
+            400,
+            30
+          ]
+        },
+        {
+          "type": "label",
+          "id": "hdr_audio",
+          "text": "Audio",
+          "position": [
+            160,
+            360
+          ],
+          "size": [
+            200,
+            28
+          ]
+        },
+        {
+          "type": "slider",
+          "id": "set_master",
+          "label": "Master Volume",
+          "setting": "masterVolume",
+          "min": 0,
+          "max": 1,
+          "position": [
+            160,
+            390
+          ],
+          "size": [
+            400,
+            30
+          ]
+        },
+        {
+          "type": "slider",
+          "id": "set_music",
+          "label": "Music Volume",
+          "setting": "musicVolume",
+          "min": 0,
+          "max": 1,
+          "position": [
+            160,
+            430
+          ],
+          "size": [
+            400,
+            30
+          ]
+        },
+        {
+          "type": "slider",
+          "id": "set_sfx",
+          "label": "SFX Volume",
+          "setting": "sfxVolume",
+          "min": 0,
+          "max": 1,
+          "position": [
+            160,
+            470
+          ],
+          "size": [
+            400,
+            30
+          ]
+        },
+        {
+          "type": "label",
+          "id": "hdr_controls",
+          "text": "Controls",
+          "position": [
+            700,
+            110
+          ],
+          "size": [
+            200,
+            28
+          ]
+        },
+        {
+          "type": "slider",
+          "id": "set_mousesens",
+          "label": "Mouse Sensitivity",
+          "setting": "mouseSensitivity",
+          "min": 0.01,
+          "max": 1.0,
+          "position": [
+            700,
+            140
+          ],
+          "size": [
+            400,
+            30
+          ]
+        },
+        {
+          "type": "checkbox",
+          "id": "set_inverty",
+          "label": "Invert Y",
+          "setting": "invertY",
+          "position": [
+            700,
+            184
+          ],
+          "size": [
+            400,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "set_keybinds",
+          "text": "Keybindings...",
+          "position": [
+            700,
+            224
+          ],
+          "size": [
+            400,
+            34
+          ],
+          "action": {
+            "type": "open_submenu",
+            "target": "keybindings"
+          }
+        },
+        {
+          "type": "label",
+          "id": "hdr_ai",
+          "text": "AI (NPC conversations)",
+          "position": [
+            700,
+            290
+          ],
+          "size": [
+            380,
+            28
+          ]
+        },
+        {
+          "type": "dropdown",
+          "id": "set_aiprovider",
+          "label": "Provider",
+          "setting": "aiProvider",
+          "options": [
+            "anthropic",
+            "openai",
+            "ollama"
+          ],
+          "position": [
+            700,
+            320
+          ],
+          "size": [
+            400,
+            30
+          ]
+        },
+        {
+          "type": "label",
+          "id": "lbl_aimodel",
+          "text": "Model",
+          "position": [
+            700,
+            366
+          ],
+          "size": [
+            200,
+            26
+          ]
+        },
+        {
+          "type": "textinput",
+          "id": "set_aimodel",
+          "setting": "aiModel",
+          "placeholder": "(provider default)",
+          "position": [
+            700,
+            392
+          ],
+          "size": [
+            400,
+            30
+          ]
+        },
+        {
+          "type": "label",
+          "id": "lbl_aikey",
+          "text": "API Key",
+          "position": [
+            700,
+            432
+          ],
+          "size": [
+            200,
+            26
+          ]
+        },
+        {
+          "type": "textinput",
+          "id": "set_aikey",
+          "setting": "aiApiKey",
+          "placeholder": "(paste API key)",
+          "position": [
+            700,
+            458
+          ],
+          "size": [
+            400,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "settings_back",
+          "text": "Back",
+          "position": [
+            540,
+            650
+          ],
+          "size": [
+            200,
+            48
+          ],
+          "action": {
+            "type": "back"
+          }
+        }
       ]
     },
     "keybindings": {
       "children": [
-        { "type": "label", "align": "center", "id": "kb_title", "text": "KEYBINDINGS", "font": "title", "position": [640, 36], "size": [400, 60] },
-        { "type": "label", "align": "center", "id": "kb_hint", "text": "Click a key, then press the new key. ESC cancels.", "position": [640, 96], "size": [700, 26] },
-
-        { "type": "label",  "id": "lbl_MoveForward",  "text": "Move Forward",  "position": [220, 150], "size": [220, 30] },
-        { "type": "button", "id": "kb_MoveForward",   "text": "{{keybind.MoveForward}}",  "position": [440, 146], "size": [180, 34], "action": { "type": "rebind", "binding": "MoveForward" } },
-        { "type": "label",  "id": "lbl_MoveBackward", "text": "Move Backward", "position": [220, 196], "size": [220, 30] },
-        { "type": "button", "id": "kb_MoveBackward",  "text": "{{keybind.MoveBackward}}", "position": [440, 192], "size": [180, 34], "action": { "type": "rebind", "binding": "MoveBackward" } },
-        { "type": "label",  "id": "lbl_MoveLeft",     "text": "Move Left",     "position": [220, 242], "size": [220, 30] },
-        { "type": "button", "id": "kb_MoveLeft",      "text": "{{keybind.MoveLeft}}",     "position": [440, 238], "size": [180, 34], "action": { "type": "rebind", "binding": "MoveLeft" } },
-        { "type": "label",  "id": "lbl_MoveRight",    "text": "Move Right",    "position": [220, 288], "size": [220, 30] },
-        { "type": "button", "id": "kb_MoveRight",     "text": "{{keybind.MoveRight}}",    "position": [440, 284], "size": [180, 34], "action": { "type": "rebind", "binding": "MoveRight" } },
-        { "type": "label",  "id": "lbl_Jump",         "text": "Jump",          "position": [220, 334], "size": [220, 30] },
-        { "type": "button", "id": "kb_Jump",          "text": "{{keybind.Jump}}",         "position": [440, 330], "size": [180, 34], "action": { "type": "rebind", "binding": "Jump" } },
-        { "type": "label",  "id": "lbl_Sprint",       "text": "Sprint",        "position": [220, 380], "size": [220, 30] },
-        { "type": "button", "id": "kb_Sprint",        "text": "{{keybind.Sprint}}",       "position": [440, 376], "size": [180, 34], "action": { "type": "rebind", "binding": "Sprint" } },
-
-        { "type": "label",  "id": "lbl_Crouch",          "text": "Crouch",      "position": [700, 150], "size": [220, 30] },
-        { "type": "button", "id": "kb_Crouch",           "text": "{{keybind.Crouch}}",          "position": [920, 146], "size": [180, 34], "action": { "type": "rebind", "binding": "Crouch" } },
-        { "type": "label",  "id": "lbl_TogglePause",     "text": "Pause",       "position": [700, 196], "size": [220, 30] },
-        { "type": "button", "id": "kb_TogglePause",      "text": "{{keybind.TogglePause}}",     "position": [920, 192], "size": [180, 34], "action": { "type": "rebind", "binding": "TogglePause" } },
-        { "type": "label",  "id": "lbl_ToggleInventory", "text": "Inventory",   "position": [700, 242], "size": [220, 30] },
-        { "type": "button", "id": "kb_ToggleInventory",  "text": "{{keybind.ToggleInventory}}", "position": [920, 238], "size": [180, 34], "action": { "type": "rebind", "binding": "ToggleInventory" } },
-        { "type": "label",  "id": "lbl_PlaceCube",       "text": "Place Block", "position": [700, 288], "size": [220, 30] },
-        { "type": "button", "id": "kb_PlaceCube",        "text": "{{keybind.PlaceCube}}",       "position": [920, 284], "size": [180, 34], "action": { "type": "rebind", "binding": "PlaceCube" } },
-        { "type": "label",  "id": "lbl_Attack",          "text": "Attack",      "position": [700, 334], "size": [220, 30] },
-        { "type": "button", "id": "kb_Attack",           "text": "{{keybind.Attack}}",          "position": [920, 330], "size": [180, 34], "action": { "type": "rebind", "binding": "Attack" } },
-        { "type": "label",  "id": "lbl_Interact",        "text": "Interact",    "position": [700, 380], "size": [220, 30] },
-        { "type": "button", "id": "kb_Interact",         "text": "{{keybind.Interact}}",        "position": [920, 376], "size": [180, 34], "action": { "type": "rebind", "binding": "Interact" } },
-        { "type": "label",  "id": "lbl_ToggleCharacter", "text": "Character",   "position": [700, 426], "size": [220, 30] },
-        { "type": "button", "id": "kb_ToggleCharacter",  "text": "{{keybind.ToggleCharacter}}", "position": [920, 422], "size": [180, 34], "action": { "type": "rebind", "binding": "ToggleCharacter" } },
-
-        { "type": "button", "id": "kb_back", "text": "Back", "position": [540, 560], "size": [200, 48], "action": { "type": "close_submenu" } }
+        {
+          "type": "label",
+          "align": "center",
+          "id": "kb_title",
+          "text": "KEYBINDINGS",
+          "font": "title",
+          "position": [
+            640,
+            36
+          ],
+          "size": [
+            400,
+            60
+          ]
+        },
+        {
+          "type": "label",
+          "align": "center",
+          "id": "kb_hint",
+          "text": "Click a key, then press the new key. ESC cancels.",
+          "position": [
+            640,
+            100
+          ],
+          "size": [
+            880,
+            26
+          ]
+        },
+        {
+          "type": "label",
+          "id": "lbl_MoveForward",
+          "text": "Move Forward",
+          "position": [
+            160,
+            150
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_MoveForward",
+          "text": "{{keybind.MoveForward}}",
+          "position": [
+            410,
+            146
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "MoveForward"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_MoveBackward",
+          "text": "Move Backward",
+          "position": [
+            160,
+            186
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_MoveBackward",
+          "text": "{{keybind.MoveBackward}}",
+          "position": [
+            410,
+            182
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "MoveBackward"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_MoveLeft",
+          "text": "Move Left",
+          "position": [
+            160,
+            222
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_MoveLeft",
+          "text": "{{keybind.MoveLeft}}",
+          "position": [
+            410,
+            218
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "MoveLeft"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_MoveRight",
+          "text": "Move Right",
+          "position": [
+            160,
+            258
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_MoveRight",
+          "text": "{{keybind.MoveRight}}",
+          "position": [
+            410,
+            254
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "MoveRight"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_StrafeLeft",
+          "text": "Strafe Left",
+          "position": [
+            160,
+            294
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_StrafeLeft",
+          "text": "{{keybind.StrafeLeft}}",
+          "position": [
+            410,
+            290
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "StrafeLeft"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_StrafeRight",
+          "text": "Strafe Right",
+          "position": [
+            160,
+            330
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_StrafeRight",
+          "text": "{{keybind.StrafeRight}}",
+          "position": [
+            410,
+            326
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "StrafeRight"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_Jump",
+          "text": "Jump",
+          "position": [
+            160,
+            366
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_Jump",
+          "text": "{{keybind.Jump}}",
+          "position": [
+            410,
+            362
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "Jump"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_Sprint",
+          "text": "Sprint",
+          "position": [
+            160,
+            402
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_Sprint",
+          "text": "{{keybind.Sprint}}",
+          "position": [
+            410,
+            398
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "Sprint"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_Crouch",
+          "text": "Crouch",
+          "position": [
+            160,
+            438
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_Crouch",
+          "text": "{{keybind.Crouch}}",
+          "position": [
+            410,
+            434
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "Crouch"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_ToggleAutorun",
+          "text": "Autorun",
+          "position": [
+            160,
+            474
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_ToggleAutorun",
+          "text": "{{keybind.ToggleAutorun}}",
+          "position": [
+            410,
+            470
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "ToggleAutorun"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_ToggleWalk",
+          "text": "Walk / Run",
+          "position": [
+            160,
+            510
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_ToggleWalk",
+          "text": "{{keybind.ToggleWalk}}",
+          "position": [
+            410,
+            506
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "ToggleWalk"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_Interact",
+          "text": "Interact",
+          "position": [
+            160,
+            546
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_Interact",
+          "text": "{{keybind.Interact}}",
+          "position": [
+            410,
+            542
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "Interact"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_Attack",
+          "text": "Attack",
+          "position": [
+            160,
+            582
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_Attack",
+          "text": "{{keybind.Attack}}",
+          "position": [
+            410,
+            578
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "Attack"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_TogglePause",
+          "text": "Pause",
+          "position": [
+            160,
+            618
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_TogglePause",
+          "text": "{{keybind.TogglePause}}",
+          "position": [
+            410,
+            614
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "TogglePause"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_ToggleInventory",
+          "text": "Inventory",
+          "position": [
+            160,
+            654
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_ToggleInventory",
+          "text": "{{keybind.ToggleInventory}}",
+          "position": [
+            410,
+            650
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "ToggleInventory"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_ToggleCharacter",
+          "text": "Character",
+          "position": [
+            700,
+            150
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_ToggleCharacter",
+          "text": "{{keybind.ToggleCharacter}}",
+          "position": [
+            950,
+            146
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "ToggleCharacter"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_ToggleAbilities",
+          "text": "Abilities Panel",
+          "position": [
+            700,
+            186
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_ToggleAbilities",
+          "text": "{{keybind.ToggleAbilities}}",
+          "position": [
+            950,
+            182
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "ToggleAbilities"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_ActionSlot1",
+          "text": "Action Bar 1",
+          "position": [
+            700,
+            222
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_ActionSlot1",
+          "text": "{{keybind.ActionSlot1}}",
+          "position": [
+            950,
+            218
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "ActionSlot1"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_ActionSlot2",
+          "text": "Action Bar 2",
+          "position": [
+            700,
+            258
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_ActionSlot2",
+          "text": "{{keybind.ActionSlot2}}",
+          "position": [
+            950,
+            254
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "ActionSlot2"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_ActionSlot3",
+          "text": "Action Bar 3",
+          "position": [
+            700,
+            294
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_ActionSlot3",
+          "text": "{{keybind.ActionSlot3}}",
+          "position": [
+            950,
+            290
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "ActionSlot3"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_ActionSlot4",
+          "text": "Action Bar 4",
+          "position": [
+            700,
+            330
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_ActionSlot4",
+          "text": "{{keybind.ActionSlot4}}",
+          "position": [
+            950,
+            326
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "ActionSlot4"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_ActionSlot5",
+          "text": "Action Bar 5",
+          "position": [
+            700,
+            366
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_ActionSlot5",
+          "text": "{{keybind.ActionSlot5}}",
+          "position": [
+            950,
+            362
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "ActionSlot5"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_ActionSlot6",
+          "text": "Action Bar 6",
+          "position": [
+            700,
+            402
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_ActionSlot6",
+          "text": "{{keybind.ActionSlot6}}",
+          "position": [
+            950,
+            398
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "ActionSlot6"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_ActionSlot7",
+          "text": "Action Bar 7",
+          "position": [
+            700,
+            438
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_ActionSlot7",
+          "text": "{{keybind.ActionSlot7}}",
+          "position": [
+            950,
+            434
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "ActionSlot7"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_ActionSlot8",
+          "text": "Action Bar 8",
+          "position": [
+            700,
+            474
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_ActionSlot8",
+          "text": "{{keybind.ActionSlot8}}",
+          "position": [
+            950,
+            470
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "ActionSlot8"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_ActionSlot9",
+          "text": "Action Bar 9",
+          "position": [
+            700,
+            510
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_ActionSlot9",
+          "text": "{{keybind.ActionSlot9}}",
+          "position": [
+            950,
+            506
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "ActionSlot9"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_ActionSlot10",
+          "text": "Action Bar 10",
+          "position": [
+            700,
+            546
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_ActionSlot10",
+          "text": "{{keybind.ActionSlot10}}",
+          "position": [
+            950,
+            542
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "ActionSlot10"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_ActionSlot11",
+          "text": "Action Bar 11",
+          "position": [
+            700,
+            582
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_ActionSlot11",
+          "text": "{{keybind.ActionSlot11}}",
+          "position": [
+            950,
+            578
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "ActionSlot11"
+          }
+        },
+        {
+          "type": "label",
+          "id": "lbl_ActionSlot12",
+          "text": "Action Bar 12",
+          "position": [
+            700,
+            618
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_ActionSlot12",
+          "text": "{{keybind.ActionSlot12}}",
+          "position": [
+            950,
+            614
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "ActionSlot12"
+          }
+        }
       ]
     }
   }
