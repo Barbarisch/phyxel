@@ -1661,7 +1661,7 @@ in a plan is a decision not yet made, so both were decided rather than logged: P
 | # | Item | Where specified | Status | Blocks |
 |---|---|---|---|---|
 | ~~1~~ | ~~`build_shaders.bat` reports success on a FAILED shader compile~~ | `StructurePipelineGaps.md` 2026-09-22 | ✅ **FIXED 2026-09-22** — three nested cmd traps, shipped as `\|\| goto :shader_error`; regression test `tools/test_shader_build_fails_loudly.py` | — |
-| **2** | **§6.2 RUNTIME seam test** — damaged wall straddling x = 31/32, captured and diffed | §6.2 — now with the control and the retroactive-red method | **READY** | **P3 closure** |
+| **2** | **§6.2 RUNTIME seam test** — damaged wall straddling x = 31/32, captured and diffed | §6.2; rig built as `tools/crack_seam_test.py` | ⚠️ **ATTEMPTED, NOT ACHIEVED.** Rig + both preconditions work; **the pixel metric cannot yet detect a deliberately uv-seeded shader**, so a PASS proves nothing. Three metrics tried and logged in the tool. Next attempt: two-rig A/B (straddling vs in-chunk) | **P3 closure — still open** |
 | **3** | **P4 — stage-count A/B**, 3 / 7 / 15 for cost AND legibility across the 4/16/48/96 ladder | §6.4 — knob storage resolved, cost prediction added, pinned tests named | **READY** | Ratifying or revising P2's choice of 3 |
 | **4** | **P5 — per-material `crackStyle`** from `brittleS1`/`brittleS2` | §4.4 + **§4.4a data path, §4.4b mapping**, red test named | **READY** | — |
 | 5 | **V2 — sub-voxel damage** (cracks on generated buildings) | §3.6, §15 | OPEN | Retiring §1's scope boundary; also wanted by `FractureModes.md` F1 |
