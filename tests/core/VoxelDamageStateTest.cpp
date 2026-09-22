@@ -155,28 +155,62 @@ TEST_F(VoxelDamageStateTest, StageChangePredicateIgnoresDamageAboveFullyDamaged)
 TEST_F(VoxelDamageStateTest, NormalizationIsRelativeToMaterialToughness) {
     ASSERT_TRUE(loaded_);
 
-    // Two materials at opposite ends of the toughness range.
-    const float stoneT = ds_->responseFor("Stone").toughness;   // 110 in materials.json
-    const float glassT = ds_->responseFor("Glass").toughness;   //  35
+    // Asserted through DamageSystem::displayStage -- the SAME entry point the mesher and the
+    // /api/world/voxel readback resolve through. Calling damageStage() with a hand-picked
+    // denominator here would be circular: it would test this test's arithmetic, not the
+    // engine's choice of denominator.
+    const float stoneT = DamageSystem::responseFor("Stone").toughness;   // 110 in materials.json
+    const float glassT = DamageSystem::responseFor("Glass").toughness;   //  35
     ASSERT_GT(stoneT, 0.0f);
     ASSERT_GT(glassT, 0.0f);
     ASSERT_GT(stoneT, glassT) << "this test is meaningless unless the two differ";
 
-    // Damage each to the SAME fraction of its OWN break toughness. They are equally close
-    // to failing, so the feature's entire purpose says they must display the same stage.
-    const float fraction = 0.5f;
-    const float stoneDamage = stoneT * fraction;
-    const float glassDamage = glassT * fraction;
+    // Damage each to the SAME fraction of its OWN break toughness: equally close to failing.
+    // The feature exists to communicate proximity to breaking, so they must display the same.
+    for (float fraction : {0.25f, 0.5f, 0.75f, 1.0f}) {
+        const uint8_t stoneStage = DamageSystem::displayStage("Stone", stoneT * fraction);
+        const uint8_t glassStage = DamageSystem::displayStage("Glass", glassT * fraction);
+        EXPECT_EQ(stoneStage, glassStage)
+            << "at " << (fraction * 100.0f) << "% of their own toughness, Stone displays stage "
+            << int(stoneStage) << " and Glass " << int(glassStage) << " -- a rendered stage must "
+            << "mean the same fraction of the way to failure on every material";
+    }
 
-    const uint8_t stoneStage = damageStage(stoneDamage, kDamageDisplayRef);
-    const uint8_t glassStage = damageStage(glassDamage, kDamageDisplayRef);
+    // And the whole range is used, rather than saturating early. Under the old global
+    // reference of 30, Stone pinned at max by 27% of the way to breaking and said nothing for
+    // the remaining 73%.
+    EXPECT_LT(DamageSystem::displayStage("Stone", stoneT * 0.30f), kDamageStageMax)
+        << "Stone at 30% of the way to breaking must NOT already be at maximum display";
+    EXPECT_EQ(DamageSystem::displayStage("Stone", stoneT), kDamageStageMax)
+        << "a voxel at its break threshold must display the top stage";
+}
 
-    EXPECT_EQ(stoneStage, glassStage)
-        << "Stone and Glass at " << (fraction * 100.0f) << "% of their own toughness display "
-        << "different stages (" << int(stoneStage) << " vs " << int(glassStage) << "). "
-        << "EXPECTED TO FAIL until P1 (3.2) replaces the global kDamageDisplayRef="
-        << kDamageDisplayRef << " with each material's own toughness. Stone saturates at "
-        << (kDamageDisplayRef / stoneT * 100.0f) << "% of the way to breaking, Glass at "
-        << (kDamageDisplayRef / glassT * 100.0f) << "% -- so one stage means very different "
-        << "things depending on the material.";
+TEST_F(VoxelDamageStateTest, DisplayStageAgreesWithTheEchoedDenominator) {
+    ASSERT_TRUE(loaded_);
+    // /api/world/voxel echoes `toughness` so a caller can reproduce damage01 and the stage
+    // itself. Pin that promise: displayStage(mat, d) must equal damageStage(d, toughness).
+    for (const char* mat : {"Stone", "Glass", "Wood", "Metal", "Dirt"}) {
+        const float t = DamageSystem::responseFor(mat).toughness;
+        ASSERT_GT(t, 0.0f) << mat;
+        for (float frac : {0.0f, 0.1f, 0.5f, 0.9f, 1.0f, 2.0f}) {
+            EXPECT_EQ(DamageSystem::displayStage(mat, t * frac), damageStage(t * frac, t))
+                << mat << " at " << frac << "x toughness: the echoed denominator must let a "
+                << "caller reproduce the stage the engine renders";
+        }
+    }
+}
+
+TEST_F(VoxelDamageStateTest, UntouchedMaterialsStillFallBackToADerivedToughness) {
+    ASSERT_TRUE(loaded_);
+    // Only 7 of 108 materials carry a `break` block; the rest derive toughness from
+    // bondStrength * 120 (DamageSystem.cpp). That fallback is a PRE-EXISTING open question
+    // (DestructionSystemV2 #5) and 3.2 does not resolve it -- it only makes it visible. What
+    // must hold regardless: every material resolves to a usable positive denominator, or the
+    // display silently divides by zero and reads pristine forever.
+    for (const char* mat : {"Sand", "Gravel", "Ice", "Leaf", "Sandstone", "Cobblestone"}) {
+        EXPECT_GT(DamageSystem::responseFor(mat).toughness, 0.0f)
+            << mat << " must have a positive damage-display denominator";
+    }
+    EXPECT_GT(DamageSystem::responseFor("NoSuchMaterialXyz").toughness, 0.0f)
+        << "an unknown material must not produce a zero denominator";
 }

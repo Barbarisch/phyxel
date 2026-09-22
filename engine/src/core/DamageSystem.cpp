@@ -28,7 +28,7 @@ float DamageSystem::frand() {
 }
 float DamageSystem::frand(float lo, float hi) { return lo + (hi - lo) * frand(); }
 
-DamageSystem::MatResponse DamageSystem::responseFor(const std::string& materialName) const {
+DamageSystem::MatResponse DamageSystem::responseFor(const std::string& materialName) {
     const auto* def = Core::MaterialRegistry::instance().getMaterial(materialName);
 
     // Data-driven: a material with a "break" block in materials.json supplies its
@@ -45,6 +45,15 @@ DamageSystem::MatResponse DamageSystem::responseFor(const std::string& materialN
     r.toughness = bond * 120.0f;
     r.s1 = 2.5f; r.s2 = 6.0f; r.absorption = 0.6f;
     return r;
+}
+
+uint8_t DamageSystem::displayStage(const std::string& materialName,
+                                   float accumulatedDamage,
+                                   int   stageMax) {
+    // The denominator is the material's own break toughness, so "stage N of M" means the same
+    // fraction of the way to failure on Glass as on Steel. responseFor guarantees it is > 0
+    // (a break block supplies it, or the bondStrength fallback does with a 0.05 floor).
+    return Core::damageStage(accumulatedDamage, responseFor(materialName).toughness, stageMax);
 }
 
 int DamageSystem::solidVoxelsBetween(const glm::vec3& a, const glm::vec3& b) const {
@@ -194,7 +203,10 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
                 const float before = cube->getAccumulatedDamage();
                 cube->addDamage(reached);
                 const float after  = cube->getAccumulatedDamage();
-                if (Core::damageStageChanged(before, after, Core::kDamageDisplayRef)) {
+                // Same denominator the mesher uses (mr.toughness == responseFor(mat)), so the
+                // boundary this tests is exactly the boundary the shader renders.
+                if (Core::damageStage(before, mr.toughness) !=
+                    Core::damageStage(after,  mr.toughness)) {
                     // markChunkForRemesh, NOT markChunkDirty: markChunkDirty ALSO sets the
                     // chunk's DB-dirty flag, which makes the streaming evictor re-save it to
                     // SQLite (DirtyChunkTracker.h). Damage has no DB field, so every one of

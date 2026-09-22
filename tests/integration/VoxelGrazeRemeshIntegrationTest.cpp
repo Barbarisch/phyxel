@@ -34,7 +34,6 @@
 
 using namespace Phyxel;
 using Phyxel::Core::damageStage;
-using Phyxel::Core::kDamageDisplayRef;
 
 namespace {
 
@@ -84,8 +83,8 @@ TEST_F(VoxelGrazeRemeshIntegrationTest, PureGrazeReportsAStageChange) {
     placeStone();
     ASSERT_NE(target(), nullptr);
 
-    // 20 energy against toughness 110: far below the break threshold, but well above the
-    // first stage boundary (kDamageDisplayRef/15 = 2.0), so it is visible.
+    // 20 energy against Stone's toughness of 110: far below the break threshold (so this is
+    // a pure graze), but well past the first stage boundary (110/15 = 7.33), so it is visible.
     DamageSystem dmg(chunkManager.get(), nullptr);
     const auto res = dmg.applyDamage(centre(), 1.0f, 20.0f);
 
@@ -93,12 +92,13 @@ TEST_F(VoxelGrazeRemeshIntegrationTest, PureGrazeReportsAStageChange) {
                                       "a break re-meshes the chunk as a side effect";
     EXPECT_GT(res.voxelsGrazed, 0) << "the blast must actually reach the voxel";
     EXPECT_GT(res.voxelsStageChanged, 0)
-        << "a graze from pristine to stage " << int(damageStage(20.0f, kDamageDisplayRef))
+        << "a graze from pristine to stage "
+        << int(DamageSystem::displayStage("Stone", 20.0f))
         << " changes what is drawn and must request a re-mesh";
 
     ASSERT_NE(target(), nullptr) << "the voxel must survive a sub-threshold hit";
     EXPECT_NEAR(target()->getAccumulatedDamage(), 20.0f, 1e-3f);
-    EXPECT_GT(damageStage(target()->getAccumulatedDamage(), kDamageDisplayRef), 0);
+    EXPECT_GT(DamageSystem::displayStage("Stone", target()->getAccumulatedDamage()), 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -135,10 +135,14 @@ TEST_F(VoxelGrazeRemeshIntegrationTest, SubStageGrazeRequestsNoRebuild) {
     const auto first = dmg.applyDamage(centre(), 1.0f, 20.0f);
     ASSERT_GT(first.voxelsStageChanged, 0);
 
-    // A second, tiny hit: 20.0 -> 20.5 energy. One stage band is 2.0 wide, so both land on
-    // stage 10 and not a single pixel changes. Re-meshing for this would be pure cost.
-    ASSERT_EQ(damageStage(20.0f,  kDamageDisplayRef),
-              damageStage(20.5f, kDamageDisplayRef)) << "rig assumption: same stage band";
+    // A second, tiny hit: 20.0 -> 20.5 energy. Since P1 the denominator is Stone's own
+    // toughness (110), so one stage band is 110/15 = 7.33 energy wide and both land in the
+    // same band -- not a single pixel changes, and re-meshing would be pure cost.
+    // Asserted through the engine's own entry point, so this rig assumption cannot silently
+    // go stale if the denominator changes again (it already did once, at P1).
+    ASSERT_EQ(DamageSystem::displayStage("Stone", 20.0f),
+              DamageSystem::displayStage("Stone", 20.5f))
+        << "rig assumption: both hits must land in the same stage band";
 
     const auto second = dmg.applyDamage(centre(), 1.0f, 0.5f);
     EXPECT_GT(second.voxelsGrazed, 0)      << "the hit must still land";

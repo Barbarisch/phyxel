@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <vector>
 #include <functional>
+#include "core/DamageStage.h"
 
 namespace Phyxel {
 
@@ -13,6 +14,7 @@ class GpuParticlePhysics;
 namespace Core { class CoherentFragmentManager; }
 
 // Result of one area-damage application.
+// kDamageStageMax / damageStage() -- the quantization displayStage() is built on.
 struct DamageResult {
     int voxelsBroken = 0;   // static voxels removed
     int voxelsGrazed = 0;   // in range but under break threshold (damage accumulated)
@@ -77,7 +79,25 @@ public:
     };
     // Resolve a material's break response: reads its materials.json "break" block
     // when present, else a bondStrength-derived fallback. docs/DestructionSystemV2.md §5.A.
-    MatResponse responseFor(const std::string& materialName) const;
+    // STATIC: it reads only MaterialRegistry, never instance state, so the mesher and the
+    // API can resolve toughness without owning a DamageSystem. Existing `ds->responseFor(x)`
+    // call sites keep compiling.
+    static MatResponse responseFor(const std::string& materialName);
+
+    // What damage stage does a voxel of this material DISPLAY, given its accumulated damage?
+    // THE single entry point for that question (docs/VoxelDamageVisualization.md §3.2):
+    // the mesher, the /api/world/voxel readback and the graze re-mesh test all resolve
+    // through here, so a stage means the same thing everywhere.
+    //
+    // Normalized by the material's OWN break toughness, not a global constant. With a global
+    // reference of 30, Stone (toughness 110) reached maximum display at 27% of the way to
+    // breaking and then said nothing for the remaining 73%, while Glass (35) did not saturate
+    // until 86% -- the same rendered stage meant anywhere from 14% to 86% of the way to
+    // failure, a 6.3x spread, on a feature whose entire purpose is to communicate proximity
+    // to breaking.
+    static uint8_t displayStage(const std::string& materialName,
+                                float accumulatedDamage,
+                                int   stageMax = Core::kDamageStageMax);
 
     // STRUCTURAL wood test at any granularity (F6): true when the cell holds Log*
     // at cube or subcube cross-section (micro-only twig wood is cargo, not trunk).

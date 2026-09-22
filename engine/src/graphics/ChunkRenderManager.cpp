@@ -3,6 +3,7 @@
 #include "graphics/ChunkUpdatePerf.h"   // B0 diagnostic timers (docs/ChunkUpdateHitchPlan.md)
 #include "core/Cube.h"
 #include "core/DamageStage.h"
+#include "core/DamageSystem.h"
 #include "core/Subcube.h"
 #include "core/Microcube.h"
 #include "core/ChunkVoxelStore.h"
@@ -325,7 +326,10 @@ void ChunkRenderManager::rebuildCubeFaces(
     // Per-material face textures + flags (computed once per distinct material in chunk).
     // emR/G/B = emissive light colour (0-15 per channel, hue from physics.colorTint, brightest
     // channel scaled to 15) used to seed coloured block light; 0 for non-emissive materials.
-    struct MatFace { uint16_t tex[6]; uint16_t reserved; uint8_t emR, emG, emB; uint8_t isGrass; uint8_t isBillboarded; };
+    // `toughness` is the DAMAGE DISPLAY DENOMINATOR for this material (3.2). Cached per
+    // material rather than resolved per voxel: responseFor() does a registry lookup, and a
+    // chunk rebuild visits up to 32768 cells but only a handful of distinct materials.
+    struct MatFace { uint16_t tex[6]; uint16_t reserved; uint8_t emR, emG, emB; uint8_t isGrass; uint8_t isBillboarded; float toughness; };
     std::unordered_map<std::string, int> matIdByName;
     std::vector<MatFace> matFaces;
     // Reused member scratch buffers (.assign re-zeros without reallocating once warm) — avoids
@@ -365,16 +369,6 @@ void ChunkRenderManager::rebuildCubeFaces(
         if (p.x < 0 || p.x >= N || p.y < 0 || p.y >= N || p.z < 0 || p.z >= N) continue;
         int cell = cellIdx(p.x, p.y, p.z);
         solidVis[cell] = 1;
-        // Per-voxel accumulated damage (DamageSystem) -> stage 0..15, packed into instance
-        // bits 11-14 and read by voxel.frag. Core::damageStage is the SINGLE SOURCE OF TRUTH:
-        // DamageSystem's graze path quantizes with the same function to decide whether a hit
-        // changed anything visible and the chunk needs re-meshing (3.7). If the two disagreed
-        // the engine would either rebuild for changes no one can see, or skip a rebuild for
-        // one they can -- and a state-only test could not tell.
-        // kDamageDisplayRef is still the prototype global constant; P1 (3.2) replaces it here
-        // with responseFor(material).toughness so a stage means the same fraction of the way
-        // to breaking on every material.
-        cellDamage[cell] = Phyxel::Core::damageStage(damage, Phyxel::Core::kDamageDisplayRef);
         const std::string& mname = *mnamePtr;
         auto it = matIdByName.find(mname);
         if (it == matIdByName.end()) {
@@ -412,6 +406,10 @@ void ChunkRenderManager::rebuildCubeFaces(
                 mf.emG = static_cast<uint8_t>(glm::clamp(t.y * s, 0.0f, 15.0f) + 0.5f);
                 mf.emB = static_cast<uint8_t>(glm::clamp(t.z * s, 0.0f, 15.0f) + 0.5f);
             }
+            // Damage display denominator (3.2): this material's own break toughness, so a
+            // rendered stage means the same fraction of the way to failure on Glass as on
+            // Steel. Resolved ONCE per material here, not per voxel.
+            mf.toughness = Phyxel::DamageSystem::responseFor(mname).toughness;
             int newId = static_cast<int>(matFaces.size());
             matFaces.push_back(mf);
             matIdByName[mname] = newId;
@@ -419,6 +417,19 @@ void ChunkRenderManager::rebuildCubeFaces(
         } else {
             cellMat[cell] = it->second;
         }
+
+        // Per-voxel accumulated damage -> stage 0..15, packed into instance bits 11-14 and read
+        // by voxel.frag. Core::damageStage is the SINGLE SOURCE OF TRUTH: DamageSystem's graze
+        // path quantizes with the same function against the same denominator to decide whether a
+        // hit changed anything VISIBLE and the chunk needs re-meshing (3.7). If the two
+        // disagreed, the engine would rebuild for changes no one can see, or skip a rebuild for
+        // one they can -- and a state-only test could not tell.
+        //
+        // CLAMPED inside damageStage(), and the clamp is load-bearing: bit 15 of this word is the
+        // `varied` texture-rotation flag (set per material just above), so a stage >= 16 would
+        // overflow bits 11-14 into it and silently hash-rotate the face texture -- which on
+        // coursed materials breaks pattern continuity at voxel edges.
+        cellDamage[cell] = Phyxel::Core::damageStage(damage, matFaces[cellMat[cell]].toughness);
     }
 
     // --- LIGHT FIELD REMOVED (lighting rebuild M0, 2026-08-29) --------------------------------

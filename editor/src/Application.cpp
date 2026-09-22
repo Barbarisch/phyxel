@@ -749,9 +749,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         const std::string& material = cube->getMaterialName();
         result["material"] = material;   // needed to interpret the values below
 
-        // responseFor() reads only MaterialRegistry, so this probe needs no world.
-        Phyxel::DamageSystem probe(nullptr, nullptr);
-        const float toughness = probe.responseFor(material).toughness;
+        // responseFor is static -- it reads only MaterialRegistry, never world state.
+        const float toughness = Phyxel::DamageSystem::responseFor(material).toughness;
         const float energy    = cube->getAccumulatedDamage();
 
         // Units named at the field, and the DENOMINATOR echoed, so a caller can reproduce
@@ -762,12 +761,13 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
                                     ? std::min(1.0f, std::max(0.0f, energy / toughness))
                                     : 0.0f;
         // The stage the SHADER actually receives, not a re-derivation: a test asserting only
-        // on damage01 could pass while the rendered surface showed something else.
-        // DURING P0 this still quantizes against the global kDamageDisplayRef, so it and
-        // damage01 disagree for any material whose toughness is not 30. That disagreement IS
-        // the defect P1 (3.2) fixes, and VoxelDamageStateTest's Stone/Glass red measures it.
+        // on damage01 could pass while the rendered surface showed something else. Resolved
+        // through the SAME entry point the mesher uses, so the two cannot disagree.
+        // Since P1 (3.2) this is normalized by the material's own toughness, so damage_stage
+        // and damage01 now move together for every material -- a caller can check
+        // damage_stage ~= round(damage01 * stageMax) and catch a normalization regression.
         result["damage_stage"] = static_cast<int>(
-            Phyxel::Core::damageStage(energy, Phyxel::Core::kDamageDisplayRef));
+            Phyxel::DamageSystem::displayStage(material, energy));
         return result;
     });
 

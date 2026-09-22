@@ -1,6 +1,6 @@
 # Voxel Damage Visualization — progressive cracks (P4)
 
-**Status:** **P0 in progress** on `feature/voxel-damage-cracks`. Design-check gate run **five times**
+**Status:** **P0 + P1 complete** on `feature/voxel-damage-cracks`. Design-check gate run **five times**
 (2026-09-22), 21 items found and resolved — see §11 for the full ledger:
 - **Pass 1** → NEEDS WORK, 5 items: API readback, toughness normalization, world-position seeding,
   the geometric-spall position, stage quantization/merge cost (§3.1-3.5).
@@ -702,9 +702,9 @@ Ordered so each phase is provable before the next begins.
 
 | Phase | Work | Depth | Gate to proceed |
 |---|---|---|---|
-| **P0** | §3.1 API readback (incl. `damage_tracked`) + **§3.7 graze re-mesh** + R1, R5 | L2+L4 | R1 green; R5 green; R1's Stone/Glass variant still **red** (proves it measures normalization) |
+| **P0** ✅ | §3.1 API readback (incl. `damage_tracked`) + **§3.7 graze re-mesh** + R1, R5 | L2+L4 | R1 green; R5 green; R1's Stone/Glass variant still **red** (proves it measures normalization) — **DONE**, see §13 |
 | **P0.5** | **Cost the V2 sub-voxel storage options on paper** (§3.6's two questions) — per-cell vs. per-parent-cube aggregate, memory measured, no implementation | doc | a costed recommendation exists **before P3 writes the shader**; does not gate P1/P2, which are independent of it |
-| **P1** | §3.2 toughness normalization + clamp comment | L2 | R1 Stone/Glass variant red→green |
+| **P1** ✅ | §3.2 toughness normalization + clamp comment | L2 | R1 Stone/Glass variant red→green — **DONE**, see §13 |
 | **P2** | §3.5 quantize to 3 stages (field width unchanged) | L2 | stage mapping unit-tested at boundaries 0/1/2/3; R5 still green with stage-gated dirtying |
 | **P3** | §4 crack shader (`crack.glsl`, world-seeded) + R2 + R3 | L4 | R2 both parts green incl. its sampled-value guard; R3 meets the written prediction with both controls; **§14 visual review signed off** |
 | **P4** | R4 stage-count A/B in a real scene | L4 | table published; final stage count ratified or revised |
@@ -1118,6 +1118,78 @@ review gate — there is no crack to judge. The rig is left standing in `DamageL
 **Note on suite cost:** the full Debug unit suite takes about an hour. Run targeted filters while
 iterating and reserve the full sweep for phase boundaries; an unobserved hour-long run is also very
 easy to mistake for a hang (it was, once, during P0).
+
+
+### P1 — toughness normalization — **COMPLETE**
+
+Built:
+- **`DamageSystem::responseFor` is now `static`.** It only ever read `MaterialRegistry`, never
+  instance state, so the mesher and the API can resolve toughness without owning a `DamageSystem`.
+  Existing `ds->responseFor(x)` call sites still compile.
+- **`DamageSystem::displayStage(material, damage, stageMax)` — THE entry point** for "what stage
+  does this voxel display". The mesher, `/api/world/voxel` and the tests all resolve through it, so
+  a stage cannot mean one thing in the shader and another in a test.
+- **`ChunkRenderManager`**: `MatFace` gained `toughness`, resolved **once per material** (a rebuild
+  visits up to 32,768 cells but only a handful of distinct materials), and the per-voxel quantization
+  now divides by it instead of the global `kDamageDisplayRef`.
+- **Graze path** uses `mr.toughness` — the same denominator — so the boundary that triggers a
+  re-mesh is exactly the boundary the shader renders.
+
+**Test discipline note, because it nearly went wrong.** The P0 red asserted on
+`damageStage(damage, kDamageDisplayRef)` — a hand-picked denominator. Simply swapping the constant
+in the test would have turned it green **while testing nothing but its own arithmetic**. The P1
+version asserts through `DamageSystem::displayStage`, which is what the engine actually calls, across
+four fractions (25/50/75/100%). Two tests were added alongside:
+- `DisplayStageAgreesWithTheEchoedDenominator` — pins §3.1's promise that echoing `toughness` lets a
+  caller reproduce the rendered stage, across five materials × six damage fractions.
+- `UntouchedMaterialsStillFallBackToADerivedToughness` — §3.2 makes the `bondStrength * 120`
+  fallback *visible* for the 101 materials without a break block but does **not** fix it (pre-existing
+  open question #5). What must hold regardless is that every material — including an unknown one —
+  resolves to a **positive** denominator, or the display divides by zero and reads pristine forever.
+
+The integration test's rig assumption had the same latent flaw and was rewritten the same way: it
+said `damageStage(20.0f, kDamageDisplayRef)`, which would still have **passed** after P1 while
+silently testing a constant the engine no longer uses.
+
+**RESULT — unit 9/9, integration 4/4.** The §7 P1 gate is met: R1's Stone/Glass variant went
+**red → green**.
+
+**L4, live, against a prediction written before the run** (`tools/damage_ladder_rig.py --measure`):
+
+| world x | damage01 | predicted stage | actual | P0 stage (ref 30) |
+|---|---|---|---|---|
+| 8 | 0.000 | 0 | **0** | 0 |
+| 9 | 0.200 | 3 | **3** | 11 |
+| 10 | 0.400 | 6 | **6** | **15** |
+| 11 | 0.600 | 9 | **9** | **15** |
+| 12 | 0.800 | 12 | **12** | **15** |
+| 13 | 0.950 | 14 | **14** | **15** |
+| 14, 15 | 0.000 | 0 | **0** | 0 |
+
+8/8 match. **The right-hand column is the defect in one view:** under the global reference,
+everything from 27% damage onward rendered *identically* — four of these rungs were the same pixel
+value. The display now spends its whole range on the whole damage range.
+
+**Measured luminance (curve 0, same pose):** 83.02 / 75.37 / 73.84 / 68.23 / 65.60 / 63.39 across
+stages 0→3→6→9→12→14, with the far pristine controls at 80.96 and 83.59 (within **±2.1** of the
+near control). **Do not misread this as the P1 win:** the per-stage slope is ~1.40 lum/stage vs P0's
+~1.51, i.e. essentially unchanged, because the shader's stage→darkness mapping was not touched. P1
+changed *which damage values reach which stages*, not what a stage looks like. The slope being flat
+is itself the argument for P2: **~1.4 luminance out of 255 per stage is below what anyone can rank
+by eye.**
+
+### The review rig is now one command
+
+`tools/damage_ladder_rig.py` (§14.1). Builds terrain, wall, ladder, camera and tonemap; reads each
+material's toughness **from the running engine** rather than hardcoding it, so the ladder stays
+correct if a break block is retuned; and **verifies the world rather than the fill response**.
+
+⚠️ **It found a real rig bug on its first run, which is the argument for having written it.**
+Damage lives on the voxel and `fill` does **not** reset it, so re-running the rig over an existing
+wall ADDED each column's energy to what it already carried: the 0.60 / 0.80 / 0.95 columns summed
+past toughness and **broke**, silently converting a pure-graze rig into a demolition. The script's
+own integrity check (`8/8 columns intact`) caught it; a screenshot would not have. The rig now
+clears the region first, through the JobSystem so the engine keeps rendering.
 
 ---
 
