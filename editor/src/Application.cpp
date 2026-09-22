@@ -2876,6 +2876,15 @@ void Application::run() {
         // Route input to custom UI system first (consumes input when menus are visible)
         bool uiConsumedInput = false;
         if (renderCoordinator && renderCoordinator->getUISystem()) {
+            // G-50: keep the HUD's logical canvas PLACED in the window. The shipped shell
+            // has always done this (G-132); the editor never did, so resizing the editor
+            // left its HUD/menu preview laid out for the old size - every element in the
+            // wrong place, and clicks landing somewhere else.
+            const glm::uvec2 vp = renderCoordinator->getSwapChainSize();
+            if (vp != lastUiWindow_) {
+                lastUiWindow_ = vp;
+                renderCoordinator->getUISystem()->setWindowSize(vp.x, vp.y);
+            }
             uiConsumedInput = renderCoordinator->getUISystem()->handleInput(inputManager);
         }
 
