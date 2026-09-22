@@ -559,6 +559,28 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 
 ## 9. Change log (append a line per lighting/shadow change; the fingerprint line is written by `tools/lighting_doc_check.py --update`)
 
+- 2026-09-22 — **ROOT CAUSE FOUND, and it is not the cost of lighting: THE SAME LIGHT IS
+  UPLOADED 32 TIMES (G-158).** Runs 7-8 dumped the light buffer instead of reasoning about it.
+  All 32 uploaded point lights in the Ravenmere town are at the IDENTICAL position
+  (rel (1.500, -0.311, 5.500), r=7.5, i=1.0) — 32 rows, **one distinct position**
+  (`docs/evidence/ravenmere/rv_perf8.json`). The emissive walk in
+  `ChunkRenderManager::rebuildAllFaces` emits one point light per emissive SUB-VOXEL but
+  positions it at the PARENT CUBE (`sc->getPosition()`, `mc->getParentCubePosition()`, beside a
+  flaming-voxel push that correctly uses `getWorldPosition()`), so every emissive sub-voxel in a
+  cube becomes a co-located duplicate. Across the shipped asset library that is **3518 emitted
+  lights from 199 distinct parent cubes (17.7x; worst `forge_bush_glow_green` 1270 from 38 = 33x,
+  `oven_bread` 64 from 4, `forge_hearth`/`chandelier` 8 from 1)**. Independently confirmed by the
+  shader: with one distinct light a pixel's light count can only be 0 or 32, and probe 19 reports
+  max exactly 32.00 at both poses with means 21.30 (66.6% of lit pixels) and 11.03 (34.5%).
+  THREE consequences, only the first of which was visible as "perf": ~31 of the 32 marches per
+  pixel are exact duplicates, so the 236 ms light bill is ~97% redundant work; the 32-slot budget
+  is entirely consumed by ONE fixture, so every other light in the town is starved out and does
+  not light anything; and 32 copies SUM, so that fixture is ~32x over-bright — which is also
+  what makes the G-157 wall leak so conspicuous. **This supersedes run 6's stated fix direction**
+  ("per-tile/per-cluster light culling"): clustering cannot help lights that share one position
+  and therefore one tile. It also invalidates run 7's contribution-gate survivor counts, which
+  measured duplicates and must be re-taken after dedup. No lighting behaviour changed in this
+  commit; rules R8/R9 untouched.
 - 2026-09-22 — **TWO DEFECTS IN ONE FUNCTION: `phxLightVisibility` is 90% of the frame AND
   leaks through walls (G-18 + G-157).** Drilling into the light loops: the MARCH alone is 237.5
   of 263.6 ms, and a probe that counts marches shows **31.3 of the 32-light cap running at 91.6%

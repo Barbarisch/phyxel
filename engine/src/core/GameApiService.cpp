@@ -883,6 +883,27 @@ void GameApiService::registerCommands() {
              {"exposure", renderCoordinator->getExposure()}};
     });
 
+    // G-18 MEASUREMENT: what is actually in the light buffer this frame - the 32 the
+    // LightManager picked by relevance, with their radii and intensities.
+    reg.on("list_uploaded_lights", [this](const APICommand&, json& r) {
+        if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
+        const auto& g = renderCoordinator->getLightManager().getGPUData();
+        json pts = json::array();
+        for (uint32_t i = 0; i < g.numPointLights; ++i) {
+            const auto& p = g.pointLights[i];
+            pts.push_back({{"rel_x", p.positionAndRadius.x}, {"rel_y", p.positionAndRadius.y},
+                           {"rel_z", p.positionAndRadius.z}, {"radius", p.positionAndRadius.w},
+                           {"intensity", p.colorAndIntensity.w},
+                           {"dist_to_viewer", std::sqrt(p.positionAndRadius.x * p.positionAndRadius.x +
+                                                        p.positionAndRadius.y * p.positionAndRadius.y +
+                                                        p.positionAndRadius.z * p.positionAndRadius.z)}});
+        }
+        r = {{"success", true}, {"num_point_lights", g.numPointLights},
+             {"num_spot_lights", g.numSpotLights},
+             {"registered_point_lights", renderCoordinator->getLightManager().getPointLightCount()},
+             {"points", pts}};
+    });
+
     // G-18 MEASUREMENT: the fragment-cost probe. Mode 11 makes voxel.frag return a flat
     // colour before any shading, so Static Geometry measures rasterisation only - the
     // discriminator between overdraw and per-fragment shader cost. Mode 0 is normal.
@@ -890,7 +911,7 @@ void GameApiService::registerCommands() {
         auto* dev = runtime ? runtime->getVulkanDevice() : nullptr;
         if (!dev) { r = {{"error", "VulkanDevice not available"}}; return; }
         if (cmd.params.contains("mode"))
-            dev->setDebugShadowMode(std::clamp(cmd.params.value("mode", 0), 0, 18));
+            dev->setDebugShadowMode(std::clamp(cmd.params.value("mode", 0), 0, 19));
         r = {{"success", true}, {"mode", dev->getDebugShadowMode()}};
     });
 
