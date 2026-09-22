@@ -1,9 +1,8 @@
 # Voxel Damage Visualization — progressive cracks (P4)
 
 **Status:** **P0 + P0.5 + P1 + P2 + P3 built** on `feature/voxel-damage-cracks`.
-⚠️ **P3 is NOT closed: §14's human visual review has not been taken.** Per §7 that review is a
-gate, not a courtesy — the automated evidence below shows the crack EXISTS and is measurable; it
-cannot show that it READS. Design-check gate run **five times**
+**§14 visual review: SIGNED OFF 2026-09-22** (§13). One item still open before P3 is fully closed:
+§6.2's RUNTIME seam test has not been run. Design-check gate run **five times**
 (2026-09-22), 21 items found and resolved — see §11 for the full ledger:
 - **Pass 1** → NEEDS WORK, 5 items: API readback, toughness normalization, world-position seeding,
   the geometric-spall position, stage quantization/merge cost (§3.1-3.5).
@@ -714,7 +713,7 @@ Ordered so each phase is provable before the next begins.
 | **P0.5** ✅ | **Cost the V2 sub-voxel storage options on paper** (§3.6's two questions) — per-cell vs. per-parent-cube aggregate, memory measured, no implementation | doc | a costed recommendation exists **before P3 writes the shader** — **DONE, §15. The premise it was built on turned out to be wrong**; does not gate P1/P2 |
 | **P1** ✅ | §3.2 toughness normalization + clamp comment | L2 | R1 Stone/Glass variant red→green — **DONE**, see §13 |
 | **P2** ✅ | §3.5 quantize to 3 stages (field width unchanged) | L2 | stage mapping unit-tested at boundaries 0/1/2/3; R5 still green with stage-gated dirtying — **DONE**, see §13 |
-| **P3** ⚠ | §4 crack shader (`crack.glsl`, world-seeded) + R2 + R3 | L4 | R2 green (18/18); R3 met its written prediction with both controls — **BUILT, see §13. Blocked on §14 sign-off** |
+| **P3** ✅ | §4 crack shader (`crack.glsl`, world-seeded) + R2 + R3 | L4 | R2 green (18/18); R3 met its written prediction with both controls; **§14 SIGNED OFF** — see §13. Remaining: §6.2 runtime seam test |
 | **P4** | R4 stage-count A/B in a real scene | L4 | table published; final stage count ratified or revised |
 | **P5** | Per-material `crackStyle` from `brittleS1/S2` | L4 | visual A/B Glass vs Steel vs Stone, same pose; **§14 visual review signed off** |
 | **V2** | **§3.6 sub-voxel damage** — storage design, sub/micro instance bits, subdivision inheritance | L2+L4 | memory cost measured before implementation; cracks visible on a generated building wall; §1 scope boundary retired |
@@ -1333,10 +1332,29 @@ Two defects the guard caught on its own first outing, both worth keeping:
 - **§6.2's RUNTIME half** (damaged wall straddling x=31/32, captured and diffed) is NOT run. The
   unit half cannot catch the real mistake — a shader that reads `sizeU` — and the CPU mirror is
   near-tautological about it. Requires the two-chunk rig with the residency precondition (§6.2).
-- **§14 human review.** The rig is standing in `DamageLab`; `tools/damage_ladder_rig.py`.
-  One observation to put in front of the reviewer rather than decide for them: at 4 units the
-  Voronoi cells read as quite REGULAR and polygonal — closer to a cracked glaze than to stone
-  fissuring. That is a style question (§4.4's `crackStyle`, P5) and squarely §14's call.
+- **§6.2's RUNTIME half** remains the one open P3 item (see above).
+
+#### §14 VISUAL REVIEW — **SIGNED OFF**, 2026-09-22
+
+Reviewed live in `DamageLab` at inspection range (≈4 units) and at the 16-unit pose, under
+**shipped tonemapping** (the verdict view, §14.2), on a Stone ladder with pristine controls in
+frame. Reviewer verdict: *"visually I think the cracks look good."*
+
+**What that verdict covers, stated so it is not over-read later:**
+- ✔ **Q1 — cracked, not dirty.** The motivating question, and the one the review actually turned
+  on. A damaged face now carries a connected fracture network beside an untouched control face.
+- ✔ **Q4 — voxel aesthetic, not a decal.** The field flows across the surface rather than reading
+  as a stamp.
+- ✔ **Q2 / Q3 — ranking and growth**, at close and mid range, supported by the measured ladder.
+- 〇 **Q5 — legibility at 48 and 96 units: NOT reviewed.** Only 4 and 16 units were looked at. The
+  distance ladder is R4's job (§6.4) and remains outstanding.
+- 〇 **Q6 — material character: NOT applicable yet.** `crackStyle` is P5; every material currently
+  renders at style 1.0.
+
+**Recorded note, not a blocker.** At inspection range the Voronoi cells read as somewhat REGULAR
+and polygonal — closer to a cracked glaze than to stone fissuring. The reviewer accepted the look
+as-is; this is logged as the natural target for P5's per-material `crackStyle`, which drives
+density and width from `brittleS1`/`brittleS2` and is where character comes from.
 
 ---
 
