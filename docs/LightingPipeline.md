@@ -559,6 +559,23 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 
 ## 9. Change log (append a line per lighting/shadow change; the fingerprint line is written by `tools/lighting_doc_check.py --update`)
 
+- 2026-09-22 — **FIXED: one emissive light per fixture, at the emitting voxel (G-158).**
+  `ChunkRenderManager::rebuildAllFaces` now accumulates emissive voxels per PARENT CUBE and emits
+  a single `EmissiveLight` at the power-weighted centroid of the emitting cells, instead of one
+  light per sub-voxel at the cube centre. Brightness is the brightest constituent, not the sum.
+  Reach is derived from emitting VOLUME — and the shipped per-resolution constants already
+  encoded exactly that rule (cube 1.0, subcube 0.75, microcube 0.5 are linear in log27(volume),
+  because 1, 1/27, 1/729 map to 0, -1, -2), so this makes them continuous rather than inventing a
+  curve: a single-voxel emitter keeps its shipped reach, a cube packed with glow microcubes
+  reaches exactly like a glow cube, a bed of coals lands between. Merging per parent cube keeps
+  the result chunk-local and seam-free by construction. **Measured on the shipped exe, same poses,
+  same tone curve, machine idle for both runs:** registered lights 143 → 38, distinct positions
+  among the 32 uploaded 1 → 32, Static Geometry 266.9 → 80.0 ms looking down (4.0 → 11.4 FPS)
+  and 86.2 → 49.3 ms on the street (10.1 → 15.8 FPS), marches per lit pixel 31.3 → 17.1.
+  The lit-pixel fraction ROSE at both poses (0.916 → 0.966, 0.434 → 0.725): more of the screen is
+  lit for a third of the cost, because the lights that were starved out of the cap now reach their
+  rooms. Rules R8/R9 untouched; no shader changed. Red/green `g158_red.txt` → `g158_green.txt`
+  (10 tests, 7 red first), L4 `g158_before.json` / `g158_after.json`.
 - 2026-09-22 — **ROOT CAUSE FOUND, and it is not the cost of lighting: THE SAME LIGHT IS
   UPLOADED 32 TIMES (G-158).** Runs 7-8 dumped the light buffer instead of reasoning about it.
   All 32 uploaded point lights in the Ravenmere town are at the IDENTICAL position

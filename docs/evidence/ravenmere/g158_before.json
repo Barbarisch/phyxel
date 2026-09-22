@@ -1,0 +1,54 @@
+{
+  "tag": "before",
+  "exe_mtime": "2026-09-22 17:44:55",
+  "visible_chunks": 8,
+  "player": {
+    "x": -36.0,
+    "y": 17.11111068725586,
+    "z": 15.0
+  },
+  "near_down": {
+    "camera": {
+      "x": -36.0,
+      "y": 18.81111068725586,
+      "z": 15.0,
+      "yaw": 0.0,
+      "pitch": -89.0
+    },
+    "registered_point_lights": 143,
+    "uploaded": 32,
+    "rows_returned": 32,
+    "distinct_positions": 1,
+    "radius_median": 7.5,
+    "static_geometry_ms": 266.857,
+    "fps": 4.0,
+    "render": "g158_before_near_down.png",
+    "marches": {
+      "lit_fraction": 0.9159,
+      "mean_marches_per_lit_px": 31.34,
+      "max_marches": 32.0
+    }
+  },
+  "street": {
+    "camera": {
+      "x": -36.0,
+      "y": 18.81111068725586,
+      "z": 15.0,
+      "yaw": 0.0,
+      "pitch": -5.0
+    },
+    "registered_point_lights": 143,
+    "uploaded": 32,
+    "rows_returned": 32,
+    "distinct_positions": 1,
+    "radius_median": 7.5,
+    "static_geometry_ms": 86.241,
+    "fps": 10.061,
+    "render": "g158_before_street.png",
+    "marches": {
+      "lit_fraction": 0.4337,
+      "mean_marches_per_lit_px": 30.99,
+      "max_marches": 32.0
+    }
+  }
+}
