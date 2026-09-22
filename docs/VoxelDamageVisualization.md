@@ -1660,7 +1660,7 @@ in a plan is a decision not yet made, so both were decided rather than logged: P
 
 | # | Item | Where specified | Status | Blocks |
 |---|---|---|---|---|
-| **1** | **`build_shaders.bat` reports success on a FAILED shader compile**, and `shader_manifest.py --check` then passes because the batch rewrites the manifest it is checked against | `StructurePipelineGaps.md` 2026-09-22 | **READY** — fix simplified to ONE change at gate 2 | Nothing here — but it endangers **every** future shader change in the repo |
+| ~~1~~ | ~~`build_shaders.bat` reports success on a FAILED shader compile~~ | `StructurePipelineGaps.md` 2026-09-22 | ✅ **FIXED 2026-09-22** — three nested cmd traps, shipped as `\|\| goto :shader_error`; regression test `tools/test_shader_build_fails_loudly.py` | — |
 | **2** | **§6.2 RUNTIME seam test** — damaged wall straddling x = 31/32, captured and diffed | §6.2 — now with the control and the retroactive-red method | **READY** | **P3 closure** |
 | **3** | **P4 — stage-count A/B**, 3 / 7 / 15 for cost AND legibility across the 4/16/48/96 ladder | §6.4 — knob storage resolved, cost prediction added, pinned tests named | **READY** | Ratifying or revising P2's choice of 3 |
 | **4** | **P5 — per-material `crackStyle`** from `brittleS1`/`brittleS2` | §4.4 + **§4.4a data path, §4.4b mapping**, red test named | **READY** | — |

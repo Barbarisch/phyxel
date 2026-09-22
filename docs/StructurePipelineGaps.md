@@ -35,7 +35,36 @@ what the engine did instead, the workaround used, and what a real fix looks like
   manifest stops being written over a failure.
   (Beware the known `.bat` trap: unescaped parens in an `echo` inside a block silently kill the
   block.)
-- **Status:** OPEN. Hit during the damage-crack work (P3); logged rather than worked around.
+- **Status: FIXED 2026-09-22**, and it took three cmd traps, each of which masked the next:
+  1. **`if %errorlevel%` inside a block is expanded at PARSE time.** Every check inside the big
+     `if defined USE_GLSLC ( ... )` block (lines 36-342, which contains `voxel.frag`) tested ONE
+     stale value captured before any shader compiled. 95 compile sites affected.
+  2. **`setlocal enabledelayedexpansion` + `!errorlevel!` fixes trap 1 and introduces its own:**
+     with `setlocal` active, `exit /b` triggers an implicit `endlocal` that RESTORES the previous
+     errorlevel, so the script halts correctly and still returns 0. Working around that with
+     `endlocal & exit /b 1` stops the exit firing at all.
+  3. **`exit /b 1` inside a `||` block NESTED inside the `if defined` block halts the script but
+     returns 0.** Verified with a minimal repro: it propagates at one level of nesting and is
+     swallowed at two.
+
+  **Shipped shape:** every compile is `%GLSLANG% ... || goto :shader_error`, with the ONLY
+  `exit /b 1` at a top-level `:shader_error` label. The manifest half needed no separate fix —
+  once failures actually exit, `--update` is never reached over a failed build, so `--check`
+  compares the OLD manifest against NEW sources and reddens by itself.
+
+  **Also fixed:** `pause` on the error path hung any non-interactive caller. Now skipped when
+  `SHADERS_NONINTERACTIVE=1`.
+
+  **Regression test:** `tools/test_shader_build_fails_loudly.py` — breaks `crack.glsl` (an
+  `#include`, i.e. exactly the dependency glslc does not track), asserts the build exits
+  non-zero and prints no success banner, asserts a clean build still exits 0, and restores the
+  tree either way. It asserts the OUTCOME, not the mechanism, so a future rewrite of the script
+  in any style still has to satisfy it.
+
+  ⚠️ **Measurement footgun found while fixing this:** PowerShell's `$LASTEXITCODE` after
+  `cmd /c ".\build_shaders.bat"` reported 0 for a run that genuinely returned 1, and
+  `cmd /c "... & echo %errorlevel%"` has the same parse-time expansion bug as the script itself.
+  Both made a working fix look broken. Check batch exit codes from bash (`cmd //c ".\x.bat"; echo $?`).
 
 ## 2026-07-05 — asset editor crashes after ~9 hot-reloads (exit 3, silent)
 
