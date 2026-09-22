@@ -1,0 +1,281 @@
+{
+  "samples_per_pose": 15,
+  "player": {
+    "x": -36.0,
+    "y": 17.11111068725586,
+    "z": 15.0
+  },
+  "poses": [
+    {
+      "name": "eye_yaw0",
+      "camera": {
+        "detach": true,
+        "x": -36.0,
+        "y": 18.81111068725586,
+        "z": 15.0,
+        "yaw": 0.0,
+        "pitch": -5.0
+      },
+      "camera_drift": 0.0,
+      "settled": true,
+      "visible_chunks": 19,
+      "cpu_frame_ms": 98.927,
+      "fps": 10.108,
+      "total_visible_faces": 75219,
+      "far_tiles_drawn": 0,
+      "shadow_chunks_drawn": 30,
+      "shadow_instances_drawn": 75219,
+      "character_draw_calls_main": 8,
+      "character_draw_calls_shadow": 260,
+      "scopes_ms": {
+        "1|Character Shadows": 0.044,
+        "0|Shadow Pass": 1.609,
+        "0|GI Probes": 5.659,
+        "1|Static Geometry": 85.617,
+        "1|Grass": 4.639,
+        "1|Foliage": 0.794,
+        "1|Far Terrain": 0.0,
+        "1|Dynamic Subcubes": 0.0,
+        "2|Characters": 0.475,
+        "1|Entities": 0.475,
+        "0|Scene Pass": 91.992,
+        "0|SSAO": 0.0,
+        "0|OIT": 0.007,
+        "0|Post Process": 0.026,
+        "0|ImGui": 0.0,
+        "0|Custom UI": 0.008
+      },
+      "pipeline_stats": {
+        "static_geometry_pipeline_stats": null,
+        "shadow_pipeline_stats": null,
+        "character_pipeline_stats": null
+      }
+    },
+    {
+      "name": "eye_yaw90",
+      "camera": {
+        "detach": true,
+        "x": -36.0,
+        "y": 18.81111068725586,
+        "z": 15.0,
+        "yaw": 90.0,
+        "pitch": -5.0
+      },
+      "camera_drift": 0.0,
+      "settled": true,
+      "visible_chunks": 10,
+      "cpu_frame_ms": 78.259,
+      "fps": 12.778,
+      "total_visible_faces": 75219,
+      "far_tiles_drawn": 0,
+      "shadow_chunks_drawn": 30,
+      "shadow_instances_drawn": 75219,
+      "character_draw_calls_main": 0,
+      "character_draw_calls_shadow": 260,
+      "scopes_ms": {
+        "1|Character Shadows": 0.044,
+        "0|Shadow Pass": 1.596,
+        "0|GI Probes": 5.664,
+        "1|Static Geometry": 43.494,
+        "1|Grass": 12.454,
+        "1|Foliage": 14.625,
+        "1|Far Terrain": 0.0,
+        "1|Dynamic Subcubes": 0.0,
+        "2|Characters": 0.0,
+        "1|Entities": 0.0,
+        "0|Scene Pass": 70.944,
+        "0|SSAO": 0.0,
+        "0|OIT": 0.008,
+        "0|Post Process": 0.026,
+        "0|ImGui": 0.0,
+        "0|Custom UI": 0.008
+      },
+      "pipeline_stats": {
+        "static_geometry_pipeline_stats": null,
+        "shadow_pipeline_stats": null,
+        "character_pipeline_stats": null
+      }
+    },
+    {
+      "name": "eye_yaw180",
+      "camera": {
+        "detach": true,
+        "x": -36.0,
+        "y": 18.81111068725586,
+        "z": 15.0,
+        "yaw": 180.0,
+        "pitch": -5.0
+      },
+      "camera_drift": 0.0,
+      "settled": true,
+      "visible_chunks": 6,
+      "cpu_frame_ms": 80.473,
+      "fps": 12.427,
+      "total_visible_faces": 75219,
+      "far_tiles_drawn": 0,
+      "shadow_chunks_drawn": 30,
+      "shadow_instances_drawn": 75219,
+      "character_draw_calls_main": 1,
+      "character_draw_calls_shadow": 260,
+      "scopes_ms": {
+        "1|Character Shadows": 0.046,
+        "0|Shadow Pass": 1.594,
+        "0|GI Probes": 5.685,
+        "1|Static Geometry": 32.889,
+        "1|Grass": 15.194,
+        "1|Foliage": 24.869,
+        "1|Far Terrain": 0.0,
+        "1|Dynamic Subcubes": 0.0,
+        "2|Characters": 0.0,
+        "1|Entities": 0.0,
+        "0|Scene Pass": 73.77,
+        "0|SSAO": 0.0,
+        "0|OIT": 0.008,
+        "0|Post Process": 0.026,
+        "0|ImGui": 0.0,
+        "0|Custom UI": 0.009
+      },
+      "pipeline_stats": {
+        "static_geometry_pipeline_stats": null,
+        "shadow_pipeline_stats": null,
+        "character_pipeline_stats": null
+      }
+    },
+    {
+      "name": "eye_yaw270",
+      "camera": {
+        "detach": true,
+        "x": -36.0,
+        "y": 18.81111068725586,
+        "z": 15.0,
+        "yaw": 270.0,
+        "pitch": -5.0
+      },
+      "camera_drift": 0.0,
+      "settled": true,
+      "visible_chunks": 9,
+      "cpu_frame_ms": 20.992,
+      "fps": 47.638,
+      "total_visible_faces": 75219,
+      "far_tiles_drawn": 0,
+      "shadow_chunks_drawn": 30,
+      "shadow_instances_drawn": 75219,
+      "character_draw_calls_main": 4,
+      "character_draw_calls_shadow": 260,
+      "scopes_ms": {
+        "1|Character Shadows": 0.049,
+        "0|Shadow Pass": 1.628,
+        "0|GI Probes": 5.579,
+        "1|Static Geometry": 7.943,
+        "1|Grass": 4.166,
+        "1|Foliage": 1.266,
+        "1|Far Terrain": 0.0,
+        "1|Dynamic Subcubes": 0.0,
+        "2|Characters": 0.0,
+        "1|Entities": 0.0,
+        "0|Scene Pass": 13.852,
+        "0|SSAO": 0.0,
+        "0|OIT": 0.008,
+        "0|Post Process": 0.027,
+        "0|ImGui": 0.0,
+        "0|Custom UI": 0.008
+      },
+      "pipeline_stats": {
+        "static_geometry_pipeline_stats": null,
+        "shadow_pipeline_stats": null,
+        "character_pipeline_stats": null
+      }
+    },
+    {
+      "name": "high_town",
+      "camera": {
+        "detach": true,
+        "x": -36.0,
+        "y": 62.11111068725586,
+        "z": 15.0,
+        "yaw": 45.0,
+        "pitch": -50.0
+      },
+      "camera_drift": 0.0,
+      "settled": true,
+      "visible_chunks": 17,
+      "cpu_frame_ms": 11.005,
+      "fps": 90.869,
+      "total_visible_faces": 75219,
+      "far_tiles_drawn": 0,
+      "shadow_chunks_drawn": 30,
+      "shadow_instances_drawn": 75219,
+      "character_draw_calls_main": 7,
+      "character_draw_calls_shadow": 260,
+      "scopes_ms": {
+        "1|Character Shadows": 0.022,
+        "0|Shadow Pass": 1.596,
+        "0|GI Probes": 1.611,
+        "1|Static Geometry": 1.702,
+        "1|Grass": 3.785,
+        "1|Foliage": 1.658,
+        "1|Far Terrain": 0.0,
+        "1|Dynamic Subcubes": 0.0,
+        "2|Characters": 0.022,
+        "1|Entities": 0.022,
+        "0|Scene Pass": 7.671,
+        "0|SSAO": 0.0,
+        "0|OIT": 0.007,
+        "0|Post Process": 0.027,
+        "0|ImGui": 0.0,
+        "0|Custom UI": 0.009
+      },
+      "pipeline_stats": {
+        "static_geometry_pipeline_stats": null,
+        "shadow_pipeline_stats": null,
+        "character_pipeline_stats": null
+      }
+    },
+    {
+      "name": "ground_down",
+      "camera": {
+        "detach": true,
+        "x": -36.0,
+        "y": 18.81111068725586,
+        "z": 15.0,
+        "yaw": 0.0,
+        "pitch": -89.0
+      },
+      "camera_drift": 0.0,
+      "settled": true,
+      "visible_chunks": 2,
+      "cpu_frame_ms": 250.0,
+      "fps": 4.0,
+      "total_visible_faces": 75219,
+      "far_tiles_drawn": 0,
+      "shadow_chunks_drawn": 30,
+      "shadow_instances_drawn": 75219,
+      "character_draw_calls_main": 0,
+      "character_draw_calls_shadow": 260,
+      "scopes_ms": {
+        "1|Character Shadows": 0.05,
+        "0|Shadow Pass": 1.63,
+        "0|GI Probes": 5.583,
+        "1|Static Geometry": 263.579,
+        "1|Grass": 0.0,
+        "1|Foliage": 0.0,
+        "1|Far Terrain": 0.0,
+        "1|Dynamic Subcubes": 0.0,
+        "2|Characters": 0.0,
+        "1|Entities": 0.0,
+        "0|Scene Pass": 264.073,
+        "0|SSAO": 0.0,
+        "0|OIT": 0.008,
+        "0|Post Process": 0.026,
+        "0|ImGui": 0.0,
+        "0|Custom UI": 0.009
+      },
+      "pipeline_stats": {
+        "static_geometry_pipeline_stats": null,
+        "shadow_pipeline_stats": null,
+        "character_pipeline_stats": null
+      }
+    }
+  ],
+  "gpu": "\u001b[32m[15:25:13.935] [INFO] [Vulkan] Selected GPU: NVIDIA RTX 1000 Ada Generation Laptop GPU (discrete, 2 device(s) enumerated)\u001b[0m"
+}

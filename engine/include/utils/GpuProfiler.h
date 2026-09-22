@@ -55,8 +55,14 @@ public:
     const GpuPipelineStats& getPipelineStats(uint32_t slot) const { return lastPipelineStats[slot < NUM_STATS_SLOTS ? slot : 0]; }
     // The pipeline-statistics queries add GPU-sync overhead, so they are OFF by default and must be
     // switched on only for a counting session (never during a perf A/B). See docs/RenderDensityPlan.md.
-    void setPipelineStatsActive(bool on) { pipelineStatsActive = on; }
+    /// Toggling this takes effect at the NEXT frame boundary, never mid-frame. A flip
+    /// between beginPipelineStats and endPipelineStats leaves an unterminated Vulkan
+    /// query in the command buffer and the device is lost on submit - measured 2026-09-22
+    /// by toggling it over the API while the town was rendering: the next command timed
+    /// out and the process was gone.
+    void setPipelineStatsActive(bool on) { pipelineStatsRequested = on; }
     bool getPipelineStatsActive() const { return pipelineStatsActive; }
+    bool getPipelineStatsRequested() const { return pipelineStatsRequested; }
 
     const std::vector<GpuScopeResult>& getResults() const { return lastFrameResults; }
 
@@ -74,6 +80,7 @@ private:
     // multi-counter query each.
     bool pipelineStatsEnabled = false;   // feature available + pools created
     bool pipelineStatsActive  = false;   // runtime gate (OFF by default — avoids sync overhead)
+    bool pipelineStatsRequested = false;  // applied at the next startFrame (see setter)
     std::vector<VkQueryPool> statsPools;
     std::vector<bool> statsPending;   // per (frame,slot): a query was recorded, read it back next cycle
     GpuPipelineStats lastPipelineStats[2];
