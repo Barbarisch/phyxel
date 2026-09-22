@@ -3,6 +3,38 @@
 Standing log of engine limitations hit during content/tool work. Each entry: what was needed,
 what the engine did instead, the workaround used, and what a real fix looks like.
 
+## 2026-09-22 — `build_shaders.bat` reports SUCCESS on a failed shader compile, and the manifest guard then passes
+
+- **What happened:** editing `voxel.frag` (adding `#include "crack.glsl"`) produced a genuine GLSL
+  compile error — `ERROR: shaders/crack.glsl:90: 'worldFaceUV' : no matching overloaded function
+  found` — and `glslc` generated no SPIR-V. **`build_shaders.bat` nonetheless printed
+  `All shaders compiled successfully!` and exited 0.** Running `tools/shader_manifest.py --check`
+  immediately afterwards reported `OK -- 82 built shaders, all .spv current with their sources`.
+  The stale `shaders/voxel.frag.spv` from hours earlier was still on disk and still being loaded.
+- **Why the guard did not catch it:** `build_shaders.bat` **re-records the manifest at the end of
+  its own run**, so the manifest hashes the current sources against whatever `.spv` files happen to
+  exist — including a stale one. `--check` then compares that freshly-written manifest to itself
+  and passes. The guard validates the manifest, not the build.
+- **How it was actually caught:** by hand, comparing `voxel.frag.spv`'s mtime (11:54) against the
+  time of the edit. Nothing automated flagged it.
+- **Why this matters more than a normal build bug:** `shaders/*.spv` are **committed artifacts** and
+  glslc does not track `#include` deps. The failure mode is the repo's own worst incident — commit
+  the `.glsl` with a stale `.spv`, the author's machine renders correctly because nothing rebuilt,
+  every other checkout renders the OLD shader, and CI is green. That is exactly how the transposed-
+  AgX fix (`20341333`) shipped a pink world to everyone but the author for five days. This is that
+  incident's failure mode **plus** a case where the source does not even compile and nothing says so.
+- **Workaround used:** check the `.spv` mtime by hand after every shader edit, and grep the batch
+  output for `ERROR` (the errors ARE printed — they are simply not acted on).
+- **Real fix (two small changes):**
+  1. `build_shaders.bat` must propagate `glslc`'s exit code — fail the run, and do NOT print the
+     success banner, if any invocation returns non-zero. (Beware the known `.bat` trap: unescaped
+     parens in an `echo` inside a block silently kill the block.)
+  2. `tools/shader_manifest.py --check` must refuse to validate a manifest written by the same
+     invocation that built the shaders, or take a `--verify-fresh` mode that compares `.spv` mtimes
+     against their sources rather than trusting the recorded hash. A guard whose input is rewritten
+     by the thing it guards is not a guard.
+- **Status:** OPEN. Hit during the damage-crack work (P3); logged rather than worked around.
+
 ## 2026-07-05 — asset editor crashes after ~9 hot-reloads (exit 3, silent)
 
 - **What happened:** driving the archetype visual survey via `POST /api/asset-editor/reload`
@@ -648,3 +680,120 @@ solid fallback can never be mistaken for a working tower.
 STILL OWED: the tower's door is not connected to the wall-walk or the street door-to-door (you
 can enter from outside, but the parapet walk above the curtain has no stair); no floors/ladder
 in the tower_house yet (that typology's battlements flag is still unconsumed).
+
+---
+
+## 2026-08-28 — FUNCTIONAL-WIRING AUDIT (the "is it a voxel blob?" sweep)
+
+User question after the tower defect: *"what else in the 'forge' systems are you making things
+that are really just voxel blobs and dont actually serve the function for which they exist?"*
+
+The tower's failure mode generalizes, and naming it is the point of this section: **the
+validation ladder (L1 exists -> L2 structural invariant -> L3 agent traversal -> L4 live) has no
+rung that asserts an emitted object is REGISTERED with the engine system that makes it function.**
+`place_doors` scores "L3 ok" in the ValidationLedger while nothing in the world can open a door,
+because L3 measures whether the character box fits through the hole. Proposal: a fifth axis
+**W (wired)** — after a build, query the owning manager and assert the object is in it.
+
+### Measured this session
+
+* **Town-wall GATES — FUNCTIONAL, now proven** (`TownWallPassageTest`, 6 tests, all green). An
+  agent walks from outside the circuit through all four gates, with a sealed-gate control on
+  every side and a squat-lintel control. `gateClearCubes` moved into `TownWallSpec` so the plan
+  and the stamper share one number and the test measures the opening really built.
+* **Corner tower entered FROM THE TOWN — FUNCTIONAL, now proven**
+  (`TheCornerTowerIsEnteredFromInsideTheTown`). `TowerForgeTest` proved the climb in an empty box
+  and `TownWallTest` proved the circuit closes; neither saw the seam between them, which is
+  exactly where a tower doorway could open into the curtain it stands on. The composed walk
+  (town ground -> doorway -> top chamber) passes at the live `tower_size: 9`.
+* **Wall-walk — GEOMETRY-ONLY, measured** (`AuditTheWallWalkIsCurrentlyUnreachable`). There IS
+  standing room on the inner course, and no agent can reach it: no stair, no ramp, no tower door
+  at walk level. The crenellations are decoration on an unreachable surface. The test asserts the
+  defect today and says to flip it to EXPECT_TRUE when access ships.
+
+### Found by audit, NOT yet fixed (each verified at the cited call site)
+
+> **The work queue for all of these lives in
+> [`docs/FunctionalWiringBacklog.md`](FunctionalWiringBacklog.md)** — ordered by
+> unlocks-per-effort, each stated as a W-test you can write red first. This section stays the
+> evidence record; that doc is the plan.
+
+1. **Generator furniture has NO interaction points.** `PlacedObjectManager::placeTemplateMicro`
+   (PlacedObjectManager.cpp:700-741) never populates `obj.interactionPoints` and never records
+   `metadata["kinematic_part_ids"]`; the sibling `placeTemplate` does both (:681, :687). Every
+   interior fixture and yard prop goes through the micro path. Consequences: `find_fitting_seat`
+   and `sit_character` find **zero seats in a freshly built settlement**, and a chest lid cannot
+   even animate. It half-heals on DB reload via `recomputeAllInteractionPoints`, but that reads
+   `obj.position` (the FLOORED cube) not `obj.microAnchor`, so restored points sit up to ~0.89 m
+   off. Separately `chair.voxel` carries no `# interaction_point:` line at all, and
+   `tools/regen_furniture.py` writes seat anchors only into the `.metrics.json` sidecar —
+   re-running it would delete the six remaining seat points in the library.
+2. **No generated door is a door.** `registerDoor` has no call site in generation (only
+   DoorManager.cpp itself and the MCP handler in editor/src/Application.cpp). Openings are carved
+   to air and framed; no leaf is placed, though `door_wood.voxel` and its siblings are fully
+   authored with handle interaction points. Same for wall gates and fence gates —
+   `gate_timber.voxel` is an orphaned asset with zero references in engine/.
+3. **Windows: about half are permanently solid.** Open/closed is a fixed per-opening hash
+   (StructureRealizer.cpp:353-357) and the closed leaf is painted into the STATIC micro canvas
+   (:371-373, :396-398) — masonry, not a shutter: no kinematic part, no manager, can never open.
+   No typology declares `glass` yet, so "you can see through it" is false in practice.
+4. **No scheduled NPC ever enters a generated interior.** Every location anchor is deliberately
+   pinned two cells OUTSIDE the wall (StructureRealizer.cpp:120-131) because the NavGraph cannot
+   route exterior->interior (StructureBuildService.cpp:137-143, "measured: 12x no_route"). The
+   seats, hearths, beds and tableware are in rooms nobody visits. **This is the single largest
+   geometry-only surface in the pipeline** and it was not previously logged here.
+5. **`tower_house` gets ZERO residents.** It is the only room_program.json typology that falls
+   through `locationTypeForTypology` to `LocationType::Custom` (StructureRealizer.cpp:70-79), and
+   ResidentPlanner.cpp:35-37 skips anything that is not Home/Work/Tavern.
+6. **Arrow loops are letterbox windows, not loops.** TowerForge.cpp:230-234 cuts a 6-micro
+   vertical gap across a whole rim cube column, so the real opening is **9 wide x 6 tall x 9 deep
+   micro, about 1.0 x 0.67 x 1.0 m** — roughly 1.5x wider than tall, the inverse of a real loop
+   (~30 mm wide, 1-2 m tall). Too short for the 16-micro agent to use as a window either, and no
+   line-of-sight or ranged system reads `loopCells`. Wants a 1-2 micro x 18+ micro vertical slot
+   with an internal embrasure splay.
+7. **`LocationType::Market` / `GuardPost` / `Temple` / `Farm` have no producer** — only the
+   string/enum converters (LocationRegistry.cpp:16-19, 29-32). The market square, its stalls, the
+   well and the statue are therefore pure voxels: no vendor, no water, no trade. There is no trade
+   system to wire to (`Schedule::merchantSchedule` targets a hardcoded "market" id that nothing
+   ever registers), and **no crafting system exists at all** — engine/{src,include}/core contains
+   no crafting file, so the anvil, bellows, oven and workbench are props. CLAUDE.md's
+   "CraftingSystem" entry under Gameplay is STALE and should be corrected.
+8. **Trade signs are write-only.** Which board hangs is real typology data, but after hanging,
+   `setMetadata(sid, "signage", ...)` is never read by anything, and it stores a PlacedObject id
+   rather than the Location id — there is no sign-to-location lookup in either direction. All sign
+   items are `"fixed": true`, so they get no pickup point and cannot be interacted with or read.
+9. **Nav obstacles are missing outside the editor.** `setNavObstacleProvider` is wired only in
+   editor/src/Application.cpp:1655; GameShell never calls it, so in a packaged game every well,
+   stall, statue and woodpile is nav-invisible and NPCs treadmill into them. Also
+   NPCManager.cpp:378-387 clamps the nav grid to +/-256 columns and logs that NPCs outside it have
+   no nav — a large or streamed city can fall partly outside.
+10. **NavGrid is street-blind.** No road or paving term in NavGrid.cpp or AStarPathfinder.cpp:
+    paving is uniform-cost terrain, so nothing makes an NPC prefer a street to a garden.
+11. **Fence gate-at-door has no agent coverage on the shipped path.** `FencePolicyTest`'s
+    `GateWindowFollowsTheDoor` asserts integer arithmetic only — no probe. The one real fence-gate
+    walk (ParcelFenceTest:74) exercises `planParcelFence`, which is **dead in production**: the
+    stamper uses `planParcelFenceRuns` + `fenceGateWindowAt`. SettlementWalkabilityTest:218 walks
+    the older centred `fenceGateWindow`. Net: no agent has walked the gate the engine builds.
+12. **`MarketDressingTest.DressedSquareStaysWalkable` is mislabelled L3.** It is a 2-D
+    4-neighbour cube flood with no agent box, height or step-up, so it cannot detect a headroom,
+    width or step failure. CityForgePlan.md calls it L3.
+13. **The road does not reach the gate.** The wall band sits outside site+margin while paving
+    covers only the street rects inside the site — about 4 cubes of raw ungraded terrain between
+    the end of the paved street and the outside of the gateway.
+14. **One tower clipping one building refuses the WHOLE circuit** (TownWall.cpp:157-163). With
+    `tower_size: 9` protruding into the site, a dense city can lose its entire wall to a single
+    overlap. It should shrink or drop that tower and say so, not refuse everything.
+15. **`remove_subcube` desyncs the physics occupancy grid from the chunk's real content**
+    (found 2026-08-29 while verifying the lighting rebuild's M1). Measured live: place a microcube
+    at (5,20,5) slot (0,0,0), then a full subcube at slot (2,2,2), then remove **only** the
+    subcube. `GET /api/debug/occupancy_cell` then reports
+    `content.micro_slots: [{slot:[0,0,0], count:1}]` — the microcube is still there — while
+    `grid` reports `cube_filled:false`, `subdivided:false` and no masks at all.
+    Mechanism: the removal path ends in `VoxelOccupancyGrid::markSubdivided(lp, false)`, which
+    erases `m_subcubeFilled`, `m_subcubeSubdiv` and **all 27** microcube mask entries
+    (`VoxelOccupancyGrid.cpp:47-55`), and nothing re-adds the microcubes that survived.
+    Consequence: the grid under-reports real geometry, so a character can walk through voxels that
+    are actually present, and anything else sourcing solidity from the grid (including the new GPU
+    light occupancy) inherits the hole. The fix is to rebuild the cell's masks from the chunk's
+    remaining sub-voxel content after a removal rather than clearing wholesale. **Not worked around
+    in the lighting mirror** — that deliberately reports exactly what the grid says.

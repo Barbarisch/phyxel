@@ -27,6 +27,8 @@ This document resolves all of them and is the build plan.
 **Verdict of record for every pass: §12. Running build log (updated as each phase lands): §13.**
 **§14 is the MANUAL VISUAL REVIEW gate — a human looks at it and signs off. P3 and P5 are not done
 without it, and no automated pixel diff substitutes for it.**
+**§16 is the single list of what remains open**, including one item that is NOT this feature's
+(a shader-toolchain hazard, logged in `StructurePipelineGaps.md`).
 **Parent:** [`DestructionSystemV2.md`](DestructionSystemV2.md) §5(F) "Damage visualization (P4)" and
 §10 Phase 5. That stub (8 lines) is superseded by this document; the roadmap entry stays.
 **Gate:** [`FeatureDesignKeys.md`](FeatureDesignKeys.md). Section 9 below records the gate answers.
@@ -1546,3 +1548,42 @@ Concretely, P3 may proceed on these assumptions, and they are now costed rather 
 parent `Cube` (simplest, but a subdivided cell's `Cube` may not be materialized) versus a per-chunk
 side table. That is an implementation choice with no bearing on P3, which is why it is deferred
 rather than guessed.
+
+---
+
+## 16. Open work — the one list
+
+Everything still outstanding, in recommended order. §7 remains the authority on phase gates; this
+section exists because the open items were spread across §6.2, §7, §13 and an engine-gap log, and
+"what is next" should be answerable from one place.
+
+| # | Item | Where specified | Status | Blocks |
+|---|---|---|---|---|
+| **1** | **`build_shaders.bat` reports success on a FAILED shader compile**, and `shader_manifest.py --check` then passes because the batch rewrites the manifest it is checked against | `StructurePipelineGaps.md` 2026-09-22 | OPEN | Nothing here — but it endangers **every** future shader change in the repo |
+| **2** | **§6.2 RUNTIME seam test** — damaged wall straddling x = 31/32, captured and diffed | §6.2 (rig + residency precondition) | OPEN | **P3 closure** |
+| **3** | **P4 — stage-count A/B**, 3 / 7 / 15 for cost AND legibility across the 4/16/48/96 ladder | §6.4 + the `damage_stages` knob in §6.4 | OPEN | Ratifying or revising P2's choice of 3 |
+| **4** | **P5 — per-material `crackStyle`** from `brittleS1`/`brittleS2` | §4.4, §7 | OPEN | — |
+| 5 | **V2 — sub-voxel damage** (cracks on generated buildings) | §3.6, §15 | OPEN | Retiring §1's scope boundary; also wanted by `FractureModes.md` F1 |
+| 6 | **V1.5 — geometric spall** | §3.4 | OPEN | Depends on V2 |
+
+### Why this order
+
+**1 first, even though it is not part of this feature.** It is cheap, it protects everything, and
+it was found *by* this work — leaving it open means the next person to edit a shader can ship a
+stale `.spv` with a green CI. It is the only item here whose blast radius is the whole repo.
+
+**2 next, because P3 is not honestly closed without it.** The unit half of §6.2 is near-tautological
+about the failure that actually matters — a shader that reads `sizeU` — and the CPU mirror cannot
+catch it. Only a captured, diffed seam can. §14 is signed off; this is the last P3 item.
+
+**3 and 4 are both "make it better", and they answer different questions.** P4 is the measurement
+that could still overturn P2 (`kDamageStagesVisible` carries that caveat in its own doc comment, so
+it is not treated as settled), and it is where Q5 — legibility at 48 and 96 units, explicitly NOT
+covered by the §14 sign-off — finally gets answered. P5 is the one most likely to improve how it
+LOOKS rather than how correct it is, and it directly targets the reviewer's recorded note that the
+Voronoi cells read as regular and polygonal.
+
+**5 and 6 are the larger arc.** V2 is now wanted by two independent tracks — this plan reached it
+from rendering (cracks cannot appear on sub-cube building walls) and `FractureModes.md` reached it
+from physics (a carved cube goes visually pristine). That convergence is the strongest argument yet
+for scheduling it sooner than "after P5".
