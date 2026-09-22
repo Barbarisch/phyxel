@@ -1,7 +1,8 @@
 # Destruction System v2 — Breakable Objects (design)
 
-> Status: **design, awaiting build-order approval** (2026-07-14). Supersedes and continues
-> [`docs/DestructionSystem.md`](DestructionSystem.md) (the P1–P5 roadmap; P1–P3 shipped). This
+> Status: **design, awaiting build-order approval** (2026-07-14). Supersedes and continues the
+> original v1 design (the P1–P5 roadmap; P1–P3 shipped), which now lives in this file as
+> **Appendix A**. This
 > document extends that energy/toughness core into a **general, tactile breakable-objects system**
 > spanning trees, structures, furniture, and terrain — the four "feel" qualities the user asked for:
 > **coherent fracture/topple · progressive damage · tool-driven impact · gatherable aftermath.**
@@ -71,7 +72,7 @@ of v2 is **generalizing it** and routing `collapseUnsupported`'s severed compone
 
 Known dead/orphaned code (do not build on): the `Cube::Bond` 6-direction graph
 (`engine/include/core/Cube.h`) is only consumed by the dropped `ForceSystem` mouse path — it is **not**
-wired into any live break decision. `DestructionSystem.md` chose flood-fill connectivity over bonds;
+wired into any live break decision. Appendix A (the v1 design) chose flood-fill connectivity over bonds;
 v2 keeps that choice (§9).
 
 ---
@@ -260,6 +261,14 @@ only on full harvest.
   (matches the material toughness), fists do not.
 
 ### (F) Damage visualization (P4)
+
+> **SUPERSEDED — see [`VoxelDamageVisualization.md`](VoxelDamageVisualization.md)** (2026-09-22).
+> That document is the build plan. Two design-check passes resolved seven items: API readback,
+> toughness normalization, world-position seeding, the geometric-spall position, stage
+> quantization/merge cost, **sub-voxel coverage** (V1 cannot crack a generated building — its
+> walls are sub-cube and carry no damage bits), and **graze re-mesh** (the flush is gated on
+> breaks, so a pure graze never rebuilds). The sketch below is kept for history.
+
 `Cube` already stores accumulated damage. Surface a normalized `damage01 = accumulated/toughness` into
 the static voxel instance data (spare bits or a parallel per-voxel buffer) and blend a crack overlay /
 darken in `voxel.frag`. Purely additive; no gameplay change. **Validation:** L2 (damage state correct
@@ -381,7 +390,7 @@ The doc does **not** invent these; it names them as grounding tasks.
 
 ## 9. Design decisions (carried forward + new)
 
-Carried from `DestructionSystem.md` (unchanged): radial+shielding propagation · damage accumulation ·
+Carried from Appendix A (unchanged): radial+shielding propagation · damage accumulation ·
 anchor = connected-to-main-mass · everything destructible by default · `ForceSystem` mouse path
 dropped.
 
@@ -452,7 +461,7 @@ sign-off. Ordered so the load-bearing engine work (0–1) precedes the feel laye
 - **Phase 4 — Tool + swing (E, ties feedback #1).** *Contract:* equipped axe swing severs a tree in a
   grounded number of chops; tool/material affinity respected; fists ineffective on wood. *Depth:* L4.
   *Stress:* chop-spam (churn), wrong-tool, mid-swing tool-swap.
-- **Phase 5 — Damage visualization (F, P4).** *Contract:* damaged-but-unbroken voxels show cracks/
+- **Phase 5 — Damage visualization (F, P4).** *Plan:* [`VoxelDamageVisualization.md`](VoxelDamageVisualization.md). *Contract:* damaged-but-unbroken voxels show cracks/
   darken scaling with accumulated damage. *Depth:* L2 (state) + L4 (pixel-diff visual, not "looks
   cracked"). *Stress:* many partially-damaged voxels (render cost).
 - **Cross-cutting (any phase that touches it):** persistence of broken/damaged state + spawned resource
@@ -620,7 +629,7 @@ structures) broke the N=1-tested pipeline repeatedly; each fix is red-before-gre
    cheaper proxy (contradicts "permanent" — flag to user)? Recommend scatter for live overflow; decide
    settled-cap behavior when the Phase-1 benchmark sets the real ceiling.
 4. **Persistence scope** — do damaged-but-unbroken cracks survive reload (needs per-voxel damage in the
-   world DB), or only fully-broken state? `DestructionSystem.md` lists damage persistence as
+   world DB), or only fully-broken state? Appendix A lists damage persistence as
    cross-cutting/optional.
 5. **Grounding sources** — sign off the real-world references for toughness ratios, tree→log yields,
    and swings-to-fell before those numbers ship (grounding-auditor).
@@ -657,7 +666,7 @@ structures) broke the N=1-tested pipeline repeatedly; each fix is red-before-gre
 - Changed: `engine/src/core/DamageSystem.cpp` (JSON profiles, collapse routing), `MaterialRegistry` +
   `resources/materials.json` (`break` block), `engine/src/core/DynamicFurnitureManager.cpp` (refactor
   onto the service), `resources/rpg/` (axe), a chop `.anim`, `voxel.frag`/`static_voxel.vert` (cracks).
-- Docs: this file; update `docs/DestructionSystem.md` status; roadmap note in `docs/AgentContext.md`.
+- Docs: this file; roadmap note in `docs/AgentContext.md`.
 
 ---
 
@@ -1285,3 +1294,64 @@ tiering, the coherent-fell path) is shape-agnostic.
   (`308+698 cells -> 1 rigid body`, was 6) that fractures into 3 large chunks on impact, all
   resting at the ground. The original float-polish item (extend the subcube-resolution proxy to
   big trunks) remains an open follow-up.
+
+
+---
+
+## Appendix A — the original v1 design (`DestructionSystem.md`, folded in 2026-09-22)
+
+> **Provenance.** This appendix is the verbatim body of `docs/DestructionSystem.md`, which was
+> deleted on 2026-09-22 and folded in here so the destruction design lives in one file. That file's
+> last standalone revision is git `f4f2f717` (2026-07-21) — `git show f4f2f717:docs/DestructionSystem.md`
+> recovers it. Its status line read *"historical — superseded by DestructionSystemV2.md; P1-P3
+> shipped; kept for the original design rationale, not as a live status page"*, and that is exactly
+> what this appendix is: **design rationale, not a status page.** Verify current behaviour against
+> source, never against the roadmap below.
+>
+> (Same pattern as the water-doc consolidation — delete, fold, and leave a git-hash ledger.)
+
+### Core model: energy vs. toughness (a game heuristic, not FEM)
+
+A hit deposits **energy** at a point. Energy reaches each nearby voxel (attenuated by distance and by solid matter in the way). Each voxel has a **toughness** (from material). Per voxel:
+
+- `energy_reaching < toughness` → survive (later: accumulate damage / cracks)
+- `energy_reaching ≥ toughness` → break
+- the **overkill ratio** `r = energy / toughness` (scaled by material brittleness) decides *how* it breaks:
+  - `1 ≤ r < S1` → one intact dynamic cube
+  - `S1 ≤ r < S2` → shatter into subcubes (1/3)
+  - `r ≥ S2` → shatter into microcubes (1/9, capped)
+
+Brittle materials (glass, stone) → low S1/S2 (powder easily); ductile (wood, dirt) → high S1/S2 (chunky).
+
+### Energy propagation: radial + shielding
+
+```
+energy_reaching(voxel) = E · falloff(distance) · exp(−α · solidVoxelsInFront)
+falloff(d) = max(0, 1 − d/R)^p          (R = radius, p = sharpness)
+solidVoxelsInFront = solid voxels strictly between impact and voxel (ray-march occupancy)
+α = per-material absorption
+```
+
+This gives, from a single hit, a natural gradient: **dust core → chunky-debris shell → cracked rim**, and thick walls shield what's behind them.
+
+Debris velocity = outward from impact (+jitter, + hit direction), magnitude ∝ excess energy.
+
+### Two representations, kept separate
+- **Collision** = the voxel **occupancy grid** (GPU `setOccupied`; per-voxel, O(1) to clear on break — why destruction is cheap).
+- **Structure** = per-`Cube` `bonds` (6-dir). Drives *connectivity/support* — used later for structural collapse + welded fragments, NOT for the break decision (toughness drives that).
+
+### Backend facts (verified 2026-05-31)
+- GPU AVBD physics is the live, stable, primary path; debris = independent `GpuParticle`s (1 particle ↔ 1 body, contact constraints only). Settles correctly; ~78 FPS @ 800 bodies. Scales to thousands.
+- Static→dynamic break (existing single-voxel path): `chunk->removeCube` + spawn dynamic + `updateAfterCubeBreak`. Destruction scales this to a region.
+- No weld/bond constraints yet → no coherent multi-voxel rigid fragments (P5 stretch goal). Voxels are independent for now.
+
+### Roadmap
+- **P1 — DamageSystem + spell test**: `applyDamage(point, radius, energy, type, direction)`; radial+shielding; per-voxel toughness; overkill→tier shatter; GPU debris; spell impact → applyDamage; test scene. *Milestone: fireball → tiered crater + debris.*
+- **P2 — Damage accumulation + material tuning**: per-`Cube` `health`, multi-hit chipping; tune toughness/brittleness/absorption per material. (In-memory; persistence later.)
+- **P3 — Structural integrity**: bounded connectivity vs static-anchor field → severed groups fall (independent voxels).
+- **P4 — Visual damage + polish + perf**: crack/darken feedback, debris caps, shielding tuning.
+- **P5 — Coherent welded fragments (future)**: bonds → GPU weld constraints; chunks topple as one piece.
+- Cross-cutting: damage persistence to world DB when cracks must survive reload.
+
+### Decisions locked
+radial+shielding propagation · damage accumulation wanted (P2; visual cracks separable/P4) · independent voxels now, welds later · anchor = connected to undisturbed static field · bonds = material→material defaults + per-object override later · `ForceSystem` mouse path dropped · everything destructible by default.

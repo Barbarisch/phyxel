@@ -31,6 +31,7 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 - **[GameDevWorkflow.md](GameDevWorkflow.md)** — per-project session workflow, the `phyxel` CLI, per-machine setup
 - **[GameDevPromptCatalog.md](GameDevPromptCatalog.md)** — ready-to-use game-creation & feature-testing prompts
 - **[GameMechanicsRoadmap.md](GameMechanicsRoadmap.md)** — gameplay systems status (lights, cameras, NPCs, dialogue — all shipped)
+- **[Multiplayer.md](Multiplayer.md)** — server-authoritative co-op for **shipped games** (designed 2026-07-07; the editor API is explicitly NOT the network protocol)
 - **[StandaloneGameTesting.md](StandaloneGameTesting.md)** — manual standalone-game test checklist
 - **[MCPIntegration.md](MCPIntegration.md)** — MCP server + ~280 AI-agent tools (authoritative per-tool docs live in each tool's own description)
 
@@ -79,8 +80,11 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 ## Physics
 
 - **[DynamicVoxelPhysics.md](DynamicVoxelPhysics.md)** — GpuParticlePhysics (GPU compute) + VoxelDynamicsWorld (CPU); break routing
-- **[DestructionSystem.md](DestructionSystem.md)** — voxel destruction design (bonds → coherent fragments; P1–P3 shipped); superseded/continued by **[DestructionSystemV2.md](DestructionSystemV2.md)** (active workstream — coherent fracture/topple, tool-driven impact, gatherable aftermath)
+- **[DestructionSystemV2.md](DestructionSystemV2.md)** — THE destruction doc (active workstream: coherent fracture/topple, tool-driven impact, gatherable aftermath). Absorbed the v1 design as its **Appendix A** on 2026-09-22 (`DestructionSystem.md` deleted; git-hash ledger in that appendix)
+- **[VoxelDamageVisualization.md](VoxelDamageVisualization.md)** — progressive crack rendering on damaged-but-unbroken voxels (P4 build plan; two design-check passes). ⚠️ **V1 is full-cube only — generated buildings have sub-cube walls and cannot crack until V2** (see its §1 / §3.6)
 - **[Water.md](Water.md)** — THE water doc (single consolidated design + status + traps; supersedes WaterSystem v1/v2/v3, PhysicalFeelPlan, AppearanceV4, WaterAsWorldData)
+- **[SubcubeCollisionPlan.md](SubcubeCollisionPlan.md)** — subcube-resolution character collision (user directive 2026-07-16: collision shape must match what you see)
+- **[GpuCompoundBodies.md](GpuCompoundBodies.md)** — GPU compound rigid bodies (**PLANNED, not built** — user-approved "plan now, build later"; destruction-scale follow-up to GPU item physics)
 - **[PhysicsCharacter.md](PhysicsCharacter.md)** — ⚠️ deprecated (Bullet character fully removed, git-history-only; see EntitySystem.md)
 
 ## Characters & animation
@@ -89,6 +93,7 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 - **[CharacterAnimationGuide.md](CharacterAnimationGuide.md)** — animation states, naming, offsets
 - **[InteractionPipeline.md](InteractionPipeline.md)** — character ↔ object interaction (sitting, etc.) tuning pipeline
 - **[LessonsLearned_ProceduralAnimation.md](LessonsLearned_ProceduralAnimation.md)** — why the current animation approach won (history)
+- **[HumanoidAnimationMigration.md](HumanoidAnimationMigration.md)** — live review ledger for replacing combat/gathering clips in `humanoid.anim`
 - **[NavigationArchitecture.md](NavigationArchitecture.md)** — NPC navigation (Layer-1 NavGraph + async PathService on main; HPA* deferred)
 
 ## Story, RPG & combat
@@ -97,6 +102,7 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 - **[StoryEngineProgress.md](StoryEngineProgress.md)** — story engine implementation log (S1–S5 complete)
 - **[DnDRPGSystem.md](DnDRPGSystem.md)** — D&D ruleset (dice, attributes, classes, spells, items)
 - **[TurnBasedCombat.md](TurnBasedCombat.md)** — BG3-style turn-based combat (HUD via UISystem)
+- **[RealTimeCombatAI.md](RealTimeCombatAI.md)** — real-time combat stack (`CombatBehavior` melee, `RangedCasterBehavior` casters): cover, chain of command, per-combatant intelligence
 - **[HudSystem.md](HudSystem.md)** — data-driven HUD/UISystem (includes remaining-work section)
 
 ## Cameras, UI & debug
@@ -109,6 +115,7 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 
 - **[GooseIntegration.md](GooseIntegration.md)** — Goose AI NPC integration (Phase 1 + parts of 2/3 shipped and live-wired)
 - **[IntegrationTesting.md](IntegrationTesting.md)** — integration-test fixtures & patterns
+- **[ProvingGrounds.md](ProvingGrounds.md)** — the showcase/regression world (built 2026-08-01): one streaming terrain-v2 world exercising every distance-scaling system, with `tools/proving_grounds_probe.py`
 - **[LoggingSystem.md](LoggingSystem.md)** — logging system internals + migration guide
 - **[LoggingReference.md](LoggingReference.md)** — logging quick-reference card
 

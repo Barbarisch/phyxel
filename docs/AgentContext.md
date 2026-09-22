@@ -146,6 +146,46 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **▶ VOXEL DAMAGE VISUALIZATION (progressive cracks, P4) — PLANNED, NOT BUILT (2026-09-22).**
+  Plan: **[`docs/VoxelDamageVisualization.md`](VoxelDamageVisualization.md)** (supersedes
+  `DestructionSystemV2.md` §5(F)). Damaged-but-unbroken voxels should show a fracture network that
+  telegraphs *how close to breaking* and *which shatter tier is coming* (keyed to the existing
+  per-material `brittleS1`/`brittleS2`). **Nothing implemented — no code touched.**
+  **The cube pipeline is already ~70% wired**: `Cube::accumulatedDamage` accumulates
+  (`DamageSystem.cpp:183-189`), the mesher quantizes it (`ChunkRenderManager.cpp:370-374`) and packs
+  it into instance `reserved` bits 11-14 (`:741-744`, `:867`), and `voxel.frag:283-286` reads it —
+  but only as a whole-face darken+roughen, which is why damage currently reads as *dirt*. The merge
+  key already folds damage in, so damaged voxels never merge with pristine.
+  **Design-check gate run THREE times; 11 items found and resolved in the plan.** Four that a fresh
+  session must not re-derive:
+  1. **V1 is FULL-CUBE ONLY — generated buildings cannot crack.** Sub/micro instance paths write no
+     damage bits (`ChunkRenderManager.cpp:1062-1064`, `:1222-1224`) and every generated wall is
+     sub-cube (`StructureRealizer.cpp:163-165`: exterior 0.333 = 1 subcube, interior 0.222 = 2
+     micros). Root cause is deeper than wiring — accumulation is cube-only *by design*
+     (`DamageSystem.cpp:182`), so there is no sub-voxel damage state to plumb. Declared as a scope
+     boundary; V2 fixes it. **Do not demo this on a building.**
+  2. **The graze path never re-meshes.** The flush is gated on breaks —
+     `if (res.voxelsBroken > 0) updateDirtyChunks();` (`DamageSystem.cpp:304-306`) — and the graze
+     branch `continue`s at `:186-189` before any `markChunkDirty`. A pure-graze blast records damage
+     and never rebuilds. **Masked** whenever the same blast breaks anything, which is why it survived
+     this long. P0 fix + its own red test (R5).
+  3. **Cracks are STATIC CHUNK FACES ONLY, structurally.** `kinematic_voxel.vert:126` and
+     `dynamic_voxel.vert:267-268` hardcode `flags = 0u` *and* zero `vChunkBaseAbs/Rel`, and neither
+     instance struct has a flags field. Debris and furniture are excluded by two independent
+     mechanisms — not reversible by setting a flag.
+  4. **`kDamageRef = 30.0f` is a shipped defect** (`ChunkRenderManager.cpp:370-374`): damage display
+     saturates at a flat 30 energy regardless of material, so the same visual stage means 13.6% of
+     the way to breaking on Steel and 85.7% on Glass — a **6.3× spread**, and Stone is visually
+     silent for its last 73%. Fix = normalize by `responseFor(mat).toughness`.
+  **Two cross-cutting facts worth remembering beyond this feature:** `tests/CMakeLists.txt:23` links
+  `phyxel_core` ONLY, so **no unit test can reach the editor-hosted HTTP API** (`apply_damage`,
+  `setVoxelQueryHandler` live in `editor/src/Application.cpp`) — API asserts must be integration/L4;
+  and a **Flat world's surface is y=16** (`WorldGenerator.cpp:941`, `kSeaLevelY`), so any test rig
+  built below that is buried in solid ground and renders nothing.
+  **NEXT: P0** = API readback (`damage_stage`/`damage01`/`damage_tracked` on `/api/world/voxel`)
+  + the graze re-mesh fix + reds R1a/R1b/R5. Plan §7 has the full phase table and gates.
+
+
 - **★ BESTIARY FORGE II — FULL SRD COVERAGE (336/336 bound), W1 SHIPPED 2026-08-22.**
   Every D&D stat block the engine ships now resolves to a spawnable rig. Coverage is
   **generated, not hand-written**: `tools/creature_forge/bindings_map.json` (archetype rig →
@@ -998,7 +1038,7 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   Next session, verify live per [[standalone-window-driving]] (TAP keys via foreground+keybd_event;
   PostMessage WM_KEYDOWN does NOT reach glfwGetKey) — or just run a standalone by hand: Settings →
   Keybindings… → click a key → press a new key; confirm it sticks across restart (settings.json).
-- **Destruction system** (`docs/DestructionSystem.md`, `engine/core/DamageSystem`): P1 area
+- **Destruction system** (`docs/DestructionSystemV2.md`, `engine/core/DamageSystem`): P1 area
   damage, P2 damage accumulation + per-material toughness, P3 structural-collapse with
   "connected-to-main-mass" anchor, and the lag-spike fix are DONE + committed. Roadmap:
   **P4** visual cracks on damaged-but-unbroken voxels; **P5** GPU weld constraints for

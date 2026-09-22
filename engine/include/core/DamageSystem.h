@@ -19,7 +19,7 @@ struct DamageResult {
     int debrisSpawned = 0;  // dynamic pieces queued (cubes/subcubes/microcubes)
 };
 
-// P1 destruction core (see docs/DestructionSystem.md). Applies a shaped energy
+// P1 destruction core (see docs/DestructionSystemV2.md). Applies a shaped energy
 // hit to the voxel field: energy radiates from the impact, attenuated by
 // distance and by solid voxels in the way (shielding). Voxels whose received
 // energy exceeds their material toughness break; the overkill ratio decides
