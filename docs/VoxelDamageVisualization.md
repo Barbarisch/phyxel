@@ -1704,11 +1704,12 @@ in a plan is a decision not yet made, so both were decided rather than logged: P
 
 | # | Item | Where specified | Status | Blocks |
 |---|---|---|---|---|
+| **0** | ⚠️ **GLASS IS NOT TRANSPARENT.** Cause UNKNOWN. Reported by the reviewer; two attempted fixes were wrong and are reverted. Cracks on glass are fine and were never the problem | §16.3 | **OPEN — highest priority, blocks nothing but is a visible defect** | — |
 | ~~1~~ | ~~`build_shaders.bat` reports success on a FAILED shader compile~~ | `StructurePipelineGaps.md` 2026-09-22 | ✅ **FIXED 2026-09-22** — three nested cmd traps, shipped as `\|\| goto :shader_error`; regression test `tools/test_shader_build_fails_loudly.py` | — |
 | **2** | **§6.2 RUNTIME seam test** — damaged wall straddling x = 31/32, captured and diffed | §6.2; rig built as `tools/crack_seam_test.py` | ⚠️ **NOT ACHIEVED after SIX metric designs.** The rig, both preconditions and the two-rig A/B framing all work and are committed; **no pixel statistic tried can distinguish a world-seeded crack from a uv-seeded one.** A PASS proves nothing. All six attempts and the reason each failed are in the tool. **Recommended next step is not another statistic — it is a debug view that renders `crackField` directly (§16.1)** | **P3 closure — still open** |
 | **3** | **P4 — stage-count A/B**, 3 / 7 / 15 for cost AND legibility across the 4/16/48/96 ladder | §6.4 — knob storage resolved, cost prediction added, pinned tests named | **READY** | Ratifying or revising P2's choice of 3 |
 | ~~4~~ | ~~P5 — per-material `crackStyle`~~ | §4.4a/§4.4b | ✅ **DONE** — see §13 | — |
-| 4b | **Cracks on TRANSPARENT materials** — currently excluded entirely; damaged glass shows no damage | §13 (glass regression) | OPEN | Needs the crack in `transparent_voxel.frag`, where alpha is composited |
+| ~~4b~~ | ~~Cracks on transparent materials~~ | — | ✅ **NOT AN ISSUE.** The reviewer confirms cracks on glass looked good; the exclusion I added was reverted. Only TRANSPARENCY is broken (item 0) | — |
 | 5 | **V2 — sub-voxel damage** (cracks on generated buildings) | §3.6, §15 | OPEN | Retiring §1's scope boundary; also wanted by `FractureModes.md` F1 |
 | 6 | **V1.5 — geometric spall** | §3.4 | OPEN | Depends on V2 |
 
@@ -1733,6 +1734,40 @@ Voronoi cells read as regular and polygonal.
 from rendering (cracks cannot appear on sub-cube building walls) and `FractureModes.md` reached it
 from physics (a carved cube goes visually pristine). That convergence is the strongest argument yet
 for scheduling it sooner than "after P5".
+
+
+### 16.3 Glass transparency — what is known, and what is not
+
+**Symptom:** glass does not render see-through. Reported by the reviewer twice, after I twice
+claimed it fixed. **It is not fixed and the cause is not known.**
+
+**What is RULED OUT:**
+- **The crack rendering is not the cause.** Both of my "fixes" touched only the crack block in
+  `voxel.frag` — they could not have caused a transparency bug and did not fix one. Reverted in
+  `2ee675d6`.
+- **Cracks on glass are not the problem.** The reviewer confirms they looked good. They are
+  restored and stay.
+
+**What is NOT established:**
+- **Whether this is mine at all.** A baseline was built with the only three files of mine that
+  could plausibly reach glass rendering (`shaders/voxel.frag`, `AtlasManager.cpp`,
+  `VulkanDevice.cpp`) reverted to `origin/main`, and a plain undamaged glass wall captured
+  (`screenshots/screenshot_20260923_072602_473.png`). **That capture has not been judged**, so it
+  is still unknown whether glass renders correctly without my changes.
+
+**The next step is that judgement, not more code.** It splits the work cleanly:
+- baseline glass looks CORRECT → the break is mine, and the prime suspect is **P5's material-props
+  stride change** (`AtlasManager.cpp` now writes TWO `vec4`s per texture layer instead of one, and
+  `voxel.frag` reads `textureUVs[gi*2]`). Any consumer still assuming stride 1 reads another
+  material's properties. Bisect the three files individually.
+- baseline glass looks BROKEN TOO → it predates this branch entirely, nothing here caused it, and
+  it belongs in its own investigation against `origin/main`.
+
+**Standing instruction, learned the hard way:** do not report glass as fixed without the reviewer
+confirming it visually. Two reports of "fixed" were both wrong — the second because a milky pane
+with the horizon faintly visible through it was read as "transparent". The A/B that actually
+answers it is **both panes in ONE frame**, damaged beside pristine, and even that only settles
+damaged-vs-undamaged, not whether either is correct.
 
 ---
 
