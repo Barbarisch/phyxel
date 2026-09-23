@@ -2,7 +2,8 @@
 
 **Status:** OPEN. **Phase 0 COMPLETE** — glass measured fully opaque; the OIT pass runs.
 **Phase 1 COMPLETE** — identical at the pre-branch baseline: **the break predates the crack branch.**
-**Next: Phase 1b — gated bisect of `main` (§12.8), reviewer's decision 2026-09-23.** Results in §12. Gated through `FeatureDesignKeys.md` three
+**Phase 1b COMPLETE — first bad commit is `2ea8b8d9` (#397), a texture-only commit that stripped the
+alpha channel from Glass (§12.10).** Next: Phase 3 — name and confirm the mechanism. Results in §12. Gated through `FeatureDesignKeys.md` three
 times (§9).
 
 > **PROCESS RULE (added 2026-09-23, after it was broken).** This plan is the approved plan. When
@@ -644,4 +645,63 @@ change: `BAD cube=0.009 floor=0.007 control=41.2` — unchanged from Phase 0.
 | commit | position (first-parent from `7a36910f`) | class | cube T | subcube T | floor | control | conditions |
 |---|---|---|---|---|---|---|---|
 | `7a36910f` | 0 | **GOOD** | 0.500 | 0.387 | 0.000 | 224.6 | ambient 0.30, engine default curve, Release |
+| `3a4a2884` | 201 | **GOOD** | 0.500 | — | 0.000 | 224.5 | same |
+| `9728a21b` | 301 | **GOOD** | 0.500 | — | 0.000 | 224.5 | same — first attempt UNTESTABLE (harness: stale CMake glob, see below) |
+| `7371362e` | 351 | **GOOD** | 0.500 | — | 0.000 | 224.5 | same |
+| `9c059ac8` | 376 | **GOOD** | 0.500 | — | 0.000 | 224.5 | same |
+| `4c3182de` | 389 | **GOOD** | 0.573 | — | 0.000 | 37.9 | same (control drops: a lighting/tone change landed before here — not the glass break) |
+| `94d7a68a` | 395 | **GOOD** | 0.573 | — | 0.000 | 37.9 | same |
+| **`1acc7910`** | **396** | **GOOD** | **0.573** | — | 0.000 | 37.9 | same — **last good** |
+| **`2ea8b8d9`** | **397** | **BAD** | **0.000** | — | 0.000 | 37.9 | same — **FIRST BAD** |
+| `aadc632c` | 402 | **BAD** | 0.000 | — | 0.000 | 40.8 | same |
 | `1bdf0239` | 804 | **BAD** | 0.012 | 0.010 | 0.001 | 41.3 | tonemap curve 0 exp 1.0, Debug (§12.6) |
+
+### 12.10 Phase 1b result — the break is a TEXTURE, not code
+
+**First bad commit: `2ea8b8d9` (#397, 2026-06-30) — "feat(textures): high-def regen for 64px
+materials + fix Mirror missing texture".** Last good: `1acc7910` (#396).
+
+**It changed no code and no shaders** — 72 PNGs under `resources/textures/source/`, one resources
+file, and the generator `tools/gen_highdef_materials.py`. Going from #397 back to #396 did not even
+relink the executable: **the GOOD and BAD measurements of that pair came from the same binary.** The
+only difference between them is texture data. The reviewer called it independently from the captures
+("when you used the old glass texture i could see through it") before the bisect had finished.
+
+**What the texture change did** (read from git, no build):
+
+| | Glass texture | alpha channel |
+|---|---|---|
+| `1acc7910` and earlier | 64×64 **RGBA** | **61.7% of texels below alpha 0.1** |
+| `2ea8b8d9` → HEAD | 1024×1024 **RGB** | **none** — reads as 1.0 everywhere |
+
+**Why that makes glass opaque** — resolving the §3 contradiction completely. The opaque pass
+(`voxel.frag`, blending off) has `if (textureColor.a < 0.1) discard;`. With the old texture most glass
+fragments had alpha below 0.1 and were **discarded from the opaque pass**, leaving the OIT pass to draw
+them — transparent. With no alpha channel every glass fragment passes the test, the opaque pass draws
+the whole pane **solid, with depth**, and the OIT result underneath never shows. §3 was right that the
+opaque pass has no *transparency* discard; it missed that the *cutout* discard was doing the job, via
+the texture. That is the mechanism to confirm in Phase 3 — it is the leading explanation, not yet a
+confirmed one.
+
+**Glass was not the only casualty.** The same regen stripped cutout alpha from **36 textures**: all 6
+glass faces and **all 30 leaf textures** (oak, autumn, birch, jungle, spruce). **The leaves were
+repaired afterwards** — `d030c90e` ("cutout leaf-cluster masks replace the flat ellipse cards") and
+`f10d883c` ("leaf_forge authors full RGBA leaves; real transparent negative space") — and have cutout
+alpha at HEAD. **Glass was never touched again.** So the repair pattern already exists in this repo for
+the identical failure; it was applied to foliage and not to glass.
+
+**Implication for the Phase 4 fix (recorded now, decided later):** the defect is in *data* and in the
+*generator* that produced it. A shader change would be treating a symptom. The fix belongs in glass's
+texture authoring (the generator must emit RGBA for alpha-bearing materials) plus a guard so a regen
+cannot silently strip alpha again — the same guard would have protected the leaves. §12.4's constraint
+(cracks on glass must survive) is satisfied automatically by a data fix, because nothing in the crack
+path changes.
+
+**Harness defect found and fixed during the bisect** (tool, not plan): the first build of #301 failed
+to LINK new symbols because the old tree's source lists are `file(GLOB ...)` and a bisect jump that
+adds `.cpp` files does not re-run the glob. It was recorded UNTESTABLE — never BAD — and re-run with a
+reconfigure on every step: GOOD. Steps before the fix (#402, #201) built successfully; a stale glob can
+only omit *new, unreferenced* files, which cannot affect the render path, and the decisive boundary
+pair (#396/#397) was measured with the fixed harness.
+
+**Worktree removed** per 12.8 step 6; nothing from any historical build was committed.
