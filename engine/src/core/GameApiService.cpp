@@ -5,6 +5,7 @@
 #include "core/CommandRegistry.h"
 #include "core/EngineAPIServer.h"
 #include "core/EngineRuntime.h"
+#include "core/ChunkManager.h"
 #include "ui/WindowManager.h"
 #include <GLFW/glfw3.h>
 #include "core/GameSettings.h"     // Core::stringToKey
@@ -374,6 +375,16 @@ void GameApiService::registerCommands() {
     // routes, mirrored so a harness can READ the clock on the shipped build (G-165). Without a
     // read there was no way to tell a running cycle from a stopped one except by staring at the
     // sky. Same field names as the editor route and the MCP tool.
+    // POST /api/rpg/play_bounds - the horizontal extent characters are clamped to (G-169) and
+    // where it came from: {source, bounds:{min:{x,z},max:{x,z}}|null, streaming}. The L4's
+    // observable next to the player's own position.
+    reg.on("play_bounds", [this](const APICommand&, json& r) {
+        auto* cm = runtime ? runtime->getChunkManager() : nullptr;
+        if (!cm) { r = {{"error", "no chunk manager"}}; return; }
+        const auto pb = cm->effectivePlayBounds();
+        r = {{"success", true}, {"source", cm->playBoundsSource()}, {"bounds", pb.toJson()},
+             {"streaming", cm->isStreamingGenerationEnabled()}};
+    });
     reg.on("daynight", [this](const APICommand&, json& r) {
         if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
         r = {{"success", true}, {"daynight", renderCoordinator->getDayNightCycle().toJson()}};

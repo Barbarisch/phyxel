@@ -220,6 +220,37 @@ void ChunkManager::disconnectWorldStorage() {
     m_evictedLodCache.clear();
 }
 
+Core::PlayBounds ChunkManager::derivedWorldExtentXZ() const {
+    if (m_worldExtentCachedCount == chunkMap.size()) return m_worldExtentCache;
+    Core::PlayBounds b;
+    if (!chunkMap.empty()) {
+        int minCx = INT_MAX, maxCx = INT_MIN, minCz = INT_MAX, maxCz = INT_MIN;
+        for (const auto& [coord, chunk] : chunkMap) {
+            (void)chunk;
+            minCx = std::min(minCx, coord.x); maxCx = std::max(maxCx, coord.x);
+            minCz = std::min(minCz, coord.z); maxCz = std::max(maxCz, coord.z);
+        }
+        constexpr int S = Utils::CoordinateUtils::CHUNK_SIZE;
+        b = Core::PlayBounds::make(static_cast<float>(minCx * S), static_cast<float>(minCz * S),
+                                   static_cast<float>((maxCx + 1) * S), static_cast<float>((maxCz + 1) * S));
+    }
+    m_worldExtentCache = b;
+    m_worldExtentCachedCount = chunkMap.size();
+    return b;
+}
+
+Core::PlayBounds ChunkManager::effectivePlayBounds() const {
+    if (m_authoredPlayBounds.valid) return m_authoredPlayBounds;
+    if (m_streamingGenerationEnabled) return Core::PlayBounds{};
+    return derivedWorldExtentXZ();
+}
+
+const char* ChunkManager::playBoundsSource() const {
+    if (m_authoredPlayBounds.valid) return "authored";
+    if (m_streamingGenerationEnabled) return "none (streaming world)";
+    return derivedWorldExtentXZ().valid ? "derived (chunk extent)" : "none (no chunks)";
+}
+
 void ChunkManager::configureStreamingGeneration(bool enabled, WorldGenerator::GenerationType type, uint32_t seed) {
     // Reconfiguring (world switch): stop any running async worker so its private
     // generator snapshot can't outlive the world it belongs to.

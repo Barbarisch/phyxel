@@ -221,6 +221,17 @@ After your world, NPCs, and story are in place, layer on gameplay systems:
 - ESC key toggles pause (freezes world simulation, shows pause menu)
 - `toggle_pause` / `get_pause_state` — Control via MCP
 
+**The edge of the world is a wall** (`playBounds`, optional, per scene):
+- Every kinematic character (player and NPCs) is clamped each frame to the scene's play bounds,
+  so nobody can walk off the last chunk of a fixed-size world into the void.
+- By default the bounds are the rectangle of the chunks the world has. A streaming world
+  (`world.streaming: true`) has none: its extent grows ahead of the player.
+- To stage a smaller area inside a bigger world, author `"playBounds": {"min": {"x": -32, "z": -32},
+  "max": {"x": 64, "z": 64}}` (voxel coordinates, half-open). An inverted or zero-area box is
+  refused at load, not clamped. A scene without the key reverts to the derived rectangle.
+- The wall is invisible. Put something visible at an edge the player can reach (a fence, a hedge,
+  a cliff) so the stop reads as a place, not a bug.
+
 **Coming back to a scene puts you where you left** (no authoring needed):
 - On unload the SceneManager records the player's position; on re-entry the player spawns there
   instead of at the scene's authored `player.position`. A first visit uses the authored entry.

@@ -138,6 +138,9 @@ struct GameDefinitionResult {
     /// with Graphics::DayNightCycle::applySettings(), for the same layering reason as sky.
     DayNightSettings dayNight;
     bool dayNightLoaded = false;
+    /// True when the definition authored `playBounds` (G-169); otherwise the ChunkManager derives
+    /// the play bounds from the chunk extent (static worlds) or has none (streaming).
+    bool playBoundsAuthored = false;
     bool storyLoaded = false;
 
     json toJson() const;

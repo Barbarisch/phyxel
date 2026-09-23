@@ -1,4 +1,5 @@
 #include "core/GameDefinitionLoader.h"
+#include "core/PlayBounds.h"
 #include "core/TransitionMarkers.h"
 #include <climits>
 #include "core/ChunkManager.h"
@@ -64,6 +65,7 @@ json GameDefinitionResult::toJson() const {
     j["story_loaded"] = storyLoaded;
     j["day_night_loaded"] = dayNightLoaded;
     if (dayNightLoaded) j["day_night"] = dayNight.toJson();
+    j["play_bounds_authored"] = playBoundsAuthored;
     return j;
 }
 
@@ -113,6 +115,13 @@ std::pair<bool, std::string> GameDefinitionLoader::validate(const json& definiti
     // mis-set sky.
     if (definition.contains("dayNight")) {
         auto [ok, err] = DayNightSettings::validate(definition["dayNight"]);
+        if (!ok) return {false, err};
+    }
+
+    // Validate the play bounds (G-169). Refused, not clamped: an inverted or zero-area stage
+    // would pin the player to one spot and look like a movement bug.
+    if (definition.contains("playBounds")) {
+        auto [ok, err] = PlayBounds::validate(definition["playBounds"]);
         if (!ok) return {false, err};
     }
 
@@ -218,6 +227,19 @@ GameDefinitionResult GameDefinitionLoader::load(const json& definition, GameSubs
         auto [ok, err] = DayNightSettings::validate(definition["dayNight"]);
         if (!ok) { result.success = false; result.error = err; return result; }
         result.dayNightLoaded = parseDayNight(definition, result.dayNight);
+    }
+
+    // Play bounds (G-169): authored beats the derived chunk extent. Cleared on EVERY load, so a
+    // scene without the key reverts to derived and the previous scene's stage never leaks in.
+    if (subsystems.chunkManager) subsystems.chunkManager->clearAuthoredPlayBounds();
+    if (definition.contains("playBounds")) {
+        auto [ok, err] = PlayBounds::validate(definition["playBounds"]);
+        if (!ok) { result.success = false; result.error = err; return result; }
+        PlayBounds pb;
+        PlayBounds::fromJson(definition["playBounds"], pb);
+        if (subsystems.chunkManager) subsystems.chunkManager->setAuthoredPlayBounds(pb);
+        result.playBoundsAuthored = true;
+        LOG_INFO("GameDefinitionLoader", "Play bounds authored: x {}..{}, z {}..{}", pb.minX, pb.maxX, pb.minZ, pb.maxZ);
     }
 
     if (definition.contains("locations")) {
@@ -884,6 +906,13 @@ void GameDefinitionLoader::loadPlayer(const json& playerDef, GameSubsystems& sub
         if (type == "animated") {
             auto* animChar = dynamic_cast<Scene::AnimatedVoxelCharacter*>(entity);
             if (animChar) {
+                // The character reads the ChunkManager for the play bounds (G-169) and the
+                // streaming residency hold. The host's spawner never set it on the PLAYER (the
+                // editor does so itself; NPCEntity does for NPCs), so the shipped player had
+                // neither - the first green run of the edge wall fell off the farm exactly like
+                // the red one, with the bounds reported correctly by the API.
+                if (sub.chunkManager && !animChar->hasChunkManager())
+                    animChar->setChunkManager(sub.chunkManager);
                 if (hasVisualDef) {
                     // Full rebuild so proportions apply too (recolor alone
                     // silently dropped them).

@@ -12,6 +12,7 @@
 #include "core/ChunkInitializer.h"
 #include "core/DirtyChunkTracker.h"
 #include "core/ChunkVoxelQuerySystem.h"
+#include "core/PlayBounds.h"
 #include "core/ChunkVoxelModificationSystem.h"
 #include "core/EvictedLodCache.h"
 #include <vector>
@@ -125,6 +126,11 @@ public:
     bool m_hasWorkerFlora = false;
     bool m_streamingGenerationEnabled = false;
 
+    // Play bounds (G-169)
+    Core::PlayBounds m_authoredPlayBounds;
+    mutable Core::PlayBounds m_worldExtentCache;
+    mutable size_t m_worldExtentCachedCount = static_cast<size_t>(-1);
+
     // Hybrid physics routing: FPS-based Bullet vs GPU fallback
     uint32_t m_frameBreakCount = 0;
     static constexpr uint32_t MAX_BULLET_BREAKS_PER_FRAME = 8;
@@ -190,6 +196,21 @@ public:
                                       WorldGenerator::GenerationType type = WorldGenerator::GenerationType::Perlin,
                                       uint32_t seed = 0);
     bool isStreamingGenerationEnabled() const { return m_streamingGenerationEnabled; }
+
+    // --- Play bounds (G-169, core/PlayBounds.h): the horizontal extent every kinematic character
+    // is clamped to, so nobody walks off the edge of a fixed-size world. ---
+    void setAuthoredPlayBounds(const Core::PlayBounds& b) { m_authoredPlayBounds = b; }
+    void clearAuthoredPlayBounds() { m_authoredPlayBounds = Core::PlayBounds{}; }
+    const Core::PlayBounds& authoredPlayBounds() const { return m_authoredPlayBounds; }
+    /// The rectangle of every chunk the world HAS (all Y layers), in voxels, half-open. Invalid
+    /// when there are no chunks. Cached by chunk count; call invalidateWorldExtent() after an
+    /// add+remove that leaves the count unchanged.
+    Core::PlayBounds derivedWorldExtentXZ() const;
+    void invalidateWorldExtent() { m_worldExtentCachedCount = static_cast<size_t>(-1); }
+    /// authored > derived (static worlds) > none (streaming worlds, whose extent grows ahead of
+    /// the player - the residency hold covers those).
+    Core::PlayBounds effectivePlayBounds() const;
+    const char* playBoundsSource() const;
     // The generator used for streamed chunks (valid after configureStreamingGeneration(true)).
     // Exposed so callers can tune TerrainParams; null when streaming generation is off.
     WorldGenerator* getStreamingGenerator() { return m_worldGenerator.get(); }
