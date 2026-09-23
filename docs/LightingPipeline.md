@@ -559,6 +559,32 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 
 ## 9. Change log (append a line per lighting/shadow change; the fingerprint line is written by `tools/lighting_doc_check.py --update`)
 
+- 2026-09-22 — **TWO DEFECTS IN ONE FUNCTION: `phxLightVisibility` is 90% of the frame AND
+  leaks through walls (G-18 + G-157).** Drilling into the light loops: the MARCH alone is 237.5
+  of 263.6 ms, and a probe that counts marches shows **31.3 of the 32-light cap running at 91.6%
+  of screen pixels** — roughly 59 million marches a frame. Each march is cheap (~4–9 ns); there
+  are simply far too many, because the radius and facing gates cull almost nothing once 32
+  lights are uploaded near the camera. Separately, the run-length exclusion that stops an
+  emissive voxel shadowing itself swallows any wall the emitter touches, so a sconce mounted
+  flush on a wall lights the far side — reproduced at EVERY thickness from 1 micro to a 3-cube
+  stone keep wall (`LightWallMatrixTraced.DISABLED_M4_...`), with the one-cell-off control
+  correctly blocked at all of them. These are the same code, so the approach is what needs
+  revisiting: patching the exclusion would entrench a 237 ms algorithm. Rules R8/R9 are
+  untouched; no lighting behaviour changed in this commit.
+- 2026-09-22 — **MEASURED: the forward point/spot light loops are 79-91% of the frame
+  (Ravenmere G-18/G-52).** `voxel.frag` gained shader-cost bisect probes on `debugShadowMode`
+  11-16 - each returns early with a flat or partial colour, adding no lighting behaviour and
+  costing nothing at mode 0. Shipped Release, Ravenmere town, RTX 1000 Ada. Static Geometry
+  at the worst pose is 260.7 ms and breaks down as: rasterise 0.04, textureGrad x2 0.21,
+  shadow PCSS 0.55, ambient probe 23.49, sun+moon PBR 0.07, **point/spot lights 236.27
+  (90.6%)**, fog/tonemap 0.04. On the street: 84.6 ms total, point/spot 66.63 (78.8%),
+  ambient 17.52 (20.7%). The cause is `phxLightVisibility` - an occupancy ray march run PER
+  LIGHT PER FRAGMENT, up to 32 point + 16 spot - and this town registers 143 emissive voxel
+  lights. Two consequences for this document's assumptions: the shadow pass is a FLAT 1.6 ms
+  at every pose and PCSS is 0.2-1.0% of the fragment cost, so "shadows are the cost" is dead;
+  and the ambient probe field, while second, is under a quarter of the bill. No fix yet - the
+  point of the exercise was to stop guessing. Rig: `tools/perf_town_profile.py`, evidence
+  `docs/evidence/ravenmere/rv_perf*.json`.
 - 2026-09-20 — **Grass gets an up-facing ambient fast path (`phxAmbientUp`, Ravenmere G-146).**
   `grass.vert` ran the general `phxAmbient` per blade vertex, 24 per blade, costing +20 to +22 ms
   per frame in the town at every pose, including one with almost no grass on screen. The fast path

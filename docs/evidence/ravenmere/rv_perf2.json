@@ -1,0 +1,81 @@
+{
+  "player": {
+    "x": -36.0,
+    "y": 17.11111068725586,
+    "z": 15.0
+  },
+  "timing": {
+    "near_down": {
+      "cpu_frame_ms": 250.0,
+      "fps": 4.0,
+      "visible_chunks": 2.0,
+      "stats_active": false,
+      "Scene Pass": 263.985,
+      "Static Geometry": 263.495,
+      "Grass": 0.0,
+      "Foliage": 0.0,
+      "GI Probes": 5.684,
+      "Shadow Pass": 1.577,
+      "static_pipeline": null
+    },
+    "mid_down": {
+      "cpu_frame_ms": 136.651,
+      "fps": 7.318,
+      "visible_chunks": 6.0,
+      "stats_active": false,
+      "Scene Pass": 129.807,
+      "Static Geometry": 125.239,
+      "Grass": 0.433,
+      "Foliage": 0.117,
+      "GI Probes": 5.689,
+      "Shadow Pass": 1.576,
+      "static_pipeline": null
+    },
+    "far_down": {
+      "cpu_frame_ms": 42.622,
+      "fps": 23.462,
+      "visible_chunks": 6.0,
+      "stats_active": false,
+      "Scene Pass": 39.699,
+      "Static Geometry": 33.021,
+      "Grass": 4.577,
+      "Foliage": 0.831,
+      "GI Probes": 1.613,
+      "Shadow Pass": 1.53,
+      "static_pipeline": null
+    },
+    "sky_up": {
+      "cpu_frame_ms": 8.412,
+      "fps": 118.884,
+      "visible_chunks": 2.0,
+      "stats_active": false,
+      "Scene Pass": 1.319,
+      "Static Geometry": 0.003,
+      "Grass": 0.787,
+      "Foliage": 0.046,
+      "GI Probes": 5.631,
+      "Shadow Pass": 1.559,
+      "static_pipeline": null
+    },
+    "street": {
+      "cpu_frame_ms": 99.601,
+      "fps": 10.04,
+      "visible_chunks": 19.0,
+      "stats_active": false,
+      "Scene Pass": 92.54,
+      "Static Geometry": 86.166,
+      "Grass": 4.646,
+      "Foliage": 0.815,
+      "GI Probes": 5.68,
+      "Shadow Pass": 1.582,
+      "static_pipeline": null
+    }
+  },
+  "with_stats": {
+    "near_down": null,
+    "mid_down": null,
+    "far_down": null,
+    "sky_up": null,
+    "street": null
+  }
+}

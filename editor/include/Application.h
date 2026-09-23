@@ -137,6 +137,9 @@ public:
 
     // Configuration
     void setWindowSize(int width, int height);
+    /// G-50: last swapchain size handed to the UISystem, so the HUD canvas is re-placed
+    /// only when the window actually changes size.
+    glm::uvec2 lastUiWindow_{0, 0};
     void setTitle(const std::string& title);
     void setProjectDir(const std::string& dir) { projectDir_ = dir; }
     

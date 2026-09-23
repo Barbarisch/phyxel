@@ -34,6 +34,9 @@
 #include "core/SceneManager.h"
 #include "core/SceneDefinition.h"
 #include "graphics/RenderCoordinator.h"
+#include "vulkan/VulkanDevice.h"
+#include <algorithm>
+#include "utils/GpuProfiler.h"   // G-18: per-pass GPU timings in the shipped build
 #include "graphics/Camera.h"
 #include "input/InputManager.h"
 #include "ui/GameScreen.h"
@@ -856,6 +859,100 @@ void GameApiService::registerCommands() {
         std::string tip = ui->injectHover(glm::vec2(x, y));
         r = {{"success", true}, {"x", x}, {"y", y}, {"source", "injected"},
              {"tooltip", tip}, {"has_tooltip", !tip.empty()}};
+    });
+
+    // G-18/G-52 MEASUREMENT: per-pass GPU timings for the last frame, plus the pipeline
+    // statistics that separate a vertex-bound pass from a fill-bound one. The GpuProfiler
+    // has always run in a shipped build; only the readout was editor-only, which left the
+    // town's frame rate unattributable. Same shape as the editor's get_gpu_scopes so the
+    // two hosts' numbers can be compared directly.
+    //
+    // SCOPES NEST: each carries its `depth`, and a child's time is already inside its
+    // parent's. Summing them double-counts. Read depth 0 for the frame breakdown.
+    // Pipeline statistics are a RUNTIME OPT-IN (GpuProfiler::pipelineStatsActive defaults
+    // off to avoid the query overhead) - and nothing in the engine or the editor ever
+    // turned them on, so the overdraw counter has reported nothing since the gate landed.
+    // Toggled separately from the timing read so a timing run is never perturbed by it.
+    // Debug views must be read with the tone curve OFF: every screenshot otherwise passes
+    // through exposure x8 + AgX, which makes a linear probe unreadable.
+    reg.on("set_tonemap", [this](const APICommand& cmd, json& r) {
+        if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
+        if (cmd.params.contains("exposure")) renderCoordinator->setExposure(cmd.params.value("exposure", 1.0f));
+        if (cmd.params.contains("curve"))    renderCoordinator->setTonemapCurve(cmd.params.value("curve", 0));
+        r = {{"success", true}, {"curve", renderCoordinator->getTonemapCurve()},
+             {"exposure", renderCoordinator->getExposure()}};
+    });
+
+    // G-18 MEASUREMENT: the fragment-cost probe. Mode 11 makes voxel.frag return a flat
+    // colour before any shading, so Static Geometry measures rasterisation only - the
+    // discriminator between overdraw and per-fragment shader cost. Mode 0 is normal.
+    reg.on("debug_shadow_mode", [this](const APICommand& cmd, json& r) {
+        auto* dev = runtime ? runtime->getVulkanDevice() : nullptr;
+        if (!dev) { r = {{"error", "VulkanDevice not available"}}; return; }
+        if (cmd.params.contains("mode"))
+            dev->setDebugShadowMode(std::clamp(cmd.params.value("mode", 0), 0, 18));
+        r = {{"success", true}, {"mode", dev->getDebugShadowMode()}};
+    });
+
+    // G-18 MEASUREMENT: the ambient/GI kill switch, mirroring the editor's POST /api/debug/gi.
+    // The probe field is THE ambient source since G-141, and its per-fragment lookup lives
+    // inside the voxel fragment shader - i.e. inside the "Static Geometry" scope. Toggling
+    // it is the only way to attribute that scope's cost without guessing.
+    reg.on("debug_gi", [this](const APICommand& cmd, json& r) {
+        if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
+        if (cmd.params.contains("enabled"))
+            renderCoordinator->setGiEnabled(cmd.params.value("enabled", true));
+        r = {{"success", true}, {"gi_enabled", renderCoordinator->getGiEnabled()}};
+    });
+
+    reg.on("gpu_pipeline_stats", [this](const APICommand& cmd, json& r) {
+        if (!renderCoordinator || !renderCoordinator->getGpuProfiler()) {
+            r = {{"error", "GpuProfiler not available"}};
+            return;
+        }
+        auto* prof = renderCoordinator->getGpuProfiler();
+        if (cmd.params.contains("on")) prof->setPipelineStatsActive(cmd.params.value("on", false));
+        r = {{"success", true}, {"active", prof->getPipelineStatsActive()}};
+    });
+
+    reg.on("get_gpu_scopes", [this](const APICommand&, json& r) {
+        if (!renderCoordinator || !renderCoordinator->getGpuProfiler()) {
+            r = {{"error", "GpuProfiler not available"}};
+            return;
+        }
+        auto* prof = renderCoordinator->getGpuProfiler();
+        json arr = json::array();
+        for (const auto& sc : prof->getResults())
+            arr.push_back({{"name", sc.name}, {"ms", sc.durationMs}, {"depth", sc.depth}});
+
+        auto psj = [](const Phyxel::GpuPipelineStats& ps) -> json {
+            if (!ps.valid) return nullptr;
+            return json{{"input_primitives", ps.inputPrimitives},
+                        {"vs_invocations",   ps.vsInvocations},
+                        {"clip_invocations", ps.clipInvocations},
+                        {"frag_invocations", ps.fragInvocations}};
+        };
+        const auto& fs = renderCoordinator->getLastFrameStats();
+        double cpuMs = 0.0, fps = 0.0;
+        if (runtime && runtime->getPerformanceMonitor()) {
+            const auto& ft = runtime->getPerformanceMonitor()->getCurrentFrameTiming();
+            cpuMs = ft.cpuFrameTime;
+            if (cpuMs > 0.0) fps = 1000.0 / cpuMs;
+        }
+        r = {{"scopes", arr},
+             {"pipeline_stats_active", prof->getPipelineStatsActive()},
+             {"cpu_frame_ms", cpuMs},
+             {"fps", fps},
+             {"static_geometry_pipeline_stats", psj(prof->getPipelineStats(Phyxel::GpuProfiler::STATS_SLOT_STATIC))},
+             {"shadow_pipeline_stats",          psj(prof->getPipelineStats(Phyxel::GpuProfiler::STATS_SLOT_SHADOW))},
+             {"character_pipeline_stats",       psj(prof->getPipelineStats(Phyxel::GpuProfiler::STATS_SLOT_CHARACTER))},
+             {"character_draw_calls_main",   renderCoordinator->getCharacterRenderStats().drawCallsMain},
+             {"character_draw_calls_shadow", renderCoordinator->getCharacterRenderStats().drawCallsShadow},
+             {"shadow_chunks_drawn",     fs.shadowChunksDrawn},
+             {"shadow_instances_drawn",  fs.shadowInstancesDrawn},
+             {"visible_chunks",          fs.visibleChunkCount},
+             {"total_visible_faces",     fs.totalVisibleFaces},
+             {"far_tiles_drawn",         fs.farTilesDrawn}};
     });
 
     // G-150: a whole press-move-release drag. Points are window px, as ui_click takes.

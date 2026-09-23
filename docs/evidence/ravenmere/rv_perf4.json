@@ -1,0 +1,120 @@
+{
+  "near_down": [
+    {
+      "fps": 4.0,
+      "visible_chunks": 2.0,
+      "Scene Pass": 586.889,
+      "Static Geometry": 585.825,
+      "Grass": 0.0,
+      "GI Probes": 5.711,
+      "Shadow Pass": 1.643,
+      "window": [
+        1600,
+        900
+      ],
+      "swapchain": [
+        1924,
+        1078
+      ],
+      "mpixels": 2.074,
+      "ms_per_mpixel": 282.5
+    },
+    {
+      "fps": 4.0,
+      "visible_chunks": 2.0,
+      "Scene Pass": 293.23,
+      "Static Geometry": 292.719,
+      "Grass": 0.0,
+      "GI Probes": 5.6,
+      "Shadow Pass": 1.578,
+      "window": [
+        1100,
+        640
+      ],
+      "swapchain": [
+        1357,
+        753
+      ],
+      "mpixels": 1.022,
+      "ms_per_mpixel": 286.5
+    },
+    {
+      "fps": 6.68,
+      "visible_chunks": 2.0,
+      "Scene Pass": 142.775,
+      "Static Geometry": 142.527,
+      "Grass": 0.0,
+      "GI Probes": 5.709,
+      "Shadow Pass": 1.547,
+      "window": [
+        760,
+        460
+      ],
+      "swapchain": [
+        932,
+        528
+      ],
+      "mpixels": 0.492,
+      "ms_per_mpixel": 289.6
+    }
+  ],
+  "street": [
+    {
+      "fps": 5.49,
+      "visible_chunks": 19.0,
+      "Scene Pass": 175.578,
+      "Static Geometry": 165.584,
+      "Grass": 4.667,
+      "GI Probes": 5.742,
+      "Shadow Pass": 1.625,
+      "window": [
+        1600,
+        900
+      ],
+      "swapchain": [
+        1924,
+        1078
+      ],
+      "mpixels": 2.074,
+      "ms_per_mpixel": 79.8
+    },
+    {
+      "fps": 9.444,
+      "visible_chunks": 19.0,
+      "Scene Pass": 97.443,
+      "Static Geometry": 90.94,
+      "Grass": 4.582,
+      "GI Probes": 5.681,
+      "Shadow Pass": 1.588,
+      "window": [
+        1100,
+        640
+      ],
+      "swapchain": [
+        1357,
+        753
+      ],
+      "mpixels": 1.022,
+      "ms_per_mpixel": 89.0
+    },
+    {
+      "fps": 15.486,
+      "visible_chunks": 19.0,
+      "Scene Pass": 57.777,
+      "Static Geometry": 51.861,
+      "Grass": 4.638,
+      "GI Probes": 5.663,
+      "Shadow Pass": 1.574,
+      "window": [
+        760,
+        460
+      ],
+      "swapchain": [
+        932,
+        528
+      ],
+      "mpixels": 0.492,
+      "ms_per_mpixel": 105.4
+    }
+  ]
+}

@@ -676,3 +676,90 @@ TEST(LightWallMatrixTraced, M3_SealedBoxSeesNoSkyAndADoorwayAdmitsItWithFalloff)
                   << "  near-door " << nearDoor << "  far " << farSide << "\n";
     }
 }
+
+// ============================================================================
+// THE FLUSH-EMITTER LEAK (user report 2026-09-22: "point light sources shining through
+// structure walls"). phxLightVisibility excludes the emitter's own body by measuring the
+// solid run around the light and stopping the shadow ray there. A torch mounted ON a wall
+// shares one solid run with that wall, so the exclusion swallows the wall too and the light
+// reaches straight through it.
+//
+// The three sealed-box tests above cannot see this: every one of them puts the light in open
+// interior air. Mounting a light on a wall is how rooms are actually lit.
+// ============================================================================
+
+namespace {
+
+// A sealed box whose -X wall carries a light FLUSH against its inner face, the way a wall
+// sconce sits. `gapMicro` pushes the emitter that many micro cells off the wall: 0 = flush
+// (the defect), >=1 = free-standing (the control).
+Room buildSealedBoxWithMountedLight(int t, int gapMicro, glm::vec3& lightWorldOut) {
+    MicroCanvas canvas;
+    const int g0 = kLo * 9;
+    const int S  = kSpanCubes * 9;
+    const int g1 = g0 + S;
+
+    canvas.fillMicroBox(g0,     g0, g0, t, S, S, "Stone");
+    canvas.fillMicroBox(g1 - t, g0, g0, t, S, S, "Stone");
+    canvas.fillMicroBox(g0, g0,     g0, S, t, S, "Stone");
+    canvas.fillMicroBox(g0, g1 - t, g0, S, t, S, "Stone");
+    canvas.fillMicroBox(g0, g0, g0,     S, S, t, "Stone");
+    canvas.fillMicroBox(g0, g0, g1 - t, S, S, t, "Stone");
+
+    // The emitter is SOLID - that is the whole reason the run-length exclusion exists.
+    const int ex = g0 + t + gapMicro;              // first micro cell clear of the wall
+    const int ey = kMid * 9, ez = kMid * 9;
+    canvas.fillMicroBox(ex, ey, ez, 1, 1, 1, "glow");
+    lightWorldOut = glm::vec3((ex + 0.5f) / 9.0f, (ey + 0.5f) / 9.0f, (ez + 0.5f) / 9.0f);
+
+    Room r;
+    for (const auto& v : canvas.exportVoxels()) {
+        switch (v.res) {
+            case CanvasRes::Cube:
+                r.cubes.push_back(std::make_unique<Cube>(v.cube, v.material)); ++r.nCube; break;
+            case CanvasRes::Subcube:
+                r.subs.push_back(std::make_unique<Subcube>(v.cube, v.sub, v.material)); ++r.nSub; break;
+            default:
+                r.micros.push_back(std::make_unique<Microcube>(v.cube, v.sub, v.micro, v.material));
+                ++r.nMicro; break;
+        }
+    }
+    return r;
+}
+
+}  // namespace
+
+// DISABLED because it FAILS - it is the reproduction of G-157, not a regression guard yet.
+// Enabling it is the definition of done for that fix. Measured 2026-09-22, it leaks at EVERY
+// wall thickness in the matrix, from 1 micro up to a 3-cube stone keep wall, while the
+// control (the same light one micro cell off the wall) is correctly blocked at all of them.
+TEST(LightWallMatrixTraced, DISABLED_M4_ALightMountedFlushOnAWallDoesNotShineThroughIt) {
+    for (const auto& w : kWalls) {
+        const int t = StructureRealizer::thicknessMicro(w.styleCubes);
+
+        // CONTROL FIRST, at this same thickness: the same light one micro cell OFF the wall
+        // must be blocked. Without it, a "blocked" result below could just mean the march is
+        // broken and returns zero for everything.
+        glm::vec3 freeLight{};
+        const Room freeRoom = buildSealedBoxWithMountedLight(t, 1, freeLight);
+        const auto freePool = poolFromRoom(freeRoom);
+        const auto ctrl = Phyxel::Graphics::packedPoolLightVisibility(
+            freePool, {static_cast<float>(kLo) - 0.5f, kMid + 0.5f, kMid + 0.5f},
+            {1, 0, 0}, freeLight);
+        EXPECT_FALSE(ctrl.visible)
+            << w.label << " (" << t << " micro): CONTROL failed - a light one micro cell off "
+            << "the wall already leaks, so the flush result below proves nothing";
+
+        // THE CASE: flush against the inner face, like a sconce.
+        glm::vec3 flushLight{};
+        const Room flushRoom = buildSealedBoxWithMountedLight(t, 0, flushLight);
+        const auto flushPool = poolFromRoom(flushRoom);
+        const auto v = Phyxel::Graphics::packedPoolLightVisibility(
+            flushPool, {static_cast<float>(kLo) - 0.5f, kMid + 0.5f, kMid + 0.5f},
+            {1, 0, 0}, flushLight);
+        EXPECT_FALSE(v.visible)
+            << w.label << " (" << t << " micro): a light mounted FLUSH on the inside of the "
+            << "wall lit the OUTSIDE face - the emitter's solid run merged with the wall's "
+            << "and the exclusion swallowed the wall (user report: lights shine through walls)";
+    }
+}

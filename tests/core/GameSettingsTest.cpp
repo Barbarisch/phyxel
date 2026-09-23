@@ -1,4 +1,9 @@
 #include <gtest/gtest.h>
+#include <nlohmann/json.hpp>
+#include <GLFW/glfw3.h>
+#include <vector>
+#include <set>
+#include <map>
 #include "core/GameSettings.h"
 #include <fstream>
 #include <filesystem>
@@ -251,4 +256,95 @@ TEST(GameSettingsTest, LoadMergesActionsMissingFromTheFile) {
     for (const auto& d : GameSettings::defaultKeybindings())
         EXPECT_NE(s2.findBinding(d.action), nullptr) << d.action;
     std::filesystem::remove(path);
+}
+
+
+// ============================================================================
+// DEFAULTS vs THE SETTINGS PANEL (2026-09-22).
+//
+// Two ways this pair rotted, both found by a user asking "is there an options panel
+// for changing key bindings":
+//   - PlaceCube and ToggleCharacter were BOTH bound to C. PlaceCube was read by
+//     nothing anywhere in the tree; it existed only to collide.
+//   - StrafeLeft/StrafeRight/ToggleAutorun/ToggleWalk were live (ControlScheme reads
+//     them) but had no row in the panel, so they could only be changed by hand-editing
+//     settings.json.
+// ============================================================================
+
+TEST(GameSettingsTest, NoTwoDefaultBindingsShareAKey) {
+    const auto defaults = GameSettings::defaultKeybindings();
+    ASSERT_FALSE(defaults.empty());
+
+    // ONE overlap is deliberate and resolved at runtime: E is StrafeRight under the WoW
+    // scheme and Interact under every other, and GameShell::applyMmoBindings moves
+    // Interact to F when an MMO scheme is active - so only one of the pair is ever live.
+    // Anything else is a real collision, which is how PlaceCube sat on ToggleCharacter's C.
+    const std::set<std::string> kManaged{"Interact", "StrafeRight"};
+
+    std::map<std::pair<int, int>, std::string> seen;   // (key, mods) -> first action
+    std::vector<std::string> clashes;
+    for (const auto& kb : defaults) {
+        const auto combo = std::make_pair(kb.key, kb.modifiers);
+        auto it = seen.find(combo);
+        if (it == seen.end()) { seen[combo] = kb.action; continue; }
+        if (kManaged.count(it->second) && kManaged.count(kb.action)) continue;
+        clashes.push_back(it->second + " and " + kb.action + " share a key");
+    }
+    EXPECT_TRUE(clashes.empty())
+        << clashes.size() << " colliding default binding(s): " << clashes.front();
+
+    // The managed pair must still BE the managed pair - if one of them is rebound away
+    // from E this whitelist is stale and should go.
+    std::map<std::string, int> byAction;
+    for (const auto& kb : defaults) byAction[kb.action] = kb.key;
+    EXPECT_EQ(byAction["Interact"], GLFW_KEY_E);
+    EXPECT_EQ(byAction["StrafeRight"], GLFW_KEY_E);
+}
+
+TEST(GameSettingsTest, EveryDefaultBindingIsEditableInTheSettingsPanel) {
+    // A binding nobody can reach in the UI is a binding that does not really exist.
+    std::ifstream f("resources/ui/settings_screen.json");
+    ASSERT_TRUE(f.good()) << "run from the repo root";
+    std::string text((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    if (text.size() >= 3 && static_cast<unsigned char>(text[0]) == 0xEF)
+        text.erase(0, 3);                                  // strip the UTF-8 BOM
+    const auto screen = nlohmann::json::parse(text);
+
+    std::set<std::string> listed;
+    for (const auto& child : screen["panels"]["keybindings"]["children"])
+        if (child.contains("action") && child["action"].value("type", "") == "rebind")
+            listed.insert(child["action"].value("binding", ""));
+
+    std::vector<std::string> missing;
+    for (const auto& kb : GameSettings::defaultKeybindings())
+        if (listed.find(kb.action) == listed.end()) missing.push_back(kb.action);
+
+    EXPECT_TRUE(missing.empty())
+        << missing.size() << " default binding(s) have no row in Settings > Keybindings"
+        << " (first: " << missing.front() << ") - run: python tools/gen_keybind_panel.py";
+
+    // And nothing in the panel that is not a real default, which is how a removed action
+    // leaves a dead row behind.
+    std::set<std::string> known;
+    for (const auto& kb : GameSettings::defaultKeybindings()) known.insert(kb.action);
+    for (const auto& a : listed)
+        EXPECT_TRUE(known.count(a) > 0) << "panel offers '" << a << "', which is not a default";
+}
+
+TEST(GameSettingsTest, TheActionBarOccupiesTheWowRowAndIsRebindable) {
+    std::map<std::string, int> byAction;
+    for (const auto& kb : GameSettings::defaultKeybindings()) byAction[kb.action] = kb.key;
+
+    // Slot 1 is key "1"; the off-by-one between slot index and key label lives in
+    // Core::ActionBar and nowhere else.
+    const int expected[12] = {GLFW_KEY_1, GLFW_KEY_2, GLFW_KEY_3, GLFW_KEY_4,
+                              GLFW_KEY_5, GLFW_KEY_6, GLFW_KEY_7, GLFW_KEY_8,
+                              GLFW_KEY_9, GLFW_KEY_0, GLFW_KEY_MINUS, GLFW_KEY_EQUAL};
+    for (int i = 0; i < 12; ++i) {
+        const std::string action = "ActionSlot" + std::to_string(i + 1);
+        ASSERT_TRUE(byAction.count(action) > 0) << action << " is not a default binding";
+        EXPECT_EQ(byAction[action], expected[i]) << action << " is on the wrong key";
+    }
+    ASSERT_TRUE(byAction.count("ToggleAbilities") > 0);
+    EXPECT_EQ(byAction["ToggleAbilities"], GLFW_KEY_P);
 }

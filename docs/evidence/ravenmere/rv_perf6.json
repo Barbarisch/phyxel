@@ -1,0 +1,52 @@
+{
+  "near_down": {
+    "mode0": {
+      "static_ms": 263.567,
+      "fps": 4.0
+    },
+    "mode17": {
+      "static_ms": 26.056,
+      "fps": 29.455
+    },
+    "march_histogram": {
+      "sampled_pixels": 57600,
+      "lit_pixels": 52755,
+      "lit_fraction": 0.9159,
+      "mean_marches_per_lit_px": 31.34,
+      "max_marches": 32.0,
+      "screen": [
+        1280,
+        720
+      ]
+    },
+    "march_ms": 237.511,
+    "brdf_and_gates_ms": 26.056,
+    "total_marches_on_screen": 26453467,
+    "ns_per_march": 9.0
+  },
+  "street": {
+    "mode0": {
+      "static_ms": 85.729,
+      "fps": 10.113
+    },
+    "mode17": {
+      "static_ms": 19.414,
+      "fps": 30.539
+    },
+    "march_histogram": {
+      "sampled_pixels": 57600,
+      "lit_pixels": 24927,
+      "lit_fraction": 0.4328,
+      "mean_marches_per_lit_px": 31.01,
+      "max_marches": 32.0,
+      "screen": [
+        1280,
+        720
+      ]
+    },
+    "march_ms": 66.315,
+    "brdf_and_gates_ms": 19.414,
+    "total_marches_on_screen": 12367780,
+    "ns_per_march": 5.4
+  }
+}

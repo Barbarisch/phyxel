@@ -73,6 +73,9 @@ void GpuProfiler::cleanup() {
 }
 
 void GpuProfiler::startFrame(uint32_t frameIndex, VkCommandBuffer cmd) {
+    // Apply a requested stats toggle HERE, at the frame boundary, so `active` cannot change
+    // between a begin/end pair - that leaves an unterminated query and loses the device.
+    pipelineStatsActive = pipelineStatsRequested;
     currentFrame = frameIndex;
     auto& frame = frames[currentFrame];
     

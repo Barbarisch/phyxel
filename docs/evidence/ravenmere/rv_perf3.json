@@ -1,0 +1,68 @@
+{
+  "near_down": {
+    "gi_on": {
+      "cpu_frame_ms": 250.0,
+      "fps": 4.0,
+      "Scene Pass": 263.649,
+      "Static Geometry": 263.158,
+      "Grass": 0.0,
+      "Foliage": 0.0,
+      "GI Probes": 5.702
+    },
+    "gi_off": {
+      "cpu_frame_ms": 243.372,
+      "fps": 4.109,
+      "Scene Pass": 241.558,
+      "Static Geometry": 240.936,
+      "Grass": 0.0,
+      "Foliage": 0.0,
+      "GI Probes": null
+    },
+    "delta_ms": 22.222,
+    "share_pct": 8.4
+  },
+  "street": {
+    "gi_on": {
+      "cpu_frame_ms": 98.916,
+      "fps": 10.11,
+      "Scene Pass": 92.264,
+      "Static Geometry": 85.899,
+      "Grass": 4.644,
+      "Foliage": 0.839,
+      "GI Probes": 5.593
+    },
+    "gi_off": {
+      "cpu_frame_ms": 78.641,
+      "fps": 12.716,
+      "Scene Pass": 75.919,
+      "Static Geometry": 70.971,
+      "Grass": 3.71,
+      "Foliage": 0.732,
+      "GI Probes": null
+    },
+    "delta_ms": 14.928,
+    "share_pct": 17.4
+  },
+  "sky_up": {
+    "gi_on": {
+      "cpu_frame_ms": 8.879,
+      "fps": 112.624,
+      "Scene Pass": 1.314,
+      "Static Geometry": 0.003,
+      "Grass": 0.786,
+      "Foliage": 0.046,
+      "GI Probes": 5.778
+    },
+    "gi_off": {
+      "cpu_frame_ms": 3.144,
+      "fps": 318.085,
+      "Scene Pass": 1.229,
+      "Static Geometry": 0.0,
+      "Grass": 0.569,
+      "Foliage": 0.051,
+      "GI Probes": null
+    },
+    "delta_ms": 0.003,
+    "share_pct": 100.0
+  }
+}
