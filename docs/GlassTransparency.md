@@ -4,8 +4,9 @@
 **Phase 1 COMPLETE** — identical at the pre-branch baseline: **the break predates the crack branch.**
 **Phase 1b COMPLETE — first bad commit is `2ea8b8d9` (#397), a texture-only commit that stripped the
 alpha channel from Glass (§12.10).** **Fix design recorded (§13); all decisions made, including glass casting
-no shadow (§13.9). Design-check pass 4 NEEDS WORK → 7 items folded in (§13.9–13.15). **Phase 3 COMPLETE — mechanism
-CONFIRMED (§14).** Next: Phase 4 — build, red first.** Results in §12. Gated through `FeatureDesignKeys.md` three
+no shadow (§13.9). Design-check pass 4 NEEDS WORK → 7 items folded in (§13.9–13.15). **Phase 3 COMPLETE (§14).**
+**PHASE 4 STOPPED — the §13 design rests on a false premise: the OIT pass has been DISABLED since
+`7a36910f` (§15). Awaiting the reviewer's decision (§15.4).** Results in §12. Gated through `FeatureDesignKeys.md` three
 times (§9).
 
 > **PROCESS RULE (added 2026-09-23, after it was broken).** This plan is the approved plan. When
@@ -1035,3 +1036,94 @@ confirming the pane's colour follows it. Red without this fix: it would not (pla
 This is the third time a transparency-path copy of opaque-path code has silently drifted — the render
 flags (§4), the crack seed (§13.12), and now the atlas. The shared-include rule of §13.12 is extended to
 texture sampling for that reason.
+
+---
+
+## 15. STOP — the OIT pass has never drawn anything on `main` (found 2026-09-23, start of Phase 4)
+
+### 15.1 The finding
+
+`shaders/transparent_voxel.frag`, first statement of `main()`:
+
+```glsl
+void main() {
+    // OIT is temporarily disabled: transparent voxels now render in the opaque pass
+    // (voxel.frag). Re-enable when the bloom pipeline is wired up to fix the UNDEFINED
+    // layout validation error that corrupts the post-process composite.
+    discard;
+```
+
+`git log -S` places that `discard` in **`7a36910f` itself** — the commit that introduced glass handling
+and the bisect's lower bound. **The transparent pass has been submitted every frame since, and has
+drawn nothing.** Everything after the `discard` (material-alpha blending, the Blinn-Phong highlight,
+point-light specular) is dead code.
+
+### 15.2 What this corrects
+
+- **§12.1 / Phase 0's decision** — *"T ≈ 0 with the OIT pass running → the opaque pass occludes the
+  OIT result"*: **WRONG.** The probe measured that the pass was *submitted*, not that it *drew*. There
+  was nothing to occlude. The probe answered a narrower question than the one it was used for.
+- **§12.10's mechanism** — *"most glass fragments were discarded from the opaque pass, leaving the OIT
+  pass to draw them — transparent"*: **half wrong.** The fragments were discarded; **nothing drew them.**
+  Glass was see-through because the opaque pass punched **holes** where texture alpha < 0.1
+  (`voxel.frag:331`). The old texture was 61.7% holes.
+- **§14.1's unexplained T = 0.667** — **explained.** T was never `1 − materialAlpha`: material alpha
+  is read only by the disabled pass, so **it has never affected the picture**. T was the fraction of
+  the pane that is hole — 61.7% in the source, ~0.67 after the bilinear upscale softened hole edges.
+  The historical 0.500–0.573 is the same quantity at the old native resolution.
+- **Why the old glass looked bad** (reviewer, §13.1): it was a hole pattern punched through an opaque
+  pane, not a translucent surface.
+- **§13's design — "transparent faces drawn by the OIT pass ONLY"** — would have made glass
+  **invisible**: the opaque pass would discard it and the OIT pass discards everything.
+- **Decision (a) "alpha 0.20 → T ≈ 0.80"** has no effect under current rendering, for the same reason.
+
+What still stands: the bisect (the regen removed the holes), the render-flag fix (§4), the atlas-path
+bug in the OIT shader (§13.17 — still real, just dormant), the crack-seed parity requirement (§13.12),
+the missing-alpha guard (R7), and the reviewer's requirements R1–R7 and decisions (b) highlight,
+(c) frosted cracks, no shadow.
+
+### 15.3 Why the plan did not catch this
+
+Every design-check pass reasoned about what `transparent_voxel.frag` *computes* — its blend, its
+specular, its atlas path — and read it top-down from the declarations. None read `main()`'s first
+line. The Phase 0 probe was placed at the pass's *submission*, one step short of its *output*. The
+lesson for this plan and the next: **a probe must sit where the effect is, not where the cause is
+dispatched.**
+
+### 15.4 Decision for the reviewer — what renders glass
+
+The reviewer's requirements are unchanged: transparent as much as possible (R2), visibly present (R3),
+no refraction (R4), a clean texture (R5), cracks work (R6), no shadow (13.9). Three ways to meet them:
+
+**(A) Fix what disabled OIT, then build §13 as designed.** Investigate the "UNDEFINED layout validation
+error that corrupts the post-process composite" — an image-layout transition for the OIT targets that
+the bloom/post chain does not perform. Real weighted-blended transparency: smooth, tinted by material
+alpha, the existing highlight becomes live. **Scope unknown until investigated** — it may be one missing
+layout transition, or it may be deep in the post chain. Recommended as a **bounded first step**: re-enable
+OIT under `PHYXEL_VALIDATION=1`, capture the exact error, and size the fix before committing to it.
+
+**(B) Keep glass in the opaque pass as cutout holes, with a better hole pattern.** No pipeline work.
+But it is structurally what the old glass was — binary holes, which is why it looked bad — and a finer
+dither pattern trades that for noise up close. Unlikely to satisfy R5 ("much cleaner").
+
+**(C) A simple alpha-blended forward pass for glass, not OIT.** Draw transparent faces after the opaque
+pass into the main colour target: alpha blend on, depth test on, depth write off, unsorted. Avoids the
+OIT accumulation/reveal targets entirely — which is where the layout error lives — so it sidesteps the
+blocker. Real blending, lower risk than (A). Cost: a new pipeline; overlapping panes blend out of order
+(rare for voxel windows, and invisible for panes of one material).
+
+**Recommendation:** (A)'s bounded investigation first, because it is cheap and, if the blocker is one
+missing transition, it restores the pass the engine was designed around. If the investigation sizes it
+as deep, fall back to (C). (B) is listed for completeness.
+
+Every §13 item that assumed a working OIT pass (13.2 routing, 13.3 cracks, 13.11 highlight, 13.12 seed
+parity, 13.17 atlas) transfers unchanged to (A) and applies equally to (C)'s new shader. §13.9 (no
+shadow) and §13.13–13.14 (flag invariant, alpha guard) are independent of the choice.
+
+### 15.5 State at the stop
+
+Red tests written and recorded failing (not yet committed with a fix): `TransparencyTextureGuardTest`
+(the 6 glass faces: 3 channels, 0% coverage; all 30 leaf faces pass), `ChunkRenderFlagsTest`
+`SetLodFaces*` (transparent and mirror flags wrong after `setLodFaces`). The L4 red pass
+(transmission target, shadow, crack, far) was started on the unmodified build before this was found and
+is recorded separately. **No engine code or shader has been changed.**
