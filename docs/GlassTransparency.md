@@ -3,8 +3,8 @@
 **Status:** OPEN. **Phase 0 COMPLETE** — glass measured fully opaque; the OIT pass runs.
 **Phase 1 COMPLETE** — identical at the pre-branch baseline: **the break predates the crack branch.**
 **Phase 1b COMPLETE — first bad commit is `2ea8b8d9` (#397), a texture-only commit that stripped the
-alpha channel from Glass (§12.10).** **Fix design recorded from the reviewer's direction (§13) — three
-decisions open (§13.6); design-check pending before any build.** Results in §12. Gated through `FeatureDesignKeys.md` three
+alpha channel from Glass (§12.10).** **Fix design recorded from the reviewer's direction (§13); all three
+decisions made (§13.6). Next: design-check on §13, then Phase 3 (diagnosis), then build.** Results in §12. Gated through `FeatureDesignKeys.md` three
 times (§9).
 
 > **PROCESS RULE (added 2026-09-23, after it was broken).** This plan is the approved plan. When
@@ -798,7 +798,17 @@ Three cheap levers, none of which is refraction:
   cutout/coverage alpha, is stored without an alpha channel. It would have caught `2ea8b8d9` for glass
   **and** for the leaves.
 
-### 13.6 Decisions for the reviewer — not chosen by the executor
+### 13.6 Decisions — DECIDED by the reviewer 2026-09-23
+
+| | decision | consequence |
+|---|---|---|
+| **(a)** | **T ≈ 0.80** — very clear | Glass material alpha 0.5 → **0.20**. Target band for the L4 test: T 0.75–0.85. |
+| **(b)** | **Yes — sun highlight** on glass | Specular term in `transparent_voxel.frag`; the lever that keeps a very clear pane noticeable (R3). |
+| **(c)** | **Bright, frosted crack lines** | Along the crack field, coverage rises and colour lifts toward white — the opposite of stone's darkening. |
+
+The options as originally posed are kept below for the record.
+
+#### Options as posed
 
 **(a) How transparent?** Measured as T (fraction of the backdrop that comes through; §2).
 Today's declared alpha 0.5 gives T 0.50. "As transparent as possible but visible" suggests roughly
