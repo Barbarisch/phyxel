@@ -873,3 +873,28 @@ because L3 measures whether the character box fits through the hole. Proposal: a
     light occupancy) inherits the hole. The fix is to rebuild the cell's masks from the chunk's
     remaining sub-voxel content after a removal rather than clearing wholesale. **Not worked around
     in the lighting mirror** — that deliberately reports exactly what the grid says.
+
+## 2026-09-23 — Five Vulkan validation errors fire on every run, unrelated to glass
+
+Found by the glass-transparency OIT investigation (`docs/GlassTransparency.md` §15.8), which ran the
+editor under `PHYXEL_VALIDATION=1` with OIT disabled (control) and enabled (experiment). All five appear
+with **identical counts in both arms**, so none is caused by OIT or glass. Not fixed there — out of
+scope — and logged here so they are not rediscovered as "new":
+
+1. `vkQueueSubmit … expects VkImage … to be in layout VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL —
+   instead, current layout is VK_IMAGE_LAYOUT_UNDEFINED` (hits the duplicate-message limit). Some
+   sampled image reaches a submit never transitioned. **This is almost certainly the error the
+   `transparent_voxel.frag` comment blamed when it disabled OIT in `7a36910f`** — it fires just as
+   often with OIT off. The image is unnamed (`0xe6…`); naming images via `VK_EXT_debug_utils` would
+   identify it. The reflection image has a seed barrier (`PostProcessor.cpp:2260`) and is not it.
+2. `vkCreateGraphicsPipelines … vertex attribute at location 4 not consumed by vertex shader` (×9) —
+   a pipeline binds the full `InstanceData` layout to a shader that does not read `inLight`.
+3. `vkCreateGraphicsPipelines … fragment stage declared input at Location 3 … not an Output declared
+   in the vertex stage` (×3) — a vertex/fragment interface mismatch on `flags`.
+4. `vkAllocateDescriptorSets … 12 STORAGE_BUFFER descriptors from a pool of 10` — works on this driver,
+   "will fail on others" (`VK_ERROR_OUT_OF_POOL_MEMORY_KHR`). A portability hazard for packaged games.
+5. `vkQueueSubmit … signal semaphore may still be in use by VkSwapchainKHR` (×2) — the classic
+   per-image vs per-frame semaphore reuse.
+
+Raw per-arm messages: `oit_validation_control.json` / `oit_validation_oit_on.json` from that session.
+

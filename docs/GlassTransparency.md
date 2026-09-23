@@ -6,7 +6,9 @@
 alpha channel from Glass (§12.10).** **Fix design recorded (§13); all decisions made, including glass casting
 no shadow (§13.9). Design-check pass 4 NEEDS WORK → 7 items folded in (§13.9–13.15). **Phase 3 COMPLETE (§14).**
 **PHASE 4 STOPPED — the §13 design rests on a false premise: the OIT pass has been DISABLED since
-`7a36910f` (§15). Reviewer chose (A): a BOUNDED investigation of what disabled OIT (§15.6).** Results in §12. Gated through `FeatureDesignKeys.md` three
+`7a36910f` (§15). Reviewer chose (A); the bounded investigation is DONE (§15.8): **the blocker is
+gone — enabling OIT adds no validation error and no composite corruption.** Sized as SMALL. Awaiting
+the reviewer's go to resume Phase 4 on OIT.** Results in §12. Gated through `FeatureDesignKeys.md` three
 times (§9).
 
 > **PROCESS RULE (added 2026-09-23, after it was broken).** This plan is the approved plan. When
@@ -1156,3 +1158,50 @@ yet — the investigation is about the error, not the look. Nothing here is a fi
 Three of four L4 checks are **rig defects**, found by their own controls and preconditions rather than
 reported as findings. They are independent of the (A)/(C) choice and are fixed after the OIT
 investigation, before any of them is used as a red.
+
+### 15.8 Result of the bounded OIT investigation (2026-09-23)
+
+**Method — a control and an experiment, identical scene, validation layers on** (`PHYXEL_VALIDATION=1`,
+Vulkan SDK 1.4.321.1; messages land in `phyxel.log` via `VulkanDevice::debugCallback`). Scene: Bricks
+backdrop + a full-cube Glass pane in view (so the OIT pass is submitted, not early-outed), ~20 s of
+rendering, one screenshot. Harness: `oit_validation_run.py` (scratchpad), raw JSON per arm.
+
+- **Control:** shaders as committed (the `discard` in place).
+- **Experiment:** the `discard` commented out **locally**, `build_shaders.bat` run. Evidence the change
+  took effect: `transparent_voxel.frag.spv` grew 57 864 → 63 636 bytes — everything below the `discard`
+  had been compiled out as dead code.
+- Afterwards: `git checkout HEAD -- shaders/transparent_voxel.frag`, `build_shaders.bat`, `git status`
+  clean under `shaders/`, `shader_manifest.py --check` OK. **Nothing from the experiment is committed.**
+
+**Validation messages attributable to OIT: NONE.** Every message, normalised for handle values, appears
+with the **same count in both arms** — including the one the `discard`'s comment blamed on OIT:
+
+| message | control | OIT on |
+|---|---|---|
+| `vkQueueSubmit … expects VkImage … SHADER_READ_ONLY_OPTIMAL — instead, current layout is UNDEFINED` | 9 | 9 |
+| vertex attribute at location 4 not consumed by vertex shader | 9 | 9 |
+| fragment input at Location 3 not output by the vertex stage | 3 | 3 |
+| descriptor pool: 12 storage buffers requested from a pool of 10 | 1 | 1 |
+| swapchain semaphore may still be in use | 2 | 2 |
+
+So the "UNDEFINED layout validation error" that got OIT disabled **fires just the same with OIT
+disabled** — it is not OIT's. It, and the other four, are **pre-existing and unrelated to glass**;
+logged as an engine gap in `docs/StructurePipelineGaps.md` (2026-09-23) and not fixed here - out of scope.
+
+**Composite corruption: NONE.** Pixel diff of the two screenshots (> 8/255): **65 143 changed pixels
+inside the glass pane, 40 outside** — and all 40 are at x 287–288, y 885–893, the **FPS readout in the
+status bar** (110 vs 112). The scene outside the pane is bit-identical.
+
+**What the experiment DID show — §13.17, now on screen.** With OIT drawing, the pane renders the
+**magenta/black missing-texture checkerboard**: the OIT shader samples the placeholder layer for
+1024-class glass, exactly as §13.17 read from the code. Frames:
+`screenshots/screenshot_20260923_184820_078.png` (control — opaque pale glass) and
+`screenshots/screenshot_20260923_185010_518.png` (OIT on — checkerboard composited over it).
+
+**Size: SMALL.** Re-enabling OIT is the removal of one `discard`, plus work already in the §13 scope:
+the atlas path (§13.17), the opaque-pass routing (§13.2), cracks (§13.3/13.12), no shadow (§13.9). The
+investigation found no new pipeline or synchronisation work.
+
+**Per §15.6 step 4, the next step is to resume Phase 4 on OIT, red-first** — the §13 design (with
+§15's corrections: decision (a)'s alpha is now meaningful, because material alpha is read by a pass that
+draws) — once the reviewer has seen this size.
