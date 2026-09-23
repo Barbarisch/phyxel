@@ -19,6 +19,7 @@ Also dumps the light buffer, so radii and intensities are facts rather than assu
 """
 import json
 import statistics
+import sys
 import subprocess
 import time
 import urllib.request
@@ -27,6 +28,7 @@ from pathlib import Path
 REL = Path(r"C:/Users/bpete/Documents/PhyxelProjects/Ravenmere/build_probe/Release")
 OUT = Path(r"C:/Users/bpete/Documents/GitHub/phyxel/docs/evidence/ravenmere")
 B = 'http://127.0.0.1:8115'
+TAG = (sys.argv[1] if len(sys.argv) > 1 else 'rv_perf7').strip()
 
 
 def safe(m, p, b=None, t=120):
@@ -47,7 +49,7 @@ def probe_counts(tag, mode):
     r = safe('GET', '/api/screenshot')
     if not r.get('path'):
         return None
-    dst = OUT / ('rv_perf7_%s_mode%d.png' % (tag, mode))
+    dst = OUT / (TAG + '_%s_mode%d.png' % (tag, mode))
     dst.write_bytes((REL / r['path']).read_bytes())
     from PIL import Image
     im = Image.open(dst).convert('RGBA')
@@ -81,7 +83,7 @@ def probe_counts(tag, mode):
     return out
 
 
-log = open(OUT / 'rv_perf7.log', 'w', encoding='utf-8', errors='replace')
+log = open(OUT / (TAG + '.log'), 'w', encoding='utf-8', errors='replace')
 proc = subprocess.Popen([str(REL / 'Ravenmere.exe'), '--test', '8115'], cwd=str(REL),
                         stdout=log, stderr=subprocess.STDOUT)
 res = {}
@@ -147,5 +149,5 @@ finally:
     time.sleep(2)
     log.flush()
 
-(OUT / 'rv_perf7.json').write_text(json.dumps(res, indent=2), encoding='utf-8')
-print('\nwrote %s' % (OUT / 'rv_perf7.json'), flush=True)
+(OUT / (TAG + '.json')).write_text(json.dumps(res, indent=2), encoding='utf-8')
+print('\nwrote %s' % (OUT / (TAG + '.json')), flush=True)
