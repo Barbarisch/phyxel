@@ -1,7 +1,9 @@
 # Glass is not transparent — investigation & fix plan
 
-**Status:** OPEN. **Phase 0 COMPLETE (2026-09-23) — glass measured fully opaque; the OIT pass runs.
-Next: Phase 1.** Results and two plan amendments in §12. Gated through `FeatureDesignKeys.md` three
+**Status:** OPEN. **Phase 0 COMPLETE** — glass measured fully opaque; the OIT pass runs.
+**Phase 1 COMPLETE** — identical at the pre-branch baseline: **the break predates the crack branch.**
+**Next step is UNDER REVIEW (§12.7)** — the bisect Phase 1 prescribes has a feasibility problem the plan
+never addressed; execution is stopped until the plan is amended. Results in §12. Gated through `FeatureDesignKeys.md` three
 times (§9).
 
 > **PROCESS RULE (added 2026-09-23, after it was broken).** This plan is the approved plan. When
@@ -526,3 +528,52 @@ reverted to `1bdf0239` — `AtlasManager.cpp` and `VulkanDevice.cpp` reverted **
 Phase 2 ordering hazard). Predicted, and stated so the result can falsify it: **T identical (≈ 0) —
 the break predates this branch**, because hypothesis #2's mechanism has been in the code since
 `7a36910f`. If T moves, the break is ours and Phase 2 bisects it.
+
+### 12.6 Phase 1 result (2026-09-23)
+
+Baseline `1bdf0239` (amended from `origin/main`, §5). The three suspect files were checked out from
+`1bdf0239`, `build_shaders.bat` run, engine rebuilt, then restored to HEAD the same way — `git status`
+clean on all three files and every `.spv` afterwards, manifest current. Runtime shader provenance: the
+exe loads `shaders/*.spv` relative to its working directory; `phyxel.log` (also a relative path) was
+written to the repo root, so the working directory was the repo root and the reverted `.spv`
+(`378e5357…`, freshly built) was the one loaded — not the stale copy in `build/shaders/`.
+
+| arm | HEAD | baseline `1bdf0239` |
+|---|---|---|
+| control — backdrop swap, no pane | \|RGB\| 41.3 | \|RGB\| 41.3 |
+| Stone floor | 0.008 | 0.001 |
+| **Glass, full cube** | **0.003** | **0.012** |
+| **Glass, subcube** | 0.010 | 0.010 |
+
+**T is identical within the floor in both arms. The break predates the crack branch** — matching the
+prediction written in §12.5 before the run. Nothing in the crack work is implicated: not P5's
+props-stride change, not the crack block in `voxel.frag`, not the SSBO resize in `VulkanDevice.cpp`.
+The two wrong fixes (`58b00dfd`, `03e68fa9`) and the "glass regression" framing in the crack plan were
+attributing to the crack work a defect that was already on `main`.
+
+### 12.7 Plan defect found before starting the next step — execution STOPPED pending amendment
+
+Phase 1's decision table sends this outcome to *"bisect `main` on T, bounded below by `7a36910f`"*.
+Before running it:
+
+- **The range is 804 first-parent commits** (`7a36910f..1bdf0239`), ~10 bisect steps, 73 of which
+  touch the glass render path.
+- **The lower bound was never verified as GOOD.** A bisect needs a commit where glass transmits. The
+  front-running mechanism (§12.1: the opaque pass draws glass solid, with depth, over the OIT result)
+  would have been present *at* `7a36910f` itself — that commit introduced the opaque-pass handling.
+  If `7a36910f` is also opaque, there is no good end and the bisect is meaningless.
+- **Old commits may not run the rig.** It depends on `/api/debug/tonemap`, `/api/world/subcubes/batch`
+  and `clear_region` jobs; months back, some may not exist, and intervening build-system changes (the
+  Bullet removal among them) make each step a full rebuild of an old tree.
+
+Options, for the reviewer to choose — **not chosen by the executor**:
+
+- **(A) Bisect as written, with a gate first:** measure T at `7a36910f`. If it is ~0.5 (good), bisect
+  toward HEAD. If it is ~0, there is no good commit — glass has not transmitted since the OIT design
+  landed — and the bisect is abandoned. Cost: one old-tree build to gate, then up to ~10 more.
+- **(B) Replace the bisect with a direct mechanism experiment at HEAD (moves Phase 3 up):** add a
+  temporary bit-1 discard to the opaque pass in `voxel.frag`, rebuild, measure T. If T → ~0.5 the
+  occlusion mechanism is confirmed; if T stays ~0 it is ruled out. This answers *why*, which is what
+  the fix needs; the bisect answers *when*, which the fix does not need unless the mechanism is
+  unclear. The experiment is reverted after measuring and is not a fix (it would strip cracks from
+  glass, §12.4). Cost: one build.
