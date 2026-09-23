@@ -436,6 +436,45 @@ void Chunk::recomputeRenderFlags() {
         }
         if (m_hasMirror && m_hasTransparent) return; // both found, no need to scan further
     }
+
+    // SUB-VOXEL TIERS. The loop above walks the CUBE store only, and for a long time that was the
+    // whole function -- which made both flags UNDER-report: a chunk whose only glass was a subcube
+    // reported hasTransparentVoxel() == false, and the caller
+    // (RenderCoordinator::renderTransparentGeometryOIT) uses that in a frame-global early-out, so
+    // the ENTIRE OIT pass was skipped and that glass rendered opaque. Same omission, same effect,
+    // for sub-voxel mirrors and the reflection pass.
+    //
+    // This was not a corner case: generated walls are subcube/microcube (StructureRealizer stamps
+    // via fillMicroBox), so every window in every generated building took the broken path. Worse,
+    // whether a glass subcube looked transparent depended on whether some UNRELATED full-cube glass
+    // happened to be in view -- appearance coupled to chunk contents, which docs/FeatureDesignKeys.md
+    // forbids outright.
+    //
+    // The direction of the error is what matters. These flags gate whole passes, so they are only
+    // safe while CONSERVATIVE: over-reporting costs a pass that finds nothing (wasted work),
+    // under-reporting drops geometry from the picture. Pinned by ChunkRenderFlagsTest.
+    for (const auto& sc : staticSubcubes) {
+        if (!sc) continue;
+        const auto* mat = registry.getMaterial(sc->getMaterialName());
+        if (!mat) continue;
+        if (mat->isMirror && !m_hasMirror) {
+            m_hasMirror = true;
+            m_firstMirrorLocal = sc->getPosition();
+        }
+        if (mat->alpha < 0.99f) m_hasTransparent = true;
+        if (m_hasMirror && m_hasTransparent) return;
+    }
+    for (const auto& mc : staticMicrocubes) {
+        if (!mc) continue;
+        const auto* mat = registry.getMaterial(mc->getMaterialName());
+        if (!mat) continue;
+        if (mat->isMirror && !m_hasMirror) {
+            m_hasMirror = true;
+            m_firstMirrorLocal = mc->getParentCubePosition();
+        }
+        if (mat->alpha < 0.99f) m_hasTransparent = true;
+        if (m_hasMirror && m_hasTransparent) return;
+    }
 }
 
 void Chunk::updateVulkanBuffer() {

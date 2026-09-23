@@ -1900,6 +1900,16 @@ void RenderCoordinator::renderTransparentGeometryOIT(uint32_t frameIndex) {
             break;
         }
     }
+    // PROBE (docs/GlassTransparency.md §5 Phase 0). Transmission alone cannot tell "the OIT pass
+    // never ran" from "it ran and the opaque pass's depth write occluded it" -- both read T ~ 0 and
+    // they need different fixes. Guessing between them is what produced two wrong glass fixes.
+    // TRACE level so it costs nothing shipped; raise the log level to read it.
+    // NOTE the << style: the _FMT macros are ostringstream-based, not printf. Passing a printf
+    // format string logs it verbatim with the arguments dropped, which is what this line did on
+    // its first attempt -- a probe that reports nothing while looking like it works.
+    LOG_TRACE_FMT("OIT", "transparent pass: "
+                  << (anyVisibleTransparent ? "SUBMITTING" : "SKIPPED (no visible chunk flagged)")
+                  << " (" << visibleChunkIndices.size() << " visible chunks)");
     if (!anyVisibleTransparent) return;
 
     VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(frameIndex);
