@@ -605,3 +605,43 @@ prescribed, with the gate from 12.7 as its first step.
    semantics), never counted as bad. The full-cube arm is the bisect signal; the subcube arm is
    recorded where the old API supports it.
 6. **Nothing from a historical build is committed or merged.** The worktree is removed at the end.
+
+### 12.9 Phase 1b — gate result and bisect table
+
+**Gate: `7a36910f` is GOOD. The prediction written in 12.8 (BAD) was WRONG.**
+
+`RESULT 7a36910f GOOD cube=0.500 subcube=0.387 floor=0.000 control=224.6`
+
+Full-cube glass transmits **T = 0.500 — exactly `1 − alpha`** for Glass at alpha 0.5. The Stone floor
+reads 0.000 and the control is strong, so the number is not an artefact. Glass *was* transparent, as
+the reviewer said, and my assumption that the occlusion mechanism was present *at* `7a36910f` was
+false. Whatever breaks transmission arrived between `7a36910f` (GOOD) and `1bdf0239` (BAD, §12.6).
+The bisect therefore has a real good end, and step 3 of 12.8 (the backwards search) is not needed.
+
+**Conditions — they differ from HEAD's, and every row states its own.** The gate build predates
+`/api/debug/tonemap`, so it renders through its own default curve; at that curve the glass arm
+clipped (peak 250/255) and the guard stopped the run rather than report a meaningless ratio. Ambient
+was lowered to 0.30 via `/api/ambient` to bring the patch under the ceiling. Light LEVEL cancels in T
+(ratio against a same-light control), and the thresholds (GOOD ≥ 0.25, BAD ≤ 0.08) are wide enough
+that no tone curve moves 0.009 to 0.5 or back. Release build (the bisect's many steps need runtime
+speed; T measures the render path, not the build config). `voxel.material` is absent from this era's
+voxel query, so pane *existence* was verified but not its material.
+
+**Environment needed to run a historical build** (recorded so the next step does not rediscover it):
+isolated worktree `G:/Github/phyxel-bisect`; `bullet3` submodule fetched from upstream (the current
+repo no longer carries it); the uv-managed Python 3.12 directory on `PATH` (those builds link
+`python312.dll`); launched with `-p` on a **copy** of DamageLab so an older engine cannot rewrite the
+real project's world DB, and so the project launcher does not block job completion; the rig run with
+`--shot-root` pointing at the worktree, because screenshot paths are relative to the engine's working
+directory.
+
+**Rig changes made during this step** (tool fixes, not plan changes — each is visible in the RESULT
+line): a 404 is now reported as a missing endpoint rather than "engine unreachable" (HTTPError
+subclasses URLError); control failure yields UNTESTABLE (exit 3), never BAD; `--port`, `--label`,
+`--shot-root`, `--ambient`, `--time-of-day` (time frozen when set). Revalidated at HEAD after the
+change: `BAD cube=0.009 floor=0.007 control=41.2` — unchanged from Phase 0.
+
+| commit | position (first-parent from `7a36910f`) | class | cube T | subcube T | floor | control | conditions |
+|---|---|---|---|---|---|---|---|
+| `7a36910f` | 0 | **GOOD** | 0.500 | 0.387 | 0.000 | 224.6 | ambient 0.30, engine default curve, Release |
+| `1bdf0239` | 804 | **BAD** | 0.012 | 0.010 | 0.001 | 41.3 | tonemap curve 0 exp 1.0, Debug (§12.6) |

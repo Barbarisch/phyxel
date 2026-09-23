@@ -80,6 +80,13 @@ EXPOSURE = 1.0
 CLIP_CEILING = 250
 
 
+# Endpoints a historical build turned out not to have. Reported in the RESULT line, because a
+# number measured without (say) the tonemap control is measured under different conditions and the
+# bisect table must say so.
+MISSING = set()
+SHOT_ROOT = None   # engine working directory, when it differs from this script's (--shot-root)
+
+
 def call(path, body=None, timeout=120):
     data = json.dumps(body).encode() if body is not None else None
     req = urllib.request.Request(BASE + path, data=data,
@@ -88,7 +95,16 @@ def call(path, body=None, timeout=120):
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             raw = r.read().decode()
-            return json.loads(raw) if raw.strip() else {}
+            try:
+                return json.loads(raw) if raw.strip() else {}
+            except ValueError:
+                return {}
+    except urllib.error.HTTPError as e:
+        # HTTPError SUBCLASSES URLError, so it must be caught first. An old build answering 404 is
+        # reachable -- it just predates that endpoint. Treating it as "unreachable" would abort the
+        # bisect step on a missing debug knob.
+        MISSING.add(path.split("?")[0])
+        return {"_http_status": e.code}
     except urllib.error.URLError as e:
         sys.exit("engine API unreachable (%s)" % e)
 
@@ -126,6 +142,11 @@ def build_pane(kind):
         time.sleep(2.5)
         want = "Stone" if kind == "opaque" else "Glass"
         v = call("/api/world/voxel?x=%d&y=%d&z=%d" % (PANE_X0, PANE_Y0, PANE_Z))
+        # Older builds' voxel query may not report "material"; then existence is all that can be
+        # verified, and the RESULT line records the weaker check.
+        if "material" not in v:
+            MISSING.add("voxel.material")
+            return bool(v.get("exists"))
         return bool(v.get("exists")) and v.get("material") == want
     # Sub-voxel arm: the same slab built from glass SUBCUBES (3x3x3 per cube cell = 432 of them).
     # ONE batch call, not 432 HTTP round-trips -- /api/world/subcubes/batch exists precisely for
@@ -148,7 +169,10 @@ def patch_mean(path):
     """
     import os
     from PIL import Image
-    full = path if os.path.isabs(path) else os.path.join(os.getcwd(), path)
+    # Relative screenshot paths are relative to the ENGINE's working directory, not this script's.
+    # For a historical build run from a worktree those differ -- resolving against os.getcwd() read
+    # a file that did not exist on the first gate attempt.
+    full = path if os.path.isabs(path) else os.path.join(SHOT_ROOT or os.getcwd(), path)
     im = Image.open(full).convert("RGB")
     W, H = im.size
     px = im.load()
@@ -196,7 +220,19 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--arms", default="opaque,cube,subcube",
                     help="pane kinds to measure (default: opaque,cube,subcube -- opaque is the FLOOR)")
+    ap.add_argument("--port", type=int, default=8090)
+    ap.add_argument("--label", default="HEAD", help="commit label for the RESULT line")
+    ap.add_argument("--shot-root", default=None,
+                    help="the ENGINE's working directory, if not this one (historical worktrees)")
+    ap.add_argument("--ambient", type=float, default=None,
+                    help="set_ambient strength before measuring (historical builds lack the tonemap "
+                         "control, so dimming is the only way to keep the patch unclipped)")
+    ap.add_argument("--time-of-day", type=float, default=None,
+                    help="daynight_set timeOfDay, with timeScale 0 so light cannot drift between arms")
     args = ap.parse_args()
+    global BASE, SHOT_ROOT
+    BASE = "http://localhost:%d" % args.port
+    SHOT_ROOT = args.shot_root
 
     print("Glass transmission (Phase 0)")
     print("expected T = 1 - alpha = 0.50 for Glass (alpha 0.50)")
@@ -205,27 +241,48 @@ def main():
     call("/api/world/generate", {"type": "Flat", "from": {"x": 0, "y": 0, "z": 0},
                                  "to": {"x": 1, "y": 0, "z": 0}})
     call("/api/debug/tonemap", {"curve": 0, "exposure": EXPOSURE})
+    # Lighting is held FIXED across every arm. T is a ratio against a control captured under the
+    # same light, so the light LEVEL cancels -- but only if it does not change between captures.
+    # A running day cycle would change it, so time is frozen whenever it is set.
+    conditions = []
+    if args.ambient is not None:
+        call("/api/ambient", {"strength": args.ambient})
+        conditions.append("ambient=%.2f" % args.ambient)
+    if args.time_of_day is not None:
+        call("/api/daynight/set", {"timeOfDay": args.time_of_day, "timeScale": 0.0})
+        conditions.append("tod=%.2f" % args.time_of_day)
+    if "/api/debug/tonemap" in MISSING:
+        conditions.append("NO-TONEMAP-CONTROL(engine default curve)")
 
     # CONTROL FIRST. Without the no-pane backdrop swap there is no denominator, and every number
     # below would be an absolute brightness that means nothing.
     ctl_delta, ctl_means = run_arm("control", None)
     if ctl_delta is None:
-        sys.exit("control failed: %s" % ctl_means)
+        print("RESULT %s UNTESTABLE control-did-not-build missing=%s"
+              % (args.label, ",".join(sorted(MISSING)) or "-"))
+        return 3
     ctl_mag = sum(abs(c) for c in ctl_delta)
     print("control (no pane): backdrop swap moved the patch by RGB %s  |sum| = %.1f"
           % (["%.1f" % c for c in ctl_delta], ctl_mag))
     if ctl_mag < 12.0:
-        sys.exit("CONTROL FAILED: swapping the backdrop barely changed the picture (|sum| %.1f). "
-                 "The backdrop is not visible to the camera, so no transmission can be measured "
-                 "through anything. Fix the rig before reading any T." % ctl_mag)
+        # UNTESTABLE, never BAD: if the backdrop cannot be seen with NO pane, nothing about the pane
+        # can be concluded. Counting this as "glass opaque" would poison the bisect.
+        print("CONTROL FAILED: swapping the backdrop barely changed the picture (|sum| %.1f). The "
+              "backdrop is not visible to the camera, so no transmission can be measured." % ctl_mag)
+        print("RESULT %s UNTESTABLE control=%.1f missing=%s"
+              % (args.label, ctl_mag, ",".join(sorted(MISSING)) or "-"))
+        return 3
     print("")
 
+    results = {}
     for kind in [a.strip() for a in args.arms.split(",") if a.strip()]:
         delta, detail = run_arm(kind, kind)
         if delta is None:
             print("%-9s  --  %s" % (kind, detail))
+            results[kind] = None
             continue
         t = sum(abs(d) for d in delta) / ctl_mag
+        results[kind] = t
         verdict = ("OPAQUE" if t < 0.08 else
                    "working" if 0.35 <= t <= 0.65 else
                    "partial/milky")
@@ -235,8 +292,23 @@ def main():
               % (kind, t, verdict, ["%.1f" % d for d in delta]))
 
     call("/api/debug/tonemap", {"curve": 1, "exposure": 8.0})
+
+    # Classification per 12.8 step 4. PARTIAL is recorded and investigated, never forced.
+    cube = results.get("cube")
+    if cube is None:
+        cls = "UNTESTABLE"
+    elif cube >= 0.25:
+        cls = "GOOD"
+    elif cube <= 0.08:
+        cls = "BAD"
+    else:
+        cls = "PARTIAL"
+    fmt = lambda v: "--" if v is None else "%.3f" % v
     print("")
-    print("tonemap restored to the shipped curve")
+    print("RESULT %s %s cube=%s subcube=%s floor=%s control=%.1f missing=%s conditions=%s"
+          % (args.label, cls, fmt(cube), fmt(results.get("subcube")), fmt(results.get("opaque")),
+             ctl_mag, ",".join(sorted(MISSING)) or "-", ";".join(conditions) or "shipped"))
+    print("tonemap restored to the shipped curve (where the endpoint exists)")
     print("NOTE: captured with debug tonemap curve 0 (AgX off). Through the shipped curve the same")
     print("      T reads compressed - state the curve with every number.")
     return 0
@@ -244,3 +316,4 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
