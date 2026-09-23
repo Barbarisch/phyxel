@@ -27,8 +27,8 @@ This document resolves all of them and is the build plan.
 **Verdict of record for every pass: §12. Running build log (updated as each phase lands): §13.**
 **§14 is the MANUAL VISUAL REVIEW gate — a human looks at it and signs off. P3 and P5 are not done
 without it, and no automated pixel diff substitutes for it.**
-**§16 is the single list of what remains open**, including one item that is NOT this feature's
-(a shader-toolchain hazard, logged in `StructurePipelineGaps.md`).
+**§16 is the single list of what remains open** — **START THERE.** It carries the current state of
+every outstanding item, what blocks it, and the recommended order.
 **Parent:** [`DestructionSystemV2.md`](DestructionSystemV2.md) §5(F) "Damage visualization (P4)" and
 §10 Phase 5. That stub (8 lines) is superseded by this document; the roadmap entry stays.
 **Gate:** [`FeatureDesignKeys.md`](FeatureDesignKeys.md). Section 9 below records the gate answers.
@@ -1746,6 +1746,7 @@ in a plan is a decision not yet made, so both were decided rather than logged: P
 | **2** | **§6.2 RUNTIME seam test** — damaged wall straddling x = 31/32, captured and diffed | §6.2; rig built as `tools/crack_seam_test.py` | ⚠️ **NOT ACHIEVED after SIX metric designs.** The rig, both preconditions and the two-rig A/B framing all work and are committed; **no pixel statistic tried can distinguish a world-seeded crack from a uv-seeded one.** A PASS proves nothing. All six attempts and the reason each failed are in the tool. **Recommended next step is not another statistic — it is a debug view that renders `crackField` directly (§16.1)** | **P3 closure — still open** |
 | **3** | **P4 — stage-count A/B**, 3 / 7 / 15 for cost AND legibility across the 4/16/48/96 ladder | §6.4 — knob storage resolved, cost prediction added, pinned tests named | **READY** | Ratifying or revising P2's choice of 3 |
 | ~~4~~ | ~~P5 — per-material `crackStyle`~~ | §4.4a/§4.4b | ✅ **DONE** — see §13 | — |
+| 4b | **Cracks on TRANSPARENT materials** — currently excluded entirely; damaged glass shows no damage | §13 (glass regression) | OPEN | Needs the crack in `transparent_voxel.frag`, where alpha is composited |
 | 5 | **V2 — sub-voxel damage** (cracks on generated buildings) | §3.6, §15 | OPEN | Retiring §1's scope boundary; also wanted by `FractureModes.md` F1 |
 | 6 | **V1.5 — geometric spall** | §3.4 | OPEN | Depends on V2 |
 
@@ -1861,3 +1862,68 @@ REPETITION — e.g. that two same-sized merge rects render different regions of 
 attempt at that also came back inconclusive (93.3 vs a 96.9 control), so it is **not solved**, and
 §16 item 2 stays open. What IS settled is the visual evidence and the reason the old approach could
 never work.
+
+---
+
+## 18. Pick-up state — 2026-09-22 end of session
+
+Everything below is committed on `feature/voxel-damage-cracks`. Nothing is in flight; the working
+tree is clean and the engine renders correctly.
+
+### What shipped
+
+| | |
+|---|---|
+| `9e31e293` | pass-5 design-check on the plan |
+| `143bf74f` | **P0** — API readback + graze re-mesh |
+| `4c13d856` | **P1** — toughness normalization |
+| `553cd03d` | **P2** — three visible stages |
+| `c1b7cbd1` | **P0.5** — V2 storage costing (retracted a wrong premise) |
+| `40d1eadd` | **P3** — the crack shader |
+| `88542a3b` | §14 visual review SIGNED OFF |
+| `864fda0e` | §16 consolidation + gap log |
+| `53f7c094` | **shader toolchain** — a failed compile now fails the build |
+| `a79d4c62` | §6.2 seam rig — six metrics, no signal, marked not-a-gate |
+| `3a26206a` | **crack debug view (mode 11)** + retraction of a wrong gap entry |
+| `330ee050` | **P5** — per-material `crackStyle` |
+| `58b00dfd`, `03e68fa9` | **glass regression** — found by review, fixed on the second attempt |
+
+### Where to resume
+
+**§16 is the list.** In recommended order:
+
+1. **P4 — stage-count A/B** (§6.4). The only remaining phase of V1. Everything it needs is
+   specified: the `damage_stages` knob design (atomic, read once per rebuild), the cost prediction
+   with its falsifier, the 4/16/48/96 legibility ladder, and the three pinned tests that move if
+   the count changes. **It can still overturn P2's choice of 3**, and it is where legibility at
+   48/96 units — explicitly NOT covered by the §14 sign-off — finally gets answered.
+2. **§6.2 runtime seam guard** (§16 item 2, §16.1, §16.2). Visually settled via debug view 11; the
+   automated guard is NOT solved. Do not start with another pixel statistic — read §16.2 first, which
+   records that §3.3's stated failure mode is half wrong.
+3. **Cracks on transparent materials** (new, from the glass regression). Requires implementing the
+   crack in `transparent_voxel.frag`, where alpha is composited.
+4. **V2 — sub-voxel damage**, now wanted by two independent tracks (this plan from rendering,
+   `FractureModes.md` from physics). §15 recommends the per-parent-cube aggregate and costs it.
+5. **V1.5 — geometric spall**, after V2.
+
+**Separately: `docs/FractureModes.md`** (damage-source size — pickaxe vs blast) is gated, all 7
+findings resolved, F0/F1 ready. Its gate is a **memory measurement**, not code: a fully carved cube
+is ≈ 97 KB against a 1.00 MB/chunk budget, so ~10 of them consume a chunk and a mined tunnel is
+exactly that shape.
+
+### Standing traps this session paid for
+
+- **`build_shaders.bat` is sufficient** — the engine loads `shaders/*.spv` from the repo root
+  (`cwd=PROJECT_ROOT`). An earlier gap entry claiming otherwise was WRONG and is retracted, struck
+  through, in `StructurePipelineGaps.md`. But `build_project` does NOT compile shaders — it only
+  copies them — so a shader edit followed by `build_project` alone leaves a stale `.spv`. The
+  manifest guard catches that.
+- **Adding a debug view requires raising the clamp** in `Application.cpp` (`setDebugShadowMode`),
+  or the new mode silently renders the previous one. The all-caps warning was already there and was
+  still walked into.
+- **Check batch exit codes from bash**, not PowerShell: `$LASTEXITCODE` after `cmd /c` reported 0
+  for a run that returned 1, and `cmd /c "... & echo %errorlevel%"` has the same parse-time
+  expansion bug as the script being tested.
+- **The rigs are all Stone.** The glass regression shipped because every rig in §6/§14 uses one
+  material class. §14.1 needs a transparent pane; §14.3 needs a seventh question: *does the material
+  still do its job?*
