@@ -1456,6 +1456,31 @@ as-is; this is logged as the natural target for P5's per-material `crackStyle`, 
 density and width from `brittleS1`/`brittleS2` and is where character comes from.
 
 
+### REGRESSION FOUND AND FIXED — damaged glass stopped being see-through
+
+**Reported by the reviewer, not by any test:** *"glass isn't see-through anymore."* Introduced by
+P3's crack rendering, confirmed by isolation (crack block disabled → transparency returns) and by
+an undamaged/damaged A/B on the same wall with the backing geometry removed.
+
+**Mechanism.** `voxel.frag` has no transparency discard — glass is drawn in THIS pass with alpha
+blending, `outColor = vec4(color, textureColor.a)`. So the whole-face wear multiplier
+(`×mix(1.0, 0.78, dmg)`) tints **everything seen through the pane**, and Glass draws the finest
+network of any material (`crackStyle` 0.75, the densest end of P5's range), so the two compound
+until the pane reads as solid. A damaged window stopped being a window.
+
+**Fix:** transparent materials get the crack **lines only** — no whole-face wear term — and those
+lines are **lightened toward white** rather than darkened. A fracture in glass scatters light
+rather than absorbing it, which is why real cracked glass goes frosty rather than sooty. Opaque
+materials are unchanged.
+
+⚠️ **What this says about the validation plan.** Nothing in §6 could have caught this. Every rig in
+this document is a **Stone** wall (§6.3, §14.1, `damage_ladder_rig.py`), R2's CPU mirror never
+touches alpha, and §14's six review questions are all about whether the crack READS — none asks
+whether the material still behaves like itself. **The crack was validated against one material
+class and shipped onto all of them.** §14.1's rig should gain a transparent-material pane, and
+§14.3 a seventh question: *does the material still do its job?* — a window still a window, a
+mirror still reflecting.
+
 ### P5 — per-material `crackStyle` — **COMPLETE**
 
 Built exactly as §4.4a/§4.4b specified at the gate, with no design change:

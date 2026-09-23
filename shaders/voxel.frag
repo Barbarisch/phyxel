@@ -305,14 +305,30 @@ void main() {
         // mix(1.0, 0.55, dmg), which is exactly why damage read as GRIME rather than fracture:
         // a uniformly dimmer stone face is a dirty stone face. Cracks are self-shadowing
         // fissures, so the darkening belongs to crack pixels only...
-        textureColor.rgb *= mix(1.0, 0.18, crack);
+        textureColor.rgb *= mix(1.0, ((flags & 2u) != 0u) ? 0.72 : 0.18, crack);
 
         // ...with a whole-face term for general wear, so a battered surface still reads as worn
         // BETWEEN its cracks instead of pristine-with-lines -- and, critically, so damage stays
         // legible once the crack itself goes sub-pixel at distance. 0.78 is a deliberate middle:
         // the old flat 0.55 is what made damage read as grime, while 0.88 (the first P3 build)
         // left the upper stage steps inside the measurement noise at 16 units.
-        textureColor.rgb *= mix(1.0, 0.78, dmg);
+        //
+        // NOT ON TRANSPARENT MATERIALS. Glass is drawn in THIS pass with alpha blending, so
+        // a whole-face multiplier tints everything seen THROUGH the pane. On Glass -- which
+        // gets the finest crackStyle (0.75) and so the densest network -- that compounds
+        // with the crack lines until the pane reads as opaque. It did: a damaged window
+        // stopped being a window, which is a regression this crack work introduced.
+        //
+        // A cracked pane must still be a pane. Transparent materials therefore get the
+        // crack LINES only (softened above, and lightened toward white below): a fracture
+        // in glass SCATTERS light rather than absorbing it, which is why real cracked glass
+        // goes frosty rather than sooty.
+        bool isTransparentMat = (flags & 2u) != 0u;
+        if (!isTransparentMat) {
+            textureColor.rgb *= mix(1.0, 0.78, dmg);
+        } else {
+            textureColor.rgb = mix(textureColor.rgb, vec3(1.0), crack * 0.5);
+        }
 
         // Roughness follows the same split: broken mineral faces inside a crack scatter far
         // more than the surface around them.
