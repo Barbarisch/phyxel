@@ -1,0 +1,25 @@
+{
+  "exe_mtime": "2026-09-23 13:24:05",
+  "shot_alone": "rv_party_l4_1_alone.png",
+  "join_result": {
+    "success": true,
+    "type": "join_party"
+  },
+  "shot_party": "rv_party_l4_2_with_bram.png",
+  "shot_two": "rv_party_l4_3_with_two.png",
+  "bram_health_before": {
+    "alive": true,
+    "has_health": true,
+    "health": 28.0,
+    "id": "npc_Bram",
+    "max_health": 28.0
+  },
+  "bram_health_after": {
+    "alive": true,
+    "has_health": true,
+    "health": 22.0,
+    "id": "npc_Bram",
+    "max_health": 28.0
+  },
+  "shot_hurt": "rv_party_l4_4_bram_hurt.png"
+}

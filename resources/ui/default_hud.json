@@ -647,5 +647,51 @@
     ]
    }
   ]
+ },
+ {
+  "id": "hud_party",
+  "anchor": "TopRight",
+  "offset": [
+   -16,
+   400
+  ],
+  "size": [
+   260,
+   140
+  ],
+  "showBackground": true,
+  "visibleWhen": "party.any",
+  "children": [
+   {
+    "type": "repeater",
+    "id": "party_list",
+    "bind": "party",
+    "itemSpacing": 4,
+    "size": [
+     240,
+     124
+    ],
+    "item": {
+     "type": "panel",
+     "showBackground": false,
+     "size": [
+      236,
+      40
+     ],
+     "children": [
+      {
+       "type": "label",
+       "id": "member_row",
+       "bind": "item.rowText",
+       "text": "",
+       "size": [
+        230,
+        20
+       ]
+      }
+     ]
+    }
+   }
+  ]
  }
 ]

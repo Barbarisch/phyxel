@@ -23,6 +23,7 @@ class CombatSystem;
 class PlayerTurnController;
 class ClickToMove;
 struct CharacterSheet;   // a STRUCT (CharacterSheet.h) - MSVC mangles the key
+class Party;
 class Inventory;
 
 // Engine-side base for standalone game hosts. Scaffolded games subclass THIS
@@ -101,6 +102,18 @@ protected:
     /// No-ops (quietly) when the game has no sheet or no render coordinator.
     void publishProgressionHud();
 
+    /// Publish the party roster into the HUD data context as a `party` list, so
+    /// `default_hud.json`'s party panel can show who is travelling with the player (G-161).
+    /// Call once during setup, beside publishProgressionHud().
+    ///
+    /// Same gap as the XP bar: the engine has Core::Party, a `join_party` dialogue action
+    /// recruits into it, and the shipped HUD said nothing - so a successful recruit looked
+    /// exactly like a failed one. Rows read the party live, and health comes from the entity
+    /// registry, so a member in another scene is reported as Away rather than dead.
+    ///
+    /// No-ops (quietly) when the game has no party or no render coordinator.
+    void publishPartyHud();
+
     void startTestApi(EngineRuntime& engine, int port, const std::string& name);
     void pumpTestApi();     // drain queued commands — call once per frame in onUpdate
     void stopTestApi();
@@ -123,6 +136,7 @@ protected:
     /// The host's left click at viewport pixels (pointer_click). Default: not available.
     virtual nlohmann::json        apiPointerClick(float, float, const std::string&) { return nlohmann::json{{"error", "no pointer click handler"}}; }
     virtual CharacterSheet*       apiPlayerSheet()    { return nullptr; }  // progression
+    virtual Party*                apiParty()          { return nullptr; }  // companions (G-161)
     virtual Inventory*            apiInventory()      { return nullptr; }  // loot/persistence
     virtual UI::DialogueSystem*   apiDialogueSystem() { return nullptr; }  // dialogue_state (G-47)
 

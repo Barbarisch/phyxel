@@ -369,6 +369,22 @@ void GameApiService::registerCommands() {
         r = {{"success", false}, {"error", "Provide 'id' or 'event'"}};
     });
 
+    // POST /api/rpg/host_action {"action": {...}} — run ONE host action exactly as a trigger
+    // or a dialogue node would. `executeHostAction` is the SAME dispatcher both use, so this
+    // drives a real consequence (join_party, give_item, complete_objective) without scripting a
+    // whole conversation to reach it. Added for the G-161 party L4: recruiting a companion is a
+    // dialogue-node action, and a harness had no way to reach one.
+    reg.on("host_action", [this](const APICommand& cmd, json& r) {
+        if (!triggers) { r = {{"error", "TriggerSystem not available"}}; return; }
+        const json a = cmd.params.value("action", json::object());
+        if (!a.is_object() || !a.contains("type")) {
+            r = {{"success", false}, {"error", "Provide an 'action' object with a 'type'"}};
+            return;
+        }
+        triggers->executeHostAction(a, "test_api");
+        r = {{"success", true}, {"type", a.value("type", std::string())}};
+    });
+
     // --- Turn-based combat (POST /api/rpg/combat/<action>) -------------------
     // Runs on the game-loop thread (pump()), so player intents apply directly —
     // no pending-intent mutex (contrast: editor Application.cpp rpg handler).

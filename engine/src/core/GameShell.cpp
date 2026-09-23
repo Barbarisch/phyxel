@@ -2,6 +2,9 @@
 #include "ui/UISystem.h"
 #include "graphics/RenderCoordinator.h"
 #include "core/ProgressionHud.h"
+#include "core/PartyHud.h"
+#include "core/Party.h"
+#include "core/EntityRegistry.h"
 #include "core/CharacterSheet.h"
 #include "ui/HudDataContext.h"
 #include "core/EngineRuntime.h"
@@ -92,6 +95,35 @@ void GameShell::publishProgressionHud() {
     });
 
     LOG_INFO("GameShell", "progression HUD published (player.xpPercent/level/xp/xpText)");
+}
+
+void GameShell::publishPartyHud() {
+    auto* rc = apiRenderCoordinator();
+    if (!rc) return;
+
+    rc->hudData().setList("party", [this]() -> std::vector<UI::HudRecord> {
+        auto* party = apiParty();
+        if (!party) return {};
+        // Health comes from the live entity, not from the party record, so a member who is
+        // hurt in this scene shows it. An entity the registry does not have is ABSENT - the
+        // member is simply in another scene - and partyHudRecords reports that as "Away".
+        auto* reg = apiEntityRegistry();
+        return partyHudRecords(*party, [reg](const std::string& id, float& hp, float& maxHp) {
+            if (!reg) return false;
+            auto* e = reg->getEntity(id);
+            auto* hc = e ? e->getHealthComponent() : nullptr;
+            if (!hc) return false;
+            hp = hc->getHealth();
+            maxHp = hc->getMaxHealth();
+            return true;
+        });
+    });
+    rc->hudData().setFloat("party.any", [this]() -> float {
+        auto* party = apiParty();
+        return (party && !party->getMembers().empty()) ? 1.0f : 0.0f;
+    });
+
+    LOG_INFO("GameShell", "party HUD published (party list + party.any)");
 }
 
 void GameShell::pumpTestApi() { gameApi_.pump(); }
