@@ -3,7 +3,8 @@
 **Status:** OPEN. **Phase 0 COMPLETE** — glass measured fully opaque; the OIT pass runs.
 **Phase 1 COMPLETE** — identical at the pre-branch baseline: **the break predates the crack branch.**
 **Phase 1b COMPLETE — first bad commit is `2ea8b8d9` (#397), a texture-only commit that stripped the
-alpha channel from Glass (§12.10).** Next: Phase 3 — name and confirm the mechanism. Results in §12. Gated through `FeatureDesignKeys.md` three
+alpha channel from Glass (§12.10).** **Fix design recorded from the reviewer's direction (§13) — three
+decisions open (§13.6); design-check pending before any build.** Results in §12. Gated through `FeatureDesignKeys.md` three
 times (§9).
 
 > **PROCESS RULE (added 2026-09-23, after it was broken).** This plan is the approved plan. When
@@ -694,8 +695,12 @@ the identical failure; it was applied to foliage and not to glass.
 *generator* that produced it. A shader change would be treating a symptom. The fix belongs in glass's
 texture authoring (the generator must emit RGBA for alpha-bearing materials) plus a guard so a regen
 cannot silently strip alpha again — the same guard would have protected the leaves. §12.4's constraint
-(cracks on glass must survive) is satisfied automatically by a data fix, because nothing in the crack
-path changes.
+~~(cracks on glass must survive) is satisfied automatically by a data fix, because nothing in the crack
+path changes.~~ **WRONG — corrected 2026-09-23, see §13.3.** `voxel.frag` computes the crack (line 310)
+*before* the cutout discard (line 331), so a transparent glass fragment is discarded crack and all, and
+`transparent_voxel.frag` has no crack code. The cracks the reviewer approved on glass rendered *because
+glass was being drawn opaque*. Making glass transparent again — by ANY means — removes them unless the
+transparent shader learns to draw them.
 
 **Harness defect found and fixed during the bisect** (tool, not plan): the first build of #301 failed
 to LINK new symbols because the old tree's source lists are `file(GLOB ...)` and a bisect jump that
@@ -705,3 +710,122 @@ only omit *new, unreferenced* files, which cannot affect the render path, and th
 pair (#396/#397) was measured with the fixed harness.
 
 **Worktree removed** per 12.8 step 6; nothing from any historical build was committed.
+
+---
+
+## 13. Phase 4 design — the reviewer's direction (2026-09-23)
+
+### 13.1 The direction, in the reviewer's words
+
+> *"the old glass textures still look bad though, and dont fit with the higher res counterparts. i want
+> to find some middle ground where glass still is transparent but doesnt completely look invisible so
+> you know it is there. light distortion sounds cool, but also too expensive. i am thinking a much
+> cleaner glass texture that maintains the transparency as much as possible sounds best. also we need to
+> make sure cracks still work on glass too"*
+
+Read as requirements:
+
+| # | requirement | source |
+|---|---|---|
+| R1 | **Not** the old 64px texture — it looks bad and does not match the 1024px family | reviewer |
+| R2 | **Transparent**, as much as possible | reviewer |
+| R3 | **Not invisible** — a pane must read as present | reviewer |
+| R4 | **No refraction / light distortion** — too expensive | reviewer |
+| R5 | A **much cleaner** glass texture | reviewer |
+| R6 | **Cracks must work on glass** | reviewer (and §1) |
+| R7 | A regen must never again silently strip glass's alpha | §12.10 root cause |
+
+### 13.2 Why the fix is data + a routing change, not data alone
+
+The root cause is not just "the texture lost its alpha". It is that **glass's transparency depended on
+its texture alpha falling below a 0.1 cutout threshold in the opaque pass** — an undocumented coupling
+that a texture regeneration broke without any code changing, and that nothing tested. A new texture
+alone would restore that coupling and leave it just as fragile.
+
+It is also incompatible with R3 + R5. Under the cutout rule a texel is binary: alpha < 0.1 → discarded
+(fully clear), alpha ≥ 0.1 → drawn **solid** by the opaque pass. There is no way to author "a faint
+streak you can see through" — it is either invisible or opaque. That is exactly why the old 64px glass
+looked bad: its visible detail was solid pixels punched through a clear pane.
+
+**Design: transparent-material faces are drawn by the OIT pass ONLY.** The opaque pass discards faces
+carrying the transparent bit (bit 1), the way it already discards mirror faces (bit 10) for the mirror
+pass. Then texture alpha stops being a cutout and becomes **continuous coverage** in the OIT blend
+(`alpha = max(textureColor.a, matAlpha)`, `transparent_voxel.frag:142-143`), so a clean texture can
+carry faint, see-through surface detail — R3 and R5 together.
+
+**Blast radius:** Glass is the only material with alpha < 0.99 (`materials.json`), so the routing
+change affects glass and nothing else. Leaves are cutout materials (alpha 1.0), not bit-1 transparent,
+and keep the cutout path unchanged.
+
+**This restores the contract note `7a36910f` wrote and something later deleted (§3)** — the opaque
+pass's handling of transparent faces becomes explicit, documented at the discard site.
+
+### 13.3 Cracks on glass (R6) — must move into the transparent shader
+
+With glass drawn only by OIT, the crack must be drawn there. `transparent_voxel.frag` already has the
+instance `flags` (damage bits 11–14) and already includes `lighting.glsl`; it needs:
+
+- `#include "crack.glsl"` — the **same** crack field as opaque materials, seeded from world position, so
+  a crack reads identically on glass and stone and stays chunk-independent;
+- the material's `crackStyle` from the props SSBO at stride 2 (`textureUVs[gi*2 + 1].x`, §P5). Glass is
+  style ≈ 0.75 — the dense, fine network;
+- a crack *look* for a transparent surface — **open decision §13.6 (c)**. On opaque stone a crack
+  darkens the albedo. On glass that is not how fractures read: light scattering at a fracture surface
+  makes cracks appear **brighter / frosted**, and more opaque than the clear pane around them.
+
+Because the crack changes coverage, a cracked pane is measurably *less* transparent along the crack
+lines — which is also what makes the crack visible through the pane.
+
+### 13.4 "Not invisible" (R3) without refraction (R4)
+
+Three cheap levers, none of which is refraction:
+
+1. **Base coverage** — the material alpha. Today 0.5 (T = 0.50, a heavy tint). R2 argues for less.
+   **Open decision §13.6 (a).**
+2. **Surface detail in the texture** — faint streaks / slight edge weight at low alpha, now possible
+   because alpha is continuous (§13.2).
+3. **A sun specular highlight in the OIT shader** — a few ALU ops per glass fragment, no extra pass,
+   no extra texture: the pane catches the light at grazing angles, which is how real clear glass is
+   noticed. **Open decision §13.6 (b).**
+
+### 13.5 The texture (R1, R5, R7)
+
+- **1024 × 1024 RGBA**, matching the high-res family (`"resolution": 1024` in `materials.json`).
+- **Authored by a generator, not hand-edited** — the same pattern that fixed the leaves (`leaf_forge`,
+  `f10d883c`). A generator makes the look reproducible and reviewable, and it is where R7's guard lives.
+- Clean: near-uniform low alpha, subtle detail, **no baked distortion** (R4).
+- **R7 guard:** a test that fails if any material with `alpha < 0.99`, or any texture intended to carry
+  cutout/coverage alpha, is stored without an alpha channel. It would have caught `2ea8b8d9` for glass
+  **and** for the leaves.
+
+### 13.6 Decisions for the reviewer — not chosen by the executor
+
+**(a) How transparent?** Measured as T (fraction of the backdrop that comes through; §2).
+Today's declared alpha 0.5 gives T 0.50. "As transparent as possible but visible" suggests roughly
+**T ≈ 0.80 (alpha 0.20)** — proposed, not decided.
+
+**(b) Sun highlight on glass?** Proposed yes — it is the lever that makes a very clear pane noticeable
+without making it less clear.
+
+**(c) What a crack looks like on glass?** Proposed: **bright/frosted, more opaque** along the crack
+lines — how real fractured glass reads — rather than the dark lines used on stone.
+
+### 13.7 Validation (red first, per §5 Phase 4)
+
+| test | layer | red today | green when |
+|---|---|---|---|
+| T at the chosen target, full-cube **and** subcube glass (`glass_transmission.py`) | L4 | T ≈ 0.00 | T within ±0.05 of target |
+| Opaque pass skips bit-1 faces — pane is drawn once, by OIT | L4 (probe) | glass drawn by both passes | opaque pass discards |
+| **Cracks visible on glass**: damaged vs undamaged pane differ by more than the floor, through the pane | L4 | no crack in the see-through area (discarded) | crack measured above floor |
+| **Cracks on stone unchanged**: existing crack tests + a stone ladder capture | L2/L4 | green | still green |
+| R7 guard: transparent materials must ship alpha | L2 | **red** (Glass is RGB) | green |
+| Chunk-independence (§8) | L2/L4 | already green (§4 fix) | still green |
+| **Reviewer's visual sign-off**: clean pane, cracked pane, pane in a generated building | human | — | reviewer says so |
+
+Standing instruction still applies: **not fixed until the reviewer confirms it by eye.**
+
+### 13.8 Phase 3 still runs, as diagnosis only
+
+Before building the fix, confirm §12.10's mechanism: temporarily restore the `1acc7910` RGBA glass
+texture at HEAD, measure T (predicted ≈ 0.5), revert. It is **never shipped** — R1 rules the old texture
+out — it proves the diagnosis the fix design rests on.
