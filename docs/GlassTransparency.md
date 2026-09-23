@@ -3,8 +3,9 @@
 **Status:** OPEN. **Phase 0 COMPLETE** — glass measured fully opaque; the OIT pass runs.
 **Phase 1 COMPLETE** — identical at the pre-branch baseline: **the break predates the crack branch.**
 **Phase 1b COMPLETE — first bad commit is `2ea8b8d9` (#397), a texture-only commit that stripped the
-alpha channel from Glass (§12.10).** **Fix design recorded from the reviewer's direction (§13); all three
-decisions made (§13.6). Next: design-check on §13, then Phase 3 (diagnosis), then build.** Results in §12. Gated through `FeatureDesignKeys.md` three
+alpha channel from Glass (§12.10).** **Fix design recorded (§13); all decisions made, including glass casting
+no shadow (§13.9). Design-check pass 4 NEEDS WORK → 7 items folded in (§13.9–13.15). Next: Phase 3
+(diagnosis), then build.** Results in §12. Gated through `FeatureDesignKeys.md` three
 times (§9).
 
 > **PROCESS RULE (added 2026-09-23, after it was broken).** This plan is the approved plan. When
@@ -784,9 +785,12 @@ Three cheap levers, none of which is refraction:
    **Open decision §13.6 (a).**
 2. **Surface detail in the texture** — faint streaks / slight edge weight at low alpha, now possible
    because alpha is continuous (§13.2).
-3. **A sun specular highlight in the OIT shader** — a few ALU ops per glass fragment, no extra pass,
-   no extra texture: the pane catches the light at grazing angles, which is how real clear glass is
-   noticed. **Open decision §13.6 (b).**
+3. **A sun specular highlight in the OIT shader.** ~~— a few ALU ops per glass fragment~~ **CORRECTED
+   (design-check pass 4): it ALREADY EXISTS.** `transparent_voxel.frag:153-154` computes Blinn-Phong sun
+   specular (`pow(max(dot(normal, halfVec), 0.0), 64.0) * 0.3`) and `:198` point-light specular. It has
+   never been visible because the opaque pass drew glass solid on top of the OIT result. The work is to
+   **make the existing highlight visible** (it becomes visible as a consequence of §13.2's routing) and
+   to **tune it only if the reviewer judges it too weak** — not to write a new one. See §13.11.
 
 ### 13.5 The texture (R1, R5, R7)
 
@@ -839,3 +843,114 @@ Standing instruction still applies: **not fixed until the reviewer confirms it b
 Before building the fix, confirm §12.10's mechanism: temporarily restore the `1acc7910` RGBA glass
 texture at HEAD, measure T (predicted ≈ 0.5), revert. It is **never shipped** — R1 rules the old texture
 out — it proves the diagnosis the fix design rests on.
+
+### 13.9 DECIDED: glass casts NO shadow (reviewer, 2026-09-23) — design-check pass 4, item 1
+
+**Why a decision was needed.** `shadow.frag` is empty and the chunk shadow pass writes every face as an
+occluder, so a T ≈ 0.80 pane would still cast a **fully black shadow** — contradicting R2. Reviewer:
+*"no shadows from glass"*.
+
+**Mechanism.** The chunk shadow pipeline already binds the full instance layout
+(`Vulkan::InstanceData::getAttributeDescriptions()`, `ShadowMap.cpp:347`), so the flags word is present
+at location 3; `shadow.vert` simply does not declare it. `shadow.vert` declares
+`layout(location = 3) in uint inFlags;` and, for faces carrying the transparent bit (bit 1), writes a
+**degenerate position outside the clip volume**, so the face rasterizes nothing in any cascade.
+Culling in the vertex stage rather than `discard` in `shadow.frag` means zero fragment work, and it
+leaves the shadow pass's 36-index both-windings draw untouched (that index count is load-bearing —
+CLAUDE.md, "M5 settled empirically").
+
+**Scope:** every cascade that uses the chunk shadow pipeline (near 40 u, mid 420 u, far 1600 u —
+`NearShadowCascade.md`). Out of scope and recorded: broken-glass debris uses the dynamic/kinematic
+shadow pipelines and keeps casting — revisit only if it reads wrong.
+
+**Test (L4), red today:** a Stone pane and a Glass pane over flat ground, sun angled so each pane's
+shadow lands on open ground. Metric: ground luminance in each pane's shadow footprint ÷ ground
+luminance beside it. **Stone ≈ shadowed (control that the shadow is really there); Glass within the
+noise floor of 1.0.** Red today: glass shadows like stone.
+
+### 13.10 Lighting-doc rule — design-check pass 4, item 2
+
+CLAUDE.md: `docs/LightingPipeline.md` must be updated **in the same commit** as any change to a
+receiving shader or to shadow casting. This fix changes both — `transparent_voxel.frag` (row 41 of the
+§0 receiver matrix: crack, coverage, world-position input) and chunk shadow casting (§13.9). Phase 4
+deliverables therefore include: the §0 matrix rows, a §9 change-log entry, and
+`python tools/lighting_doc_check.py --update` (`build_and_test.ps1` runs `--check`). Any `.spv` rebuilt
+by `build_shaders.bat` is committed with its source (committed-SPIR-V rule).
+
+### 13.11 The highlight already exists — design-check pass 4, item 3
+
+See the correction in §13.4. Decision (b) "yes, a highlight" stands; the work changes from *write* to
+*reveal and, if needed, tune*. Validation: the reviewer's sign-off frames include the pane at a grazing
+angle to the sun, where the existing highlight should now appear.
+
+### 13.12 Crack seed parity with stone — design-check pass 4, item 4
+
+**Defect in the design as first written.** `transparent_voxel.frag` builds world position as
+`inWorldPos + ubo.cameraWorld` (`:173`) — a float sum that loses precision far from the origin.
+`voxel.frag` seeds the crack from the exact `vChunkBaseAbs + (inWorldPos - vChunkBaseRel)` (`:269`).
+Seeding glass cracks the first way would make them differ from stone's pattern and shimmer at large
+world coordinates — a world-position defect.
+
+**Requirement.** The OIT pipeline is built with the **same** `static_voxel.vert` as the opaque pass
+(`RenderPipeline::createOITPipeline`, "same static_voxel.vert as opaque pass"), which already emits
+`vChunkBaseAbs` / `vChunkBaseRel` at locations 10 / 11. `transparent_voxel.frag` declares those two
+inputs and seeds `crackField` from the identical expression. To stop the two copies drifting, the
+expression moves into **one shared helper** in an include both shaders use, so the formula exists once.
+
+**Test (L4):** the same damaged glass pane built near the origin and at a far coordinate (e.g.
+x ≈ 100 000). The crack line-crossing count per scanline (the `VoxelCrackStyleTest` observable) must
+match within tolerance. A precision defect shows as a far-pane count that disagrees or flickers across
+captures.
+
+### 13.13 The LOD install path, and the invariant it threatens — design-check pass 4, item 5
+
+**Why this got sharper.** Under OIT-only routing, a wrong `hasTransparentVoxel()` no longer renders
+glass *opaque* — it renders it **invisible** (the opaque pass discards it, the OIT pass is skipped).
+
+**Covered:** the §4 fix makes the scan conservative for every tier (`ChunkRenderFlagsTest`, 6/6), and
+`Chunk::rebuildFaces` is the only caller of `rebuildAllFaces`, so every fine-mesh path refreshes the
+flag.
+
+**Not covered:** `setLodFaces` (`RenderCoordinator.cpp:2975`) installs faces **without** recomputing
+the flag. A chunk that only ever received LOD faces would keep the default `false`. Chunk LOD is
+default-OFF, so exposure is small today, but the invariant must hold regardless.
+
+**Invariant, pinned as a test:** *no face is ever both discarded by the opaque pass and skipped by
+OIT.* L2 form: for a chunk containing glass, after **every** face-install path (`rebuildFaces`,
+`setLodFaces`), `hasTransparentVoxel()` is true. Added to `ChunkRenderFlagsTest`; the fix makes
+`setLodFaces` refresh the flag (or asserts it was computed). If the LOD mesher also drops bit 1, LOD
+glass would render opaque rather than invisible — recorded for `docs/LodTierLedger.md`, which must be
+updated if any tier's handling of glass changes.
+
+### 13.14 R7 guard — where the list comes from — design-check pass 4, item 6
+
+`materials.json` has no cutout flag: leaves are `alpha` 1.0, so "textures intended to carry alpha" had
+no data behind it. **Chosen (executor, routine): an explicit list inside the test** — every texture
+face of every material whose alpha is load-bearing (Glass's six faces, plus every leaf material's).
+No loader or schema change, and the list is exactly the set a regen must not strip. The test asserts
+each file **has an alpha channel AND carries coverage** (some texels meaningfully below 255) — an
+alpha channel that is all-255 would pass a "has alpha" check and still be the `2ea8b8d9` failure.
+It would have caught that commit for glass and for all thirty leaf textures.
+
+### 13.15 A concrete rig for cracks on glass — design-check pass 4, item 7
+
+`tools/glass_transmission.py` gains a crack arm:
+
+- **Layout:** two identical glass panes side by side in one chunk, over the **same** backdrop.
+- **Damage:** one pane damaged uniformly to ratio **0.45** of Glass's toughness (stage 3 of 7 — the
+  same mid ratio the stage-count ladder used), `radius` 0.4 so the pane is uniform (asserted: corner
+  and centre `damage01` agree).
+- **Metric:** mean |RGB| difference between the two panes' patches.
+- **Floor:** the same layout with **both** panes undamaged — the pane-to-pane noise floor (the lesson
+  of the stage-count rig: without it a floor reading looks like signal).
+- **Prediction:** difference > 2 × floor, **and** the damaged pane reads *brighter* than the clean one
+  (frosted cracks, decision (c)) — the sign is part of the prediction.
+- **Plus** the stone-cracks-unchanged check (existing crack tests + a stone ladder capture), and the
+  reviewer's visual sign-off of a cracked pane.
+
+### 13.16 Design-check pass 4 record
+
+**NEEDS WORK, 7 items — all folded in above** (13.9 shadow decided by the reviewer; 13.10 lighting
+doc; 13.11 highlight premise corrected; 13.12 crack-seed parity; 13.13 LOD invariant; 13.14 guard
+list; 13.15 crack rig). Not REDESIGN: the core — OIT-only routing, data + generator fix, cracks in the
+transparent shader — held against the code; the items tightened it.
