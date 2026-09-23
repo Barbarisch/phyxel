@@ -1456,44 +1456,6 @@ as-is; this is logged as the natural target for P5's per-material `crackStyle`, 
 density and width from `brittleS1`/`brittleS2` and is where character comes from.
 
 
-### REGRESSION FOUND AND FIXED — damaged glass stopped being see-through
-
-**Reported by the reviewer, not by any test:** *"glass isn't see-through anymore."* Introduced by
-P3's crack rendering, confirmed by isolation (crack block disabled → transparency returns) and by
-an undamaged/damaged A/B on the same wall with the backing geometry removed.
-
-**Mechanism.** `voxel.frag` has no transparency discard — glass is drawn in THIS pass with alpha
-blending, `outColor = vec4(color, textureColor.a)`. So the whole-face wear multiplier
-(`×mix(1.0, 0.78, dmg)`) tints **everything seen through the pane**, and Glass draws the finest
-network of any material (`crackStyle` 0.75, the densest end of P5's range), so the two compound
-until the pane reads as solid. A damaged window stopped being a window.
-
-**FIRST FIX FAILED, and I called it fixed.** Attempt 1 kept the crack lines and only removed the
-whole-face wear term, lightening the lines toward white instead. I looked at the result, saw the
-horizon through a milky pane, and reported it as transparent. The reviewer had to say *"glass is
-still not transparent"* a second time. That is the plan's own measure-don't-eyeball rule broken by
-the person who wrote it — and the A/B that settles it takes one minute: **both panes in ONE frame**,
-damaged beside pristine, which is what finally produced a defensible answer.
-
-**SHIPPED FIX — a retreat, not a subtlety: transparent materials are excluded from crack rendering
-entirely.** Every RGB modification on a pane tints what is seen THROUGH it rather than marking the
-pane, so darkening turned a window into a slab and lightening turned it milky; `rough → 1.0`
-compounds both by making the surface read as diffuse. **Until cracks are implemented in the OIT path
-(`transparent_voxel.frag`), where alpha is actually composited and a fracture can scatter light
-instead of tinting the view, transparent materials do not crack.** Verified with both panes in one
-frame: damaged now renders as pristine does, grass visible through both.
-
-⚠️ **This is a scope limitation, logged so it is not rediscovered as a bug:** damaged glass shows
-no damage at all. Opaque materials are unaffected.
-
-⚠️ **What this says about the validation plan.** Nothing in §6 could have caught this. Every rig in
-this document is a **Stone** wall (§6.3, §14.1, `damage_ladder_rig.py`), R2's CPU mirror never
-touches alpha, and §14's six review questions are all about whether the crack READS — none asks
-whether the material still behaves like itself. **The crack was validated against one material
-class and shipped onto all of them.** §14.1's rig should gain a transparent-material pane, and
-§14.3 a seventh question: *does the material still do its job?* — a window still a window, a
-mirror still reflecting.
-
 ### P5 — per-material `crackStyle` — **COMPLETE**
 
 Built exactly as §4.4a/§4.4b specified at the gate, with no design change:
