@@ -3,6 +3,31 @@
 Standing log of engine limitations hit during content/tool work. Each entry: what was needed,
 what the engine did instead, the workaround used, and what a real fix looks like.
 
+## 2026-09-22 — `build_shaders.bat` alone does NOT change what the engine renders
+
+- **What happened:** editing a shader, running `build_shaders.bat`, and restarting the engine
+  left the renderer showing the OLD shader. A deliberately broken `voxel.frag` produced a frame
+  **identical to the correct one** (mean pixel difference 0.18/255 over the measured surface),
+  which read as "the change had no visual effect" and invalidated several measurements before the
+  cause was found.
+- **Why:** `build_shaders.bat` writes `shaders/*.spv`. The engine loads `build/shaders/*.spv`,
+  which is refreshed **only by a CMake build** ("Copying shaders to build directory"). Timestamps
+  made it obvious once looked at: `shaders/voxel.frag.spv` 20:02, `build/shaders/voxel.frag.spv`
+  16:14 — nearly four hours stale.
+- **Why it is dangerous rather than merely annoying:** it is silent and it looks like a *result*.
+  Every guard in the repo passes — the source is right, the `.spv` next to it is right,
+  `shader_manifest.py --check` is green — and the frame is still wrong. It is the same shape as
+  the stale-committed-`.spv` bug fixed earlier the same day, one layer further down, and it
+  defeats the obvious sanity check ("I rebuilt the shader and restarted").
+- **Workaround:** after `build_shaders.bat`, run a build (`build_project`) before relaunching, or
+  compare `shaders/*.spv` against `build/shaders/*.spv` — `cmp -s` is enough.
+- **Real fix (not done):** either have `build_shaders.bat` copy to `build/shaders/` itself, or
+  have the engine load from `shaders/` with `build/shaders/` as fallback, or have startup warn
+  when the two differ. Any of the three removes a whole class of "my shader change did nothing".
+  **`CLAUDE.md` documents the workflow as "`.\build_shaders.bat` — rebuilds every shader" with no
+  mention of the copy**, so the documented workflow is itself the trap.
+- **Status:** OPEN, logged 2026-09-22 while building the §6.2 seam test.
+
 ## 2026-09-22 — `build_shaders.bat` reports SUCCESS on a failed shader compile, and the manifest guard then passes
 
 - **What happened:** editing `voxel.frag` (adding `#include "crack.glsl"`) produced a genuine GLSL

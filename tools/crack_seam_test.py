@@ -1,54 +1,52 @@
 #!/usr/bin/env python3
-"""R2 runtime half — the crack field must not break at a chunk seam.
-docs/VoxelDamageVisualization.md §6.2.
+"""R2 runtime half - the crack field must not break at a chunk seam.
+docs/VoxelDamageVisualization.md 6.2.
 
-!! STATUS: NOT A VALID GATE YET. The rig and its two PRECONDITIONS work and are worth
-keeping. The PIXEL METRIC does not yet separate a world-seeded crack from a uv-seeded one,
-so a PASS from this script currently proves NOTHING. Do not cite it as evidence that §6.2
-is satisfied. Three metrics were tried against a deliberately uv-seeded shader and all
-three failed to detect it -- see MEASUREMENT ATTEMPTS at the bottom of this file.
+    python tools/crack_seam_test.py
 
-    python tools/crack_seam_test.py            # build rig, capture, measure
-    python tools/crack_seam_test.py --keep     # leave the rig standing for a human look
+THE QUESTION. crack.glsl must seed from absolute world position, never from texCoord / sizeU /
+sizeV. Those are tied to the greedy-merged rectangle, and merge runs are computed in a 32^3
+loop, so they TERMINATE AT CHUNK BORDERS - a uv-seeded crack restarts its pattern at x = 32 and
+shows a hard vertical discontinuity. tests/core/VoxelCrackSeamTest.cpp proves the CPU MIRROR is
+partition-independent; it cannot prove the SHADER is, because it cannot execute the shader.
+Only a captured frame can.
 
-WHAT THIS CATCHES THAT THE UNIT TEST CANNOT. `tests/core/VoxelCrackSeamTest.cpp` mirrors the
-GLSL in C++ and proves the MIRROR is partition-independent. It cannot prove the SHADER is,
-because it cannot execute the shader. The real mistake — a crack seeded from `texCoord` or
-`sizeU` instead of world position — lives entirely on the GPU: UV space is tied to the
-greedy-merged rectangle, and merge runs are computed in a 32^3 loop, so they TERMINATE AT
-CHUNK BORDERS. A uv-seeded crack restarts its pattern at x = 32 and shows a hard vertical
-discontinuity. Only a captured frame can see that.
+THE METHOD: TWO RIGS, A/B. The same damaged wall is built twice -
 
-RIG (§6.2). A Stone wall spanning x = 28..35, straddling the x = 31/32 chunk boundary.
+    RIG A   x = 28..35   STRADDLES the x = 31/32 chunk boundary
+    RIG B   x = 20..27   wholly INSIDE chunk (0,0,0), no chunk boundary anywhere in it
 
-  * BOTH chunks must be resident. This rig CANNOT fit in one chunk — that is the point — so
-    the keys doc's "keep the rig inside ONE chunk" is replaced by an explicit residency
-    assertion. In a fresh world only chunk (0,0,0) exists and every fill into (1,0,0) drops
-    SILENTLY, leaving a half-built rig that looks fine and measures nothing.
-  * Both sides must carry the SAME quantized damage stage. The stage is per-voxel and folded
-    into the merge key, so a damage gradient across the seam produces a REAL, CORRECT
-    luminance step that this test would otherwise report as a seam defect. Verified through
-    /api/world/voxel, not by assuming equal energies land in the same band.
+- and the luminance step is measured at every internal voxel boundary of both. Rig B's steps,
+plus rig A's non-seam steps, are the REFERENCE DISTRIBUTION: what an ordinary voxel boundary
+looks like on this wall, under this shader, at this damage stage, in this light. The test asks
+one question: IS RIG A'S CHUNK-SEAM BOUNDARY AN OUTLIER IN THAT DISTRIBUTION?
 
-TWO CONTROLS, and the first one was missing in the first version of this test.
+Under world seeding it is not - a chunk boundary is just another voxel boundary. Under uv
+seeding it is, because only that boundary restarts the pattern.
 
-  * PRESENCE (control A). The damaged wall must measurably differ from a PRISTINE wall of the
-    same material in the same capture -- i.e. cracks must actually be on screen. Without this
-    the test is VACUOUS, and provably so: the first red attempt seeded the field from
-    `texCoord * 8.0`, which made the pattern sub-pixel and rendered NO cracks at all, and the
-    test happily reported "continuous across the chunk boundary". A shader that draws nothing
-    has no discontinuities either. Presence must be asserted before continuity means anything.
-  * ORDINARY BOUNDARIES (control B). The seam step is compared against the step at ordinary
-    voxel boundaries in the same capture (x = 30/31, x = 33/34), so the threshold comes from
-    the wall's own texture variation rather than a number picked by hand.
+WHY THIS SHAPE AND NOT THE OBVIOUS ONE. Three earlier metrics tried to characterize the seam
+from a SINGLE capture, and all three failed against a deliberately uv-seeded shader:
+  1. seam step vs ordinary boundaries in the same frame - FALSE PASS: that break happened to
+     render no cracks at all, and a surface with no cracks has no discontinuities either;
+  2. crack "presence" via column-to-column contrast - FALSE FAIL: damaged surfaces are darkened
+     by the whole-face wear term, and absolute contrast scales with brightness;
+  3. the same, normalized by mean luminance - FALSE FAIL: collapsing each column to one number
+     AVERAGES THE CRACK AWAY, since a crack crosses different columns at different heights.
 
-EXPECTED RESULT: GREEN ON ARRIVAL. The shipped shader is already world-seeded. To see this
-test fail, deliberately seed `crackField` from `texCoord` in shaders/crack.glsl, rebuild
-shaders, and re-run — that is how the red was demonstrated (recorded in §13 as retroactive).
+The two-rig form sidesteps all of it by comparing like with like. Both arms render whatever the
+shader renders, so "are cracks present" never has to be answered.
+
+!! STATUS: NOT A VALID GATE. The rig, the two preconditions and the two-rig framing all work
+and are worth keeping. THE METRIC DOES NOT: six designs were tried against a deliberately
+uv-seeded shader and none detected it, so a PASS from this script proves nothing and must not
+be cited as evidence that 6.2 is satisfied. See MEASUREMENT ATTEMPTS at the bottom, and
+docs/VoxelDamageVisualization.md 16.1 for the recommended way out (a debug view that renders
+crackField directly, rather than a seventh statistic).
 """
 
 import argparse
 import json
+import statistics
 import sys
 import time
 import urllib.error
@@ -56,20 +54,18 @@ import urllib.request
 
 BASE = "http://localhost:8090"
 
-WALL_X0, WALL_X1 = 28, 35      # straddles the x = 31/32 chunk boundary
 WALL_Y0, WALL_Y1 = 17, 20
 WALL_Z = 8
-SEAM_X = 32                    # first voxel of chunk (1,0,0)
-CONTROL_SEAMS = [31, 34]       # ordinary voxel boundaries, same wall, same lighting
-PRISTINE_X = 35                # left UNDAMAGED in frame -- control A (cracks are rendered)
-DAMAGE_FRACTION = 0.60         # mid-range: stage 2 of 3, well inside the band
+RIG_A_X0, RIG_A_X1 = 28, 35     # straddles x = 31/32
+RIG_B_X0, RIG_B_X1 = 20, 27     # wholly inside chunk (0,0,0)
+SEAM_X = 32                     # first voxel of chunk (1,0,0)
+DAMAGE_FRACTION = 0.60          # stage 2 of 3, comfortably inside the band
 
 
 def call(path, body=None):
     url = BASE + path
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(url, data=data,
-                                 method="POST" if data else "GET",
+    req = urllib.request.Request(url, data=data, method="POST" if data else "GET",
                                  headers={"Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=60) as r:
@@ -81,7 +77,7 @@ def call(path, body=None):
 
 def job(kind, params):
     r = call("/api/job/submit", {"type": kind, "params": params})
-    for _ in range(120):
+    for _ in range(160):
         st = call("/api/job/%s" % r.get("job_id"))
         if st.get("state") in ("complete", "failed", "cancelled"):
             return st
@@ -89,97 +85,88 @@ def job(kind, params):
     return {"state": "timeout"}
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--keep", action="store_true", help="leave the rig standing")
-    args = ap.parse_args()
+def build_rig(x0, x1, label, damage=True):
+    """Build the wall; damage it only if asked. Verifies the WORLD, never the fill response."""
+    job("clear_region", {"x1": x0, "y1": WALL_Y0, "z1": WALL_Z,
+                         "x2": x1, "y2": WALL_Y1, "z2": WALL_Z})
+    call("/api/world/fill", {"x1": x0, "y1": WALL_Y0, "z1": WALL_Z,
+                             "x2": x1, "y2": WALL_Y1, "z2": WALL_Z, "material": "Stone"})
 
-    print("R2 runtime seam test — crack continuity across x = %d/%d\n" % (SEAM_X - 1, SEAM_X))
-
-    # Both chunks, explicitly. A Flat world generated only for (0,0,0) silently drops every
-    # fill into (1,0,0).
-    call("/api/world/generate", {"type": "Flat",
-                                 "from": {"x": 0, "y": 0, "z": 0},
-                                 "to":   {"x": 1, "y": 0, "z": 0}})
-
-    job("clear_region", {"x1": WALL_X0, "y1": WALL_Y0, "z1": WALL_Z,
-                         "x2": WALL_X1, "y2": WALL_Y1, "z2": WALL_Z})
-    call("/api/world/fill", {"x1": WALL_X0, "y1": WALL_Y0, "z1": WALL_Z,
-                             "x2": WALL_X1, "y2": WALL_Y1, "z2": WALL_Z,
-                             "material": "Stone"})
-
-    # --- PRECONDITION 1: residency. Verify the WORLD, not the fill response. ---------------
-    missing = [x for x in range(WALL_X0, WALL_X1 + 1)
-               if not call("/api/world/voxel?x=%d&y=%d&z=%d" % (x, WALL_Y0 + 1, WALL_Z)).get("exists")]
+    missing = [x for x in range(x0, x1 + 1)
+               if not call("/api/world/voxel?x=%d&y=%d&z=%d"
+                           % (x, WALL_Y0 + 1, WALL_Z)).get("exists")]
     if missing:
-        sys.exit("PRECONDITION FAILED: wall columns %s were not placed. The chunk holding them "
-                 "is almost certainly not resident, so the fill dropped silently." % missing)
-    print("precondition 1 OK: all %d columns present across both chunks"
-          % (WALL_X1 - WALL_X0 + 1))
+        sys.exit("%s PRECONDITION FAILED: columns %s not placed - the chunk holding them is not "
+                 "resident, so the fill dropped silently." % (label, missing))
 
-    # --- Damage every column identically, EXCEPT the pristine reference --------------------
-    # The last column stays undamaged and in frame: it is control A, the proof that cracks are
-    # actually being rendered. Continuity is meaningless without it.
-    probe = call("/api/world/voxel?x=%d&y=%d&z=%d" % (WALL_X0, WALL_Y0 + 1, WALL_Z))
+    if not damage:
+        print("  %s %2d columns, PRISTINE (texture reference)" % (label, x1 - x0 + 1))
+        return
+    probe = call("/api/world/voxel?x=%d&y=%d&z=%d" % (x0, WALL_Y0 + 1, WALL_Z))
     energy = probe["toughness"] * DAMAGE_FRACTION
-    for x in range(WALL_X0, PRISTINE_X):
+    for x in range(x0, x1 + 1):
         for y in range(WALL_Y0, WALL_Y1 + 1):
             call("/api/damage/apply", {"x": x + 0.5, "y": y + 0.5, "z": WALL_Z + 0.5,
                                        "radius": 1.0, "energy": energy, "collapse": False})
 
-    # --- PRECONDITION 2: identical quantized stage on both sides ---------------------------
-    stages = {}
-    for x in range(WALL_X0, PRISTINE_X):
-        v = call("/api/world/voxel?x=%d&y=%d&z=%d" % (x, WALL_Y0 + 1, WALL_Z))
-        stages[x] = v.get("damage_stage")
-    distinct = set(stages.values())
-    if len(distinct) != 1:
-        sys.exit("PRECONDITION FAILED: columns do not share one damage stage: %s\n"
-                 "A stage step across the seam is a REAL discontinuity and would be reported "
-                 "as a seam defect. Equalize before measuring." % stages)
-    print("precondition 2 OK: every column at damage_stage %d" % distinct.pop())
+    stages = {x: call("/api/world/voxel?x=%d&y=%d&z=%d"
+                      % (x, WALL_Y0 + 1, WALL_Z)).get("damage_stage")
+              for x in range(x0, x1 + 1)}
+    if len(set(stages.values())) != 1:
+        sys.exit("%s PRECONDITION FAILED: columns do not share one damage stage: %s. A stage "
+                 "step IS a real discontinuity and would be misread as a seam defect."
+                 % (label, stages))
+    print("  %s %2d columns, all at damage_stage %d"
+          % (label, x1 - x0 + 1, next(iter(set(stages.values())))))
 
-    call("/api/debug/tonemap", {"curve": 0})
-    call("/api/camera", {"position": {"x": (WALL_X0 + WALL_X1) / 2.0 + 0.5,
+
+def capture(x0, x1):
+    call("/api/camera", {"position": {"x": (x0 + x1) / 2.0 + 0.5,
                                       "y": (WALL_Y0 + WALL_Y1) / 2.0 + 0.5,
                                       "z": WALL_Z + 11.0},
                          "yaw": -90, "pitch": 0})
-    time.sleep(1.0)
-    shot = call("/api/screenshot")          # GET, not POST
-    path = shot.get("path")
-    if not path:
-        sys.exit("no screenshot path in response: %s" % shot)
-    print("captured %s" % path)
-
-    rc = measure(path)
-    if not args.keep:
-        call("/api/debug/tonemap", {"curve": 1})
-    return rc
+    time.sleep(1.2)
+    shot = call("/api/screenshot")
+    if not shot.get("path"):
+        sys.exit("no screenshot path: %s" % shot)
+    return shot["path"]
 
 
-def measure(path):
-    try:
-        from PIL import Image
-    except ImportError:
-        sys.exit("Pillow required for the measurement (pip install pillow)")
+def boundary_steps(path_dmg, path_pristine, x0, x1):
+    """Structural DIScontinuity (1 - profile correlation) at every internal voxel boundary."""
+    from PIL import Image
     import os
-    full = path if os.path.isabs(path) else os.path.join(os.getcwd(), path)
-    im = Image.open(full).convert("RGB")
+    def openimg(p):
+        return Image.open(p if os.path.isabs(p) else os.path.join(os.getcwd(), p)).convert("RGB")
+    im, imp = openimg(path_dmg), openimg(path_pristine)
     W, H = im.size
-    px = im.load()
+    px, pxp = im.load(), imp.load()
 
-    def lum(x, y):
+    def raw(x, y):
         r, g, b = px[x, y]
         return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
-    # Locate the wall: scan the middle row of the viewport for the contiguous run of
-    # stone-grey pixels. Detecting it beats hardcoding pixel bounds, which silently rot the
-    # moment the camera or viewport changes.
+    # DIFFERENCE AGAINST THE PRISTINE CAPTURE OF THE SAME WALL. The stone albedo is
+    # high-frequency noise that swamps the crack at pixel scale -- measured directly, two
+    # columns 6 px apart are uncorrelated whether or not a crack runs through them. Diffing
+    # against the identical undamaged wall cancels the texture and leaves the CRACK
+    # CONTRIBUTION alone, which is the only thing whose continuity is in question.
+    def lum(x, y):
+        rr, gg, bb = px[x, y]
+        pr, pg, pb = pxp[x, y]
+        return abs(0.2126 * (rr - pr) + 0.7152 * (gg - pg) + 0.0722 * (bb - pb))
+
+    # Detect the wall by EXCLUSION, not by greyness. Stone has warm brown mottling, so an
+    # `abs(r-g) < 26` greyness test splits the wall into fragments and max(runs) then picks a
+    # different fragment in every capture -- which is what produced 52.2 vs 17.0 px/voxel for
+    # two identically framed walls. "Not sky and not grass" is stable across the texture.
     row = H // 2 - 80
     runs, start = [], None
-    for x in range(260, W - 420):          # inside the viewport, clear of the side panels
-        r, g, b = px[x, row]
-        grey = abs(r - g) < 26 and abs(g - b) < 26 and 40 < r < 210
+    for x in range(260, W - 420):
+        r, g, b = pxp[x, row]
+        sky = b > r + 15
+        grass = g > r + 12 and g > b + 12
+        grey = (not sky) and (not grass) and 25 < r < 235
         if grey and start is None:
             start = x
         elif not grey and start is not None:
@@ -187,99 +174,115 @@ def measure(path):
     if start is not None:
         runs.append((start, W - 421))
     if not runs:
-        sys.exit("could not locate the wall in the capture")
-    x0, x1 = max(runs, key=lambda r: r[1] - r[0])
-    span = x1 - x0
-    voxels = WALL_X1 - WALL_X0 + 1
-    if span < voxels * 8:
-        sys.exit("wall spans only %d px for %d voxels -- too small to measure" % (span, voxels))
-    print("wall located at screen x %d..%d (%.1f px per voxel)" % (x0, x1, span / float(voxels)))
+        sys.exit("could not locate the wall in %s" % path)
+    sx0, sx1 = max(runs, key=lambda r: r[1] - r[0])
+    span, voxels = sx1 - sx0, x1 - x0 + 1
+    ppv = span / float(voxels)
+    if ppv < 10:
+        sys.exit("only %.1f px per voxel - too small to measure boundaries" % ppv)
 
-    # Mean luminance per screen column over the wall's vertical extent.
     ytop, ybot = row - 55, row + 95
     col = {x: sum(lum(x, y) for y in range(ytop, ybot)) / float(ybot - ytop)
-           for x in range(x0, x1 + 1)}
+           for x in range(sx0, sx1 + 1)}
 
-    def screen_x(world_x):
-        return x0 + int(round((world_x - WALL_X0) / float(voxels) * span))
+    # CORRELATION, not luminance step. A pattern RESTART does not change mean brightness:
+    # both sides of a uv seam carry the same statistical density of cracks, only misaligned.
+    # Every earlier metric here measured a LEVEL (mean, contrast, dark-tail) and so was blind
+    # to exactly the defect being hunted. What breaks at a seam is STRUCTURAL CONTINUITY: on a
+    # continuous field the vertical luminance profile a few px left of a boundary closely
+    # matches the one a few px right, because cracks run through. On a restarted pattern they
+    # are uncorrelated.
+    def profile(sx):
+        return [lum(sx, y) for y in range(ytop, ybot)]
 
-    def discontinuity(world_boundary):
-        """Luminance step across a voxel boundary, measured over a +/-3 px window so it is
-        the STEP at the boundary rather than ordinary texture noise."""
-        sx = screen_x(world_boundary)
-        left = [col[x] for x in range(sx - 7, sx - 1) if x in col]
-        right = [col[x] for x in range(sx + 1, sx + 7) if x in col]
-        if not left or not right:
-            return None
-        return abs(sum(left) / len(left) - sum(right) / len(right))
-
-    # --- CONTROL A: are cracks actually being drawn? ---------------------------------------
-    # Compare texture DETAIL (mean absolute column-to-column change) on damaged vs pristine
-    # columns. A crack network raises local contrast; plain stone does not. Mean luminance
-    # alone is the wrong statistic -- the whole-face wear term shifts it even with no cracks.
-    def detail(wx_lo, wx_hi):
-        """How much DARK-LINE structure is on this patch, relative to its own brightness.
-
-        A crack is a thin dark line. Two earlier metrics failed here and both failures are
-        instructive: (1) mean luminance moves with the whole-face wear term even when no
-        crack is drawn; (2) mean column-to-column change AVERAGES THE CRACK AWAY -- a crack
-        crosses different columns at different heights, so collapsing each column to one
-        number destroys exactly the signal being looked for, leaving the stone texture's own
-        high-frequency detail to dominate.
-
-        So: measure in 2D, and ask how far the DARKEST pixels sit below the median. A cracked
-        surface has a long dark tail; plain stone does not. Normalized by the median so the
-        darkening term cannot fake it."""
-        a, b = screen_x(wx_lo), screen_x(wx_hi)
-        vals = [lum(x, y) for x in range(a + 3, b - 3) if a + 3 <= x < b - 3
-                for y in range(ytop, ybot, 2)]
-        if len(vals) < 200:
+    def pearson(a, b):
+        n = len(a)
+        ma, mb = sum(a) / n, sum(b) / n
+        va = sum((v - ma) ** 2 for v in a)
+        vb = sum((v - mb) ** 2 for v in b)
+        if va <= 1e-9 or vb <= 1e-9:
             return 0.0
-        vals.sort()
-        median = vals[len(vals) // 2]
-        p05 = vals[max(0, int(len(vals) * 0.05))]
-        return (median - p05) / max(median, 1e-6)
+        cov = sum((a[i] - ma) * (b[i] - mb) for i in range(n))
+        return cov / (va ** 0.5 * vb ** 0.5)
 
-    damaged_detail = detail(WALL_X0, PRISTINE_X)
-    pristine_detail = detail(PRISTINE_X, WALL_X1 + 1)
-    print("control A -- crack presence:")
-    print("   damaged columns  detail %.3f" % damaged_detail)
-    print("   pristine column  detail %.3f" % pristine_detail)
-    if damaged_detail < pristine_detail * 1.25:
-        print()
-        print("FAIL (control A): the damaged wall shows no more surface detail than the pristine")
-        print("      one -- NO CRACKS ARE BEING RENDERED. Any continuity result below would be")
-        print("      vacuous: a shader that draws nothing has no discontinuities either.")
-        return 1
-    print("   -> cracks are on screen (%.2fx pristine detail)\n" % (damaged_detail / max(pristine_detail, 1e-6)))
+    dx = max(3, int(ppv * 0.06))      # a few px either side, scaled to the framing
+    steps = {}
+    for b in range(x0 + 1, x1 + 1):
+        sx = sx0 + int(round((b - x0) / float(voxels) * span))
+        if sx - dx < sx0 or sx + dx > sx1:
+            continue
+        # Report 1 - correlation, so "larger = worse" matches the outlier test below.
+        steps[b] = 1.0 - pearson(profile(sx - dx), profile(sx + dx))
+    return steps, ppv
 
-    seam = discontinuity(SEAM_X)
-    controls = [(b, discontinuity(b)) for b in CONTROL_SEAMS]
-    controls = [(b, d) for b, d in controls if d is not None]
-    if seam is None or not controls:
-        sys.exit("could not sample the seam or its controls")
 
-    worst_control = max(d for _, d in controls)
-    print()
-    print("%-28s %s" % ("boundary", "luminance step"))
-    print("%-28s %.3f" % ("x = %d/%d  CHUNK SEAM" % (SEAM_X - 1, SEAM_X), seam))
-    for b, d in controls:
-        print("%-28s %.3f   (control: ordinary voxel boundary)" % ("x = %d/%d" % (b - 1, b), d))
-    print()
+def main():
+    argparse.ArgumentParser(description=__doc__).parse_args()
+    print("R2 runtime seam test - two-rig A/B\n")
 
-    # The control IS the threshold. A uv-seeded crack restarts its pattern at the seam and
-    # produces a step far outside the ordinary boundary-to-boundary variation.
-    tol = max(1.5 * worst_control, worst_control + 1.0)
-    if seam > tol:
-        print("FAIL: the chunk seam shows a luminance step of %.3f, against a worst control of "
-              "%.3f (tolerance %.3f)." % (seam, worst_control, tol))
-        print("      The crack field is reading something CHUNK-DERIVED -- sizeU/sizeV/texCoord --")
-        print("      instead of absolute world position. Merge runs terminate at chunk borders,")
+    call("/api/world/generate", {"type": "Flat", "from": {"x": 0, "y": 0, "z": 0},
+                                 "to": {"x": 1, "y": 0, "z": 0}})
+    call("/api/debug/tonemap", {"curve": 0})
+
+    # ONE RIG AT A TIME. The two walls are only 1 voxel apart in x, so if both exist they read
+    # as ONE continuous 16-voxel wall and the grey-run detector locks onto the union -- which
+    # is exactly what the px/voxel guard below caught on the first run (52.2 vs 20.0).
+    # Each rig is captured TWICE -- pristine, then damaged in place -- so the crack can be
+    # isolated by difference. One rig at a time: the two walls are 1 voxel apart in x and
+    # would otherwise read as one continuous run to the detector.
+    print("building rigs (pristine + damaged capture each, one rig at a time):")
+
+    def arm(x0, x1, label):
+        build_rig(x0, x1, label, damage=False)
+        pristine = capture(x0, x1)
+        build_rig(x0, x1, label, damage=True)
+        damaged = capture(x0, x1)
+        steps, ppv = boundary_steps(damaged, pristine, x0, x1)
+        job("clear_region", {"x1": x0, "y1": WALL_Y0, "z1": WALL_Z,
+                             "x2": x1, "y2": WALL_Y1, "z2": WALL_Z})
+        return steps, ppv, damaged
+
+    steps_a, ppv_a, pa = arm(RIG_A_X0, RIG_A_X1,
+                             "RIG A (straddles x=%d/%d):" % (SEAM_X - 1, SEAM_X))
+    steps_b, ppv_b, pb = arm(RIG_B_X0, RIG_B_X1, "RIG B (inside one chunk): ")
+    call("/api/debug/tonemap", {"curve": 1})
+
+    print("\ncaptures: A=%s (%.1f px/voxel)  B=%s (%.1f px/voxel)"
+          % (pa.split("/")[-1], ppv_a, pb.split("/")[-1], ppv_b))
+    if abs(ppv_a - ppv_b) > 0.15 * max(ppv_a, ppv_b):
+        sys.exit("framing differs between rigs (%.1f vs %.1f px/voxel) - not comparable"
+                 % (ppv_a, ppv_b))
+
+    if SEAM_X not in steps_a:
+        sys.exit("the chunk-seam boundary was not sampled in rig A")
+    seam = steps_a[SEAM_X]
+    reference = [v for k, v in steps_a.items() if k != SEAM_X] + list(steps_b.values())
+    if len(reference) < 6:
+        sys.exit("only %d reference boundaries - too few to characterize" % len(reference))
+
+    mean = statistics.mean(reference)
+    sd = statistics.pstdev(reference)
+    worst = max(reference)
+    # An OUTLIER test. The reference distribution sets the bar, not a hand-picked number.
+    limit = max(mean + 3.0 * sd, worst * 1.25)
+
+    print("\nordinary voxel boundaries (reference, n=%d):" % len(reference))
+    print("   mean %.3f   sd %.3f   max %.3f" % (mean, sd, worst))
+    print("chunk seam x=%d/%d:  %.3f" % (SEAM_X - 1, SEAM_X, seam))
+    print("outlier limit (max of mean+3sd, 1.25*max): %.3f\n" % limit)
+
+    if seam > limit:
+        print("FAIL: the chunk seam is an OUTLIER among ordinary voxel boundaries.")
+        print("      The crack field is reading a CHUNK-DERIVED quantity (sizeU/sizeV/texCoord)")
+        print("      instead of absolute world position: merge runs terminate at chunk borders,")
         print("      so a uv-seeded pattern restarts there and the seam becomes visible.")
         return 1
-    print("PASS: seam step %.3f is within the ordinary voxel-boundary variation (worst control "
-          "%.3f, tolerance %.3f)." % (seam, worst_control, tol))
+
+    print("PASS: the chunk seam is indistinguishable from an ordinary voxel boundary.")
     print("      The crack field is continuous across the chunk boundary.")
+    print("      LIMITATION: this cannot tell 'seam-free cracks' from 'no cracks at all' - a")
+    print("      shader drawing nothing is trivially seam-free and would also pass. Crack")
+    print("      PRESENCE is R3's job (6.3) and the 14 visual review's, not this test's.")
     return 0
 
 
@@ -288,38 +291,40 @@ if __name__ == "__main__":
 
 
 # ---------------------------------------------------------------------------------------------
-# MEASUREMENT ATTEMPTS -- what was tried, and why each failed. Kept so the next attempt starts
-# from the fourth idea rather than the first.
+# MEASUREMENT ATTEMPTS -- six designs, and why each failed. Kept so the next attempt starts from
+# the seventh idea, or better, abandons pixel statistics altogether (see 16.1).
 #
-# The red was produced by deliberately seeding crackField from `texCoord` instead of
-# `worldPosAbs` in voxel.frag, rebuilding shaders, and restarting. texCoord is tied to the
-# greedy-merged rectangle, which terminates at chunk borders -- the exact defect §3.3 forbids.
+# The red was produced by seeding crackField from `texCoord` instead of `worldPosAbs` in
+# voxel.frag. texCoord is tied to the greedy-merged rectangle, which terminates at chunk borders
+# -- exactly the defect 3.3 forbids. Verified to actually reach the renderer (mean pixel diff
+# 15.9/255 against the correct build); the first few attempts did NOT, see trap 0.
 #
-#   1. LUMINANCE STEP AT THE SEAM, vs the step at ordinary voxel boundaries.
-#      FAILED (false PASS). The first break used `texCoord * 8.0`, which made the pattern
-#      sub-pixel so NO cracks rendered at all -- and a surface with no cracks has no
-#      discontinuities either. This is what proved the test needed a PRESENCE control before
-#      any continuity claim, which is now precondition "control A".
+#   0. TRAP, not a metric: build_shaders.bat writes shaders/*.spv but the engine loads
+#      build/shaders/*.spv, refreshed only by a CMake build. Several early runs measured the
+#      CORRECT shader while believing they measured the broken one. Logged in
+#      docs/StructurePipelineGaps.md.
 #
-#   2. PRESENCE via mean column-to-column luminance change (absolute).
-#      FAILED (false FAIL). Damaged surfaces are darkened by the whole-face wear term, and
-#      absolute contrast scales with brightness, so a cracked wall measured LESS detailed than
-#      pristine stone.
+#   1. Luminance step at the seam vs ordinary boundaries, one capture. FALSE PASS.
+#   2. Crack "presence" via column-to-column contrast (absolute). FALSE FAIL -- damaged surfaces
+#      are darkened by the wear term and absolute contrast scales with brightness.
+#   3. The same, normalized by mean luminance. FALSE FAIL -- collapsing a column to one number
+#      averages the crack away; a crack crosses different columns at different heights.
+#   4. 2D dark-tail depth, (median - p05)/median. INCONCLUSIVE at 1.05x.
+#   5. Two-rig A/B on luminance step (straddling vs in-chunk). NO SIGNAL: seam 2.972 against a
+#      reference mean of 2.440, max 6.074 -- the seam is not even the largest boundary step.
+#   6. Two-rig A/B on profile CORRELATION across each boundary, including a
+#      damaged-minus-pristine difference image to cancel the albedo. NO SIGNAL: correlation is
+#      ~0 at ORDINARY boundaries too (1-corr mean 1.002), because the rock texture is
+#      high-frequency noise; and the difference image is dominated by the uniform wear term,
+#      whose near-constant value makes correlation ill-conditioned.
 #
-#   3. PRESENCE via the same, normalized by mean luminance.
-#      FAILED (false FAIL). The deeper problem is that collapsing each column to one number
-#      AVERAGES THE CRACK AWAY: a crack crosses different columns at different heights, so the
-#      column mean smooths it out and the stone texture's own high-frequency detail dominates.
+# THE TWO FACTS THAT EXPLAIN ALL OF IT:
+#   * A pattern RESTART does not change brightness -- both sides carry the same crack density,
+#     only misaligned -- so every LEVEL-based statistic is blind to it by construction.
+#   * The stone albedo swamps STRUCTURE at pixel scale, leaving no headroom for a seam to stand
+#     out in a correlation measure.
 #
-#   4. PRESENCE via 2D dark-tail depth, (median - p05) / median.
-#      INCONCLUSIVE. Damaged 0.393 vs pristine 0.374 -- only 1.05x, below any usable threshold.
-#      A Voronoi crack at this density is genuinely close to the stone albedo's own dark tail.
-#
-# WHERE THE NEXT ATTEMPT SHOULD START. Stop trying to characterize "is there a crack" from one
-# capture. Use an A/B of two RIGS instead: the same damaged wall built (a) straddling x = 31/32
-# and (b) wholly inside one chunk. Under world seeding both have the same discontinuity profile;
-# under uv seeding only (a) has a step at the seam. That makes an IN-CHUNK WALL the control for
-# "what a normal wall's discontinuity profile looks like", which is a far stronger reference
-# than either the stone texture or a pristine column, and it sidesteps the presence question
-# entirely -- both arms render whatever the shader renders.
+# RECOMMENDED NEXT STEP: not a seventh statistic. Render the field itself -- a debug view that
+# outputs crackField() as greyscale with no albedo, no lighting and no wear term. A uv seam is
+# then a hard vertical edge in an otherwise smooth image, which attempt 1 would have caught.
 # ---------------------------------------------------------------------------------------------

@@ -1661,7 +1661,7 @@ in a plan is a decision not yet made, so both were decided rather than logged: P
 | # | Item | Where specified | Status | Blocks |
 |---|---|---|---|---|
 | ~~1~~ | ~~`build_shaders.bat` reports success on a FAILED shader compile~~ | `StructurePipelineGaps.md` 2026-09-22 | ✅ **FIXED 2026-09-22** — three nested cmd traps, shipped as `\|\| goto :shader_error`; regression test `tools/test_shader_build_fails_loudly.py` | — |
-| **2** | **§6.2 RUNTIME seam test** — damaged wall straddling x = 31/32, captured and diffed | §6.2; rig built as `tools/crack_seam_test.py` | ⚠️ **ATTEMPTED, NOT ACHIEVED.** Rig + both preconditions work; **the pixel metric cannot yet detect a deliberately uv-seeded shader**, so a PASS proves nothing. Three metrics tried and logged in the tool. Next attempt: two-rig A/B (straddling vs in-chunk) | **P3 closure — still open** |
+| **2** | **§6.2 RUNTIME seam test** — damaged wall straddling x = 31/32, captured and diffed | §6.2; rig built as `tools/crack_seam_test.py` | ⚠️ **NOT ACHIEVED after SIX metric designs.** The rig, both preconditions and the two-rig A/B framing all work and are committed; **no pixel statistic tried can distinguish a world-seeded crack from a uv-seeded one.** A PASS proves nothing. All six attempts and the reason each failed are in the tool. **Recommended next step is not another statistic — it is a debug view that renders `crackField` directly (§16.1)** | **P3 closure — still open** |
 | **3** | **P4 — stage-count A/B**, 3 / 7 / 15 for cost AND legibility across the 4/16/48/96 ladder | §6.4 — knob storage resolved, cost prediction added, pinned tests named | **READY** | Ratifying or revising P2's choice of 3 |
 | **4** | **P5 — per-material `crackStyle`** from `brittleS1`/`brittleS2` | §4.4 + **§4.4a data path, §4.4b mapping**, red test named | **READY** | — |
 | 5 | **V2 — sub-voxel damage** (cracks on generated buildings) | §3.6, §15 | OPEN | Retiring §1's scope boundary; also wanted by `FractureModes.md` F1 |
@@ -1724,3 +1724,31 @@ implemented as specified at all.
 count are now explicitly **hypotheses to be measured, not settled numbers**, and both say so where
 the value lives. §4.4b additionally records that the style floor is load-bearing — dropping it
 would reintroduce the sub-pixel legibility failure P3 measured and fixed.
+
+### 16.1 Why §6.2's runtime half is stuck, and the way out
+
+Six metric designs were tried against a deliberately uv-seeded shader. None detected it. The
+failures are not six accidents; they are two facts about the observable:
+
+**Fact 1 — a pattern RESTART does not change brightness.** Both sides of a uv seam carry the same
+statistical density of cracks; only the alignment differs. So every LEVEL-based statistic is blind
+to it by construction: mean luminance, luminance step at the boundary, column-to-column contrast,
+normalized contrast, and 2D dark-tail depth all measure *how bright/dark*, and that is exactly the
+quantity the defect preserves.
+
+**Fact 2 — the stone albedo swamps STRUCTURE at pixel scale.** The natural rock texture is
+high-frequency noise, so the profile-correlation metric read ≈ 0 correlation at ORDINARY voxel
+boundaries (mean 1.002 of a possible 1.0 discontinuity) — there is no headroom left for a seam to
+stand out in. Differencing against a pristine capture of the same wall was the right instinct and
+still failed, because the difference image is dominated by the uniform whole-face wear term, whose
+near-constant value makes the correlation ill-conditioned.
+
+**The way out is to stop inferring the field from a shaded frame and render the field itself.**
+A debug view that outputs `crackField()` directly as greyscale — no albedo, no lighting, no wear
+term — makes a uv seam a hard vertical edge in an otherwise smooth image, detectable by the very
+first metric that was tried. The engine already has the shape for this (`Ctrl+F4` debug modes,
+`/api/debug/*`), and such a view is independently useful for P5's style work.
+
+**Cost of being wrong about this:** low. §3.3's hard rule is stated at the top of `crack.glsl`, the
+unit half of R2 pins the CPU mirror, and code review sees the one line that would break it. What is
+missing is an automated guard, not the correctness itself.
