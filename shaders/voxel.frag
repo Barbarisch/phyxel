@@ -291,44 +291,47 @@ void main() {
     // ({0,5,10,15} at 3 visible stages), so this still normalizes by 15.0 and the shader needs
     // no knowledge of the stage count (docs/VoxelDamageVisualization.md §3.5).
     float dmg = float((flags >> 11u) & 0xFu) / 15.0;
-    if (dmg > 0.0) {
-        // COST GATE, not a quality tier (§4.6). Pristine is ~100% of voxels in any real scene
+
+    // TRANSPARENT MATERIALS ARE EXCLUDED FROM CRACK RENDERING ENTIRELY, and that is a
+    // deliberate retreat rather than a subtlety.
+    //
+    // Glass is drawn in THIS pass with alpha blending (there is no transparency discard here;
+    // outColor carries textureColor.a), so every RGB modification tints what is seen THROUGH
+    // the pane rather than marking the pane itself. Two successive attempts to crack glass
+    // "gently" both destroyed it: darkening the face turned a window into a slab, and
+    // lightening the crack lines toward white turned it milky. Roughness -> 1.0 compounds both
+    // by making the surface read as diffuse. On Glass it is worst of all, because P5 gives it
+    // the finest crackStyle (0.75) and therefore the densest network of any material.
+    //
+    // A damaged window must still be a window. Until cracks are implemented in the OIT path
+    // (transparent_voxel.frag), where alpha is actually composited and a fracture can scatter
+    // light instead of tinting the view, transparent materials simply do not crack.
+    // docs/VoxelDamageVisualization.md -- logged as a scope limitation, not a bug to rediscover.
+    bool isTransparentMat = (flags & 2u) != 0u;
+
+    if (dmg > 0.0 && !isTransparentMat) {
+        // COST GATE, not a quality tier (4.6). Pristine is ~100% of voxels in any real scene
         // and this branch is spatially coherent, so the crack costs only where damage exists.
         // It bounds COST, never appearance: wherever there IS damage the detail is
         // unconditional. This is the bladesForDistance pattern.
-        // Style is per material, driven from brittleS1 (P5): Glass reads dense-and-fine,
-        // Steel sparse-and-wide, from the SAME numbers the physics uses to decide shatter
-        // tier -- so the surface's character and the material's behaviour cannot drift apart.
+        //
+        // Style is per material, driven from brittleS1 (P5): Glass reads dense-and-fine, Steel
+        // sparse-and-wide, from the SAME numbers the physics uses to decide shatter tier -- so
+        // a material's character and its behaviour cannot drift apart.
         float crack = crackField(worldPosAbs, inNormal, dmg, crackStyle);
 
-        // DARKEN THE CRACK, NOT THE FACE (§4.5). The old code multiplied the entire face by
+        // DARKEN THE CRACK, NOT THE FACE (4.5). The old code multiplied the entire face by
         // mix(1.0, 0.55, dmg), which is exactly why damage read as GRIME rather than fracture:
         // a uniformly dimmer stone face is a dirty stone face. Cracks are self-shadowing
         // fissures, so the darkening belongs to crack pixels only...
-        textureColor.rgb *= mix(1.0, ((flags & 2u) != 0u) ? 0.72 : 0.18, crack);
+        textureColor.rgb *= mix(1.0, 0.18, crack);
 
-        // ...with a whole-face term for general wear, so a battered surface still reads as worn
-        // BETWEEN its cracks instead of pristine-with-lines -- and, critically, so damage stays
-        // legible once the crack itself goes sub-pixel at distance. 0.78 is a deliberate middle:
-        // the old flat 0.55 is what made damage read as grime, while 0.88 (the first P3 build)
-        // left the upper stage steps inside the measurement noise at 16 units.
-        //
-        // NOT ON TRANSPARENT MATERIALS. Glass is drawn in THIS pass with alpha blending, so
-        // a whole-face multiplier tints everything seen THROUGH the pane. On Glass -- which
-        // gets the finest crackStyle (0.75) and so the densest network -- that compounds
-        // with the crack lines until the pane reads as opaque. It did: a damaged window
-        // stopped being a window, which is a regression this crack work introduced.
-        //
-        // A cracked pane must still be a pane. Transparent materials therefore get the
-        // crack LINES only (softened above, and lightened toward white below): a fracture
-        // in glass SCATTERS light rather than absorbing it, which is why real cracked glass
-        // goes frosty rather than sooty.
-        bool isTransparentMat = (flags & 2u) != 0u;
-        if (!isTransparentMat) {
-            textureColor.rgb *= mix(1.0, 0.78, dmg);
-        } else {
-            textureColor.rgb = mix(textureColor.rgb, vec3(1.0), crack * 0.5);
-        }
+        // ...with a smaller whole-face term for general wear, so a battered surface reads as
+        // worn BETWEEN its cracks instead of pristine-with-lines -- and, critically, so damage
+        // stays legible once the crack itself goes sub-pixel at distance. 0.78 is a deliberate
+        // middle: the old flat 0.55 is what made damage read as grime, while 0.88 (the first
+        // P3 build) left the upper stage steps inside the measurement noise at 16 units.
+        textureColor.rgb *= mix(1.0, 0.78, dmg);
 
         // Roughness follows the same split: broken mineral faces inside a crack scatter far
         // more than the surface around them.

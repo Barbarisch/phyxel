@@ -1468,10 +1468,23 @@ blending, `outColor = vec4(color, textureColor.a)`. So the whole-face wear multi
 network of any material (`crackStyle` 0.75, the densest end of P5's range), so the two compound
 until the pane reads as solid. A damaged window stopped being a window.
 
-**Fix:** transparent materials get the crack **lines only** — no whole-face wear term — and those
-lines are **lightened toward white** rather than darkened. A fracture in glass scatters light
-rather than absorbing it, which is why real cracked glass goes frosty rather than sooty. Opaque
-materials are unchanged.
+**FIRST FIX FAILED, and I called it fixed.** Attempt 1 kept the crack lines and only removed the
+whole-face wear term, lightening the lines toward white instead. I looked at the result, saw the
+horizon through a milky pane, and reported it as transparent. The reviewer had to say *"glass is
+still not transparent"* a second time. That is the plan's own measure-don't-eyeball rule broken by
+the person who wrote it — and the A/B that settles it takes one minute: **both panes in ONE frame**,
+damaged beside pristine, which is what finally produced a defensible answer.
+
+**SHIPPED FIX — a retreat, not a subtlety: transparent materials are excluded from crack rendering
+entirely.** Every RGB modification on a pane tints what is seen THROUGH it rather than marking the
+pane, so darkening turned a window into a slab and lightening turned it milky; `rough → 1.0`
+compounds both by making the surface read as diffuse. **Until cracks are implemented in the OIT path
+(`transparent_voxel.frag`), where alpha is actually composited and a fracture can scatter light
+instead of tinting the view, transparent materials do not crack.** Verified with both panes in one
+frame: damaged now renders as pristine does, grass visible through both.
+
+⚠️ **This is a scope limitation, logged so it is not rediscovered as a bug:** damaged glass shows
+no damage at all. Opaque materials are unaffected.
 
 ⚠️ **What this says about the validation plan.** Nothing in §6 could have caught this. Every rig in
 this document is a **Stone** wall (§6.3, §14.1, `damage_ladder_rig.py`), R2's CPU mirror never
