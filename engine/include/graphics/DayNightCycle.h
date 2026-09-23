@@ -1,5 +1,8 @@
 #pragma once
 
+#include "core/DayNightSettings.h"
+
+#include <chrono>
 #include <glm/glm.hpp>
 #include <nlohmann/json.hpp>
 
@@ -15,6 +18,18 @@ public:
     /// Advance time by deltaTime seconds. Only advances when enabled.
     void update(float deltaTime);
 
+    /// Advance by the REAL time since the previous tick, measured from this object's own last
+    /// stamp. The first tick advances nothing; a stall (or debugger pause) advances at most
+    /// kMaxTickSeconds so a 5 s hitch does not skip an hour.
+    ///
+    /// This exists because the frame loop used to compute dt from a frame-start stamp that only
+    /// the EDITOR set. A shipped game never set it, `now - epoch` hit the clamp every frame, and
+    /// the clock ran at 0.1 s x FPS: measured 2.89x real time at 28.2 FPS (G-165). A clock that
+    /// times itself cannot be broken by a host forgetting to stamp it.
+    using Clock = std::chrono::steady_clock;
+    static constexpr float kMaxTickSeconds = 0.1f;
+    void tick(Clock::time_point now);
+
     // Time control
     float getTimeOfDay() const { return m_timeOfDay; }
     void setTimeOfDay(float hours);
@@ -26,6 +41,13 @@ public:
     bool isPaused() const { return m_paused; }
     void setTimeScale(float scale) { m_timeScale = scale; }
     float getTimeScale() const { return m_timeScale; }
+
+    /// Apply an authored block (G-165). Only the fields the block SETS change; the rest keep
+    /// their current values, so `{"enabled": true}` alone turns the cycle on at the engine
+    /// defaults. Order matters and is fixed here: day length and scale before time of day, and
+    /// day number before time of day, because setTimeOfDay() recalculates the sun and moon from
+    /// whatever day number is current (see setDayNumber's note).
+    void applySettings(const Core::DayNightSettings& s);
 
     // World time helpers
     int getHour() const { return static_cast<int>(m_timeOfDay); }
@@ -70,6 +92,8 @@ private:
     float m_timeScale;         // Speed multiplier
     bool m_enabled;            // Whether cycle updates at all
     bool m_paused;             // Temporarily paused
+    bool m_hasTicked = false;  // tick(): no previous stamp until the first call
+    Clock::time_point m_lastTick{};
 
     // Computed values
     glm::vec3 m_sunDirection;

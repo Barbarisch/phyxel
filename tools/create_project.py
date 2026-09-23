@@ -475,6 +475,12 @@ def create_project(
     # Copy game.json if provided
     if game_definition:
         game_json_path = output_dir / "game.json"
+        # G-165: a shipped game gets a running day/night cycle unless its definition says
+        # otherwise. 1200 s (20 real minutes) per day is the Minecraft convention, the most
+        # widely known voxel-game day length; timeOfDay 9 starts play in the morning. Both are
+        # tunables, not measurements.
+        game_definition.setdefault("dayNight", {"enabled": True, "timeOfDay": 9.0,
+                                                "dayLengthSeconds": 1200})
         game_json_path.write_text(json.dumps(game_definition, indent=2), encoding="utf-8")
 
     # Create placeholder directories
@@ -2080,6 +2086,18 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 }}
                             }};
                         }}
+                    }}
+                }}
+
+                // G-165: the world-level "dayNight" block. Read from the TOP-LEVEL document, because a
+                // multi-scene game never passes it through load() - only each scene does - and the
+                // cycle is a property of the world, not of one scene. DayNightCycle is OFF by default
+                // and nothing else in a shipped game can turn it on.
+                {{
+                    Phyxel::Core::DayNightSettings dn;
+                    if (Phyxel::Core::GameDefinitionLoader::parseDayNight(gameDef, dn) && renderCoordinator_) {{
+                        renderCoordinator_->getDayNightCycle().applySettings(dn);
+                        LOG_INFO("{class_name}", "dayNight: {{}}", renderCoordinator_->getDayNightCycle().toJson().dump());
                     }}
                 }}
 

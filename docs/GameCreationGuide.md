@@ -221,6 +221,19 @@ After your world, NPCs, and story are in place, layer on gameplay systems:
 - ESC key toggles pause (freezes world simulation, shows pause menu)
 - `toggle_pause` / `get_pause_state` — Control via MCP
 
+**Day/Night Cycle** (`dayNight`, world-level - at the TOP of a multi-scene file, beside
+`playerDefaults`):
+- `{"enabled": true, "timeOfDay": 9.0, "dayLengthSeconds": 1200, "timeScale": 1.0,
+  "paused": false, "dayNumber": 1}`. Every field is optional; an absent one keeps the engine
+  default. Field names match `set_day_night` (MCP) and `/api/daynight/set`, so an authored value
+  and a scripted one mean the same thing.
+- The cycle is **off by default** - a game that wants a moving sun must say so. `create_project.py`
+  writes an enabled block into new projects (20 real minutes per day, play starting at 9 am).
+- Validation refuses a bad block by name (`timeOfDay` outside 0..24, `dayLengthSeconds` <= 0,
+  `dayNumber` < 1) instead of clamping it.
+- The clock times itself from real elapsed time; its rate does not depend on frame rate. A stall
+  advances it by at most 0.1 s.
+
 **Camera Mode & Control Scheme** (see `docs/CameraControlSystem.md` for the full design):
 - The `camera` block accepts `"mode"`: `"first_person"` | `"third_person"` |
   `"overhead"` | `"isometric"` | `"free"`. Overhead and isometric are

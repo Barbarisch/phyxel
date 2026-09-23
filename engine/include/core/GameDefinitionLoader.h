@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/DayNightSettings.h"
 #include <string>
 #include <vector>
 #include <functional>
@@ -130,6 +131,10 @@ struct GameDefinitionResult {
     /// graphics. The caller applies it (see Application, load_game_definition).
     json skyDefinition;
     bool skyLoaded = false;
+    /// Parsed "dayNight" block (G-165). Typed here (core owns the struct); the caller applies it
+    /// with Graphics::DayNightCycle::applySettings(), for the same layering reason as sky.
+    DayNightSettings dayNight;
+    bool dayNightLoaded = false;
     bool storyLoaded = false;
 
     json toJson() const;
@@ -193,6 +198,11 @@ public:
 
     /// Validate a game definition without loading it.
     static std::pair<bool, std::string> validate(const json& definition);
+
+    /// Read a top-level "dayNight" block into `out`. Returns false when absent. A MULTI-SCENE
+    /// game never passes its top-level document through load() - only each scene's definition
+    /// - so the shell reads the world-level block with this and applies it once (G-165).
+    static bool parseDayNight(const json& definition, DayNightSettings& out);
 
     /// Check if a game definition JSON uses the multi-scene format.
     static bool isMultiScene(const json& definition) {

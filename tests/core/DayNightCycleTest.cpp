@@ -240,3 +240,135 @@ TEST(DayNightCycleTest, DayNumberSerializesRoundTrip) {
     cycle2.fromJson(j);
     EXPECT_EQ(cycle2.getDayNumber(), 5);
 }
+
+// ---------------------------------------------------------------------------------------------
+// applySettings (G-165): the authored game.json block reaches the cycle. Partial blocks must
+// touch ONLY the fields they set, and the field order must let time-of-day see the day number.
+// ---------------------------------------------------------------------------------------------
+
+TEST(DayNightCycleTest, ApplySettingsEnablesTheCycleWithOnlyEnabledSet) {
+    DayNightCycle cycle;
+    ASSERT_FALSE(cycle.isEnabled()) << "the whole G-165 bug is that this default is never changed";
+    Phyxel::Core::DayNightSettings s;
+    s.enabled = true;
+    cycle.applySettings(s);
+    EXPECT_TRUE(cycle.isEnabled());
+    // Everything else must be untouched by a block that did not mention it.
+    EXPECT_FLOAT_EQ(cycle.getTimeOfDay(), 12.0f);
+    EXPECT_FLOAT_EQ(cycle.getDayLengthSeconds(), 600.0f);
+    EXPECT_FLOAT_EQ(cycle.getTimeScale(), 1.0f);
+    EXPECT_FALSE(cycle.isPaused());
+}
+
+TEST(DayNightCycleTest, ApplySettingsSetsEveryAuthoredField) {
+    DayNightCycle cycle;
+    Phyxel::Core::DayNightSettings s;
+    s.enabled = true; s.timeOfDay = 9.0f; s.dayLengthSeconds = 1200.0f;
+    s.timeScale = 2.0f; s.paused = true; s.dayNumber = 3;
+    cycle.applySettings(s);
+    EXPECT_TRUE(cycle.isEnabled());
+    EXPECT_FLOAT_EQ(cycle.getTimeOfDay(), 9.0f);
+    EXPECT_FLOAT_EQ(cycle.getDayLengthSeconds(), 1200.0f);
+    EXPECT_FLOAT_EQ(cycle.getTimeScale(), 2.0f);
+    EXPECT_TRUE(cycle.isPaused());
+    EXPECT_EQ(cycle.getDayNumber(), 3);
+}
+
+TEST(DayNightCycleTest, AnAppliedEnabledCycleActuallyAdvances) {
+    // The observable the user reported: the clock does not move. After applying the Ravenmere
+    // block (1200 s day) and ticking 60 s, the clock must read 1.2 hours later.
+    DayNightCycle cycle;
+    Phyxel::Core::DayNightSettings s;
+    s.enabled = true; s.timeOfDay = 9.0f; s.dayLengthSeconds = 1200.0f;
+    cycle.applySettings(s);
+    for (int i = 0; i < 60; ++i) cycle.update(1.0f);
+    EXPECT_NEAR(cycle.getTimeOfDay(), 9.0f + 24.0f * 60.0f / 1200.0f, 1e-3f);
+}
+
+TEST(DayNightCycleTest, ApplySettingsRoundTripsThroughJson) {
+    Phyxel::Core::DayNightSettings s;
+    s.enabled = true; s.timeOfDay = 18.25f; s.dayLengthSeconds = 900.0f;
+    const auto back = Phyxel::Core::DayNightSettings::fromJson(s.toJson());
+    EXPECT_EQ(back.enabled, s.enabled);
+    EXPECT_EQ(back.timeOfDay, s.timeOfDay);
+    EXPECT_EQ(back.dayLengthSeconds, s.dayLengthSeconds);
+    EXPECT_FALSE(back.paused.has_value());
+}
+
+// ---------------------------------------------------------------------------------------------
+// tick() (G-165 part 2): the cycle times ITSELF. The frame loop used to feed it
+// `now - frameStartTime` with a 0.1 s clamp, and only the editor ever set frameStartTime, so a
+// shipped game clamped EVERY frame and the clock ran at 0.1 s x FPS - measured 2.89x real time
+// at 28.2 FPS on Ravenmere. These pin real-time behaviour against a fake clock.
+// ---------------------------------------------------------------------------------------------
+
+namespace {
+using Tp = DayNightCycle::Clock::time_point;
+Tp at(double seconds) {
+    return Tp{} + std::chrono::duration_cast<DayNightCycle::Clock::duration>(
+                      std::chrono::duration<double>(seconds));
+}
+DayNightCycle runningCycle() {
+    DayNightCycle c;
+    c.setEnabled(true);
+    c.setTimeOfDay(9.0f);
+    c.setDayLengthSeconds(1200.0f);   // Ravenmere's authored day
+    return c;
+}
+}  // namespace
+
+TEST(DayNightCycleTest, TheFirstTickAdvancesNothing) {
+    DayNightCycle c = runningCycle();
+    c.tick(at(1000.0));   // there is no previous stamp to measure from
+    EXPECT_FLOAT_EQ(c.getTimeOfDay(), 9.0f);
+}
+
+TEST(DayNightCycleTest, TicksAdvanceByRealElapsedTimeNotByTheClamp) {
+    // 60 frames at 60 FPS = 1.0 real second = 24/1200 h. The pre-fix defect would have charged
+    // 0.1 s per frame = 6.0 s of game time - six times too fast.
+    DayNightCycle c = runningCycle();
+    double t = 5.0;
+    c.tick(at(t));
+    for (int i = 0; i < 60; ++i) { t += 1.0 / 60.0; c.tick(at(t)); }
+    const float expected = 9.0f + 24.0f * 1.0f / 1200.0f;
+    EXPECT_NEAR(c.getTimeOfDay(), expected, 1e-4f)
+        << "a stale/absent frame stamp must not turn every frame into the 0.1 s cap";
+}
+
+TEST(DayNightCycleTest, TheClockRateDoesNotDependOnFrameRate) {
+    // Same real second, 10 FPS vs 120 FPS: the clock must land in the same place.
+    DayNightCycle slow = runningCycle(), fast = runningCycle();
+    double t = 0.0; slow.tick(at(t));
+    for (int i = 0; i < 10; ++i) { t += 0.1; slow.tick(at(t)); }
+    t = 0.0; fast.tick(at(t));
+    for (int i = 0; i < 120; ++i) { t += 1.0 / 120.0; fast.tick(at(t)); }
+    EXPECT_NEAR(slow.getTimeOfDay(), fast.getTimeOfDay(), 1e-4f)
+        << "the shipped bug was exactly this: 0.1 s x FPS";
+}
+
+TEST(DayNightCycleTest, AStallAdvancesAtMostTheCap) {
+    DayNightCycle c = runningCycle();
+    c.tick(at(0.0));
+    c.tick(at(5.0));   // a 5 s hitch (debugger, load) must not skip an hour
+    EXPECT_NEAR(c.getTimeOfDay(), 9.0f + 24.0f * DayNightCycle::kMaxTickSeconds / 1200.0f, 1e-5f);
+}
+
+TEST(DayNightCycleTest, AClockThatGoesBackwardsAdvancesNothing) {
+    DayNightCycle c = runningCycle();
+    c.tick(at(10.0));
+    c.tick(at(9.0));
+    EXPECT_FLOAT_EQ(c.getTimeOfDay(), 9.0f);
+}
+
+TEST(DayNightCycleTest, TickRespectsEnabledAndPaused) {
+    DayNightCycle c;   // disabled by default
+    c.setTimeOfDay(9.0f);
+    c.tick(at(0.0)); c.tick(at(0.05));
+    EXPECT_FLOAT_EQ(c.getTimeOfDay(), 9.0f) << "disabled: no advance";
+    c.setEnabled(true); c.setPaused(true);
+    c.tick(at(0.10)); c.tick(at(0.15));
+    EXPECT_FLOAT_EQ(c.getTimeOfDay(), 9.0f) << "paused: no advance";
+    c.setPaused(false);
+    c.tick(at(0.20));
+    EXPECT_GT(c.getTimeOfDay(), 9.0f) << "resumed: advances again";
+}

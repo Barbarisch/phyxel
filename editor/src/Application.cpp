@@ -6466,6 +6466,8 @@ void Application::autoLoadGameDefinition() {
     if (result.skyLoaded && renderCoordinator) {
         renderCoordinator->setSkyBodies(Graphics::SkyBodies::fromJson(result.skyDefinition));
     }
+    if (result.dayNightLoaded && renderCoordinator)   // G-165: authored day/night
+        renderCoordinator->getDayNightCycle().applySettings(result.dayNight);
 
         if (result.success) {
             LOG_INFO("Application", "Game definition loaded: {} chunks, {} structures, {} NPCs", result.chunksGenerated, result.structuresPlaced, result.npcsSpawned);
@@ -16446,6 +16448,8 @@ void Application::processAPICommands() {
     if (loadResult.skyLoaded && renderCoordinator) {
         renderCoordinator->setSkyBodies(Graphics::SkyBodies::fromJson(loadResult.skyDefinition));
     }
+    if (loadResult.dayNightLoaded && renderCoordinator)   // G-165: authored day/night
+        renderCoordinator->getDayNightCycle().applySettings(loadResult.dayNight);
 
                             response = loadResult.toJson();
                             response["reloaded"] = true;
@@ -18331,6 +18335,8 @@ void Application::processAPICommands() {
     if (loadResult.skyLoaded && renderCoordinator) {
         renderCoordinator->setSkyBodies(Graphics::SkyBodies::fromJson(loadResult.skyDefinition));
     }
+    if (loadResult.dayNightLoaded && renderCoordinator)   // G-165: authored day/night
+        renderCoordinator->getDayNightCycle().applySettings(loadResult.dayNight);
 
                 response = loadResult.toJson();
 
@@ -18400,6 +18406,8 @@ void Application::processAPICommands() {
     if (loadResult.skyLoaded && renderCoordinator) {
         renderCoordinator->setSkyBodies(Graphics::SkyBodies::fromJson(loadResult.skyDefinition));
     }
+    if (loadResult.dayNightLoaded && renderCoordinator)   // G-165: authored day/night
+        renderCoordinator->getDayNightCycle().applySettings(loadResult.dayNight);
 
                     response = loadResult.toJson();
                 }

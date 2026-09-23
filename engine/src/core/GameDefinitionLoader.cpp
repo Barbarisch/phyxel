@@ -61,7 +61,17 @@ json GameDefinitionResult::toJson() const {
     j["player_spawned"] = playerSpawned;
     j["camera_set"] = cameraSet;
     j["story_loaded"] = storyLoaded;
+    j["day_night_loaded"] = dayNightLoaded;
+    if (dayNightLoaded) j["day_night"] = dayNight.toJson();
     return j;
+}
+
+bool GameDefinitionLoader::parseDayNight(const json& definition, DayNightSettings& out) {
+    if (!definition.is_object() || !definition.contains("dayNight")) return false;
+    const json& block = definition["dayNight"];
+    if (!block.is_object()) return false;
+    out = DayNightSettings::fromJson(block);
+    return true;
 }
 
 // ============================================================================
@@ -95,6 +105,14 @@ std::pair<bool, std::string> GameDefinitionLoader::validate(const json& definiti
                 return {false, "NPC at index " + std::to_string(i) + " missing 'name'"};
             }
         }
+    }
+
+    // Validate the world-level day/night block (G-165). Refused, not clamped: a zero-second day
+    // or a 25 o'clock start is an authoring mistake, and clamping would hide it as a strobing or
+    // mis-set sky.
+    if (definition.contains("dayNight")) {
+        auto [ok, err] = DayNightSettings::validate(definition["dayNight"]);
+        if (!ok) return {false, err};
     }
 
     // Validate player
@@ -190,6 +208,15 @@ GameDefinitionResult GameDefinitionLoader::load(const json& definition, GameSubs
     if (definition.contains("sky")) {
         result.skyDefinition = definition["sky"];
         result.skyLoaded = true;
+    }
+
+    // "dayNight" (G-165): typed here, applied by the caller via DayNightCycle::applySettings()
+    // for the same layering reason as sky. Absent means the caller keeps the cycle as it is -
+    // which, for a shipped game, means OFF, so a game that wants a moving sun must say so.
+    if (definition.contains("dayNight")) {
+        auto [ok, err] = DayNightSettings::validate(definition["dayNight"]);
+        if (!ok) { result.success = false; result.error = err; return result; }
+        result.dayNightLoaded = parseDayNight(definition, result.dayNight);
     }
 
     if (definition.contains("locations")) {

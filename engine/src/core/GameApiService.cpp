@@ -34,6 +34,7 @@
 #include "core/SceneManager.h"
 #include "core/SceneDefinition.h"
 #include "graphics/RenderCoordinator.h"
+#include "core/DayNightSettings.h"
 #include "vulkan/VulkanDevice.h"
 #include <algorithm>
 #include "utils/GpuProfiler.h"   // G-18: per-pass GPU timings in the shipped build
@@ -367,6 +368,23 @@ void GameApiService::registerCommands() {
             return;
         }
         r = {{"success", false}, {"error", "Provide 'id' or 'event'"}};
+    });
+
+    // GET/POST /api/rpg/daynight and POST /api/rpg/daynight_set - the editor's /api/daynight
+    // routes, mirrored so a harness can READ the clock on the shipped build (G-165). Without a
+    // read there was no way to tell a running cycle from a stopped one except by staring at the
+    // sky. Same field names as the editor route and the MCP tool.
+    reg.on("daynight", [this](const APICommand&, json& r) {
+        if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
+        r = {{"success", true}, {"daynight", renderCoordinator->getDayNightCycle().toJson()}};
+    });
+    reg.on("daynight_set", [this](const APICommand& cmd, json& r) {
+        if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
+        auto [ok, err] = DayNightSettings::validate(cmd.params);
+        if (!ok) { r = {{"success", false}, {"error", err}}; return; }
+        auto& cycle = renderCoordinator->getDayNightCycle();
+        cycle.applySettings(DayNightSettings::fromJson(cmd.params));
+        r = {{"success", true}, {"daynight", cycle.toJson()}};
     });
 
     // POST /api/rpg/host_action {"action": {...}} — run ONE host action exactly as a trigger

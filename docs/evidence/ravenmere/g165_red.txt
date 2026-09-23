@@ -1,0 +1,88 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = GameDefinitionTest.*DayNight*:GameDefinitionTest.Load*DayNight*:GameDefinitionTest.ParseDayNight*:DayNightCycleTest.Apply*:DayNightCycleTest.AnApplied*
+[==========] Running 12 tests from 2 test suites.
+[----------] Global test environment set-up.
+[----------] 4 tests from DayNightCycleTest
+[ RUN      ] DayNightCycleTest.ApplySettingsEnablesTheCycleWithOnlyEnabledSet
+[       OK ] DayNightCycleTest.ApplySettingsEnablesTheCycleWithOnlyEnabledSet (0 ms)
+[ RUN      ] DayNightCycleTest.ApplySettingsSetsEveryAuthoredField
+[       OK ] DayNightCycleTest.ApplySettingsSetsEveryAuthoredField (0 ms)
+[ RUN      ] DayNightCycleTest.AnAppliedEnabledCycleActuallyAdvances
+[       OK ] DayNightCycleTest.AnAppliedEnabledCycleActuallyAdvances (0 ms)
+[ RUN      ] DayNightCycleTest.ApplySettingsRoundTripsThroughJson
+[       OK ] DayNightCycleTest.ApplySettingsRoundTripsThroughJson (0 ms)
+[----------] 4 tests from DayNightCycleTest (0 ms total)
+
+[----------] 8 tests from GameDefinitionTest
+[ RUN      ] GameDefinitionTest.ValidateDayNightRejectsAnHourThatIsNotOnTheClock
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\GameDefinitionTest.cpp(366): error: Value of: valid
+  Actual: true
+Expected: false
+25 o'clock is a typo, not a time - it must be refused, not wrapped
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\GameDefinitionTest.cpp(367): error: Expected: (err.find("timeOfDay")) != (std::string::npos), actual: 18446744073709551615 vs 18446744073709551615
+the error must name the field: 
+
+[  FAILED  ] GameDefinitionTest.ValidateDayNightRejectsAnHourThatIsNotOnTheClock (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateDayNightRejectsAZeroLengthDay
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\GameDefinitionTest.cpp(373): error: Value of: valid
+  Actual: true
+Expected: false
+a zero-second day divides by zero in update(); the cycle clamps to 1 s, which turns an authoring mistake into a strobing sky
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\GameDefinitionTest.cpp(375): error: Expected: (err.find("dayLengthSeconds")) != (std::string::npos), actual: 18446744073709551615 vs 18446744073709551615
+
+[  FAILED  ] GameDefinitionTest.ValidateDayNightRejectsAZeroLengthDay (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateDayNightRejectsANonObject
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\GameDefinitionTest.cpp(381): error: Value of: valid
+  Actual: true
+Expected: false
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\GameDefinitionTest.cpp(382): error: Expected: (err.find("dayNight")) != (std::string::npos), actual: 18446744073709551615 vs 18446744073709551615
+
+[  FAILED  ] GameDefinitionTest.ValidateDayNightRejectsANonObject (0 ms)
+[ RUN      ] GameDefinitionTest.ValidateDayNightAcceptsAWellFormedBlock
+[       OK ] GameDefinitionTest.ValidateDayNightAcceptsAWellFormedBlock (0 ms)
+[ RUN      ] GameDefinitionTest.LoadParsesTheDayNightBlockIntoTheResult
+[32m[14:35:03.011] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[32m[14:35:03.011] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=0, structures=0, locations=0, npcs=0)[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\GameDefinitionTest.cpp(397): error: Value of: result.dayNightLoaded
+  Actual: false
+Expected: true
+the block was present and must be reported as loaded
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\GameDefinitionTest.cpp(398): error: Value of: result.dayNight.enabled.has_value()
+  Actual: false
+Expected: true
+
+[  FAILED  ] GameDefinitionTest.LoadParsesTheDayNightBlockIntoTheResult (0 ms)
+[ RUN      ] GameDefinitionTest.LoadWithoutADayNightBlockLeavesItUnloaded
+[32m[14:35:03.011] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[32m[14:35:03.011] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=0, structures=0, locations=0, npcs=0)[0m
+[       OK ] GameDefinitionTest.LoadWithoutADayNightBlockLeavesItUnloaded (0 ms)
+[ RUN      ] GameDefinitionTest.LoadRefusesAnInvalidDayNightBlockInsteadOfClampingIt
+[32m[14:35:03.011] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[32m[14:35:03.012] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=0, structures=0, locations=0, npcs=0)[0m
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\GameDefinitionTest.cpp(419): error: Value of: result.success
+  Actual: true
+Expected: false
+a bad block must fail the load with a message, not load and clamp
+
+C:\Users\bpete\Documents\GitHub\phyxel\tests\core\GameDefinitionTest.cpp(420): error: Expected: (result.error.find("dayLengthSeconds")) != (std::string::npos), actual: 18446744073709551615 vs 18446744073709551615
+
+[  FAILED  ] GameDefinitionTest.LoadRefusesAnInvalidDayNightBlockInsteadOfClampingIt (0 ms)
+[ RUN      ] GameDefinitionTest.ParseDayNightReadsTheTopLevelOfAMultiSceneDocument
+[       OK ] GameDefinitionTest.ParseDayNightReadsTheTopLevelOfAMultiSceneDocument (0 ms)
+[----------] 8 tests from GameDefinitionTest (1 ms total)
+
+[----------] Global test environment tear-down
+[==========] 12 tests from 2 test suites ran. (3 ms total)
+[  PASSED  ] 7 tests.
+[  FAILED  ] 5 tests, listed below:
+[  FAILED  ] GameDefinitionTest.ValidateDayNightRejectsAnHourThatIsNotOnTheClock
+[  FAILED  ] GameDefinitionTest.ValidateDayNightRejectsAZeroLengthDay
+[  FAILED  ] GameDefinitionTest.ValidateDayNightRejectsANonObject
+[  FAILED  ] GameDefinitionTest.LoadParsesTheDayNightBlockIntoTheResult
+[  FAILED  ] GameDefinitionTest.LoadRefusesAnInvalidDayNightBlockInsteadOfClampingIt
+
+ 5 FAILED TESTS

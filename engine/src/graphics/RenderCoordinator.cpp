@@ -3363,13 +3363,14 @@ void RenderCoordinator::drawFrame() {
     // (world - camera) helper: double subtract, truncate last.
     auto rel = [&camWorld](const glm::dvec3& worldP) { return glm::vec3(worldP - camWorld); };
 
-    // Update day/night cycle and apply to lighting
+    // Update day/night cycle and apply to lighting.
+    //
+    // The cycle measures its OWN interval (DayNightCycle::tick). It used to be fed
+    // `now - frameStartTime`, and only the editor ever set frameStartTime: a shipped game left
+    // it at the epoch, the 0.1 s clamp fired every frame, and the world clock ran at
+    // 0.1 s x FPS (2.89x real time at 28 FPS, measured on Ravenmere - G-165).
     {
-        auto now = std::chrono::high_resolution_clock::now();
-        float dt = std::chrono::duration<float>(now - frameStartTime).count();
-        // Clamp to avoid huge jumps on first frame or lag spikes
-        dt = std::min(dt, 0.1f);
-        m_dayNightCycle.update(dt);
+        m_dayNightCycle.tick(DayNightCycle::Clock::now());
         if (m_dayNightCycle.isEnabled()) {
             sunDirection = m_dayNightCycle.getSunDirection();
             sunColor = m_dayNightCycle.getSunColor();

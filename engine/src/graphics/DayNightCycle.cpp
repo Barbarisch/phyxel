@@ -39,6 +39,16 @@ void DayNightCycle::update(float deltaTime) {
     recalculate();
 }
 
+void DayNightCycle::tick(Clock::time_point now) {
+    if (m_hasTicked) {
+        float dt = std::chrono::duration<float>(now - m_lastTick).count();
+        if (dt < 0.0f) dt = 0.0f;                      // a clock that went backwards is not time
+        update(std::min(dt, kMaxTickSeconds));
+    }
+    m_lastTick = now;
+    m_hasTicked = true;
+}
+
 void DayNightCycle::setTimeOfDay(float hours) {
     m_timeOfDay = std::fmod(hours, 24.0f);
     if (m_timeOfDay < 0.0f) m_timeOfDay += 24.0f;
@@ -47,6 +57,15 @@ void DayNightCycle::setTimeOfDay(float hours) {
 
 void DayNightCycle::setDayLengthSeconds(float seconds) {
     m_dayLengthSeconds = std::max(1.0f, seconds);
+}
+
+void DayNightCycle::applySettings(const Core::DayNightSettings& s) {
+    if (s.dayLengthSeconds) setDayLengthSeconds(*s.dayLengthSeconds);
+    if (s.timeScale)        setTimeScale(*s.timeScale);
+    if (s.dayNumber)        setDayNumber(*s.dayNumber);
+    if (s.timeOfDay)        setTimeOfDay(*s.timeOfDay);
+    if (s.paused)           setPaused(*s.paused);
+    if (s.enabled)          setEnabled(*s.enabled);
 }
 
 float DayNightCycle::getMoonIlluminatedFraction() const {
