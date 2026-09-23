@@ -224,6 +224,10 @@ def main():
     ap.add_argument("--label", default="HEAD", help="commit label for the RESULT line")
     ap.add_argument("--shot-root", default=None,
                     help="the ENGINE's working directory, if not this one (historical worktrees)")
+    ap.add_argument("--target", type=float, default=None,
+                    help="decided transmission target (docs/GlassTransparency.md 13.6a: 0.80). Adds "
+                         "an ON/OFF-TARGET verdict for a +/-0.05 band. Without it the per-arm label "
+                         "is centred on 0.5 and mislabels anything else (14.2).")
     ap.add_argument("--ambient", type=float, default=None,
                     help="set_ambient strength before measuring (historical builds lack the tonemap "
                          "control, so dimming is the only way to keep the patch unclipped)")
@@ -308,6 +312,14 @@ def main():
     print("RESULT %s %s cube=%s subcube=%s floor=%s control=%.1f missing=%s conditions=%s"
           % (args.label, cls, fmt(cube), fmt(results.get("subcube")), fmt(results.get("opaque")),
              ctl_mag, ",".join(sorted(MISSING)) or "-", ";".join(conditions) or "shipped"))
+    if args.target is not None:
+        for arm in ("cube", "subcube"):
+            v = results.get(arm)
+            if v is None:
+                continue
+            on = abs(v - args.target) <= 0.05
+            print("TARGET %s %s T=%.3f target=%.2f band=+/-0.05"
+                  % (arm, "ON-TARGET" if on else "OFF-TARGET", v, args.target))
     print("tonemap restored to the shipped curve (where the endpoint exists)")
     print("NOTE: captured with debug tonemap curve 0 (AgX off). Through the shipped curve the same")
     print("      T reads compressed - state the curve with every number.")

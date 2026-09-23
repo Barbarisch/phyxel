@@ -6,7 +6,7 @@
 alpha channel from Glass (§12.10).** **Fix design recorded (§13); all decisions made, including glass casting
 no shadow (§13.9). Design-check pass 4 NEEDS WORK → 7 items folded in (§13.9–13.15). **Phase 3 COMPLETE (§14).**
 **PHASE 4 STOPPED — the §13 design rests on a false premise: the OIT pass has been DISABLED since
-`7a36910f` (§15). Awaiting the reviewer's decision (§15.4).** Results in §12. Gated through `FeatureDesignKeys.md` three
+`7a36910f` (§15). Reviewer chose (A): a BOUNDED investigation of what disabled OIT (§15.6).** Results in §12. Gated through `FeatureDesignKeys.md` three
 times (§9).
 
 > **PROCESS RULE (added 2026-09-23, after it was broken).** This plan is the approved plan. When
@@ -1127,3 +1127,32 @@ Red tests written and recorded failing (not yet committed with a fix): `Transpar
 `SetLodFaces*` (transparent and mirror flags wrong after `setLodFaces`). The L4 red pass
 (transmission target, shadow, crack, far) was started on the unmodified build before this was found and
 is recorded separately. **No engine code or shader has been changed.**
+
+### 15.6 DECIDED: (A) — investigate OIT first (reviewer, 2026-09-23)
+
+**Bounded investigation, before any fix is committed to:**
+
+1. Remove the `discard;` at the top of `transparent_voxel.frag` **locally** (not committed), rebuild the
+   shaders, run the engine with `PHYXEL_VALIDATION=1`, put glass in view.
+2. Capture the exact validation message(s) from the log, and a frame showing the "corrupted
+   post-process composite" the comment describes — the defect in frame, per the lighting rule.
+3. Read the OIT targets' lifecycle (accum / reveal images: creation, `begin/endOITRenderPass`, the
+   composite that samples them, and where bloom sits in that chain) and find the missing transition.
+4. **Report the size** to the reviewer: the error, the cause, the proposed change and its blast radius.
+   If it is small, fix it red-first and resume §13 on OIT. If it is deep, stop and fall back to (C).
+
+The opaque pass still draws glass solid during this investigation, so glass will not *look* transparent
+yet — the investigation is about the error, not the look. Nothing here is a fix until step 4.
+
+### 15.7 L4 red baseline — status (run on the unmodified build)
+
+| check | result | valid red? |
+|---|---|---|
+| transmission, target 0.80 | cube **0.023**, subcube **0.027** — OFF-TARGET | **yes** |
+| shadow (13.9) | **UNTESTABLE** — Stone roof darkens the ground only 53.9 → 50.8 | no: the sun is not reaching under the roof as the rig assumes (noon not overhead, or `timeOfDay` is not in hours) |
+| crack (13.15) | FAIL, but floor **130.4** > damaged diff 116.0 | no: two *clean* panes differ by 130, so the per-pane camera moves make captures incomparable |
+| far (13.12) | **UNTESTABLE** — near pane "did not build" | no: generating the far chunk appears to reset the near scene |
+
+Three of four L4 checks are **rig defects**, found by their own controls and preconditions rather than
+reported as findings. They are independent of the (A)/(C) choice and are fixed after the OIT
+investigation, before any of them is used as a red.

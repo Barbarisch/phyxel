@@ -149,6 +149,35 @@ TEST_F(ChunkRenderFlagsTest, SubVoxelMirrorMarksTheChunkMirrored) {
         << "a sub-voxel mirror is still a mirror; the reflection pass is gated on this flag";
 }
 
+// EVERY face-install path must leave the flag correct (docs/GlassTransparency.md §13.13).
+//
+// Under the §13.2 routing (transparent faces drawn by the OIT pass ONLY), a wrong
+// hasTransparentVoxel() no longer renders glass opaque -- it renders it INVISIBLE: the opaque pass
+// discards the face and the OIT pass is skipped for the frame. So the invariant is now
+// "no face is ever both discarded by the opaque pass and skipped by OIT".
+//
+// rebuildFaces() refreshes the flag; setLodFaces() installed faces WITHOUT doing so, so a chunk that
+// only ever received LOD faces kept the default `false`.
+TEST_F(ChunkRenderFlagsTest, SetLodFacesLeavesTheTransparentFlagCorrect) {
+    ASSERT_TRUE(loaded_);
+    auto chunk = makeChunk();
+    ASSERT_TRUE(chunk->addCube(glm::ivec3(4, 4, 4), "Glass", true));
+    // Deliberately NO rebuildFaces(): this is the chunk that only ever gets LOD geometry.
+    chunk->setLodFaces({}, 1);
+    EXPECT_TRUE(chunk->hasTransparentVoxel())
+        << "a chunk containing glass that received its faces through setLodFaces() reports no "
+           "transparent voxel -- under OIT-only routing that glass would be invisible";
+}
+
+TEST_F(ChunkRenderFlagsTest, SetLodFacesLeavesTheMirrorFlagCorrect) {
+    ASSERT_TRUE(loaded_);
+    auto chunk = makeChunk();
+    ASSERT_TRUE(chunk->addCube(glm::ivec3(4, 4, 4), "Mirror", true));
+    chunk->setLodFaces({}, 1);
+    EXPECT_TRUE(chunk->hasMirrorVoxel())
+        << "same install path, same omission, for the reflection pass";
+}
+
 // The invariant stated directly, and the one that matters for the design key: the flag must never
 // be LESS true than the chunk's contents. Adding transparent geometry can only ever turn it on.
 TEST_F(ChunkRenderFlagsTest, TheFlagIsConservativeAcrossEveryVoxelTier) {
