@@ -1005,3 +1005,33 @@ it, found by measurement.
 printed `partial/milky` for 0.667 while the RESULT classification correctly said GOOD. With the target
 moving to 0.75–0.85 the band must follow the target (a `--target` argument), or it will mislabel the
 fix itself.
+
+### 13.17 Found at the start of Phase 4 — the OIT shader samples the WRONG texture (plan amended)
+
+Execution stopped and the plan amended here before any code, per the process rule.
+
+`transparent_voxel.frag` was **never updated for the mixed-resolution atlas**
+(`docs/TextureSystemOverhaul.md`). `voxel.frag` samples two class arrays — `textureArray` (binding 1,
+512 px) and `textureArrayHi` (binding 5, 1024 px), selected by bit 15 of the texture index, via
+`sampleVoxelPBR`. The OIT shader still declares only `textureArray` (binding 1) and an older props
+header (`textureCount, fallbackIndex, _pad0, _pad1`, where `voxel.frag` has `count512, fallbackIndex,
+count1024, _pad1` — the same byte layout with different meaning), and samples
+`texture(textureArray, vec3(texCoord, getTextureLayer(textureIndex)))`.
+
+Glass is a **1024-class** material (`"resolution": 1024`), so its index has bit 15 set, fails
+`texIndex >= atlasUVs.textureCount` (which is really `count512`), and **falls back to the placeholder
+layer**. Whenever the OIT pass draws glass, it draws the placeholder texture tinted by the material —
+never glass's own texture.
+
+**Consequence for the design:** without this fix, §13.5's new clean texture (R5) would never reach the
+screen once §13.2's routing makes OIT the only path — and the reviewer would be judging the placeholder.
+
+**Added to Phase 4 scope:** the OIT shader samples through the **same** class-aware path as `voxel.frag`
+(bit-15 class select, `textureArrayHi` at binding 5, the real `count512` / `count1024` header), shared
+where possible so the two cannot drift again. **Test (L4):** with the routing fix in, the pane's own
+colour must track glass's texture — checked by temporarily giving glass a strongly coloured texture and
+confirming the pane's colour follows it. Red without this fix: it would not (placeholder).
+
+This is the third time a transparency-path copy of opaque-path code has silently drifted — the render
+flags (§4), the crack seed (§13.12), and now the atlas. The shared-include rule of §13.12 is extended to
+texture sampling for that reason.
