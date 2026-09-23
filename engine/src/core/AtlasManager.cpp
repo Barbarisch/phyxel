@@ -1,5 +1,6 @@
 #include "core/AtlasManager.h"
 #include "core/MaterialRegistry.h"
+#include "core/DamageStage.h"     // crackStyleFor - fracture character from brittleS1 (P5)
 #include "vulkan/VulkanDevice.h"
 #include "utils/Logger.h"
 
@@ -495,11 +496,26 @@ void AtlasManager::updateUVSSBO(Vulkan::VulkanDevice* device) {
     auto& registry = MaterialRegistry::instance();
     const int c0 = registry.getTextureCount(0), c1 = registry.getTextureCount(1);
 
-    // Per-layer material props packed into the SSBO's (repurposed) textureUVs[] array:
-    //   x = metallic, y = roughness scalar, z = emissiveStrength, w = emissiveThreshold
-    //   (masked emission — docs/MaskedEmissiveSpec.md; z=0 = ordinary material).
-    // Global index = layer (class 0) or c0+layer (class 1).
-    std::vector<glm::vec4> props(std::max(1, c0 + c1), glm::vec4(0.0f, 0.5f, 0.0f, 0.0f));
+    // Per-layer material props packed into the SSBO's (repurposed) textureUVs[] array, at a
+    // STRIDE OF TWO vec4s per layer (P5, docs/VoxelDamageVisualization.md §4.4a):
+    //   [gi*2 + 0]  x = metallic, y = roughness scalar, z = emissiveStrength, w = emissiveThreshold
+    //               (masked emission — docs/MaskedEmissiveSpec.md; z=0 = ordinary material)
+    //   [gi*2 + 1]  x = crackStyle, yzw = spare
+    // Global index gi = layer (class 0) or c0+layer (class 1).
+    //
+    // Why a second vec4 rather than reclaiming instance bits: crackStyle is a per-MATERIAL
+    // property, which is exactly what this array is for and what the 16-bit instance `reserved`
+    // word is not — and that word is FULL (bit 0 emissive, 1 transparent, 2-9 alpha, 10 mirror,
+    // 11-14 damage, 15 varied). The only reclaimable bits are the 8-bit alpha, and narrowing a
+    // shipped feature's transparency precision to buy an appearance knob is the wrong trade.
+    // Costs a few KB and leaves 3 spare floats — the first free per-material appearance slot
+    // since this array was repurposed.
+    const int kPropStride = 2;
+    std::vector<glm::vec4> props(std::max(1, (c0 + c1) * kPropStride), glm::vec4(0.0f));
+    for (size_t i = 0; i + 1 < props.size(); i += kPropStride) {
+        props[i] = glm::vec4(0.0f, 0.5f, 0.0f, 0.0f);            // metallic/rough/em defaults
+        props[i + 1] = glm::vec4(Core::crackStyleFor(2.5f), 0.0f, 0.0f, 0.0f);  // fallback style
+    }
     for (const auto& mat : registry.getAllMaterials()) {
         int matID = registry.getMaterialID(mat.name);
         if (matID < 0) continue;
@@ -514,8 +530,14 @@ void AtlasManager::updateUVSSBO(Vulkan::VulkanDevice* device) {
             int cls = (idx & MaterialRegistry::RES_CLASS_BIT) ? 1 : 0;
             int layer = idx & MaterialRegistry::LAYER_MASK;
             int gi = (cls == 1) ? c0 + layer : layer;
-            if (gi >= 0 && gi < static_cast<int>(props.size()))
-                props[gi] = glm::vec4(metallic, roughness, emStr, emThr);
+            if (gi >= 0 && (gi * kPropStride + 1) < static_cast<int>(props.size())) {
+                props[gi * kPropStride] = glm::vec4(metallic, roughness, emStr, emThr);
+                // brittleS1 drives fracture character; materials with no break block fall back
+                // to the same 2.5 the break model uses for them (DamageSystem::responseFor).
+                const float s1 = (md && md->breakProfile.hasProfile) ? md->breakProfile.brittleS1
+                                                                     : 2.5f;
+                props[gi * kPropStride + 1] = glm::vec4(Core::crackStyleFor(s1), 0.0f, 0.0f, 0.0f);
+            }
         }
     }
     device->updateAtlasUVBuffer(props, registry.getPlaceholderIndex(), c0, c1);

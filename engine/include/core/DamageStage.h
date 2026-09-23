@@ -109,5 +109,35 @@ inline bool damageStageChanged(float before,
     return damageStage(before, denom, stageMax) != damageStage(after, denom, stageMax);
 }
 
+/**
+ * Fracture CHARACTER for a material, from its shatter brittleness (P5, 4.4b).
+ *
+ * `crack.glsl` divides by `kCrackCell * style`, so LARGER style = LARGER cells = SPARSER.
+ * brittleS1 already encodes shatter behaviour and spans ~1.3 (Glass, shatters readily) to
+ * ~4.5 (Steel, resists), so the direction is right -- but passing it through raw is not:
+ * style 4.5 would give 1.5 m cells, LARGER THAN A VOXEL, so a 1 m face would show less than
+ * one cell.
+ *
+ * Normalized onto [0.75, 1.60]:
+ *     Glass 1.3 -> 0.75  (~4.0 cells per 1 m face, dense and fine)
+ *     Stone 1.8 -> 0.88  (~3.4)
+ *     Wood  3.5 -> 1.33  (~2.3)
+ *     Steel 4.5 -> 1.60  (~1.9, sparse and wide)
+ *
+ * THE FLOOR OF 0.75 IS LOAD-BEARING, not cosmetic. P3 measured that the primary network has to
+ * sit on the subcube lattice to stay legible at 16 units; a style much below 0.75 pushes brittle
+ * materials back toward the microcube lattice and reintroduces the sub-pixel failure P3 fixed
+ * (stage steps 4.55/2.08/2.02 against a 2.91 noise floor -- worse than the flat darkening it
+ * replaced). Do not widen the range downward without re-running R4's distance ladder.
+ *
+ * STILL A HYPOTHESIS, like the stage count: the range is a starting point to be measured at the
+ * extremes, not a settled number.
+ */
+inline float crackStyleFor(float brittleS1) {
+    const float lo = 1.3f, hi = 4.5f;
+    float s = brittleS1 < lo ? lo : (brittleS1 > hi ? hi : brittleS1);
+    return 0.75f + (s - lo) / (hi - lo) * 0.85f;
+}
+
 } // namespace Core
 } // namespace Phyxel

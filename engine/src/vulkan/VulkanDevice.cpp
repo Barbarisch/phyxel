@@ -1319,9 +1319,13 @@ void VulkanDevice::cleanupLightBuffers() {
 }
 
 bool VulkanDevice::createAtlasUVBuffers() {
-    // Allocate enough for header (16 bytes) + 256 materials * 6 faces * sizeof(vec4)
-    // = 16 + 6144 = 6160 bytes. Round up for safety.
-    VkDeviceSize bufferSize = 16 + 256 * 6 * sizeof(glm::vec4);
+    // Header (16 bytes) + per-layer material props. Since P5 the props array carries TWO
+    // vec4s per layer (metallic/rough/emissive, then crackStyle + 3 spare), so the capacity
+    // is doubled: 16 + 256*6*2*sizeof(vec4) = 49168 bytes. The old 1536-vec4 allocation would
+    // still have fitted today's ~648 layers at stride 2, but only just -- and an atlas that
+    // overran it would corrupt material props with no diagnostic, which is not a failure mode
+    // worth leaving a few KB of headroom away from.
+    VkDeviceSize bufferSize = 16 + 256 * 6 * 2 * sizeof(glm::vec4);
 
     atlasUVBuffers.resize(MAX_FRAMES_IN_FLIGHT);
     atlasUVBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);

@@ -273,8 +273,13 @@ void main() {
     float metallic = 0.0;
     float emStrength = 0.0;    // masked emission: >0 = bright albedo pixels also EMIT (enchanted log)
     float emThreshold = 0.55;  // albedo luminance above which a pixel glows
+    // crackStyle: fracture character, driven per material from brittleS1 (P5). 1.0 until the
+    // props array is read below; the default keeps a material with no entry rendering as Stone.
+    float crackStyle = 1.0;
+    // STRIDE 2 since P5: [gi*2] = metallic/rough/emissive, [gi*2+1].x = crackStyle.
     if (gi < atlasUVs.count512 + atlasUVs.count1024) {
-        vec4 mprops = atlasUVs.textureUVs[gi];
+        vec4 mprops = atlasUVs.textureUVs[gi * 2u];
+        crackStyle = max(atlasUVs.textureUVs[gi * 2u + 1u].x, 0.15);
         metallic = mprops.x;
         rough = mprops.y;  // authored roughness is authoritative (matte nature, glossy metal); avoids grazing-angle specular sparkle from the shiny roughness map
         emStrength = mprops.z;
@@ -291,10 +296,10 @@ void main() {
         // and this branch is spatially coherent, so the crack costs only where damage exists.
         // It bounds COST, never appearance: wherever there IS damage the detail is
         // unconditional. This is the bladesForDistance pattern.
-        // style = 1.0 (medium, Stone-like) for P3. P5 drives this per material from
-        // brittleS1/brittleS2 so Glass reads dense-and-fine and Steel sparse-and-wide,
-        // from the SAME numbers the physics uses, so look and behaviour cannot drift apart.
-        float crack = crackField(worldPosAbs, inNormal, dmg, 1.0);
+        // Style is per material, driven from brittleS1 (P5): Glass reads dense-and-fine,
+        // Steel sparse-and-wide, from the SAME numbers the physics uses to decide shatter
+        // tier -- so the surface's character and the material's behaviour cannot drift apart.
+        float crack = crackField(worldPosAbs, inNormal, dmg, crackStyle);
 
         // DARKEN THE CRACK, NOT THE FACE (§4.5). The old code multiplied the entire face by
         // mix(1.0, 0.55, dmg), which is exactly why damage read as GRIME rather than fracture:
@@ -557,7 +562,7 @@ void main() {
     // (stage 0), which the shipped path skips - that is the point: continuity across a
     // damaged/undamaged boundary is exactly what a seam test needs to see.
     if (ubo.debugShadowMode == 11) {
-        float c = crackField(worldPosAbs, inNormal, 1.0, 1.0);
+        float c = crackField(worldPosAbs, inNormal, 1.0, crackStyle);
         outColor = vec4(vec3(c), 1.0);
         return;
     }

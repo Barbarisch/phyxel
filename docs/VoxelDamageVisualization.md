@@ -1,6 +1,6 @@
 # Voxel Damage Visualization — progressive cracks (P4)
 
-**Status:** **P0 + P0.5 + P1 + P2 + P3 built** on `feature/voxel-damage-cracks`.
+**Status:** **P0 + P0.5 + P1 + P2 + P3 + P5 built** on `feature/voxel-damage-cracks`.
 **§14 visual review: SIGNED OFF 2026-09-22** (§13). One item still open before P3 is fully closed:
 §6.2's RUNTIME seam test has not been run. Design-check gate run **five times**
 (2026-09-22), 21 items found and resolved — see §11 for the full ledger:
@@ -814,7 +814,7 @@ Ordered so each phase is provable before the next begins.
 | **P2** ✅ | §3.5 quantize to 3 stages (field width unchanged) | L2 | stage mapping unit-tested at boundaries 0/1/2/3; R5 still green with stage-gated dirtying — **DONE**, see §13 |
 | **P3** ✅ | §4 crack shader (`crack.glsl`, world-seeded) + R2 + R3 | L4 | R2 green (18/18); R3 met its written prediction with both controls; **§14 SIGNED OFF** — see §13. Remaining: §6.2 runtime seam test |
 | **P4** | R4 stage-count A/B in a real scene | L4 | table published; final stage count ratified or revised |
-| **P5** | Per-material `crackStyle` from `brittleS1/S2` | L4 | visual A/B Glass vs Steel vs Stone, same pose; **§14 visual review signed off** |
+| **P5** ✅ | Per-material `crackStyle` from `brittleS1/S2` | L4 | L2 red green (`StyleChangesCrackDensityMeasurably`); visual A/B Glass vs Steel vs Stone confirmed at the same pose — **DONE**, see §13. §14 re-review outstanding |
 | **V2** | **§3.6 sub-voxel damage** — storage design, sub/micro instance bits, subdivision inheritance | L2+L4 | memory cost measured before implementation; cracks visible on a generated building wall; §1 scope boundary retired |
 | **V1.5** | §3.4 geometric spall at stage 3 | L2+L4 | **after V2** (§3.4) — needs its own order-independence test + occupancy regression pass |
 
@@ -1455,6 +1455,50 @@ and polygonal — closer to a cracked glaze than to stone fissuring. The reviewe
 as-is; this is logged as the natural target for P5's per-material `crackStyle`, which drives
 density and width from `brittleS1`/`brittleS2` and is where character comes from.
 
+
+### P5 — per-material `crackStyle` — **COMPLETE**
+
+Built exactly as §4.4a/§4.4b specified at the gate, with no design change:
+- **`Core::crackStyleFor(brittleS1)`** in `DamageStage.h` — one place, with the floor documented
+  as load-bearing.
+- **Props array widened to a stride of TWO `vec4`s per layer** (`AtlasManager.cpp`):
+  `[gi*2] = metallic/rough/emissive`, `[gi*2+1].x = crackStyle`, 3 floats spare. No instance-format
+  change, so the 24-byte `InstanceData` and its hand-synced twin are untouched.
+- **Atlas SSBO capacity doubled** (`VulkanDevice.cpp`). The old allocation would have *just* fitted
+  today's ~648 layers at stride 2; an atlas overrunning it would corrupt material props with no
+  diagnostic, which is not a failure mode worth leaving a few KB away from.
+- `voxel.frag` reads the style and passes it to `crackField` on **both** the shipped path and the
+  debug view.
+
+**Measured mapping:**
+
+| material | `brittleS1` | style | cells per 1 m face |
+|---|---|---|---|
+| Glass | 1.3 | 0.750 | 4.0 — dense, fine |
+| Stone | 1.8 | 0.883 | 3.4 |
+| Wood | 3.5 | 1.334 | 2.2 |
+| Steel | 4.5 | 1.600 | 1.9 — sparse, wide |
+
+**RESULT — `VoxelCrackStyleTest` 2/2 green**, and confirmed visually: three walls each damaged to
+**85% of their OWN toughness** (equally close to failing) render as three visibly different
+materials, both in debug view 11 and under normal lighting.
+
+#### The red failed first, for a reason worth keeping
+
+The test originally measured **crack area coverage** and read **0.143 / 0.148 / 0.142** for
+Glass / Stone / Steel — no signal whatsoever, from a change that is obvious on screen.
+
+**Coverage is the wrong observable, by construction.** `crack.glsl` expresses crack width in CELL
+units, so a denser network has proportionally NARROWER cracks and fractional area coverage comes out
+**scale-invariant**. What separates "dense and fine" from "sparse and wide" is how often you CROSS a
+crack over a fixed world distance — i.e. the cell count. The test now counts crossings per scanline
+and passes.
+
+This is the argument for §5's "measurable statement" rule in miniature. §7's original P5 gate was
+*"visual A/B Glass vs Steel vs Stone"*; had it been left there, the difference would have been
+confirmed by eye and **the fact that coverage is scale-invariant would never have surfaced** — a
+property of the crack model that anyone reaching for "how much crack is there?" will meet again.
+
 ---
 
 ## 14. Manual visual review — human sign-off
@@ -1663,7 +1707,7 @@ in a plan is a decision not yet made, so both were decided rather than logged: P
 | ~~1~~ | ~~`build_shaders.bat` reports success on a FAILED shader compile~~ | `StructurePipelineGaps.md` 2026-09-22 | ✅ **FIXED 2026-09-22** — three nested cmd traps, shipped as `\|\| goto :shader_error`; regression test `tools/test_shader_build_fails_loudly.py` | — |
 | **2** | **§6.2 RUNTIME seam test** — damaged wall straddling x = 31/32, captured and diffed | §6.2; rig built as `tools/crack_seam_test.py` | ⚠️ **NOT ACHIEVED after SIX metric designs.** The rig, both preconditions and the two-rig A/B framing all work and are committed; **no pixel statistic tried can distinguish a world-seeded crack from a uv-seeded one.** A PASS proves nothing. All six attempts and the reason each failed are in the tool. **Recommended next step is not another statistic — it is a debug view that renders `crackField` directly (§16.1)** | **P3 closure — still open** |
 | **3** | **P4 — stage-count A/B**, 3 / 7 / 15 for cost AND legibility across the 4/16/48/96 ladder | §6.4 — knob storage resolved, cost prediction added, pinned tests named | **READY** | Ratifying or revising P2's choice of 3 |
-| **4** | **P5 — per-material `crackStyle`** from `brittleS1`/`brittleS2` | §4.4 + **§4.4a data path, §4.4b mapping**, red test named | **READY** | — |
+| ~~4~~ | ~~P5 — per-material `crackStyle`~~ | §4.4a/§4.4b | ✅ **DONE** — see §13 | — |
 | 5 | **V2 — sub-voxel damage** (cracks on generated buildings) | §3.6, §15 | OPEN | Retiring §1's scope boundary; also wanted by `FractureModes.md` F1 |
 | 6 | **V1.5 — geometric spall** | §3.4 | OPEN | Depends on V2 |
 

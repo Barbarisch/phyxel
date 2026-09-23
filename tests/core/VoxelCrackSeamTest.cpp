@@ -35,6 +35,7 @@
 #include <filesystem>
 #include <fstream>
 #include <glm/glm.hpp>
+#include "core/DamageStage.h"   // crackStyleFor (P5)
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -307,4 +308,77 @@ TEST(VoxelCrackSeamTest, CrackShaderSourceIsPresentAndTracked) {
     EXPECT_NE(body.find("p * 3.0 + vec2(13.7, 7.3)"), std::string::npos)
         << "crack.glsl's second-octave lattice changed -- re-port the mirror. (x3.0 is what "
            "puts the branch octave on the microcube lattice, which 3.4's spall alignment needs.)";
+}
+
+
+// ---------------------------------------------------------------------------
+// P5 -- per-material crackStyle (4.4b). 7's gate for P5 was "visual A/B Glass vs
+// Steel vs Stone", which is a comparison, not a measurable claim. These assert the claim
+// at L2, before a single pixel is captured.
+// ---------------------------------------------------------------------------
+
+TEST(VoxelCrackStyleTest, MappingIsOrderedAndBounded) {
+    using Phyxel::Core::crackStyleFor;
+    // brittleS1 values from resources/materials.json break blocks.
+    const float glass = crackStyleFor(1.3f);
+    const float stone = crackStyleFor(1.8f);
+    const float wood  = crackStyleFor(3.5f);
+    const float steel = crackStyleFor(4.5f);
+
+    // Larger style = larger cells = SPARSER, so brittle materials must be the DENSE end.
+    EXPECT_LT(glass, stone);
+    EXPECT_LT(stone, wood);
+    EXPECT_LT(wood,  steel);
+
+    // The floor is load-bearing: below ~0.75 the primary network slides back toward the
+    // microcube lattice and reintroduces the sub-pixel legibility failure P3 measured and
+    // fixed. The ceiling keeps cells smaller than a whole voxel -- above it, a 1 m face
+    // would show less than one cell.
+    EXPECT_GE(glass, 0.75f);
+    EXPECT_LE(steel, 1.60f);
+
+    // Out-of-range brittleness must clamp, not extrapolate into either failure.
+    EXPECT_GE(crackStyleFor(0.1f),   0.75f);
+    EXPECT_LE(crackStyleFor(100.0f), 1.60f);
+}
+
+TEST(VoxelCrackStyleTest, StyleChangesCrackDensityMeasurably) {
+    // THE P5 RED. Before P5 every material rendered at style 1.0, so these numbers were
+    // identical and this could not pass.
+    //
+    // MEASURE CROSSINGS, NOT COVERAGE. Area coverage is the intuitive metric and it is the
+    // WRONG one: crack width in crack.glsl is expressed in CELL units, so a denser network has
+    // proportionally narrower cracks and fractional coverage comes out scale-INVARIANT. The
+    // first version of this test measured coverage and read 0.143 / 0.148 / 0.142 for
+    // Glass / Stone / Steel -- no signal, from a change that is plainly visible on screen.
+    // What distinguishes "dense and fine" from "sparse and wide" is how OFTEN you cross a
+    // crack over a fixed world distance, which is exactly the cell count.
+    auto crossings = [](float style) {
+        int transitions = 0;
+        for (int k = 0; k < 6; ++k) {
+            bool prev = false;
+            for (int i = 0; i < 900; ++i) {
+                const glm::vec3 wp(10.0f + i * 0.005f, 18.0f + k * 0.117f, 8.0f);  // 4.5 m sweep
+                const bool on = crackField(wp, glm::vec3(0.0f, 0.0f, 1.0f), 1.0f, style) > 0.5f;
+                if (on && !prev) ++transitions;
+                prev = on;
+            }
+        }
+        return transitions / 6.0f;   // mean crossings per 4.5 m scanline
+    };
+
+    const float glass = crossings(Phyxel::Core::crackStyleFor(1.3f));
+    const float stone = crossings(Phyxel::Core::crackStyleFor(1.8f));
+    const float steel = crossings(Phyxel::Core::crackStyleFor(4.5f));
+
+    EXPECT_GT(glass, 0.0f) << "rig assumption: the sweep must cross some cracks";
+    EXPECT_GT(steel, 0.0f);
+
+    // Glass packs ~2.1x more cells per face than Steel (4.0 vs 1.9), so it must be crossed
+    // measurably more often. 1.25x is deliberately modest: the claim is that materials are
+    // DISTINGUISHABLE, not that the gap is large.
+    EXPECT_GT(glass, steel * 1.25f)
+        << "Glass crossings/scanline " << glass << " vs Steel " << steel << " -- per-material "
+        << "style is not changing fracture density, so every material renders identically";
+    EXPECT_GT(glass, stone) << "Glass must be finer-grained than Stone";
 }
