@@ -221,6 +221,15 @@ After your world, NPCs, and story are in place, layer on gameplay systems:
 - ESC key toggles pause (freezes world simulation, shows pause menu)
 - `toggle_pause` / `get_pause_state` — Control via MCP
 
+**Coming back to a scene puts you where you left** (no authoring needed):
+- On unload the SceneManager records the player's position; on re-entry the player spawns there
+  instead of at the scene's authored `player.position`. A first visit uses the authored entry.
+- A region trigger arms on its first evaluation rather than firing, so re-entering while standing
+  inside the exit you left through does not send you straight back. A trigger fires on a real
+  outside-to-inside step after that.
+- Authored one-way arrivals (a fall into a pit, a teleport to a fixed spot) are not covered: there
+  is no `spawn` override on `transition_scene` yet.
+
 **Cleared enemies stay cleared** (`npcs[].respawns`):
 - A kill of an authored NPC is recorded in the player profile (keyed by scene + entity id) and
   the scene loader does not re-spawn it when the scene is re-entered. This is the default.

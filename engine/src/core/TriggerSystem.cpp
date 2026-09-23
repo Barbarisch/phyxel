@@ -64,6 +64,9 @@ void TriggerSystem::update(float dt, const PositionResolver& resolvePos) {
             glm::vec3 pos;
             if (!resolvePos(entity, pos)) { t.wasInside = false; continue; }
             const bool inside = t.when.contains("region") && regionContains(t.when["region"], pos, kBodyRadius);
+            // First sight ARMS only (G-170): whatever the entity's containment is right now is
+            // the baseline, and a fire needs a real outside->inside transition after this.
+            if (!t.armed) { t.armed = true; t.wasInside = inside; continue; }
             // An interact-gated region never fires on entry; onEvent("interact") does.
             if (inside && !t.wasInside && !t.when.value("interact", false)) {
                 // The position that satisfied the region is the evidence a playtest needs

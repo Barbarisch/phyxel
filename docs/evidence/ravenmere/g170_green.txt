@@ -1,0 +1,24 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = SceneReentry.*
+[==========] Running 5 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 5 tests from SceneReentry
+[ RUN      ] SceneReentry.AVisitedSceneOverridesTheAuthoredPlayerSpawnWithWhereTheyLeft
+[       OK ] SceneReentry.AVisitedSceneOverridesTheAuthoredPlayerSpawnWithWhereTheyLeft (0 ms)
+[ RUN      ] SceneReentry.AFirstVisitKeepsTheAuthoredSpawn
+[       OK ] SceneReentry.AFirstVisitKeepsTheAuthoredSpawn (0 ms)
+[ RUN      ] SceneReentry.ADefinitionWithoutAPlayerBlockGetsOneOnReentry
+[       OK ] SceneReentry.ADefinitionWithoutAPlayerBlockGetsOneOnReentry (0 ms)
+[ RUN      ] SceneReentry.AnEntityThatStartsInsideAnExitRegionDoesNotFireItUntilItLeavesAndReturns
+[32m[18:01:06.345] [INFO] [TriggerSystem] Trigger 'back_to_town' region entered by 'player' at (2, 1, 2)[0m
+[32m[18:01:06.346] [INFO] [TriggerSystem] Trigger 'back_to_town' fired (when: entity_reached_region)[0m
+[       OK ] SceneReentry.AnEntityThatStartsInsideAnExitRegionDoesNotFireItUntilItLeavesAndReturns (1 ms)
+[ RUN      ] SceneReentry.AnEntityThatWalksIntoARegionFromOutsideStillFiresOnEntry
+[32m[18:01:06.346] [INFO] [TriggerSystem] Trigger 'to_farm' region entered by 'player' at (1, 1, 1)[0m
+[32m[18:01:06.346] [INFO] [TriggerSystem] Trigger 'to_farm' fired (when: entity_reached_region)[0m
+[       OK ] SceneReentry.AnEntityThatWalksIntoARegionFromOutsideStillFiresOnEntry (0 ms)
+[----------] 5 tests from SceneReentry (2 ms total)
+
+[----------] Global test environment tear-down
+[==========] 5 tests from 1 test suite ran. (3 ms total)
+[  PASSED  ] 5 tests.

@@ -4,6 +4,7 @@
 #include "core/GameDefinitionLoader.h"
 #include "core/ChunkManager.h"
 #include "core/EntityRegistry.h"
+#include "scene/Entity.h"
 #include "core/LocationRegistry.h"
 #include "core/GameEventLog.h"
 #include "core/PlacedObjectManager.h"
@@ -182,6 +183,36 @@ void SceneManager::executeUnload() {
 
     const auto* scene = manifest_.findScene(activeSceneId_);
 
+    // 0. Save the PLAYER's position for re-entry (G-170 / G-36 / G-82) - FIRST, before any
+    // teardown: step 3 destroys the application's entities, and the player is one of them. This
+    // used to run last and save the CAMERA (in third person: behind and above the player), and
+    // re-entry then moved the camera while the player was re-spawned at the scene's authored
+    // entry - so the restore was invisible and the player came back at the wrong door. The first
+    // L4 of the fix still came back 6.9 u off, at the camera's offset: the record ran after the
+    // entity was gone and the camera fallback answered. Hence step 0. Menu/cutscene scenes have
+    // no player by design and are never re-entered "where you left": skipped.
+    if (subsystems_ && (!scene || scene->sceneType == SceneType::World)) {
+        const Scene::Entity* player =
+            subsystems_->entityRegistry ? subsystems_->entityRegistry->getEntity("player") : nullptr;
+        glm::vec3 pos(0.0f);
+        bool have = false;
+        if (player) { pos = player->getPosition(); have = true; }
+        else if (subsystems_->camera) {
+            pos = subsystems_->camera->getPosition(); have = true;
+            LOG_WARN("SceneManager", "No 'player' entity at unload of '{}': recording the CAMERA position for re-entry",
+                     activeSceneId_);
+        }
+        if (have) {
+            auto& rs = reentryStates_[activeSceneId_];
+            rs.lastPlayerX = pos.x;
+            rs.lastPlayerY = pos.y;
+            rs.lastPlayerZ = pos.z;
+            // (plain {} - this logger has no format specs; G-82's garbled line was a {:.1f})
+            LOG_INFO("SceneManager", "Leaving '{}' at ({}, {}, {}) [{}]", activeSceneId_,
+                     pos.x, pos.y, pos.z, player ? "player" : "camera");
+        }
+    }
+
     // 1. End any active dialogue before teardown
     if (callbacks_.endDialogue) {
         callbacks_.endDialogue();
@@ -227,14 +258,6 @@ void SceneManager::executeUnload() {
             subsystems_->locationRegistry->clear();
         }
 
-        // 8. Save player position for re-entry
-        if (subsystems_ && subsystems_->camera) {
-            auto pos = subsystems_->camera->getPosition();
-            auto& rs = reentryStates_[activeSceneId_];
-            rs.lastPlayerX = pos.x;
-            rs.lastPlayerY = pos.y;
-            rs.lastPlayerZ = pos.z;
-        }
     }
 
     LOG_INFO("SceneManager", "Scene '{}' unloaded", activeSceneId_);
@@ -369,6 +392,11 @@ void SceneManager::executeLoad() {
         defToLoad["player"] = manifest_.playerDefaults;
     }
 
+    // 2b. Re-entry: the player spawns where they LEFT (G-170). The loader places the player from
+    // def["player"]["position"], so the recorded position goes in there.
+    if (auto it = reentryStates_.find(targetSceneId_); it != reentryStates_.end() && it->second.visited)
+        applyReentryPosition(defToLoad, it->second);
+
     // 3. Load via GameDefinitionLoader (world → structures → player → camera → NPCs → story)
     subsystems_->activeSceneIdForLoad = scene->id;   // G-171: the loader cannot know this itself
     auto result = GameDefinitionLoader::load(defToLoad, *subsystems_);
@@ -386,13 +414,12 @@ void SceneManager::executeLoad() {
         subsystems_->chunkManager->rebuildOccupancyFromChunks();
     }
 
-    // 4. Restore player position if re-entering a visited scene
-    auto reIt = reentryStates_.find(targetSceneId_);
-    if (reIt != reentryStates_.end() && reIt->second.visited && subsystems_->camera) {
-        auto& rs = reIt->second;
-        subsystems_->camera->setPosition(glm::vec3(rs.lastPlayerX, rs.lastPlayerY, rs.lastPlayerZ));
-        LOG_INFO("SceneManager", "Restored re-entry position ({}, {}, {}) for scene '{}'",
-                 rs.lastPlayerX, rs.lastPlayerY, rs.lastPlayerZ, targetSceneId_);
+    // 4. Re-entry: the player was spawned at the recorded position by the loader (2b). The
+    // camera rig follows the player; setting the camera here used to be the ONLY restore.
+    if (auto reIt = reentryStates_.find(targetSceneId_); reIt != reentryStates_.end() && reIt->second.visited) {
+        const auto& rs = reIt->second;
+        LOG_INFO("SceneManager", "Re-entered '{}': player spawned where they left ({}, {}, {})",
+                 targetSceneId_, rs.lastPlayerX, rs.lastPlayerY, rs.lastPlayerZ);
     }
 
     // 5. Rebuild navigation grid
@@ -470,6 +497,12 @@ bool SceneManager::removeScene(const std::string& sceneId) {
     manifest_.scenes.erase(it);
     reentryStates_.erase(sceneId);
     return true;
+}
+
+void SceneManager::applyReentryPosition(nlohmann::json& def, const SceneReentryState& rs) {
+    if (!rs.visited) return;
+    if (!def.contains("player") || !def["player"].is_object()) def["player"] = nlohmann::json::object();
+    def["player"]["position"] = {{"x", rs.lastPlayerX}, {"y", rs.lastPlayerY}, {"z", rs.lastPlayerZ}};
 }
 
 const SceneManager::SceneReentryState* SceneManager::getReentryState(const std::string& sceneId) const {

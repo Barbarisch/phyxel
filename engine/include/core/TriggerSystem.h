@@ -134,6 +134,11 @@ private:
         bool  fired = false;     // suppresses re-fire when once
         float timerElapsed = 0.0f;
         bool  wasInside = false; // entity_reached_region enter-edge detection
+        // G-170: the first evaluation only ARMS a region trigger. An entity that is already
+        // inside the region when the scene loads has not "reached" it - it was put there,
+        // typically by re-entering a scene at the exit it left through. Firing on that first
+        // sight sent the player straight back (the doorway ping-pong).
+        bool  armed = false;
         bool  hud = false;       // show an on-screen countdown (timer triggers)
         std::string hudLabel;    // optional label next to the countdown
     };
