@@ -14902,6 +14902,13 @@ void Application::registerEffectsCommands() {
         //   7 = SKY FILL    — hemispheric ambient term
         // ⚑This used to collapse every non-zero value to 1 (`!= 0 ? 1 : 0`), so mode 2 silently
         //  selected the shadow view — the request appeared to work and showed the wrong thing.
+        //   11 = CRACK FIELD — the raw P4 fracture field, greyscale, albedo/lighting/wear all
+        //        stripped (black = intact, white = open crack). Shown at FULL strength on every
+        //        voxel including pristine ones, so the PATTERN can be judged independently of
+        //        damage state. Exists because the field is not measurable through a shaded
+        //        frame: six pixel statistics failed to detect a chunk-seeded crack, since a
+        //        pattern restart does not change brightness and the stone albedo swamps
+        //        structure (docs/VoxelDamageVisualization.md §16.1).
         //   10 = WIND FIELD MAP — terrain painted by the gust field itself (white calm -> red ->
         //       black at peak; grass blades hide so the map is unobstructed). The per-pixel
         //       ground view of the field's SHAPE: mode 2's per-blade colouring could never show
@@ -14914,8 +14921,12 @@ void Application::registerEffectsCommands() {
             // ⚠️ RAISE THIS UPPER BOUND WHENEVER A MODE IS ADDED. Forgetting silently clamps the
             // new mode to the previous one, so the view "works" while showing the wrong system —
             // that has already cost a debugging session once. 8 = occupancy hit, 9 = cell fill
-            // class, 10 = wind field map.
-            vulkanDevice->setDebugShadowMode(std::clamp(cmd.params["mode"].get<int>(), 0, 10));
+            // class, 10 = wind field map, 11 = crack field.
+            // (It cost one again on 2026-09-22: mode 11 was added to the shader and this bound
+            // was left at 10, so the new view silently rendered the wind map. The warning above
+            // was already there and was still walked into -- which is an argument for the bound
+            // being derived rather than hand-maintained.)
+            vulkanDevice->setDebugShadowMode(std::clamp(cmd.params["mode"].get<int>(), 0, 11));
         r = {{"success", true},
              {"distance", Graphics::RenderCoordinator::s_shadowDistance},
              {"near_enabled", Graphics::RenderCoordinator::s_nearShadowEnabled},

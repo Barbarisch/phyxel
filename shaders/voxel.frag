@@ -540,6 +540,27 @@ void main() {
         outColor = vec4(c, 1.0);
         return;
     }
+    // Debug view 11 - CRACK FIELD: the raw fracture field, greyscale, with NO albedo, NO
+    // lighting and NO whole-face wear term. Black = intact, white = fully open crack.
+    //
+    // Added because the field could not be measured through a shaded frame. Six pixel
+    // statistics failed to detect a deliberately chunk-seeded crack (see
+    // docs/VoxelDamageVisualization.md 16.1), for two reasons that are properties of the
+    // observable rather than bugs in the attempts: a pattern RESTART does not change
+    // brightness, so every level-based statistic is blind to it; and the stone albedo is
+    // high-frequency noise that swamps structure at pixel scale. Stripping albedo and lighting
+    // removes both problems at once - a uv-seeded crack becomes a hard vertical edge in an
+    // otherwise smooth image.
+    //
+    // Deliberately shows the field at FULL STRENGTH regardless of stage, so the PATTERN can be
+    // judged independently of how far along the damage is. It also renders on pristine voxels
+    // (stage 0), which the shipped path skips - that is the point: continuity across a
+    // damaged/undamaged boundary is exactly what a seam test needs to see.
+    if (ubo.debugShadowMode == 11) {
+        float c = crackField(worldPosAbs, inNormal, 1.0, 1.0);
+        outColor = vec4(vec3(c), 1.0);
+        return;
+    }
     // Debug view 2 is the GRASS WIND ramp. Everything that is not grass must go flat and
     // dark, or the shadow-only view underneath drowns the signal it exists to show.
     if (ubo.debugShadowMode == 2) { outColor = vec4(0.05, 0.05, 0.06, 1.0); return; }

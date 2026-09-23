@@ -3,7 +3,27 @@
 Standing log of engine limitations hit during content/tool work. Each entry: what was needed,
 what the engine did instead, the workaround used, and what a real fix looks like.
 
-## 2026-09-22 — `build_shaders.bat` alone does NOT change what the engine renders
+## 2026-09-22 — ~~`build_shaders.bat` alone does NOT change what the engine renders~~ **RETRACTED, THIS ENTRY WAS WRONG**
+
+> ⚠️ **RETRACTED the same day, by direct experiment.** The engine renders `shaders/*.spv` from
+> the repo root, and **`build_shaders.bat` alone IS sufficient**. Proven by making debug view 11
+> output pure red, running `build_shaders.bat` ONLY (no CMake build, `shaders/` 20:43 vs
+> `build/shaders/` 20:33), restarting, and capturing: the wall rendered red. The engine is
+> launched with `cwd=PROJECT_ROOT` (`phyxel_mcp_server.py`) and loads the relative path
+> `shaders/….spv` (`RenderPipeline.cpp`), so the `build/shaders/` copy is for the test/E2E
+> targets, not the editor.
+>
+> **What actually happened, and the lesson:** two frames that should have differed came back
+> identical, and I reached for a stale-copy explanation that fit the timestamps without testing
+> it. The timestamps were real and irrelevant. The correct move was the one taken later — a
+> single unmistakable probe (paint it red) that distinguishes "shader loaded" from every other
+> hypothesis in one capture. **An explanation that fits the evidence is not the same as an
+> explanation that was tested**, and this entry is left in place, struck through, as the record
+> of getting that wrong rather than quietly deleted.
+
+The original entry follows, for the record:
+
+
 
 - **What happened:** editing a shader, running `build_shaders.bat`, and restarting the engine
   left the renderer showing the OLD shader. A deliberately broken `voxel.frag` produced a frame

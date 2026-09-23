@@ -1752,3 +1752,30 @@ first metric that was tried. The engine already has the shape for this (`Ctrl+F4
 **Cost of being wrong about this:** low. §3.3's hard rule is stated at the top of `crack.glsl`, the
 unit half of R2 pins the CPU mirror, and code review sees the one line that would break it. What is
 missing is an automated guard, not the correctness itself.
+
+### 16.2 The debug view SHIPPED, and it changed what we know about the defect
+
+`ubo.debugShadowMode == 11` renders `crackField()` as greyscale — no albedo, no lighting, no wear
+term, at full strength on every voxel regardless of damage (`voxel.frag`; `POST /api/debug/shadow
+{"mode": 11}`).
+
+**Visually it settles §6.2 immediately.** A 12-voxel wall straddling x = 31/32, captured in this
+view, shows one continuous fracture network across the chunk boundary with no trace of the seam.
+That is the evidence §6.2 asked for, obtained in one capture after seven pixel statistics failed on
+the shaded frame.
+
+⚠️ **But it also showed that §3.3's stated failure mode is half wrong**, which matters more than
+the test. §3.3 says a uv-seeded crack "would scale and repeat differently on either side of a chunk
+seam". Measured against a deliberately uv-seeded build: **there is no detectable discontinuity at
+the seam at all.** `kCrackCell` is 1/3, so every greedy-merge rectangle spans a WHOLE NUMBER of
+Voronoi cells; under uv seeding each rect restarts the lattice at cell 0, and the junction therefore
+lands on a cell boundary on both sides — where the field has a crack line anyway. The defect
+manifests as **chunk-periodic repetition and scale changes between differently-sized merge rects**,
+not as a visible break at the seam.
+
+**Consequence for the automated test:** a seam-discontinuity detector is looking for something that
+does not occur, which is why all seven attempts failed. A correct automated guard must detect
+REPETITION — e.g. that two same-sized merge rects render different regions of the field. A first
+attempt at that also came back inconclusive (93.3 vs a 96.9 control), so it is **not solved**, and
+§16 item 2 stays open. What IS settled is the visual evidence and the reason the old approach could
+never work.
