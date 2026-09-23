@@ -227,8 +227,26 @@ Do not add a debug endpoint for this; a log line is sufficient and reversible.
 
 ### Phase 1 — is the break on this branch?
 
+> **AMENDED 2026-09-23, before running — the baseline was wrong.** This phase was written when
+> `origin/main` did not contain the crack branch. It does now: the branch was merged at `248209ad`,
+> so the three files below are **byte-identical** at `origin/main` and HEAD (`git diff --stat
+> origin/main HEAD -- <files>` is empty). Reverting to `origin/main` would have rebuilt the same
+> binary, measured the same T, and falsely reported "the break predates the branch".
+>
+> **The baseline is `1bdf0239`** — `main` immediately before the merge. It carries main's own lighting
+> work (the light-march commits) and **none** of the crack work, and it differs from HEAD in exactly
+> the three suspect files (+95/−15). `shaders/transparent_voxel.frag` is unchanged by the branch, so
+> the OIT shader is the same in both arms. The HEAD-only render-flag fix (§4) and the OIT probe stay in
+> both arms; neither can move full-cube T (the flag is already true for cube glass, §12.1).
+>
+> Mechanics: `git checkout 1bdf0239 -- <the three files>`, run `build_shaders.bat` (so `voxel.frag.spv`
+> matches the reverted source — committed-SPIR-V staleness would otherwise make this arm measure the
+> HEAD shader), build, measure, then `git checkout HEAD -- <files>` + `build_shaders.bat` to restore.
+> Nothing is committed from the reverted state. The three revert **together**, which also satisfies
+> the Phase 2 ordering hazard (never `VulkanDevice.cpp` without `AtlasManager.cpp`).
+
 Measure T at HEAD, then with the three files that could reach glass rendering reverted to
-`origin/main`: `shaders/voxel.frag`, `engine/src/core/AtlasManager.cpp`,
+**`1bdf0239`** (was: `origin/main`): `shaders/voxel.frag`, `engine/src/core/AtlasManager.cpp`,
 `engine/src/vulkan/VulkanDevice.cpp`. Two measurements, one decision:
 
 | T differs | the break is ours | → Phase 2 |
@@ -501,8 +519,10 @@ the OIT shader in the same change**, and Phase 5's sign-off must include a crack
 
 ### 12.5 Next: Phase 1, exactly as written in §5
 
+*(Baseline amended before running: `1bdf0239`, not `origin/main` — see the Phase 1 note in §5.)*
+
 Measure T at HEAD (done: 0.003) and with `voxel.frag`, `AtlasManager.cpp` and `VulkanDevice.cpp`
-reverted to `origin/main` — `AtlasManager.cpp` and `VulkanDevice.cpp` reverted **together** (§5
+reverted to `1bdf0239` — `AtlasManager.cpp` and `VulkanDevice.cpp` reverted **together** (§5
 Phase 2 ordering hazard). Predicted, and stated so the result can falsify it: **T identical (≈ 0) —
 the break predates this branch**, because hypothesis #2's mechanism has been in the code since
 `7a36910f`. If T moves, the break is ours and Phase 2 bisects it.
