@@ -120,6 +120,9 @@ struct GameDefinitionResult {
     bool worldGenerationRefused = false;
     int structuresPlaced = 0;
     int npcsSpawned = 0;
+    /// G-171: authored NPCs NOT spawned because the host's slain ledger says the player killed
+    /// them in this scene. Counted, never silent - a missing NPC with no number is a bug hunt.
+    int npcsSkippedSlain = 0;
     int locationsRegistered = 0;
     bool playerSpawned = false;
     bool cameraSet = false;
@@ -179,6 +182,16 @@ struct GameSubsystems {
     using AIRegisterFn = std::function<void(Scene::Entity* entity, const std::string& entityId,
                                              const std::string& npcName, const std::string& personality)>;
     AIRegisterFn aiRegister = nullptr;
+
+    /// G-171: the host's slain-NPC ledger. `isNpcSlain(sceneId, entityId)` -> true means the
+    /// player killed this authored NPC in this scene and it must not be re-spawned, unless the
+    /// NPC's definition says `"respawns": true`. Left null (the editor, a host without saves),
+    /// every NPC spawns exactly as before. `activeSceneIdForLoad` is set by the SceneManager
+    /// right before it calls load(), because the loader itself has no idea which scene it is
+    /// loading; a single-scene game leaves it empty.
+    using SlainFn = std::function<bool(const std::string& sceneId, const std::string& entityId)>;
+    SlainFn isNpcSlain = nullptr;
+    std::string activeSceneIdForLoad;
 };
 
 class GameDefinitionLoader {

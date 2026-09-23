@@ -282,6 +282,7 @@ void SceneManager::executeLoad() {
             cm->cleanup();
             cm->disconnectWorldStorage();
             if (cm->initializeWorldStorage(scene->resolvedWorldPath)) {
+                subsystems_->activeSceneIdForLoad = scene->id;   // G-171: for the slain ledger
                 auto result = GameDefinitionLoader::load(scene->definition, *subsystems_);
                 if (result.success) {
                     LOG_INFO("SceneManager", "menuWorld loaded behind menu scene '{}'",
@@ -369,6 +370,7 @@ void SceneManager::executeLoad() {
     }
 
     // 3. Load via GameDefinitionLoader (world → structures → player → camera → NPCs → story)
+    subsystems_->activeSceneIdForLoad = scene->id;   // G-171: the loader cannot know this itself
     auto result = GameDefinitionLoader::load(defToLoad, *subsystems_);
     if (!result.success) {
         lastResult_.success = false;

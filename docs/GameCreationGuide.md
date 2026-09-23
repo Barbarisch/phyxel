@@ -221,6 +221,13 @@ After your world, NPCs, and story are in place, layer on gameplay systems:
 - ESC key toggles pause (freezes world simulation, shows pause menu)
 - `toggle_pause` / `get_pause_state` — Control via MCP
 
+**Cleared enemies stay cleared** (`npcs[].respawns`):
+- A kill of an authored NPC is recorded in the player profile (keyed by scene + entity id) and
+  the scene loader does not re-spawn it when the scene is re-entered. This is the default.
+- `"respawns": true` on an NPC definition opts it out - wildlife, a guard post, anything that
+  should come back. The skip is counted (`npcs_skipped_slain` in the load result) and logged.
+- Companions are handled by the party (they return after a long rest), not by this ledger.
+
 **Day/Night Cycle** (`dayNight`, world-level - at the TOP of a multi-scene file, beside
 `playerDefaults`):
 - `{"enabled": true, "timeOfDay": 9.0, "dayLengthSeconds": 1200, "timeScale": 1.0,

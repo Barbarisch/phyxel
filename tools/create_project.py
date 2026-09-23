@@ -1435,6 +1435,15 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     if (combatDirector_.inCombat()) combatDirector_.removeCombatant(ev.targetId);
                     return;   // no kill XP for losing a friend
                 }}
+                // G-171: cleared stays cleared. Record the kill in the profile (it rides the save), keyed
+                // by the scene it happened in, so this scene's loader skips the corpse next time. After
+                // the companion early-return above: a fallen companion is the party's business, not the
+                // ledger's.
+                {{
+                    auto* smgr = engine_ ? engine_->getSceneManager() : nullptr;
+                    const auto* active = smgr ? smgr->getActiveScene() : nullptr;
+                    playerProfile_.slain.record(active ? active->id : std::string(), ev.targetId);
+                }}
                 if (killXp_ > 0) grantXP(killXp_, ev.targetId.c_str());
                 if (combatDirector_.inCombat()) {{
                     combatDirector_.removeCombatant(ev.targetId);
@@ -2030,6 +2039,10 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 subsystems.dialogueSystem  = dialogueSystem_.get();
                 subsystems.storyEngine     = storyEngine_.get();
                 subsystems.camera          = engine.getCamera();
+                // G-171: the loader asks the profile's ledger before spawning an authored NPC.
+                subsystems.isNpcSlain = [this](const std::string& scene, const std::string& id) {{
+                    return playerProfile_.slain.contains(scene, id);
+                }};
                 subsystems.triggerSystem   = &triggers_;  // game.json "triggers" load here
                 subsystems.commandStructure = &command_;  // game.json "squad"/"rank" load here
                 subsystems.templateManager = templates_.get();

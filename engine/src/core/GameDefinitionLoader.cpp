@@ -57,6 +57,7 @@ json GameDefinitionResult::toJson() const {
     j["chunks_generated"] = chunksGenerated;
     j["structures_placed"] = structuresPlaced;
     j["npcs_spawned"] = npcsSpawned;
+    j["npcs_skipped_slain"] = npcsSkippedSlain;
     j["locations_registered"] = locationsRegistered;
     j["player_spawned"] = playerSpawned;
     j["camera_set"] = cameraSet;
@@ -1029,6 +1030,17 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
 
     for (const auto& npcDef : npcsDef) {
         std::string name = npcDef["name"].get<std::string>();
+
+        // G-171: cleared stays cleared. The entity id is "npc_" + name (the same id the death
+        // event carries), so the ledger key is exact. An NPC authored with "respawns": true -
+        // wildlife, a guard post - comes back regardless.
+        if (sub.isNpcSlain && !npcDef.value("respawns", false) &&
+            sub.isNpcSlain(sub.activeSceneIdForLoad, "npc_" + name)) {
+            result.npcsSkippedSlain++;
+            LOG_INFO("GameDefinitionLoader", "NPC '{}' not spawned: slain in scene '{}'",
+                     name, sub.activeSceneIdForLoad);
+            continue;
+        }
 
         float x = 0.0f, y = 20.0f, z = 0.0f;
         if (npcDef.contains("position")) {

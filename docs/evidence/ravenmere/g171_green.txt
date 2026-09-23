@@ -1,0 +1,73 @@
+Running main() from C:\Users\bpete\Documents\GitHub\phyxel\build\_deps\googletest-src\googletest\src\gtest_main.cc
+Note: Google Test filter = SlainLedger.*
+[==========] Running 8 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 8 tests from SlainLedger
+[ RUN      ] SlainLedger.RecordsAndRecallsAKillPerScene
+[       OK ] SlainLedger.RecordsAndRecallsAKillPerScene (0 ms)
+[ RUN      ] SlainLedger.IgnoresAnEmptyIdAndClearsOnRequest
+[       OK ] SlainLedger.IgnoresAnEmptyIdAndClearsOnRequest (0 ms)
+[ RUN      ] SlainLedger.RoundTripsThroughJsonSoTheSaveCarriesIt
+[       OK ] SlainLedger.RoundTripsThroughJsonSoTheSaveCarriesIt (0 ms)
+[ RUN      ] SlainLedger.LoaderSpawnsEveryoneWhenNothingIsRecorded
+[32m[17:22:08.086] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[31m[17:22:08.087] [ERROR] [NPCManager] Cannot spawn NPC 'Dunstan': PhysicsWorld not set[0m
+[33m[17:22:08.087] [WARN] [GameDefinitionLoader] Failed to spawn NPC: Dunstan[0m
+[31m[17:22:08.087] [ERROR] [NPCManager] Cannot spawn NPC 'Wolf': PhysicsWorld not set[0m
+[33m[17:22:08.087] [WARN] [GameDefinitionLoader] Failed to spawn NPC: Wolf[0m
+[31m[17:22:08.087] [ERROR] [NPCManager] Cannot spawn NPC 'Wolf2': PhysicsWorld not set[0m
+[33m[17:22:08.087] [WARN] [GameDefinitionLoader] Failed to spawn NPC: Wolf2[0m
+[31m[17:22:08.087] [ERROR] [NPCManager] Cannot spawn NPC 'AlphaWolf': PhysicsWorld not set[0m
+[33m[17:22:08.087] [WARN] [GameDefinitionLoader] Failed to spawn NPC: AlphaWolf[0m
+[32m[17:22:08.087] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=0, structures=0, locations=0, npcs=0)[0m
+[       OK ] SlainLedger.LoaderSpawnsEveryoneWhenNothingIsRecorded (1 ms)
+[ RUN      ] SlainLedger.LoaderSkipsTheSlainAndReportsHowMany
+[32m[17:22:08.088] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[31m[17:22:08.088] [ERROR] [NPCManager] Cannot spawn NPC 'Dunstan': PhysicsWorld not set[0m
+[33m[17:22:08.088] [WARN] [GameDefinitionLoader] Failed to spawn NPC: Dunstan[0m
+[32m[17:22:08.088] [INFO] [GameDefinitionLoader] NPC 'Wolf' not spawned: slain in scene 'farm'[0m
+[32m[17:22:08.088] [INFO] [GameDefinitionLoader] NPC 'Wolf2' not spawned: slain in scene 'farm'[0m
+[32m[17:22:08.088] [INFO] [GameDefinitionLoader] NPC 'AlphaWolf' not spawned: slain in scene 'farm'[0m
+[32m[17:22:08.088] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=0, structures=0, locations=0, npcs=0)[0m
+[       OK ] SlainLedger.LoaderSkipsTheSlainAndReportsHowMany (0 ms)
+[ RUN      ] SlainLedger.ASceneThatShouldNotSeeAnotherScenesKillsDoesNot
+[32m[17:22:08.088] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[31m[17:22:08.088] [ERROR] [NPCManager] Cannot spawn NPC 'Dunstan': PhysicsWorld not set[0m
+[33m[17:22:08.088] [WARN] [GameDefinitionLoader] Failed to spawn NPC: Dunstan[0m
+[31m[17:22:08.088] [ERROR] [NPCManager] Cannot spawn NPC 'Wolf': PhysicsWorld not set[0m
+[33m[17:22:08.088] [WARN] [GameDefinitionLoader] Failed to spawn NPC: Wolf[0m
+[31m[17:22:08.088] [ERROR] [NPCManager] Cannot spawn NPC 'Wolf2': PhysicsWorld not set[0m
+[33m[17:22:08.088] [WARN] [GameDefinitionLoader] Failed to spawn NPC: Wolf2[0m
+[31m[17:22:08.088] [ERROR] [NPCManager] Cannot spawn NPC 'AlphaWolf': PhysicsWorld not set[0m
+[33m[17:22:08.088] [WARN] [GameDefinitionLoader] Failed to spawn NPC: AlphaWolf[0m
+[32m[17:22:08.088] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=0, structures=0, locations=0, npcs=0)[0m
+[       OK ] SlainLedger.ASceneThatShouldNotSeeAnotherScenesKillsDoesNot (0 ms)
+[ RUN      ] SlainLedger.AnNpcAuthoredToRespawnComesBackEvenWhenRecorded
+[32m[17:22:08.088] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[31m[17:22:08.089] [ERROR] [NPCManager] Cannot spawn NPC 'Dunstan': PhysicsWorld not set[0m
+[33m[17:22:08.089] [WARN] [GameDefinitionLoader] Failed to spawn NPC: Dunstan[0m
+[31m[17:22:08.089] [ERROR] [NPCManager] Cannot spawn NPC 'Wolf': PhysicsWorld not set[0m
+[33m[17:22:08.089] [WARN] [GameDefinitionLoader] Failed to spawn NPC: Wolf[0m
+[31m[17:22:08.089] [ERROR] [NPCManager] Cannot spawn NPC 'Wolf2': PhysicsWorld not set[0m
+[33m[17:22:08.089] [WARN] [GameDefinitionLoader] Failed to spawn NPC: Wolf2[0m
+[31m[17:22:08.089] [ERROR] [NPCManager] Cannot spawn NPC 'AlphaWolf': PhysicsWorld not set[0m
+[33m[17:22:08.089] [WARN] [GameDefinitionLoader] Failed to spawn NPC: AlphaWolf[0m
+[32m[17:22:08.089] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=0, structures=0, locations=0, npcs=0)[0m
+[       OK ] SlainLedger.AnNpcAuthoredToRespawnComesBackEvenWhenRecorded (0 ms)
+[ RUN      ] SlainLedger.WithoutALedgerHookTheLoaderBehavesAsBefore
+[32m[17:22:08.089] [INFO] [GameDefinitionLoader] Loading game definition: Untitled Game[0m
+[31m[17:22:08.089] [ERROR] [NPCManager] Cannot spawn NPC 'Dunstan': PhysicsWorld not set[0m
+[33m[17:22:08.089] [WARN] [GameDefinitionLoader] Failed to spawn NPC: Dunstan[0m
+[31m[17:22:08.089] [ERROR] [NPCManager] Cannot spawn NPC 'Wolf': PhysicsWorld not set[0m
+[33m[17:22:08.089] [WARN] [GameDefinitionLoader] Failed to spawn NPC: Wolf[0m
+[31m[17:22:08.089] [ERROR] [NPCManager] Cannot spawn NPC 'Wolf2': PhysicsWorld not set[0m
+[33m[17:22:08.089] [WARN] [GameDefinitionLoader] Failed to spawn NPC: Wolf2[0m
+[31m[17:22:08.089] [ERROR] [NPCManager] Cannot spawn NPC 'AlphaWolf': PhysicsWorld not set[0m
+[33m[17:22:08.089] [WARN] [GameDefinitionLoader] Failed to spawn NPC: AlphaWolf[0m
+[32m[17:22:08.089] [INFO] [GameDefinitionLoader] Game definition loaded: Untitled Game (chunks=0, structures=0, locations=0, npcs=0)[0m
+[       OK ] SlainLedger.WithoutALedgerHookTheLoaderBehavesAsBefore (0 ms)
+[----------] 8 tests from SlainLedger (4 ms total)
+
+[----------] Global test environment tear-down
+[==========] 8 tests from 1 test suite ran. (4 ms total)
+[  PASSED  ] 8 tests.

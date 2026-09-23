@@ -6,6 +6,7 @@
 #include <sqlite3.h>
 
 #include "core/ActionBar.h"
+#include "core/SlainLedger.h"
 
 namespace Phyxel {
 namespace Core {
@@ -39,6 +40,9 @@ public:
     // Action-bar layout (G-150). The player arranges the bar by dragging; without this
     // the arrangement would not survive a relaunch and arranging it would be pointless.
     ActionBar actionBar;
+    /// G-171: authored NPCs the player has killed, per scene, so a re-entered scene does not
+    /// re-spawn them. Consulted by GameDefinitionLoader::loadNPCs through GameSubsystems.
+    SlainLedger slain;
 
     nlohmann::json toJson() const {
         return {
@@ -54,7 +58,8 @@ public:
             {"currency", currencyData},
             {"xp", xp},
             {"level", level},
-            {"actionBar", actionBar.toJson()}
+            {"actionBar", actionBar.toJson()},
+            {"slainNpcs", slain.toJson()}
         };
     }
 
@@ -83,6 +88,9 @@ public:
         // the signal for the host to lay out the default bar.
         if (j.contains("actionBar")) actionBar.fromJson(j["actionBar"]);
         else                         actionBar = ActionBar{};
+        // Absent in every save written before G-171: nothing recorded, everyone spawns.
+        if (j.contains("slainNpcs")) slain.fromJson(j["slainNpcs"]);
+        else                         slain.clear();
     }
 
     bool saveToDb(sqlite3* db, const std::string& playerId = "default") const {
