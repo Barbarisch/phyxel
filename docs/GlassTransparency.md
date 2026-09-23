@@ -4,8 +4,8 @@
 **Phase 1 COMPLETE** — identical at the pre-branch baseline: **the break predates the crack branch.**
 **Phase 1b COMPLETE — first bad commit is `2ea8b8d9` (#397), a texture-only commit that stripped the
 alpha channel from Glass (§12.10).** **Fix design recorded (§13); all decisions made, including glass casting
-no shadow (§13.9). Design-check pass 4 NEEDS WORK → 7 items folded in (§13.9–13.15). Next: Phase 3
-(diagnosis), then build.** Results in §12. Gated through `FeatureDesignKeys.md` three
+no shadow (§13.9). Design-check pass 4 NEEDS WORK → 7 items folded in (§13.9–13.15). **Phase 3 COMPLETE — mechanism
+CONFIRMED (§14).** Next: Phase 4 — build, red first.** Results in §12. Gated through `FeatureDesignKeys.md` three
 times (§9).
 
 > **PROCESS RULE (added 2026-09-23, after it was broken).** This plan is the approved plan. When
@@ -954,3 +954,54 @@ It would have caught that commit for glass and for all thirty leaf textures.
 doc; 13.11 highlight premise corrected; 13.12 crack-seed parity; 13.13 LOD invariant; 13.14 guard
 list; 13.15 crack rig). Not REDESIGN: the core — OIT-only routing, data + generator fix, cracks in the
 transparent shader — held against the code; the items tightened it.
+
+---
+
+## 14. Phase 3 — mechanism confirmed (2026-09-23)
+
+**Procedure (§13.8):** at HEAD, with no code change, the six `glass_*.png` sources were replaced by
+their `1acc7910` versions (64×64 RGBA), the engine restarted, T measured, and the files restored.
+Verified in between, not assumed:
+
+- the atlas loads sources as RGBA (`stbi_load(..., STBI_rgb_alpha)`, `AtlasManager.cpp:42`) and
+  bilinear-resamples any size to the layer size (`:50`), so the 64px texture entered the 1024 array
+  with its alpha — edges softened by the resample;
+- the log shows the arrays were **rebuilt and re-encoded from source** ("Built texture array… /
+  BC7-encoded"), not served from the BC7 cache, which is keyed by a hash of the sources;
+- after the run, `git checkout HEAD --` on the six files; `git status` clean; `glass_side_n.png` back
+  to RGB 1024×1024. **Nothing from this step is committed except this record.**
+
+**Result** — curve 0, exposure 1.0, DamageLab, Debug build at HEAD:
+
+| | HEAD, current RGB texture (§12.1) | HEAD + `1acc7910` RGBA texture |
+|---|---|---|
+| control | \|RGB\| 41.3 | \|RGB\| 41.6 |
+| Stone floor | 0.008 | 0.000 |
+| **Glass, full cube** | **0.003** | **0.667** |
+| **Glass, subcube** | **0.010** | **0.669** |
+
+**The mechanism is confirmed.** Changing only the texture's alpha channel takes glass from opaque to
+transmitting on today's code. Nothing else in the render path is needed to explain the defect.
+
+### 14.1 What did NOT match the prediction — and why it matters for Phase 4
+
+The prediction was **T ≈ 0.5** (= 1 − alpha, and the 0.500–0.573 the historical builds measured).
+**Measured 0.667.** The direction was right; the value was not, and I do not yet know why. Candidates,
+none verified: weighted-blended OIT is an *approximation* of ordered blending and need not return
+exactly `1 − alpha`; the bilinear resample changed the alpha distribution; today's lighting and
+exposure differ from the historical builds'. Notably, the ~38% of old-texture texels at alpha ≥ 0.1
+are drawn *solid* by the opaque pass, which should pull T **below** 1 − alpha — so the transmitting
+part is transmitting even more than 0.5.
+
+**Consequence, recorded now so Phase 4 does not rediscover it:** decision (a)'s mapping
+"T ≈ 0.80 ⇒ material alpha 0.20" assumed T = 1 − alpha. **That assumption is not supported by this
+measurement.** Phase 4 must **calibrate** glass's alpha against measured T to land in the decided band
+(0.75–0.85), not compute it. The target is the reviewer's decision (T); the alpha is whatever produces
+it, found by measurement.
+
+### 14.2 Rig label to fix in Phase 4
+
+`glass_transmission.py`'s per-arm label hardcodes a "working" band of 0.35–0.65 centred on 0.5, so it
+printed `partial/milky` for 0.667 while the RESULT classification correctly said GOOD. With the target
+moving to 0.75–0.85 the band must follow the target (a `--target` argument), or it will mislabel the
+fix itself.
