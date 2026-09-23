@@ -1,7 +1,15 @@
 # Glass is not transparent — investigation & fix plan
 
-**Status:** OPEN, cause UNKNOWN. Nothing is built. Gated through `FeatureDesignKeys.md` three times
-(2026-09-23, §9); READY, with 9 defects found in the plan across passes 1-3 and fixed in place.
+**Status:** OPEN. **Phase 0 COMPLETE (2026-09-23) — glass measured fully opaque; the OIT pass runs.
+Next: Phase 1.** Results and two plan amendments in §12. Gated through `FeatureDesignKeys.md` three
+times (§9).
+
+> **PROCESS RULE (added 2026-09-23, after it was broken).** This plan is the approved plan. When
+> execution finds a defect IN the plan — a rig that cannot work, a step in the wrong order — execution
+> **stops**, the plan is amended here first, and only then does work continue. Phase 0 broke this
+> three ways (§12.3): the rig was changed in the tool without amending §2/§7, a Phase 4 code fix was
+> committed inside a phase that says "NO code changes", and a fix was then proposed while Phase 1 was
+> still the next step. A plan that is silently worked around is not a plan.
 
 **Symptom:** glass does not render see-through in the editor. Reported by the reviewer 2026-09-22
 while reviewing the damage-crack work, and again 2026-09-23 after a second wrong fix.
@@ -40,15 +48,18 @@ Three captures, one camera pose, one variable:
 | | scene | if glass works |
 |---|---|---|
 | **A** | same backdrops, **no pane** (control) | the backdrop, full strength |
-| **B** | **`glow`** backdrop + glass pane | reads partly warm-white |
-| **C** | **`glow_blue`** backdrop + glass pane | reads partly blue |
+| **B** | **`Bricks`** backdrop + glass pane | reads partly red |
+| **C** | **`Ice`** backdrop + glass pane | reads partly pale blue |
+| **F** | same backdrop swap behind an **opaque `Stone` pane** (floor) | T ≈ 0 by construction |
+
+*(Amended 2026-09-23 from `glow` / `glow_blue` — see the struck paragraph below and §12.2.)*
 
 **Transmission T** = (colour change B→C measured *through the pane*) ÷ (colour change measured in
 the control A→A′ with the same backdrop swap).
 
 ⚠️ **T is `1 − materialAlpha`, NOT `materialAlpha`.** Standard blending gives
 `P = a·G + (1−a)·C` where `a` is material alpha, `G` the pane's own lit colour and `C` the backdrop.
-Subtracting the two captures: `P_glow − P_blue = (1−a)·(C_glow − C_blue)`, so the ratio measures
+Subtracting the two captures: `P_a − P_b = (1−a)·(C_a − C_b)`, so the ratio measures
 **(1−a)**. `Glass` declares `"alpha": 0.5` in `resources/materials.json`, so T ≈ 0.5 — but that is a
 *coincidence of 0.5 being its own complement*. At any other alpha the prediction is `1 − alpha`, and
 an earlier draft of this section got the derivation wrong while landing on the right number, which is
@@ -69,7 +80,23 @@ is the point of differencing rather than comparing absolute brightness.
 ⚠️ **It does NOT cancel a shadow the pane casts on the backdrop.** If the pane attenuates the
 backdrop behind it by `s`, the ratio becomes `(1−a)·s` and a *working* pane reads as broken.
 
-**Both this and the texture confound are solved by one choice: make the backdrop EMISSIVE.** There
+> ~~**Both this and the texture confound are solved by one choice: make the backdrop EMISSIVE.**~~
+> **WITHDRAWN 2026-09-23 — this paragraph was wrong, and Phase 0 proved it.** (1) At the shipped
+> exposure with AgX off, emissive surfaces CLIP to (255,255,255); a clipped pixel has no colour, so
+> the control delta was exactly 0.0. (2) Worse, `glow`, `glow_blue` and `glow_green` reference the
+> **same texture files** in `materials.json` with no colour or tint field — they are the same
+> material under three names. Swept from exposure 4.0 down to 0.1 they never differed by more than
+> 2.4/255. The paragraph below is kept only as the record of what was believed.
+>
+> **REPLACEMENT:** the backdrop is two ordinary materials of strongly different hue — **`Bricks` vs
+> `Ice`** — at **exposure 1.0** with the rig **asserting** the sampled patch never reaches 250/255.
+> The shadow confound is then bounded **by measurement**: an **opaque `Stone` pane arm** is the
+> empirical zero-point. Whatever the pane does to its own backdrop's lighting, Stone and Glass meet it
+> equally, so glass reading *at* the Stone floor transmits nothing regardless of `s`, and glass near
+> 0.5 is working regardless of `s`. This is the same role the pristine-vs-pristine noise floor played
+> in the damage stage-count rig.
+
+(original, withdrawn:) There
 is **no per-voxel tint API**, so a "red vs blue backdrop" swap must use two different *materials* —
 and two ordinary materials differ in texture pattern *and* in how they take light, neither of which
 the ratio removes. Emissive materials (`glow` warm-white vs `glow_blue`) are flat and self-lit:
@@ -174,7 +201,11 @@ add a stale-neighbour failure mode instead of removing the coupling.
 
 ## 5. Phases
 
-### Phase 0 — make "transparent" measurable. NO code changes.
+### Phase 0 — make "transparent" measurable. NO code changes. — ✅ COMPLETE, results in §12
+
+*(Deviation on record, §12.3: the §4 flag fix was committed during this phase. It belongs to Phase 4.
+It is not reverted — it is red-tested, correct, and independent — but it is recorded as out of order
+rather than silently absorbed.)*
 
 Build the rig in §7 and record T for full-cube glass **and** sub-voxel glass.
 
@@ -283,9 +314,14 @@ The reviewer judges the frame. Then:
   taller than the pane, so the pane is fully backed); camera at **(9.5, 18.5, 20)**, yaw −90, pitch 0
   — looking down −Z, square-on, with the backdrop behind the pane. Every coordinate is inside the
   single chunk at origin (0,0,0), so no fill drops silently.
-- **Backdrop material: `glow` vs `glow_blue`** — emissive, flat, self-lit, unshadowed (§2). Not two
-  ordinary materials: there is no per-voxel tint API, so the swap is a material swap, and ordinary
-  materials would differ in both texture and lighting response.
+- **Backdrop material: `Bricks` vs `Ice`** (amended 2026-09-23; was `glow` vs `glow_blue`, which
+  clip and are the same material — §2, §12.2). No per-voxel tint API exists, so the swap is a
+  material swap; the texture/lighting difference between the two is removed by the ratio's
+  control, and the shadow confound is bounded by the floor arm below.
+- **Floor arm: an opaque `Stone` pane** in the same position. T must read ≈ 0. Any glass reading at
+  this level is transmitting nothing.
+- **Exposure 1.0, curve 0, and an unclipped-patch assertion** (fail if any sampled channel ≥ 250).
+  The shipped exposure 8 clips.
 - **Two arms:** a full-cube glass pane and a **sub-voxel** (subcube) glass pane. §4 predicts they
   differ *today*.
 - **One variable:** backdrop colour (red → blue). Everything else fixed.
@@ -293,13 +329,13 @@ The reviewer judges the frame. Then:
 - **Prediction, written before running:** T ≈ 0.5 for both arms if glass works; T ≈ 0 for the
   sub-voxel arm today even if the cube arm passes.
 - **Measure means over a fixed pixel rectangle** inside the pane, and the matching rectangle in the
-  control — not per-pixel, because the two emissive backdrops carry different texture patterns which
+  control — not per-pixel, because the two backdrop materials carry different texture patterns which
   only cancel in the mean.
 - **Verify the world, not the API response** — `/api/world/fill` is async and returns no placed
   count. Query the voxels back before capturing.
 
-**Rig deltas from shipped defaults:** captures use `POST /api/debug/tonemap {"curve":0}`, so T is
-measured pre-AgX. Through the shipped curve the same T reads compressed. **State the curve with every
+**Rig deltas from shipped defaults:** captures use `POST /api/debug/tonemap {"curve":0,
+"exposure":1.0}`, so T is measured pre-AgX at 1/8 the shipped exposure. Through the shipped curve the same T reads compressed. **State the curve with every
 number.**
 
 ---
@@ -403,3 +439,70 @@ The crack system (`VoxelDamageVisualization.md`) reached V1 complete on 2026-09-
 of it, and the crack rendering is confirmed correct on opaque materials **and** on glass. Keeping the
 two apart stops them contaminating each other — which already happened once, when a transparency bug
 was mistaken for a crack bug and "fixed" twice inside the crack code.
+
+---
+
+## 12. Phase 0 — results, plan amendments, deviations (2026-09-23)
+
+### 12.1 Results
+
+Rig: `tools/glass_transmission.py`, as amended in §7. Curve 0, exposure 1.0, DamageLab project,
+Debug build at `e08fcc74`. Prediction written in advance: T ≈ 0.50 (= 1 − alpha 0.5).
+
+| arm | T | reading |
+|---|---|---|
+| control — no pane | — | backdrop swap moves the patch by \|RGB\| 41.3: the backdrop is visible |
+| **Stone pane (floor)** | **0.008** | opaque, as it must be |
+| **Glass, full cube** | **0.003** | **at the floor** |
+| **Glass, subcube** | **0.010** | **at the floor** |
+
+**Glass transmits nothing.** Not milky — as opaque as a stone wall, to within the floor.
+
+**Pass-execution probe** (TRACE line at the OIT early-out, `RenderCoordinator.cpp`): with the glass
+pane in view, **`SUBMITTING` on 1119 frames**. The OIT pass runs.
+
+**Phase 0 decision (§5 table): T ≈ 0 with the OIT pass running → the opaque pass occludes the OIT
+result.** This resolves §3's contradiction in favour of the code as read: `voxel.frag` has no discard
+for transparent faces, and the opaque pipeline has `blendEnable = VK_FALSE`, so glass is drawn solid
+with depth over whatever OIT produced. Hypothesis #2 in Phase 3 is now the front-runner. It is **not**
+yet the confirmed cause — Phase 1 and Phase 2 still decide that, as planned.
+
+The §4 chunk-flag defect is real (red-tested) but is **not** the reported bug: sub-voxel glass is
+exactly as opaque as cube glass, and the probe shows the pass is not being skipped.
+
+### 12.2 Plan defects found by executing it — amended above
+
+1. **The emissive backdrop could not work** (§2, §7). Clipping at shipped exposure gave a control
+   delta of 0.0, and `glow` / `glow_blue` / `glow_green` turned out to be one material under three
+   names. Replaced by `Bricks` / `Ice` at exposure 1.0 with an unclipped-patch assertion, plus the
+   `Stone` floor arm. All three design-check passes missed this: they reasoned about what emissive
+   materials *should* do instead of checking what these ones *are*.
+2. **The probe's first version reported nothing while appearing to work** — `LOG_TRACE_FMT` is
+   ostringstream-based, and a printf format string was logged verbatim with its arguments dropped.
+   Not a plan defect, but a tool defect caught only because the output was read rather than assumed.
+
+### 12.3 Deviations from the plan — recorded, not hidden
+
+1. **Code was committed inside Phase 0**, which says "NO code changes": the §4 fix in
+   `Chunk::recomputeRenderFlags` (sub-voxel tiers now scanned) with `ChunkRenderFlagsTest`. That is
+   Phase 4 work done in Phase 0. It is **kept**, because it was red-first (2 controls passing, 4
+   failing → 6/6 green), is independent of the reported bug, and closes a design-key violation — but
+   it should have been proposed as a plan amendment first, not committed and reported afterwards.
+2. **The rig was changed in the tool without amending §2/§7.** Amended now (§12.2.1).
+3. **A Phase 4 fix was proposed while Phase 1 was the next step.** Withdrawn. Phase 1 is next.
+
+### 12.4 A constraint Phase 4 must satisfy, discovered now so it is not discovered then
+
+If Phase 3 confirms hypothesis #2, the obvious fix is a bit-1 discard in the opaque pass. That would
+leave glass drawn **only** by `transparent_voxel.frag`, which has **no crack block** — so cracks on
+glass would vanish. §1 forbids that (the reviewer confirmed cracks on glass look right, and `03e68fa9`
+already deleted them once by mistake). **Any Phase 4 fix of this shape must carry crack rendering into
+the OIT shader in the same change**, and Phase 5's sign-off must include a cracked pane.
+
+### 12.5 Next: Phase 1, exactly as written in §5
+
+Measure T at HEAD (done: 0.003) and with `voxel.frag`, `AtlasManager.cpp` and `VulkanDevice.cpp`
+reverted to `origin/main` — `AtlasManager.cpp` and `VulkanDevice.cpp` reverted **together** (§5
+Phase 2 ordering hazard). Predicted, and stated so the result can falsify it: **T identical (≈ 0) —
+the break predates this branch**, because hypothesis #2's mechanism has been in the code since
+`7a36910f`. If T moves, the break is ours and Phase 2 bisects it.
