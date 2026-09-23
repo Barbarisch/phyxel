@@ -1,10 +1,10 @@
-# Glass is not transparent — investigation
+# Glass is not transparent — investigation & fix plan
 
-**Status:** OPEN, cause UNKNOWN, **deferred until the crack system (`VoxelDamageVisualization.md`)
-is finished.** Nothing here is started.
+**Status:** OPEN, cause UNKNOWN. Nothing is built. Gated through `FeatureDesignKeys.md` three times
+(2026-09-23, §9); READY, with 9 defects found in the plan across passes 1-3 and fixed in place.
 
-**Symptom:** glass does not render see-through in the editor. Reported by the reviewer on
-2026-09-22 while reviewing the damage-crack work, and again on 2026-09-23 after a second wrong fix.
+**Symptom:** glass does not render see-through in the editor. Reported by the reviewer 2026-09-22
+while reviewing the damage-crack work, and again 2026-09-23 after a second wrong fix.
 
 > ⚠️ **STANDING INSTRUCTION: do not report this fixed without the reviewer confirming it visually.**
 > It has been reported fixed twice and was wrong both times. The second was worse than the first:
@@ -17,106 +17,389 @@ is finished.** Nothing here is started.
 ## 1. What is RULED OUT
 
 **The crack rendering is not the cause.** Two fixes were attempted (`58b00dfd`, `03e68fa9`) and both
-touched *only* the crack block in `voxel.frag` — softening the crack darkening on transparent
-materials, then excluding transparent materials from cracking altogether. Neither could have caused
-a transparency bug and neither fixed one. Both are reverted (`2ee675d6`).
+touched *only* the crack block in `voxel.frag` — softening crack darkening on transparent materials,
+then excluding transparent materials from cracking altogether. Neither could have caused a
+transparency bug and neither fixed one. Both are reverted (`2ee675d6`).
 
 **Cracks on glass are not the problem and must not be removed again.** The reviewer confirms they
-looked good. The exclusion added in `03e68fa9` deleted a working feature for no reason.
+looked good. The exclusion added in `03e68fa9` deleted a working feature for no reason. Any fix that
+special-cases transparent materials inside `voxel.frag` risks repeating exactly this.
 
 ---
 
-## 2. What is NOT established — and this is the next step
+## 2. The measurement — this is the spine of the plan
 
-**Whether the defect belongs to this branch at all.**
+The two failed fixes share one root cause: **code was changed before "broken" was defined, and the
+result was judged by eye.** So the first deliverable is not a fix. It is a number with a control.
 
-A baseline was built: the only three files on `feature/voxel-damage-cracks` that could plausibly
-reach glass rendering were reverted to `origin/main` —
+**The question is not "does it look see-through".** It is: **does what is behind the pane change
+what you see through it?**
 
-- `shaders/voxel.frag`
-- `engine/src/core/AtlasManager.cpp`
-- `engine/src/vulkan/VulkanDevice.cpp`
+Three captures, one camera pose, one variable:
 
-— the engine rebuilt, and a plain undamaged glass wall captured:
-**`screenshots/screenshot_20260923_072602_473.png`**.
-
-**That capture has not been judged by the reviewer.** Until it is, it is unknown whether glass
-renders correctly without this branch's changes, and the investigation cannot be pointed in either
-direction. **Start here; do not write code first.**
-
-| baseline verdict | what it means | where to look |
+| | scene | if glass works |
 |---|---|---|
-| glass renders CORRECTLY | the break is on this branch | §3 — bisect the three files |
-| glass is ALSO broken | predates the branch entirely | own investigation against `origin/main`; nothing in the crack work is implicated |
+| **A** | same backdrops, **no pane** (control) | the backdrop, full strength |
+| **B** | **`glow`** backdrop + glass pane | reads partly warm-white |
+| **C** | **`glow_blue`** backdrop + glass pane | reads partly blue |
+
+**Transmission T** = (colour change B→C measured *through the pane*) ÷ (colour change measured in
+the control A→A′ with the same backdrop swap).
+
+⚠️ **T is `1 − materialAlpha`, NOT `materialAlpha`.** Standard blending gives
+`P = a·G + (1−a)·C` where `a` is material alpha, `G` the pane's own lit colour and `C` the backdrop.
+Subtracting the two captures: `P_glow − P_blue = (1−a)·(C_glow − C_blue)`, so the ratio measures
+**(1−a)**. `Glass` declares `"alpha": 0.5` in `resources/materials.json`, so T ≈ 0.5 — but that is a
+*coincidence of 0.5 being its own complement*. At any other alpha the prediction is `1 − alpha`, and
+an earlier draft of this section got the derivation wrong while landing on the right number, which is
+the most dangerous way to be right.
+
+- **working:** T ≈ 0.5 (= 1 − 0.5) — half the backdrop survives
+- **opaque:** T ≈ 0 — B and C identical; the backdrop is invisible
+- **milky but blending:** 0 < T < 0.5 — a *different* defect from opacity
+
+That last row is why the metric exists. "Milky" and "opaque" have different causes and were
+conflated once already. The control (A) is what makes this a number rather than an impression:
+without it, "the pane got darker" is unfalsifiable.
+
+**What the ratio cancels, and what it does not.** `G` — the pane's own lit colour — appears in both
+captures and cancels exactly, so the metric is immune to how the pane itself is lit or tinted. That
+is the point of differencing rather than comparing absolute brightness.
+
+⚠️ **It does NOT cancel a shadow the pane casts on the backdrop.** If the pane attenuates the
+backdrop behind it by `s`, the ratio becomes `(1−a)·s` and a *working* pane reads as broken.
+
+**Both this and the texture confound are solved by one choice: make the backdrop EMISSIVE.** There
+is **no per-voxel tint API**, so a "red vs blue backdrop" swap must use two different *materials* —
+and two ordinary materials differ in texture pattern *and* in how they take light, neither of which
+the ratio removes. Emissive materials (`glow` warm-white vs `glow_blue`) are flat and self-lit:
+`voxel.frag` takes the emissive branch and writes
+`textureColor.rgb * ubo.emissiveMultiplier` directly, so the backdrop is **not shadowed, not
+lit-direction-dependent, and not tonemap-ambiguous**. That retires the shadow confound without
+needing to disable shadows at all, which the API cannot cleanly do anyway
+(`/api/debug/shadow` sets a *distance*, not an off switch).
+
+Residual: `glow` and `glow_blue` still carry different texture patterns. That is acceptable because
+the ratio's numerator and denominator use the **same material pair over the same screen region**, so
+the pattern cancels in the mean. Measure means over a fixed pixel rectangle, not per-pixel.
+
+**T alone is not sufficient** — see §5 Phase 0, which pairs it with a pass-execution probe, because
+T ≈ 0 has two distinct causes that need different fixes.
+
+**And if T ≈ 0.5 but the reviewer still says it looks wrong** — an outcome this plan must not be
+unable to absorb — then transmission is correct and the defect is in `G`, the pane's **own** colour:
+too bright, too milky, wrongly tinted. That is a different measurement (compare `G` against the
+expected lit glass albedo) and a different fix, and the plan branches there rather than treating a
+correct T as proof the complaint is unfounded. The reviewer's judgement outranks the metric; T only
+says *which* thing to go and look at.
 
 ---
 
-## 3. Prime suspect, IF the break is on this branch
+## 3. What the code says — and the contradiction it creates
 
-**P5's material-props stride change** (`330ee050`).
+Read on 2026-09-23. **Every line below is evidence, not conclusion.**
 
-P5 widened the per-material props SSBO from **one `vec4` per texture layer to two**:
+- **The opaque chunk pipeline has blending DISABLED.** `RenderPipeline.cpp:90`, in
+  `createGraphicsPipeline()`: `colorBlendAttachment.blendEnable = VK_FALSE`.
+- **`voxel.frag` does NOT discard transparent faces.** It discards cutout-alpha fragments
+  (`:323`, `textureColor.a < 0.1`) and mirror faces (`:326`, bit 10) — but nothing for bit 1.
+  `7a36910f` ("Lighting pipeline phases 1-4: shadows, SSAO, glass, mirrors", an ancestor of HEAD)
+  introduced those two discards and carried an explicit note that transparent voxels render in the
+  opaque pass. **That note has since been deleted from the file while the behaviour stayed**, so the
+  contract is currently undocumented — which is how it got mis-modified twice.
+- **`voxel.frag` writes `textureColor.a`, not the material alpha.** Material alpha (bits 2–9) is read
+  only by `transparent_voxel.frag:142`. So the opaque pass never sees `alpha: 0.5` at all.
+- **The OIT pass is the only path that can produce transparency.** `transparent_voxel.frag:135`
+  discards everything *without* bit 1, then composites with real blending
+  (`RenderPipeline.cpp:1129/1141`).
 
+**The contradiction.** Taken together, the code as read says glass drawn in the opaque pass is
+**always** solid and writes depth — so glass should *never* have looked transparent. The reviewer
+reports it did. **One of those is wrong**, and which one is the single most informative thing to
+learn. Possibilities: transparent faces are excluded from the opaque submission somewhere not yet
+found; or the OIT composite overwrites rather than blends over the opaque result; or the reviewer's
+"used to work" memory predates a change that has been in for a while.
+
+**Do not resolve this by reading more code.** Phase 1 settles it by measurement. It is recorded here
+so that whoever runs Phase 1 knows what would be surprising.
+
+---
+
+## 4. A design-key violation found on the way — must be closed, not measured around
+
+`FeatureDesignKeys.md`: *"Appearance must be a pure function of world position and persistent world
+state. Per-chunk quantities may only bound COST — never how something looks."*
+
+**`Chunk::m_hasTransparent` breaks this.** It is a cached per-chunk bool (`Chunk.h:98`) recomputed in
+`recomputeRenderFlags()` (`Chunk.cpp:416`) on `rebuildFaces`, and it scans **the cube store only**:
+
+```cpp
+for (size_t i = 0; i < ChunkVoxelStore::kVoxels; ++i) {
+    const Cube* cube = i < cubes.size() ? cubes[i].get() : nullptr;
+    ...
+    if (mat->alpha < 0.99f) m_hasTransparent = true;
+}
 ```
-before:  props[gi]       = (metallic, roughness, emStrength, emThreshold)
-after:   props[gi*2 + 0] = (metallic, roughness, emStrength, emThreshold)
-         props[gi*2 + 1] = (crackStyle, 0, 0, 0)
+
+It never scans `staticSubcubes` or `staticMicrocubes` — yet **both sub-voxel instance paths do set
+the transparent bit and quantized alpha** (`ChunkRenderManager.cpp:1084`, `:1244`). The consumer is a
+frame-global early-out:
+
+```cpp
+// RenderCoordinator.cpp:1898-1904
+if (chunk && chunk->getNumInstances() > 0 && chunk->hasTransparentVoxel()) { anyVisibleTransparent = true; break; }
+...
+if (!anyVisibleTransparent) return;     // the WHOLE OIT pass is skipped
 ```
 
-`AtlasManager.cpp` writes it at the new stride, `voxel.frag` reads `textureUVs[gi * 2u]`, and
-`VulkanDevice.cpp` doubled the buffer allocation to match.
+**So the flag is a cost bound that is not conservative.** A view whose only glass is sub-voxel skips
+the entire OIT pass and renders that glass through the opaque path. Whether a glass *subcube* looks
+transparent depends on whether some other, unrelated *full-cube* glass happens to be in view — which
+is appearance coupled to chunk contents.
 
-**Why it is the suspect:** any consumer still assuming stride 1 now reads *another material's*
-properties. That is exactly the shape of "one material renders wrong". A grep found no other shader
-indexing `textureUVs[]` — `transparent_voxel.frag`, `mirror_voxel.frag`, `far_terrain.frag` and
-`far_tree_mesh.frag` declare the block but only read the header counts — **but that grep was not
-verified by experiment**, and the declared-but-unused array still fixes the binding layout.
+**Two consequences that make this load-bearing for the fix, not a footnote:**
 
-**Bisect procedure (one file at a time, rebuild and capture between each):**
-1. `voxel.frag` alone at branch state, other two at `origin/main`
-2. `AtlasManager.cpp` alone at branch state
-3. `VulkanDevice.cpp` alone at branch state
+1. **No generated building's window can be transparent.** Generated walls are subcube/microcube
+   (`StructureRealizer` stamps via `fillMicroBox`), so every window in every generated structure hits
+   this path. It is structurally the same gap as the V2 crack problem — damage is cube-only, walls
+   are sub-voxel.
+2. **A fix validated only on full-cube glass could ship with generated windows still opaque.** That
+   is the Stone-wall mistake one rig over, and it is why §7's rig has a sub-voxel arm.
 
-The one that reproduces it is the cause. Three builds; each is a few minutes.
-
----
-
-## 4. Things known about the render path (gathered, not yet used)
-
-- **`voxel.frag` has no transparency discard.** Glass is drawn in the main pass and
-  `outColor = vec4(color, textureColor.a)` carries its alpha.
-- **There is also an OIT pass.** `transparent_voxel.frag` discards anything without flag bit 1,
-  reads material alpha from flags bits 2–9 (`(flags >> 2u) & 0xFFu`), and writes accumulation +
-  reveal targets. `RenderCoordinator::renderTransparentGeometryOIT` runs it, gated on a cached
-  per-chunk `hasTransparentVoxel()` flag refreshed on `recomputeRenderFlags()`.
-- **That flag is computed from MATERIAL alpha**, not from damage or instance bits
-  (`Chunk.cpp:416-439`), so damage cannot switch it off.
-- **Instance `reserved` bit allocation:** 0 emissive · 1 transparent · 2–9 quantized alpha ·
-  10 mirror · 11–14 damage · 15 `varied`. Damage bits do not overlap the alpha field.
-
-None of the above has been tested against the live defect — it is context for whoever picks this up,
-not a conclusion.
+**Fix direction:** remove the dependence rather than plumb around it — make the scan conservative by
+including the sub-voxel vectors, or drop the early-out. **Do not add a cross-chunk lookup**; it would
+add a stale-neighbour failure mode instead of removing the coupling.
 
 ---
 
-## 5. Rig that produces a usable answer
+## 5. Phases
 
-Both panes in **one frame**, so the comparison is not across captures with different scene state:
+### Phase 0 — make "transparent" measurable. NO code changes.
 
-- a glass wall with **grass and sky behind it** (something clearly identifiable through the pane),
-- a second glass wall beside it in the same frame if comparing two states,
-- **no backing wall** unless deliberately testing occlusion — an earlier run misread a Stone wall
-  seen *through* the glass as the glass itself being opaque,
-- the reviewer judges the frame.
+Build the rig in §7 and record T for full-cube glass **and** sub-voxel glass.
 
-`tools/damage_ladder_rig.py` is the crack rig and is **not** suitable: it builds Stone.
+**Pair T with a pass-execution probe.** T ≈ 0 has two causes needing different fixes:
+
+| observation | meaning | fix lives in |
+|---|---|---|
+| T ≈ 0, OIT pass **did not run** | the §4 chunk-flag gate skipped it | `Chunk::recomputeRenderFlags` / the early-out |
+| T ≈ 0, OIT pass **ran** | the opaque pass's depth+colour write occludes the OIT result | the opaque submission or `voxel.frag` |
+
+Without the probe these are indistinguishable, and guessing between them is what produced two wrong
+fixes.
+
+**Probe surface, named (it was hand-waved in the first draft).** There is no existing render-stats
+field for "did the transparent pass submit", so use a **log line at the early-out's `return`** in
+`RenderCoordinator.cpp:1904`, read back through the existing logs endpoint. That adds **no API
+surface, no new endpoint and no default change** — which keeps Phase 0 genuinely measurement-only.
+Do not add a debug endpoint for this; a log line is sufficient and reversible.
+
+### Phase 1 — is the break on this branch?
+
+Measure T at HEAD, then with the three files that could reach glass rendering reverted to
+`origin/main`: `shaders/voxel.frag`, `engine/src/core/AtlasManager.cpp`,
+`engine/src/vulkan/VulkanDevice.cpp`. Two measurements, one decision:
+
+| T differs | the break is ours | → Phase 2 |
+|---|---|---|
+| **T identical, both broken** | predates the branch entirely | bisect `main` on T, bounded below by `7a36910f`, the commit that introduced glass handling in the opaque pass. Nothing in the crack work is implicated |
+
+A baseline capture already exists — `screenshots/screenshot_20260923_072602_473.png`, the engine with
+those three files reverted — but it is **unjudged, and should stay that way**. T decides this split
+objectively. The reviewer's eye is spent on Phase 5, where it is irreplaceable.
+
+### Phase 2 — localize, one file per build
+
+Three builds, T after each. The file that moves T is the cause.
+
+⚠️ **The revert ORDER is not free, and one ordering can corrupt memory.** P5 (`330ee050`) widened the
+props SSBO to a stride of two vec4s per layer in `AtlasManager.cpp` **and** doubled the buffer
+allocation in `VulkanDevice.cpp` to match. So:
+
+- Reverting **`VulkanDevice.cpp` alone** leaves `AtlasManager` writing stride-2 data into a
+  half-sized buffer → **overflow**. Never do this.
+- Reverting **`AtlasManager.cpp` alone** is safe: stride-1 writes into an over-allocated buffer.
+- The two must be reverted **as a pair**, or `AtlasManager` first.
+
+`voxel.frag` reverts independently, but note it takes the crack shader with it — so that arm tests
+"is it the fragment shader" and cannot simultaneously confirm cracks.
+
+### Phase 3 — name the mechanism before touching anything
+
+Ranked by §3's evidence. **Re-ranked 2026-09-23** after the first design-check pass:
+
+1. **The §4 chunk-flag gate** — certain to be a real defect for sub-voxel glass, whether or not it is
+   *the* reported bug. Independently worth closing.
+2. **Glass drawn solid in the opaque pass, occluding the OIT result.** `blendEnable = VK_FALSE` plus
+   no bit-1 discard means the opaque draw writes solid colour and depth. Predicts "opaque, not milky".
+3. **`AtlasManager.cpp`** — the opaque pass keys on `textureColor.a`, so glass's *texture* alpha
+   channel matters. BC7 supports alpha (`VK_FORMAT_BC7_SRGB_BLOCK`, `VulkanDevice.cpp:2727`), but
+   whether the encoder preserved it is unverified. Note `AtlasManagerTest.BuildAtlasFromSourcePNGs`
+   is currently red (on a warm BC7 cache) — probably unrelated, worth one look while here.
+4. **P5's props-SSBO stride change** (`330ee050`) — **demoted to last.** §2 of the earlier draft called
+   it the prime suspect; that was wrong. Alpha for the OIT pass comes from instance `reserved`
+   bits 2–9, not from the props array, so the stride change can corrupt metallic/roughness but not
+   alpha. Only the buffer *resize* in `VulkanDevice.cpp` could plausibly reach the transparent
+   pipeline, via a descriptor mismatch.
+
+### Phase 4 — fix, red first
+
+Write the failing T assertion, watch it fail, then fix. **No fix lands on a hypothesis alone.**
+If the fix changes whether the opaque pass draws transparent faces, that is a **default rendering
+change** and needs its pin in the same commit — plus restoring the contract note `7a36910f` wrote and
+something later deleted.
+
+### Phase 5 — reviewer sign-off, then the guards
+
+The reviewer judges the frame. Then:
+
+- **T as an automated L4 test.**
+- **The chunk-independence test** in §8.
+- **Glass goes into the standard rigs.** The root cause of this shipping unnoticed is that every
+  validation rig was a Stone wall — including all of the crack-system rigs. That is the actual
+  process defect, and it is the only change here that prevents the *next* one.
 
 ---
 
-## 6. Why this is deferred
+## 6. Render-path facts gathered (context, not conclusions)
 
-The crack system (`VoxelDamageVisualization.md` §16) has P4 and the §6.2 seam guard outstanding.
-Glass transparency is a visible defect but blocks none of that work, and the crack rendering is now
-confirmed correct on opaque materials and on glass. Finishing the crack system first keeps the two
-investigations from contaminating each other — which has already happened once, when a transparency
-bug was mistaken for a crack bug and "fixed" twice in the crack code.
+- `voxel.frag` has no transparency discard; `outColor = vec4(color, textureColor.a)`.
+- `transparent_voxel.frag` discards without bit 1, reads material alpha from bits 2–9
+  (`(flags >> 2u) & 0xFFu`), writes accumulation + reveal.
+- `RenderCoordinator::renderTransparentGeometryOIT` runs it, gated on the cached per-chunk flag (§4).
+- That flag is computed from MATERIAL alpha, not damage or instance bits — **damage cannot switch it
+  off**, which independently clears the crack work.
+- Instance `reserved` bits: 0 emissive · 1 transparent · 2–9 quantized alpha · 10 mirror ·
+  11–14 damage · 15 `varied`. Damage does not overlap alpha.
+
+---
+
+## 7. Test rig
+
+**Small, one chunk, one variable, prediction written in advance, with a control** — per
+`FeatureDesignKeys.md` test-rig discipline.
+
+- Flat world; pane at **x 8–11, y 17–20, z 8**; backdrop wall at **x 6–13, y 15–22, z 4** (wider and
+  taller than the pane, so the pane is fully backed); camera at **(9.5, 18.5, 20)**, yaw −90, pitch 0
+  — looking down −Z, square-on, with the backdrop behind the pane. Every coordinate is inside the
+  single chunk at origin (0,0,0), so no fill drops silently.
+- **Backdrop material: `glow` vs `glow_blue`** — emissive, flat, self-lit, unshadowed (§2). Not two
+  ordinary materials: there is no per-voxel tint API, so the swap is a material swap, and ordinary
+  materials would differ in both texture and lighting response.
+- **Two arms:** a full-cube glass pane and a **sub-voxel** (subcube) glass pane. §4 predicts they
+  differ *today*.
+- **One variable:** backdrop colour (red → blue). Everything else fixed.
+- **Control:** the same backdrop swap with **no pane**, which converts "looks darker" into a ratio.
+- **Prediction, written before running:** T ≈ 0.5 for both arms if glass works; T ≈ 0 for the
+  sub-voxel arm today even if the cube arm passes.
+- **Measure means over a fixed pixel rectangle** inside the pane, and the matching rectangle in the
+  control — not per-pixel, because the two emissive backdrops carry different texture patterns which
+  only cancel in the mean.
+- **Verify the world, not the API response** — `/api/world/fill` is async and returns no placed
+  count. Query the voxels back before capturing.
+
+**Rig deltas from shipped defaults:** captures use `POST /api/debug/tonemap {"curve":0}`, so T is
+measured pre-AgX. Through the shipped curve the same T reads compressed. **State the curve with every
+number.**
+
+---
+
+## 8. Deliverables — what must land with the fix
+
+1. `GlassTransmissionTest` (L4) — T measured against the control; fails with
+   `measured transmission T = 0.02 through Glass (alpha 0.50, expected T = 0.50) — the backdrop change did not survive
+   the pane`, and names which pass ran.
+2. **`ChunkRenderFlagsTest.SubVoxelGlassMarksTheChunkTransparent` (L2, deterministic, no engine)** —
+   build a chunk whose *only* glass is a subcube, assert `hasTransparentVoxel()` is true. **Red
+   today**, because `recomputeRenderFlags()` scans the cube store only (§4). This is far cheaper than
+   the pixel test below and catches the §4 defect directly, so it is the **first** thing to write:
+   per `FeatureDesignKeys.md`, depth is chosen by use, and a flag-computation bug is a structural
+   invariant (L2), not something that needs live pixels to see. The L4 test below then proves the
+   *rendering* consequence actually went away.
+3. `GlassTransparencyChunkIndependenceTest.SubVoxelGlassTransmitsRegardlessOfCubeGlassInView` —
+   T for a glass **subcube** in two scenes identical except that scene B also contains a full-cube
+   glass voxel elsewhere **in view**. **T must be equal.** Today this fails: T ≈ 0 in A, T > 0 in B.
+   (The early-out at `RenderCoordinator.cpp:1904` is **frame-global** across visible chunks, not
+   per-chunk, so "in view" is the precise invariant; same-chunk is the `FloraMarginTest`-shaped
+   special case of it.)
+   This is the `FloraMarginTest` / `FaunaPlanTest` shape — chunking must not change the answer.
+4. Restored contract note in `voxel.frag` saying what the opaque pass does with transparent faces
+   and why.
+5. Glass added to the shared render rigs.
+
+---
+
+## 9. Design-check record
+
+- **Pass 1 (2026-09-23) — NEEDS WORK, 4 items.** Found the §4 chunk-independence violation. Items:
+  add a sub-voxel glass arm; add a pass-execution probe; make the chunk-independence test a
+  deliverable; re-rank hypotheses (P5 stride demoted, AtlasManager promoted). All four folded in
+  above.
+- **Pass 3 (2026-09-23) — READY.** Audited the rig's *executability* rather than its logic, which is
+  where the remaining defects were:
+  1. **No per-voxel tint API exists**, so the backdrop swap is a *material* swap — and two ordinary
+     materials differ in texture and in lighting response, neither of which the ratio cancels. Fixed
+     by making the backdrop **emissive** (`glow` / `glow_blue`), which also retires pass 2's shadow
+     confound outright — better than disabling shadows, which `/api/debug/shadow` cannot cleanly do
+     (it sets a distance, not an off switch).
+  2. **The cheap test was missing.** Everything was specified at L4, but `recomputeRenderFlags()` is
+     a pure function over chunk contents and can be tested at **L2 with no engine at all** — red
+     today. Added as deliverable 2, and it is now the *first* thing to write.
+  3. **No branch for "T is right but it still looks wrong."** If transmission measures correct and
+     the reviewer still judges the pane wrong, the defect is in the pane's own colour, not
+     transmission. The plan now says so instead of implicitly treating a passing metric as proof the
+     complaint is unfounded.
+  4. **Rig geometry was ambiguous** ("camera square-on at z+12"). Now exact coordinates, with the
+     backdrop sized larger than the pane.
+- **Pass 2 (2026-09-23) — READY**, after 5 further defects found *in this plan* and fixed in place.
+  Recorded because four of the five were in the measurement itself, and a bad metric is worse than
+  no metric — it produces confident wrong answers, which is the failure mode this whole document
+  exists to stop:
+  1. **The metric's derivation was wrong.** §2 claimed the measured ratio equals material alpha. It
+     equals **1 − alpha**. `Glass` at 0.5 is its own complement, so the predicted number was right by
+     coincidence while the reasoning was wrong — and would have mispredicted at any other alpha.
+     Renamed the symbol to **T** so the two cannot be confused again.
+  2. **An uncancelled confound.** The ratio cancels the pane's own lit colour, but *not* a shadow the
+     pane casts on the backdrop: that turns T into `(1−a)·s`, so a **working** pane can read as
+     broken. Control added.
+  3. **A memory-corrupting bisect order.** Phase 2 said "one file per build" without constraining
+     order. Reverting `VulkanDevice.cpp` alone leaves `AtlasManager` writing stride-2 data into a
+     half-sized buffer. Order now constrained.
+  4. **The pass-execution probe had no named surface** — "a counter through an existing debug
+     endpoint" was hand-waving, and no such field exists. Now a log line at the early-out, which
+     keeps Phase 0 measurement-only with zero API surface.
+  5. **The `main` bisect was unbounded.** Now floored at `7a36910f`, where glass handling entered the
+     opaque pass.
+
+---
+
+## 10. Gate answers
+
+**Voxel aesthetic.** No new assets. Two binding constraints: cracks on glass must survive
+(reviewer-confirmed; `03e68fa9` deleted them and was reverted), and sub-voxel glass is in scope
+because generated windows are subcube/microcube. Nothing behind a flag.
+
+**Chunk independence.** One violation, §4, with the equality test named in §8.2. No cross-chunk
+lookup is introduced — the dependence is removed instead.
+
+**Procedural generation.** Belongs to no generation stage; this is rendering. Generation-facing
+consequence only: structure gen emits glass sub-voxel, which is what makes §4 player-visible. No
+world-recipe persistence.
+
+**API surface.** Phases 0–2 add no API — existing `/api/world/fill`, `/api/world/voxel`,
+`/api/screenshot`, `/api/debug/tonemap`. The pass-execution probe surfaces through an existing debug
+endpoint rather than a new one. No defaults change before Phase 4; if Phase 4 changes opaque-pass
+behaviour, that is a pinned-contract change committed with its pin.
+
+**Visual test plan.** "Works" = T ≈ 0.5 with a control (§2). Depth **L4** — a render-path defect is
+invisible below live-engine. Red test and its message in §8.1. Rig, prediction, control and deltas
+from shipped defaults in §7.
+
+---
+
+## 11. Why this is sequenced after the crack system
+
+The crack system (`VoxelDamageVisualization.md`) reached V1 complete on 2026-09-23. Glass blocks none
+of it, and the crack rendering is confirmed correct on opaque materials **and** on glass. Keeping the
+two apart stops them contaminating each other — which already happened once, when a transparency bug
+was mistaken for a crack bug and "fixed" twice inside the crack code.
