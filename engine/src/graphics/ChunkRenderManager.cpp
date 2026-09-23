@@ -341,6 +341,11 @@ void ChunkRenderManager::rebuildCubeFaces(
     std::vector<int>&     cellMat    = m_cellMat;
     std::vector<uint8_t>& cellDamage = m_cellDamage;
 
+    // Stage count read ONCE for this rebuild (P4, DamageStage.h): it is atomic and must not
+    // be re-read inside the 32,768-cell loop below, and one consistent value per rebuild is
+    // what makes a mid-flight knob change safe.
+    const int stagesVisible = Phyxel::Core::damageStagesVisible();
+
     auto& reg = Phyxel::Core::MaterialRegistry::instance();
     // 4.2b hybrid scan: every solid voxel is in the palette store; a materialized overlay Cube
     // (physics/damage state) wins where present. Without a store (unit tests) this degenerates
@@ -435,8 +440,8 @@ void ChunkRenderManager::rebuildCubeFaces(
         // values means wider bands and fewer faces. voxel.frag still divides by 15.0 and needs
         // no change.
         cellDamage[cell] = Phyxel::Core::packDamageStage(
-            Phyxel::Core::damageStage(damage, matFaces[cellMat[cell]].toughness,
-                                      Phyxel::Core::kDamageStagesVisible));
+            Phyxel::Core::damageStage(damage, matFaces[cellMat[cell]].toughness, stagesVisible),
+            stagesVisible);
     }
 
     // --- LIGHT FIELD REMOVED (lighting rebuild M0, 2026-08-29) --------------------------------

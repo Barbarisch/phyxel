@@ -97,7 +97,7 @@ public:
     // to breaking.
     static uint8_t displayStage(const std::string& materialName,
                                 float accumulatedDamage,
-                                int   stageMax = Core::kDamageStagesVisible);
+                                int   stageMax = -1);   // -1 = the RUNTIME count (P4 knob)
 
     // The 4-bit value the mesher packs into instance bits 11-14 for this voxel: displayStage()
     // spread back across the field's full range so voxel.frag's `/ 15.0` still yields

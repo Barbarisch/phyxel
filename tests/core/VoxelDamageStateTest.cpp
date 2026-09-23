@@ -157,41 +157,71 @@ TEST_F(VoxelDamageStateTest, StageChangePredicateIgnoresDamageAboveFullyDamaged)
 
 TEST_F(VoxelDamageStateTest, StageQuantizationAtEveryBoundary) {
     ASSERT_TRUE(loaded_);
-    // The 7 P2 gate: "stage mapping unit-tested at boundaries 0/1/2/3". Band width is
-    // toughness/3, and damageStage rounds, so a boundary sits at the MIDPOINT between bands:
-    // stage k covers [(k-0.5)/3, (k+0.5)/3) of toughness.
-    const float t = DamageSystem::responseFor("Stone").toughness;
-    struct Case { float frac; int stage; const char* why; };
-    const Case cases[] = {
-        {0.00f, 0, "pristine"},
-        {0.10f, 0, "just below the first boundary (1/6 = 0.1667) -- still pristine"},
-        {0.20f, 1, "just above the first boundary -- hairline"},
-        {0.33f, 1, "mid first band"},
-        {0.45f, 1, "just below the second boundary (0.5)"},
-        {0.55f, 2, "just above the second boundary -- open"},
-        {0.80f, 2, "just below the third boundary (5/6 = 0.8333)"},
-        {0.90f, 3, "just above the third boundary -- failing"},
-        {1.00f, 3, "at the break threshold"},
-        {5.00f, 3, "far past it -- must clamp, never wrap"},
-    };
-    for (const auto& c : cases) {
-        EXPECT_EQ(int(DamageSystem::displayStage("Stone", t * c.frac)), c.stage)
-            << c.frac << "x toughness (" << c.why << ")";
+    // The P2 gate: "stage mapping unit-tested at boundaries". damageStage ROUNDS, so band k
+    // covers [(k-0.5)/n, (k+0.5)/n) of toughness -- the boundary sits at the MIDPOINT between
+    // bands, not at a band edge.
+    //
+    // DERIVED from kDamageStagesVisible, never written as literals. The earlier version of this
+    // test spelled the boundaries out by hand (1/6, 1/2, 5/6), which encoded "3 stages" in three
+    // more places than the constant. When P4 (6.4) moved the count 3 -> 7 on measured evidence,
+    // that table was simply wrong rather than informative -- a pinned-default test should
+    // re-derive the contract, and fail only when the CONTRACT breaks.
+    const float t   = DamageSystem::responseFor("Stone").toughness;
+    const int   n   = kDamageStagesVisible;
+    const float eps = 0.25f / float(n);          // a quarter-band: safely inside one band
+
+    EXPECT_EQ(int(DamageSystem::displayStage("Stone", 0.0f)), 0) << "pristine";
+
+    for (int k = 0; k < n; ++k) {
+        const float boundary = (float(k) + 0.5f) / float(n);
+        EXPECT_EQ(int(DamageSystem::displayStage("Stone", t * (boundary - eps))), k)
+            << "just BELOW the stage " << k << "/" << (k + 1) << " boundary at "
+            << boundary << "x toughness";
+        EXPECT_EQ(int(DamageSystem::displayStage("Stone", t * (boundary + eps))), k + 1)
+            << "just ABOVE the stage " << k << "/" << (k + 1) << " boundary at "
+            << boundary << "x toughness";
     }
+
+    // The first band is the one P4 cared about: a voxel shows NOTHING below 0.5/n of toughness,
+    // so the stage count decides how much of a voxel's life is invisible. At 3 stages that was
+    // the first 17%, which is why the count moved. Stated here so the cost of coarsening is
+    // visible at the place it is defined, not only in the plan.
+    EXPECT_EQ(int(DamageSystem::displayStage("Stone", t * (0.5f / float(n)) * 0.9f)), 0)
+        << "damage below 0.5/n of toughness must render pristine -- this is the blind band";
+
+    // Clamping at and beyond the break threshold: the top stage must hold, never wrap.
+    EXPECT_EQ(int(DamageSystem::displayStage("Stone", t)), n) << "at the break threshold";
+    EXPECT_EQ(int(DamageSystem::displayStage("Stone", t * 5.0f)), n)
+        << "far past the break threshold -- must clamp, never wrap";
 }
 
 TEST_F(VoxelDamageStateTest, PackingSpreadsStagesAcrossTheFullFieldRange) {
-    // voxel.frag divides the packed value by 15.0 and was NOT changed for P2, so the 4 stages
-    // must land on {0, 5, 10, 15} -> 0.0 / 0.33 / 0.67 / 1.0. If packing collapsed toward the
-    // bottom of the range the crack would simply render fainter, silently.
-    EXPECT_EQ(int(packDamageStage(0)), 0);
-    EXPECT_EQ(int(packDamageStage(1)), 5);
-    EXPECT_EQ(int(packDamageStage(2)), 10);
-    EXPECT_EQ(int(packDamageStage(3)), 15);
+    // voxel.frag divides the packed value by 15.0 and is NOT changed when the stage count
+    // changes, so the visible stages must spread across the WHOLE 4-bit field. If packing
+    // collapsed toward the bottom of the range, every crack would render fainter -- silently,
+    // with no failing test and nothing in the log.
+    //
+    // Asserted as PROPERTIES of the spread rather than as a literal value list. The earlier
+    // version pinned {0, 5, 10, 15}, which is the answer for 3 stages only; P4 moved the count
+    // to 7 and those literals became noise. A pinned test that must be rewritten on every
+    // legitimate change is one that eventually gets deleted instead.
+    const int n = kDamageStagesVisible;
 
-    // The top stage must reach the field maximum exactly: anything less and a fully-damaged
-    // voxel never renders at full strength.
-    EXPECT_EQ(int(packDamageStage(kDamageStagesVisible)), kDamageStageMax);
+    EXPECT_EQ(int(packDamageStage(0)), 0) << "pristine must pack to exactly zero";
+    EXPECT_EQ(int(packDamageStage(n)), kDamageStageMax)
+        << "the top stage must reach the field maximum exactly, or a fully-damaged voxel never "
+           "renders at full strength";
+
+    int prev = -1;
+    for (int k = 0; k <= n; ++k) {
+        const int packed = int(packDamageStage(k));
+        EXPECT_GT(packed, prev)
+            << "stage " << k << " must pack STRICTLY above stage " << (k - 1)
+            << ", or two visible stages render identically and one of them is wasted merge cost";
+        EXPECT_LE(packed, kDamageStageMax)
+            << "stage " << k << " overflows bits 11-14 into bit 15 (the varied flag)";
+        prev = packed;
+    }
 
     // Out of range must clamp, NEVER overflow into bit 15 (the `varied` texture-rotation flag).
     EXPECT_EQ(int(packDamageStage(99)), kDamageStageMax);
@@ -199,7 +229,7 @@ TEST_F(VoxelDamageStateTest, PackingSpreadsStagesAcrossTheFullFieldRange) {
     EXPECT_LE(int(packDamageStage(kDamageStagesVisible * 10)), kDamageStageMax);
 }
 
-TEST_F(VoxelDamageStateTest, OnlyFourDistinctPackedValuesAcrossTheWholeDamageRange) {
+TEST_F(VoxelDamageStateTest, ExactlyOnePackedValuePerStageAcrossTheWholeDamageRange) {
     ASSERT_TRUE(loaded_);
     // This is the MERGE-COST property, stated as a test rather than trusted. Damage is part of
     // the greedy-merge key, so every distinct packed value is a potential merge-run break. A
@@ -210,9 +240,11 @@ TEST_F(VoxelDamageStateTest, OnlyFourDistinctPackedValuesAcrossTheWholeDamageRan
     for (int i = 0; i <= 1000; ++i) {
         distinct.insert(int(DamageSystem::displayStageBits("Stone", t * (i / 1000.0f))));
     }
-    EXPECT_EQ(distinct.size(), 4u)
-        << "a continuous damage gradient must collapse to exactly 4 distinct packed values "
-           "(pristine + 3 stages); more means more merge-run breaks and more faces";
+    EXPECT_EQ(distinct.size(), size_t(kDamageStagesVisible + 1))
+        << "a continuous damage gradient must collapse to exactly kDamageStagesVisible + 1 "
+           "distinct packed values (pristine plus each visible stage); more means more "
+           "merge-run breaks and more faces, which is the cost P4 measured at 3.84x between "
+           "15 stages and 3";
     EXPECT_EQ(*distinct.begin(), 0);
     EXPECT_EQ(*distinct.rbegin(), kDamageStageMax);
 }

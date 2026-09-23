@@ -50,6 +50,7 @@ DamageSystem::MatResponse DamageSystem::responseFor(const std::string& materialN
 uint8_t DamageSystem::displayStage(const std::string& materialName,
                                    float accumulatedDamage,
                                    int   stageMax) {
+    if (stageMax < 0) stageMax = Core::damageStagesVisible();
     // The denominator is the material's own break toughness, so "stage N of M" means the same
     // fraction of the way to failure on Glass as on Steel. responseFor guarantees it is > 0
     // (a break block supplies it, or the bondStrength fallback does with a 0.05 floor).
@@ -146,6 +147,10 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
     };
     std::vector<BreakRec> breaks;
 
+    // Read the stage count ONCE for this whole operation (P4). Per DamageStage.h it is
+    // atomic and must not be re-read per voxel.
+    const int stagesVisible = Core::damageStagesVisible();
+
     // ---- Phase A: scan + decide ----
     // Shielding (solidVoxelsBetween) is computed against the PRE-BLAST grid: we only
     // record break decisions here and defer every removeCubeFast to phase B. If we
@@ -212,8 +217,8 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
                 // tests is exactly the boundary the shader renders. Since P2 there are only 3
                 // visible stages, so a voxel re-meshes at most 3 times over its whole life
                 // instead of 16 -- coarse stages cut rebuild frequency as well as merge cost.
-                if (Core::damageStage(before, mr.toughness, Core::kDamageStagesVisible) !=
-                    Core::damageStage(after,  mr.toughness, Core::kDamageStagesVisible)) {
+                if (Core::damageStage(before, mr.toughness, stagesVisible) !=
+                    Core::damageStage(after,  mr.toughness, stagesVisible)) {
                     // markChunkForRemesh, NOT markChunkDirty: markChunkDirty ALSO sets the
                     // chunk's DB-dirty flag, which makes the streaming evictor re-save it to
                     // SQLite (DirtyChunkTracker.h). Damage has no DB field, so every one of

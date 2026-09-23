@@ -766,14 +766,19 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         // Since P1 (3.2) this is normalized by the material's own toughness, so damage_stage
         // and damage01 now move together for every material -- a caller can check
         // damage_stage ~= round(damage01 * stageMax) and catch a normalization regression.
-        // 0..3 since P2 (3.5): pristine + hairline / open / failing. This is the SEMANTIC
-        // stage. `damage_stage_bits` is the same thing spread across the 4-bit instance field
-        // that voxel.frag actually samples -- both are echoed so a caller can assert on the
-        // stage it reasons about AND on the value the shader receives, without having to know
-        // the packing.
+        // 0..damage_stages_max: pristine plus each visible stage. This is the SEMANTIC stage.
+        // `damage_stage_bits` is the same thing spread across the 4-bit instance field that
+        // voxel.frag actually samples -- both are echoed so a caller can assert on the stage it
+        // reasons about AND on the value the shader receives, without having to know the packing.
+        //
+        // BOTH report the RUNTIME stage count, not the compiled default. damage_stage already
+        // resolved it (displayStage defaults to the runtime value); reporting the constexpr
+        // beside it would mean that during a P4 A/B at 3 stages this said "stage 2 of 7" -- the
+        // numerator measured on one scale and the denominator on another, which is worse than
+        // either alone because it looks self-consistent.
         result["damage_stage"]      = static_cast<int>(
             Phyxel::DamageSystem::displayStage(material, energy));
-        result["damage_stages_max"] = Phyxel::Core::kDamageStagesVisible;
+        result["damage_stages_max"] = Phyxel::Core::damageStagesVisible();
         result["damage_stage_bits"] = static_cast<int>(
             Phyxel::DamageSystem::displayStageBits(material, energy));
         return result;
@@ -14856,6 +14861,37 @@ void Application::registerEffectsCommands() {
     });
 
     // Shadow draw distance A/B knob (WRv2 §7d): reach vs texel density vs draw count.
+    // DAMAGE STAGE COUNT (P4, docs/VoxelDamageVisualization.md 6.4). Lets 3 / 7 / 15 be
+    // compared in ONE session against ONE scene; three separate builds cannot hold the scene
+    // fixed, and the legibility half of the A/B needs the same frame.
+    reg.on("set_damage_stages", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        int applied = Core::damageStagesVisible();
+        int remeshed = 0;
+        if (cmd.params.contains("stages")) {
+            // CLAMPED to [1, kDamageStageMax]. Above kDamageStageMax the quantized value
+            // overflows instance bits 11-14 into bit 15, the `varied` texture-rotation flag,
+            // which silently hash-rotates the face texture -- on coursed materials that breaks
+            // pattern continuity at voxel edges. The clamp lives in setDamageStagesVisible.
+            applied = Core::setDamageStagesVisible(cmd.params["stages"].get<int>());
+            // The count is baked into the merge key AND the instance word, so a change is only
+            // visible after every loaded chunk is re-meshed. Without this the knob appears to
+            // do nothing until something else happens to dirty a chunk.
+            if (chunkManager) {
+                for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
+                    chunkManager->markChunkForRemesh(chunkManager->chunks[i].get());
+                    ++remeshed;
+                }
+                chunkManager->updateDirtyChunks();
+            }
+        }
+        // Echo what was APPLIED (not what was asked) plus the rebuild count, so a caller can
+        // assert the knob took effect rather than trusting a stale binary.
+        r = {{"success", true},
+             {"stages", applied},
+             {"stages_max", Core::kDamageStageMax},
+             {"chunks_remeshed", remeshed}};
+    });
+
     reg.on("set_shadow", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (cmd.params.contains("distance"))
             Graphics::RenderCoordinator::s_shadowDistance =

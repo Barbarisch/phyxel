@@ -284,15 +284,19 @@ shatters merge runs into ~16 concentric single-voxel-wide bands.
 - **Keep the field 4 bits wide.** Bits 11-14 stay as they are; stages 4-15 become reserved. No
   instance-format change, no ABI churn, no shader-side repack — and headroom if the measurement says
   go finer.
-- Sixteen perceptually distinct crack stages on a 1 m face is not a real thing; three (hairline /
-  open / failing) maps to how the player actually uses the information.
+- Sixteen perceptually distinct crack stages on a 1 m face is not a real thing; a handful maps to
+  how the player actually uses the information.
 - **Second dividend, added after the re-run:** coarse stages also cut *re-mesh* frequency, because
-  §3.7 only dirties a chunk when a voxel crosses a stage boundary. Three stages means at most three
+  §3.7 only dirties a chunk when a voxel crosses a stage boundary. N stages means at most N
   re-meshes per voxel over its whole life instead of sixteen.
 
-**This default is a hypothesis, and §6.4 is the experiment that ratifies or revises it.** Ship
-whichever of {3, 7, 15} stages is the coarsest that still reads at gameplay distance, chosen from the
-measured face-count / FPS table — not from this paragraph.
+> ✅ **SETTLED 2026-09-23 — the answer is 7, not the 3 this section proposed. See §6.4b.**
+> This default was written as a hypothesis for §6.4 to ratify or revise, and §6.4 revised it. The
+> reasoning above survives intact — it is why the count is 7 rather than 15 — but it is only the
+> *cost* half of the argument, and cost alone picks the coarsest option every time. What it could
+> not see: `damageStage()` rounds at `f*n + 0.5`, so **at 3 stages a voxel renders pristine until it
+> is 17% damaged.** Measured, that arm sat on the pristine-vs-pristine noise floor at every distance.
+> Do not re-derive a stage count from this paragraph; §6.4b has the table.
 
 **Where the measurement must happen.** Not in the test rig, and not in the Lighting Lab. A cost
 measured in a lab rig here has been wrong by ~4× before (`docs/AgentContext.md`; the +10.5 ms that was
@@ -494,6 +498,14 @@ Inputs: `worldPosAbs`, `faceNormal`, `damageStage` (0-3), `crackStyle` (per mate
    failure P3 fixed**. So the range is clamped, and **P4's distance ladder must be re-run at the
    style extremes**, not only at style 1.0. Like the stage count, this range is a **starting
    hypothesis to be measured**, not a settled number.
+
+   ⚠️ **NOT DONE, and P4 did not do it.** The 2026-09-23 ladder (§6.4b) ran on **Stone only**
+   — crack style 0.883, near the middle of the range. It settled the *stage count*, which is
+   style-independent, and says nothing about whether Glass (0.75) and Steel (1.60) stay legible at
+   48 and 96 units. Steel is the one to suspect: sparse and wide should survive minification best,
+   while **Glass sits at the clamp floor precisely because below it the network falls back toward
+   the microcube lattice**, which is the sub-pixel failure P3 fixed. Re-running is cheap — the rig
+   takes a material argument away from it — and it is tracked as item 7 in §16.
 
    **Red test for P5 (§7's gate was "visual A/B", which is a comparison, not a measurable claim):**
    `VoxelCrackSeamTest.StyleChangesCrackDensityMeasurably` — evaluate the CPU mirror over a fixed
@@ -728,7 +740,7 @@ fragmentation is not where the cost lives and §3.5's central cost argument is w
 
 **Pinned tests that move if P4 revises the stage count** (defaults are a pinned contract):
 `VoxelDamageStateTest.StageQuantizationAtEveryBoundary`,
-`.OnlyFourDistinctPackedValuesAcrossTheWholeDamageRange`, and
+`.ExactlyOnePackedValuePerStageAcrossTheWholeDamageRange`, and
 `.CoarseStagesBoundTheRemeshCountPerVoxel` all assert against `kDamageStagesVisible` and must be
 updated in the same commit, with the measured table as the reason.
 
@@ -776,6 +788,100 @@ assert the knob took effect rather than trusting a stale binary. It is a debug k
 
 **This is P4's only API addition beyond §3.1**, and it exists because a measurement with no mechanism
 does not get made.
+
+### 6.4b R4 RESULT — measured 2026-09-23, **revises §3.5 from 3 stages to 7**
+
+Both axes ran against one engine session via `POST /api/debug/damage_stages`, so all three arms saw
+the same scene. Raw rigs: `tools/damage_stage_ab.py` (cost), `tools/damage_stage_legibility.py`
+(legibility).
+
+**Cost axis — prediction MET.** Radial damage gradient on a 24×10 Stone wall; control = the identical
+undamaged wall at **33 visible faces**.
+
+| stages | damage-induced faces (total − control) |
+|---|---|
+| 15 | +196 |
+| 7  | +109 |
+| 3  | +51  |
+
+**Ratio 15:3 = 3.84×**, against a prediction of ≥ 2.0× and a falsifier of < 1.3×. Merge fragmentation
+is where the cost lives; §3.5's cost argument stands.
+
+**Legibility axis — prediction met in direction, and it overturns the stage count.** A uniformly
+damaged block beside a pristine control in the same frame, both confirmed at the same `damage01`
+(asserted, not assumed). Cells marked `=` sit on the noise floor.
+
+| stages | vis. stage | 12u | 16u | 48u | 96u |
+|---|---|---|---|---|---|
+| *(noise floor — both blocks pristine)* | 0 | 2.27% | 2.22% | 0.86% | 0.42% |
+| **damage ratio 0.12** | | | | | |
+| 15 | 2 of 15 | 5.14% | 5.10% | 3.44% | 1.82% |
+| 7  | 1 of 7  | 5.30% | 4.74% | 3.43% | 1.78% |
+| 3  | **0 of 3** | 2.67% `=` | 2.16% `=` | 0.89% `=` | 0.45% `=` |
+| **damage ratio 0.45** | | | | | |
+| 15 | 7 of 15 | 10.44% | 9.64% | 8.28% | 4.34% |
+| 7  | 3 of 7  | 9.06%  | 8.84% | 7.28% | 3.82% |
+| 3  | 1 of 3  | 7.94%  | 7.72% | 6.34% | 3.34% |
+
+**Decision: ship 7.** `kDamageStagesVisible` changed 3 → 7, with this table recorded at the constant.
+
+- **7 matches 15 within noise** at every distance and both damage levels, for **56% of its face
+  cost** — 15 is strictly dominated, buying nothing a viewer can see.
+- **3 is blind early**, and this is the finding that moved the constant. `damageStage()` rounds at
+  `f*n + 0.5`, so the first visible stage needs damage ratio ≥ `0.5/n` — **0.167 at 3 stages**. A
+  voxel spends the first ~17% of its life rendering pristine, and at ratio 0.12 the 3-stage arm sat
+  **on the pristine-vs-pristine noise floor at all four distances**: the damage was not faint, it was
+  absent. A first pickaxe swing leaving no mark is a gameplay defect, not a saving. §3.5 chose 3 on
+  cost grounds *before* legibility was measurable; this is the measurement meant to settle it.
+- The two axes **disagreed**, as §6.4 anticipated they might, so the choice is made explicitly per
+  that instruction rather than split: cost is the right tie-breaker between 7 and 15 (same look, half
+  the faces) and the wrong one between 7 and 3 (+58 faces on a 24×10 wall, against a ~270k-face scene
+  at the M4 operating point, to buy back the entire early-damage range).
+
+**Three rig defects were found and fixed before any of the above was trusted.** Each produced a
+plausible-looking table that meant nothing; all three are now preconditions inside the rig, so they
+fail loudly instead of returning numbers:
+
+1. **Damaged to maximum.** The first run used ratio 0.95 and measured 18.87 / 19.62 / 19.99% for
+   15 / 7 / 3 — three numbers agreeing to within capture noise. At max damage every arm saturates to
+   its own top stage and the shader normalises `stage/stagesVisible`, so `15/15 == 7/7 == 3/3 == 1.0`:
+   **the arms are identical by construction there**, and no stage count can win. The discriminating
+   input is LOW damage, which is exactly where quantization deletes increments.
+2. **`fill` does not overwrite.** The wall left standing by the cost A/B survived into the legibility
+   run still carrying *its* gradient damage, and the "undamaged control" duly read **stage 2**. The
+   rig now clears first and **asserts the control starts at stage 0**.
+3. **No noise floor.** The two blocks sit at different screen positions under the same sun, so the
+   metric does **not** read 0% for two pristine blocks — it reads 2.27% at 12u. Without that row the
+   3-stage arm's 2.67% looks like faint cracking rather than nothing at all, which would have
+   inverted the conclusion.
+
+A fourth — `radius: 1.0` splashing into neighbouring voxel centres, so the block was not uniform and
+the probed corner was unrepresentative — is also asserted now. It turned out not to move the numbers,
+and the assertion is what establishes that rather than an assumption.
+
+**4u was dropped** from the distance ladder: two 8-wide blocks plus their gap span ~18 world units and
+cannot both be framed at 4u. 12u replaces it. Close range is not the open question — §14 signed off
+there — and the far end, which is, is covered.
+
+**What this did NOT measure — read the scope before reusing the numbers.**
+
+- **Stone only** (crack style 0.883). §4.4b requires this ladder at the style extremes, Glass (0.75)
+  and Steel (1.60), and that is **still open — §16 item 7**. The stage-count conclusion does not
+  depend on it: quantization happens before `crackStyle` is applied, so the blind band is
+  `0.5/n` of toughness for every material. But "legible at 96u" is asserted here **for Stone**.
+- **One pose, one light.** Sun fixed, camera square-on to the face. The variance-across-captures
+  check §6.4 asked for (the speckle failure — a crack that shimmers rather than resolves) was not
+  run; it belongs with the style sweep.
+- **Debug tonemap** (`curve: 0`), as in §6.3, so the numbers are not what a player sees through the
+  shipped AgX curve. That makes the arms comparable to each other, which is what an A/B needs — it
+  does not make the percentages absolute perceptual quantities.
+- **A luminance-difference metric, not a crack detector.** It cannot tell a crack from any other
+  darkening. That is exactly why the noise floor row is load-bearing, and why §14's human sign-off
+  is a separate gate that this does not substitute for.
+
+**Pinned tests:** every reference to `kDamageStagesVisible` in `VoxelDamageStateTest.cpp` is semantic
+(asserting *against the constant*, never against a literal `3`), so the default change needs no test
+edits. Verified by re-running them green at 7 in the same commit rather than by inspection.
 
 ### 6.5 R5 — graze-only re-mesh (L4, red today; proves §3.7)
 
@@ -1315,10 +1421,14 @@ legibility is the NUMBER OF DISTINCT VALUES, not their magnitude.
 
 **RESULT — unit 13/13, integration 4/4.** Beyond the §7 gate (boundaries 0/1/2/3), two tests assert
 the *reasons* for the change rather than its mechanics:
-- `OnlyFourDistinctPackedValuesAcrossTheWholeDamageRange` sweeps 1,001 damage values and requires
+- `ExactlyOnePackedValuePerStageAcrossTheWholeDamageRange` sweeps 1,001 damage values and requires
   the continuous gradient to collapse to **exactly 4** distinct packed values. That is the
   merge-cost property stated as a test instead of trusted — every distinct value is a potential
   merge-run break.
+  *(P4 amendment: the assertion now reads `kDamageStagesVisible + 1`, so it re-derives instead of
+  pinning a number — "exactly 4" was the answer while the count was 3, and P4 (§6.4b) moved it to 7.
+  The test was also renamed from `OnlyFourDistinctPackedValues…` for the same reason. The property
+  being tested is unchanged; only its dependence on a literal is.)*
 - `CoarseStagesBoundTheRemeshCountPerVoxel` walks a voxel pristine → break and pins that it can
   cause at most **3** rebuilds, where 15 stages meant 15.
 
@@ -1500,6 +1610,72 @@ confirmed by eye and **the fact that coverage is scale-invariant would never hav
 property of the crack model that anyone reaching for "how much crack is there?" will meet again.
 
 ---
+
+---
+
+### P4 — stage-count A/B — **DONE 2026-09-23. It revised P2's choice: `kDamageStagesVisible` 3 → 7.**
+
+Full result table and reasoning: **§6.4b**. This entry records what was built and what it cost.
+
+Built:
+- **`DamageStage.h`** — the stage count gained a **runtime** twin: `damageStagesVisibleRef()`
+  (`std::atomic<int>`), `damageStagesVisible()`, and `setDamageStagesVisible()` clamped to
+  `[1, kDamageStageMax]` with the reason at the clamp site (above 15 the packed value overflows
+  bits 11-14 into bit 15, the `varied` texture-rotation flag). `kDamageStagesVisible` stays
+  `constexpr` and is the ship value; the atomic exists so the three arms can be compared **in one
+  session against one scene**, which three separate binaries cannot do.
+- **Both consumers read it ONCE into a local** — `ChunkRenderManager` at the top of a chunk rebuild,
+  `DamageSystem` at the top of `applyDamage`. That is the race fix and the performance answer at
+  once: chunk meshing runs on worker threads and the count is consulted per cell, so a per-voxel
+  atomic load in a 32,768-cell loop was never acceptable. A rebuild in flight uses one consistent
+  value throughout, and the forced full re-mesh on change leaves no chunk holding a stale count.
+- **`POST /api/debug/damage_stages {"stages": N}`** — sets the count, re-meshes every loaded chunk,
+  and **echoes the APPLIED value plus `chunks_remeshed`**, so a caller can assert the knob took
+  effect instead of trusting a stale binary. Omitted body = report only.
+- **`tools/damage_stage_ab.py`** (cost) and **`tools/damage_stage_legibility.py`** (legibility).
+
+**Pinned tests moved, as §6.4 said they would** — and more than expected. Three tests *referenced*
+`kDamageStagesVisible` but derived their expectations from a hardcoded 3: boundary fractions written
+out as 1/6, 1/2, 5/6; packing pinned to `{0, 5, 10, 15}`; and "exactly 4 distinct values", which was
+in the test's own name. All three now re-derive from the constant, and
+`OnlyFourDistinctPackedValues…` was renamed `ExactlyOnePackedValuePerStage…`. **Unit 63/63 green,
+integration 4/4 green at 7 stages.**
+
+`StageQuantizationAtEveryBoundary` also gained an assertion it did not have: that damage below
+`0.5/n` of toughness renders **pristine**. That is the blind band — the property that decided the
+stage count — and it belongs next to the code, not only in a plan section.
+
+#### What the two axes cost, and why one axis would have been wrong
+
+The cost axis alone would have **confirmed** 3 stages: it is genuinely the cheapest, by a measured
+3.84×, and the prediction written before the run was met. The legibility axis — added only at gate
+pass 4, and nearly left as a judgement call inside the ship criterion — is the one that found the
+defect. Had P4 shipped as a single-axis measurement, the engine would show **nothing for the first
+~17% of a voxel's damage**, and that would have been recorded as a measured decision.
+
+#### Three rig defects, each of which produced a confident-looking table that meant nothing
+
+Worth keeping, because all three are the same mistake: a rig that returns numbers without
+establishing that the numbers are of the thing being asked about.
+
+1. **Damaged to maximum (ratio 0.95).** Measured 18.87 / 19.62 / 19.99% for 15 / 7 / 3 — agreement
+   to within capture noise, which reads as "the stage count does not matter". It doesn't, *there*:
+   at max damage every arm saturates to its own top stage and the shader normalises
+   `stage/stagesVisible`, so all three arms are literally the same input. The discriminating case is
+   LOW damage, where quantization deletes increments rather than blurring them.
+2. **`fill` does not overwrite.** The gradient wall from the cost run was still standing, so the
+   "undamaged control" read **stage 2**. Now cleared first, with the control's stage asserted to be 0.
+3. **No noise floor.** Two pristine blocks at different screen positions do **not** measure 0%
+   different — they measure 2.27% at 12u. Without that row, the 3-stage arm's 2.67% reads as faint
+   cracking instead of nothing at all, which inverts the conclusion.
+
+A fourth (`radius: 1.0` splashing into neighbouring voxel centres, so the block was not uniform and
+the probed corner was unrepresentative) turned out not to move the numbers — but that is now
+*established* by an assertion rather than assumed.
+
+The first of those is the one to remember: **the arms were identical by construction and the rig
+still produced a table.** Nothing in the output said so. Only asking "what input would make these
+three arms differ?" — before reading the numbers — surfaced it.
 
 ## 14. Manual visual review — human sign-off
 
@@ -1707,9 +1883,10 @@ in a plan is a decision not yet made, so both were decided rather than logged: P
 | — | **Glass is not transparent** — moved OUT of this plan to [`GlassTransparency.md`](GlassTransparency.md) | that doc | **DEFERRED until this plan is finished.** Cause unknown; cracks on glass were never the problem and are restored | nothing here |
 | ~~1~~ | ~~`build_shaders.bat` reports success on a FAILED shader compile~~ | `StructurePipelineGaps.md` 2026-09-22 | ✅ **FIXED 2026-09-22** — three nested cmd traps, shipped as `\|\| goto :shader_error`; regression test `tools/test_shader_build_fails_loudly.py` | — |
 | **2** | **§6.2 RUNTIME seam test** — damaged wall straddling x = 31/32, captured and diffed | §6.2; rig built as `tools/crack_seam_test.py` | ⚠️ **NOT ACHIEVED after SIX metric designs.** The rig, both preconditions and the two-rig A/B framing all work and are committed; **no pixel statistic tried can distinguish a world-seeded crack from a uv-seeded one.** A PASS proves nothing. All six attempts and the reason each failed are in the tool. **Recommended next step is not another statistic — it is a debug view that renders `crackField` directly (§16.1)** | **P3 closure — still open** |
-| **3** | **P4 — stage-count A/B**, 3 / 7 / 15 for cost AND legibility across the 4/16/48/96 ladder | §6.4 — knob storage resolved, cost prediction added, pinned tests named | **READY** | Ratifying or revising P2's choice of 3 |
+| ~~3~~ | ~~**P4 — stage-count A/B**, 3 / 7 / 15 for cost AND legibility~~ | §6.4, result in **§6.4b** | ✅ **DONE 2026-09-23 — it REVISED P2.** Cost prediction met (15:3 = 3.84×); legibility showed **3 stages renders the first 17% of a voxel's life as pristine**, sitting on the measured noise floor at all four distances. **`kDamageStagesVisible` 3 → 7**; 7 matches 15 within noise for 56% of its face cost. Three rig defects found and fixed first — all now preconditions | — |
 | ~~4~~ | ~~P5 — per-material `crackStyle`~~ | §4.4a/§4.4b | ✅ **DONE** — see §13 | — |
 | ~~4b~~ | ~~Cracks on transparent materials~~ | — | ✅ **NOT AN ISSUE.** The reviewer confirms cracks on glass looked good; the exclusion I added was reverted. Only TRANSPARENCY is broken (item 0) | — |
+| **7** | **Legibility ladder at the crack-style EXTREMES** — Glass (0.75) and Steel (1.60), the same 12/16/48/96 ladder | §4.4b, which required it and which P4 did not satisfy | **OPEN.** §6.4b ran **Stone only** (style 0.883). The stage count it settled is style-independent, so P4's conclusion stands — but Glass sits at the clamp floor *because* below it the network falls back toward the microcube lattice, which is the sub-pixel failure P3 fixed. Cheap: parameterise the rig by material | Closing P5 honestly |
 | 5 | **V2 — sub-voxel damage** (cracks on generated buildings) | §3.6, §15 | OPEN | Retiring §1's scope boundary; also wanted by `FractureModes.md` F1 |
 | 6 | **V1.5 — geometric spall** | §3.4 | OPEN | Depends on V2 |
 
@@ -1723,12 +1900,15 @@ stale `.spv` with a green CI. It is the only item here whose blast radius is the
 about the failure that actually matters — a shader that reads `sizeU` — and the CPU mirror cannot
 catch it. Only a captured, diffed seam can. §14 is signed off; this is the last P3 item.
 
-**3 and 4 are both "make it better", and they answer different questions.** P4 is the measurement
-that could still overturn P2 (`kDamageStagesVisible` carries that caveat in its own doc comment, so
-it is not treated as settled), and it is where Q5 — legibility at 48 and 96 units, explicitly NOT
-covered by the §14 sign-off — finally gets answered. P5 is the one most likely to improve how it
-LOOKS rather than how correct it is, and it directly targets the reviewer's recorded note that the
-Voronoi cells read as regular and polygonal.
+**~~3 and 4~~ — both now done, and 3 did overturn P2.** P4 was kept open precisely because it could
+(`kDamageStagesVisible` carried that caveat in its own doc comment), and it did: the count is now 7.
+It also answered Q5 — legibility at 48 and 96 units, explicitly NOT covered by the §14 sign-off —
+with numbers rather than a judgement call. Worth recording *why* it overturned P2: the cost axis
+alone would have confirmed 3 (it is genuinely the cheapest, by 3.84×). The legibility axis, added
+only at gate pass 4, is the one that found the defect. A single-axis A/B here would have shipped a
+system that shows nothing for the first ~17% of a voxel's damage and called it a measured decision.
+P5 was the one most likely to improve how it LOOKS rather than how correct it is, and targeted the
+reviewer's recorded note that the Voronoi cells read as regular and polygonal.
 
 **5 and 6 are the larger arc.** V2 is now wanted by two independent tracks — this plan reached it
 from rendering (cracks cannot appear on sub-cube building walls) and `FractureModes.md` reached it
@@ -1839,10 +2019,11 @@ never work.
 
 ---
 
-## 18. Pick-up state — 2026-09-22 end of session
+## 18. Pick-up state — 2026-09-23
 
-Everything below is committed on `feature/voxel-damage-cracks`. Nothing is in flight; the working
-tree is clean and the engine renders correctly.
+**V1 IS COMPLETE.** P4 was the last phase, and it landed — revising P2's stage count on measured
+evidence (3 → 7, §6.4b). What remains on this plan is one unsolved guard, one deferred sweep, and
+the V2/V1.5 arc; none of it blocks using the feature.
 
 ### What shipped
 
@@ -1860,44 +2041,54 @@ tree is clean and the engine renders correctly.
 | `a79d4c62` | §6.2 seam rig — six metrics, no signal, marked not-a-gate |
 | `3a26206a` | **crack debug view (mode 11)** + retraction of a wrong gap entry |
 | `330ee050` | **P5** — per-material `crackStyle` |
-| `58b00dfd`, `03e68fa9` | **glass regression** — found by review, fixed on the second attempt |
+| `58b00dfd`, `03e68fa9` | two attempted glass fixes — **both wrong** |
+| `2ee675d6` | revert of both: they removed cracks from glass and fixed nothing |
+| `f5779025`, `8e074820` | glass transparency split out to its own plan, deferred |
+| *(this commit)* | **P4** — stage-count A/B; **`kDamageStagesVisible` 3 → 7** |
 
 ### Where to resume
 
 **§16 is the list.** In recommended order:
 
-1. **P4 — stage-count A/B** (§6.4). The only remaining phase of V1. Everything it needs is
-   specified: the `damage_stages` knob design (atomic, read once per rebuild), the cost prediction
-   with its falsifier, the 4/16/48/96 legibility ladder, and the three pinned tests that move if
-   the count changes. **It can still overturn P2's choice of 3**, and it is where legibility at
-   48/96 units — explicitly NOT covered by the §14 sign-off — finally gets answered.
-2. **§6.2 runtime seam guard** (§16 item 2, §16.1, §16.2). Visually settled via debug view 11; the
-   automated guard is NOT solved. Do not start with another pixel statistic — read §16.2 first, which
-   records that §3.3's stated failure mode is half wrong.
-3. **Cracks on transparent materials** (new, from the glass regression). Requires implementing the
-   crack in `transparent_voxel.frag`, where alpha is composited.
+1. **§6.2 runtime seam guard** (§16 item 2, §16.1, §16.2). Visually settled via debug view 11; the
+   automated guard is NOT solved. Do not start with another pixel statistic — read §16.2 first,
+   which records that §3.3's stated failure mode is half wrong.
+2. **Legibility ladder at the crack-style extremes** (§16 item 7, new). §4.4b required it and P4 did
+   not do it: §6.4b ran **Stone only**. Cheap — parameterise `tools/damage_stage_legibility.py` by
+   material. Glass (style 0.75) is the one to suspect, because it sits at the clamp floor precisely
+   to keep the network off the microcube lattice.
+3. **Glass transparency** — [`GlassTransparency.md`](GlassTransparency.md), deferred here on purpose.
+   **Start at its §2**, the unjudged baseline capture; do not write code first. Standing instruction
+   in that doc: it must not be called fixed without the reviewer confirming it visually.
 4. **V2 — sub-voxel damage**, now wanted by two independent tracks (this plan from rendering,
    `FractureModes.md` from physics). §15 recommends the per-parent-cube aggregate and costs it.
 5. **V1.5 — geometric spall**, after V2.
+
+### Two things P4 established that outlive it
+
+**The stage count has a blind band, and it is `0.5/n` of toughness.** `damageStage()` rounds, so
+below that a voxel renders pristine no matter how the shader is tuned. At the old count of 3 that
+was the first **17%** of a voxel's life. Anyone proposing to coarsen the count again to save faces
+is proposing to widen that band; the number is now asserted in
+`StageQuantizationAtEveryBoundary`.
+
+**A single-axis A/B would have got this wrong.** Cost alone *confirmed* 3 stages — it is genuinely
+the cheapest, by a measured 3.84×, and the pre-written prediction was met. The legibility axis was
+added late, at gate pass 4, and it is the one that found the defect. When an A/B has an axis on
+which the cheapest option always wins, that axis cannot decide anything by itself.
+
+### Operational notes from the P4 session
+
+- **Jobs stick in state `completing` forever when the engine sits at the project launcher.** The
+  finalize step needs a main-loop tick. Launch with `--project` for any rig that submits jobs;
+  `/api/state` answers regardless, so API-responsive is NOT proof the engine can do work.
+- **`taskkill /F /IM python.exe` kills the MCP server**, which is itself python. Kill by PID.
+- **The full unit suite takes many minutes in Debug** — the world-gen/hydrology tests bake a
+  256×256 hydrology map each. It is slow, not hung; do not kill it at 10 minutes as was done here.
+- **Do not pipe a long-running command through `grep`/`tail`** to watch it: both buffer until exit,
+  so the run looks silent and dead. Redirect to a file and read that.
 
 **Separately: `docs/FractureModes.md`** (damage-source size — pickaxe vs blast) is gated, all 7
 findings resolved, F0/F1 ready. Its gate is a **memory measurement**, not code: a fully carved cube
 is ≈ 97 KB against a 1.00 MB/chunk budget, so ~10 of them consume a chunk and a mined tunnel is
 exactly that shape.
-
-### Standing traps this session paid for
-
-- **`build_shaders.bat` is sufficient** — the engine loads `shaders/*.spv` from the repo root
-  (`cwd=PROJECT_ROOT`). An earlier gap entry claiming otherwise was WRONG and is retracted, struck
-  through, in `StructurePipelineGaps.md`. But `build_project` does NOT compile shaders — it only
-  copies them — so a shader edit followed by `build_project` alone leaves a stale `.spv`. The
-  manifest guard catches that.
-- **Adding a debug view requires raising the clamp** in `Application.cpp` (`setDebugShadowMode`),
-  or the new mode silently renders the previous one. The all-caps warning was already there and was
-  still walked into.
-- **Check batch exit codes from bash**, not PowerShell: `$LASTEXITCODE` after `cmd /c` reported 0
-  for a run that returned 1, and `cmd /c "... & echo %errorlevel%"` has the same parse-time
-  expansion bug as the script being tested.
-- **The rigs are all Stone.** The glass regression shipped because every rig in §6/§14 uses one
-  material class. §14.1 needs a transparent pane; §14.3 needs a seventh question: *does the material
-  still do its job?*

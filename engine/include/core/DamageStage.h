@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 
 namespace Phyxel {
@@ -31,23 +32,76 @@ inline constexpr float kDamageDisplayRef = 30.0f;
 /// not a design choice -- see kDamageStagesVisible for the number of stages actually used.
 inline constexpr int kDamageStageMax = 15;
 
-/// How many VISIBLE damage stages the engine distinguishes: pristine + 3 (hairline / open /
-/// failing). P2, docs/VoxelDamageVisualization.md 3.5.
+/// How many VISIBLE damage stages the engine distinguishes, above pristine.
+/// P2 (3.5) set this; P4 (6.4) re-derived it from measurement -- see the table below.
 ///
-/// Why so few, and why coarser is better rather than merely cheaper:
+/// SET BY MEASUREMENT (P4 / 6.4), not by argument. It was 3 on cost grounds alone; the
+/// legibility axis overturned that. Both axes, same scene, one engine session via the runtime
+/// knob below:
+///
+///   stages | damage-induced faces | low-damage legibility @12u | blind below damage ratio
+///   -------|----------------------|----------------------------|-------------------------
+///     15   |        +196          |           5.14%            |         0.033
+///      7   |        +109          |           5.30%            |         0.071
+///      3   |         +51          |  2.67% -- ON THE 2.27% NOISE FLOOR
+///
+/// Reading, in the order that matters:
+///  * 7 MATCHES 15's legibility within noise at every distance (12/16/48/96 u) and at both
+///    damage levels, for 56% of its face cost. That makes 15 strictly dominated -- it buys
+///    nothing a viewer can see.
+///  * 3 IS BLIND EARLY, and this is the finding that moved the constant. damageStage() rounds
+///    at f*n + 0.5, so the first visible stage needs damage ratio >= 0.5/n: 0.167 at 3 stages.
+///    A voxel spends the first ~17% of its life rendering PRISTINE. Measured at ratio 0.12 the
+///    3-stage arm sat on the pristine-vs-pristine noise floor at all four distances -- the
+///    damage was not faint, it was absent. A first pickaxe swing landing no visible mark is a
+///    gameplay defect, not a saving.
+///  * The face cost is real but small in absolute terms (+109 vs +51 on a 24x10 wall, against
+///    a ~270k-face scene at the M4 operating point) because only damaged voxels pay it. Cost
+///    was the right tie-breaker between 7 and 15; it is the wrong one between 7 and 3.
+///
+/// The original cost reasoning still holds and is why this is 7 and not 15:
 ///  * MERGE COST. Damage is part of the greedy-merge key by design, so a damage GRADIENT
 ///    locally becomes the un-merged case. Fewer distinct levels means wider bands, longer
-///    surviving merge runs, fewer faces. A blast with 16 levels shatters merge runs into ~16
-///    concentric single-voxel-wide bands.
+///    surviving merge runs, fewer faces. Measured ratio 15:3 = 3.84x damage-induced faces.
 ///  * RE-MESH COUNT. The graze path rebuilds a chunk only when a hit crosses a stage boundary
-///    (3.7), so 3 stages means at most 3 rebuilds per voxel over its whole life, not 16.
-///  * IT IS NOT LEGIBLE ANYWAY. Measured on the live ladder at P1: consecutive stages differ by
-///    ~1.4 luminance out of 255, under 1%. Sixteen perceptually distinct crack stages on a 1 m
-///    face is not a real thing.
+///    (3.7), so this many stages means at most this many rebuilds per voxel over its whole life.
 ///
-/// STILL A HYPOTHESIS: R4 (6.4) measures 3 vs 7 vs 15 for cost AND legibility in a real
-/// settlement scene and ratifies or revises this. Change it there, with the table, not here.
-inline constexpr int kDamageStagesVisible = 3;
+/// Superseded by the table above: the P1 claim that consecutive stages differ by ~1.4/255 and
+/// are therefore illegible. That was measured between ADJACENT stages of 15; it says nothing
+/// about whether a stage is distinguishable from PRISTINE, which is the question that decides
+/// the count. Re-measure with tools/damage_stage_legibility.py before changing this again --
+/// and keep its noise-floor row, without which a floor reading looks like faint cracking.
+inline constexpr int kDamageStagesVisible = 7;
+
+/**
+ * RUNTIME stage count, for P4's A/B (6.4). Ships equal to kDamageStagesVisible; the debug
+ * endpoint POST /api/debug/damage_stages changes it so 3 / 7 / 15 can be compared in ONE
+ * engine session against ONE scene, which three separate builds cannot do.
+ *
+ * ATOMIC, and every consumer must READ IT ONCE INTO A LOCAL rather than per voxel. It is read
+ * during chunk meshing, which runs on worker threads, so a plain mutable global would be a
+ * cross-thread read inside a 32,768-cell loop. Reading once per rebuild is simultaneously the
+ * race fix (a rebuild uses one consistent value throughout) and the performance answer (no
+ * atomic load in the inner loop); the forced full re-mesh after a change leaves no chunk
+ * holding a stale count.
+ */
+inline std::atomic<int>& damageStagesVisibleRef() {
+    static std::atomic<int> v{kDamageStagesVisible};
+    return v;
+}
+inline int damageStagesVisible() {
+    return damageStagesVisibleRef().load(std::memory_order_relaxed);
+}
+/// Clamped to [1, kDamageStageMax]; returns the value actually applied.
+/// Above kDamageStageMax the quantized value would overflow instance bits 11-14 into bit 15,
+/// the `varied` texture-rotation flag, silently hash-rotating the face texture -- which on
+/// coursed materials breaks pattern continuity at voxel edges. Below 1 there are no stages.
+inline int setDamageStagesVisible(int n) {
+    if (n < 1) n = 1;
+    if (n > kDamageStageMax) n = kDamageStageMax;
+    damageStagesVisibleRef().store(n, std::memory_order_relaxed);
+    return n;
+}
 
 /// Map a visible stage (0..kDamageStagesVisible) onto the 4-bit instance field.
 ///

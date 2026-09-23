@@ -2853,6 +2853,20 @@ void EngineAPIServer::setupRoutes() {
         json result = queueAndWait("get_screen_state", json::object());
         res.set_content(result.dump(), "application/json");
     });
+    // POST /api/screen/action {action:start|pause|resume|menu|settings|inventory}
+    // Semantic control for the built-in GameScreen shell (including ImGui
+    // menus, which are intentionally outside UISystem::injectClick).
+    srv.Post("/api/screen/action", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("screen_action", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
+    });
 
     // POST /api/interaction/can_interact — Read-only compatibility query.
     // Body: { "entity_id": "...", "object_id": "...", "point_id": "seat_0", "kind": "sit" }
@@ -4624,6 +4638,15 @@ void EngineAPIServer::setupRoutes() {
         json params = json::parse(req.body, nullptr, false);
         if (params.is_discarded()) params = json::object();
         res.set_content(queueAndWait("set_distance_lod", params, 30000).dump(), "application/json");
+    });
+
+    // POST /api/debug/damage_stages — P4 stage-count A/B. Body: { "stages": int }
+    // (empty body = report only). Clamped [1,15]; forces a full re-mesh so the change is
+    // actually visible, and echoes the APPLIED value + chunks re-meshed.
+    srv.Post("/api/debug/damage_stages", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = req.body.empty() ? json::object() : json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_damage_stages", params, 60000).dump(), "application/json");
     });
 
     // POST /api/debug/shadow — shadow draw distance A/B. Body: { "distance": float }
