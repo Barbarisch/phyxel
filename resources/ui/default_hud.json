@@ -693,5 +693,229 @@
     }
    }
   ]
+ },
+ {
+  "id": "hud_journal",
+  "anchor": "Center",
+  "offset": [
+   0,
+   -50
+  ],
+  "size": [
+   760,
+   480
+  ],
+  "title": "Journal",
+  "showBackground": true,
+  "visibleWhen": "journal.visible",
+  "children": [
+   {
+    "type": "label",
+    "id": "journal_hint",
+    "text": "L closes the journal",
+    "size": [
+     720,
+     18
+    ]
+   },
+   {
+    "type": "label",
+    "id": "journal_h_main",
+    "text": "Main Quest",
+    "size": [
+     700,
+     40
+    ],
+    "scale": 2.4,
+    "color": [
+     0.62,
+     0.4,
+     0.22,
+     1.0
+    ],
+    "visibleWhen": "journal.mainAny"
+   },
+   {
+    "type": "repeater",
+    "id": "journal_main",
+    "bind": "journal.main",
+    "itemSpacing": 2,
+    "size": [
+     720,
+     108
+    ],
+    "visibleWhen": "journal.mainAny",
+    "item": {
+     "type": "panel",
+     "showBackground": false,
+     "size": [
+      716,
+      108
+     ],
+     "children": [
+      {
+       "type": "label",
+       "id": "journal_main_title",
+       "bind": "item.title",
+       "text": "",
+       "size": [
+        700,
+        64
+       ],
+       "wrapWidth": 700
+      },
+      {
+       "type": "label",
+       "id": "journal_main_detail",
+       "bind": "item.detail",
+       "text": "",
+       "size": [
+        700,
+        28
+       ],
+       "scale": 1.75,
+       "color": [
+        0.42,
+        0.36,
+        0.3,
+        1.0
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "type": "label",
+    "id": "journal_h_side",
+    "text": "Side Quests",
+    "size": [
+     700,
+     40
+    ],
+    "scale": 2.4,
+    "color": [
+     0.62,
+     0.4,
+     0.22,
+     1.0
+    ],
+    "visibleWhen": "journal.sideAny"
+   },
+   {
+    "type": "repeater",
+    "id": "journal_side",
+    "bind": "journal.side",
+    "itemSpacing": 2,
+    "size": [
+     720,
+     108
+    ],
+    "visibleWhen": "journal.sideAny",
+    "item": {
+     "type": "panel",
+     "showBackground": false,
+     "size": [
+      716,
+      108
+     ],
+     "children": [
+      {
+       "type": "label",
+       "id": "journal_side_title",
+       "bind": "item.title",
+       "text": "",
+       "size": [
+        700,
+        64
+       ],
+       "wrapWidth": 700
+      },
+      {
+       "type": "label",
+       "id": "journal_side_detail",
+       "bind": "item.detail",
+       "text": "",
+       "size": [
+        700,
+        28
+       ],
+       "scale": 1.75,
+       "color": [
+        0.42,
+        0.36,
+        0.3,
+        1.0
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "type": "label",
+    "id": "journal_h_done",
+    "text": "Completed",
+    "size": [
+     700,
+     40
+    ],
+    "scale": 2.4,
+    "color": [
+     0.62,
+     0.4,
+     0.22,
+     1.0
+    ],
+    "visibleWhen": "journal.completedAny"
+   },
+   {
+    "type": "repeater",
+    "id": "journal_done",
+    "bind": "journal.completed",
+    "itemSpacing": 2,
+    "size": [
+     720,
+     108
+    ],
+    "visibleWhen": "journal.completedAny",
+    "item": {
+     "type": "panel",
+     "showBackground": false,
+     "size": [
+      716,
+      108
+     ],
+     "children": [
+      {
+       "type": "label",
+       "id": "journal_done_title",
+       "bind": "item.title",
+       "text": "",
+       "size": [
+        700,
+        64
+       ],
+       "wrapWidth": 700
+      },
+      {
+       "type": "label",
+       "id": "journal_done_detail",
+       "bind": "item.detail",
+       "text": "",
+       "size": [
+        700,
+        28
+       ],
+       "scale": 1.75,
+       "color": [
+        0.42,
+        0.36,
+        0.3,
+        1.0
+       ]
+      }
+     ]
+    }
+   }
+  ]
  }
 ]

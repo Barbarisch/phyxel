@@ -368,6 +368,7 @@ def create_project(
         "    Phyxel::Core::PlayerTurnController* apiPlayerTurn() override     { return &playerTurn_; }",
         "    Phyxel::Core::ClickToMove*          apiClickToMove() override    { return &clickToMove_; }",
         "    Phyxel::Core::CharacterSheet*       apiPlayerSheet() override    { return &playerSheet_; }",
+        "    Phyxel::Core::ObjectiveTracker*     apiObjectiveTracker() override { return &objectiveTracker_; }",
         "    Phyxel::Core::Inventory*            apiInventory() override      { return &inventory_; }",
         "    Phyxel::UI::DialogueSystem*         apiDialogueSystem() override { return dialogueSystem_.get(); }",
         *([
@@ -612,6 +613,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 // XP existed at all.
                 publishProgressionHud();
                 publishPartyHud();   // G-161: who is travelling with you
+                publishJournalHud(); // G-168: the quest journal window (L)
                 auto& hud = renderCoordinator_->hudData();
                 hud.setText("player.goldText", [this]() {{ return wallet_.gold > 0 || wallet_.silver > 0 || wallet_.copper > 0 ? wallet_.toString() : std::string("0 gp"); }});
                 // Compass (G-117): heading from the camera (0 = north = +z, 90 = east = +x); the
@@ -2572,6 +2574,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                     barKeyDown_[i] = down;
                     if (edge && barLive) fireActionSlot(i);
                 }}
+                updateJournalToggle(*input);   // G-168: L opens/closes the journal
                 const bool pDown = input->isActionPressed("ToggleAbilities");
                 const bool pEdge = pDown && !barKeyDown_[Phyxel::Core::ActionBar::SLOT_COUNT];
                 barKeyDown_[Phyxel::Core::ActionBar::SLOT_COUNT] = pDown;

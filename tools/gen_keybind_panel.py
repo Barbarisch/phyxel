@@ -34,6 +34,7 @@ LABELS = {
     "ToggleAutorun": "Autorun", "ToggleWalk": "Walk / Run",
     "TogglePause": "Pause", "ToggleInventory": "Inventory",
     "ToggleCharacter": "Character", "ToggleAbilities": "Abilities Panel",
+    "ToggleJournal": "Journal",
     "Attack": "Attack", "Interact": "Interact",
 }
 for i in range(1, 13):

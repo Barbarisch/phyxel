@@ -1248,6 +1248,36 @@
             "type": "rebind",
             "binding": "ActionSlot12"
           }
+        },
+        {
+          "type": "label",
+          "id": "lbl_ToggleJournal",
+          "text": "Journal",
+          "position": [
+            700,
+            654
+          ],
+          "size": [
+            240,
+            30
+          ]
+        },
+        {
+          "type": "button",
+          "id": "kb_ToggleJournal",
+          "text": "{{keybind.ToggleJournal}}",
+          "position": [
+            950,
+            650
+          ],
+          "size": [
+            190,
+            34
+          ],
+          "action": {
+            "type": "rebind",
+            "binding": "ToggleJournal"
+          }
         }
       ]
     }

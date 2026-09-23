@@ -24,6 +24,7 @@ class PlayerTurnController;
 class ClickToMove;
 struct CharacterSheet;   // a STRUCT (CharacterSheet.h) - MSVC mangles the key
 class Party;
+class ObjectiveTracker;
 class Inventory;
 
 // Engine-side base for standalone game hosts. Scaffolded games subclass THIS
@@ -114,6 +115,17 @@ protected:
     /// No-ops (quietly) when the game has no party or no render coordinator.
     void publishPartyHud();
 
+    /// Publish the quest journal as a `journal` list plus `journal.visible` (G-168). The
+    /// objectives STRIP shows active titles only; the journal shows main/side/completed with
+    /// each objective's description. Call once during setup, beside the other publishers.
+    void publishJournalHud();
+    /// Toggle the journal window on the `ToggleJournal` action's rising edge (L by default).
+    /// Call once per frame from onUpdate while gameplay input is live. Engine-side so the
+    /// binding, the edge detection and the visibility flag cannot drift between games.
+    void updateJournalToggle(Input::InputManager& input);
+    bool journalOpen() const { return journalOpen_; }
+    void setJournalOpen(bool open) { journalOpen_ = open; }
+
     void startTestApi(EngineRuntime& engine, int port, const std::string& name);
     void pumpTestApi();     // drain queued commands — call once per frame in onUpdate
     void stopTestApi();
@@ -137,10 +149,13 @@ protected:
     virtual nlohmann::json        apiPointerClick(float, float, const std::string&) { return nlohmann::json{{"error", "no pointer click handler"}}; }
     virtual CharacterSheet*       apiPlayerSheet()    { return nullptr; }  // progression
     virtual Party*                apiParty()          { return nullptr; }  // companions (G-161)
+    virtual ObjectiveTracker*     apiObjectiveTracker() { return nullptr; } // journal (G-168)
     virtual Inventory*            apiInventory()      { return nullptr; }  // loot/persistence
     virtual UI::DialogueSystem*   apiDialogueSystem() { return nullptr; }  // dialogue_state (G-47)
 
 private:
+    bool journalOpen_ = false;        // G-168 quest journal window
+    bool journalKeyDown_ = false;     // for rising-edge detection
     GameplayCameraController cameraController_;
     std::string cameraResolvedScene_;
     bool cameraResolved_ = false;

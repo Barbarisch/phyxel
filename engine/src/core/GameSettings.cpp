@@ -250,6 +250,7 @@ std::vector<Keybinding> GameSettings::defaultKeybindings() {
         {"ActionSlot11",   GLFW_KEY_MINUS,   0},
         {"ActionSlot12",   GLFW_KEY_EQUAL,   0},
         {"ToggleAbilities",GLFW_KEY_P,       0},
+        {"ToggleJournal",  GLFW_KEY_L,       0},   // G-168: the quest journal window
     };
 }
 

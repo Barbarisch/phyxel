@@ -3,6 +3,9 @@
 #include "graphics/RenderCoordinator.h"
 #include "core/ProgressionHud.h"
 #include "core/PartyHud.h"
+#include "core/JournalHud.h"
+#include "core/ObjectiveTracker.h"
+#include "input/InputManager.h"
 #include "core/Party.h"
 #include "core/EntityRegistry.h"
 #include "core/CharacterSheet.h"
@@ -124,6 +127,36 @@ void GameShell::publishPartyHud() {
     });
 
     LOG_INFO("GameShell", "party HUD published (party list + party.any)");
+}
+
+void GameShell::publishJournalHud() {
+    auto* rc = apiRenderCoordinator();
+    if (!rc) return;
+    // Three sections, each its own list, so the panel can give every section a static heading
+    // and an empty section collapses to nothing (a repeater reports its content height).
+    auto sections = [this]() -> JournalSections {
+        auto* tracker = apiObjectiveTracker();
+        return tracker ? journalHudSections(*tracker) : JournalSections{};
+    };
+    auto& hud = rc->hudData();
+    hud.setList("journal.main",      [sections]() { return sections().main; });
+    hud.setList("journal.side",      [sections]() { return sections().side; });
+    hud.setList("journal.completed", [sections]() { return sections().completed; });
+    hud.setFloat("journal.mainAny",      [sections]() { return sections().main.empty() ? 0.0f : 1.0f; });
+    hud.setFloat("journal.sideAny",      [sections]() { return sections().side.empty() ? 0.0f : 1.0f; });
+    hud.setFloat("journal.completedAny", [sections]() { return sections().completed.empty() ? 0.0f : 1.0f; });
+    hud.setFloat("journal.visible", [this]() -> float { return journalOpen_ ? 1.0f : 0.0f; });
+    LOG_INFO("GameShell", "journal HUD published (journal.main/side/completed + journal.visible)");
+}
+
+void GameShell::updateJournalToggle(Input::InputManager& input) {
+    const bool down = input.isActionPressed("ToggleJournal");
+    const bool edge = down && !journalKeyDown_;
+    journalKeyDown_ = down;
+    if (edge) {
+        journalOpen_ = !journalOpen_;
+        LOG_INFO("GameShell", "Journal {}", journalOpen_ ? "opened" : "closed");
+    }
 }
 
 void GameShell::pumpTestApi() { gameApi_.pump(); }
