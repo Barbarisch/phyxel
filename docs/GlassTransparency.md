@@ -2,8 +2,7 @@
 
 **Status:** OPEN. **Phase 0 COMPLETE** — glass measured fully opaque; the OIT pass runs.
 **Phase 1 COMPLETE** — identical at the pre-branch baseline: **the break predates the crack branch.**
-**Next step is UNDER REVIEW (§12.7)** — the bisect Phase 1 prescribes has a feasibility problem the plan
-never addressed; execution is stopped until the plan is amended. Results in §12. Gated through `FeatureDesignKeys.md` three
+**Next: Phase 1b — gated bisect of `main` (§12.8), reviewer's decision 2026-09-23.** Results in §12. Gated through `FeatureDesignKeys.md` three
 times (§9).
 
 > **PROCESS RULE (added 2026-09-23, after it was broken).** This plan is the approved plan. When
@@ -577,3 +576,32 @@ Options, for the reviewer to choose — **not chosen by the executor**:
   the fix needs; the bisect answers *when*, which the fix does not need unless the mechanism is
   unclear. The experiment is reverted after measuring and is not a fix (it would strip cracks from
   glass, §12.4). Cost: one build.
+
+### 12.8 Decision on 12.7 — Option A: follow the plan, bisect `main` (reviewer, 2026-09-23)
+
+Reviewer's words: *"all i know is that glass was transparent at one point or another in the engine's
+history. it isnt now. follow the plan."* Option (B) is **not** taken. The bisect runs as Phase 1
+prescribed, with the gate from 12.7 as its first step.
+
+**Procedure — Phase 1b.**
+
+1. **Isolation.** Every historical build happens in a separate `git worktree` outside the repo
+   (`G:/Github/phyxel-bisect`), with its own build directory. The main working tree holds other
+   sessions' uncommitted WIP and must not be checked out to old commits. Each worktree engine runs
+   from the worktree root, so its relative `shaders/` path loads that commit's committed `.spv`.
+2. **Gate.** Measure T at `7a36910f`. **Prediction, written before the run: T ~ 0** — because the
+   occlusion mechanism (§12.1) is present at that commit. If the gate reads ~0.5, `7a36910f` is GOOD
+   and the bisect runs toward `1bdf0239` (known BAD, §12.6).
+3. **If the gate is BAD**, the reviewer's statement still stands (glass was transparent at some point),
+   so the good commit is EARLIER, not absent. The search then steps **backwards** in coarse jumps along
+   the first-parent line — each jump doubling the distance — until a GOOD commit is found, then bisects
+   between it and the nearest BAD. 7a36910f is no longer treated as a floor.
+4. **Classification per commit:** GOOD if T ≥ 0.25, BAD if T ≤ 0.08 (the Stone floor band), and
+   ANYTHING BETWEEN IS RECORDED AS "PARTIAL" AND INVESTIGATED, never forced into good/bad. Every
+   commit's T, floor and control go in the table in 12.9 — no step is summarised without its numbers.
+5. **Rig compatibility.** Old commits may lack endpoints the rig uses. The rig degrades rather than
+   guesses: each missing endpoint is detected and reported, and a commit where the CONTROL cannot be
+   established (backdrop swap not visible) is marked **UNTESTABLE** and skipped (`git bisect skip`
+   semantics), never counted as bad. The full-cube arm is the bisect signal; the subcube arm is
+   recorded where the old API supports it.
+6. **Nothing from a historical build is committed or merged.** The worktree is removed at the end.
