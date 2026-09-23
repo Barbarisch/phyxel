@@ -24,7 +24,7 @@ class CombatAISystem;
 class CombatSystem;
 class PlayerTurnController;
 class ClickToMove;
-class CharacterSheet;
+struct CharacterSheet;   // a STRUCT (CharacterSheet.h) - MSVC mangles the key
 class Inventory;
 
 // ============================================================================

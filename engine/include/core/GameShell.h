@@ -22,7 +22,7 @@ class CombatAISystem;
 class CombatSystem;
 class PlayerTurnController;
 class ClickToMove;
-class CharacterSheet;
+struct CharacterSheet;   // a STRUCT (CharacterSheet.h) - MSVC mangles the key
 class Inventory;
 
 // Engine-side base for standalone game hosts. Scaffolded games subclass THIS
@@ -88,6 +88,19 @@ protected:
     // subsystems to the API by overriding the api* hooks below (default null →
     // that endpoint reports "not available"). Call the three lifecycle methods
     // from onInitialize / onUpdate / onShutdown respectively.
+    /// Publish the player's XP/level into the HUD data context, so `default_hud.json`'s XP bar
+    /// has something to bind to (G-172). Call once during setup, AFTER apiPlayerSheet() and
+    /// apiRenderCoordinator() can answer.
+    ///
+    /// This lives in the shell rather than in each game because the gap it closes is exactly
+    /// that: the engine has CharacterProgression and the shipped games never reached it, so
+    /// kills and quests awarded XP that no player could see. Publishing here means a game gets
+    /// an XP bar by existing, not by remembering to wire one. Providers read the sheet live, so
+    /// there is nothing to keep in sync - the bar cannot go stale.
+    ///
+    /// No-ops (quietly) when the game has no sheet or no render coordinator.
+    void publishProgressionHud();
+
     void startTestApi(EngineRuntime& engine, int port, const std::string& name);
     void pumpTestApi();     // drain queued commands — call once per frame in onUpdate
     void stopTestApi();

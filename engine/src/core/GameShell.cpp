@@ -1,6 +1,9 @@
 #include "core/GameShell.h"
 #include "ui/UISystem.h"
 #include "graphics/RenderCoordinator.h"
+#include "core/ProgressionHud.h"
+#include "core/CharacterSheet.h"
+#include "ui/HudDataContext.h"
 #include "core/EngineRuntime.h"
 #include "core/SceneManager.h"
 #include "graphics/Camera.h"
@@ -56,6 +59,39 @@ void GameShell::applyMmoBindings(Input::InputManager& input, bool mmo) {
     input.bindAction("ToggleInventory", mmo ? GLFW_KEY_B : GLFW_KEY_TAB);
     LOG_INFO("GameShell", "control bindings: {} (Interact={}, Inventory={})",
              mmo ? "mmo/wow" : "default", mmo ? "F" : "E", mmo ? "B" : "Tab");
+}
+
+void GameShell::publishProgressionHud() {
+    auto* rc = apiRenderCoordinator();
+    if (!rc) return;
+    auto& hud = rc->hudData();
+
+    // Captured as `this`, not as a sheet pointer: a game may swap sheets on load or on a new
+    // character, and a captured pointer would quietly keep drawing the old one.
+    hud.setFloat("player.xpPercent", [this]() -> float {
+        auto* sheet = apiPlayerSheet();
+        return sheet ? progressionHud(*sheet).percent : 0.0f;
+    });
+    hud.setFloat("player.level", [this]() -> float {
+        auto* sheet = apiPlayerSheet();
+        return sheet ? static_cast<float>(progressionHud(*sheet).level) : 1.0f;
+    });
+    hud.setFloat("player.xp", [this]() -> float {
+        auto* sheet = apiPlayerSheet();
+        return sheet ? static_cast<float>(progressionHud(*sheet).xpTotal) : 0.0f;
+    });
+    hud.setText("player.xpText", [this]() -> std::string {
+        auto* sheet = apiPlayerSheet();
+        return sheet ? progressionHud(*sheet).text : std::string("Lv 1  -  0 XP");
+    });
+    // Lets a HUD hide the bar entirely for a game with no progression authored, rather than
+    // showing every such game a permanently empty bar.
+    hud.setFloat("player.hasProgression", [this]() -> float {
+        auto* sheet = apiPlayerSheet();
+        return (sheet && !sheet->classes.empty()) ? 1.0f : 0.0f;
+    });
+
+    LOG_INFO("GameShell", "progression HUD published (player.xpPercent/level/xp/xpText)");
 }
 
 void GameShell::pumpTestApi() { gameApi_.pump(); }

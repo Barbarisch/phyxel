@@ -600,6 +600,11 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // (resources/ui/default_hud.json). See docs/HudSystem.md.
             renderCoordinator_->initUISystem();
             {
+                // G-172: XP bar + level readout, published by the ENGINE shell so every game
+                // gets one. Kills and objectives already awarded XP through
+                // CharacterProgression; nothing showed it, so to a player it looked like no
+                // XP existed at all.
+                publishProgressionHud();
                 auto& hud = renderCoordinator_->hudData();
                 hud.setText("player.goldText", [this]() {{ return wallet_.gold > 0 || wallet_.silver > 0 || wallet_.copper > 0 ? wallet_.toString() : std::string("0 gp"); }});
                 // Compass (G-117): heading from the camera (0 = north = +z, 90 = east = +x); the

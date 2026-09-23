@@ -145,6 +145,7 @@ of named providers the host wires once; widgets reference them by binding key.
 |-------------------|---------------|
 | `player.health`, `player.maxHealth`, `player.resource.*` | `HealthComponent` / shared `playerHealth` |
 | `player.hotbar[*]`, `player.selectedSlot` | hotbar / `EquipmentSystem` |
+| `player.xpPercent`, `player.level`, `player.xp`, `player.xpText`, `player.hasProgression` | `CharacterSheet` via `Core::progressionHud()`, published by `GameShell::publishProgressionHud()` (G-172) |
 | `combat.inCombat`, `combat.round`, `combat.isPlayerTurn`, `combat.currentEntityId` | `CombatDirector` |
 | `combat.turn_order` (list of portrait records) | `CombatDirector` / `InitiativeTracker` |
 | `combat.action`, `combat.bonus`, `combat.movement` | `ActionBudget` (via `PlayerTurnController`) |
