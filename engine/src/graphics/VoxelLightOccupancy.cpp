@@ -203,8 +203,11 @@ namespace {
 
 /// Walk micro cells from `from` to `to` (absolute world units). Returns true if any is solid.
 /// `skipCells` ignores that many cells at the start — how a surface avoids shadowing itself.
+/// `testEndCell` - see phxDdaHitsSolidEx in occupancy.glsl. False reproduces the long-standing
+/// semantics (the cell containing the end point is NOT tested); the light march passes true.
 bool ddaHitsSolid(const PackedOccupancyPool& packed, const glm::vec3& from, const glm::vec3& to,
-                  int skipCells, int maxCells, int* cellsOut, glm::ivec3* firstHitOut) {
+                  int skipCells, int maxCells, int* cellsOut, glm::ivec3* firstHitOut,
+                  bool testEndCell = false) {
     const glm::vec3 a = from * 9.0f, b = to * 9.0f;          // micro space
     const glm::vec3 d = b - a;
     const float len = glm::length(d);
@@ -252,6 +255,11 @@ bool ddaHitsSolid(const PackedOccupancyPool& packed, const glm::vec3& from, cons
             else                 { cell.z += step.z; tMax.z += tDelta.z; }
         }
         if (tMax.x > len && tMax.y > len && tMax.z > len) {
+            if (testEndCell && n + 1 >= skipCells && packedPoolSolidAt(packed, cell)) {
+                if (cellsOut) *cellsOut = n + 1;
+                if (firstHitOut) *firstHitOut = cell;
+                return true;
+            }
             if (cellsOut) *cellsOut = n;
             return false;
         }
@@ -307,6 +315,7 @@ LightVisibility packedPoolLightVisibility(const PackedOccupancyPool& packed,
                                           const glm::vec3& surfaceWorld,
                                           const glm::vec3& geomNormal,
                                           const glm::vec3& lightWorld,
+                                          float emitterExtent,
                                           int maxSteps) {
     LightVisibility out;
 
@@ -322,13 +331,17 @@ LightVisibility packedPoolLightVisibility(const PackedOccupancyPool& packed,
     // half voxel short fixed that and let ANY light within 0.5 u of a wall shine through the wall (a
     // hearth's flame sits in a firebox cut into masonry, and lit the lawn outside the house).
     // Measuring the run excludes exactly the emitter and nothing else.
-    const float runEnd = emitterRunLength(packed, lightWorld, -dir, /*maxCells=*/32);
+    // G-157: bounded by the emitter's OWN size, so the run cannot continue past the
+    // emitter into the wall it is mounted on. Must stay identical to occupancy.glsl.
+    const int runCells = std::min(std::max(static_cast<int>(
+        std::ceil(std::max(emitterExtent, 0.0f) * 9.0f)), 1), 32);
+    const float runEnd = emitterRunLength(packed, lightWorld, -dir, runCells);
     const glm::vec3 target = start + dir * std::max(dist - runEnd - (0.1f / 9.0f), 0.0f);
 
     int cells = 0;
     glm::ivec3 hit{0};
     const bool blocked = ddaHitsSolid(packed, start, target, /*skipCells=*/0, maxSteps,
-                                      &cells, &hit);
+                                      &cells, &hit, /*testEndCell=*/true);
     out.steps = cells;
     out.cappedOut = cells >= maxSteps;
     if (blocked) {

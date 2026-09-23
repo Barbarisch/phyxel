@@ -31,12 +31,13 @@ int LightManager::addPointLight(const PointLight& light) {
 }
 
 int LightManager::addPointLight(const glm::vec3& position, const glm::vec3& color,
-                                float intensity, float radius) {
+                                float intensity, float radius, float extent) {
     PointLight light;
     light.position = position;
     light.color = color;
     light.intensity = intensity;
     light.radius = radius;
+    light.extent = extent;
     return addPointLight(light);
 }
 
@@ -242,6 +243,7 @@ const LightBufferGPU& LightManager::getGPUData() {
         auto& gpu = gpuBuffer_.pointLights[pi];
         gpu.positionAndRadius = glm::vec4(e->light.position - viewerWorld_, e->light.radius);
         gpu.colorAndIntensity = glm::vec4(e->light.color, e->light.intensity);
+        gpu.extentAndPad      = glm::vec4(e->light.extent, 0.0f, 0.0f, 0.0f);
         pi++;
     }
     gpuBuffer_.numPointLights = pi;
@@ -264,7 +266,7 @@ const LightBufferGPU& LightManager::getGPUData() {
         gpu.positionAndRadius = glm::vec4(e->light.position - viewerWorld_, e->light.radius);
         gpu.directionAndInnerCone = glm::vec4(e->light.direction, e->light.innerCone);
         gpu.colorAndIntensity = glm::vec4(e->light.color, e->light.intensity);
-        gpu.outerConeAndPadding = glm::vec4(e->light.outerCone, 0.0f, 0.0f, 0.0f);
+        gpu.outerConeAndPadding = glm::vec4(e->light.outerCone, e->light.extent, 0.0f, 0.0f);
         si++;
     }
     gpuBuffer_.numSpotLights = si;

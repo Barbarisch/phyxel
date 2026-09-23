@@ -278,3 +278,68 @@ TEST_F(EmissiveLightMerge, TheEmittedListIsDeterministic) {
         EXPECT_FLOAT_EQ(a[i].radius, b[i].radius);
     }
 }
+
+// =============================================================================================
+// THE EMITTER'S OWN SIZE (G-157) -- what the shadow march is allowed to exclude around a light
+// =============================================================================================
+
+// A light must report the half-extent of its own emitting body, because `phxLightVisibility`
+// excludes that much solid around the light so an emissive voxel does not shadow itself. Before
+// this existed the march walked the whole contiguous solid run, so a sconce mounted flush on a
+// wall excluded the WALL as well and lit straight through it at every thickness.
+TEST_F(EmissiveLightMerge, ALoneMicrocubeReportsItsOwnTinyExtent) {
+    Micros micros;
+    micros.push_back(std::make_unique<Microcube>(glm::ivec3(2, 2, 2), glm::ivec3(1, 1, 1),
+                                                 glm::ivec3(1, 1, 1), "glow"));
+    ChunkRenderManager crm;
+    crm.rebuildAllFaces(Cubes{}, Subs{}, micros, glm::ivec3(0, 0, 0));
+    ASSERT_EQ(crm.getEmissiveLights().size(), 1u);
+    // Bounding sphere of a 1/9 cube: sqrt(3)/18.
+    const float want = std::sqrt(3.0f) / 18.0f;
+    EXPECT_NEAR(crm.getEmissiveLights()[0].extent, want, 1e-4f)
+        << "a one-microcube flame must exclude ~0.096 u of solid, not a whole wall";
+    // The point of the number: a wall one micro cell away is FURTHER than the extent, so the
+    // march still reaches it. Without this the fixture proves nothing about the leak.
+    EXPECT_LT(crm.getEmissiveLights()[0].extent, 1.0f / 9.0f)
+        << "extent must be smaller than one micro cell, or a 1-micro wall is still swallowed";
+}
+
+TEST_F(EmissiveLightMerge, AGlowCubeReportsHalfItsDiagonal) {
+    Cubes cubes;
+    cubes.push_back(std::make_unique<Cube>(glm::ivec3(3, 3, 3), "glow"));
+    ChunkRenderManager crm;
+    crm.rebuildAllFaces(cubes, Subs{}, Micros{}, glm::ivec3(0, 0, 0));
+    ASSERT_EQ(crm.getEmissiveLights().size(), 1u);
+    EXPECT_NEAR(crm.getEmissiveLights()[0].extent, std::sqrt(3.0f) / 2.0f, 1e-4f)
+        << "a full glow cube must exclude exactly itself -- half its diagonal";
+}
+
+// A merged fixture's extent must COVER all of its cells, or the fixture shadows its own far side.
+TEST_F(EmissiveLightMerge, AMergedFixtureExtentCoversAllOfItsCells) {
+    const glm::ivec3 cube(1, 1, 1);
+    auto micros = glowMicrosInCube(cube, 66);
+    ChunkRenderManager crm;
+    crm.rebuildAllFaces(Cubes{}, Subs{}, micros, glm::ivec3(0, 0, 0));
+    ASSERT_EQ(crm.getEmissiveLights().size(), 1u);
+    const auto& e = crm.getEmissiveLights()[0];
+
+    // The requirement is that the extent reaches the furthest POINT of any emitting cell, so
+    // measure the furthest CORNER of each cell -- not its bounding sphere, which would overstate
+    // the requirement for any cell that is not diagonally aligned with the centroid.
+    float worst = 0.0f;
+    for (const auto& m : micros) {
+        const glm::vec3 c = m->getWorldPosition() + glm::vec3(m->getScale() * 0.5f);
+        const float half = m->getScale() * 0.5f;
+        for (int k = 0; k < 8; ++k) {
+            const glm::vec3 corner = c + glm::vec3((k & 1) ? half : -half,
+                                                   (k & 2) ? half : -half,
+                                                   (k & 4) ? half : -half);
+            worst = std::max(worst, glm::length(corner - e.worldPos));
+        }
+    }
+    EXPECT_GE(e.extent, worst - 1e-3f)
+        << "the extent must reach every emitting cell (" << e.extent << " < " << worst
+        << "), or the bed of coals casts a shadow from its own far side";
+    EXPECT_LT(e.extent, std::sqrt(3.0f) / 2.0f + 1e-3f)
+        << "and must never exceed the parent cube it was merged within";
+}

@@ -559,6 +559,24 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 
 ## 9. Change log (append a line per lighting/shadow change; the fingerprint line is written by `tools/lighting_doc_check.py --update`)
 
+- 2026-09-22 — **FIXED: a light no longer excludes the wall it is mounted on (G-157).**
+  `phxLightVisibility` stops its shadow ray short by the length of the contiguous SOLID RUN
+  around the light, so an emissive voxel does not shadow itself. A sconce mounted flush on a
+  wall shares ONE solid run with that wall, so the exclusion swallowed the wall and the light
+  reached straight through it — reproduced at every thickness from 1 micro to a 3-cube stone
+  keep wall, with the one-cell-off control correctly blocked at all of them. The fix is the
+  quantity the G-158 merge made available: each light now knows the half-extent of its own
+  emitting body (the bounding-sphere radius of the voxels it was merged from), and the outward
+  walk is bounded by it — `runCells = clamp(ceil(extent * 9), 1, 32)` in both `occupancy.glsl`
+  and its CPU mirror. A one-microcube flame reports 0.096 u and may exclude ONE micro cell, so a
+  wall one cell behind it is still tested; a full glow cube reports 0.866 u and excludes exactly
+  itself. The walk still ends early at air, so a free-standing emitter is unchanged. Carrying the
+  extent to the GPU widened `PointLightGPU` from 32 to 48 bytes (`extentAndPad.x`), which had to
+  change in `Light.h` and in all seven shaders that declare it — voxel, character, foliage,
+  grass, mirror_voxel, transparent_voxel and gi_probe — in lockstep, because a layout mismatch
+  reads garbage rather than failing to link. Spot lights use the padding they already had
+  (`outerConeAndPadding.y`). Rules R8/R9 untouched. `LightWallMatrixTraced.M4_ALightMountedFlush...`
+  is now enabled and is the definition of done.
 - 2026-09-22 — **FIXED: one emissive light per fixture, at the emitting voxel (G-158).**
   `ChunkRenderManager::rebuildAllFaces` now accumulates emissive voxels per PARENT CUBE and emits
   a single `EmissiveLight` at the power-weighted centroid of the emitting cells, instead of one
@@ -642,7 +660,7 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 - 2026-08-15 — single tone map moved to `post_process.frag` (grade pass).
 - 2026-08-06 — near shadow cascade (40 u) shipped; receivers min-compose.
 
-<!-- lighting-model-fingerprint: b762b433d082d4da -->
+<!-- lighting-model-fingerprint: 92f40f287cf2bbc1 -->
 
 ## Related
 

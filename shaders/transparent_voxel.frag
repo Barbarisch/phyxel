@@ -76,6 +76,7 @@ layout(set = 0, binding = 9) uniform sampler2D shadowMapNear;   // U1: the near 
 struct PointLightGPU {
     vec4 positionAndRadius;
     vec4 colorAndIntensity;
+    vec4 extentAndPad;          // x = emitter half-extent (G-157), yzw = padding
 };
 
 struct SpotLightGPU {
@@ -192,7 +193,8 @@ void main() {
             // (this shader does no normal mapping), so it is the correct ray-origin offset.
             if (ndotl > 0.0 &&
                 phxLightVisibility(inWorldPos + ubo.cameraWorld, normal,
-                                   lightPos + ubo.cameraWorld, ubo.occupancyBox) > 0.0) {
+                                   lightPos + ubo.cameraWorld,
+                                   lights.pointLights[i].extentAndPad.x, ubo.occupancyBox) > 0.0) {
                 float atten = calcAttenuation(dist, radius);
                 vec3 h = normalize(ldir + viewDir);
                 float pSpec = pow(max(dot(normal, h), 0.0), 32.0) * 0.3;

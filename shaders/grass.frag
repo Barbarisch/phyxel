@@ -78,6 +78,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 struct PointLightGPU {
     vec4 positionAndRadius;     // xyz = position, w = radius
     vec4 colorAndIntensity;     // xyz = color, w = intensity
+    vec4 extentAndPad;          // x = emitter half-extent (G-157), yzw = padding
 };
 struct SpotLightGPU {
     vec4 positionAndRadius;
@@ -158,7 +159,9 @@ void main() {
             if (dist >= radius) continue;
             // Gate BEFORE the march, exactly as voxel.frag does -- this is what keeps the
             // visibility term near-free: almost no fragment actually traces.
-            if (phxLightVisibility(worldP, up, lp + ubo.cameraWorld, ubo.occupancyBox) <= 0.0)
+            if (phxLightVisibility(worldP, up, lp + ubo.cameraWorld,
+                                   lights.pointLights[i].extentAndPad.x,
+                                   ubo.occupancyBox) <= 0.0)
                 continue;
             float atten = clamp(1.0 - dist / radius, 0.0, 1.0);
             atten *= atten;

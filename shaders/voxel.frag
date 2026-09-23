@@ -88,6 +88,7 @@ layout(set = 0, binding = 7) uniform sampler2DArray textureNormalHi;  // class 1
 struct PointLightGPU {
     vec4 positionAndRadius;     // xyz = position, w = radius
     vec4 colorAndIntensity;     // xyz = color, w = intensity
+    vec4 extentAndPad;          // x = emitter half-extent (G-157), yzw = padding
 };
 
 // Spot light (64 bytes, std430)
@@ -481,7 +482,8 @@ void main() {
                 }
                 float vis = (kSkipMarch || kCountOnly || kContribOnly) ? 1.0
                           : phxLightVisibility(inWorldPos + ubo.cameraWorld, Ng,
-                                               lightPos + ubo.cameraWorld, ubo.occupancyBox);
+                                               lightPos + ubo.cameraWorld,
+                                               lights.pointLights[i].extentAndPad.x, ubo.occupancyBox);
                 if (vis > 0.0) {
                     float atten = calcAttenuation(dist, radius);
                     dbgForward += pbrBRDF(N, V, ldir, albedo, rough, metallic,
@@ -512,7 +514,8 @@ void main() {
                 dbgMarchCount += 1.0;
                 float vis = (kSkipMarch || kCountOnly) ? 1.0
                           : phxLightVisibility(inWorldPos + ubo.cameraWorld, Ng,
-                                               lightPos + ubo.cameraWorld, ubo.occupancyBox);
+                                               lightPos + ubo.cameraWorld,
+                                               lights.spotLights[i].outerConeAndPadding.y, ubo.occupancyBox);
                 if (vis > 0.0) {
                     float atten = calcAttenuation(dist, radius);
                     dbgForward += pbrBRDF(N, V, ldir, albedo, rough, metallic,

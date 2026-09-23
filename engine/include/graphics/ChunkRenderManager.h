@@ -203,6 +203,7 @@ public:
         glm::vec3 color;      ///< hue: material colorTint, or the per-voxel tint when burning
         float     intensity;  ///< 0..1, from the material's emissive strength
         float     radius;     ///< reach, scaled with intensity
+        float     extent;     ///< G-157: half-extent of the emitting body itself, world units
     };
     const std::vector<EmissiveLight>& getEmissiveLights() const { return m_emissiveLights; }
 

@@ -39,6 +39,7 @@ layout(push_constant) uniform GiPush {
 struct PointLightGPU {
     vec4 positionAndRadius;
     vec4 colorAndIntensity;
+    vec4 extentAndPad;          // x = emitter half-extent (G-157), yzw = padding
 };
 struct SpotLightGPU {
     vec4 positionAndRadius;

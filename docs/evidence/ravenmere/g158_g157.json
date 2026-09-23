@@ -1,0 +1,54 @@
+{
+  "tag": "g157",
+  "exe_mtime": "2026-09-22 20:33:43",
+  "visible_chunks": 8,
+  "player": {
+    "x": -36.0,
+    "y": 17.11111068725586,
+    "z": 15.0
+  },
+  "near_down": {
+    "camera": {
+      "x": -36.0,
+      "y": 18.81111068725586,
+      "z": 15.0,
+      "yaw": 0.0,
+      "pitch": -89.0
+    },
+    "registered_point_lights": 38,
+    "uploaded": 32,
+    "rows_returned": 32,
+    "distinct_positions": 32,
+    "radius_median": 8.29,
+    "static_geometry_ms": 67.867,
+    "fps": 13.236,
+    "render": "g158_g157_near_down.png",
+    "marches": {
+      "lit_fraction": 0.9664,
+      "mean_marches_per_lit_px": 17.09,
+      "max_marches": 32.0
+    }
+  },
+  "street": {
+    "camera": {
+      "x": -36.0,
+      "y": 18.81111068725586,
+      "z": 15.0,
+      "yaw": 0.0,
+      "pitch": -5.0
+    },
+    "registered_point_lights": 38,
+    "uploaded": 32,
+    "rows_returned": 32,
+    "distinct_positions": 32,
+    "radius_median": 8.29,
+    "static_geometry_ms": 45.31,
+    "fps": 16.369,
+    "render": "g158_g157_street.png",
+    "marches": {
+      "lit_fraction": 0.7163,
+      "mean_marches_per_lit_px": 17.72,
+      "max_marches": 32.0
+    }
+  }
+}

@@ -196,10 +196,15 @@ struct LightVisibility {
 /// that is wrong inside a shader produces an image nobody can attribute, whereas a march that is
 /// wrong here fails a test and can be queried point-by-point over HTTP.
 /// All positions are ABSOLUTE world units.
+/// `emitterExtent` is the half-extent of the emitter's own body in world units (see
+/// PointLight::extent). It bounds how much solid the march may exclude around the light, which is
+/// what stops a flush-mounted sconce from excluding the wall it is mounted on (G-157). The default
+/// is half a cube's diagonal: the largest single emissive voxel there is.
 LightVisibility packedPoolLightVisibility(const PackedOccupancyPool& packed,
                                           const glm::vec3& surfaceWorld,
                                           const glm::vec3& geomNormal,
                                           const glm::vec3& lightWorld,
+                                          float emitterExtent = 0.866f,
                                           int maxSteps = 192);
 
 /// M3 — SKY VISIBILITY. What fraction of the sky hemisphere above a surface is unoccluded,

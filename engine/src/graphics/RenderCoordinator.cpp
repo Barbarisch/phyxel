@@ -1216,7 +1216,7 @@ void RenderCoordinator::updateVfx(float dt) {
             for (const auto& e : ch->getEmissiveLights()) {
                 mix(e.worldPos.x); mix(e.worldPos.y); mix(e.worldPos.z);
                 mix(e.color.r); mix(e.color.g); mix(e.color.b);
-                mix(e.intensity); mix(e.radius);
+                mix(e.intensity); mix(e.radius); mix(e.extent);
                 ++count;
             }
         }
@@ -1228,7 +1228,7 @@ void RenderCoordinator::updateVfx(float dt) {
                 if (!ch) continue;
                 for (const auto& e : ch->getEmissiveLights()) {
                     const int id = lightManager.addPointLight(e.worldPos, e.color,
-                                                               e.intensity, e.radius);
+                                                               e.intensity, e.radius, e.extent);
                     if (id >= 0) m_emissiveLightIds.push_back(id);
                 }
             }

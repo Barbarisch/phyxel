@@ -504,6 +504,10 @@ void ChunkRenderManager::rebuildCubeFaces(
         struct EmissiveAccum {
             glm::vec3 weightedPos{0.0f};   // sum of voxel centre * power
             glm::vec3 weightedHue{0.0f};   // sum of hue          * power
+            // G-157: the AABB of the emitting CELLS (not their centres), so the light can report
+            // how big its own body is and the shadow march can exclude that and nothing more.
+            glm::vec3 bmin{ 1e30f};
+            glm::vec3 bmax{-1e30f};
             float     power  = 0.0f;       // sum of t * volume, in full-cube equivalents
             float     volume = 0.0f;       // sum of volume, in cube units
             float     maxT   = 0.0f;       // brightest constituent
@@ -520,9 +524,10 @@ void ChunkRenderManager::rebuildCubeFaces(
         };
         std::map<glm::ivec3, EmissiveAccum, CellLess> accum;
 
+        // cellHalf = half the emitting voxel's side, so the AABB covers the CELL, not its centre.
         auto emit = [&](const glm::ivec3& parentCube, const glm::vec3& voxelCentre,
                         const std::string& matName, const glm::vec3& voxelTint, uint32_t state,
-                        float volumeFraction) {
+                        float volumeFraction, float cellHalf) {
             glm::vec3 hue(1.0f);
             float scale15 = 0.0f;
             if (state == 1u || state == 2u) {                // burning: per-voxel tint
@@ -544,6 +549,8 @@ void ChunkRenderManager::rebuildCubeFaces(
             a.power       += power;
             a.volume      += volumeFraction;
             a.maxT         = glm::max(a.maxT, t);
+            a.bmin         = glm::min(a.bmin, voxelCentre - glm::vec3(cellHalf));
+            a.bmax         = glm::max(a.bmax, voxelCentre + glm::vec3(cellHalf));
         };
 
         // ⚠️ CUBES COME FROM THE PALETTE STORE, NOT THE `cubes` VECTOR.
@@ -574,7 +581,7 @@ void ChunkRenderManager::rebuildCubeFaces(
                                  static_cast<int>(ci % 32));
                 if (lp.x < 0 || lp.x >= N || lp.y < 0 || lp.y >= N || lp.z < 0 || lp.z >= N) continue;
                 emit(worldOrigin + lp, glm::vec3(worldOrigin + lp) + glm::vec3(0.5f),
-                     *mn, glm::vec3(1.0f), 0u, 1.0f);
+                     *mn, glm::vec3(1.0f), 0u, 1.0f, 0.5f);
             }
         }
         for (const auto& sc : subcubes) {
@@ -584,7 +591,8 @@ void ChunkRenderManager::rebuildCubeFaces(
             // centre -- which is what EmissiveLight.worldPos is documented to hold. A subcube is
             // 1/27 of a cube by volume.
             emit(sc->getPosition(), sc->getWorldPosition() + glm::vec3(sc->getScale() * 0.5f),
-                 sc->getMaterialName(), unpackTint(sc->getTint()), sc->getState(), 1.0f / 27.0f);
+                 sc->getMaterialName(), unpackTint(sc->getTint()), sc->getState(), 1.0f / 27.0f,
+                 sc->getScale() * 0.5f);
         }
         for (const auto& mc : microcubes) {
             if (!mc || mc->isBroken() || !mc->isVisible()) continue;
@@ -592,7 +600,8 @@ void ChunkRenderManager::rebuildCubeFaces(
             // Same again one level finer: min corner + half a microcube, 1/729 of a cube.
             emit(mc->getParentCubePosition(),
                  mc->getWorldPosition() + glm::vec3(mc->getScale() * 0.5f),
-                 mc->getMaterialName(), unpackTint(mc->getTint()), mc->getState(), 1.0f / 729.0f);
+                 mc->getMaterialName(), unpackTint(mc->getTint()), mc->getState(), 1.0f / 729.0f,
+                 mc->getScale() * 0.5f);
         }
 
         m_emissiveLights.reserve(m_emissiveLights.size() + accum.size());
@@ -618,6 +627,14 @@ void ChunkRenderManager::rebuildCubeFaces(
             // A full-strength glow block lit roughly its room under the old flood (15 cells at
             // 1-per-cell decay), so that reach is the anchor rather than a new invented constant.
             e.radius    = glm::max(2.0f, 15.0f * a.maxT * sizeScale);
+            // G-157: how much solid this light may exclude around itself -- the distance from the
+            // emission centroid to the far corner of the emitting cells' AABB, i.e. its bounding
+            // sphere. A lone microcube reports 1/18 * sqrt(3) = 0.096 u, so a wall one micro cell
+            // away is still tested and still blocks; a full glow cube reports 0.866 and excludes
+            // exactly itself. The march used to walk up to 32 micro cells with no such bound,
+            // which is why a flush-mounted sconce lit straight through its wall at any thickness.
+            const glm::vec3 far = glm::max(e.worldPos - a.bmin, a.bmax - e.worldPos);
+            e.extent    = glm::length(glm::max(far, glm::vec3(0.0f)));
             m_emissiveLights.push_back(e);
         }
     }
