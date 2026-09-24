@@ -21,6 +21,7 @@ namespace Phyxel {
 namespace Physics {
     class PhysicsWorld;
 }
+class ChunkManager;   // m_owner (§17.6 R12)
 
 /**
  * Chunk class that manages a 32x32x32 section of cubes
@@ -103,6 +104,17 @@ private:
     bool m_sealed = false;
 
     uint32_t m_rebuildCount = 0;                   // see rebuildCount()
+
+    // The ChunkManager whose managed rebuild last meshed this chunk (bound there; ChunkManager is a
+    // friend). docs/GlassTransparency.md §17.6 R12: a rebuild WITHOUT a neighbour lookup then asks
+    // it for a managed re-mesh, so "every edit ends in a managed re-mesh" holds by construction.
+    // nullptr = never managed (a new chunk, or a standalone test chunk): requests nothing.
+    ChunkManager* m_owner = nullptr;
+    // Set with that request; cleared by the managed rebuild. Separate from renderManager's
+    // needsUpdate on purpose: that flag also means "upload the GPU buffer", and the very next
+    // updateVulkanBuffer() (addCubesBatch calls it right after its rebuild) clears it — which
+    // silently cancelled the request, so the dirty pass skipped the chunk (T9g, measured).
+    bool m_managedRemeshRequested = false;
 
     // Border-class signature ripple (docs/GlassTransparency.md §17.6 C7). One 64-bit signature per
     // face (order +X,-X,+Y,-Y,+Z,-Z) over the render classes of that face's border cells.

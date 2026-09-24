@@ -472,6 +472,13 @@ void Chunk::rebuildFaces(const NeighborLookupFunc& getNeighborCube,
                                   &voxelManager.getVoxelStore(), getNeighborFine);
     ++m_rebuildCount;
     refreshBorderSignature();   // §17.6 C7: every re-mesh, managed or not, records border changes
+    // §17.6 R12: this rebuild had no neighbour lookup, so the border faces were meshed as if the
+    // neighbours were empty and any border change is still undelivered. Ask for the managed
+    // re-mesh that fixes both. Cannot loop: the managed rebuild always passes a lookup.
+    if (!getNeighborCube && m_owner) {
+        m_managedRemeshRequested = true;
+        m_owner->markChunkForRemesh(this);
+    }
     // Refresh cached render flags (geometry/materials may have changed).
     recomputeRenderFlags();
     // Refresh the occlusion visibility graph (cheap flood-fill, only on rebuild).

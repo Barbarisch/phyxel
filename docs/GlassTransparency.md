@@ -1480,6 +1480,18 @@ coordinate 0 or 31 on the axis facing the neighbour.
 | R9 `DynamicObjectManager` / `ChunkVoxelBreaker` / `ChunkVoxelManager` edit callbacks (`m_rebuildFaces()`) | subdivide, breaks into dynamics | ❌ own chunk only (null-lookup rebuild) |
 | R10 chunk **load** / stream-in (`ChunkManager.cpp:114–122`) | streaming | ✅ idle re-mesh of the 6 adjacent chunks |
 | R11 LOD → fine return (`RenderCoordinator.cpp:2982`), damage-stage re-mesh (`DamageSystem.cpp:228`) | LOD, cracks | no ripple needed: render classes unchanged |
+| **R12** `Chunk::addCubesBatch` / `removeCubesBatch`: immediate null-lookup rebuild (`ChunkVoxelManager.cpp:670`) and **no managed mark at all** | **`POST /api/world/fill`** (`Application.cpp:16300`), snapshot restore/undo/redo (`:14379`), region clear (`:16448`), move/rotate region (`:17569`) | ❌ **never**: not the neighbour, and not even its own chunk's cross-chunk rebuild. *Found at L4, 2026-09-24* (window E, below) |
+
+**R12 and the rule, amended 2026-09-24 (found at L4, before the fix).** R12 breaks item 7's rule
+("every edit ends in a MANAGED re-mesh") in four callers, so the rule is now **enforced by
+construction** instead of by route: a chunk records its owning `ChunkManager` on its first managed
+rebuild, and any later rebuild that runs **without** a neighbour lookup calls
+`owner->markChunkForRemesh(*this)`. That managed re-mesh fixes the chunk's own border over-draw and
+delivers its border changes. It cannot loop, because the managed rebuild always has a lookup. It is
+thread-safe, because the tracker's mark is mutex-guarded (edit jobs already mark from worker
+threads). A chunk that has never been managed-rebuilt (a new chunk, or standalone test chunks) has no owner
+and requests nothing. Cost: an edit route that only null-rebuilt now also meshes once more in the
+managed pass. Its borders were wrong before.
 
 **R3–R9 are partly a pre-existing bug.** Today, removing a border voxel through any of them leaves the
 neighbour's facing face culled, a visible hole, until something else re-meshes that chunk. §17 makes it
@@ -1761,6 +1773,9 @@ and damage, LOD mesh, window aperture; 187 tests).
 | 7 (C7, delivered-signature fix) | 46 / 3 / 7 | + T14 | none | 191 pass, 1 fail (below; +ChunkManager/DirtyChunkTracker/FloraMargin) |
 | 8 (C5 cube leaves + C6 opaque cap) | **49 / 0 / 7** | + T11, T12, T12b | none | 191 pass, 1 fail (below) |
 | 10 (T16 cost + `GET /api/debug/chunk_faces`) | **50 / 0 / 7** | T16 | none | C7 signature cost, Debug, 20 reps: terrain **0.55%** of a rebuild (0.27 of 49.1 ms); worst case, a border layer entirely of subcubes, **3.92%** (3.60 of 91.9 ms). Both under the 5% budget; the worst case is within 1.1 points of it |
+| 11a (L4, first run) | — | — | **window E (across the chunk border) FAILED**: each glass fill added +4 opaque and +4 transparent cube faces at the x=31\|32 seam, **+8/+8 on the second fill**. Window D (in one chunk) passed exactly | — |
+| R12 (found by 11a) | 51 / 0 / 7 | T9g (new; reproduces 11a headless, shown red first) | none | 191 pass, 1 fail (below) |
+| 11b (L4, re-run on the R12 build) | — | — | **RESULT PASS** (below) | — |
 | 9 (FULL unit suite, step-8 build) | — | — | — | **4,011 pass / 20 skipped / 2 fail**, ~69 min Debug. Both failures are unrelated to §17: the light-boundary test (below) and `AtlasManagerTest.BuildAtlasFromSourcePNGs`, which fails whenever the BC7 cache exists (verified: passes with `cache/textures` moved aside; logged in `StructurePipelineGaps.md`) |
 
 **C7 first cut was wrong, and T14 caught it.** `removeCube` re-meshes the chunk at once with the
@@ -1778,6 +1793,28 @@ and every §17 change is keyed on one, so for that input the old and new code ta
 **Empirical evidence exists independently:** `docs/VoxelDamageVisualization.md:1319` records the
 same failure, identical message and line (`topSubFaces() 1 vs 2`), verified pre-existing by
 reverting `ChunkRenderManager.cpp`, rebuilding and re-running.
+
+**L4 (11b), live Debug engine, project DamageLab, shipped look (AgX, exposure 8). Rig:
+`s17_l4.py`.** Per window, three arms at one camera pose: glass → air (control: air never hid a
+face) → glass again. Counts come from `GET /api/debug/chunk_faces`, boxed to the wall.
+
+| window | P (live scan) | opaque unit faces, glass / air / glass again | transparent, glass / air / glass again |
+|---|---|---|---|
+| D, inside chunk (0,0,0) | **14** (predicted 14) | 10692 / 10692 / 10692 (132 cube faces each) | 1944 / 0 / 1944 (= 24 cube faces, predicted) |
+| E, across the x=31\|32 border | **14** (predicted 14) | 10692 / 10692 / 10692 | 1944 / 0 / 1944 |
+
+The old rule would have dropped P × 81 = 1134 opaque unit faces in each glass arm. Captures at the
+same pose (glass vs air) show the reveal through the pane; E shows no seam line at the chunk border.
+**These are evidence for the reviewer, not a sign-off.**
+
+**What 11a caught (R12).** `POST /api/world/fill` calls `Chunk::addCubesBatch`, which re-meshes
+its chunk at once WITHOUT a neighbour lookup and never requests a managed re-mesh. That route was
+missing from the §17.6 matrix. Both chunks at the seam kept faces meshed as if the other side were
+empty, and each fill re-created them. Fixed by construction (§17.6 R12): a null-lookup rebuild of a
+managed chunk requests a managed re-mesh. The **first attempt did not work**, and T9g showed why:
+the request travelled on `needsUpdate`, which `addCubesBatch`'s immediately following
+`updateVulkanBuffer()` clears, so the dirty pass skipped the chunk. The request now has its own flag
+(`Chunk::m_managedRemeshRequested`), which `ChunkManager::updateChunk` honours.
 
 **Rig traps found while writing the reds (fixed in the test, recorded inline there):** (1) a chunk's
 arrival queues an IDLE re-mesh of its neighbours, so R3/R7 falsely passed until the rig settled

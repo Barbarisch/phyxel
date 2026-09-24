@@ -580,6 +580,32 @@ TEST_F(TransparentCullingCrossChunk, T16_BorderSignatureCostsUnderFivePercentOfA
     measure(wall, "subcube border wall");
 }
 
+// T9g — R12 (found at L4): Chunk::addCubesBatch, the /api/world/fill path, re-meshes its chunk at
+// once WITHOUT a neighbour lookup and never requests a managed re-mesh. Live, a glass window filled
+// across the x=31|32 border showed both chunks drawing their seam faces as if the other side were
+// empty (doubled glass; stone-stone seam faces drawn), growing with every fill. After the dirty
+// pass, both chunks must match a from-scratch cross-chunk rebuild.
+TEST_F(TransparentCullingCrossChunk, T9g_BatchFillAcrossABorderEndsCrossChunkCorrect) {
+    Chunk* a = chunk({0, 0, 0}); Chunk* b = chunk({1, 0, 0});
+    a->addCube({20, 20, 20}, "Stone"); b->addCube({20, 20, 20}, "Stone");   // neither is all-air
+    remesh({{0, 0, 0}, {1, 0, 0}});
+    for (int i = 0; i < 32; ++i) cm.updateDirtyChunks();
+    // A glass window 2 cells wide straddling the border, framed by stone, filled in batches per
+    // chunk exactly as the /api/world/fill handler does.
+    ASSERT_EQ(a->addCubesBatch({{31, 9, 10}, {31, 12, 10}}, "Stone"), 2);
+    ASSERT_EQ(b->addCubesBatch({{0, 9, 10}, {0, 12, 10}}, "Stone"), 2);
+    ASSERT_EQ(a->addCubesBatch({{31, 10, 10}, {31, 11, 10}}, "Glass"), 2);
+    ASSERT_EQ(b->addCubesBatch({{0, 10, 10}, {0, 11, 10}}, "Glass"), 2);
+    drain();
+    const auto liveA = worldFaces(*a), liveB = worldFaces(*b);
+    remesh({{0, 0, 0}, {1, 0, 0}});
+    EXPECT_EQ(liveA, worldFaces(*a)) << "chunk A after a batch fill differs from a cross-chunk rebuild "
+                                        "(its border faces were meshed as if B were empty)";
+    EXPECT_EQ(liveB, worldFaces(*b)) << "chunk B after a batch fill differs from a cross-chunk rebuild";
+    EXPECT_EQ(countIn(liveA, cubeBox({31, 10, 10}), 9, kPX), 0) << "glass|glass seam face drawn in A (doubled pane)";
+    EXPECT_EQ(countIn(liveA, cubeBox({31, 9, 10}), 9, kPX), 0) << "stone|stone seam face drawn in A";
+}
+
 // T9f — the same ripple for a SUB-VOXEL border change (generated panes are microcubes).
 TEST_F(TransparentCullingCrossChunk, T9f_MicroGlassPlacedAcrossTheBorderRemeshesTheNeighbour) {
     Chunk* a = chunk({0, 0, 0}); Chunk* b = chunk({1, 0, 0});

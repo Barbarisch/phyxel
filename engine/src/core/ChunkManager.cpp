@@ -403,7 +403,9 @@ void ChunkManager::updateChunk(size_t chunkIndex) {
     if (chunkIndex >= chunks.size()) return;
     
     Chunk* chunk = chunks[chunkIndex].get();
-    if (chunk->getNeedsUpdate()) {
+    // m_managedRemeshRequested: a null-lookup rebuild asked for this re-mesh (§17.6 R12); an
+    // intervening buffer upload may already have cleared needsUpdate.
+    if (chunk->getNeedsUpdate() || chunk->m_managedRemeshRequested) {
         LOG_TRACE_FMT("Chunk", "Updating chunk " << chunkIndex << " with " << chunk->getTotalSubcubeCount() << " subcubes");
 
         // Use cross-chunk culling method to maintain proper face occlusion across chunk boundaries
@@ -518,6 +520,9 @@ void ChunkManager::deliverBorderRipple(Chunk& chunk) {
 }
 
 void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
+    chunk.m_owner = this;   // §17.6 R12: later null-lookup rebuilds of this chunk request a managed one
+    chunk.m_managedRemeshRequested = false;   // this IS the managed re-mesh
+
     // ── Phase 4.4 uniform-chunk short-circuit ─────────────────────────────────────
     // ~4 of 5 resident chunks on tall terrain are uniform (fully-buried solid or pure sky).
     // Neither needs the 5x 32k-cell mesh/bake scans below. Sealed chunks additionally leave
