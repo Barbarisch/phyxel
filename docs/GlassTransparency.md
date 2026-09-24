@@ -1509,13 +1509,27 @@ and it already refreshes the other derived state (`recomputeRenderFlags`, `compu
 3. **First build never ripples** (`m_borderSigValid == false`). Otherwise the first mesh of every
    chunk on load would re-mesh its whole neighbourhood, and they theirs, which cascades. Neighbours of a
    newly loaded chunk are already re-meshed by R10.
-4. **Hand-off, thread-safe.** Chunk does not touch its neighbours. If the mask ≠ 0, it calls
+> **Items 4–5 AMENDED in execution (2026-09-24), before C7 was coded. Superseded text kept below.**
+> Chunks join `chunkMap` through direct map writes in two other classes, so a per-chunk sink set at
+> "every insertion site" would have to be remembered by every future site. The replacement needs no
+> wiring and adds no threading. **4′.** `Chunk` ORs the faces whose signature changed into a
+> pending 6-bit mask (`m_pendingBorderRipple`), and never touches its neighbours. **5′.**
+> `ChunkManager::rebuildChunkFacesWithCrosschunkCulling` (the managed rebuild) consumes that mask
+> at its end, including its uniform short-circuits: for each bit, `getChunkAtCoord(coord + dir)` →
+> `markChunkForRemesh`. That is the same place, and the same thread, where the existing light
+> ripple already marks neighbours (`ChunkManager.cpp:600–608`). A direct null-lookup rebuild
+> (R6/R9) records its change in the mask, and the change is delivered at that chunk's next managed
+> rebuild. That is why item 7's rule is "every edit ends in a MANAGED re-mesh" (a dirty or remesh
+> mark). Observability for T14: `Chunk::rebuildCount()` and `ChunkManager::borderRippleCount()`
+> (monotonic).
+>
+4. *(superseded)* **Hand-off, thread-safe.** Chunk does not touch its neighbours. If the mask ≠ 0, it calls
    `m_borderSink(chunkCoord, mask)`, a `std::function` set by the owning `ChunkManager`. The sink
    pushes into a `std::mutex`-guarded `std::vector<std::pair<glm::ivec3,uint8_t>>` on `ChunkManager`.
    `ChunkManager::updateDirtyChunks` (main thread) drains it first: for each set bit,
    `getChunkAtCoord(coord + dir)` → `markChunkForRemesh`. A chunk with no sink (tests, preview chunks)
    simply doesn't ripple.
-5. **Sink wiring.** Set at every site where a chunk joins `chunkMap`: `ChunkInitializer.cpp:43`,
+5. *(superseded)* **Sink wiring.** Set at every site where a chunk joins `chunkMap`: `ChunkInitializer.cpp:43`,
    `:76`; `ChunkStreamingManager.cpp:212`, `:620`, `:793`. Guard: the drain asserts, in Debug, that the
    chunk it re-meshes has a sink, so a sixth insertion site added later is caught.
 6. **Convergence.** The neighbour's re-mesh recomputes **its own** signature, which describes its own
@@ -1742,6 +1756,16 @@ and damage, LOD mesh, window aperture; 187 tests).
 | 3 (C1+C2+C8) | 19 / 29 / 7 | T1, T7, T9e/R2 | none | 186 pass, 1 fail (below) |
 | 4 (C3+C4+C5 sub/micro) | 24 / 24 / 7 | + T4a, T4b, T4c, T5a, T5b; T6 stays green | none | 186 pass, 1 fail (below) |
 | 6 (C9, D2 = A) | 31 / 17 / 7 | + **all 9 T8 cases** (sub/micro now EXACT equality, not ⊇), T15 | none | 186 pass, 1 fail (below) |
+| 7a (T14 written; counters only) | — | — | T14 red for the stated reason (no ripple); R6-as-fixed red | — |
+| 7 (C7, first cut) | 45 / 4 / 7 | all 14 T9 route cases, T9f | **T14c**: stone→brick rippled | — |
+| 7 (C7, delivered-signature fix) | 46 / 3 / 7 | + T14 | none | 191 pass, 1 fail (below; +ChunkManager/DirtyChunkTracker/FloraMargin) |
+
+**C7 first cut was wrong, and T14 caught it.** `removeCube` re-meshes the chunk at once with the
+cell EMPTY. A signature compared with "the previous rebuild", with changes OR-ed into a pending
+mask, therefore recorded the transient empty state, and a stone → brick swap (same render class)
+rippled. Fix: compare with the signature the neighbours were last **delivered**, and derive the
+pending mask afresh from current vs delivered on every rebuild. A transient state nets out, and a
+direct rebuild's change is still carried to the managed rebuild that delivers it.
 
 **The one failure in the regression list** is
 `FineFaceMerge.SubcubeMerge_CrossCubeSplitsOnLightBoundaryBetweenCubes`: "cross-cube must split +Y

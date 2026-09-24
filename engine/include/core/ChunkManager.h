@@ -284,6 +284,10 @@ public:
     void rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk);
     // Phase 4.4: all six neighbour boundary layers visible-solid? (chunk known uniform-solid)
     bool isChunkCapped(const Chunk& chunk);
+    // docs/GlassTransparency.md §17.6 C7: how many (chunk, face) border changes have re-meshed a
+    // neighbour so far. Monotonic; for tests.
+    size_t borderRippleCount() const { return m_borderRippleCount; }
+    void deliverBorderRipple(Chunk& chunk);
     
     // Get chunk at world position (for adding/removing cubes)
     Chunk* getChunkAt(const glm::ivec3& worldPos);
@@ -443,6 +447,8 @@ public:
     std::shared_lock<std::shared_mutex> acquireReadLock() const { return std::shared_lock(m_chunkAccessMutex); }
     
 private:
+    size_t m_borderRippleCount = 0;   // see borderRippleCount()
+
     // Memory management helper
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
     

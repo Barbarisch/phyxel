@@ -489,6 +489,30 @@ bool ChunkManager::isChunkCapped(const Chunk& chunk) {
     return true;
 }
 
+// docs/GlassTransparency.md §17.6 C7. A border cell of `chunk` changed render class (empty /
+// opaque / transparent), so the FACING neighbour's faces toward it are stale: re-mesh it. Called at
+// the end of every managed rebuild, the same place the light ripple below marks neighbours. It is
+// route-agnostic: whichever edit path changed the cell, the change was recorded when the chunk
+// re-meshed (Chunk::refreshBorderSignature). Mesh-only tier (markChunkForRemesh): the neighbour's
+// voxel data did not change, so it must not become DB-dirty, and a missing face is a hole, not a
+// cosmetic seam, so it is not the idle tier either. It converges: a signature describes the
+// chunk's OWN cells, so re-meshing the neighbour cannot change it back.
+void ChunkManager::deliverBorderRipple(Chunk& chunk) {
+    const uint8_t mask = chunk.takePendingBorderRipple();
+    if (!mask) return;
+    static const glm::ivec3 kFaceDirs[6] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0},
+                                            {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};   // Chunk's face order
+    const glm::ivec3 cc = worldToChunkCoord(chunk.getWorldOrigin());
+    for (int f = 0; f < 6; ++f) {
+        if (!(mask & (1u << f))) continue;
+        if (Chunk* n = getChunkAtCoord(cc + kFaceDirs[f])) {
+            if (n == &chunk) continue;
+            markChunkForRemesh(n);
+            ++m_borderRippleCount;
+        }
+    }
+}
+
 void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
     // ── Phase 4.4 uniform-chunk short-circuit ─────────────────────────────────────
     // ~4 of 5 resident chunks on tall terrain are uniform (fully-buried solid or pure sky).
@@ -504,10 +528,12 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
         if (store.isUniform() && noSubMicro && chunk.materializedCubeCount() == 0) {
             if (store.solidCount() == 0) {
                 chunk.applyAirRenderState();
+                deliverBorderRipple(chunk);
                 return;
             }
             if (store.visible(0) && isChunkCapped(chunk)) {
                 chunk.applySealedRenderState();
+                deliverBorderRipple(chunk);
                 return;
             }
         }
@@ -608,6 +634,7 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
 
     // Call rebuildFaces with cross-chunk culling + light bleed + precomputed roof mask
     chunk.rebuildFaces(getNeighborCube, getNeighborLight, &columnOpen, getNeighborFine);
+    deliverBorderRipple(chunk);
 
     // If this chunk's boundary light changed, its neighbours' border-seeded light is now stale —
     // re-mesh them so the bleed propagates. Gated on "actually changed", so this ripple converges

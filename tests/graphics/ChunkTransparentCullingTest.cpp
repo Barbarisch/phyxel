@@ -418,17 +418,21 @@ protected:
         switch (r) {
             case Route::R2_Api: return cm.removeCube(bWorld);
             case Route::R3_Fast: return cm.removeCubeFast(bWorld);
-            case Route::R6_DirectRebuild: { bool ok = b->removeCube(bLocal); b->rebuildFaces(); return ok; }
+            case Route::R6_DirectRebuild: { bool ok = b->removeCube(bLocal); r6Rebuild(b); return ok; }
             case Route::R7_BatchDirty: { int n = b->removeCubesBatch({bLocal}); cm.markChunkDirty(b); return n == 1; }
             default: return false;
         }
     }
+    // R6 = the template/structure stamp's shape AS FIXED by §17.6 item 7: an immediate
+    // null-lookup rebuild (what ObjectTemplateManager does for instant feedback) followed by a
+    // MANAGED re-mesh mark. The mark alone never re-meshed the neighbour; the border ripple must.
+    void r6Rebuild(Chunk* b) { b->rebuildFaces(); cm.markChunkForRemesh(b); }
     bool placeB(Route r, const std::string& mat) {
         Chunk* b = chunk({1, 0, 0});
         switch (r) {
             case Route::R2_Api: return cm.m_voxelModificationSystem.addCubeWithMaterial(bWorld, mat);
             case Route::R4_FastAdd: return cm.addCubeFast(bWorld);   // material "Default" (opaque)
-            case Route::R6_DirectRebuild: { bool ok = b->addCube(bLocal, mat); b->rebuildFaces(); return ok; }
+            case Route::R6_DirectRebuild: { bool ok = b->addCube(bLocal, mat); r6Rebuild(b); return ok; }
             case Route::R7_BatchDirty: { bool ok = b->addCube(bLocal, mat); cm.markChunkDirty(b); return ok; }
             default: return false;
         }
@@ -503,6 +507,39 @@ TEST_P(TransparentCullingRoutes, T9e_StoneFaceAppearsWhenItsNeighbourBecomesGlas
 INSTANTIATE_TEST_SUITE_P(AllRoutes, TransparentCullingRoutes,
                          ::testing::Values(Route::R2_Api, Route::R3_Fast, Route::R4_FastAdd,
                                            Route::R6_DirectRebuild, Route::R7_BatchDirty));
+
+// T14 — C7 CONVERGENCE AND GATING. The ripple must fire exactly when a border cell's render class
+// changes, and never otherwise: not on a chunk's first build (that would cascade across the world
+// on load), not on a re-mesh with unchanged content (it would loop), not on a same-class swap.
+TEST_F(TransparentCullingCrossChunk, T14_BorderRippleFiresOnlyOnARenderClassChange) {
+    Chunk* a = chunk({0, 0, 0}); Chunk* b = chunk({1, 0, 0});
+    b->addCube({20, 20, 20}, "Stone");
+    remesh({{0, 0, 0}, {1, 0, 0}});
+    for (int i = 0; i < 32; ++i) cm.updateDirtyChunks();
+    EXPECT_EQ(cm.borderRippleCount(), 0u) << "(a) first builds rippled: this cascades across the world on load";
+
+    a->addCube({31, 10, 10}, "Stone");
+    cm.markChunkDirty(a); drain();
+    const size_t afterFirstBorderCell = cm.borderRippleCount();
+    EXPECT_EQ(afterFirstBorderCell, 1u) << "control: a new border cell must ripple exactly once (one face)";
+
+    remesh({{0, 0, 0}}); drain();
+    EXPECT_EQ(cm.borderRippleCount(), afterFirstBorderCell) << "(b) a re-mesh with unchanged content rippled";
+
+    a->removeCube({31, 10, 10}); a->addCube({31, 10, 10}, "Bricks");
+    cm.markChunkDirty(a); drain();
+    EXPECT_EQ(cm.borderRippleCount(), afterFirstBorderCell) << "(c) stone -> brick is the same render class";
+
+    a->addCube({10, 10, 10}, "Glass");
+    cm.markChunkDirty(a); drain();
+    EXPECT_EQ(cm.borderRippleCount(), afterFirstBorderCell) << "(c) an INTERIOR edit rippled";
+
+    const uint32_t bBefore = b->rebuildCount();
+    a->removeCube({31, 10, 10}); a->addCube({31, 10, 10}, "Glass");
+    cm.markChunkDirty(a); drain();
+    EXPECT_EQ(cm.borderRippleCount(), afterFirstBorderCell + 1) << "(d) opaque -> transparent on the border must ripple once";
+    EXPECT_GT(b->rebuildCount(), bBefore) << "(d) the facing neighbour was not re-meshed";
+}
 
 // T9f — the same ripple for a SUB-VOXEL border change (generated panes are microcubes).
 TEST_F(TransparentCullingCrossChunk, T9f_MicroGlassPlacedAcrossTheBorderRemeshesTheNeighbour) {

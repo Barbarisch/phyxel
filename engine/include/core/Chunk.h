@@ -102,6 +102,23 @@ private:
     // Sealed state (Phase 4.4) — written only by ChunkManager (friend) during seal evaluation.
     bool m_sealed = false;
 
+    uint32_t m_rebuildCount = 0;                   // see rebuildCount()
+
+    // Border-class signature ripple (docs/GlassTransparency.md §17.6 C7). One 64-bit signature per
+    // face (order +X,-X,+Y,-Y,+Z,-Z) over the render classes of that face's border cells.
+    // m_borderSigDelivered = what the facing neighbours were last re-meshed against;
+    // m_borderSigCurrent = the latest rebuild. A face is pending iff the two differ. Comparing with
+    // the DELIVERED value, not the previous rebuild, is load-bearing: removeCube re-meshes at once
+    // with the cell EMPTY, so a stone -> brick swap passes through a transient "empty" rebuild; an
+    // OR-ed "changed since last rebuild" bit rippled on it (T14c, measured). Current == delivered
+    // after the swap, so nothing ripples. The first computation seeds both (no cascade on load).
+    uint64_t m_borderSigDelivered[6] = {0, 0, 0, 0, 0, 0};
+    uint64_t m_borderSigCurrent[6]   = {0, 0, 0, 0, 0, 0};
+    bool     m_borderSigValid = false;
+    uint8_t  m_pendingBorderRipple = 0;
+    void computeBorderSignature(uint64_t out[6]) const;
+    void refreshBorderSignature();
+
     // Occlusion visibility graph (Minecraft-style "cave culling"). m_faceConnect[f]
     // is a bitmask of which of the 6 chunk faces sight can reach from face f through
     // non-opaque cells. Faces: 0=X-,1=X+,2=Y-,3=Y+,4=Z-,5=Z+. Recomputed on
@@ -180,6 +197,17 @@ public:
     /// (cube, parent subcube or that microcube) — the precedence of subCellSolid/microCellSolid.
     Graphics::ChunkRenderManager::NeighborOccupancy renderOccupancyAtFine(const glm::ivec3& localMicro,
                                                                           int level) const;
+    /// How many times this chunk's mesh state has been recomputed (every rebuildFaces, and the
+    /// uniform air/sealed short-circuits). Monotonic; for tests and the chunk_faces debug route.
+    uint32_t rebuildCount() const { return m_rebuildCount; }
+    /// Faces (bit f, order +X,-X,+Y,-Y,+Z,-Z) whose border render classes changed since they were
+    /// last taken. Consumed by ChunkManager's managed rebuild (§17.6 C7).
+    uint8_t takePendingBorderRipple() {
+        const uint8_t m = m_pendingBorderRipple;
+        for (int f = 0; f < 6; ++f) m_borderSigDelivered[f] = m_borderSigCurrent[f];
+        m_pendingBorderRipple = 0;
+        return m;
+    }
 
     size_t getStaticSubcubeCount() const { return staticSubcubes.size(); }
     size_t getStaticMicrocubeCount() const { return staticMicrocubes.size(); }
