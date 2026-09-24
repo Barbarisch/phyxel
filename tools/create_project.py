@@ -373,6 +373,7 @@ def create_project(
         "    Phyxel::Core::ObjectiveTracker*     apiObjectiveTracker() override { return &objectiveTracker_; }",
         "    Phyxel::Core::Inventory*            apiInventory() override      { return &inventory_; }",
         "    Phyxel::UI::DialogueSystem*         apiDialogueSystem() override { return dialogueSystem_.get(); }",
+        "    Phyxel::Core::InteractionManager*   apiInteractionManager() override { return interactionManager_.get(); }",
         *([
             "    Phyxel::Core::EntityRegistry* apiEntityRegistry() override { return entityRegistry_.get(); }",
             "    Phyxel::Core::NPCManager* apiNPCManager() override { return npcManager_.get(); }",

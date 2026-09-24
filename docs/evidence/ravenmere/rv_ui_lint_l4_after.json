@@ -31,11 +31,11 @@
   },
   {
     "screen": "character sheet",
-    "state": "paused",
+    "state": "character",
     "count": 0,
     "defects": [],
     "visible": [
-      "pause:main"
+      "character:main"
     ]
   },
   {

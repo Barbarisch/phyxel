@@ -6,6 +6,7 @@
 #include "core/EngineAPIServer.h"
 #include "core/EngineRuntime.h"
 #include "core/ChunkManager.h"
+#include "core/InteractionManager.h"
 #include "ui/WindowManager.h"
 #include <GLFW/glfw3.h>
 #include "core/GameSettings.h"     // Core::stringToKey
@@ -262,6 +263,21 @@ void GameApiService::registerCommands() {
     // speaker, node id, full text, and the VISIBLE choices (after conditions) with their
     // indices. A harness choosing options by blind index picked the wrong branch the moment
     // a gate changed (Ravenmere run 12: "tracks" instead of "relic") — G-47.
+    // POST /api/rpg/start_dialogue {npc} - run the shell's NPC interact for a NAMED npc
+    // regardless of distance (the harness could not stand in front of one and press Interact,
+    // so the dialogue screen went unmeasured - G-182). `npc` is the entity id ("npc_Wynn") or
+    // the bare name. Reply: whether the interact ran + the dialogue state after it.
+    reg.on("start_dialogue", [this](const APICommand& cmd, json& r) {
+        if (!interactionManager || !entityRegistry) { r = {{"error", "interaction manager / registry not available"}}; return; }
+        std::string id = cmd.params.value("npc", std::string());
+        Scene::Entity* e = entityRegistry->getEntity(id);
+        if (!e) e = entityRegistry->getEntity("npc_" + id);
+        auto* npc = dynamic_cast<Scene::NPCEntity*>(e);
+        if (!npc) { r = {{"error", "no NPC '" + id + "'"}}; return; }
+        const bool ran = interactionManager->interactWith(npc);
+        r = {{"success", ran}, {"npc", npc->getName()},
+             {"dialogue_active", dialogueSystem ? dialogueSystem->isActive() : false}};
+    });
     reg.on("dialogue_state", [this](const APICommand&, json& r) {
         if (!dialogueSystem) { r = {{"error", "DialogueSystem not available"}}; return; }
         const auto st = dialogueSystem->getState();

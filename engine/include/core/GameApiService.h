@@ -16,6 +16,7 @@ class EngineRuntime;
 class NPCManager;
 class TriggerSystem;
 class EntityRegistry;
+class InteractionManager;
 class APICommandQueue;
 class EngineAPIServer;
 class CommandRegistry;
@@ -68,6 +69,7 @@ public:
     UI::GameScreen*              screen = nullptr;            // REAL screen state
     UI::DialogueSystem*          dialogueSystem = nullptr;    // dialogue_state: node + visible choices (harness observability, Ravenmere G-47)
     EntityRegistry*              entityRegistry = nullptr;    // /api/state entities
+    InteractionManager*          interactionManager = nullptr; // start_dialogue (G-182)
     // The player character can be rebuilt/reassigned across scenes, so resolve it
     // fresh each call rather than caching a pointer.
     std::function<Scene::AnimatedVoxelCharacter*()> playerProvider;

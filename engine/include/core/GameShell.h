@@ -25,6 +25,7 @@ class ClickToMove;
 struct CharacterSheet;   // a STRUCT (CharacterSheet.h) - MSVC mangles the key
 class Party;
 class ObjectiveTracker;
+class InteractionManager;
 class Inventory;
 
 // Engine-side base for standalone game hosts. Scaffolded games subclass THIS
@@ -152,6 +153,7 @@ protected:
     virtual ObjectiveTracker*     apiObjectiveTracker() { return nullptr; } // journal (G-168)
     virtual Inventory*            apiInventory()      { return nullptr; }  // loot/persistence
     virtual UI::DialogueSystem*   apiDialogueSystem() { return nullptr; }  // dialogue_state (G-47)
+    virtual InteractionManager*   apiInteractionManager() { return nullptr; }  // start_dialogue (G-182)
 
 private:
     bool journalOpen_ = false;        // G-168 quest journal window

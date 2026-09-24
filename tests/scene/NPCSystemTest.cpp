@@ -404,3 +404,15 @@ TEST_F(PatrolBehaviorTest, RoutesThroughASubcubeDoorOnTheNavGraphNotThroughTheWa
                                << "not on the straight line at z=4.5 (x range walked " << minX << ".." << maxX << ")";
     EXPECT_LT(glm::distance(entity->getPosition(), goal), 0.6f) << "and arrive";
 }
+
+// G-182 follow-up (2026-09-24): the test API's start_dialogue runs the shell's NPC interact for
+// a named NPC through InteractionManager::interactWith. The positive path (a real dialogue
+// opening) is the shipped-exe L4 (tools/rv_ui_lint_l4.py); here: the guards.
+TEST(InteractionManagerInteractWith, RefusesWithoutACallbackOrAnNpcAndNeverCallsTheCallbackForNull) {
+    Phyxel::Core::InteractionManager im;
+    EXPECT_FALSE(im.interactWith(nullptr)) << "no callback, no npc";
+    int calls = 0;
+    im.setInteractCallback([&](Phyxel::Scene::NPCEntity*) { ++calls; });
+    EXPECT_FALSE(im.interactWith(nullptr)) << "a null npc is refused even with a callback";
+    EXPECT_EQ(calls, 0);
+}

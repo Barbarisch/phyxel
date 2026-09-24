@@ -195,6 +195,7 @@
  },
  {
   "id": "hud_dialogue",
+  "modal": true,
   "anchor": "BottomCenter",
   "offset": [
    0,
@@ -420,6 +421,7 @@
  {
   "_comment": "AI conversation box (free-text chat with an NPC). Visible during an AI conversation; speaker + scrollback history (bound) + a text-input field. Wired by the host (UI::setupAIDialogue): dialogue.aiActive/aiSpeaker/aiHistory providers + the ai_input field's submit -> DialogueSystem::submitPlayerMessage. Replaces the ImGui renderDialogueBox AI branch (docs/HudSystem.md §11a).",
   "id": "hud_ai_dialogue",
+  "modal": true,
   "anchor": "BottomCenter",
   "offset": [
    0,

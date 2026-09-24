@@ -52,6 +52,7 @@ void GameShell::startTestApi(EngineRuntime& engine, int port, const std::string&
     gameApi_.playerSheet      = apiPlayerSheet();
     gameApi_.inventory        = apiInventory();
     gameApi_.dialogueSystem   = apiDialogueSystem();
+    gameApi_.interactionManager = apiInteractionManager();
     gameApi_.projectName      = name;
     if (gameApi_.start(port))
         LOG_WARN("GameShell", "*** TEST API ENABLED on 127.0.0.1:{} — dev/test build, do NOT ship ***", port);
