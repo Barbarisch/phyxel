@@ -1759,6 +1759,7 @@ and damage, LOD mesh, window aperture; 187 tests).
 | 7a (T14 written; counters only) | — | — | T14 red for the stated reason (no ripple); R6-as-fixed red | — |
 | 7 (C7, first cut) | 45 / 4 / 7 | all 14 T9 route cases, T9f | **T14c**: stone→brick rippled | — |
 | 7 (C7, delivered-signature fix) | 46 / 3 / 7 | + T14 | none | 191 pass, 1 fail (below; +ChunkManager/DirtyChunkTracker/FloraMargin) |
+| 8 (C5 cube leaves + C6 opaque cap) | **49 / 0 / 7** | + T11, T12, T12b | none | 191 pass, 1 fail (below) |
 
 **C7 first cut was wrong, and T14 caught it.** `removeCube` re-meshes the chunk at once with the
 cell EMPTY. A signature compared with "the previous rebuild", with changes OR-ed into a pending

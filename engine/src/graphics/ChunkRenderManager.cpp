@@ -675,9 +675,11 @@ void ChunkRenderManager::rebuildCubeFaces(
         // Billboarded leaf CUBE (rare — most leaves are subcubes): its solid faces were skipped in
         // the mesh above; emit ONE foliage instance (cards at the cube centre) if the cube is exposed.
         if (matFaces[m].isBillboarded) {
-            bool exposed = !neighborSolid(x + 1, y, z) || !neighborSolid(x - 1, y, z) ||
-                           !neighborSolid(x, y + 1, z) || !neighborSolid(x, y - 1, z) ||
-                           !neighborSolid(x, y, z + 1) || !neighborSolid(x, y, z - 1);
+            // C5: a leaf seen through glass is exposed. Leaves are not transparent, so this is the
+            // opaque-owner case of the face rule (a leaf against glass is visible).
+            bool exposed = !faceHiddenByNeighbor(x + 1, y, z, false) || !faceHiddenByNeighbor(x - 1, y, z, false) ||
+                           !faceHiddenByNeighbor(x, y + 1, z, false) || !faceHiddenByNeighbor(x, y - 1, z, false) ||
+                           !faceHiddenByNeighbor(x, y, z + 1, false) || !faceHiddenByNeighbor(x, y, z - 1, false);
             // Canopy thinning (s_foliageDensity): hashed on the ABSOLUTE world cell so the
             // pattern is stable across rebuilds and continuous across chunk seams.
             if (s_foliageDensity < 0.999f &&

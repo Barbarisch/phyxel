@@ -468,6 +468,10 @@ bool ChunkManager::isChunkCapped(const Chunk& chunk) {
             // O(1): a uniform neighbour caps us iff it is visible-solid everywhere — the
             // common deep-stack case, which is what makes sealing whole mountains cheap.
             if (!ns.visible(0)) return false;
+            // C6 (docs/GlassTransparency.md §17.4): a cap must be OPAQUE. A glass layer does
+            // not hide the wall behind it, so it must not stop that wall being meshed.
+            if (n->renderOccupancyAt(glm::ivec3(0)) != Graphics::ChunkRenderManager::NeighborOccupancy::Opaque)
+                return false;
             continue;
         }
         // Dense neighbour: scan its boundary layer facing us (1024 cells). The layer we care
@@ -480,9 +484,9 @@ bool ChunkManager::isChunkCapped(const Chunk& chunk) {
                 const int x = fx >= 0 ? fx : a;
                 const int y = fy >= 0 ? fy : (fx >= 0 ? a : b);
                 const int z = fz >= 0 ? fz : b;
-                const size_t idx = static_cast<size_t>(z) + static_cast<size_t>(y) * 32 +
-                                   static_cast<size_t>(x) * 1024;
-                if (!n->visibleSolidCubeAtIndex(idx)) return false;
+                // C6: opaque, not merely solid (see the uniform branch above).
+                if (n->renderOccupancyAt(glm::ivec3(x, y, z)) !=
+                    Graphics::ChunkRenderManager::NeighborOccupancy::Opaque) return false;
             }
         }
     }
