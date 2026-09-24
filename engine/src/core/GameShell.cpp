@@ -1,4 +1,5 @@
 #include "core/GameShell.h"
+#include "ui/DialogueSystem.h"
 #include "ui/UISystem.h"
 #include "graphics/RenderCoordinator.h"
 #include "core/ProgressionHud.h"
@@ -154,7 +155,11 @@ void GameShell::updateJournalToggle(Input::InputManager& input) {
     const bool down = input.isActionPressed("ToggleJournal");
     const bool edge = down && !journalKeyDown_;
     journalKeyDown_ = down;
-    if (edge) {
+    // G-183: not over a conversation - two modal overlays (journal + dialogue box) would sit on
+    // top of each other. The layout gate cites this as the reason journal.visible and
+    // dialogue.active/aiActive are exclusive.
+    auto* dlg = apiDialogueSystem();
+    if (edge && !(dlg && dlg->isActive())) {
         journalOpen_ = !journalOpen_;
         LOG_INFO("GameShell", "Journal {}", journalOpen_ ? "opened" : "closed");
     }

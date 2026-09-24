@@ -347,6 +347,17 @@ panel's OWN rect, so a child that overflows below a too-short panel is unclickab
 panels to contain their children.** Cosmetic leftovers: the initiative row label clips at panel
 width; the turn-label panel overlaps the (enlarged) action panel — both layout-tuning only.
 
+> **The standing layout gate (2026-09-24, G-183) - `tests/ui/HudLayoutMatrixTest.cpp`.** Every
+> unit-test run loads the SHIPPED `default_hud.json` and every data screen headless, binds every
+> `visibleWhen` key from a bit pattern (2^N, N read from the JSON - a new gated panel is covered
+> the day it is added), fills every repeater with long rows and every text bind with long text,
+> applies the modal rule, and runs the same layout lint the test API's `ui_lint` runs on the live
+> game, at 1280x720, 1366x768, 1536x960, 1920x1080 and 2560x1440. Text is measured with the real
+> font (metrics-only load). A defect prints the size, the exact state and the lint message. The
+> only hand-maintained part is a short list of state pairs the game cannot raise together, each
+> citing the provider that makes them exclusive. Adding a HUD element that overlaps anything, in
+> any state, at any of those sizes, fails the build - no debug session needed.
+
 > **Modal overlays (2026-09-24, Ravenmere G-182).** A HUD root panel with `"modal": true` owns
 > the screen while visible: `applyModalOverlays()` hides every other un-namespaced HUD root and
 > suppresses world-space labels/nameplates for that frame; the panels' own `visibleWhen` brings

@@ -299,6 +299,11 @@ public:
     std::string text;
     bool isTitle = false;     // uses titleColor + titleScale if true
     float wrapWidth = 0.0f;   // >0 = word-wrap to this pixel width (multi-line)
+    /// >0 = show at most this many wrapped lines - the LAST ones (a transcript wants its tail).
+    /// Without it a growing text (the AI conversation history) pushed the siblings below it
+    /// out of a fixed-size panel: the input field vanished 38 px past the bottom (G-183).
+    int maxLines = 0;
+    static std::string tailLines(const std::string& wrapped, int maxLines);
     float measureHeight(const BitmapFont* font, const UITheme& theme, float availWidth) const override;
     /// Horizontal alignment relative to `position.x`:
     ///   Left   (default) — text STARTS at position.x (historical behavior)

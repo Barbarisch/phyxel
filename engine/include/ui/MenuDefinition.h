@@ -3,6 +3,7 @@
 #include "ui/UIWidget.h"
 #include <nlohmann/json.hpp>
 #include <string>
+#include <vector>
 #include <memory>
 #include <functional>
 #include <unordered_map>
@@ -71,6 +72,12 @@ private:
 };
 
 class HudDataContext;  // forward decl
+
+/// `visibleWhen` grammar (G-183): terms joined by "&&", each an optional "!" and a float
+/// provider key; true iff every term resolves and holds. Fail-closed on a missing provider
+/// or a malformed expression. `visibleWhenKeys` lists the keys an expression reads.
+bool evalVisibleWhen(const std::string& expr, const HudDataContext& ctx);
+std::vector<std::string> visibleWhenKeys(const std::string& expr);
 
 /// Apply a HudDataContext to a HUD widget tree: scalar value binds, `visibleWhen`
 /// visibility, and Repeater list-expansion. Call once per frame before rendering.

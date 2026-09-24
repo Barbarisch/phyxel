@@ -79,13 +79,15 @@ def build_children(actions):
         raise SystemExit("%d actions exceed the %d-row x %d-column panel - widen it"
                          % (len(ordered), ROWS_PER_COL, len(COL_X)))
     out = [
-        # position is the widget's TOP-LEFT (align only centres the text inside the box): a
-        # centred label at x=640 with an 880-wide box ran 240 px off the 1280 canvas (G-182 lint).
+        # "align": "center" centres the TEXT ON position.x (MenuDefinition: the box is not the
+        # text's extent), so x=640 is the canvas centre. G-182/G-183: the layout lint once read
+        # the box as position..position+width and reported these as 240 px off the canvas; the
+        # lint is alignment-aware now - do not shift centred labels to "fix" the lint.
         {"type": "label", "align": "center", "id": "kb_title", "text": "KEYBINDINGS",
-         "font": "title", "position": [440, 36], "size": [400, 60]},
+         "font": "title", "position": [640, 36], "size": [400, 60]},
         {"type": "label", "align": "center", "id": "kb_hint",
          "text": "Click a key, then press the new key (ESC cancels). ESC or Back returns to Settings.",
-         "position": [200, 100], "size": [880, 26]},
+         "position": [640, 100], "size": [880, 26]},
         # G-179 (2026-09-24): the panel had NO way out - no Back button, and the shell's ESC
         # handler did not know the Settings state - so a player who opened Keybindings was
         # stuck. Same position as the main settings panel's Back.

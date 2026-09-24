@@ -319,13 +319,27 @@ static std::string wrapText(const BitmapFont* font, const std::string& text,
     return out;
 }
 
+// Keep the last `maxLines` lines of a wrapped text (a transcript shows its tail); 0 = all.
+std::string UILabel::tailLines(const std::string& wrapped, int maxLines) {
+    if (maxLines <= 0) return wrapped;
+    int lines = 1;
+    for (char c : wrapped) if (c == '\n') ++lines;
+    if (lines <= maxLines) return wrapped;
+    // Walk back over maxLines newlines from the end; the tail starts after the last one found
+    // (keeping N lines means skipping the N-th newline from the end - an off-by-one here kept
+    // N+lines-2N lines and let the AI transcript measure 1184 px against a 6-line cap).
+    size_t pos = wrapped.size();
+    for (int i = 0; i < maxLines; ++i) pos = wrapped.rfind('\n', pos - 1);
+    return wrapped.substr(pos + 1);
+}
+
 // ---- Layout pass: measure before render (auto-sized panels) ------------------------------
 float UILabel::measureHeight(const BitmapFont* font, const UITheme& theme, float availWidth) const {
     const float scale = customScale > 0.0f ? customScale : (isTitle ? theme.titleScale : theme.textScale);
     const float width = wrapWidth > 0.0f ? wrapWidth : availWidth;
     if (!font) return size.y;
     if (width <= 0.0f || text.empty()) return font->lineHeight(scale);
-    const std::string wrapped = wrapText(font, text, scale, width);
+    const std::string wrapped = tailLines(wrapText(font, text, scale, width), maxLines);
     int lines = 1;
     for (char c : wrapped) if (c == '\n') ++lines;
     return font->lineHeight(scale) * static_cast<float>(lines);
@@ -410,7 +424,7 @@ void UILabel::render(UIRenderer* renderer, const BitmapFont* font,
     std::string wrapped;
     bool multiline = false;
     if (wrapWidth > 0.0f) {
-        wrapped = wrapText(font, text, scale, wrapWidth);
+        wrapped = tailLines(wrapText(font, text, scale, wrapWidth), maxLines);
         multiline = wrapped.find('\n') != std::string::npos;
     }
     if (multiline) {

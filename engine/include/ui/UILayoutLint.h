@@ -42,8 +42,17 @@ inline void lintPanelChildren(const UIPanel& panel, const BitmapFont* font, cons
         for (const auto& child : panel.children) {
             if (!child->visible) continue;
             const float bottom = child->position.y + child->measureHeight(font, theme, inner);
-            const float right = child->position.x + child->size.x;
-            const float over = std::max(bottom - panel.size.y, right - panel.size.x);
+            // A label's horizontal extent follows its alignment: "center" puts the TEXT centred
+            // ON position.x and "right" ends it there (UILabel::HAlign) - the box is not
+            // position..position+width. Reading it that way flagged every centred title as
+            // "leaves the screen" (G-183: 240 px on the keybindings hint, 60-160 px on each
+            // data screen) and one fix moved real titles off-centre chasing it.
+            float left = child->position.x, right = child->position.x + child->size.x;
+            if (const auto* lbl = dynamic_cast<const UILabel*>(child.get())) {
+                if (lbl->align == UILabel::HAlign::Center) { left = child->position.x - child->size.x * 0.5f; right = child->position.x + child->size.x * 0.5f; }
+                else if (lbl->align == UILabel::HAlign::Right) { left = child->position.x - child->size.x; right = child->position.x; }
+            }
+            const float over = std::max({bottom - panel.size.y, right - panel.size.x, -left});
             if (over > 0.5f)
                 out.push_back({"child_overflow", panel.id, child->id, over,
                                "'" + child->id + "' leaves '" + panel.id + "' by " + std::to_string(int(over + 0.5f)) + " px"});

@@ -97,7 +97,7 @@
    88
   ],
   "showBackground": false,
-  "visibleWhen": "hotbar.creative",
+  "visibleWhen": "hotbar.creative && !actionbar.visible && !player.hasProgression",
   "children": [
    {
     "type": "repeater",
@@ -151,7 +151,7 @@
    16
   ],
   "size": [
-   340,
+   300,
    220
   ],
   "showBackground": true,
@@ -163,7 +163,7 @@
     "text": "Objectives",
     "isTitle": true,
     "size": [
-     320,
+     280,
      28
     ]
    },
@@ -173,7 +173,7 @@
     "bind": "objectives",
     "itemSpacing": 4,
     "size": [
-     320,
+     280,
      0
     ],
     "item": {
@@ -181,7 +181,7 @@
      "bind": "item.label",
      "text": "",
      "size": [
-      320,
+      280,
       22
      ]
     }
@@ -383,7 +383,7 @@
    130
   ],
   "showBackground": true,
-  "visibleWhen": "actionbar.visible",
+  "visibleWhen": "actionbar.visible && !spellbook.visible",
   "children": [
    {
     "type": "label",
@@ -448,6 +448,7 @@
    {
     "type": "label",
     "id": "ai_history",
+    "maxLines": 6,
     "bind": "dialogue.aiHistory",
     "text": "",
     "wrapWidth": 800,
@@ -473,11 +474,11 @@
   "anchor": "TopCenter",
   "offset": [
    0,
-   64
+   132
   ],
   "size": [
-   520,
-   44
+   640,
+   60
   ],
   "showBackground": false,
   "visibleWhen": "countdown.active",
@@ -489,11 +490,12 @@
     "text": "",
     "isTitle": true,
     "size": [
-     500,
-     36
+     600,
+     48
     ]
    }
-  ]
+  ],
+  "autoSize": true
  },
  {
   "id": "hud_action_bar",
@@ -542,14 +544,14 @@
  },
  {
   "id": "hud_spellbook",
-  "anchor": "Center",
+  "anchor": "TopCenter",
   "offset": [
    0,
-   -60
+   196
   ],
   "size": [
-   700,
-   200
+   620,
+   180
   ],
   "showBackground": true,
   "autoSize": true,
@@ -561,7 +563,7 @@
     "id": "spellbook_hint",
     "text": "Drag an ability onto a slot on the action bar. Drag a slot off the bar to clear it. Press P to close.",
     "size": [
-     660,
+     580,
      52
     ]
    },
@@ -572,7 +574,7 @@
     "horizontal": true,
     "itemSpacing": 8,
     "size": [
-     660,
+     580,
      52
     ],
     "item": {
@@ -655,7 +657,7 @@
   "anchor": "TopRight",
   "offset": [
    -16,
-   400
+   470
   ],
   "size": [
    260,
@@ -694,7 +696,8 @@
      ]
     }
    }
-  ]
+  ],
+  "autoSize": true
  },
  {
   "id": "hud_journal",
@@ -710,7 +713,7 @@
   ],
   "title": "Journal",
   "showBackground": true,
-  "visibleWhen": "journal.visible",
+  "visibleWhen": "journal.visible && !dialogue.active && !dialogue.aiActive",
   "children": [
    {
     "type": "label",
@@ -919,6 +922,7 @@
      ]
     }
    }
-  ]
+  ],
+  "scrollable": true
  }
 ]

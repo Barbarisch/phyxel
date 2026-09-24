@@ -1227,3 +1227,37 @@ TEST(HudModalOverlay, TheModalFlagComesFromTheHudJson) {
     const auto k = nlohmann::json::parse(R"({"id":"hud_health","size":[340,60]})");
     EXPECT_FALSE(Phyxel::UI::MenuDefinition::buildFromJson(k)->modal) << "default off";
 }
+
+
+// G-183: a label with maxLines shows the LAST lines (a transcript wants its tail) and measures
+// that many - the AI conversation history used to grow without bound and push the input field
+// out of its fixed-size panel.
+TEST(UILabelMaxLines, TailLinesKeepsTheLastNLinesAndZeroMeansAll) {
+    using L = Phyxel::UI::UILabel;
+    const std::string five = "a\nb\nc\nd\ne";
+    EXPECT_EQ(L::tailLines(five, 0), five);
+    EXPECT_EQ(L::tailLines(five, 9), five) << "fewer lines than the cap: unchanged";
+    EXPECT_EQ(L::tailLines(five, 2), "d\ne");
+    EXPECT_EQ(L::tailLines(five, 1), "e");
+    EXPECT_EQ(L::tailLines("single", 1), "single");
+}
+
+
+// G-183: visibleWhen expressions. Fail-closed on a missing provider or a malformed expression.
+TEST(HudVisibleWhen, AndTermsAllMustHoldAndEachMayBeNegated) {
+    Phyxel::UI::HudDataContext ctx;
+    ctx.setFloat("a", [] { return 1.0f; });
+    ctx.setFloat("b", [] { return 0.0f; });
+    using Phyxel::UI::evalVisibleWhen;
+    EXPECT_TRUE (evalVisibleWhen("a", ctx));
+    EXPECT_FALSE(evalVisibleWhen("!a", ctx));
+    EXPECT_TRUE (evalVisibleWhen("a && !b", ctx));
+    EXPECT_FALSE(evalVisibleWhen("a && b", ctx));
+    EXPECT_TRUE (evalVisibleWhen("  a   &&   !b  ", ctx)) << "whitespace is fine";
+    EXPECT_FALSE(evalVisibleWhen("a && missing", ctx)) << "no provider: hidden";
+    EXPECT_FALSE(evalVisibleWhen("a && !missing", ctx)) << "no provider, negated: still hidden";
+    EXPECT_FALSE(evalVisibleWhen("a &&", ctx)) << "malformed: hidden";
+    const auto keys = Phyxel::UI::visibleWhenKeys("journal.visible && !dialogue.active && !dialogue.aiActive");
+    ASSERT_EQ(keys.size(), 3u);
+    EXPECT_EQ(keys[0], "journal.visible"); EXPECT_EQ(keys[1], "dialogue.active"); EXPECT_EQ(keys[2], "dialogue.aiActive");
+}

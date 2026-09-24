@@ -357,7 +357,7 @@
           "text": "KEYBINDINGS",
           "font": "title",
           "position": [
-            440,
+            640,
             36
           ],
           "size": [
@@ -371,7 +371,7 @@
           "id": "kb_hint",
           "text": "Click a key, then press the new key (ESC cancels). ESC or Back returns to Settings.",
           "position": [
-            200,
+            640,
             100
           ],
           "size": [
