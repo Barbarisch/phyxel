@@ -1287,7 +1287,8 @@ reviewer says so.** Still owed after sign-off: the pane in a generated building 
 
 ## 17. Faces hidden by glass — opaque faces behind transparent neighbours are culled (plan, 2026-09-24)
 
-**Status: PLANNED, not built. Reviewer requires a design-check before implementation.**
+**Status: PLANNED, not built. Design-checked twice (§17.12); awaiting the reviewer's go-ahead
+and decision D2 (§17.5b). Rollback point: tag `glass-s17-start`.**
 
 ### 17.1 The defect, in the reviewer's words
 
@@ -1348,7 +1349,9 @@ Found by reading the code on 2026-09-24. **CHANGE** = must adopt the §17.2 rule
 | **C4** | `ChunkRenderManager::microCellSolid` (`:952`): per-face micro path `:1181`, merged path faces `:1395` | cube, then parent subcube, then `m_microOcc` | occupancy only | companion **`m_microTransparent`**; same shape as C3 |
 | **C5** | leaf **foliage exposure** — cube leaves `:643-645`, merged subcube leaves `:1489`, merged microcube leaves `:1328` | "is this billboarded leaf exposed on any side?" via the same predicates | as C1/C3/C4 | follow the **new** rule: a leaf behind glass is visible, so it must emit its foliage cards |
 | **C6** | `ChunkManager::isChunkCapped` (`:459`), used at `:509` to SEAL a uniform-solid chunk (skip meshing its boundary wall) | uniform neighbour: `ns.visible(0)`; dense: `visibleSolidCubeAtIndex` over the facing layer | the neighbour's store material (`ChunkVoxelStore::material(idx)`) | "capped" requires the capping cell to be **opaque**. A glass layer must not seal the wall behind it |
-| **C7** | `ChunkVoxelModificationSystem::removeCubeFast` / `addCubeFast` (`:44`, `:62`) and `ChunkVoxelManager::addCube(overwrite)` (`:540`): the edit routes that mark **only their own chunk** (§17.6 matrix, R3–R5) | — | — | a border-cell edit also calls `markChunkForRemesh` on each facing neighbour. That re-mesh is also what re-evaluates the neighbour's seal (`ChunkManager.cpp:504–512`) |
+| **C7** | `Chunk::rebuildFaces` (`Chunk.cpp:330`), the one function every re-mesh passes through; plus the uniform short-circuit (`ChunkManager.cpp:504–512`) | — | the chunk's own border cells | border-class **signature ripple** (§17.6): a changed border class re-meshes the facing neighbour. Also `markChunkForRemesh` after the template stamp's immediate rebuild (`ObjectTemplateManager.cpp:798`, `:1245`) |
+| **C8** | `neighborSolid`'s out-of-chunk branch (`ChunkRenderManager.cpp:621`), which after C2 receives an enum | occupied? | the new enum | must return `!= NeighborOccupancy::Empty`, so **K2/K3 (grass) keep treating glass as cover across a border**. Only `faceHiddenByNeighbor` applies the new rule (T10b) |
+| **C9** | sub/micro out-of-chunk branches (`:1008`, `:1176`, merged `:1543`, `:1395`) | nothing (assume exposed) | — | **decision D2**: option A = fine border lookup (§17.5b); option B = defer + gap entry |
 
 Where the face owner's own transparency comes from, per path: cube — `cellMat[cell]`; per-face
 subcube/microcube — the voxel's material is already resolved at `:1084` / `:1244`; merged
@@ -1398,6 +1401,48 @@ and two things that can disagree. One call answers both questions and cannot dri
 what `computeVisibilityMask` already does for all 32 768 cells of every rebuild — here it is the
 6 × 1 024 border cells only.
 
+### 17.5b Sub/micro faces at chunk borders (C9, decision D2)
+
+**Today.** The sub- and microcube meshers have **no** cross-chunk lookup. A face whose neighbour
+sub/micro cell lies outside the chunk is always drawn: per-face subcube `ChunkRenderManager.cpp:1008`
+("out of chunk: assume exposed"), per-face micro `:1176`, merged paths `:1543` / `:1395`. Behind an
+opaque face that is cost only. Between **two glass** sub/micro cells across a border, both faces are
+drawn and OIT stacks them. That is a visible seam in a sub-voxel pane, a pre-existing chunk-independence
+violation. It matters because generated windows are 1-micro Glass panes (`StructureRealizer.cpp:395`).
+
+**D2 — the reviewer decides:** (A, recommended) fix it here as C9, below; or (B) defer, log it in
+`docs/StructurePipelineGaps.md`, and mark T8's transparent assertion expected-red.
+
+**C9 design (option A).**
+
+1. **Interface, one callback for both fine levels:**
+
+       // level: 1 = subcube cell, 2 = microcube cell. worldMicro = worldCube*9 + sub*3 + micro
+       // (for level 1, micro = 0 — the sub-cell's minimum corner).
+       using NeighborFineLookupFunc =
+           std::function<NeighborOccupancy(const glm::ivec3& worldMicro, int level)>;
+
+2. **Semantics mirror the in-chunk predicates exactly,** so a border cell answers the same as an
+   interior one, which is what T8's equality needs.
+   - level 1 = `subCellSolid` (`:945`): the cube is solid, or that subcube exists. Microcubes do NOT
+     fill a sub-cell.
+   - level 2 = `microCellSolid` (`:952`): the cube, or the parent subcube, or that microcube.
+   - The returned class is the class of whichever voxel answered (cube → store material; subcube /
+     microcube → its own material), through `isTransparentMaterial`.
+3. **Supplier:** new `Chunk::renderOccupancyAtFine(localMicro, level)`, all O(1): the store for the
+   cube (`visibleSolidCubeAtIndex` + store material), then `getSubcubeAt` (`Chunk.h:210`), then
+   `getMicrocubeAt` (`Chunk.h:216`), skipping broken or invisible voxels as `buildSubMicroOccupancy`
+   does (`:903–935`). `ChunkManager` builds the callback next to `getNeighborCube`
+   (`ChunkManager.cpp:530`), with the same last-chunk memo.
+4. **Plumbing:** `Chunk::rebuildFaces` and `ChunkRenderManager::rebuildAllFaces` get one more
+   parameter (default `nullptr`, so every null-lookup caller is unchanged); it is stored for the
+   rebuild's duration the way `getNeighborCube` is. The four out-of-chunk branches call it instead of
+   `faceVisible = true`, then apply the §17.2 rule with the face owner's transparency.
+5. **Ripple:** covered by C7. The border signature already hashes subdivided border cells.
+6. **Cost:** only sub/micro faces on the border plane query it, two hash lookups each.
+7. **Effect on T8:** with C9, sub/micro border faces follow the same rule as interior ones, so T8's
+   sub/micro assertion **tightens from ⊇ to equality**, and the transparent-face assertion goes green.
+
 ### 17.6 Chunk independence (design key) and re-mesh ripple
 
 Appearance must not depend on where chunk borders fall. A stone voxel at x = 31 next to glass at
@@ -1412,37 +1457,85 @@ rebuild and `finalizeLoadedChunk` (`:1176`). With no lookup, border faces are tr
 **drawn**. That is extra cost until the next dirty rebuild, never a missing face. So a stale border has
 exactly one cause: **the neighbour chunk is never marked for re-mesh.**
 
-**The rule this change enforces (C7):** *any change to a border cell's render class (empty / opaque /
-transparent) marks the facing neighbour chunk for re-mesh.* This uses `markChunkForRemesh`, the
-mesh-only tier. It is not `markChunkDirty`, because the neighbour's voxel data did not change and a
-DB-dirty flag would make the evictor re-save it (the reason given at `DamageSystem.cpp:222`).
+**The rule this change enforces:** *any change to a border cell's render class (empty / opaque /
+transparent, at any voxel size) marks the facing neighbour chunk for re-mesh.* This uses
+`markChunkForRemesh`, the mesh-only tier. It is not `markChunkDirty`, because the neighbour's voxel
+data did not change, and a DB-dirty flag would make the evictor re-save it (the reason given at
+`DamageSystem.cpp:222`). It is also not the idle tier the light ripple uses (`ChunkManager.cpp:593`):
+a stale border here is a **hole**, not a cosmetic light seam.
 
-**Edit-route matrix (from the code, 2026-09-24).** Border cell = local coordinate 0 or 31 on the
-axis facing the neighbour.
+**Edit-route matrix (from the code, 2026-09-24, design-check passes 1 and 2).** Border cell = local
+coordinate 0 or 31 on the axis facing the neighbour.
 
-| route | used by | neighbour re-meshed today? | after §17 |
-|---|---|---|---|
-| R1 `VoxelManipulationSystem` place/break → `updateAfterCubePlace/Break` → `FaceUpdateCoordinator` | player place/break, `VoxelForceApplicator` | ✅ yes (`FaceUpdateCoordinator.cpp:120–170`) | unchanged |
-| R2 `ChunkVoxelModificationSystem::addCubeWithMaterial` / legacy add/remove (`:94–188`) | API single-voxel place, game-definition `fill` add half | ✅ yes (calls the update callbacks) | unchanged |
-| R3 `removeCubeFast` (`ChunkVoxelModificationSystem.cpp:44`) | `clear_region` job (`Application.cpp:18890`), fill-with-replace (`:18815`), editor remove (`:16235`), **damage breaks** (`DamageSystem.cpp:286,386,505`), game-definition `replace` (`GameDefinitionLoader.cpp:654`) | ❌ **own chunk only** (`m_markChunkDirty(chunk)`); `unsealExposedNeighbors` unseals collision only | **C7:** mark facing neighbours for re-mesh |
-| R4 `addCubeFast` (`:62`) | `fill_region` job (`Application.cpp:18821`) | ❌ **own chunk only** | **C7:** same |
-| R5 `ChunkVoxelManager::addCube(overwrite=true)` (`:540`) | `Chunk::addCube(...,overwrite)` pass-through; no production caller found | ❌ chunk-local, no notification | **C7:** same, or remove the overwrite flag if it has no caller |
-| R6 damage stage change (`DamageSystem.cpp:228`) | cracks | own chunk only | fine: the render class does not change |
+| route | where / used by | neighbour re-meshed today? |
+|---|---|---|
+| R1 `VoxelManipulationSystem` place/break → `updateAfterCubePlace/Break` → `FaceUpdateCoordinator` | player place/break, `VoxelForceApplicator` | ✅ (`FaceUpdateCoordinator.cpp:120–170`) |
+| R2 `ChunkVoxelModificationSystem::addCubeWithMaterial`, `addSubcube/MicrocubeWithMaterial`, legacy add/remove (`:94–188`) | API single-voxel place; game-definition `fill` (cube `:657`, sub/micro `:799/:804`) | ✅ (calls the update callbacks) |
+| R3 `removeCubeFast` (`:44`) | `clear_region` job (`Application.cpp:18890`), fill-with-replace (`:18815`), editor remove (`:16235`), **damage breaks** (`DamageSystem.cpp:286,386,505`), game-definition `replace` (`GameDefinitionLoader.cpp:654`) | ❌ own chunk only |
+| R4 `addCubeFast` (`:62`) | `fill_region` job (`Application.cpp:18821`) | ❌ own chunk only |
+| R5 `ChunkVoxelManager::addCube(overwrite=true)` (`:540`) | `Chunk::addCube(...,overwrite)` pass-through; no production caller found. Sets `needsUpdate` only; the **caller** owns the re-mesh | ❌ chunk-local |
+| R6 **template / structure stamp** (`ObjectTemplateManager.cpp:556–565`, `:764–799`: `chunk->addCube/addSubcube/addMicrocube`, then a direct `rebuildFaces()` with **no lookup and no dirty mark**; also `:1245`) | `spawn_template` static, **structure generation** (generated glass windows are 1-micro Glass panes, `StructureRealizer.cpp:361–395`) | ❌ own chunks only, **and never rebuilt with the cross-chunk lookup** |
+| R7 `PlacedObjectManager::clearRegion` (`:590–608`: `removeCubesBatch` + `clearSubdivisionAt` + `markChunkDirty(own)`) and `seatStructure` steps (`:554–561`) | structure replace/remove, seating | ❌ own chunk only |
+| R8 `SettlementBuildService` (6 × `markChunkDirty(ch)`: `:382,711,1084,1308,1369,1456`) | settlement build | ❌ own chunk only |
+| R9 `DynamicObjectManager` / `ChunkVoxelBreaker` / `ChunkVoxelManager` edit callbacks (`m_rebuildFaces()`) | subdivide, breaks into dynamics | ❌ own chunk only (null-lookup rebuild) |
+| R10 chunk **load** / stream-in (`ChunkManager.cpp:114–122`) | streaming | ✅ idle re-mesh of the 6 adjacent chunks |
+| R11 LOD → fine return (`RenderCoordinator.cpp:2982`), damage-stage re-mesh (`DamageSystem.cpp:228`) | LOD, cracks | no ripple needed: render classes unchanged |
 
-**R3/R4 are partly a pre-existing bug.** Today, breaking a border voxel with a Fast route leaves the
-neighbour's facing face culled until something else re-meshes that chunk. That is a missing face, a
-visible hole (the dirty pass re-meshes only the edited chunk). §17 makes it worse in two ways. (a) A
-shattered glass pane on a border no longer reveals the neighbour's glass face. (b) A fill that places
-glass beside the neighbour's glass leaves the neighbour's facing face drawn: two stacked layers, and
-the smudges double. C7 fixes the Fast routes for every material, not only glass, because the
-mechanism is the same.
+**R3–R9 are partly a pre-existing bug.** Today, removing a border voxel through any of them leaves the
+neighbour's facing face culled, a visible hole, until something else re-meshes that chunk. §17 makes it
+worse in two ways. (a) A shattered glass pane on a border no longer reveals the neighbour's glass face.
+(b) Placing glass beside the neighbour's glass leaves the neighbour's facing face drawn, so the two
+layers stack and the smudges double.
 
-**C7 implementation:** reuse the border loop already in `unsealExposedNeighbors`
-(`ChunkVoxelModificationSystem.cpp:14`). It adds a new callback to `ChunkVoxelModificationSystem`
-(wired to `ChunkManager::markChunkForRemesh` next to the existing three at `ChunkManager.cpp:200–204`)
-and calls it for each facing neighbour of a border cell. Cost: at most 3 extra marks per border edit,
-de-duplicated by the tracker. A 1 000-voxel fill still re-meshes each touched chunk and each touched
-neighbour once.
+**Why not patch the routes (the first draft's C7).** Seven routes bypass the neighbour today, and any
+new route would reopen the bug. Fix it once instead, at the one function **every** re-mesh goes
+through: `Chunk::rebuildFaces` (`Chunk.cpp:330`). Null-lookup and cross-chunk rebuilds both land there,
+and it already refreshes the other derived state (`recomputeRenderFlags`, `computeVisibilityMask`).
+
+**C7 — border-class signature ripple (the mechanism):**
+
+1. **Signature.** `Chunk` gets `uint64_t m_borderSig[6]` + `bool m_borderSigValid`. For face `d`, the
+   signature is a 64-bit hash (FNV-1a or `std::hash` combine) over that face's 32×32 border cells, in
+   fixed order. For each cell it hashes: the cube's render class (`renderOccupancyAt`: Empty / Opaque /
+   Transparent), and, **if the cell is subdivided**, the render class of each subcube and microcube in
+   it, in fixed order. It hashes the whole cell, not only the part touching the face: this over-triggers
+   a little, never under-triggers. Hashing uses the render **class**, not the material, so a stone →
+   brick swap does not ripple.
+2. **Where.** At the end of `Chunk::rebuildFaces(...)`, after `computeVisibilityMask()`: compute the
+   new six. If `m_borderSigValid` and face `d` differs, set bit `d` of a change mask. Store, and set
+   valid. Also compute it where the managed rebuild short-circuits a uniform chunk
+   (`applyAirRenderState` / `applySealedRenderState`, `ChunkManager.cpp:504–512`), which skips
+   `rebuildFaces`. For a uniform store the signature is O(1): one class repeated.
+3. **First build never ripples** (`m_borderSigValid == false`). Otherwise the first mesh of every
+   chunk on load would re-mesh its whole neighbourhood, and they theirs, which cascades. Neighbours of a
+   newly loaded chunk are already re-meshed by R10.
+4. **Hand-off, thread-safe.** Chunk does not touch its neighbours. If the mask ≠ 0, it calls
+   `m_borderSink(chunkCoord, mask)`, a `std::function` set by the owning `ChunkManager`. The sink
+   pushes into a `std::mutex`-guarded `std::vector<std::pair<glm::ivec3,uint8_t>>` on `ChunkManager`.
+   `ChunkManager::updateDirtyChunks` (main thread) drains it first: for each set bit,
+   `getChunkAtCoord(coord + dir)` → `markChunkForRemesh`. A chunk with no sink (tests, preview chunks)
+   simply doesn't ripple.
+5. **Sink wiring.** Set at every site where a chunk joins `chunkMap`: `ChunkInitializer.cpp:43`,
+   `:76`; `ChunkStreamingManager.cpp:212`, `:620`, `:793`. Guard: the drain asserts, in Debug, that the
+   chunk it re-meshes has a sink, so a sixth insertion site added later is caught.
+6. **Convergence.** The neighbour's re-mesh recomputes **its own** signature, which describes its own
+   content. That content did not change, so its signature does not change and the ripple stops after
+   one hop.
+7. **The one route rule left:** *every edit must end in a re-mesh of the edited chunk.* R1–R9 all do
+   (dirty mark, remesh mark, or direct `rebuildFaces`); R5's callers do it for R5. A route that broke
+   this rule would already show its own edit late, so this is not a new failure mode. R6/R9's direct null-lookup rebuilds
+   still need a cross-chunk rebuild eventually, or their **own** border faces stay over-drawn forever
+   (cost only; the ripple fixes the neighbour, not them). So R6 (`ObjectTemplateManager.cpp:798`,
+   `:1245`) also gets `markChunkForRemesh(chunk)` after its immediate rebuild.
+8. **Cost.** 6 × 1 024 class reads per rebuild. The same order as `isChunkCapped`'s dense scan, and
+   ≤ 20% of the 32 768-cell `computeVisibilityMask` already run there, plus subdivided border cells.
+   Measured in step 8 against the T0 mesh-timing instrumentation (`ChunkRenderManager.cpp:234`); a
+   rebuild-time rise over 5% on the showcase is a finding.
+9. **R5 decision:** `overwrite=true` has no production caller. Keep it: it is covered by C7 like
+   every other route, so no special case.
+
+**Sealing** (C6) is re-decided on every managed rebuild (`ChunkManager.cpp:504–512`), so C7's
+neighbour re-mesh is also what unseals a chunk when the layer capping it turns to glass (T12b).
 
 ### 17.7 Cost
 
@@ -1463,15 +1556,40 @@ must lie on an opaque cell and point at a transparent cell. This catches both un
 face missing) and over-emission (a face added where the rule did not ask for one). Run with fine merge
 ON and OFF; the covered sets must be identical (T6).
 
-**L4, predicted before measured.** Showcase scene (§16.6). Window D is 3×4 glass cubes in a 1-thick
-stone wall (x 27–29, y 19–22, z 8). Its reveal is the stone faces pointing into the window cells:
-left 4 + right 4 + top 3 + bottom 3 = **14 unit faces**. Panes A–C (5×7×1, z = 8) touch opaque cells
-only at the ground under them (y = 16): 3 × 5 = **15 unit faces**. The brick backdrop at z = 3 touches
-no glass. **Prediction written now: covered static unit faces rise by exactly 29.** Measure it from
-the live mesh through the same helper, not from `get_render_stats`. That needs a debug dump of a
-chunk's covered set, which **does not exist yet**; it is step 8a of §17.10. The quad count is also recorded, as the cost figure: **predicted change within
-−15…+29**. It can drop, because the ground plane's merge runs rejoin. A result outside either
-prediction is a finding, not a tolerance.
+**L4, predicted from the world, before measuring.** The prediction is **computed by the rig from a
+scan of the rig world**, not from memory of the scene. Design-check pass 2 caught exactly that
+mistake: the first draft predicted +15 faces for "ground under the panes", and a live query showed no
+voxel below the panes at all (`(4|12|20, 0…16, 8)` all empty, 2026-09-24). The rig script:
+
+1. queries `/api/world/voxel` for the 6 neighbours of every glass cell in the scene;
+2. computes `P` = the number of (opaque neighbour cell, face pointing at glass) pairs;
+3. **prints `P` and the list of pairs before any capture.**
+
+Hand derivation for today's showcase (§16.6), to be confirmed by step 1: panes A–C touch no opaque
+cell (air all round, bricks 5 cells behind) → 0. Window D (3×4 glass cubes in a 1-thick stone wall,
+x 27–29, y 19–22, z 8) → reveal left 4 + right 4 + top 3 + bottom 3 = **P = 14**. **Prediction: covered
+static unit faces +14 exactly; quad count +4…+14.** Each reveal side is one straight run: 4 quads if
+fully merged, up to 14 if light breaks the merges.
+
+**Measurement route (new, step 10):** `GET /api/debug/chunk_faces?cx=&cy=&cz=`. It returns
+`{chunk:[cx,cy,cz], rebuilds:<the chunk's rebuild counter>, quads:<n>, covered:{<material>:{<faceDir>:<unit faces>}}}`.
+It is computed from the chunk's current instance buffer through the same covered-cell expansion T6
+uses. That expansion is `coveredCellCentres`, today a helper **inside
+`tests/graphics/FineFaceMergeTest.cpp`**. It moves into the engine (e.g. a free function next to
+`ChunkRenderManager`), so the test and the route share one implementation and L2 and L4 count the
+same way. It echoes the chunk and rebuild counter it
+read, so a caller can tell whether the re-mesh has landed. The counter is added to `Chunk` if none
+exists; it increments in `Chunk::rebuildFaces`. Read-only, no state change, no defaults.
+
+**L4b — a generated window (the path real content takes).** One v2 structure whose program marks a
+window `"infill": "glass"` (`BuildingProgram.cpp:51` parses it; `StructureRealizer.cpp:370–395` turns
+it into a 1-micro Glass leaf between trim jambs). Built through the engine's generator, never
+hand-placed (CLAUDE.md provenance rule). If the build route cannot pass that flag, that is a logged
+gap, and the rig says which route produced the building. Prediction: the jambs' and sill's micro faces
+facing the leaf become covered. `P` is computed the same way as above, from a `scan_region` of the
+window at micro resolution, and printed first. Capture: through the pane at a grazing angle, before and
+after, same pose, curve 0. **Control:** the same window with `"infill": "open"` (air), where the jamb
+faces are drawn today. This covers the owed "pane in a generated building" check (§13.7).
 
 ### 17.8 Tests — red first
 
@@ -1490,12 +1608,15 @@ mesher, count emitted faces by face direction and material):
 | **T6** | T1/T4/T5 with fine greedy merge ON and OFF | identical covered-cell sets (`coveredCellCentres`) | — |
 | **T7** | two chunks, stone at x = 31 in A, glass at x = 0 in B, real cross-chunk lookup | A's +X face emitted; with stone in B instead, NOT emitted | **RED** |
 | **T8** | **chunked vs whole-region equality** (design key; `FloraMarginTest` shape): a stone/glass pattern (cubes, subcubes, microcubes, mixed) built straddling a chunk border vs the same pattern inside one chunk, covered sets compared after translation | **cubes: identical.** **Sub/micro: straddling ⊇ whole.** Every face the whole-region mesh covers, the straddling mesh also covers; extra faces are allowed only on border cells (see note) | **RED** |
-| **T9** | **edit-route matrix (§17.6):** for each of R1–R5, on a border cell with the neighbour chunk loaded: (a) remove a stone cell whose neighbour is stone, (b) remove a glass cell whose neighbour is glass, (c) place glass beside the neighbour's glass, (d) place stone beside the neighbour's glass. Then run the dirty pass | the neighbour's facing face matches a from-scratch cross-chunk rebuild of both chunks, for every route × case | **RED** for R3/R4 (they re-mesh only the edited chunk); R5 red if kept; R1/R2 green controls |
+| **T9** | **edit-route matrix (§17.6):** for each of R1–R9 that a unit test can drive (R1–R5, R6 template stamp, R7 placed-object clear; R8 settlement is covered at L4), on a border cell with the neighbour chunk loaded: (a) remove a stone cell whose neighbour is stone, (b) remove a glass cell whose neighbour is glass, (c) place glass beside the neighbour's glass, (d) place stone beside the neighbour's glass. Then run the dirty pass | the neighbour's facing face matches a from-scratch cross-chunk rebuild of both chunks, for every route × case | **RED** for R3–R7 (they re-mesh only the edited chunk); R1/R2 green controls |
 | **T10** | grass cube with a glass cube on top | **no grass blades** emitted (K2 unchanged) | green — must STAY green |
+| **T10b** | grass cube at local y = 31, glass cube at y = 0 of the chunk above, real cross-chunk lookup | **no grass blades** (C8) | green — must STAY green |
 | **T11** | billboarded leaf next to glass, otherwise enclosed | leaf **exposed** → foliage emitted (C5) | **RED** |
 | **T12** | uniform stone chunk whose neighbour's facing layer is all glass | `isChunkCapped` = **false** (C6) | **RED** |
 | **T12b** | uniform stone chunk, **sealed** by an all-stone neighbour layer. Then one capping cell is replaced by glass (remove + add) through R1 and through R3 + R4 | after the dirty pass the chunk is **unsealed** and its wall face under the glass cell is covered | **RED** (C6 + C7) |
 | **T13** | glass cube | still a physics solid: `visibleSolidCubeAt` true, collision shape built (K1 unchanged) | green — must STAY green |
+| **T14** | C7 convergence and gating: (a) first build of a chunk → no ripple; (b) re-mesh with unchanged content (the LOD return, a damage stage) → no ripple; (c) stone → brick swap on a border (same class) → no ripple; (d) stone → glass on a border → exactly the facing neighbour is marked, once | as stated | (a)–(c) green, (d) **RED** |
+| **T15** | (D2 option A only) 1-micro glass pane straddling a chunk border, plus a stone jamb microcube across the border beside a glass microcube | no glass face covered on the border plane between glass micros; the jamb face covered | **RED** |
 
 **T8 note: why sub/micro is ⊇, not =.** The sub- and microcube meshers treat a neighbour outside
 the chunk as exposed (`ChunkRenderManager.cpp:1008`, `:1176`); they have no cross-chunk lookup. So a
@@ -1510,11 +1631,7 @@ pre-existing (the same "assume exposed" rule applied before §17) and is indepen
 T8 therefore gets a **third, separate assertion**: *no transparent face is covered in the straddling
 mesh unless the whole-region mesh covers it.* It is expected RED today for sub/micro glass.
 
-**Open decision D2 (for the reviewer, before step 5):** fix it here by giving the sub/micro meshers
-the border lookup (the C2 lookup, answered at sub/micro resolution), or defer it and log it in
-`docs/StructurePipelineGaps.md` (with T8's third assertion marked expected-red). Recommendation:
-**fix it here.** Generated windows are sub-voxel, and a seam through a pane is exactly the class of
-defect the reviewer rejects.
+**Decision D2** (fix here, or defer) and its design: §17.5b.
 
 **L4, live:** the showcase window (§16.6, stone wall with a glass window). Camera at a grazing angle
 through the pane; the reveal's stone faces must be present. Metric: the reveal's pixel region reads as
@@ -1531,51 +1648,71 @@ mixed), and the chunk border (T7/T8).
 
 ### 17.10 Order of work
 
-1. `isTransparentMaterial` helper.
-2. Write T0–T13; confirm the RED ones fail and the controls/KEEPs pass.
-3. C1 (cube in-chunk) → T1, T2, T3 green.
-4. C3, C4 (sub/micro, both per-face and merged) → T4, T5, T6 green.
-5. C2 (interface change + `Chunk::renderOccupancyAt`) → T7 green, T8 cube assertion green. Then
-   D2 as decided: either the sub/micro border lookup (T8's ⊇ and transparent assertions green), or a
-   gap entry with the transparent assertion marked expected-red.
-6. C7 (Fast-route neighbour re-mesh, §17.6; decide R5: wire it or delete the unused overwrite flag)
-   → T9 green for every route × case.
-7. C5 (leaf exposure) → T11. C6 (`isChunkCapped`) → T12; with C7 → T12b.
-8. Full crack/damage/flag/merge suites; T10, T13 still green.
-   8a. Debug dump of a chunk's covered unit-face set (used by the L4 count).
-   8b. L4: reveal capture with the empty-window control; covered-face delta == 29 and quad delta
-       within −15…+29 (§17.7). Then reviewer sign-off.
-9. D1 logged in the gap file (done 2026-09-24).
+Each step ends with the named tests green and **every previously-green test still green**. Each step
+is its own commit, so any step can be reverted alone. Starting point: tag `glass-s17-start`.
+
+1. `isTransparentMaterial` helper (17.3).
+2. Write T0–T15 (T15 only under D2 option A); confirm the RED ones fail for the stated reason and the
+   controls/KEEPs pass. Commit the reds.
+3. C1 (cube, in-chunk) → T1, T2, T3 green.
+4. C3, C4 (sub/micro, in-chunk, per-face and merged) → T4, T5, T6 green.
+5. C2 + C8 (`NeighborOccupancy` enum, `Chunk::renderOccupancyAt`, `neighborSolid` maps to
+   `!= Empty`) → T7 green, T8's cube assertion green, T10/T10b green.
+6. D2 as decided. **A:** C9 (§17.5b) → T8's sub/micro assertion tightened to equality, the transparent
+   assertion and T15 green. **B:** gap entry; T8's transparent assertion marked expected-red with
+   the gap's date.
+7. C7 (border signature ripple + sink wiring at the five `chunkMap` sites + the template-stamp
+   re-mesh mark) → T9 (every route × case), T14 green.
+8. C5 (leaf exposure) → T11. C6 (`isChunkCapped` requires opaque) → T12; with C7 → T12b.
+9. Full crack/damage/flag/merge/lighting suites; K1–K3 tests (T10, T10b, T13) still green; rebuild
+   time on the showcase within 5% (§17.6 C7 item 8).
+10. `coveredCellCentres` moved into the engine; `GET /api/debug/chunk_faces` (§17.7).
+11. L4: showcase reveal (rig prints `P` first; prediction +14 covered / +4…+14 quads) with the
+    empty-window control, then L4b, the generated glass window, with the open-window control.
+    **Then the reviewer's visual sign-off.** Nothing here is "fixed" before that.
+12. D1 logged in the gap file (done 2026-09-24).
 
 ### 17.11 Risks
 
 | risk | guard |
 |---|---|
 | grass starts growing inside glass | K2/K3 keep the old predicate; T10 |
+| grass grows under glass at a chunk border | C8; T10b |
 | glass becomes walk-through | K1 untouched; T13 |
 | thick panes get interior layers (looks opaque, smudges stack) | row 5 of the rule; T2 extended to 3-thick |
-| cross-chunk faces go stale after a border edit (fill, clear, damage break, replace) | C7; the T9 route matrix |
-| C7 floods the re-mesh queue on large fills | border cells only, mesh-only tier, queue de-duplicates (`DirtyChunkTracker.cpp:58`); each neighbour is re-meshed at most once per pass |
-| a doubled glass seam at chunk borders (sub-voxel glass) | T8's transparent assertion; decision D2 |
-| a chunk behind a glass layer stops meshing its wall | C6; T12 |
+| cross-chunk faces go stale after a border edit, by any route | C7 at the one choke point (`Chunk::rebuildFaces`); the T9 route matrix |
+| a new edit route added later bypasses the ripple | C7 does not depend on routes, only on "every edit ends in a re-mesh" (§17.6 item 7) |
+| the ripple cascades through the world on load | first build never ripples (§17.6 item 3); T14(a) |
+| the ripple loops | a signature describes only the chunk's own content; T14(b) |
+| C7 touches chunks from a worker thread | the sink only enqueues under a mutex; the main thread drains (§17.6 item 4) |
+| a chunk inserted without a sink silently never ripples | the Debug assert in the drain (§17.6 item 5) |
+| C7 floods the re-mesh queue on large fills | only changed border faces ripple; mesh-only tier; the queue de-duplicates (`DirtyChunkTracker.cpp:58`) |
+| C7 slows every rebuild | measured in step 9, 5% budget |
+| a doubled glass seam at chunk borders (sub-voxel glass) | decision D2; T8's transparent assertion, T15 |
+| a chunk behind a glass layer stops meshing its wall | C6; T12, T12b |
 | merged and per-face paths disagree | T6 compares them directly |
+| the L4 prediction is wrong because it was assumed | the rig computes `P` from a world scan and prints it first |
 | the five copies of "transparent" drift again | the shared helper (17.3) |
 
-### 17.12 Design check (2026-09-24): NEEDS WORK, folded in
+### 17.12 Design check (2026-09-24): two passes, NEEDS WORK both times, folded in
 
-The `/design-check` gate on the first draft of §17 found no violated design key, but four
-unresolved items. They are folded in above:
+**Pass 1** found no violated design key but four unresolved items: T9 said "to establish"; T8 was
+unsatisfiable for sub-voxels; the cost measurement was vague; the rebuild path was marked "to verify".
+Folded in by `aef39a78`.
 
-1. **Stale neighbours.** T9 had said "to establish". It is now the edit-route matrix (§17.6). The
-   check found that R3/R4 (fill, clear, damage breaks, game-definition replace) mark only the
-   edited chunk. Change C7 fixes them.
-2. **T8 was unsatisfiable as written** for sub-voxels, because of the pre-existing border rule
-   "outside the chunk counts as exposed". It is restated as: cubes equal; sub/micro ⊇; plus a
-   transparent-face assertion. That assertion exposed a **visible** pre-existing seam (doubled glass
-   at borders), which is **decision D2**.
-3. **Cost measurement** is now concrete: covered unit faces (exact, merge-independent), L2 formula
-   `P`, and an L4 prediction of +29 written down before measuring.
-4. **Which rebuild uses the cross-chunk lookup** is established from the code, no longer marked
-   "to verify".
+**Pass 2** (on `aef39a78`) found five more:
 
-**Awaiting before implementation:** the reviewer's go-ahead, and decision D2.
+1. **The route matrix was incomplete, and patching route by route would not hold.** Also bypassing the
+   neighbour: the template/structure stamp (the route generated glass takes), placed-object clear,
+   settlement build, and the edit callbacks. C7 is now one mechanism at `Chunk::rebuildFaces`, not
+   per-route patches.
+2. **C2's type change reaches the grass predicates** through `neighborSolid`'s border branch → C8, T10b.
+3. **The L4 prediction was wrong.** It assumed ground under the panes that does not exist (checked
+   live). The prediction is now computed from a scan by the rig: +14.
+4. **The measurement route was unspecified** → `GET /api/debug/chunk_faces`, and the test helper
+   moves into the engine.
+5. **D2 was undesigned** → §17.5b specifies option A in full; option B is the deferral.
+
+Also added: L4b, the generated glass window, which exercises the microcube path real buildings take.
+
+**Awaiting before implementation:** the reviewer's go-ahead, and decision D2 (A recommended).
