@@ -848,6 +848,15 @@ void RenderCoordinator::updateLightOccupancy() {
         it = m_lightOccRevisions.erase(it);
     }
 
+    // DEVICE-LOST GUARD (2026-09-23, Ravenmere G-177 / G-127). The directory and pool are ONE
+    // host-mapped copy, and this flush ran before the frame fence: a frame still executing on
+    // the GPU could read a torn directory/pool mid-repack, and occupancy.glsl's binary search
+    // trusts the count it reads - a garbage count loops for ever -> TDR -> VK_ERROR_DEVICE_LOST.
+    // Streaming repacks every frame chunks land, which is why the surround killed the shipped
+    // town within a second (and the editor within a minute). Draining the GPU before a repack
+    // makes the write race-free at the cost of one pipeline drain per repack frame; the proper
+    // fix is a per-frame-in-flight directory/pool (or append-only blobs) - logged on the row.
+    if (m_lightOccupancy->dirty()) vulkanDevice->deviceWaitIdle();
     m_lightOccupancy->flushIfDirty();
 
     // Tell the shaders where the box sits and that the buffers are real. Done AFTER the flush so

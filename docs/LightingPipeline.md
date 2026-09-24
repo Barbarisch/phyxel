@@ -657,10 +657,11 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 - 2026-09-02 — M5 one-bounce probe field working, default OFF (`/api/debug/gi`).
 - 2026-09-01 — U7 stage 2: block light deleted from the engine; vegetation sky transport retired (grass/foliage trace their own sky).
 - 2026-08-30 — M2 point/spot visibility trace on every consumer; M3-REDESIGN per-cell traced bake for non-chunk receivers.
+- 2026-09-23 — `occupancy.glsl` mixed-cube binary search GUARDED (count clamped to 32768, overflow-free midpoint): the directory/pool are one host-mapped copy repacked before the frame fence, and a torn read handed the loop a garbage count → infinite loop → VK_ERROR_DEVICE_LOST (Ravenmere G-177 surround, and G-127 before it). `RenderCoordinator::updateLightOccupancy` now drains the GPU before a pending repack; the proper fix (per-frame-in-flight directory/pool) is open on the G-177 row. No lighting-model change.
 - 2026-08-15 — single tone map moved to `post_process.frag` (grade pass).
 - 2026-08-06 — near shadow cascade (40 u) shipped; receivers min-compose.
 
-<!-- lighting-model-fingerprint: 92f40f287cf2bbc1 -->
+<!-- lighting-model-fingerprint: 26e5b20f57ae9dc6 -->
 
 ## Related
 

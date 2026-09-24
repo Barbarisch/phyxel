@@ -141,6 +141,9 @@ struct GameDefinitionResult {
     /// True when the definition authored `playBounds` (G-169); otherwise the ChunkManager derives
     /// the play bounds from the chunk extent (static worlds) or has none (streaming).
     bool playBoundsAuthored = false;
+    /// The world streams (generates + evicts around the player) past its authored region. The
+    /// NORM for height-based terrain since 2026-09-23; `world.streaming: false` opts out.
+    bool streaming = false;
     bool storyLoaded = false;
 
     json toJson() const;

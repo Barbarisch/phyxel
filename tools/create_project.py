@@ -1508,6 +1508,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             clickToMove_.setGraphProvider([this]() -> const Phyxel::Core::NavGraph* {{
                 return npcManager_ ? npcManager_->getNavGraph() : nullptr;
             }});
+            // The world continues past the play-area wall (streamed surround); a click out
+            // there walks to the nearest point inside the bounds instead of into the wall.
+            clickToMove_.setPlayBoundsProvider([this]() -> Phyxel::Core::PlayBounds {{
+                auto* cm = engine_ ? engine_->getChunkManager() : nullptr;
+                return cm ? cm->effectivePlayBounds() : Phyxel::Core::PlayBounds{{}};
+            }});
             // Combat moves walk the SAME route (G-136: a straight line into a fence or a
             // tree stalled short of the click), and the ground pick lands on the voxel
             // surface under the cursor rather than a plane at the player's feet.

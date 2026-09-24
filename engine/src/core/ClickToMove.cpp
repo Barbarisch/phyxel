@@ -27,11 +27,17 @@ const char* ClickToMove::resultName(Result r) {
     return "?";
 }
 
-bool ClickToMove::requestWalkTo(const glm::vec3& goal, float standoff,
+bool ClickToMove::requestWalkTo(const glm::vec3& goalIn, float standoff,
                                 std::function<void()> onArrive) {
     ITurnActorBody* b = body();
     if (!b) { m_result = Result::NoPath; return false; }
     if (active()) cancel();
+    // A click past the play-area wall walks to the nearest point inside it (body-width in).
+    glm::vec3 goal = goalIn;
+    if (m_bounds) {
+        const PlayBounds pb = m_bounds();
+        if (pb.valid) goal = pb.clamp(goalIn, 0.5f);
+    }
 
     const glm::vec3 from = b->position();
     std::vector<glm::vec3> wps = planPath(from, goal);

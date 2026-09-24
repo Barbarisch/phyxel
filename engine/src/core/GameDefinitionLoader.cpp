@@ -66,6 +66,7 @@ json GameDefinitionResult::toJson() const {
     j["day_night_loaded"] = dayNightLoaded;
     if (dayNightLoaded) j["day_night"] = dayNight.toJson();
     j["play_bounds_authored"] = playBoundsAuthored;
+    j["streaming"] = streaming;
     return j;
 }
 
@@ -187,6 +188,14 @@ GameDefinitionResult GameDefinitionLoader::load(const json& definition, GameSubs
     std::string gameName = definition.value("name", "Untitled Game");
     LOG_INFO("GameDefinitionLoader", "Loading game definition: " + gameName);
 
+    // Play bounds are per-scene state (G-169 / G-177), reset BEFORE the world loads: loadWorld
+    // sets the REGION bounds from `world.from/to`, and the `playBounds` block further down sets
+    // the authored override. (The first cut reset them after loadWorld and wiped the region.)
+    if (subsystems.chunkManager) {
+        subsystems.chunkManager->clearAuthoredPlayBounds();
+        subsystems.chunkManager->clearRegionPlayBounds();
+    }
+
     // Load each section in order: world → structures → player → camera → NPCs → story
     if (definition.contains("world")) {
         // The sea level the world generates against comes from the sibling "water" block — the
@@ -229,9 +238,8 @@ GameDefinitionResult GameDefinitionLoader::load(const json& definition, GameSubs
         result.dayNightLoaded = parseDayNight(definition, result.dayNight);
     }
 
-    // Play bounds (G-169): authored beats the derived chunk extent. Cleared on EVERY load, so a
-    // scene without the key reverts to derived and the previous scene's stage never leaks in.
-    if (subsystems.chunkManager) subsystems.chunkManager->clearAuthoredPlayBounds();
+    // Play bounds (G-169): an authored box beats the region and the derived chunk extent. Reset
+    // at the top of load(), so a scene without the key reverts and nothing leaks between scenes.
     if (definition.contains("playBounds")) {
         auto [ok, err] = PlayBounds::validate(definition["playBounds"]);
         if (!ok) { result.success = false; result.error = err; return result; }
@@ -493,11 +501,32 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
     // use the seed the generator actually runs with.
     seed = generator.getSeed();
 
-    // Streaming terrain (Phase 1b): when enabled, chunks generate and evict around the
-    // player at runtime instead of being limited to the up-front bounded set below. The
-    // up-front gen still runs to guarantee solid ground at spawn; streaming extends beyond
-    // it using the same generator type/seed/params, so the seam is continuous.
-    if (worldDef.value("streaming", false)) {
+    // Streaming terrain (Phase 1b): chunks generate and evict around the player at runtime
+    // past the up-front bounded region below. The region still generates (or loads) first
+    // to guarantee solid ground at spawn; streaming extends beyond it with the same
+    // generator type/seed/params, so the seam is continuous.
+    //
+    // STREAMED SURROUND IS THE NORM (2026-09-23, user: "some more high res terrain needs to
+    // be generated around the current terrain even if the player cant reach it ... that
+    // should also be the norm"). The region is the PLAY AREA (the PlayBounds wall); the
+    // world continues past it with real voxel terrain to the residency radius and heightmap
+    // far terrain to the horizon, so the player never sees the last chunk from inside.
+    // Default ON for height-based terrain; `streaming: false` opts out EXPLICITLY. Random /
+    // City / Custom keep the old default (their "surround" would be noise or void).
+    const bool heightBased = genType == WorldGenerator::GenerationType::Perlin ||
+                             genType == WorldGenerator::GenerationType::Flat ||
+                             genType == WorldGenerator::GenerationType::Mountains ||
+                             genType == WorldGenerator::GenerationType::Caves;
+    const bool streaming = worldDef.value("streaming", heightBased);
+    result.streaming = streaming;
+    if (!streaming) {
+        // A REAL opt-out. The flag used to be sticky: nothing ever turned streaming off, so
+        // after one streaming scene a later `streaming:false` scene still streamed, had no
+        // play bounds and kept the residency hold.
+        sub.chunkManager->configureStreamingGeneration(false);
+        LOG_INFO("GameDefinitionLoader", "World: streaming terrain OFF (explicit or non-terrain type)");
+    }
+    if (streaming) {
         sub.chunkManager->configureStreamingGeneration(true, genType, seed);
         if (WorldGenerator* sg = sub.chunkManager->getStreamingGenerator()) {
             sg->getTerrainParams() = generator.getTerrainParams();
@@ -563,6 +592,20 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
         return;
     }
 
+    // The region is the play area (PlayBounds): whether it generates now or loads from the DB
+    // below, and whatever streams in around it, the wall stands at the authored rectangle.
+    {
+        int minCX = chunkCoords[0].x, maxCX = chunkCoords[0].x;
+        int minCZ = chunkCoords[0].z, maxCZ = chunkCoords[0].z;
+        for (const auto& cc : chunkCoords) {
+            minCX = std::min(minCX, cc.x); maxCX = std::max(maxCX, cc.x);
+            minCZ = std::min(minCZ, cc.z); maxCZ = std::max(maxCZ, cc.z);
+        }
+        sub.chunkManager->setRegionPlayBounds(PlayBounds::make(
+            static_cast<float>(minCX * 32), static_cast<float>(minCZ * 32),
+            static_cast<float>((maxCX + 1) * 32), static_cast<float>((maxCZ + 1) * 32)));
+    }
+
     // NEVER regenerate over saved chunks by accident. An inline `world` block on a
     // scene whose DB already holds those chunks REPLACED a built town with flat
     // terrain twice (Ravenmere G-48; regen #18, where the following save wrote the
@@ -622,13 +665,13 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
     }
 
     // Flora decoration pass (Phase 5): scatter biome-appropriate vegetation across the
-    // generated region. Runs only for fixed-region worlds — every chunk exists now, so
-    // ObjectTemplateManager::spawnTemplate routes a tree's overhang into the correct
-    // neighbor chunk (no clipped trees at chunk seams). Streaming worlds need the
-    // decorate-once-neighbors-present deferral and are skipped here for now. Opt out with
-    // world.flora=false.
-    if (sub.templateManager && worldDef.value("flora", true) && !worldDef.value("streaming", false)
-        && !chunkCoords.empty()) {
+    // generated region. Every chunk of the region exists now, so a tree's overhang routes
+    // into the correct neighbour chunk (no clipped trees at seams). This runs on the
+    // generate path whether or not the world streams: the up-front region is generated
+    // here, not streamed, so the per-chunk streaming decorator never touches it - with the
+    // old `!streaming` guard a streaming world's own region was the one bare patch in it.
+    // Opt out with world.flora=false.
+    if (sub.templateManager && worldDef.value("flora", true) && !chunkCoords.empty()) {
         int minCX = chunkCoords[0].x, maxCX = chunkCoords[0].x;
         int minCZ = chunkCoords[0].z, maxCZ = chunkCoords[0].z;
         for (const auto& cc : chunkCoords) {

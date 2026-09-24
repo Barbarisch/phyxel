@@ -79,11 +79,17 @@ bool phxOccupancySolid(ivec3 worldMicro, ivec4 occBox) {
     if (((occPool[mixedBase + uint(ci >> 5)] >> uint(ci & 31)) & 1u) == 0u) return false;
 
     // Binary search the ascending mixed-cube index list.
-    uint n = occPool[base];
+    // GUARDED (2026-09-23, Ravenmere G-177 / G-127): the count is READ FROM THE POOL, and the pool
+    // is a single host-mapped buffer the CPU repacks while a frame can still be in flight. A torn
+    // read used to hand this loop a garbage count (a solid-bitfield word is 0xFFFFFFFF): lo+hi
+    // wrapped, mid stuck at 0, the loop never ended, the OS reset the GPU (VK_ERROR_DEVICE_LOST).
+    // A chunk has at most 32768 cubes, so the count is clamped there, the midpoint is computed
+    // without overflow, and a torn frame reads wrong lighting for one frame instead of hanging.
+    uint n = min(occPool[base], 32768u);
     uint idxBase = mixedBase + uint(PHX_OCC_CUBE_WORDS);
     uint lo = 0u, hi = n;
     while (lo < hi) {
-        uint mid = (lo + hi) >> 1u;
+        uint mid = lo + ((hi - lo) >> 1u);
         if (occPool[idxBase + mid] < uint(ci)) lo = mid + 1u; else hi = mid;
     }
     if (lo >= n || occPool[idxBase + lo] != uint(ci)) return false;

@@ -75,6 +75,15 @@ Chunk range determines world size. Each chunk is 32×32×32 blocks:
 - `from: {-2,0,-2}` to `{2,0,2}` = 5×1×5 = 25 chunks (medium world)
 - `from: {-3,0,-3}` to `{3,0,3}` = 7×1×7 = 49 chunks (large world)
 
+**The range is the PLAY AREA, not the visible world (since 2026-09-23).** For Flat / Perlin /
+Mountains / Caves the world streams by default: your `from`/`to` region is generated (or loaded
+from the scene DB) first and becomes the play bounds - an invisible wall - and the same generator
+keeps filling real voxel terrain past it to the streaming radius (about 256 units), with heightmap
+far terrain out to the horizon. The player can see that terrain but never reach it, so the last
+chunk is never in view from inside. `"streaming": false` opts a scene out (an interior with no
+outside view); `loadRadius` / `unloadRadius` (in chunks) tune the residency. Streamed chunks are
+regenerated deterministically and never saved; the region's saved chunks always win.
+
 ### Step 3: Add Structures
 
 Structures are placed after terrain generation. Two types — **use fills for shells/terrain,
@@ -224,8 +233,9 @@ After your world, NPCs, and story are in place, layer on gameplay systems:
 **The edge of the world is a wall** (`playBounds`, optional, per scene):
 - Every kinematic character (player and NPCs) is clamped each frame to the scene's play bounds,
   so nobody can walk off the last chunk of a fixed-size world into the void.
-- By default the bounds are the rectangle of the chunks the world has. A streaming world
-  (`world.streaming: true`) has none: its extent grows ahead of the player.
+- By default the bounds are the scene's authored `world.from`/`to` region (the world streams
+  past it, see Step 2). A scene with no `world` block uses the rectangle of the chunks it has;
+  a streaming world with no region has none, its extent grows ahead of the player.
 - To stage a smaller area inside a bigger world, author `"playBounds": {"min": {"x": -32, "z": -32},
   "max": {"x": 64, "z": 64}}` (voxel coordinates, half-open). An inverted or zero-area box is
   refused at load, not clamped. A scene without the key reverts to the derived rectangle.

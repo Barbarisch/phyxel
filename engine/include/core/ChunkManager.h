@@ -128,6 +128,7 @@ public:
 
     // Play bounds (G-169)
     Core::PlayBounds m_authoredPlayBounds;
+    Core::PlayBounds m_regionPlayBounds;
     mutable Core::PlayBounds m_worldExtentCache;
     mutable size_t m_worldExtentCachedCount = static_cast<size_t>(-1);
 
@@ -202,13 +203,19 @@ public:
     void setAuthoredPlayBounds(const Core::PlayBounds& b) { m_authoredPlayBounds = b; }
     void clearAuthoredPlayBounds() { m_authoredPlayBounds = Core::PlayBounds{}; }
     const Core::PlayBounds& authoredPlayBounds() const { return m_authoredPlayBounds; }
+    /// The scene's authored REGION (`world.from/to` or `world.chunks`), set by the loader. With
+    /// streamed surround (the norm since 2026-09-23) the world continues past the region with
+    /// generated terrain nobody can reach; the region is the play area and the wall.
+    void setRegionPlayBounds(const Core::PlayBounds& b) { m_regionPlayBounds = b; }
+    void clearRegionPlayBounds() { m_regionPlayBounds = Core::PlayBounds{}; }
+    const Core::PlayBounds& regionPlayBounds() const { return m_regionPlayBounds; }
     /// The rectangle of every chunk the world HAS (all Y layers), in voxels, half-open. Invalid
     /// when there are no chunks. Cached by chunk count; call invalidateWorldExtent() after an
     /// add+remove that leaves the count unchanged.
     Core::PlayBounds derivedWorldExtentXZ() const;
     void invalidateWorldExtent() { m_worldExtentCachedCount = static_cast<size_t>(-1); }
-    /// authored > derived (static worlds) > none (streaming worlds, whose extent grows ahead of
-    /// the player - the residency hold covers those).
+    /// authored `playBounds` > the authored region > derived chunk extent (static worlds only) >
+    /// none (a streaming world with no region: its extent grows ahead of the player).
     Core::PlayBounds effectivePlayBounds() const;
     const char* playBoundsSource() const;
     // The generator used for streamed chunks (valid after configureStreamingGeneration(true)).

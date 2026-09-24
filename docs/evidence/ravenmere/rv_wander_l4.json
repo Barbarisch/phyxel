@@ -1,0 +1,141 @@
+{
+  "town": {
+    "scene": "town",
+    "bounds": {
+      "bounds": {
+        "max": {
+          "x": 96.0,
+          "z": 96.0
+        },
+        "min": {
+          "x": -96.0,
+          "z": -64.0
+        }
+      },
+      "source": "region (world.from/to)",
+      "streaming": true,
+      "success": true
+    },
+    "entities": {
+      "player": {
+        "min_margin": 60.0,
+        "outside": 0,
+        "n": 79
+      },
+      "npc_Old Moll": {
+        "min_margin": 71.95,
+        "outside": 0,
+        "n": 79
+      },
+      "npc_Selby": {
+        "min_margin": 77.0,
+        "outside": 0,
+        "n": 79
+      },
+      "npc_Aldric": {
+        "min_margin": 77.0,
+        "outside": 0,
+        "n": 79
+      },
+      "npc_Ada": {
+        "min_margin": 66.0,
+        "outside": 0,
+        "n": 79
+      },
+      "npc_Bram": {
+        "min_margin": 60.67,
+        "outside": 0,
+        "n": 79
+      },
+      "npc_Maera": {
+        "min_margin": 53.0,
+        "outside": 0,
+        "n": 79
+      },
+      "npc_Hobb": {
+        "min_margin": 62.0,
+        "outside": 0,
+        "n": 79
+      },
+      "npc_Wren": {
+        "min_margin": 78.0,
+        "outside": 0,
+        "n": 79
+      },
+      "npc_Tam": {
+        "min_margin": 76.24,
+        "outside": 0,
+        "n": 79
+      },
+      "npc_Gerrit": {
+        "min_margin": 48.49,
+        "outside": 0,
+        "n": 79
+      },
+      "npc_Pell": {
+        "min_margin": 40.97,
+        "outside": 0,
+        "n": 79
+      },
+      "npc_Wynn": {
+        "min_margin": 50.79,
+        "outside": 0,
+        "n": 79
+      }
+    },
+    "samples": 1027,
+    "outside": 0
+  },
+  "farm": {
+    "scene": "farm",
+    "bounds": {
+      "bounds": {
+        "max": {
+          "x": 64.0,
+          "z": 64.0
+        },
+        "min": {
+          "x": -32.0,
+          "z": -32.0
+        }
+      },
+      "source": "region (world.from/to)",
+      "streaming": true,
+      "success": true
+    },
+    "entities": {
+      "npc_Dunstan": {
+        "min_margin": 48.0,
+        "outside": 0,
+        "n": 79
+      },
+      "player": {
+        "min_margin": 38.0,
+        "outside": 0,
+        "n": 79
+      },
+      "npc_Oswin": {
+        "min_margin": 38.0,
+        "outside": 0,
+        "n": 79
+      },
+      "npc_Wolf": {
+        "min_margin": 38.0,
+        "outside": 0,
+        "n": 79
+      },
+      "npc_Wolf2": {
+        "min_margin": 35.0,
+        "outside": 0,
+        "n": 79
+      },
+      "npc_AlphaWolf": {
+        "min_margin": 34.0,
+        "outside": 0,
+        "n": 79
+      }
+    },
+    "samples": 474,
+    "outside": 0
+  }
+}

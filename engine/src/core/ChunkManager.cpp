@@ -241,12 +241,14 @@ Core::PlayBounds ChunkManager::derivedWorldExtentXZ() const {
 
 Core::PlayBounds ChunkManager::effectivePlayBounds() const {
     if (m_authoredPlayBounds.valid) return m_authoredPlayBounds;
+    if (m_regionPlayBounds.valid) return m_regionPlayBounds;
     if (m_streamingGenerationEnabled) return Core::PlayBounds{};
     return derivedWorldExtentXZ();
 }
 
 const char* ChunkManager::playBoundsSource() const {
     if (m_authoredPlayBounds.valid) return "authored";
+    if (m_regionPlayBounds.valid) return "region (world.from/to)";
     if (m_streamingGenerationEnabled) return "none (streaming world)";
     return derivedWorldExtentXZ().valid ? "derived (chunk extent)" : "none (no chunks)";
 }

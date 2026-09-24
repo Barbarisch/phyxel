@@ -100,6 +100,10 @@ void PatrolBehavior::update(float dt, NPCContext& ctx) {
     // The NavGraph (when the host built one) is the router; remember it for wander picks.
     m_usingGraph = (ctx.navGraph != nullptr) || (ctx.pathService != nullptr);
     if (ctx.navGraph) m_lastGraph = ctx.navGraph;
+    // The world now continues past the play area with terrain nobody can reach (streamed
+    // surround). A wander target out there would march the NPC into the invisible wall and
+    // hold it pressed against it, so candidates are kept inside the bounds.
+    if (ctx.chunkManager) m_playBounds = ctx.chunkManager->effectivePlayBounds();
 
     // Derive forward from entity rotation (model faces +Z; atan2(x,z) yaw convention)
     glm::vec3 forward = ctx.self->getRotation() * glm::vec3(0.0f, 0.0f, 1.0f);
@@ -383,17 +387,25 @@ glm::vec3 PatrolBehavior::pickWanderTarget() {
     // With a NavGraph known, only accept a point that stands on a walkable surface
     // (a random point inside a building or a wall is what sent the town's wanderers
     // into the walls - G-124). Up to 8 draws; the last draw is returned regardless.
+    // kWanderMargin: a body-width inside the wall, so the target is reachable rather than
+    // exactly on the clamp line.
+    constexpr float kWanderMargin = 0.5f;
     for (int attempt = 0; attempt < 8; ++attempt) {
         float ang = angDist(rng);
         float r = rmin + (m_wanderRadius - rmin) * std::sqrt(rDist(rng));
-        const glm::vec3 cand(m_wanderAnchor.x + r * std::cos(ang), m_wanderAnchor.y,
-                             m_wanderAnchor.z + r * std::sin(ang));
+        glm::vec3 cand(m_wanderAnchor.x + r * std::cos(ang), m_wanderAnchor.y,
+                       m_wanderAnchor.z + r * std::sin(ang));
+        if (m_playBounds.valid) {
+            const glm::vec3 inside = m_playBounds.clamp(cand, kWanderMargin);
+            if (inside != cand && attempt < 7) continue;   // draw again; the last draw is clamped
+            cand = inside;
+        }
         if (!m_lastGraph || attempt == 7 || m_lastGraph->surfaceAt(cand).valid()) return cand;
     }
     float r = rmin + (m_wanderRadius - rmin) * std::sqrt(rDist(rng));
-    return glm::vec3(m_wanderAnchor.x + r * std::cos(ang),
-                     m_wanderAnchor.y,
-                     m_wanderAnchor.z + r * std::sin(ang));
+    glm::vec3 last(m_wanderAnchor.x + r * std::cos(ang), m_wanderAnchor.y,
+                   m_wanderAnchor.z + r * std::sin(ang));
+    return m_playBounds.valid ? m_playBounds.clamp(last, kWanderMargin) : last;
 }
 
 void PatrolBehavior::onInteract(Entity* interactor) {

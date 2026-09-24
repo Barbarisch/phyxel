@@ -140,15 +140,104 @@ TEST_F(HeadlessWorld, AuthoredBoundsBeatTheDerivedExtent) {
     EXPECT_FLOAT_EQ(cm.effectivePlayBounds().maxX, 64.0f) << "cleared: back to the chunk extent";
 }
 
-TEST_F(HeadlessWorld, AStreamingWorldHasNoDerivedBounds) {
-    // Its extent grows ahead of the player; a wall at the current rectangle would stop the
-    // player at the streaming frontier. The residency hold covers unstreamed ground there.
+TEST_F(HeadlessWorld, AStreamingWorldWithoutARegionHasNoBoundsButARegionBeatsStreaming) {
+    // Streamed surround is the norm: the world continues past the authored region with terrain
+    // nobody can reach, so the REGION is the wall. Without a region (a free-roam streaming
+    // world) there is nothing to clamp to: its extent grows ahead of the player.
     chunkAt(0, 0);
     cm.configureStreamingGeneration(true, Phyxel::WorldGenerator::GenerationType::Flat, 1);
     EXPECT_FALSE(cm.effectivePlayBounds().valid);
     EXPECT_STREQ(cm.playBoundsSource(), "none (streaming world)");
+    cm.setRegionPlayBounds(PlayBounds::make(-32.0f, -32.0f, 64.0f, 64.0f));
+    ASSERT_TRUE(cm.effectivePlayBounds().valid) << "the region is the play area even though chunks stream past it";
+    EXPECT_FLOAT_EQ(cm.effectivePlayBounds().maxX, 64.0f);
+    EXPECT_STREQ(cm.playBoundsSource(), "region (world.from/to)");
     cm.setAuthoredPlayBounds(PlayBounds::make(0.0f, 0.0f, 20.0f, 20.0f));
-    EXPECT_TRUE(cm.effectivePlayBounds().valid) << "an authored stage still applies on a streaming world";
+    EXPECT_FLOAT_EQ(cm.effectivePlayBounds().maxX, 20.0f) << "an authored stage still beats the region";
+    EXPECT_STREQ(cm.playBoundsSource(), "authored");
+    cm.clearAuthoredPlayBounds(); cm.clearRegionPlayBounds();
+    EXPECT_FALSE(cm.effectivePlayBounds().valid);
+}
+
+TEST_F(HeadlessWorld, TheRegionBeatsTheDerivedExtentOnAStaticWorldToo) {
+    // A static world with extra chunks around its region (a hand-baked margin) still walls
+    // the region, not the whole chunk rectangle.
+    for (int x = -2; x <= 2; ++x)
+        for (int z = -2; z <= 2; ++z) chunkAt(x, z);
+    cm.setRegionPlayBounds(PlayBounds::make(-32.0f, -32.0f, 64.0f, 64.0f));
+    EXPECT_FLOAT_EQ(cm.effectivePlayBounds().minX, -32.0f);
+    EXPECT_FLOAT_EQ(cm.derivedWorldExtentXZ().minX, -64.0f) << "the chunks do go further";
+}
+
+// ---------------------------------------------------------------- the loader's norm
+
+namespace {
+json flatRegion(int r, const char* extra = "") {
+    // a (2r+1)^2 Flat region at y=0, no flora (no template manager in a unit test anyway)
+    const std::string rs = std::to_string(r);
+    return json::parse(std::string("{\"world\":{\"type\":\"Flat\",\"seed\":7,\"flora\":false,\"from\":{\"x\":-") +
+                       rs + ",\"y\":0,\"z\":-" + rs + "},\"to\":{\"x\":" + rs + ",\"y\":0,\"z\":" + rs + "}" +
+                       extra + "}}");
+}
+}  // namespace
+
+TEST_F(HeadlessWorld, StreamingIsTheDefaultForHeightBasedTerrainAndTheRegionIsTheWall) {
+    GameSubsystems subs; subs.chunkManager = &cm;
+    const auto r = GameDefinitionLoader::load(flatRegion(1), subs);
+    ASSERT_TRUE(r.success) << r.error;
+    EXPECT_EQ(r.chunksGenerated, 9);
+    EXPECT_TRUE(r.streaming) << "no `streaming` key on a Flat world: streamed surround is the norm";
+    EXPECT_TRUE(r.toJson().value("streaming", false));
+    EXPECT_TRUE(cm.isStreamingGenerationEnabled());
+    ASSERT_TRUE(cm.regionPlayBounds().valid);
+    EXPECT_FLOAT_EQ(cm.regionPlayBounds().minX, -32.0f); EXPECT_FLOAT_EQ(cm.regionPlayBounds().maxX, 64.0f);
+    EXPECT_FLOAT_EQ(cm.regionPlayBounds().minZ, -32.0f); EXPECT_FLOAT_EQ(cm.regionPlayBounds().maxZ, 64.0f);
+    EXPECT_STREQ(cm.playBoundsSource(), "region (world.from/to)");
+}
+
+TEST_F(HeadlessWorld, AnExplicitStreamingFalseOptsOutAndReallyTurnsItOff) {
+    GameSubsystems subs; subs.chunkManager = &cm;
+    ASSERT_TRUE(GameDefinitionLoader::load(flatRegion(0), subs).success);
+    ASSERT_TRUE(cm.isStreamingGenerationEnabled()) << "first scene streams (the default)";
+    // RED before: the flag was sticky - nothing ever called configureStreamingGeneration(false),
+    // so a later `streaming:false` scene kept streaming, had no bounds and kept the residency hold.
+    const auto r = GameDefinitionLoader::load(flatRegion(0, ",\"streaming\":false"), subs);
+    ASSERT_TRUE(r.success) << r.error;
+    EXPECT_FALSE(r.streaming);
+    EXPECT_FALSE(cm.isStreamingGenerationEnabled()) << "a real opt-out, not a sticky flag";
+    EXPECT_TRUE(cm.regionPlayBounds().valid) << "the region is the wall on a static scene too";
+}
+
+TEST_F(HeadlessWorld, ALoadWithoutAWorldBlockClearsTheRegionBounds) {
+    GameSubsystems subs; subs.chunkManager = &cm;
+    ASSERT_TRUE(GameDefinitionLoader::load(flatRegion(0), subs).success);
+    ASSERT_TRUE(cm.regionPlayBounds().valid);
+    ASSERT_TRUE(GameDefinitionLoader::load(json::object(), subs).success);
+    EXPECT_FALSE(cm.regionPlayBounds().valid) << "the previous scene's region must not wall this one";
+}
+
+// ---------------------------------------------------------------- wander never aims past the wall
+
+#include "scene/behaviors/PatrolBehavior.h"
+
+TEST(PlayBounds, AWanderingNpcNeverPicksATargetPastThePlayBounds) {
+    // An NPC anchored 2 u inside the farm's south edge with an 8 u roam radius: without the
+    // clip a good share of draws land past z = -32 (the disc pokes 6 u out), and the NPC
+    // would march into the invisible wall and press against it.
+    Phyxel::Scene::PatrolBehavior wander({}, 2.0f);
+    wander.setWanderMode(glm::vec3(6.0f, 17.0f, -30.0f), 8.0f);
+    const PlayBounds farm = PlayBounds::make(-32.0f, -32.0f, 64.0f, 64.0f);
+    // control: no bounds -> some draws DO go past the edge (the picker is measured, not assumed)
+    int outsideWithoutBounds = 0;
+    for (int i = 0; i < 400; ++i)
+        if (!farm.contains(wander.pickWanderTarget())) ++outsideWithoutBounds;
+    EXPECT_GT(outsideWithoutBounds, 40) << "the control must reach past the edge or the clip test proves nothing";
+    wander.setPlayBounds(farm);
+    for (int i = 0; i < 400; ++i) {
+        const glm::vec3 t = wander.pickWanderTarget();
+        ASSERT_TRUE(farm.contains(t)) << "draw " << i << " at z=" << t.z;
+        ASSERT_GE(t.z, -32.0f + 0.5f - 1e-4f) << "and a body-width inside, so it is reachable";
+    }
 }
 
 // ---------------------------------------------------------------- the loader
