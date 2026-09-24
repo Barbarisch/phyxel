@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""docs/GlassTransparency.md section 17.7 -- L4 live check: opaque faces behind glass are drawn.
+"""docs/GlassTransparency.md §5, §8 -- L4 live check: opaque faces behind glass are drawn.
 
 Scene (DamageLab, chunk y band 0):
   D  window 3x4 glass cubes (x 27-29, y 19-22, z 8) in a 1-thick stone wall (x 25-31, y 17-24, z 8)

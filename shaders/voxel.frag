@@ -128,7 +128,7 @@ float hash21(vec2 p) {
 // Project a world position onto the face plane (the two axes perpendicular to the
 // face normal) -> continuous in-plane coords whose integer part is the world cell.
 // worldFaceUV, phxWorldPosAbs and the atlas class-select live in voxel_world.glsl, shared with
-// transparent_voxel.frag so the two passes cannot drift apart (GlassTransparency.md §13.12/§13.17).
+// transparent_voxel.frag so the two passes cannot drift apart (GlassTransparency.md §1).
 #include "voxel_world.glsl"
 
 // Sample albedo + normal/roughness for a per-face index. The index encodes the resolution
@@ -257,7 +257,7 @@ void main() {
     // and how a texture regen (2ea8b8d9) made it opaque without any code changing. Transparency is
     // now decided by the material's transparent bit (bit 1), never by texture alpha, and the whole
     // face goes to the blended pass -- including its crack, which that pass draws.
-    // docs/GlassTransparency.md §13.2, §15. Kinematic and dynamic voxels write flags = 0 and are
+    // docs/GlassTransparency.md §1. Kinematic and dynamic voxels write flags = 0 and are
     // unaffected.
     if ((flags & 2u) != 0u) discard;
 
@@ -299,10 +299,10 @@ void main() {
     // Per-voxel damage (flags bits 11..14) from DamageSystem accumulation. The packed value
     // carries kDamageStagesVisible+1 distinct levels spread across the field's full range
     // ({0,5,10,15} at 3 visible stages), so this still normalizes by 15.0 and the shader needs
-    // no knowledge of the stage count (docs/VoxelDamageVisualization.md §3.5).
+    // no knowledge of the stage count (docs/VoxelDamageVisualization.md §2).
     float dmg = float((flags >> 11u) & 0xFu) / 15.0;
     if (dmg > 0.0) {
-        // COST GATE, not a quality tier (§4.6). Pristine is ~100% of voxels in any real scene
+        // COST GATE, not a quality tier (VoxelDamageVisualization.md §4). Pristine is ~100% of voxels in any real scene
         // and this branch is spatially coherent, so the crack costs only where damage exists.
         // It bounds COST, never appearance: wherever there IS damage the detail is
         // unconditional. This is the bladesForDistance pattern.
@@ -311,7 +311,7 @@ void main() {
         // tier -- so the surface's character and the material's behaviour cannot drift apart.
         float crack = crackField(worldPosAbs, inNormal, dmg, crackStyle);
 
-        // DARKEN THE CRACK, NOT THE FACE (§4.5). The old code multiplied the entire face by
+        // DARKEN THE CRACK, NOT THE FACE (VoxelDamageVisualization.md §4). The old code multiplied the entire face by
         // mix(1.0, 0.55, dmg), which is exactly why damage read as GRIME rather than fracture:
         // a uniformly dimmer stone face is a dirty stone face. Cracks are self-shadowing
         // fissures, so the darkening belongs to crack pixels only...
@@ -588,17 +588,16 @@ void main() {
         outColor = vec4(c, 1.0);
         return;
     }
-    // Debug view 11 - CRACK FIELD: the raw fracture field, greyscale, with NO albedo, NO
+    // Debug view 19 - CRACK FIELD: the raw fracture field, greyscale, with NO albedo, NO
     // lighting and NO whole-face wear term. Black = intact, white = fully open crack.
     //
-    // Added because the field could not be measured through a shaded frame. Six pixel
-    // statistics failed to detect a deliberately chunk-seeded crack (see
-    // docs/VoxelDamageVisualization.md 16.1), for two reasons that are properties of the
-    // observable rather than bugs in the attempts: a pattern RESTART does not change
-    // brightness, so every level-based statistic is blind to it; and the stone albedo is
-    // high-frequency noise that swamps structure at pixel scale. Stripping albedo and lighting
-    // removes both problems at once - a uv-seeded crack becomes a hard vertical edge in an
-    // otherwise smooth image.
+    // Added because the field could not be measured through a shaded frame. Pixel statistics
+    // failed to detect a deliberately chunk-seeded crack (see docs/VoxelDamageVisualization.md
+    // §6, §9), for two reasons that are properties of the observable rather than bugs in the
+    // attempts: a pattern RESTART does not change brightness, so every level-based statistic is
+    // blind to it; and the stone albedo is high-frequency noise that swamps structure at pixel
+    // scale. Stripping albedo and lighting removes both. (Measured in this view: a uv-seeded
+    // crack shows as REPETITION between same-sized merge rects, not as a break at the seam.)
     //
     // Deliberately shows the field at FULL STRENGTH regardless of stage, so the PATTERN can be
     // judged independently of how far along the damage is. It also renders on pristine voxels

@@ -154,7 +154,8 @@ timing so they don't pollute the delta.)**
 > eyeballed "pixel-identical" was WRONG — a scripted diff (grass/foliage off, sun paused) showed it
 > broke ~1.1% of pixels. Cause: the shadow pipeline **front-culls** (needs both windings of closed
 > casters); a 1-winding quad → that face casts no shadow. Fix: quad on the main (back-culled) pass
-> only; shadow/reflection/OIT/mirror stay 36-index. Re-diff = **16 isolated edge pixels (99.997%
+> only; shadow/reflection/OIT/mirror stay 36-index (*OIT later moved to 6-index quads, 2026-09-23;
+> see `GlassTransparency.md` §1*). Re-diff = **16 isolated edge pixels (99.997%
 > within 2/255)** = the shipped perceptually-lossless bar, shadows intact. Lesson: a timing-null is
 > not an output-null — always pixel-diff render changes with grass/foliage off AND day-night paused.
 

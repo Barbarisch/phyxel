@@ -1,5 +1,5 @@
 /**
- * R1a -- damage state and stage quantization (docs/VoxelDamageVisualization.md 6.1).
+ * R1a -- damage state and stage quantization (docs/VoxelDamageVisualization.md §7).
  *
  * L2, unit. Everything here is DamageSystem / Cube / the shared quantization, so it lives
  * in tests/core; the JSON-asserting half (R1b) cannot, because tests/CMakeLists.txt links

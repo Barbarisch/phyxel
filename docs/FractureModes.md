@@ -46,7 +46,7 @@ cannot currently express.
 | Blast damage, tiered by overkill | **Live** | `DamageSystem::applyDamage`; `ratio = effective / mr.toughness` (`DamageSystem.cpp:197`) |
 | Tier ladder: whole / subcube / microcube | **Live** | `DamageSystem.cpp:292` (`ratio < mr.s1` → intact cube), `:296` (`< mr.s2` → subcubes), else microcubes |
 | Per-material `s1`/`s2` | **Live, data-driven** | `resources/materials.json` break blocks |
-| Damage accumulation → cracks | **Live (P0–P3)** | `VoxelDamageVisualization.md`; ratio 0→1 renders 3 crack stages |
+| Damage accumulation → cracks | **Live** (full cubes only) | `VoxelDamageVisualization.md`; ratio 0→1 renders 7 crack stages |
 | **Sub-voxel carving from a point tool** | **Live, but ONLY for axes on wood** | `DamageSystem.h:138` — *"Axe-chop kerf: **FRACTURE, not blast**"*; `carveChopKerf` (`:174`) |
 | Subdivision primitives | **Live, public** | `ChunkVoxelManager::subdivideAt` (`:110`), `subdivideSubcubeAt` (`:119`) |
 | **Damage footprint / contact area** | **Does not exist** | `apply_damage` takes `radius`, `energy`, `shape`, `thickness`, `radii` — all describe the BLAST VOLUME, none describe the CONTACT AREA |
@@ -250,8 +250,8 @@ do not accumulate damage — `DamageSystem.cpp:196`: *"Accumulation is cube-only
 break in one pass."*
 
 **So under F1, a partially-mined block would go visually PRISTINE the moment it is first carved.**
-That is the same defect `VoxelDamageVisualization.md` §3.6 records for V1 and §15 (P0.5) proposes
-to fix with a per-parent-cube damage aggregate.
+That is the same defect `VoxelDamageVisualization.md` §5 records as the V1 scope limit and its §9
+proposes to fix with a per-parent-cube damage aggregate (V2).
 
 This is the second independent route to that conclusion — the first arrived from the rendering
 side (cracks cannot appear on generated buildings), this one from the physics side. **It is
@@ -266,7 +266,7 @@ evidence for scheduling V2 sooner**, and F1 should probably not ship before it.
    energy? Needs grounding, not a guessed constant.
 2. **Cost of carving at scale — QUANTIFIED at the gate, and it is the sharpest risk to F1.**
    The first draft called this "unmeasured" while the numbers to measure it already existed:
-   `VoxelDamageVisualization.md` §15 (P0.5) measured `Subcube` **120 B** and `Microcube` **128 B**,
+   `VoxelDamageVisualization.md` §9 records the measured `Subcube` **120 B** and `Microcube` **128 B**,
    each plus an 8-byte `unique_ptr` slot.
 
    | state | memory |

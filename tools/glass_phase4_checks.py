@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Glass Phase 4 L4 checks - docs/GlassTransparency.md 13.9, 13.12, 13.15, 13.17.
+"""Glass Phase 4 L4 checks - docs/GlassTransparency.md §1, §3, §4, §8.
 
     python tools/glass_phase4_checks.py shadow   # 13.9  glass casts no shadow
     python tools/glass_phase4_checks.py crack    # 13.15 cracks visible on glass, frosted
@@ -144,7 +144,7 @@ def check_shadow():
 def check_crack(base_x=0, label="crack"):
     """Cracks are VISIBLE on glass, and FROSTED (brighter), against a floor.
 
-    REDESIGNED after the first red run (GlassTransparency.md 15.7): comparing two side-by-side panes
+    REDESIGNED after the first red run (GlassTransparency.md §8): comparing two side-by-side panes
     meant moving the camera between them, and two CLEAN panes already differed by |RGB| 130 -- the
     camera move, not the damage, dominated. Now ONE pane, ONE fixed camera, and the only thing that
     changes is the damage:
@@ -153,7 +153,7 @@ def check_crack(base_x=0, label="crack"):
         diff  = |damaged capture - clean capture 1|
 
     Full-cube glass, because damage accumulation is cube-only (sub-voxel damage is V2,
-    VoxelDamageVisualization.md 3.6). Damage 0.45 of Glass's toughness (stage 3 of 7), radius 0.4,
+    VoxelDamageVisualization.md §5). Damage 0.45 of Glass's toughness (stage 3 of 7), radius 0.4,
     uniformity asserted.
     """
     P0 = base_x + 8

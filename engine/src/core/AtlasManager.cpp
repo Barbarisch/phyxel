@@ -497,7 +497,7 @@ void AtlasManager::updateUVSSBO(Vulkan::VulkanDevice* device) {
     const int c0 = registry.getTextureCount(0), c1 = registry.getTextureCount(1);
 
     // Per-layer material props packed into the SSBO's (repurposed) textureUVs[] array, at a
-    // STRIDE OF TWO vec4s per layer (P5, docs/VoxelDamageVisualization.md §4.4a):
+    // STRIDE OF TWO vec4s per layer (P5, docs/VoxelDamageVisualization.md §4):
     //   [gi*2 + 0]  x = metallic, y = roughness scalar, z = emissiveStrength, w = emissiveThreshold
     //               (masked emission — docs/MaskedEmissiveSpec.md; z=0 = ordinary material)
     //   [gi*2 + 1]  x = crackStyle, yzw = spare

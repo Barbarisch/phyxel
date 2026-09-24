@@ -226,7 +226,7 @@ void Chunk::fillAllCubes(const std::string& material) {
 
 void Chunk::applySealedRenderState() {
     ++m_rebuildCount;
-    refreshBorderSignature();   // the uniform short-circuit skips rebuildFaces (§17.6 item 2)
+    refreshBorderSignature();   // the uniform short-circuit skips rebuildFaces (GlassTransparency.md §6)
     m_sealed = true;
     renderManager.clearForUniform();
     for (int f = 0; f < 6; ++f) m_faceConnect[f] = 0;      // fully occluding
@@ -237,7 +237,7 @@ void Chunk::applySealedRenderState() {
 
 void Chunk::applyAirRenderState() {
     ++m_rebuildCount;
-    refreshBorderSignature();   // the uniform short-circuit skips rebuildFaces (§17.6 item 2)
+    refreshBorderSignature();   // the uniform short-circuit skips rebuildFaces (GlassTransparency.md §6)
     m_sealed = false;
     renderManager.clearForUniform();
     for (int f = 0; f < 6; ++f) m_faceConnect[f] = 0x3F;   // sight passes freely
@@ -374,7 +374,7 @@ inline uint64_t borderMix(uint64_t x) {
 }
 }  // namespace
 
-// §17.6 C7. Signature of face f = SUM of mixed (cell, class) keys over the non-empty render cells
+// GlassTransparency.md §6. Signature of face f = SUM of mixed (cell, class) keys over the non-empty render cells
 // on that face's border layer: cubes on the layer, plus every subcube/microcube whose PARENT cube
 // is on the layer (the whole cell, not only the part touching the face: that over-triggers a
 // little, never under-triggers). A sum is order-independent, so the sub/micro vector order cannot
@@ -446,7 +446,7 @@ void Chunk::computeBorderSignature(uint64_t out[6]) const {
 
 void Chunk::refreshBorderSignature() {
     computeBorderSignature(m_borderSigCurrent);
-    if (!m_borderSigValid) {   // first computation: seeds both, never ripples (§17.6 item 3)
+    if (!m_borderSigValid) {   // first computation: seeds both, never ripples (GlassTransparency.md §6)
         for (int f = 0; f < 6; ++f) m_borderSigDelivered[f] = m_borderSigCurrent[f];
         m_borderSigValid = true;
     }
@@ -471,8 +471,8 @@ void Chunk::rebuildFaces(const NeighborLookupFunc& getNeighborCube,
     renderManager.rebuildAllFaces(cubes, staticSubcubes, staticMicrocubes, worldOrigin, getNeighborCube, getNeighborLight, columnOpenMask,
                                   &voxelManager.getVoxelStore(), getNeighborFine);
     ++m_rebuildCount;
-    refreshBorderSignature();   // §17.6 C7: every re-mesh, managed or not, records border changes
-    // §17.6 R12: this rebuild had no neighbour lookup, so the border faces were meshed as if the
+    refreshBorderSignature();   // GlassTransparency.md §6: every re-mesh, managed or not, records border changes
+    // GlassTransparency.md §6: this rebuild had no neighbour lookup, so the border faces were meshed as if the
     // neighbours were empty and any border change is still undelivered. Ask for the managed
     // re-mesh that fixes both. Cannot loop: the managed rebuild always passes a lookup.
     if (!getNeighborCube && m_owner) {

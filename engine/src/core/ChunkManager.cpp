@@ -403,7 +403,7 @@ void ChunkManager::updateChunk(size_t chunkIndex) {
     if (chunkIndex >= chunks.size()) return;
     
     Chunk* chunk = chunks[chunkIndex].get();
-    // m_managedRemeshRequested: a null-lookup rebuild asked for this re-mesh (§17.6 R12); an
+    // m_managedRemeshRequested: a null-lookup rebuild asked for this re-mesh (GlassTransparency.md §6); an
     // intervening buffer upload may already have cleared needsUpdate.
     if (chunk->getNeedsUpdate() || chunk->m_managedRemeshRequested) {
         LOG_TRACE_FMT("Chunk", "Updating chunk " << chunkIndex << " with " << chunk->getTotalSubcubeCount() << " subcubes");
@@ -470,7 +470,7 @@ bool ChunkManager::isChunkCapped(const Chunk& chunk) {
             // O(1): a uniform neighbour caps us iff it is visible-solid everywhere — the
             // common deep-stack case, which is what makes sealing whole mountains cheap.
             if (!ns.visible(0)) return false;
-            // C6 (docs/GlassTransparency.md §17.4): a cap must be OPAQUE. A glass layer does
+            // docs/GlassTransparency.md §5: a cap must be OPAQUE. A glass layer does
             // not hide the wall behind it, so it must not stop that wall being meshed.
             if (n->renderOccupancyAt(glm::ivec3(0)) != Graphics::ChunkRenderManager::NeighborOccupancy::Opaque)
                 return false;
@@ -486,7 +486,7 @@ bool ChunkManager::isChunkCapped(const Chunk& chunk) {
                 const int x = fx >= 0 ? fx : a;
                 const int y = fy >= 0 ? fy : (fx >= 0 ? a : b);
                 const int z = fz >= 0 ? fz : b;
-                // C6: opaque, not merely solid (see the uniform branch above).
+                // Opaque, not merely solid (see the uniform branch above).
                 if (n->renderOccupancyAt(glm::ivec3(x, y, z)) !=
                     Graphics::ChunkRenderManager::NeighborOccupancy::Opaque) return false;
             }
@@ -495,7 +495,7 @@ bool ChunkManager::isChunkCapped(const Chunk& chunk) {
     return true;
 }
 
-// docs/GlassTransparency.md §17.6 C7. A border cell of `chunk` changed render class (empty /
+// docs/GlassTransparency.md §6. A border cell of `chunk` changed render class (empty /
 // opaque / transparent), so the FACING neighbour's faces toward it are stale: re-mesh it. Called at
 // the end of every managed rebuild, the same place the light ripple below marks neighbours. It is
 // route-agnostic: whichever edit path changed the cell, the change was recorded when the chunk
@@ -520,7 +520,7 @@ void ChunkManager::deliverBorderRipple(Chunk& chunk) {
 }
 
 void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
-    chunk.m_owner = this;   // §17.6 R12: later null-lookup rebuilds of this chunk request a managed one
+    chunk.m_owner = this;   // GlassTransparency.md §6: later null-lookup rebuilds of this chunk request a managed one
     chunk.m_managedRemeshRequested = false;   // this IS the managed re-mesh
 
     // ── Phase 4.4 uniform-chunk short-circuit ─────────────────────────────────────
@@ -572,11 +572,11 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
         }
         // 4.2b: answer from the neighbour's palette store (hybrid — overlay Cube wins). The old
         // getCubeAt here would now MATERIALIZE a 32x32 border shell of Cubes per remesh.
-        // §17.5: the answer also says whether the cell is see-through (glass), so a face behind
+        // GlassTransparency.md §5: the answer also says whether the cell is see-through (glass), so a face behind
         // glass in the NEXT chunk is drawn exactly as it would be inside one chunk.
         return ncChunk ? ncChunk->renderOccupancyAt(worldToLocalCoord(worldPos)) : Occ::Empty;
     };
-    // C9 (§17.5b): the same lookup at sub-voxel resolution, for sub/micro faces on the border.
+    // GlassTransparency.md §5: the same lookup at sub-voxel resolution, for sub/micro faces on the border.
     // World micro coordinates can be negative, so the chunk split uses FLOOR division.
     bool nfValid = false;
     glm::ivec3 nfCoord(0);

@@ -13,7 +13,7 @@ namespace Core {
  * breaks in a way that is invisible to a state-only test:
  *   - ChunkRenderManager packs the stage into instance bits 11-14 (what the shader draws);
  *   - DamageSystem's graze path re-meshes a chunk only when a hit moves a voxel ACROSS a
- *     stage boundary (docs/VoxelDamageVisualization.md 3.7).
+ *     stage boundary (docs/VoxelDamageVisualization.md §3).
  * If the graze path quantized differently from the mesher it would either re-mesh for
  * changes no one can see, or skip a re-mesh for one they can.
  *

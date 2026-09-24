@@ -812,7 +812,9 @@ because L3 measures whether the character box fits through the hole. Proposal: a
 3. **Windows: about half are permanently solid.** Open/closed is a fixed per-opening hash
    (StructureRealizer.cpp:353-357) and the closed leaf is painted into the STATIC micro canvas
    (:371-373, :396-398) — masonry, not a shutter: no kinematic part, no manager, can never open.
-   No typology declares `glass` yet, so "you can see through it" is false in practice.
+   No typology declares `glass` yet, so "you can see through it" is false in practice. (The
+   mechanism works: a program that sets a window's `infill: "glass"` builds a see-through 1-micro
+   pane, verified 2026-09-24, `GlassTransparency.md` §8.)
 4. **No scheduled NPC ever enters a generated interior.** Every location anchor is deliberately
    pinned two cells OUTSIDE the wall (StructureRealizer.cpp:120-131) because the NavGraph cannot
    route exterior->interior (StructureBuildService.cpp:137-143, "measured: 12x no_route"). The
@@ -876,7 +878,7 @@ because L3 measures whether the character box fits through the hole. Proposal: a
 
 ## 2026-09-23 — Five Vulkan validation errors fire on every run, unrelated to glass
 
-Found by the glass-transparency OIT investigation (`docs/GlassTransparency.md` §15.8), which ran the
+Found by the glass-transparency OIT investigation (`docs/GlassTransparency.md` §10; the investigation itself is in git at `f109fd64`), which ran the
 editor under `PHYXEL_VALIDATION=1` with OIT disabled (control) and enabled (experiment). All five appear
 with **identical counts in both arms**, so none is caused by OIT or glass. Not fixed there — out of
 scope — and logged here so they are not rediscovered as "new":
@@ -900,7 +902,7 @@ Raw per-arm messages: `oit_validation_control.json` / `oit_validation_oit_on.jso
 
 ## 2026-09-24 — LOD meshes draw glass OPAQUE (and cull faces behind it)
 
-Found while planning `docs/GlassTransparency.md` §17 (D1). `LodChunkMesh::emitFaces` writes
+Found while planning the face-culling work (`docs/GlassTransparency.md` §5; listed in its §10). `LodChunkMesh::emitFaces` writes
 `inst.reserved = 0` (`LodChunkMesh.cpp:148`) for every face, so a LOD mesh carries **no transparent
 bit**: glass in a LOD chunk is drawn by the opaque pass as a solid surface, never by the OIT pass. It
 also culls faces against any solid neighbour (`:139`), glass included, so opaque faces behind LOD glass
@@ -910,7 +912,7 @@ day chunk LOD is enabled with glass in range. Update `docs/LodTierLedger.md` whe
 
 ## 2026-09-24 — `AtlasManagerTest.BuildAtlasFromSourcePNGs` fails whenever the BC7 cache exists
 
-Found in the §17 full-suite sweep (docs/GlassTransparency.md §17.13). The test asserts
+Found in the face-culling work's full-suite sweep (2026-09-24; the log is section 17.13 of `docs/GlassTransparency.md` at git `f109fd64`). The test asserts
 `info.pixels.size() == layerBytes * count`, but the content-keyed BC7 cache (`cc6a3a38`) skips the
 PNG decode on a cache hit ("source decode skipped"), so `pixels` is empty (0 vs 490,733,568). The
 cache lives in `cache/textures/` under the working directory, and launching the engine from the

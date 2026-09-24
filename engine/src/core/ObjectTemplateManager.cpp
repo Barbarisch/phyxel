@@ -799,7 +799,7 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
         chunk->updateVulkanBuffer();
         // The rebuild above has no neighbour lookup (instant feedback only). The MANAGED re-mesh
         // gives this chunk its cross-chunk culling and delivers its border changes to the
-        // neighbours (docs/GlassTransparency.md §17.6 item 7): without it a stamp on a chunk border
+        // neighbours (docs/GlassTransparency.md §6): without it a stamp on a chunk border
         // left the neighbour's facing faces stale, e.g. a hole, or a doubled glass layer.
         m_chunkManager->markChunkForRemesh(chunk);
     }
@@ -1249,7 +1249,7 @@ void ObjectTemplateManager::update(float deltaTime) {
     for (Chunk* chunk : modifiedChunks) {
         chunk->rebuildFaces();
         chunk->updateVulkanBuffer();
-        m_chunkManager->markChunkForRemesh(chunk);   // managed re-mesh: see the stamp above (§17.6)
+        m_chunkManager->markChunkForRemesh(chunk);   // managed re-mesh: see the stamp above (GlassTransparency.md §6)
     }
 
     // Check if done

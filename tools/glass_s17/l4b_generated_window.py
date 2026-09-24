@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""docs/GlassTransparency.md section 17.7 L4b -- a GENERATED glass window (the microcube path).
+"""docs/GlassTransparency.md §8 -- a GENERATED glass window (the microcube path).
 
 Built by the engine's structure generator (POST /api/structure/build, schema v2), never
 hand-placed. Two builds at the SAME position, identical programs, one variable: the window

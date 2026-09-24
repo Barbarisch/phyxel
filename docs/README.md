@@ -57,6 +57,7 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 - **[LightingPipeline.md](LightingPipeline.md)** — THE lighting reference: the atmosphere model (sun,
   moon, sky, haze), the baked per-voxel light field, the three shadow cascades, exposure + AgX, and
   the known gaps
+- **[GlassTransparency.md](GlassTransparency.md)** — current-state reference for transparent materials (glass): the WBOIT pass, material/texture and the T ≈ 0.80 target, no shadow, frosted cracks, face culling around glass, and the chunk-border ripple that keeps every edit route's borders correct
 - **[ObjectTemplateSystem.md](ObjectTemplateSystem.md)** — voxel object import & spawning
 - **[TextureSystemOverhaul.md](TextureSystemOverhaul.md)** — PBR texture-array system (Phases 1–2 merged)
 - **[LargeWorldScalePlan.md](LargeWorldScalePlan.md)** — active workstream: chunk RAM (`ChunkVoxelStore` palette storage), region GPU buffer arenas, sealed/uniform chunks
@@ -81,7 +82,7 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 
 - **[DynamicVoxelPhysics.md](DynamicVoxelPhysics.md)** — GpuParticlePhysics (GPU compute) + VoxelDynamicsWorld (CPU); break routing
 - **[DestructionSystemV2.md](DestructionSystemV2.md)** — THE destruction doc (active workstream: coherent fracture/topple, tool-driven impact, gatherable aftermath). Absorbed the v1 design as its **Appendix A** on 2026-09-22 (`DestructionSystem.md` deleted; git-hash ledger in that appendix)
-- **[VoxelDamageVisualization.md](VoxelDamageVisualization.md)** — progressive crack rendering on damaged-but-unbroken voxels (P4 build plan; two design-check passes). ⚠️ **V1 is full-cube only — generated buildings have sub-cube walls and cannot crack until V2** (see its §1 / §3.6)
+- **[VoxelDamageVisualization.md](VoxelDamageVisualization.md)** — current-state reference for damage cracks on damaged-but-unbroken voxels (7 world-seeded stages, per-material style, debug view 19). ⚠️ **Full cubes only — generated buildings have sub-voxel walls and cannot crack until V2** (see its §5 / §9)
 - **[Water.md](Water.md)** — THE water doc (single consolidated design + status + traps; supersedes WaterSystem v1/v2/v3, PhysicalFeelPlan, AppearanceV4, WaterAsWorldData)
 - **[SubcubeCollisionPlan.md](SubcubeCollisionPlan.md)** — subcube-resolution character collision (user directive 2026-07-16: collision shape must match what you see)
 - **[GpuCompoundBodies.md](GpuCompoundBodies.md)** — GPU compound rigid bodies (**PLANNED, not built** — user-approved "plan now, build later"; destruction-scale follow-up to GPU item physics)

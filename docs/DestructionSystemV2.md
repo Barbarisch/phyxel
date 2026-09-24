@@ -262,30 +262,14 @@ only on full harvest.
 
 ### (F) Damage visualization (P4)
 
-> **SUPERSEDED — see [`VoxelDamageVisualization.md`](VoxelDamageVisualization.md)** (2026-09-22).
-> That document is the build plan. **Five** design-check passes resolved 21 items, among them:
-> API readback, toughness normalization, world-position seeding, the geometric-spall position,
-> stage quantization/merge cost, **sub-voxel coverage** (V1 cannot crack a generated building —
-> its walls are sub-cube and carry no damage bits), and **graze re-mesh** (the flush was gated on
-> breaks, so a pure graze never rebuilt). The sketch below is kept for history.
->
-> **Status: P0 built** on `feature/voxel-damage-cracks` — `/api/world/voxel` now returns
-> `damage_energy` / `toughness` / `damage01` / `damage_stage` / `damage_tracked`, `apply_damage`
-> echoes `stage_changed`, and the graze path re-meshes on a stage crossing via
-> **`markChunkForRemesh`** (never `markChunkDirty`, which would also flag the chunk for a
-> pointless SQLite re-save — damage has no DB field). The quantization is shared by the mesher
-> and the graze path through `engine/include/core/DamageStage.h`, so the two cannot drift.
->
-> ⚠️ **Two scope boundaries, both declared rather than discovered:** V1 renders cracks on
-> **full cubes only** (terrain and cube fills — no generated building, no kinematic furniture, no
-> GPU debris), and **damage does not survive chunk eviction**, so cracks are lost when the player
-> streams the chunk out — not merely on reload. See that document's §1, §3.6, §4 and §7.
-
-`Cube` already stores accumulated damage. Surface a normalized `damage01 = accumulated/toughness` into
-the static voxel instance data (spare bits or a parallel per-voxel buffer) and blend a crack overlay /
-darken in `voxel.frag`. Purely additive; no gameplay change. **Validation:** L2 (damage state correct
-after N sub-threshold hits) + L4 visual (`get_visual_diagnostic` before/after: pixels change on a
-grazed voxel; the framed-demo integrity rule applies — confirm by pixel diff, not "looks cracked").
+> **SHIPPED (2026-09-24). The reference is [`VoxelDamageVisualization.md`](VoxelDamageVisualization.md).**
+> Damaged-but-unbroken full cubes show a world-seeded crack network in 7 stages, normalized by the
+> material's own break toughness, with density from `brittleS1` (`crackStyle`). A graze re-meshes
+> only on a stage crossing, via `markChunkForRemesh`. `/api/world/voxel` returns the damage state.
+> **Two scope limits:** cracks render on **full cubes only** (not generated buildings, which are
+> sub-voxel; not kinematic furniture or GPU debris), and **damage does not survive chunk
+> eviction**. See that document's §5 and §9. The original sketch for this section is in git
+> history (`f109fd64`).
 
 ### (G) Fragment lifecycle & retirement — "cheap at rest" (the scalability key)
 The mechanism that makes a large *permanent* population of settled full-fidelity fells affordable. A
@@ -473,7 +457,7 @@ sign-off. Ordered so the load-bearing engine work (0–1) precedes the feel laye
 - **Phase 4 — Tool + swing (E, ties feedback #1).** *Contract:* equipped axe swing severs a tree in a
   grounded number of chops; tool/material affinity respected; fists ineffective on wood. *Depth:* L4.
   *Stress:* chop-spam (churn), wrong-tool, mid-swing tool-swap.
-- **Phase 5 — Damage visualization (F, P4).** *Plan:* [`VoxelDamageVisualization.md`](VoxelDamageVisualization.md). *Contract:* damaged-but-unbroken voxels show cracks/
+- **Phase 5 — Damage visualization (F, P4) — ✅ SHIPPED 2026-09-24 (full cubes; sub-voxel V2 open).** *Reference:* [`VoxelDamageVisualization.md`](VoxelDamageVisualization.md). *Contract:* damaged-but-unbroken voxels show cracks/
   darken scaling with accumulated damage. *Depth:* L2 (state) + L4 (pixel-diff visual, not "looks
   cracked"). *Stress:* many partially-damaged voxels (render cost).
 - **Cross-cutting (any phase that touches it):** persistence of broken/damaged state + spawned resource

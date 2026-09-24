@@ -1504,7 +1504,7 @@ void EngineAPIServer::setupRoutes() {
 
     // ====================================================================
     // GET /api/debug/chunk_faces?cx=&cy=&cz=[&x1=&y1=&z1=&x2=&y2=&z2=]
-    // docs/GlassTransparency.md §17.7. A chunk's emitted faces expanded to COVERED UNIT FACES at
+    // docs/GlassTransparency.md §7. A chunk's emitted faces expanded to COVERED UNIT FACES at
     // microcube resolution (graphics/FaceCoverage.h — the same decoder the unit tests use), so the
     // count does not depend on greedy merging. Optional world-CUBE box: count only faces whose
     // owning cell lies inside it. Read-only. Echoes the chunk and its rebuild counter so a caller

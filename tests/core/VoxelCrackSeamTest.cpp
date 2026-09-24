@@ -1,6 +1,6 @@
 /**
  * R2 -- the crack field must not depend on chunk partitioning.
- * docs/VoxelDamageVisualization.md 6.2 / 3.3.
+ * docs/VoxelDamageVisualization.md §4, §7.
  *
  * THE FAILURE THIS GUARDS. static_voxel.vert sets `uv = baseUV * vec2(sizeU, sizeV)`, so UV
  * space is tied to the greedy-merged RECTANGLE -- and merge runs are computed inside a 32^3

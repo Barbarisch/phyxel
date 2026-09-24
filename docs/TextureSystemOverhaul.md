@@ -130,7 +130,10 @@ Array layers must be uniform size, so "512 terrain / 1024 objects" = **two array
 > **descriptor binding 5** (layout/pool updated; `uploadTextureArray*` take a `target` class;
 > `updateAtlasUVBuffer` carries per-class counts). `voxel.frag` samples binding 1 or binding 5
 > on the class bit with per-class bounds + placeholder fallback (mirror/transparent unaffected —
-> they don't sample the array). `materials.json`: StoneBricks/Wood/Bricks → `"resolution":1024`,
+> they don't sample the array). *Correction 2026-09-23: that was wrong for `transparent_voxel.frag`.
+> It did sample the array, bound only binding 1, and so drew the placeholder for every 1024 px
+> material, Glass included. Fixed by the shared class-aware helper `phxSampleAlbedo`
+> (`shaders/voxel_world.glsl`; see `GlassTransparency.md` §1).* `materials.json`: StoneBricks/Wood/Bricks → `"resolution":1024`,
 > re-fetched at native 1024 by the fetch tool (per-material resolution).
 > Verified in-engine (CharacterTestbed): class 0 = 144 layers @ 512 (48 MB BC7), class 1 =
 > 18 layers @ 1024 (24 MB BC7); SSBO `count512=144, count1024=18`; building (StoneBricks/Wood/

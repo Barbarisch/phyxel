@@ -1,13 +1,13 @@
 // voxel_world.glsl — world-space and atlas helpers shared by voxel.frag (opaque pass) and
-// transparent_voxel.frag (OIT pass). docs/GlassTransparency.md §13.12, §13.17.
+// transparent_voxel.frag (OIT pass). docs/GlassTransparency.md §1.
 //
 // WHY THIS FILE EXISTS. The transparent pass kept private copies of opaque-pass code, and every one
 // of them drifted silently:
 //   * its world position was `inWorldPos + cameraWorld`, a float sum that loses precision far from
 //     the origin, where voxel.frag uses the exact chunk-origin form below — a crack seeded from the
-//     former would not match stone's pattern and would shimmer at large coordinates (§13.12);
+//     former would not match stone's pattern and would shimmer at large coordinates (GlassTransparency.md §1);
 //   * it sampled ONE texture array with a bounds check against the 512-class count, so every
-//     1024-class material (Glass included) fell back to the placeholder layer (§13.17);
+//     1024-class material (Glass included) fell back to the placeholder layer (GlassTransparency.md §1);
 //   * it had no worldFaceUV at all, which crack.glsl needs.
 // The rule is now: anything both passes compute lives HERE, exactly once.
 //

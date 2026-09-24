@@ -20,7 +20,7 @@ struct DamageResult {
     int voxelsGrazed = 0;   // in range but under break threshold (damage accumulated)
     int debrisSpawned = 0;  // dynamic pieces queued (cubes/subcubes/microcubes)
     // Grazed voxels whose accumulated damage crossed a VISIBLE stage boundary -- the ones
-    // whose appearance actually changed (docs/VoxelDamageVisualization.md 3.7). Echoed by
+    // whose appearance actually changed (docs/VoxelDamageVisualization.md §3). Echoed by
     // apply_damage so a caller can assert a graze moved something: `voxelsGrazed` only says
     // a hit landed, never that the surface now looks any different.
     int voxelsStageChanged = 0;
@@ -85,7 +85,7 @@ public:
     static MatResponse responseFor(const std::string& materialName);
 
     // What damage stage does a voxel of this material DISPLAY, given its accumulated damage?
-    // THE single entry point for that question (docs/VoxelDamageVisualization.md §3.2):
+    // THE single entry point for that question (docs/VoxelDamageVisualization.md §1):
     // the mesher, the /api/world/voxel readback and the graze re-mesh test all resolve
     // through here, so a stage means the same thing everywhere.
     //

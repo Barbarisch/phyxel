@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the damage-ladder review rig (docs/VoxelDamageVisualization.md 14.1).
+"""Build the damage-ladder review rig (docs/VoxelDamageVisualization.md §7).
 
 One command, identical every time, so a visual review months apart is comparable.
 

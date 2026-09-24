@@ -1,7 +1,7 @@
 #pragma once
 
 // FaceCoverage — decode a chunk's emitted face instances into the UNIT FACES they cover, at
-// microcube resolution (1/9 of a cube). docs/GlassTransparency.md §17.7.
+// microcube resolution (1/9 of a cube). docs/GlassTransparency.md §7.
 //
 // WHY MICRO RESOLUTION. Cube faces are always greedy-merged and sub/micro faces are merged when fine
 // merge is on, so a quad count can go DOWN when a face is added (two runs rejoin). Counting quads

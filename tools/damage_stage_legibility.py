@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """P4 legibility axis - can damage still be SEEN at 3 / 7 / 15 stages, and at what damage level?
-docs/VoxelDamageVisualization.md 6.4.
+docs/VoxelDamageVisualization.md §2.
 
     python tools/damage_stage_legibility.py
 

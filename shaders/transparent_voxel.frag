@@ -22,7 +22,7 @@ layout(location = 5) in vec3 inWorldPos;
 layout(location = 6) in float vSkyLight;
 // The exact chunk origin, for seeding anything that must be a pure function of world position (the
 // crack). static_voxel.vert emits these for the opaque pass and the OIT pipeline is built with the
-// same vertex shader; this pass simply never declared them (GlassTransparency.md §13.12).
+// same vertex shader; this pass simply never declared them (GlassTransparency.md §1).
 layout(location = 10) in flat vec3 vChunkBaseAbs;
 layout(location = 11) in flat vec3 vChunkBaseRel;
 
@@ -75,7 +75,7 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 #include "gi_field.glsl"    // THE ambient term (probe field); G-141: no receiver traces its own sky
 
 layout(set = 0, binding = 1) uniform sampler2DArray textureArray;     // class 0 albedo: 512px
-layout(set = 0, binding = 5) uniform sampler2DArray textureArrayHi;   // class 1 albedo: 1024px (§13.17)
+layout(set = 0, binding = 5) uniform sampler2DArray textureArrayHi;   // class 1 albedo: 1024px (GlassTransparency.md §1)
 layout(set = 0, binding = 2) uniform sampler2D shadowMap;
 layout(set = 0, binding = 9) uniform sampler2D shadowMapNear;   // U1: the near cascade
 
@@ -127,9 +127,9 @@ float calcAttenuation(float d, float radius) {
 // its kPoisson16, so there is one disk and one bias policy rather than a copy per pass.
 
 void main() {
-    // RE-ENABLED 2026-09-23 (GlassTransparency.md §15). This pass opened with an unconditional
+    // RE-ENABLED 2026-09-23 (GlassTransparency.md §1, §11). This pass opened with an unconditional
     // `discard` from 7a36910f until now, blamed on an "UNDEFINED layout validation error that
-    // corrupts the post-process composite". Measured with validation layers on (§15.8): that error
+    // corrupts the post-process composite". Measured with validation layers on (GlassTransparency.md §10): that error
     // fires identically with this pass disabled -- it is not this pass's -- and enabling it adds no
     // validation message and changes no pixel outside the glass. For four months glass was never
     // blended: it was see-through only where its texture punched cutout holes in the opaque pass.
@@ -138,7 +138,7 @@ void main() {
     if ((flags & (1u << 10u)) != 0u) discard;
 
     // Class-aware sampling, shared with voxel.frag. The old single-array lookup sent every
-    // 1024-class material -- Glass included -- to the placeholder checkerboard (§13.17).
+    // 1024-class material -- Glass included -- to the placeholder checkerboard (GlassTransparency.md §1).
     vec4 textureColor = phxSampleAlbedo(textureIndex, texCoord);
 
     // NO texture-alpha discard here. Coverage is continuous: the material's alpha is the floor and
@@ -209,7 +209,7 @@ void main() {
 
     vec3 litColor = textureColor.rgb * finalLight;
 
-    // CRACKS ON GLASS (§13.3, decision (c): bright, FROSTED lines). Same field as stone -- same
+    // CRACKS ON GLASS (GlassTransparency.md §4: reviewer's decision, bright FROSTED lines). Same field as stone -- same
     // crackField, same world-position seed via the shared helper, this material's crackStyle -- but
     // the opposite tone: a fracture surface in glass scatters light, so a crack reads WHITER and
     // MORE OPAQUE than the clear pane around it, where stone's crack darkens. The damage stage also

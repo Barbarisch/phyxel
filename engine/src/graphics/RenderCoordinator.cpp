@@ -1900,7 +1900,7 @@ void RenderCoordinator::renderTransparentGeometryOIT(uint32_t frameIndex) {
             break;
         }
     }
-    // PROBE (docs/GlassTransparency.md §5 Phase 0). Transmission alone cannot tell "the OIT pass
+    // PROBE (docs/GlassTransparency.md §7). Transmission alone cannot tell "the OIT pass
     // never ran" from "it ran and the opaque pass's depth write occluded it" -- both read T ~ 0 and
     // they need different fixes. Guessing between them is what produced two wrong glass fixes.
     // TRACE level so it costs nothing shipped; raise the log level to read it.
@@ -1936,7 +1936,7 @@ void RenderCoordinator::renderTransparentGeometryOIT(uint32_t frameIndex) {
         glm::vec3 chunkBaseOffset = camera->relativeTo(glm::dvec3(worldOrigin));  // camera-relative (docs/CameraRelativeRendering.md)
         vulkanDevice->pushConstants(frameIndex, renderPipeline->getGraphicsLayout(), chunkBaseOffset, glm::vec3(worldOrigin));
 
-        // SIX indices, not 36 (GlassTransparency.md, Phase 4). Each instance is ONE face quad; the
+        // SIX indices, not 36 (GlassTransparency.md §1). Each instance is ONE face quad; the
         // vertex shader folds the cube index buffer's corner IDs onto that quad, so of the 36
         // indices exactly two 6-index groups form the full quad (one per winding) and the other
         // four collapse to zero area. This pipeline culls NOTHING (cullMode NONE, "show both

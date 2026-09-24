@@ -4,11 +4,11 @@
     python tools/gen_glass_texture.py            # writes resources/textures/source/glass_*.png
     python tools/gen_glass_texture.py --preview  # also writes a 4x4 tiled preview to stdout path
 
-docs/GlassTransparency.md §13.5 — reviewer requirements R1 (not the old 64 px texture), R4 (no
+docs/GlassTransparency.md §2 — reviewer requirements R1 (not the old 64 px texture), R4 (no
 baked distortion), R5 (much cleaner), R7 (never ship glass without alpha).
 
 HOW GLASS IS DRAWN, which decides what this texture must contain. Glass is drawn by the OIT pass
-only (§13.2), which blends with
+only (GlassTransparency.md §1), which blends with
 
     alpha = max(textureAlpha, materialAlpha)
 
@@ -24,7 +24,7 @@ Every pattern is PERIODIC over the tile, so the texture repeats seamlessly acros
 seam at every voxel would read as a grid on a large window.
 
 WHAT IT MUST NEVER BE AGAIN. Commit 2ea8b8d9 regenerated glass as RGB — no alpha channel — and that
-alone made glass opaque for four months (§12.10). This writes RGBA explicitly, asserts it, and
+alone made glass opaque for four months (GlassTransparency.md §11). This writes RGBA explicitly, asserts it, and
 TransparencyTextureGuardTest fails the build if a future regen strips it.
 """
 

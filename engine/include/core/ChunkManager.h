@@ -284,7 +284,7 @@ public:
     void rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk);
     // Phase 4.4: all six neighbour boundary layers visible-solid? (chunk known uniform-solid)
     bool isChunkCapped(const Chunk& chunk);
-    // docs/GlassTransparency.md §17.6 C7: how many (chunk, face) border changes have re-meshed a
+    // docs/GlassTransparency.md §6: how many (chunk, face) border changes have re-meshed a
     // neighbour so far. Monotonic; for tests.
     size_t borderRippleCount() const { return m_borderRippleCount; }
     void deliverBorderRipple(Chunk& chunk);

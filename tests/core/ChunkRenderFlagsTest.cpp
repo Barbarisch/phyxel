@@ -8,7 +8,7 @@
 #include "core/MaterialRegistry.h"
 
 // Chunk::recomputeRenderFlags() — the cached per-chunk render flags that gate whole render passes.
-// docs/GlassTransparency.md §4.
+// docs/GlassTransparency.md §1.
 //
 // WHY THIS FILE EXISTS. `m_hasTransparent` decides whether the OIT transparent pass runs at all
 // (RenderCoordinator.cpp:1898-1904, a frame-global early-out), and `m_hasMirror` likewise gates the
@@ -149,9 +149,9 @@ TEST_F(ChunkRenderFlagsTest, SubVoxelMirrorMarksTheChunkMirrored) {
         << "a sub-voxel mirror is still a mirror; the reflection pass is gated on this flag";
 }
 
-// EVERY face-install path must leave the flag correct (docs/GlassTransparency.md §13.13).
+// EVERY face-install path must leave the flag correct (docs/GlassTransparency.md §1).
 //
-// Under the §13.2 routing (transparent faces drawn by the OIT pass ONLY), a wrong
+// Under the GlassTransparency.md §1 routing (transparent faces drawn by the OIT pass ONLY), a wrong
 // hasTransparentVoxel() no longer renders glass opaque -- it renders it INVISIBLE: the opaque pass
 // discards the face and the OIT pass is skipped for the frame. So the invariant is now
 // "no face is ever both discarded by the opaque pass and skipped by OIT".

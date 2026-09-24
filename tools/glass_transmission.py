@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Glass transparency Phase 0 - measure TRANSMISSION, with a control.
-docs/GlassTransparency.md 2 and 7.
+docs/GlassTransparency.md §2 and §8.
 
     python tools/glass_transmission.py
 
@@ -225,7 +225,7 @@ def main():
     ap.add_argument("--shot-root", default=None,
                     help="the ENGINE's working directory, if not this one (historical worktrees)")
     ap.add_argument("--target", type=float, default=None,
-                    help="decided transmission target (docs/GlassTransparency.md 13.6a: 0.80). Adds "
+                    help="decided transmission target (docs/GlassTransparency.md §2: 0.80). Adds "
                          "an ON/OFF-TARGET verdict for a +/-0.05 band. Without it the per-arm label "
                          "is centred on 0.5 and mislabels anything else (14.2).")
     ap.add_argument("--ambient", type=float, default=None,

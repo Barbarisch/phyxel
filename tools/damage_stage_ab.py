@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """P4 - stage-count A/B: cost and legibility at 3 / 7 / 15 visible damage stages.
-docs/VoxelDamageVisualization.md 6.4.
+docs/VoxelDamageVisualization.md §2.
 
     python tools/damage_stage_ab.py
 

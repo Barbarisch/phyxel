@@ -1,7 +1,7 @@
 /**
  * R5 (L2 half) -- a graze that changes the surface must request a re-mesh, and must NOT
  * mark the chunk for database persistence.
- * docs/VoxelDamageVisualization.md 3.7 / 6.5.
+ * docs/VoxelDamageVisualization.md §3, §7.
  *
  * WHY THIS IS A SEPARATE TEST FROM R1/R3. Any blast that breaks even one voxel calls
  * updateDirtyChunks() and re-meshes every touched chunk as a side effect, so grazed voxels

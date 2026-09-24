@@ -10,19 +10,19 @@
 
 #include "stb_image.h"
 
-// R7 guard — docs/GlassTransparency.md §13.5, §13.14.
+// R7 guard — docs/GlassTransparency.md §2.
 //
 // WHY THIS FILE EXISTS. Commit 2ea8b8d9 ("high-def regen for 64px materials") regenerated 72
 // textures and silently wrote 36 of them as RGB: all six Glass faces and all thirty leaf faces lost
 // their alpha channel. No code changed, no test failed, and glass stayed opaque for three months
-// until a bisect found it (§12.10). The leaves were repaired by hand later; glass never was.
+// until a bisect found it (GlassTransparency.md §11). The leaves were repaired by hand later; glass never was.
 //
 // The defect class is "a texture whose alpha is LOAD-BEARING is stored without usable alpha".
 // This test pins it at the data, where the regeneration happens, so the next regen fails here.
 //
 // WHICH MATERIALS. materials.json has no cutout flag — leaves are alpha 1.0 and look like any
 // opaque material — so "textures that must carry alpha" cannot be derived from the data. The list
-// below is therefore explicit (§13.14): every material whose texture alpha changes what is drawn.
+// below is therefore explicit (GlassTransparency.md §2): every material whose texture alpha changes what is drawn.
 // Adding a material that relies on texture alpha means adding it here.
 //
 // WHAT "USABLE" MEANS. An alpha channel is necessary but NOT sufficient: an RGBA file whose alpha is
@@ -124,7 +124,7 @@ TEST(TransparencyTextureGuardTest, AlphaBearingTexturesHaveAnAlphaChannel) {
         if (!f.loaded) continue;   // reported by the control
         EXPECT_EQ(f.channels, 4)
             << f.material << ": " << f.file << " is stored with " << f.channels
-            << " channels. Its alpha is load-bearing (docs/GlassTransparency.md §12.10) -- an RGB "
+            << " channels. Its alpha is load-bearing (docs/GlassTransparency.md §11) -- an RGB "
                "file is exactly what 2ea8b8d9 produced and what made glass opaque.";
     }
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """R2 runtime half - the crack field must not break at a chunk seam.
-docs/VoxelDamageVisualization.md 6.2.
+docs/VoxelDamageVisualization.md §7, §9.
 
     python tools/crack_seam_test.py
 

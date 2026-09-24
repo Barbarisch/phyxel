@@ -102,7 +102,7 @@ struct MaterialDef {
     int resClass() const { return resolution >= 1024 ? 1 : 0; }  // 0 = 512, 1 = 1024
 };
 
-/// THE definition of "transparent" for rendering (docs/GlassTransparency.md §17.3): drawn by the
+/// THE definition of "transparent" for rendering (docs/GlassTransparency.md §0): drawn by the
 /// OIT pass, and does NOT hide the faces of opaque voxels behind it. Every render-side test of
 /// transparency must go through this, so the mesher, the instance flag and the cross-chunk lookup
 /// can never disagree about which voxels you can see through.

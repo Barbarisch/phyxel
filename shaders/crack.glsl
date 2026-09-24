@@ -2,10 +2,10 @@
 // docs/VoxelDamageVisualization.md §4. Included by voxel.frag.
 //
 // SINGLE SOURCE OF TRUTH for the crack pattern. Nothing else may re-implement it: the seam
-// test (§6.2) pins a CPU mirror of crackField() against a table of sampled values, and that
+// test (VoxelCrackSeamTest, doc §7) pins a CPU mirror of crackField() against a table of sampled values, and that
 // guard only means anything while there is exactly one implementation to mirror.
 //
-// ── HARD RULE (§3.3): world position only ────────────────────────────────────────────────
+// ── HARD RULE (doc §4): world position only ────────────────────────────────────────────────
 // The only inputs are (worldPosAbs, faceNormal, stage01, style). This function must NEVER
 // read sizeU, sizeV, texCoord, or any other chunk-derived quantity.
 //
@@ -18,12 +18,12 @@
 // Seeding from worldPosAbs instead buys a property nothing else could: the fracture network is
 // continuous across voxel AND chunk boundaries, so a damaged wall reads as one cracked surface
 // rather than N stamped decals. It also means a ⅓-scale sub-voxel face samples the same field
-// as a full cube, so V2 needs no per-scale special-casing (§15.5).
+// as a full cube, so V2 needs no per-scale special-casing (doc §9).
 //
 // NOTE what is NOT continuous: `stage01` is per-voxel (it is folded into the merge key), so
 // crack WIDTH steps at a voxel boundary where the neighbouring stage differs, even though the
 // crack GEOMETRY flows through unbroken. That is intended — it is how a player reads which
-// voxel is closest to failing — and §6.2's seam test must damage both sides of the tested seam
+// voxel is closest to failing — and the seam test (doc §7) must damage both sides of the tested seam
 // to the same stage or it fails for that legitimate reason.
 
 #ifndef CRACK_GLSL
@@ -32,17 +32,17 @@
 // Fracture cell size, in world units, for the PRIMARY network: the SUBCUBE lattice (1/3 m).
 //
 // MEASURED, not chosen by taste. The first P3 build put this on the microcube lattice (1/9 m)
-// to align with V1.5's spall chips (§3.4). It reads beautifully at 4 units and is INVISIBLE in
+// to align with V1.5's spall chips (doc §9). It reads beautifully at 4 units and is INVISIBLE in
 // play: a 1 m face carries a 9x9 network, which at 16 units is ~5 px per cell with a crack
 // width a fraction of that -- sub-pixel. Measured at 16 units, that build's stage steps were
 // 4.55 / 2.08 / 2.02 luminance against a within-stage noise floor of ~1.6-3.2, i.e. the upper
 // steps were INSIDE THE NOISE and it was LESS legible than the flat darkening it replaced.
 //
 // 1/3 m gives a 3x3 primary network per face (~15 px per cell at 16 units), which survives
-// minification. §3.4's spall-alignment argument is preserved by the SECOND OCTAVE below, which
+// minification. The spall-alignment argument is preserved by the SECOND OCTAVE below, which
 // lands on the microcube lattice -- so chips still fall where fine cracks already are.
 //
-// This is the resolution of the legibility risk §6.3 flagged in advance ("the rig is optimistic
+// This is the resolution of the legibility risk the review rig flagged in advance ("the rig is optimistic
 // about visibility"). The rig was optimistic; the first cell size was the thing it hid.
 const float kCrackCell = 1.0 / 3.0;
 
@@ -94,7 +94,7 @@ float crackEdgeDistance(vec2 p) {
  *                    camera-independent seed the `varied` tile hash uses)
  * @param faceNormal  face normal, to project onto the face plane
  * @param stage01     damage stage normalized to [0,1]: 0 = pristine, 1 = at break
- * @param style       fracture character, from the material (§4.4):
+ * @param style       fracture character, from the material (doc §4):
  *                      style < 1  → dense fine network   (brittle: Glass)
  *                      style ~ 1  → medium               (Stone)
  *                      style > 1  → sparse wide fissures (ductile: Steel)
@@ -107,7 +107,7 @@ float crackField(vec3 worldPosAbs, vec3 faceNormal, float stage01, float style) 
     // duplicated so the crack lattice and the `varied` tile lattice agree on what a world cell is.
     vec2 p = worldFaceUV(worldPosAbs, faceNormal) / (kCrackCell * max(style, 0.15));
 
-    // Stage WIDENS the field; it does not swap it (§4.3). Because width is continuous in
+    // Stage WIDENS the field; it does not swap it (doc §4). Because width is continuous in
     // stage, a voxel advancing 1→2→3 shows THE SAME CRACKS GROWING rather than three unrelated
     // patterns — the thing stamped decals cannot do.
     float e = crackEdgeDistance(p);
@@ -118,7 +118,7 @@ float crackField(vec3 worldPosAbs, vec3 faceNormal, float stage01, float style) 
     // top stages read as a shattering network rather than a wider version of one line.
     //
     // x3.0 exactly, so this octave sits on the MICROCUBE lattice (1/3 / 3 = 1/9 m) while the
-    // primary sits on the subcube lattice. That keeps §3.4's promise -- V1.5's spall chips are
+    // primary sits on the subcube lattice. That keeps the spall promise (doc §9) -- V1.5's spall chips are
     // microcube-resolution and will fall where these fine cracks already are -- while leaving
     // the legible structure at a scale that survives distance. Detail up close, readability far.
     float branch = smoothstep(0.45, 1.0, stage01);

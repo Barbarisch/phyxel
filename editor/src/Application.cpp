@@ -13,7 +13,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "Application.h"
 #include <cmath>
 #include "graphics/FarTerrainManager.h"
-#include "graphics/FaceCoverage.h"         // chunk_faces debug route (docs/GlassTransparency.md §17.7)
+#include "graphics/FaceCoverage.h"         // chunk_faces debug route (docs/GlassTransparency.md §7)
 #include "graphics/GrassRenderPipeline.h"   // s_castShadows A/B toggle
 #include "graphics/ChunkUpdatePerf.h"   // B0 chunk-update sub-cost timers (docs/ChunkUpdateHitchPlan.md)
 #include "graphics/DeferredBufferReclaim.h"  // B1 deferred buffer free (docs/ChunkUpdateHitchPlan.md)
@@ -712,7 +712,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // Per-voxel damage, as numbers. Same argument as the baked-light query below: until now
     // `apply_damage` returned counts of EVENTS (broken/grazed) and never the resulting STATE,
     // so "is this voxel damaged, and how close to breaking?" could only be answered by
-    // photographing a surface and guessing (docs/VoxelDamageVisualization.md 3.1).
+    // photographing a surface and guessing (docs/VoxelDamageVisualization.md §6).
     apiServer->setVoxelQueryHandler([this](int x, int y, int z) -> nlohmann::json {
         nlohmann::json result;
         result["position"] = {{"x", x}, {"y", y}, {"z", z}};
@@ -14727,7 +14727,7 @@ void Application::registerEffectsCommands() {
         r["enabled"] = renderCoordinator->getSkyEnabled();
     });
 
-    // docs/GlassTransparency.md §17.7 — covered unit faces of one chunk (see the route comment in
+    // docs/GlassTransparency.md §7 — covered unit faces of one chunk (see the route comment in
     // EngineAPIServer.cpp). Units: microcube-sized squares; a full cube face = 81.
     reg.on("chunk_faces", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!chunkManager) { r = {{"error", "no chunk manager"}}; return; }
@@ -14918,7 +14918,7 @@ void Application::registerEffectsCommands() {
     });
 
     // Shadow draw distance A/B knob (WRv2 §7d): reach vs texel density vs draw count.
-    // DAMAGE STAGE COUNT (P4, docs/VoxelDamageVisualization.md 6.4). Lets 3 / 7 / 15 be
+    // DAMAGE STAGE COUNT (docs/VoxelDamageVisualization.md §2). Lets 3 / 7 / 15 be
     // compared in ONE session against ONE scene; three separate builds cannot hold the scene
     // fixed, and the legibility half of the A/B needs the same frame.
     reg.on("set_damage_stages", [this](const Core::APICommand& cmd, nlohmann::json& r) {
@@ -14995,13 +14995,13 @@ void Application::registerEffectsCommands() {
         //   7 = SKY FILL    — hemispheric ambient term
         // ⚑This used to collapse every non-zero value to 1 (`!= 0 ? 1 : 0`), so mode 2 silently
         //  selected the shadow view — the request appeared to work and showed the wrong thing.
-        //   11 = CRACK FIELD — the raw P4 fracture field, greyscale, albedo/lighting/wear all
+        //   19 = CRACK FIELD — the raw fracture field, greyscale, albedo/lighting/wear all
         //        stripped (black = intact, white = open crack). Shown at FULL strength on every
         //        voxel including pristine ones, so the PATTERN can be judged independently of
         //        damage state. Exists because the field is not measurable through a shaded
         //        frame: six pixel statistics failed to detect a chunk-seeded crack, since a
         //        pattern restart does not change brightness and the stone albedo swamps
-        //        structure (docs/VoxelDamageVisualization.md §16.1).
+        //        structure (docs/VoxelDamageVisualization.md §6).
         //   10 = WIND FIELD MAP — terrain painted by the gust field itself (white calm -> red ->
         //       black at peak; grass blades hide so the map is unobstructed). The per-pixel
         //       ground view of the field's SHAPE: mode 2's per-blade colouring could never show
@@ -15014,7 +15014,7 @@ void Application::registerEffectsCommands() {
             // ⚠️ RAISE THIS UPPER BOUND WHENEVER A MODE IS ADDED. Forgetting silently clamps the
             // new mode to the previous one, so the view "works" while showing the wrong system —
             // that has already cost a debugging session once. 8 = occupancy hit, 9 = cell fill
-            // class, 10 = wind field map, 11 = crack field.
+            // class, 10 = wind field map, 11-18 = G-18 perf probes, 19 = crack field.
             // (It cost one again on 2026-09-22: mode 11 was added to the shader and this bound
             // was left at 10, so the new view silently rendered the wind map. The warning above
             // was already there and was still walked into -- which is an argument for the bound

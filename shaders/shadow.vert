@@ -126,7 +126,7 @@ void main() {
     
     gl_Position = pushConstants.lightSpaceMatrix * vec4(worldPos, 1.0);
 
-    // GLASS CASTS NO SHADOW (reviewer decision, GlassTransparency.md 13.9). A pane that lets ~80% of
+    // GLASS CASTS NO SHADOW (reviewer decision, GlassTransparency.md §3). A pane that lets ~80% of
     // the light through must not throw a solid black shadow. Every corner of a transparent face is
     // moved to the same point outside the clip volume (w = 1, z = 2 > 1), so the face has zero area
     // and rasterizes nothing -- in every cascade, since they all use this shader. Done in the vertex

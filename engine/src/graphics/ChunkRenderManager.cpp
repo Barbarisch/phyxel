@@ -264,7 +264,7 @@ void ChunkRenderManager::rebuildAllFaces(
     // rebuildSubcube/MicrocubeFaces can cull hidden faces.
     rebuildCubeFaces(cubes, subcubes, microcubes, worldOrigin, getNeighborCube, columnOpenMask, voxelStore);
     buildSubMicroOccupancy(subcubes, microcubes, worldOrigin);
-    // C9: the sub/micro border lookup lives only for this rebuild (a stale pointer to a caller's
+    // The sub/micro border lookup (GlassTransparency.md §5) lives only for this rebuild (a stale pointer to a caller's
     // lambda must never outlive the call).
     struct FineLookupScope {
         const NeighborFineLookupFunc*& slot;
@@ -633,17 +633,17 @@ void ChunkRenderManager::rebuildCubeFaces(
         if (x >= 0 && x < N && y >= 0 && y < N && z >= 0 && z < N)
             return solidVis[cellIdx(x, y, z)] != 0;
         if (getNeighborCube) {
-            // C8: "occupied" — glass across the border is still physical cover (K2/K3).
+            // "Occupied": glass across the border is still physical cover for grass (GlassTransparency.md §5).
             return getNeighborCube(worldOrigin + glm::ivec3(x, y, z)) != NeighborOccupancy::Empty;
         }
         return false;  // chunk boundary, no lookup → face exposed
     };
 
-    // FACE EMISSION uses this, not neighborSolid (docs/GlassTransparency.md §17.2). A face is
+    // FACE EMISSION uses this, not neighborSolid (docs/GlassTransparency.md §5). A face is
     // hidden iff the neighbour is occupied AND (the neighbour is opaque OR this face's own voxel is
     // transparent): stone behind glass is drawn; glass against glass stays culled, so a thick pane
     // does not stack OIT layers; glass lying on stone stays culled. neighborSolid keeps answering
-    // "is there physical cover here" for grass (K2/K3) — glass on a grass top still covers it.
+    // "is there physical cover here" for grass — glass on a grass top still covers it.
     auto faceHiddenByNeighbor = [&](int x, int y, int z, bool selfTransparent) -> bool {
         if (x >= 0 && x < N && y >= 0 && y < N && z >= 0 && z < N) {
             const int c = cellIdx(x, y, z);
@@ -651,7 +651,7 @@ void ChunkRenderManager::rebuildCubeFaces(
             return !m_cellTransparent[c] || selfTransparent;
         }
         if (getNeighborCube) {
-            // C2: the same rule across a chunk border, so it cannot depend on where borders fall.
+            // The same rule across a chunk border, so it cannot depend on where borders fall.
             const NeighborOccupancy o = getNeighborCube(worldOrigin + glm::ivec3(x, y, z));
             if (o == NeighborOccupancy::Empty) return false;
             return o == NeighborOccupancy::Opaque || selfTransparent;
@@ -675,7 +675,7 @@ void ChunkRenderManager::rebuildCubeFaces(
         // Billboarded leaf CUBE (rare — most leaves are subcubes): its solid faces were skipped in
         // the mesh above; emit ONE foliage instance (cards at the cube centre) if the cube is exposed.
         if (matFaces[m].isBillboarded) {
-            // C5: a leaf seen through glass is exposed. Leaves are not transparent, so this is the
+            // A leaf seen through glass is exposed (GlassTransparency.md §5). Leaves are not transparent, so this is the
             // opaque-owner case of the face rule (a leaf against glass is visible).
             bool exposed = !faceHiddenByNeighbor(x + 1, y, z, false) || !faceHiddenByNeighbor(x - 1, y, z, false) ||
                            !faceHiddenByNeighbor(x, y + 1, z, false) || !faceHiddenByNeighbor(x, y - 1, z, false) ||
@@ -1045,14 +1045,14 @@ bool ChunkRenderManager::fineFaceHidden(int gx, int gy, int gz, int level, bool 
         }
     }
     else if (m_fineLookup) {
-        // C9 (§17.5b): ask the neighbour chunk, at this level's resolution, the same question the
+        // GlassTransparency.md §5: ask the neighbour chunk, at this level's resolution, the same question the
         // in-chunk branch asks. Without an answer (no lookup) the face is drawn, never hidden.
         const glm::ivec3 g(gx, gy, gz);
         const glm::ivec3 worldMicro = m_lightWorldOrigin * 9 + (level == 1 ? g * 3 : g);
         n = (*m_fineLookup)(worldMicro, level);
     }
     if (n == NeighborOccupancy::Empty) return false;
-    return n == NeighborOccupancy::Opaque || selfTransparent;   // §17.2
+    return n == NeighborOccupancy::Opaque || selfTransparent;   // GlassTransparency.md §5
 }
 
 void ChunkRenderManager::rebuildSubcubeFaces(
@@ -1408,7 +1408,7 @@ void ChunkRenderManager::rebuildMicrocubeFacesMerged(
                 int gmx = pcp.x * 9 + sp.x * 3 + mp.x;
                 int gmy = pcp.y * 9 + sp.y * 3 + mp.y;
                 int gmz = pcp.z * 9 + sp.z * 3 + mp.z;
-                bool exposed = false;   // C5: a leaf behind glass is exposed (leaves are not transparent)
+                bool exposed = false;   // a leaf behind glass is exposed (leaves are not transparent)
                 for (int f = 0; f < 6 && !exposed; ++f)
                     exposed = !fineFaceHidden(gmx + FDX[f], gmy + FDY[f], gmz + FDZ[f], 2, false);
                 if (exposed) {
@@ -1562,7 +1562,7 @@ void ChunkRenderManager::rebuildSubcubeFacesMerged(
         if (s_foliageEnabled) {
             const auto* md = reg.getMaterial(sc->getMaterialName());
             if (md && md->billboarded) {
-                bool exposed = false;   // C5: a leaf behind glass is exposed (leaves are not transparent)
+                bool exposed = false;   // a leaf behind glass is exposed (leaves are not transparent)
                 for (int f = 0; f < 6 && !exposed; ++f)
                     exposed = !fineFaceHidden(gx + FDX[f], gy + FDY[f], gz + FDZ[f], 1, false);
                 if (exposed) {

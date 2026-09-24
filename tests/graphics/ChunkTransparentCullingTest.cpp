@@ -1,10 +1,10 @@
 // ChunkTransparentCullingTest.cpp — opaque faces behind glass must be drawn.
 //
-// docs/GlassTransparency.md §17. Every mesher drops a voxel face when the neighbouring cell is
+// docs/GlassTransparency.md §5-§6. Every mesher drops a voxel face when the neighbouring cell is
 // occupied. That is right when the neighbour is opaque and wrong when it is glass: with glass now
 // genuinely see-through, the stone lining a window opening (its "reveal") is simply missing.
 //
-// THE RULE (§17.2). A face of voxel A pointing at neighbour cell B is hidden iff
+// THE RULE (GlassTransparency.md §5). A face of voxel A pointing at neighbour cell B is hidden iff
 //     B is occupied AND (B is opaque OR A is transparent)
 // so opaque-behind-glass is drawn, glass-against-glass stays culled (no stacked layers inside a
 // thick pane), and glass-against-stone stays culled (the stone face is what you see).
@@ -246,7 +246,7 @@ TEST_F(TransparentCullingInChunk, T11_LeafBehindGlassIsExposed) {
 }
 TEST_F(TransparentCullingInChunk, T13_GlassIsStillAPhysicsSolid) {
     chunk->addCube(A, "Glass");
-    EXPECT_TRUE(chunk->visibleSolidCubeAt(A)) << "glass must stay solid for physics (K1)";
+    EXPECT_TRUE(chunk->visibleSolidCubeAt(A)) << "glass must stay solid for physics";
 }
 
 // =================================================================================================
@@ -394,7 +394,7 @@ TEST_F(TransparentCullingCrossChunk, T12b_SealedChunkUnsealsWhenCapTurnsToGlass)
         << "the wall face behind the new glass cell is missing";
 }
 
-// T9 — EDIT-ROUTE MATRIX (§17.6). A border cell in chunk B changes through one edit route; after the
+// T9 — EDIT-ROUTE MATRIX (GlassTransparency.md §6). A border cell in chunk B changes through one edit route; after the
 // dirty pass, chunk A's facing face must match what a from-scratch rebuild would give.
 namespace {
 enum class Route { R2_Api, R3_Fast, R4_FastAdd, R6_DirectRebuild, R7_BatchDirty };
@@ -425,7 +425,7 @@ protected:
             default: return false;
         }
     }
-    // R6 = the template/structure stamp's shape AS FIXED by §17.6 item 7: an immediate
+    // R6 = the template/structure stamp's shape AS FIXED by GlassTransparency.md §6: an immediate
     // null-lookup rebuild (what ObjectTemplateManager does for instant feedback) followed by a
     // MANAGED re-mesh mark. The mark alone never re-meshed the neighbour; the border ripple must.
     void r6Rebuild(Chunk* b) { b->rebuildFaces(); cm.markChunkForRemesh(b); }
@@ -510,7 +510,7 @@ INSTANTIATE_TEST_SUITE_P(AllRoutes, TransparentCullingRoutes,
                          ::testing::Values(Route::R2_Api, Route::R3_Fast, Route::R4_FastAdd,
                                            Route::R6_DirectRebuild, Route::R7_BatchDirty));
 
-// T14 — C7 CONVERGENCE AND GATING. The ripple must fire exactly when a border cell's render class
+// T14 — RIPPLE CONVERGENCE AND GATING. The ripple must fire exactly when a border cell's render class
 // changes, and never otherwise: not on a chunk's first build (that would cascade across the world
 // on load), not on a re-mesh with unchanged content (it would loop), not on a same-class swap.
 TEST_F(TransparentCullingCrossChunk, T14_BorderRippleFiresOnlyOnARenderClassChange) {
@@ -543,7 +543,7 @@ TEST_F(TransparentCullingCrossChunk, T14_BorderRippleFiresOnlyOnARenderClassChan
     EXPECT_GT(b->rebuildCount(), bBefore) << "(d) the facing neighbour was not re-meshed";
 }
 
-// T16 — C7's COST (plan §17.6 item 8: a rise over 5% of rebuild time is a finding). The border
+// T16 — THE RIPPLE'S COST (GlassTransparency.md §6: a rise over 5% of rebuild time is a finding). The border
 // signature runs on every rebuild, so it is timed directly against a full rebuild of the same chunk.
 // Two chunks: terrain (the common case) and a worst case for the signature relative to the mesh,
 // a border layer made entirely of subcubes (the signature walks every sub/micro voxel).
@@ -580,7 +580,7 @@ TEST_F(TransparentCullingCrossChunk, T16_BorderSignatureCostsUnderFivePercentOfA
     measure(wall, "subcube border wall");
 }
 
-// T9g — R12 (found at L4): Chunk::addCubesBatch, the /api/world/fill path, re-meshes its chunk at
+// T9g — found at L4: Chunk::addCubesBatch, the /api/world/fill path, re-meshes its chunk at
 // once WITHOUT a neighbour lookup and never requests a managed re-mesh. Live, a glass window filled
 // across the x=31|32 border showed both chunks drawing their seam faces as if the other side were
 // empty (doubled glass; stone-stone seam faces drawn), growing with every fill. After the dirty
