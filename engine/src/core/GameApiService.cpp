@@ -175,6 +175,8 @@ void GameApiService::registerCommands() {
         r = {{"visible_chunk_count", s.visibleChunkCount},
              {"total_visible_faces", s.totalVisibleFaces},
              {"far_tiles_drawn", s.farTilesDrawn},
+             {"far_tree_card_draws", s.farTreeCardDraws},
+             {"far_tree_mask_resident_columns", s.farTreeMaskResidentColumns},
              // G-147: is the camera's own character currently suppressed because the camera sits
              // inside it? Exposed so "the body no longer clips in first person" is an assertion a
              // harness can make, rather than a human squinting at a screenshot.

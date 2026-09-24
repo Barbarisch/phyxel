@@ -393,6 +393,7 @@ public:
         static constexpr int kTreeChainLevels = 6;
         int    farTreeMeshDrawsByLevel[kTreeChainLevels] = {};
         int    farTreeCardDraws       = 0;
+        int    farTreeMaskResidentColumns = 0;   ///< G-178: columns in the 22x22 residency mask that render
         // D1 shadow-pass diagnosis (docs/RenderDensityPlan.md): the shadow pass distance-culls only
         // (no frustum), so it may draw far more than visibleChunkCount. These count what it drew.
         int    shadowChunksDrawn     = 0;

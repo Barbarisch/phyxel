@@ -32,7 +32,25 @@ layout(push_constant) uniform PushConstants {
     vec2 tileOriginAbs;  // exact world-space min corner
     vec4 fades;          // fadeNear0, fadeNear1, fadeFar0, fadeFar1 (world units)
     vec2 handoff;        // x: residency minFade (1 = chunks not resident, stay solid), y: pad
+    ivec2 maskOrigin;    // G-178: chunk column of residency bit 0 (camera column - 11)
+    ivec2 maskInfo;      // x: mask enabled, y: grid dim (22)
+    uint  mask[16];      // per-column residency bits: some chunk in the column has uploaded faces
 } pc;
+
+// G-178: the residency hold per CARD. A card over a chunk column that visibly renders (bit set)
+// may dissolve by distance - the real tree is there; a card over a column that does not render
+// yet stays solid whatever the distance (streaming is async: no gap where neither tier draws).
+// Outside the grid (beyond +-352 u) the caller's per-tile value applies, and the distance fade
+// already keeps those solid. Before this the hold was per TILE from four quadrant probes, and a
+// tile straddling the load radius held every card in it solid - pale discs 30 u from the camera.
+float phxResidencyHold(vec2 worldXZ, float fallback) {
+    if (pc.maskInfo.x == 0) return fallback;
+    ivec2 col = ivec2(floor(worldXZ / 32.0)) - pc.maskOrigin;
+    int dim = pc.maskInfo.y;
+    if (col.x < 0 || col.y < 0 || col.x >= dim || col.y >= dim) return fallback;
+    int b = col.y * dim + col.x;
+    return ((pc.mask[b >> 5] >> uint(b & 31)) & 1u) != 0u ? 0.0 : 1.0;
+}
 
 layout(location = 0) out vec2 vUV;          // x: -1..1 across the card, y: 0 base .. 1 tip
 layout(location = 1) out flat uint vPacked;
@@ -61,7 +79,8 @@ void main() {
     // Residency handoff floor on the NEAR component only (see far_tree_mesh.vert): until the
     // real chunks under this tile exist, the card must not dissolve — else a gap opens where
     // neither tier draws. The FAR fade-out is untouched (horizon dissolve is distance-only).
-    float fadeIn  = max(smoothstep(pc.fades.x, pc.fades.y, dist), pc.handoff.x);
+    float hold    = phxResidencyHold(pc.tileOriginAbs + vec2(inPosH.x, inPosH.z), pc.handoff.x);
+    float fadeIn  = max(smoothstep(pc.fades.x, pc.fades.y, dist), hold);
     float fadeOut = 1.0 - smoothstep(pc.fades.z, pc.fades.w, dist);
     vFade = fadeIn * fadeOut;
 

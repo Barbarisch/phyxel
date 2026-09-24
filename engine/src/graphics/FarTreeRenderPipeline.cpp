@@ -17,7 +17,11 @@ struct FarTreePush {
     glm::vec2 tileOriginAbs;  // exact world-space min corner (hash-stable shading inputs)
     glm::vec4 fades;          // fadeNear0, fadeNear1, fadeFar0, fadeFar1 (world units)
     glm::vec2 handoff{0.0f};  // x: residency minFade (near fade floor), y: pad
+    glm::ivec2 maskOrigin{0};        ///< G-178: chunk column of residency bit 0
+    glm::ivec2 maskInfo{0, 0};       ///< x: enabled, y: grid dim
+    uint32_t   mask[16] = {};        ///< per-column residency bits (FarTreeResidencyMask)
 };
+static_assert(sizeof(FarTreePush) <= 128, "push constants must fit the guaranteed 128 B");
 
 static std::vector<char> readShaderFile(const std::string& path) {
     std::ifstream file(path, std::ios::ate | std::ios::binary);
@@ -220,6 +224,9 @@ void FarTreeRenderPipeline::render(VkCommandBuffer cmd, VkDescriptorSet uboSet,
             d.origin,
             glm::vec4(m_params.fadeNear0, m_params.fadeNear1, m_params.fadeFar0, m_params.fadeFar1),
             glm::vec2(d.minFade, 0.0f)};
+        pc.maskOrigin = m_mask.originChunk;
+        pc.maskInfo   = glm::ivec2(m_mask.enabled ? 1 : 0, FarTreeResidencyMask::kDim);
+        std::copy(m_mask.bits.begin(), m_mask.bits.end(), pc.mask);
         vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(FarTreePush), &pc);
         VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(cmd, 0, 1, &d.instances, &offset);

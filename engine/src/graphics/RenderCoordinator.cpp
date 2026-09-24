@@ -27,6 +27,7 @@
 #include "graphics/FarTerrainRenderPipeline.h"
 #include "graphics/FarTerrainManager.h"
 #include "graphics/FarTreeRenderPipeline.h"
+#include "graphics/FarTreeResidencyMask.h"
 #include "graphics/TreeLodMeshRegistry.h"
 #include "graphics/TreeLodRenderPipeline.h"
 #include "graphics/TreeSpeciesTable.h"
@@ -1551,6 +1552,24 @@ void RenderCoordinator::renderFarTerrain() {
     // out once the chunks under it actually EXIST, ramped over ~0.3s to avoid a pop when
     // they land. minFade = 1 - readiness floors the shader's dither factor.
     const float fadeGateEnd = (treeLodPipeline ? treeLodPipeline->params().fadeNear1 : 260.0f);
+
+    // G-178: the per-CARD residency mask (see FarTreeResidencyMask.h). Columns with a chunk
+    // that has uploaded faces - the same test the far-tile coverage function uses - within
+    // +-11 chunks of the camera. One pass over chunkMap per frame; the per-tile quadrant
+    // readiness below stays as the fallback for cards outside the grid.
+    {
+        const glm::ivec2 camChunk(int(std::floor(cameraPos.x / 32.0f)), int(std::floor(cameraPos.z / 32.0f)));
+        FarTreeResidencyMask mask;
+        mask.originChunk = FarTreeResidencyMask::originFor(camChunk);
+        mask.enabled = true;
+        for (const auto& [coord, chunk] : chunkManager->chunkMap) {
+            if (!chunk || chunk->getNumInstances() == 0) continue;
+            mask.set(coord.x, coord.z);
+        }
+        lastFrameStats.farTreeMaskResidentColumns = mask.residentCount();
+        if (farTreePipeline) farTreePipeline->setResidencyMask(mask);
+        if (treeLodPipeline) treeLodPipeline->setResidencyMask(mask);
+    }
     auto tileHandoffMinFade = [&](const FarTerrainManager::TileDraw& t, float dMin) -> float {
         if (dMin > fadeGateEnd) return 0.0f;   // outside the fade band: distance keeps it solid
         // TERRAIN-HIDDEN tiles are the deep interior: FarTerrainManager sets that flag only

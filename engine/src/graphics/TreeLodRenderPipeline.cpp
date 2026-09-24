@@ -19,7 +19,17 @@ struct TreeMeshPush {
     float     baseHeight;
     float     minFade = 0.0f;   ///< residency handoff floor (1 = stay fully solid)
     glm::vec2 levelBand{0.0f, 3.0e8f};   ///< distance window this draw's level owns
+    glm::ivec2 maskOrigin{0};        ///< G-178: chunk column of residency bit 0
+    glm::ivec2 maskInfo{0, 0};       ///< x: enabled, y: grid dim
+    uint32_t   mask[16] = {};        ///< per-column residency bits (FarTreeResidencyMask)
 };
+static_assert(sizeof(TreeMeshPush) <= 128, "push constants must fit the guaranteed 128 B");
+
+void TreeLodRenderPipeline::fillMask(TreeMeshPush& pc) const {
+    pc.maskOrigin = m_mask.originChunk;
+    pc.maskInfo   = glm::ivec2(m_mask.enabled ? 1 : 0, FarTreeResidencyMask::kDim);
+    std::copy(m_mask.bits.begin(), m_mask.bits.end(), pc.mask);
+}
 
 static std::vector<char> readShaderFile(const std::string& path) {
     std::ifstream file(path, std::ios::ate | std::ios::binary);
@@ -184,6 +194,7 @@ void TreeLodRenderPipeline::renderShadow(VkCommandBuffer cmd, VkDescriptorSet ub
             d.origin,
             glm::vec2(m_params.fadeNear0, m_params.fadeNear1),
             d.baseHeight, d.minFade, d.levelBand};
+        fillMask(pc);
         vkCmdPushConstants(cmd, m_shadowPipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0,
                            sizeof(TreeMeshPush), &pc);
         VkBuffer bufs[2] = {d.vertexBuffer, d.instances};
@@ -367,6 +378,7 @@ void TreeLodRenderPipeline::render(VkCommandBuffer cmd, VkDescriptorSet uboSet,
             d.origin,
             glm::vec2(m_params.fadeNear0, m_params.fadeNear1),
             d.baseHeight, d.minFade, d.levelBand};
+        fillMask(pc);
         vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(TreeMeshPush), &pc);
         VkBuffer bufs[2] = {d.vertexBuffer, d.instances};
         VkDeviceSize offs[2] = {0, 0};
