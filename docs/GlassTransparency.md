@@ -1287,8 +1287,9 @@ reviewer says so.** Still owed after sign-off: the pane in a generated building 
 
 ## 17. Faces hidden by glass — opaque faces behind transparent neighbours are culled (plan, 2026-09-24)
 
-**Status: IN PROGRESS. Design-checked twice (§17.12). Reviewer go-ahead 2026-09-24; D2 = option A
-(fix the sub/micro border seam here, §17.5b). Rollback point: tag `glass-s17-start`.**
+**Status: DONE — reviewer visual sign-off 2026-09-24 ("looks good to me"), after the L4 captures
+and counts in §17.13. Design-checked twice (§17.12); D2 = option A. Rollback point: tag
+`glass-s17-start`.**
 
 ### 17.1 The defect, in the reviewer's words
 
