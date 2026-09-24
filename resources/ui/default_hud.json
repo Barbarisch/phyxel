@@ -32,7 +32,7 @@
   "anchor": "BottomLeft",
   "offset": [
    24,
-   -112
+   -116
   ],
   "size": [
    340,
@@ -94,7 +94,7 @@
   ],
   "size": [
    624,
-   88
+   100
   ],
   "showBackground": false,
   "visibleWhen": "hotbar.creative && !actionbar.visible && !player.hasProgression",
@@ -114,7 +114,7 @@
      "showBackground": true,
      "size": [
       62,
-      80
+      84
      ],
      "children": [
       {
@@ -134,8 +134,9 @@
        "text": "",
        "size": [
         46,
-        16
-       ]
+        24
+       ],
+       "scale": 1.5
       }
      ]
     }
@@ -657,10 +658,10 @@
   "anchor": "TopRight",
   "offset": [
    -16,
-   470
+   460
   ],
   "size": [
-   260,
+   300,
    140
   ],
   "showBackground": true,
@@ -672,15 +673,15 @@
     "bind": "party",
     "itemSpacing": 4,
     "size": [
-     240,
+     280,
      124
     ],
     "item": {
      "type": "panel",
      "showBackground": false,
      "size": [
-      236,
-      40
+      276,
+      32
      ],
      "children": [
       {
@@ -689,9 +690,10 @@
        "bind": "item.rowText",
        "text": "",
        "size": [
-        230,
-        20
-       ]
+        270,
+        24
+       ],
+       "scale": 1.5
       }
      ]
     }
@@ -787,7 +789,8 @@
         1.0
        ]
       }
-     ]
+     ],
+     "autoSize": true
     }
    },
    {
@@ -853,7 +856,8 @@
         1.0
        ]
       }
-     ]
+     ],
+     "autoSize": true
     }
    },
    {
@@ -919,7 +923,8 @@
         1.0
        ]
       }
-     ]
+     ],
+     "autoSize": true
     }
    }
   ],

@@ -954,7 +954,12 @@ static std::unique_ptr<UIWidget> buildMenuElement(const nlohmann::json& el, floa
         const MenuActions& actions, UISystem& ui, const std::string& startPanel,
         const std::string& nsPrefix) {
     auto w = buildMenuElementInner(el, sx, sy, actions, ui, startPanel, nsPrefix);
-    if (w) parseAppearAnim(el, *w);
+    if (w) {
+        parseAppearAnim(el, *w);
+        // The authored id, so the layout lint and the test API name the element the JSON
+        // names ("cs_hp_v"), not "(unnamed)" (G-184).
+        if (w->id.empty()) w->id = el.value("id", "");
+    }
     return w;
 }
 

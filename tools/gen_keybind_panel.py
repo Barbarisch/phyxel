@@ -54,11 +54,14 @@ ORDER = [
 # "Action Bar 10" wrapped to two lines and collided with the row beneath, and
 # "NumpadDivide" was wider than its button and spilled over the neighbouring label.
 # Sized from the real text instead: the longest label ("Abilities Panel", 15 chars) and
-# the longest key name ("NumpadDivide", 12) at ~14.6 px/char in the HUD font.
+# the longest key name ("NumpadDivide", 12). The HUD font is monospace, 14.6 px/char at
+# textScale 2 (JetBrains Mono, measured by the shipped exe's ui_lint: "NumpadDivide" =
+# 175 px, 1 px wider than the old 190 px button's 174 px inner width - G-184); a button
+# needs text + 2*8 px padding, and 210 leaves 19 px of slack.
 ROWS_PER_COL = 15
 COL_X = [160, 700]
 ROW_Y0, ROW_PITCH = 150, 34   # 34 (was 36): 15 rows + a Back row fit a 720 canvas (G-182)
-LABEL_W, BTN_W, BTN_DX = 240, 190, 250
+LABEL_W, BTN_W, BTN_DX = 240, 210, 250   # label "Abilities Panel" = 219 px; button 175 + 16 = 191 -> 210; col 2 ends at 1160
 
 
 def read_default_actions():
@@ -85,9 +88,11 @@ def build_children(actions):
         # lint is alignment-aware now - do not shift centred labels to "fix" the lint.
         {"type": "label", "align": "center", "id": "kb_title", "text": "KEYBINDINGS",
          "font": "title", "position": [640, 36], "size": [400, 60]},
+        # One line: the old 83-char hint (1210 px) wrapped in its 880 px box onto the first row
+        # of bindings (G-184). 73 chars = 1065 px in a 1200 px box.
         {"type": "label", "align": "center", "id": "kb_hint",
-         "text": "Click a key, then press the new key (ESC cancels). ESC or Back returns to Settings.",
-         "position": [640, 100], "size": [880, 26]},
+         "text": "Click a binding and press the new key (ESC cancels). ESC or Back returns.",
+         "position": [640, 100], "size": [1200, 26]},
         # G-179 (2026-09-24): the panel had NO way out - no Back button, and the shell's ESC
         # handler did not know the Settings state - so a player who opened Keybindings was
         # stuck. Same position as the main settings panel's Back.

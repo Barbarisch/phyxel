@@ -1261,3 +1261,165 @@ TEST(HudVisibleWhen, AndTermsAllMustHoldAndEachMayBeNegated) {
     ASSERT_EQ(keys.size(), 3u);
     EXPECT_EQ(keys[0], "journal.visible"); EXPECT_EQ(keys[1], "dialogue.active"); EXPECT_EQ(keys[2], "dialogue.aiActive");
 }
+
+
+// ---- G-184: text fit. The lint judges strings with the renderer's own metrics. ------------
+// Headless BitmapFont: 8 px glyphs, so 16 px per character at scale 2.
+TEST(UILayoutTest, TextWiderThanItsBoxIsReportedOnlyWhenTheRendererWouldNotWrapIt) {
+    Phyxel::UI::BitmapFont font;
+    const auto th = testTheme();
+    auto root = std::make_unique<Phyxel::UI::UIPanel>();
+    root->id = "screen"; root->size = {1280.0f, 720.0f}; root->freeLayout = true;
+    auto l = std::make_unique<Phyxel::UI::UILabel>();
+    l->id = "cs_hp_v"; l->text = "Hit Points 340 out of 340";   // 25 chars = 400 px, no word over 96 px
+    l->position = {440.0f, 196.0f}; l->size = {150.0f, 26.0f};    // no wrapWidth: ONE line
+    Phyxel::UI::UILabel* lp = l.get();
+    root->addChild(std::move(l));
+    EXPECT_FLOAT_EQ(lp->measureTextWidth(&font, th), 400.0f) << "unwrapped: the whole line";
+    auto defects = Phyxel::UI::lintLayout({root.get()}, {1280.0f, 720.0f}, &font, th);
+    ASSERT_EQ(defects.size(), 1u) << (defects.empty() ? "" : defects[0].message);
+    EXPECT_EQ(defects[0].kind, "text_overflow");
+    EXPECT_EQ(defects[0].panel, "cs_hp_v");
+    EXPECT_NEAR(defects[0].amount, 400.0f - 150.0f, 0.5f);
+    // the same label wrapped to its box: every drawn line fits, nothing to report
+    lp->wrapWidth = 150.0f;
+    EXPECT_LE(lp->measureTextWidth(&font, th), 150.0f);
+    EXPECT_TRUE(Phyxel::UI::lintLayout({root.get()}, {1280.0f, 720.0f}, &font, th).empty());
+}
+
+TEST(UILayoutTest, TwoStringsOnTheSameGroundAreReportedWithTheirNames) {
+    Phyxel::UI::BitmapFont font;
+    const auto th = testTheme();
+    auto root = std::make_unique<Phyxel::UI::UIPanel>();
+    root->id = "screen"; root->size = {1280.0f, 720.0f}; root->freeLayout = true;
+    auto a = std::make_unique<Phyxel::UI::UILabel>();
+    a->id = "cs_sv_con"; a->text = "Constitution"; a->position = {90.0f, 480.0f}; a->size = {190.0f, 26.0f};   // 192 px: 90..282
+    auto b = std::make_unique<Phyxel::UI::UILabel>();
+    b->text = "+11 *"; b->align = Phyxel::UI::UILabel::HAlign::Right;                                      // 80 px, ends at 300: 220..300
+    b->position = {300.0f, 480.0f}; b->size = {150.0f, 26.0f};
+    root->addChild(std::move(a)); root->addChild(std::move(b));
+    const auto defects = Phyxel::UI::lintLayout({root.get()}, {1280.0f, 720.0f}, &font, th);
+    bool overlap = false, overflow = false;
+    for (const auto& d : defects) {
+        if (d.kind == "text_overlap") {
+            overlap = true;
+            EXPECT_EQ(d.panel, "cs_sv_con");
+            EXPECT_EQ(d.other, "\"+11 *\"") << "an unnamed widget is named by its text";
+            EXPECT_NEAR(d.amount, std::min(62.0f, font.lineHeight(2.0f)), 0.5f);   // 282-220 = 62 px across, a full line down
+        }
+        if (d.kind == "text_overflow") overflow = true;   // "Constitution" is 2 px wider than 190
+    }
+    EXPECT_TRUE(overlap) << defects.size() << " defects, no text_overlap";
+    EXPECT_TRUE(overflow);
+    // a string running into a neighbouring button's frame is the same defect
+    auto root2 = std::make_unique<Phyxel::UI::UIPanel>();
+    root2->id = "screen"; root2->size = {1280.0f, 720.0f}; root2->freeLayout = true;
+    auto l = std::make_unique<Phyxel::UI::UILabel>();
+    l->id = "lbl_ToggleCharacter"; l->text = "Character Sheet Toggle"; l->position = {160.0f, 150.0f}; l->size = {240.0f, 30.0f};  // 352 px: 160..512
+    auto btn = std::make_unique<Phyxel::UI::UIButton>();
+    btn->id = "kb_ToggleCharacter"; btn->text = "C"; btn->position = {410.0f, 146.0f}; btn->size = {210.0f, 34.0f};
+    root2->addChild(std::move(l)); root2->addChild(std::move(btn));
+    bool runsInto = false;
+    for (const auto& d : Phyxel::UI::lintLayout({root2.get()}, {1280.0f, 720.0f}, &font, th))
+        if (d.kind == "text_overlap" && d.panel == "lbl_ToggleCharacter" && d.other == "kb_ToggleCharacter") runsInto = true;
+    EXPECT_TRUE(runsInto);
+}
+
+TEST(UILayoutTest, AnIconButtonIsJudgedByItsIconNotItsLabel) {
+    Phyxel::UI::BitmapFont font;
+    const auto th = testTheme();
+    auto root = std::make_unique<Phyxel::UI::UIPanel>();
+    root->id = "hud_action_bar"; root->size = {760.0f, 76.0f};
+    auto slot = std::make_unique<Phyxel::UI::UIButton>();
+    slot->id = "slot"; slot->text = "Mass Healing Word (3)"; slot->size = {52.0f, 52.0f};
+    slot->iconPath = "resources/ui/icons/spells/mass_healing_word.png";   // exists (run from the repo root)
+    Phyxel::UI::UIButton* sp = slot.get();
+    root->addChild(std::move(slot));
+    ASSERT_TRUE(std::filesystem::exists(sp->iconPath)) << "run from the repo root";
+    EXPECT_TRUE(Phyxel::UI::lintLayout({root.get()}, {1280.0f, 720.0f}, &font, th).empty())
+        << "the icon draws; the label is the tooltip's business";
+    // a missing PNG falls back to the label (UIButton::render), which then has to fit - it does not
+    sp->iconPath = "resources/ui/icons/spells/no_such_spell.png";
+    const auto defects = Phyxel::UI::lintLayout({root.get()}, {1280.0f, 720.0f}, &font, th);
+    ASSERT_EQ(defects.size(), 1u);
+    EXPECT_EQ(defects[0].kind, "text_overflow");
+    EXPECT_EQ(defects[0].panel, "slot");
+}
+
+TEST(UILayoutTest, AFixedRowThatCannotHoldItsWrappedTextIsReported) {
+    Phyxel::UI::BitmapFont font;
+    const auto th = testTheme();
+    // the shipped party row as it was: a 40 px row panel holding a 230 px label whose text is 320 px
+    auto root = std::make_unique<Phyxel::UI::UIPanel>();
+    root->id = "hud_party"; root->size = {260.0f, 140.0f};
+    auto row = std::make_unique<Phyxel::UI::UIPanel>();
+    row->id = "member"; row->size = {236.0f, 40.0f}; row->showBackground = false;
+    auto l = std::make_unique<Phyxel::UI::UILabel>();
+    l->id = "member_row"; l->text = "Old Moll   340 / 340"; l->size = {230.0f, 20.0f}; l->wrapWidth = 230.0f;   // 2 lines
+    row->addChild(std::move(l));
+    Phyxel::UI::UIPanel* rp = row.get();
+    root->addChild(std::move(row));
+    auto defects = Phyxel::UI::lintLayout({root.get()}, {1280.0f, 720.0f}, &font, th);
+    bool found = false;
+    for (const auto& d : defects) if (d.kind == "content_overflow" && d.panel == "member") { found = true; EXPECT_GT(d.amount, 20.0f); }
+    EXPECT_TRUE(found) << defects.size() << " defects, no content_overflow";
+    // wide enough for one line: nothing to report
+    rp->size.x = 336.0f;
+    for (auto& c : rp->children) { c->size.x = 330.0f; static_cast<Phyxel::UI::UILabel*>(c.get())->wrapWidth = 330.0f; }
+    for (const auto& d : Phyxel::UI::lintLayout({root.get()}, {1280.0f, 720.0f}, &font, th))
+        EXPECT_NE(d.kind, "content_overflow") << d.message;
+}
+
+// The journal's quest rows: a repeater whose row template says "autoSize": true. That flag was
+// inert (nothing resized repeater rows), so the auditor's row still drew 134 px into 108 px and
+// the lint had exempted autoSize rows from the content rule - an escape hatch. Now the auto-size
+// pass sizes repeater rows (as the renderer's per-frame pass does) and the rule applies to them.
+TEST(UILayoutTest, AutoSizeRepeaterRowsAreReallyResizedToTheirWrappedText) {
+    Phyxel::UI::BitmapFont font;
+    const auto th = testTheme();
+    auto root = std::make_unique<Phyxel::UI::UIPanel>();
+    root->id = "hud_journal"; root->size = {760.0f, 480.0f}; root->scrollable = true;
+    auto rep = std::make_unique<Phyxel::UI::UIRepeater>();
+    rep->id = "journal_main"; rep->size = {720.0f, 108.0f}; rep->itemSpacing = 2.0f;
+    for (int i = 0; i < 2; ++i) {
+        auto row = std::make_unique<Phyxel::UI::UIPanel>();
+        row->id = "quest_" + std::to_string(i); row->size = {716.0f, 108.0f}; row->showBackground = false; row->autoHeight = true;
+        auto t = std::make_unique<Phyxel::UI::UILabel>();
+        t->id = "title"; t->text = "Speak with Reeve Aldric about the missing children and the barrow beneath the hill";  // 82 chars: 2 lines at 700
+        t->size = {700.0f, 64.0f}; t->wrapWidth = 700.0f;
+        auto d = std::make_unique<Phyxel::UI::UILabel>();
+        d->id = "detail"; d->text = "The Reeve holds court at the town hall; the tracks lead north past Hollin Farm and on";  // 2 lines at 700
+        d->size = {700.0f, 28.0f}; d->wrapWidth = 700.0f;
+        row->addChild(std::move(t)); row->addChild(std::move(d));
+        rep->generated.push_back(std::move(row));
+    }
+    Phyxel::UI::UIRepeater* rpt = rep.get();
+    root->addChild(std::move(rep));
+    const float line = font.lineHeight(2.0f);
+    const float content = th.padding * 2.0f + 2.0f * line + th.itemSpacing + 2.0f * line;   // both labels wrap to 2 lines
+    auto defects = Phyxel::UI::lintLayout({root.get()}, {1280.0f, 720.0f}, &font, th);
+    for (const auto& d : defects) EXPECT_NE(d.kind, "content_overflow") << d.message;
+    for (const auto& row : rpt->generated)
+        EXPECT_NEAR(row->size.y, content, 0.5f) << "the auto-size pass resized the row to its content";
+    // the same rows with the flag off, at their authored 108 px: the rule reports them
+    for (auto& row : rpt->generated) { static_cast<Phyxel::UI::UIPanel*>(row.get())->autoHeight = false; row->size.y = 108.0f; }
+    int flagged = 0;
+    for (const auto& d : Phyxel::UI::lintLayout({root.get()}, {1280.0f, 720.0f}, &font, th))
+        if (d.kind == "content_overflow") { ++flagged; EXPECT_NEAR(d.amount, content - th.padding - 108.0f, 0.5f); }
+    EXPECT_EQ(flagged, 2);
+}
+
+
+// G-184: the metrics-only TTF load must measure with the TTF's advances, not the 8 px bitmap
+// grid. Until this test the headless gate read 16 px/char where the shipped font draws 14.6 -
+// the gate was 10% pessimistic about every width and its "real font" claim (G-183) was wrong.
+TEST(UILayoutTest, AMetricsOnlyTtfLoadMeasuresWithTheRealAdvances) {
+    Phyxel::UI::BitmapFont bitmap;   // never initialised: the 8x16 fallback
+    Phyxel::UI::BitmapFont ttf;
+    ASSERT_TRUE(ttf.initializeTTF(nullptr, "resources/fonts/JetBrainsMonoNerdFontMono-Regular.ttf", 48.0f)) << "run from the repo root";
+    const float grid = bitmap.measureText("NumpadDivide", 2.0f);   // 12 * 16 = 192
+    const float real = ttf.measureText("NumpadDivide", 2.0f);
+    EXPECT_FLOAT_EQ(grid, 192.0f);
+    EXPECT_NEAR(real, 175.0f, 2.0f) << "JetBrains Mono: 0.6 em advance on a 32 px line at scale 2 (the shipped exe measured 175)";
+    EXPECT_FLOAT_EQ(ttf.lineHeight(2.0f), bitmap.lineHeight(2.0f)) << "the line is normalised to GLYPH_H either way";
+}

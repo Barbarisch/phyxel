@@ -33,6 +33,7 @@
 #include <fstream>
 #include <functional>
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -132,11 +133,64 @@ std::string longestText(const std::string& k) {
 }
 
 // A row generator: realistic, LONG content so wrapping shows.
+// Each shipped list provider's row, at its longest real content (the shell's providers in
+// tools/create_project.py, PartyHud.cpp, the Ravenmere content): the bars carry a spell name
+// with a charge count and its icon (the label draws only when the PNG is missing), the party
+// row is "<name>   <hp> / <max>", the initiative row "> <entityId> [roll]  hp/max", the
+// objective "[ ] <title>", the choice "[n] <text>". A list this file does not know gets the
+// generic long rows below.
 std::vector<HudRecord> rows(const std::string& key, int n) {
     std::vector<HudRecord> out;
     for (int i = 0; i < n; ++i) {
         HudRecord r;
         const std::string idx = std::to_string(i + 1);
+        if (key == "actionbar" || key == "spellbook") {
+            r.texts["label"]   = "Mass Healing Word (3)";                     // longest spell name + charges
+            r.texts["icon"]    = "resources/ui/icons/spells/mass_healing_word.png";
+            r.texts["tooltip"] = "Mass Healing Word (3)\nLevel 3 evocation";
+            r.texts["payload"] = "spell:mass_healing_word";
+            r.floats["enabled"] = 1.0f;
+            out.push_back(r);
+            continue;
+        }
+        if (key == "hotbar") {   // the editor's creative bar: a material icon + a count, no label
+            r.texts["icon"]  = "resources/textures/source/cobblestone_top.png";
+            r.texts["count"] = "64";
+            r.floats["selected"] = i == 0 ? 1.0f : 0.0f;
+            out.push_back(r);
+            continue;
+        }
+        if (key == "party") {
+            r.texts["name"]       = "Old Moll";                  // longest companion name (Ravenmere)
+            r.texts["hpText"]     = "340 / 340";                 // a level-20 sheet
+            r.texts["statusText"] = "";
+            r.texts["rowText"]    = "Old Moll   340 / 340";
+            r.floats["hpPercent"] = 100.0f;
+            out.push_back(r);
+            continue;
+        }
+        if (key == "combat.turn_order") {
+            r.texts["name"]  = "npc_HollowPriest";
+            r.texts["label"] = std::string(i == 0 ? "> " : "  ") + "npc_HollowPriest [15]  340/340";
+            out.push_back(r);
+            continue;
+        }
+        if (key == "objectives") {
+            r.texts["label"] = "[ ] Ask Priestess Maera what she knows of the Hollow Barrow";   // longest title
+            out.push_back(r);
+            continue;
+        }
+        if (key == "dialogue.choices") {
+            r.texts["label"] = "[" + idx + "] Release the poacher Wren to me. I need a tracker more than you need an example.";
+            out.push_back(r);
+            continue;
+        }
+        if (key == "compass.poi") {
+            r.texts["label"] = "Town of Ravenmere";
+            r.floats["bearing"] = 30.0f * i;
+            out.push_back(r);
+            continue;
+        }
         r.texts["title"]   = "Speak with Reeve Aldric about the missing children and the barrow " + idx;
         r.texts["detail"]  = "The Reeve holds court at the town hall; the tracks lead north past Hollin Farm " + idx;
         r.texts["text"]    = "[ ] Find the missing children of Ravenmere before the new moon rises " + idx;
@@ -277,6 +331,34 @@ TEST_F(Matrix, TheAiHistoryLabelShowsItsTailNotAnUnboundedTranscript) {
     EXPECT_LE(h, font.lineHeight(2.0f) * 6.0f + 0.5f) << "measured " << h << " px for the capped label";
 }
 
+// What the shipped shell's onResolveVariable can put into a data screen, at its longest:
+// any binding may be rebound to "NumpadDivide" (the longest key name, GameSettings.cpp); the
+// sheet at level 20 with the longest shipped race (resources/races) and class names; the
+// scaffold's tagline is capped at 110 chars (create_project.py). Left unresolved, a literal
+// "{{sheet.skill_SleightOfHand}}" is 464 px and every value on the sheet reads as overflowing.
+std::optional<std::string> worstCaseToken(const std::string& t) {
+    if (t.rfind("keybind.", 0) == 0) return std::string("NumpadDivide");
+    if (t == "title")          return std::string("Ravenmere");
+    if (t == "tagline")        return std::string("A short Baldur's Gate-like: story-driven party RPG with D&D turn-based combat, "
+                                                  "one town and a barrow...");   // 110 chars
+    if (t == "loading_target") return std::string("The Tavern Cellar Beneath the Broken Wheel");
+    if (t.rfind("sheet.", 0) != 0) return std::nullopt;
+    const std::string k = t.substr(6);
+    if (k == "name")    return std::string("Adventurer");
+    if (k == "race")    return std::string("Lightfoot Halfling");
+    if (k == "class")   return std::string("Barbarian");
+    if (k == "level")   return std::string("20");
+    if (k == "xp" || k == "xp_next") return std::string("355000");
+    if (k == "hp" || k == "max_hp")  return std::string("340");
+    if (k == "ac")      return std::string("22");
+    if (k == "speed")   return std::string("40");
+    if (k == "initiative" || k == "proficiency") return std::string("+11");
+    if (k.rfind("save_", 0) == 0)  return std::string("+11");
+    if (k.rfind("skill_", 0) == 0) return std::string("+11 *");
+    if (k.size() > 4 && k.compare(k.size() - 4, 4, "_mod") == 0) return std::string("+5");
+    return std::string("20");   // an ability score
+}
+
 TEST_F(Matrix, EveryShippedDataScreenFitsAndDoesNotOverlapItselfAtAnyPlayableSize) {
     const std::vector<std::string> screens = {"mainmenu", "intro", "loading", "character", "victory",
                                               "credits", "game_over", "settings"};
@@ -285,6 +367,7 @@ TEST_F(Matrix, EveryShippedDataScreenFitsAndDoesNotOverlapItselfAtAnyPlayableSiz
         for (const auto& name : screens) {
             UISystem ui(nullptr, size.x, size.y);
             MenuActions actions;
+            actions.onResolveVariable = worstCaseToken;
             loadGameScreenInto(ui, name, actions);
             auto lintNs = [&](const std::string& tag) {
                 std::vector<UIPanel*> panels;
@@ -304,6 +387,7 @@ TEST_F(Matrix, EveryShippedDataScreenFitsAndDoesNotOverlapItselfAtAnyPlayableSiz
         // the pause menu has its own loader
         UISystem ui(nullptr, size.x, size.y);
         MenuActions actions;
+        actions.onResolveVariable = worstCaseToken;
         loadPauseMenuInto(ui, actions);
         std::vector<UIPanel*> panels;
         for (const auto& [sn, vis] : ui.getScreenList())

@@ -74,7 +74,12 @@ try:
     assert reached, 'never reached the town'
     time.sleep(4)
     lint('town playing', results)
-    key('ToggleJournal');   lint('journal open', results);   key('ToggleJournal')
+    # G-184: five quests in the journal (the shipped start shows one) - the multi-row case the
+    # journal's quest rows had failed (fixed 108 px rows under 134 px of wrapped text).
+    for oid in ('main_2', 'side_rats', 'side_poacher', 'side_wolves', 'side_hermit'):
+        safe('POST', '/api/rpg/host_action', {'action': {'type': 'reveal_objective', 'id': oid}})
+    time.sleep(0.5)
+    key('ToggleJournal');   lint('journal open (5 quests)', results);   key('ToggleJournal')
     # dialogue: start_dialogue runs the shell's NPC interact for a named NPC (a harness cannot
     # reliably stand in front of one and press Interact - the first runs measured nothing here)
     sd = safe('POST', '/api/rpg/start_dialogue', {'npc': 'Wynn'})
@@ -108,7 +113,7 @@ try:
     lint('combat @1536x960', results)
     shot = safe('GET', '/api/screenshot')
     if shot.get('path'): (OUT / ('rv_ui_lint_l4_%s_combat_wide.png' % LABEL)).write_bytes((REL / shot['path']).read_bytes())
-    key('ToggleJournal'); lint('journal @1536x960', results)
+    key('ToggleJournal'); lint('journal @1536x960 (5 quests)', results)
     shot = safe('GET', '/api/screenshot')
     if shot.get('path'): (OUT / ('rv_ui_lint_l4_%s_journal_wide.png' % LABEL)).write_bytes((REL / shot['path']).read_bytes())
     key('ToggleJournal')

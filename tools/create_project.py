@@ -20,6 +20,7 @@ Usage:
 import argparse
 import json
 import os
+import re
 import sys
 import textwrap
 from pathlib import Path
@@ -566,7 +567,17 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
     """Generate the game implementation C++ file."""
     # Tagline for the intro/credits screens: the game definition's description,
     # escaped for use inside a C++ string literal.
-    game_tagline = ((game_def or {}).get("description", "") or "A Phyxel game")
+    # {{tagline}} on the intro / credits screens (G-184): game.json "tagline", else the FIRST
+    # SENTENCE of the description, capped at 110 chars - the screens give it two 900 px lines
+    # (16 px/char). Ravenmere's 242-char description drew six lines over the Continue button.
+    _gd = game_def or {}
+    game_tagline = str(_gd.get("tagline", "") or "").strip()
+    if not game_tagline:
+        _desc = str(_gd.get("description", "") or "A Phyxel game").strip()
+        _m = re.match(r"(.+?[.!?])(\s|$)", _desc)
+        game_tagline = _m.group(1) if _m else _desc
+    if len(game_tagline) > 110:
+        game_tagline = game_tagline[:107].rsplit(" ", 1)[0] + "..."
     game_tagline = game_tagline.replace("\\", "\\\\").replace('"', '\\"')
 
     # ── Data-driven HUD wiring (UISystem, no ImGui) ─────────────────────

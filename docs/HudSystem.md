@@ -357,6 +357,37 @@ width; the turn-label panel overlaps the (enlarged) action panel — both layout
 > only hand-maintained part is a short list of state pairs the game cannot raise together, each
 > citing the provider that makes them exclusive. Adding a HUD element that overlaps anything, in
 > any state, at any of those sizes, fails the build - no debug session needed.
+>
+> **Strings, too (2026-09-24, G-184 - user: "UI strings overlap ui elements or dont fit").** The
+> same lint (`UILayoutLint.h`) judges every string with the renderer's own metrics - the HUD
+> font's real advances, 14.6 px/char at textScale 2 on a 32 px line (the metrics-only TTF load
+> had never set its TTF flag, so until G-184 the gate measured the 8 px bitmap grid, 16 px/char:
+> 10% pessimistic about every width, and G-183's "real font" claim was wrong): `text_overflow` -
+> a label's widest DRAWN line is wider than
+> its box (labels wrap only when `wrapWidth` > 0, which an authored `size` sets; a word longer
+> than the box still overflows), or a button's text is wider than its frame unless an icon draws
+> in its place (`buttonDrawsIcon`: a loaded icon, or headless, a PNG that exists - a missing PNG
+> falls back to the label, which then has to fit); `content_overflow` - a fixed-height nested
+> panel (a repeater row) is shorter than what is drawn in it, so rows overprint each other
+> (`"autoSize": true` on the row template is the fix when rows carry wrapped text - and since G-184
+> `UIPanel::applyAutoSize` really sizes a repeater's generated rows every frame; before, that flag
+> on a row was inert, and no row is exempt from the rule); `text_overlap` - in a
+> free-layout screen a string lands on a sibling string or runs into a sibling button/panel
+> frame. The gate feeds the rows each shipped provider really produces (a spell name with a
+> charge count and its icon on the bars, `Old Moll   340 / 340` in the party roster, the longest
+> Ravenmere quest title, `[9] <longest choice>`) and resolves every data-screen `{{token}}` to
+> its worst real value (`NumpadDivide` for any keybind, a level-20 sheet with the longest shipped
+> race and class names, the scaffold's 110-char tagline cap). What it found on the shipped
+> layouts, all fixed: the character sheet (measured against literal `{{sheet.skill_SleightOfHand}}`
+> every value box read as overflowing - a test artefact; with real values the 18 skill rows at
+> scale 2 are 32 px lines on a 26 px pitch and overprint - they draw at 1.5 now; `Close  [NumpadDivide]`
+> 81 px wider than its button; the level-20 subtitle wrapping onto two section headers); the keybindings buttons 1 px
+> too narrow for `NumpadDivide` and their hint wrapping onto the first row of bindings; the
+> journal's fixed 108 px quest rows holding 134 px of title + detail; the
+> hotbar's count line crossing the slot; the intro/credits tagline - the whole 242-char game
+> description - drawn over the Continue button (the scaffold now uses `game.json` `tagline`, else
+> the description's first sentence, capped at 110 chars). Data-screen widgets keep their JSON
+> `id`, so a defect names `cs_hp_v`, not "(unnamed)".
 
 > **Modal overlays (2026-09-24, Ravenmere G-182).** A HUD root panel with `"modal": true` owns
 > the screen while visible: `applyModalOverlays()` hides every other un-namespaced HUD root and

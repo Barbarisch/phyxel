@@ -304,7 +304,17 @@ public:
     /// out of a fixed-size panel: the input field vanished 38 px past the bottom (G-183).
     int maxLines = 0;
     static std::string tailLines(const std::string& wrapped, int maxLines);
+    /// Word-wrap `text` at `scale` to `maxWidth` px (lines joined by newline). Public so the
+    /// layout lint measures the widest DRAWN line, not the box.
+    static std::string wrapLines(const BitmapFont* font, const std::string& text, float scale, float maxWidth);
+    /// The font scale this label draws with (customScale, else title/body theme scale).
+    float drawScale(const UITheme& theme) const {
+        return customScale > 0.0f ? customScale : (isTitle ? theme.titleScale : theme.textScale);
+    }
     float measureHeight(const BitmapFont* font, const UITheme& theme, float availWidth) const override;
+    /// Widest drawn line in px (after wrapping to wrapWidth or the box); size.x without a font.
+    /// NOT the measureWidth override: that one feeds autoWidth panels (G-148) and must stay the box.
+    float measureTextWidth(const BitmapFont* font, const UITheme& theme) const;
     /// Horizontal alignment relative to `position.x`:
     ///   Left   (default) — text STARTS at position.x (historical behavior)
     ///   Center           — text is centered ON position.x (what every shipped

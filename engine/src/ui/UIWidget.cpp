@@ -319,6 +319,30 @@ static std::string wrapText(const BitmapFont* font, const std::string& text,
     return out;
 }
 
+std::string UILabel::wrapLines(const BitmapFont* font, const std::string& text, float scale, float maxWidth) {
+    return wrapText(font, text, scale, maxWidth);
+}
+
+float UILabel::measureTextWidth(const BitmapFont* font, const UITheme& theme) const {
+    if (!font) return size.x;
+    if (text.empty()) return 0.0f;
+    const float scale = drawScale(theme);
+    // Exactly what render() does: the text wraps only when wrapWidth > 0 (an authored size
+    // becomes the wrapWidth at load); otherwise it is ONE line, however long. Measuring a
+    // wrap that the renderer never performs hid every overflowing single-line label.
+    const std::string wrapped = wrapWidth > 0.0f ? tailLines(wrapText(font, text, scale, wrapWidth), maxLines) : text;
+    float widest = 0.0f;
+    size_t pos = 0;
+    while (pos <= wrapped.size()) {
+        const size_t nl = wrapped.find('\n', pos);
+        const std::string line = wrapped.substr(pos, nl == std::string::npos ? std::string::npos : nl - pos);
+        widest = std::max(widest, font->measureText(line, scale));
+        if (nl == std::string::npos) break;
+        pos = nl + 1;
+    }
+    return widest;
+}
+
 // Keep the last `maxLines` lines of a wrapped text (a transcript shows its tail); 0 = all.
 std::string UILabel::tailLines(const std::string& wrapped, int maxLines) {
     if (maxLines <= 0) return wrapped;
@@ -398,9 +422,16 @@ float UIPanel::measureContentWidth(const BitmapFont* font, const UITheme& theme)
 }
 
 void UIPanel::applyAutoSize(const BitmapFont* font, const UITheme& theme) {
-    // Nested auto panels first (their heights feed this panel's content height).
-    for (auto& child : children)
+    // Nested auto panels first (their heights feed this panel's content height) - INCLUDING a
+    // repeater's generated rows: a row template with "autoSize": true was an inert flag until
+    // G-184 (nothing ever resized the rows, so the journal's quest rows stayed 108 px under
+    // 134 px of wrapped text). UIRepeater stacks rows by size.y, which this sets.
+    for (auto& child : children) {
         if (auto* p = dynamic_cast<UIPanel*>(child.get())) p->applyAutoSize(font, theme);
+        else if (auto* r = dynamic_cast<UIRepeater*>(child.get()))
+            for (auto& row : r->generated)
+                if (auto* rp = dynamic_cast<UIPanel*>(row.get())) rp->applyAutoSize(font, theme);
+    }
     // Width BEFORE height: the inner width is what the height measurement wraps against.
     if (autoWidth) {
         const float w = measureContentWidth(font, theme);
