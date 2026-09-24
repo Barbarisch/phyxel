@@ -232,7 +232,8 @@ void ChunkRenderManager::rebuildAllFaces(
     const NeighborLookupFunc& getNeighborCube,
     const NeighborLightFunc& getNeighborLight,
     const std::vector<uint8_t>* columnOpenMask,
-    const ChunkVoxelStore* voxelStore)
+    const ChunkVoxelStore* voxelStore,
+    const NeighborFineLookupFunc& getNeighborFine)
 {
     // T0 instrumentation: time the whole mesh op (greedy mesh + light bake). Records on scope exit
     // so every return path is covered. See docs/OffThreadMeshingPlan.md.
@@ -263,6 +264,13 @@ void ChunkRenderManager::rebuildAllFaces(
     // rebuildSubcube/MicrocubeFaces can cull hidden faces.
     rebuildCubeFaces(cubes, subcubes, microcubes, worldOrigin, getNeighborCube, columnOpenMask, voxelStore);
     buildSubMicroOccupancy(subcubes, microcubes, worldOrigin);
+    // C9: the sub/micro border lookup lives only for this rebuild (a stale pointer to a caller's
+    // lambda must never outlive the call).
+    struct FineLookupScope {
+        const NeighborFineLookupFunc*& slot;
+        ~FineLookupScope() { slot = nullptr; }
+    } fineScope{m_fineLookup};
+    m_fineLookup = getNeighborFine ? &getNeighborFine : nullptr;
     rebuildSubcubeFaces(subcubes, worldOrigin);
     rebuildMicrocubeFaces(microcubes, worldOrigin);
 
@@ -1034,7 +1042,13 @@ bool ChunkRenderManager::fineFaceHidden(int gx, int gy, int gz, int level, bool 
                                (gx % 9) % 3, (gy % 9) % 3, (gz % 9) % 3);
         }
     }
-    // Out of chunk: no cross-chunk sub/micro answer yet → Empty → the face is drawn (C9).
+    else if (m_fineLookup) {
+        // C9 (§17.5b): ask the neighbour chunk, at this level's resolution, the same question the
+        // in-chunk branch asks. Without an answer (no lookup) the face is drawn, never hidden.
+        const glm::ivec3 g(gx, gy, gz);
+        const glm::ivec3 worldMicro = m_lightWorldOrigin * 9 + (level == 1 ? g * 3 : g);
+        n = (*m_fineLookup)(worldMicro, level);
+    }
     if (n == NeighborOccupancy::Empty) return false;
     return n == NeighborOccupancy::Opaque || selfTransparent;   // §17.2
 }

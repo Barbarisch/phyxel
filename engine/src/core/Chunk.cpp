@@ -335,6 +335,31 @@ Graphics::ChunkRenderManager::NeighborOccupancy Chunk::renderOccupancyAt(const g
                ? Occ::Transparent : Occ::Opaque;
 }
 
+Graphics::ChunkRenderManager::NeighborOccupancy Chunk::renderOccupancyAtFine(const glm::ivec3& localMicro,
+                                                                             int level) const {
+    using Occ = Graphics::ChunkRenderManager::NeighborOccupancy;
+    if (localMicro.x < 0 || localMicro.x >= 288 || localMicro.y < 0 || localMicro.y >= 288 ||
+        localMicro.z < 0 || localMicro.z >= 288) return Occ::Empty;
+    const glm::ivec3 cube  = localMicro / 9;
+    const glm::ivec3 sub   = (localMicro % 9) / 3;
+    const glm::ivec3 micro = localMicro % 3;
+    auto classOf = [](const std::string& name) {
+        return Core::isTransparentMaterial(Core::MaterialRegistry::instance().getMaterial(name))
+                   ? Occ::Transparent : Occ::Opaque;
+    };
+    // Precedence mirrors ChunkRenderManager::subCellSolid / microCellSolid exactly.
+    const Occ c = renderOccupancyAt(cube);
+    if (c != Occ::Empty) return c;
+    if (const Subcube* s = getSubcubeAt(cube, sub)) {
+        if (!s->isBroken() && s->isVisible()) return classOf(s->getMaterialName());
+    }
+    if (level == 1) return Occ::Empty;   // microcubes do not fill a SUBCUBE cell
+    if (const Microcube* m = getMicrocubeAt(cube, sub, micro)) {
+        if (!m->isBroken() && m->isVisible()) return classOf(m->getMaterialName());
+    }
+    return Occ::Empty;
+}
+
 void Chunk::rebuildFaces() {
     // Call the cross-chunk version without a neighbor lookup function
     // This will only do intra-chunk culling
@@ -343,11 +368,12 @@ void Chunk::rebuildFaces() {
 
 void Chunk::rebuildFaces(const NeighborLookupFunc& getNeighborCube,
                          const NeighborLightFunc& getNeighborLight,
-                         const std::vector<uint8_t>* columnOpenMask) {
+                         const std::vector<uint8_t>* columnOpenMask,
+                         const NeighborFineLookupFunc& getNeighborFine) {
     // Delegate to render manager (4.2b: the palette store carries the static voxels; `cubes` is
     // the materialized overlay that wins where present)
     renderManager.rebuildAllFaces(cubes, staticSubcubes, staticMicrocubes, worldOrigin, getNeighborCube, getNeighborLight, columnOpenMask,
-                                  &voxelManager.getVoxelStore());
+                                  &voxelManager.getVoxelStore(), getNeighborFine);
     // Refresh cached render flags (geometry/materials may have changed).
     recomputeRenderFlags();
     // Refresh the occlusion visibility graph (cheap flood-fill, only on rebuild).

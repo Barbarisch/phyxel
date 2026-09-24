@@ -1741,6 +1741,7 @@ and damage, LOD mesh, window aperture; 187 tests).
 | 3 (C1 alone, not committed) | 15 / 34 / 7 | T1 | **T8 cubes /1, /2**: plan defect, amended (step 3 = C1+C2+C8) | — |
 | 3 (C1+C2+C8) | 19 / 29 / 7 | T1, T7, T9e/R2 | none | 186 pass, 1 fail (below) |
 | 4 (C3+C4+C5 sub/micro) | 24 / 24 / 7 | + T4a, T4b, T4c, T5a, T5b; T6 stays green | none | 186 pass, 1 fail (below) |
+| 6 (C9, D2 = A) | 31 / 17 / 7 | + **all 9 T8 cases** (sub/micro now EXACT equality, not ⊇), T15 | none | 186 pass, 1 fail (below) |
 
 **The one failure in the regression list** is
 `FineFaceMerge.SubcubeMerge_CrossCubeSplitsOnLightBoundaryBetweenCubes`: "cross-cube must split +Y

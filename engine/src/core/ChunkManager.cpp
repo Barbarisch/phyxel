@@ -541,6 +541,23 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
         // glass in the NEXT chunk is drawn exactly as it would be inside one chunk.
         return ncChunk ? ncChunk->renderOccupancyAt(worldToLocalCoord(worldPos)) : Occ::Empty;
     };
+    // C9 (§17.5b): the same lookup at sub-voxel resolution, for sub/micro faces on the border.
+    // World micro coordinates can be negative, so the chunk split uses FLOOR division.
+    bool nfValid = false;
+    glm::ivec3 nfCoord(0);
+    Chunk* nfChunk = nullptr;
+    auto getNeighborFine = [this, nfValid, nfCoord, nfChunk](const glm::ivec3& worldMicro,
+                                                             int level) mutable -> Occ {
+        auto floorDiv = [](int a, int b) { return (a >= 0) ? a / b : -((-a + b - 1) / b); };
+        const glm::ivec3 cc(floorDiv(worldMicro.x, 288), floorDiv(worldMicro.y, 288),
+                            floorDiv(worldMicro.z, 288));
+        if (!nfValid || cc != nfCoord) {
+            nfValid = true;
+            nfCoord = cc;
+            nfChunk = getChunkAtCoord(cc);
+        }
+        return nfChunk ? nfChunk->renderOccupancyAtFine(worldMicro - cc * 288, level) : Occ::Empty;
+    };
 
     // Cross-chunk baked-light lookup: lets the bake read a neighbour chunk's already-baked
     // sky/block light so light bleeds across chunk boundaries (no seams).
@@ -590,7 +607,7 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
     }
 
     // Call rebuildFaces with cross-chunk culling + light bleed + precomputed roof mask
-    chunk.rebuildFaces(getNeighborCube, getNeighborLight, &columnOpen);
+    chunk.rebuildFaces(getNeighborCube, getNeighborLight, &columnOpen, getNeighborFine);
 
     // If this chunk's boundary light changed, its neighbours' border-seeded light is now stale —
     // re-mesh them so the bleed propagates. Gated on "actually changed", so this ripple converges

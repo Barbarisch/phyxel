@@ -175,6 +175,11 @@ public:
     /// §17.5). The neighbour lookup for cross-chunk FACE culling. Built on visibleSolidCubeAtIndex,
     /// which is deliberately NOT changed: physics must go on treating glass as solid (K1).
     Graphics::ChunkRenderManager::NeighborOccupancy renderOccupancyAt(const glm::ivec3& localPos) const;
+    /// The same at sub-voxel resolution (§17.5b, C9). localMicro = chunk-local micro coordinate
+    /// (0..287 per axis); level 1 = subcube cell (cube or that subcube), level 2 = microcube cell
+    /// (cube, parent subcube or that microcube) — the precedence of subCellSolid/microCellSolid.
+    Graphics::ChunkRenderManager::NeighborOccupancy renderOccupancyAtFine(const glm::ivec3& localMicro,
+                                                                          int level) const;
 
     size_t getStaticSubcubeCount() const { return staticSubcubes.size(); }
     size_t getStaticMicrocubeCount() const { return staticMicrocubes.size(); }
@@ -313,9 +318,11 @@ public:
     using BakedLight         = Graphics::ChunkRenderManager::BakedLight;
     // columnOpenMask (optional): 32x32 sky-open grid (x*32+z) precomputed by ChunkManager from
     // the chunks above, so the skylight bake skips the slow per-cell roof probe.
+    using NeighborFineLookupFunc = Graphics::ChunkRenderManager::NeighborFineLookupFunc;
     void rebuildFaces(const NeighborLookupFunc& getNeighborCube,
                       const NeighborLightFunc& getNeighborLight = nullptr,
-                      const std::vector<uint8_t>* columnOpenMask = nullptr);
+                      const std::vector<uint8_t>* columnOpenMask = nullptr,
+                      const NeighborFineLookupFunc& getNeighborFine = nullptr);
 
     // Did this chunk's boundary light change on the last rebuild? (drives neighbour re-mesh)
     bool lightBordersChanged() const { return renderManager.lightBordersChanged(); }

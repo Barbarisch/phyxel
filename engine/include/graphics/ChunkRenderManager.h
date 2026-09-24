@@ -38,6 +38,12 @@ public:
     // materializing border Cubes. §17: one call answers occupancy AND see-through, so the two
     // can never disagree.)
     using NeighborLookupFunc = std::function<NeighborOccupancy(const glm::ivec3& worldPos)>;
+    // The same question at SUB-VOXEL resolution, for sub/micro faces on a chunk border (§17.5b,
+    // C9). worldMicro = worldCube*9 + sub*3 + micro, in WORLD micro units. level 1 = "is this
+    // SUBCUBE cell filled" (a solid cube or that subcube; microcubes do not fill a sub-cell),
+    // level 2 = "is this MICROCUBE cell filled" (cube, parent subcube or that microcube) — exactly
+    // subCellSolid / microCellSolid, so a border cell answers as an interior one would.
+    using NeighborFineLookupFunc = std::function<NeighborOccupancy(const glm::ivec3& worldMicro, int level)>;
     // Baked light at a cell: skylight + per-channel coloured block light (each 0-15).
     struct BakedLight { uint8_t sky = 0, r = 0, g = 0, b = 0; };
     // Cross-chunk baked-light lookup: fills `out` for the given WORLD cell from a neighbouring
@@ -154,7 +160,8 @@ public:
         const NeighborLookupFunc& getNeighborCube = nullptr,
         const NeighborLightFunc& getNeighborLight = nullptr,
         const std::vector<uint8_t>* columnOpenMask = nullptr,
-        const ChunkVoxelStore* voxelStore = nullptr
+        const ChunkVoxelStore* voxelStore = nullptr,
+        const NeighborFineLookupFunc& getNeighborFine = nullptr
     );
 
     void rebuildCubeFaces(
@@ -437,6 +444,9 @@ private:
     // Keys (same encoding as m_subOcc / m_microOcc) of the TRANSPARENT ones (§17.4 C3/C4).
     std::unordered_set<uint32_t> m_subTransparent;
     std::unordered_set<uint32_t> m_microTransparent;
+    // Cross-chunk sub/micro lookup for the CURRENT rebuild only (set and cleared by
+    // rebuildAllFaces). nullptr = no neighbour data: border sub/micro faces are drawn.
+    const NeighborFineLookupFunc* m_fineLookup = nullptr;
     void buildSubMicroOccupancy(
         const std::vector<std::unique_ptr<Subcube>>& subcubes,
         const std::vector<std::unique_ptr<Microcube>>& microcubes,
