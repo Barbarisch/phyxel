@@ -898,3 +898,13 @@ scope — and logged here so they are not rediscovered as "new":
 
 Raw per-arm messages: `oit_validation_control.json` / `oit_validation_oit_on.json` from that session.
 
+## 2026-09-24 — LOD meshes draw glass OPAQUE (and cull faces behind it)
+
+Found while planning `docs/GlassTransparency.md` §17 (D1). `LodChunkMesh::emitFaces` writes
+`inst.reserved = 0` (`LodChunkMesh.cpp:148`) for every face, so a LOD mesh carries **no transparent
+bit**: glass in a LOD chunk is drawn by the opaque pass as a solid surface, never by the OIT pass. It
+also culls faces against any solid neighbour (`:139`), glass included, so opaque faces behind LOD glass
+are missing too. Both must be fixed together — fixing the culling alone would add faces hidden behind
+opaque LOD glass. Distance-driven chunk LOD is default-OFF, so this is latent; it becomes visible the
+day chunk LOD is enabled with glass in range. Update `docs/LodTierLedger.md` when it is fixed.
+

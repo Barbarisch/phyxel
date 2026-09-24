@@ -7,8 +7,9 @@ alpha channel from Glass (§12.10).** **Fix design recorded (§13); all decision
 no shadow (§13.9). Design-check pass 4 NEEDS WORK → 7 items folded in (§13.9–13.15). **Phase 3 COMPLETE (§14).**
 **PHASE 4 STOPPED — the §13 design rests on a false premise: the OIT pass has been DISABLED since
 `7a36910f` (§15); the blocker was investigated and is gone (§15.8).
-**PHASE 4 BUILT (§16) — every automated check green except one deferred; awaiting the reviewer's
-VISUAL SIGN-OFF (Phase 5). NOT FIXED until the reviewer says so.** Results in §12. Gated through `FeatureDesignKeys.md` three
+**PHASE 4 BUILT (§16).** Reviewer: *"almost perfect. overall appearance looks really good"* — with one
+defect: opaque faces beside glass are culled. **§17 plans the fix; design-check required before any
+code.** NOT FIXED until the reviewer says so. Results in §12. Gated through `FeatureDesignKeys.md` three
 times (§9).
 
 > **PROCESS RULE (added 2026-09-23, after it was broken).** This plan is the approved plan. When
@@ -1281,3 +1282,197 @@ file carries another session's uncommitted work.
 Frames (shipped look: AgX, exposure 8, GI on): clean pane over bricks, the same pane angled, right
 half cracked at 0.45, cracked close-up at 0.90, and the stone control. **Glass is not fixed until the
 reviewer says so.** Still owed after sign-off: the pane in a generated building (§13.7).
+
+---
+
+## 17. Faces hidden by glass — opaque faces behind transparent neighbours are culled (plan, 2026-09-24)
+
+**Status: PLANNED, not built. Reviewer requires a design-check before implementation.**
+
+### 17.1 The defect, in the reviewer's words
+
+> *"Since glass is transparent the voxel faces of non-transparent voxels that sit beside glass and
+> would normally be obscured (and not rendered), should actually be seeable. Whatever code does face
+> culling based on faces touching, needs an exception for transparent material."*
+
+Every mesher in the engine drops a voxel face when the neighbouring cell is occupied — correct when
+the neighbour is opaque, wrong when it is glass. With glass now genuinely transparent (§16), the
+omission is visible: the stone faces lining a window opening (its "reveal") are not meshed, so
+looking through the pane at an angle shows **missing geometry** where the reveal should be. The same
+holds for any opaque voxel against any glass voxel, at every voxel size and across chunk borders.
+
+### 17.2 The rule
+
+A face of voxel **A** pointing at neighbour cell **B** is **hidden** iff
+
+    B is occupied  AND  ( B is opaque  OR  A is transparent )
+
+| A (face owner) | B (neighbour) | face drawn? | why |
+|---|---|---|---|
+| opaque | empty | **yes** | unchanged |
+| opaque | opaque | no | unchanged |
+| **opaque** | **transparent** | **yes — THE FIX** | it can be seen through B |
+| transparent | empty | yes | unchanged |
+| transparent | **transparent** | **no** | the interior faces of a thick pane. Drawing them would stack OIT layers inside the pane — with blending compounding per layer (§16.3), a 3-thick wall would read far more opaque than a 1-thick one, and every internal face would show its own smudges. Must stay culled. |
+| transparent | opaque | no | the glass face lies on the stone's surface; the stone face is what is seen through the pane, and a glass face there would only tint it a second time |
+
+**One consequence, recorded not solved:** two DIFFERENT transparent materials touching hide each
+other's faces (row 5). Only one transparent material exists (`Glass`), so this cannot occur today;
+coloured glass (a possible follow-up) would make it a question.
+
+### 17.3 One definition of "transparent"
+
+The engine already has FIVE independent copies of the same test, all `alpha < 0.99`:
+the instance transparent bit (`ChunkRenderManager.cpp:388` cubes, `:1084` subcubes, `:1244`
+microcubes), `Chunk::recomputeRenderFlags`, and `Chunk::computeVisibilityMask`. This change would add
+more. **Add one helper and use it everywhere this change touches:**
+
+    // MaterialRegistry.h
+    inline bool isTransparentMaterial(const MaterialDef* m) { return m && m->alpha < 0.99f; }
+
+The existing copies are refactored onto it in the same commit **only where this change already
+edits the line**; the rest are listed for a follow-up rather than widening the blast radius.
+
+### 17.4 Inventory — where "is the neighbour solid?" is asked, and what each must do
+
+Found by reading the code on 2026-09-24. **CHANGE** = must adopt the §17.2 rule.
+**KEEP** = must go on treating glass as solid. Line numbers are as of `e995caad`.
+
+#### Must CHANGE (rendering)
+
+| # | Where | Asks | Data available | Required change |
+|---|---|---|---|---|
+| **C1** | `ChunkRenderManager.cpp:618` lambda `neighborSolid`, used for **cube face emission** at `:760` | in-chunk: `solidVis[cell]` (= ANY visible cube, glass included) | the neighbour's material: `matFaces[cellMat[n]].reserved & 2` is its transparent bit (computed at `:388`, packed at `:393`); the face owner's material: `cellMat[cell]` | new predicate **`faceHiddenByNeighbor(x,y,z, selfTransparent)`** = `solidVis[n] && (!transparent[n] \|\| selfTransparent)` |
+| **C2** | same lambda, **out-of-chunk** branch → `getNeighborCube` → `ChunkManager.cpp:530` → `Chunk::visibleSolidCubeAt` | across a chunk border: occupied? (bool) | nothing about material — the callback returns only a bool | the lookup must report **empty / opaque / transparent** (17.5) |
+| **C3** | `ChunkRenderManager::subCellSolid` (`:945`): per-face subcube path `:1010`, merged path faces `:1543` | `cubeCellSolid` (parent cube) or `m_subOcc` contains the subcube | `m_subOcc` is **occupancy only** — no material | companion set **`m_subTransparent`** (keys of transparent subcubes), filled in `buildSubMicroOccupancy` (`:903`); parent-cube test uses the cube cell's transparency from C1; the predicate takes `selfTransparent` |
+| **C4** | `ChunkRenderManager::microCellSolid` (`:952`): per-face micro path `:1181`, merged path faces `:1395` | cube, then parent subcube, then `m_microOcc` | occupancy only | companion **`m_microTransparent`**; same shape as C3 |
+| **C5** | leaf **foliage exposure** — cube leaves `:643-645`, merged subcube leaves `:1489`, merged microcube leaves `:1328` | "is this billboarded leaf exposed on any side?" via the same predicates | as C1/C3/C4 | follow the **new** rule: a leaf behind glass is visible, so it must emit its foliage cards |
+| **C6** | `ChunkManager::isChunkCapped` (`:459`), used at `:509` to SEAL a uniform-solid chunk (skip meshing its boundary wall) | uniform neighbour: `ns.visible(0)`; dense: `visibleSolidCubeAtIndex` over the facing layer | the neighbour's store material (`ChunkVoxelStore::material(idx)`) | "capped" requires the capping cell to be **opaque**. A glass layer must not seal the wall behind it |
+
+Where the face owner's own transparency comes from, per path: cube — `cellMat[cell]`; per-face
+subcube/microcube — the voxel's material is already resolved at `:1084` / `:1244`; merged
+subcube/microcube — the cell's `Subcube*` / `Microcube*` is in hand (`grid[lx][ly][lz]`, `cells[ci]`)
+at the point the neighbour test is made.
+
+#### Must KEEP (glass stays solid)
+
+| # | Where | Why it must not change |
+|---|---|---|
+| **K1** | `Chunk.cpp:797-949` — all ten `visibleSolidCubeAt` callers: `createChunkPhysicsBody`, `updateChunkPhysicsBody`, `forcePhysicsRebuild`, `createCubeCollisionShape`, `addCollisionEntity`, `batchUpdateCollisions`, `hasExposedFaces`, `buildInitialCollisionShapes`, `updateNeighborCollisionShapes`, `endBulkOperation` | **physics**. Glass is a solid you cannot walk through. This is exactly why the fix must NOT go into `visibleSolidCubeAt` itself, even though C2 reaches it |
+| **K2** | `ChunkRenderManager.cpp:672` — `if (neighborSolid(x, y + 1, z)) continue; // top face covered → no grass` | **grass sprouting** is about physical cover. Under the new rule a glass cube sitting on grass would count as "not covering", and blades would grow INSIDE the glass voxel. The grass tests keep the OLD predicate — which is why C1 introduces a NEW predicate instead of editing `neighborSolid` |
+| **K3** | `ChunkRenderManager.cpp:694` — grass edge taper `grassyColumn` ("covered top = a wall face") | same reason as K2 |
+| **K4** | `ChunkManager.cpp:578` — skylight roof scan | lighting, currently a uniform placeholder (`089ff2cb`). Whether a glass roof should roof a column is a real question when skylight returns — **recorded, not decided here** |
+| **K5** | `Chunk::computeVisibilityMask` | chunk occlusion graph — **already correct**: `if (mat && mat->alpha < 0.99f) continue; // transparent → air (see-through)`. It is the precedent for this whole change |
+| — | `ChunkRenderManager::isCubeFaceVisible` (`:1822`) | dead stub (`return true`, "not used"); untouched |
+
+#### DEFERRED, with the reason
+
+| # | Where | Why not now |
+|---|---|---|
+| **D1** | `LodChunkMesh.cpp:139` — `if (volume.atClamped(nx, ny, nz).solid()) continue;` | the LOD mesher writes `inst.reserved = 0` (`:148`): **LOD draws glass OPAQUE** — no transparent bit at all. Applying the culling rule there alone would add faces hidden behind opaque LOD glass: cost with no visible effect. LOD glass is its own pre-existing defect, logged in `docs/StructurePipelineGaps.md`; distance-driven chunk LOD is default-OFF. Both fixes belong together, later |
+
+### 17.5 The cross-chunk lookup (C2) — the interface change
+
+Today: `using NeighborLookupFunc = std::function<bool(const glm::ivec3& worldPos)>;` meaning
+"occupied?". It has **exactly one real supplier** (`ChunkManager.cpp:530`, the cross-chunk rebuild at
+`:590`); every other `rebuildFaces()` passes `nullptr`, which treats chunk borders as exposed and
+stays unchanged.
+
+**Change:** the callback returns an occupancy class instead of a bool:
+
+    enum class NeighborOccupancy : uint8_t { Empty = 0, Opaque = 1, Transparent = 2 };
+    using NeighborLookupFunc = std::function<NeighborOccupancy(const glm::ivec3& worldPos)>;
+
+supplied by a new **`Chunk::renderOccupancyAt(localPos)`**, built on `visibleSolidCubeAtIndex` plus
+`isTransparentMaterial(store material)`. `visibleSolidCubeAt` itself is **not modified** (K1).
+
+*Why one enum callback, not a second bool callback:* two callbacks mean two lookups per border cell
+and two things that can disagree. One call answers both questions and cannot drift.
+
+**Signatures touched (compile-checked, no behaviour change on the `nullptr` paths):**
+`ChunkRenderManager.h:36` (the type), `:150`, `:161`, `:350` (parameters), `Chunk.h:307/312`,
+`Chunk.cpp:330`, `ChunkManager.cpp:530`.
+
+**Cost:** the supplier already reads each border cell's occupancy; adding a material lookup matches
+what `computeVisibilityMask` already does for all 32 768 cells of every rebuild — here it is the
+6 × 1 024 border cells only.
+
+### 17.6 Chunk independence (design key) and re-mesh ripple
+
+Appearance must not depend on where chunk borders fall. A stone voxel at x = 31 next to glass at
+x = 32 (another chunk) must show its +X face exactly as it would if both sat inside one chunk. C2 is
+what delivers that.
+
+**Ripple:** when a voxel on a chunk border changes, the neighbour must re-mesh so its facing face
+appears or disappears. The existing ripple fires on **occupancy** changes. This change adds a case
+where occupancy is unchanged but the answer changes: replacing glass with stone (or vice versa) at a
+border cell. `fill` never overwrites and `place_voxel` refuses to, so today a swap is remove + add —
+two occupancy changes, which ripple. **To verify in the build, not assume:** that every
+material-changing path on a border cell triggers the neighbour re-mesh (test T9).
+
+### 17.7 Cost
+
+Extra faces appear **only** on opaque faces that touch glass, at most one per touching face — bounded
+by the glass's surface area. The greedy-merge key is unchanged, so these faces merge like any other.
+Measured on the showcase scene (§16.6) before and after: total visible face count, and the delta must
+equal the count of opaque-faces-touching-glass (a number the rig can compute from the world).
+
+### 17.8 Tests — red first
+
+**L2, new `ChunkTransparentCullingTest`** (the `FineFaceMergeTest` shape — build a chunk, run the
+mesher, count emitted faces by face direction and material):
+
+| test | setup | expect | red today? |
+|---|---|---|---|
+| T0 control | stone next to stone | the shared faces NOT emitted | green (control) |
+| T0b control | stone next to air | face emitted | green (control) |
+| **T1** | stone cube next to glass cube | stone's face toward glass **emitted** | **RED** |
+| **T2** | glass cube next to glass cube | shared faces NOT emitted (no layer stacking) | green — must STAY green |
+| **T3** | glass cube next to stone cube | glass's face toward stone NOT emitted | green — must STAY green |
+| **T4** | stone subcube next to glass subcube; stone subcube next to glass CUBE | stone subcube face emitted | **RED** |
+| **T5** | same, microcubes | stone microcube face emitted | **RED** |
+| **T6** | T1/T4/T5 with fine greedy merge ON and OFF | identical covered-cell sets (`coveredCellCentres`) | — |
+| **T7** | two chunks, stone at x = 31 in A, glass at x = 0 in B, real cross-chunk lookup | A's +X face emitted; with stone in B instead, NOT emitted | **RED** |
+| **T8** | **chunked vs whole-region equality** (design key; `FloraMarginTest` shape): a stone/glass pattern built straddling a chunk border vs the same pattern inside one chunk | identical emitted face set per material after translation | **RED** |
+| **T9** | swap a border cell glass→stone and back | neighbour's facing face follows each swap (ripple) | to establish |
+| **T10** | grass cube with a glass cube on top | **no grass blades** emitted (K2 unchanged) | green — must STAY green |
+| **T11** | billboarded leaf next to glass, otherwise enclosed | leaf **exposed** → foliage emitted (C5) | **RED** |
+| **T12** | uniform stone chunk whose neighbour's facing layer is all glass | `isChunkCapped` = **false** (C6) | **RED** |
+| **T13** | glass cube | still a physics solid: `visibleSolidCubeAt` true, collision shape built (K1 unchanged) | green — must STAY green |
+
+**L4, live:** the showcase window (§16.6, stone wall with a glass window). Camera at a grazing angle
+through the pane; the reveal's stone faces must be present. Metric: the reveal's pixel region reads as
+stone (luminance/texture variance of stone) instead of sky, **with a control** — the same pose with the
+window cell empty (the reveal is drawn there today, since air does not hide faces). Before/after at the
+identical pose, curve 0. Then the **reviewer's visual sign-off**.
+
+### 17.9 Validation depth
+
+L2 (face emission is a structural property of the real mesher output — measured, not inferred), L4
+(the rendered reveal), and human sign-off. Stress axes: thickness (1-, 2-, 3-thick panes: interior
+faces must stay culled at every thickness — T2 extended), voxel size (cube / subcube / microcube,
+mixed), and the chunk border (T7/T8).
+
+### 17.10 Order of work
+
+1. `isTransparentMaterial` helper.
+2. Write T0–T13; confirm the RED ones fail and the controls/KEEPs pass.
+3. C1 (cube in-chunk) → T1, T2, T3 green.
+4. C3, C4 (sub/micro, both per-face and merged) → T4, T5, T6 green.
+5. C2 (interface change + `Chunk::renderOccupancyAt`) → T7, T8 green; then T9.
+6. C5 (leaf exposure) → T11. C6 (`isChunkCapped`) → T12.
+7. Full crack/damage/flag/merge suites; T10, T13 still green.
+8. L4 reveal capture + face-count delta (17.7); reviewer sign-off.
+9. D1 logged in the gap file.
+
+### 17.11 Risks
+
+| risk | guard |
+|---|---|
+| grass starts growing inside glass | K2/K3 keep the old predicate; T10 |
+| glass becomes walk-through | K1 untouched; T13 |
+| thick panes get interior layers (looks opaque, smudges stack) | row 5 of the rule; T2 extended to 3-thick |
+| cross-chunk faces go stale after a material swap on a border | T9; ripple verified, not assumed |
+| a chunk behind a glass layer stops meshing its wall | C6; T12 |
+| merged and per-face paths disagree | T6 compares them directly |
+| the five copies of "transparent" drift again | the shared helper (17.3) |
