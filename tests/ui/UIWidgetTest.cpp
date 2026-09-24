@@ -1126,3 +1126,54 @@ TEST(UIActionBarTest, TheShippedActionBarAsksForFramedSlots) {
     EXPECT_EQ(item.value("dragBind", std::string()), "item.payload");
     EXPECT_EQ(item.value("dropBind", std::string()), "actionbar.drop");
 }
+
+// ---------------------------------------------------------------------------
+// G-179 (2026-09-24): ESC is "back one level" inside a data-driven screen namespace.
+// The keybindings sub-panel of Settings had no Back button and the shell's ESC handler did
+// not know the Settings state, so a player who opened it was stuck. backOutOfSubmenu() is
+// the engine half: with a sub-panel up it returns to the namespace's start panel and says
+// so; with the start panel up it says "nothing to back out of", so the host leaves Settings.
+#include "ui/MenuDefinition.h"
+
+TEST(MenuNamespaceBackOut, ASubPanelReturnsToTheStartPanelAndTheStartPanelReportsNothingToDo) {
+    Phyxel::UI::UISystem ui(nullptr, 1280, 720);   // headless: screens are plain panels, no device needed
+    ui.addScreen("settings:main", std::make_unique<Phyxel::UI::UIPanel>());
+    ui.addScreen("settings:keybindings", std::make_unique<Phyxel::UI::UIPanel>());
+    ui.addScreen("hud_health", std::make_unique<Phyxel::UI::UIPanel>());   // another namespace: untouched
+    ui.hideScreen("settings:main");
+    ui.showScreen("settings:keybindings");
+    ui.showScreen("hud_health");
+
+    EXPECT_TRUE(Phyxel::UI::backOutOfSubmenu(ui, "settings")) << "a sub-panel was up: handled";
+    EXPECT_TRUE(ui.isScreenVisible("settings:main"));
+    EXPECT_FALSE(ui.isScreenVisible("settings:keybindings"));
+    EXPECT_TRUE(ui.isScreenVisible("hud_health")) << "other namespaces are not touched";
+
+    EXPECT_FALSE(Phyxel::UI::backOutOfSubmenu(ui, "settings")) << "the start panel is up: the host must leave Settings";
+    EXPECT_TRUE(ui.isScreenVisible("settings:main")) << "...and it is left as it was";
+
+    ui.hideScreen("settings:main");
+    EXPECT_FALSE(Phyxel::UI::backOutOfSubmenu(ui, "settings")) << "nothing visible: nothing to do";
+}
+
+TEST(MenuNamespaceBackOut, AnUnknownNamespaceIsHarmless) {
+    Phyxel::UI::UISystem ui(nullptr, 1280, 720);
+    EXPECT_FALSE(Phyxel::UI::backOutOfSubmenu(ui, "nothing_loaded"));
+}
+
+// The other engine half: the host tells a rebind-cancelling ESC from a menu ESC by watching
+// the capture-end counter, which moves once per capture whether it bound a key or cancelled.
+TEST(UISystemKeyCapture, TheEndCounterMovesOncePerCaptureBoundOrCancelled) {
+    Phyxel::UI::UISystem ui(nullptr, 1280, 720);
+    EXPECT_EQ(ui.keyCaptureEndCount(), 0u);
+    ui.beginKeyCapture([](int, int) {});
+    EXPECT_TRUE(ui.isCapturingKey());
+    ui.cancelKeyCapture();
+    EXPECT_FALSE(ui.isCapturingKey());
+    EXPECT_EQ(ui.keyCaptureEndCount(), 1u);
+    ui.cancelKeyCapture();
+    EXPECT_EQ(ui.keyCaptureEndCount(), 1u) << "cancelling when nothing is captured is not an end";
+    ui.beginKeyCapture([](int, int) {});
+    ui.cancelKeyCapture();
+    EXPECT_EQ(ui.keyCaptureEndCount(), 2u);
+}

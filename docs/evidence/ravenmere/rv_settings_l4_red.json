@@ -1,0 +1,128 @@
+[
+  {
+    "step": "start: playing",
+    "screen": "playing",
+    "visible": [],
+    "ok": true
+  },
+  {
+    "step": "ESC -> paused",
+    "screen": "paused",
+    "visible": [
+      "pause:main"
+    ],
+    "ok": true
+  },
+  {
+    "step": "click Settings -> settings main",
+    "screen": "settings",
+    "visible": [
+      "settings:main"
+    ],
+    "ok": true
+  },
+  {
+    "step": "click Keybindings... -> sub-panel",
+    "screen": "settings",
+    "visible": [
+      "settings:keybindings"
+    ],
+    "ok": true
+  },
+  {
+    "step": "ESC -> back to settings main",
+    "screen": "settings",
+    "visible": [
+      "settings:keybindings"
+    ],
+    "ok": false
+  },
+  {
+    "step": "ESC -> paused",
+    "screen": "settings",
+    "visible": [
+      "settings:keybindings"
+    ],
+    "ok": false
+  },
+  {
+    "step": "ESC -> playing",
+    "screen": "settings",
+    "visible": [
+      "settings:keybindings"
+    ],
+    "ok": false
+  },
+  {
+    "step": "ESC -> paused (again)",
+    "screen": "settings",
+    "visible": [
+      "settings:keybindings"
+    ],
+    "ok": false
+  },
+  {
+    "step": "Settings",
+    "screen": "settings",
+    "visible": [
+      "settings:keybindings"
+    ],
+    "ok": false
+  },
+  {
+    "step": "Keybindings...",
+    "screen": "settings",
+    "visible": [
+      "settings:keybindings"
+    ],
+    "ok": true
+  },
+  {
+    "step": "click kb_Jump (capture armed)",
+    "screen": "settings",
+    "visible": [
+      "settings:keybindings"
+    ],
+    "ok": true
+  },
+  {
+    "step": "ESC cancels the capture, STAYS on the panel",
+    "screen": "settings",
+    "visible": [
+      "settings:keybindings"
+    ],
+    "ok": true
+  },
+  {
+    "step": "ESC -> settings main",
+    "screen": "settings",
+    "visible": [
+      "settings:keybindings"
+    ],
+    "ok": false
+  },
+  {
+    "step": "Keybindings...",
+    "screen": "settings",
+    "visible": [
+      "settings:keybindings"
+    ],
+    "ok": true
+  },
+  {
+    "step": "click Back on the panel -> main",
+    "screen": "settings",
+    "visible": [
+      "settings:keybindings"
+    ],
+    "ok": false
+  },
+  {
+    "step": "click Back on settings -> paused",
+    "screen": "settings",
+    "visible": [
+      "settings:keybindings"
+    ],
+    "ok": false
+  }
+]

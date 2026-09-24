@@ -82,8 +82,14 @@ def build_children(actions):
         {"type": "label", "align": "center", "id": "kb_title", "text": "KEYBINDINGS",
          "font": "title", "position": [640, 36], "size": [400, 60]},
         {"type": "label", "align": "center", "id": "kb_hint",
-         "text": "Click a key, then press the new key. ESC cancels.",
+         "text": "Click a key, then press the new key (ESC cancels). ESC or Back returns to Settings.",
          "position": [640, 100], "size": [880, 26]},   # 700 wrapped onto row 1
+        # G-179 (2026-09-24): the panel had NO way out - no Back button, and the shell's ESC
+        # handler did not know the Settings state - so a player who opened Keybindings was
+        # stuck. Same position as the main settings panel's Back.
+        {"type": "button", "id": "kb_back", "text": "Back",
+         "position": [540, 690], "size": [200, 34],
+         "action": {"type": "close_submenu"}},
     ]
     for i, action in enumerate(ordered):
         col, row = divmod(i, ROWS_PER_COL)

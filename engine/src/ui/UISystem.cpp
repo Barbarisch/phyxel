@@ -426,6 +426,7 @@ void UISystem::beginKeyCapture(std::function<void(int, int)> onCaptured,
 }
 
 void UISystem::cancelKeyCapture() {
+    if (keyCaptureActive_) ++keyCaptureEndCount_;   // bound or cancelled - both end here
     keyCaptureActive_ = false;
     keyCaptureArmed_ = false;
     keyCaptureCb_ = {};

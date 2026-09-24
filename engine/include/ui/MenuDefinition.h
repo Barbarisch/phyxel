@@ -143,6 +143,13 @@ void loadGameScreenInto(UISystem& ui, const std::string& name, const MenuActions
 /// Remove the "<name>:*" screens added by loadGameScreenInto.
 void unloadGameScreenFrom(UISystem& ui, const std::string& name);
 
+/// G-179: "back one level" inside a "<name>:*" namespace. If a sub-panel other than the
+/// namespace's start panel is visible, show the start panel instead (what a close_submenu
+/// button does) and return true; return false when the start panel (or nothing) is up, so
+/// the caller can leave the whole screen. The start panel is the layout's `start_panel`
+/// (default "main"), remembered when the namespace was loaded.
+bool backOutOfSubmenu(UISystem& ui, const std::string& name);
+
 class HudDataContext;     // forward decl
 class DialogueSystem;     // forward decl
 

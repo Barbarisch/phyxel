@@ -369,7 +369,7 @@
           "type": "label",
           "align": "center",
           "id": "kb_hint",
-          "text": "Click a key, then press the new key. ESC cancels.",
+          "text": "Click a key, then press the new key (ESC cancels). ESC or Back returns to Settings.",
           "position": [
             640,
             100
@@ -378,6 +378,22 @@
             880,
             26
           ]
+        },
+        {
+          "type": "button",
+          "id": "kb_back",
+          "text": "Back",
+          "position": [
+            540,
+            690
+          ],
+          "size": [
+            200,
+            34
+          ],
+          "action": {
+            "type": "close_submenu"
+          }
         },
         {
           "type": "label",

@@ -162,6 +162,12 @@ public:
     /// Abort capture without binding (does not fire either callback).
     void cancelKeyCapture();
 
+    /// G-179: how many captures have ENDED (bound or cancelled) so far. A host that also
+    /// reads ESC as "back" compares this frame to frame: if it moved, the ESC that just
+    /// arrived belonged to the capture (it cancelled a rebind) and must not also leave the
+    /// settings screen.
+    uint32_t keyCaptureEndCount() const { return keyCaptureEndCount_; }
+
     // ── Rendering ───────────────────────────────────────────────
 
     /// Render all visible screens. Call inside the post-process render pass
@@ -263,6 +269,7 @@ private:
     // are released once, so the key that confirmed the rebind button isn't grabbed.
     bool keyCaptureActive_ = false;
     bool keyCaptureArmed_ = false;
+    uint32_t keyCaptureEndCount_ = 0;
     std::function<void(int, int)> keyCaptureCb_;
     std::function<void()> keyCaptureCancelCb_;
 

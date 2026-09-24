@@ -1,4 +1,5 @@
 #include "ui/MenuDefinition.h"
+#include <unordered_map>
 #include "ui/HudDataContext.h"
 #include "ui/UISystem.h"
 #include "ui/DialogueSystem.h"
@@ -671,6 +672,13 @@ static glm::vec4 parseColorArr(const nlohmann::json& j, glm::vec4 def) {
     return def;
 }
 
+// G-179: which panel a namespace starts on (its layout's `start_panel`), so backOutOfSubmenu
+// can return to it without re-reading the JSON. Keyed by the "<name>:" prefix.
+static std::unordered_map<std::string, std::string>& namespaceStartPanels() {
+    static std::unordered_map<std::string, std::string> s;
+    return s;
+}
+
 // Show only one screen within a "<prefix>*" namespace (submenu navigation). Works
 // for any overlay namespace ("menu:", "settings:", …) so sub-panels can navigate.
 static void showOnlyInNamespace(UISystem& ui, const std::string& nsPrefix,
@@ -1045,6 +1053,7 @@ void loadMenuInto(UISystem& ui, const nlohmann::json& layout, const MenuActions&
     for (const auto& [name, vis] : ui.getScreenList())
         if (name.rfind("menu:", 0) != 0) ui.hideScreen(name);
     for (const auto& k : keys) ui.hideScreen("menu:" + k);
+    namespaceStartPanels()["menu:"] = startPanel;
     ui.showScreen("menu:" + startPanel);
 }
 
@@ -1116,6 +1125,7 @@ static void loadOverlayFromFile(UISystem& ui, const std::string& nsPrefix,
     // Show only the start panel (other panels stay hidden until navigated to).
     for (const auto& [name, vis] : ui.getScreenList())
         if (name.rfind(nsPrefix, 0) == 0) ui.hideScreen(name);
+    namespaceStartPanels()[nsPrefix] = startPanel;
     ui.showScreen(nsPrefix + startPanel);
 }
 
@@ -1135,6 +1145,18 @@ void loadPauseMenuInto(UISystem& ui, const MenuActions& actions) {
     // unloadPauseMenuFrom restores them.
     for (const auto& [name, vis] : ui.getScreenList())
         if (name.rfind("pause:", 0) != 0) ui.hideScreen(name);
+}
+
+bool backOutOfSubmenu(UISystem& ui, const std::string& name) {
+    const std::string nsPrefix = name + ":";
+    const auto it = namespaceStartPanels().find(nsPrefix);
+    const std::string start = nsPrefix + (it != namespaceStartPanels().end() ? it->second : std::string("main"));
+    bool subVisible = false;
+    for (const auto& [sn, vis] : ui.getScreenList())
+        if (vis && sn.rfind(nsPrefix, 0) == 0 && sn != start) { subVisible = true; break; }
+    if (!subVisible) return false;
+    showOnlyInNamespace(ui, nsPrefix, start);
+    return true;
 }
 
 void unloadGameScreenFrom(UISystem& ui, const std::string& name) {

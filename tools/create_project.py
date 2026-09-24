@@ -289,6 +289,8 @@ def create_project(
     extra_members.append("    bool menuSceneActive_ = false;  // a sceneType:\"menu\" scene is currently shown")
     extra_members.append("    std::string activeDataScreen_;  // which data-driven overlay is loaded: pause/intro/victory/credits (replaces ImGui ScreenState screens)")
     extra_members.append("    bool escPrev_ = false;  // ESC edge-trigger (held isKeyPressed would toggle pause every frame)")
+    extra_members.append("    uint32_t escCaptureEndsSeen_ = 0;        // G-179: UISystem::keyCaptureEndCount() last frame")
+    extra_members.append("    bool     escCaptureEndedThisFrame_ = false;")
     extra_members.append("    float lastDt_ = 0.0f;           // last frame dt, for menu animations in onRender")
     extra_members.append("    bool authoredCameraMode_ = false;  // game.json camera block carries an explicit \"mode\"")
 
@@ -2496,6 +2498,13 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // ESC: pause/resume toggle, or close dialogue. EDGE-TRIGGERED — isKeyPressed
             // is held-state, so without this a held ESC would toggle pause every frame.
             const bool escNow = input->isKeyPressed(GLFW_KEY_ESCAPE);
+            {{   // G-179: did a key-rebind capture end this frame? (sampled EVERY frame, so a capture
+                // completed by an ordinary key does not swallow the next ESC)
+                auto* uiCap = renderCoordinator_ ? renderCoordinator_->getUISystem() : nullptr;
+                const uint32_t ends = uiCap ? uiCap->keyCaptureEndCount() : 0u;
+                escCaptureEndedThisFrame_ = (ends != escCaptureEndsSeen_);
+                escCaptureEndsSeen_ = ends;
+            }}
             if (escNow && !escPrev_) {{
                 if (dialogueSystem_ && dialogueSystem_->isActive()) {{
                     dialogueSystem_->endConversation();
@@ -2507,6 +2516,23 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                            state == Phyxel::UI::ScreenState::Character) {{
                     screen_.resume();
                     updateCursorMode(engine);
+                }} else if (state == Phyxel::UI::ScreenState::Settings ||
+                           state == Phyxel::UI::ScreenState::Inventory) {{
+                    // G-179: ESC is "back one level" in Settings too. The keybindings sub-panel had
+                    // no way out (no Back button, and ESC only knew Playing/Paused/Character), so a
+                    // player who opened it was stuck. Sub-panel -> the settings main panel; main ->
+                    // wherever Settings was opened from. The ESC that CANCELS a key rebind belongs to
+                    // the capture (UISystem consumed it): skip when a capture ended this frame.
+                    auto* ui = renderCoordinator_ ? renderCoordinator_->getUISystem() : nullptr;
+                    // ...and while a capture is ACTIVE the ESC is the cancel itself: the shell reads the
+                    // key before UISystem consumes it in the same frame, so the counter has not moved yet
+                    // (first green run: the cancelling ESC also backed out of the panel).
+                    if (!escCaptureEndedThisFrame_ && !(ui && ui->isCapturingKey())) {{
+                        if (!(ui && Phyxel::UI::backOutOfSubmenu(*ui, "settings"))) {{
+                            screen_.goBack();
+                            updateCursorMode(engine);
+                        }}
+                    }}
                 }}
             }}
             escPrev_ = escNow;

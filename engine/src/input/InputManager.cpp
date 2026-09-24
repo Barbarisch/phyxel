@@ -422,7 +422,7 @@ int InputManager::currentModifiers() const {
 }
 
 int InputManager::scanPressedKey() const {
-    if (!window) return GLFW_KEY_UNKNOWN;
+    // (window may be null in a headless test; injected keys are still scanned below)
     // Curated set of capturable keys — mirrors what GameSettings::keyToString /
     // stringToKey can name, so a captured key always round-trips to settings.json.
     // Modifier keys are included (Sprint/Crouch bind to Shift/Ctrl by default).
@@ -445,6 +445,14 @@ int InputManager::scanPressedKey() const {
         GLFW_KEY_EQUAL, GLFW_KEY_LEFT_BRACKET, GLFW_KEY_RIGHT_BRACKET, GLFW_KEY_SEMICOLON,
         GLFW_KEY_APOSTROPHE, GLFW_KEY_COMMA, GLFW_KEY_PERIOD, GLFW_KEY_SLASH, GLFW_KEY_BACKSLASH,
     };
+    // Injected keys FIRST (test API, G-179): a harness driving the settings screen must be
+    // able to bind and cancel a key capture exactly like a hand on the keyboard. This scan
+    // read GLFW directly, so an injected ESC reached the shell (isKeyPressed -> keyHeld,
+    // which knows injections) but never the capture - the L4 could not cancel a rebind.
+    // Physical keys keep bypassing the console / ImGui gate on purpose (see keyHeld).
+    for (int key : kCapturable)
+        if (injectedKeys_.find(key) != injectedKeys_.end()) return key;
+    if (!window) return GLFW_KEY_UNKNOWN;
     for (int key : kCapturable) {
         if (glfwGetKey(window, key) == GLFW_PRESS) return key;
     }
