@@ -10,6 +10,9 @@
 layout(location = 0) in uint vertexID;          // Face corner ID (0–3 for quad corners)
 layout(location = 1) in uint inPackedData;      // per-instance: packed position + face ID + future data
 layout(location = 2) in uint inTextureIndex;    // per-instance texture atlas index (unused)
+layout(location = 3) in uint inFlags;           // per-instance flags: bit 1 = transparent material.
+                                                // Always bound (the pipeline supplies the full
+                                                // InstanceData layout, ShadowMap.cpp); was undeclared.
 layout(location = 4) in uint inLight;           // per-instance: fine-face merge extents in bits 16-31
                                                 // (the pipeline supplies all 7 attributes; ShadowMap.cpp)
 
@@ -122,4 +125,13 @@ void main() {
     }
     
     gl_Position = pushConstants.lightSpaceMatrix * vec4(worldPos, 1.0);
+
+    // GLASS CASTS NO SHADOW (reviewer decision, GlassTransparency.md 13.9). A pane that lets ~80% of
+    // the light through must not throw a solid black shadow. Every corner of a transparent face is
+    // moved to the same point outside the clip volume (w = 1, z = 2 > 1), so the face has zero area
+    // and rasterizes nothing -- in every cascade, since they all use this shader. Done in the vertex
+    // stage rather than with a fragment discard in shadow.frag: no fragment work at all, and the
+    // 36-index both-windings shadow draw (load-bearing, CLAUDE.md "M5 settled empirically") is
+    // untouched.
+    if ((inFlags & 2u) != 0u) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
 }

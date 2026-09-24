@@ -355,6 +355,14 @@ public:
     void setLodFaces(std::vector<InstanceData>&& lodFaces, int level) {
         renderManager.setFacesFromLod(std::move(lodFaces));
         m_lodLevel = level;
+        // Every face-install path must leave the render flags correct (GlassTransparency.md
+        // §13.13). rebuildFaces() refreshes them; this path did not, so a chunk that only ever
+        // received LOD geometry kept the default `false`. With transparent faces drawn by the OIT
+        // pass ONLY, a wrong hasTransparentVoxel() does not render glass opaque -- it renders it
+        // INVISIBLE (the opaque pass discards it, the OIT pass is skipped for the frame). The flags
+        // are derived from voxel CONTENT, not from the LOD mesh, so recomputing here is exact.
+        // Pinned by ChunkRenderFlagsTest.SetLodFacesLeaves*.
+        recomputeRenderFlags();
     }
 
 private:

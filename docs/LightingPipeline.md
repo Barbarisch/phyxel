@@ -37,8 +37,8 @@ those are narratives with superseded sections. **This file states only what is t
 
 | Shader (pipeline) | Sky access (D) | Ambient (E) | Direct sun (B × C) | Shadow filter / cascades | Moon | Point/spot (F) | Haze | Notes |
 |---|---|---|---|---|---|---|---|---|
-| `voxel.frag` — static chunks, kinematic voxels (doors, furniture), GPU debris | probe field, shading normal (`phxSkyAccessOf` for the gates) | `phxAmbient` | `pbrBRDF × shadow × phxSunGate` | PCSS, mid ∪ near | yes, × enclosure gate | yes, with visibility trace | yes | `vSkyLight` varying is a dead constant 1.0; the kinematic `setLightSampler` feed is not read here. **Surface modifier (P4 damage cracks, `crack.glsl`):** on damaged STATIC CHUNK faces only, albedo and roughness are modified BEFORE lighting — crack pixels darken ×0.18 and go fully rough. It consumes no lighting input and feeds none; it is a material-state treatment in the same class as `vState` charred/wet. Reachable only on `static_voxel.vert` — the kinematic and dynamic paths hardcode `flags = 0u`, so damage bits and the world-position seed are both unavailable there |
-| `transparent_voxel.frag` — glass | probe field, face normal | `phxAmbient` | Blinn-Phong × shadow × `phxSunGate` | PCSS, mid ∪ near | no | yes, with visibility trace | — | `vSkyLight` varying is a dead constant 1.0 |
+| `voxel.frag` — static chunks, kinematic voxels (doors, furniture), GPU debris | probe field, shading normal (`phxSkyAccessOf` for the gates) | `phxAmbient` | `pbrBRDF × shadow × phxSunGate` | PCSS, mid ∪ near | yes, × enclosure gate | yes, with visibility trace | yes | `vSkyLight` varying is a dead constant 1.0; the kinematic `setLightSampler` feed is not read here. **Surface modifier (P4 damage cracks, `crack.glsl`):** on damaged STATIC CHUNK faces only, albedo and roughness are modified BEFORE lighting — crack pixels darken ×0.18 and go fully rough. It consumes no lighting input and feeds none; it is a material-state treatment in the same class as `vState` charred/wet. Reachable only on `static_voxel.vert` — the kinematic and dynamic paths hardcode `flags = 0u`, so damage bits and the world-position seed are both unavailable there. **Transparent faces (instance bit 1) are DISCARDED here** — they are drawn by the OIT pass only (2026-09-23, `docs/GlassTransparency.md` §13.2). Transparency is decided by the material's bit, never by texture alpha |
+| `transparent_voxel.frag` — glass (OIT) | probe field, face normal | `phxAmbient` | Blinn-Phong × shadow × `phxSunGate` | PCSS, mid ∪ near | no | yes, with visibility trace | — | **LIVE since 2026-09-23. From `7a36910f` until then `main()` opened with an unconditional `discard`, so every column of this row described DEAD CODE** — glass was drawn by `voxel.frag` and was see-through only through texture cutout holes (`docs/GlassTransparency.md` §15). Samples albedo through the class-aware atlas path shared with `voxel.frag` (`voxel_world.glsl`; before, every 1024-class material fell to the placeholder). Each face is drawn ONCE (6 indices; the 36-index draw with `cullMode NONE` composited every surface twice). **Surface modifier (damage cracks on glass):** same `crack.glsl` field and world-position seed as stone, opposite tone — frosted: colour lifts toward white and coverage rises along the crack. `vSkyLight` varying is a dead constant 1.0 |
 | `grass.frag` (+`grass.vert`) — blades | probe field per **blade vertex** (up normal): `vAmbient`, gate `vSky` | `vAmbient` (= **`phxAmbientUp`**, the up-facing fast path — see §2) | `0.85 × shadow × phxSunGate` | **Fast 4-tap**, mid ∪ near | no | yes, with visibility trace | no | wind sheen also × `vSky`; `grass_shadow.vert` computes neither (caster only) |
 | `foliage.frag` — leaf cards | probe field per fragment (up) | `phxAmbient` (up) | `0.7 × shadow × phxSunGate` + backlit translucency × (0.25+0.75·phxSunGate) | **Fast 4-tap**, mid ∪ near | no | yes, with visibility trace | no | — |
 | `character.frag` — animated characters | probe field per fragment, vertex normal | `phxAmbient` (N) | Blinn-Phong × shadow × `phxSunGate` | PCSS, mid ∪ near | yes, × enclosure gate | yes, with visibility trace | no | block-light term from the bake is 0 |
@@ -66,6 +66,11 @@ a ground-only experiment for two weeks.
   A receiver with its own ambient maths is a second lighting model.
 - **R3. Near and mid cascades are min-composed, never selected.** `min(near, mid)` is the union of
   shadows, so a caster recorded in only one map still shades. The near map's border fade is the blend.
+- **R10. Transparent materials cast NO shadow** (reviewer decision, 2026-09-23). `shadow.vert` reads
+  the instance flags (location 3 — always bound, previously undeclared) and collapses faces with the
+  transparent bit to a point outside the clip volume, in every cascade. A pane that passes ~80% of
+  the light must not throw a solid shadow. Measured: ground under a glass roof 88.8 = no roof 88.8,
+  Stone roof 60.6 (`tools/glass_phase4_checks.py shadow`).
 - **R4. Grass casts into the near cascade only, and `GrassRenderPipeline::s_castShadows` is
   `false` by default** (a camera-following dark disc from above).
 - **R5. Shadow-caster pipelines bake a static viewport: create them against the map they render
@@ -558,6 +563,21 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 | **T-junction cracks / character speckle** | Open render defects at greedy-merge borders; see `RenderOptimization.md`. |
 
 ## 9. Change log (append a line per lighting/shadow change; the fingerprint line is written by `tools/lighting_doc_check.py --update`)
+
+- 2026-09-23 — **Glass is blended again: the OIT pass is re-enabled, and glass casts no shadow**
+  (`docs/GlassTransparency.md`). `transparent_voxel.frag` had opened with an unconditional `discard`
+  since `7a36910f`; the validation error it was blamed on fires identically with the pass disabled
+  (§15.8). Changes: `voxel.frag` discards transparent faces (bit 1) so they are drawn by OIT only;
+  the OIT shader samples through the class-aware atlas (`voxel_world.glsl`, shared — it had been
+  sampling the placeholder for every 1024-class material), draws each face once (6 indices, not 36 —
+  every surface had been composited twice under `cullMode NONE`), and draws damage cracks as frosted
+  lines seeded from the exact world position; `shadow.vert` collapses transparent faces (R10).
+  Measured (curve 0, exposure 1.0): transmission T 0.021 → 0.804 at the calibrated Glass alpha 0.02;
+  glass roof shadow R = 1.000; cracked pane +30.8 vs floor 0.24, brighter (frosted); pane tracks its
+  own texture (green test texture: green excess 89.9 vs backdrop 4.8). **Open, not explained:** T fits
+  ~0.86·(1−a)^3.4 rather than the (1−a)^2 a two-surface pane predicts — ~14% of the backdrop's
+  change is lost independent of alpha, and it is not the probe field (GI off: 0.818) nor a shadow
+  (R = 1.000).
 
 - 2026-09-22 — **TWO DEFECTS IN ONE FUNCTION: `phxLightVisibility` is 90% of the frame AND
   leaks through walls (G-18 + G-157).** Drilling into the light loops: the MARCH alone is 237.5

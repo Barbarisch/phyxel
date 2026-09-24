@@ -41,6 +41,22 @@ def voxel(x, y, z):
     return gt.call("/api/world/voxel?x=%d&y=%d&z=%d" % (x, y, z))
 
 
+def wait_voxel(x, y, z, material=None, timeout=45.0):
+    """Poll until a voxel exists (and has `material`), instead of sleeping a fixed time.
+
+    Fills are ASYNCHRONOUS and their latency is not constant: near the origin a 4x4 fill lands in
+    ~2 s, but at x ~ 100 000 it took 17.3 s. The first far runs slept a fixed 3 s and reported the
+    pane as "did not build" -- a rig timing bug that looked exactly like an engine coordinate limit.
+    """
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        v = voxel(x, y, z)
+        if v.get("exists") and (material is None or v.get("material") == material):
+            return v
+        time.sleep(0.5)
+    return {}
+
+
 def clear(x1, y1, z1, x2, y2, z2):
     gt.job("clear_region", {"x1": x1, "y1": y1, "z1": z1, "x2": x2, "y2": y2, "z2": z2})
 
@@ -78,11 +94,24 @@ def check_shadow():
     gt.call("/api/daynight/set", {"timeOfDay": 12.0, "timeScale": 0.0})
     gt.call("/api/debug/gi", {"enabled": False})
     RX0, RX1, RZ0, RZ1, RY = 5, 14, 1, 12, 23
-    pose = (9.5, 19.0, 17.0, -90.0, -12.0)   # ground hit ~z 7.6: under the roof's centre
+    # The camera looks at the rig's own floor plate (top face y=18). Ray from y=20 at pitch -12
+    # meets it at z ~ 7.6: under the roof's centre, while the roof itself stays out of frame.
+    pose = (9.5, 20.0, 17.0, -90.0, -12.0)
+
+    # THE RIG BRINGS ITS OWN GROUND (15.7). On the first run the Stone roof darkened the ground by
+    # only 3.1 because the world's ground renders BLACK in this project at these settings -- a
+    # shadow cannot darken black. A placed Sand plate renders lit (~94/89/76) with GI on or off, so
+    # it is the surface the shadow is measured on. Built once; the arms change ONLY the roof.
+    clear(1, GROUND_TOP, -3, 18, RY + 3, 16)
+    gt.fill(2, GROUND_TOP, -2, 17, GROUND_TOP, 15, "Sand")
+    time.sleep(3.0)
+    if not voxel(9, GROUND_TOP, 7).get("exists"):
+        print("RESULT shadow UNTESTABLE floor-plate-did-not-build")
+        return 3
 
     ground = {}
     for arm, mat in (("none", None), ("stone", "Stone"), ("glass", "Glass")):
-        clear(RX0 - 2, GROUND_TOP, RZ0 - 2, RX1 + 2, RY + 2, RZ1 + 2)
+        clear(RX0 - 2, RY - 1, RZ0 - 2, RX1 + 2, RY + 2, RZ1 + 2)
         if mat:
             gt.fill(RX0, RY, RZ0, RX1, RY, RZ1, mat)
             time.sleep(2.5)
@@ -112,51 +141,55 @@ def check_shadow():
 
 
 # ------------------------------------------------------------------------------------ 13.15 crack
-def pane_patch(cx):
-    cam(cx + 0.5, 18.5, 20.0)
-    return gt.capture()
+def check_crack(base_x=0, label="crack"):
+    """Cracks are VISIBLE on glass, and FROSTED (brighter), against a floor.
 
+    REDESIGNED after the first red run (GlassTransparency.md 15.7): comparing two side-by-side panes
+    meant moving the camera between them, and two CLEAN panes already differed by |RGB| 130 -- the
+    camera move, not the damage, dominated. Now ONE pane, ONE fixed camera, and the only thing that
+    changes is the damage:
 
-def check_crack(near_origin=True, base_x=0, label="crack"):
-    """Cracks are VISIBLE on glass, and FROSTED (brighter), with a floor.
+        floor = |clean capture 1 - clean capture 2|     (capture-to-capture noise, nothing changed)
+        diff  = |damaged capture - clean capture 1|
 
-    Two identical full-cube glass panes over the same Bricks backdrop. Floor: both clean, pane-to-pane
-    difference. Then one pane is damaged uniformly to 0.45 of Glass's toughness (stage 3 of 7) and the
-    difference measured again. Full cubes, because damage accumulation is cube-only (sub-voxel damage
-    is V2, VoxelDamageVisualization.md 3.6).
+    Full-cube glass, because damage accumulation is cube-only (sub-voxel damage is V2,
+    VoxelDamageVisualization.md 3.6). Damage 0.45 of Glass's toughness (stage 3 of 7), radius 0.4,
+    uniformity asserted.
     """
-    L0, R0 = base_x + 6, base_x + 12
-    print("CHECK %s (13.15) - prediction: |damaged - clean| > 2 x floor, damaged BRIGHTER" % label)
-    clear(base_x + 2, GROUND_TOP, 3, base_x + 19, 26, 10)
-    gt.fill(base_x + 2, 15, 4, base_x + 19, 24, 4, "Bricks")
-    for x0 in (L0, R0):
-        gt.fill(x0, 17, 8, x0 + 3, 20, 8, "Glass")
-    time.sleep(3.0)
-    for x0 in (L0, R0):
-        v = voxel(x0 + 1, 18, 8)
-        if not (v.get("exists") and v.get("material") == "Glass"):
-            print("RESULT %s UNTESTABLE pane-at-x%d-did-not-build" % (label, x0))
-            return 3, None
+    P0 = base_x + 8
+    print("CHECK %s (13.15) - prediction: diff > 2 x floor, damaged pane BRIGHTER" % label)
+    clear(base_x + 4, GROUND_TOP, 3, base_x + 15, 26, 10)
+    gt.fill(base_x + 6, 15, 4, base_x + 13, 22, 4, "Bricks")
+    gt.fill(P0, 17, 8, P0 + 3, 20, 8, "Glass")
+    wait_voxel(base_x + 12, 21, 4, "Bricks")            # backdrop's last corner
+    v = wait_voxel(P0 + 3, 20, 8, "Glass")              # pane's last corner
+    time.sleep(1.5)                                     # one more remesh before capturing
+    if not (v.get("exists") and v.get("material") == "Glass"):
+        print("RESULT %s UNTESTABLE pane-did-not-build" % label)
+        return 3, None
 
-    left, right = pane_patch(L0 + 1.5), pane_patch(R0 + 1.5)
-    floor = sum(abs(left[i] - right[i]) for i in range(3))
-    print("  floor (both clean): |RGB| %.2f" % floor)
+    cam(P0 + 2.0, 18.5, 20.0)
+    clean1 = gt.capture()
+    clean2 = gt.capture()
+    floor = sum(abs(clean1[i] - clean2[i]) for i in range(3))
+    print("  floor (clean vs clean, same camera): |RGB| %.2f" % floor)
 
-    tough = voxel(R0, 17, 8).get("toughness", 0.0)
-    for x in range(R0, R0 + 4):
+    tough = v.get("toughness", 0.0)
+    for x in range(P0, P0 + 4):
         for y in range(17, 21):
             gt.call("/api/damage/apply", {"x": x + 0.5, "y": y + 0.5, "z": 8.5, "radius": 0.4,
                                           "energy": tough * 0.45, "collapse": False})
     time.sleep(2.0)
-    c, m = voxel(R0, 17, 8).get("damage01", 0.0), voxel(R0 + 2, 19, 8).get("damage01", 0.0)
+    c, m = voxel(P0, 17, 8).get("damage01", 0.0), voxel(P0 + 2, 19, 8).get("damage01", 0.0)
     if abs(c - m) > 0.02:
         print("RESULT %s UNTESTABLE non-uniform damage corner=%.3f centre=%.3f" % (label, c, m))
         return 3, None
 
-    left, right = pane_patch(L0 + 1.5), pane_patch(R0 + 1.5)
-    diff = sum(abs(left[i] - right[i]) for i in range(3))
-    brighter = sum(right) > sum(left)
-    print("  damaged (0.45): |RGB| %.2f  damaged pane %s than clean" %
+    cam(P0 + 2.0, 18.5, 20.0)
+    damaged = gt.capture()
+    diff = sum(abs(damaged[i] - clean1[i]) for i in range(3))
+    brighter = sum(damaged) > sum(clean1)
+    print("  damaged (0.45) vs clean: |RGB| %.2f  damaged pane %s" %
           (diff, "BRIGHTER" if brighter else "DARKER"))
     ok = diff > 2.0 * max(floor, 0.5) and brighter
     print("RESULT %s %s diff=%.2f floor=%.2f frosted=%s damage01=%.3f"
@@ -177,22 +210,29 @@ def run_far():
 
     The same damaged-pane measurement near the origin and at x ~ 100 000 (chunk 3125). If the OIT
     shader seeds cracks from a float `inWorldPos + cameraWorld` sum, the far pane's crack reads
-    differently or flickers; with the exact vChunkBaseAbs formula both agree. Three far captures give
-    the flicker check.
+    differently or flickers; with the exact vChunkBaseAbs formula both agree.
+
+    ORDER MATTERS (15.7): /api/world/generate for the far chunk resets the loaded world, which is
+    what made the near pane "not build" on the first run. So NEAR is measured first, THEN the far
+    chunk is generated and measured.
     """
     FAR = 100000
     print("CHECK far (13.12) - prediction: far diff within 25% of near, stable across captures")
     setup_common()
+    rc_n, near = check_crack(label="crack-near")
     gt.call("/api/world/generate", {"type": "Flat", "from": {"x": FAR // 32, "y": 0, "z": 0},
                                     "to": {"x": FAR // 32 + 1, "y": 0, "z": 0}})
-    time.sleep(3.0)
-    rc_n, near = check_crack(label="crack-near")
-    rc_f, far = check_crack(base_x=FAR, label="crack-far")
-    if near is None or far is None:
-        print("RESULT far UNTESTABLE a pane did not build (is chunk %d resident?)" % (FAR // 32))
+    if not wait_voxel(FAR + 8, 15, 8):
+        print("RESULT far UNTESTABLE far-chunk-never-became-resident")
         restore_common()
         return 3
-    repeats = [sum(pane_patch(FAR + 12 + 1.5)) for _ in range(3)]
+    rc_f, far = check_crack(base_x=FAR, label="crack-far")
+    if near is None or far is None:
+        print("RESULT far UNTESTABLE a pane did not build (near=%s far=%s)" % (near, far))
+        restore_common()
+        return 3
+    cam(FAR + 8 + 2.0, 18.5, 20.0)
+    repeats = [sum(gt.capture()) for _ in range(3)]
     spread = max(repeats) - min(repeats)
     restore_common()
     rel = abs(far - near) / max(near, 1e-6)

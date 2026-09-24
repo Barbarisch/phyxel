@@ -1936,7 +1936,18 @@ void RenderCoordinator::renderTransparentGeometryOIT(uint32_t frameIndex) {
         glm::vec3 chunkBaseOffset = camera->relativeTo(glm::dvec3(worldOrigin));  // camera-relative (docs/CameraRelativeRendering.md)
         vulkanDevice->pushConstants(frameIndex, renderPipeline->getGraphicsLayout(), chunkBaseOffset, glm::vec3(worldOrigin));
 
-        vulkanDevice->drawIndexed(frameIndex, 36, chunk->getNumInstances());  // 36-index cube: OIT/reflection/mirror keep both windings
+        // SIX indices, not 36 (GlassTransparency.md, Phase 4). Each instance is ONE face quad; the
+        // vertex shader folds the cube index buffer's corner IDs onto that quad, so of the 36
+        // indices exactly two 6-index groups form the full quad (one per winding) and the other
+        // four collapse to zero area. This pipeline culls NOTHING (cullMode NONE, "show both
+        // sides"), so the 36-index draw composited EVERY transparent surface TWICE -- and blending
+        // compounds per layer: a one-voxel pane (front + back surface) became four layers, T =
+        // (1-a)^4 instead of (1-a)^2. Measured: glass at material alpha 0.5 read T = 0.021.
+        // The first six indices are one full quad; with no culling its winding is irrelevant, so
+        // the face still shows from both sides, exactly once.
+        // NOT applicable to the shadow/reflection/mirror draws: those CULL, and need both windings
+        // so a face survives culling from either side (CLAUDE.md "M5 settled empirically").
+        vulkanDevice->drawIndexed(frameIndex, 6, chunk->getNumInstances());
     }
 }
 

@@ -231,6 +231,9 @@ def main():
     ap.add_argument("--ambient", type=float, default=None,
                     help="set_ambient strength before measuring (historical builds lack the tonemap "
                          "control, so dimming is the only way to keep the patch unclipped)")
+    ap.add_argument("--gi-off", action="store_true",
+                    help="switch the ambient probe field off for the run (diagnostic: separates "
+                         "coverage from glass occluding the backdrop's AMBIENT light)")
     ap.add_argument("--time-of-day", type=float, default=None,
                     help="daynight_set timeOfDay, with timeScale 0 so light cannot drift between arms")
     args = ap.parse_args()
@@ -252,6 +255,9 @@ def main():
     if args.ambient is not None:
         call("/api/ambient", {"strength": args.ambient})
         conditions.append("ambient=%.2f" % args.ambient)
+    if args.gi_off:
+        call("/api/debug/gi", {"enabled": False})
+        conditions.append("gi-off")
     if args.time_of_day is not None:
         call("/api/daynight/set", {"timeOfDay": args.time_of_day, "timeScale": 0.0})
         conditions.append("tod=%.2f" % args.time_of_day)
@@ -296,6 +302,8 @@ def main():
               % (kind, t, verdict, ["%.1f" % d for d in delta]))
 
     call("/api/debug/tonemap", {"curve": 1, "exposure": 8.0})
+    if args.gi_off:
+        call("/api/debug/gi", {"enabled": True})
 
     # Classification per 12.8 step 4. PARTIAL is recorded and investigated, never forced.
     cube = results.get("cube")

@@ -20,6 +20,11 @@ layout(location = 5) in vec3 inWorldPos;
 // U1: static_voxel.vert already emits this; the transparent pass simply never declared it, which
 // is why glass had no sky gating at all.
 layout(location = 6) in float vSkyLight;
+// The exact chunk origin, for seeding anything that must be a pure function of world position (the
+// crack). static_voxel.vert emits these for the opaque pass and the OIT pipeline is built with the
+// same vertex shader; this pass simply never declared them (GlassTransparency.md §13.12).
+layout(location = 10) in flat vec3 vChunkBaseAbs;
+layout(location = 11) in flat vec3 vChunkBaseRel;
 
 layout(set = 0, binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -69,7 +74,8 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 #include "occupancy.glsl"   // U2 / D14: glass gets the same visibility term as stone
 #include "gi_field.glsl"    // THE ambient term (probe field); G-141: no receiver traces its own sky
 
-layout(set = 0, binding = 1) uniform sampler2DArray textureArray;
+layout(set = 0, binding = 1) uniform sampler2DArray textureArray;     // class 0 albedo: 512px
+layout(set = 0, binding = 5) uniform sampler2DArray textureArrayHi;   // class 1 albedo: 1024px (§13.17)
 layout(set = 0, binding = 2) uniform sampler2D shadowMap;
 layout(set = 0, binding = 9) uniform sampler2D shadowMapNear;   // U1: the near cascade
 
@@ -95,23 +101,19 @@ layout(std430, set = 0, binding = 3) readonly buffer LightBuffer {
 } lights;
 
 layout(std430, set = 0, binding = 4) readonly buffer AtlasUVBuffer {
-    uint textureCount;
-    uint fallbackIndex;
-    uint _pad0;
+    uint count512;        // layers in the 512px (class 0) array
+    uint fallbackIndex;   // placeholder layer (class 0)
+    uint count1024;       // layers in the 1024px (class 1) array
     uint _pad1;
-    vec4 textureUVs[];
+    vec4 textureUVs[];    // per-material props, stride 2 (P5)
 } atlasUVs;
+
+#include "voxel_world.glsl"  // SHARED with voxel.frag: world position, atlas select, crackStyle
+#include "crack.glsl"        // the SAME fracture field as every opaque material
 
 // MRT outputs
 layout(location = 0) out vec4 accumColor;  // OIT accumulation
 layout(location = 1) out float revealFactor; // OIT reveal (1 - alpha)
-
-float getTextureLayer(uint texIndex) {
-    uint safeIdx = texIndex;
-    if (texIndex == 0xFFFFu || texIndex >= atlasUVs.textureCount)
-        safeIdx = atlasUVs.fallbackIndex;
-    return float(safeIdx);
-}
 
 float calcAttenuation(float d, float radius) {
     float linear    = 4.5 / radius;
@@ -125,19 +127,23 @@ float calcAttenuation(float d, float radius) {
 // its kPoisson16, so there is one disk and one bias policy rather than a copy per pass.
 
 void main() {
-    // OIT is temporarily disabled: transparent voxels now render in the opaque pass
-    // (voxel.frag). Re-enable when the bloom pipeline is wired up to fix the UNDEFINED
-    // layout validation error that corrupts the post-process composite.
-    discard;
-
-    // --- code below preserved for when OIT is re-enabled ---
+    // RE-ENABLED 2026-09-23 (GlassTransparency.md §15). This pass opened with an unconditional
+    // `discard` from 7a36910f until now, blamed on an "UNDEFINED layout validation error that
+    // corrupts the post-process composite". Measured with validation layers on (§15.8): that error
+    // fires identically with this pass disabled -- it is not this pass's -- and enabling it adds no
+    // validation message and changes no pixel outside the glass. For four months glass was never
+    // blended: it was see-through only where its texture punched cutout holes in the opaque pass.
     // Only process transparent voxels (bit 1 of flags); skip mirror voxels
     if ((flags & 2u) == 0u) discard;
     if ((flags & (1u << 10u)) != 0u) discard;
 
-    vec4 textureColor = texture(textureArray, vec3(texCoord, getTextureLayer(textureIndex)));
+    // Class-aware sampling, shared with voxel.frag. The old single-array lookup sent every
+    // 1024-class material -- Glass included -- to the placeholder checkerboard (§13.17).
+    vec4 textureColor = phxSampleAlbedo(textureIndex, texCoord);
 
-    if (textureColor.a < 0.01) discard;
+    // NO texture-alpha discard here. Coverage is continuous: the material's alpha is the floor and
+    // the texture can only ADD coverage (max below). Discarding low-alpha texels would punch holes
+    // again -- the cutout behaviour this fix removes.
 
     float matAlpha = float((flags >> 2u) & 0xFFu) / 255.0;
     float alpha = max(textureColor.a, max(matAlpha, 0.01));
@@ -202,6 +208,20 @@ void main() {
     }
 
     vec3 litColor = textureColor.rgb * finalLight;
+
+    // CRACKS ON GLASS (§13.3, decision (c): bright, FROSTED lines). Same field as stone -- same
+    // crackField, same world-position seed via the shared helper, this material's crackStyle -- but
+    // the opposite tone: a fracture surface in glass scatters light, so a crack reads WHITER and
+    // MORE OPAQUE than the clear pane around it, where stone's crack darkens. The damage stage also
+    // clouds the whole pane slightly, the transparent analogue of stone's overall darkening.
+    float dmg = float((flags >> 11u) & 0xFu) / 15.0;
+    if (dmg > 0.0) {
+        vec3 worldPosAbs = phxWorldPosAbs(vChunkBaseAbs, inWorldPos, vChunkBaseRel);
+        float crack = crackField(worldPosAbs, inNormal, dmg, phxCrackStyleOf(textureIndex));
+        vec3 frost = vec3(0.92, 0.95, 0.97) * finalLight;
+        litColor = mix(litColor, frost, clamp(crack * 0.9 + dmg * 0.10, 0.0, 1.0));
+        alpha    = mix(alpha, 0.85, clamp(crack + dmg * 0.15, 0.0, 1.0));
+    }
 
     // WBOIT weight: higher weight for closer, more opaque fragments
     // Use linear z (view-space) for better weight distribution

@@ -14971,7 +14971,11 @@ void Application::registerEffectsCommands() {
             // was left at 10, so the new view silently rendered the wind map. The warning above
             // was already there and was still walked into -- which is an argument for the bound
             // being derived rather than hand-maintained.)
-            vulkanDevice->setDebugShadowMode(std::clamp(cmd.params["mode"].get<int>(), 0, 11));
+            // 0..19: 11-18 are main's G-18 perf probes (flat grey, albedo-only, shadow/ambient
+            // isolation, light-march count), 19 = crack field. The clamp stopped at 11 on BOTH
+            // sides of the 2026-09-23 merge, which made 12-18 unreachable from the editor and let
+            // main's mode-11 probe shadow the crack view -- see voxel.frag.
+            vulkanDevice->setDebugShadowMode(std::clamp(cmd.params["mode"].get<int>(), 0, 19));
         r = {{"success", true},
              {"distance", Graphics::RenderCoordinator::s_shadowDistance},
              {"near_enabled", Graphics::RenderCoordinator::s_nearShadowEnabled},

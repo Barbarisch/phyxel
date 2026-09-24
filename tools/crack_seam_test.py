@@ -10,7 +10,7 @@ so a uv-seeded crack RESTARTS its pattern at x = 32. tests/core/VoxelCrackSeamTe
 the CPU MIRROR is partition-independent; it cannot prove the SHADER is, because it cannot
 execute the shader.
 
-THE METHOD: measure the CRACK FIELD DIRECTLY, via debug view 11.
+THE METHOD: measure the CRACK FIELD DIRECTLY, via debug view 19 (was 11 until the 2026-09-23 merge collision).
 
 That view renders crackField() as greyscale with no albedo, no lighting and no wear term. It is
 the whole reason this test works, and it exists because SIX pixel statistics on the shaded frame
@@ -34,7 +34,7 @@ attempts:
 Stripping albedo and lighting removes both problems at once. On the raw field a uv seam is a
 hard vertical edge in an otherwise smooth image, and the very first metric works.
 
-NO DAMAGE IS APPLIED. Debug view 11 renders the field at full strength on every voxel, so the
+NO DAMAGE IS APPLIED. Debug view 19 renders the field at full strength on every voxel, so the
 test needs only a wall - which also removes the stage-equality precondition the shaded version
 needed (a damage gradient across the seam is a REAL discontinuity that would be misread).
 """
@@ -53,7 +53,7 @@ WALL_X0, WALL_X1 = 26, 37      # straddles x = 31/32, 6 voxels either side
 WALL_Y0, WALL_Y1 = 17, 21
 WALL_Z = 8
 SEAM_X = 32                    # first voxel of chunk (1,0,0)
-CRACK_DEBUG_MODE = 11
+CRACK_DEBUG_MODE = 19   # was 11 until the 2026-09-23 merge collision with main's G-18 probe
 
 
 def call(path, body=None):

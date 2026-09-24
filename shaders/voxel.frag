@@ -127,12 +127,9 @@ float hash21(vec2 p) {
 
 // Project a world position onto the face plane (the two axes perpendicular to the
 // face normal) -> continuous in-plane coords whose integer part is the world cell.
-vec2 worldFaceUV(vec3 wp, vec3 n) {
-    vec3 a = abs(n);
-    if (a.y >= a.x && a.y >= a.z) return wp.xz;   // top/bottom
-    if (a.x >= a.z)               return wp.zy;   // +/-X
-    return wp.xy;                                 // +/-Z
-}
+// worldFaceUV, phxWorldPosAbs and the atlas class-select live in voxel_world.glsl, shared with
+// transparent_voxel.frag so the two passes cannot drift apart (GlassTransparency.md §13.12/§13.17).
+#include "voxel_world.glsl"
 
 // Sample albedo + normal/roughness for a per-face index. The index encodes the resolution
 // class in bit 15 (0 = 512px, 1 = 1024px) and the within-class layer in bits 0..14. Out of
@@ -145,12 +142,8 @@ vec2 worldFaceUV(vec3 wp, vec3 n) {
 // the tangent-space normal's xy is rotated to match so relief lights consistently.
 void sampleVoxelPBR(uint texIndex, vec2 uv, bool varied, vec3 worldPos, vec3 faceNormal,
                     out vec4 albedo, out vec3 nrm, out float rough) {
-    uint cls   = (texIndex >> 15) & 1u;
-    uint layer = texIndex & 0x7FFFu;
-    uint count = (cls == 1u) ? atlasUVs.count1024 : atlasUVs.count512;
-    bool fb = (texIndex == 0xFFFFu || layer >= count);
-    float L = fb ? float(atlasUVs.fallbackIndex) : float(layer);
-    uint c = fb ? 0u : cls;
+    uint c; float L;
+    phxAtlasSelect(texIndex, c, L);   // shared with the OIT pass (voxel_world.glsl)
 
     // Sampling coords + screen-space gradients (explicit so divergent rotation is well-defined).
     vec2 suv = uv;
@@ -257,6 +250,17 @@ void main() {
     // varyings this path never reads. Off by default; not a rendering feature.
     if (ubo.debugShadowMode == 11) { outColor = vec4(0.5, 0.5, 0.5, 1.0); return; }
 
+    // TRANSPARENT FACES ARE DRAWN BY THE OIT PASS ONLY (transparent_voxel.frag).
+    // Contract, restored: 7a36910f wrote a note here that transparent voxels render in this pass,
+    // and the note was later deleted while the behaviour stayed -- which is how glass came to
+    // depend on its TEXTURE having alpha < 0.1 (the cutout discard below) to be see-through at all,
+    // and how a texture regen (2ea8b8d9) made it opaque without any code changing. Transparency is
+    // now decided by the material's transparent bit (bit 1), never by texture alpha, and the whole
+    // face goes to the blended pass -- including its crack, which that pass draws.
+    // docs/GlassTransparency.md §13.2, §15. Kinematic and dynamic voxels write flags = 0 and are
+    // unaffected.
+    if ((flags & 2u) != 0u) discard;
+
     // Sample albedo + normal/roughness for this face (handles the mixed-res class split).
     vec4 textureColor;
     vec3 nrmRaw;
@@ -266,7 +270,7 @@ void main() {
     // is exact (integer chunk origin); (inWorldPos - vChunkBaseRel) is the local offset at
     // small magnitude, so the sum is camera-independent — rotations never re-roll.
     bool varied = ((flags >> 15u) & 1u) != 0u;
-    vec3 worldPosAbs = vChunkBaseAbs + (inWorldPos - vChunkBaseRel);
+    vec3 worldPosAbs = phxWorldPosAbs(vChunkBaseAbs, inWorldPos, vChunkBaseRel);
     sampleVoxelPBR(textureIndex, texCoord, varied, worldPosAbs, inNormal, textureColor, nrmRaw, rough);
 
     // Per-layer material props (metallic, roughness scalar) from the atlas SSBO. Global index
@@ -275,9 +279,7 @@ void main() {
     // are matte, metal/gold stay glossy — and we keep a little of the map for surface variation.
     // (Previously the scalar was applied only to metals, so dielectrics used the map's roughness,
     // which read too shiny and produced a sun glare on grass.)
-    uint giCls = (textureIndex >> 15) & 1u;
-    uint giLayer = textureIndex & 0x7FFFu;
-    uint gi = (giCls == 1u) ? atlasUVs.count512 + giLayer : giLayer;
+    uint gi = phxAtlasGlobalIndex(textureIndex);
     float metallic = 0.0;
     float emStrength = 0.0;    // masked emission: >0 = bright albedo pixels also EMIT (enchanted log)
     float emThreshold = 0.55;  // albedo luminance above which a pixel glows
@@ -287,7 +289,7 @@ void main() {
     // STRIDE 2 since P5: [gi*2] = metallic/rough/emissive, [gi*2+1].x = crackStyle.
     if (gi < atlasUVs.count512 + atlasUVs.count1024) {
         vec4 mprops = atlasUVs.textureUVs[gi * 2u];
-        crackStyle = max(atlasUVs.textureUVs[gi * 2u + 1u].x, 0.15);
+        crackStyle = phxCrackStyleOf(textureIndex);
         metallic = mprops.x;
         rough = mprops.y;  // authored roughness is authoritative (matte nature, glossy metal); avoids grazing-angle specular sparkle from the shiny roughness map
         emStrength = mprops.z;
@@ -602,7 +604,12 @@ void main() {
     // judged independently of how far along the damage is. It also renders on pristine voxels
     // (stage 0), which the shipped path skips - that is the point: continuity across a
     // damaged/undamaged boundary is exactly what a seam test needs to see.
-    if (ubo.debugShadowMode == 11) {
+    //
+    // MODE 19, not 11 (2026-09-23). This view was mode 11 on the crack branch; main independently
+    // took 11 for the G-18 rasterisation probe (flat grey, returned at the TOP of main()), and the
+    // merge combined both without a textual conflict -- so the probe returned first and this view
+    // silently never ran. 19 is the first number neither side uses.
+    if (ubo.debugShadowMode == 19) {
         float c = crackField(worldPosAbs, inNormal, 1.0, crackStyle);
         outColor = vec4(vec3(c), 1.0);
         return;

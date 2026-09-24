@@ -243,7 +243,7 @@
     },
     "shadow.vert": {
       "built": true,
-      "sources": "99626e856d1f17e1143d910344c2a75dec916095440b0782b17dac38b9e7b04e",
+      "sources": "40037e758822f2c0d250fc3f70b5bbafe3a537e512562a85c3393a55df746a3d",
       "spv_present": true
     },
     "sky.frag": {
@@ -358,7 +358,7 @@
     },
     "transparent_voxel.frag": {
       "built": true,
-      "sources": "5ae58b85a548b9511aac06d27abd7fdef6f6768feeae713e70958a56ba0c479a",
+      "sources": "233a1b8058c06055169c859869709edca2878d4ce0d4bdbe20ece063ef6db02f",
       "spv_present": true
     },
     "ui.frag": {
@@ -383,7 +383,7 @@
     },
     "voxel.frag": {
       "built": true,
-      "sources": "72a73b4b1c07d90adc3d4e6fc2ef8dd3748d93c3dfae175001c7e524c7d03317",
+      "sources": "961e32b84effe71b5e47b9c2704da8bc5d1db2fa8ab3aa1180fcd050cba7857f",
       "spv_present": true
     },
     "water.frag": {

@@ -6,9 +6,9 @@
 alpha channel from Glass (§12.10).** **Fix design recorded (§13); all decisions made, including glass casting
 no shadow (§13.9). Design-check pass 4 NEEDS WORK → 7 items folded in (§13.9–13.15). **Phase 3 COMPLETE (§14).**
 **PHASE 4 STOPPED — the §13 design rests on a false premise: the OIT pass has been DISABLED since
-`7a36910f` (§15). Reviewer chose (A); the bounded investigation is DONE (§15.8): **the blocker is
-gone — enabling OIT adds no validation error and no composite corruption.** Sized as SMALL. Awaiting
-the reviewer's go to resume Phase 4 on OIT.** Results in §12. Gated through `FeatureDesignKeys.md` three
+`7a36910f` (§15); the blocker was investigated and is gone (§15.8).
+**PHASE 4 BUILT (§16) — every automated check green except one deferred; awaiting the reviewer's
+VISUAL SIGN-OFF (Phase 5). NOT FIXED until the reviewer says so.** Results in §12. Gated through `FeatureDesignKeys.md` three
 times (§9).
 
 > **PROCESS RULE (added 2026-09-23, after it was broken).** This plan is the approved plan. When
@@ -1205,3 +1205,79 @@ investigation found no new pipeline or synchronisation work.
 **Per §15.6 step 4, the next step is to resume Phase 4 on OIT, red-first** — the §13 design (with
 §15's corrections: decision (a)'s alpha is now meaningful, because material alpha is read by a pass that
 draws) — once the reviewer has seen this size.
+
+---
+
+## 16. Phase 4 — built, measured (2026-09-23/24)
+
+### 16.1 What changed
+
+| file | change | plan § |
+|---|---|---|
+| `shaders/voxel_world.glsl` (new) | ONE copy of `phxWorldPosAbs`, `worldFaceUV`, atlas class-select, props index, `phxCrackStyleOf`, class-aware `phxSampleAlbedo` | 13.12, 13.17 |
+| `shaders/voxel.frag` | uses the shared helpers (identical formulas); **discards transparent faces (bit 1)** with the contract note `7a36910f` wrote and something later deleted | 13.2, 3 |
+| `shaders/transparent_voxel.frag` | **the `discard` is gone**; declares `vChunkBaseAbs/Rel`, binds `textureArrayHi`, corrects the atlas header, samples through the shared class-aware path, **no texture-alpha discard** (coverage is continuous), **frosted cracks** from the same field and exact world seed as stone | 15, 13.3, 13.17 |
+| `shaders/shadow.vert` | reads the flags (location 3) and collapses transparent faces outside the clip volume — glass casts no shadow in any cascade | 13.9 |
+| `RenderCoordinator.cpp` | the OIT draw uses **6 indices, not 36** (see 16.3) | — (found in build) |
+| `Chunk.h` `setLodFaces` | refreshes the render flags | 13.13 |
+| `resources/materials.json` | Glass `alpha` 0.5 → **0.02**, calibrated by measurement to the decided T (16.2) | 13.6(a), 14.1 |
+| `resources/textures/source/glass_*.png` | new 1024 px RGBA texture from `tools/gen_glass_texture.py` | 13.5 |
+| `editor/src/Application.cpp` | debug-mode clamp 11 → 19 (16.5) | — |
+| `docs/LightingPipeline.md` | receiver rows (the OIT row had described DEAD CODE), rule R10, change log | 13.10 |
+
+### 16.2 Results — every check, with its numbers (curve 0, exposure 1.0 unless stated)
+
+| check | red (before) | green (after) | verdict |
+|---|---|---|---|
+| **R7 guard** (L2) | 6 glass faces RGB, 0% coverage | RGBA, coverage present | **PASS** |
+| **LOD flag invariant** (L2) | 2 red | 8/8 `ChunkRenderFlagsTest` | **PASS** |
+| **Transmission, target 0.80** (L4) | cube 0.023, subcube 0.027 | **cube 0.804** at alpha 0.02 | **ON TARGET** |
+| **No shadow from glass** (L4) | R = 0.000 (glass shadowed exactly like stone) | **R = 1.000** (ground 88.8 = no-roof 88.8; stone 60.6) | **PASS** |
+| **Cracks visible + frosted** (L4) | +7.44 vs floor 0.17, DARKER (stone-style) | **+30.81 vs floor 0.24, BRIGHTER** | **PASS** |
+| **Pane shows glass's texture** (L4) | magenta placeholder (§15.8 frame) | green test texture: green excess **89.9** vs backdrop 4.8 | **PASS** |
+| **Stone cracks unchanged** | — | identical scene, committed vs new `voxel.frag`: **90.9 / 85.0 / 4.5% / 5.8% in BOTH** — bit-for-bit the same numbers | **UNCHANGED** |
+| crack/damage/flag unit suites | — | **74/74** | PASS |
+| Far-from-origin crack parity (13.12) L4 | — | **DEFERRED** (16.4) — guaranteed structurally instead | deferred |
+
+### 16.3 Found during the build: the OIT pass blended every surface TWICE
+
+With the `discard` gone, glass still read T = 0.021 at alpha 0.5. Cause: each instance is ONE face,
+drawn with the 36-index cube buffer under `cullMode NONE`. The vertex shader folds corner IDs with
+`& 3`, so of the 36 indices exactly two 6-index groups form the full quad (one per winding) and four
+collapse to zero area — every transparent surface was composited twice, and blending compounds per
+layer. Fix: 6 indices for the OIT draw only (the shadow / reflection / mirror draws CULL and still
+need both windings). T at alpha 0.5 rose 0.021 → 0.083.
+
+### 16.4 Open — recorded, not explained, not blocking
+
+1. **T does not follow (1−a)² for a two-surface pane.** Two points fit T ≈ 0.86·(1−a)^3.4. About 14%
+   of the backdrop's change is lost regardless of alpha, and it is **not** the probe field (GI off:
+   0.804 → 0.818) and **not** a shadow (R = 1.000). Calibration by measurement (§14.1) makes this
+   non-blocking for the target, but a scene with two panes in line will compound differently from
+   the simple model. Worth a look on its own.
+2. **Far-origin L4 test deferred.** A fill at x ≈ 100 000 landed after 17 s by hand but not reliably
+   inside the rig, and a coordinate sweep left the engine at 10 GB. Parity is instead guaranteed by
+   construction: both passes call the single `phxWorldPosAbs` in `voxel_world.glsl`.
+3. **One engine crash, not reproduced.** During the first sign-off capture the engine exited with
+   nothing logged while finalising a `clear_region` over a damaged glass pane. Not reproduced in six
+   attempts (4 minimal cells: glass/stone × damaged/clean; 2 exact reruns of the capture sequence).
+   Cause unknown; it may or may not involve this work.
+4. **The texture repeats every voxel**, so its faint smudges read as a regular dot grid across a large
+   pane. Flagged to the reviewer with the frames; a per-voxel variation or a smudge-free texture are
+   the options if it is judged wrong.
+
+### 16.5 Fixed on the way: the crack debug view was dead since the merge
+
+Main took debug mode 11 for its G-18 rasterisation probe (flat grey, returned at the top of
+`voxel.frag`'s `main()`); the crack branch took 11 for the crack-field view. The merge combined both
+without a textual conflict and the probe returned first. The crack view is now **mode 19**, the
+editor clamp is 0–19 (which also makes main's 12–18 reachable from the editor for the first time),
+and `tools/crack_seam_test.py` points at 19. Verified: mode 11 flat (stdev 0.0), mode 19 the field
+(stdev 80.1). The standalone test API's clamp (`GameApiService.cpp`, 0–18) was **not** touched: that
+file carries another session's uncommitted work.
+
+### 16.6 Next: Phase 5 — the reviewer's visual sign-off
+
+Frames (shipped look: AgX, exposure 8, GI on): clean pane over bricks, the same pane angled, right
+half cracked at 0.45, cracked close-up at 0.90, and the stone control. **Glass is not fixed until the
+reviewer says so.** Still owed after sign-off: the pane in a generated building (§13.7).
