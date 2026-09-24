@@ -1760,6 +1760,8 @@ and damage, LOD mesh, window aperture; 187 tests).
 | 7 (C7, first cut) | 45 / 4 / 7 | all 14 T9 route cases, T9f | **T14c**: stone→brick rippled | — |
 | 7 (C7, delivered-signature fix) | 46 / 3 / 7 | + T14 | none | 191 pass, 1 fail (below; +ChunkManager/DirtyChunkTracker/FloraMargin) |
 | 8 (C5 cube leaves + C6 opaque cap) | **49 / 0 / 7** | + T11, T12, T12b | none | 191 pass, 1 fail (below) |
+| 10 (T16 cost + `GET /api/debug/chunk_faces`) | **50 / 0 / 7** | T16 | none | C7 signature cost, Debug, 20 reps: terrain **0.55%** of a rebuild (0.27 of 49.1 ms); worst case, a border layer entirely of subcubes, **3.92%** (3.60 of 91.9 ms). Both under the 5% budget; the worst case is within 1.1 points of it |
+| 9 (FULL unit suite, step-8 build) | — | — | — | **4,011 pass / 20 skipped / 2 fail**, ~69 min Debug. Both failures are unrelated to §17: the light-boundary test (below) and `AtlasManagerTest.BuildAtlasFromSourcePNGs`, which fails whenever the BC7 cache exists (verified: passes with `cache/textures` moved aside; logged in `StructurePipelineGaps.md`) |
 
 **C7 first cut was wrong, and T14 caught it.** `removeCube` re-meshes the chunk at once with the
 cell EMPTY. A signature compared with "the previous rebuild", with changes OR-ed into a pending
@@ -1773,7 +1775,9 @@ direct rebuild's change is still carried to the managed rebuild that delivers it
 at the light boundary", 1 vs 2. Light has been a uniform placeholder since `089ff2cb`
 (2026-08-31), so the boundary it needs no longer exists. The test contains no transparent material,
 and every §17 change is keyed on one, so for that input the old and new code take identical paths.
-**Not proven on a pre-change build**; that is reasoning from the code, recorded as such.
+**Empirical evidence exists independently:** `docs/VoxelDamageVisualization.md:1319` records the
+same failure, identical message and line (`topSubFaces() 1 vs 2`), verified pre-existing by
+reverting `ChunkRenderManager.cpp`, rebuilding and re-running.
 
 **Rig traps found while writing the reds (fixed in the test, recorded inline there):** (1) a chunk's
 arrival queues an IDLE re-mesh of its neighbours, so R3/R7 falsely passed until the rig settled

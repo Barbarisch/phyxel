@@ -116,8 +116,12 @@ private:
     uint64_t m_borderSigCurrent[6]   = {0, 0, 0, 0, 0, 0};
     bool     m_borderSigValid = false;
     uint8_t  m_pendingBorderRipple = 0;
-    void computeBorderSignature(uint64_t out[6]) const;
     void refreshBorderSignature();
+public:
+    /// Pure: the six border-class signatures of the chunk as it is now (§17.6 C7). Public so its
+    /// COST can be measured against a full rebuild (T16), not because callers need it.
+    void computeBorderSignature(uint64_t out[6]) const;
+private:
 
     // Occlusion visibility graph (Minecraft-style "cave culling"). m_faceConnect[f]
     // is a bitmask of which of the 6 chunk faces sight can reach from face f through

@@ -13,6 +13,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "Application.h"
 #include <cmath>
 #include "graphics/FarTerrainManager.h"
+#include "graphics/FaceCoverage.h"         // chunk_faces debug route (docs/GlassTransparency.md §17.7)
 #include "graphics/GrassRenderPipeline.h"   // s_castShadows A/B toggle
 #include "graphics/ChunkUpdatePerf.h"   // B0 chunk-update sub-cost timers (docs/ChunkUpdateHitchPlan.md)
 #include "graphics/DeferredBufferReclaim.h"  // B1 deferred buffer free (docs/ChunkUpdateHitchPlan.md)
@@ -14724,6 +14725,53 @@ void Application::registerEffectsCommands() {
         r["success"] = true;
         r["count"] = static_cast<int>(renderCoordinator->getSkyBodies().bodies.size());
         r["enabled"] = renderCoordinator->getSkyEnabled();
+    });
+
+    // docs/GlassTransparency.md §17.7 — covered unit faces of one chunk (see the route comment in
+    // EngineAPIServer.cpp). Units: microcube-sized squares; a full cube face = 81.
+    reg.on("chunk_faces", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!chunkManager) { r = {{"error", "no chunk manager"}}; return; }
+        const glm::ivec3 cc(cmd.params.value("cx", 0), cmd.params.value("cy", 0), cmd.params.value("cz", 0));
+        Chunk* c = chunkManager->getChunkAtCoord(cc);
+        if (!c) { r = {{"error", "chunk not loaded"}, {"chunk", {cc.x, cc.y, cc.z}}}; return; }
+        const bool boxed = cmd.params.contains("x1") && cmd.params.contains("x2") &&
+                           cmd.params.contains("y1") && cmd.params.contains("y2") &&
+                           cmd.params.contains("z1") && cmd.params.contains("z2");
+        const glm::ivec3 lo = boxed ? glm::ivec3(std::min(cmd.params["x1"].get<int>(), cmd.params["x2"].get<int>()),
+                                                 std::min(cmd.params["y1"].get<int>(), cmd.params["y2"].get<int>()),
+                                                 std::min(cmd.params["z1"].get<int>(), cmd.params["z2"].get<int>()))
+                                    : glm::ivec3(0);
+        const glm::ivec3 hi = boxed ? glm::ivec3(std::max(cmd.params["x1"].get<int>(), cmd.params["x2"].get<int>()),
+                                                 std::max(cmd.params["y1"].get<int>(), cmd.params["y2"].get<int>()),
+                                                 std::max(cmd.params["z1"].get<int>(), cmd.params["z2"].get<int>()))
+                                    : glm::ivec3(0);
+        const glm::ivec3 originMicro = c->getWorldOrigin() * 9;
+        int64_t byDir[2][6] = {};   // [opaque, transparent][faceID]
+        int64_t total = 0;
+        for (const auto& u : Graphics::expandCoveredUnitFaces(c->getFaces())) {
+            if (boxed) {
+                const glm::ivec3 w = originMicro + glm::ivec3(u.x, u.y, u.z);
+                const glm::ivec3 cell(static_cast<int>(std::floor(w.x / 9.0)),
+                                      static_cast<int>(std::floor(w.y / 9.0)),
+                                      static_cast<int>(std::floor(w.z / 9.0)));
+                if (cell.x < lo.x || cell.x > hi.x || cell.y < lo.y || cell.y > hi.y ||
+                    cell.z < lo.z || cell.z > hi.z) continue;
+            }
+            ++byDir[u.transparent ? 1 : 0][u.faceID];
+            ++total;
+        }
+        auto dirs = [&](int cls) {
+            return nlohmann::json{{"+Z", byDir[cls][0]}, {"-Z", byDir[cls][1]}, {"+X", byDir[cls][2]},
+                                  {"-X", byDir[cls][3]}, {"+Y", byDir[cls][4]}, {"-Y", byDir[cls][5]}};
+        };
+        r = {{"chunk", {cc.x, cc.y, cc.z}},
+             {"rebuilds", c->rebuildCount()},
+             {"quads", static_cast<int64_t>(c->getFaces().size())},
+             {"covered_unit_faces", total},
+             {"covered_cube_faces", static_cast<double>(total) / 81.0},
+             {"opaque", dirs(0)},
+             {"transparent", dirs(1)}};
+        if (boxed) r["box"] = {{"min", {lo.x, lo.y, lo.z}}, {"max", {hi.x, hi.y, hi.z}}};
     });
 
     // Fine (sub/microcube) greedy-merge toggle — live A/B for docs/BinaryGreedyMeshingPlan.md.

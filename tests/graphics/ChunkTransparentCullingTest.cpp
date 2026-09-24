@@ -23,6 +23,8 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
+#include <cstdio>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -539,6 +541,43 @@ TEST_F(TransparentCullingCrossChunk, T14_BorderRippleFiresOnlyOnARenderClassChan
     cm.markChunkDirty(a); drain();
     EXPECT_EQ(cm.borderRippleCount(), afterFirstBorderCell + 1) << "(d) opaque -> transparent on the border must ripple once";
     EXPECT_GT(b->rebuildCount(), bBefore) << "(d) the facing neighbour was not re-meshed";
+}
+
+// T16 — C7's COST (plan §17.6 item 8: a rise over 5% of rebuild time is a finding). The border
+// signature runs on every rebuild, so it is timed directly against a full rebuild of the same chunk.
+// Two chunks: terrain (the common case) and a worst case for the signature relative to the mesh,
+// a border layer made entirely of subcubes (the signature walks every sub/micro voxel).
+TEST_F(TransparentCullingCrossChunk, T16_BorderSignatureCostsUnderFivePercentOfARebuild) {
+    auto measure = [](Chunk* c, const char* label) {
+        using clock = std::chrono::steady_clock;
+        constexpr int kReps = 20;
+        c->rebuildFaces();                              // warm
+        const auto t0 = clock::now();
+        for (int i = 0; i < kReps; ++i) c->rebuildFaces();
+        const double rebuildMs = std::chrono::duration<double, std::milli>(clock::now() - t0).count() / kReps;
+        uint64_t sig[6];
+        const auto t1 = clock::now();
+        for (int i = 0; i < kReps; ++i) c->computeBorderSignature(sig);
+        const double sigMs = std::chrono::duration<double, std::milli>(clock::now() - t1).count() / kReps;
+        const double ratio = sigMs / rebuildMs;
+        std::printf("[T16] %-22s rebuild %.3f ms  signature %.4f ms  ratio %.2f%%\n",
+                    label, rebuildMs, sigMs, 100.0 * ratio);
+        EXPECT_LT(ratio, 0.05) << label << ": the border signature costs " << 100.0 * ratio
+                               << "% of a rebuild (budget 5%)";
+    };
+    Chunk* terrain = chunk({0, 0, 0});
+    for (int x = 0; x < 32; ++x) for (int z = 0; z < 32; ++z) {
+        const int top = 12 + (x * 7 + z * 3) % 6;       // rolling surface, stone under grass
+        for (int y = 0; y < top; ++y) terrain->addCube({x, y, z}, "Stone");
+        terrain->addCube({x, top, z}, "Grass");
+    }
+    measure(terrain, "terrain");
+
+    Chunk* wall = chunk({2, 0, 0});
+    for (int y = 0; y < 8; ++y) for (int z = 0; z < 32; ++z)
+        for (int sx = 0; sx < 3; ++sx) for (int sy = 0; sy < 3; ++sy) for (int sz = 0; sz < 3; ++sz)
+            wall->addSubcube({31, y, z}, {sx, sy, sz}, (y + z) % 3 ? "Stone" : "Glass");
+    measure(wall, "subcube border wall");
 }
 
 // T9f — the same ripple for a SUB-VOXEL border change (generated panes are microcubes).

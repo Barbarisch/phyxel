@@ -908,3 +908,13 @@ are missing too. Both must be fixed together — fixing the culling alone would 
 opaque LOD glass. Distance-driven chunk LOD is default-OFF, so this is latent; it becomes visible the
 day chunk LOD is enabled with glass in range. Update `docs/LodTierLedger.md` when it is fixed.
 
+## 2026-09-24 — `AtlasManagerTest.BuildAtlasFromSourcePNGs` fails whenever the BC7 cache exists
+
+Found in the §17 full-suite sweep (docs/GlassTransparency.md §17.13). The test asserts
+`info.pixels.size() == layerBytes * count`, but the content-keyed BC7 cache (`cc6a3a38`) skips the
+PNG decode on a cache hit ("source decode skipped"), so `pixels` is empty (0 vs 490,733,568). The
+cache lives in `cache/textures/` under the working directory, and launching the engine from the
+repo root creates it, so the test fails for anyone who has run the engine there. **Verified:**
+with `cache/textures` moved aside the test passes; restored afterwards. Fix belongs to the test
+(or `getAtlasInfo` on the cached path), not to any feature; not fixed here.
+

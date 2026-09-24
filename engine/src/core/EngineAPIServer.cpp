@@ -1503,6 +1503,22 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // GET /api/debug/chunk_faces?cx=&cy=&cz=[&x1=&y1=&z1=&x2=&y2=&z2=]
+    // docs/GlassTransparency.md §17.7. A chunk's emitted faces expanded to COVERED UNIT FACES at
+    // microcube resolution (graphics/FaceCoverage.h — the same decoder the unit tests use), so the
+    // count does not depend on greedy merging. Optional world-CUBE box: count only faces whose
+    // owning cell lies inside it. Read-only. Echoes the chunk and its rebuild counter so a caller
+    // can tell whether a re-mesh has landed.
+    // ====================================================================
+    srv.Get("/api/debug/chunk_faces", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        for (const char* k : {"cx", "cy", "cz", "x1", "y1", "z1", "x2", "y2", "z2"})
+            if (req.has_param(k)) params[k] = std::stoi(req.get_param_value(k));
+        json result = queueAndWait("chunk_faces", params, 10000);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
     // GET /api/debug/light_occupancy[?x=&y=&z=] — the lighting rebuild's M1b instrument.
     // No args: pool health (resident chunks / mixed cells / words / DROPPED chunks).
     // With a cell: per-micro agreement between the GPU pool and Chunk::getOccupancyGrid().
