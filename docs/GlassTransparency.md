@@ -1807,6 +1807,26 @@ The old rule would have dropped P × 81 = 1134 opaque unit faces in each glass a
 same pose (glass vs air) show the reveal through the pane; E shows no seam line at the chunk border.
 **These are evidence for the reviewer, not a sign-off.**
 
+**L4b, a generated glass window (rig `s17_l4b.py`).** Built by the engine's structure generator
+(`POST /api/structure/build`, schema v2, typology `croft`, 5×5, explicit program), never
+hand-placed. Two builds at the same position, identical except for the window portal's
+`infill`: `"glass"` vs `"open"` (control).
+
+| | placed | opaque unit faces (house box) | transparent unit faces |
+|---|---|---|---|
+| glass | 6837 | **43096** | 68 |
+| open | 6807 | **43096** | 8 |
+
+- **A (opaque glass == open): PASS**, difference 0. The old rule hid the trim's contact strips
+  along the leaf's edges.
+- **B, as written ("open = 0"): FAILED, and the prediction was wrong about the scene.** The
+  generated croft includes a `wall_lantern` fixture at (43,18,0) whose template has 7 Glass
+  microcubes (`resources/templates/furniture/wall_lantern.voxel`). It is present in both builds
+  and accounts for the 8. The glass-attributable part is the **differential**: +30 voxels placed
+  (the 30-micro leaf), and exactly **+60 transparent unit faces = 2 × 30**. That is the leaf's two
+  broad faces with every edge culled against trim, which is what the rule requires. Recorded as a
+  corrected prediction, not a pass of the original wording.
+
 **What 11a caught (R12).** `POST /api/world/fill` calls `Chunk::addCubesBatch`, which re-meshes
 its chunk at once WITHOUT a neighbour lookup and never requests a managed re-mesh. That route was
 missing from the §17.6 matrix. Both chunks at the seam kept faces meshed as if the other side were
