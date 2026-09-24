@@ -171,6 +171,10 @@ public:
         if (index < cubes.size() && cubes[index]) return cubes[index]->isVisible();
         return voxelManager.getVoxelStore().visible(index);
     }
+    /// RENDER occupancy of a local cube cell: Empty / Opaque / Transparent (docs/GlassTransparency.md
+    /// §17.5). The neighbour lookup for cross-chunk FACE culling. Built on visibleSolidCubeAtIndex,
+    /// which is deliberately NOT changed: physics must go on treating glass as solid (K1).
+    Graphics::ChunkRenderManager::NeighborOccupancy renderOccupancyAt(const glm::ivec3& localPos) const;
 
     size_t getStaticSubcubeCount() const { return staticSubcubes.size(); }
     size_t getStaticMicrocubeCount() const { return staticMicrocubes.size(); }

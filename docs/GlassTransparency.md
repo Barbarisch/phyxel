@@ -1654,10 +1654,21 @@ is its own commit, so any step can be reverted alone. Starting point: tag `glass
 1. `isTransparentMaterial` helper (17.3).
 2. Write T0–T15 (T15 only under D2 option A); confirm the RED ones fail for the stated reason and the
    controls/KEEPs pass. Commit the reds.
-3. C1 (cube, in-chunk) → T1, T2, T3 green.
-4. C3, C4 (sub/micro, in-chunk, per-face and merged) → T4, T5, T6 green.
-5. C2 + C8 (`NeighborOccupancy` enum, `Chunk::renderOccupancyAt`, `neighborSolid` maps to
-   `!= Empty`) → T7 green, T8's cube assertion green, T10/T10b green.
+3. **C1 + C2 + C8 together** (cube rule in-chunk AND across borders: `NeighborOccupancy` enum,
+   `Chunk::renderOccupancyAt`, `neighborSolid` maps to `!= Empty`) → T1, T2, T3, T7 green; T8
+   cubes stay green; T10/T10b green. *Amended 2026-09-24, found in execution:* C1 alone turned
+   T8 cubes /1 and /2 red. The in-chunk rule changed while the border branch kept the old one, so
+   a stone face behind glass was drawn or not depending on where the chunk border fell. The cube
+   rule is chunk-independent only if both branches change in the same commit.
+   *Execution note:* steps 3 and 4 landed as ONE commit. Step-4 edits were started in the same two
+   files before step 3 was committed, and the hunks could not be split non-interactively. Each
+   step's test results are still recorded separately in §17.13.
+4. C3, C4 (sub/micro, in-chunk, per-face and merged) → T4, T5, T6 green. *Amended in
+   execution:* the sub/micro half of C5 (leaf exposure) moves into this step. The per-face paths
+   derive leaf exposure from face visibility, so they adopt the new rule the moment C3/C4 land.
+   Leaving the merged paths' exposure for step 8 would make leaves differ between fine merge ON
+   and OFF in between.
+5. (merged into step 3)
 6. D2 as decided. **A:** C9 (§17.5b) → T8's sub/micro assertion tightened to equality, the transparent
    assertion and T15 green. **B:** gap entry; T8's transparent assertion marked expected-red with
    the gap's date.
@@ -1716,3 +1727,29 @@ Folded in by `aef39a78`.
 Also added: L4b, the generated glass window, which exercises the microcube path real buildings take.
 
 **Awaiting before implementation:** the reviewer's go-ahead, and decision D2 (A recommended).
+Both given 2026-09-24 (D2 = A).
+
+### 17.13 Execution log (measured, per step)
+
+The suite is `ChunkTransparentCullingTest` (the §17.8 tests plus T9f). "Regression list" = 20
+neighbouring suites (mesher, fine merge, fine culling, grass, lighting, sealing, render flags, cracks
+and damage, LOD mesh, window aperture; 187 tests).
+
+| step | suite: ok / red / skipped | flipped red → green | new reds | regression list |
+|---|---|---|---|---|
+| 2 (baseline, `71f07857`) | 16 / 32 / 7 | — | — | — |
+| 3 (C1 alone, not committed) | 15 / 34 / 7 | T1 | **T8 cubes /1, /2**: plan defect, amended (step 3 = C1+C2+C8) | — |
+| 3 (C1+C2+C8) | 19 / 29 / 7 | T1, T7, T9e/R2 | none | 186 pass, 1 fail (below) |
+| 4 (C3+C4+C5 sub/micro) | 24 / 24 / 7 | + T4a, T4b, T4c, T5a, T5b; T6 stays green | none | 186 pass, 1 fail (below) |
+
+**The one failure in the regression list** is
+`FineFaceMerge.SubcubeMerge_CrossCubeSplitsOnLightBoundaryBetweenCubes`: "cross-cube must split +Y
+at the light boundary", 1 vs 2. Light has been a uniform placeholder since `089ff2cb`
+(2026-08-31), so the boundary it needs no longer exists. The test contains no transparent material,
+and every §17 change is keyed on one, so for that input the old and new code take identical paths.
+**Not proven on a pre-change build**; that is reasoning from the code, recorded as such.
+
+**Rig traps found while writing the reds (fixed in the test, recorded inline there):** (1) a chunk's
+arrival queues an IDLE re-mesh of its neighbours, so R3/R7 falsely passed until the rig settled
+before editing; (2) an all-air neighbour's first content takes a different path, which made R4/R7
+placement falsely pass, so chunk B always carries filler.

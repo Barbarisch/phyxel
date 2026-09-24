@@ -527,7 +527,8 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
     bool ncValid = false;
     glm::ivec3 ncCoord(0);
     Chunk* ncChunk = nullptr;
-    auto getNeighborCube = [this, ncValid, ncCoord, ncChunk](const glm::ivec3& worldPos) mutable -> bool {
+    using Occ = Graphics::ChunkRenderManager::NeighborOccupancy;
+    auto getNeighborCube = [this, ncValid, ncCoord, ncChunk](const glm::ivec3& worldPos) mutable -> Occ {
         glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
         if (!ncValid || chunkCoord != ncCoord) {
             ncValid = true;
@@ -536,7 +537,9 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
         }
         // 4.2b: answer from the neighbour's palette store (hybrid — overlay Cube wins). The old
         // getCubeAt here would now MATERIALIZE a 32x32 border shell of Cubes per remesh.
-        return ncChunk && ncChunk->visibleSolidCubeAt(worldToLocalCoord(worldPos));
+        // §17.5: the answer also says whether the cell is see-through (glass), so a face behind
+        // glass in the NEXT chunk is drawn exactly as it would be inside one chunk.
+        return ncChunk ? ncChunk->renderOccupancyAt(worldToLocalCoord(worldPos)) : Occ::Empty;
     };
 
     // Cross-chunk baked-light lookup: lets the bake read a neighbour chunk's already-baked

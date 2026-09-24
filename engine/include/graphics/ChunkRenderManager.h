@@ -29,11 +29,15 @@ namespace Graphics {
  */
 class ChunkRenderManager {
 public:
-    // Neighbor probe for cross-chunk culling: is there a VISIBLE SOLID cube at this WORLD cell?
-    // (4.2b: was `const Cube*(worldPos)` — a bool answer lets the provider read the neighbour
-    // chunk's palette store instead of materializing border Cubes. Both consumers only ever
-    // asked `nc && nc->isVisible()`.)
-    using NeighborLookupFunc = std::function<bool(const glm::ivec3& worldPos)>;
+    // What occupies a cell, as face culling needs to know it (docs/GlassTransparency.md §17.5).
+    // Transparent = a solid you can see through (Core::isTransparentMaterial): it hides a
+    // transparent face against it but NOT an opaque one.
+    enum class NeighborOccupancy : uint8_t { Empty = 0, Opaque = 1, Transparent = 2 };
+    // Neighbor probe for cross-chunk culling: what VISIBLE cube occupies this WORLD cell?
+    // (4.2b: was `const Cube*(worldPos)` — answering from the neighbour's palette store avoids
+    // materializing border Cubes. §17: one call answers occupancy AND see-through, so the two
+    // can never disagree.)
+    using NeighborLookupFunc = std::function<NeighborOccupancy(const glm::ivec3& worldPos)>;
     // Baked light at a cell: skylight + per-channel coloured block light (each 0-15).
     struct BakedLight { uint8_t sky = 0, r = 0, g = 0, b = 0; };
     // Cross-chunk baked-light lookup: fills `out` for the given WORLD cell from a neighbouring
@@ -386,6 +390,10 @@ private:
     // every chunk rebuild — meaningful on streaming/edit-heavy scenes.
     std::vector<uint8_t> m_solidVis;    // 1 = a visible cube occupies the cell
     std::vector<int>     m_cellMat;     // index into the per-rebuild matFaces table (-1 = none)
+    // 1 = the cube in this cell is TRANSPARENT (Core::isTransparentMaterial). Kept beside
+    // m_solidVis so the sub/micro passes, which run after the cube pass, can apply the §17.2 rule
+    // against a parent/neighbour CUBE without the cube pass's local material table.
+    std::vector<uint8_t> m_cellTransparent;
     std::vector<uint8_t> m_cellDamage;  // quantized 0-15 voxel damage (roughness driver)
 
     // --- What blocks LIGHT (deliberately not m_solidVis) ---
@@ -426,6 +434,9 @@ private:
     // local index = z+y*3+x*9); microKey = subKey*27 + microLocalIdx.
     std::unordered_set<uint32_t> m_subOcc;
     std::unordered_set<uint32_t> m_microOcc;
+    // Keys (same encoding as m_subOcc / m_microOcc) of the TRANSPARENT ones (§17.4 C3/C4).
+    std::unordered_set<uint32_t> m_subTransparent;
+    std::unordered_set<uint32_t> m_microTransparent;
     void buildSubMicroOccupancy(
         const std::vector<std::unique_ptr<Subcube>>& subcubes,
         const std::vector<std::unique_ptr<Microcube>>& microcubes,
@@ -435,6 +446,18 @@ private:
     bool cubeCellSolid(int lx, int ly, int lz) const;
     bool subCellSolid(int lx, int ly, int lz, int sx, int sy, int sz) const;
     bool microCellSolid(int lx, int ly, int lz, int sx, int sy, int sz, int mx, int my, int mz) const;
+    // The same three questions, answered as a render class (Empty / Opaque / Transparent). The
+    // precedence is identical to the *Solid predicates: a solid parent cube (or subcube) fills
+    // the cell, so ITS class is the answer.
+    NeighborOccupancy cubeCellClass(int lx, int ly, int lz) const;
+    NeighborOccupancy subCellClass(int lx, int ly, int lz, int sx, int sy, int sz) const;
+    NeighborOccupancy microCellClass(int lx, int ly, int lz, int sx, int sy, int sz,
+                                     int mx, int my, int mz) const;
+    // THE sub/micro face-culling decision (§17.2), for all four sub/micro emission paths and their
+    // leaf-exposure tests. (gx,gy,gz) = the NEIGHBOUR cell, chunk-local, at `level` resolution
+    // (1 = subcube grid 0..95, 2 = microcube grid 0..287); it may lie outside the chunk, which
+    // today means "exposed" (C9 adds the cross-chunk answer).
+    bool fineFaceHidden(int gx, int gy, int gz, int level, bool selfTransparent) const;
 
     // Cross-chunk light bleed state. During a rebuild, these hold the neighbour-light lookup and
     // this chunk's world origin so skyLightAt/blockLightAt can read across chunk boundaries.

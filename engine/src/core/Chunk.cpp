@@ -321,6 +321,20 @@ void Chunk::initializeForLoading() {
               << ") for database loading");
 }
 
+Graphics::ChunkRenderManager::NeighborOccupancy Chunk::renderOccupancyAt(const glm::ivec3& localPos) const {
+    using Occ = Graphics::ChunkRenderManager::NeighborOccupancy;
+    if (localPos.x < 0 || localPos.x >= 32 || localPos.y < 0 || localPos.y >= 32 ||
+        localPos.z < 0 || localPos.z >= 32) return Occ::Empty;
+    const size_t idx = localToIndex(localPos);
+    if (!visibleSolidCubeAtIndex(idx)) return Occ::Empty;
+    // Same authority order as visibleSolidCubeAtIndex: a materialized overlay Cube wins.
+    const std::string& name = (idx < cubes.size() && cubes[idx])
+                                  ? cubes[idx]->getMaterialName()
+                                  : voxelManager.getVoxelStore().material(idx);
+    return Core::isTransparentMaterial(Core::MaterialRegistry::instance().getMaterial(name))
+               ? Occ::Transparent : Occ::Opaque;
+}
+
 void Chunk::rebuildFaces() {
     // Call the cross-chunk version without a neighbor lookup function
     // This will only do intra-chunk culling
