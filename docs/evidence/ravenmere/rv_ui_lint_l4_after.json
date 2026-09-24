@@ -1,0 +1,96 @@
+[
+  {
+    "screen": "main menu",
+    "state": "intro",
+    "count": 0,
+    "defects": [],
+    "visible": [
+      "menu:main"
+    ]
+  },
+  {
+    "screen": "town playing",
+    "state": "playing",
+    "count": 0,
+    "defects": [],
+    "visible": []
+  },
+  {
+    "screen": "journal open",
+    "state": "playing",
+    "count": 0,
+    "defects": [],
+    "visible": []
+  },
+  {
+    "screen": "dialogue open",
+    "state": "playing",
+    "count": 0,
+    "defects": [],
+    "visible": []
+  },
+  {
+    "screen": "character sheet",
+    "state": "paused",
+    "count": 0,
+    "defects": [],
+    "visible": [
+      "pause:main"
+    ]
+  },
+  {
+    "screen": "pause menu",
+    "state": "paused",
+    "count": 0,
+    "defects": [],
+    "visible": [
+      "pause:main"
+    ]
+  },
+  {
+    "screen": "settings main",
+    "state": "settings",
+    "count": 0,
+    "defects": [],
+    "visible": [
+      "settings:main"
+    ]
+  },
+  {
+    "screen": "keybindings panel",
+    "state": "settings",
+    "count": 0,
+    "defects": [],
+    "visible": [
+      "settings:keybindings"
+    ]
+  },
+  {
+    "screen": "farm playing",
+    "state": "playing",
+    "count": 0,
+    "defects": [],
+    "visible": []
+  },
+  {
+    "screen": "combat (farm wolves)",
+    "state": "playing",
+    "count": 0,
+    "defects": [],
+    "visible": []
+  },
+  {
+    "screen": "combat @1536x960",
+    "state": "playing",
+    "count": 0,
+    "defects": [],
+    "visible": []
+  },
+  {
+    "screen": "journal @1536x960",
+    "state": "playing",
+    "count": 0,
+    "defects": [],
+    "visible": []
+  }
+]

@@ -164,6 +164,11 @@ public:
     /// element only in certain states (e.g. "combat.inCombat").
     std::string visibleWhen;
 
+    /// G-182: a MODAL HUD root panel (the journal, a full-screen sheet) owns the screen while
+    /// it is visible - applyModalOverlays() hides every other non-modal HUD panel and the
+    /// world-space name labels, so nothing draws through it. JSON: `"modal": true`.
+    bool modal = false;
+
     // ── DRAG AND DROP (Ravenmere G-150) ─────────────────────────
     // A widget with a non-empty payload can be PICKED UP: press and hold on it and the
     // pointer carries `dragPayload` until release. JSON "drag" is a fixed payload;

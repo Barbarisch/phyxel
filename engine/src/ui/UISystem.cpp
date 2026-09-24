@@ -447,17 +447,18 @@ bool UISystem::worldToScreen(const glm::vec3& worldPos, const glm::mat4& view,
 }
 
 void UISystem::addWorldMarker(glm::vec2 windowPx, float sizePx, glm::vec4 color) {
+    if (worldLabelsSuppressed_) return;   // G-182: the selection ring drew over the journal too
     worldMarkers_.push_back({toLogical(windowPx), sizePx, color});
 }
 
 void UISystem::addWorldLabel(glm::vec2 screenPos, const std::string& text,
                              glm::vec4 textColor, float bgAlpha) {
-    if (text.empty()) return;
+    if (text.empty() || worldLabelsSuppressed_) return;
     worldLabels_.push_back({toLogical(screenPos), text, textColor, bgAlpha});
 }
 
 void UISystem::addNameplate(const Nameplate& plate) {
-    if (plate.name.empty()) return;
+    if (plate.name.empty() || worldLabelsSuppressed_) return;
     Nameplate p = plate; p.screenPos = toLogical(plate.screenPos); nameplates_.push_back(p);
 }
 

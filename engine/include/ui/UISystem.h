@@ -196,6 +196,13 @@ public:
                               const glm::mat4& proj, float screenW, float screenH,
                               glm::vec2& outScreen);
 
+    /// G-182: while a modal overlay is up, world-anchored labels and nameplates are dropped
+    /// (they would draw on top of the overlay). Set per frame by applyModalOverlays().
+    void setWorldLabelsSuppressed(bool on) { worldLabelsSuppressed_ = on; }
+    bool worldLabelsSuppressed() const { return worldLabelsSuppressed_; }
+    /// Drop the labels/nameplates already queued this frame (a modal came up after they were queued).
+    void dropQueuedWorldLabels() { worldLabels_.clear(); nameplates_.clear(); worldMarkers_.clear(); }
+
     /// Queue a world-anchored text label for THIS frame (cleared after render()).
     /// `bgAlpha` <= 0 draws text only (no backing box).
     void addWorldLabel(glm::vec2 screenPos, const std::string& text,
@@ -282,6 +289,7 @@ private:
         float bgAlpha;
     };
     std::vector<WorldLabel> worldLabels_;
+    bool worldLabelsSuppressed_ = false;   // G-182
     std::vector<Nameplate>  nameplates_;   // per-frame, drawn + cleared in render()
 };
 

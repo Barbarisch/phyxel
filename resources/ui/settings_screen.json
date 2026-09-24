@@ -357,7 +357,7 @@
           "text": "KEYBINDINGS",
           "font": "title",
           "position": [
-            640,
+            440,
             36
           ],
           "size": [
@@ -371,7 +371,7 @@
           "id": "kb_hint",
           "text": "Click a key, then press the new key (ESC cancels). ESC or Back returns to Settings.",
           "position": [
-            640,
+            200,
             100
           ],
           "size": [
@@ -385,7 +385,7 @@
           "text": "Back",
           "position": [
             540,
-            690
+            664
           ],
           "size": [
             200,
@@ -431,7 +431,7 @@
           "text": "Move Backward",
           "position": [
             160,
-            186
+            184
           ],
           "size": [
             240,
@@ -444,7 +444,7 @@
           "text": "{{keybind.MoveBackward}}",
           "position": [
             410,
-            182
+            180
           ],
           "size": [
             190,
@@ -461,7 +461,7 @@
           "text": "Move Left",
           "position": [
             160,
-            222
+            218
           ],
           "size": [
             240,
@@ -474,7 +474,7 @@
           "text": "{{keybind.MoveLeft}}",
           "position": [
             410,
-            218
+            214
           ],
           "size": [
             190,
@@ -491,7 +491,7 @@
           "text": "Move Right",
           "position": [
             160,
-            258
+            252
           ],
           "size": [
             240,
@@ -504,7 +504,7 @@
           "text": "{{keybind.MoveRight}}",
           "position": [
             410,
-            254
+            248
           ],
           "size": [
             190,
@@ -521,7 +521,7 @@
           "text": "Strafe Left",
           "position": [
             160,
-            294
+            286
           ],
           "size": [
             240,
@@ -534,7 +534,7 @@
           "text": "{{keybind.StrafeLeft}}",
           "position": [
             410,
-            290
+            282
           ],
           "size": [
             190,
@@ -551,7 +551,7 @@
           "text": "Strafe Right",
           "position": [
             160,
-            330
+            320
           ],
           "size": [
             240,
@@ -564,7 +564,7 @@
           "text": "{{keybind.StrafeRight}}",
           "position": [
             410,
-            326
+            316
           ],
           "size": [
             190,
@@ -581,7 +581,7 @@
           "text": "Jump",
           "position": [
             160,
-            366
+            354
           ],
           "size": [
             240,
@@ -594,7 +594,7 @@
           "text": "{{keybind.Jump}}",
           "position": [
             410,
-            362
+            350
           ],
           "size": [
             190,
@@ -611,7 +611,7 @@
           "text": "Sprint",
           "position": [
             160,
-            402
+            388
           ],
           "size": [
             240,
@@ -624,7 +624,7 @@
           "text": "{{keybind.Sprint}}",
           "position": [
             410,
-            398
+            384
           ],
           "size": [
             190,
@@ -641,7 +641,7 @@
           "text": "Crouch",
           "position": [
             160,
-            438
+            422
           ],
           "size": [
             240,
@@ -654,7 +654,7 @@
           "text": "{{keybind.Crouch}}",
           "position": [
             410,
-            434
+            418
           ],
           "size": [
             190,
@@ -671,7 +671,7 @@
           "text": "Autorun",
           "position": [
             160,
-            474
+            456
           ],
           "size": [
             240,
@@ -684,7 +684,7 @@
           "text": "{{keybind.ToggleAutorun}}",
           "position": [
             410,
-            470
+            452
           ],
           "size": [
             190,
@@ -701,7 +701,7 @@
           "text": "Walk / Run",
           "position": [
             160,
-            510
+            490
           ],
           "size": [
             240,
@@ -714,7 +714,7 @@
           "text": "{{keybind.ToggleWalk}}",
           "position": [
             410,
-            506
+            486
           ],
           "size": [
             190,
@@ -731,7 +731,7 @@
           "text": "Interact",
           "position": [
             160,
-            546
+            524
           ],
           "size": [
             240,
@@ -744,7 +744,7 @@
           "text": "{{keybind.Interact}}",
           "position": [
             410,
-            542
+            520
           ],
           "size": [
             190,
@@ -761,7 +761,7 @@
           "text": "Attack",
           "position": [
             160,
-            582
+            558
           ],
           "size": [
             240,
@@ -774,7 +774,7 @@
           "text": "{{keybind.Attack}}",
           "position": [
             410,
-            578
+            554
           ],
           "size": [
             190,
@@ -791,7 +791,7 @@
           "text": "Pause",
           "position": [
             160,
-            618
+            592
           ],
           "size": [
             240,
@@ -804,7 +804,7 @@
           "text": "{{keybind.TogglePause}}",
           "position": [
             410,
-            614
+            588
           ],
           "size": [
             190,
@@ -821,7 +821,7 @@
           "text": "Inventory",
           "position": [
             160,
-            654
+            626
           ],
           "size": [
             240,
@@ -834,7 +834,7 @@
           "text": "{{keybind.ToggleInventory}}",
           "position": [
             410,
-            650
+            622
           ],
           "size": [
             190,
@@ -881,7 +881,7 @@
           "text": "Abilities Panel",
           "position": [
             700,
-            186
+            184
           ],
           "size": [
             240,
@@ -894,7 +894,7 @@
           "text": "{{keybind.ToggleAbilities}}",
           "position": [
             950,
-            182
+            180
           ],
           "size": [
             190,
@@ -911,7 +911,7 @@
           "text": "Action Bar 1",
           "position": [
             700,
-            222
+            218
           ],
           "size": [
             240,
@@ -924,7 +924,7 @@
           "text": "{{keybind.ActionSlot1}}",
           "position": [
             950,
-            218
+            214
           ],
           "size": [
             190,
@@ -941,7 +941,7 @@
           "text": "Action Bar 2",
           "position": [
             700,
-            258
+            252
           ],
           "size": [
             240,
@@ -954,7 +954,7 @@
           "text": "{{keybind.ActionSlot2}}",
           "position": [
             950,
-            254
+            248
           ],
           "size": [
             190,
@@ -971,7 +971,7 @@
           "text": "Action Bar 3",
           "position": [
             700,
-            294
+            286
           ],
           "size": [
             240,
@@ -984,7 +984,7 @@
           "text": "{{keybind.ActionSlot3}}",
           "position": [
             950,
-            290
+            282
           ],
           "size": [
             190,
@@ -1001,7 +1001,7 @@
           "text": "Action Bar 4",
           "position": [
             700,
-            330
+            320
           ],
           "size": [
             240,
@@ -1014,7 +1014,7 @@
           "text": "{{keybind.ActionSlot4}}",
           "position": [
             950,
-            326
+            316
           ],
           "size": [
             190,
@@ -1031,7 +1031,7 @@
           "text": "Action Bar 5",
           "position": [
             700,
-            366
+            354
           ],
           "size": [
             240,
@@ -1044,7 +1044,7 @@
           "text": "{{keybind.ActionSlot5}}",
           "position": [
             950,
-            362
+            350
           ],
           "size": [
             190,
@@ -1061,7 +1061,7 @@
           "text": "Action Bar 6",
           "position": [
             700,
-            402
+            388
           ],
           "size": [
             240,
@@ -1074,7 +1074,7 @@
           "text": "{{keybind.ActionSlot6}}",
           "position": [
             950,
-            398
+            384
           ],
           "size": [
             190,
@@ -1091,7 +1091,7 @@
           "text": "Action Bar 7",
           "position": [
             700,
-            438
+            422
           ],
           "size": [
             240,
@@ -1104,7 +1104,7 @@
           "text": "{{keybind.ActionSlot7}}",
           "position": [
             950,
-            434
+            418
           ],
           "size": [
             190,
@@ -1121,7 +1121,7 @@
           "text": "Action Bar 8",
           "position": [
             700,
-            474
+            456
           ],
           "size": [
             240,
@@ -1134,7 +1134,7 @@
           "text": "{{keybind.ActionSlot8}}",
           "position": [
             950,
-            470
+            452
           ],
           "size": [
             190,
@@ -1151,7 +1151,7 @@
           "text": "Action Bar 9",
           "position": [
             700,
-            510
+            490
           ],
           "size": [
             240,
@@ -1164,7 +1164,7 @@
           "text": "{{keybind.ActionSlot9}}",
           "position": [
             950,
-            506
+            486
           ],
           "size": [
             190,
@@ -1181,7 +1181,7 @@
           "text": "Action Bar 10",
           "position": [
             700,
-            546
+            524
           ],
           "size": [
             240,
@@ -1194,7 +1194,7 @@
           "text": "{{keybind.ActionSlot10}}",
           "position": [
             950,
-            542
+            520
           ],
           "size": [
             190,
@@ -1211,7 +1211,7 @@
           "text": "Action Bar 11",
           "position": [
             700,
-            582
+            558
           ],
           "size": [
             240,
@@ -1224,7 +1224,7 @@
           "text": "{{keybind.ActionSlot11}}",
           "position": [
             950,
-            578
+            554
           ],
           "size": [
             190,
@@ -1241,7 +1241,7 @@
           "text": "Action Bar 12",
           "position": [
             700,
-            618
+            592
           ],
           "size": [
             240,
@@ -1254,7 +1254,7 @@
           "text": "{{keybind.ActionSlot12}}",
           "position": [
             950,
-            614
+            588
           ],
           "size": [
             190,
@@ -1271,7 +1271,7 @@
           "text": "Journal",
           "position": [
             700,
-            654
+            626
           ],
           "size": [
             240,
@@ -1284,7 +1284,7 @@
           "text": "{{keybind.ToggleJournal}}",
           "position": [
             950,
-            650
+            622
           ],
           "size": [
             190,

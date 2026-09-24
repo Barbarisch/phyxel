@@ -347,6 +347,12 @@ panel's OWN rect, so a child that overflows below a too-short panel is unclickab
 panels to contain their children.** Cosmetic leftovers: the initiative row label clips at panel
 width; the turn-label panel overlaps the (enlarged) action panel — both layout-tuning only.
 
+> **Modal overlays (2026-09-24, Ravenmere G-182).** A HUD root panel with `"modal": true` owns
+> the screen while visible: `applyModalOverlays()` hides every other un-namespaced HUD root and
+> suppresses world-space labels/nameplates for that frame; the panels' own `visibleWhen` brings
+> them back when the overlay closes. The journal is modal. Rule of thumb: anything a player
+> opens to READ (journal, a sheet) is modal; anything they act THROUGH (action bar, spellbook) is not.
+
 ## 11a. Migration roadmap — get ImGui out of shipped games (§2a)
 
 The packaged game must end up ImGui-free for real UI. Surfaces to migrate from ImGui onto

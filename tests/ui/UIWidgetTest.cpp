@@ -1177,3 +1177,53 @@ TEST(UISystemKeyCapture, TheEndCounterMovesOncePerCaptureBoundOrCancelled) {
     ui.cancelKeyCapture();
     EXPECT_EQ(ui.keyCaptureEndCount(), 2u);
 }
+
+// ---------------------------------------------------------------------------
+// G-182 (2026-09-24): a MODAL HUD panel owns the screen. Ravenmere: with the journal open, four
+// to six HUD panels and the player's world-space name label drew straight through it (ui_lint:
+// objectives 96x112 px, combat hint 244x156, ...). applyModalOverlays() runs after the per-
+// frame binds: a visible modal HUD root hides every other non-modal HUD root and suppresses
+// the world labels; namespaced screens (menu:, settings:) are never touched.
+TEST(HudModalOverlay, AVisibleModalHidesTheOtherHudPanelsAndTheWorldLabelsButNotMenus) {
+    Phyxel::UI::UISystem ui(nullptr, 1280, 720);
+    auto journal = std::make_unique<Phyxel::UI::UIPanel>(); journal->modal = true;
+    ui.addScreen("hud_journal", std::move(journal));
+    ui.addScreen("hud_health", std::make_unique<Phyxel::UI::UIPanel>());
+    ui.addScreen("hud_objectives", std::make_unique<Phyxel::UI::UIPanel>());
+    ui.addScreen("settings:main", std::make_unique<Phyxel::UI::UIPanel>());   // namespaced: untouched
+    for (const char* n : {"hud_journal", "hud_health", "hud_objectives", "settings:main"}) ui.showScreen(n);
+
+    EXPECT_TRUE(Phyxel::UI::applyModalOverlays(ui));
+    EXPECT_TRUE(ui.getScreen("hud_journal")->visible);
+    EXPECT_FALSE(ui.getScreen("hud_health")->visible) << "a non-modal HUD root hides under the modal";
+    EXPECT_FALSE(ui.getScreen("hud_objectives")->visible);
+    EXPECT_TRUE(ui.getScreen("settings:main")->visible) << "namespaced screens are not HUD";
+    EXPECT_TRUE(ui.worldLabelsSuppressed());
+    ui.addNameplate({});   // empty name: ignored anyway
+    Phyxel::UI::UISystem::Nameplate np; np.name = "player";
+    ui.addNameplate(np);
+    ui.addWorldLabel({10.0f, 10.0f}, "Wynn", glm::vec4(1.0f), 0.5f);
+    // (queued labels are dropped while suppressed - render() would draw nothing; the count is
+    // internal, so the observable here is the flag plus the no-throw path)
+}
+
+TEST(HudModalOverlay, WithNoModalVisibleNothingChangesAndLabelsAreAllowed) {
+    Phyxel::UI::UISystem ui(nullptr, 1280, 720);
+    auto journal = std::make_unique<Phyxel::UI::UIPanel>(); journal->modal = true; journal->visible = false;
+    ui.addScreen("hud_journal", std::move(journal));
+    ui.addScreen("hud_health", std::make_unique<Phyxel::UI::UIPanel>());
+    ui.showScreen("hud_health");
+    ui.setWorldLabelsSuppressed(true);   // left over from a frame with the modal up
+    EXPECT_FALSE(Phyxel::UI::applyModalOverlays(ui));
+    EXPECT_TRUE(ui.getScreen("hud_health")->visible) << "no modal: the HUD is left as its own gates set it";
+    EXPECT_FALSE(ui.worldLabelsSuppressed()) << "the suppression is per frame, released when no modal is up";
+}
+
+TEST(HudModalOverlay, TheModalFlagComesFromTheHudJson) {
+    const auto j = nlohmann::json::parse(R"({"id":"hud_journal","modal":true,"size":[760,480]})");
+    auto p = Phyxel::UI::MenuDefinition::buildFromJson(j);
+    ASSERT_NE(p, nullptr);
+    EXPECT_TRUE(p->modal);
+    const auto k = nlohmann::json::parse(R"({"id":"hud_health","size":[340,60]})");
+    EXPECT_FALSE(Phyxel::UI::MenuDefinition::buildFromJson(k)->modal) << "default off";
+}

@@ -57,7 +57,7 @@ ORDER = [
 # the longest key name ("NumpadDivide", 12) at ~14.6 px/char in the HUD font.
 ROWS_PER_COL = 15
 COL_X = [160, 700]
-ROW_Y0, ROW_PITCH = 150, 36
+ROW_Y0, ROW_PITCH = 150, 34   # 34 (was 36): 15 rows + a Back row fit a 720 canvas (G-182)
 LABEL_W, BTN_W, BTN_DX = 240, 190, 250
 
 
@@ -79,16 +79,18 @@ def build_children(actions):
         raise SystemExit("%d actions exceed the %d-row x %d-column panel - widen it"
                          % (len(ordered), ROWS_PER_COL, len(COL_X)))
     out = [
+        # position is the widget's TOP-LEFT (align only centres the text inside the box): a
+        # centred label at x=640 with an 880-wide box ran 240 px off the 1280 canvas (G-182 lint).
         {"type": "label", "align": "center", "id": "kb_title", "text": "KEYBINDINGS",
-         "font": "title", "position": [640, 36], "size": [400, 60]},
+         "font": "title", "position": [440, 36], "size": [400, 60]},
         {"type": "label", "align": "center", "id": "kb_hint",
          "text": "Click a key, then press the new key (ESC cancels). ESC or Back returns to Settings.",
-         "position": [640, 100], "size": [880, 26]},   # 700 wrapped onto row 1
+         "position": [200, 100], "size": [880, 26]},
         # G-179 (2026-09-24): the panel had NO way out - no Back button, and the shell's ESC
         # handler did not know the Settings state - so a player who opened Keybindings was
         # stuck. Same position as the main settings panel's Back.
         {"type": "button", "id": "kb_back", "text": "Back",
-         "position": [540, 690], "size": [200, 34],
+         "position": [540, 664], "size": [200, 34],   # last row ends at 656; 664+34 = 698 < 720
          "action": {"type": "close_submenu"}},
     ]
     for i, action in enumerate(ordered):

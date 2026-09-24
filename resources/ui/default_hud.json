@@ -696,6 +696,7 @@
  },
  {
   "id": "hud_journal",
+  "modal": true,
   "anchor": "Center",
   "offset": [
    0,

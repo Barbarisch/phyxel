@@ -4190,6 +4190,11 @@ void RenderCoordinator::drawFrame() {
         for (const auto& [name, vis] : m_uiSystem->getScreenList()) {
             if (auto* s = m_uiSystem->getScreen(name)) UI::applyHudBindings(s, m_hudData);
         }
+        // G-182: a modal overlay (the journal) owns the screen - the other HUD panels and the
+        // world-space name labels hide while it is up. Labels are queued by the host BEFORE
+        // this point in the frame, so the suppression set here takes effect from the next
+        // queue; the render below still drops what is already queued.
+        if (UI::applyModalOverlays(*m_uiSystem)) m_uiSystem->dropQueuedWorldLabels();
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Custom UI");
         m_uiSystem->render(vulkanDevice->getCommandBuffer(currentFrame));
     }

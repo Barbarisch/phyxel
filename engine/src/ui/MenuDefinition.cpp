@@ -296,6 +296,7 @@ std::unique_ptr<UIPanel> MenuDefinition::buildFromJson(const nlohmann::json& j) 
     if (j.contains("maxSize") && j["maxSize"].is_array() && j["maxSize"].size() == 2)
         panel->maxSize = {j["maxSize"][0].get<float>(), j["maxSize"][1].get<float>()};
     panel->visibleWhen = j.value("visibleWhen", "");
+    panel->modal = j.value("modal", false);
     panel->visible = j.value("visible", true);
     panel->enabled = j.value("enabled", true);
 
@@ -629,6 +630,26 @@ static void applyRecord(UIWidget* w, const HudRecord& rec, const HudDataContext*
     if (w->type() == WidgetType::Panel) {
         for (auto& c : static_cast<UIPanel*>(w)->children) applyRecord(c.get(), rec, ctx);
     }
+}
+
+bool applyModalOverlays(UISystem& ui) {
+    // HUD screens are the un-namespaced ones (loadHudInto adds them by panel id: "hud_journal");
+    // menu / settings / pause screens live in "<name>:*" namespaces and are not touched.
+    bool anyModal = false;
+    for (const auto& [name, vis] : ui.getScreenList()) {
+        if (name.find(':') != std::string::npos) continue;
+        UIPanel* root = ui.getScreen(name);
+        if (root && root->modal && root->visible && vis) { anyModal = true; break; }
+    }
+    if (anyModal) {
+        for (const auto& [name, vis] : ui.getScreenList()) {
+            if (name.find(':') != std::string::npos) continue;
+            UIPanel* root = ui.getScreen(name);
+            if (root && !root->modal) root->visible = false;
+        }
+    }
+    ui.setWorldLabelsSuppressed(anyModal);
+    return anyModal;
 }
 
 void applyHudBindings(UIWidget* root, const HudDataContext& ctx) {

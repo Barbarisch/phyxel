@@ -79,6 +79,14 @@ void applyHudBindings(UIWidget* root, const HudDataContext& ctx);
 
 class UISystem;  // forward decl
 
+/// G-182: after applyHudBindings ran on every screen, enforce MODAL overlays: if any
+/// un-namespaced HUD root panel with `modal` is visible, hide every other non-modal HUD root
+/// (their own visibleWhen re-gates them next frame, so closing the overlay restores them)
+/// and suppress the world-space name labels for this frame. Returns whether a modal is up.
+/// Ravenmere 2026-09-24: with the journal open, 4-6 HUD panels and the player's name label
+/// drew straight through it.
+bool applyModalOverlays(UISystem& ui);
+
 /// Host actions a menu button can invoke (wired by the loader).
 struct MenuActions {
     std::function<void(const std::string& sceneId)> onTransitionScene;
