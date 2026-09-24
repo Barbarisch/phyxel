@@ -1287,8 +1287,8 @@ reviewer says so.** Still owed after sign-off: the pane in a generated building 
 
 ## 17. Faces hidden by glass — opaque faces behind transparent neighbours are culled (plan, 2026-09-24)
 
-**Status: PLANNED, not built. Design-checked twice (§17.12); awaiting the reviewer's go-ahead
-and decision D2 (§17.5b). Rollback point: tag `glass-s17-start`.**
+**Status: IN PROGRESS. Design-checked twice (§17.12). Reviewer go-ahead 2026-09-24; D2 = option A
+(fix the sub/micro border seam here, §17.5b). Rollback point: tag `glass-s17-start`.**
 
 ### 17.1 The defect, in the reviewer's words
 
@@ -1472,7 +1472,7 @@ coordinate 0 or 31 on the axis facing the neighbour.
 | R1 `VoxelManipulationSystem` place/break → `updateAfterCubePlace/Break` → `FaceUpdateCoordinator` | player place/break, `VoxelForceApplicator` | ✅ (`FaceUpdateCoordinator.cpp:120–170`) |
 | R2 `ChunkVoxelModificationSystem::addCubeWithMaterial`, `addSubcube/MicrocubeWithMaterial`, legacy add/remove (`:94–188`) | API single-voxel place; game-definition `fill` (cube `:657`, sub/micro `:799/:804`) | ✅ (calls the update callbacks) |
 | R3 `removeCubeFast` (`:44`) | `clear_region` job (`Application.cpp:18890`), fill-with-replace (`:18815`), editor remove (`:16235`), **damage breaks** (`DamageSystem.cpp:286,386,505`), game-definition `replace` (`GameDefinitionLoader.cpp:654`) | ❌ own chunk only |
-| R4 `addCubeFast` (`:62`) | `fill_region` job (`Application.cpp:18821`) | ❌ own chunk only |
+| R4 `addCubeFast` (`:62`) | `fill_region` job **without a material** (`Application.cpp:18821`); a fill WITH a material calls `addCubeWithMaterial` (R2, `:18819`) | ❌ own chunk only |
 | R5 `ChunkVoxelManager::addCube(overwrite=true)` (`:540`) | `Chunk::addCube(...,overwrite)` pass-through; no production caller found. Sets `needsUpdate` only; the **caller** owns the re-mesh | ❌ chunk-local |
 | R6 **template / structure stamp** (`ObjectTemplateManager.cpp:556–565`, `:764–799`: `chunk->addCube/addSubcube/addMicrocube`, then a direct `rebuildFaces()` with **no lookup and no dirty mark**; also `:1245`) | `spawn_template` static, **structure generation** (generated glass windows are 1-micro Glass panes, `StructureRealizer.cpp:361–395`) | ❌ own chunks only, **and never rebuilt with the cross-chunk lookup** |
 | R7 `PlacedObjectManager::clearRegion` (`:590–608`: `removeCubesBatch` + `clearSubdivisionAt` + `markChunkDirty(own)`) and `seatStructure` steps (`:554–561`) | structure replace/remove, seating | ❌ own chunk only |
