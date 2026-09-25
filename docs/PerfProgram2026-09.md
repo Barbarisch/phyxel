@@ -1,7 +1,11 @@
 # Performance Program 2026-09: point lights and static sub/micro detail
 
-**Status:** **P0a DONE** (I1, I2, I3, I10; §10) and **P0b DONE except I4, deferred with reasons**
-(I5, I6, I7; §11), 2026-09-24. P0c (I8, I9) and P1 are next. `/design-check` ran four times on the plan (NEEDS WORK, lists 7 → 7 → 3 → 1, all
+**Status (2026-09-24):**
+- **P0a DONE** (I1, I2, I3, I10; §10).
+- **P0b DONE** except I4, which is deferred with reasons (I5, I6, I7; §11).
+- **P1 DONE on the RTX 4090** for S-1 (tavern) and S-2 (town), with verdicts and a P2 ranking in §12.
+- **Still owed:** the laptop GPU, the standalone at native resolution, and an S-3 city.
+- P0c (I8, I9) is not started. `/design-check` ran four times on the plan (NEEDS WORK, lists 7 → 7 → 3 → 1, all
 folded in, §9.1-§9.4) and returned READY on the fifth. No optimization starts until P1 has measured it.
 
 **The question (from the user):** *"it seems like we have performance issues because of too many point
@@ -570,3 +574,111 @@ failures are documented as pre-existing: `AtlasManagerTest.BuildAtlasFromSourceP
   `debugShadowMode >= 3` as a debug view and paint flat black. So **every bisect mode (11-18) blacks out
   grass, foliage and sky**: the bisect ladder never measured vegetation lighting cost. Grass and foliage
   need their own attribution (the light-trace toggle does it: §1b showed grass paying 4.4 ms of march).
+
+---
+
+## 12. P1 results on the RTX 4090 (2026-09-24, Release)
+
+**Method.** `tools/perf_harness.py`, counterbalanced A/B, 8 pairs of 240-frame GPU windows per cell,
+paired median with bootstrap 95% CI (`*` = CI excludes 0). Each component's cost = the frame time saved
+by removing it (B − A; negative = saving). Scripts and raw data: `docs/evidence/perf2026-09/p1/`
+(`run_scene.sh`, `run_extra.sh`, `ab_*.json`, `summarize.py`, `<scene>_<component>.jsonl`,
+`<scene>_summary.md`, `<scene>_census.json`). Same binary for every run (`c63cb75e`).
+Editor host, 1600×900 window, present mode IMMEDIATE.
+
+### S-1: engine-generated tavern (M4TavernBench, Flat)
+
+Provenance: `POST /api/structure/build` v2 tavern 14×7, 2 stories (`p1/s1_tavern_build.json`).
+Census: 29 lights at 16 positions; 192,334 microcubes and 53,745 subcubes stored (flora + tavern).
+
+| Remove → saves (GPU frame, ms) | Interior (22.7 ms) | Exterior (20.0 ms) |
+|---|---|---|
+| **Light march (trace off)** | **−13.8 [−13.9, −13.6]*** (61%) | **−10.2 [−10.2, −10.2]*** (51%), of which grass −3.7 |
+| Microcubes, main pass | −3.0* (Static −7.4, but grass +2.4, foliage +0.6) | −1.3* (Static −4.4, grass +1.9) |
+| Subcubes, main pass | −3.3* | −1.0* |
+| Microcubes, shadow | +0.08 (n.s.) | +0.08* (the mask's extra commands cost more than it saves) |
+| Subcubes, shadow | −0.01 (n.s.) | +0.20* (same) |
+| Foliage | −0.3* | −2.2* |
+
+**What the micro deltas are made of.** Removing a tier does not remove its pixels: whatever was behind
+takes them and is shaded instead (hence grass/foliage going UP). A second pass took shading out of the
+baseline:
+
+| Remove microcubes, main pass (interior) | Static Geometry saved | GPU frame saved |
+|---|---|---|
+| Normal (lights on) | 7.4 ms | 3.0 ms |
+| Baseline with lights off | 1.9 ms | 0.4 ms |
+| Baseline raster-only (debug mode 11: no shading) | **0.01 ms** | (frame +3.6 ms: more grass exposed) |
+
+(Exterior: 4.4 / 1.3 / 0.01 ms. Subcubes: 3.35 / 0.55 / 0.00 ms interior.)
+
+**S-1 verdicts:**
+- **H-light: CONFIRMED, dominant.** The per-light occupancy march is 51-61% of the GPU frame, and it is
+  also the bulk of what fine detail "costs": of the 7.4 ms that microcube-covered pixels cost indoors,
+  ~5.5 ms is light marching on those pixels.
+- **H-micro on the GPU: REJECTED as geometry.** Microcube and subcube geometry (vertex + raster + draw)
+  costs ~0.01 ms here. What costs is shading pixels, and those pixels are shaded whether micro detail or
+  something else covers them. Micro shadow casting is below the noise.
+- **H-micro on the CPU/RAM side: PARTLY CONFIRMED** (from §11 + the census). ~136 bytes per stored
+  microcube (26 MB floor for 192k), and a 12.6 ms main-thread re-mesh of a chunk holding ~8.8k
+  microcubes. These are hitch and memory costs, not steady-state frame costs.
+- **S1 (cull covered cube faces) is a small lever here:** 276 of 25,288 cube unit faces (1.1%) are fully
+  hidden within chunks (15,751 more at chunk borders were not decided).
+- **Foliage is a real third cost outdoors** (2.2 ms at a normal pose, far more at close canopy range, §1b).
+
+### S-2: engine-generated town (M4DensityBench, Perlin seed 7)
+
+Provenance: `POST /api/settlement/build` medieval/town seed 7, 80×40, terrain (`p1/s2_town_build.json`).
+**The generator placed 4 buildings** (the response flags `below_tier_min: 15`; this is ONE town, not the
+M4 bench's 4 settlements / 25 buildings). Census: 119 lights (32 uploaded, the cap; **12-14 of the 32
+slots are duplicates**); **553,149 microcubes stored = 75 MB CPU heap floor**, 183,992 subcubes,
+1.32 M cubes; 21,129 micro instances after merging (~17.8k in view on the street).
+
+| Remove → saves (GPU frame, ms) | Street (18.4 ms) | Overview (10.6 ms) |
+|---|---|---|
+| **Light march** | **−5.3 [−5.4, −5.3]*** (29%) | **−5.2 [−5.3, −5.1]*** (49%) |
+| Microcubes, main pass | −2.1* (Static −3.6, grass +0.7) | −1.3* |
+| … with lights off | −1.7* | −0.03* |
+| … raster-only (geometry alone, Static) | −0.03* | ≈0 |
+| Subcubes, main pass | −2.0* | −1.2* |
+| … with lights off / raster-only | −0.3* / −0.01 (Static) | −0.03* / ≈0 |
+| Microcubes, shadow | −0.13* | −0.23* |
+| Subcubes, shadow | −0.13* | −0.10* |
+| **Foliage** | −1.4* | **−2.4* (22%)** |
+
+Covered cube faces: 1,992 of 90,269 (2.2%) within chunks.
+
+### P1 verdicts on the 4090 (both scenes)
+
+1. **H-light: CONFIRMED as the #1 GPU cost.** The per-light occupancy march is **29-61% of the GPU frame**
+   (S-1 13.8 / 10.2 ms, S-2 5.3 / 5.2 ms). **Duplicate lights are 40-45% of uploaded slots** in both
+   scenes (13 of 29; 12-14 of 32).
+2. **H-micro as GPU geometry: REJECTED.** Removing the microcube or subcube tier with shading taken out
+   saves ≤ 0.03 ms of Static Geometry at every pose, and shadow casting of fine tiers is 0.1-0.25 ms. What
+   fine detail "costs" in the normal frame is the **shading of the pixels it covers**, dominated by the
+   light march. Those pixels are shaded by something else if the detail is removed, so fewer or
+   coarser voxels would not buy the frame back. Fixing lighting cost fixes it.
+3. **H-micro as CPU/RAM: CONFIRMED as a hitch/memory problem, not a frame-rate one.** ~136 B per stored
+   microcube (**75 MB for one 4-building town + forest**); a 12.6 ms main-thread re-mesh for a chunk
+   holding ~8.8k microcubes (half of it in micro face generation). This scales with world detail and
+   edits, not with what is on screen.
+4. **Unexpected #2: foliage** (1.4-2.4 ms at normal poses, 22% of the overview frame; 22+ ms at close
+   canopy range, §1b). It is outside both hypotheses and belongs in P2.
+5. **Ambient/probe shading is the residual.** With lights off, pixels covered by fine detail still cost
+   ~1.7-1.9 ms at near poses: the ambient-probe lookup + PCSS (§1b put the probe at ~3.2 ms).
+
+### P2 ranking this supports (4090; the laptop run is still owed)
+
+| Rank | Candidate | Why, from the data | Expected effect |
+|---|---|---|---|
+| 1 | **L2 clustered light culling** | The march is 29-61% of the frame and every pixel runs every in-range light. Clusters bound the per-pixel list by local density | The largest lever. Same image for the same light set |
+| 2 | **L1 merge duplicate emitters** | 40-45% of uploaded slots are duplicates. **Under the cap** (S-1: 29 → 16) marches fall ~45%, so ~6 ms of S-1's 13.8. **At the cap** (S-2) the count stays 32, but real lights replace duplicates: the image improves, cost holds | Small change, big correctness and headroom win. Do before L2, since it also shrinks cluster lists |
+| 3 | **F1 foliage cost** (new) | 1.4-2.4 ms at normal poses, 20+ ms point-blank | Needs its own attribution: overdraw vs shading |
+| 4 | **S3 compact fine-voxel storage + S4 off-thread meshing** | 75 MB / 553k micros; 12.6 ms re-mesh hitch per edit | Memory and hitches, not FPS |
+| 5 | L3a cheaper march / L3c cached visibility | Depends on steps per march (I4, deferred) and on what L2 leaves | Re-measure after L1 + L2 |
+| — | S1, S2, S5, S6 (geometry-side micro work) | Geometry ≈ free, covered faces 1-2%, fine shadow casting ≤ 0.25 ms | **Deprioritised** by measurement |
+
+**Caveats that still stand:** one GPU (the RTX 1000 Ada laptop, where G-18 measured 90%, is owed); editor
+host at 1600×900 (the standalone at native resolution is owed); S-2 is 4 buildings, not a city (S-3, a
+CityForge city, is owed); NPCs move in both scenes (the paired design protects deltas, not absolute
+levels); the §10 drift is still unexplained.
