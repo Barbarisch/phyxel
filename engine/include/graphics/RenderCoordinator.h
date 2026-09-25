@@ -599,8 +599,12 @@ public:
     // rebuild cycle would be unbearable: the whole point is to measure, adjust, measure.
     /// The sky's celestial bodies. Replacing the list takes effect on the next frame -- the
     /// bodies are placed and uploaded per frame, so nothing needs a rebuild or a relight.
-    void setSkyBodies(const SkyBodies& s) { m_skyBodies = s; }
+    void setSkyBodies(const SkyBodies& s) { m_skyBodies = s; m_dayNightCycle.setLatitudeDeg(s.latitudeDeg); }
     const SkyBodies& getSkyBodies() const { return m_skyBodies; }
+    /// Unit vector TOWARD the first reflective body (the moon), from the sky bodies - the one source
+    /// for where the moon is (G-164). Falls back to the day/night cycle's moon when the sky has no
+    /// reflective body.
+    glm::vec3 skyMoonToward() const;
     SkyBodies& getSkyBodiesMutable() { return m_skyBodies; }
 
     /// Sky pass on/off. Exists so the pass can be MEASURED: it is a full-screen raymarch and

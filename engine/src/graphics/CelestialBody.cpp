@@ -19,7 +19,7 @@ namespace {
 /// Period and phase offset advance that angle; plane tilt rotates the resulting arc about the axis
 /// the sun travels along, so a tilted body crosses the sky at a different angle rather than sliding
 /// along the same rail.
-glm::vec3 orbitDirection(const CelestialBody& b, float timeOfDayHours, int dayNumber) {
+glm::vec3 orbitDirection(const CelestialBody& b, float timeOfDayHours, int dayNumber, float latitudeRad) {
     const float twoPi = glm::two_pi<float>();
     // Continuous time in DAYS, so a period other than 1.0 drifts across days instead of resetting
     // at midnight — which is exactly what makes a moon's phase advance.
@@ -27,9 +27,7 @@ glm::vec3 orbitDirection(const CelestialBody& b, float timeOfDayHours, int dayNu
     const float turns = (b.periodDays > 1e-6f) ? (days / b.periodDays) : days;
     const float hourAngle = turns * twoPi - glm::half_pi<float>() - twoPi * b.phaseOffset;
 
-    const float s = std::sin(hourAngle);
-    const float c = std::cos(hourAngle);
-    glm::vec3 dir = glm::normalize(glm::vec3(c * 0.7f, s, c * 0.3f));
+    glm::vec3 dir = skyArcDirection(hourAngle, latitudeRad);
 
     if (std::fabs(b.planeTilt) > 1e-6f) {
         // Rotate about the horizontal axis the base arc runs along, so the tilt opens the arc out of
@@ -73,7 +71,10 @@ SkyBodies SkyBodies::defaultSky() {
     // runs very slightly slow — one full synodic cycle per LUNAR_CYCLE_DAYS.
     constexpr float kLunarCycleDays = 28.0f;
     moon.periodDays = kLunarCycleDays / (kLunarCycleDays - 1.0f);
-    moon.phaseOffset = 0.0f;
+    // Half a turn behind the sun = FULL on day 0: it rises as the sun sets on a new world's first
+    // night. 0.0 started every world at NEW moon - an unlit disc with the sun, invisible for the
+    // first several nights of every game (Ravenmere G-164: "i dont see a sun" / no moon either).
+    moon.phaseOffset = 0.5f;
     s.bodies.push_back(moon);
 
     return s;
@@ -86,7 +87,7 @@ void SkyBodies::update(float timeOfDayHours, int dayNumber, float altitudeM) {
     litFractions.assign(n, 1.0f);
 
     for (size_t i = 0; i < n; ++i) {
-        directions[i] = orbitDirection(bodies[i], timeOfDayHours, dayNumber);
+        directions[i] = orbitDirection(bodies[i], timeOfDayHours, dayNumber, glm::radians(latitudeDeg));
     }
 
     for (size_t i = 0; i < n; ++i) {
@@ -146,6 +147,21 @@ glm::vec3 readVec3(const nlohmann::json& j, const char* key, const glm::vec3& fa
 
 }  // namespace
 
+glm::vec3 skyArcDirection(float hourAngle, float latitudeRad) {
+    const float s = std::sin(hourAngle);
+    const float c = std::cos(hourAngle);
+    glm::vec3 dir = glm::normalize(glm::vec3(c * 0.7f, s, c * 0.3f));
+    if (std::fabs(latitudeRad) > 1e-6f) {
+        // Rodrigues about the rise-set axis e. Rotating +up by +angle tips it toward e x up, which is
+        // mostly +Z (north); a northern observer's sun culminates in the SOUTH, hence -latitude.
+        const glm::vec3 e = glm::normalize(glm::vec3(0.7f, 0.0f, 0.3f));
+        const float ct = std::cos(-latitudeRad), st = std::sin(-latitudeRad);
+        dir = dir * ct + glm::cross(e, dir) * st + e * glm::dot(e, dir) * (1.0f - ct);
+        dir = glm::normalize(dir);
+    }
+    return dir;
+}
+
 SkyBodies SkyBodies::fromJson(const nlohmann::json& j) {
     // A world with no sun is never what was meant, so anything missing or empty falls back to the
     // default sun+moon rather than to an empty sky.
@@ -185,6 +201,8 @@ SkyBodies SkyBodies::fromJson(const nlohmann::json& j) {
         s.bodies.push_back(b);
     }
     if (s.bodies.empty()) return defaultSky();
+    if (j.contains("latitudeDeg") && j.at("latitudeDeg").is_number())
+        s.latitudeDeg = glm::clamp(j.at("latitudeDeg").get<float>(), -89.0f, 89.0f);
     return s;
 }
 
@@ -206,7 +224,7 @@ nlohmann::json SkyBodies::toJson() const {
             {"planeTiltDeg", glm::degrees(b.planeTilt)},
         });
     }
-    return nlohmann::json{{"bodies", arr}};
+    return nlohmann::json{{"bodies", arr}, {"latitudeDeg", latitudeDeg}};
 }
 
 void SkyBodies::scaleAllSizes(float scale) {

@@ -908,7 +908,7 @@ void RenderCoordinator::drawSky(VkCommandBuffer cmd) {
     // The primary STAR, not the dominant light: the atmosphere is lit by the sun even when
     // the moon is what is lighting the ground.
     push.toSun      = glm::vec4(m_skyStarDir, static_cast<float>(m_tonemapCurve));
-    push.toMoon     = glm::vec4(glm::normalize(-m_dayNightCycle.getMoonDirection()), 0.0f);
+    push.toMoon     = glm::vec4(skyMoonToward(), 0.0f);
 
     // This pass runs before the scene pass sets its own dynamic state, so it sets its own.
     VkViewport viewport{};
@@ -3450,12 +3450,12 @@ void RenderCoordinator::drawFrame() {
                                                    - Phyxel::Core::kSeaLevelY);
             // ⚠️ FLIP. sunDirection/moonDirection are the direction light TRAVELS; the model wants a
             // vector pointing AT the body. Unflipped gives a permanent midnight.
-            const glm::vec3 toMoon = glm::normalize(-m_dayNightCycle.getMoonDirection());
-
             // Place every celestial body for this instant. SkyBodies::defaultSky() is one sun and
             // one moon, so an unconfigured world is unchanged; extra bodies are pure configuration.
             m_skyBodies.update(m_dayNightCycle.getTimeOfDay(), m_dayNightCycle.getDayNumber(),
                                altitudeM);
+            const glm::vec3 toMoon = skyMoonToward();   // the sky bodies' moon (G-164)
+            (void)toMoon;
             const int dominant = m_skyBodies.dominantLightIndex();
 
             // The sky's SCATTERING follows the primary STAR, never the dominant light. These
@@ -3508,7 +3508,7 @@ void RenderCoordinator::drawFrame() {
                                + reflectedAmbient * kMoonSkyShare;
             a.hazeHorizonColor = Atmosphere::hazeHorizon(toSun, altitudeM);
             a.hazeZenithColor  = Atmosphere::hazeZenith(toSun, altitudeM);
-            a.moonDirection    = m_dayNightCycle.getMoonDirection();
+            a.moonDirection    = -skyMoonToward();   // light-travel convention, like the cycle's
             a.moonColor        = moonlight;
             a.exposure         = m_exposure;
             a.tonemapCurve     = m_tonemapCurve;
@@ -4953,6 +4953,12 @@ std::vector<uint8_t> RenderCoordinator::captureScreenshot() {
 
     LOG_INFO("RenderCoordinator", "Screenshot captured: {}x{} pixels", width, height);
     return pixels;
+}
+
+glm::vec3 RenderCoordinator::skyMoonToward() const {
+    for (size_t i = 0; i < m_skyBodies.bodies.size() && i < m_skyBodies.directions.size(); ++i)
+        if (!m_skyBodies.bodies[i].emissive) return glm::normalize(m_skyBodies.directions[i]);
+    return glm::normalize(-m_dayNightCycle.getMoonDirection());
 }
 
 } // namespace Graphics

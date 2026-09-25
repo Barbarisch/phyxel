@@ -1,4 +1,5 @@
 #include "graphics/DayNightCycle.h"
+#include "graphics/CelestialBody.h"   // skyArcDirection: the one arc (G-164)
 #include <glm/gtc/constants.hpp>
 #include <algorithm>
 #include <cmath>
@@ -80,11 +81,13 @@ void DayNightCycle::recalculate() {
     // At noon (12h), hourAngle = pi/2 -> sun overhead
     // At midnight (0h), hourAngle = -pi/2 -> sun below
 
-    float sunY = std::sin(hourAngle); // -1 at midnight, +1 at noon
-    float sunXZ = std::cos(hourAngle);
-
-    // Sun travels east to west (positive X at dawn, negative X at dusk)
-    m_sunDirection = glm::normalize(glm::vec3(-sunXZ * 0.7f, -sunY, -sunXZ * 0.3f));
+    // The one arc the sky bodies also ride (skyArcDirection), tipped south by the latitude: the
+    // noon sun stands 90 - latitude degrees up instead of overhead (G-164). Travel direction =
+    // minus the toward-sun vector.
+    const float latRad = glm::radians(m_latitudeDeg);
+    const glm::vec3 toSun = Graphics::skyArcDirection(hourAngle, latRad);
+    float sunY = toSun.y;   // sin(elevation): < 0 below the horizon
+    m_sunDirection = -toSun;
 
     // ---- Moon: same swing plane, LAGGING the sun by the phase angle -----------------------------
     // Phase comes from the day number over WorldClock's 28-day lunar cycle, and the moon's position
@@ -96,11 +99,10 @@ void DayNightCycle::recalculate() {
     constexpr int kLunarCycleDays = 28;   // matches Core::LUNAR_CYCLE_DAYS (WorldClock.h)
     {
         const int dayInCycle = ((m_dayNumber % kLunarCycleDays) + kLunarCycleDays) % kLunarCycleDays;
-        m_moonPhase01 = static_cast<float>(dayInCycle) / static_cast<float>(kLunarCycleDays);
+        // +0.5: the default moon starts FULL on day 0, as the sky bodies' does (G-164).
+        m_moonPhase01 = std::fmod(static_cast<float>(dayInCycle) / static_cast<float>(kLunarCycleDays) + 0.5f, 1.0f);
         const float moonHourAngle = hourAngle - glm::two_pi<float>() * m_moonPhase01;
-        const float moonY  = std::sin(moonHourAngle);
-        const float moonXZ = std::cos(moonHourAngle);
-        m_moonDirection = glm::normalize(glm::vec3(-moonXZ * 0.7f, -moonY, -moonXZ * 0.3f));
+        m_moonDirection = -Graphics::skyArcDirection(moonHourAngle, latRad);
     }
 
     // Sun elevation factor: 0 when below horizon, 1 at zenith

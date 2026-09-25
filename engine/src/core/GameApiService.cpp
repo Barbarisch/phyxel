@@ -406,7 +406,19 @@ void GameApiService::registerCommands() {
     });
     reg.on("daynight", [this](const APICommand&, json& r) {
         if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
-        r = {{"success", true}, {"daynight", renderCoordinator->getDayNightCycle().toJson()}};
+        // G-164: where every sky body IS this frame (toward-body unit vectors), so a harness can
+        // aim at the sun or the moon instead of guessing from the day/night cycle.
+        json bodies = json::array();
+        const auto& sb = renderCoordinator->getSkyBodies();
+        for (size_t i = 0; i < sb.bodies.size() && i < sb.directions.size(); ++i) {
+            const glm::vec3 d = sb.directions[i];
+            bodies.push_back({{"name", sb.bodies[i].name},
+                              {"toward", {{"x", d.x}, {"y", d.y}, {"z", d.z}}},
+                              {"elevationDeg", glm::degrees(std::asin(glm::clamp(d.y, -1.0f, 1.0f)))},
+                              {"litFraction", i < sb.litFractions.size() ? sb.litFractions[i] : 1.0f},
+                              {"angularDiameterDeg", glm::degrees(sb.bodies[i].angularRadius) * 2.0f}});
+        }
+        r = {{"success", true}, {"daynight", renderCoordinator->getDayNightCycle().toJson()}, {"skyBodies", bodies}};
     });
     reg.on("daynight_set", [this](const APICommand& cmd, json& r) {
         if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }

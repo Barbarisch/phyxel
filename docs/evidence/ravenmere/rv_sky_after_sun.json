@@ -1,0 +1,117 @@
+{
+ "label": "after_sun",
+ "rows": [
+  {
+   "hour": 7.0,
+   "body": "sun",
+   "elevation_deg": 14.7,
+   "litFraction": 1.0,
+   "gameplay": {
+    "disc_peak": 238.0,
+    "sky_ring_median": 71,
+    "contrast": 3.35
+   },
+   "aimed": {
+    "disc_peak": 255.0,
+    "sky_ring_median": 158,
+    "contrast": 1.61
+   }
+  },
+  {
+   "hour": 7.0,
+   "body": "moon",
+   "elevation_deg": 1.6,
+   "litFraction": 0.9652296304702759,
+   "gameplay": {
+    "disc_peak": 238.0,
+    "sky_ring_median": 71,
+    "contrast": 3.35
+   },
+   "aimed": "below horizon"
+  },
+  {
+   "hour": 12.0,
+   "body": "sun",
+   "elevation_deg": 50.0,
+   "litFraction": 1.0,
+   "gameplay": {
+    "disc_peak": 242.0,
+    "sky_ring_median": 124,
+    "contrast": 1.95
+   },
+   "aimed": {
+    "disc_peak": 255.0,
+    "sky_ring_median": 135,
+    "contrast": 1.89
+   }
+  },
+  {
+   "hour": 12.0,
+   "body": "moon",
+   "elevation_deg": -47.7,
+   "litFraction": 0.9831392168998718,
+   "gameplay": {
+    "disc_peak": 242.0,
+    "sky_ring_median": 124,
+    "contrast": 1.95
+   },
+   "aimed": "below horizon"
+  },
+  {
+   "hour": 17.5,
+   "body": "sun",
+   "elevation_deg": 7.5,
+   "litFraction": 1.0,
+   "gameplay": {
+    "disc_peak": 129.8,
+    "sky_ring_median": 35,
+    "contrast": 3.71
+   },
+   "aimed": {
+    "disc_peak": 255.0,
+    "sky_ring_median": 22,
+    "contrast": 11.59
+   }
+  },
+  {
+   "hour": 17.5,
+   "body": "moon",
+   "elevation_deg": -27.4,
+   "litFraction": 0.9452657699584961,
+   "gameplay": {
+    "disc_peak": 129.8,
+    "sky_ring_median": 35,
+    "contrast": 3.71
+   },
+   "aimed": "below horizon"
+  },
+  {
+   "hour": 23.0,
+   "body": "sun",
+   "elevation_deg": -48.6,
+   "litFraction": 1.0,
+   "gameplay": {
+    "disc_peak": 130.0,
+    "sky_ring_median": 35,
+    "contrast": 3.71
+   },
+   "aimed": "below horizon"
+  },
+  {
+   "hour": 23.0,
+   "body": "moon",
+   "elevation_deg": 40.1,
+   "litFraction": 0.9661265015602112,
+   "gameplay": {
+    "disc_peak": 130.0,
+    "sky_ring_median": 35,
+    "contrast": 3.71
+   },
+   "aimed": {
+    "disc_peak": 251.0,
+    "sky_ring_median": 0,
+    "contrast": 251.0
+   }
+  }
+ ]
+}

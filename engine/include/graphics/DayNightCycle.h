@@ -60,6 +60,10 @@ public:
     // a full moon using the PREVIOUS day's phase. Measured as an exact inversion: the "new moon"
     // frame came out lit and the "full moon" frame black.
     void setDayNumber(int day) { m_dayNumber = day; recalculate(); }
+    /// Observer latitude (degrees): the same value the sky bodies use, so the lit direction and
+    /// the drawn disc agree (the renderer copies it from its SkyBodies, G-164).
+    void setLatitudeDeg(float deg) { m_latitudeDeg = deg; recalculate(); }
+    float getLatitudeDeg() const { return m_latitudeDeg; }
     bool isNight() const { return m_timeOfDay >= 18.0f || m_timeOfDay < 6.0f; }
     bool isDay() const { return !isNight(); }
 
@@ -105,6 +109,7 @@ private:
     // sets — the correct behaviour falls out of the geometry instead of being scripted.
     glm::vec3 m_moonDirection{0.0f, -1.0f, 0.0f};
     float m_moonPhase01 = 0.0f;
+    float m_latitudeDeg = 40.0f;   // = Graphics::kDefaultLatitudeDeg (CelestialBody.h)
 };
 
 } // namespace Graphics

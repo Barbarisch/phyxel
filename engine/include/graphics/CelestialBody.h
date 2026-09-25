@@ -86,9 +86,27 @@ struct CelestialBody {
     float planeTilt = 0.0f;
 };
 
+/// Default observer latitude, degrees north (G-164). At the equinox the noon sun stands at
+/// 90 - latitude degrees (standard solar geometry; no seasons are modelled, declination is 0), so
+/// 40 deg - Madrid 40.4 N, New York 40.7 N, a temperate setting - puts the noon sun 50 deg up in
+/// the SOUTH. The engine's original arc passed through the zenith (latitude 0): the sun sat
+/// straight overhead at noon, where a third-person player never looks, and noon shadows vanished.
+constexpr float kDefaultLatitudeDeg = 40.0f;
+
+/// The daily arc every body rides, as a unit vector TOWARD the body (Atmosphere's convention).
+/// `hourAngle` 0 = rising in the east-north-east, pi/2 = culmination, pi = setting. The base arc is
+/// the engine's original (cos*0.7, sin, cos*0.3) swing through the zenith; `latitudeRad` tips it
+/// about the rise-set axis toward the south (-Z; +Z is north, CoordinateSystem.md), so the
+/// culmination elevation is 90 deg - latitude. Rise and set points do not move.
+/// ONE function for the sky bodies and DayNightCycle: if the disc and the light used two copies of
+/// this arc they could drift apart.
+glm::vec3 skyArcDirection(float hourAngle, float latitudeRad);
+
 /// The sky's full complement of bodies, plus the per-frame results of placing them.
 struct SkyBodies {
     std::vector<CelestialBody> bodies;
+    /// Observer latitude in degrees (JSON "latitudeDeg"); tips every body's arc toward the south.
+    float latitudeDeg = kDefaultLatitudeDeg;
 
     /// Unit vector pointing FROM the viewer TOWARD each body, index-matched to `bodies`.
     /// (The same convention Atmosphere:: uses — NOT the direction light travels.)

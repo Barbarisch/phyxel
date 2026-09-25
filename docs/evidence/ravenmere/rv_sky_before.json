@@ -1,0 +1,85 @@
+{
+ "label": "before",
+ "rows": [
+  {
+   "hour": 7.0,
+   "body": "sun",
+   "toward": {
+    "x": 0.867,
+    "y": 0.332,
+    "z": 0.372
+   },
+   "elevation_deg": 19.4,
+   "gameplay": {
+    "disc_peak": 207.5,
+    "sky_ring_median": 47,
+    "contrast": 4.41
+   },
+   "aimed": {
+    "disc_peak": 255.0,
+    "sky_ring_median": 147,
+    "contrast": 1.73
+   }
+  },
+  {
+   "hour": 12.0,
+   "body": "sun",
+   "toward": {
+    "x": -0.0,
+    "y": 1.0,
+    "z": -0.0
+   },
+   "elevation_deg": 90.0,
+   "gameplay": {
+    "disc_peak": 243.0,
+    "sky_ring_median": 169,
+    "contrast": 1.44
+   },
+   "aimed": {
+    "disc_peak": 255.0,
+    "sky_ring_median": 124,
+    "contrast": 2.06
+   }
+  },
+  {
+   "hour": 17.5,
+   "body": "sun",
+   "toward": {
+    "x": -0.906,
+    "y": 0.17,
+    "z": -0.388
+   },
+   "elevation_deg": 9.8,
+   "gameplay": {
+    "disc_peak": 148.0,
+    "sky_ring_median": 42,
+    "contrast": 3.52
+   },
+   "aimed": {
+    "disc_peak": 255.0,
+    "sky_ring_median": 23,
+    "contrast": 11.09
+   }
+  },
+  {
+   "hour": 23.0,
+   "body": "moon",
+   "toward": {
+    "x": 0.184,
+    "y": 0.98,
+    "z": 0.079
+   },
+   "elevation_deg": 78.5,
+   "gameplay": {
+    "disc_peak": 119.0,
+    "sky_ring_median": 35,
+    "contrast": 3.4
+   },
+   "aimed": {
+    "disc_peak": 41.8,
+    "sky_ring_median": 0,
+    "contrast": 41.75
+   }
+  }
+ ]
+}

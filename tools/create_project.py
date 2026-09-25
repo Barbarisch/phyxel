@@ -2188,6 +2188,13 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         LOG_INFO("{class_name}", "dayNight: {{}}", renderCoordinator_->getDayNightCycle().toJson().dump());
                     }}
                 }}
+                // G-164: the world-level "sky" block (celestial bodies: size, brightness, orbit,
+                // phase). The editor applied it at four load sites; a shipped game never did, so an
+                // authored sky was silently the default one.
+                if (gameDef.contains("sky") && gameDef["sky"].is_object() && renderCoordinator_) {{
+                    renderCoordinator_->setSkyBodies(Phyxel::Graphics::SkyBodies::fromJson(gameDef["sky"]));
+                    LOG_INFO("{class_name}", "sky: {{}} bodies from game.json", renderCoordinator_->getSkyBodies().bodies.size());
+                }}
 
                 // Multi-scene: delegate to SceneManager
                 if (Phyxel::Core::GameDefinitionLoader::isMultiScene(gameDef)) {{

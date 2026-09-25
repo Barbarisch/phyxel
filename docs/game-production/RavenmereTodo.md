@@ -16,7 +16,6 @@ with the evidence. Rows from the 2026-09-08 census that nobody has re-checked si
 
 | T | G | Sev | Item | Next step |
 |---|---|---|---|---|
-| T-02 | G-164 | S2 | No visible sun disc | Draw sun and moon discs in the sky pass at the direction the lighting uses; apply the loader's `sky` block in the shipped shell (parity gap noted on the row). Verify with a capture at a stated time of day. |
 | T-03 | G-163 | S2 | An empty lot with an orphaned sign bracket | Find which pass places the bracket and what it keys off; find why the lot is empty (a silently failed build is the interesting bug). |
 | T-04 | G-167 | S2 | A build clears half a tree | Clearing must operate on the tree as an object, not the cells in a box. Test: build over a tree, assert zero orphaned tree voxels. |
 | T-05 | G-159 | S2 | NPC and player colours flicker between palettes | Reproduce first: park the camera, record N frames, diff pixels; then bisect by freezing the 32-light set. |
@@ -129,3 +128,4 @@ with the evidence. Rows from the 2026-09-08 census that nobody has re-checked si
 | G-161, G-171, G-172 | Their own status: FIXED 2026-09-23 (engine); the reports were half read at the time. |
 | G-173 | Shipped with G-183: `visibleWhen` takes `&&`/`!` expressions, evaluated identically by the engine and the gate; malformed stays hidden (fail-closed) and the gate reads every term. |
 | G-116 (T-01) | Shipped 2026-09-25: the intro story card gates the first scene of every run (button, Enter or Space); L4 `rv_intro_l4.py`. |
+| G-164 (T-02) | Shipped 2026-09-25: a sun that crosses the southern sky (noon 50 deg, `sky.latitudeDeg`), a moon that is full on the first night, the `sky` block honoured in shipped games; L4 `rv_sky_l4.py`. |

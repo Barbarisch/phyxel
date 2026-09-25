@@ -8,6 +8,7 @@
 #include <gtest/gtest.h>
 
 #include "graphics/CelestialBody.h"
+#include "graphics/DayNightCycle.h"
 
 #include <cmath>
 
@@ -34,11 +35,11 @@ TEST(CelestialBody, SunIsUpAtNoonAndDownAtMidnight) {
     SkyBodies s = SkyBodies::defaultSky();
 
     s.update(12.0f, 0);
-    EXPECT_GT(elevationDeg(s.directions[0]), 80.0f) << "the sun should be near the zenith at noon";
+    EXPECT_GT(elevationDeg(s.directions[0]), 30.0f) << "the sun should be high at noon";
     EXPECT_GT(luma(s.lightColors[0]), 0.5f) << "and delivering strong light";
 
     s.update(0.0f, 0);
-    EXPECT_LT(elevationDeg(s.directions[0]), -80.0f) << "and well below the horizon at midnight";
+    EXPECT_LT(elevationDeg(s.directions[0]), -30.0f) << "and well below the horizon at midnight";
     EXPECT_LT(luma(s.lightColors[0]), 1e-6f) << "delivering none";
 }
 
@@ -66,8 +67,8 @@ TEST(CelestialBody, MoonPhaseFollowsItsAngleToTheSun) {
 // rather than decorative.
 TEST(CelestialBody, NewMoonGivesNoLight) {
     SkyBodies s = SkyBodies::defaultSky();
-    // Day 0 midnight: the moon shares the sun's start, so it is new.
-    s.update(0.0f, 0);
+    // Day 14 midnight: the default moon starts FULL (G-164), so half a cycle later it is new.
+    s.update(0.0f, 14);
     ASSERT_LT(s.litFractions[1], 0.05f) << "test premise: this should be a new moon";
     EXPECT_LT(luma(s.lightColors[1]), 1e-7f);
 }
@@ -137,8 +138,8 @@ TEST(CelestialBody, DominantLightIsTheSunByDayAndTheMoonAtNight) {
     s.update(12.0f, 0);
     EXPECT_EQ(s.dominantLightIndex(), 0) << "the sun should own the cascades at noon";
 
-    // Day 14 puts the moon opposite the sun (full), so at midnight it is high and the sun is not.
-    s.update(0.0f, 14);
+    // Day 0 puts the moon opposite the sun (full, G-164), so at midnight it is high and the sun is not.
+    s.update(0.0f, 0);
     const int dom = s.dominantLightIndex();
     ASSERT_GE(dom, 0) << "a full moon at midnight should be lighting the world";
     EXPECT_EQ(dom, 1) << "the moon should own the cascades when the sun is down";
@@ -148,14 +149,14 @@ TEST(CelestialBody, DominantLightIsTheSunByDayAndTheMoonAtNight) {
 // than handed a body that would fit the cascades to a light below the ground.
 TEST(CelestialBody, NoDominantLightOnAMoonlessNight) {
     SkyBodies s = SkyBodies::defaultSky();
-    s.update(0.0f, 0);   // new moon at midnight: sun down, moon down and dark
+    s.update(0.0f, 14);  // new moon at midnight (day 14 since G-164): sun down, moon down and dark
     EXPECT_EQ(s.dominantLightIndex(), -1);
 }
 
 // A body below the horizon may never be chosen, whatever its nominal brightness.
 TEST(CelestialBody, DominantLightIgnoresBodiesBelowTheHorizon) {
     SkyBodies s = SkyBodies::defaultSky();
-    s.update(0.0f, 14);
+    s.update(0.0f, 0);
     const int dom = s.dominantLightIndex();
     if (dom >= 0) {
         EXPECT_GT(s.directions[dom].y, 0.0f) << "the chosen shadow caster is below the horizon";
@@ -224,4 +225,41 @@ TEST(CelestialBody, ScaleAllSizesOnlyChangesSize) {
     EXPECT_NEAR(s.bodies[1].periodDays, period, 1e-7f) << "scaling size must not touch the orbit";
     s.scaleAllSizes(0.0f);   // rejected, not applied
     EXPECT_NEAR(s.bodies[0].angularRadius, r0 * 3.0f, 1e-7f);
+}
+
+
+// G-164: a new world's moon is VISIBLE on its first night - full, and above the horizon late in
+// the evening. The old default (phaseOffset 0) started every world at new moon: the moon sat with
+// the sun, unlit, and a player saw no moon for the first several nights of any game.
+TEST(CelestialBody, TheDefaultMoonIsUpAndFullOnTheFirstNight) {
+    SkyBodies s = SkyBodies::defaultSky();
+    s.update(23.0f, 0);
+    EXPECT_GT(elevationDeg(s.directions[1]), 20.0f) << "the moon should be well up at 23:00 on day 0";
+    EXPECT_GT(s.litFractions[1], 0.9f) << "and (nearly) full";
+    EXPECT_LT(elevationDeg(s.directions[0]), 0.0f) << "with the sun down";
+}
+
+
+// G-164: the default sun culminates at 90 - latitude degrees IN THE SOUTH (-Z), not overhead -
+// a third-person camera never looks at the zenith, and a zenith sun at noon casts no shadow.
+// The rise and set points do not move, and the day/night cycle's light agrees with the disc.
+TEST(CelestialBody, TheNoonSunStandsInTheSouthAtNinetyMinusLatitude) {
+    SkyBodies s = SkyBodies::defaultSky();
+    EXPECT_FLOAT_EQ(s.latitudeDeg, kDefaultLatitudeDeg);
+    s.update(12.0f, 0);
+    EXPECT_NEAR(elevationDeg(s.directions[0]), 90.0f - kDefaultLatitudeDeg, 1.0f) << "noon elevation";
+    EXPECT_LT(s.directions[0].z, -0.3f) << "the noon sun must stand to the SOUTH (-Z)";
+    // rise/set on the horizon, as before
+    s.update(6.0f, 0);
+    EXPECT_NEAR(elevationDeg(s.directions[0]), 0.0f, 1.0f);
+    // an authored latitude of 0 restores the zenith sun
+    SkyBodies eq = SkyBodies::fromJson({{"bodies", {{{"name", "sun"}}}}, {"latitudeDeg", 0.0f}});
+    eq.update(12.0f, 0);
+    EXPECT_GT(elevationDeg(eq.directions[0]), 89.0f);
+    // the day/night cycle's lit direction is the same arc (travel = -toward)
+    DayNightCycle cycle;
+    cycle.setTimeOfDay(12.0f);
+    s.update(12.0f, 0);
+    const glm::vec3 lit = -cycle.getSunDirection();
+    EXPECT_NEAR(glm::dot(lit, s.directions[0]), 1.0f, 1e-4f) << "the light and the disc disagree";
 }
