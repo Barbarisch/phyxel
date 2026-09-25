@@ -118,18 +118,15 @@ layout(std430, set = 0, binding = 4) readonly buffer AtlasUVBuffer {
 
 layout(location = 0) out vec4 outColor;   // output color
 
-// Cheap 2D hash -> [0,1). Used to pick a per-world-cell tile rotation (Phase A).
-float hash21(vec2 p) {
-    p = fract(p * vec2(127.1, 311.7));
-    p += dot(p, p + 34.23);
-    return fract(p.x * p.y);
-}
-
 // Project a world position onto the face plane (the two axes perpendicular to the
 // face normal) -> continuous in-plane coords whose integer part is the world cell.
 // worldFaceUV, phxWorldPosAbs and the atlas class-select live in voxel_world.glsl, shared with
 // transparent_voxel.frag so the two passes cannot drift apart (GlassTransparency.md §1).
 #include "voxel_world.glsl"
+// Which fragments of a static face exist (flags, cutout), the varied-tiling sample coordinates and
+// the albedo sample: shared with the depth prepass (voxel_depth.frag), which must discard exactly
+// what this pass discards (docs/PerfProgram2026-09.md P-DP). hash21 lives there too.
+#include "voxel_surface.glsl"
 
 // Sample albedo + normal/roughness for a per-face index. The index encodes the resolution
 // class in bit 15 (0 = 512px, 1 = 1024px) and the within-class layer in bits 0..14. Out of
@@ -146,31 +143,15 @@ void sampleVoxelPBR(uint texIndex, vec2 uv, bool varied, vec3 worldPos, vec3 fac
     phxAtlasSelect(texIndex, c, L);   // shared with the OIT pass (voxel_world.glsl)
 
     // Sampling coords + screen-space gradients (explicit so divergent rotation is well-defined).
-    vec2 suv = uv;
-    vec2 gx  = dFdx(uv);
-    vec2 gy  = dFdy(uv);
-    int  rotStep = 0;
-    bool flipped = false;
-    if (varied) {
-        vec2 p = worldFaceUV(worldPos, faceNormal);
-        float h = hash21(floor(p) + 0.5);
-        rotStep = int(floor(h * 4.0)) & 3;        // 0/90/180/270
-        flipped = fract(h * 16.0) > 0.5;
-        vec2 lp  = fract(p);
-        vec2 dpx = dFdx(p);
-        vec2 dpy = dFdy(p);
-        if (flipped) { lp.x = 1.0 - lp.x; dpx.x = -dpx.x; dpy.x = -dpy.x; }
-        vec2 ctr = lp - 0.5;
-        if      (rotStep == 1) { ctr = vec2(-ctr.y, ctr.x); dpx = vec2(-dpx.y, dpx.x); dpy = vec2(-dpy.y, dpy.x); }
-        else if (rotStep == 2) { ctr = -ctr;                dpx = -dpx;                dpy = -dpy;                }
-        else if (rotStep == 3) { ctr = vec2(ctr.y, -ctr.x); dpx = vec2(dpx.y, -dpx.x); dpy = vec2(dpy.y, -dpy.x); }
-        suv = ctr + 0.5;
-        gx = dpx; gy = dpy;
-    }
+    // Shared with the depth prepass (voxel_surface.glsl) so its cutout test sees the same texel.
+    vec2 suv, gx, gy;
+    int  rotStep;
+    bool flipped;
+    phxVoxelSampleCoords(uv, varied, worldPos, faceNormal, suv, gx, gy, rotStep, flipped);
 
-    vec4 nr;
-    if (c == 1u) { albedo = textureGrad(textureArrayHi, vec3(suv, L), gx, gy); nr = textureGrad(textureNormalHi, vec3(suv, L), gx, gy); }
-    else         { albedo = textureGrad(textureArray,   vec3(suv, L), gx, gy); nr = textureGrad(textureNormal,   vec3(suv, L), gx, gy); }
+    albedo = phxSampleVoxelAlbedoGrad(texIndex, suv, gx, gy);
+    vec4 nr = (c == 1u) ? textureGrad(textureNormalHi, vec3(suv, L), gx, gy)
+                        : textureGrad(textureNormal,   vec3(suv, L), gx, gy);
     nrm = nr.rgb;
     if (varied) {                                  // rotate tangent normal xy to match the tile
         vec2 nxy = nrm.xy * 2.0 - 1.0;
@@ -329,11 +310,13 @@ void main() {
         rough = mix(rough, 1.0, max(crack, dmg * 0.25));
     }
 
-    // Discard fully transparent fragments (cutout transparency)
-    if (textureColor.a < 0.1) discard;
+    // Discard fully transparent fragments (cutout transparency). Threshold shared with the depth
+    // prepass (voxel_surface.glsl) — the crack code above only touches rgb, so this alpha is the
+    // albedo sample's alpha, which is what the prepass tests too.
+    if (textureColor.a < PHX_CUTOUT_ALPHA) discard;
 
-    // Discard mirror fragments — handled in the mirror pass
-    if ((flags & (1u << 10u)) != 0u) discard;
+    // Discard mirror fragments — handled in the mirror pass (the flag test is shared, see below)
+    if (phxStaticFaceSkippedByFlags(flags)) discard;
 
     bool isEmissive = (flags & 1u) != 0u;
 

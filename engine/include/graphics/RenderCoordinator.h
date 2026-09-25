@@ -425,6 +425,14 @@ public:
     // shadow paths. POST /api/debug/tier_mask.
     static uint32_t s_tierMaskMain;
     static uint32_t s_tierMaskShadow;
+    // P-DP depth prepass A/B (docs/PerfProgram2026-09.md). Default OFF until its A/B and pixel gates
+    // pass. When ON (and not in the debug pipeline): static geometry is drawn depth-only first, then
+    // shaded with depth writes OFF and an or-equal test, so each pixel is shaded once by its
+    // front-most fragment. POST /api/debug/depth_prepass.
+    static bool s_depthPrepass;
+    /// Whether the prepass actually ran in the last frame (false if disabled, if the debug pipeline was
+    /// active, or if its pipelines are unavailable).
+    bool depthPrepassRanLastFrame() const { return m_depthPrepassRan; }
     /// Per-frame instance counts by tier (I5 per-view census): what the main pass and each shadow
     /// cascade actually submitted, last complete frame.
     struct TierDrawStats {
@@ -466,6 +474,7 @@ public:
     const DayNightCycle& getDayNightCycle() const { return m_dayNightCycle; }
 
     GpuProfiler* getGpuProfiler() { return gpuProfiler.get(); }
+    Vulkan::RenderPipeline* getRenderPipeline() { return renderPipeline; }
     
     // Lighting Controls UI
     void toggleLightingControls() { showLightingControls = !showLightingControls; }
@@ -741,9 +750,13 @@ private:
     std::vector<TierRanges::Run> m_tierRunScratch;   // reused by masked draws (no per-chunk alloc)
     CpuTimingRecorder m_cpuTiming{240};              // I7 CPU scopes of drawFrame
     uint64_t m_cpuFrameSerial = 0;
+    bool m_depthPrepassRan = false;                  // P-DP: did the prepass run last frame
 
     // Rendering subsystems
-    size_t renderStaticGeometry();
+    // P-DP (docs/PerfProgram2026-09.md): the static pass can run as a depth prepass followed by a
+    // shading pass that reuses the SAME culled chunk list. Normal = the original single pass.
+    enum class StaticDrawPass { Normal, DepthPrepass, ShadeAfterPrepass };
+    size_t renderStaticGeometry(StaticDrawPass pass = StaticDrawPass::Normal);
     void renderTransparentGeometryOIT(uint32_t frameIndex);
     void renderMirrorGeometry(uint32_t frameIndex);
     void renderReflectionPass(uint32_t frameIndex);

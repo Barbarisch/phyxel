@@ -1248,28 +1248,41 @@ void RenderCoordinator::updateVfx(float dt) {
     if (vfxSystem) vfxSystem->update(dt);
 }
 
-size_t RenderCoordinator::renderStaticGeometry() {
+size_t RenderCoordinator::renderStaticGeometry(StaticDrawPass pass) {
     // Render static cubes and static subcubes using the standard pipeline
     // Note: Pipeline is already bound in drawFrame() - don't rebind here
     // as it would overwrite the debug pipeline if debug mode is enabled
-    
+    //
+    // P-DP (docs/PerfProgram2026-09.md): with the depth prepass ON this runs TWICE per frame -
+    // DepthPrepass (culls + draws depth-only) then ShadeAfterPrepass (reuses the SAME culled list,
+    // so the two passes draw identical instance ranges and write/test identical depth). Only the
+    // shading pass counts toward the per-view tier census.
+    const TierDrawStats tierStatsBefore = m_tierDrawStats;
+    struct TierStatsRestore {
+        RenderCoordinator* rc; const TierDrawStats* snap; bool active;
+        ~TierStatsRestore() { if (active) rc->m_tierDrawStats = *snap; }
+    } tierRestore{this, &tierStatsBefore, pass == StaticDrawPass::DepthPrepass};
+
     size_t renderedChunks = 0;
-    
+
     // Draw indexed cubes using chunk manager with proper culling
     if (chunkManager && !chunkManager->chunks.empty()) {
-        
-        // LEVEL 1: Distance-based culling (sphere of influence)
-        // LEVEL 2: Frustum culling (camera view)
-        visibleChunkIndices.clear();  // Reuse preallocated member vector
-        
-        // Compute camera position and frustum ONCE per frame (invariant across chunks)
+
+        // Compute camera position and frustum ONCE per frame (invariant across chunks). Needed by
+        // every pass: the draw loop's face-direction culling reads cameraPos.
         glm::vec3 cameraPos = camera->getPosition();
         glm::mat4 view = glm::lookAt(cameraPos, cameraPos + camera->getFront(), camera->getUp());
         glm::mat4 viewProjection = cachedProjectionMatrix * view;
-        
+
         Utils::Frustum cameraFrustum;
         cameraFrustum.extractFromMatrix(viewProjection, Utils::Frustum::ClipConvention::ReverseZeroToOne);
-        
+
+      // The shading pass after a prepass reuses the prepass's culled list verbatim.
+      if (pass != StaticDrawPass::ShadeAfterPrepass) {
+        // LEVEL 1: Distance-based culling (sphere of influence)
+        // LEVEL 2: Frustum culling (camera view)
+        visibleChunkIndices.clear();  // Reuse preallocated member vector
+
         for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
             const Chunk* chunk = chunkManager->chunks[i].get();
             
@@ -1307,6 +1320,7 @@ size_t RenderCoordinator::renderStaticGeometry() {
             CPU_PROFILE_SCOPE(&m_cpuTiming, "Occlusion BFS");
             applyOcclusionCulling(cameraPos, cameraFrustum);
         }
+      }   // culling (skipped by ShadeAfterPrepass)
 
         // Render only the visible chunks
         for (size_t chunkIndex : visibleChunkIndices) {
@@ -2408,6 +2422,7 @@ bool RenderCoordinator::s_shadowFrustumCull = false;
 
 // Phase 3 face-direction bucketing: ON by default; /api/debug/face_dir_cull for A/B.
 bool RenderCoordinator::s_faceDirCull = true;
+bool RenderCoordinator::s_depthPrepass = false;         // P-DP: OFF until its A/B + pixel gates pass
 uint32_t RenderCoordinator::s_tierMaskMain = 0x7u;     // I6: all tiers drawn (the normal paths)
 uint32_t RenderCoordinator::s_tierMaskShadow = 0x7u;
 // C1 (docs/ContinuousLodPlan.md): screen-space correction for the character LOD/cull
@@ -3977,8 +3992,14 @@ void RenderCoordinator::drawFrame() {
         }
 
         // Bind graphics pipeline (debug or normal based on debug mode)
+    // P-DP: with the depth prepass on, the depth-only pipeline goes first; the shading pipeline
+    // (depth writes OFF, or-equal test) is bound just before the shading draw below.
+    const bool useDepthPrepass = s_depthPrepass && !debugModeEnabled && renderPipeline->hasDepthPrepass();
+    m_depthPrepassRan = useDepthPrepass;
     if (debugModeEnabled) {
         renderPipeline->bindDebugGraphicsPipeline(vulkanDevice->getCommandBuffer(currentFrame));
+    } else if (useDepthPrepass) {
+        renderPipeline->bindDepthPrepassPipeline(vulkanDevice->getCommandBuffer(currentFrame));
     } else {
         renderPipeline->bindGraphicsPipeline(vulkanDevice->getCommandBuffer(currentFrame));
     }
@@ -4010,7 +4031,23 @@ void RenderCoordinator::drawFrame() {
     if (chunkManager && !chunkManager->chunks.empty()) {
         // Render static geometry first and capture how many chunks were actually rendered
         size_t actuallyRenderedChunks = 0;
-        {
+        if (useDepthPrepass) {
+            // P-DP: depth-only pass over the culled chunks, then shade the SAME list with depth
+            // writes off and an or-equal test. Descriptor sets, vertex/index buffers and the dynamic
+            // viewport/scissor stay bound across the pipeline switch (same layout, same dynamic state).
+            {
+                GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Depth Prepass");
+                CPU_PROFILE_SCOPE(&m_cpuTiming, "Depth Prepass");
+                renderStaticGeometry(StaticDrawPass::DepthPrepass);
+            }
+            renderPipeline->bindGraphicsPipelineAfterPrepass(cmd);
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Static Geometry");
+            CPU_PROFILE_SCOPE(&m_cpuTiming, "Static Geometry");
+            // D0: fragment invocations of the SHADING pass (the overdraw counter P-DP targets).
+            gpuProfiler->beginPipelineStats(cmd, GpuProfiler::STATS_SLOT_STATIC);
+            actuallyRenderedChunks = renderStaticGeometry(StaticDrawPass::ShadeAfterPrepass);
+            gpuProfiler->endPipelineStats(cmd, GpuProfiler::STATS_SLOT_STATIC);
+        } else {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Static Geometry");
             CPU_PROFILE_SCOPE(&m_cpuTiming, "Static Geometry");
             // D0: count fragment invocations + primitives for the chunk pass (overdraw counter).

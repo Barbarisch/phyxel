@@ -6,6 +6,7 @@
 #include "core/ChunkManager.h"
 #include "graphics/LightManager.h"
 #include "graphics/RenderCoordinator.h"
+#include "vulkan/RenderPipeline.h"
 #include "utils/GpuProfiler.h"
 
 namespace Phyxel::Core::PerfApi {
@@ -81,6 +82,26 @@ nlohmann::json gpuTiming(const GpuProfiler* prof, const nlohmann::json& params) 
             {"timestamp_valid_bits", prof->getTimestampValidBits()},
             {"gpu_frame_ms", frame},
             {"scopes", scopes}};
+}
+
+nlohmann::json setDepthPrepass(Graphics::RenderCoordinator* rc, const nlohmann::json& params) {
+    if (!rc) return {{"success", false}, {"error", "RenderCoordinator not available"}};
+    const bool available = rc->getRenderPipeline() && rc->getRenderPipeline()->hasDepthPrepass();
+    if (params.contains("enabled")) {
+        if (!params["enabled"].is_boolean())
+            return {{"success", false}, {"error", "'enabled' must be a boolean"}, {"applied", false}};
+        // Refused when the pipelines do not exist: a flag that claims ON while nothing runs is
+        // exactly the silent no-op that misleads an A/B.
+        if (params["enabled"].get<bool>() && !available)
+            return {{"success", false}, {"error", "depth prepass pipelines unavailable (voxel_depth.frag.spv?)"},
+                    {"available", false}, {"applied", false}};
+        Graphics::RenderCoordinator::s_depthPrepass = params["enabled"].get<bool>();
+    }
+    return {{"success", true},
+            {"enabled", Graphics::RenderCoordinator::s_depthPrepass},
+            {"available", available},
+            {"ran_last_frame", rc->depthPrepassRanLastFrame()},
+            {"note", "applies from the next frame; skipped while a debug visualization pipeline is active"}};
 }
 
 nlohmann::json cpuTiming(Graphics::RenderCoordinator* rc, const nlohmann::json& params) {

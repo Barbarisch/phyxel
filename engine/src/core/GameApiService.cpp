@@ -916,6 +916,11 @@ void GameApiService::registerCommands() {
         r["active"] = r.value("pipeline_stats_active", false);   // the field this route always returned
     });
 
+    // P-DP static depth prepass A/B, same JSON as the editor's route.
+    reg.on("set_depth_prepass", [this](const APICommand& cmd, json& r) {
+        r = PerfApi::setDepthPrepass(renderCoordinator, cmd.params);
+    });
+
     // I7: CPU render-path scopes + mesh phase timing, same JSON as the editor's routes.
     reg.on("get_cpu_timing", [this](const APICommand& cmd, json& r) {
         r = PerfApi::cpuTiming(renderCoordinator, cmd.params);

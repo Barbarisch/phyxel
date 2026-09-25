@@ -24,6 +24,42 @@ bool RenderPipeline::createGraphicsPipeline() {
         }
     }
 
+    // Pipeline layout with push constants support
+    VkDescriptorSetLayout deviceDescriptorSetLayout = vulkanDevice.getDescriptorSetLayout();
+
+    // Add push constant range for chunk base offset
+    VkPushConstantRange pushConstantRange = VulkanDevice::getPushConstantRange();
+
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = &deviceDescriptorSetLayout;
+    pipelineLayoutInfo.pushConstantRangeCount = 1;
+    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+
+    VkResult result = vkCreatePipelineLayout(vulkanDevice.getDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout);
+    if (result != VK_SUCCESS) {
+        LOG_ERROR_FMT("Rendering", "Failed to create pipeline layout! Error: " << result);
+        return false;
+    }
+
+    // The static voxel pipeline: voxel.frag, depth write ON, scene compare, full colour writes.
+    if (!buildStaticPipeline(fragShaderModule, VK_TRUE, Graphics::DepthConvention::sceneDepthCompareOp(),
+                             VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                             VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                             graphicsPipeline, "static")) {
+        return false;
+    }
+
+    // P-DP variants. Best effort: if voxel_depth.frag.spv is missing the feature is simply
+    // unavailable (hasDepthPrepass() == false) and the normal path is unaffected.
+    createDepthPrepassPipelines();
+    return true;
+}
+
+bool RenderPipeline::buildStaticPipeline(VkShaderModule fragModule, VkBool32 depthWrite,
+                                         VkCompareOp depthCompare, VkColorComponentFlags colorWriteMask,
+                                         VkPipeline& out, const char* what) {
     // Vertex input - use both vertex and instance data
     auto vertexBindingDescription = Vertex::getBindingDescription();
     auto vertexAttributeDescriptions = Vertex::getAttributeDescriptions();
@@ -79,14 +115,14 @@ bool RenderPipeline::createGraphicsPipeline() {
     VkPipelineDepthStencilStateCreateInfo depthStencil{};
     depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencil.depthTestEnable = VK_TRUE;
-    depthStencil.depthWriteEnable = VK_TRUE;
-    depthStencil.depthCompareOp = Graphics::DepthConvention::sceneDepthCompareOp();
+    depthStencil.depthWriteEnable = depthWrite;
+    depthStencil.depthCompareOp = depthCompare;
     depthStencil.depthBoundsTestEnable = VK_FALSE;
     depthStencil.stencilTestEnable = VK_FALSE;
 
     // Color blending
     VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-    colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    colorBlendAttachment.colorWriteMask = colorWriteMask;
     colorBlendAttachment.blendEnable = VK_FALSE;
 
     VkPipelineColorBlendStateCreateInfo colorBlending{};
@@ -107,28 +143,9 @@ bool RenderPipeline::createGraphicsPipeline() {
     dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
     dynamicState.pDynamicStates = dynamicStates.data();
 
-    // Pipeline layout with push constants support
-    VkDescriptorSetLayout deviceDescriptorSetLayout = vulkanDevice.getDescriptorSetLayout();
-    
-    // Add push constant range for chunk base offset
-    VkPushConstantRange pushConstantRange = VulkanDevice::getPushConstantRange();
-    
-    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 1;
-    pipelineLayoutInfo.pSetLayouts = &deviceDescriptorSetLayout;
-    pipelineLayoutInfo.pushConstantRangeCount = 1;
-    pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
-
-    VkResult result = vkCreatePipelineLayout(vulkanDevice.getDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout);
-    if (result != VK_SUCCESS) {
-        LOG_ERROR_FMT("Rendering", "Failed to create pipeline layout! Error: " << result);
-        return false;
-    }
-
     // Shader stages (assuming shaders are already loaded)
     std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
-    
+
     if (vertShaderModule != VK_NULL_HANDLE) {
         VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
         vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -138,11 +155,11 @@ bool RenderPipeline::createGraphicsPipeline() {
         shaderStages.push_back(vertShaderStageInfo);
     }
 
-    if (fragShaderModule != VK_NULL_HANDLE) {
+    if (fragModule != VK_NULL_HANDLE) {
         VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
         fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-        fragShaderStageInfo.module = fragShaderModule;
+        fragShaderStageInfo.module = fragModule;
         fragShaderStageInfo.pName = "main";
         shaderStages.push_back(fragShaderStageInfo);
     }
@@ -164,13 +181,66 @@ bool RenderPipeline::createGraphicsPipeline() {
     pipelineInfo.renderPass = renderPass;
     pipelineInfo.subpass = 0;
 
-    result = vkCreateGraphicsPipelines(vulkanDevice.getDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline);
+    VkResult result = vkCreateGraphicsPipelines(vulkanDevice.getDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &out);
     if (result != VK_SUCCESS) {
-        LOG_ERROR_FMT("Rendering", "Failed to create graphics pipeline! Error: " << result);
+        LOG_ERROR_FMT("Rendering", "Failed to create " << what << " graphics pipeline! Error: " << result);
+        out = VK_NULL_HANDLE;
         return false;
     }
 
     return true;
+}
+
+void RenderPipeline::destroyDepthPrepassPipelines() {
+    VkDevice device = vulkanDevice.getDevice();
+    if (depthPrepassPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, depthPrepassPipeline, nullptr);
+        depthPrepassPipeline = VK_NULL_HANDLE;
+    }
+    if (graphicsPipelineAfterPrepass != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, graphicsPipelineAfterPrepass, nullptr);
+        graphicsPipelineAfterPrepass = VK_NULL_HANDLE;
+    }
+    if (depthFragShaderModule != VK_NULL_HANDLE) {
+        vkDestroyShaderModule(device, depthFragShaderModule, nullptr);
+        depthFragShaderModule = VK_NULL_HANDLE;
+    }
+}
+
+void RenderPipeline::createDepthPrepassPipelines() {
+    // Rebuilt with the static pipeline (window resize recreates it), so drop any old ones first.
+    destroyDepthPrepassPipelines();
+    auto fragCode = Utils::readFile("shaders/voxel_depth.frag.spv");
+    if (fragCode.empty()) {
+        LOG_WARN("RenderPipeline", "voxel_depth.frag.spv not found: depth prepass unavailable");
+        return;
+    }
+    depthFragShaderModule = createShaderModule(fragCode);
+    // Prepass: decide which fragments exist exactly as voxel.frag does, write depth, no colour.
+    const bool okPre = buildStaticPipeline(depthFragShaderModule, VK_TRUE,
+                                           Graphics::DepthConvention::sceneDepthCompareOp(),
+                                           0, depthPrepassPipeline, "depth prepass");
+    // Shading after the prepass: the depth buffer already holds the front-most static surface, so
+    // test or-equal (the OIT pass relies on the same exact-depth reproducibility) and never write.
+    // With writes off the hardware can reject hidden fragments BEFORE running voxel.frag, even
+    // though voxel.frag contains discard.
+    const bool okShade = buildStaticPipeline(fragShaderModule, VK_FALSE,
+                                             Graphics::DepthConvention::sceneDepthCompareOpEqual(),
+                                             VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                             VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+                                             graphicsPipelineAfterPrepass, "static (after prepass)");
+    if (!okPre || !okShade) {
+        LOG_WARN("RenderPipeline", "depth prepass pipelines failed: feature unavailable");
+        destroyDepthPrepassPipelines();
+    }
+}
+
+void RenderPipeline::bindDepthPrepassPipeline(VkCommandBuffer commandBuffer) {
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, depthPrepassPipeline);
+}
+
+void RenderPipeline::bindGraphicsPipelineAfterPrepass(VkCommandBuffer commandBuffer) {
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipelineAfterPrepass);
 }
 
 bool RenderPipeline::createGraphicsPipelineForDynamicSubcubes() {
@@ -775,6 +845,7 @@ void RenderPipeline::cleanup() {
         vkDestroyPipeline(device, graphicsPipeline, nullptr);
         graphicsPipeline = VK_NULL_HANDLE;
     }
+    destroyDepthPrepassPipelines();   // P-DP variants + voxel_depth.frag module
 
     if (debugGraphicsPipeline != VK_NULL_HANDLE) {
         vkDestroyPipeline(device, debugGraphicsPipeline, nullptr);

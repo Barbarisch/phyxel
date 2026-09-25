@@ -14786,6 +14786,11 @@ void Application::registerEffectsCommands() {
 
     // Fine (sub/microcube) greedy-merge toggle — live A/B for docs/BinaryGreedyMeshingPlan.md.
     // Re-meshes all chunks so the change takes effect immediately (same as smooth_lighting).
+    // P-DP static depth prepass A/B (docs/PerfProgram2026-09.md).
+    reg.on("set_depth_prepass", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::setDepthPrepass(renderCoordinator.get(), cmd.params);
+    });
+
     // L1 duplicate-emitter merge A/B (docs/PerfProgram2026-09.md). The re-mesh rebuilds each chunk's
     // emissive list; the light count updates on the next updateVfx reconcile.
     reg.on("set_emitter_merge", [this](const Core::APICommand& cmd, nlohmann::json& r) {

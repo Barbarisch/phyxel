@@ -49,6 +49,10 @@ nlohmann::json voxelTiers(Graphics::RenderCoordinator* rc, ChunkManager* cm, con
 // optional (omitted = unchanged) but must be exactly three booleans. Echoes both masks.
 nlohmann::json setTierMask(const nlohmann::json& params);
 
+// POST /api/debug/depth_prepass {enabled: bool} (P-DP). Omitted = unchanged; a non-boolean is refused
+// and nothing is applied. Echoes {enabled, available (pipelines built), ran_last_frame}. Default OFF.
+nlohmann::json setDepthPrepass(Graphics::RenderCoordinator* rc, const nlohmann::json& params);
+
 // GET /api/debug/cpu_timing?frames=N (I7). CPU scopes of drawFrame, same statistics as gpu_timing:
 // drawFrame > LOD Update, Light Occupancy, Dirty Chunk Flush (includes meshing), Fence Wait, Acquire,
 // Frame Setup (> Light Select+Upload), Record (> Shadow Pass, Scene Pass > Static Geometry > Occlusion

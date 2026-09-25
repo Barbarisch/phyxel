@@ -41,6 +41,14 @@ public:
 
     // Pipeline state
     void bindGraphicsPipeline(VkCommandBuffer commandBuffer);
+    // P-DP depth prepass (docs/PerfProgram2026-09.md). Both variants are built from the SAME state
+    // as the static pipeline (buildStaticPipeline), differing only in fragment shader, depth write,
+    // depth compare and colour write mask.
+    //   prepass : voxel_depth.frag, depth write ON, scene compare, colour writes OFF
+    //   shading : voxel.frag,       depth write OFF, or-equal compare, colour writes ON
+    bool hasDepthPrepass() const { return depthPrepassPipeline != VK_NULL_HANDLE && graphicsPipelineAfterPrepass != VK_NULL_HANDLE; }
+    void bindDepthPrepassPipeline(VkCommandBuffer commandBuffer);
+    void bindGraphicsPipelineAfterPrepass(VkCommandBuffer commandBuffer);
     void bindCharacterPipeline(VkCommandBuffer commandBuffer);
     void bindInstancedCharacterPipeline(VkCommandBuffer commandBuffer);
     void bindDebugGraphicsPipeline(VkCommandBuffer commandBuffer);
@@ -97,6 +105,9 @@ private:
     VkPipelineLayout characterPipelineLayout = VK_NULL_HANDLE;
     VkPipelineLayout instancedCharacterPipelineLayout = VK_NULL_HANDLE;
     VkPipeline graphicsPipeline = VK_NULL_HANDLE;
+    VkPipeline depthPrepassPipeline = VK_NULL_HANDLE;          // P-DP: depth-only static pass
+    VkPipeline graphicsPipelineAfterPrepass = VK_NULL_HANDLE;  // P-DP: static shading, no depth write
+    VkShaderModule depthFragShaderModule = VK_NULL_HANDLE;     // voxel_depth.frag
     VkPipeline characterPipeline = VK_NULL_HANDLE;
     VkPipeline instancedCharacterPipeline = VK_NULL_HANDLE;
     VkPipeline reflectionInstancedCharacterPipeline = VK_NULL_HANDLE;  // FRONT_BIT variant for mirror reflection pass
@@ -136,6 +147,13 @@ private:
 
     // Helper functions
     VkShaderModule createShaderModule(const std::vector<char>& code);
+    // One definition of the static voxel pipeline state (vertex input, cull FRONT + CCW, 1 sample,
+    // dynamic viewport/scissor, pipelineLayout, renderPass) shared by the static pipeline and both
+    // P-DP variants, so they cannot drift. Requires pipelineLayout and vertShaderModule to exist.
+    bool buildStaticPipeline(VkShaderModule fragModule, VkBool32 depthWrite, VkCompareOp depthCompare,
+                             VkColorComponentFlags colorWriteMask, VkPipeline& out, const char* what);
+    void createDepthPrepassPipelines();   // best effort: leaves them null (feature unavailable) on failure
+    void destroyDepthPrepassPipelines();
     bool createDescriptorSetLayout();
     bool createDynamicDescriptorSetLayout();  // UBO-only layout for dynamic subcubes
     VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);

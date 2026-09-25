@@ -1137,6 +1137,16 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // POST /api/debug/depth_prepass {enabled: bool} — P-DP static depth prepass A/B
+    // (docs/PerfProgram2026-09.md). Omitted = unchanged; non-boolean refused. Default OFF. Refused
+    // (not silently accepted) when the prepass pipelines are unavailable. Echoes enabled, available,
+    // ran_last_frame.
+    srv.Post("/api/debug/depth_prepass", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_depth_prepass", params).dump(), "application/json");
+    });
+
     // POST /api/debug/emitter_merge {enabled: bool} — L1 duplicate-emitter merge A/B
     // (docs/PerfProgram2026-09.md). Omitted = unchanged. Re-meshes every chunk so the emissive light
     // list is rebuilt under the new setting; echoes the state and the resulting light count.

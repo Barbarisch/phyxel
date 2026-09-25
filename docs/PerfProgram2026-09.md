@@ -776,6 +776,73 @@ it got faster. A plausible reason: the duplicates clustered where emitters are d
 copies of one spot ranked at the top by distance and marched the same nearby pixels; merged, those slots
 go to distinct, on average farther lights with fewer pixels in range.
 
+### 14. P-DP static depth prepass: BUILT, verified, default OFF (2026-09-25, RTX 4090, Release)
+
+**What it is.** With the prepass on, static geometry is drawn depth-only first (`voxel_depth.frag`,
+colour writes off), then shaded by `voxel.frag` with **depth writes off and an or-equal test**, so
+every pixel is shaded once, by its front-most fragment.
+
+**Why it works here.** `voxel.frag` contains three `discard`s (transparent flag, alpha cutout, mirror
+flag). With `discard` present and depth writes on, the GPU cannot reject hidden fragments before
+running the shader. With depth writes off in the shading pass, it can.
+
+**The discards are shared, not copied.** Which fragments exist (flag skips, `PHX_CUTOUT_ALPHA`, the
+varied-tiling sample coordinates, the albedo sample) now lives in `voxel_surface.glsl`, included by
+both shaders.
+
+**The pipelines are built from one definition.** All three static pipelines (normal, prepass,
+shade-after-prepass) come from one builder (`RenderPipeline::buildStaticPipeline`), so their state
+cannot drift. Both passes use the SAME culled chunk list and instance ranges.
+
+`POST /api/debug/depth_prepass {enabled}` echoes `enabled`, `available` and `ran_last_frame`; it
+refuses a non-boolean, and refuses ON when the pipelines are unavailable.
+
+**Red test (overdraw = Static FS invocations ÷ covered pixels; prediction written in the design check:
+tavern interior ≤ ×1.3):**
+
+| Scene / pose | Prepass off | **Prepass on** |
+|---|---|---|
+| Tavern interior | ×2.53 | **×1.05** |
+| Tavern exterior | ×2.97 | ×1.71 |
+| Town street | ×2.39 | ×1.12 |
+| Town overview | ×1.81 | ×1.32 |
+
+What remains outdoors is most likely 2×2 quad overshading of tiny faces, which a prepass cannot remove.
+That is a future lead.
+
+**Correctness (pixel gates, `p1/dp_*`).**
+- **Lit frames at matched timing were inconclusive** at single-pair noise. They missed by a few pixels,
+  with mean differences in the prepass's favour: the walking NPC, grass wind and hearth flicker. Pausing
+  did not help, because the flicker is frame-wide.
+- **Decisive:** debug mode 12 (the albedo of the surviving front-most fragment, after all three
+  discards), game paused. At the tavern poses the control and the test are both ≈0 (p99.9 = 0).
+- **R-DP2 discard rig** (hand-placed Stone wall + Glass pane + Mirror in one chunk, 6 orbit angles).
+  - First run: 2 of 6 angles failed on ONE curve each. Diff images put every differing pixel, test and
+    control alike, in the swaying grass. My first classifier for that was wrong: the blades read ~39/255,
+    not < 20.
+  - Re-run with grass and foliage off: **control and test are both 0 px over 8/255 at every angle, on
+    both curves.** All three discard paths and the winding are exact.
+
+**Measured win** (8 counterbalanced pairs, 95% CI, **on top of L1**; `p1/s1_dp.jsonl`, `p1/s2_dp.jsonl`):
+
+| Scene / pose | GPU frame, prepass off → on | Saving | Prepass cost |
+|---|---|---|---|
+| Tavern interior | 18.8 → **11.7 ms** | **−7.0 ms [5.1, 8.9] (−37%)** | 0.027 ms |
+| Tavern exterior | 14.4 → **10.8 ms** | **−3.5 ms [3.54, 3.56] (−25%)** | 0.030 ms |
+| Town street | 17.6 → **12.9 ms** | **−4.6 ms [4.59, 4.74] (−26%)** | 0.042 ms |
+| Town overview | 9.3 → **7.5 ms** | **−1.8 ms [1.80, 2.05] (−20%)** | 0.011 ms |
+
+**H-overdraw: CONFIRMED as a large lever, but the specific prediction was too strong.** It predicted
+the overview's light cost would collapse. Static Geometry there fell 63% (2.5 → 0.9 ms), but most of the
+overview's remaining 7.5 ms is outside the static pass (foliage, grass, shadows, GI probes). The next
+attribution should start there.
+
+**L1 + P-DP together** (tavern interior, the scene both were measured in): ≈23.9 ms → ≈11.7 ms GPU
+frame. The two A/Bs ran in different processes, so this is an approximate compound, not one A/B.
+
+**Default:** still OFF. Turning it ON is its own commit (the design check's rule). Every gate this
+feature was given has passed.
+
 **Caveats that still stand:** one GPU (the RTX 1000 Ada laptop, where G-18 measured 90%, is owed); editor
 host at 1600×900 (the standalone at native resolution is owed); S-2 is 4 buildings, not a city (S-3, a
 CityForge city, is owed); NPCs move in both scenes (the paired design protects deltas, not absolute

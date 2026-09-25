@@ -1,0 +1,51 @@
+{
+ "pose": [
+  49.97,
+  20.716,
+  46.947,
+  -150.0,
+  -10.0
+ ],
+ "curves": {
+  "linear": {
+   "control_A1_C": {
+    "max": 1,
+    "p999": 1.0,
+    "over8": 0,
+    "mean": 0.0013584264893165417
+   },
+   "test_A1_B": {
+    "max": 1,
+    "p999": 1.0,
+    "over8": 0,
+    "mean": 0.0011320220744304515
+   },
+   "pass": true,
+   "captures": [
+    "screenshots/screenshot_20260925_103131_556.png",
+    "screenshots/screenshot_20260925_103133_914.png",
+    "screenshots/screenshot_20260925_103136_219.png"
+   ]
+  },
+  "shipping": {
+   "control_A1_C": {
+    "max": 2,
+    "p999": 1.0,
+    "over8": 0,
+    "mean": 0.0040736147296048745
+   },
+   "test_A1_B": {
+    "max": 2,
+    "p999": 1.0,
+    "over8": 0,
+    "mean": 0.003665753835140962
+   },
+   "pass": true,
+   "captures": [
+    "screenshots/screenshot_20260925_103138_602.png",
+    "screenshots/screenshot_20260925_103140_971.png",
+    "screenshots/screenshot_20260925_103143_306.png"
+   ]
+  }
+ }
+}

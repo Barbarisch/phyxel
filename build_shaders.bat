@@ -69,6 +69,9 @@ if defined USE_GLSLC (
     echo Compiling voxel fragment shader...
     %GLSLANG% -fshader-stage=frag -I. shaders\voxel.frag -o shaders\voxel.frag.spv || goto :shader_error
 
+    echo Compiling voxel depth prepass fragment shader...
+    %GLSLANG% -fshader-stage=frag -I. shaders\voxel_depth.frag -o shaders\voxel_depth.frag.spv || goto :shader_error
+
     echo Compiling sky shaders ^(atmosphere^)...
     %GLSLANG% -fshader-stage=vert -I. shaders\sky.vert -o shaders\sky.vert.spv || goto :shader_error
     %GLSLANG% -fshader-stage=frag -I. shaders\sky.frag -o shaders\sky.frag.spv || goto :shader_error
@@ -232,6 +235,9 @@ if defined USE_GLSLC (
 
     echo Compiling voxel fragment shader...
     %GLSLANG% -V -I. shaders\voxel.frag -o shaders\voxel.frag.spv || goto :shader_error
+
+    echo Compiling voxel depth prepass fragment shader...
+    %GLSLANG% -V -I. shaders\voxel_depth.frag -o shaders\voxel_depth.frag.spv || goto :shader_error
 
     echo Compiling sky shaders ^(atmosphere^)...
     %GLSLANG% -V -I. shaders\sky.vert -o shaders\sky.vert.spv || goto :shader_error
