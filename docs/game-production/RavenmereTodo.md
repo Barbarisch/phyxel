@@ -94,6 +94,12 @@ with the evidence. Rows from the 2026-09-08 census that nobody has re-checked si
 | T-57 | G-39 | S3 | `LOG_INFO("{:.1f}")` must not be writable | Root cause in the logger. |
 | T-58 | G-14 | S3 | `resources/rpg/` cited in CLAUDE.md / README | Docs. |
 
+## G. Planning
+
+| T | G | Sev | Item | Next step |
+|---|---|---|---|---|
+| T-71 | G-185 | S3 | A generic scroll container (any content, both axes, keyboard/gamepad) | Planning session first (user, 2026-09-25). The intro card scrolls today via a nested scrollable panel. |
+
 ## F. Harness, test API and diagnostics
 
 | T | G | Sev | Item | Next step |

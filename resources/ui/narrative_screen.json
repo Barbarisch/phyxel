@@ -1,5 +1,5 @@
 {
-  "_comment": "Data-driven blocking story card (docs/HudSystem.md section 11a; Ravenmere G-116). Loaded by UI::loadGameScreenInto(ui,\"narrative\",...) into narrative:<panel> screens while GameScreen is in ScreenState::Narrative. {{narrative.title}}, {{narrative.text}} (paragraphs joined with blank lines) and {{narrative.button}} resolve via MenuActions.onResolveVariable; the button's \"continue\" action fires MenuActions.onContinue - the host then starts (or resumes) whatever the card was gating, and also continues on Enter / Space. 1280x720 virtual canvas. Sizing (HUD font, 14.6 px/char at textScale 2, 32 px lines): the body box holds 780 chars in three paragraphs (12 lines + 2 blank = 14 x 32 = 448 px of 460); the layout gate checks it at that length; the button holds a 19-character caption.",
+  "_comment": "Data-driven blocking story card (docs/HudSystem.md section 11a; Ravenmere G-116). Loaded by UI::loadGameScreenInto(ui,\"narrative\",...) into narrative:<panel> screens while GameScreen is in ScreenState::Narrative. {{narrative.title}}, {{narrative.text}} (paragraphs joined with blank lines) and {{narrative.button}} resolve via MenuActions.onResolveVariable; the button's \"continue\" action fires MenuActions.onContinue - the host then starts (or resumes) whatever the card was gating, and also continues on Enter / Space. The text sits in a SCROLLABLE panel (narrative_body, 1000x460 at 140,130): text of any length wraps to 980 px and scrolls with the mouse wheel (the shell also scrolls it with Up/Down/PageUp/PageDown); a slim scrollbar shows when it overflows. The layout gate checks it at 3,200 chars. The button holds a 19-character caption. 1280x720 virtual canvas.",
   "background_type": "solid",
   "background_color": [
     0.04,
@@ -27,9 +27,8 @@
           ]
         },
         {
-          "type": "label",
-          "id": "narrative_text",
-          "text": "{{narrative.text}}",
+          "type": "panel",
+          "id": "narrative_body",
           "position": [
             140,
             130
@@ -38,10 +37,28 @@
             1000,
             460
           ],
-          "color": [
-            0.86,
-            0.82,
-            0.74
+          "showBackground": false,
+          "clip": true,
+          "scrollable": true,
+          "children": [
+            {
+              "type": "label",
+              "id": "narrative_text",
+              "text": "{{narrative.text}}",
+              "position": [
+                0,
+                0
+              ],
+              "size": [
+                980,
+                32
+              ],
+              "color": [
+                0.86,
+                0.82,
+                0.74
+              ]
+            }
           ]
         },
         {

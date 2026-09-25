@@ -1454,7 +1454,10 @@ TEST(NarrativeCard, TheContinueButtonFiresOnContinueAndTheTokensResolve) {
     for (auto& c : main->children) {
         if (c->id == "narrative_continue") btn = dynamic_cast<Phyxel::UI::UIButton*>(c.get());
         if (c->id == "narrative_title")    title = dynamic_cast<Phyxel::UI::UILabel*>(c.get());
-        if (c->id == "narrative_text")     body = dynamic_cast<Phyxel::UI::UILabel*>(c.get());
+        if (c->id == "narrative_body")     // the text lives in the scrollable box
+            if (auto* box = dynamic_cast<Phyxel::UI::UIPanel*>(c.get()))
+                for (auto& t : box->children)
+                    if (t->id == "narrative_text") body = dynamic_cast<Phyxel::UI::UILabel*>(t.get());
     }
     ASSERT_NE(btn, nullptr); ASSERT_NE(title, nullptr); ASSERT_NE(body, nullptr);
     EXPECT_EQ(title->text, "Ravenmere");
@@ -1463,4 +1466,42 @@ TEST(NarrativeCard, TheContinueButtonFiresOnContinueAndTheTokensResolve) {
     ASSERT_TRUE(static_cast<bool>(btn->onClick)) << "the 'continue' action wired nothing";
     btn->onClick();
     EXPECT_EQ(fired, 1);
+}
+
+// G-116 follow-up (user: "if a dev wants to add more text then the default should be a text window
+// that can scroll"): the card's text lives in a scrollable box. Long text overflows the box (so the
+// wheel and the keys have something to scroll) instead of running off the screen; short text fits.
+TEST(NarrativeCard, TheTextSitsInAScrollableBoxThatHoldsAnyLength) {
+    Phyxel::UI::BitmapFont font;   // headless 8x16 glyphs
+    Phyxel::UI::UITheme th;
+    auto load = [&](const std::string& body) {
+        auto ui = std::make_unique<Phyxel::UI::UISystem>(nullptr, 1280, 720);
+        Phyxel::UI::MenuActions a;
+        a.onResolveVariable = [body](const std::string& t) -> std::optional<std::string> {
+            if (t == "narrative.text") return body;
+            if (t == "narrative.title" || t == "narrative.button") return std::string("x");
+            return std::nullopt;
+        };
+        Phyxel::UI::loadGameScreenInto(*ui, "narrative", a);
+        return ui;
+    };
+    auto findBody = [](Phyxel::UI::UISystem& ui) -> Phyxel::UI::UIPanel* {
+        Phyxel::UI::UIPanel* main = ui.getScreen("narrative:main");
+        if (!main) return nullptr;
+        for (auto& c : main->children) if (c->id == "narrative_body") return dynamic_cast<Phyxel::UI::UIPanel*>(c.get());
+        return nullptr;
+    };
+    std::string longText;
+    while (longText.size() < 3000) longText += "The seal on the Hollow Barrow broke the night the first child went missing. ";
+    auto ui = load(longText);
+    auto* body = findBody(*ui);
+    ASSERT_NE(body, nullptr) << "the text is not inside the scrollable 'narrative_body' panel (run from the repo root)";
+    EXPECT_TRUE(body->scrollable);
+    EXPECT_TRUE(body->clipChildren);
+    const float h = body->measureContentHeight(&font, th);
+    EXPECT_GT(h, body->size.y * 2.0f) << "3,000 chars must be taller than the box - that is what scrolls";
+    auto ui2 = load("Three children have vanished.");
+    auto* body2 = findBody(*ui2);
+    ASSERT_NE(body2, nullptr);
+    EXPECT_LT(body2->measureContentHeight(&font, th), body2->size.y) << "short text fits: nothing to scroll";
 }

@@ -1,0 +1,116 @@
+{
+ "label": "after_scroll",
+ "exe": "C:\\Users\\bpete\\Documents\\PhyxelProjects\\Ravenmere\\build_probe\\Release\\Ravenmere.exe",
+ "ok": true,
+ "phases": [
+  {
+   "phase": "A",
+   "before": [
+    "intro",
+    "main_menu"
+   ],
+   "card_shown_at_s": 0.06,
+   "states_first_3s": [
+    [
+     0.06,
+     "narrative",
+     "main_menu"
+    ],
+    [
+     0.75,
+     "narrative",
+     "main_menu"
+    ],
+    [
+     1.37,
+     "narrative",
+     "main_menu"
+    ],
+    [
+     2.05,
+     "narrative",
+     "main_menu"
+    ],
+    [
+     2.74,
+     "narrative",
+     "main_menu"
+    ]
+   ],
+   "states_while_held": [
+    [
+     "narrative",
+     "main_menu"
+    ]
+   ],
+   "town_loaded_while_held": false,
+   "town_after_ack_s": 6.1,
+   "ok": true
+  },
+  {
+   "phase": "B",
+   "before": [
+    "intro",
+    "main_menu"
+   ],
+   "card_shown_at_s": 0.06,
+   "states_first_3s": [
+    [
+     0.06,
+     "narrative",
+     "main_menu"
+    ],
+    [
+     0.75,
+     "narrative",
+     "main_menu"
+    ],
+    [
+     1.42,
+     "narrative",
+     "main_menu"
+    ],
+    [
+     2.09,
+     "narrative",
+     "main_menu"
+    ],
+    [
+     2.71,
+     "narrative",
+     "main_menu"
+    ]
+   ],
+   "states_while_held": [
+    [
+     "narrative",
+     "main_menu"
+    ]
+   ],
+   "town_loaded_while_held": false,
+   "town_after_ack_s": 6.5,
+   "ok": true
+  },
+  {
+   "phase": "C",
+   "intro_chars": 2640,
+   "screen": "narrative",
+   "wheel_consumed": true,
+   "diff": {
+    "wheel": 1.866,
+    "down": 1.625,
+    "pagedown": 1.63,
+    "control": 0.001
+   },
+   "control_same": true,
+   "frame_changed": {
+    "wheel": true,
+    "down": true,
+    "pagedown": true
+   },
+   "text_pixels": 50656,
+   "still_on_card": true,
+   "ok": true
+  }
+ ]
+}

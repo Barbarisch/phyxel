@@ -276,6 +276,7 @@ def create_project(
     extra_members.append("    std::string pendingRunScene_;          // the world scene the card is gating")
     extra_members.append("    bool introShownThisRun_ = false;       // the intro shows once per run (New Game resets it)")
     extra_members.append("    bool narrativeKeyHeld_ = false;        // edge guard for Enter / Space on the card")
+    extra_members.append("    bool narrativePageHeld_ = false;       // edge guard for PageUp / PageDown on the card")
 
     # Menu-scene support: a JSON-driven menu renderer for sceneType:"menu" scenes.
     # When the loaded game uses menu scenes, the SceneManager drives the flow and
@@ -1852,16 +1853,16 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 //   "objectives": [{{"id":"main_quest","title":"...","description":"...",
                 //                   "category":"main","priority":0,"hidden":false}}]
                 // G-116: "intro": {{"title": "...", "text": ["paragraph", ...], "button": "Begin"}} -
-                // a blocking story card before the first scene of every run. The narrative
-                // screen holds 780 characters in three paragraphs; longer text is clipped, so warn.
+                // a blocking story card before the first scene of every run. The card's text
+                // scrolls (wheel, Up/Down/PageUp/PageDown), so it has no length limit.
                 if (gameDef.contains("intro") && gameDef["intro"].is_object()) {{
                     introCard_ = gameDef["intro"];
                     size_t chars = 0;
-                    if (introCard_.contains("text") && introCard_["text"].is_array())
+                    if (introCard_.contains("text") && introCard_["text"].is_array()) {{
                         for (const auto& p : introCard_["text"]) if (p.is_string()) chars += p.get<std::string>().size();
-                    else if (introCard_.value("text", nlohmann::json()).is_string()) chars = introCard_["text"].get<std::string>().size();
-                    if (chars > 780)
-                        LOG_WARN("{class_name}", "intro.text is {{}} characters; the narrative card holds 780 - the rest is clipped", chars);
+                    }} else if (introCard_.contains("text") && introCard_["text"].is_string()) {{
+                        chars = introCard_["text"].get<std::string>().size();
+                    }}
                     LOG_INFO("{class_name}", "Intro card authored: '{{}}' ({{}} characters)", introCard_.value("title", ""), chars);
                 }}
                 if (gameDef.contains("objectives") && gameDef["objectives"].is_array()) {{
@@ -3275,6 +3276,20 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 const bool down = in && (in->isKeyPressed(GLFW_KEY_ENTER) || in->isKeyPressed(GLFW_KEY_KP_ENTER) || in->isKeyPressed(GLFW_KEY_SPACE));
                 if (down && !narrativeKeyHeld_) continueNarrative();
                 narrativeKeyHeld_ = down;
+                // Up/Down scroll a line per frame held, PageUp/PageDown a page per press - through
+                // the same handleScroll the wheel uses, at the centre of the card's text box.
+                if (in && renderCoordinator_ && screen_.getState() == Phyxel::UI::ScreenState::Narrative)
+                    if (auto* ui = renderCoordinator_->getUISystem()) {{
+                        const glm::vec2 at{{(140.0f + 500.0f) * ui->width() / 1280.0f, (130.0f + 230.0f) * ui->height() / 720.0f}};
+                        float d = 0.0f;
+                        if (in->isKeyPressed(GLFW_KEY_UP))   d += 0.25f;
+                        if (in->isKeyPressed(GLFW_KEY_DOWN)) d -= 0.25f;
+                        const bool pgUp = in->isKeyPressed(GLFW_KEY_PAGE_UP), pgDn = in->isKeyPressed(GLFW_KEY_PAGE_DOWN);
+                        if (pgUp && !narrativePageHeld_) d += 4.0f;
+                        if (pgDn && !narrativePageHeld_) d -= 4.0f;
+                        narrativePageHeld_ = pgUp || pgDn;
+                        if (d != 0.0f) ui->handleScroll(at, d);
+                    }}
             }}
             if (menuSceneActive_) {{
                 if (menuCamPath_.isPlaying()) {{

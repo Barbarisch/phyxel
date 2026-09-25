@@ -344,11 +344,13 @@ std::optional<std::string> worstCaseToken(const std::string& t) {
     if (t == "loading_target") return std::string("The Tavern Cellar Beneath the Broken Wheel");
     if (t == "narrative.title")  return std::string("The Hollow Barrow of Ravenmere");   // 30 chars at title scale
     if (t == "narrative.button") return std::string("Begin the Journey");
-    if (t == "narrative.text") {   // the authoring bound: 780 chars in three paragraphs
+    if (t == "narrative.text") {   // no authoring bound: long text must scroll, never overflow (G-116 follow-up)
         std::string p;
-        while (p.size() < 260) p += "The seal on the Hollow Barrow broke the night the first child went missing. ";
-        p.resize(260);
-        return p + "\n\n" + p + "\n\n" + p;
+        while (p.size() < 400) p += "The seal on the Hollow Barrow broke the night the first child went missing. ";
+        p.resize(400);
+        std::string body;
+        for (int i = 0; i < 8; ++i) body += (i ? "\n\n" : "") + p;   // 3,200 chars, ~40 lines
+        return body;
     }
     if (t.rfind("sheet.", 0) != 0) return std::nullopt;
     const std::string k = t.substr(6);
