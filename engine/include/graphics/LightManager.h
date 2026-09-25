@@ -15,17 +15,18 @@ public:
     LightManager() = default;
 
     // --- Point Lights ---
-    /// Add a point light. Returns a unique light ID, or -1 if at capacity.
-    int addPointLight(const PointLight& light);
+    // `source` is REQUIRED and comes first, so every creation site must say who it is (I3).
+    /// Add a point light. Returns a unique light ID.
+    int addPointLight(LightSource source, const PointLight& light);
     /// Add a point light with individual parameters.
-    int addPointLight(const glm::vec3& position, const glm::vec3& color = glm::vec3(1.0f),
+    int addPointLight(LightSource source, const glm::vec3& position, const glm::vec3& color = glm::vec3(1.0f),
                       float intensity = 1.0f, float radius = 10.0f);
-    
+
     // --- Spot Lights ---
-    /// Add a spot light. Returns a unique light ID, or -1 if at capacity.
-    int addSpotLight(const SpotLight& light);
+    /// Add a spot light. Returns a unique light ID.
+    int addSpotLight(LightSource source, const SpotLight& light);
     /// Add a spot light with individual parameters.
-    int addSpotLight(const glm::vec3& position, const glm::vec3& direction,
+    int addSpotLight(LightSource source, const glm::vec3& position, const glm::vec3& direction,
                      const glm::vec3& color = glm::vec3(1.0f),
                      float intensity = 1.0f, float radius = 20.0f,
                      float innerCone = 0.9f, float outerCone = 0.8f);
@@ -101,17 +102,41 @@ public:
     size_t storedPointLights() const { return pointLights_.size(); }
     size_t storedSpotLights() const { return spotLights_.size(); }
 
+    /// Light census for GET /api/debug/light_stats (docs/PerfProgram2026-09.md, I3). "Uploaded"
+    /// refers to the set chosen by the most recent getGPUData().
+    struct Census {
+        size_t registeredPoint = 0, registeredSpot = 0;
+        size_t enabledPoint = 0, enabledSpot = 0;
+        size_t uploadedPoint = 0, uploadedSpot = 0;
+        size_t droppedPoint = 0, droppedSpot = 0;          // enabled but not uploaded (over budget)
+        size_t uniquePositionsUploaded = 0;                // point + spot, positions equal within 1e-3 u
+        size_t uniquePositionsRegistered = 0;
+        size_t bySource[static_cast<size_t>(LightSource::Count)] = {};          // registered
+        size_t bySourceUploaded[static_cast<size_t>(LightSource::Count)] = {};
+        // Point-light radius histogram in world units: [0,2) [2,4) [4,6) [6,8) [8,10) [10,15) [15,inf)
+        static constexpr size_t kRadiusBins = 7;
+        size_t radiusHist[kRadiusBins] = {};
+        double lastSelectMs = 0.0;       // CPU time of the last getGPUData() that re-selected
+        uint64_t selections = 0;         // how many times getGPUData() re-selected (dirty frames)
+    };
+    Census census() const;
+    static constexpr float kRadiusBinEdges[Census::kRadiusBins - 1] = {2.f, 4.f, 6.f, 8.f, 10.f, 15.f};
+
 private:
     /// Purely a leak tripwire. Storage is unbounded by design (U3.1); this only warns once if the
     /// count reaches a level that suggests something is registering lights and never removing them.
     static constexpr size_t kStorageWarnThreshold = 4096;
+    // The source lives on the ENTRY, not the light struct: updatePointLight/updateSpotLight replace
+    // the whole struct, which would silently reset a field stored there.
     struct PointLightEntry {
         int id;
         PointLight light;
+        LightSource source = LightSource::Api;
     };
     struct SpotLightEntry {
         int id;
         SpotLight light;
+        LightSource source = LightSource::Api;
     };
 
     std::vector<PointLightEntry> pointLights_;
@@ -122,6 +147,10 @@ private:
     bool warnedPointStorage_ = false;
     bool warnedSpotStorage_ = false;
     LightBufferGPU gpuBuffer_;
+    std::vector<int> uploadedPointIds_;   ///< ids chosen by the last getGPUData (census)
+    std::vector<int> uploadedSpotIds_;
+    double lastSelectMs_ = 0.0;
+    uint64_t selections_ = 0;
 
     /// Distance from the viewer to a light's sphere of influence (negative = viewer inside it).
     /// Lower is more relevant. See getGPUData for why radius is subtracted.

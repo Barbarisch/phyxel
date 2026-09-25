@@ -1,7 +1,9 @@
 #pragma once
 
 #include "vulkan/VulkanDevice.h"
+#include "utils/GpuTimingHistory.h"
 #include <vulkan/vulkan.h>
+#include <atomic>
 #include <string>
 #include <vector>
 #include <memory>
@@ -66,6 +68,19 @@ public:
 
     const std::vector<GpuScopeResult>& getResults() const { return lastFrameResults; }
 
+    // I1 (docs/PerfProgram2026-09.md): per-scope timing history over the last 240 frames, keyed by
+    // scope path + occurrence. "GPU Frame" is the whole command buffer, bracketed by startFrame and
+    // finishFrame. Only frames whose queries were all AVAILABLE are added, each once.
+    void finishFrame(VkCommandBuffer cmd);
+    const GpuTimingHistory& getHistory() const { return history; }
+    uint32_t getTimestampValidBits() const { return timestampValidBits; }
+    uint64_t getNotReadyFrames() const { return notReadyFrames; }
+    uint64_t getLastResultSerial() const { return lastResultSerial; }
+    // The most recent whole-frame GPU time, safe to read from ANY thread (engine_timing is served on
+    // the HTTP thread, which must not touch the history). -1 until the first frame resolves.
+    double getLastGpuFrameMsAtomic() const { return lastGpuFrameMs.load(std::memory_order_relaxed); }
+    static constexpr const char* kFrameScopeName = "GPU Frame";
+
 private:
     Vulkan::VulkanDevice* device = nullptr;
     float timestampPeriod = 1.0f;
@@ -83,14 +98,23 @@ private:
     bool pipelineStatsRequested = false;  // applied at the next startFrame (see setter)
     std::vector<VkQueryPool> statsPools;
     std::vector<bool> statsPending;   // per (frame,slot): a query was recorded, read it back next cycle
-    GpuPipelineStats lastPipelineStats[2];
+    GpuPipelineStats lastPipelineStats[NUM_STATS_SLOTS];
+    // One stats record per slot. When this array was sized 2 while NUM_STATS_SLOTS was 3, the
+    // CHARACTER slot's readback wrote 40 bytes past it into `frames` and `lastFrameResults`, and the
+    // next timestamp readback handed the driver a garbage query count: G-155, the "NVIDIA driver
+    // crash" (0xC0000005 in nvoglv64.dll), reproduced 2026-09-24 on the 4090 as soon as stats were
+    // switched on with a character in view. Adding a slot must grow this array with it.
+    static_assert(sizeof(lastPipelineStats) / sizeof(lastPipelineStats[0]) == NUM_STATS_SLOTS,
+                  "lastPipelineStats must hold exactly one record per pipeline-statistics slot");
     static const uint32_t NUM_PIPELINE_STATS = 4;  // input prims, VS inv, clip inv, frag inv
 
     struct ScopeData {
         std::string name;
+        std::string path;        // parent names joined with '/', ending in this scope's name
         uint32_t startIndex;
         uint32_t endIndex;
         uint32_t depth;
+        uint32_t order = 0;      // position in START order, so results can be keyed in recording order
     };
 
     struct FrameData {
@@ -98,10 +122,21 @@ private:
         std::vector<ScopeData> activeScopes; // Stack
         uint32_t queryCount = 0;
         bool queryReset = false;
+        uint64_t serial = 0;                 // frame serial when these queries were recorded (0 = none)
+        uint32_t frameStartIndex = UINT32_MAX;
+        uint32_t frameEndIndex = UINT32_MAX;
+        uint32_t scopesStarted = 0;
     };
 
     std::vector<FrameData> frames;
     std::vector<GpuScopeResult> lastFrameResults;
+
+    GpuTimingHistory history{240};
+    uint64_t frameSerial = 0;          // incremented once per startFrame
+    uint64_t notReadyFrames = 0;       // readbacks where some query was not yet available
+    uint64_t lastResultSerial = 0;     // serial of the frame lastFrameResults came from
+    uint32_t timestampValidBits = 64;
+    std::atomic<double> lastGpuFrameMs{-1.0};
 };
 
 class ScopedGpuTimer {
@@ -118,6 +153,12 @@ private:
     VkCommandBuffer cmd;
 };
 
-#define GPU_PROFILE_SCOPE(profiler, cmd, name) ScopedGpuTimer _gpu_timer_##__LINE__(profiler, cmd, name)
+// Two-step concat so __LINE__ expands: a single ## pasted the literal "_gpu_timer___LINE__", so every
+// use declared the same variable and two scopes in one block did not compile. The type is fully
+// qualified so the macro also works outside namespace Phyxel.
+#define PHX_GPU_CONCAT_INNER(a, b) a##b
+#define PHX_GPU_CONCAT(a, b) PHX_GPU_CONCAT_INNER(a, b)
+#define GPU_PROFILE_SCOPE(profiler, cmd, name) \
+    ::Phyxel::ScopedGpuTimer PHX_GPU_CONCAT(_gpu_timer_, __LINE__)(profiler, cmd, name)
 
 } // namespace Phyxel

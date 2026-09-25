@@ -1,5 +1,6 @@
 #include "utils/GpuProfiler.h"
 #include "utils/Logger.h"
+#include <algorithm>
 #include <iostream>
 
 namespace Phyxel {
@@ -17,6 +18,17 @@ void GpuProfiler::init(Vulkan::VulkanDevice* device, uint32_t maxFramesInFlight)
     VkPhysicalDeviceProperties props;
     vkGetPhysicalDeviceProperties(device->getPhysicalDevice(), &props);
     timestampPeriod = props.limits.timestampPeriod;
+
+    // Timestamps only carry timestampValidBits meaningful bits; a delta must be masked to them or a
+    // wrap reads as a huge duration.
+    uint32_t familyCount = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(device->getPhysicalDevice(), &familyCount, nullptr);
+    std::vector<VkQueueFamilyProperties> families(familyCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(device->getPhysicalDevice(), &familyCount, families.data());
+    const uint32_t gfx = device->getGraphicsQueueFamily();
+    if (gfx < familyCount) timestampValidBits = families[gfx].timestampValidBits;
+    if (timestampValidBits == 0)
+        LOG_WARN("GpuProfiler", "Graphics queue reports timestampValidBits = 0; GPU timings are meaningless");
 
     queryPools.resize(maxFrames);
     frames.resize(maxFrames);
@@ -84,34 +96,60 @@ void GpuProfiler::startFrame(uint32_t frameIndex, VkCommandBuffer cmd) {
     // No, standard double buffering means we wait for fence N before starting frame N again.
     // So it is safe to read results now.
     
-    if (frame.queryCount > 0) {
-        std::vector<uint64_t> timestamps(frame.queryCount);
-        VkResult result = vkGetQueryPoolResults(
-            device->getDevice(), 
-            queryPools[currentFrame], 
-            0, 
-            frame.queryCount, 
-            timestamps.size() * sizeof(uint64_t), 
-            timestamps.data(), 
-            sizeof(uint64_t), 
-            VK_QUERY_RESULT_64_BIT
-        );
+    if (frame.queryCount > 0 && frame.serial != 0) {
+        // (value, availability) pairs. Without the availability word a NOT_READY readback left the
+        // previous frame's results in place and a poller counted that frame again; now a frame is
+        // used only when every query it wrote is available, and the history accepts each serial once.
+        std::vector<uint64_t> data(size_t(frame.queryCount) * 2u, 0);
+        const VkResult result = vkGetQueryPoolResults(
+            device->getDevice(), queryPools[currentFrame], 0, frame.queryCount,
+            data.size() * sizeof(uint64_t), data.data(), 2 * sizeof(uint64_t),
+            VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WITH_AVAILABILITY_BIT);
 
-        if (result == VK_SUCCESS) {
+        const uint64_t mask = timestampValidBits >= 64 ? ~uint64_t(0)
+                                                        : ((uint64_t(1) << timestampValidBits) - 1);
+        auto available = [&](uint32_t i) { return i < frame.queryCount && data[size_t(i) * 2 + 1] != 0; };
+        auto msBetween = [&](uint32_t a, uint32_t b) {
+            const uint64_t ticks = (data[size_t(b) * 2] - data[size_t(a) * 2]) & mask;
+            return double(ticks) * double(timestampPeriod) / 1000000.0;
+        };
+
+        bool allAvailable = (result == VK_SUCCESS || result == VK_NOT_READY);
+        for (const auto& scope : frame.completedScopes)
+            allAvailable = allAvailable && available(scope.startIndex) && available(scope.endIndex);
+        const bool haveFrame = frame.frameStartIndex != UINT32_MAX && frame.frameEndIndex != UINT32_MAX;
+        if (haveFrame)
+            allAvailable = allAvailable && available(frame.frameStartIndex) && available(frame.frameEndIndex);
+
+        if (!allAvailable) {
+            ++notReadyFrames;   // keep the previous results; nothing enters the history
+        } else {
+            // completedScopes is in END order (children first). Key and report in START order.
+            std::vector<ScopeData> ordered = frame.completedScopes;
+            std::sort(ordered.begin(), ordered.end(),
+                      [](const ScopeData& a, const ScopeData& b) { return a.order < b.order; });
+            std::vector<std::string> paths;
+            paths.reserve(ordered.size());
+            for (const auto& s : ordered) paths.push_back(s.path);
+            const auto keys = GpuTimingHistory::occurrenceKeys(paths);
+
             lastFrameResults.clear();
-            for (const auto& scope : frame.completedScopes) {
-                if (scope.endIndex < timestamps.size()) {
-                    uint64_t start = timestamps[scope.startIndex];
-                    uint64_t end = timestamps[scope.endIndex];
-                    double durationNs = (end - start) * timestampPeriod;
-                    
-                    lastFrameResults.push_back({
-                        scope.name,
-                        durationNs / 1000000.0, // Convert to ms
-                        scope.depth
-                    });
-                }
+            std::vector<GpuTimingSample> samples;
+            samples.reserve(ordered.size() + 1);
+            if (haveFrame) {
+                const double frameMs = msBetween(frame.frameStartIndex, frame.frameEndIndex);
+                samples.push_back({kFrameScopeName, kFrameScopeName, 0, frameMs});
+                lastGpuFrameMs.store(frameMs, std::memory_order_relaxed);
             }
+            for (size_t i = 0; i < ordered.size(); ++i) {
+                const double ms = msBetween(ordered[i].startIndex, ordered[i].endIndex);
+                // gpu_scopes keeps its existing shape: name, ms, depth, in the order scopes ENDED.
+                samples.push_back({keys[i], ordered[i].name, ordered[i].depth, ms});
+            }
+            for (const auto& scope : frame.completedScopes)
+                lastFrameResults.push_back({scope.name, msBetween(scope.startIndex, scope.endIndex), scope.depth});
+            history.addFrame(frame.serial, samples);
+            lastResultSerial = frame.serial;
         }
     }
 
@@ -139,6 +177,9 @@ void GpuProfiler::startFrame(uint32_t frameIndex, VkCommandBuffer cmd) {
     frame.completedScopes.clear();
     frame.activeScopes.clear();
     frame.queryCount = 0;
+    frame.scopesStarted = 0;
+    frame.frameEndIndex = UINT32_MAX;
+    frame.serial = ++frameSerial;
 
     vkCmdResetQueryPool(cmd, queryPools[currentFrame], 0, MAX_QUERIES_PER_FRAME);
     if (pipelineStatsEnabled) {
@@ -146,6 +187,18 @@ void GpuProfiler::startFrame(uint32_t frameIndex, VkCommandBuffer cmd) {
             vkCmdResetQueryPool(cmd, statsPools[currentFrame * NUM_STATS_SLOTS + slot], 0, 1);
         }
     }
+
+    // Whole-frame bracket: this is the first timestamp in the command buffer after the resets, and
+    // finishFrame writes the last one. Their difference is the real GPU frame time.
+    frame.frameStartIndex = frame.queryCount++;
+    vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, queryPools[currentFrame], frame.frameStartIndex);
+}
+
+void GpuProfiler::finishFrame(VkCommandBuffer cmd) {
+    auto& frame = frames[currentFrame];
+    if (frame.frameStartIndex == UINT32_MAX || frame.queryCount >= MAX_QUERIES_PER_FRAME) return;
+    frame.frameEndIndex = frame.queryCount++;
+    vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPools[currentFrame], frame.frameEndIndex);
 }
 
 void GpuProfiler::endFrame() {
@@ -173,9 +226,11 @@ void GpuProfiler::startScope(VkCommandBuffer cmd, const std::string& name) {
 
     ScopeData scope;
     scope.name = name;
+    scope.path = frame.activeScopes.empty() ? name : frame.activeScopes.back().path + "/" + name;
     scope.startIndex = startIndex;
     scope.depth = static_cast<uint32_t>(frame.activeScopes.size());
-    
+    scope.order = frame.scopesStarted++;
+
     frame.activeScopes.push_back(scope);
 }
 

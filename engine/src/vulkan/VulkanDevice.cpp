@@ -705,6 +705,7 @@ bool VulkanDevice::createSwapChain(int windowWidth, int windowHeight) {
 
     VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
     VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
+    activePresentMode_ = presentMode;
     VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities, windowWidth, windowHeight);
 
     uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;

@@ -1,13 +1,17 @@
 #include "graphics/LightManager.h"
 #include "utils/Logger.h"
 #include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <string>
+#include <unordered_map>
 
 namespace Phyxel {
 namespace Graphics {
 
 // --- Point Lights ---
 
-int LightManager::addPointLight(const PointLight& light) {
+int LightManager::addPointLight(LightSource source, const PointLight& light) {
     // U3.1 — MAX_POINT_LIGHTS is an UPLOAD budget, not a storage limit.
     //
     // This used to refuse outright at 32 and return -1, with no distance culling, no priority and
@@ -23,26 +27,26 @@ int LightManager::addPointLight(const PointLight& light) {
                  pointLights_.size(), MAX_POINT_LIGHTS);
     }
     int id = nextId_++;
-    pointLights_.push_back({id, light});
+    pointLights_.push_back({id, light, source});
     dirty_ = true;
     LOG_DEBUG("LightManager", "Added point light id={} at ({:.1f}, {:.1f}, {:.1f})",
               id, light.position.x, light.position.y, light.position.z);
     return id;
 }
 
-int LightManager::addPointLight(const glm::vec3& position, const glm::vec3& color,
+int LightManager::addPointLight(LightSource source, const glm::vec3& position, const glm::vec3& color,
                                 float intensity, float radius) {
     PointLight light;
     light.position = position;
     light.color = color;
     light.intensity = intensity;
     light.radius = radius;
-    return addPointLight(light);
+    return addPointLight(source, light);
 }
 
 // --- Spot Lights ---
 
-int LightManager::addSpotLight(const SpotLight& light) {
+int LightManager::addSpotLight(LightSource source, const SpotLight& light) {
     // U3.1: same as point lights — the cap is an upload budget, not a storage limit.
     if (spotLights_.size() >= kStorageWarnThreshold && !warnedSpotStorage_) {
         warnedSpotStorage_ = true;
@@ -51,14 +55,14 @@ int LightManager::addSpotLight(const SpotLight& light) {
                  spotLights_.size(), MAX_SPOT_LIGHTS);
     }
     int id = nextId_++;
-    spotLights_.push_back({id, light});
+    spotLights_.push_back({id, light, source});
     dirty_ = true;
     LOG_DEBUG("LightManager", "Added spot light id={} at ({:.1f}, {:.1f}, {:.1f})",
               id, light.position.x, light.position.y, light.position.z);
     return id;
 }
 
-int LightManager::addSpotLight(const glm::vec3& position, const glm::vec3& direction,
+int LightManager::addSpotLight(LightSource source, const glm::vec3& position, const glm::vec3& direction,
                                const glm::vec3& color, float intensity, float radius,
                                float innerCone, float outerCone) {
     SpotLight light;
@@ -69,7 +73,7 @@ int LightManager::addSpotLight(const glm::vec3& position, const glm::vec3& direc
     light.radius = radius;
     light.innerCone = innerCone;
     light.outerCone = outerCone;
-    return addSpotLight(light);
+    return addSpotLight(source, light);
 }
 
 // --- Common ---
@@ -210,7 +214,10 @@ float LightManager::relevance(const glm::vec3& position, float radius) const {
 const LightBufferGPU& LightManager::getGPUData() {
     if (!dirty_) return gpuBuffer_;
 
+    const auto selectStart = std::chrono::steady_clock::now();
     gpuBuffer_ = {};
+    uploadedPointIds_.clear();
+    uploadedSpotIds_.clear();
 
     // U3.1 — SELECT the most relevant lights rather than taking the first N registered.
     //
@@ -242,6 +249,7 @@ const LightBufferGPU& LightManager::getGPUData() {
         auto& gpu = gpuBuffer_.pointLights[pi];
         gpu.positionAndRadius = glm::vec4(e->light.position - viewerWorld_, e->light.radius);
         gpu.colorAndIntensity = glm::vec4(e->light.color, e->light.intensity);
+        uploadedPointIds_.push_back(e->id);
         pi++;
     }
     gpuBuffer_.numPointLights = pi;
@@ -265,12 +273,65 @@ const LightBufferGPU& LightManager::getGPUData() {
         gpu.directionAndInnerCone = glm::vec4(e->light.direction, e->light.innerCone);
         gpu.colorAndIntensity = glm::vec4(e->light.color, e->light.intensity);
         gpu.outerConeAndPadding = glm::vec4(e->light.outerCone, 0.0f, 0.0f, 0.0f);
+        uploadedSpotIds_.push_back(e->id);
         si++;
     }
     gpuBuffer_.numSpotLights = si;
 
     dirty_ = false;
+    lastSelectMs_ = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - selectStart).count();
+    ++selections_;
     return gpuBuffer_;
+}
+
+LightManager::Census LightManager::census() const {
+    Census c;
+    c.registeredPoint = pointLights_.size();
+    c.registeredSpot = spotLights_.size();
+    c.uploadedPoint = uploadedPointIds_.size();
+    c.uploadedSpot = uploadedSpotIds_.size();
+    c.lastSelectMs = lastSelectMs_;
+    c.selections = selections_;
+
+    // Positions are keyed on a 1e-3 u lattice: emissive lights sit exactly on cell centres, so the
+    // tolerance only has to absorb float noise from other sources.
+    auto posKey = [](const glm::vec3& p) {
+        return std::to_string(static_cast<long long>(std::llround(p.x * 1000.0))) + "," +
+               std::to_string(static_cast<long long>(std::llround(p.y * 1000.0))) + "," +
+               std::to_string(static_cast<long long>(std::llround(p.z * 1000.0)));
+    };
+    std::unordered_map<std::string, int> registeredPositions, uploadedPositions;
+
+    for (const auto& e : pointLights_) {
+        ++c.bySource[static_cast<size_t>(e.source)];
+        if (e.light.enabled) ++c.enabledPoint;
+        registeredPositions[posKey(e.light.position)]++;
+        size_t bin = 0;
+        while (bin < Census::kRadiusBins - 1 && e.light.radius >= kRadiusBinEdges[bin]) ++bin;
+        ++c.radiusHist[bin];
+    }
+    for (const auto& e : spotLights_) {
+        ++c.bySource[static_cast<size_t>(e.source)];
+        if (e.light.enabled) ++c.enabledSpot;
+        registeredPositions[posKey(e.light.position)]++;
+    }
+    for (int id : uploadedPointIds_) {
+        if (const auto* e = findPointLight(id)) {
+            ++c.bySourceUploaded[static_cast<size_t>(e->source)];
+            uploadedPositions[posKey(e->light.position)]++;
+        }
+    }
+    for (int id : uploadedSpotIds_) {
+        if (const auto* e = findSpotLight(id)) {
+            ++c.bySourceUploaded[static_cast<size_t>(e->source)];
+            uploadedPositions[posKey(e->light.position)]++;
+        }
+    }
+    c.uniquePositionsRegistered = registeredPositions.size();
+    c.uniquePositionsUploaded = uploadedPositions.size();
+    c.droppedPoint = c.enabledPoint > c.uploadedPoint ? c.enabledPoint - c.uploadedPoint : 0;
+    c.droppedSpot = c.enabledSpot > c.uploadedSpot ? c.enabledSpot - c.uploadedSpot : 0;
+    return c;
 }
 
 size_t LightManager::droppedPointLights() const {

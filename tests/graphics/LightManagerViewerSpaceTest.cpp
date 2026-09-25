@@ -35,7 +35,7 @@ PointLight makePoint(const glm::vec3& pos) {
 TEST(LightManagerViewerSpace, PointLightsAreUploadedRelativeToTheViewer) {
     LightManager lm;
     const glm::vec3 lightWorld(1000.0f, 40.0f, -250.0f);
-    lm.addPointLight(makePoint(lightWorld));
+    lm.addPointLight(LightSource::Api, makePoint(lightWorld));
 
     const glm::vec3 viewer(990.0f, 35.0f, -240.0f);
     lm.setViewerWorld(viewer);
@@ -54,7 +54,7 @@ TEST(LightManagerViewerSpace, PointLightsAreUploadedRelativeToTheViewer) {
 TEST(LightManagerViewerSpace, AtTheOriginRelativeAndAbsoluteAgree) {
     LightManager lm;
     const glm::vec3 lightWorld(5.0f, 3.0f, -2.0f);
-    lm.addPointLight(makePoint(lightWorld));
+    lm.addPointLight(LightSource::Api, makePoint(lightWorld));
     lm.setViewerWorld(glm::vec3(0.0f));
 
     const glm::vec3 uploaded(lm.getGPUData().pointLights[0].positionAndRadius);
@@ -67,7 +67,7 @@ TEST(LightManagerViewerSpace, AtTheOriginRelativeAndAbsoluteAgree) {
 TEST(LightManagerViewerSpace, ALightBesideAViewerIsNearTheOriginWhereverTheyAre) {
     LightManager lm;
     const glm::vec3 viewer(60400.0f, 70.0f, -38000.0f);
-    lm.addPointLight(makePoint(viewer + glm::vec3(2.0f, 1.0f, 0.5f)));
+    lm.addPointLight(LightSource::Api, makePoint(viewer + glm::vec3(2.0f, 1.0f, 0.5f)));
     lm.setViewerWorld(viewer);
 
     const glm::vec3 uploaded(lm.getGPUData().pointLights[0].positionAndRadius);
@@ -81,7 +81,7 @@ TEST(LightManagerViewerSpace, ALightBesideAViewerIsNearTheOriginWhereverTheyAre)
 // the camera by however long the cache survives.
 TEST(LightManagerViewerSpace, MovingTheViewerInvalidatesTheCache) {
     LightManager lm;
-    lm.addPointLight(makePoint(glm::vec3(100.0f, 0.0f, 0.0f)));
+    lm.addPointLight(LightSource::Api, makePoint(glm::vec3(100.0f, 0.0f, 0.0f)));
 
     lm.setViewerWorld(glm::vec3(0.0f));
     const glm::vec3 first(lm.getGPUData().pointLights[0].positionAndRadius);
@@ -103,7 +103,7 @@ TEST(LightManagerViewerSpace, SpotLightsAreRelativizedAsWell) {
     s.intensity = 1.0f;
     s.radius = 20.0f;
     s.enabled = true;
-    lm.addSpotLight(s);
+    lm.addSpotLight(LightSource::Api, s);
 
     const glm::vec3 viewer(495.0f, 18.0f, 502.0f);
     lm.setViewerWorld(viewer);

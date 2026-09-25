@@ -817,7 +817,7 @@ void ImGuiRenderer::renderLightingControls(
                     newLight.color = glm::vec3(1.0f, 1.0f, 1.0f);
                     newLight.intensity = 5.0f;
                     newLight.radius = 30.0f;
-                    lightManager->addPointLight(newLight);
+                    lightManager->addPointLight(Graphics::LightSource::Editor, newLight);
                 }
             }
 
@@ -872,7 +872,7 @@ void ImGuiRenderer::renderLightingControls(
                     newLight.radius = 50.0f;
                     newLight.innerCone = std::cos(glm::radians(25.0f));
                     newLight.outerCone = std::cos(glm::radians(35.0f));
-                    lightManager->addSpotLight(newLight);
+                    lightManager->addSpotLight(Graphics::LightSource::Editor, newLight);
                 }
             }
         }

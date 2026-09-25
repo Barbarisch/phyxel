@@ -19,6 +19,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "graphics/DeferredBufferReclaim.h"  // B1 deferred buffer free (docs/ChunkUpdateHitchPlan.md)
 #include "graphics/ChunkArenaSystem.h"       // Phase 4.3 region arenas (docs/RegionArenaPlan.md)
 #include "core/MaterialRegistry.h"
+#include "core/PerfApi.h"
 #include "core/TraversalProbe.h"
 #include "core/GameSettings.h"   // Core::stringToKey for inject_input
 #include "core/AtlasManager.h"
@@ -1188,10 +1189,19 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             ? gpuParticlePhysics->getActiveParticleCount() : 0;
 
         double fps = ft.cpuFrameTime > 0.0 ? 1000.0 / ft.cpuFrameTime : 0.0;
+        // Served on the HTTP thread: only atomics / swapchain-creation state are read here.
+        // gpuFrameTime is kept for old callers but is FAKE (PerformanceMonitor sets it to the CPU
+        // frame time); gpu_frame_ms is the real whole-command-buffer GPU time of the last resolved
+        // frame. For medians/percentiles read GET /api/debug/gpu_timing.
+        const auto* gpuProf = renderCoordinator ? renderCoordinator->getGpuProfiler() : nullptr;
+        const double gpuFrameMs = gpuProf ? gpuProf->getLastGpuFrameMsAtomic() : -1.0;
         return nlohmann::json{
             {"fps", fps},
             {"cpuFrameTime", ft.cpuFrameTime},
             {"gpuFrameTime", ft.gpuFrameTime},
+            {"gpu_frame_ms", gpuFrameMs >= 0.0 ? nlohmann::json(gpuFrameMs) : nlohmann::json(nullptr)},
+            {"present_mode", vulkanDevice ? Core::PerfApi::presentModeName(vulkanDevice->getActivePresentMode())
+                                          : "unknown"},
             {"drawCalls", ft.drawCalls},
             {"vertexCount", ft.vertexCount},
             {"visibleInstances", ft.visibleInstances},
@@ -1851,7 +1861,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
                 pl.color = color;
                 pl.intensity = intensity;
                 pl.radius = radius;
-                return renderCoordinator->getLightManager().addPointLight(pl);
+                return renderCoordinator->getLightManager().addPointLight(Graphics::LightSource::ItemEffect, pl);
             },
             [this](int lightId, const glm::vec3& pos) {
                 if (renderCoordinator)
@@ -13489,7 +13499,7 @@ void Application::registerSettlementCommands() {
             deps.addPointLight = [this](const glm::vec3& p, const glm::vec3& c,
                                         float intensity, float radius) {
                 return renderCoordinator->getLightManager()
-                           .addPointLight(p, c, intensity, radius);
+                           .addPointLight(Graphics::LightSource::Fixture, p, c, intensity, radius);
             };
 
         auto plan = Core::SettlementBuildService::plan(cmd.params, deps);
@@ -13718,7 +13728,7 @@ void Application::registerWorldForgeCommands() {
         if (renderCoordinator)
             d.settlement.addPointLight = [this](const glm::vec3& p, const glm::vec3& c,
                                                 float intensity, float radius) {
-                return renderCoordinator->getLightManager().addPointLight(p, c, intensity,
+                return renderCoordinator->getLightManager().addPointLight(Graphics::LightSource::Fixture, p, c, intensity,
                                                                           radius);
             };
         d.plan = plan;
@@ -14276,7 +14286,7 @@ void Application::registerLightCommands() {
         pl.intensity = cmd.params.value("intensity", 1.0f);
         pl.radius = cmd.params.value("radius", 10.0f);
         pl.enabled = cmd.params.value("enabled", true);
-        int id = lm.addPointLight(pl);
+        int id = lm.addPointLight(Graphics::LightSource::Api, pl);
         if (id >= 0) r = {{"success", true}, {"id", id}, {"type", "point"}};
         else r = {{"error", "At capacity"}, {"max", Graphics::MAX_POINT_LIGHTS}};
     });
@@ -14295,7 +14305,7 @@ void Application::registerLightCommands() {
         sl.innerCone = cmd.params.value("inner_cone", 0.9f);
         sl.outerCone = cmd.params.value("outer_cone", 0.8f);
         sl.enabled = cmd.params.value("enabled", true);
-        int id = lm.addSpotLight(sl);
+        int id = lm.addSpotLight(Graphics::LightSource::Api, sl);
         if (id >= 0) r = {{"success", true}, {"id", id}, {"type", "spot"}};
         else r = {{"error", "At capacity"}, {"max", Graphics::MAX_SPOT_LIGHTS}};
     });
@@ -14816,10 +14826,19 @@ void Application::registerEffectsCommands() {
     // D0/D1 pipeline-statistics gate — ON to read overdraw/primitive counts (adds GPU-sync overhead;
     // keep OFF during perf A/B). docs/RenderDensityPlan.md.
     reg.on("set_pipeline_stats", [this](const Core::APICommand& cmd, nlohmann::json& r) {
-        bool on = cmd.params.value("enabled", true);
-        if (renderCoordinator && renderCoordinator->getGpuProfiler())
-            renderCoordinator->getGpuProfiler()->setPipelineStatsActive(on);
-        r = {{"success", true}, {"pipeline_stats_active", on}};
+        r = Core::PerfApi::setPipelineStats(renderCoordinator ? renderCoordinator->getGpuProfiler() : nullptr,
+                                            cmd.params);
+    });
+
+    // I3: light census (GET /api/debug/light_stats).
+    reg.on("get_light_stats", [this](const Core::APICommand&, nlohmann::json& r) {
+        r = Core::PerfApi::lightStats(renderCoordinator.get());
+    });
+
+    // I1: GPU scope timing history (GET /api/debug/gpu_timing?frames=N).
+    reg.on("get_gpu_timing", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::gpuTiming(renderCoordinator ? renderCoordinator->getGpuProfiler() : nullptr,
+                                     cmd.params);
     });
 
     // D1c shadow light-frustum cull toggle — live A/B for docs/RenderDensityPlan.md. ON culls the
@@ -15696,6 +15715,9 @@ void Application::registerProfilingCommands() {
             // shadow chunk/instance counts (culling-hypothesis test)
             const auto& fs = renderCoordinator->getLastFrameStats();
             r = {{"scopes", arr},
+                 // The frame these scopes came from. A repeat of the last serial is the SAME frame
+                 // again (a readback wasn't ready), not a new sample.
+                 {"serial", prof->getLastResultSerial()},
                  {"static_geometry_pipeline_stats", pstats},
                  {"shadow_pipeline_stats", shadowps},
                  {"character_pipeline_stats", charps},
@@ -17310,7 +17332,7 @@ void Application::processAPICommands() {
                         deps.addPointLight = [this](const glm::vec3& p, const glm::vec3& c,
                                                     float intensity, float radius) {
                             return renderCoordinator->getLightManager()
-                                       .addPointLight(p, c, intensity, radius);
+                                       .addPointLight(Graphics::LightSource::Fixture, p, c, intensity, radius);
                         };
 
                     const std::string stype = cmd.params.value("type", std::string());

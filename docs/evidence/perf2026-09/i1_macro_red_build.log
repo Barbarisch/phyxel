@@ -1,0 +1,46 @@
+﻿MSBuild version 17.3.1+2badb37d1 for .NET Framework
+  Checking File Globs
+  -- GLOB mismatch!
+  Checking Build System
+  CMake is re-running because G:/Github/phyxel/build/CMakeFiles/generate.stamp is out-of-date.
+    the file 'G:/Github/phyxel/build/CMakeFiles/cmake.verify_globs'
+    is newer than 'G:/Github/phyxel/build/CMakeFiles/generate.stamp.depend'
+    result='-1'
+  -- Selecting Windows SDK version 10.0.19041.0 to target Windows 10.0.26200.
+  -- Building for Windows
+  -- Found SQLite3 amalgamation source
+  -- pybind11 v2.12.0 
+  -- Using the multi-header code from G:/Github/phyxel/build/_deps/nlohmann_json-src/include/
+  -- pybind11 include dirs: $<BUILD_INTERFACE:G:/Github/phyxel/build/_deps/pybind11-src/include>;$<INSTALL_INTERFACE:include>
+  -- pybind11::embed libs: pybind11::pybind11;pybind11::pybind11;pybind11::_ClassicPythonLibraries
+  -- World storage enabled with SQLite3
+  -- Configured benchmark tests: phyxel_benchmarks
+  -- Stress tests configured for LIGHT load (development mode)
+  -- Configured stress tests: phyxel_stress_tests
+  -- Configured E2E tests: phyxel_e2e_tests
+  -- Configuring done
+  -- Generating done
+  -- Build files have been written to: G:/Github/phyxel/build
+  gmock.vcxproj -> G:\Github\phyxel\build\lib\Release\gmock.lib
+  gmock_main.vcxproj -> G:\Github\phyxel\build\lib\Release\gmock_main.lib
+  gtest.vcxproj -> G:\Github\phyxel\build\lib\Release\gtest.lib
+  gtest_main.vcxproj -> G:\Github\phyxel\build\lib\Release\gtest_main.lib
+  GpuTimingHistory.cpp
+  phyxel_core.vcxproj -> G:\Github\phyxel\build\lib\Release\phyxel_core.lib
+  phyxel_editor.vcxproj -> G:\Github\phyxel\build\lib\Release\phyxel_editor.lib
+  phyxel.vcxproj -> G:\Github\phyxel\build\editor\Release\phyxel.exe
+  Copying phyxel.exe to project root
+  phyxel_benchmarks.vcxproj -> G:\Github\phyxel\build\tests\benchmark\Release\phyxel_benchmarks.exe
+  phyxel_e2e_tests.vcxproj -> G:\Github\phyxel\build\tests\e2e\Release\phyxel_e2e_tests.exe
+  Copying shaders to E2E test directory	Copying resources to E2E test directory	
+  phyxel_integration_tests.vcxproj -> G:\Github\phyxel\build\tests\integration\Release\phyxel_integration_tests.exe
+  phyxel_minimal_game.vcxproj -> G:\Github\phyxel\build\examples\minimal_game\Release\phyxel_minimal_game.exe
+  Copying minimal-game runtime assets
+  phyxel_stress_tests.vcxproj -> G:\Github\phyxel\build\tests\stress\Release\phyxel_stress_tests.exe
+  GpuTimingHistoryTest.cpp
+G:\Github\phyxel\tests\utils\GpuTimingHistoryTest.cpp(125,5): error C2065: 'ScopedGpuTimer': undeclared identifier [G:\Github\phyxel\build\tests\phyxel_tests.vcxproj]
+G:\Github\phyxel\tests\utils\GpuTimingHistoryTest.cpp(125,5): error C2146: syntax error: missing ';' before identifier '_gpu_timer___LINE__' [G:\Github\phyxel\build\tests\phyxel_tests.vcxproj]
+G:\Github\phyxel\tests\utils\GpuTimingHistoryTest.cpp(125,5): error C3861: '_gpu_timer___LINE__': identifier not found [G:\Github\phyxel\build\tests\phyxel_tests.vcxproj]
+G:\Github\phyxel\tests\utils\GpuTimingHistoryTest.cpp(126,5): error C2065: 'ScopedGpuTimer': undeclared identifier [G:\Github\phyxel\build\tests\phyxel_tests.vcxproj]
+G:\Github\phyxel\tests\utils\GpuTimingHistoryTest.cpp(126,5): error C2146: syntax error: missing ';' before identifier '_gpu_timer___LINE__' [G:\Github\phyxel\build\tests\phyxel_tests.vcxproj]
+G:\Github\phyxel\tests\utils\GpuTimingHistoryTest.cpp(126,5): error C3861: '_gpu_timer___LINE__': identifier not found [G:\Github\phyxel\build\tests\phyxel_tests.vcxproj]

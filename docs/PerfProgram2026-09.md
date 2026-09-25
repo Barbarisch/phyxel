@@ -1,10 +1,8 @@
 # Performance Program 2026-09: point lights and static sub/micro detail
 
-**Status:** PLAN, written 2026-09-24. There is a first-look measurement on the 4090 (§1b), but no
-engine code has changed. `/design-check` ran four times the same day, each time with verdict **NEEDS WORK** and a
-shrinking list (7 → 7 → 3 → 1). All eighteen items are folded in below and recorded in §9.1-§9.4. Every
-design key passed on the fourth pass; its one item was a spec correction. Phase P0 (instrumentation) comes first, and no optimization
-starts until P1 has measured it.
+**Status:** **P0a DONE 2026-09-24** (I1, I2, I3, I10 skeleton; results in §10). P0b (I4-I7) and P0c
+(I8, I9) are next. `/design-check` ran four times on the plan (NEEDS WORK, lists 7 → 7 → 3 → 1, all
+folded in, §9.1-§9.4) and returned READY on the fifth. No optimization starts until P1 has measured it.
 
 **The question (from the user):** *"it seems like we have performance issues because of too many point
 lights and too many static sub/microcubes. We need to not take my word for it."* This plan treats both
@@ -115,7 +113,7 @@ control** before any number from it is trusted, as §6 of this document requires
 |---|---|---|---|
 | **I1** | **GPU timer history + whole-frame GPU time** | A ring of the last N=240 frames per scope. **The key is scope path + occurrence index, not name.** The same name appears more than once per frame ("Character Shadows" is listed twice under Shadow Pass, once per cascade), so a name key would average two different passes. **Stale frames are rejected.** Today readback uses `VK_QUERY_RESULT_64_BIT` only and keeps the previous results on `VK_NOT_READY`, so a naive ring would record the same frame repeatedly and narrow the CI falsely. Read back with `VK_QUERY_RESULT_WITH_AVAILABILITY_BIT`, tag every sample with the frame index it was recorded in, and drop repeats; the count of dropped repeats is reported as `stale_skipped`. `GET /api/debug/gpu_timing?frames=N` returns median / p90 / p99 / mean / n per scope. Add a frame-bracketing timestamp pair (`TOP_OF_PIPE` at the first command, `BOTTOM_OF_PIPE` at the last) as the real `gpuFrameMs`. Check `timestampValidBits`. Fix the `__LINE__` macro. Add scopes: Sky, **Shadow Near / Mid / Far** individually, and Light Select (CPU). | An empty scope reads ~0. A known-cost dummy pass (a fullscreen quad N times) scales linearly. Children sum to the parent within 2%. |
 | **I2** | **Pipeline stats: fix, then trust** | Fix the slot-2 OOB. Add slots for Grass, Foliage and Far Terrain. Report `frag_invocations / covered pixels` = **overdraw**. **G-155 is not assumed fixed by this.** It has only ever been seen on the laptop, in Ravenmere. The only dump in `crashes/` on the 4090 (`crash_20260923_214826`) is an unrelated `std::hash<std::string>` access violation in `phyxel.exe`, not `nvoglv64.dll`. The procedure is:<br>1. **Before the fix**, try to reproduce on the 4090: pipeline stats on, S-2 and S-3 at their worst poses, 5 minutes each.<br>2. If it reproduces, the fixed build must survive the identical run, and G-155 is closed as ours.<br>3. If it does not reproduce, the OOB fix stands on its unit red alone. G-155 stays **OPEN** with a note, and closing it moves to a laptop retest. | The OOB fix: red `PipelineStatsSlotsFitStorage` (§3.1). The G-155 link: the pre-fix repro above. A single full-screen quad gives frag_invocations ≈ W×H. |
-| **I3** | **Light census** `GET /api/debug/light_stats` | Counts: registered, enabled, **uploaded**, dropped. **Unique positions among uploaded lights** (the duplicate count; positions equal within 1e-3 u). **By source needs new data.** `PointLight`/`SpotLight` carry no source today (`Light.h:14-30`: id, position, color, intensity, radius, enabled). Add a `LightSource` enum field: `EmissiveVoxel, Fixture, ItemEffect, Vfx, Api, Editor`. It is **a required parameter of `LightManager::addPointLight`/`addSpotLight`, with no default**, so an untagged call site does not compile. The compiler is the red test for coverage. Lights are created at **11 call sites along 6 paths** (grep-verified 2026-09-24):<br>• `EmissiveVoxel`: `RenderCoordinator.cpp:1230` (the `updateVfx` reconcile).<br>• `Vfx`: `RenderCoordinator.cpp:283` (the callback handed to `VfxSystem`).<br>• `ItemEffect`: `Application.cpp:1854` (`itemEffectSystem->setLightCallbacks`).<br>• `Fixture`: three injected lambdas, `Application.cpp:13492`, `:13721` (settlement) and `:17313`. `StructureForge.cpp:1297` only calls `ctx.deps.addPointLight`.<br>• `Api`: `Application.cpp:14279` (point), `:14298` (spot).<br>• `Editor`: `ImGuiRenderer.cpp:820`, `:875`.<br>There is **no NPC source**: `NPCEntity` only moves an already-attached light (`updatePointLightPosition`, `NPCEntity.cpp:97-98`). The signature change also means updating 35 test calls (`LightManagerTest.cpp` 30, `LightManagerViewerSpaceTest.cpp` 5); they pass `LightSource::Api`. The field is CPU-only and never uploaded, so `PointLightGPU` is unchanged. Radius histogram. CPU ms for `getGPUData` sort + `updateVfx` reconcile. | A rig with K lights at known positions returns exactly K. An `oven_bread` returns its known glow-micro count and 1 unique position. |
+| **I3** | **Light census** `GET /api/debug/light_stats` | Counts: registered, enabled, **uploaded**, dropped. **Unique positions among uploaded lights** (the duplicate count; positions equal within 1e-3 u). **By source needs new data.** `PointLight`/`SpotLight` carry no source today (`Light.h:14-30`: id, position, color, intensity, radius, enabled). Add a `LightSource` enum field: `EmissiveVoxel, Fixture, ItemEffect, Vfx, Api, Editor`. It is **a required parameter of `LightManager::addPointLight`/`addSpotLight`, with no default**, so an untagged call site does not compile. The compiler is the red test for coverage. Lights are created at **11 call sites along 6 paths** (grep-verified 2026-09-24):<br>• `EmissiveVoxel`: `RenderCoordinator.cpp:1230` (the `updateVfx` reconcile).<br>• `Vfx`: `RenderCoordinator.cpp:283` (the callback handed to `VfxSystem`).<br>• `ItemEffect`: `Application.cpp:1854` (`itemEffectSystem->setLightCallbacks`).<br>• `Fixture`: three injected lambdas, `Application.cpp:13492`, `:13721` (settlement) and `:17313`. `StructureForge.cpp:1297` only calls `ctx.deps.addPointLight`.<br>• `Api`: `Application.cpp:14279` (point), `:14298` (spot).<br>• `Editor`: `ImGuiRenderer.cpp:820`, `:875`.<br>There is **no NPC source**: `NPCEntity` only moves an already-attached light (`updatePointLightPosition`, `NPCEntity.cpp:97-98`). The signature change also means updating 34 test calls (`LightManagerTest.cpp` 29, `LightManagerViewerSpaceTest.cpp` 5; a 35th grep hit was a comment); they pass `LightSource::Api`. The field is CPU-only and never uploaded, so `PointLightGPU` is unchanged. Radius histogram. CPU ms for `getGPUData` sort + `updateVfx` reconcile. | A rig with K lights at known positions returns exactly K. An `oven_bread` returns its known glow-micro count and 1 unique position. |
 | **I4** | **GPU light-work counters** (debug toggle, off by default) | `voxel.frag`, `grass.frag` and `foliage.frag` atomically add, per frame, into an SSBO: lights tested, lights passing radius, passing N·L, **marches run, total DDA steps, early-outs by hit**. Read back with the scope ring. This turns mode 18's picture into **marches/frame and steps/march**, which is the actual cost driver. Requirements:<br>• **Enable `fragmentStoresAndAtomics`.** It is not enabled today (`VulkanDevice.cpp:496-528`), and fragment-stage SSBO atomics without it are invalid Vulkan. Enable it after a support check; when unsupported, the toggle is **refused** with `counters_supported:false`.<br>• **Mechanism: a uniform branch** on a UBO flag (one pipeline, no respecialisation). Its off-cost is proven ≈ 0 by the A/A.<br>• **Count-only runs, plain atomics.** At ~59M marches/frame, atomic contention perturbs timing, so counter-on runs never feed timing; timing always comes from counter-off runs. Contention only makes counter runs slower; the counts stay exact. **No subgroup reduction.** `build_shaders.bat` passes no `--target-env`, so glslc targets Vulkan 1.0 / SPIR-V 1.0, and `subgroupAdd` needs SPIR-V 1.3. Raising the target would regenerate every committed `.spv`, which is out of scope for a debug counter. Nothing queries subgroup support either. | Rig: 1 light, a flat floor, a known lit area. Marches ≈ lit pixels. Steps/march matches the analytic distance / (1/9 u). Frame time with the toggle off equals frame time before the change (A/A). |
 | **I5** | **Voxel tier census** `GET /api/debug/voxel_tiers` | Per tier (cube/sub/micro): stored objects, faces meshed pre-merge, faces after merge, faces in view (per-view, fixing G-156), shadow faces per cascade, **CPU bytes** (objects + map nodes) and **GPU bytes**. A world total plus an optional per-chunk dump. Faces grouped by whether they are hidden behind a covering fine neighbour (the §1 cube-face waste). | Rig: a known count per tier in one chunk (e.g. 1 cube, 27 subs, 729 micros) returns the analytic face counts before and after merge. |
 | **I6** | **Per-tier draw toggles** (attribution by subtraction) | `POST /api/debug/tier_mask {main:[c,s,m], shadow:[c,s,m]}`. **The two passes use different methods, because a degenerate-vertex mask cannot see vertex cost.** The vertex shader and input assembly still run for a degenerate instance. §1b already measured raster + fragment spawn at ~0.03 ms, so a degenerate mask would report "micro costs nothing" even if the vertex cost were real, falsely clearing H-micro.<br>• **Main pass: per-tier draw ranges.** The mesher already counting-sorts faces by direction. Order by (direction, tier) inside that sort and record per-tier sub-ranges, so a masked tier is **not drawn at all** (it removes IA + VS + raster + fragment). This changes cost only: draw order within a direction range is not visible, since depth-tested opaque output is order-independent. It is pinned by a pixel-exact before/after capture with the mask off. It costs up to 3× more `drawIndexed` calls per chunk while a mask is active, and 0 extra when it isn't.<br>• **Shadow pass: post-vertex cost only, stated as such.** The mid cascade is GPU-driven `vkCmdDrawIndexedIndirect` per arena, so per-tier ranges would need per-tier indirect commands. Instead the shadow mask stays a degenerate-vertex mask (it measures raster + depth-write cost). Shadow **vertex** cost per tier comes from I2's `vs_invocations` on the SHADOW slot, times the per-vertex cost measured on R-M1. | Masking everything gives Static Geometry ≈ 0. Mask on/off is visually confirmed on a rig with all three tiers. The main-pass red: masking the micro tier on R-M1 must drop the STATIC-slot `vs_invocations` in proportion to the micro instance count. The proportion is vertices per instance, 4-6 depending on post-transform-cache reuse, measured once on the cube-only control. A degenerate mask would leave `vs_invocations` unchanged, which is exactly the failure this test catches. |
@@ -134,7 +132,7 @@ control** before any number from it is trusted, as §6 of this document requires
 | I1 (stale) | `GpuTimingTest.NotReadyDoesNotAddSamples`: a fake query source that returns `VK_NOT_READY` for 10 frames must leave `n` unchanged and raise `stale_skipped` by 10 | Today's readback keeps the previous results on NOT_READY, so a ring built on it would count 10 new samples. |
 | I1 (keys) | `GpuTimingTest.SameNameDistinctScopes`: two "Character Shadows" scopes under different parents keep separate histories | A name-keyed ring merges them. |
 | I3 | `LightStatsTest.CountsUniquePositions`: an `oven_bread`-style cube with K glow micros gives `registered == K, unique_positions == 1` | The route does not exist. The live red is already in hand: the tavern gives `registered 29, unique 16` (§1b). |
-| I3 (coverage) | **Compile-time:** `source` is a required parameter of `addPointLight`/`addSpotLight`, so an untagged call site fails to build | Shown red by making the parameter required *before* tagging: the build lists every untagged site (11 production, 35 test). A runtime test could not do this, because the §1b tavern only exercises 3 of the 6 paths. |
+| I3 (coverage) | **Compile-time:** `source` is a required parameter of `addPointLight`/`addSpotLight`, so an untagged call site fails to build | Shown red by making the parameter required *before* tagging: the build lists every untagged site (11 production, 34 test). A runtime test could not do this, because the §1b tavern only exercises 3 of the 6 paths. |
 | I3 (live) | `LightStatsTest.EverySourceTagged` (L4): on the §1b tavern, `emissive_voxel + fixture + item_effect == registered` | `PointLight` has no source field today, so the route has nothing to count. |
 | I4 (feature) | `perf_harness.py --check counters_supported`: the toggle is refused cleanly when `fragmentStoresAndAtomics` is absent, and accepted on the 4090 | Today the feature isn't enabled, so the shader atomics would be invalid (a validation-layer error with `PHYXEL_VALIDATION=1`). |
 | I4 | `perf_harness.py --check marches` on R-L1 with N=1: `marches ≈ lit_pixels ± 5%` | No counter exists. Once built, the first red is the A/A: frame time with counters OFF must equal the pre-change binary. |
@@ -398,6 +396,11 @@ buffer.
 | 2 | I2's red-before-green could not be falsified | G-155 was only seen on the laptop; the one dump in `crashes/` here is an unrelated `std::hash<std::string>` fault in `phyxel.exe` | §3 I2 (repro before the fix; otherwise G-155 stays OPEN), §7 P0a |
 | 3 | I10's settle named no signal | `/api/debug/load_state` exposes `generation_pending`, `remesh_pending`, `remesh_idle_pending` | §3 I10, red `--check settle` (§3.1) |
 
+### 9.5 Fifth pass: READY
+
+Confirmed the pipeline-statistics slots are well-formed (one gated SHADOW begin/end pair; STATIC wraps
+only `3882-3884`), so new slots are valid if **a new slot only wraps a pass that no other slot wraps**.
+
 ### 9.4 Fourth pass (`/design-check`, 2026-09-24)
 
 **Verdict: NEEDS WORK (one item) → folded in.** Every design key passed.
@@ -409,3 +412,95 @@ mid-remesh (`RenderCoordinator.cpp:~1327-1352`). Splitting each direction range 
 | # | Unresolved item | Evidence | Where it now lives |
 |---|---|---|---|
 | 1 | I3's source tagging named call sites that don't exist | Lights are created at 11 call sites along 6 paths; fixtures come through three lambdas; the editor panel was missing; `NPCEntity` creates no lights (it only moves an attached one). A tavern-only runtime test covers 3 of the 6 paths. | §3 I3 (the real site list; `source` required, so the compiler enforces coverage), §3.1, §3.2 |
+
+---
+
+## 10. P0a results (2026-09-24, RTX 4090, Release)
+
+Evidence: `docs/evidence/perf2026-09/`. Unit suite after the batch: 4025 passed, 20 skipped, 2 failed. Both
+failures are documented as pre-existing: `AtlasManagerTest.BuildAtlasFromSourcePNGs` (StructurePipelineGaps
+2026-09-24, fails whenever the BC7 cache exists) and `FineFaceMerge.SubcubeMerge_CrossCubeSplitsOnLightBoundaryBetweenCubes`
+(UnifiedLightingPlan M0 fallout, G-152).
+
+### I2: G-155 was ours, not the driver's (FIXED, L4)
+
+- **Mechanism.** `lastPipelineStats` was declared `[2]` while `NUM_STATS_SLOTS` is 3. The CHARACTER
+  slot's readback wrote 40 bytes past it into `frames` and `lastFrameResults`; the next timestamp readback
+  passed the driver a garbage query count, and the driver read off the end of a page. That is why the
+  title scene (no character drawn) worked and the town crashed.
+- **Repro before the fix (4090):** `M4DensityBench` + `POST /api/settlement/build`
+  `{era:medieval, tier:town, seed:7, position:{-40,16,-20}, width:80, depth:40, terrain:true}` (engine-generated,
+  raw responses `s2_town_build_*.json`). Enabling stats at the street pose crashed within seconds:
+  `0xC0000005 in nvoglv64.dll` (`g155_repro_prefix_crash.txt`).
+- **Red:** `static_assert` on the array size, failing with the old size (`i2_red_build.log`).
+- **Green, L4:** the identical scene and poses, 300 s each at street and overview: 298/298 samples alive,
+  CHARACTER stats non-null in every sample, no repeated serials, no crash (`g155_soak_postfix.jsonl`).
+- **Also fixed:** the editor's `set_pipeline_stats` treated an omitted field as ON; both hosts now share
+  `PerfApi::setPipelineStats` (accepts `enabled` or `on`, omitted = unchanged).
+- Not yet re-run on the RTX 1000 Ada laptop.
+
+### I1: GPU timing history (DONE, L2 + L4)
+
+- `GpuTimingHistory` (pure, unit-tested): 240-frame ring keyed by scope path + occurrence; each frame
+  accepted once by the serial of the frame that recorded it. 7 unit tests, shown red first
+  (`i1_red_build.log`, `i1_macro_red_build.log`).
+- `GpuProfiler`: availability-checked readback (a frame is used only if every query is available),
+  `timestampValidBits` masking (64 on the 4090), a whole-command-buffer bracket (`GPU Frame`), new scopes
+  `Sky` and `Shadow Mid / Near / Far`, and the fixed `GPU_PROFILE_SCOPE` macro (its `__LINE__` never
+  expanded).
+- Routes: `GET /api/debug/gpu_timing?frames=N` (both hosts), `engine_timing.gpu_frame_ms` (the last frame,
+  read through an atomic because that route runs on the HTTP thread) and `engine_timing.present_mode`,
+  `gpu_scopes.serial`.
+- **Live (S-2 overview):** GPU frame median 13.3 ms / p99 18.7 ms. The two "Character Shadows" now have
+  separate histories (0.055 ms under Mid, 0.027 ms under Near). `Shadow Far` has n=60 of 240 (its cadence).
+  `frames=99999` clamps to 240. 0 stale, 0 not-ready (`i1_gpu_timing_live_s2_overview.json`).
+- `check gpu_frame`: real GPU frame 4.26 ms vs CPU frame 5.63 ms, while the legacy `gpuFrameTime` equals
+  the CPU frame exactly, which confirms it was fake.
+
+### I3: light census (DONE, L2 + L4)
+
+- `LightSource` is a required first parameter of `addPointLight`/`addSpotLight`. The red build listed the
+  engine library's untagged sites (`RenderCoordinator.cpp` 283 / 1234, `ImGuiRenderer.cpp` 820 / 875;
+  `i3_red_build.log`). The editor and test sites were tagged before their layer of the build ran, so that
+  red covers the core library only.
+- 11 production sites and 34 test calls tagged. 5 `LightStatsTest` unit tests.
+- **Live (S-1 tavern, `i3_light_stats_tavern.json`):** 29 registered / 29 uploaded / **16 unique positions
+  / 13 duplicate uploads**. By source: 20 emissive voxel, 7 fixture, 2 item effect (sum = registered, so the
+  L4 `EverySourceTagged` check passes).
+- **CPU cost is negligible:** selection 0.005 ms, emitter hash < 0.001 ms, last emitter rebuild 0.03 ms.
+  **L6 (light-selection CPU) is not a lever** at this scale. Note: selection re-ran on 2169 frames, i.e.
+  essentially every frame, so something marks the light set dirty per frame. It is cheap here, but worth
+  a look at city scale.
+- S-2 town: 119 lights at 36 positions, up to 42 identical lights at one position (70% duplicates).
+
+### I10: harness (skeleton DONE)
+
+- `tools/perf_harness.py`: Release-only (`/api/status` now reports `build_config`), a settle gate on
+  `load_state`, pose read-back, history-based windows, provenance on every row.
+- **Self-checks, all passing live:** `release` (it failed against the engine built before the field
+  existed), `gpu_frame`, and `settle` (refused with `remesh_pending: 3` right after a tavern build, then
+  accepted after 3.55 s).
+- **The first A/A run caught a method bug.** Plain A,B,A,B ordering put A first in every pair. The
+  interior GPU frame drifted 27.8 → 33.8 ms during the run with nothing changed, and the exterior A/A "found"
+  +0.80 ms with a CI of [+0.26, +1.57], which excludes zero. **Fixed:** counterbalanced ABBA order, paired
+  differences, and no verdict below 8 pairs (`i10_aa_noise_floor_s1.jsonl` is the flawed run, kept).
+- **Noise floor (S-1, n=10 pairs, `i10_aa_noise_floor_s1_n10.jsonl`), every A/A CI includes 0:**
+
+| Scope | Interior: median, A/A 95% CI | Exterior: median, A/A 95% CI |
+|---|---|---|
+| GPU Frame | 34.1 ms, [−0.40, +0.22] | 55.5 ms, [−0.82, +1.18] |
+| Static Geometry | 23.4 ms, [−0.31, +0.16] | 8.0 ms, [−0.11, +0.06] |
+| Grass | 2.9 ms, [−0.12, +0.23] | 7.9 ms, [−0.09, +0.16] |
+| Foliage | 0.23 ms, [−0.002, +0.001] | 31.8 ms, [−0.48, +0.47] |
+| Shadow Pass | 0.71 ms, [−0.011, +0.009] | 0.65 ms, [−0.004, +0.011] |
+
+### Open items from P0a
+
+1. **Unexplained drift.** Within one run the interior GPU frame climbed ~20% with nothing changed, and
+   absolute levels sit ~20% above the §1b first look at the same pose and light census. Day/night is
+   ruled out (disabled, pinned at noon). Candidates: GPU clock / thermal state, the tavern NPC moving, GI
+   probe convergence. Counterbalancing protects A/B verdicts from it, but it has to be explained before
+   absolute numbers are compared across sessions.
+2. **Light re-selection every frame** (2169 selections), cheap now but unexplained.
+3. The G-155 fix is not yet confirmed on the laptop GPU.
+4. `resolution` (swapchain + viewport) is not yet exposed, so the harness cannot record it.

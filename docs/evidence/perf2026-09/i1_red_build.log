@@ -1,0 +1,327 @@
+﻿MSBuild version 17.3.1+2badb37d1 for .NET Framework
+  Checking File Globs
+  -- GLOB mismatch!
+  Checking Build System
+  CMake is re-running because G:/Github/phyxel/build/CMakeFiles/generate.stamp is out-of-date.
+    the file 'G:/Github/phyxel/build/CMakeFiles/cmake.verify_globs'
+    is newer than 'G:/Github/phyxel/build/CMakeFiles/generate.stamp.depend'
+    result='-1'
+  -- Selecting Windows SDK version 10.0.19041.0 to target Windows 10.0.26200.
+  -- Building for Windows
+  -- Found SQLite3 amalgamation source
+  -- pybind11 v2.12.0 
+  -- Using the multi-header code from G:/Github/phyxel/build/_deps/nlohmann_json-src/include/
+  -- pybind11 include dirs: $<BUILD_INTERFACE:G:/Github/phyxel/build/_deps/pybind11-src/include>;$<INSTALL_INTERFACE:include>
+  -- pybind11::embed libs: pybind11::pybind11;pybind11::pybind11;pybind11::_ClassicPythonLibraries
+  -- World storage enabled with SQLite3
+  -- Configured benchmark tests: phyxel_benchmarks
+  -- Stress tests configured for LIGHT load (development mode)
+  -- Configured stress tests: phyxel_stress_tests
+  -- Configured E2E tests: phyxel_e2e_tests
+  -- Configuring done
+  -- Generating done
+  -- Build files have been written to: G:/Github/phyxel/build
+  gmock.vcxproj -> G:\Github\phyxel\build\lib\Release\gmock.lib
+  gmock_main.vcxproj -> G:\Github\phyxel\build\lib\Release\gmock_main.lib
+  gtest.vcxproj -> G:\Github\phyxel\build\lib\Release\gtest.lib
+  gtest_main.vcxproj -> G:\Github\phyxel\build\lib\Release\gtest_main.lib
+  GameApiService.cpp
+G:\Github\phyxel\engine\include\core/CharacterSheet.h(53,23): warning C4099: 'Phyxel::Core::CharacterSheet': type name first seen using 'class' now seen using 'struct' [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\core/CharacterSheet.h(53): message : see declaration of 'Phyxel::Core::CharacterSheet' [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(39,76): warning C4100: 'startPos': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(46,54): warning C4100: 'renderer': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(48,47): warning C4100: 'pos': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(133,55): warning C4100: 'turn': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(133,40): warning C4100: 'forward': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\core/Types.h(394,66): warning C4100: 'color': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(100,35): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(104,41): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(105,44): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(110,35): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(138,46): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(179,64): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(180,63): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(181,59): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(182,36): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(195,46): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(205,52): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\graphics/RenderCoordinator.h(456,83): warning C4458: declaration of 'entities' hides class member [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\graphics/RenderCoordinator.h(672,56): message : see declaration of 'Phyxel::Graphics::RenderCoordinator::entities' [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(120,86): warning C4100: 'theme': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(120,60): warning C4100: 'widgetPos': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(120,40): warning C4100: 'mousePos': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(123,32): warning C4100: 'glfwKey': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(126,85): warning C4100: 'theme': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(126,59): warning C4100: 'widgetPos': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(126,39): warning C4100: 'mousePos': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+  GameShell.cpp
+G:\Github\phyxel\engine\include\core/GameCallbacks.h(32,46): warning C4100: 'engine': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\core/GameCallbacks.h(35,56): warning C4100: 'deltaTime': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\core/GameCallbacks.h(35,42): warning C4100: 'engine': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\core/GameCallbacks.h(39,42): warning C4100: 'engine': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\core/GameCallbacks.h(42,47): warning C4100: 'engine': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(39,76): warning C4100: 'startPos': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(46,54): warning C4100: 'renderer': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(48,47): warning C4100: 'pos': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(133,55): warning C4100: 'turn': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(133,40): warning C4100: 'forward': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\core/GameShell.h(82,59): warning C4100: 'rig': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(120,86): warning C4100: 'theme': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(120,60): warning C4100: 'widgetPos': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(120,40): warning C4100: 'mousePos': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(123,32): warning C4100: 'glfwKey': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(126,85): warning C4100: 'theme': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(126,59): warning C4100: 'widgetPos': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(126,39): warning C4100: 'mousePos': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\core/Types.h(394,66): warning C4100: 'color': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(100,35): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(104,41): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(105,44): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(110,35): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(138,46): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(179,64): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(180,63): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(181,59): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(182,36): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(195,46): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(205,52): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\graphics/RenderCoordinator.h(456,83): warning C4458: declaration of 'entities' hides class member [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\graphics/RenderCoordinator.h(672,56): message : see declaration of 'Phyxel::Graphics::RenderCoordinator::entities' [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+  GpuParticlePhysics.cpp
+G:\Github\phyxel\engine\include\core/Types.h(394,66): warning C4100: 'color': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(100,35): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(104,41): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(105,44): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(110,35): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(138,46): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(179,64): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(180,63): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(181,59): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(182,36): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(195,46): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(205,52): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+  RenderCoordinator.cpp
+G:\Github\phyxel\engine\include\core/Types.h(394,66): warning C4100: 'color': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(100,35): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(104,41): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(105,44): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(110,35): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(138,46): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(179,64): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(180,63): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(181,59): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(182,36): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(195,46): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(205,52): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\graphics/RenderCoordinator.h(456,83): warning C4458: declaration of 'entities' hides class member [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\graphics/RenderCoordinator.h(672,56): message : see declaration of 'Phyxel::Graphics::RenderCoordinator::entities' [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(120,86): warning C4100: 'theme': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(120,60): warning C4100: 'widgetPos': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(120,40): warning C4100: 'mousePos': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(123,32): warning C4100: 'glfwKey': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(126,85): warning C4100: 'theme': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(126,59): warning C4100: 'widgetPos': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(126,39): warning C4100: 'mousePos': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(39,76): warning C4100: 'startPos': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(46,54): warning C4100: 'renderer': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(48,47): warning C4100: 'pos': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(133,55): warning C4100: 'turn': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(133,40): warning C4100: 'forward': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(2444,42): warning C4458: declaration of 'sunDirection' hides class member [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\graphics/RenderCoordinator.h(989,15): message : see declaration of 'Phyxel::Graphics::RenderCoordinator::sunDirection' [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3094,65): warning C4458: declaration of 'currentFrame' hides class member [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\graphics/RenderCoordinator.h(963,14): message : see declaration of 'Phyxel::Graphics::RenderCoordinator::currentFrame' [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3880,13): warning C4456: declaration of '_gpu_timer___LINE__' hides previous local declaration [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3837,9): message : see declaration of '_gpu_timer___LINE__' [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3889,13): warning C4456: declaration of '_gpu_timer___LINE__' hides previous local declaration [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3837,9): message : see declaration of '_gpu_timer___LINE__' [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3895,13): warning C4456: declaration of '_gpu_timer___LINE__' hides previous local declaration [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3837,9): message : see declaration of '_gpu_timer___LINE__' [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3901,13): warning C4456: declaration of '_gpu_timer___LINE__' hides previous local declaration [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3837,9): message : see declaration of '_gpu_timer___LINE__' [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3907,13): warning C4456: declaration of '_gpu_timer___LINE__' hides previous local declaration [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3837,9): message : see declaration of '_gpu_timer___LINE__' [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3917,13): warning C4456: declaration of '_gpu_timer___LINE__' hides previous local declaration [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3837,9): message : see declaration of '_gpu_timer___LINE__' [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3948,9): warning C4456: declaration of '_gpu_timer___LINE__' hides previous local declaration [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3837,9): message : see declaration of '_gpu_timer___LINE__' [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3966,13): warning C4456: declaration of '_gpu_timer___LINE__' hides previous local declaration [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3837,9): message : see declaration of '_gpu_timer___LINE__' [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3979,9): warning C4456: declaration of '_gpu_timer___LINE__' hides previous local declaration [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3837,9): message : see declaration of '_gpu_timer___LINE__' [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3997,13): warning C4456: declaration of '_gpu_timer___LINE__' hides previous local declaration [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\graphics\RenderCoordinator.cpp(3837,9): message : see declaration of '_gpu_timer___LINE__' [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+  ImGuiRenderer.cpp
+G:\Github\phyxel\engine\include\core/Types.h(394,66): warning C4100: 'color': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(100,35): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(104,41): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(105,44): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(110,35): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(138,46): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(179,64): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(180,63): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(181,59): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(182,36): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(195,46): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(205,52): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\ui\ImGuiRenderer.cpp(259,60): warning C4100: 'imageIndex': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\ui\ImGuiRenderer.cpp(471,19): warning C4244: 'initializing': conversion from 'int' to 'float', possible loss of data [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\ui\ImGuiRenderer.cpp(526,106): warning C4267: 'initializing': conversion from 'size_t' to 'int', possible loss of data [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\ui\ImGuiRenderer.cpp(751,26): warning C4100: 'shadowMap': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+  GpuProfiler.cpp
+G:\Github\phyxel\engine\include\core/Types.h(394,66): warning C4100: 'color': unreferenced formal parameter [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(100,35): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(104,41): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(105,44): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(110,35): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(138,46): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(179,64): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(180,63): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(181,59): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(182,36): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(195,46): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(205,52): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\src\utils\GpuProfiler.cpp(13,82): warning C4458: declaration of 'device' hides class member [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+G:\Github\phyxel\engine\include\utils/GpuProfiler.h(70,27): message : see declaration of 'Phyxel::GpuProfiler::device' [G:\Github\phyxel\build\engine\phyxel_core.vcxproj]
+  Generating Code...
+  phyxel_core.vcxproj -> G:\Github\phyxel\build\lib\Release\phyxel_core.lib
+  Application.cpp
+G:\Github\phyxel\engine\include\core/Types.h(394,66): warning C4100: 'color': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(100,35): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(104,41): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(105,44): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(110,35): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(138,46): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(179,64): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(180,63): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(181,59): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(182,36): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(195,46): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(205,52): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\graphics/RenderCoordinator.h(456,83): warning C4458: declaration of 'entities' hides class member [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\graphics/RenderCoordinator.h(672,56): message : see declaration of 'Phyxel::Graphics::RenderCoordinator::entities' [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(39,76): warning C4100: 'startPos': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(46,54): warning C4100: 'renderer': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(48,47): warning C4100: 'pos': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(133,55): warning C4100: 'turn': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(133,40): warning C4100: 'forward': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\ai/ActionSystem.h(110,31): warning C4100: 'ctx': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\ai/ActionSystem.h(164,31): warning C4100: 'ctx': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\ai/BehaviorTree.h(276,25): warning C4100: 'dt': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\ai/BehaviorTree.h(292,25): warning C4100: 'dt': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\ai/BehaviorTree.h(310,25): warning C4100: 'dt': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(120,86): warning C4100: 'theme': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(120,60): warning C4100: 'widgetPos': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(120,40): warning C4100: 'mousePos': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(123,32): warning C4100: 'glfwKey': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(126,85): warning C4100: 'theme': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(126,59): warning C4100: 'widgetPos': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\ui/UIWidget.h(126,39): warning C4100: 'mousePos': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\shared\minwindef.h(130,1): warning C4005: 'APIENTRY': macro redefinition [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\external\glfw\include\GLFW/glfw3.h(123): message : see previous definition of 'APIENTRY' [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(626,21): warning C4189: 'loadedAsset': local variable is initialized but not referenced [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(2230,5): warning C4100: 'pointId': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(2230,5): warning C4100: 'objectId': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(2879,33): warning C4244: '=': conversion from 'double' to 'float', possible loss of data [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(3506,9): warning C4100: 'type': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(3518,43): warning C4458: declaration of 'deltaTime' hides class member [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\include\Application.h(455,11): message : see declaration of 'Phyxel::Application::deltaTime' [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(3577,9): warning C4456: declaration of '_timer___LINE__' hides previous local declaration [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(3519,5): message : see declaration of '_timer___LINE__' [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(3581,13): warning C4566: character represented by universal-character-name '\u2192' cannot be represented in the current code page (1252) [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(3634,9): warning C4456: declaration of '_timer___LINE__' hides previous local declaration [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(3519,5): message : see declaration of '_timer___LINE__' [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(3640,9): warning C4456: declaration of '_timer___LINE__' hides previous local declaration [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(3519,5): message : see declaration of '_timer___LINE__' [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(3646,9): warning C4456: declaration of '_timer___LINE__' hides previous local declaration [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(3519,5): message : see declaration of '_timer___LINE__' [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(3899,9): warning C4456: declaration of '_timer___LINE__' hides previous local declaration [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(3519,5): message : see declaration of '_timer___LINE__' [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(3995,9): warning C4456: declaration of '_timer___LINE__' hides previous local declaration [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(3519,5): message : see declaration of '_timer___LINE__' [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(4063,9): warning C4456: declaration of '_timer___LINE__' hides previous local declaration [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(3519,5): message : see declaration of '_timer___LINE__' [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(4074,9): warning C4456: declaration of '_timer___LINE__' hides previous local declaration [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(3519,5): message : see declaration of '_timer___LINE__' [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(4304,29): warning C4458: declaration of 'frameCount' hides class member [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\include\Application.h(456,9): message : see declaration of 'Phyxel::Application::frameCount' [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(5410,46): warning C4100: 'direction': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(6504,9): warning C4100: 'type': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(12792,1): warning C4456: declaration of 'lo' hides previous local declaration [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(12747,20): message : see declaration of 'lo' [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(12793,1): warning C4456: declaration of 'hi' hides previous local declaration [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(12747,33): message : see declaration of 'hi' [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(13907,39): warning C4189: 'plan': local variable is initialized but not referenced [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(16595,29): warning C4100: 'type': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(18479,17): warning C4100: 'type': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(22553,35): warning C4189: 'model': local variable is initialized but not referenced [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\MSVC\14.33.31629\include\algorithm(2973,24): warning C4244: '=': conversion from 'int' to 'char', possible loss of data [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\editor\src\Application.cpp(2562): message : see reference to function template instantiation '_OutIt std::transform<std::_String_iterator<std::_String_val<std::_Simple_types<_Elem>>>,std::_String_iterator<std::_String_val<std::_Simple_types<_Elem>>>,int(__cdecl *)(int)>(const _InIt,const _InIt,_OutIt,_Fn)' being compiled [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+          with
+          [
+              _OutIt=std::_String_iterator<std::_String_val<std::_Simple_types<char>>>,
+              _Elem=char,
+              _InIt=std::_String_iterator<std::_String_val<std::_Simple_types<char>>>,
+              _Fn=int (__cdecl *)(int)
+          ]
+  InputController.cpp
+G:\Github\phyxel\engine\include\core/Types.h(394,66): warning C4100: 'color': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(100,35): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(104,41): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(105,44): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(110,35): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(138,46): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(179,64): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(180,63): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(181,59): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(182,36): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(195,46): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(205,52): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\graphics/RenderCoordinator.h(456,83): warning C4458: declaration of 'entities' hides class member [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\graphics/RenderCoordinator.h(672,56): message : see declaration of 'Phyxel::Graphics::RenderCoordinator::entities' [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(39,76): warning C4100: 'startPos': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(46,54): warning C4100: 'renderer': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(48,47): warning C4100: 'pos': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(133,55): warning C4100: 'turn': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(133,40): warning C4100: 'forward': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+  Bindings.cpp
+G:\Github\phyxel\engine\include\core/Types.h(394,66): warning C4100: 'color': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(100,35): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(104,41): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(105,44): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(110,35): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(138,46): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(179,64): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(180,63): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(181,59): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(182,36): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(195,46): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\vulkan/VulkanDevice.h(205,52): warning C4324: 'Phyxel::Vulkan::UniformBufferObject': structure was padded due to alignment specifier [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\graphics/RenderCoordinator.h(456,83): warning C4458: declaration of 'entities' hides class member [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\graphics/RenderCoordinator.h(672,56): message : see declaration of 'Phyxel::Graphics::RenderCoordinator::entities' [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(39,76): warning C4100: 'startPos': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(46,54): warning C4100: 'renderer': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(48,47): warning C4100: 'pos': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(133,55): warning C4100: 'turn': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+G:\Github\phyxel\engine\include\scene/RagdollCharacter.h(133,40): warning C4100: 'forward': unreferenced formal parameter [G:\Github\phyxel\build\editor\phyxel_editor.vcxproj]
+  Generating Code...
+  phyxel_editor.vcxproj -> G:\Github\phyxel\build\lib\Release\phyxel_editor.lib
+  main.cpp
+  phyxel.vcxproj -> G:\Github\phyxel\build\editor\Release\phyxel.exe
+  Copying phyxel.exe to project root
+  phyxel_benchmarks.vcxproj -> G:\Github\phyxel\build\tests\benchmark\Release\phyxel_benchmarks.exe
+  ApplicationE2ETests.cpp
+  WorldInteractionE2ETests.cpp
+  Generating Code...
+  phyxel_e2e_tests.vcxproj -> G:\Github\phyxel\build\tests\e2e\Release\phyxel_e2e_tests.exe
+  Copying shaders to E2E test directory	Copying resources to E2E test directory	
+  phyxel_integration_tests.vcxproj -> G:\Github\phyxel\build\tests\integration\Release\phyxel_integration_tests.exe
+  MinimalGame.cpp
+  phyxel_minimal_game.vcxproj -> G:\Github\phyxel\build\examples\minimal_game\Release\phyxel_minimal_game.exe
+  Copying minimal-game runtime assets
+  phyxel_stress_tests.vcxproj -> G:\Github\phyxel\build\tests\stress\Release\phyxel_stress_tests.exe
+  LodServiceTest.cpp
+  CharacterInstanceBudgetTest.cpp
+  GpuTimingHistoryTest.cpp
+G:\Github\phyxel\tests\utils\GpuTimingHistoryTest.cpp(13,10): fatal  error C1083: Cannot open include file: 'utils/GpuTimingHistory.h': No such file or directory [G:\Github\phyxel\build\tests\phyxel_tests.vcxproj]
+  Generating Code...

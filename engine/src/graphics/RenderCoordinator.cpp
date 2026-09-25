@@ -280,7 +280,7 @@ RenderCoordinator::RenderCoordinator(
     // Let projectiles carry transient point lights via the LightManager.
     vfxSystem->setLightCallbacks(
         [this](const glm::vec3& pos, const glm::vec3& color, float intensity, float radius) {
-            return lightManager.addPointLight(pos, color, intensity, radius);
+            return lightManager.addPointLight(LightSource::Vfx, pos, color, intensity, radius);
         },
         [this](int id, const glm::vec3& pos) { lightManager.updatePointLightPosition(id, pos); },
         [this](int id) { lightManager.removeLight(id); },
@@ -1205,6 +1205,7 @@ void RenderCoordinator::updateVfx(float dt) {
     // defeat the id tie-break that keeps U3.1's selection stable frame to frame. The hash is over
     // position/colour/radius, so a chunk remesh that does not move an emitter costs nothing.
     if (chunkManager) {
+        const auto reconcileStart = std::chrono::steady_clock::now();   // I3: census cpu_ms
         size_t h = 1469598103934665603ull;
         auto mix = [&h](float f) {
             uint32_t b; std::memcpy(&b, &f, 4);
@@ -1220,6 +1221,9 @@ void RenderCoordinator::updateVfx(float dt) {
                 ++count;
             }
         }
+        const auto hashEnd = std::chrono::steady_clock::now();
+        m_emitterStats.hashMs = std::chrono::duration<double, std::milli>(hashEnd - reconcileStart).count();
+        m_emitterStats.emitters = count;
         if (h != m_emissiveLightHash || count != m_emissiveLightIds.size()) {
             for (int id : m_emissiveLightIds) lightManager.removeLight(id);
             m_emissiveLightIds.clear();
@@ -1227,12 +1231,15 @@ void RenderCoordinator::updateVfx(float dt) {
             for (const auto& ch : chunkManager->chunks) {
                 if (!ch) continue;
                 for (const auto& e : ch->getEmissiveLights()) {
-                    const int id = lightManager.addPointLight(e.worldPos, e.color,
-                                                               e.intensity, e.radius);
+                    const int id = lightManager.addPointLight(LightSource::EmissiveVoxel, e.worldPos,
+                                                               e.color, e.intensity, e.radius);
                     if (id >= 0) m_emissiveLightIds.push_back(id);
                 }
             }
             m_emissiveLightHash = h;
+            m_emitterStats.lastRebuildMs = std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - hashEnd).count();
+            ++m_emitterStats.rebuilds;
             LOG_INFO_FMT("Lighting", "U3.2: " << m_emissiveLightIds.size()
                          << " emissive voxel lights registered (" << count << " emitters found)");
         }
@@ -3747,16 +3754,23 @@ void RenderCoordinator::drawFrame() {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Shadow Pass");
         // Mid cascade (the original single map), then the near cascade (tight map whose
         // texels resolve blade-scale casters — docs/NearShadowCascade.md).
-        renderShadowPass(cmd, *shadowMap, lightSpaceMatrix, shadowCullCenter,
-                         shadowCullRadius, kCascadeMid);
-        if (shadowMapNear && s_nearShadowEnabled)
+        // One scope per cascade so each one's cost is attributable (I1).
+        {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Shadow Mid");
+            renderShadowPass(cmd, *shadowMap, lightSpaceMatrix, shadowCullCenter,
+                             shadowCullRadius, kCascadeMid);
+        }
+        if (shadowMapNear && s_nearShadowEnabled) {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Shadow Near");
             renderShadowPass(cmd, *shadowMapNear, m_nearLightSpaceMatrix,
                              m_nearShadowCullCenter, m_nearShadowCullRadius, kCascadeNear);
+        }
         // FAR cascade on a cadence: skipping a frame skips the CLEAR too, so the map
         // simply persists. The counter + fit are latched together in the fit block above;
         // recording ONLY on latch frames keeps the map and its sampling matrix in
         // lockstep (the flicker fix depends on this pairing).
         if (shadowMapFar && s_farShadowEnabled && m_farRenderThisFrame) {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Shadow Far");
             renderShadowPass(cmd, *shadowMapFar, m_farLightSpaceMatrix,
                              m_farShadowCullCenter, m_farShadowCullRadius, kCascadeFar);
         }
@@ -3840,7 +3854,10 @@ void RenderCoordinator::drawFrame() {
         // Depth test and write are off, so this simply fills the frame and every later draw covers
         // it. That ordering is what lets the pass replace the flat clear colour outright, and it
         // keeps the sky independent of the scene's reverse-Z depth convention.
-        drawSky(cmd);
+        {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Sky");
+            drawSky(cmd);
+        }
 
         // Bind graphics pipeline (debug or normal based on debug mode)
     if (debugModeEnabled) {
@@ -4188,6 +4205,8 @@ void RenderCoordinator::drawFrame() {
 
     // End Post Process Render Pass
     postProcessor->endPostProcessRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
+    // Last command in the buffer: closes the whole-frame GPU timestamp bracket (I1).
+    gpuProfiler->finishFrame(vulkanDevice->getCommandBuffer(currentFrame));
     vulkanDevice->endCommandBuffer(currentFrame);
     auto recordEnd = std::chrono::high_resolution_clock::now();
 

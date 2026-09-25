@@ -1,4 +1,5 @@
 #include "core/GameApiService.h"
+#include "core/PerfApi.h"
 #include "ui/DialogueSystem.h"
 
 #include "core/APICommandQueue.h"
@@ -910,9 +911,19 @@ void GameApiService::registerCommands() {
             r = {{"error", "GpuProfiler not available"}};
             return;
         }
-        auto* prof = renderCoordinator->getGpuProfiler();
-        if (cmd.params.contains("on")) prof->setPipelineStatsActive(cmd.params.value("on", false));
-        r = {{"success", true}, {"active", prof->getPipelineStatsActive()}};
+        // Shared with the editor host: accepts "on" or "enabled", omitted = unchanged.
+        r = PerfApi::setPipelineStats(renderCoordinator->getGpuProfiler(), cmd.params);
+        r["active"] = r.value("pipeline_stats_active", false);   // the field this route always returned
+    });
+
+    // I3: light census, same JSON as the editor's /api/debug/light_stats.
+    reg.on("get_light_stats", [this](const APICommand&, json& r) {
+        r = PerfApi::lightStats(renderCoordinator);
+    });
+
+    // I1: GPU scope timing history, same JSON as the editor's /api/debug/gpu_timing.
+    reg.on("get_gpu_timing", [this](const APICommand& cmd, json& r) {
+        r = PerfApi::gpuTiming(renderCoordinator ? renderCoordinator->getGpuProfiler() : nullptr, cmd.params);
     });
 
     reg.on("get_gpu_scopes", [this](const APICommand&, json& r) {
@@ -940,6 +951,7 @@ void GameApiService::registerCommands() {
             if (cpuMs > 0.0) fps = 1000.0 / cpuMs;
         }
         r = {{"scopes", arr},
+             {"serial", prof->getLastResultSerial()},
              {"pipeline_stats_active", prof->getPipelineStatsActive()},
              {"cpu_frame_ms", cpuMs},
              {"fps", fps},

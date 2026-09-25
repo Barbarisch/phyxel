@@ -748,9 +748,14 @@ private:
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
     VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
     VkPresentModeKHR preferredPresentMode_ = VK_PRESENT_MODE_IMMEDIATE_KHR;
+    // The mode the current swapchain was actually created with. The preferred mode is only a
+    // request; FIFO (vsync) is the guaranteed fallback and caps the frame rate, so perf runs record
+    // this instead of assuming "vsync off" (docs/PerfProgram2026-09.md).
+    VkPresentModeKHR activePresentMode_ = VK_PRESENT_MODE_FIFO_KHR;
 public:
     void setPreferredPresentMode(VkPresentModeKHR mode) { preferredPresentMode_ = mode; }
     VkPresentModeKHR getPreferredPresentMode() const { return preferredPresentMode_; }
+    VkPresentModeKHR getActivePresentMode() const { return activePresentMode_; }
 private:
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, int windowWidth, int windowHeight);
 

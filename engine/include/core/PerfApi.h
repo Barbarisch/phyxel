@@ -1,0 +1,41 @@
+#pragma once
+
+// Shared JSON for the perf-instrumentation routes (docs/PerfProgram2026-09.md, §3.2), so the editor
+// host (Application) and the standalone --test host (GameApiService) answer identically.
+
+#include <vulkan/vulkan.h>
+
+#include <nlohmann/json.hpp>
+
+namespace Phyxel {
+class GpuProfiler;
+namespace Graphics {
+class RenderCoordinator;
+}
+}
+
+namespace Phyxel::Core::PerfApi {
+
+// GET /api/debug/gpu_timing?frames=N (I1). Per-scope median / p90 / p99 / mean / last over the last
+// N accepted GPU frames, plus the whole-frame time. Echoes frames_used, stale/not-ready counters and
+// timestamp_valid_bits so a caller can judge the numbers.
+nlohmann::json gpuTiming(const GpuProfiler* prof, const nlohmann::json& params);
+
+// The whole-frame GPU time over the last `frames` frames, as {n, median_ms, p90_ms, p99_ms, mean_ms,
+// last_ms}, or null when there is no history yet. Feeds engine_timing.gpu_frame_ms.
+nlohmann::json gpuFrameSummary(const GpuProfiler* prof, size_t frames);
+
+// POST /api/debug/pipeline_stats. Accepts "enabled" (editor) or "on" (standalone); omitted means
+// unchanged. Echoes the requested state and the state in effect this frame.
+nlohmann::json setPipelineStats(GpuProfiler* prof, const nlohmann::json& params);
+
+// "IMMEDIATE" / "MAILBOX" / "FIFO" / "FIFO_RELAXED" / "OTHER".
+const char* presentModeName(VkPresentModeKHR mode);
+
+// GET /api/debug/light_stats (I3). Read-only census: registered / enabled / uploaded / dropped,
+// unique positions (duplicates), by_source, point-radius histogram, and the CPU cost of light
+// selection + the emissive-voxel reconcile. `rc` supplies both the LightManager and the reconcile
+// timing; null gives an error.
+nlohmann::json lightStats(Graphics::RenderCoordinator* rc);
+
+}  // namespace Phyxel::Core::PerfApi

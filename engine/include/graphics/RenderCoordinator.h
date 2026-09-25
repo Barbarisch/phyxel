@@ -700,6 +700,19 @@ private:
 
     std::vector<int> m_emissiveLightIds;
     size_t           m_emissiveLightHash = 0;
+public:
+    /// CPU cost of the emissive-voxel light reconcile in updateVfx (I3, light_stats cpu_ms). The
+    /// hash walks every chunk's emitter list EVERY frame; the rebuild re-registers all emissive
+    /// lights whenever any emitter changed.
+    struct EmitterReconcileStats {
+        double hashMs = 0.0;          // last frame's hash pass
+        double lastRebuildMs = 0.0;   // the most recent remove-all + re-add
+        uint64_t rebuilds = 0;
+        size_t emitters = 0;          // emitters found by the last hash pass
+    };
+    const EmitterReconcileStats& getEmitterReconcileStats() const { return m_emitterStats; }
+private:
+    EmitterReconcileStats m_emitterStats;
 
     // Rendering subsystems
     size_t renderStaticGeometry();

@@ -182,7 +182,14 @@ void EngineAPIServer::setupRoutes() {
             {"status", "ok"},
             {"engine", "phyxel"},
             {"api_version", "1.0"},
-            {"port", m_port}
+            {"port", m_port},
+            // Which configuration this process was compiled as. Perf tooling refuses Debug
+            // (tools/perf_harness.py): Debug numbers are not representative of shipped perf.
+#ifdef NDEBUG
+            {"build_config", "Release"}
+#else
+            {"build_config", "Debug"}
+#endif
         };
         res.set_content(response.dump(), "application/json");
     });
@@ -4610,6 +4617,25 @@ void EngineAPIServer::setupRoutes() {
     // GET /api/debug/gpu_scopes — Per-pass GPU timings (timestamp scopes) for the last frame
     srv.Get("/api/debug/gpu_scopes", [this](const httplib::Request&, httplib::Response& res) {
         json result = queueAndWait("get_gpu_scopes", json::object());
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/debug/gpu_timing?frames=N — GPU scope timing HISTORY (docs/PerfProgram2026-09.md, I1):
+    // per scope median/p90/p99/mean/last over the last N accepted frames (N clamped to [1, 240],
+    // omitted = all held), plus gpu_frame_ms for the whole command buffer. Unlike gpu_scopes (one
+    // frame, ~2 frames stale) this is what perf numbers should be read from.
+    srv.Get("/api/debug/gpu_timing", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("frames")) params["frames"] = req.get_param_value("frames");
+        json result = queueAndWait("get_gpu_timing", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/debug/light_stats — light census (docs/PerfProgram2026-09.md, I3): registered /
+    // uploaded / dropped, unique positions (duplicate lights each still march per fragment),
+    // by_source, radius histogram, and the CPU cost of selection + the emissive reconcile. Read-only.
+    srv.Get("/api/debug/light_stats", [this](const httplib::Request&, httplib::Response& res) {
+        json result = queueAndWait("get_light_stats", json::object());
         res.set_content(result.dump(), "application/json");
     });
 

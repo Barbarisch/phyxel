@@ -10,7 +10,7 @@ using namespace Phyxel::Graphics;
 
 TEST(LightManagerTest, AddPointLight_ReturnsValidId) {
     LightManager mgr;
-    int id = mgr.addPointLight(glm::vec3(10, 20, 30));
+    int id = mgr.addPointLight(LightSource::Api, glm::vec3(10, 20, 30));
     EXPECT_GE(id, 0);
     EXPECT_EQ(mgr.getPointLightCount(), 1u);
 }
@@ -22,7 +22,7 @@ TEST(LightManagerTest, AddPointLight_FromStruct) {
     pl.color = glm::vec3(1, 0, 0);
     pl.intensity = 3.0f;
     pl.radius = 25.0f;
-    int id = mgr.addPointLight(pl);
+    int id = mgr.addPointLight(LightSource::Api, pl);
     EXPECT_GE(id, 0);
 
     const PointLight* retrieved = mgr.getPointLight(id);
@@ -42,7 +42,7 @@ TEST(LightManagerTest, AddPointLight_FromStruct) {
 TEST(LightManagerTest, AddPointLight_AcceptsBeyondTheUploadBudget) {
     LightManager mgr;
     for (uint32_t i = 0; i < MAX_POINT_LIGHTS * 3; i++) {
-        EXPECT_GE(mgr.addPointLight(glm::vec3(static_cast<float>(i), 0, 0)), 0)
+        EXPECT_GE(mgr.addPointLight(LightSource::Api, glm::vec3(static_cast<float>(i), 0, 0)), 0)
             << "light " << i << " was refused; the cap is an upload budget, not a storage limit";
     }
     EXPECT_EQ(mgr.getPointLightCount(), MAX_POINT_LIGHTS * 3);
@@ -52,7 +52,7 @@ TEST(LightManagerTest, AddPointLight_AcceptsBeyondTheUploadBudget) {
 
 TEST(LightManagerTest, RemovePointLight) {
     LightManager mgr;
-    int id = mgr.addPointLight(glm::vec3(1, 2, 3));
+    int id = mgr.addPointLight(LightSource::Api, glm::vec3(1, 2, 3));
     EXPECT_EQ(mgr.getPointLightCount(), 1u);
     EXPECT_TRUE(mgr.removeLight(id));
     EXPECT_EQ(mgr.getPointLightCount(), 0u);
@@ -66,7 +66,7 @@ TEST(LightManagerTest, RemoveNonexistent_ReturnsFalse) {
 
 TEST(LightManagerTest, UpdatePointLight) {
     LightManager mgr;
-    int id = mgr.addPointLight(glm::vec3(0, 0, 0), glm::vec3(1, 1, 1), 1.0f, 10.0f);
+    int id = mgr.addPointLight(LightSource::Api, glm::vec3(0, 0, 0), glm::vec3(1, 1, 1), 1.0f, 10.0f);
 
     PointLight updated;
     updated.position = glm::vec3(50, 60, 70);
@@ -87,7 +87,7 @@ TEST(LightManagerTest, UpdatePointLight) {
 
 TEST(LightManagerTest, AddSpotLight_ReturnsValidId) {
     LightManager mgr;
-    int id = mgr.addSpotLight(glm::vec3(10, 20, 30), glm::vec3(0, -1, 0));
+    int id = mgr.addSpotLight(LightSource::Api, glm::vec3(10, 20, 30), glm::vec3(0, -1, 0));
     EXPECT_GE(id, 0);
     EXPECT_EQ(mgr.getSpotLightCount(), 1u);
 }
@@ -96,7 +96,7 @@ TEST(LightManagerTest, AddSpotLight_ReturnsValidId) {
 TEST(LightManagerTest, AddSpotLight_AcceptsBeyondTheUploadBudget) {
     LightManager mgr;
     for (uint32_t i = 0; i < MAX_SPOT_LIGHTS * 3; i++) {
-        EXPECT_GE(mgr.addSpotLight(glm::vec3(static_cast<float>(i), 0, 0), glm::vec3(0, -1, 0)), 0);
+        EXPECT_GE(mgr.addSpotLight(LightSource::Api, glm::vec3(static_cast<float>(i), 0, 0), glm::vec3(0, -1, 0)), 0);
     }
     EXPECT_EQ(mgr.getSpotLightCount(), MAX_SPOT_LIGHTS * 3);
     EXPECT_EQ(mgr.getGPUData().numSpotLights, MAX_SPOT_LIGHTS);
@@ -112,10 +112,10 @@ TEST(LightManagerTest, U31_TheNearestLightIsAlwaysUploadedNoMatterWhenItWasRegis
     // Fill the budget with distant lights FIRST, so under the old first-come rule they would own
     // every slot forever.
     for (uint32_t i = 0; i < MAX_POINT_LIGHTS; i++) {
-        mgr.addPointLight(glm::vec3(1000.0f + static_cast<float>(i), 0, 0), glm::vec3(1), 1.0f, 5.0f);
+        mgr.addPointLight(LightSource::Api, glm::vec3(1000.0f + static_cast<float>(i), 0, 0), glm::vec3(1), 1.0f, 5.0f);
     }
     // Now the torch in the player's hand — registered LAST, and the whole point of the fix.
-    const int torch = mgr.addPointLight(glm::vec3(0.5f, 0, 0), glm::vec3(1, 0.8f, 0.5f), 2.0f, 8.0f);
+    const int torch = mgr.addPointLight(LightSource::Api, glm::vec3(0.5f, 0, 0), glm::vec3(1, 0.8f, 0.5f), 2.0f, 8.0f);
     ASSERT_GE(torch, 0);
 
     mgr.setViewerWorld(glm::vec3(0.0f));
@@ -139,9 +139,9 @@ TEST(LightManagerTest, U31_TheUploadedSetFollowsTheViewer) {
     LightManager mgr;
     // Two clusters, far apart. Each is exactly the budget size, so only one can be uploaded.
     for (uint32_t i = 0; i < MAX_POINT_LIGHTS; i++)
-        mgr.addPointLight(glm::vec3(-500.0f, 0, static_cast<float>(i)), glm::vec3(1), 1.0f, 4.0f);
+        mgr.addPointLight(LightSource::Api, glm::vec3(-500.0f, 0, static_cast<float>(i)), glm::vec3(1), 1.0f, 4.0f);
     for (uint32_t i = 0; i < MAX_POINT_LIGHTS; i++)
-        mgr.addPointLight(glm::vec3(500.0f, 0, static_cast<float>(i)), glm::vec3(1), 1.0f, 4.0f);
+        mgr.addPointLight(LightSource::Api, glm::vec3(500.0f, 0, static_cast<float>(i)), glm::vec3(1), 1.0f, 4.0f);
 
     auto meanX = [&mgr](const glm::vec3& viewer) {
         mgr.setViewerWorld(viewer);
@@ -163,8 +163,8 @@ TEST(LightManagerTest, U31_ABigDistantLightBeatsATinyNearerOneOnlyWhenItsRadiusR
     // glow fills a room loses its slot to a candle just outside the room.
     LightManager mgr;
     mgr.setViewerWorld(glm::vec3(0.0f));
-    const int hearth = mgr.addPointLight(glm::vec3(20, 0, 0), glm::vec3(1), 3.0f, 30.0f); // reaches
-    const int candle = mgr.addPointLight(glm::vec3(15, 0, 0), glm::vec3(1), 0.5f, 2.0f);  // does not
+    const int hearth = mgr.addPointLight(LightSource::Api, glm::vec3(20, 0, 0), glm::vec3(1), 3.0f, 30.0f); // reaches
+    const int candle = mgr.addPointLight(LightSource::Api, glm::vec3(15, 0, 0), glm::vec3(1), 0.5f, 2.0f);  // does not
     ASSERT_GE(hearth, 0);
     ASSERT_GE(candle, 0);
 
@@ -182,7 +182,7 @@ TEST(LightManagerTest, U31_SelectionIsStableBetweenFramesAtEqualRelevance) {
     LightManager mgr;
     mgr.setViewerWorld(glm::vec3(0.0f));
     for (uint32_t i = 0; i < MAX_POINT_LIGHTS + 4; i++)
-        mgr.addPointLight(glm::vec3(0, 0, 10.0f), glm::vec3(1), 1.0f, 5.0f);   // all identical
+        mgr.addPointLight(LightSource::Api, glm::vec3(0, 0, 10.0f), glm::vec3(1), 1.0f, 5.0f);   // all identical
 
     std::vector<float> first;
     const auto& a = mgr.getGPUData();
@@ -199,7 +199,7 @@ TEST(LightManagerTest, U31_SelectionIsStableBetweenFramesAtEqualRelevance) {
 
 TEST(LightManagerTest, UpdateSpotLight) {
     LightManager mgr;
-    int id = mgr.addSpotLight(glm::vec3(0, 0, 0), glm::vec3(0, -1, 0));
+    int id = mgr.addSpotLight(LightSource::Api, glm::vec3(0, 0, 0), glm::vec3(0, -1, 0));
 
     SpotLight updated;
     updated.position = glm::vec3(100, 50, 0);
@@ -223,7 +223,7 @@ TEST(LightManagerTest, UpdateSpotLight) {
 
 TEST(LightManagerTest, SetLightEnabled_PointLight) {
     LightManager mgr;
-    int id = mgr.addPointLight(glm::vec3(0, 0, 0));
+    int id = mgr.addPointLight(LightSource::Api, glm::vec3(0, 0, 0));
     EXPECT_TRUE(mgr.setLightEnabled(id, false));
 
     const auto& gpu = mgr.getGPUData();
@@ -247,8 +247,8 @@ TEST(LightManagerTest, GetGPUData_Empty) {
 
 TEST(LightManagerTest, GetGPUData_PacksPointLights) {
     LightManager mgr;
-    mgr.addPointLight(glm::vec3(1, 2, 3), glm::vec3(1, 0, 0), 5.0f, 20.0f);
-    mgr.addPointLight(glm::vec3(4, 5, 6), glm::vec3(0, 1, 0), 3.0f, 15.0f);
+    mgr.addPointLight(LightSource::Api, glm::vec3(1, 2, 3), glm::vec3(1, 0, 0), 5.0f, 20.0f);
+    mgr.addPointLight(LightSource::Api, glm::vec3(4, 5, 6), glm::vec3(0, 1, 0), 3.0f, 15.0f);
 
     const auto& gpu = mgr.getGPUData();
     EXPECT_EQ(gpu.numPointLights, 2u);
@@ -260,7 +260,7 @@ TEST(LightManagerTest, GetGPUData_PacksPointLights) {
 
 TEST(LightManagerTest, GetGPUData_PacksSpotLights) {
     LightManager mgr;
-    mgr.addSpotLight(glm::vec3(10, 20, 30), glm::vec3(0, -1, 0),
+    mgr.addSpotLight(LightSource::Api, glm::vec3(10, 20, 30), glm::vec3(0, -1, 0),
                      glm::vec3(1, 1, 1), 8.0f, 50.0f, 0.9f, 0.8f);
 
     const auto& gpu = mgr.getGPUData();
@@ -274,8 +274,8 @@ TEST(LightManagerTest, GetGPUData_PacksSpotLights) {
 
 TEST(LightManagerTest, GetGPUData_SkipsDisabledLights) {
     LightManager mgr;
-    int id1 = mgr.addPointLight(glm::vec3(1, 0, 0));
-    int id2 = mgr.addPointLight(glm::vec3(2, 0, 0));
+    int id1 = mgr.addPointLight(LightSource::Api, glm::vec3(1, 0, 0));
+    int id2 = mgr.addPointLight(LightSource::Api, glm::vec3(2, 0, 0));
     mgr.setLightEnabled(id1, false);
 
     const auto& gpu = mgr.getGPUData();
@@ -290,9 +290,9 @@ TEST(LightManagerTest, GetGPUData_SkipsDisabledLights) {
 
 TEST(LightManagerTest, Clear_RemovesAllLights) {
     LightManager mgr;
-    mgr.addPointLight(glm::vec3(0, 0, 0));
-    mgr.addPointLight(glm::vec3(1, 0, 0));
-    mgr.addSpotLight(glm::vec3(2, 0, 0), glm::vec3(0, -1, 0));
+    mgr.addPointLight(LightSource::Api, glm::vec3(0, 0, 0));
+    mgr.addPointLight(LightSource::Api, glm::vec3(1, 0, 0));
+    mgr.addSpotLight(LightSource::Api, glm::vec3(2, 0, 0), glm::vec3(0, -1, 0));
     EXPECT_EQ(mgr.getTotalLightCount(), 3u);
 
     mgr.clear();
@@ -307,8 +307,8 @@ TEST(LightManagerTest, Clear_RemovesAllLights) {
 
 TEST(LightManagerTest, GetPointLights_ReturnsWithIds) {
     LightManager mgr;
-    int id1 = mgr.addPointLight(glm::vec3(1, 0, 0));
-    int id2 = mgr.addPointLight(glm::vec3(2, 0, 0));
+    int id1 = mgr.addPointLight(LightSource::Api, glm::vec3(1, 0, 0));
+    int id2 = mgr.addPointLight(LightSource::Api, glm::vec3(2, 0, 0));
 
     auto lights = mgr.getPointLights();
     ASSERT_EQ(lights.size(), 2u);
@@ -320,7 +320,7 @@ TEST(LightManagerTest, GetPointLights_ReturnsWithIds) {
 
 TEST(LightManagerTest, GetSpotLights_ReturnsWithIds) {
     LightManager mgr;
-    int id = mgr.addSpotLight(glm::vec3(5, 10, 15), glm::vec3(0, -1, 0));
+    int id = mgr.addSpotLight(LightSource::Api, glm::vec3(5, 10, 15), glm::vec3(0, -1, 0));
 
     auto lights = mgr.getSpotLights();
     ASSERT_EQ(lights.size(), 1u);
@@ -334,7 +334,7 @@ TEST(LightManagerTest, GetSpotLights_ReturnsWithIds) {
 
 TEST(LightManagerTest, IdsAreUniqueAcrossTypes) {
     LightManager mgr;
-    int pid = mgr.addPointLight(glm::vec3(0, 0, 0));
-    int sid = mgr.addSpotLight(glm::vec3(0, 0, 0), glm::vec3(0, -1, 0));
+    int pid = mgr.addPointLight(LightSource::Api, glm::vec3(0, 0, 0));
+    int sid = mgr.addSpotLight(LightSource::Api, glm::vec3(0, 0, 0), glm::vec3(0, -1, 0));
     EXPECT_NE(pid, sid);
 }
