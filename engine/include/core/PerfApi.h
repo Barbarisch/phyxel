@@ -49,4 +49,15 @@ nlohmann::json voxelTiers(Graphics::RenderCoordinator* rc, ChunkManager* cm, con
 // optional (omitted = unchanged) but must be exactly three booleans. Echoes both masks.
 nlohmann::json setTierMask(const nlohmann::json& params);
 
+// GET /api/debug/cpu_timing?frames=N (I7). CPU scopes of drawFrame, same statistics as gpu_timing:
+// drawFrame > LOD Update, Light Occupancy, Dirty Chunk Flush (includes meshing), Fence Wait, Acquire,
+// Frame Setup (> Light Select+Upload), Record (> Shadow Pass, Scene Pass > Static Geometry > Occlusion
+// BFS), Submit, Present.
+nlohmann::json cpuTiming(Graphics::RenderCoordinator* rc, const nlohmann::json& params);
+
+// GET /api/debug/mesh_timing?reset=0|1 (I7). rebuildAllFaces split by phase, plus whole-rebuild time
+// bucketed by the chunk's microcube count. reset=1 returns the stats and then zeroes them, so a
+// caller can measure exactly one window.
+nlohmann::json meshTiming(const nlohmann::json& params);
+
 }  // namespace Phyxel::Core::PerfApi

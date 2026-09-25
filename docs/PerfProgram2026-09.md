@@ -1,7 +1,7 @@
 # Performance Program 2026-09: point lights and static sub/micro detail
 
-**Status:** **P0a DONE 2026-09-24** (I1, I2, I3, I10 skeleton; results in §10). P0b (I4-I7) and P0c
-(I8, I9) are next. `/design-check` ran four times on the plan (NEEDS WORK, lists 7 → 7 → 3 → 1, all
+**Status:** **P0a DONE** (I1, I2, I3, I10; §10) and **P0b DONE except I4, deferred with reasons**
+(I5, I6, I7; §11), 2026-09-24. P0c (I8, I9) and P1 are next. `/design-check` ran four times on the plan (NEEDS WORK, lists 7 → 7 → 3 → 1, all
 folded in, §9.1-§9.4) and returned READY on the fifth. No optimization starts until P1 has measured it.
 
 **The question (from the user):** *"it seems like we have performance issues because of too many point
@@ -504,3 +504,69 @@ failures are documented as pre-existing: `AtlasManagerTest.BuildAtlasFromSourceP
 2. **Light re-selection every frame** (2169 selections), cheap now but unexplained.
 3. The G-155 fix is not yet confirmed on the laptop GPU.
 4. `resolution` (swapchain + viewport) is not yet exposed, so the harness cannot record it.
+
+---
+
+## 11. P0b results (2026-09-24, RTX 4090, Release)
+
+### I5: voxel tier census (DONE, L2 + L4)
+
+- `GET /api/debug/voxel_tiers?per_chunk=0|1&covered=0|1`. Per tier (cube / sub / micro / LOD cell):
+  stored objects, instances after merge, unit faces before merge, instances drawn this view (main
+  pass + each shadow cascade), GPU bytes, and a CPU-byte floor for sub/micro objects. `covered=1` adds
+  the cube faces fully hidden behind opaque sub/micro detail (sizes S1).
+- The mesher's direction sort now keys (direction, tier). Faces are built cube → sub → micro and the
+  sort is stable, so **this reorders nothing**; it only records each tier's run.
+- **L4 rig (hand-placed, one chunk, deltas vs a control census; `i5_rig.py`, `i5_rig_census.json`).**
+  All four analytic predictions matched exactly: 1 cube (1, 6, 6), 27 subcubes (27, 6, 54),
+  729 microcubes (729, 6, 486), and a covered skin +1.
+
+### I6: per-tier draw ranges (DONE, L4)
+
+- `POST /api/debug/tier_mask {main:[c,s,m], shadow:[c,s,m]}`. A masked tier is **not drawn at all**: in
+  the main pass via the tier runs, in the GPU-driven mid cascade via one indirect command per kept
+  (direction, tier) run, and in the legacy near-cascade loop via sub-range draws. **No shader change**:
+  the plan's degenerate-vertex fallback for shadows was unnecessary, because the indirect commands are
+  written on the CPU. The default mask takes the old paths untouched.
+- **L4 (`i6_check.py`, `i6_check.json`, pipeline stats on).** Masking each tier zeroed its instances in
+  view and cut vertex work in exact proportion: **4.00 VS invocations per instance in the main pass**
+  (6-index quad) and **~10.0 per instance in the mid shadow cascade** (36-index cube). Zero skipped
+  chunks and zero command overflows. Visual pair: masking micro removes exactly the microcube block
+  (`i6_rig_all_tiers.png`, `i6_rig_micro_masked.png`).
+- **Side finding:** a shadow-caster instance costs **2.5×** the vertex work of a main-pass instance
+  (the M5 36-index requirement).
+
+### I7: CPU render-path scopes + mesh phases (DONE, L4)
+
+- `GET /api/debug/cpu_timing?frames=N`: drawFrame > LOD Update, Light Occupancy, Dirty Chunk Flush,
+  Fence Wait, Acquire, Frame Setup (> Light Select+Upload), Record (> Shadow Pass, Scene Pass > Static
+  Geometry > Occlusion BFS), Submit, Present. It reuses the I1 history class, so it has the same
+  statistics and the same serial rule.
+- `GET /api/debug/mesh_timing?reset=0|1`: rebuildAllFaces split into cube greedy / fine occupancy / sub
+  faces / micro faces / sort, and whole-rebuild time bucketed by the chunk's microcube count.
+- **L4 (`i7_check.py`, `i7_check.json`).**
+  - **Sum rule passed:** drawFrame's children account for 99.8% of it (3.351 of 3.356 ms).
+  - **Fence Wait is 2.58 of 3.36 ms**, so the CPU is idle waiting on the GPU: the frame is GPU-bound
+    (tavern bench, exterior).
+  - **The mesh prediction FAILED, from a rig error, not an instrument error.** I predicted a rebuild in
+    the 100-999 microcube bucket, assuming the chunk was otherwise empty. It already held ~8,088
+    microcubes (flora on the bench world), so the rebuild saw 8,817 and landed correctly in 1000-9999.
+    The phase partition held (12.563 vs 12.565 ms). The next mesh rig must control chunk contents
+    (census the chunk first).
+  - **First CPU number for H-micro:** re-meshing one chunk holding ~8.8k microcubes took **12.6 ms on
+    the main thread, half of it (6.3 ms) in microcube face generation.** That is a frame-sized hitch
+    per edit. R-M2 will measure the curve.
+
+### I4: GPU light counters (DEFERRED)
+
+- A counter path that is provably free when off needs either a pipeline variant per receiver shader or
+  accepting unmeasured overhead in `voxel.frag` (the hottest shader) and `occupancy.glsl` (included
+  by every scene shader). The overhead cannot be measured cleanly: the old build would have to run as
+  a separate process, and cross-process drift is ~20% (§10).
+- Its question ("too many marches or too costly each") was answered on the laptop by G-18 run 6, and
+  debug modes 17/18 reproduce it on the 4090 without new code. **Revisit when L3a (cheaper march) is
+  weighed**, since that decision needs steps per march.
+- **Finding while designing it:** `grass.frag`, `foliage.frag` and `sky.frag` treat
+  `debugShadowMode >= 3` as a debug view and paint flat black. So **every bisect mode (11-18) blacks out
+  grass, foliage and sky**: the bisect ladder never measured vegetation lighting cost. Grass and foliage
+  need their own attribution (the light-trace toggle does it: §1b showed grass paying 4.4 ms of march).

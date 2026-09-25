@@ -51,6 +51,71 @@ void ChunkRenderManager::resetMeshTimingStats() {
     g_meshTotalMicros.store(0, std::memory_order_relaxed);
 }
 
+// --- I7: per-phase mesh timing + micro-count histogram (docs/PerfProgram2026-09.md) ---
+namespace {
+    constexpr int kPh = ChunkRenderManager::kMeshPhases;
+    constexpr int kMb = ChunkRenderManager::kMicroBuckets;
+    std::atomic<uint64_t> g_phaseCalls{0};
+    std::atomic<uint64_t> g_phaseTotal[kPh]{};
+    std::atomic<uint64_t> g_phaseMax[kPh]{};
+    std::atomic<uint64_t> g_bucketCalls[kMb]{};
+    std::atomic<uint64_t> g_bucketTotal[kMb]{};
+    std::atomic<uint64_t> g_bucketMax[kMb]{};
+    std::atomic<uint64_t> g_bucketMicros[kMb]{};   // microcubes meshed (count, not time)
+
+    void atomicMax(std::atomic<uint64_t>& a, uint64_t v) {
+        uint64_t prev = a.load(std::memory_order_relaxed);
+        while (v > prev && !a.compare_exchange_weak(prev, v, std::memory_order_relaxed)) {}
+    }
+    int microBucket(size_t n) {
+        if (n == 0) return 0;
+        if (n < 100) return 1;
+        if (n < 1000) return 2;
+        if (n < 10000) return 3;
+        return 4;
+    }
+}
+
+ChunkRenderManager::MeshPhaseStats ChunkRenderManager::getMeshPhaseStats() {
+    MeshPhaseStats s;
+    s.calls = g_phaseCalls.load(std::memory_order_relaxed);
+    for (int i = 0; i < kPh; ++i) {
+        s.phaseTotalMs[i] = g_phaseTotal[i].load(std::memory_order_relaxed) / 1000.0;
+        s.phaseMaxMs[i] = g_phaseMax[i].load(std::memory_order_relaxed) / 1000.0;
+    }
+    for (int i = 0; i < kMb; ++i) {
+        s.bucketCalls[i] = g_bucketCalls[i].load(std::memory_order_relaxed);
+        s.bucketTotalMs[i] = g_bucketTotal[i].load(std::memory_order_relaxed) / 1000.0;
+        s.bucketMaxMs[i] = g_bucketMax[i].load(std::memory_order_relaxed) / 1000.0;
+        s.bucketMicrocubes[i] = g_bucketMicros[i].load(std::memory_order_relaxed);
+    }
+    return s;
+}
+
+void ChunkRenderManager::resetMeshPhaseStats() {
+    g_phaseCalls.store(0, std::memory_order_relaxed);
+    for (int i = 0; i < kPh; ++i) {
+        g_phaseTotal[i].store(0, std::memory_order_relaxed);
+        g_phaseMax[i].store(0, std::memory_order_relaxed);
+    }
+    for (int i = 0; i < kMb; ++i) {
+        g_bucketCalls[i].store(0, std::memory_order_relaxed);
+        g_bucketTotal[i].store(0, std::memory_order_relaxed);
+        g_bucketMax[i].store(0, std::memory_order_relaxed);
+        g_bucketMicros[i].store(0, std::memory_order_relaxed);
+    }
+}
+
+const char* ChunkRenderManager::meshPhaseName(int i) {
+    static const char* k[kPh] = {"cube_greedy", "fine_occupancy", "sub_faces", "micro_faces", "sort"};
+    return (i >= 0 && i < kPh) ? k[i] : "?";
+}
+
+const char* ChunkRenderManager::microBucketName(int i) {
+    static const char* k[kMb] = {"0", "1-99", "100-999", "1000-9999", "10000+"};
+    return (i >= 0 && i < kMb) ? k[i] : "?";
+}
+
 // Smooth-lighting globals (see header). Default: smooth ON, tolerance 0 (pure smooth — no snapping,
 // so gentle gradients never band into flat blocky steps). Raise tolerance (or toggle smooth off) only
 // as an opt-in perf lever; the default prioritizes look.
@@ -265,8 +330,14 @@ void ChunkRenderManager::rebuildAllFaces(
     // Rebuild faces for each voxel type. Cubes first: rebuildCubeFaces fills m_solidVis (cube-level
     // occupancy) which the sub/micro occlusion reuses. Then build the leaf sub/micro occupancy so
     // rebuildSubcube/MicrocubeFaces can cull hidden faces.
+    // I7: per-phase timing. t[0] = start, t[i+1] = end of phase i.
+    using PhaseClock = std::chrono::steady_clock;
+    PhaseClock::time_point t[kMeshPhases + 1];
+    t[0] = PhaseClock::now();
     rebuildCubeFaces(cubes, subcubes, microcubes, worldOrigin, getNeighborCube, columnOpenMask, voxelStore);
+    t[1] = PhaseClock::now();
     buildSubMicroOccupancy(subcubes, microcubes, worldOrigin);
+    t[2] = PhaseClock::now();
     // The sub/micro border lookup (GlassTransparency.md §5) lives only for this rebuild (a stale pointer to a caller's
     // lambda must never outlive the call).
     struct FineLookupScope {
@@ -275,12 +346,32 @@ void ChunkRenderManager::rebuildAllFaces(
     } fineScope{m_fineLookup};
     m_fineLookup = getNeighborFine ? &getNeighborFine : nullptr;
     rebuildSubcubeFaces(subcubes, worldOrigin);
+    t[3] = PhaseClock::now();
     rebuildMicrocubeFaces(microcubes, worldOrigin);
+    t[4] = PhaseClock::now();
 
     // Phase 3 face-direction bucketing (docs/LargeWorldScalePlan.md): reorder the
     // instance buffer direction-major so draw passes can skip whole ranges the GPU
     // would cull anyway (a +X face can never be visible from a camera on its -X side).
     reorderFacesByDirection();
+    t[5] = PhaseClock::now();
+
+    {
+        g_phaseCalls.fetch_add(1, std::memory_order_relaxed);
+        for (int i = 0; i < kMeshPhases; ++i) {
+            const auto us = static_cast<uint64_t>(
+                std::max<long long>(0, std::chrono::duration_cast<std::chrono::microseconds>(t[i + 1] - t[i]).count()));
+            g_phaseTotal[i].fetch_add(us, std::memory_order_relaxed);
+            atomicMax(g_phaseMax[i], us);
+        }
+        const auto whole = static_cast<uint64_t>(
+            std::max<long long>(0, std::chrono::duration_cast<std::chrono::microseconds>(t[kMeshPhases] - t[0]).count()));
+        const int b = microBucket(microcubes.size());
+        g_bucketCalls[b].fetch_add(1, std::memory_order_relaxed);
+        g_bucketTotal[b].fetch_add(whole, std::memory_order_relaxed);
+        atomicMax(g_bucketMax[b], whole);
+        g_bucketMicros[b].fetch_add(microcubes.size(), std::memory_order_relaxed);
+    }
 
     numInstances = static_cast<uint32_t>(faces.size());
     needsUpdate = true;

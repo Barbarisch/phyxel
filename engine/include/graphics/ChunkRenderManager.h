@@ -132,6 +132,25 @@ public:
     static MeshTimingStats getMeshTimingStats();
     static void            resetMeshTimingStats();
 
+    /// I7 (docs/PerfProgram2026-09.md): rebuildAllFaces split by phase, and a histogram of whole
+    /// rebuild time by how many MICROCUBES the chunk held, so the CPU cost of micro detail is
+    /// measured rather than assumed. Lock-free atomics, like MeshTimingStats.
+    static constexpr int kMeshPhases = 5;   // cube greedy, sub/micro occupancy, sub faces, micro faces, sort
+    static constexpr int kMicroBuckets = 5; // microcubes: 0, 1-99, 100-999, 1000-9999, 10000+
+    struct MeshPhaseStats {
+        uint64_t calls = 0;
+        double phaseTotalMs[kMeshPhases] = {};
+        double phaseMaxMs[kMeshPhases] = {};
+        uint64_t bucketCalls[kMicroBuckets] = {};
+        double bucketTotalMs[kMicroBuckets] = {};
+        double bucketMaxMs[kMicroBuckets] = {};
+        uint64_t bucketMicrocubes[kMicroBuckets] = {};
+    };
+    static MeshPhaseStats getMeshPhaseStats();
+    static void           resetMeshPhaseStats();
+    static const char*    meshPhaseName(int i);
+    static const char*    microBucketName(int i);
+
     ChunkRenderManager();
     ~ChunkRenderManager();
 

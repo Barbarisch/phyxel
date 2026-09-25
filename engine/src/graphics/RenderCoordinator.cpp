@@ -1304,6 +1304,7 @@ size_t RenderCoordinator::renderStaticGeometry() {
         // frustum-visible chunks that are hidden behind solid chunks. ON by default
         // (docs/LargeWorldScalePlan.md Phase 3); conservative, so no false holes.
         if (m_occlusionCullingEnabled) {
+            CPU_PROFILE_SCOPE(&m_cpuTiming, "Occlusion BFS");
             applyOcclusionCulling(cameraPos, cameraFrustum);
         }
 
@@ -3204,10 +3205,20 @@ void RenderCoordinator::drawFarLodChunks(uint32_t currentFrame) {
 }
 
 void RenderCoordinator::drawFrame() {
+    // I7 (docs/PerfProgram2026-09.md): CPU scopes for this frame. The guard closes every open
+    // scope and commits the frame on EVERY exit path (minimised window, failed acquire/submit).
+    m_cpuTiming.beginFrame();
+    m_cpuTiming.push("drawFrame");
+    struct CpuFrameGuard {
+        RenderCoordinator* rc;
+        ~CpuFrameGuard() { rc->m_cpuTiming.endFrame(++rc->m_cpuFrameSerial); }
+    } cpuFrameGuard{this};
+
     // C1 (docs/ContinuousLodPlan.md): refresh the shared screen-space LOD scale ONCE, before
     // any consumer runs. It previously lived in buildCharacterFrameData, which runs after
     // renderGrass/renderFoliage in the scene pass — those would have read a one-frame-stale
     // scale (and the default 1.0 on frame 0). Exactly 1.0 at the reference config either way.
+    m_cpuTiming.push("LOD Update");
     if (vulkanDevice) {
         // Pass the camera's REAL vertical FOV rather than letting it default to the reference
         // constant — otherwise the correction is resolution-only and silently stops tracking
@@ -3219,6 +3230,7 @@ void RenderCoordinator::drawFrame() {
     // C5: pick each chunk's LOD level from the shared metric before culling/drawing.
     updateChunkLod();
     updateFarLodChunks();   // C3.3: serve non-resident chunks from the persisted pyramid
+    m_cpuTiming.pop();   // LOD Update
 
     // Skip rendering when window is minimized (0x0 extent is invalid in Vulkan)
     if (windowManager->getWidth() == 0 || windowManager->getHeight() == 0) {
@@ -3240,7 +3252,11 @@ void RenderCoordinator::drawFrame() {
         // bake as if the world were empty and read fully sky-lit indoors. Occupancy comes from the
         // physics grid, which is populated at chunk LOAD and does not depend on meshing, so this
         // ordering is safe in the other direction.
-        updateLightOccupancy();
+        {
+            CPU_PROFILE_SCOPE(&m_cpuTiming, "Light Occupancy");
+            updateLightOccupancy();
+        }
+        CPU_PROFILE_SCOPE(&m_cpuTiming, "Dirty Chunk Flush");   // includes the chunk re-meshing
         chunkManager->updateDirtyChunks(kDirtyChunkBudgetMs);
     }
 
@@ -3341,12 +3357,18 @@ void RenderCoordinator::drawFrame() {
     updateSpanWaterGrid();
 
     // Wait for previous frame
-    vulkanDevice->waitForFence(currentFrame);
+    {
+        CPU_PROFILE_SCOPE(&m_cpuTiming, "Fence Wait");   // time the CPU spends waiting on the GPU
+        vulkanDevice->waitForFence(currentFrame);
+    }
 
     // Acquire next image (don't reset fence yet — if acquire fails, the still-signaled
     // fence lets the next frame's waitForFence pass instead of deadlocking)
     uint32_t imageIndex;
+    m_cpuTiming.push("Acquire");
     VkResult result = vulkanDevice->acquireNextImage(currentFrame, &imageIndex);
+    m_cpuTiming.pop();
+    m_cpuTiming.push("Frame Setup");   // everything between acquire and command recording
     
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         // Swapchain is out of date — recreate FIRST (calls vkDeviceWaitIdle)
@@ -3814,13 +3836,17 @@ void RenderCoordinator::drawFrame() {
     // Upload light data to GPU SSBO
     // Light positions must be expressed in the same camera-relative space as the fragment
     // positions they are subtracted from. See LightManager::setViewerWorld.
+    m_cpuTiming.push("Light Select+Upload");
     lightManager.setViewerWorld(camera ? camera->getPosition() : glm::vec3(0.0f));
     auto gpuLightData = lightManager.getGPUData();
     vulkanDevice->updateLightBuffer(currentFrame, gpuLightData);
-    
+    m_cpuTiming.pop();
+
     auto uniformUploadEnd = std::chrono::high_resolution_clock::now();
+    m_cpuTiming.pop();   // Frame Setup
 
     // Record command buffer
+    m_cpuTiming.push("Record");
     auto recordStart = std::chrono::high_resolution_clock::now();
     vulkanDevice->resetCommandBuffer(currentFrame);
     vulkanDevice->beginCommandBuffer(currentFrame);
@@ -3841,6 +3867,7 @@ void RenderCoordinator::drawFrame() {
 
     {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Shadow Pass");
+        CPU_PROFILE_SCOPE(&m_cpuTiming, "Shadow Pass");
         // Mid cascade (the original single map), then the near cascade (tight map whose
         // texels resolve blade-scale casters — docs/NearShadowCascade.md).
         // One scope per cascade so each one's cost is attributable (I1).
@@ -3938,6 +3965,7 @@ void RenderCoordinator::drawFrame() {
     
     {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Scene Pass");
+        CPU_PROFILE_SCOPE(&m_cpuTiming, "Scene Pass");
 
         // ---- Atmospheric sky + sun + moon, FIRST in the pass ------------------------------------
         // Depth test and write are off, so this simply fills the frame and every later draw covers
@@ -3984,6 +4012,7 @@ void RenderCoordinator::drawFrame() {
         size_t actuallyRenderedChunks = 0;
         {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Static Geometry");
+            CPU_PROFILE_SCOPE(&m_cpuTiming, "Static Geometry");
             // D0: count fragment invocations + primitives for the chunk pass (overdraw counter).
             gpuProfiler->beginPipelineStats(cmd, GpuProfiler::STATS_SLOT_STATIC);
             actuallyRenderedChunks = renderStaticGeometry();
@@ -4299,10 +4328,14 @@ void RenderCoordinator::drawFrame() {
     m_tierDrawStatsLast = m_tierDrawStats;   // publish the complete frame's tier census
     vulkanDevice->endCommandBuffer(currentFrame);
     auto recordEnd = std::chrono::high_resolution_clock::now();
+    m_cpuTiming.pop();   // Record
 
     // Submit command buffer
     auto submitStart = std::chrono::high_resolution_clock::now();
-    if (!vulkanDevice->submitCommandBuffer(currentFrame)) {
+    m_cpuTiming.push("Submit");
+    const bool submitted = vulkanDevice->submitCommandBuffer(currentFrame);
+    m_cpuTiming.pop();
+    if (!submitted) {
         LOG_ERROR("RenderCoordinator", "Failed to submit command buffer!");
         // Recovery: fence was reset but submit didn't signal it.
         // Wait for device idle, recreate sync objects (fences start signaled),
@@ -4316,7 +4349,9 @@ void RenderCoordinator::drawFrame() {
 
     // Present frame
     auto presentStart = std::chrono::high_resolution_clock::now();
+    m_cpuTiming.push("Present");
     VkResult presentResult = vulkanDevice->presentFrame(imageIndex, currentFrame);
+    m_cpuTiming.pop();
     m_lastImageIndex = imageIndex;  // Track for screenshot capture
 
     // Multi-viewport: update and render secondary platform windows (after main present)

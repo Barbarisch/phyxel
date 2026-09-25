@@ -6,6 +6,7 @@
 #include "utils/Frustum.h"
 #include "graphics/LightManager.h"
 #include "graphics/TierRanges.h"
+#include "utils/CpuTimingRecorder.h"
 #include "graphics/DayNightCycle.h"
 #include "graphics/CelestialBody.h"
 #include "graphics/WindSystem.h"
@@ -435,6 +436,9 @@ public:
     };
     const TierDrawStats& getTierDrawStats() const { return m_tierDrawStatsLast; }
 
+    /// I7: CPU scope timing history of drawFrame (GET /api/debug/cpu_timing).
+    const CpuTimingRecorder& getCpuTiming() const { return m_cpuTiming; }
+
     // Raycast visualization
     void toggleRaycastVisualization() { raycastVisualizationEnabled = !raycastVisualizationEnabled; }
     void setRaycastVisualization(bool enabled) { raycastVisualizationEnabled = enabled; }
@@ -735,6 +739,8 @@ private:
     TierDrawStats m_tierDrawStats;       // accumulating this frame
     TierDrawStats m_tierDrawStatsLast;   // published at the end of drawFrame
     std::vector<TierRanges::Run> m_tierRunScratch;   // reused by masked draws (no per-chunk alloc)
+    CpuTimingRecorder m_cpuTiming{240};              // I7 CPU scopes of drawFrame
+    uint64_t m_cpuFrameSerial = 0;
 
     // Rendering subsystems
     size_t renderStaticGeometry();

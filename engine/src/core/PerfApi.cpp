@@ -12,6 +12,16 @@ namespace Phyxel::Core::PerfApi {
 
 namespace {
 
+// Query-string flags arrive as strings ("1"/"true"), JSON bodies as booleans or numbers.
+bool paramFlag(const nlohmann::json& params, const char* key) {
+    if (!params.contains(key)) return false;
+    const auto& v = params[key];
+    if (v.is_boolean()) return v.get<bool>();
+    if (v.is_number()) return v.get<double>() != 0.0;
+    if (v.is_string()) return v.get<std::string>() == "1" || v.get<std::string>() == "true";
+    return false;
+}
+
 nlohmann::json statsJson(const GpuTimingStats& s) {
     return nlohmann::json{{"n", s.n},
                           {"median_ms", s.median},
@@ -71,6 +81,52 @@ nlohmann::json gpuTiming(const GpuProfiler* prof, const nlohmann::json& params) 
             {"timestamp_valid_bits", prof->getTimestampValidBits()},
             {"gpu_frame_ms", frame},
             {"scopes", scopes}};
+}
+
+nlohmann::json cpuTiming(Graphics::RenderCoordinator* rc, const nlohmann::json& params) {
+    if (!rc) return {{"success", false}, {"error", "RenderCoordinator not available"}};
+    const GpuTimingHistory& h = rc->getCpuTiming().history();
+    const size_t frames = requestedFrames(params, h.capacity());
+    nlohmann::json scopes = nlohmann::json::array();
+    for (const auto& s : h.stats(frames)) {
+        nlohmann::json j = statsJson(s);
+        j["key"] = s.key;
+        j["name"] = s.name;
+        j["depth"] = s.depth;
+        scopes.push_back(std::move(j));
+    }
+    return {{"success", true},
+            {"clock", "steady_clock (CPU wall time on the main thread)"},
+            {"frames_requested", frames},
+            {"frames_used", std::min(frames, h.framesHeld())},
+            {"frames_held", h.framesHeld()},
+            {"frames_accepted", h.framesAccepted()},
+            {"scopes", scopes}};
+}
+
+nlohmann::json meshTiming(const nlohmann::json& params) {
+    using CRM = Graphics::ChunkRenderManager;
+    const auto s = CRM::getMeshPhaseStats();
+    nlohmann::json phases = nlohmann::json::array();
+    for (int i = 0; i < CRM::kMeshPhases; ++i)
+        phases.push_back({{"phase", CRM::meshPhaseName(i)},
+                          {"total_ms", s.phaseTotalMs[i]},
+                          {"mean_ms", s.calls ? s.phaseTotalMs[i] / double(s.calls) : 0.0},
+                          {"max_ms", s.phaseMaxMs[i]}});
+    nlohmann::json buckets = nlohmann::json::array();
+    for (int i = 0; i < CRM::kMicroBuckets; ++i)
+        buckets.push_back({{"microcubes", CRM::microBucketName(i)},
+                           {"rebuilds", s.bucketCalls[i]},
+                           {"mean_ms", s.bucketCalls[i] ? s.bucketTotalMs[i] / double(s.bucketCalls[i]) : 0.0},
+                           {"max_ms", s.bucketMaxMs[i]},
+                           {"mean_microcubes", s.bucketCalls[i] ? double(s.bucketMicrocubes[i]) / double(s.bucketCalls[i]) : 0.0}});
+    const bool reset = paramFlag(params, "reset");
+    if (reset) CRM::resetMeshPhaseStats();
+    return {{"success", true},
+            {"rebuilds", s.calls},
+            {"phases", phases},
+            {"by_microcube_count", buckets},
+            {"reset_after_read", reset}};
 }
 
 nlohmann::json gpuFrameSummary(const GpuProfiler* prof, size_t frames) {
@@ -148,15 +204,6 @@ nlohmann::json lightStats(Graphics::RenderCoordinator* rc) {
 }
 
 namespace {
-
-bool paramFlag(const nlohmann::json& params, const char* key) {
-    if (!params.contains(key)) return false;
-    const auto& v = params[key];
-    if (v.is_boolean()) return v.get<bool>();
-    if (v.is_number()) return v.get<double>() != 0.0;
-    if (v.is_string()) return v.get<std::string>() == "1" || v.get<std::string>() == "true";
-    return false;
-}
 
 nlohmann::json maskJson(uint32_t mask) {
     return nlohmann::json::array({(mask & 1u) != 0, (mask & 2u) != 0, (mask & 4u) != 0});

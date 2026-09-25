@@ -14830,6 +14830,14 @@ void Application::registerEffectsCommands() {
                                             cmd.params);
     });
 
+    // I7: CPU render-path scopes + mesh phase timing.
+    reg.on("get_cpu_timing", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::cpuTiming(renderCoordinator.get(), cmd.params);
+    });
+    reg.on("get_mesh_timing", [](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::meshTiming(cmd.params);
+    });
+
     // I5: voxel tier census; I6: per-tier draw masks.
     reg.on("get_voxel_tiers", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         r = Core::PerfApi::voxelTiers(renderCoordinator.get(), chunkManager, cmd.params);

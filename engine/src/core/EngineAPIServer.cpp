@@ -4660,6 +4660,22 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(queueAndWait("set_tier_mask", params).dump(), "application/json");
     });
 
+    // GET /api/debug/cpu_timing?frames=N — CPU scope HISTORY of the render path (PerfProgram I7),
+    // same statistics as gpu_timing (drawFrame > dirty flush, fence wait, setup, record, submit, ...).
+    srv.Get("/api/debug/cpu_timing", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("frames")) params["frames"] = req.get_param_value("frames");
+        res.set_content(queueAndWait("get_cpu_timing", params).dump(), "application/json");
+    });
+
+    // GET /api/debug/mesh_timing?reset=0|1 — chunk re-mesh cost by phase and by the chunk's
+    // microcube count (PerfProgram I7). reset=1 zeroes the counters after reading.
+    srv.Get("/api/debug/mesh_timing", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("reset")) params["reset"] = req.get_param_value("reset");
+        res.set_content(queueAndWait("get_mesh_timing", params).dump(), "application/json");
+    });
+
     // GET /api/debug/frame_profile — Per-phase CPU frame profile tree (input/update/render)
     srv.Get("/api/debug/frame_profile", [this](const httplib::Request&, httplib::Response& res) {
         json result = queueAndWait("get_frame_profile", json::object());
