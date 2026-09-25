@@ -26,7 +26,21 @@ for _ in range(240):
         break
     time.sleep(3)
 json.dump({'recipe': RECIPE, 'submit': sub, 'job': j}, open(sys.argv[1], 'w'))
-ls = call('GET', '/api/debug/light_stats')
+# The recipe's 119/36 was recorded BEFORE L1 (duplicate-emitter merge, default ON since 2026-09-25).
+# Verify it with the merge OFF, the recorded condition, then restore the merge and report both counts.
+def settled_census(merge_on):
+    call('POST', '/api/debug/emitter_merge', {'enabled': merge_on})
+    for _ in range(300):
+        c = call('GET', '/api/debug/load_state')['chunks']
+        if not (c['remesh_pending'] or c['remesh_idle_pending'] or c['generation_pending']):
+            break
+        time.sleep(0.1)
+    time.sleep(1.5)
+    return call('GET', '/api/debug/light_stats')
+merged = settled_census(True)
+ls = settled_census(False)
+settled_census(True)
+print('with L1 merge ON: lights', merged['registered'], 'unique', merged['unique_positions_registered'])
 print('job', j['state'], j.get('units_done'), '/', j.get('units_total'),
       '| lights', ls['registered'], 'unique', ls['unique_positions_registered'])
 ok = (j['state'] == 'complete' and j.get('units_done') == j.get('units_total') == 21

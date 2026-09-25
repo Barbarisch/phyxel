@@ -120,6 +120,9 @@ const char* ChunkRenderManager::microBucketName(int i) {
 // so gentle gradients never band into flat blocky steps). Raise tolerance (or toggle smooth off) only
 // as an opt-in perf lever; the default prioritizes look.
 bool ChunkRenderManager::s_smoothLighting = true;
+// L1 duplicate-emitter merge (docs/PerfProgram2026-09.md). Default ON; POST /api/debug/emitter_merge
+// flips it and re-meshes every chunk, so the win is measured by an interleaved A/B in one process.
+bool ChunkRenderManager::s_mergeEmitters = true;
 // M3-REDESIGN. Default OFF until the bake cost is measured on a real chunk load.
 ChunkRenderManager::SkyVisibilityFn ChunkRenderManager::s_skyVisibility;
 int  ChunkRenderManager::s_mergeTolerance = 0;
@@ -750,6 +753,42 @@ void ChunkRenderManager::rebuildCubeFaces(
             if (mc->getState() == 1u) m_flamingVoxels.push_back(mc->getWorldPosition());
             emit(mc->getParentCubePosition(), mc->getMaterialName(), unpackTint(mc->getTint()),
                  mc->getState(), 0.5f);
+        }
+
+        // L1 (docs/PerfProgram2026-09.md §5): MERGE COINCIDENT EMITTERS. Every emissive sub/micro
+        // emits at its PARENT CUBE centre, so a chandelier cube with 8 glow micros produced 8
+        // identical lights, and each one ran its own per-fragment occupancy march (measured: 40-45%
+        // of uploaded light slots were duplicates). Key = (cube cell, radius). Members of one group
+        // share position and radius, and shading is linear (lightColor * intensity * atten(d, r)),
+        // so one light with intensity = sum(t) and color = sum(c*t) / sum(t) shades identically.
+        // Radii stay separate: a subcube emitter reaches further than a micro in the same cell.
+        // A cube cell lies in exactly one chunk, so the result cannot depend on the chunk grid, and
+        // sorting by the key makes the output a pure function of the voxels, not of their order.
+        if (s_mergeEmitters && m_emissiveLights.size() > 1) {
+            auto keyLess = [](const EmissiveLight& a, const EmissiveLight& b) {
+                if (a.worldPos.x != b.worldPos.x) return a.worldPos.x < b.worldPos.x;
+                if (a.worldPos.y != b.worldPos.y) return a.worldPos.y < b.worldPos.y;
+                if (a.worldPos.z != b.worldPos.z) return a.worldPos.z < b.worldPos.z;
+                return a.radius < b.radius;
+            };
+            std::stable_sort(m_emissiveLights.begin(), m_emissiveLights.end(), keyLess);
+            std::vector<EmissiveLight> merged;
+            merged.reserve(m_emissiveLights.size());
+            for (const auto& e : m_emissiveLights) {
+                if (!merged.empty() && merged.back().worldPos == e.worldPos && merged.back().radius == e.radius) {
+                    EmissiveLight& m = merged.back();
+                    // m.color holds sum(c*t) during accumulation; normalised below.
+                    m.color += e.color * e.intensity;
+                    m.intensity += e.intensity;
+                } else {
+                    EmissiveLight m = e;
+                    m.color = e.color * e.intensity;
+                    merged.push_back(m);
+                }
+            }
+            for (auto& m : merged)
+                if (m.intensity > 0.0f) m.color /= m.intensity;
+            m_emissiveLights.swap(merged);
         }
     }
 

@@ -726,6 +726,56 @@ lighting. Script: `p1/m_overdraw_marches.py`; results in `p1/s1_overdraw_marches
 between cached light visibility (L3c: probes or a voxel light cache, the direction the GTA video points to)
 and L5 (tighter radii).
 
+### 13. L1 duplicate-emitter merge: SHIPPED (2026-09-25, RTX 4090, Release)
+
+**What changed.**
+- `ChunkRenderManager` merges emissive lights per **(cube cell, radius)**: intensity = Σt,
+  color = Σ(c·t)/Σt, radii kept separate, output sorted by key (order-independent). The default is ON.
+  `POST /api/debug/emitter_merge {enabled}` toggles it and re-meshes, so it can be A/B'd in-process.
+- `LightManager` breaks relevance ties at the upload cap by **world position**, then id. It used to be
+  id alone, which let chunk iteration order decide which lights were dropped.
+- Every light-receiving shader (voxel, grass, foliage, character, transparent) multiplies
+  color × intensity × attenuation **linearly**, with no clamp. So a merged light shades exactly like the
+  sum of its members, on every surface type (checked in each shader).
+
+**Validation.**
+- **Unit tests** (`tests/graphics/EmitterMergeTest.cpp`, 5 tests + `LightManagerTest.L1_CapTieBreakIs…`):
+  shown red first with 8 lights where 1 belongs (`l1_red_tests.txt`), then green (`l1_green_tests.txt`).
+  The first red run reported 0 lights everywhere: the test process had not loaded `materials.json`, so
+  `glow` was not emissive. The fixture now asserts the registry loads, rather than letting that pass
+  silently.
+- **L4 census.** Tavern **29 → 16** lights (0 duplicates); town **119 → 36** (all unique). The toggle
+  round-trips.
+- **Pixel gate, tavern interior** (under the cap: same light set; `p1/l1_pixel_gate_s1_interior_v2.json`).
+  **PASS** on the linear and shipping curves: merged-vs-unmerged differs less than a same-setting control
+  at matched timing.
+  - The first run FAILED: its control (A1 vs A2, 1.5 s apart) was not timing-matched to the test
+    (a re-mesh + settle apart). Every differing pixel sat in the walking NPC's box, in both control and
+    test. The control was fixed (v2: C taken after the same re-mesh and wait as B); the threshold was not
+    loosened. Both runs are kept.
+- **Town street** (at the cap: a declared change is allowed; `p1/l1_s2_street_median.json` + diff
+  images). Per-pixel medians of 7 captures per condition. Differences beyond the control split
+  brighter/darker (4,761 / 6,281 px) and sit where the control's do: grass wind, the NPC, canopy. **No
+  lighting change detectable above motion noise, and no darkening of static surfaces.**
+  - A paused variant is **INVALID** and discarded (`l1_pixel_s2_street_paused.json`). The emissive
+    reconcile runs in the simulation update, so while paused the toggle never took effect (it reported
+    36/36), and wind keeps animating anyway.
+
+**Measured win** (`tools/perf_harness.py`, 8 counterbalanced pairs, 95% CI; `p1/s1_l1_merge.jsonl`,
+`p1/s2_l1_merge.jsonl`):
+
+| Scene / pose | GPU frame, merge off → on | Saving |
+|---|---|---|
+| S-1 tavern interior | 23.9 → **17.1 ms** | **−6.7 ms [6.5, 7.1] (−28%)** |
+| S-1 tavern exterior | 21.1 → **14.5 ms** | **−6.6 ms [6.6, 6.7] (−31%)** (incl. grass −2.5) |
+| S-2 town street | 20.8 → **18.1 ms** | **−2.6 ms [2.5, 3.0] (−13%)** |
+| S-2 town overview | 12.2 → **9.7 ms** | **−2.5 ms [2.4, 2.8] (−21%)** |
+
+The tavern prediction (~6 ms of 13.8) held. **The town prediction ("cost holds at the cap") was wrong:**
+it got faster. A plausible reason: the duplicates clustered where emitters are densest, so up to 42
+copies of one spot ranked at the top by distance and marched the same nearby pixels; merged, those slots
+go to distinct, on average farther lights with fewer pixels in range.
+
 **Caveats that still stand:** one GPU (the RTX 1000 Ada laptop, where G-18 measured 90%, is owed); editor
 host at 1600×900 (the standalone at native resolution is owed); S-2 is 4 buildings, not a city (S-3, a
 CityForge city, is owed); NPCs move in both scenes (the paired design protects deltas, not absolute

@@ -9,6 +9,21 @@
 namespace Phyxel {
 namespace Graphics {
 
+namespace {
+// Tie-break for equal relevance at the upload cap (L1, docs/PerfProgram2026-09.md): WORLD POSITION
+// first, id last. Ids are handed out in registration order, and emissive lights are (re)registered
+// by walking the chunk list, so an id tie-break made WHICH light was dropped at the cap depend on
+// chunk iteration order, a chunk-coupled appearance. Position is a pure function of the world, and
+// just as stable frame to frame. The id only separates lights at the identical position.
+bool tieLess(const glm::vec3& pa, int ida, const glm::vec3& pb, int idb) {
+    if (pa.x != pb.x) return pa.x < pb.x;
+    if (pa.y != pb.y) return pa.y < pb.y;
+    if (pa.z != pb.z) return pa.z < pb.z;
+    return ida < idb;
+}
+}  // namespace
+
+
 // --- Point Lights ---
 
 int LightManager::addPointLight(LightSource source, const PointLight& light) {
@@ -236,9 +251,9 @@ const LightBufferGPU& LightManager::getGPUData() {
                           [this](const PointLightEntry* a, const PointLightEntry* b) {
                               const float ra = relevance(a->light.position, a->light.radius);
                               const float rb = relevance(b->light.position, b->light.radius);
-                              // Tie-break on id so the selection is STABLE frame to frame: two
+                              // Tie-break on world POSITION (then id; see tieLess) so the selection is STABLE frame to frame: two
                               // lights at equal relevance must not swap places and flicker.
-                              return (ra != rb) ? (ra < rb) : (a->id < b->id);
+                              return (ra != rb) ? (ra < rb) : tieLess(a->light.position, a->id, b->light.position, b->id);
                           });
         live.resize(take);
         return live;
@@ -262,7 +277,7 @@ const LightBufferGPU& LightManager::getGPUData() {
                       [this](const SpotLightEntry* a, const SpotLightEntry* b) {
                           const float ra = relevance(a->light.position, a->light.radius);
                           const float rb = relevance(b->light.position, b->light.radius);
-                          return (ra != rb) ? (ra < rb) : (a->id < b->id);
+                          return (ra != rb) ? (ra < rb) : tieLess(a->light.position, a->id, b->light.position, b->id);
                       });
     liveSpots.resize(takeSpots);
 

@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 #include "graphics/LightManager.h"
+#include <algorithm>
+#include <vector>
 #include <glm/glm.hpp>
 
 using namespace Phyxel::Graphics;
@@ -195,6 +197,33 @@ TEST(LightManagerTest, U31_SelectionIsStableBetweenFramesAtEqualRelevance) {
     ASSERT_EQ(a.numPointLights, b.numPointLights);
     for (uint32_t i = 0; i < b.numPointLights; ++i)
         EXPECT_FLOAT_EQ(first[i], b.pointLights[i].colorAndIntensity.w);
+}
+
+TEST(LightManagerTest, L1_CapTieBreakIsByPositionNotRegistrationOrder) {
+    // docs/PerfProgram2026-09.md L1: at the upload cap, lights of EQUAL relevance must be chosen by
+    // world position, not by id. Emissive lights are registered by walking the chunk list, so an id
+    // tie-break let chunk iteration order decide which lights were dropped. Here 36 lights all have
+    // relevance exactly 5 (distance 10+i, radius 5+i, exact in float). Registered in opposite orders,
+    // both managers must upload the SAME 32. With the id tie-break, order A kept i=0..31 and the
+    // reversed order kept i=4..35.
+    const uint32_t n = MAX_POINT_LIGHTS + 4;
+    auto uploadedXs = [&](bool reversed) {
+        LightManager mgr;
+        mgr.setViewerWorld(glm::vec3(0.0f));
+        for (uint32_t k = 0; k < n; ++k) {
+            const uint32_t i = reversed ? (n - 1 - k) : k;
+            mgr.addPointLight(LightSource::Api, glm::vec3(10.0f + float(i), 0, 0), glm::vec3(1), 1.0f, 5.0f + float(i));
+        }
+        const auto& g = mgr.getGPUData();
+        std::vector<float> xs;
+        for (uint32_t j = 0; j < g.numPointLights; ++j) xs.push_back(g.pointLights[j].positionAndRadius.x);
+        std::sort(xs.begin(), xs.end());
+        return xs;
+    };
+    const auto a = uploadedXs(false), b = uploadedXs(true);
+    ASSERT_EQ(a.size(), MAX_POINT_LIGHTS);
+    EXPECT_EQ(a, b) << "registration order changed which lights made the cap";
+    EXPECT_FLOAT_EQ(a.front(), 10.0f);   // position order keeps the lowest x
 }
 
 TEST(LightManagerTest, UpdateSpotLight) {

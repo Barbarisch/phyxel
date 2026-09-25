@@ -59,6 +59,9 @@ public:
     // (recovers most of the perf lost to smoothing; gentle gradients re-merge, imperceptibly).
     static bool s_smoothLighting;
     static int  s_mergeTolerance;
+    // L1 (docs/PerfProgram2026-09.md): merge coincident emissive lights per (cube cell, radius).
+    // Default ON. Toggle only via POST /api/debug/emitter_merge, which re-meshes every chunk.
+    static bool s_mergeEmitters;
     // M3-REDESIGN. The alias must be declared BEFORE the member that uses it (see the accessors
     // further down for what this is and why it is injected).
     using SkyVisibilityFn = std::function<float(const glm::vec3& worldPos, const glm::vec3& normal)>;
@@ -232,7 +235,8 @@ public:
     struct EmissiveLight {
         glm::vec3 worldPos;   ///< centre of the emitting voxel, in world units
         glm::vec3 color;      ///< hue: material colorTint, or the per-voxel tint when burning
-        float     intensity;  ///< 0..1, from the material's emissive strength
+        float     intensity;  ///< per emitter 0..1 from the material; a MERGED light (L1: all emitters
+                              ///< of one cube cell + radius) carries the SUM, so it can exceed 1
         float     radius;     ///< reach, scaled with intensity
     };
     const std::vector<EmissiveLight>& getEmissiveLights() const { return m_emissiveLights; }

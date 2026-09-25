@@ -1137,6 +1137,15 @@ void EngineAPIServer::setupRoutes() {
         }
     });
 
+    // POST /api/debug/emitter_merge {enabled: bool} — L1 duplicate-emitter merge A/B
+    // (docs/PerfProgram2026-09.md). Omitted = unchanged. Re-meshes every chunk so the emissive light
+    // list is rebuilt under the new setting; echoes the state and the resulting light count.
+    srv.Post("/api/debug/emitter_merge", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_emitter_merge", params, 30000).dump(), "application/json");
+    });
+
     // POST /api/debug/fine_merge — toggle sub/microcube greedy-merge (docs/BinaryGreedyMeshingPlan.md),
     // then re-mesh all chunks for a live A/B. Body: { "enabled": bool }
     srv.Post("/api/debug/fine_merge", [this](const httplib::Request& req, httplib::Response& res) {

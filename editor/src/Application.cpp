@@ -14786,6 +14786,21 @@ void Application::registerEffectsCommands() {
 
     // Fine (sub/microcube) greedy-merge toggle — live A/B for docs/BinaryGreedyMeshingPlan.md.
     // Re-meshes all chunks so the change takes effect immediately (same as smooth_lighting).
+    // L1 duplicate-emitter merge A/B (docs/PerfProgram2026-09.md). The re-mesh rebuilds each chunk's
+    // emissive list; the light count updates on the next updateVfx reconcile.
+    reg.on("set_emitter_merge", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (cmd.params.contains("enabled")) {
+            if (!cmd.params["enabled"].is_boolean()) {
+                r = {{"success", false}, {"error", "'enabled' must be a boolean"}};
+                return;
+            }
+            Graphics::ChunkRenderManager::s_mergeEmitters = cmd.params["enabled"].get<bool>();
+            if (chunkManager) chunkManager->rebuildAllChunkLighting();
+        }
+        r = {{"success", true}, {"emitter_merge", Graphics::ChunkRenderManager::s_mergeEmitters},
+             {"note", "light count updates on the next frame's emissive reconcile; read /api/debug/light_stats"}};
+    });
+
     reg.on("set_fine_merge", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (cmd.params.contains("enabled"))
             Graphics::ChunkRenderManager::setFineGreedyMerge(cmd.params["enabled"].get<bool>());
