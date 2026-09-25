@@ -22,6 +22,7 @@ through `GameApiService.h`/`GameCallbacks.h` (auditor-checked). Editor wiring ci
 | Subsystem | Editor | Standalone | Consequence for an RPG |
 |---|---|---|---|
 | `ObjectiveTracker` | `Application.cpp:6448` | absent | no quest log / objective HUD; `complete_objective` unhandled (§4 M1) |
+| `.anim` parse prewarm (`AnimationSystem::prewarm` on a boot thread) | `Application.cpp:611` | absent -> **SHIPPED 2026-09-24** (Ravenmere G-181 inc. 3): the scaffold warms `humanoid.anim` + every `.anim` path in game.json on a joined background thread during the intro | the first world scene paid the whole humanoid.anim parse (138 clips, 1.3-1.4 s measured) on the main thread; with the warm thread the first spawn's parse gap is 8 ms (`rv_load_time_after_rig_warm.log`) |
 | `Inventory` | `Application.cpp:1540` | absent | no inventory screen or state |
 | `PlayerProfile` save/load | `Application.cpp:6553-6591` | absent | **no persistence of any kind in a shipped game** |
 | `CombatDirector` (turn-based) | `Application.cpp:555-1168` | absent | the verified BG3-style combat does not exist in a shipped game |

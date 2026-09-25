@@ -151,6 +151,7 @@ def create_project(
     extra_members.append("    glm::uvec2 lastUiWindow_{0u, 0u};    // last window size the HUD was placed for (G-132)")
     extra_members.append("    Phyxel::Core::Currency wallet_;         // the player's money (never an inventory item)")
     extra_members.append("    Phyxel::Core::ClickToMove clickToMove_;  // click the ground -> walk the NavGraph route (G-75)")
+    extra_members.append("    std::thread animWarmThread_;             // parses the game's .anim rigs into AnimationSystem's cache during the intro (G-181)")
     extra_members.append("    bool walkLmbHeld_ = false;              // edge guard for out-of-combat clicks")
     extra_members.append("    bool pointerMode_ = false;              // turn-based ruleset: free cursor, LMB is a pointer click")
     extra_members.append("    Phyxel::Core::ClickToMove::Result lastWalkResult_ = Phyxel::Core::ClickToMove::Result::Idle;")
@@ -343,6 +344,7 @@ def create_project(
         '#include "scene/Entity.h"',
         *sorted(set(extra_includes)),
         "#include <memory>",
+        "#include <thread>",
         "#include <vector>",
         "#include <unordered_map>",
         "",
@@ -1006,6 +1008,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         #include <fstream>
         #include <filesystem>
         #include <algorithm>
+        #include <functional>
+        #include "graphics/AnimationSystem.h"   // prewarm (G-181)
         #include <cctype>
         #include <optional>
         #include <variant>
@@ -1792,6 +1796,30 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
 
             try {{
                 nlohmann::json gameDef = nlohmann::json::parse(f);
+
+                // G-181: warm the .anim parse cache off-thread while the intro / main menu is
+                // up. The first character spawn (the first world scene) otherwise pays the
+                // whole parse on the main thread - humanoid.anim, 138 clips, 1.3-1.4 s on the
+                // shipped exe. The editor has done this since its boot (Application.cpp);
+                // the shipped shell had not. Exact path strings, so the cache keys match.
+                {{
+                    std::vector<std::string> rigs{{"resources/animated_characters/humanoid.anim"}};
+                    std::function<void(const nlohmann::json&)> collect = [&](const nlohmann::json& n) {{
+                        if (n.is_object()) {{ for (const auto& [k, v] : n.items()) collect(v); }}
+                        else if (n.is_array()) {{ for (const auto& v : n) collect(v); }}
+                        else if (n.is_string()) {{
+                            const std::string sv = n.get<std::string>();
+                            if (sv.size() > 5 && sv.compare(sv.size() - 5, 5, ".anim") == 0 &&
+                                std::find(rigs.begin(), rigs.end(), sv) == rigs.end()) rigs.push_back(sv);
+                        }}
+                    }};
+                    collect(gameDef);
+                    if (animWarmThread_.joinable()) animWarmThread_.join();
+                    animWarmThread_ = std::thread([rigs]() {{
+                        for (const auto& r : rigs) Phyxel::AnimationSystem::prewarm(r);
+                    }});
+                    LOG_INFO("{class_name}", "Warming {{}} .anim rig(s) in the background", rigs.size());
+                }}
 
                 // Did the author pick a camera mode anywhere? If so, never stomp it
                 // with the default ThirdPerson below — GameDefinitionLoader applies
@@ -4726,6 +4754,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
 
         void {class_name}::onShutdown() {{
             LOG_INFO("{class_name}", "Shutting down...");
+            if (animWarmThread_.joinable()) animWarmThread_.join();   // never leave a parser running into static teardown
             // Release any cursor grab FIRST — quitting from Playing otherwise
             // tears the window down while it holds GLFW_CURSOR_DISABLED, which
             // can leave the OS cursor confined/hidden until the desktop refocuses.
