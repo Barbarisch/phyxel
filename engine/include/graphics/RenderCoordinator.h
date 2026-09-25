@@ -95,6 +95,11 @@ class DebrisRenderPipeline;
  */
 class RenderCoordinator {
 public:
+    /// Per-frame budget for the dirty-chunk mesh drain (ms; default 6). A host raises it
+    /// while a loading screen hides the frame time (G-181) and restores it after.
+    void setDirtyChunkBudgetMs(double ms) { m_dirtyChunkBudgetMs = ms; }
+    double dirtyChunkBudgetMs() const { return m_dirtyChunkBudgetMs; }
+
     /// Capacity of the shared character instance buffer, in PARTS (not characters) —
     /// every character in the scene batches into this one buffer. Imported creature
     /// rigs are microcube-dense (3.0-4.7k parts each), so this must stay far above
@@ -670,6 +675,7 @@ public:
     glm::uvec2 getSwapChainSize() const;
 
 private:
+    double m_dirtyChunkBudgetMs = 6.0;   // see setDirtyChunkBudgetMs
     const std::vector<std::unique_ptr<Scene::Entity>>* entities = nullptr;
     Core::NPCManager* m_npcManager = nullptr;
 

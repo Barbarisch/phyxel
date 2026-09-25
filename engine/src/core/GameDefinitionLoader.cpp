@@ -606,6 +606,7 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
         sub.chunkManager->setRegionPlayBounds(PlayBounds::make(
             static_cast<float>(minCX * 32), static_cast<float>(minCZ * 32),
             static_cast<float>((maxCX + 1) * 32), static_cast<float>((maxCZ + 1) * 32)));
+        sub.chunkManager->setRegionChunkCoords(chunkCoords);   // the exact block, all levels (G-181)
     }
 
     // NEVER regenerate over saved chunks by accident. An inline `world` block on a

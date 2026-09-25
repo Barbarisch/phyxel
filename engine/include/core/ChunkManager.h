@@ -129,6 +129,7 @@ public:
     // Play bounds (G-169)
     Core::PlayBounds m_authoredPlayBounds;
     Core::PlayBounds m_regionPlayBounds;
+    std::vector<glm::ivec3> m_regionChunkCoords;
     mutable Core::PlayBounds m_worldExtentCache;
     mutable size_t m_worldExtentCachedCount = static_cast<size_t>(-1);
 
@@ -207,7 +208,12 @@ public:
     /// streamed surround (the norm since 2026-09-23) the world continues past the region with
     /// generated terrain nobody can reach; the region is the play area and the wall.
     void setRegionPlayBounds(const Core::PlayBounds& b) { m_regionPlayBounds = b; }
-    void clearRegionPlayBounds() { m_regionPlayBounds = Core::PlayBounds{}; }
+    void clearRegionPlayBounds() { m_regionPlayBounds = Core::PlayBounds{}; m_regionChunkCoords.clear(); }
+    /// The exact chunk coordinates of the scene's authored world block (set by the loader
+    /// with the region play bounds): what a loading-screen settle waits for, and what the
+    /// dirty drain meshes first (G-181). Empty for a free-roam world.
+    void setRegionChunkCoords(std::vector<glm::ivec3> coords) { m_regionChunkCoords = std::move(coords); }
+    const std::vector<glm::ivec3>& regionChunkCoords() const { return m_regionChunkCoords; }
     const Core::PlayBounds& regionPlayBounds() const { return m_regionPlayBounds; }
     /// The rectangle of every chunk the world HAS (all Y layers), in voxels, half-open. Invalid
     /// when there are no chunks. Cached by chunk count; call invalidateWorldExtent() after an
@@ -225,6 +231,7 @@ public:
     // Loading observability (/api/debug/load_state — docs/LodTierLedger.md): the queue
     // depths that decide "still loading" vs "settled". Read on the main thread.
     const DirtyChunkTracker& dirtyTracker() const { return m_dirtyChunkTracker; }
+    DirtyChunkTracker& dirtyTracker() { return m_dirtyChunkTracker; }   // the renderer sets its focus (G-181)
     const ChunkStreamingManager& streamingManagerRO() const { return m_streamingManager; }
 
     // Flora decoration for streamed chunks. Wired by the editor (which owns the template

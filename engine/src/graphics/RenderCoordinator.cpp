@@ -3146,13 +3146,18 @@ void RenderCoordinator::drawFrame() {
     if (chunkManager) {
         // Budgeted so a large dirty backlog (async world-gen/fill finalize) spreads
         // over frames instead of stalling for seconds — standalones flush here.
-        constexpr double kDirtyChunkBudgetMs = 6.0;
+        // Default 6 ms; a host raises it while a loading screen hides the frame time (G-181:
+        // the settle hold meshed one chunk per ~70 ms frame, 30 scene chunks = 2-2.6 s).
+        const double kDirtyChunkBudgetMs = m_dirtyChunkBudgetMs;
         // M3-REDESIGN ORDERING: the occupancy must be current BEFORE meshing, because the sky
         // bake traces against it — a chunk meshed before its own geometry reached the pool would
         // bake as if the world were empty and read fully sky-lit indoors. Occupancy comes from the
         // physics grid, which is populated at chunk LOAD and does not depend on meshing, so this
         // ordering is safe in the other direction.
         updateLightOccupancy();
+        // Nearest-to-camera first (G-181): the chunks the player is looking at mesh before the
+        // streamed surround that queued ahead of them.
+        if (camera) chunkManager->dirtyTracker().setFocus(camera->getPosition());
         chunkManager->updateDirtyChunks(kDirtyChunkBudgetMs);
     }
 

@@ -33,13 +33,23 @@ def safe(m, p, b=None, t=60):
         return {'err': str(e)[:200]}
 
 
-def wait_scene(scene, screen='playing', tries=90):
+def wait_scene(scene, screen='playing', tries=360):
     for _ in range(tries):
         sc = safe('GET', '/api/screen/state')
         if sc.get('scene_id') == scene and sc.get('screen') == screen:
             return True
-        time.sleep(1)
+        time.sleep(0.25)
     return False
+
+
+def shot_now(name):
+    """The frame right after the loading screen dropped: what the player sees first."""
+    r = safe('GET', '/api/screenshot')
+    if r.get('path'):
+        try:
+            (OUT / ('rv_load_time_%s_%s.png' % (LABEL, name))).write_bytes((REL / r['path']).read_bytes())
+        except Exception as e:
+            print('  screenshot copy failed:', e)
 
 
 log_path = OUT / ('rv_load_time_%s.log' % LABEL)
@@ -62,10 +72,12 @@ try:
             break
     assert reached, 'never reached the town'
     visits.append('town')
+    shot_now('town_1')
     time.sleep(3)
     for trig, scene in (('to_farm', 'farm'), ('back_to_town', 'town'), ('to_cellar', 'cellar'), ('back_to_town', 'town')):
         r = safe('POST', '/api/rpg/fire_trigger', {'id': trig})
         ok = wait_scene(scene)
+        if ok: shot_now('%s_%d' % (scene, len(visits) + 1))
         print('  %-13s -> %-7s %s %s' % (trig, scene, 'ok' if ok else 'NOT REACHED', json.dumps(r)[:80]), flush=True)
         visits.append(scene if ok else scene + ' (not reached)')
         time.sleep(3)

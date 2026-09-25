@@ -5,6 +5,8 @@
 #include <memory>
 #include <cstddef>
 #include <mutex>
+#include <unordered_set>
+#include <cstdint>
 
 #include <glm/glm.hpp>
 
@@ -96,6 +98,30 @@ public:
      */
     void updateDirtyChunks();
 
+    /// The point a BUDGETED drain serves first: each call meshes the queued chunks nearest
+    /// to it before the rest (point-to-chunk-box distance; ties keep queue order). The
+    /// renderer sets the camera here every frame. Without it the queue is FIFO, and after a
+    /// scene load the 100+ surround chunks the streamer queued ahead of the player's own
+    /// region kept the region unmeshed past the loading screen's 4 s cap (Ravenmere G-181:
+    /// 23-30 of the 30 region chunks still dirty at dismissal). Cost order only - every
+    /// chunk still meshes to the same faces; appearance never depends on it.
+    void setFocus(const glm::vec3& worldPos) { m_focus = worldPos; m_hasFocus = true; }
+    void clearFocus() { m_hasFocus = false; }
+    /// A budgeted drain meshes chunks whose footprint overlaps this half-open XZ box before
+    /// any other (then nearest-to-focus within each group): the scene's play region, which
+    /// the streamed surround next to it otherwise interleaves with at equal distance.
+    void setPriorityXZ(float minX, float maxX, float minZ, float maxZ) { m_prio = {minX, maxX, minZ, maxZ}; m_hasPrio = true; m_prioCoords.clear(); }
+    /// Or an exact set of chunk coordinates (the scene's authored block, ChunkManager::
+    /// regionChunkCoords) - preferred: an XZ box also matches the streamed chunks above and
+    /// below the block, which is why the town's settle still hit its cap with an XZ box.
+    void setPriorityCoords(const std::vector<glm::ivec3>& coords);
+    void clearPriorityXZ() { m_hasPrio = false; m_prioCoords.clear(); }
+    /// Dirty (main-tier) chunks inside the priority set / box.
+    size_t getDirtyCountInPriority() const;
+    /// Diagnostics: drain calls made / chunks actually meshed since construction.
+    uint64_t drainCalls() const { return m_drainCalls; }
+    uint64_t processedTotal() const { return m_processedTotal; }
+
     /**
      * @brief Update dirty chunks within a per-call time budget (ms).
      *
@@ -122,6 +148,15 @@ public:
      */
     size_t getDirtyCount() const { return m_dirtyChunkCoords.size(); }
 
+    /// Dirty (main-tier) chunks whose 32-cube box lies within `radius` world units of
+    /// `worldPos` - what a settle check should wait for. The global count includes the
+    /// streamed surround, which never drains while a scene loads (Ravenmere G-181: every
+    /// transition sat at the 4 s hold cap with 86-173 far chunks queued).
+    size_t getDirtyCountNear(const glm::vec3& worldPos, float radius) const;
+    /// Dirty (main-tier) chunks whose 32-cube footprint overlaps the half-open XZ box
+    /// [minX,maxX) x [minZ,maxZ) at any height - the scene's play region (PlayBounds).
+    size_t getDirtyCountInXZ(float minX, float maxX, float minZ, float maxZ) const;
+
     /// Low-priority (idle-tier) remesh backlog — cosmetic neighbour re-culls/light ripples.
     /// Part of the /api/debug/load_state readiness verdict.
     size_t getIdleCount() const { return m_idleChunkCoords.size(); }
@@ -140,7 +175,7 @@ private:
     // the next edit re-marked it (user repro 2026-08-02: a whole settlement area "stuck
     // in low poly", actually an unmeshed hole papered over by a far-terrain tile).
     // Coords are stable identity; an evicted coord resolves to null and drops out.
-    std::mutex m_dirtyMutex;  // Protects dirty queues from concurrent markDirty calls
+    mutable std::mutex m_dirtyMutex;  // Protects dirty queues from concurrent markDirty calls (mutable: const queries lock it)
     std::vector<glm::ivec3> m_dirtyChunkCoords;
     std::vector<glm::ivec3> m_idleChunkCoords;   // low-priority tier (guarded by m_dirtyMutex)
     bool m_hasDirtyChunks = false;
@@ -148,6 +183,15 @@ private:
     // single-chunk minimum blew far past the budget, so a churn backlog amortizes
     // instead of taxing every frame.
     int m_backoffFrames = 0;
+    glm::vec3 m_focus{0.0f};
+    bool m_hasFocus = false;
+    struct { float minX, maxX, minZ, maxZ; } m_prio{0, 0, 0, 0};
+    bool m_hasPrio = false;
+    std::unordered_set<int64_t> m_prioCoords;   // packed chunk coords; empty = use the box
+    static int64_t packCoord(const glm::ivec3& c);
+    bool inPriority(const glm::ivec3& cc) const;
+    uint64_t m_drainCalls = 0;
+    uint64_t m_processedTotal = 0;
 };
 
 } // namespace Phyxel

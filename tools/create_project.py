@@ -268,6 +268,9 @@ def create_project(
     extra_members.append("    Phyxel::Core::PlayerProfile playerProfile_;        // persisted to the active scene's world DB (player_state table)")
     extra_members.append("    std::string loadingSceneName_;  // destination scene shown on the loading screen")
     extra_members.append("    float loadingHold_ = -1.0f;         // >= 0: loading screen held after the load until the world settles (G-115)")
+    extra_members.append("    static constexpr float kSettleRadius = 64.0f;   // the settle hold waits for dirty chunks within this of the player (G-181)")
+    extra_members.append("    uint64_t holdDrains0_ = 0, holdProcessed0_ = 0;  // dirty-tracker counters when the settle hold began (diagnostic)")
+    extra_members.append("    static constexpr double kHoldMeshBudgetMs = 40.0;  // mesh budget per frame while the loading screen is up (G-181)")
 
     # Menu-scene support: a JSON-driven menu renderer for sceneType:"menu" scenes.
     # When the loaded game uses menu scenes, the SceneManager drives the flow and
@@ -359,6 +362,7 @@ def create_project(
         f"    void onRender(Phyxel::Core::EngineRuntime& engine) override;",
         f"    void onHandleInput(Phyxel::Core::EngineRuntime& engine) override;",
         f"    void onShutdown() override;",
+        f"    void endSettleHold();   // ends the loading-screen settle hold on every exit path (G-181)",
         "",
         "    // Expose this game's subsystems to the opt-in standalone test API",
         "    // (GameShell::startTestApi, dev/test only). Null hooks stay 'not available'.",
@@ -2223,7 +2227,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                     LOG_INFO("{class_name}", "Loading screen shown (-> '{{}}')", sceneName);
                                     screen_.setState(Phyxel::UI::ScreenState::Loading);
                                 }}
-                                loadingHold_ = -1.0f;
+                                endSettleHold();   // a hold still in flight ends here - budget back to default (G-181)
                             }} else if (screen_.getState() == Phyxel::UI::ScreenState::Loading && loadingHold_ < 0.0f) {{
                                 // Loaded, but the world is still meshing/lighting (the "black
                                 // first seconds", G-49): hold the loading screen until the dirty
@@ -3181,15 +3185,52 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 sceneMgr->update(dt);
                 // G-115 settle hold: keep the loading screen up after the load until the
                 // remesh backlog drains (>= 0.5 s so it never flashes, <= 4 s regardless).
+                // G-181: the backlog that matters is the one AROUND THE PLAYER. The streamed
+                // surround (G-177) keeps the global queue non-empty for the whole load, so
+                // every transition sat at the 4 s cap with 86-173 far chunks queued.
                 if (loadingHold_ >= 0.0f) {{
-                    loadingHold_ += dt;
                     auto* cm = engine.getChunkManager();
+                    if (loadingHold_ == 0.0f && cm) {{
+                        holdDrains0_ = cm->dirtyTracker().drainCalls(); holdProcessed0_ = cm->dirtyTracker().processedTotal();
+                        // The scene's own chunks mesh before the surround from here on (cost order only).
+                        const auto& rc0 = cm->regionChunkCoords();
+                        const Phyxel::Core::PlayBounds pb0 = cm->effectivePlayBounds();
+                        if (!rc0.empty()) cm->dirtyTracker().setPriorityCoords(rc0);
+                        else if (pb0.valid) cm->dirtyTracker().setPriorityXZ(pb0.minX, pb0.maxX, pb0.minZ, pb0.maxZ);
+                        else cm->dirtyTracker().clearPriorityXZ();
+                        // The loading screen hides the frame time: mesh several chunks per frame
+                        // instead of one (6 ms budget = one ~25 ms chunk + a 2-frame backoff).
+                        if (renderCoordinator_) renderCoordinator_->setDirtyChunkBudgetMs(kHoldMeshBudgetMs);
+                    }}
+                    loadingHold_ += dt;
+                    // G-181: frame the PLAYER while the screen is held. The gameplay update below
+                    // returns early unless Playing, so the camera used to sit wherever the previous
+                    // scene (or the menu) left it - and the streamer's anchor and the mesh drain's
+                    // focus both follow the camera: the hold spent its 4 s meshing the surround
+                    // around the OLD place (measured: 56-133 chunks meshed, 24-33 of the 30 region
+                    // chunks still dirty at dismissal). Camera only; the body is not driven.
+                    if (playerCharacter_ && screen_.getState() == Phyxel::UI::ScreenState::Loading) {{
+                        gameplayCamera().setLookSuppressed(true);   // the overlay is up: no mouse orbit behind it
+                        updateGameplayCamera(engine, dt, playerCharacter_, /*driveCharacter=*/false);
+                    }}
                     const size_t dirty = cm ? cm->dirtyTracker().getDirtyCount() : 0;
-                    const bool settled = (loadingHold_ >= 0.5f && dirty == 0) || loadingHold_ >= 4.0f;
+                    // The chunks that matter: the scene's PLAY REGION (the authored world block the
+                    // player can reach); the streamed surround beyond it pops in on its own. With no
+                    // region (a free-roam world) fall back to the chunks near the player.
+                    size_t dirtyNear = dirty;
+                    const char* scope = "the world";
+                    if (cm) {{
+                        const Phyxel::Core::PlayBounds pb = cm->effectivePlayBounds();
+                        if (!cm->regionChunkCoords().empty()) {{ dirtyNear = cm->dirtyTracker().getDirtyCountInPriority(); scope = "the scene's chunks"; }}
+                        else if (pb.valid) {{ dirtyNear = cm->dirtyTracker().getDirtyCountInXZ(pb.minX, pb.maxX, pb.minZ, pb.maxZ); scope = "the play region"; }}
+                        else if (playerCharacter_) {{ dirtyNear = cm->dirtyTracker().getDirtyCountNear(playerCharacter_->getPosition(), kSettleRadius); scope = "64 u of the player"; }}
+                    }}
+                    const bool settled = (loadingHold_ >= 0.5f && dirtyNear == 0) || loadingHold_ >= 4.0f;
                     if (settled) {{
-                        LOG_INFO("{class_name}", "Loading screen dismissed (settled after {{}} ms, {{}} dirty chunks left)",
-                                 static_cast<int>(loadingHold_ * 1000.0f), dirty);
-                        loadingHold_ = -1.0f;
+                        LOG_INFO("{class_name}", "Loading screen dismissed (settled after {{}} ms, {{}} dirty chunks left in {{}}, {{}} in the world; during the hold: {{}} drain calls, {{}} chunks meshed)",
+                                 static_cast<int>(loadingHold_ * 1000.0f), dirtyNear, scope, dirty,
+                                 cm ? cm->dirtyTracker().drainCalls() - holdDrains0_ : 0, cm ? cm->dirtyTracker().processedTotal() - holdProcessed0_ : 0);
+                        endSettleHold();
                         if (screen_.getState() == Phyxel::UI::ScreenState::Loading)
                             screen_.setState(menuSceneActive_ ? Phyxel::UI::ScreenState::MainMenu
                                                               : Phyxel::UI::ScreenState::Playing);
@@ -4752,8 +4793,17 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             return true;
         }}
 
+        void {class_name}::endSettleHold() {{
+            loadingHold_ = -1.0f;
+            // Every exit path restores the per-frame mesh budget: the settled branch, a new
+            // transition that aborts a hold in flight, and shutdown. Left at the hold-time 40 ms
+            // it would tax every gameplay frame for the rest of the session (auditor, 2026-09-24).
+            if (renderCoordinator_) renderCoordinator_->setDirtyChunkBudgetMs(6.0);
+        }}
+
         void {class_name}::onShutdown() {{
             LOG_INFO("{class_name}", "Shutting down...");
+            endSettleHold();
             if (animWarmThread_.joinable()) animWarmThread_.join();   // never leave a parser running into static teardown
             // Release any cursor grab FIRST — quitting from Playing otherwise
             // tears the window down while it holds GLFW_CURSOR_DISABLED, which
