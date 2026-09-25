@@ -108,6 +108,8 @@ struct MenuActions {
     std::function<void()> onShowCredits;
     std::function<void()> onStartGame;  // fallback main menu "New Game" (action "start_game")
     std::function<void()> onBack;   // settings/sub-screen "Back" (action "back")
+    std::function<void()> onContinue;   // a blocking card's acknowledgement (action "continue"): the
+                                        // narrative screen's button (G-116); the host decides what follows
     /// Settings widgets (slider/checkbox/dropdown carrying a "setting" key):
     /// read the current value to initialize the widget (onGetSetting) and apply a
     /// change (onSetSetting). Floats throughout — checkbox is 0/1, dropdown is the

@@ -67,6 +67,10 @@ try:
     reached = False
     for _a in range(6):
         safe('POST', '/api/ui/click', {'x': 640, 'y': 374})
+        for _ack in range(12):   # G-116: the intro card gates the first scene - Continue sits at (640, 628)
+            if safe('GET', '/api/screen/state').get('screen') == 'narrative':
+                safe('POST', '/api/ui/click', {'x': 640, 'y': 628}); break
+            time.sleep(0.25)
         if wait_scene('town', tries=40):
             reached = True
             break

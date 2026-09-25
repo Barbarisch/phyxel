@@ -650,6 +650,7 @@ executes only the subset noted.
 
 | Key / action | Where | Meaning |
 |---|---|---|
+| `intro` (top level) `{"title", "text": [paragraphs], "button"}` | standalone | A blocking story card before the first scene of every run (Ravenmere G-116): a menu's New Game shows it, the world scene does not load until the button, Enter or Space. Once per run (New Game after Game Over shows it again). The card (`resources/ui/narrative_screen.json`) holds 780 characters in three paragraphs and a 19-character button caption; longer text is clipped and the shell logs a warning. Without the block a run starts at once. |
 | `npcs[].monsterId` | loader (both hosts) | Name a `resources/monsters` stat block (`"wolf"`, `"skeleton"`, `"cult-fanatic"`…). HP = the block's average (a `maxHealth` override wins), AC + attacks come from the block in turn-based combat. Unknown ids warn. |
 | `npcs[].invulnerable` | loader (both hosts) | Now applied on its own (it used to require `health`/`maxHealth` beside it). |
 | `choices[].skillCheck` + `failNodeId` | DialogueSystem (both hosts; the bonus resolver is wired in the standalone) | `{"skill":"Persuasion","dc":12}` / `{"type":"AbilityCheck","ability":"INT","dc":10}`. The option shows as `[Persuasion DC 12] …`; picking it rolls d20 + the player's sheet bonus, jumps to `nextNodeId` on a pass or `failNodeId` on a fail (empty = ends the conversation), and emits `dialogue_skill_check {roll,bonus,total,dc,passed}` for triggers. |

@@ -342,6 +342,14 @@ std::optional<std::string> worstCaseToken(const std::string& t) {
     if (t == "tagline")        return std::string("A short Baldur's Gate-like: story-driven party RPG with D&D turn-based combat, "
                                                   "one town and a barrow...");   // 110 chars
     if (t == "loading_target") return std::string("The Tavern Cellar Beneath the Broken Wheel");
+    if (t == "narrative.title")  return std::string("The Hollow Barrow of Ravenmere");   // 30 chars at title scale
+    if (t == "narrative.button") return std::string("Begin the Journey");
+    if (t == "narrative.text") {   // the authoring bound: 780 chars in three paragraphs
+        std::string p;
+        while (p.size() < 260) p += "The seal on the Hollow Barrow broke the night the first child went missing. ";
+        p.resize(260);
+        return p + "\n\n" + p + "\n\n" + p;
+    }
     if (t.rfind("sheet.", 0) != 0) return std::nullopt;
     const std::string k = t.substr(6);
     if (k == "name")    return std::string("Adventurer");
@@ -361,7 +369,7 @@ std::optional<std::string> worstCaseToken(const std::string& t) {
 
 TEST_F(Matrix, EveryShippedDataScreenFitsAndDoesNotOverlapItselfAtAnyPlayableSize) {
     const std::vector<std::string> screens = {"mainmenu", "intro", "loading", "character", "victory",
-                                              "credits", "game_over", "settings"};
+                                              "credits", "game_over", "settings", "narrative"};
     std::vector<std::string> failures;
     for (const auto& size : kSizes) {
         for (const auto& name : screens) {

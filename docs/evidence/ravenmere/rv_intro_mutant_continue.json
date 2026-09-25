@@ -1,0 +1,95 @@
+{
+ "label": "after_g116",
+ "exe": "C:\\Users\\bpete\\Documents\\PhyxelProjects\\Ravenmere\\build_probe\\Release\\Ravenmere.exe",
+ "ok": false,
+ "phases": [
+  {
+   "phase": "A",
+   "before": [
+    "intro",
+    "main_menu"
+   ],
+   "card_shown_at_s": 0.03,
+   "states_first_3s": [
+    [
+     0.03,
+     "narrative",
+     "main_menu"
+    ],
+    [
+     0.77,
+     "narrative",
+     "main_menu"
+    ],
+    [
+     1.45,
+     "narrative",
+     "main_menu"
+    ],
+    [
+     2.08,
+     "narrative",
+     "main_menu"
+    ],
+    [
+     2.75,
+     "narrative",
+     "main_menu"
+    ]
+   ],
+   "states_while_held": [
+    [
+     "narrative",
+     "main_menu"
+    ]
+   ],
+   "town_loaded_while_held": false,
+   "town_after_ack_s": null,
+   "ok": false
+  },
+  {
+   "phase": "B",
+   "before": [
+    "intro",
+    "main_menu"
+   ],
+   "card_shown_at_s": 0.04,
+   "states_first_3s": [
+    [
+     0.04,
+     "narrative",
+     "main_menu"
+    ],
+    [
+     0.65,
+     "narrative",
+     "main_menu"
+    ],
+    [
+     1.35,
+     "narrative",
+     "main_menu"
+    ],
+    [
+     2.06,
+     "narrative",
+     "main_menu"
+    ],
+    [
+     2.75,
+     "narrative",
+     "main_menu"
+    ]
+   ],
+   "states_while_held": [
+    [
+     "narrative",
+     "main_menu"
+    ]
+   ],
+   "town_loaded_while_held": false,
+   "town_after_ack_s": 7.5,
+   "ok": true
+  }
+ ]
+}

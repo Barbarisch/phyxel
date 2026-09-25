@@ -1423,3 +1423,44 @@ TEST(UILayoutTest, AMetricsOnlyTtfLoadMeasuresWithTheRealAdvances) {
     EXPECT_NEAR(real, 175.0f, 2.0f) << "JetBrains Mono: 0.6 em advance on a 32 px line at scale 2 (the shipped exe measured 175)";
     EXPECT_FLOAT_EQ(ttf.lineHeight(2.0f), bitmap.lineHeight(2.0f)) << "the line is normalised to GLYPH_H either way";
 }
+
+
+// ---- G-116: the narrative card. ------------------------------------------------------------
+#include "ui/GameScreen.h"
+TEST(NarrativeCard, TheStateIsPausedAndMouseFree) {
+    EXPECT_FALSE(Phyxel::UI::isGameRunning(Phyxel::UI::ScreenState::Narrative));
+    EXPECT_TRUE(Phyxel::UI::isMouseFree(Phyxel::UI::ScreenState::Narrative));
+}
+
+// The shipped narrative screen: its tokens resolve, and its button's "continue" action fires
+// MenuActions::onContinue (red before the action type existed: onClick stayed empty).
+TEST(NarrativeCard, TheContinueButtonFiresOnContinueAndTheTokensResolve) {
+    Phyxel::UI::UISystem ui(nullptr, 1280, 720);
+    int fired = 0;
+    Phyxel::UI::MenuActions actions;
+    actions.onContinue = [&] { ++fired; };
+    actions.onResolveVariable = [](const std::string& t) -> std::optional<std::string> {
+        if (t == "narrative.title")  return std::string("Ravenmere");
+        if (t == "narrative.text")   return std::string("Three children have vanished.\n\nYou are a cleric.");
+        if (t == "narrative.button") return std::string("Begin");
+        return std::nullopt;
+    };
+    Phyxel::UI::loadGameScreenInto(ui, "narrative", actions);   // resources/ui/narrative_screen.json (repo root)
+    Phyxel::UI::UIPanel* main = ui.getScreen("narrative:main");
+    ASSERT_NE(main, nullptr) << "run from the repo root";
+    Phyxel::UI::UIButton* btn = nullptr;
+    Phyxel::UI::UILabel* title = nullptr;
+    Phyxel::UI::UILabel* body = nullptr;
+    for (auto& c : main->children) {
+        if (c->id == "narrative_continue") btn = dynamic_cast<Phyxel::UI::UIButton*>(c.get());
+        if (c->id == "narrative_title")    title = dynamic_cast<Phyxel::UI::UILabel*>(c.get());
+        if (c->id == "narrative_text")     body = dynamic_cast<Phyxel::UI::UILabel*>(c.get());
+    }
+    ASSERT_NE(btn, nullptr); ASSERT_NE(title, nullptr); ASSERT_NE(body, nullptr);
+    EXPECT_EQ(title->text, "Ravenmere");
+    EXPECT_EQ(btn->text, "Begin");
+    EXPECT_NE(body->text.find("You are a cleric."), std::string::npos);
+    ASSERT_TRUE(static_cast<bool>(btn->onClick)) << "the 'continue' action wired nothing";
+    btn->onClick();
+    EXPECT_EQ(fired, 1);
+}

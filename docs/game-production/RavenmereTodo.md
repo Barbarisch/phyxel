@@ -16,7 +16,6 @@ with the evidence. Rows from the 2026-09-08 census that nobody has re-checked si
 
 | T | G | Sev | Item | Next step |
 |---|---|---|---|---|
-| T-01 | G-116 | S2 | No intro | An acknowledged story-context screen before the first scene (user, 2026-09-23). The `intro` data screen exists; it needs the text and the gate. |
 | T-02 | G-164 | S2 | No visible sun disc | Draw sun and moon discs in the sky pass at the direction the lighting uses; apply the loader's `sky` block in the shipped shell (parity gap noted on the row). Verify with a capture at a stated time of day. |
 | T-03 | G-163 | S2 | An empty lot with an orphaned sign bracket | Find which pass places the bracket and what it keys off; find why the lot is empty (a silently failed build is the interesting bug). |
 | T-04 | G-167 | S2 | A build clears half a tree | Clearing must operate on the tree as an object, not the cells in a box. Test: build over a tree, assert zero orphaned tree voxels. |
@@ -123,3 +122,4 @@ with the evidence. Rows from the 2026-09-08 census that nobody has re-checked si
 | G-154 | Shipped with G-183: the layout gate lints every overlay screen with the alignment-aware rules, 0 defects. |
 | G-161, G-171, G-172 | Their own status: FIXED 2026-09-23 (engine); the reports were half read at the time. |
 | G-173 | Shipped with G-183: `visibleWhen` takes `&&`/`!` expressions, evaluated identically by the engine and the gate; malformed stays hidden (fail-closed) and the gate reads every term. |
+| G-116 (T-01) | Shipped 2026-09-25: the intro story card gates the first scene of every run (button, Enter or Space); L4 `rv_intro_l4.py`. |

@@ -78,6 +78,7 @@ static const char* screenStateStr(UI::ScreenState s) {
         case S::Settings:         return "settings";
         case S::KeybindingRebind: return "settings";
         case S::Intro:            return "intro";
+        case S::Narrative:        return "narrative";
         case S::Loading:          return "loading";
         case S::Victory:          return "victory";
         case S::Credits:          return "credits";

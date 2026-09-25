@@ -271,6 +271,11 @@ def create_project(
     extra_members.append("    static constexpr float kSettleRadius = 64.0f;   // the settle hold waits for dirty chunks within this of the player (G-181)")
     extra_members.append("    uint64_t holdDrains0_ = 0, holdProcessed0_ = 0;  // dirty-tracker counters when the settle hold began (diagnostic)")
     extra_members.append("    static constexpr double kHoldMeshBudgetMs = 40.0;  // mesh budget per frame while the loading screen is up (G-181)")
+    extra_members.append("    nlohmann::json introCard_;             // game.json \"intro\" {title, text[], button}: the story card before the first scene (G-116)")
+    extra_members.append("    nlohmann::json narrative_;             // the card currently shown (ScreenState::Narrative)")
+    extra_members.append("    std::string pendingRunScene_;          // the world scene the card is gating")
+    extra_members.append("    bool introShownThisRun_ = false;       // the intro shows once per run (New Game resets it)")
+    extra_members.append("    bool narrativeKeyHeld_ = false;        // edge guard for Enter / Space on the card")
 
     # Menu-scene support: a JSON-driven menu renderer for sceneType:"menu" scenes.
     # When the loaded game uses menu scenes, the SceneManager drives the flow and
@@ -363,6 +368,8 @@ def create_project(
         f"    void onHandleInput(Phyxel::Core::EngineRuntime& engine) override;",
         f"    void onShutdown() override;",
         f"    void endSettleHold();   // ends the loading-screen settle hold on every exit path (G-181)",
+        f"    void beginRun(const std::string& worldScene);   // New Game: the intro card first, then the scene (G-116)",
+        f"    void continueNarrative();                        // the card's acknowledgement (button / Enter / Space)",
         "",
         "    // Expose this game's subsystems to the opt-in standalone test API",
         "    // (GameShell::startTestApi, dev/test only). Null hooks stay 'not available'.",
@@ -1844,6 +1851,19 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 // a shipped game needs them in the definition):
                 //   "objectives": [{{"id":"main_quest","title":"...","description":"...",
                 //                   "category":"main","priority":0,"hidden":false}}]
+                // G-116: "intro": {{"title": "...", "text": ["paragraph", ...], "button": "Begin"}} -
+                // a blocking story card before the first scene of every run. The narrative
+                // screen holds 780 characters in three paragraphs; longer text is clipped, so warn.
+                if (gameDef.contains("intro") && gameDef["intro"].is_object()) {{
+                    introCard_ = gameDef["intro"];
+                    size_t chars = 0;
+                    if (introCard_.contains("text") && introCard_["text"].is_array())
+                        for (const auto& p : introCard_["text"]) if (p.is_string()) chars += p.get<std::string>().size();
+                    else if (introCard_.value("text", nlohmann::json()).is_string()) chars = introCard_["text"].get<std::string>().size();
+                    if (chars > 780)
+                        LOG_WARN("{class_name}", "intro.text is {{}} characters; the narrative card holds 780 - the rest is clipped", chars);
+                    LOG_INFO("{class_name}", "Intro card authored: '{{}}' ({{}} characters)", introCard_.value("title", ""), chars);
+                }}
                 if (gameDef.contains("objectives") && gameDef["objectives"].is_array()) {{
                     initialObjectives_ = gameDef["objectives"];
                     for (const auto& o : gameDef["objectives"]) {{
@@ -2243,7 +2263,12 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                 Phyxel::UI::MenuActions acts;
                                 acts.onTransitionScene = [this](const std::string& sceneId) {{
                                     auto* sm = engine_ ? engine_->getSceneManager() : nullptr;
-                                    if (sm && sm->hasManifest()) sm->transitionTo(sceneId);
+                                    if (!sm || !sm->hasManifest()) return;
+                                    // A menu's "New Game" into a WORLD scene starts a run: the intro card
+                                    // first (G-116); any other transition goes straight through.
+                                    const auto* target = sm->findScene(sceneId);
+                                    if (target && target->sceneType != Phyxel::Core::SceneType::Menu) beginRun(sceneId);
+                                    else sm->transitionTo(sceneId);
                                 }};
                                 acts.onQuit = [this]() {{
                                     auto* w = engine_ ? engine_->getWindowManager() : nullptr;
@@ -3027,6 +3052,7 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         // from its start scene again (the player entity is respawned per scene).
         void {class_name}::newGame() {{
             LOG_INFO("{class_name}", "New game: restarting from the start scene");
+            introShownThisRun_ = false;   // the next run shows its intro card again (G-116)
             if (combatDirector_.inCombat()) combatDirector_.endEncounter();
             if (dialogueSystem_ && dialogueSystem_->isActive()) dialogueSystem_->endConversation();
             clickToMove_.cancel();
@@ -3242,6 +3268,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // A menu scene is showing: SceneManager + the menu renderer drive things;
             // skip world/gameplay simulation — but keep the menuWorld camera
             // orbiting (the living title screen).
+            // The narrative card continues on Enter / Space as well as its button (G-116).
+            // Before the menu-scene return: the card is shown OVER the menu scene.
+            if (screen_.getState() == Phyxel::UI::ScreenState::Narrative) {{
+                auto* in = engine.getInputManager();
+                const bool down = in && (in->isKeyPressed(GLFW_KEY_ENTER) || in->isKeyPressed(GLFW_KEY_KP_ENTER) || in->isKeyPressed(GLFW_KEY_SPACE));
+                if (down && !narrativeKeyHeld_) continueNarrative();
+                narrativeKeyHeld_ = down;
+            }}
             if (menuSceneActive_) {{
                 if (menuCamPath_.isPlaying()) {{
                     if (auto* cam = engine.getCamera()) menuCamPath_.update(dt, *cam);
@@ -3574,7 +3608,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 if (renderCoordinator_) {{
                     if (auto* ui = renderCoordinator_->getUISystem()) {{
                         std::string want;
-                        if (!menuSceneActive_) {{
+                        if (state == Phyxel::UI::ScreenState::Narrative) want = "narrative";   // over a menu scene too (G-116)
+                        else if (!menuSceneActive_) {{
                             switch (state) {{
                                 case Phyxel::UI::ScreenState::MainMenu: want = "mainmenu"; break;
                                 case Phyxel::UI::ScreenState::Paused:   want = "pause";    break;
@@ -3597,6 +3632,20 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                     if (t == "title")   return std::string("{class_name}");
                                     if (t == "tagline") return std::string("{game_tagline}");
                                     if (t == "loading_target") return loadingSceneName_;
+                                    if (t.rfind("narrative.", 0) == 0) {{   // the card being shown (G-116)
+                                        const std::string k = t.substr(10);
+                                        if (k == "title")  return narrative_.value("title", std::string("{class_name}"));
+                                        if (k == "button") return narrative_.value("button", std::string("Continue"));
+                                        if (k == "text") {{
+                                            std::string body;
+                                            const auto& tx = narrative_.contains("text") ? narrative_["text"] : nlohmann::json();
+                                            if (tx.is_array()) {{
+                                                for (const auto& p : tx) if (p.is_string()) body += (body.empty() ? "" : "\\n\\n") + p.get<std::string>();
+                                            }} else if (tx.is_string()) body = tx.get<std::string>();
+                                            return body;
+                                        }}
+                                        return std::nullopt;
+                                    }}
                                     if (t.rfind("sheet.", 0) == 0) return characterSheetToken(t.substr(6));
                                     // {{keybind.<Action>}} -> current key for the keybindings sub-panel rows.
                                     if (t.rfind("keybind.", 0) == 0) {{
@@ -3614,13 +3663,14 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                                     return std::nullopt;
                                 }};
                                 a.onResume      = [this]() {{ screen_.resume();           if (engine_) updateCursorMode(*engine_); }};
+                                a.onContinue    = [this]() {{ continueNarrative(); }};
                                 a.onStartGame   = [this]() {{
                                     // New Game while a WORLD scene is active (after Game Over -> Main Menu,
                                     // or from the pause menu) restarts the run; at boot it just starts.
                                     auto* sm = engine_ ? engine_->getSceneManager() : nullptr;
                                     const auto* active = sm ? sm->getActiveScene() : nullptr;
                                     if (active && active->sceneType != Phyxel::Core::SceneType::Menu) newGame();
-                                    else screen_.startGame();
+                                    else beginRun("");   // "" = no scene to load: the card, then startGame()
                                     if (engine_) updateCursorMode(*engine_);
                                 }};
                                 a.onSettings    = [this]() {{ screen_.toggleSettings();   if (engine_) updateCursorMode(*engine_); }};
@@ -4791,6 +4841,48 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                          playerSheet_.experiencePoints, playerSheet_.totalLevel());
             }}
             return true;
+        }}
+
+        // G-116: a run starts with the authored intro card. `worldScene` is the scene the card
+        // gates (a menu's New Game target); "" means there is no scene to load and the card
+        // precedes GameScreen::startGame(). Shows once per run; without an authored card the
+        // run starts at once.
+        void {class_name}::beginRun(const std::string& worldScene) {{
+            auto* sm = engine_ ? engine_->getSceneManager() : nullptr;
+            const bool haveCard = introCard_.is_object() && !introCard_.empty();
+            if (!haveCard || introShownThisRun_) {{
+                if (!worldScene.empty()) {{ if (sm && sm->hasManifest()) sm->transitionTo(worldScene); }}
+                else screen_.startGame();
+                return;
+            }}
+            introShownThisRun_ = true;
+            pendingRunScene_ = worldScene;
+            narrative_ = introCard_;
+            // The menu scene's own panels would sit under the card and answer clicks: hide them.
+            if (renderCoordinator_)
+                if (auto* ui = renderCoordinator_->getUISystem())
+                    for (const auto& [n, vis] : ui->getScreenList())
+                        if (n.rfind("menu:", 0) == 0) ui->hideScreen(n);
+            narrativeKeyHeld_ = true;   // the click / key that opened the card must not also close it
+            screen_.setState(Phyxel::UI::ScreenState::Narrative);
+            if (engine_) updateCursorMode(*engine_);
+            LOG_INFO("{class_name}", "Narrative card shown: '{{}}' (gating '{{}}')", narrative_.value("title", ""), worldScene);
+        }}
+
+        void {class_name}::continueNarrative() {{
+            if (screen_.getState() != Phyxel::UI::ScreenState::Narrative) return;
+            const std::string next = pendingRunScene_;
+            pendingRunScene_.clear();
+            LOG_INFO("{class_name}", "Narrative card acknowledged -> '{{}}'", next.empty() ? "start" : next);
+            auto* sm = engine_ ? engine_->getSceneManager() : nullptr;
+            if (!next.empty() && sm && sm->hasManifest()) {{
+                // The transition's loading screen takes the state from here (Narrative -> Loading).
+                if (!sm->transitionTo(next)) {{ LOG_WARN("{class_name}", "Narrative: could not transition to '{{}}'", next); screen_.returnToMainMenu(); }}
+            }} else {{
+                screen_.setState(Phyxel::UI::ScreenState::MainMenu);
+                screen_.startGame();
+            }}
+            if (engine_) updateCursorMode(*engine_);
         }}
 
         void {class_name}::endSettleHold() {{
