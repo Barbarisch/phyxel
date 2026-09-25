@@ -678,6 +678,54 @@ Covered cube faces: 1,992 of 90,269 (2.2%) within chunks.
 | 5 | L3a cheaper march / L3c cached visibility | Depends on steps per march (I4, deferred) and on what L2 leaves | Re-measure after L1 + L2 |
 | — | S1, S2, S5, S6 (geometry-side micro work) | Geometry ≈ free, covered faces 1-2%, fine shadow casting ≤ 0.25 ms | **Deprioritised** by measurement |
 
+### 12b. Follow-up (2026-09-25): overdraw and in-range lights per pixel
+
+Prompted by two videos the user shared: one on Forward+ tiled light culling, one on GTA 6's probe-based
+lighting. Script: `p1/m_overdraw_marches.py`; results in `p1/s1_overdraw_marches.json` and
+`p1/s2_overdraw_marches.json`.
+
+**Method.**
+- **Overdraw** = Static Geometry fragment-shader invocations (pipeline stats, normal shading) ÷ pixels
+  covered by static geometry.
+- **Covered pixels:** the scene target is window-sized (1600×900). The viewport stretches it, so the
+  covered fraction of the panel equals that of the target. Coverage comes from a debug-mode-11 capture.
+  HUD overlays hide ~1-2%.
+- **Marches per pixel** = debug mode 18 (the R channel holds count/32) over the covered pixels, captured
+  with exposure 1 and a linear curve.
+- **Control:** mode 11 paints linear 0.5, which must read 188 after sRGB encoding. It read **188 at every
+  pose**, so the decode is valid.
+
+| Scene / pose | Covered | Static FS invocations | **Overdraw** | Visible pixels: marching lights | Lights: uploaded / unique |
+|---|---|---|---|---|---|
+| S-1 interior | 94.8% | 3.45 M | **×2.53** | mean **9.1**, 99% march | 29 / 16 |
+| S-1 exterior | 48.7% | 2.08 M | **×2.97** | mean 2.8, 38% march | 29 / 16 |
+| S-2 street | 82.1% | 3.19 M | **×2.69** | mean **0.70**, 12% march | 32 / 20 |
+| S-2 overview | 63.2% | 1.65 M | **×1.81** | mean **0.15**, 2% march | 32 / 18 |
+
+**What it shows:**
+1. **2-3 fragments are shaded per visible pixel**, and each runs the full light loop. This is overdraw
+   and/or 2×2 quad overshading of tiny faces. The measurement cannot yet split the two, and it matters:
+   a depth prepass removes overdraw but not quad overshading.
+2. **Indoors, the lights that march are genuinely in range** (≈9 per pixel, gated per pixel already). So
+   per-tile/cluster culling (L2) **cannot** remove them. **L2 is demoted.** Duplicates can be removed:
+   13 of 29 uploaded lights are copies.
+3. **The town contradicts a visible-pixel model of light cost.** The light march costs 5.2 ms at the
+   overview (§12) while only 2% of visible pixels march any light. The S-1 interior calibrates ≈1.1 ns
+   per march on the 4090 (13.8 ms / ~12.4 M visible marches), so 5.2 ms ≈ 4.7 M marches, against ≈0.14 M
+   on visible pixels. **Leading hypothesis (H-overdraw): most march work outdoors is spent on fragments
+   that are later hidden**, chiefly lit building interiors drawn and then covered by roofs and walls:
+   ~6 marches per hidden fragment, the interior rate.
+   - Checked and ruled out: the "lights off" switch disabling other lighting. `setLightOccupancyBox`
+     clears only bit 1, and the shaders read bit 1 only in `phxLightVisibility`.
+   - Not yet ruled out: longer marches per light at the overview (steps per march is unmeasured, I4).
+4. **Test for H-overdraw:** a depth prepass A/B (depth-only static pass, then shade with an equal depth
+   test). If H-overdraw holds, the light cost outdoors collapses and the indoor cost drops by the overdraw
+   share.
+
+**Revised P2 order:** L1 (duplicate merge) → **depth prepass A/B (new, P-DP)** → re-measure → then choose
+between cached light visibility (L3c: probes or a voxel light cache, the direction the GTA video points to)
+and L5 (tighter radii).
+
 **Caveats that still stand:** one GPU (the RTX 1000 Ada laptop, where G-18 measured 90%, is owed); editor
 host at 1600×900 (the standalone at native resolution is owed); S-2 is 4 buildings, not a city (S-3, a
 CityForge city, is owed); NPCs move in both scenes (the paired design protects deltas, not absolute
