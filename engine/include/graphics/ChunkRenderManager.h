@@ -2,6 +2,7 @@
 
 #include "core/Types.h"
 #include "graphics/ChunkRenderBuffer.h"
+#include "graphics/TierRanges.h"
 #include <array>
 #include <vector>
 #include <memory>
@@ -311,6 +312,11 @@ public:
         // full draw -- see RenderCoordinator's dirRanges check).
         for (auto& r : m_dirRangeOffsets) r = 0;
         m_dirRangeOffsets[6] = static_cast<uint32_t>(faces.size() + 1);   // != numInstances => full draw
+        // Same for the tier ranges: degenerate => a tier-masked draw skips this chunk (I6).
+        m_dirTierOffsets.fill(0);
+        m_dirTierOffsets[TierRanges::kBuckets] = static_cast<uint32_t>(faces.size() + 1);
+        m_tierFaces.fill(0);
+        m_tierUnitFaces.fill(0);
     }
 
     uint32_t getNumInstances() const { return numInstances; }
@@ -320,6 +326,18 @@ public:
     /// 3=-X 4=+Y 5=-Y), [6] = total. Consumers must verify [6] == getNumInstances()
     /// before trusting the ranges (a chunk meshed before this feature reads all-zero).
     const std::array<uint32_t, 7>& getFaceDirRanges() const { return m_dirRangeOffsets; }
+
+    /// I5/I6 (docs/PerfProgram2026-09.md): per-(direction, tier) ranges, bucket = dir*4 + tier,
+    /// [kBuckets] = total. Valid only when [kBuckets] == getNumInstances() (same rule as above).
+    const TierRanges::Offsets& getDirTierOffsets() const { return m_dirTierOffsets; }
+    /// Instances per tier (0 cube, 1 sub, 2 micro, 3 LOD cell) after merging, and the unit faces
+    /// they cover (the count with merging off), from the last rebuild.
+    const std::array<uint32_t, TierRanges::kTiers>& getTierFaces() const { return m_tierFaces; }
+    const std::array<uint64_t, TierRanges::kTiers>& getTierUnitFaces() const { return m_tierUnitFaces; }
+    /// Census only (I5, sizes candidate S1): unit cube faces that were emitted although the
+    /// neighbouring cell's touching layer is fully covered by OPAQUE subcubes/microcubes. Faces
+    /// whose neighbour lies in another chunk are counted in `unknown`, not guessed.
+    void countCoveredCubeFaces(uint64_t& covered, uint64_t& unknown) const;
 
     // --- Grass (lightweight blade layer) ---
     // Grass blade instances collected on the last rebuild — one per exposed grass-topped voxel
@@ -490,6 +508,9 @@ private:
     // Face-direction bucketing (Phase 3): direction-major reorder of `faces` +
     // prefix offsets, rebuilt at the end of every rebuildAllFaces.
     std::array<uint32_t, 7> m_dirRangeOffsets{};
+    TierRanges::Offsets m_dirTierOffsets{};
+    std::array<uint32_t, TierRanges::kTiers> m_tierFaces{};
+    std::array<uint64_t, TierRanges::kTiers> m_tierUnitFaces{};
     std::vector<InstanceData> m_dirScratch;    // reused scatter buffer
     void reorderFacesByDirection();
 

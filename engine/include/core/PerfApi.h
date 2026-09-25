@@ -9,6 +9,7 @@
 
 namespace Phyxel {
 class GpuProfiler;
+class ChunkManager;
 namespace Graphics {
 class RenderCoordinator;
 }
@@ -37,5 +38,15 @@ const char* presentModeName(VkPresentModeKHR mode);
 // selection + the emissive-voxel reconcile. `rc` supplies both the LightManager and the reconcile
 // timing; null gives an error.
 nlohmann::json lightStats(Graphics::RenderCoordinator* rc);
+
+// GET /api/debug/voxel_tiers?per_chunk=0|1&covered=0|1 (I5). Per tier (cube / sub / micro / LOD cell):
+// stored objects, instances after merging, unit faces before merging, instances submitted this view
+// in the main pass and per shadow cascade, CPU and GPU bytes. covered=1 adds the (costlier) count of
+// cube faces fully hidden behind opaque sub/micro detail. per_chunk=1 lists chunks (capped at 512).
+nlohmann::json voxelTiers(Graphics::RenderCoordinator* rc, ChunkManager* cm, const nlohmann::json& params);
+
+// POST /api/debug/tier_mask {main:[cube,sub,micro], shadow:[cube,sub,micro]} (I6). Each array is
+// optional (omitted = unchanged) but must be exactly three booleans. Echoes both masks.
+nlohmann::json setTierMask(const nlohmann::json& params);
 
 }  // namespace Phyxel::Core::PerfApi

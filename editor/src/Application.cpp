@@ -14830,6 +14830,14 @@ void Application::registerEffectsCommands() {
                                             cmd.params);
     });
 
+    // I5: voxel tier census; I6: per-tier draw masks.
+    reg.on("get_voxel_tiers", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::voxelTiers(renderCoordinator.get(), chunkManager, cmd.params);
+    });
+    reg.on("set_tier_mask", [](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::setTierMask(cmd.params);
+    });
+
     // I3: light census (GET /api/debug/light_stats).
     reg.on("get_light_stats", [this](const Core::APICommand&, nlohmann::json& r) {
         r = Core::PerfApi::lightStats(renderCoordinator.get());

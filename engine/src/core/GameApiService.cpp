@@ -916,6 +916,14 @@ void GameApiService::registerCommands() {
         r["active"] = r.value("pipeline_stats_active", false);   // the field this route always returned
     });
 
+    // I5/I6: voxel tier census + per-tier draw masks, same JSON as the editor's routes.
+    reg.on("get_voxel_tiers", [this](const APICommand& cmd, json& r) {
+        r = PerfApi::voxelTiers(renderCoordinator, runtime ? runtime->getChunkManager() : nullptr, cmd.params);
+    });
+    reg.on("set_tier_mask", [](const APICommand& cmd, json& r) {
+        r = PerfApi::setTierMask(cmd.params);
+    });
+
     // I3: light census, same JSON as the editor's /api/debug/light_stats.
     reg.on("get_light_stats", [this](const APICommand&, json& r) {
         r = PerfApi::lightStats(renderCoordinator);

@@ -231,6 +231,31 @@ public:
     uint32_t getNumInstances() const { return renderManager.getNumInstances(); }
     // Face-direction ranges for bucketed draws (Phase 3) — see ChunkRenderManager::getFaceDirRanges().
     const std::array<uint32_t, 7>& getFaceDirRanges() const { return renderManager.getFaceDirRanges(); }
+    // I5/I6 per-(direction, tier) ranges and per-tier counts — see ChunkRenderManager.
+    const Graphics::TierRanges::Offsets& getDirTierOffsets() const { return renderManager.getDirTierOffsets(); }
+    const std::array<uint32_t, Graphics::TierRanges::kTiers>& getTierFaces() const { return renderManager.getTierFaces(); }
+    const std::array<uint64_t, Graphics::TierRanges::kTiers>& getTierUnitFaces() const { return renderManager.getTierUnitFaces(); }
+    void countCoveredCubeFaces(uint64_t& covered, uint64_t& unknown) const { renderManager.countCoveredCubeFaces(covered, unknown); }
+
+    /// Stored static voxels and the CPU bytes their objects take (I5 census). Bytes = sizeof(object)
+    /// + its owning unique_ptr + a heap-allocated material-name buffer (beyond the small-string
+    /// buffer). EXCLUDES allocator overhead and the ChunkVoxelManager lookup maps, so it is a floor.
+    struct FineStorageStats {
+        size_t cubes = 0, subcubes = 0, microcubes = 0;
+        size_t subcubeBytes = 0, microcubeBytes = 0;
+    };
+    FineStorageStats fineStorageStats() const {
+        FineStorageStats s;
+        s.cubes = getVoxelStore().solidCount();
+        s.subcubes = staticSubcubes.size();
+        s.microcubes = staticMicrocubes.size();
+        auto heapName = [](const std::string& n) { return n.capacity() > 15 ? n.capacity() + 1 : size_t(0); };
+        for (const auto& p : staticSubcubes)
+            s.subcubeBytes += sizeof(p) + (p ? sizeof(*p) + heapName(p->getMaterialName()) : 0);
+        for (const auto& p : staticMicrocubes)
+            s.microcubeBytes += sizeof(p) + (p ? sizeof(*p) + heapName(p->getMaterialName()) : 0);
+        return s;
+    }
     bool hasMirrorVoxel() const { return m_hasMirror; }            // Cached; see recomputeRenderFlags()
     bool hasTransparentVoxel() const { return m_hasTransparent; }  // Cached; any cube alpha < 0.99
     // Occlusion graph query: can sight pass from face a to face b through this chunk?

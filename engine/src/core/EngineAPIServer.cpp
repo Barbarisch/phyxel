@@ -4639,6 +4639,27 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(result.dump(), "application/json");
     });
 
+    // GET /api/debug/voxel_tiers?per_chunk=0|1&covered=0|1 — voxel tier census (PerfProgram I5):
+    // per tier (cube/sub/micro/LOD cell) stored objects, merged instances, pre-merge unit faces,
+    // instances drawn this view (main + each shadow cascade), CPU/GPU bytes. covered=1 adds cube
+    // faces hidden behind opaque fine detail (costlier). Read-only.
+    srv.Get("/api/debug/voxel_tiers", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("per_chunk")) params["per_chunk"] = req.get_param_value("per_chunk");
+        if (req.has_param("covered")) params["covered"] = req.get_param_value("covered");
+        res.set_content(queueAndWait("get_voxel_tiers", params, 30000).dump(), "application/json");
+    });
+
+    // POST /api/debug/tier_mask {main:[cube,sub,micro], shadow:[cube,sub,micro]} — per-tier draw
+    // masks for GPU cost attribution (PerfProgram I6). Omitted array = unchanged; a malformed one
+    // is refused and NOTHING is applied. Default all-true. While a mask is active,
+    // shadow_chunks_drawn counts indirect commands, not chunks.
+    srv.Post("/api/debug/tier_mask", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_tier_mask", params).dump(), "application/json");
+    });
+
     // GET /api/debug/frame_profile — Per-phase CPU frame profile tree (input/update/render)
     srv.Get("/api/debug/frame_profile", [this](const httplib::Request&, httplib::Response& res) {
         json result = queueAndWait("get_frame_profile", json::object());

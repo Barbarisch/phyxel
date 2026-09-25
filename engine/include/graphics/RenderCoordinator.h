@@ -5,6 +5,7 @@
 #include "core/WorldConstants.h"
 #include "utils/Frustum.h"
 #include "graphics/LightManager.h"
+#include "graphics/TierRanges.h"
 #include "graphics/DayNightCycle.h"
 #include "graphics/CelestialBody.h"
 #include "graphics/WindSystem.h"
@@ -416,6 +417,24 @@ public:
     // wouldn't cull. Default ON; POST /api/debug/face_dir_cull toggles for A/B.
     static bool s_faceDirCull;
 
+    // I6 (docs/PerfProgram2026-09.md): per-tier draw masks, for attributing GPU cost to cubes /
+    // subcubes / microcubes by subtraction. Bit t = draw tier t (0 cube, 1 subcube, 2 microcube);
+    // LOD cells always draw. 0x7 (the default) takes the normal draw paths untouched. A masked tier
+    // is NOT DRAWN AT ALL (its vertex work disappears too), in the main pass and in both chunk
+    // shadow paths. POST /api/debug/tier_mask.
+    static uint32_t s_tierMaskMain;
+    static uint32_t s_tierMaskShadow;
+    /// Per-frame instance counts by tier (I5 per-view census): what the main pass and each shadow
+    /// cascade actually submitted, last complete frame.
+    struct TierDrawStats {
+        uint64_t mainFaces[4] = {};              // tier 0 cube, 1 sub, 2 micro, 3 LOD cell
+        uint64_t shadowFaces[3][4] = {};         // cascade 0 mid, 1 near, 2 far
+        uint64_t mainChunksUnattributed = 0;     // drawn whole: tier ranges were invalid (stale/LOD)
+        uint64_t maskedChunksSkipped = 0;        // not drawn under a tier mask: ranges invalid
+        uint64_t shadowCmdOverflow = 0;          // masked shadow runs dropped at the indirect cap
+    };
+    const TierDrawStats& getTierDrawStats() const { return m_tierDrawStatsLast; }
+
     // Raycast visualization
     void toggleRaycastVisualization() { raycastVisualizationEnabled = !raycastVisualizationEnabled; }
     void setRaycastVisualization(bool enabled) { raycastVisualizationEnabled = enabled; }
@@ -713,6 +732,9 @@ public:
     const EmitterReconcileStats& getEmitterReconcileStats() const { return m_emitterStats; }
 private:
     EmitterReconcileStats m_emitterStats;
+    TierDrawStats m_tierDrawStats;       // accumulating this frame
+    TierDrawStats m_tierDrawStatsLast;   // published at the end of drawFrame
+    std::vector<TierRanges::Run> m_tierRunScratch;   // reused by masked draws (no per-chunk alloc)
 
     // Rendering subsystems
     size_t renderStaticGeometry();

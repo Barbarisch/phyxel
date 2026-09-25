@@ -190,6 +190,9 @@ void ChunkRenderManager::clearForUniform() {
     std::vector<InstanceData>().swap(m_dirScratch);
     numInstances = 0;
     m_dirRangeOffsets.fill(0);
+    m_dirTierOffsets.fill(0);
+    m_tierFaces.fill(0);
+    m_tierUnitFaces.fill(0);
     std::vector<uint8_t>().swap(m_solidVis);
     std::vector<int>().swap(m_cellMat);
     std::vector<uint8_t>().swap(m_cellDamage);
@@ -285,29 +288,94 @@ void ChunkRenderManager::rebuildAllFaces(
 }
 
 void ChunkRenderManager::reorderFacesByDirection() {
-    // Counting sort by faceID (bits 15-17; 0=+Z 1=-Z 2=+X 3=-X 4=+Y 5=-Y). Stable,
-    // one pass + one scatter. m_dirRangeOffsets[d] = first instance of direction d,
-    // [6] = total — consumers verify [6] == numInstances before trusting the ranges.
-    std::array<uint32_t, 6> counts{};
+    // Counting sort by (faceID, tier): faceID bits 15-17 (0=+Z 1=-Z 2=+X 3=-X 4=+Y 5=-Y) major,
+    // scaleLevel bits 18-19 (0 cube, 1 sub, 2 micro, 3 LOD cell) minor. Stable, one pass + one
+    // scatter. m_dirRangeOffsets[d] = first instance of direction d, [6] = total; consumers verify
+    // [6] == numInstances before trusting the ranges.
+    //
+    // The tier key reorders NOTHING: faces are built cubes, then subcubes, then microcubes, so
+    // within one direction a stable sort already left them in tier order. It only records where
+    // each tier's run starts (I5 census, I6 per-tier draws; docs/PerfProgram2026-09.md).
+    namespace TR = TierRanges;
+    std::array<uint32_t, TR::kBuckets> counts{};
+    m_tierFaces.fill(0);
+    m_tierUnitFaces.fill(0);
     for (const auto& f : faces) {
-        uint32_t d = (f.packedData >> 15) & 0x7u;
-        counts[d > 5u ? 5u : d]++;
+        counts[TR::bucketOf(f.packedData)]++;
+        const uint32_t t = TR::tierOf(f.packedData);
+        m_tierFaces[t]++;
+        m_tierUnitFaces[t] += TR::unitFaces(f.packedData, f.light);
     }
     uint32_t run = 0;
-    for (int d = 0; d < 6; ++d) {
-        m_dirRangeOffsets[d] = run;
-        run += counts[d];
+    for (uint32_t b = 0; b < TR::kBuckets; ++b) {
+        m_dirTierOffsets[b] = run;
+        run += counts[b];
     }
+    m_dirTierOffsets[TR::kBuckets] = run;
+    for (int d = 0; d < 6; ++d) m_dirRangeOffsets[d] = m_dirTierOffsets[d * TR::kTiers];
     m_dirRangeOffsets[6] = run;
 
     m_dirScratch.resize(faces.size());
-    std::array<uint32_t, 6> cursor;
-    std::copy(m_dirRangeOffsets.begin(), m_dirRangeOffsets.begin() + 6, cursor.begin());
-    for (const auto& f : faces) {
-        uint32_t d = (f.packedData >> 15) & 0x7u;
-        m_dirScratch[cursor[d > 5u ? 5u : d]++] = f;
-    }
+    std::array<uint32_t, TR::kBuckets> cursor;
+    std::copy(m_dirTierOffsets.begin(), m_dirTierOffsets.begin() + TR::kBuckets, cursor.begin());
+    for (const auto& f : faces) m_dirScratch[cursor[TR::bucketOf(f.packedData)]++] = f;
     faces.swap(m_dirScratch);
+}
+
+void ChunkRenderManager::countCoveredCubeFaces(uint64_t& covered, uint64_t& unknown) const {
+    covered = 0;
+    unknown = 0;
+    if (m_solidVis.empty()) return;
+    // Face direction -> outward normal, and the (u, v) in-plane axes of a merged cube face. These
+    // MUST match rebuildCubeFaces: +Z/-Z u=x v=y, +X/-X u=z v=y, +Y/-Y u=x v=z; origin = min corner.
+    static const glm::ivec3 kNormal[6] = {{0,0,1},{0,0,-1},{1,0,0},{-1,0,0},{0,1,0},{0,-1,0}};
+    static const glm::ivec3 kU[6] = {{1,0,0},{1,0,0},{0,0,1},{0,0,1},{1,0,0},{1,0,0}};
+    static const glm::ivec3 kV[6] = {{0,1,0},{0,1,0},{0,1,0},{0,1,0},{0,0,1},{0,0,1}};
+
+    // Is the layer of cell `nb` that touches a face pointing along +/-axis fully opaque at sub or
+    // micro resolution? `layer` is 0 or 2: which 1/3 slab of the neighbour touches the face.
+    auto layerCovered = [&](const glm::ivec3& nb, int axis, int layer) {
+        for (int a = 0; a < 3; ++a)
+            for (int b = 0; b < 3; ++b) {
+                int s[3];
+                s[axis] = layer;
+                s[(axis + 1) % 3] = a;
+                s[(axis + 2) % 3] = b;
+                if (subCellClass(nb.x, nb.y, nb.z, s[0], s[1], s[2]) == NeighborOccupancy::Opaque) continue;
+                // Not a whole opaque subcube: every micro of that sub's touching micro layer must be.
+                for (int c = 0; c < 3; ++c)
+                    for (int e = 0; e < 3; ++e) {
+                        int m[3];
+                        m[axis] = layer;
+                        m[(axis + 1) % 3] = c;
+                        m[(axis + 2) % 3] = e;
+                        if (microCellClass(nb.x, nb.y, nb.z, s[0], s[1], s[2], m[0], m[1], m[2]) !=
+                            NeighborOccupancy::Opaque)
+                            return false;
+                    }
+            }
+        return true;
+    };
+
+    for (const auto& f : faces) {
+        if (TierRanges::tierOf(f.packedData) != TierRanges::kCube) continue;
+        const int dir = static_cast<int>(TierRanges::dirOf(f.packedData));
+        const glm::ivec3 o(f.packedData & 0x1F, (f.packedData >> 5) & 0x1F, (f.packedData >> 10) & 0x1F);
+        const int su = static_cast<int>(((f.packedData >> 20) & 0x3Fu) + 1u);
+        const int sv = static_cast<int>(((f.packedData >> 26) & 0x3Fu) + 1u);
+        const glm::ivec3 n = kNormal[dir];
+        const int axis = n.x != 0 ? 0 : (n.y != 0 ? 1 : 2);
+        const int layer = (n[axis] > 0) ? 0 : 2;   // a +axis face touches the neighbour's min slab
+        for (int u = 0; u < su; ++u)
+            for (int v = 0; v < sv; ++v) {
+                const glm::ivec3 nb = o + kU[dir] * u + kV[dir] * v + n;
+                if (nb.x < 0 || nb.x >= 32 || nb.y < 0 || nb.y >= 32 || nb.z < 0 || nb.z >= 32) {
+                    ++unknown;
+                    continue;
+                }
+                if (layerCovered(nb, axis, layer)) ++covered;
+            }
+    }
 }
 
 void ChunkRenderManager::rebuildCubeFaces(

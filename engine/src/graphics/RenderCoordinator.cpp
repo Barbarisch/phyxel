@@ -1335,11 +1335,13 @@ size_t RenderCoordinator::renderStaticGeometry() {
             // rasterizer anyway (a +X face is never visible from its -X side). Falls
             // back to a full draw if the ranges are stale (chunk mid-remesh) or the
             // debug view wants everything (debug pipeline may render two-sided).
+            namespace TR = TierRanges;
             const auto& dirRanges = chunk->getFaceDirRanges();
-            if (!s_faceDirCull || debugModeEnabled ||
-                dirRanges[6] != chunk->getNumInstances()) {
-                vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), chunk->getNumInstances());
-            } else {
+            const auto& tierOff = chunk->getDirTierOffsets();
+            const bool tiersValid = tierOff[TR::kBuckets] == chunk->getNumInstances();
+            const uint32_t tierMask = (s_tierMaskMain & 0x7u) | (1u << TR::kLodCell);
+            const bool dirCullOk = s_faceDirCull && !debugModeEnabled && dirRanges[6] == chunk->getNumInstances();
+            auto cameraFacingDirs = [&]() {
                 const glm::vec3 mn = chunk->getMinBounds();
                 const glm::vec3 mx = chunk->getMaxBounds();
                 uint32_t mask = 0;  // faceID order: 0=+Z 1=-Z 2=+X 3=-X 4=+Y 5=-Y
@@ -1349,6 +1351,40 @@ size_t RenderCoordinator::renderStaticGeometry() {
                 if (cameraPos.x < mx.x + 0.5f) mask |= 1u << 3;
                 if (cameraPos.y > mn.y - 0.5f) mask |= 1u << 4;
                 if (cameraPos.y < mx.y + 0.5f) mask |= 1u << 5;
+                return mask;
+            };
+            // I5 per-view census: instances this pass submits, by tier.
+            auto tally = [&](uint32_t dirMask) {
+                for (uint32_t d = 0; d < 6; ++d)
+                    if ((dirMask >> d) & 1u)
+                        for (uint32_t t = 0; t < TR::kTiers; ++t)
+                            m_tierDrawStats.mainFaces[t] += tierOff[d * TR::kTiers + t + 1] - tierOff[d * TR::kTiers + t];
+            };
+
+            if (tierMask != TR::kAllTiers) {
+                // I6 attribution draw: only the unmasked tiers' runs. A chunk whose tier ranges are
+                // invalid (mid-remesh, LOD mesh) is SKIPPED, never drawn whole, so a masked tier
+                // can't leak into the measurement; the skip is counted.
+                if (!tiersValid) {
+                    ++m_tierDrawStats.maskedChunksSkipped;
+                } else {
+                    const uint32_t dirMask = dirCullOk ? cameraFacingDirs() : 0x3Fu;
+                    std::vector<TR::Run>& runs = m_tierRunScratch;
+                    TR::buildRuns(tierOff, dirMask, tierMask, runs);
+                    for (const auto& r : runs)
+                        vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), r.count, r.first);
+                    for (uint32_t d = 0; d < 6; ++d)
+                        if ((dirMask >> d) & 1u)
+                            for (uint32_t t = 0; t < TR::kTiers; ++t)
+                                if ((tierMask >> t) & 1u)
+                                    m_tierDrawStats.mainFaces[t] +=
+                                        tierOff[d * TR::kTiers + t + 1] - tierOff[d * TR::kTiers + t];
+                }
+            } else if (!dirCullOk) {
+                vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), chunk->getNumInstances());
+                if (tiersValid) tally(0x3Fu); else ++m_tierDrawStats.mainChunksUnattributed;
+            } else {
+                const uint32_t mask = cameraFacingDirs();
                 int d = 0;
                 while (d < 6) {
                     if (!(mask & (1u << d))) { ++d; continue; }
@@ -1359,6 +1395,7 @@ size_t RenderCoordinator::renderStaticGeometry() {
                     if (count) vulkanDevice->drawIndexed(currentFrame, vulkanDevice->chunkIndexCount(), count, first);
                     d = e + 1;
                 }
+                if (tiersValid) tally(mask); else ++m_tierDrawStats.mainChunksUnattributed;
             }
             renderedChunks++;
         }
@@ -2370,6 +2407,8 @@ bool RenderCoordinator::s_shadowFrustumCull = false;
 
 // Phase 3 face-direction bucketing: ON by default; /api/debug/face_dir_cull for A/B.
 bool RenderCoordinator::s_faceDirCull = true;
+uint32_t RenderCoordinator::s_tierMaskMain = 0x7u;     // I6: all tiers drawn (the normal paths)
+uint32_t RenderCoordinator::s_tierMaskShadow = 0x7u;
 // C1 (docs/ContinuousLodPlan.md): screen-space correction for the character LOD/cull
 // thresholds. ON by default -- it is EXACTLY a no-op at the reference config (1600x900,
 // fovY 45) that the 35/80/400 numbers were tuned at, and a correction elsewhere.
@@ -2640,23 +2679,52 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
       if (!strideMisaligned) {
         struct Batch { VkBuffer buf; uint32_t first; uint32_t count; };
         std::vector<Batch> batches;
+        namespace TR = TierRanges;
+        const uint32_t shadowTierMask = (s_tierMaskShadow & 0x7u) | (1u << TR::kLodCell);
+        uint64_t* tierTally = m_tierDrawStats.shadowFaces[cascade];
         for (auto& kv : byBuffer) {
             const uint32_t firstCmd = cmdCursor;
             uint32_t n = 0;
             for (const Chunk* ch : kv.second) {
                 if (cmdCursor >= ShadowMap::kMaxIndirectCommands ||
                     origins.size() >= ShadowMap::kMaxChunkDataEntries) break;
-                VkDrawIndexedIndirectCommand& c = cmds[cmdCursor];
-                c.indexCount    = s_shadowQuadDraw ? 6u : 36u;   // M5 A/B (see the note above)
-                c.instanceCount = ch->getNumInstances();
-                c.firstIndex    = 0;
-                c.vertexOffset  = 0;
-                c.firstInstance = static_cast<uint32_t>(ch->getInstanceBindOffset() / stride);
+                const auto& tierOff = ch->getDirTierOffsets();
+                const bool tiersValid = tierOff[TR::kBuckets] == ch->getNumInstances();
+                const uint32_t base = static_cast<uint32_t>(ch->getInstanceBindOffset() / stride);
                 glm::ivec3 wo = ch->getWorldOrigin();
                 glm::vec3 rel = camera->relativeTo(glm::dvec3(wo));
-                origins.emplace_back(rel.x, rel.y, rel.z, 0.0f);
-                gpuInstances += c.instanceCount;
-                ++cmdCursor; ++n;
+                auto emit = [&](uint32_t first, uint32_t count) {
+                    VkDrawIndexedIndirectCommand& c = cmds[cmdCursor];
+                    c.indexCount    = s_shadowQuadDraw ? 6u : 36u;   // M5 A/B (see the note above)
+                    c.instanceCount = count;
+                    c.firstIndex    = 0;
+                    c.vertexOffset  = 0;
+                    c.firstInstance = base + first;
+                    origins.emplace_back(rel.x, rel.y, rel.z, 0.0f);   // one origin per command (gl_DrawID)
+                    gpuInstances += count;
+                    ++cmdCursor; ++n;
+                };
+                if (shadowTierMask == TR::kAllTiers) {
+                    emit(0, ch->getNumInstances());
+                    if (tiersValid)
+                        for (uint32_t t = 0; t < TR::kTiers; ++t) tierTally[t] += ch->getTierFaces()[t];
+                } else if (!tiersValid) {
+                    ++m_tierDrawStats.maskedChunksSkipped;   // never drawn whole under a mask
+                } else {
+                    // I6: one indirect command per kept (direction, tier) run, so a masked tier's
+                    // vertex work disappears from the shadow pass too.
+                    TR::buildRuns(tierOff, 0x3Fu, shadowTierMask, m_tierRunScratch);
+                    for (const auto& r : m_tierRunScratch) {
+                        if (cmdCursor >= ShadowMap::kMaxIndirectCommands ||
+                            origins.size() >= ShadowMap::kMaxChunkDataEntries) {
+                            ++m_tierDrawStats.shadowCmdOverflow;   // reported: a masked run was dropped
+                            continue;
+                        }
+                        emit(r.first, r.count);
+                    }
+                    for (uint32_t t = 0; t < TR::kTiers; ++t)
+                        if ((shadowTierMask >> t) & 1u) tierTally[t] += ch->getTierFaces()[t];
+                }
             }
             if (n) batches.push_back({kv.first, firstCmd, n});
         }
@@ -2765,10 +2833,30 @@ void RenderCoordinator::renderShadowPass(VkCommandBuffer commandBuffer, ShadowMa
              // leaks). 36 stays REQUIRED under back-cull. Possible future experiment: 6-index
              // + CULL_NONE pipeline (would need its own acne/bias re-tune + pixel gate).
              // (And do NOT direction-bucket here — see the note at the top of this function.)
-             vkCmdDrawIndexed(commandBuffer, s_shadowQuadDraw ? 6u : 36u,
-                              chunk->getNumInstances(), 0, 0, 0);
+             namespace TR = TierRanges;
+             const uint32_t shadowTierMask = (s_tierMaskShadow & 0x7u) | (1u << TR::kLodCell);
+             const auto& tierOff = chunk->getDirTierOffsets();
+             const bool tiersValid = tierOff[TR::kBuckets] == chunk->getNumInstances();
+             uint64_t* tierTally = m_tierDrawStats.shadowFaces[cascade];
+             if (shadowTierMask == TR::kAllTiers) {
+                 vkCmdDrawIndexed(commandBuffer, s_shadowQuadDraw ? 6u : 36u,
+                                  chunk->getNumInstances(), 0, 0, 0);
+                 shadowInstances += chunk->getNumInstances();
+                 if (tiersValid)
+                     for (uint32_t t = 0; t < TR::kTiers; ++t) tierTally[t] += chunk->getTierFaces()[t];
+             } else if (!tiersValid) {
+                 ++m_tierDrawStats.maskedChunksSkipped;   // never drawn whole under a mask
+             } else {
+                 // I6: kept tiers only, ALL directions (tier runs, not direction culling).
+                 TR::buildRuns(tierOff, 0x3Fu, shadowTierMask, m_tierRunScratch);
+                 for (const auto& r : m_tierRunScratch) {
+                     vkCmdDrawIndexed(commandBuffer, s_shadowQuadDraw ? 6u : 36u, r.count, 0, 0, r.first);
+                     shadowInstances += r.count;
+                 }
+                 for (uint32_t t = 0; t < TR::kTiers; ++t)
+                     if ((shadowTierMask >> t) & 1u) tierTally[t] += chunk->getTierFaces()[t];
+             }
              ++shadowChunks;
-             shadowInstances += chunk->getNumInstances();
         }
     }
     if (cascade == kCascadeMid && !chunksDrawnViaMultidraw) {
@@ -3739,6 +3827,7 @@ void RenderCoordinator::drawFrame() {
     
     VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(currentFrame);
     gpuProfiler->startFrame(currentFrame, cmd);
+    m_tierDrawStats = {};   // I5 per-view tier census, accumulated by this frame's passes
     
     // Cull, sort and batch every character ONCE for the whole frame — the shadow pass,
     // the main pass and the mirror pass all consume this (docs/CharacterPipelineScaling.md).
@@ -4207,6 +4296,7 @@ void RenderCoordinator::drawFrame() {
     postProcessor->endPostProcessRenderPass(vulkanDevice->getCommandBuffer(currentFrame));
     // Last command in the buffer: closes the whole-frame GPU timestamp bracket (I1).
     gpuProfiler->finishFrame(vulkanDevice->getCommandBuffer(currentFrame));
+    m_tierDrawStatsLast = m_tierDrawStats;   // publish the complete frame's tier census
     vulkanDevice->endCommandBuffer(currentFrame);
     auto recordEnd = std::chrono::high_resolution_clock::now();
 
