@@ -436,7 +436,7 @@
     {
       "name": "Glass",
       "category": "material",
-      "alpha": 0.5,
+      "alpha": 0.02,
       "description": "Brittle glass material with smooth surface",
       "physics": {
         "mass": 1.5,

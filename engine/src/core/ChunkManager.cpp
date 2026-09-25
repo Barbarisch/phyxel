@@ -440,7 +440,9 @@ void ChunkManager::updateChunk(size_t chunkIndex) {
     if (chunkIndex >= chunks.size()) return;
     
     Chunk* chunk = chunks[chunkIndex].get();
-    if (chunk->getNeedsUpdate()) {
+    // m_managedRemeshRequested: a null-lookup rebuild asked for this re-mesh (GlassTransparency.md §6); an
+    // intervening buffer upload may already have cleared needsUpdate.
+    if (chunk->getNeedsUpdate() || chunk->m_managedRemeshRequested) {
         LOG_TRACE_FMT("Chunk", "Updating chunk " << chunkIndex << " with " << chunk->getTotalSubcubeCount() << " subcubes");
 
         // Use cross-chunk culling method to maintain proper face occlusion across chunk boundaries
@@ -505,6 +507,10 @@ bool ChunkManager::isChunkCapped(const Chunk& chunk) {
             // O(1): a uniform neighbour caps us iff it is visible-solid everywhere — the
             // common deep-stack case, which is what makes sealing whole mountains cheap.
             if (!ns.visible(0)) return false;
+            // docs/GlassTransparency.md §5: a cap must be OPAQUE. A glass layer does
+            // not hide the wall behind it, so it must not stop that wall being meshed.
+            if (n->renderOccupancyAt(glm::ivec3(0)) != Graphics::ChunkRenderManager::NeighborOccupancy::Opaque)
+                return false;
             continue;
         }
         // Dense neighbour: scan its boundary layer facing us (1024 cells). The layer we care
@@ -517,16 +523,43 @@ bool ChunkManager::isChunkCapped(const Chunk& chunk) {
                 const int x = fx >= 0 ? fx : a;
                 const int y = fy >= 0 ? fy : (fx >= 0 ? a : b);
                 const int z = fz >= 0 ? fz : b;
-                const size_t idx = static_cast<size_t>(z) + static_cast<size_t>(y) * 32 +
-                                   static_cast<size_t>(x) * 1024;
-                if (!n->visibleSolidCubeAtIndex(idx)) return false;
+                // Opaque, not merely solid (see the uniform branch above).
+                if (n->renderOccupancyAt(glm::ivec3(x, y, z)) !=
+                    Graphics::ChunkRenderManager::NeighborOccupancy::Opaque) return false;
             }
         }
     }
     return true;
 }
 
+// docs/GlassTransparency.md §6. A border cell of `chunk` changed render class (empty /
+// opaque / transparent), so the FACING neighbour's faces toward it are stale: re-mesh it. Called at
+// the end of every managed rebuild, the same place the light ripple below marks neighbours. It is
+// route-agnostic: whichever edit path changed the cell, the change was recorded when the chunk
+// re-meshed (Chunk::refreshBorderSignature). Mesh-only tier (markChunkForRemesh): the neighbour's
+// voxel data did not change, so it must not become DB-dirty, and a missing face is a hole, not a
+// cosmetic seam, so it is not the idle tier either. It converges: a signature describes the
+// chunk's OWN cells, so re-meshing the neighbour cannot change it back.
+void ChunkManager::deliverBorderRipple(Chunk& chunk) {
+    const uint8_t mask = chunk.takePendingBorderRipple();
+    if (!mask) return;
+    static const glm::ivec3 kFaceDirs[6] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0},
+                                            {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};   // Chunk's face order
+    const glm::ivec3 cc = worldToChunkCoord(chunk.getWorldOrigin());
+    for (int f = 0; f < 6; ++f) {
+        if (!(mask & (1u << f))) continue;
+        if (Chunk* n = getChunkAtCoord(cc + kFaceDirs[f])) {
+            if (n == &chunk) continue;
+            markChunkForRemesh(n);
+            ++m_borderRippleCount;
+        }
+    }
+}
+
 void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
+    chunk.m_owner = this;   // GlassTransparency.md §6: later null-lookup rebuilds of this chunk request a managed one
+    chunk.m_managedRemeshRequested = false;   // this IS the managed re-mesh
+
     // ── Phase 4.4 uniform-chunk short-circuit ─────────────────────────────────────
     // ~4 of 5 resident chunks on tall terrain are uniform (fully-buried solid or pure sky).
     // Neither needs the 5x 32k-cell mesh/bake scans below. Sealed chunks additionally leave
@@ -541,10 +574,12 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
         if (store.isUniform() && noSubMicro && chunk.materializedCubeCount() == 0) {
             if (store.solidCount() == 0) {
                 chunk.applyAirRenderState();
+                deliverBorderRipple(chunk);
                 return;
             }
             if (store.visible(0) && isChunkCapped(chunk)) {
                 chunk.applySealedRenderState();
+                deliverBorderRipple(chunk);
                 return;
             }
         }
@@ -564,7 +599,8 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
     bool ncValid = false;
     glm::ivec3 ncCoord(0);
     Chunk* ncChunk = nullptr;
-    auto getNeighborCube = [this, ncValid, ncCoord, ncChunk](const glm::ivec3& worldPos) mutable -> bool {
+    using Occ = Graphics::ChunkRenderManager::NeighborOccupancy;
+    auto getNeighborCube = [this, ncValid, ncCoord, ncChunk](const glm::ivec3& worldPos) mutable -> Occ {
         glm::ivec3 chunkCoord = worldToChunkCoord(worldPos);
         if (!ncValid || chunkCoord != ncCoord) {
             ncValid = true;
@@ -573,7 +609,26 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
         }
         // 4.2b: answer from the neighbour's palette store (hybrid — overlay Cube wins). The old
         // getCubeAt here would now MATERIALIZE a 32x32 border shell of Cubes per remesh.
-        return ncChunk && ncChunk->visibleSolidCubeAt(worldToLocalCoord(worldPos));
+        // GlassTransparency.md §5: the answer also says whether the cell is see-through (glass), so a face behind
+        // glass in the NEXT chunk is drawn exactly as it would be inside one chunk.
+        return ncChunk ? ncChunk->renderOccupancyAt(worldToLocalCoord(worldPos)) : Occ::Empty;
+    };
+    // GlassTransparency.md §5: the same lookup at sub-voxel resolution, for sub/micro faces on the border.
+    // World micro coordinates can be negative, so the chunk split uses FLOOR division.
+    bool nfValid = false;
+    glm::ivec3 nfCoord(0);
+    Chunk* nfChunk = nullptr;
+    auto getNeighborFine = [this, nfValid, nfCoord, nfChunk](const glm::ivec3& worldMicro,
+                                                             int level) mutable -> Occ {
+        auto floorDiv = [](int a, int b) { return (a >= 0) ? a / b : -((-a + b - 1) / b); };
+        const glm::ivec3 cc(floorDiv(worldMicro.x, 288), floorDiv(worldMicro.y, 288),
+                            floorDiv(worldMicro.z, 288));
+        if (!nfValid || cc != nfCoord) {
+            nfValid = true;
+            nfCoord = cc;
+            nfChunk = getChunkAtCoord(cc);
+        }
+        return nfChunk ? nfChunk->renderOccupancyAtFine(worldMicro - cc * 288, level) : Occ::Empty;
     };
 
     // Cross-chunk baked-light lookup: lets the bake read a neighbour chunk's already-baked
@@ -624,7 +679,8 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
     }
 
     // Call rebuildFaces with cross-chunk culling + light bleed + precomputed roof mask
-    chunk.rebuildFaces(getNeighborCube, getNeighborLight, &columnOpen);
+    chunk.rebuildFaces(getNeighborCube, getNeighborLight, &columnOpen, getNeighborFine);
+    deliverBorderRipple(chunk);
 
     // If this chunk's boundary light changed, its neighbours' border-seeded light is now stale —
     // re-mesh them so the bleed propagates. Gated on "actually changed", so this ripple converges

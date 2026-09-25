@@ -1,4 +1,5 @@
 #include "core/DamageSystem.h"
+#include "core/DamageStage.h"
 #include "core/ChunkManager.h"
 #include "core/MaterialRegistry.h"
 #include "core/GpuParticlePhysics.h"
@@ -27,7 +28,7 @@ float DamageSystem::frand() {
 }
 float DamageSystem::frand(float lo, float hi) { return lo + (hi - lo) * frand(); }
 
-DamageSystem::MatResponse DamageSystem::responseFor(const std::string& materialName) const {
+DamageSystem::MatResponse DamageSystem::responseFor(const std::string& materialName) {
     const auto* def = Core::MaterialRegistry::instance().getMaterial(materialName);
 
     // Data-driven: a material with a "break" block in materials.json supplies its
@@ -44,6 +45,21 @@ DamageSystem::MatResponse DamageSystem::responseFor(const std::string& materialN
     r.toughness = bond * 120.0f;
     r.s1 = 2.5f; r.s2 = 6.0f; r.absorption = 0.6f;
     return r;
+}
+
+uint8_t DamageSystem::displayStage(const std::string& materialName,
+                                   float accumulatedDamage,
+                                   int   stageMax) {
+    if (stageMax < 0) stageMax = Core::damageStagesVisible();
+    // The denominator is the material's own break toughness, so "stage N of M" means the same
+    // fraction of the way to failure on Glass as on Steel. responseFor guarantees it is > 0
+    // (a break block supplies it, or the bondStrength fallback does with a 0.05 floor).
+    return Core::damageStage(accumulatedDamage, responseFor(materialName).toughness, stageMax);
+}
+
+uint8_t DamageSystem::displayStageBits(const std::string& materialName,
+                                       float accumulatedDamage) {
+    return Core::packDamageStage(displayStage(materialName, accumulatedDamage));
 }
 
 int DamageSystem::solidVoxelsBetween(const glm::vec3& a, const glm::vec3& b) const {
@@ -131,6 +147,10 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
     };
     std::vector<BreakRec> breaks;
 
+    // Read the stage count ONCE for this whole operation (P4). Per DamageStage.h it is
+    // atomic and must not be re-read per voxel.
+    const int stagesVisible = Core::damageStagesVisible();
+
     // ---- Phase A: scan + decide ----
     // Shielding (solidVoxelsBetween) is computed against the PRE-BLAST grid: we only
     // record break decisions here and defer every removeCubeFast to phase B. If we
@@ -184,7 +204,33 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
         float ratio = effective / mr.toughness;
 
         if (ratio < 1.0f) {
-            if (cube) cube->addDamage(reached);   // weakened but intact (cracks; visual feedback = P4)
+            // Weakened but intact -- the crack path (P4, docs/VoxelDamageVisualization.md).
+            // Re-mesh ONLY when the hit moves the voxel across a VISIBLE stage boundary: a
+            // graze that stays inside one band changes zero pixels, and one blast can graze
+            // thousands of voxels, so dirtying them all would be pure cost. Rebuild count is
+            // bounded by visible changes, not by hits.
+            if (cube) {
+                const float before = cube->getAccumulatedDamage();
+                cube->addDamage(reached);
+                const float after  = cube->getAccumulatedDamage();
+                // Same denominator AND same stage count the mesher uses, so the boundary this
+                // tests is exactly the boundary the shader renders. Since P2 there are only 3
+                // visible stages, so a voxel re-meshes at most 3 times over its whole life
+                // instead of 16 -- coarse stages cut rebuild frequency as well as merge cost.
+                if (Core::damageStage(before, mr.toughness, stagesVisible) !=
+                    Core::damageStage(after,  mr.toughness, stagesVisible)) {
+                    // markChunkForRemesh, NOT markChunkDirty: markChunkDirty ALSO sets the
+                    // chunk's DB-dirty flag, which makes the streaming evictor re-save it to
+                    // SQLite (DirtyChunkTracker.h). Damage has no DB field, so every one of
+                    // those writes would persist nothing that changed -- and mass evictions
+                    // of DB-dirty chunks are exactly what produced the multi-hundred-ms save
+                    // stalls that tier was introduced to avoid. Here only the mesh is stale.
+                    if (Chunk* gc = m_cm->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp))) {
+                        m_cm->markChunkForRemesh(gc);
+                        res.voxelsStageChanged++;
+                    }
+                }
+            }
             res.voxelsGrazed++;
             continue;
         }
@@ -301,7 +347,11 @@ DamageResult DamageSystem::applyDamage(const glm::vec3& center, float radius, fl
     // dirty (deferRebuild). Flush once here so every touched chunk is re-meshed a
     // SINGLE time within this op, instead of once per removed voxel. This is the
     // core lag-spike fix: O(chunks touched) re-meshes instead of O(voxels removed).
-    if (res.voxelsBroken > 0) {
+    // Flush for breaks OR for grazes that crossed a visible stage boundary. Gating on breaks
+    // alone meant a blast that only grazed recorded the damage and never rebuilt the mesh, so
+    // the crack did not appear until something else happened to dirty that chunk -- invisible
+    // in any test whose blast also broke something (3.7).
+    if (res.voxelsBroken > 0 || res.voxelsStageChanged > 0) {
         m_cm->updateDirtyChunks();
     }
     auto t3 = Clock::now();

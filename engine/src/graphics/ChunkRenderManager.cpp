@@ -2,6 +2,8 @@
 #include "graphics/ChunkArenaSystem.h"  // Phase 4.3 arena mode (docs/RegionArenaPlan.md)
 #include "graphics/ChunkUpdatePerf.h"   // B0 diagnostic timers (docs/ChunkUpdateHitchPlan.md)
 #include "core/Cube.h"
+#include "core/DamageStage.h"
+#include "core/DamageSystem.h"
 #include "core/Subcube.h"
 #include "core/Microcube.h"
 #include "core/ChunkVoxelStore.h"
@@ -196,8 +198,11 @@ void ChunkRenderManager::clearForUniform() {
     std::vector<uint8_t>().swap(m_lightOpaque);
     std::vector<uint16_t>().swap(m_subFill);
     std::vector<uint8_t>().swap(m_prevBorderLight);
+    std::vector<uint8_t>().swap(m_cellTransparent);
     m_subOcc.clear();
     m_microOcc.clear();
+    m_subTransparent.clear();
+    m_microTransparent.clear();
     m_grassInstances.clear();
     m_foliageInstances.clear();
     m_flamingVoxels.clear();
@@ -229,7 +234,8 @@ void ChunkRenderManager::rebuildAllFaces(
     const NeighborLookupFunc& getNeighborCube,
     const NeighborLightFunc& getNeighborLight,
     const std::vector<uint8_t>* columnOpenMask,
-    const ChunkVoxelStore* voxelStore)
+    const ChunkVoxelStore* voxelStore,
+    const NeighborFineLookupFunc& getNeighborFine)
 {
     // T0 instrumentation: time the whole mesh op (greedy mesh + light bake). Records on scope exit
     // so every return path is covered. See docs/OffThreadMeshingPlan.md.
@@ -260,6 +266,13 @@ void ChunkRenderManager::rebuildAllFaces(
     // rebuildSubcube/MicrocubeFaces can cull hidden faces.
     rebuildCubeFaces(cubes, subcubes, microcubes, worldOrigin, getNeighborCube, columnOpenMask, voxelStore);
     buildSubMicroOccupancy(subcubes, microcubes, worldOrigin);
+    // The sub/micro border lookup (GlassTransparency.md §5) lives only for this rebuild (a stale pointer to a caller's
+    // lambda must never outlive the call).
+    struct FineLookupScope {
+        const NeighborFineLookupFunc*& slot;
+        ~FineLookupScope() { slot = nullptr; }
+    } fineScope{m_fineLookup};
+    m_fineLookup = getNeighborFine ? &getNeighborFine : nullptr;
     rebuildSubcubeFaces(subcubes, worldOrigin);
     rebuildMicrocubeFaces(microcubes, worldOrigin);
 
@@ -326,7 +339,10 @@ void ChunkRenderManager::rebuildCubeFaces(
     // Per-material face textures + flags (computed once per distinct material in chunk).
     // emR/G/B = emissive light colour (0-15 per channel, hue from physics.colorTint, brightest
     // channel scaled to 15) used to seed coloured block light; 0 for non-emissive materials.
-    struct MatFace { uint16_t tex[6]; uint16_t reserved; uint8_t emR, emG, emB; uint8_t isGrass; uint8_t isBillboarded; };
+    // `toughness` is the DAMAGE DISPLAY DENOMINATOR for this material (3.2). Cached per
+    // material rather than resolved per voxel: responseFor() does a registry lookup, and a
+    // chunk rebuild visits up to 32768 cells but only a handful of distinct materials.
+    struct MatFace { uint16_t tex[6]; uint16_t reserved; uint8_t emR, emG, emB; uint8_t isGrass; uint8_t isBillboarded; float toughness; };
     std::unordered_map<std::string, int> matIdByName;
     std::vector<MatFace> matFaces;
     // Reused member scratch buffers (.assign re-zeros without reallocating once warm) — avoids
@@ -334,9 +350,15 @@ void ChunkRenderManager::rebuildCubeFaces(
     m_solidVis.assign(N * N * N, 0);   // 1 = a visible cube occupies the cell
     m_cellMat.assign(N * N * N, -1);   // index into matFaces
     m_cellDamage.assign(N * N * N, 0); // quantized 0-15 voxel damage (roughness driver)
+    m_cellTransparent.assign(N * N * N, 0);
     std::vector<uint8_t>& solidVis   = m_solidVis;
     std::vector<int>&     cellMat    = m_cellMat;
     std::vector<uint8_t>& cellDamage = m_cellDamage;
+
+    // Stage count read ONCE for this rebuild (P4, DamageStage.h): it is atomic and must not
+    // be re-read inside the 32,768-cell loop below, and one consistent value per rebuild is
+    // what makes a mid-flight knob change safe.
+    const int stagesVisible = Phyxel::Core::damageStagesVisible();
 
     auto& reg = Phyxel::Core::MaterialRegistry::instance();
     // 4.2b hybrid scan: every solid voxel is in the palette store; a materialized overlay Cube
@@ -366,15 +388,6 @@ void ChunkRenderManager::rebuildCubeFaces(
         if (p.x < 0 || p.x >= N || p.y < 0 || p.y >= N || p.z < 0 || p.z >= N) continue;
         int cell = cellIdx(p.x, p.y, p.z);
         solidVis[cell] = 1;
-        // Per-voxel accumulated damage (DamageSystem) -> 0..15 for shader roughness modulation.
-        // kDamageRef = energy at which a voxel reads as fully worn (prototype constant; a proper
-        // version would normalise by the material's break toughness).
-        {
-            constexpr float kDamageRef = 30.0f;
-            float f = damage / kDamageRef;
-            f = f < 0.0f ? 0.0f : (f > 1.0f ? 1.0f : f);
-            cellDamage[cell] = static_cast<uint8_t>(f * 15.0f + 0.5f);
-        }
         const std::string& mname = *mnamePtr;
         auto it = matIdByName.find(mname);
         if (it == matIdByName.end()) {
@@ -386,7 +399,7 @@ void ChunkRenderManager::rebuildCubeFaces(
             // Billboarded (leaf) materials: solid faces are skipped and foliage cards drawn instead.
             mf.isBillboarded = (s_foliageEnabled && md && md->billboarded) ? 1u : 0u;
             bool em = md && md->emissive;
-            bool tr = md && md->alpha < 0.99f;
+            bool tr = Phyxel::Core::isTransparentMaterial(md);
             bool mi = md && md->isMirror;
             bool va = md && md->varied;   // procedural tiling variation (docs/VoxelOrientation.md)
             uint16_t qa = tr ? static_cast<uint16_t>(md->alpha * 255.0f) : 255u;
@@ -412,6 +425,10 @@ void ChunkRenderManager::rebuildCubeFaces(
                 mf.emG = static_cast<uint8_t>(glm::clamp(t.y * s, 0.0f, 15.0f) + 0.5f);
                 mf.emB = static_cast<uint8_t>(glm::clamp(t.z * s, 0.0f, 15.0f) + 0.5f);
             }
+            // Damage display denominator (3.2): this material's own break toughness, so a
+            // rendered stage means the same fraction of the way to failure on Glass as on
+            // Steel. Resolved ONCE per material here, not per voxel.
+            mf.toughness = Phyxel::DamageSystem::responseFor(mname).toughness;
             int newId = static_cast<int>(matFaces.size());
             matFaces.push_back(mf);
             matIdByName[mname] = newId;
@@ -419,6 +436,28 @@ void ChunkRenderManager::rebuildCubeFaces(
         } else {
             cellMat[cell] = it->second;
         }
+
+        m_cellTransparent[cell] = (matFaces[cellMat[cell]].reserved & 2u) ? 1u : 0u;
+
+        // Per-voxel accumulated damage -> stage 0..15, packed into instance bits 11-14 and read
+        // by voxel.frag. Core::damageStage is the SINGLE SOURCE OF TRUTH: DamageSystem's graze
+        // path quantizes with the same function against the same denominator to decide whether a
+        // hit changed anything VISIBLE and the chunk needs re-meshing (3.7). If the two
+        // disagreed, the engine would rebuild for changes no one can see, or skip a rebuild for
+        // one they can -- and a state-only test could not tell.
+        //
+        // CLAMPED inside damageStage(), and the clamp is load-bearing: bit 15 of this word is the
+        // `varied` texture-rotation flag (set per material just above), so a stage >= 16 would
+        // overflow bits 11-14 into it and silently hash-rotate the face texture -- which on
+        // coursed materials breaks pattern continuity at voxel edges.
+        // Quantized to kDamageStagesVisible (P2) and then spread back across the 4-bit field,
+        // so this word takes only 4 distinct values {0,5,10,15} instead of 16. Damage is part of
+        // the merge key below, so every distinct value is a potential merge-run break: fewer
+        // values means wider bands and fewer faces. voxel.frag still divides by 15.0 and needs
+        // no change.
+        cellDamage[cell] = Phyxel::Core::packDamageStage(
+            Phyxel::Core::damageStage(damage, matFaces[cellMat[cell]].toughness, stagesVisible),
+            stagesVisible);
     }
 
     // --- LIGHT FIELD REMOVED (lighting rebuild M0, 2026-08-29) --------------------------------
@@ -678,9 +717,30 @@ void ChunkRenderManager::rebuildCubeFaces(
         if (x >= 0 && x < N && y >= 0 && y < N && z >= 0 && z < N)
             return solidVis[cellIdx(x, y, z)] != 0;
         if (getNeighborCube) {
-            return getNeighborCube(worldOrigin + glm::ivec3(x, y, z));
+            // "Occupied": glass across the border is still physical cover for grass (GlassTransparency.md §5).
+            return getNeighborCube(worldOrigin + glm::ivec3(x, y, z)) != NeighborOccupancy::Empty;
         }
         return false;  // chunk boundary, no lookup → face exposed
+    };
+
+    // FACE EMISSION uses this, not neighborSolid (docs/GlassTransparency.md §5). A face is
+    // hidden iff the neighbour is occupied AND (the neighbour is opaque OR this face's own voxel is
+    // transparent): stone behind glass is drawn; glass against glass stays culled, so a thick pane
+    // does not stack OIT layers; glass lying on stone stays culled. neighborSolid keeps answering
+    // "is there physical cover here" for grass — glass on a grass top still covers it.
+    auto faceHiddenByNeighbor = [&](int x, int y, int z, bool selfTransparent) -> bool {
+        if (x >= 0 && x < N && y >= 0 && y < N && z >= 0 && z < N) {
+            const int c = cellIdx(x, y, z);
+            if (!solidVis[c]) return false;
+            return !m_cellTransparent[c] || selfTransparent;
+        }
+        if (getNeighborCube) {
+            // The same rule across a chunk border, so it cannot depend on where borders fall.
+            const NeighborOccupancy o = getNeighborCube(worldOrigin + glm::ivec3(x, y, z));
+            if (o == NeighborOccupancy::Empty) return false;
+            return o == NeighborOccupancy::Opaque || selfTransparent;
+        }
+        return false;
     };
 
     // --- Grass blade instances: one per exposed grass-topped voxel ---
@@ -699,9 +759,11 @@ void ChunkRenderManager::rebuildCubeFaces(
         // Billboarded leaf CUBE (rare — most leaves are subcubes): its solid faces were skipped in
         // the mesh above; emit ONE foliage instance (cards at the cube centre) if the cube is exposed.
         if (matFaces[m].isBillboarded) {
-            bool exposed = !neighborSolid(x + 1, y, z) || !neighborSolid(x - 1, y, z) ||
-                           !neighborSolid(x, y + 1, z) || !neighborSolid(x, y - 1, z) ||
-                           !neighborSolid(x, y, z + 1) || !neighborSolid(x, y, z - 1);
+            // A leaf seen through glass is exposed (GlassTransparency.md §5). Leaves are not transparent, so this is the
+            // opaque-owner case of the face rule (a leaf against glass is visible).
+            bool exposed = !faceHiddenByNeighbor(x + 1, y, z, false) || !faceHiddenByNeighbor(x - 1, y, z, false) ||
+                           !faceHiddenByNeighbor(x, y + 1, z, false) || !faceHiddenByNeighbor(x, y - 1, z, false) ||
+                           !faceHiddenByNeighbor(x, y, z + 1, false) || !faceHiddenByNeighbor(x, y, z - 1, false);
             // Canopy thinning (s_foliageDensity): hashed on the ABSOLUTE world cell so the
             // pattern is stable across rebuilds and continuous across chunk seams.
             if (s_foliageDensity < 0.999f &&
@@ -816,7 +878,8 @@ void ChunkRenderManager::rebuildCubeFaces(
                     else                  { x = u; y = s; z = v; }
                     int cell = cellIdx(x, y, z);
                     if (!solidVis[cell]) continue;
-                    if (neighborSolid(x + fdx[faceID], y + fdy[faceID], z + fdz[faceID])) continue;
+                    if (faceHiddenByNeighbor(x + fdx[faceID], y + fdy[faceID], z + fdz[faceID],
+                                             m_cellTransparent[cell] != 0)) continue;
                     int m = cellMat[cell];
                     if (m >= 0 && matFaces[m].isBillboarded) continue;  // leaf cube → foliage cards, no solid face
                     int mi = u * N + v;
@@ -967,6 +1030,9 @@ void ChunkRenderManager::buildSubMicroOccupancy(
 {
     m_subOcc.clear();
     m_microOcc.clear();
+    m_subTransparent.clear();
+    m_microTransparent.clear();
+    auto& reg = Phyxel::Core::MaterialRegistry::instance();
 
     for (const auto& sc : subcubes) {
         if (!sc || sc->isBroken() || !sc->isVisible()) continue;
@@ -977,6 +1043,8 @@ void ChunkRenderManager::buildSubMicroOccupancy(
         uint32_t cubeIdx = static_cast<uint32_t>(lp.z + lp.y * 32 + lp.x * 1024);
         uint32_t subKey  = cubeIdx * 27u + static_cast<uint32_t>(sp.z + sp.y * 3 + sp.x * 9);
         m_subOcc.insert(subKey);
+        if (Phyxel::Core::isTransparentMaterial(reg.getMaterial(sc->getMaterialName())))
+            m_subTransparent.insert(subKey);
     }
 
     for (const auto& mc : microcubes) {
@@ -991,6 +1059,8 @@ void ChunkRenderManager::buildSubMicroOccupancy(
         uint32_t subKey   = cubeIdx * 27u + static_cast<uint32_t>(sp.z + sp.y * 3 + sp.x * 9);
         uint32_t microKey = subKey * 27u + static_cast<uint32_t>(mp.z + mp.y * 3 + mp.x * 9);
         m_microOcc.insert(microKey);
+        if (Phyxel::Core::isTransparentMaterial(reg.getMaterial(mc->getMaterialName())))
+            m_microTransparent.insert(microKey);
     }
 
 }
@@ -1016,6 +1086,57 @@ bool ChunkRenderManager::microCellSolid(int lx, int ly, int lz, int sx, int sy, 
     if (m_subOcc.find(subKey) != m_subOcc.end()) return true;  // parent subcube fully solid
     uint32_t microKey = subKey * 27u + static_cast<uint32_t>(mz + my * 3 + mx * 9);
     return m_microOcc.find(microKey) != m_microOcc.end();
+}
+
+ChunkRenderManager::NeighborOccupancy ChunkRenderManager::cubeCellClass(int lx, int ly, int lz) const {
+    if (!cubeCellSolid(lx, ly, lz)) return NeighborOccupancy::Empty;
+    const size_t c = static_cast<size_t>(lz + ly * 32 + lx * 1024);
+    const bool tr = c < m_cellTransparent.size() && m_cellTransparent[c] != 0;
+    return tr ? NeighborOccupancy::Transparent : NeighborOccupancy::Opaque;
+}
+
+ChunkRenderManager::NeighborOccupancy ChunkRenderManager::subCellClass(int lx, int ly, int lz,
+                                                                       int sx, int sy, int sz) const {
+    const NeighborOccupancy cube = cubeCellClass(lx, ly, lz);
+    if (cube != NeighborOccupancy::Empty) return cube;          // the parent cube fills the cell
+    const uint32_t cubeIdx = static_cast<uint32_t>(lz + ly * 32 + lx * 1024);
+    const uint32_t subKey  = cubeIdx * 27u + static_cast<uint32_t>(sz + sy * 3 + sx * 9);
+    if (m_subOcc.find(subKey) == m_subOcc.end()) return NeighborOccupancy::Empty;
+    return m_subTransparent.count(subKey) ? NeighborOccupancy::Transparent : NeighborOccupancy::Opaque;
+}
+
+ChunkRenderManager::NeighborOccupancy ChunkRenderManager::microCellClass(int lx, int ly, int lz,
+                                                                         int sx, int sy, int sz,
+                                                                         int mx, int my, int mz) const {
+    const NeighborOccupancy sub = subCellClass(lx, ly, lz, sx, sy, sz);
+    if (sub != NeighborOccupancy::Empty) return sub;            // parent cube or subcube fills it
+    const uint32_t cubeIdx  = static_cast<uint32_t>(lz + ly * 32 + lx * 1024);
+    const uint32_t subKey   = cubeIdx * 27u + static_cast<uint32_t>(sz + sy * 3 + sx * 9);
+    const uint32_t microKey = subKey * 27u + static_cast<uint32_t>(mz + my * 3 + mx * 9);
+    if (m_microOcc.find(microKey) == m_microOcc.end()) return NeighborOccupancy::Empty;
+    return m_microTransparent.count(microKey) ? NeighborOccupancy::Transparent : NeighborOccupancy::Opaque;
+}
+
+bool ChunkRenderManager::fineFaceHidden(int gx, int gy, int gz, int level, bool selfTransparent) const {
+    const int span = (level == 1) ? 96 : 288;
+    NeighborOccupancy n = NeighborOccupancy::Empty;
+    if (gx >= 0 && gx < span && gy >= 0 && gy < span && gz >= 0 && gz < span) {
+        if (level == 1) {
+            n = subCellClass(gx / 3, gy / 3, gz / 3, gx % 3, gy % 3, gz % 3);
+        } else {
+            n = microCellClass(gx / 9, gy / 9, gz / 9, (gx % 9) / 3, (gy % 9) / 3, (gz % 9) / 3,
+                               (gx % 9) % 3, (gy % 9) % 3, (gz % 9) % 3);
+        }
+    }
+    else if (m_fineLookup) {
+        // GlassTransparency.md §5: ask the neighbour chunk, at this level's resolution, the same question the
+        // in-chunk branch asks. Without an answer (no lookup) the face is drawn, never hidden.
+        const glm::ivec3 g(gx, gy, gz);
+        const glm::ivec3 worldMicro = m_lightWorldOrigin * 9 + (level == 1 ? g * 3 : g);
+        n = (*m_fineLookup)(worldMicro, level);
+    }
+    if (n == NeighborOccupancy::Empty) return false;
+    return n == NeighborOccupancy::Opaque || selfTransparent;   // GlassTransparency.md §5
 }
 
 void ChunkRenderManager::rebuildSubcubeFaces(
@@ -1061,13 +1182,10 @@ void ChunkRenderManager::rebuildSubcubeFaces(
             static const int OFX[6] = {0, 0, 1, -1, 0, 0};  // faceID 0=+Z,1=-Z,2=+X,3=-X,4=+Y,5=-Y
             static const int OFY[6] = {0, 0, 0, 0, 1, -1};
             static const int OFZ[6] = {1, -1, 0, 0, 0, 0};
+            const bool selfTr = Phyxel::Core::isTransparentMaterial(
+                Phyxel::Core::MaterialRegistry::instance().getMaterial(subcube->getMaterialName()));
             for (int f = 0; f < 6; ++f) {
-                int nx = gsx + OFX[f], ny = gsy + OFY[f], nz = gsz + OFZ[f];
-                if (nx < 0 || nx >= 96 || ny < 0 || ny >= 96 || nz < 0 || nz >= 96) {
-                    faceVisible[f] = true;  // out of chunk: assume exposed
-                } else {
-                    faceVisible[f] = !subCellSolid(nx / 3, ny / 3, nz / 3, nx % 3, ny % 3, nz % 3);
-                }
+                faceVisible[f] = !fineFaceHidden(gsx + OFX[f], gsy + OFY[f], gsz + OFZ[f], 1, selfTr);
             }
         }
 
@@ -1229,16 +1347,10 @@ void ChunkRenderManager::rebuildMicrocubeFaces(
             static const int OFX[6] = {0, 0, 1, -1, 0, 0};  // faceID 0=+Z,1=-Z,2=+X,3=-X,4=+Y,5=-Y
             static const int OFY[6] = {0, 0, 0, 0, 1, -1};
             static const int OFZ[6] = {1, -1, 0, 0, 0, 0};
+            const bool selfTr = Phyxel::Core::isTransparentMaterial(
+                Phyxel::Core::MaterialRegistry::instance().getMaterial(microcube->getMaterialName()));
             for (int f = 0; f < 6; ++f) {
-                int nx = gmx + OFX[f], ny = gmy + OFY[f], nz = gmz + OFZ[f];
-                if (nx < 0 || nx >= 288 || ny < 0 || ny >= 288 || nz < 0 || nz >= 288) {
-                    faceVisible[f] = true;  // out of chunk: assume exposed
-                } else {
-                    int nlx = nx / 9, nrx = nx % 9, nsx = nrx / 3, nmx = nrx % 3;
-                    int nly = ny / 9, nry = ny % 9, nsy = nry / 3, nmy = nry % 3;
-                    int nlz = nz / 9, nrz = nz % 9, nsz = nrz / 3, nmz = nrz % 3;
-                    faceVisible[f] = !microCellSolid(nlx, nly, nlz, nsx, nsy, nsz, nmx, nmy, nmz);
-                }
+                faceVisible[f] = !fineFaceHidden(gmx + OFX[f], gmy + OFY[f], gmz + OFZ[f], 2, selfTr);
             }
         }
 
@@ -1380,13 +1492,9 @@ void ChunkRenderManager::rebuildMicrocubeFacesMerged(
                 int gmx = pcp.x * 9 + sp.x * 3 + mp.x;
                 int gmy = pcp.y * 9 + sp.y * 3 + mp.y;
                 int gmz = pcp.z * 9 + sp.z * 3 + mp.z;
-                bool exposed = false;
-                for (int f = 0; f < 6 && !exposed; ++f) {
-                    int nx = gmx + FDX[f], ny = gmy + FDY[f], nz = gmz + FDZ[f];
-                    if (nx < 0 || nx >= 288 || ny < 0 || ny >= 288 || nz < 0 || nz >= 288) exposed = true;
-                    else exposed = !microCellSolid(nx/9, ny/9, nz/9, (nx%9)/3, (ny%9)/3, (nz%9)/3,
-                                                   (nx%9)%3, (ny%9)%3, (nz%9)%3);
-                }
+                bool exposed = false;   // a leaf behind glass is exposed (leaves are not transparent)
+                for (int f = 0; f < 6 && !exposed; ++f)
+                    exposed = !fineFaceHidden(gmx + FDX[f], gmy + FDY[f], gmz + FDZ[f], 2, false);
                 if (exposed) {
                     uint8_t skyV = skyLightAt(pcp.x, pcp.y, pcp.z) & 0xF;
                     uint8_t br = 0, bg = 0, bb = 0; blockLightAt(pcp.x, pcp.y, pcp.z, br, bg, bb);
@@ -1448,12 +1556,9 @@ void ChunkRenderManager::rebuildMicrocubeFacesMerged(
                     const Microcube* mc = grid[lx][ly][lz];
                     if (!mc) continue;
                     int gmx = pcx*9 + lx, gmy = pcy*9 + ly, gmz = pcz*9 + lz;
-                    int nx = gmx + FDX[faceID], ny = gmy + FDY[faceID], nz = gmz + FDZ[faceID];
-                    bool vis;
-                    if (nx < 0 || nx >= 288 || ny < 0 || ny >= 288 || nz < 0 || nz >= 288) vis = true;
-                    else vis = !microCellSolid(nx/9, ny/9, nz/9, (nx%9)/3, (ny%9)/3, (nz%9)/3,
-                                               (nx%9)%3, (ny%9)%3, (nz%9)%3);
-                    if (!vis) continue;
+                    const bool selfTr = Phyxel::Core::isTransparentMaterial(reg.getMaterial(mc->getMaterialName()));
+                    if (fineFaceHidden(gmx + FDX[faceID], gmy + FDY[faceID], gmz + FDZ[faceID], 2, selfTr))
+                        continue;
                     mask[u][v] = keyOf(mc, faceID);
                 }
 
@@ -1541,12 +1646,9 @@ void ChunkRenderManager::rebuildSubcubeFacesMerged(
         if (s_foliageEnabled) {
             const auto* md = reg.getMaterial(sc->getMaterialName());
             if (md && md->billboarded) {
-                bool exposed = false;
-                for (int f = 0; f < 6 && !exposed; ++f) {
-                    int nx = gx + FDX[f], ny = gy + FDY[f], nz = gz + FDZ[f];
-                    if (nx < 0 || nx >= G || ny < 0 || ny >= G || nz < 0 || nz >= G) exposed = true;
-                    else exposed = !subCellSolid(nx/3, ny/3, nz/3, nx%3, ny%3, nz%3);
-                }
+                bool exposed = false;   // a leaf behind glass is exposed (leaves are not transparent)
+                for (int f = 0; f < 6 && !exposed; ++f)
+                    exposed = !fineFaceHidden(gx + FDX[f], gy + FDY[f], gz + FDZ[f], 1, false);
                 if (exposed) {
                     uint8_t skyV = skyLightAt(pcp.x, pcp.y, pcp.z) & 0xF;
                     uint8_t br = 0, bg = 0, bb = 0; blockLightAt(pcp.x, pcp.y, pcp.z, br, bg, bb);
@@ -1596,11 +1698,9 @@ void ChunkRenderManager::rebuildSubcubeFacesMerged(
         std::unordered_map<int, std::vector<int>> byDepth;  // depth coord -> indices into `cells`
         for (int ci = 0; ci < static_cast<int>(cells.size()); ++ci) {
             const SC& c = cells[ci];
-            int nx = c.gx + FDX[faceID], ny = c.gy + FDY[faceID], nz = c.gz + FDZ[faceID];
-            bool vis;
-            if (nx < 0 || nx >= G || ny < 0 || ny >= G || nz < 0 || nz >= G) vis = true;
-            else vis = !subCellSolid(nx/3, ny/3, nz/3, nx%3, ny%3, nz%3);
-            if (!vis) continue;
+            const bool selfTr = Phyxel::Core::isTransparentMaterial(reg.getMaterial(c.sc->getMaterialName()));
+            if (fineFaceHidden(c.gx + FDX[faceID], c.gy + FDY[faceID], c.gz + FDZ[faceID], 1, selfTr))
+                continue;
             int depth = (faceID == 0 || faceID == 1) ? c.gz : (faceID == 2 || faceID == 3) ? c.gx : c.gy;
             byDepth[depth].push_back(ci);
         }

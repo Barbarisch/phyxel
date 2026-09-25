@@ -21,6 +21,7 @@ namespace Phyxel {
 namespace Physics {
     class PhysicsWorld;
 }
+class ChunkManager;   // m_owner (GlassTransparency.md §6)
 
 /**
  * Chunk class that manages a 32x32x32 section of cubes
@@ -102,6 +103,38 @@ private:
     // Sealed state (Phase 4.4) — written only by ChunkManager (friend) during seal evaluation.
     bool m_sealed = false;
 
+    uint32_t m_rebuildCount = 0;                   // see rebuildCount()
+
+    // The ChunkManager whose managed rebuild last meshed this chunk (bound there; ChunkManager is a
+    // friend). docs/GlassTransparency.md §6: a rebuild WITHOUT a neighbour lookup then asks
+    // it for a managed re-mesh, so "every edit ends in a managed re-mesh" holds by construction.
+    // nullptr = never managed (a new chunk, or a standalone test chunk): requests nothing.
+    ChunkManager* m_owner = nullptr;
+    // Set with that request; cleared by the managed rebuild. Separate from renderManager's
+    // needsUpdate on purpose: that flag also means "upload the GPU buffer", and the very next
+    // updateVulkanBuffer() (addCubesBatch calls it right after its rebuild) clears it — which
+    // silently cancelled the request, so the dirty pass skipped the chunk (T9g, measured).
+    bool m_managedRemeshRequested = false;
+
+    // Border-class signature ripple (docs/GlassTransparency.md §6). One 64-bit signature per
+    // face (order +X,-X,+Y,-Y,+Z,-Z) over the render classes of that face's border cells.
+    // m_borderSigDelivered = what the facing neighbours were last re-meshed against;
+    // m_borderSigCurrent = the latest rebuild. A face is pending iff the two differ. Comparing with
+    // the DELIVERED value, not the previous rebuild, is load-bearing: removeCube re-meshes at once
+    // with the cell EMPTY, so a stone -> brick swap passes through a transient "empty" rebuild; an
+    // OR-ed "changed since last rebuild" bit rippled on it (T14c, measured). Current == delivered
+    // after the swap, so nothing ripples. The first computation seeds both (no cascade on load).
+    uint64_t m_borderSigDelivered[6] = {0, 0, 0, 0, 0, 0};
+    uint64_t m_borderSigCurrent[6]   = {0, 0, 0, 0, 0, 0};
+    bool     m_borderSigValid = false;
+    uint8_t  m_pendingBorderRipple = 0;
+    void refreshBorderSignature();
+public:
+    /// Pure: the six border-class signatures of the chunk as it is now (GlassTransparency.md §6). Public so its
+    /// COST can be measured against a full rebuild (T16), not because callers need it.
+    void computeBorderSignature(uint64_t out[6]) const;
+private:
+
     // Occlusion visibility graph (Minecraft-style "cave culling"). m_faceConnect[f]
     // is a bitmask of which of the 6 chunk faces sight can reach from face f through
     // non-opaque cells. Faces: 0=X-,1=X+,2=Y-,3=Y+,4=Z-,5=Z+. Recomputed on
@@ -170,6 +203,26 @@ public:
     bool visibleSolidCubeAtIndex(size_t index) const {
         if (index < cubes.size() && cubes[index]) return cubes[index]->isVisible();
         return voxelManager.getVoxelStore().visible(index);
+    }
+    /// RENDER occupancy of a local cube cell: Empty / Opaque / Transparent (docs/GlassTransparency.md
+    /// §5). The neighbour lookup for cross-chunk FACE culling. Built on visibleSolidCubeAtIndex,
+    /// which is deliberately NOT changed: physics must go on treating glass as solid (GlassTransparency.md §5).
+    Graphics::ChunkRenderManager::NeighborOccupancy renderOccupancyAt(const glm::ivec3& localPos) const;
+    /// The same at sub-voxel resolution (GlassTransparency.md §5). localMicro = chunk-local micro coordinate
+    /// (0..287 per axis); level 1 = subcube cell (cube or that subcube), level 2 = microcube cell
+    /// (cube, parent subcube or that microcube) — the precedence of subCellSolid/microCellSolid.
+    Graphics::ChunkRenderManager::NeighborOccupancy renderOccupancyAtFine(const glm::ivec3& localMicro,
+                                                                          int level) const;
+    /// How many times this chunk's mesh state has been recomputed (every rebuildFaces, and the
+    /// uniform air/sealed short-circuits). Monotonic; for tests and the chunk_faces debug route.
+    uint32_t rebuildCount() const { return m_rebuildCount; }
+    /// Faces (bit f, order +X,-X,+Y,-Y,+Z,-Z) whose border render classes changed since they were
+    /// last taken. Consumed by ChunkManager's managed rebuild (GlassTransparency.md §6).
+    uint8_t takePendingBorderRipple() {
+        const uint8_t m = m_pendingBorderRipple;
+        for (int f = 0; f < 6; ++f) m_borderSigDelivered[f] = m_borderSigCurrent[f];
+        m_pendingBorderRipple = 0;
+        return m;
     }
 
     size_t getStaticSubcubeCount() const { return staticSubcubes.size(); }
@@ -309,9 +362,11 @@ public:
     using BakedLight         = Graphics::ChunkRenderManager::BakedLight;
     // columnOpenMask (optional): 32x32 sky-open grid (x*32+z) precomputed by ChunkManager from
     // the chunks above, so the skylight bake skips the slow per-cell roof probe.
+    using NeighborFineLookupFunc = Graphics::ChunkRenderManager::NeighborFineLookupFunc;
     void rebuildFaces(const NeighborLookupFunc& getNeighborCube,
                       const NeighborLightFunc& getNeighborLight = nullptr,
-                      const std::vector<uint8_t>* columnOpenMask = nullptr);
+                      const std::vector<uint8_t>* columnOpenMask = nullptr,
+                      const NeighborFineLookupFunc& getNeighborFine = nullptr);
 
     // Did this chunk's boundary light change on the last rebuild? (drives neighbour re-mesh)
     bool lightBordersChanged() const { return renderManager.lightBordersChanged(); }
@@ -355,6 +410,14 @@ public:
     void setLodFaces(std::vector<InstanceData>&& lodFaces, int level) {
         renderManager.setFacesFromLod(std::move(lodFaces));
         m_lodLevel = level;
+        // Every face-install path must leave the render flags correct (GlassTransparency.md
+        // §1). rebuildFaces() refreshes them; this path did not, so a chunk that only ever
+        // received LOD geometry kept the default `false`. With transparent faces drawn by the OIT
+        // pass ONLY, a wrong hasTransparentVoxel() does not render glass opaque -- it renders it
+        // INVISIBLE (the opaque pass discards it, the OIT pass is skipped for the frame). The flags
+        // are derived from voxel CONTENT, not from the LOD mesh, so recomputing here is exact.
+        // Pinned by ChunkRenderFlagsTest.SetLodFacesLeaves*.
+        recomputeRenderFlags();
     }
 
 private:
@@ -435,6 +498,7 @@ public:
     uint32_t getGrassCount() const { return renderManager.getGrassCount(); }
     VkDeviceSize getGrassBindOffset() const { return renderManager.getGrassBindOffset(); }
     const std::vector<GrassInstanceData>& getGrassInstances() const { return renderManager.getGrassInstances(); }
+    const std::vector<FoliageInstanceData>& getFoliageInstances() const { return renderManager.getFoliageInstances(); }
 
     // Foliage leaf-card layer: parallel per-chunk buffer + instance count.
     VkBuffer getFoliageBuffer() const { return renderManager.getFoliageBuffer(); }

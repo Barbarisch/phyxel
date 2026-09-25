@@ -1503,6 +1503,22 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // GET /api/debug/chunk_faces?cx=&cy=&cz=[&x1=&y1=&z1=&x2=&y2=&z2=]
+    // docs/GlassTransparency.md §7. A chunk's emitted faces expanded to COVERED UNIT FACES at
+    // microcube resolution (graphics/FaceCoverage.h — the same decoder the unit tests use), so the
+    // count does not depend on greedy merging. Optional world-CUBE box: count only faces whose
+    // owning cell lies inside it. Read-only. Echoes the chunk and its rebuild counter so a caller
+    // can tell whether a re-mesh has landed.
+    // ====================================================================
+    srv.Get("/api/debug/chunk_faces", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        for (const char* k : {"cx", "cy", "cz", "x1", "y1", "z1", "x2", "y2", "z2"})
+            if (req.has_param(k)) params[k] = std::stoi(req.get_param_value(k));
+        json result = queueAndWait("chunk_faces", params, 10000);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // ====================================================================
     // GET /api/debug/light_occupancy[?x=&y=&z=] — the lighting rebuild's M1b instrument.
     // No args: pool health (resident chunks / mixed cells / words / DROPPED chunks).
     // With a cell: per-micro agreement between the GPU pool and Chunk::getOccupancyGrid().
@@ -2852,6 +2868,20 @@ void EngineAPIServer::setupRoutes() {
     srv.Get("/api/screen/state", [this](const httplib::Request&, httplib::Response& res) {
         json result = queueAndWait("get_screen_state", json::object());
         res.set_content(result.dump(), "application/json");
+    });
+    // POST /api/screen/action {action:start|pause|resume|menu|settings|inventory}
+    // Semantic control for the built-in GameScreen shell (including ImGui
+    // menus, which are intentionally outside UISystem::injectClick).
+    srv.Post("/api/screen/action", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("screen_action", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
+                            "application/json");
+        }
     });
 
     // POST /api/interaction/can_interact — Read-only compatibility query.
@@ -4624,6 +4654,15 @@ void EngineAPIServer::setupRoutes() {
         json params = json::parse(req.body, nullptr, false);
         if (params.is_discarded()) params = json::object();
         res.set_content(queueAndWait("set_distance_lod", params, 30000).dump(), "application/json");
+    });
+
+    // POST /api/debug/damage_stages — P4 stage-count A/B. Body: { "stages": int }
+    // (empty body = report only). Clamped [1,15]; forces a full re-mesh so the change is
+    // actually visible, and echoes the APPLIED value + chunks re-meshed.
+    srv.Post("/api/debug/damage_stages", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = req.body.empty() ? json::object() : json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_damage_stages", params, 60000).dump(), "application/json");
     });
 
     // POST /api/debug/shadow — shadow draw distance A/B. Body: { "distance": float }

@@ -107,7 +107,9 @@
   from push constants to an SSBO indexed by `gl_DrawID` (needs `shaderDrawParameters`) —
   static_voxel.vert reads origins[drawID] instead of pc.chunkBaseOffset/Abs.
 - Shadow pass stays per-chunk 36-index initially (both-windings constraint); OIT/mirror
-  keep 36-index too. Main pass first.
+  keep 36-index too. Main pass first. *(Update 2026-09-23: the OIT pass now draws 6-index quads.
+  Under cull-mode NONE the 36-index cube draw composited every glass face twice; see
+  `GlassTransparency.md` §1.)*
 - This is also the on-ramp for GPU-driven culling (survey §E: two-phase Hi-Z writing
   drawIndexedIndirectCount) — not in 4.3 scope.
 

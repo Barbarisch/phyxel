@@ -13,6 +13,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "Application.h"
 #include <cmath>
 #include "graphics/FarTerrainManager.h"
+#include "graphics/FaceCoverage.h"         // chunk_faces debug route (docs/GlassTransparency.md §7)
 #include "graphics/GrassRenderPipeline.h"   // s_castShadows A/B toggle
 #include "graphics/ChunkUpdatePerf.h"   // B0 chunk-update sub-cost timers (docs/ChunkUpdateHitchPlan.md)
 #include "graphics/DeferredBufferReclaim.h"  // B1 deferred buffer free (docs/ChunkUpdateHitchPlan.md)
@@ -29,6 +30,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "core/MeleeAnimMapper.h"
 #include "core/RpgItem.h"
 #include "core/DamageSystem.h"
+#include "core/DamageStage.h"
 #include "utils/GpuProfiler.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "scene/AnimatedVoxelCharacter.h"
@@ -707,15 +709,79 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         return {{"count", static_cast<int>(arr.size())}, {"boxes", arr}};
     });
 
+    // Per-voxel damage, as numbers. Same argument as the baked-light query below: until now
+    // `apply_damage` returned counts of EVENTS (broken/grazed) and never the resulting STATE,
+    // so "is this voxel damaged, and how close to breaking?" could only be answered by
+    // photographing a surface and guessing (docs/VoxelDamageVisualization.md §6).
     apiServer->setVoxelQueryHandler([this](int x, int y, int z) -> nlohmann::json {
         nlohmann::json result;
         result["position"] = {{"x", x}, {"y", y}, {"z", z}};
-        if (chunkManager) {
-            auto* cube = chunkManager->getCubeAt(glm::ivec3(x, y, z));
-            result["exists"] = (cube != nullptr);
-        } else {
+        if (!chunkManager) {
             result["exists"] = false;
+            return result;
         }
+
+        const glm::ivec3 wp(x, y, z);
+        auto* cube = chunkManager->getCubeAt(wp);
+
+        if (!cube) {
+            // No full cube here. Either a SUBDIVIDED cell (subcubes/microcubes -- which is
+            // every generated building wall) or genuinely air. getCubeAt returns null for
+            // both, so hasVoxelAt separates them. NOTE: `exists` previously reported a solid
+            // subcube wall as false, which is wrong -- there is matter there. Corrected here;
+            // nothing pinned the old value.
+            const bool subVoxel = chunkManager->hasVoxelAt(wp);
+            result["exists"] = subVoxel;
+            if (subVoxel) {
+                // Not pristine -- damage is simply not TRACKED at this resolution, because
+                // accumulation is cube-only by design (3.6). Reporting damage01 = 0 would be
+                // a lie, and exactly the lie that lets someone demo cracks on a building, see
+                // nothing, and blame the shader. V1 scope boundary, reported not hidden.
+                result["damage_tracked"] = false;
+            }
+            // Air omits the damage fields entirely rather than reporting 0, so "pristine" and
+            // "not there" can never be confused by a caller.
+            return result;
+        }
+
+        result["exists"] = true;
+        result["damage_tracked"] = true;
+
+        const std::string& material = cube->getMaterialName();
+        result["material"] = material;   // needed to interpret the values below
+
+        // responseFor is static -- it reads only MaterialRegistry, never world state.
+        const float toughness = Phyxel::DamageSystem::responseFor(material).toughness;
+        const float energy    = cube->getAccumulatedDamage();
+
+        // Units named at the field, and the DENOMINATOR echoed, so a caller can reproduce
+        // damage01 and catch a normalization change without reading engine source.
+        result["damage_energy"] = energy;            // apply_damage `energy` units
+        result["toughness"]     = toughness;         // same units; energy needed to break
+        result["damage01"]      = (toughness > 0.0f) // fraction of break toughness, [0,1]
+                                    ? std::min(1.0f, std::max(0.0f, energy / toughness))
+                                    : 0.0f;
+        // The stage the SHADER actually receives, not a re-derivation: a test asserting only
+        // on damage01 could pass while the rendered surface showed something else. Resolved
+        // through the SAME entry point the mesher uses, so the two cannot disagree.
+        // Since P1 (3.2) this is normalized by the material's own toughness, so damage_stage
+        // and damage01 now move together for every material -- a caller can check
+        // damage_stage ~= round(damage01 * stageMax) and catch a normalization regression.
+        // 0..damage_stages_max: pristine plus each visible stage. This is the SEMANTIC stage.
+        // `damage_stage_bits` is the same thing spread across the 4-bit instance field that
+        // voxel.frag actually samples -- both are echoed so a caller can assert on the stage it
+        // reasons about AND on the value the shader receives, without having to know the packing.
+        //
+        // BOTH report the RUNTIME stage count, not the compiled default. damage_stage already
+        // resolved it (displayStage defaults to the runtime value); reporting the constexpr
+        // beside it would mean that during a P4 A/B at 3 stages this said "stage 2 of 7" -- the
+        // numerator measured on one scale and the denominator on another, which is worse than
+        // either alone because it looks self-consistent.
+        result["damage_stage"]      = static_cast<int>(
+            Phyxel::DamageSystem::displayStage(material, energy));
+        result["damage_stages_max"] = Phyxel::Core::damageStagesVisible();
+        result["damage_stage_bits"] = static_cast<int>(
+            Phyxel::DamageSystem::displayStageBits(material, energy));
         return result;
     });
 
@@ -14488,8 +14554,12 @@ void Application::registerEffectsCommands() {
             dmg.setFragmentManager(&coherentFragmentManager);
         }
         auto dmgResult = dmg.applyDamage(center, radius, energy, type, dir, supportY, collapse, coherent, radii);
+        // stage_changed: grazed voxels whose damage crossed a VISIBLE stage boundary. Echoed
+        // so a caller can assert a pure graze actually moved something -- `grazed` alone says
+        // only that a hit landed, never that the surface now looks different (3.7).
         r = {{"success", true}, {"broken", dmgResult.voxelsBroken},
              {"grazed", dmgResult.voxelsGrazed}, {"debris", dmgResult.debrisSpawned},
+             {"stage_changed", dmgResult.voxelsStageChanged},
              {"coherent_bodies", coherentFragmentManager.count()}};
     });
 
@@ -14667,6 +14737,53 @@ void Application::registerEffectsCommands() {
         r["enabled"] = renderCoordinator->getSkyEnabled();
     });
 
+    // docs/GlassTransparency.md §7 — covered unit faces of one chunk (see the route comment in
+    // EngineAPIServer.cpp). Units: microcube-sized squares; a full cube face = 81.
+    reg.on("chunk_faces", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!chunkManager) { r = {{"error", "no chunk manager"}}; return; }
+        const glm::ivec3 cc(cmd.params.value("cx", 0), cmd.params.value("cy", 0), cmd.params.value("cz", 0));
+        Chunk* c = chunkManager->getChunkAtCoord(cc);
+        if (!c) { r = {{"error", "chunk not loaded"}, {"chunk", {cc.x, cc.y, cc.z}}}; return; }
+        const bool boxed = cmd.params.contains("x1") && cmd.params.contains("x2") &&
+                           cmd.params.contains("y1") && cmd.params.contains("y2") &&
+                           cmd.params.contains("z1") && cmd.params.contains("z2");
+        const glm::ivec3 lo = boxed ? glm::ivec3(std::min(cmd.params["x1"].get<int>(), cmd.params["x2"].get<int>()),
+                                                 std::min(cmd.params["y1"].get<int>(), cmd.params["y2"].get<int>()),
+                                                 std::min(cmd.params["z1"].get<int>(), cmd.params["z2"].get<int>()))
+                                    : glm::ivec3(0);
+        const glm::ivec3 hi = boxed ? glm::ivec3(std::max(cmd.params["x1"].get<int>(), cmd.params["x2"].get<int>()),
+                                                 std::max(cmd.params["y1"].get<int>(), cmd.params["y2"].get<int>()),
+                                                 std::max(cmd.params["z1"].get<int>(), cmd.params["z2"].get<int>()))
+                                    : glm::ivec3(0);
+        const glm::ivec3 originMicro = c->getWorldOrigin() * 9;
+        int64_t byDir[2][6] = {};   // [opaque, transparent][faceID]
+        int64_t total = 0;
+        for (const auto& u : Graphics::expandCoveredUnitFaces(c->getFaces())) {
+            if (boxed) {
+                const glm::ivec3 w = originMicro + glm::ivec3(u.x, u.y, u.z);
+                const glm::ivec3 cell(static_cast<int>(std::floor(w.x / 9.0)),
+                                      static_cast<int>(std::floor(w.y / 9.0)),
+                                      static_cast<int>(std::floor(w.z / 9.0)));
+                if (cell.x < lo.x || cell.x > hi.x || cell.y < lo.y || cell.y > hi.y ||
+                    cell.z < lo.z || cell.z > hi.z) continue;
+            }
+            ++byDir[u.transparent ? 1 : 0][u.faceID];
+            ++total;
+        }
+        auto dirs = [&](int cls) {
+            return nlohmann::json{{"+Z", byDir[cls][0]}, {"-Z", byDir[cls][1]}, {"+X", byDir[cls][2]},
+                                  {"-X", byDir[cls][3]}, {"+Y", byDir[cls][4]}, {"-Y", byDir[cls][5]}};
+        };
+        r = {{"chunk", {cc.x, cc.y, cc.z}},
+             {"rebuilds", c->rebuildCount()},
+             {"quads", static_cast<int64_t>(c->getFaces().size())},
+             {"covered_unit_faces", total},
+             {"covered_cube_faces", static_cast<double>(total) / 81.0},
+             {"opaque", dirs(0)},
+             {"transparent", dirs(1)}};
+        if (boxed) r["box"] = {{"min", {lo.x, lo.y, lo.z}}, {"max", {hi.x, hi.y, hi.z}}};
+    });
+
     // Fine (sub/microcube) greedy-merge toggle — live A/B for docs/BinaryGreedyMeshingPlan.md.
     // Re-meshes all chunks so the change takes effect immediately (same as smooth_lighting).
     reg.on("set_fine_merge", [this](const Core::APICommand& cmd, nlohmann::json& r) {
@@ -14811,6 +14928,37 @@ void Application::registerEffectsCommands() {
     });
 
     // Shadow draw distance A/B knob (WRv2 §7d): reach vs texel density vs draw count.
+    // DAMAGE STAGE COUNT (docs/VoxelDamageVisualization.md §2). Lets 3 / 7 / 15 be
+    // compared in ONE session against ONE scene; three separate builds cannot hold the scene
+    // fixed, and the legibility half of the A/B needs the same frame.
+    reg.on("set_damage_stages", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        int applied = Core::damageStagesVisible();
+        int remeshed = 0;
+        if (cmd.params.contains("stages")) {
+            // CLAMPED to [1, kDamageStageMax]. Above kDamageStageMax the quantized value
+            // overflows instance bits 11-14 into bit 15, the `varied` texture-rotation flag,
+            // which silently hash-rotates the face texture -- on coursed materials that breaks
+            // pattern continuity at voxel edges. The clamp lives in setDamageStagesVisible.
+            applied = Core::setDamageStagesVisible(cmd.params["stages"].get<int>());
+            // The count is baked into the merge key AND the instance word, so a change is only
+            // visible after every loaded chunk is re-meshed. Without this the knob appears to
+            // do nothing until something else happens to dirty a chunk.
+            if (chunkManager) {
+                for (size_t i = 0; i < chunkManager->chunks.size(); ++i) {
+                    chunkManager->markChunkForRemesh(chunkManager->chunks[i].get());
+                    ++remeshed;
+                }
+                chunkManager->updateDirtyChunks();
+            }
+        }
+        // Echo what was APPLIED (not what was asked) plus the rebuild count, so a caller can
+        // assert the knob took effect rather than trusting a stale binary.
+        r = {{"success", true},
+             {"stages", applied},
+             {"stages_max", Core::kDamageStageMax},
+             {"chunks_remeshed", remeshed}};
+    });
+
     reg.on("set_shadow", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (cmd.params.contains("distance"))
             Graphics::RenderCoordinator::s_shadowDistance =
@@ -14857,6 +15005,13 @@ void Application::registerEffectsCommands() {
         //   7 = SKY FILL    — hemispheric ambient term
         // ⚑This used to collapse every non-zero value to 1 (`!= 0 ? 1 : 0`), so mode 2 silently
         //  selected the shadow view — the request appeared to work and showed the wrong thing.
+        //   19 = CRACK FIELD — the raw fracture field, greyscale, albedo/lighting/wear all
+        //        stripped (black = intact, white = open crack). Shown at FULL strength on every
+        //        voxel including pristine ones, so the PATTERN can be judged independently of
+        //        damage state. Exists because the field is not measurable through a shaded
+        //        frame: six pixel statistics failed to detect a chunk-seeded crack, since a
+        //        pattern restart does not change brightness and the stone albedo swamps
+        //        structure (docs/VoxelDamageVisualization.md §6).
         //   10 = WIND FIELD MAP — terrain painted by the gust field itself (white calm -> red ->
         //       black at peak; grass blades hide so the map is unobstructed). The per-pixel
         //       ground view of the field's SHAPE: mode 2's per-blade colouring could never show
@@ -14869,8 +15024,16 @@ void Application::registerEffectsCommands() {
             // ⚠️ RAISE THIS UPPER BOUND WHENEVER A MODE IS ADDED. Forgetting silently clamps the
             // new mode to the previous one, so the view "works" while showing the wrong system —
             // that has already cost a debugging session once. 8 = occupancy hit, 9 = cell fill
-            // class, 10 = wind field map.
-            vulkanDevice->setDebugShadowMode(std::clamp(cmd.params["mode"].get<int>(), 0, 11));
+            // class, 10 = wind field map, 11-18 = G-18 perf probes, 19 = crack field.
+            // (It cost one again on 2026-09-22: mode 11 was added to the shader and this bound
+            // was left at 10, so the new view silently rendered the wind map. The warning above
+            // was already there and was still walked into -- which is an argument for the bound
+            // being derived rather than hand-maintained.)
+            // 0..19: 11-18 are main's G-18 perf probes (flat grey, albedo-only, shadow/ambient
+            // isolation, light-march count), 19 = crack field. The clamp stopped at 11 on BOTH
+            // sides of the 2026-09-23 merge, which made 12-18 unreachable from the editor and let
+            // main's mode-11 probe shadow the crack view -- see voxel.frag.
+            vulkanDevice->setDebugShadowMode(std::clamp(cmd.params["mode"].get<int>(), 0, 19));
         r = {{"success", true},
              {"distance", Graphics::RenderCoordinator::s_shadowDistance},
              {"near_enabled", Graphics::RenderCoordinator::s_nearShadowEnabled},

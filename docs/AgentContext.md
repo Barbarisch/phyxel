@@ -146,44 +146,28 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
-- **▶ VOXEL DAMAGE VISUALIZATION (progressive cracks, P4) — PLANNED, NOT BUILT (2026-09-22).**
-  Plan: **[`docs/VoxelDamageVisualization.md`](VoxelDamageVisualization.md)** (supersedes
-  `DestructionSystemV2.md` §5(F)). Damaged-but-unbroken voxels should show a fracture network that
-  telegraphs *how close to breaking* and *which shatter tier is coming* (keyed to the existing
-  per-material `brittleS1`/`brittleS2`). **Nothing implemented — no code touched.**
-  **The cube pipeline is already ~70% wired**: `Cube::accumulatedDamage` accumulates
-  (`DamageSystem.cpp:183-189`), the mesher quantizes it (`ChunkRenderManager.cpp:370-374`) and packs
-  it into instance `reserved` bits 11-14 (`:741-744`, `:867`), and `voxel.frag:283-286` reads it —
-  but only as a whole-face darken+roughen, which is why damage currently reads as *dirt*. The merge
-  key already folds damage in, so damaged voxels never merge with pristine.
-  **Design-check gate run THREE times; 11 items found and resolved in the plan.** Four that a fresh
-  session must not re-derive:
-  1. **V1 is FULL-CUBE ONLY — generated buildings cannot crack.** Sub/micro instance paths write no
-     damage bits (`ChunkRenderManager.cpp:1062-1064`, `:1222-1224`) and every generated wall is
-     sub-cube (`StructureRealizer.cpp:163-165`: exterior 0.333 = 1 subcube, interior 0.222 = 2
-     micros). Root cause is deeper than wiring — accumulation is cube-only *by design*
-     (`DamageSystem.cpp:182`), so there is no sub-voxel damage state to plumb. Declared as a scope
-     boundary; V2 fixes it. **Do not demo this on a building.**
-  2. **The graze path never re-meshes.** The flush is gated on breaks —
-     `if (res.voxelsBroken > 0) updateDirtyChunks();` (`DamageSystem.cpp:304-306`) — and the graze
-     branch `continue`s at `:186-189` before any `markChunkDirty`. A pure-graze blast records damage
-     and never rebuilds. **Masked** whenever the same blast breaks anything, which is why it survived
-     this long. P0 fix + its own red test (R5).
-  3. **Cracks are STATIC CHUNK FACES ONLY, structurally.** `kinematic_voxel.vert:126` and
-     `dynamic_voxel.vert:267-268` hardcode `flags = 0u` *and* zero `vChunkBaseAbs/Rel`, and neither
-     instance struct has a flags field. Debris and furniture are excluded by two independent
-     mechanisms — not reversible by setting a flag.
-  4. **`kDamageRef = 30.0f` is a shipped defect** (`ChunkRenderManager.cpp:370-374`): damage display
-     saturates at a flat 30 energy regardless of material, so the same visual stage means 13.6% of
-     the way to breaking on Steel and 85.7% on Glass — a **6.3× spread**, and Stone is visually
-     silent for its last 73%. Fix = normalize by `responseFor(mat).toughness`.
-  **Two cross-cutting facts worth remembering beyond this feature:** `tests/CMakeLists.txt:23` links
-  `phyxel_core` ONLY, so **no unit test can reach the editor-hosted HTTP API** (`apply_damage`,
-  `setVoxelQueryHandler` live in `editor/src/Application.cpp`) — API asserts must be integration/L4;
-  and a **Flat world's surface is y=16** (`WorldGenerator.cpp:941`, `kSeaLevelY`), so any test rig
-  built below that is buried in solid ground and renders nothing.
-  **NEXT: P0** = API readback (`damage_stage`/`damage01`/`damage_tracked` on `/api/world/voxel`)
-  + the graze re-mesh fix + reds R1a/R1b/R5. Plan §7 has the full phase table and gates.
+- **✓ VOXEL CRACKS + GLASS TRANSPARENCY — SHIPPED on `main` (2026-09-24), reviewer-signed-off.**
+  Two current-state references, **read them instead of re-deriving**:
+  **[`docs/VoxelDamageVisualization.md`](VoxelDamageVisualization.md)** (damage → 7 stages
+  normalized by material toughness → world-seeded Voronoi cracks in `shaders/crack.glsl`; debug view
+  **mode 19**; `crackStyle` per material) and **[`docs/GlassTransparency.md`](GlassTransparency.md)**
+  (transparent = `Core::isTransparentMaterial`, alpha < 0.99, Glass only; WBOIT pass; no shadow;
+  frosted cracks; **opaque faces behind glass are drawn**; the chunk-border ripple that keeps every
+  edit route's borders correct). The full plan and build logs are in git at `f109fd64`.
+  Traps a fresh session must not re-derive:
+  1. **Cracks are full-cube only.** Sub/micro faces carry no damage bits, and every generated wall is
+     sub-voxel, so generated buildings don't crack (V2, costed in the damage doc §9). Kinematic
+     and debris voxels can never crack (`flags = 0` and a zeroed seed on those vertex paths).
+  2. **Judge crack PATTERN in debug mode 19**, never in a shaded frame. Seven pixel statistics
+     failed to see a chunk-seeded crack.
+  3. **Glass changes need the reviewer's visual confirmation** before they are called done, and T
+     (`tools/glass_transmission.py`) must be re-measured after any alpha/texture/OIT change.
+  4. **Any edit route must end in a re-mesh of the edited chunk.** The border ripple then fixes the
+     neighbour; `ChunkTransparentCullingTest` T8/T9 pin it.
+  **Two cross-cutting facts:** `tests/CMakeLists.txt` links `phyxel_core` ONLY, so **no unit test
+  can reach the editor-hosted HTTP API** (`apply_damage`, `/api/world/voxel` live in
+  `editor/src/Application.cpp`); API assertions must be L4 rigs. And a **Flat world's surface is
+  y=16** (`kSeaLevelY`), so a rig built below it is buried and renders nothing.
 
 
 - **★ BESTIARY FORGE II — FULL SRD COVERAGE (336/336 bound), W1 SHIPPED 2026-08-22.**
@@ -1419,8 +1403,10 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     from sub-occupancy — no cell-count change). **Uniform-span mist** (decouple emission from
     per-cell live flow to remove the slight side-bias). None are blockers.
 - **Render perf:** 18 → 235 FPS via removing two per-frame brute-force loops (mirror-voxel
-  scan cache + `getPerformanceStats` O(1)). Open ideas: skip OIT pass when no transparent
-  voxels, 36→6 index cube draw, backface cull (winding is fragile — see render docs).
+  scan cache + `getPerformanceStats` O(1)). Since done: the OIT pass is skipped when no visible
+  chunk holds transparent voxels, and the opaque and OIT passes draw 6-index quads (the shadow pass
+  stays 36-index, see `RenderDensityPlan.md`). Still open: backface cull (winding is fragile, see
+  the render docs).
 - **Performance program — toward "100s of characters + rich worlds" (2026-06-15):** the
   emphasis is performance-as-a-design-constraint. Standing instrumentation = the per-pass
   endpoints (`/api/debug/frame_profile`, `gpu_scopes`, `engine_timing`); grade features

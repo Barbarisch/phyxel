@@ -3,6 +3,114 @@
 Standing log of engine limitations hit during content/tool work. Each entry: what was needed,
 what the engine did instead, the workaround used, and what a real fix looks like.
 
+## 2026-09-22 — ~~`build_shaders.bat` alone does NOT change what the engine renders~~ **RETRACTED, THIS ENTRY WAS WRONG**
+
+> ⚠️ **RETRACTED the same day, by direct experiment.** The engine renders `shaders/*.spv` from
+> the repo root, and **`build_shaders.bat` alone IS sufficient**. Proven by making debug view 11
+> output pure red, running `build_shaders.bat` ONLY (no CMake build, `shaders/` 20:43 vs
+> `build/shaders/` 20:33), restarting, and capturing: the wall rendered red. The engine is
+> launched with `cwd=PROJECT_ROOT` (`phyxel_mcp_server.py`) and loads the relative path
+> `shaders/….spv` (`RenderPipeline.cpp`), so the `build/shaders/` copy is for the test/E2E
+> targets, not the editor.
+>
+> **What actually happened, and the lesson:** two frames that should have differed came back
+> identical, and I reached for a stale-copy explanation that fit the timestamps without testing
+> it. The timestamps were real and irrelevant. The correct move was the one taken later — a
+> single unmistakable probe (paint it red) that distinguishes "shader loaded" from every other
+> hypothesis in one capture. **An explanation that fits the evidence is not the same as an
+> explanation that was tested**, and this entry is left in place, struck through, as the record
+> of getting that wrong rather than quietly deleted.
+
+The original entry follows, for the record:
+
+
+
+- **What happened:** editing a shader, running `build_shaders.bat`, and restarting the engine
+  left the renderer showing the OLD shader. A deliberately broken `voxel.frag` produced a frame
+  **identical to the correct one** (mean pixel difference 0.18/255 over the measured surface),
+  which read as "the change had no visual effect" and invalidated several measurements before the
+  cause was found.
+- **Why:** `build_shaders.bat` writes `shaders/*.spv`. The engine loads `build/shaders/*.spv`,
+  which is refreshed **only by a CMake build** ("Copying shaders to build directory"). Timestamps
+  made it obvious once looked at: `shaders/voxel.frag.spv` 20:02, `build/shaders/voxel.frag.spv`
+  16:14 — nearly four hours stale.
+- **Why it is dangerous rather than merely annoying:** it is silent and it looks like a *result*.
+  Every guard in the repo passes — the source is right, the `.spv` next to it is right,
+  `shader_manifest.py --check` is green — and the frame is still wrong. It is the same shape as
+  the stale-committed-`.spv` bug fixed earlier the same day, one layer further down, and it
+  defeats the obvious sanity check ("I rebuilt the shader and restarted").
+- **Workaround:** after `build_shaders.bat`, run a build (`build_project`) before relaunching, or
+  compare `shaders/*.spv` against `build/shaders/*.spv` — `cmp -s` is enough.
+- **Real fix (not done):** either have `build_shaders.bat` copy to `build/shaders/` itself, or
+  have the engine load from `shaders/` with `build/shaders/` as fallback, or have startup warn
+  when the two differ. Any of the three removes a whole class of "my shader change did nothing".
+  **`CLAUDE.md` documents the workflow as "`.\build_shaders.bat` — rebuilds every shader" with no
+  mention of the copy**, so the documented workflow is itself the trap.
+- **Status:** OPEN, logged 2026-09-22 while building the §6.2 seam test.
+
+## 2026-09-22 — `build_shaders.bat` reports SUCCESS on a failed shader compile, and the manifest guard then passes
+
+- **What happened:** editing `voxel.frag` (adding `#include "crack.glsl"`) produced a genuine GLSL
+  compile error — `ERROR: shaders/crack.glsl:90: 'worldFaceUV' : no matching overloaded function
+  found` — and `glslc` generated no SPIR-V. **`build_shaders.bat` nonetheless printed
+  `All shaders compiled successfully!` and exited 0.** Running `tools/shader_manifest.py --check`
+  immediately afterwards reported `OK -- 82 built shaders, all .spv current with their sources`.
+  The stale `shaders/voxel.frag.spv` from hours earlier was still on disk and still being loaded.
+- **Why the guard did not catch it:** `build_shaders.bat` **re-records the manifest at the end of
+  its own run**, so the manifest hashes the current sources against whatever `.spv` files happen to
+  exist — including a stale one. `--check` then compares that freshly-written manifest to itself
+  and passes. The guard validates the manifest, not the build.
+- **How it was actually caught:** by hand, comparing `voxel.frag.spv`'s mtime (11:54) against the
+  time of the edit. Nothing automated flagged it.
+- **Why this matters more than a normal build bug:** `shaders/*.spv` are **committed artifacts** and
+  glslc does not track `#include` deps. The failure mode is the repo's own worst incident — commit
+  the `.glsl` with a stale `.spv`, the author's machine renders correctly because nothing rebuilt,
+  every other checkout renders the OLD shader, and CI is green. That is exactly how the transposed-
+  AgX fix (`20341333`) shipped a pink world to everyone but the author for five days. This is that
+  incident's failure mode **plus** a case where the source does not even compile and nothing says so.
+- **Workaround used:** check the `.spv` mtime by hand after every shader edit, and grep the batch
+  output for `ERROR` (the errors ARE printed — they are simply not acted on).
+- **Real fix — ONE change, not two (revised 2026-09-22).** This was first written up as two fixes;
+  they collapse:
+  **`build_shaders.bat` must propagate `glslc`'s exit code — fail the run, suppress the success
+  banner, and CRITICALLY do not re-record the manifest — if any invocation returns non-zero.**
+  Recording only on a fully successful run is what restores `--check`: a failed build then leaves
+  the OLD manifest against NEW sources, so `--check` reddens on its own with no new mode and no
+  mtime comparison. The second fix originally proposed (`--verify-fresh`) is unnecessary once the
+  manifest stops being written over a failure.
+  (Beware the known `.bat` trap: unescaped parens in an `echo` inside a block silently kill the
+  block.)
+- **Status: FIXED 2026-09-22**, and it took three cmd traps, each of which masked the next:
+  1. **`if %errorlevel%` inside a block is expanded at PARSE time.** Every check inside the big
+     `if defined USE_GLSLC ( ... )` block (lines 36-342, which contains `voxel.frag`) tested ONE
+     stale value captured before any shader compiled. 95 compile sites affected.
+  2. **`setlocal enabledelayedexpansion` + `!errorlevel!` fixes trap 1 and introduces its own:**
+     with `setlocal` active, `exit /b` triggers an implicit `endlocal` that RESTORES the previous
+     errorlevel, so the script halts correctly and still returns 0. Working around that with
+     `endlocal & exit /b 1` stops the exit firing at all.
+  3. **`exit /b 1` inside a `||` block NESTED inside the `if defined` block halts the script but
+     returns 0.** Verified with a minimal repro: it propagates at one level of nesting and is
+     swallowed at two.
+
+  **Shipped shape:** every compile is `%GLSLANG% ... || goto :shader_error`, with the ONLY
+  `exit /b 1` at a top-level `:shader_error` label. The manifest half needed no separate fix —
+  once failures actually exit, `--update` is never reached over a failed build, so `--check`
+  compares the OLD manifest against NEW sources and reddens by itself.
+
+  **Also fixed:** `pause` on the error path hung any non-interactive caller. Now skipped when
+  `SHADERS_NONINTERACTIVE=1`.
+
+  **Regression test:** `tools/test_shader_build_fails_loudly.py` — breaks `crack.glsl` (an
+  `#include`, i.e. exactly the dependency glslc does not track), asserts the build exits
+  non-zero and prints no success banner, asserts a clean build still exits 0, and restores the
+  tree either way. It asserts the OUTCOME, not the mechanism, so a future rewrite of the script
+  in any style still has to satisfy it.
+
+  ⚠️ **Measurement footgun found while fixing this:** PowerShell's `$LASTEXITCODE` after
+  `cmd /c ".\build_shaders.bat"` reported 0 for a run that genuinely returned 1, and
+  `cmd /c "... & echo %errorlevel%"` has the same parse-time expansion bug as the script itself.
+  Both made a working fix look broken. Check batch exit codes from bash (`cmd //c ".\x.bat"; echo $?`).
+
 ## 2026-07-05 — asset editor crashes after ~9 hot-reloads (exit 3, silent)
 
 - **What happened:** driving the archetype visual survey via `POST /api/asset-editor/reload`
@@ -648,3 +756,167 @@ solid fallback can never be mistaken for a working tower.
 STILL OWED: the tower's door is not connected to the wall-walk or the street door-to-door (you
 can enter from outside, but the parapet walk above the curtain has no stair); no floors/ladder
 in the tower_house yet (that typology's battlements flag is still unconsumed).
+
+---
+
+## 2026-08-28 — FUNCTIONAL-WIRING AUDIT (the "is it a voxel blob?" sweep)
+
+User question after the tower defect: *"what else in the 'forge' systems are you making things
+that are really just voxel blobs and dont actually serve the function for which they exist?"*
+
+The tower's failure mode generalizes, and naming it is the point of this section: **the
+validation ladder (L1 exists -> L2 structural invariant -> L3 agent traversal -> L4 live) has no
+rung that asserts an emitted object is REGISTERED with the engine system that makes it function.**
+`place_doors` scores "L3 ok" in the ValidationLedger while nothing in the world can open a door,
+because L3 measures whether the character box fits through the hole. Proposal: a fifth axis
+**W (wired)** — after a build, query the owning manager and assert the object is in it.
+
+### Measured this session
+
+* **Town-wall GATES — FUNCTIONAL, now proven** (`TownWallPassageTest`, 6 tests, all green). An
+  agent walks from outside the circuit through all four gates, with a sealed-gate control on
+  every side and a squat-lintel control. `gateClearCubes` moved into `TownWallSpec` so the plan
+  and the stamper share one number and the test measures the opening really built.
+* **Corner tower entered FROM THE TOWN — FUNCTIONAL, now proven**
+  (`TheCornerTowerIsEnteredFromInsideTheTown`). `TowerForgeTest` proved the climb in an empty box
+  and `TownWallTest` proved the circuit closes; neither saw the seam between them, which is
+  exactly where a tower doorway could open into the curtain it stands on. The composed walk
+  (town ground -> doorway -> top chamber) passes at the live `tower_size: 9`.
+* **Wall-walk — GEOMETRY-ONLY, measured** (`AuditTheWallWalkIsCurrentlyUnreachable`). There IS
+  standing room on the inner course, and no agent can reach it: no stair, no ramp, no tower door
+  at walk level. The crenellations are decoration on an unreachable surface. The test asserts the
+  defect today and says to flip it to EXPECT_TRUE when access ships.
+
+### Found by audit, NOT yet fixed (each verified at the cited call site)
+
+> **The work queue for all of these lives in
+> [`docs/FunctionalWiringBacklog.md`](FunctionalWiringBacklog.md)** — ordered by
+> unlocks-per-effort, each stated as a W-test you can write red first. This section stays the
+> evidence record; that doc is the plan.
+
+1. **Generator furniture has NO interaction points.** `PlacedObjectManager::placeTemplateMicro`
+   (PlacedObjectManager.cpp:700-741) never populates `obj.interactionPoints` and never records
+   `metadata["kinematic_part_ids"]`; the sibling `placeTemplate` does both (:681, :687). Every
+   interior fixture and yard prop goes through the micro path. Consequences: `find_fitting_seat`
+   and `sit_character` find **zero seats in a freshly built settlement**, and a chest lid cannot
+   even animate. It half-heals on DB reload via `recomputeAllInteractionPoints`, but that reads
+   `obj.position` (the FLOORED cube) not `obj.microAnchor`, so restored points sit up to ~0.89 m
+   off. Separately `chair.voxel` carries no `# interaction_point:` line at all, and
+   `tools/regen_furniture.py` writes seat anchors only into the `.metrics.json` sidecar —
+   re-running it would delete the six remaining seat points in the library.
+2. **No generated door is a door.** `registerDoor` has no call site in generation (only
+   DoorManager.cpp itself and the MCP handler in editor/src/Application.cpp). Openings are carved
+   to air and framed; no leaf is placed, though `door_wood.voxel` and its siblings are fully
+   authored with handle interaction points. Same for wall gates and fence gates —
+   `gate_timber.voxel` is an orphaned asset with zero references in engine/.
+3. **Windows: about half are permanently solid.** Open/closed is a fixed per-opening hash
+   (StructureRealizer.cpp:353-357) and the closed leaf is painted into the STATIC micro canvas
+   (:371-373, :396-398) — masonry, not a shutter: no kinematic part, no manager, can never open.
+   No typology declares `glass` yet, so "you can see through it" is false in practice. (The
+   mechanism works: a program that sets a window's `infill: "glass"` builds a see-through 1-micro
+   pane, verified 2026-09-24, `GlassTransparency.md` §8.)
+4. **No scheduled NPC ever enters a generated interior.** Every location anchor is deliberately
+   pinned two cells OUTSIDE the wall (StructureRealizer.cpp:120-131) because the NavGraph cannot
+   route exterior->interior (StructureBuildService.cpp:137-143, "measured: 12x no_route"). The
+   seats, hearths, beds and tableware are in rooms nobody visits. **This is the single largest
+   geometry-only surface in the pipeline** and it was not previously logged here.
+5. **`tower_house` gets ZERO residents.** It is the only room_program.json typology that falls
+   through `locationTypeForTypology` to `LocationType::Custom` (StructureRealizer.cpp:70-79), and
+   ResidentPlanner.cpp:35-37 skips anything that is not Home/Work/Tavern.
+6. **Arrow loops are letterbox windows, not loops.** TowerForge.cpp:230-234 cuts a 6-micro
+   vertical gap across a whole rim cube column, so the real opening is **9 wide x 6 tall x 9 deep
+   micro, about 1.0 x 0.67 x 1.0 m** — roughly 1.5x wider than tall, the inverse of a real loop
+   (~30 mm wide, 1-2 m tall). Too short for the 16-micro agent to use as a window either, and no
+   line-of-sight or ranged system reads `loopCells`. Wants a 1-2 micro x 18+ micro vertical slot
+   with an internal embrasure splay.
+7. **`LocationType::Market` / `GuardPost` / `Temple` / `Farm` have no producer** — only the
+   string/enum converters (LocationRegistry.cpp:16-19, 29-32). The market square, its stalls, the
+   well and the statue are therefore pure voxels: no vendor, no water, no trade. There is no trade
+   system to wire to (`Schedule::merchantSchedule` targets a hardcoded "market" id that nothing
+   ever registers), and **no crafting system exists at all** — engine/{src,include}/core contains
+   no crafting file, so the anvil, bellows, oven and workbench are props. CLAUDE.md's
+   "CraftingSystem" entry under Gameplay is STALE and should be corrected.
+8. **Trade signs are write-only.** Which board hangs is real typology data, but after hanging,
+   `setMetadata(sid, "signage", ...)` is never read by anything, and it stores a PlacedObject id
+   rather than the Location id — there is no sign-to-location lookup in either direction. All sign
+   items are `"fixed": true`, so they get no pickup point and cannot be interacted with or read.
+9. **Nav obstacles are missing outside the editor.** `setNavObstacleProvider` is wired only in
+   editor/src/Application.cpp:1655; GameShell never calls it, so in a packaged game every well,
+   stall, statue and woodpile is nav-invisible and NPCs treadmill into them. Also
+   NPCManager.cpp:378-387 clamps the nav grid to +/-256 columns and logs that NPCs outside it have
+   no nav — a large or streamed city can fall partly outside.
+10. **NavGrid is street-blind.** No road or paving term in NavGrid.cpp or AStarPathfinder.cpp:
+    paving is uniform-cost terrain, so nothing makes an NPC prefer a street to a garden.
+11. **Fence gate-at-door has no agent coverage on the shipped path.** `FencePolicyTest`'s
+    `GateWindowFollowsTheDoor` asserts integer arithmetic only — no probe. The one real fence-gate
+    walk (ParcelFenceTest:74) exercises `planParcelFence`, which is **dead in production**: the
+    stamper uses `planParcelFenceRuns` + `fenceGateWindowAt`. SettlementWalkabilityTest:218 walks
+    the older centred `fenceGateWindow`. Net: no agent has walked the gate the engine builds.
+12. **`MarketDressingTest.DressedSquareStaysWalkable` is mislabelled L3.** It is a 2-D
+    4-neighbour cube flood with no agent box, height or step-up, so it cannot detect a headroom,
+    width or step failure. CityForgePlan.md calls it L3.
+13. **The road does not reach the gate.** The wall band sits outside site+margin while paving
+    covers only the street rects inside the site — about 4 cubes of raw ungraded terrain between
+    the end of the paved street and the outside of the gateway.
+14. **One tower clipping one building refuses the WHOLE circuit** (TownWall.cpp:157-163). With
+    `tower_size: 9` protruding into the site, a dense city can lose its entire wall to a single
+    overlap. It should shrink or drop that tower and say so, not refuse everything.
+15. **`remove_subcube` desyncs the physics occupancy grid from the chunk's real content**
+    (found 2026-08-29 while verifying the lighting rebuild's M1). Measured live: place a microcube
+    at (5,20,5) slot (0,0,0), then a full subcube at slot (2,2,2), then remove **only** the
+    subcube. `GET /api/debug/occupancy_cell` then reports
+    `content.micro_slots: [{slot:[0,0,0], count:1}]` — the microcube is still there — while
+    `grid` reports `cube_filled:false`, `subdivided:false` and no masks at all.
+    Mechanism: the removal path ends in `VoxelOccupancyGrid::markSubdivided(lp, false)`, which
+    erases `m_subcubeFilled`, `m_subcubeSubdiv` and **all 27** microcube mask entries
+    (`VoxelOccupancyGrid.cpp:47-55`), and nothing re-adds the microcubes that survived.
+    Consequence: the grid under-reports real geometry, so a character can walk through voxels that
+    are actually present, and anything else sourcing solidity from the grid (including the new GPU
+    light occupancy) inherits the hole. The fix is to rebuild the cell's masks from the chunk's
+    remaining sub-voxel content after a removal rather than clearing wholesale. **Not worked around
+    in the lighting mirror** — that deliberately reports exactly what the grid says.
+
+## 2026-09-23 — Five Vulkan validation errors fire on every run, unrelated to glass
+
+Found by the glass-transparency OIT investigation (`docs/GlassTransparency.md` §10; the investigation itself is in git at `f109fd64`), which ran the
+editor under `PHYXEL_VALIDATION=1` with OIT disabled (control) and enabled (experiment). All five appear
+with **identical counts in both arms**, so none is caused by OIT or glass. Not fixed there — out of
+scope — and logged here so they are not rediscovered as "new":
+
+1. `vkQueueSubmit … expects VkImage … to be in layout VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL —
+   instead, current layout is VK_IMAGE_LAYOUT_UNDEFINED` (hits the duplicate-message limit). Some
+   sampled image reaches a submit never transitioned. **This is almost certainly the error the
+   `transparent_voxel.frag` comment blamed when it disabled OIT in `7a36910f`** — it fires just as
+   often with OIT off. The image is unnamed (`0xe6…`); naming images via `VK_EXT_debug_utils` would
+   identify it. The reflection image has a seed barrier (`PostProcessor.cpp:2260`) and is not it.
+2. `vkCreateGraphicsPipelines … vertex attribute at location 4 not consumed by vertex shader` (×9) —
+   a pipeline binds the full `InstanceData` layout to a shader that does not read `inLight`.
+3. `vkCreateGraphicsPipelines … fragment stage declared input at Location 3 … not an Output declared
+   in the vertex stage` (×3) — a vertex/fragment interface mismatch on `flags`.
+4. `vkAllocateDescriptorSets … 12 STORAGE_BUFFER descriptors from a pool of 10` — works on this driver,
+   "will fail on others" (`VK_ERROR_OUT_OF_POOL_MEMORY_KHR`). A portability hazard for packaged games.
+5. `vkQueueSubmit … signal semaphore may still be in use by VkSwapchainKHR` (×2) — the classic
+   per-image vs per-frame semaphore reuse.
+
+Raw per-arm messages: `oit_validation_control.json` / `oit_validation_oit_on.json` from that session.
+
+## 2026-09-24 — LOD meshes draw glass OPAQUE (and cull faces behind it)
+
+Found while planning the face-culling work (`docs/GlassTransparency.md` §5; listed in its §10). `LodChunkMesh::emitFaces` writes
+`inst.reserved = 0` (`LodChunkMesh.cpp:148`) for every face, so a LOD mesh carries **no transparent
+bit**: glass in a LOD chunk is drawn by the opaque pass as a solid surface, never by the OIT pass. It
+also culls faces against any solid neighbour (`:139`), glass included, so opaque faces behind LOD glass
+are missing too. Both must be fixed together — fixing the culling alone would add faces hidden behind
+opaque LOD glass. Distance-driven chunk LOD is default-OFF, so this is latent; it becomes visible the
+day chunk LOD is enabled with glass in range. Update `docs/LodTierLedger.md` when it is fixed.
+
+## 2026-09-24 — `AtlasManagerTest.BuildAtlasFromSourcePNGs` fails whenever the BC7 cache exists
+
+Found in the face-culling work's full-suite sweep (2026-09-24; the log is section 17.13 of `docs/GlassTransparency.md` at git `f109fd64`). The test asserts
+`info.pixels.size() == layerBytes * count`, but the content-keyed BC7 cache (`cc6a3a38`) skips the
+PNG decode on a cache hit ("source decode skipped"), so `pixels` is empty (0 vs 490,733,568). The
+cache lives in `cache/textures/` under the working directory, and launching the engine from the
+repo root creates it, so the test fails for anyone who has run the engine there. **Verified:**
+with `cache/textures` moved aside the test passes; restored afterwards. Fix belongs to the test
+(or `getAtlasInfo` on the cached path), not to any feature; not fixed here.
+

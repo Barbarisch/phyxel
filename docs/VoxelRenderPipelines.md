@@ -83,12 +83,19 @@ Bits 15-17: Face ID (0-5)
 Bits 18-19: Scale level (0=cube, 1=subcube, 2=microcube)
 Bits 20-25: Parent subcube encoded position
 Bits 26-31: Microcube encoded position
+            (a greedy-merged CUBE face reuses bits 20-25 / 26-31 for its extents − 1)
 + uint16 textureIndex
-+ uint16 reserved
-+ uint32 light  + uint32 light2 + uint32 light3   (per-corner lighting)
++ uint16 reserved   bit 0 emissive · bit 1 transparent · bits 2-9 quantized alpha ·
+                    bit 10 mirror · bits 11-14 damage stage · bit 15 `varied`  (all 16 used)
++ uint32 light      bits 16-23 / 24-31 = merged sub/micro face extents − 1 (bits 0-15 unused)
++ uint32 tint       per-voxel 0xRRGGBB multiplier (+ voxel state in the top byte on sub/micro)
 ```
 
-The three trailing `light`/`light2`/`light3` words (12 bytes) hold the smooth per-corner skylight + per-corner block-light values baked by the lighting overhaul — they grew the struct from 8B to 20B, and a later `tint` word (4 bytes, per-voxel 0xRRGGBB multiplier) grew it again to the current 24B.
+**16 bytes** (`engine/include/core/Types.h`; mirrored by hand in `vulkan/VulkanDevice.h`). The
+struct was 24 B until lighting U7 removed the two per-corner block-light words: sky is traced per
+fragment now, and block light no longer exists. `reserved` bits 11-14 carry the damage stage read by
+the crack shader ([`VoxelDamageVisualization.md`](VoxelDamageVisualization.md) §1); bit 1 routes a
+face to the OIT pass ([`GlassTransparency.md`](GlassTransparency.md) §1).
 
 Each chunk has its own instance buffer. A push constant provides the chunk's world-space origin offset. The GPU decodes grid positions from the packed bits to compute the per-face UV offset for subcubes and microcubes.
 

@@ -225,6 +225,8 @@ void Chunk::fillAllCubes(const std::string& material) {
 // ── Phase 4.4 seal state ──
 
 void Chunk::applySealedRenderState() {
+    ++m_rebuildCount;
+    refreshBorderSignature();   // the uniform short-circuit skips rebuildFaces (GlassTransparency.md §6)
     m_sealed = true;
     renderManager.clearForUniform();
     for (int f = 0; f < 6; ++f) m_faceConnect[f] = 0;      // fully occluding
@@ -234,6 +236,8 @@ void Chunk::applySealedRenderState() {
 }
 
 void Chunk::applyAirRenderState() {
+    ++m_rebuildCount;
+    refreshBorderSignature();   // the uniform short-circuit skips rebuildFaces (GlassTransparency.md §6)
     m_sealed = false;
     renderManager.clearForUniform();
     for (int f = 0; f < 6; ++f) m_faceConnect[f] = 0x3F;   // sight passes freely
@@ -321,6 +325,137 @@ void Chunk::initializeForLoading() {
               << ") for database loading");
 }
 
+Graphics::ChunkRenderManager::NeighborOccupancy Chunk::renderOccupancyAt(const glm::ivec3& localPos) const {
+    using Occ = Graphics::ChunkRenderManager::NeighborOccupancy;
+    if (localPos.x < 0 || localPos.x >= 32 || localPos.y < 0 || localPos.y >= 32 ||
+        localPos.z < 0 || localPos.z >= 32) return Occ::Empty;
+    const size_t idx = localToIndex(localPos);
+    if (!visibleSolidCubeAtIndex(idx)) return Occ::Empty;
+    // Same authority order as visibleSolidCubeAtIndex: a materialized overlay Cube wins.
+    const std::string& name = (idx < cubes.size() && cubes[idx])
+                                  ? cubes[idx]->getMaterialName()
+                                  : voxelManager.getVoxelStore().material(idx);
+    return Core::isTransparentMaterial(Core::MaterialRegistry::instance().getMaterial(name))
+               ? Occ::Transparent : Occ::Opaque;
+}
+
+Graphics::ChunkRenderManager::NeighborOccupancy Chunk::renderOccupancyAtFine(const glm::ivec3& localMicro,
+                                                                             int level) const {
+    using Occ = Graphics::ChunkRenderManager::NeighborOccupancy;
+    if (localMicro.x < 0 || localMicro.x >= 288 || localMicro.y < 0 || localMicro.y >= 288 ||
+        localMicro.z < 0 || localMicro.z >= 288) return Occ::Empty;
+    const glm::ivec3 cube  = localMicro / 9;
+    const glm::ivec3 sub   = (localMicro % 9) / 3;
+    const glm::ivec3 micro = localMicro % 3;
+    auto classOf = [](const std::string& name) {
+        return Core::isTransparentMaterial(Core::MaterialRegistry::instance().getMaterial(name))
+                   ? Occ::Transparent : Occ::Opaque;
+    };
+    // Precedence mirrors ChunkRenderManager::subCellSolid / microCellSolid exactly.
+    const Occ c = renderOccupancyAt(cube);
+    if (c != Occ::Empty) return c;
+    if (const Subcube* s = getSubcubeAt(cube, sub)) {
+        if (!s->isBroken() && s->isVisible()) return classOf(s->getMaterialName());
+    }
+    if (level == 1) return Occ::Empty;   // microcubes do not fill a SUBCUBE cell
+    if (const Microcube* m = getMicrocubeAt(cube, sub, micro)) {
+        if (!m->isBroken() && m->isVisible()) return classOf(m->getMaterialName());
+    }
+    return Occ::Empty;
+}
+
+namespace {
+// splitmix64 finalizer: a strong 64-bit mix, so summing mixed keys is collision-safe in practice.
+inline uint64_t borderMix(uint64_t x) {
+    x += 0x9E3779B97F4A7C15ull;
+    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ull;
+    x = (x ^ (x >> 27)) * 0x94D049BB133111EBull;
+    return x ^ (x >> 31);
+}
+}  // namespace
+
+// GlassTransparency.md §6. Signature of face f = SUM of mixed (cell, class) keys over the non-empty render cells
+// on that face's border layer: cubes on the layer, plus every subcube/microcube whose PARENT cube
+// is on the layer (the whole cell, not only the part touching the face: that over-triggers a
+// little, never under-triggers). A sum is order-independent, so the sub/micro vector order cannot
+// change it. Classes, not materials: a stone -> brick swap does not ripple.
+void Chunk::computeBorderSignature(uint64_t out[6]) const {
+    using Occ = Graphics::ChunkRenderManager::NeighborOccupancy;
+    for (int f = 0; f < 6; ++f) out[f] = 0;
+    auto& reg = Core::MaterialRegistry::instance();
+    const std::string* lastName = nullptr;
+    uint64_t lastClass = 0;
+    auto classOfName = [&](const std::string& name) -> uint64_t {
+        if (&name != lastName) {   // store voxels share palette strings: one lookup per run
+            lastName = &name;
+            lastClass = Core::isTransparentMaterial(reg.getMaterial(name))
+                            ? static_cast<uint64_t>(Occ::Transparent) : static_cast<uint64_t>(Occ::Opaque);
+        }
+        return lastClass;
+    };
+    // Face order +X,-X,+Y,-Y,+Z,-Z; `onFace` tells whether a local cube cell lies on face f's layer.
+    auto onFace = [](const glm::ivec3& p, int f) {
+        switch (f) {
+            case 0: return p.x == 31; case 1: return p.x == 0;
+            case 2: return p.y == 31; case 3: return p.y == 0;
+            case 4: return p.z == 31; default: return p.z == 0;
+        }
+    };
+    const ChunkVoxelStore& store = voxelManager.getVoxelStore();
+    for (int f = 0; f < 6; ++f) {
+        for (int a = 0; a < 32; ++a) {
+            for (int b = 0; b < 32; ++b) {
+                glm::ivec3 p;
+                if (f < 2)      p = glm::ivec3(f == 0 ? 31 : 0, a, b);
+                else if (f < 4) p = glm::ivec3(a, f == 2 ? 31 : 0, b);
+                else            p = glm::ivec3(a, b, f == 4 ? 31 : 0);
+                const size_t idx = localToIndex(p);
+                if (!visibleSolidCubeAtIndex(idx)) continue;
+                const std::string& name = (idx < cubes.size() && cubes[idx])
+                                              ? cubes[idx]->getMaterialName() : store.material(idx);
+                out[f] += borderMix((static_cast<uint64_t>(idx) << 4) | classOfName(name));
+            }
+        }
+    }
+    auto inChunk = [](const glm::ivec3& p) {
+        return p.x >= 0 && p.x < 32 && p.y >= 0 && p.y < 32 && p.z >= 0 && p.z < 32;
+    };
+    for (const auto& sc : staticSubcubes) {
+        if (!sc || sc->isBroken() || !sc->isVisible()) continue;
+        const glm::ivec3 p = sc->getPosition() - worldOrigin;
+        if (!inChunk(p)) continue;   // the mesher skips these too
+        const glm::ivec3 s = sc->getLocalPosition();
+        const uint64_t key = ((static_cast<uint64_t>(localToIndex(p)) * 27u +
+                               static_cast<uint64_t>(s.z + s.y * 3 + s.x * 9)) << 8) |
+                             (1u << 4) | classOfName(sc->getMaterialName());
+        for (int f = 0; f < 6; ++f) if (onFace(p, f)) out[f] += borderMix(key);
+    }
+    for (const auto& mc : staticMicrocubes) {
+        if (!mc || mc->isBroken() || !mc->isVisible()) continue;
+        const glm::ivec3 p = mc->getParentCubePosition() - worldOrigin;
+        if (!inChunk(p)) continue;
+        const glm::ivec3 s = mc->getSubcubeLocalPosition();
+        const glm::ivec3 m = mc->getMicrocubeLocalPosition();
+        const uint64_t cell = (static_cast<uint64_t>(localToIndex(p)) * 27u +
+                               static_cast<uint64_t>(s.z + s.y * 3 + s.x * 9)) * 27u +
+                              static_cast<uint64_t>(m.z + m.y * 3 + m.x * 9);
+        const uint64_t key = (cell << 8) | (2u << 4) | classOfName(mc->getMaterialName());
+        for (int f = 0; f < 6; ++f) if (onFace(p, f)) out[f] += borderMix(key);
+    }
+}
+
+void Chunk::refreshBorderSignature() {
+    computeBorderSignature(m_borderSigCurrent);
+    if (!m_borderSigValid) {   // first computation: seeds both, never ripples (GlassTransparency.md §6)
+        for (int f = 0; f < 6; ++f) m_borderSigDelivered[f] = m_borderSigCurrent[f];
+        m_borderSigValid = true;
+    }
+    m_pendingBorderRipple = 0;
+    for (int f = 0; f < 6; ++f)
+        if (m_borderSigCurrent[f] != m_borderSigDelivered[f])
+            m_pendingBorderRipple |= static_cast<uint8_t>(1u << f);
+}
+
 void Chunk::rebuildFaces() {
     // Call the cross-chunk version without a neighbor lookup function
     // This will only do intra-chunk culling
@@ -329,11 +464,21 @@ void Chunk::rebuildFaces() {
 
 void Chunk::rebuildFaces(const NeighborLookupFunc& getNeighborCube,
                          const NeighborLightFunc& getNeighborLight,
-                         const std::vector<uint8_t>* columnOpenMask) {
+                         const std::vector<uint8_t>* columnOpenMask,
+                         const NeighborFineLookupFunc& getNeighborFine) {
     // Delegate to render manager (4.2b: the palette store carries the static voxels; `cubes` is
     // the materialized overlay that wins where present)
     renderManager.rebuildAllFaces(cubes, staticSubcubes, staticMicrocubes, worldOrigin, getNeighborCube, getNeighborLight, columnOpenMask,
-                                  &voxelManager.getVoxelStore());
+                                  &voxelManager.getVoxelStore(), getNeighborFine);
+    ++m_rebuildCount;
+    refreshBorderSignature();   // GlassTransparency.md §6: every re-mesh, managed or not, records border changes
+    // GlassTransparency.md §6: this rebuild had no neighbour lookup, so the border faces were meshed as if the
+    // neighbours were empty and any border change is still undelivered. Ask for the managed
+    // re-mesh that fixes both. Cannot loop: the managed rebuild always passes a lookup.
+    if (!getNeighborCube && m_owner) {
+        m_managedRemeshRequested = true;
+        m_owner->markChunkForRemesh(this);
+    }
     // Refresh cached render flags (geometry/materials may have changed).
     recomputeRenderFlags();
     // Refresh the occlusion visibility graph (cheap flood-fill, only on rebuild).
@@ -435,6 +580,45 @@ void Chunk::recomputeRenderFlags() {
             m_hasTransparent = true;
         }
         if (m_hasMirror && m_hasTransparent) return; // both found, no need to scan further
+    }
+
+    // SUB-VOXEL TIERS. The loop above walks the CUBE store only, and for a long time that was the
+    // whole function -- which made both flags UNDER-report: a chunk whose only glass was a subcube
+    // reported hasTransparentVoxel() == false, and the caller
+    // (RenderCoordinator::renderTransparentGeometryOIT) uses that in a frame-global early-out, so
+    // the ENTIRE OIT pass was skipped and that glass rendered opaque. Same omission, same effect,
+    // for sub-voxel mirrors and the reflection pass.
+    //
+    // This was not a corner case: generated walls are subcube/microcube (StructureRealizer stamps
+    // via fillMicroBox), so every window in every generated building took the broken path. Worse,
+    // whether a glass subcube looked transparent depended on whether some UNRELATED full-cube glass
+    // happened to be in view -- appearance coupled to chunk contents, which docs/FeatureDesignKeys.md
+    // forbids outright.
+    //
+    // The direction of the error is what matters. These flags gate whole passes, so they are only
+    // safe while CONSERVATIVE: over-reporting costs a pass that finds nothing (wasted work),
+    // under-reporting drops geometry from the picture. Pinned by ChunkRenderFlagsTest.
+    for (const auto& sc : staticSubcubes) {
+        if (!sc) continue;
+        const auto* mat = registry.getMaterial(sc->getMaterialName());
+        if (!mat) continue;
+        if (mat->isMirror && !m_hasMirror) {
+            m_hasMirror = true;
+            m_firstMirrorLocal = sc->getPosition();
+        }
+        if (mat->alpha < 0.99f) m_hasTransparent = true;
+        if (m_hasMirror && m_hasTransparent) return;
+    }
+    for (const auto& mc : staticMicrocubes) {
+        if (!mc) continue;
+        const auto* mat = registry.getMaterial(mc->getMaterialName());
+        if (!mat) continue;
+        if (mat->isMirror && !m_hasMirror) {
+            m_hasMirror = true;
+            m_firstMirrorLocal = mc->getParentCubePosition();
+        }
+        if (mat->alpha < 0.99f) m_hasTransparent = true;
+        if (m_hasMirror && m_hasTransparent) return;
     }
 }
 
