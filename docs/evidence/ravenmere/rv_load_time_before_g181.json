@@ -1,0 +1,82 @@
+{
+ "label": "before_g181",
+ "exe": "C:\\Users\\bpete\\Documents\\PhyxelProjects\\Ravenmere\\build\\Release\\Ravenmere.exe",
+ "visits": [
+  "town",
+  "farm",
+  "town",
+  "cellar",
+  "town"
+ ],
+ "scene_loads_ms": [
+  {
+   "scene": "main_menu",
+   "ms": 677
+  },
+  {
+   "scene": "town",
+   "ms": 5100
+  },
+  {
+   "scene": "farm",
+   "ms": 1387
+  },
+  {
+   "scene": "town",
+   "ms": 5357
+  },
+  {
+   "scene": "cellar",
+   "ms": 874
+  },
+  {
+   "scene": "town",
+   "ms": 4026
+  }
+ ],
+ "navgraph_builds": [
+  {
+   "mode": "micro",
+   "columns": 30720,
+   "surfaces": 35388,
+   "ms": 5628,
+   "threads": null
+  },
+  {
+   "mode": "micro",
+   "columns": 9216,
+   "surfaces": 10650,
+   "ms": 1697,
+   "threads": null
+  },
+  {
+   "mode": "micro",
+   "columns": 30720,
+   "surfaces": 35388,
+   "ms": 6195,
+   "threads": null
+  },
+  {
+   "mode": "micro",
+   "columns": 8817,
+   "surfaces": 9344,
+   "ms": 968,
+   "threads": null
+  },
+  {
+   "mode": "micro",
+   "columns": 30720,
+   "surfaces": 35388,
+   "ms": 5809,
+   "threads": null
+  }
+ ],
+ "chunk_loads": [
+  9,
+  30,
+  9,
+  30,
+  9,
+  30
+ ]
+}

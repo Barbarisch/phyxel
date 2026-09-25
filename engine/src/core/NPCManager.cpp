@@ -519,9 +519,10 @@ void NPCManager::buildNavGrid() {
         m_navGraph->buildRegion(minXZ, maxXZ, NavAgentProfile{});
         const double ms = std::chrono::duration<double, std::milli>(
             std::chrono::high_resolution_clock::now() - t0).count();
-        LOG_INFO("NPCManager", "Built NavGraph ({} mode): {} columns, {} surfaces in {} ms",
+        LOG_INFO("NPCManager", "Built NavGraph ({} mode): {} columns, {} surfaces in {} ms on {} threads",
                  m_navGraph->microMode() ? "micro" : "cube",
-                 m_navGraph->columnCount(), m_navGraph->surfaceCount(), static_cast<int>(ms));
+                 m_navGraph->columnCount(), m_navGraph->surfaceCount(), static_cast<int>(ms),
+                 m_navGraph->lastBuildThreads());
     }
     m_pathService = std::make_unique<PathService>(m_navGraph.get());
     m_pathService->start();

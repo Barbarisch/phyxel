@@ -6,6 +6,8 @@
 #include <queue>
 #include <unordered_set>
 #include <mutex>
+#include <thread>
+#include <functional>
 
 namespace Phyxel {
 namespace Core {
@@ -246,23 +248,66 @@ void NavGraph::linkColumn(int x, int z, const NavAgentProfile& agent, FillCache&
     }
 }
 
-void NavGraph::buildRegion(const glm::ivec2& minXZ, const glm::ivec2& maxXZ, const NavAgentProfile& agent) {
+void NavGraph::buildRegion(const glm::ivec2& minXZ, const glm::ivec2& maxXZ, const NavAgentProfile& agent,
+                           int threads) {
     std::unique_lock lock(m_mutex);
     m_columns.clear();
     m_minBounds = glm::min(minXZ, maxXZ);
     m_maxBounds = glm::max(minXZ, maxXZ);
-    FillCache cache;
-    for (int x = m_minBounds.x; x <= m_maxBounds.x; ++x) {
-        for (int z = m_minBounds.y; z <= m_maxBounds.y; ++z) {
-            auto col = microMode() ? buildColumnMicro(x, z, agent, cache) : buildColumnCube(x, z, agent);
-            if (!col.empty()) m_columns.emplace(packKey(x, z), std::move(col));
-        }
+    const int nx = m_maxBounds.x - m_minBounds.x + 1;
+    const int nz = m_maxBounds.y - m_minBounds.y + 1;
+    if (threads <= 0) {
+        // Automatic: one worker per hardware thread, but a region of a few hundred columns
+        // (a test rig, a single building) is not worth the thread start-up.
+        const int hw = static_cast<int>(std::max(1u, std::thread::hardware_concurrency()));
+        threads = std::min(hw, (nx * nz) / 256 + 1);
     }
+    threads = std::max(1, std::min(threads, nx));   // one x-stripe per worker at least
+    m_lastBuildThreads = threads;
+
+    // 1. Columns. Each worker takes x-stripes x = min + t, t + threads, ... into its own
+    //    list with its own fill memo (the world is only read), then the lists are merged in
+    //    stripe order - the map content does not depend on the thread count.
+    using Built = std::vector<std::pair<int64_t, std::vector<NavSurface>>>;
+    std::vector<Built> built(static_cast<size_t>(threads));
+    auto buildStripes = [&](int t) {
+        FillCache cache;
+        Built& out = built[static_cast<size_t>(t)];
+        for (int x = m_minBounds.x + t; x <= m_maxBounds.x; x += threads)
+            for (int z = m_minBounds.y; z <= m_maxBounds.y; ++z) {
+                auto col = microMode() ? buildColumnMicro(x, z, agent, cache) : buildColumnCube(x, z, agent);
+                if (!col.empty()) out.emplace_back(packKey(x, z), std::move(col));
+            }
+    };
+    auto runParallel = [&](const std::function<void(int)>& fn) {
+        if (threads == 1) { fn(0); return; }
+        std::vector<std::thread> pool;
+        pool.reserve(static_cast<size_t>(threads) - 1);
+        for (int t = 1; t < threads; ++t) pool.emplace_back(fn, t);
+        fn(0);
+        for (auto& th : pool) th.join();
+    };
+    runParallel(buildStripes);
+    size_t total = 0;
+    for (const auto& b : built) total += b.size();
+    m_columns.reserve(total);
+    for (auto& b : built)
+        for (auto& [key, col] : b) m_columns.emplace(key, std::move(col));
+    built.clear();
+
+    // 2. Edges (micro mode). linkColumn writes only its own column's edge/slack and reads
+    //    the neighbours' SURFACES (floorTopMicro), never their edges, so columns partition
+    //    across workers; the map itself is not modified here.
     if (microMode()) {
-        for (auto& [key, col] : m_columns) {
-            if (col.empty()) continue;
-            linkColumn(col.front().x, col.front().z, agent, cache);
-        }
+        std::vector<const std::vector<NavSurface>*> cols;
+        cols.reserve(m_columns.size());
+        for (const auto& [key, col] : m_columns) if (!col.empty()) cols.push_back(&col);
+        auto linkSlice = [&](int t) {
+            FillCache cache;
+            for (size_t i = static_cast<size_t>(t); i < cols.size(); i += static_cast<size_t>(threads))
+                linkColumn(cols[i]->front().x, cols[i]->front().z, agent, cache);
+        };
+        runParallel(linkSlice);
     }
 }
 
