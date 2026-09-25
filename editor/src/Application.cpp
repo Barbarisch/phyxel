@@ -9210,7 +9210,15 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                         {"buffer_create",  j(getChunkPerf(ChunkPerfPhase::BufferCreate))},
                         {"buffer_realloc", j(getChunkPerf(ChunkPerfPhase::BufferRealloc))},
                         {"buffer_upload",  j(getChunkPerf(ChunkPerfPhase::BufferUpload))},
-                        {"dirty_update_total", j(getChunkPerf(ChunkPerfPhase::DirtyUpdateTotal))}
+                        {"dirty_update_total", j(getChunkPerf(ChunkPerfPhase::DirtyUpdateTotal))},
+                        {"load_physics_body", j(getChunkPerf(ChunkPerfPhase::LoadPhysicsBody))},
+                        {"load_occupancy",    j(getChunkPerf(ChunkPerfPhase::LoadOccupancy))},
+                        {"load_faces",        j(getChunkPerf(ChunkPerfPhase::LoadFaces))},
+                        {"load_upload",       j(getChunkPerf(ChunkPerfPhase::LoadUpload))},
+                        {"load_voxel_maps",   j(getChunkPerf(ChunkPerfPhase::LoadVoxelMaps))},
+                        {"load_chunk_init",   j(getChunkPerf(ChunkPerfPhase::LoadChunkInit))},
+                        {"load_db_decode",    j(getChunkPerf(ChunkPerfPhase::LoadDbDecode))},
+                        {"load_gpu_alloc",    j(getChunkPerf(ChunkPerfPhase::LoadGpuAlloc))}
                     };
                 }()},
                 {"mirror_plane", {{"x", s.mirrorPlaneX}, {"y", s.mirrorPlaneY}, {"z", s.mirrorPlaneZ}}},

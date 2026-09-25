@@ -40,6 +40,7 @@ bool WorldStorage::initialize() {
 bool WorldStorage::close() { return true; }
 bool WorldStorage::saveChunk(const Chunk& chunk) { return false; }
 bool WorldStorage::loadChunk(const glm::ivec3& chunkCoord, Chunk& chunk) { return false; }
+bool WorldStorage::readChunkBlob(const glm::ivec3& chunkCoord, std::vector<uint8_t>& out) { out.clear(); return false; }
 bool WorldStorage::chunkExists(const glm::ivec3& chunkCoord) { return false; }
 bool WorldStorage::deleteChunk(const glm::ivec3& chunkCoord) { return false; }
 bool WorldStorage::deleteCube(const glm::ivec3& chunkCoord, const glm::ivec3& localPos) { return false; }
@@ -544,6 +545,23 @@ bool WorldStorage::loadChunk(const glm::ivec3& chunkCoord, Chunk& chunk) {
     if (blobFound) return loaded;
 
     return loadChunkFromLegacyRows(chunkCoord, chunk);
+}
+
+bool WorldStorage::readChunkBlob(const glm::ivec3& chunkCoord, std::vector<uint8_t>& out) {
+    out.clear();
+    if (!db || !selectBlobStmt) return false;
+    sqlite3_bind_int(selectBlobStmt, 1, chunkCoord.x);
+    sqlite3_bind_int(selectBlobStmt, 2, chunkCoord.y);
+    sqlite3_bind_int(selectBlobStmt, 3, chunkCoord.z);
+    bool found = false;
+    if (sqlite3_step(selectBlobStmt) == SQLITE_ROW) {
+        found = true;
+        const auto* data = static_cast<const uint8_t*>(sqlite3_column_blob(selectBlobStmt, 0));
+        const int size = sqlite3_column_bytes(selectBlobStmt, 0);
+        if (data && size > 0) out.assign(data, data + size);
+    }
+    sqlite3_reset(selectBlobStmt);
+    return found;
 }
 
 bool WorldStorage::loadChunkFromBlob(const glm::ivec3& chunkCoord, Chunk& chunk, bool& found) {

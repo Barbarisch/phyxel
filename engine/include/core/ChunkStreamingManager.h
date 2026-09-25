@@ -202,6 +202,15 @@ public:
     std::vector<glm::ivec3> loadAllChunksFromDatabase();
     bool generateOrLoadChunk(const glm::ivec3& chunkCoord);
     bool loadChunk(const glm::ivec3& chunkCoord);
+    /// Load a set of DB chunks with the blob DECODE on worker threads (G-181): the main thread
+    /// reads every blob through the one SQLite connection, `threads` workers (0 = one per
+    /// hardware thread, capped by the count) run ChunkBlobCodec::decode into chunk shells that
+    /// are not yet in the world - per-chunk state only, as the async generator's workers do -
+    /// and the main thread then initializes and inserts them in `coords` order, so the world
+    /// ends up exactly as loadChunk() one by one would leave it. Chunks already resident are
+    /// skipped; a chunk without a v2 blob falls back to loadChunk(). Returns the number loaded.
+    /// Ravenmere's town: 30 chunks, 1.8 M sub/microcubes, 2.2-3.2 s of decode on one thread.
+    int loadChunksParallel(const std::vector<glm::ivec3>& coords, int threads = 0);
 
     // ---- Stream-in boot (docs/LargeWorldScalePlan.md Phase 2) ----
     /// Boot-time replacement for loadAllChunksFromDatabase(): synchronously loads only

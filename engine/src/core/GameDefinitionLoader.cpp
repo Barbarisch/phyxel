@@ -1,4 +1,6 @@
 #include "core/GameDefinitionLoader.h"
+#include "graphics/ChunkUpdatePerf.h"
+#include <chrono>
 #include "core/PlayBounds.h"
 #include "core/TransitionMarkers.h"
 #include <climits>
@@ -628,19 +630,56 @@ void GameDefinitionLoader::loadWorld(const json& worldDef, float bakeSeaLevelY, 
             // and the player walked into nothing).
             int loaded = 0;
             std::vector<Chunk*> loadedChunks;
+            const Phyxel::Graphics::ChunkPerfPhase kLoadStages[] = {Phyxel::Graphics::ChunkPerfPhase::LoadChunkInit,
+                                                                    Phyxel::Graphics::ChunkPerfPhase::LoadDbDecode,
+                                                                    Phyxel::Graphics::ChunkPerfPhase::LoadGpuAlloc};
+            const char* kLoadStageNames[] = {"db read", "decode (parallel)", "init+insert"};
+            double loadBefore[3];
+            for (int i = 0; i < 3; ++i) { const auto s = Phyxel::Graphics::getChunkPerf(kLoadStages[i]); loadBefore[i] = s.avgMs * static_cast<double>(s.count); }
+            const auto tLoad0 = std::chrono::steady_clock::now();
+            // G-181: the region's chunks decode on worker threads (the town: 30 chunks, 1.8 M
+            // sub/microcubes, 2.2-3.2 s on one thread); the world ends up as loadChunk() one by
+            // one would leave it, in this order.
+            std::vector<glm::ivec3> toLoad;
             for (const auto& cc : chunkCoords)
-                if (!sub.chunkManager->getChunkAtCoord(cc) && sub.chunkManager->getWorldStorage()->chunkExists(cc) &&
-                    sub.chunkManager->loadChunk(cc)) {
-                    ++loaded;
-                    if (Chunk* c = sub.chunkManager->getChunkAtCoord(cc)) loadedChunks.push_back(c);
-                }
+                if (!sub.chunkManager->getChunkAtCoord(cc) && sub.chunkManager->getWorldStorage()->chunkExists(cc))
+                    toLoad.push_back(cc);
+            loaded = sub.chunkManager->loadChunksParallel(toLoad);
+            for (const auto& cc : toLoad)
+                if (Chunk* c = sub.chunkManager->getChunkAtCoord(cc)) loadedChunks.push_back(c);
             // FINALIZE like generated chunks: the streaming load defers faces and physics to
             // a bulk pass (buildAllChunkPhysics) that only the no-world-block scene path runs.
             // Without this the second farm visit had terrain data and NO collision - every
             // NPC fell to y = -19,000 (editor, 2026-09-10).
+            // Stage totals for the finalize (G-181): the counters are process-global, so take
+            // deltas around this loop.
+            using Phyxel::Graphics::ChunkPerfPhase; using Phyxel::Graphics::getChunkPerf;
+            const ChunkPerfPhase kStages[] = {ChunkPerfPhase::LoadPhysicsBody, ChunkPerfPhase::LoadOccupancy,
+                                              ChunkPerfPhase::LoadFaces, ChunkPerfPhase::LoadUpload,
+                                              ChunkPerfPhase::LoadVoxelMaps};
+            const char* kStageNames[] = {"physics", "occupancy", "faces", "upload", "voxelmaps"};
+            double before[5];
+            for (int i = 0; i < 5; ++i) { const auto s = getChunkPerf(kStages[i]); before[i] = s.avgMs * static_cast<double>(s.count); }
+            const auto tFin0 = std::chrono::steady_clock::now();
             for (Chunk* chunk : loadedChunks) sub.chunkManager->finalizeLoadedChunk(*chunk, /*syncMesh=*/true);
+            const double finMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tFin0).count();
+            std::string stages;
+            for (int i = 0; i < 5; ++i) {
+                const auto s = getChunkPerf(kStages[i]);
+                const double ms = s.avgMs * static_cast<double>(s.count) - before[i];
+                stages += std::string(i ? ", " : "") + kStageNames[i] + " " + std::to_string(static_cast<int>(ms + 0.5)) + " ms";
+            }
+            const double loadMs = std::chrono::duration<double, std::milli>(tFin0 - tLoad0).count();
+            std::string loadStages;
+            for (int i = 0; i < 3; ++i) {
+                const auto s = getChunkPerf(kLoadStages[i]);
+                const double ms = s.avgMs * static_cast<double>(s.count) - loadBefore[i];
+                loadStages += std::string(i ? ", " : "") + kLoadStageNames[i] + " " + std::to_string(static_cast<int>(ms + 0.5)) + " ms";
+            }
             LOG_INFO("GameDefinitionLoader", "World: loaded " + std::to_string(loaded) +
-                     " saved chunks of the region from the DB (faces + physics built)");
+                     " saved chunks of the region from the DB in " + std::to_string(static_cast<int>(loadMs + 0.5)) +
+                     " ms (" + loadStages + "); faces + physics built in " +
+                     std::to_string(static_cast<int>(finMs + 0.5)) + " ms (" + stages + ")");
             return;
         }
     }

@@ -1,4 +1,9 @@
 #include "core/ChunkStreamingManager.h"
+#include "graphics/ChunkUpdatePerf.h"
+#include <thread>
+#include <unordered_set>
+#include <unordered_map>
+#include "core/ChunkBlobCodec.h"
 #include "core/WorldStorage.h"
 #include "core/WorldGenerator.h"
 #include "core/Cube.h"
@@ -583,6 +588,106 @@ bool ChunkStreamingManager::saveDirtyChunks() {
     return worldStorage->saveDirtyChunks(chunkRefs);
 }
 
+int ChunkStreamingManager::loadChunksParallel(const std::vector<glm::ivec3>& coords, int threads) {
+    if (!worldStorage) return 0;
+    struct Job {
+        glm::ivec3 coord;
+        std::vector<uint8_t> blob;
+        std::unique_ptr<Chunk> chunk;
+        bool decoded = false;
+        ChunkBlobCodec::Counts counts;
+    };
+    std::vector<Job> jobs;
+    std::vector<glm::ivec3> fallback;   // no v2 blob: the sequential path (legacy rows)
+    jobs.reserve(coords.size());
+    {
+        Phyxel::Graphics::ScopedChunkPerf t(Phyxel::Graphics::ChunkPerfPhase::LoadChunkInit);
+        std::lock_guard<std::mutex> lock(m_storageMutex);   // one SQLite connection: reads stay serial
+        for (const auto& cc : coords) {
+            if (getChunkAtCoord(cc)) continue;
+            Job j;
+            j.coord = cc;
+            if (!worldStorage->readChunkBlob(cc, j.blob)) { fallback.push_back(cc); continue; }
+            j.chunk = std::make_unique<Chunk>(Utils::CoordinateUtils::chunkCoordToOrigin(cc));
+            j.chunk->initializeForLoading();   // the worker-side init the async generator uses
+            jobs.push_back(std::move(j));
+        }
+    }
+    // Decode on workers. Each job touches only its own chunk (palette store, sub/microcube
+    // objects and maps, dirty flags); the codec reads nothing shared but the material palette
+    // it carries in the blob.
+    {
+        Phyxel::Graphics::ScopedChunkPerf t(Phyxel::Graphics::ChunkPerfPhase::LoadDbDecode);
+        const int n = static_cast<int>(jobs.size());
+        if (threads <= 0) threads = static_cast<int>(std::max(1u, std::thread::hardware_concurrency()));
+        threads = std::max(1, std::min(threads, n));
+        auto work = [&](int t) {
+            for (int i = t; i < n; i += threads) {
+                Job& j = jobs[static_cast<size_t>(i)];
+                // Same rule as genWorkerLoop: an exception on a worker must never
+                // std::terminate the process silently - it marks this chunk failed.
+                try {
+                    j.decoded = ChunkBlobCodec::decode(j.blob.data(), j.blob.size(), *j.chunk, &j.counts);
+                } catch (const std::exception& e) {
+                    LOG_ERROR_FMT("ChunkStreaming", "Parallel chunk decode threw at (" << j.coord.x << ","
+                                  << j.coord.y << "," << j.coord.z << "): " << e.what());
+                    j.decoded = false;
+                } catch (...) {
+                    LOG_ERROR_FMT("ChunkStreaming", "Parallel chunk decode threw at (" << j.coord.x << ","
+                                  << j.coord.y << "," << j.coord.z << ")");
+                    j.decoded = false;
+                }
+                std::vector<uint8_t>().swap(j.blob);
+            }
+        };
+        std::vector<std::thread> pool;
+        for (int t = 1; t < threads; ++t) pool.emplace_back(work, t);
+        if (n > 0) work(0);
+        for (auto& th : pool) th.join();
+    }
+    // Main thread: exactly loadChunk()'s tail, in `coords` order - a chunk without a v2 blob
+    // (legacy rows) takes the sequential path at its own place in the order, so the resident
+    // order is what loadChunk() one by one would produce even for a mixed region.
+    auto devices = m_getDevices();
+    int loaded = 0;
+    std::unordered_map<int64_t, size_t> jobAt;   // packed coord -> job index
+    auto packCoord = [](const glm::ivec3& c) {
+        return (static_cast<int64_t>(static_cast<uint32_t>(c.x) & 0x1FFFFF) << 42) |
+               (static_cast<int64_t>(static_cast<uint32_t>(c.y) & 0x1FFFFF) << 21) |
+                static_cast<int64_t>(static_cast<uint32_t>(c.z) & 0x1FFFFF);
+    };
+    for (size_t i = 0; i < jobs.size(); ++i) jobAt[packCoord(jobs[i].coord)] = i;
+    std::unordered_set<int64_t> fallbackSet;
+    for (const auto& cc : fallback) fallbackSet.insert(packCoord(cc));
+    for (const auto& cc : coords) {
+        const int64_t key = packCoord(cc);
+        if (fallbackSet.count(key)) { if (loadChunk(cc)) ++loaded; continue; }
+        auto it = jobAt.find(key);
+        if (it == jobAt.end()) continue;   // already resident, or a duplicate coordinate
+        Job& j = jobs[it->second];
+        if (!j.chunk) continue;            // a duplicate coordinate already inserted this job
+        const bool hasVoxels = j.decoded && (j.counts.cubes + j.counts.subcubes + j.counts.microcubes) > 0;
+        if (!j.decoded) {
+            LOG_ERROR_FMT("WorldStorage", "[WORLD_STORAGE] CORRUPT chunk blob at (" << j.coord.x << ","
+                          << j.coord.y << "," << j.coord.z << ") - load failed");
+        }
+        if (!hasVoxels) continue;   // loadChunk() semantics: "loaded" means it held voxels
+        Phyxel::Graphics::ScopedChunkPerf t(Phyxel::Graphics::ChunkPerfPhase::LoadGpuAlloc);
+        j.chunk->markClean();
+        j.chunk->initialize(devices.first, devices.second);   // idempotent over initializeForLoading
+        j.chunk->createVulkanBuffer();
+        auto& chunkMap = m_getChunkMap();
+        auto& chunks = m_getChunks();
+        chunkMap[j.coord] = j.chunk.get();
+        const glm::ivec3 origin = j.chunk->getWorldOrigin();
+        chunks.push_back(std::move(j.chunk));
+        if (m_perChunkPhysics && m_onChunkStreamedIn) m_onChunkStreamedIn(*chunks.back());
+        if (m_onChunkLoaded) m_onChunkLoaded(origin);
+        ++loaded;
+    }
+    return loaded;
+}
+
 bool ChunkStreamingManager::loadChunk(const glm::ivec3& chunkCoord) {
     if (!worldStorage) return false;
     
@@ -596,14 +701,18 @@ bool ChunkStreamingManager::loadChunk(const glm::ivec3& chunkCoord) {
     VkPhysicalDevice physicalDevice = devices.second;
     
     glm::ivec3 origin = Utils::CoordinateUtils::chunkCoordToOrigin(chunkCoord);
-    auto chunk = std::make_unique<Chunk>(origin);
-    chunk->initialize(device, physicalDevice);
-    
-    // Initialize chunk for sparse loading from database
-    chunk->initializeForLoading();
+    std::unique_ptr<Chunk> chunk;
+    {
+        Phyxel::Graphics::ScopedChunkPerf t(Phyxel::Graphics::ChunkPerfPhase::LoadChunkInit);
+        chunk = std::make_unique<Chunk>(origin);
+        chunk->initialize(device, physicalDevice);
+        // Initialize chunk for sparse loading from database
+        chunk->initializeForLoading();
+    }
 
     bool loaded;
     {
+        Phyxel::Graphics::ScopedChunkPerf t(Phyxel::Graphics::ChunkPerfPhase::LoadDbDecode);
         std::lock_guard<std::mutex> lock(m_storageMutex);  // serialize vs worker DB loads
         loaded = worldStorage->loadChunk(chunkCoord, *chunk);
     }
@@ -612,7 +721,7 @@ bool ChunkStreamingManager::loadChunk(const glm::ivec3& chunkCoord) {
         chunk->markClean();
         
         // DON'T rebuild faces yet - wait until all chunks are loaded
-        chunk->createVulkanBuffer();
+        { Phyxel::Graphics::ScopedChunkPerf t(Phyxel::Graphics::ChunkPerfPhase::LoadGpuAlloc); chunk->createVulkanBuffer(); }
         
         // Add to map and vector
         auto& chunkMap = m_getChunkMap();

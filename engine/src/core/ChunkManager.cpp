@@ -331,6 +331,10 @@ bool ChunkManager::loadChunk(const glm::ivec3& chunkCoord) {
     return m_streamingManager.loadChunk(chunkCoord);
 }
 
+int ChunkManager::loadChunksParallel(const std::vector<glm::ivec3>& coords, int threads) {
+    return m_streamingManager.loadChunksParallel(coords, threads);
+}
+
 std::vector<glm::ivec3> ChunkManager::loadAllChunksFromDatabase() {
     return m_streamingManager.loadAllChunksFromDatabase();
 }
@@ -1190,6 +1194,7 @@ void ChunkManager::finalizeLoadedChunk(Chunk& chunk, bool syncMesh) {
     // forcePhysicsRebuild alone registers nothing - the farm's NPCs fell to y -910
     // after a "faces + physics built" load (editor, 2026-09-11).
     if (physicsWorld) {
+        Phyxel::Graphics::ScopedChunkPerf t(Phyxel::Graphics::ChunkPerfPhase::LoadPhysicsBody);
         chunk.setPhysicsWorld(physicsWorld);
         chunk.createChunkPhysicsBody();
     }
@@ -1205,14 +1210,14 @@ void ChunkManager::finalizeLoadedChunk(Chunk& chunk, bool syncMesh) {
         // Load-path finalize: also build the chunk's own occupancy grid the way the
         // generation path does (forcePhysicsRebuild) - headless tools and tests read it
         // even when no physics world is attached.
-        chunk.forcePhysicsRebuild();
-        chunk.rebuildFaces();
-        chunk.updateVulkanBuffer();
+        { Phyxel::Graphics::ScopedChunkPerf t(Phyxel::Graphics::ChunkPerfPhase::LoadOccupancy); chunk.forcePhysicsRebuild(); }
+        { Phyxel::Graphics::ScopedChunkPerf t(Phyxel::Graphics::ChunkPerfPhase::LoadFaces);     chunk.rebuildFaces(); }
+        { Phyxel::Graphics::ScopedChunkPerf t(Phyxel::Graphics::ChunkPerfPhase::LoadUpload);    chunk.updateVulkanBuffer(); }
     }
     // Build the O(1) voxel hash maps so hover/raycast (the Properties panel) resolves
     // voxels in this chunk. DB-loaded streamed chunks don't get the bulk
     // initializeAllChunkVoxelMaps() pass, so they'd otherwise be invisible to mouse-over.
-    chunk.initializeVoxelMaps();
+    { Phyxel::Graphics::ScopedChunkPerf t(Phyxel::Graphics::ChunkPerfPhase::LoadVoxelMaps); chunk.initializeVoxelMaps(); }
     // Meshing (self + the 26 neighbours whose faces toward this chunk changed) goes
     // through the budgeted DirtyChunkTracker instead of running synchronously here.
     // The synchronous form did up to 27 full remeshes (skylight + blocklight BFS each)

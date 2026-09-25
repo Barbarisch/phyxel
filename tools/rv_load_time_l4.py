@@ -81,10 +81,14 @@ text = open(log_path, encoding='utf-8', errors='replace').read()
 text = re.sub(r'\x1b\[[0-9;]*m', '', text)
 loads = re.findall(r"Scene '([a-z_]+)' loaded in (\d+) ms", text)
 navs = re.findall(r"Built NavGraph \((\w+) mode\): (\d+) columns, (\d+) surfaces in (\d+) ms(?: on (\d+) threads)?", text)
+holds = re.findall(r"Loading screen dismissed \(settled after (\d+) ms, (\d+) dirty chunks left", text)
 chunks = re.findall(r"World: loaded (\d+) saved chunks of the region from the DB", text)
 print('\nscene loads (engine log):')
 for s, ms in loads:
     print('  %-10s %6s ms' % (s, ms))
+print('loading-screen holds after the load (settled after N ms, dirty chunks left):')
+for ms, dirty in holds:
+    print('  %6s ms  %s dirty' % (ms, dirty))
 print('NavGraph builds:')
 for mode, cols, surf, ms, thr in navs:
     print('  %s: %s columns, %s surfaces, %s ms on %s threads' % (mode, cols, surf, ms, thr or '?'))
@@ -92,6 +96,7 @@ result = {'label': LABEL, 'exe': str(REL / 'Ravenmere.exe'), 'visits': visits,
           'scene_loads_ms': [{'scene': s, 'ms': int(ms)} for s, ms in loads],
           'navgraph_builds': [{'mode': m, 'columns': int(c), 'surfaces': int(s), 'ms': int(ms), 'threads': int(t) if t else None}
                               for m, c, s, ms, t in navs],
-          'chunk_loads': [int(c) for c in chunks]}
+          'chunk_loads': [int(c) for c in chunks],
+          'loading_holds': [{'settled_ms': int(ms), 'dirty_left': int(d)} for ms, d in holds]}
 (OUT / ('rv_load_time_%s.json' % LABEL)).write_text(json.dumps(result, indent=1), encoding='utf-8')
 print('wrote', OUT / ('rv_load_time_%s.json' % LABEL))

@@ -253,6 +253,8 @@ public:
     bool saveAllChunks();
     bool saveDirtyChunks();  // Save only chunks that have been modified
     bool loadChunk(const glm::ivec3& chunkCoord);
+    /// Several DB chunks with the decode on worker threads; see ChunkStreamingManager::loadChunksParallel.
+    int loadChunksParallel(const std::vector<glm::ivec3>& coords, int threads = 0);
     std::vector<glm::ivec3> loadAllChunksFromDatabase();  // Load all chunks that exist in the database
     bool generateOrLoadChunk(const glm::ivec3& chunkCoord); // Generate if doesn't exist, load if it does
 
