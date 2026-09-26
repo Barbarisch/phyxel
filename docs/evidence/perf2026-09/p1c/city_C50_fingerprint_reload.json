@@ -1,5 +1,5 @@
 {
- "rung": "C-50",
+ "rung": "C-59",
  "recipe": {
   "era": "medieval",
   "tier": "city",
@@ -21,23 +21,30 @@
   "yaw": -90,
   "pitch": -45
  },
+ "anchor_pose": {
+  "x": 0,
+  "y": 100,
+  "z": 0,
+  "yaw": -90,
+  "pitch": -89
+ },
  "fingerprint": {
   "placed_objects": 1101,
   "npcs": 62,
   "voxel_tiers": {
    "tiers": {
     "cube": {
-     "faces_merged": 28214,
-     "faces_view_main": 4838,
-     "gpu_bytes": 451424,
-     "merge_ratio": 15.383320337421138,
+     "faces_merged": 35053,
+     "faces_view_main": 877,
+     "gpu_bytes": 560848,
+     "merge_ratio": 16.624768208141955,
      "shadow_faces_view": {
       "far": 0,
-      "mid": 28214,
-      "near": 1508
+      "mid": 35053,
+      "near": 9533
      },
-     "stored": 6242108,
-     "unit_faces_premerge": 434025
+     "stored": 9257305,
+     "unit_faces_premerge": 582748
     },
     "lod_cell": {
      "faces_merged": 0,
@@ -52,32 +59,32 @@
      "unit_faces_premerge": 0
     },
     "micro": {
-     "cpu_bytes_floor": 752614752,
-     "faces_merged": 243207,
-     "faces_view_main": 137100,
-     "gpu_bytes": 3891312,
-     "merge_ratio": 10.268931404112546,
+     "cpu_bytes_floor": 878394624,
+     "faces_merged": 248897,
+     "faces_view_main": 74742,
+     "gpu_bytes": 3982352,
+     "merge_ratio": 10.072560135317019,
      "shadow_faces_view": {
       "far": 0,
-      "mid": 243207,
-      "near": 7070
+      "mid": 248897,
+      "near": 218417
      },
-     "stored": 5533932,
-     "unit_faces_premerge": 2497476
+     "stored": 6458784,
+     "unit_faces_premerge": 2507030
     },
     "sub": {
-     "cpu_bytes_floor": 211649280,
-     "faces_merged": 125599,
-     "faces_view_main": 16909,
-     "gpu_bytes": 2009584,
-     "merge_ratio": 3.774321451603914,
+     "cpu_bytes_floor": 284528896,
+     "faces_merged": 168650,
+     "faces_view_main": 4115,
+     "gpu_bytes": 2698400,
+     "merge_ratio": 3.4032078268603616,
      "shadow_faces_view": {
       "far": 0,
-      "mid": 125599,
-      "near": 8241
+      "mid": 168650,
+      "near": 30261
      },
-     "stored": 1653510,
-     "unit_faces_premerge": 474051
+     "stored": 2222882,
+     "unit_faces_premerge": 573951
     }
    }
   },
@@ -96,9 +103,9 @@
    "by_source_uploaded": {
     "api": 0,
     "editor": 0,
-    "emissive_voxel": 14,
-    "fixture": 12,
-    "item_effect": 6,
+    "emissive_voxel": 18,
+    "fixture": 13,
+    "item_effect": 1,
     "vfx": 0
    }
   }

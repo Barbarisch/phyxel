@@ -9212,6 +9212,12 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         if (cmd.params.contains("trees") && renderCoordinator)
             renderCoordinator->setFarTreesEnabled(cmd.params.value("trees", true));
         // A/B: per-instance level crossfade vs per-tile-centre selection (straddle-cost probe).
+        // A/B attribution: structure LOD proxies alone (the trees knob also removes them).
+        if (cmd.params.contains("structures"))
+            Graphics::RenderCoordinator::s_structureLodEnabled = cmd.params.value("structures", true);
+        if (cmd.params.contains("structures_skip_invisible"))
+            Graphics::RenderCoordinator::s_structureLodSkipInvisible =
+                cmd.params.value("structures_skip_invisible", true);
         if (cmd.params.contains("per_instance_levels"))
             Graphics::RenderCoordinator::s_treePerInstanceLevels =
                 cmd.params.value("per_instance_levels", true);
@@ -15288,6 +15294,10 @@ void Application::registerEffectsCommands() {
             }
             out["structures"] = {{"level_dist", structLadder},
                                  {"entries", structures},
+                                 {"enabled", Graphics::RenderCoordinator::s_structureLodEnabled},
+                                 {"skip_invisible", Graphics::RenderCoordinator::s_structureLodSkipInvisible},
+                                 {"skipped_invisible_last_frame",
+                                  renderCoordinator->getLastFrameStats().structureLodSkippedInvisible},
                                  {"solid_proxies_in_band", solidInBand}};
             out["grass"] = {{"radius", th.grassRadius}, {"fade_range", th.grassFadeRange}};
             out["foliage"] = {{"radius", th.foliageRadius}};

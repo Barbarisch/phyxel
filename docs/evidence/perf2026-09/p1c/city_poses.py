@@ -34,7 +34,7 @@ prov['street'] = f'main_street centreline z={street_z}, x = west end + w/4, eye 
 sq = None
 try:
     locs = call('GET', '/api/locations', t=60)
-    items = locs.get('locations', locs if isinstance(locs, list) else [])
+    items = locs if isinstance(locs, list) else locs.get('locations', [])
     for loc in items:
         tag = (str(loc.get('type', '')) + ' ' + str(loc.get('name', '')) + ' ' + str(loc.get('id', ''))).lower()
         if 'market' in tag or 'square' in tag or 'plaza' in tag:
@@ -59,7 +59,7 @@ prov['rooftop'] = 'street pose raised 14 u (above 2-3 storey eaves), looking +X'
 # 4. Elevated overview of the whole city: the fingerprint anchor pose.
 ov = build['overview_pose']
 poses['overview'] = [ov['x'], ov['y'], ov['z'], ov['yaw'], ov['pitch']]
-prov['overview'] = 'city_build.py OVERVIEW (the fingerprint anchor)'
+prov['overview'] = 'city_build.py OVERVIEW: elevated, south of the site, looking north over the whole city'
 
 # 5. The city seen from outside its wall: 40 u west of the site edge on the street's line, 6 u up.
 ox = CX - W / 2.0 - 40.0

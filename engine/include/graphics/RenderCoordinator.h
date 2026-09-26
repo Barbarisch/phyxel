@@ -200,6 +200,14 @@ public:
     /// committing to the M6 binning build (POST /api/debug/far_terrain
     /// {"per_instance_levels": bool}).
     static bool s_treePerInstanceLevels;
+    /// Structure LOD proxies (distant settlements). A/B attribution knob, measurement-only:
+    /// {"structures": bool} on POST /api/debug/far_terrain. The far-trees knob turns off the
+    /// whole tree-LOD pipeline, which also draws these proxies, so it cannot separate them.
+    static bool s_structureLodEnabled;
+    /// Skip a proxy's MAIN-VIEW draw when the shader would discard every fragment of it (its
+    /// real building is resident: minFade 0; and it is inside the fade start: smoothstep 0).
+    /// Pixel-identical by construction; {"structures_skip_invisible": bool} for the A/B.
+    static bool s_structureLodSkipInvisible;
     // NOTE: there is deliberately no reach cap any more. The candidate set comes from
     // storage (chunks that actually HAVE pyramids), so coverage is bounded by the world's
     // real contents rather than by a constant somebody guessed.
@@ -395,6 +403,7 @@ public:
         static constexpr int kTreeChainLevels = 6;
         int    farTreeMeshDrawsByLevel[kTreeChainLevels] = {};
         int    farTreeCardDraws       = 0;
+        int    structureLodSkippedInvisible = 0;   ///< proxies whose main draw was provably all-discard
         // D1 shadow-pass diagnosis (docs/RenderDensityPlan.md): the shadow pass distance-culls only
         // (no frustum), so it may draw far more than visibleChunkCount. These count what it drew.
         int    shadowChunksDrawn     = 0;

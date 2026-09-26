@@ -685,6 +685,8 @@ void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::Mesh
         // 2026-08-05 stale-proxy bug — same defect class the tree gate fixed twice).
         const float fadeGateEnd =
             treeLodPipeline ? treeLodPipeline->params().fadeNear1 : 260.0f;
+        // The shader's smoothstep edge0 (pc.fadeIn.x); 0 = no pipeline = never skip.
+        const float fadeGateEnd0 = treeLodPipeline ? treeLodPipeline->params().fadeNear0 : 0.0f;
         const auto gate = structureGateProbe(
             e.mn, e.mx, cameraPos, fadeGateEnd, [this](const glm::ivec3& wp) {
                 const auto* c = chunkManager->getChunkAtFast(wp);
@@ -710,9 +712,24 @@ void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::Mesh
         if (gl.vertexBuffer == VK_NULL_HANDLE) continue;
         e.lastLevel = chosen;
         e.lastMinFade = 1.0f - e.readiness;
-        meshDraws.push_back({gl.vertexBuffer, gl.indexBuffer, gl.indexCount, e.inst, 0, 1,
-                             glm::vec2(float(e.mn.x), float(e.mn.z)), 8.0f,
-                             e.lastMinFade});
+        // far_tree_mesh.vert: vFade = max(smoothstep(fadeNear0, fadeNear1, dist), minFade), with
+        // dist measured from the instance base = (mn.x + 0.5, mn.y, mn.z + 0.5); the fragment
+        // discards when vFade < its Bayer threshold (>= 1/32). With minFade 0 and dist at or
+        // inside fadeNear0 every fragment is discarded, so the draw is pure wasted vertex and
+        // raster work: a city at street level drew ALL its proxies this way at the finest level
+        // (C-100: 104 proxies at L0). 1 u of margin covers CPU-vs-GPU float differences.
+        const bool mainDrawInvisible = [&] {
+            if (!s_structureLodSkipInvisible || e.lastMinFade != 0.0f) return false;
+            const glm::vec3 base(float(e.mn.x) + 0.5f, float(e.mn.y), float(e.mn.z) + 0.5f);
+            return glm::length(base - cameraPos) < fadeGateEnd0 - 1.0f;
+        }();
+        if (s_structureLodEnabled && !mainDrawInvisible)
+            meshDraws.push_back({gl.vertexBuffer, gl.indexBuffer, gl.indexCount, e.inst, 0, 1,
+                                 glm::vec2(float(e.mn.x), float(e.mn.z)), 8.0f,
+                                 e.lastMinFade});
+        else if (mainDrawInvisible)
+            ++lastFrameStats.structureLodSkippedInvisible;
+        if (!s_structureLodEnabled) continue;   // attribution: no casters either
         // Far-cascade caster: this structure at its coarsest BUILT level (single instance,
         // cheap) so distant settlements shade the terrain around them.
         for (int c = kStructLevels - 1; c >= 0; --c) {
@@ -1608,6 +1625,7 @@ void RenderCoordinator::renderFarTerrain() {
     std::fill(std::begin(lastFrameStats.farTreeMeshDrawsByLevel),
               std::end(lastFrameStats.farTreeMeshDrawsByLevel), 0);
     lastFrameStats.farTreeCardDraws = 0;
+    lastFrameStats.structureLodSkippedInvisible = 0;
     // Residency-gated handoff (user: "lower detail trees fade out before the detailed trees
     // render... for a bit of time there is nothing there"). The distance fade assumes chunks
     // at fade range are loaded, but streaming is ASYNC — flying in, the LOD tree dissolved on
@@ -2477,6 +2495,8 @@ bool  RenderCoordinator::s_distanceDrivenLod = false;
 bool  RenderCoordinator::s_farLodChunks = true;
 int   RenderCoordinator::s_farLodBudgetPerFrame = 4;
 bool  RenderCoordinator::s_treePerInstanceLevels = true;
+bool  RenderCoordinator::s_structureLodEnabled = true;
+bool  RenderCoordinator::s_structureLodSkipInvisible = true;
 // Tree mesh ladder (level i+1 below entry i; L5 beyond) — runtime-tunable, see the header.
 float RenderCoordinator::s_treeMeshLevelDist[4] = {360.0f, 560.0f, 820.0f, 1150.0f};
 float RenderCoordinator::s_lodTargetPixels = 8.0f;

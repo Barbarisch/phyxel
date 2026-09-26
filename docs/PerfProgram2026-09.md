@@ -1279,3 +1279,123 @@ Cost: a second 64 MB host-visible pool.
 unit suite 4,061 passed / same 2 known failures; Lighting Lab ambient check GREEN, A1 0.985, A2 0.0716,
 A3 0.9976 / 0.0715, A4 2.90 (`docs/evidence/ambient_occfix.json`) -- sealed rooms read exactly as before.
 Evidence: `p1c/device_lost_trend.{py,json}`.
+
+### 16.10 Step 0 + the first finding at real load: streaming stutter is main-thread CPU (2026-09-25)
+
+**Release now emits symbols** (`/Zi` + `/DEBUG /OPT:REF /OPT:ICF` via the CMake cache; optimisation
+unchanged): a CPU access violation (read of `0xffffffffffffffff`, a non-main thread) killed the first
+step-0 attempt at 22:19 and its dump could not be symbolised. It did not recur on the re-run. Open: if it
+recurs, `crashes/*.dmp` now resolves against `build/editor/Release/phyxel.pdb`.
+
+**Step 0 (streaming throughput, CityBench, `p1c/step0_streaming_throughput.json`).** Straight camera
+routes into never-loaded terrain: every chunk entry resident at 8, 16, 32 and 48 u/s; at 64 u/s the last
+entry arrived unloaded. **Route speeds on this machine: walk 4 u/s, fast 32 u/s** (a margin under 48).
+
+**But the frame time while streaming is bad at every speed:** p50 49–87 ms, p99 up to 344 ms, worst 486 ms.
+One recorded 8 u/s route (`p1c/streaming_cost_{raw,summary}.json`, 1,360 frames): frame p50 24.8 ms, p95
+67 ms, max 125 ms, attributed per phase:
+
+| Phase | p50 | p95 | max | Cause |
+|---|---|---|---|---|
+| `drawFrame/Light Occupancy` | 0.2 | **35.5** | 59 | `VoxelLightOccupancyGpu` repacks the WHOLE pool on any chunk change (its header: "REPACK-ON-DIRTY ... optimise after the cost is MEASURED"). Measured. Grows with total resident sub-voxel detail -- i.e. with the city. |
+| `Update/Water` | 0.02 | 0.03 | **59** | Rare large spikes (6 of the 10 worst frames): the water CA region re-reading solidity as the camera moves. |
+| `drawFrame/Dirty Chunk Flush` | 4.3 | 23 | **72** | Chunk meshing on the main thread (S4, off-thread meshing). |
+| `drawFrame/Record` | 0.9 | 1.3 | 10 | Rendering is not the problem here; `Fence Wait` p50 0.01 ms (GPU idle-waiting). |
+
+**Streaming stutter is entirely main-thread CPU work, and none of it is rendering.** New P2 candidates,
+to be re-ranked with the city data: **O1 incremental occupancy packing** (patch changed chunks'
+blobs; keep the per-slot upload but copy only changed ranges), **W1 water region recentre off the main
+thread or amortised**, and S4 (off-thread meshing, already planned).
+
+### 16.11 RESULTS — the ladder exists, and the first growth table (2026-09-26, RTX 4090, Release, editor host)
+
+**Two more device losses and three generator/persistence defects had to be fixed first** (all
+committed, each red-before-green): the far-shadow cascade replayed cached far-tile/tree draws whose
+buffers the graveyard had freed (`700d2ecd`, 5/5 clean vs control 2/2 lost); building lights did not
+survive save/load and outlived a replaced building (`20bdb399`, C-25 67 → 0 after reload; 7 ghost
+lights); and **the city tier could not make 100 buildings at all** — `buildings.max` 48 × density was a
+fixed ceiling (72 at 1.5, 96 at the 2.0 clamp; a 192×192 site built the same 72 as 160×160). User chose
+area scaling: `scaleForSite` grows the cap by site area past the tier's `reference_site` (160×160), scale-up
+only (`0eedbcb4`). Logged, not fixed: trees cleared by a build regrow after a reload (a chunk saved
+EMPTY loads as "not saved"; +0.2–0.4 % sub/micro) and CityForge plans overlapping lots (C-25: 26 → 25).
+
+**The ladder** (all engine-generated, `POST /api/settlement/build` tier `city`, seed 7, density 1.5;
+fresh copies of the CityBench world; every rung saved, relaunched and fingerprint-checked — placed
+objects, residents, cubes and building lights identical across reload):
+
+| Rung | Site | Buildings | Residents | Walkability gate | Build time | Project |
+|---|---|---|---|---|---|---|
+| C-25 | 96×96 | 25 | 29 | — | 285 s | `CityBench_C25M` |
+| C-50 | 128×128 | 59 | 62 | — | 841 s | `CityBench_C50` |
+| C-75 | 160×160 | 72 | 72 | 170/176 | 1,021 s | `CityBench_C75` |
+| **C-100** | 192×192 | **104** | 104 | 241/251 | 1,531 s | `CityBench_C100b` |
+
+**Rig facts** (each learned the hard way this session): settle + fingerprint from an ANCHOR straight above
+the site centre (the overview pose left the C-75 far corner 274 u away, unstreamed, and the generator
+correctly refused the build as ungrounded); the reference fingerprint is the RELOAD fingerprint (stable
+across reloads; build-time state differs by the tree-regrowth drift); fixed poses come from the
+generator's layout (`city_poses.py`: main street, site centre, rooftop +14 u, overview, 40 u outside);
+defaults as shipped (prepass OFF — §16.7 assumed ON), IMMEDIATE present mode, clock paused.
+
+**Growth table, street pose, noon, GPU ms** (all five poses in `p1c/growth_table.md`; raw rows
+`p1c/attrib_*.jsonl`, 2 counterbalanced repeats × 240 GPU frames per cell):
+
+| Pass | C-25 (25) | C-50 (59) | C-75 (72) | C-100 (104) | Growth |
+|---|---|---|---|---|---|
+| **GPU frame** | 45.1 | 55.0 | 89.8 | **103.0** | ~linear, **~0.75 ms / building** |
+| Scene Pass / Far Terrain (tree-LOD pipeline) | 8.6 | 16.1 | 31.9 | **39.7** | **~linear, 0.4 ms / building** |
+| Shadow Mid (420 u) | 11.1 | 13.1 | 19.2 | 20.0 | sub-linear |
+| Shadow Near | 2.0 | 3.9 | 7.3 | 8.7 | ~linear |
+| Static Geometry | 11.1 | 4.3 | 14.3 | 15.6 | pose-noisy, mild |
+| GI Probes | 3.5 | 3.6 | 5.8 | 5.3 | flat-ish (+50 % C-25→C-75, then flat) |
+| OIT | 1.2 | 1.8 | 2.7 | 3.4 | linear, small |
+| night − noon | −0.2 | +0.4 | −0.6 | +1.0 | **none** |
+
+Every pose tells the same story (C-100: 86–109 ms GPU at all five poses, i.e. **9–12 fps on a 4090**).
+Against §16.7: **point lights REJECTED as a city cost** (night ≈ noon at every rung — L1 dedup already
+took them off the table); **Shadow Mid CONFIRMED rising but it is second, not steepest**; GI probes
+roughly flat (CONFIRMED within noise past C-75); characters negligible (0.2–1.4 ms). **The steepest
+term, which no prediction named, is the "Far Terrain" scope.**
+
+**What "Far Terrain" is here.** With far trees switched off (`POST /api/debug/far_terrain {"trees":
+false}`), C-100 street drops 109 → 69 ms and the scope falls from 41.8 ms to < 1 ms. But that knob turns
+off the whole tree-LOD pipeline, which ALSO draws the **structure LOD proxies** (one per building), and
+the scope grows with the BUILDING count — distant forest does not. `lod_report` at C-100 shows every one
+of the 104 proxies drawn at chain level 0 (the finest) at 150–210 u with `min_fade` 0: the shader's
+distance fade (`vFade = max(smoothstep(fadeNear0, fadeNear1, dist), minFade)`, discard below the Bayer
+threshold) throws away every fragment of every one of them. Suspect: 104 full-detail meshes drawn every
+frame only to be discarded. §16.12 separates the two and tests a pixel-identical skip.
+
+### 16.12 SHIPPED — structure proxies that the shader throws away are no longer drawn (2026-09-26)
+
+**Change.** `tickStructureLod` skips a proxy's main-view draw when every fragment is provably discarded:
+`minFade == 0` (its real building is resident) and its instance base is inside `fadeNear0 − 1 u` (the
+smoothstep returns 0, so `vFade = 0 <` every Bayer threshold). Far-cascade casters are untouched. Default
+ON; `s_structureLodSkipInvisible` + an attribution knob `s_structureLodEnabled` on
+`POST /api/debug/far_terrain {"structures_skip_invisible", "structures"}`; `lod_report` reports
+`skipped_invisible_last_frame`.
+
+**Attribution + win, C-100, noon, interleaved ABBA** (`p1c/ab_structure_lod_C100.jsonl`, 2 pairs × 240
+GPU frames per cell; this session's absolute numbers ran lower than §16.11's run — only pairs are compared):
+
+| Pose | old | **skip (shipped)** | no proxies at all | Far Terrain scope old → skip |
+|---|---|---|---|---|
+| street | 75.8 ms | **49.8 ms (−26.0, −34 %)** | 49.8 ms | 28.2 → 2.8 ms |
+| overview | 59.7 ms | **43.1 ms (−16.6, −28 %)** | 32.9 ms | 27.0 → 10.0 ms |
+
+At street level the skip equals removing the proxies entirely: every proxy was invisible there. From
+the overview ~10 ms of proxy cost is REAL (visible, still at chain level 0 — see next).
+
+**Pixel gate** (`p1c/structure_skip_pixel_gate.py --freeze`: grass + foliage off, game paused, clock at
+noon; A1 skip-on / B skip-off / C skip-on at matched timing; linear and shipping tone curves): street and
+outside **bit-identical** (max delta 0, 65 proxies skipped); overview max 1–3/255, **no larger than its
+own control** (103 skipped). Unfrozen, the city's noise floor (104 walking residents, grass) was ~4,100
+px over 8/255 — too high to decide anything; freezing is required for gates in the city.
+
+**Next levers, re-ranked on C-100 after this fix** (to be re-measured with the fix in the growth table):
+1. **Visible structure proxies still draw at L0** (the finest chain level) out to 360 u
+   (`kStructureLevelDist[0]`): ~10 ms at the overview. A coarser level nearer, or a screen-space level
+   rule, needs a visual check — it is a LOOK change, not free.
+2. **Shadow Mid ~20–24 ms** (every building in 420 u casts, visible or not) — S-class shadow work.
+3. **Static Geometry 7–16 ms** and the default-OFF depth prepass (−20..−37 % at S-1/S-2) to re-verify here.
+4. Far trees proper: ~2.8 ms at street after the fix — no longer a city problem.

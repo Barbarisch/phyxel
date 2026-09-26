@@ -1,0 +1,7 @@
+{
+ "street": "main_street centreline z=-0.5, x = west end + w/4, eye 1.7 u, looking +X",
+ "square": "NO market/square location registered: site centre used; eye 1.7 u, looking -Z",
+ "rooftop": "street pose raised 14 u (above 2-3 storey eaves), looking +X",
+ "overview": "city_build.py OVERVIEW: elevated, south of the site, looking north over the whole city",
+ "outside": "40 u west of the site edge (x=-48.0) on the main-street line, 6 u up, looking +X"
+}
