@@ -1493,6 +1493,15 @@ void RenderCoordinator::renderFarTerrain() {
     // reference config). Must be set before update()/computeRings() runs this frame.
     if (farTerrainManager) farTerrainManager->params().viewScale = screenSpaceLodScale();
 
+    // The FAR shadow cascade replays these caches next frame. Empty them BEFORE any early
+    // return: they hold raw tile/tree buffer handles, and a stale cache outlives the
+    // 4-frame graveyard that frees those buffers. setTreeExclusions() retires every tile
+    // at once (settlement worlds, at load), tileDraws() goes empty, the `tiles.empty()`
+    // return below used to skip the refresh, and the shadow pass drew freed buffers ->
+    // VK_ERROR_DEVICE_LOST ~seconds after launch in CityBench (2026-09-26).
+    m_cachedFarTileDraws.clear();
+    m_cachedTreeMeshDraws.clear();
+
     // Far-terrain LOD tiles. Drawn AFTER static geometry so near chunks fill depth
     // first and far-tile pixels behind them are z-rejected. Excluded from the shadow
     // pass by construction. Tiles are frustum-culled by their AABB here.
@@ -1590,7 +1599,7 @@ void RenderCoordinator::renderFarTerrain() {
     // Far-cascade caster list rebuilt per frame — at COARSEST chain level only. A shadow
     // caster at 0.9 u/texel needs blob-shape depth, not L1 detail; replaying the visible
     // draws as casters made every cadence frame's shadow pass spike ~+10 ms (measured).
-    m_cachedTreeMeshDraws.clear();
+    // (Both caches were emptied at the top of this function.)
     lastFrameStats.farTrees = 0;
     std::fill(std::begin(lastFrameStats.farTreeMeshAnnuli),
               std::end(lastFrameStats.farTreeMeshAnnuli), 0);
