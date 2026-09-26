@@ -1729,7 +1729,15 @@ void EngineAPIServer::setupRoutes() {
     // ====================================================================
     // GET /api/world/chunks — Chunk information
     // ====================================================================
-    srv.Get("/api/world/chunks", [this](const httplib::Request&, httplib::Response& res) {
+    // ?detail=1 adds the per-chunk list (origin + cube/sub/micro counts). It walks the chunk
+    // vector, which streaming mutates, so it runs on the MAIN thread via the queued
+    // get_chunk_info command; the summary below stays on the HTTP thread (sizes only).
+    srv.Get("/api/world/chunks", [this](const httplib::Request& req, httplib::Response& res) {
+        if (req.has_param("detail") && req.get_param_value("detail") == "1") {
+            res.set_content(queueAndWait("get_chunk_info", json::object(), 30000).dump(),
+                            "application/json");
+            return;
+        }
         if (m_chunkInfoHandler) {
             json result = m_chunkInfoHandler();
             res.set_content(result.dump(), "application/json");

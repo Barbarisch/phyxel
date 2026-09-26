@@ -963,6 +963,30 @@ re-registered them on load (the forge comment even said so: "recorded, not faked
   id; `PlacedObjectManager`'s pre-remove callback passes the object and the editor removes its
   recorded lights; `restoreLights` rewrites ids after a load.
 
+## 2026-09-26 — Trees cleared by a build GROW BACK after a reload (a chunk saved EMPTY loads as "not saved")
+
+Found by the city-benchmark persistence check. Every CityBench rung reloads with MORE sub/micro voxels
+than it was built with (C-25 +2,075 sub / +7,644 micro, C-50 +8,152 / +24,640, C-75 +6,959 / +21,431 in
+the chunks resident both times); the reloaded state is then stable across further reloads. Located with
+`GET /api/world/chunks?detail=1` (C-75, `docs/evidence/perf2026-09/p1c/chunk_diff.py`): all of it is in
+chunks at roof/canopy height (world y 64-95) that were EMPTY at build time and full after reload.
+- **Mechanism (code + DB verified):** the vegetation gate clears tree canopy there, the chunk becomes
+  empty, it is saved dirty as an EMPTY blob row (confirmed in the C-75 DB: `chunk_blobs` rows with
+  0/0/0 counts). `WorldStorage::loadChunkFromBlob` returns `found && (cubes+subs+micros) > 0`
+  ("match v1 semantics"), so an empty saved chunk reads as NOT SAVED; the streaming worker then
+  regenerates it from the generator, flora included. Any edit that empties a chunk (felling every
+  tree in an air chunk, a build's vegetation gate) is undone on reload.
+- **Why it is not a one-line fix:** `ChunkManager::ensureChunkAt` creates chunks EMPTY
+  (`createChunk(origin, false)`, "for placement") even in streaming worlds, shadowing the terrain the
+  generator would have made (seen in the C-50 build at y=0/32 chunk depth). Today an empty-saved
+  placement chunk is masked by the regenerate-on-empty rule; making empty rows authoritative ALONE
+  would turn those into permanent holes. Fix both together: (1) ensureChunkAt in a world with a
+  generator loads or GENERATES the missing chunk; (2) a found+decoded blob row is authoritative even
+  when empty. Red tests: save an emptied chunk, reload, assert empty (fails today); place into an
+  unloaded streaming chunk, assert the generator's terrain is present (fails today).
+- Benchmark impact: small (0.2-0.4% of sub/micro), and the reloaded state is stable, so each rung's
+  REFERENCE fingerprint is the reload fingerprint.
+
 ## 2026-09-26 — CityForge plans OVERLAPPING lots; the later build silently replaces the earlier house
 
 Same C-25 build (seed 7, 96×96, density 1.5): **26 buildings queued, 25 exist.** The log shows

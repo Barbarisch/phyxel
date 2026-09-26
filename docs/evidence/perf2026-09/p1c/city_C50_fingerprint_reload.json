@@ -1,0 +1,106 @@
+{
+ "rung": "C-50",
+ "recipe": {
+  "era": "medieval",
+  "tier": "city",
+  "seed": 7,
+  "position": {
+   "x": -64,
+   "y": 16,
+   "z": -64
+  },
+  "width": 128,
+  "depth": 128,
+  "terrain": true,
+  "density": 1.5
+ },
+ "overview_pose": {
+  "x": 0,
+  "y": 190,
+  "z": 115.2,
+  "yaw": -90,
+  "pitch": -45
+ },
+ "fingerprint": {
+  "placed_objects": 1101,
+  "npcs": 62,
+  "voxel_tiers": {
+   "tiers": {
+    "cube": {
+     "faces_merged": 28214,
+     "faces_view_main": 4838,
+     "gpu_bytes": 451424,
+     "merge_ratio": 15.383320337421138,
+     "shadow_faces_view": {
+      "far": 0,
+      "mid": 28214,
+      "near": 1508
+     },
+     "stored": 6242108,
+     "unit_faces_premerge": 434025
+    },
+    "lod_cell": {
+     "faces_merged": 0,
+     "faces_view_main": 0,
+     "gpu_bytes": 0,
+     "merge_ratio": 0.0,
+     "shadow_faces_view": {
+      "far": 0,
+      "mid": 0,
+      "near": 0
+     },
+     "unit_faces_premerge": 0
+    },
+    "micro": {
+     "cpu_bytes_floor": 752614752,
+     "faces_merged": 243207,
+     "faces_view_main": 137100,
+     "gpu_bytes": 3891312,
+     "merge_ratio": 10.268931404112546,
+     "shadow_faces_view": {
+      "far": 0,
+      "mid": 243207,
+      "near": 7070
+     },
+     "stored": 5533932,
+     "unit_faces_premerge": 2497476
+    },
+    "sub": {
+     "cpu_bytes_floor": 211649280,
+     "faces_merged": 125599,
+     "faces_view_main": 16909,
+     "gpu_bytes": 2009584,
+     "merge_ratio": 3.774321451603914,
+     "shadow_faces_view": {
+      "far": 0,
+      "mid": 125599,
+      "near": 8241
+     },
+     "stored": 1653510,
+     "unit_faces_premerge": 474051
+    }
+   }
+  },
+  "lights": {
+   "registered": 312,
+   "uploaded": null,
+   "enabled_point": 312,
+   "by_source": {
+    "api": 0,
+    "editor": 0,
+    "emissive_voxel": 131,
+    "fixture": 128,
+    "item_effect": 53,
+    "vfx": 0
+   },
+   "by_source_uploaded": {
+    "api": 0,
+    "editor": 0,
+    "emissive_voxel": 14,
+    "fixture": 12,
+    "item_effect": 6,
+    "vfx": 0
+   }
+  }
+ }
+}

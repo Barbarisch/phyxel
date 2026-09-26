@@ -1,0 +1,113 @@
+{
+ "rung": "C-75",
+ "recipe": {
+  "era": "medieval",
+  "tier": "city",
+  "seed": 7,
+  "position": {
+   "x": -80,
+   "y": 16,
+   "z": -80
+  },
+  "width": 160,
+  "depth": 160,
+  "terrain": true,
+  "density": 1.5
+ },
+ "overview_pose": {
+  "x": 0,
+  "y": 190,
+  "z": 144.0,
+  "yaw": -90,
+  "pitch": -45
+ },
+ "anchor_pose": {
+  "x": 0,
+  "y": 100,
+  "z": 0,
+  "yaw": -90,
+  "pitch": -89
+ },
+ "fingerprint": {
+  "placed_objects": 1311,
+  "npcs": 75,
+  "voxel_tiers": {
+   "tiers": {
+    "cube": {
+     "faces_merged": 36384,
+     "faces_view_main": 1057,
+     "gpu_bytes": 582144,
+     "merge_ratio": 15.67221855760774,
+     "shadow_faces_view": {
+      "far": 0,
+      "mid": 36384,
+      "near": 10866
+     },
+     "stored": 9590692,
+     "unit_faces_premerge": 570218
+    },
+    "lod_cell": {
+     "faces_merged": 0,
+     "faces_view_main": 0,
+     "gpu_bytes": 0,
+     "merge_ratio": 0.0,
+     "shadow_faces_view": {
+      "far": 0,
+      "mid": 0,
+      "near": 0
+     },
+     "unit_faces_premerge": 0
+    },
+    "micro": {
+     "cpu_bytes_floor": 1005600728,
+     "faces_merged": 312707,
+     "faces_view_main": 75436,
+     "gpu_bytes": 5003312,
+     "merge_ratio": 10.390122382933544,
+     "shadow_faces_view": {
+      "far": 0,
+      "mid": 312707,
+      "near": 282227
+     },
+     "stored": 7394123,
+     "unit_faces_premerge": 3249064
+    },
+    "sub": {
+     "cpu_bytes_floor": 289718400,
+     "faces_merged": 172250,
+     "faces_view_main": 4416,
+     "gpu_bytes": 2756000,
+     "merge_ratio": 3.7240928882438316,
+     "shadow_faces_view": {
+      "far": 0,
+      "mid": 172250,
+      "near": 33861
+     },
+     "stored": 2263425,
+     "unit_faces_premerge": 641475
+    }
+   }
+  },
+  "lights": {
+   "registered": 397,
+   "uploaded": null,
+   "enabled_point": 397,
+   "by_source": {
+    "api": 0,
+    "editor": 0,
+    "emissive_voxel": 164,
+    "fixture": 163,
+    "item_effect": 70,
+    "vfx": 0
+   },
+   "by_source_uploaded": {
+    "api": 0,
+    "editor": 0,
+    "emissive_voxel": 19,
+    "fixture": 12,
+    "item_effect": 1,
+    "vfx": 0
+   }
+  }
+ }
+}
