@@ -1894,7 +1894,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // + render so it cannot be re-baked back into the world (the "removed chair
     // reappears" bug). Covers every removal path, not just the MCP handler.
     // Item props likewise tear down their kinematic render group.
-    placedObjectManager->setPreRemoveCallback([this](const std::string& id) {
+    placedObjectManager->setPreRemoveCallback([this](const std::string& id,
+                                                     const Core::PlacedObject& obj) {
         // A registered door's voxels live in the KinematicVoxelManager (moved there by
         // DoorManager::registerDoor so the leaf can swing), NOT in the chunk grid. The
         // remove() path only clears static chunk cubes, so without this the kinematic
@@ -1903,6 +1904,12 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         if (doorManager) doorManager->unregisterDoor(id);
         if (dynamicFurnitureManager) dynamicFurnitureManager->discard(id);
         if (itemPropManager) itemPropManager->onPlacedObjectRemoved(id);
+        // A generated building's lamps/hearths die with it. Without this, a structure
+        // removed by a later overlapping build left its lights burning over empty
+        // ground (CityBench C-25: 7 ghost lights from one replaced house).
+        if (renderCoordinator)
+            for (int lightId : Core::StructureBuildService::recordedLightIds(obj))
+                renderCoordinator->getLightManager().removeLight(lightId);
     });
 
     // Wire furniture activation into the voxel interaction system
@@ -2137,6 +2144,21 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             placedObjectManager->recomputeAllInteractionPoints();
             // Item props restored from the DB need their kinematic render groups back.
             if (itemPropManager) itemPropManager->rebuildFromPlacedObjects();
+            // Generated buildings' lamps and hearths: LightManager lights are memory-only,
+            // so re-register the records the build persisted on each structure.
+            if (renderCoordinator) {
+                const auto lr = Core::StructureBuildService::restoreLights(
+                    *placedObjectManager,
+                    [this](const glm::vec3& p, const glm::vec3& c, float intensity, float radius) {
+                        return renderCoordinator->getLightManager().addPointLight(
+                            Graphics::LightSource::Fixture, p, c, intensity, radius);
+                    });
+                LOG_INFO_FMT("Application", "Structure lights restored from world.db: "
+                             << lr.restored << " (refused at capacity " << lr.refused
+                             << ", malformed " << lr.malformed << ")");
+            } else {
+                LOG_WARN("Application", "Structure lights NOT restored: no render coordinator yet");
+            }
 
             // Restore persisted world locations (world_meta["locations"]): the
             // ResidentSpawner re-derives every settlement's townsfolk from these, so a
@@ -16480,9 +16502,13 @@ void Application::processAPICommands() {
                         if (!chunk) continue;
                         auto pos = chunk->getWorldOrigin();
                         auto cubeCount = chunk->getCubeCount();
+                        // Sub/micro counts let a persistence check locate WHICH chunk
+                        // changed across a save/reload (PerfProgram 2026-09 §16.1).
                         chunkArr.push_back({
                             {"position", {{"x", pos.x}, {"y", pos.y}, {"z", pos.z}}},
-                            {"cubeCount", cubeCount}
+                            {"cubeCount", cubeCount},
+                            {"subcubeCount", chunk->getStaticSubcubeCount()},
+                            {"microcubeCount", chunk->getStaticMicrocubeCount()}
                         });
                     }
 

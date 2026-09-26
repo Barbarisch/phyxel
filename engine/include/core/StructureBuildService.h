@@ -20,6 +20,7 @@
 
 #include <functional>
 #include <string>
+#include <vector>
 
 #include <glm/glm.hpp>
 #include <nlohmann/json.hpp>
@@ -32,6 +33,7 @@ class ObjectTemplateManager;
 
 namespace Core {
 class PlacedObjectManager;
+struct PlacedObject;
 class LocationRegistry;
 class NPCManager;
 class ItemPropManager;
@@ -95,6 +97,34 @@ public:
     static glm::ivec3 snapToStandable(const std::function<bool(const glm::ivec3&)>& solidAt,
                                       const glm::ivec3& cell, int radius = 5,
                                       const std::function<bool(const glm::ivec3&)>& avoid = {});
+
+    // ---- Fixture-light persistence ---------------------------------------------------
+    // LightManager lights live only in memory, so a saved settlement used to come back
+    // with every lamp and hearth UNLIT (PerfProgram 2026-09 §16.1: CityBench C-25 had 67
+    // fixture lights at build and 0 after a relaunch). The build therefore records each
+    // light it registers on the STRUCTURE's placed object (metadata key `kLightsKey`, an
+    // array of lightRecord()s; hearths have no fixture object of their own), and every
+    // world load re-registers them with restoreLights(). World units, linear RGB. Each
+    // record also carries "id", the LightManager id in THIS session (rewritten by
+    // restoreLights), so removing the structure removes its lights.
+    static constexpr const char* kLightsKey = "lights";
+    static nlohmann::json lightRecord(const glm::vec3& pos, const glm::vec3& color,
+                                      float intensity, float radius, const std::string& type,
+                                      int lightId);
+    /// The session light ids recorded on `obj` (empty for objects with no light records).
+    static std::vector<int> recordedLightIds(const PlacedObject& obj);
+    struct LightRestore {
+        int restored = 0;    ///< re-registered
+        int refused = 0;     ///< addPointLight returned -1 (capacity)
+        int malformed = 0;   ///< record missing fields / non-finite values: skipped, never guessed
+    };
+    /// Re-register every recorded structure light through `addPointLight` (the same hook the
+    /// build uses) and write each new id back into its record (-1 when refused). Call once
+    /// per world load, after PlacedObjectManager::loadFromDb.
+    static LightRestore restoreLights(
+        PlacedObjectManager& placed,
+        const std::function<int(const glm::vec3& pos, const glm::vec3& color,
+                                float intensity, float radius)>& addPointLight);
 };
 
 } // namespace Core

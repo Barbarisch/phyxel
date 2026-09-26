@@ -391,8 +391,10 @@ public:
     /// Callback fired for each object id about to be removed (before its voxels
     /// are cleared and its entry erased). Subsystems that hold derived state for
     /// an object (e.g. DynamicFurnitureManager) hook this to tear that state
-    /// down. The callback MUST NOT call back into PlacedObjectManager.
-    using PreRemoveCallback = std::function<void(const std::string& id)>;
+    /// down. The callback MUST NOT call back into PlacedObjectManager (it runs under
+    /// the registry lock) -- which is why the object itself is passed: a structure's
+    /// recorded point lights (metadata "lights") are torn down from it.
+    using PreRemoveCallback = std::function<void(const std::string& id, const PlacedObject& obj)>;
     void setPreRemoveCallback(PreRemoveCallback cb) { m_preRemove = std::move(cb); }
 
 private:

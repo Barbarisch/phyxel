@@ -40,7 +40,11 @@ def fingerprint():
 
 
 wait_api()
-settle(900)
+# The site must be STREAMED before the generator runs on it (the editor anchors streaming on the
+# camera): stand the camera at the overview pose above the site centre and settle first.
+call('POST', '/api/camera', {'mode': 'free', 'position': {k: OVERVIEW[k] for k in 'xyz'},
+                             'yaw': OVERVIEW['yaw'], 'pitch': OVERVIEW['pitch']})
+settle(1800)
 out = {'rung': rung, 'recipe': RECIPE, 'overview_pose': OVERVIEW}
 if not FP_ONLY:
     sub = call('POST', '/api/settlement/build', RECIPE, t=120)
@@ -60,6 +64,11 @@ if not FP_ONLY:
         time.sleep(15)
     out['job'] = j
     out['build_wall_s'] = time.time() - t0
+    # Persist explicitly (section 16.1 option 1): dirty chunks + the placed-object registry
+    # (which now carries the structure light records). The reload fingerprint is compared
+    # against the fingerprint taken right after this save.
+    out['save'] = call('POST', '/api/world/save', {}, t=600)
+    print(rung, 'save', out['save'])
     print(rung, 'job', j and j['state'], 'in', round(out['build_wall_s']), 's')
     json.dump(out, open(prefix + '_build.json', 'w'), indent=1)
 out['fingerprint'] = fingerprint()

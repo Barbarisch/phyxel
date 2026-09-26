@@ -884,7 +884,7 @@ bool PlacedObjectManager::remove(const std::string& idOrUuid) {
 
         // Let subsystems tear down derived state (e.g. an active dynamic-furniture
         // body + render) before the object disappears, so it cannot be re-baked.
-        if (m_preRemove) m_preRemove(removeId);
+        if (m_preRemove) m_preRemove(removeId, removeIt->second);
 
         const PlacedObject& obj = removeIt->second;
         // Item props are never baked into chunks — clearing their bbox would

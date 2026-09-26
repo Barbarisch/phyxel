@@ -103,7 +103,7 @@ TEST(ItemPlacement, StructureRemovalCascadesItemProps) {
     props.setDependencies(&placed, &templates, &kvm, nullptr);
     props.setDynamicsWorld(&world);
     // Mirror the Application wiring: registry removal tears down the prop.
-    placed.setPreRemoveCallback([&](const std::string& id) {
+    placed.setPreRemoveCallback([&](const std::string& id, const PlacedObject&) {
         props.onPlacedObjectRemoved(id);
     });
 

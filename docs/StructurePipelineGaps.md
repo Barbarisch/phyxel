@@ -939,3 +939,39 @@ not yet an L4 run of a packaged game:
 - Workaround in the benchmark: measure in the editor host; the standalone `--test` follow-up is blocked
   on this for streaming worlds.
 
+## 2026-09-26 — Generated buildings came back UNLIT after a reload (FIXED on the editor path; scene transitions still open)
+
+Found by the city-benchmark persistence check (`docs/PerfProgram2026-09.md` §16.1): CityBench C-25
+registered **67 fixture lights at build and 0 after a relaunch** (placed objects 526 = 526, residents
+29 = 29). `place_lights` registered LightManager lights, which are memory-only, and nothing
+re-registered them on load (the forge comment even said so: "recorded, not faked").
+- **Fixed:** the build now records every light it registers on the STRUCTURE's placed object
+  (metadata `lights`: position, colour, intensity, radius, type; hearths have no fixture object of
+  their own), and `Application::initialize` re-registers them after `loadFromDb` via
+  `StructureBuildService::restoreLights`. Pinned by `StructureLightPersistenceTest` (save, load into a
+  fresh registry, restore: exact parameters; refused/malformed counted, never guessed).
+- **Worlds built before this fix have no records** and stay unlit until rebuilt.
+- **Still open — scene transitions:** `SceneManager.cpp:360` reloads the placed-object registry but
+  has no light hook (core cannot reach LightManager) and does not call
+  `ItemPropManager::rebuildFromPlacedObjects` either, so a scene entered by transition loses both its
+  structure lights AND its item props. The old scene's fixture lights are not torn down on exit
+  either. Fix direction: one shared "placed-object world load" routine (registry, interaction points,
+  item props, lights) that every load path calls, with the light hook in `GameSubsystems`.
+- **Teardown (fixed the same day):** removing a structure did not remove its lights; in C-25 one
+  house replaced by an overlapping later build left **7 ghost lights burning over empty ground**
+  (67 fixture lights at build, only 60 on surviving buildings). Records now carry the session light
+  id; `PlacedObjectManager`'s pre-remove callback passes the object and the editor removes its
+  recorded lights; `restoreLights` rewrites ids after a load.
+
+## 2026-09-26 — CityForge plans OVERLAPPING lots; the later build silently replaces the earlier house
+
+Same C-25 build (seed 7, 96×96, density 1.5): **26 buildings queued, 25 exist.** The log shows
+`removing overlapping structure 'house_7' before rebuild (no stacking)`: house_7 bbox
+(8,52,2)-(16,60,19) and house_8 bbox (15,51,2)-(22,55,11) overlap at x 15-16. The forge's
+no-stacking rule (`StructureForge::stageFootprint`) is right for a user rebuilding in place, but
+inside ONE settlement build it means the planner handed out colliding lots and the job reports
+success with one building fewer, silently. Fix direction: the settlement planner must reserve
+realized footprints (a building can grow past its planned lot: house_7 is 17 deep), and a settlement
+unit must refuse to remove a structure the SAME job built (surface it as a lot failure instead).
+Not fixed here (city benchmark measures what the generator produces; this is recorded, not patched).
+
