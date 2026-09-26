@@ -257,6 +257,17 @@ GameDefinitionResult GameDefinitionLoader::load(const json& definition, GameSubs
         if (!result.error.empty()) return result;
     }
 
+    // Game-wide NPC defaults. "torch": who lights a torch in the dark (NpcTorchPolicy).
+    if (definition.contains("npcDefaults") && definition["npcDefaults"].is_object() && subsystems.npcManager) {
+        const auto& nd = definition["npcDefaults"];
+        if (nd.contains("torch")) {
+            TorchPolicy p = TorchPolicy::Default;
+            const std::string t = nd["torch"].is_string() ? nd["torch"].get<std::string>() : std::string("?");
+            if (NpcTorchPolicy::parse(t, p)) subsystems.npcManager->setDefaultTorchPolicy(p);
+            else LOG_WARN("GameDefinitionLoader", "npcDefaults.torch '{}' is not night|dark|always|never - ignored", t);
+        }
+    }
+
     if (definition.contains("npcs")) {
         loadNPCs(definition["npcs"], subsystems, result);
         if (!result.error.empty()) return result;
@@ -1211,6 +1222,14 @@ void GameDefinitionLoader::loadNPCs(const json& npcsDef, GameSubsystems& sub, Ga
         if (!faction.empty()) npc->setFaction(faction);
         // "hostile": true — fights the player on sight / when engaged (G-137).
         if (npcDef.value("hostile", false)) npc->setHostile(true);
+        // "torch": "night" | "dark" | "always" | "never" (NpcTorchPolicy). Unset = the game
+        // default for townsfolk, "never" for hostiles. An unknown value is refused loudly.
+        if (npcDef.contains("torch")) {
+            TorchPolicy p = TorchPolicy::Default;
+            const std::string t = npcDef["torch"].is_string() ? npcDef["torch"].get<std::string>() : std::string("?");
+            if (NpcTorchPolicy::parse(t, p)) npc->torchState().policy = p;
+            else LOG_WARN("GameDefinitionLoader", "NPC '{}': torch '{}' is not night|dark|always|never - using the default", name, t);
+        }
 
         // CHAIN OF COMMAND: "squad" puts this NPC under an officer's orders;
         // "rank":"officer" (or "leader") makes it the one giving them. Squads

@@ -36,6 +36,9 @@
 #include "core/SceneManager.h"
 #include "core/SceneDefinition.h"
 #include "graphics/RenderCoordinator.h"
+#include "core/NpcHeldItems.h"
+#include "core/NpcTorchPolicy.h"
+#include "core/ItemEffectSystem.h"
 #include "core/DayNightSettings.h"
 #include "vulkan/VulkanDevice.h"
 #include <algorithm>
@@ -404,6 +407,60 @@ void GameApiService::registerCommands() {
         r = {{"success", true}, {"source", cm->playBoundsSource()}, {"bounds", pb.toJson()},
              {"streaming", cm->isStreamingGenerationEnabled()}};
     });
+    // POST /api/rpg/torches - who carries a lit torch and why (NpcTorchPolicy, Ravenmere T-73).
+    // Per NPC: the authored and resolved policy, the shelter latch, the carried item, the item
+    // actually DRAWN in the hand, and the flame's point light (id + position) - so a harness can
+    // check the light is at the hand rather than trusting "carrying": "torch". Also the light
+    // budget: point lights that did not make the GPU cut this frame.
+    // {"default": "night"|"dark"|"always"|"never"} first sets the game-wide default (the
+    // same knob as game.json npcDefaults.torch) - an L4 control: the same pose and hour with
+    // torches off and on. Unknown text is refused, nothing changes.
+    reg.on("torches", [this](const APICommand& cmd, json& r) {
+        if (!npcManager) { r = {{"error", "NPCManager not available"}}; return; }
+        if (cmd.params.contains("default")) {
+            TorchPolicy p = TorchPolicy::Default;
+            const std::string t = cmd.params["default"].is_string() ? cmd.params["default"].get<std::string>() : std::string("?");
+            if (!NpcTorchPolicy::parse(t, p)) { r = {{"error", "default must be night|dark|always|never|default"}}; return; }
+            npcManager->setDefaultTorchPolicy(p);
+        }
+        Graphics::LightManager* lm = renderCoordinator ? &renderCoordinator->getLightManager() : nullptr;
+        json arr = json::array();
+        int carrying = 0, drawn = 0, lit = 0, npcs = 0;
+        npcManager->forEachNPC([&](Scene::NPCEntity& npc) {
+            ++npcs;
+            const auto& ts = npc.torchState();
+            const glm::vec3 p = npc.getPosition();
+            json e = {{"name", npc.getName()},
+                      {"position", {p.x, p.y, p.z}},
+                      {"policy", NpcTorchPolicy::name(ts.policy)},
+                      {"resolved", NpcTorchPolicy::name(npcManager->resolvedTorchPolicy(npc))},
+                      {"hostile", npc.isHostile()},
+                      {"indoors", ts.indoors},
+                      {"carrying", npc.getCarriedItem()}};
+            if (npc.getCarriedItem() == NpcTorchPolicy::kTorchItemId) ++carrying;
+            const std::string held = npcHeldItems ? npcHeldItems->heldItem(npc.getName()) : std::string();
+            e["held"] = held;
+            if (held == NpcTorchPolicy::kTorchItemId) ++drawn;
+            json lights = json::array();
+            if (itemEffects)
+                for (int id : itemEffects->activeLightIds(NpcHeldItems::effectInstanceId(npc.getName()))) {
+                    json l = {{"id", id}};
+                    if (lm)
+                        if (const auto* pl = lm->getPointLight(id))
+                            l["position"] = {pl->position.x, pl->position.y, pl->position.z};
+                    lights.push_back(l);
+                }
+            if (!lights.empty()) ++lit;
+            e["lights"] = lights;
+            arr.push_back(e);
+        });
+        r = {{"night", npcManager->isTorchNight()},
+             {"default", NpcTorchPolicy::name(npcManager->getDefaultTorchPolicy())},
+             {"npcs", npcs}, {"carrying", carrying}, {"drawn", drawn}, {"lit", lit},
+             {"dropped_point_lights", lm ? (int)lm->droppedPointLights() : -1},
+             {"list", arr}};
+    });
+
     reg.on("daynight", [this](const APICommand&, json& r) {
         if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
         // G-164: where every sky body IS this frame (toward-body unit vectors), so a harness can

@@ -11,6 +11,7 @@
 #include "core/DamageTypes.h"
 #include "ai/NeedsSystem.h"
 #include "ai/WorldView.h"
+#include "core/NpcTorchPolicy.h"
 #include "ui/DialogueData.h"
 #include <string>
 #include <memory>
@@ -103,6 +104,16 @@ public:
     /// Set the combat system used by real-time combat behaviors to resolve NPC attacks.
     void setCombatSystem(Core::CombatSystem* combatSystem) { m_context.combatSystem = combatSystem; }
 
+    /// An item the NPC carries in its hand when it has no combat weapon to show - a torch at
+    /// night (the torch policy sets it). "" = empty hands. Drawn by Core::NpcHeldItems.
+    void setCarriedItem(const std::string& itemId) { m_carriedItem = itemId; }
+    const std::string& getCarriedItem() const { return m_carriedItem; }
+
+    /// Torch policy + indoor latch (Core::NpcTorchPolicy; game.json npc "torch"). NPCManager
+    /// lights / puts out the torch from it every frame.
+    Core::NpcTorchState& torchState() { return m_torch; }
+    const Core::NpcTorchState& torchState() const { return m_torch; }
+
     // Attached light (e.g. NPC carrying a lantern)
     void setAttachedLightId(int lightId) { m_attachedLightId = lightId; }
     int getAttachedLightId() const { return m_attachedLightId; }
@@ -174,6 +185,8 @@ private:
     NPCContext m_context;
     float m_interactionRadius = 3.0f;
     int m_attachedLightId = -1;
+    std::string m_carriedItem;   ///< see setCarriedItem
+    Core::NpcTorchState m_torch;   ///< see torchState
     std::unique_ptr<Core::HealthComponent> m_health = std::make_unique<Core::HealthComponent>(100.0f);
     Core::EquipmentSlots m_equipment;
     AI::NeedsSystem m_needs;

@@ -88,6 +88,7 @@
 #include "core/CoherentFragmentManager.h"
 #include "core/ItemPropManager.h"
 #include "core/ItemEffectSystem.h"
+#include "core/NpcHeldItems.h"
 #include "core/LocationRegistry.h"
 #include "ui/DialogueSystem.h"
 #include "ui/SpeechBubbleManager.h"
@@ -400,9 +401,10 @@ private:
 
     // Held weapons for combat NPCs — same template + grip orientation as the
     // player's held item, but driven per-NPC from CombatBehavior::getWeaponId().
-    struct NpcHeldItem { std::string itemId; std::string kinId; int anchorId = -1; };
-    std::unordered_map<std::string, NpcHeldItem> m_npcHeld;  // npc name -> held visual
-    void updateNpcHeldItems();           // per-frame: sync each combat NPC's held weapon visual
+    // What each NPC holds (combat weapon, else a carried item such as a torch), with its
+    // effects - the engine class the shipped game uses too (Core::NpcHeldItems).
+    std::unique_ptr<Core::NpcHeldItems> m_npcHeldItems;
+    void updateNpcHeldItems();           // per-frame: m_npcHeldItems->update
 
     // Story Engine
     std::unique_ptr<Story::StoryEngine> storyEngine;

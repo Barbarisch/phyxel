@@ -68,6 +68,15 @@ public:
     void setLocationRegistry(LocationRegistry* registry) { m_locationRegistry = registry; }
     /// Set the chunk manager for NPC line-of-sight raycasting.
     void setChunkManager(ChunkManager* mgr) { m_chunkManager = mgr; }
+
+    /// Game-wide torch default (game.json "npcDefaults": {"torch": ...}); Default = "night".
+    /// Hostile NPCs and monsters without their own "torch" never carry one. See NpcTorchPolicy.
+    void setDefaultTorchPolicy(TorchPolicy p) { m_defaultTorch = p; }
+    TorchPolicy getDefaultTorchPolicy() const { return m_defaultTorch; }
+    /// The latched night flag the torch policy uses (sun below -2 deg; off above +2 deg).
+    bool isTorchNight() const { return m_torchNight; }
+    /// The policy that applies to one NPC after defaults (for the test API echo).
+    TorchPolicy resolvedTorchPolicy(const Scene::NPCEntity& npc) const;
     /// Provider of obstacle boxes for things characters collide with that are NOT chunk
     /// voxels — kinematic item props, activated dynamic furniture. Without this the
     /// NavGraph routes straight through them and characters treadmill against their
@@ -249,6 +258,9 @@ private:
     Graphics::DayNightCycle* m_dayNightCycle = nullptr;
     LocationRegistry* m_locationRegistry = nullptr;
     ChunkManager* m_chunkManager = nullptr;
+    TorchPolicy m_defaultTorch = TorchPolicy::Default;
+    bool m_torchNight = false;
+    void updateTorches(float deltaTime);
     bool m_allowEmbeddedSpawns = false;                     ///< spawn-gate escape hatch (see setter)
     ObstacleBoxProvider m_obstacleProvider;                 ///< non-voxel nav obstacles (see setter)
     std::unordered_set<int64_t> m_navObstacles;             ///< cubes touched by any box (rebuilt per buildNavGrid)

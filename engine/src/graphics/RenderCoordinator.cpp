@@ -1,5 +1,6 @@
 #include "graphics/DepthConvention.h"
 #include "graphics/RenderCoordinator.h"
+#include "core/ItemEffectSystem.h"
 
 #include "utils/CapsuleOcclusion.h"   // G-147: camera-inside-own-body test
 
@@ -4956,6 +4957,21 @@ std::vector<uint8_t> RenderCoordinator::captureScreenshot() {
 
     LOG_INFO("RenderCoordinator", "Screenshot captured: {}x{} pixels", width, height);
     return pixels;
+}
+
+void RenderCoordinator::wireItemEffects(Core::ItemEffectSystem& fx) {
+    fx.setVfxSystem(getVfxSystem());
+    fx.setLightCallbacks(
+        [this](const glm::vec3& pos, const glm::vec3& color, float intensity, float radius) -> int {
+            PointLight pl;
+            pl.position = pos;
+            pl.color = color;
+            pl.intensity = intensity;
+            pl.radius = radius;
+            return lightManager.addPointLight(pl);
+        },
+        [this](int lightId, const glm::vec3& pos) { lightManager.updatePointLightPosition(lightId, pos); },
+        [this](int lightId) { lightManager.removeLight(lightId); });
 }
 
 glm::vec3 RenderCoordinator::skyMoonToward() const {

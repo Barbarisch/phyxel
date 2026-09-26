@@ -59,6 +59,14 @@ public:
 
     void clear();
     size_t instanceCount() const { return m_instances.size(); }
+    /// The point lights an instance has live right now (-1s omitted) - for test-API echoes.
+    std::vector<int> activeLightIds(const std::string& instanceId) const {
+        std::vector<int> out;
+        auto it = m_instances.find(instanceId);
+        if (it != m_instances.end())
+            for (const auto& s : it->second.states) if (s.active && s.lightId >= 0) out.push_back(s.lightId);
+        return out;
+    }
 
     /// Tick all instances. Call once per frame.
     void update(float dt);

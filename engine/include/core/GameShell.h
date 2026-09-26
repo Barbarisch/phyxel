@@ -15,6 +15,8 @@ namespace Core {
 
 class EngineRuntime;
 class NPCManager;
+class NpcHeldItems;
+class ItemEffectSystem;
 class TriggerSystem;
 class EntityRegistry;
 class CombatDirector;
@@ -154,6 +156,8 @@ protected:
     virtual Inventory*            apiInventory()      { return nullptr; }  // loot/persistence
     virtual UI::DialogueSystem*   apiDialogueSystem() { return nullptr; }  // dialogue_state (G-47)
     virtual InteractionManager*   apiInteractionManager() { return nullptr; }  // start_dialogue (G-182)
+    virtual NpcHeldItems*         apiNpcHeldItems()   { return nullptr; }  // torches (T-73)
+    virtual ItemEffectSystem*     apiItemEffects()    { return nullptr; }  // torches: flame lights
 
 private:
     bool journalOpen_ = false;        // G-168 quest journal window

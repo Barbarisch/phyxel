@@ -131,3 +131,4 @@ with the evidence. Rows from the 2026-09-08 census that nobody has re-checked si
 | G-116 (T-01) | Shipped 2026-09-25: the intro story card gates the first scene of every run (button, Enter or Space); L4 `rv_intro_l4.py`. |
 | G-164 (T-02) | Shipped 2026-09-25: a sun that crosses the southern sky (noon 50 deg, `sky.latitudeDeg`), a moon that is full on the first night, the `sky` block honoured in shipped games; L4 `rv_sky_l4.py`. |
 | G-186 | Shipped 2026-09-25: moonless nights are dark but readable (a night-only ambient fill); L4 `rv_night_l4.py`. |
+| G-188 (T-73) | Shipped 2026-09-26: townsfolk light a torch outdoors at night (game.json `torch`, `npcDefaults.torch`); NPC held items + their effects in the shipped shell; torch grip flipped; L4 `rv_torch_l4.py`. |

@@ -245,8 +245,8 @@ def create_project(
     extra_members.append("    std::unique_ptr<Phyxel::ObjectTemplateManager> weaponTemplates_;  // loads the weapon .voxel models on demand")
     extra_members.append("    std::unique_ptr<Phyxel::ObjectTemplateManager> templates_;        // the whole template library (game.json templates, transition markers)")
     extra_members.append("    std::unique_ptr<Phyxel::Core::PlacedObjectManager> placedObjects_;  // placed-object registry the loader places into")
-    extra_members.append("    struct HeldWeapon { std::string kinId; int anchorId = -1; std::string itemId; };")
-    extra_members.append("    std::unordered_map<std::string, HeldWeapon> npcHeld_;  // entityId -> attached weapon")
+    extra_members.append("    std::unique_ptr<Phyxel::Core::ItemEffectSystem> itemEffects_;  // item flames/lights (a torch in a hand) - the editor has had this since items P2")
+    extra_members.append("    std::unique_ptr<Phyxel::Core::NpcHeldItems> npcHeldItems_;     // what each NPC holds: weapon, else a carried torch (engine class shared with the editor)")
     extra_includes.append('#include "ai/ActionSystem.h"')
     extra_members.append('    Phyxel::Core::SpellcasterComponent playerCaster_;  // slots/known spells; bound to playerTurn_')
     extra_members.append('    std::unordered_map<std::string, Phyxel::Core::SpellcasterComponent> npcCasters_;  // game.json "casters": enemy/companion spell lists for CombatAI')
@@ -284,7 +284,9 @@ def create_project(
     # double up on top of it (see docs/GameCreationGuide.md, "Menus").
     extra_includes.append('#include "ui/GameMenuRenderer.h"')
     # Data-driven UISystem HUD + menus (custom-Vulkan, no ImGui) — see docs/HudSystem.md.
-    extra_includes.append('#include "ui/MenuDefinition.h"')   # loadHudInto / loadMenuInto / MenuActions
+    extra_includes.append('#include "ui/MenuDefinition.h"')
+    extra_includes.append('#include "core/NpcHeldItems.h"')
+    extra_includes.append('#include "core/ItemEffectSystem.h"')   # loadHudInto / loadMenuInto / MenuActions
     extra_includes.append('#include "ui/UISystem.h"')
     extra_includes.append('#include "ui/HudDataContext.h"')
     extra_includes.append('#include "graphics/RaycastVisualizer.h"')   # target rings (CombatUiBg3 increment 3)
@@ -389,6 +391,8 @@ def create_project(
         "    Phyxel::Core::Inventory*            apiInventory() override      { return &inventory_; }",
         "    Phyxel::UI::DialogueSystem*         apiDialogueSystem() override { return dialogueSystem_.get(); }",
         "    Phyxel::Core::InteractionManager*   apiInteractionManager() override { return interactionManager_.get(); }",
+        "    Phyxel::Core::NpcHeldItems*         apiNpcHeldItems() override { return npcHeldItems_.get(); }",
+        "    Phyxel::Core::ItemEffectSystem*     apiItemEffects() override { return itemEffects_.get(); }",
         *([
             "    Phyxel::Core::EntityRegistry* apiEntityRegistry() override { return entityRegistry_.get(); }",
             "    Phyxel::Core::NPCManager* apiNPCManager() override { return npcManager_.get(); }",
@@ -408,8 +412,6 @@ def create_project(
         f"    void setArmedSpell(const std::string& id);  // spellbar arm/disarm + button highlight",
         f"    void registerBehaviorActions();  // this game's BT action verbs (BTActionRegistry)",
         f"    void installDoctrine();          // how this game's officers decide",
-        f"    void equipNpcWeapons();          // attach game.json \"weapon\" models to grip bones",
-        f"    void updateHeldWeapons();        // follow the grip bone each frame",
         f"    void updateCommand(float dt);    // per-frame squad situation + orders",
         f"    void refreshSpellbar();  // repaint labels/slot counts/enabled state from live caster state",
         f"    bool fireActionSlot(int slot);   // G-150: what a bar click or keybind 1-9,0,-,= does",
@@ -1270,6 +1272,30 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             // was quietly false.
             if (kinematicVoxelManager_)
                 renderCoordinator_->setKinematicVoxelManager(kinematicVoxelManager_.get());
+            // Item effects (a torch's flame + light) and what NPCs hold - the same engine code
+            // the editor runs. The shipped game had neither: NPC held items were a load-once,
+            // combat-weapon-only copy with no effects, so no torch could burn in a hand.
+            itemEffects_ = std::make_unique<Phyxel::Core::ItemEffectSystem>();
+            renderCoordinator_->wireItemEffects(*itemEffects_);
+            if (kinematicVoxelManager_ && weaponTemplates_) {{
+                Phyxel::ObjectTemplateManager* tm = weaponTemplates_.get();
+                npcHeldItems_ = std::make_unique<Phyxel::Core::NpcHeldItems>(
+                    kinematicVoxelManager_.get(),
+                    [tm](const Phyxel::Core::ItemDefinition& d) -> const Phyxel::VoxelTemplate* {{
+                        if (const auto* t = tm->getTemplate(d.id)) return t;
+                        // items.json stores templateFile relative to resources/templates.
+                        if (!tm->loadTemplate("resources/templates/" + d.templateFile, d.id))
+                            tm->loadTemplate(d.templateFile, d.id);
+                        return tm->getTemplate(d.id);
+                    }},
+                    itemEffects_.get());
+            }}
+            // NPCs get the world clock and the light manager (the editor wires both; the shell
+            // never did, so every schedule read noon and isNight=false in a shipped game).
+            if (npcManager_) {{
+                npcManager_->setDayNightCycle(&renderCoordinator_->getDayNightCycle());
+                npcManager_->setLightManager(&renderCoordinator_->getLightManager());
+            }}
 {hud_setup}
 
             // JSON-driven menu renderer for sceneType:"menu" scenes. MUST be
@@ -2505,10 +2531,9 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                              npcManager_->getPathService() ? "running" : "NULL");
                 }}
 
-                // NPCs exist now, so their weapons can be hung on their grips.
-                // Must run AFTER the definition load — before it there is
-                // nobody to equip.
-                equipNpcWeapons();
+                // Held items (weapons, torches) are reconciled every frame by npcHeldItems_,
+                // so NPCs spawned by LATER scenes get theirs too (the old load-once
+                // equipNpcWeapons never saw them).
 
                 // Restore the saved player profile (camera pose + health + XP/level)
                 // from the active scene's world DB, if one was saved by a previous
@@ -3579,8 +3604,9 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 setArmedSpell("");
             }}
             updateCommand(dt);   // officers re-evaluate on their own cadence
-            updateHeldWeapons(); // weapons ride the grip bone; without this they
-                                 // stay frozen where the character spawned
+            // Held items ride the grip bone and their effects (a torch's flame + light) follow.
+            if (npcHeldItems_ && npcManager_) npcHeldItems_->update(*npcManager_);
+            if (itemEffects_) itemEffects_->update(dt);
             if (storyEngine_) storyEngine_->update(dt);
             if (speechBubbleManager_) speechBubbleManager_->update(dt);
 
@@ -4175,128 +4201,6 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
         // this file could drift from the engine's and produce the exact split
         // that caused fighters to carry swords while throwing punches: the
         // visible model resolved, the moveset did not.
-
-        void {class_name}::equipNpcWeapons() {{
-            if (!npcManager_ || !kinematicVoxelManager_ || !weaponTemplates_) return;
-            int equipped = 0, missingItem = 0, missingTemplate = 0, noGrip = 0;
-
-            npcManager_->forEachNPC([&](Phyxel::Scene::NPCEntity& npc) {{
-                auto* ch = npc.getAnimatedCharacter();
-                if (!ch) return;
-
-                // The weapon profile lives on whichever combat behavior this NPC has.
-                std::string profile;
-                if (auto* cb = dynamic_cast<Phyxel::Scene::CombatBehavior*>(npc.getBehavior()))
-                    profile = cb->getWeaponId();
-                if (profile.empty()) return;
-
-                const std::string itemId = profile;   // already canonical (see loader)
-                const auto* def = Phyxel::Core::ItemRegistry::instance().getItem(itemId);
-                if (!def) {{ ++missingItem; return; }}
-
-                // Load on first use, keyed by item id so repeats are free.
-                //
-                // items.json stores templateFile RELATIVE to resources/templates
-                // ("weapons/sword_long.voxel"), while loadTemplate resolves
-                // against the working directory. Passing it through unprefixed
-                // failed all 120 fighters with noTemplate while the files sat
-                // right there on disk.
-                const Phyxel::VoxelTemplate* tmpl = weaponTemplates_->getTemplate(itemId);
-                if (!tmpl) {{
-                    const std::string full = "resources/templates/" + def->templateFile;
-                    if (!weaponTemplates_->loadTemplate(full, itemId))
-                        weaponTemplates_->loadTemplate(def->templateFile, itemId);  // absolute/bare fallback
-                    tmpl = weaponTemplates_->getTemplate(itemId);
-                }}
-                if (!tmpl) {{
-                    if (missingTemplate == 0)
-                        LOG_WARN("{class_name}", "weapon template not loadable: {{}} (item {{}})",
-                                 def->templateFile, itemId);
-                    ++missingTemplate;
-                    return;
-                }}
-
-                auto voxels = Phyxel::Core::ItemPropManager::voxelsFromTemplate(*tmpl);
-                if (voxels.empty()) {{ ++missingTemplate; return; }}
-
-                // BAKE held.scale, exactly as ItemPropManager::buildPropGeometry
-                // does. voxelsFromTemplate returns RAW template geometry; for a
-                // fine-voxel item ("# grid: 81") that is ~81x too big. Skipping
-                // this drew a sword the size of a house next to each fighter -
-                // the attachment was fine, the geometry was unusable.
-                const float heldScale = def->held.scale > 0.0f ? def->held.scale : 1.0f;
-                if (heldScale != 1.0f)
-                    for (auto& v : voxels) {{ v.localPos *= heldScale; v.scale *= heldScale; }}
-
-                // NPCManager registers entities as "npc_" + name; key the same
-                // way so updateHeldWeapons can find the owner again.
-                const std::string entityId = npc.getName();
-                HeldWeapon hw;
-                hw.kinId = kinematicVoxelManager_->add("npcheld_" + entityId, std::move(voxels));
-                hw.anchorId = ch->attachToBone(def->held.gripBone, glm::vec3(0.02f),
-                                               def->held.gripOffset, glm::vec4(0.0f),
-                                               "npc_held_anchor");
-                if (hw.anchorId < 0) {{
-                    // No grip bone on this rig: drop the mesh rather than leave
-                    // a weapon floating at the world origin.
-                    kinematicVoxelManager_->remove(hw.kinId);
-                    ++noGrip;
-                    return;
-                }}
-                hw.itemId = itemId;
-                npcHeld_[entityId] = hw;
-                ++equipped;
-            }});
-
-            LOG_INFO("{class_name}",
-                     "NPC weapons: equipped={{}} unknownItem={{}} noTemplate={{}} noGripBone={{}}",
-                     equipped, missingItem, missingTemplate, noGrip);
-        }}
-
-        void {class_name}::updateHeldWeapons() {{
-            if (npcHeld_.empty() || !kinematicVoxelManager_ || !npcManager_) return;
-            for (auto it = npcHeld_.begin(); it != npcHeld_.end(); ) {{
-                auto* npc = npcManager_->getNPC(it->first);   // keyed by NPC NAME
-                auto* ch = npc ? npc->getAnimatedCharacter() : nullptr;
-                const auto* hd = Phyxel::Core::ItemRegistry::instance().getItem(it->second.itemId);
-                if (!ch || !hd) {{
-                    // Owner gone: take its weapon with it, or the mesh is
-                    // orphaned mid-air for the rest of the battle.
-                    kinematicVoxelManager_->remove(it->second.kinId);
-                    it = npcHeld_.erase(it);
-                    continue;
-                }}
-                glm::vec3 pos; glm::quat rot;
-                const bool gotXform = ch->getAttachmentTransform(it->second.anchorId, pos, rot);
-                // WHERE IS THE WEAPON, ACTUALLY? "equipped=N" only proves the
-                // attach call returned an id. If getAttachmentTransform fails we
-                // never call setTransform and the mesh stays wherever add() put
-                // it - i.e. nowhere near the hand. Report the owner's position
-                // beside the weapon's so the two can be compared directly.
-                {{
-                    static int s_heldTick = 0;
-                    if ((++s_heldTick % 300) == 1) {{
-                        const glm::vec3 owner = ch->getPosition();
-                        LOG_INFO("{class_name}",
-                                 "held '{{}}': xform={{}} weapon=({{}},{{}},{{}}) owner=({{}},{{}},{{}})",
-                                 it->second.itemId, gotXform ? "ok" : "FAIL",
-                                 static_cast<int>(pos.x), static_cast<int>(pos.y),
-                                 static_cast<int>(pos.z),
-                                 static_cast<int>(owner.x), static_cast<int>(owner.y),
-                                 static_cast<int>(owner.z));
-                    }}
-                }}
-                if (gotXform) {{
-                    const auto& h = hd->held;
-                    glm::mat4 t = glm::translate(glm::mat4(1.0f), pos) * glm::mat4_cast(rot);
-                    t = t * glm::eulerAngleYXZ(glm::radians(h.gripEulerDeg.y),
-                                               glm::radians(h.gripEulerDeg.x),
-                                               glm::radians(h.gripEulerDeg.z));
-                    kinematicVoxelManager_->setTransform(it->second.kinId, t);
-                }}
-                ++it;
-            }}
-        }}
 
         void {class_name}::installDoctrine() {{
             command_.setDecisionInterval(3.0f);
@@ -4927,6 +4831,8 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
             stopTestApi();  // stop the test API before tearing down subsystems it references
             savePlayerProfile();  // quit-save: profile -> active scene's world DB
             settings_.saveToFile("settings.json");
+            npcHeldItems_.reset();   // before the renderer (its lights) and the kinematic manager (its meshes)
+            itemEffects_.reset();
             renderCoordinator_.reset();
             entities_.clear();
             playerCharacter_ = nullptr;

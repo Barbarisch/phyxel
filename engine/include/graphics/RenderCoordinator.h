@@ -71,6 +71,7 @@ namespace Phyxel {
         class NPCManager;
         class KinematicVoxelManager;
         class WaterManager;
+        class ItemEffectSystem;
     }
     class GpuParticlePhysics;
 }
@@ -599,6 +600,11 @@ public:
     // rebuild cycle would be unbearable: the whole point is to measure, adjust, measure.
     /// The sky's celestial bodies. Replacing the list takes effect on the next frame -- the
     /// bodies are placed and uploaded per frame, so nothing needs a rebuild or a relight.
+    /// Point an item-effect system at this renderer: its VFX system for particles and the
+    /// LightManager for its lights (create / move / remove). One wiring for the editor and the
+    /// shipped game - the shipped game had none, so no held flame could burn there.
+    void wireItemEffects(Core::ItemEffectSystem& fx);
+
     void setSkyBodies(const SkyBodies& s) { m_skyBodies = s; m_dayNightCycle.setLatitudeDeg(s.latitudeDeg); }
     const SkyBodies& getSkyBodies() const { return m_skyBodies; }
     /// Unit vector TOWARD the first reflective body (the moon), from the sky bodies - the one source

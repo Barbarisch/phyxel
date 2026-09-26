@@ -511,6 +511,32 @@ A turn-based encounter begins from an authored `start_combat` trigger **or** fro
   starts the fight itself. One that fled a fight keeps its distance for 30 s, then may.
 - A `start_combat` region never restarts a running fight, and drops dead participants.
 
+### Torches after dark (2026-09-26, Ravenmere T-73)
+
+Nights are dark, so townsfolk light a torch when they are out in the dark. The torch is the
+`torch` item from `resources/items.json`: a fine-voxel model in the right hand, with its
+`flame` effect (particles plus a point light) riding the hand. Set it per NPC with `"torch"`:
+
+| Value | The NPC holds a lit torch when |
+|---|---|
+| `"night"` | it is night and the NPC is outdoors. The default for non-hostile NPCs. |
+| `"dark"` | it is night, or the NPC is in an enclosed place (a cellar, a mine) at any hour. |
+| `"always"` | always. |
+| `"never"` | never. The default for hostile NPCs and monsters. |
+
+A game-wide default goes in `"npcDefaults": {"torch": "..."}` at the top level (use
+`"never"` to turn torches off for a whole game). An unknown value is refused with a warning.
+
+- **Night** is the sun's elevation, the same arc the sky draws: it begins when the sun
+  sinks 2 degrees below the horizon and ends when it rises 2 degrees above it.
+- **Indoors** is a scan of the world's voxels around the NPC: a roof overhead within 12
+  cubes, and walls on at least three of four sides within 12 cubes at chest height. An
+  awning is outdoors, a room with its door open is indoors. Stepping inside puts the torch out
+  after half a second; stepping outside lights it after two seconds.
+- A combat weapon takes the hand first. The torch never replaces another carried item.
+- Test API: `POST /api/rpg/torches` lists each NPC's policy, shelter state, carried and
+  drawn item, and its flame light's id and position, plus `dropped_point_lights`.
+
 Rules live in `Core::EncounterInitiator`; the shell wires them (`startEncounterAgainst`).
 
 `GameSettings::defaultKeybindings()` also registers an `Attack → F` binding, but no code path
