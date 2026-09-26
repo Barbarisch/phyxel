@@ -480,6 +480,27 @@ test; GPU samples have one entry point (`history.addFrame`, `GpuProfiler.cpp:151
 serial matching. Two amendments folded in: the streaming pump's alternate-frame cadence is reported and
 judged by parity (not counted as hitches); all new routes go through `PerfApi` in both hosts.
 
+### 9.9 Ninth pass (`/design-check`, 2026-09-26, on the §17 roadmap + the shipped §16.12 skip): NEEDS WORK → folded in
+
+Verified against code. Findings, each folded into §17.2 at the step named:
+1. **Shipped defect:** `set_far_terrain` does not echo `structures` / `structures_skip_invisible` /
+   `trees` → step 0.
+2. **Shipped gap:** the §16.12 skip predicate has no unit test (L4 pixel gate only) → step 0,
+   `StructureLodSkipTest` against a CPU transcription of the shader fade.
+3. **P-DP default is unpinned** (no test references the prepass) and **the night pixel gate cannot use
+   game pause** (it stops the emissive reconcile) → step 2: add the pin; night freeze = clock + grass /
+   foliage off + residents despawned, game running.
+4. **Visible-proxy LOD had no small rig** → step 3: one building, one chunk, distance as the only
+   variable, prediction + L0-vs-L0 control, then user sign-off.
+5. **SH1 would drop reflected shadows** (`mirror_voxel.frag` samples the cascades) and needs a
+   conservative cull + `ShadowCasterCullTest`; **SH2 risks stepped shadow motion** and touches the
+   cascade fit (`LightingPipeline.md` §0 rule) → step 4.
+6. **Residents-OFF mechanism was undecided;** built rungs re-derive residents at load, so the generator
+   param alone needs a rebuild → step 7: runtime despawn over the API, verified via `/api/npcs`.
+7. Tree-regrowth fix gets its pin named (`PlacementChunkEqualsStreamedChunk`) → §17.3.
+No design key is violated (no chunk-coupled appearance, no generation-stage change, no detail removed
+behind a flag); step 3 remains a declared LOOK change needing user sign-off (§8 #6).
+
 ## 10. P0a results (2026-09-24, RTX 4090, Release)
 
 Evidence: `docs/evidence/perf2026-09/`. Unit suite after the batch: 4025 passed, 20 skipped, 2 failed. Both
@@ -1443,21 +1464,45 @@ main-thread CPU (Light Occupancy repack, Water, Dirty Chunk Flush; §16.10), not
 
 ### 17.2 Ordered next steps
 
-Each step: **why** (the data), **do**, **measure**, **done when**.
+Each step: **why** (the data), **do**, **measure**, **done when**. Design check 9.9 (below) is folded in.
 
+0. **Close the design-check debts on what already shipped (§16.12)** before building anything new:
+   - **Echo the knobs.** `set_far_terrain` (`Application.cpp` handler) echoes only `enabled` and
+     `per_instance_levels`; it must also return `structures`, `structures_skip_invisible` and `trees` (the
+     keys' "echo the resulting state"; today only `lod_report` shows them).
+   - **Unit-pin the skip predicate.** Extract it to a pure function (`structureProxyFullyDiscarded(base,
+     camera, fadeNear0, minFade)`) and pin `StructureLodSkipTest.SkipOnlyWhenShaderDiscardsEverything`
+     against a CPU transcription of `far_tree_mesh.vert/.frag` (`max(smoothstep(e0, e1, d), minFade) <
+     bayer_min`, bayer_min = 1/32) at the boundaries: d = fadeNear0 − 1 ± ε, d just inside fadeNear0,
+     minFade = 0 vs the smallest positive float. **Red:** a predicate without the 1 u margin, or one that
+     skips at minFade > 0, must fail it. Today only the L4 pixel gate covers it.
+   *Done when:* both land with the test shown red first.
 1. **Re-baseline the growth table with §16.12 in.** *Why:* §16.11's numbers predate the skip; every later
    A/B needs the true starting point. *Do:* `run_rung_attrib.sh` on all four rungs (§17.4), then
    `growth_table.py`. *Done when:* §17.1 row 2 holds measured numbers for every rung and pose.
 2. **Re-verify the shipped wins at C-100 and decide P-DP's default** (§16.6 step 5, §8 #5). *Why:* L1, P-DP
    and GI-2 were measured at S-1/S-2 scale only; P-DP (−20..−37 % there) is still OFF. *Do:* ABBA with
    `perf_harness.py sample --ab` (prepass on/off) at the five C-100 poses, noon + night; frozen pixel gate
-   (the prepass is equivalence-class). *Done when:* written up as a §16.x and the default decided with
-   the user.
+   (the prepass is equivalence-class). **Night freeze without game pause:** game pause stops the
+   emissive reconcile (§13), so a night gate that pauses the game compares a stale light set. Night
+   freeze = clock paused at 22:00 + grass/foliage off + residents despawned (step 7's mechanism), game
+   running; the frozen A1-vs-C control must read ~0 or the run is void. **Default pin:** no test pins the
+   prepass default today (nothing in `tests/` references it); flipping it must ADD the pin
+   (`LodCharacterizationTest` shape) in the same commit, with the reason. *Done when:* written up as a
+   §16.x, the default decided with the user, and pinned.
 3. **Visible structure proxies still draw at chain level 0 out to 360 u** (~10 ms at the overview). *Why:*
    §16.12's residual (overview: skip 43.1 vs no proxies 32.9 ms). *Options:* a coarser level nearer
    (`kStructureLevelDist`), or a screen-space level rule (the level whose cell projects to ≤ ~1 px, the C1
    metric). **A LOOK change** (§8 #6): before/after captures at the overview and outside poses for user
-   sign-off; `LodTierLedger.md` row 7 updated. *Done when:* signed off and measured.
+   sign-off; `LodTierLedger.md` row 7 updated. **Chunk independence:** level choice stays a function of
+   the structure's own world-space centre distance (never a chunk's), as today. **Rig (before the city):**
+   a Flat world, ONE engine-built building (`build_structure` schema v2, a tavern — provenance recorded)
+   inside one chunk; the only variable is camera distance (150, 250, 360, 450, 600 u, same bearing,
+   pose-verified); per distance capture L0 vs the candidate level with the real building's chunks
+   evicted (so the proxy is what is seen). **Prediction, written first:** the pixel delta vs L0 grows
+   with the level's cell size and falls with distance; the candidate's delta at its new switch distance
+   is ≤ L0-vs-L1's delta at today's 360 u switch. **Control:** L0 vs L0 at each distance (~0).
+   *Done when:* rig numbers + city captures signed off, and the C-100 overview A/B measured.
 4. **Shadow Mid (~20–24 ms) and Shadow Near (~9 ms, linear in buildings).** *Why:* the largest GPU term
    left after step 3; every building within 420 u casts whether or not its shadow can reach the view.
    *First:* attribute shadow cost per caster class (chunks / characters / LOD casters) at C-100.
@@ -1466,6 +1511,24 @@ Each step: **why** (the data), **do**, **measure**, **done when**.
    only when casters change or the fit moves past a texel budget, as the far cascade already runs on a
    cadence; the moving-sun case must be gated); **S6** micro faces below a shadow texel (deprioritised at
    S-2 scale; recheck with the `voxel_tiers` shadow counts). *Done when:* the chosen one ships through §6.
+   **Design-check requirements (9.9):**
+   - **SH1 must cull against EVERY view that samples the cascades**, not just the main camera:
+     `mirror_voxel.frag` (the reflection pass) samples the shadow maps too, and so do far terrain,
+     far trees, foliage, grass, characters and transparent voxels, all inside the main view. The cull is
+     per-chunk AABB, so it must be CONSERVATIVE (the `bladesForDistance` model: chunk quantities bound
+     cost only). Pin `ShadowCasterCullTest.CulledSetGivesTheSameShadowMap` in the chunked-vs-whole shape:
+     the shadow depth rendered from the culled caster set equals the full set at every texel the main
+     AND reflection views sample. **Rig:** Flat world, one chunk: a wall just OUTSIDE the view frustum
+     whose shadow falls INSIDE it (the adversarial case), plus a mirror pose that sees a caster behind
+     the camera. **Prediction:** identical shadow-map texels under the view; **control:** culling off vs
+     off. Frozen pixel gate at the C-100 poses.
+   - **SH2 must not step.** A cached mid cascade re-rendered on a threshold makes shadows move in steps
+     while the sun moves and the camera translates, a class of motion the user has rejected before
+     (vegetation wind). Gate both: sun advancing at game speed, and camera walking at 4 u/s, captured
+     as a sequence with the per-frame shadow-edge displacement measured (must be continuous, no jumps
+     larger than the uncached run's). The cascade fit is a `LightingPipeline.md` §0 item: update §0 and
+     §9 and run `lighting_doc_check.py --update` in the same commit.
+   - Knobs for either follow the `/api/debug/*` conventions (omitted = unchanged, state echoed).
 5. **Static Geometry (7–16 ms).** Third term, pose-dependent, likely overlaps P-DP (step 2): re-rank after
    it. S1 (covered-face cull) was 1–2 % at S-2; recheck with `voxel_tiers` at C-100.
 6. **Walk routes + hitch report** (§16.6 steps 3-4; the P1c exit criterion). *Why:* the user's complaint
@@ -1475,8 +1538,13 @@ Each step: **why** (the data), **do**, **measure**, **done when**.
    packing, **W1** water recentre amortised or off-thread, **S4** off-thread meshing. *Done when:* the hitch
    report exists for every rung and the top cause has a planned fix.
 7. **Residents-OFF arm** (once per rung, §16.1): sizes the NPC/AI CPU share (predicted linear in
-   residents, §16.7). Needs a generator-side "no residents" parameter or a despawn via the API — record
-   which was used.
+   residents, §16.7). **Mechanism decided (9.9):** the generator already has `{"residents": false}`
+   (`SettlementBuildService.cpp:1721`), but a BUILT rung re-derives its residents at every load
+   (ResidentSpawner reads the persisted locations), so the param would need a 5-25 min rebuild per rung
+   and a second world. Use a **runtime despawn of the resident NPCs over the API** instead (same world,
+   same fingerprint minus residents), verified by `/api/npcs` reading 0 residents before sampling and
+   recorded in every row. The same despawn is step 2's night freeze. If no clean despawn route exists,
+   adding one (echoing the count removed) is part of this step.
 8. **Foliage at the outside pose (12–22 ms)** — F1 (§12): attribute overdraw vs shading with the R-F1 rig.
 9. **Owed platforms:** the laptop run of the ladder (min-spec; lights may matter there, §1) and the
    standalone `--test` at native resolution (blocked for streaming worlds: standalone games never pump
@@ -1492,6 +1560,7 @@ visibility, L4 grass/foliage light gate (lights ≈ 0 in the city); S2/S5 (geome
 | Trees cleared by a build regrow after a reload (a chunk saved EMPTY loads as "not saved") | +0.2–0.4 % sub/micro per rung; trees return over cleared lots | Fix together with `ChunkManager::ensureChunkAt` creating EMPTY chunks in streaming worlds; both red tests are specified in the gap entry |
 | CityForge plans overlapping lots; the later build silently replaces the earlier house | C-25 built 25 of 26 | Reserve realized footprints; a settlement job must not remove a structure it built |
 | Scene transitions restore neither structure lights nor item props | Transitioned scenes lose lamps and props | One shared placed-object world-load routine used by every load path |
+| (pin for the tree-regrowth fix) | A chunk created on demand must equal one streamed in | `PlacementChunkEqualsStreamedChunk`: `ensureChunkAt` on a generator world yields the same voxels as the streaming worker for that coord (the generator is per-chunk order-independent, `FloraMarginTest`) |
 | Standalone games never pump streaming | Blocks the standalone half of the benchmark | Move the pump into `EngineRuntime` |
 
 ### 17.4 Runbook: running the city benchmark
