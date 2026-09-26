@@ -338,6 +338,20 @@ LightVisibility packedPoolLightVisibility(const PackedOccupancyPool& packed,
     return out;
 }
 
+bool packedPoolLightVisibleTwoLevel(const PackedOccupancyPool& packed, const glm::vec3& surfaceWorld,
+                                    const glm::vec3& geomNormal, const glm::vec3& lightWorld) {
+    // Line for line the GLSL phxLightVisibility since L3a: the same start, emitter run and target as
+    // packedPoolLightVisibility above (the reference), then the two-level walk instead of the micro march.
+    const glm::vec3 start = surfaceWorld + geomNormal * (2.0f / 9.0f);
+    const glm::vec3 delta = lightWorld - start;
+    const float dist = glm::length(delta);
+    if (dist < 1e-4f) return true;
+    const glm::vec3 dir = delta / dist;
+    const float runEnd = emitterRunLength(packed, lightWorld, -dir, /*maxCells=*/32);
+    const glm::vec3 target = start + dir * std::max(dist - runEnd - (0.1f / 9.0f), 0.0f);
+    return !packedPoolSegmentBlocked(packed, start, target);
+}
+
 namespace {
 /// Fixed hemisphere directions in TANGENT space (z = surface normal): one straight up, then two
 /// rings. Deterministic and shared with the shader — a random or per-frame-jittered set would make

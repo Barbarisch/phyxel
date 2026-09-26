@@ -13,7 +13,7 @@
     },
     "character.frag": {
       "built": true,
-      "sources": "32e6c8707f2253bed108956254e00c5f0390a2a4de94fd0fc5387d04e4700c28",
+      "sources": "963b9301d76c806b7a66984c780d504281668aa443cb879c792e30da6652bc52",
       "spv_present": true
     },
     "character.vert": {
@@ -113,7 +113,7 @@
     },
     "foliage.frag": {
       "built": true,
-      "sources": "30c09cb590e35df6b2feaa5a8e8c4b8af64308e3e8472d9d94522f21e604b313",
+      "sources": "6a069813f1df2b523106c13539bcd1d526734f1cd5f48b0a657fe1622f8ac443",
       "spv_present": true
     },
     "foliage.vert": {
@@ -138,17 +138,17 @@
     },
     "gi_probe.comp": {
       "built": true,
-      "sources": "045e5dbb948aa2eebc63501d1cfe03540a6ee9dfff4384203a1b5604edbc3178",
+      "sources": "c72b9c3ed967488d9f1bded335bf8f6b66889921e18f9467811bd307fbfdd10d",
       "spv_present": true
     },
     "grass.frag": {
       "built": true,
-      "sources": "9becf1ee4bec00f23eee0b423523bb0398fffb7deb36ce36cfaad81f90c1517a",
+      "sources": "42a1d024ec59b37d83ce65295e8560334677e801e7009c6ec28e532c8064b98d",
       "spv_present": true
     },
     "grass.vert": {
       "built": true,
-      "sources": "479f84ad49bc9c95dfb1822abfdad1437282c8face6f51b02a35d2e60d527171",
+      "sources": "fb2d7a663a882fd66b7aaacfb604a6847b8b43ed3533c234ce17732ed9e7044d",
       "spv_present": true
     },
     "grass_shadow.frag": {
@@ -158,7 +158,7 @@
     },
     "grass_shadow.vert": {
       "built": true,
-      "sources": "cb2978f4856cfa230ec94e2de6ea3cf383e82cb9b6b5398c7c13df67e4e48442",
+      "sources": "a93c5528708e9557413d99aa9799a7e3acf136d4bbf4754275e11d72aa879ed4",
       "spv_present": true
     },
     "kinematic_shadow.vert": {
@@ -358,7 +358,7 @@
     },
     "transparent_voxel.frag": {
       "built": true,
-      "sources": "77114ee7728abc6aaa2b77d86d9ea3c98be2401174a578a76bdba275070cfc4d",
+      "sources": "ed4b39ab10efb92453ce3e69f63c71be11fe4b8bcf81502613ba2f0da72592a8",
       "spv_present": true
     },
     "ui.frag": {
@@ -383,7 +383,7 @@
     },
     "voxel.frag": {
       "built": true,
-      "sources": "379333280f0ee258434c27564a0df084205eebc818fc126914d5ceafff60d8ba",
+      "sources": "b6b006c0d5299bdf82c6d70b08040fbb6c23a592cdaae2a9bf3b78addfcf8327",
       "spv_present": true
     },
     "voxel_depth.frag": {

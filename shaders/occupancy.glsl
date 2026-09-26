@@ -519,7 +519,14 @@ float phxLightVisibility(vec3 surfaceWorld, vec3 geomNormal, vec3 lightWorld, iv
     // "the emitter's own body" is genuinely not separable from the occluder by geometry alone.
     float runEnd = phxEmitterRunLength(lightWorld, -dir, 32, occBox);
     vec3 target = start + dir * max(dist - runEnd - (0.1 / 9.0), 0.0);
-    return phxDdaHitsSolid(start, target, 512, occBox) ? 0.0 : 1.0;
+    // L3a (docs/PerfProgram2026-09.md section 16.11): the TWO-LEVEL walk (cube cells, micro only
+    // inside mixed cubes), which answers exactly what the micro march answers
+    // (OccupancyTraversalTest; LightVisibilityTwoLevelEqualsTheMicroMarch pins THIS use of it). The
+    // flat micro march (phxDdaHitsSolid, up to 512 cells) cost up to 32 lights x ~300 cells per
+    // fragment, and in a lit city with dense foliage, while occupancy was still filling at load
+    // (unloaded chunks read as open air, so every march ran to full length), one frame outran the
+    // driver's timeout: VK_ERROR_DEVICE_LOST ~10-15 s after launch (2/2 with tracing on, 0/2 off).
+    return phxSegmentBlocked(start, target, occBox) ? 0.0 : 1.0;
 }
 
 // phxSkyVisibility / PHX_SKY_DIRS (the M3 per-fragment 5-ray sky trace) were DELETED 2026-09-19

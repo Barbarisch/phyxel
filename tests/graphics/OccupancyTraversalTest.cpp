@@ -243,3 +243,41 @@ TEST(OccupancyTraversal, ProbeShapedRaysProbeTraceMatchesPlainCubeWalkDoesNot) {
     EXPECT_GT(walkDiffer, 0);
     EXPECT_GT(hits, rays / 10);
 }
+
+// L3a (docs/PerfProgram2026-09.md section 16.11): point-light visibility now walks two-level on the GPU.
+// It must answer exactly what the micro-march REFERENCE (packedPoolLightVisibility, which every lighting
+// test asserts against) answers: same start offset, same measured emitter run, same target. Random
+// surface points with axis normals, lights within 20 u (light radii are at most ~20 u), some lights
+// placed INSIDE solid cells (emissive voxels) so the emitter-run path is exercised.
+TEST(OccupancyTraversal, LightVisibilityTwoLevelEqualsTheMicroMarch) {
+    using Phyxel::Graphics::packedPoolLightVisibility;
+    using Phyxel::Graphics::packedPoolLightVisibleTwoLevel;
+    const PackedOccupancyPool packed = buildWorld();
+    std::mt19937 rng(777);
+    std::uniform_real_distribution<float> px(-31.5f, 31.5f), py(3.1f, 12.0f), pz(0.5f, 31.5f), off(-14.0f, 14.0f);
+    const glm::vec3 normals[6] = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+    int visible = 0, blocked = 0, differ = 0, inSolidLights = 0;
+    for (int i = 0; i < 20000; ++i) {
+        const glm::vec3 surf{px(rng), py(rng), pz(rng)};
+        const glm::vec3 n = normals[rng() % 6];
+        glm::vec3 light = surf + glm::vec3(off(rng), off(rng) * 0.5f, off(rng));
+        if (i % 5 == 0) light = glm::floor(light) + 0.5f;         // at a cube centre, as emissive voxels are
+        if (packedPoolSolidAt(packed, glm::ivec3(glm::floor(light * 9.0f)))) ++inSolidLights;
+        const bool ref = packedPoolLightVisibility(packed, surf, n, light, /*maxSteps, never binding*/ 4096).visible;
+        const bool two = packedPoolLightVisibleTwoLevel(packed, surf, n, light);
+        if (ref != two) {
+            ++differ;
+            if (differ <= 5)
+                ADD_FAILURE() << "surface (" << surf.x << "," << surf.y << "," << surf.z << ") n (" << n.x << ","
+                              << n.y << "," << n.z << ") light (" << light.x << "," << light.y << "," << light.z
+                              << "): micro " << ref << " two-level " << two;
+        }
+        (ref ? visible : blocked) += 1;
+    }
+    std::cout << "  light visibility: visible " << visible << ", blocked " << blocked << ", lights in solid "
+              << inSolidLights << ", differ " << differ << "\n";
+    EXPECT_EQ(differ, 0);
+    EXPECT_GT(visible, 2000);
+    EXPECT_GT(blocked, 2000);
+    EXPECT_GT(inSolidLights, 100);
+}
