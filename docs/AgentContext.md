@@ -146,6 +146,16 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 
 ## Current workstreams & roadmap (update me at session end)
 
+- **▶ PERFORMANCE PROGRAM 2026-09 — ACTIVE (branch `perf/lights-microvoxel-program`).** User goal:
+  as fast as possible **without visual loss**, measured at real load (~100-building cities). **The
+  forward guide is [`docs/PerfProgram2026-09.md`](PerfProgram2026-09.md) §17** (operating point,
+  ordered next steps with how to measure each, correctness debts, and the city-benchmark runbook);
+  the status header at the top of that doc says where things stand. As of 2026-09-26: the engine
+  generates C-25…C-100 cities (25/59/72/104 buildings, projects `Documents/PhyxelProjects/CityBench_*`),
+  the growth table exists, and the first city fix shipped (structure proxies the shader discards are no
+  longer drawn: C-100 street 75.8 → 49.8 ms GPU, pixel-identical). Next in order: re-baseline, re-verify
+  P-DP at C-100, visible proxy LOD (look change → user sign-off), shadows, walk-route hitches.
+
 - **✓ VOXEL CRACKS + GLASS TRANSPARENCY — SHIPPED on `main` (2026-09-24), reviewer-signed-off.**
   Two current-state references, **read them instead of re-deriving**:
   **[`docs/VoxelDamageVisualization.md`](VoxelDamageVisualization.md)** (damage → 7 stages

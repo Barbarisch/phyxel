@@ -1,12 +1,17 @@
 # Performance Program 2026-09: point lights and static sub/micro detail
 
-**Status (2026-09-24):**
-- **P0a DONE** (I1, I2, I3, I10; §10).
-- **P0b DONE** except I4, which is deferred with reasons (I5, I6, I7; §11).
-- **P1 DONE on the RTX 4090** for S-1 (tavern) and S-2 (town), with verdicts and a P2 ranking in §12.
-- **Still owed:** the laptop GPU, the standalone at native resolution, and an S-3 city.
-- P0c (I8, I9) is not started. `/design-check` ran four times on the plan (NEEDS WORK, lists 7 → 7 → 3 → 1, all
-folded in, §9.1-§9.4) and returned READY on the fifth. No optimization starts until P1 has measured it.
+**Status (2026-09-26) — START HERE. The forward guide is [§17](#17-roadmap-from-here-the-guide-updated-2026-09-26).**
+- **Goal (user, 2026-09-25):** no fixed budget — as fast as possible without visual loss, measured at real
+  load: **~100-building cities** (S-3, §16).
+- **Measured + done:** P0a/P0b instrumentation (§10-§11); P1 on the 4090 for S-1 tavern / S-2 town (§12);
+  shipped L1 duplicate-emitter merge (§13), P-DP depth prepass (built, **default OFF**, §14), GI-1/GI-2 probe
+  pass (§15), L3a exact light visibility; the P1c city benchmark tooling (§16.8) and the **C-25…C-100 city
+  ladder with its growth table** (§16.11); the first city fix — **structure proxies the shader discards are
+  no longer drawn, C-100 street −34 %** (§16.12).
+- **Where it stands:** C-100 (104 buildings) was 86–109 ms GPU (9–12 fps) before §16.12; street is ~50 ms
+  after it. Point lights are **not** a city cost (night ≈ noon). The next levers, in order, are in §17.2.
+- **Still owed:** the laptop GPU, the standalone at native resolution, walk-route hitch runs (§16.6 step 3),
+  and P0c (I8, I9). Rules that every step follows: §6 gates, §17.4 runbook.
 
 **The question (from the user):** *"it seems like we have performance issues because of too many point
 lights and too many static sub/microcubes. We need to not take my word for it."* This plan treats both
@@ -334,13 +339,25 @@ opaque-card A/B.
 **Likely first fixes, if P1 confirms the prior:** L1 (small, exact for the same light set, removes
 duplicates) → L2 (the structural fix) → S1 / S2 (the geometry waste I5 will size).
 
+**Phase status (2026-09-26):** P0a DONE · P0b DONE (I4 deferred) · P0c NOT STARTED · P1 DONE on the 4090
+(laptop owed) · P2: L1 SHIPPED, P-DP built (default OFF), GI-1/GI-2 SHIPPED, L3a SHIPPED, structure-proxy
+skip SHIPPED · P1c: ladder + fixed-pose growth table DONE, walk routes + hitch report OPEN. **The city data
+re-ranked P2: lights (L2/L3c) are no longer first** — see §17.2 for the current order.
+
 ## 8. Open decisions (for the user)
 
 1. **Target — DECIDED 2026-09-25:** no fixed budget; as fast as possible without sacrificing visual
    quality, measured at real load (~100-building cities, §16).
 2. **L3c changes the light model** (cached visibility, which also fixes G-157). It is the biggest lever
    and the biggest design. Do we open a design for it now, or first take L1 + L2 and re-measure?
+   *2026-09-26: deferred by data — in the city, night ≈ noon at every rung, so lights are not where the
+   frame goes (§16.11). Revisit for interiors / the laptop.*
 3. **Laptop access** for the min-spec half of P1.
+4. **City-cap scaling — DECIDED 2026-09-26:** the building cap scales with site area (`scaleForSite`, §16.11).
+5. **OPEN — P-DP default.** The prepass was −20..−37 % at S-1/S-2 and pixel-identical; re-measure at C-100
+   (§17.2 step 2) and then decide default ON/OFF.
+6. **OPEN — visible structure proxies (§17.2 step 3) are a LOOK change**, not an equivalence: needs the
+   user's before/after sign-off at the city poses.
 
 ---
 
@@ -1022,7 +1039,7 @@ before relying on it.
 
 ---
 
-## 16. PLAN — P1c: the city benchmark (S-3) at real load (drafted 2026-09-25, for `/design-check`)
+## 16. P1c: the city benchmark (S-3) at real load (planned 2026-09-25; ladder + growth table DONE 2026-09-26; routes OPEN — see §17)
 
 **Why.** Every result above was measured in S-1 (one tavern) or S-2 (4 buildings). The user reports that
 larger towns "really stress out the fps", and the goal is **cities of ~100 buildings**. The S-3 row in §4.1
@@ -1176,6 +1193,11 @@ a change's win survives at that load. Rig-vs-shipped deltas for S-3: editor host
 
 **Exit:** the growth table and hitch report exist for all four rungs on the 4090, with provenance, and the
 next optimization is chosen from C-100 data. The laptop run of the same ladder remains owed (§8.3).
+
+**Progress (2026-09-26):** step 0 DONE (§16.10: walk 4 u/s, fast 32 u/s) · step 1 DONE (§16.8) · step 2
+DONE (§16.11: 25/59/72/104 buildings, reload-verified; needed the site-scaled cap) · step 3 fixed poses
+DONE (noon + night, all rungs) — **route runs OPEN**, residents-OFF arm OPEN · step 4 growth table DONE,
+hitch report OPEN, P2 re-ranked (§17.2) · step 5 OPEN. Exit criterion NOT yet met (hitch report).
 
 ### 16.7 Predictions, written before the ladder runs (design check 9.6 #7)
 
@@ -1399,3 +1421,101 @@ px over 8/255 — too high to decide anything; freezing is required for gates in
 2. **Shadow Mid ~20–24 ms** (every building in 420 u casts, visible or not) — S-class shadow work.
 3. **Static Geometry 7–16 ms** and the default-OFF depth prepass (−20..−37 % at S-1/S-2) to re-verify here.
 4. Far trees proper: ~2.8 ms at street after the fix — no longer a city problem.
+
+---
+
+## 17. ROADMAP FROM HERE: the guide (updated 2026-09-26)
+
+This section is the living plan. Update it in the same commit as any result that changes the order: mark
+steps DONE with the commit and the measured number, and re-rank from data, never from priors.
+
+### 17.1 Operating point (RTX 4090, Release, editor host 1600×900, defaults, noon)
+
+| Scene | GPU frame | Top passes | Source |
+|---|---|---|---|
+| C-100 street (104 buildings), before §16.12 | 103 ms | Far Terrain 40 (structure proxies), Shadow Mid 20, Static Geometry 16, Shadow Near 9 | §16.11 |
+| C-100 street, after §16.12 | ~50 ms | Shadow Mid ~24, Static Geometry ~16, Shadow Near ~9 | §16.12 A/B (re-baseline owed: §17.2 step 1) |
+| C-100 overview, after §16.12 | ~43 ms | visible structure proxies ~10, Shadow Mid ~21 | §16.12 |
+
+Established facts to build on: point lights cost nothing measurable in the city (night ≈ noon, every
+rung); GI probes ~5 ms and flat; characters ≤ 1.4 ms; far trees ~2.8 ms at street; streaming stutter is
+main-thread CPU (Light Occupancy repack, Water, Dirty Chunk Flush; §16.10), not GPU.
+
+### 17.2 Ordered next steps
+
+Each step: **why** (the data), **do**, **measure**, **done when**.
+
+1. **Re-baseline the growth table with §16.12 in.** *Why:* §16.11's numbers predate the skip; every later
+   A/B needs the true starting point. *Do:* `run_rung_attrib.sh` on all four rungs (§17.4), then
+   `growth_table.py`. *Done when:* §17.1 row 2 holds measured numbers for every rung and pose.
+2. **Re-verify the shipped wins at C-100 and decide P-DP's default** (§16.6 step 5, §8 #5). *Why:* L1, P-DP
+   and GI-2 were measured at S-1/S-2 scale only; P-DP (−20..−37 % there) is still OFF. *Do:* ABBA with
+   `perf_harness.py sample --ab` (prepass on/off) at the five C-100 poses, noon + night; frozen pixel gate
+   (the prepass is equivalence-class). *Done when:* written up as a §16.x and the default decided with
+   the user.
+3. **Visible structure proxies still draw at chain level 0 out to 360 u** (~10 ms at the overview). *Why:*
+   §16.12's residual (overview: skip 43.1 vs no proxies 32.9 ms). *Options:* a coarser level nearer
+   (`kStructureLevelDist`), or a screen-space level rule (the level whose cell projects to ≤ ~1 px, the C1
+   metric). **A LOOK change** (§8 #6): before/after captures at the overview and outside poses for user
+   sign-off; `LodTierLedger.md` row 7 updated. *Done when:* signed off and measured.
+4. **Shadow Mid (~20–24 ms) and Shadow Near (~9 ms, linear in buildings).** *Why:* the largest GPU term
+   left after step 3; every building within 420 u casts whether or not its shadow can reach the view.
+   *First:* attribute shadow cost per caster class (chunks / characters / LOD casters) at C-100.
+   *Candidates:* **SH1** cull casters whose sun-extruded volume misses the view frustum (cannot affect a
+   pixel: equivalence-class, frozen pixel gate); **SH2** cache static casters in the mid cascade (re-render
+   only when casters change or the fit moves past a texel budget, as the far cascade already runs on a
+   cadence; the moving-sun case must be gated); **S6** micro faces below a shadow texel (deprioritised at
+   S-2 scale; recheck with the `voxel_tiers` shadow counts). *Done when:* the chosen one ships through §6.
+5. **Static Geometry (7–16 ms).** Third term, pose-dependent, likely overlaps P-DP (step 2): re-rank after
+   it. S1 (covered-face cull) was 1–2 % at S-2; recheck with `voxel_tiers` at C-100.
+6. **Walk routes + hitch report** (§16.6 steps 3-4; the P1c exit criterion). *Why:* the user's complaint
+   is stutter while MOVING through big towns, which static poses cannot see. *Do:* `rig_common.route()` at
+   4 and 32 u/s through each rung (A/A first, 8 pairs), `hitch_analysis.py` for per-hitch causes.
+   *Expected (§16.10):* Light Occupancy repack, Water, Dirty Chunk Flush → **O1** incremental occupancy
+   packing, **W1** water recentre amortised or off-thread, **S4** off-thread meshing. *Done when:* the hitch
+   report exists for every rung and the top cause has a planned fix.
+7. **Residents-OFF arm** (once per rung, §16.1): sizes the NPC/AI CPU share (predicted linear in
+   residents, §16.7). Needs a generator-side "no residents" parameter or a despawn via the API — record
+   which was used.
+8. **Foliage at the outside pose (12–22 ms)** — F1 (§12): attribute overdraw vs shading with the R-F1 rig.
+9. **Owed platforms:** the laptop run of the ladder (min-spec; lights may matter there, §1) and the
+   standalone `--test` at native resolution (blocked for streaming worlds: standalone games never pump
+   streaming, `StructurePipelineGaps.md` 2026-09-25).
+
+**Demoted by data** (revisit only if a new scene says otherwise): L2 clustered lights, L3c cached
+visibility, L4 grass/foliage light gate (lights ≈ 0 in the city); S2/S5 (geometry ≈ free on the GPU).
+
+### 17.3 Correctness debts the benchmark found (logged in `StructurePipelineGaps.md`, not fixed)
+
+| Debt | Impact | Fix direction |
+|---|---|---|
+| Trees cleared by a build regrow after a reload (a chunk saved EMPTY loads as "not saved") | +0.2–0.4 % sub/micro per rung; trees return over cleared lots | Fix together with `ChunkManager::ensureChunkAt` creating EMPTY chunks in streaming worlds; both red tests are specified in the gap entry |
+| CityForge plans overlapping lots; the later build silently replaces the earlier house | C-25 built 25 of 26 | Reserve realized footprints; a settlement job must not remove a structure it built |
+| Scene transitions restore neither structure lights nor item props | Transitioned scenes lose lamps and props | One shared placed-object world-load routine used by every load path |
+| Standalone games never pump streaming | Blocks the standalone half of the benchmark | Move the pump into `EngineRuntime` |
+
+### 17.4 Runbook: running the city benchmark
+
+All scripts live in `docs/evidence/perf2026-09/p1c/`.
+- **Projects** (`Documents/PhyxelProjects`): base `CityBench` (never build in it — copy it); rungs
+  `CityBench_C25M` (96², 25 buildings), `CityBench_C50` (128², 59), `CityBench_C75` (160², 72),
+  `CityBench_C100b` (192², 104). A new rung = a copy of `CityBench` in a NEW directory; never overwrite
+  an existing world.
+- **Build a rung:** `city_build.py C-<N> <W> <D> <prefix>` — generator only, explicit save, fingerprint
+  at the ANCHOR above the site centre, retries honest generator refusals; `--attach=<job>` adopts a job
+  already running. **Verify persistence:** relaunch, `city_build.py --fingerprint-only …`, then
+  `fingerprint_diff.py <prefix>` and `chunk_diff.py <prefix>`. The REFERENCE fingerprint is the reload one.
+- **Measure a rung:** launch the engine on the project (Release, MCP `launch_engine`), then
+  `sh run_rung_attrib.sh <prefix> <W> <D> <N>` (anchor settle → generator-derived poses → noon/night
+  ABBA); tables with `attrib_table.py <run.jsonl>` and `growth_table.py`. A/B any knob with
+  `tools/perf_harness.py sample --ab <configs.json>` (examples: `ab_structure_lod.json`,
+  `ab_far_trees.json`, `tod_noon_night.json`).
+- **Pixel gates in the city must freeze:** `structure_skip_pixel_gate.py … --freeze` is the template
+  (grass + foliage off, game paused, clock at noon). Unfrozen, the residents + grass noise floor is ~4k px
+  over 8/255 and decides nothing. Game pause also stops streaming, so settle before freezing.
+- **Footguns met in this program:** the far-trees knob also removes the structure proxies (use the
+  `structures` knob to separate them); the overview pose does not stream the C-75+ corners (settle at the
+  ANCHOR); absolute GPU numbers drift between sessions (compare interleaved pairs only); one clean run of
+  an intermittent fault proves nothing (several runs per arm, with the trigger shown to fire); Bash
+  heredocs execute backticks (write docs and scripts with Write/Edit); `phyxel.log` rotates at 64 MB
+  (`phyxel.log.1`).
