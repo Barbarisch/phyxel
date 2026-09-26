@@ -74,7 +74,8 @@ private:
         bool held = false;
         TransformProvider transform;
         std::vector<EffectState> states;   // parallel to def->effects
-        float conditionTimer = 0.0f;       // staggered by registration
+        float conditionTimer = 0.0f;       // 0 at registration: first check is immediate
+        float staggerOffset = 0.0f;        // spreads later checks across frames
     };
 
     void deactivate(EffectState& state);

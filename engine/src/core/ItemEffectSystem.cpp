@@ -19,8 +19,11 @@ void ItemEffectSystem::registerInstance(const std::string& instanceId, const Ite
     inst.held = held;
     inst.transform = std::move(transform);
     inst.states.resize(def->effects.size());
-    // Stagger condition checks so many props don't all query on the same frame.
-    inst.conditionTimer = CONDITION_INTERVAL * float(m_instances.size() % 4) * 0.25f;
+    // The FIRST condition check runs on the next update, so a new instance (a
+    // thrown torch) is lit the frame it appears. Later checks are staggered so
+    // many props don't all query on the same frame.
+    inst.conditionTimer = 0.0f;
+    inst.staggerOffset = CONDITION_INTERVAL * float(m_instances.size() % 4) * 0.25f;
     m_instances[instanceId] = std::move(inst);
     LOG_DEBUG("ItemEffects", "Registered '{}' ({} effect(s), {})",
               instanceId, def->effects.size(), held ? "held" : "prop");
@@ -65,7 +68,10 @@ void ItemEffectSystem::update(float dt) {
         const glm::mat4 transform = inst.transform();
         inst.conditionTimer -= dt;
         const bool checkConditions = inst.conditionTimer <= 0.0f;
-        if (checkConditions) inst.conditionTimer = CONDITION_INTERVAL;
+        if (checkConditions) {
+            inst.conditionTimer = CONDITION_INTERVAL + inst.staggerOffset;
+            inst.staggerOffset = 0.0f;  // applied once, after the immediate first check
+        }
 
         for (size_t i = 0; i < inst.def->effects.size(); ++i) {
             const ItemEffectDef& e = inst.def->effects[i];

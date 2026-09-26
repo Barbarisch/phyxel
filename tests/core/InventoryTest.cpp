@@ -23,7 +23,24 @@ TEST(InventoryTest, DefaultConstruction) {
     Inventory inv;
     EXPECT_EQ(inv.size(), 36);
     EXPECT_EQ(inv.getSelectedSlot(), 0);
-    EXPECT_TRUE(inv.isCreativeMode());
+    // Items are finite by default (2026-09-25): using or throwing an item removes it.
+    // Infinite "creative" supply is an opt-in mode, not the engine's default.
+    EXPECT_FALSE(inv.isCreativeMode());
+}
+
+TEST(InventoryTest, DefaultThrowRemovesTheItem) {
+    Inventory inv;
+    inv.addItem("Stone", 1);
+    EXPECT_TRUE(inv.consumeSelected());
+    EXPECT_EQ(inv.countItem("Stone"), 0);
+    EXPECT_EQ(inv.getSelectedMaterial(), "");  // the hand is empty afterwards
+}
+
+TEST(InventoryTest, JsonWithoutCreativeKeyIsFinite) {
+    Inventory inv;
+    inv.setCreativeMode(true);
+    inv.fromJson({{"size", 9}, {"selected_slot", 0}});
+    EXPECT_FALSE(inv.isCreativeMode());
 }
 
 TEST(InventoryTest, CustomSize) {

@@ -7,7 +7,7 @@
 namespace Phyxel {
 namespace Core {
 
-Inventory::Inventory(int size) : m_slots(size), m_selectedSlot(0), m_creative(true) {}
+Inventory::Inventory(int size) : m_slots(size), m_selectedSlot(0), m_creative(false) {}
 
 std::optional<ItemStack> Inventory::getSlot(int index) const {
     if (index < 0 || index >= static_cast<int>(m_slots.size())) return std::nullopt;
@@ -196,7 +196,7 @@ void Inventory::fromJson(const nlohmann::json& j) {
         m_slots.resize(j["size"].get<int>());
     }
     m_selectedSlot = j.value("selected_slot", 0);
-    m_creative = j.value("creative", true);
+    m_creative = j.value("creative", false);
 
     // Clear and load
     for (auto& slot : m_slots) slot = std::nullopt;
