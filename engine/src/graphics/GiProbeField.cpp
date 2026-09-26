@@ -125,7 +125,8 @@ void GiProbeField::recordUpdate(VkCommandBuffer cmd, VkDescriptorSet set,
     push.ambientColor = glm::vec4(ambientColor, static_cast<float>(m_refresh++ % 4096u));
     push.occBox = occBox;
     push.sunDirection = glm::vec4(sunDirection, 0.0f);
-    push.sunColor = glm::vec4(sunColor, 0.0f);
+    // .w = the probe-pass option bits (optionBits(): GI-1 skip buried, GI-2 two-level trace).
+    push.sunColor = glm::vec4(sunColor, static_cast<float>(optionBits()));
     vkCmdPushConstants(cmd, m_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(push), &push);
 
     // Only 1/kPhases of the grid this frame. Must match kPhases in gi_probe.comp.

@@ -1,0 +1,40 @@
+{
+  "tag": "gi2_abba_6_on",
+  "values": {
+    "wall_open": 0.09276405721902847,
+    "wall_street": 0.08962219208478928,
+    "in_control_open": 0.24470125138759613,
+    "in_sealed": 0.017569350078701973,
+    "in_sealed_wall": 0.0017942989943549037,
+    "in_door": 0.01952483132481575,
+    "in_door_wall": 0.004403744824230671,
+    "in_sealed_micro": 0.017526598647236824
+  },
+  "results": [
+    {
+      "check": "A1 continuity: wall_street / wall_open >= 0.40",
+      "measured": 0.9661201617456178,
+      "pass": true
+    },
+    {
+      "check": "A2 sealed: in_sealed / in_control_open <= 0.08",
+      "measured": 0.0717988901984927,
+      "pass": true
+    },
+    {
+      "check": "A3 resolution: in_sealed_micro / in_sealed <= 1.5",
+      "measured": 0.9975099283014183,
+      "pass": true
+    },
+    {
+      "check": "A3 resolution: in_sealed_micro / in_control_open <= 0.08",
+      "measured": 0.07162418223719393,
+      "pass": true
+    },
+    {
+      "check": "A4 opening: in_door_wall / in_sealed_wall >= 1.5",
+      "measured": 2.45293114855949,
+      "pass": true
+    }
+  ]
+}

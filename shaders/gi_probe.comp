@@ -127,6 +127,25 @@ void main() {
     ivec3 L = o + phxWrapSlot(sl - o);   // the lattice coordinate in [o, o + dims) congruent to this slot
     vec3 world = vec3(L) * spacing;
     int base = phxProbeSlotBase(L, o);
+
+    // GI-1 (docs/PerfProgram2026-09.md §15): a BURIED probe skips its 18 traces. Every reader gates
+    // on validity (lobe 0 .a) before touching a probe's colour -- phxProbeValidAt, the receiver
+    // loop and this pass's own bounce read -- so a buried probe's rgb is never read, and writing
+    // zeros instead of 18 traced-and-discarded estimates changes no output. What MUST still be
+    // written is the validity (0) and the lattice tag (lobes 2..4 .a): the tag is what tells
+    // readers this slot holds this probe, and the invalid flag is what makes the probe start fresh
+    // (no blend with stale history) the refresh after it becomes air.
+    // sunColor.w carries the GI option bits (GiProbeField::optionBits): bit 0 = this skip, bit 1 = the
+    // two-level primary trace (GI-2, below). A clear bit is the old path, kept for the A/B.
+    int giOpts = int(pc.sunColor.w + 0.5);
+    float valid = phxOccupancySolid(ivec3(floor(world * 9.0)), pc.occBox) ? 0.0 : 1.0;
+    if (valid < 0.5 && (giOpts & 1) != 0) {
+        for (int l = 0; l < 6; ++l) {
+            float a = (l < 2) ? 0.0 : (l == 2 ? float(L.x) : (l == 3 ? float(L.y) : (l == 4 ? float(L.z) : 0.0)));
+            giField.probes[base + l] = vec4(0.0, 0.0, 0.0, a);
+        }
+        return;
+    }
     bool sameProbe = giField.probes[base + 2].a == float(L.x) &&
                      giField.probes[base + 3].a == float(L.y) &&
                      giField.probes[base + 4].a == float(L.z);
@@ -190,7 +209,12 @@ void main() {
         vec3 dir = rot * GI_DIRS[d];
         vec3 radiance;
         vec3 hitPos, hitN;
-        if (!phxDdaTrace(world, world + dir * kReach, kCells, pc.occBox, hitPos, hitN)) {
+        // GI-2: the micro march over the first unit, the cube walk beyond it -- the micro march's
+        // hit (cell and normal) at a fraction of the steps (OccupancyTraversalTest).
+        bool hit = ((giOpts & 2) != 0)
+            ? phxDdaTraceProbe(world, world + dir * kReach, pc.occBox, hitPos, hitN)
+            : phxDdaTrace(world, world + dir * kReach, kCells, pc.occBox, hitPos, hitN);
+        if (!hit) {
             // Escaped: this direction sees the sky dome, which wraps to the horizon, so a
             // horizontal escape through a doorway carries light just as a vertical one does.
             radiance = pc.ambientColor.rgb;
@@ -226,7 +250,6 @@ void main() {
         }
     }
 
-    float valid = phxOccupancySolid(ivec3(floor(world * 9.0)), pc.occBox) ? 0.0 : 1.0;
     float prevValid = giField.probes[base].a;
     for (int l = 0; l < 6; ++l) {
         vec3 v = lobeW[l] > 0.0 ? lobe[l] / lobeW[l] : vec3(0.0);

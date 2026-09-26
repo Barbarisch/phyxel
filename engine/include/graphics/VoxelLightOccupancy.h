@@ -269,5 +269,32 @@ bool packedPoolSegmentHitsSolid(const PackedOccupancyPool& packed, const glm::ve
 bool packedPoolSegmentBlocked(const PackedOccupancyPool& packed, const glm::vec3& fromWorld,
                               const glm::vec3& toWorld);
 
+/// The micro march that REPORTS its hit: the CPU mirror of phxDdaTrace (occupancy.glsl), the probe
+/// pass's primary ray. On a hit, `hitCell` = the first solid micro cell on the segment and `hitAxis`
+/// = the axis of the step that entered it (1 when the start cell itself is solid) -- the face normal
+/// is -sign(dir[hitAxis]) along that axis. Same end-cell convention as packedPoolSegmentHitsSolid.
+bool packedPoolTraceMicro(const PackedOccupancyPool& packed, const glm::vec3& fromWorld,
+                          const glm::vec3& toWorld, int maxCells, glm::ivec3& hitCell, int& hitAxis);
+
+/// GI-2 (docs/PerfProgram2026-09.md section 15): the TWO-LEVEL version of packedPoolTraceMicro, the
+/// CPU mirror of phxDdaTraceTwoLevel. Walks cube cells like packedPoolSegmentBlocked and descends to
+/// the micro march only inside MIXED cubes, but reports the same hit cell and axis the micro march
+/// reports. OccupancyTraversalTest pins the equality on random rays.
+bool packedPoolTraceTwoLevel(const PackedOccupancyPool& packed, const glm::vec3& fromWorld,
+                             const glm::vec3& toWorld, glm::ivec3& hitCell, int& hitAxis);
+
+/// How far the probe trace runs the exact micro march before handing over to the cube walk.
+/// Probe rays start ON the 2 u lattice, i.e. exactly on a cube corner, where the micro march
+/// resolves zero-length steps in its fixed tie order; the cube walk's 1e-4 slice offset resolves
+/// them differently (OccupancyTraversalTest: 49 of 41,850 probe-shaped rays). One unit clears the
+/// corner neighbourhood; beyond it a rotated ray sits at a generic position.
+constexpr float kProbeExactReach = 1.0f;
+
+/// GI-2: the probe pass's primary trace, the CPU mirror of phxDdaTraceProbe. The micro march over
+/// the first kProbeExactReach units, then packedPoolTraceTwoLevel's cube walk from the micro
+/// march's (untested) end cell, seeded with the axis that entered it. Reports the micro march's hit.
+bool packedPoolTraceProbe(const PackedOccupancyPool& packed, const glm::vec3& fromWorld,
+                          const glm::vec3& toWorld, glm::ivec3& hitCell, int& hitAxis);
+
 }  // namespace Graphics
 }  // namespace Phyxel

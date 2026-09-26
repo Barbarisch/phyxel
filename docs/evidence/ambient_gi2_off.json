@@ -1,0 +1,40 @@
+{
+  "tag": "gi2_off",
+  "values": {
+    "wall_open": 0.09287893027067184,
+    "wall_street": 0.09040506929159164,
+    "in_control_open": 0.24609743058681488,
+    "in_sealed": 0.017569877207279205,
+    "in_sealed_wall": 0.0017942989943549037,
+    "in_door": 0.01904469169676304,
+    "in_door_wall": 0.00410012062638998,
+    "in_sealed_micro": 0.017525946721434593
+  },
+  "results": [
+    {
+      "check": "A1 continuity: wall_street / wall_open >= 0.40",
+      "measured": 0.9733541899539768,
+      "pass": true
+    },
+    {
+      "check": "A2 sealed: in_sealed / in_control_open <= 0.08",
+      "measured": 0.07139369871390208,
+      "pass": true
+    },
+    {
+      "check": "A3 resolution: in_sealed_micro / in_sealed <= 1.5",
+      "measured": 0.9974429002425673,
+      "pass": true
+    },
+    {
+      "check": "A3 resolution: in_sealed_micro / in_control_open <= 0.08",
+      "measured": 0.07121519092846086,
+      "pass": true
+    },
+    {
+      "check": "A4 opening: in_door_wall / in_sealed_wall >= 1.5",
+      "measured": 2.283809348349386,
+      "pass": true
+    }
+  ]
+}

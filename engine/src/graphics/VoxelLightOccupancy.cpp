@@ -562,5 +562,155 @@ bool packedPoolSegmentBlocked(const PackedOccupancyPool& packed, const glm::vec3
     return false;
 }
 
+namespace {
+
+/// Micro march with hit reporting, line for line the GLSL phxDdaTraceFrom. `axis` is IN: the axis of
+/// the step that entered the start cell (1 for a fresh ray, as in phxDdaTrace), and OUT on a miss:
+/// the axis of the step that entered the segment's END cell (the cell this march never tests), which
+/// is what a continuation starting there needs as its seed.
+bool ddaTraceFrom(const PackedOccupancyPool& packed, const glm::vec3& from, const glm::vec3& to,
+                  int maxCells, int& axis, glm::ivec3& hitCell, int& hitAxis) {
+    const glm::vec3 a = from * 9.0f, b = to * 9.0f;
+    const glm::vec3 d = b - a;
+    const float len = glm::length(d);
+    if (len < 1e-6f) return false;
+    const glm::vec3 dir = d / len;
+
+    glm::ivec3 cell{static_cast<int>(std::floor(a.x)), static_cast<int>(std::floor(a.y)),
+                    static_cast<int>(std::floor(a.z))};
+    const glm::ivec3 last{static_cast<int>(std::floor(b.x)), static_cast<int>(std::floor(b.y)),
+                          static_cast<int>(std::floor(b.z))};
+    glm::ivec3 step;
+    glm::vec3 tMax, tDelta;
+    for (int i = 0; i < 3; ++i) {
+        if (dir[i] > 1e-9f) {
+            step[i] = 1;  tMax[i] = (static_cast<float>(cell[i] + 1) - a[i]) / dir[i]; tDelta[i] = 1.0f / dir[i];
+        } else if (dir[i] < -1e-9f) {
+            step[i] = -1; tMax[i] = (a[i] - static_cast<float>(cell[i])) / -dir[i];    tDelta[i] = 1.0f / -dir[i];
+        } else {
+            step[i] = 0;  tMax[i] = std::numeric_limits<float>::max();                 tDelta[i] = std::numeric_limits<float>::max();
+        }
+    }
+    for (int n = 0; n < maxCells; ++n) {
+        if (packedPoolSolidAt(packed, cell)) { hitCell = cell; hitAxis = axis; return true; }
+        if (cell == last) return false;
+        if (tMax.x < tMax.y) {
+            if (tMax.x < tMax.z) { cell.x += step.x; tMax.x += tDelta.x; axis = 0; }
+            else                 { cell.z += step.z; tMax.z += tDelta.z; axis = 2; }
+        } else {
+            if (tMax.y < tMax.z) { cell.y += step.y; tMax.y += tDelta.y; axis = 1; }
+            else                 { cell.z += step.z; tMax.z += tDelta.z; axis = 2; }
+        }
+        if (tMax.x > len && tMax.y > len && tMax.z > len) return false;
+    }
+    return false;
+}
+
+/// The cube walk, line for line the GLSL phxDdaTraceTwoLevelFrom. `seedAxis` = the axis of the step
+/// that entered the START micro cell (1 for a fresh ray).
+bool traceTwoLevelFrom(const PackedOccupancyPool& packed, const glm::vec3& fromWorld, const glm::vec3& toWorld,
+                       int seedAxis, glm::ivec3& hitCell, int& hitAxis) {
+    // The cube walk and its end-cell cases are packedPoolSegmentBlocked's; what is added is WHICH
+    // micro cell was hit:
+    //   solid cube -> the first micro cell of the segment inside it (the start cell for n == 0),
+    //                 entered along the cube step's axis (the seed for n == 0, as the micro march);
+    //   mixed cube -> the micro march over this cube's slice, seeded with that same entry axis.
+    const glm::vec3 d = toWorld - fromWorld;
+    const float len = glm::length(d);
+    if (len < 1e-6f) return false;
+    const glm::vec3 dir = d / len;
+
+    glm::ivec3 cell{static_cast<int>(std::floor(fromWorld.x)), static_cast<int>(std::floor(fromWorld.y)),
+                    static_cast<int>(std::floor(fromWorld.z))};
+    const glm::ivec3 last{static_cast<int>(std::floor(toWorld.x)), static_cast<int>(std::floor(toWorld.y)),
+                          static_cast<int>(std::floor(toWorld.z))};
+    glm::ivec3 step;
+    glm::vec3 tMax, tDelta;
+    for (int i = 0; i < 3; ++i) {
+        if (dir[i] > 1e-9f) {
+            step[i] = 1;  tMax[i] = (static_cast<float>(cell[i] + 1) - fromWorld[i]) / dir[i]; tDelta[i] = 1.0f / dir[i];
+        } else if (dir[i] < -1e-9f) {
+            step[i] = -1; tMax[i] = (fromWorld[i] - static_cast<float>(cell[i])) / -dir[i];    tDelta[i] = 1.0f / -dir[i];
+        } else {
+            step[i] = 0;  tMax[i] = std::numeric_limits<float>::max();                         tDelta[i] = std::numeric_limits<float>::max();
+        }
+    }
+
+    float tEnter = 0.0f;
+    int cubeAxis = seedAxis;
+    const int maxCubes = static_cast<int>(3.0f * len) + 4;
+    const glm::ivec3 endMicro{static_cast<int>(std::floor(toWorld.x * 9.0f)), static_cast<int>(std::floor(toWorld.y * 9.0f)),
+                              static_cast<int>(std::floor(toWorld.z * 9.0f))};
+    for (int n = 0; n < maxCubes; ++n) {
+        const CubeOccupancy st = packedPoolCubeOccupancy(packed, cell);
+        const float tExit = std::min(std::min(tMax.x, tMax.y), std::min(tMax.z, len));
+        const float a = (n == 0) ? 0.0f : tEnter + 1e-4f;
+        const glm::vec3 aPos = fromWorld + dir * a;
+        const glm::ivec3 aMicro{static_cast<int>(std::floor(aPos.x * 9.0f)), static_cast<int>(std::floor(aPos.y * 9.0f)),
+                                static_cast<int>(std::floor(aPos.z * 9.0f))};
+        const bool firstIsEnd = (n > 0) && (cell == last) && (aMicro == endMicro);
+        if (st == CubeOccupancy::Solid) {
+            if (cell != last || n == 0 || !firstIsEnd) {
+                // The entry cell, located AT the face crossing rather than 1e-4 u past it (the
+                // offset can cross a micro boundary on another axis and report the neighbour): on
+                // the entry axis it is the cube's boundary micro cell, on the others the crossing.
+                glm::ivec3 e = aMicro;
+                if (n > 0) {
+                    const glm::vec3 p = (fromWorld + dir * tEnter) * 9.0f;
+                    e = glm::ivec3{static_cast<int>(std::floor(p.x)), static_cast<int>(std::floor(p.y)),
+                                   static_cast<int>(std::floor(p.z))};
+                    e[cubeAxis] = step[cubeAxis] > 0 ? cell[cubeAxis] * 9 : cell[cubeAxis] * 9 + 8;
+                }
+                hitCell = e; hitAxis = cubeAxis; return true;
+            }
+            return false;
+        }
+        if (st == CubeOccupancy::Mixed && !firstIsEnd) {
+            const float b = std::min(tExit + 1e-4f, len);
+            int sliceAxis = cubeAxis;
+            if (b > a && ddaTraceFrom(packed, aPos, fromWorld + dir * b, 64, sliceAxis, hitCell, hitAxis))
+                return true;
+        }
+        if (cell == last || tExit >= len) return false;
+        tEnter = tExit;
+        if (tMax.x < tMax.y) {
+            if (tMax.x < tMax.z) { cell.x += step.x; tMax.x += tDelta.x; cubeAxis = 0; }
+            else                 { cell.z += step.z; tMax.z += tDelta.z; cubeAxis = 2; }
+        } else {
+            if (tMax.y < tMax.z) { cell.y += step.y; tMax.y += tDelta.y; cubeAxis = 1; }
+            else                 { cell.z += step.z; tMax.z += tDelta.z; cubeAxis = 2; }
+        }
+    }
+    return false;
+}
+
+}  // namespace
+
+bool packedPoolTraceMicro(const PackedOccupancyPool& packed, const glm::vec3& fromWorld,
+                          const glm::vec3& toWorld, int maxCells, glm::ivec3& hitCell, int& hitAxis) {
+    int axis = 1;
+    return ddaTraceFrom(packed, fromWorld, toWorld, maxCells, axis, hitCell, hitAxis);
+}
+
+bool packedPoolTraceTwoLevel(const PackedOccupancyPool& packed, const glm::vec3& fromWorld,
+                             const glm::vec3& toWorld, glm::ivec3& hitCell, int& hitAxis) {
+    return traceTwoLevelFrom(packed, fromWorld, toWorld, 1, hitCell, hitAxis);
+}
+
+bool packedPoolTraceProbe(const PackedOccupancyPool& packed, const glm::vec3& fromWorld,
+                          const glm::vec3& toWorld, glm::ivec3& hitCell, int& hitAxis) {
+    // Line for line the GLSL phxDdaTraceProbe. The first kProbeExactReach units are the micro march
+    // (exact through the corner neighbourhood a lattice-started ray begins in); the rest is the cube
+    // walk, starting on the micro march's untested end cell with its entry axis.
+    const glm::vec3 d = toWorld - fromWorld;
+    const float len = glm::length(d);
+    int axis = 1;
+    if (len <= kProbeExactReach)
+        return ddaTraceFrom(packed, fromWorld, toWorld, 64, axis, hitCell, hitAxis);
+    const glm::vec3 mid = fromWorld + d * (kProbeExactReach / len);
+    if (ddaTraceFrom(packed, fromWorld, mid, 64, axis, hitCell, hitAxis)) return true;
+    return traceTwoLevelFrom(packed, mid, toWorld, axis, hitCell, hitAxis);
+}
+
 }  // namespace Graphics
 }  // namespace Phyxel

@@ -1,0 +1,7 @@
+{"label": "HEAD", "enabled_point_lights": 16, "poses": {"interior": {"gi_probes_ms": 3.9093280000000004, "gpu_frame_ms": 11.981104}, "exterior": {"gi_probes_ms": 3.9250559999999997, "gpu_frame_ms": 11.14304}}}
+{"label": "NEW", "enabled_point_lights": 16, "poses": {"interior": {"gi_probes_ms": 2.180608, "gpu_frame_ms": 10.297616}, "exterior": {"gi_probes_ms": 2.202736, "gpu_frame_ms": 9.46296}}}
+{"label": "HEAD", "enabled_point_lights": 16, "poses": {"interior": {"gi_probes_ms": 4.015359999999999, "gpu_frame_ms": 12.285376}, "exterior": {"gi_probes_ms": 3.941472, "gpu_frame_ms": 11.01432}}}
+{"label": "NEW", "enabled_point_lights": 16, "poses": {"interior": {"gi_probes_ms": 2.1778880000000003, "gpu_frame_ms": 10.129184}, "exterior": {"gi_probes_ms": 2.244672, "gpu_frame_ms": 9.197071999999999}}}
+{"label": "NEW_FINAL", "enabled_point_lights": 16, "poses": {"interior": {"gi_probes_ms": 2.1273600000000004, "gpu_frame_ms": 9.959712}, "exterior": {"gi_probes_ms": 2.1946399999999997, "gpu_frame_ms": 9.474544}}}
+{"label": "HEAD", "enabled_point_lights": 16, "poses": {"interior": {"gi_probes_ms": 3.9586880000000004, "gpu_frame_ms": 11.948848}, "exterior": {"gi_probes_ms": 3.8784, "gpu_frame_ms": 11.00976}}}
+{"label": "NEW_FINAL", "enabled_point_lights": 16, "poses": {"interior": {"gi_probes_ms": 2.1133759999999997, "gpu_frame_ms": 10.013791999999999}, "exterior": {"gi_probes_ms": 2.15808, "gpu_frame_ms": 9.325984}}}

@@ -1,0 +1,52 @@
+{
+ "pose": [
+  7,
+  21,
+  24,
+  -90,
+  -8
+ ],
+ "option": "two_level_trace",
+ "curves": {
+  "linear": {
+   "control_A1_C": {
+    "max": 216,
+    "p999": 64.0,
+    "over8": 68970,
+    "mean": 3.11256960687204
+   },
+   "test_A1_B": {
+    "max": 216,
+    "p999": 61.0,
+    "over8": 46830,
+    "mean": 2.1446391263453166
+   },
+   "pass": true,
+   "captures": [
+    "screenshots/screenshot_20260925_124942_742.png",
+    "screenshots/screenshot_20260925_124949_454.png",
+    "screenshots/screenshot_20260925_124946_113.png"
+   ]
+  },
+  "shipping": {
+   "control_A1_C": {
+    "max": 244,
+    "p999": 87.0,
+    "over8": 46866,
+    "mean": 2.549190520979865
+   },
+   "test_A1_B": {
+    "max": 243,
+    "p999": 84.0,
+    "over8": 61760,
+    "mean": 3.2511524151191535
+   },
+   "pass": false,
+   "captures": [
+    "screenshots/screenshot_20260925_124952_837.png",
+    "screenshots/screenshot_20260925_124959_570.png",
+    "screenshots/screenshot_20260925_124956_203.png"
+   ]
+  }
+ }
+}

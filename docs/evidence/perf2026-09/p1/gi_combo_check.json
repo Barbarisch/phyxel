@@ -1,0 +1,77 @@
+{
+ "pose": [
+  12.5,
+  18.4,
+  3.5,
+  180,
+  -8
+ ],
+ "rows": [
+  {
+   "skip_buried": false,
+   "two_level": false,
+   "gi_probes_ms": 2.908688,
+   "gpu_frame_ms": 10.88992
+  },
+  {
+   "skip_buried": true,
+   "two_level": false,
+   "gi_probes_ms": 2.83904,
+   "gpu_frame_ms": 10.813376
+  },
+  {
+   "skip_buried": false,
+   "two_level": true,
+   "gi_probes_ms": 2.175456,
+   "gpu_frame_ms": 10.099920000000001
+  },
+  {
+   "skip_buried": true,
+   "two_level": true,
+   "gi_probes_ms": 2.259488,
+   "gpu_frame_ms": 10.202768
+  },
+  {
+   "skip_buried": true,
+   "two_level": true,
+   "gi_probes_ms": 2.1568319999999996,
+   "gpu_frame_ms": 10.00776
+  },
+  {
+   "skip_buried": false,
+   "two_level": true,
+   "gi_probes_ms": 2.189584,
+   "gpu_frame_ms": 10.18464
+  },
+  {
+   "skip_buried": true,
+   "two_level": false,
+   "gi_probes_ms": 2.886768,
+   "gpu_frame_ms": 10.872976
+  },
+  {
+   "skip_buried": false,
+   "two_level": false,
+   "gi_probes_ms": 2.814304,
+   "gpu_frame_ms": 10.707984
+  }
+ ],
+ "summary": {
+  "skip=0 two=0": {
+   "gi_probes_ms": 2.861496,
+   "gpu_frame_ms": 10.798952
+  },
+  "skip=1 two=0": {
+   "gi_probes_ms": 2.862904,
+   "gpu_frame_ms": 10.843176
+  },
+  "skip=0 two=1": {
+   "gi_probes_ms": 2.1825200000000002,
+   "gpu_frame_ms": 10.14228
+  },
+  "skip=1 two=1": {
+   "gi_probes_ms": 2.20816,
+   "gpu_frame_ms": 10.105264
+  }
+ }
+}

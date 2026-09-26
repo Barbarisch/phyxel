@@ -260,8 +260,11 @@ bool phxSegmentBlocked(vec3 fromWorld, vec3 toWorld, ivec4 occBox) {
 /// `hitNormal` = the face normal, taken from the axis the DDA last stepped along. That is exact
 ///               for voxel geometry, which is the one place a stepped normal is not an
 ///               approximation -- every surface really is axis-aligned.
-bool phxDdaTrace(vec3 fromWorld, vec3 toWorld, int maxCells, ivec4 occBox,
-                 out vec3 hitWorld, out vec3 hitNormal) {
+/// `axis` IN = the axis of the step that entered the START cell (it seeds the normal when the start
+/// cell itself is solid; 1 for a fresh ray). OUT on a miss = the axis of the step that entered the
+/// segment's END cell, the one cell this march never tests -- the seed a continuation needs.
+bool phxDdaTraceFrom(vec3 fromWorld, vec3 toWorld, int maxCells, ivec4 occBox, inout int axis,
+                     out vec3 hitWorld, out vec3 hitNormal) {
     hitWorld = toWorld;
     hitNormal = vec3(0.0, 1.0, 0.0);
 
@@ -286,7 +289,7 @@ bool phxDdaTrace(vec3 fromWorld, vec3 toWorld, int maxCells, ivec4 occBox,
         }
     }
 
-    int axis = 1;   // which axis produced the most recent step; seeds the face normal
+    // `axis`: which axis produced the most recent step; seeds the face normal
     for (int n = 0; n < maxCells; ++n) {
         if (phxOccupancySolid(cell, occBox)) {
             hitWorld = (vec3(cell) + 0.5) / 9.0;
@@ -306,6 +309,118 @@ bool phxDdaTrace(vec3 fromWorld, vec3 toWorld, int maxCells, ivec4 occBox,
         if (tMax.x > len && tMax.y > len && tMax.z > len) return false;
     }
     return false;
+}
+
+bool phxDdaTrace(vec3 fromWorld, vec3 toWorld, int maxCells, ivec4 occBox,
+                 out vec3 hitWorld, out vec3 hitNormal) {
+    int axis = 1;
+    return phxDdaTraceFrom(fromWorld, toWorld, maxCells, occBox, axis, hitWorld, hitNormal);
+}
+
+/// GI-2 (docs/PerfProgram2026-09.md section 15): phxDdaTrace's answer -- the same hit micro cell and
+/// the same face normal -- from a CUBE-cell walk that descends to the micro march only inside MIXED
+/// cubes, the way phxSegmentBlocked answers phxDdaHitsSolid. A 16 u probe ray costs ~48 cube queries
+/// instead of up to 288 micro ones. The cube walk and its end-cell cases are phxSegmentBlocked's;
+/// what is added is WHICH micro cell was hit:
+///   solid cube -> the first micro cell of the segment inside it (the start cell for n == 0),
+///                 entered along the cube step's axis (axis 1 for n == 0, as the micro march);
+///   mixed cube -> the micro march over this cube's slice, seeded with that same entry axis.
+/// `seedAxis` = the axis of the step that entered the START micro cell (1 for a fresh ray).
+/// NOT exact on its own for a ray that starts ON a cube corner (every probe ray does): its 1e-4 slice
+/// offset resolves the zero-length corner steps differently from the micro march. The probe pass
+/// therefore calls phxDdaTraceProbe, which covers the start with the micro march.
+/// CPU mirror: packedPoolTraceTwoLevel (traceTwoLevelFrom), pinned by OccupancyTraversalTest.
+/// Change one, change both.
+bool phxDdaTraceTwoLevelFrom(vec3 fromWorld, vec3 toWorld, ivec4 occBox, int seedAxis,
+                             out vec3 hitWorld, out vec3 hitNormal) {
+    hitWorld = toWorld;
+    hitNormal = vec3(0.0, 1.0, 0.0);
+    vec3 d = toWorld - fromWorld;
+    float len = length(d);
+    if (len < 1e-6) return false;
+    vec3 dir = d / len;
+
+    ivec3 cell = ivec3(floor(fromWorld));
+    ivec3 last = ivec3(floor(toWorld));
+    ivec3 stp;
+    vec3 tMax, tDelta;
+    for (int i = 0; i < 3; ++i) {
+        if (dir[i] > 1e-9) {
+            stp[i] = 1;  tMax[i] = (float(cell[i] + 1) - fromWorld[i]) / dir[i];  tDelta[i] = 1.0 / dir[i];
+        } else if (dir[i] < -1e-9) {
+            stp[i] = -1; tMax[i] = (fromWorld[i] - float(cell[i])) / -dir[i];     tDelta[i] = 1.0 / -dir[i];
+        } else {
+            stp[i] = 0;  tMax[i] = 3.4e38;                                        tDelta[i] = 3.4e38;
+        }
+    }
+
+    float tEnter = 0.0;
+    int cubeAxis = seedAxis;
+    int maxCubes = int(3.0 * len) + 4;
+    ivec3 endMicro = ivec3(floor(toWorld * 9.0));
+    for (int n = 0; n < maxCubes; ++n) {
+        int st = phxCubeOccupancy(cell, occBox);
+        float tExit = min(min(tMax.x, tMax.y), min(tMax.z, len));
+        float a = (n == 0) ? 0.0 : tEnter + 1e-4;
+        vec3 aPos = fromWorld + dir * a;
+        ivec3 aMicro = ivec3(floor(aPos * 9.0));
+        bool firstIsEnd = (n > 0) && (cell == last) && all(equal(aMicro, endMicro));
+        if (st == 2) {
+            if (cell != last || n == 0 || !firstIsEnd) {
+                // The entry cell, located AT the face crossing rather than 1e-4 u past it (the
+                // offset can cross a micro boundary on another axis and report the neighbour): on
+                // the entry axis it is the cube's boundary micro cell, on the others the crossing.
+                ivec3 e = aMicro;
+                if (n > 0) {
+                    e = ivec3(floor((fromWorld + dir * tEnter) * 9.0));
+                    e[cubeAxis] = (stp[cubeAxis] > 0) ? cell[cubeAxis] * 9 : cell[cubeAxis] * 9 + 8;
+                }
+                hitWorld = (vec3(e) + 0.5) / 9.0;
+                vec3 nrm = vec3(0.0);
+                nrm[cubeAxis] = (stp[cubeAxis] > 0) ? -1.0 : 1.0;   // as phxDdaTraceFrom
+                hitNormal = nrm;
+                return true;
+            }
+            return false;
+        }
+        if (st == 1 && !firstIsEnd) {
+            float b = min(tExit + 1e-4, len);
+            vec3 hw, hn;
+            int sliceAxis = cubeAxis;
+            if (b > a && phxDdaTraceFrom(aPos, fromWorld + dir * b, 64, occBox, sliceAxis, hw, hn)) {
+                hitWorld = hw;
+                hitNormal = hn;
+                return true;
+            }
+        }
+        if (cell == last || tExit >= len) return false;
+        tEnter = tExit;
+        if (tMax.x < tMax.y) {
+            if (tMax.x < tMax.z) { cell.x += stp.x; tMax.x += tDelta.x; cubeAxis = 0; }
+            else                 { cell.z += stp.z; tMax.z += tDelta.z; cubeAxis = 2; }
+        } else {
+            if (tMax.y < tMax.z) { cell.y += stp.y; tMax.y += tDelta.y; cubeAxis = 1; }
+            else                 { cell.z += stp.z; tMax.z += tDelta.z; cubeAxis = 2; }
+        }
+    }
+    return false;
+}
+
+/// GI-2: the probe pass's primary trace. The micro march over the first PHX_PROBE_EXACT_REACH units --
+/// exact through the corner neighbourhood a lattice-started ray begins in -- then the cube walk from
+/// the micro march's untested end cell, seeded with the axis that entered it. Reports the micro
+/// march's hit (OccupancyTraversalTest, probe-shaped and random rays). CPU mirror:
+/// packedPoolTraceProbe; PHX_PROBE_EXACT_REACH mirrors kProbeExactReach. Change one, change both.
+const float PHX_PROBE_EXACT_REACH = 1.0;
+bool phxDdaTraceProbe(vec3 fromWorld, vec3 toWorld, ivec4 occBox, out vec3 hitWorld, out vec3 hitNormal) {
+    vec3 d = toWorld - fromWorld;
+    float len = length(d);
+    int axis = 1;
+    if (len <= PHX_PROBE_EXACT_REACH)
+        return phxDdaTraceFrom(fromWorld, toWorld, 64, occBox, axis, hitWorld, hitNormal);
+    vec3 mid = fromWorld + d * (PHX_PROBE_EXACT_REACH / len);
+    if (phxDdaTraceFrom(fromWorld, mid, 64, occBox, axis, hitWorld, hitNormal)) return true;
+    return phxDdaTraceTwoLevelFrom(mid, toWorld, occBox, axis, hitWorld, hitNormal);
 }
 
 /// How far the contiguous SOLID run containing a light extends, measured outward from the light
