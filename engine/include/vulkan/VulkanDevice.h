@@ -448,6 +448,15 @@ public:
     }
     VkBuffer getLightOccupancyDirBuffer(uint32_t slot = 0) const { return lightOccupancyDirBuffer[slot]; }
 
+    /// GPU crash diagnostics (VK_NV_device_diagnostic_checkpoints, enabled when the device supports
+    /// it; a no-op otherwise). Every GPU profiler scope drops a begin/end checkpoint, and after a
+    /// VK_ERROR_DEVICE_LOST the checkpoints the GPU last reached are logged -- the pass that STARTED
+    /// (top of pipe) but never FINISHED (bottom of pipe) is the one that hung. Added 2026-09-26 to find
+    /// an intermittent device loss that three rounds of bisection could not pin down.
+    void cmdCheckpoint(VkCommandBuffer cmd, const std::string& name, bool end);
+    void logCheckpointsAfterDeviceLost();
+    bool checkpointsEnabled() const { return checkpointsEnabled_; }
+
     /// M5.1 GI probe field (binding 13). Null is legal -- the descriptor falls back to a valid
     /// buffer the shader never reads, because the guard bit stays clear.
     void setGiProbeBuffer(VkBuffer buf) { giProbeBuffer = buf; }
@@ -699,6 +708,12 @@ private:
     VkBuffer giProbeBuffer = VK_NULL_HANDLE;
     glm::vec4 m_giProbeGrid{0.0f, 0.0f, 0.0f, 2.0f};
     bool m_giEnabled = false;
+    bool checkpointsEnabled_ = false;
+    PFN_vkCmdSetCheckpointNV pfnCmdSetCheckpoint_ = nullptr;
+    PFN_vkGetQueueCheckpointDataNV pfnGetQueueCheckpointData_ = nullptr;
+    std::vector<std::string> checkpointNames_;                    // index+1 -> name (append-only)
+    std::unordered_map<std::string, uint32_t> checkpointIndex_;
+    bool checkpointsLogged_ = false;
     VkBuffer lightOccupancyDirBuffer[2] = {VK_NULL_HANDLE, VK_NULL_HANDLE};    // per frame in flight
     VkBuffer lightOccupancyPoolBuffer[2] = {VK_NULL_HANDLE, VK_NULL_HANDLE};
     VkSampler   shadowMapFarSampler = VK_NULL_HANDLE;

@@ -220,6 +220,10 @@ void GpuProfiler::endPipelineStats(VkCommandBuffer cmd, uint32_t slot) {
 
 void GpuProfiler::startScope(VkCommandBuffer cmd, const std::string& name) {
     auto& frame = frames[currentFrame];
+    // GPU crash checkpoint (VulkanDevice::cmdCheckpoint; a no-op without the NV extension). Placed
+    // before the query-budget check so every scope is marked even when timing is saturated.
+    if (device) device->cmdCheckpoint(cmd, frame.activeScopes.empty() ? name
+                                           : frame.activeScopes.back().path + "/" + name, false);
     if (frame.queryCount + 2 > MAX_QUERIES_PER_FRAME) return;
 
     uint32_t startIndex = frame.queryCount++;
@@ -242,6 +246,7 @@ void GpuProfiler::endScope(VkCommandBuffer cmd) {
 
     ScopeData scope = frame.activeScopes.back();
     frame.activeScopes.pop_back();
+    if (device) device->cmdCheckpoint(cmd, scope.path, true);
 
     uint32_t endIndex = frame.queryCount++;
     vkCmdWriteTimestamp(cmd, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, queryPools[currentFrame], endIndex);
