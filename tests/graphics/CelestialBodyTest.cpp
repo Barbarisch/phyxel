@@ -283,3 +283,77 @@ TEST(CelestialBody, AMoonlessNightStillGetsAmbientButNotEnoughToMatterByDay) {
     const glm::vec3 horizon = glm::normalize(glm::vec3(0.7f, 0.0f, 0.3f));
     EXPECT_NEAR(luma(SkyBodies::moonlessNightFill(horizon)) / (fullAmbient * kMoonlessNightShare), 0.5f, 0.01f);
 }
+
+
+// ---- The sky block is the per-game baseline (2026-09-26, user: "as long as the length of things
+// like day/night, moon cycle, and whatever is easily configurable in a game file"). Each knob
+// must work ON ITS OWN - a game should never have to restate the whole sky to change one thing.
+
+// A sky block with only a latitude must apply it (it used to return the default sky before the
+// latitude was read, so {"latitudeDeg": 10} was silently ignored).
+TEST(CelestialBody, ALatitudeAloneIsHonoured) {
+    const SkyBodies s = SkyBodies::fromJson({{"latitudeDeg", 10.0f}});
+    EXPECT_FLOAT_EQ(s.latitudeDeg, 10.0f);
+    EXPECT_EQ(s.bodies.size(), 2u) << "and the default sun and moon stay";
+}
+
+// A body named "sun" or "moon" starts from the DEFAULT sun or moon, so one field can be changed
+// without restating the rest. (It used to start from a bare star: a moon given only a tint became
+// a second sun - emissive, no phases, full star brightness.)
+TEST(CelestialBody, NamedBodiesStartFromTheDefaultSunAndMoon) {
+    const SkyBodies def = SkyBodies::defaultSky();
+    const SkyBodies s = SkyBodies::fromJson(
+        {{"bodies", {{{"name", "sun"}}, {{"name", "moon"}, {"tint", {1.0f, 0.5f, 0.4f}}}}}});
+    ASSERT_EQ(s.bodies.size(), 2u);
+    const CelestialBody& moon = s.bodies[1];
+    EXPECT_FALSE(moon.emissive) << "a moon is lit by the sun, not a star";
+    EXPECT_FLOAT_EQ(moon.lightScale, def.bodies[1].lightScale);
+    EXPECT_FLOAT_EQ(moon.albedo, def.bodies[1].albedo);
+    EXPECT_FLOAT_EQ(moon.periodDays, def.bodies[1].periodDays);
+    EXPECT_FLOAT_EQ(moon.phaseOffset, def.bodies[1].phaseOffset);
+    EXPECT_FLOAT_EQ(moon.angularRadius, def.bodies[1].angularRadius);
+    EXPECT_FLOAT_EQ(moon.tint.g, 0.5f) << "the one field given is applied";
+    EXPECT_FLOAT_EQ(s.bodies[0].discBrightness, def.bodies[0].discBrightness);
+}
+
+// "lunarCycleDays": N - the moon goes full -> new -> full in N days. On its own, and on a listed
+// moon without its own periodDays; an explicit periodDays wins; nonsense is refused.
+TEST(CelestialBody, LunarCycleDaysSetsTheMoonsCycle) {
+    auto litAtMidnight = [](const SkyBodies& sky, int day) {
+        SkyBodies s = sky;
+        s.update(0.0f, day);
+        return s.litFractions[1];
+    };
+    const SkyBodies eight = SkyBodies::fromJson({{"lunarCycleDays", 8}});
+    EXPECT_FLOAT_EQ(eight.lunarCycleDays, 8.0f);
+    EXPECT_GT(litAtMidnight(eight, 0), 0.95f) << "full on the first night";
+    EXPECT_LT(litAtMidnight(eight, 4), 0.05f) << "new half a cycle later";
+    EXPECT_GT(litAtMidnight(eight, 8), 0.95f) << "full again after 8 days";
+    // the default 28-day moon is still well lit on day 4
+    EXPECT_GT(litAtMidnight(SkyBodies::defaultSky(), 4), 0.7f);
+
+    const SkyBodies listed = SkyBodies::fromJson(
+        {{"lunarCycleDays", 8}, {"bodies", {{{"name", "sun"}}, {{"name", "moon"}}}}});
+    EXPECT_LT(litAtMidnight(listed, 4), 0.05f) << "a listed moon follows lunarCycleDays";
+    const SkyBodies explicitPeriod = SkyBodies::fromJson(
+        {{"lunarCycleDays", 8}, {"bodies", {{{"name", "sun"}}, {{"name", "moon"}, {"periodDays", 28.0f / 27.0f}}}}});
+    EXPECT_GT(litAtMidnight(explicitPeriod, 4), 0.7f) << "an explicit periodDays wins";
+
+    EXPECT_FLOAT_EQ(SkyBodies::fromJson({{"lunarCycleDays", 1}}).lunarCycleDays, 28.0f)
+        << "a 1-day cycle has no period (N/(N-1)); refused, the default stays";
+    EXPECT_FLOAT_EQ(SkyBodies::fromJson(SkyBodies::fromJson({{"lunarCycleDays", 8}}).toJson()).lunarCycleDays, 8.0f)
+        << "round-trips";
+}
+
+// "nightFill": how bright a moonless night is, as a multiple of the default (0 = as dark as the
+// physics has it). Night light only - it must not change noon.
+TEST(CelestialBody, NightFillScalesTheMoonlessNight) {
+    const glm::vec3 midnightSun = glm::normalize(glm::vec3(0.0f, -1.0f, 0.1f));
+    const glm::vec3 noonSun = glm::normalize(glm::vec3(0.0f, 1.0f, -0.5f));
+    const float base = SkyBodies::defaultSky().nightFillAmbient(midnightSun).g;
+    ASSERT_GT(base, 0.0f);
+    EXPECT_FLOAT_EQ(SkyBodies::fromJson({{"nightFill", 0.0f}}).nightFillAmbient(midnightSun).g, 0.0f);
+    EXPECT_NEAR(SkyBodies::fromJson({{"nightFill", 2.0f}}).nightFillAmbient(midnightSun).g, 2.0f * base, 1e-6f);
+    EXPECT_FLOAT_EQ(SkyBodies::fromJson({{"nightFill", 2.0f}}).nightFillAmbient(noonSun).g, 0.0f);
+    EXPECT_FLOAT_EQ(SkyBodies::fromJson({{"nightFill", -1.0f}}).nightFill, 1.0f) << "negative light is refused";
+}

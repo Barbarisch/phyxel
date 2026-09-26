@@ -1,0 +1,35 @@
+{
+ "sky": {
+  "latitudeDeg": 10,
+  "lunarCycleDays": 8,
+  "nightFill": 0
+ },
+ "config": {
+  "label": "config",
+  "noon_sun_elev": 80.0,
+  "moon_lit_midnight": {
+   "8": 1.0,
+   "10": 0.5,
+   "12": 0.0,
+   "14": 0.5,
+   "16": 1.0
+  },
+  "new_moon_day": 12,
+  "new_moon_lit": 0.0,
+  "new_moon_luma": 1.12
+ },
+ "control": {
+  "label": "control",
+  "noon_sun_elev": 50.0,
+  "moon_lit_midnight": {
+   "8": 0.356,
+   "10": 0.138,
+   "12": 0.031,
+   "14": 0.0,
+   "16": 0.031
+  },
+  "new_moon_day": 14,
+  "new_moon_lit": 0.0,
+  "new_moon_luma": 4.31
+ }
+}

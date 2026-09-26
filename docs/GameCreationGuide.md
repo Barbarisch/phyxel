@@ -271,6 +271,20 @@ After your world, NPCs, and story are in place, layer on gameplay systems:
 - The clock times itself from real elapsed time; its rate does not depend on frame rate. A stall
   advances it by at most 0.1 s.
 
+**Sky** (`sky`, world-level beside `dayNight`) - every knob works on its own; a game never restates
+the whole sky to change one thing:
+- `{"latitudeDeg": 40}` - how high the sun climbs: the noon sun stands 90 - latitude degrees up,
+  in the south (default 40 -> 50 deg; 0 = straight overhead).
+- `{"lunarCycleDays": 28}` - days from one full moon to the next (>= 2; default 28). With short
+  days a short cycle keeps the moon's phases visible in a session, e.g. 8.
+- `{"nightFill": 1.0}` - how bright a moonless night is, as a multiple of the default (0 = black,
+  as physics has it; 2 = twice as bright). Night only: it never changes daylight.
+- `{"bodies": [...]}` - the drawn sun, moon and any extra bodies. A body named `"sun"` or `"moon"`
+  starts from the default one, so `{"name": "moon", "tint": [1, 0.6, 0.5]}` gives a red moon
+  and changes nothing else; any other name starts from a bare star. Fields: see the `sky` row in
+  the config table below.
+- The moon starts full on day 0; a moon's `phaseOffset` moves it (0 = new, 0.5 = full).
+
 **Camera Mode & Control Scheme** (see `docs/CameraControlSystem.md` for the full design):
 - The `camera` block accepts `"mode"`: `"first_person"` | `"third_person"` |
   `"overhead"` | `"isometric"` | `"free"`. Overhead and isometric are
@@ -677,7 +691,7 @@ executes only the subset noted.
 | Key / action | Where | Meaning |
 |---|---|---|
 | `intro` (top level) `{"title", "text": [paragraphs], "button"}` | standalone | A blocking story card before the first scene of every run (Ravenmere G-116): a menu's New Game shows it, the world scene does not load until the button, Enter or Space. Once per run (New Game after Game Over shows it again). The card's text sits in a scrollable box (`resources/ui/narrative_screen.json`): any length, scrolled by the mouse wheel or Up/Down/PageUp/PageDown, with a scrollbar when it overflows; the button holds a 19-character caption. Without the block a run starts at once. |
-| `sky` (top level) `{"latitudeDeg": 40, "bodies": [...]}` | both hosts (the standalone since 2026-09-25) | The celestial bodies (`Graphics::SkyBodies::fromJson`): size, brightness, orbit, phase per body, and the observer latitude that tips every arc south - the noon sun stands 90 - latitude degrees up (default 40 -> 50 deg; 0 = overhead). The default moon is full on day 0; set its `phaseOffset` to start elsewhere in the cycle (0 = new, 0.5 = full). |
+| `sky` (top level) `{"latitudeDeg": 40, "bodies": [...]}` | both hosts (the standalone since 2026-09-25) | The celestial bodies (`Graphics::SkyBodies::fromJson`): size, brightness, orbit, phase per body, and the observer latitude that tips every arc south - the noon sun stands 90 - latitude degrees up (default 40 -> 50 deg; 0 = overhead). The default moon is full on day 0; set its `phaseOffset` to start elsewhere in the cycle (0 = new, 0.5 = full). `lunarCycleDays` (default 28) sets the moon's cycle and `nightFill` (default 1) how bright a moonless night is; a body named "sun"/"moon" starts from the default one (2026-09-26). |
 | `npcs[].monsterId` | loader (both hosts) | Name a `resources/monsters` stat block (`"wolf"`, `"skeleton"`, `"cult-fanatic"`…). HP = the block's average (a `maxHealth` override wins), AC + attacks come from the block in turn-based combat. Unknown ids warn. |
 | `npcs[].invulnerable` | loader (both hosts) | Now applied on its own (it used to require `health`/`maxHealth` beside it). |
 | `choices[].skillCheck` + `failNodeId` | DialogueSystem (both hosts; the bonus resolver is wired in the standalone) | `{"skill":"Persuasion","dc":12}` / `{"type":"AbilityCheck","ability":"INT","dc":10}`. The option shows as `[Persuasion DC 12] …`; picking it rolls d20 + the player's sheet bonus, jumps to `nextNodeId` on a pass or `failNodeId` on a fail (empty = ends the conversation), and emits `dialogue_skill_check {roll,bonus,total,dc,passed}` for triggers. |

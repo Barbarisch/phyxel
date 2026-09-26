@@ -96,11 +96,14 @@ void DayNightCycle::recalculate() {
     // half a cycle behind, i.e. 180 degrees away, so it rises exactly as the sun sets. Nothing
     // scripts that — it is where the geometry puts it. The renderer's disc shading then derives the
     // terminator from this direction versus the sun's, so the drawn phase always matches the orbit.
-    constexpr int kLunarCycleDays = 28;   // matches Core::LUNAR_CYCLE_DAYS (WorldClock.h)
+    // The cycle length is the sky's "lunarCycleDays" (default 28, the renderer copies it in
+    // setSkyBodies), so this fallback moon and the drawn one agree.
     {
-        const int dayInCycle = ((m_dayNumber % kLunarCycleDays) + kLunarCycleDays) % kLunarCycleDays;
+        const float n = std::max(2.0f, m_lunarCycleDays);
+        float dayInCycle = std::fmod(static_cast<float>(m_dayNumber), n);
+        if (dayInCycle < 0.0f) dayInCycle += n;
         // +0.5: the default moon starts FULL on day 0, as the sky bodies' does (G-164).
-        m_moonPhase01 = std::fmod(static_cast<float>(dayInCycle) / static_cast<float>(kLunarCycleDays) + 0.5f, 1.0f);
+        m_moonPhase01 = std::fmod(dayInCycle / n + 0.5f, 1.0f);
         const float moonHourAngle = hourAngle - glm::two_pi<float>() * m_moonPhase01;
         m_moonDirection = -Graphics::skyArcDirection(moonHourAngle, latRad);
     }

@@ -605,7 +605,11 @@ public:
     /// shipped game - the shipped game had none, so no held flame could burn there.
     void wireItemEffects(Core::ItemEffectSystem& fx);
 
-    void setSkyBodies(const SkyBodies& s) { m_skyBodies = s; m_dayNightCycle.setLatitudeDeg(s.latitudeDeg); }
+    void setSkyBodies(const SkyBodies& s) {
+        m_skyBodies = s;
+        m_dayNightCycle.setLatitudeDeg(s.latitudeDeg);
+        m_dayNightCycle.setLunarCycleDays(s.lunarCycleDays);
+    }
     const SkyBodies& getSkyBodies() const { return m_skyBodies; }
     /// Unit vector TOWARD the first reflective body (the moon), from the sky bodies - the one source
     /// for where the moon is (G-164). Falls back to the day/night cycle's moon when the sky has no

@@ -179,22 +179,55 @@ glm::vec3 SkyBodies::moonlessNightFill(const glm::vec3& toSun) {
 SkyBodies SkyBodies::fromJson(const nlohmann::json& j) {
     // A world with no sun is never what was meant, so anything missing or empty falls back to the
     // default sun+moon rather than to an empty sky.
+    // The sky-wide knobs apply on their own, with or without a body list (2026-09-26: a lone
+    // {"latitudeDeg": 10} used to fall through to the default sky and be ignored).
+    auto applySkyWide = [&j](SkyBodies& s, const std::vector<bool>& explicitPeriod) {
+        if (!j.is_object()) return;
+        if (j.contains("latitudeDeg") && j.at("latitudeDeg").is_number())
+            s.latitudeDeg = glm::clamp(j.at("latitudeDeg").get<float>(), -89.0f, 89.0f);
+        // N >= 2: the period is N / (N - 1) days, which a 1-day cycle would divide by zero.
+        if (j.contains("lunarCycleDays") && j.at("lunarCycleDays").is_number()) {
+            const float n = j.at("lunarCycleDays").get<float>();
+            if (n >= 2.0f && n <= 100000.0f) s.lunarCycleDays = n;
+        }
+        // Negative light is not a thing; 0 = physically black moonless nights.
+        if (j.contains("nightFill") && j.at("nightFill").is_number()) {
+            const float f = j.at("nightFill").get<float>();
+            if (f >= 0.0f && f <= 100.0f) s.nightFill = f;
+        }
+        const float period = s.lunarCycleDays / (s.lunarCycleDays - 1.0f);
+        for (size_t i = 0; i < s.bodies.size(); ++i)
+            if (!s.bodies[i].emissive && !(i < explicitPeriod.size() && explicitPeriod[i]))
+                s.bodies[i].periodDays = period;
+    };
+
     if (!j.is_object() || !j.contains("bodies") || !j.at("bodies").is_array() ||
         j.at("bodies").empty()) {
-        return defaultSky();
+        SkyBodies s = defaultSky();
+        applySkyWide(s, {});
+        return s;
     }
 
+    // A body named like one of the default sky's ("sun", "moon") starts FROM that body, so a game
+    // changes one field without restating the rest; any other name starts from a bare star
+    // (CelestialBody's defaults), as before.
+    const SkyBodies defaults = defaultSky();
     SkyBodies s;
-    const CelestialBody proto{};
+    std::vector<bool> explicitPeriod;
     for (const auto& e : j.at("bodies")) {
         if (!e.is_object()) continue;
-        CelestialBody b;
-        b.name = e.value("name", proto.name);
+        const std::string name = e.value("name", CelestialBody{}.name);
+        CelestialBody proto{};
+        bool fromDefault = false;
+        for (const auto& d : defaults.bodies)
+            if (d.name == name) { proto = d; fromDefault = true; break; }
+        CelestialBody b = proto;
+        b.name = name;
         // Authored as an angular DIAMETER in DEGREES; stored as a radius in radians.
         if (e.contains("angularDiameterDeg")) {
             b.angularRadius = glm::radians(e.at("angularDiameterDeg").get<float>()) * 0.5f;
         }
-        b.tint           = readVec3(e, "tint", proto.tint);
+        if (e.contains("tint")) b.tint = readVec3(e, "tint", proto.tint);
         b.emissive       = e.value("emissive", proto.emissive);
         // The disc-brightness default depends on what KIND of body this is. CelestialBody's own
         // default (24) is a STAR's value; applying it to a moon drives every channel far past 1.0,
@@ -202,7 +235,8 @@ SkyBodies SkyBodies::fromJson(const nlohmann::json& j) {
         // moon rendered as a white one. Reflective bodies default to the moon's 2.2 instead.
         constexpr float kReflectiveDiscBrightness = 2.2f;
         b.discBrightness = e.value("discBrightness",
-                                   b.emissive ? proto.discBrightness : kReflectiveDiscBrightness);
+                                   fromDefault ? proto.discBrightness
+                                   : (b.emissive ? proto.discBrightness : kReflectiveDiscBrightness));
         b.litBy          = e.value("litBy", proto.litBy);
         b.albedo         = e.value("albedo", proto.albedo);
         b.lightScale     = e.value("lightScale", proto.lightScale);
@@ -213,10 +247,13 @@ SkyBodies SkyBodies::fromJson(const nlohmann::json& j) {
             b.planeTilt = glm::radians(e.at("planeTiltDeg").get<float>());
         }
         s.bodies.push_back(b);
+        explicitPeriod.push_back(e.contains("periodDays"));
     }
-    if (s.bodies.empty()) return defaultSky();
-    if (j.contains("latitudeDeg") && j.at("latitudeDeg").is_number())
-        s.latitudeDeg = glm::clamp(j.at("latitudeDeg").get<float>(), -89.0f, 89.0f);
+    if (s.bodies.empty()) {
+        s = defaultSky();
+        explicitPeriod.clear();
+    }
+    applySkyWide(s, explicitPeriod);
     return s;
 }
 
@@ -238,7 +275,8 @@ nlohmann::json SkyBodies::toJson() const {
             {"planeTiltDeg", glm::degrees(b.planeTilt)},
         });
     }
-    return nlohmann::json{{"bodies", arr}, {"latitudeDeg", latitudeDeg}};
+    return nlohmann::json{{"bodies", arr}, {"latitudeDeg", latitudeDeg},
+                          {"lunarCycleDays", lunarCycleDays}, {"nightFill", nightFill}};
 }
 
 void SkyBodies::scaleAllSizes(float scale) {

@@ -3509,7 +3509,7 @@ void RenderCoordinator::drawFrame() {
             // WORLD only; the sky dome keeps its own airglow, which twilight bounds from above.
             a.ambientColor     = Atmosphere::skyIrradiance(toSun, altitudeM)
                                + reflectedAmbient * kMoonSkyShare
-                               + SkyBodies::moonlessNightFill(toSun);
+                               + m_skyBodies.nightFillAmbient(toSun);   // sky "nightFill"
             a.hazeHorizonColor = Atmosphere::hazeHorizon(toSun, altitudeM);
             a.hazeZenithColor  = Atmosphere::hazeZenith(toSun, altitudeM);
             a.moonDirection    = -skyMoonToward();   // light-travel convention, like the cycle's

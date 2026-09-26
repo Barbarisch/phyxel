@@ -119,6 +119,13 @@ struct SkyBodies {
     std::vector<CelestialBody> bodies;
     /// Observer latitude in degrees (JSON "latitudeDeg"); tips every body's arc toward the south.
     float latitudeDeg = kDefaultLatitudeDeg;
+    /// Days from one full moon to the next (JSON "lunarCycleDays", >= 2). Sets the period of every
+    /// reflective body that does not give its own "periodDays": period = N / (N - 1) days, i.e. the
+    /// moon falls one full turn behind the sun every N days. DayNightCycle's fallback moon follows it.
+    float lunarCycleDays = 28.0f;
+    /// How bright a MOONLESS night is, as a multiple of the default fill (JSON "nightFill", >= 0):
+    /// 0 = as dark as the physics has it (black on a new moon), 1 = the default, 2 = twice it.
+    float nightFill = 1.0f;
 
     /// Unit vector pointing FROM the viewer TOWARD each body, index-matched to `bodies`.
     /// (The same convention Atmosphere:: uses — NOT the direction light travels.)
@@ -164,6 +171,8 @@ struct SkyBodies {
     /// above, smooth between - at full strength it equals ~38% of the noon sky's ambient, which
     /// would lift every daytime shadow (measured by the unit test that pins this).
     static glm::vec3 moonlessNightFill(const glm::vec3& toSun);
+    /// This sky's moonless-night fill: moonlessNightFill scaled by `nightFill`. What the renderer adds.
+    glm::vec3 nightFillAmbient(const glm::vec3& toSun) const { return moonlessNightFill(toSun) * nightFill; }
 
     /// Index of the body that should own the shadow cascades: the brightest light-contributing body
     /// currently above the horizon. Returns -1 when nothing is up (true night with no moon), in

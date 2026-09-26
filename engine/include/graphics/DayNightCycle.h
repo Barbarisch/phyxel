@@ -64,6 +64,9 @@ public:
     /// the drawn disc agree (the renderer copies it from its SkyBodies, G-164).
     void setLatitudeDeg(float deg) { m_latitudeDeg = deg; recalculate(); }
     float getLatitudeDeg() const { return m_latitudeDeg; }
+    /// Days from full moon to full moon - the sky's "lunarCycleDays" (the renderer copies it).
+    void setLunarCycleDays(float days) { m_lunarCycleDays = days >= 2.0f ? days : 28.0f; recalculate(); }
+    float getLunarCycleDays() const { return m_lunarCycleDays; }
     bool isNight() const { return m_timeOfDay >= 18.0f || m_timeOfDay < 6.0f; }
     bool isDay() const { return !isNight(); }
 
@@ -109,6 +112,7 @@ private:
     // sets — the correct behaviour falls out of the geometry instead of being scripted.
     glm::vec3 m_moonDirection{0.0f, -1.0f, 0.0f};
     float m_moonPhase01 = 0.0f;
+    float m_lunarCycleDays = 28.0f;   // = SkyBodies::lunarCycleDays default
     float m_latitudeDeg = 40.0f;   // = Graphics::kDefaultLatitudeDeg (CelestialBody.h)
 };
 

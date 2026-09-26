@@ -20,7 +20,6 @@ with the evidence. Rows from the 2026-09-08 census that nobody has re-checked si
 | T-04 | G-167 | S2 | A build clears half a tree | Clearing must operate on the tree as an object, not the cells in a box. Test: build over a tree, assert zero orphaned tree voxels. |
 | T-05 | G-159 | S2 | NPC and player colours flicker between palettes | Reproduce first: park the camera, record N frames, diff pixels; then bisect by freezing the 32-light set. |
 | T-06 | G-119 | S2 | The transition to Hollin Farm is not signposted | Wayfinding without markers (G-51 is the design rule): a road, a sign, a line of dialogue. |
-| T-07 | G-181 | S2 | Load times | Town visit is 2.1-2.4 s load + 1.2-1.7 s hold after four increments; the 2 s load line is met on the first visit, open on revisits. Levers left: faces in the finalize (0.57 s), decode (0.65 s), NavGraph (0.55 s). |
 | T-08 | G-126 | S3 | Nameplates draw over HUD panels | Seen again 2026-09-24 (Wynn's nameplate over the combat hint). World labels are outside the HUD lint; either clip them against HUD panels or lint them too. |
 | T-09 | G-114 | S2 | No splash while the exe boots | The wait was fixed (atlas cache); the splash itself is not drawn. |
 | T-10 | G-160 | S3 | No sprint control | Small; unblocks the sprint-gated strafe clips. |
@@ -71,7 +70,6 @@ with the evidence. Rows from the 2026-09-08 census that nobody has re-checked si
 
 | T | G | Sev | Item | Next step |
 |---|---|---|---|---|
-| T-43 | G-146 | S1 | The ambient model costs 39-52 ms/frame in the town | Grass done; the remaining receivers are not. Measure per pass (`gpu_scopes`). |
 | T-44 | G-144 | S2 | Ambient is wrong outside the probe grid | A far probe cascade instead of "assume open sky". |
 | T-45 | G-142 | S2 | Grass under a roof reads ~20x brighter than the room | Measure `grass.frag`'s sun term vs shadowFactor under the lab roof. |
 | T-46 | G-152 | S3 | Two unit tests fail for unrelated reasons | (a) AtlasManager depends on a disk cache (passes after the merge; re-check); (b) FineFaceMerge cross-cube light key. |
@@ -86,12 +84,22 @@ with the evidence. Rows from the 2026-09-08 census that nobody has re-checked si
 | T-50 | G-63 | S2 | The shipped game feeds NPC navigation the same non-voxel obstacles as the editor | Verify: `NPCManager::buildNavGrid` carries the obstacle overlay; is it fed in the shell? |
 | T-51 | G-27 | S2 | Leaving the pause menu by keyboard; Enter must not re-trigger | Probably closed by G-179 (Escape leaves every menu); verify and close. |
 | T-52 | G-175 | S2 | A panel's auto-size disagrees with where its children draw | Repeater rows fixed (G-184); `UIPanel` measure vs render advance still differ. |
-| T-53 | G-155 | S2 | Pipeline-statistics queries crash the NVIDIA driver | Dev-only, off by default. Find the misuse or drop the queries. |
-| T-54 | G-12 | S3 | Menu scene should be smooth | *(census)* |
-| T-55 | G-23 | S3 | Building the game project should be quick | *(census)* |
 | T-56 | G-11 | S3 | `phyxel link --genre rpg` seeds the RPG milestones | *(census)* |
 | T-57 | G-39 | S3 | `LOG_INFO("{:.1f}")` must not be writable | Root cause in the logger. |
+| T-74 | G-190 | S3 | The RPG calendar's moon ignores `sky.lunarCycleDays` | One source for the lunar cycle: WorldClock reads the sky setting. |
 | T-58 | G-14 | S3 | `resources/rpg/` cited in CLAUDE.md / README | Docs. |
+
+## H. Performance - owned by another session (deprioritised 2026-09-26)
+
+The user is working performance in a separate session; these stay listed so nothing is lost, at S3 here, and are not picked up from this list.
+
+| T | G | Sev | Item | Next step |
+|---|---|---|---|---|
+| T-07 | G-181 | S3 | Load times | Town visit is 2.1-2.4 s load + 1.2-1.7 s hold after four increments; the 2 s load line is met on the first visit, open on revisits. Levers left: faces in the finalize (0.57 s), decode (0.65 s), NavGraph (0.55 s). |
+| T-43 | G-146 | S3 | The ambient model costs 39-52 ms/frame in the town | Grass done; the remaining receivers are not. Measure per pass (`gpu_scopes`). |
+| T-53 | G-155 | S3 | Pipeline-statistics queries crash the NVIDIA driver | Dev-only, off by default. Find the misuse or drop the queries. |
+| T-54 | G-12 | S3 | Menu scene should be smooth | *(census)* |
+| T-55 | G-23 | S3 | Building the game project should be quick | *(census)* |
 
 ## G. Planning
 
@@ -131,4 +139,5 @@ with the evidence. Rows from the 2026-09-08 census that nobody has re-checked si
 | G-116 (T-01) | Shipped 2026-09-25: the intro story card gates the first scene of every run (button, Enter or Space); L4 `rv_intro_l4.py`. |
 | G-164 (T-02) | Shipped 2026-09-25: a sun that crosses the southern sky (noon 50 deg, `sky.latitudeDeg`), a moon that is full on the first night, the `sky` block honoured in shipped games; L4 `rv_sky_l4.py`. |
 | G-186 | Shipped 2026-09-25: moonless nights are dark but readable (a night-only ambient fill); L4 `rv_night_l4.py`. |
+| G-189 | Shipped 2026-09-26: the sky is a per-game setting - `sky.lunarCycleDays`, `sky.nightFill`, a lone `sky.latitudeDeg`, "sun"/"moon" bodies start from the defaults; L4 `rv_sky_config_l4.py`. |
 | G-188 (T-73) | Shipped 2026-09-26: townsfolk light a torch outdoors at night (game.json `torch`, `npcDefaults.torch`); NPC held items + their effects in the shipped shell; torch grip flipped; L4 `rv_torch_l4.py`. |
