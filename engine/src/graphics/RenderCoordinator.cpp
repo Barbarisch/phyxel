@@ -153,8 +153,9 @@ RenderCoordinator::RenderCoordinator(
     // that in-flight frames may be using.
     m_lightOccupancy = std::make_unique<VoxelLightOccupancyGpu>();
     if (m_lightOccupancy->initialize(vulkanDevice->getDevice(), vulkanDevice->getPhysicalDevice())) {
-        vulkanDevice->setLightOccupancyResources(m_lightOccupancy->directoryBuffer(),
-                                                 m_lightOccupancy->poolBuffer());
+        for (uint32_t slot = 0; slot < VoxelLightOccupancyGpu::kSlots; ++slot)
+            vulkanDevice->setLightOccupancyResources(slot, m_lightOccupancy->directoryBuffer(slot),
+                                                     m_lightOccupancy->poolBuffer(slot));
     } else {
         LOG_ERROR("RenderCoordinator", "light occupancy init failed — lighting will see no "
                                        "occluders (bindings fall back to an inert buffer)");
@@ -848,11 +849,15 @@ void RenderCoordinator::updateLightOccupancy() {
         it = m_lightOccRevisions.erase(it);
     }
 
+    // Repack on the CPU only. The copy into GPU-visible memory happens after this frame slot's
+    // fence (uploadToSlot, below the Fence Wait in drawFrame): this point runs BEFORE that wait,
+    // while the other in-flight frame may still be reading, and rewriting here tore its reads.
     m_lightOccupancy->flushIfDirty();
 
-    // Tell the shaders where the box sits and that the buffers are real. Done AFTER the flush so
-    // the box the shader addresses against is the one the pool was actually packed with — a frame
-    // where those disagree would read every chunk at the wrong offset.
+    // Tell the shaders where the box sits and that the buffers are real. The box is the one the
+    // LATEST pack was built with, and this frame's slot receives exactly that pack before its
+    // command buffer is recorded -- a frame where the two disagreed would read every chunk at the
+    // wrong offset.
     vulkanDevice->setLightOccupancyBox(m_lightOccupancy->stats().boxMinChunk,
                                        m_lightOccupancy->ready());
 }
@@ -3376,6 +3381,10 @@ void RenderCoordinator::drawFrame() {
         CPU_PROFILE_SCOPE(&m_cpuTiming, "Fence Wait");   // time the CPU spends waiting on the GPU
         vulkanDevice->waitForFence(currentFrame);
     }
+    // The GPU is now done with this slot's occupancy copy (its last reader was the frame that
+    // signalled this fence), so it is safe to rewrite it with the latest pack. The OTHER slot may
+    // still be in flight and is left alone until its own fence.
+    if (m_lightOccupancy) m_lightOccupancy->uploadToSlot(static_cast<uint32_t>(currentFrame));
 
     // Acquire next image (don't reset fence yet — if acquire fails, the still-signaled
     // fence lets the next frame's waitForFence pass instead of deadlocking)

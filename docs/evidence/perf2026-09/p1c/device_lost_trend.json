@@ -1,0 +1,199 @@
+[
+ {
+  "t": 0.0,
+  "err": "URLError",
+  "lost": false
+ },
+ {
+  "t": 4.3,
+  "err": "KeyError",
+  "lost": false
+ },
+ {
+  "t": 11.4,
+  "gpu_frame": 4.938176,
+  "Scene Pass/Foliage": [
+   0.0,
+   0.0
+  ],
+  "Scene Pass/Grass": [
+   1.5544319999999998,
+   1.611776
+  ],
+  "GI Probes": [
+   0.856544,
+   1.250592
+  ],
+  "Scene Pass/Static Geometry": [
+   0.545792,
+   0.561152
+  ],
+  "Shadow Pass": [
+   0.189776,
+   0.726208
+  ],
+  "foliage_n": 30,
+  "lost": false
+ },
+ {
+  "t": 13.6,
+  "gpu_frame": 7.363328,
+  "Scene Pass/Foliage": [
+   0.18175999999999998,
+   0.365568
+  ],
+  "Scene Pass/Grass": [
+   1.747968,
+   2.413568
+  ],
+  "GI Probes": [
+   1.34608,
+   2.448608
+  ],
+  "Scene Pass/Static Geometry": [
+   0.528384,
+   0.564224
+  ],
+  "Shadow Pass": [
+   0.64328,
+   1.342688
+  ],
+  "foliage_n": 30,
+  "lost": false
+ },
+ {
+  "t": 15.7,
+  "gpu_frame": 10.45968,
+  "Scene Pass/Foliage": [
+   0.35993600000000003,
+   1.09056
+  ],
+  "Scene Pass/Grass": [
+   1.973248,
+   2.692096
+  ],
+  "GI Probes": [
+   1.6760959999999998,
+   2.463872
+  ],
+  "Scene Pass/Static Geometry": [
+   0.526848,
+   0.54784
+  ],
+  "Shadow Pass": [
+   1.400752,
+   2.217632
+  ],
+  "foliage_n": 30,
+  "lost": false
+ },
+ {
+  "t": 17.9,
+  "gpu_frame": 12.975936,
+  "Scene Pass/Foliage": [
+   0.654336,
+   1.122304
+  ],
+  "Scene Pass/Grass": [
+   2.405888,
+   3.120128
+  ],
+  "GI Probes": [
+   1.62448,
+   5.371488
+  ],
+  "Scene Pass/Static Geometry": [
+   0.523264,
+   0.575488
+  ],
+  "Shadow Pass": [
+   1.866496,
+   3.291968
+  ],
+  "foliage_n": 30,
+  "lost": false
+ },
+ {
+  "t": 20.1,
+  "gpu_frame": 11.465792,
+  "Scene Pass/Foliage": [
+   0.687616,
+   1.329152
+  ],
+  "Scene Pass/Grass": [
+   2.366464,
+   2.953216
+  ],
+  "GI Probes": [
+   1.649936,
+   2.240128
+  ],
+  "Scene Pass/Static Geometry": [
+   0.531968,
+   0.571392
+  ],
+  "Shadow Pass": [
+   2.241648,
+   3.066496
+  ],
+  "foliage_n": 30,
+  "lost": false
+ },
+ {
+  "t": 22.2,
+  "gpu_frame": 10.915328,
+  "Scene Pass/Foliage": [
+   0.7306239999999999,
+   0.77312
+  ],
+  "Scene Pass/Grass": [
+   2.218496,
+   2.714624
+  ],
+  "GI Probes": [
+   1.602944,
+   2.29248
+  ],
+  "Scene Pass/Static Geometry": [
+   0.528896,
+   0.564224
+  ],
+  "Shadow Pass": [
+   2.659792,
+   3.365472
+  ],
+  "foliage_n": 30,
+  "lost": false
+ },
+ {
+  "t": 24.3,
+  "gpu_frame": 12.867872,
+  "Scene Pass/Foliage": [
+   0.87808,
+   1.333248
+  ],
+  "Scene Pass/Grass": [
+   2.28096,
+   2.888704
+  ],
+  "GI Probes": [
+   1.6502080000000001,
+   2.26576
+  ],
+  "Scene Pass/Static Geometry": [
+   0.55296,
+   0.591872
+  ],
+  "Shadow Pass": [
+   3.195152,
+   4.262144
+  ],
+  "foliage_n": 30,
+  "lost": false
+ },
+ {
+  "t": 26.5,
+  "err": "KeyError",
+  "lost": true
+ }
+]

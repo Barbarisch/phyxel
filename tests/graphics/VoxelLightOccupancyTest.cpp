@@ -1033,3 +1033,52 @@ TEST(VoxelLightOccupancy, ReadsDoNotBumpTheRevision) {
     EXPECT_EQ(g.revision(), before)
         << "a read changed revision(); the mirror would repack every frame";
 }
+
+// 2026-09-25 (docs/PerfProgram2026-09.md section 16.9): a streaming world lost the GPU device ~30 s
+// after every launch. The CPU rewrote the ONE shared occupancy directory/pool while another in-flight
+// frame read it; a torn read handed phxOccupancySolid a garbage mixed-cube count, and its binary
+// search ((lo + hi) >> 1 over a count near 2^32) never converged. The upload now goes to one copy per
+// frame in flight, and the search is hardened. These pin the hardening (CPU mirror of the shader):
+// corrupt data must cost a wrong answer, never a hang or a read past the pool.
+TEST(VoxelLightOccupancy, CorruptMixedCountIsAnsweredNotSolidNeverReadPastThePool) {
+    VoxelOccupancyGrid g;
+    g.setChunkOrigin({0, 0, 0});
+    addMicrocube(g, {3, 3, 3}, {0, 0, 0}, {0, 0, 0});        // cube (3,3,3) is MIXED
+    const glm::ivec3 micro{3 * 9, 3 * 9, 3 * 9};                // its first micro cell: solid
+    auto packed = packOccupancyPool({{glm::ivec3(0), buildLightOccupancy(g)}},
+                                    PackedOccupancyPool::boxMinChunkFor(glm::vec3(16.0f)));
+    ASSERT_TRUE(packedPoolSolidAt(packed, micro));             // control: valid data reads solid
+
+    const int slot = PackedOccupancyPool::directoryIndexForMicro(micro, packed.boxMinChunk);
+    ASSERT_GE(slot, 0);
+    const uint32_t base = packed.directory[static_cast<size_t>(slot)];
+    for (uint32_t garbage : {0xFFFFFFFFu, 0x80000000u, 40000u}) {
+        auto torn = packed;
+        torn.pool[base] = garbage;                              // the torn-read count
+        EXPECT_FALSE(packedPoolSolidAt(torn, micro)) << "count " << garbage;   // terminates, in bounds
+    }
+}
+
+TEST(VoxelLightOccupancy, EveryPackIsOwedToEveryFrameSlot) {
+    // No initialize(): flushIfDirty packs on the CPU only and writes no GPU memory (that is
+    // uploadToSlot's job, after the slot's fence), so the bookkeeping is testable without a device.
+    Phyxel::Graphics::VoxelLightOccupancyGpu occ;
+    using Occ = Phyxel::Graphics::VoxelLightOccupancyGpu;
+    VoxelOccupancyGrid g;
+    addSolidCube(g, {1, 1, 1});
+    occ.setViewCentre(glm::vec3(16.0f));
+    EXPECT_EQ(occ.packRevision(), 0u);
+    for (uint32_t s = 0; s < Occ::kSlots; ++s) EXPECT_FALSE(occ.slotNeedsUpload(s));
+
+    ASSERT_TRUE(occ.setChunk({0, 0, 0}, buildLightOccupancy(g)));
+    occ.flushIfDirty();
+    EXPECT_EQ(occ.packRevision(), 1u);
+    for (uint32_t s = 0; s < Occ::kSlots; ++s) EXPECT_TRUE(occ.slotNeedsUpload(s)) << "slot " << s;
+
+    occ.flushIfDirty();                                         // clean: no new pack
+    EXPECT_EQ(occ.packRevision(), 1u);
+    occ.removeChunk({0, 0, 0});
+    occ.flushIfDirty();                                         // two packs before a slot's turn coalesce
+    EXPECT_EQ(occ.packRevision(), 2u);
+    EXPECT_FALSE(occ.slotNeedsUpload(Occ::kSlots));             // out-of-range slot: never "needed"
+}

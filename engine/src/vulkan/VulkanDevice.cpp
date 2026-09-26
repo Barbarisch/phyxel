@@ -3063,12 +3063,12 @@ void VulkanDevice::updateDescriptorSetsWithTexture() {
         // 0, so it is never read. An invalid or null buffer here is a validation error; a
         // wrongly-read one would be phantom geometry.
         VkDescriptorBufferInfo occDirInfo{};
-        occDirInfo.buffer = lightOccupancyDirBuffer ? lightOccupancyDirBuffer : lightBuffers[i];
+        occDirInfo.buffer = lightOccupancyDirBuffer[i] ? lightOccupancyDirBuffer[i] : lightBuffers[i];
         occDirInfo.offset = 0;
         occDirInfo.range  = VK_WHOLE_SIZE;
 
         VkDescriptorBufferInfo occPoolInfo{};
-        occPoolInfo.buffer = lightOccupancyPoolBuffer ? lightOccupancyPoolBuffer : lightBuffers[i];
+        occPoolInfo.buffer = lightOccupancyPoolBuffer[i] ? lightOccupancyPoolBuffer[i] : lightBuffers[i];
         occPoolInfo.offset = 0;
         occPoolInfo.range  = VK_WHOLE_SIZE;
 

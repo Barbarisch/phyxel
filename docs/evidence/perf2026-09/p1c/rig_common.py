@@ -28,13 +28,19 @@ def wait_api():
 
 
 def settle(timeout_s=120):
+    """Wait until nothing is pending. While the main loop is busy (first streaming load, a build job)
+    load_state can time out ("Request timed out waiting for game loop") -- that is 'not settled yet',
+    not an error, so keep polling until OUR deadline."""
     t0 = time.time()
     while time.time() - t0 < timeout_s:
-        c = call('GET', '/api/debug/load_state')['chunks']
-        if not (c['generation_pending'] or c['remesh_pending'] or c['remesh_idle_pending']):
+        try:
+            c = call('GET', '/api/debug/load_state', t=60).get('chunks')
+        except Exception:
+            c = None
+        if c and not (c['generation_pending'] or c['remesh_pending'] or c['remesh_idle_pending']):
             return time.time() - t0
-        time.sleep(0.25)
-    raise RuntimeError('world did not settle')
+        time.sleep(0.5)
+    raise RuntimeError('world did not settle within %d s' % timeout_s)
 
 
 def dump_recording():

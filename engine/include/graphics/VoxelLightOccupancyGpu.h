@@ -10,9 +10,12 @@
 // TWO BUFFERS, matching packOccupancyPool():
 //   directory — 2048 uint32, one per chunk in the covered world box (8 KB)
 //   pool      — chunk blobs back to back
-// Both host-coherent and persistently mapped, the same contract GpuParticlePhysics' occupancy
-// bitfield uses: the CPU writes straight into GPU-visible memory with no staging copy and no
-// barrier, which is what keeps a chunk re-mesh from costing an upload.
+// Host-coherent and persistently mapped, ONE COPY PER FRAME IN FLIGHT (kSlots). The CPU writes
+// straight into GPU-visible memory (no staging copy), but only into the copy of the frame slot
+// whose fence has just been waited on (uploadToSlot). The original single shared copy was written
+// while the other in-flight frame was still reading it; in a streaming world with dense sub-voxel
+// flora a torn directory/pool read hung the GPU (VK_ERROR_DEVICE_LOST ~30 s after launch, every
+// launch; docs/PerfProgram2026-09.md section 16.9). Cost: a second pool (64 MB host memory).
 //
 // REPACK-ON-DIRTY, not incremental. When a chunk changes, the whole pool is rebuilt and re-copied
 // at most once per frame. That is O(total resident occupancy) per change and it is the honest
@@ -70,9 +73,20 @@ public:
     void removeChunk(const glm::ivec3& chunkWorldOrigin);
     void clear();
 
-    /// Repack and copy if anything changed. Cheap no-op when clean; call once per frame.
+    /// One copy per frame in flight; must match VulkanDevice::MAX_FRAMES_IN_FLIGHT.
+    static constexpr uint32_t kSlots = 2;
+
+    /// Repack on the CPU if anything changed (a new pack revision). Writes NO GPU memory: that is
+    /// uploadToSlot's job, after the slot's fence. Cheap no-op when clean; call once per frame.
     void flushIfDirty();
     bool dirty() const { return m_dirty; }
+    /// Copy the latest pack into `slot`'s buffers if that slot does not hold it yet. Call ONLY after
+    /// waiting on that frame slot's fence. Every slot receives every pack (possibly coalesced).
+    void uploadToSlot(uint32_t slot);
+    bool slotNeedsUpload(uint32_t slot) const {
+        return slot < kSlots && m_slotRevision[slot] != m_packRevision;
+    }
+    uint64_t packRevision() const { return m_packRevision; }
 
     /// Chunks currently held, updated immediately by setChunk/removeChunk/setViewCentre — unlike
     /// stats().residentChunks, which reflects the last flush. Lets residency and eviction be tested
@@ -84,9 +98,9 @@ public:
     /// found none, which proved nothing about the case this whole layer exists for.
     std::vector<glm::ivec3> sampleMixedCubes(size_t maxN) const;
 
-    bool         ready()          const { return m_poolMapped != nullptr; }
-    VkBuffer     directoryBuffer() const { return m_dirBuffer; }
-    VkBuffer     poolBuffer()      const { return m_poolBuffer; }
+    bool         ready()          const { return m_poolMapped[0] != nullptr && m_poolMapped[kSlots - 1] != nullptr; }
+    VkBuffer     directoryBuffer(uint32_t slot) const { return slot < kSlots ? m_dirBuffer[slot] : VK_NULL_HANDLE; }
+    VkBuffer     poolBuffer(uint32_t slot)      const { return slot < kSlots ? m_poolBuffer[slot] : VK_NULL_HANDLE; }
     VkDeviceSize directoryBytes()  const {
         return static_cast<VkDeviceSize>(PackedOccupancyPool::kDirEntries) * sizeof(uint32_t);
     }
@@ -126,13 +140,15 @@ public:
 
 private:
     VkDevice       m_device     = VK_NULL_HANDLE;
-    VkBuffer       m_dirBuffer  = VK_NULL_HANDLE;
-    VkDeviceMemory m_dirMemory  = VK_NULL_HANDLE;
-    void*          m_dirMapped  = nullptr;
-    VkBuffer       m_poolBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory m_poolMemory = VK_NULL_HANDLE;
-    void*          m_poolMapped = nullptr;
+    VkBuffer       m_dirBuffer[kSlots]  = {};
+    VkDeviceMemory m_dirMemory[kSlots]  = {};
+    void*          m_dirMapped[kSlots]  = {};
+    VkBuffer       m_poolBuffer[kSlots] = {};
+    VkDeviceMemory m_poolMemory[kSlots] = {};
+    void*          m_poolMapped[kSlots] = {};
     VkDeviceSize   m_poolBytes  = 0;
+    uint64_t       m_packRevision = 0;              // bumped by every flushIfDirty that packed
+    uint64_t       m_slotRevision[kSlots] = {};     // the pack revision each slot's buffers hold
 
     /// Keyed by chunk WORLD ORIGIN, not by directory slot: the box moves, so a slot is not a stable
     /// identity. Keying by slot silently remapped every resident chunk the moment the camera

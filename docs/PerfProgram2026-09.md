@@ -1241,3 +1241,41 @@ routes through `PerfApi` in both hosts.
 Rig note: R-P1 = M4TavernBench; R-P2 = new project `PerfRigStream` (Flat, streaming, loadRadius 2, no
 flora). Unit suite after the change: 4,059 passed, 20 skipped, 2 failed -- the two documented as failing
 before this work (`AtlasManagerTest.BuildAtlasFromSourcePNGs`, `FineFaceMerge.SubcubeMerge_CrossCube...`).
+
+### 16.9 BLOCKER FOUND AND FIXED: GPU device lost in streaming worlds (2026-09-25)
+
+The S-3 world (project `CityBench`: Perlin seed 7, streaming, default residency) lost the GPU device
+(`vkQueueSubmit` → `VK_ERROR_DEVICE_LOST`) ~30 s after EVERY launch (5/5), after a ~5 s silent submit;
+the main loop then spun on one core. Pre-existing, found only because this was the first streaming world
+with dense sub-voxel flora driven this long. Bisected live, one variable per launch:
+
+| Launch | Device lost? |
+|---|---|
+| defaults (×2) | yes, ~30 s |
+| GI-2 two-level trace off | yes |
+| **pre-change `gi_probe.comp.spv`** (HEAD before GI-2) | **yes** → not a regression from §15 |
+| probe field off (`/api/debug/gi false`) | no (120 s) |
+| grass + foliage off (GI on) | no (120 s) |
+| grass off, foliage on | yes |
+| GPU scopes polled up to the loss | frames 5-13 ms right up to it → a SUDDEN fault, not load |
+| `vkDeviceWaitIdle` before the occupancy copy (diagnostic build) | **no** (150 s, world settled) |
+
+**Cause.** `VoxelLightOccupancyGpu::flushIfDirty()` `memcpy`'d the repacked directory + pool into ONE
+shared, persistently mapped buffer, called from `updateLightOccupancy()` BEFORE `drawFrame`'s fence wait,
+with 2 frames in flight — so the CPU rewrote occupancy another frame was still reading. A torn read handed
+`phxOccupancySolid` a garbage mixed-cube count; its binary search (`mid = (lo + hi) >> 1`) overflowed for
+counts near 2³² (a fully solid row packs as `0xFFFFFFFF`) and never converged. Foliage fragments reach
+that search constantly through `phxAmbient` → `phxGiIrradiance` → `phxSegmentBlocked` on the leaf
+microcubes' mixed cubes — hence "GI on + foliage on".
+
+**Fix** (LightingPipeline.md §0 rule R11 + §9): one directory/pool copy per frame in flight; `flushIfDirty`
+repacks on the CPU only; `uploadToSlot(currentFrame)` copies the latest pack into that slot right AFTER its
+fence; each frame slot's descriptor set binds its own copy. Plus hardening, exact on valid data, in the
+shader and its CPU mirror: count clamped to 32³, overflow-free midpoint, bounds-checked against the pool.
+Cost: a second 64 MB host-visible pool.
+
+**Verified:** CityBench at defaults 180 s, no loss, world settled (969 chunks, nothing pending);
+`VoxelLightOccupancyTest` pins (corrupt count → terminates, "not solid"; every pack owed to every slot);
+unit suite 4,061 passed / same 2 known failures; Lighting Lab ambient check GREEN, A1 0.985, A2 0.0716,
+A3 0.9976 / 0.0715, A4 2.90 (`docs/evidence/ambient_occfix.json`) -- sealed rooms read exactly as before.
+Evidence: `p1c/device_lost_trend.{py,json}`.

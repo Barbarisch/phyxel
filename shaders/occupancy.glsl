@@ -79,11 +79,19 @@ bool phxOccupancySolid(ivec3 worldMicro, ivec4 occBox) {
     if (((occPool[mixedBase + uint(ci >> 5)] >> uint(ci & 31)) & 1u) == 0u) return false;
 
     // Binary search the ascending mixed-cube index list.
-    uint n = occPool[base];
+    // HARDENED (2026-09-25, docs/PerfProgram2026-09.md section 16.9). A chunk has at most 32^3 cubes,
+    // so n is clamped to that, and the midpoint is lo + (hi - lo) / 2, which cannot overflow. The old
+    // (lo + hi) >> 1 wrapped for a garbage n near 2^32 (a torn read of a fully solid 0xFFFFFFFF row),
+    // mid fell below lo, the search never converged, and the GPU hung (VK_ERROR_DEVICE_LOST). Both are
+    // exact on valid data (n <= 32768 always); they make a bad word cost one wrong answer, not the device.
+    uint n = min(occPool[base], 32768u);
     uint idxBase = mixedBase + uint(PHX_OCC_CUBE_WORDS);
+    // The index list and micro blocks must lie inside the pool buffer; a count that says otherwise is
+    // corrupt data, answered "not solid" instead of read past the end (CPU mirror: packedPoolSolidAt).
+    if (idxBase + n * uint(1 + PHX_OCC_MICRO_WORDS) > uint(occPool.length())) return false;
     uint lo = 0u, hi = n;
     while (lo < hi) {
-        uint mid = (lo + hi) >> 1u;
+        uint mid = lo + ((hi - lo) >> 1u);
         if (occPool[idxBase + mid] < uint(ci)) lo = mid + 1u; else hi = mid;
     }
     if (lo >= n || occPool[idxBase + lo] != uint(ci)) return false;

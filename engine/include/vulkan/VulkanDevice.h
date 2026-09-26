@@ -434,14 +434,19 @@ public:
         shadowMapFarImageView = imageView;
         shadowMapFarSampler = sampler;
     }
-    /// Sub-voxel light occupancy buffers (bindings 11/12) — docs/UnifiedLightingPlan.md.
-    /// Both null is legal: the descriptors then fall back to a valid buffer that the shader never
-    /// reads, because setLightOccupancyReady(false) leaves the guard flag clear.
-    void setLightOccupancyResources(VkBuffer directory, VkBuffer pool) {
-        lightOccupancyDirBuffer = directory;
-        lightOccupancyPoolBuffer = pool;
+    /// Sub-voxel light occupancy buffers (bindings 11/12) — docs/UnifiedLightingPlan.md — for
+    /// frame-in-flight `slot`. ONE COPY PER FRAME IN FLIGHT: frame slot i's descriptor set binds slot
+    /// i's buffers, which the CPU rewrites only after slot i's fence (VoxelLightOccupancyGpu::
+    /// uploadToSlot). A single shared copy was rewritten while the other in-flight frame still read
+    /// it -- torn directory/pool reads hung the GPU (VK_ERROR_DEVICE_LOST) in streaming worlds.
+    /// Null is legal: the descriptors then fall back to a valid buffer that the shader never reads,
+    /// because setLightOccupancyReady(false) leaves the guard flag clear.
+    void setLightOccupancyResources(uint32_t slot, VkBuffer directory, VkBuffer pool) {
+        if (slot >= static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT)) return;
+        lightOccupancyDirBuffer[slot] = directory;
+        lightOccupancyPoolBuffer[slot] = pool;
     }
-    VkBuffer getLightOccupancyDirBuffer() const { return lightOccupancyDirBuffer; }
+    VkBuffer getLightOccupancyDirBuffer(uint32_t slot = 0) const { return lightOccupancyDirBuffer[slot]; }
 
     /// M5.1 GI probe field (binding 13). Null is legal -- the descriptor falls back to a valid
     /// buffer the shader never reads, because the guard bit stays clear.
@@ -694,8 +699,8 @@ private:
     VkBuffer giProbeBuffer = VK_NULL_HANDLE;
     glm::vec4 m_giProbeGrid{0.0f, 0.0f, 0.0f, 2.0f};
     bool m_giEnabled = false;
-    VkBuffer lightOccupancyDirBuffer = VK_NULL_HANDLE;
-    VkBuffer lightOccupancyPoolBuffer = VK_NULL_HANDLE;
+    VkBuffer lightOccupancyDirBuffer[2] = {VK_NULL_HANDLE, VK_NULL_HANDLE};    // per frame in flight
+    VkBuffer lightOccupancyPoolBuffer[2] = {VK_NULL_HANDLE, VK_NULL_HANDLE};
     VkSampler   shadowMapFarSampler = VK_NULL_HANDLE;
     glm::mat4   m_farLightSpace{1.0f};
     float       m_farCascadeRangeEnd = 0.0f;    // 0 = far cascade off

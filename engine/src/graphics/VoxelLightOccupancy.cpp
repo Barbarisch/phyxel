@@ -438,11 +438,15 @@ bool packedPoolSolidAt(const PackedOccupancyPool& packed, const glm::ivec3& worl
     if (!((packed.pool[mixedBase + (static_cast<size_t>(ci) >> 5)] >> (ci & 31)) & 1u)) return false;
 
     // Binary search the ascending mixed-cube index list.
-    const uint32_t n = packed.pool[base];
+    // Hardened like phxOccupancySolid: at most 32^3 mixed cubes, and an overflow-free midpoint.
+    const uint32_t n = std::min<uint32_t>(packed.pool[base], 32768u);
     const size_t idxBase = mixedBase + W;
+    // The index list and the micro blocks must lie inside the pool; a count that says otherwise is
+    // corrupt data, answered "not solid" instead of read past the end (mirrors the shader).
+    if (idxBase + static_cast<size_t>(n) * (1 + MW) > packed.pool.size()) return false;
     uint32_t lo = 0, hi = n;
     while (lo < hi) {
-        const uint32_t mid = (lo + hi) >> 1;
+        const uint32_t mid = lo + ((hi - lo) >> 1);
         const uint32_t v = packed.pool[idxBase + mid];
         if (v < static_cast<uint32_t>(ci)) lo = mid + 1;
         else hi = mid;
