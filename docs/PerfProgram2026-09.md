@@ -501,6 +501,22 @@ Verified against code. Findings, each folded into §17.2 at the step named:
 No design key is violated (no chunk-coupled appearance, no generation-stage change, no detail removed
 behind a flag); step 3 remains a declared LOOK change needing user sign-off (§8 #6).
 
+### 9.10 Tenth pass (`/design-check`, 2026-09-26, on §17 after 9.9): NEEDS WORK → folded in
+
+Three mechanisms 9.9 relied on did not hold against the code, plus two undefined metrics:
+1. **Step 7:** per-NPC despawn is undone by `ResidentSpawner::update`'s throttled rescan → a route that
+   suspends the spawner + `despawnAll()`, residents verified 0 at window start AND end.
+2. **Step 2:** fire/VFX flicker and wind are time-driven, so the night freeze could never reach a ~0
+   control → an effect-time-hold debug knob (time input only, game still running), with the unfrozen
+   timing-matched gate as the stated fallback; the pin is named `RenderDefaultsTest.DepthPrepassDefault`.
+3. **Step 3:** there is no chunk-eviction API, and inside 256 u the proxy is already discarded → rig at
+   280/320/346/400/500 u (the band where proxies are visible and still L0), no eviction, prediction restated.
+4. **Step 4 SH1:** the shadow-map-equality test needed the GPU → headless brute-force ray-vs-AABB test
+   (`CullKeepsEveryCasterThatCanShadowAView`), red on a main-frustum-only cull (mirror case).
+5. **Step 4 SH2:** "shadow-edge displacement" had no metric → consecutive-frame max change in the shadowed
+   region, cached vs uncached, threshold uncached p99 + 2/255; red on a K-frame cache without rebase.
+No design key violated.
+
 ## 10. P0a results (2026-09-24, RTX 4090, Release)
 
 Evidence: `docs/evidence/perf2026-09/`. Unit suite after the batch: 4025 passed, 20 skipped, 2 failed. Both
@@ -1485,23 +1501,33 @@ Each step: **why** (the data), **do**, **measure**, **done when**. Design check 
    `perf_harness.py sample --ab` (prepass on/off) at the five C-100 poses, noon + night; frozen pixel gate
    (the prepass is equivalence-class). **Night freeze without game pause:** game pause stops the
    emissive reconcile (§13), so a night gate that pauses the game compares a stale light set. Night
-   freeze = clock paused at 22:00 + grass/foliage off + residents despawned (step 7's mechanism), game
-   running; the frozen A1-vs-C control must read ~0 or the run is void. **Default pin:** no test pins the
-   prepass default today (nothing in `tests/` references it); flipping it must ADD the pin
-   (`LodCharacterizationTest` shape) in the same commit, with the reason. *Done when:* written up as a
+   freeze = clock paused at 22:00 + grass/foliage off + residents despawned (step 7's route) + **effect
+   time held** (new debug knob, e.g. `POST /api/debug/effect_time {"frozen": bool}`, echoing its state:
+   it pins the time that drives fire/VFX flicker (`FireEmitterManager`, `VfxSystem`) and wind to a
+   constant while the game, and so the emissive reconcile, keeps running; it must change nothing but
+   that time input — say so at the knob). The frozen A1-vs-C control must then read ~0 or the run is
+   void. **Fallback** if the knob cannot be made clean: the unfrozen timing-matched gate
+   (`gi_pixel_gate.py` method) with its noise floor stated in the result. **Default pin:** no test pins
+   the prepass default today (nothing in `tests/` references it); flipping it must ADD
+   `RenderDefaultsTest.DepthPrepassDefault` in the same commit, with the reason. *Done when:* written up as a
    §16.x, the default decided with the user, and pinned.
 3. **Visible structure proxies still draw at chain level 0 out to 360 u** (~10 ms at the overview). *Why:*
    §16.12's residual (overview: skip 43.1 vs no proxies 32.9 ms). *Options:* a coarser level nearer
    (`kStructureLevelDist`), or a screen-space level rule (the level whose cell projects to ≤ ~1 px, the C1
    metric). **A LOOK change** (§8 #6): before/after captures at the overview and outside poses for user
    sign-off; `LodTierLedger.md` row 7 updated. **Chunk independence:** level choice stays a function of
-   the structure's own world-space centre distance (never a chunk's), as today. **Rig (before the city):**
-   a Flat world, ONE engine-built building (`build_structure` schema v2, a tavern — provenance recorded)
-   inside one chunk; the only variable is camera distance (150, 250, 360, 450, 600 u, same bearing,
-   pose-verified); per distance capture L0 vs the candidate level with the real building's chunks
-   evicted (so the proxy is what is seen). **Prediction, written first:** the pixel delta vs L0 grows
-   with the level's cell size and falls with distance; the candidate's delta at its new switch distance
-   is ≤ L0-vs-L1's delta at today's 360 u switch. **Control:** L0 vs L0 at each distance (~0).
+   the structure's own world-space centre distance (never a chunk's), as today. **Where the cost is:**
+   inside `fadeNear0` (256 u) a resident building's proxy is already fully discarded (and now skipped,
+   §16.12), so the visible-L0 cost lives in **256–360 u**: the dither fade band (256–346) plus the run
+   up to `kStructureLevelDist[0]` = 360 where L1 takes over. **Rig (before the city):** a Flat world, ONE
+   engine-built building (`build_structure` schema v2, a tavern — provenance recorded) inside one chunk;
+   the only variable is camera distance: **280, 320, 346, 400, 500 u**, same bearing, pose-verified. No
+   eviction (there is no API for it, and none is needed): at each distance capture today's level vs the
+   candidate level; the real building, where resident, is identical in both captures, so the diff
+   isolates the proxy. **Prediction, written first:** at 280–346 u the candidate's delta is damped by the
+   dither (the proxy is partly transparent) and stays below L0-vs-L1's delta at today's 360 u switch; at
+   400–500 u both captures already use L1+, so the delta is ~0. **Control:** today's level vs itself at
+   each distance (~0).
    *Done when:* rig numbers + city captures signed off, and the C-100 overview A/B measured.
 4. **Shadow Mid (~20–24 ms) and Shadow Near (~9 ms, linear in buildings).** *Why:* the largest GPU term
    left after step 3; every building within 420 u casts whether or not its shadow can reach the view.
@@ -1516,17 +1542,23 @@ Each step: **why** (the data), **do**, **measure**, **done when**. Design check 
      `mirror_voxel.frag` (the reflection pass) samples the shadow maps too, and so do far terrain,
      far trees, foliage, grass, characters and transparent voxels, all inside the main view. The cull is
      per-chunk AABB, so it must be CONSERVATIVE (the `bladesForDistance` model: chunk quantities bound
-     cost only). Pin `ShadowCasterCullTest.CulledSetGivesTheSameShadowMap` in the chunked-vs-whole shape:
-     the shadow depth rendered from the culled caster set equals the full set at every texel the main
-     AND reflection views sample. **Rig:** Flat world, one chunk: a wall just OUTSIDE the view frustum
+     cost only). Pin it **headless**, in the chunked-vs-whole shape:
+     `ShadowCasterCullTest.CullKeepsEveryCasterThatCanShadowAView` — sample points across every view
+     that reads the cascades (main + reflection frusta, near to far plane), march each point toward the
+     sun to the cascade's light-space near plane, and assert every chunk AABB the ray hits is in the KEPT
+     set (brute force vs the cull predicate; random + adversarial camera/sun poses). **Red:** a cull
+     against the main frustum only must fail it on the mirror case. **Rig:** Flat world, one chunk: a wall just OUTSIDE the view frustum
      whose shadow falls INSIDE it (the adversarial case), plus a mirror pose that sees a caster behind
      the camera. **Prediction:** identical shadow-map texels under the view; **control:** culling off vs
      off. Frozen pixel gate at the C-100 poses.
    - **SH2 must not step.** A cached mid cascade re-rendered on a threshold makes shadows move in steps
      while the sun moves and the camera translates, a class of motion the user has rejected before
-     (vegetation wind). Gate both: sun advancing at game speed, and camera walking at 4 u/s, captured
-     as a sequence with the per-frame shadow-edge displacement measured (must be continuous, no jumps
-     larger than the uncached run's). The cascade fit is a `LightingPipeline.md` §0 item: update §0 and
+     (vegetation wind). **Stepping metric:** capture N consecutive frames (N ≥ 120) twice — (a) sun
+     advancing at game speed, camera still; (b) camera walking at 4 u/s, sun still — cached and
+     uncached. Per consecutive frame pair, the max pixel change inside the SHADOWED region (masked with
+     the sun-visibility debug view). **Pass:** the cached run's max frame-to-frame change never exceeds
+     the uncached run's p99 + 2/255, and its count of frames above the uncached p99 is not larger than
+     uncached. **Red:** a cache refreshed every K frames with no rebase must fail (b). The cascade fit is a `LightingPipeline.md` §0 item: update §0 and
      §9 and run `lighting_doc_check.py --update` in the same commit.
    - Knobs for either follow the `/api/debug/*` conventions (omitted = unchanged, state echoed).
 5. **Static Geometry (7–16 ms).** Third term, pose-dependent, likely overlaps P-DP (step 2): re-rank after
@@ -1541,10 +1573,14 @@ Each step: **why** (the data), **do**, **measure**, **done when**. Design check 
    residents, §16.7). **Mechanism decided (9.9):** the generator already has `{"residents": false}`
    (`SettlementBuildService.cpp:1721`), but a BUILT rung re-derives its residents at every load
    (ResidentSpawner reads the persisted locations), so the param would need a 5-25 min rebuild per rung
-   and a second world. Use a **runtime despawn of the resident NPCs over the API** instead (same world,
-   same fingerprint minus residents), verified by `/api/npcs` reading 0 residents before sampling and
-   recorded in every row. The same despawn is step 2's night freeze. If no clean despawn route exists,
-   adding one (echoing the count removed) is part of this step.
+   and a second world. A per-NPC despawn (`/api/npc/remove`) does NOT work either: `ResidentSpawner::update`
+   rescans on a throttle and re-spawns/adopts every resident whose ground is resident
+   (`ResidentSpawner.h:8-11,50-53`). **Mechanism:** a new debug route that SUSPENDS the spawner and calls
+   its existing `despawnAll()` (`ResidentSpawner.h:55`), e.g. `POST /api/debug/residents {"enabled":
+   false}` → echoes `{enabled, despawned, remaining}`; `{"enabled": true}` resumes (the spawner re-derives
+   residents deterministically from the locations). Verified by `/api/npcs` reading 0 residents at the
+   START and the END of every sampling window (a respawn mid-window voids the row), recorded in every
+   row. The same route is step 2's night freeze.
 8. **Foliage at the outside pose (12–22 ms)** — F1 (§12): attribute overdraw vs shading with the R-F1 rig.
 9. **Owed platforms:** the laptop run of the ladder (min-spec; lights may matter there, §1) and the
    standalone `--test` at native resolution (blocked for streaming worlds: standalone games never pump
