@@ -162,6 +162,20 @@ glm::vec3 skyArcDirection(float hourAngle, float latitudeRad) {
     return dir;
 }
 
+glm::vec3 SkyBodies::moonlessNightFill(const glm::vec3& toSun) {
+    static const glm::vec3 fill = [] {
+        SkyBodies ref = defaultSky();
+        ref.update(0.0f, 0);   // midnight, day 0: the default moon is full and high
+        glm::vec3 moon(0.0f);
+        for (size_t i = 0; i < ref.bodies.size(); ++i)
+            if (!ref.bodies[i].emissive) { moon = ref.lightColors[i]; break; }
+        return moon * kMoonSkyShare * kMoonlessNightShare;
+    }();
+    const float s6 = std::sin(glm::radians(6.0f));
+    const float night = 1.0f - glm::smoothstep(-s6, s6, glm::normalize(toSun).y);
+    return fill * night;
+}
+
 SkyBodies SkyBodies::fromJson(const nlohmann::json& j) {
     // A world with no sun is never what was meant, so anything missing or empty falls back to the
     // default sun+moon rather than to an empty sky.

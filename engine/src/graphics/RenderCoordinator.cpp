@@ -3503,9 +3503,12 @@ void RenderCoordinator::drawFrame() {
             // the frame crushed to black either way). kMoonSkyShare is a look constant — the true
             // ratio is unmeasurable at this scale and the honest label keeps it from drifting toward
             // false physics.
-            constexpr float kMoonSkyShare = 0.45f;
+            // + the moonless-night fill (starlight/airglow, cheated to be playable - G-164
+            // follow-up): a new-moon night measured black (world luma 2.6 of 255). It lights the
+            // WORLD only; the sky dome keeps its own airglow, which twilight bounds from above.
             a.ambientColor     = Atmosphere::skyIrradiance(toSun, altitudeM)
-                               + reflectedAmbient * kMoonSkyShare;
+                               + reflectedAmbient * kMoonSkyShare
+                               + SkyBodies::moonlessNightFill(toSun);
             a.hazeHorizonColor = Atmosphere::hazeHorizon(toSun, altitudeM);
             a.hazeZenithColor  = Atmosphere::hazeZenith(toSun, altitudeM);
             a.moonDirection    = -skyMoonToward();   // light-travel convention, like the cycle's

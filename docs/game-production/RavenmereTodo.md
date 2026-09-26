@@ -103,6 +103,7 @@ with the evidence. Rows from the 2026-09-08 census that nobody has re-checked si
 
 | T | G | Sev | Item | Next step |
 |---|---|---|---|---|
+| T-72 | G-187 | S3 | `WorldForgeLiveApplyTest` stalls since 2026-09-25 evening (fails on the previous commit too) | Time one chunk's generation; rerun on a quiet machine. |
 | T-59 | G-97 | S3 | `/api/walk/probe` reports `fits_at_start:false` everywhere | Check what it expects for `y`; unit test through the same path. |
 | T-60 | G-149 | S3 | The harness cannot scroll the wheel or set the zoom | |
 | T-61 | G-174 | S3 | `entity_damage` reports what was asked, not what landed | |
@@ -129,3 +130,4 @@ with the evidence. Rows from the 2026-09-08 census that nobody has re-checked si
 | G-173 | Shipped with G-183: `visibleWhen` takes `&&`/`!` expressions, evaluated identically by the engine and the gate; malformed stays hidden (fail-closed) and the gate reads every term. |
 | G-116 (T-01) | Shipped 2026-09-25: the intro story card gates the first scene of every run (button, Enter or Space); L4 `rv_intro_l4.py`. |
 | G-164 (T-02) | Shipped 2026-09-25: a sun that crosses the southern sky (noon 50 deg, `sky.latitudeDeg`), a moon that is full on the first night, the `sky` block honoured in shipped games; L4 `rv_sky_l4.py`. |
+| G-186 | Shipped 2026-09-25: moonless nights are dark but readable (a night-only ambient fill); L4 `rv_night_l4.py`. |

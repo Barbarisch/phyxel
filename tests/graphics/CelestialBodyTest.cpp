@@ -8,6 +8,7 @@
 #include <gtest/gtest.h>
 
 #include "graphics/CelestialBody.h"
+#include "graphics/Atmosphere.h"
 #include "graphics/DayNightCycle.h"
 
 #include <cmath>
@@ -262,4 +263,23 @@ TEST(CelestialBody, TheNoonSunStandsInTheSouthAtNinetyMinusLatitude) {
     s.update(12.0f, 0);
     const glm::vec3 lit = -cycle.getSunDirection();
     EXPECT_NEAR(glm::dot(lit, s.directions[0]), 1.0f, 1e-4f) << "the light and the disc disagree";
+}
+
+
+// G-164 follow-up: a moonless night still gets ambient light - half a full moon's ambient share -
+// and it is negligible by day.
+TEST(CelestialBody, AMoonlessNightStillGetsAmbientButNotEnoughToMatterByDay) {
+    SkyBodies full = SkyBodies::defaultSky();
+    full.update(0.0f, 0);   // full moon, midnight
+    const float fullAmbient = luma(full.lightColors[1] * kMoonSkyShare);
+    ASSERT_GT(fullAmbient, 0.0f);
+    // at night (sun at midnight, far below): half the full moon's ambient share
+    EXPECT_NEAR(luma(SkyBodies::moonlessNightFill(full.directions[0])) / fullAmbient, kMoonlessNightShare, 1e-3f);
+    // by day: none at all - at full strength it would be ~38% of the noon sky's ambient
+    SkyBodies noon = SkyBodies::defaultSky();
+    noon.update(12.0f, 0);
+    EXPECT_EQ(luma(SkyBodies::moonlessNightFill(noon.directions[0])), 0.0f) << "the fill must not light the day";
+    // twilight blends: sun on the horizon = half
+    const glm::vec3 horizon = glm::normalize(glm::vec3(0.7f, 0.0f, 0.3f));
+    EXPECT_NEAR(luma(SkyBodies::moonlessNightFill(horizon)) / (fullAmbient * kMoonlessNightShare), 0.5f, 0.01f);
 }
