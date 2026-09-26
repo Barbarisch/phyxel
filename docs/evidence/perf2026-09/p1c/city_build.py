@@ -7,13 +7,16 @@ light_stats registered/uploaded by source}, taken at a FIXED anchor: camera stra
 site centre (the editor anchors streaming on the camera; default residency 256 u covers the site), after
 the settle gate.
 Usage: city_build.py <rung> <width> <depth> <out_prefix>     e.g. city_build.py C-100 192 192 city_C100
-       city_build.py --fingerprint-only <rung> <width> <depth> <out_prefix>   (persistence check)"""
+       city_build.py --fingerprint-only <rung> <width> <depth> <out_prefix>   (persistence check)
+       city_build.py --attach=<job_id> <rung> <width> <depth> <out_prefix>    (adopt a job already running
+                                                    from the same RECIPE: wait, save, fingerprint)"""
 import json, sys, time
 
 from rig_common import call, settle, wait_api
 
 args = [a for a in sys.argv[1:] if not a.startswith('--')]
 FP_ONLY = '--fingerprint-only' in sys.argv
+ATTACH = next((int(a.split('=', 1)[1]) for a in sys.argv[1:] if a.startswith('--attach=')), None)
 rung, W, D, prefix = args[0], int(args[1]), int(args[2]), args[3]
 # Site: the S-2 town's area of the seed-7 terrain, grown around the same centre (x -0, z 0).
 CX, CZ = 0, 0
@@ -54,15 +57,51 @@ def fingerprint():
 wait_api()
 # The site must be STREAMED before the generator runs on it (the editor anchors streaming on the
 # camera): stand the camera at ANCHOR above the site centre and settle first.
-call('POST', '/api/camera', {'mode': 'free', 'position': {k: ANCHOR[k] for k in 'xyz'},
-                             'yaw': ANCHOR['yaw'], 'pitch': ANCHOR['pitch']})
-settle(1800)
+def settled_steadily(timeout_s, need=5, gap_s=2.0):
+    """settle() can return during a momentary lull while the site is still streaming (C-100 was
+    refused as ungrounded that way). Require `need` consecutive settled polls `gap_s` apart."""
+    t0, streak = time.time(), 0
+    while streak < need:
+        if time.time() - t0 > timeout_s:
+            raise RuntimeError('world did not settle steadily within %d s' % timeout_s)
+        settle(timeout_s)
+        streak += 1
+        time.sleep(gap_s)
+        try:
+            c = call('GET', '/api/debug/load_state', t=60).get('chunks') or {}
+            if c.get('generation_pending') or c.get('remesh_pending') or c.get('remesh_idle_pending'):
+                streak = 0
+        except Exception:
+            streak = 0
+
+
 out = {'rung': rung, 'recipe': RECIPE, 'overview_pose': OVERVIEW, 'anchor_pose': ANCHOR}
+if ATTACH is None:
+    call('POST', '/api/camera', {'mode': 'free', 'position': {k: ANCHOR[k] for k in 'xyz'},
+                                 'yaw': ANCHOR['yaw'], 'pitch': ANCHOR['pitch']})
+    settled_steadily(1800)
 if not FP_ONLY:
-    sub = call('POST', '/api/settlement/build', RECIPE, t=120)
-    out['submit'] = sub
-    job = sub.get('job_id')
-    print(rung, 'submitted job', job, 'buildings', sub.get('buildings'), 'queued', len(sub.get('queued_builds', [])))
+    if ATTACH is not None:
+        job = ATTACH
+        out['submit'] = {'attached_job': job, 'note': 'job submitted from this exact RECIPE by a manual '
+                         'probe (the first scripted submit was refused as ungrounded mid-stream)'}
+        print(rung, 'attached to job', job)
+    else:
+        refusals = []
+        for attempt in range(6):
+            sub = call('POST', '/api/settlement/build', RECIPE, t=120)
+            if sub.get('job_id') is not None:
+                break
+            refusals.append(sub)   # an honest generator refusal (e.g. ungrounded): re-settle, retry
+            print(rung, 'REFUSED:', json.dumps(sub)[:300])
+            settled_steadily(1800)
+        out['submit'] = sub
+        out['refusals_before_submit'] = refusals
+        job = sub.get('job_id')
+        if job is None:
+            json.dump(out, open(prefix + '_build_REFUSED.json', 'w'), indent=1)
+            raise SystemExit('generator refused %d times; see %s_build_REFUSED.json' % (len(refusals), prefix))
+        print(rung, 'submitted job', job, 'buildings', sub.get('buildings'), 'queued', len(sub.get('queued_builds', [])))
     t0 = time.time()
     j = None
     while time.time() - t0 < 7200:

@@ -158,6 +158,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
         // densified copy must outlive every use of tierP in this planning pass.
         const double density = std::clamp(p.value("density", 1.0), 0.5, 2.0);
         Core::SettlementTierPreset densified;
+        Core::SettlementTierPreset sited;   // site-scaled copy (scaleForSite), same lifetime rule
         if (programMode) {
             if (!programReg.loadFromFile("resources/settlement_program.json")) {
                 res.error = {{"error", "settlement_program.json failed to load"}};
@@ -172,6 +173,11 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             if (density != 1.0) {
                 densified = Core::applyDensity(*tierP, density);
                 tierP = &densified;
+            }
+            // After density: the cap grows with the site beyond the tier's reference site.
+            if (tierP->referenceSiteW > 0 && tierP->referenceSiteD > 0) {
+                sited = Core::scaleForSite(*tierP, W, D);
+                tierP = &sited;
             }
             if (tierP->morphology == "cluster") {
                 // cluster reuses the legacy scatter/grid layout; the tier contributes its weighted
@@ -1127,7 +1133,7 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     for (int z = g.opening.z; z < g.opening.z1(); ++z)
                         gateCols.insert({x, z});
 
-            constexpr int kGateClearCubes = 4;   // headroom under the gate lintel
+            const int kGateClearCubes = spec.gateClearCubes;  // headroom under the gate lintel
             Core::StructureResult batch;
             // The wall must OWN its line. place() will not overwrite an occupied cell, so a
             // tree standing on the wall line silently punched a hole in the circuit (found by
@@ -1762,7 +1768,10 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             // Echo {era, tier, seed, density} so a live build is exactly reproducible
             // (determinism contract; density echoes CLAMPED so the caller sees what applied).
             programJson = {{"era", era}, {"tier", tierName}, {"seed", seed},
-                           {"density", density}, {"morphology", tierP->morphology}};
+                           {"density", density}, {"morphology", tierP->morphology},
+                           // the EFFECTIVE cap after density and site scaling (echoed, so a
+                           // caller can tell "the site was full" from "the cap bound")
+                           {"buildings_cap", tierP->buildingsMax}};
             if (mainStreetMode) {
                 programJson["main_street"] = {{"x", ox + msl.mainStreet.x}, {"z", oz + msl.mainStreet.z},
                                               {"w", msl.mainStreet.w}, {"d", msl.mainStreet.d}};

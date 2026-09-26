@@ -420,3 +420,45 @@ TEST(CityLayoutTest, DeterministicInSeed) {
                   a.assigned[i].typology != c.assigned[i].typology;
     EXPECT_TRUE(differs) << "different seed produced an identical city";
 }
+
+// SITE-SCALED CAP (2026-09-26, PerfProgram 2026-09 section 16 city ladder). The city tier's
+// buildings.max (48, x1.5 density = 72) was a FIXED ceiling: a 192x192 site generated exactly the
+// same 72 buildings as a 160x160 one, so a 100-building city was unreachable at any allowed density.
+// The cap now scales with site area past the tier's reference site (reference_site in
+// settlement_program.json). RED before the data carries reference_site: capped at 72.
+TEST(CityLayoutTest, TheBuildingCapGrowsWithTheSite) {
+    Fixture f;
+    if (!f.ok) GTEST_SKIP() << "canon files not reachable from CWD";
+    const auto dense = applyDensity(*f.city, 1.5);
+    const auto big = scaleForSite(dense, 192, 192);
+    EXPECT_GT(big.buildingsMax, dense.buildingsMax)
+        << "a 192x192 site must allow more buildings than the " << dense.buildingsMax
+        << " the reference site allows (city tier reference_site missing?)";
+    const auto l = planCityLayout(big, 192, 192, f.rreg, 7);
+    ASSERT_TRUE(l.ok);
+    EXPECT_GT(l.assigned.size(), static_cast<size_t>(dense.buildingsMax))
+        << "the 192x192 city must PLAN more than the old fixed cap of " << dense.buildingsMax
+        << " (planned " << l.assigned.size() << ", cap now " << big.buildingsMax << ")";
+    // The extra plots are as legal as the rest: no plot overlaps a street or another plot.
+    for (size_t i = 0; i < l.assigned.size(); ++i) {
+        const Rect& p = l.assigned[i].plot.rect;
+        for (const auto& s : l.base.streets)
+            EXPECT_FALSE(overlaps(p, s)) << "plot " << i << " overlaps a street";
+        for (size_t j = i + 1; j < l.assigned.size(); ++j)
+            EXPECT_FALSE(overlaps(p, l.assigned[j].plot.rect)) << "plots " << i << "/" << j << " overlap";
+    }
+}
+
+// Scale-UP only: at or below the reference site the tier is exactly as tuned, so every existing
+// smaller city (and the whole C-25 / C-50 ladder) is unchanged.
+TEST(CityLayoutTest, SitesAtOrBelowTheReferenceKeepTheTunedCap) {
+    Fixture f;
+    if (!f.ok) GTEST_SKIP() << "canon files not reachable from CWD";
+    const auto dense = applyDensity(*f.city, 1.5);
+    for (int s : {96, 128, 160})
+        EXPECT_EQ(scaleForSite(dense, s, s).buildingsMax, dense.buildingsMax) << "site " << s;
+    SettlementTierPreset noRef = dense;
+    noRef.referenceSiteW = noRef.referenceSiteD = 0;
+    EXPECT_EQ(scaleForSite(noRef, 400, 400).buildingsMax, dense.buildingsMax)
+        << "a tier with no reference_site keeps an absolute cap";
+}

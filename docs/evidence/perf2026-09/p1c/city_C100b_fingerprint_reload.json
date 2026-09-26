@@ -1,0 +1,113 @@
+{
+ "rung": "C-100",
+ "recipe": {
+  "era": "medieval",
+  "tier": "city",
+  "seed": 7,
+  "position": {
+   "x": -96,
+   "y": 16,
+   "z": -96
+  },
+  "width": 192,
+  "depth": 192,
+  "terrain": true,
+  "density": 1.5
+ },
+ "overview_pose": {
+  "x": 0,
+  "y": 190,
+  "z": 172.8,
+  "yaw": -90,
+  "pitch": -45
+ },
+ "anchor_pose": {
+  "x": 0,
+  "y": 100,
+  "z": 0,
+  "yaw": -90,
+  "pitch": -89
+ },
+ "fingerprint": {
+  "placed_objects": 1876,
+  "npcs": 107,
+  "voxel_tiers": {
+   "tiers": {
+    "cube": {
+     "faces_merged": 36726,
+     "faces_view_main": 981,
+     "gpu_bytes": 587616,
+     "merge_ratio": 15.63369275172902,
+     "shadow_faces_view": {
+      "far": 0,
+      "mid": 36726,
+      "near": 9951
+     },
+     "stored": 9592773,
+     "unit_faces_premerge": 574163
+    },
+    "lod_cell": {
+     "faces_merged": 0,
+     "faces_view_main": 0,
+     "gpu_bytes": 0,
+     "merge_ratio": 0.0,
+     "shadow_faces_view": {
+      "far": 0,
+      "mid": 0,
+      "near": 0
+     },
+     "unit_faces_premerge": 0
+    },
+    "micro": {
+     "cpu_bytes_floor": 1189366240,
+     "faces_merged": 431392,
+     "faces_view_main": 58973,
+     "gpu_bytes": 6902272,
+     "merge_ratio": 10.39173188190787,
+     "shadow_faces_view": {
+      "far": 0,
+      "mid": 431392,
+      "near": 400911
+     },
+     "stored": 8745340,
+     "unit_faces_premerge": 4482910
+    },
+    "sub": {
+     "cpu_bytes_floor": 290801024,
+     "faces_merged": 170844,
+     "faces_view_main": 3129,
+     "gpu_bytes": 2733504,
+     "merge_ratio": 4.31495984640959,
+     "shadow_faces_view": {
+      "far": 0,
+      "mid": 170844,
+      "near": 32118
+     },
+     "stored": 2271883,
+     "unit_faces_premerge": 737185
+    }
+   }
+  },
+  "lights": {
+   "registered": 533,
+   "uploaded": null,
+   "enabled_point": 533,
+   "by_source": {
+    "api": 0,
+    "editor": 0,
+    "emissive_voxel": 218,
+    "fixture": 216,
+    "item_effect": 99,
+    "vfx": 0
+   },
+   "by_source_uploaded": {
+    "api": 0,
+    "editor": 0,
+    "emissive_voxel": 20,
+    "fixture": 11,
+    "item_effect": 1,
+    "vfx": 0
+   }
+  }
+ }
+}

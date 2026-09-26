@@ -1,0 +1,2937 @@
+{
+ "rung": "C-100",
+ "recipe": {
+  "era": "medieval",
+  "tier": "city",
+  "seed": 7,
+  "position": {
+   "x": -96,
+   "y": 16,
+   "z": -96
+  },
+  "width": 192,
+  "depth": 192,
+  "terrain": true,
+  "density": 1.5
+ },
+ "overview_pose": {
+  "x": 0,
+  "y": 190,
+  "z": 172.8,
+  "yaw": -90,
+  "pitch": -45
+ },
+ "anchor_pose": {
+  "x": 0,
+  "y": 100,
+  "z": 0,
+  "yaw": -90,
+  "pitch": -89
+ },
+ "submit": {
+  "async": true,
+  "job_id": 1000000,
+  "program": {
+   "buildings_cap": 104,
+   "density": 1.5,
+   "dropped_plots": 0,
+   "era": "medieval",
+   "main_street": {
+    "d": 7,
+    "w": 192,
+    "x": -96,
+    "z": -4
+   },
+   "morphology": "semi_organic",
+   "seed": 7,
+   "tier": "city"
+  },
+  "queued_builds": [
+   {
+    "footprint": [
+     8,
+     6
+    ],
+    "plot": 0,
+    "position": {
+     "x": -91,
+     "y": 60,
+     "z": 5
+    },
+    "shape": "rect",
+    "style": "stone_keep",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     5,
+     8
+    ],
+    "plot": 1,
+    "position": {
+     "x": -91,
+     "y": 60,
+     "z": -14
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     5,
+     8
+    ],
+    "plot": 2,
+    "position": {
+     "x": -52,
+     "y": 56,
+     "z": 5
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     6
+    ],
+    "plot": 3,
+    "position": {
+     "x": -53,
+     "y": 55,
+     "z": -11
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 4,
+    "position": {
+     "x": -31,
+     "y": 54,
+     "z": 5
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "blacksmith"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 5,
+    "position": {
+     "x": -23,
+     "y": 53,
+     "z": 3
+    },
+    "shape": "L",
+    "style": "stone_keep",
+    "typology": "apothecary"
+   },
+   {
+    "footprint": [
+     7,
+     16
+    ],
+    "plot": 6,
+    "position": {
+     "x": -17,
+     "y": 52,
+     "z": 3
+    },
+    "shape": "rect",
+    "style": "stone_keep",
+    "typology": "tavern"
+   },
+   {
+    "footprint": [
+     7,
+     16
+    ],
+    "plot": 7,
+    "position": {
+     "x": -32,
+     "y": 53,
+     "z": -21
+    },
+    "shape": "L",
+    "style": "stone_keep",
+    "typology": "tavern"
+   },
+   {
+    "footprint": [
+     5,
+     8
+    ],
+    "plot": 8,
+    "position": {
+     "x": -23,
+     "y": 53,
+     "z": -13
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 9,
+    "position": {
+     "x": -16,
+     "y": 52,
+     "z": -13
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "bakery"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 10,
+    "position": {
+     "x": 10,
+     "y": 51,
+     "z": 4
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "general_store"
+   },
+   {
+    "footprint": [
+     7,
+     16
+    ],
+    "plot": 11,
+    "position": {
+     "x": 18,
+     "y": 50,
+     "z": 4
+    },
+    "shape": "L",
+    "style": "stone_keep",
+    "typology": "tavern"
+   },
+   {
+    "footprint": [
+     5,
+     8
+    ],
+    "plot": 12,
+    "position": {
+     "x": 27,
+     "y": 50,
+     "z": 4
+    },
+    "shape": "L",
+    "style": "stone_keep",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 13,
+    "position": {
+     "x": 10,
+     "y": 51,
+     "z": -13
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "bakery"
+   },
+   {
+    "footprint": [
+     16,
+     6
+    ],
+    "plot": 14,
+    "position": {
+     "x": 19,
+     "y": 50,
+     "z": -12
+    },
+    "shape": "L",
+    "style": "stone_manor",
+    "typology": "longhouse"
+   },
+   {
+    "footprint": [
+     5,
+     8
+    ],
+    "plot": 15,
+    "position": {
+     "x": 49,
+     "y": 48,
+     "z": 5
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 16,
+    "position": {
+     "x": 49,
+     "y": 48,
+     "z": -14
+    },
+    "shape": "L",
+    "style": "stone_keep",
+    "typology": "blacksmith"
+   },
+   {
+    "footprint": [
+     5,
+     8
+    ],
+    "plot": 17,
+    "position": {
+     "x": 69,
+     "y": 46,
+     "z": 4
+    },
+    "shape": "rect",
+    "style": "stone_keep",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 18,
+    "position": {
+     "x": 5,
+     "y": 51,
+     "z": 24
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 19,
+    "position": {
+     "x": 5,
+     "y": 51,
+     "z": 33
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     16
+    ],
+    "plot": 20,
+    "position": {
+     "x": 4,
+     "y": 51,
+     "z": 41
+    },
+    "shape": "L",
+    "style": "stone_manor",
+    "typology": "hall_house"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 21,
+    "position": {
+     "x": 4,
+     "y": 50,
+     "z": 59
+    },
+    "shape": "L",
+    "style": "timber_cottage",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     16
+    ],
+    "plot": 22,
+    "position": {
+     "x": 5,
+     "y": 51,
+     "z": 67
+    },
+    "shape": "L",
+    "style": "stone_manor",
+    "typology": "hall_house"
+   },
+   {
+    "footprint": [
+     6,
+     16
+    ],
+    "plot": 23,
+    "position": {
+     "x": -12,
+     "y": 52,
+     "z": 24
+    },
+    "shape": "L",
+    "style": "timber_cottage",
+    "typology": "longhouse"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 24,
+    "position": {
+     "x": -11,
+     "y": 52,
+     "z": 43
+    },
+    "shape": "rect",
+    "style": "stone_keep",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     8,
+     16
+    ],
+    "plot": 25,
+    "position": {
+     "x": -13,
+     "y": 52,
+     "z": 53
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "hall_house"
+   },
+   {
+    "footprint": [
+     8,
+     16
+    ],
+    "plot": 26,
+    "position": {
+     "x": -13,
+     "y": 52,
+     "z": 71
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "hall_house"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 27,
+    "position": {
+     "x": 4,
+     "y": 51,
+     "z": -93
+    },
+    "shape": "rect",
+    "style": "stone_keep",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     8,
+     16
+    ],
+    "plot": 28,
+    "position": {
+     "x": 4,
+     "y": 51,
+     "z": -83
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "hall_house"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 29,
+    "position": {
+     "x": 4,
+     "y": 51,
+     "z": -65
+    },
+    "shape": "L",
+    "style": "stone_manor",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     16
+    ],
+    "plot": 30,
+    "position": {
+     "x": 5,
+     "y": 50,
+     "z": -57
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "hall_house"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 31,
+    "position": {
+     "x": 4,
+     "y": 51,
+     "z": -38
+    },
+    "shape": "L",
+    "style": "stone_manor",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 32,
+    "position": {
+     "x": 5,
+     "y": 51,
+     "z": -30
+    },
+    "shape": "L",
+    "style": "stone_keep",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 33,
+    "position": {
+     "x": -12,
+     "y": 53,
+     "z": -92
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 34,
+    "position": {
+     "x": -13,
+     "y": 51,
+     "z": -81
+    },
+    "shape": "L",
+    "style": "timber_cottage",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 35,
+    "position": {
+     "x": -13,
+     "y": 52,
+     "z": -74
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 36,
+    "position": {
+     "x": -14,
+     "y": 52,
+     "z": -66
+    },
+    "shape": "L",
+    "style": "stone_manor",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     16
+    ],
+    "plot": 37,
+    "position": {
+     "x": -14,
+     "y": 52,
+     "z": -57
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "hall_house"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 38,
+    "position": {
+     "x": -14,
+     "y": 52,
+     "z": -37
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 39,
+    "position": {
+     "x": -71,
+     "y": 58,
+     "z": -93
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 40,
+    "position": {
+     "x": -84,
+     "y": 60,
+     "z": -93
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 41,
+    "position": {
+     "x": -71,
+     "y": 58,
+     "z": -71
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 42,
+    "position": {
+     "x": -85,
+     "y": 60,
+     "z": -72
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 43,
+    "position": {
+     "x": -85,
+     "y": 60,
+     "z": -65
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 44,
+    "position": {
+     "x": -73,
+     "y": 58,
+     "z": -55
+    },
+    "shape": "L",
+    "style": "stone_keep",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 45,
+    "position": {
+     "x": -84,
+     "y": 59,
+     "z": -55
+    },
+    "shape": "L",
+    "style": "timber_cottage",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 46,
+    "position": {
+     "x": -73,
+     "y": 58,
+     "z": -36
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 47,
+    "position": {
+     "x": -86,
+     "y": 59,
+     "z": -36
+    },
+    "shape": "L",
+    "style": "stone_manor",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 48,
+    "position": {
+     "x": -71,
+     "y": 58,
+     "z": -18
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 49,
+    "position": {
+     "x": -72,
+     "y": 58,
+     "z": 5
+    },
+    "shape": "L",
+    "style": "timber_cottage",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 50,
+    "position": {
+     "x": -73,
+     "y": 59,
+     "z": 20
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 51,
+    "position": {
+     "x": -73,
+     "y": 60,
+     "z": 27
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 52,
+    "position": {
+     "x": -73,
+     "y": 60,
+     "z": 34
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     16
+    ],
+    "plot": 53,
+    "position": {
+     "x": -86,
+     "y": 61,
+     "z": 20
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "hall_house"
+   },
+   {
+    "footprint": [
+     8,
+     16
+    ],
+    "plot": 54,
+    "position": {
+     "x": -85,
+     "y": 61,
+     "z": 44
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "hall_house"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 55,
+    "position": {
+     "x": -71,
+     "y": 59,
+     "z": 65
+    },
+    "shape": "rect",
+    "style": "stone_keep",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 56,
+    "position": {
+     "x": -84,
+     "y": 60,
+     "z": 65
+    },
+    "shape": "L",
+    "style": "stone_keep",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 57,
+    "position": {
+     "x": -84,
+     "y": 61,
+     "z": 72
+    },
+    "shape": "L",
+    "style": "timber_cottage",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 58,
+    "position": {
+     "x": -82,
+     "y": 61,
+     "z": 84
+    },
+    "shape": "rect",
+    "style": "stone_keep",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 59,
+    "position": {
+     "x": -54,
+     "y": 56,
+     "z": -94
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 60,
+    "position": {
+     "x": -53,
+     "y": 56,
+     "z": -86
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 61,
+    "position": {
+     "x": -67,
+     "y": 58,
+     "z": -82
+    },
+    "shape": "rect",
+    "style": "stone_keep",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 62,
+    "position": {
+     "x": -56,
+     "y": 56,
+     "z": -73
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 63,
+    "position": {
+     "x": -55,
+     "y": 56,
+     "z": -57
+    },
+    "shape": "L",
+    "style": "stone_keep",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 64,
+    "position": {
+     "x": -55,
+     "y": 56,
+     "z": -48
+    },
+    "shape": "rect",
+    "style": "stone_keep",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 65,
+    "position": {
+     "x": -69,
+     "y": 57,
+     "z": -44
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 66,
+    "position": {
+     "x": -54,
+     "y": 55,
+     "z": -35
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 67,
+    "position": {
+     "x": -55,
+     "y": 57,
+     "z": 21
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 68,
+    "position": {
+     "x": -58,
+     "y": 58,
+     "z": 39
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 69,
+    "position": {
+     "x": -69,
+     "y": 60,
+     "z": 41
+    },
+    "shape": "rect",
+    "style": "stone_keep",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     6,
+     16
+    ],
+    "plot": 70,
+    "position": {
+     "x": -59,
+     "y": 56,
+     "z": 54
+    },
+    "shape": "L",
+    "style": "stone_keep",
+    "typology": "longhouse"
+   },
+   {
+    "footprint": [
+     6,
+     16
+    ],
+    "plot": 71,
+    "position": {
+     "x": -57,
+     "y": 57,
+     "z": 77
+    },
+    "shape": "L",
+    "style": "timber_cottage",
+    "typology": "longhouse"
+   },
+   {
+    "footprint": [
+     6,
+     16
+    ],
+    "plot": 72,
+    "position": {
+     "x": -68,
+     "y": 59,
+     "z": 77
+    },
+    "shape": "L",
+    "style": "stone_manor",
+    "typology": "longhouse"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 73,
+    "position": {
+     "x": -34,
+     "y": 54,
+     "z": -94
+    },
+    "shape": "rect",
+    "style": "stone_keep",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 74,
+    "position": {
+     "x": -33,
+     "y": 54,
+     "z": -78
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 75,
+    "position": {
+     "x": -33,
+     "y": 54,
+     "z": -57
+    },
+    "shape": "L",
+    "style": "stone_keep",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 76,
+    "position": {
+     "x": -33,
+     "y": 54,
+     "z": -48
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     16
+    ],
+    "plot": 77,
+    "position": {
+     "x": -36,
+     "y": 55,
+     "z": 63
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "hall_house"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 78,
+    "position": {
+     "x": -37,
+     "y": 55,
+     "z": 84
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 79,
+    "position": {
+     "x": 47,
+     "y": 48,
+     "z": -94
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 80,
+    "position": {
+     "x": 36,
+     "y": 49,
+     "z": -94
+    },
+    "shape": "L",
+    "style": "timber_cottage",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     8,
+     16
+    ],
+    "plot": 81,
+    "position": {
+     "x": 47,
+     "y": 48,
+     "z": -78
+    },
+    "shape": "rect",
+    "style": "stone_keep",
+    "typology": "hall_house"
+   },
+   {
+    "footprint": [
+     8,
+     16
+    ],
+    "plot": 82,
+    "position": {
+     "x": 33,
+     "y": 50,
+     "z": -77
+    },
+    "shape": "rect",
+    "style": "stone_keep",
+    "typology": "hall_house"
+   },
+   {
+    "footprint": [
+     8,
+     16
+    ],
+    "plot": 83,
+    "position": {
+     "x": 45,
+     "y": 49,
+     "z": -56
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "hall_house"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 84,
+    "position": {
+     "x": 31,
+     "y": 50,
+     "z": -55
+    },
+    "shape": "L",
+    "style": "stone_manor",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 85,
+    "position": {
+     "x": 43,
+     "y": 49,
+     "z": -36
+    },
+    "shape": "rect",
+    "style": "stone_keep",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 86,
+    "position": {
+     "x": 29,
+     "y": 50,
+     "z": -35
+    },
+    "shape": "rect",
+    "style": "stone_keep",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 87,
+    "position": {
+     "x": 43,
+     "y": 48,
+     "z": 21
+    },
+    "shape": "rect",
+    "style": "stone_keep",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     8,
+     16
+    ],
+    "plot": 88,
+    "position": {
+     "x": 29,
+     "y": 49,
+     "z": 16
+    },
+    "shape": "rect",
+    "style": "stone_keep",
+    "typology": "hall_house"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 89,
+    "position": {
+     "x": 42,
+     "y": 48,
+     "z": 38
+    },
+    "shape": "L",
+    "style": "timber_cottage",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 90,
+    "position": {
+     "x": 42,
+     "y": 48,
+     "z": 45
+    },
+    "shape": "L",
+    "style": "stone_keep",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 91,
+    "position": {
+     "x": 31,
+     "y": 48,
+     "z": 38
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 92,
+    "position": {
+     "x": 44,
+     "y": 48,
+     "z": 58
+    },
+    "shape": "rect",
+    "style": "stone_keep",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 93,
+    "position": {
+     "x": 43,
+     "y": 48,
+     "z": 69
+    },
+    "shape": "rect",
+    "style": "stone_keep",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 94,
+    "position": {
+     "x": 29,
+     "y": 49,
+     "z": 58
+    },
+    "shape": "L",
+    "style": "stone_keep",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 95,
+    "position": {
+     "x": 29,
+     "y": 49,
+     "z": 67
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 96,
+    "position": {
+     "x": 46,
+     "y": 47,
+     "z": 79
+    },
+    "shape": "rect",
+    "style": "stone_keep",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 97,
+    "position": {
+     "x": 34,
+     "y": 48,
+     "z": 78
+    },
+    "shape": "L",
+    "style": "stone_keep",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     8,
+     16
+    ],
+    "plot": 98,
+    "position": {
+     "x": 67,
+     "y": 46,
+     "z": 44
+    },
+    "shape": "L",
+    "style": "stone_manor",
+    "typology": "hall_house"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 99,
+    "position": {
+     "x": 65,
+     "y": 46,
+     "z": 67
+    },
+    "shape": "rect",
+    "style": "stone_manor",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 100,
+    "position": {
+     "x": 64,
+     "y": 46,
+     "z": 75
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "tenement"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 101,
+    "position": {
+     "x": 62,
+     "y": 46,
+     "z": 85
+    },
+    "shape": "L",
+    "style": "stone_keep",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     6,
+     8
+    ],
+    "plot": 102,
+    "position": {
+     "x": 84,
+     "y": 46,
+     "z": -93
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "croft"
+   },
+   {
+    "footprint": [
+     8,
+     5
+    ],
+    "plot": 103,
+    "position": {
+     "x": 69,
+     "y": 47,
+     "z": -93
+    },
+    "shape": "rect",
+    "style": "timber_cottage",
+    "typology": "tenement"
+   }
+  ],
+  "settlement": {
+   "buildings": 104,
+   "origin": {
+    "x": -96,
+    "y": 16,
+    "z": -96
+   },
+   "plots": 104,
+   "streets": 63
+  },
+  "success": true
+ },
+ "refusals_before_submit": [],
+ "job": {
+  "elapsed_seconds": 1531.116,
+  "id": 1000000,
+  "label": "settlement medieval/city seed 7",
+  "main_thread": true,
+  "message": "complete",
+  "progress": 1.0,
+  "result": {
+   "paths": {
+    "cut_cells_unpaved": 0,
+    "cut_cols_honored": 26092,
+    "cut_cubes_removed": 662,
+    "doorsteps": {
+     "approach_cleared_micros": 4304,
+     "doors": 104,
+     "micros": 4536,
+     "steps": 32,
+     "stooped": 28
+    },
+    "fence_micros": 64714,
+    "fence_runs_dropped_for_alley": 11,
+    "fence_type": "picket",
+    "fill_cols": 28660,
+    "grass_converted": 5801,
+    "level_cols": 439803,
+    "material": "Cobblestone",
+    "orphaned_canopy_cleared": 966,
+    "parcels": 30,
+    "paved_columns": 494555,
+    "paved_microcubes": 798263,
+    "spurs": 103,
+    "spurs_too_steep": 1,
+    "stamp_ms": 144966,
+    "town_wall": {
+     "built": true,
+     "cubes": 14691,
+     "displaced": 927,
+     "gates": 16,
+     "line_cleared": 14080,
+     "towers": 4,
+     "towers_walkable": 4
+    },
+    "unfenced_by_policy": 74,
+    "walkability": {
+     "blocked": 10,
+     "failed": 10,
+     "routes": [
+      {
+       "label": "croft @-91,5: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @-91,5: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-91,-14: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-91,-14: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-52,5: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-52,5: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @-53,-11: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @-53,-11: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "blacksmith @-31,5: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "blacksmith @-31,5: door -> forge",
+       "walkable": true
+      },
+      {
+       "label": "blacksmith @-31,5: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "apothecary @-23,3: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "apothecary @-23,3: door -> dispensary",
+       "walkable": true
+      },
+      {
+       "label": "apothecary @-23,3: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "tavern @-17,3: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tavern @-17,3: door -> taproom",
+       "walkable": true
+      },
+      {
+       "label": "tavern @-17,3: door -> kitchen",
+       "walkable": true
+      },
+      {
+       "label": "tavern @-17,3: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-23,-13: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-23,-13: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "general_store @10,4: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "general_store @10,4: door -> salesroom",
+       "walkable": true
+      },
+      {
+       "label": "general_store @10,4: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "tavern @18,4: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tavern @18,4: door -> taproom",
+       "walkable": true
+      },
+      {
+       "label": "tavern @18,4: door -> kitchen",
+       "walkable": true
+      },
+      {
+       "label": "tavern @18,4: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "tenement @27,4: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @27,4: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "bakery @10,-13: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "bakery @10,-13: door -> bakehouse",
+       "walkable": true
+      },
+      {
+       "label": "bakery @10,-13: door -> salesroom",
+       "walkable": true
+      },
+      {
+       "label": "longhouse @19,-12: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "longhouse @19,-12: door -> bedchamber",
+       "walkable": true
+      },
+      {
+       "label": "longhouse @19,-12: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "longhouse @19,-12: door -> byre",
+       "walkable": true
+      },
+      {
+       "label": "tenement @49,5: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @49,5: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "blacksmith @49,-14: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "blacksmith @49,-14: door -> forge",
+       "walkable": true
+      },
+      {
+       "label": "blacksmith @49,-14: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "tenement @69,4: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @69,4: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @5,24: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @5,24: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @5,33: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @5,33: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @4,41: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @4,41: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @4,41: door -> hall",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @4,41: door -> solar",
+       "walkable": true
+      },
+      {
+       "label": "tenement @4,59: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @4,59: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @5,67: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @5,67: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @5,67: door -> hall",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @5,67: door -> solar",
+       "walkable": true
+      },
+      {
+       "goal_unsupported": false,
+       "label": "longhouse @-12,24: street -> door",
+       "pinch_from": [
+        -41,
+        486,
+        283
+       ],
+       "pinch_gap_micro": 1,
+       "pinch_to": [
+        -42,
+        486,
+        284
+       ],
+       "reached_from_goal": 38761,
+       "reached_from_start": 38569,
+       "start_unsupported": false,
+       "walkable": false
+      },
+      {
+       "label": "longhouse @-12,24: door -> bedchamber",
+       "walkable": true
+      },
+      {
+       "label": "longhouse @-12,24: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "longhouse @-12,24: door -> byre",
+       "walkable": true
+      },
+      {
+       "label": "croft @-11,43: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @-11,43: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-13,53: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-13,53: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-13,53: door -> hall",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-13,53: door -> solar",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-13,71: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-13,71: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-13,71: door -> hall",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-13,71: door -> solar",
+       "walkable": true
+      },
+      {
+       "label": "croft @4,-93: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @4,-93: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @4,-83: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @4,-83: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @4,-83: door -> hall",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @4,-83: door -> solar",
+       "walkable": true
+      },
+      {
+       "label": "tenement @4,-65: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @4,-65: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @5,-57: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @5,-57: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @5,-57: door -> hall",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @5,-57: door -> solar",
+       "walkable": true
+      },
+      {
+       "label": "tenement @4,-38: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @4,-38: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @5,-30: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @5,-30: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @-12,-92: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @-12,-92: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-13,-81: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-13,-81: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-13,-74: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-13,-74: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-14,-66: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-14,-66: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-14,-57: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-14,-57: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-14,-57: door -> hall",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-14,-57: door -> solar",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-14,-37: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-14,-37: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @-71,-93: street -> door",
+       "walkable": true
+      },
+      {
+       "goal_unsupported": false,
+       "label": "croft @-71,-93: door -> living",
+       "pinch_from": [
+        -626,
+        538,
+        -806
+       ],
+       "pinch_gap_micro": 1,
+       "pinch_to": [
+        -625,
+        538,
+        -805
+       ],
+       "reached_from_goal": 26386,
+       "reached_from_start": 26182,
+       "start_unsupported": false,
+       "walkable": false
+      },
+      {
+       "label": "croft @-84,-93: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @-84,-93: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @-71,-71: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @-71,-71: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-85,-72: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-85,-72: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-85,-65: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-85,-65: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @-73,-55: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @-73,-55: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @-84,-55: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @-84,-55: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-73,-36: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-73,-36: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @-86,-36: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @-86,-36: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @-71,-18: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @-71,-18: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @-72,5: street -> door",
+       "walkable": true
+      },
+      {
+       "goal_unsupported": false,
+       "label": "croft @-72,5: door -> living",
+       "pinch_from": [
+        -635,
+        534,
+        112
+       ],
+       "pinch_gap_micro": 1,
+       "pinch_to": [
+        -634,
+        534,
+        111
+       ],
+       "reached_from_goal": 29256,
+       "reached_from_start": 29052,
+       "start_unsupported": false,
+       "walkable": false
+      },
+      {
+       "label": "tenement @-73,20: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-73,20: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-73,27: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-73,27: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-73,34: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-73,34: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-86,20: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-86,20: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-86,20: door -> hall",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-86,20: door -> solar",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-85,44: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-85,44: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-85,44: door -> hall",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-85,44: door -> solar",
+       "walkable": true
+      },
+      {
+       "goal_unsupported": false,
+       "label": "croft @-71,65: street -> door",
+       "pinch_from": [
+        -617,
+        540,
+        670
+       ],
+       "pinch_gap_micro": 1,
+       "pinch_to": [
+        -618,
+        540,
+        669
+       ],
+       "reached_from_goal": 24181,
+       "reached_from_start": 10161,
+       "start_unsupported": false,
+       "walkable": false
+      },
+      {
+       "label": "croft @-71,65: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-84,65: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-84,65: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-84,72: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-84,72: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @-82,84: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @-82,84: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-54,-94: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-54,-94: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @-53,-86: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @-53,-86: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-67,-82: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-67,-82: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @-56,-73: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @-56,-73: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-55,-57: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-55,-57: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-55,-48: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-55,-48: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-69,-44: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-69,-44: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-54,-35: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-54,-35: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @-55,21: street -> door",
+       "walkable": true
+      },
+      {
+       "goal_unsupported": false,
+       "label": "croft @-55,21: door -> living",
+       "pinch_from": [
+        -482,
+        529,
+        220
+       ],
+       "pinch_gap_micro": 1,
+       "pinch_to": [
+        -481,
+        529,
+        221
+       ],
+       "reached_from_goal": 28243,
+       "reached_from_start": 28039,
+       "start_unsupported": false,
+       "walkable": false
+      },
+      {
+       "label": "tenement @-58,39: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-58,39: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @-69,41: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @-69,41: door -> living",
+       "walkable": true
+      },
+      {
+       "goal_unsupported": false,
+       "label": "longhouse @-59,54: street -> door",
+       "pinch_from": [
+        -563,
+        517,
+        598
+       ],
+       "pinch_gap_micro": 1,
+       "pinch_to": [
+        -562,
+        517,
+        598
+       ],
+       "reached_from_goal": 36837,
+       "reached_from_start": 33857,
+       "start_unsupported": false,
+       "walkable": false
+      },
+      {
+       "label": "longhouse @-59,54: door -> bedchamber",
+       "walkable": true
+      },
+      {
+       "label": "longhouse @-59,54: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "longhouse @-59,54: door -> byre",
+       "walkable": true
+      },
+      {
+       "label": "longhouse @-57,77: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "longhouse @-57,77: door -> bedchamber",
+       "walkable": true
+      },
+      {
+       "label": "longhouse @-57,77: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "longhouse @-57,77: door -> byre",
+       "walkable": true
+      },
+      {
+       "label": "longhouse @-68,77: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "longhouse @-68,77: door -> bedchamber",
+       "walkable": true
+      },
+      {
+       "label": "longhouse @-68,77: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "longhouse @-68,77: door -> byre",
+       "walkable": true
+      },
+      {
+       "label": "croft @-33,-78: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @-33,-78: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-33,-57: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-33,-57: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-33,-48: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-33,-48: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-36,63: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-36,63: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-36,63: door -> hall",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @-36,63: door -> solar",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-37,84: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @-37,84: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @47,-94: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @47,-94: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @36,-94: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @36,-94: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @47,-78: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @47,-78: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @47,-78: door -> hall",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @47,-78: door -> solar",
+       "walkable": true
+      },
+      {
+       "goal_unsupported": false,
+       "label": "hall_house @33,-77: street -> door",
+       "pinch_from": [
+        391,
+        451,
+        -662
+       ],
+       "pinch_gap_micro": 1,
+       "pinch_to": [
+        390,
+        451,
+        -661
+       ],
+       "reached_from_goal": 37635,
+       "reached_from_start": 33125,
+       "start_unsupported": false,
+       "walkable": false
+      },
+      {
+       "label": "hall_house @33,-77: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @33,-77: door -> hall",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @33,-77: door -> solar",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @45,-56: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @45,-56: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @45,-56: door -> hall",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @45,-56: door -> solar",
+       "walkable": true
+      },
+      {
+       "label": "tenement @31,-55: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @31,-55: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @43,-36: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @43,-36: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @29,-35: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @29,-35: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @43,21: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @43,21: door -> living",
+       "walkable": true
+      },
+      {
+       "goal_unsupported": false,
+       "label": "hall_house @29,16: street -> door",
+       "pinch_from": [
+        373,
+        450,
+        157
+       ],
+       "pinch_gap_micro": 1,
+       "pinch_to": [
+        372,
+        450,
+        158
+       ],
+       "reached_from_goal": 33272,
+       "reached_from_start": 28762,
+       "start_unsupported": false,
+       "walkable": false
+      },
+      {
+       "label": "hall_house @29,16: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @29,16: door -> hall",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @29,16: door -> solar",
+       "walkable": true
+      },
+      {
+       "label": "tenement @42,38: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @42,38: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @42,45: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @42,45: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @31,38: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @31,38: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @44,58: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @44,58: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @43,69: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @43,69: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @29,58: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @29,58: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @29,67: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @29,67: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @46,79: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @46,79: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @34,78: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "croft @34,78: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @67,44: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @67,44: door -> service",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @67,44: door -> hall",
+       "walkable": true
+      },
+      {
+       "label": "hall_house @67,44: door -> solar",
+       "walkable": true
+      },
+      {
+       "label": "tenement @65,67: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @65,67: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "tenement @64,75: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @64,75: door -> living",
+       "walkable": true
+      },
+      {
+       "goal_unsupported": false,
+       "label": "croft @62,85: street -> door",
+       "pinch_from": [
+        506,
+        414,
+        753
+       ],
+       "pinch_gap_micro": 1,
+       "pinch_to": [
+        507,
+        414,
+        753
+       ],
+       "reached_from_goal": 19125,
+       "reached_from_start": 493,
+       "start_unsupported": false,
+       "walkable": false
+      },
+      {
+       "label": "croft @62,85: door -> living",
+       "walkable": true
+      },
+      {
+       "label": "croft @84,-93: street -> door",
+       "walkable": true
+      },
+      {
+       "goal_unsupported": false,
+       "label": "croft @84,-93: door -> living",
+       "pinch_from": [
+        769,
+        430,
+        -806
+       ],
+       "pinch_gap_micro": 1,
+       "pinch_to": [
+        770,
+        430,
+        -805
+       ],
+       "reached_from_goal": 28645,
+       "reached_from_start": 28441,
+       "start_unsupported": false,
+       "walkable": false
+      },
+      {
+       "label": "tenement @69,-93: street -> door",
+       "walkable": true
+      },
+      {
+       "label": "tenement @69,-93: door -> living",
+       "walkable": true
+      }
+     ],
+     "skipped": 3,
+     "walkable": 241
+    }
+   },
+   "residents": {
+    "adopted": 104,
+    "failed": 0,
+    "planned": 104,
+    "spawned": 0
+   },
+   "yard_props": {
+    "placed": 94,
+    "skipped": 0,
+    "square_dressing": {
+     "placed": 5,
+     "skipped": 0
+    }
+   }
+  },
+  "state": "complete",
+  "type": "build_settlement",
+  "units_done": 222,
+  "units_total": 222
+ },
+ "build_wall_s": 1531.116998910904,
+ "save": {
+  "mode": "dirty",
+  "success": true
+ },
+ "fingerprint": {
+  "placed_objects": 1876,
+  "npcs": 107,
+  "voxel_tiers": {
+   "tiers": {
+    "cube": {
+     "faces_merged": 36726,
+     "faces_view_main": 981,
+     "gpu_bytes": 587616,
+     "merge_ratio": 15.63369275172902,
+     "shadow_faces_view": {
+      "far": 0,
+      "mid": 36726,
+      "near": 9951
+     },
+     "stored": 9592773,
+     "unit_faces_premerge": 574163
+    },
+    "lod_cell": {
+     "faces_merged": 0,
+     "faces_view_main": 0,
+     "gpu_bytes": 0,
+     "merge_ratio": 0.0,
+     "shadow_faces_view": {
+      "far": 0,
+      "mid": 0,
+      "near": 0
+     },
+     "unit_faces_premerge": 0
+    },
+    "micro": {
+     "cpu_bytes_floor": 1186898656,
+     "faces_merged": 430833,
+     "faces_view_main": 58835,
+     "gpu_bytes": 6893328,
+     "merge_ratio": 10.402821975104043,
+     "shadow_faces_view": {
+      "far": 0,
+      "mid": 430833,
+      "near": 400352
+     },
+     "stored": 8727196,
+     "unit_faces_premerge": 4481879
+    },
+    "sub": {
+     "cpu_bytes_floor": 290119552,
+     "faces_merged": 170745,
+     "faces_view_main": 3081,
+     "gpu_bytes": 2731920,
+     "merge_ratio": 4.316712055989926,
+     "shadow_faces_view": {
+      "far": 0,
+      "mid": 170745,
+      "near": 32026
+     },
+     "stored": 2266559,
+     "unit_faces_premerge": 737057
+    }
+   }
+  },
+  "lights": {
+   "registered": 533,
+   "uploaded": null,
+   "enabled_point": 533,
+   "by_source": {
+    "api": 0,
+    "editor": 0,
+    "emissive_voxel": 218,
+    "fixture": 216,
+    "item_effect": 99,
+    "vfx": 0
+   },
+   "by_source_uploaded": {
+    "api": 0,
+    "editor": 0,
+    "emissive_voxel": 20,
+    "fixture": 11,
+    "item_effect": 1,
+    "vfx": 0
+   }
+  }
+ }
+}
