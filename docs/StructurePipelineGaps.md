@@ -920,3 +920,22 @@ repo root creates it, so the test fails for anyone who has run the engine there.
 with `cache/textures` moved aside the test passes; restored afterwards. Fix belongs to the test
 (or `getAtlasInfo` on the cached path), not to any feature; not fixed here.
 
+## 2026-09-25 — Standalone (packaged) games do NOT stream terrain; the editor anchors streaming on the CAMERA
+
+Found while validating the city-benchmark tooling (`docs/PerfProgram2026-09.md` §16, V4). Code search,
+not yet an L4 run of a packaged game:
+- **Only the editor pumps streaming.** `updateChunkStreaming()` / `pumpChunkLanding()` are called from
+  exactly one place, `Application.cpp:4263-4264` (editor loop). Nothing in `engine/src` (EngineRuntime,
+  GameShell), `examples/`, the project scaffold (`tools/create_project.py`) or any game project under
+  `Documents/PhyxelProjects` calls them. So a `world.streaming: true` game, run as the shipped
+  standalone, generates its up-front range and never streams beyond it.
+- **`playerPosition` is the camera in the editor.** `Application.cpp:4245`
+  `chunkManager->setPlayerPosition(camera->getPosition())`, every frame, despite `ChunkManager`'s
+  comments calling it the player. Nothing sets it in the standalone at all.
+- Fix direction: move the streaming pump (and the anchor update: the player character if one exists,
+  else the camera) into `EngineRuntime`'s frame so both hosts share it — the same defect family as audio
+  listener updates living only in the editor loop (`EngineRuntime::endFrame` comment). Needs a red L4
+  test on a packaged streaming game (walk past the up-front range; assert new chunks become resident).
+- Workaround in the benchmark: measure in the editor host; the standalone `--test` follow-up is blocked
+  on this for streaming worlds.
+

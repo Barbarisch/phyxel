@@ -1147,6 +1147,15 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(queueAndWait("set_depth_prepass", params).dump(), "application/json");
     });
 
+    // POST /api/debug/gi_probe {skip_buried: bool, two_level_trace: bool} - probe-pass options A/B
+    // (GI-1, GI-2; docs/PerfProgram2026-09.md section 15). Each optional (omitted = unchanged); a
+    // non-boolean refuses the request. Both default ON. Echoes both and gi_enabled.
+    srv.Post("/api/debug/gi_probe", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_gi_probe_options", params).dump(), "application/json");
+    });
+
     // POST /api/debug/emitter_merge {enabled: bool} — L1 duplicate-emitter merge A/B
     // (docs/PerfProgram2026-09.md). Omitted = unchanged. Re-meshes every chunk so the emissive light
     // list is rebuilt under the new setting; echoes the state and the resulting light count.
@@ -4685,6 +4694,39 @@ void EngineAPIServer::setupRoutes() {
         json params = json::object();
         if (req.has_param("frames")) params["frames"] = req.get_param_value("frames");
         res.set_content(queueAndWait("get_cpu_timing", params).dump(), "application/json");
+    });
+
+    // ---- City benchmark tooling (docs/PerfProgram2026-09.md section 16) ----
+    // GET /api/debug/frame_pacing?frames=N -- main-loop phases (PerformanceProfiler scopes) + Frame
+    // Interval, statistics AND the raw per-frame series (I11).
+    srv.Get("/api/debug/frame_pacing", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("frames")) params["frames"] = req.get_param_value("frames");
+        res.set_content(queueAndWait("get_frame_pacing", params).dump(), "application/json");
+    });
+    // POST /api/debug/record {start:true, max_frames:N} | {stop:true}; GET /api/debug/record?from=K&count=M
+    // -- the route recorder (I15). Read AFTER a route: requests during a measured route perturb it.
+    srv.Post("/api/debug/record", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("record_control", params).dump(), "application/json");
+    });
+    srv.Get("/api/debug/record", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::object();
+        if (req.has_param("from")) params["from"] = req.get_param_value("from");
+        if (req.has_param("count")) params["count"] = req.get_param_value("count");
+        res.set_content(queueAndWait("record_dump", params, 30000).dump(), "application/json");
+    });
+    // POST /api/camera/path {waypoints, speed_u_per_s, loop, stream_follow} | {stop:true}; GET = status
+    // -- constant-speed camera path; the streaming focus follows it (I12/I14).
+    srv.Post("/api/camera/path", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded() || !params.is_object() || params.empty())
+            params = json{{"invalid", true}};   // an empty POST must not read as a GET
+        res.set_content(queueAndWait("camera_path", params).dump(), "application/json");
+    });
+    srv.Get("/api/camera/path", [this](const httplib::Request&, httplib::Response& res) {
+        res.set_content(queueAndWait("camera_path", json::object()).dump(), "application/json");
     });
 
     // GET /api/debug/mesh_timing?reset=0|1 — chunk re-mesh cost by phase and by the chunk's

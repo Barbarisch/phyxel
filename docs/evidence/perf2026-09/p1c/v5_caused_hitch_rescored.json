@@ -1,0 +1,37 @@
+{
+ "window_s": [
+  7.8,
+  10.5
+ ],
+ "fill_caused_hitches": [
+  {
+   "t_s": 9.88,
+   "frame_ms": 1842.37,
+   "local_median_ms": 9.43,
+   "top_phases": [
+    [
+     "Frame/API Drain",
+     1787.41
+    ],
+    [
+     "Frame/render",
+     30.47
+    ],
+    [
+     "drawFrame/Dirty Chunk Flush",
+     29.11
+    ],
+    [
+     "Frame/update",
+     23.98
+    ]
+   ]
+  }
+ ],
+ "control_caused_hitches": [],
+ "control_max_hitch_ms": 10.16,
+ "control_hitches_in_window": 6,
+ "fill_hitches_in_window": 4,
+ "original_prediction_control_hitch_free": "FALSIFIED (GPU every-other-frame alternation at this view)",
+ "pass": true
+}

@@ -41,6 +41,15 @@ public:
         samples_[o.slot].ms = std::chrono::duration<double, std::milli>(Clock::now() - o.start).count();
     }
 
+    // A value measured outside a scope (e.g. the frame-to-frame interval), recorded at the top level.
+    void addSample(const char* name, double ms) {
+        samples_.push_back({name, name, 0u, ms});
+        paths_.push_back(name);
+    }
+
+    // This frame's samples, valid after endFrame() until the next beginFrame() (the route recorder's feed).
+    const std::vector<GpuTimingSample>& lastFrameSamples() const { return samples_; }
+
     // Closes any scope left open (an early return) and adds the frame to the history.
     void endFrame(uint64_t frameSerial) {
         while (!stack_.empty()) pop();

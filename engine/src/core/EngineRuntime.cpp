@@ -1,4 +1,5 @@
 #include "core/EngineRuntime.h"
+#include "core/PerfCapture.h"
 #include <algorithm>
 #include "core/GameCallbacks.h"
 #include "core/AssetManager.h"
@@ -66,6 +67,8 @@ bool EngineRuntime::initialize(const EngineConfig& config) {
 
     // -- Create subsystems that need no dependencies first --
     performanceProfiler_ = std::make_unique<PerformanceProfiler>();
+    perfCapture_ = std::make_unique<Core::PerfCapture>();
+    perfCapture_->attachProfiler(performanceProfiler_.get());
     performanceMonitor_  = std::make_unique<Utils::PerformanceMonitor>();
     imguiRenderer_       = std::make_unique<UI::ImGuiRenderer>();
     inputManager_        = std::make_unique<Input::InputManager>();
@@ -340,6 +343,8 @@ float EngineRuntime::beginFrame() {
 
 void EngineRuntime::endFrame() {
     performanceProfiler_->endFrame();
+    // Standalone games: the benchmark capture runs here (the editor calls it from its own loop).
+    if (perfCapture_) perfCapture_->onFrameEnd(chunkManager_.get(), cameraManager_.get(), camera_.get());
     // Feed the frame delta into PerformanceMonitor so getCurrentFrameTiming()/fps
     // is populated for standalone games too (the editor does this in its own loop).
     // Powers an in-game FPS readout and the test API's /api/debug/engine_timing.
@@ -399,6 +404,7 @@ PerformanceProfiler*        EngineRuntime::getPerformanceProfiler()    const { r
 Utils::PerformanceMonitor*  EngineRuntime::getPerformanceMonitor()     const { return performanceMonitor_.get(); }
 Graphics::Camera*           EngineRuntime::getCamera()                 const { return camera_.get(); }
 Graphics::CameraManager*    EngineRuntime::getCameraManager()          const { return cameraManager_.get(); }
+Core::PerfCapture* EngineRuntime::getPerfCapture() const { return perfCapture_.get(); }
 Core::LocationRegistry*     EngineRuntime::getLocationRegistry()       const { return locationRegistry_.get(); }
 Core::SceneManager*         EngineRuntime::getSceneManager()           const { return sceneManager_.get(); }
 UI::GameMenuRenderer*       EngineRuntime::getGameMenuRenderer()       const { return gameMenuRenderer_.get(); }

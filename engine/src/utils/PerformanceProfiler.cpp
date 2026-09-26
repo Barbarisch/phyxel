@@ -1,4 +1,5 @@
 #include "utils/PerformanceProfiler.h"
+#include "utils/CpuTimingRecorder.h"
 #include "utils/Logger.h"
 #include <iostream>
 #include <iomanip>
@@ -26,6 +27,10 @@ void PerformanceProfiler::startFrame() {
     currentRoot->name = "Frame";
     currentRoot->startTime = frameStartTime;
     currentNode = currentRoot.get();
+    if (frameRecorder_) {
+        frameRecorder_->beginFrame();
+        frameRecorder_->push("Frame");
+    }
 }
 
 void PerformanceProfiler::endFrame() {
@@ -39,6 +44,15 @@ void PerformanceProfiler::endFrame() {
         currentRoot = nullptr;
         currentNode = nullptr;
     }
+    if (frameRecorder_) {
+        frameRecorder_->pop();   // "Frame"
+        if (haveLastFrameEnd_)
+            frameRecorder_->addSample("Frame Interval",
+                std::chrono::duration<double, std::milli>(frameEndTime - lastFrameEnd_).count());
+        frameRecorder_->endFrame(++frameRecorderSerial_);
+    }
+    lastFrameEnd_ = frameEndTime;
+    haveLastFrameEnd_ = true;
 
     // Update frame timings
     frameTimings.push_back(frameTimeMs);
@@ -68,6 +82,7 @@ void PerformanceProfiler::startScope(const std::string& name) {
     // But for "Frame Timeline", sequence is better.
     // Let's do sequence (append) for now, as it's simpler and preserves order.
     
+    if (frameRecorder_) frameRecorder_->push(name.c_str());
     auto newNode = std::make_shared<ProfilerNode>();
     newNode->name = name;
     newNode->startTime = std::chrono::high_resolution_clock::now();
@@ -79,6 +94,7 @@ void PerformanceProfiler::startScope(const std::string& name) {
 
 void PerformanceProfiler::endScope() {
     if (!currentNode || !currentNode->parent) return; // Don't pop root
+    if (frameRecorder_) frameRecorder_->pop();
 
     auto endTime = std::chrono::high_resolution_clock::now();
     currentNode->durationMs = std::chrono::duration<double, std::milli>(endTime - currentNode->startTime).count();

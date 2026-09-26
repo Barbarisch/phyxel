@@ -1,9 +1,14 @@
 #include "core/PerfApi.h"
+#include <cmath>
+#include "graphics/CameraManager.h"
+#include "graphics/Camera.h"
+#include "core/PerfCapture.h"
 
 #include <algorithm>
 
 #include "core/Chunk.h"
 #include "core/ChunkManager.h"
+#include "graphics/GiProbeField.h"
 #include "graphics/LightManager.h"
 #include "graphics/RenderCoordinator.h"
 #include "vulkan/RenderPipeline.h"
@@ -29,6 +34,7 @@ nlohmann::json statsJson(const GpuTimingStats& s) {
                           {"p90_ms", s.p90},
                           {"p99_ms", s.p99},
                           {"mean_ms", s.mean},
+                          {"max_ms", s.max},
                           {"last_ms", s.last}};
 }
 
@@ -102,6 +108,22 @@ nlohmann::json setDepthPrepass(Graphics::RenderCoordinator* rc, const nlohmann::
             {"available", available},
             {"ran_last_frame", rc->depthPrepassRanLastFrame()},
             {"note", "applies from the next frame; skipped while a debug visualization pipeline is active"}};
+}
+
+nlohmann::json setGiProbeOptions(Graphics::RenderCoordinator* rc, const nlohmann::json& params) {
+    if (!rc) return {{"success", false}, {"error", "RenderCoordinator not available"}};
+    // Validate everything before applying anything, so a half-valid request changes nothing.
+    for (const char* k : {"skip_buried", "two_level_trace"})
+        if (params.contains(k) && !params[k].is_boolean())
+            return {{"success", false}, {"error", std::string("'") + k + "' must be a boolean"}, {"applied", false}};
+    if (params.contains("skip_buried")) Graphics::GiProbeField::s_skipBuried = params["skip_buried"].get<bool>();
+    if (params.contains("two_level_trace")) Graphics::GiProbeField::s_twoLevelTrace = params["two_level_trace"].get<bool>();
+    // gi_enabled: with the probe field off there is no probe pass, so the options act on nothing.
+    return {{"success", true},
+            {"skip_buried", Graphics::GiProbeField::s_skipBuried},
+            {"two_level_trace", Graphics::GiProbeField::s_twoLevelTrace},
+            {"gi_enabled", rc->getGiEnabled()},
+            {"note", "applies from the next probe dispatch"}};
 }
 
 nlohmann::json cpuTiming(Graphics::RenderCoordinator* rc, const nlohmann::json& params) {
@@ -360,6 +382,216 @@ const char* presentModeName(VkPresentModeKHR mode) {
         case VK_PRESENT_MODE_FIFO_RELAXED_KHR: return "FIFO_RELAXED";
         default: return "OTHER";
     }
+}
+
+// ---- City benchmark tooling (docs/PerfProgram2026-09.md section 16) ----
+
+namespace {
+
+nlohmann::json numOrNull(float v) { return std::isnan(v) ? nlohmann::json(nullptr) : nlohmann::json(v); }
+
+bool finiteNumber(const nlohmann::json& v) {
+    return v.is_number() && std::isfinite(v.get<double>());
+}
+
+}  // namespace
+
+nlohmann::json framePacing(const PerfCapture* pc, const nlohmann::json& params) {
+    if (!pc) return {{"success", false}, {"error", "frame pacing not available in this host"}};
+    const GpuTimingHistory& h = pc->framePacing().history();
+    const size_t frames = requestedFrames(params, h.capacity());
+    nlohmann::json scopes = nlohmann::json::array();
+    for (const auto& s : h.stats(frames)) {
+        nlohmann::json j = statsJson(s);
+        j["key"] = s.key;
+        j["name"] = s.name;
+        j["depth"] = s.depth;
+        scopes.push_back(std::move(j));
+    }
+    nlohmann::json series = nlohmann::json::array();
+    for (const auto& f : h.series(frames)) {
+        nlohmann::json values = nlohmann::json::object();
+        for (const auto& [key, ms] : f.values) values[key] = ms;
+        series.push_back({{"serial", f.serial}, {"values", std::move(values)}});
+    }
+    return {{"success", true},
+            {"clock", "steady_clock (CPU wall time on the main thread)"},
+            {"frames_requested", frames},
+            {"frames_used", std::min(frames, h.framesHeld())},
+            {"frames_held", h.framesHeld()},
+            {"frames_accepted", h.framesAccepted()},
+            {"scopes", scopes},
+            {"series", series}};
+}
+
+nlohmann::json recordControl(PerfCapture* pc, const nlohmann::json& params) {
+    if (!pc) return {{"success", false}, {"error", "recorder not available in this host"}};
+    RouteRecorder& r = pc->recorder();
+    auto state = [&r]() {
+        return nlohmann::json{{"recording", r.recording()}, {"frames", r.frames()},
+                              {"capacity", r.framesCapacity()}, {"truncated", r.truncated()}};
+    };
+    const bool start = params.value("start", false);
+    const bool stop = params.value("stop", false);
+    if (start == stop) {
+        nlohmann::json out = state();
+        out["success"] = false;
+        out["error"] = "send exactly one of {start:true, max_frames:N} or {stop:true}";
+        return out;
+    }
+    if (stop) {
+        r.stop();
+        nlohmann::json out = state();
+        out["success"] = true;
+        return out;
+    }
+    long long n = 6000;
+    if (params.contains("max_frames")) {
+        if (!finiteNumber(params["max_frames"]))
+            return {{"success", false}, {"error", "'max_frames' must be a number"}};
+        n = static_cast<long long>(params["max_frames"].get<double>());
+    }
+    // Clamped to [1, kMaxFrames]: the buffer is allocated once, here, so its size is bounded.
+    const size_t cap = static_cast<size_t>(std::clamp<long long>(n, 1, static_cast<long long>(RouteRecorder::kMaxFrames)));
+    if (!r.start(cap)) {
+        nlohmann::json out = state();
+        out["success"] = false;
+        out["error"] = "already recording: stop the current recording first";
+        return out;
+    }
+    nlohmann::json out = state();
+    out["success"] = true;
+    return out;
+}
+
+nlohmann::json recordDump(const PerfCapture* pc, const nlohmann::json& params) {
+    if (!pc) return {{"success", false}, {"error", "recorder not available in this host"}};
+    const RouteRecorder& r = pc->recorder();
+    auto readIndex = [&params](const char* key, size_t dflt) -> size_t {
+        if (!params.contains(key)) return dflt;
+        const auto& v = params[key];
+        long long n = static_cast<long long>(dflt);
+        if (v.is_number()) n = static_cast<long long>(v.get<double>());
+        else if (v.is_string()) { try { n = std::stoll(v.get<std::string>()); } catch (...) {} }
+        return static_cast<size_t>(std::max<long long>(0, n));
+    };
+    constexpr size_t kPage = 2048;   // bounds one response (a route is read in pages)
+    const size_t from = std::min(readIndex("from", 0), r.frames());
+    const size_t count = std::min({readIndex("count", kPage), kPage, r.frames() - from});
+    nlohmann::json rows = nlohmann::json::array();
+    const size_t nPhase = r.phaseKeys().size(), nGpu = r.gpuKeys().size();
+    for (size_t i = from; i < from + count; ++i) {
+        const auto& row = r.row(i);
+        nlohmann::json phases = nlohmann::json::array(), gpu = nlohmann::json::array();
+        for (size_t k = 0; k < nPhase; ++k) phases.push_back(numOrNull(row.phaseMs[k]));
+        for (size_t k = 0; k < nGpu; ++k) gpu.push_back(numOrNull(row.gpuMs[k]));
+        rows.push_back({{"frame", row.frame},
+                        {"gpu_serial", row.gpuSerial},
+                        {"frame_ms", row.frameMs},
+                        {"phases", std::move(phases)},
+                        {"gpu", std::move(gpu)},
+                        {"gpu_resolved", row.gpuResolved},
+                        {"camera", {row.cameraPos.x, row.cameraPos.y, row.cameraPos.z, row.cameraYaw, row.cameraPitch}},
+                        {"path_progress", row.pathProgress},
+                        {"streaming", {{"resident_chunks", row.residentChunks},
+                                       {"pending_generation", row.pendingGeneration},
+                                       {"pending_remesh", row.pendingRemesh},
+                                       {"camera_chunk_resident",
+                                        row.cameraChunkResident < 0 ? nlohmann::json(nullptr)
+                                                                    : nlohmann::json(row.cameraChunkResident == 1)}}}});
+    }
+    return {{"success", true},
+            {"recording", r.recording()},
+            {"frames", r.frames()},
+            {"capacity", r.framesCapacity()},
+            {"truncated", r.truncated()},
+            {"dropped_keys", r.droppedKeys()},
+            {"from", from},
+            {"count", count},
+            {"phase_keys", r.phaseKeys()},
+            {"gpu_keys", r.gpuKeys()},
+            {"rows", rows}};
+}
+
+nlohmann::json cameraPath(PerfCapture* pc, Graphics::CameraManager* cameras, ChunkManager* chunks,
+                          const Graphics::Camera* camera, const nlohmann::json& params) {
+    if (!pc || !cameras) return {{"success", false}, {"error", "camera path not available in this host"}};
+    Graphics::CameraPath& path = cameras->getPath();
+    auto status = [&]() {
+        nlohmann::json j = {{"playing", path.isPlaying()},
+                            {"finished", path.isFinished()},
+                            {"progress", path.progress()},
+                            {"arc_length_u", path.arcLength()},
+                            {"speed_u_per_s", path.constantSpeed()},
+                            {"stream_follow", pc->streamFollow()},
+                            {"focus_holder", chunks ? chunks->streamingFocusHolder() : std::string()}};
+        if (camera) {
+            const glm::vec3 p = camera->getPosition();
+            j["camera"] = {{"x", p.x}, {"y", p.y}, {"z", p.z}, {"yaw", camera->getYaw()}, {"pitch", camera->getPitch()}};
+        }
+        return j;
+    };
+    auto refuse = [&](const std::string& why) {
+        nlohmann::json j = status();
+        j["success"] = false;
+        j["applied"] = false;
+        j["error"] = why;
+        return j;
+    };
+
+    if (params.empty()) {   // GET
+        nlohmann::json j = status();
+        j["success"] = true;
+        return j;
+    }
+    if (params.value("stop", false)) {
+        path.stop();
+        pc->setStreamFollow(false);
+        const bool released = chunks && chunks->clearStreamingFocusOverride(PerfCapture::kFocusHolder);
+        nlohmann::json j = status();
+        j["success"] = true;
+        j["stopped"] = true;
+        j["focus_released"] = released;
+        return j;
+    }
+
+    // ---- start: validate EVERYTHING before applying anything ----
+    if (!params.contains("waypoints") || !params["waypoints"].is_array() || params["waypoints"].size() < 2)
+        return refuse("'waypoints' must be an array of at least 2 {x,y,z,yaw,pitch}");
+    std::vector<Graphics::CameraWaypoint> wps;
+    for (const auto& w : params["waypoints"]) {
+        for (const char* k : {"x", "y", "z", "yaw", "pitch"})
+            if (!w.contains(k) || !finiteNumber(w[k]))
+                return refuse(std::string("every waypoint needs a finite '") + k + "'");
+        wps.push_back({glm::vec3(w["x"].get<float>(), w["y"].get<float>(), w["z"].get<float>()),
+                       w["yaw"].get<float>(), w["pitch"].get<float>(), 0.0f});
+    }
+    if (!params.contains("speed_u_per_s") || !finiteNumber(params["speed_u_per_s"]))
+        return refuse("'speed_u_per_s' (world units per second) is required");
+    const float speed = params["speed_u_per_s"].get<float>();
+    // (0, 64] u/s. Above that the path is a flythrough no player performs, and the streaming focus
+    // (which follows it, at most StreamingFocus::kMaxStepPerFrame per frame) falls behind the camera:
+    // the benchmark would measure streaming FAILURE instead of streaming cost.
+    if (!(speed > 0.0f) || speed > kMaxPathSpeedUnitsPerSec)
+        return refuse("'speed_u_per_s' must be in (0, 64]");
+    const bool loop = params.value("loop", false);
+    const bool follow = params.value("stream_follow", true);
+    if (follow && chunks && chunks->hasStreamingFocusOverride() &&
+        chunks->streamingFocusHolder() != PerfCapture::kFocusHolder)
+        return refuse("stream_follow refused: the streaming focus is held by '" + chunks->streamingFocusHolder() + "'");
+
+    path.clearWaypoints();
+    for (const auto& wp : wps) path.addWaypoint(wp);
+    path.setConstantSpeed(speed);
+    path.setLooping(loop);
+    path.play();
+    pc->setStreamFollow(follow);
+    nlohmann::json j = status();
+    j["success"] = true;
+    j["applied"] = true;
+    j["waypoints"] = wps.size();
+    j["duration_s"] = loop ? -1.0f : path.arcLength() / speed;
+    return j;
 }
 
 }  // namespace Phyxel::Core::PerfApi

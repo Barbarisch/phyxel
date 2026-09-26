@@ -72,11 +72,84 @@ float CameraTransition::ease(float t) const {
 
 void CameraPath::addWaypoint(const CameraWaypoint& wp) {
     waypoints_.push_back(wp);
+    buildArcTable();
 }
 
 void CameraPath::clearWaypoints() {
     waypoints_.clear();
+    cum_.clear();
     stop();
+}
+
+void CameraPath::setConstantSpeed(float unitsPerSecond) {
+    speed_ = unitsPerSecond > 0.0f ? unitsPerSecond : 0.0f;
+    buildArcTable();   // the curve itself changes: straight segments in constant-speed mode
+}
+
+void CameraPath::buildArcTable() {
+    cum_.clear();
+    if (waypoints_.size() < 2) return;
+    const size_t segments = waypoints_.size() - 1;
+    cum_.reserve(segments * kArcSamples + 1);
+    glm::vec3 prev;
+    float yaw, pitch;
+    evalSegment(0, 0.0f, prev, yaw, pitch);
+    cum_.push_back(0.0f);
+    for (size_t k = 1; k <= segments * kArcSamples; ++k) {
+        const size_t seg = std::min((k - 1) / kArcSamples, segments - 1);
+        const float t = static_cast<float>(k - seg * kArcSamples) / kArcSamples;
+        glm::vec3 p;
+        evalSegment(seg, t, p, yaw, pitch);
+        cum_.push_back(cum_.back() + glm::length(p - prev));
+        prev = p;
+    }
+}
+
+void CameraPath::segmentParamAt(float s, size_t& segment, float& t) const {
+    const size_t segments = waypoints_.size() - 1;
+    s = std::clamp(s, 0.0f, cum_.back());
+    // First sample whose cumulative length reaches s; interpolate within the preceding interval.
+    size_t k = static_cast<size_t>(std::lower_bound(cum_.begin(), cum_.end(), s) - cum_.begin());
+    if (k == 0) { segment = 0; t = 0.0f; return; }
+    const float span = cum_[k] - cum_[k - 1];
+    const float f = span > 1e-9f ? (s - cum_[k - 1]) / span : 0.0f;
+    const float u = (static_cast<float>(k - 1) + f) / kArcSamples;   // global segment coordinate
+    segment = std::min(static_cast<size_t>(u), segments - 1);
+    t = std::clamp(u - static_cast<float>(segment), 0.0f, 1.0f);
+}
+
+void CameraPath::evalSegment(size_t segment, float t, glm::vec3& pos, float& yaw, float& pitch) const {
+    const size_t n = waypoints_.size();
+    const size_t i1 = segment;
+    const size_t i2 = segment + 1;
+    const size_t i0 = (i1 > 0) ? i1 - 1 : i1;
+    const size_t i3 = std::min(i2 + 1, n - 1);
+    // Constant-speed (benchmark) mode walks the STRAIGHT segments between waypoints. Uniform
+    // Catmull-Rom overshoots when neighbouring segments differ in length: through waypoints at
+    // x = 0, 1, 11 the first segment dips to x = -0.125 before turning forward -- a route camera
+    // that briefly walks backwards and swings wide of corners (into buildings, on a street route).
+    pos = speed_ > 0.0f
+        ? glm::mix(waypoints_[i1].position, waypoints_[i2].position, t)
+        : catmullRom(waypoints_[i0].position, waypoints_[i1].position,
+                     waypoints_[i2].position, waypoints_[i3].position, t);
+    yaw = lerpAngle(waypoints_[i1].yaw, waypoints_[i2].yaw, t);
+    pitch = waypoints_[i1].pitch + (waypoints_[i2].pitch - waypoints_[i1].pitch) * t;
+}
+
+float CameraPath::progress() const {
+    if (waypoints_.size() < 2) return 0.0f;
+    if (finished_) return 1.0f;
+    if (speed_ > 0.0f) return cum_.back() > 0.0f ? s_ / cum_.back() : 1.0f;
+    const float segs = static_cast<float>(waypoints_.size() - 1);
+    return std::min((static_cast<float>(currentSegment_) + std::min(segmentTime_, 1.0f)) / segs, 1.0f);
+}
+
+bool CameraPath::poseAt(float progressFrac, glm::vec3& pos, float& yaw, float& pitch) const {
+    if (waypoints_.size() < 2 || cum_.empty()) return false;
+    size_t seg; float t;
+    segmentParamAt(std::clamp(progressFrac, 0.0f, 1.0f) * cum_.back(), seg, t);
+    evalSegment(seg, t, pos, yaw, pitch);
+    return true;
 }
 
 void CameraPath::play() {
@@ -88,6 +161,7 @@ void CameraPath::play() {
     segmentTime_ = 0.0f;
     dwellTime_ = 0.0f;
     dwelling_ = false;
+    s_ = 0.0f;
 }
 
 void CameraPath::pause() {
@@ -102,10 +176,34 @@ void CameraPath::stop() {
     segmentTime_ = 0.0f;
     dwellTime_ = 0.0f;
     dwelling_ = false;
+    s_ = 0.0f;
 }
 
 bool CameraPath::update(float dt, Camera& camera) {
     if (!playing_ || paused_ || finished_ || waypoints_.size() < 2) return false;
+
+    if (speed_ > 0.0f && !cum_.empty()) {
+        // Constant speed: advance by DISTANCE, then find where that distance lies on the spline.
+        const float total = cum_.back();
+        s_ += speed_ * dt;
+        if (s_ >= total) {
+            if (looping_ && total > 0.0f) {
+                s_ = std::fmod(s_, total);
+            } else {
+                s_ = total;
+                finished_ = true;
+                playing_ = false;
+            }
+        }
+        size_t seg; float t;
+        segmentParamAt(s_, seg, t);
+        glm::vec3 pos; float yaw, pitch;
+        evalSegment(seg, t, pos, yaw, pitch);
+        camera.setPosition(pos);
+        camera.setYaw(yaw);
+        camera.setPitch(pitch);
+        return !finished_;
+    }
 
     // Handle dwell at waypoint
     if (dwelling_) {

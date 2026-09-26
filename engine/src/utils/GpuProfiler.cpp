@@ -148,7 +148,8 @@ void GpuProfiler::startFrame(uint32_t frameIndex, VkCommandBuffer cmd) {
             }
             for (const auto& scope : frame.completedScopes)
                 lastFrameResults.push_back({scope.name, msBetween(scope.startIndex, scope.endIndex), scope.depth});
-            history.addFrame(frame.serial, samples);
+            if (history.addFrame(frame.serial, samples) && onFrameResolved)
+                onFrameResolved(frame.serial, samples);
             lastResultSerial = frame.serial;
         }
     }

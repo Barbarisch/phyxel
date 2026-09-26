@@ -11,6 +11,7 @@
 #include "graphics/CameraRig.h"
 #include "input/ControlScheme.h"
 #include "core/ChunkManager.h"
+#include "core/PerfCapture.h"
 #include <GLFW/glfw3.h>
 #include <nlohmann/json.hpp>
 
@@ -20,6 +21,8 @@ namespace Core {
 void GameShell::startTestApi(EngineRuntime& engine, int port, const std::string& name) {
     gameApi_.runtime          = &engine;
     gameApi_.renderCoordinator = apiRenderCoordinator();
+    // City-benchmark capture (PerfProgram section 16): GPU serials + resolved scopes for the route recorder.
+    if (auto* pc = engine.getPerfCapture()) pc->setRenderCoordinator(gameApi_.renderCoordinator);
     gameApi_.npcManager       = apiNPCManager();
     gameApi_.triggers         = apiTriggerSystem();
     gameApi_.screen           = apiScreen();

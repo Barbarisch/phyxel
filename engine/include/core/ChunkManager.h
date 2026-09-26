@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Types.h"
+#include "core/StreamingFocus.h"
 #include "IChunkManager.h"
 #include "Chunk.h"
 #include "Cube.h"
@@ -111,9 +112,9 @@ public:
     float unloadDistance = 352.0f; // Distance to unload chunks (11 chunks * 32 units)
     glm::vec3 playerPosition = glm::vec3(0.0f); // Player position for streaming
 private:
-    // WorldForge M2: while set, streaming anchors here instead of playerPosition (see
-    // setStreamingFocusOverride). Main-thread only, like playerPosition.
-    std::optional<glm::vec3> m_streamingFocusOverride;
+    // WorldForge M2 / PerfProgram I14: while held, streaming anchors here instead of playerPosition
+    // (see setStreamingFocusOverride). Has an OWNER: StreamingFocus. Main-thread only.
+    Core::StreamingFocus m_streamingFocus;
 public:
 
     // Streaming world generation (Phase 1: the generation wire). When enabled, chunks
@@ -173,15 +174,21 @@ public:
     void disconnectWorldStorage();
     void setPlayerPosition(const glm::vec3& position) { playerPosition = position; }
 
-    // Streaming FOCUS override (WorldForge M2, docs/WorldForge.md): while set, the streaming
+    // Streaming FOCUS override (WorldForge M2, docs/WorldForge.md): while held, the streaming
     // pump anchors on this position instead of the player, so an orchestration job can drive
     // residency at a remote build site through the normal throttled streaming path (never a
     // bulk generate — that wedges the game loop for minutes). playerPosition keeps updating
     // underneath; clearing the override hands residency straight back to the player.
-    void setStreamingFocusOverride(const glm::vec3& pos) { m_streamingFocusOverride = pos; }
-    void clearStreamingFocusOverride() { m_streamingFocusOverride.reset(); }
-    bool hasStreamingFocusOverride() const { return m_streamingFocusOverride.has_value(); }
-    glm::vec3 streamingAnchor() const { return m_streamingFocusOverride.value_or(playerPosition); }
+    // It has more than one user (WorldForge build job, /api/worldforge/focus, the camera-path
+    // benchmark), so each names itself as the HOLDER: a set by a different holder while held is
+    // refused (returns false), and a holder can only clear its own hold (StreamingFocusOwnerTest).
+    bool setStreamingFocusOverride(const glm::vec3& pos, const std::string& holder) {
+        return m_streamingFocus.set(pos, holder);
+    }
+    bool clearStreamingFocusOverride(const std::string& holder) { return m_streamingFocus.clear(holder); }
+    bool hasStreamingFocusOverride() const { return m_streamingFocus.held(); }
+    const std::string& streamingFocusHolder() const { return m_streamingFocus.holder(); }
+    glm::vec3 streamingAnchor() const { return m_streamingFocus.anchor(playerPosition); }
 
     // Enable/disable streaming world generation and configure the generator. Pass
     // enabled=true with a generation type + seed to make streamed-in chunks generate

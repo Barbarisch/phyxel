@@ -202,7 +202,7 @@ Each rig is **one variable, inside one chunk (or one camera view), with a writte
 | **R-M4 Covered cube faces** | A cube wall with a sub/micro skin in front of it. | No skin | I5 counts cube faces hidden behind covering fine neighbours. The cost equals their instance share. |
 | **S-1 Tavern** | `M4TavernBench`, 3 fixed poses (interior bar, doorway, exterior). | — | Interior is light-bound. Exterior is light-bound near the windows and geometry-cheap. |
 | **S-2 Settlements** | `M4DensityBench` (4 settlements / 25 buildings, seed 7), 3 poses (street, rooftop, high overview). | — | Street: lights > ambient > geometry. Overview: shadow and geometry grow, lights shrink. |
-| **S-3 City** | A CityForge `tier:city` build (the densest lights and micro dressing we generate), 3 poses. | — | The worst case for both hypotheses. It becomes the regression scene. |
+| **S-3 City** | A CityForge `tier:city` build (the densest lights and micro dressing we generate) as a size ladder of ~25 / 50 / 75 / 100 buildings with residents, fixed poses AND a fixed walk route. **Full plan: §16.** | — | The worst case for both hypotheses. It becomes the regression scene. |
 
 Both GPUs: the **RTX 4090** (this machine) and the **RTX 1000 Ada laptop** (min-spec, where G-18 was
 measured). A ranking that holds on only one of them is reported as such.
@@ -329,14 +329,15 @@ opaque-card A/B.
 | **P0c** | I8, I9 | An Nsight capture with labels at the S-2 worst pose. |
 | **P1** | The §4 matrix on the 4090, then the laptop | The results table in this doc; each hypothesis verdicted. |
 | **P2** | The top-ranked candidates, one at a time, each through §6 | Measured wins, identical images. |
+| **P1c** | The city benchmark (§16): I11-I13, the C-25…C-100 ladder, fixed poses + walk route | Growth table + hitch report on C-100; P2 re-ranked from it. |
 
 **Likely first fixes, if P1 confirms the prior:** L1 (small, exact for the same light set, removes
 duplicates) → L2 (the structural fix) → S1 / S2 (the geometry waste I5 will size).
 
 ## 8. Open decisions (for the user)
 
-1. **Target:** a frame budget per GPU class (e.g. 60 FPS on the RTX 1000 Ada at 1080p in S-3, and 144 on
-   the 4090 at 1440p?). Without one, "fast enough" has no definition.
+1. **Target — DECIDED 2026-09-25:** no fixed budget; as fast as possible without sacrificing visual
+   quality, measured at real load (~100-building cities, §16).
 2. **L3c changes the light model** (cached visibility, which also fixes G-157). It is the biggest lever
    and the biggest design. Do we open a design for it now, or first take L1 + L2 and re-measure?
 3. **Laptop access** for the min-spec half of P1.
@@ -418,6 +419,49 @@ mid-remesh (`RenderCoordinator.cpp:~1327-1352`). Splitting each direction range 
 | 1 | I3's source tagging named call sites that don't exist | Lights are created at 11 call sites along 6 paths; fixtures come through three lambdas; the editor panel was missing; `NPCEntity` creates no lights (it only moves an attached one). A tavern-only runtime test covers 3 of the 6 paths. | §3 I3 (the real site list; `source` required, so the compiler enforces coverage), §3.1, §3.2 |
 
 ---
+
+### 9.6 Sixth pass (`/design-check`, 2026-09-25, on §16 P1c the city benchmark): NEEDS WORK → folded in
+
+No design key violated (measurement only; no look, generation or gameplay change). Seven gaps, each now
+answered in §16:
+1. The walk route would not exercise streaming: the streaming anchor is the player unless overridden
+   (`ChunkManager.h:184`). → I14, `stream_follow` drives the focus override from the path; V4 proves it.
+2. `CameraPath` spends 1 s per segment regardless of length (`CameraManager.cpp:129-130`), pinned by
+   `CameraPathTest` and used by cinematics. → opt-in constant-speed mode; default and pins unchanged; V1.
+3. Scene persistence was assumed; the S-1 tavern did not survive a restart this session. → §16.1 content
+   fingerprint, persisted-and-verified or rebuilt-and-matched.
+4. API gaps: stop verb, conflict with `POST /api/camera`, a numeric speed max, the `frames` range. → I11/I12
+   contracts; `kMaxPathSpeed` derived from measured streaming throughput (§16.6 step 0).
+5. Instrumentation validated only in the city. → one-chunk rig R-P1 with V1-V5, numeric tolerances.
+6. Time of day and present mode uncontrolled. → noon and night with the clock paused; non-vsync or void.
+7. No written prediction for the growth table. → §16.7.
+
+### 9.7 Seventh pass (`/design-check`, 2026-09-25, on §16 after 9.6): NEEDS WORK → folded in
+
+The 9.6 fold-in was checked against the code and introduced/left six instrumentation-correctness gaps
+(no design key violated):
+1. The streaming focus override already has two owners (WorldForge build job, `/api/worldforge/focus`;
+   `Application.cpp:13745-13757`, `:13854`), and a WorldForge release clears any override. → I14 holders:
+   refuse-while-held naming the holder, release-only-own; V6 `StreamingFocusOwnerTest`.
+2. 240-frame rings cannot hold a ~6,000-frame route, and polling mid-route adds main-thread work to the
+   measured frames (API commands drain every frame, `Application.cpp:2912`). → I15 route recorder (sized
+   once, stop-don't-wrap, `truncated` flag); I13 sends no request during a route; V3 on recorded poses; V7.
+3. I11 would have been a third timing system. → built on the existing `PerformanceProfiler` scopes
+   (`Application.cpp:3529-4084`) + `API Drain` + `Streaming Pump` + `drawFrame` + `Other`.
+4. V4's rig could not stream (fixed-range Flat: `setMaxChunksPerUpdate(0)`, `ChunkManager.cpp:240`). →
+   R-P2, Flat with `world.streaming: true`.
+5. The fingerprint counts resident chunks only. → taken at a fixed anchor, load distance, pose, after settle.
+6. `kMaxPathSpeed` cannot be both measured and compiled. → engine bounds (64 u/s player-motion clamp; the
+   focus moves ≤ `kFocusStep` = 64 u per FRAME, WorldForge's shared no-teleport constant,
+   `Application.cpp:13749` — note it is per frame, not per second: WorldForge re-polls every frame,
+   `WorldForgeBuildService.cpp:207`) + a per-machine route speed chosen by the harness and recorded.
+
+### 9.8 Eighth pass (`/design-check`, 2026-09-25, on §16 after 9.7): READY
+
+Verified against code: the override signature change touches only the two WorldForge call sites and no
+test; GPU samples have one entry point (`history.addFrame`, `GpuProfiler.cpp:151`) for the recorder's
+serial matching. Two amendments folded in: the streaming pump's alternate-frame cadence is reported and
+judged by parity (not counted as hitches); all new routes go through `PerfApi` in both hosts.
 
 ## 10. P0a results (2026-09-24, RTX 4090, Release)
 
@@ -843,7 +887,357 @@ frame. The two A/Bs ran in different processes, so this is an approximate compou
 **Default:** still OFF. Turning it ON is its own commit (the design check's rule). Every gate this
 feature was given has passed.
 
+**Moving lights + user visual sign-off (2026-09-25).** The player held a torch (item-effect light) and was
+moved to 3 spots in the night tavern under a fixed camera with the prepass ON. `/api/lights` read the
+torch light back at each spot: (2.24, 17.92, 3.63) → (6.26, 17.92, 3.65) → (10.26, 17.92, 3.67),
+`ran_last_frame` true each time. The middle spot was repeated with the prepass OFF for a side-by-side
+(`p1/dp_torch_*.png`, `p1/dp_torch_demo.json`, script `p1/dp_torch_demo.py`). The user looked at the
+captures and approved the lighting ("looks good"). Nothing about the prepass persists across frames,
+and L1 only merges emissive-voxel lights, so moving lights are unaffected by construction.
+
+**Gap found (not caused by P-DP): NPC-held items do not emit light.** `POST /api/entity/<npc>/equip
+{"itemId":"torch"}` succeeds, but no item-effect light is created, because only
+`Application::updateHeldItem` registers held-item effects, and only for `held_player`. Candidate fix:
+register item effects for any equipped light-emitting item and move the light with that character's
+hand bone each frame. Test: an NPC walks a path carrying a torch, and the light-to-hand distance is
+checked every frame.
+
+**Thrown torches (2026-09-25).** The light sits on the torch's flame anchor (items.json `effects[].anchor`,
+transformed by the item's own transform), so it follows the torch, not the hand, and a thrown torch's
+physics body carries it. Two fixes, both red-before-green:
+- `ItemEffectSystem`: a new instance's first condition check now runs on its first update. It used to wait
+  for the staggered 0.25 s check, so a thrown torch was dark for up to ~0.2 s (measured live: 0.23 s).
+  `ItemEffectSystemTest` (red: 1/2/3 lights instead of 2/3/4 in the three later stagger phases).
+- `Inventory`: items are finite by default. Creative mode (infinite supply: a throw hands out a copy) is
+  now opt-in, per the user's direction that the engine should not default to Minecraft-creative behaviour.
+  `InventoryTest.DefaultConstruction` / `DefaultThrowRemovesTheItem` / `JsonWithoutCreativeKeyIsFinite`.
+- L4 (`p1/torch_throw_probe2.py` / `.json`, Release, default inventory): `creative` false; after the throw
+  slot 0 is empty, the held light is gone, and the thrown light is present in every sample from the first
+  (t = 19 ms), moving along the arc (z −6.69 → −5.42) before settling. No sample had zero torch lights.
+
 **Caveats that still stand:** one GPU (the RTX 1000 Ada laptop, where G-18 measured 90%, is owed); editor
 host at 1600×900 (the standalone at native resolution is owed); S-2 is 4 buildings, not a city (S-3, a
 CityForge city, is owed); NPCs move in both scenes (the paired design protects deltas, not absolute
 levels); the §10 drift is still unexplained.
+
+### 15. The GI probe pass: GI-1 (skip buried probes) and GI-2 (the probe trace) (2026-09-25, RTX 4090, Release)
+
+**Where the frame goes after L1 + P-DP** (S-1, prepass on; `p1/s1_breakdown_l1_dp.jsonl`, table by
+`p1/breakdown_table.py`):
+
+| Scope (ms) | Interior | Exterior |
+|---|---|---|
+| **GPU Frame** | 12.29 | 11.56 |
+| Shadow Pass | 0.68 | 0.67 |
+| **GI Probes** | **3.96** | **3.97** |
+| Scene Pass | 7.27 | 6.55 |
+|   Static Geometry | 5.31 | 1.34 |
+|   Grass | 0.71 | 2.15 |
+|   Foliage | 0.11 | 2.06 |
+|   Characters | 0.94 | 0.75 |
+
+The probe pass was a third of the frame at both poses, flat regardless of what the camera sees: it is a
+fixed per-probe cost (6,912 probes a frame, 18 rays each, 16 u reach).
+
+**GI-1, skip buried probes: prediction FAILED; the saving is noise-level.** `gi_probe.comp` traced all 18
+rays and only then asked whether the probe is buried. The lighting doc (§7) had called skipping that
+"at most about half" of the pass. Predicted −30..−50%. Measured −0.09 / −0.06 ms (−2%, 8 pairs,
+`p1/s1_gi1.jsonl`), and ±0.03 ms in a later one-process check (`p1/gi_combo_check.json`). Buried
+probes were already cheap: their rays hit solid on the first cell. Kept because it is exact by
+construction (every reader gates on validity, lobe 0 `.a`, before reading colour) and costs nothing.
+
+**GI-2, the probe trace.** The probe's primary ray (`phxDdaTrace`) visited every MICRO cell along 16 u
+(up to ~250 steps, each a full occupancy query), while `phxSegmentBlocked` already walked CUBE cells and
+dropped to micro only inside mixed cubes. The shipped trace, `phxDdaTraceProbe` (`occupancy.glsl`, CPU
+mirror `packedPoolTraceProbe`), runs the micro march for the first unit and a cube walk
+(`phxDdaTraceTwoLevelFrom`) beyond it, and reports the hit the micro march reports: the micro cell (the
+bounce reads the field at its centre) and the entry axis (the bounce's face normal). How it got there:
+1. **Cube walk, red → green on random rays.** The naive port (each mixed-cube slice seeded with axis 1,
+   as `phxDdaTrace` is) got the right cells but the WRONG NORMAL on 354 of 20,000 rays. Seeding the
+   cube-entry axis fixed that; locating a solid cube's entry cell AT the face crossing instead of 1e-4 u
+   past it took cell differences from 35 to 1 of 77,643 hits (a float tie) on 200,000 random rays.
+2. **But probe rays are not random rays.** Every probe ray starts ON the 2 u lattice, exactly on a cube
+   corner, where the micro march resolves zero-length steps in a fixed tie order and the cube walk's
+   1e-4 slice offset resolves them differently. The Lighting Lab's doorway wall (A4) read higher with
+   the cube walk in every early pair, which is what sent me looking. A probe-shaped test (lattice starts,
+   the shader's rotated 18-direction set) found the cube walk differing on **49 of 41,850** rays.
+3. **An exact-by-construction alternative was measured and rejected.** The micro march with the
+   per-cell query answered from a per-cube cache (same cells, same order) matched on all 41,850, but
+   ran no faster than the plain micro march (3.95 / 3.39 ms vs 3.83 / 3.04, `p1/gi_trace_combo.json`):
+   the cost is the STEPS, not the lookups. Removed.
+4. **Shipped: micro march for 1 u, then the cube walk**, seeded with the axis that entered the micro
+   march's untested end cell. Probe-shaped rays: 1 of 41,850 differs (a tie, hit/miss identical);
+   random rays: 1 of 77,643 hits. Tests: `OccupancyTraversalTest.ProbeShapedRaysProbeTraceMatches
+   PlainCubeWalkDoesNot` and `...TwoLevelTraceReportsTheMicroMarchHitOnRandomRays`.
+
+Only `gi_probe.comp.spv` changed among the 83 SPIR-V binaries: every other shader that includes
+`occupancy.glsl` compiled byte-identical.
+
+**Measured, in-process A/B** of the shipped trace vs the micro march (8 counterbalanced pairs,
+`p1/s1_gi2_probe.jsonl`; the plain cube walk measured the same, `p1/s1_gi2.jsonl`):
+
+| S-1 pose | GI Probes | GPU Frame |
+|---|---|---|
+| Interior | −0.75 ms [−0.77, −0.73] | −0.77 ms [−0.86, −0.52] |
+| Exterior | −0.79 ms [−0.81, −0.76] | −0.82 ms [−0.97, −0.74] |
+
+Prediction was GI Probes ≤ 1.5 ms: **missed** (2.1 ms). The march was not most of the pass; what is
+left is the bounce (a field read plus a sun segment test per hit) and the lobe bookkeeping.
+
+**Against HEAD** (the unmodified shader), fresh engine processes, each launched, tavern-built and settled
+the same way (`p1/gi_process_arm.py`, `p1/gi_process_ab.jsonl`; NEW = the cube-walk build, NEW_FINAL =
+the shipped build):
+
+| Build (processes) | GI Probes int / ext | GPU Frame int / ext |
+|---|---|---|
+| HEAD (3) | 3.96 / 3.91 | 12.07 / 11.06 |
+| NEW (2) | 2.18 / 2.22 | 10.21 / 9.33 |
+| **NEW_FINAL (2)** | **2.12 / 2.18** | **9.99 / 9.40** |
+
+**Net: probe pass −1.8 ms (−45%), GPU frame −2.1 ms interior (−17%), −1.7 ms exterior (−15%).** Only
+~0.77 ms of that is the trace (the in-process A/B). The other ~1 ms comes with the rewritten shader
+even with both options OFF (2.84–2.86 ms in-process vs HEAD's 3.9–4.0). **Unexplained, and fragile:** in
+the intermediate build with a third trace branch that gain vanished (micro path 3.83 ms), which points
+at how the driver compiles the 18-ray loop (register pressure / unrolling). Re-measure on the laptop
+before relying on it.
+
+**Correctness.**
+- Lit-frame pixel gates, timing-matched control (`p1/gi_pixel_gate.py`), S-1 interior: PASS on both
+  tone curves for skip-buried, the cube walk and the shipped trace. Exterior with grass and foliage on is
+  inconclusive (the control alone has 47k–84k px over 8/255 of wind). With grass and foliage off: the
+  cube walk PASS; skip-buried and the shipped trace each "fail" one curve by ~100 px, and in every such
+  run every differing pixel of test AND control lies in the same ~60×100 px box, the moving character
+  (`p1/gi_diff_where.py`); zero pixels differ outside it.
+- Lighting Lab `ambient_model_check.py`, run in the existing **LightingLab** project (flat, vegetation-free,
+  built for lighting gates, `docs/UnifiedLightingPlan.md` D2) since StructGenTest does not exist on this
+  machine (an earlier draft of this section wrongly called LightingLab a new scratch project; its
+  original `game.json` is intact). `--build` verified the rig from the world: GREEN in every run, options
+  on and off. A1-A3 identical to 3 decimals.
+- **A4 (the doorway-lit wall) cannot resolve differences of this size.** Order-balanced 8-run series:
+  cube walk 2.59 ± 0.19 vs micro 2.20 ± 0.31 (`p1/gi_a4_abba.json`) looked like +18%, but the next series
+  of the exact per-cube-cache march vs the micro march (identical by construction) read 2.11 ± 0.25 vs
+  2.40 ± 0.58, the micro march alone spanning 1.54–2.81 (`p1/gi_a4_abba_skip_empty.json`). The
+  deterministic probe-shaped ray test is the evidence that matters; A4 is a pass/fail floor (≥ 1.5).
+  Final shipped trace, fresh LightingLab process, 20 s settle (`docs/evidence/ambient_gi2_final_{on,off}.json`): GREEN both; A1 0.968 / 0.969, A2 0.0719 / 0.0716, A3 0.9975 / 0.9974, A4 1.54 / 1.67. Note A4 sat just above its 1.5 floor in BOTH configurations here, against ~2.2 in a longer-running process: the doorway light arrives by probe-to-probe hops and is still converging shortly after the rig is built. That is a fragility of the check itself (it can go red on timing alone), logged for whoever next touches `ambient_model_check.py`: settle for convergence, or average several captures.
+
+---
+
+## 16. PLAN — P1c: the city benchmark (S-3) at real load (drafted 2026-09-25, for `/design-check`)
+
+**Why.** Every result above was measured in S-1 (one tavern) or S-2 (4 buildings). The user reports that
+larger towns "really stress out the fps", and the goal is **cities of ~100 buildings**. The S-3 row in §4.1
+has been owed since the plan was written. Until it exists, no percentage in §10-§15 says anything about
+the load that matters, and the ranking of the next optimizations is a guess.
+
+**Target (user decision, 2026-09-25):** no fixed frame budget. **As fast as possible without sacrificing
+visual quality.** So the benchmark's job is not to pass a number: it is to show *what grows with the city*
+and *what breaks first*, so every optimization is ranked on the real operating point. Visual quality
+stays governed by §6 (identical image, or a declared and approved change).
+
+### 16.1 The scene: engine-generated, never hand-assembled
+
+- **Generator:** `POST /api/settlement/build` with `tier:"city"` (CityForge), Perlin terrain world with
+  `world.streaming: true` (relief, hydrology, flora and fauna present, as in a real game), seed 7.
+  **Provenance:** the raw generator request + response is saved beside every number
+  (`p1c/city_<N>_build.json`); nothing is hand-placed. If the generator cannot reach a size, that is
+  **reported and logged in `docs/StructurePipelineGaps.md`**, never patched around.
+- **Size ladder at FIXED density 1.5** (growth by area, the way a city actually grows, not by packing).
+  CityForge L4 measured 72 buildings on 160×160 at density 1.5 (`docs/CityForgePlan.md` M4). Predicted
+  counts below are extrapolations to be replaced by what the generator reports:
+
+  | Rung | Site | Predicted buildings | Purpose |
+  |---|---|---|---|
+  | C-25 | ~96×96 | ~25 | Overlaps S-2's scale: ties the new scene to the old numbers |
+  | C-50 | ~128×128 | ~45 | Mid point for the growth curve |
+  | C-75 | 160×160 | ~72 (measured) | CityForge's verified operating point |
+  | **C-100** | ~192×192 | **~100** | **The target** |
+
+  Each rung is its own world DB (same seed, same terrain). Building count, residents, placed props,
+  emitters (`light_stats`) and tier census (`voxel_tiers`) are recorded per rung.
+- **Scene identity across processes — verified, never assumed** (design check 9.6 #3). This session showed
+  that the S-1 tavern did NOT survive a restart of M4TavernBench (it was rebuilt in every process). So each
+  rung has a **content fingerprint** = {building count, placed-object count, `voxel_tiers` per-tier
+  instance counts, `light_stats` registered/uploaded by source, resident count}, written at build time
+  (`p1c/city_<N>_fingerprint.json`). **Taken at a fixed anchor** (design check 9.7 #5): `voxel_tiers` and
+  `light_stats` count only RESIDENT chunks, so the fingerprint is taken with the streaming focus held at
+  the site centre (I14, holder `camera_path` with a zero-length path, or the WorldForge focus route), load
+  distance ≥ the site's half-diagonal + one chunk, after the §10 settle gate, camera at the overview pose.
+  Anything else fingerprints the streaming state, not the city. Order of preference:
+  1. **Persisted:** `save_world` after the build, relaunch, and the fingerprint read back must be equal.
+     Residents are entities and may not persist; if they do not, they are re-spawned by the generator's
+     own resident path (never hand-spawned) and their count must match.
+  2. **If persistence fails** (logged as a gap in `docs/StructurePipelineGaps.md`): the build is re-run
+     per process from the saved request, and the fingerprint must match the reference exactly before a
+     single sample is taken. A mismatch voids the run.
+- **Residents ON** (the generator populates them; ~1 per household, 69 at C-75). They are real load
+  (character pipeline, AI, pathing). A **residents-OFF** arm is measured once per rung to attribute
+  their share, not as the operating point.
+
+### 16.2 What is measured, and why static poses are not enough
+
+Static 240-frame medians (everything so far) hide the stress the user is seeing: **hitches while moving**
+(chunk streaming, re-meshing, building/prop activation, NPC schedule updates). S-3 therefore has two
+kinds of measurement:
+
+1. **Fixed poses** (as §4.2, so the per-pass attribution tools apply unchanged): street level in the core,
+   the market square, a rooftop-height view along the main street, an elevated overview of the whole
+   city, and the city seen from outside its wall. Poses are defined relative to the generator's reported
+   layout (square centre, main-street axis), so they land in the same place on every rung.
+2. **A fixed walk route** through the city at walking speed and at a fast-travel speed: in through a gate,
+   down the main street, across the square, through a side lane, out the far side. Per frame, recorded:
+   wall-clock frame time, GPU frame, per-pass GPU scopes, CPU scopes. Reported as p50 / p95 / p99 / max
+   frame time plus **hitch count** (frames > 2× the route median, and > 33 ms) **with what was running in
+   the hitch frame** (which CPU scope spiked). A hitch is a finding, never noise to be averaged away.
+   **The streaming pump alternates by design** (`updateChunkStreaming()` every 2nd frame,
+   `pumpChunkLanding()` on the others, `Application.cpp:4249`), so frame time can alternate too. The
+   report shows the even/odd-frame split of `Streaming Pump` separately, and a hitch is judged against the
+   median of frames with the SAME parity, so the cadence is never counted as hitches (design check 9.8).
+
+**Controlled conditions (every S-3 run; design check 9.6 #6):**
+- **Time of day fixed, clock paused** (`POST /api/daynight/set {timeOfDay, paused:true}`): **noon** and
+  **night (22:00)**, measured separately. Night is when windows, lanterns and street lights are lit, so it
+  is the light-heavy case and the likely worst one; noon is the shadow/sky-heavy case. (Only the clock
+  is paused — never the game: game pause stops the emissive reconcile, §13.)
+- **Present mode non-vsync** (MAILBOX or IMMEDIATE, read back from `engine_timing.present_mode` and
+  recorded per row). A vsync floor at the refresh rate would hide exactly the headroom we are looking for;
+  a run in FIFO is void.
+- **Viewport size recorded** per row (editor docked viewport at a 1600×900 window until the standalone
+  `--test` follow-up).
+
+Plus, per rung: chunk RAM and meshing totals (I5/I7), draw count, uploaded vs in-range lights, shadow
+cascade caster counts. Output: a **growth table** (each pass's cost vs building count) that shows which
+costs are flat, which linear and which super-linear. The first super-linear pass is the next target.
+
+### 16.3 New instrumentation this needs (small, measurement-only)
+
+| # | What | Why it is missing today | Contract |
+|---|---|---|---|
+| **I11** | **Frame-pacing history:** a per-frame ring (same 240-frame shape as I1) of wall-clock frame time (present to present) and the main-loop phases, exposed at `GET /api/debug/frame_pacing?frames=N`. **Built on the EXISTING `PerformanceProfiler` scopes, not a third timing system** (design check 9.7 #3): `Update` and its children `Water`, `Scripting`, `AI`, `NPCs`, `Entities`, `Camera Sync`, `Input Controller`, `Voxel Interaction` (`Application.cpp:3529-4084`), plus two added around existing calls — `API Drain` (`processAPICommands()`, `Application.cpp:2912`) and `Streaming Pump` (`updateChunkStreaming()` on alternate frames, `pumpChunkLanding()` on the others, and `pumpDeferredDbLoads()`, `Application.cpp:4249-4255`) — plus `drawFrame` (the I7 recorder's total) and `Other` = frame − Σ phases, so the phases always sum to the frame. | `cpu_timing` only covers `drawFrame`. A hitch caused by AI, physics or the streaming pump is invisible to every tool we have. | `frames`: integer 1..capacity (240), default = capacity; out of range → clamped and the used value echoed as `frames_used`. Response: the same statistics block as `cpu_timing` (median/p90/p99/max per phase, ms) **plus the raw per-frame series** of exactly `frames_used` entries, each `{serial, frame_ms, phases{...}}`. Read on the HTTP thread from a snapshot only (the `engine_timing` rule). The ring is for STATIC poses; routes use the recorder (I15). |
+| **I12** | **Camera path playback over the API**, driving the existing `CameraManager::CameraPath` (Catmull-Rom; in the engine, not exposed). `POST /api/camera/path {waypoints:[{x,y,z,yaw,pitch}] (world units, degrees), speed_u_per_s, loop:false, stream_follow:true}` starts it; `POST /api/camera/path {stop:true}` stops it; `GET /api/camera/path` → `{playing, finished, stopped, progress 0..1, arc_length_u, position, yaw, pitch}`. | Driving the camera from the harness over HTTP gives jerky, latency-bound motion that is not what a player does, and it is not repeatable. | **Constant speed is NEW behaviour, added as a mode.** Today `CameraPath::update` spends a fixed 1 s per segment regardless of its length (`CameraManager.cpp:129-130`), pinned by `CameraPathTest.PlayAndProgress`/`FinishesAtEnd` and relied on by cinematics. So: an opt-in `setConstantSpeed(u_per_s)` (arc-length parametrisation over the Catmull-Rom spline, precomputed lookup); the default stays 1 s/segment and those pins stay green unchanged. **Refusals** (nothing applied, reason echoed): < 2 waypoints; any non-finite value; speed ≤ 0; speed > `kMaxPathSpeed`. **Speed is split in two** (design check 9.7 #6), because streaming throughput is machine-dependent (the laptop streams slower) and a compiled constant cannot be "measured": (a) **two engine-side bounds, each with its reason written at the clamp site:** `kMaxPathSpeed` = 64 u/s, a player-motion bound (~15× walking speed, a fast mount; anything faster is a flythrough, not something a player does, and turns the benchmark into a streaming-failure test); and **the streaming focus never moves more than `kFocusStep` = 64 u in one frame**, the SAME constant and invariant WorldForge uses (`Application.cpp:13749`: "a fast player, not a teleport"; its residency poll re-issues the focus every frame, `WorldForgeBuildService.cpp:207`), shared rather than duplicated, so a long frame cannot teleport the anchor and drop characters onto unstreamed ground; (b) **the route speed actually used is chosen per machine by the harness** from that machine's §16.6 step-0 throughput measurement (the fastest speed at which the chunk under the camera is resident on arrival, with margin) and recorded in every row. **Conflict rule:** `POST /api/camera` while a path is playing **stops the path** and its response says `path_stopped:true` (no silent fight over the pose). **`stream_follow` (default true for this route):** each frame the path's position is written to `ChunkManager::setStreamingFocusOverride` (`ChunkManager.h:181`), and cleared when the path ends or stops — see I14. |
+| **I13** | **Route runner** in `tools/perf_harness.py`: `route` subcommand = settle, verify fingerprint (§16.1), `POST` I15 start, start the I12 path, **wait without polling** until the path's known duration has elapsed (+1 s), then one `GET` of `/api/camera/path` (must report `finished`) and one read of the I15 recording; writes one jsonl row per frame plus a summary. A/B arms repeat the route ABBA. | Composes the above. | Refuses Debug builds (as all harness commands do), refuses FIFO present mode, refuses an unpaused day/night clock. **Sends no request while a measured route is running** (the main loop drains API commands every frame, `Application.cpp:2912`, so polling would add main-thread work to the very frames being measured). |
+| **I14** | **Streaming follows the route** (design check 9.6 #1). `ChunkManager::streamingAnchor()` is the PLAYER unless an override is set (`ChunkManager.h:184`, comment at `ChunkManager.cpp:264`). A camera flying the route while the player stands at spawn streams nothing new, so the route would measure a static city and miss streaming, one of the prime suspects for the stutter. I12's `stream_follow` drives the focus override from the path's position each frame. | The alternative, walking the actual player character, is more realistic but NPC collisions and physics make it non-deterministic. It is kept as a later confirmation run, not the benchmark. | **The override gets an owner** (design check 9.7 #1). It already has two users: the WorldForge build job (moves it in 64 u steps, widens load/unload distance, and its `releaseFocus` calls `clearStreamingFocusOverride()`, `Application.cpp:13745-13757`) and `/api/worldforge/focus` (`:13854`). So `setStreamingFocusOverride(pos, holder)` records a holder (`worldforge_build`, `worldforge_focus`, `camera_path`); a set by a different holder while one is held is **refused, naming the current holder**; `clearStreamingFocusOverride(holder)` releases only its own hold (a WorldForge release can no longer clear a route's focus mid-run, and vice versa). Existing callers pass their holder name; behaviour for a single user is unchanged. Pinned by `StreamingFocusOwnerTest` (refuse-while-held, release-only-own, clear-on-owner-release). Main-thread only (`ChunkManager.h:115`). The path clears its hold on end, stop and any error. `GET /api/camera/path` echoes `stream_follow` and the current holder. |
+| **I15** | **Route recorder** (design check 9.7 #2). The I1 and I11 rings hold 240 frames; a ~60 s route at ~100 fps is ~6,000 frames, so they wrap ~25 times, and reading them mid-route perturbs the frames being measured. `POST /api/debug/record {start:true, max_frames}` begins capture into a buffer sized once at start (no allocation per frame); `{stop:true}` ends it; `GET /api/debug/record` returns it. One row per frame: `{serial, frame_ms, phases{...I11}, gpu_scopes{...I1, matched by serial}, camera{pos, yaw, pitch}, path_progress, streaming{resident_chunks, pending_generation, pending_remesh}}`. | Nothing records a whole route today. | `max_frames` 1..65,536 (clamped, echoed; at ~100 fps that is ~11 min); on overflow recording **stops and reports `truncated:true`** rather than wrapping (a silently wrapped route would drop its first frames). GPU scopes arrive a few frames late: a row's GPU block is attached when its serial resolves, and rows still unresolved at stop are marked `gpu_pending` rather than guessed. Start while already recording is refused. |
+
+These are measurement-only: no gameplay, look or generator behaviour changes. **All new routes go through
+`PerfApi`** and are registered by BOTH hosts (the editor and `GameApiService`), like I1-I7, so the
+standalone `--test` follow-up has the same tools (design check 9.8).
+
+### 16.4 Validation of the benchmark itself (so its numbers can be trusted)
+
+**Instrumentation is proven on SMALL rigs first, never first in the city** (design check 9.6 #5). Two rigs,
+because a fixed-range world does not stream (`configureStreamingGeneration` sets
+`setMaxChunksPerUpdate(enabled ? 8 : 0)`, `ChunkManager.cpp:240`; design check 9.7 #4):
+- **R-P1 (static):** a fresh Flat world with a fixed `from`/`to` range, one chunk (0,0,0), a 5×5 Stone slab
+  at local 8..12 on the floor at y=16 (hand-placed, queried back), camera route = 4 waypoints inside that
+  chunk, 1.2 u/s. Used by V1-V3, V5-V7.
+- **R-P2 (streaming):** Flat terrain with `world.streaming: true` (nothing placed; flat so terrain relief is
+  not a second variable), a straight path along +x across 3 chunks. Used by V4 only.
+
+Each test moves ONE variable, with a written prediction and a control.
+
+| # | Red test (shown failing first) | Level | Prediction / pass criterion | Control |
+|---|---|---|---|---|
+| V1 | `CameraPathTest.ConstantSpeedCoversEqualArcLengthInEqualTime` (unit): a path with one 1 u and one 10 u segment. Today's timing gives 1 u/s then 10 u/s. | L2 | With `setConstantSpeed(2)`: distance travelled per 0.1 s within ±2% of 0.2 u along the whole path. **Fails today** (the short segment runs at 1/10 the speed). | The existing `CameraPathTest` pins unchanged and green (default timing untouched). |
+| V2 | `FramePacingHistoryTest` (unit, `GpuTimingHistoryTest` shape): known per-frame values in → exact percentiles and raw series out; wrap-around; `frames` clamp. | L2 | Exact values. Fails until the ring exists. | — |
+| V3 | **Route determinism**, R-P1 (L4): run the I12 path twice under the I15 recorder, **no polling during either run**; compare the RECORDED per-frame `camera` pose against `path_progress`. | L4 | For matched progress, position differs by ≤ **0.05 u** (the harness's pose tolerance) and angles by ≤ 0.1°, over the whole path, in both runs. A path overwritten by `InputManager`, or drifting, fails. | The path's analytic position at that progress (from the waypoints). |
+| V4 | **Streaming follows**, R-P2 (L4): the recorder's `streaming.resident_chunks` plus a `load_state` read after each run tell whether the chunk under the camera was resident when the camera entered it. | L4 | `stream_follow:true`: resident at every chunk entry. `stream_follow:false`: the second and third chunks are NOT resident on entry (the player stands at spawn). | `stream_follow:false`. |
+| V6 | **`StreamingFocusOwnerTest`** (unit): hold as `worldforge_build`, then set as `camera_path` → refused, naming `worldforge_build`; `clear(camera_path)` → no effect; `clear(worldforge_build)` → released; then `camera_path` can take it. | L2 | As stated. **Fails today** (no holder: the second set overwrites, any clear releases). | A single holder set/clear behaves exactly as today. |
+| V7 | **Recorder capacity and ordering** (unit + R-P1): `max_frames` = 100 over a 300-frame run → exactly 100 rows, `truncated:true`, first row = first frame after start; every row's GPU block matches the GPU ring's entry for the same serial, or is `gpu_pending`. | L2 + L4 | As stated. | A run shorter than `max_frames`: `truncated:false`, no gaps in `serial`. |
+| V5 | **A hitch we caused is seen, with its cause** (R-P1): mid-route, `POST /api/world/fill` a 16×16 slab (forces a re-mesh). | L4 | I11 shows ≥ 1 frame > 2× the route median within 0.5 s of the fill, whose largest phase is `Dirty Chunk Flush` / meshing. | The same route with no fill: no such frame. |
+
+**Then in the city:**
+- **A/A noise on the route:** 8 ABBA repeats of the route with no change, per rung and per time of day.
+  The route-level noise floor (p50, p95, p99, hitch count) is published before any A/B on it is read. No
+  verdict below 8 pairs (§10 rule).
+- **Settle gate before every run:** `load_state` pending counters at 0, `visibleInstances` stable at the
+  route's start pose (§10), and the §16.1 fingerprint equal to the rung's reference.
+
+### 16.5 Deviation from the small-rig rule, stated
+
+CLAUDE.md asks for small one-chunk rigs. S-3 is deliberately the opposite: its purpose is the real
+operating point. It is **not** used to prove any single change is correct; that stays with the
+one-chunk rigs and pixel gates of §6. S-3 is used to (a) find and rank costs at real load and (b) confirm
+a change's win survives at that load. Rig-vs-shipped deltas for S-3: editor host at 1600×900 with ImGui
+(standalone `--test` at native resolution is the follow-up), RTX 4090 only until the laptop run.
+
+### 16.6 Sequencing and exit criterion
+
+0. **Measure Release streaming throughput** at the C-100 site (chunks made resident per second while the
+   focus override moves at increasing speed) to derive `kMaxPathSpeed` (I12). The walking route runs at
+   ~4 u/s; the fast route at the highest speed that stays under that bound.
+1. I11 + I12 (+ constant-speed mode) + I14 (+ override holders) + I15 + I13, each with its red test (V1-V7,
+   §16.4) on R-P1 / R-P2.
+2. Generate C-25 … C-100; record counts and fingerprints; verify persistence (§16.1). Stop and report if
+   C-100 cannot be generated.
+3. Per rung, per time of day: census, fixed-pose attribution (§4.2 steps 1-5), route runs (A/A first).
+4. Growth table + hitch report → check against the §16.7 predictions → re-rank §5 (L2, L3, L4, S1-S6,
+   foliage, shadows, characters) on C-100.
+5. Re-verify L1, P-DP and GI-2 on C-100 (their wins were measured at S-1/S-2 scale only).
+
+**Exit:** the growth table and hitch report exist for all four rungs on the 4090, with provenance, and the
+next optimization is chosen from C-100 data. The laptop run of the same ladder remains owed (§8.3).
+
+### 16.7 Predictions, written before the ladder runs (design check 9.6 #7)
+
+Street-level core pose, GPU ms vs building count B (25 → 100), prepass + L1 + GI-2 on. Each is a
+falsifiable claim; the growth table marks it CONFIRMED / REJECTED.
+
+| Pass / cost | Predicted growth with B | Why |
+|---|---|---|
+| **GI Probes** | **Flat** (±5%) | Fixed grid around the viewer (§15); the city only changes how many rays hit. |
+| **Scene Pass / Static Geometry** | Sub-linear at street level; ~linear in the overview | At street level near buildings occlude far ones (the prepass kills their shading); from above everything is in view. |
+| **Point lights (inside Static Geometry)** | Rising toward the 32-light cap, then flat per pixel, **night ≫ noon** | Lights in range per pixel grow with density until the cap binds; L2 is re-evaluated here. |
+| **Shadow Pass (mid cascade, 420 u)** | **~Linear** in B, the steepest GPU term at noon | Every building in the cascade casts, whether or not it is visible. |
+| **Characters** | ~Linear in residents in view | One rig draw per visible character. |
+| **Grass + Foliage** | Flat or falling | Buildings and paving replace grass and trees inside the city. |
+| **CPU: NPC/AI + update** (I11) | ~Linear in residents (all residents, not just visible) | Schedules and pathing run for everyone. |
+| **Hitches on the walk route** | Grow with B; cause = meshing (`Dirty Chunk Flush`) and streaming, **not** GPU | Denser chunks re-mesh slower (12.6 ms for a micro-heavy chunk, §11). |
+| **Worst case overall** | C-100, night, overview pose (GPU); C-100 fast route (hitches) | Lights + shadows + everything in view; streaming at speed. |
+
+### 16.8 RESULTS — instrumentation built and validated (2026-09-25, RTX 4090, Release, editor host)
+
+Built: I11 (frame pacing on the existing `PerformanceProfiler` scopes, via `PerfCapture`), I12 (camera path
+API + constant-speed mode), I14 (`StreamingFocus` with holders), I15 (`RouteRecorder`), plus the route
+runner helpers (`docs/evidence/perf2026-09/p1c/rig_common.py`, `hitch_analysis.py`). One implementation,
+`Core::PerfCapture` on `EngineRuntime`, driven by the editor loop and by `EngineRuntime::endFrame()`;
+routes through `PerfApi` in both hosts.
+
+| # | Result | Evidence |
+|---|---|---|
+| V1 | **Red → green.** Mutant (constant speed ignored) failed; green: equal arc per equal time, no backtracking, pose = `poseAt(progress)` at uneven dt; original `CameraPathTest` pins unchanged. | `CameraPathTest.*` (10) |
+| V2 | **Red → green.** `series()` mutant (empty) failed; green: per-frame values in order, window clamp, `max`. | `GpuTimingHistoryTest` |
+| V3 | **PASS.** Two recorded runs, ~2,570 on-path frames each: worst camera error vs the analytic polyline **6×10⁻⁵ u / 0.0002°** (tolerance 0.05 u / 0.1°). No InputManager fight, no drift. | `p1c/v3_route_determinism.json` |
+| V4 | **Premise falsified → redesigned as V4b.** The control (stream_follow OFF) was resident at every chunk entry, like the follow arm: in the editor `playerPosition` IS the camera (`Application.cpp:4245`), so streaming already follows a camera path. Design check 9.6 #1 took `ChunkManager`'s "player" comment at face value. | `p1c/v4_stream_follow.json` |
+| V4b | **PASS, 12/12 live steps:** WorldForge focus refuses a path's stream_follow naming the holder; a path without it is unaffected; each holder releases only its own hold; a path's hold refuses WorldForge; `POST /api/camera` stops a playing path, says `path_stopped`, and releases its hold. | `p1c/v4b_focus_ownership_live.json` |
+| V5 | **PASS on the stated criterion; original prediction partly falsified.** The caused hitch was caught and attributed (below). But the control was NOT hitch-free (next row). | `p1c/v5_caused_hitch_rescored.json`, raw `v5_raw_{control,fill}.json` |
+| V6 | **Red → green.** Holder-less mutant failed 2 tests; green 5/5. | `StreamingFocusOwnerTest` |
+| V7 | **Red → green.** Wrapping-ring mutant lost the route's first frames; green: stop-don't-wrap, late GPU attach by serial (also after stop), clamping, dropped-key counting. | `RouteRecorderTest` (5) |
+
+**Design changes the validation forced:**
+- **Constant-speed mode walks the POLYLINE, not the spline.** Uniform Catmull-Rom through unevenly spaced
+  waypoints (x = 0, 1, 11) dips to x = −0.125 on its first segment: a route camera that walks backwards
+  and swings wide of corners (into buildings). The cinematic default keeps the spline.
+- **A hitch is a LOCAL spike**, not "2× the route median": a route passes from cheap views to expensive
+  ones, and the global rule flagged 210 frames of a sustained GPU-bound view change (3.7 → 8.5 ms, all
+  `drawFrame/Fence Wait`) in the V5 control. Rule now: > 2× the same-parity median within ±0.5 s AND
+  ≥ 4 ms above it (`hitch_analysis.py`).
+- **The recorder also takes the render path's CPU scopes (I7)**, or a hitch inside `drawFrame` could only
+  be attributed to "render"; and a per-frame `camera_chunk_resident` flag.
+- **I14 `stream_follow` is redundant in the editor** (the camera already anchors streaming) but kept: the
+  holder rules are what protect a WorldForge focus and a route from each other.
+
+**Findings from the rigs (real engine behaviour, not tool artefacts):**
+1. **`POST /api/world/fill` of 3,072 cubes froze the main loop for 1.84 s**, all in `Frame/API Drain`
+   (1,787 ms), then a 29 ms re-mesh (`drawFrame/Dirty Chunk Flush`) and a 42 ms `update` frame. "Async" API
+   commands still run on the main thread (only JobSystem jobs are off-thread). A dev-API cost today; the
+   same path would hitch any gameplay edit of that size.
+2. **At one R-P1 view the GPU frame alternates ~4.2 / ~9.5 ms every other frame** (`Fence Wait`
+   dominant), phase-shifting occasionally; GI probe slices also vary 0.45 → 5.2 ms by which eighth of the
+   grid updates. Unexplained; a candidate for the city attribution (frame pacing, not just averages).
+3. **Standalone games do not stream terrain at all** (only the editor calls the streaming pump) —
+   logged in `docs/StructurePipelineGaps.md` 2026-09-25. The standalone `--test` benchmark follow-up is
+   blocked on it for streaming worlds.
+
+Rig note: R-P1 = M4TavernBench; R-P2 = new project `PerfRigStream` (Flat, streaming, loadRadius 2, no
+flora). Unit suite after the change: 4,059 passed, 20 skipped, 2 failed -- the two documented as failing
+before this work (`AtlasManagerTest.BuildAtlasFromSourcePNGs`, `FineFaceMerge.SubcubeMerge_CrossCube...`).

@@ -84,10 +84,30 @@ std::vector<GpuTimingStats> GpuTimingHistory::stats(size_t frames) const {
         for (double x : v) sum += x;
         s.mean = sum / static_cast<double>(v.size());
         std::sort(v.begin(), v.end());
+        s.max = v.back();
         s.median = median(v);
         s.p90 = nearestRank(v, 90.0);
         s.p99 = nearestRank(v, 99.0);
         out.push_back(std::move(s));
+    }
+    return out;
+}
+
+std::vector<GpuTimingHistory::FrameSeries> GpuTimingHistory::series(size_t frames) const {
+    std::vector<FrameSeries> out;
+    if (serials_.empty() || frames == 0) return out;
+    const size_t window = std::min(frames, serials_.size());
+    std::unordered_map<uint64_t, size_t> row;
+    out.reserve(window);
+    for (size_t i = serials_.size() - window; i < serials_.size(); ++i) {
+        row[serials_[i]] = out.size();
+        out.push_back({serials_[i], {}});
+    }
+    for (const auto& key : order_) {
+        for (const auto& [serial, ms] : entries_.at(key).samples) {
+            auto it = row.find(serial);
+            if (it != row.end()) out[it->second].values.emplace_back(key, ms);
+        }
     }
     return out;
 }

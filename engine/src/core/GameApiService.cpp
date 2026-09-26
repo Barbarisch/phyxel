@@ -917,6 +917,25 @@ void GameApiService::registerCommands() {
     });
 
     // P-DP static depth prepass A/B, same JSON as the editor's route.
+    // City benchmark tooling (docs/PerfProgram2026-09.md section 16), same PerfApi as the editor.
+    reg.on("get_frame_pacing", [this](const APICommand& cmd, json& r) {
+        r = PerfApi::framePacing(runtime ? runtime->getPerfCapture() : nullptr, cmd.params);
+    });
+    reg.on("record_control", [this](const APICommand& cmd, json& r) {
+        r = PerfApi::recordControl(runtime ? runtime->getPerfCapture() : nullptr, cmd.params);
+    });
+    reg.on("record_dump", [this](const APICommand& cmd, json& r) {
+        r = PerfApi::recordDump(runtime ? runtime->getPerfCapture() : nullptr, cmd.params);
+    });
+    reg.on("camera_path", [this](const APICommand& cmd, json& r) {
+        r = PerfApi::cameraPath(runtime ? runtime->getPerfCapture() : nullptr,
+                                runtime ? runtime->getCameraManager() : nullptr,
+                                runtime ? runtime->getChunkManager() : nullptr,
+                                runtime ? runtime->getCamera() : nullptr, cmd.params);
+    });
+    reg.on("set_gi_probe_options", [this](const APICommand& cmd, json& r) {
+        r = PerfApi::setGiProbeOptions(renderCoordinator, cmd.params);
+    });
     reg.on("set_depth_prepass", [this](const APICommand& cmd, json& r) {
         r = PerfApi::setDepthPrepass(renderCoordinator, cmd.params);
     });

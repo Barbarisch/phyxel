@@ -12,6 +12,11 @@ class GpuProfiler;
 class ChunkManager;
 namespace Graphics {
 class RenderCoordinator;
+class Camera;
+class CameraManager;
+}
+namespace Core {
+class PerfCapture;
 }
 }
 
@@ -53,6 +58,12 @@ nlohmann::json setTierMask(const nlohmann::json& params);
 // and nothing is applied. Echoes {enabled, available (pipelines built), ran_last_frame}. Default OFF.
 nlohmann::json setDepthPrepass(Graphics::RenderCoordinator* rc, const nlohmann::json& params);
 
+// POST /api/debug/gi_probe {skip_buried: bool, two_level_trace: bool} (GI-1, GI-2). Each field is
+// optional (omitted = unchanged); a non-boolean refuses the whole request and nothing is applied.
+// Echoes both options and gi_enabled (with the probe field off there is no pass to act on). Both
+// default ON.
+nlohmann::json setGiProbeOptions(Graphics::RenderCoordinator* rc, const nlohmann::json& params);
+
 // GET /api/debug/cpu_timing?frames=N (I7). CPU scopes of drawFrame, same statistics as gpu_timing:
 // drawFrame > LOD Update, Light Occupancy, Dirty Chunk Flush (includes meshing), Fence Wait, Acquire,
 // Frame Setup (> Light Select+Upload), Record (> Shadow Pass, Scene Pass > Static Geometry > Occlusion
@@ -63,5 +74,35 @@ nlohmann::json cpuTiming(Graphics::RenderCoordinator* rc, const nlohmann::json& 
 // bucketed by the chunk's microcube count. reset=1 returns the stats and then zeroes them, so a
 // caller can measure exactly one window.
 nlohmann::json meshTiming(const nlohmann::json& params);
+
+// ---- City benchmark tooling (docs/PerfProgram2026-09.md section 16) ----
+
+// GET /api/debug/frame_pacing?frames=N (I11). The main-loop scopes of PerformanceProfiler (Frame >
+// API Drain, Update > Water/Scripting/AI/NPCs/Entities/Camera Sync/..., Streaming Pump, render) plus
+// "Frame Interval" (wall time between consecutive frame ends), with the cpu_timing statistics
+// (median/p90/p99/max/mean/last per scope) AND the raw per-frame series (`series`: frames_used entries
+// of {serial, values{key: ms}}). frames clamped to [1, 240], omitted = all held; frames_used echoes it.
+nlohmann::json framePacing(const PerfCapture* pc, const nlohmann::json& params);
+
+// POST /api/debug/record (I15): {start:true, max_frames:N} begins a route recording (N clamped to
+// [1, 65536], echoed as capacity; refused while already recording); {stop:true} ends it. Echoes
+// {recording, frames, capacity, truncated}.
+nlohmann::json recordControl(PerfCapture* pc, const nlohmann::json& params);
+
+// GET /api/debug/record?from=K&count=M (I15): the recording, one row per frame from row K (default 0),
+// at most M rows (default and max 2048 per response, so a 6,000-frame route is read in pages).
+// `phase_keys` / `gpu_keys` name the columns of each row's `phases` / `gpu` arrays; null = not run
+// this frame or not resolved. Rows whose GPU timings never resolved have `gpu_resolved: false`.
+nlohmann::json recordDump(const PerfCapture* pc, const nlohmann::json& params);
+
+// POST /api/camera/path (I12): {waypoints:[{x,y,z,yaw,pitch}] (world units, degrees), speed_u_per_s,
+// loop (default false), stream_follow (default true)} starts a constant-speed path; {stop:true} stops
+// it and releases the streaming focus. Refused, with nothing applied: < 2 waypoints, a non-finite
+// value, speed <= 0 or > kMaxPathSpeedUnitsPerSec, stream_follow while another holder has the focus.
+// GET (params empty) reports {playing, finished, progress, arc_length_u, speed_u_per_s, camera
+// {x,y,z,yaw,pitch}, stream_follow, focus_holder}.
+constexpr float kMaxPathSpeedUnitsPerSec = 64.0f;
+nlohmann::json cameraPath(PerfCapture* pc, Graphics::CameraManager* cameras, ChunkManager* chunks,
+                          const Graphics::Camera* camera, const nlohmann::json& params);
 
 }  // namespace Phyxel::Core::PerfApi

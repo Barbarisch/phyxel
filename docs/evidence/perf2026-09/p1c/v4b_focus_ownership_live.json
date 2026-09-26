@@ -1,0 +1,217 @@
+{
+ "rig": "R-P2 (PerfRigStream)",
+ "steps": [
+  {
+   "step": "worldforge_focus takes the focus",
+   "pass": true,
+   "response": {
+    "focused": true,
+    "holder": "worldforge_focus",
+    "success": true,
+    "surface_y": 16,
+    "x": 300,
+    "z": 40
+   }
+  },
+  {
+   "step": "path with stream_follow is REFUSED, naming the holder",
+   "pass": true,
+   "response": {
+    "applied": false,
+    "arc_length_u": 160.0,
+    "camera": {
+     "pitch": -30.0,
+     "x": 45.0,
+     "y": 55.0,
+     "yaw": -135.0,
+     "z": 45.0
+    },
+    "error": "stream_follow refused: the streaming focus is held by 'worldforge_focus'",
+    "finished": true,
+    "focus_holder": "worldforge_focus",
+    "playing": false,
+    "progress": 1.0,
+    "speed_u_per_s": 8.0,
+    "stream_follow": false,
+    "success": false
+   }
+  },
+  {
+   "step": "path WITHOUT stream_follow is allowed (it does not touch the focus)",
+   "pass": true,
+   "response": {
+    "applied": true,
+    "arc_length_u": 80.0,
+    "camera": {
+     "pitch": -30.0,
+     "x": 45.0,
+     "y": 55.0,
+     "yaw": -135.0,
+     "z": 45.0
+    },
+    "duration_s": 10.0,
+    "finished": false,
+    "focus_holder": "worldforge_focus",
+    "playing": true,
+    "progress": 0.0,
+    "speed_u_per_s": 8.0,
+    "stream_follow": false,
+    "success": true,
+    "waypoints": 2
+   }
+  },
+  {
+   "step": "stopping that path does not release the WorldForge focus",
+   "pass": true,
+   "response": {
+    "arc_length_u": 80.0,
+    "camera": {
+     "pitch": -10.0,
+     "x": 40.087852478027344,
+     "y": 22.0,
+     "yaw": 0.0,
+     "z": 40.000003814697266
+    },
+    "finished": false,
+    "focus_holder": "worldforge_focus",
+    "focus_released": false,
+    "playing": false,
+    "progress": 0.0,
+    "speed_u_per_s": 8.0,
+    "stopped": true,
+    "stream_follow": false,
+    "success": true
+   }
+  },
+  {
+   "step": "worldforge_focus releases its own hold",
+   "pass": true,
+   "response": {
+    "focused": false,
+    "holder": "",
+    "released": true,
+    "success": true
+   }
+  },
+  {
+   "step": "path with stream_follow now takes the focus",
+   "pass": true,
+   "response": {
+    "applied": true,
+    "arc_length_u": 80.0,
+    "camera": {
+     "pitch": -30.0,
+     "x": 45.0,
+     "y": 55.0,
+     "yaw": -135.0,
+     "z": 45.0
+    },
+    "duration_s": 10.0,
+    "finished": false,
+    "focus_holder": "",
+    "playing": true,
+    "progress": 0.0,
+    "speed_u_per_s": 8.0,
+    "stream_follow": true,
+    "success": true,
+    "waypoints": 2
+   }
+  },
+  {
+   "step": "while the path holds it, the focus holder is camera_path",
+   "pass": true,
+   "response": {
+    "arc_length_u": 80.0,
+    "camera": {
+     "pitch": -10.0,
+     "x": 44.290138244628906,
+     "y": 22.0,
+     "yaw": 0.0,
+     "z": 40.0
+    },
+    "finished": false,
+    "focus_holder": "camera_path",
+    "playing": true,
+    "progress": 0.05362677574157715,
+    "speed_u_per_s": 8.0,
+    "stream_follow": true,
+    "success": true
+   }
+  },
+  {
+   "step": "worldforge_focus is REFUSED while the path holds it, naming camera_path",
+   "pass": true,
+   "response": {
+    "error": "streaming focus is held by another user",
+    "focused": false,
+    "holder": "camera_path",
+    "success": false
+   }
+  },
+  {
+   "step": "an empty release by worldforge_focus does not clear the path's hold",
+   "pass": true,
+   "response": {
+    "focused": false,
+    "holder": "camera_path",
+    "released": false,
+    "success": true
+   }
+  },
+  {
+   "step": "stopping the path releases its focus",
+   "pass": true,
+   "response": {
+    "arc_length_u": 80.0,
+    "camera": {
+     "pitch": -10.0,
+     "x": 44.703346252441406,
+     "y": 22.0,
+     "yaw": 0.0,
+     "z": 39.999996185302734
+    },
+    "finished": false,
+    "focus_holder": "",
+    "focus_released": true,
+    "playing": false,
+    "progress": 0.0,
+    "speed_u_per_s": 8.0,
+    "stopped": true,
+    "stream_follow": false,
+    "success": true
+   }
+  },
+  {
+   "step": "a camera set while a path plays stops it and says so",
+   "pass": true,
+   "response": {
+    "control_scheme": "",
+    "path_stopped": true,
+    "rig": "",
+    "success": true
+   }
+  },
+  {
+   "step": "...and the path's focus hold is released with it",
+   "pass": true,
+   "response": {
+    "arc_length_u": 80.0,
+    "camera": {
+     "pitch": -20.0,
+     "x": 16.0,
+     "y": 24.0,
+     "yaw": -90.0,
+     "z": 44.0
+    },
+    "finished": false,
+    "focus_holder": "",
+    "playing": false,
+    "progress": 0.0,
+    "speed_u_per_s": 8.0,
+    "stream_follow": false,
+    "success": true
+   }
+  }
+ ],
+ "pass": true
+}

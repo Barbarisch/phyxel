@@ -126,3 +126,34 @@ TEST(GpuTimingHistoryTest, TwoScopesInOneBlockCompile) {
     GPU_PROFILE_SCOPE(none, VK_NULL_HANDLE, "second");
     SUCCEED();
 }
+
+// V2 (docs/PerfProgram2026-09.md section 16, I11): frame pacing needs WHICH frame was slow, not only
+// how often. series() returns the raw values behind stats(), frame by frame, oldest first.
+TEST(GpuTimingHistoryTest, SeriesReturnsEachFramesValuesInOrder) {
+    GpuTimingHistory h(4);
+    for (uint64_t s = 1; s <= 6; ++s) {
+        std::vector<GpuTimingSample> f{sample("Frame", 10.0 + s)};
+        if (s == 5) f.push_back(sample("Frame/Streaming Pump", 30.0, 1));   // a hitch in frame 5 only
+        ASSERT_TRUE(h.addFrame(s, f));
+    }
+    const auto all = h.series(100);                 // clamped to the 4 frames held
+    ASSERT_EQ(all.size(), 4u);
+    EXPECT_EQ(all.front().serial, 3u);
+    EXPECT_EQ(all.back().serial, 6u);
+    ASSERT_EQ(all[2].serial, 5u);
+    ASSERT_EQ(all[2].values.size(), 2u);
+    EXPECT_EQ(all[2].values[1].first, "Frame/Streaming Pump");
+    EXPECT_DOUBLE_EQ(all[2].values[1].second, 30.0);
+    EXPECT_EQ(all[1].values.size(), 1u);            // frame 4 had no pump sample
+    EXPECT_DOUBLE_EQ(all[3].values[0].second, 16.0);
+
+    const auto two = h.series(2);
+    ASSERT_EQ(two.size(), 2u);
+    EXPECT_EQ(two[0].serial, 5u);
+
+    const auto st = h.stats(4);
+    const auto* frame = find(st, "Frame");
+    ASSERT_NE(frame, nullptr);
+    EXPECT_DOUBLE_EQ(frame->max, 16.0);
+    EXPECT_TRUE(h.series(0).empty());
+}

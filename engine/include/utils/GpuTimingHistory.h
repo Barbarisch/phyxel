@@ -27,6 +27,7 @@ struct GpuTimingStats {
     double p90 = 0.0;
     double p99 = 0.0;
     double mean = 0.0;
+    double max = 0.0;      // worst frame in the window (a hitch is a max, not a percentile)
     double last = 0.0;     // most recent sample
 };
 
@@ -52,6 +53,15 @@ public:
     // Statistics over the most recent `frames` accepted frames (clamped to what is held), one entry
     // per key, in the order keys were first seen.
     std::vector<GpuTimingStats> stats(size_t frames) const;
+
+    // The raw per-frame values behind stats() (docs/PerfProgram2026-09.md section 16, I11): the most
+    // recent `frames` accepted frames, oldest first, each with every key recorded in that frame, in
+    // first-seen key order. Statistics say how often something is slow; the series says WHICH frame.
+    struct FrameSeries {
+        uint64_t serial = 0;
+        std::vector<std::pair<std::string, double>> values;   // (key, ms)
+    };
+    std::vector<FrameSeries> series(size_t frames) const;
 
     size_t capacity() const { return capacity_; }
     size_t framesHeld() const { return serials_.size(); }

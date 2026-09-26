@@ -1,0 +1,87 @@
+{
+ "rig": "R-P2 (PerfRigStream, Flat streaming, loadRadius 2)",
+ "waypoints": [
+  {
+   "x": 40,
+   "y": 22,
+   "z": 40,
+   "yaw": 0,
+   "pitch": -10
+  },
+  {
+   "x": 200,
+   "y": 22,
+   "z": 40,
+   "yaw": 0,
+   "pitch": -10
+  }
+ ],
+ "speed": 8.0,
+ "control": {
+  "stream_follow": false,
+  "entries": [
+   [
+    1,
+    true
+   ],
+   [
+    2,
+    true
+   ],
+   [
+    3,
+    true
+   ],
+   [
+    4,
+    true
+   ],
+   [
+    5,
+    true
+   ],
+   [
+    6,
+    true
+   ]
+  ],
+  "focus_holder_after": "",
+  "frames": 671,
+  "truncated": false,
+  "pass": false
+ },
+ "follow": {
+  "stream_follow": true,
+  "entries": [
+   [
+    1,
+    true
+   ],
+   [
+    2,
+    true
+   ],
+   [
+    3,
+    true
+   ],
+   [
+    4,
+    true
+   ],
+   [
+    5,
+    true
+   ],
+   [
+    6,
+    true
+   ]
+  ],
+  "focus_holder_after": "",
+  "frames": 612,
+  "truncated": false,
+  "pass": true
+ },
+ "pass": false
+}

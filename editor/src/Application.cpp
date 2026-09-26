@@ -11,6 +11,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include <unistd.h>
 #endif
 #include "Application.h"
+#include "core/PerfCapture.h"
 #include <cmath>
 #include "graphics/FarTerrainManager.h"
 #include "graphics/FaceCoverage.h"         // chunk_faces debug route (docs/GlassTransparency.md §7)
@@ -370,6 +371,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     renderCoordinator->setMaxChunkRenderDistance(maxChunkRenderDistance);
     renderCoordinator->setChunkInclusionDistance(chunkInclusionDistance);
     renderCoordinator->setEntities(&entities);
+    if (Core::PerfCapture* pc = runtime->getPerfCapture()) pc->setRenderCoordinator(renderCoordinator.get());
     // WRv2 M2: give the instanced far-tree mesh tier its template source (templates loaded
     // in STEP 4.5 above). Captured raw pointer outlives the render coordinator — both are
     // application-lifetime.
@@ -2909,7 +2911,12 @@ void Application::run() {
         timer->update();
 
         // Always process API commands (even during launcher  --  enables MCP project management)
-        processAPICommands();
+        {
+            // Frame-pacing phase (PerfProgram I11): API commands run on the main thread, inside the
+            // frame they arrive in, so a slow command is a hitch like any other.
+            ScopedTimer apiTimer(*performanceProfiler, "API Drain");
+            processAPICommands();
+        }
 
         // Process deferred file open (set by File > Open menu, must run before rendering)
         if (!m_pendingOpenFile.empty()) {
@@ -3333,6 +3340,9 @@ void Application::run() {
 
         // End frame profiling
         performanceProfiler->endFrame();
+        // City-benchmark capture (PerfProgram section 16): stream_follow + the route recorder.
+        if (Core::PerfCapture* pc = runtime ? runtime->getPerfCapture() : nullptr)
+            pc->onFrameEnd(chunkManager, cameraManager, camera);
         
         // Profile the frame with PerformanceMonitor
         FrameTiming timing = performanceMonitor->profileFrame();
@@ -3426,6 +3436,7 @@ void Application::cleanup() {
     }
     
     // Reset game-specific subsystems before engine cleanup
+    if (runtime && runtime->getPerfCapture()) runtime->getPerfCapture()->setRenderCoordinator(nullptr);
     renderCoordinator.reset();
     voxelInteractionSystem.reset();
     raycastVisualizer.reset();
@@ -4236,6 +4247,9 @@ void Application::update(float deltaTime) {
         // enabled (opt-in via the game.json world "streaming" flag). Throttled because
         // generation + face finalize is heavy; the per-update cap bounds it further.
         if (chunkManager->isStreamingGenerationEnabled()) {
+            // Frame-pacing phase (PerfProgram I11). Alternates by design: the full update on every
+            // 2nd frame, landings only on the others -- the hitch report judges by frame parity.
+            PROFILE_SCOPE(*performanceProfiler, "Streaming Pump");
             static int s_streamTick = 0;
             // View-cone load priority: what the camera looks at streams first, refreshed
             // every frame so panning dynamically reprioritizes the worker queue.
@@ -13746,15 +13760,15 @@ void Application::registerWorldForgeCommands() {
             chunkManager->loadDistance = std::max(chunkManager->loadDistance, radius);
             chunkManager->unloadDistance =
                 std::max(chunkManager->unloadDistance, radius + 96.0f);
-            constexpr float kFocusStep = 64.0f;   // ~2 chunks per poll — a fast player, not a teleport
-            const glm::vec3 cur = chunkManager->streamingAnchor();
-            const glm::vec3 to = target - cur;
-            const float dist = glm::length(to);
+            // At most StreamingFocus::kMaxStepPerFrame (64 u) per poll -- ~2 chunks, a fast player,
+            // not a teleport. The poll re-runs every frame, so this is a per-FRAME bound, shared with
+            // every other focus holder. Refused while another holder (e.g. a camera-path benchmark)
+            // holds the focus: this poll then simply waits, bounded by the job's residency deadline.
             chunkManager->setStreamingFocusOverride(
-                dist <= kFocusStep ? target : cur + to * (kFocusStep / dist));
+                Core::StreamingFocus::stepToward(chunkManager->streamingAnchor(), target), "worldforge_build");
         };
         d.releaseFocus = [this, savedDist] {
-            chunkManager->clearStreamingFocusOverride();
+            chunkManager->clearStreamingFocusOverride("worldforge_build");
             if (*savedDist) {
                 chunkManager->loadDistance = (*savedDist)->first;
                 chunkManager->unloadDistance = (*savedDist)->second;
@@ -13844,17 +13858,26 @@ void Application::registerWorldForgeCommands() {
         Phyxel::WorldGenerator* g = streamingGen();
         if (!g) return noGen(r);
         if (!cmd.params.contains("x") || !cmd.params.contains("z")) {
-            chunkManager->clearStreamingFocusOverride();
-            r = {{"success", true}, {"focused", false}};
+            // Releases only THIS route's hold; another holder's focus is left alone and named.
+            const bool released = chunkManager->clearStreamingFocusOverride("worldforge_focus");
+            r = {{"success", true}, {"focused", false}, {"released", released},
+                 {"holder", chunkManager->streamingFocusHolder()}};
             return;
         }
         const int x = cmd.params["x"].get<int>();
         const int z = cmd.params["z"].get<int>();
         const int sy = g->sampleSurface(x, z).surfaceY;
-        chunkManager->setStreamingFocusOverride(glm::vec3(static_cast<float>(x),
-                                                          static_cast<float>(sy),
-                                                          static_cast<float>(z)));
-        r = {{"success", true}, {"focused", true}, {"x", x}, {"z", z}, {"surface_y", sy}};
+        if (!chunkManager->setStreamingFocusOverride(glm::vec3(static_cast<float>(x),
+                                                               static_cast<float>(sy),
+                                                               static_cast<float>(z)),
+                                                     "worldforge_focus")) {
+            r = {{"success", false}, {"focused", false},
+                 {"error", "streaming focus is held by another user"},
+                 {"holder", chunkManager->streamingFocusHolder()}};
+            return;
+        }
+        r = {{"success", true}, {"focused", true}, {"x", x}, {"z", z}, {"surface_y", sy},
+             {"holder", "worldforge_focus"}};
     });
 
     // ASCII map of the plan over the hydrology region: '~' standing water, 'r' order>=3
@@ -14787,6 +14810,23 @@ void Application::registerEffectsCommands() {
     // Fine (sub/microcube) greedy-merge toggle — live A/B for docs/BinaryGreedyMeshingPlan.md.
     // Re-meshes all chunks so the change takes effect immediately (same as smooth_lighting).
     // P-DP static depth prepass A/B (docs/PerfProgram2026-09.md).
+    // City benchmark tooling (docs/PerfProgram2026-09.md section 16).
+    reg.on("get_frame_pacing", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::framePacing(runtime ? runtime->getPerfCapture() : nullptr, cmd.params);
+    });
+    reg.on("record_control", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::recordControl(runtime ? runtime->getPerfCapture() : nullptr, cmd.params);
+    });
+    reg.on("record_dump", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::recordDump(runtime ? runtime->getPerfCapture() : nullptr, cmd.params);
+    });
+    reg.on("camera_path", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::cameraPath(runtime ? runtime->getPerfCapture() : nullptr, cameraManager,
+                                      chunkManager, camera, cmd.params);
+    });
+    reg.on("set_gi_probe_options", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::setGiProbeOptions(renderCoordinator.get(), cmd.params);
+    });
     reg.on("set_depth_prepass", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         r = Core::PerfApi::setDepthPrepass(renderCoordinator.get(), cmd.params);
     });
@@ -15505,6 +15545,15 @@ void Application::registerCameraCommands() {
     auto& reg = m_commandRegistry;
 
     reg.on("set_camera", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        // A camera path (PerfProgram I12) owns the pose while it plays; an explicit camera set STOPS
+        // it (and releases its streaming focus) instead of silently fighting it, and says so.
+        bool pathStopped = false;
+        if (cameraManager && cameraManager->getPath().isPlaying()) {
+            cameraManager->getPath().stop();
+            if (Core::PerfCapture* pc = runtime ? runtime->getPerfCapture() : nullptr) pc->setStreamFollow(false);
+            if (chunkManager) chunkManager->clearStreamingFocusOverride(Core::PerfCapture::kFocusHolder);
+            pathStopped = true;
+        }
         if (cmd.params.contains("position") && inputManager) {
             float x = cmd.params["position"].value("x", 0.0f);
             float y = cmd.params["position"].value("y", 0.0f);
@@ -15546,6 +15595,7 @@ void Application::registerCameraCommands() {
             }
         }
         if (!modeError) r = {{"success", true}, {"rig", gameplayRigOverride_}, {"control_scheme", cameraCtl_.schemeName()}};
+        r["path_stopped"] = pathStopped;
     });
 
     // Synthetic input injection — drive WASD/jump/attack into the running game so

@@ -4,6 +4,7 @@
 #include "utils/GpuTimingHistory.h"
 #include <vulkan/vulkan.h>
 #include <atomic>
+#include <functional>
 #include <string>
 #include <vector>
 #include <memory>
@@ -76,6 +77,12 @@ public:
     uint32_t getTimestampValidBits() const { return timestampValidBits; }
     uint64_t getNotReadyFrames() const { return notReadyFrames; }
     uint64_t getLastResultSerial() const { return lastResultSerial; }
+    // The serial of the frame most recently STARTED (the one whose queries are being recorded now).
+    uint64_t getFrameSerial() const { return frameSerial; }
+    // Called once per frame when its timings resolve and are accepted into the history, with the same
+    // samples (I15: the route recorder attaches them to the frame that rendered them). Main thread.
+    using FrameResolvedCallback = std::function<void(uint64_t serial, const std::vector<GpuTimingSample>&)>;
+    void setFrameResolvedCallback(FrameResolvedCallback cb) { onFrameResolved = std::move(cb); }
     // The most recent whole-frame GPU time, safe to read from ANY thread (engine_timing is served on
     // the HTTP thread, which must not touch the history). -1 until the first frame resolves.
     double getLastGpuFrameMsAtomic() const { return lastGpuFrameMs.load(std::memory_order_relaxed); }
@@ -135,6 +142,7 @@ private:
     uint64_t frameSerial = 0;          // incremented once per startFrame
     uint64_t notReadyFrames = 0;       // readbacks where some query was not yet available
     uint64_t lastResultSerial = 0;     // serial of the frame lastFrameResults came from
+    FrameResolvedCallback onFrameResolved;
     uint32_t timestampValidBits = 64;
     std::atomic<double> lastGpuFrameMs{-1.0};
 };

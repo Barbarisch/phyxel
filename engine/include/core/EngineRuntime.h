@@ -30,6 +30,7 @@ namespace Phyxel {
     class MouseVelocityTracker;
     class PerformanceProfiler;
     namespace Core { class LocationRegistry; }
+    namespace Core { class PerfCapture; }
 }
 
 namespace Phyxel {
@@ -131,6 +132,9 @@ public:
     Utils::PerformanceMonitor*  getPerformanceMonitor()     const;
     Graphics::Camera*           getCamera()                 const;
     Graphics::CameraManager*    getCameraManager()          const;
+    // City-benchmark capture (frame pacing, route recorder, camera-path stream_follow);
+    // docs/PerfProgram2026-09.md section 16. Standalone games drive it from endFrame().
+    Core::PerfCapture*          getPerfCapture()            const;
     Core::LocationRegistry*     getLocationRegistry()       const;
     Core::SceneManager*         getSceneManager()           const;
     UI::GameMenuRenderer*       getGameMenuRenderer()       const;
@@ -199,6 +203,9 @@ private:
     // Camera
     std::unique_ptr<Graphics::Camera>        camera_;
     std::unique_ptr<Graphics::CameraManager> cameraManager_;
+
+    // Benchmark capture (see getPerfCapture)
+    std::unique_ptr<Core::PerfCapture>       perfCapture_;
 
     // Locations
     std::unique_ptr<Core::LocationRegistry>  locationRegistry_;
