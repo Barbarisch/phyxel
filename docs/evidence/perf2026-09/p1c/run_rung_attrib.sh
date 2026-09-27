@@ -14,4 +14,4 @@ python -u tools/perf_harness.py sample \
   --poses "docs/evidence/perf2026-09/p1c/${P}_poses.json" \
   --ab docs/evidence/perf2026-09/p1c/tod_noon_night.json --repeats 2 --frames 240 \
   --provenance "engine-generated: POST /api/settlement/build tier:city ${W}x${D} seed 7 density 1.5 -> ${N} buildings (p1c/${P}_build.json)" \
-  --out "docs/evidence/perf2026-09/p1c/attrib_${P}.jsonl"
+  --out "docs/evidence/perf2026-09/p1c/attrib_${P}${SUFFIX:-}.jsonl"

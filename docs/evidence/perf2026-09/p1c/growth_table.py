@@ -1,11 +1,14 @@
 """S-3 growth table (PerfProgram 2026-09 section 16.2/16.7): per pose, each GPU pass's median cost at noon
 across the ladder rungs, plus night - noon for the GPU frame. Reads attrib_<prefix>.jsonl per rung.
-Usage: growth_table.py            (rungs are listed below)"""
-import json, statistics
+Usage: growth_table.py [suffix]   e.g. growth_table.py _rebase  (reads attrib_<prefix><suffix>.jsonl)"""
+import json, statistics, sys
 from collections import defaultdict
 
-RUNGS = [('C-25', 25, 'attrib_city_C25M.jsonl'), ('C-50', 59, 'attrib_city_C50.jsonl'),
-         ('C-75', 72, 'attrib_city_C75.jsonl'), ('C-100', 104, 'attrib_C100.jsonl')]
+SUFFIX = sys.argv[1] if len(sys.argv) > 1 else ''
+# The first C-100 run was written as attrib_C100.jsonl; later runs use the rung prefix.
+RUNGS = [('C-25', 25, f'attrib_city_C25M{SUFFIX}.jsonl'), ('C-50', 59, f'attrib_city_C50{SUFFIX}.jsonl'),
+         ('C-75', 72, f'attrib_city_C75{SUFFIX}.jsonl'),
+         ('C-100', 104, f'attrib_city_C100b{SUFFIX}.jsonl' if SUFFIX else 'attrib_C100.jsonl')]
 SCOPES = ['GPU Frame', 'Scene Pass/Far Terrain', 'Shadow Pass/Shadow Mid', 'Shadow Pass/Shadow Near',
           'Shadow Pass/Shadow Far', 'Scene Pass/Static Geometry', 'Scene Pass/Foliage', 'Scene Pass/Grass',
           'GI Probes', 'OIT', 'Scene Pass/Entities/Characters']

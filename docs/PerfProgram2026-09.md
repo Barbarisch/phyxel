@@ -1482,8 +1482,17 @@ steps DONE with the commit and the measured number, and re-rank from data, never
 | Scene | GPU frame | Top passes | Source |
 |---|---|---|---|
 | C-100 street (104 buildings), before §16.12 | 103 ms | Far Terrain 40 (structure proxies), Shadow Mid 20, Static Geometry 16, Shadow Near 9 | §16.11 |
-| C-100 street, after §16.12 | ~50 ms | Shadow Mid ~24, Static Geometry ~16, Shadow Near ~9 | §16.12 A/B (re-baseline owed: §17.2 step 1) |
-| C-100 overview, after §16.12 | ~43 ms | visible structure proxies ~10, Shadow Mid ~21 | §16.12 |
+| C-100 street, after §16.12 (re-baseline) | **63.6 ms** | Shadow Mid 19.0, Static Geometry 13.7, Shadow Near 8.2, Far Terrain 4.9, GI 4.6, Foliage 4.5 | step 1, `p1c/growth_table_rebase.md` |
+| C-100 overview (re-baseline) | **56.3 ms** | Shadow Mid 18.8, **Far Terrain 13.5 (visible proxies)**, Static Geometry 6.6, Foliage 5.7, OIT 5.3 | step 1 |
+| C-100 outside (re-baseline) | **70.2 ms** | Shadow Mid 22.3, Foliage 13.3, Static Geometry 7.2, Shadow Near 6.6, Far Terrain 6.0 | step 1 |
+
+**Re-baseline growth, street, noon (GPU ms), all rungs with §16.12 in:** C-25 51.5 → C-50 53.5 → C-75 61.5 →
+C-100 63.6 (was 45 → 103). The steep building-count term is gone; what still grows with the city is
+**Shadow Near** (2.9 → 8.2, ~linear) and **Shadow Mid** (14.4 → 19.0); the overview's Far Terrain (3.4 →
+13.5) is the visible-proxy residual (step 3). **Shadow Mid is now the #1 term at EVERY pose** (15–22 ms).
+Session drift is real: C-25's street frame rose 45 → 51.5 between sessions with no change affecting it,
+and night − noon ran ±10 ms this session (it was ±1 before) — decide nothing from a single session's
+absolute or night delta; interleaved pairs only.
 
 Established facts to build on: point lights cost nothing measurable in the city (night ≈ noon, every
 rung); GI probes ~5 ms and flat; characters ≤ 1.4 ms; far trees ~2.8 ms at street; streaming stutter is
@@ -1521,6 +1530,9 @@ Each step: **why** (the data), **do**, **measure**, **done when**. Design check 
 1. **Re-baseline the growth table with §16.12 in.** *Why:* §16.11's numbers predate the skip; every later
    A/B needs the true starting point. *Do:* `run_rung_attrib.sh` on all four rungs (§17.4), then
    `growth_table.py`. *Done when:* §17.1 row 2 holds measured numbers for every rung and pose.
+   **DONE 2026-09-26** (`attrib_*_rebase.jsonl`, `growth_table_rebase.md`, §17.1). Consequence for the
+   order: Shadow Mid is the largest term at every pose, so step 4 (shadows) outranks step 3 (visible
+   proxies, overview only) on cost; step 3 stays next only because it is smaller and its knob is simple.
 2. **Re-verify the shipped wins at C-100 and decide P-DP's default** (§16.6 step 5, §8 #5). *Why:* L1, P-DP
    and GI-2 were measured at S-1/S-2 scale only; P-DP (−20..−37 % there) is still OFF. *Do:* ABBA with
    `perf_harness.py sample --ab` (prepass on/off) at the five C-100 poses, noon + night; frozen pixel gate
