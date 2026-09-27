@@ -539,6 +539,15 @@ never a chunk. Folded into step 3: (1) watertight merge (split edges at neighbou
 stays interleaved in one session; (4) merged/unmerged quad counts in `lod_report`; (5) written predictions
 and the default pin. No design key violated.
 
+### 9.13 Thirteenth pass (`/design-check`, 2026-09-27, on the proxy mesh merge after 9.12): NEEDS WORK → folded in
+
+Checked the rebuild knob against the code: tree species have no rebuild path and `cleanup()` frees
+immediately, so a naive rebuild would free buffers in-flight frames draw (the device-loss class). Folded
+into step 3: (1) `retireAllSpecies()` through a frame-deferred graveyard + a generation stamp that drops
+stale builds; (2) the merge flag snapshotted per job (no static read on builder threads); (3) named test
+inputs (stepped mixed-material building, a real tree template, every level); (4) edge splitting spatially
+indexed, with a predicted and measured city-wide rebuild time. No design key violated.
+
 ## 10. P0a results (2026-09-24, RTX 4090, Release)
 
 Evidence: `docs/evidence/perf2026-09/`. Unit suite after the batch: 4025 passed, 20 skipped, 2 failed. Both
@@ -1700,12 +1709,32 @@ Each step: **why** (the data), **do**, **measure**, **done when**. Design check 
      builder option, retires every structure proxy through the existing graveyard path and rebuilds the
      tree species set; echoes `proxy_mesh_merge` plus rebuild progress (`proxies_built` / `pending` for
      structures and species). The harness waits for pending = 0 before sampling.
+   - **Species rebuild must be frame-safe (design check 9.13).** Today a species is built once, on first
+     request (`TreeLodMeshRegistry::level` → `m_queued` → builder thread), and the only teardown,
+     `cleanup()`, destroys buffers immediately (shutdown only). Reusing it at runtime would free buffers
+     that in-flight frames (and the one-frame-stale far-shadow caster cache) still draw — the use-after-free
+     class behind this week's two device losses. New path: `retireAllSpecies()` moves every species'
+     levels into a frame-deferred graveyard (≥ 4 frames, the far-terrain / structure pattern, ticked from
+     `tick()`), clears `m_species` AND `m_queued` so `level()` re-requests on demand (cards cover
+     meanwhile), and bumps a **generation stamp**; a build that finishes carrying an older generation is
+     discarded, not landed. Structures already have this (`structureLodRetiring` waits for running jobs;
+     `structureLodGraveyard` defers frees).
+   - **The option travels with the job.** The merge flag is snapshotted into each species request and each
+     structure `std::async` job when it is queued; builder threads never read a mutable static (a data
+     race otherwise).
+   - **Edge splitting is spatially indexed.** Vertices are bucketed per edge line (plane + fixed axis +
+     offset), so each quad edge is split against only the vertices on its own line: O(n log n), not the
+     naive pairwise O(n²). **Prediction:** a full C-100 rebuild (104 structures + all species) completes in
+     a few seconds on the builder threads with no main-thread stall; measured and recorded.
    - **Measurement:** `lod_report` reports quads per structure and per species, merged and unmerged.
    - **Tests (L2, headless, red first):** `ProxyMeshMergeTest.MergedCoversExactlyTheSameFaces` —
      decompose every merged quad into unit cell faces; the (cell, face, texture) set equals the unmerged
      builder's, no overlaps (RED: a merge that ignores texture); `ProxyMeshMergeTest.NoTJunctions` — no
      vertex lies strictly inside another quad's edge in the same plane or at a shared corner edge (RED:
-     plain greedy without edge splitting).
+     plain greedy without edge splitting). **Inputs (named):** (i) a synthetic stepped, L-shaped building
+     whose wall changes material partway along a face (exercises texture boundaries and the T-junctions at
+     every step); (ii) a real tree template loaded from `resources/templates/nature/`; both run through
+     `TemplateLodChain` + `buildLevelMesh` headless at EVERY chain level.
    - **L4:** frozen pixel gates (no-pause freeze) at the C-100 overview, rooftop and outside, a forest pose,
      and the proxy rig at 280/320/346/400/500 u (the crossfade band, where L0 overlays the real building).
    - **Predictions, written first:** quads per structure L0 drop 5–20× (flat walls and roofs); C-100
