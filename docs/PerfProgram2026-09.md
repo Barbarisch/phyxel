@@ -529,6 +529,16 @@ No design key violated.
    advances every rendered frame regardless of pause (`GiProbeField.cpp:124`), measured 0–3/255.
 No design key violated.
 
+### 9.12 Twelfth pass (`/design-check`, 2026-09-27, on the proxy mesh merge, §17.2 step 3): NEEDS WORK → folded in
+
+Verified that shading is tessellation-independent (world-projected UVs, position/texture/face vertices,
+translation-only instances, array-layer textures) and that the merge input is a proxy's own cell set,
+never a chunk. Folded into step 3: (1) watertight merge (split edges at neighbouring vertices) +
+`NoTJunctions` with a plain-greedy red case; (2) scope = trees and structures, with a forest pose added;
+(3) a runtime `proxy_mesh_merge` knob that retires/rebuilds proxies and echoes rebuild progress, so the A/B
+stays interleaved in one session; (4) merged/unmerged quad counts in `lod_report`; (5) written predictions
+and the default pin. No design key violated.
+
 ## 10. P0a results (2026-09-24, RTX 4090, Release)
 
 Evidence: `docs/evidence/perf2026-09/`. Unit suite after the batch: 4025 passed, 20 skipped, 2 failed. Both
@@ -1675,6 +1685,35 @@ Each step: **why** (the data), **do**, **measure**, **done when**. Design check 
    raster cost (equivalence-class, no look change). Known risk: T-junction cracks where merged and
    unmerged edges meet (the chunk greedy-merge crack class) — the frozen pixel gate at the overview must
    show it, and the look must be checked in the crossfade band where L0 overlays the real building.
+   **Design (design check 9.12 folded in):**
+   - **Why shading cannot tell** (verified in code): `worldFaceUV` is a pure world projection (`wp.xz` /
+     `wp.zy` / `wp.xy`, no per-voxel hash rotation); `FarVertex` is position + texture + face only;
+     instances are translation-only (`far_tree_mesh.vert`, no scale/yaw jitter); textures are array
+     LAYERS, so UVs past 1.0 wrap. The merge input is one proxy's cell set (a structure's soup or a tree
+     template), never a chunk; deterministic scan order (x, y, z per face plane).
+   - **Watertight, not plain greedy.** After merging, split every quad edge at each neighbouring quad's
+     vertex that lies inside it, so no T-junction remains (plain greedy merge leaves one-pixel cracks
+     that show the sky or terrain behind — the open chunk-merge crack class).
+   - **Scope: trees AND structures** (the builder is shared: `TreeLodMeshRegistry.cpp:157` species,
+     `RenderCoordinator.cpp:658` structures). Both are gated; a forest pose joins the gates.
+   - **Runtime A/B knob:** `proxy_mesh_merge` on `set_far_terrain` (boolean; omitted = unchanged) sets the
+     builder option, retires every structure proxy through the existing graveyard path and rebuilds the
+     tree species set; echoes `proxy_mesh_merge` plus rebuild progress (`proxies_built` / `pending` for
+     structures and species). The harness waits for pending = 0 before sampling.
+   - **Measurement:** `lod_report` reports quads per structure and per species, merged and unmerged.
+   - **Tests (L2, headless, red first):** `ProxyMeshMergeTest.MergedCoversExactlyTheSameFaces` —
+     decompose every merged quad into unit cell faces; the (cell, face, texture) set equals the unmerged
+     builder's, no overlaps (RED: a merge that ignores texture); `ProxyMeshMergeTest.NoTJunctions` — no
+     vertex lies strictly inside another quad's edge in the same plane or at a shared corner edge (RED:
+     plain greedy without edge splitting).
+   - **L4:** frozen pixel gates (no-pause freeze) at the C-100 overview, rooftop and outside, a forest pose,
+     and the proxy rig at 280/320/346/400/500 u (the crossfade band, where L0 overlays the real building).
+   - **Predictions, written first:** quads per structure L0 drop 5–20× (flat walls and roofs); C-100
+     overview Far Terrain 10.6 → about 3 ms; every gate within its control (0 changed pixels beyond the
+     control) because shading is tessellation-independent and the mesh is watertight. A crack pixel in any
+     gate falsifies "watertight".
+   - **Default:** ships ON once proven, pinned by `RenderDefaultsTest.ProxyMeshMergeDefault`; `LodTierLedger.md`
+     rows 5 (tree mesh tier) and 7 (structure proxies) updated in the same commit.
    *Done when:* rig numbers + city captures signed off, and the C-100 overview A/B measured.
 4. **Shadow Mid (~20–24 ms) and Shadow Near (~9 ms, linear in buildings).** *Why:* the largest GPU term
    left after step 3; every building within 420 u casts whether or not its shadow can reach the view.
