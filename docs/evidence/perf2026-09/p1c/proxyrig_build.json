@@ -1,0 +1,632 @@
+{
+ "request": {
+  "schema": "v2",
+  "type": "house",
+  "typology": "tavern",
+  "style": "timber_cottage",
+  "position": {
+   "x": -3,
+   "y": 52,
+   "z": -7
+  },
+  "footprint": [
+   7,
+   14
+  ],
+  "stories": [
+   {
+    "height": 3
+   },
+   {
+    "height": 3
+   }
+  ]
+ },
+ "response": {
+  "chimneys_built": 2,
+  "doorway_blockers_removed": [
+   {
+    "action": "relocated",
+    "cubes": 3,
+    "room": "taproom",
+    "type": "chandelier"
+   },
+   {
+    "action": "relocated",
+    "cubes": 1,
+    "room": "store",
+    "type": "chest"
+   },
+   {
+    "action": "relocated",
+    "cubes": 1,
+    "room": "chamber_1",
+    "type": "wardrobe"
+   }
+  ],
+  "failed": 0,
+  "fixtures": [
+   {
+    "id": "tavern_bar_1",
+    "position": {
+     "x": 3,
+     "y": 52,
+     "z": -7
+    },
+    "purpose": "taproom",
+    "purpose_index": 0,
+    "room": "taproom",
+    "rotation": 90,
+    "story": 0,
+    "structure": "house_1",
+    "type": "tavern_bar"
+   },
+   {
+    "kind": "builtin",
+    "room": "taproom",
+    "story": 0,
+    "structure": "house_1",
+    "type": "fireplace"
+   },
+   {
+    "id": "bar_stool_1",
+    "position": {
+     "x": 1,
+     "y": 52,
+     "z": -7
+    },
+    "purpose": "taproom",
+    "purpose_index": 0,
+    "room": "taproom",
+    "rotation": 0,
+    "story": 0,
+    "structure": "house_1",
+    "type": "bar_stool"
+   },
+   {
+    "id": "bar_stool_2",
+    "position": {
+     "x": 1,
+     "y": 52,
+     "z": -6
+    },
+    "purpose": "taproom",
+    "purpose_index": 0,
+    "room": "taproom",
+    "rotation": 0,
+    "story": 0,
+    "structure": "house_1",
+    "type": "bar_stool"
+   },
+   {
+    "id": "wall_lantern_1",
+    "position": {
+     "x": 3,
+     "y": 52,
+     "z": -7
+    },
+    "purpose": "taproom",
+    "purpose_index": 0,
+    "room": "taproom",
+    "rotation": 90,
+    "story": 0,
+    "structure": "house_1",
+    "type": "wall_lantern"
+   },
+   {
+    "id": "chandelier_1",
+    "position": {
+     "x": 0,
+     "y": 52,
+     "z": -4
+    },
+    "purpose": "taproom",
+    "purpose_index": 0,
+    "room": "taproom",
+    "rotation": 0,
+    "story": 0,
+    "structure": "house_1",
+    "type": "chandelier"
+   },
+   {
+    "id": "counter_1",
+    "position": {
+     "x": 3,
+     "y": 52,
+     "z": -1
+    },
+    "purpose": "kitchen",
+    "purpose_index": 0,
+    "room": "kitchen",
+    "rotation": 90,
+    "story": 0,
+    "structure": "house_1",
+    "type": "counter"
+   },
+   {
+    "kind": "builtin",
+    "room": "kitchen",
+    "story": 0,
+    "structure": "house_1",
+    "type": "fireplace"
+   },
+   {
+    "id": "stool_1",
+    "position": {
+     "x": 3,
+     "y": 52,
+     "z": 1
+    },
+    "purpose": "kitchen",
+    "purpose_index": 0,
+    "room": "kitchen",
+    "rotation": 90,
+    "story": 0,
+    "structure": "house_1",
+    "type": "stool"
+   },
+   {
+    "id": "wall_lantern_2",
+    "position": {
+     "x": 3,
+     "y": 52,
+     "z": -1
+    },
+    "purpose": "kitchen",
+    "purpose_index": 0,
+    "room": "kitchen",
+    "rotation": 90,
+    "story": 0,
+    "structure": "house_1",
+    "type": "wall_lantern"
+   },
+   {
+    "id": "barrel_1",
+    "position": {
+     "x": 3,
+     "y": 52,
+     "z": 3
+    },
+    "purpose": "service",
+    "purpose_index": 0,
+    "room": "store",
+    "rotation": 90,
+    "story": 0,
+    "structure": "house_1",
+    "type": "barrel"
+   },
+   {
+    "id": "barrel_2",
+    "position": {
+     "x": 3,
+     "y": 52,
+     "z": 4
+    },
+    "purpose": "service",
+    "purpose_index": 0,
+    "room": "store",
+    "rotation": 90,
+    "story": 0,
+    "structure": "house_1",
+    "type": "barrel"
+   },
+   {
+    "id": "keg_1",
+    "position": {
+     "x": 3,
+     "y": 52,
+     "z": 5
+    },
+    "purpose": "service",
+    "purpose_index": 0,
+    "room": "store",
+    "rotation": 90,
+    "story": 0,
+    "structure": "house_1",
+    "type": "keg"
+   },
+   {
+    "id": "chest_closed_1",
+    "position": {
+     "x": -1,
+     "y": 52,
+     "z": 6
+    },
+    "purpose": "service",
+    "purpose_index": 0,
+    "room": "store",
+    "rotation": 180,
+    "story": 0,
+    "structure": "house_1",
+    "type": "chest"
+   },
+   {
+    "id": "wall_lantern_3",
+    "position": {
+     "x": 3,
+     "y": 52,
+     "z": 3
+    },
+    "purpose": "service",
+    "purpose_index": 0,
+    "room": "store",
+    "rotation": 90,
+    "story": 0,
+    "structure": "house_1",
+    "type": "wall_lantern"
+   },
+   {
+    "id": "chest_closed_3",
+    "position": {
+     "x": -3,
+     "y": 55,
+     "z": 6
+    },
+    "purpose": "landing",
+    "purpose_index": 0,
+    "room": "landing",
+    "rotation": 180,
+    "story": 1,
+    "structure": "house_1",
+    "type": "chest"
+   },
+   {
+    "id": "wall_lantern_4",
+    "position": {
+     "x": -3,
+     "y": 55,
+     "z": 6
+    },
+    "purpose": "landing",
+    "purpose_index": 0,
+    "room": "landing",
+    "rotation": 180,
+    "story": 1,
+    "structure": "house_1",
+    "type": "wall_lantern"
+   },
+   {
+    "id": "bed_single_1",
+    "position": {
+     "x": 2,
+     "y": 55,
+     "z": -7
+    },
+    "purpose": "bedchamber",
+    "purpose_index": 0,
+    "room": "chamber",
+    "rotation": 90,
+    "story": 1,
+    "structure": "house_1",
+    "type": "bed"
+   },
+   {
+    "id": "chest_closed_4",
+    "position": {
+     "x": 0,
+     "y": 55,
+     "z": -7
+    },
+    "purpose": "bedchamber",
+    "purpose_index": 0,
+    "room": "chamber",
+    "rotation": 270,
+    "story": 1,
+    "structure": "house_1",
+    "type": "chest"
+   },
+   {
+    "id": "stool_2",
+    "position": {
+     "x": 3,
+     "y": 55,
+     "z": -5
+    },
+    "purpose": "bedchamber",
+    "purpose_index": 0,
+    "room": "chamber",
+    "rotation": 90,
+    "story": 1,
+    "structure": "house_1",
+    "type": "stool"
+   },
+   {
+    "id": "wall_lantern_5",
+    "position": {
+     "x": 3,
+     "y": 55,
+     "z": -7
+    },
+    "purpose": "bedchamber",
+    "purpose_index": 0,
+    "room": "chamber",
+    "rotation": 90,
+    "story": 1,
+    "structure": "house_1",
+    "type": "wall_lantern"
+   },
+   {
+    "id": "bed_single_2",
+    "position": {
+     "x": 2,
+     "y": 55,
+     "z": 0
+    },
+    "purpose": "bedchamber",
+    "purpose_index": 1,
+    "room": "chamber_1",
+    "rotation": 90,
+    "story": 1,
+    "structure": "house_1",
+    "type": "bed"
+   },
+   {
+    "id": "chest_closed_5",
+    "position": {
+     "x": 1,
+     "y": 55,
+     "z": 6
+    },
+    "purpose": "bedchamber",
+    "purpose_index": 1,
+    "room": "chamber_1",
+    "rotation": 180,
+    "story": 1,
+    "structure": "house_1",
+    "type": "chest"
+   },
+   {
+    "id": "stool_3",
+    "position": {
+     "x": 3,
+     "y": 55,
+     "z": 2
+    },
+    "purpose": "bedchamber",
+    "purpose_index": 1,
+    "room": "chamber_1",
+    "rotation": 90,
+    "story": 1,
+    "structure": "house_1",
+    "type": "stool"
+   },
+   {
+    "id": "wardrobe_1",
+    "position": {
+     "x": 3,
+     "y": 55,
+     "z": 3
+    },
+    "purpose": "bedchamber",
+    "purpose_index": 1,
+    "room": "chamber_1",
+    "rotation": 90,
+    "story": 1,
+    "structure": "house_1",
+    "type": "wardrobe"
+   },
+   {
+    "id": "wall_lantern_6",
+    "position": {
+     "x": 3,
+     "y": 55,
+     "z": 0
+    },
+    "purpose": "bedchamber",
+    "purpose_index": 1,
+    "room": "chamber_1",
+    "rotation": 90,
+    "story": 1,
+    "structure": "house_1",
+    "type": "wall_lantern"
+   }
+  ],
+  "fixtures_spawned": 24,
+  "fixtures_unplaced": [
+   {
+    "room": "taproom",
+    "type": "back_bar"
+   },
+   {
+    "room": "taproom",
+    "type": "tavern_table"
+   },
+   {
+    "room": "taproom",
+    "type": "bench"
+   },
+   {
+    "room": "taproom",
+    "type": "stool"
+   },
+   {
+    "room": "taproom",
+    "type": "keg"
+   },
+   {
+    "room": "taproom",
+    "type": "candle_stand"
+   },
+   {
+    "room": "chamber",
+    "type": "wardrobe"
+   },
+   {
+    "room": "chamber",
+    "type": "rug"
+   },
+   {
+    "room": "chamber_1",
+    "type": "rug"
+   }
+  ],
+  "floor_top_micro": 471,
+  "furnishing_recipes_loaded": true,
+  "gates": [
+   {
+    "ms": 1,
+    "outcome": "proceeded",
+    "stage": "intake"
+   },
+   {
+    "ms": 0,
+    "outcome": "proceeded",
+    "stage": "floorplan"
+   },
+   {
+    "ms": 0,
+    "outcome": "proceeded",
+    "stage": "validate_program"
+   },
+   {
+    "ms": 0,
+    "outcome": "proceeded",
+    "stage": "validate_assets"
+   },
+   {
+    "ms": 0,
+    "outcome": "proceeded",
+    "stage": "footprint"
+   },
+   {
+    "ms": 51,
+    "outcome": "proceeded",
+    "stage": "realize"
+   },
+   {
+    "ms": 245,
+    "outcome": "proceeded",
+    "stage": "validate_realized"
+   },
+   {
+    "ms": 1282,
+    "outcome": "proceeded",
+    "stage": "place"
+   },
+   {
+    "ms": 116,
+    "outcome": "proceeded",
+    "stage": "furnish"
+   },
+   {
+    "ms": 0,
+    "outcome": "proceeded",
+    "stage": "emit"
+   }
+  ],
+  "hearth_fuel_props": 6,
+  "hearths_builtin": 2,
+  "hearths_lit": 2,
+  "items_spawned": 15,
+  "lights_registered": 7,
+  "locations": [
+   {
+    "id": "tavern_0_-9",
+    "name": "tavern",
+    "position": {
+     "x": 0.5,
+     "y": 52.0,
+     "z": -8.5
+    },
+    "radius": 3.0,
+    "type": "Tavern"
+   }
+  ],
+  "object_id": "house_1",
+  "object_uuid": "78c6c9d6-045d-4684-aa1f-f089e264b6ed",
+  "placed": 89019,
+  "rooms": [
+   {
+    "purpose": "taproom",
+    "rect": [
+     0,
+     0,
+     7,
+     6
+    ],
+    "story": 0
+   },
+   {
+    "purpose": "kitchen",
+    "rect": [
+     0,
+     6,
+     7,
+     4
+    ],
+    "story": 0
+   },
+   {
+    "purpose": "service",
+    "rect": [
+     0,
+     10,
+     7,
+     4
+    ],
+    "story": 0
+   },
+   {
+    "purpose": "landing",
+    "rect": [
+     0,
+     0,
+     3,
+     14
+    ],
+    "story": 1
+   },
+   {
+    "purpose": "bedchamber",
+    "rect": [
+     3,
+     0,
+     4,
+     7
+    ],
+    "story": 1
+   },
+   {
+    "purpose": "bedchamber",
+    "rect": [
+     3,
+     7,
+     4,
+     7
+    ],
+    "story": 1
+   }
+  ],
+  "signage": {
+   "above_lintel_micro": 4,
+   "asset": "prop_sign_prancing_pony",
+   "beside_door": false,
+   "board_bottom_micro_y": 493,
+   "bracket_cells": 25,
+   "clearance_micro": 22,
+   "clearance_ok": true,
+   "id": "item_prop_sign_prancing_pony_1",
+   "mount": "projecting",
+   "over_door": true,
+   "projection_micro": 18,
+   "realized_as": "item",
+   "rotation": 90,
+   "structure": "house_1"
+  },
+  "success": true,
+  "timings_ms": {
+   "excav": 102,
+   "fixtures": 116,
+   "grass": 302,
+   "nav": 353,
+   "overlap": 0,
+   "pad": 622,
+   "place": 146,
+   "realize": 51,
+   "register": 803,
+   "setup": 1,
+   "total": 1695
+  },
+  "voxels_generated": 89019
+ }
+}

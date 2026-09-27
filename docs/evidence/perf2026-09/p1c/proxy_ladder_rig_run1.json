@@ -1,0 +1,295 @@
+{
+ "today": [
+  360.0,
+  500.0,
+  700.0,
+  900.0,
+  1200.0
+ ],
+ "candidate": [
+  256.0,
+  500.0,
+  700.0,
+  900.0,
+  1200.0
+ ],
+ "centre": [
+  0.0,
+  57.5,
+  -0.5
+ ],
+ "bearing_deg": 45,
+ "elev_deg": 20,
+ "distances": {
+  "280": {
+   "camera": [
+    186.04964682882894,
+    153.26564013118724,
+    185.54964682882894
+   ],
+   "yaw": -135.0,
+   "pitch": -20.0,
+   "converge_s": 22.6,
+   "proxy_today": {
+    "last_dist": 280.0,
+    "last_level": 0,
+    "last_min_fade": 0.0,
+    "readiness": 1.0,
+    "state": 2
+   },
+   "proxy_candidate": {
+    "last_dist": 280.0,
+    "last_level": 1,
+    "last_min_fade": 0.0,
+    "readiness": 1.0,
+    "state": 2
+   },
+   "proxy_today_again": {
+    "last_dist": 280.0,
+    "last_level": 0,
+    "last_min_fade": 0.0,
+    "readiness": 1.0,
+    "state": 2
+   },
+   "test_today_vs_candidate": {
+    "max": 72,
+    "p999": 0.0,
+    "px_over2": 286,
+    "px_over8": 150,
+    "changed_bbox_in_viewport": [
+     458,
+     249,
+     494,
+     335
+    ]
+   },
+   "control_today_vs_today": {
+    "max": 13,
+    "p999": 0.0,
+    "px_over2": 4,
+    "px_over8": 2,
+    "changed_bbox_in_viewport": [
+     476,
+     250,
+     476,
+     253
+    ]
+   },
+   "captures": {
+    "today": "screenshots/screenshot_20260927_103911_030.png",
+    "candidate": "screenshots/screenshot_20260927_103913_880.png",
+    "today_again": "screenshots/screenshot_20260927_103916_756.png"
+   }
+  },
+  "320": {
+   "camera": [
+    212.62816780437592,
+    166.94644586421398,
+    212.12816780437592
+   ],
+   "yaw": -135.0,
+   "pitch": -20.0,
+   "converge_s": 13.3,
+   "proxy_today": {
+    "last_dist": 320.0,
+    "last_level": 0,
+    "last_min_fade": 0.0,
+    "readiness": 1.0,
+    "state": 2
+   },
+   "proxy_candidate": {
+    "last_dist": 320.0,
+    "last_level": 1,
+    "last_min_fade": 0.0,
+    "readiness": 1.0,
+    "state": 2
+   },
+   "proxy_today_again": {
+    "last_dist": 320.0,
+    "last_level": 0,
+    "last_min_fade": 0.0,
+    "readiness": 1.0,
+    "state": 2
+   },
+   "test_today_vs_candidate": {
+    "max": 68,
+    "p999": 0.0,
+    "px_over2": 373,
+    "px_over8": 263,
+    "changed_bbox_in_viewport": [
+     461,
+     298,
+     492,
+     334
+    ]
+   },
+   "control_today_vs_today": {
+    "max": 0,
+    "p999": 0.0,
+    "px_over2": 0,
+    "px_over8": 0,
+    "changed_bbox_in_viewport": null
+   },
+   "captures": {
+    "today": "screenshots/screenshot_20260927_103939_816.png",
+    "candidate": "screenshots/screenshot_20260927_103942_675.png",
+    "today_again": "screenshots/screenshot_20260927_103945_579.png"
+   }
+  },
+  "346": {
+   "camera": [
+    229.90420643848148,
+    175.83896959068136,
+    229.40420643848148
+   ],
+   "yaw": -135.0,
+   "pitch": -19.999999999999993,
+   "converge_s": 13.2,
+   "proxy_today": {
+    "last_dist": 346.0,
+    "last_level": 0,
+    "last_min_fade": 0.0,
+    "readiness": 1.0,
+    "state": 2
+   },
+   "proxy_candidate": {
+    "last_dist": 346.0,
+    "last_level": 1,
+    "last_min_fade": 0.0,
+    "readiness": 1.0,
+    "state": 2
+   },
+   "proxy_today_again": {
+    "last_dist": 346.0,
+    "last_level": 0,
+    "last_min_fade": 0.0,
+    "readiness": 1.0,
+    "state": 2
+   },
+   "test_today_vs_candidate": {
+    "max": 74,
+    "p999": 0.0,
+    "px_over2": 321,
+    "px_over8": 229,
+    "changed_bbox_in_viewport": [
+     462,
+     300,
+     491,
+     332
+    ]
+   },
+   "control_today_vs_today": {
+    "max": 0,
+    "p999": 0.0,
+    "px_over2": 0,
+    "px_over8": 0,
+    "changed_bbox_in_viewport": null
+   },
+   "captures": {
+    "today": "screenshots/screenshot_20260927_103959_712.png",
+    "candidate": "screenshots/screenshot_20260927_104002_538.png",
+    "today_again": "screenshots/screenshot_20260927_104005_416.png"
+   }
+  },
+  "400": {
+   "camera": [
+    265.7852097554699,
+    194.30805733026747,
+    265.2852097554699
+   ],
+   "yaw": -135.0,
+   "pitch": -19.999999999999996,
+   "converge_s": 13.2,
+   "proxy_today": {
+    "last_dist": 400.0,
+    "last_level": 1,
+    "last_min_fade": 0.0,
+    "readiness": 1.0,
+    "state": 2
+   },
+   "proxy_candidate": {
+    "last_dist": 400.0,
+    "last_level": 1,
+    "last_min_fade": 0.0,
+    "readiness": 1.0,
+    "state": 2
+   },
+   "proxy_today_again": {
+    "last_dist": 400.0,
+    "last_level": 1,
+    "last_min_fade": 0.0,
+    "readiness": 1.0,
+    "state": 2
+   },
+   "test_today_vs_candidate": {
+    "max": 0,
+    "p999": 0.0,
+    "px_over2": 0,
+    "px_over8": 0,
+    "changed_bbox_in_viewport": null
+   },
+   "control_today_vs_today": {
+    "max": 0,
+    "p999": 0.0,
+    "px_over2": 0,
+    "px_over8": 0,
+    "changed_bbox_in_viewport": null
+   },
+   "captures": {
+    "today": "screenshots/screenshot_20260927_104028_847.png",
+    "candidate": "screenshots/screenshot_20260927_104031_680.png",
+    "today_again": "screenshots/screenshot_20260927_104034_559.png"
+   }
+  },
+  "500": {
+   "camera": [
+    332.23151219433737,
+    228.51007166283435,
+    331.73151219433737
+   ],
+   "yaw": -135.0,
+   "pitch": -19.999999999999996,
+   "converge_s": 13.3,
+   "proxy_today": {
+    "last_dist": 500.0,
+    "last_level": 2,
+    "last_min_fade": 0.0,
+    "readiness": 1.0,
+    "state": 2
+   },
+   "proxy_candidate": {
+    "last_dist": 500.0,
+    "last_level": 2,
+    "last_min_fade": 0.0,
+    "readiness": 1.0,
+    "state": 2
+   },
+   "proxy_today_again": {
+    "last_dist": 500.0,
+    "last_level": 2,
+    "last_min_fade": 0.0,
+    "readiness": 1.0,
+    "state": 2
+   },
+   "test_today_vs_candidate": {
+    "max": 0,
+    "p999": 0.0,
+    "px_over2": 0,
+    "px_over8": 0,
+    "changed_bbox_in_viewport": null
+   },
+   "control_today_vs_today": {
+    "max": 0,
+    "p999": 0.0,
+    "px_over2": 0,
+    "px_over8": 0,
+    "changed_bbox_in_viewport": null
+   },
+   "captures": {
+    "today": "screenshots/screenshot_20260927_104105_152.png",
+    "candidate": "screenshots/screenshot_20260927_104108_060.png",
+    "today_again": "screenshots/screenshot_20260927_104110_920.png"
+   }
+  }
+ }
+}

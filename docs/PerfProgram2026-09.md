@@ -1646,6 +1646,35 @@ Each step: **why** (the data), **do**, **measure**, **done when**. Design check 
    dither (the proxy is partly transparent) and stays below L0-vs-L1's delta at today's 360 u switch; at
    400–500 u both captures already use L1+, so the delta is ~0. **Control:** today's level vs itself at
    each distance (~0).
+   **Run 1 (2026-09-27), written BEFORE running.** Candidate A = ladder `[256, 500, 700, 900, 1200]` vs today
+   `[360, 500, 700, 900, 1200]`: L1 takes over at 256 u, where the proxy starts to fade in, so L0 is never
+   visible (below 256 it is fully discarded and skipped). Rig: `CityBench_ProxyRig` (fresh copy of the
+   streaming base, seed 7), one engine-built tavern near the site centre; frozen (no-pause freeze);
+   camera elevated on one bearing, looking at the building. **Predictions:** (a) 280/320/346 u: the
+   A-vs-today difference is confined to the building's screen footprint, small (≤ 15/255 on most
+   pixels) because the proxy is still dither-fading and L1 cells (6 micros) are close to L0's (3 micros)
+   at that size on screen; (b) 400 and 500 u: exactly 0 (both ladders pick L1); (c) control (today vs
+   today) ≤ 3/255 everywhere. A difference outside the building footprint, or any change at 400/500 u,
+   falsifies the claim that only the proxy level changed.
+   **Run 1 RESULT (`p1c/proxy_ladder_rig_run1.json`): candidate A REJECTED.** (b) 400/500 u: exactly 0 ✓.
+   (c) control 0 at 320–500 u; one 4-px spot (13/255) at 280 u. (a) the change IS confined to the building
+   (≈30×40–85 px at screen centre) but is NOT small: up to 70/255, 150–263 px over 8/255, the roof turning
+   lighter and speckled. Why: in the 256–352 u band the real building is still resident and drawn (the
+   rig's edited chunks stayed resident even at 500 u; a saved city would evict them past ~352 u) and the
+   proxy fades in on top of it; L0 (⅓-voxel cells) coincides with the real surfaces and vanishes into
+   them, while L1 (6-micro cells) pokes through them. **L0 is not waste: it is what makes the handoff
+   invisible.** The prediction (≤ 15/255) was wrong.
+   **Proxy cost with the prepass ON** (`p1c/ab_proxies_prepass_on_C100.jsonl`, C-100 noon, ABBA): overview
+   Far Terrain 10.6 → 1.4 ms with proxies off (GPU frame 45.3 → 35.8); rooftop and outside ~0. So the lever
+   is real, ~9 ms, and only in views across the whole city.
+   **Next candidate (needs its own design check): merge the proxy MESH, keep the level.**
+   `TreeLodMeshRegistry::buildLevelMesh` emits one quad per exposed cell face, with no merging, so an L0
+   proxy is thousands of ⅓-voxel quads per building. `far_tree_mesh.frag` derives UVs from world position
+   (`worldFaceUV(vWorldPos, face)`) and a vertex carries only position + texture + face, so greedily
+   merging coplanar, same-texture, same-face cells gives the same shading at a fraction of the vertex and
+   raster cost (equivalence-class, no look change). Known risk: T-junction cracks where merged and
+   unmerged edges meet (the chunk greedy-merge crack class) — the frozen pixel gate at the overview must
+   show it, and the look must be checked in the crossfade band where L0 overlays the real building.
    *Done when:* rig numbers + city captures signed off, and the C-100 overview A/B measured.
 4. **Shadow Mid (~20–24 ms) and Shadow Near (~9 ms, linear in buildings).** *Why:* the largest GPU term
    left after step 3; every building within 420 u casts whether or not its shadow can reach the view.
