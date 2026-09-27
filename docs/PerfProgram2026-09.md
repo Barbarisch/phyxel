@@ -1501,9 +1501,23 @@ Each step: **why** (the data), **do**, **measure**, **done when**. Design check 
      camera, fadeNear0, minFade)`) and pin `StructureLodSkipTest.SkipOnlyWhenShaderDiscardsEverything`
      against a CPU transcription of `far_tree_mesh.vert/.frag` (`max(smoothstep(e0, e1, d), minFade) <
      bayer_min`, bayer_min = 1/32) at the boundaries: d = fadeNear0 − 1 ± ε, d just inside fadeNear0,
-     minFade = 0 vs the smallest positive float. **Red:** a predicate without the 1 u margin, or one that
-     skips at minFade > 0, must fail it. Today only the L4 pixel gate covers it.
+     minFade = 0 vs the smallest positive float. **Red (corrected while building it):** on the CPU a
+     margin-less predicate and one that skips at tiny minFade are both still SOUND (the fragment keeps
+     only if vFade ≥ 1/32, so any minFade < 1/32 is still fully discarded; the 1 u margin guards CPU-vs-GPU
+     float disagreement, which a CPU test cannot reproduce). So the tests are three:
+     `SkipOnlyWhenShaderDiscardsEverything` (soundness sweep; red on a predicate that skips at
+     minFade ≥ 1/32 or where smoothstep ≥ 1/32), `KeepsTheOneUnitMarginAndExactZeroMinFade` (the stricter
+     spec, pinned as spec), `SkipsTheResidentCityCase` (red on a never-skip predicate). Today only the L4
+     pixel gate covers it.
    *Done when:* both land with the test shown red first.
+   **DONE 2026-09-26.** Predicate extracted to `RenderCoordinator::structureProxyFullyDiscarded`;
+   `StructureLodSkipTest` (3 tests, `tests/core/LodServiceTest.cpp`) shown RED against a deliberately
+   unsound mutation (skip at minFade < 0.5 and up to fadeNear0 + 20 u: soundness caught it at 265.5 u,
+   the first distance where smoothstep ≥ 1/32; the margin test failed inside (255, 256]) and GREEN on the
+   real predicate. `set_far_terrain` now echoes `trees`, `structures`, `structures_skip_invisible`. Live
+   on C-100 street (`p1c/step0_echo_live.json`): echoes follow set/restore; 103 proxies still skipped;
+   `solid_proxies_in_band` 0. Unit suite 4,070 pass; the same 2 known failures (AtlasManager cache,
+   FineFaceMerge) as before the change.
 1. **Re-baseline the growth table with §16.12 in.** *Why:* §16.11's numbers predate the skip; every later
    A/B needs the true starting point. *Do:* `run_rung_attrib.sh` on all four rungs (§17.4), then
    `growth_table.py`. *Done when:* §17.1 row 2 holds measured numbers for every rung and pose.

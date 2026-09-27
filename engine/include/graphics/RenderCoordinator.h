@@ -1208,6 +1208,15 @@ public:
         bool ready = true;   ///< every voting column has rendered geometry
         int  votes = 0;      ///< columns close enough to the camera to vote
     };
+    /// True when far_tree_mesh would discard EVERY fragment of a structure proxy, so its main-view
+    /// draw can be skipped with no pixel change (PerfProgram 16.12). Shader: vFade =
+    /// max(smoothstep(fadeNear0, fadeNear1, |base - camera|), minFade); a fragment is discarded when
+    /// vFade < its Bayer threshold (smallest 1/32). This predicate is deliberately STRICTER than that
+    /// bound: minFade exactly 0 and the base at least 1 u inside fadeNear0 (the margin covers
+    /// CPU-vs-GPU float differences, which no CPU test can reproduce). Pure + static so
+    /// StructureLodSkipTest pins it headlessly.
+    static bool structureProxyFullyDiscarded(const glm::vec3& base, const glm::vec3& cameraPos,
+                                             float fadeNear0, float minFade);
     static StructureGateResult structureGateProbe(
         const glm::ivec3& mn, const glm::ivec3& mx, const glm::vec3& cameraPos,
         float fadeGateEnd,
@@ -1257,6 +1266,7 @@ public:
     /// (instanced meshes + cards) without touching the terrain tiles, so an artifact can be
     /// pinned to trees vs tile geometry in two screenshots.
     void setFarTreesEnabled(bool on);
+    bool farTreesEnabled() const;   ///< tree-LOD pipeline enabled state (echoed by set_far_terrain)
 
     /// World size of one shadow-map texel this frame (2*fittedRadius / mapWidth). Diagnostic:
     /// this is what the grass shadow pass clamps blade width against, so if blades stop

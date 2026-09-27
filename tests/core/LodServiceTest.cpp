@@ -8,6 +8,7 @@
 // at the reference config and scales correctly away from it.
 
 #include <gtest/gtest.h>
+#include <algorithm>
 #include "core/LodService.h"
 #include "graphics/RenderCoordinator.h"
 
@@ -462,4 +463,75 @@ TEST(StructureLodGateTest, ProbesFullYSpanNotOneMidPlane) {
         << "mid-plane-only probing hit the air chunk at y=150 and vetoed readiness "
            "even though the tower's base is resident and rendered";
     EXPECT_GT(gate.votes, 0);
+}
+
+// ============================================================================
+// StructureLodSkipTest (PerfProgram 2026-09 section 17.2 step 0; the section 16.12 skip).
+// tickStructureLod skips a structure proxy's main-view draw when structureProxyFullyDiscarded says
+// far_tree_mesh would discard every fragment. That skip took C-100 street from 75.8 to 49.8 ms, and it
+// is only allowed because it is pixel-identical. These pin the predicate against a CPU transcription of
+// the shader (far_tree_mesh.vert: vFade = max(smoothstep(fadeNear0, fadeNear1, dist), minFade);
+// far_tree_mesh.frag: discard when vFade < bayer4, the 16 thresholds (m + 0.5) / 16).
+// What a CPU test CANNOT pin is CPU-vs-GPU float disagreement at the boundary: that is what the 1 u
+// margin is for, so its presence is pinned as a spec (KeepsTheOneUnitMargin), not derived.
+// ============================================================================
+namespace {
+using SkipRC = Phyxel::Graphics::RenderCoordinator;
+constexpr float kFadeNear0 = 256.0f;   // live values: fadeNear0 = load distance,
+constexpr float kFadeNear1 = 346.0f;   // fadeNear1 = min(load + 90, unload - 6)
+
+// GLSL smoothstep + the fragment's discard test over EVERY Bayer threshold.
+bool shaderDiscardsEveryFragment(float dist, float minFade) {
+    const float t = std::clamp((dist - kFadeNear0) / (kFadeNear1 - kFadeNear0), 0.0f, 1.0f);
+    const float vFade = std::max(t * t * (3.0f - 2.0f * t), minFade);
+    for (int m = 0; m < 16; ++m)
+        if (!(vFade < (float(m) + 0.5f) / 16.0f)) return false;   // this pixel survives
+    return true;
+}
+}  // namespace
+
+// SOUND: whenever the predicate skips, the shader would have discarded every fragment. Swept across
+// the fade band and past it, at minFade values straddling the smallest Bayer threshold (1/32), along
+// two bearings. RED against any predicate that skips where a pixel survives (e.g. at minFade >= 1/32,
+// or at a distance where smoothstep >= 1/32).
+TEST(StructureLodSkipTest, SkipOnlyWhenShaderDiscardsEverything) {
+    const glm::vec3 cam(10.0f, 60.0f, -20.0f);
+    const float minFades[] = {0.0f, 1e-7f, 0.01f, 1.0f / 32.0f - 1e-4f, 1.0f / 32.0f,
+                              0.05f, 0.5f, 1.0f};
+    const glm::vec3 bearings[] = {glm::normalize(glm::vec3(1, 0, 0)),
+                                  glm::normalize(glm::vec3(0.6f, -0.3f, 0.74f))};
+    int skipped = 0;
+    for (const auto& dir : bearings)
+        for (float mf : minFades)
+            for (float d = kFadeNear0 - 20.0f; d <= kFadeNear1 + 20.0f; d += 0.05f) {
+                const glm::vec3 base = cam + dir * d;
+                if (!SkipRC::structureProxyFullyDiscarded(base, cam, kFadeNear0, mf)) continue;
+                ++skipped;
+                ASSERT_TRUE(shaderDiscardsEveryFragment(glm::length(base - cam), mf))
+                    << "skipped a proxy the shader would still draw: dist " << d << ", minFade " << mf;
+            }
+    EXPECT_GT(skipped, 0) << "the sweep never exercised a skip";
+}
+
+// SPEC: the skip keeps a 1 u margin inside fadeNear0 and requires minFade to be exactly 0, both
+// STRICTER than the shader bound, because the CPU and GPU compute the distance in different float
+// frames. RED against a margin-less predicate or one that accepts a small positive minFade.
+TEST(StructureLodSkipTest, KeepsTheOneUnitMarginAndExactZeroMinFade) {
+    const glm::vec3 cam(0.0f);
+    for (float d = kFadeNear0 - 0.99f; d <= kFadeNear0 + 0.001f; d += 0.01f)
+        EXPECT_FALSE(SkipRC::structureProxyFullyDiscarded(glm::vec3(d, 0, 0), cam, kFadeNear0, 0.0f))
+            << "skip inside the 1 u margin at dist " << d;
+    EXPECT_FALSE(SkipRC::structureProxyFullyDiscarded(glm::vec3(100, 0, 0), cam, kFadeNear0, 1e-7f))
+        << "a residency floor above zero, however small, must not be skipped";
+    EXPECT_FALSE(SkipRC::structureProxyFullyDiscarded(glm::vec3(100, 0, 0), cam, 0.0f, 0.0f))
+        << "no fade start (no pipeline) must never skip";
+}
+
+// USEFUL: the case the city measured (C-100 street: 104 proxies at 150-210 u, minFade 0) is skipped.
+// RED against a predicate that never skips (which would pass the two tests above trivially).
+TEST(StructureLodSkipTest, SkipsTheResidentCityCase) {
+    const glm::vec3 cam(-48.0f, 57.7f, -0.5f);
+    for (float d : {150.0f, 180.0f, 210.0f, kFadeNear0 - 1.5f})
+        EXPECT_TRUE(SkipRC::structureProxyFullyDiscarded(cam + glm::vec3(d, 0, 0), cam, kFadeNear0, 0.0f))
+            << "a resident, fully faded proxy at " << d << " u was not skipped";
 }

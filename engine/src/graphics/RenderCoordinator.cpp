@@ -480,6 +480,17 @@ void RenderCoordinator::setFarTreesEnabled(bool on) {
     if (farTreePipeline) farTreePipeline->params().enabled = on;
 }
 
+bool RenderCoordinator::farTreesEnabled() const {
+    return treeLodPipeline ? treeLodPipeline->params().enabled : false;
+}
+
+bool RenderCoordinator::structureProxyFullyDiscarded(const glm::vec3& base,
+                                                     const glm::vec3& cameraPos,
+                                                     float fadeNear0, float minFade) {
+    if (minFade != 0.0f || fadeNear0 <= 0.0f) return false;
+    return glm::length(base - cameraPos) < fadeNear0 - 1.0f;
+}
+
 void RenderCoordinator::setStructureLodTargets(
     const std::vector<std::tuple<std::string, glm::ivec3, glm::ivec3>>& targets) {
     // RECONCILING, not insert-only (the original insert-only version kept a demolished or
@@ -718,11 +729,11 @@ void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::Mesh
         // inside fadeNear0 every fragment is discarded, so the draw is pure wasted vertex and
         // raster work: a city at street level drew ALL its proxies this way at the finest level
         // (C-100: 104 proxies at L0). 1 u of margin covers CPU-vs-GPU float differences.
-        const bool mainDrawInvisible = [&] {
-            if (!s_structureLodSkipInvisible || e.lastMinFade != 0.0f) return false;
-            const glm::vec3 base(float(e.mn.x) + 0.5f, float(e.mn.y), float(e.mn.z) + 0.5f);
-            return glm::length(base - cameraPos) < fadeGateEnd0 - 1.0f;
-        }();
+        const bool mainDrawInvisible =
+            s_structureLodSkipInvisible &&
+            structureProxyFullyDiscarded(
+                glm::vec3(float(e.mn.x) + 0.5f, float(e.mn.y), float(e.mn.z) + 0.5f), cameraPos,
+                fadeGateEnd0, e.lastMinFade);
         if (s_structureLodEnabled && !mainDrawInvisible)
             meshDraws.push_back({gl.vertexBuffer, gl.indexBuffer, gl.indexCount, e.inst, 0, 1,
                                  glm::vec2(float(e.mn.x), float(e.mn.z)), 8.0f,

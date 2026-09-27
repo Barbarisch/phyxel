@@ -1,0 +1,42 @@
+{
+ "echo_default": {
+  "enabled": true,
+  "per_instance_levels": true,
+  "resident_tiles": 195,
+  "structures": true,
+  "structures_skip_invisible": true,
+  "success": true,
+  "trees": true
+ },
+ "echo_set": {
+  "enabled": true,
+  "per_instance_levels": true,
+  "resident_tiles": 195,
+  "structures": true,
+  "structures_skip_invisible": false,
+  "success": true,
+  "trees": false
+ },
+ "echo_restore": {
+  "enabled": true,
+  "per_instance_levels": true,
+  "resident_tiles": 195,
+  "structures": true,
+  "structures_skip_invisible": true,
+  "success": true,
+  "trees": true
+ },
+ "lod_structures": {
+  "enabled": true,
+  "level_dist": [
+   360.0,
+   500.0,
+   700.0,
+   900.0,
+   1200.0
+  ],
+  "skip_invisible": true,
+  "skipped_invisible_last_frame": 103,
+  "solid_proxies_in_band": 0
+ }
+}

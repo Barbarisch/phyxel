@@ -9236,9 +9236,15 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 for (int i = 0; i < 4; ++i)
                     Graphics::RenderCoordinator::s_treeMeshLevelDist[i] = v[i];
         }
+        // Echo every knob this command accepts (FeatureDesignKeys: a caller must be able to
+        // assert the state took effect; design check 9.9 found three of them silent).
         response = {{"success", true}, {"enabled", ft->params().enabled},
                     {"per_instance_levels",
-                     Graphics::RenderCoordinator::s_treePerInstanceLevels}};
+                     Graphics::RenderCoordinator::s_treePerInstanceLevels},
+                    {"trees", renderCoordinator ? renderCoordinator->farTreesEnabled() : false},
+                    {"structures", Graphics::RenderCoordinator::s_structureLodEnabled},
+                    {"structures_skip_invisible",
+                     Graphics::RenderCoordinator::s_structureLodSkipInvisible}};
         if (cmd.params.value("debug_tile", false)) {
             if (!ft->isConfigured()) {
                 WorldGenerator* gen = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
