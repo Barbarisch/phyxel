@@ -5,7 +5,11 @@
 #include "core/VoxelTemplate.h"
 #include "utils/Logger.h"
 
+#include <algorithm>
 #include <chrono>
+#include <map>
+#include <set>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace Phyxel {
@@ -18,7 +22,160 @@ inline uint64_t key3(const glm::ivec3& p) {
            (uint64_t(uint32_t(p.y + kOff)) << 21) |
             uint64_t(uint32_t(p.z + kOff));
 }
+// ---- Merged meshing (PerfProgram 17.2 step 3) ---------------------------------------------------
+// Faces: 0=+Z 1=-Z 2=+X 3=-X 4=+Y 5=-Y (FarVertex faceID). Per face: the normal axis and the two
+// in-plane axes, in the order the rectangle is scanned (u fast, v slow).
+constexpr int kNormalAxis[6] = {2, 2, 0, 0, 1, 1};
+constexpr int kUAxis[6]      = {0, 0, 2, 2, 0, 0};
+constexpr int kVAxis[6]      = {1, 1, 1, 1, 2, 2};
+
+// The unmerged builder's corner order per face, on an integer lattice box (lo, hi). Reusing it keeps
+// every merged face's winding identical to the per-cell quads it replaces.
+void faceCorners(int f, const glm::ivec3& lo, const glm::ivec3& hi, glm::ivec3 out[4]) {
+    switch (f) {
+        case 0: out[0] = {hi.x, lo.y, hi.z}; out[1] = {hi.x, hi.y, hi.z}; out[2] = {lo.x, hi.y, hi.z}; out[3] = {lo.x, lo.y, hi.z}; break;
+        case 1: out[0] = {lo.x, lo.y, lo.z}; out[1] = {lo.x, hi.y, lo.z}; out[2] = {hi.x, hi.y, lo.z}; out[3] = {hi.x, lo.y, lo.z}; break;
+        case 2: out[0] = {hi.x, lo.y, lo.z}; out[1] = {hi.x, hi.y, lo.z}; out[2] = {hi.x, hi.y, hi.z}; out[3] = {hi.x, lo.y, hi.z}; break;
+        case 3: out[0] = {lo.x, lo.y, hi.z}; out[1] = {lo.x, hi.y, hi.z}; out[2] = {lo.x, hi.y, lo.z}; out[3] = {lo.x, lo.y, lo.z}; break;
+        case 4: out[0] = {lo.x, hi.y, lo.z}; out[1] = {lo.x, hi.y, hi.z}; out[2] = {hi.x, hi.y, hi.z}; out[3] = {hi.x, hi.y, lo.z}; break;
+        default: out[0] = {lo.x, lo.y, lo.z}; out[1] = {hi.x, lo.y, lo.z}; out[2] = {hi.x, lo.y, hi.z}; out[3] = {lo.x, lo.y, hi.z}; break;
+    }
+}
+
+// Key of the axis-aligned lattice LINE through p along `axis` (the two other coordinates + axis).
+inline uint64_t lineKey(int axis, const glm::ivec3& p) {
+    constexpr int kOff = 1 << 20;
+    const int a = (axis == 0) ? p.y : p.x;
+    const int b = (axis == 2) ? p.y : p.z;
+    return (uint64_t(axis) << 62) | (uint64_t(uint32_t(a + kOff)) << 21) | uint64_t(uint32_t(b + kOff));
+}
+
+struct MergeRect {
+    int face;
+    glm::ivec3 lo, hi;   // lattice box whose `face` side is the rectangle
+    uint16_t tex;
+};
 } // namespace
+
+// Greedy merge per (face, plane) in a fixed scan order (v slow, u fast), then -- when asked -- split
+// every rectangle edge at each other rectangle's corner lying strictly inside it and fan the
+// rectangle from its centre. Pure function of the cell set: identical for any caller / thread.
+static TreeLodMeshRegistry::CpuMesh buildMergedLevelMesh(
+    const Core::TemplateLodChain::Level& level, const FarMaterialResolver& resolveTex,
+    const glm::vec3& anchor, bool splitTJunctions) {
+    TreeLodMeshRegistry::CpuMesh mesh;
+    std::unordered_set<uint64_t> occ;
+    occ.reserve(level.cells.size() * 2);
+    for (const auto& c : level.cells) occ.insert(key3(c.pos));
+    static const glm::ivec3 kDir[6] = {{0,0,1},{0,0,-1},{1,0,0},{-1,0,0},{0,1,0},{0,-1,0}};
+
+    // 1. Exposed faces, grouped by (face, plane); ordered containers keep the scan deterministic.
+    std::map<std::pair<int, int>, std::map<std::pair<int, int>, uint16_t>> groups;
+    for (const auto& c : level.cells) {
+        const uint16_t tex = resolveTex(c.material, 0);
+        for (int f = 0; f < 6; ++f) {
+            if (occ.count(key3(c.pos + kDir[f]))) continue;
+            const int n = kNormalAxis[f];
+            const int plane = c.pos[n] + ((f % 2 == 0) ? 1 : 0);
+            groups[{f, plane}][{c.pos[kVAxis[f]], c.pos[kUAxis[f]]}] = tex;
+        }
+    }
+
+    // 2. Greedy rectangles of equal texture.
+    std::vector<MergeRect> rects;
+    for (auto& [fk, cellsInPlane] : groups) {
+        const int f = fk.first, plane = fk.second;
+        const int n = kNormalAxis[f], ua = kUAxis[f], va = kVAxis[f];
+        std::set<std::pair<int, int>> used;
+        for (const auto& [vu, tex] : cellsInPlane) {
+            if (used.count(vu)) continue;
+            const int v0 = vu.first, u0 = vu.second;
+            auto same = [&](int v, int u) {
+                auto it = cellsInPlane.find({v, u});
+                return it != cellsInPlane.end() && it->second == tex && !used.count({v, u});
+            };
+            int u1 = u0 + 1;
+            while (same(v0, u1)) ++u1;
+            int v1 = v0 + 1;
+            for (;;) {
+                bool rowOk = true;
+                for (int u = u0; u < u1 && rowOk; ++u) rowOk = same(v1, u);
+                if (!rowOk) break;
+                ++v1;
+            }
+            for (int v = v0; v < v1; ++v)
+                for (int u = u0; u < u1; ++u) used.insert({v, u});
+            MergeRect r;
+            r.face = f;
+            r.tex = tex;
+            r.lo[ua] = u0; r.hi[ua] = u1;
+            r.lo[va] = v0; r.hi[va] = v1;
+            if (f % 2 == 0) { r.hi[n] = plane; r.lo[n] = plane - 1; }
+            else            { r.lo[n] = plane; r.hi[n] = plane + 1; }
+            rects.push_back(r);
+        }
+    }
+
+    // 3. Line index of every rectangle corner (each lattice point lies on 3 axis lines).
+    std::unordered_map<uint64_t, std::vector<int>> lines;
+    if (splitTJunctions) {
+        for (const auto& r : rects) {
+            glm::ivec3 cs[4];
+            faceCorners(r.face, r.lo, r.hi, cs);
+            for (const auto& p : cs)
+                for (int axis = 0; axis < 3; ++axis) lines[lineKey(axis, p)].push_back(p[axis]);
+        }
+        for (auto& [k, v] : lines) {
+            std::sort(v.begin(), v.end());
+            v.erase(std::unique(v.begin(), v.end()), v.end());
+        }
+    }
+
+    // 4. Emit.
+    const float s = float(level.cellSizeMicros) / 9.0f;
+    auto toWorld = [&](const glm::vec3& p) { return p * s + anchor; };
+    std::vector<glm::ivec3> loop;
+    for (const auto& r : rects) {
+        glm::ivec3 cs[4];
+        faceCorners(r.face, r.lo, r.hi, cs);
+        loop.clear();
+        for (int i = 0; i < 4; ++i) {
+            const glm::ivec3 a = cs[i], b = cs[(i + 1) % 4];
+            loop.push_back(a);
+            if (!splitTJunctions) continue;
+            int axis = 0;
+            while (axis < 3 && a[axis] == b[axis]) ++axis;
+            const auto it = lines.find(lineKey(axis, a));
+            if (it == lines.end()) continue;
+            const int lo = std::min(a[axis], b[axis]), hi = std::max(a[axis], b[axis]);
+            const auto& vals = it->second;
+            auto first = std::upper_bound(vals.begin(), vals.end(), lo);
+            auto last  = std::lower_bound(vals.begin(), vals.end(), hi);
+            std::vector<int> between(first, last);
+            if (a[axis] > b[axis]) std::reverse(between.begin(), between.end());
+            for (int t : between) {
+                glm::ivec3 q = a;
+                q[axis] = t;
+                loop.push_back(q);
+            }
+        }
+        const uint32_t packed = packFarVertex(r.tex, uint32_t(r.face));
+        const uint32_t base = uint32_t(mesh.vertices.size());
+        if (loop.size() == 4) {   // nothing to split: the same two triangles as a cell quad
+            for (const auto& p : loop) mesh.vertices.push_back({toWorld(glm::vec3(p)), packed});
+            mesh.indices.insert(mesh.indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
+            continue;
+        }
+        // Centre fan: the boundary keeps every split vertex, so neighbours share exact edges.
+        const glm::vec3 centre = (glm::vec3(cs[0]) + glm::vec3(cs[2])) * 0.5f;
+        mesh.vertices.push_back({toWorld(centre), packed});
+        for (const auto& p : loop) mesh.vertices.push_back({toWorld(glm::vec3(p)), packed});
+        const uint32_t nLoop = uint32_t(loop.size());
+        for (uint32_t i = 0; i < nLoop; ++i)
+            mesh.indices.insert(mesh.indices.end(), {base, base + 1 + i, base + 1 + (i + 1) % nLoop});
+    }
+    return mesh;
+}
 
 glm::vec3 TreeLodMeshRegistry::stampAnchorFor(const VoxelTemplate& t) {
     // Mirror of decorateChunk's centering (base = worldPos - maxExtent/2, integer halves —
@@ -34,9 +191,10 @@ glm::vec3 TreeLodMeshRegistry::stampAnchorFor(const VoxelTemplate& t) {
 
 TreeLodMeshRegistry::CpuMesh TreeLodMeshRegistry::buildLevelMesh(
     const Core::TemplateLodChain::Level& level, const FarMaterialResolver& resolveTex,
-    const glm::vec3& anchor) {
+    const glm::vec3& anchor, const MeshOptions& options) {
     CpuMesh mesh;
     if (level.cells.empty() || level.cellSizeMicros <= 0) return mesh;
+    if (options.merge) return buildMergedLevelMesh(level, resolveTex, anchor, options.splitTJunctions);
 
     std::unordered_set<uint64_t> occ;
     occ.reserve(level.cells.size() * 2);

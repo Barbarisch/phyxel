@@ -155,9 +155,21 @@ def take_window(frames):
 
 
 def apply_config(requests):
+    rebuilds_proxies = False
     for method, path, body in requests:
         call(method, path, body)
+        if path == '/api/debug/far_terrain' and isinstance(body, dict) and 'proxy_mesh_merge' in body:
+            rebuilds_proxies = True
     time.sleep(0.5)
+    if rebuilds_proxies:
+        # proxy_mesh_merge rebuilds every structure proxy off-thread (PerfProgram 17.2 step 3); sampling
+        # before it lands would measure a city with no proxies. Wait for pending == 0 (max 120 s).
+        t0 = time.time()
+        while time.time() - t0 < 120:
+            st = call('GET', '/api/debug/lod_report').get('structures', {})
+            if st.get('pending', 0) == 0:
+                break
+            time.sleep(0.5)
 
 
 def run(args, configs):

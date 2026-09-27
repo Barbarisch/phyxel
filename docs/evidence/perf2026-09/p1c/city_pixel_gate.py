@@ -55,6 +55,13 @@ def skip(on):
     r = call('POST', ROUTE, {KEY: on})
     assert r.get('success') and r.get(KEY) == on, r   # the knob must echo the state it took
     settle()
+    if KEY == 'proxy_mesh_merge':
+        # the toggle rebuilds every structure proxy off-thread: wait until none is pending
+        for _ in range(600):
+            st = call('GET', '/api/debug/lod_report', t=60)['structures']
+            if st.get('pending', 0) == 0 and st.get('proxy_mesh_merge') == on:
+                break
+            time.sleep(0.25)
     time.sleep(1.0)
     return r.get(KEY)
 

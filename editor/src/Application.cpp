@@ -9232,6 +9232,19 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
             }
             for (int i = 0; i < 5; ++i) Graphics::RenderCoordinator::s_structureLevelDist[i] = v[i];
         }
+        // Structure-proxy mesh merge A/B (PerfProgram 17.2 step 3). A change rebuilds every proxy
+        // through the frame-deferred retire path; poll lod_report structures.pending to know when done.
+        if (cmd.params.contains("proxy_mesh_merge")) {
+            if (!cmd.params["proxy_mesh_merge"].is_boolean()) {
+                response = {{"success", false}, {"error", "'proxy_mesh_merge' must be a boolean"}, {"applied", false}};
+                return true;
+            }
+            const bool m = cmd.params["proxy_mesh_merge"].get<bool>();
+            if (m != Graphics::RenderCoordinator::s_proxyMeshMerge && renderCoordinator) {
+                Graphics::RenderCoordinator::s_proxyMeshMerge = m;
+                renderCoordinator->rebuildAllStructureLod();
+            }
+        }
         // A/B attribution: structure LOD proxies alone (the trees knob also removes them).
         if (cmd.params.contains("structures"))
             Graphics::RenderCoordinator::s_structureLodEnabled = cmd.params.value("structures", true);
@@ -9265,6 +9278,7 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                     {"structures", Graphics::RenderCoordinator::s_structureLodEnabled},
                     {"structures_skip_invisible",
                      Graphics::RenderCoordinator::s_structureLodSkipInvisible},
+                    {"proxy_mesh_merge", Graphics::RenderCoordinator::s_proxyMeshMerge},
                     {"structure_ladder", std::vector<float>(
                          std::begin(Graphics::RenderCoordinator::s_structureLevelDist),
                          std::end(Graphics::RenderCoordinator::s_structureLevelDist))}};
@@ -15352,7 +15366,11 @@ void Application::registerEffectsCommands() {
             // inside the fade band, where resident chunks should own the view. Nonzero here
             // at close range = the "low poly building stays" bug.
             int solidInBand = 0;
+            uint64_t trisL0Total = 0;
+            int proxiesPending = 0;
             for (const auto& s : renderCoordinator->structureLodReport()) {
+                trisL0Total += s.trisL0;
+                if (s.state == 0 || s.state == 1) ++proxiesPending;
                 if (s.lastLevel >= 0 && s.lastMinFade > 0.97f &&
                     s.lastDist >= 0.0f && s.lastDist < th.treeFadeNear1)
                     ++solidInBand;
@@ -15361,6 +15379,7 @@ void Application::registerEffectsCommands() {
                                       {"last_dist", s.lastDist},
                                       {"last_level", s.lastLevel},
                                       {"last_min_fade", s.lastMinFade},
+                                      {"tris_l0", s.trisL0}, {"merged", s.merged},
                                       {"min", {s.mn.x, s.mn.y, s.mn.z}},
                                       {"max", {s.mx.x, s.mx.y, s.mx.z}}});
             }
@@ -15368,6 +15387,9 @@ void Application::registerEffectsCommands() {
                                  {"entries", structures},
                                  {"enabled", Graphics::RenderCoordinator::s_structureLodEnabled},
                                  {"skip_invisible", Graphics::RenderCoordinator::s_structureLodSkipInvisible},
+                                 {"proxy_mesh_merge", Graphics::RenderCoordinator::s_proxyMeshMerge},
+                                 {"tris_l0_total", trisL0Total},
+                                 {"pending", proxiesPending},
                                  {"skipped_invisible_last_frame",
                                   renderCoordinator->getLastFrameStats().structureLodSkippedInvisible},
                                  {"solid_proxies_in_band", solidInBand}};

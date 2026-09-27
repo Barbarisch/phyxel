@@ -1743,6 +1743,37 @@ Each step: **why** (the data), **do**, **measure**, **done when**. Design check 
      gate falsifies "watertight".
    - **Default:** ships ON once proven, pinned by `RenderDefaultsTest.ProxyMeshMergeDefault`; `LodTierLedger.md`
      rows 5 (tree mesh tier) and 7 (structure proxies) updated in the same commit.
+   **BUILD 2026-09-27.** `TreeLodMeshRegistry::MeshOptions{merge, splitTJunctions}`; the merged builder
+   greedy-merges per (face, plane) in a fixed scan, indexes every rectangle corner by its axis line and
+   splits edges at them, then emits a plain quad (nothing split) or a centre fan. Tests (L2, headless):
+   `ProxyMeshMergeTest.MergedCoversExactlyTheSameFaces` RED on a texture-blind mutation (faces covered 0
+   times by triangles of their own material, stepped building and every oak level), GREEN on the real
+   merge; `ProxyMeshMergeTest.NoTJunctions` GREEN, with its built-in teeth (plain greedy on the stepped
+   building has T-junctions > 0). **SCOPE NARROWED BY DATA: trees are not merged.** On `forge_oak_m` the
+   merge saves only 1.0–1.2× triangles per level (L0 9,832 → 8,030; irregular leaves leave few flat runs,
+   and edge splitting adds some back), not worth the species rebuild machinery 9.13 required. Structures
+   only: `s_proxyMeshMerge` snapshotted into each build job (`e.merged`), `rebuildAllStructureLod()` via the
+   existing retiring + graveyard path, `proxy_mesh_merge` on `set_far_terrain` (echoed), and `lod_report`
+   structures gain `tris_l0` per entry plus `proxy_mesh_merge`, `tris_l0_total`, `pending`.
+   **L4 RESULTS (C-100, noon, prepass on).** Triangles (`p1c/proxy_merge_tris_C100.json`): L0 total over 103
+   proxies **1,388,232 → 145,442 (9.5×)**, median building 10,668 → 1,382; full rebuild 8.4 s off-thread
+   (predicted 5–20× and a few seconds: ✓). Cost (`p1c/ab_proxy_merge_C100.jsonl`, ABBA): overview Far
+   Terrain **9.97 → 2.11 ms**, GPU frame **40.6 → 32.1 ms (−8.5, −21 %)**; rooftop/outside unchanged
+   (predicted ~3 ms: ✓). **Pixel gates (frozen, no pause; `merge_gate_C100_*.json`): rooftop and outside
+   PASS; OVERVIEW FAILS** — 286 px (linear) / 434 px (shipping) over 8/255, max 64/255, control exactly 0,
+   all on the farther buildings (the 256–352 u band where the proxy fades in over the still-resident real
+   building). Prediction "0 changed pixels" FALSIFIED there. **Cause (code-verified):** the proxy main pass
+   uses the scene's STRICT depth test (`TreeLodRenderPipeline.cpp:304`, `sceneDepthCompareOp()`) and draws
+   after static geometry. An unmerged L0 face has exactly the real voxel face's corners, so its depth is
+   bit-equal and the real surface always wins the tie (that is why L0 "vanished into" the real building in
+   run 1). A merged face covers the same area, but its depth is interpolated across a larger triangle and
+   comes out a hair nearer at scattered pixels, so the proxy wins there: z-fight speckle, not cracks.
+   **Candidate fix (needs its own design check):** push structure proxies a hair BEHIND in depth in the
+   main pass (a constant + slope depth bias toward far, applied only to structure-proxy draws via dynamic
+   depth bias), so any coincident real surface always wins, merged or not; where no real building is
+   resident the proxy only competes with terrain, within the bias distance. Gate: the same overview gate
+   must then read within control, and the unmerged-with-bias vs unmerged-without-bias image must also be
+   within control (proving the bias changes nothing today's look depends on).
    *Done when:* rig numbers + city captures signed off, and the C-100 overview A/B measured.
 4. **Shadow Mid (~20–24 ms) and Shadow Near (~9 ms, linear in buildings).** *Why:* the largest GPU term
    left after step 3; every building within 420 u casts whether or not its shadow can reach the view.

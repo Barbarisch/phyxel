@@ -58,9 +58,21 @@ public:
     /// -(maxExtent/2 + 0.5) on X/Z (see stampAnchorFor). A mismatched anchor renders the LOD
     /// tree laterally offset from the real tree it must dissolve into — seen live as a
     /// dithered ghost ~half a footprint beside the resident oak (tree_ladder_band, 2026-08-02).
+    /// Meshing options. `merge` greedily merges coplanar, same-texture, same-face cell faces into
+    /// rectangles (PerfProgram 17.2 step 3): far_tree_mesh.frag derives UVs from world position and a
+    /// vertex carries only position + texture + face, so shading cannot tell a merged rectangle from
+    /// the cell quads it replaces. `splitTJunctions` then splits every rectangle edge at each other
+    /// rectangle's corner lying inside it and fans the rectangle from its centre, so the mesh is
+    /// watertight (plain greedy merging leaves one-pixel cracks that show what is behind). Turning
+    /// the split off exists for the NoTJunctions test's red case and for diagnosis only.
+    struct MeshOptions {
+        bool merge = false;
+        bool splitTJunctions = true;
+    };
     static CpuMesh buildLevelMesh(const Core::TemplateLodChain::Level& level,
                                   const FarMaterialResolver& resolveTex,
-                                  const glm::vec3& anchor = glm::vec3(-0.5f, 0.0f, -0.5f));
+                                  const glm::vec3& anchor = glm::vec3(-0.5f, 0.0f, -0.5f),
+                                  const MeshOptions& options = MeshOptions{});
 
     /// The stamp-parity anchor for a template (see buildLevelMesh doc).
     static glm::vec3 stampAnchorFor(const VoxelTemplate& t);

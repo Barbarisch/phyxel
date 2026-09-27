@@ -491,6 +491,19 @@ bool RenderCoordinator::structureProxyFullyDiscarded(const glm::vec3& base,
     return glm::length(base - cameraPos) < fadeNear0 - 1.0f;
 }
 
+void RenderCoordinator::rebuildAllStructureLod() {
+    // Same path a moved structure takes in setStructureLodTargets: the old entry goes to the retiring
+    // list (running build jobs are waited out there, then its buffers enter the frame-deferred
+    // graveyard), and a fresh entry with the same AABB re-extracts and rebuilds.
+    for (auto& [uuid, e] : structureLod) {
+        StructureLod fresh;
+        fresh.mn = e.mn;
+        fresh.mx = e.mx;
+        structureLodRetiring.push_back(std::move(e));
+        e = std::move(fresh);
+    }
+}
+
 void RenderCoordinator::setStructureLodTargets(
     const std::vector<std::tuple<std::string, glm::ivec3, glm::ivec3>>& targets) {
     // RECONCILING, not insert-only (the original insert-only version kept a demolished or
@@ -646,7 +659,10 @@ void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::Mesh
             if (allResident && !soup.micros.empty()) {
                 extractedThisFrame = true;
                 e.state = 1;
-                e.job = std::async(std::launch::async, [soup = std::move(soup)]() {
+                e.merged = s_proxyMeshMerge;   // snapshot: the build thread never reads the static
+                TreeLodMeshRegistry::MeshOptions meshOpt;
+                meshOpt.merge = e.merged;
+                e.job = std::async(std::launch::async, [soup = std::move(soup), meshOpt]() {
                     const auto levels = Core::TemplateLodChain::buildFromSoup(
                         soup, Core::TemplateLodChain::structureConfig());
                     std::array<TreeLodMeshRegistry::CpuMesh,
@@ -656,7 +672,7 @@ void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::Mesh
                     };
                     for (size_t i = 0; i < out.size() && i < levels.size(); ++i)
                         out[i] = TreeLodMeshRegistry::buildLevelMesh(
-                            levels[i], resolve, glm::vec3(-0.5f, 0.0f, -0.5f));
+                            levels[i], resolve, glm::vec3(-0.5f, 0.0f, -0.5f), meshOpt);
                     return out;
                 });
             }
@@ -668,6 +684,7 @@ void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::Mesh
             bool any = false;
             for (size_t i = 0; i < cpu.size(); ++i)
                 any |= treeLodMeshes->uploadLevel(cpu[i], e.lv[i]);
+            e.trisL0 = cpu.empty() ? 0u : uint32_t(cpu[0].indices.size() / 3);
             FarTreeInstance inst{};
             inst.localX = 0.5f;
             inst.localZ = 0.5f;
@@ -769,6 +786,8 @@ std::vector<RenderCoordinator::StructureLodInfo> RenderCoordinator::structureLod
         info.lastDist = e.lastDist;
         info.lastLevel = e.lastLevel;
         info.lastMinFade = e.lastMinFade;
+        info.trisL0 = e.trisL0;
+        info.merged = e.merged;
         out.push_back(std::move(info));
     }
     return out;
@@ -2514,6 +2533,7 @@ bool  RenderCoordinator::s_treePerInstanceLevels = true;
 bool  RenderCoordinator::s_structureLodEnabled = true;
 float RenderCoordinator::s_structureLevelDist[5] = {360.0f, 500.0f, 700.0f, 900.0f, 1200.0f};
 bool  RenderCoordinator::s_structureLodSkipInvisible = true;
+bool  RenderCoordinator::s_proxyMeshMerge = false;   // A/B until gated (PerfProgram 17.2 step 3)
 // Tree mesh ladder (level i+1 below entry i; L5 beyond) — runtime-tunable, see the header.
 float RenderCoordinator::s_treeMeshLevelDist[4] = {360.0f, 560.0f, 820.0f, 1150.0f};
 float RenderCoordinator::s_lodTargetPixels = 8.0f;

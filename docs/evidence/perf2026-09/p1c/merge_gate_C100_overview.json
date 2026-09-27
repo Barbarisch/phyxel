@@ -1,0 +1,72 @@
+{
+ "pose": [
+  0,
+  190,
+  172.8,
+  -90,
+  -45
+ ],
+ "frozen": true,
+ "freeze_method": "no-pause (residents/fauna off, effect time held, player parked)",
+ "time_of_day": 12.0,
+ "route": "/api/debug/far_terrain",
+ "key": "proxy_mesh_merge",
+ "curves": {
+  "linear": {
+   "control_A1_C": {
+    "max": 0,
+    "p999": 0.0,
+    "over8": 0,
+    "mean": 0.0
+   },
+   "test_A1_B": {
+    "max": 34,
+    "p999": 2.0,
+    "over8": 286,
+    "mean": 0.010932336709977609
+   },
+   "pass": false,
+   "void": false,
+   "skipped_with_skip_on": true,
+   "skipped_with_skip_off": false,
+   "captures": [
+    "screenshots/screenshot_20260927_125022_477.png",
+    "screenshots/screenshot_20260927_125038_426.png",
+    "screenshots/screenshot_20260927_125030_568.png"
+   ]
+  },
+  "shipping": {
+   "control_A1_C": {
+    "max": 0,
+    "p999": 0.0,
+    "over8": 0,
+    "mean": 0.0
+   },
+   "test_A1_B": {
+    "max": 64,
+    "p999": 4.0,
+    "over8": 434,
+    "mean": 0.01777940552193709
+   },
+   "pass": false,
+   "void": false,
+   "skipped_with_skip_on": true,
+   "skipped_with_skip_off": false,
+   "captures": [
+    "screenshots/screenshot_20260927_125041_876.png",
+    "screenshots/screenshot_20260927_125058_093.png",
+    "screenshots/screenshot_20260927_125049_957.png"
+   ]
+  }
+ },
+ "pose_readback_err": 3.0517578011313162e-06,
+ "npcs_at_start": 0,
+ "converge_s": 9.7,
+ "converge_last_drift": 0,
+ "player_parked_from": {
+  "x": 8.0,
+  "y": 52.0,
+  "z": 8.0
+ },
+ "npcs_at_end": 0
+}

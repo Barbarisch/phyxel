@@ -208,6 +208,14 @@ public:
     /// real building is resident: minFade 0; and it is inside the fade start: smoothstep 0).
     /// Pixel-identical by construction; {"structures_skip_invisible": bool} for the A/B.
     static bool s_structureLodSkipInvisible;
+    /// Build structure-proxy meshes MERGED (TreeLodMeshRegistry::MeshOptions::merge, watertight). Read
+    /// ONCE per build job when it is queued (the snapshot travels with the job; build threads never read
+    /// it). Changing it goes through rebuildAllStructureLod(). PerfProgram 17.2 step 3; trees are NOT
+    /// merged (measured 1.0-1.2x on forge_oak_m, not worth a species rebuild path).
+    static bool s_proxyMeshMerge;
+    /// Retire every structure proxy through the frame-deferred graveyard path and re-queue it for
+    /// extraction (the proxy_mesh_merge A/B). Proxies stay invisible until rebuilt (a debug action).
+    void rebuildAllStructureLod();
     // NOTE: there is deliberately no reach cap any more. The candidate set comes from
     // storage (chunks that actually HAVE pyramids), so coverage is bounded by the world's
     // real contents rather than by a constant somebody guessed.
@@ -1173,6 +1181,8 @@ private:
         float lastDist    = -1.0f;  ///< camera distance last frame (-1 = beyond bandEnd/not ticked)
         int   lastLevel   = -1;     ///< chain level drawn last frame (-1 = not drawn)
         float lastMinFade = 0.0f;   ///< residency floor pushed to the shader last frame
+        uint32_t trisL0 = 0;        ///< triangles in the uploaded L0 mesh (0 until built)
+        bool merged = false;        ///< built with s_proxyMeshMerge (snapshot at queue time)
     };
     std::unordered_map<std::string, StructureLod> structureLod;   // key: structure UUID
     /// Frame-deferred GPU destruction for removed/edited structure entries (a buffer may be
@@ -1246,6 +1256,8 @@ public:
         float lastDist = -1.0f;
         int   lastLevel = -1;
         float lastMinFade = 0.0f;
+        uint32_t trisL0 = 0;
+        bool merged = false;
     };
     std::vector<StructureLodInfo> structureLodReport() const;
 
