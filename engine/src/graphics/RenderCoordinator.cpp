@@ -710,9 +710,9 @@ void RenderCoordinator::tickStructureLod(std::vector<TreeLodRenderPipeline::Mesh
         // then the nearest finer, if the requested one is empty (tiny structures can
         // produce empty coarse levels).
         constexpr int kStructLevels = int(Core::TemplateLodChain::kLevelCount);
-        int li = int(std::size(kStructureLevelDist));
-        for (int i = 0; i < int(std::size(kStructureLevelDist)); ++i)
-            if (dist < kStructureLevelDist[i]) { li = i; break; }
+        int li = int(std::size(s_structureLevelDist));
+        for (int i = 0; i < int(std::size(s_structureLevelDist)); ++i)
+            if (dist < s_structureLevelDist[i]) { li = i; break; }
         int chosen = -1;
         for (int c = li; c < kStructLevels && chosen < 0; ++c)
             if (e.lv[size_t(c)].indexCount) chosen = c;
@@ -1278,7 +1278,9 @@ void RenderCoordinator::updateVfx(float dt) {
         }
     }
 
-    if (vfxSystem) vfxSystem->update(dt);
+    // Effect-time hold: VFX (fire/field light pulse) ticks with dt 0; the emissive reconcile
+    // above still ran with the real frame.
+    if (vfxSystem) vfxSystem->update(s_effectTimeFrozen ? 0.0f : dt);
 }
 
 size_t RenderCoordinator::renderStaticGeometry(StaticDrawPass pass) {
@@ -2465,7 +2467,10 @@ bool RenderCoordinator::s_shadowFrustumCull = false;
 
 // Phase 3 face-direction bucketing: ON by default; /api/debug/face_dir_cull for A/B.
 bool RenderCoordinator::s_faceDirCull = true;
-bool RenderCoordinator::s_depthPrepass = false;         // P-DP: OFF until its A/B + pixel gates pass
+bool RenderCoordinator::s_depthPrepass = false;
+bool  RenderCoordinator::s_effectTimeFrozen = false;
+float RenderCoordinator::s_effectTimeHeldAt = 0.0f;
+float RenderCoordinator::s_effectTimeLast = 0.0f;         // P-DP: OFF until its A/B + pixel gates pass
 uint32_t RenderCoordinator::s_tierMaskMain = 0x7u;     // I6: all tiers drawn (the normal paths)
 uint32_t RenderCoordinator::s_tierMaskShadow = 0x7u;
 // C1 (docs/ContinuousLodPlan.md): screen-space correction for the character LOD/cull
@@ -2507,6 +2512,7 @@ bool  RenderCoordinator::s_farLodChunks = true;
 int   RenderCoordinator::s_farLodBudgetPerFrame = 4;
 bool  RenderCoordinator::s_treePerInstanceLevels = true;
 bool  RenderCoordinator::s_structureLodEnabled = true;
+float RenderCoordinator::s_structureLevelDist[5] = {360.0f, 500.0f, 700.0f, 900.0f, 1200.0f};
 bool  RenderCoordinator::s_structureLodSkipInvisible = true;
 // Tree mesh ladder (level i+1 below entry i; L5 beyond) — runtime-tunable, see the header.
 float RenderCoordinator::s_treeMeshLevelDist[4] = {360.0f, 560.0f, 820.0f, 1150.0f};
@@ -3797,6 +3803,9 @@ void RenderCoordinator::drawFrame() {
     // Seconds since first frame — drives grass wind + growth in the shaders (UBO.elapsedTime).
     static const auto renderStartTime = std::chrono::high_resolution_clock::now();
     float elapsedTime = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - renderStartTime).count();
+    // Effect-time hold (debug): every time-driven visual below reads this one value.
+    if (s_effectTimeFrozen) elapsedTime = s_effectTimeHeldAt;
+    else s_effectTimeLast = elapsedTime;
     m_lastSunColor = sunColor;   // U1: same value the shaders get, for the debris CPU sampler
     vulkanDevice->updateUniformBuffer(currentFrame, view, proj, lightSpaceMatrix, sunDirection, sunColor, static_cast<uint32_t>(chunkStats.totalCubes), ambientLightStrength, emissiveMultiplier, cameraPos, elapsedTime);
 

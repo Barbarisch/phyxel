@@ -439,6 +439,15 @@ public:
     // shaded with depth writes OFF and an or-equal test, so each pixel is shaded once by its
     // front-most fragment. POST /api/debug/depth_prepass.
     static bool s_depthPrepass;
+    /// Effect-time hold (PerfProgram 17.2 step 2, the night pixel gate). When true the GPU time
+    /// (UBO elapsedTime: wind, grass, far-tree sway, sky, emissive pulse in ~20 shaders, plus the
+    /// CPU wind system and grass displacers) stays at the value it had when the hold began, and
+    /// VfxSystem ticks with dt = 0 (fire/VFX light pulse). NOTHING else changes: the game, the
+    /// emissive reconcile, streaming and the day/night clock keep their own clocks. Debug-only;
+    /// POST /api/debug/effect_time {"frozen": bool}.
+    static bool  s_effectTimeFrozen;
+    static float s_effectTimeHeldAt;     ///< seconds since first frame at which time is held
+    static float s_effectTimeLast;       ///< last live elapsedTime (captured when a hold starts)
     /// Whether the prepass actually ran in the last frame (false if disabled, if the debug pipeline was
     /// active, or if its pipelines are unavailable).
     bool depthPrepassRanLastFrame() const { return m_depthPrepassRan; }
@@ -1189,14 +1198,18 @@ public:
     /// report cannot disagree — and densifying a ladder is a one-line change here.
     /// Tree mesh tier: chain level i+1 is used below kTreeMeshLevelDist[i]; L5 beyond the
     /// last entry, cards past bandEnd. Structures: chain level i (0-based — L0's ⅓-voxel
-    /// cells ARE selected, right at the handoff) below kStructureLevelDist[i]; L5 beyond.
+    /// cells ARE selected, right at the handoff) below s_structureLevelDist[i]; L5 beyond.
     /// Densified 2026-08-05 with the full 6-level structure chain (was 3 levels of 4).
     /// RUNTIME-TUNABLE (2026-08-06) so ladder sweeps need no rebuild — the remaining
     /// dense-world tree cost (~8 ms of vertex volume) trades against how long fine levels
     /// hold, and that is a LOOK decision to sweep live: POST /api/debug/far_terrain
     /// {"tree_ladder": [d1, d2, d3, d4]} (ascending; level i+1 below entry i, L5 beyond).
     static float s_treeMeshLevelDist[4];
-    static constexpr float kStructureLevelDist[5] = {360.0f, 500.0f, 700.0f, 900.0f, 1200.0f};
+    /// Structure-proxy chain ladder: level i below entry i, L5 beyond. Runtime (was constexpr) so a
+    /// LOOK A/B can sweep it back-to-back (PerfProgram 17.2 step 3): POST /api/debug/far_terrain
+    /// {"structure_ladder": [d0..d4]}. Default unchanged, see kStructureLevelDistDefault.
+    static constexpr float kStructureLevelDistDefault[5] = {360.0f, 500.0f, 700.0f, 900.0f, 1200.0f};
+    static float s_structureLevelDist[5];
 
     /// Pure residency-gate probe for a structure proxy — decides whether the REAL chunks own
     /// this structure's ground (ready → the proxy may dissolve) and how many probe columns

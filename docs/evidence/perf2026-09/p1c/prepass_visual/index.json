@@ -1,0 +1,82 @@
+[
+ {
+  "tod": "noon",
+  "pose": "street",
+  "gpu_ms_off": 54.686544,
+  "off": "noon_street_off.png",
+  "gpu_ms_on": 47.01568,
+  "on": "noon_street_on.png"
+ },
+ {
+  "tod": "noon",
+  "pose": "square",
+  "gpu_ms_off": 46.144064,
+  "off": "noon_square_off.png",
+  "gpu_ms_on": 43.182959999999994,
+  "on": "noon_square_on.png"
+ },
+ {
+  "tod": "noon",
+  "pose": "rooftop",
+  "gpu_ms_off": 55.963344,
+  "off": "noon_rooftop_off.png",
+  "gpu_ms_on": 50.7988,
+  "on": "noon_rooftop_on.png"
+ },
+ {
+  "tod": "noon",
+  "pose": "overview",
+  "gpu_ms_off": 45.636672000000004,
+  "off": "noon_overview_off.png",
+  "gpu_ms_on": 44.846896,
+  "on": "noon_overview_on.png"
+ },
+ {
+  "tod": "noon",
+  "pose": "outside",
+  "gpu_ms_off": 53.047616000000005,
+  "off": "noon_outside_off.png",
+  "gpu_ms_on": 51.243232000000006,
+  "on": "noon_outside_on.png"
+ },
+ {
+  "tod": "night",
+  "pose": "street",
+  "gpu_ms_off": 54.5656,
+  "off": "night_street_off.png",
+  "gpu_ms_on": 46.844688,
+  "on": "night_street_on.png"
+ },
+ {
+  "tod": "night",
+  "pose": "square",
+  "gpu_ms_off": 47.947248,
+  "off": "night_square_off.png",
+  "gpu_ms_on": 44.871824000000004,
+  "on": "night_square_on.png"
+ },
+ {
+  "tod": "night",
+  "pose": "rooftop",
+  "gpu_ms_off": 57.219744,
+  "off": "night_rooftop_off.png",
+  "gpu_ms_on": 51.44912,
+  "on": "night_rooftop_on.png"
+ },
+ {
+  "tod": "night",
+  "pose": "overview",
+  "gpu_ms_off": 46.512512,
+  "off": "night_overview_off.png",
+  "gpu_ms_on": 45.352256,
+  "on": "night_overview_on.png"
+ },
+ {
+  "tod": "night",
+  "pose": "outside",
+  "gpu_ms_off": 53.748016,
+  "off": "night_outside_off.png",
+  "gpu_ms_on": 50.850832,
+  "on": "night_outside_on.png"
+ }
+]

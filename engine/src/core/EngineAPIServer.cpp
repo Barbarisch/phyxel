@@ -1147,6 +1147,26 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(queueAndWait("set_depth_prepass", params).dump(), "application/json");
     });
 
+    // POST /api/debug/effect_time {frozen: bool} - hold the effect clocks for frozen pixel gates
+    // that must NOT pause the game (PerfProgram 17.2 step 2). Omitted = unchanged. Echoes state.
+    srv.Post("/api/debug/effect_time", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_effect_time", params).dump(), "application/json");
+    });
+
+    // POST /api/debug/residents {enabled: bool} - suspend the settlement ResidentSpawner and
+    // despawn every resident it owns (false), or resume it (true; it re-derives residents from the
+    // persisted locations). A per-NPC remove does not stick: the spawner's rescan re-spawns them.
+    // Optional {fauna: bool} does the same for the biome wildlife spawner (a separate population).
+    // Echoes enabled, despawned, active, fauna, fauna_despawned, fauna_active.
+    // PerfProgram 17.2 step 7 (and step 2's night freeze).
+    srv.Post("/api/debug/residents", [this](const httplib::Request& req, httplib::Response& res) {
+        json params = json::parse(req.body, nullptr, false);
+        if (params.is_discarded()) params = json::object();
+        res.set_content(queueAndWait("set_residents", params).dump(), "application/json");
+    });
+
     // POST /api/debug/gi_probe {skip_buried: bool, two_level_trace: bool} - probe-pass options A/B
     // (GI-1, GI-2; docs/PerfProgram2026-09.md section 15). Each optional (omitted = unchanged); a
     // non-boolean refuses the request. Both default ON. Echoes both and gi_enabled.

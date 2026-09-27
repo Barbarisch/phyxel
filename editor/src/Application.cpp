@@ -9212,6 +9212,26 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         if (cmd.params.contains("trees") && renderCoordinator)
             renderCoordinator->setFarTreesEnabled(cmd.params.value("trees", true));
         // A/B: per-instance level crossfade vs per-tile-centre selection (straddle-cost probe).
+        // Structure-proxy ladder sweep: {"structure_ladder": [d0..d4]}, 5 strictly ascending values
+        // > 0. Refused otherwise: a non-ascending ladder makes the first-match level search skip
+        // levels, so a proxy would jump straight past one (a pop the sweep would misattribute).
+        if (cmd.params.contains("structure_ladder")) {
+            const auto& L = cmd.params["structure_ladder"];
+            bool ok = L.is_array() && L.size() == 5;
+            float v[5] = {};
+            for (size_t i = 0; ok && i < 5; ++i) {
+                ok = L[i].is_number() && L[i].get<float>() > 0.0f &&
+                     (i == 0 || L[i].get<float>() > v[i - 1]);
+                if (ok) v[i] = L[i].get<float>();
+            }
+            if (!ok) {
+                response = {{"success", false},
+                            {"error", "structure_ladder must be 5 strictly ascending distances > 0 (world units)"},
+                            {"applied", false}};
+                return true;
+            }
+            for (int i = 0; i < 5; ++i) Graphics::RenderCoordinator::s_structureLevelDist[i] = v[i];
+        }
         // A/B attribution: structure LOD proxies alone (the trees knob also removes them).
         if (cmd.params.contains("structures"))
             Graphics::RenderCoordinator::s_structureLodEnabled = cmd.params.value("structures", true);
@@ -9244,7 +9264,10 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                     {"trees", renderCoordinator ? renderCoordinator->farTreesEnabled() : false},
                     {"structures", Graphics::RenderCoordinator::s_structureLodEnabled},
                     {"structures_skip_invisible",
-                     Graphics::RenderCoordinator::s_structureLodSkipInvisible}};
+                     Graphics::RenderCoordinator::s_structureLodSkipInvisible},
+                    {"structure_ladder", std::vector<float>(
+                         std::begin(Graphics::RenderCoordinator::s_structureLevelDist),
+                         std::end(Graphics::RenderCoordinator::s_structureLevelDist))}};
         if (cmd.params.value("debug_tile", false)) {
             if (!ft->isConfigured()) {
                 WorldGenerator* gen = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
@@ -14864,6 +14887,49 @@ void Application::registerEffectsCommands() {
     reg.on("set_depth_prepass", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         r = Core::PerfApi::setDepthPrepass(renderCoordinator.get(), cmd.params);
     });
+    reg.on("set_effect_time", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        r = Core::PerfApi::setEffectTime(renderCoordinator.get(), cmd.params);
+    });
+    reg.on("set_residents", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        int despawned = 0;
+        if (cmd.params.contains("enabled")) {
+            if (!cmd.params["enabled"].is_boolean()) {
+                r = {{"success", false}, {"error", "'enabled' must be a boolean"}, {"applied", false}};
+                return;
+            }
+            const bool on = cmd.params["enabled"].get<bool>();
+            if (!on) {
+                // Suspend FIRST so the next rescan cannot re-spawn what clear() removes.
+                m_residentSpawner.setEnabled(false);
+                despawned = m_residentSpawner.activeCount();
+                m_residentSpawner.clear();
+            } else {
+                m_residentSpawner.setEnabled(true);   // re-derives on its next throttled scan
+            }
+        }
+        // Optional "fauna": the biome wildlife population is a SEPARATE spawner (FaunaSpawner, capped
+        // by total NPC load) and appears as soon as residents go -- measured: 3 wandering animals
+        // within 15 s of suspending residents at C-100. A frozen frame needs both held.
+        int faunaDespawned = 0;
+        if (cmd.params.contains("fauna")) {
+            if (!cmd.params["fauna"].is_boolean()) {
+                r = {{"success", false}, {"error", "'fauna' must be a boolean"}, {"applied", false}};
+                return;
+            }
+            if (!cmd.params["fauna"].get<bool>()) {
+                m_faunaSpawner.setEnabled(false);
+                faunaDespawned = m_faunaSpawner.activeCount();
+                m_faunaSpawner.clear();
+            } else {
+                m_faunaSpawner.setEnabled(true);
+            }
+        }
+        r = {{"success", true}, {"enabled", m_residentSpawner.isEnabled()},
+             {"despawned", despawned}, {"active", m_residentSpawner.activeCount()},
+             {"configured", m_residentSpawner.isConfigured()},
+             {"fauna", m_faunaSpawner.isEnabled()}, {"fauna_despawned", faunaDespawned},
+             {"fauna_active", m_faunaSpawner.activeCount()}};
+    });
 
     // L1 duplicate-emitter merge A/B (docs/PerfProgram2026-09.md). The re-mesh rebuilds each chunk's
     // emissive list; the light count updates on the next updateVfx reconcile.
@@ -15279,7 +15345,7 @@ void Application::registerEffectsCommands() {
                                 {"card_fade_far", {th.cardFadeFar0, th.cardFadeFar1}},
                                 {"instances", fs.farTrees}};
             nlohmann::json structLadder = nlohmann::json::array();
-            for (float d : Graphics::RenderCoordinator::kStructureLevelDist)
+            for (float d : Graphics::RenderCoordinator::s_structureLevelDist)
                 structLadder.push_back(d);
             nlohmann::json structures = nlohmann::json::array();
             // THE stale-proxy red detector: a proxy DRAWN essentially solid (minFade ≈ 1)
@@ -15418,10 +15484,10 @@ void Application::registerEffectsCommands() {
                                 {"in_fade_band",
                                  dist >= th.treeFadeNear0 && dist < th.treeFadeNear1}};
             int structLevel =
-                int(std::size(Graphics::RenderCoordinator::kStructureLevelDist));
+                int(std::size(Graphics::RenderCoordinator::s_structureLevelDist));
             for (size_t i = 0;
-                 i < std::size(Graphics::RenderCoordinator::kStructureLevelDist); ++i)
-                if (dist < Graphics::RenderCoordinator::kStructureLevelDist[i]) {
+                 i < std::size(Graphics::RenderCoordinator::s_structureLevelDist); ++i)
+                if (dist < Graphics::RenderCoordinator::s_structureLevelDist[i]) {
                     structLevel = int(i);
                     break;
                 }

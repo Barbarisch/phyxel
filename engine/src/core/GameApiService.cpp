@@ -833,6 +833,39 @@ void GameApiService::registerCommands() {
              {"transitioning", transitioning}, {"visible_menus", menus}, {"source", "shell"}};
     });
 
+    // Semantic shell navigation for automation. Coordinate clicks are useful
+    // for authored UISystem layouts, but the built-in GameScreen menus render
+    // through ImGui and therefore cannot consume UISystem::injectClick.
+    reg.on("screen_action", [this](const APICommand& cmd, json& r) {
+        if (!screen) { r = {{"error", "GameScreen not available"}}; return; }
+        const std::string action = cmd.params.value("action", "");
+        if      (action == "start") {
+            // "Start" is semantic automation, not a literal single click.
+            // A normal shipped game opens on Intro, whose first click only
+            // advances to MainMenu; drive the complete intent to Playing.
+            if (screen->getState() == UI::ScreenState::Intro)
+                screen->returnToMainMenu();
+            screen->startGame();
+        }
+        else if (action == "pause") {
+            if (screen->getState() != UI::ScreenState::Playing) {
+                r = {{"success", false}, {"error", "pause requires playing state"}};
+                return;
+            }
+            screen->togglePause();
+        }
+        else if (action == "resume")    screen->resume();
+        else if (action == "menu")      screen->returnToMainMenu();
+        else if (action == "settings")  screen->toggleSettings();
+        else if (action == "inventory") screen->toggleInventory();
+        else {
+            r = {{"success", false}, {"error", "Unknown screen action"}, {"action", action}};
+            return;
+        }
+        r = {{"success", true}, {"action", action},
+             {"screen", screenStateStr(screen->getState())}};
+    });
+
     reg.on("ui_click", [this](const APICommand& cmd, json& r) {
         auto* ui = renderCoordinator ? renderCoordinator->getUISystem() : nullptr;
         if (!ui) { r = {{"error", "UISystem not available"}}; return; }
@@ -935,6 +968,9 @@ void GameApiService::registerCommands() {
     });
     reg.on("set_gi_probe_options", [this](const APICommand& cmd, json& r) {
         r = PerfApi::setGiProbeOptions(renderCoordinator, cmd.params);
+    });
+    reg.on("set_effect_time", [this](const APICommand& cmd, json& r) {
+        r = PerfApi::setEffectTime(renderCoordinator, cmd.params);
     });
     reg.on("set_depth_prepass", [this](const APICommand& cmd, json& r) {
         r = PerfApi::setDepthPrepass(renderCoordinator, cmd.params);

@@ -1462,6 +1462,16 @@ outside **bit-identical** (max delta 0, 65 proxies skipped); overview max 1–3/
 own control** (103 skipped). Unfrozen, the city's noise floor (104 walking residents, grass) was ~4,100
 px over 8/255 — too high to decide anything; freezing is required for gates in the city.
 
+> **CORRECTION 2026-09-27: the gate above was invalid as labelled.** It froze the scene with the GAME
+> PAUSE, and pausing (a) draws the pause menu into `/api/screenshot` and (b) makes `POST /api/camera` a
+> no-op — each "street / outside / overview" run photographed the PREVIOUS pose with the menu over the
+> middle of the frame (a contact sheet of the captures showed it). **Re-run with the no-pause freeze**
+> (`city_pixel_gate.py /api/debug/far_terrain structures_skip_invisible --freeze`: residents + wildlife
+> suspended, effect time + GI probe rotation held, player parked out of view, convergence wait, camera
+> pose read back ≤ 0.05 u before any capture; `structure_skip_gate_C100_{street,outside,overview}_noon.json`):
+> **street, outside and overview all PASS** on both tone curves (overview control and test exactly 0;
+> street/outside test max 1/255 = control). The skip's pixel-identity claim now stands on valid captures.
+
 **Next levers, re-ranked on C-100 after this fix** (to be re-measured with the fix in the growth table):
 1. **Visible structure proxies still draw at L0** (the finest chain level) out to 360 u
    (`kStructureLevelDist[0]`): ~10 ms at the overview. A coarser level nearer, or a screen-space level
@@ -1470,7 +1480,7 @@ px over 8/255 — too high to decide anything; freezing is required for gates in
 3. **Static Geometry 7–16 ms** and the default-OFF depth prepass (−20..−37 % at S-1/S-2) to re-verify here.
 4. Far trees proper: ~2.8 ms at street after the fix — no longer a city problem.
 
-### 16.13 P-DP depth prepass re-verified at C-100 — NOON half (2026-09-26; §17.2 step 2)
+### 16.13 P-DP depth prepass re-verified at C-100, noon and night (2026-09-26/27; §17.2 step 2)
 
 **Cost** (`p1c/ab_prepass_C100.jsonl`, noon, interleaved ABBA, 2 pairs × 240 GPU frames per cell):
 
@@ -1487,16 +1497,35 @@ overview, where little is occluded and the prepass costs more than it saves. The
 also confounded (visible instances 58.3 M vs 62.7 M between its arms — residency moved). Smaller than
 §14's −20..−37 % at S-1/S-2 because Static Geometry is a smaller share of the city frame.
 
-**Pixel gate, frozen** (`city_pixel_gate.py … /api/debug/depth_prepass enabled --freeze`, the
-generic form of the §16.12 gate): rooftop and overview PASS (test ≤ control). **Street FAILS the strict
-gate on 3–4 isolated pixels** (control exactly 0; test max 12/255, 2 px over 8/255 on the shipping curve;
-two spots, (391,212) and (1129,526); prepass-on slightly brighter). That is 99.9993 % of the viewport
-within 2/255, inside `render_pixel_diff.py`'s "perceptually lossless" bar, but NOT identical as §14
-claimed. The pixels sit on geometry edges with no contiguous region; the likely class is the known
-merged-face edge crack/speckle (CLAUDE.md open defects), where an equal-depth test resolves an edge
-pixel differently — **not proven**. Open: the night half (needs step 2's effect-time + residents knobs)
-and the user's default decision (§8 #5), which now has to weigh −7..−8 ms at eye level, +2 ms from
-above, and a 4-pixel edge difference.
+**Pixel gates.** The first noon gates here used the game pause and were INVALID (wrong poses, pause menu
+in frame; see the §16.12 correction) — their "3–4 pixels at street" were really the overview view. All
+gates below use the no-pause freeze with pose read-back (`p1c/prepass_gate_C100_<pose>_{noon,night}.json`):
+
+| Pose | Noon | Night 22:00 |
+|---|---|---|
+| street | **1 pixel** differs (13/255); control 1/255 | **1 pixel** (12/255); control 1/255 |
+| rooftop | not decided: control drifted 6/255 even after the convergence wait; the prepass stayed inside it (max 4) | **identical** (test = control, max 1/255) |
+| overview | **3 pixels** (max 14–17/255); control exactly 0 | **3 pixels** (max 14–19/255); control exactly 0 |
+
+Deterministic (same pixels at noon and night) and isolated: 1–3 of 600,695 viewport pixels, no contiguous
+region, prepass-on slightly brighter. Inside `render_pixel_diff.py`'s "perceptually lossless" bar, but
+NOT bit-identical as §14 claimed. Likely an equal-depth edge tie on merged-face borders (the known crack /
+speckle class) — **not proven**.
+
+**Night cost** (`p1c/ab_prepass_night_C100.jsonl`, residents on, ABBA 2 pairs): street 52.1 → 44.2
+(**−7.9, −15 %**), square 43.4 → 41.6, rooftop 53.6 → 48.6 (−5.0), overview 44.4 → 44.8 (+0.4, the same
+residency confound), outside 52.7 → 50.7. Same shape as noon.
+
+**What the night freeze needed** (each found by a VOID control, then fixed): residents AND wildlife
+suspended (`FaunaSpawner` fills in within 15 s of residents going); effect time held INCLUDING the GI
+probe ray rotation (time-like; ×8 exposure made its night jitter visible); the PLAYER parked out of view
+(idle animation + held torch light); and a convergence wait after each pose change (the camera-following
+probe grid keeps blending for 10–30 s).
+
+**For the user's decision (§8 #5):** −7..−8 ms at eye level (street, rooftop), about −2 ms at the square
+and outside, 0 to +2 ms from the overview; 0–3 changed pixels per frame at the tested poses. Visual
+comparison page: https://claude.ai/artifact/JiK48kRkbVv5RDFnuC4eFL (live captures off/on at five
+poses, noon and night, with the enlarged changed pixels). Prepass stays OFF until the user decides.
 
 ---
 
@@ -1582,9 +1611,11 @@ Each step: **why** (the data), **do**, **measure**, **done when**. Design check 
    the prepass default today (nothing in `tests/` references it); flipping it must ADD
    `RenderDefaultsTest.DepthPrepassDefault` in the same commit, with the reason. *Done when:* written up as a
    §16.x, the default decided with the user, and pinned.
-   **NOON HALF DONE 2026-09-26 (§16.13):** −7.0 street / −8.3 rooftop / +1.8 overview; frozen pixel gate
-   passes at rooftop and overview, fails strict at street on 3–4 isolated edge pixels (≤ 12/255). Night
-   half and the default decision still open.
+   **TESTING DONE 2026-09-27 (§16.13):** cost noon + night at all five poses; pixel gates at street,
+   rooftop, overview, noon + night, on the corrected no-pause freeze (1 px street, 3 px overview, rooftop
+   identical at night / undecided at noon). Knobs built: `/api/debug/effect_time` (UBO time + VFX dt + GI
+   probe rotation), `/api/debug/residents {enabled, fauna}`. Visual comparison page published for the user.
+   **Open: the user's default decision** (they review the page and/or toggle it live), then the pin.
 3. **Visible structure proxies still draw at chain level 0 out to 360 u** (~10 ms at the overview). *Why:*
    §16.12's residual (overview: skip 43.1 vs no proxies 32.9 ms). *Options:* a coarser level nearer
    (`kStructureLevelDist`), or a screen-space level rule (the level whose cell projects to ≤ ~1 px, the C1
@@ -1596,7 +1627,9 @@ Each step: **why** (the data), **do**, **measure**, **done when**. Design check 
    up to `kStructureLevelDist[0]` = 360 where L1 takes over. **Rig (before the city):** a Flat world, ONE
    engine-built building (`build_structure` schema v2, a tavern — provenance recorded) inside one chunk;
    the only variable is camera distance: **280, 320, 346, 400, 500 u**, same bearing, pose-verified.
-   **Prerequisite knob:** `kStructureLevelDist` is `static constexpr` (`RenderCoordinator.h:1199`), so
+   **Prerequisite knob (BUILT 2026-09-27:** `s_structureLevelDist`, `structure_ladder` on `set_far_terrain`,
+   validated + echoed, read by all three readers incl. `lod_probe`; default pinned by
+   `StructureLodSkipTest.StructureLadderDefaultIsUnchanged`**):** `kStructureLevelDist` was `static constexpr` (`RenderCoordinator.h:1199`), so
    candidates cannot be A/B'd back-to-back without a rebuild per candidate. Make it a runtime static
    with a `structure_ladder` knob on `set_far_terrain`, the same shape as `tree_ladder`: exactly 5 values,
    strictly ascending and > 0, otherwise refused with the reason at the check (a non-ascending ladder
@@ -1662,7 +1695,9 @@ Each step: **why** (the data), **do**, **measure**, **done when**. Design check 
    false}` → echoes `{enabled, despawned, remaining}`; `{"enabled": true}` resumes (the spawner re-derives
    residents deterministically from the locations). Verified by `/api/npcs` reading 0 residents at the
    START and the END of every sampling window (a respawn mid-window voids the row), recorded in every
-   row. The same route is step 2's night freeze.
+   row. The same route is step 2's night freeze. **ROUTE BUILT 2026-09-27** (`/api/debug/residents
+   {enabled, fauna}`; live: 104 despawned, 0 NPCs held for 40 s with fauna off, 107 back on resume). The
+   residents-OFF measurement itself is still owed.
 8. **Foliage at the outside pose (12–22 ms)** — F1 (§12): attribute overdraw vs shading with the R-F1 rig.
 9. **Owed platforms:** the laptop run of the ladder (min-spec; lights may matter there, §1) and the
    standalone `--test` at native resolution (blocked for streaming worlds: standalone games never pump

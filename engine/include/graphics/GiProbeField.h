@@ -73,6 +73,12 @@ public:
     /// to micro cells only inside mixed cubes, reporting the micro march's hit (phxDdaTraceProbe;
     /// OccupancyTraversalTest).
     static inline bool s_twoLevelTrace = true;
+    /// Hold the per-probe ray-set rotation seed (the refresh counter) -- part of the debug
+    /// effect-time hold (POST /api/debug/effect_time). The rotation is a TIME-LIKE input: it changes
+    /// every rendered frame, paused or not, and at night (probe light dominated by lamps) its jitter
+    /// was ~2-3/255 linear, x8 after exposure, so a frozen night gate could never read ~0. Held,
+    /// the probes converge to one value. Default false.
+    static inline bool s_holdRayRotation = false;
     static int optionBits() { return (s_skipBuried ? 1 : 0) | (s_twoLevelTrace ? 2 : 0); }
 
 private:

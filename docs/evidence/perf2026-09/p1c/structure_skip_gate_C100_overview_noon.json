@@ -1,0 +1,72 @@
+{
+ "pose": [
+  0,
+  190,
+  172.8,
+  -90,
+  -45
+ ],
+ "frozen": true,
+ "freeze_method": "no-pause (residents/fauna off, effect time held, player parked)",
+ "time_of_day": 12.0,
+ "route": "/api/debug/far_terrain",
+ "key": "structures_skip_invisible",
+ "curves": {
+  "linear": {
+   "control_A1_C": {
+    "max": 0,
+    "p999": 0.0,
+    "over8": 0,
+    "mean": 0.0
+   },
+   "test_A1_B": {
+    "max": 0,
+    "p999": 0.0,
+    "over8": 0,
+    "mean": 0.0
+   },
+   "pass": true,
+   "void": false,
+   "skipped_with_skip_on": true,
+   "skipped_with_skip_off": false,
+   "captures": [
+    "screenshots/screenshot_20260927_093759_290.png",
+    "screenshots/screenshot_20260927_093806_216.png",
+    "screenshots/screenshot_20260927_093802_792.png"
+   ]
+  },
+  "shipping": {
+   "control_A1_C": {
+    "max": 0,
+    "p999": 0.0,
+    "over8": 0,
+    "mean": 0.0
+   },
+   "test_A1_B": {
+    "max": 0,
+    "p999": 0.0,
+    "over8": 0,
+    "mean": 0.0
+   },
+   "pass": true,
+   "void": false,
+   "skipped_with_skip_on": true,
+   "skipped_with_skip_off": false,
+   "captures": [
+    "screenshots/screenshot_20260927_093809_709.png",
+    "screenshots/screenshot_20260927_093816_666.png",
+    "screenshots/screenshot_20260927_093813_213.png"
+   ]
+  }
+ },
+ "pose_readback_err": 3.0517578011313162e-06,
+ "npcs_at_start": 0,
+ "converge_s": 14.7,
+ "converge_last_drift": 0,
+ "player_parked_from": {
+  "x": 8.0,
+  "y": 52.0,
+  "z": 8.0
+ },
+ "npcs_at_end": 0
+}

@@ -110,6 +110,27 @@ nlohmann::json setDepthPrepass(Graphics::RenderCoordinator* rc, const nlohmann::
             {"note", "applies from the next frame; skipped while a debug visualization pipeline is active"}};
 }
 
+nlohmann::json setEffectTime(Graphics::RenderCoordinator* rc, const nlohmann::json& params) {
+    if (!rc) return {{"success", false}, {"error", "RenderCoordinator not available"}};
+    using RC = Graphics::RenderCoordinator;
+    if (params.contains("frozen")) {
+        if (!params["frozen"].is_boolean())
+            return {{"success", false}, {"error", "'frozen' must be a boolean"}, {"applied", false}};
+        const bool on = params["frozen"].get<bool>();
+        // Hold at the last LIVE time so the frame does not jump when the hold starts.
+        if (on && !RC::s_effectTimeFrozen) RC::s_effectTimeHeldAt = RC::s_effectTimeLast;
+        RC::s_effectTimeFrozen = on;
+        Graphics::GiProbeField::s_holdRayRotation = on;   // the probe ray-set rotation is time-like too
+    }
+    return {{"success", true},
+            {"frozen", RC::s_effectTimeFrozen},
+            {"held_at_s", RC::s_effectTimeFrozen ? nlohmann::json(RC::s_effectTimeHeldAt) : nlohmann::json(nullptr)},
+            {"probe_rotation_held", Graphics::GiProbeField::s_holdRayRotation},
+            {"note", "holds UBO elapsedTime (wind, grass, sky, far-tree sway, pulse), VFX dt and the GI probe "
+                     "ray rotation only; "
+                     "game, emissive reconcile, streaming and the day/night clock keep running"}};
+}
+
 nlohmann::json setGiProbeOptions(Graphics::RenderCoordinator* rc, const nlohmann::json& params) {
     if (!rc) return {{"success", false}, {"error", "RenderCoordinator not available"}};
     // Validate everything before applying anything, so a half-valid request changes nothing.

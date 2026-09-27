@@ -1,0 +1,34 @@
+{
+ "npcs_before": 104,
+ "off": {
+  "active": 0,
+  "configured": true,
+  "despawned": 104,
+  "enabled": false,
+  "fauna": false,
+  "fauna_active": 0,
+  "fauna_despawned": 0,
+  "success": true
+ },
+ "npcs_every_5s_for_40s": [
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0,
+  0
+ ],
+ "on": {
+  "active": 0,
+  "configured": true,
+  "despawned": 0,
+  "enabled": true,
+  "fauna": true,
+  "fauna_active": 0,
+  "fauna_despawned": 0,
+  "success": true
+ },
+ "npcs_after_on_8s": 107
+}

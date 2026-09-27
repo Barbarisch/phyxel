@@ -64,6 +64,10 @@ nlohmann::json setDepthPrepass(Graphics::RenderCoordinator* rc, const nlohmann::
 // default ON.
 nlohmann::json setGiProbeOptions(Graphics::RenderCoordinator* rc, const nlohmann::json& params);
 
+/// POST /api/debug/effect_time {"frozen": bool}: hold the effect clocks (RenderCoordinator::
+/// s_effectTimeFrozen). Omitted = unchanged; non-boolean refused. Echoes frozen + held_at_s.
+nlohmann::json setEffectTime(Graphics::RenderCoordinator* rc, const nlohmann::json& params);
+
 // GET /api/debug/cpu_timing?frames=N (I7). CPU scopes of drawFrame, same statistics as gpu_timing:
 // drawFrame > LOD Update, Light Occupancy, Dirty Chunk Flush (includes meshing), Fence Wait, Acquire,
 // Frame Setup (> Light Select+Upload), Record (> Shadow Pass, Scene Pass > Static Geometry > Occlusion

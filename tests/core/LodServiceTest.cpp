@@ -535,3 +535,13 @@ TEST(StructureLodSkipTest, SkipsTheResidentCityCase) {
         EXPECT_TRUE(SkipRC::structureProxyFullyDiscarded(cam + glm::vec3(d, 0, 0), cam, kFadeNear0, 0.0f))
             << "a resident, fully faded proxy at " << d << " u was not skipped";
 }
+
+// The structure-proxy ladder became a runtime sweep knob (PerfProgram 17.2 step 3). Its DEFAULT is a
+// pinned contract: a LOOK change must be a deliberate, signed-off edit of this pin, not drift.
+TEST(StructureLodSkipTest, StructureLadderDefaultIsUnchanged) {
+    const float expected[5] = {360.0f, 500.0f, 700.0f, 900.0f, 1200.0f};
+    for (int i = 0; i < 5; ++i) {
+        EXPECT_FLOAT_EQ(SkipRC::kStructureLevelDistDefault[i], expected[i]) << "default entry " << i;
+        EXPECT_FLOAT_EQ(SkipRC::s_structureLevelDist[i], expected[i]) << "live ladder entry " << i;
+    }
+}

@@ -122,7 +122,8 @@ void GiProbeField::recordUpdate(VkCommandBuffer cmd, VkDescriptorSet set,
     // frames and the dispatch shrinks to match, which is what makes 18 directions affordable.
     push.dims = glm::ivec4(kDimX, kDimY, kDimZ, static_cast<int>(m_phase));
     // .w = refresh counter: seeds the per-probe ray-set rotation (see gi_probe.comp).
-    push.ambientColor = glm::vec4(ambientColor, static_cast<float>(m_refresh++ % 4096u));
+    push.ambientColor = glm::vec4(ambientColor, static_cast<float>(m_refresh % 4096u));
+    if (!s_holdRayRotation) ++m_refresh;
     push.occBox = occBox;
     push.sunDirection = glm::vec4(sunDirection, 0.0f);
     // .w = the probe-pass option bits (optionBits(): GI-1 skip buried, GI-2 two-level trace).
