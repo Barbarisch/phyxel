@@ -1470,6 +1470,34 @@ px over 8/255 — too high to decide anything; freezing is required for gates in
 3. **Static Geometry 7–16 ms** and the default-OFF depth prepass (−20..−37 % at S-1/S-2) to re-verify here.
 4. Far trees proper: ~2.8 ms at street after the fix — no longer a city problem.
 
+### 16.13 P-DP depth prepass re-verified at C-100 — NOON half (2026-09-26; §17.2 step 2)
+
+**Cost** (`p1c/ab_prepass_C100.jsonl`, noon, interleaved ABBA, 2 pairs × 240 GPU frames per cell):
+
+| Pose | off | on | Δ | Static Geometry off → on | prepass cost |
+|---|---|---|---|---|---|
+| street | 71.8 | 64.8 | **−7.0 (−10 %)** | 14.9 → 5.6 | 2.6 |
+| square | 51.4 | 49.0 | −2.4 | 6.2 → 2.7 | 1.5 |
+| rooftop | 69.8 | 61.5 | **−8.3 (−12 %)** | 10.7 → 3.8 | 1.7 |
+| overview | 52.4 | 54.2 | **+1.8** | 6.1 → 4.5 | 3.1 |
+| outside | 60.7 | 58.8 | −1.9 | 6.3 → 2.5 | 2.6 |
+
+It wins where buildings occlude each other (eye level, the gameplay case) and loses ~2 ms from the
+overview, where little is occluded and the prepass costs more than it saves. The overview pair is
+also confounded (visible instances 58.3 M vs 62.7 M between its arms — residency moved). Smaller than
+§14's −20..−37 % at S-1/S-2 because Static Geometry is a smaller share of the city frame.
+
+**Pixel gate, frozen** (`city_pixel_gate.py … /api/debug/depth_prepass enabled --freeze`, the
+generic form of the §16.12 gate): rooftop and overview PASS (test ≤ control). **Street FAILS the strict
+gate on 3–4 isolated pixels** (control exactly 0; test max 12/255, 2 px over 8/255 on the shipping curve;
+two spots, (391,212) and (1129,526); prepass-on slightly brighter). That is 99.9993 % of the viewport
+within 2/255, inside `render_pixel_diff.py`'s "perceptually lossless" bar, but NOT identical as §14
+claimed. The pixels sit on geometry edges with no contiguous region; the likely class is the known
+merged-face edge crack/speckle (CLAUDE.md open defects), where an equal-depth test resolves an edge
+pixel differently — **not proven**. Open: the night half (needs step 2's effect-time + residents knobs)
+and the user's default decision (§8 #5), which now has to weigh −7..−8 ms at eye level, +2 ms from
+above, and a 4-pixel edge difference.
+
 ---
 
 ## 17. ROADMAP FROM HERE: the guide (updated 2026-09-26)

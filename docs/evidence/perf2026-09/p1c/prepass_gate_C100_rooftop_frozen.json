@@ -1,0 +1,58 @@
+{
+ "pose": [
+  -48.0,
+  70.0,
+  -0.5,
+  0.0,
+  -12.0
+ ],
+ "frozen": true,
+ "route": "/api/debug/depth_prepass",
+ "key": "enabled",
+ "curves": {
+  "linear": {
+   "control_A1_C": {
+    "max": 1,
+    "p999": 1.0,
+    "over8": 0,
+    "mean": 0.051323883168662966
+   },
+   "test_A1_B": {
+    "max": 1,
+    "p999": 1.0,
+    "over8": 0,
+    "mean": 0.05382265542413371
+   },
+   "pass": true,
+   "skipped_with_skip_on": true,
+   "skipped_with_skip_off": false,
+   "captures": [
+    "screenshots/screenshot_20260926_222051_266.png",
+    "screenshots/screenshot_20260926_222333_470.png",
+    "screenshots/screenshot_20260926_222212_910.png"
+   ]
+  },
+  "shipping": {
+   "control_A1_C": {
+    "max": 5,
+    "p999": 3.0,
+    "over8": 0,
+    "mean": 0.3115158274998127
+   },
+   "test_A1_B": {
+    "max": 6,
+    "p999": 2.0,
+    "over8": 0,
+    "mean": 0.3042908630835948
+   },
+   "pass": true,
+   "skipped_with_skip_on": true,
+   "skipped_with_skip_off": false,
+   "captures": [
+    "screenshots/screenshot_20260926_222452_664.png",
+    "screenshots/screenshot_20260926_222731_803.png",
+    "screenshots/screenshot_20260926_222613_045.png"
+   ]
+  }
+ }
+}
