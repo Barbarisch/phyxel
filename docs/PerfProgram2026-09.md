@@ -1582,6 +1582,9 @@ Each step: **why** (the data), **do**, **measure**, **done when**. Design check 
    the prepass default today (nothing in `tests/` references it); flipping it must ADD
    `RenderDefaultsTest.DepthPrepassDefault` in the same commit, with the reason. *Done when:* written up as a
    §16.x, the default decided with the user, and pinned.
+   **NOON HALF DONE 2026-09-26 (§16.13):** −7.0 street / −8.3 rooftop / +1.8 overview; frozen pixel gate
+   passes at rooftop and overview, fails strict at street on 3–4 isolated edge pixels (≤ 12/255). Night
+   half and the default decision still open.
 3. **Visible structure proxies still draw at chain level 0 out to 360 u** (~10 ms at the overview). *Why:*
    §16.12's residual (overview: skip 43.1 vs no proxies 32.9 ms). *Options:* a coarser level nearer
    (`kStructureLevelDist`), or a screen-space level rule (the level whose cell projects to ≤ ~1 px, the C1
