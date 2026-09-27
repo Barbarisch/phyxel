@@ -517,6 +517,17 @@ Three mechanisms 9.9 relied on did not hold against the code, plus two undefined
    region, cached vs uncached, threshold uncached p99 + 2/255; red on a K-frame cache without rebase.
 No design key violated.
 
+### 9.11 Eleventh pass (`/design-check`, 2026-09-26, on §17 after 9.10): NEEDS WORK (small) → folded in
+
+1. **Step 3:** `kStructureLevelDist` is `static constexpr`, so the rig could not A/B ladders without a
+   rebuild per candidate → runtime `structure_ladder` knob (5 values, strictly ascending, refused
+   otherwise, echoed; `lod_report` reads it), residency recorded per capture.
+2. **Step 2:** "effect time" named both domains it must hold (GPU `ubo.elapsedTime`, ~20 shaders; CPU
+   `FireEmitterManager` / `VfxSystem` light modulation) and the player kept out of frame.
+3. **Step 2:** the frozen control is numeric (max ≤ 3/255, 0 px over 8/255): the GI probe rotation
+   advances every rendered frame regardless of pause (`GiProbeField.cpp:124`), measured 0–3/255.
+No design key violated.
+
 ## 10. P0a results (2026-09-24, RTX 4090, Release)
 
 Evidence: `docs/evidence/perf2026-09/`. Unit suite after the batch: 4025 passed, 20 skipped, 2 failed. Both
@@ -1502,11 +1513,17 @@ Each step: **why** (the data), **do**, **measure**, **done when**. Design check 
    (the prepass is equivalence-class). **Night freeze without game pause:** game pause stops the
    emissive reconcile (§13), so a night gate that pauses the game compares a stale light set. Night
    freeze = clock paused at 22:00 + grass/foliage off + residents despawned (step 7's route) + **effect
-   time held** (new debug knob, e.g. `POST /api/debug/effect_time {"frozen": bool}`, echoing its state:
-   it pins the time that drives fire/VFX flicker (`FireEmitterManager`, `VfxSystem`) and wind to a
-   constant while the game, and so the emissive reconcile, keeps running; it must change nothing but
-   that time input — say so at the knob). The frozen A1-vs-C control must then read ~0 or the run is
-   void. **Fallback** if the knob cannot be made clean: the unfrozen timing-matched gate
+   time held** (new debug knob, e.g. `POST /api/debug/effect_time {"frozen": bool}`, echoing its state)
+   while the game, and so the emissive reconcile, keeps running. The knob holds BOTH time domains and
+   changes nothing but those time inputs (say so at the knob): (1) the GPU time `ubo.elapsedTime`, read
+   by ~20 shaders (`static_voxel.vert`, `kinematic_voxel.vert`, `dynamic_voxel.vert`, `character.frag`,
+   `sky.frag`, `transparent_voxel.frag`, the far-terrain/far-tree/foliage/grass stages); (2) the CPU
+   clocks that modulate light intensity: `FireEmitterManager` pulse/flicker and `VfxSystem`. The player
+   character is hidden or kept out of frame (its animation is not on either clock). **Known remaining
+   temporal source:** the GI probe ray-set rotation advances every rendered frame, paused or not
+   (`GiProbeField.cpp:124`); the frozen noon gates measured it at 0/255 (street, outside) to 1–3/255
+   (overview). So the control criterion is numeric: **frozen A1-vs-C control max ≤ 3/255 and 0 pixels
+   over 8/255**, or the run is void. **Fallback** if the knob cannot be made clean: the unfrozen timing-matched gate
    (`gi_pixel_gate.py` method) with its noise floor stated in the result. **Default pin:** no test pins
    the prepass default today (nothing in `tests/` references it); flipping it must ADD
    `RenderDefaultsTest.DepthPrepassDefault` in the same commit, with the reason. *Done when:* written up as a
@@ -1521,7 +1538,15 @@ Each step: **why** (the data), **do**, **measure**, **done when**. Design check 
    §16.12), so the visible-L0 cost lives in **256–360 u**: the dither fade band (256–346) plus the run
    up to `kStructureLevelDist[0]` = 360 where L1 takes over. **Rig (before the city):** a Flat world, ONE
    engine-built building (`build_structure` schema v2, a tavern — provenance recorded) inside one chunk;
-   the only variable is camera distance: **280, 320, 346, 400, 500 u**, same bearing, pose-verified. No
+   the only variable is camera distance: **280, 320, 346, 400, 500 u**, same bearing, pose-verified.
+   **Prerequisite knob:** `kStructureLevelDist` is `static constexpr` (`RenderCoordinator.h:1199`), so
+   candidates cannot be A/B'd back-to-back without a rebuild per candidate. Make it a runtime static
+   with a `structure_ladder` knob on `set_far_terrain`, the same shape as `tree_ladder`: exactly 5 values,
+   strictly ascending and > 0, otherwise refused with the reason at the check (a non-ascending ladder
+   makes the level search skip levels); the response echoes the ladder in effect; `lod_report`
+   (`Application.cpp` structures `level_dist`) reads the runtime ladder, not the constant. All six levels
+   are already uploaded per structure, so a switch applies the next frame. Record the residency state
+   (`lod_report` `readiness` / `last_min_fade`) with every capture. No
    eviction (there is no API for it, and none is needed): at each distance capture today's level vs the
    candidate level; the real building, where resident, is identical in both captures, so the diff
    isolates the proxy. **Prediction, written first:** at 280–346 u the candidate's delta is damped by the
