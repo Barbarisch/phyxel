@@ -4,7 +4,7 @@
 - **Goal (user, 2026-09-25):** no fixed budget — as fast as possible without visual loss, measured at real
   load: **~100-building cities** (S-3, §16).
 - **Measured + done:** P0a/P0b instrumentation (§10-§11); P1 on the 4090 for S-1 tavern / S-2 town (§12);
-  shipped L1 duplicate-emitter merge (§13), P-DP depth prepass (built, **default OFF**, §14), GI-1/GI-2 probe
+  shipped L1 duplicate-emitter merge (§13), P-DP depth prepass (**default ON since 2026-09-27**, §14, §16.13), GI-1/GI-2 probe
   pass (§15), L3a exact light visibility; the P1c city benchmark tooling (§16.8) and the **C-25…C-100 city
   ladder with its growth table** (§16.11); the first city fix — **structure proxies the shader discards are
   no longer drawn, C-100 street −34 %** (§16.12).
@@ -354,8 +354,9 @@ re-ranked P2: lights (L2/L3c) are no longer first** — see §17.2 for the curre
    frame goes (§16.11). Revisit for interiors / the laptop.*
 3. **Laptop access** for the min-spec half of P1.
 4. **City-cap scaling — DECIDED 2026-09-26:** the building cap scales with site area (`scaleForSite`, §16.11).
-5. **OPEN — P-DP default.** The prepass was −20..−37 % at S-1/S-2 and pixel-identical; re-measure at C-100
-   (§17.2 step 2) and then decide default ON/OFF.
+5. **P-DP default — DECIDED 2026-09-27: ON.** The user watched the C-100 street pose flip off → on live
+   (17 → 21 fps, 56.2 → 50.0 ms GPU), saw no difference, and approved (§16.13 has the full evidence).
+   Pinned by `RenderDefaultsTest.DepthPrepassDefault`.
 6. **OPEN — visible structure proxies (§17.2 step 3) are a LOOK change**, not an equivalence: needs the
    user's before/after sign-off at the city poses.
 
@@ -1615,7 +1616,9 @@ Each step: **why** (the data), **do**, **measure**, **done when**. Design check 
    rooftop, overview, noon + night, on the corrected no-pause freeze (1 px street, 3 px overview, rooftop
    identical at night / undecided at noon). Knobs built: `/api/debug/effect_time` (UBO time + VFX dt + GI
    probe rotation), `/api/debug/residents {enabled, fauna}`. Visual comparison page published for the user.
-   **Open: the user's default decision** (they review the page and/or toggle it live), then the pin.
+   **DONE 2026-09-27: default ON** — the user flipped it live at the C-100 street pose (17 → 21 fps), saw no
+   difference and approved; pinned by `RenderDefaultsTest.DepthPrepassDefault`; `LightingPipeline.md` §0/§9
+   updated.
 3. **Visible structure proxies still draw at chain level 0 out to 360 u** (~10 ms at the overview). *Why:*
    §16.12's residual (overview: skip 43.1 vs no proxies 32.9 ms). *Options:* a coarser level nearer
    (`kStructureLevelDist`), or a screen-space level rule (the level whose cell projects to ≤ ~1 px, the C1

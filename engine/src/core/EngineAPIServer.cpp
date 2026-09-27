@@ -1138,7 +1138,7 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // POST /api/debug/depth_prepass {enabled: bool} — P-DP static depth prepass A/B
-    // (docs/PerfProgram2026-09.md). Omitted = unchanged; non-boolean refused. Default OFF. Refused
+    // (docs/PerfProgram2026-09.md). Omitted = unchanged; non-boolean refused. Default ON (2026-09-27). Refused
     // (not silently accepted) when the prepass pipelines are unavailable. Echoes enabled, available,
     // ran_last_frame.
     srv.Post("/api/debug/depth_prepass", [this](const httplib::Request& req, httplib::Response& res) {

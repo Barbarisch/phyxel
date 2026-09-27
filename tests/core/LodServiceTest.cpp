@@ -545,3 +545,11 @@ TEST(StructureLodSkipTest, StructureLadderDefaultIsUnchanged) {
         EXPECT_FLOAT_EQ(SkipRC::s_structureLevelDist[i], expected[i]) << "live ladder entry " << i;
     }
 }
+
+// The depth prepass default is a pinned contract (FeatureDesignKeys: defaults do not drift). ON since
+// 2026-09-27: C-100 city -7..-8 ms GPU at eye level, 0-3 changed pixels per frame in the frozen
+// gates, user-approved after a live look (PerfProgram 16.13). Changing it is a deliberate edit here.
+TEST(RenderDefaultsTest, DepthPrepassDefault) {
+    EXPECT_TRUE(Phyxel::Graphics::RenderCoordinator::s_depthPrepass)
+        << "the depth prepass ships ON; see PerfProgram 16.13 before turning it off";
+}

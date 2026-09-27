@@ -2467,7 +2467,7 @@ bool RenderCoordinator::s_shadowFrustumCull = false;
 
 // Phase 3 face-direction bucketing: ON by default; /api/debug/face_dir_cull for A/B.
 bool RenderCoordinator::s_faceDirCull = true;
-bool RenderCoordinator::s_depthPrepass = false;
+bool RenderCoordinator::s_depthPrepass = true;    // P-DP: ON since 2026-09-27 (PerfProgram 16.13)
 bool  RenderCoordinator::s_effectTimeFrozen = false;
 float RenderCoordinator::s_effectTimeHeldAt = 0.0f;
 float RenderCoordinator::s_effectTimeLast = 0.0f;         // P-DP: OFF until its A/B + pixel gates pass

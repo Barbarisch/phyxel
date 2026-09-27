@@ -434,10 +434,12 @@ public:
     // shadow paths. POST /api/debug/tier_mask.
     static uint32_t s_tierMaskMain;
     static uint32_t s_tierMaskShadow;
-    // P-DP depth prepass A/B (docs/PerfProgram2026-09.md). Default OFF until its A/B and pixel gates
-    // pass. When ON (and not in the debug pipeline): static geometry is drawn depth-only first, then
-    // shaded with depth writes OFF and an or-equal test, so each pixel is shaded once by its
-    // front-most fragment. POST /api/debug/depth_prepass.
+    // P-DP depth prepass (docs/PerfProgram2026-09.md 14, 16.13). DEFAULT ON since 2026-09-27: C-100
+    // city -7..-8 ms GPU at eye level, 0..+2 ms from above, 0-3 changed pixels per frame (frozen
+    // gates), user-approved after a live look. When ON (and not in the debug pipeline, and only if the
+    // prepass pipelines exist -- otherwise the normal path runs): static geometry is drawn depth-only
+    // first, then shaded with depth writes OFF and an or-equal test, so each pixel is shaded once by its
+    // front-most fragment. POST /api/debug/depth_prepass. Pinned: RenderDefaultsTest.DepthPrepassDefault.
     static bool s_depthPrepass;
     /// Effect-time hold (PerfProgram 17.2 step 2, the night pixel gate). When true the GPU time
     /// (UBO elapsedTime: wind, grass, far-tree sway, sky, emissive pulse in ~20 shaders, plus the
