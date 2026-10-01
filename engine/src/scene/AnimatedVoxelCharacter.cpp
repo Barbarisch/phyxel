@@ -1,4 +1,8 @@
 #include "scene/AnimatedVoxelCharacter.h"
+#include "scene/motion/MotionOracleSampling.h"
+#include "graphics/ClipMetaSchema.h"
+#include <cfloat>
+#include <set>
 #include "physics/VoxelDynamicsWorld.h"
 #include "physics/VoxelOccupancyGrid.h"
 #include "core/ChunkManager.h"
@@ -527,34 +531,333 @@ static constexpr float kControllerHeadClearance = 0.05f;
             auto it = std::find_if(clips.begin(), clips.end(),
                 [&](const AnimationClip& c){ return c.name == clipName; });
             if (it == clips.end()) continue;
-            std::string kv;
-            while (ss >> kv) {
-                auto eq = kv.find('=');
-                if (eq == std::string::npos) continue;
-                std::string k = kv.substr(0, eq);
-                if (k == "type") { it->clipType = kv.substr(eq + 1); continue; }
-                if (k == "castFamily" || k == "castRole") continue; // family metadata: resolved via spell_anim_families.json
-                float v = 0.0f;
-                try { v = std::stof(kv.substr(eq + 1)); }
-                catch (const std::exception&) { continue; }
-                if (k == "warpEnabled")      it->warpEnabled      = (v != 0.0f);
-                else if (k == "authoredFallDist") it->authoredFallDist = v;
-                else if (k == "takeoffEnd")       it->takeoffEnd       = v;
-                else if (k == "contactFrame")     it->contactFrame     = v;
-                else if (k == "warpScaleMin")     it->warpScaleMin     = v;
-                else if (k == "warpScaleMax")     it->warpScaleMax     = v;
-                else if (k == "hitFrameFraction") it->hitFrameFraction = v;
-                else if (k == "interruptible")   it->interruptible   = (v != 0.0f);
-                else if (k == "interruptAfter")  it->interruptAfter  = v;
-                else if (k == "stairStepHeight") it->stairStepHeight = v;
-                else if (k == "stairStepDepth")  it->stairStepDepth  = v;
-                else if (k == "contactFrame1")      it->contactFrame1      = v;
-                else if (k == "contactFrame2")      it->contactFrame2      = v;
-                else if (k == "footIKSurfaceReach") it->footIKSurfaceReach = v;
-                else if (k == "footIKBodyRange")    it->footIKBodyRange    = v;
-                else if (k == "footIKEnabled") {} // editor-only, no runtime field
+            // A3 item 1: ONE typed schema (resources/anim/clip_meta_schema.json via
+            // graphics/ClipMetaSchema) replaces the stof-everything loop. Unknown keys and
+            // wrong-typed / out-of-enum values are logged ONCE per (key) so a typo can never
+            // fail silently (A0 #6 kept); factor coordinates land in clip.factors.
+            static std::set<std::string> s_warnedIssues;
+            std::string rest;
+            std::getline(ss, rest);
+            const auto parsed = Phyxel::ClipMeta::parseFields(rest);
+            for (const auto& issue : parsed.issues) {
+                if (s_warnedIssues.insert(issue.key + "|" + std::to_string((int)issue.kind)).second)
+                    LOG_WARN_FMT("Character", "clip_meta: " << issue.message << " on clip '" << clipName
+                                 << "' in " << animFile << " (ignored)");
+            }
+            Phyxel::ClipMeta::applyToClip(*it, parsed);
+        }
+    }
+
+    // A0 #4: ONE definition of "where does a clip start". Looping locomotion starts at
+    // this character's own phase so crowds do not march in lock-step; one-shots start at
+    // 0 (an Attack that begins mid-swing has no wind-up). Used by playAnimation(), the
+    // FSM clip switch and the external-velocity (NPC) clip switch — before A0 only the
+    // first honoured the seed.
+    float AnimatedVoxelCharacter::loopStartTime(const Phyxel::AnimationClip& clip, float phase01) const {
+        // A clip "loops" when it is what one of the FSM's cyclic states resolves to on THIS rig
+        // (mapping -> plan -> legacy) — no clip-name literals, so a wolf's Walk_cycle or a
+        // Quaternius Gallop jitter exactly like the humanoid walk (A2).
+        static constexpr AnimatedCharacterState kCyclic[] = {
+            AnimatedCharacterState::Idle, AnimatedCharacterState::Walk, AnimatedCharacterState::Run,
+            AnimatedCharacterState::CrouchIdle, AnimatedCharacterState::CrouchWalk,
+            AnimatedCharacterState::StrafeLeft, AnimatedCharacterState::StrafeRight,
+            AnimatedCharacterState::WalkStrafeLeft, AnimatedCharacterState::WalkStrafeRight,
+            AnimatedCharacterState::BackwardWalk};
+        bool loops = false;
+        for (auto st : kCyclic) {
+            for (bool sprint : {false, true}) {
+                std::string want = clipForState(st, sprint), have = clip.name;
+                std::transform(want.begin(), want.end(), want.begin(), ::tolower);
+                std::transform(have.begin(), have.end(), have.begin(), ::tolower);
+                if (!want.empty() && want == have) { loops = true; break; }
+            }
+            if (loops) break;
+        }
+        return (loops && phase01 > 0.0f && clip.duration > 0.0f) ? phase01 * clip.duration : 0.0f;
+    }
+
+    float AnimatedVoxelCharacter::phaseSyncedStartTime(const Phyxel::AnimationClip& from, float fromTime,
+                                                       const Phyxel::AnimationClip& to) const {
+        if (from.duration <= 0.0f || to.duration <= 0.0f) return 0.0f;
+        auto frac = [](float x) { return x - std::floor(x); };
+        const float cycle = frac(fromTime / from.duration);
+        if (from.stanceL >= 0.0f && to.stanceL >= 0.0f) {
+            const float gait = frac(cycle - from.stanceL);       // 0 = left foot plants
+            return frac(gait + to.stanceL) * to.duration;
+        }
+        return cycle * to.duration;
+    }
+
+    void AnimatedVoxelCharacter::beginClipTransition(int newClipIndex, AnimatedCharacterState toState) {
+        if (newClipIndex < 0 || newClipIndex >= (int)clips.size()) return;
+        const int   fromIndex = currentClipIndex;
+        const float fromTime  = animTime;
+        const auto* edge = m_bodyPlan.findTransition(stateToString(m_clipOwnerState), stateToString(toState));
+        const float blend = (edge && edge->blend >= 0.0f) ? edge->blend : blendDuration;
+        const bool  sync  = edge && edge->phaseSync && fromIndex >= 0 && fromIndex < (int)clips.size();
+
+        previousClipIndex = fromIndex;
+        previousAnimTime  = fromTime;
+        currentClipIndex  = newClipIndex;
+        // A0 #4: loops start at this character's own phase so crowds do not march in lock-step;
+        // A3: a phase-synced edge enters at the SAME gait phase the old clip was at instead.
+        animTime = sync ? phaseSyncedStartTime(clips[fromIndex], fromTime, clips[newClipIndex])
+                        : loopStartTime(clips[newClipIndex], m_phaseJitter);
+        m_activeBlendDuration = blend;
+        isBlending  = (fromIndex >= 0) && blend > 0.0f;
+        blendFactor = 0.0f;
+        m_clipOwnerState = toState;
+        refreshPoseLayers();                       // A3: layers follow the state's factors
+
+        // Root motion through the blend: prime the delta base with the NEW clip's own root at its
+        // start time, so the first blended frame yields a real delta rather than a spike or zero.
+        if (!skeleton.bones.empty() && clips[newClipIndex].useRootMotion) {
+            const auto& root = skeleton.bones[m_skeletonRoot];
+            m_prevRootPos   = animSystem.sampleBonePosition(clips[newClipIndex], root.id, animTime, true, root.localPosition);
+            m_prevClipIndex = newClipIndex;
+        }
+    }
+
+    // ---- A3 composition: factors -> masked / additive pose layers over the base ----------
+    // The single mechanism behind grip, load, condition and mood (docs/AnimationSystemV3Plan.md
+    // §3b): a `role=layer` clip whose factor coordinates match the character's composes over
+    // the evaluated base on the bones of its `mask`. Additive = the delta from the layer clip's
+    // own frame 0 (authoring convention: frame 0 is neutral); override = slerp to the layer pose.
+    // The skeleton root is never masked (root motion / anchoring own it). Layers ease in and out
+    // over kLayerEaseSeconds so a factor change never pops.
+    namespace {
+        constexpr float kLayerEaseSeconds = 0.2f;
+        std::string lowerCopy(std::string v) {
+            std::transform(v.begin(), v.end(), v.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+            return v;
+        }
+    }
+
+    void AnimatedVoxelCharacter::setCompositionFactors(const Phyxel::ClipMeta::Factors& f) {
+        m_factors = f;
+        refreshPoseLayers();
+    }
+
+    std::vector<int> AnimatedVoxelCharacter::maskBones(const std::string& name) const {
+        std::vector<int> out;
+        auto it = m_masks.find(name);
+        if (it == m_masks.end()) return out;
+        for (size_t i = 0; i < it->second.size(); ++i) if (it->second[i]) out.push_back((int)i);
+        return out;
+    }
+
+    void AnimatedVoxelCharacter::resolvePoseMasks() {
+        m_masks.clear();
+        const size_t n = skeleton.bones.size();
+        if (n == 0) return;
+        auto subtree = [&](int rootId, std::vector<uint8_t>& out) {
+            if (rootId < 0 || rootId >= (int)n) return;
+            out[rootId] = 1;
+            for (bool grew = true; grew;) {                  // parents may come after children
+                grew = false;
+                for (size_t i = 0; i < n; ++i) {
+                    const int p = skeleton.bones[i].parentId;
+                    if (!out[i] && p >= 0 && p < (int)n && out[p]) { out[i] = 1; grew = true; }
+                }
+            }
+        };
+        // Plan-declared masks win.
+        for (const auto& [name, roots] : m_bodyPlan.masks) {
+            std::vector<uint8_t> m(n, 0);
+            for (const auto& r : roots) subtree(resolveBoneId(r), m);
+            m_masks[name] = m;
+        }
+        std::vector<uint8_t> legs(n, 0);
+        if (!m_masks.count("legs")) {
+            for (const auto& l : m_bodyPlanResolved.legs) subtree(l.upperId, legs);
+            m_masks["legs"] = legs;
+        } else legs = m_masks["legs"];
+        if (!m_masks.count("arms")) {
+            std::vector<uint8_t> arms(n, 0);
+            std::set<int> armIds;
+            for (const auto& [bid, isArm] : m_bodyPlanResolved.segments) if (isArm && bid >= 0) armIds.insert(bid);
+            for (int bid : armIds) {                          // topmost arm segment roots the subtree
+                const int p = skeleton.bones[bid].parentId;
+                if (!armIds.count(p)) subtree(bid, arms);
+            }
+            m_masks["arms"] = arms;
+        }
+        if (!m_masks.count("head")) m_masks["head"] = std::vector<uint8_t>(n, 0);   // declared only
+        if (!m_masks.count("upper")) {
+            std::vector<uint8_t> upper(n, 0);
+            for (size_t i = 0; i < n; ++i) upper[i] = ((int)i != m_skeletonRoot && !legs[i]) ? 1 : 0;
+            m_masks["upper"] = upper;
+        }
+        m_masks["none"] = std::vector<uint8_t>(n, 0);
+        for (auto& [name, m] : m_masks)                       // the root is never masked
+            if (m_skeletonRoot >= 0 && m_skeletonRoot < (int)m.size()) m[m_skeletonRoot] = 0;
+    }
+
+    void AnimatedVoxelCharacter::refreshPoseLayers() {
+        Phyxel::ClipMeta::Factors f = m_factors;
+        f.state = lowerCopy(stateToString(currentState));
+        const auto comp = Phyxel::ClipMeta::selectComposition(clips, f);
+        for (auto& l : m_layers) l.targetWeight = 0.0f;       // everything not re-selected fades out
+        for (int idx : comp.layers) {
+            auto it = std::find_if(m_layers.begin(), m_layers.end(), [&](const PoseLayer& l) { return l.clipIndex == idx; });
+            if (it != m_layers.end()) { it->targetWeight = 1.0f; continue; }
+            PoseLayer L;
+            L.clipIndex = idx;
+            const auto& fx = clips[idx].factors;
+            auto a = fx.find("additive"); L.additive = (a == fx.end()) ? true : (a->second == "1");
+            auto m = fx.find("mask");     L.maskName = (m == fx.end()) ? "upper" : m->second;
+            auto mk = m_masks.find(L.maskName);
+            L.mask = (mk != m_masks.end()) ? mk->second : std::vector<uint8_t>(skeleton.bones.size(), 0);
+            if (m_skeletonRoot >= 0 && m_skeletonRoot < (int)L.mask.size()) L.mask[m_skeletonRoot] = 0;
+            m_layers.push_back(std::move(L));
+        }
+    }
+
+    void AnimatedVoxelCharacter::applyPoseLayers(float deltaTime) {
+        if (m_layers.empty()) return;
+        Skeleton scratch, ref;
+        for (auto& L : m_layers) {
+            if (L.clipIndex < 0 || L.clipIndex >= (int)clips.size()) { L.targetWeight = 0.0f; L.weight = 0.0f; continue; }
+            const auto& clip = clips[L.clipIndex];
+            const float step = deltaTime / kLayerEaseSeconds;
+            L.weight += glm::clamp(L.targetWeight - L.weight, -step, step);
+            L.time = std::min(L.time + deltaTime, std::max(clip.duration, 0.0f));   // a pose holds at its end
+            if (L.weight <= 1e-4f) continue;
+            scratch = skeleton;
+            animSystem.updateAnimation(scratch, clip, L.time, false);
+            if (L.additive) { ref = skeleton; animSystem.updateAnimation(ref, clip, 0.0f, false); }
+            for (size_t i = 0; i < skeleton.bones.size() && i < L.mask.size(); ++i) {
+                if (!L.mask[i]) continue;
+                auto& b = skeleton.bones[i];
+                const glm::quat layerRot = scratch.bones[i].currentRotation;
+                if (L.additive) {
+                    const glm::quat delta = glm::inverse(ref.bones[i].currentRotation) * layerRot;
+                    b.currentRotation = glm::normalize(b.currentRotation * glm::slerp(glm::quat(1.0f, 0.0f, 0.0f, 0.0f), delta, L.weight));
+                } else {
+                    b.currentRotation = glm::normalize(glm::slerp(b.currentRotation, layerRot, L.weight));
+                }
             }
         }
+        m_layers.erase(std::remove_if(m_layers.begin(), m_layers.end(),
+                                      [](const PoseLayer& L) { return L.targetWeight <= 0.0f && L.weight <= 1e-4f; }),
+                       m_layers.end());
+    }
+
+    int AnimatedVoxelCharacter::findClipIndexCI(const std::string& name) const {
+        std::string want = name;
+        std::transform(want.begin(), want.end(), want.begin(), ::tolower);
+        for (size_t i = 0; i < clips.size(); ++i) {
+            std::string n = clips[i].name;
+            std::transform(n.begin(), n.end(), n.begin(), ::tolower);
+            if (n == want) return (int)i;
+        }
+        return -1;
+    }
+
+    // ------------------------------------------------------------------------
+    // A1 — live MotionOracle capture
+    // ------------------------------------------------------------------------
+    std::size_t AnimatedVoxelCharacter::startOracleRecording(std::size_t frames, float minSeconds) {
+        // Cap written here: the buffer is per character and a validator could ask for
+        // anything; 1800 frames = 30 s @ 60 Hz is more than any gauntlet segment needs and
+        // still 6.7 s at 270 fps (the time floor below is what makes the window a duration).
+        m_oracleFramesWanted = std::min<std::size_t>(std::max<std::size_t>(frames, 3), kOracleMaxFrames);
+        m_oracleMinSeconds   = std::max(0.0f, minSeconds);
+        m_oracleElapsed      = 0.0f;
+        m_oracleFrames.clear();
+        m_oracleHavePrev  = false;
+        m_oracleRecording = true;
+        return m_oracleFramesWanted;
+    }
+
+    std::vector<Motion::OracleFrame> AnimatedVoxelCharacter::takeOracleFrames() {
+        std::vector<Motion::OracleFrame> out(m_oracleFrames.begin(), m_oracleFrames.end());
+        m_oracleFrames.clear();
+        m_oracleRecording = false;
+        return out;
+    }
+
+    std::vector<std::size_t> AnimatedVoxelCharacter::oracleFootJoints() const {
+        return Motion::findFeet(skeleton);
+    }
+
+    std::vector<std::array<std::size_t, 3>> AnimatedVoxelCharacter::oracleLegChains() const {
+        return Motion::legChainsForFeet(skeleton, Motion::findFeet(skeleton));
+    }
+
+    std::vector<std::pair<std::size_t, std::size_t>> AnimatedVoxelCharacter::oracleBoxAdjacency() const {
+        const auto boxes = getBoneAABBs();
+        auto hops = [&](int a, int b) -> int {
+            // tree distance between two bones, capped at 3
+            for (int da = 0, x = a; x >= 0 && da <= 3; x = skeleton.bones[x].parentId, ++da)
+                for (int db = 0, y = b; y >= 0 && db <= 3; y = skeleton.bones[y].parentId, ++db)
+                    if (x == y) return da + db;
+            return 99;
+        };
+        std::vector<std::pair<std::size_t, std::size_t>> adj;
+        for (std::size_t i = 0; i < boxes.size(); ++i)
+            for (std::size_t j = i + 1; j < boxes.size(); ++j)
+                if (hops(boxes[i].boneId, boxes[j].boneId) <= 2) adj.emplace_back(i, j);
+        return adj;
+    }
+
+    float AnimatedVoxelCharacter::groundYUnder(float x, float z) const {
+        auto* vw = physicsWorld ? physicsWorld->getVoxelWorld() : nullptr;
+        if (!vw) return -FLT_MAX;
+        return vw->findGroundY(glm::vec3(x, worldPosition.y + 1.0f, z), m_originalHalfWidth, 3.0f);
+    }
+
+    float AnimatedVoxelCharacter::groundYUnderPoint(float x, float z) const {
+        auto* vw = physicsWorld ? physicsWorld->getVoxelWorld() : nullptr;
+        if (!vw) return -FLT_MAX;
+        return vw->findGroundY(glm::vec3(x, worldPosition.y + 1.0f, z), kFootProbeHalfWidth, 3.0f);
+    }
+
+    float AnimatedVoxelCharacter::standingAnkleHeight() const {
+        // Bind pose (local positions + local rotations, no clip), foot joint of the first plan
+        // leg above the model's sole. skeletonFootOffset_ folds the +0.05 draw lift in (A4).
+        if (skeleton.bones.empty() || m_bodyPlanResolved.legs.empty()) return 0.08f;
+        std::vector<glm::mat4> globalT(skeleton.bones.size(), glm::mat4(1.0f));
+        for (size_t i = 0; i < skeleton.bones.size(); ++i) {
+            const auto& bone = skeleton.bones[i];
+            glm::mat4 local = glm::translate(glm::mat4(1.0f), bone.localPosition) * glm::mat4_cast(bone.localRotation);
+            globalT[i] = (bone.parentId < 0 || bone.parentId >= (int)i) ? local : globalT[bone.parentId] * local;
+        }
+        float sum = 0.0f; int n = 0;
+        for (const auto& leg : m_bodyPlanResolved.legs)
+            if (leg.footId >= 0 && leg.footId < (int)skeleton.bones.size()) { sum += globalT[leg.footId][3][1] - (skeletonFootOffset_ - 0.05f); ++n; }
+        const float h = n > 0 ? sum / n : 0.08f;
+        return (h > 0.0f && h < 0.3f) ? h : 0.08f;
+    }
+
+    void AnimatedVoxelCharacter::captureOracleFrame(const glm::mat4& modelMatrix, float dt) {
+        Motion::OracleFrame f;
+        f.localRotations.reserve(skeleton.bones.size());
+        f.worldJointPositions.reserve(skeleton.bones.size());
+        for (const auto& bone : skeleton.bones) {
+            f.localRotations.push_back(bone.currentRotation);
+            f.worldJointPositions.emplace_back(glm::vec3(modelMatrix * bone.globalTransform * glm::vec4(0, 0, 0, 1)));
+        }
+        f.capsuleVelocity = m_kinVelocity;
+        // First frame has no previous position: seed with the capsule so the root-vs-capsule
+        // metric does not report |0 − v| = the body speed as an "error" (seen live 2026-09-29).
+        f.generatedRootVelocity = (m_oracleHavePrev && dt > 0.0f)
+                                    ? (worldPosition - m_oraclePrevWorldPos) / dt : m_kinVelocity;
+        f.dt = dt;                                            // live frames carry their real frame time
+        m_oraclePrevWorldPos = worldPosition;
+        m_oracleHavePrev = true;
+        const float yaw = getDrawYaw();                       // model forward +Z rotated about Y
+        f.rootForward = glm::vec3(std::sin(yaw), 0.0f, std::cos(yaw));
+        for (const auto& b : getBoneAABBs())
+            f.boxes.emplace_back(b.center - b.halfExtents, b.center + b.halfExtents);
+        if (dt > 0.0f) m_oracleDt = dt;
+        if (dt > 0.0f && std::isfinite(dt)) m_oracleElapsed += dt;
+        m_oracleFrames.push_back(std::move(f));
+        while (m_oracleFrames.size() > kOracleMaxFrames) m_oracleFrames.pop_front();
+        // Stop when the frame count AND the time floor are both met, or at the hard cap.
+        const bool enoughFrames = m_oracleFrames.size() >= m_oracleFramesWanted;
+        const bool enoughTime   = m_oracleElapsed >= m_oracleMinSeconds;
+        if ((enoughFrames && enoughTime) || m_oracleFrames.size() >= kOracleMaxFrames) m_oracleRecording = false;
     }
 
     bool AnimatedVoxelCharacter::loadModel(const std::string& animFile) {
@@ -653,6 +956,32 @@ static constexpr float kControllerHeadClearance = 0.05f;
         registry.ensureLoaded();
         m_bodyPlan = registry.planForSkeleton(appearance_.morphology, skeleton);
         m_bodyPlanResolved = m_bodyPlan.resolveAgainst(skeleton);
+        blendDuration = m_bodyPlan.defaultBlend;   // A3: plan default; set_blend_duration overrides
+        resolvePoseMasks();                        // A3: composition masks from the plan roles
+        resolveOffHandChain();                     // A3: off-hand arm chain for the two-handed pin
+        // A3: the lean chain. Declared exact names win; else the plan's non-arm, non-leg trunk
+        // segments minus the root, in skeleton order (root side first on every shipped rig).
+        m_spineChain.clear();
+        for (const auto& name : m_bodyPlan.spineChain) {
+            const int id = resolveBoneId(name);
+            if (id >= 0) m_spineChain.push_back(id);
+        }
+        if (m_spineChain.empty())
+            for (int bid : m_trunkBones)
+                if (bid != m_skeletonRoot) m_spineChain.push_back(bid);
+        m_headBoneId = m_bodyPlan.headBone.empty() ? -1 : resolveBoneId(m_bodyPlan.headBone);   // A4
+        // The skeleton ROOT (parentId == -1) owns root motion / warp / anchored playback; the
+        // plan ROOT is the hip/pelvis that owns sitting. They coincide on Mixamo rigs (bone 0)
+        // and used to be the same hardcoded index everywhere (A2: two roots, named).
+        m_skeletonRoot = 0;
+        for (size_t i = 0; i < skeleton.bones.size(); ++i)
+            if (skeleton.bones[i].parentId < 0) { m_skeletonRoot = (int)i; break; }
+        m_trunkBones.clear();
+        std::set<int> legBones;
+        for (const auto& l : m_bodyPlanResolved.legs) { legBones.insert(l.upperId); legBones.insert(l.midId); legBones.insert(l.footId); }
+        if (m_bodyPlanResolved.rootBoneId >= 0) m_trunkBones.insert(m_bodyPlanResolved.rootBoneId);
+        for (const auto& [bid, isArm] : m_bodyPlanResolved.segments)
+            if (!isArm && bid >= 0 && !legBones.count(bid)) m_trunkBones.insert(bid);
         LOG_DEBUG("Character", "adopted body plan '{}' (root={}, legs={}, segments={})",
                   m_bodyPlan.id, m_bodyPlanResolved.rootBoneId,
                   m_bodyPlanResolved.legs.size(), m_bodyPlanResolved.segments.size());
@@ -900,24 +1229,245 @@ static constexpr float kControllerHeadClearance = 0.05f;
         return maxX - minX;
     }
 
-    void AnimatedVoxelCharacter::applyPostureLean() {
-        if (appearance_.postureLeanDeg == 0.0f) return;
+    float AnimatedVoxelCharacter::factorLeanDeg() const {
+        // Parameter table (docs/AnimationSystemV3Plan.md §3b "lean ∝ load"): degrees of extra
+        // forward pitch distributed over the spine chain. Tuned by eye on the humanoid walk;
+        // every value is data a later plan/item field can override, none is a clip.
+        float deg = 0.0f;
+        const auto& l = m_factors.load;
+        if      (l == "light") deg += 2.0f;
+        else if (l == "heavy") deg += 6.0f;
+        else if (l == "bulky") deg += 10.0f;
+        const auto& c = m_factors.condition;
+        if      (c == "tired")      deg += 3.0f;
+        else if (c == "limp")       deg += 2.0f;
+        else if (c == "encumbered") deg += 6.0f;
+        return deg;
+    }
 
-        // Collect the spine chain (Spine, Spine1, Spine2 on Mixamo rigs) and
-        // distribute the total lean across it so the hunch curves naturally.
-        std::vector<Bone*> spineBones;
-        for (auto& bone : skeleton.bones) {
-            std::string nameLower = bone.name;
-            std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
-            if (nameLower.find("spine") != std::string::npos) spineBones.push_back(&bone);
+    float AnimatedVoxelCharacter::cadenceFactor() const {
+        // Multiplicative cadence (playback rate AND input-path move speed, so the stride still
+        // matches the ground): heavy loads and poor condition slow the gait, never speed it up.
+        float f = 1.0f;
+        const auto& l = m_factors.load;
+        if      (l == "heavy") f *= 0.92f;
+        else if (l == "bulky") f *= 0.85f;
+        const auto& c = m_factors.condition;
+        if      (c == "tired")      f *= 0.90f;
+        else if (c == "limp")       f *= 0.85f;
+        else if (c == "encumbered") f *= 0.90f;
+        return f;
+    }
+
+    bool AnimatedVoxelCharacter::cadenceApplies() const {
+        switch (currentState) {
+            case AnimatedCharacterState::Walk:  case AnimatedCharacterState::Run:
+            case AnimatedCharacterState::StartWalk: case AnimatedCharacterState::StopWalk:
+            case AnimatedCharacterState::StopRun: case AnimatedCharacterState::BackwardWalk:
+            case AnimatedCharacterState::CrouchWalk:
+            case AnimatedCharacterState::StrafeLeft: case AnimatedCharacterState::StrafeRight:
+            case AnimatedCharacterState::WalkStrafeLeft: case AnimatedCharacterState::WalkStrafeRight:
+            case AnimatedCharacterState::ClimbStairs: case AnimatedCharacterState::DescendStairs:
+                return true;
+            default:
+                return false;
         }
-        if (spineBones.empty()) return;
+    }
 
-        const float perBoneRad =
-            glm::radians(appearance_.postureLeanDeg) / static_cast<float>(spineBones.size());
+    // ---- A3 off-hand pin -------------------------------------------------------------------
+    // The arm chains come from the plan's isArm segments: a topmost arm segment (its parent is
+    // not an arm segment) roots a chain upper -> mid (its arm-segment child) -> hand (mid's
+    // first child). The OFF-hand chain is the one whose hand is not the grip bone.
+    void AnimatedVoxelCharacter::resolveOffHandChain() {
+        m_offHandChain = {-1, -1, -1};
+        const int n = (int)skeleton.bones.size();
+        std::set<int> armIds;
+        for (const auto& [bid, isArm] : m_bodyPlanResolved.segments) if (isArm && bid >= 0) armIds.insert(bid);
+        auto firstChild = [&](int parent, bool armOnly) -> int {
+            for (int i = 0; i < n; ++i)
+                if (skeleton.bones[i].parentId == parent && (!armOnly || armIds.count(i))) return i;
+            return -1;
+        };
+        const int gripId = resolveBoneId(m_bodyPlan.gripBone);
+        for (int upper : armIds) {
+            if (armIds.count(skeleton.bones[upper].parentId)) continue;          // not topmost
+            const int mid  = firstChild(upper, true);
+            const int hand = mid >= 0 ? firstChild(mid, false) : -1;
+            if (mid < 0 || hand < 0) continue;
+            // the chain holding the grip bone (or its ancestor) is the main hand
+            bool holdsGrip = false;
+            for (int b = gripId; b >= 0 && b < n; b = skeleton.bones[b].parentId)
+                if (b == upper) { holdsGrip = true; break; }
+            if (holdsGrip) continue;
+            m_offHandChain = {upper, mid, hand};
+            return;
+        }
+    }
+
+    void AnimatedVoxelCharacter::setOffHandTarget(const glm::vec3& worldPoint) {
+        m_offHandTarget = worldPoint;
+        m_offHandActive = true;
+    }
+
+    void AnimatedVoxelCharacter::clearOffHandTarget() { m_offHandActive = false; }
+
+    void AnimatedVoxelCharacter::setGroundingKnobs(float maxCorrU, float probeHalfWidthU, float bodyRangeU) {
+        // Clamp at the boundary, reasons in the header comment.
+        if (maxCorrU >= 0.0f)        m_ikMaxFootCorr    = glm::clamp(maxCorrU, 0.0f, std::max(m_maxStepHeight, 0.05f));
+        if (probeHalfWidthU >= 0.0f) m_ikProbeHalfWidth = glm::clamp(probeHalfWidthU, 0.02f, 0.15f);
+        if (bodyRangeU >= 0.0f)      m_ikBodyRange      = glm::clamp(bodyRangeU, 0.0f, 0.4f * m_ikLegLength);
+    }
+
+    // ---- A4 seated solve ---------------------------------------------------------------------
+    void AnimatedVoxelCharacter::setSeatAffordances(float backrestAngleDeg, const std::vector<glm::vec3>& armrestWorldPoints) {
+        // Clamp at the boundary: a lean past kMaxBackrestLeanDeg folds the spine chain through
+        // the seat back; a negative angle (back leaning toward the sitter) is a characterizer
+        // artefact and reads as upright.
+        m_seatBackrestLeanDeg = glm::clamp(backrestAngleDeg, 0.0f, kMaxBackrestLeanDeg);
+        m_seatArmrestPoints = armrestWorldPoints;
+    }
+
+    void AnimatedVoxelCharacter::applySeatSolve(float deltaTime) {
+        (void)deltaTime;
+        if (!m_isSitting) { m_seatSolve = {}; return; }
+        // Ramp: SitDown eases the constraints in over the clip (the clip's own hips travel does the
+        // approach, the solve lands it), SittingIdle holds 1, SitStandUp eases out so the release
+        // hands a continuous pose to Idle.
+        float w = 1.0f;
+        if (currentClipIndex >= 0 && currentClipIndex < (int)clips.size()) {
+            const float dur = clips[currentClipIndex].duration;
+            const float t = dur > 0.0f ? glm::clamp(animTime / dur, 0.0f, 1.0f) : 1.0f;
+            const float s = t * t * (3.0f - 2.0f * t);
+            if      (currentState == AnimatedCharacterState::SitDown)    w = s;
+            else if (currentState == AnimatedCharacterState::SitStandUp) w = 1.0f - s;
+        }
+        m_seatSolve = {};
+        m_seatSolve.weight = w;
+        if (w <= 1e-4f || skeleton.bones.empty()) return;
+        const int hips = m_bodyPlanResolved.rootBoneId;
+        if (hips < 0 || hips >= (int)skeleton.bones.size()) return;
+
+        static constexpr float k_modelVisualLift = 0.05f;
+        const glm::vec3 origin = glm::vec3(worldPosition.x, m_visualBodyY, worldPosition.z)
+                               - glm::vec3(0.0f, skeletonFootOffset_, 0.0f)
+                               + glm::vec3(0.0f, k_modelVisualLift, 0.0f);
+        glm::mat4 model = glm::translate(glm::mat4(1.0f), origin);
+        model = glm::rotate(model, getDrawYaw(), glm::vec3(0, 1, 0));
+        const glm::mat4 invModel = glm::inverse(model);
+        auto jointWorld = [&](int id) { return glm::vec3(model * glm::vec4(glm::vec3(skeleton.bones[id].globalTransform[3]), 1.0f)); };
+
+        // 1. pelvis -> seat: the hips JOINT sits kHipsAboveSeat above the surface at the anchor XZ.
+        //    Move the skeleton root (which carries the hips) by the weighted world error.
+        {
+            const glm::vec3 target = m_seatSurfacePos + glm::vec3(0.0f, kHipsAboveSeat, 0.0f);
+            const glm::vec3 deltaWorld = (target - jointWorld(hips)) * w;
+            const glm::vec3 deltaModel = glm::vec3(invModel * glm::vec4(deltaWorld, 0.0f));
+            skeleton.bones[m_skeletonRoot].currentPosition += deltaModel;
+            animSystem.updateGlobalTransforms(skeleton);
+            m_seatSolve.pelvisError = glm::length(target - jointWorld(hips));
+        }
+
+        // 2. torso lean -> backrest angle over the plan spine chain (leaning BACK = negative pitch).
+        if (m_seatBackrestLeanDeg > 0.0f && !m_spineChain.empty()) {
+            const float lean = m_seatBackrestLeanDeg * w;
+            const glm::quat pitch = glm::angleAxis(-glm::radians(lean) / (float)m_spineChain.size(), glm::vec3(1, 0, 0));
+            for (int id : m_spineChain)
+                if (id >= 0 && id < (int)skeleton.bones.size())
+                    skeleton.bones[id].currentRotation = skeleton.bones[id].currentRotation * pitch;
+            animSystem.updateGlobalTransforms(skeleton);
+            m_seatSolve.leanDeg = lean;
+        }
+
+        // 3. feet -> floor: each leg's ankle goes to (its animated XZ, floor + ankle height); the
+        //    2-bone solver clamps at full reach, so a tall seat leaves the feet dangling exactly
+        //    the shortfall (SeatFit refuses beyond kFootDropMax) — never a hover, never a sink.
+        //    The floor is the one the character STOOD on when the sit began (m_seatFloorY), never
+        //    a ground query under the ankles: live 2026-09-30 (elf on chair_wood) that query — a
+        //    0.25 u column from a unit above the capsule — returned the chair's own rail as "the
+        //    floor", parked the feet 0.38 u up and pushed the knees above the hips while the
+        //    readback said 0.000. (SeatSolveTest.FeetLandOnTheApproachFloorNotOnFurnitureNextToTheAnkles)
+        {
+            int li = 0;
+            for (const auto& leg : m_bodyPlanResolved.legs) {
+                if (li >= 2) break;
+                if (leg.upperId < 0 || leg.midId < 0 || leg.footId < 0) { ++li; continue; }
+                const glm::vec3 ankle = jointWorld(leg.footId);
+                const float floorY = m_seatFloorY;
+                const glm::vec3 target(ankle.x, floorY + m_seatAnkleHeight, ankle.z);
+                applyTwoBoneIK(leg.upperId, leg.midId, leg.footId, invModel, target, w);
+                animSystem.updateGlobalTransforms(skeleton);
+                m_seatSolve.feetFloorError[li] = std::fabs(jointWorld(leg.footId).y - target.y);
+                if (li == 0) {
+                    const glm::vec3 hip = jointWorld(leg.upperId), knee = jointWorld(leg.midId);
+                    const float horiz = glm::length(glm::vec2(knee.x - hip.x, knee.z - hip.z));
+                    m_seatSolve.thighAngleDeg = glm::degrees(std::atan2(knee.y - hip.y, std::max(horiz, 1e-4f)));
+                }
+                ++li;
+            }
+        }
+
+        // 4. hands -> armrests: each armrest point takes the arm on its side (right vector of the
+        //    seat facing) when within the chain's reach.
+        if (!m_seatArmrestPoints.empty()) {
+            std::set<int> armIds;
+            for (const auto& [bid, isArm] : m_bodyPlanResolved.segments) if (isArm && bid >= 0) armIds.insert(bid);
+            const int n = (int)skeleton.bones.size();
+            auto firstChild = [&](int parent, bool armOnly) -> int {
+                for (int i = 0; i < n; ++i)
+                    if (skeleton.bones[i].parentId == parent && (!armOnly || armIds.count(i))) return i;
+                return -1;
+            };
+            const glm::vec3 right(std::cos(m_seatFacingYaw), 0.0f, -std::sin(m_seatFacingYaw));
+            for (int upper : armIds) {
+                if (armIds.count(skeleton.bones[upper].parentId)) continue;
+                const int mid = firstChild(upper, true), hand = mid >= 0 ? firstChild(mid, false) : -1;
+                if (mid < 0 || hand < 0) continue;
+                const glm::vec3 shoulder = jointWorld(upper);
+                const float side = glm::dot(shoulder - m_seatSurfacePos, right);   // +right, -left of the seat
+                const float reach = glm::length(glm::vec3(skeleton.bones[mid].localPosition)) + glm::length(glm::vec3(skeleton.bones[hand].localPosition));
+                for (const auto& p : m_seatArmrestPoints) {
+                    if ((glm::dot(p - m_seatSurfacePos, right) > 0.0f) != (side > 0.0f)) continue;   // other side
+                    if (glm::distance(p, shoulder) > reach * 0.98f) continue;                          // out of reach
+                    applyTwoBoneIK(upper, mid, hand, invModel, p, w);
+                    animSystem.updateGlobalTransforms(skeleton);
+                    ++m_seatSolve.armrestContacts;
+                    break;
+                }
+            }
+        }
+    }
+
+    void AnimatedVoxelCharacter::applyOffHandPin(float deltaTime) {
+        constexpr float kEase = 0.15f;
+        const float step = deltaTime / kEase;
+        m_offHandBlend += glm::clamp((m_offHandActive ? 1.0f : 0.0f) - m_offHandBlend, -step, step);
+        if (m_offHandBlend <= 1e-4f || m_offHandChain[0] < 0) { m_offHandError = 0.0f; return; }
+        // Same model matrix the render uses (visual spring Y, foot offset, lift, draw yaw); the
+        // teeter offset (<= 8 cm, idle-at-a-ledge only) is ignored for the pin.
+        static constexpr float k_modelVisualLift = 0.05f;
+        const glm::vec3 origin = glm::vec3(worldPosition.x, m_visualBodyY, worldPosition.z)
+                               - glm::vec3(0.0f, skeletonFootOffset_, 0.0f)
+                               + glm::vec3(0.0f, k_modelVisualLift, 0.0f);
+        glm::mat4 model = glm::translate(glm::mat4(1.0f), origin);
+        model = glm::rotate(model, getDrawYaw(), glm::vec3(0, 1, 0));
+        const glm::mat4 invModel = glm::inverse(model);
+        applyTwoBoneIK(m_offHandChain[0], m_offHandChain[1], m_offHandChain[2], invModel, m_offHandTarget, m_offHandBlend);
+        animSystem.updateGlobalTransforms(skeleton);
+        const glm::vec3 hand = glm::vec3(model * glm::vec4(glm::vec3(skeleton.bones[m_offHandChain[2]].globalTransform[3]), 1.0f));
+        m_offHandError = glm::length(hand - m_offHandTarget);
+    }
+
+    void AnimatedVoxelCharacter::applyPostureLean() {
+        // Appearance lean (race/preset hunch) + A3 factor lean (load, condition), distributed
+        // over the PLAN's spine chain so the hunch curves naturally — no bone-name substrings.
+        const float totalDeg = appearance_.postureLeanDeg + factorLeanDeg();
+        if (totalDeg == 0.0f || m_spineChain.empty()) return;
+        const float perBoneRad = glm::radians(totalDeg) / static_cast<float>(m_spineChain.size());
         const glm::quat pitch = glm::angleAxis(perBoneRad, glm::vec3(1.0f, 0.0f, 0.0f));
-        for (Bone* bone : spineBones) {
-            bone->currentRotation = bone->currentRotation * pitch;
+        for (int id : m_spineChain) {
+            if (id < 0 || id >= (int)skeleton.bones.size()) continue;
+            auto& bone = skeleton.bones[id];
+            bone.currentRotation = bone.currentRotation * pitch;
         }
     }
 
@@ -1026,7 +1576,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
 
     void AnimatedVoxelCharacter::buildBodiesFromModel() {
         if (voxelModel.shapes.empty()) {
-            std::cout << "No model shapes found. Generating default bone shapes." << std::endl;
+            LOG_INFO_FMT("Character", "No model shapes found. Generating default bone shapes.");
 
             // Build children map
             std::map<int, std::vector<int>> childrenMap;
@@ -1056,11 +1606,10 @@ static constexpr float kControllerHeadClearance = 0.05f;
                     hasChild = true;
                     int targetChildId = -1;
                     if (childrenMap[bone.id].size() > 1) {
+                        // Prefer the child that continues the trunk (plan segment, non-arm,
+                        // not a leg bone) — was a "Spine" name test (A2).
                         for (int childId : childrenMap[bone.id]) {
-                            if (skeleton.bones[childId].name.find("Spine") != std::string::npos) {
-                                targetChildId = childId;
-                                break;
-                            }
+                            if (isTrunkBone(childId)) { targetChildId = childId; break; }
                         }
                     }
 
@@ -1088,7 +1637,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
                     float thickness = len * 0.25f;
                     thickness = glm::clamp(thickness, 0.05f, 0.15f);
 
-                    if (bone.name.find("Spine") != std::string::npos || bone.name.find("Head") != std::string::npos || bone.name.find("Hips") != std::string::npos) {
+                    if (isTrunkBone(bone.id)) {   // trunk (root/spine/head) boxes are thicker (A2: plan-based)
                         thickness = glm::clamp(len * 0.6f, 0.15f, 0.3f);
                     }
 
@@ -1456,10 +2005,10 @@ static constexpr float kControllerHeadClearance = 0.05f;
         };
         const std::string want = canon(boneName);
         for (const auto& [name, id] : skeleton.boneMap) {
-            std::string have = canon(name);
-            // strip the mixamorig prefix if present
-            const std::string prefix = "mixamorig";
-            if (have.rfind(prefix, 0) == 0) have = have.substr(prefix.size());
+            // Compare without any exporter namespace ("mixamorig:RightHand" -> "RightHand"):
+            // strip everything up to the LAST ':' before canonicalising (A2: no rig-specific literal).
+            const auto colon = name.rfind(':');
+            std::string have = canon(colon == std::string::npos ? name : name.substr(colon + 1));
             if (have == want) return id;
         }
         return -1;
@@ -1598,30 +2147,9 @@ static constexpr float kControllerHeadClearance = 0.05f;
         }
 
         if (newClipIndex != -1) {
-            // Start blending
-            previousClipIndex = currentClipIndex;
-            previousAnimTime = animTime;
-
-            currentClipIndex = newClipIndex;
-            // Looping locomotion starts at this character's OWN phase, not 0.
-            // Two hundred fighters entering Walk on the same frame otherwise
-            // step in perfect unison forever (see m_phaseJitter). One-shots keep
-            // starting at 0 — an Attack that begins mid-swing has no wind-up.
-            {
-                std::string n = clips[newClipIndex].name;
-                std::transform(n.begin(), n.end(), n.begin(), ::tolower);
-                const bool loops = (n.find("idle")  != std::string::npos ||
-                                    n.find("walk")  != std::string::npos ||
-                                    n.find("run")   != std::string::npos ||
-                                    n.find("boxing")!= std::string::npos);
-                const float dur = clips[newClipIndex].duration;
-                animTime = (loops && m_phaseJitter > 0.0f && dur > 0.0f)
-                             ? m_phaseJitter * dur
-                             : 0.0f;
-            }
-
-            isBlending = true;
-            blendFactor = 0.0f;
+            // A3: one switch entry (plan edge blend + phase sync + root-motion priming); loops
+            // still start at this character's OWN phase (A0 #4) unless the edge is phase-synced.
+            beginClipTransition(newClipIndex, currentState);
         } else {
             std::cerr << "Animation not found: " << animName << std::endl;
         }
@@ -1649,7 +2177,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
         
         currentState = AnimatedCharacterState::Preview;
         playAnimation(clips[nextIndex].name);
-        std::cout << "Preview Animation: " << clips[nextIndex].name << std::endl;
+        LOG_INFO_FMT("Character", "Preview Animation: " << clips[nextIndex].name);
     }
 
     // Phase-based time warp helpers.
@@ -1799,6 +2327,9 @@ static constexpr float kControllerHeadClearance = 0.05f;
         std::vector<Phyxel::AnimationClip> tempClips;
         Phyxel::VoxelModel tempModel;
 
+        // A0 #7: the parse cache is path-keyed and used to have no invalidation,
+        // so a "reload" re-applied clip_meta but served the STALE keyframes.
+        AnimationSystem::invalidateCache(animFile);
         if (!animSystem.loadFromFile(animFile, tempSkel, tempClips, tempModel)) {
             return false;
         }
@@ -1857,6 +2388,22 @@ static constexpr float kControllerHeadClearance = 0.05f;
             float h = globalT[m_hipBoneIndex][3][1] - skeletonFootOffset_;
             if (h >= 0.1f) m_bindPoseHipHeight = h;
         }
+
+        // A4: the floor the feet stand on and the ankle joint's height above it, taken from the
+        // STANDING pose right now — the seated solve puts the ankles back on that floor.
+        m_seatFloorY = worldPosition.y;
+        {
+            float sum = 0.0f; int n = 0;
+            for (const auto& leg : m_bodyPlanResolved.legs)
+                if (leg.footId >= 0 && leg.footId < (int)skeleton.bones.size()) {
+                    // sole (model space) = skeletonFootOffset_ - the draw lift it folds in
+                    sum += skeleton.bones[leg.footId].globalTransform[3][1] - (skeletonFootOffset_ - 0.05f); ++n;
+                }
+            if (n > 0 && sum / n > 0.0f && sum / n < 0.3f) m_seatAnkleHeight = sum / n;
+        }
+        m_seatBackrestLeanDeg = 0.0f;
+        m_seatArmrestPoints.clear();
+        m_seatSolve = {};
 
         // Store seat anchor and apply height offset
         m_seatSurfacePos = seatAnchorPos;
@@ -1927,11 +2474,18 @@ static constexpr float kControllerHeadClearance = 0.05f;
         glm::vec3 anchorWorld;
         anchorWorld.x = m_hipsRef_sitDown.x * cy0 - m_hipsRef_sitDown.z * sy0;
         anchorWorld.z = m_hipsRef_sitDown.x * sy0 + m_hipsRef_sitDown.z * cy0;
-        glm::vec3 initialPos = m_seatSurfacePos + m_sitStandUpOffset;
+        // A0 #2: the first frame is a SitDown frame → SitDown's own offset.
+        glm::vec3 initialPos = m_seatSurfacePos + m_sitDownOffset;
         initialPos.x -= anchorWorld.x;
         initialPos.y -= m_hipsRef_sitDown.y;
         initialPos.z -= anchorWorld.z;
         currentYaw = facingYaw;
+        // A0 #10: a run-strafe draw lean left over from the approach would be
+        // drawn on top of the seat facing the snap uses. Zero the TARGET too —
+        // update() eases the lean toward it every frame, and the FSM's sit states
+        // never refresh it, so a stale target would pull the lean straight back.
+        m_strafeLean = 0.0f;
+        m_strafeLeanTarget = 0.0f;
         setPosition(initialPos);
         m_kinVelocity = glm::vec3(0.0f);
 
@@ -1993,23 +2547,10 @@ static constexpr float kControllerHeadClearance = 0.05f;
     }
 
     glm::vec3 AnimatedVoxelCharacter::getCameraTrackPosition() const {
-        // Normal path: camera tracks worldPosition (feet) directly.
-        if (!m_isSitting) return worldPosition;
-        // While sitting, worldPosition snaps by the per-clip Hips anchor at each
-        // sit/idle/stand transition. The rendered character does NOT visibly jump
-        // (its Hips bone stays at the seat), but a camera following worldPosition
-        // would lurch ~0.5m at each boundary. Track the visible Hips XZ instead:
-        //   hips_world = worldPosition + rotateByYaw(currentHipsLocal)
-        // Keep Y at worldPosition.y so camera height (feet+0.5) stays sane.
-        if (m_hipBoneIndex < 0 || m_hipBoneIndex >= (int)skeleton.bones.size()) {
-            return worldPosition;
-        }
-        const glm::vec3& h = skeleton.bones[m_hipBoneIndex].currentPosition;
-        float cy = cosf(currentYaw), sy = sinf(currentYaw);
-        glm::vec3 r = worldPosition;
-        r.x += h.x * cy - h.z * sy;
-        r.z += h.x * sy + h.z * cy;
-        return r;
+        // A4: worldPosition is fixed for the whole sit (one seated origin; the pelvis constraint
+        // works in model space), so the camera tracks it directly. The seated hips-XZ
+        // compensation that hid the per-state re-snap is gone with the re-snap.
+        return worldPosition;
     }
 
     void AnimatedVoxelCharacter::playAnchoredAnimation(const glm::vec3& destinationPos,
@@ -2048,7 +2589,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
         isBlending        = false;  // hard cut — t=0 pose hides it
         m_prevClipIndex   = targetIndex;  // prevent first-frame delta spike
         if (!skeleton.bones.empty())
-            m_prevRootPos = skeleton.bones[0].currentPosition;
+            m_prevRootPos = skeleton.bones[m_skeletonRoot].currentPosition;
 
         m_isAnchoredAnim  = true;
         LOG_DEBUG("Character", "playAnchoredAnimation: '{}' at ({:.2f},{:.2f},{:.2f})",
@@ -2087,7 +2628,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
         isBlending        = false;
         m_prevClipIndex   = targetIndex;
         if (!skeleton.bones.empty())
-            m_prevRootPos = skeleton.bones[0].currentPosition;
+            m_prevRootPos = skeleton.bones[m_skeletonRoot].currentPosition;
 
         currentState = AnimatedCharacterState::Preview;
         LOG_DEBUG("Character", "playClipFromPosition: '{}' from ({:.2f},{:.2f},{:.2f})",
@@ -2537,14 +3078,50 @@ static constexpr float kControllerHeadClearance = 0.05f;
         auto mapIt = animationMapping.find(stateKey);
         if (mapIt != animationMapping.end()) return mapIt->second;
 
-        // Layer 2: body-plan clip vocabulary (creature rigs). EMPTY on the
-        // humanoid plan by design — humanoids fall through to layer 3 so the
-        // sprint variants and member-driven states behave exactly as before.
+        // Layer 2: body-plan clip vocabulary — for EVERY rig since A3 item 2 (the humanoid
+        // table lives in humanoid.json). Sprint variants come from the plan's {clip, sprint}
+        // objects; the RULE for "fast" stays here: the sprint key, or on the strafe states the
+        // run GAIT band (|strafe| > 0.6 — the WoW scheme strafes at 1.0 with no sprint key).
+        const bool strafeState = state == AnimatedCharacterState::StrafeLeft  || state == AnimatedCharacterState::StrafeRight ||
+                                 state == AnimatedCharacterState::WalkStrafeLeft || state == AnimatedCharacterState::WalkStrafeRight;
+        const bool fast = isSprinting || (strafeState && std::abs(currentStrafeInput) > 0.6f);
         auto planIt = m_bodyPlan.clipDefaults.find(stateKey);
-        if (planIt != m_bodyPlan.clipDefaults.end()) return planIt->second;
+        if (planIt != m_bodyPlan.clipDefaults.end()) {
+            if (fast) {
+                auto sp = m_bodyPlan.clipSprint.find(stateKey);
+                if (sp != m_bodyPlan.clipSprint.end() && !sp->second.empty()) return sp->second;
+            }
+            return planIt->second;
+        }
+
+        // Layer 2b: member-driven states. The member (moveset / picked clip) is runtime state
+        // and wins; an EMPTY member takes the plan's clipFallbacks entry. Attack returns its
+        // member verbatim (an empty attack clip is handled downstream, pre-refactor behaviour).
+        {
+            const std::string* member = nullptr;
+            switch (state) {
+                case AnimatedCharacterState::Attack:    member = &m_currentAttackClip; break;
+                case AnimatedCharacterState::Block:     member = &m_moveset.block;     break;
+                case AnimatedCharacterState::Dodge:     member = &m_currentDodgeClip;  break;
+                case AnimatedCharacterState::HitReact:  member = &m_currentHitClip;    break;
+                case AnimatedCharacterState::Death:     member = &m_deathClip;         break;
+                case AnimatedCharacterState::Celebrate: member = &m_celebrateClip;     break;
+                default: break;
+            }
+            if (member) {
+                if (!member->empty() || state == AnimatedCharacterState::Attack) return *member;
+                auto fb = m_bodyPlan.clipFallbacks.find(stateKey);
+                if (fb != m_bodyPlan.clipFallbacks.end()) return fb->second;
+            } else if (state == AnimatedCharacterState::Cast) {
+                if (m_castSegIdx < m_castSegments.size()) return m_castSegments[m_castSegIdx].clip;
+                auto fb = m_bodyPlan.clipFallbacks.find(stateKey);
+                if (fb != m_bodyPlan.clipFallbacks.end()) return fb->second;
+            }
+        }
 
         // Layer 3: the legacy humanoid switch, verbatim (pinned state-by-state
         // in ClipSelectionTest — edit that table if you edit this).
+        ++m_legacyClipFallbackHits;   // A3 item 2: must stay 0 on a plan-complete rig
         switch (state) {
             case AnimatedCharacterState::Idle: return "idle";
             case AnimatedCharacterState::StartWalk: return "start_walking";
@@ -2740,7 +3317,6 @@ static constexpr float kControllerHeadClearance = 0.05f;
                     // Dodge interrupts locomotion — highest priority ground action.
                     enterDodge();
                 } else if (jumpRequested) {
-                    std::cout << "DEBUG: Jump requested, switching state." << std::endl;
                     currentState = AnimatedCharacterState::Jump;
                     stateTimer = 0.0f;
                     jumpRequested = false;
@@ -3157,11 +3733,20 @@ static constexpr float kControllerHeadClearance = 0.05f;
                     // rotated into world space, so idle's Hips lands at the SAME
                     // world spot the stand-up animation ended at.
                     if (!skeleton.bones.empty()) {
+                        // A0 #8: the clip the character will actually play next is
+                        // the MAPPED Idle (race/NPC animationMapping, body-plan
+                        // default), not the literal "idle" — a scamper_walk halfling
+                        // or an ogre_idle mapping otherwise transferred the wrong
+                        // hips delta and stepped off the seat.
                         int idleIdx = -1;
-                        for (size_t i = 0; i < clips.size(); ++i) {
-                            std::string n = clips[i].name;
-                            std::transform(n.begin(), n.end(), n.begin(), ::tolower);
-                            if (n == "idle") { idleIdx = (int)i; break; }
+                        {
+                            std::string want = clipForState(AnimatedCharacterState::Idle, false);
+                            std::transform(want.begin(), want.end(), want.begin(), ::tolower);
+                            for (size_t i = 0; i < clips.size(); ++i) {
+                                std::string n = clips[i].name;
+                                std::transform(n.begin(), n.end(), n.begin(), ::tolower);
+                                if (n == want) { idleIdx = (int)i; break; }
+                            }
                         }
                         // Plan root == Hips (bone 0 on Mixamo rigs, pinned in
                         // BodyPlanTest); guard for rigs with no resolvable root.
@@ -3399,13 +3984,17 @@ static constexpr float kControllerHeadClearance = 0.05f;
                     // position over the blend window, which renders as a smooth
                     // ~0.5m visual slide of the character in front of / out of
                     // the chair. Hard-cut between sit clips instead. The seat
-                    // anchor (m_seatSurfacePos + m_sitStandUpOffset) keeps
+                    // anchor (m_seatSurfacePos + per-state offset) keeps
                     // worldPosition stable, so the only visible change is the
                     // one-frame pose snap — much less perceptible than the
                     // 16-frame slide that the crossfade would produce.
-                    if (isBlending) {
-                        blendDuration = 0.0f;
-                    }
+                    //
+                    // A0 #1 (docs/AnimationSystemV3Plan.md §1.3): this used to write
+                    // `blendDuration = 0.0f` and never restore it, so EVERY later
+                    // crossfade on a character that had sat once became a hard cut.
+                    // Cut THIS transition only; leave the configured duration alone.
+                    isBlending  = false;
+                    blendFactor = 0.0f;
                 }
             }
 
@@ -3420,23 +4009,26 @@ static constexpr float kControllerHeadClearance = 0.05f;
             // would clobber it). In that case we already left the sit cycle and
             // the next frame will be on the normal physics path.
             if (m_isSitting) {
-                glm::vec3 hipsRef;
-                switch (currentState) {
-                    case AnimatedCharacterState::SitDown:
-                        hipsRef = m_hipsRef_sitDown; break;
-                    case AnimatedCharacterState::SittingIdle:
-                        hipsRef = m_hipsRef_sittingIdle; break;
-                    case AnimatedCharacterState::SitStandUp:
-                        hipsRef = m_hipsRef_sitStandUp; break;
-                    default:
-                        hipsRef = m_hipsRef_sittingIdle; break;
-                }
+                // A0 #2: the per-state offsets (sitDown / sittingIdle / sitStandUp)
+                // were stored by sitAt() and NEVER read — every state used
+                // m_sitStandUpOffset, so months of per-state profile tuning had
+                // no effect. Each state now snaps with its own offset.
+                // A4: ONE seated origin. The origin is derived from stand_to_sit's END hips for the
+                // whole sit — no per-state re-snap, no per-state offsets. sitting_idle and
+                // sit_to_stand reference their hips ~0.5 u elsewhere; the per-frame pelvis
+                // constraint in applySeatSolve absorbs that in MODEL space (root shift), so
+                // worldPosition never jumps and the camera needs no compensation. (The A0 #2
+                // per-state offsets are retired with this; sitAt() ignores them.)
+                const glm::vec3 hipsRef = m_hipsRef_sitDown;
+                const glm::vec3 stateOffset(0.0f);
                 float cy = cosf(m_seatFacingYaw), sy = sinf(m_seatFacingYaw);
                 float wox = hipsRef.x * cy - hipsRef.z * sy;
                 float woz = hipsRef.x * sy + hipsRef.z * cy;
-                glm::vec3 snapPos = m_seatSurfacePos + m_sitStandUpOffset;
+                glm::vec3 snapPos = m_seatSurfacePos + stateOffset;
                 snapPos.x -= wox;
-                snapPos.y -= hipsRef.y;
+                snapPos.y  = m_seatFloorY;     // origin Y = the floor; the clip's baked seat height
+                                               // (0.55 in stand_to_sit) is NOT the real seat's, and
+                                               // applySeatSolve puts the pelvis on the real one
                 snapPos.z -= woz;
                 worldPosition = snapPos;
             }
@@ -3447,6 +4039,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
         // 1. Update Physics Controller
         {
         bool usedExternalVelocity = false;
+        float externalSpeed = 0.0f;   // |behaviour velocity| for the A0 #5 rate scale below
         {
             // External velocity mode (used by NPC patrol behavior)
             if (hasExternalVelocity) {
@@ -3457,64 +4050,35 @@ static constexpr float kControllerHeadClearance = 0.05f;
 
                 // Face movement direction
                 float speed = glm::length(glm::vec2(externalVelocity.x, externalVelocity.z));
+                externalSpeed = speed;
                 if (speed > 0.01f) {
                     currentYaw = atan2(externalVelocity.x, externalVelocity.z);
                 }
 
                 resolveKinematicMovement(deltaTime);
 
-                // Play walk or idle animation based on speed — but NOT while an
-                // action state owns the clip. External velocity (e.g. combat
-                // knockback via setMoveVelocity) must not stomp a mid-swing
-                // attack/cast/block back to walk/idle and reset animTime; the
-                // main animation block below already drives those states. (This
-                // was the attack-animation "stutter": a hit-frame knockback
-                // reset the swing to idle, then back to the attack clip.)
-                const bool actionStateOwnsClip =
-                    currentState == AnimatedCharacterState::Attack ||
-                    currentState == AnimatedCharacterState::Cast   ||
-                    currentState == AnimatedCharacterState::Block;
-                if (!actionStateOwnsClip) {
-                    // The user/race animationMapping override wins here too —
-                    // NPCs move on this external-velocity path, so without
-                    // this a halfling's scamper_walk / ogre's ogre_walk
-                    // mapping would only apply to player-controlled movement.
-                    std::vector<std::string> candidates;
-                    auto pushLayered = [&](const char* stateKey) {
-                        auto mIt = animationMapping.find(stateKey);
-                        if (mIt != animationMapping.end()) candidates.push_back(mIt->second);
-                        // Body-plan vocabulary (wolf Walk_cycle etc.) sits
-                        // between the mapping and the legacy literal list.
-                        auto pIt = m_bodyPlan.clipDefaults.find(stateKey);
-                        if (pIt != m_bodyPlan.clipDefaults.end()) candidates.push_back(pIt->second);
-                    };
-                    if (speed > 0.1f) {
-                        pushLayered("Walk");
-                        candidates.insert(candidates.end(),
-                            {"walk", "walking", "Walk", "Walking", "unarmed_walk"});
-                    } else {
-                        pushLayered("Idle");
-                        candidates.insert(candidates.end(),
-                            {"idle", "Idle", "Standing", "standing"});
-                    }
-                    int targetIndex = -1;
-                    for (const auto& candidate : candidates) {
-                        for (size_t i = 0; i < clips.size(); ++i) {
-                            if (clips[i].name == candidate) { targetIndex = static_cast<int>(i); break; }
-                        }
-                        if (targetIndex >= 0) break;
-                    }
-                    if (targetIndex >= 0 && targetIndex != currentClipIndex) {
-                        previousClipIndex = currentClipIndex;
-                        previousAnimTime = animTime;
-                        currentClipIndex = targetIndex;
-                        animTime = 0.0f;
-                        blendFactor = 0.0f;
-                        isBlending = true;
-                    }
+                // A2 — ONE clip-selection site. The behaviour's velocity becomes FSM input so
+                // every state (HitReact, Attack, Death, Celebrate...) is processed here exactly
+                // as on the player path, and the clip comes from the shared selection block
+                // below (clipForState: mapping -> plan -> legacy). Before this the NPC path had
+                // its own Walk/Idle-only candidate list and hitReact() was never consumed for a
+                // behaviour-driven NPC (docs/AnimationSystemV3Plan.md §4 A2, SelectClipTest).
+                {
+                    float runThreshold = 2.5f;
+                    const int walkIdx = findClipIndexCI(clipForState(AnimatedCharacterState::Walk, false));
+                    const int runIdx  = findClipIndexCI(clipForState(AnimatedCharacterState::Run, false));
+                    if (walkIdx >= 0 && runIdx >= 0 && clips[walkIdx].speed > 0.1f && clips[runIdx].speed > 0.1f)
+                        runThreshold = 0.5f * (clips[walkIdx].speed + clips[runIdx].speed);
+                    // W is NEGATIVE forward (docs/AnimatedCharacter.md); |fwd| > 0.6 selects Run.
+                    currentForwardInput = (speed > 0.1f) ? (speed >= runThreshold ? -1.0f : -0.5f) : 0.0f;
+                    currentStrafeInput  = 0.0f;
+                    currentTurnInput    = 0.0f;
+                    isSprinting         = false;
+                    if (!m_animPaused) updateStateMachine(deltaTime);
                 }
             } else {
             // Normal input-driven movement
+            m_externalRateScale = 1.0f;   // A0 #5: only the external-velocity path scales playback
             // Handle Rotation
             float turnSpeed = 2.0f;
             currentYaw -= currentTurnInput * turnSpeed * deltaTime;
@@ -3548,7 +4112,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
             if (currentClipIndex >= 0 && currentClipIndex < (int)clips.size()) {
                 float animSpeed = clips[currentClipIndex].speed;
                 if (animSpeed > 0.1f) {
-                    moveSpeed = animSpeed;
+                    moveSpeed = animSpeed * cadenceFactor();   // A3: slower cadence, shorter ground travel — feet stay planted
                 }
             }
 
@@ -3659,21 +4223,13 @@ static constexpr float kControllerHeadClearance = 0.05f;
             resolveKinematicMovement(deltaTime);
             } // end normal input-driven movement
             
-            // Animation Selection Logic (only for input-driven mode; external velocity handles its own)
-            if (!usedExternalVelocity) {
-            std::string targetAnim = "idle";
-
-            // DEBUG LOGGING
-            static int debugFrameCounter = 0;
-            bool shouldLog = (debugFrameCounter++ % 30 == 0);
+            // Animation Selection Logic — ONE site for the input AND external-velocity paths (A2).
+            {
+            std::string targetAnim;
 
             // Layered selection: mapping -> body-plan clipDefaults -> legacy
             // switch (all moved verbatim into clipForState).
             targetAnim = clipForState(currentState, isSprinting);
-
-            if (shouldLog) {
-                std::cout << "DEBUG: Selected TargetAnim=" << targetAnim << std::endl;
-            }
 
             // Apply Animation Position Offset
             if (animationPositionOffsets.find(targetAnim) != animationPositionOffsets.end()) {
@@ -3705,13 +4261,11 @@ static constexpr float kControllerHeadClearance = 0.05f;
 
                 
                 if (targetIndex == -1) {
-                     if (targetAnim == "idle") {
-                         // If idle is missing, stop animation
+                     if (currentState == AnimatedCharacterState::Idle) {
+                         // If the Idle clip is missing, stop animation
                          if (currentClipIndex != -1) {
-                             std::cout << "WARNING: 'idle' animation not found. Stopping animation." << std::endl;
-                             std::cout << "Available animations: ";
-                             for(const auto& clip : clips) std::cout << clip.name << " ";
-                             std::cout << std::endl;
+                             LOG_WARN_FMT("Character", "Idle clip '" << targetAnim << "' not found (" << clips.size()
+                                          << " clips loaded). Stopping animation.");
                              currentClipIndex = -1;
                              // Reset skeleton to bind pose so it doesn't freeze in a weird pose
                              for(auto& bone : skeleton.bones) {
@@ -3720,21 +4274,17 @@ static constexpr float kControllerHeadClearance = 0.05f;
                                  bone.currentScale = bone.localScale;
                              }
                          }
-                     } else {
-                         std::cout << "WARNING: Animation not found for target: " << targetAnim << std::endl;
+                     } else if (!m_warnedSpeedFallback.count("missing:" + targetAnim)) {
+                         m_warnedSpeedFallback.insert("missing:" + targetAnim);
+                         LOG_WARN_FMT("Character", "Animation not found for target: " << targetAnim);
                      }
                 }
-                
+
                 // Switch if found and different
                 if (targetIndex != -1 && targetIndex != currentClipIndex) {
-                    // Start blending
-                    previousClipIndex = currentClipIndex;
-                    previousAnimTime = animTime;
-                    currentClipIndex = targetIndex;
-                    animTime = 0.0f;
-                    
-                    isBlending = true;
-                    blendFactor = 0.0f;
+                    // A3: one switch entry — plan edge (blend seconds, phase sync) + root-motion
+                    // priming; A0 #4's own-phase start is the non-synced default inside it.
+                    beginClipTransition(targetIndex, currentState);
                     
                     // If we didn't have a previous animation, just snap (no blend)
                     if (previousClipIndex == -1) {
@@ -3757,8 +4307,20 @@ static constexpr float kControllerHeadClearance = 0.05f;
                     }
                     m_pendingClipSnap = false;
                 }
+
+                // A0 #5: a behaviour-driven character plays its locomotion clip at the rate its
+                // authored speed implies for the ACTUAL velocity (0.3..2.0), so feet do not skate.
+                // Lives AFTER selection since it needs the clip that was just chosen (A2 move).
+                if (usedExternalVelocity && currentClipIndex >= 0 && currentClipIndex < (int)clips.size()) {
+                    const float clipSpeed = clips[currentClipIndex].speed;
+                    // A3: the behaviour dictates the NPC's speed, so the cadence factor is divided
+                    // out here (playback = speed / clipSpeed regardless of load) — a loaded NPC
+                    // walks slower only if its behaviour asks for a slower speed.
+                    m_externalRateScale = (externalSpeed > 0.1f && clipSpeed > 0.1f)
+                        ? glm::clamp(externalSpeed / (clipSpeed * (cadenceApplies() ? std::max(cadenceFactor(), 0.1f) : 1.0f)), 0.3f, 2.0f) : 1.0f;
+                }
             }
-            } // end !usedExternalVelocity
+            } // end shared selection block
         }
         } // end movement block
 
@@ -3766,7 +4328,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
         float evalTime = animTime; // may be remapped for warp preview
         if (currentClipIndex >= 0 && currentClipIndex < clips.size()) {
             if (!m_animPaused)
-                animTime += deltaTime * m_playbackSpeed * currentCastSpeed() * currentAttackRate() * currentDodgeRate() * currentGetUpRate();
+                animTime += deltaTime * m_playbackSpeed * m_externalRateScale * (cadenceApplies() ? cadenceFactor() : 1.0f) * currentCastSpeed() * currentAttackRate() * currentDodgeRate() * currentGetUpRate();
             // Death/GetUp play once and hold their final pose (no loop-wrap).
             if ((currentState == AnimatedCharacterState::Death ||
                  currentState == AnimatedCharacterState::GetUp) &&
@@ -3832,7 +4394,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
             float prevAnimTimeSnapshot = m_prevAnimTime;
 
             if (isBlending && previousClipIndex >= 0 && previousClipIndex < clips.size()) {
-                blendFactor += deltaTime / blendDuration;
+                blendFactor += deltaTime / std::max(m_activeBlendDuration, 1e-4f);
                 if (blendFactor >= 1.0f) {
                     blendFactor = 1.0f;
                     isBlending = false;
@@ -3850,6 +4412,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
             } else {
                 animSystem.updateAnimation(skeleton, clips[currentClipIndex], evalTime, loop);
             }
+            applyPoseLayers(deltaTime);          // A3: masked / additive layers over the base pose
             m_prevAnimTime = animTime;
 
             // Optional provider override for locomotion only. The clip pose has
@@ -3930,7 +4493,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
             // The worldPosition application step (translating the character through the
             // world) is gated by `!m_isSitting`: while seated, the seat anchor owns
             // worldPosition and the root delta must be discarded, not applied.
-            if (!isBlending && currentClipIndex >= 0 && currentClipIndex < (int)clips.size()) {
+            if (currentClipIndex >= 0 && currentClipIndex < (int)clips.size()) {
                 const AnimationClip& clip = clips[currentClipIndex];
 
                 // Update Y root motion flag so resolveKinematicMovement suppresses gravity.
@@ -3947,12 +4510,17 @@ static constexpr float kControllerHeadClearance = 0.05f;
                 // Clip transition: reset prevRootPos so frame-1 delta is zero (no teleport spike)
                 if (currentClipIndex != m_prevClipIndex) {
                     if (!skeleton.bones.empty())
-                        m_prevRootPos = skeleton.bones[0].currentPosition;
+                        m_prevRootPos = skeleton.bones[m_skeletonRoot].currentPosition;
                     m_prevClipIndex = currentClipIndex;
                 }
 
-                // Capture animated root position AFTER update, BEFORE any stripping
-                glm::vec3 currentRootAnimated = skeleton.bones.empty() ? glm::vec3(0.0f) : skeleton.bones[0].currentPosition;
+                // Capture animated root position AFTER update, BEFORE any stripping. During a
+                // crossfade the skeleton holds a BLENDED pose, so read the current clip's own
+                // root instead (A3: root motion no longer pauses for the blend).
+                glm::vec3 currentRootAnimated = skeleton.bones.empty() ? glm::vec3(0.0f)
+                    : (isBlending ? animSystem.sampleBonePosition(clip, skeleton.bones[m_skeletonRoot].id, evalTime, loop,
+                                                                  skeleton.bones[m_skeletonRoot].localPosition)
+                                  : skeleton.bones[m_skeletonRoot].currentPosition);
                 if (clip.useRootMotion && !skeleton.bones.empty()) {
                     // Detect animation loop wrap: animTime is monotonically increasing so
                     // we can't compare it directly. Instead compare the fmod-wrapped eval
@@ -4013,20 +4581,15 @@ static constexpr float kControllerHeadClearance = 0.05f;
 
                     // Strip extracted axes from root bone so the visual doesn't double-count.
                     // This MUST run even while seated — see header comment above.
-                    glm::vec3& rc = skeleton.bones[0].currentPosition;
-                    if (clip.rootMotionAxes.x) rc.x = skeleton.bones[0].localPosition.x;
-                    if (clip.rootMotionAxes.y) rc.y = skeleton.bones[0].localPosition.y;
-                    if (clip.rootMotionAxes.z) rc.z = skeleton.bones[0].localPosition.z;
+                    glm::vec3& rc = skeleton.bones[m_skeletonRoot].currentPosition;
+                    if (clip.rootMotionAxes.x) rc.x = skeleton.bones[m_skeletonRoot].localPosition.x;
+                    if (clip.rootMotionAxes.y) rc.y = skeleton.bones[m_skeletonRoot].localPosition.y;
+                    if (clip.rootMotionAxes.z) rc.z = skeleton.bones[m_skeletonRoot].localPosition.z;
                 } else {
                     // Keep m_prevRootPos in sync even when root motion is inactive,
                     // so the first frame of a root-motion animation has a valid base.
                     m_prevRootPos = currentRootAnimated;
                 }
-            } else if (isBlending && !skeleton.bones.empty()) {
-                // Keep m_prevRootPos current during blend transitions
-                m_prevRootPos = skeleton.bones[0].currentPosition;
-                // Y root motion is not extracted during blending
-                m_yRootMotionActive = false;
             }
 
             // Stair step drive: smoothly move worldPosition.y over one clip pass.
@@ -4081,7 +4644,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
             } else {
                 fade = 0.0f;
             }
-            skeleton.bones[0].currentPosition.y += m_warpPreviewExtraY * fade;
+            skeleton.bones[m_skeletonRoot].currentPosition.y += m_warpPreviewExtraY * fade;
         }
 
         applyPostureLean();
@@ -4089,6 +4652,8 @@ static constexpr float kControllerHeadClearance = 0.05f;
 
         // Hook for subclass IK corrections (e.g. HybridCharacter)
         applyIKCorrections(deltaTime);
+        applyOffHandPin(deltaTime);           // A3: two-handed carry — off-hand on the second grip
+        applySeatSolve(deltaTime);            // A4: pelvis on the seat, feet on the floor, lean, armrests
 
         // Compute model-to-world base matrix (shared by all bones).
         // Uses m_visualBodyY (spring-smoothed) so the visual skeleton follows the
@@ -4114,32 +4679,17 @@ static constexpr float kControllerHeadClearance = 0.05f;
             if (rit != animationRotationOffsets.end()) animRotation = rit->second;
         }
         if (animRotation == 0.0f) {
-            std::string stateKey = "idle";
-            switch (currentState) {
-                case AnimatedCharacterState::StartWalk:       stateKey = "start_walking";    break;
-                case AnimatedCharacterState::Walk:            stateKey = "walk";              break;
-                case AnimatedCharacterState::Run:             stateKey = "run";               break;
-                case AnimatedCharacterState::Jump:            stateKey = "jump";              break;
-                case AnimatedCharacterState::Fall:            stateKey = "jump_down";         break;
-                case AnimatedCharacterState::Land:            stateKey = "landing";           break;
-                case AnimatedCharacterState::Crouch:          stateKey = "crouch";            break;
-                case AnimatedCharacterState::CrouchIdle:      stateKey = "crouch";            break;
-                case AnimatedCharacterState::CrouchWalk:      stateKey = "crouched_walking";  break;
-                case AnimatedCharacterState::StandUp:         stateKey = "crouch_to_stand";   break;
-                case AnimatedCharacterState::Attack:          stateKey = "attack";            break;
-                case AnimatedCharacterState::TurnLeft:        stateKey = "left_turn";         break;
-                case AnimatedCharacterState::TurnRight:       stateKey = "right_turn";        break;
-                case AnimatedCharacterState::StrafeLeft:      stateKey = "left_strafe";       break;
-                case AnimatedCharacterState::StrafeRight:     stateKey = "right_strafe";      break;
-                case AnimatedCharacterState::WalkStrafeLeft:  stateKey = "left_strafe_walk";  break;
-                case AnimatedCharacterState::WalkStrafeRight: stateKey = "right_strafe_walk"; break;
-                default: break;
-            }
+            // Fallback: an offset authored against the clip the STATE resolves to (mapping ->
+            // plan -> legacy), so a race/plan clip inherits its state's offset (A2: no literal table).
+            const std::string stateKey = clipForState(currentState, isSprinting);
             auto rit = animationRotationOffsets.find(stateKey);
             if (rit != animationRotationOffsets.end()) animRotation = rit->second;
         }
         if (animRotation != 0.0f)
             modelMatrix = glm::rotate(modelMatrix, glm::radians(animRotation), glm::vec3(0, 1, 0));
+
+        // A1: the frame's FINAL pose (post-IK, post-lean) in world space, if a validator armed us.
+        if (m_oracleRecording) captureOracleFrame(modelMatrix, deltaTime);
 
         // Update worldPos/worldRot for every direct-transform part. Iterate the
         // cached bone-group→part-indices map (rebuilt only when parts change)
@@ -4215,7 +4765,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
             e.totalTime  = m_totalTime;
             e.deltaTime  = deltaTime;
             e.worldPos   = worldPosition;
-            e.hipsLocal  = skeleton.bones.empty() ? glm::vec3(0.0f) : skeleton.bones[0].currentPosition;
+            e.hipsLocal  = skeleton.bones.empty() ? glm::vec3(0.0f) : skeleton.bones[m_skeletonRoot].currentPosition;
             e.state      = static_cast<int>(currentState);
             e.isSitting  = m_isSitting;
             e.isBlending = isBlending;
@@ -4286,11 +4836,22 @@ static constexpr float kControllerHeadClearance = 0.05f;
             m_rightFoot.upLegId = legs[1].upperId;
             m_rightFoot.legId   = legs[1].midId;
             m_rightFoot.footId  = legs[1].footId;
+            auto firstChild = [&](int parent) { for (int i = 0; i < (int)skeleton.bones.size(); ++i) if (skeleton.bones[i].parentId == parent) return i; return -1; };
+            m_leftFoot.toeId  = firstChild(m_leftFoot.footId);
+            m_rightFoot.toeId = firstChild(m_rightFoot.footId);
         }
+        m_ikAnkleFlat = standingAnkleHeight();
 
         // Pelvis bone for body-adjustment during IK (also the sit anchor).
         // resolveAgainst already applied the exact-name -> hip-alias fallback.
         m_ikHipBoneId = m_bodyPlanResolved.rootBoneId;
+        // A5: pelvis range from the bind-pose leg length (thigh + shin), not a per-clip literal.
+        if (m_leftFoot.legId >= 0 && m_leftFoot.footId >= 0 &&
+            m_leftFoot.legId < (int)skeleton.bones.size() && m_leftFoot.footId < (int)skeleton.bones.size()) {
+            m_ikLegLength = glm::length(skeleton.bones[m_leftFoot.legId].localPosition)
+                          + glm::length(skeleton.bones[m_leftFoot.footId].localPosition);
+            if (m_ikLegLength > 0.1f) m_ikBodyRange = glm::clamp(0.30f * m_ikLegLength, 0.10f, 0.40f);
+        }
 
         m_footIKCacheReady =
             (m_leftFoot.upLegId  >= 0 && m_leftFoot.legId  >= 0 && m_leftFoot.footId  >= 0) ||
@@ -4344,7 +4905,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
                               std::abs(L1 - L2) + 0.001f,
                               L1 + L2 - 0.001f);
         if (L1 < 0.001f || L2 < 0.001f) return;
-        LOG_INFO_FMT("IK_geo",
+        LOG_TRACE_FMT("IK_geo",   // per-call: TRACE, never INFO (A0 #9)
             "A.y=" << A.y << " B.y=" << B.y << " C.y=" << C.y << " T.y=" << T.y
             << " L1=" << L1 << " L2=" << L2 << " rawD=" << rawD << " clampD=" << D
             << " maxReach=" << (L1+L2));
@@ -4407,6 +4968,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
             m_footIKBlend   = 0.0f;
             m_leftFootLock  = {};
             m_rightFootLock = {};
+            m_grounding     = {};
             return;
         }
         // Foot IK off during a dodge roll — the feet leave the ground mid-roll,
@@ -4416,11 +4978,13 @@ static constexpr float kControllerHeadClearance = 0.05f;
             m_footIKBlend   = 0.0f;
             m_leftFootLock  = {};
             m_rightFootLock = {};
+            m_grounding     = {};
             return;
         }
         if (!m_footIKEnabled) {
             // Foot IK off: keep the visual body snapped to the capsule so the model still
             // renders at the right height (no terrain foot-planting / body spring).
+            m_grounding      = {};          // no stale corrections in the readback
             m_visualBodyY    = worldPosition.y;
             m_visualBodyVel  = 0.0f;
             m_visualBodyInit = true;
@@ -4449,6 +5013,13 @@ static constexpr float kControllerHeadClearance = 0.05f;
             surfaceReach = clip.footIKSurfaceReach;
             bodyRange    = clip.footIKBodyRange;
             isStairClip  = (clip.clipType == "stair");
+            if (!clip.footIKEnabled) {               // A5: the clip opted out (clip_meta footIKEnabled=0)
+                m_footIKBlend   = 0.0f;
+                m_leftFootLock  = {};
+                m_rightFootLock = {};
+                m_grounding     = {};
+                return;
+            }
         }
 
         // ---------------------------------------------------------------
@@ -4556,6 +5127,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
         // should not be pulled back down to the terrain.
         bool leftSwing  = false;
         bool rightSwing = false;
+        bool leftFlying = false, rightFlying = false;   // moving fast in world XZ (A5 contact release)
         if (m_leftFoot.footId  >= 0 && m_leftFoot.footId  < (int)skeleton.bones.size() &&
             m_rightFoot.footId >= 0 && m_rightFoot.footId < (int)skeleton.bones.size()) {
             glm::vec3 lfw = footWorldPos(m_leftFoot);
@@ -4569,8 +5141,27 @@ static constexpr float kControllerHeadClearance = 0.05f;
                 float bodyVelY = m_kinVelocity.y;
                 if (m_stepGlideTargetY > -1.0e29f)
                     bodyVelY += (m_stepGlideTargetY >= worldPosition.y) ? m_stepGlideSpeed : -m_stepGlideSpeed;
-                leftSwing  = ((lVelY - bodyVelY) > 0.4f);
-                rightSwing = ((rVelY - bodyVelY) > 0.4f);
+                // A5: a swing foot is one that RISES or FLIES (world XZ speed well above a stance
+                // foot's, which is ~0 in the world). The rise-only rule called a toe-off foot
+                // "planted" and locked it to the riser it was leaving (dense ramp trace 2026-09-30).
+                const float lSpeedXZ = glm::length(glm::vec2(lfw.x - m_prevLeftFootWorld.x,  lfw.z - m_prevLeftFootWorld.z))  / std::max(deltaTime, 0.001f);
+                const float rSpeedXZ = glm::length(glm::vec2(rfw.x - m_prevRightFootWorld.x, rfw.z - m_prevRightFootWorld.z)) / std::max(deltaTime, 0.001f);
+                constexpr float k_swingSpeedXZ = 0.8f;   // u/s; stance feet read < 0.3 in the world
+                leftSwing  = ((lVelY - bodyVelY) > 0.4f) || lSpeedXZ > k_swingSpeedXZ;
+                rightSwing = ((rVelY - bodyVelY) > 0.4f) || rSpeedXZ > k_swingSpeedXZ;
+                // "flying" releases the contact hold — judged at the TOE, the last point to leave
+                // the ground (the ankle rolls forward at 1–2 u/s during toe-off while the toe is
+                // still planted)
+                auto toeWorld = [&](const FootIKBones& fb, const glm::vec3& ankleFallback) {
+                    return fb.toeId >= 0 && fb.toeId < (int)skeleton.bones.size()
+                        ? glm::vec3(modelMatrix * glm::vec4(glm::vec3(skeleton.bones[fb.toeId].globalTransform[3]), 1.0f)) : ankleFallback;
+                };
+                const glm::vec3 lToe = toeWorld(m_leftFoot, lfw), rToe = toeWorld(m_rightFoot, rfw);
+                const float lToeSpeed = glm::length(glm::vec2(lToe.x - m_prevLeftToeWorld.x,  lToe.z - m_prevLeftToeWorld.z))  / std::max(deltaTime, 0.001f);
+                const float rToeSpeed = glm::length(glm::vec2(rToe.x - m_prevRightToeWorld.x, rToe.z - m_prevRightToeWorld.z)) / std::max(deltaTime, 0.001f);
+                leftFlying  = lToeSpeed > k_swingSpeedXZ;
+                rightFlying = rToeSpeed > k_swingSpeedXZ;
+                m_prevLeftToeWorld = lToe; m_prevRightToeWorld = rToe;
             }
             m_prevLeftFootWorld  = lfw;
             m_prevRightFootWorld = rfw;
@@ -4662,7 +5253,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
                     float lsy  = getSurfY(m_leftFoot);
                     float rsy  = getSurfY(m_rightFoot);
 
-                    LOG_INFO_FMT("StairIK",
+                    LOG_TRACE_FMT("StairIK",   // per-frame: TRACE, never INFO (A0 #9)
                         "[t=" << std::fixed << std::setprecision(3) << normT
                         << "] capsY=" << worldPosition.y
                         << " | L_foot=" << lfy
@@ -4746,8 +5337,11 @@ static constexpr float kControllerHeadClearance = 0.05f;
         // worldPosition.y (the step surface) with positive-only corrections.
         // ------------------------------------------------------------------
 
-        constexpr float k_maxFootCorr = 4.0f / 9.0f + 0.05f;
+        const float k_maxFootCorr = m_ikMaxFootCorr;   // A5 knob (legacy 4/9 + 0.05)
         constexpr float k_stepLagMin  = 0.01f;
+        m_grounding = {};
+        m_grounding.enabled = true;
+        m_grounding.blend = m_footIKBlend;
 
         // Use body spring lag as the IK signal. When capsule snapped onto a
         // higher surface, worldPosition.y > m_visualBodyY. Push feet up toward
@@ -4781,7 +5375,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
             bool lActive = lCorr > 0.01f || m_leftFootLock.active;
             bool rActive = rCorr > 0.01f || m_rightFootLock.active;
 
-            LOG_INFO_FMT("StepIK",
+            LOG_TRACE_FMT("StepIK",   // per-frame: TRACE, never INFO (A0 #9)
                 "lag=" << springLag
                 << " stepSurf=" << stepSurface
                 << " Lfw.y=" << lfw.y << " Rfw.y=" << rfw.y
@@ -4827,146 +5421,165 @@ static constexpr float kControllerHeadClearance = 0.05f;
             }
         } else if (voxelWorld) {
             // ------------------------------------------------------------------
-            // TERRAIN FOLLOW — per-foot surface detection, bidirectional
+            // TERRAIN FOLLOW (A5) — per-foot, bidirectional, pelvis-assisted.
             //
-            // Correction = terrain height difference relative to where the
-            // character is standing (worldPosition.y). This preserves the
-            // ankle's natural hover above the ground: on flat terrain lCorr=0
-            // regardless of animation phase; on lower terrain lCorr is negative
-            // (foot reaches down); on a raised surface lCorr is positive.
+            // Correction = terrain height under the FOOT relative to the capsule
+            // floor (worldPosition.y), so the clip's own hover is preserved: flat
+            // ground → 0 whatever the phase; a lower cell → the foot reaches down
+            // (stance only); a higher cell → the foot lifts onto it (any phase —
+            // the leading foot rises before the body does).
             //
-            // Swinging feet (actively rising) are excluded to avoid fighting
-            // the animation on the lifting phase.
+            // Item 1: FOOT-sized probes (the capsule column read the neighbouring
+            // higher cell up to a quarter unit early) searched from above the foot
+            // down to the lowest correction the cap allows (the old fixed 0.8 u
+            // window missed a surface that sat exactly at its bottom edge).
+            // Item 2: the pelvis drops for a downward correction so a near-straight
+            // stance leg can reach; bounded by the plan-derived body range.
+            // Item 3: a failed probe (unloaded neighbour chunk) skips the correction.
             // ------------------------------------------------------------------
-            auto findFootSurf = [&](const FootIKBones& fb) -> float {
-                if (fb.footId < 0 || fb.footId >= (int)skeleton.bones.size()) return -1.0e30f;
-                glm::vec3 fw = footWorldPos(fb);
-                return voxelWorld->findGroundY({fw.x, fw.y + 0.4f, fw.z}, m_originalHalfWidth, 0.8f);
+            const float probeTop    = 0.5f;
+            const float probeFloor  = worldPosition.y - k_maxFootCorr - 0.15f;
+            auto probeAt = [&](const glm::vec3& fw) -> float {
+                const float depth = (fw.y + probeTop) - probeFloor;
+                if (depth <= 0.0f) return -1.0e30f;
+                return voxelWorld->findGroundY({fw.x, fw.y + probeTop, fw.z}, m_ikProbeHalfWidth, depth);
             };
-
-            glm::vec3 lfw  = footWorldPos(m_leftFoot);
-            glm::vec3 rfw  = footWorldPos(m_rightFoot);
-            float     lSurf = findFootSurf(m_leftFoot);
-            float     rSurf = findFootSurf(m_rightFoot);
-            float     bodySurf = voxelWorld->findGroundY(
-                {worldPosition.x, worldPosition.y + 0.4f, worldPosition.z},
-                m_originalHalfWidth, 0.8f);
-
-            // Correction = terrain height difference vs. character standing Y.
-            // Swing gate is directional: only block DOWNWARD corrections (foot reaching
-            // to lower terrain) on a swinging foot. UPWARD corrections (foot stepping
-            // onto a raised surface) are allowed through mid-swing — this is stage 3
-            // of the stepping sequence: leading foot lifts before the body rises.
-            auto applySwingGate = [](float corr, bool swing) -> float {
-                if (corr < 0.0f && swing) return 0.0f;  // don't pull rising foot down
-                return corr;
+            // The ground under a FOOT is the highest surface under its sole: ankle, heel and toe
+            // (kFootHalfLength along the facing). At a riser edge the heel rests on the upper level
+            // while the ankle joint is already past the edge — the old single column read the lower
+            // cell and hovered the foot a full riser (ramp trace 2026-09-30, frame 243).
+            const float drawYaw = getDrawYaw();
+            const glm::vec3 soleFwd(std::sin(drawYaw), 0.0f, std::cos(drawYaw));
+            // MEDIAN of the three, not the max: with only a heel EDGE on the upper riser (4 cm of
+            // sole) the foot rolls down onto the lower level; heel + ankle on it keep it up. The max
+            // parked a toe 0.4 u in the air over the lower step (dense trace, frame 211).
+            auto findFootSurf = [&](const glm::vec3& fw) -> float {
+                float v[3] = { probeAt(fw), probeAt(fw + soleFwd * kFootHalfLength), probeAt(fw - soleFwd * kFootHalfLength) };
+                std::sort(v, v + 3);
+                return v[1];
             };
-            float lCorrRaw = (lSurf > -1.0e29f)
-                             ? glm::clamp(lSurf - worldPosition.y, -k_maxFootCorr, 0.0f) : 0.0f;
-            float rCorrRaw = (rSurf > -1.0e29f)
-                             ? glm::clamp(rSurf - worldPosition.y, -k_maxFootCorr, 0.0f) : 0.0f;
-            float lCorr = applySwingGate(lCorrRaw, leftSwing);
-            float rCorr = applySwingGate(rCorrRaw, rightSwing);
-
-            // Symmetric drop: both feet over the same lower surface means the
-            // character is walking off a ledge, not straddling. Don't correct.
-            if (lCorr < -0.01f && rCorr < -0.01f &&
-                std::abs(lCorr - rCorr) < 0.08f)
-            {
-                lCorr = 0.0f;
-                rCorr = 0.0f;
+            {   // diagnostics for the left foot
+                const glm::vec3 fw = footWorldPos(m_leftFoot);
+                m_grounding.lProbe = fw;
+                m_grounding.lSurfAnkle = probeAt(fw); m_grounding.lSurfToe = probeAt(fw + soleFwd * kFootHalfLength); m_grounding.lSurfHeel = probeAt(fw - soleFwd * kFootHalfLength);
             }
-
-            // Ignore corrections smaller than 0.5 microcube — just noise.
-            constexpr float k_minCorr = 1.0f / 18.0f;
-
-            // Terrain foot lock — engage when a foot in stance detects a surface
-            // above the body's current floor (the foot is approaching an obstacle).
-            // Locks the ankle to the obstacle surface Y and holds it there while
-            // the body steps up, producing a visible "foot planted on ledge" pose.
-            // Persists through the StepIK glide phase; releases once the body has
-            // risen to the obstacle level or the foot enters swing.
-            auto updateTerrainLock = [&](FootLockState& lock, float corrRaw,
-                                         float surf, bool swing) {
+            const glm::vec3 lfw = footWorldPos(m_leftFoot);
+            const glm::vec3 rfw = footWorldPos(m_rightFoot);
+            auto boneWorld = [&](int id) { return glm::vec3(modelMatrix * glm::vec4(glm::vec3(skeleton.bones[id].globalTransform[3]), 1.0f)); };
+            const float lToePre = m_leftFoot.toeId  >= 0 ? boneWorld(m_leftFoot.toeId).y  : lfw.y;
+            const float rToePre = m_rightFoot.toeId >= 0 ? boneWorld(m_rightFoot.toeId).y : rfw.y;
+            const float lSurf = findFootSurf(lfw), rSurf = findFootSurf(rfw);
+            const bool  lOk = lSurf > -1.0e29f, rOk = rSurf > -1.0e29f;
+            const float bodySurf = voxelWorld->findGroundY({worldPosition.x, worldPosition.y + probeTop, worldPosition.z},
+                                                           m_ikProbeHalfWidth, probeTop + k_maxFootCorr + 0.15f);
+            auto corrOf = [&](bool ok, float surf, bool swing) -> float {
+                if (!ok) return 0.0f;
+                float c = glm::clamp(surf - worldPosition.y, -k_maxFootCorr, k_maxFootCorr);
+                if (c < 0.0f && swing) c = 0.0f;          // never pull a rising foot down
+                return c;
+            };
+            float lCorr = corrOf(lOk, lSurf, leftSwing);
+            float rCorr = corrOf(rOk, rSurf, rightSwing);
+            // Walking off a real LEDGE (both feet over the same drop deeper than most of a step):
+            // don't dangle the legs — the fall/step-glide owns that. Shallower shared drops (a
+            // ramp riser under both feet while the capsule still stands on the upper cell) ARE
+            // corrected: that is exactly the seam where the feet used to hover.
+            const float ledge = 0.75f * m_maxStepHeight;
+            if (lCorr < -ledge && rCorr < -ledge && std::abs(lCorr - rCorr) < 0.08f) { lCorr = 0.0f; rCorr = 0.0f; }
+            constexpr float k_minCorr = 1.0f / 18.0f;      // half a microcube: noise floor
+            // Terrain foot lock — a stance foot over a HIGHER surface locks to it while the body
+            // steps up (persists through the step-glide; releases in swing or once the body is up).
+            auto updateTerrainLock = [&](FootLockState& lock, float corr, bool ok, float surf, bool swing) {
                 if (lock.active) {
-                    bool bodyUp = corrRaw < k_minCorr * 0.5f;
-                    if (swing || bodyUp || surf <= -1.0e29f)
-                        lock = {};
-                    else
-                        lock.lockBlend = std::min(1.0f, lock.lockBlend + deltaTime * blendSpeed);
-                } else if (!swing && corrRaw > k_minCorr && surf > bodySurf + k_minCorr) {
-                    lock.active    = true;
-                    lock.lockedY   = surf;
-                    lock.lockBlend = 0.0f;
+                    const bool bodyUp = corr < k_minCorr * 0.5f;
+                    if (swing || bodyUp || !ok) lock = {};
+                    else lock.lockBlend = std::min(1.0f, lock.lockBlend + deltaTime * blendSpeed);
+                } else if (ok && !swing && corr > k_minCorr && bodySurf > -1.0e29f && surf > bodySurf + k_minCorr) {
+                    lock.active = true; lock.lockedY = surf; lock.lockBlend = 0.0f;
                 }
             };
-            updateTerrainLock(m_leftFootLock,  lCorrRaw, lSurf,  leftSwing);
-            updateTerrainLock(m_rightFootLock, rCorrRaw, rSurf, rightSwing);
-
-            bool lActive = std::abs(lCorr) > k_minCorr || m_leftFootLock.active;
-            bool rActive = std::abs(rCorr) > k_minCorr || m_rightFootLock.active;
-
-            // When locked, drive the ankle directly to the locked surface Y.
-            // Locked feet use a per-foot blend that eases in from 0 at lock time.
-            float lTargetY = m_leftFootLock.active  ? m_leftFootLock.lockedY  : (lfw.y + lCorr);
-            float rTargetY = m_rightFootLock.active ? m_rightFootLock.lockedY : (rfw.y + rCorr);
-            float lBlend   = m_leftFootLock.active
-                               ? (m_footIKBlend * m_leftFootLock.lockBlend) : m_footIKBlend;
-            float rBlend   = m_rightFootLock.active
-                               ? (m_footIKBlend * m_rightFootLock.lockBlend) : m_footIKBlend;
-
-            LOG_TRACE_FMT("TerrainIK",
-                "cap=(" << worldPosition.x << "," << worldPosition.y << "," << worldPosition.z << ")"
-                << " L=(" << lfw.x << "," << lfw.y << "," << lfw.z << ")"
-                << " R=(" << rfw.x << "," << rfw.y << "," << rfw.z << ")"
-                << " Lsurf=" << (lSurf > -1.0e29f ? lSurf : -999.f)
-                << " Rsurf=" << (rSurf > -1.0e29f ? rSurf : -999.f)
-                << " Bsurf=" << (bodySurf > -1.0e29f ? bodySurf : -999.f)
-                << " Lcorr=" << lCorr << " Rcorr=" << rCorr
-                << " Llock=" << m_leftFootLock.active << " Rlock=" << m_rightFootLock.active
-                << " Lactive=" << lActive << " Ractive=" << rActive);
-
+            updateTerrainLock(m_leftFootLock,  lCorr, lOk, lSurf, leftSwing);
+            updateTerrainLock(m_rightFootLock, rCorr, rOk, rSurf, rightSwing);
+            const bool lActive = std::abs(lCorr) > k_minCorr || m_leftFootLock.active;
+            const bool rActive = std::abs(rCorr) > k_minCorr || m_rightFootLock.active;
+            // A foot in CONTACT (ankle within two sole-halves of its surface) is held at its animated
+            // height through a pelvis shift and bounds the drop; the swing flag is not contact — at
+            // heel-off the ankle rises while the toe is still down (0.26 u sink seen without this).
+            // Contact = the animated ankle within two sole-halves of the surface OR the toe within
+            // 0.25 u of it, and the foot not flying. The toe threshold is deliberately loose: at
+            // toe-off the toe leaves the ground over several frames, and a release one frame early
+            // let the pelvis drop drag a still-grounded toe 0.18 u into the step.
+            constexpr float k_contactAnkle = 2.0f * kFootHalfLength;
+            constexpr float k_contactToe   = 0.25f;
+            const bool lContact = lOk && !leftFlying  && ((lfw.y - lSurf) < k_contactAnkle || (lToePre - lSurf) < k_contactToe);
+            const bool rContact = rOk && !rightFlying && ((rfw.y - rSurf) < k_contactAnkle || (rToePre - rSurf) < k_contactToe);
+            const float lTargetY = m_leftFootLock.active  ? m_leftFootLock.lockedY  : (lfw.y + lCorr);
+            const float rTargetY = m_rightFootLock.active ? m_rightFootLock.lockedY : (rfw.y + rCorr);
+            const float lBlend = m_leftFootLock.active  ? (m_footIKBlend * m_leftFootLock.lockBlend)  : m_footIKBlend;
+            const float rBlend = m_rightFootLock.active ? (m_footIKBlend * m_rightFootLock.lockBlend) : m_footIKBlend;
+            LOG_TRACE_FMT("TerrainIK",   // per-frame: TRACE, never INFO (A0 #9)
+                "cap.y=" << worldPosition.y << " Lsurf=" << (lOk ? lSurf : -999.f) << " Rsurf=" << (rOk ? rSurf : -999.f)
+                << " Bsurf=" << (bodySurf > -1.0e29f ? bodySurf : -999.f) << " Lcorr=" << lCorr << " Rcorr=" << rCorr
+                << " Llock=" << m_leftFootLock.active << " Rlock=" << m_rightFootLock.active);
+            m_grounding.probeOk[0] = lOk; m_grounding.probeOk[1] = rOk;
+            m_grounding.lContact = lContact; m_grounding.rContact = rContact;
+            m_grounding.lToePre = lToePre; m_grounding.rToePre = rToePre; m_grounding.lAnkleY = lfw.y; m_grounding.rAnkleY = rfw.y;
+            m_grounding.lSurf = lOk ? lSurf : -999.0f; m_grounding.rSurf = rOk ? rSurf : -999.0f;
+            m_grounding.bodySurf = bodySurf > -1.0e29f ? bodySurf : -999.0f;
+            m_grounding.lSwing = leftSwing; m_grounding.rSwing = rightSwing;
+            m_grounding.terrainBranch = true;
+            m_grounding.lLock = m_leftFootLock.active; m_grounding.rLock = m_rightFootLock.active;
             if (lActive || rActive) {
-                // Pelvis: shift up by average of positive corrections so the knees
-                // absorb the terrain height difference rather than over-extending.
-                if (bodyRange > 0.0f && m_ikHipBoneId >= 0 &&
-                    m_ikHipBoneId < (int)skeleton.bones.size())
-                {
-                    float pelvisL = m_leftFootLock.active  ? (lTargetY - lfw.y) : lCorr;
-                    float pelvisR = m_rightFootLock.active ? (rTargetY - rfw.y) : rCorr;
-                    float sum = 0.0f; int n = 0;
-                    if (lActive && pelvisL > 0.0f) { sum += pelvisL; ++n; }
-                    if (rActive && pelvisR > 0.0f) { sum += pelvisR; ++n; }
-                    if (n > 0) {
-                        float shift = glm::clamp((sum / n) * 0.5f, 0.0f, bodyRange);
-                        skeleton.bones[m_ikHipBoneId].currentPosition.y += shift * m_footIKBlend;
+                // Pelvis: DOWN by most of the deeper downward correction (a near-straight stance
+                // leg cannot reach a lower cell on its own), UP by half the mean upward one (the
+                // knees absorb a riser). Bounded by the plan-derived range; the un-corrected
+                // foot is held at its animated height so the shift does not sink it.
+                float pelvisShift = 0.0f;
+                const float lHoldY = lTargetY, rHoldY = rTargetY;
+                if (m_ikHipBoneId >= 0 && m_ikHipBoneId < (int)skeleton.bones.size()) {
+                    const float lEff = lActive ? (lTargetY - lfw.y) : 0.0f;
+                    const float rEff = rActive ? (rTargetY - rfw.y) : 0.0f;
+                    const float down = std::min({0.0f, lEff, rEff});
+                    // The pelvis drops the FULL downward correction (clamped by the body range).
+                    // Lowering the pelvis brings the hip CLOSER to a foot held on the upper level,
+                    // so that leg bends and never runs out of reach — a "slack" bound here was
+                    // inverted and blocked the drop whenever both legs were straight (standing
+                    // astride a riser edge the lower foot hung 0.33 u in the air; 2026-09-30).
+                    float upSum = 0.0f; int upN = 0;
+                    if (lEff > 0.0f) { upSum += lEff; ++upN; }
+                    if (rEff > 0.0f) { upSum += rEff; ++upN; }
+                    pelvisShift = down + (upN > 0 ? (upSum / upN) * 0.5f : 0.0f);
+                    pelvisShift = glm::clamp(pelvisShift, -m_ikBodyRange, m_ikBodyRange) * m_footIKBlend;
+                    m_grounding.hipsBeforeY = boneWorld(m_ikHipBoneId).y;
+                    if (std::abs(pelvisShift) > 1e-4f) {
+                        skeleton.bones[m_ikHipBoneId].currentPosition.y += pelvisShift;
                         animSystem.updateGlobalTransforms(skeleton);
                         invModel = glm::inverse(modelMatrix);
                     }
+                    m_grounding.hipsAfterY = boneWorld(m_ikHipBoneId).y;
                 }
-
-                if (lActive && m_leftFoot.footId >= 0 &&
-                    m_leftFoot.footId < (int)skeleton.bones.size())
-                {
-                    glm::vec3 fw = footWorldPos(m_leftFoot);
-                    applyTwoBoneIK(m_leftFoot.upLegId, m_leftFoot.legId, m_leftFoot.footId,
-                                   invModel, {fw.x, lTargetY, fw.z}, lBlend);
+                // every foot is held at its target through a pelvis shift (a swing foot's animated
+                // height included — it is about to land where the clip put it)
+                const bool holdL = lActive || std::abs(pelvisShift) > 1e-4f;
+                const bool holdR = rActive || std::abs(pelvisShift) > 1e-4f;
+                if (holdL && m_leftFoot.footId >= 0 && m_leftFoot.footId < (int)skeleton.bones.size()) {
+                    applyTwoBoneIK(m_leftFoot.upLegId, m_leftFoot.legId, m_leftFoot.footId, invModel,
+                                   {lfw.x, lHoldY, lfw.z}, lActive ? lBlend : m_footIKBlend);
                     animSystem.updateGlobalTransforms(skeleton);
                     invModel = glm::inverse(modelMatrix);
-                    LOG_TRACE_FMT("TerrainIK_post",
-                        "Ltarget=" << lTargetY
-                        << " Lpost=" << footWorldPos(m_leftFoot).y
-                        << " blend=" << lBlend
-                        << " locked=" << m_leftFootLock.active);
+                    m_grounding.lAchieved = footWorldPos(m_leftFoot).y - lfw.y;
                 }
-                if (rActive && m_rightFoot.footId >= 0 &&
-                    m_rightFoot.footId < (int)skeleton.bones.size())
-                {
-                    glm::vec3 fw = footWorldPos(m_rightFoot);
-                    applyTwoBoneIK(m_rightFoot.upLegId, m_rightFoot.legId, m_rightFoot.footId,
-                                   invModel, {fw.x, rTargetY, fw.z}, rBlend);
+                if (holdR && m_rightFoot.footId >= 0 && m_rightFoot.footId < (int)skeleton.bones.size()) {
+                    applyTwoBoneIK(m_rightFoot.upLegId, m_rightFoot.legId, m_rightFoot.footId, invModel,
+                                   {rfw.x, rHoldY, rfw.z}, rActive ? rBlend : m_footIKBlend);
+                    animSystem.updateGlobalTransforms(skeleton);
+                    invModel = glm::inverse(modelMatrix);
+                    m_grounding.rAchieved = footWorldPos(m_rightFoot).y - rfw.y;
                 }
-
+                m_grounding.lHeld = holdL; m_grounding.rHeld = holdR; m_grounding.lHoldY = lHoldY; m_grounding.rHoldY = rHoldY;
+                m_grounding.lCorr = lActive ? (lTargetY - lfw.y) * lBlend : (holdL ? lHoldY - lfw.y : 0.0f);
+                m_grounding.rCorr = rActive ? (rTargetY - rfw.y) * rBlend : (holdR ? rHoldY - rfw.y : 0.0f);
+                m_grounding.pelvisShift = pelvisShift;
                 // Debug viz: cyan cross at each locked foot surface (visible in F5 mode).
                 if (hasViz) {
                     auto drawLockMarker = [&](const FootIKBones& fb, const FootLockState& lock) {
@@ -4982,6 +5595,31 @@ static constexpr float kControllerHeadClearance = 0.05f;
                     drawLockMarker(m_rightFoot, m_rightFootLock);
                 }
             }
+            // Ankle pitch on GENTLE slopes only: the ground under the foot's heel and toe (±0.1 u
+            // along the facing) from two more foot-sized probes; a difference above a microcube
+            // is a riser, and a foot on a riser stays flat on one of its levels. Cap 30°.
+            auto anklePitch = [&](const FootIKBones& fb, bool ok, int slot) {
+                if (!ok || fb.footId < 0 || fb.footId >= (int)skeleton.bones.size()) return;
+                const glm::vec3 fw = footWorldPos(fb);
+                const float yaw = getDrawYaw();
+                const glm::vec3 fwd(std::sin(yaw), 0.0f, std::cos(yaw));
+                const float hToe  = probeAt(fw + fwd * kFootHalfLength);
+                const float hHeel = probeAt(fw - fwd * kFootHalfLength);
+                if (hToe < -1.0e29f || hHeel < -1.0e29f) return;
+                const float dh = hToe - hHeel;
+                if (std::abs(dh) > 1.0f / 9.0f + 1e-3f) return;         // a riser, not a slope
+                const float pitch = glm::clamp(std::atan2(dh, 0.2f), glm::radians(-30.0f), glm::radians(30.0f));
+                if (std::abs(pitch) < 1e-3f) return;
+                // rotate the foot about its side axis (model-space X rotated by nothing: the model
+                // faces +Z, so the side axis is X) in the foot's PARENT space
+                auto& foot = skeleton.bones[fb.footId];
+                const glm::quat parentRot = foot.parentId >= 0 ? glm::quat_cast(skeleton.bones[foot.parentId].globalTransform) : glm::quat(1, 0, 0, 0);
+                const glm::quat deltaModel = glm::angleAxis(-pitch * m_footIKBlend, glm::vec3(1, 0, 0));
+                foot.currentRotation = glm::inverse(parentRot) * deltaModel * parentRot * foot.currentRotation;
+                m_grounding.anklePitchDeg[slot] = glm::degrees(pitch) * m_footIKBlend;
+            };
+            anklePitch(m_leftFoot,  lOk, 0);
+            anklePitch(m_rightFoot, rOk, 1);
         }
 
         animSystem.updateGlobalTransforms(skeleton);
@@ -5240,7 +5878,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
         }
 
         // --- Root bone: draw WHITE marker so it's unambiguously visible ---
-        if (!skeleton.bones.empty() && skeleton.bones[0].parentId == -1) {
+        if (!skeleton.bones.empty() && skeleton.bones[m_skeletonRoot].parentId == -1) {
             glm::vec3 visualOrigin = worldPosition - glm::vec3(0.0f, skeletonFootOffset_, 0.0f);
             glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), visualOrigin);
             modelMatrix = glm::rotate(modelMatrix, getDrawYaw(), glm::vec3(0, 1, 0));
@@ -5252,7 +5890,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
             if (animRot != 0.0f)
                 modelMatrix = glm::rotate(modelMatrix, glm::radians(animRot), glm::vec3(0, 1, 0));
 
-            const Phyxel::Bone& rootBone = skeleton.bones[0];
+            const Phyxel::Bone& rootBone = skeleton.bones[m_skeletonRoot];
             glm::vec3 rootWorld = glm::vec3((modelMatrix * rootBone.globalTransform)[3]);
             const glm::vec3 white{1.0f, 1.0f, 1.0f};
             constexpr float cr = 0.15f;  // cross radius

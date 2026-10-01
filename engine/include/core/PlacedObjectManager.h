@@ -437,6 +437,11 @@ private:
     static std::vector<InteractionPoint> computeInteractionPoints(
         const std::vector<InteractionPointDef>& defs,
         const glm::ivec3& position, int rotation);
+    /// A4 / W1: the same transform anchored at a WORLD-UNIT origin — the template's min corner
+    /// for a micro placement is `microAnchor / 9`, not the floored cube. Cube placements are the
+    /// special case anchorWorld = position (exactly what the cube overload computes).
+    static std::vector<InteractionPoint> computeInteractionPointsAt(
+        const std::vector<InteractionPointDef>& defs, const glm::vec3& anchorWorld, int rotation);
 };
 
 } // namespace Core

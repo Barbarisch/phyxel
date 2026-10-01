@@ -11,6 +11,7 @@
 # bounds:       0.44W x 0.89H x 0.44D m (grounded object_dimensions 'chair_dining')
 # method:       tools/regen_furniture.py (deterministic, canon-proportioned)
 # ==========================================================
+# interaction_point: seat_0 seat 0.2220 0.4440 0.2220 0.0 *
 
 M 0 0 0 0 0 0 0 0 0 WoodWalnut
 M 0 0 0 0 0 1 0 0 0 WoodWalnut

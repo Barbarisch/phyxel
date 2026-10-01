@@ -98,6 +98,15 @@ namespace Phyxel {
         float contactFrame1    = 0.0f;  // normalized time (0-1) when first foot touches step 1
         float contactFrame2    = 0.0f;  // normalized time (0-1) when second foot touches step 2
         std::string clipType;           // "locomotion"|"jump"|"stair"|"combat"|"transition"
+        // A3: composition coordinates from `# clip_meta:` (gait/state/grip/load/condition/mood/
+        // role/mask/additive), normalized lower-case; bool factors as "0"/"1"; absent = any.
+        // Schema: resources/anim/clip_meta_schema.json (graphics/ClipMetaSchema.h).
+        std::map<std::string, std::string> factors;
+        // A3: gait phase markers — normalized time (0-1) when the LEFT / RIGHT foot plants,
+        // written by `anim_lint.py stance --write` from the stance band. -1 = unknown; a
+        // phase-synced transition then falls back to plain cycle-fraction carry-over.
+        float stanceL = -1.0f;
+        float stanceR = -1.0f;
 
         // Foot planting IK knobs — stored as "# clip_meta:" comments in the .anim file.
         // surfaceReach: the foot must be within this many world units of a surface for the
@@ -106,6 +115,7 @@ namespace Phyxel {
         //   Default 0.111 (1 microcube = 1/9). Works for subcube (0.333) and full-cube steps.
         // bodyRange: max pelvis vertical shift to help legs reach the locked foot.
         //   Default 0.111 (1 microcube). Subtle — keeps the body compensation non-jarring.
+        bool  footIKEnabled      = true;   // A5: a clip may opt out of terrain grounding (dodge, hop)
         float footIKSurfaceReach = 0.111f;
         float footIKBodyRange    = 0.111f;
     };

@@ -174,6 +174,40 @@ real generator flora in the same run (docs/evidence/cityforge_m7_walled_city_{to
 **Still TODO:** castle/keep precinct, gatehouse rooms, wall-walk stair access, wall following
 terrain contour rather than a rectangle.
 
+### M8 — `tower_house` typology + a tower that WORKS — SHIPPED 2026-08-28
+The keep form this engine can actually structure, grounded on the Henry VI statute of 1429 (the
+Irish "£10 castles": 6.1 × 4.9 × 12.2 m minimum, stacked single rooms over a vaulted store).
+
+More importantly this is where **TowerForge** came from, after the user called the first corner
+towers "a dumb pile of voxels": they were solid drums with a decorative cone. `planTower`
+(`core/TowerForge.h`, pure) now plans a hollow shaft, a spiral stair whose treads are SUBCUBE
+plates (3 micro — inside the agent's 4-micro step; a full-cube stair is 9 micro and therefore
+scenery), floors to arrive at, a doorway the flight starts beside, and arrow loops. It REFUSES a
+footprint too small to hold wall + stair + room rather than emitting a lookalike, and the build
+reports `towers_walkable` so a solid fallback can never be mistaken for a working tower.
+`TowerForgeTest` walks a `TraversalProbe` from the doorway to the top chamber with a
+stair-removed control; `TownWallPassageTest` then walks the composed case — town ground → tower
+doorway → top chamber — at the live `tower_size: 9`.
+
+**Standing rule this established:** a structure is not done when it looks right from outside. It
+is done when an agent can *use* it, proven by probe with teeth.
+
+### M9 — CASTLE / KEEP PRECINCT — TODO (user-asked twice; next up)
+Not a new building — a **precinct**, and the pieces are already proven: `tower_house` is the keep,
+`planTownWall` is the curtain, `planTower` is the mural tower. What is owed is the composition:
+a bailey/barmkin enclosure with the keep sited inside it, a real **gatehouse** (a room with a
+passage, not the current lintel gap), and wall-walk access (see W6 — the parapet is currently
+decoration on an unreachable surface, proven by `TownWallPassageTest`). Siting: a castle wants
+relief and an edge, not the middle of the burgage grid.
+
+### ⚑ FUNCTIONAL-WIRING BACKLOG — [`docs/FunctionalWiringBacklog.md`](FunctionalWiringBacklog.md)
+The 2026-08-28 audit (prompted by the solid-drum tower) found the same defect shape across the
+pipeline: objects emitted as voxels and never registered with the system that gives them their
+function. That queue is now its own doc, ordered by unlocks-per-effort. **W1 (furniture
+interaction points) + W2 (NPCs entering interiors) are the recommended next work** — together
+they turn every interior already built from scenery into a place. Read it before adding another
+typology: more buildings nobody enters is not progress.
+
 ### Polish backlog (user feedback 2026-08-27, logged in StructurePipelineGaps)
 - ~~Floating foliage~~ — **FIXED 2026-08-27** for settlement builds: `planOrphanedFloraSweep`
   (`core/FloraSweep.h`, pure + probe-driven) finds tree matter that can no longer reach support
@@ -186,8 +220,17 @@ terrain contour rather than a rectangle.
   (docs/evidence/floating_canopy_{before,after}.png). Coverage limits logged in the gaps doc.
 - Terrain: settlement placement should tolerate gentle elevation — flatten locally where a
   building needs it, keep hills elsewhere (today's look is too flat/terraced).
-- Interior point lights BLEED through walls — exterior walls glow at night (engine lighting:
-  no occlusion on placed lights; blocklight phase 2 is the real fix).
+- **Interior point lights BLEED through walls — exterior walls glow at night. USER: "a serious
+  issue" (re-raised 2026-08-28).** Diagnosis is already written down in
+  [`LightingPipeline.md`](LightingPipeline.md): forward point/spot lights "cast no shadows and do
+  no occlusion test — a chandelier lights through walls" (§4, line 215), while the engine ALSO has
+  a correct occlusion-respecting path — the baked per-voxel block-light field, a 6-connected BFS
+  that stops at `m_lightOpaque` and handles cross-chunk bleed with a boundary seed + ripple (§2).
+  Structure-gen fixtures are currently **double-counted** across both (line 220). The doc's own
+  stated resolution: *"move static fixtures into the bake (where the flood fill already respects
+  walls) and reserve forward lights for dynamic sources."* Constraint to design around: the bake is
+  inseparable from a full chunk remesh (~40–50 ms/chunk Debug, no light-only update path), so a
+  flickering source cannot be baked per-frame.
 
 ### Logged follow-ups (docs/StructurePipelineGaps.md)
 - Residents job counter reports 0 while residents spawn (baseline evidence above).

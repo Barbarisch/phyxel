@@ -1,5 +1,5 @@
 {
-  "schema_version": "asset_metrics.v1",
+  "schema_version": "asset_metrics.v2",
   "template_name": "wooden_throne",
   "overall_min": [
     -1.0,

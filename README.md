@@ -47,10 +47,10 @@ furniture, character grounding, and break debris). Bullet Physics has been remov
 Standalone games link only against `phyxel_core` and implement the `GameCallbacks` interface:
 
 ```cpp
-#include "core/GameCallbacks.h"
+#include "core/GameShell.h"
 #include "core/EngineRuntime.h"
 
-class MyGame : public Phyxel::Core::GameCallbacks {
+class MyGame : public Phyxel::Core::GameShell {
     bool onInitialize(Phyxel::Core::EngineRuntime& engine) override;
     void onUpdate(Phyxel::Core::EngineRuntime& engine, float dt) override;
     void onRender(Phyxel::Core::EngineRuntime& engine) override;
@@ -58,7 +58,14 @@ class MyGame : public Phyxel::Core::GameCallbacks {
 };
 ```
 
-Scaffold a new project: `python tools/create_project.py MyGame`.
+Create, build, package, and launch-verify a game in one command:
+
+```powershell
+python tools/produce_game.py MyGame --project-dir path/to/MyGame --definition game.json --output path/to/dist/MyGame
+```
+
+`--definition` is needed only when the project does not exist. Release is the
+default, and a successful run exercises the real standalone executable.
 See [docs/GameCreationGuide.md](docs/GameCreationGuide.md) for the full AI-assisted workflow.
 
 ## Key Features
@@ -100,7 +107,7 @@ git submodule update --init --recursive
 
 Manual build: `cmake -B build -S . && cmake --build build --config Debug`.
 
-Test suites (`-IntegrationOnly` / `-BenchmarkOnly` / `-StressOnly` / `-E2EOnly`): ~2,300 unit, 47 integration, plus benchmark/stress/e2e. See [docs/GoogleTestIntegration.md](docs/GoogleTestIntegration.md).
+Test suites (`-UnitOnly` / `-IntegrationOnly` / `-BenchmarkOnly` / `-StressOnly` / `-E2EOnly`) are discovered from the current build; use `--gtest_list_tests` for an exact count. Live LLM tests are opt-in with `PHYXEL_RUN_LIVE_AI_TESTS=1`. See [docs/GoogleTestIntegration.md](docs/GoogleTestIntegration.md).
 
 ## Controls
 

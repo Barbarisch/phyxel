@@ -80,6 +80,7 @@ BodyPlan BodyPlan::fromJson(const nlohmann::json& j) {
     p.gaitClass  = j.value("gaitClass", "");
     p.rootBone   = j.value("rootBone", "");
     p.gripBone   = j.value("gripBone", "");
+    p.headBone   = j.value("headBone", "");
 
     if (j.contains("hipAliases"))
         for (const auto& a : j["hipAliases"])
@@ -107,8 +108,44 @@ BodyPlan BodyPlan::fromJson(const nlohmann::json& j) {
     }
 
     if (j.contains("clipDefaults"))
-        for (auto it = j["clipDefaults"].begin(); it != j["clipDefaults"].end(); ++it)
-            p.clipDefaults[it.key()] = it.value().get<std::string>();
+        for (auto it = j["clipDefaults"].begin(); it != j["clipDefaults"].end(); ++it) {
+            if (it.value().is_string()) {
+                p.clipDefaults[it.key()] = it.value().get<std::string>();
+            } else if (it.value().is_object()) {          // {"clip": ..., "sprint": ...}
+                p.clipDefaults[it.key()] = it.value().value("clip", std::string());
+                const std::string sprint = it.value().value("sprint", std::string());
+                if (!sprint.empty()) p.clipSprint[it.key()] = sprint;
+            }
+        }
+    if (j.contains("clipFallbacks"))
+        for (auto it = j["clipFallbacks"].begin(); it != j["clipFallbacks"].end(); ++it)
+            p.clipFallbacks[it.key()] = it.value().get<std::string>();
+
+    if (j.contains("spineChain"))
+        for (const auto& b : j["spineChain"]) p.spineChain.push_back(b.get<std::string>());
+
+    if (j.contains("masks"))
+        for (auto it = j["masks"].begin(); it != j["masks"].end(); ++it) {
+            std::vector<std::string> roots;
+            for (const auto& r : it.value()) roots.push_back(r.get<std::string>());
+            p.masks[it.key()] = roots;
+        }
+
+    if (j.contains("transitions")) {
+        const auto& t = j["transitions"];
+        // Clamp at the boundary: a negative or NaN default would break the blend advance
+        // (blendFactor += dt / blend). 0 is a legitimate hard cut.
+        p.defaultBlend = std::max(0.0f, t.value("defaultBlend", 0.2f));
+        if (t.contains("edges"))
+            for (const auto& e : t["edges"]) {
+                TransitionEdge edge;
+                edge.from      = e.value("from", std::string("*"));
+                edge.to        = e.value("to", std::string());
+                edge.blend     = e.contains("blend") ? std::max(0.0f, e.value("blend", 0.0f)) : -1.0f;
+                edge.phaseSync = e.value("phaseSync", false);
+                if (!edge.to.empty()) p.transitions.push_back(edge);
+            }
+    }
 
     if (j.contains("capsule")) {
         const auto& c = j["capsule"];
@@ -119,6 +156,17 @@ BodyPlan BodyPlan::fromJson(const nlohmann::json& j) {
         p.capsule.maxHalfWidth = c.value("maxHalfWidth", 0.60f);
     }
     return p;
+}
+
+const BodyPlan::TransitionEdge* BodyPlan::findTransition(const std::string& from,
+                                                         const std::string& to) const {
+    const TransitionEdge* wildcard = nullptr;
+    for (const auto& e : transitions) {
+        if (e.to != to) continue;
+        if (e.from == from) return &e;          // exact beats wildcard
+        if (e.from == "*" && !wildcard) wildcard = &e;
+    }
+    return wildcard;
 }
 
 BodyPlan BodyPlan::builtinHumanoid() {
@@ -133,6 +181,7 @@ BodyPlan BodyPlan::builtinHumanoid() {
     p.rootBone   = "mixamorig:Hips";
     p.hipAliases = { "hip" };
     p.gripBone   = "RightHand";
+    p.headBone   = "mixamorig:Head";
 
     p.legs = {
         { "left",  "mixamorig:LeftUpLeg",  "mixamorig:LeftLeg",  "mixamorig:LeftFoot",  true },
@@ -154,9 +203,44 @@ BodyPlan BodyPlan::builtinHumanoid() {
         { "mixamorig:RightLeg",     false },
     };
 
-    // INTENTIONALLY EMPTY: humanoid clip selection stays on the legacy FSM
-    // switch (sprint variants, multi-candidate fallbacks live there).
-    p.clipDefaults = {};
+    // A3 item 2: the humanoid clip table, transcribed from the pre-refactor FSM switch
+    // (ClipSelectionTest::kLegacyTable is the independent transcription that pins it).
+    p.clipDefaults = {
+        {"Idle", "idle"},                    {"StartWalk", "start_walking"},
+        {"Walk", "walk"},                    {"Run", "run"},
+        {"Jump", "jump"},                    {"Fall", "jump_down"},
+        {"Land", "landing"},                 {"Crouch", "standing_to_crouched"},
+        {"CrouchIdle", "crouch_idle"},       {"CrouchWalk", "crouched_walking"},
+        {"StandUp", "crouch_to_stand"},      {"KnockedOut", "ko_lay"},
+        {"GetUp", "get_up"},                 {"TurnLeft", "left_turn"},
+        {"TurnRight", "right_turn"},         {"StrafeLeft", "left_strafe_walk"},
+        {"StrafeRight", "right_strafe_walk"},{"WalkStrafeLeft", "left_strafe_walk"},
+        {"WalkStrafeRight", "right_strafe_walk"}, {"BackwardWalk", "walking_backward"},
+        {"StopWalk", "female_stop_walking"}, {"StopRun", "run_to_stop"},
+        {"ClimbStairs", "stair_up"},         {"DescendStairs", "stair_down"},
+        {"SitDown", "stand_to_sit"},         {"SittingIdle", "sitting_idle"},
+        {"SitStandUp", "sit_to_stand"},      {"Preview", ""},
+    };
+    p.clipSprint = {
+        {"Run", "fast_run"},
+        {"StrafeLeft", "left_strafe"},       {"StrafeRight", "right_strafe"},
+        {"WalkStrafeLeft", "left_strafe"},   {"WalkStrafeRight", "right_strafe"},
+    };
+    p.clipFallbacks = {
+        {"Block", "body_block"}, {"Dodge", "roll_forward"}, {"HitReact", "idle"},
+        {"Death", "idle"},       {"Celebrate", "taunt"},    {"Cast", "idle"},
+    };
+    p.spineChain = { "mixamorig:Spine", "mixamorig:Spine1", "mixamorig:Spine2" };   // A3 lean chain
+
+    // A3 transition graph (mirror of humanoid.json "transitions").
+    p.defaultBlend = 0.2f;
+    p.transitions = {
+        {"Walk", "Run",      0.25f, true},  {"Run",  "Walk",     0.25f, true},
+        {"Idle", "Walk",     0.15f, false}, {"Walk", "Idle",     0.20f, false},
+        {"*",    "HitReact", 0.08f, false}, {"*",    "Attack",   0.10f, false},
+        {"*",    "Dodge",    0.08f, false}, {"*",    "Death",    0.15f, false},
+        {"*",    "Jump",     0.10f, false},
+    };
 
     p.capsule.mode = Capsule::Mode::Legacy;
     p.capsule.minHalfWidth = 0.12f;

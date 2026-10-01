@@ -36,7 +36,7 @@ ctest --output-on-failure
 tests/
 ├── ai/                  # AI/LLM integration tests
 │   ├── AIConversationServiceTest.cpp
-│   ├── AIEndToEndTest.cpp       # Live LLM tests (skipped without API key)
+│   ├── AIEndToEndTest.cpp       # Live LLM tests (explicitly opt-in)
 │   ├── ContextManagerTest.cpp
 │   ├── ConversationMemoryTest.cpp
 │   └── LLMClientTest.cpp
@@ -99,23 +99,15 @@ EXPECT_STREQ(str1, str2);
 
 ## Current Test Coverage
 
-### ✅ Tested Components
+The suite is broad and changes frequently; the source tree and discovered GoogleTest list are
+authoritative. Do not maintain hand-written test counts here. Coverage includes core voxel/chunk
+operations, raycasting, rendering data preparation, physics, scene/character behavior, story,
+UI, structure generation, and utilities. Integration, benchmark, stress, and application E2E
+targets are separate from `phyxel_tests`.
 
-- **CoordinateUtils** (19 tests)
-  - World → Chunk coordinate conversion
-  - World → Local coordinate conversion
-  - Chunk → World origin conversion
-  - Local + Chunk → World conversion
-  - Validation functions
-  - Round-trip conversions
-
-### 🔲 Not Yet Tested
-
-- ChunkVoxelQuerySystem
-- VoxelRaycaster (DDA algorithm)
-- ChunkVoxelManager (hash map operations)
-- Subsystem callback patterns
-- Physics integration
+`AIEndToEndTest.cpp` is compiled into the unit binary but performs real network calls only when
+both `PHYXEL_RUN_LIVE_AI_TESTS=1` and `PHYXEL_AI_API_KEY` are set. This prevents ambient developer
+credentials from making ordinary unit runs non-hermetic or billable.
 
 ## Adding Tests for Your Code
 

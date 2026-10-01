@@ -583,13 +583,13 @@ Requirements: `pip install mcp httpx`. Engine must be running.
 ### Game Project Scaffolding & Packaging
 
 ```bash
-python tools/create_project.py MyGame --game-definition game.json   # scaffold
-python tools/package_game.py MyGame --project-dir path/to/MyGame    # package
+python tools/produce_game.py MyGame --project-dir path/to/MyGame --definition game.json --output path/to/dist/MyGame
 ```
 
-- Projects link against `phyxel_core`, no Python/MCP/dev tools in output
-- World terrain pre-baked in `worlds/default.db`; NPCs/story loaded from `game.json` at runtime
-- Output: `Documents/PhyxelProjects/<GameName>/` (self-contained)
+- `--definition` is only required to scaffold a project that does not exist yet
+- The command builds Release, packages, launches, and validates the actual standalone
+- Projects link against `phyxel_core`; packages include its Python runtime DLL but no MCP/dev server
+- A pre-baked `worlds/default.db` is used when present; otherwise `game.json` generates the world
 - See `docs/GameCreationGuide.md` for full workflow
 
 **Standalone test API (`--test`):** a packaged game can optionally host the HTTP API so an automated
@@ -623,7 +623,7 @@ docs/            # Documentation
 
 **Core:** ChunkManager (32³ chunks, Vulkan buffers, face culling), ChunkStreamingManager (SQLite persistence), WorldGenerator, SceneManager (multi-scene transitions), EntityRegistry (O(1) lookup), EngineAPIServer (HTTP port 8090; hosted by the editor, and — via `GameApiService`/`GameShell` behind `--test` — optionally by a standalone game), ScriptingSystem (pybind11), PhysicsWorld (thin wrapper over the custom CPU `VoxelDynamicsWorld` — Bullet removed), RenderPipeline/RenderCoordinator (Vulkan instanced)
 
-**Gameplay:** HealthComponent, RespawnSystem, CombatSystem (sphere+cone hit detection), EquipmentSystem (6 slots), CraftingSystem, DayNightCycle, HazardSystem, AchievementSystem, MusicPlaylist, PlayerProfile, ObjectiveTracker
+**Gameplay:** HealthComponent, RespawnSystem, CombatSystem (sphere+cone hit detection), EquipmentSystem (6 slots), DayNightCycle, HazardSystem, AchievementSystem, MusicPlaylist, PlayerProfile, ObjectiveTracker
 
 **NPC/AI:** NPCManager, NavGrid + AStarPathfinder, DialogueSystem, StoryEngine, AIConversationService (Claude/OpenAI/Ollama), BehaviorTree/UtilityAI
 

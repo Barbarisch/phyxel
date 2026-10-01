@@ -5,6 +5,9 @@
 #include "scene/CharacterSkeleton.h"
 #include "scene/motion/MotionSource.h"
 #include "scene/motion/HumanoidRetargeter.h"
+#include "scene/motion/MotionOracle.h"
+#include <array>
+#include <deque>
 #include "scene/VoxelContactProbe.h"
 #include "graphics/AnimationSystem.h"
 #include "physics/PhysicsWorld.h"
@@ -15,6 +18,8 @@
 #include <optional>
 #include <memory>
 #include <unordered_set>
+#include <set>
+#include "graphics/ClipMetaSchema.h"
 #include <cmath>
 #include <functional>
 
@@ -181,12 +186,26 @@ namespace Scene {
         /// Humanoid resolution is pinned state-by-state to the pre-refactor
         /// switch in ClipSelectionTest.
         std::string clipForState(AnimatedCharacterState state, bool isSprinting) const;
+        /// A3 item 2: how many clipForState() calls fell through to the legacy humanoid switch
+        /// (layer 3). Zero on a plan-complete rig — the plan carries the table; the switch is
+        /// only the guard for a plan that resolves nothing. Pinned by ClipSelectionTest.
+        int legacyClipFallbackHits() const { return m_legacyClipFallbackHits; }
 
         // Animation state queries
         AnimatedCharacterState getAnimationState() const { return currentState; }
         std::string getCurrentClipName() const;
         float getAnimationProgress() const;
         float getAnimationDuration() const;
+        // A3 transition-graph readbacks (tests + /api/animation/state).
+        int   getCurrentClipIndex() const { return currentClipIndex; }
+        float getAnimTime() const { return animTime; }
+        float getPhaseJitter() const { return m_phaseJitter; }
+        float getPlaybackRateForTest() const { return m_playbackSpeed * m_externalRateScale; }
+        /// Crossfade seconds of the transition in flight (the plan edge's, else the default).
+        float activeBlendDuration() const { return m_activeBlendDuration; }
+        bool  isCrossfading() const { return isBlending; }
+        /// FSM state that selected the current clip (the `from` of the next edge lookup).
+        AnimatedCharacterState clipOwnerState() const { return m_clipOwnerState; }
         float getYaw() const { return currentYaw; }
         /// Drawn yaw = logical facing + the run-strafe lean (G-118).
         float getDrawYaw() const { return currentYaw + m_strafeLean; }
@@ -218,6 +237,128 @@ namespace Scene {
         /// there was simply no phase variance.
         void setPhaseJitterSeed(float seed01) { m_phaseJitter = wrapPhase(seed01); }
         float phaseJitter() const { return m_phaseJitter; }
+        /// Start time for a clip entered by ANY path: cyclic clips (what the FSM's looping
+        /// states resolve to on THIS rig) start at `phase01 * duration`, one-shots at 0
+        /// (A0 #4 — one definition, three callers; A2 — no clip-name literals).
+        float loopStartTime(const Phyxel::AnimationClip& clip, float phase01) const;
+        /// Case-insensitive clip lookup by exact name; -1 when absent.
+        int findClipIndexCI(const std::string& name) const;
+
+        // ---- A3 composition: factors → masked / additive pose layers over the base ----
+        /// One composed layer in flight. `mask` is per-bone (index = bone id), the root is
+        /// never masked; additive layers apply the delta from the layer clip's own frame 0.
+        struct PoseLayer {
+            int clipIndex = -1;
+            float time = 0.0f;              // layer clip time, clamps at duration (a pose holds)
+            float weight = 0.0f;            // eased toward targetWeight (0.2 s)
+            float targetWeight = 1.0f;      // 0 = fading out, dropped at 0
+            bool additive = true;
+            std::string maskName;
+            std::vector<uint8_t> mask;
+        };
+        /// The character's factor coordinates (grip / load / condition / mood; `state` is
+        /// filled from the FSM). Changing them re-selects the matching `role=layer` clips.
+        void setCompositionFactors(const Phyxel::ClipMeta::Factors& f);
+        const Phyxel::ClipMeta::Factors& compositionFactors() const { return m_factors; }
+        const std::vector<PoseLayer>& activeLayers() const { return m_layers; }
+        /// Bone ids in a named mask ("upper" | "arms" | "head" | "legs"), sorted; empty if unknown.
+        std::vector<int> maskBones(const std::string& name) const;
+        /// Resolved plan spine chain (root side first) the posture lean is distributed across.
+        const std::vector<int>& spineChain() const { return m_spineChain; }
+        /// Resolved plan headBone (-1 when the plan declares none).
+        int headBoneId() const { return m_headBoneId; }
+        /// A3 procedural modifiers (parameter TABLE, not clips — docs/AnimationSystemV3Plan.md §3b):
+        /// extra forward lean in degrees from load + condition, and the cadence factor that scales
+        /// locomotion playback AND the input-path move speed together (feet stay planted).
+        float factorLeanDeg() const;
+        float cadenceFactor() const;
+        /// Cadence is a GAIT property: it scales the locomotion states only (idle breathing,
+        /// attacks, casts and sits play at their authored rate whatever the load).
+        bool  cadenceApplies() const;
+
+        // ---- A3 off-hand pin (two-handed carry, L3) -------------------------------------
+        /// Pin the OFF-hand (the arm chain that does not end in the grip bone) to a world point
+        /// — the held item's second grip — with the plan's 2-bone arm chain. Eases in/out over
+        /// 0.15 s; the target is refreshed every frame by the item's follow code.
+        void setOffHandTarget(const glm::vec3& worldPoint);
+        void clearOffHandTarget();
+        bool  offHandPinActive() const { return m_offHandActive; }
+        /// World distance hand → target after the solve (readback / grip-distance check).
+        float offHandError() const { return m_offHandError; }
+        /// Resolved off-hand chain ids {upper, mid, hand}; -1 when the plan has no second arm.
+        std::array<int, 3> offHandChain() const { return m_offHandChain; }
+
+        // ---- A4 seated solve (docs/AnimationSystemV3Plan.md §4 A4) -------------------------
+        /// Seat affordances in WORLD space for the seat the character sits on: backrest lean and
+        /// the armrest hand-rest points. Set by the sit command after sitAt(); cleared on stand.
+        void setSeatAffordances(float backrestAngleDeg, const std::vector<glm::vec3>& armrestWorldPoints);
+        struct SeatSolveState {
+            float weight = 0.0f;              // 0..1 ramp: SitDown in, SittingIdle 1, SitStandUp out
+            float pelvisError = 0.0f;         // world u, hips joint vs seat target after the solve
+            float feetFloorError[2] = {0.0f, 0.0f};   // world u per leg (ankle target vs achieved)
+            float leanDeg = 0.0f;             // torso lean applied this frame
+            int   armrestContacts = 0;        // hands pinned to armrests this frame
+            float thighAngleDeg = 0.0f;       // first leg, hip->knee vs horizontal (+ = knee above hip)
+        };
+        const SeatSolveState& seatSolve() const { return m_seatSolve; }
+        /// Hips joint sits this far above the seat surface when seated (pelvis thickness).
+        static constexpr float kHipsAboveSeat = 0.05f;
+        static constexpr float kMaxBackrestLeanDeg = 35.0f;
+        /// A3: ONE clip-switch entry for playAnimation() and the FSM/NPC switch. Looks up the
+        /// plan edge (state owning the current clip -> `toState`) for blend seconds and phase
+        /// sync, seeds the start time (gait-phase-synced via stanceL markers, else the
+        /// character's own phase), and primes root-motion tracking so the delta keeps
+        /// flowing through the crossfade.
+        void beginClipTransition(int newClipIndex, AnimatedCharacterState toState);
+        /// Start time in `to` that matches the gait phase of `from` at `fromTime`: both clips
+        /// carrying stanceL → phase measured from the left plant; else plain cycle fraction.
+        float phaseSyncedStartTime(const Phyxel::AnimationClip& from, float fromTime,
+                                   const Phyxel::AnimationClip& to) const;
+        /// Skeleton root (parentId == -1): owns root motion / warp / anchored playback.
+        int skeletonRootIndex() const { return m_skeletonRoot; }
+        /// The body plan this rig adopted at load (A2 L4 readback: `get_animation_state.plan`).
+        const Scene::BodyPlan& bodyPlan() const { return m_bodyPlan; }
+        const Scene::BodyPlan::Resolved& bodyPlanResolved() const { return m_bodyPlanResolved; }
+        /// Trunk bones (plan root + non-arm, non-leg plan segments): thicker default boxes,
+        /// the "spine" child preference in the box builder.
+        bool isTrunkBone(int boneId) const { return m_trunkBones.count(boneId) != 0; }
+
+        // --- A1 live MotionOracle capture (docs/AnimationSystemV3Plan.md §4 A1) ---
+        // A per-character ring buffer of full-skeleton frames filled on the MAIN
+        // thread at the end of update() while armed; drained by /api/animation/validate.
+        // Arming never waits across frames (queued API commands run on the game loop).
+        static constexpr std::size_t kOracleMaxFrames = 1800;  // 30 s @ 60 Hz / 6.7 s @ 270 Hz per character
+        /// Arm the capture. Recording stops once BOTH `frames` frames and `minSeconds` of frame
+        /// time have been captured (hard cap kOracleMaxFrames). The time floor exists because a
+        /// frame count is not a duration: 90 frames at 270 fps is a third of a second — shorter
+        /// than one stride — and the stance band then reads swing feet as planted (live
+        /// 2026-09-29: 80 % "skate" that a 3 s window measured at 4.6 %). Returns the armed count.
+        std::size_t startOracleRecording(std::size_t frames, float minSeconds = 0.0f);
+        float       oracleWindowSeconds() const { return m_oracleElapsed; }
+        void        stopOracleRecording() { m_oracleRecording = false; }
+        bool        isOracleRecording() const { return m_oracleRecording; }
+        std::size_t oracleFrameCount() const { return m_oracleFrames.size(); }
+        float       oracleSecondsPerFrame() const { return m_oracleDt; }
+        std::vector<Motion::OracleFrame> takeOracleFrames();    // moves the buffer out, disarms
+        std::vector<std::size_t> oracleFootJoints() const;      // feet by name (shared rule with anim_lint)
+        std::vector<std::array<std::size_t, 3>> oracleLegChains() const;   // (hip, knee, foot)
+        /// Segment-box index pairs (into getBoneAABBs() order) whose bones are within two
+        /// parent hops — allowed to overlap at the joint.
+        std::vector<std::pair<std::size_t, std::size_t>> oracleBoxAdjacency() const;
+        /// Ground height under (x, z) from the character's own voxel-world query, searched
+        /// from one unit above the capsule; -FLT_MAX when no world / no ground.
+        float groundYUnder(float x, float z) const;
+        /// Same query with a FOOT-sized column (kFootProbeHalfWidth) instead of the capsule's:
+        /// the capsule column reads the neighbouring higher cell up to a quarter unit early
+        /// (A4 chair rail, A5 gate item 1). Use this for anything judged per foot.
+        float groundYUnderPoint(float x, float z) const;
+        static constexpr float kFootProbeHalfWidth = 0.05f;
+        /// Half the sole's length along the facing: the ground under a foot is the MEDIAN surface
+        /// under heel, ankle and toe (two of three on a level = the foot rests on that level).
+        static constexpr float kFootHalfLength = 0.10f;
+        /// Height of the plan's foot joint above the sole in the BIND pose (model units = world
+        /// units): what "the foot is on the ground" means for this rig's ankle joint.
+        float standingAnkleHeight() const;
 
         /// Wrap any float into [0,1). Static and free of character state so the
         /// contract is testable without a physics world and a loaded rig.
@@ -626,6 +767,38 @@ namespace Scene {
     public:
         void setFootIKEnabled(bool enabled) { m_footIKEnabled = enabled; m_footIKBlend = 0.0f; }
         bool isFootIKEnabled() const { return m_footIKEnabled; }
+
+        // ---- A5 grounding (docs/AnimationSystemV3Plan.md §4 A5) ----
+        /// Per-frame readback of the terrain foot solve (world units / degrees). All zero when the
+        /// solve did not run (IK off, airborne, sitting, no world).
+        struct GroundingState {
+            bool  enabled = false;
+            float blend = 0.0f;
+            float lCorr = 0.0f, rCorr = 0.0f;       // applied foot corrections (+ up), world u
+            float pelvisShift = 0.0f;                // applied hip shift, world u (+ up)
+            bool  lLock = false, rLock = false;
+            bool  probeOk[2] = {false, false};       // a failed probe = a skipped correction
+            float anklePitchDeg[2] = {0.0f, 0.0f};
+            // diagnostics: what the probes saw and whether each foot was judged swinging
+            float lSurf = 0.0f, rSurf = 0.0f, bodySurf = 0.0f;
+            bool  lSwing = false, rSwing = false;
+            bool  terrainBranch = false;             // false = the step-up (spring-lag) branch ran
+            glm::vec3 lProbe{0.0f};                  // where the left foot was probed (world)
+            bool  lContact = false, rContact = false, lHeld = false, rHeld = false;
+            float hipsBeforeY = 0.0f, hipsAfterY = 0.0f;    // hips joint world Y around the pelvis shift
+            float lAchieved = 0.0f, rAchieved = 0.0f;        // foot world dY actually produced by the IK
+            float lToePre = 0.0f, rToePre = 0.0f, lHoldY = 0.0f, rHoldY = 0.0f, lAnkleY = 0.0f, rAnkleY = 0.0f;
+            float lSurfAnkle = 0.0f, lSurfToe = 0.0f, lSurfHeel = 0.0f;
+        };
+        const GroundingState& grounding() const { return m_grounding; }
+        /// Knobs (see POST /api/debug/foot_ik). Negative = unchanged. Clamped at the site:
+        /// maxCorr <= step height (a longer reach plants a foot on a surface the capsule would
+        /// not have climbed); probe half-width in [0.02, 0.15] (wider reads the neighbour cell);
+        /// bodyRange <= 0.4 * leg length (deeper folds the knee through the thigh).
+        void setGroundingKnobs(float maxCorrU, float probeHalfWidthU, float bodyRangeU);
+        float groundingMaxCorr() const { return m_ikMaxFootCorr; }
+        float groundingProbeHalfWidth() const { return m_ikProbeHalfWidth; }
+        float groundingBodyRange() const { return m_ikBodyRange; }
         void resetFootLocks(); // clear all foot lock state — call before starting a new stair test
 
     protected:
@@ -644,16 +817,18 @@ namespace Scene {
         struct FootIKBones {
             int upLegId = -1;
             int legId   = -1;
-            int footId  = -1;
+            int footId  = -1;   // the ankle joint
+            int toeId   = -1;   // first child of the foot (ToeBase): the sole's front contact point
         };
         FootIKBones m_leftFoot;
         FootIKBones m_rightFoot;
         int   m_ikHipBoneId      = -1;    // pelvis/hip bone for body adjustment during IK
-        // Foot IK (per-frame terrain foot-planting) is OPT-IN: it costs ~360us/char/frame and
-        // is a no-op on flat ground / for idle+walking characters where the authored clip already
-        // has feet at floor level. Enable via setFootIKEnabled(true) for characters traversing
-        // stairs / uneven voxel terrain that need adaptive foot placement.
-        bool  m_footIKEnabled    = false;
+        // Foot IK (per-frame terrain foot-planting) is ON by default since A5 (2026-09-30): the
+        // "~360 us/char/frame" of the old comment was never measured; measured on Release with 100
+        // walking NPCs the ON-OFF delta is +0.035 ms/frame for all of them (0.4 us/char, inside
+        // the A-B-A noise) because the flat-ground noise floor skips the solve. Clips opt out with
+        // clip_meta footIKEnabled=0; POST /api/debug/foot_ik toggles it per character.
+        bool  m_footIKEnabled    = true;
         bool  m_footIKCacheReady = false;
         float m_footIKBlend      = 0.0f;  // 0=off, 1=fully applied (ramped each frame)
 
@@ -667,6 +842,14 @@ namespace Scene {
         };
         FootLockState m_leftFootLock;
         FootLockState m_rightFootLock;
+        // A5 terrain-follow knobs + readback
+        float m_ikMaxFootCorr    = 4.0f / 9.0f + 0.05f;   // legacy k_maxFootCorr
+        float m_ikProbeHalfWidth = kFootProbeHalfWidth;
+        float m_ikBodyRange      = 0.25f;                 // derived from the plan legs in resolveFootBoneIds
+        float m_ikLegLength      = 0.9f;
+        float m_ikAnkleFlat      = 0.11f;                 // ankle height above the sole, flat foot (bind pose)
+        glm::vec3 m_prevLeftToeWorld{0.0f}, m_prevRightToeWorld{0.0f};   // pre-IK toe positions, last frame
+        GroundingState m_grounding;
         int   m_ikClipIndex    = -1;    // tracks clip changes to reset foot locks
         float m_ikPrevAnimTime = 0.0f;  // tracks animation time for loop-wrap detection
 
@@ -990,6 +1173,54 @@ namespace Scene {
 
         bool m_kinFrozen = false;             // suppresses gravity + ground snap (anim editor use)
         float m_playbackSpeed      = 1.0f;   // animation time multiplier (editor slow-mo)
+        // A0 #5: external-velocity (behaviour-driven) movement scales playback to
+        // bodySpeed / clip.Speed so stance feet stay planted; 1.0 on every other path.
+        float m_externalRateScale  = 1.0f;
+
+        // A3 item 2: legacy-switch fall-through counter (see legacyClipFallbackHits).
+        mutable int m_legacyClipFallbackHits = 0;
+        // A3 transition graph: the blend seconds of the switch in flight, and the FSM state
+        // that owns the current clip (the `from` of the next edge lookup).
+        float m_activeBlendDuration = 0.2f;
+        AnimatedCharacterState m_clipOwnerState = AnimatedCharacterState::Idle;
+        // A3 composition (see setCompositionFactors / applyPoseLayers).
+        Phyxel::ClipMeta::Factors m_factors;
+        std::vector<PoseLayer> m_layers;
+        std::map<std::string, std::vector<uint8_t>> m_masks;   // name -> per-bone membership
+        std::vector<int> m_spineChain;                          // plan spineChain resolved to ids
+        int m_headBoneId = -1;                                  // plan headBone resolved
+        // A3 off-hand pin state (see setOffHandTarget / applyOffHandPin).
+        std::array<int, 3> m_offHandChain{-1, -1, -1};
+        // A4 seated solve state (see applySeatSolve).
+        SeatSolveState m_seatSolve;
+        float m_seatBackrestLeanDeg = 0.0f;
+        std::vector<glm::vec3> m_seatArmrestPoints;   // world
+        float m_seatFloorY = 0.0f;                    // floor under the feet when the sit began
+        float m_seatAnkleHeight = 0.08f;              // ankle joint height above the sole (standing)
+        void applySeatSolve(float deltaTime);          // after global transforms, before render
+        glm::vec3 m_offHandTarget{0.0f};
+        bool  m_offHandActive = false;
+        float m_offHandBlend  = 0.0f;
+        float m_offHandError  = 0.0f;
+        void resolveOffHandChain();                             // in adoptBodyPlan
+        void applyOffHandPin(float deltaTime);                  // after global transforms
+        void resolvePoseMasks();                                // from the plan, in adoptBodyPlan
+        void refreshPoseLayers();                               // re-select layers for state+factors
+        void applyPoseLayers(float deltaTime);                  // compose over the evaluated base
+        // A2: the two roots, named (see adoptBodyPlan).
+        int m_skeletonRoot = 0;
+        std::set<int> m_trunkBones;
+
+        // A1 oracle ring buffer (see startOracleRecording).
+        void captureOracleFrame(const glm::mat4& modelMatrix, float dt);
+        bool        m_oracleRecording    = false;
+        bool        m_oracleHavePrev     = false;
+        std::size_t m_oracleFramesWanted = 0;
+        float       m_oracleMinSeconds   = 0.0f;   // time floor for the window (see startOracleRecording)
+        float       m_oracleElapsed      = 0.0f;   // Σ dt of the captured frames
+        float       m_oracleDt           = 1.0f / 60.0f;
+        glm::vec3   m_oraclePrevWorldPos{0.0f};
+        std::deque<Motion::OracleFrame> m_oracleFrames;
         bool  m_animPaused         = false;   // freeze animTime tick (editor scrubbing)
         bool  m_warpPreviewActive  = false;
         float m_warpPreviewExtraY  = 0.0f;   // spatial: root bone Y offset at t=0

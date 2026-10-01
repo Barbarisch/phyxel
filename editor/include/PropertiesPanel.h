@@ -3,6 +3,7 @@
 #include <string>
 #include <functional>
 #include <glm/glm.hpp>
+#include <nlohmann/json.hpp>
 #include "core/SceneManager.h"
 
 namespace Phyxel {
@@ -85,6 +86,26 @@ private:
 
     SelectionType m_selType = SelectionType::None;
     std::string   m_selId;
+
+    // --- Clip review (generated-clip verdicts; docs/UniMateIntegrationPlan.md M1b) ---
+    // The ledger is the single source of truth for what a generated clip may become:
+    // the importer creates `pending` entries, this panel records the human verdict,
+    // tools/anim_pipeline/unimate_promote.py applies it. Fixed path by design (the engine
+    // keeps no .anim header comments and exposes no anim-path accessor).
+    void renderClipReview(Scene::AnimatedVoxelCharacter* ch);
+    void loadReviewLedger();
+    bool saveReviewLedger();
+    void setReviewVerdict(const std::string& clip, const char* verdict);
+
+    static constexpr const char* kReviewLedgerPath =
+        "resources/animated_characters/unimate_review.json";
+    char           m_clipFilter[64] = "unimate_";
+    int            m_reviewIndex = -1;          // index into the filtered clip list
+    std::string    m_reviewNoteClip;            // clip the note buffer belongs to
+    char           m_reviewNote[512] = "";
+    nlohmann::json m_reviewLedger;
+    bool           m_reviewLedgerLoaded = false;
+    std::string    m_reviewLedgerStatus;
 };
 
 } // namespace Phyxel::Editor

@@ -1,5 +1,5 @@
 {
-  "schema_version": "asset_metrics.v1",
+  "schema_version": "asset_metrics.v2",
   "template_name": "tool_rack",
   "overall_min": [
     0.0,
@@ -8,7 +8,7 @@
   ],
   "overall_max": [
     1.0,
-    0.6666666666666666,
+    0.6666666666666667,
     0.2222222222222222
   ],
   "interaction_points": []

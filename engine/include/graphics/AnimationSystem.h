@@ -16,6 +16,12 @@ namespace Phyxel {
         // of a ~5s disk parse. Safe to call from a background thread; pass the
         // exact path string that spawns will use so the cache key matches.
         static void prewarm(const std::string& filePath);
+
+        // Drop one file (or all, with an empty path) from the parse cache so the
+        // next loadFromFile re-reads the disk. Hot reload without this served the
+        // STALE keyframes and only refreshed clip_meta (A0 #7,
+        // docs/AnimationSystemV3Plan.md §1.3).
+        static void invalidateCache(const std::string& filePath = "");
         
         // Update a skeleton's pose based on an animation and time
         // loop: whether to loop the animation
@@ -31,6 +37,13 @@ namespace Phyxel {
         // Calculate global transforms for all bones in the skeleton
         // This should be called after updateAnimation
         void updateGlobalTransforms(Skeleton& skeleton);
+
+        /// A3: the animated LOCAL position of one bone in `clip` at `time` (looped like
+        /// updateAnimation), or `fallback` when the clip has no position channel for it. Lets
+        /// root-motion extraction read the CURRENT clip's own root while the skeleton holds a
+        /// blended pose — root motion used to pause for the whole crossfade.
+        glm::vec3 sampleBonePosition(const AnimationClip& clip, int boneId, float time, bool loop,
+                                     const glm::vec3& fallback);
 
     private:
         // Helper for interpolation

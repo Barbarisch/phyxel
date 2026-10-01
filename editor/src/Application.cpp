@@ -36,6 +36,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "utils/GpuProfiler.h"
 #include "scene/VoxelInteractionSystem.h"
 #include "scene/AnimatedVoxelCharacter.h"
+#include "scene/SeatFit.h"
 #include "scene/motion/MotionBricksSystem.h"
 #include "scene/AppearancePresetRegistry.h"
 #include "graphics/AnimationSystem.h"
@@ -9468,117 +9469,12 @@ namespace {
 
 namespace fs = std::filesystem;
 
-/// Minimal character metric scalars needed by current compatibility rules.
-/// Mirrors the fields produced by `compute_character_metrics`. Values are in
-/// metres in the character's world-space at the current bind pose.
-struct CharScalarMetrics {
-    float total_height = 0.0f;
-    float hip_height   = 0.0f;
-    float eye_height   = 0.0f;
-    float leg_length   = 0.0f;
-    float arm_reach    = 0.0f;
-    float shoulder_width = 0.0f;
-    float hip_width    = 0.0f;
-    float body_depth   = 0.0f;
-    float sitting_height = 0.0f;
-};
+/// A4 step 1: the character metrics and the seat-fit rules are ENGINE code now
+/// (scene/SeatFit.h); the editor keeps these thin aliases so the API handlers read the same.
+using CharScalarMetrics = Phyxel::Scene::SeatFit::CharacterFitMetrics;
 
-/// Suffix-match a bone name against candidates, treating ':' as a namespace
-/// separator (so "mixamorig:Hips" matches the candidate "Hips").
-static const Phyxel::Scene::AnimatedVoxelCharacter::BoneAABB*
-findAABB(const std::vector<Phyxel::Scene::AnimatedVoxelCharacter::BoneAABB>& v,
-         const std::vector<std::string>& candidates)
-{
-    for (const auto& cand : candidates) {
-        for (const auto& b : v) {
-            const auto& nm = b.boneName;
-            if (nm == cand
-                || (nm.size() > cand.size()
-                    && nm.compare(nm.size() - cand.size(), cand.size(), cand) == 0
-                    && (nm.size() == cand.size() || nm[nm.size() - cand.size() - 1] == ':'))) {
-                return &b;
-            }
-        }
-    }
-    return nullptr;
-}
-
-/// Compute the scalar metrics used by interaction compatibility rules.
-/// Same approach as the `compute_character_metrics` handler but returns the
-/// minimal struct used by the gate (no per-bone breakdown).
 static CharScalarMetrics computeCharScalarMetrics(Phyxel::Scene::AnimatedVoxelCharacter* ch) {
-    CharScalarMetrics m;
-    if (!ch) return m;
-
-    auto liveAABBs = ch->getBoneAABBs();
-    auto sitAABBs  = ch->sampleBoneAABBsAtTime("sitting_idle", 0.5f, glm::vec3(0.0f));
-
-    float yMin =  std::numeric_limits<float>::infinity();
-    float yMax = -std::numeric_limits<float>::infinity();
-    for (const auto& b : liveAABBs) {
-        yMin = std::min(yMin, b.center.y - b.halfExtents.y);
-        yMax = std::max(yMax, b.center.y + b.halfExtents.y);
-    }
-    m.total_height = (std::isfinite(yMin) && std::isfinite(yMax)) ? (yMax - yMin) : 0.0f;
-
-    const auto* hips  = findAABB(liveAABBs, {"Hips", "Pelvis", "mixamorig:Hips"});
-    const auto* head  = findAABB(liveAABBs, {"Head", "mixamorig:Head"});
-    const auto* lSh   = findAABB(liveAABBs, {"LeftArm", "LeftShoulder", "mixamorig:LeftArm"});
-    const auto* rSh   = findAABB(liveAABBs, {"RightArm", "RightShoulder", "mixamorig:RightArm"});
-    const auto* lUp   = findAABB(liveAABBs, {"LeftUpLeg", "mixamorig:LeftUpLeg"});
-    const auto* rUp   = findAABB(liveAABBs, {"RightUpLeg", "mixamorig:RightUpLeg"});
-    const auto* lFt   = findAABB(liveAABBs, {"LeftFoot", "mixamorig:LeftFoot"});
-    const auto* lLg   = findAABB(liveAABBs, {"LeftLeg", "mixamorig:LeftLeg"});
-    const auto* spine = findAABB(liveAABBs, {"Spine2", "Spine1", "Spine", "mixamorig:Spine2"});
-
-    m.hip_height      = hips ? hips->center.y - yMin : 0.0f;
-    m.eye_height      = head ? head->center.y - yMin : 0.0f;
-    m.shoulder_width  = (lSh && rSh) ? glm::distance(lSh->center, rSh->center) : 0.0f;
-    m.hip_width       = (lUp && rUp) ? glm::distance(lUp->center, rUp->center) : 0.0f;
-    m.body_depth      = spine ? spine->halfExtents.z * 2.0f : 0.0f;
-    if (hips && lFt)      m.leg_length = hips->center.y - (lFt->center.y - lFt->halfExtents.y);
-    else if (hips && lLg) m.leg_length = hips->center.y - (lLg->center.y - lLg->halfExtents.y);
-    else                  m.leg_length = m.hip_height;
-
-    // Arm reach via bind-pose chain length Hand->Shoulder.
-    const auto& skel = ch->getSkeleton();
-    auto findBoneId = [&](std::initializer_list<const char*> names) -> int {
-        for (const auto* cand : names) {
-            std::string c(cand);
-            for (const auto& kv : skel.boneMap) {
-                const auto& nm = kv.first;
-                if (nm == c
-                    || (nm.size() > c.size()
-                        && nm.compare(nm.size() - c.size(), c.size(), c) == 0
-                        && (nm.size() == c.size() || nm[nm.size() - c.size() - 1] == ':'))) {
-                    return kv.second;
-                }
-            }
-        }
-        return -1;
-    };
-    int handId = findBoneId({"LeftHand", "mixamorig:LeftHand"});
-    int shId   = findBoneId({"LeftArm", "LeftShoulder", "mixamorig:LeftArm"});
-    if (handId >= 0 && shId >= 0) {
-        float total = 0.0f;
-        int cur = handId, guard = 0;
-        while (cur != -1 && cur != shId && guard < 64) {
-            total += glm::length(skel.bones[cur].localPosition);
-            cur = skel.bones[cur].parentId;
-            ++guard;
-        }
-        m.arm_reach = total;
-    }
-
-    if (!sitAABBs.empty()) {
-        const auto* sHead = findAABB(sitAABBs, {"Head", "mixamorig:Head"});
-        const auto* sHips = findAABB(sitAABBs, {"Hips", "Pelvis", "mixamorig:Hips"});
-        if (sHead && sHips) {
-            m.sitting_height = (sHead->center.y + sHead->halfExtents.y)
-                             - (sHips->center.y - sHips->halfExtents.y);
-        }
-    }
-    return m;
+    return ch ? Phyxel::Scene::SeatFit::measureCharacter(*ch) : CharScalarMetrics{};
 }
 
 /// Resolve a template-library file by name across the category taxonomy
@@ -9634,90 +9530,17 @@ static nlohmann::json findSeatFeaturesInSidecar(const nlohmann::json& sidecar,
     return nullptr;
 }
 
-/// Run the sit-kind compatibility rules. Appends `{rule_id, message, measured,
-/// required, severity}` entries into `issues`. Returns true if any issue had
-/// severity == "error" (i.e., the interaction should be refused).
-///
-/// Margins MUST stay in sync with
-/// `tools/interaction_pipeline/interaction_kinds/sit.py`.
+/// Run the sit-kind compatibility rules (engine SeatFit::evaluate). Appends
+/// `{rule_id, message, measured, required, severity}` entries into `issues`. Returns true if
+/// any issue is an error (the interaction should be refused).
 static bool runSitCompatChecks(const CharScalarMetrics& c,
                                const nlohmann::json& seatFeatures,
                                nlohmann::json& issues)
 {
-    constexpr float HIP_CLEARANCE   = 0.05f;
-    constexpr float DEPTH_CLEARANCE = 0.10f;
-    constexpr float FOOT_DROP_MAX   = 0.20f;
-    constexpr float BACKREST_HEAD_MAX = 0.10f;
-    constexpr float KNEE_RISE_MAX   = 0.35f;
-
-    const float seat_width  = seatFeatures.value("seat_width_x", 0.0f);
-    const float seat_depth  = seatFeatures.value("seat_depth_z", 0.0f);
-    const float seat_top_y  = seatFeatures.value("seat_top_y",   0.0f);
-    const float backrest_h  = seatFeatures.value("backrest_height", 0.0f);
-
-    bool hasError = false;
-    auto push = [&](const char* rule, const std::string& msg, float meas, float req,
-                    const char* sev) {
-        issues.push_back({
-            {"rule_id", rule},
-            {"message", msg},
-            {"measured", meas},
-            {"required", req},
-            {"severity", sev}
-        });
-        if (std::string(sev) == "error") hasError = true;
-    };
-
-    auto fmt = [](const char* prefix, float a, const char* mid, float b, const char* suffix = "") {
-        std::ostringstream os;
-        os << std::fixed << std::setprecision(3)
-           << prefix << a << mid << b << suffix;
-        return os.str();
-    };
-
-    if (seat_width > 0.0f && c.hip_width > 0.0f) {
-        float need = c.hip_width + HIP_CLEARANCE;
-        if (seat_width < need) {
-            push("SEAT_TOO_NARROW",
-                 fmt("Seat width ", seat_width, "m too narrow for hip width ", c.hip_width, "m"),
-                 seat_width, need, "error");
-        }
-    }
-    // Fit failures are HARD errors — accuracy over coverage: a character never
-    // sits where it doesn't fit (docs/CharacterLibraryPlan.md seat-fit policy).
-    if (seat_depth > 0.0f && c.body_depth > 0.0f) {
-        float need = c.body_depth + DEPTH_CLEARANCE;
-        if (seat_depth < need) {
-            push("SEAT_TOO_SHALLOW",
-                 fmt("Seat depth ", seat_depth, "m too shallow for body depth ", c.body_depth, "m"),
-                 seat_depth, need, "error");
-        }
-    }
-    if (seat_top_y > 0.0f && c.leg_length > 0.0f) {
-        float overhang = seat_top_y - c.leg_length;
-        if (overhang > FOOT_DROP_MAX) {
-            push("SEAT_TOO_TALL",
-                 fmt("Seat ", seat_top_y, "m above floor, legs only ", c.leg_length, "m"),
-                 overhang, FOOT_DROP_MAX, "error");
-        }
-        // Big body on a tiny seat: knees rise far above the hips (squat).
-        float kneeRise = c.leg_length - seat_top_y;
-        if (kneeRise > KNEE_RISE_MAX) {
-            push("SEAT_TOO_LOW",
-                 fmt("Seat ", seat_top_y, "m too low for leg length ", c.leg_length, "m"),
-                 kneeRise, KNEE_RISE_MAX, "error");
-        }
-    }
-    if (backrest_h > 0.0f && c.sitting_height > 0.0f) {
-        float seated_eye_above_seat = std::max(0.0f, c.sitting_height - 0.1f);
-        if (backrest_h > seated_eye_above_seat + BACKREST_HEAD_MAX) {
-            push("BACKREST_BLOCKS_VIEW",
-                 fmt("Backrest ", backrest_h, "m exceeds seated eye height ~",
-                     seated_eye_above_seat, "m"),
-                 backrest_h, seated_eye_above_seat + BACKREST_HEAD_MAX, "warn");
-        }
-    }
-    return hasError;
+    const auto seat = Phyxel::Scene::SeatFit::SeatFeatures::fromJson(seatFeatures);
+    const auto found = Phyxel::Scene::SeatFit::evaluate(c, seat);
+    for (const auto& i : found) issues.push_back(i.toJson());
+    return Phyxel::Scene::SeatFit::refused(found);
 }
 
 /// Enumerate free, FITTING seats for a character near `origin` — the same
@@ -9836,8 +9659,16 @@ void Application::updateHeldItem() {
         cms.chainWindowFrac = ms.chainWindowFrac;
         cms.blockHoldFrac   = ms.blockHoldFrac;
         animatedCharacter->setMoveset(std::move(cms));
-        LOG_INFO("Application", "Held item '{}' -> melee family '{}' (rate {})",
-                 m_heldItemId.empty() ? "(none)" : m_heldItemId, ms.family, ms.attackRate);
+        // A3: the held item also sets the composition factors (grip class + load band), DERIVED
+        // from the D&D weapon data — the carry layers and lean/cadence modifiers key on them.
+        // The player has no off-hand slot yet, so 1h_shield is NPC-only for now.
+        const auto gf = melee.resolveGripFactors(heldDef, nullptr);
+        auto factors = animatedCharacter->compositionFactors();
+        factors.grip = gf.grip;
+        factors.load = gf.load;
+        animatedCharacter->setCompositionFactors(factors);
+        LOG_INFO("Application", "Held item '{}' -> melee family '{}' (rate {}), grip '{}', load '{}'",
+                 m_heldItemId.empty() ? "(none)" : m_heldItemId, ms.family, ms.attackRate, gf.grip, gf.load);
     }
 
     // Follow the grip bone.
@@ -9852,6 +9683,13 @@ void Application::updateHeldItem() {
             t = glm::rotate(t, glm::radians(h.gripEulerDeg.z), glm::vec3(0, 0, 1));
             t = glm::scale(t, glm::vec3(h.scale));
             kinematicVoxelManager->setTransform(m_heldKinId, t);
+            // A3: two-handed carry — pin the off-hand to the item's second grip (template frame
+            // point through the same transform the voxels use). One frame behind the main hand.
+            const std::string& grip = animatedCharacter->compositionFactors().grip;
+            if (h.hasSecondGrip && (grip == "2h_heavy" || grip == "2h_light" || grip == "staff"))
+                animatedCharacter->setOffHandTarget(glm::vec3(t * glm::vec4(h.secondGrip, 1.0f)));
+            else
+                animatedCharacter->clearOffHandTarget();
         } else {
             // Anchor vanished (character rebuilt/derezzed) — drop the visual;
             // it re-creates next frame on the live character.
@@ -10044,8 +9882,16 @@ void Application::updateNpcHeldItems() {
         if (!npc) continue;
         seen.insert(name);
 
+        // The hand shows whatever is EQUIPPED (equip_item → EquipmentSlots MainHand) — the
+        // real fine-voxel item template, same path as the player. A CombatBehavior's weapon
+        // keeps precedence for spawn_encounter/spawn_npc(weapon=…) packs. Until 2026-09-29
+        // equip_item attached a hard-coded grey box instead ("old retired model").
         auto* cb = dynamic_cast<Scene::CombatBehavior*>(npc->getBehavior());
         std::string weaponId = cb ? cb->getWeaponId() : std::string{};
+        if (weaponId.empty()) {
+            if (const Core::ItemDefinition* eq = npc->getEquipment().getItem(Core::EquipSlot::MainHand))
+                weaponId = eq->id;
+        }
         Scene::AnimatedVoxelCharacter* character = npc->getAnimatedCharacter();
         const Core::ItemDefinition* def =
             weaponId.empty() ? nullptr : Core::ItemRegistry::instance().getItem(weaponId);
@@ -10070,6 +9916,20 @@ void Application::updateNpcHeldItems() {
                     else held.itemId = weaponId;
                 }
             }
+            // A3: composition factors follow the hands (grip class + load band derived from the
+            // D&D weapon data; the off-hand shield makes 1h into 1h_shield).
+            if (character) {
+                auto& melee = Core::MeleeAnimMapper::instance();
+                if (!melee.isLoaded()) melee.loadConfig("resources/rpg_items/anim/melee_anim_families.json");
+                auto& rpgReg = Core::RpgItemRegistry::instance();
+                if (rpgReg.count() == 0) rpgReg.loadFromDirectory("resources/rpg_items");
+                const Core::ItemDefinition* off = npc->getEquipment().getItem(Core::EquipSlot::OffHand);
+                const auto gf = melee.resolveGripFactors(weaponId.empty() ? nullptr : def, off);
+                auto factors = character->compositionFactors();
+                factors.grip = gf.grip;
+                factors.load = gf.load;
+                character->setCompositionFactors(factors);
+            }
         }
 
         // Follow the grip bone — identical grip orientation math to the player.
@@ -10084,6 +9944,11 @@ void Application::updateNpcHeldItems() {
                 t = glm::rotate(t, glm::radians(h.gripEulerDeg.z), glm::vec3(0, 0, 1));
                 t = glm::scale(t, glm::vec3(h.scale));
                 kinematicVoxelManager->setTransform(held.kinId, t);
+                const std::string& grip = character->compositionFactors().grip;   // A3 off-hand pin
+                if (h.hasSecondGrip && (grip == "2h_heavy" || grip == "2h_light" || grip == "staff"))
+                    character->setOffHandTarget(glm::vec3(t * glm::vec4(h.secondGrip, 1.0f)));
+                else
+                    character->clearOffHandTarget();
             } else {
                 kinematicVoxelManager->remove(held.kinId); held.kinId.clear();
                 held.anchorId = -1; held.itemId.clear();
@@ -10476,6 +10341,136 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         return true;
     }
 
+    // ---- A1 live MotionOracle (docs/AnimationSystemV3Plan.md §4 A1) ----
+    if (action == "animation_record") {
+        std::string id = cmd.params.value("id", "");
+        int frames = cmd.params.value("frames", 120);
+        // A2: the window is a DURATION. Default 2 s (two-plus stride cycles at any gait) unless
+        // the caller passes frames explicitly and no seconds; at 270 fps 120 frames is 0.44 s and
+        // the stance band reads swing feet as planted (80 % false skate, 2026-09-29).
+        const bool hasFrames  = cmd.params.contains("frames");
+        const bool hasSeconds = cmd.params.contains("seconds");
+        float seconds = cmd.params.value("seconds", (hasFrames && !hasSeconds) ? 0.0f : 2.0f);
+        auto* character = resolveCharacter(id);
+        if (!character) {
+            response = {{"error", "No animated character found for: " + id}};
+        } else {
+            const std::size_t armed = character->startOracleRecording(static_cast<std::size_t>(std::max(frames, 3)), seconds);
+            response = {{"success", true}, {"id", id}, {"armed", true},
+                        {"frames", static_cast<int>(armed)}, {"min_seconds", seconds},
+                        {"cap", static_cast<int>(Scene::AnimatedVoxelCharacter::kOracleMaxFrames)}};
+        }
+        return true;
+    }
+
+    if (action == "animation_validate") {
+        using namespace Scene::Motion;
+        std::string id = cmd.params.value("id", "");
+        auto* character = resolveCharacter(id);
+        if (!character) { response = {{"error", "No animated character found for: " + id}}; return true; }
+        if (character->getSkeleton().bones.empty()) { response = {{"error", "character has no skeleton"}}; return true; }
+        const bool stillRecording = character->isOracleRecording();
+        const std::size_t wanted = character->oracleFrameCount();
+        const float dt = character->oracleSecondsPerFrame();
+        auto frames = character->takeOracleFrames();
+        if (frames.size() < 3) {
+            response = {{"success", true}, {"id", id}, {"valid", false},
+                        {"frames_sampled", static_cast<int>(frames.size())},
+                        {"reason", stillRecording ? "still recording — call again later" : "nothing recorded; call animation_record first"}};
+            return true;
+        }
+        // Options: feet + legs by name (same rule as anim_lint), ground from the character's own
+        // voxel-world query (a pure function of x,z), adjacency for the segment boxes.
+        OracleOptions opt;
+        opt.footJoints = character->oracleFootJoints();
+        opt.kneeChains = character->oracleLegChains();
+        opt.boxAdjacency = character->oracleBoxAdjacency();
+        // A5: a FOOT-sized probe (the capsule column reads a neighbouring higher cell up to a
+        // quarter unit early) and the rig's ankle height, so a planted foot reads 0 clearance.
+        opt.ground = [character](float x, float z) { return character->groundYUnderPoint(x, z); };
+        opt.footClearanceRef = character->standingAnkleHeight();
+        opt.footHalfLength = Scene::AnimatedVoxelCharacter::kFootHalfLength;
+        float authoredSpeed = cmd.params.value("authored_speed", 0.0f);
+        if (authoredSpeed > 0.0f) opt.authoredSpeed = authoredSpeed;
+        std::vector<std::pair<std::size_t, std::size_t>> chainEdges;
+        const auto& bones = character->getSkeleton().bones;
+        for (std::size_t i = 0; i < bones.size(); ++i)
+            if (bones[i].parentId >= 0) chainEdges.emplace_back(static_cast<std::size_t>(bones[i].parentId), i);
+        const auto m = evaluateMotion(frames, dt, chainEdges, opt);
+
+        // Live frames are WORLD space: a planted foot must not move in the world at all, so the
+        // skate figure is the stance body speed itself, judged against how fast the capsule moved.
+        float meanCapsuleSpeed = 0.0f;
+        for (const auto& f : frames) meanCapsuleSpeed += glm::length(glm::vec2(f.capsuleVelocity.x, f.capsuleVelocity.z));
+        meanCapsuleSpeed /= static_cast<float>(frames.size());
+        const float skateRatio = m.stanceBodySpeed / std::max(meanCapsuleSpeed, 0.1f);
+        // Window length in frame time. The stance band assumes the window spans whole stride
+        // cycles; under ~1.5 s it reads touch-down/lift-off as stance and the skate figure is
+        // meaningless (measured 2026-09-29: 0.33 s → 80 %, 3.2 s → 4.6 % on the same patrol).
+        float windowSeconds = 0.0f;
+        for (const auto& f : frames) windowSeconds += (f.dt > 0.0f && std::isfinite(f.dt)) ? f.dt : dt;
+        const float kMinWindowSeconds = 1.5f;
+        const bool  windowShort = windowSeconds < kMinWindowSeconds;
+
+        // Thresholds (calibrated where a source exists; documented at the value).
+        const float kPoseDeltaFail   = glm::radians(120.0f); // anim_lint AMBIGUOUS_SEGMENT_DEG
+        const float kChainDriftFail  = 0.02f;                // rigid boxes: any drift is a solver bug
+        const float kKneeInvFail     = 0.02f;
+        const float kPenetrationWarn = 0.01f, kPenetrationFail = 0.05f;
+        const float kFloatWarn       = 0.15f;                // report-only band until calibrated (G-98 sole was 0.12 high)
+        const float kSkateWarn       = 0.35f, kSkateFail = 0.60f;   // anim_lint SPEED_MISMATCH bands
+        const float kResidualWarn    = 0.40f;                // anim_lint RESIDUAL_RATIO_WARN
+        auto verdict = [](float v, float warn, float fail) { return v > fail ? "FAIL" : (v > warn ? "WARN" : "PASS"); };
+        json verdicts = {
+            {"pose_pop",        verdict(m.maxPoseDeltaRadians, kPoseDeltaFail, kPoseDeltaFail)},
+            {"chain_drift",     verdict(m.maxChainLengthError, kChainDriftFail, kChainDriftFail)},
+            {"knee_inversion",  verdict(m.maxKneeInversion, kKneeInvFail, kKneeInvFail)},
+            {"penetration",     m.terrainEvaluated ? verdict(m.maxPenetration, kPenetrationWarn, kPenetrationFail) : "N/A"},
+            {"float",           m.terrainEvaluated ? (m.maxStanceFloat > kFloatWarn ? "WARN" : "PASS") : "N/A"},
+            {"world_skate",     windowShort ? "SHORT_WINDOW"
+                                : (m.stanceSamples >= 6 ? verdict(skateRatio, kSkateWarn, kSkateFail) : "N/A")},
+            {"stance_residual", windowShort ? "SHORT_WINDOW"
+                                : ((m.stanceSamples >= 6 && meanCapsuleSpeed > 0.1f)
+                                    ? ((m.stanceResidual / meanCapsuleSpeed) > kResidualWarn ? "WARN" : "PASS") : "N/A")},
+            {"box_overlap",     m.maxBoxOverlap > 0.0f ? "WARN" : "PASS"},
+            {"speed_mismatch",  m.speedMismatch >= 0.0f ? verdict(m.speedMismatch, kSkateWarn, kSkateFail) : "N/A"},
+        };
+        response = {
+            {"success", true}, {"id", id}, {"valid", m.valid},
+            {"frames_sampled", static_cast<int>(frames.size())}, {"frames_requested", static_cast<int>(wanted)},
+            {"seconds_per_frame", dt}, {"window_seconds", windowSeconds}, {"min_window_seconds", kMinWindowSeconds},
+            {"clip", character->getCurrentClipName()},
+            {"state", character->stateToString(character->getAnimationState())},
+            {"metrics", {
+                {"max_pose_delta_deg", glm::degrees(m.maxPoseDeltaRadians)},
+                {"max_angular_velocity_deg_s", glm::degrees(m.maxAngularVelocity)},
+                {"max_angular_accel_deg_s2", glm::degrees(m.maxAngularAcceleration)},
+                {"max_root_velocity_error", m.maxRootVelocityError},
+                {"max_planted_joint_speed", m.maxPlantedJointSpeed},
+                {"max_chain_length_error", m.maxChainLengthError},
+                {"stance_body_velocity", {m.stanceBodyVelocity.x, m.stanceBodyVelocity.y}},
+                {"stance_body_speed", m.stanceBodySpeed},
+                {"stance_residual", m.stanceResidual},
+                {"stance_samples", m.stanceSamples},
+                {"mean_capsule_speed", meanCapsuleSpeed},
+                {"world_skate_ratio", skateRatio},
+                {"speed_mismatch", m.speedMismatch},
+                {"max_penetration", m.maxPenetration},
+                {"max_stance_float", m.maxStanceFloat},
+                {"max_knee_inversion", m.maxKneeInversion},
+                {"max_box_overlap", m.maxBoxOverlap},
+                {"terrain_evaluated", m.terrainEvaluated}}},
+            {"thresholds", {
+                {"pose_pop_deg", 120.0f}, {"chain_drift", kChainDriftFail}, {"knee_inversion", kKneeInvFail},
+                {"penetration_warn", kPenetrationWarn}, {"penetration_fail", kPenetrationFail},
+                {"float_warn_uncalibrated", kFloatWarn}, {"skate_warn", kSkateWarn}, {"skate_fail", kSkateFail},
+                {"residual_warn", kResidualWarn}}},
+            {"verdicts", verdicts},
+            {"feet", opt.footJoints.size()}
+        };
+        return true;
+    }
+
     if (action == "get_animation_state") {
         std::string id = cmd.params.value("id", "");
         auto* character = resolveCharacter(id);
@@ -10487,8 +10482,149 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
                         {"clip", character->getCurrentClipName()},
                         {"progress", character->getAnimationProgress()},
                         {"duration", character->getAnimationDuration()},
-                        {"blendDuration", character->getBlendDuration()}};
+                        {"blendDuration", character->getBlendDuration()},
+                        // A2 L4 readback: which plan the rig adopted and its two roots.
+                        {"plan", character->bodyPlan().id},
+                        {"plan_root", (character->bodyPlanResolved().rootBoneId >= 0 &&
+                                       character->bodyPlanResolved().rootBoneId < (int)character->getSkeleton().bones.size())
+                                          ? character->getSkeleton().bones[character->bodyPlanResolved().rootBoneId].name : std::string()},
+                        {"skeleton_root", (!character->getSkeleton().bones.empty())
+                                          ? character->getSkeleton().bones[character->skeletonRootIndex()].name : std::string()},
+                        // A3 transition graph: the crossfade in flight and who owns the clip.
+                        {"blending", character->isCrossfading()},
+                        {"blend_seconds", character->activeBlendDuration()},
+                        {"clip_owner_state", character->stateToString(character->clipOwnerState())}};
+            // A3 composition: the character's factors and the layers in flight.
+            const auto& f = character->compositionFactors();
+            response["factors"] = {{"grip", f.grip}, {"load", f.load}, {"condition", f.condition}, {"mood", f.mood}};
+            json layers = json::array();
+            for (const auto& L : character->activeLayers())
+                if (L.clipIndex >= 0 && L.clipIndex < (int)character->getAnimationClips().size())
+                    layers.push_back({{"clip", character->getAnimationClips()[L.clipIndex].name}, {"mask", L.maskName},
+                                      {"additive", L.additive}, {"weight", L.weight}});
+            response["layers"] = layers;
+            // A3 two-handed carry: is the off-hand pinned to the item's second grip, and how well.
+            response["off_hand"] = {{"active", character->offHandPinActive()},
+                                    {"error_units", character->offHandError()},
+                                    {"chain_resolved", character->offHandChain()[0] >= 0}};
+            // A5 grounding readback (world units / degrees); zero when the solve did not run.
+            const auto& gs = character->grounding();
+            response["grounding"] = {{"enabled", character->isFootIKEnabled()}, {"blend", gs.blend},
+                                     {"l_corr_u", gs.lCorr}, {"r_corr_u", gs.rCorr}, {"pelvis_shift_u", gs.pelvisShift},
+                                     {"l_lock", gs.lLock}, {"r_lock", gs.rLock},
+                                     {"probe_ok", {gs.probeOk[0], gs.probeOk[1]}},
+                                     {"ankle_pitch_deg", {gs.anklePitchDeg[0], gs.anklePitchDeg[1]}},
+                                     {"knobs", {{"max_corr_u", character->groundingMaxCorr()},
+                                                {"probe_half_width_u", character->groundingProbeHalfWidth()},
+                                                {"body_range_u", character->groundingBodyRange()}}}};
+            // A4 seated solve readback (all world units / degrees).
+            const auto& ss = character->seatSolve();
+            response["seat"] = {{"sitting", character->isSitting()}, {"weight", ss.weight},
+                                {"pelvis_error_u", ss.pelvisError},
+                                {"feet_floor_error_u", {ss.feetFloorError[0], ss.feetFloorError[1]}},
+                                {"thigh_angle_deg", ss.thighAngleDeg},
+                                {"lean_deg", ss.leanDeg}, {"armrest_contacts", ss.armrestContacts}};
         }
+        return true;
+    }
+
+    if (action == "set_animation_factors") {
+        std::string id = cmd.params.value("id", "");
+        auto* character = resolveCharacter(id);
+        if (!character) { response = {{"error", "No animated character found for: " + id}}; return true; }
+        Phyxel::ClipMeta::Factors f = character->compositionFactors();
+        // Omitted = unchanged (the /api/debug convention). Values are validated against the
+        // schema enums so a typo cannot silently select nothing.
+        auto take = [&](const char* key, std::string& field) -> bool {
+            if (!cmd.params.contains(key)) return true;
+            std::string v = cmd.params.value(key, std::string());
+            std::transform(v.begin(), v.end(), v.begin(), [](unsigned char c) { return (char)std::tolower(c); });
+            const auto& sch = Phyxel::ClipMeta::schema();
+            auto it = sch.find(key);
+            if (it != sch.end() && it->second.type == Phyxel::ClipMeta::ValueType::Enum &&
+                std::find(it->second.values.begin(), it->second.values.end(), v) == it->second.values.end()) {
+                response = {{"error", std::string("'") + key + "=" + v + "' is not in the clip_meta schema"}};
+                return false;
+            }
+            field = v;
+            return true;
+        };
+        if (!take("grip", f.grip) || !take("load", f.load) || !take("condition", f.condition) || !take("mood", f.mood)) return true;
+        character->setCompositionFactors(f);
+        json layers = json::array();
+        for (const auto& L : character->activeLayers())
+            layers.push_back({{"clip", character->getAnimationClips()[L.clipIndex].name}, {"mask", L.maskName},
+                              {"additive", L.additive}, {"weight", L.weight}});
+        response = {{"success", true}, {"id", id},
+                    {"factors", {{"grip", f.grip}, {"load", f.load}, {"condition", f.condition}, {"mood", f.mood}}},
+                    {"layers", layers}};
+        return true;
+    }
+
+    if (action == "get_animation_grounding" || action == "set_foot_ik") {
+        // A5. set_foot_ik: {id, enabled?, max_corr_u?, probe_half_width_u?, body_range_u?} — omitted
+        // (or negative) = unchanged; clamps live in AnimatedVoxelCharacter::setGroundingKnobs with
+        // the prevented failure written there. Both return the same grounding block.
+        std::string id = cmd.params.value("id", "");
+        auto* character = resolveCharacter(id);
+        if (!character) { response = {{"error", "No animated character found for: " + id}}; return true; }
+        if (action == "set_foot_ik") {
+            if (cmd.params.contains("enabled") && cmd.params["enabled"].is_boolean())
+                character->setFootIKEnabled(cmd.params["enabled"].get<bool>());
+            character->setGroundingKnobs(cmd.params.value("max_corr_u", -1.0f),
+                                         cmd.params.value("probe_half_width_u", -1.0f),
+                                         cmd.params.value("body_range_u", -1.0f));
+        }
+        const auto& gs = character->grounding();
+        response = {{"success", true}, {"id", id}, {"enabled", character->isFootIKEnabled()}, {"blend", gs.blend},
+                    {"l_corr_u", gs.lCorr}, {"r_corr_u", gs.rCorr}, {"pelvis_shift_u", gs.pelvisShift},
+                    {"l_lock", gs.lLock}, {"r_lock", gs.rLock},
+                    {"probe_ok", {gs.probeOk[0], gs.probeOk[1]}},
+                    {"ankle_pitch_deg", {gs.anklePitchDeg[0], gs.anklePitchDeg[1]}},
+                    {"achieved", {{"hips_before_y", gs.hipsBeforeY}, {"hips_after_y", gs.hipsAfterY},
+                                  {"l_foot_dy", gs.lAchieved}, {"r_foot_dy", gs.rAchieved}}},
+                    {"knobs", {{"max_corr_u", character->groundingMaxCorr()},
+                               {"probe_half_width_u", character->groundingProbeHalfWidth()},
+                               {"body_range_u", character->groundingBodyRange()}}}};
+        return true;
+    }
+
+    if (action == "get_animation_seat") {
+        // A4 seated-solve readback (world units / degrees), the same block get_animation_state
+        // carries under "seat": weight 0..1 (SitDown ramps in, SitStandUp ramps out), pelvis and
+        // per-leg ankle errors against the solve's targets, first-leg thigh angle, applied lean,
+        // hands on armrests. All zero when not sitting.
+        std::string id = cmd.params.value("id", "");
+        auto* character = resolveCharacter(id);
+        if (!character) { response = {{"error", "No animated character found for: " + id}}; return true; }
+        const auto& ss = character->seatSolve();
+        response = {{"success", true}, {"id", id}, {"state", character->stateToString(character->getAnimationState())},
+                    {"sitting", character->isSitting()}, {"weight", ss.weight},
+                    {"pelvis_error_u", ss.pelvisError},
+                    {"feet_floor_error_u", {ss.feetFloorError[0], ss.feetFloorError[1]}},
+                    {"thigh_angle_deg", ss.thighAngleDeg},
+                    {"lean_deg", ss.leanDeg}, {"armrest_contacts", ss.armrestContacts}};
+        return true;
+    }
+
+    if (action == "get_animation_transitions") {
+        std::string id = cmd.params.value("id", "");
+        auto* character = resolveCharacter(id);
+        if (!character) { response = {{"error", "No animated character found for: " + id}}; return true; }
+        const auto& plan = character->bodyPlan();
+        json edges = json::array();
+        for (const auto& e : plan.transitions)
+            edges.push_back({{"from", e.from}, {"to", e.to},
+                             {"blend_seconds", e.blend < 0.0f ? plan.defaultBlend : e.blend},
+                             {"phase_sync", e.phaseSync}});
+        response = {{"success", true}, {"id", id}, {"plan", plan.id},
+                    {"default_blend_seconds", plan.defaultBlend},
+                    {"character_blend_seconds", character->getBlendDuration()},
+                    {"edges", edges},
+                    {"in_flight", {{"blending", character->isCrossfading()},
+                                   {"blend_seconds", character->activeBlendDuration()},
+                                   {"from_state", character->stateToString(character->clipOwnerState())},
+                                   {"clip", character->getCurrentClipName()}}}};
         return true;
     }
 
@@ -10732,7 +10868,35 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         }
 
         character->sitAt(pt->worldPos, pt->facingYaw, sitDown, sitIdle, sitStandUp, blendDur, heightOff);
+        json seatAffordancesEcho = json::object();
+        // A4: the seat's affordances (v2 sidecar) in WORLD space — backrest lean and armrest
+        // hand-rest points (inner edge, top, mid-depth) through the object's placement.
+        {
+            const nlohmann::json seatJson = findSeatFeaturesInSidecar(loadAssetMetricsSidecar(obj->templateName), pointId);
+            const auto seat = Phyxel::Scene::SeatFit::SeatFeatures::fromJson(seatJson.is_object() ? seatJson : nlohmann::json::object());
+            // The same origin + Y-rotation the interaction points use (PlacedObjectManager
+            // rotateLocalOffset: 90° maps (x, z) → (z, -x)).
+            const glm::vec3 objOrigin = obj->placedAtMicro ? glm::vec3(obj->microAnchor) / 9.0f : glm::vec3(obj->position);
+            auto rotOff = [](const glm::vec3& v, int deg) -> glm::vec3 {
+                switch (((deg % 360) + 360) % 360) {
+                    case 90:  return { v.z, v.y, -v.x};
+                    case 180: return {-v.x, v.y, -v.z};
+                    case 270: return {-v.z, v.y,  v.x};
+                    default:  return v;
+                }
+            };
+            std::vector<glm::vec3> arms;
+            for (const auto& a : seat.armrests)
+                arms.push_back(objOrigin + rotOff(glm::vec3(a.inner_x, a.top_y, 0.5f * (a.z_min + a.z_max)), pt->objectRotation));
+            character->setSeatAffordances(seat.backrest_angle_deg, arms);
+            json armPts = json::array();
+            for (const auto& a : arms) armPts.push_back({a.x, a.y, a.z});
+            seatAffordancesEcho = {{"backrest_angle_deg", glm::clamp(seat.backrest_angle_deg, 0.0f, Phyxel::Scene::AnimatedVoxelCharacter::kMaxBackrestLeanDeg)},
+                                   {"armrest_world_points", armPts},
+                                   {"solve_readback", "get_animation_seat / get_animation_state.seat (weight ramps over stand_to_sit)"}};
+        }
         response = {{"success", true}, {"entity_id", entityId}, {"object_id", objectId}, {"point_id", pointId},
+                    {"seat_affordances", seatAffordancesEcho},
                     {"seat_world_pos", {pt->worldPos.x, pt->worldPos.y, pt->worldPos.z}},
                     {"facing_yaw", pt->facingYaw}, {"object_rotation", pt->objectRotation},
                     {"compatibility_issues", compatIssues},
@@ -12253,30 +12417,40 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
                 if (base && profile != base) dbgFoundOverride = true;
             }
         }
-        seatAnchor.y += heightOff;
+        // A0 #3: heightOff used to be added HERE and again inside sitAt() (which adds
+        // seatHeightOffset itself), so the editor previewed the seat one offset too high
+        // and the per-frame snap then dragged the character to the double-counted Y.
+        // sitAt()/refreshSitOffsets() own the height offset; this handler only needs the
+        // resulting surface for its own targetWorldPos.
+        glm::vec3 seatSurface = seatAnchor;
+        seatSurface.y += heightOff;
 
         // Determine target state and per-clip Hips reference. The runtime engine
         // mirrors this formula every frame in update():
-        //   worldPosition = seat + sitStandUpOffset - rotateByYaw(hipsRef_<state>)
+        //   worldPosition = seat + <state>Offset - rotateByYaw(hipsRef_<state>)
         // so the visible Hips bone lines up with the seat in world space. We must
         // do the same here so IE preview renders the character on the chair, not
         // ~0.5m below it.
         Scene::AnimatedCharacterState targetState = Scene::AnimatedCharacterState::SitDown;
         glm::vec3 hipsRef{0.0f};
+        glm::vec3 stateOffset = sitStandUp;   // A0 #2: per-state, mirrors update()'s snap
         const auto& clipDur = clips[clipIdx].duration;
         if (targetLower == "stand_to_sit") {
             targetState = Scene::AnimatedCharacterState::SitDown;
             m_iePreviewState = InteractionPreviewState::SittingDown;
             // Reference frame for stand_to_sit is the END (character settled on seat)
             hipsRef = m_ieChar->sampleClipBonePos(clipIdx, 0, clipDur);
+            stateOffset = sitDown;
         } else if (targetLower == "sitting_idle") {
             targetState = Scene::AnimatedCharacterState::SittingIdle;
             m_iePreviewState = InteractionPreviewState::SittingIdle;
             hipsRef = m_ieChar->sampleClipBonePos(clipIdx, 0, 0.0f);
+            stateOffset = sittingIdle;
         } else if (targetLower == "sit_to_stand") {
             targetState = Scene::AnimatedCharacterState::SitStandUp;
             m_iePreviewState = InteractionPreviewState::StandingUp;
             hipsRef = m_ieChar->sampleClipBonePos(clipIdx, 0, 0.0f);
+            stateOffset = sitStandUp;
         }
 
         // Always (re-)apply offsets so the cached m_sit*Offset members stay in
@@ -12290,7 +12464,7 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
         }
 
         float cy = cosf(facingYaw), sy = sinf(facingYaw);
-        glm::vec3 targetWorldPos = seatAnchor + sitStandUp;
+        glm::vec3 targetWorldPos = seatSurface + stateOffset;
         targetWorldPos.x -= hipsRef.x * cy - hipsRef.z * sy;
         targetWorldPos.y -= hipsRef.y;
         targetWorldPos.z -= hipsRef.x * sy + hipsRef.z * cy;
@@ -17143,15 +17317,9 @@ void Application::processAPICommands() {
                                 const std::string instUuid = cmd.params.value("instance_uuid", "");
                                 bool ok = npc->getEquipment().equip(*def, instUuid);
                                 if (ok) {
-                                    // Attach weapon visual to right_hand bone
-                                    auto* animChar = npc->getAnimatedCharacter();
-                                    if (animChar && def->equipSlot == Core::EquipSlot::MainHand) {
-                                        animChar->attachToBone("right_hand",
-                                            glm::vec3(0.15f, 0.4f, 0.15f),
-                                            glm::vec3(0.0f, 0.2f, 0.0f),
-                                            glm::vec4(0.7f, 0.7f, 0.8f, 1.0f),
-                                            itemId);
-                                    }
+                                    // The held visual is built by updateNpcHeldItems() from the
+                                    // equipped MainHand item's real template (fine-voxel), the
+                                    // same way as the player's hand — no placeholder box here.
                                     response = {{"success", true}, {"entityId", entityId}, {"itemId", itemId},
                                                 {"slot", Core::equipSlotToString(def->equipSlot)}};
                                     const std::string eu = npc->getEquipment().getInstanceUuid(def->equipSlot);
@@ -17194,11 +17362,9 @@ void Application::processAPICommands() {
                                 const std::string removedUuid = npc->getEquipment().getInstanceUuid(slot);
                                 auto removedItem = npc->getEquipment().unequip(slot);
                                 if (removedItem) {
-                                    // Remove weapon visual
-                                    auto* animChar = npc->getAnimatedCharacter();
-                                    if (animChar && slot == Core::EquipSlot::MainHand) {
-                                        animChar->detachAll();
-                                    }
+                                    // The held visual follows the equipped MainHand item and is
+                                    // torn down by updateNpcHeldItems() when the slot empties
+                                    // (detachAll() here used to also rip out the held anchor).
                                     response = {{"success", true}, {"entityId", entityId},
                                                 {"slot", slotStr}, {"removedItemId", *removedItem}};
                                     if (!removedUuid.empty()) response["removed_instance_uuid"] = removedUuid;

@@ -430,6 +430,34 @@ Two API traps found while chasing it: `set_day_night`'s `time` param and a `/api
 both leave `timeOfDay` pinned at 12.0, and *enabling* day/night resets ambient to 1.0 — so lower
 ambient only sticks with day/night disabled.
 
+## 2026-09-29 - NOT REPRODUCED: the tabled "unposed beyond ~5-7u" imported-rig defect (A2 probe, 1-day timebox)
+
+Probe run as the A2 render step of `docs/AnimationSystemV3Plan.md` §4. **Method (all L4, Release,
+CharacterTestbed, camera free at (8,23,33)/(8,22,33)):** one `bear_meshy` NPC at 10.9 u and 12.6 u,
+then TWELVE `bear_meshy` idle NPCs in two rows spanning **11-23 u** from the camera, then one moved
+to **~40 u** (beyond the LOD-1 threshold of 35 u). `get_render_stats.characters`: considered 15,
+drawn_main 12, **dropped 0**, parts_batched 32,973. **Every bear rendered horizontal and posed
+(idle) at every distance** — screenshots `screenshots/screenshot_20260929_2210{19,110}*.png`,
+`..._221232_047.png`. The 2026-08-26 symptom (coherent vertical raw-GLB-frame body past ~5-7 u)
+did not appear once.
+
+**What the read of the draw path established** (`RenderCoordinator::buildCharacterFrameData`
+:4641-4900, `getCharacterBlob` :4550, `LodService::characterLodLevel`, `character_instanced.vert`):
+the only per-character camera-distance branch is the part-count LOD (`lodForDistanceSq`, 35/80 u,
+squared correctly); bone matrices for BOTH LOD levels come from the same `first.worldPos/worldRot`
+of each bone group; the shader indexes `boneModels[pushConsts.boneBase + inBoneIndex]` with a
+per-draw push constant. **Nothing in that path can produce a 5-7 u threshold.** One thing that
+COULD masquerade as one: `candidates` is sorted by camera distance before the bone/instance
+buffers are filled, so any failure keyed on ORDER (the N-th character, a buffer offset, a
+per-frame budget) presents as "the near ones are fine, the far ones are broken" — which is what
+the Hall session saw with 12 identical bears and never separated from distance. If the defect
+recurs, test THAT first: two bears at equal distance, then swap their spawn order.
+
+**Status:** falsified on today's tree at 12 instances / 11-40 u; the code between 2026-08-26 and
+now (camera-relative rendering, the CityBench frames-in-flight fixes) may have removed it, or it
+needs the Hall's 46-rig load. A6 re-runs this probe under `bestiary_stage` with the order test
+above. Not blocking A2.
+
 ## 2026-08-26 - TABLED: imported-rig characters render UNPOSED (vertical) beyond ~5-7u
 
 User-visible: Meshy/Quaternius-class rigs in the hall look "really fucked up" — the bear rears
@@ -999,3 +1027,32 @@ realized footprints (a building can grow past its planned lot: house_7 is 17 dee
 unit must refuse to remove a structure the SAME job built (surface it as a lot failure instead).
 Not fixed here (city benchmark measures what the generator produces; this is recorded, not patched).
 
+
+## 2026-09-30 - `armchair` (structure_pipeline.furniture) has no seat: no `# interaction_point:` header, so the v2 sidecar has zero points and every sit is refused deny-on-missing
+
+**Found during** A4 step 4 (seated solve): looking for a shipped seat WITH armrests to demo the
+armrest hand-rest + backrest lean live. `resources/templates/furniture/armchair.voxel` is authored by
+the structure pipeline's furniture generator (`method: structure_pipeline.furniture`, 175 microcubes),
+not by `tools/regen_furniture.py`, and carries no `# interaction_point:` line. The characterizer only
+characterizes declared points, so `armchair.metrics.json` is `asset_metrics.v2` with
+`interaction_points: []` - `find_fitting_seat` never offers it and `sit_character` refuses it
+(correctly: deny-on-missing). The one shipped seat that would exercise A4's armrest path is therefore
+not a seat at all to the engine.
+
+**Fix direction:** the furniture generator (or `asset_index.py --validate`) should emit the seat
+line for any asset in the seat category; add a lint "furniture in `seats` without an
+`interaction_point`". Until then the armrest path is pinned only headlessly
+(`SeatSolveTest.BackrestLeanAndArmrestsAreAppliedOnlyWhenTheSeatHasThem`).
+
+## 2026-09-30 - OBSERVATION (unverified): the halfling preset's standing foot joint sits ~0.32 u above the floor in the FloorWorld rig
+
+**Seen in** `SeatMatrixStressTest` (A4): the standing ankle-joint height above the floor is 0.113 u
+(standard), 0.133 u (goliath) but **0.319 u (halfling, heightScale 0.57 / legLengthScale 0.72)** -
+a body 0.90 u tall with its ankle a third of the way up. The seated solve puts the halfling's ankle at
+floor + 0.08 (the guard rejects an ankle height >= 0.3 and falls back to the unscaled default), so
+the SEATED pose is right; the STANDING reference is the anomaly. Live (CharacterTestbed, halfling
+NPC at y=17.0) the segment boxes are too small (half 0.04) to confirm a float from the API alone and
+the screenshot is not conclusive in tall grass. Hypothesis: the model-to-capsule foot offset follows
+`heightScale` but not `legLengthScale`. **Not chased in A4** - the matrix test judges feet against the
+floor band instead of the standing reference because of this. Worth one FloorWorld test: standing
+sole height vs `worldPosition.y` per preset.

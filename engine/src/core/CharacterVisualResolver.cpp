@@ -30,7 +30,14 @@ Scene::MorphologyType morphologyFromAnimFile(const std::string& animFile) {
     // route the rig to the wrong body plan (live-caught: bear_meshy spawned
     // with zero segment boxes).
     if (lower.find("_meshy") != std::string::npos) return Scene::MorphologyType::Unknown;
-    return Scene::MorphologyType::Humanoid;
+    // A2 (2026-09-29): the default is UNKNOWN, not Humanoid. Stamping Humanoid here
+    // suppressed detectMorphology() at load, so every rig without a name marker
+    // (deer, alpaca, stag, quad_husky, the Quaternius monsters...) adopted humanoid.json
+    // and its plan clip vocabulary (Gallop, Idle_HitReact1, Death) was unreachable —
+    // live-caught as a deer flinching into `Idle`. Unknown lets the skeleton decide
+    // (BodyPlanScope.NpcResolvedRigsAdoptTheirScopedPlanAtRuntime); humanoids still
+    // detect as Humanoid from their Hips marker, so the seeded palette is unchanged.
+    return Scene::MorphologyType::Unknown;
 }
 
 /// Deterministically pick a skin tone from a race palette by NPC name.

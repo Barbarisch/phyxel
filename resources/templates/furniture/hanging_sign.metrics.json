@@ -1,5 +1,5 @@
 {
-  "schema_version": "asset_metrics.v1",
+  "schema_version": "asset_metrics.v2",
   "template_name": "hanging_sign",
   "overall_min": [
     0.0,
@@ -8,8 +8,8 @@
   ],
   "overall_max": [
     0.1111111111111111,
-    0.7777777777777778,
-    0.7777777777777778
+    0.7777777777777777,
+    0.7777777777777777
   ],
   "interaction_points": []
 }

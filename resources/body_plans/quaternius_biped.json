@@ -1,0 +1,42 @@
+{
+  "id": "quaternius_biped",
+  "morphology": "humanoid",
+  "gaitClass": "biped_fsm",
+  "rootBone": "Hips",
+  "hipAliases": ["hips"],
+  "gripBone": "LowerArm.R",
+  "headBone": "Head",
+  "capsule": { "mode": "legacy", "minHalfWidth": 0.12, "maxHalfWidth": 0.6 },
+  "legs": [
+    { "id": "left",  "upper": "UpperLeg.L", "mid": "LowerLeg.L", "foot": "Foot.L", "footIK": false },
+    { "id": "right", "upper": "UpperLeg.R", "mid": "LowerLeg.R", "foot": "Foot.R", "footIK": false }
+  ],
+  "segments": [
+    { "bone": "Head",       "isArm": false },
+    { "bone": "Neck",       "isArm": false },
+    { "bone": "Torso",      "isArm": false },
+    { "bone": "Abdomen",    "isArm": false },
+    { "bone": "Hips",       "isArm": false },
+    { "bone": "UpperArm.L", "isArm": true },
+    { "bone": "UpperArm.R", "isArm": true },
+    { "bone": "LowerArm.L", "isArm": true },
+    { "bone": "LowerArm.R", "isArm": true },
+    { "bone": "UpperLeg.L", "isArm": false },
+    { "bone": "UpperLeg.R", "isArm": false },
+    { "bone": "LowerLeg.L", "isArm": false },
+    { "bone": "LowerLeg.R", "isArm": false }
+  ],
+  "clipDefaults": {
+    "Idle":      "Idle",
+    "Walk":      "Walk",
+    "StartWalk": "Walk",
+    "Run":       "Run",
+    "Jump":      "Jump",
+    "Fall":      "Jump_Idle",
+    "Land":      "Jump_Land",
+    "HitReact":  "HitReact",
+    "Death":     "Death",
+    "Attack":    "Punch",
+    "Celebrate": "Wave"
+  }
+}

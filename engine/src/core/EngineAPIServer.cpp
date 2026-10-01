@@ -284,6 +284,63 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(result.dump(), "application/json");
     });
 
+    // GET /api/animation/grounding?id=... — A5 terrain foot-solve readback (corrections and pelvis
+    // shift in world units, ankle pitch in degrees, per-foot probe_ok, the knobs in force).
+    srv.Get("/api/animation/grounding", [this](const httplib::Request& req, httplib::Response& res) {
+        json params;
+        params["id"] = req.get_param_value("id");
+        json result = queueAndWait("get_animation_grounding", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/debug/foot_ik — A5 grounding knobs for one character.
+    // Body: { "id": "npc_x", "enabled": true, "max_corr_u": 0.49, "probe_half_width_u": 0.05, "body_range_u": 0.27 }
+    // Omitted = unchanged; every field echoed back with the clamps applied.
+    srv.Post("/api/debug/foot_ik", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("set_foot_ik", params, 5000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // GET /api/animation/seat?id=... — A4 seated-solve readback (pelvis/feet errors in world
+    // units, thigh angle and lean in degrees, armrest contacts 0-2, weight 0..1).
+    srv.Get("/api/animation/seat", [this](const httplib::Request& req, httplib::Response& res) {
+        json params;
+        params["id"] = req.get_param_value("id");
+        json result = queueAndWait("get_animation_seat", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // GET /api/animation/transitions?id=... — A3 transition graph readback: the plan's edges
+    // (from, to, blend seconds, phaseSync), the default blend, and the crossfade in flight.
+    srv.Get("/api/animation/transitions", [this](const httplib::Request& req, httplib::Response& res) {
+        json params;
+        params["id"] = req.get_param_value("id");
+        json result = queueAndWait("get_animation_transitions", params);
+        res.set_content(result.dump(), "application/json");
+    });
+
+    // POST /api/animation/factors — A3 composition factors for a character.
+    // Body: { "id": "npc_x", "grip": "2h_heavy", "load": "none", "condition": "fresh", "mood": "neutral" }
+    // Omitted fields are unchanged; the response echoes the resulting factors and active layers.
+    srv.Post("/api/animation/factors", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("set_animation_factors", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
     // POST /api/animation/play — Play a named animation clip
     // Body: { "id": "npc_01", "animation": "walk", "loop": true }
     srv.Post("/api/animation/play", [this](const httplib::Request& req, httplib::Response& res) {
@@ -1191,6 +1248,43 @@ void EngineAPIServer::setupRoutes() {
         try {
             json params = json::parse(req.body);
             json result = queueAndWait("set_fine_merge", params, 30000); // re-meshes all chunks
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/animation/record — arm the per-character oracle ring buffer
+    // Body: { "id": "npc_x", "frames": 120 }   (A1, docs/AnimationSystemV3Plan.md)
+    // Frames are captured on the main thread inside the character's update();
+    // this call only ARMS (never waits across frames — queued commands run on
+    // the game loop). Returns { armed, frames, cap }.
+    // ====================================================================
+    srv.Post("/api/animation/record", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("animation_record", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
+    // POST /api/animation/validate — evaluate the recorded frames with the
+    // MotionOracle. Body: { "id": "npc_x", "authored_speed": 1.68 (optional) }
+    // Returns the metric struct, the thresholds each value was judged against,
+    // per-metric verdicts, frames sampled vs requested.
+    // ====================================================================
+    srv.Post("/api/animation/validate", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("animation_validate", params);
             res.set_content(result.dump(), "application/json");
         } catch (const json::exception& e) {
             json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};

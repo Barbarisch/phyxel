@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 """
 create_project.py — Scaffold a new Phyxel game project.
 
@@ -23,6 +25,14 @@ import os
 import sys
 import textwrap
 from pathlib import Path
+
+
+# Test seam for the optional CLI integration. Keeping discovery injectable also
+# prevents a broken executable found on PATH from making project generation
+# itself untestable.
+def shutil_which_for_link(name: str):
+    import shutil
+    return shutil.which(name)
 
 
 def create_project(
@@ -88,6 +98,13 @@ def create_project(
         )
 
         target_link_libraries(${{PROJECT_NAME}} PRIVATE phyxel_core)
+
+        # The generated shell is intentionally feature-complete and template
+        # heavy. MSVC /O2 can spend tens of minutes optimizing this single TU;
+        # /O1 keeps a real optimized Release while making agent iteration sane.
+        if(MSVC)
+            target_compile_options(${{PROJECT_NAME}} PRIVATE $<$<CONFIG:Release>:/O1>)
+        endif()
         target_include_directories(${{PROJECT_NAME}} PRIVATE ${{CMAKE_CURRENT_SOURCE_DIR}})
 
         if(MSVC)
@@ -485,9 +502,9 @@ def create_project(
     # Wire the Claude game-dev workflow (per-project port + .mcp.json + CLAUDE.md) via
     # the canonical `phyxel link` — single source of truth, path-free/portable (see
     # docs/GameDevWorkflow.md). Degrades to an instruction if the CLI isn't installed.
-    import shutil, subprocess
+    import subprocess
     linked = False
-    phyxel_exe = shutil.which("phyxel")
+    phyxel_exe = shutil_which_for_link("phyxel")
     if phyxel_exe:
         try:
             r = subprocess.run([phyxel_exe, "link", str(output_dir)],
@@ -2352,8 +2369,11 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                         LOG_INFO("{class_name}", "Loaded multi-scene game ({{}} scenes)", manifest.scenes.size());
                     }}
                 }} else {{
-                    // Single-scene: strip world key (pre-baked) and load directly
-                    gameDef.erase("world");
+            // A pre-baked package already has resident chunks; skip generation
+            // in that case. A fresh package has an empty DB and must retain the
+            // world section or it boots into an invisible empty world forever.
+            if (subsystems.chunkManager && !subsystems.chunkManager->chunks.empty())
+                gameDef.erase("world");
                     auto result = Phyxel::Core::GameDefinitionLoader::load(gameDef, subsystems);
                     if (result.success) {{
                         LOG_INFO("{class_name}", "Loaded game: {{}} chunks, {{}} NPCs",

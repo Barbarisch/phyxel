@@ -116,17 +116,29 @@ def write(name, header, body_lines, model, anchors=None):
     out_dir = OUT_DIR_OVERRIDE.get(name, TEMPLATES)
     vox_path = os.path.join(out_dir, name + ".voxel")
     with open(vox_path, "w", encoding="utf-8", newline="\n") as f:
-        f.write(header.rstrip() + "\n\n")
+        f.write(header.rstrip() + "\n")
+        # A4 / W1 fault 3 (2026-09-30): the ENGINE reads seats from `# interaction_point:` header
+        # lines (VoxelTemplate.interactionPoints), not from the sidecar. Until now regen wrote the
+        # anchors only into the sidecar, so `chair` — the placer's chair — could never be sat on.
+        for a in anchors or []:
+            x, y, z = a["local_position"]
+            f.write(f"# interaction_point: {a['point_id']} {a['kind']} {x:.4f} {y:.4f} {z:.4f} "
+                    f"{float(a.get('facing_yaw', 0.0)):.1f} *\n")
+        f.write("\n")
         f.write("\n".join(body_lines) + "\n")
+    # A4 (2026-09-30): the sidecar is the CHARACTERIZER's output, not a second hand-built copy —
+    # one source for seat features (v2 adds backrest angle, armrests, approach), so regenerating
+    # an asset can never strip or drift its affordances. The `anchors` argument only ever carried
+    # the interaction points, which the characterizer reads back from the header lines.
+    import sys as _sys
+    _sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "interaction_pipeline"))
+    from asset_metrics import characterize_asset  # noqa: E402
     met_path = os.path.join(out_dir, name + ".metrics.json")
+    metrics = characterize_asset(__import__("pathlib").Path(vox_path)).to_dict()
+    if anchors and not metrics.get("interaction_points"):
+        metrics["interaction_points"] = anchors   # header lacks the point line: keep the legacy anchors
     with open(met_path, "w", encoding="utf-8", newline="\n") as f:
-        json.dump({
-            "schema_version": "asset_metrics.v1",
-            "template_name": name,
-            "overall_min": omin,
-            "overall_max": omax,
-            "interaction_points": anchors or [],
-        }, f, indent=2)
+        json.dump(metrics, f, indent=2)
     w, h, d = omax[0] - omin[0], omax[1] - omin[1], omax[2] - omin[2]
     print(f"{name}: {len(model.cells)} micro, bounds {w:.3f}w x {h:.3f}h x {d:.3f}d m -> {vox_path}")
 
@@ -1288,37 +1300,44 @@ def gen_statue_hero():
 
 
 if __name__ == "__main__":
-    gen_chest()
-    gen_fireplace()
-    gen_bar()
-    gen_back_bar()
-    gen_bar_stool()
-    gen_candle_stand()
-    gen_wall_lantern()
-    gen_chandelier()
-    gen_mug()
-    gen_bottle()
-    gen_table_wood()
-    gen_tavern_table()
-    gen_counter()
-    gen_barrel()
-    gen_keg()
-    gen_bench_wood()
-    gen_forge_hearth()
-    gen_anvil()
-    gen_bellows()
-    gen_tool_rack()
-    gen_oven_bread()
-    gen_chopping_block()
-    gen_meat_rail()
-    gen_hanging_sign()
-    gen_well()
-    gen_market_stall()
-    gen_statue_hero()
-    gen_woodpile()
-    gen_garden_bed()
-    gen_bed()
-    gen_chair()
-    gen_stool()
-    gen_wardrobe()
-    gen_rug()
+    import sys as _sys
+    # A4 (2026-09-30): regenerate everything, or only the assets named on the command line
+    # (stem after gen_): `python tools/regen_furniture.py chair bench_wood`.
+    _only = set(_sys.argv[1:])
+    def _run(fn):
+        if not _only or fn.__name__[len("gen_"):] in _only:
+            fn()
+    _run(gen_chest)
+    _run(gen_fireplace)
+    _run(gen_bar)
+    _run(gen_back_bar)
+    _run(gen_bar_stool)
+    _run(gen_candle_stand)
+    _run(gen_wall_lantern)
+    _run(gen_chandelier)
+    _run(gen_mug)
+    _run(gen_bottle)
+    _run(gen_table_wood)
+    _run(gen_tavern_table)
+    _run(gen_counter)
+    _run(gen_barrel)
+    _run(gen_keg)
+    _run(gen_bench_wood)
+    _run(gen_forge_hearth)
+    _run(gen_anvil)
+    _run(gen_bellows)
+    _run(gen_tool_rack)
+    _run(gen_oven_bread)
+    _run(gen_chopping_block)
+    _run(gen_meat_rail)
+    _run(gen_hanging_sign)
+    _run(gen_well)
+    _run(gen_market_stall)
+    _run(gen_statue_hero)
+    _run(gen_woodpile)
+    _run(gen_garden_bed)
+    _run(gen_bed)
+    _run(gen_chair)
+    _run(gen_stool)
+    _run(gen_wardrobe)
+    _run(gen_rug)

@@ -304,6 +304,52 @@ proven on a known-bad cantilever spec). NOT taken: the card workflow, the AI sil
 **Verdict: ADOPT-THE-SPEC — shipped.** Re-check trigger: if upstream grows spec features we lack
 (new part types, IK-aware animation), diff `cards/SYNTAX.md` against `creature_forge/spec.py`.
 
+## 10. UniMate — text-to-motion for arbitrary skeletons (evaluated 2026-09-29) — 📋 PLANNED, gate NEEDS WORK
+
+**What:** "UniMate: One Unified Model to Animate Diverse Skeletons" (SIGGRAPH Asia 2026; Mou, Lei,
+Dou, Cai, Song, Finkelstein, Rusinkiewicz; [arXiv 2609.05415](https://arxiv.org/abs/2609.05415);
+[repo](https://github.com/Friedrich-M/UniMate), MIT; weights `huggingface.co/Linzhan/UniMate`). A
+topology-aware flow-matching diffusion transformer (graph attention bias, spectral RoPE over the
+kinematic tree, rest-pose conditioner) that generates motion from **a rigged asset + a text prompt**
+for skeletons of 5–70 joints — bipedal, quadrupedal, avian, marine, insectoid, serpentine, rigged
+objects — with no per-skeleton retraining. Extras without retraining: in-betweening, joint-constrained
+editing, prompt-chained expansion. v2 weights (2026-09-27): 74.1 M params, 60 frames @ 30 fps,
+1.19 GB checkpoint, trained on Truebones (~13 %), Mixamo (~24 %), Objaverse-XL (~63 %).
+
+**Verified against the repo, not the landing page (the MotionBricks lesson):**
+- A documented bring-your-own-rig path exists (`data_process/README.md`, three entry points).
+  `preprocess_char.py` → `cond.npy` + canonical asset; inference realizes only object types with
+  ≥1 reference clip on disk (`sample.py::_known_object_types`), so the asset must be *animated*.
+- All entry points run under plain Python + pip `bpy` (`common.py::parse_blender_argv`); the bash
+  wrappers hardcode `blender -b` — call the Python directly. No Blender install.
+- Stage 5 (`animate_motion.py`) writes motion back onto the ORIGINAL asset's armature → clip arrives
+  on the rig's own bone names/bind pose; Phyxel's existing name-remap import applies unchanged.
+- Our `resources/mixamo_imports/Head Hit.fbx` is a valid input (2 skinned meshes, 65 joints, 1
+  clip); the other Mixamo files are skeleton-only. Importer dry run: 65/65 names matched.
+- `dataset_stats.npy` ships SEPARATE per-dataset normalization stats; which one a custom skeleton
+  should borrow is unresolved (plan M0).
+- Research gotchas: `download.blender.org/pypi` returns 403 to both WebFetch and `uv` (drop the index
+  line, install `bpy==4.0.0` from PyPI); HF tree API lists directories as size-0 — list the subdir.
+
+**Why Phyxel:** this is the exact hole `CharacterAnimationV2.md` §7 recorded — Path B
+(text-to-motion) was "humanoid only, neither covers creatures". UniMate conditions on OUR skeleton,
+so it is the first candidate that could draft clips for forge creature rigs, and for bespoke humanoid
+gameplay actions no free pack covers. Unlike MotionBricks (§8) no wrong-skeleton retarget stage is
+needed and there is a real export path.
+
+**Verdict: offline authoring tool only (never a runtime — same reasoning as §8 blocker 1).**
+Plan + folded design-check: [`UniMateIntegrationPlan.md`](UniMateIntegrationPlan.md). Re-gate
+verdict READY (scoped M0–M2); **approved and M0 completed the same day (2026-09-29):** humanoid
+FBX → cond (54 joints) → 6 prompts × 3 reps → GLB on the original rig → `humanoid.anim`, all
+18 clips 54/54 bone names + 0 lint errors; stance-feet vs root-travel skate for walk/run in the
+mocap band (best walk 2 % off, residual 0.159 vs mocap 0.172). L4: walk + run read as usable
+drafts, jump plausible, sword slash ambiguous. Stats/layout prediction (mixamo stats better)
+**falsified** — objaverse layout kept. Progress log + tables: plan §5b. Still open before any
+clip ships: weights licence; envelope-WARN triage; M2 loops; M3 creatures re-gate.
+Footguns for whoever re-runs it: `download.blender.org` 403s (portable Blender from a mirror +
+`--python-use-system-env`); UniMate's UTF-8 progress glyphs kill a cp1252 console driver;
+`extract_animation.py` already strips root X/Z into a Speed line.
+
 ## Suggested sequencing
 
 1. **Now (separate session, no source conflict):** `ShaderMathRedundancyPlan.md`.
@@ -325,3 +371,7 @@ proven on a known-bad cantilever spec). NOT taken: the card workflow, the AI sil
    `tools/creature_forge/` (spec → voxel `.anim` rigs); first species `forge_ibex` live as
    Tundra/Snow fauna. Possible follow-up: a silhouette-recognition gate skill on top of
    `orbit_screenshots`.
+10. **Planned, gate NEEDS WORK (2026-09-29):** UniMate (#10) — offline text-to-motion clip
+    authoring for arbitrary skeletons; humanoid proof first, creatures re-gated separately. Plan +
+    folded design-check in `UniMateIntegrationPlan.md`. If M1 quality holds, re-check whether the
+    MotionBricks (#8) retarget stage is still the cheapest path to varied locomotion.

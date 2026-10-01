@@ -49,8 +49,9 @@ def main():
     for preset in PRESETS:
         name = f"SM_{preset}"
         spec = {"name": name, "position": {"x": SPOT[0], "y": SPOT[1] + 1, "z": SPOT[2] - 4}}
-        if preset != "standard":
-            spec["appearance"] = {"preset": preset}
+        # ALWAYS pin the preset: a spawn without `appearance` gets RANDOMIZED proportions
+        # (seen live 2026-09-30), so "standard" was a different body every run.
+        spec["appearance"] = {"preset": preset}
         post("/api/npc/spawn", spec)
         time.sleep(1.2)
         row = {}

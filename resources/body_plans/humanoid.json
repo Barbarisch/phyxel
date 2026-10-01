@@ -5,6 +5,7 @@
   "rootBone": "mixamorig:Hips",
   "hipAliases": ["hip"],
   "gripBone": "RightHand",
+  "headBone": "mixamorig:Head",
   "capsule": { "mode": "legacy", "minHalfWidth": 0.12, "maxHalfWidth": 0.6 },
   "legs": [
     { "id": "left",  "upper": "mixamorig:LeftUpLeg",  "mid": "mixamorig:LeftLeg",  "foot": "mixamorig:LeftFoot",  "footIK": true },
@@ -24,5 +25,59 @@
     { "bone": "mixamorig:LeftLeg",      "isArm": false },
     { "bone": "mixamorig:RightLeg",     "isArm": false }
   ],
-  "clipDefaults": {}
+  "spineChain": ["mixamorig:Spine", "mixamorig:Spine1", "mixamorig:Spine2"],
+  "_comment_clips": "A3 item 2 (2026-09-30): the humanoid clip table, transcribed from the pre-refactor FSM switch and pinned by ClipSelectionTest::kLegacyTable (an independent transcription). A value is a clip name or {clip, sprint}; the sprint variant is chosen by the sprint key, or on the strafe states by the run gait band (|strafe| > 0.6) — that RULE lives in clipForState, only the NAMES live here. clipFallbacks cover the member-driven states (Block/Dodge/HitReact/Death/Celebrate/Cast) when their runtime member is empty; Attack returns its member verbatim and is deliberately absent. Must stay field-for-field equal to BodyPlan::builtinHumanoid() (BodyPlanTest pins it).",
+  "clipDefaults": {
+    "Idle":            "idle",
+    "StartWalk":       "start_walking",
+    "Walk":            "walk",
+    "Run":             { "clip": "run", "sprint": "fast_run" },
+    "Jump":            "jump",
+    "Fall":            "jump_down",
+    "Land":            "landing",
+    "Crouch":          "standing_to_crouched",
+    "CrouchIdle":      "crouch_idle",
+    "CrouchWalk":      "crouched_walking",
+    "StandUp":         "crouch_to_stand",
+    "KnockedOut":      "ko_lay",
+    "GetUp":           "get_up",
+    "TurnLeft":        "left_turn",
+    "TurnRight":       "right_turn",
+    "StrafeLeft":      { "clip": "left_strafe_walk",  "sprint": "left_strafe" },
+    "StrafeRight":     { "clip": "right_strafe_walk", "sprint": "right_strafe" },
+    "WalkStrafeLeft":  { "clip": "left_strafe_walk",  "sprint": "left_strafe" },
+    "WalkStrafeRight": { "clip": "right_strafe_walk", "sprint": "right_strafe" },
+    "BackwardWalk":    "walking_backward",
+    "StopWalk":        "female_stop_walking",
+    "StopRun":         "run_to_stop",
+    "ClimbStairs":     "stair_up",
+    "DescendStairs":   "stair_down",
+    "SitDown":         "stand_to_sit",
+    "SittingIdle":     "sitting_idle",
+    "SitStandUp":      "sit_to_stand",
+    "Preview":         ""
+  },
+  "clipFallbacks": {
+    "Block":     "body_block",
+    "Dodge":     "roll_forward",
+    "HitReact":  "idle",
+    "Death":     "idle",
+    "Celebrate": "taunt",
+    "Cast":      "idle"
+  },
+  "_comment_transitions": "A3 transition graph. blend = crossfade seconds (0 = hard cut; negative is clamped to 0 — it would divide by zero in the blend advance); an undeclared edge uses defaultBlend. from '*' = any source state; an exact edge beats the wildcard. phaseSync: enter the target clip at the same gait phase (stanceL markers in clip_meta, written by anim_lint.py stance --write) so walk<->run keeps the planted foot planted. Must stay equal to BodyPlan::builtinHumanoid() (BodyPlanTest pins it).",
+  "transitions": {
+    "defaultBlend": 0.2,
+    "edges": [
+      { "from": "Walk", "to": "Run",      "blend": 0.25, "phaseSync": true },
+      { "from": "Run",  "to": "Walk",     "blend": 0.25, "phaseSync": true },
+      { "from": "Idle", "to": "Walk",     "blend": 0.15 },
+      { "from": "Walk", "to": "Idle",     "blend": 0.20 },
+      { "from": "*",    "to": "HitReact", "blend": 0.08 },
+      { "from": "*",    "to": "Attack",   "blend": 0.10 },
+      { "from": "*",    "to": "Dodge",    "blend": 0.08 },
+      { "from": "*",    "to": "Death",    "blend": 0.15 },
+      { "from": "*",    "to": "Jump",     "blend": 0.10 }
+    ]
+  }
 }

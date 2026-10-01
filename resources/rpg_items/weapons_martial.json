@@ -108,5 +108,35 @@
       "properties": ["Versatile"],
       "versatileDamage": "1d10"
     }
+  },
+  {
+    "id": "maul",
+    "name": "Maul",
+    "type": "Weapon",
+    "rarity": "Common",
+    "weightLbs": 10.0,
+    "valueCp": 1000,
+    "description": "A massive two-handed hammer. SRD: 2d6 bludgeoning, Heavy, Two-Handed. Added 2026-09-30 so the gameplay `maul` derives its grip class (2h_heavy) and load band (heavy) from D&D data like every other weapon (A3 item 3).",
+    "weapon": {
+      "category": "Martial",
+      "damage": "2d6",
+      "damageType": "Bludgeoning",
+      "properties": ["Heavy", "TwoHanded"]
+    }
+  },
+  {
+    "id": "greataxe",
+    "name": "Greataxe",
+    "type": "Weapon",
+    "rarity": "Common",
+    "weightLbs": 7.0,
+    "valueCp": 3000,
+    "description": "A heavy two-handed axe. SRD: 1d12 slashing, Heavy, Two-Handed.",
+    "weapon": {
+      "category": "Martial",
+      "damage": "1d12",
+      "damageType": "Slashing",
+      "properties": ["Heavy", "TwoHanded"]
+    }
   }
 ]

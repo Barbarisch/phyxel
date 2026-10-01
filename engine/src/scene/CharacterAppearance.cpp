@@ -57,6 +57,10 @@ MorphologyType detectMorphology(const std::vector<std::string>& boneNames) {
         // root "Hips".
         if (lower.find("frontleg") != std::string::npos) hasFrontLeg = true;
         if (lower.find("backleg") != std::string::npos) hasBackLeg = true;
+        // Quaternius animal packs: Front{Shoulder,UpperLeg,LowerLeg}.L/R + Back{Leg,UpperLeg,
+        // LowerLeg}.L/R (A2, resources/body_plans/quaternius_quadruped.json).
+        if (lower.rfind("front", 0) == 0 && lower.find("leg") != std::string::npos) hasFrontLeg = true;
+        if (lower.rfind("back", 0) == 0 && lower.find("leg") != std::string::npos) hasBackLeg = true;
     }
 
     // Arachnid: has leg1_coxa pattern + thorax/abdomen
@@ -66,6 +70,12 @@ MorphologyType detectMorphology(const std::vector<std::string>& boneNames) {
 
     // Dragon: has wings + tail + neck segments
     if (hasWing && hasTail && hasNeck1) {
+        return MorphologyType::Dragon;
+    }
+    // Winged and LEGLESS (no hips/pelvis, no leg chains): a wyvern-class flyer such as the
+    // Quaternius monster_dragon (Root/Torso/Neck/Head/Wing1-4.L/R/Body1). Routed to the
+    // dragon plans (resources/body_plans/quaternius_wyvern.json) — A2 2026-09-29.
+    if (hasWing && !hasMixamoHips && !hasPelvis && !hasFrontLeg && !hasBackLeg && !hasLeg1Coxa) {
         return MorphologyType::Dragon;
     }
 

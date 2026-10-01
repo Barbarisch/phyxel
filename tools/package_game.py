@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from __future__ import annotations
+
 """
 package_game.py — Package a Phyxel game into a standalone distributable directory.
 
@@ -73,6 +75,7 @@ REQUIRED_RESOURCES = [
     "resources/textures/cube_atlas.json",
     "resources/materials.json",
     "resources/mc_texture_map.json",
+    "resources/items.json",
     "resources/ui/default_hud.json",
     "resources/ui/pause_menu.json",
     "resources/ui/intro_screen.json",
@@ -81,6 +84,24 @@ REQUIRED_RESOURCES = [
     "resources/ui/settings_screen.json",
     "resources/ui/mainmenu_screen.json",
     "resources/ui/loading_screen.json",
+]
+
+# Small data registries loaded by the feature-complete generated GameShell.
+# These are cheap to ship and must not depend on whether today's game.json
+# happens to exercise the feature; agents can add spells/classes/AI content
+# without changing native code or the packaging recipe.
+REQUIRED_RESOURCE_DIRS = [
+    "resources/ai",
+    "resources/behaviors",
+    "resources/body_plans",
+    "resources/classes",
+    "resources/factions",
+    "resources/interactions",
+    "resources/loot_tables",
+    "resources/monsters",
+    "resources/races",
+    "resources/rpg_items",
+    "resources/spells",
 ]
 
 # The default animation file an animated character/NPC falls back to when the
@@ -258,6 +279,35 @@ def copy_file_safe(src: Path, dst: Path) -> bool:
     return True
 
 
+def copy_tree_files(src_root: Path, dst_root: Path) -> int:
+    """Copy every regular file below a runtime directory, preserving layout."""
+    copied = 0
+    if not src_root.is_dir():
+        return copied
+    for src in src_root.rglob("*"):
+        if src.is_file():
+            if copy_file_safe(src, dst_root / src.relative_to(src_root)):
+                copied += 1
+    return copied
+
+
+def find_project_python_runtime(project_dir: Path) -> Path | None:
+    """Resolve the Python DLL linked by a generated game's pybind11 runtime."""
+    cache = project_dir / "build" / "CMakeCache.txt"
+    if not cache.is_file():
+        return None
+    python_library = None
+    for line in cache.read_text(encoding="utf-8", errors="replace").splitlines():
+        if line.startswith("PYTHON_LIBRARIES:INTERNAL="):
+            python_library = Path(line.split("=", 1)[1].replace("/", os.sep))
+            break
+    if not python_library:
+        return None
+    # <python-root>/libs/python312.lib -> <python-root>/python312.dll
+    candidate = python_library.parent.parent / (python_library.stem + ".dll")
+    return candidate if candidate.is_file() else None
+
+
 def _check_production_completeness(project_dir, result, strict_cli: bool = False) -> None:
     """Soft-gate (docs/game-production/README.md §6.4): if the project has a production tracker,
     warn on incomplete or STALE required milestones — or BLOCK (errors) if strictPackaging/--strict.
@@ -381,6 +431,21 @@ def package_game(
         result["errors"].append(str(e))
         return result
 
+
+    # phyxel_core embeds Python for game scripting. Static linking the engine
+    # does not embed python3xx.dll itself, so a package that omits this runtime
+    # exits at process load with Windows status 0xC0000135 before it can log.
+    if is_game_project:
+        python_runtime = find_project_python_runtime(project_dir)
+        if python_runtime:
+            shutil.copy2(python_runtime, output_dir / python_runtime.name)
+            files_copied += 1
+        else:
+            result["errors"].append(
+                "Python runtime DLL linked by phyxel_core was not found; "
+                "reconfigure the project before packaging."
+            )
+
     # Copy PDB if it exists (useful for debugging)
     pdb = src_bin.with_suffix(".pdb")
     if pdb.exists():
@@ -405,10 +470,18 @@ def package_game(
     # ── 2. Compiled shaders ─────────────────────────────────────────────
     shaders_dir = output_dir / "shaders"
     shaders_dir.mkdir(exist_ok=True)
-    for shader in REQUIRED_SHADERS:
+    # RenderCoordinator initializes optional-looking pipelines (UI, water,
+    # foliage, VFX, compute physics) eagerly. A hand-maintained subset made
+    # packages abort later in initialization as features were added. Ship all
+    # compiled runtime shaders and retain REQUIRED_SHADERS as the hard minimum.
+    shader_names = set(REQUIRED_SHADERS)
+    shader_names.update(p.name for p in (PHYXEL_ROOT / "shaders").glob("*.spv"))
+    for shader in sorted(shader_names):
         src = PHYXEL_ROOT / "shaders" / shader
         if copy_file_safe(src, shaders_dir / shader):
             files_copied += 1
+        elif shader in REQUIRED_SHADERS:
+            result["errors"].append(f"Required shader not found: {shader}")
         else:
             result["warnings"].append(f"Shader not found: {shader}")
 
@@ -420,6 +493,27 @@ def package_game(
             files_copied += 1
         else:
             result["errors"].append(f"Required resource missing: {res}")
+
+    for res_dir in REQUIRED_RESOURCE_DIRS:
+        copied = copy_tree_files(PHYXEL_ROOT / res_dir, output_dir / res_dir)
+        if copied:
+            files_copied += copied
+        else:
+            result["errors"].append(f"Required runtime resource directory missing: {res_dir}")
+
+    # AtlasManager constructs the runtime texture arrays from these source
+    # images. cube_atlas.png is legacy metadata, not a substitute: omitting
+    # source/ silently replaces every material with the fallback texture.
+    texture_sources = PHYXEL_ROOT / "resources" / "textures" / "source"
+    source_count = copy_tree_files(
+        texture_sources, output_dir / "resources" / "textures" / "source"
+    )
+    if source_count:
+        files_copied += source_count
+    else:
+        result["errors"].append(
+            "Required runtime texture sources missing: resources/textures/source"
+        )
 
     # ── 3b. Fonts ───────────────────────────────────────────────────────
     # The UISystem loads a TTF for all game UI (HUD, dialogue, menus — see
@@ -498,11 +592,21 @@ def package_game(
             src = PHYXEL_ROOT / "resources" / "animated_characters" / af
         if not src.exists():
             src = PHYXEL_ROOT / af.replace("resources/animated_characters/", "")
+        if not src.exists() and Path(af).name == af:
+            # Definitions historically used a basename (for example
+            # character.anim) while the shipped compatibility assets live in
+            # animated_characters/legacy/.
+            matches = [
+                PHYXEL_ROOT / candidate
+                for candidate in ALL_ANIM_FILES
+                if Path(candidate).name == af
+            ]
+            src = next((candidate for candidate in matches if candidate.is_file()), src)
         dst = output_dir / af
         if copy_file_safe(src, dst):
             files_copied += 1
         else:
-            result["warnings"].append(f"Animation file not found: {af}")
+            result["errors"].append(f"Animation file not found: {af}")
 
     # ── 8. Dialogue files ───────────────────────────────────────────────
     if include_all_resources or needs.get("has_npcs"):

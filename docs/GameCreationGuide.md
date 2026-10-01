@@ -298,14 +298,28 @@ This is NOT a standalone game — it requires the engine to be running.
 
 Creates a self-contained game project with its own C++ source and executable.
 
+The supported path is one command. It scaffolds a missing project, configures
+and builds Release, packages validated runtime dependencies, launches the real
+standalone, and verifies rendering, menu flow, movement, and clean shutdown:
+
+```powershell
+python tools/produce_game.py MyGame `
+  --project-dir "$env:USERPROFILE\Documents\PhyxelProjects\MyGame" `
+  --definition samples/game_definitions/my_game.json `
+  --output "$env:USERPROFILE\Documents\PhyxelBuilds\MyGame"
+```
+
+For an existing project, omit `--definition`. The detailed commands below are
+useful for diagnosing an individual stage, but are not required for normal use.
+
 ```powershell
 # ── Step 1: Scaffold the project ──────────────────────────
 python tools/create_project.py MyGame --game-definition samples/game_definitions/my_game.json
 # Output: Documents/PhyxelProjects/MyGame/
 
 # ── Step 2: Copy engine assets to the project ─────────────
-# The scaffolder creates the project structure but does NOT copy
-# compiled shaders or textures. You must copy these manually:
+# Runtime assets are copied after a build and selected again by the packager.
+# These manual copies are only for diagnosing an individual asset:
 $proj = "$env:USERPROFILE\Documents\PhyxelProjects\MyGame"
 Copy-Item "shaders\*.spv" "$proj\shaders\" -Force
 Copy-Item "resources\textures\cube_atlas.png" "$proj\resources\textures\" -Force
@@ -336,13 +350,14 @@ python tools/package_game.py MyGame --project-dir $proj
 > - `load_game_definition` is an **editor-only preview** — it does not create a project
 > - `save_world` saves to the engine's current database path, not a custom one — you must copy the file
 > - PowerShell aliases `curl` to `Invoke-WebRequest` — use `curl.exe` for raw HTTP
-> - The scaffolder generates empty `shaders/` and `resources/` dirs — you must populate them
+> - Generated CMake builds populate development assets; packaging selects and validates shipping assets
+> - A successful `produce_game.py` run proves the packaged executable itself, not just compilation
 
 **Output structure** (`Documents/PhyxelProjects/MyGame/`):
 ```
 MyGame/
 ├── MyGame.exe              # Standalone game executable
-├── MyGame.cpp/.h           # Generated C++ source (GameCallbacks)
+├── MyGame.cpp/.h           # Generated C++ source (GameShell)
 ├── main.cpp                # Entry point
 ├── CMakeLists.txt          # Build config (links phyxel_core)
 ├── game.json               # NPCs, story, camera (no world gen)

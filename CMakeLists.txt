@@ -21,6 +21,7 @@ include(Sanitizers)
 # Address Sanitizer: apply globally before external deps so all libraries match ABI.
 # Pass -DENABLE_ASAN=ON for a Debug ASan build. Requires clean rebuild.
 option(ENABLE_ASAN "Enable Address Sanitizer (Debug builds)" OFF)
+option(PHYXEL_BUILD_EXAMPLES "Build first-party standalone game examples" ON)
 if(ENABLE_ASAN)
     if(MSVC)
         add_compile_options($<$<CONFIG:Debug>:/fsanitize=address>)
@@ -202,7 +203,9 @@ add_subdirectory(engine)    # phyxel_core  — engine static library
 # Game, editor, examples: only when building Phyxel standalone
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     add_subdirectory(editor)    # phyxel_editor — editor/dev-tool library + phyxel executable
-    # add_subdirectory(examples/minimal_game)  # removed from working copy
+    if(PHYXEL_BUILD_EXAMPLES)
+        add_subdirectory(examples/minimal_game)
+    endif()
 endif()
 
 # ==========================================================================

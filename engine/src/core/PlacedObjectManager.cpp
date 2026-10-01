@@ -167,6 +167,34 @@ std::vector<InteractionPoint> PlacedObjectManager::computeInteractionPoints(
     return result;
 }
 
+std::vector<InteractionPoint> PlacedObjectManager::computeInteractionPointsAt(
+    const std::vector<InteractionPointDef>& defs, const glm::vec3& anchorWorld, int rotation)
+{
+    std::vector<InteractionPoint> result;
+    result.reserve(defs.size());
+    const float rotRad = (rotation * 3.14159265f) / 180.0f;
+    for (const auto& def : defs) {
+        InteractionPoint pt;
+        pt.pointId = def.pointId;
+        pt.type    = def.type;
+        pt.supportedGroups = def.supportedGroups;
+        pt.objectRotation  = rotation;
+        pt.worldPos        = anchorWorld + rotateLocalOffset(def.localOffset, rotation);
+        pt.facingYaw       = def.facingYaw + rotRad;
+        pt.worldSitDownOffset     = rotateLocalOffset(def.sitDownOffset,     rotation);
+        pt.worldSittingIdleOffset = rotateLocalOffset(def.sittingIdleOffset, rotation);
+        pt.worldSitStandUpOffset  = rotateLocalOffset(def.sitStandUpOffset,  rotation);
+        pt.sitBlendDuration       = def.sitBlendDuration;
+        pt.seatHeightOffset       = def.seatHeightOffset;
+        pt.interactionRadius      = def.interactionRadius;
+        pt.promptText             = def.promptText;
+        pt.viewAngleHalf          = def.viewAngleHalf;
+        pt.requireCompatibility   = def.requireCompatibility;
+        result.push_back(std::move(pt));
+    }
+    return result;
+}
+
 void PlacedObjectManager::registerTemplateDefs(const std::string& templateName,
                                                 const std::vector<InteractionPointDef>& defs) {
     std::lock_guard<std::mutex> lock(m_mutex);
@@ -187,7 +215,11 @@ void PlacedObjectManager::recomputeAllInteractionPoints() {
         }
         auto defsIt = m_templateDefs.find(obj.templateName);
         if (defsIt == m_templateDefs.end()) continue;
-        obj.interactionPoints = computeInteractionPoints(defsIt->second, obj.position, obj.rotation);
+        // A4 / W1 fault 2: a micro placement's origin is microAnchor/9; the floored cube landed
+        // reload-time points up to 0.89 u off the seat. Placement and reload now share one anchor.
+        obj.interactionPoints = obj.placedAtMicro
+            ? computeInteractionPointsAt(defsIt->second, glm::vec3(obj.microAnchor) / 9.0f, obj.rotation)
+            : computeInteractionPoints(defsIt->second, obj.position, obj.rotation);
         for (const auto& pt : obj.interactionPoints) {
             LOG_INFO_FMT("PlacedObjectManager", "  [" << id << "] '" << pt.pointId
                 << "' type=" << pt.type
@@ -745,6 +777,11 @@ std::string PlacedObjectManager::placeTemplateMicro(const std::string& templateN
     obj.microAnchor = worldMicro;    // so removal can undo EXACTLY this placement
     obj.placedAtMicro = true;
     obj.createdAt = std::chrono::system_clock::now();
+    // A4 / W1 fault 1: the micro path never wrote interaction points, so every generator-placed
+    // seat was unusable (find_fitting_seat found zero seats in a fresh settlement). Anchored at
+    // the REAL template origin (micro/9), not the floored cube — fault 2 lived there too.
+    if (auto defsIt = m_templateDefs.find(templateName); defsIt != m_templateDefs.end())
+        obj.interactionPoints = computeInteractionPointsAt(defsIt->second, glm::vec3(worldMicro) / 9.0f, rotation);
     insertObjectLocked(std::move(obj));
     LOG_INFO_FMT("PlacedObjectManager", "Placed template (micro) '" << templateName << "' as '" << id
                  << "' at micro (" << worldMicro.x << "," << worldMicro.y << "," << worldMicro.z

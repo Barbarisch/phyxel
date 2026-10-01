@@ -97,6 +97,12 @@ bool MinimalGame::onInitialize(Phyxel::Core::EngineRuntime& engine) {
     }
     applySettings(engine);
 
+    // Opt-in only: main.cpp enables this for `--test` / `--api`. Normal player
+    // launches do not bind an HTTP port.
+    if (engine.getConfig().testApiEnabled) {
+        startTestApi(engine, engine.getConfig().apiPort, "Phyxel Minimal Game");
+    }
+
     initialized_ = true;
     LOG_INFO("MinimalGame", "Minimal game initialized");
     return true;
@@ -133,10 +139,22 @@ void MinimalGame::onHandleInput(Phyxel::Core::EngineRuntime& engine) {
     // Only process camera/movement input when actually playing
     if (Phyxel::UI::isGameRunning(screen_.getState())) {
         input->processInput(0.016f);
+        // InputManager owns free-camera integration; publish its result to the
+        // renderer-facing Camera just like the editor host does. Without this,
+        // keyboard input was accepted but a standalone camera never moved.
+        if (auto* cam = engine.getCamera()) {
+            cam->setPosition(input->getCameraPosition());
+            cam->setYaw(input->getYaw());
+            cam->setPitch(input->getPitch());
+        }
     }
 }
 
 void MinimalGame::onUpdate(Phyxel::Core::EngineRuntime& engine, float dt) {
+    // API mutations are queued onto the game thread; drain them even while a
+    // menu is open so an automated run can press Start.
+    if (testApiRunning()) pumpTestApi();
+
     if (!Phyxel::UI::isGameRunning(screen_.getState())) return;
 
     elapsed_ += dt;
@@ -271,9 +289,14 @@ void MinimalGame::onRender(Phyxel::Core::EngineRuntime& engine) {
 
 void MinimalGame::onShutdown() {
     LOG_INFO("MinimalGame", "Shutting down minimal game...");
+    stopTestApi();
     settings_.saveToFile("settings.json");
     renderCoordinator.reset();
     initialized_ = false;
+}
+
+Phyxel::Graphics::RenderCoordinator* MinimalGame::apiRenderCoordinator() {
+    return renderCoordinator.get();
 }
 
 // ============================================================================

@@ -2,8 +2,7 @@
   "mcpServers": {
     "phyxel": {
       "command": "python",
-      "args": ["scripts/mcp/phyxel_mcp_server.py"],
-      "cwd": "G:\\Github\\phyxel"
+      "args": ["scripts/mcp/phyxel_mcp_server.py"]
     }
   }
 }

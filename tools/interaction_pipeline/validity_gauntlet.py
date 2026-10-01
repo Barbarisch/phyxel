@@ -63,9 +63,22 @@ def get(p, timeout=30):
     return json.load(urllib.request.urlopen(BASE + p, timeout=timeout))
 
 
+def _template_file(stem: str, suffix: str) -> Path:
+    """Templates live in category folders since the 2026-08-07 library reorg (stems are unique
+    library-wide) - resolve by stem anywhere under resources/templates."""
+    root = REPO / "resources" / "templates"
+    direct = root / f"{stem}{suffix}"
+    if direct.exists():
+        return direct
+    hits = sorted(root.rglob(f"{stem}{suffix}"))
+    if not hits:
+        raise FileNotFoundError(f"{stem}{suffix} not found under {root}")
+    return hits[0]
+
+
 def seat_cells(template: str, origin):
     """World-space solid cells (min,max per cell) of a placed seat template."""
-    path = REPO / "resources" / "templates" / f"{template}.voxel"
+    path = _template_file(template, ".voxel")
     cells = []
     for ln in path.read_text(encoding="utf-8").splitlines():
         p = ln.split()
@@ -142,8 +155,9 @@ def run_pair(preset, seat_tmpl, seat_id, seat_origin, experimental_hop=False):
     spec = {"name": name, "position": {"x": seat_origin[0] + 0.3,
                                        "y": seat_origin[1] + 1,
                                        "z": seat_origin[2] - 2.5}}
-    if preset != "standard":
-        spec["appearance"] = {"preset": preset}
+    # ALWAYS pin the preset: a spawn without `appearance` gets RANDOMIZED proportions
+    # (legLengthScale ~1.045 seen live 2026-09-30), so "standard" was a different body every run.
+    spec["appearance"] = {"preset": preset}
     post("/api/npc/spawn", spec)
     time.sleep(1.5)
     eid = f"npc_{name}"
@@ -170,8 +184,7 @@ def run_pair(preset, seat_tmpl, seat_id, seat_origin, experimental_hop=False):
 
     # Final-pose contract: pelvis bottom vs seat top.
     seat_top = None
-    metrics = json.loads((REPO / "resources" / "templates" /
-                          f"{seat_tmpl}.metrics.json").read_text(encoding="utf-8"))
+    metrics = json.loads(_template_file(seat_tmpl, ".metrics.json").read_text(encoding="utf-8"))
     for p in metrics.get("interaction_points", []):
         f = p.get("features") or {}
         if f.get("seat_top_y") is not None:

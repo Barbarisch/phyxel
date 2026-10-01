@@ -1,5 +1,5 @@
 {
-  "schema_version": "asset_metrics.v1",
+  "schema_version": "asset_metrics.v2",
   "template_name": "meat_rail",
   "overall_min": [
     0.0,
@@ -9,7 +9,7 @@
   "overall_max": [
     1.5555555555555556,
     2.111111111111111,
-    0.7777777777777778
+    0.7777777777777777
   ],
   "interaction_points": []
 }

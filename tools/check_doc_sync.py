@@ -10,8 +10,8 @@ surface was touched (or that the author opted out). Semantic reconciliation is t
 
 Usage:
     python tools/check_doc_sync.py [<base>..<head>]   # explicit range
-    python tools/check_doc_sync.py                     # default origin/main..HEAD;
-                                                       #   pre-push: reads refs on stdin
+    python tools/check_doc_sync.py                     # default origin/main..HEAD
+    python tools/check_doc_sync.py --pre-push          # hook mode: reads refs on stdin
 Exit 0 = OK (no engine change, surface also updated, or opt-out tag). Exit 1 = drift.
 Opt out for a genuinely doc-irrelevant change with [skip-docs] (or [docs-ok]) in a commit
 message in the range.
@@ -42,10 +42,10 @@ def _git(args: list[str]) -> str:
 
 def _resolve_range() -> str | None:
     """Range from argv, else pre-push stdin, else origin/main..HEAD."""
-    if len(sys.argv) > 1:
+    if len(sys.argv) > 1 and sys.argv[1] != "--pre-push":
         return sys.argv[1]
     # Pre-push passes "<local ref> <local sha> <remote ref> <remote sha>" lines on stdin.
-    if not sys.stdin.isatty():
+    if len(sys.argv) > 1 and sys.argv[1] == "--pre-push":
         data = sys.stdin.read().strip()
         if data:
             ranges = []

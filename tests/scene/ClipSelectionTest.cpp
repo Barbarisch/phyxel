@@ -92,6 +92,25 @@ TEST(ClipSelection, EmptyMemberFallbacksMatchLegacy) {
     EXPECT_EQ(ch->clipForState(AnimatedCharacterState::Attack, false), "attack");
 }
 
+// A3 item 2 (docs/AnimationSystemV3Plan.md §4 A3): the humanoid table lives in
+// humanoid.json (clipDefaults with {clip, sprint} objects + clipFallbacks for the
+// member-driven states); the legacy switch is only the guard for a plan that resolves
+// nothing. The table above is now the byte-identical MIGRATION proof, and this test says
+// the switch was never consulted to produce it. RED 2026-09-30 (every call fell through).
+TEST(ClipSelection, LegacySwitchNeverReachedOnTheHumanoidPlan) {
+    auto ch = makeHumanoid();
+    for (const auto& e : kLegacyTable) {
+        (void)ch->clipForState(e.state, false);
+        (void)ch->clipForState(e.state, true);
+    }
+    for (auto st : {AnimatedCharacterState::Block, AnimatedCharacterState::Dodge, AnimatedCharacterState::HitReact,
+                    AnimatedCharacterState::Death, AnimatedCharacterState::Celebrate, AnimatedCharacterState::Cast,
+                    AnimatedCharacterState::Attack})
+        (void)ch->clipForState(st, false);
+    EXPECT_EQ(ch->legacyClipFallbackHits(), 0)
+        << "clipForState fell through to the legacy switch — the humanoid plan does not carry the table";
+}
+
 TEST(ClipSelection, MappingOverridesEverything) {
     auto ch = makeHumanoid();
     ch->setAnimationMapping("Walk", "scamper_walk");
