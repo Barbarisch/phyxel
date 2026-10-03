@@ -3,6 +3,10 @@
 #include "particle_types.glsl"
 #include "solver_types.glsl"
 
+// Dynamic body vs. STATIC voxel contacts. Geometry lives in voxel_contact.glsl (shared
+// with the hard-contact safety pass) — read its header for why the old per-voxel SAT
+// made debris bubble.
+
 layout(local_size_x = WORKGROUP_SOLVER) in;
 
 layout(std430, set=0, binding=0) buffer SolverBodyBuffer  { SolverBody bodies[]; };
@@ -14,108 +18,16 @@ layout(std430, set=0, binding=4) readonly buffer WarmstartBuffer { WarmstartEntr
 layout(push_constant) uniform PC {
     uint  count;
     uint  maxConstraints;
-    float pad0;
-    float pad1;
+    uint  flags;          // SOLVER_FLAG_* (runtime A/B of the settling fixes)
+    float coldScale;      // cold-contact stiffness = coldScale * m/dt^2
 } pc;
 
-const int OCC_X        = 512;
-const int OCC_Y        = 256;
-const int OCC_Z        = 512;
-const int OCC_HALF_X   = 256;
-const int OCC_Y_OFFSET = 64;
-const int OCC_HALF_Z   = 256;
+#include "voxel_contact.glsl"
 
-bool isOccupied(int wx, int wy, int wz) {
-    int lx = wx + OCC_HALF_X;
-    int ly = wy + OCC_Y_OFFSET;
-    int lz = wz + OCC_HALF_Z;
-    if (lx < 0 || lx >= OCC_X || ly < 0 || ly >= OCC_Y || lz < 0 || lz >= OCC_Z) return false;
-    int  lin  = lx + ly * OCC_X + lz * OCC_X * OCC_Y;
-    uint word = uint(lin) >> 5u;
-    uint bit  = uint(lin) & 31u;
-    return (occupancy[word] & (1u << bit)) != 0u;
-}
-
-// Project OBB (defined by three world-space axes and half-extents) onto unit axis n.
-float projOBB(vec3 ax0, vec3 ax1, vec3 ax2, vec3 h, vec3 n) {
-    return abs(dot(ax0, n)) * h.x
-         + abs(dot(ax1, n)) * h.y
-         + abs(dot(ax2, n)) * h.z;
-}
-
-// Sign function that avoids sign(0) == 0 (use positive bias).
-float sgn(float x) { return (x >= 0.0) ? 1.0 : -1.0; }
-
-// Support point of OBB in direction dir (deepest vertex in that direction).
-vec3 obbSupport(vec3 pos, vec3 ax0, vec3 ax1, vec3 ax2, vec3 h, vec3 dir) {
-    return pos + sgn(dot(ax0, dir)) * h.x * ax0
-               + sgn(dot(ax1, dir)) * h.y * ax1
-               + sgn(dot(ax2, dir)) * h.z * ax2;
-}
-
-// Test OBB vs AABB with SAT.  The AABB has center voxCenter and half-extents (0.5,0.5,0.5).
-// Returns false if separated on any of the 15 axes.
-// On contact, writes the contact normal (pointing from voxel toward OBB) and pen depth.
-bool testOBBvoxel(vec3 pos,
-                  vec3 ax0, vec3 ax1, vec3 ax2, vec3 h,
-                  vec3 voxCenter,
-                  out vec3 outNormal, out float outPen)
-{
-    vec3 d = pos - voxCenter;   // OBB center relative to voxel center
-    const vec3 voxH = vec3(0.5);
-
-    float bestPen = 1e30;
-    vec3  bestN   = vec3(0, 1, 0);
-
-    // --- OBB face axes (3) ---
-    vec3 obbAx[3];
-    obbAx[0] = ax0; obbAx[1] = ax1; obbAx[2] = ax2;
-
-    for (int k = 0; k < 3; k++) {
-        vec3 n = obbAx[k];
-        float pOBB = h[k];   // projection of OBB = halfExt[k] (since n is the OBB axis)
-        float pVox = abs(n.x)*voxH.x + abs(n.y)*voxH.y + abs(n.z)*voxH.z;
-        float dist = abs(dot(d, n));
-        float pen  = pOBB + pVox - dist;
-        if (pen < 0.0) return false;
-        if (pen < bestPen) { bestPen = pen; bestN = n * sgn(dot(d, n)); }
-    }
-
-    // --- Voxel face axes (world X, Y, Z) ---
-    vec3 worldAx[3];
-    worldAx[0] = vec3(1,0,0); worldAx[1] = vec3(0,1,0); worldAx[2] = vec3(0,0,1);
-
-    for (int k = 0; k < 3; k++) {
-        vec3 n = worldAx[k];
-        float pOBB = projOBB(ax0, ax1, ax2, h, n);
-        float pVox = 0.5;
-        float dist = abs(dot(d, n));
-        float pen  = pOBB + pVox - dist;
-        if (pen < 0.0) return false;
-        if (pen < bestPen) { bestPen = pen; bestN = n * sgn(dot(d, n)); }
-    }
-
-    // --- Edge cross-product axes (9) ---
-    for (int a = 0; a < 3; a++) {
-        for (int b = 0; b < 3; b++) {
-            vec3 n = cross(obbAx[a], worldAx[b]);
-            float lenSq = dot(n, n);
-            if (lenSq < 1e-9) continue;
-            n /= sqrt(lenSq);
-            float pOBB = projOBB(ax0, ax1, ax2, h, n);
-            float pVox = abs(n.x)*voxH.x + abs(n.y)*voxH.y + abs(n.z)*voxH.z;
-            float dist = abs(dot(d, n));
-            float pen  = pOBB + pVox - dist;
-            if (pen < 0.0) return false;
-            if (pen < bestPen) { bestPen = pen; bestN = n * sgn(dot(d, n)); }
-        }
-    }
-
-    // bestN points from voxel toward OBB (same sign as d projected onto n)
-    outNormal = bestN;
-    outPen    = bestPen;
-    return true;
-}
+// A box resting in a pit corner touches up to three faces; the AVBD primal aggregates all of
+// them in one 6x6 solve. Selection keeps the deepest point per normal direction first (so a
+// wall is never starved by the floor), then fills by depth, preferring corners (widest base).
+const int MAX_VOXEL_CONTACTS = 6;
 
 void main() {
     uint i = gl_GlobalInvocationID.x;
@@ -128,86 +40,63 @@ void main() {
     vec3 h    = bA.halfExt;
     vec4 quat = bA.quat;
 
-    vec3 ax0 = quatRotate(quat, vec3(1,0,0));
-    vec3 ax1 = quatRotate(quat, vec3(0,1,0));
-    vec3 ax2 = quatRotate(quat, vec3(0,0,1));
+    // Speculative band: keep contacts for points up to this far above a surface, so a
+    // resting body never loses its constraint (and its warm-started force) between ticks.
+    const float margin = max(COLLISION_MARGIN, 0.02);
 
-    // World-space AABB of this OBB for voxel search range
-    float wx = abs(ax0.x)*h.x + abs(ax1.x)*h.y + abs(ax2.x)*h.z;
-    float wy = abs(ax0.y)*h.x + abs(ax1.y)*h.y + abs(ax2.y)*h.z;
-    float wz = abs(ax0.z)*h.x + abs(ax1.z)*h.y + abs(ax2.z)*h.z;
+    float cPen[VOXEL_SAMPLES];
+    vec3  cN  [VOXEL_SAMPLES];
+    vec3  cR  [VOXEL_SAMPLES];
+    int   cDir[VOXEL_SAMPLES];
+    bool  cUsed[VOXEL_SAMPLES];
+    int   nCand = 0;
+    int   sampleOf[VOXEL_SAMPLES];
 
-    int x0 = int(floor(pos.x - wx));  int x1 = int(floor(pos.x + wx));
-    int y0 = int(floor(pos.y - wy));  int y1 = int(floor(pos.y + wy));
-    int z0 = int(floor(pos.z - wz));  int z1 = int(floor(pos.z + wz));
+    for (int k = 0; k < VOXEL_SAMPLES; ++k) {
+        vec3 local = voxelSampleLocal(k) * h;
+        vec3 rW    = quatRotate(quat, local);
+        vec3 n; float pen; int dir;
+        if (!voxelPointContact(pos + rW, margin, n, pen, dir)) continue;
+        cPen[nCand] = pen; cN[nCand] = n; cR[nCand] = rW; cDir[nCand] = dir;
+        cUsed[nCand] = false; sampleOf[nCand] = k;
+        ++nCand;
+    }
+    if (nCand == 0) return;
 
-    // Collect up to MAX_VOXEL_CONTACTS contacts per body. AVBD primal LDL correctly
-    // handles multiple simultaneous contacts (the 6x6 system aggregates penalty terms);
-    // emitting only one contact causes resting boxes to perpetually rotate/slide
-    // between corner contacts, producing severe vibration ("popcorn").
-    const int MAX_VOXEL_CONTACTS = 4;
-    vec3  cN[MAX_VOXEL_CONTACTS];
-    float cP[MAX_VOXEL_CONTACTS];
-    vec3  cR[MAX_VOXEL_CONTACTS];
-    ivec3 cV[MAX_VOXEL_CONTACTS];
-    int   cCount = 0;
-    int   shallowIdx = 0;
-    float shallowPen = 1e30;
-
-    for (int vz = z0; vz <= z1; vz++) {
-    for (int vy = y0; vy <= y1; vy++) {
-    for (int vx = x0; vx <= x1; vx++) {
-        if (!isOccupied(vx, vy, vz)) continue;
-
-        vec3 voxCenter = vec3(float(vx) + 0.5, float(vy) + 0.5, float(vz) + 0.5);
-
-        vec3  normal;
-        float pen;
-        if (!testOBBvoxel(pos, ax0, ax1, ax2, h, voxCenter, normal, pen)) continue;
-
-        pen += COLLISION_MARGIN;
-        if (pen <= 0.0) continue;
-
-        // Contact point: voxel face center on the side facing the OBB.
-        // Distinct rA per voxel = essential for stable resting on a flat surface.
-        vec3 contactWorld = voxCenter + normal * 0.5;
-        vec3 rA_w         = contactWorld - pos;
-
-        if (cCount < MAX_VOXEL_CONTACTS) {
-            cN[cCount] = normal; cP[cCount] = pen; cR[cCount] = rA_w; cV[cCount] = ivec3(vx, vy, vz);
-            if (pen < shallowPen) { shallowPen = pen; shallowIdx = cCount; }
-            cCount++;
-        } else if (pen > shallowPen) {
-            cN[shallowIdx] = normal; cP[shallowIdx] = pen; cR[shallowIdx] = rA_w; cV[shallowIdx] = ivec3(vx, vy, vz);
-            // Recompute shallowest
-            shallowPen = cP[0]; shallowIdx = 0;
-            for (int k = 1; k < MAX_VOXEL_CONTACTS; k++) {
-                if (cP[k] < shallowPen) { shallowPen = cP[k]; shallowIdx = k; }
-            }
+    int chosen[MAX_VOXEL_CONTACTS];
+    int nChosen = 0;
+    // Pass 1: deepest per escape direction (26-neighbourhood).
+    for (int d = 0; d < 26 && nChosen < MAX_VOXEL_CONTACTS; ++d) {
+        int best = -1; float bestScore = -1e30;
+        for (int c = 0; c < nCand; ++c) {
+            if (cDir[c] != d) continue;
+            float s = cPen[c] + (voxelSampleIsCorner(sampleOf[c]) ? 0.002 : 0.0);
+            if (s > bestScore) { bestScore = s; best = c; }
         }
-    }}}
+        if (best >= 0) { chosen[nChosen++] = best; cUsed[best] = true; }
+    }
+    // Pass 2: fill by depth (corners preferred).
+    while (nChosen < MAX_VOXEL_CONTACTS) {
+        int best = -1; float bestScore = -1e30;
+        for (int c = 0; c < nCand; ++c) {
+            if (cUsed[c]) continue;
+            float s = cPen[c] + (voxelSampleIsCorner(sampleOf[c]) ? 0.002 : 0.0);
+            if (s > bestScore) { bestScore = s; best = c; }
+        }
+        if (best < 0) break;
+        chosen[nChosen++] = best; cUsed[best] = true;
+    }
 
-    if (cCount == 0) return;
+    for (int q = 0; q < nChosen; ++q) {
+        int   c      = chosen[q];
+        vec3  normal = cN[c];
+        float pen    = cPen[c];
+        vec3  rA_w   = cR[c];
 
-    // Emit each accumulated contact as a separate constraint (each with its own warmstart slot).
-    for (int k = 0; k < cCount; k++) {
-        vec3  normal = cN[k];
-        float pen    = cP[k];
-        vec3  rA_w   = cR[k];
-        ivec3 vox    = cV[k];
-
-        // Identify the picked voxel face: axis with largest |normal component|.
-        int   axisIdx = (abs(normal.x) > abs(normal.y))
-                      ? ((abs(normal.x) > abs(normal.z)) ? 0 : 2)
-                      : ((abs(normal.y) > abs(normal.z)) ? 1 : 2);
-        float sgnN  = (axisIdx == 0) ? normal.x : (axisIdx == 1 ? normal.y : normal.z);
-        uint  faceIdx = uint(axisIdx) * 2u + ((sgnN >= 0.0) ? 0u : 1u);
-
-        uint voxHash = (uint(vox.x + 2048) & 0xFFFu)
-                     | ((uint(vox.y + 2048) & 0xFFFu) << 12)
-                     | ((uint(vox.z + 2048) & 0xFFu)  << 24);
-        uint wsKey      = packKey(i, voxHash, faceIdx);
-        uint featureKey = faceIdx;
+        // Feature = (body sample, face direction): stable while the body slides across
+        // voxel boundaries, unlike the old per-voxel key.
+        uint featureKey = uint(sampleOf[c]) * 26u + uint(cDir[c]) + 1u;
+        uint wsKey      = packKey(i, 0xFFFF0000u, featureKey);
 
         // ---- Warmstart lookup (cold-fallback default if absent) ----
         WarmstartEntry ws;
@@ -224,7 +113,7 @@ void main() {
                 if (stored == HASH_EMPTY) break;
                 if (stored == wsKey) {
                     WarmstartEntry e = warmstarts[idx];
-                    if (e.featureKey == featureKey && featureKey != FEATURE_KEY_NONE) {
+                    if (e.featureKey == featureKey) {
                         if (isNanOrInf(e.lambdaN) || isNanOrInf(e.penaltyN) ||
                             isNanOrInf(e.lambdaF1) || isNanOrInf(e.penaltyF1) ||
                             isNanOrInf(e.lambdaF2) || isNanOrInf(e.penaltyF2)) {
@@ -249,32 +138,58 @@ void main() {
         // Store body-A arm in LOCAL space; bodyB is static so rB unused.
         vec3 rA_local = quatRotate(quatInv(quat), rA_w);
 
-        GPUConstraint c;
-        c.n          = normal;
-        c.depth      = pen;
-        c.rA         = rA_local;
-        c.lambdaN    = ws.lambdaN  * ALPHA;
-        c.rB         = vec3(0);
-        c.lambdaF1   = ws.lambdaF1 * ALPHA;
-        c.t1         = t1;
-        c.lambdaF2   = ws.lambdaF2 * ALPHA;
-        c.bodyA      = i;
-        c.bodyB      = SOLVER_STATIC;
-        c.mu         = bA.friction;
-        c.color      = UNCOLORED;
-        c.penalty_n  = clamp(ws.penaltyN  * GAMMA, PENALTY_MIN, PENALTY_MAX);
-        c.C_init_n   = pen;
-        c.penalty_t1 = clamp(ws.penaltyF1 * GAMMA, PENALTY_MIN, PENALTY_MAX);
-        c.penalty_t2 = clamp(ws.penaltyF2 * GAMMA, PENALTY_MIN, PENALTY_MAX);
-        c.featureKey = featureKey;
-        c.wsKey      = wsKey;
-        c.isNew      = (ws.featureKey == FEATURE_KEY_NONE) ? 1u : 0u;
-        c.stick      = ws.stick;
-        c.C_init_t1  = 0.0;
-        c.C_init_t2  = 0.0;
-        c.pad0       = 0.0;
-        c.pad1       = 0.0;
+        // A cold contact starts at the body's own inertial stiffness (m/dt²-class) instead of
+        // PENALTY_MIN = 1: with κ = 1 a landing body sinks centimetres before the penalty ramp
+        // catches up, and the climb back out is injected energy (three-avbd "massPenalty").
+        float coldPenalty = (1.0 / bA.invMass) * COLD_PENALTY_DT2_INV * pc.coldScale;
+        bool  cold        = (ws.featureKey == FEATURE_KEY_NONE);
 
-        constraints[slot] = c;
+        GPUConstraint con;
+        con.n          = normal;
+        con.depth      = pen;
+        con.rA         = rA_local;
+        con.lambdaN    = ws.lambdaN  * ALPHA;
+        con.rB         = vec3(0);
+        con.lambdaF1   = ws.lambdaF1 * ALPHA;
+        con.t1         = t1;
+        con.lambdaF2   = ws.lambdaF2 * ALPHA;
+        con.bodyA      = i;
+        con.bodyB      = SOLVER_STATIC;
+        con.mu         = bA.friction;
+        con.color      = UNCOLORED;
+        bool  massPen     = (pc.flags & SOLVER_FLAG_MASS_PENALTY) != 0u;
+        con.penalty_n  = clamp((cold && massPen) ? coldPenalty : ws.penaltyN * GAMMA,
+                               PENALTY_MIN, PENALTY_MAX);
+        // Detected at the PREDICTED iterate; the solver measures motion (J·Δq) from the tick
+        // start, so convert back: pen0 = pen_pred + J·Δq_pred. Storing pen_pred directly
+        // counted this tick's predicted motion twice — a body falling 10 cm/tick "penetrated"
+        // 10 cm too deep and was shoved back out (a bounce on every impact, ∝ speed).
+        float jdq = dot(normal, bA.pos - bA.initial) + dot(cross(rA_w, normal), bA.cumAng);
+        con.C_init_n   = pen + jdq;      // C = 0 at touching → rests FLUSH
+        // ---- Static friction (AVBD paper §3.3; three-avbd keeps anchors while sticking) ----
+        // Friction rows used to start at PENALTY_MIN = 1 and were never anchored (C_init_t was
+        // always 0, the persisted `stick` flag unread), so friction could only slow sliding,
+        // never HOLD: every tick lost 1% of the friction force to the alpha-decayed warm start
+        // and had to slip a little to rebuild it — leaning/stacked debris crept for seconds.
+        // Now: cold friction rows start stiff, and a sticking contact keeps its world anchor
+        // (stored in rB — unused by static rows) so accumulated drift is pulled back.
+        bool  sFric   = (pc.flags & SOLVER_FLAG_STATIC_FRICTION) != 0u;
+        vec3  ptStart = bA.initial + quatRotate(bA.initialQuat, rA_local);   // sample at tick start
+        vec3  anchor  = (sFric && !cold && ws.stick != 0u) ? ws.rB : ptStart;
+        con.rB         = anchor;
+        con.C_init_t1  = sFric ? dot(t1, ptStart - anchor) : 0.0;
+        con.C_init_t2  = sFric ? dot(t2, ptStart - anchor) : 0.0;
+        float penT1 = (sFric && cold) ? coldPenalty : ws.penaltyF1 * GAMMA;
+        float penT2 = (sFric && cold) ? coldPenalty : ws.penaltyF2 * GAMMA;
+        con.penalty_t1 = clamp(penT1, PENALTY_MIN, PENALTY_MAX);
+        con.penalty_t2 = clamp(penT2, PENALTY_MIN, PENALTY_MAX);
+        con.featureKey = featureKey;
+        con.wsKey      = wsKey;
+        con.isNew      = cold ? 1u : 0u;
+        con.stick      = ws.stick;
+        con.pad0       = 0.0;
+        con.pad1       = 0.0;
+
+        constraints[slot] = con;
     }
 }

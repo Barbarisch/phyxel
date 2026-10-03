@@ -4,185 +4,96 @@
 #include "solver_types.glsl"
 
 // =====================================================================
-// Hard-contact safety pass: post-solve positional projection of dynamic
-// bodies out of the static voxel occupancy grid.
+// Hard-contact safety pass: post-solve positional projection of dynamic bodies out of the
+// static voxel grid, for overlap the soft AVBD solve failed to resolve.
 //
-// AVBD is a soft-contact solver; under heavy stacking pressure the
-// position-correction chain can break and bottom-layer bodies may end
-// up overlapping the static floor / terrain. This pass acts as a final
-// non-physical clamp:
-//   - For each dynamic body, find the deepest static-voxel penetration
-//   - Push body.pos out along that normal (positional, no impulse)
-//   - Zero the velocity component into the surface so they don't immediately
-//     re-penetrate next frame
+// Uses the SAME contact geometry as solver_voxel.comp (voxel_contact.glsl): only EXPOSED
+// voxel faces can push, so a body sunk into a flat floor is pushed UP, never sideways or
+// down through the slab (the old per-voxel MTV did both — tunnelling and sideways kicks).
 //
-// Pure positional, single-pass. Cost is negligible: one thread per body,
-// each thread samples ~3-4 cells (the body AABB). This handles arbitrary
-// terrain geometry because it consults the same occupancy SSBO that
-// solver_voxel.comp uses for normal contact.
+// It acts only on genuine failures (overlap > HC_THRESH), not on the ~mm residual every
+// soft contact carries at rest — the old pass fired on nearly every resting body every
+// tick. And because sync_out derives velocity from (pos - initial)/dt, a push applied to
+// pos alone BECOMES upward launch velocity (1 cm/tick = 0.6 m/s); with SOLVER_FLAG_HC_NEUTRAL
+// the push moves `initial` with it, so the correction is positional only, and any velocity
+// INTO the surface is removed.
 // =====================================================================
 
 layout(local_size_x = WORKGROUP_SOLVER) in;
 
 layout(std430, set=0, binding=0) buffer SolverBodyBuffer { SolverBody bodies[]; };
 layout(std430, set=0, binding=1) readonly buffer OccupancyBuffer { uint occupancy[]; };
+// Settle-probe telemetry only (SS_HARDCONTACT_*): how often this non-physical clamp fires.
+layout(std430, set=0, binding=2) buffer SolverStateBuffer { uint solverState[]; };
 
 layout(push_constant) uniform PC {
     uint  count;
-    float pad0;
+    uint  flags;          // SOLVER_FLAG_*
     float pad1;
     float pad2;
 } pc;
 
-// Must match solver_voxel.comp.
-const int OCC_X        = 512;
-const int OCC_Y        = 256;
-const int OCC_Z        = 512;
-const int OCC_HALF_X   = 256;
-const int OCC_Y_OFFSET = 64;
-const int OCC_HALF_Z   = 256;
+#include "voxel_contact.glsl"
 
-bool isOccupied(int wx, int wy, int wz) {
-    int lx = wx + OCC_HALF_X;
-    int ly = wy + OCC_Y_OFFSET;
-    int lz = wz + OCC_HALF_Z;
-    if (lx < 0 || lx >= OCC_X || ly < 0 || ly >= OCC_Y || lz < 0 || lz >= OCC_Z) return false;
-    int  lin  = lx + ly * OCC_X + lz * OCC_X * OCC_Y;
-    uint word = uint(lin) >> 5u;
-    uint bit  = uint(lin) & 31u;
-    return (occupancy[word] & (1u << bit)) != 0u;
-}
-
-vec3 quatRotateLocal(vec4 q, vec3 v) {
-    vec3 u = q.xyz;
-    float s = q.w;
-    return 2.0 * dot(u, v) * u + (s * s - dot(u, u)) * v + 2.0 * s * cross(u, v);
-}
-
-float sgnH(float x) { return (x >= 0.0) ? 1.0 : -1.0; }
-
-float projOBB(vec3 ax0, vec3 ax1, vec3 ax2, vec3 h, vec3 n) {
-    return abs(dot(ax0, n)) * h.x
-         + abs(dot(ax1, n)) * h.y
-         + abs(dot(ax2, n)) * h.z;
-}
-
-// OBB-vs-unit-AABB SAT. Returns deepest separation as MTV (normal pointing
-// from voxel toward OBB so positive correction pushes the body out).
-bool obbVsVoxelMTV(vec3 pos, vec3 ax0, vec3 ax1, vec3 ax2, vec3 h,
-                   vec3 voxCenter, out vec3 outNormal, out float outPen)
-{
-    vec3 d = pos - voxCenter;
-    const vec3 voxH = vec3(0.5);
-    float bestPen = 1e30;
-    vec3  bestN   = vec3(0.0, 1.0, 0.0);
-
-    // OBB face axes (3)
-    vec3 obbAx[3]; obbAx[0]=ax0; obbAx[1]=ax1; obbAx[2]=ax2;
-    for (int k = 0; k < 3; ++k) {
-        vec3 n = obbAx[k];
-        float pOBB = h[k];
-        float pVox = abs(n.x)*voxH.x + abs(n.y)*voxH.y + abs(n.z)*voxH.z;
-        float dist = abs(dot(d, n));
-        float pen  = pOBB + pVox - dist;
-        if (pen < 0.0) return false;
-        if (pen < bestPen) { bestPen = pen; bestN = n * sgnH(dot(d, n)); }
-    }
-    // Voxel face axes (world X/Y/Z)
-    vec3 worldAx[3]; worldAx[0]=vec3(1,0,0); worldAx[1]=vec3(0,1,0); worldAx[2]=vec3(0,0,1);
-    for (int k = 0; k < 3; ++k) {
-        vec3 n = worldAx[k];
-        float pOBB = projOBB(ax0, ax1, ax2, h, n);
-        float pVox = 0.5;
-        float dist = abs(dot(d, n));
-        float pen  = pOBB + pVox - dist;
-        if (pen < 0.0) return false;
-        if (pen < bestPen) { bestPen = pen; bestN = n * sgnH(dot(d, n)); }
-    }
-    // Edge cross axes (9) — required for full SAT correctness.
-    for (int a = 0; a < 3; ++a) {
-        for (int b = 0; b < 3; ++b) {
-            vec3 n = cross(obbAx[a], worldAx[b]);
-            float l2 = dot(n, n);
-            if (l2 < 1e-8) continue;
-            n = n * inversesqrt(l2);
-            float pOBB = projOBB(ax0, ax1, ax2, h, n);
-            float pVox = abs(n.x)*voxH.x + abs(n.y)*voxH.y + abs(n.z)*voxH.z;
-            float dist = abs(dot(d, n));
-            float pen  = pOBB + pVox - dist;
-            if (pen < 0.0) return false;
-            if (pen < bestPen) { bestPen = pen; bestN = n * sgnH(dot(d, n)); }
-        }
-    }
-    outNormal = bestN;
-    outPen    = bestPen;
-    return true;
-}
+const float HC_THRESH = 0.01;   // m — below this the soft contact is doing its job
 
 void main() {
     uint i = gl_GlobalInvocationID.x;
     if (i >= pc.count) return;
 
     SolverBody b = bodies[i];
-    if (b.invMass <= 0.0) return;     // skip static bodies
-
-    // World OBB axes from quaternion.
-    vec3 ax0 = quatRotateLocal(b.quat, vec3(1, 0, 0));
-    vec3 ax1 = quatRotateLocal(b.quat, vec3(0, 1, 0));
-    vec3 ax2 = quatRotateLocal(b.quat, vec3(0, 0, 1));
-    vec3 h   = b.halfExt;
-
-    // World-space OBB AABB.
-    vec3 ext = vec3(projOBB(ax0, ax1, ax2, h, vec3(1,0,0)),
-                    projOBB(ax0, ax1, ax2, h, vec3(0,1,0)),
-                    projOBB(ax0, ax1, ax2, h, vec3(0,0,1)));
-    vec3 mn = b.pos - ext;
-    vec3 mx = b.pos + ext;
-
-    // Iterate integer voxel cells in AABB. Cell (vx,vy,vz) has center (vx+0.5, vy+0.5, vz+0.5).
-    int vx0 = int(floor(mn.x));
-    int vy0 = int(floor(mn.y));
-    int vz0 = int(floor(mn.z));
-    int vx1 = int(floor(mx.x));
-    int vy1 = int(floor(mx.y));
-    int vz1 = int(floor(mx.z));
-
-    // Safety clamp on iteration extent to keep cost bounded if a body has
-    // been blown up to a huge scale somehow.
-    const int MAX_RANGE = 6;
-    if (vx1 - vx0 > MAX_RANGE) vx1 = vx0 + MAX_RANGE;
-    if (vy1 - vy0 > MAX_RANGE) vy1 = vy0 + MAX_RANGE;
-    if (vz1 - vz0 > MAX_RANGE) vz1 = vz0 + MAX_RANGE;
+    if ((b.flags & PARTICLE_ACTIVE) == 0u || b.invMass <= 0.0) return;
 
     float bestPen = 0.0;
     vec3  bestN   = vec3(0.0);
+    bool  anyExposed = false;
+    for (int k = 0; k < VOXEL_SAMPLES; ++k) {
+        vec3 x = b.pos + quatRotate(b.quat, voxelSampleLocal(k) * b.halfExt);
+        vec3 n; float pen; int dir;
+        if (!voxelPointContact(x, 0.0, n, pen, dir)) continue;
+        anyExposed = true;
+        if (pen > bestPen) { bestPen = pen; bestN = n; }
+    }
 
-    for (int vz = vz0; vz <= vz1; ++vz) {
-        for (int vy = vy0; vy <= vy1; ++vy) {
-            for (int vx = vx0; vx <= vx1; ++vx) {
-                if (!isOccupied(vx, vy, vz)) continue;
-                vec3 c = vec3(float(vx) + 0.5, float(vy) + 0.5, float(vz) + 0.5);
-                vec3 n; float pen;
-                if (!obbVsVoxelMTV(b.pos, ax0, ax1, ax2, h, c, n, pen)) continue;
-                if (pen > bestPen) { bestPen = pen; bestN = n; }
+    vec3 push = vec3(0.0);
+    if (bestPen > HC_THRESH) {
+        push = bestN * bestPen;
+    } else if (!anyExposed && isOccupiedI(ivec3(floor(b.pos)))) {
+        // Fully embedded (centre in solid, no sample near an exposed face): lift to the
+        // first open cell above — the only direction guaranteed not to tunnel.
+        ivec3 c = ivec3(floor(b.pos));
+        for (int k = 1; k <= 4; ++k) {
+            if (!isOccupied(c.x, c.y + k, c.z)) {
+                float wy = abs(quatRotate(b.quat, vec3(1, 0, 0)).y) * b.halfExt.x
+                         + abs(quatRotate(b.quat, vec3(0, 1, 0)).y) * b.halfExt.y
+                         + abs(quatRotate(b.quat, vec3(0, 0, 1)).y) * b.halfExt.z;
+                push = vec3(0.0, float(c.y + k) + wy - b.pos.y, 0.0);
+                bestN = vec3(0.0, 1.0, 0.0);
+                bestPen = push.y;
+                break;
             }
         }
     }
+    if (dot(push, push) <= 0.0) return;
 
-    // Apply MTV with a small skin so we don't sit exactly on the boundary.
-    if (bestPen > 1e-5) {
-        const float SKIN = 1e-3;
-        b.pos += bestN * (bestPen + SKIN);
-        // Kill velocity into the surface (positional projection preserves
-        // tangential motion / sliding).
-        float vn = dot(b.vel, bestN);
-        if (vn < 0.0) b.vel -= bestN * vn;
-        // Damp angular velocity slightly to prevent micro-spin from a
-        // suddenly-clamped body.
-        b.angVel *= 0.5;
-
-        bodies[i].pos    = b.pos;
-        bodies[i].vel    = b.vel;
-        bodies[i].angVel = b.angVel;
+    if ((pc.flags & SOLVER_FLAG_HC_NEUTRAL) != 0u) {
+        // Positional-only correction: keep this tick's displacement (= velocity) minus any
+        // component INTO the surface; the push itself carries no velocity.
+        vec3  disp = b.pos - b.initial;
+        float vn   = dot(disp, bestN);
+        if (vn < 0.0) disp -= bestN * vn;
+        b.pos    += push;
+        b.initial = b.pos - disp;
+        bodies[i].initial = b.initial;
+        // Post-stab path takes velocity from b.vel: drop its into-surface component too.
+        float vv = dot(b.vel, bestN);
+        if (vv < 0.0) bodies[i].vel = b.vel - bestN * vv;
+    } else {
+        // Legacy behaviour (A/B only): the push lands in pos alone → becomes velocity.
+        b.pos += push;
     }
+    bodies[i].pos = b.pos;
+
+    atomicAdd(solverState[SS_HARDCONTACT_FIRES], 1u);
+    atomicMax(solverState[SS_HARDCONTACT_DEPTH_UM], uint(min(bestPen, 4000.0) * 1.0e6));
 }

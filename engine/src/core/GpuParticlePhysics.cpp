@@ -105,7 +105,8 @@ bool GpuParticlePhysics::createBuffers(Vulkan::VulkanDevice* dev) {
     // 1. Particle SSBO (device-local)
     dev->createStorageBuffer(
         static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(GpuParticle),
-        m_particleBuffer, m_particleMem);
+        m_particleBuffer, m_particleMem,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT); // position-log + settle-probe readback copies
 
     // 2. Face output buffer (device-local, also bound as vertex buffer)
     dev->createStorageBuffer(
@@ -412,14 +413,17 @@ bool GpuParticlePhysics::initMaterialPhysicsTable() {
             const auto& mp = reg.getPhysics(name);
             gpu.mass            = mp.mass;
             gpu.restitution     = mp.restitution;
-            gpu.friction        = std::max(0.0f, 1.0f - mp.friction * 0.36f);
+            // Coulomb mu for the AVBD friction cone (solver_dual/primal). The old mapping
+            // (1 - f*0.36) was the dead legacy shader's velocity-RETENTION factor and inverted
+            // friction under AVBD: Ice 0.96 (grippy), Stone 0.71.
+            gpu.friction        = std::max(0.0f, mp.friction);
             gpu.linearDamp      = std::max(0.9f, 1.0f - mp.linearDamping * 0.05f);
             gpu.angularDamp     = std::max(0.97f, 1.0f - mp.angularDamping * 0.03f);
             gpu.breakForceScale = mp.breakForceMultiplier;
         } else {
             gpu.mass            = 1.0f;
             gpu.restitution     = 0.3f;
-            gpu.friction        = 0.82f;
+            gpu.friction        = 0.5f;
             gpu.linearDamp      = 0.995f;
             gpu.angularDamp     = 0.97f;
             gpu.breakForceScale = 1.0f;
@@ -427,6 +431,8 @@ bool GpuParticlePhysics::initMaterialPhysicsTable() {
         gpu.pad0 = 0.0f;
         gpu.pad1 = 0.0f;
         dst[i] = gpu;
+        if (m_materialMassCpu.size() <= static_cast<size_t>(i)) m_materialMassCpu.resize(i + 1, 1.0f);
+        m_materialMassCpu[i] = gpu.mass;
 
         LOG_DEBUG_FMT("GpuParticlePhysics", "Material[" << i << "] " << name
             << ": mass=" << gpu.mass << " rest=" << gpu.restitution
@@ -585,7 +591,8 @@ bool GpuParticlePhysics::createSolverBuffers(Vulkan::VulkanDevice* dev) {
     // Solver state: counters (HASH_BASE uints) + open-addressed hash table (HASH_CAP uints).
     dev->createStorageBuffer(
         static_cast<VkDeviceSize>(SOLVER_STATE_UINTS) * sizeof(uint32_t),
-        m_solverStateBuffer, m_solverStateMem);
+        m_solverStateBuffer, m_solverStateMem,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT); // settle-probe header readback
 
     // Warmstart entries: HASH_CAP × 64 bytes. Indexed by hashInsert(wsKey).
     dev->createStorageBuffer(
@@ -595,11 +602,13 @@ bool GpuParticlePhysics::createSolverBuffers(Vulkan::VulkanDevice* dev) {
     // Body color buffer (one uint per body for Jones-Plassmann coloring)
     dev->createStorageBuffer(
         static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t),
-        m_bodyColorBuffer, m_bodyColorMem);
+        m_bodyColorBuffer, m_bodyColorMem,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT); // settle-probe colour readback
 
     dev->createStorageBuffer(
         static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t),
-        m_bodyConstraintCountBuffer, m_bodyConstraintCountMem);
+        m_bodyConstraintCountBuffer, m_bodyConstraintCountMem,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT); // settle-probe readback
 
     dev->createStorageBuffer(
         static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t),
@@ -729,9 +738,10 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     // solver_hardcontact: bodies(rw), occupancy(ro)
     // Final positional safety pass — projects dynamic bodies out of static
     // voxel terrain in case AVBD couldn't fully resolve under heavy stacking.
-    if (!m_solverHardContactPass.create(m_device, shader("solver_hardcontact.comp.spv"), 2, sizeof(HardContactPC))) return false;
+    if (!m_solverHardContactPass.create(m_device, shader("solver_hardcontact.comp.spv"), 3, sizeof(HardContactPC))) return false;
     m_solverHardContactPass.bindBuffer(0, m_solverBodyBuffer, bodySize);
     m_solverHardContactPass.bindBuffer(1, m_occupancyBuffer,  occSize);
+    m_solverHardContactPass.bindBuffer(2, m_solverStateBuffer, stateSize); // settle-probe counters
     m_solverHardContactPass.updateDescriptors();
 
     // solver_csr_clear: bodyConstraintCount(rw), bodyColor(rw)
@@ -798,13 +808,13 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     auto endP   = [&]()              { if (instrument && profiler) profiler->endScope(cmd); };
 
     struct SyncInPC      { uint32_t count; float dt; };
-    struct IntegratePC   { uint32_t count; float dt; float gravity; float pad; };
-    struct NpPC          { uint32_t count; uint32_t maxConstraints; float p0; float p1; };
+    struct IntegratePC   { uint32_t count; float dt; float gravity; uint32_t flags; };
+    struct NpPC          { uint32_t count; uint32_t maxConstraints; uint32_t flags; float p1; };
     struct DualPC        { uint32_t maxConstraints; float dt; uint32_t pad0; float pad1; };
     struct PrimalPC      { uint32_t bodyCount; float dt; uint32_t targetColor; float pad; };
-    struct SyncOutPC     { uint32_t count; float dt; float lifetimeDt; float pad; };
+    struct SyncOutPC     { uint32_t count; float dt; float lifetimeDt; uint32_t flags; };
     struct WarmstartSavePC { uint32_t maxConstraints; };
-    struct HardContactPC { uint32_t count; float pad0; float pad1; float pad2; };
+    struct HardContactPC { uint32_t count; uint32_t flags; float pad1; float pad2; };
     struct GridClearPC   { uint32_t cellCount; };
     struct GridBuildPC   { uint32_t count; };
     struct SortScanPC    { uint32_t cellCount; };
@@ -852,7 +862,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     // ---- 2. Integrate: apply gravity + damping, predict position ----
     {
-        IntegratePC pc{ count, FIXED_DT, GRAVITY, 0.0f };
+        IntegratePC pc{ count, FIXED_DT, GRAVITY, m_solverFlags };
         m_solverIntegratePass.bind(cmd);
         m_solverIntegratePass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverIntegratePass.dispatch(cmd, groups);
@@ -922,7 +932,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     // ---- 4a. Narrowphase: dynamic-dynamic contacts → constraints ----
     {
         endP(); beginP("NarrowVoxel");
-        NpPC pc{ count, MAX_CONSTRAINTS, 0.0f, 0.0f };
+        NpPC pc{ count, MAX_CONSTRAINTS, m_solverFlags, m_coldPenaltyScale };
         m_solverNarrowphasePass.bind(cmd);
         m_solverNarrowphasePass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverNarrowphasePass.dispatch(cmd, groups);
@@ -932,7 +942,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     // ---- 4b. Voxel contacts → constraints (appended) ----
     {
-        NpPC pc{ count, MAX_CONSTRAINTS, 0.0f, 0.0f };
+        NpPC pc{ count, MAX_CONSTRAINTS, m_solverFlags, m_coldPenaltyScale };
         m_solverVoxelPass.bind(cmd);
         m_solverVoxelPass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverVoxelPass.dispatch(cmd, groups);
@@ -980,18 +990,21 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     }
     ssBarrier(m_bodyConstraintListBuffer);
 
-    // ---- 6. Body graph coloring: Jones-Plassmann, 16 passes ----
+    // ---- 6. Body graph coloring: Jones-Plassmann, COLOR_ROUNDS passes ----
     // Colors BODIES: two bodies are adjacent if they share a constraint.
     // Same-color bodies have no shared constraints → safe for parallel primal writes.
     {
         BodyColorPC pc{ count };
-        for (int gc = 0; gc < 16; ++gc) {
+        for (int gc = 0; gc < COLOR_ROUNDS; ++gc) {
             m_bodyColorPass.bind(cmd);
             m_bodyColorPass.pushConstants(cmd, &pc, sizeof(pc));
             m_bodyColorPass.dispatch(cmd, groups);
             ssBarrier(m_bodyColorBuffer);
         }
     }
+
+    const bool  postStab   = (m_solverFlags & SOLVER_FLAG_POST_STAB) != 0;
+    const float solveAlpha = postStab ? 1.0f : SOLVER_ALPHA;
 
     // ---- 7. AVBD dual+primal solve loop ----
     // solveDual: per-constraint, updates lambda and grows penalty (fully parallel, no body writes)
@@ -1000,7 +1013,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     for (int iter = 0; iter < SOLVE_ITERATIONS; ++iter) {
         // Dual: update all constraint lambdas/penalties
         {
-            DualPC pc{ MAX_CONSTRAINTS, FIXED_DT, 0u, 0.0f };
+            DualPC pc{ MAX_CONSTRAINTS, FIXED_DT, 0u, solveAlpha };
             m_solverDualPass.bind(cmd);
             m_solverDualPass.pushConstants(cmd, &pc, sizeof(pc));
             m_solverDualPass.dispatch(cmd, maxConstrGrps);
@@ -1008,7 +1021,35 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
         ssBarrier(m_constraintBuffer);
 
         // Primal: solve per body, one color at a time
-        for (uint32_t color = 0; color < MAX_COLORS; ++color) {
+        // Final sweep (ci == MAX_COLORS) solves bodies Jones-Plassmann left UNCOLORED, all in
+        // one Jacobi-style pass: a colouring conflict degrades to a Jacobi update instead of
+        // the body being SKIPPED (audit D1; paper §4 does the same via double buffering).
+        for (uint32_t ci = 0; ci <= MAX_COLORS; ++ci) {
+            const uint32_t color = (ci == MAX_COLORS) ? 0xFFFFFFFFu : ci;
+            PrimalPC pc{ count, FIXED_DT, color, solveAlpha };
+            m_solverPrimalPass.bind(cmd);
+            m_solverPrimalPass.pushConstants(cmd, &pc, sizeof(pc));
+            m_solverPrimalPass.dispatch(cmd, groups);
+            ssBarrier(m_solverBodyBuffer);
+        }
+    }
+
+    // ---- 7a. Post-stabilisation (avbd-demo2d) ----
+    // The loop above ran at alpha = 1: it never chases pre-existing overlap, so the motion it
+    // produced is physical. Record that as the velocity, THEN remove the overlap with one
+    // position-only primal sweep at alpha = 0. With the default alpha = 0.99 instead, only 1%
+    // of an overlap is corrected per tick (stacks visibly sink, then creep) and whatever IS
+    // corrected becomes velocity (the bubbling). This breaks that trade-off.
+    if (postStab) {
+        {
+            PrimalPC pc{ count, FIXED_DT, PRIMAL_STORE_VELOCITY, 1.0f };
+            m_solverPrimalPass.bind(cmd);
+            m_solverPrimalPass.pushConstants(cmd, &pc, sizeof(pc));
+            m_solverPrimalPass.dispatch(cmd, groups);
+            ssBarrier(m_solverBodyBuffer);
+        }
+        for (uint32_t ci = 0; ci <= MAX_COLORS; ++ci) {
+            const uint32_t color = (ci == MAX_COLORS) ? 0xFFFFFFFFu : ci;
             PrimalPC pc{ count, FIXED_DT, color, 0.0f };
             m_solverPrimalPass.bind(cmd);
             m_solverPrimalPass.pushConstants(cmd, &pc, sizeof(pc));
@@ -1018,13 +1059,13 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     }
 
     // ---- 7b. Hard-contact safety pass ----
-    // Pure positional projection of dynamic bodies out of any remaining
-    // static-voxel overlap left by the AVBD solver. Acts only when AVBD
-    // failed to fully resolve (e.g. deep stacks). Per body, samples the
-    // static occupancy grid in the body AABB and pushes out along MTV.
+    // Positional projection of dynamic bodies out of static-voxel overlap the AVBD solve
+    // left behind (> 1 cm — genuine failures only). Same contact geometry as the voxel
+    // contact pass (voxel_contact.glsl), and velocity-neutral under SOLVER_FLAG_HC_NEUTRAL
+    // (docs/DebrisSettlingPlan.md §R defect 5: it used to turn its push into launch velocity).
     {
         endP(); beginP("Finalize");
-        HardContactPC pc{ count, 0.0f, 0.0f, 0.0f };
+        HardContactPC pc{ count, m_solverFlags, 0.0f, 0.0f };
         m_solverHardContactPass.bind(cmd);
         m_solverHardContactPass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverHardContactPass.dispatch(cmd, groups);
@@ -1033,7 +1074,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     // ---- 8. Sync out: SolverBody → GpuParticle ----
     {
-        SyncOutPC pc{ count, FIXED_DT, lifetimeDt, 0.0f };
+        SyncOutPC pc{ count, FIXED_DT, lifetimeDt, m_solverFlags };
         m_solverSyncOutPass.bind(cmd);
         m_solverSyncOutPass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverSyncOutPass.dispatch(cmd, groups);
@@ -1155,6 +1196,16 @@ void GpuParticlePhysics::update(float dt) {
         m_physicsTicks = 4;
         m_timeAccumulator = 0.0f;
     }
+    // Debug freeze / single-step: only budgeted ticks run, and lifetimes age by exactly the
+    // simulated time (so a frozen pile neither moves nor expires).
+    if (m_frozen) {
+        m_timeAccumulator = 0.0f;
+        m_physicsTicks = std::min<uint32_t>(m_stepBudget, 4u);
+        m_stepBudget  -= m_physicsTicks;
+        realDt         = m_physicsTicks * FIXED_DT;
+        m_lastRealDt   = realDt;
+    }
+    m_totalTicks += m_physicsTicks;
 
     // Age CPU-side slots using real elapsed time (frame-rate independent).
     // The GPU integrate shader does the same via lifetimeDt push constant.
@@ -1208,7 +1259,15 @@ void GpuParticlePhysics::update(float dt) {
 // Compute command recording
 // ============================================================
 
-void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*frameIndex*/, GpuProfiler* profiler) {
+void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t frameIndex, GpuProfiler* profiler) {
+    // Settle probe: this frame slot's fence has retired (we are recording into its command
+    // buffer), so the ticks copied into its ring slot PROBE_FRAMES frames ago are readable.
+    // Consumed before any early-out so no tick is lost when the pool empties.
+    if (m_initialized) {
+        m_probeFrame = frameIndex % PROBE_FRAMES;
+        consumeProbeSlot(m_probeFrame);
+    }
+
     // Enter if anything is alive, spawning, or being retired this frame. The
     // deactivation check is required: when the last particles die, activeCount
     // is 0 and there are no spawns, but we still must clear their GPU flags.
@@ -1281,6 +1340,7 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t /*f
         if (m_useNewPipeline) {
             // Per-pass GPU timing only on the first tick (query-budget safe).
             recordComputeCommandsNew(cmd, count, lifetimeDtThisTick, profiler, tick == 0);
+            if (m_probeActive) recordProbeCopy(cmd, count, tick);
             continue;
         }
 
@@ -1625,12 +1685,164 @@ void GpuParticlePhysics::stopPositionLog() {
 }
 
 // ============================================================
+// Settle probe (docs/DebrisSettlingPlan.md §3)
+// ============================================================
+
+bool GpuParticlePhysics::createProbeBuffers() {
+    if (m_probe[0].buffer != VK_NULL_HANDLE) return true;
+    const VkDeviceSize size = PROBE_TICK_STRIDE * PROBE_MAX_TICKS;
+    VkPhysicalDeviceMemoryProperties props;
+    vkGetPhysicalDeviceMemoryProperties(m_physDevice, &props);
+    for (ProbeSlot& s : m_probe) {
+        VkBufferCreateInfo bi{};
+        bi.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bi.size        = size;
+        bi.usage       = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        if (vkCreateBuffer(m_device, &bi, nullptr, &s.buffer) != VK_SUCCESS) return false;
+        VkMemoryRequirements req;
+        vkGetBufferMemoryRequirements(m_device, s.buffer, &req);
+        const VkMemoryPropertyFlags want =
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        uint32_t memType = UINT32_MAX;
+        for (uint32_t j = 0; j < props.memoryTypeCount; ++j) {
+            if ((req.memoryTypeBits & (1u << j)) &&
+                (props.memoryTypes[j].propertyFlags & want) == want) { memType = j; break; }
+        }
+        if (memType == UINT32_MAX) return false;
+        VkMemoryAllocateInfo ai{};
+        ai.sType           = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        ai.allocationSize  = req.size;
+        ai.memoryTypeIndex = memType;
+        if (vkAllocateMemory(m_device, &ai, nullptr, &s.memory) != VK_SUCCESS ||
+            vkBindBufferMemory(m_device, s.buffer, s.memory, 0) != VK_SUCCESS ||
+            vkMapMemory(m_device, s.memory, 0, size, 0, &s.mapped) != VK_SUCCESS) return false;
+        s.ticks = 0;
+    }
+    LOG_INFO_FMT("GpuParticlePhysics", "Settle probe ring: " << PROBE_FRAMES << " x "
+        << (size / 1024) << " KB host-visible");
+    return true;
+}
+
+void GpuParticlePhysics::startSettleProbe(const Core::DebrisSettleAnalyzer::Config& cfg) {
+    if (!m_initialized || !createProbeBuffers()) {
+        LOG_ERROR("GpuParticlePhysics", "Settle probe: readback ring unavailable");
+        return;
+    }
+    Core::DebrisSettleAnalyzer::Config c = cfg;
+    c.dt = FIXED_DT;
+    c.gravity = -GRAVITY;
+    m_settle.setConfig(c);
+    m_settle.reset();
+    ++m_probeGeneration;     // ticks already in flight belong to the previous run
+    m_probeActive = true;
+    LOG_INFO("GpuParticlePhysics", "Settle probe started");
+}
+
+void GpuParticlePhysics::stopSettleProbe() {
+    if (!m_probeActive) return;
+    m_probeActive = false;
+    LOG_INFO("GpuParticlePhysics", "Settle probe stopped ({} ticks analysed)", m_settle.tickCount());
+}
+
+void GpuParticlePhysics::recordProbeCopy(VkCommandBuffer cmd, uint32_t count, uint32_t tick) {
+    ProbeSlot& s = m_probe[m_probeFrame];
+    if (!s.buffer || tick >= PROBE_MAX_TICKS || count == 0) return;
+    if (s.ticks == 0) s.generation = m_probeGeneration;
+
+    // Compute writes (sync_out / warmstart save / colouring / CSR count) → transfer reads.
+    VkMemoryBarrier toTransfer{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+    toTransfer.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+    toTransfer.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         0, 1, &toTransfer, 0, nullptr, 0, nullptr);
+
+    const VkDeviceSize base = PROBE_TICK_STRIDE * tick;
+    VkBufferCopy cp{};
+    cp.srcOffset = 0;
+    cp.dstOffset = base + PROBE_PARTICLES_OFF;
+    cp.size      = static_cast<VkDeviceSize>(count) * sizeof(GpuParticle);
+    vkCmdCopyBuffer(cmd, m_particleBuffer, s.buffer, 1, &cp);
+    cp.dstOffset = base + PROBE_HDR_OFF;
+    cp.size      = PROBE_HDR_UINTS * sizeof(uint32_t);
+    vkCmdCopyBuffer(cmd, m_solverStateBuffer, s.buffer, 1, &cp);
+    cp.dstOffset = base + PROBE_COLOR_OFF;
+    cp.size      = static_cast<VkDeviceSize>(count) * sizeof(uint32_t);
+    vkCmdCopyBuffer(cmd, m_bodyColorBuffer, s.buffer, 1, &cp);
+    cp.dstOffset = base + PROBE_CCOUNT_OFF;
+    vkCmdCopyBuffer(cmd, m_bodyConstraintCountBuffer, s.buffer, 1, &cp);
+
+    // The next tick's header fill (transfer) and compute passes overwrite what we just read;
+    // the host reads the slot after the frame fence.
+    VkMemoryBarrier after{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+    after.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    after.dstAccessMask = VK_ACCESS_HOST_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+    vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_HOST_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT |
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         0, 1, &after, 0, nullptr, 0, nullptr);
+
+    s.count[tick] = count;
+    s.ticks = tick + 1;
+}
+
+void GpuParticlePhysics::consumeProbeSlot(uint32_t slot) {
+    ProbeSlot& s = m_probe[slot];
+    const uint32_t ticks = s.ticks;
+    s.ticks = 0;
+    if (!m_probeActive || !s.mapped || ticks == 0 || s.generation != m_probeGeneration) return;
+
+    std::vector<Core::SettleBodySample> samples;
+    for (uint32_t t = 0; t < ticks; ++t) {
+        const auto* bytes = static_cast<const uint8_t*>(s.mapped) + PROBE_TICK_STRIDE * t;
+        const auto* parts = reinterpret_cast<const GpuParticle*>(bytes + PROBE_PARTICLES_OFF);
+        const auto* hdr   = reinterpret_cast<const uint32_t*>(bytes + PROBE_HDR_OFF);
+        const auto* color = reinterpret_cast<const uint32_t*>(bytes + PROBE_COLOR_OFF);
+        const auto* ccnt  = reinterpret_cast<const uint32_t*>(bytes + PROBE_CCOUNT_OFF);
+        const uint32_t n  = s.count[t];
+
+        samples.assign(n, Core::SettleBodySample{});
+        for (uint32_t i = 0; i < n; ++i) {
+            const GpuParticle& p = parts[i];
+            Core::SettleBodySample& b  = samples[i];
+            b.position        = p.position;
+            b.prevPosition    = p.prevPosition;
+            b.angularVel      = p.angularVel;
+            b.rotation        = p.rotation;
+            b.flags           = p.flags;
+            b.mass            = p.materialIndex < m_materialMassCpu.size()
+                                  ? m_materialMassCpu[p.materialIndex] : 1.0f;
+            b.radius          = 0.5f * std::max(p.scale.x, std::max(p.scale.y, p.scale.z));
+            b.color           = color[i];
+            b.constraintCount = ccnt[i];
+        }
+        Core::SettleSolverCounters c;
+        c.constraintsEmitted  = hdr[0];
+        c.constraintCap       = MAX_CONSTRAINTS;
+        c.warmstartHits       = hdr[1];
+        c.hardContactFires    = hdr[4];
+        c.hardContactMaxDepth = static_cast<float>(hdr[5]) * 1.0e-6f;
+        c.wakeRequests        = hdr[6];
+        c.maxColors           = MAX_COLORS;
+        c.uncoloredSolved     = true;   // recordComputeCommandsNew's final UNCOLORED sweep
+        m_settle.addTick(samples, c);
+    }
+}
+
+// ============================================================
 // Cleanup
 // ============================================================
 
 void GpuParticlePhysics::cleanup() {
     stopPositionLog();
     if (m_device == VK_NULL_HANDLE) return;
+
+    m_probeActive = false;
+    for (ProbeSlot& s : m_probe) {
+        if (s.mapped) { vkUnmapMemory(m_device, s.memory); s.mapped = nullptr; }
+        if (s.buffer) { vkDestroyBuffer(m_device, s.buffer, nullptr); s.buffer = VK_NULL_HANDLE; }
+        if (s.memory) { vkFreeMemory(m_device, s.memory, nullptr); s.memory = VK_NULL_HANDLE; }
+    }
 
     m_gridClearPass.cleanup();
     m_gridBuildPass.cleanup();

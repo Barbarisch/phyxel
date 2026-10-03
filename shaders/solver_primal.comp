@@ -22,9 +22,14 @@ layout(std430, set=0, binding=6) readonly buffer ListBuffer      { uint bodyCons
 layout(push_constant) uniform PC {
     uint  bodyCount;
     float dt;
-    uint  targetColor;
-    float pad;
+    uint  targetColor;    // colour to solve, or PRIMAL_STORE_VELOCITY
+    float alpha;          // error-correction alpha for this pass (ALPHA, 1 = none, 0 = full)
 } pc;
+
+// targetColor sentinel: instead of solving, record each dynamic body's velocity from its
+// current displacement (post-stabilisation: velocity is taken BEFORE the alpha = 0
+// position-only pass, so overlap correction never becomes motion — avbd-demo2d).
+const uint PRIMAL_STORE_VELOCITY = 0xFFFFFFFEu;
 
 // LDL factorization solve for 6×6 lower-triangular symmetric system.
 // a[r*6+c] (r>=c) stores lower triangle + diagonal (row-major storage).
@@ -135,6 +140,15 @@ void accumulate(inout float lhs[36], inout float rhs[6],
 void main() {
     uint bi = gl_GlobalInvocationID.x;
     if (bi >= pc.bodyCount) return;
+
+    if (pc.targetColor == PRIMAL_STORE_VELOCITY) {
+        SolverBody s = bodies[bi];
+        if ((s.flags & PARTICLE_ACTIVE) == 0u || s.invMass == 0.0) return;
+        bodies[bi].vel    = (s.pos - s.initial) / pc.dt;
+        bodies[bi].angVel = 2.0 * quatMul(s.quat, quatInv(s.initialQuat)).xyz / pc.dt;
+        return;
+    }
+
     if (bodyColor[bi] != pc.targetColor) return;
 
     SolverBody b = bodies[bi];
@@ -169,7 +183,7 @@ void main() {
     uint constraintCount = solverState[SS_CONSTRAINT_COUNT];
     uint start = bodyConstraintOffset[bi];
     uint end   = start + bodyConstraintCount[bi];
-    float oneMinusAlpha = 1.0 - ALPHA;
+    float oneMinusAlpha = 1.0 - pc.alpha;
 
     vec3 myDqLin = b.pos - b.initial;
     vec3 myDqAng = b.cumAng;
@@ -207,16 +221,16 @@ void main() {
         }
 
         // Linearized constraint violations (gap: negative = penetrating)
-        float C_n = -(oneMinusAlpha * con.C_init_n)
+        float C_n = -stabilizedC0(con.C_init_n, pc.alpha)
                    + dot(n,  dqALin - dqBLin)
                    + dot(cross(rAW,  n), dqAAng)
                    + dot(cross(rBW, -n), dqBAng);
 
-        float C_t1 = dot(t1, dqALin - dqBLin)
+        float C_t1 = (1.0 - pc.alpha) * con.C_init_t1 + dot(t1, dqALin - dqBLin)
                    + dot(cross(rAW,  t1), dqAAng)
                    + dot(cross(rBW, -t1), dqBAng);
 
-        float C_t2 = dot(t2, dqALin - dqBLin)
+        float C_t2 = (1.0 - pc.alpha) * con.C_init_t2 + dot(t2, dqALin - dqBLin)
                    + dot(cross(rAW,  t2), dqAAng)
                    + dot(cross(rBW, -t2), dqBAng);
 

@@ -1,5 +1,30 @@
 # AVBD Solver Audit — Phyxel `GpuParticlePhysics` vs the published method
 
+> **STATUS 2026-10-03.** Findings resolved by the debris-settling work
+> ([DebrisSettlingPlan.md §R](DebrisSettlingPlan.md)):
+> - **D1** (colour ≥ 12 or uncoloured bodies silently skipped): FIXED. 32 colours, 32
+>   Jones-Plassmann rounds, and a Jacobi sweep for uncoloured bodies.
+> - **D2** (constraint overflow): counted by the settle probe; 0 observed on the bench.
+> - **P4** (no static friction / `stick` unread): FIXED. Anchored static friction, stiff cold
+>   friction rows.
+> - **P5** (hard-contact pass): REWRITTEN. Shared contact geometry, acts only above 1 cm,
+>   velocity-neutral. It had been injecting launch velocity.
+> - **P7** (no sleep): the sleep system shipped 2026-07-31.
+>
+> Still open: **P3** (restitution plumbed but dead), **P6** (`GAMMA` doubles as damping),
+> the dead legacy shaders, and **R2** (iteration count).
+>
+> **Caveat on this audit's verdict.** "Faithful AVBD, no formulation rewrite worth doing" was
+> true of the *solver*. The worst defects were in **contact generation**, which the audit did
+> not examine:
+> - the voxel contact point was the face centre;
+> - normals came from internal faces;
+> - predicted motion was counted twice;
+> - α was applied to speculative gaps;
+> - the dyn-dyn manifold used A's far face and inverted clip planes.
+>
+> A faithful solver fed wrong contacts still bubbles.
+
 > Item #3 of [`docs/EngineAdvancesResearch.md`](EngineAdvancesResearch.md) ("cheap high-value
 > audit"). This document compares Phyxel's GPU debris solver against **Augmented Vertex Block
 > Descent** (Giles, Diaz, Yuksel — SIGGRAPH 2025 / ACM TOG 44(4) Art. 90, DOI

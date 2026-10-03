@@ -357,7 +357,8 @@ Footguns for whoever re-runs it: `download.blender.org` 403s (portable Blender f
    (`BinaryGreedyMeshingPlan.md`), ready to execute. **Stale note: this has since SHIPPED**
    (`s_fineGreedyMerge`, ON by default 2026-07-07 — see the item #1 update above).
 3. **Cheap parallel audit:** AVBD paper vs `GpuParticlePhysics` (#3) — ✅ done
-   (`AvbdSolverAudit.md`); its R1 (fix two silent-failure defects) is now an actionable item.
+   (`AvbdSolverAudit.md`). Its R1 (silent-failure defects) was **done 2026-10-03** as part of
+   the debris-settling fix ([DebrisSettlingPlan.md §R](DebrisSettlingPlan.md)): D1 fixed, D2 counted.
 4. **After meshing lands:** GPU frustum culling → occlusion culling (#2).
 5. **Visual-quality leap, after perf headroom exists:** radiance cascades (#4).
 6. **Hold:** render graph (#5) until pass count forces it.

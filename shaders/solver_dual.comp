@@ -22,7 +22,7 @@ layout(push_constant) uniform PC {
     uint  maxConstraints;
     float dt;
     uint  pad0;
-    float pad1;
+    float alpha;          // error-correction alpha for this iteration (ALPHA, or 1 under post-stab)
 } pc;
 
 void main() {
@@ -57,20 +57,21 @@ void main() {
         rBW = quatRotate(bodies[con.bodyB].quat, con.rB);
     }
 
-    float oneMinusAlpha = 1.0 - ALPHA;
+    float oneMinusAlpha = 1.0 - pc.alpha;
 
     // Linearized constraint violations (gap convention: negative = penetrating)
     // C_n starts at -(1-alpha)*depth (negative for penetrating contacts)
-    float C_n = -(oneMinusAlpha * con.C_init_n)
+    float C_n = -stabilizedC0(con.C_init_n, pc.alpha)
                + dot(n, dqALin - dqBLin)
                + dot(cross(rAW,  n), dqAAng)
                + dot(cross(rBW, -n), dqBAng);
 
-    float C_t1 = dot(t1, dqALin - dqBLin)
+    // C_init_t = tangential drift from the friction anchor at tick start (0 when not anchored).
+    float C_t1 = (1.0 - pc.alpha) * con.C_init_t1 + dot(t1, dqALin - dqBLin)
                + dot(cross(rAW,  t1), dqAAng)
                + dot(cross(rBW, -t1), dqBAng);
 
-    float C_t2 = dot(t2, dqALin - dqBLin)
+    float C_t2 = (1.0 - pc.alpha) * con.C_init_t2 + dot(t2, dqALin - dqBLin)
                + dot(cross(rAW,  t2), dqAAng)
                + dot(cross(rBW, -t2), dqBAng);
 

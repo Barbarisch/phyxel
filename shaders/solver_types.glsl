@@ -61,7 +61,7 @@ struct WarmstartEntry {
 
 const uint SOLVER_STATIC    = 0xFFFFFFFFu;
 const uint UNCOLORED        = 0xFFFFFFFFu;
-const uint MAX_COLORS       = 12u;
+const uint MAX_COLORS       = 32u;   // was 12: packed piles need up to ~27 colours (26-neighbourhood); bodies past the cap were SKIPPED by primal (audit D1)
 const uint HASH_EMPTY       = 0xFFFFFFFFu;
 const uint FEATURE_KEY_NONE = 0xFFFFFFFFu;
 const uint MAX_PROBE        = 128u;
@@ -74,6 +74,11 @@ const uint SS_CONSTRAINT_COUNT  = 0u;
 const uint SS_WARMSTART_HITS    = 1u;
 const uint SS_WARMSTART_LOADED  = 2u;
 const uint SS_WARMSTART_NAN     = 3u;
+// Settle-probe telemetry (docs/DebrisSettlingPlan.md §3 A1). Reset every tick with the rest
+// of the header; read back by GpuParticlePhysics' settle probe.
+const uint SS_HARDCONTACT_FIRES    = 4u;  // bodies the post-solve push-out moved
+const uint SS_HARDCONTACT_DEPTH_UM = 5u;  // deepest push-out this tick, micrometres (atomicMax)
+const uint SS_WAKE_REQUESTS        = 6u;  // wake bits set this tick (impact + character)
 const uint HASH_BASE            = 8u;
 const uint HASH_CAP             = 131072u;  // 60000 * 2 rounded up to pow2
 const uint HASH_MASK            = HASH_CAP - 1u;
@@ -112,10 +117,30 @@ const float BETA             = 100000.0;
 const float PENALTY_MIN      = 1.0;       // Shallot default; warm-start drives to M/dt² in 1-2 frames
 const float PENALTY_MAX      = 1e10;
 const float STICK_THRESH     = 1e-5;
-const float COLLISION_MARGIN = 0.005;
+const float COLLISION_MARGIN = 0.02;     // speculative band: contacts persist this far apart (rest is FLUSH, C = 0 at touching)
 const float GAMMA            = 0.999;
 
+// Runtime switches for the debris-settling fixes (docs/DebrisSettlingPlan.md §5), passed in
+// push constants so each fix can be A/B'd with tools/debris_settle_bench.py without a rebuild.
+// GpuParticlePhysics::m_solverFlags holds the shipped default (all on).
+const uint SOLVER_FLAG_MASS_PENALTY = 1u;   // cold contacts start at m/dt² stiffness, not 1
+const uint SOLVER_FLAG_START_AT_REST = 2u;  // slow bodies start the solve from x⁻ (three-avbd)
+const uint SOLVER_FLAG_HC_NEUTRAL   = 4u;   // hard-contact push-out adds no velocity
+const uint SOLVER_FLAG_POST_STAB    = 8u;   // solve at alpha=1, take velocity, then one alpha=0 position-only pass
+const uint SOLVER_FLAG_STATIC_FRICTION = 16u; // stiff cold friction rows + anchored static friction (paper §3.3)
+const float COLD_PENALTY_DT2_INV    = 3600.0;  // 1/dt² at the fixed 60 Hz tick
+
 #define WORKGROUP_SOLVER 256
+
+// Constraint value C_n = -C0 + J·Δq, with Δq measured from the tick-start state (`initial`).
+// C_init_n is the penetration AT TICK START (contacts are detected at the predicted iterate,
+// then converted back with + J·Δq_pred — see contactPenAtTickStart). Error correction
+// (alpha, AVBD Eq. 18) applies to PENETRATION only: a speculative contact's gap counts in
+// full. (Scaling the gap by 1-alpha = 0.01 made a contact 2 cm away act as touching — bodies
+// stopped short and hovered at the margin.)
+float stabilizedC0(float C_init_n, float alpha) {
+    return (C_init_n > 0.0) ? (1.0 - alpha) * C_init_n : C_init_n;
+}
 
 // ---- Quaternion helpers ----
 vec3 quatRotate(vec4 q, vec3 v) {

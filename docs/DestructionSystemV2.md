@@ -378,7 +378,9 @@ The doc does **not** invent these; it names them as grounding tasks.
 - **Two occupancy grids** — every voxel removal must update **both** the CPU grid and the GPU grid
   (`updateOccupancyVoxel` already does; any new removal path must too) or debris/characters fall
   through the world (`docs/AgentContext.md` invariant).
-- **Settling "popcorn"** — the debris no-sleep/popcorn problem is a known *parked* issue; coherent
+- **Settling "popcorn"**: *SOLVED for GPU debris 2026-10-03* ([DebrisSettlingPlan.md §R](DebrisSettlingPlan.md):
+  contact-generation defects, gate `tools/debris_settle_bench.py`). Original note, kept for the
+  coherent-body caveat: the debris no-sleep/popcorn problem is a known *parked* issue; coherent
   bodies use `VoxelRigidBody` sleeping (`SLEEP_TIME=1.2s`) which is better-behaved, but the aftermath
   conversion (D) must trigger on real sleep, and we should watch for coherent bodies that never settle.
 
@@ -1337,7 +1339,7 @@ Debris velocity = outward from impact (+jitter, + hit direction), magnitude ∝ 
 - **Structure** = per-`Cube` `bonds` (6-dir). Drives *connectivity/support* — used later for structural collapse + welded fragments, NOT for the break decision (toughness drives that).
 
 ### Backend facts (verified 2026-05-31)
-- GPU AVBD physics is the live, stable, primary path; debris = independent `GpuParticle`s (1 particle ↔ 1 body, contact constraints only). Settles correctly; ~78 FPS @ 800 bodies. Scales to thousands.
+- GPU AVBD physics is the live, stable, primary path; debris = independent `GpuParticle`s (1 particle ↔ 1 body, contact constraints only). ~78 FPS @ 800 bodies. Scales to thousands. ("Settles correctly" was claimed here from separated drops; packed or crater debris bubbled until the 2026-10-03 contact fixes, see DebrisSettlingPlan.md §R.)
 - Static→dynamic break (existing single-voxel path): `chunk->removeCube` + spawn dynamic + `updateAfterCubeBreak`. Destruction scales this to a region.
 - No weld/bond constraints yet → no coherent multi-voxel rigid fragments (P5 stretch goal). Voxels are independent for now.
 

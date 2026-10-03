@@ -1,0 +1,208 @@
+{
+  "awake_bodies": [],
+  "csv": "G:\\github\\phyxel\\docs\\evidence\\debris_settle\\fix2-colors\\crater.csv",
+  "csv_written": true,
+  "running": false,
+  "success": true,
+  "summary": {
+    "bodies": 144,
+    "checks": {
+      "all_asleep_s": {
+        "limit": 4.0,
+        "pass": false,
+        "value": 4.200000286102295
+      },
+      "color_skipped": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "constraints_dropped_ticks": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "forced_sleeps": {
+        "limit": 0,
+        "pass": false,
+        "value": 3
+      },
+      "hardcontact_after_window": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "injected_lift_after_window_m": {
+        "limit": 0.0010000000474974513,
+        "pass": false,
+        "value": 0.0032354144984979294
+      },
+      "rebounds_after_window": {
+        "limit": 0.009999999776482582,
+        "pass": true,
+        "value": 0.0
+      },
+      "tunnelled_through_floor": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      }
+    },
+    "criteria": {
+      "settle_window_s": 1.0
+    },
+    "duration_s": 8.0,
+    "energy": {
+      "final_J": 119037.44003418907,
+      "initial_J": 118706.13110079683,
+      "injected_after_window_J": 27.422856795944426,
+      "injected_after_window_lift_m": 0.0032354144984979294,
+      "injected_total_J": 331.42990993983165,
+      "injected_total_lift_m": 0.03910289667609609
+    },
+    "kicks_after_settle_window": 0,
+    "rebounds": {
+      "after_settle_window": 0,
+      "bodies_over_3": 0,
+      "per_body_after_mean": 0.0,
+      "per_body_max": 1,
+      "per_body_mean": 0.013888888888888888,
+      "total": 2
+    },
+    "sleep": {
+      "awake_at_end": 0,
+      "clean": 141,
+      "creep_before_sleep_mm": {
+        "clean": {
+          "max": 992.3619995117188,
+          "median": 0.37829989194869995,
+          "n": 141,
+          "p90": 0.5331380367279053
+        },
+        "forced": {
+          "max": 29.303791046142578,
+          "median": 16.623287200927734,
+          "n": 3,
+          "p90": 16.623287200927734
+        }
+      },
+      "forced": 3,
+      "forced_fraction": 0.020833333333333332,
+      "peak_speed_before_sleep": {
+        "clean": {
+          "max": 0.011389601044356823,
+          "median": 0.0017617953708395362,
+          "n": 141,
+          "p90": 0.0028449557721614838
+        },
+        "forced": {
+          "max": 0.17397718131542206,
+          "median": 0.06901330500841141,
+          "n": 3,
+          "p90": 0.06901330500841141
+        }
+      },
+      "woke": 0
+    },
+    "solver": {
+      "constraint_cap": 60000,
+      "hardcontact_fires_after_window": 0,
+      "hardcontact_max_depth_m": 0.9999189972877502,
+      "hardcontact_max_depth_tick": 1,
+      "max_color_skipped": 0,
+      "max_constraints": 4555,
+      "ticks_dropping_constraints": 0
+    },
+    "ticks": 480,
+    "time_95_asleep_s": 0.98333340883255,
+    "time_all_asleep_s": 4.200000286102295,
+    "tunnelled": {
+      "bodies_below_floor_at_end": 0,
+      "floor_y": 12.0,
+      "lowest_y": 12.499545097351074,
+      "max_bodies_below_floor": 0
+    },
+    "verdict": "FAILS",
+    "windows": [
+      {
+        "awake_at_end": 144,
+        "from_s": 0.0,
+        "hardcontact_fires": 4,
+        "injected_J": 180.02308823969088,
+        "injected_lift_m": 0.021239556261009488,
+        "kicks": 2,
+        "max_churning": 2,
+        "max_color_skipped": 0,
+        "max_speed": 0.6290000081062317,
+        "rebounds": 2,
+        "to_s": 0.5,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 2,
+        "from_s": 0.5,
+        "hardcontact_fires": 2,
+        "injected_J": 123.98396490419634,
+        "injected_lift_m": 0.014627925916588673,
+        "kicks": 0,
+        "max_churning": 2,
+        "max_color_skipped": 0,
+        "max_speed": 0.4523203670978546,
+        "rebounds": 0,
+        "to_s": 1.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 1,
+        "from_s": 1.0,
+        "hardcontact_fires": 0,
+        "injected_J": 14.195472970904348,
+        "injected_lift_m": 0.0016748159903563272,
+        "kicks": 0,
+        "max_churning": 1,
+        "max_color_skipped": 0,
+        "max_speed": 0.33553776144981384,
+        "rebounds": 0,
+        "to_s": 2.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 1,
+        "from_s": 2.0,
+        "hardcontact_fires": 0,
+        "injected_J": 12.580017903188491,
+        "injected_lift_m": 0.0014842207220860713,
+        "kicks": 0,
+        "max_churning": 1,
+        "max_color_skipped": 0,
+        "max_speed": 0.1838938593864441,
+        "rebounds": 0,
+        "to_s": 4.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 4.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.6473659218515877,
+        "injected_lift_m": 7.637778605553088e-05,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.059354495257139206,
+        "rebounds": 0,
+        "to_s": 8.0,
+        "woke": 0
+      }
+    ],
+    "scenario": "crater",
+    "setup": "6x4x6 pit filled with touching cubes at rest",
+    "site": {
+      "x": 109,
+      "z": 13,
+      "ground_top": 16
+    },
+    "sim_seconds": 8.0
+  },
+  "ticks": 480
+}

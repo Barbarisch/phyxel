@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/Types.h"
+#include "core/DebrisSettleAnalyzer.h"
 #include "vulkan/ComputePipeline.h"
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
@@ -211,6 +212,43 @@ public:
     void stopPositionLog();
     bool isPositionLogging() const { return m_positionLogging; }
 
+    // ---- Settle probe (docs/DebrisSettlingPlan.md §3) ----
+    // Measures whether debris actually loses energy and comes to rest. While running, every
+    // physics tick's particle state + solver telemetry counters + graph colours are copied to
+    // a host-visible ring (one slot per frame in flight) and fed to a DebrisSettleAnalyzer
+    // when that frame's fence has retired (≈2 frames of lag). Off by default — zero cost.
+    void startSettleProbe(const Core::DebrisSettleAnalyzer::Config& cfg);
+    void stopSettleProbe();
+    bool isSettleProbing() const { return m_probeActive; }
+
+    // Freeze / single-step (debug rigs + exact-time captures). While frozen no physics tick
+    // runs and lifetimes do not drain; stepTicks(n) lets exactly n more ticks run (≤ 4 per
+    // frame, the normal catch-up cap). Rendering continues, so a frozen pile can be captured.
+    void setFrozen(bool frozen) { m_frozen = frozen; m_stepBudget = 0; m_timeAccumulator = 0.0f; }
+    bool isFrozen() const { return m_frozen; }
+    void stepTicks(uint32_t n) { m_stepBudget += n; }
+    uint32_t pendingStepTicks() const { return m_stepBudget; }
+    uint64_t totalTicks() const { return m_totalTicks; }
+
+    // Debris-settling fix switches (solver_types.glsl SOLVER_FLAG_*), pushed to the solver
+    // every tick. Default = all shipped fixes on; the API exposes them for A/B runs.
+    static constexpr uint32_t SOLVER_FLAG_MASS_PENALTY  = 1u;
+    static constexpr uint32_t SOLVER_FLAG_START_AT_REST = 2u;
+    static constexpr uint32_t SOLVER_FLAG_HC_NEUTRAL    = 4u;
+    static constexpr uint32_t SOLVER_FLAG_POST_STAB     = 8u;
+    // POST_STAB (8) is implemented but OFF: measured worse on the bench (more forced sleeps in
+    // drop_layer/crater/crater_subcube — docs/evidence/debris_settle/fix4-tickstart-ps).
+    static constexpr uint32_t SOLVER_FLAG_STATIC_FRICTION = 16u;
+    static constexpr uint32_t SOLVER_FLAGS_DEFAULT      = 23u;  // all but POST_STAB
+    static constexpr float    SOLVER_ALPHA              = 0.99f;        // == solver_types.glsl ALPHA
+    static constexpr uint32_t PRIMAL_STORE_VELOCITY     = 0xFFFFFFFEu;  // == solver_primal.comp
+    void     setSolverFlags(uint32_t f) { m_solverFlags = f; }
+    uint32_t solverFlags() const { return m_solverFlags; }
+    // Cold-contact stiffness multiplier (x m/dt^2) when SOLVER_FLAG_MASS_PENALTY is set.
+    void  setColdPenaltyScale(float s) { m_coldPenaltyScale = s; }
+    float coldPenaltyScale() const { return m_coldPenaltyScale; }
+    const Core::DebrisSettleAnalyzer& settleAnalyzer() const { return m_settle; }
+
     // ---- Material name → index lookup ----
     static uint32_t materialNameToIndex(const std::string& name);
 
@@ -312,7 +350,8 @@ private:
     bool m_useNewPipeline = true;
 
     static constexpr uint32_t MAX_CONSTRAINTS = 60000;
-    static constexpr uint32_t MAX_COLORS      = 12;
+    static constexpr uint32_t MAX_COLORS      = 32;  // must match solver_types.glsl (12 skipped bodies in packed piles, audit D1)
+    static constexpr int      COLOR_ROUNDS    = 32;  // Jones-Plassmann rounds (16 left bodies uncoloured = skipped)
     static constexpr int      SOLVE_ITERATIONS = 8;
 
     // Warmstart hash table sizing (must match shaders/solver_types.glsl).
@@ -417,6 +456,40 @@ private:
     bool             m_readbackPending       = false; // true after copy cmd recorded
     std::ofstream    m_posLogFile;
     uint32_t         m_posLogFrameCounter    = 0;
+
+    // ---- Settle probe readback ring ----
+    // Per tick: GpuParticle[MAX_PARTICLES] | header uint[PROBE_HDR_UINTS] | color uint[MAX_PARTICLES]
+    //           | constraintCount uint[MAX_PARTICLES]. Only `count` entries of each array are copied.
+    static constexpr uint32_t PROBE_FRAMES     = 2;  // == MAX_FRAMES_IN_FLIGHT
+    static constexpr uint32_t PROBE_MAX_TICKS  = 4;  // == physics tick cap per frame
+    static constexpr uint32_t PROBE_HDR_UINTS  = 8;  // == HASH_BASE (solver-state header)
+    static constexpr VkDeviceSize PROBE_PARTICLES_OFF = 0;
+    static constexpr VkDeviceSize PROBE_HDR_OFF   = static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(GpuParticle);
+    static constexpr VkDeviceSize PROBE_COLOR_OFF = PROBE_HDR_OFF + PROBE_HDR_UINTS * sizeof(uint32_t);
+    static constexpr VkDeviceSize PROBE_CCOUNT_OFF = PROBE_COLOR_OFF + static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t);
+    static constexpr VkDeviceSize PROBE_TICK_STRIDE = PROBE_CCOUNT_OFF + static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t);
+    struct ProbeSlot {
+        VkBuffer       buffer = VK_NULL_HANDLE;
+        VkDeviceMemory memory = VK_NULL_HANDLE;
+        void*          mapped = nullptr;
+        uint32_t       ticks  = 0;
+        uint32_t       generation = 0;
+        uint32_t       count[PROBE_MAX_TICKS] = {};
+    };
+    ProbeSlot            m_probe[PROBE_FRAMES];
+    bool                 m_probeActive     = false;
+    bool                 m_frozen          = false;
+    uint32_t             m_stepBudget      = 0;
+    uint64_t             m_totalTicks      = 0;
+    uint32_t             m_solverFlags     = SOLVER_FLAGS_DEFAULT;
+    float                m_coldPenaltyScale = 1.0f;
+    uint32_t             m_probeGeneration = 0;
+    uint32_t             m_probeFrame      = 0;   // frame-in-flight slot being recorded
+    Core::DebrisSettleAnalyzer m_settle;
+    std::vector<float>   m_materialMassCpu;       // CPU mirror of MaterialPhysicsGpu::mass
+    bool createProbeBuffers();
+    void consumeProbeSlot(uint32_t slot);
+    void recordProbeCopy(VkCommandBuffer cmd, uint32_t count, uint32_t tick);
 
     // ---- Debug timing ring buffer ----
     std::vector<FrameTimingEntry> m_timingRing;

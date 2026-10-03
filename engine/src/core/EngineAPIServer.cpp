@@ -2015,6 +2015,34 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // Debris settling measurement (docs/DebrisSettlingPlan.md §3)
+    // POST /api/debug/settle_probe {"op":"start"|"stop"|"status", "series":bool,
+    //      "series_last":N, "csv":"path", start-only: "settle_window", "all_asleep_by",
+    //      "max_rebounds_after", "max_injected_lift_after"}
+    //   → per-tick energy / rebound / sleep / solver-failure analysis + SETTLES|FAILS verdict.
+    // POST /api/debug/spawn_gpu_lattice {"x","y","z" (min corner; y = bottom face),
+    //      "nx","ny","nz","scale","gap" (0 = touching),"spin","jitter","velocity",
+    //      "material","lifetime","seed"}
+    // ====================================================================
+    // POST /api/debug/gpu_physics {"frozen":bool, "step":N} — hold the debris solver / advance
+    //      exactly N ticks (exact-time captures; lifetimes do not drain while frozen).
+    for (const char* action : {"settle_probe", "spawn_gpu_lattice", "gpu_physics"}) {
+        const std::string route = std::string("/api/debug/") + action;
+        const std::string act = action;
+        srv.Post(route.c_str(), [this, act](const httplib::Request& req, httplib::Response& res) {
+            try {
+                json params = req.body.empty() ? json::object() : json::parse(req.body);
+                json result = queueAndWait(act, params);
+                res.set_content(result.dump(), "application/json");
+            } catch (const json::exception& e) {
+                json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+                res.status = 400;
+                res.set_content(err.dump(), "application/json");
+            }
+        });
+    }
+
+    // ====================================================================
     // POST /api/debug/spawn_voxel_body — Spawn a VoxelDynamicsWorld body
     // Body: { "x":10, "y":20, "z":10, "scale":1.0, "mass":1.0,
     //         "restitution":0.2, "friction":0.6,

@@ -7939,6 +7939,116 @@ static bool handleDebugDynamicSpawnCommand(
                     {"position", {{"x", x}, {"y", y}, {"z", z}}}};
         return true;
     }
+    // Settle-probe rigs (docs/DebrisSettlingPlan.md §3): a deterministic lattice of GPU
+    // debris. gap=0 → faces exactly touching (the packed / crater case); gap>0 → separated
+    // (the control). (x,y,z) = min corner of the lattice; y is the BOTTOM face of layer 0.
+    if (cmd.action == "spawn_gpu_lattice") {
+        if (!gpuParticles || !gpuParticles->isInitialized()) {
+            response = {{"error", "GPU particle physics not available"}};
+            return true;
+        }
+        const float x = cmd.params.value("x", 0.0f);
+        const float y = cmd.params.value("y", 20.0f);
+        const float z = cmd.params.value("z", 0.0f);
+        const int nx = std::clamp(cmd.params.value("nx", 4), 1, 64);
+        const int ny = std::clamp(cmd.params.value("ny", 4), 1, 64);
+        const int nz = std::clamp(cmd.params.value("nz", 4), 1, 64);
+        const float scale    = cmd.params.value("scale", 1.0f);
+        const float gap      = cmd.params.value("gap", 0.0f);
+        const float spin     = cmd.params.value("spin", 0.0f);     // max |ω| per axis, rad/s
+        const float jitter   = cmd.params.value("jitter", 0.0f);   // max |v| per axis, m/s
+        const float lifetime = cmd.params.value("lifetime", 120.0f);
+        const std::string material = cmd.params.value("material", "Stone");
+        const uint32_t seed  = cmd.params.value("seed", 1u);
+        glm::vec3 vel(0.0f);
+        if (cmd.params.contains("velocity")) {
+            vel.x = cmd.params["velocity"].value("x", 0.0f);
+            vel.y = cmd.params["velocity"].value("y", 0.0f);
+            vel.z = cmd.params["velocity"].value("z", 0.0f);
+        }
+        if (nx * ny * nz > 9000) {
+            response = {{"error", "lattice too large"}, {"bodies", nx * ny * nz}, {"max", 9000}};
+            return true;
+        }
+        std::mt19937 rng(seed);
+        std::uniform_real_distribution<float> u(-1.0f, 1.0f);
+        const float pitch = scale + gap;
+        int spawned = 0;
+        for (int iy = 0; iy < ny; ++iy)
+            for (int iz = 0; iz < nz; ++iz)
+                for (int ix = 0; ix < nx; ++ix) {
+                    GpuParticlePhysics::SpawnParams sp;
+                    sp.position = glm::vec3(x + (ix + 0.5f) * pitch - 0.5f * gap,
+                                            y + (iy + 0.5f) * pitch - 0.5f * gap,
+                                            z + (iz + 0.5f) * pitch - 0.5f * gap);
+                    sp.velocity   = vel + jitter * glm::vec3(u(rng), u(rng), u(rng));
+                    sp.angularVel = spin * glm::vec3(u(rng), u(rng), u(rng));
+                    sp.scale      = glm::vec3(scale);
+                    sp.materialName = material;
+                    sp.lifetime   = lifetime;
+                    gpuParticles->queueSpawn(sp);
+                    ++spawned;
+                }
+        response = {{"success", true}, {"spawned", spawned}, {"pitch", pitch},
+                    {"extent", {{"x", nx * pitch}, {"y", ny * pitch}, {"z", nz * pitch}}}};
+        return true;
+    }
+    if (cmd.action == "gpu_physics") {
+        if (!gpuParticles || !gpuParticles->isInitialized()) {
+            response = {{"error", "GPU particle physics not available"}};
+            return true;
+        }
+        if (cmd.params.contains("frozen")) gpuParticles->setFrozen(cmd.params.value("frozen", false));
+        if (cmd.params.contains("step"))   gpuParticles->stepTicks(cmd.params.value("step", 0u));
+        if (cmd.params.contains("flags"))  gpuParticles->setSolverFlags(cmd.params.value("flags", 23u));
+        if (cmd.params.contains("cold_scale"))
+            gpuParticles->setColdPenaltyScale(cmd.params.value("cold_scale", 1.0f));
+        response = {{"success", true}, {"frozen", gpuParticles->isFrozen()},
+                    {"solver_flags", gpuParticles->solverFlags()},
+                    {"cold_scale", gpuParticles->coldPenaltyScale()},
+                    {"pending_steps", gpuParticles->pendingStepTicks()},
+                    {"total_ticks", gpuParticles->totalTicks()},
+                    {"active", gpuParticles->getActiveParticleCount()}};
+        return true;
+    }
+    if (cmd.action == "settle_probe") {
+        if (!gpuParticles || !gpuParticles->isInitialized()) {
+            response = {{"error", "GPU particle physics not available"}};
+            return true;
+        }
+        const std::string op = cmd.params.value("op", "status");
+        if (op == "start") {
+            Core::DebrisSettleAnalyzer::Config c;
+            c.settleWindow = cmd.params.value("settle_window", c.settleWindow);
+            c.allAsleepBy  = cmd.params.value("all_asleep_by", c.allAsleepBy);
+            c.maxReboundsPerBodyAfter = cmd.params.value("max_rebounds_after", c.maxReboundsPerBodyAfter);
+            c.maxInjectedLiftAfter    = cmd.params.value("max_injected_lift_after", c.maxInjectedLiftAfter);
+            if (cmd.params.contains("floor_y")) c.floorY = cmd.params.value("floor_y", 0.0f);
+            gpuParticles->startSettleProbe(c);
+        } else if (op == "stop") {
+            gpuParticles->stopSettleProbe();
+        } else if (op != "status") {
+            response = {{"error", "op must be start|stop|status"}};
+            return true;
+        }
+        const auto& an = gpuParticles->settleAnalyzer();
+        response = {{"success", true}, {"running", gpuParticles->isSettleProbing()},
+                    {"ticks", an.tickCount()}};
+        if (op != "start") {
+            response["summary"] = an.summary();
+            const uint32_t lastN = cmd.params.value("series_last", 0u);
+            if (cmd.params.value("series", false) || lastN > 0)
+                response["series"] = an.series(lastN);
+            if (cmd.params.contains("bodies"))
+                response["awake_bodies"] = an.awakeBodies(cmd.params.value("bodies", 16u));
+            if (cmd.params.contains("csv")) {
+                const std::string path = cmd.params["csv"].get<std::string>();
+                response["csv_written"] = an.writeCsv(path);
+                response["csv"] = path;
+            }
+        }
+        return true;
+    }
     if (cmd.action == "spawn_voxel_body") {
         float x = cmd.params.value("x", 0.0f);
         float y = cmd.params.value("y", 20.0f);

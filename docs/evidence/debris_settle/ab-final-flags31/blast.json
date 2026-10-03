@@ -1,0 +1,201 @@
+{
+  "awake_bodies": [],
+  "csv": "G:\\github\\phyxel\\docs\\evidence\\debris_settle\\ab-final-flags31\\blast.csv",
+  "csv_written": true,
+  "running": false,
+  "success": true,
+  "summary": {
+    "bodies": 59,
+    "checks": {
+      "all_asleep_s": {
+        "limit": 5.7166666984558105,
+        "pass": true,
+        "value": 3.8000001907348633
+      },
+      "color_skipped": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "constraints_dropped_ticks": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "forced_sleeps": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "hardcontact_after_window": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "injected_lift_after_window_m": {
+        "limit": 0.0010000000474974513,
+        "pass": true,
+        "value": 1.946150448890995e-07
+      },
+      "rebounds_after_window": {
+        "limit": 0.009999999776482582,
+        "pass": true,
+        "value": 0.0
+      },
+      "tunnelled_through_floor": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      }
+    },
+    "criteria": {
+      "impact_phase_end_s": 2.7166666984558105,
+      "judged_from_s": 3.2166666984558105,
+      "settle_window_min_s": 1.0
+    },
+    "duration_s": 8.0,
+    "energy": {
+      "final_J": 54001.87596687548,
+      "initial_J": 64605.65141116383,
+      "injected_after_window_J": 0.0006758474798971292,
+      "injected_after_window_lift_m": 1.946150448890995e-07,
+      "injected_total_J": 0.0006758474798971292,
+      "injected_total_lift_m": 1.946150448890995e-07
+    },
+    "kicks_after_settle_window": 0,
+    "rebounds": {
+      "after_settle_window": 0,
+      "bodies_over_3": 1,
+      "per_body_after_mean": 0.0,
+      "per_body_max": 5,
+      "per_body_mean": 0.4915254237288136,
+      "total": 29
+    },
+    "sleep": {
+      "awake_at_end": 0,
+      "clean": 71,
+      "creep_before_sleep_mm": {
+        "clean": {
+          "max": 10.745157241821289,
+          "median": 2.328932046890259,
+          "n": 71,
+          "p90": 5.727755069732666
+        },
+        "forced": null
+      },
+      "forced": 0,
+      "forced_fraction": 0.0,
+      "peak_speed_before_sleep": {
+        "clean": {
+          "max": 0.9602527618408203,
+          "median": 0.14319270849227905,
+          "n": 71,
+          "p90": 0.25549283623695374
+        },
+        "forced": null
+      },
+      "woke": 12
+    },
+    "solver": {
+      "constraint_cap": 60000,
+      "hardcontact_fires_after_window": 0,
+      "hardcontact_max_depth_m": 0.09923800081014633,
+      "hardcontact_max_depth_tick": 148,
+      "max_color_skipped": 0,
+      "max_constraints": 462,
+      "max_uncolored_jacobi": 0,
+      "ticks_dropping_constraints": 0
+    },
+    "ticks": 480,
+    "time_95_asleep_s": 3.366666793823242,
+    "time_all_asleep_s": 3.8000001907348633,
+    "tunnelled": {
+      "bodies_below_floor_at_end": 0,
+      "floor_y": 11.0,
+      "lowest_y": 14.49309253692627,
+      "max_bodies_below_floor": 0
+    },
+    "verdict": "SETTLES",
+    "windows": [
+      {
+        "awake_at_end": 59,
+        "from_s": 0.0,
+        "hardcontact_fires": 56,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 58,
+        "max_color_skipped": 0,
+        "max_speed": 17.257728576660156,
+        "rebounds": 6,
+        "to_s": 0.5,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 33,
+        "from_s": 0.5,
+        "hardcontact_fires": 1,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 31,
+        "max_color_skipped": 0,
+        "max_speed": 8.99536418914795,
+        "rebounds": 0,
+        "to_s": 1.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 19,
+        "from_s": 1.0,
+        "hardcontact_fires": 11,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 24,
+        "max_color_skipped": 0,
+        "max_speed": 8.638128280639648,
+        "rebounds": 10,
+        "to_s": 2.0,
+        "woke": 12
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 2.0,
+        "hardcontact_fires": 7,
+        "injected_J": 0.0006758474798971292,
+        "injected_lift_m": 1.946150448890995e-07,
+        "kicks": 0,
+        "max_churning": 14,
+        "max_color_skipped": 0,
+        "max_speed": 10.835558891296387,
+        "rebounds": 13,
+        "to_s": 4.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 4.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.0,
+        "rebounds": 0,
+        "to_s": 8.0,
+        "woke": 0
+      }
+    ],
+    "scenario": "blast",
+    "setup": "/api/damage/apply r=3.5 e=600 at ground -> {\"broken\": 14, \"coherent_bodies\": 0, \"debris\": 59, \"grazed\": 94, \"stage_changed\": 33, \"success\": true}",
+    "site": {
+      "x": 173,
+      "z": 13,
+      "ground_top": 16
+    },
+    "sim_seconds": 8.0
+  },
+  "ticks": 480
+}

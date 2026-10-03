@@ -1,5 +1,17 @@
 # Physics Rest Overhaul — voxels come to a FULL stop
 
+> **STATUS 2026-10-03: the CPU half (Phase 1) stands. The GPU half (Phase 2) is CORRECTED.**
+> - Phase 2's L4 claims ("150-cube drops → all asleep … no hover") were measured only on
+>   separated cubes dropped onto flat ground, and **did not reproduce** on 2026-10-03.
+>   Packed piles, craters and blasts bubbled, hovered and tunnelled. The sleep system itself
+>   works, but the lax tier was freezing debris that had never stopped moving.
+> - The actual causes were in GPU **contact generation**, not in sleep or solver tuning.
+>   They were fixed and measured on 2026-10-03:
+>   **[DebrisSettlingPlan.md §R](DebrisSettlingPlan.md)** (the current-state doc for GPU
+>   debris), plus [DynamicVoxelPhysics.md](DynamicVoxelPhysics.md) "GPU Compute Path".
+> - The GPU gate is now `tools/debris_settle_bench.py` on the DebrisLab project, not a
+>   screenshot or a one-off CSV.
+
 **Goal:** Phyxel's dynamic voxels (furniture, felled trees, break debris, fragments, GPU debris
 piles) settle like Box3D's demos — stacks come to a literal, provable, zero-motion rest, stay
 that way, and cost ~nothing while resting.

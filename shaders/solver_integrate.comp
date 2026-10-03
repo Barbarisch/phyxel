@@ -65,7 +65,7 @@ layout(push_constant) uniform PC {
     uint  count;
     float dt;
     float gravity;
-    float pad;
+    uint  flags;          // SOLVER_FLAG_*
 } pc;
 
 void main() {
@@ -83,6 +83,7 @@ void main() {
         vec3 disp;
         if (aabbPushOut(b.pos, b.halfExt, charUnionCenter, charUnionHalfExtents, disp)) {
             atomicOr(solverState[WAKE_BITS_BASE + (i >> 5u)], 1u << (i & 31u));
+            atomicAdd(solverState[SS_WAKE_REQUESTS], 1u);
         }
     }
 
@@ -143,6 +144,22 @@ void main() {
 
     // Seed cumAng with the angular displacement accumulated during force integration
     b.cumAng = angDispFromInitial(b.inertialQuat, b.initialQuat);
+
+    // startAtRest (three-avbd docs/FINDINGS.md Stage 8m): the guess above still extrapolates
+    // last tick's UNCONVERGED velocity, which in a resting stack "turns jitter into a push
+    // down into the supports" — each tick's leftover motion becomes next tick's overlap,
+    // whose correction becomes velocity again. A slow body starts the solve from where it
+    // IS (x⁻); `inertial` is untouched, so gravity still acts through the energy minimum and
+    // an unsupported body still falls. Faster bodies keep the extrapolated guess (starting
+    // everything at x⁻ damps real sliding — three-avbd measured 2.26 m vs Coulomb 3.16 m).
+    if ((pc.flags & SOLVER_FLAG_START_AT_REST) != 0u) {
+        float restSpeed = length(b.prevVel) + length(b.angVel) * b.radius;
+        if (restSpeed < 0.1) {
+            b.pos    = b.initial;
+            b.quat   = b.initialQuat;
+            b.cumAng = vec3(0.0);
+        }
+    }
 
     // ---- Character per-limb push (external influence, applied after prediction) ----
     // Ported/extended from the legacy XPBD particle_collide.comp character block.

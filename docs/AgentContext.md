@@ -1531,7 +1531,22 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     back to 1 tick/frame (the low-FPS→more-ticks spiral stops). Lesson: a `dispatch(cmd, 1)`
     over a large buffer is a serial-scan trap — check dispatch sizes.
   - **Next targets** (per the per-pass breakdown): NarrowVoxel (~5ms) and Solve (~3ms).
-  - **Settling "popcorn" (PARKED — don't reopen without a plan):** debris stays too
+  - **Settling "popcorn": SOLVED 2026-10-03, read [DebrisSettlingPlan.md §R](DebrisSettlingPlan.md).**
+    The causes were in GPU contact GENERATION, not solver tuning or sleep:
+    - voxel contact point at the face centre;
+    - normals from internal faces;
+    - predicted motion counted twice;
+    - α applied to speculative gaps;
+    - dyn-dyn manifold built on A's far face with inverted clip planes;
+    - hard-contact push became velocity;
+    - no static friction;
+    - colour-skipped bodies.
+
+    Gate for any solver change: `tools/debris_settle_bench.py` on the DebrisLab project.
+    **The historical note below is SUPERSEDED.** Its "root cause" was only a symptom (it is
+    correct that position deltas become velocity, but the overlaps came from the defects
+    above), and its proposed "fix" (sleep) is exactly what hid the problem.
+    *Historical (2026-06):* debris stays too
     energetic, esp. in concave/bowl piles. Root cause: it's a pure position-based solver
     (NO restitution term anywhere — confirmed; so it's not "bounciness" to tune down) —
     resolving penetration moves position, and position deltas become velocity, so overlap
@@ -1956,5 +1971,5 @@ the real blocker for 100s on screen. Earlier: full water system merged to `main`
 2026-06-06; CPU CA sim + per-cell render + mist/ocean/springs/channels/flood, opt-in GPU port,
 default-OFF). NOTE: `main` has 9 PRE-EXISTING failing unit tests (material/atlas counts,
 inventory, skeleton hinge, nav StepUp) unrelated to this work — flag for separate triage.
-Debris settling/"popcorn" + no sleep system still PARKED. Fresh session? Skim this, then
+Debris settling/"popcorn": SOLVED 2026-10-03 (DebrisSettlingPlan.md §R). Fresh session? Skim this, then
 `git log --oneline -15`.*

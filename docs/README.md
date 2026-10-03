@@ -80,7 +80,10 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 
 ## Physics
 
-- **[DynamicVoxelPhysics.md](DynamicVoxelPhysics.md)** — GpuParticlePhysics (GPU compute) + VoxelDynamicsWorld (CPU); break routing
+- **[DynamicVoxelPhysics.md](DynamicVoxelPhysics.md)** — GpuParticlePhysics (GPU AVBD debris: live pipeline, contact model, sleep, test gate) + VoxelDynamicsWorld (CPU); break routing
+- **[DebrisSettlingPlan.md](DebrisSettlingPlan.md)** — GPU debris settling: §R = what was wrong, what fixed it, the measurement (DebrisLab + `tools/debris_settle_bench.py`), before/after evidence, and why it took six months. READ before touching `solver_*.comp`
+- **[PhysicsRestOverhaul.md](PhysicsRestOverhaul.md)** — CPU `VoxelDynamicsWorld` Box3D-style rest (current); its GPU Phase-2 claims are corrected by DebrisSettlingPlan.md
+- **[AvbdSolverAudit.md](AvbdSolverAudit.md)** — AVBD paper vs the GPU solver (2026-07); status banner lists what is fixed / still open
 - **[DestructionSystemV2.md](DestructionSystemV2.md)** — THE destruction doc (active workstream: coherent fracture/topple, tool-driven impact, gatherable aftermath). Absorbed the v1 design as its **Appendix A** on 2026-09-22 (`DestructionSystem.md` deleted; git-hash ledger in that appendix)
 - **[VoxelDamageVisualization.md](VoxelDamageVisualization.md)** — current-state reference for damage cracks on damaged-but-unbroken voxels (7 world-seeded stages, per-material style, debug view 19). ⚠️ **Full cubes only — generated buildings have sub-voxel walls and cannot crack until V2** (see its §5 / §9)
 - **[Water.md](Water.md)** — THE water doc (single consolidated design + status + traps; supersedes WaterSystem v1/v2/v3, PhysicalFeelPlan, AppearanceV4, WaterAsWorldData)
@@ -155,5 +158,5 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 ```
 
 Physics note: **Bullet Physics has been removed** from active builds. The live stack is
-`GpuParticlePhysics` (Vulkan compute XPBD/AVBD, large-scale debris) + `VoxelDynamicsWorld`
+`GpuParticlePhysics` (Vulkan compute AVBD, large-scale debris) + `VoxelDynamicsWorld`
 (custom CPU rigid-body world: furniture, character grounding, break debris).

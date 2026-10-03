@@ -12,7 +12,7 @@ layout(push_constant) uniform PC {
     uint  count;
     float dt;
     float lifetimeDt;
-    float pad;
+    uint  flags;          // SOLVER_FLAG_*
 } pc;
 
 void main() {
@@ -50,11 +50,17 @@ void main() {
     // Derive angular velocity from quaternion change
     vec4 dqFinal      = quatMul(b.quat, quatInv(b.initialQuat));
     vec3 solvedAngVel = 2.0 * dqFinal.xyz / pc.dt;
+    // Post-stabilisation: velocity was recorded BEFORE the alpha = 0 position pass, so the
+    // overlap that pass removed is not turned into motion.
+    if ((pc.flags & SOLVER_FLAG_POST_STAB) != 0u) {
+        solvedVel    = b.vel;
+        solvedAngVel = b.angVel;
+    }
 
     // Write back solved state
     p.position    = b.pos;
     // XPBD prevPosition encodes velocity: vel = (pos - prevPos) / dt
-    p.prevPosition = b.initial;  // initial = position at frame start
+    p.prevPosition = b.pos - solvedVel * pc.dt;  // == b.initial unless post-stabilised
     p.rotation    = b.quat;
     p.angularVel  = solvedAngVel;
     p.flags       = b.flags;
