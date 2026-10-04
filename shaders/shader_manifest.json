@@ -31,16 +31,6 @@
       "sources": "628282c66a6bb2ae2ad79e24e056b747618a35c7030a856db088c7f12f124860",
       "spv_present": true
     },
-    "debris.frag": {
-      "built": true,
-      "sources": "fdbe383d874ef0b46117b9639d26a8bf533a3646902601365c1ab39baa772677",
-      "spv_present": true
-    },
-    "debris.vert": {
-      "built": true,
-      "sources": "c6b7eb3734ff0925ceb67688d6b077b10f6a932510d77e67bff5cc608b3bbe8b",
-      "spv_present": true
-    },
     "debug_line.frag": {
       "built": true,
       "sources": "dd275c3e6dca3cf2fb8ef6ccfc783bd8a95753fcbe4693e982e2cfe5119f2b0e",

@@ -6059,9 +6059,9 @@ void Application::derezCharacter(float duration) {
         animatedCharacter->beginDerez(gpuParticlePhysics.get(), duration,
                                       Scene::DerezPattern::Wave);
     } else {
-        // Fallback: instant CPU debris if GPU physics not available
-        if (chunkManager)
-            chunkManager->m_dynamicObjectManager.derezCharacter(animatedCharacter, 1.0f);
+        // No GPU debris solver: the character is removed without debris (all debris is
+        // GPU-only since DebrisInteractionPlan D2 deleted the CPU DebrisSystem).
+        LOG_WARN("Application", "Derez without GPU debris physics: removing the character, no debris");
         auto it = std::remove_if(entities.begin(), entities.end(),
             [this](const std::unique_ptr<Scene::Entity>& e) {
                 return e.get() == animatedCharacter;

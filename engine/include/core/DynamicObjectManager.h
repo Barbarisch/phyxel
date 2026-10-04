@@ -20,8 +20,6 @@ namespace Scene {
 
 // Forward declarations
 class Microcube;
-class DebrisSystem;
-class ChunkVoxelQuerySystem;
 
 /**
  * DynamicObjectManager - Manages global dynamic voxel objects (subcubes, cubes, microcubes)
@@ -81,12 +79,8 @@ public:
         DynamicSubcubeVectorAccessFunc getSubcubesFunc,
         DynamicCubeVectorAccessFunc getCubesFunc,
         DynamicMicrocubeVectorAccessFunc getMicrocubesFunc,
-        RebuildFacesFunc rebuildFacesFunc,
-        ChunkVoxelQuerySystem* voxelQuerySystem = nullptr
+        RebuildFacesFunc rebuildFacesFunc
     );
-
-    // Access to debris system
-    DebrisSystem* getDebrisSystem() const { return m_debrisSystem.get(); }
 
     // ===== SUBCUBE MANAGEMENT =====
     void addGlobalDynamicSubcube(std::unique_ptr<Subcube> subcube);
@@ -118,12 +112,6 @@ public:
     /// Add/remove operations still rebuild immediately.
     static constexpr float MIN_REBUILD_INTERVAL = 1.0f / 30.0f;  // 30 Hz max
     
-    // ===== CHARACTER DESTRUCTION =====
-    /// Derez a character into dynamic physics objects (debris particles or physics cubes).
-    /// @param character  The animated voxel character to destroy
-    /// @param explosionStrength  Multiplier for random velocity (1.0 = normal, 0.0 = fall in place)
-    void derezCharacter(Scene::RagdollCharacter* character, float explosionStrength = 1.0f);
-
     // Maximum number of active Bullet dynamic objects (cubes + subcubes)
     static constexpr size_t MAX_DYNAMIC_OBJECTS = 300;
 
@@ -142,7 +130,6 @@ private:
     DynamicMicrocubeVectorAccessFunc m_getMicrocubes;
     RebuildFacesFunc m_rebuildFaces;
 
-    std::unique_ptr<DebrisSystem> m_debrisSystem;
 
     // Debug tracking
     int m_debugCounter = 0;

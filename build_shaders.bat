@@ -185,12 +185,6 @@ if defined USE_GLSLC (
     %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_hardcontact.comp -o shaders\solver_hardcontact.comp.spv
     if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_hardcontact.comp & pause & exit /b 1 )
 
-    echo Compiling debris vertex shader...
-    %GLSLANG% -fshader-stage=vert -I. shaders\debris.vert -o shaders\debris.vert.spv || goto :shader_error
-
-    echo Compiling debris fragment shader...
-    %GLSLANG% -fshader-stage=frag -I. shaders\debris.frag -o shaders\debris.frag.spv || goto :shader_error
-
     echo Compiling kinematic voxel vertex shader...
     %GLSLANG% -fshader-stage=vert -I. shaders\kinematic_voxel.vert -o shaders\kinematic_voxel.vert.spv || goto :shader_error
 
@@ -339,12 +333,6 @@ if defined USE_GLSLC (
     echo Compiling solver_hardcontact compute shader...
     %GLSLANG% -V -Ishaders shaders\solver_hardcontact.comp -o shaders\solver_hardcontact.comp.spv
     if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_hardcontact.comp & pause & exit /b 1 )
-
-    echo Compiling debris vertex shader...
-    %GLSLANG% -V -I. shaders\debris.vert -o shaders\debris.vert.spv || goto :shader_error
-
-    echo Compiling debris fragment shader...
-    %GLSLANG% -V -I. shaders\debris.frag -o shaders\debris.frag.spv || goto :shader_error
 
     echo Compiling kinematic voxel vertex shader...
     %GLSLANG% -V -I. shaders\kinematic_voxel.vert -o shaders\kinematic_voxel.vert.spv || goto :shader_error

@@ -15,7 +15,6 @@
 #include "graphics/ShadowMap.h"
 #include "graphics/PostProcessor.h"
 #include "graphics/Camera.h"
-#include "graphics/DebrisRenderPipeline.h"
 #include "graphics/VfxRenderPipeline.h"
 #include "graphics/WaterRenderPipeline.h"
 #include "graphics/WaterCellRenderPipeline.h"
@@ -248,33 +247,6 @@ RenderCoordinator::RenderCoordinator(
     // Initialize GPU Profiler
     gpuProfiler = std::make_unique<GpuProfiler>();
     gpuProfiler->init(vulkanDevice);
-
-    // Initialize Debris Pipeline
-    debrisPipeline = std::make_unique<DebrisRenderPipeline>();
-    debrisPipeline->initialize(
-        vulkanDevice->getDevice(),
-        vulkanDevice->getPhysicalDevice(),
-        postProcessor->getSceneRenderPass(),
-        vulkanDevice->getSwapChainExtent()
-    );
-    // U1 (docs/UnifiedLightingPlan.md): debris is lit by the SAME sun and atmosphere as the rest
-    // of the world. It previously sampled only the baked light field, which M0 pinned to a
-    // constant — so debris looked identical at noon and at midnight, and `debris.frag`'s small
-    // fixed directional term was the only thing giving it any form.
-    //
-    // No normal is available here (this shades a whole particle, not a face), so the sun is
-    // applied as an unlit-hemisphere average rather than N·L; `debris.frag` still supplies the
-    // directional form term on top. Sky access still gates the sun, so debris in a sealed room
-    // stays dark.
-    debrisPipeline->setLightSampler([this, cm = chunkManager](const glm::vec3& wp) -> glm::vec4 {
-        float sky = 1.0f;
-        if (cm) sky = glm::clamp(cm->sampleBakedLight(glm::ivec3(glm::floor(wp))).sky / 15.0f,
-                                 0.0f, 1.0f);
-        const float skyGate = sky * sky;                   // matches lighting.glsl's phxSkyGate
-        const glm::vec3 ambient = m_lastAmbientColor;      // atmosphere sky irradiance
-        const glm::vec3 sun     = m_lastSunColor * (0.5f * skyGate);   // hemisphere-averaged
-        return glm::vec4(ambient + sun, 1.0f);
-    });
 
     // Initialize VFX particle system + its additive instanced-cube renderer.
     vfxSystem = std::make_unique<VfxSystem>();
@@ -3703,8 +3675,8 @@ void RenderCoordinator::drawFrame() {
                 a.bodyLight[i]     = glm::vec4(m_skyBodies.lightColors[i], 0.0f);
             }
             if (vulkanDevice) vulkanDevice->setAtmosphereUniforms(a);
-            // U1: cache what the shaders were just given, so CPU-side shading (debris particles)
-            // uses the SAME values rather than deriving its own.
+            // U1: cache what the shaders were just given, so CPU-side consumers use the SAME
+            // values rather than deriving their own.
             m_lastAmbientColor = a.ambientColor;
 
             // The sun's own colour comes from the same transmittance as its rendered disc, so the
@@ -3826,7 +3798,7 @@ void RenderCoordinator::drawFrame() {
     // Effect-time hold (debug): every time-driven visual below reads this one value.
     if (s_effectTimeFrozen) elapsedTime = s_effectTimeHeldAt;
     else s_effectTimeLast = elapsedTime;
-    m_lastSunColor = sunColor;   // U1: same value the shaders get, for the debris CPU sampler
+    m_lastSunColor = sunColor;   // U1: same value the shaders get, for CPU-side consumers
     vulkanDevice->updateUniformBuffer(currentFrame, view, proj, lightSpaceMatrix, sunDirection, sunColor, static_cast<uint32_t>(chunkStats.totalCubes), ambientLightStrength, emissiveMultiplier, cameraPos, elapsedTime);
 
     // Camera-relative rendering: hand the true camera position to pipelines that push their
@@ -4209,22 +4181,7 @@ void RenderCoordinator::drawFrame() {
     // Clear transient lines once they are on screen; the next frame queues its own.
     if (raycastVisualizer) raycastVisualizer->beginFrame();
 
-    // Render Debris
-    if (debrisPipeline && chunkManager) {
-        auto* debrisSystem = chunkManager->m_dynamicObjectManager.getDebrisSystem();
-        if (debrisSystem && debrisSystem->getActiveParticleCount() > 0) {
-            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "Debris");
-            debrisPipeline->render(
-                vulkanDevice->getCommandBuffer(currentFrame),
-                *camera,
-                cachedProjectionMatrix,
-                debrisSystem->getParticles(),
-                debrisSystem->getActiveParticleCount()
-            );
-        }
-    }
-
-    // Render VFX particles (additive glow — after opaque/debris geometry)
+    // Render VFX particles (additive glow — after opaque geometry)
     if (vfxPipeline && vfxSystem && vfxSystem->getActiveCount() > 0) {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "VFX");
         vfxPipeline->render(

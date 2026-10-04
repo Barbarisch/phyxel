@@ -2,7 +2,6 @@
 #include "core/Subcube.h"
 #include "core/Cube.h"
 #include "core/Microcube.h"
-#include "core/DebrisSystem.h"
 #include "physics/PhysicsWorld.h"
 #include "physics/VoxelRigidBody.h"
 #include "scene/AnimatedVoxelCharacter.h"
@@ -23,18 +22,13 @@ void DynamicObjectManager::setCallbacks(
     DynamicSubcubeVectorAccessFunc getSubcubesFunc,
     DynamicCubeVectorAccessFunc getCubesFunc,
     DynamicMicrocubeVectorAccessFunc getMicrocubesFunc,
-    RebuildFacesFunc rebuildFacesFunc,
-    ChunkVoxelQuerySystem* voxelQuerySystem
+    RebuildFacesFunc rebuildFacesFunc
 ) {
     m_getPhysicsWorld = getPhysicsWorldFunc;
     m_getSubcubes = getSubcubesFunc;
     m_getCubes = getCubesFunc;
     m_getMicrocubes = getMicrocubesFunc;
     m_rebuildFaces = rebuildFacesFunc;
-    
-    if (voxelQuerySystem) {
-        m_debrisSystem = std::make_unique<DebrisSystem>(voxelQuerySystem);
-    }
 }
 
 // ===============================================================
@@ -312,10 +306,6 @@ void DynamicObjectManager::updateAllDynamicObjects(float deltaTime) {
     updateGlobalDynamicSubcubes(deltaTime);
     updateGlobalDynamicCubes(deltaTime);
     updateGlobalDynamicMicrocubes(deltaTime);
-    
-    if (m_debrisSystem) {
-        m_debrisSystem->update(deltaTime);
-    }
 }
 
 void DynamicObjectManager::updateAllDynamicObjectPositions() {
@@ -348,92 +338,6 @@ void DynamicObjectManager::enforceObjectLimits() {
         
         m_rebuildFaces();
     }
-}
-
-void DynamicObjectManager::derezCharacter(Scene::RagdollCharacter* character, float explosionStrength) {
-    if (!character) return;
-    
-    // OPTIMIZATION: Use DebrisSystem if available for lightweight particles
-    if (m_debrisSystem) {
-        LOG_INFO("DynamicObject", "Derezzing character into debris particles (Verlet System)");
-        
-        const auto& parts = character->getParts();
-        int spawnedCount = 0;
-        
-        for (const auto& part : parts) {
-            glm::vec3 pos = part.worldPos + part.offset;
-
-            float randomX = ((rand() % 100) / 100.0f - 0.5f) * 4.0f * explosionStrength;
-            float randomY = (((rand() % 100) / 100.0f) * 4.0f + 2.0f) * explosionStrength;
-            float randomZ = ((rand() % 100) / 100.0f - 0.5f) * 4.0f * explosionStrength;
-
-            glm::vec3 vel(randomX, randomY, randomZ);
-            
-            // 3. Spawn Particle
-            m_debrisSystem->spawnDebris(
-                pos, 
-                vel, 
-                part.scale, 
-                part.color, 
-                5.0f + (rand() % 50) / 10.0f
-            );
-            spawnedCount++;
-        }
-        
-        LOG_INFO_FMT("DynamicObject", "Spawned " << spawnedCount << " debris particles");
-        return;
-    }
-
-    auto* physicsWorld = m_getPhysicsWorld();
-
-    if (!physicsWorld) {
-        LOG_ERROR("DynamicObject", "Cannot derez character: Physics world not available");
-        return;
-    }
-
-    LOG_INFO("DynamicObject", "Derezzing character into dynamic physics objects");
-
-    const auto& parts = character->getParts();
-    int spawnedCount = 0;
-
-    for (const auto& part : parts) {
-        glm::vec3 pos = part.worldPos + part.offset;
-
-        auto cube = std::make_unique<Cube>();
-        cube->setDynamicScale(part.scale);
-
-        float mass = 10.0f;
-        auto* vw = physicsWorld->getVoxelWorld();
-        Physics::VoxelRigidBody* newBody = vw
-            ? vw->createVoxelBody(pos, part.scale * 0.5f, mass, 0.3f, 0.8f)
-            : nullptr;
-
-        if (!newBody) { ++spawnedCount; continue; }
-
-        newBody->orientation = part.worldRot;
-
-        float randomX = ((rand() % 100) / 100.0f - 0.5f) * 2.0f;
-        float randomY = ((rand() % 100) / 100.0f) * 2.0f + 1.0f;
-        float randomZ = ((rand() % 100) / 100.0f - 0.5f) * 2.0f;
-
-        newBody->linearVelocity  = glm::vec3(randomX, randomY, randomZ) * explosionStrength;
-        newBody->angularVelocity = glm::vec3(randomX, randomY, randomZ);
-
-        cube->setVoxelBody(newBody);
-        cube->setPhysicsPosition(pos);
-        
-        // Set lifetime (5-10 seconds)
-        cube->setLifetime(5.0f + (rand() % 50) / 10.0f);
-        
-        // Add to manager
-        addGlobalDynamicCube(std::move(cube));
-        spawnedCount++;
-    }
-    
-    LOG_INFO_FMT("DynamicObject", "Spawned " << spawnedCount << " debris objects from character derez");
-    
-    // Enforce limits immediately
-    enforceObjectLimits();
 }
 
 } // namespace Phyxel

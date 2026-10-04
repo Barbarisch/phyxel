@@ -59,8 +59,6 @@ REQUIRED_SHADERS = [
     "blur.frag.spv",
     "shadow.vert.spv",
     "shadow.frag.spv",
-    "debris.vert.spv",
-    "debris.frag.spv",
 ]
 
 # Always-required resource files. The texture atlas AND the boot-time JSONs the

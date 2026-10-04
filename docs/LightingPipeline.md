@@ -42,7 +42,6 @@ those are narratives with superseded sections. **This file states only what is t
 | `grass.frag` (+`grass.vert`) — blades | probe field per **blade vertex** (up normal): `vAmbient`, gate `vSky` | `vAmbient` (= **`phxAmbientUp`**, the up-facing fast path — see §2) | `0.85 × shadow × phxSunGate` | **Fast 4-tap**, mid ∪ near | no | yes, with visibility trace | no | wind sheen also × `vSky`; `grass_shadow.vert` computes neither (caster only) |
 | `foliage.frag` — leaf cards | probe field per fragment (up) | `phxAmbient` (up) | `0.7 × shadow × phxSunGate` + backlit translucency × (0.25+0.75·phxSunGate) | **Fast 4-tap**, mid ∪ near | no | yes, with visibility trace | no | — |
 | `character.frag` — animated characters | probe field per fragment, vertex normal | `phxAmbient` (N) | Blinn-Phong × shadow × `phxSunGate` | PCSS, mid ∪ near | yes, × enclosure gate | yes, with visibility trace | no | block-light term from the bake is 0 |
-| CPU debris (`DebrisRenderPipeline` light sampler) | **per-cell bake** at the body (the last per-cell consumer — §8) | CPU: `ambient + sun × 0.5 × sky²` | **no shadow map** | — | no | no | — | flat per-body light; the only place a sky gate still scales sun, because there is no map lookup and the CPU cannot read the probe field |
 | `far_terrain.frag`, `far_tree_mesh.frag` — far LOD | open sky (outside the probe grid by definition) | `phxAmbientAtmos(N, 1.0, …)` = the field's own fallback | `ndl × shadow` | Fast 4-tap, **far cascade only** | no | no | yes | — |
 | `water.frag`, `water_cell.frag`, `water_underwater.frag` | none | own constants | unshadowed | none | — | — | — | own model |
 | `sky.frag` | — | — | — | — | — | — | — | emits the atmosphere |
@@ -103,8 +102,8 @@ a ground-only experiment for two weeks.
 - **R8. Occlusion is a property of matter, not of the voxel size that stores it.** Every light
   query — shadow casters, the point-light trace, the probe traces — is answered against the
   **micro-resolution** occupancy (1/9 u); a 1-micro roof seals a room exactly as a cube roof does
-  (`ambient_model_check.py` A3). No lighting path may introduce a per-cube approximation; the one
-  survivor (CPU debris reading the per-cell bake) is logged in §8, not tolerated as a pattern.
+  (`ambient_model_check.py` A3). No lighting path may introduce a per-cube approximation (the last
+  survivor, CPU debris reading the per-cell bake, was deleted 2026-10-04).
 - **R9. No receiver traces its own sky.** `phxSkyVisibility` (five rays fanned around the surface
   NORMAL, so they hug the horizon on any wall) is deleted from GLSL. Used as a receiver term it made an exterior wall facing a neighbour 13 u away read
   0.39 sky, squared into a 5.6× darker ambient — black — while the same wall with nothing within
@@ -300,7 +299,7 @@ deleted block light; `static_voxel.vert` emits `vSkyLight = 1.0` as a placeholde
   Two consumers: unshadowed moonlight, and direct sun beyond the shadow cascades' coverage.
 
 **What it replaced, and why (the G-141 record).** `phxSkyVisibility` is **deleted from GLSL**
-(the CPU mirror survives for the debris bake). From M3 (2026-08) to G-141 every receiver traced
+(a CPU mirror survives for the per-cell bake). From M3 (2026-08) to G-141 every receiver traced
 its own sky: five rays fanned around the surface *normal* (the normal, then four at 30° off it),
 cosine-weighted, early-out 1.0 when the normal ray escaped. That set was chosen to make a *sealed
 room* read 0 — which it did — but for a vertical exterior wall it is the wrong estimator: the
@@ -313,8 +312,8 @@ per-fragment expensive, and the same scalar had gated direct sun until G-135. Th
 now pins the model (`tools/ambient_model_check.py`) failed on it 4/5.
 
 **The per-cell bake** (`ChunkManager::sampleBakedLight`, one value per cube cell, traced at bake
-time) is still read by CPU debris only (§8); characters and kinematic voxels still upload it but no
-shader reads the value.
+time) is read by no lighting shader since CPU debris was deleted (2026-10-04); characters and
+kinematic voxels still upload it but no shader reads the value.
 
 The occupancy the probe pass reads is the same sub-voxel occupancy the mesher builds (subcube and
 microcube leaf-accurate, `m_subOcc` / `m_microOcc`), uploaded as two SSBOs (bindings 11/12) and
@@ -563,7 +562,7 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 | **Bloom produces spots** | ⛔ BROKEN, ships off. Spots/blotches instead of a glow; suspected fireflies from bright single pixels (sky star/airglow noise, grass speckle), widened by the half-res blur. See §6. |
 | **No AA** | The grade pass now exists, so FXAA/TAA is unblocked but not built. |
 | **Point lights** | See §4 — occluded by a binary trace but no shadow maps, intensities π× dim since the Lambert fix, not persisted. |
-| **CPU debris reads the per-cell bake** | The last consumer of `sampleBakedLight` for lighting (one value per body, no shadow map) and the last per-cube approximation in the model (R8). It stays only because the CPU sampler cannot read the GPU probe field; retire it when debris lighting moves GPU-side. |
+| ~~CPU debris reads the per-cell bake~~ | RESOLVED 2026-10-04 — the CPU `DebrisSystem` and its `DebrisRenderPipeline` were deleted (`docs/DebrisInteractionPlan.md` D2); all debris is GPU debris, lit by `voxel.frag`. |
 | **Geometry beyond the probe grid gets a WRONG answer, not a coarse one** | The field covers ±48 u (x/z) and ±24 u (y) around the viewer; outside it `phxAmbient` returns the open-sky hemisphere, which is wrong in BOTH directions. Measured 2026-09-20 with a stationary camera by toggling the field, which takes the identical fallback path (`tools/coverage_gap.py`, `docs/evidence/coverage_gap.json`): a sealed room 2.11× too bright, a room sealed by a 1-micro roof 2.09×, a wall lit only through a 1-wide door 5.75×, an exterior wall 0.23× (4.3× too DARK, because the fallback carries no sun bounce off the lit ground); an open-roof room's sunlit floor moves 0.94×, i.e. only fully-open surfaces are unaffected. How much of a real frame this touches (`tools/town_coverage.py`): Ravenmere town, player spawn looking down the street 97% of geometry inside the grid, an elevated vantage from the town's west end 80%. Direct sweep (`tools/ceiling_sweep.py`, `docs/evidence/ceiling_sweep.json`): a fixed enclosed ceiling with the camera flying up beneath it reads the fallback EXACTLY while uncovered (field on vs off identical to 4 dp at 24, 26 and 30 u) and departs once covered (×1.02 at 22 u → ×1.87 at 6 u). Coverage ends at viewer + 22 u vertically, as the grid arithmetic predicts. The boundary is **not** a hard seam: `PHX_GI_EDGE_FADE_PROBES` cross-fades over the outer 8 u, so the error ramps rather than jumping. Fix = a far cascade (sparse probes, many directions, per `EngineAdvancesResearch.md` §4) so the near field's edge lands inside a coarse field instead of on an assumption, converting the boundary from a brightness error into a resolution difference. |
 | **Probe bounce albedo is a constant** | `gi_probe.comp` bounces with `kBounceAlbedo = 0.30` for every surface (the occupancy stores solidity, not material), so a white wall and a dark floor bounce alike. A material id in the occupancy pool is the fix. |
 | **Probe angular resolution** | 18 fixed directions per probe: a 1-wide opening is seen only by the probes right at it; the rest of the room fills in by the probe-to-probe bounce, which is what `ambient_model_check.py` A4 measures. |
@@ -577,6 +576,11 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 
 ## 9. Change log (append a line per lighting/shadow change; the fingerprint line is written by `tools/lighting_doc_check.py --update`)
 
+- 2026-10-04 — **CPU debris receiver deleted** (`docs/DebrisInteractionPlan.md` D2): `debris.vert/frag`,
+  `DebrisRenderPipeline` and its CPU light sampler (`ambient + sun × 0.5 × sky²` from the per-cell
+  bake) are gone with the CPU `DebrisSystem`. Its only producer was the no-GPU derez fallback,
+  which now removes the character without debris. All debris is GPU debris through `voxel.frag`;
+  §0.2 loses a row, R8 loses its logged exception, the §8 gap is resolved. No shader changed.
 - 2026-09-23 — **Glass is blended again: the OIT pass is re-enabled, and glass casts no shadow**
   (`docs/GlassTransparency.md`). `transparent_voxel.frag` had opened with an unconditional `discard`
   since `7a36910f`; the validation error it was blamed on fires identically with the pass disabled

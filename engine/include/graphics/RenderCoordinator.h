@@ -55,7 +55,6 @@ namespace Phyxel {
     class VfxSystem;
     class VfxDirector;
     namespace Graphics {
-        class DebrisRenderPipeline;
         class KinematicVoxelPipeline;
         class GrassRenderPipeline;
         class FoliageRenderPipeline;
@@ -83,7 +82,6 @@ namespace Graphics {
 class ShadowMap;
 class PostProcessor;
 class Camera;
-class DebrisRenderPipeline;
 
 /**
  * @brief Manages the rendering pipeline and frame rendering
@@ -1118,9 +1116,6 @@ private:
 
     // Light management
     LightManager lightManager;
-
-    // Debris Rendering
-    std::unique_ptr<DebrisRenderPipeline> debrisPipeline;
 
     // Lightweight VFX particle system + its instanced-cube renderer + composition runtime.
     std::unique_ptr<VfxSystem> vfxSystem;

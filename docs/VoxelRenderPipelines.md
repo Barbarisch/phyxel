@@ -48,17 +48,16 @@ Three separate Vulkan pipelines render voxels. All three share the same fragment
 `RenderCoordinator::drawFrame()` executes in this order:
 
 1. **Shadow pass** — depth-only render to shadow map
-2. **GPU particle compute** — integrate → collide → expand (writes face buffer + indirect count)
+2. **GPU particle compute** — AVBD solver ticks (`solver_*.comp`) → expand (writes face buffer + indirect count)
 3. **Begin scene render pass** (offscreen framebuffer)
 4. **Static geometry** — bind static pipeline, per-chunk indexed draws
 5. **Kinematic objects** — bind kinematic pipeline, one indexed draw per object with per-object push constant transform
 6. **Dynamic voxels** — bind GPU particle pipeline, single indirect draw from GPU face buffer
 7. **Entities** — animated characters, NPCs (instanced character pipeline)
 8. **Debug lines** — raycast visualization, FOV cones
-9. **Debris** — CPU-side particle system (DebrisRenderPipeline, separate vertex format)
-10. **End scene render pass**
-11. **Post-process pass** — fullscreen quad to swapchain
-12. **UI** — ImGui overlay
+9. **End scene render pass**
+10. **Post-process pass** — fullscreen quad to swapchain
+11. **UI** — ImGui overlay
 
 ---
 
