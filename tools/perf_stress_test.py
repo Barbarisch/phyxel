@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
 """
-Phyxel Engine — GPU & Bullet & VoxelDynamicsWorld Performance Stress Tester
+Phyxel Engine — GPU debris & CPU VoxelDynamicsWorld Performance Stress Tester
 
-Ramps up particle/object counts to find FPS breakpoints for GPU compute,
-Bullet physics, and the custom VoxelDynamicsWorld systems.
+Ramps up particle/object counts to find FPS breakpoints for GPU debris (AVBD),
+rendered CPU dynamic cubes (B-key break debris), and bare VoxelDynamicsWorld bodies.
 
 Usage:
     python tools/perf_stress_test.py                    # Run all tests
     python tools/perf_stress_test.py --mode gpu         # GPU-only ramp
-    python tools/perf_stress_test.py --mode bullet      # Bullet-only ramp
-    python tools/perf_stress_test.py --mode voxel       # VoxelDynamicsWorld ramp
+    python tools/perf_stress_test.py --mode cpu         # CPU dynamic-cube ramp (rendered, cap 300)
+    python tools/perf_stress_test.py --mode voxel       # bare VoxelDynamicsWorld bodies (unrendered)
     python tools/perf_stress_test.py --mode mixed       # Mixed ramp
     python tools/perf_stress_test.py --mode scale       # Scale comparison
     python tools/perf_stress_test.py --mode sustained   # Sustained max load
     python tools/perf_stress_test.py --quick            # Fewer steps, faster
     python tools/perf_stress_test.py --settle 3         # Custom settle time (seconds)
+    python tools/perf_stress_test.py --url http://localhost:8097   # engine on another port
 
-Requires: Engine running at http://localhost:8090
+Requires: a running engine (default http://localhost:8090)
 """
 
 import argparse
@@ -74,7 +75,7 @@ def get_stats():
 
 
 def clear_dynamics():
-    """Remove all Bullet + GPU particles."""
+    """Remove all CPU dynamic objects + GPU debris."""
     return api_post("/api/debug/clear_dynamics", {})
 
 
@@ -94,8 +95,9 @@ def spawn_gpu(count, scale=1.0, x=None, y=None, z=None):
     })
 
 
-def spawn_bullet(count, scale=1.0, x=None, y=None, z=None):
-    """Spawn Bullet cubes above the player entity."""
+def spawn_cpu(count, scale=1.0, x=None, y=None, z=None):
+    """Spawn rendered CPU dynamic cubes (VoxelDynamicsWorld) above the player entity.
+    The endpoint keeps its Bullet-era name until DebrisInteractionPlan D1 retires it."""
     if x is None or y is None or z is None:
         px, py, pz = get_player_pos()
         x = px if x is None else x
@@ -113,7 +115,7 @@ def spawn_bullet(count, scale=1.0, x=None, y=None, z=None):
 def get_camera_pos():
     """Return (x, y, z) of the current camera position."""
     try:
-        state = api_get("/api/world/state")
+        state = api_get("/api/state")
         cam = state.get("camera", {}).get("position", {})
         return cam.get("x", 32.0), cam.get("y", 20.0), cam.get("z", 32.0)
     except Exception:
@@ -126,7 +128,7 @@ def get_player_pos(entity_id="player", above=4.0):
     above: units to add to Y so particles fall onto the character.
     """
     try:
-        state = api_get("/api/world/state")
+        state = api_get("/api/state")
         for ent in state.get("entities", []):
             if ent.get("id") == entity_id:
                 p = ent["position"]
@@ -191,8 +193,7 @@ def measure(settle_time=SETTLE_TIME):
         "gpu_frame_ms": last.get("gpuFrameTime", 0),
         "draw_calls": last.get("drawCalls", 0),
         "visible_instances": last.get("visibleInstances", 0),
-        "bullet_active": stats.get("bullet_active", 0),
-        "bullet_total": stats.get("bullet_total", stats.get("bullet_active", 0)),
+        "cpu_dynamic": stats.get("cpu_dynamic", 0),
         "gpu_active": stats.get("gpu_active", 0),
         "physics_time": last.get("detailed", {}).get("physicsTime", 0),
     }
@@ -211,15 +212,15 @@ def print_header():
     """Print column headers for console output."""
     print(f"{'Step':<8} {'System':<8} {'Count':>7} {'Scale':>6} "
           f"{'FPS avg':>8} {'FPS min':>8} {'CPU ms':>8} "
-          f"{'Bt act':>7} {'Bt tot':>7} {'GPU':>7} {'Draws':>6}")
-    print("-" * 98)
+          f"{'CPU dyn':>7} {'GPU':>7} {'Draws':>6}")
+    print("-" * 90)
 
 
 def print_row(step, system, count, scale, m):
     """Print one measurement row."""
     print(f"{step:<8} {system:<8} {count:>7} {scale:>6.3f} "
           f"{m['fps_avg']:>8.1f} {m['fps_min']:>8.1f} {m['cpu_frame_ms']:>8.2f} "
-          f"{m['bullet_active']:>7} {m['bullet_total']:>7} {m['gpu_active']:>7} {m['draw_calls']:>6}")
+          f"{m['cpu_dynamic']:>7} {m['gpu_active']:>7} {m['draw_calls']:>6}")
 
 
 def find_breakpoints(rows):
@@ -286,14 +287,14 @@ def test_gpu_ramp(quick=False, settle_time=SETTLE_TIME):
     return rows
 
 
-def test_bullet_ramp(quick=False, settle_time=SETTLE_TIME):
-    """Ramp up Bullet object count and measure FPS at each level."""
+def test_cpu_ramp(quick=False, settle_time=SETTLE_TIME):
+    """Ramp up rendered CPU dynamic cubes and measure FPS at each level."""
     if quick:
         steps = [25, 50, 100, 200, 300]
     else:
         steps = [25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300]
 
-    print("\n=== BULLET PHYSICS RAMP TEST ===\n")
+    print("\n=== CPU DYNAMIC CUBE RAMP TEST ===\n")
     print_header()
 
     clear_dynamics()
@@ -305,23 +306,23 @@ def test_bullet_ramp(quick=False, settle_time=SETTLE_TIME):
     # Baseline
     m = measure(settle_time)
     if m:
-        row = {"step": 0, "system": "bullet", "count": 0, "scale": 1.0, **m}
+        row = {"step": 0, "system": "cpu", "count": 0, "scale": 1.0, **m}
         rows.append(row)
-        print_row(0, "bullet", 0, 1.0, m)
+        print_row(0, "cpu", 0, 1.0, m)
 
     for i, target in enumerate(steps, 1):
         to_spawn = target - total_spawned
         if to_spawn <= 0:
             continue
 
-        spawn_bullet(to_spawn)
+        spawn_cpu(to_spawn)
         total_spawned = target
 
         m = measure(settle_time)
         if m:
-            row = {"step": i, "system": "bullet", "count": target, "scale": 1.0, **m}
+            row = {"step": i, "system": "cpu", "count": target, "scale": 1.0, **m}
             rows.append(row)
-            print_row(i, "bullet", target, 1.0, m)
+            print_row(i, "cpu", target, 1.0, m)
 
     clear_dynamics()
     return rows
@@ -379,15 +380,15 @@ def test_voxel_ramp(quick=False, settle_time=SETTLE_TIME):
 
 
 def test_mixed_ramp(quick=False, settle_time=SETTLE_TIME):
-    """Fill Bullet to 50% cap, then ramp GPU particles."""
+    """Fill CPU dynamic cubes to 50% of their cap, then ramp GPU particles."""
     if quick:
         gpu_steps = [100, 500, 1000, 2000, 5000]
     else:
         gpu_steps = [100, 250, 500, 1000, 2000, 3000, 5000, 7500, 10000]
 
-    bullet_count = 150  # 50% of 300 cap
+    cpu_count = 150  # 50% of the 300 cap
 
-    print("\n=== MIXED RAMP TEST (Bullet=%d + GPU ramp) ===\n" % bullet_count)
+    print("\n=== MIXED RAMP TEST (CPU=%d + GPU ramp) ===\n" % cpu_count)
     print_header()
 
     clear_dynamics()
@@ -395,13 +396,13 @@ def test_mixed_ramp(quick=False, settle_time=SETTLE_TIME):
 
     rows = []
 
-    # Spawn bullet objects first
-    spawn_bullet(bullet_count)
+    # Spawn CPU dynamic cubes first
+    spawn_cpu(cpu_count)
     m = measure(settle_time)
     if m:
-        row = {"step": 0, "system": "mixed", "count": bullet_count, "scale": 1.0, **m}
+        row = {"step": 0, "system": "mixed", "count": cpu_count, "scale": 1.0, **m}
         rows.append(row)
-        print_row(0, "mixed", bullet_count, 1.0, m)
+        print_row(0, "mixed", cpu_count, 1.0, m)
 
     total_gpu = 0
     for i, target in enumerate(gpu_steps, 1):
@@ -418,11 +419,11 @@ def test_mixed_ramp(quick=False, settle_time=SETTLE_TIME):
 
         m = measure(settle_time)
         if m:
-            label = f"B{bullet_count}+G{target}"
-            row = {"step": i, "system": "mixed", "count": bullet_count + target,
+            label = f"C{cpu_count}+G{target}"
+            row = {"step": i, "system": "mixed", "count": cpu_count + target,
                    "scale": 1.0, **m}
             rows.append(row)
-            print_row(i, "mixed", bullet_count + target, 1.0, m)
+            print_row(i, "mixed", cpu_count + target, 1.0, m)
 
     clear_dynamics()
     return rows
@@ -502,7 +503,7 @@ def test_sustained(settle_time=SETTLE_TIME):
                 "gpu_frame_ms": t.get("gpuFrameTime", 0),
                 "draw_calls": t.get("drawCalls", 0),
                 "visible_instances": t.get("visibleInstances", 0),
-                "bullet_active": stats.get("bullet_active", 0),
+                "cpu_dynamic": stats.get("cpu_dynamic", 0),
                 "gpu_active": stats.get("gpu_active", 0),
                 "physics_time": t.get("detailed", {}).get("physicsTime", 0),
             }
@@ -534,7 +535,7 @@ def write_csv(rows, filename):
                   "fps_avg", "fps_min", "fps_max",
                   "cpu_frame_ms", "gpu_frame_ms",
                   "draw_calls", "visible_instances",
-                  "bullet_active", "gpu_active", "physics_time"]
+                  "cpu_dynamic", "gpu_active", "physics_time"]
     with open(filename, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
@@ -613,8 +614,9 @@ def print_breakpoint_summary(all_rows):
 # =========================================================================
 
 def main():
-    parser = argparse.ArgumentParser(description="Phyxel GPU/Bullet performance stress tester")
-    parser.add_argument("--mode", choices=["all", "gpu", "bullet", "voxel", "mixed", "scale", "sustained"],
+    global BASE_URL
+    parser = argparse.ArgumentParser(description="Phyxel GPU/CPU physics performance stress tester")
+    parser.add_argument("--mode", choices=["all", "gpu", "cpu", "voxel", "mixed", "scale", "sustained"],
                         default="all", help="Test mode (default: all)")
     parser.add_argument("--quick", action="store_true",
                         help="Fewer test steps for faster results")
@@ -622,7 +624,11 @@ def main():
                         help=f"Settle time after spawning (default: {SETTLE_TIME}s)")
     parser.add_argument("--output", type=str, default=None,
                         help="Output CSV filename (default: auto-generated)")
+    parser.add_argument("--url", type=str, default=BASE_URL,
+                        help=f"Engine API base URL (default: {BASE_URL})")
     args = parser.parse_args()
+
+    BASE_URL = args.url.rstrip("/")
 
     # Check engine
     if not check_engine():
@@ -651,7 +657,7 @@ def main():
 
     modes = {
         "gpu": lambda: test_gpu_ramp(args.quick, args.settle),
-        "bullet": lambda: test_bullet_ramp(args.quick, args.settle),
+        "cpu": lambda: test_cpu_ramp(args.quick, args.settle),
         "voxel": lambda: test_voxel_ramp(args.quick, args.settle),
         "mixed": lambda: test_mixed_ramp(args.quick, args.settle),
         "scale": lambda: test_scale_comparison(args.quick, args.settle),
@@ -659,7 +665,7 @@ def main():
     }
 
     if args.mode == "all":
-        for name in ["gpu", "bullet", "voxel", "mixed", "scale", "sustained"]:
+        for name in ["gpu", "cpu", "voxel", "mixed", "scale", "sustained"]:
             try:
                 rows = modes[name]()
                 all_rows.extend(rows)

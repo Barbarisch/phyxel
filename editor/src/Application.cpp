@@ -1183,7 +1183,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             };
         }
 
-        size_t bulletActive = chunkManager ? chunkManager->m_dynamicObjectManager.getActiveBulletCount() : 0;
+        size_t cpuDynamic = chunkManager ? chunkManager->m_dynamicObjectManager.getDynamicObjectCount() : 0;
         uint32_t gpuActive = (gpuParticlePhysics && gpuParticlePhysics->isInitialized())
             ? gpuParticlePhysics->getActiveParticleCount() : 0;
 
@@ -1208,24 +1208,22 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             {"frustumCulled", ft.frustumCulledInstances},
             {"occlusionCulled", ft.occlusionCulledInstances},
             {"faceCulledFaces", ft.faceCulledFaces},
-            {"bulletActive", bulletActive},
-            {"bulletCap", DynamicObjectManager::MAX_DYNAMIC_OBJECTS},
+            {"cpuDynamic", cpuDynamic},
+            {"cpuDynamicCap", DynamicObjectManager::MAX_DYNAMIC_OBJECTS},
             {"gpuActive", gpuActive},
             {"gpuCap", GpuParticlePhysics::MAX_PARTICLES},
             {"detailed", detail}
         };
     });
 
-    // Dynamic object stats: bullet and GPU counts/caps
+    // Dynamic object stats: CPU dynamic objects and GPU debris counts/caps
     apiServer->setDynamicStatsHandler([this]() -> nlohmann::json {
-        size_t bulletActive = chunkManager ? chunkManager->m_dynamicObjectManager.getActiveBulletCount() : 0;
-        size_t bulletTotal = chunkManager ? chunkManager->m_dynamicObjectManager.getTotalBulletCount() : 0;
+        size_t cpuDynamic = chunkManager ? chunkManager->m_dynamicObjectManager.getDynamicObjectCount() : 0;
         uint32_t gpuActive = (gpuParticlePhysics && gpuParticlePhysics->isInitialized())
             ? gpuParticlePhysics->getActiveParticleCount() : 0;
         return nlohmann::json{
-            {"bullet_active", bulletActive},
-            {"bullet_total", bulletTotal},
-            {"bullet_cap", DynamicObjectManager::MAX_DYNAMIC_OBJECTS},
+            {"cpu_dynamic", cpuDynamic},
+            {"cpu_dynamic_cap", DynamicObjectManager::MAX_DYNAMIC_OBJECTS},
             {"gpu_active", gpuActive},
             {"gpu_cap", GpuParticlePhysics::MAX_PARTICLES}
         };
@@ -8081,10 +8079,10 @@ static bool handleDebugDynamicSpawnCommand(
         return true;
     }
     if (cmd.action == "clear_dynamics") {
-        size_t bulletCleared = 0;
+        size_t cpuCleared = 0;
         uint32_t gpuCleared = 0;
         if (chunkManager) {
-            bulletCleared = chunkManager->m_dynamicObjectManager.getActiveBulletCount();
+            cpuCleared = chunkManager->m_dynamicObjectManager.getDynamicObjectCount();
             chunkManager->m_dynamicObjectManager.clearAllGlobalDynamicCubes();
             chunkManager->m_dynamicObjectManager.clearAllGlobalDynamicSubcubes();
             chunkManager->m_dynamicObjectManager.clearAllGlobalDynamicMicrocubes();
@@ -8094,7 +8092,7 @@ static bool handleDebugDynamicSpawnCommand(
             gpuParticles->despawnAll();
         }
         response = {{"success", true},
-                    {"bullet_cleared", bulletCleared},
+                    {"cpu_cleared", cpuCleared},
                     {"gpu_cleared", gpuCleared}};
         return true;
     }
@@ -11330,91 +11328,6 @@ bool Application::dispatchAnimationAPICommand(const Core::APICommand& cmd, nlohm
             response["character_id"] = characterId;
             response["clip"] = clipName;
         }
-        return true;
-    }
-
-    if (action == "try_push") {
-        // Phase M3: apply a capped horizontal impulse to the nearest dynamic
-        // cube in front of `character_id` within `reach`. Plays the push clip
-        // if both character_id and clip are supplied. A miss is still a
-        // success (clip plays, no impulse) — push against a wall is cosmetic.
-        if (!chunkManager) {
-            response = {{"error", "ChunkManager not available"}};
-            return true;
-        }
-        std::string characterId = cmd.params.value("character_id", "");
-        float force   = cmd.params.value("force", 6.0f);
-        float reach   = cmd.params.value("reach", 0.8f);
-        std::string clipName = cmd.params.value("clip", "push");
-
-        Phyxel::Scene::AnimatedVoxelCharacter* ch = resolveCharacter(characterId);
-        if (!ch) {
-            if (m_interactionEditorMode && m_ieChar) ch = m_ieChar;
-            else if (animatedCharacter)              ch = animatedCharacter;
-        }
-        if (!ch) {
-            response = {{"error", "No animated character found for: " + characterId}};
-            return true;
-        }
-
-        glm::vec3 pos = ch->getPosition();
-        glm::vec3 fwd = ch->getForwardDirection();
-        fwd.y = 0.0f;
-        float fl = glm::length(fwd);
-        if (fl > 1e-4f) fwd /= fl;
-
-        // Find nearest dynamic cube within reach + cube half-extent (0.5 m).
-        const auto& cubes = chunkManager->getGlobalDynamicCubes();
-        float bestDist = reach + 0.5f;
-        Phyxel::Cube* bestCube = nullptr;
-        for (const auto& c : cubes) {
-            if (!c || !c->getVoxelBody()) continue;
-            glm::vec3 cp = c->getPhysicsPosition();
-            glm::vec3 d = cp - pos;
-            d.y = 0.0f;
-            float fwdDot = glm::dot(d, fwd);
-            if (fwdDot <= 0.0f) continue;  // behind the character
-            glm::vec3 perp = d - fwd * fwdDot;
-            float lateral = glm::length(perp);
-            if (lateral > 0.6f) continue;  // outside contact cone
-            float dist = glm::length(d);
-            if (dist < bestDist) {
-                bestDist = dist;
-                bestCube = c.get();
-            }
-        }
-
-        bool clipPlayed = false;
-        if (!clipName.empty()) {
-            ch->setAnimationState(Phyxel::Scene::AnimatedCharacterState::Preview);
-            ch->playAnimation(clipName);
-            clipPlayed = true;
-        }
-
-        glm::vec3 applied(0.0f);
-        json contactVoxel = nullptr;
-        std::string objectIdPushed;
-        if (bestCube && bestCube->getVoxelBody()) {
-            applied = fwd * force;
-            bestCube->getVoxelBody()->wake();
-            bestCube->getVoxelBody()->applyCentralImpulse(applied);
-            glm::ivec3 vp = bestCube->getPosition();
-            contactVoxel = json::array({vp.x, vp.y, vp.z});
-            // Use the cube's grid position as a stable identifier.
-            char buf[64];
-            std::snprintf(buf, sizeof(buf), "dyn_cube_%d_%d_%d", vp.x, vp.y, vp.z);
-            objectIdPushed = buf;
-        }
-
-        response = {
-            {"success", true},
-            {"object_id_pushed", objectIdPushed},
-            {"applied_impulse", {applied.x, applied.y, applied.z}},
-            {"contact_voxel", contactVoxel},
-            {"clip_played", clipPlayed},
-            {"force", force},
-            {"reach", reach},
-        };
         return true;
     }
 

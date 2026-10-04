@@ -2085,8 +2085,8 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
-    // GET /api/debug/dynamic_stats — Bullet + GPU particle object counts
-    // Returns: bullet_active, bullet_cap, gpu_active, gpu_cap
+    // GET /api/debug/dynamic_stats — CPU dynamic objects + GPU debris counts
+    // Returns: cpu_dynamic, cpu_dynamic_cap, gpu_active, gpu_cap
     // ====================================================================
     srv.Get("/api/debug/dynamic_stats", [this](const httplib::Request& req, httplib::Response& res) {
         if (!m_dynamicStatsHandler) {
@@ -2100,7 +2100,8 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
-    // POST /api/debug/clear_dynamics — Remove all Bullet + GPU particles
+    // POST /api/debug/clear_dynamics — Remove all CPU dynamic objects + GPU debris
+    // Returns: cpu_cleared, gpu_cleared
     // ====================================================================
     srv.Post("/api/debug/clear_dynamics", [this](const httplib::Request& req, httplib::Response& res) {
         try {
@@ -3148,29 +3149,6 @@ void EngineAPIServer::setupRoutes() {
         try {
             json params = json::parse(req.body);
             json result = queueAndWait("try_slide", params);
-            res.set_content(result.dump(), "application/json");
-        } catch (const json::exception& e) {
-            res.status = 400;
-            res.set_content(json{{"error", std::string("Invalid JSON: ") + e.what()}}.dump(),
-                            "application/json");
-        }
-    });
-
-    // POST /api/interaction/try_push — Phase M3. Find nearest dynamic cube
-    // in front of the character (within `reach`) and apply a capped
-    // horizontal impulse along the character's forward direction. Plays
-    // the named push clip if a character_id+clip is supplied. If no
-    // dynamic body is found within reach, response.success is true but
-    // object_id_pushed is empty and applied_impulse is zero — the clip
-    // still plays (cosmetic push against a wall).
-    // Body: { "character_id"?, "force"?: float (default 6.0),
-    //         "reach"?: float (default 0.8), "clip"?: "push" }
-    // Returns: { success, object_id_pushed, applied_impulse: [x,y,z],
-    //            contact_voxel: [x,y,z]?, clip_played }
-    srv.Post("/api/interaction/try_push", [this](const httplib::Request& req, httplib::Response& res) {
-        try {
-            json params = json::parse(req.body);
-            json result = queueAndWait("try_push", params);
             res.set_content(result.dump(), "application/json");
         } catch (const json::exception& e) {
             res.status = 400;

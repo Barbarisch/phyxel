@@ -112,15 +112,12 @@ public:
     /// Add/remove operations still rebuild immediately.
     static constexpr float MIN_REBUILD_INTERVAL = 1.0f / 30.0f;  // 30 Hz max
     
-    // Maximum number of active Bullet dynamic objects (cubes + subcubes)
+    // Cap on CPU dynamic cubes (enforceObjectLimits drops the oldest above it)
     static constexpr size_t MAX_DYNAMIC_OBJECTS = 300;
 
-    /// Count of active (non-sleeping) Bullet cubes + subcubes.
-    /// Sleeping bodies don't count against the cap.
-    size_t getActiveBulletCount() const;
-
-    /// Total count of all Bullet cubes + subcubes (including sleeping).
-    size_t getTotalBulletCount() const;
+    /// CPU dynamic objects alive right now: cubes + subcubes + microcubes, sleeping
+    /// included. Replaces the Bullet-era active/total counters, which returned 0.
+    size_t getDynamicObjectCount() const;
 
 private:
     // Callback functions

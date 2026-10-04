@@ -14,8 +14,13 @@ namespace Phyxel {
 DynamicObjectManager::DynamicObjectManager() = default;
 DynamicObjectManager::~DynamicObjectManager() = default;
 
-size_t DynamicObjectManager::getActiveBulletCount() const { return 0; }
-size_t DynamicObjectManager::getTotalBulletCount() const { return 0; }
+size_t DynamicObjectManager::getDynamicObjectCount() const {
+    size_t n = 0;
+    if (m_getCubes)      n += m_getCubes().size();
+    if (m_getSubcubes)   n += m_getSubcubes().size();
+    if (m_getMicrocubes) n += m_getMicrocubes().size();
+    return n;
+}
 
 void DynamicObjectManager::setCallbacks(
     PhysicsWorldAccessFunc getPhysicsWorldFunc,

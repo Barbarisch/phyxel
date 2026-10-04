@@ -286,11 +286,12 @@ Sleepers stay in the broadphase as static supports. An awake body hitting one fa
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/debug/engine_timing` | GET | FPS, CPU/GPU frame time, draw calls, culling stats, detailed subsystem timings |
-| `/api/debug/dynamic_stats` | GET | VoxelDynamicsWorld active/total counts, GPU active/cap counts |
+| `/api/debug/dynamic_stats` | GET | `cpu_dynamic` (CPU dynamic cubes+subcubes+microcubes, sleeping included) / `cpu_dynamic_cap`, `gpu_active` / `gpu_cap` (the Bullet-era `bullet_*` keys always read 0 and were removed 2026-10-04) |
+| `/api/debug/spawn_voxel_body` / `clear_voxel_bodies` | POST | Bare, unrendered `VoxelDynamicsWorld` bodies — the only headless CPU-solver benchmark harness (`perf_stress_test.py --mode voxel`). `clear_voxel_bodies` removes EVERY body in that world, furniture included |
 | `/api/debug/particle_timing` | GET | GPU physics timing ring buffer (300 frames) |
 | `/api/debug/spawn_bullet_cube` | POST | Spawn VoxelDynamicsWorld dynamic cubes (count, scale, material, lifetime, velocity) |
 | `/api/debug/spawn_gpu_particle` | POST | Spawn GPU particles (count, scale, material, lifetime, velocity) |
-| `/api/debug/clear_dynamics` | POST | Remove all dynamic objects and GPU particles instantly |
+| `/api/debug/clear_dynamics` | POST | Remove all CPU dynamic objects and GPU particles instantly; echoes `cpu_cleared`, `gpu_cleared` |
 | `/api/debug/spawn_gpu_lattice` | POST | Deterministic grid of GPU debris (nx/ny/nz, scale, gap — 0 = touching, spin, jitter, seed) |
 | `/api/debug/gpu_physics` | POST | Freeze / single-step the GPU solver (`frozen`, `step`), solver fix switches (`flags`, `cold_scale`) |
 | `/api/debug/settle_probe` | POST | Per-tick settling analysis (`op` start/stop/status, `floor_y`, `series_last`, `bodies`, `csv`) → SETTLES/FAILS verdict |
@@ -355,8 +356,9 @@ python tools/perf_stress_test.py --mode all
 | Mode | Description |
 |------|-------------|
 | `gpu` | Ramp GPU particles: 100→10,000 (quick: 100→5,000) |
-| `voxel` | Ramp VoxelDynamicsWorld bodies: 25→500 |
-| `mixed` | Fill VoxelDynamicsWorld to 50% of soft cap, then ramp GPU |
+| `cpu` | Ramp rendered CPU dynamic cubes (`spawn_bullet_cube`): 25→300 (the `MAX_DYNAMIC_OBJECTS` cap); was `bullet` before 2026-10-04 |
+| `voxel` | Ramp bare, unrendered VoxelDynamicsWorld bodies (`spawn_voxel_body`): 50→5,000 |
+| `mixed` | Fill CPU dynamic cubes to 50% of their cap, then ramp GPU |
 | `scale` | Compare full/subcube/microcube performance |
 | `sustained` | Hold 10,000 GPU particles for 30 seconds |
 | `all` | Run all modes sequentially |
