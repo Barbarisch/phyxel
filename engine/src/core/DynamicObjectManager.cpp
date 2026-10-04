@@ -11,6 +11,24 @@
 
 namespace Phyxel {
 
+// Every path that drops a CPU dynamic object must take its body out of the world first.
+// Dropping only the Cube/Subcube/Microcube left the VoxelRigidBody simulating as an
+// invisible collider that was never freed (DynamicObjectBodyReleaseTest).
+template <typename T>
+static void releaseBody(T& obj, Physics::PhysicsWorld* physicsWorld) {
+    if (auto* vb = obj.getVoxelBody()) {
+        if (physicsWorld && physicsWorld->getVoxelWorld())
+            physicsWorld->getVoxelWorld()->removeBody(vb);
+        obj.setVoxelBody(nullptr);
+    }
+}
+
+template <typename Vec>
+static void releaseAllBodies(Vec& objects, Physics::PhysicsWorld* physicsWorld) {
+    for (auto& o : objects)
+        if (o) releaseBody(*o, physicsWorld);
+}
+
 DynamicObjectManager::DynamicObjectManager() = default;
 DynamicObjectManager::~DynamicObjectManager() = default;
 
@@ -61,9 +79,7 @@ void DynamicObjectManager::updateGlobalDynamicSubcubes(float deltaTime) {
 
         // VoxelRigidBody marks itself isDead; we must call removeBody() before nulling.
         if (auto* vb = sub->getVoxelBody(); vb && vb->isDead) {
-            if (physicsWorld && physicsWorld->getVoxelWorld())
-                physicsWorld->getVoxelWorld()->removeBody(vb);
-            sub->setVoxelBody(nullptr);
+            releaseBody(*sub, physicsWorld);
             removedCount++;
             it = subcubes.erase(it);
             continue;
@@ -72,7 +88,7 @@ void DynamicObjectManager::updateGlobalDynamicSubcubes(float deltaTime) {
         sub->updateLifetime(deltaTime);
 
         if (sub->hasExpired()) {
-            sub->setVoxelBody(nullptr);
+            releaseBody(*sub, physicsWorld);
 
             removedCount++;
             it = subcubes.erase(it);
@@ -129,6 +145,7 @@ void DynamicObjectManager::updateGlobalDynamicSubcubePositions() {
 void DynamicObjectManager::clearAllGlobalDynamicSubcubes() {
     auto& subcubes = m_getSubcubes();
     LOG_DEBUG_FMT("DynamicObject", "Clearing all " << subcubes.size() << " global dynamic subcubes");
+    releaseAllBodies(subcubes, m_getPhysicsWorld ? m_getPhysicsWorld() : nullptr);
     subcubes.clear();
     m_rebuildFaces();
 }
@@ -155,9 +172,7 @@ void DynamicObjectManager::updateGlobalDynamicCubes(float deltaTime) {
     
     while (it != cubes.end()) {
         if (auto* vb = (*it)->getVoxelBody(); vb && vb->isDead) {
-            if (physicsWorld && physicsWorld->getVoxelWorld())
-                physicsWorld->getVoxelWorld()->removeBody(vb);
-            (*it)->setVoxelBody(nullptr);
+            releaseBody(**it, physicsWorld);
             removedCount++;
             it = cubes.erase(it);
             continue;
@@ -166,7 +181,8 @@ void DynamicObjectManager::updateGlobalDynamicCubes(float deltaTime) {
         (*it)->updateLifetime(deltaTime);
 
         if ((*it)->hasExpired()) {
-                removedCount++;
+            releaseBody(**it, physicsWorld);
+            removedCount++;
             it = cubes.erase(it);
         } else {
             ++it;
@@ -218,6 +234,7 @@ void DynamicObjectManager::updateGlobalDynamicCubePositions() {
 void DynamicObjectManager::clearAllGlobalDynamicCubes() {
     auto& cubes = m_getCubes();
     LOG_DEBUG_FMT("DynamicObject", "Clearing all " << cubes.size() << " global dynamic cubes");
+    releaseAllBodies(cubes, m_getPhysicsWorld ? m_getPhysicsWorld() : nullptr);
     cubes.clear();
     m_rebuildFaces();
 }
@@ -244,9 +261,7 @@ void DynamicObjectManager::updateGlobalDynamicMicrocubes(float deltaTime) {
     
     while (it != microcubes.end()) {
         if (auto* vb = (*it)->getVoxelBody(); vb && vb->isDead) {
-            if (physicsWorld && physicsWorld->getVoxelWorld())
-                physicsWorld->getVoxelWorld()->removeBody(vb);
-            (*it)->setVoxelBody(nullptr);
+            releaseBody(**it, physicsWorld);
             removedCount++;
             it = microcubes.erase(it);
             continue;
@@ -255,6 +270,7 @@ void DynamicObjectManager::updateGlobalDynamicMicrocubes(float deltaTime) {
         (*it)->updateLifetime(deltaTime);
 
         if ((*it)->hasExpired()) {
+            releaseBody(**it, physicsWorld);
             removedCount++;
             it = microcubes.erase(it);
         } else {
@@ -299,6 +315,7 @@ void DynamicObjectManager::updateGlobalDynamicMicrocubePositions() {
 void DynamicObjectManager::clearAllGlobalDynamicMicrocubes() {
     auto& microcubes = m_getMicrocubes();
     LOG_DEBUG_FMT("DynamicObject", "[MICROCUBE] Clearing all " << microcubes.size() << " global dynamic microcubes");
+    releaseAllBodies(microcubes, m_getPhysicsWorld ? m_getPhysicsWorld() : nullptr);
     microcubes.clear();
     m_rebuildFaces();
 }
@@ -327,21 +344,6 @@ void DynamicObjectManager::updateAllDynamicObjectPositions() {
             m_lastPositionRebuildTime = now;
         }
         m_positionsDirty = false;
-    }
-}
-
-void DynamicObjectManager::enforceObjectLimits() {
-    auto& cubes = m_getCubes();
-    auto physicsWorld = m_getPhysicsWorld();
-    
-    if (cubes.size() > MAX_DYNAMIC_OBJECTS) {
-        size_t removeCount = cubes.size() - MAX_DYNAMIC_OBJECTS;
-        LOG_INFO_FMT("DynamicObject", "Enforcing object limit: Removing " << removeCount << " oldest dynamic cubes");
-        
-        // Bulk erase oldest cubes in one O(n) operation
-        cubes.erase(cubes.begin(), cubes.begin() + static_cast<ptrdiff_t>(removeCount));
-        
-        m_rebuildFaces();
     }
 }
 

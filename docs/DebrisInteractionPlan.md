@@ -321,6 +321,12 @@ commit: build, unit suite, `shader_manifest --check`, and the settle bench.
   - the `spawn_bullet_cube` endpoint.
 
   About 800 lines.
+- **Why this is also a correctness fix (found 2026-10-04, Phase 0):** the CPU path's
+  `MAX_DYNAMIC_OBJECTS = 300` is a render budget, never an enforced cap. The dynamic face buffer
+  holds 1800 faces; beyond that `updateDynamicSubcubeBuffer` truncates the draw, so extra CPU
+  debris is invisible yet still collides. (A second ghost — every clear/expiry path leaking its
+  `VoxelRigidBody` — was fixed in Phase 0, `DynamicObjectBodyReleaseTest`.) Deleting the path
+  retires the budget; until then do not rely on `cpu_dynamic_cap`.
 - B-key and Python `break_hovered_*` spawn GPU debris through one `spawnBreakDebris` helper
   shared with `DamageSystem::spawnDebris`.
 - **Texture parity** (design check, aesthetic key):

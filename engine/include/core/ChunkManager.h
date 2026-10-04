@@ -335,8 +335,6 @@ public:
     
     // Global dynamic microcube management
     void addGlobalDynamicMicrocube(std::unique_ptr<Microcube> microcube);
-    void updateGlobalDynamicMicrocubes(float deltaTime);  // Update timers and cleanup expired ones
-    void updateGlobalDynamicMicrocubePositions();  // Update positions from physics bodies
     void clearAllGlobalDynamicMicrocubes();
     const std::vector<std::unique_ptr<Microcube>>& getGlobalDynamicMicrocubes() const { return globalDynamicMicrocubes; }
     size_t getGlobalDynamicMicrocubeCount() const { return globalDynamicMicrocubes.size(); }

@@ -112,7 +112,10 @@ public:
     /// Add/remove operations still rebuild immediately.
     static constexpr float MIN_REBUILD_INTERVAL = 1.0f / 30.0f;  // 30 Hz max
     
-    // Cap on CPU dynamic cubes (enforceObjectLimits drops the oldest above it)
+    // RENDER BUDGET, not an enforced cap: the dynamic face buffer holds 1800 faces
+    // (WorldInitializer), i.e. 300 cubes. Nothing limits the count — objects beyond the
+    // budget are truncated from the draw (invisible) yet still collide. Open gap; the
+    // CPU break-debris path moves to the GPU in DebrisInteractionPlan Phase 1d (D1).
     static constexpr size_t MAX_DYNAMIC_OBJECTS = 300;
 
     /// CPU dynamic objects alive right now: cubes + subcubes + microcubes, sleeping
@@ -137,9 +140,6 @@ private:
 
     // Throttle: time of last position-driven face rebuild
     std::chrono::steady_clock::time_point m_lastPositionRebuildTime{};
-    
-    // Enforce object limits to prevent performance degradation
-    void enforceObjectLimits();
 };
 
 } // namespace Phyxel

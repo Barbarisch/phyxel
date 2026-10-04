@@ -1030,57 +1030,11 @@ void ChunkManager::clearAllGlobalDynamicCubes() {
 
 void ChunkManager::addGlobalDynamicMicrocube(std::unique_ptr<Microcube> microcube) {
     if (!microcube) return;
-    globalDynamicMicrocubes.push_back(std::move(microcube));
-    rebuildGlobalDynamicFaces();
-}
-
-void ChunkManager::updateGlobalDynamicMicrocubes(float deltaTime) {
-    // Update lifetimes and remove expired microcubes
-    auto it = globalDynamicMicrocubes.begin();
-    size_t removedCount = 0;
-    
-    while (it != globalDynamicMicrocubes.end()) {
-        (*it)->updateLifetime(deltaTime);
-        
-        if ((*it)->hasExpired()) {
-            removedCount++;
-            // Note: The unique_ptr destructor will automatically clean up the microcube
-            it = globalDynamicMicrocubes.erase(it);
-        } else {
-            ++it;
-        }
-    }
-    
-    // Rebuild faces if any microcubes were removed
-    if (removedCount > 0) {
-        LOG_DEBUG_FMT("ChunkManager", "[MICROCUBE] Removed " << removedCount << " expired dynamic microcubes (lifetime ended)");
-        rebuildGlobalDynamicFaces();
-    }
-}
-
-void ChunkManager::updateGlobalDynamicMicrocubePositions() {
-    bool transformsChanged = false;
-
-    for (auto& microcube : globalDynamicMicrocubes) {
-        if (!microcube) continue;
-        if (auto* vb = microcube->getVoxelBody()) {
-            if (vb->isAsleep) continue;
-            glm::vec3 newWorldPos = vb->position;
-            const glm::quat& q = vb->orientation;
-            microcube->setPhysicsPosition(newWorldPos);
-            microcube->setPhysicsRotation(glm::vec4(q.x, q.y, q.z, q.w));
-            transformsChanged = true;
-        }
-    }
-
-    if (transformsChanged) {
-        rebuildGlobalDynamicFaces();
-    }
+    m_dynamicObjectManager.addGlobalDynamicMicrocube(std::move(microcube));
 }
 
 void ChunkManager::clearAllGlobalDynamicMicrocubes() {
-    LOG_DEBUG_FMT("ChunkManager", "[MICROCUBE] Clearing all " << globalDynamicMicrocubes.size() << " global dynamic microcubes");
-    globalDynamicMicrocubes.clear();
+    m_dynamicObjectManager.clearAllGlobalDynamicMicrocubes();   // releases the bodies too
 }
 
 // ===============================================================
