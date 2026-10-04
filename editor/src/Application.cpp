@@ -4262,9 +4262,7 @@ void Application::update(float deltaTime) {
         auto tChunk0 = std::chrono::steady_clock::now();
         chunkManager->updateDirtyChunks(kDirtyChunkBudgetMs);
         auto tChunk1 = std::chrono::steady_clock::now();
-        // Reset per-frame break counter for hybrid physics routing
-        chunkManager->resetFrameBreakCounter();
-        // Update player position for hybrid Bullet/GPU proximity routing
+        // Player position anchors chunk streaming (see ChunkManager::streamingAnchor)
         if (camera) chunkManager->setPlayerPosition(camera->getPosition());
         // Phase 1b — stream chunks in/out around the player when streaming terrain is
         // enabled (opt-in via the game.json world "streaming" flag). Throttled because

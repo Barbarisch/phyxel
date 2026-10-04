@@ -21,7 +21,6 @@ namespace Physics {
  * from hover detection and rendering.
  * 
  * Responsibilities:
- * - Removing voxels (cubes, subcubes, microcubes)
  * - Subdividing voxels (cubes into subcubes, subcubes into microcubes)
  * - Breaking voxels with physics (converting static → dynamic)
  * 
@@ -43,17 +42,6 @@ public:
         GetChunkManagerFunc chunkManagerFunc,
         GetPhysicsWorldFunc physicsWorldFunc
     );
-    
-    // =========================================================================
-    // VOXEL REMOVAL OPERATIONS
-    // =========================================================================
-    
-    /**
-     * Remove a cube or subcube (does not create physics objects)
-     * @param location CubeLocation identifying the voxel to remove
-     * @return true if voxel was successfully removed
-     */
-    bool removeVoxel(const CubeLocation& location);
     
     // =========================================================================
     // VOXEL SUBDIVISION OPERATIONS
@@ -101,15 +89,7 @@ public:
      * @return true if microcube was successfully broken
      */
     bool breakMicrocube(const CubeLocation& location, bool applyForce = false);
-    
-    /**
-     * Break a cube at a specific world position (convenience method)
-     * @param worldPos World position of the cube
-     * @param disableForces If true, don't apply breaking forces
-     * @return true if cube was successfully broken
-     */
-    bool breakCubeAtPosition(const glm::ivec3& worldPos, bool disableForces = false);
-    
+
     // =========================================================================
     // VOXEL PLACEMENT OPERATIONS
     // =========================================================================

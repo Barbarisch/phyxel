@@ -81,14 +81,11 @@ public:
                          bool isMouseCaptured);
     
     // Cube manipulation functions
-    void removeHoveredCube();           // Remove the currently hovered cube
-    void subdivideHoveredCube();        // Subdivide the currently hovered cube into 27 subcubes
+    void subdivideHoveredCube();       // Subdivide the currently hovered cube into 27 subcubes
     void subdivideHoveredSubcube();     // Subdivide the currently hovered subcube into 27 microcubes
     void breakHoveredCube(const glm::vec3& cameraPos);            // Break the currently hovered cube into a dynamic cube with physics
     void breakHoveredSubcube();         // Break the currently hovered subcube into a dynamic subcube with physics
     void breakHoveredMicrocube();       // Break the currently hovered microcube (simple removal for now)
-    void breakHoveredCubeWithForce(const glm::vec3& cameraPos, double mouseX, double mouseY);   // Break cube(s) using force propagation system
-    void breakCubeAtPosition(const glm::ivec3& worldPos); // Helper: Break a single cube at world position
     
     // Placement functions
     void placeVoxelAtHover();           // Place a voxel adjacent to the currently hovered face

@@ -46,7 +46,6 @@
 - **Ctrl + Left Click**: Subdivide Cube
 - **Alt + Left Click**: Subdivide Subcube
 - **Middle Click**: Subdivide Cube
-- **G**: Spawn Dynamic Subcube (Placeholder — logs "not yet implemented", does not spawn anything)
 - **P**: Toggle Template Preview
 - **[**: Decrease Spawn Speed
 - **]**: Increase Spawn Speed

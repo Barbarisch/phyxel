@@ -126,14 +126,6 @@ public:
     bool m_hasWorkerFlora = false;
     bool m_streamingGenerationEnabled = false;
 
-    // Hybrid physics routing: FPS-based Bullet vs GPU fallback
-    uint32_t m_frameBreakCount = 0;
-    static constexpr uint32_t MAX_BULLET_BREAKS_PER_FRAME = 8;
-    static constexpr float    GPU_FALLBACK_FPS_THRESHOLD  = 30.0f;
-    float m_smoothedFps = 60.0f;  // Exponentially smoothed FPS estimate
-    void updateSmoothedFps(float deltaTime);
-    void resetFrameBreakCounter() { m_frameBreakCount = 0; }
-    
     ChunkManager() = default;
     ChunkManager(const ChunkManager&) = delete;
     ChunkManager& operator=(const ChunkManager&) = delete;

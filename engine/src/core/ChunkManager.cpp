@@ -983,14 +983,6 @@ void ChunkManager::clearDirtyChunkList() {
     m_dirtyChunkTracker.clearDirtyChunkList();
 }
 
-void ChunkManager::updateSmoothedFps(float deltaTime) {
-    if (deltaTime > 0.0f) {
-        float instantFps = 1.0f / deltaTime;
-        // Exponential moving average (alpha ~0.05 = smooth over ~20 frames)
-        m_smoothedFps = m_smoothedFps * 0.95f + instantFps * 0.05f;
-    }
-}
-
 void ChunkManager::addGlobalDynamicSubcube(std::unique_ptr<Subcube> subcube) {
     if (!subcube) return;
     m_dynamicObjectManager.addGlobalDynamicSubcube(std::move(subcube));
