@@ -85,7 +85,6 @@ class Parent {
 
 **VoxelInteractionSystem** (519 lines) - Mouse interaction coordinator
 - **VoxelRaycaster** - Ray-voxel intersection, O(1) picking (~200 lines)
-- **VoxelForceApplicator** - Mouse-based force application (~235 lines)
 - **VoxelManipulationSystem** - Voxel manipulation (remove, subdivide, break) (~481 lines)
 
 **Original size**: 1,275 lines  

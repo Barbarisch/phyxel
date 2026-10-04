@@ -70,9 +70,8 @@ wants **already exists** in `DynamicFurnitureManager::shatter`. It is fenced ins
 of v2 is **generalizing it** and routing `collapseUnsupported`'s severed components into it instead of
 `dropDetachedCell`.
 
-Known dead/orphaned code (do not build on): the `Cube::Bond` 6-direction graph
-(`engine/include/core/Cube.h`) is only consumed by the dropped `ForceSystem` mouse path — it is **not**
-wired into any live break decision. Appendix A (the v1 design) chose flood-fill connectivity over bonds;
+The `Cube::Bond` 6-direction graph and the `ForceSystem` mouse path that was its only consumer were
+**deleted 2026-10-04** (DebrisInteractionPlan D3) — neither was wired into any live break decision. Appendix A (the v1 design) chose flood-fill connectivity over bonds;
 v2 keeps that choice (§9).
 
 ---

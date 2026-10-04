@@ -146,13 +146,6 @@ void InputController::setupKeyboardBindings() {
         LOG_INFO("InputController", "World save functionality not yet implemented in refactored code");
     });
     
-    // F3 - Toggle force debug visualization
-    m_inputManager->registerAction(GLFW_KEY_F3, "Toggle Force Debug", [this]() {
-        m_debugFlags.showForceSystemDebug = !m_debugFlags.showForceSystemDebug;
-        LOG_INFO("InputController", std::string("Force debug visualization: ") + 
-                 (m_debugFlags.showForceSystemDebug ? "ENABLED" : "DISABLED"));
-    });
-    
     // F4 - Toggle debug rendering mode
     m_inputManager->registerAction(GLFW_KEY_F4, "Toggle Debug Rendering", [this]() {
         m_app->toggleDebugRendering();
@@ -311,13 +304,6 @@ void InputController::setupKeyboardBindings() {
                 m_interactionSystem->breakHoveredCube(m_inputManager->getCameraPosition());
             }
         }
-    });
-
-    // O - Toggle breaking forces
-    m_inputManager->registerAction(GLFW_KEY_O, "Toggle Breaking Forces", [this]() {
-        m_debugFlags.disableBreakingForces = !m_debugFlags.disableBreakingForces;
-        LOG_INFO("InputController", std::string("Breaking forces: ") + 
-                 (m_debugFlags.disableBreakingForces ? "DISABLED" : "ENABLED"));
     });
 
     // [ - Decrease Spawn Speed

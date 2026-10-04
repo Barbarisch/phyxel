@@ -56,7 +56,6 @@ This document provides a quick reference for the logging implementation across t
   rigid-body stack — Bullet Physics was removed entirely; the module name "Physics" is unchanged)
   - Levels: DEBUG (body creation), ERROR (failures)
   
-- **ForceSystem** - Force propagation and material properties
   - Levels: DEBUG (calculations, propagation)
 
 ### Scene & UI
@@ -129,14 +128,6 @@ Levels:
   - ERROR: Initialization failures, frame errors
 ```
 
-### ForceSystem.cpp (8 statements)
-```cpp
-Categories: "ForceSystem"
-Levels:
-  - DEBUG: Force calculations, propagation
-  - DEBUG_FMT: Bond breaking, force values
-```
-
 ### Other Files
 - **main.cpp**: ERROR for initialization failures
 - **Material.cpp**: DEBUG for material operations
@@ -160,7 +151,6 @@ Levels:
 Application=DEBUG        # See user interactions
 Chunk=DEBUG             # See collision updates
 Physics=DEBUG           # See rigid body creation
-ForceSystem=DEBUG       # See force propagation
 ```
 
 ### Debugging World Loading/Saving

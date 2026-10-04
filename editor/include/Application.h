@@ -25,7 +25,6 @@
 #include "core/ChunkManager.h"
 #include "core/FaunaSpawner.h"
 #include "core/ResidentSpawner.h"
-#include "core/ForceSystem.h"
 // WorldInitializer now lives in engine/ and is used by EngineRuntime internally
 #include "core/ObjectTemplateManager.h"
 #include "core/RuntimeEntityStore.h"
@@ -264,9 +263,7 @@ private:
     Graphics::CameraManager* cameraManager = nullptr;
     ChunkManager* chunkManager = nullptr;
     Physics::PhysicsWorld* physicsWorld = nullptr;
-    ForceSystem* forceSystem = nullptr;
     Input::InputManager* inputManager = nullptr;
-    MouseVelocityTracker* mouseVelocityTracker = nullptr;
     Timer* timer = nullptr;
     PerformanceProfiler* performanceProfiler = nullptr;
     Utils::PerformanceMonitor* performanceMonitor = nullptr;

@@ -59,18 +59,6 @@ TEST_F(E2ETestFixture, SubcubeCollisionChain) {
 }
 
 // ============================================================================
-// FORCE SYSTEM TESTS
-// ============================================================================
-
-TEST_F(E2ETestFixture, ForceApplicationToVoxels) {
-    GTEST_SKIP() << "Stub: needs Application to expose ForceSystem for test-driven force application";
-}
-
-TEST_F(E2ETestFixture, ForcePropagationThroughStructure) {
-    GTEST_SKIP() << "Stub: needs Application to expose ForceSystem + voxel structure building";
-}
-
-// ============================================================================
 // RENDERING AND SIMULATION SYNC TESTS
 // ============================================================================
 
@@ -100,8 +88,4 @@ TEST_F(E2ETestFixture, MemoryStabilityDuringGameplay) {
 
 TEST_F(E2ETestFixture, InvalidVoxelTargetHandling) {
     GTEST_SKIP() << "Stub: needs Application::breakVoxelAt() with invalid position handling";
-}
-
-TEST_F(E2ETestFixture, ExtremeForceApplication) {
-    GTEST_SKIP() << "Stub: needs Application to expose ForceSystem for extreme force testing";
 }

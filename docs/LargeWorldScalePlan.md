@@ -462,7 +462,7 @@ first refactor's before/after is what confirms it):
    | `materialName` | 32 | 71 | **the payload** → palette index (u8/u16) |
    | `visible` | 1 | 46 | keep → a state bit |
    | `position` | 12 | 195 | **derivable from the array index** — never store it |
-   | `bonds[6]` | 72 | ForceSystem (`breakBond` ×10, `addForceToDirection` ×3) | **physics-only** |
+   | `bonds[6]` | 72 | ForceSystem (`breakBond` ×10, `addForceToDirection` ×3) | **physics-only** — *deleted 2026-10-04 with ForceSystem (DebrisInteractionPlan D3)* |
    | `voxelBody`/`physicsPos`/`physicsRot`/`dynamicScale`/`lifetime` | 52 | 1–13 each | physics-only |
    | `accumulatedDamage` | 4 | 2 | physics-only |
    | `broken` | 1 | read 21× — but **`setBroken(true)` has ZERO call sites**, so it is always false | dead; fold away |

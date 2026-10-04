@@ -515,7 +515,7 @@ In `resources/animated_characters/`:
 |-----|--------|
 | ESC | Pause Menu |
 | F1 | Performance Overlay |
-| F3/F4 | Debug Vis / Debug Rendering (Ctrl+F4 cycles mode) |
+| F4 | Debug Rendering (Ctrl+F4 cycles mode) |
 | F5 | Raycast Vis + NPC FOV cones |
 | F6 | Lighting Controls |
 | F7 | Profiler |
@@ -537,7 +537,7 @@ In `resources/animated_characters/`:
 | X | Derez character |
 | N/B | Next/Prev Animation (Preview Mode only — B breaks voxels outside preview mode) |
 
-> Full, authoritative keybinding list (incl. F2/Shift+F5/O, asset- and anim-editor modes): [`docs/Keybindings.md`](docs/Keybindings.md).
+> Full, authoritative keybinding list (incl. F2/Shift+F5, asset- and anim-editor modes): [`docs/Keybindings.md`](docs/Keybindings.md).
 
 ## MCP Server (AI Agent Bridge)
 

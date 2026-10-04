@@ -15,7 +15,6 @@
 - **ESC**: Toggle Pause Menu (freeze world, show resume/settings/quit)
 - **F1**: Toggle Performance Overlay
 - **F2**: Save World (Not implemented)
-- **F3**: Toggle Force Debug Visualization
 - **F4**: Toggle Debug Rendering
 - **Ctrl + F4**: Cycle Debug Visualization Mode
 - **F5**: Toggle Raycast Visualization (also shows NPC FOV cones when perception is active — green
@@ -51,7 +50,6 @@
 - **]**: Increase Spawn Speed
 - **-**: Decrease Ambient Light
 - **=**: Increase Ambient Light
-- **O**: Toggle Breaking Forces
 - **Up Arrow**: Cycle voxel target mode toward larger (Micro→Sub→Cube)
 - **Down Arrow**: Cycle voxel target mode toward smaller (Cube→Sub→Micro)
 

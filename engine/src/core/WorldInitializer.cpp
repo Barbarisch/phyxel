@@ -7,7 +7,6 @@
 #include "vulkan/RenderPipeline.h"
 #include "physics/PhysicsWorld.h"
 #include "core/ChunkManager.h"
-#include "core/ForceSystem.h"
 #include "utils/PerformanceProfiler.h"
 #include "utils/PerformanceMonitor.h"
 #include "utils/Timer.h"
@@ -29,8 +28,6 @@ WorldInitializer::WorldInitializer(
     Physics::PhysicsWorld* physicsWorld,
     Timer* timer,
     ChunkManager* chunkManager,
-    ForceSystem* forceSystem,
-    MouseVelocityTracker* mouseVelocityTracker,
     PerformanceProfiler* performanceProfiler,
     Utils::PerformanceMonitor* performanceMonitor,
     UI::ImGuiRenderer* imguiRenderer,
@@ -44,8 +41,6 @@ WorldInitializer::WorldInitializer(
     , physicsWorld(physicsWorld)
     , timer(timer)
     , chunkManager(chunkManager)
-    , forceSystem(forceSystem)
-    , mouseVelocityTracker(mouseVelocityTracker)
     , performanceProfiler(performanceProfiler)
     , performanceMonitor(performanceMonitor)
     , imguiRenderer(imguiRenderer)
@@ -156,11 +151,6 @@ bool WorldInitializer::initialize() {
     inputManager->setCameraFront(lookAt);
     inputManager->setYawPitch(-135.0f, -30.0f);
     
-    // Register mouse position callback for mouse velocity tracker
-    inputManager->setMousePositionCallback([this](double x, double y) {
-        mouseVelocityTracker->updatePosition(x, y);
-    });
-
     if (!initializePhysics()) {
         LOG_ERROR("WorldInitializer", "Failed to initialize physics!");
         return false;

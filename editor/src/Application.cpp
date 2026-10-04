@@ -249,9 +249,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     cameraManager       = runtime->getCameraManager();
     chunkManager        = runtime->getChunkManager();
     physicsWorld        = runtime->getPhysicsWorld();
-    forceSystem         = runtime->getForceSystem();
     inputManager        = runtime->getInputManager();
-    mouseVelocityTracker = runtime->getMouseVelocityTracker();
     timer               = runtime->getTimer();
     performanceProfiler = runtime->getPerformanceProfiler();
     performanceMonitor  = runtime->getPerformanceMonitor();
@@ -272,9 +270,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     voxelInteractionSystem = std::make_unique<VoxelInteractionSystem>(
         chunkManager,
         physicsWorld,
-        mouseVelocityTracker,
         windowManager,
-        forceSystem,
         audioSystem
     );
     // Event-catalog audio: place/activate become 3D events at the interaction
@@ -3142,17 +3138,6 @@ void Application::run() {
             currentChunkInclusionDistance  // Pass by reference to allow UI modification
         );
         
-        // Render Force System Debug overlay
-        auto& flags = inputController->getDebugFlags();
-        imguiRenderer->renderForceSystemDebug(
-            flags.showForceSystemDebug,
-            forceSystem,
-            mouseVelocityTracker,
-            voxelInteractionSystem->hasHoveredCube(),
-            voxelInteractionSystem->hasHoveredCube() ? glm::vec3(voxelInteractionSystem->getCurrentHoveredLocation().worldPos) : glm::vec3(0.0f),
-            flags.manualForceValue
-        );
-
         // Voxel size mode HUD (persistent indicator + fade label on change)
         if (voxelInteractionSystem && inputController) {
             imguiRenderer->renderVoxelSizeHUD(
@@ -3495,9 +3480,7 @@ void Application::cleanup() {
     imguiRenderer = nullptr;
     physicsWorld = nullptr;
     chunkManager = nullptr;
-    forceSystem = nullptr;
     inputManager = nullptr;
-    mouseVelocityTracker = nullptr;
     timer = nullptr;
     performanceProfiler = nullptr;
     performanceMonitor = nullptr;
@@ -4136,12 +4119,7 @@ void Application::update(float deltaTime) {
         
         // Sync debug flags
         auto& flags = inputController->getDebugFlags();
-        voxelInteractionSystem->setDebugFlags(
-            flags.hoverDetection,
-            flags.disableBreakingForces,
-            flags.showForceSystemDebug,
-            flags.manualForceValue
-        );
+        voxelInteractionSystem->setDebugFlags(flags.hoverDetection);
         
         // Update raycast visualizer if enabled
         if (raycastVisualizer && raycastVisualizer->isEnabled()) {

@@ -692,8 +692,8 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
     survives. Open, likely a transient/race. (2) **Blocker D is DISPROVEN on this GPU**
     (`maxMemoryAllocationCount=4294967295`; ran to 5,888 live allocations, zero failures) — but it
     is REAL on AMD/Intel where 4096 is common: 3 allocations/chunk ⇒ a ~1,365-chunk ceiling that
-    bites BEFORE C. (3) **Bonds are NOT dead** — only the bulk `getBonds()` accessor is unused;
-    `ForceSystem` uses the per-direction API. They are physics-only ⇒ materialize-on-demand.
+    bites BEFORE C. (3) **Bonds are gone** — their only reader, `ForceSystem`, had no live callers; both were
+    deleted 2026-10-04 (DebrisInteractionPlan D3), taking 72 B off every heap `Cube`.
     (4) Runtime render distance defaults to **192** (`Application.h`); far chunks are frustum-culled
     until raised via `POST /api/debug/render_distance`.
 - **TERRAIN rivers + WATER runtime (2026-07-10) — branch `terrain-gen-v2-p0` (LOCAL,

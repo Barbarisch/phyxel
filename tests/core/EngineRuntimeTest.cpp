@@ -59,9 +59,7 @@ TEST(EngineRuntimeTest, AccessorsReturnNullBeforeInit) {
     EXPECT_EQ(runtime.getChunkManager(), nullptr);
     EXPECT_EQ(runtime.getAudioSystem(), nullptr);
     EXPECT_EQ(runtime.getInputManager(), nullptr);
-    EXPECT_EQ(runtime.getForceSystem(), nullptr);
     EXPECT_EQ(runtime.getImGuiRenderer(), nullptr);
-    EXPECT_EQ(runtime.getMouseVelocityTracker(), nullptr);
     EXPECT_EQ(runtime.getPerformanceProfiler(), nullptr);
     EXPECT_EQ(runtime.getPerformanceMonitor(), nullptr);
     EXPECT_EQ(runtime.getCamera(), nullptr);

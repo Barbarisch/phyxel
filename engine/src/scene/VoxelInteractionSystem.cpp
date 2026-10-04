@@ -5,7 +5,6 @@
 #include "core/DynamicFurnitureManager.h"
 #include "physics/PhysicsWorld.h"
 #include "ui/WindowManager.h"
-#include "core/ForceSystem.h"
 #include "utils/CoordinateUtils.h"
 #include "physics/Material.h"
 #include "utils/Logger.h"
@@ -18,15 +17,11 @@ namespace Phyxel {
 
 VoxelInteractionSystem::VoxelInteractionSystem(ChunkManager* chunkManager,
                                              Physics::PhysicsWorld* physicsWorld,
-                                             MouseVelocityTracker* mouseVelocityTracker,
                                              UI::WindowManager* windowManager,
-                                             ForceSystem* forceSystem,
                                              Core::AudioSystem* audioSystem)
     : m_chunkManager(chunkManager)
     , m_physicsWorld(physicsWorld)
-    , m_mouseVelocityTracker(mouseVelocityTracker)
     , m_windowManager(windowManager)
-    , m_forceSystem(forceSystem)
     , m_audioSystem(audioSystem)
     , m_hasHoveredCube(false)
     , m_lastHoveredCube(-1)

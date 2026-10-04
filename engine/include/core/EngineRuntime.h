@@ -26,8 +26,6 @@ namespace Phyxel {
     namespace AI { class TTSService; }
     class Timer;
     class ChunkManager;
-    class ForceSystem;
-    class MouseVelocityTracker;
     class PerformanceProfiler;
     namespace Core { class LocationRegistry; }
     namespace Core { class PerfCapture; }
@@ -125,9 +123,7 @@ public:
     AmbienceDirector*           getAmbienceDirector()       const;
     AI::TTSService*             getTTSService()             const;
     Input::InputManager*        getInputManager()           const;
-    ForceSystem*                getForceSystem()            const;
     UI::ImGuiRenderer*          getImGuiRenderer()          const;
-    MouseVelocityTracker*       getMouseVelocityTracker()   const;
     PerformanceProfiler*        getPerformanceProfiler()    const;
     Utils::PerformanceMonitor*  getPerformanceMonitor()     const;
     Graphics::Camera*           getCamera()                 const;
@@ -183,11 +179,9 @@ private:
     // World & physics
     std::unique_ptr<ChunkManager>            chunkManager_;
     std::unique_ptr<Physics::PhysicsWorld>   physicsWorld_;
-    std::unique_ptr<ForceSystem>             forceSystem_;
 
     // Input
     std::unique_ptr<Input::InputManager>     inputManager_;
-    std::unique_ptr<MouseVelocityTracker>    mouseVelocityTracker_;
 
     // Timing & profiling
     std::unique_ptr<Timer>                   timer_;

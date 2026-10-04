@@ -16,9 +16,6 @@ struct DebugFlags {
     bool performanceStats = false;
     bool chunkOperations = false;
     bool cubeOperations = false;
-    bool disableBreakingForces = false;
-    bool showForceSystemDebug = false;
-    float manualForceValue = 500.0f;
 };
 
 class InputController {

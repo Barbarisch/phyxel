@@ -22,12 +22,10 @@
 #include "graphics/Camera.h"
 #include "graphics/CameraManager.h"
 #include "core/ChunkManager.h"
-#include "core/ForceSystem.h"
 #include "utils/Timer.h"
 #include "utils/PerformanceProfiler.h"
 #include "utils/PerformanceMonitor.h"
 #include "utils/Logger.h"
-#include "scene/VoxelInteractionSystem.h"  // MouseVelocityTracker
 #include <GLFW/glfw3.h>
 #include <thread>
 #include <chrono>
@@ -72,8 +70,6 @@ bool EngineRuntime::initialize(const EngineConfig& config) {
     performanceMonitor_  = std::make_unique<Utils::PerformanceMonitor>();
     imguiRenderer_       = std::make_unique<UI::ImGuiRenderer>();
     inputManager_        = std::make_unique<Input::InputManager>();
-    forceSystem_         = std::make_unique<ForceSystem>();
-    mouseVelocityTracker_= std::make_unique<MouseVelocityTracker>();
 
     // -- Create core components --
     windowManager_          = std::make_unique<UI::WindowManager>();
@@ -134,8 +130,6 @@ bool EngineRuntime::initialize(const EngineConfig& config) {
         physicsWorld_.get(),
         timer_.get(),
         chunkManager_.get(),
-        forceSystem_.get(),
-        mouseVelocityTracker_.get(),
         performanceProfiler_.get(),
         performanceMonitor_.get(),
         imguiRenderer_.get(),
@@ -296,9 +290,7 @@ void EngineRuntime::shutdown() {
     timer_.reset();
     chunkManager_.reset();
     imguiRenderer_.reset();
-    forceSystem_.reset();
     inputManager_.reset();
-    mouseVelocityTracker_.reset();
     performanceProfiler_.reset();
     performanceMonitor_.reset();
 
@@ -397,9 +389,7 @@ SoundRegistry*              EngineRuntime::getSoundRegistry()          const { r
 AmbienceDirector*           EngineRuntime::getAmbienceDirector()       const { return ambienceDirector_.get(); }
 AI::TTSService*             EngineRuntime::getTTSService()             const { return ttsService_.get(); }
 Input::InputManager*        EngineRuntime::getInputManager()           const { return inputManager_.get(); }
-ForceSystem*                EngineRuntime::getForceSystem()            const { return forceSystem_.get(); }
 UI::ImGuiRenderer*          EngineRuntime::getImGuiRenderer()          const { return imguiRenderer_.get(); }
-MouseVelocityTracker*       EngineRuntime::getMouseVelocityTracker()   const { return mouseVelocityTracker_.get(); }
 PerformanceProfiler*        EngineRuntime::getPerformanceProfiler()    const { return performanceProfiler_.get(); }
 Utils::PerformanceMonitor*  EngineRuntime::getPerformanceMonitor()     const { return performanceMonitor_.get(); }
 Graphics::Camera*           EngineRuntime::getCamera()                 const { return camera_.get(); }
