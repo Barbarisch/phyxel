@@ -105,12 +105,6 @@ if defined USE_GLSLC (
     echo Compiling GI probe field compute shader...
     %GLSLANG% -fshader-stage=comp -Ishaders shaders\gi_probe.comp -o shaders\gi_probe.comp.spv || goto :shader_error
 
-    echo Compiling particle integrate compute shader...
-    %GLSLANG% -fshader-stage=comp -Ishaders shaders\particle_integrate.comp -o shaders\particle_integrate.comp.spv || goto :shader_error
-
-    echo Compiling particle collide compute shader...
-    %GLSLANG% -fshader-stage=comp -Ishaders shaders\particle_collide.comp -o shaders\particle_collide.comp.spv || goto :shader_error
-
     echo Compiling particle expand compute shader...
     %GLSLANG% -fshader-stage=comp -Ishaders shaders\particle_expand.comp -o shaders\particle_expand.comp.spv || goto :shader_error
 
@@ -119,9 +113,6 @@ if defined USE_GLSLC (
 
     echo Compiling particle grid build compute shader...
     %GLSLANG% -fshader-stage=comp -Ishaders shaders\particle_grid_build.comp -o shaders\particle_grid_build.comp.spv || goto :shader_error
-
-    echo Compiling particle sort scan compute shader...
-    %GLSLANG% -fshader-stage=comp -Ishaders shaders\particle_sort_scan.comp -o shaders\particle_sort_scan.comp.spv || goto :shader_error
 
     echo Compiling particle sort scatter compute shader...
     %GLSLANG% -fshader-stage=comp -Ishaders shaders\particle_sort_scatter.comp -o shaders\particle_sort_scatter.comp.spv || goto :shader_error
@@ -154,10 +145,6 @@ if defined USE_GLSLC (
     %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_voxel.comp -o shaders\solver_voxel.comp.spv
     if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_voxel.comp & pause & exit /b 1 )
 
-    echo Compiling solver_jacobi compute shader...
-    %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_jacobi.comp -o shaders\solver_jacobi.comp.spv
-    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_jacobi.comp & pause & exit /b 1 )
-
     echo Compiling solver_sync_out compute shader...
     %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_sync_out.comp -o shaders\solver_sync_out.comp.spv
     if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_sync_out.comp & pause & exit /b 1 )
@@ -177,10 +164,6 @@ if defined USE_GLSLC (
     echo Compiling solver_csr_scatter compute shader...
     %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_csr_scatter.comp -o shaders\solver_csr_scatter.comp.spv
     if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_csr_scatter.comp & pause & exit /b 1 )
-
-    echo Compiling solver_graph_color compute shader...
-    %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_graph_color.comp -o shaders\solver_graph_color.comp.spv
-    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_graph_color.comp & pause & exit /b 1 )
 
     echo Compiling solver_body_color compute shader...
     %GLSLANG% -fshader-stage=comp -Ishaders shaders\solver_body_color.comp -o shaders\solver_body_color.comp.spv
@@ -277,12 +260,6 @@ if defined USE_GLSLC (
     echo Compiling GI probe field compute shader...
     %GLSLANG% -V -Ishaders shaders\gi_probe.comp -o shaders\gi_probe.comp.spv || goto :shader_error
 
-    echo Compiling particle integrate compute shader...
-    %GLSLANG% -V -Ishaders shaders\particle_integrate.comp -o shaders\particle_integrate.comp.spv || goto :shader_error
-
-    echo Compiling particle collide compute shader...
-    %GLSLANG% -V -Ishaders shaders\particle_collide.comp -o shaders\particle_collide.comp.spv || goto :shader_error
-
     echo Compiling particle expand compute shader...
     %GLSLANG% -V -Ishaders shaders\particle_expand.comp -o shaders\particle_expand.comp.spv || goto :shader_error
 
@@ -291,9 +268,6 @@ if defined USE_GLSLC (
 
     echo Compiling particle grid build compute shader...
     %GLSLANG% -V -Ishaders shaders\particle_grid_build.comp -o shaders\particle_grid_build.comp.spv || goto :shader_error
-
-    echo Compiling particle sort scan compute shader...
-    %GLSLANG% -V -Ishaders shaders\particle_sort_scan.comp -o shaders\particle_sort_scan.comp.spv || goto :shader_error
 
     echo Compiling particle sort scatter compute shader...
     %GLSLANG% -V -Ishaders shaders\particle_sort_scatter.comp -o shaders\particle_sort_scatter.comp.spv || goto :shader_error
@@ -326,10 +300,6 @@ if defined USE_GLSLC (
     %GLSLANG% -V -Ishaders shaders\solver_voxel.comp -o shaders\solver_voxel.comp.spv
     if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_voxel.comp & pause & exit /b 1 )
 
-    echo Compiling solver_jacobi compute shader...
-    %GLSLANG% -V -Ishaders shaders\solver_jacobi.comp -o shaders\solver_jacobi.comp.spv
-    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_jacobi.comp & pause & exit /b 1 )
-
     echo Compiling solver_sync_out compute shader...
     %GLSLANG% -V -Ishaders shaders\solver_sync_out.comp -o shaders\solver_sync_out.comp.spv
     if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_sync_out.comp & pause & exit /b 1 )
@@ -349,10 +319,6 @@ if defined USE_GLSLC (
     echo Compiling solver_csr_scatter compute shader...
     %GLSLANG% -V -Ishaders shaders\solver_csr_scatter.comp -o shaders\solver_csr_scatter.comp.spv
     if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_csr_scatter.comp & pause & exit /b 1 )
-
-    echo Compiling solver_graph_color compute shader...
-    %GLSLANG% -V -Ishaders shaders\solver_graph_color.comp -o shaders\solver_graph_color.comp.spv
-    if %errorlevel% neq 0 ( echo ERROR: Failed to compile solver_graph_color.comp & pause & exit /b 1 )
 
     echo Compiling solver_body_color compute shader...
     %GLSLANG% -V -Ishaders shaders\solver_body_color.comp -o shaders\solver_body_color.comp.spv

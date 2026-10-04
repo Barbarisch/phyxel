@@ -5,7 +5,7 @@
 When voxels are broken (left-click), they become physics-driven **dynamic voxels** that fall, bounce, and collide with the world and each other. The engine uses a **two-tier architecture**:
 
 - **VoxelDynamicsWorld** (CPU) — Custom sequential-impulse rigid body engine. Handles all broken voxels, furniture, and compound physics objects with full OBB collision. This is the **sole CPU physics backend** — Bullet Physics has been removed from active builds.
-- **GPU Compute** (Vulkan) — Massively parallel AVBD rigid-body debris physics via `GpuParticlePhysics` (the XPBD pipeline it replaced is dead code). Lower per-particle cost, scales to 5000+ particles with minimal FPS impact.
+- **GPU Compute** (Vulkan) — Massively parallel AVBD rigid-body debris physics via `GpuParticlePhysics` (the XPBD pipeline it replaced was deleted 2026-10-04). Lower per-particle cost, scales to 5000+ particles with minimal FPS impact.
 
 Both systems render through the same dynamic voxel pipeline (see [VoxelRenderPipelines.md](VoxelRenderPipelines.md)).
 
@@ -169,9 +169,9 @@ Measured with `tools/perf_stress_test.py --mode voxel` — all bodies spawned at
 - **Collision world**: a 512×256×512 occupancy bitfield of static voxels, updated by
   `ChunkManager` on every place/break/stream.
 
-The legacy XPBD pipeline (`particle_integrate/collide.comp`, height-map collision, gravity −18)
-is **dead code**: `m_useNewPipeline` is hard-coded true. So are the orphaned
-`solver_jacobi/apply/graph_color.comp` shaders. Do not document or tune them.
+The legacy XPBD pipeline (`particle_integrate/collide/sort_scan.comp`, height-map collision,
+gravity −18) and the orphaned `solver_jacobi/apply/graph_color.comp` shaders were **deleted
+2026-10-04** (`docs/DebrisInteractionPlan.md` D4). AVBD is the only pipeline.
 
 ### Per-tick pipeline (live)
 

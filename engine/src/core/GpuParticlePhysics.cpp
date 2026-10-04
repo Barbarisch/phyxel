@@ -453,12 +453,10 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
     };
 
     // Push constant sizes (must match the shader PC blocks)
-    struct IntegratePC  { float dt; float gravity; uint32_t count; float sleepThreshSq; float lifetimeDt; };
-    struct CollidePC    { uint32_t count; float dt; float sleepThreshSq; float gravity; uint32_t iteration; };
     struct ExpandPC     { uint32_t count; uint32_t maxFaceSlots; float interpAlpha; };
     struct GridClearPC  { uint32_t cellCount; };
     struct GridBuildPC  { uint32_t count; };
-    struct SortScanPC   { uint32_t cellCount; };
+    struct SortScanPC   { uint32_t cellCount; };   // shared by the three parallel-scan passes
     struct SortScatterPC{ uint32_t count; };
 
     // grid clear: binding 0 = gridCellCount (rw)
@@ -471,28 +469,10 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
                                  2, sizeof(GridBuildPC)))
         return false;
 
-    // sort scan: binding 0 = gridCellCount (ro), binding 1 = gridCellOffset (rw)
-    if (!m_sortScanPass.create(m_device, shader("particle_sort_scan.comp.spv"),
-                                2, sizeof(SortScanPC)))
-        return false;
-
     // sort scatter: binding 0 = particles (ro), binding 1 = gridCellOffset (rw atomic),
     //               binding 2 = sortedParticles (wo), binding 3 = sortedIndices (wo)
     if (!m_sortScatterPass.create(m_device, shader("particle_sort_scatter.comp.spv"),
                                    4, sizeof(SortScatterPC)))
-        return false;
-
-    // integrate: binding 0 = particles (rw), binding 1 = material physics (ro)
-    if (!m_integratePass.create(m_device, shader("particle_integrate.comp.spv"),
-                                 2, sizeof(IntegratePC)))
-        return false;
-
-    // collide: binding 0 = particles (rw), binding 1 = occupancy grid (ro),
-    //          binding 2 = character AABB (ro), binding 3 = material physics (ro),
-    //          binding 4 = gridCellCount (ro), binding 5 = gridCellOffset (ro),
-    //          binding 6 = sortedParticles (ro), binding 7 = sortedIndices (ro)
-    if (!m_collidePass.create(m_device, shader("particle_collide.comp.spv"),
-                               8, sizeof(CollidePC)))
         return false;
 
     // expand: binding 0 = particles (ro), binding 1 = matTexTable (ro),
@@ -504,10 +484,8 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
     // Wire buffers to each pipeline's descriptor set
     VkDeviceSize particleSize      = static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(GpuParticle);
     VkDeviceSize faceSize          = static_cast<VkDeviceSize>(MAX_FACE_SLOTS) * 64;
-    VkDeviceSize occSize           = static_cast<VkDeviceSize>(OCC_TOTAL_WORDS) * sizeof(uint32_t);
     uint32_t     matCount          = static_cast<uint32_t>(Core::MaterialRegistry::instance().getMaterialCount());
     uint32_t     matTableSize      = matCount * 6 * sizeof(uint32_t);
-    VkDeviceSize matPhysSize       = static_cast<VkDeviceSize>(matCount) * sizeof(MaterialPhysicsGpu);
     VkDeviceSize gridCellSize      = static_cast<VkDeviceSize>(GRID_CELLS) * sizeof(uint32_t);
     VkDeviceSize sortedParticleSize= static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(GpuParticle);
     VkDeviceSize sortedIndexSize   = static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(uint32_t);
@@ -518,10 +496,6 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
     m_gridBuildPass.bindBuffer(0, m_particleBuffer,      particleSize);
     m_gridBuildPass.bindBuffer(1, m_gridCellCountBuffer, gridCellSize);
     m_gridBuildPass.updateDescriptors();
-
-    m_sortScanPass.bindBuffer(0, m_gridCellCountBuffer,  gridCellSize);
-    m_sortScanPass.bindBuffer(1, m_gridCellOffsetBuffer, gridCellSize);
-    m_sortScanPass.updateDescriptors();
 
     m_sortScatterPass.bindBuffer(0, m_particleBuffer,       particleSize);
     m_sortScatterPass.bindBuffer(1, m_gridCellOffsetBuffer, gridCellSize);
@@ -549,20 +523,6 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
     m_scanAddPass.bindBuffer(0, m_gridCellOffsetBuffer, gridCellSize);
     m_scanAddPass.bindBuffer(1, m_scanBlockSumsBuffer,  scanBlockSumsSize);
     m_scanAddPass.updateDescriptors();
-
-    m_integratePass.bindBuffer(0, m_particleBuffer,    particleSize);
-    m_integratePass.bindBuffer(1, m_materialPhysBuffer, matPhysSize);
-    m_integratePass.updateDescriptors();
-
-    m_collidePass.bindBuffer(0, m_particleBuffer,       particleSize);
-    m_collidePass.bindBuffer(1, m_occupancyBuffer,      occSize);
-    m_collidePass.bindBuffer(2, m_characterBuffer,      static_cast<VkDeviceSize>(sizeof(CharacterCollider)));
-    m_collidePass.bindBuffer(3, m_materialPhysBuffer,   matPhysSize);
-    m_collidePass.bindBuffer(4, m_gridCellCountBuffer,  gridCellSize);
-    m_collidePass.bindBuffer(5, m_gridCellOffsetBuffer, gridCellSize);
-    m_collidePass.bindBuffer(6, m_sortedParticleBuffer, sortedParticleSize);
-    m_collidePass.bindBuffer(7, m_sortedIndexBuffer,    sortedIndexSize);
-    m_collidePass.updateDescriptors();
 
     m_expandPass.bindBuffer(0, m_particleBuffer,     particleSize);
     m_expandPass.bindBuffer(1, m_matTexBuffer,       matTableSize);
@@ -1333,166 +1293,14 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
     const uint32_t groups = (count + 255u) / 256u;
     if (groups == 0) return; // nothing to simulate
 
-    // ---- Fixed-timestep physics loop ----
+    // ---- Fixed-timestep physics loop (AVBD — the only pipeline; the legacy XPBD
+    //      particle_integrate/collide path was deleted 2026-10-04, DebrisInteractionPlan D4) ----
     for (uint32_t tick = 0; tick < m_physicsTicks; ++tick) {
         const float lifetimeDtThisTick = (tick == 0) ? m_lastRealDt : 0.0f;
-
-        if (m_useNewPipeline) {
-            // Per-pass GPU timing only on the first tick (query-budget safe).
-            recordComputeCommandsNew(cmd, count, lifetimeDtThisTick, profiler, tick == 0);
-            if (m_probeActive) recordProbeCopy(cmd, count, tick);
-            continue;
-        }
-
-        // ===================================================================
-        // LEGACY XPBD PIPELINE (NOT used by default — m_useNewPipeline is true
-        // and is never toggled off). Retained for reference/fallback only.
-        // Everything below until "end physics tick loop" runs ONLY in the
-        // legacy path: m_integratePass (particle_integrate.comp) and
-        // m_collidePass (particle_collide.comp). The AVBD pipeline above
-        // (recordComputeCommandsNew) is the live path; character collision,
-        // voxel collision, etc. must be maintained THERE, not here.
-        // (The expand pass + grid-sort passes below the loop are SHARED and
-        // are NOT legacy.)
-        // ===================================================================
-
-        // ---- 2. Integrate pass (legacy XPBD) ----
-        struct IntegratePC {
-            float    dt;
-            float    gravity;
-            uint32_t count;
-            float    sleepThreshSq;
-            float    lifetimeDt;
-        } ipc;
-        ipc.dt           = FIXED_DT;
-        ipc.gravity      = GRAVITY;
-        ipc.count        = count;
-        ipc.sleepThreshSq= SLEEP_THRESH_SQ;
-        ipc.lifetimeDt   = lifetimeDtThisTick;
-
-        m_integratePass.bind(cmd);
-        m_integratePass.pushConstants(cmd, &ipc, sizeof(ipc));
-        m_integratePass.dispatch(cmd, groups);
-
-        // Barrier: particles COMPUTE_WRITE → COMPUTE_READ/WRITE
-        insertBarrier(cmd,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-            m_particleBuffer);
-
-        // ---- 2b. Grid clear — zero per-cell counts ----
-        {
-            struct GridClearPC { uint32_t cellCount; } gcpc;
-            gcpc.cellCount = GRID_CELLS;
-            const uint32_t gridClearGroups = (GRID_CELLS + 255u) / 256u;
-            m_gridClearPass.bind(cmd);
-            m_gridClearPass.pushConstants(cmd, &gcpc, sizeof(gcpc));
-            m_gridClearPass.dispatch(cmd, gridClearGroups);
-        }
-
-        insertBarrier(cmd,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-            m_gridCellCountBuffer);
-
-        // ---- 2c. Grid build — count particles per cell ----
-        {
-            struct GridBuildPC { uint32_t count; } gbpc;
-            gbpc.count = count;
-            m_gridBuildPass.bind(cmd);
-            m_gridBuildPass.pushConstants(cmd, &gbpc, sizeof(gbpc));
-            m_gridBuildPass.dispatch(cmd, groups);
-        }
-
-        insertBarrier(cmd,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT,
-            m_gridCellCountBuffer);
-
-        // ---- 2d. Sort scan — exclusive prefix sum → per-cell write offsets ----
-        {
-            struct SortScanPC { uint32_t cellCount; } sspc;
-            sspc.cellCount = GRID_CELLS;
-            m_sortScanPass.bind(cmd);
-            m_sortScanPass.pushConstants(cmd, &sspc, sizeof(sspc));
-            m_sortScanPass.dispatch(cmd, 1); // single invocation — sequential scan
-        }
-
-        insertBarrier(cmd,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-            m_gridCellOffsetBuffer);
-
-        // ---- 2e. Sort scatter — fill sortedParticles / sortedIndices by cell ----
-        // After scatter, gridCellOffset[c] = exclusiveStart[c] + count[c] = END.
-        // Collide reads [gridCellOffset[c]-gridCellCount[c], gridCellOffset[c]).
-        {
-            struct SortScatterPC { uint32_t count; } scpc;
-            scpc.count = count;
-            m_sortScatterPass.bind(cmd);
-            m_sortScatterPass.pushConstants(cmd, &scpc, sizeof(scpc));
-            m_sortScatterPass.dispatch(cmd, groups);
-        }
-
-        insertBarrier(cmd,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT,
-            m_gridCellOffsetBuffer);
-        insertBarrier(cmd,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT,
-            m_sortedParticleBuffer);
-        insertBarrier(cmd,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_ACCESS_SHADER_WRITE_BIT,
-            VK_ACCESS_SHADER_READ_BIT,
-            m_sortedIndexBuffer);
-
-        // ---- 3. Collide pass (multi-iteration) ----
-        // Terrain collision re-reads particles[i] each iteration and converges
-        // correctly. Particle-particle is gated to iteration 0 in the shader
-        // because sortedParticles holds a pre-tick snapshot — running it on
-        // iterations 1+ would double-count corrections and cause jitter.
-        struct CollidePC {
-            uint32_t count;
-            float    dt;
-            float    sleepThreshSq;
-            float    gravity;
-            uint32_t iteration;
-        } cpc;
-        cpc.count        = count;
-        cpc.dt           = FIXED_DT;
-        cpc.sleepThreshSq= SLEEP_THRESH_SQ;
-        cpc.gravity      = GRAVITY;
-
-        for (int iter = 0; iter < COLLISION_ITERATIONS; ++iter) {
-            cpc.iteration = static_cast<uint32_t>(iter);
-            m_collidePass.bind(cmd);
-            m_collidePass.pushConstants(cmd, &cpc, sizeof(cpc));
-            m_collidePass.dispatch(cmd, groups);
-
-            insertBarrier(cmd,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                VK_ACCESS_SHADER_WRITE_BIT,
-                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-                m_particleBuffer);
-        }
-
-    } // end physics tick loop
+        // Per-pass GPU timing only on the first tick (query-budget safe).
+        recordComputeCommandsNew(cmd, count, lifetimeDtThisTick, profiler, tick == 0);
+        if (m_probeActive) recordProbeCopy(cmd, count, tick);
+    }
 
     // ---- 4. Reset instanceCount in indirect draw buffer ----
     // Always expand for rendering (even if 0 physics ticks — new spawns need faces)
@@ -1846,13 +1654,10 @@ void GpuParticlePhysics::cleanup() {
 
     m_gridClearPass.cleanup();
     m_gridBuildPass.cleanup();
-    m_sortScanPass.cleanup();
     m_sortScatterPass.cleanup();
     m_scanBlockPass.cleanup();
     m_scanBlockSumsPass.cleanup();
     m_scanAddPass.cleanup();
-    m_integratePass.cleanup();
-    m_collidePass.cleanup();
     m_expandPass.cleanup();
 
     m_solverSyncInPass.cleanup();

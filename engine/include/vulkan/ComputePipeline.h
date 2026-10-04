@@ -12,7 +12,7 @@ namespace Vulkan {
  *
  * Usage:
  *   ComputePipeline pipe;
- *   pipe.create(device, physDevice, "shaders/particle_integrate.comp.spv",
+ *   pipe.create(device, physDevice, "shaders/solver_integrate.comp.spv",
  *               { {0, STORAGE_BUFFER, COMPUTE}, {1, STORAGE_BUFFER, COMPUTE} },
  *               sizeof(MyPushConstants));
  *

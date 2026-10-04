@@ -10,8 +10,8 @@ layout(std430, set=0, binding=1) readonly buffer MaterialBuffer { MaterialPhysic
 layout(std430, set=0, binding=2) readonly buffer ParticleBuffer { GpuParticle particles[]; };
 
 // Player character collider — uploaded each frame from the CPU (setCharacterColliders).
-// Header = broadphase union AABB + velocity (first 48 bytes match the legacy single-AABB
-// layout in particle_collide.comp). charSeg[] holds the per-limb body-part boxes; debris
+// Header = broadphase union AABB + velocity (48 bytes). charSeg[] holds the per-limb
+// body-part boxes; debris
 // overlapping a segment is shoved out + inherits the character's velocity, letting the
 // player plow through debris piles with arms/legs, not just the torso. This is the
 // AVBD-pipeline equivalent of the legacy XPBD character collision (no longer dispatched).
@@ -162,8 +162,8 @@ void main() {
     }
 
     // ---- Character per-limb push (external influence, applied after prediction) ----
-    // Ported/extended from the legacy XPBD particle_collide.comp character block.
-    // Treats the body's OBB as an AABB for a cheap shove (matches legacy). We first
+    // A shove, not a contact (retired by real kinematic contacts, DebrisInteractionPlan D7).
+    // Treats the body's OBB as an AABB for a cheap shove. We first
     // test the broadphase union AABB so the common case (debris far from the player)
     // costs a single test; only on a union hit do we scan the per-limb segment boxes.
     // On the first overlapping segment we push the body out along the shortest exit

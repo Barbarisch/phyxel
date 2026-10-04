@@ -85,7 +85,7 @@ def built_shader_names():
     """Shader files build_shaders.bat actually compiles.
 
     Scoping to these matters: shaders/ also holds orphans that nothing builds and nothing
-    references (solver_apply.comp has been dead since May). Failing the check on those would train
+    references. Failing the check on those would train
     people to ignore it, which is worse than not having it.
     """
     if not BUILD_SCRIPT.exists():

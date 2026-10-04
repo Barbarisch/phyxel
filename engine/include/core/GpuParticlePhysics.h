@@ -19,17 +19,16 @@ namespace Vulkan { class VulkanDevice; }
 class GpuProfiler;
 
 /**
- * GpuParticlePhysics — GPU-accelerated voxel debris physics.
+ * GpuParticlePhysics — GPU AVBD rigid-body solver for voxel debris (cubes, subcubes,
+ * microcubes). Gameplay bodies (furniture, items, fragments, characters) live on the CPU
+ * VoxelDynamicsWorld.
  *
- * Replaces Bullet btRigidBody + CPU face rebuild for all broken-voxel debris
- * (dynamic cubes, subcubes, microcubes). Characters and interactive objects
- * remain on Bullet.
- *
- * Per-frame pipeline (all on GPU, no CPU readback):
- *   1. particle_integrate.comp  — XPBD position + quaternion angular step
- *   2. particle_collide.comp    — 3D occupancy-grid voxel collision
- *   3. particle_expand.comp     — write 6 DynamicSubcubeInstanceData faces per active particle
- *   4. dynamic_voxel.vert/frag  — render directly from face buffer (unchanged shaders)
+ * Per physics tick (recordComputeCommandsNew; docs/DynamicVoxelPhysics.md "GPU Compute Path"):
+ *   sync_in → integrate → grid/scan/sort → narrowphase + voxel contacts → CSR → colouring
+ *   → AVBD dual/primal → hard-contact → sync_out → warmstart save,
+ *   then particle_expand.comp writes 6 DynamicSubcubeInstanceData faces per particle for
+ *   dynamic_voxel.vert / dynamic_shadow.vert.
+ * Settling is gated by tools/debris_settle_bench.py (docs/DebrisSettlingPlan.md §R).
  */
 class GpuParticlePhysics {
 public:
@@ -130,18 +129,17 @@ public:
     };
     static_assert(sizeof(CharSegmentGpu) == 32, "CharSegmentGpu must be 32 bytes");
 
-    // std430 layout uploaded each frame for particle-vs-character collision.
-    // The first 48 bytes are the broadphase union AABB + velocity, byte-compatible
-    // with the original single-AABB layout (so the dead legacy particle_collide.comp
-    // still reads sane values). The live AVBD solver (solver_integrate.comp) uses the
-    // union for a cheap early-out, then tests the per-limb segments[].
+    // std430 layout uploaded each frame for particle-vs-character collision (the player
+    // "shove", solver_integrate.comp): union AABB for a cheap early-out, then the per-limb
+    // segments[]. The whole struct is retired by real kinematic contacts
+    // (docs/DebrisInteractionPlan.md D7, Phase 2) — until then its layout stays fixed.
     struct CharacterCollider {
         glm::vec3 center;       // union AABB center (broadphase)
         float     segmentCount; // number of active segments (0 = disabled)
         glm::vec3 halfExtents;  // union AABB half-extents
         float     pad0;
         glm::vec3 velocity;     // character velocity (imparted to pushed debris)
-        float     legacyActive; // mirrors (segmentCount>0) for the legacy shader's charActive
+        float     legacyActive; // unused padding since D4 (its only reader, particle_collide.comp, is deleted)
         CharSegmentGpu segments[MAX_CHAR_SEGMENTS];
     };
     static_assert(sizeof(CharacterCollider) == 48 + 32 * MAX_CHAR_SEGMENTS,
@@ -185,10 +183,6 @@ public:
 
     /** Immediately mark all active particles as dead and reset tracking state. */
     void despawnAll();
-
-    /** Switch between constraint solver (new, default) and legacy XPBD pipeline. */
-    void setUseNewPipeline(bool use) { m_useNewPipeline = use; }
-    bool getUseNewPipeline() const   { return m_useNewPipeline; }
 
     // ---- Debug timing stats (ring buffer) ----
     struct FrameTimingEntry {
@@ -253,7 +247,7 @@ public:
     static uint32_t materialNameToIndex(const std::string& name);
 
 private:
-    // 3D occupancy grid constants — must match particle_collide.comp
+    // 3D occupancy grid constants — must match shaders/voxel_contact.glsl
     static constexpr int OCC_X        = 512;
     static constexpr int OCC_Y        = 256;
     static constexpr int OCC_Z        = 512;
@@ -264,9 +258,7 @@ private:
     static constexpr int OCC_TOTAL_WORDS = OCC_TOTAL_BITS / 32;          // 2,097,152 uint32s
 
     // Physics constants
-    static constexpr float GRAVITY             = -9.81f;  // match Bullet physics
-    static constexpr float SLEEP_THRESH_SQ     = 5e-4f;   // settle faster
-    static constexpr int   COLLISION_ITERATIONS = 3;       // constraint solver passes per tick
+    static constexpr float GRAVITY             = -9.81f;
 
     // ---- Vulkan resources ----
     VkDevice         m_device         = VK_NULL_HANDLE;
@@ -327,27 +319,17 @@ private:
     VkBuffer         m_scanBlockSumsBuffer  = VK_NULL_HANDLE;  // uint[SCAN_BLOCKS] — per-block totals for the parallel scan
     VkDeviceMemory   m_scanBlockSumsMem     = VK_NULL_HANDLE;
 
-    // ---- Compute pipelines (legacy XPBD) ----
+    // ---- Broadphase + render-feed compute pipelines ----
     Vulkan::ComputePipeline m_gridClearPass;
     Vulkan::ComputePipeline m_gridBuildPass;
-    Vulkan::ComputePipeline m_sortScanPass;
     Vulkan::ComputePipeline m_sortScatterPass;
-    // Parallel prefix-sum passes — replace the serial m_sortScanPass in the live
-    // (AVBD) pipeline. The dead legacy path still uses m_sortScanPass.
+    // Parallel prefix sum over the grid cells (block scan → block-sum scan → add offsets).
     Vulkan::ComputePipeline m_scanBlockPass;
     Vulkan::ComputePipeline m_scanBlockSumsPass;
     Vulkan::ComputePipeline m_scanAddPass;
-    Vulkan::ComputePipeline m_integratePass;
-    Vulkan::ComputePipeline m_collidePass;
     Vulkan::ComputePipeline m_expandPass;
 
-    // ---- Constraint-based solver pipeline (the live pipeline) ----
-    // Pipeline switch: true = AVBD constraint solver (solver_*.comp), false =
-    // legacy XPBD (particle_integrate/collide.comp). Hardcoded true and never
-    // toggled off anywhere — the legacy path is dead code kept for reference.
-    // All particle physics (gravity, voxel + character collision) lives in the
-    // solver_*.comp shaders; do NOT add new behaviour to the legacy shaders.
-    bool m_useNewPipeline = true;
+    // ---- AVBD constraint solver (solver_*.comp) ----
 
     static constexpr uint32_t MAX_CONSTRAINTS = 60000;
     static constexpr uint32_t MAX_COLORS      = 32;  // must match solver_types.glsl (12 skipped bodies in packed piles, audit D1)

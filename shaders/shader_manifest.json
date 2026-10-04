@@ -176,29 +176,19 @@
       "sources": "c69131b53a7d4903cacf18e37c35f336e8502cdfba33f2c08f0dd057c6598b9d",
       "spv_present": true
     },
-    "particle_collide.comp": {
-      "built": true,
-      "sources": "dd402081a1cc1b211f4224eab0e7807458e2b7b270b8346f5aedde4068589fba",
-      "spv_present": true
-    },
     "particle_expand.comp": {
       "built": true,
-      "sources": "5b199befac4adcfab15ae49bd72f8b53660dd175784b237541359742ea894f7b",
+      "sources": "34b698e69cd87ad5baf809da43c208f6fc0b385ad276b6e5a755d08e38e54a1c",
       "spv_present": true
     },
     "particle_grid_build.comp": {
       "built": true,
-      "sources": "295801cfb4eb588f28ba43034c4e496423e13edfef2661ba29f08854dc0db220",
+      "sources": "4a38586e2be2aa1d788ac793e26e45a6e19606da5029c4bde6deea8361546b24",
       "spv_present": true
     },
     "particle_grid_clear.comp": {
       "built": true,
       "sources": "dc479f377990ec99b5852c276044a669d2ac33939207666cb85accb22262bc38",
-      "spv_present": true
-    },
-    "particle_integrate.comp": {
-      "built": true,
-      "sources": "ee5f731b83801dffd3c1498f99e12cc88e9afcab9b09df7263269346cc6c3e9b",
       "spv_present": true
     },
     "particle_scan_add.comp": {
@@ -216,14 +206,9 @@
       "sources": "7f43e8de380ccf74f2df31827393eab287ad055d3fb2a39cb9cd006dfc3cb1fa",
       "spv_present": true
     },
-    "particle_sort_scan.comp": {
-      "built": true,
-      "sources": "b09702360de13d2d0159c445f4a636f283bab89470e3ac2ce8ae184505b8f07a",
-      "spv_present": true
-    },
     "particle_sort_scatter.comp": {
       "built": true,
-      "sources": "75b294f536399697d7e41921d2923fc5a7ae94c853817d2da8d4431b927719ed",
+      "sources": "31879e0da5207bc916636f31eb1b04eb1b4f4cb4b1492ed9854cafbfb705392d",
       "spv_present": true
     },
     "post_process.frag": {
@@ -256,11 +241,6 @@
       "sources": "83e2f5effae22643e853a6df10946d705c57322bcc19e7196d9a02ad0382681c",
       "spv_present": true
     },
-    "solver_apply.comp": {
-      "built": false,
-      "sources": "9724f1041bc2a56c26e832e684e0e07a639919b9c38d79e53202fdfd49cef664",
-      "spv_present": false
-    },
     "solver_body_color.comp": {
       "built": true,
       "sources": "b3b9ed647c6302e0cba8db12fdb7f7136e17cca92a03a20f1f4547b8b74178cd",
@@ -283,32 +263,22 @@
     },
     "solver_dual.comp": {
       "built": true,
-      "sources": "3515f756e9043420b19d2a083f18bc4e8461e9e9dc15c1abe1b98ffc111a2260",
-      "spv_present": true
-    },
-    "solver_graph_color.comp": {
-      "built": true,
-      "sources": "478c2cf9dd03754eeb0362984f027bfdcfbde6b483f96cc9a06e1294cc1d8856",
+      "sources": "31a0a68b7f46ff63f850b36f8c3b82d1cf7d24414a77605ca067902e8ad74fd6",
       "spv_present": true
     },
     "solver_hardcontact.comp": {
       "built": true,
-      "sources": "07022eae14ac4d65841cf865ef72f11813764804d72d43bf0c803eadf71f1f8c",
+      "sources": "cc50405d30db6f574c9cf315883df6864909500192b4f7b309b52a5db41222a4",
       "spv_present": true
     },
     "solver_integrate.comp": {
       "built": true,
-      "sources": "c4ca6cb422b97e92b71dc05b76f47f7854f193bf2019f0b5e7dce318d4c42861",
-      "spv_present": true
-    },
-    "solver_jacobi.comp": {
-      "built": true,
-      "sources": "3294830cceb5bf3d0ade726a6a69fe94125ddd6fc724f80364f45608dad210dd",
+      "sources": "3e21a0fbe074657bc3d7f3ea6c07934e79adc602062f7dc86e803f0d3326a2d1",
       "spv_present": true
     },
     "solver_narrowphase.comp": {
       "built": true,
-      "sources": "7692d7d9c05d82ed46629becccc99d9a42131b499265fe55866860b59f905946",
+      "sources": "eaab841975cc7cf9d16236982c749155aeed2576689a0dd7b55d997dbd29ffa5",
       "spv_present": true
     },
     "solver_prefix_sum.comp": {
@@ -318,27 +288,27 @@
     },
     "solver_primal.comp": {
       "built": true,
-      "sources": "d0af3ab24ef0b1dbf9b5caeaa84a2765df1710f2a703a66f83e324bddbee9078",
+      "sources": "6484f73b3ada4ec6cb87b2136e689b66156317d88954a7a6474c248821a79383",
       "spv_present": true
     },
     "solver_sync_in.comp": {
       "built": true,
-      "sources": "4a132e0d9ca6dd9c4eab9ed62aa1914eafd5f805c68f2d765e518db5f1594b05",
+      "sources": "dda898cd70f598ca64588292fd759c5620353dbf574281b9fa7bf1d864675708",
       "spv_present": true
     },
     "solver_sync_out.comp": {
       "built": true,
-      "sources": "4029aaf450af9d3824f3b086330620cc10c70b92398e759d2d0672633bf56df6",
+      "sources": "804e4b2e2449643fb09f1cfa0b253c725cb0733de1da44bed508869c9ac601c9",
       "spv_present": true
     },
     "solver_voxel.comp": {
       "built": true,
-      "sources": "c0e69798c945870ae04310007367703a10c0cdd602d09a0d0b21eb277d8f2d32",
+      "sources": "5352555ec96a462cb28413e21415ee18011d6b963222fdc3de2d73730bcf487c",
       "spv_present": true
     },
     "solver_warmstart_save.comp": {
       "built": true,
-      "sources": "533b7061fe743ef5b90f1daea6d87cc30ab8b6ff1b62ff44140ffe7e14ce9077",
+      "sources": "4ba5f7a75ba42aa651f191bebf8f172533005d488a6492001afe494c456f8983",
       "spv_present": true
     },
     "ssao.frag": {

@@ -11,8 +11,9 @@
 //   sortedParticles[s] = GpuParticle for sorted slot s
 //   sortedIndices[s]   = canonical particle index for slot s
 //
-// particle_collide.comp reads [gridCellOffset[nc]-gridCellCount[nc], gridCellOffset[nc])
-// from sortedParticles — contiguous, cache-friendly neighbor access.
+// solver_narrowphase.comp reads [gridCellOffset[nc]-gridCellCount[nc], gridCellOffset[nc])
+// of sortedIndices — contiguous, cache-friendly neighbor access. (sortedParticles is now
+// write-only: its only reader was the deleted legacy particle_collide.comp.)
 //
 #extension GL_GOOGLE_include_directive : require
 #include "particle_types.glsl"

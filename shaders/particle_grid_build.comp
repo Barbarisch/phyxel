@@ -3,8 +3,8 @@
 // particle_grid_build.comp — Count active particles into per-cell buckets.
 //
 // Each active particle hashes its position to a grid cell and atomically
-// increments the cell's count. particle_sort_scan.comp then computes an
-// exclusive prefix sum over these counts to get per-cell write offsets,
+// increments the cell's count. The parallel scan (particle_scan_block/_blocksums/_add)
+// then computes an exclusive prefix sum over these counts to get per-cell write offsets,
 // and particle_sort_scatter.comp writes contiguous sorted arrays.
 //
 // Buffers:
