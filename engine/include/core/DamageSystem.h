@@ -37,6 +37,11 @@ public:
     DamageSystem(ChunkManager* chunkManager, GpuParticlePhysics* gpu)
         : m_cm(chunkManager), m_gpu(gpu) {}
 
+    /// Debris pieces refused process-wide because no GPU debris solver existed (disabled by
+    /// PHYXEL_DISABLE_GPU_DEBRIS or failed init). Echoed by /api/debug/gpu_physics so a
+    /// missing solver is observable instead of breaks silently making no debris.
+    static uint64_t refusedDebrisTotal();
+
     // Apply a radial energy hit at `center`. `direction` biases debris (and can
     // be (0,0,0) for a pure radial blast). `damageType` is informational for now.
     //
@@ -244,7 +249,8 @@ private:
     // pass so sub-voxel structures detach like full-cube ones.
     int dropDetachedCell(const glm::ivec3& wp, DamageResult& res);
 
-    // Queue one debris piece into the GPU particle system.
+    // Queue one debris piece into the GPU particle system. With no GPU solver the piece is
+    // REFUSED and counted (refusedDebrisTotal) — never dropped silently.
     void spawnDebris(const glm::vec3& pos, const glm::vec3& vel, float scale,
                      const std::string& material);
 

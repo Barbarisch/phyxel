@@ -219,6 +219,10 @@ commit: build, unit suite, `shader_manifest --check`, and the settle bench.
      spawns are counted.
    - Today: silence.
    - Control: a normal launch.
+   - **DONE 2026-10-04** — `tools/gpu_debris_disabled_check.py`: disabled run 8/8 PASS (one ERROR
+     line, `disabled_reason` echoed, `debris_refused` 108 = refused-counter delta, 0 GPU bodies),
+     control 6/6 PASS. Exercising it found a crash: the no-GPU derez fallback erased the character
+     without unregistering it from the entity registry (fixed — one shared removal helper).
 5. **Live (L4):** X-key derez, spell blast and `apply_damage` debris unchanged, watched by the
    user.
 

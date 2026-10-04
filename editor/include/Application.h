@@ -189,6 +189,8 @@ public:
     Scene::AnimatedVoxelCharacter* createAnimatedCharacter(const glm::vec3& pos, const std::string& animFile);
     void setControlTarget(const std::string& targetName);
     void derezCharacter(float duration = 2.0f);
+    /// Unregister + erase the animated character (both derez completion paths use this).
+    void removeAnimatedCharacterFromScene();
 
     /// Left-click during the player's turn (turn-based): resolve the cursor ray
     /// into a move/attack intent (S6). Returns true if it handled the click
@@ -503,6 +505,8 @@ private:
     bool  showSpellCaster    = true;
     bool  m_spellModeEnabled = false;
     int   m_spellTypeIndex   = 0;
+    // Why GPU debris is off (empty = running). Echoed by /api/debug/gpu_physics.
+    std::string m_gpuDebrisDisabledReason;
     float m_spellPower       = 500.0f;  // -> DamageSystem blast energy
     float m_spellRadius      = 4.0f;    // -> DamageSystem blast radius
     void renderSpellCaster();

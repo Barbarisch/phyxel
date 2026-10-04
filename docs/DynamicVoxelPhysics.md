@@ -157,6 +157,14 @@ Measured with `tools/perf_stress_test.py --mode voxel` — all bodies spawned at
 > Never judge settling from a screenshot of separated cubes dropped onto flat ground: that is
 > the one case that always looked fine.
 
+**All debris is GPU debris, so a missing solver is LOUD (2026-10-04).** If `GpuParticlePhysics`
+fails to initialize — or is forced off with `PHYXEL_DISABLE_GPU_DEBRIS=1` / `--disable-gpu-debris`
+(the flag exists because `launch_engine` passes arguments, not environment) — voxels still break,
+but: exactly one `ERROR` "GPU debris DISABLED (<reason>)" is logged; `/api/debug/gpu_physics`
+answers `enabled:false`, `disabled_reason`, `refused_spawns`; `/api/damage/apply` reports
+`debris:0` + `debris_refused:N`; derez removes the character without debris. Check it with
+`python tools/gpu_debris_disabled_check.py --expect disabled|enabled` (live, DebrisLab).
+
 ### Architecture
 
 - **System**: `GpuParticlePhysics` in `engine/src/core/GpuParticlePhysics.cpp`

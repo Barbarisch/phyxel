@@ -13,6 +13,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "Application.h"
 #include "core/PerfCapture.h"
 #include <cmath>
+#include <cstdlib>
 #include "graphics/FarTerrainManager.h"
 #include "graphics/FaceCoverage.h"         // chunk_faces debug route (docs/GlassTransparency.md §7)
 #include "graphics/GrassRenderPipeline.h"   // s_castShadows A/B toggle
@@ -382,9 +383,18 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
 
     LOG_INFO("Application", "RenderCoordinator initialized successfully!");
 
-    // STEP 6b: INITIALIZE GPU PARTICLE PHYSICS
-    gpuParticlePhysics = std::make_unique<GpuParticlePhysics>();
-    if (gpuParticlePhysics->initialize(vulkanDevice, "")) {
+    // STEP 6b: INITIALIZE GPU PARTICLE PHYSICS — all debris lives here. Without it breaks,
+    // blasts and derez make NO debris, so a missing solver must be LOUD: one ERROR, a reason
+    // echoed by /api/debug/gpu_physics, and every refused piece counted
+    // (DamageSystem::refusedDebrisTotal). PHYXEL_DISABLE_GPU_DEBRIS=1 / --disable-gpu-debris
+    // force this path for tests.
+    const char* gpuDebrisOff = std::getenv("PHYXEL_DISABLE_GPU_DEBRIS");
+    if (gpuDebrisOff && *gpuDebrisOff && std::string(gpuDebrisOff) != "0") {
+        m_gpuDebrisDisabledReason = "disabled by PHYXEL_DISABLE_GPU_DEBRIS";
+    } else {
+        gpuParticlePhysics = std::make_unique<GpuParticlePhysics>();
+    }
+    if (gpuParticlePhysics && gpuParticlePhysics->initialize(vulkanDevice, "")) {
         // Wire to RenderCoordinator (for compute dispatch + GPU draw)
         renderCoordinator->setGpuParticlePhysics(gpuParticlePhysics.get());
         // Wire to ChunkManager (for occupancy grid updates on voxel change + streaming)
@@ -393,8 +403,11 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         chunkManager->rebuildOccupancyFromChunks();
         LOG_INFO("Application", "GpuParticlePhysics initialized successfully!");
     } else {
-        LOG_WARN("Application", "GpuParticlePhysics initialization failed  --  falling back to CPU physics");
+        if (m_gpuDebrisDisabledReason.empty())
+            m_gpuDebrisDisabledReason = "GpuParticlePhysics::initialize failed";
         gpuParticlePhysics.reset();
+        LOG_ERROR("Application", "GPU debris DISABLED (" + m_gpuDebrisDisabledReason +
+                  "): breaks, blasts and derez will produce NO debris");
     }
 
     // STEP 6c: INITIALIZE CPU WATER SIMULATION (cellular automaton over a world region).
@@ -3972,18 +3985,7 @@ void Application::update(float deltaTime) {
         // Remove character once all its voxels have been derezed
         if (animatedCharacter && animatedCharacter->isFullyDerezed()) {
             LOG_INFO("Application", "Derez complete - removing character from scene");
-            // Unregister from entity registry BEFORE erasing the entity, so nothing
-            // (e.g. WorldOutliner) can dereference the dangling pointer after deletion.
-            if (entityRegistry) {
-                std::string entityId = entityRegistry->getEntityId(animatedCharacter);
-                if (!entityId.empty()) entityRegistry->unregisterEntity(entityId);
-            }
-            auto it = std::remove_if(entities.begin(), entities.end(),
-                [this](const std::unique_ptr<Scene::Entity>& e) {
-                    return e.get() == animatedCharacter;
-                });
-            if (it != entities.end()) entities.erase(it, entities.end());
-            animatedCharacter = nullptr;
+            removeAnimatedCharacterFromScene();
         }
     }
 
@@ -6040,6 +6042,24 @@ void Application::setControlTarget(const std::string& targetName) {
     LOG_INFO("Application", "Control target set to: " + targetName);
 }
 
+// The ONE way the animated character leaves the scene after a derez. Unregister from the
+// entity registry BEFORE erasing the entity, so nothing (WorldOutliner, Properties, API
+// lookups) can dereference the dangling pointer. The no-GPU derez fallback erased without
+// unregistering and crashed the engine the first time it was exercised (2026-10-04).
+void Application::removeAnimatedCharacterFromScene() {
+    if (!animatedCharacter) return;
+    if (entityRegistry) {
+        std::string entityId = entityRegistry->getEntityId(animatedCharacter);
+        if (!entityId.empty()) entityRegistry->unregisterEntity(entityId);
+    }
+    auto it = std::remove_if(entities.begin(), entities.end(),
+        [this](const std::unique_ptr<Scene::Entity>& e) {
+            return e.get() == animatedCharacter;
+        });
+    if (it != entities.end()) entities.erase(it, entities.end());
+    animatedCharacter = nullptr;
+}
+
 void Application::derezCharacter(float duration) {
     if (!animatedCharacter) {
         LOG_WARN("Application", "Cannot derez: no animated character");
@@ -6060,12 +6080,7 @@ void Application::derezCharacter(float duration) {
         // No GPU debris solver: the character is removed without debris (all debris is
         // GPU-only since DebrisInteractionPlan D2 deleted the CPU DebrisSystem).
         LOG_WARN("Application", "Derez without GPU debris physics: removing the character, no debris");
-        auto it = std::remove_if(entities.begin(), entities.end(),
-            [this](const std::unique_ptr<Scene::Entity>& e) {
-                return e.get() == animatedCharacter;
-            });
-        if (it != entities.end()) entities.erase(it, entities.end());
-        animatedCharacter = nullptr;
+        removeAnimatedCharacterFromScene();
     }
 
     // Release player control immediately
@@ -7824,7 +7839,8 @@ static bool handleDebugDynamicSpawnCommand(
     const Core::APICommand& cmd,
     nlohmann::json& response,
     ChunkManager* chunkManager,
-    GpuParticlePhysics* gpuParticles)
+    GpuParticlePhysics* gpuParticles,
+    const std::string& gpuDisabledReason)
 {
     if (cmd.action == "spawn_bullet_cube") {
         float x = cmd.params.value("x", 0.0f);
@@ -7969,7 +7985,10 @@ static bool handleDebugDynamicSpawnCommand(
     }
     if (cmd.action == "gpu_physics") {
         if (!gpuParticles || !gpuParticles->isInitialized()) {
-            response = {{"error", "GPU particle physics not available"}};
+            response = {{"error", "GPU particle physics not available"},
+                        {"enabled", false},
+                        {"disabled_reason", gpuDisabledReason},
+                        {"refused_spawns", Phyxel::DamageSystem::refusedDebrisTotal()}};
             return true;
         }
         if (cmd.params.contains("frozen")) gpuParticles->setFrozen(cmd.params.value("frozen", false));
@@ -7977,7 +7996,9 @@ static bool handleDebugDynamicSpawnCommand(
         if (cmd.params.contains("flags"))  gpuParticles->setSolverFlags(cmd.params.value("flags", 23u));
         if (cmd.params.contains("cold_scale"))
             gpuParticles->setColdPenaltyScale(cmd.params.value("cold_scale", 1.0f));
-        response = {{"success", true}, {"frozen", gpuParticles->isFrozen()},
+        response = {{"success", true}, {"enabled", true},
+                    {"refused_spawns", Phyxel::DamageSystem::refusedDebrisTotal()},
+                    {"frozen", gpuParticles->isFrozen()},
                     {"solver_flags", gpuParticles->solverFlags()},
                     {"cold_scale", gpuParticles->coldPenaltyScale()},
                     {"pending_steps", gpuParticles->pendingStepTicks()},
@@ -14824,8 +14845,12 @@ void Application::registerEffectsCommands() {
         // stage_changed: grazed voxels whose damage crossed a VISIBLE stage boundary. Echoed
         // so a caller can assert a pure graze actually moved something -- `grazed` alone says
         // only that a hit landed, never that the surface now looks different (3.7).
+        // `debris` counts pieces actually queued on the GPU; without a solver they are refused.
+        const bool gpuDebris = gpuParticlePhysics && gpuParticlePhysics->isInitialized();
         r = {{"success", true}, {"broken", dmgResult.voxelsBroken},
-             {"grazed", dmgResult.voxelsGrazed}, {"debris", dmgResult.debrisSpawned},
+             {"grazed", dmgResult.voxelsGrazed},
+             {"debris", gpuDebris ? dmgResult.debrisSpawned : 0},
+             {"debris_refused", gpuDebris ? 0 : dmgResult.debrisSpawned},
              {"stage_changed", dmgResult.voxelsStageChanged},
              {"coherent_bodies", coherentFragmentManager.count()}};
     });
@@ -16135,7 +16160,7 @@ void Application::processAPICommands() {
 
             // Handle debug dynamic spawn commands early (avoids nesting depth limit)
             if (handleDebugDynamicSpawnCommand(cmd, response, chunkManager,
-                    gpuParticlePhysics.get())) {
+                    gpuParticlePhysics.get(), m_gpuDebrisDisabledReason)) {
                 if (cmd.onComplete) cmd.onComplete(response);
                 continue;
             }

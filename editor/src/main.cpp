@@ -55,6 +55,14 @@ int main(int argc, char* argv[]) {
             interactionEditorChar = argv[++i];
         } else if ((arg == "--port") && i + 1 < argc) {
             apiPortOverride = std::stoi(argv[++i]);
+        } else if (arg == "--disable-gpu-debris") {
+            // Same switch as the env var; the flag exists because launch_engine passes
+            // arguments, not environment (DebrisInteractionPlan gpu_init_failure_is_loud).
+#ifdef _WIN32
+            _putenv_s("PHYXEL_DISABLE_GPU_DEBRIS", "1");
+#else
+            setenv("PHYXEL_DISABLE_GPU_DEBRIS", "1", 1);
+#endif
         }
     }
 

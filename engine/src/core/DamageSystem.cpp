@@ -12,6 +12,7 @@
 #include "utils/Logger.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <vector>
 #include <deque>
@@ -89,9 +90,13 @@ int DamageSystem::solidVoxelsBetween(const glm::vec3& a, const glm::vec3& b) con
     return solid;
 }
 
+static std::atomic<uint64_t> s_refusedDebris{0};
+
+uint64_t DamageSystem::refusedDebrisTotal() { return s_refusedDebris.load(std::memory_order_relaxed); }
+
 void DamageSystem::spawnDebris(const glm::vec3& pos, const glm::vec3& vel, float scale,
                                const std::string& material) {
-    if (!m_gpu) return;
+    if (!m_gpu) { s_refusedDebris.fetch_add(1, std::memory_order_relaxed); return; }
     GpuParticlePhysics::SpawnParams sp;
     sp.position     = pos;
     sp.velocity     = vel;
