@@ -1,7 +1,7 @@
 # Debris Interaction Plan — everything that moves can push GPU debris
 
 **Status:** rev 4.2, 2026-10-04. **Phase 0 DONE** (pushed to main `ed924498`; results under
-Phase 0 below). **Phase 1 in progress (1a first).**
+Phase 0 below). **Phase 1 in progress: 1a DONE, 1b next.**
 - Rev 2 rewrote the phases after a four-way code inventory (§Inventory).
 - Rev 3 (user direction) puts simplification first: delete the old systems before new work.
 - **Rev 4 folds in the second design check:**
@@ -248,6 +248,18 @@ commit: build, unit suite, `shader_manifest --check`, and the settle bench.
 - Remove the `frustum_cull.comp` reference and add the missing `post_process` check.
 - **Red test:** a syntax error injected into a copy of `solver_voxel.comp` must make the script
   exit non-zero.
+- **DONE 2026-10-04** — `tests/test_build_shaders_fails_loud.py` (9 cases: a broken solver /
+  scan / post_process shader × compiler found via VULKAN_SDK or via PATH, the two controls, and
+  "no compiler"). Against the OLD script 7/9 FAIL (every broken shader exited 0; no-compiler
+  started compiling); NEW 9/9 PASS; the real repo build exits 0 with no .spv change.
+  - All 34 `if %errorlevel%` checks became `|| goto :shader_error`; `post_process.frag` got a
+    check (it had none); the `frustum_cull.comp` rule went (no such file).
+  - **Found and deleted: the glslc-only build mode** (~120 lines). It could never complete a
+    build — every rule after its block used glslangValidator's `-V` — so it was a dead,
+    duplicate shader list. The script now has ONE compiler; `where` detection no longer reads
+    a parse-time `%errorlevel%`.
+  - Footgun found: this machine sets `NoDefaultCurrentDirectoryInExePath=1`, so
+    `cmd /c build_shaders.bat` is "not recognized" — call it by absolute path.
 
 **1b. One source for shared constants and layouts.**
 - After D4 there is one live copy of each layout. Move the constants into
