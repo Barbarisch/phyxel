@@ -26,8 +26,20 @@
 #ifndef PHYXEL_OCCUPANCY_GLSL
 #define PHYXEL_OCCUPANCY_GLSL
 
-layout(std430, set = 0, binding = 11) readonly buffer OccDirectory { uint occDir[]; };
-layout(std430, set = 0, binding = 12) readonly buffer OccPool      { uint occPool[]; };
+// Binding slots default to the scene layout (set 0, bindings 11/12). A pipeline with its OWN
+// descriptor layout — the debris compute passes (DebrisInteractionPlan 1c) — #defines these
+// before including this file to map the same two buffers onto its next free bindings.
+#ifndef PHX_OCC_SET
+#define PHX_OCC_SET 0
+#endif
+#ifndef PHX_OCC_BINDING_DIR
+#define PHX_OCC_BINDING_DIR 11
+#endif
+#ifndef PHX_OCC_BINDING_POOL
+#define PHX_OCC_BINDING_POOL 12
+#endif
+layout(std430, set = PHX_OCC_SET, binding = PHX_OCC_BINDING_DIR)  readonly buffer OccDirectory { uint occDir[]; };
+layout(std430, set = PHX_OCC_SET, binding = PHX_OCC_BINDING_POOL) readonly buffer OccPool      { uint occPool[]; };
 
 const uint  PHX_OCC_NO_CHUNK        = 0xFFFFFFFFu;
 const int   PHX_OCC_DIR_X           = 32;
@@ -100,6 +112,28 @@ bool phxOccupancySolid(ivec3 worldMicro, ivec4 occBox) {
     int bit = inCube.x + inCube.y * 9 + inCube.z * 81;
     uint microBase = idxBase + n + lo * uint(PHX_OCC_MICRO_WORDS);
     return ((occPool[microBase + uint(bit >> 5)] >> uint(bit & 31)) & 1u) != 0u;
+}
+
+/// What the pool KNOWS about a micro cell (DebrisInteractionPlan 1c). phxOccupancySolid answers
+/// "not solid" both for known-empty space and for cells it has no data for — right for light
+/// (no occlusion), wrong for debris (it would fall through the world). This tells them apart.
+/// Known cells defer to phxOccupancySolid, so the mask decode exists once.
+/// CPU mirror: packedPoolOccupancyState. If you change one, change BOTH.
+const int PHX_OCC_EMPTY   = 0;
+const int PHX_OCC_SOLID   = 1;
+const int PHX_OCC_UNKNOWN = 2;
+int phxOccupancyState(ivec3 worldMicro, ivec4 occBox) {
+    if ((occBox.w & 1) == 0) return PHX_OCC_UNKNOWN;   // occupancy not readable this frame
+    ivec3 chunkCoord = ivec3(phxFloorDiv(worldMicro.x, PHX_OCC_MICRO_PER_CHUNK),
+                             phxFloorDiv(worldMicro.y, PHX_OCC_MICRO_PER_CHUNK),
+                             phxFloorDiv(worldMicro.z, PHX_OCC_MICRO_PER_CHUNK));
+    ivec3 c = chunkCoord - occBox.xyz;
+    if (c.x < 0 || c.x >= PHX_OCC_DIR_X ||
+        c.y < 0 || c.y >= PHX_OCC_DIR_Y ||
+        c.z < 0 || c.z >= PHX_OCC_DIR_Z) return PHX_OCC_UNKNOWN;          // outside the box
+    if (occDir[c.x + c.y * PHX_OCC_DIR_X + c.z * PHX_OCC_DIR_X * PHX_OCC_DIR_Y] == PHX_OCC_NO_CHUNK)
+        return PHX_OCC_UNKNOWN;                                             // chunk not resident
+    return phxOccupancySolid(worldMicro, occBox) ? PHX_OCC_SOLID : PHX_OCC_EMPTY;
 }
 
 /// Cube-level state of one CUBE cell: 0 = empty, 1 = MIXED (carries sub-voxel detail), 2 = solid.

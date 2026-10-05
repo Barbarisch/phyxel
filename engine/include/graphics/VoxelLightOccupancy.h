@@ -234,6 +234,19 @@ float packedPoolSkyVisibility(const PackedOccupancyPool& packed,
 /// keeps them honest before any GLSL exists.
 bool packedPoolSolidAt(const PackedOccupancyPool& packed, const glm::ivec3& worldMicro);
 
+/// What the pool KNOWS about a micro cell. DebrisInteractionPlan 1c.
+enum class OccupancyState : uint8_t {
+    Empty   = 0,   ///< a resident chunk says there is nothing here
+    Solid   = 1,   ///< a resident chunk says this is solid
+    Unknown = 2,   ///< outside the covered box, chunk not resident, or the pool was never packed
+};
+
+/// THE three-state query, CPU mirror of phxOccupancyState (occupancy.glsl). "Not solid" is the
+/// right answer for LIGHT (no occlusion) and the wrong one for DEBRIS, which would fall through
+/// the world wherever the pool simply has no data — so debris must tell known-empty from unknown.
+/// Known cells answer exactly what packedPoolSolidAt answers; only the unknown cases differ.
+OccupancyState packedPoolOccupancyState(const PackedOccupancyPool& packed, const glm::ivec3& worldMicro);
+
 /// Cube-level occupancy of one CUBE cell. Three states, because the bake needs to tell them apart.
 enum class CubeOccupancy : uint8_t {
     Empty = 0,   ///< nothing at all: neither a full cube nor any sub-voxel content

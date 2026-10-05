@@ -475,6 +475,17 @@ bool packedPoolSolidAt(const PackedOccupancyPool& packed, const glm::ivec3& worl
     return (packed.pool[microBase + static_cast<size_t>(bit >> 5)] >> (bit & 31)) & 1u;
 }
 
+OccupancyState packedPoolOccupancyState(const PackedOccupancyPool& packed, const glm::ivec3& worldMicro) {
+    // The three ways the pool can know nothing — the same three packedPoolSolidAt folds into
+    // "not solid". Mirrors phxOccupancyState line for line.
+    if (packed.directory.empty()) return OccupancyState::Unknown;
+    const int slot = PackedOccupancyPool::directoryIndexForMicro(worldMicro, packed.boxMinChunk);
+    if (slot < 0) return OccupancyState::Unknown;
+    if (packed.directory[static_cast<size_t>(slot)] == PackedOccupancyPool::kNoChunk)
+        return OccupancyState::Unknown;
+    return packedPoolSolidAt(packed, worldMicro) ? OccupancyState::Solid : OccupancyState::Empty;
+}
+
 CubeOccupancy packedPoolCubeOccupancy(const PackedOccupancyPool& packed,
                                       const glm::ivec3& worldCube) {
     if (packed.directory.empty()) return CubeOccupancy::Empty;   // never packed — no occluders

@@ -1082,3 +1082,55 @@ TEST(VoxelLightOccupancy, EveryPackIsOwedToEveryFrameSlot) {
     EXPECT_EQ(occ.packRevision(), 2u);
     EXPECT_FALSE(occ.slotNeedsUpload(Occ::kSlots));             // out-of-range slot: never "needed"
 }
+
+// ---------------------------------------------------------------------------------------------
+// DebrisInteractionPlan 1c: the THREE-STATE query. "Not solid" is the right answer for light
+// (no occlusion) and the wrong one for debris (it falls through the world). Debris needs to tell
+// "known empty" from "nothing is known here": outside the box, a chunk that is not resident, or a
+// pool that was never packed. Known cells must agree with packedPoolSolidAt exactly.
+// ---------------------------------------------------------------------------------------------
+TEST(VoxelLightOccupancy, OccupancyStateIsSolidOrEmptyWhereKnownAndUnknownElsewhere) {
+    using Phyxel::Graphics::OccupancyState;
+    using Phyxel::Graphics::packedPoolOccupancyState;
+
+    const glm::ivec3 originA{0, 0, 0};
+    const glm::ivec3 originB{-32, 0, 64};   // negative origin: floor division must hold
+    VoxelOccupancyGrid a, b;
+    a.setChunkOrigin(originA);
+    b.setChunkOrigin(originB);
+    addSolidCube(a, {1, 2, 3});
+    addMicrocube(a, {5, 5, 5}, {0, 0, 0}, {0, 0, 0});   // a mixed cube: one micro solid, rest empty
+    addSubcube(b, {0, 0, 0}, {2, 2, 2});
+    const auto packed = packOccupancyPool({{originA, buildLightOccupancy(a)},
+                                           {originB, buildLightOccupancy(b)}}, kOriginBox);
+
+    // Every micro cell of the loaded cubes we touched, plus empty cubes beside them: KNOWN, and
+    // exactly the solid/empty answer packedPoolSolidAt gives.
+    auto checkKnown = [&](const glm::ivec3& origin, const glm::ivec3& lp) {
+        for (int mx = 0; mx < 9; ++mx)
+        for (int my = 0; my < 9; ++my)
+        for (int mz = 0; mz < 9; ++mz) {
+            const glm::ivec3 wm{(origin.x + lp.x) * 9 + mx, (origin.y + lp.y) * 9 + my,
+                                (origin.z + lp.z) * 9 + mz};
+            const OccupancyState s = packedPoolOccupancyState(packed, wm);
+            ASSERT_NE(s, OccupancyState::Unknown) << "loaded chunk read as unknown";
+            EXPECT_EQ(s == OccupancyState::Solid, packedPoolSolidAt(packed, wm));
+        }
+    };
+    checkKnown(originA, {1, 2, 3});    // solid cube
+    checkKnown(originA, {5, 5, 5});    // mixed cube
+    checkKnown(originA, {9, 9, 9});    // empty cube in a loaded chunk = known EMPTY
+    checkKnown(originB, {0, 0, 0});    // negative-origin chunk
+    EXPECT_EQ(packedPoolOccupancyState(packed, {9 * 9, 9 * 9, 9 * 9}), OccupancyState::Empty);
+
+    // UNKNOWN: an in-box chunk that was never uploaded, every direction outside the box, and a pool
+    // that was never packed.
+    EXPECT_EQ(packedPoolOccupancyState(packed, {100 * 9, 0, 100 * 9}), OccupancyState::Unknown);
+    EXPECT_EQ(packedPoolOccupancyState(packed, {-99999, 0, 0}), OccupancyState::Unknown);
+    EXPECT_EQ(packedPoolOccupancyState(packed, {99999, 0, 0}), OccupancyState::Unknown);
+    EXPECT_EQ(packedPoolOccupancyState(packed, {0, -99999, 0}), OccupancyState::Unknown);
+    EXPECT_EQ(packedPoolOccupancyState(packed, {0, 99999, 0}), OccupancyState::Unknown);
+    EXPECT_EQ(packedPoolOccupancyState(packed, {0, 0, 99999}), OccupancyState::Unknown);
+    EXPECT_EQ(packedPoolOccupancyState(Phyxel::Graphics::PackedOccupancyPool{}, {0, 0, 0}),
+              OccupancyState::Unknown);
+}

@@ -329,6 +329,18 @@ commit: build, unit suite, `shader_manifest --check`, and the settle bench.
     - Its C++ mirror is unit-tested like `packedPoolSolidAt`.
     - Debris with an unknown sample is **frozen and counted** (`frozen_unknown_occupancy`).
     - The lighting function is unchanged.
+    - **DONE 2026-10-05 (1c step 1):** `phxOccupancyState` + C++ mirror `packedPoolOccupancyState`
+      (`OccupancyStateIsSolidOrEmptyWhereKnownAndUnknownElsewhere`: known cells == `packedPoolSolidAt`
+      across a mixed cube and a negative origin; unknown for a non-resident in-box chunk, all six
+      out-of-box directions and an unpacked pool). The binding slots are now overridable macros
+      (`PHX_OCC_SET/BINDING_DIR/BINDING_POOL`, default 0/11/12) — needed because the debris passes
+      have their own descriptor layout (`ComputePipeline` numbers bindings 0..N−1). Every lighting
+      `.spv` rebuilt byte-identical; LightingPipeline.md §9 logged.
+  - **1c is split into small commits:** (1) tri-state query ✅ → (2) edit-first repack priority +
+    `occupancy_edit_backlog` → (3) debris passes read the pool (per-frame-slot descriptor sets in
+    `ComputePipeline`, `voxel_contact.glsl` rewritten, unknown/out-of-box frozen and counted) →
+    (4) delete the debris bitfield → (5) `VoxelOccupancyGrid` writer audit + `OccupancyCoverageTest`
+    → (6) `DebrisContactOccupancyTest` + `occupancy_diff`.
   - **(3rd check) Edits before residency.**
     - `updateLightOccupancy` repacks 24 chunks per frame in `chunkMap` order, with no priority.
       Under streaming load a just-blasted chunk can wait frames, so its debris spawns in cells

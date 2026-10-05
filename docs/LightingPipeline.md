@@ -576,6 +576,14 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 
 ## 9. Change log (append a line per lighting/shadow change; the fingerprint line is written by `tools/lighting_doc_check.py --update`)
 
+- 2026-10-05 — **`occupancy.glsl` gains `phxOccupancyState` (empty / solid / UNKNOWN) and overridable
+  binding slots** (`docs/DebrisInteractionPlan.md` 1c, step 1). GPU debris is about to read this
+  occupancy, and for debris "not solid" outside the box or in a non-resident chunk means falling
+  through the world, so it needs the third state; the lighting answer (`phxOccupancySolid` → no
+  occlusion) is untouched. `PHX_OCC_SET` / `PHX_OCC_BINDING_DIR` / `PHX_OCC_BINDING_POOL` default to
+  0 / 11 / 12 so a pipeline with its own layout can bind the same two buffers. **No receiver
+  changed: every lighting `.spv` rebuilt byte-identical.** CPU mirror `packedPoolOccupancyState`,
+  pinned by `VoxelLightOccupancy.OccupancyStateIsSolidOrEmptyWhereKnownAndUnknownElsewhere`.
 - 2026-10-04 — **CPU debris receiver deleted** (`docs/DebrisInteractionPlan.md` D2): `debris.vert/frag`,
   `DebrisRenderPipeline` and its CPU light sampler (`ambient + sun × 0.5 × sky²` from the per-cell
   bake) are gone with the CPU `DebrisSystem`. Its only producer was the no-GPU derez fallback,
@@ -646,7 +654,7 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 - 2026-08-15 — single tone map moved to `post_process.frag` (grade pass).
 - 2026-08-06 — near shadow cascade (40 u) shipped; receivers min-compose.
 
-<!-- lighting-model-fingerprint: eaff9892e6dc62d4 -->
+<!-- lighting-model-fingerprint: 5e1afeba61b203ad -->
 
 ## Related
 
