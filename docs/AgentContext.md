@@ -96,22 +96,21 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
 ## Engine ground truth (supersedes older docs/comments)
 
 - **Physics is HYBRID, and Bullet is removed** (the `external/bullet3` submodule was dropped
-  entirely; `stb_image`/`stb_truetype` are now vendored at `external/stb`;
-  `getActiveBulletCount()` is hardcoded 0). Two live in-house backends:
+  entirely; `stb_image`/`stb_truetype` are now vendored at `external/stb`). Two live
+  in-house backends:
   - **`GpuParticlePhysics`** (Vulkan compute, warm-started) — the stable,
     count-scalable path; **destruction (`DamageSystem`) always routes here** via
     `queueSpawn`. Any doc/comment calling GPU/AVBD "broken/experimental" is STALE.
-    - **TWO pipelines exist; only ONE is live.** The default is the **AVBD constraint
-      solver** (`solver_*.comp`), selected by `m_useNewPipeline` — hardcoded `true`,
-      never toggled off. The older **XPBD pipeline** (`particle_integrate.comp` /
-      `particle_collide.comp`, the `m_integratePass`/`m_collidePass` dispatch in the
-      legacy branch of `recordComputeCommands`) is **dead code** kept for reference.
-      `particle_expand.comp` and the grid-sort passes are **shared** (NOT legacy).
-      **All particle physics changes go in the `solver_*.comp` shaders.** Trap that
-      already bit once: the character-vs-debris push lived only in the legacy
-      `particle_collide.comp`, so the player passed straight through GPU debris until
-      it was ported to `solver_integrate.comp`. Character collision now works in the
-      live solver (debris inherits character velocity on AABB overlap).
+    - **ONE pipeline: the AVBD constraint solver** (`solver_*.comp` + `voxel_contact.glsl`).
+      The legacy XPBD pipeline (`particle_integrate/collide/sort_scan.comp`) and the
+      orphaned `solver_jacobi/graph_color/apply.comp` were DELETED 2026-10-04
+      (`docs/DebrisInteractionPlan.md` Phase 0). `particle_expand.comp` and the grid-sort
+      passes feed the solver. Any change here must pass `tools/debris_settle_bench.py`
+      on DebrisLab. The character shove lives in `solver_integrate.comp` (a push, not a
+      contact — replaced by kinematic contacts in Plan Phase 2).
+    - **All debris is GPU debris** (the CPU `DebrisSystem` was deleted in Phase 0 D2). A
+      missing GPU solver is LOUD: one ERROR, `gpu_physics` echoes `disabled_reason`,
+      refused pieces are counted (`tools/gpu_debris_disabled_check.py`).
   - **`VoxelDynamicsWorld`** (custom CPU sequential-impulse rigid-body world) — furniture,
     the **static-terrain occupancy grids characters ground against**, and the **left-click
     break-debris path** (`breakCube` → `addGlobalDynamicCube` → `DynamicObjectManager`).

@@ -141,8 +141,8 @@ Each object's world transform is passed as a push constant (`mat4`, 64 bytes). T
 
 Executed **before** the render pass each frame, in command buffer order:
 
-1. **`particle_integrate.comp`** — XPBD position integration with gravity, angular velocity, sleep detection. Reads/writes `ParticleBuffer`.
-2. **`particle_collide.comp`** — Voxel occupancy-grid collision (512×256×512 bitfield) and character AABB collision. Floor/ceiling/wall bounce with restitution and friction. Wakes sleeping particles on character overlap. Reads/writes `ParticleBuffer`, reads `OccupancyBuffer` and `CharacterBuffer`.
+1. **Grid sort** (`particle_grid_build`, `particle_scan_block`, `particle_sort_scatter`) — bins active bodies for the narrowphase.
+2. **AVBD solver ticks** (`solver_*.comp`, voxel contacts from `voxel_contact.glsl`) — the live per-tick pass order is in [DynamicVoxelPhysics.md](DynamicVoxelPhysics.md) "Per-tick pipeline (live)". (The XPBD `particle_integrate/collide.comp` pipeline was deleted 2026-10-04.)
 3. **`particle_expand.comp`** — Generates 6 face instances per active particle into the face buffer. Writes `FaceBuffer` and atomically increments `IndirectCmd.instanceCount`.
 
 Memory barriers separate each stage to ensure writes complete before reads.
@@ -281,7 +281,7 @@ Dynamic voxels / debris (the GPU-particle + CPU `renderDynamicSubcubes` paths, t
 
 5. **SSBO buffer usage flags**: Any buffer bound as an SSBO in a compute shader **must** have `STORAGE_BUFFER_BIT`. Using `createPersistentStagingBuffer` (TRANSFER_SRC only) produces silent failures — the shader reads zeros, no Vulkan validation error is raised.
 
-6. **Sleeping particles skip collision**: The sleep early-return in `particle_collide.comp` skips ALL collision checks. Any new collision source (e.g. NPC AABBs, projectiles) must check before the sleep gate or wake particles in a pre-check, as the character AABB does.
+6. **Sleeping bodies are static to the solver**: `solver_sync_in` gives a sleeping body invMass 0, so it takes the static path in `solver_integrate.comp`. Any new collision source (NPC AABBs, projectiles) must request a wake (the WAKE_BITS in the solver state buffer, as the character does) or it will pass straight through sleepers.
 
 7. **Kinematic duplicate colliders (STALE — historical):** this described a Bullet-era hazard (a `KinematicVoxelObject` collider double-registered against an owning system's `btRigidBody`). Bullet has since been removed and `KinematicVoxelManager` no longer creates any collider at all (`skipCollider` is now a no-op parameter kept for API compatibility) — the hazard as described no longer applies; kept here as a historical note only.
 

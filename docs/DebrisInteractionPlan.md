@@ -1,6 +1,7 @@
 # Debris Interaction Plan — everything that moves can push GPU debris
 
-**Status:** PLAN (rev 4.1, 2026-10-04). Phase 0 in progress (D4 first).
+**Status:** rev 4.2, 2026-10-04. **Phase 0 DONE** (pushed to main `ed924498`; results under
+Phase 0 below). **Phase 1 in progress (1a first).**
 - Rev 2 rewrote the phases after a four-way code inventory (§Inventory).
 - Rev 3 (user direction) puts simplification first: delete the old systems before new work.
 - **Rev 4 folds in the second design check:**
@@ -226,6 +227,20 @@ commit: build, unit suite, `shader_manifest --check`, and the settle bench.
 5. **Live (L4):** X-key derez, spell blast and `apply_damage` debris unchanged, watched by the
    user.
 
+**Phase 0 RESULT (2026-10-04, all five criteria met; main `ed924498`).**
+- Commits: plan, D4, D5, D3, D2, D6, the ghost-body fix, `gpu_init_failure_is_loud`.
+- (1) zero live references (only "deleted" comments and historical docs); (2) full unit suite
+  4140 run / 4115 pass / 20 skipped / 5 fail — all 5 pre-existing (AtlasManager, FineFaceMerge,
+  3× GpuTimingHistory), `WaterOccupancyTest.StoredSpans…` still hangs (unrelated); manifest OK;
+  (3) bench in band after every commit (drop_pile 6–17 forced, blast 0–3); (4) above; (5) user
+  watched derez / fireball / `apply_damage` live.
+- **Found while verifying (fixed):** every CPU dynamic-object drop path except "isDead" leaked
+  its `VoxelRigidBody` (invisible colliders, incl. every scene transition) —
+  `DynamicObjectBodyReleaseTest`; the no-GPU derez fallback crashed the engine.
+- **Found, NOT fixed (open):** `MAX_DYNAMIC_OBJECTS` is an unenforced render budget (→ 1d);
+  derez GPU debris renders pink/magenta (→ 1d texture parity); spells cannot hit or push debris
+  (→ Phase 4, see the user report there).
+
 ## Phase 1 — Foundations
 
 **1a. Shader build safety.**
@@ -388,6 +403,17 @@ from NPC AI.
   Overflow is **counted and logged once**.
 
 ## Phase 4 — Impulses (both worlds)
+
+**User report (2026-10-04, live): "I cast a spell at broken dynamic voxels and it didn't hit
+them."** Pre-existing, not a Phase 0 regression. Two separate gaps, both confirmed in code:
+- **Aiming:** `Application::castSpellAtHover` targets the hovered STATIC voxel; the hover ray
+  only sees chunk voxels, so debris cannot be targeted — the bolt flies past to the ground.
+- **Blast:** on impact `DamageSystem::applyDamage` breaks static voxels and spawns NEW debris;
+  nothing pushes EXISTING debris (`GpuParticlePhysics` had no impulse API at all).
+The radial impulse below fixes the blast half (aim at the ground beside a pile). Making a bolt
+STOP on a debris piece mid-flight needs debris positions on the CPU — a small readback
+(Phase 6) or a GPU-side projectile query; decide when Phase 4 starts. **Acceptance for Phase 4
+includes this user scenario live:** spell at a settled pile → pieces in the radius move.
 
 - **API:** `applyRadialImpulse(center, radius, impulse, upBias)` and
   `applyConeImpulse(origin, dir, halfAngle, range, impulse)`.

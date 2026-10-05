@@ -338,7 +338,7 @@
     },
     "vfx.vert": {
       "built": true,
-      "sources": "78f87573d8ab9cad061a238a3c226eea0d646b02715e2033743cdf741fa1dd2c",
+      "sources": "4529b59a9ac5d8c86ea82cb5b99e7201df65b304fd2ae8d51dead6d8e1aa514a",
       "spv_present": true
     },
     "voxel.frag": {

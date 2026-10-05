@@ -388,8 +388,7 @@ python tools/perf_stress_test.py --mode all
 | `engine/src/scene/VoxelManipulationSystem.cpp` | Hybrid routing (break → VoxelDynamicsWorld or GPU) |
 | `editor/src/Application.cpp` | Debug spawn handlers, timing API handlers |
 | `engine/src/core/EngineAPIServer.cpp` | HTTP route registration for debug endpoints |
-| `shaders/particle_integrate.comp` | XPBD integration compute shader |
-| `shaders/particle_collide.comp` | Collision detection compute shader |
+| `shaders/solver_*.comp`, `shaders/voxel_contact.glsl` | The AVBD solver passes and the shared voxel-contact model |
 | `shaders/particle_expand.comp` | Face instance generation compute shader |
 | `shaders/particle_types.glsl` | Shared particle struct definition |
 | `tools/perf_stress_test.py` | Automated performance stress tester |
