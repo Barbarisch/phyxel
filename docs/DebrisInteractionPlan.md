@@ -1,7 +1,13 @@
 # Debris Interaction Plan — everything that moves can push GPU debris
 
-**Status:** rev 4.2, 2026-10-04. **Phase 0 DONE** (pushed to main `ed924498`; results under
-Phase 0 below). **Phase 1 in progress: 1a + 1b DONE, 1c (one occupancy) next.**
+**Status:** rev 4.3, 2026-10-05. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
+**Phase 1 in progress** (pushed to main through 1c step 4):
+- 1a build safety ✅ · 1b `shaders/solver_shared.h` ✅
+- 1c one occupancy: steps 1–4 ✅ (tri-state query, edit-first repack, debris reads the shared
+  pool, old bitfield deleted) · **step 5 writer audit — NEXT** · step 6 `occupancy_diff`
+- **Open before 1c is called done:** the blast hard-contact shift (88.1 → 118.8 mm) and the
+  bench's session-state dependence — both under 1c below.
+- 1d–1f not started. Phases 2–6 not started (Phase 4 holds the user's "spells don't hit debris").
 - Rev 2 rewrote the phases after a four-way code inventory (§Inventory).
 - Rev 3 (user direction) puts simplification first: delete the old systems before new work.
 - **Rev 4 folds in the second design check:**
