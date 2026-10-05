@@ -174,8 +174,14 @@ answers `enabled:false`, `disabled_reason`, `refused_spawns`; `/api/damage/apply
   pipeline below (`recordComputeCommandsNew`).
 - **Rendering**: the compute expand pass writes face instances directly; they are drawn via
   `vkCmdDrawIndirect`.
-- **Collision world**: a 512×256×512 occupancy bitfield of static voxels, updated by
-  `ChunkManager` on every place/break/stream.
+- **Collision world (since 2026-10-05, DebrisInteractionPlan 1c):** the SAME micro-resolution
+  occupancy CPU physics and lighting use — `VoxelLightOccupancy`'s packed pool (`occupancy.glsl`),
+  sourced from each chunk's `VoxelOccupancyGrid` and recentred on the viewer (1024×512×1024 box).
+  Debris rests on 1/3 slabs and 2-micro fences at their true height (`tools/debris_subvoxel_rest_check.py`).
+  A body whose contact samples need occupancy the pool does not have (outside the box, chunk not
+  resident) is **held** for that tick and counted (`frozen_unknown`; the settle analyzer's
+  `held_unknown_occupancy` check). The old 512×256×512 cube bitfield is still uploaded but no
+  longer read by any shader; it is deleted in 1c step 4.
 
 The legacy XPBD pipeline (`particle_integrate/collide/sort_scan.comp`, height-map collision,
 gravity −18) and the orphaned `solver_jacobi/apply/graph_color.comp` shaders were **deleted
@@ -228,7 +234,7 @@ gravity −18) and the orphaned `solver_jacobi/apply/graph_color.comp` shaders w
 | Fixed timestep | 16.667 ms (60 Hz), at most 4 ticks per frame |
 | Default lifetime | 30 s (debris from `DamageSystem`: 25 s) |
 | Friction | Coulomb μ = the material's `friction` (Stone 0.8, Ice 0.1) |
-| Occupancy grid | 512×256×512 bits (8 MB), world x/z ±256, y −64..191 |
+| Static collision | the shared micro occupancy pool (1c): 1024×512×1024 box following the viewer; the 512×256×512 bitfield is unread, deleted in 1c step 4 |
 
 ### Runtime switches (A/B only; defaults are the shipped behaviour)
 

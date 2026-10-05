@@ -203,7 +203,8 @@ nlohmann::json DebrisSettleAnalyzer::series(uint32_t lastN) const {
             {"constraints", s.solver.constraintsEmitted},
             {"hardcontact", s.solver.hardContactFires},
             {"hardcontact_max_depth", s.solver.hardContactMaxDepth},
-            {"wake_requests", s.solver.wakeRequests}});
+            {"wake_requests", s.solver.wakeRequests},
+            {"frozen_unknown", s.solver.frozenUnknown}});
     }
     return rows;
 }
@@ -277,6 +278,7 @@ nlohmann::json DebrisSettleAnalyzer::summary() const {
     uint32_t hcAfter = 0, maxSkipped = 0, maxJacobi = 0, maxHcDepthTick = 0;
     float maxHcDepth = 0.0f;
     uint32_t maxConstraints = 0, droppedTicks = 0;
+    uint64_t frozenUnknownTotal = 0;   // body-ticks held for unknown occupancy (1c)
     // The judged window starts once the IMPACT phase is over (docs/DebrisSettlingPlan.md §3:
     // "t > t0 + ..."): 0.5 s after the last tick where anything still moved faster than
     // impactSpeed (a collapsing tower or blast debris is still legitimately falling), and
@@ -291,6 +293,7 @@ nlohmann::json DebrisSettleAnalyzer::summary() const {
             rebSeriesAfter += s.rebounds; kicksAfter += s.kicks;
             injAfter += s.injected; hcAfter += s.solver.hardContactFires;
         }
+        frozenUnknownTotal += s.solver.frozenUnknown;
         maxSkipped = std::max(maxSkipped, s.colorSkipped);
         maxJacobi  = std::max(maxJacobi, s.uncoloredJacobi);
         if (s.solver.hardContactMaxDepth > maxHcDepth) {
@@ -367,6 +370,10 @@ nlohmann::json DebrisSettleAnalyzer::summary() const {
         {"constraints_dropped_ticks", {{"value", droppedTicks}, {"limit", 0}, {"pass", droppedTicks == 0}}},
         {"hardcontact_after_window", {{"value", hcAfter}, {"limit", 0}, {"pass", hcAfter == 0}}},
         {"tunnelled_through_floor", {{"value", maxBelow}, {"limit", 0}, {"pass", maxBelow == 0}}},
+        // A body held because its contacts needed occupancy the shared pool does not have
+        // (outside the box / chunk not resident). In a resident test world this must never fire.
+        {"held_unknown_occupancy", {{"value", frozenUnknownTotal}, {"limit", 0},
+                                    {"pass", frozenUnknownTotal == 0}}},
     };
     bool allPass = true;
     for (auto& [k, v] : checks.items()) allPass = allPass && v["pass"].get<bool>();
@@ -383,7 +390,7 @@ bool DebrisSettleAnalyzer::writeCsv(const std::string& path) const {
     if (!f) return false;
     f << "tick,t,active,awake,asleep,energy,kinetic,injected,cum_injected,max_speed,p95_speed,"
          "churning,rebounds,kicks,launches,slept_clean,slept_forced,woke,color_skipped,"
-         "constraints,hardcontact,hardcontact_max_depth,wake_requests,below_floor,min_y\n";
+         "constraints,hardcontact,hardcontact_max_depth,wake_requests,frozen_unknown,below_floor,min_y\n";
     for (const auto& s : m_ticks) {
         f << s.tick << ',' << s.t << ',' << s.active << ',' << s.awake << ',' << s.asleep << ','
           << s.energy << ',' << s.kinetic << ',' << s.injected << ',' << s.cumInjected << ','
@@ -391,7 +398,8 @@ bool DebrisSettleAnalyzer::writeCsv(const std::string& path) const {
           << s.kicks << ',' << s.launches << ',' << s.sleptClean << ',' << s.sleptForced << ','
           << s.woke << ',' << s.colorSkipped << ',' << s.solver.constraintsEmitted << ','
           << s.solver.hardContactFires << ',' << s.solver.hardContactMaxDepth << ','
-          << s.solver.wakeRequests << ',' << s.belowFloor << ',' << s.minY << '\n';
+          << s.solver.wakeRequests << ',' << s.solver.frozenUnknown << ','
+          << s.belowFloor << ',' << s.minY << '\n';
     }
     return true;
 }

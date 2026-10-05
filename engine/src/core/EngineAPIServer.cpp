@@ -1955,21 +1955,16 @@ void EngineAPIServer::setupRoutes() {
 
     // ====================================================================
     // POST /api/debug/particle_log — Start/stop GPU particle position logging
-    // Body: { "action": "start" } or { "action": "stop" }
+    // Body: { "action": "start" } or { "action": "stop" } or { "action": "status" }
     //   Optional for start: { "action": "start", "file": "particle_positions.csv" }
+    // QUEUED to the main thread. It used to run on this HTTP thread, opening/closing the same
+    // std::ofstream the main thread writes every frame: a stop/start mid-write hung this request
+    // and, on the next debris spawn, the main thread with it (2026-10-05).
     // ====================================================================
     srv.Post("/api/debug/particle_log", [this](const httplib::Request& req, httplib::Response& res) {
-        if (!m_particleLogHandler) {
-            json err = {{"error", "Particle log handler not configured"}};
-            res.status = 503;
-            res.set_content(err.dump(), "application/json");
-            return;
-        }
         try {
             json params = json::parse(req.body);
-            std::string action = params.value("action", "");
-            std::string filePath = params.value("file", "particle_positions.csv");
-            json result = m_particleLogHandler(action, filePath);
+            json result = queueAndWait("particle_log", params);
             res.set_content(result.dump(), "application/json");
         } catch (const json::exception& e) {
             json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};

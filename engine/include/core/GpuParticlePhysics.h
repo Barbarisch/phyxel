@@ -104,6 +104,20 @@ public:
      */
     void recordComputeCommands(VkCommandBuffer cmd, uint32_t frameIndex, GpuProfiler* profiler = nullptr);
 
+    // ---- The static world: the SHARED micro occupancy (DebrisInteractionPlan 1c) ----
+    // Debris collides against the same packed pool CPU physics and lighting use
+    // (VoxelLightOccupancyGpu), not a private bitfield. The pool has one buffer pair per frame
+    // in flight, so the contact passes keep one descriptor set per slot and bind the slot of
+    // the frame being recorded (the CPU rewrites the OTHER slot meanwhile).
+    static constexpr uint32_t OCC_FRAME_SLOTS = 2;   // == VoxelLightOccupancyGpu::kSlots
+    /// Once, before the first frame is recorded (descriptor sets must not change in flight).
+    void setStaticOccupancyBuffers(const VkBuffer dir[OCC_FRAME_SLOTS], VkDeviceSize dirBytes,
+                                   const VkBuffer pool[OCC_FRAME_SLOTS], VkDeviceSize poolBytes);
+    /// Every frame, before recordComputeCommands: the box the slot's pack was built with, and
+    /// whether the pool is readable. Not ready = every sample UNKNOWN = every body held (counted).
+    void setStaticOccupancyBox(const glm::ivec3& boxMinChunk, bool ready);
+    bool staticOccupancyWired() const { return m_staticOccWired; }
+
     // ---- 3D occupancy grid interface (called by ChunkManager) ----
 
     /** Set a single voxel's occupancy bit in the GPU grid. Host-coherent — auto-visible to GPU. */
@@ -461,6 +475,10 @@ private:
     uint64_t             m_totalTicks      = 0;
     uint32_t             m_solverFlags     = SOLVER_FLAGS_DEFAULT;
     float                m_coldPenaltyScale = 1.0f;
+    // Shared static occupancy (1c): pushed to solver_voxel / solver_hardcontact as `occBox`.
+    DebrisShared::ivec4  m_occBox{0, 0, 0, 0};   // xyz = box min chunk, w bit0 = readable
+    uint32_t             m_frameSlot = 0;         // frame slot being recorded (descriptor set)
+    bool                 m_staticOccWired = false;
     uint32_t             m_probeGeneration = 0;
     uint32_t             m_probeFrame      = 0;   // frame-in-flight slot being recorded
     Core::DebrisSettleAnalyzer m_settle;

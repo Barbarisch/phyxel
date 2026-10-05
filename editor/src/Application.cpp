@@ -1159,22 +1159,6 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         };
     });
 
-    apiServer->setParticleLogHandler([this](const std::string& action, const std::string& filePath) -> nlohmann::json {
-        if (!gpuParticlePhysics || !gpuParticlePhysics->isInitialized()) {
-            return nlohmann::json{{"error", "GpuParticlePhysics not available"}};
-        }
-        if (action == "start") {
-            bool ok = gpuParticlePhysics->startPositionLog(filePath);
-            return nlohmann::json{{"success", ok}, {"action", "start"}, {"file", filePath}};
-        } else if (action == "stop") {
-            gpuParticlePhysics->stopPositionLog();
-            return nlohmann::json{{"success", true}, {"action", "stop"}};
-        } else if (action == "status") {
-            return nlohmann::json{{"logging", gpuParticlePhysics->isPositionLogging()}};
-        }
-        return nlohmann::json{{"error", "Unknown action. Use 'start', 'stop', or 'status'."}};
-    });
-
     // Engine-wide frame timing: FPS, cpu/gpu times, draw calls, active counts
     apiServer->setEngineTimingHandler([this]() -> nlohmann::json {
         auto ft = performanceMonitor->getCurrentFrameTiming();
@@ -7981,6 +7965,27 @@ static bool handleDebugDynamicSpawnCommand(
                 }
         response = {{"success", true}, {"spawned", spawned}, {"pitch", pitch},
                     {"extent", {{"x", nx * pitch}, {"y", ny * pitch}, {"z", nz * pitch}}}};
+        return true;
+    }
+    // Position log, on the MAIN thread: the main thread writes the stream every frame, so
+    // opening/closing it anywhere else races that write (it hung the engine, 2026-10-05).
+    if (cmd.action == "particle_log") {
+        if (!gpuParticles || !gpuParticles->isInitialized()) {
+            response = {{"error", "GpuParticlePhysics not available"}};
+            return true;
+        }
+        const std::string action = cmd.params.value("action", "");
+        const std::string file   = cmd.params.value("file", "particle_positions.csv");
+        if (action == "start") {
+            response = {{"success", gpuParticles->startPositionLog(file)}, {"action", "start"}, {"file", file}};
+        } else if (action == "stop") {
+            gpuParticles->stopPositionLog();
+            response = {{"success", true}, {"action", "stop"}};
+        } else if (action == "status") {
+            response = {{"logging", gpuParticles->isPositionLogging()}};
+        } else {
+            response = {{"error", "Unknown action. Use 'start', 'stop', or 'status'."}};
+        }
         return true;
     }
     if (cmd.action == "gpu_physics") {

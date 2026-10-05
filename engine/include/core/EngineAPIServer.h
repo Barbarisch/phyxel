@@ -274,8 +274,6 @@ public:
     void setParticleTimingHandler(ParticleTimingHandler handler) { m_particleTimingHandler = std::move(handler); }
 
     /// Handler to start/stop GPU particle position logging. Takes action string ("start"/"stop") and optional file path.
-    using ParticleLogHandler = std::function<json(const std::string& action, const std::string& filePath)>;
-    void setParticleLogHandler(ParticleLogHandler handler) { m_particleLogHandler = std::move(handler); }
 
     /// Handler that returns engine-wide frame timing (FPS, cpu/gpu times, draw calls, active counts).
     using EngineTimingHandler = std::function<json()>;
@@ -365,7 +363,6 @@ private:
     DetailedRegionScanHandler m_detailedRegionScanHandler;
     StepDebugLogHandler m_stepDebugLogHandler;
     ParticleTimingHandler m_particleTimingHandler;
-    ParticleLogHandler m_particleLogHandler;
     EngineTimingHandler m_engineTimingHandler;
     DynamicStatsHandler m_dynamicStatsHandler;
     RpgHandler          m_rpgHandler;

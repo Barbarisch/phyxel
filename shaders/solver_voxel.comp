@@ -1,5 +1,8 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
+// The shared micro occupancy (occupancy.glsl) on THIS pass's bindings (DebrisInteractionPlan 1c).
+#define PHX_OCC_BINDING_DIR  3
+#define PHX_OCC_BINDING_POOL 5
 #include "particle_types.glsl"
 #include "solver_types.glsl"
 
@@ -12,7 +15,6 @@ layout(local_size_x = WORKGROUP_SOLVER) in;
 layout(std430, set=0, binding=0) buffer SolverBodyBuffer  { SolverBody bodies[]; };
 layout(std430, set=0, binding=1) buffer ConstraintBuffer  { GPUConstraint constraints[]; };
 layout(std430, set=0, binding=2) buffer SolverStateBuffer { uint solverState[]; };
-layout(std430, set=0, binding=3) readonly buffer OccupancyBuffer { uint occupancy[]; };
 layout(std430, set=0, binding=4) readonly buffer WarmstartBuffer { WarmstartEntry warmstarts[]; };
 
 layout(push_constant) uniform PC { PHX_PC_CONTACTS } pc;  // shaders/solver_shared.h
@@ -46,15 +48,34 @@ void main() {
     bool  cUsed[VOXEL_SAMPLES];
     int   nCand = 0;
     int   sampleOf[VOXEL_SAMPLES];
+    bool  anyUnknown = false;
 
     for (int k = 0; k < VOXEL_SAMPLES; ++k) {
         vec3 local = voxelSampleLocal(k) * h;
         vec3 rW    = quatRotate(quat, local);
-        vec3 n; float pen; int dir;
-        if (!voxelPointContact(pos + rW, margin, n, pen, dir)) continue;
+        vec3 n; float pen; int dir; bool unknown;
+        if (!voxelPointContact(pos + rW, margin, n, pen, dir, unknown)) {
+            if (unknown) { anyUnknown = true; break; }
+            continue;
+        }
         cPen[nCand] = pen; cN[nCand] = n; cR[nCand] = rW; cDir[nCand] = dir;
         cUsed[nCand] = false; sampleOf[nCand] = k;
         ++nCand;
+    }
+    // HOLD, do not guess: a sample needed occupancy the shared pool does not have (outside its
+    // box, chunk not resident, or the pool not ready). Letting the body integrate would drop it
+    // through a world we know nothing about. Pin it to its tick-start pose and make it static
+    // for this tick; sync_in recomputes invMass next tick, so it moves again the moment the
+    // chunk is known. Counted, so a held pile is a number, not a mystery.
+    if (anyUnknown) {
+        bodies[i].pos     = bA.initial;
+        bodies[i].quat    = bA.initialQuat;
+        bodies[i].vel     = vec3(0.0);
+        bodies[i].angVel  = vec3(0.0);
+        bodies[i].invMass    = 0.0;
+        bodies[i].invInertia = 0.0;
+        atomicAdd(solverState[SS_FROZEN_UNKNOWN], 1u);
+        return;
     }
     if (nCand == 0) return;
 

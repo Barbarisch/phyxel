@@ -640,13 +640,18 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     m_solverNarrowphasePass.bindBuffer(6, m_warmstartBuffer,     warmstartSize);
     m_solverNarrowphasePass.updateDescriptors();
 
-    // solver_voxel: bodies, constraints, state, occupancy, warmstarts
-    if (!m_solverVoxelPass.create(m_device, shader("solver_voxel.comp.spv"), 5, sizeof(ContactsPC))) return false;
+    // solver_voxel: bodies, constraints, state, occupancy DIRECTORY, warmstarts, occupancy POOL.
+    // One descriptor set per frame slot: 3 and 5 are the shared micro occupancy (1c), bound per
+    // slot by setStaticOccupancyBuffers. Until then they hold a placeholder the shader never
+    // reads (occBox.w == 0 makes every lookup UNKNOWN before touching a buffer).
+    if (!m_solverVoxelPass.create(m_device, shader("solver_voxel.comp.spv"), 6, sizeof(ContactsPC),
+                                  OCC_FRAME_SLOTS)) return false;
     m_solverVoxelPass.bindBuffer(0, m_solverBodyBuffer,  bodySize);
     m_solverVoxelPass.bindBuffer(1, m_constraintBuffer,  constrSize);
     m_solverVoxelPass.bindBuffer(2, m_solverStateBuffer, stateSize);
-    m_solverVoxelPass.bindBuffer(3, m_occupancyBuffer,   occSize);
+    m_solverVoxelPass.bindBuffer(3, m_solverBodyBuffer,  bodySize);    // placeholder: occupancy dir
     m_solverVoxelPass.bindBuffer(4, m_warmstartBuffer,   warmstartSize);
+    m_solverVoxelPass.bindBuffer(5, m_solverBodyBuffer,  bodySize);    // placeholder: occupancy pool
     m_solverVoxelPass.updateDescriptors();
 
     // solver_dual: bodies(ro), constraints(rw), state(ro)
@@ -683,10 +688,12 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     // solver_hardcontact: bodies(rw), occupancy(ro)
     // Final positional safety pass — projects dynamic bodies out of static
     // voxel terrain in case AVBD couldn't fully resolve under heavy stacking.
-    if (!m_solverHardContactPass.create(m_device, shader("solver_hardcontact.comp.spv"), 3, sizeof(HardContactPC))) return false;
+    if (!m_solverHardContactPass.create(m_device, shader("solver_hardcontact.comp.spv"), 4,
+                                        sizeof(HardContactPC), OCC_FRAME_SLOTS)) return false;
     m_solverHardContactPass.bindBuffer(0, m_solverBodyBuffer, bodySize);
-    m_solverHardContactPass.bindBuffer(1, m_occupancyBuffer,  occSize);
+    m_solverHardContactPass.bindBuffer(1, m_solverBodyBuffer, bodySize);   // placeholder: occupancy dir
     m_solverHardContactPass.bindBuffer(2, m_solverStateBuffer, stateSize); // settle-probe counters
+    m_solverHardContactPass.bindBuffer(3, m_solverBodyBuffer, bodySize);   // placeholder: occupancy pool
     m_solverHardContactPass.updateDescriptors();
 
     // solver_csr_clear: bodyConstraintCount(rw), bodyColor(rw)
@@ -863,7 +870,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     // ---- 4a. Narrowphase: dynamic-dynamic contacts → constraints ----
     {
         endP(); beginP("NarrowVoxel");
-        ContactsPC pc{ count, MAX_CONSTRAINTS, m_solverFlags, m_coldPenaltyScale };
+        ContactsPC pc{ count, MAX_CONSTRAINTS, m_solverFlags, m_coldPenaltyScale, m_occBox };
         m_solverNarrowphasePass.bind(cmd);
         m_solverNarrowphasePass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverNarrowphasePass.dispatch(cmd, groups);
@@ -873,8 +880,8 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     // ---- 4b. Voxel contacts → constraints (appended) ----
     {
-        ContactsPC pc{ count, MAX_CONSTRAINTS, m_solverFlags, m_coldPenaltyScale };
-        m_solverVoxelPass.bind(cmd);
+        ContactsPC pc{ count, MAX_CONSTRAINTS, m_solverFlags, m_coldPenaltyScale, m_occBox };
+        m_solverVoxelPass.bind(cmd, m_frameSlot);
         m_solverVoxelPass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverVoxelPass.dispatch(cmd, groups);
     }
@@ -996,8 +1003,8 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     // (docs/DebrisSettlingPlan.md §R defect 5: it used to turn its push into launch velocity).
     {
         endP(); beginP("Finalize");
-        HardContactPC pc{ count, m_solverFlags, 0.0f, 0.0f };
-        m_solverHardContactPass.bind(cmd);
+        HardContactPC pc{ count, m_solverFlags, 0.0f, 0.0f, m_occBox };
+        m_solverHardContactPass.bind(cmd, m_frameSlot);
         m_solverHardContactPass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverHardContactPass.dispatch(cmd, groups);
     }
@@ -1033,11 +1040,6 @@ void GpuParticlePhysics::queueSpawn(const SpawnParams& p) {
     if (m_freeSlots.empty()) {
         LOG_WARN("GpuParticlePhysics", "Particle pool full, spawn ignored");
         return;
-    }
-
-    // Auto-start position logging on first particle spawn
-    if (!m_positionLogging && m_activeCount == 0) {
-        startPositionLog("particle_positions.csv");
     }
 
     uint32_t slot = m_freeSlots.back();
@@ -1190,6 +1192,29 @@ void GpuParticlePhysics::update(float dt) {
 // Compute command recording
 // ============================================================
 
+void GpuParticlePhysics::setStaticOccupancyBuffers(const VkBuffer dir[OCC_FRAME_SLOTS], VkDeviceSize dirBytes,
+                                                   const VkBuffer pool[OCC_FRAME_SLOTS], VkDeviceSize poolBytes) {
+    if (!m_initialized) return;
+    for (uint32_t s = 0; s < OCC_FRAME_SLOTS; ++s) {
+        if (dir[s] == VK_NULL_HANDLE || pool[s] == VK_NULL_HANDLE) {
+            LOG_ERROR("GpuParticlePhysics", "shared occupancy slot has no buffer: debris will be HELD (frozen_unknown)");
+            return;
+        }
+        m_solverVoxelPass.bindBufferInSet(s, 3, dir[s], dirBytes);
+        m_solverVoxelPass.bindBufferInSet(s, 5, pool[s], poolBytes);
+        m_solverHardContactPass.bindBufferInSet(s, 1, dir[s], dirBytes);
+        m_solverHardContactPass.bindBufferInSet(s, 3, pool[s], poolBytes);
+    }
+    m_solverVoxelPass.updateDescriptors();
+    m_solverHardContactPass.updateDescriptors();
+    m_staticOccWired = true;
+    LOG_INFO("GpuParticlePhysics", "debris collides against the shared micro occupancy pool");
+}
+
+void GpuParticlePhysics::setStaticOccupancyBox(const glm::ivec3& boxMinChunk, bool ready) {
+    m_occBox = { boxMinChunk.x, boxMinChunk.y, boxMinChunk.z, (ready && m_staticOccWired) ? 1 : 0 };
+}
+
 void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t frameIndex, GpuProfiler* profiler) {
     // Settle probe: this frame slot's fence has retired (we are recording into its command
     // buffer), so the ticks copied into its ring slot PROBE_FRAMES frames ago are readable.
@@ -1198,6 +1223,8 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
         m_probeFrame = frameIndex % PROBE_FRAMES;
         consumeProbeSlot(m_probeFrame);
     }
+    // The shared occupancy's slot for this frame (uploaded after this slot's fence, before now).
+    m_frameSlot = frameIndex % OCC_FRAME_SLOTS;
 
     // Enter if anything is alive, spawning, or being retired this frame. The
     // deactivation check is required: when the last particles die, activeCount
@@ -1598,6 +1625,7 @@ void GpuParticlePhysics::consumeProbeSlot(uint32_t slot) {
         c.hardContactFires    = hdr[DebrisShared::SS_HARDCONTACT_FIRES];
         c.hardContactMaxDepth = static_cast<float>(hdr[DebrisShared::SS_HARDCONTACT_DEPTH_UM]) * 1.0e-6f;
         c.wakeRequests        = hdr[DebrisShared::SS_WAKE_REQUESTS];
+        c.frozenUnknown       = hdr[DebrisShared::SS_FROZEN_UNKNOWN];
         c.maxColors           = MAX_COLORS;
         c.uncoloredSolved     = true;   // recordComputeCommandsNew's final UNCOLORED sweep
         m_settle.addTick(samples, c);

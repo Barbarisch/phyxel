@@ -336,8 +336,36 @@ commit: build, unit suite, `shader_manifest --check`, and the settle bench.
       (`PHX_OCC_SET/BINDING_DIR/BINDING_POOL`, default 0/11/12) — needed because the debris passes
       have their own descriptor layout (`ComputePipeline` numbers bindings 0..N−1). Every lighting
       `.spv` rebuilt byte-identical; LightingPipeline.md §9 logged.
+  - **DONE 2026-10-05 (1c step 3): debris reads the shared pool.**
+    - `voxel_contact.glsl` rewritten on `phxOccupancyState`/`phxCubeOccupancy`/`phxOccupancySolid`;
+      CPU mirror `engine/include/core/DebrisContact.h`, `DebrisContactTest` (10 cases: full-cube
+      floor, 1/3 slab, 2-micro fence, real gap, deep sub-voxel, cube fallback, unknown, negative
+      origin, **bit-exact equality with the old cube search on random full-cube worlds**, and a
+      control proving the old bitfield gets the sub-voxel cases wrong — sideways out of the slab).
+    - **Design fix found while writing expected values:** a radius-1 micro search cannot see out
+      of a body sunk 1.8 micro into a slab and fell back to a SIDEWAYS cube escape. Inside solid,
+      each of the 26 directions now walks up to 4 micro cells (`kMicroEscapeSteps`).
+    - `ComputePipeline` gained per-frame-slot descriptor sets; `solver_voxel`/`solver_hardcontact`
+      bind the pool slot of the frame being recorded; `occBox` rides in their push constants.
+    - Unknown occupancy → the body is HELD for the tick (pose pinned, invMass/invInertia 0) and
+      counted (`SS_FROZEN_UNKNOWN` → analyzer `held_unknown_occupancy`, must be 0 in the lab).
+    - **Bug found live:** the hard-contact "fully embedded" rescue judged the CUBE at the body's
+      centre, so debris resting on a 1/3 slab (centre inside the mixed cell) was lifted a whole
+      cube up (centres at 17.01). Now judged/lifted at micro resolution (identical on full cubes).
+    - **Bug found live (pre-existing):** `/api/debug/particle_log` opened/closed the position-log
+      stream on the HTTP thread while the main thread wrote it every frame → it hung the main
+      thread. Now queued to the main thread; the auto-start on first spawn (an unasked-for
+      per-frame CSV in the working directory during ordinary play) is gone.
+    - Evidence: `tools/debris_subvoxel_rest_check.py` (prediction written first) — over the slab,
+      median centre 16.5000 (pred 16.500), min ≥ 16.4990, 3/3 runs; control 16.1666 (pred 16.167).
+      Settle bench as a fresh engine's first run: drop_layer hc max **11.2 mm = Phase 0 exactly**,
+      drop_pile 8/167, blast 3/70, every post-window check and `held_unknown_occupancy` pass.
+    - **Open (noted, not fixed):** bench numbers depend on session history — a second run in the
+      same engine session gives different hard-contact depths (11.2 → 30–80 mm). Solver state
+      survives `clear_dynamics` (likely the warm-start hash, initialised once). Bench gates are
+      judged on a fresh engine's first run until this is fixed.
   - **1c is split into small commits:** (1) tri-state query ✅ → (2) edit-first repack priority ✅ +
-    `occupancy_edit_backlog` → (3) debris passes read the pool (per-frame-slot descriptor sets in
+    `occupancy_edit_backlog` → (3) debris passes read the pool ✅ (per-frame-slot descriptor sets in
     `ComputePipeline`, `voxel_contact.glsl` rewritten, unknown/out-of-box frozen and counted) →
     (4) delete the debris bitfield → (5) `VoxelOccupancyGrid` writer audit + `OccupancyCoverageTest`
     → (6) `DebrisContactOccupancyTest` + `occupancy_diff`.

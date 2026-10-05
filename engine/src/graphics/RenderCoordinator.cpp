@@ -811,6 +811,26 @@ RenderCoordinator::~RenderCoordinator() {
 // grid is the source rather than the mesher (the mesher builds sub-voxel occupancy AFTER it bakes
 // faces — defect D5 — so anything sourced from it sees stale sub-voxel geometry).
 // ---------------------------------------------------------------------------------------------
+void RenderCoordinator::setGpuParticlePhysics(GpuParticlePhysics* gpp) {
+    m_gpuParticles = gpp;
+    // DebrisInteractionPlan 1c: debris collides against THIS occupancy (the one CPU physics and
+    // lighting already share), not a private bitfield. Wired once; the box goes every frame.
+    if (!m_gpuParticles || !m_gpuParticles->isInitialized()) return;
+    if (!m_lightOccupancy || !m_lightOccupancy->ready()) {
+        LOG_ERROR("RenderCoordinator", "shared occupancy pool unavailable: GPU debris will be HELD "
+                                       "everywhere (frozen_unknown) instead of colliding");
+        return;
+    }
+    VkBuffer dir[GpuParticlePhysics::OCC_FRAME_SLOTS];
+    VkBuffer pool[GpuParticlePhysics::OCC_FRAME_SLOTS];
+    for (uint32_t s = 0; s < GpuParticlePhysics::OCC_FRAME_SLOTS; ++s) {
+        dir[s]  = m_lightOccupancy->directoryBuffer(s);
+        pool[s] = m_lightOccupancy->poolBuffer(s);
+    }
+    m_gpuParticles->setStaticOccupancyBuffers(dir, m_lightOccupancy->directoryBytes(),
+                                              pool, m_lightOccupancy->poolBytes());
+}
+
 void RenderCoordinator::updateLightOccupancy() {
     if (!chunkManager || !vulkanDevice || !m_lightOccupancy) return;
 
@@ -3973,6 +3993,11 @@ void RenderCoordinator::drawFrame() {
     // Must run before the render pass because it writes the face vertex buffer
     if (m_gpuParticles && m_gpuParticles->isInitialized()) {
         GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "GPU Particles");
+        // The box this frame slot's occupancy pack was built with (uploaded after the fence,
+        // above) -- the debris contact passes read that slot (DebrisInteractionPlan 1c).
+        if (m_lightOccupancy)
+            m_gpuParticles->setStaticOccupancyBox(m_lightOccupancy->stats().boxMinChunk,
+                                                  m_lightOccupancy->ready());
         m_gpuParticles->recordComputeCommands(cmd, currentFrame, gpuProfiler.get());
     }
 

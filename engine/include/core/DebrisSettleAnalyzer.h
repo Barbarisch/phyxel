@@ -49,6 +49,7 @@ struct SettleSolverCounters {
     uint32_t hardContactFires     = 0;  // bodies the post-solve push-out moved
     float    hardContactMaxDepth  = 0;  // metres, deepest push-out this tick
     uint32_t wakeRequests         = 0;  // wake bits set this tick (narrowphase + character)
+    uint32_t frozenUnknown        = 0;  // bodies HELD this tick: contact needed occupancy the pool lacks (1c)
     uint32_t warmstartHits        = 0;
     uint32_t maxColors            = 12; // colours the primal loop dispatches
     bool     uncoloredSolved      = false; // true: UNCOLORED bodies get a Jacobi fallback sweep

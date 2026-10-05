@@ -25,6 +25,7 @@
 #include <cstdint>
 namespace Phyxel { namespace DebrisShared {
 typedef uint32_t uint;
+struct ivec4 { int32_t x, y, z, w; };   // GLSL ivec4 (16-byte aligned in push constants)
 #define PHX_CONST constexpr
 #else
 #define PHX_CONST const
@@ -60,6 +61,7 @@ PHX_CONST uint SS_WARMSTART_NAN        = 3u;
 PHX_CONST uint SS_HARDCONTACT_FIRES    = 4u;   // bodies the post-solve push-out moved
 PHX_CONST uint SS_HARDCONTACT_DEPTH_UM = 5u;   // deepest push-out this tick, micrometres (atomicMax)
 PHX_CONST uint SS_WAKE_REQUESTS        = 6u;   // wake bits set this tick (impact + character)
+PHX_CONST uint SS_FROZEN_UNKNOWN       = 7u;   // bodies HELD this tick: a contact sample needed occupancy the pool does not have (1c)
 
 // ---- GpuParticle.flags bits ------------------------------------------------------------------
 PHX_CONST uint PARTICLE_ACTIVE       = 1u;
@@ -96,10 +98,10 @@ PHX_CONST int OCC_HALF_Z   = 256;   // world Z offset
 #define PHX_PC_CSR_CLEAR   uint bodyCount; uint maxConstraints;
 #define PHX_PC_SYNC_IN     uint count; float dt;
 #define PHX_PC_INTEGRATE   uint count; float dt; float gravity; uint flags;
-#define PHX_PC_CONTACTS    uint count; uint maxConstraints; uint flags; float coldScale;  /* narrowphase, voxel; coldScale x m/dt² = cold stiffness */
+#define PHX_PC_CONTACTS    uint count; uint maxConstraints; uint flags; float coldScale; ivec4 occBox;  /* narrowphase, voxel; coldScale x m/dt² = cold stiffness; occBox = occupancy box min chunk + bit0 ready (1c) */
 #define PHX_PC_DUAL        uint maxConstraints; float dt; uint pad0; float alpha;         /* alpha: ALPHA, or 1 under post-stab */
 #define PHX_PC_PRIMAL      uint bodyCount; float dt; uint targetColor; float alpha;       /* targetColor: a colour, or PRIMAL_STORE_VELOCITY */
-#define PHX_PC_HARDCONTACT uint count; uint flags; float pad1; float pad2;
+#define PHX_PC_HARDCONTACT uint count; uint flags; float pad1; float pad2; ivec4 occBox;
 #define PHX_PC_SYNC_OUT    uint count; float dt; float lifetimeDt; uint flags;
 #define PHX_PC_EXPAND      uint count; uint maxFaceSlots; float interpAlpha;              /* interpAlpha: fraction of FIXED_DT since the last tick */
 
@@ -128,10 +130,10 @@ static_assert(sizeof(ConstraintsPC) == 4,  "PHX_PC_CONSTRAINTS");
 static_assert(sizeof(CsrClearPC)    == 8,  "PHX_PC_CSR_CLEAR");
 static_assert(sizeof(SyncInPC)      == 8,  "PHX_PC_SYNC_IN");
 static_assert(sizeof(IntegratePC)   == 16, "PHX_PC_INTEGRATE");
-static_assert(sizeof(ContactsPC)    == 16, "PHX_PC_CONTACTS");
+static_assert(sizeof(ContactsPC)    == 32, "PHX_PC_CONTACTS");
 static_assert(sizeof(DualPC)        == 16, "PHX_PC_DUAL");
 static_assert(sizeof(PrimalPC)      == 16, "PHX_PC_PRIMAL");
-static_assert(sizeof(HardContactPC) == 16, "PHX_PC_HARDCONTACT");
+static_assert(sizeof(HardContactPC) == 32, "PHX_PC_HARDCONTACT");
 static_assert(sizeof(SyncOutPC)     == 16, "PHX_PC_SYNC_OUT");
 static_assert(sizeof(ExpandPC)      == 12, "PHX_PC_EXPAND");
 
@@ -139,7 +141,7 @@ static_assert(sizeof(ExpandPC)      == 12, "PHX_PC_EXPAND");
 static_assert((HASH_CAP & (HASH_CAP - 1u)) == 0u,      "HASH_CAP must be a power of two (HASH_MASK)");
 static_assert(HASH_CAP >= 2u * MAX_CONSTRAINTS,        "warm-start hash load factor must stay <= 0.5");
 static_assert(WAKE_WORDS * 32u >= MAX_PARTICLES,       "one wake bit per body");
-static_assert(SS_WAKE_REQUESTS < HASH_BASE,            "header counters must fit before the hash table");
+static_assert(SS_FROZEN_UNKNOWN < HASH_BASE,           "header counters must fit before the hash table");
 static_assert((GRID_SIZE & (GRID_SIZE - 1)) == 0,      "GRID_SIZE must be a power of two (cells wrap with &)");
 static_assert(GRID_CELLS % SCAN_BLOCK == 0,            "the parallel scan covers whole blocks");
 static_assert(SCAN_BLOCK == PHX_WORKGROUP,             "scan_block uses one thread per cell");

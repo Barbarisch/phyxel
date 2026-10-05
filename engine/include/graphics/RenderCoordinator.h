@@ -519,7 +519,8 @@ public:
     void setNPCManager(Core::NPCManager* npcManager) { m_npcManager = npcManager; }
 
     // GPU particle physics — must be set before the first drawFrame()
-    void setGpuParticlePhysics(GpuParticlePhysics* gpp) { m_gpuParticles = gpp; }
+    /// Also hands the debris solver the SHARED occupancy pool's per-slot buffers (1c).
+    void setGpuParticlePhysics(GpuParticlePhysics* gpp);
 
     // Kinematic voxel objects (doors, platforms, etc.)
     void setKinematicVoxelManager(Core::KinematicVoxelManager* mgr) { m_kinematicObjects = mgr; }

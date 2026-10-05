@@ -1,5 +1,8 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
+// The shared micro occupancy (occupancy.glsl) on THIS pass's bindings (DebrisInteractionPlan 1c).
+#define PHX_OCC_BINDING_DIR  1
+#define PHX_OCC_BINDING_POOL 3
 #include "particle_types.glsl"
 #include "solver_types.glsl"
 
@@ -22,7 +25,6 @@
 layout(local_size_x = WORKGROUP_SOLVER) in;
 
 layout(std430, set=0, binding=0) buffer SolverBodyBuffer { SolverBody bodies[]; };
-layout(std430, set=0, binding=1) readonly buffer OccupancyBuffer { uint occupancy[]; };
 // Settle-probe telemetry only (SS_HARDCONTACT_*): how often this non-physical clamp fires.
 layout(std430, set=0, binding=2) buffer SolverStateBuffer { uint solverState[]; };
 
@@ -44,8 +46,11 @@ void main() {
     bool  anyExposed = false;
     for (int k = 0; k < VOXEL_SAMPLES; ++k) {
         vec3 x = b.pos + quatRotate(b.quat, voxelSampleLocal(k) * b.halfExt);
-        vec3 n; float pen; int dir;
-        if (!voxelPointContact(x, 0.0, n, pen, dir)) continue;
+        vec3 n; float pen; int dir; bool unknown;
+        if (!voxelPointContact(x, 0.0, n, pen, dir, unknown)) {
+            if (unknown) return;   // never push on occupancy we do not have
+            continue;
+        }
         anyExposed = true;
         if (pen > bestPen) { bestPen = pen; bestN = n; }
     }
@@ -53,16 +58,20 @@ void main() {
     vec3 push = vec3(0.0);
     if (bestPen > HC_THRESH) {
         push = bestN * bestPen;
-    } else if (!anyExposed && isOccupiedI(ivec3(floor(b.pos)))) {
-        // Fully embedded (centre in solid, no sample near an exposed face): lift to the
+    } else if (!anyExposed && debrisMicroSolid(ivec3(floor(b.pos * 9.0)))) {
+        // Fully embedded (centre in solid MATTER, no sample near an exposed face): lift to the
         // first open cell above — the only direction guaranteed not to tunnel.
-        ivec3 c = ivec3(floor(b.pos));
-        for (int k = 1; k <= 4; ++k) {
-            if (!isOccupied(c.x, c.y + k, c.z)) {
+        // Judged at MICRO resolution (1c): a body resting on a 1/3 slab has its centre inside
+        // that slab's (mixed) cube cell, and the cube-level test lifted it a whole cube up.
+        // Walking micro cells up to 36 (= the old 4 cubes) lands on the same cube boundary as
+        // before wherever the world is full cubes.
+        ivec3 cm = ivec3(floor(b.pos * 9.0));
+        for (int k = 1; k <= 36; ++k) {
+            if (!debrisMicroSolid(ivec3(cm.x, cm.y + k, cm.z))) {
                 float wy = abs(quatRotate(b.quat, vec3(1, 0, 0)).y) * b.halfExt.x
                          + abs(quatRotate(b.quat, vec3(0, 1, 0)).y) * b.halfExt.y
                          + abs(quatRotate(b.quat, vec3(0, 0, 1)).y) * b.halfExt.z;
-                push = vec3(0.0, float(c.y + k) + wy - b.pos.y, 0.0);
+                push = vec3(0.0, float(cm.y + k) / 9.0 + wy - b.pos.y, 0.0);
                 bestN = vec3(0.0, 1.0, 0.0);
                 bestPen = push.y;
                 break;
