@@ -3,6 +3,7 @@
 #include "core/Types.h"
 #include "core/DebrisSettleAnalyzer.h"
 #include "vulkan/ComputePipeline.h"
+#include "solver_shared.h"   // shaders/: constants + push-constant layouts shared with GLSL (1b)
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -32,7 +33,7 @@ class GpuProfiler;
  */
 class GpuParticlePhysics {
 public:
-    static constexpr uint32_t MAX_PARTICLES  = 10000;
+    static constexpr uint32_t MAX_PARTICLES  = DebrisShared::MAX_PARTICLES;
     static constexpr uint32_t MAX_FACE_SLOTS = MAX_PARTICLES * 6; // 60 000 face instances
 
     // 96 bytes, std430-compatible (vec3+float pairs at 16-byte boundaries)
@@ -119,8 +120,7 @@ public:
     // Max per-limb segment boxes uploaded per frame. Must cover the character's full
     // segment set — 12 boxes (4 torso + 4 arm + 4 leg). Setting this too low silently
     // drops the trailing boxes (e.g. the legs), leaving floor-height debris uncovered.
-    // Keep in sync with charSeg[] in solver_integrate.comp.
-    static constexpr uint32_t MAX_CHAR_SEGMENTS = 12;
+    static constexpr uint32_t MAX_CHAR_SEGMENTS = DebrisShared::MAX_CHAR_SEGMENTS;  // sizes charSeg[] in solver_integrate.comp
 
     // One body-part box (std430: two vec4s = 32 bytes).
     struct CharSegmentGpu {
@@ -226,16 +226,16 @@ public:
 
     // Debris-settling fix switches (solver_types.glsl SOLVER_FLAG_*), pushed to the solver
     // every tick. Default = all shipped fixes on; the API exposes them for A/B runs.
-    static constexpr uint32_t SOLVER_FLAG_MASS_PENALTY  = 1u;
-    static constexpr uint32_t SOLVER_FLAG_START_AT_REST = 2u;
-    static constexpr uint32_t SOLVER_FLAG_HC_NEUTRAL    = 4u;
-    static constexpr uint32_t SOLVER_FLAG_POST_STAB     = 8u;
+    static constexpr uint32_t SOLVER_FLAG_MASS_PENALTY  = DebrisShared::SOLVER_FLAG_MASS_PENALTY;
+    static constexpr uint32_t SOLVER_FLAG_START_AT_REST = DebrisShared::SOLVER_FLAG_START_AT_REST;
+    static constexpr uint32_t SOLVER_FLAG_HC_NEUTRAL    = DebrisShared::SOLVER_FLAG_HC_NEUTRAL;
+    static constexpr uint32_t SOLVER_FLAG_POST_STAB     = DebrisShared::SOLVER_FLAG_POST_STAB;
     // POST_STAB (8) is implemented but OFF: measured worse on the bench (more forced sleeps in
     // drop_layer/crater/crater_subcube — docs/evidence/debris_settle/fix4-tickstart-ps).
-    static constexpr uint32_t SOLVER_FLAG_STATIC_FRICTION = 16u;
-    static constexpr uint32_t SOLVER_FLAGS_DEFAULT      = 23u;  // all but POST_STAB
-    static constexpr float    SOLVER_ALPHA              = 0.99f;        // == solver_types.glsl ALPHA
-    static constexpr uint32_t PRIMAL_STORE_VELOCITY     = 0xFFFFFFFEu;  // == solver_primal.comp
+    static constexpr uint32_t SOLVER_FLAG_STATIC_FRICTION = DebrisShared::SOLVER_FLAG_STATIC_FRICTION;
+    static constexpr uint32_t SOLVER_FLAGS_DEFAULT      = DebrisShared::SOLVER_FLAGS_DEFAULT;  // all but POST_STAB
+    static constexpr float    SOLVER_ALPHA              = DebrisShared::SOLVER_ALPHA;
+    static constexpr uint32_t PRIMAL_STORE_VELOCITY     = DebrisShared::PRIMAL_STORE_VELOCITY;
     void     setSolverFlags(uint32_t f) { m_solverFlags = f; }
     uint32_t solverFlags() const { return m_solverFlags; }
     // Cold-contact stiffness multiplier (x m/dt^2) when SOLVER_FLAG_MASS_PENALTY is set.
@@ -247,13 +247,13 @@ public:
     static uint32_t materialNameToIndex(const std::string& name);
 
 private:
-    // 3D occupancy grid constants — must match shaders/voxel_contact.glsl
-    static constexpr int OCC_X        = 512;
-    static constexpr int OCC_Y        = 256;
-    static constexpr int OCC_Z        = 512;
-    static constexpr int OCC_HALF_X   = 256;   // world X offset
-    static constexpr int OCC_Y_OFFSET = 64;    // world Y offset (Y range: -64..+191)
-    static constexpr int OCC_HALF_Z   = 256;   // world Z offset
+    // 3D occupancy grid window — one definition, shared with voxel_contact.glsl (solver_shared.h)
+    static constexpr int OCC_X        = DebrisShared::OCC_X;
+    static constexpr int OCC_Y        = DebrisShared::OCC_Y;
+    static constexpr int OCC_Z        = DebrisShared::OCC_Z;
+    static constexpr int OCC_HALF_X   = DebrisShared::OCC_HALF_X;    // world X offset
+    static constexpr int OCC_Y_OFFSET = DebrisShared::OCC_Y_OFFSET;  // world Y offset (Y range: -64..+191)
+    static constexpr int OCC_HALF_Z   = DebrisShared::OCC_HALF_Z;    // world Z offset
     static constexpr int OCC_TOTAL_BITS  = OCC_X * OCC_Y * OCC_Z;        // 67,108,864 bits
     static constexpr int OCC_TOTAL_WORDS = OCC_TOTAL_BITS / 32;          // 2,097,152 uint32s
 
@@ -301,13 +301,12 @@ private:
     void*            m_materialPhysMapped = nullptr;
 
     // Sorted spatial grid for cache-coherent inter-particle collision
-    static constexpr int    GRID_SIZE  = 64;
-    static constexpr int    GRID_CELLS = GRID_SIZE * GRID_SIZE * GRID_SIZE; // 262,144
-    // Work-efficient parallel prefix sum over gridCellCount (replaces the old
-    // single-thread serial scan). SCAN_BLOCK must match local_size_x in the
-    // particle_scan_*.comp shaders; GRID_CELLS is divisible by it.
-    static constexpr int    SCAN_BLOCK  = 256;
-    static constexpr int    SCAN_BLOCKS = GRID_CELLS / SCAN_BLOCK; // 1024
+    static constexpr int    GRID_SIZE  = DebrisShared::GRID_SIZE;
+    static constexpr int    GRID_CELLS = DebrisShared::GRID_CELLS;   // 262,144
+    // Work-efficient parallel prefix sum over gridCellCount. SCAN_BLOCK is the scan
+    // shaders' workgroup size (solver_shared.h PHX_SCAN_BLOCK).
+    static constexpr int    SCAN_BLOCK  = DebrisShared::SCAN_BLOCK;
+    static constexpr int    SCAN_BLOCKS = DebrisShared::SCAN_BLOCKS; // 1024
     VkBuffer         m_gridCellCountBuffer  = VK_NULL_HANDLE;  // uint[GRID_CELLS] — particles per cell
     VkDeviceMemory   m_gridCellCountMem     = VK_NULL_HANDLE;
     VkBuffer         m_gridCellOffsetBuffer = VK_NULL_HANDLE;  // uint[GRID_CELLS] — END of each cell's sorted range
@@ -331,20 +330,17 @@ private:
 
     // ---- AVBD constraint solver (solver_*.comp) ----
 
-    static constexpr uint32_t MAX_CONSTRAINTS = 60000;
-    static constexpr uint32_t MAX_COLORS      = 32;  // must match solver_types.glsl (12 skipped bodies in packed piles, audit D1)
+    static constexpr uint32_t MAX_CONSTRAINTS = DebrisShared::MAX_CONSTRAINTS;
+    static constexpr uint32_t MAX_COLORS      = DebrisShared::MAX_COLORS;
     static constexpr int      COLOR_ROUNDS    = 32;  // Jones-Plassmann rounds (16 left bodies uncoloured = skipped)
     static constexpr int      SOLVE_ITERATIONS = 8;
 
-    // Warmstart hash table sizing (must match shaders/solver_types.glsl).
-    // HASH_CAP must be a power of two and >= ~2 * MAX_CONSTRAINTS.
-    static constexpr uint32_t HASH_CAP        = 131072;
-    static constexpr uint32_t HASH_BASE       = 8;
+    // Warmstart hash table sizing (solver_shared.h asserts pow2 and >= 2 * MAX_CONSTRAINTS).
+    static constexpr uint32_t HASH_CAP        = DebrisShared::HASH_CAP;
+    static constexpr uint32_t HASH_BASE       = DebrisShared::HASH_BASE;
     // Sleep wake-bits (docs/PhysicsRestOverhaul.md Phase 2): one bit per body appended
     // after the hash table. Set by narrowphase/integrate, consumed by sync_in next tick.
-    // Must match solver_types.glsl WAKE_BITS_BASE/WAKE_WORDS (320 words covers 10240
-    // bodies >= MAX_PARTICLES).
-    static constexpr uint32_t WAKE_WORDS      = 320;
+    static constexpr uint32_t WAKE_WORDS      = DebrisShared::WAKE_WORDS;
     static constexpr uint32_t SOLVER_STATE_UINTS = HASH_BASE + HASH_CAP + WAKE_WORDS;
 
     // SolverBody buffer — device-local, MAX_PARTICLES × 208 bytes

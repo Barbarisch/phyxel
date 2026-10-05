@@ -45,7 +45,11 @@ def main():
     ap.add_argument("--log", default=None, help="engine log to count ERROR lines in (disabled run)")
     ap.add_argument("--log-offset", type=int, default=0,
                     help="byte size of --log recorded before this engine launch")
-    ap.add_argument("--at", default="16,15,16", help="slab cell to blast (DebrisLab: Stone top y=15)")
+    # Default = the settle bench's BLAST chunk (5), which the bench restores before every run.
+    # It used to be (16,15,16) — the middle of drop_layer's floor — and repeated runs left holes
+    # there that made the bench report bodies tunnelling through the slab (2026-10-04).
+    ap.add_argument("--at", default="176,15,16",
+                    help="slab cell to blast (DebrisLab: Stone top y=15; keep it in the blast chunk x 160..191)")
     a = ap.parse_args()
     x, y, z = (int(v) for v in a.at.split(","))
     ok = True

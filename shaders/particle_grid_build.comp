@@ -24,11 +24,8 @@ layout(std430, set = 0, binding = 1) buffer GridCellCount {
     uint gridCellCount[];
 };
 
-layout(push_constant) uniform PC {
-    uint count;
-} pc;
+layout(push_constant) uniform PC { PHX_PC_COUNT } pc;  // shaders/solver_shared.h
 
-const int GRID_SIZE = 64;
 
 int cellIndex(vec3 pos) {
     int cx = int(floor(pos.x)) & (GRID_SIZE - 1);

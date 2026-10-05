@@ -26,12 +26,7 @@ layout(std430, set=0, binding=1) readonly buffer OccupancyBuffer { uint occupanc
 // Settle-probe telemetry only (SS_HARDCONTACT_*): how often this non-physical clamp fires.
 layout(std430, set=0, binding=2) buffer SolverStateBuffer { uint solverState[]; };
 
-layout(push_constant) uniform PC {
-    uint  count;
-    uint  flags;          // SOLVER_FLAG_*
-    float pad1;
-    float pad2;
-} pc;
+layout(push_constant) uniform PC { PHX_PC_HARDCONTACT } pc;  // shaders/solver_shared.h
 
 #include "voxel_contact.glsl"
 

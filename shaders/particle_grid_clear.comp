@@ -1,4 +1,6 @@
 #version 450
+#extension GL_GOOGLE_include_directive : require
+#include "solver_shared.h"
 //
 // particle_grid_clear.comp — Clear spatial hash grid cell counts to 0.
 //
@@ -6,15 +8,13 @@
 // Uses GRID_CELLS / WORKGROUP_SIZE workgroups.
 //
 
-layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = PHX_WORKGROUP, local_size_y = 1, local_size_z = 1) in;
 
 layout(std430, set = 0, binding = 0) buffer GridCellCount {
     uint gridCellCount[];
 };
 
-layout(push_constant) uniform PC {
-    uint cellCount;
-} pc;
+layout(push_constant) uniform PC { PHX_PC_CELLS } pc;  // shaders/solver_shared.h
 
 void main() {
     uint i = gl_GlobalInvocationID.x;

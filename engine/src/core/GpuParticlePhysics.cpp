@@ -452,27 +452,23 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
         return Core::AssetManager::instance().resolveShader(name);
     };
 
-    // Push constant sizes (must match the shader PC blocks)
-    struct ExpandPC     { uint32_t count; uint32_t maxFaceSlots; float interpAlpha; };
-    struct GridClearPC  { uint32_t cellCount; };
-    struct GridBuildPC  { uint32_t count; };
-    struct SortScanPC   { uint32_t cellCount; };   // shared by the three parallel-scan passes
-    struct SortScatterPC{ uint32_t count; };
+    // Push-constant layouts: ONE definition each, shared with the shaders (solver_shared.h).
+    using namespace DebrisShared;
 
     // grid clear: binding 0 = gridCellCount (rw)
     if (!m_gridClearPass.create(m_device, shader("particle_grid_clear.comp.spv"),
-                                 1, sizeof(GridClearPC)))
+                                 1, sizeof(GridCellsPC)))
         return false;
 
     // grid build: binding 0 = particles (ro), binding 1 = gridCellCount (rw)
     if (!m_gridBuildPass.create(m_device, shader("particle_grid_build.comp.spv"),
-                                 2, sizeof(GridBuildPC)))
+                                 2, sizeof(GridCountPC)))
         return false;
 
     // sort scatter: binding 0 = particles (ro), binding 1 = gridCellOffset (rw atomic),
     //               binding 2 = sortedParticles (wo), binding 3 = sortedIndices (wo)
     if (!m_sortScatterPass.create(m_device, shader("particle_sort_scatter.comp.spv"),
-                                   4, sizeof(SortScatterPC)))
+                                   4, sizeof(GridCountPC)))
         return false;
 
     // expand: binding 0 = particles (ro), binding 1 = matTexTable (ro),
@@ -506,19 +502,19 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
     // Parallel prefix-sum passes — replace the serial sort scan in the live AVBD
     // pipeline: block scan -> block-sum scan -> add block offsets.
     VkDeviceSize scanBlockSumsSize = static_cast<VkDeviceSize>(SCAN_BLOCKS) * sizeof(uint32_t);
-    if (!m_scanBlockPass.create(m_device, shader("particle_scan_block.comp.spv"), 3, sizeof(SortScanPC)))
+    if (!m_scanBlockPass.create(m_device, shader("particle_scan_block.comp.spv"), 3, sizeof(GridCellsPC)))
         return false;
     m_scanBlockPass.bindBuffer(0, m_gridCellCountBuffer,  gridCellSize);
     m_scanBlockPass.bindBuffer(1, m_gridCellOffsetBuffer, gridCellSize);
     m_scanBlockPass.bindBuffer(2, m_scanBlockSumsBuffer,  scanBlockSumsSize);
     m_scanBlockPass.updateDescriptors();
 
-    if (!m_scanBlockSumsPass.create(m_device, shader("particle_scan_blocksums.comp.spv"), 1, sizeof(SortScanPC)))
+    if (!m_scanBlockSumsPass.create(m_device, shader("particle_scan_blocksums.comp.spv"), 1, sizeof(ScanBlocksPC)))
         return false;
     m_scanBlockSumsPass.bindBuffer(0, m_scanBlockSumsBuffer, scanBlockSumsSize);
     m_scanBlockSumsPass.updateDescriptors();
 
-    if (!m_scanAddPass.create(m_device, shader("particle_scan_add.comp.spv"), 2, sizeof(SortScanPC)))
+    if (!m_scanAddPass.create(m_device, shader("particle_scan_add.comp.spv"), 2, sizeof(GridCellsPC)))
         return false;
     m_scanAddPass.bindBuffer(0, m_gridCellOffsetBuffer, gridCellSize);
     m_scanAddPass.bindBuffer(1, m_scanBlockSumsBuffer,  scanBlockSumsSize);
@@ -601,18 +597,7 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
         return Core::AssetManager::instance().resolveShader(name);
     };
 
-    struct SyncInPC      { uint32_t count; float dt; };
-    struct IntegratePC   { uint32_t count; float dt; float gravity; float pad; };
-    struct NpPC          { uint32_t count; uint32_t maxConstraints; float p0; float p1; };
-    struct DualPC        { uint32_t maxConstraints; float dt; uint32_t pad0; float pad1; };
-    struct PrimalPC      { uint32_t bodyCount; float dt; uint32_t targetColor; float pad; };
-    struct SyncOutPC     { uint32_t count; float dt; float lifetimeDt; float pad; };
-    struct WarmstartSavePC { uint32_t maxConstraints; };
-    struct HardContactPC { uint32_t count; float pad0; float pad1; float pad2; };
-    struct CsrClearPC    { uint32_t bodyCount; uint32_t maxConstraints; };
-    struct CsrCountPC    { uint32_t maxConstraints; };
-    struct PrefixSumPC   { uint32_t bodyCount; };
-    struct BodyColorPC   { uint32_t bodyCount; };
+    using namespace DebrisShared;   // push-constant layouts (solver_shared.h)
 
     uint32_t     matCount       = static_cast<uint32_t>(Core::MaterialRegistry::instance().getMaterialCount());
     VkDeviceSize particleSize   = static_cast<VkDeviceSize>(MAX_PARTICLES)   * sizeof(GpuParticle);
@@ -645,7 +630,7 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     m_solverIntegratePass.updateDescriptors();
 
     // solver_narrowphase: bodies, constraints, state, gridCount, gridOffset, sortedIndices, warmstarts
-    if (!m_solverNarrowphasePass.create(m_device, shader("solver_narrowphase.comp.spv"), 7, sizeof(NpPC))) return false;
+    if (!m_solverNarrowphasePass.create(m_device, shader("solver_narrowphase.comp.spv"), 7, sizeof(ContactsPC))) return false;
     m_solverNarrowphasePass.bindBuffer(0, m_solverBodyBuffer,    bodySize);
     m_solverNarrowphasePass.bindBuffer(1, m_constraintBuffer,    constrSize);
     m_solverNarrowphasePass.bindBuffer(2, m_solverStateBuffer,   stateSize);
@@ -656,7 +641,7 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     m_solverNarrowphasePass.updateDescriptors();
 
     // solver_voxel: bodies, constraints, state, occupancy, warmstarts
-    if (!m_solverVoxelPass.create(m_device, shader("solver_voxel.comp.spv"), 5, sizeof(NpPC))) return false;
+    if (!m_solverVoxelPass.create(m_device, shader("solver_voxel.comp.spv"), 5, sizeof(ContactsPC))) return false;
     m_solverVoxelPass.bindBuffer(0, m_solverBodyBuffer,  bodySize);
     m_solverVoxelPass.bindBuffer(1, m_constraintBuffer,  constrSize);
     m_solverVoxelPass.bindBuffer(2, m_solverStateBuffer, stateSize);
@@ -689,7 +674,7 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     m_solverSyncOutPass.updateDescriptors();
 
     // solver_warmstart_save: constraints(ro), warmstarts(rw), state(rw)
-    if (!m_solverWarmstartSavePass.create(m_device, shader("solver_warmstart_save.comp.spv"), 3, sizeof(WarmstartSavePC))) return false;
+    if (!m_solverWarmstartSavePass.create(m_device, shader("solver_warmstart_save.comp.spv"), 3, sizeof(ConstraintsPC))) return false;
     m_solverWarmstartSavePass.bindBuffer(0, m_constraintBuffer,  constrSize);
     m_solverWarmstartSavePass.bindBuffer(1, m_warmstartBuffer,   warmstartSize);
     m_solverWarmstartSavePass.bindBuffer(2, m_solverStateBuffer, stateSize);
@@ -711,21 +696,21 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     m_csrClearPass.updateDescriptors();
 
     // solver_csr_count: constraints(ro), state(ro), bodyConstraintCount(rw)
-    if (!m_csrCountPass.create(m_device, shader("solver_csr_count.comp.spv"), 3, sizeof(CsrCountPC))) return false;
+    if (!m_csrCountPass.create(m_device, shader("solver_csr_count.comp.spv"), 3, sizeof(ConstraintsPC))) return false;
     m_csrCountPass.bindBuffer(0, m_constraintBuffer,         constrSize);
     m_csrCountPass.bindBuffer(1, m_solverStateBuffer,        stateSize);
     m_csrCountPass.bindBuffer(2, m_bodyConstraintCountBuffer,bodyUintSize);
     m_csrCountPass.updateDescriptors();
 
     // solver_prefix_sum: count(ro), offset(rw), cursor(rw)
-    if (!m_prefixSumPass.create(m_device, shader("solver_prefix_sum.comp.spv"), 3, sizeof(PrefixSumPC))) return false;
+    if (!m_prefixSumPass.create(m_device, shader("solver_prefix_sum.comp.spv"), 3, sizeof(BodiesPC))) return false;
     m_prefixSumPass.bindBuffer(0, m_bodyConstraintCountBuffer, bodyUintSize);
     m_prefixSumPass.bindBuffer(1, m_bodyConstraintOffsetBuffer,bodyUintSize);
     m_prefixSumPass.bindBuffer(2, m_bodyConstraintCursorBuffer,bodyUintSize);
     m_prefixSumPass.updateDescriptors();
 
     // solver_csr_scatter: constraints(ro), state(ro), cursor(rw), adjacencyList(rw)
-    if (!m_csrScatterPass.create(m_device, shader("solver_csr_scatter.comp.spv"), 4, sizeof(CsrCountPC))) return false;
+    if (!m_csrScatterPass.create(m_device, shader("solver_csr_scatter.comp.spv"), 4, sizeof(ConstraintsPC))) return false;
     m_csrScatterPass.bindBuffer(0, m_constraintBuffer,          constrSize);
     m_csrScatterPass.bindBuffer(1, m_solverStateBuffer,         stateSize);
     m_csrScatterPass.bindBuffer(2, m_bodyConstraintCursorBuffer,bodyUintSize);
@@ -733,7 +718,7 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     m_csrScatterPass.updateDescriptors();
 
     // solver_body_color: constraints(ro), state(ro), bodyColor(rw), count(ro), offset(ro), list(ro)
-    if (!m_bodyColorPass.create(m_device, shader("solver_body_color.comp.spv"), 6, sizeof(BodyColorPC))) return false;
+    if (!m_bodyColorPass.create(m_device, shader("solver_body_color.comp.spv"), 6, sizeof(BodiesPC))) return false;
     m_bodyColorPass.bindBuffer(0, m_constraintBuffer,          constrSize);
     m_bodyColorPass.bindBuffer(1, m_solverStateBuffer,         stateSize);
     m_bodyColorPass.bindBuffer(2, m_bodyColorBuffer,           bodyUintSize);
@@ -751,8 +736,8 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
 
 void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t count, float lifetimeDt,
                                                   GpuProfiler* profiler, bool instrument) {
-    const uint32_t groups        = (count + 255u) / 256u;
-    const uint32_t maxConstrGrps = (MAX_CONSTRAINTS + 255u) / 256u;
+    const uint32_t groups        = (count + DebrisShared::WORKGROUP - 1u) / DebrisShared::WORKGROUP;
+    const uint32_t maxConstrGrps = (MAX_CONSTRAINTS + DebrisShared::WORKGROUP - 1u) / DebrisShared::WORKGROUP;
 
     auto ssBarrier = [&](VkBuffer buf) {
         insertBarrier(cmd,
@@ -767,22 +752,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     auto beginP = [&](const char* n) { if (instrument && profiler) profiler->startScope(cmd, n); };
     auto endP   = [&]()              { if (instrument && profiler) profiler->endScope(cmd); };
 
-    struct SyncInPC      { uint32_t count; float dt; };
-    struct IntegratePC   { uint32_t count; float dt; float gravity; uint32_t flags; };
-    struct NpPC          { uint32_t count; uint32_t maxConstraints; uint32_t flags; float p1; };
-    struct DualPC        { uint32_t maxConstraints; float dt; uint32_t pad0; float pad1; };
-    struct PrimalPC      { uint32_t bodyCount; float dt; uint32_t targetColor; float pad; };
-    struct SyncOutPC     { uint32_t count; float dt; float lifetimeDt; uint32_t flags; };
-    struct WarmstartSavePC { uint32_t maxConstraints; };
-    struct HardContactPC { uint32_t count; uint32_t flags; float pad1; float pad2; };
-    struct GridClearPC   { uint32_t cellCount; };
-    struct GridBuildPC   { uint32_t count; };
-    struct SortScanPC    { uint32_t cellCount; };
-    struct SortScatterPC { uint32_t count; };
-    struct CsrClearPC    { uint32_t bodyCount; uint32_t maxConstraints; };
-    struct CsrCountPC    { uint32_t maxConstraints; };
-    struct PrefixSumPC   { uint32_t bodyCount; };
-    struct BodyColorPC   { uint32_t bodyCount; };
+    using namespace DebrisShared;   // push-constant layouts (solver_shared.h)
 
     // Reset solver counters (first HASH_BASE uints) to 0 every frame so constraint counts,
     // warmstart hit/miss counters, etc. start fresh.
@@ -833,16 +803,16 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     // ---- 3. Grid sort (reads m_particleBuffer — previous-tick positions for broadphase) ----
     {
         endP(); beginP("GridClear");
-        GridClearPC gc{ static_cast<uint32_t>(GRID_CELLS) };
+        GridCellsPC gc{ static_cast<uint32_t>(GRID_CELLS) };
         m_gridClearPass.bind(cmd);
         m_gridClearPass.pushConstants(cmd, &gc, sizeof(gc));
-        m_gridClearPass.dispatch(cmd, (GRID_CELLS + 255u) / 256u);
+        m_gridClearPass.dispatch(cmd, (GRID_CELLS + DebrisShared::WORKGROUP - 1u) / DebrisShared::WORKGROUP);
     }
     ssBarrier(m_gridCellCountBuffer);
 
     {
         endP(); beginP("GridBuild");
-        GridBuildPC gb{ count };
+        GridCountPC gb{ count };
         m_gridBuildPass.bind(cmd);
         m_gridBuildPass.pushConstants(cmd, &gb, sizeof(gb));
         m_gridBuildPass.dispatch(cmd, groups);
@@ -855,7 +825,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     {
         endP(); beginP("SortScan");
         const uint32_t scanBlocks = static_cast<uint32_t>(SCAN_BLOCKS);
-        SortScanPC ss{ static_cast<uint32_t>(GRID_CELLS) };
+        GridCellsPC ss{ static_cast<uint32_t>(GRID_CELLS) };
 
         // Pass 1: per-block exclusive scan -> gridCellOffset; block totals -> blockSums
         m_scanBlockPass.bind(cmd);
@@ -866,7 +836,8 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
         // Pass 2: exclusive scan of the block totals (small; ~1024 elements)
         m_scanBlockSumsPass.bind(cmd);
-        m_scanBlockSumsPass.pushConstants(cmd, &scanBlocks, sizeof(scanBlocks));
+        ScanBlocksPC sb{ scanBlocks };
+        m_scanBlockSumsPass.pushConstants(cmd, &sb, sizeof(sb));
         m_scanBlockSumsPass.dispatch(cmd, 1);
         ssBarrier(m_scanBlockSumsBuffer);
 
@@ -879,7 +850,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     {
         endP(); beginP("SortScatter");
-        SortScatterPC sc{ count };
+        GridCountPC sc{ count };
         m_sortScatterPass.bind(cmd);
         m_sortScatterPass.pushConstants(cmd, &sc, sizeof(sc));
         m_sortScatterPass.dispatch(cmd, groups);
@@ -892,7 +863,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     // ---- 4a. Narrowphase: dynamic-dynamic contacts → constraints ----
     {
         endP(); beginP("NarrowVoxel");
-        NpPC pc{ count, MAX_CONSTRAINTS, m_solverFlags, m_coldPenaltyScale };
+        ContactsPC pc{ count, MAX_CONSTRAINTS, m_solverFlags, m_coldPenaltyScale };
         m_solverNarrowphasePass.bind(cmd);
         m_solverNarrowphasePass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverNarrowphasePass.dispatch(cmd, groups);
@@ -902,7 +873,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     // ---- 4b. Voxel contacts → constraints (appended) ----
     {
-        NpPC pc{ count, MAX_CONSTRAINTS, m_solverFlags, m_coldPenaltyScale };
+        ContactsPC pc{ count, MAX_CONSTRAINTS, m_solverFlags, m_coldPenaltyScale };
         m_solverVoxelPass.bind(cmd);
         m_solverVoxelPass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverVoxelPass.dispatch(cmd, groups);
@@ -924,7 +895,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     // 5b. Count how many constraints each body participates in
     {
-        CsrCountPC pc{ MAX_CONSTRAINTS };
+        ConstraintsPC pc{ MAX_CONSTRAINTS };
         m_csrCountPass.bind(cmd);
         m_csrCountPass.pushConstants(cmd, &pc, sizeof(pc));
         m_csrCountPass.dispatch(cmd, maxConstrGrps);
@@ -933,7 +904,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     // 5c. Exclusive prefix sum → bodyConstraintOffset[] and bodyConstraintCursor[]
     {
-        PrefixSumPC pc{ count };
+        BodiesPC pc{ count };
         m_prefixSumPass.bind(cmd);
         m_prefixSumPass.pushConstants(cmd, &pc, sizeof(pc));
         m_prefixSumPass.dispatch(cmd, 1);
@@ -943,7 +914,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     // 5d. Scatter constraint indices into adjacency list using atomic cursors
     {
-        CsrCountPC pc{ MAX_CONSTRAINTS };
+        ConstraintsPC pc{ MAX_CONSTRAINTS };
         m_csrScatterPass.bind(cmd);
         m_csrScatterPass.pushConstants(cmd, &pc, sizeof(pc));
         m_csrScatterPass.dispatch(cmd, maxConstrGrps);
@@ -954,7 +925,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     // Colors BODIES: two bodies are adjacent if they share a constraint.
     // Same-color bodies have no shared constraints → safe for parallel primal writes.
     {
-        BodyColorPC pc{ count };
+        BodiesPC pc{ count };
         for (int gc = 0; gc < COLOR_ROUNDS; ++gc) {
             m_bodyColorPass.bind(cmd);
             m_bodyColorPass.pushConstants(cmd, &pc, sizeof(pc));
@@ -1044,7 +1015,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     // ---- 9. Warmstart save: scatter final lambda/penalty/stick into hash table ----
     // Must run AFTER the dual+primal converge so that the persisted values are post-solve.
     {
-        WarmstartSavePC pc{ MAX_CONSTRAINTS };
+        ConstraintsPC pc{ MAX_CONSTRAINTS };
         m_solverWarmstartSavePass.bind(cmd);
         m_solverWarmstartSavePass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverWarmstartSavePass.dispatch(cmd, maxConstrGrps);
@@ -1087,7 +1058,7 @@ void GpuParticlePhysics::queueSpawn(const SpawnParams& p) {
     gp.maxLifetime  = p.lifetime;
     gp.rotation     = glm::vec4(p.rotation.x, p.rotation.y, p.rotation.z, p.rotation.w);
     gp.angularVel   = p.angularVel;
-    gp.flags        = 1u | p.typeFlags; // PARTICLE_ACTIVE
+    gp.flags        = DebrisShared::PARTICLE_ACTIVE | p.typeFlags;
     gp.scale        = p.scale;
     gp.materialIndex= materialNameToIndex(p.materialName);
     // color is unused by debris rendering (debris is textured), so repurpose it to carry the baked
@@ -1290,7 +1261,7 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
 
     // Dispatch only up to the highest active slot, not the full 10K pool.
     const uint32_t count  = m_highWaterSlot;
-    const uint32_t groups = (count + 255u) / 256u;
+    const uint32_t groups = (count + DebrisShared::WORKGROUP - 1u) / DebrisShared::WORKGROUP;
     if (groups == 0) return; // nothing to simulate
 
     // ---- Fixed-timestep physics loop (AVBD — the only pipeline; the legacy XPBD
@@ -1316,11 +1287,7 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
     // Smooth rendering between fixed-timestep physics ticks.
     // interpAlpha = fraction of FIXED_DT elapsed since the last completed tick.
     // The expand shader extrapolates: renderPos = position + velocity * alpha.
-    struct ExpandPC {
-        uint32_t count;
-        uint32_t maxFaceSlots;
-        float    interpAlpha;
-    } epc;
+    DebrisShared::ExpandPC epc;   // layout: solver_shared.h PHX_PC_EXPAND
     epc.count        = count;
     epc.maxFaceSlots = MAX_FACE_SLOTS;
     epc.interpAlpha  = m_timeAccumulator / FIXED_DT;
@@ -1625,12 +1592,12 @@ void GpuParticlePhysics::consumeProbeSlot(uint32_t slot) {
             b.constraintCount = ccnt[i];
         }
         Core::SettleSolverCounters c;
-        c.constraintsEmitted  = hdr[0];
+        c.constraintsEmitted  = hdr[DebrisShared::SS_CONSTRAINT_COUNT];
         c.constraintCap       = MAX_CONSTRAINTS;
-        c.warmstartHits       = hdr[1];
-        c.hardContactFires    = hdr[4];
-        c.hardContactMaxDepth = static_cast<float>(hdr[5]) * 1.0e-6f;
-        c.wakeRequests        = hdr[6];
+        c.warmstartHits       = hdr[DebrisShared::SS_WARMSTART_HITS];
+        c.hardContactFires    = hdr[DebrisShared::SS_HARDCONTACT_FIRES];
+        c.hardContactMaxDepth = static_cast<float>(hdr[DebrisShared::SS_HARDCONTACT_DEPTH_UM]) * 1.0e-6f;
+        c.wakeRequests        = hdr[DebrisShared::SS_WAKE_REQUESTS];
         c.maxColors           = MAX_COLORS;
         c.uncoloredSolved     = true;   // recordComputeCommandsNew's final UNCOLORED sweep
         m_settle.addTick(samples, c);

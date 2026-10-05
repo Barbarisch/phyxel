@@ -23,7 +23,7 @@ layout(std430, set=0, binding=3) readonly buffer CharacterBuffer {
     vec3  charUnionCenter;       float charSegCount;   // # active segments (0 = disabled)
     vec3  charUnionHalfExtents;  float charPad0;
     vec3  charVelocity;          float charPad1;
-    CharSegment charSeg[12];     // == GpuParticlePhysics::MAX_CHAR_SEGMENTS
+    CharSegment charSeg[MAX_CHAR_SEGMENTS];   // solver_shared.h
 };
 
 // Wake bits live in the solver state buffer (Phase 2 sleep) — a moving character
@@ -61,12 +61,7 @@ bool aabbPushOut(vec3 bpos, vec3 bhe, vec3 cpos, vec3 che, out vec3 outDisp) {
     return true;
 }
 
-layout(push_constant) uniform PC {
-    uint  count;
-    float dt;
-    float gravity;
-    uint  flags;          // SOLVER_FLAG_*
-} pc;
+layout(push_constant) uniform PC { PHX_PC_INTEGRATE } pc;  // shaders/solver_shared.h
 
 void main() {
     uint i = gl_GlobalInvocationID.x;
@@ -176,7 +171,7 @@ void main() {
         vec3 disp;
         if (aabbPushOut(b.pos, he, charUnionCenter, charUnionHalfExtents, disp)) {
             int n = int(charSegCount);
-            for (int s = 0; s < n && s < 12; ++s) {
+            for (int s = 0; s < n && s < int(MAX_CHAR_SEGMENTS); ++s) {
                 vec3 segDisp;
                 if (aabbPushOut(b.pos, he, charSeg[s].center.xyz, charSeg[s].halfExtents.xyz, segDisp)) {
                     b.pos += segDisp;

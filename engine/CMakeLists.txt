@@ -23,6 +23,7 @@ enable_sanitizers(phyxel_core)
 # Public include directories — anything linking phyxel_core gets these
 target_include_directories(phyxel_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../shaders   # solver_shared.h: C++/GLSL shared debris layouts
     ${Vulkan_INCLUDE_DIRS}
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends

@@ -1,7 +1,7 @@
 # Debris Interaction Plan — everything that moves can push GPU debris
 
 **Status:** rev 4.2, 2026-10-04. **Phase 0 DONE** (pushed to main `ed924498`; results under
-Phase 0 below). **Phase 1 in progress: 1a DONE, 1b next.**
+Phase 0 below). **Phase 1 in progress: 1a + 1b DONE, 1c (one occupancy) next.**
 - Rev 2 rewrote the phases after a four-way code inventory (§Inventory).
 - Rev 3 (user direction) puts simplification first: delete the old systems before new work.
 - **Rev 4 folds in the second design check:**
@@ -269,6 +269,27 @@ commit: build, unit suite, `shader_manifest --check`, and the settle bench.
   - the push-constant layouts.
 - Collapse the duplicated push-constant structs in `GpuParticlePhysics.cpp` to one set.
 - static_asserts on every C++ size.
+- **DONE 2026-10-04** — `shaders/solver_shared.h` (valid C++ and GLSL): capacities, grid/scan
+  sizes, solver-state layout + `SS_*` header slots, particle flag bits, `SOLVER_FLAG_*`,
+  `SOLVER_ALPHA`, `PRIMAL_STORE_VELOCITY`, the occupancy window, the workgroup size, and all
+  15 push-constant layouts as FIELD macros (GLSL `uniform PC { PHX_PC_X } pc;`, C++
+  `struct XPC { PHX_PC_X };`). 14 size static_asserts + 8 invariant asserts (hash pow2/load,
+  wake bits ≥ bodies, grid pow2, scan coverage, default flags).
+  - Removed: THREE copies of the C++ PC structs (two had drifted — `pad` vs `flags`), the C++
+    mirrors of every shared constant, `GRID_SIZE` ×3 in shaders, literal `256`/`12` in shaders
+    and `(n + 255u) / 256u` / `hdr[4]` / `1u /*ACTIVE*/` literals in C++.
+  - **Proof of no GPU change:** all 21 rebuilt compute `.spv` differ from HEAD only by unused
+    `OpConstant`s (+ `OpSourceExtension`/an unused `float` type in the 4 shaders that gained the
+    include) — zero instructions removed or changed (anonymised, sorted `spirv-dis` diff).
+    Settle bench (clean lab, tag phase1b) in band: drop_pile 10/173 forced, blast 1/64, all
+    post-window checks pass.
+  - **Found: the DebrisLab floor was damaged** (39 holes under drop_layer from my own
+    `apply_damage`/spell tests + 144 cells in chunk 4 from earlier sessions) and the bench's
+    one-column `verify_lab` never saw it — drop_layer "tunnelled" 10–12 bodies through real
+    holes. `verify_lab` now scans every non-blast chunk's whole slab top and refuses to run;
+    `gpu_debris_disabled_check.py` now blasts the self-restoring blast chunk; lab rebuilt.
+  - **Found (→ 1d):** `GpuParticlePhysics::SpawnParams::typeFlags` is never set by any caller,
+    so every debris piece carries `PARTICLE_TYPE_CUBE` regardless of its scale.
 
 **1c. ONE occupancy: debris adopts the lighting occupancy** (redesigned 2026-10-04).
 - **It already exists.** `VoxelLightOccupancy` (`engine/include/graphics/VoxelLightOccupancy.h`,

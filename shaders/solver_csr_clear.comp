@@ -7,10 +7,7 @@ layout(local_size_x = WORKGROUP_SOLVER) in;
 layout(std430, set=0, binding=0) buffer BodyConstraintCount { uint bodyConstraintCount[]; };
 layout(std430, set=0, binding=1) buffer BodyColor           { uint bodyColor[]; };
 
-layout(push_constant) uniform PC {
-    uint bodyCount;
-    uint maxConstraints;
-} pc;
+layout(push_constant) uniform PC { PHX_PC_CSR_CLEAR } pc;  // shaders/solver_shared.h
 
 void main() {
     uint i = gl_GlobalInvocationID.x;

@@ -16,7 +16,7 @@ layout(std430, set=0, binding=3) readonly buffer CountBuffer         { uint body
 layout(std430, set=0, binding=4) readonly buffer OffsetBuffer        { uint bodyConstraintOffset[]; };
 layout(std430, set=0, binding=5) readonly buffer ListBuffer          { uint bodyConstraintList[]; };
 
-layout(push_constant) uniform PC { uint bodyCount; } pc;
+layout(push_constant) uniform PC { PHX_PC_BODIES } pc;  // shaders/solver_shared.h
 
 uint hashPriority(uint x) {
     x = x ^ (x >> 16u);

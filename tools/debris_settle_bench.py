@@ -194,8 +194,29 @@ def verify_lab(api):
         floor = ground_top(api, x0 + 1, SITE_Z + 1)
         if floor != GROUND - spec["depth"]:
             bad.append(f"pit chunk {spec['chunk']} floor {floor} != {GROUND - spec['depth']}")
+    # The WHOLE slab top of every non-blast chunk, not one probe column: on 2026-10-04 stray
+    # apply_damage/spell tests left 39 holes under drop_layer, the single probe at (3, 3) never
+    # saw them, and the bench reported 10-12 bodies "tunnelling" through the floor. The blast
+    # chunk is excluded: run() restores it right before its own scenario and leaves it cratered.
+    pits = {spec["chunk"]: spec for spec in (CRATER, CRATER_SUB)}
+    for c in range(LAB_CHUNKS):
+        if c == BLAST_CHUNK:
+            continue
+        r = api.get(f"/api/world/scan?x1={32 * c}&y1={SLAB_Y1}&z1=0&x2={32 * c + 31}&y2={SLAB_Y1}&z2=31",
+                    timeout=120)
+        solid = {(v["x"], v["z"]) for v in r.get("voxels", [])}
+        expect = {(x, z) for x in range(32 * c, 32 * c + 32) for z in range(32)}
+        if c in pits:
+            p = pits[c]
+            x0 = site_x(c)
+            expect -= {(x, z) for x in range(x0, x0 + p["w"]) for z in range(SITE_Z, SITE_Z + p["w"])}
+        missing = sorted(expect - solid)
+        if missing:
+            bad.append(f"chunk {c}: {len(missing)} slab-top cells missing at y={SLAB_Y1} "
+                       f"(first {missing[:6]})")
     if bad:
-        raise RuntimeError("lab terrain wrong: " + "; ".join(bad))
+        raise RuntimeError("lab terrain wrong: " + "; ".join(bad) +
+                           " -- repair with: python tools/debris_settle_bench.py --build-lab")
     print("lab terrain verified: slab top", GROUND, "pits at depth",
           CRATER["depth"], CRATER_SUB["depth"])
 

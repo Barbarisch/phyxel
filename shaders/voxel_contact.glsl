@@ -24,12 +24,8 @@
 //
 // Requires the including shader to declare `occupancy[]` (the static bitfield).
 
-const int OCC_X        = 512;
-const int OCC_Y        = 256;
-const int OCC_Z        = 512;
-const int OCC_HALF_X   = 256;
-const int OCC_Y_OFFSET = 64;
-const int OCC_HALF_Z   = 256;
+// OCC_X/Y/Z, OCC_HALF_X/Z, OCC_Y_OFFSET (the occupancy window): solver_shared.h.
+#include "solver_shared.h"
 
 bool isOccupied(int wx, int wy, int wz) {
     int lx = wx + OCC_HALF_X;

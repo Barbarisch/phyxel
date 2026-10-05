@@ -1,5 +1,7 @@
 // particle_types.glsl — shared definitions for all particle compute shaders
 // Include with: #include "particle_types.glsl"
+// Constants and push-constant layouts shared with C++ live in solver_shared.h (1b).
+#include "solver_shared.h"
 //
 // GpuParticle std430 layout (96 bytes, verified matches C++ GpuParticle struct):
 //   offset  0: vec3  position      (12 bytes)
@@ -27,14 +29,7 @@ struct GpuParticle {
     vec4  color;
 };
 
-// flags bitmask constants
-const uint PARTICLE_ACTIVE   = 1u;
-const uint PARTICLE_SLEEPING = 2u;
-// type bits [3:2]
-const uint PARTICLE_TYPE_CUBE    = 0u << 2;
-const uint PARTICLE_TYPE_SUBCUBE = 1u << 2;
-const uint PARTICLE_TYPE_MICRO   = 2u << 2;
-const uint PARTICLE_TYPE_MASK    = 3u << 2;
+// flags bits: PARTICLE_ACTIVE / PARTICLE_SLEEPING / PARTICLE_TYPE_* are in solver_shared.h.
 
 // Spawn age: bits [23:16] — 8-bit counter (0–255) incremented each physics tick.
 // Freshly spawned particles skip the sleep check until they've had time to separate.
@@ -60,5 +55,5 @@ struct MaterialPhysics {
     float pad1;
 };
 
-// Workgroup size used by all particle compute shaders
-#define WORKGROUP_SIZE 256
+// Workgroup size used by all particle compute shaders (solver_shared.h)
+#define WORKGROUP_SIZE PHX_WORKGROUP

@@ -19,17 +19,12 @@ layout(std430, set=0, binding=4) readonly buffer CountBuffer     { uint bodyCons
 layout(std430, set=0, binding=5) readonly buffer OffsetBuffer    { uint bodyConstraintOffset[]; };
 layout(std430, set=0, binding=6) readonly buffer ListBuffer      { uint bodyConstraintList[]; };
 
-layout(push_constant) uniform PC {
-    uint  bodyCount;
-    float dt;
-    uint  targetColor;    // colour to solve, or PRIMAL_STORE_VELOCITY
-    float alpha;          // error-correction alpha for this pass (ALPHA, 1 = none, 0 = full)
-} pc;
+layout(push_constant) uniform PC { PHX_PC_PRIMAL } pc;  // shaders/solver_shared.h
 
 // targetColor sentinel: instead of solving, record each dynamic body's velocity from its
 // current displacement (post-stabilisation: velocity is taken BEFORE the alpha = 0
 // position-only pass, so overlap correction never becomes motion — avbd-demo2d).
-const uint PRIMAL_STORE_VELOCITY = 0xFFFFFFFEu;
+// PRIMAL_STORE_VELOCITY (= 0xFFFFFFFEu): solver_shared.h
 
 // LDL factorization solve for 6×6 lower-triangular symmetric system.
 // a[r*6+c] (r>=c) stores lower triangle + diagonal (row-major storage).

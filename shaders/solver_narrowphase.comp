@@ -13,14 +13,8 @@ layout(std430, set=0, binding=4) readonly buffer GridCellOffset   { uint gridCel
 layout(std430, set=0, binding=5) readonly buffer SortedIndices    { uint sortedIndices[]; };
 layout(std430, set=0, binding=6) readonly buffer WarmstartBuffer  { WarmstartEntry warmstarts[]; };
 
-layout(push_constant) uniform PC {
-    uint  count;
-    uint  maxConstraints;
-    uint  flags;          // SOLVER_FLAG_*
-    float coldScale;      // cold-contact stiffness = coldScale * m/dt^2
-} pc;
+layout(push_constant) uniform PC { PHX_PC_CONTACTS } pc;  // shaders/solver_shared.h
 
-const int GRID_SIZE = 64;
 
 // Positive-biased sign (avoids sign(0)==0 giving zero-length impulse arms)
 float sgn(float x) { return (x >= 0.0) ? 1.0 : -1.0; }

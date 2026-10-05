@@ -15,12 +15,7 @@ layout(std430, set=0, binding=2) buffer SolverStateBuffer { uint solverState[]; 
 layout(std430, set=0, binding=3) readonly buffer OccupancyBuffer { uint occupancy[]; };
 layout(std430, set=0, binding=4) readonly buffer WarmstartBuffer { WarmstartEntry warmstarts[]; };
 
-layout(push_constant) uniform PC {
-    uint  count;
-    uint  maxConstraints;
-    uint  flags;          // SOLVER_FLAG_* (runtime A/B of the settling fixes)
-    float coldScale;      // cold-contact stiffness = coldScale * m/dt^2
-} pc;
+layout(push_constant) uniform PC { PHX_PC_CONTACTS } pc;  // shaders/solver_shared.h
 
 #include "voxel_contact.glsl"
 
