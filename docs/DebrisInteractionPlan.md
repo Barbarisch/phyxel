@@ -336,7 +336,7 @@ commit: build, unit suite, `shader_manifest --check`, and the settle bench.
       (`PHX_OCC_SET/BINDING_DIR/BINDING_POOL`, default 0/11/12) — needed because the debris passes
       have their own descriptor layout (`ComputePipeline` numbers bindings 0..N−1). Every lighting
       `.spv` rebuilt byte-identical; LightingPipeline.md §9 logged.
-  - **1c is split into small commits:** (1) tri-state query ✅ → (2) edit-first repack priority +
+  - **1c is split into small commits:** (1) tri-state query ✅ → (2) edit-first repack priority ✅ +
     `occupancy_edit_backlog` → (3) debris passes read the pool (per-frame-slot descriptor sets in
     `ComputePipeline`, `voxel_contact.glsl` rewritten, unknown/out-of-box frozen and counted) →
     (4) delete the debris bitfield → (5) `VoxelOccupancyGrid` writer audit + `OccupancyCoverageTest`
@@ -347,6 +347,12 @@ commit: build, unit suite, `shader_manifest --check`, and the settle bench.
       the GPU still thinks are solid and gets shoved out.
     - Repack chunks **already in the pool whose revision changed** before first-time residency.
     - Expose the backlog as `occupancy_edit_backlog`. Cost-only change; lighting benefits too.
+    - **DONE 2026-10-05 (1c step 2):** pure `chooseRepackOrder` (edits first, then residency,
+      order kept, budget ≤ 0 packs nothing) — `RepackOrderTakesEditsBeforeFirstTimeResidency`;
+      `RenderCoordinator::updateLightOccupancy` collects changed chunks then applies the plan;
+      `GET /api/debug/light_occupancy` reports `occupancy_edit_backlog` /
+      `occupancy_residency_backlog`. Live: blasted (176,15,16) → pool 0/729 = CPU 0/729 on the
+      next query, intact neighbour 729/729, both backlogs 0.
   - **(3rd check) Per-frame-slot descriptors.**
     - The occupancy buffers exist once per frame in flight (`VoxelLightOccupancyGpu::kSlots`
       = 2), but debris compute pipelines bind buffers once at creation.

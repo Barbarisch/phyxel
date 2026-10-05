@@ -839,6 +839,12 @@ void RenderCoordinator::updateLightOccupancy() {
     m_lightOccLoadedChunks = chunkManager->chunkMap.size();
     m_lightOccOutOfBox = 0;
 
+    // Collect every changed chunk first, then let chooseRepackOrder spend the budget: EDITS to
+    // resident chunks before first-time residency (DebrisInteractionPlan 1c). Walking the map and
+    // packing as we went served chunks in hash order, so a just-blasted chunk could wait frames
+    // behind newly streamed ones while GPU debris collided with its stale, still-solid cells.
+    std::vector<RepackCandidate> changed;
+    std::vector<std::pair<Chunk*, uint32_t>> changedChunks;   // parallel to `changed`
     for (auto& [coord, chunk] : chunkManager->chunkMap) {
         if (!chunk) continue;
         const glm::ivec3 origin = chunk->getWorldOrigin();
@@ -854,11 +860,17 @@ void RenderCoordinator::updateLightOccupancy() {
         const uint32_t rev = chunk->getOccupancyGrid().revision();
         const auto it = m_lightOccRevisions.find(origin);
         if (it != m_lightOccRevisions.end() && it->second == rev) continue;   // unchanged
-
-        if (budget-- <= 0) continue;            // next frame
-        m_lightOccupancy->setChunk(origin, buildLightOccupancy(chunk->getOccupancyGrid()));
-        m_lightOccRevisions[origin] = rev;
+        changed.push_back({origin, it != m_lightOccRevisions.end()});
+        changedChunks.push_back({chunk, rev});
     }
+    const RepackPlan plan = chooseRepackOrder(changed, budget);
+    for (const size_t i : plan.order) {
+        m_lightOccupancy->setChunk(changed[i].origin,
+                                   buildLightOccupancy(changedChunks[i].first->getOccupancyGrid()));
+        m_lightOccRevisions[changed[i].origin] = changedChunks[i].second;
+    }
+    m_lightOccEditBacklog      = plan.editBacklog;
+    m_lightOccResidencyBacklog = plan.residencyBacklog;
 
     // Drop chunks that have unloaded. Without this their geometry would keep occluding light in
     // air the player can now walk through.

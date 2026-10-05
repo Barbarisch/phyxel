@@ -475,6 +475,20 @@ bool packedPoolSolidAt(const PackedOccupancyPool& packed, const glm::ivec3& worl
     return (packed.pool[microBase + static_cast<size_t>(bit >> 5)] >> (bit & 31)) & 1u;
 }
 
+RepackPlan chooseRepackOrder(const std::vector<RepackCandidate>& changed, int budget) {
+    RepackPlan plan;
+    const size_t cap = budget > 0 ? static_cast<size_t>(budget) : 0;
+    for (int pass = 0; pass < 2; ++pass) {               // pass 0: edits, pass 1: first-time residency
+        const bool wantResident = (pass == 0);
+        for (size_t i = 0; i < changed.size(); ++i) {
+            if (changed[i].alreadyResident != wantResident) continue;
+            if (plan.order.size() < cap) { plan.order.push_back(i); continue; }
+            ++(wantResident ? plan.editBacklog : plan.residencyBacklog);
+        }
+    }
+    return plan;
+}
+
 OccupancyState packedPoolOccupancyState(const PackedOccupancyPool& packed, const glm::ivec3& worldMicro) {
     // The three ways the pool can know nothing — the same three packedPoolSolidAt folds into
     // "not solid". Mirrors phxOccupancyState line for line.

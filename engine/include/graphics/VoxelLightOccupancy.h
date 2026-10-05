@@ -176,6 +176,24 @@ std::vector<std::pair<glm::ivec3, ChunkLightOccupancy>> selectChunksThatFit(
     const std::vector<std::pair<glm::ivec3, ChunkLightOccupancy>>& chunks,
     size_t capacityWords, size_t& droppedOut);
 
+/// A chunk whose occupancy revision changed since it was last packed (DebrisInteractionPlan 1c).
+struct RepackCandidate {
+    glm::ivec3 origin;
+    bool alreadyResident = false;   ///< already in the pool, i.e. an EDIT; false = first-time residency
+};
+
+struct RepackPlan {
+    std::vector<size_t> order;      ///< indices into the candidate list, in pack order (<= budget)
+    size_t editBacklog = 0;         ///< edited resident chunks left for a later frame
+    size_t residencyBacklog = 0;    ///< first-time chunks left for a later frame
+};
+
+/// Which changed chunks to repack this frame. EDITS FIRST: a blasted chunk must reach the pool
+/// before newly streamed ones, or GPU debris spawned into the fresh hole collides with the stale
+/// solid cells it was carved out of. Within each class the given order is kept. Pure, so the
+/// policy is testable without a device; `budget` <= 0 packs nothing.
+RepackPlan chooseRepackOrder(const std::vector<RepackCandidate>& changed, int budget);
+
 /// Result of a light-visibility march. `firstHitMicro` is meaningful only when blocked.
 struct LightVisibility {
     bool  visible = true;

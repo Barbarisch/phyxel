@@ -1134,3 +1134,46 @@ TEST(VoxelLightOccupancy, OccupancyStateIsSolidOrEmptyWhereKnownAndUnknownElsewh
     EXPECT_EQ(packedPoolOccupancyState(Phyxel::Graphics::PackedOccupancyPool{}, {0, 0, 0}),
               OccupancyState::Unknown);
 }
+
+// ---------------------------------------------------------------------------------------------
+// DebrisInteractionPlan 1c step 2: EDITS are repacked before first-time residency. The repack
+// budget (24 chunks/frame) used to walk chunks in hash-map order, so under streaming load a chunk
+// that was just blasted could wait frames behind newly streamed chunks, and GPU debris spawned
+// into cells the pool still called solid would be shoved out of them.
+// ---------------------------------------------------------------------------------------------
+TEST(VoxelLightOccupancy, RepackOrderTakesEditsBeforeFirstTimeResidency) {
+    using Phyxel::Graphics::RepackCandidate;
+    using Phyxel::Graphics::chooseRepackOrder;
+
+    // 30 streamed-in chunks listed FIRST (the worst case for the old order), then 3 edits.
+    std::vector<RepackCandidate> changed;
+    for (int i = 0; i < 30; ++i) changed.push_back({glm::ivec3(32 * i, 0, 0), false});
+    for (int i = 0; i < 3; ++i)  changed.push_back({glm::ivec3(0, 0, 32 * (i + 1)), true});
+
+    const auto plan = chooseRepackOrder(changed, 24);
+    ASSERT_EQ(plan.order.size(), 24u);
+    EXPECT_EQ(plan.order[0], 30u);
+    EXPECT_EQ(plan.order[1], 31u);
+    EXPECT_EQ(plan.order[2], 32u) << "all three edits go first";
+    for (size_t k = 3; k < plan.order.size(); ++k)
+        EXPECT_EQ(plan.order[k], k - 3) << "then first-time residency, in the order given";
+    EXPECT_EQ(plan.editBacklog, 0u);
+    EXPECT_EQ(plan.residencyBacklog, 9u);
+
+    // More edits than budget: edits still win, and the backlog says how many wait.
+    const auto tight = chooseRepackOrder(changed, 2);
+    ASSERT_EQ(tight.order.size(), 2u);
+    EXPECT_EQ(tight.order[0], 30u);
+    EXPECT_EQ(tight.order[1], 31u);
+    EXPECT_EQ(tight.editBacklog, 1u);
+    EXPECT_EQ(tight.residencyBacklog, 30u);
+
+    // Degenerate budgets pack nothing and report everything as backlog.
+    for (int b : {0, -5}) {
+        const auto none = chooseRepackOrder(changed, b);
+        EXPECT_TRUE(none.order.empty());
+        EXPECT_EQ(none.editBacklog, 3u);
+        EXPECT_EQ(none.residencyBacklog, 30u);
+    }
+    EXPECT_TRUE(chooseRepackOrder({}, 24).order.empty());
+}

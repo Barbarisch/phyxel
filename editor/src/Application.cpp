@@ -8759,6 +8759,11 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
             // x,z in [-256,256) and y in [-64,192).
             {"loaded_chunks",       renderCoordinator->lightOccupancyLoadedChunks()},
             {"out_of_box_chunks",   renderCoordinator->lightOccupancyOutOfBoxChunks()},
+            // Repack backlog (DebrisInteractionPlan 1c): edits are repacked before first-time
+            // residency, so a non-zero edit backlog means more chunks were edited in one frame
+            // than the per-frame budget -- GPU debris may briefly collide with stale cells there.
+            {"occupancy_edit_backlog",      renderCoordinator->lightOccupancyEditBacklog()},
+            {"occupancy_residency_backlog", renderCoordinator->lightOccupancyResidencyBacklog()},
             // The box's own position, so "the box did not follow the camera" is distinguishable
             // from "the camera did not move" without guessing between them.
             {"box_min_chunk",       {box.x, box.y, box.z}},

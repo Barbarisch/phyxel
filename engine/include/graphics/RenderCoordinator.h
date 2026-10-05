@@ -365,6 +365,10 @@ public:
         return m_lightOccupancy ? m_lightOccupancy->boxMinChunk() : glm::ivec3(0);
     }
     size_t lightOccupancyOutOfBoxChunks() const { return m_lightOccOutOfBox; }
+    /// Repack backlog after the last update (DebrisInteractionPlan 1c): edits wait only when more
+    /// chunks were edited in one frame than the per-frame budget.
+    size_t lightOccupancyEditBacklog() const { return m_lightOccEditBacklog; }
+    size_t lightOccupancyResidencyBacklog() const { return m_lightOccResidencyBacklog; }
     /// Query the LAST FLUSHED pool with the shader's own addressing. `worldMicro` = world unit * 9.
     bool lightOccupancySolidAt(const glm::ivec3& worldMicro) const {
         return m_lightOccupancy && m_lightOccupancy->solidAtMicro(worldMicro);
@@ -1010,6 +1014,8 @@ private:
     std::unordered_map<glm::ivec3, uint32_t, LightOccOriginHash> m_lightOccRevisions;
     size_t m_lightOccLoadedChunks = 0;   ///< chunks resident in ChunkManager last scan
     size_t m_lightOccOutOfBox = 0;       ///< loaded but outside the directory box -> NOT occluding
+    size_t m_lightOccEditBacklog = 0;      ///< edited resident chunks still waiting for a repack
+    size_t m_lightOccResidencyBacklog = 0; ///< newly loaded chunks still waiting for first residency
     glm::vec3 m_lightOccCentreSource{0.0f};   ///< what was fed to setViewCentre last frame
     // U1: the frame's sun and atmosphere-ambient colours, cached for CPU-side consumers that shade
     // outside a scene shader (currently the debris particle sampler). Kept here rather than
