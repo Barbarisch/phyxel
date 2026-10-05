@@ -387,7 +387,6 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                     cleared += ch->clearCellsBulk(cells);
                     chunkManager->markChunkDirty(ch);
                 }
-                chunkManager->rebuildOccupancyFromChunks();
                 LOG_INFO_FMT("Settlement", "parcel clearing: " << cleared
                              << " cells over " << seen.size() << " columns (margin "
                              << kMargin << ")");
@@ -771,7 +770,6 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 }
                 grassConverted = static_cast<long>(gcut.size());
             }
-            chunkManager->rebuildOccupancyFromChunks();
             const double stampMs = std::chrono::duration<double, std::milli>(
                                        std::chrono::steady_clock::now() - t0).count();
             LOG_INFO_FMT("Settlement", "streets: paved " << placedMicros << " micros over "
@@ -860,7 +858,6 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             placedFill = Core::StructureGenerator::place(chunkManager, fillBatch).placed;
             const double stampMs = std::chrono::duration<double, std::milli>(
                                        std::chrono::steady_clock::now() - t0).count();
-            chunkManager->rebuildOccupancyFromChunks();   // so the paving is part of the static collision world
             LOG_INFO_FMT("Settlement", "paths: paved " << (placedFill + levelPaved) << " microcubes ("
                          << levelPaved << " level caps, " << placedFill << " fill), " << cut
                          << " cut cells owed; stamp " << static_cast<long>(stampMs) << " ms");
@@ -1016,7 +1013,6 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 }
             }
             fenceMicros = Core::StructureGenerator::place(chunkManager, fenceBatch).placed;
-            chunkManager->rebuildOccupancyFromChunks();
             LOG_INFO_FMT("Settlement", "fences: " << parcels << " parcels fenced, " << unfenced
                          << " unfenced by policy, " << pinchedRuns << " runs dropped (alley < 2 cells to a neighbour wall), "
                          << fenceMicros << " micros (picket, " << fH << "-micro tall, posts @" << fSp << ")");
@@ -1099,7 +1095,6 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                         emitMicro(re, s.x, my, s.z, sweepMat);
                 restamped = Core::StructureGenerator::place(chunkManager, re).placed;
             }
-            chunkManager->rebuildOccupancyFromChunks();
             LOG_INFO_FMT("Settlement", "street sweep: " << swept << " cells cleared over "
                          << sharedRoadBand->size() << " band cells, " << restamped
                          << " paving micros re-stamped");
@@ -1314,7 +1309,6 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 chunkManager->markChunkDirty(ch);
             }
             const auto placed = Core::StructureGenerator::place(chunkManager, batch);
-            chunkManager->rebuildOccupancyFromChunks();
             LOG_INFO_FMT("Settlement", "town wall: " << placed.placed << " cubes, "
                          << wp.gates.size() << " gates, " << wp.towers.size()
                          << " towers (" << towersUsable << " walkable), line cleared "
@@ -1374,7 +1368,6 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 cleared += ch->clearCellsBulk(cells);
                 chunkManager->markChunkDirty(ch);
             }
-            if (cleared > 0) chunkManager->rebuildOccupancyFromChunks();
             LOG_INFO_FMT("Settlement", "orphaned canopy: " << orphans.size()
                          << " cells found, " << cleared << " cleared");
             (*pathsJsonP)["orphaned_canopy_cleared"] = cleared;
@@ -1406,7 +1399,6 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
                 }
                 (ok ? ++placed : ++skipped);
             }
-            chunkManager->rebuildOccupancyFromChunks();
             LOG_INFO_FMT("Settlement", "square dressing: " << placed << " placed, "
                          << skipped << " skipped");
             (*propsJsonP)["square_dressing"] = {{"placed", placed}, {"skipped", skipped}};
@@ -1518,7 +1510,6 @@ SettlementBuildService::Plan SettlementBuildService::plan(const nlohmann::json& 
             long placed = 0;
             if (!out.voxels.empty()) {
                 placed = Core::StructureGenerator::place(chunkManager, out).placed;
-                chunkManager->rebuildOccupancyFromChunks();
             }
             LOG_INFO_FMT("Settlement", "doorsteps: " << stooped << " of " << sharedFrontDoors->size()
                          << " front doors stooped (" << steps << " steps, " << placed

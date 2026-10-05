@@ -80,6 +80,20 @@ def main():
     occ = api.get(f"/api/debug/light_occupancy?x={SLAB_X0 + 2}&y={GROUND}&z={Z0 + 2}")
     print("slab cell in the pool:", occ.get("cell"))
 
+    try:
+        ok = run_checks(api, a)
+    finally:
+        # Leave the blast chunk as found: the settle bench's blast crater overlaps this area and a
+        # leftover slab changed that scenario (2026-10-05). The bench also clears it now.
+        api.post("/api/debug/clear_dynamics", {})
+        bench.world_job(api, "/api/world/clear",
+                        {"x1": SLAB_X0, "y1": GROUND, "z1": Z0,
+                         "x2": SLAB_X0 + N - 1, "y2": GROUND, "z2": Z0 + N - 1})
+    print("\nRESULT:", "PASS" if ok else "FAIL")
+    return 0 if ok else 1
+
+
+def run_checks(api, a):
     ok = True
     for name, x0, floor_y, expect in (("slab", SLAB_X0, GROUND + THIRD, GROUND + THIRD + THIRD / 2),
                                       ("control", CTRL_X0, float(GROUND), GROUND + THIRD / 2)):
@@ -112,9 +126,7 @@ def main():
                 ys[0] >= expect - 0.01 and abs(med - expect) < 0.01 and ys[-1] <= expect + 0.5)
         print("   PASS" if good else "   FAIL")
         ok &= good
-
-    print("\nRESULT:", "PASS" if ok else "FAIL")
-    return 0 if ok else 1
+    return ok
 
 
 if __name__ == "__main__":

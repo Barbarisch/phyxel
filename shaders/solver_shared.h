@@ -81,14 +81,6 @@ PHX_CONST uint SOLVER_FLAGS_DEFAULT        = 23u;  // all but POST_STAB
 PHX_CONST float SOLVER_ALPHA               = 0.99f; // error-correction alpha (Shallot canonical)
 PHX_CONST uint PRIMAL_STORE_VELOCITY       = 0xFFFFFFFEu;  // PrimalPC.targetColor sentinel
 
-// ---- Static collision occupancy window (bitfield read by voxel_contact.glsl) ----------------
-PHX_CONST int OCC_X        = 512;
-PHX_CONST int OCC_Y        = 256;
-PHX_CONST int OCC_Z        = 512;
-PHX_CONST int OCC_HALF_X   = 256;   // world X offset (X range -256..255)
-PHX_CONST int OCC_Y_OFFSET = 64;    // world Y offset (Y range -64..191)
-PHX_CONST int OCC_HALF_Z   = 256;   // world Z offset
-
 // ---- Push-constant layouts (fields only) -----------------------------------------------------
 #define PHX_PC_COUNT       uint count;                                  /* grid_build, sort_scatter */
 #define PHX_PC_CELLS       uint cellCount;                              /* grid_clear, scan_block, scan_add */

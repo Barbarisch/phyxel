@@ -40,7 +40,7 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
         // DeviceAccessFunc: Get Vulkan device handles
         [this]() { return std::make_pair(device, physicalDevice); }
     );
-    // Occupancy grid: update all voxels in a 32³ chunk whenever it is streamed in at runtime
+    // Water-sim solidity: push a chunk's solid voxels whenever it is streamed in at runtime
     m_streamingManager.setOnChunkLoaded([this](const glm::ivec3& origin) {
         syncChunkToOccupancy(origin);
     });
@@ -662,7 +662,6 @@ void ChunkManager::rebuildChunkFacesWithCrosschunkCulling(Chunk& chunk) {
 }
 
 void ChunkManager::setGpuParticlePhysics(GpuParticlePhysics* gpp) {
-    m_gpuParticles = gpp;
     // Wire the debris light sampler so GPU particle debris is lit by the baked light field
     // (sampled per particle at spawn). Returns sky/blockRGB each 0..15 (matches the nibble packing).
     if (gpp) {
@@ -1061,41 +1060,20 @@ size_t ChunkManager::getChunkIndex(const Chunk* chunk) const {
 
 void ChunkManager::updateAfterCubeBreak(const glm::ivec3& worldPos) {
     m_faceUpdateCoordinator.updateAfterCubeBreak(worldPos);
-    if (m_gpuParticles) m_gpuParticles->setOccupied(worldPos.x, worldPos.y, worldPos.z, false);
     if (m_voxelOccupancyCallback) m_voxelOccupancyCallback(worldPos.x, worldPos.y, worldPos.z, false);
 }
 
 void ChunkManager::updateAfterCubePlace(const glm::ivec3& worldPos) {
     m_faceUpdateCoordinator.updateAfterCubePlace(worldPos);
-    if (m_gpuParticles) m_gpuParticles->setOccupied(worldPos.x, worldPos.y, worldPos.z, true);
     if (m_voxelOccupancyCallback) m_voxelOccupancyCallback(worldPos.x, worldPos.y, worldPos.z, true);
 }
 
-void ChunkManager::rebuildOccupancyFromChunks() {
-    if (!m_gpuParticles) return;
-    m_gpuParticles->clearOccupancy();
-    for (const auto& chunkPtr : chunks) {
-        const glm::ivec3 origin = chunkPtr->getWorldOrigin();
-        for (int lx = 0; lx < 32; ++lx) {
-            for (int ly = 0; ly < 32; ++ly) {
-                for (int lz = 0; lz < 32; ++lz) {
-                    glm::ivec3 world(origin.x + lx, origin.y + ly, origin.z + lz);
-                    if (hasVoxelAt(world))
-                        m_gpuParticles->setOccupied(world.x, world.y, world.z, true);
-                }
-            }
-        }
-    }
-    LOG_INFO_FMT("ChunkManager", "Occupancy grid rebuilt from " << chunks.size() << " chunks");
-}
-
 void ChunkManager::updateOccupancyVoxel(int worldX, int worldY, int worldZ, bool solid) {
-    if (m_gpuParticles) m_gpuParticles->setOccupied(worldX, worldY, worldZ, solid);
     if (m_voxelOccupancyCallback) m_voxelOccupancyCallback(worldX, worldY, worldZ, solid);
 }
 
 void ChunkManager::syncChunkToOccupancy(const glm::ivec3& chunkWorldOrigin) {
-    if (!m_gpuParticles && !m_voxelOccupancyCallback) return;
+    if (!m_voxelOccupancyCallback) return;
     // Direct map lookup + dense-array cube reads. The previous form linear-scanned the chunk
     // vector, then made 32k GLOBAL hasVoxelAt queries (chunk lookup + hash each) — ~26ms per
     // streamed chunk, in the pump, on the main thread.
@@ -1110,9 +1088,8 @@ void ChunkManager::syncChunkToOccupancy(const glm::ivec3& chunkWorldOrigin) {
                 if (!store.solid(static_cast<size_t>(lz + ly * 32 + lx * 1024))) continue;
                 const int wx = chunkWorldOrigin.x + lx, wy = chunkWorldOrigin.y + ly,
                           wz = chunkWorldOrigin.z + lz;
-                if (m_gpuParticles) m_gpuParticles->setOccupied(wx, wy, wz, true);
                 // Water-sim solidity (setSolidWorld bounds-rejects out-of-region cells cheaply).
-                if (m_voxelOccupancyCallback) m_voxelOccupancyCallback(wx, wy, wz, true);
+                m_voxelOccupancyCallback(wx, wy, wz, true);
             }
         }
     }

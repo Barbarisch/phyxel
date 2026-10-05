@@ -80,7 +80,6 @@ public:
     Physics::PhysicsWorld* physicsWorld = nullptr;
 
     // GPU particle physics — receives height map updates when voxels change
-    GpuParticlePhysics* m_gpuParticles = nullptr;
     std::function<void(int, int, int, bool)> m_voxelOccupancyCallback;
     
     // Chunk streaming manager (handles chunk loading/unloading/saving)
@@ -147,18 +146,15 @@ public:
         m_voxelOccupancyCallback = std::move(cb);
     }
 
-    // Update a single voxel's occupancy bit in the GPU grid.
+    // Tell the per-voxel occupancy callback (the water sim's solidity mask) one voxel changed.
+    // GPU debris no longer needs this: it reads the shared micro occupancy pool, sourced from
+    // each chunk's VoxelOccupancyGrid (DebrisInteractionPlan 1c).
     void updateOccupancyVoxel(int worldX, int worldY, int worldZ, bool solid);
 
-    // Bulk-populate the GPU 3D occupancy grid from all currently loaded chunks.
-    // Call once after GpuParticlePhysics is initialized and all startup chunks are loaded.
-    void rebuildOccupancyFromChunks();
-
-    // Push one loaded chunk's solid voxels to every occupancy consumer: the GPU particle grid
-    // AND the per-voxel occupancy callback (the water sim's solidity mask). Called when a chunk
-    // streams in at runtime — without the callback half, water flooded where terrain later loads
-    // stayed inside it until the next region recenter re-read solidity (the stale-solid window).
-    // No-op if the chunk isn't currently loaded.
+    // Push one loaded chunk's solid voxels to the per-voxel occupancy callback (the water sim's
+    // solidity mask). Called when a chunk streams in at runtime — without it, water flooded where
+    // terrain later loads stayed inside it until the next region recenter re-read solidity (the
+    // stale-solid window). No-op if the chunk isn't currently loaded.
     void syncChunkToOccupancy(const glm::ivec3& chunkWorldOrigin);
     
     // World storage management

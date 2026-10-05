@@ -397,10 +397,9 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     if (gpuParticlePhysics && gpuParticlePhysics->initialize(vulkanDevice, "")) {
         // Wire to RenderCoordinator (for compute dispatch + GPU draw)
         renderCoordinator->setGpuParticlePhysics(gpuParticlePhysics.get());
-        // Wire to ChunkManager (for occupancy grid updates on voxel change + streaming)
+        // Wire to ChunkManager (the debris light sampler; static collision comes from the
+        // shared occupancy pool wired through RenderCoordinator above)
         chunkManager->setGpuParticlePhysics(gpuParticlePhysics.get());
-        // Populate 3D occupancy grid from chunks already loaded at startup
-        chunkManager->rebuildOccupancyFromChunks();
         LOG_INFO("Application", "GpuParticlePhysics initialized successfully!");
     } else {
         if (m_gpuDebrisDisabledReason.empty())
@@ -2544,13 +2543,6 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     m_worldOutliner->onDeleteChunk = [this](const glm::ivec3& chunkCoord) {
         if (!chunkManager) return;
         chunkManager->clearChunk(chunkCoord);
-        if (gpuParticlePhysics) {
-            glm::ivec3 origin = chunkCoord * 32;
-            for (int lx = 0; lx < 32; ++lx)
-                for (int ly = 0; ly < 32; ++ly)
-                    for (int lz = 0; lz < 32; ++lz)
-                        gpuParticlePhysics->setOccupied(origin.x + lx, origin.y + ly, origin.z + lz, false);
-        }
     };
 
     m_worldOutliner->onSpawnTemplate = [this](const std::string& name, const glm::ivec3& pos,
@@ -2871,10 +2863,6 @@ void Application::applyProjectSelection(const std::string& projectPath) {
             // so characters fall through the world. (Runtime/WorldInitializer path
             // already does this; the editor project-open path previously skipped it.)
             chunkManager->buildAllChunkPhysics();
-            // GPU-side analog of buildAllChunkPhysics: populate the particle
-            // occupancy grid so debris collides with DB-loaded terrain instead of
-            // falling through it.
-            chunkManager->rebuildOccupancyFromChunks();
             // Water renders from what the chunks HOLD (docs/Water.md §6 step 2): a saved basin
             // shows its water at boot with no command, or shows none if none was ever stored.
             rebuildGroundedWaterFromSpans();
@@ -6559,15 +6547,6 @@ void Application::autoLoadGameDefinition() {
             // Render distance + far-terrain LOD from the world block (boots with vistas on).
             applyFarTerrainConfig(gameDef);
 
-            // Populate the GPU particle occupancy grid from the freshly generated
-            // terrain. Without this, debris particles have no floor to collide with
-            // and fall straight through the world. CPU collision grids are built
-            // inside GameDefinitionLoader::load (so characters ground correctly);
-            // this is the GPU-side analog, previously only done on the MCP
-            // load_game_definition path — the startup --project path skipped it.
-            if (chunkManager && (result.chunksGenerated > 0 || result.structuresPlaced > 0)) {
-                chunkManager->rebuildOccupancyFromChunks();
-            }
 
             // Sync terrain solidity into the water sim now the world is loaded, then
             // restore persisted water (sea level / ocean seeds / springs). The field
@@ -16759,22 +16738,6 @@ void Application::processAPICommands() {
                         if (placed > 0 && npcManager) {
                             npcManager->buildNavGrid();
                         }
-                        // Update GPU occupancy grid for filled region
-                        if (placed > 0 && gpuParticlePhysics) {
-                            for (int ix = minX; ix <= maxX; ++ix) {
-                                for (int iy = minY; iy <= maxY; ++iy) {
-                                    for (int iz = minZ; iz <= maxZ; ++iz) {
-                                        if (hollow &&
-                                            ix > minX && ix < maxX &&
-                                            iy > minY && iy < maxY &&
-                                            iz > minZ && iz < maxZ) {
-                                            continue;
-                                        }
-                                        gpuParticlePhysics->setOccupied(ix, iy, iz, true);
-                                    }
-                                }
-                            }
-                        }
                     }
                 }
 
@@ -16916,13 +16879,6 @@ void Application::processAPICommands() {
                         if (removed > 0 && npcManager) {
                             npcManager->buildNavGrid();
                         }
-                        // Update GPU occupancy grid for cleared region
-                        if (removed > 0 && gpuParticlePhysics) {
-                            for (int ix = minX; ix <= maxX; ++ix)
-                                for (int iy = minY; iy <= maxY; ++iy)
-                                    for (int iz = minZ; iz <= maxZ; ++iz)
-                                        gpuParticlePhysics->setOccupied(ix, iy, iz, false);
-                        }
                     }
                 }
 
@@ -16940,14 +16896,6 @@ void Application::processAPICommands() {
                         response = {{"success", true}, {"chunk", {{"x", cx}, {"y", cy}, {"z", cz}}}};
                         if (gameEventLog) {
                             gameEventLog->emit("chunk_cleared", {{"chunk", {{"x", cx}, {"y", cy}, {"z", cz}}}});
-                        }
-                        // Update GPU occupancy grid for entire cleared chunk
-                        if (gpuParticlePhysics) {
-                            glm::ivec3 origin = cc * 32;
-                            for (int lx = 0; lx < 32; ++lx)
-                                for (int ly = 0; ly < 32; ++ly)
-                                    for (int lz = 0; lz < 32; ++lz)
-                                        gpuParticlePhysics->setOccupied(origin.x + lx, origin.y + ly, origin.z + lz, false);
                         }
                     } else {
                         response = {{"error", "Chunk not found"}, {"chunk", {{"x", cx}, {"y", cy}, {"z", cz}}}};
@@ -18144,10 +18092,6 @@ void Application::processAPICommands() {
                         if (generated > 0 && npcManager) {
                             npcManager->buildNavGrid();
                         }
-                        // Rebuild entire GPU occupancy grid after world generation
-                        if (generated > 0) {
-                            chunkManager->rebuildOccupancyFromChunks();
-                        }
                     }
                 }
                 done_generate:;
@@ -18939,10 +18883,6 @@ void Application::processAPICommands() {
                 // the project-open path).
                 applyFarTerrainConfig(cmd.params);
 
-                // Rebuild GPU occupancy grid after world generation/placement
-                if (loadResult.chunksGenerated > 0 || loadResult.structuresPlaced > 0) {
-                    chunkManager->rebuildOccupancyFromChunks();
-                }
 
                 // Set up character control but keep camera Free (press V to follow)
                 if (loadResult.playerSpawned) {
@@ -19331,7 +19271,6 @@ void Application::processAPICommands() {
                                 });
                             }
                             if (placed > 0) {
-                                cmFill->rebuildOccupancyFromChunks();
                                 // Only rebuild nav if NPCs exist — a full-world NavGrid+NavGraph
                                 // build is ~seconds and is pure waste with zero NPCs. NPC creation
                                 // paths rebuild nav themselves, so a later-spawned NPC still gets it.
@@ -19398,7 +19337,6 @@ void Application::processAPICommands() {
                             if (removed > 0 && evClear) {
                                 evClear->emit("region_cleared", {{"removed", removed}, {"async", true}});
                             }
-                            if (removed > 0) cmClear->rebuildOccupancyFromChunks();
                         };
                         
                     } else if (jobType == "generate_world") {
@@ -19545,7 +19483,6 @@ void Application::processAPICommands() {
                             if (generated > 0 && npcGen && npcGen->getNPCCount() > 0) {
                                 npcGen->buildNavGrid();
                             }
-                            cmGen->rebuildOccupancyFromChunks();
                         };
 
                     } else if (jobType == "save_world") {

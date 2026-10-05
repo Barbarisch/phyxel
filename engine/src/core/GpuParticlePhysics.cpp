@@ -84,9 +84,6 @@ bool GpuParticlePhysics::initialize(Vulkan::VulkanDevice* vulkanDevice, const st
         vkFreeMemory(m_device, stageMem, nullptr);
     }
 
-    // Initialize occupancy grid: all zeros (empty world)
-    memset(m_occupancyMapped, 0, static_cast<size_t>(OCC_TOTAL_WORDS) * sizeof(uint32_t));
-
     // Initialize character collider: disabled (active = 0)
     memset(m_characterMapped, 0, sizeof(CharacterCollider));
 
@@ -155,48 +152,6 @@ bool GpuParticlePhysics::createBuffers(Vulkan::VulkanDevice* dev) {
         if (vkAllocateMemory(m_device, &ai, nullptr, &m_indirectDrawMem) != VK_SUCCESS ||
             vkBindBufferMemory(m_device, m_indirectDrawBuffer, m_indirectDrawMem, 0) != VK_SUCCESS) {
             LOG_ERROR("GpuParticlePhysics", "Failed to allocate/bind indirect draw memory");
-            return false;
-        }
-    }
-
-    // 5. 3D occupancy bitfield (host-coherent, persistent map)
-    //    512×256×512 bits = 2,097,152 uint32 words = 8 MB
-    {
-        VkDeviceSize occSize = static_cast<VkDeviceSize>(OCC_TOTAL_WORDS) * sizeof(uint32_t);
-        VkBufferCreateInfo bi{};
-        bi.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bi.size        = occSize;
-        bi.usage       = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-        bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        if (vkCreateBuffer(m_device, &bi, nullptr, &m_occupancyBuffer) != VK_SUCCESS) {
-            LOG_ERROR("GpuParticlePhysics", "Failed to create occupancy buffer");
-            return false;
-        }
-        VkMemoryRequirements req;
-        vkGetBufferMemoryRequirements(m_device, m_occupancyBuffer, &req);
-        VkMemoryAllocateInfo ai{};
-        ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        ai.allocationSize = req.size;
-        VkPhysicalDeviceMemoryProperties props;
-        vkGetPhysicalDeviceMemoryProperties(m_physDevice, &props);
-        uint32_t memType = UINT32_MAX;
-        for (uint32_t j = 0; j < props.memoryTypeCount; ++j) {
-            if ((req.memoryTypeBits & (1u << j)) &&
-                ((props.memoryTypes[j].propertyFlags &
-                  (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) ==
-                  (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))) {
-                memType = j; break;
-            }
-        }
-        if (memType == UINT32_MAX) {
-            LOG_ERROR("GpuParticlePhysics", "No host-coherent memory for occupancy buffer");
-            return false;
-        }
-        ai.memoryTypeIndex = memType;
-        if (vkAllocateMemory(m_device, &ai, nullptr, &m_occupancyMem) != VK_SUCCESS ||
-            vkBindBufferMemory(m_device, m_occupancyBuffer, m_occupancyMem, 0) != VK_SUCCESS ||
-            vkMapMemory(m_device, m_occupancyMem, 0, occSize, 0, &m_occupancyMapped) != VK_SUCCESS) {
-            LOG_ERROR("GpuParticlePhysics", "Failed to create/map occupancy buffer");
             return false;
         }
     }
@@ -606,7 +561,6 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     VkDeviceSize stateSize      = static_cast<VkDeviceSize>(SOLVER_STATE_UINTS) * sizeof(uint32_t);
     VkDeviceSize warmstartSize  = static_cast<VkDeviceSize>(HASH_CAP)        * 64;
     VkDeviceSize matPhysSize    = static_cast<VkDeviceSize>(matCount)        * sizeof(MaterialPhysicsGpu);
-    VkDeviceSize occSize        = static_cast<VkDeviceSize>(OCC_TOTAL_WORDS) * sizeof(uint32_t);
     VkDeviceSize gridCellSize   = static_cast<VkDeviceSize>(GRID_CELLS)      * sizeof(uint32_t);
     VkDeviceSize sortedIdxSize  = static_cast<VkDeviceSize>(MAX_PARTICLES)   * sizeof(uint32_t);
     VkDeviceSize bodyUintSize   = static_cast<VkDeviceSize>(MAX_PARTICLES)   * sizeof(uint32_t);
@@ -1360,34 +1314,6 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
     }
 }
 
-// ============================================================
-// 3D Occupancy grid
-// ============================================================
-
-void GpuParticlePhysics::setOccupied(int worldX, int worldY, int worldZ, bool solid) {
-    int lx = worldX + OCC_HALF_X;
-    int ly = worldY + OCC_Y_OFFSET;
-    int lz = worldZ + OCC_HALF_Z;
-    if (lx < 0 || lx >= OCC_X) return;
-    if (ly < 0 || ly >= OCC_Y) return;
-    if (lz < 0 || lz >= OCC_Z) return;
-
-    int linearIdx = lx + ly * OCC_X + lz * OCC_X * OCC_Y;
-    uint32_t wordIdx = static_cast<uint32_t>(linearIdx) >> 5u;
-    uint32_t bitIdx  = static_cast<uint32_t>(linearIdx) & 31u;
-
-    uint32_t* words = static_cast<uint32_t*>(m_occupancyMapped);
-    if (solid)
-        words[wordIdx] |= (1u << bitIdx);
-    else
-        words[wordIdx] &= ~(1u << bitIdx);
-}
-
-void GpuParticlePhysics::clearOccupancy() {
-    if (m_occupancyMapped)
-        memset(m_occupancyMapped, 0, static_cast<size_t>(OCC_TOTAL_WORDS) * sizeof(uint32_t));
-}
-
 void GpuParticlePhysics::despawnAll() {
     for (uint32_t i = 0; i < m_highWaterSlot; ++i) {
         if (m_slots[i].active) {
@@ -1677,7 +1603,6 @@ void GpuParticlePhysics::cleanup() {
 
     // Unmap before freeing
     if (m_stagingMapped)       { vkUnmapMemory(m_device, m_stagingMem);       m_stagingMapped      = nullptr; }
-    if (m_occupancyMapped)     { vkUnmapMemory(m_device, m_occupancyMem);     m_occupancyMapped    = nullptr; }
     if (m_characterMapped)     { vkUnmapMemory(m_device, m_characterMem);     m_characterMapped    = nullptr; }
     if (m_materialPhysMapped)  { vkUnmapMemory(m_device, m_materialPhysMem);  m_materialPhysMapped = nullptr; }
     if (m_readbackMapped)      { vkUnmapMemory(m_device, m_readbackMem);      m_readbackMapped     = nullptr; }
@@ -1686,7 +1611,6 @@ void GpuParticlePhysics::cleanup() {
     destroyBuf(m_faceBuffer,          m_faceMem);
     destroyBuf(m_stagingBuffer,       m_stagingMem);
     destroyBuf(m_indirectDrawBuffer,  m_indirectDrawMem);
-    destroyBuf(m_occupancyBuffer,     m_occupancyMem);
     destroyBuf(m_characterBuffer,     m_characterMem);
     destroyBuf(m_materialPhysBuffer,  m_materialPhysMem);
     destroyBuf(m_gridCellCountBuffer,  m_gridCellCountMem);

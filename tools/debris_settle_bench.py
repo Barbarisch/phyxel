@@ -223,6 +223,11 @@ def verify_lab(api):
 
 def restore_blast_site(api):
     x0 = 32 * BLAST_CHUNK
+    # Clear ABOVE the slab first: anything other tests built on the blast chunk's surface (the
+    # sub-voxel rest check's 1/3 slab, 2026-10-05) used to survive and sit in the crater's path,
+    # quietly changing the blast scenario for every later run.
+    world_job(api, "/api/world/clear",
+              {"x1": x0, "y1": GROUND, "z1": 0, "x2": x0 + 31, "y2": GROUND + 15, "z2": 31})
     world_job(api, "/api/world/fill",
               {"x1": x0, "y1": SLAB_Y0, "z1": 0, "x2": x0 + 31, "y2": SLAB_Y1, "z2": 31},
               material="Stone")

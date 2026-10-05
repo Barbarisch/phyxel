@@ -364,10 +364,31 @@ commit: build, unit suite, `shader_manifest --check`, and the settle bench.
       same engine session gives different hard-contact depths (11.2 → 30–80 mm). Solver state
       survives `clear_dynamics` (likely the warm-start hash, initialised once). Bench gates are
       judged on a fresh engine's first run until this is fixed.
+  - **DONE 2026-10-05 (1c step 4): the old debris cube bitfield is deleted** — buffer, `OCC_*`,
+    `setOccupied`/`clearOccupancy`, `ChunkManager::rebuildOccupancyFromChunks` and its 17 call
+    sites, the four `Application` region/chunk bit-clear loops, `ChunkManager::m_gpuParticles`.
+    `updateOccupancyVoxel`/`syncChunkToOccupancy` survive for their WATER half only. Debris static
+    collision is now ONLY the shared pool, so `VoxelOccupancyGrid` writer coverage (step 5) is
+    what keeps debris right. 261 related unit tests pass; sub-voxel rest check PASS; bench in band
+    on the last run (blast 2/67, drop_pile 11/162, all post-window checks, held 0).
+  - **OPEN — must be explained before 1c is called done: blast shifted after step 3's first
+    run.** Hard-contact max depth in `blast` was 88.1 mm in every Phase 0 run and in step 3's
+    first bench, and is a constant 118.8 mm in every fresh run since; blast forced sleeps
+    average ~4 (two runs at 7, band ≤ 6) against ~1.5 in Phase 0. Ruled out by A/B: the
+    micro-level embedded lift (cube-level variant → 118.8), the position-log change (log on →
+    118.8), accumulated blast-chunk damage (chunk wiped and rebuilt → 118.8). Not the contact
+    geometry: full-cube contacts are bit-identical to the old search (`DebrisContactTest`) and
+    no body is held. The same code gave 88.1 then and 118.8 now, so the difference is in state
+    the bench does not control — next step: diff the blast scenario's spawn set (debris count,
+    positions) between an 88.1 and a 118.8 run, and test the session-state leak (warm-start hash
+    surviving `clear_dynamics`) noted under step 3.
+  - Test-world footgun hit twice this session: `restore_blast_site` only refilled y 8..15, so a
+    test structure on the blast chunk's SURFACE survived into later runs. It now clears above the
+    slab too; `debris_subvoxel_rest_check.py` removes its slab when done.
   - **1c is split into small commits:** (1) tri-state query ✅ → (2) edit-first repack priority ✅ +
     `occupancy_edit_backlog` → (3) debris passes read the pool ✅ (per-frame-slot descriptor sets in
     `ComputePipeline`, `voxel_contact.glsl` rewritten, unknown/out-of-box frozen and counted) →
-    (4) delete the debris bitfield → (5) `VoxelOccupancyGrid` writer audit + `OccupancyCoverageTest`
+    (4) delete the debris bitfield ✅ → (5) `VoxelOccupancyGrid` writer audit + `OccupancyCoverageTest`
     → (6) `DebrisContactOccupancyTest` + `occupancy_diff`.
   - **(3rd check) Edits before residency.**
     - `updateLightOccupancy` repacks 24 chunks per frame in `chunkMap` order, with no priority.

@@ -118,17 +118,6 @@ public:
     void setStaticOccupancyBox(const glm::ivec3& boxMinChunk, bool ready);
     bool staticOccupancyWired() const { return m_staticOccWired; }
 
-    // ---- 3D occupancy grid interface (called by ChunkManager) ----
-
-    /** Set a single voxel's occupancy bit in the GPU grid. Host-coherent — auto-visible to GPU. */
-    void setOccupied(int worldX, int worldY, int worldZ, bool solid);
-
-    /** Clear entire occupancy grid (all voxels empty). */
-    void clearOccupancy();
-
-    /** Rebuild all occupancy data from scratch (called after initial chunk load). */
-    // (ChunkManager calls setOccupied per-voxel during rebuildOccupancyFromChunks)
-
     // ---- Character collision interface ----
 
     // Max per-limb segment boxes uploaded per frame. Must cover the character's full
@@ -261,16 +250,6 @@ public:
     static uint32_t materialNameToIndex(const std::string& name);
 
 private:
-    // 3D occupancy grid window — one definition, shared with voxel_contact.glsl (solver_shared.h)
-    static constexpr int OCC_X        = DebrisShared::OCC_X;
-    static constexpr int OCC_Y        = DebrisShared::OCC_Y;
-    static constexpr int OCC_Z        = DebrisShared::OCC_Z;
-    static constexpr int OCC_HALF_X   = DebrisShared::OCC_HALF_X;    // world X offset
-    static constexpr int OCC_Y_OFFSET = DebrisShared::OCC_Y_OFFSET;  // world Y offset (Y range: -64..+191)
-    static constexpr int OCC_HALF_Z   = DebrisShared::OCC_HALF_Z;    // world Z offset
-    static constexpr int OCC_TOTAL_BITS  = OCC_X * OCC_Y * OCC_Z;        // 67,108,864 bits
-    static constexpr int OCC_TOTAL_WORDS = OCC_TOTAL_BITS / 32;          // 2,097,152 uint32s
-
     // Physics constants
     static constexpr float GRAVITY             = -9.81f;
 
@@ -294,11 +273,6 @@ private:
     // Indirect draw command buffer — VkDrawIndirectCommand (16 bytes), device-local
     VkBuffer         m_indirectDrawBuffer = VK_NULL_HANDLE;
     VkDeviceMemory   m_indirectDrawMem    = VK_NULL_HANDLE;
-
-    // 3D occupancy bitfield — host-coherent, persistently mapped, uint32[OCC_TOTAL_WORDS]
-    VkBuffer         m_occupancyBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory   m_occupancyMem    = VK_NULL_HANDLE;
-    void*            m_occupancyMapped = nullptr;
 
     // Material→texture lookup table — device-local SSBO
     VkBuffer         m_matTexBuffer   = VK_NULL_HANDLE;
