@@ -1,6 +1,6 @@
 # Debris Interaction Plan — everything that moves can push GPU debris
 
-**Status:** rev 4.10, 2026-10-06. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
+**Status:** rev 4.11, 2026-10-06. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
 **Phase 1 DONE** (pushed to main through 1f):
 - 1a build safety ✅ · 1b `shaders/solver_shared.h` ✅
 - 1c one occupancy: steps 1–4 ✅ (tri-state query, edit-first repack, debris reads the shared
@@ -16,10 +16,14 @@
 - **Phase 2 DONE**: movers are AVBD bodies, default flags 55, the D7 shove deleted (user accepted a
   few-cm transient overlap in packed piles; isolated bodies <= 2 cm).
 - **Phase 3a DONE**: every animated character (player, entities, NPCs) pushes debris; far
-  (update-LOD) characters are extrapolated. Next: 3c (CPU bodies), then 3b (held items, doors).
+  (update-LOD) characters are extrapolated.
+- **Phase 3c DONE**: CPU rigid bodies (furniture, fragments, trees, item props) push debris,
+  one-way, whole bodies within the 512-box budget. Next: 3b (held items, doors), then Phase 4.
 - Still open, minor: 1c step 5 gap 8 (incremental add does not filter broken/invisible
   sub-voxels); drop_pile varies run to run (GPU nondeterminism, not session state).
-- 1d–1f not started. Phases 2–6 not started (Phase 4 holds the user's "spells don't hit debris").
+- Not started: 3b (held items, doors), Phase 4 (impulses; holds the user's "spells don't hit
+  debris"), Phases 5–6. Phase 3 budget orders by camera distance only (no host-side debris
+  positions without a readback).
 - Rev 2 rewrote the phases after a four-way code inventory (§Inventory).
 - Rev 3 (user direction) puts simplification first: delete the old systems before new work.
 - **Rev 4 folds in the second design check:**
@@ -123,7 +127,7 @@ fill/clear/generate commands, game-definition loads, scene transitions and settl
   switches to the newest character. The boxes are one frame stale (fed before NPC updates).
 - **NPCs, monsters, fauna, residents and spawned entities** are all `AnimatedVoxelCharacter`.
   They push CPU bodies (`setKinematicObstacles`, the only caller is `updateSegmentBoxes`), but
-  **never GPU debris**.
+  **never GPU debris**. *(Fixed in 3a, 2026-10-06.)*
   - Up to 12 segment boxes per character, axis-aligned refits of rotated limbs (inflated up to
     about 1.4×), one whole-body velocity (no per-limb velocity), zero velocity while sitting or
     anchored.
@@ -132,7 +136,7 @@ fill/clear/generate commands, game-definition loads, scene transitions and settl
   - Derez leaves a stale obstacle behind.
 - **CPU bodies:** furniture (including grabbed and thrown), fragments, felled trees, item props
   and legacy cubes. They collide with each other and with characters, but **GPU debris passes
-  through them**.
+  through them**. *(Fixed one-way in 3c, 2026-10-06; debris → body coupling is Phase 4.)*
 - **Touch NEITHER world:** doors and `KinematicAnimator` parts (`syncCollidersToPhysics()` is an
   empty stub), held weapons and items, all VFX, CombatSystem melee and knockback, wind, triggers,
   the never-wired `RangedCasterBehavior` cast hook.
@@ -791,7 +795,8 @@ flipped, D7 not deleted). Waiting on a user decision (below).**
 
 ## Phase 3 — Feed every mover
 
-- **3a. Characters**: one feed for **all** `AnimatedVoxelCharacter`s (`NPCManager` plus entities
+- **3a. Characters** — ✅ DONE 2026-10-06 (see below; LOD-deferred characters are extrapolated,
+  not dropped): one feed for **all** `AnimatedVoxelCharacter`s (`NPCManager` plus entities
   plus the player), replacing the reassignable `animatedCharacter` pointer.
   - Rotated limb boxes (`SegmentBoxInfo.worldRotation`).
   - **Per-limb velocity** from the pose delta (the CPU obstacles get it too).
@@ -801,11 +806,12 @@ flipped, D7 not deleted). Waiting on a user decision (below).**
 - **3b. Held items and doors.** Weapons as kinematic boxes from their bone attachment. Doors and
   `KinematicAnimator` parts as kinematic boxes, **and** implement the empty
   `KinematicVoxelManager::syncCollidersToPhysics()` stub so doors block CPU bodies too.
-- **3c. CPU bodies.** Every `VoxelDynamicsWorld` body near awake debris (furniture including
+- **3c. CPU bodies** — ✅ DONE 2026-10-06 (see below; one-way, whole bodies only). Every `VoxelDynamicsWorld` body near awake debris (furniture including
   grabbed, fragments, felled trees, item props), with compound boxes and velocities. Sleeping
   ones are included as supports.
 - **Budget:** at most 512 boxes per tick, by distance to awake debris and then to the camera.
-  Overflow is **counted and logged once**.
+  Overflow is **counted and logged once**. *(As built: priority scripted → limbs → bodies, each by
+  camera distance; awake-debris distance needs a readback and is not done.)*
 
 **DONE 2026-10-06 — Phase 3a: every animated character pushes debris.**
 - One feed (`Application`, right after the entity update loop, so this frame's pose — the old
@@ -836,6 +842,54 @@ flipped, D7 not deleted). Waiting on a user decision (below).**
   4 m beside the pile → 0 contacts, 0 moved.
 - Bench `phase3a` in band; `box_through_pile`'s own band written down: forced sleeps ≤ 12
   (observed 4–11; the push wakes 100+ bodies), box checks as above (median 27 / max 134 mm).
+
+**DONE 2026-10-06 — Phase 3c: CPU rigid bodies push debris (one-way).**
+- `DebrisMoverFeed::appendRigidBodies` (new, `engine/{include,src}/core/DebrisMoverFeed.*`): every
+  live `VoxelDynamicsWorld` body (furniture incl. grabbed/thrown, fragments, felled trees, item
+  props) as its compound boxes: the world centre, LOCAL half extents, the body's orientation, and
+  the **point velocity** v + ω × r at each box. Sleeping bodies are fed with zero velocity (supports:
+  debris rests on them; residual drift must not shove). Dead or non-finite bodies are not fed.
+- Fed in `Application::update` right **after the CPU physics step** (post-step pose), through
+  `GpuParticlePhysics::setBodyMoverBoxes`, staged after scripted boxes and character limbs.
+  Nothing is fed while there is no GPU debris (the slots are freed).
+- **Budget:** nearest the camera first, in the slots the limbs left (`bodyMoverBudget()`); a body
+  is fed **whole or not at all**, because a body cut at the budget lets debris fall through its
+  missing boxes. Skipped bodies are counted and logged once. Ordering by distance to *awake debris*
+  is not done (the host has no debris positions without a readback); camera distance is the proxy.
+- **One-way, on purpose:** debris does not push or slow the CPU body (that coupling is Phase 4).
+- **Not a bench scenario:** the bench steps only the GPU solver while frozen, but CPU bodies move in
+  wall time, so a stepped crate run would depend on timing. `crate_through_pile` runs live instead.
+- Unit `DebrisBodyMoverFeedTest` (4), red first on a stub (3 failed): world pose and point
+  velocity of a spinning yawed compound; sleepers fed at zero velocity; nearest first, and a body
+  past the budget skipped whole; dead bodies not fed.
+- **L4 `crate_through_pile`** (DebrisLab blast chunk, 4×2×4 pile; 1 m, 200 kg frictionless crate
+  from `/api/debug/spawn_voxel_body` at 3 m/s):
+
+  | Run | Mover contacts | Lane pieces moved |
+  |---|---|---|
+  | Red (flags 23, bit 32 off — what every CPU body got before 3c) | 0 | 0/16 |
+  | Control (same crate, 3.5 m clear of the pile) | 0 | — |
+  | Through the pile | 1,155 | **16/16** |
+
+  Through the pile: peak overlap 54.7 mm (the user-accepted packed-pile transient), 0 rebounds
+  after the settle window.
+- **Stress (count past the budget):** 700 one-box bodies with debris live → exactly 512 boxes fed,
+  kinematic overflow 0 (the feed trims whole bodies before staging), one WARN reading "188 CPU
+  bodies past the 512-box budget". The slots are freed when the bodies or the debris clear.
+- `/api/debug/gpu_physics` reports `character_mover_boxes` and `body_mover_boxes`.
+- Full unit suite: 4,144 passed, 20 skipped, 5 failed. None of the failures is in a system 3c
+  touches: `AtlasManagerTest.BuildAtlasFromSourcePNGs`,
+  `FineFaceMerge.SubcubeMerge_CrossCubeSplitsOnLightBoundaryBetweenCubes` and 3
+  `GpuTimingHistoryTest` cases (which read garbage values). Not yet checked against a clean
+  baseline.
+- Bench `phase3c` in band (no CPU bodies in the lab, so this is the no-regression check):
+  - drop_pile: 6 forced sleeps;
+  - blast: 6 forced;
+  - box_through_pile: 9 forced; box 24/24 displaced, median 15.2 mm, max 71.8 mm;
+  - straddle: 1.1 mm;
+  - every other scenario: 0 forced sleeps;
+  - `occ diff`: 0 everywhere;
+  - blast hard-contact maximum: 86.2 mm, identical to `phase3a`.
 
 ## Phase 4 — Impulses (both worlds)
 
@@ -909,7 +963,7 @@ regression band (Phase 0, "done when" #3).
 | `box_through_pile` | 2 | settled 6×3×6 pile; scripted 1×2×1 box crosses at 2 m/s | ≥ 80 % of swept bodies displaced ≥ 0.2 m; penetration into the box ≤ 2 cm every tick; after the box leaves, 0 rebounds, asleep ≤ 3 s, 0 injected energy | 0 % displaced | the box path 3 m beside the pile (0 displaced); flag bit 32 off (0 displaced) |
 | `npc_walk` | 3a | real NPC patrolling through a pile (L4) | as above | NPC passes through | NPC patrol beside the pile |
 | `sword_swat` | 3b | NPC melee swing into a pile | the bodies hit move along the swing | no effect | swing in empty air |
-| `crate_through_pile` | 3c | CPU crate launched at 3 m/s through a pile | as `box_through_pile` | 0 displaced | crate missing the pile |
+| `crate_through_pile` | 3c | CPU crate launched at 3 m/s through a pile (live script, not the stepped bench — CPU bodies run in wall time) | as `box_through_pile` | 0 displaced | crate missing the pile |
 | `impulse_on_pile` | 4 | settled pile; 40 N·s at 2 m from the edge, radius 4 | per-body Δv within ±10 % of J·w(d)/m; beyond the radius Δv = 0; re-settle ≤ 3 s | Δv = 0 | the same call with `impulse:0` |
 | `blast_pushes_furniture` | 4 | `apply_damage` next to a dynamic crate | the crate's Δv > 0, directed away from the blast | crate untouched | blast out of range |
 | `break_to_gpu` | 1d | B-key break of 20 voxels | `gpu_active` +N, 0 CPU dynamic cubes, scales preserved, settle checks pass | CPU bodies | `apply_damage` (already GPU) |

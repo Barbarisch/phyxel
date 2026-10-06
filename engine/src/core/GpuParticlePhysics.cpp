@@ -1392,6 +1392,11 @@ void GpuParticlePhysics::setMoverBoxes(std::vector<MoverBox> movers) {
     writeColliderBuffer();
 }
 
+void GpuParticlePhysics::setBodyMoverBoxes(std::vector<MoverBox> movers) {
+    m_bodyMovers = std::move(movers);
+    writeColliderBuffer();
+}
+
 void GpuParticlePhysics::setCharacterAABB(const glm::vec3& center, const glm::vec3& halfExtents, const glm::vec3& velocity) {
     setCharacterColliders({ { center, halfExtents } }, velocity);
 }
@@ -1418,9 +1423,10 @@ bool GpuParticlePhysics::removeKinematicBox(const std::string& id) {
 }
 
 void GpuParticlePhysics::writeColliderBuffer() {
-    // Every mover - the player's boxes (controller velocity) and the scripted boxes (their own) -
-    // is a kinematic AVBD body (Phase 2). Staged here, copied into the frame slot's buffer in
-    // recordComputeCommands after that slot's fence. Axis-aligned for now.
+    // Every mover - scripted boxes, character limbs (3a) and CPU rigid-body boxes (3c), each an
+    // oriented box with its own velocity - is a kinematic AVBD body (Phase 2). Staged here, in that
+    // priority order, copied into the frame slot's buffer in recordComputeCommands after that
+    // slot's fence.
     m_kinematicStage.clear();
     m_kinematicOverflow = 0;
     auto put = [&](const glm::vec3& c, const glm::vec3& h, const glm::quat& r, const glm::vec3& v) {
@@ -1436,6 +1442,7 @@ void GpuParticlePhysics::writeColliderBuffer() {
     for (const auto& [id, b] : m_kinematicBoxesFrameStart)
         put(b.center, b.half, glm::quat(1.0f, 0.0f, 0.0f, 0.0f), b.velocity);
     for (const auto& m : m_movers) put(m.center, m.halfExtents, m.rotation, m.velocity);
+    for (const auto& m : m_bodyMovers) put(m.center, m.halfExtents, m.rotation, m.velocity);
     m_kinematicCount = static_cast<uint32_t>(m_kinematicStage.size());
 }
 

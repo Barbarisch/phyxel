@@ -148,6 +148,15 @@ public:
     };
     void setMoverBoxes(std::vector<MoverBox> movers);
     uint32_t moverCount() const { return static_cast<uint32_t>(m_movers.size()); }
+    /** CPU rigid bodies as movers (Phase 3c, DebrisMoverFeed::appendRigidBodies), fed after the
+     *  CPU physics step. Staged AFTER the character limbs: the overflow drops bodies first. */
+    void setBodyMoverBoxes(std::vector<MoverBox> movers);
+    uint32_t bodyMoverCount() const { return static_cast<uint32_t>(m_bodyMovers.size()); }
+    /** Kinematic slots left for bodies once the scripted boxes and character limbs are staged. */
+    uint32_t bodyMoverBudget() const {
+        const size_t used = m_kinematicBoxesFrameStart.size() + m_movers.size();
+        return used >= DebrisShared::MAX_KINEMATIC ? 0u : static_cast<uint32_t>(DebrisShared::MAX_KINEMATIC - used);
+    }
 
     /** Scripted kinematic test box (DebrisInteractionPlan 1f): a mover the solver tests can drive
      *  without NPC AI. It advances by SIMULATED time (ticks x FIXED_DT, so a frozen, stepped solver
@@ -407,6 +416,7 @@ private:
     // Collider feed: the player's boxes (setCharacterColliders) + the scripted boxes (1f), merged
     // into the collider buffer by writeColliderBuffer().
     std::vector<MoverBox> m_movers;   // character limbs (setMoverBoxes / setCharacterColliders)
+    std::vector<MoverBox> m_bodyMovers;   // CPU rigid-body boxes (setBodyMoverBoxes, Phase 3c)
     // Scripted boxes at the START of this frame: the feed can arrive after update() has advanced
     // m_kinematicBoxes to the frame-end pose, and the GPU ticks start from the frame-start pose.
     std::map<std::string, KinematicBox> m_kinematicBoxesFrameStart;

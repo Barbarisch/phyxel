@@ -12,6 +12,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #endif
 #include "Application.h"
 #include "core/PerfCapture.h"
+#include "core/DebrisMoverFeed.h"
 #include <cmath>
 #include <cstdlib>
 #include "graphics/FarTerrainManager.h"
@@ -4282,6 +4283,29 @@ void Application::update(float deltaTime) {
     if (physicsSteps == MAX_PHYSICS_STEPS_PER_FRAME)
         physicsDeltaAccumulator = 0.0f;
 
+    // ---- GPU debris movers, part 2 (DebrisInteractionPlan Phase 3c): every CPU rigid body
+    // (furniture incl. grabbed/thrown, fragments, felled trees, item props) at its post-step pose,
+    // compound boxes with point velocities; sleepers too, as supports. One-way: debris does not
+    // push them back (Phase 4). Nearest the camera first, whole bodies only, in the slots the
+    // character limbs left; a body that does not fit is counted and logged once.
+    if (gpuParticlePhysics && gpuParticlePhysics->isInitialized()) {
+        auto* vw = physicsWorld ? physicsWorld->getVoxelWorld() : nullptr;
+        if (vw && gpuParticlePhysics->getActiveParticleCount() > 0) {
+            std::vector<GpuParticlePhysics::MoverBox> boxes;
+            const glm::vec3 eye = camera ? camera->getPosition() : glm::vec3(0.0f);
+            const auto fed = DebrisMoverFeed::appendRigidBodies(*vw, eye, gpuParticlePhysics->bodyMoverBudget(), boxes);
+            static bool loggedSkip = false;
+            if (fed.bodiesSkipped > 0 && !loggedSkip) {
+                loggedSkip = true;
+                LOG_WARN("GpuParticlePhysics", "debris movers: {} CPU bodies past the {}-box budget were not fed "
+                         "(debris passes through them); logged once", fed.bodiesSkipped, DebrisShared::MAX_KINEMATIC);
+            }
+            gpuParticlePhysics->setBodyMoverBoxes(std::move(boxes));
+        } else if (gpuParticlePhysics->bodyMoverCount() > 0) {
+            gpuParticlePhysics->setBodyMoverBoxes({});   // no debris to push: free the slots
+        }
+    }
+
     auto physicsEnd = std::chrono::high_resolution_clock::now();
     if (renderCoordinator) {
         renderCoordinator->setPhysicsFrameMs(
@@ -7936,6 +7960,8 @@ static bool handleDebugDynamicSpawnCommand(
                     {"total_ticks", gpuParticles->totalTicks()},
                     {"active", gpuParticles->getActiveParticleCount()},
                     {"kinematic_boxes", gpuParticles->kinematicBoxes().size()},
+                    {"character_mover_boxes", gpuParticles->moverCount()},
+                    {"body_mover_boxes", gpuParticles->bodyMoverCount()},
                     {"kinematic_overflow", gpuParticles->kinematicOverflow()}};
         return true;
     }
