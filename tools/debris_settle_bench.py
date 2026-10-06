@@ -228,9 +228,13 @@ def restore_blast_site(api):
     # quietly changing the blast scenario for every later run.
     world_job(api, "/api/world/clear",
               {"x1": x0, "y1": GROUND, "z1": 0, "x2": x0 + 31, "y2": GROUND + 15, "z2": 31})
+    # replace=True: a plain fill only fills EMPTY cells, so the cubes the previous blast grazed kept
+    # their accumulated damage (DamageSystem adds sub-threshold hits) and the next blast broke more
+    # of them. Measured 2026-10-06: back-to-back blast runs broke 20 / 14 / 23 voxels (59-68
+    # bodies) instead of 14 every time - the long-standing "blast forced sleeps vary 1-10".
     world_job(api, "/api/world/fill",
               {"x1": x0, "y1": SLAB_Y0, "z1": 0, "x2": x0 + 31, "y2": SLAB_Y1, "z2": 31},
-              material="Stone")
+              material="Stone", replace=True)
 
 
 # ---- scenarios: (chunk, setup(api, x, z) -> description, floor_y) ----

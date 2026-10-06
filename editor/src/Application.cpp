@@ -7991,6 +7991,9 @@ static bool handleDebugDynamicSpawnCommand(
                     {"kinematic_boxes", gpuParticles->kinematicBoxes().size()},
                     {"character_mover_boxes", gpuParticles->moverCount()},
                     {"object_mover_boxes", gpuParticles->objectMoverCount()},
+                    {"impulses_pending", gpuParticles->pendingImpulses()},
+                    {"impulses_submitted", gpuParticles->impulsesSubmitted()},
+                    {"impulse_overflow", gpuParticles->impulseOverflow()},
                     {"body_mover_boxes", gpuParticles->bodyMoverCount()},
                     {"kinematic_overflow", gpuParticles->kinematicOverflow()}};
         return true;
@@ -15000,6 +15003,7 @@ void Application::registerEffectsCommands() {
             coherentFragmentManager.setDeps(physicsWorld->getVoxelWorld(), kinematicVoxelManager.get());
             dmg.setFragmentManager(&coherentFragmentManager);
         }
+        dmg.setPushExisting(cmd.params.value("push", true));   // test control: false = pre-Phase-4 blast
         auto dmgResult = dmg.applyDamage(center, radius, energy, type, dir, supportY, collapse, coherent, radii);
         // stage_changed: grazed voxels whose damage crossed a VISIBLE stage boundary. Echoed
         // so a caller can assert a pure graze actually moved something -- `grazed` alone says
@@ -15011,7 +15015,55 @@ void Application::registerEffectsCommands() {
              {"debris", gpuDebris ? dmgResult.debrisSpawned : 0},
              {"debris_refused", gpuDebris ? 0 : dmgResult.debrisSpawned},
              {"stage_changed", dmgResult.voxelsStageChanged},
-             {"coherent_bodies", coherentFragmentManager.count()}};
+             {"coherent_bodies", coherentFragmentManager.count()},
+             // Phase 4: the blast also pushed what already moves.
+             {"push", {{"impulse", dmgResult.impulse}, {"radius", dmgResult.impulseRadius},
+                       {"gpu_queued", dmgResult.impulseQueued},
+                       {"cpu_bodies", dmgResult.cpuBodiesPushed}}}};
+    });
+
+    // Phase 4 (DebrisInteractionPlan): an impulse on EXISTING debris and CPU bodies - one law
+    // for both worlds (phxImpulseWeight). The GPU half is queued and lands on the next GPU tick
+    // (watch impulses_applied in gpu_physics / the settle probe); the CPU half is applied now.
+    // Clamps happen in the callees; the response echoes the values actually used.
+    reg.on("physics_impulse", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        const glm::vec3 c(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
+        const float radius = cmd.params.value("radius", 4.0f);
+        const float J      = cmd.params.value("impulse", 0.0f);
+        const float upBias = cmd.params.value("up_bias", 0.0f);
+        const std::string worlds = cmd.params.value("worlds", std::string("both"));
+        if (worlds != "gpu" && worlds != "cpu" && worlds != "both") {
+            r = {{"error", "worlds must be gpu, cpu or both"}};
+            return;
+        }
+        const bool cone = cmd.params.contains("direction");
+        glm::vec3 dir(0.0f, 0.0f, -1.0f);
+        if (cone) {
+            const auto& d = cmd.params["direction"];
+            dir = glm::vec3(d.value("x", 0.0f), d.value("y", 0.0f), d.value("z", 0.0f));
+        }
+        const float halfDeg = cmd.params.value("half_angle_deg", 30.0f);
+        GpuParticlePhysics::ImpulseQueued q;
+        const bool gpuOk = gpuParticlePhysics && gpuParticlePhysics->isInitialized();
+        if (worlds != "cpu" && gpuOk)
+            q = cone ? gpuParticlePhysics->applyConeImpulse(c, dir, halfDeg, radius, J, upBias)
+                     : gpuParticlePhysics->applyRadialImpulse(c, radius, J, upBias);
+        // The CPU half uses the same clamped values the GPU half reports (or clamps alike).
+        const float cr  = std::clamp(radius, 0.1f, DebrisShared::IMPULSE_MAX_RADIUS);
+        const float cj  = std::max(J, 0.0f);
+        const float cub = std::clamp(upBias, 0.0f, 1.0f);
+        const float ch  = std::clamp(halfDeg, 0.0f, 90.0f);
+        const glm::vec3 axis = glm::length(dir) > 1e-6f ? glm::normalize(dir) : glm::vec3(0.0f, 0.0f, -1.0f);
+        int cpu = 0;
+        if (worlds != "gpu" && physicsWorld && physicsWorld->getVoxelWorld())
+            cpu = physicsWorld->getVoxelWorld()->applyImpulse(c, cr, cj, cub, axis,
+                      cone ? std::cos(glm::radians(ch)) : DebrisShared::IMPULSE_RADIAL);
+        r = {{"success", true}, {"queued", q.queued}, {"gpu_available", gpuOk},
+             {"radius", cr}, {"impulse", cj}, {"up_bias", cub}, {"worlds", worlds},
+             {"cone", cone}, {"half_angle_deg", cone ? ch : 0.0f},
+             {"cpu_bodies_pushed", cpu},
+             {"gpu_pending", gpuOk ? gpuParticlePhysics->pendingImpulses() : 0u},
+             {"gpu_overflow", gpuOk ? gpuParticlePhysics->impulseOverflow() : 0u}};
     });
 
     reg.on("cast_vfx_projectile", [this, noVfx](const Core::APICommand& cmd, nlohmann::json& r) {

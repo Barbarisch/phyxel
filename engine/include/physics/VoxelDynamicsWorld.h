@@ -165,6 +165,14 @@ public:
     // not just the last one to update. Owners must removeKinematicObstacles() on destruction.
     void setKinematicObstacles(const void* owner, std::vector<KinematicObstacle> obstacles);
     void removeKinematicObstacles(const void* owner);
+    // Phase 4 (DebrisInteractionPlan): the CPU half of an impulse - the SAME law the GPU debris
+    // gets (phxImpulseWeight in shaders/solver_shared.h): dv = J * w(d) / m along the radial
+    // direction from `center` blended toward +Y by upBias, |dv| <= IMPULSE_MAX_DV, waking every
+    // body it reaches. cosHalf = IMPULSE_RADIAL for a radial push, else bodies outside the cone
+    // around `axis` are skipped. Returns the number of bodies pushed.
+    int applyImpulse(const glm::vec3& center, float radius, float impulse, float upBias,
+                     const glm::vec3& axis, float cosHalf);
+
     size_t kinematicObstacleCount(const void* owner) const {
         auto it = m_obstaclesByOwner.find(owner);
         return it == m_obstaclesByOwner.end() ? 0u : it->second.size();

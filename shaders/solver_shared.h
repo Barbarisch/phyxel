@@ -28,8 +28,10 @@ typedef uint32_t uint;
 struct ivec4 { int32_t x, y, z, w; };   // GLSL ivec4 (16-byte aligned in push constants)
 struct vec4  { float x, y, z, w; };     // GLSL vec4 (std430 storage layouts, e.g. PHX_KINEMATIC_BOX)
 #define PHX_CONST constexpr
+#define PHX_FN    inline
 #else
 #define PHX_CONST const
+#define PHX_FN
 #endif
 
 // ---- Dispatch ---------------------------------------------------------------------------
@@ -46,6 +48,25 @@ PHX_CONST uint MAX_KINEMATIC     = 512u;  // kinematic bodies (movers), Phase 2
 // Kinematic bodies live at FIXED body indices [KINEMATIC_BASE, KINEMATIC_BASE + MAX_KINEMATIC):
 // never inside the particle range, so count/grid/integrate/sync never see them (Phase 2).
 PHX_CONST uint KINEMATIC_BASE    = MAX_PARTICLES;   // character collider boxes: 4 torso + 4 arm + 4 leg
+
+// ---- Impulses (Phase 4): instantaneous pushes on EXISTING debris, applied by sync_in on the
+// first tick that runs after they were queued. One law for both worlds (the CPU half calls the
+// same phxImpulseWeight): dv = J * w(d) / m along the push direction, |dv| clamped.
+PHX_CONST uint  MAX_IMPULSES      = 64u;     // per frame; more are counted, not applied
+PHX_CONST float IMPULSE_MAX_DV    = 25.0f;    // m/s: no continuous collision detection - a faster
+                                              // body tunnels through a 1/3 m wall in one 60 Hz tick
+PHX_CONST float IMPULSE_MAX_RADIUS = 32.0f;   // m: the broadphase torus is 64 m; a bigger push is a bug
+PHX_CONST float IMPULSE_RADIAL    = -2.0f;    // dirCos.w marker: radial push (no cone)
+// An impulse also WAKES sleepers out to this multiple of its radius (no dv beyond the radius).
+// A sleeper is static (invMass 0) during the tick a pushed body hits it - the contact only sets
+// a wake bit for the NEXT tick - so a pushed piece slammed into a frozen wall and lost its speed
+// before the pile could move. Measured live: a 600-energy blast 1 m beside a settled 4x2x4 Stone
+// pile gave the near pieces ~4.5 m/s yet moved the pile at most 15 cm.
+PHX_CONST float IMPULSE_WAKE_SCALE = 2.0f;
+// Linear falloff: full impulse at the centre, none at the radius.
+PHX_FN float phxImpulseWeight(float d, float radius) {
+    return (radius <= 0.0f || d >= radius) ? 0.0f : 1.0f - d / radius;
+}
 
 // ---- Broadphase grid (cell = floor(position) wrapped to a 64³ torus) -----------------------
 PHX_CONST int GRID_SIZE   = 64;
@@ -106,7 +127,7 @@ PHX_CONST uint PRIMAL_STORE_VELOCITY       = 0xFFFFFFFEu;  // PrimalPC.targetCol
 #define PHX_PC_BODIES      uint bodyCount;                              /* body_color, prefix_sum */
 #define PHX_PC_CONSTRAINTS uint maxConstraints;                         /* csr_count, csr_scatter, warmstart_save */
 #define PHX_PC_CSR_CLEAR   uint bodyCount; uint maxConstraints;
-#define PHX_PC_SYNC_IN     uint count; float dt;
+#define PHX_PC_SYNC_IN     uint count; float dt; uint impulseCount; uint pad0;   /* impulseCount: 0 except on the frame's first tick (Phase 4) */
 #define PHX_PC_INTEGRATE   uint count; float dt; float gravity; uint flags;
 #define PHX_PC_CONTACTS    uint count; uint maxConstraints; uint flags; float coldScale; ivec4 occBox;  /* narrowphase, voxel; coldScale x m/dt² = cold stiffness; occBox = occupancy box min chunk + bit0 ready (1c) */
 #define PHX_PC_DUAL        uint maxConstraints; float dt; uint pad0; float alpha;         /* alpha: ALPHA, or 1 under post-stab */
@@ -119,6 +140,11 @@ PHX_CONST uint PRIMAL_STORE_VELOCITY       = 0xFFFFFFFEu;  // PrimalPC.targetCol
 // One kinematic box as the CPU uploads it (host-mapped, std430). The kinematic_sync pass turns
 // it into SolverBody KINEMATIC_BASE + k each tick: initial = center + velocity*dt*tick.
 #define PHX_KINEMATIC_BOX  vec4 center; vec4 halfExt; vec4 rotation; vec4 velocity;     /* .w unused; rotation = quat xyzw */
+
+// One impulse (Phase 4). centerRadius: origin + radius (m). dirCos: cone axis (unit) + cos(half
+// angle), or w = IMPULSE_RADIAL for a radial push. params: x = J (N*s at the origin), y = up bias
+// (0..1, blends the push direction toward +Y), zw unused.
+#define PHX_IMPULSE        vec4 centerRadius; vec4 dirCos; vec4 params;
 
 #ifdef __cplusplus
 struct GridCountPC      { PHX_PC_COUNT };
@@ -137,6 +163,7 @@ struct SyncOutPC        { PHX_PC_SYNC_OUT };
 struct ExpandPC         { PHX_PC_EXPAND };
 struct KinematicPC      { PHX_PC_KINEMATIC };
 struct KinematicBoxGpu  { PHX_KINEMATIC_BOX };
+struct ImpulseGpu       { PHX_IMPULSE };
 
 // Sizes as the shaders see them (std430 push-constant packing of 4-byte scalars).
 static_assert(sizeof(GridCountPC)   == 4,  "PHX_PC_COUNT");
@@ -145,7 +172,7 @@ static_assert(sizeof(ScanBlocksPC)  == 4,  "PHX_PC_BLOCKS");
 static_assert(sizeof(BodiesPC)      == 4,  "PHX_PC_BODIES");
 static_assert(sizeof(ConstraintsPC) == 4,  "PHX_PC_CONSTRAINTS");
 static_assert(sizeof(CsrClearPC)    == 8,  "PHX_PC_CSR_CLEAR");
-static_assert(sizeof(SyncInPC)      == 8,  "PHX_PC_SYNC_IN");
+static_assert(sizeof(SyncInPC)      == 16, "PHX_PC_SYNC_IN");
 static_assert(sizeof(IntegratePC)   == 16, "PHX_PC_INTEGRATE");
 static_assert(sizeof(ContactsPC)    == 32, "PHX_PC_CONTACTS");
 static_assert(sizeof(DualPC)        == 16, "PHX_PC_DUAL");
@@ -155,6 +182,7 @@ static_assert(sizeof(SyncOutPC)     == 16, "PHX_PC_SYNC_OUT");
 static_assert(sizeof(ExpandPC)      == 12, "PHX_PC_EXPAND");
 static_assert(sizeof(KinematicPC)   == 16, "PHX_PC_KINEMATIC");
 static_assert(sizeof(KinematicBoxGpu) == 64, "PHX_KINEMATIC_BOX");
+static_assert(sizeof(ImpulseGpu)    == 48, "PHX_IMPULSE");
 
 // Invariants the shaders rely on.
 static_assert((HASH_CAP & (HASH_CAP - 1u)) == 0u,      "HASH_CAP must be a power of two (HASH_MASK)");
@@ -172,4 +200,5 @@ static_assert(SOLVER_FLAGS_DEFAULT == (SOLVER_FLAG_MASS_PENALTY | SOLVER_FLAG_ST
 #endif
 
 #undef PHX_CONST
+#undef PHX_FN
 #endif  // PHX_SOLVER_SHARED_H

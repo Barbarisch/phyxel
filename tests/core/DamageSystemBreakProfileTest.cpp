@@ -181,3 +181,18 @@ TEST(DamageSystemSatelliteConsolidation, FoldsContainedTipsKeepsDistinctPieces) 
     EXPECT_EQ(ones, 1u)    << "the far single-cell tip must NOT be folded in";
     EXPECT_EQ(fives, 1u)   << "the distinct far block must NOT be folded in";
 }
+
+// ---- Phase 4 (DebrisInteractionPlan): the blast push is grounded in the break launch law ----
+// A loose Stone piece at the blast centre must leave exactly as fast as a Stone voxel the same
+// blast breaks there: J(E) / m_Stone == BASE_SPEED (4) * sqrt(E / toughness_Stone (110)).
+TEST_F(DamageSystemBreakProfileTest, BlastPushMatchesTheBreakLaunchSpeedForStone) {
+    ASSERT_TRUE(loaded_);
+    const auto* stone = MaterialRegistry::instance().getMaterial("Stone");
+    ASSERT_NE(stone, nullptr);
+    for (float e : {110.0f, 300.0f, 600.0f}) {
+        const float dvCentre = DamageSystem::blastImpulse(e) / stone->physics.mass;
+        EXPECT_NEAR(dvCentre, 4.0f * std::sqrt(e / 110.0f), 1e-3f) << "energy " << e;
+    }
+    EXPECT_FLOAT_EQ(DamageSystem::blastImpulse(0.0f), 0.0f);
+    EXPECT_FLOAT_EQ(DamageSystem::blastImpulse(-5.0f), 0.0f) << "negative energy pushes nothing";
+}

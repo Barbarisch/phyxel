@@ -1,5 +1,6 @@
 #include "physics/VoxelDynamicsWorld.h"
 #include "utils/Logger.h"
+#include "solver_shared.h"   // shaders/: phxImpulseWeight + IMPULSE_* (one impulse law, Phase 4)
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -142,6 +143,34 @@ VoxelRigidBody* VoxelDynamicsWorld::createVoxelBody(const glm::vec3& worldPos,
     box.halfExtents = halfExtents;
     box.mass        = mass;
     return createBody({box}, worldPos, glm::quat(1,0,0,0), restitution, friction);
+}
+
+int VoxelDynamicsWorld::applyImpulse(const glm::vec3& center, float radius, float impulse, float upBias,
+                                     const glm::vec3& axis, float cosHalf) {
+    using namespace Phyxel::DebrisShared;
+    if (!(impulse > 0.0f) || !(radius > 0.0f)) return 0;
+    int pushed = 0;
+    for (auto& up : m_bodies) {
+        VoxelRigidBody* b = up.get();
+        if (!b || b->isDead) continue;
+        const glm::vec3 off = b->position - center;
+        const float d = glm::length(off);
+        if (d < radius * IMPULSE_WAKE_SCALE) b->wake();   // same wake reach as the GPU half
+        const float w = phxImpulseWeight(d, radius);
+        if (w <= 0.0f) continue;
+        const glm::vec3 radial = (d > 1e-4f) ? off / d : glm::vec3(0.0f, 1.0f, 0.0f);
+        if (cosHalf != IMPULSE_RADIAL && glm::dot(radial, axis) < cosHalf) continue;
+        const glm::vec3 blended = glm::mix(radial, glm::vec3(0.0f, 1.0f, 0.0f), glm::clamp(upBias, 0.0f, 1.0f));
+        const float bl = glm::length(blended);
+        const glm::vec3 dir = (bl > 1e-4f) ? blended / bl : glm::vec3(0.0f, 1.0f, 0.0f);
+        glm::vec3 dv = dir * (impulse * w / std::max(b->getTotalMass(), 1e-3f));
+        const float s = glm::length(dv);
+        if (s > IMPULSE_MAX_DV) dv *= IMPULSE_MAX_DV / s;
+        b->linearVelocity += dv;
+        b->wake();
+        ++pushed;
+    }
+    return pushed;
 }
 
 void VoxelDynamicsWorld::removeBody(VoxelRigidBody* body) {

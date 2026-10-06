@@ -1,6 +1,6 @@
 # Debris Interaction Plan — everything that moves can push GPU debris
 
-**Status:** rev 4.11, 2026-10-06. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
+**Status:** rev 4.12, 2026-10-06. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
 **Phase 1 DONE** (pushed to main through 1f):
 - 1a build safety ✅ · 1b `shaders/solver_shared.h` ✅
 - 1c one occupancy: steps 1–4 ✅ (tri-state query, edit-first repack, debris reads the shared
@@ -19,13 +19,17 @@
   (update-LOD) characters are extrapolated.
 - **Phase 3c DONE**: CPU rigid bodies (furniture, fragments, trees, item props) push debris,
   one-way, whole bodies within the 512-box budget.
-- **Phase 3b DONE** (except the `sword_swat` demo): doors, animated parts and held items push
+- **Phase 3b DONE** (the `sword_swat` demo deprioritized by the user): doors, animated parts and held items push
   debris, and doors block CPU bodies. Open: angular velocity for GPU movers (door overlap median
-  37 mm). Next: Phase 4 (impulses).
+  37 mm).
+- **Phase 4 core DONE**: one impulse law for both worlds, `POST /api/physics/impulse`, and every
+  blast or spell pushes existing debris and CPU bodies (the user's spell scenario passes live).
+  Open: `CombatSystem` swing cones, `try_push`, angular kicks. Next: Phase 5 (design check first).
 - Still open, minor: 1c step 5 gap 8 (incremental add does not filter broken/invisible
   sub-voxels); drop_pile varies run to run (GPU nondeterminism, not session state).
-- Not started: Phase 4 (impulses; holds the user's "spells don't hit
-  debris"), Phases 5–6. Phase 3 budget orders by camera distance only (no host-side debris
+- Fixed in Phase 4: the bench's blast-site restore kept damaged floor cubes, so back-to-back
+  blast runs differed (now `replace: true`).
+- Not started: Phases 5–6. Phase 3 budget orders by camera distance only (no host-side debris
   positions without a readback).
 - Rev 2 rewrote the phases after a four-way code inventory (§Inventory).
 - Rev 3 (user direction) puts simplification first: delete the old systems before new work.
@@ -952,7 +956,8 @@ block CPU bodies.** (`sword_swat` is NOT demonstrated yet — see the last bulle
     object is flagged (it stages an empty list), but no A/B against the 3c binary was run;
   - **the band is NOT widened here.** Deciding the band (or making the scenario deterministic)
     is open for the user.
-- **`sword_swat` is still open.** Swings sweep chest height, but the lab's debris lies on the
+- **`sword_swat` is DEPRIORITIZED (user, 2026-10-06: "not as concerned with the sword swinging
+  test case").** Not a gate for Phase 3; the notes below are kept for whoever picks it up. Swings sweep chest height, but the lab's debris lies on the
   floor; a weapon-height rig (debris on a pedestal at sword reach, beyond the bare arm's reach as
   the control) is not built. The held-item boxes use the same feed as the door, which is proven
   with contacts above.
@@ -976,6 +981,115 @@ includes this user scenario live:** spell at a settled pile → pieces in the ra
   (hit *or* miss). `try_push` returns as a cone impulse.
 - **Clamps at entry, with the reason in code:** Δv ≤ 25 m/s (no continuous collision detection,
   tunnelling), radius ≤ 32 m, at most 64 impulses per tick (counted).
+
+**DONE 2026-10-06 — Phase 4 (core): impulses on existing debris and CPU bodies; blasts and spells push.**
+- **Mid-flight targeting decided:** NOT done. The impact-point radial push fixes the user's
+  scenario without a readback. The hover ray sees only static voxels, so a spell aimed at a pile
+  lands on the floor under or behind it, inside its footprint, and the push throws the pile.
+  Stopping a bolt ON a piece mid-flight stays with Phase 6 (readback).
+- **One law, both worlds** (`shaders/solver_shared.h`):
+  - `phxImpulseWeight(d, r) = 1 − d/r` (0 at and beyond r), dv = J·w(d)/m along the radial
+    blended toward +Y by `up_bias`, |dv| ≤ `IMPULSE_MAX_DV` (25 m/s);
+  - `IMPULSE_MAX_RADIUS` 32 m, `MAX_IMPULSES` 64 per frame (extras counted);
+  - `ImpulseGpu` record (48 B, static_asserted).
+  - The GPU half is applied in `solver_sync_in` on the first tick that RUNS after queueing; a
+    frozen or stepped solver keeps impulses queued until its next step.
+  - The CPU half is `VoxelDynamicsWorld::applyImpulse`, applied immediately and calling the same
+    `phxImpulseWeight`.
+- **Fresh debris is not kicked twice:** bodies of spawn age 0 (never ticked: the debris this
+  same blast just created, which carries its own launch velocity) are skipped.
+- **Wake reach (found live):** an impulse also wakes sleepers out to `IMPULSE_WAKE_SCALE` (2) ×
+  its radius. A sleeper is static during the tick it is hit (a contact only sets a wake bit for
+  the next tick), so pushed pieces slammed into frozen walls. Before the fix, a 600-energy blast
+  beside a settled pile gave the near pieces ~4.5 m/s yet moved the pile at most 15 cm.
+- **API:** `POST /api/physics/impulse` (`x,y,z`, `radius`, `impulse`, `up_bias`, optional
+  `direction` + `half_angle_deg` for a cone, `worlds` gpu|cpu|both). The response echoes the
+  clamped values, `queued`, `cpu_bodies_pushed`, `gpu_pending` and `gpu_overflow`.
+  `gpu_physics` reports `impulses_pending`, `impulses_submitted` and `impulse_overflow`.
+- **Hook:** `DamageSystem::applyDamage` pushes on EVERY blast, including one that breaks nothing.
+  That covers the real spell (`castSpellAtHover` → pending hit → `applyDamage`), API blasts and
+  chops through it. `apply_damage` echoes `push{impulse, radius, gpu_queued, cpu_bodies}`;
+  `push:false` is the test control (= every blast before Phase 4).
+- **Blast strength, grounded:** J(E) = m_Stone · `BASE_SPEED` · √(E / toughness_Stone),
+  i.e. 24·√(E/110) N·s. A loose Stone piece at the centre then leaves exactly as fast as a Stone
+  voxel the same blast breaks there; loose debris has no bond to break, and momentum ~ √energy.
+  The first guess, J = 0.05·E, gave 2.5 m/s against ≥ 4 m/s for broken pieces. Unit-pinned
+  (`BlastPushMatchesTheBreakLaunchSpeedForStone`). The push reaches 1.5 × the blast radius.
+- Unit `ImpulseLawTest` (4), red first on a stub (3 failed; the pure falloff passed): falloff,
+  CPU dv = J·w/m along the radial and waking, up bias + 25 m/s clamp, cone exclusion.
+- **L4 law (`impulse_law`)** — airborne Stone cubes at 1/3/5/7/9 m, J 40, r 8, solver frozen:
+
+  | | 1 m | 3 m | 5 m | 7 m | 9 m |
+  |---|---|---|---|---|---|
+  | Predicted dv_x (m/s) | 5.833 | 4.167 | 2.500 | 0.833 | 0 |
+  | Measured dv_x (m/s) | 5.798 | 4.142 | 2.485 | 0.829 | 0 |
+
+  Within 0.6 % (one tick of damping). Control J 0 → 0 everywhere. The age-0 rule holds: the
+  same impulse before the cubes ever ticked → 0. The first rig sat the cubes on the floor and
+  read a constant ~0.15 m/s low, which is one tick of kinetic friction (μ·g·dt = 0.13 m/s) plus
+  damping. That is why the rig is airborne.
+- **L4 user scenario (`spell_on_pile`)** — a 300-energy `/api/damage/apply` (the spell's impact
+  function) on the floor inside a settled 4×2×4 Stone pile's footprint:
+
+  | Run | Pile pieces moved | Movement |
+  |---|---|---|
+  | With the push | **32/34** | 0.7–0.8 m, 0 rebounds after the window |
+  | Control, `push:false` | 0/36 | largest 3.4 cm (from the blast's own new debris) |
+- **Recorded, not a gate — a blast BESIDE the pile:** pushing a 192 kg packed Stone pile
+  sideways on μ 0.8 moves it as one block by 9–17 cm (energy 300–600). That is correct
+  momentum bookkeeping: the near pieces share their momentum with the whole pile, and floor
+  friction stops a ~1 m/s block in ~8 cm.
+- **L4 `blast_pushes_furniture`:** a 10 kg CPU crate 1.5 m from a 300-energy blast →
+  `cpu_bodies` 1; it slid +0.175 m away from the blast, against a computed 0.19 m (dv 1.9 m/s,
+  ~1.5 horizontal, slide v²/2μg). Control 8 m away: 0 bodies, 0.000 m. (The first threshold,
+  0.2 m, was a guess set before the slide was computed; the script now checks ±30 % of the
+  computed value.)
+- **Stress, count past the cap:** 70 impulses queued on a frozen solver → pending stopped at 64,
+  the extras were counted; one step submitted exactly 64 and emptied the queue.
+  - Degenerate calls: a 1e30 centre was dropped and counted; radius 1e6 was clamped to 32 with
+    J −5 clamped to 0 (not queued); `worlds:"nowhere"` → an error.
+  - FOOTGUN: a minimized engine window stalls the game loop (API requests time out); the first
+    churn run died to that.
+- **Stress, churn:** 200 impulses over 200 stepped frames on a live 32-body pile, then 480 ticks
+  of settling.
+  - Every invariant holds: 0 NaN/lost bodies, 0 tunnelled, 0 rebounds after the window,
+    0 injected energy after the window, all asleep by ~6 s.
+  - The analyzer verdict still reads FAILS for two reasons, both run down:
+    1. **`held_unknown_occupancy` 93–277 = a DebrisLab edge artifact, not Phase 4.** The lab is
+       one row of chunks at z 0..31. With NO impulse at all, a cube resting at z 30.5 is held
+       60 ticks (contact sampling reaches the missing chunk at z ≥ 32), while z 1.5 and z 14 give
+       0. The churn threw pieces to z 30.3. Holding a body whose surroundings are unknown is the
+       intended 1c behaviour. With the pile centred at z 10 (J 10, chunk 2), the pieces ended at
+       z 2.1–23.5 and held = 0.
+    2. **2 forced sleeps** (of 32). This is the packed-pile behaviour that every pile scenario
+       carries a band for (drop_pile ≤ 20, box_through_pile ≤ 12). Recorded as this rig's
+       observed value, not a pass at the analyzer's default limit of 0.
+- **Bench `phase4`:**
+  - drop_pile 10 forced; box_through_pile 5 forced (box 24/24 displaced, median 24.8 / max
+    136 mm, pass); straddle 1.1 mm; packed/crater/crater_subcube/drop_layer 0 forced;
+  - `occ diff` 0 everywhere;
+  - **blast 11 forced vs the ≤ 6 band**, with the canonical setup (14 broken, 59 bodies) and an
+    unchanged hard-contact maximum of 86.2 mm. The Phase 4 push applied to 0 bodies there
+    (nothing older than spawn age 0 exists when it detonates).
+- **Bench-rig bug found and FIXED (`tools/debris_settle_bench.py`):**
+  - `restore_blast_site` refilled the slab with a plain `/api/world/fill`, which only fills
+    EMPTY cells. Cubes the previous blast grazed kept their accumulated damage, so back-to-back
+    blast runs broke 20 / 14 / 23 voxels (59–68 bodies) instead of 14. The fill now passes
+    `replace: true`.
+  - Three back-to-back blast runs after the fix: 14 broken / 59 bodies / 86.2 mm every time;
+    forced sleeps 4 / 1 / 4 (in band). That rules damage carry-over out of the full run's 11
+    forced; it is the GPU nondeterminism logged earlier (1–10).
+- Units green: `ImpulseLaw` (4), `BlastPushMatchesTheBreakLaunchSpeedForStone`, and the 39-test
+  mover/debris/kinematic set. Integration: 90/91, the one failure being the pre-existing
+  `SceneIntegrationTest.AddSceneThenTransitionToIt`.
+- `push.gpu_queued` reads true on a blast right after `clear_dynamics` (the pool still counts as
+  active until the next frame). It is harmless, since 0 bodies are affected
+  (`impulses_applied` 0), but the echo means "queued", not "pushed something".
+- **SPIR-V check:** `solver_shared.h` feeds every solver shader. An anonymised `spirv-dis` diff
+  vs HEAD shows only the ID-bound header changed in every shader except `solver_sync_in`.
+- **Not done in Phase 4 yet:** `CombatSystem` swing cones, the chop hook beyond `applyDamage`,
+  `try_push`, angular kicks (dv is linear only), and the `cast_test_spell` non-destroy path (VFX
+  only, no `applyDamage`).
 
 ## Phase 5 — Debris in shipped games (separate design check before starting)
 

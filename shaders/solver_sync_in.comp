@@ -9,6 +9,9 @@ layout(std430, set=0, binding=0) readonly buffer ParticleBuffer  { GpuParticle p
 layout(std430, set=0, binding=1) buffer SolverBodyBuffer         { SolverBody  bodies[]; };
 layout(std430, set=0, binding=2) buffer SolverStateBuffer        { uint solverState[]; };
 layout(std430, set=0, binding=3) readonly buffer MaterialBuffer  { MaterialPhysics materials[]; };
+// Phase 4: this frame's impulses (host-mapped, one buffer per frame slot; solver_shared.h).
+struct Impulse { PHX_IMPULSE };
+layout(std430, set=0, binding=4) readonly buffer ImpulseBuffer   { Impulse impulses[]; };
 
 layout(push_constant) uniform PC { PHX_PC_SYNC_IN } pc;  // shaders/solver_shared.h
 
@@ -52,8 +55,41 @@ void main() {
         return;
     }
 
+    // ---- Impulses (Phase 4): push EXISTING debris. dv = J * w(d) / m along the push direction
+    // (radial from the origin, blended toward +Y by the up bias), summed over this frame's
+    // impulses and clamped to IMPULSE_MAX_DV. Bodies of spawn age 0 have never ticked: they are
+    // debris this same blast just created, which already carries its own launch velocity - a
+    // second kick would double it. pc.impulseCount is 0 on every tick but the frame's first.
+    vec3 dv = vec3(0.0);
+    bool inWakeReach = false;   // within IMPULSE_WAKE_SCALE x an impulse's radius (see solver_shared.h)
+    uint spawnAge = (p.flags >> SPAWN_AGE_SHIFT) & 0xFFu;
+    if (pc.impulseCount > 0u && spawnAge > 0u) {
+        float m = max(materials[p.materialIndex & MATERIAL_MASK].mass, 1e-3);
+        for (uint k = 0u; k < pc.impulseCount; ++k) {
+            Impulse im = impulses[k];
+            vec3  off = p.position - im.centerRadius.xyz;
+            float d   = length(off);
+            if (d < im.centerRadius.w * IMPULSE_WAKE_SCALE) inWakeReach = true;
+            float w   = phxImpulseWeight(d, im.centerRadius.w);
+            if (w <= 0.0) continue;
+            vec3 radial = (d > 1e-4) ? off / d : vec3(0.0, 1.0, 0.0);
+            if (im.dirCos.w != IMPULSE_RADIAL && dot(radial, im.dirCos.xyz) < im.dirCos.w) continue;
+            vec3 blended = mix(radial, vec3(0.0, 1.0, 0.0), clamp(im.params.y, 0.0, 1.0));
+            vec3 dir = (length(blended) > 1e-4) ? normalize(blended) : vec3(0.0, 1.0, 0.0);
+            dv += dir * (im.params.x * w / m);
+        }
+        float s = length(dv);
+        if (s > IMPULSE_MAX_DV) dv *= IMPULSE_MAX_DV / s;
+    }
+    bool pushed = dot(dv, dv) > 1e-8;
+    if (pushed) atomicAdd(solverState[SS_IMPULSES_APPLIED], 1u);
+
     // ---- Sleep (Phase 2): consume wake bit or freeze ----
-    if ((p.flags & PARTICLE_SLEEPING) != 0u) {
+    if ((p.flags & PARTICLE_SLEEPING) != 0u && (pushed || inWakeReach)) {
+        b.flags &= ~PARTICLE_SLEEPING;            // an impulse wakes the body it reaches, and the
+                                                  // pile around it, so contacts carry the push
+        b.flags &= ~SLEEP_CTR_MASK;
+    } else if ((p.flags & PARTICLE_SLEEPING) != 0u) {
         uint word = WAKE_BITS_BASE + (i >> 5u);
         uint bit  = 1u << (i & 31u);
         if ((solverState[word] & bit) != 0u) {
@@ -85,6 +121,7 @@ void main() {
     b.invInertia = (I > 0.0) ? 1.0 / I : 0.0;
     b.friction   = mat.friction;
     b.restitution= mat.restitution;
+    b.vel       += dv;
 
     bodies[i] = b;
 }

@@ -5033,6 +5033,20 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // POST /api/damage/apply — Apply area destruction damage at a point
+    // POST /api/physics/impulse - push EXISTING debris and CPU bodies (DebrisInteractionPlan
+    // Phase 4). Body: x,y,z (m), radius (m), impulse (N*s at the centre), up_bias (0..1),
+    // optional direction {x,y,z} + half_angle_deg for a cone, worlds "gpu"|"cpu"|"both".
+    srv.Post("/api/physics/impulse", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = json::parse(req.body);
+            json result = queueAndWait("physics_impulse", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            res.status = 400;
+            res.set_content(json{{"error", "Invalid JSON"}, {"detail", e.what()}}.dump(), "application/json");
+        }
+    });
+
     srv.Post("/api/damage/apply", [this](const httplib::Request& req, httplib::Response& res) {
         try {
             json params = json::parse(req.body);

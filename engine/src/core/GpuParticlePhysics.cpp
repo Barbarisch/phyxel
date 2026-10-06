@@ -7,6 +7,7 @@
 #include "utils/GpuProfiler.h"
 #include <glm/gtc/quaternion.hpp>
 #include <cstring>
+#include <cmath>
 #include <algorithm>
 #include <functional>
 #include <stdexcept>
@@ -196,6 +197,39 @@ bool GpuParticlePhysics::createBuffers(Vulkan::VulkanDevice* dev) {
             return false;
         }
         std::memset(m_kinematicBoxMapped[slot], 0, static_cast<size_t>(kinSize));
+    }
+
+    // 6c. Impulses (host-coherent SSBO, persistent map, one per frame slot), Phase 4
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
+        const VkDeviceSize impSize = static_cast<VkDeviceSize>(DebrisShared::MAX_IMPULSES) *
+                                     sizeof(DebrisShared::ImpulseGpu);
+        VkBufferCreateInfo bi{};
+        bi.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bi.size        = impSize;
+        bi.usage       = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        VkMemoryRequirements req{};
+        uint32_t memType = UINT32_MAX;
+        if (vkCreateBuffer(m_device, &bi, nullptr, &m_impulseBuffer[slot]) == VK_SUCCESS) {
+            vkGetBufferMemoryRequirements(m_device, m_impulseBuffer[slot], &req);
+            VkPhysicalDeviceMemoryProperties props;
+            vkGetPhysicalDeviceMemoryProperties(m_physDevice, &props);
+            const VkMemoryPropertyFlags want = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+            for (uint32_t j = 0; j < props.memoryTypeCount; ++j)
+                if ((req.memoryTypeBits & (1u << j)) && (props.memoryTypes[j].propertyFlags & want) == want) { memType = j; break; }
+        }
+        VkMemoryAllocateInfo ai{};
+        ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        ai.allocationSize  = req.size;
+        ai.memoryTypeIndex = memType;
+        if (m_impulseBuffer[slot] == VK_NULL_HANDLE || memType == UINT32_MAX ||
+            vkAllocateMemory(m_device, &ai, nullptr, &m_impulseMem[slot]) != VK_SUCCESS ||
+            vkBindBufferMemory(m_device, m_impulseBuffer[slot], m_impulseMem[slot], 0) != VK_SUCCESS ||
+            vkMapMemory(m_device, m_impulseMem[slot], 0, impSize, 0, &m_impulseMapped[slot]) != VK_SUCCESS) {
+            LOG_ERROR("GpuParticlePhysics", "Failed to create/map impulse buffer");
+            return false;
+        }
+        std::memset(m_impulseMapped[slot], 0, static_cast<size_t>(impSize));
     }
 
     // 7. Material physics properties (host-coherent SSBO, 32 bytes × material count)
@@ -566,11 +600,16 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     VkDeviceSize adjListSize    = static_cast<VkDeviceSize>(MAX_CONSTRAINTS) * 2 * sizeof(uint32_t);
 
     // solver_sync_in: particles(ro), bodies(rw), state(rw), materials(ro)
-    if (!m_solverSyncInPass.create(m_device, shader("solver_sync_in.comp.spv"), 4, sizeof(SyncInPC))) return false;
+    // + binding 4: this frame slot's impulses (Phase 4), so one descriptor set per frame slot.
+    if (!m_solverSyncInPass.create(m_device, shader("solver_sync_in.comp.spv"), 5, sizeof(SyncInPC),
+                                   OCC_FRAME_SLOTS)) return false;
     m_solverSyncInPass.bindBuffer(0, m_particleBuffer,     particleSize);
     m_solverSyncInPass.bindBuffer(1, m_solverBodyBuffer,   bodySize);
     m_solverSyncInPass.bindBuffer(2, m_solverStateBuffer,  stateSize);
     m_solverSyncInPass.bindBuffer(3, m_materialPhysBuffer, matPhysSize);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
+        m_solverSyncInPass.bindBufferInSet(slot, 4, m_impulseBuffer[slot],
+            static_cast<VkDeviceSize>(MAX_IMPULSES) * sizeof(ImpulseGpu));
     m_solverSyncInPass.updateDescriptors();
 
     // solver_integrate: bodies, materials, particles, character collider, state (wake bits)
@@ -750,8 +789,8 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     // ---- 1. Sync in: GpuParticle → SolverBody ----
     {
         beginP("Setup");
-        SyncInPC pc{ count, FIXED_DT };
-        m_solverSyncInPass.bind(cmd);
+        SyncInPC pc{ count, FIXED_DT, tick == 0 ? m_impulseCountThisFrame : 0u, 0u };
+        m_solverSyncInPass.bind(cmd, m_frameSlot);
         m_solverSyncInPass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverSyncInPass.dispatch(cmd, groups);
     }
@@ -1284,7 +1323,19 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
     // Dispatch only up to the highest active slot, not the full 10K pool.
     const uint32_t count  = m_highWaterSlot;
     const uint32_t groups = (count + DebrisShared::WORKGROUP - 1u) / DebrisShared::WORKGROUP;
-    if (groups == 0) return; // nothing to simulate
+    if (groups == 0) { m_impulseStage.clear(); return; } // nothing to simulate (or to push)
+
+    // Impulses (Phase 4) go to the first frame whose ticks actually RUN: a frozen or stepped
+    // solver keeps them queued until its next step, so none is lost or applied twice. This
+    // slot's fence has retired (see the movers above), so the copy cannot race the GPU.
+    m_impulseCountThisFrame = 0;
+    if (m_physicsTicks > 0 && !m_impulseStage.empty() && m_impulseMapped[m_frameSlot]) {
+        m_impulseCountThisFrame = static_cast<uint32_t>(m_impulseStage.size());
+        std::memcpy(m_impulseMapped[m_frameSlot], m_impulseStage.data(),
+                    m_impulseStage.size() * sizeof(DebrisShared::ImpulseGpu));
+        m_impulsesSubmitted += m_impulseStage.size();
+        m_impulseStage.clear();
+    }
 
     // ---- Fixed-timestep physics loop (AVBD — the only pipeline; the legacy XPBD
     //      particle_integrate/collide path was deleted 2026-10-04, DebrisInteractionPlan D4) ----
@@ -1395,6 +1446,39 @@ void GpuParticlePhysics::setMoverBoxes(std::vector<MoverBox> movers) {
 void GpuParticlePhysics::setBodyMoverBoxes(std::vector<MoverBox> movers) {
     m_bodyMovers = std::move(movers);
     writeColliderBuffer();
+}
+
+GpuParticlePhysics::ImpulseQueued GpuParticlePhysics::queueImpulse(const glm::vec3& c, float radius,
+        const glm::vec3& axis, float cosHalf, float impulse, float upBias, float halfAngleDeg) {
+    ImpulseQueued q;
+    // Clamps at entry (the reasons live with the constants in solver_shared.h).
+    q.radius       = std::clamp(std::isfinite(radius) ? radius : 0.0f, 0.1f, DebrisShared::IMPULSE_MAX_RADIUS);
+    q.impulse      = std::max(std::isfinite(impulse) ? impulse : 0.0f, 0.0f);
+    q.upBias       = std::clamp(std::isfinite(upBias) ? upBias : 0.0f, 0.0f, 1.0f);
+    q.halfAngleDeg = halfAngleDeg;
+    if (!std::isfinite(c.x) || !std::isfinite(c.y) || !std::isfinite(c.z) || q.impulse <= 0.0f) return q;
+    if (m_activeCount == 0) return q;   // no debris to push: nothing is queued (would be stale later)
+    if (m_impulseStage.size() >= DebrisShared::MAX_IMPULSES) { ++m_impulseOverflow; return q; }
+    DebrisShared::ImpulseGpu g{};
+    g.centerRadius = { c.x, c.y, c.z, q.radius };
+    g.dirCos       = { axis.x, axis.y, axis.z, cosHalf };
+    g.params       = { q.impulse, q.upBias, 0.0f, 0.0f };
+    m_impulseStage.push_back(g);
+    q.queued = true;
+    return q;
+}
+
+GpuParticlePhysics::ImpulseQueued GpuParticlePhysics::applyRadialImpulse(const glm::vec3& center, float radius,
+                                                                         float impulse, float upBias) {
+    return queueImpulse(center, radius, glm::vec3(0.0f), DebrisShared::IMPULSE_RADIAL, impulse, upBias, 0.0f);
+}
+
+GpuParticlePhysics::ImpulseQueued GpuParticlePhysics::applyConeImpulse(const glm::vec3& origin, const glm::vec3& dir,
+        float halfAngleDeg, float range, float impulse, float upBias) {
+    const float len = glm::length(dir);
+    const glm::vec3 axis = (std::isfinite(len) && len > 1e-6f) ? dir / len : glm::vec3(0.0f, 0.0f, -1.0f);
+    const float half = std::clamp(std::isfinite(halfAngleDeg) ? halfAngleDeg : 0.0f, 0.0f, 90.0f);
+    return queueImpulse(origin, range, axis, std::cos(glm::radians(half)), impulse, upBias, half);
 }
 
 void GpuParticlePhysics::setObjectMoverBoxes(std::vector<MoverBox> movers) {
@@ -1686,6 +1770,8 @@ void GpuParticlePhysics::cleanup() {
     if (m_stagingMapped)       { vkUnmapMemory(m_device, m_stagingMem);       m_stagingMapped      = nullptr; }
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
         if (m_kinematicBoxMapped[slot]) { vkUnmapMemory(m_device, m_kinematicBoxMem[slot]); m_kinematicBoxMapped[slot] = nullptr; }
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
+        if (m_impulseMapped[slot]) { vkUnmapMemory(m_device, m_impulseMem[slot]); m_impulseMapped[slot] = nullptr; }
     if (m_materialPhysMapped)  { vkUnmapMemory(m_device, m_materialPhysMem);  m_materialPhysMapped = nullptr; }
     if (m_readbackMapped)      { vkUnmapMemory(m_device, m_readbackMem);      m_readbackMapped     = nullptr; }
 
@@ -1694,6 +1780,7 @@ void GpuParticlePhysics::cleanup() {
     destroyBuf(m_stagingBuffer,       m_stagingMem);
     destroyBuf(m_indirectDrawBuffer,  m_indirectDrawMem);
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_kinematicBoxBuffer[slot], m_kinematicBoxMem[slot]);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_impulseBuffer[slot], m_impulseMem[slot]);
     destroyBuf(m_materialPhysBuffer,  m_materialPhysMem);
     destroyBuf(m_gridCellCountBuffer,  m_gridCellCountMem);
     destroyBuf(m_gridCellOffsetBuffer, m_gridCellOffsetMem);

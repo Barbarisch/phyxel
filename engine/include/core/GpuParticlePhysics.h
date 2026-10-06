@@ -151,6 +151,24 @@ public:
     /** CPU rigid bodies as movers (Phase 3c, DebrisMoverFeed::appendRigidBodies), fed after the
      *  CPU physics step. Staged AFTER the character limbs: the overflow drops bodies first. */
     void setBodyMoverBoxes(std::vector<MoverBox> movers);
+
+    /** Phase 4: push EXISTING debris. Queued now, applied by sync_in on the first GPU tick that
+     *  runs (so a frozen/stepped solver applies it on its next step). dv = J * w(d) / m with the
+     *  linear falloff phxImpulseWeight, along the radial direction blended toward +Y by upBias,
+     *  |dv| <= IMPULSE_MAX_DV. Debris spawned by the same blast is not kicked twice (spawn age 0).
+     *  Clamps at entry (reasons in solver_shared.h): radius 0.1..IMPULSE_MAX_RADIUS, impulse >= 0,
+     *  upBias 0..1, cone half angle 0..90 deg; past MAX_IMPULSES per frame = counted, dropped.
+     *  Returns the values actually queued (`queued` false = dropped). */
+    struct ImpulseQueued {
+        bool  queued = false;
+        float radius = 0.0f, impulse = 0.0f, upBias = 0.0f, halfAngleDeg = 0.0f;
+    };
+    ImpulseQueued applyRadialImpulse(const glm::vec3& center, float radius, float impulse, float upBias = 0.0f);
+    ImpulseQueued applyConeImpulse(const glm::vec3& origin, const glm::vec3& dir, float halfAngleDeg,
+                                   float range, float impulse, float upBias = 0.0f);
+    uint32_t pendingImpulses() const { return static_cast<uint32_t>(m_impulseStage.size()); }
+    uint32_t impulseOverflow() const { return m_impulseOverflow; }
+    uint64_t impulsesSubmitted() const { return m_impulsesSubmitted; }   // reached a GPU tick
     uint32_t bodyMoverCount() const { return static_cast<uint32_t>(m_bodyMovers.size()); }
     /** Doors, animated template parts and held items (Phase 3b, KinematicVoxelManager), staged
      *  after the character limbs and before the CPU bodies. */
@@ -311,6 +329,17 @@ private:
     VkDeviceMemory   m_kinematicBoxMem[OCC_FRAME_SLOTS]    = {};
     void*            m_kinematicBoxMapped[OCC_FRAME_SLOTS] = {};
     std::vector<DebrisShared::KinematicBoxGpu> m_kinematicStage;   // this frame's frame-start poses
+    // Phase 4 impulses: queued here, copied into the frame slot's buffer by the first frame whose
+    // ticks run (recordComputeCommands), applied by sync_in on that frame's tick 0.
+    VkBuffer         m_impulseBuffer[OCC_FRAME_SLOTS] = {};
+    VkDeviceMemory   m_impulseMem[OCC_FRAME_SLOTS]    = {};
+    void*            m_impulseMapped[OCC_FRAME_SLOTS] = {};
+    std::vector<DebrisShared::ImpulseGpu> m_impulseStage;
+    uint32_t         m_impulseCountThisFrame = 0;
+    uint32_t         m_impulseOverflow       = 0;   // dropped past MAX_IMPULSES (lifetime count)
+    uint64_t         m_impulsesSubmitted     = 0;
+    ImpulseQueued    queueImpulse(const glm::vec3& c, float radius, const glm::vec3& axis, float cosHalf,
+                                  float impulse, float upBias, float halfAngleDeg);
     uint32_t         m_kinematicCount     = 0;
 
     // Per-material physics properties — host-coherent, persistently mapped
