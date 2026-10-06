@@ -71,6 +71,15 @@ PHX_CONST uint PARTICLE_TYPE_SUBCUBE = 1u << 2;
 PHX_CONST uint PARTICLE_TYPE_MICRO   = 2u << 2;
 PHX_CONST uint PARTICLE_TYPE_MASK    = 3u << 2;
 
+// ---- GpuParticle.materialIndex packing (DebrisInteractionPlan 1d texture parity) -------------
+// Bits 0-15: material index (~102 materials). Bits 16-25: the piece's micro position INSIDE its
+// parent cube, mx*81 + my*9 + mz (0..728), so a broken subcube/microcube keeps showing the slice
+// of the parent texture it showed while static. EVERY material reader masks with MATERIAL_MASK:
+// particle_expand (texture), solver_sync_in + solver_integrate (physics), the C++ readbacks.
+PHX_CONST uint MATERIAL_MASK = 0xFFFFu;
+PHX_CONST uint SLICE_SHIFT   = 16u;
+PHX_CONST uint SLICE_MASK    = 0x3FFu;
+
 // ---- Solver switches (runtime A/B of the settling fixes; pushed every tick) ----------------
 PHX_CONST uint SOLVER_FLAG_MASS_PENALTY    = 1u;   // cold contacts start at m/dt² stiffness, not 1
 PHX_CONST uint SOLVER_FLAG_START_AT_REST   = 2u;   // slow bodies start the solve from x⁻ (three-avbd)

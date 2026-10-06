@@ -49,6 +49,11 @@ public:
     static bool spawnBreakDebris(GpuParticlePhysics* gpu, const glm::vec3& centre, const glm::vec3& vel,
                                  float scale, const std::string& material, const glm::vec3& angularVel);
 
+    /// Which slice of its parent cube's texture a piece shows, as its micro position inside that
+    /// cube (mx*81 + my*9 + mz, 0..728). A pure function of the piece's world centre and edge —
+    /// so a broken subcube/microcube keeps the slice it showed while static. 0 for full cubes.
+    static uint32_t debrisSliceFor(const glm::vec3& centre, float scale);
+
     // Apply a radial energy hit at `center`. `direction` biases debris (and can
     // be (0,0,0) for a pure radial blast). `damageType` is informational for now.
     //

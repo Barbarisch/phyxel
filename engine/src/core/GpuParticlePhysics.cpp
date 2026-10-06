@@ -1022,7 +1022,8 @@ void GpuParticlePhysics::queueSpawn(const SpawnParams& p) {
     gp.angularVel   = p.angularVel;
     gp.flags        = DebrisShared::PARTICLE_ACTIVE | p.typeFlags;
     gp.scale        = p.scale;
-    gp.materialIndex= materialNameToIndex(p.materialName);
+    gp.materialIndex= (materialNameToIndex(p.materialName) & DebrisShared::MATERIAL_MASK)
+                    | ((p.slice & DebrisShared::SLICE_MASK) << DebrisShared::SLICE_SHIFT);
     // color is unused by debris rendering (debris is textured), so repurpose it to carry the baked
     // light sampled at the spawn position (sky, blockR, blockG, blockB, each 0..15). The expand
     // compute shader packs it into the instance's reserved2; dynamic_voxel.vert reads it. Default
@@ -1550,8 +1551,8 @@ void GpuParticlePhysics::consumeProbeSlot(uint32_t slot) {
             b.angularVel      = p.angularVel;
             b.rotation        = p.rotation;
             b.flags           = p.flags;
-            b.mass            = p.materialIndex < m_materialMassCpu.size()
-                                  ? m_materialMassCpu[p.materialIndex] : 1.0f;
+            const uint32_t mi = p.materialIndex & DebrisShared::MATERIAL_MASK;
+            b.mass            = mi < m_materialMassCpu.size() ? m_materialMassCpu[mi] : 1.0f;
             b.radius          = 0.5f * std::max(p.scale.x, std::max(p.scale.y, p.scale.z));
             b.color           = color[i];
             b.constraintCount = ccnt[i];

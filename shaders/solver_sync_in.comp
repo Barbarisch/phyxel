@@ -64,7 +64,7 @@ void main() {
             // Frozen: static for every downstream pass. Narrowphase still pairs it
             // with awake bodies (they rest on it / wake it); integrate holds the pose;
             // voxel/primal/hardcontact skip invMass == 0.
-            MaterialPhysics smat = materials[p.materialIndex];
+            MaterialPhysics smat = materials[p.materialIndex & MATERIAL_MASK];
             b.invMass    = 0.0;
             b.invInertia = 0.0;
             b.friction   = smat.friction;
@@ -77,7 +77,7 @@ void main() {
         }
     }
 
-    MaterialPhysics mat = materials[p.materialIndex];
+    MaterialPhysics mat = materials[p.materialIndex & MATERIAL_MASK];
     float mass = mat.mass;
     b.invMass    = (mass > 0.0) ? 1.0 / mass : 0.0;
     // Solid sphere: I = 2/5 * m * r²

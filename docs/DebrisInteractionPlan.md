@@ -600,6 +600,30 @@ commit: build, unit suite, `shader_manifest --check`, and the settle bench.
     without `ChunkArenaSystem::shutdown()`. After: 6/6 full runs clean. Remaining integration
     failure `SceneIntegrationTest.AddSceneThenTransitionToIt` is pre-existing (a runtime-added
     scene with no definition hands the loader null; code untouched since July).
+- **DONE 2026-10-05 — 1d part 2: texture parity.**
+  - `GpuParticle::materialIndex` bits 16–25 carry the piece's micro position inside its parent
+    cube (`MATERIAL_MASK`/`SLICE_SHIFT`/`SLICE_MASK` in `solver_shared.h`). The slice is a pure
+    function of the piece's world centre and edge (`DamageSystem::debrisSliceFor`), set in
+    `spawnBreakDebris` — so blast, chop, collapse and B-key debris all get it with no caller
+    change. `particle_expand` decodes it into the grid position `dynamic_voxel.vert` already
+    reads (subcube 0..2; microcube packed sub+micro). Every material reader masks:
+    `particle_expand`, `solver_sync_in`, `solver_integrate`, the C++ mass/position-log readers.
+  - SPIR-V proof (1b rule): 21 `.spv` changed; stripped of debug info and dead constants, all
+    but the three intended (`particle_expand`, `solver_integrate`, `solver_sync_in`) are
+    byte-identical to HEAD.
+  - `DebrisSliceTest` (4): every subcube at any cube incl. negative, every microcube, bit
+    budget, full cubes → 0.
+  - Visual red→green (`tools/debris_slice_pixel_check.py`, prediction in the file): 27 Bricks
+    subcubes, head-on camera, solver FROZEN, corner + centre front subcubes broken in place;
+    normalised correlation of each cell before/after. Red (expand shader with the old
+    hard-coded centre slice): corner **−0.183**, centre control 0.985, unbroken ≥ 0.996. Green:
+    corner **0.969**, centre 0.985, unbroken ≥ 0.996. Evidence: `docs/evidence/debris_slice/`.
+    Rig lesson: the face mask must come from the SAME geometry in another (non-emissive)
+    material — removing the cube moved its shadow into the mask; glow lit the ground.
+  - Not pixel-verified: microcube pieces (a 1/9 cell is ~30 px here) — pinned by the unit
+    test and the shared decode only.
+  - Bench `phase1d2`: in band (drop_layer 11.2 mm bit-identical — the mask changed no physics;
+    drop_pile 12 forced, blast 2; post-window 0 everywhere; occ diff 0).
 
 **1e. Analyzer: external-input window.**
 - Add `KINEMATIC_CONTACTS` and `IMPULSES_APPLIED` header counters.

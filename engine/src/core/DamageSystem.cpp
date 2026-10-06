@@ -104,8 +104,19 @@ bool DamageSystem::spawnBreakDebris(GpuParticlePhysics* gpu, const glm::vec3& ce
     sp.scale        = glm::vec3(scale);
     sp.materialName = material;
     sp.lifetime     = 25.0f;
+    sp.slice        = debrisSliceFor(centre, scale);
     gpu->queueSpawn(sp);
     return true;
+}
+
+uint32_t DamageSystem::debrisSliceFor(const glm::vec3& centre, float scale) {
+    if (scale >= 0.8f) return 0u;                          // full cube: shows the whole face
+    const int n = (scale < 0.2f) ? 9 : 3;                  // micro grid or subcube grid
+    const glm::vec3 rel = centre - glm::floor(centre);     // centre inside its parent cube, [0,1)
+    glm::ivec3 k = glm::ivec3(glm::floor(rel * static_cast<float>(n)));
+    k = glm::clamp(k, glm::ivec3(0), glm::ivec3(n - 1));
+    const glm::ivec3 m = (n == 9) ? k : k * 3;             // micro coords 0..8
+    return static_cast<uint32_t>(m.x * 81 + m.y * 9 + m.z);
 }
 
 void DamageSystem::spawnDebris(const glm::vec3& pos, const glm::vec3& vel, float scale,

@@ -94,7 +94,7 @@ void main() {
     }
 
     GpuParticle     p   = particles[b.particleIdx];
-    MaterialPhysics mat = materials[p.materialIndex];
+    MaterialPhysics mat = materials[p.materialIndex & MATERIAL_MASK];
 
     // Save state before any forces (these are the "initial" AVBD reference values)
     b.prevVel     = b.vel;

@@ -104,7 +104,7 @@ void main() {
         return;
     }
 
-    uint matIdx  = p.materialIndex;
+    uint matIdx  = p.materialIndex & MATERIAL_MASK;   // bits 16-25 carry the texture slice (1d)
     uint typeVal = (p.flags & PARTICLE_TYPE_MASK) >> 2u;
 
     // Smooth rendering between fixed-timestep physics ticks.
@@ -125,9 +125,17 @@ void main() {
     // which is tiny after restitution/friction (~0.01 units at 120Hz).
     vec3 renderPos = p.position + (p.position - p.prevPosition) * pc.interpAlpha;
 
-    // localPosition encodes subcube grid position for UV texture selection.
-    // For full cubes: center (1,1,1). For subcubes/micro: also center (UV covers full face).
-    ivec3 localPos = ivec3(1, 1, 1);
+    // localPosition selects the slice of the parent texture this piece shows (dynamic_voxel.vert):
+    // a subcube reads its 0..2 grid position, a microcube a packed sub+micro position in .x.
+    // The slice is the piece's micro position inside its parent cube, carried in materialIndex
+    // bits 16-25 (DebrisInteractionPlan 1d). It used to be hard-coded to the centre (1,1,1), so a
+    // broken subcube visibly changed texture at the moment it broke. Full cubes ignore it.
+    uint slice = (p.materialIndex >> SLICE_SHIFT) & SLICE_MASK;
+    ivec3 m = ivec3(int(slice / 81u), int((slice / 9u) % 9u), int(slice % 9u));   // 0..8 per axis
+    ivec3 s = m / 3, u = m % 3;
+    ivec3 localPos = (p.scale.x < 0.2)
+        ? ivec3(s.x | (s.y << 2) | (s.z << 4) | (u.x << 6) | (u.y << 8) | (u.z << 10), 0, 0)
+        : s;
 
     // Baked light carried in p.color (sky, blockR, blockG, blockB, each 0..15) → packed nibbles.
     uint light = (uint(clamp(p.color.x, 0.0, 15.0)) & 0xFu)

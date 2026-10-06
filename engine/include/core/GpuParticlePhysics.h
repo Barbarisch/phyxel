@@ -62,6 +62,9 @@ public:
         glm::vec4   color       = glm::vec4(1);
         float       lifetime    = 30.0f;
         uint32_t    typeFlags   = 0; // PARTICLE_TYPE_CUBE etc.
+        /// Micro position inside the parent cube (mx*81+my*9+mz, 0..728): which slice of the
+        /// parent texture the piece shows (DamageSystem::debrisSliceFor). Ignored for full cubes.
+        uint32_t    slice       = 0;
     };
 
     GpuParticlePhysics();
