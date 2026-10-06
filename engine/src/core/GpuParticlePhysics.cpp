@@ -8,6 +8,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include <cstring>
 #include <algorithm>
+#include <functional>
 #include <stdexcept>
 #include <random>
 
@@ -30,9 +31,13 @@ uint32_t GpuParticlePhysics::materialNameToIndex(const std::string& name) {
 GpuParticlePhysics::GpuParticlePhysics() {
     m_slots.resize(MAX_PARTICLES);
     m_freeSlots.reserve(MAX_PARTICLES);
-    for (uint32_t i = MAX_PARTICLES; i > 0; --i) {
-        m_freeSlots.push_back(i - 1); // push in reverse so slot 0 is popped first
-    }
+    for (uint32_t i = 0; i < MAX_PARTICLES; ++i) m_freeSlots.push_back(i);
+    std::make_heap(m_freeSlots.begin(), m_freeSlots.end(), std::greater<uint32_t>());
+}
+
+void GpuParticlePhysics::releaseSlot(uint32_t slot) {
+    m_freeSlots.push_back(slot);
+    std::push_heap(m_freeSlots.begin(), m_freeSlots.end(), std::greater<uint32_t>());
 }
 
 GpuParticlePhysics::~GpuParticlePhysics() {
@@ -996,7 +1001,8 @@ void GpuParticlePhysics::queueSpawn(const SpawnParams& p) {
         return;
     }
 
-    uint32_t slot = m_freeSlots.back();
+    std::pop_heap(m_freeSlots.begin(), m_freeSlots.end(), std::greater<uint32_t>());
+    uint32_t slot = m_freeSlots.back();   // the lowest free slot
     m_freeSlots.pop_back();
 
     m_slots[slot].lifetimeRemaining = p.lifetime;
@@ -1102,7 +1108,7 @@ void GpuParticlePhysics::update(float dt) {
         m_slots[i].lifetimeRemaining -= realDt;
         if (m_slots[i].lifetimeRemaining <= 0.0f) {
             m_slots[i].active = false;
-            m_freeSlots.push_back(i);
+            releaseSlot(i);
             m_pendingDeactivations.push_back(i); // clear its GPU ACTIVE flag this frame
             --m_activeCount;
         } else {
@@ -1110,6 +1116,7 @@ void GpuParticlePhysics::update(float dt) {
         }
     }
     m_highWaterSlot = newHigh;
+    if (m_activeCount == 0 && m_pendingSpawns.empty()) m_hashInitialized = false;   // as despawnAll
 
     // Auto-stop logging when all particles have died
     if (m_positionLogging && m_activeCount == 0 && m_pendingSpawns.empty() && m_posLogFrameCounter > 0) {
@@ -1319,13 +1326,18 @@ void GpuParticlePhysics::despawnAll() {
         if (m_slots[i].active) {
             m_slots[i].active = false;
             m_slots[i].lifetimeRemaining = 0.0f;
-            m_freeSlots.push_back(i);
+            releaseSlot(i);
             m_pendingDeactivations.push_back(i); // clear its GPU ACTIVE flag this frame
         }
     }
     m_activeCount = 0;
     m_highWaterSlot = 0;
     m_pendingSpawns.clear();
+    // An empty pool has no contacts to warm-start: re-clear the hash + wake bits on the next
+    // step. They were cleared ONCE per engine, so later bodies inherited stale keys/lambdas and
+    // the table filled across a session — the same scenario gave a different result on every
+    // run (DebrisInteractionPlan 1c, session-state dependence).
+    m_hashInitialized = false;
     if (m_positionLogging) stopPositionLog();
 }
 

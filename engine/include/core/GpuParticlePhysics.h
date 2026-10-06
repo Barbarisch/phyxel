@@ -385,7 +385,13 @@ private:
         bool  active            = false;
     };
     std::vector<SlotInfo> m_slots;         // per-particle CPU tracking
-    std::vector<uint32_t> m_freeSlots;     // freelist of inactive particle indices
+    // Inactive particle indices as a MIN-heap (std::greater): a spawn always takes the LOWEST free
+    // slot, so slot assignment is a function of current occupancy, never of history. A plain
+    // stack handed slots out in reverse after despawnAll, and the solver's colouring/processing
+    // order follows slots: the same scenario gave 11.2 / 81.4 / 47.1 mm hard-contact depth on its
+    // 1st/2nd/3rd run in one session (DebrisInteractionPlan 1c, session-state dependence).
+    std::vector<uint32_t> m_freeSlots;
+    void releaseSlot(uint32_t slot);
     LightSampler          m_lightSampler;  // Phase 4c: baked-light sampler for spawned debris (null = full sky)
     uint32_t              m_activeCount = 0;
     uint32_t              m_highWaterSlot = 0; // highest active slot index + 1 (dispatch range)

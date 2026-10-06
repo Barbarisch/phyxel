@@ -1,0 +1,238 @@
+{
+  "awake_bodies": [],
+  "csv": "G:\\github\\phyxel\\docs\\evidence\\debris_settle\\sessionfix-fresh\\blast.csv",
+  "csv_written": true,
+  "running": false,
+  "success": true,
+  "summary": {
+    "bodies": 59,
+    "checks": {
+      "all_asleep_s": {
+        "limit": 5.683333396911621,
+        "pass": true,
+        "value": 3.8500001430511475
+      },
+      "color_skipped": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "constraints_dropped_ticks": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "forced_sleeps": {
+        "limit": 0,
+        "pass": false,
+        "value": 3
+      },
+      "hardcontact_after_window": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "held_unknown_occupancy": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "injected_lift_after_window_m": {
+        "limit": 0.0010000000474974513,
+        "pass": true,
+        "value": 4.85712759962714e-07
+      },
+      "rebounds_after_window": {
+        "limit": 0.009999999776482582,
+        "pass": true,
+        "value": 0.0
+      },
+      "tunnelled_through_floor": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      }
+    },
+    "criteria": {
+      "impact_phase_end_s": 2.683333396911621,
+      "judged_from_s": 3.183333396911621,
+      "settle_window_min_s": 1.0
+    },
+    "duration_s": 8.0,
+    "energy": {
+      "final_J": 53975.257232178206,
+      "initial_J": 64524.092092116756,
+      "injected_after_window_J": 0.001686754202182783,
+      "injected_after_window_lift_m": 4.85712759962714e-07,
+      "injected_total_J": 0.001686754202182783,
+      "injected_total_lift_m": 4.85712759962714e-07
+    },
+    "kicks_after_settle_window": 0,
+    "rebounds": {
+      "after_settle_window": 0,
+      "bodies_over_3": 1,
+      "per_body_after_mean": 0.0,
+      "per_body_max": 5,
+      "per_body_mean": 0.6440677966101694,
+      "total": 38
+    },
+    "sleep": {
+      "awake_at_end": 0,
+      "clean": 59,
+      "creep_before_sleep_mm": {
+        "clean": {
+          "max": 20.691781997680664,
+          "median": 2.6819140911102295,
+          "n": 59,
+          "p90": 6.652442932128906
+        },
+        "forced": {
+          "max": 34.205711364746094,
+          "median": 27.171890258789062,
+          "n": 3,
+          "p90": 27.171890258789062
+        }
+      },
+      "forced": 3,
+      "forced_fraction": 0.04838709677419355,
+      "peak_speed_before_sleep": {
+        "clean": {
+          "max": 0.43587544560432434,
+          "median": 0.11733904480934143,
+          "n": 59,
+          "p90": 0.22723956406116486
+        },
+        "forced": {
+          "max": 0.14586953818798065,
+          "median": 0.09314653277397156,
+          "n": 3,
+          "p90": 0.09314653277397156
+        }
+      },
+      "woke": 3
+    },
+    "solver": {
+      "constraint_cap": 60000,
+      "hardcontact_fires_after_window": 0,
+      "hardcontact_max_depth_m": 0.08617900311946869,
+      "hardcontact_max_depth_tick": 148,
+      "max_color_skipped": 0,
+      "max_constraints": 431,
+      "max_uncolored_jacobi": 0,
+      "ticks_dropping_constraints": 0
+    },
+    "ticks": 480,
+    "time_95_asleep_s": 3.4666669368743896,
+    "time_all_asleep_s": 3.8500001430511475,
+    "tunnelled": {
+      "bodies_below_floor_at_end": 0,
+      "floor_y": 11.0,
+      "lowest_y": 14.49415397644043,
+      "max_bodies_below_floor": 0
+    },
+    "verdict": "FAILS",
+    "windows": [
+      {
+        "awake_at_end": 59,
+        "from_s": 0.0,
+        "hardcontact_fires": 29,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 5,
+        "max_churning": 57,
+        "max_color_skipped": 0,
+        "max_speed": 17.257728576660156,
+        "rebounds": 11,
+        "to_s": 0.5,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 33,
+        "from_s": 0.5,
+        "hardcontact_fires": 3,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 30,
+        "max_color_skipped": 0,
+        "max_speed": 8.968300819396973,
+        "rebounds": 1,
+        "to_s": 1.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 19,
+        "from_s": 1.0,
+        "hardcontact_fires": 14,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 23,
+        "max_color_skipped": 0,
+        "max_speed": 8.578770637512207,
+        "rebounds": 13,
+        "to_s": 2.0,
+        "woke": 3
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 2.0,
+        "hardcontact_fires": 9,
+        "injected_J": 0.001686754202182783,
+        "injected_lift_m": 4.85712759962714e-07,
+        "kicks": 0,
+        "max_churning": 15,
+        "max_color_skipped": 0,
+        "max_speed": 10.879049301147461,
+        "rebounds": 13,
+        "to_s": 4.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 4.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 0,
+        "max_color_skipped": 0,
+        "max_speed": 0.0,
+        "rebounds": 0,
+        "to_s": 8.0,
+        "woke": 0
+      }
+    ],
+    "scenario": "blast",
+    "setup": "/api/damage/apply r=3.5 e=600 at ground -> {\"broken\": 14, \"coherent_bodies\": 0, \"debris\": 59, \"debris_refused\": 0, \"grazed\": 94, \"stage_changed\": 33, \"success\": true}",
+    "site": {
+      "x": 173,
+      "z": 13,
+      "ground_top": 16
+    },
+    "sim_seconds": 8.0,
+    "occupancy_diff": {
+      "agrees": true,
+      "cell_mismatches": 0,
+      "cells_checked": 32768,
+      "cells_no_chunk": 0,
+      "cells_pool_unknown": 0,
+      "first_mismatches": [],
+      "grid_mismatches": 0,
+      "region": {
+        "max": [
+          191,
+          31,
+          31
+        ],
+        "min": [
+          160,
+          0,
+          0
+        ]
+      },
+      "subcube_mismatches": 0
+    }
+  },
+  "ticks": 480
+}

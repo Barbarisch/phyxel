@@ -1,14 +1,17 @@
 # Debris Interaction Plan — everything that moves can push GPU debris
 
-**Status:** rev 4.5, 2026-10-05. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
-**Phase 1 in progress** (pushed to main through 1c step 6):
+**Status:** rev 4.6, 2026-10-05. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
+**Phase 1 in progress** (pushed to main through 1c — 1c DONE):
 - 1a build safety ✅ · 1b `shaders/solver_shared.h` ✅
 - 1c one occupancy: steps 1–4 ✅ (tri-state query, edit-first repack, debris reads the shared
   pool, old bitfield deleted) · step 5 writer audit ✅ (7 of 8 gaps closed, red→green,
   `OccupancyCoverageTest`; bench `phase1c5` in band) · step 6 ✅ (`DebrisContactOccupancyTest`,
   `occupancy_diff`, asserted by every bench scenario)
-- **Open before 1c is called done:** the blast hard-contact shift (88.1 → 118.8 mm) and the
-  bench's session-state dependence — both under 1c below.
+- 1c blockers CLOSED: the session-state dependence was two solver leaks (slot order after
+  `despawnAll`, warm-start hash never re-cleared); the blast "shift" was that leak — leak-free
+  blast is 86.2 mm and a warm session now matches a fresh engine (details under 1c).
+- Still open, minor: 1c step 5 gap 8 (incremental add does not filter broken/invisible
+  sub-voxels); drop_pile varies run to run (GPU nondeterminism, not session state).
 - 1d–1f not started. Phases 2–6 not started (Phase 4 holds the user's "spells don't hit debris").
 - Rev 2 rewrote the phases after a four-way code inventory (§Inventory).
 - Rev 3 (user direction) puts simplification first: delete the old systems before new work.
@@ -465,6 +468,31 @@ commit: build, unit suite, `shader_manifest --check`, and the settle bench.
       FIRST scenario on two fresh engines: `phase1c6-droppile-fresh1/2` = 0 pushes, 0 rebounds,
       10 / 7 forced, occ 0. In the full bench drop_pile runs SECOND (after drop_layer): this is
       the open session-state dependence, now with a reproducible-ish trigger to chase.
+  - **CLOSED 2026-10-05 — session-state dependence AND the blast shift: one root cause, two
+    leaks in `GpuParticlePhysics`.**
+    - Red (prediction written first: "the same scenario repeated in one session gives different
+      numbers"): drop_layer ×3 in one fresh session → hard-contact max 11.2 / 81.4 / 47.1 mm
+      (`slotorder-red`).
+    - Leak 1, slot order: the free list was a stack initialised `N-1…0`; `despawnAll` pushed the
+      freed slots back ASCENDING, so every later scenario got its bodies in REVERSED slots, and
+      the solver's colouring/processing order follows slots. Now a min-heap: a spawn always
+      takes the lowest free slot (occupancy, not history). Alone: 11.2 / 29.6 / 40.8
+      (`slotorder-green`) — real but not all of it.
+    - Leak 2, warm-start state: the warm-start hash table and the wake bits were cleared ONCE per
+      engine (`m_hashInitialized`). New bodies inherited stale keys/lambdas and the
+      open-addressed table filled across a session. Now re-cleared whenever the pool empties
+      (`despawnAll`, or the last body expiring). Both: 11.2 / 11.2 / 11.2, identical t_all and
+      forced (`slotorder-green2`).
+    - Whole bench, warm session (9 scenarios already run) vs fresh engine
+      (`sessionfix-warm` / `sessionfix-fresh`): drop_layer, packed, crater, crater_subcube
+      bit-identical; blast 86.179 vs 86.178 mm, same forced (3) and t_all. drop_pile still
+      varies (28.9 vs 26.2 mm, 9 vs 10 forced) — it varied between two FRESH first runs too
+      (10 vs 7, above), so that is GPU nondeterminism in the 150-body pile (parallel constraint
+      build), not session state. Bench gates no longer need a fresh engine.
+    - **Blast explained:** leak-free blast is **86.2 mm**. Phase 0's constant 88.1 and step 3's
+      constant 118.8 were both measured on leaked state (blast runs SIXTH, after five scenarios'
+      stale warm-start keys); step 3 changed the contacts, so the same leak produced a different
+      constant. Not a contact-geometry regression. 100 GPU-particle/debris unit tests pass.
   - Test-world footgun hit twice this session: `restore_blast_site` only refilled y 8..15, so a
     test structure on the blast chunk's SURFACE survived into later runs. It now clears above the
     slab too; `debris_subvoxel_rest_check.py` removes its slab when done.
