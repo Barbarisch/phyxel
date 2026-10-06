@@ -286,6 +286,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         if (inventory) return inventory->getSelectedMaterial();
         return "";
     });
+    // B key / break_hovered_*: pieces become GPU debris (1d). Lazy: the solver is created below.
+    voxelInteractionSystem->setGpuDebrisProvider([this]() { return gpuParticlePhysics.get(); });
 
     // STEP 4.5: CREATE ObjectTemplateManager
     objectTemplateManager = std::make_unique<ObjectTemplateManager>(
@@ -8974,6 +8976,40 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         c["micro_slots"] = cm;
 
         response = {{"cell", {wp.x, wp.y, wp.z}}, {"grid", g}, {"content", c}};
+        return true;
+
+    } else if (action == "break_voxel") {
+        // DebrisInteractionPlan 1d test hook: the B-key break at a given cell, no cursor hover.
+        // {x,y,z, level: cube|subcube|microcube, sub:[sx,sy,sz], micro:[mx,my,mz]}. Echoes what
+        // the break did: removed?, GPU pieces queued, pieces refused (no GPU solver).
+        if (!chunkManager || !voxelInteractionSystem) { response = {{"error", "no world"}}; return true; }
+        const glm::ivec3 wp(cmd.params.value("x", 0), cmd.params.value("y", 0), cmd.params.value("z", 0));
+        const std::string level = cmd.params.value("level", std::string("cube"));
+        auto vec3Param = [&](const char* k) {
+            const auto& a = cmd.params.value(k, json::array({0, 0, 0}));
+            return glm::ivec3(a.at(0).get<int>(), a.at(1).get<int>(), a.at(2).get<int>());
+        };
+        Chunk* ch = chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord(wp));
+        if (!ch) { response = {{"error", "no chunk at cell"}}; return true; }
+        const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wp);
+        const auto queuedBefore = gpuParticlePhysics ? gpuParticlePhysics->getActiveParticleCount() : 0u;
+        const uint64_t refusedBefore = Phyxel::DamageSystem::refusedDebrisTotal();
+        auto& m = voxelInteractionSystem->manipulator();
+        bool removed = false;
+        if (level == "cube") {
+            removed = m.breakCube(CubeLocation(ch, lp, wp), glm::vec3(0.0f), false);
+        } else if (level == "subcube") {
+            removed = m.breakSubcube(CubeLocation(ch, lp, wp, vec3Param("sub")), false);
+        } else if (level == "microcube") {
+            removed = m.breakMicrocube(CubeLocation(ch, lp, wp, vec3Param("sub"), vec3Param("micro")), false);
+        } else {
+            response = {{"error", "level must be cube, subcube or microcube"}};
+            return true;
+        }
+        const auto queuedAfter = gpuParticlePhysics ? gpuParticlePhysics->getActiveParticleCount() : 0u;
+        response = {{"removed", removed}, {"level", level}, {"cell", {wp.x, wp.y, wp.z}},
+                    {"gpu_pieces", queuedAfter - queuedBefore},   // queueSpawn counts immediately
+                    {"refused", Phyxel::DamageSystem::refusedDebrisTotal() - refusedBefore}};
         return true;
 
     } else if (action == "occupancy_diff") {

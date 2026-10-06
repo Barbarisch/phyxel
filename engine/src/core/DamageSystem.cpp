@@ -94,17 +94,24 @@ static std::atomic<uint64_t> s_refusedDebris{0};
 
 uint64_t DamageSystem::refusedDebrisTotal() { return s_refusedDebris.load(std::memory_order_relaxed); }
 
-void DamageSystem::spawnDebris(const glm::vec3& pos, const glm::vec3& vel, float scale,
-                               const std::string& material) {
-    if (!m_gpu) { s_refusedDebris.fetch_add(1, std::memory_order_relaxed); return; }
+bool DamageSystem::spawnBreakDebris(GpuParticlePhysics* gpu, const glm::vec3& centre, const glm::vec3& vel,
+                                    float scale, const std::string& material, const glm::vec3& angularVel) {
+    if (!gpu || !gpu->isInitialized()) { s_refusedDebris.fetch_add(1, std::memory_order_relaxed); return false; }
     GpuParticlePhysics::SpawnParams sp;
-    sp.position     = pos;
+    sp.position     = centre;
     sp.velocity     = vel;
-    sp.angularVel   = glm::vec3(frand(-4.0f, 4.0f), frand(-4.0f, 4.0f), frand(-4.0f, 4.0f));
+    sp.angularVel   = angularVel;
     sp.scale        = glm::vec3(scale);
     sp.materialName = material;
     sp.lifetime     = 25.0f;
-    m_gpu->queueSpawn(sp);
+    gpu->queueSpawn(sp);
+    return true;
+}
+
+void DamageSystem::spawnDebris(const glm::vec3& pos, const glm::vec3& vel, float scale,
+                               const std::string& material) {
+    spawnBreakDebris(m_gpu, pos, vel, scale, material,
+                     glm::vec3(frand(-4.0f, 4.0f), frand(-4.0f, 4.0f), frand(-4.0f, 4.0f)));
 }
 
 // Forward decl: representative material of a cell, scanning cube -> subcube -> MICROCUBE

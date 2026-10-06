@@ -1652,6 +1652,22 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/debug/break_voxel {x,y,z, level, sub, micro} — the B-key break at a cell,
+    // no cursor hover (DebrisInteractionPlan 1d test hook).
+    // ====================================================================
+    srv.Post("/api/debug/break_voxel", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json body = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("break_voxel", body, 10000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // POST /api/debug/occupancy_diff {x1,y1,z1,x2,y2,z2} (world cubes, <= 64^3) — store vs
     // physics grid vs packed pool at micro resolution (DebrisInteractionPlan 1c step 6).
     // ====================================================================

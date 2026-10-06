@@ -575,6 +575,31 @@ commit: build, unit suite, `shader_manifest --check`, and the settle bench.
   drives the B-key path without cursor hover, and echoes the pieces spawned.
 - `ChunkManagerIntegrationTest.cpp:287-289`'s CPU-subcube assertions are rewritten to assert GPU
   spawns.
+- **1d is three commits:** (1) every break → GPU through one helper + test hook · (2) texture
+  parity · (3) delete the CPU path.
+- **DONE 2026-10-05 — 1d part 1: breaks spawn GPU debris through ONE helper.**
+  - `DamageSystem::spawnBreakDebris(gpu, centre, vel, scale, material, angVel)` is the only
+    debris spawn: `DamageSystem::spawnDebris` (blast/chop/collapse) and
+    `VoxelManipulationSystem::breakCube/breakSubcube/breakMicrocube` (B key, Python
+    `break_hovered_*`) all call it; no GPU solver (or not initialised) → refused + counted.
+  - The manipulator takes a lazy `setGpuDebrisProvider` (the solver is created after it).
+    breakSubcube no longer goes through `Chunk::breakSubcube`/`ChunkVoxelBreaker` (CPU body);
+    those, `DynamicObjectManager` and its render path become dead code for part 3.
+  - Test hook `POST /api/debug/break_voxel {x,y,z,level,sub,micro}` → `removed`, `gpu_pieces`,
+    `refused`.
+  - Live L4 (`tools/debris_break_voxel_check.py`, prediction written in the file): cube, subcube
+    and microcube each removed=True, gpu_pieces=1, refused=0; after 6 s 3 pieces active, 0 awake,
+    0 below the slab; cpu_dynamic=0; occupancy_diff agrees. With `--disable-gpu-debris`:
+    removed=True, gpu_pieces=0, refused=1.
+  - Test-world footgun found on the way: `occupancy_diff` over a chunk takes seconds in Debug;
+    interleaving it with breaks let a 25 s piece EXPIRE before the settle check (measured
+    lifetimes: break piece 27.9 s, blast 29.3 s — correct).
+  - Unrelated, fixed separately: the integration suite crashed intermittently (access violation
+    in `ChunkRenderBuffer::createBufferRaw` for ~19 destruction tests, segfault at exit). The
+    region-arena singleton kept the first test's Vulkan device; fixtures destroyed devices
+    without `ChunkArenaSystem::shutdown()`. After: 6/6 full runs clean. Remaining integration
+    failure `SceneIntegrationTest.AddSceneThenTransitionToIt` is pre-existing (a runtime-added
+    scene with no definition hands the loader null; code untouched since July).
 
 **1e. Analyzer: external-input window.**
 - Add `KINEMATIC_CONTACTS` and `IMPULSES_APPLIED` header counters.

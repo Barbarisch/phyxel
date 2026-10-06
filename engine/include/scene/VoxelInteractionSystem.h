@@ -95,6 +95,13 @@ public:
     void setMaterialProvider(std::function<std::string()> provider) {
         m_manipulator.setMaterialProvider(std::move(provider));
     }
+    /// The break/place logic itself — for /api/debug/break_voxel, which drives the B-key path
+    /// at a given cell without cursor hover.
+    VoxelManipulationSystem& manipulator() { return m_manipulator; }
+    /// Where broken pieces go (GPU debris, DebrisInteractionPlan 1d).
+    void setGpuDebrisProvider(std::function<GpuParticlePhysics*()> provider) {
+        m_manipulator.setGpuDebrisProvider(std::move(provider));
+    }
 
     // Hover state accessors
     bool hasHoveredCube() const { return m_hasHoveredCube; }

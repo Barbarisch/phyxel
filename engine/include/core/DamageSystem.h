@@ -42,6 +42,13 @@ public:
     /// missing solver is observable instead of breaks silently making no debris.
     static uint64_t refusedDebrisTotal();
 
+    /// THE one way a broken piece becomes debris (DebrisInteractionPlan 1d): blasts, chops and
+    /// collapse (spawnDebris below), the B key and Python break_hovered_* (VoxelManipulationSystem).
+    /// `centre` in world units, `scale` = piece edge (1, 1/3, 1/9). With no GPU solver the piece
+    /// is REFUSED and counted in refusedDebrisTotal() — never dropped silently. Returns queued.
+    static bool spawnBreakDebris(GpuParticlePhysics* gpu, const glm::vec3& centre, const glm::vec3& vel,
+                                 float scale, const std::string& material, const glm::vec3& angularVel);
+
     // Apply a radial energy hit at `center`. `direction` biases debris (and can
     // be (0,0,0) for a pure radial blast). `damageType` is informational for now.
     //

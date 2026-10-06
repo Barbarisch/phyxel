@@ -10,6 +10,7 @@ namespace Phyxel {
 // Forward declarations
 class ChunkManager;
 class Chunk;
+class GpuParticlePhysics;
 namespace Physics {
     class PhysicsWorld;
 }
@@ -135,6 +136,13 @@ public:
         m_materialProvider = std::move(provider);
     }
 
+    /// Where broken pieces go (DebrisInteractionPlan 1d): every break spawns GPU debris through
+    /// DamageSystem::spawnBreakDebris. A provider, not a pointer, because the GPU solver is created
+    /// after this system (and can be torn down). Unset/null = pieces are refused and counted.
+    void setGpuDebrisProvider(std::function<GpuParticlePhysics*()> provider) {
+        m_gpuDebris = std::move(provider);
+    }
+
 private:
     // Callback functions
     GetChunkManagerFunc getChunkManager;
@@ -142,6 +150,9 @@ private:
 
     // Optional material provider — called at placement time to get the active material
     std::function<std::string()> m_materialProvider;
+    std::function<GpuParticlePhysics*()> m_gpuDebris;
+    /// Spawn one broken piece as GPU debris (refused + counted without a GPU solver).
+    bool spawnPiece(const glm::vec3& centre, float edge, const std::string& material);
     
     // Helper methods for material selection
     std::string selectMaterialForCube(const glm::vec3& cubeWorldPos) const;
