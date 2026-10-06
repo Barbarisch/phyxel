@@ -1101,6 +1101,18 @@ void GpuParticlePhysics::update(float dt) {
     }
     m_totalTicks += m_physicsTicks;
 
+    // Scripted kinematic boxes (1f) move and age by SIMULATED time, so a frozen solver stepped
+    // tick by tick drives them deterministically.
+    if (!m_kinematicBoxes.empty()) {
+        const float simDt = static_cast<float>(m_physicsTicks) * FIXED_DT;
+        for (auto it = m_kinematicBoxes.begin(); it != m_kinematicBoxes.end(); ) {
+            it->second.center += it->second.velocity * simDt;
+            it->second.ttl    -= simDt;
+            it = (it->second.ttl <= 0.0f) ? m_kinematicBoxes.erase(it) : std::next(it);
+        }
+        writeColliderBuffer();
+    }
+
     // Age CPU-side slots using real elapsed time (frame-rate independent).
     // The GPU integrate shader does the same via lifetimeDt push constant.
     uint32_t newHigh = 0;
@@ -1348,10 +1360,46 @@ void GpuParticlePhysics::despawnAll() {
 
 void GpuParticlePhysics::setCharacterColliders(
     const std::vector<std::pair<glm::vec3, glm::vec3>>& boxes, const glm::vec3& velocity) {
+    m_charBoxes = boxes;
+    m_charVelocity = velocity;
+    writeColliderBuffer();
+}
+
+void GpuParticlePhysics::setCharacterAABB(const glm::vec3& center, const glm::vec3& halfExtents, const glm::vec3& velocity) {
+    setCharacterColliders({ { center, halfExtents } }, velocity);
+}
+
+void GpuParticlePhysics::clearCharacterAABB() {
+    m_charBoxes.clear();
+    writeColliderBuffer();
+}
+
+void GpuParticlePhysics::setKinematicBox(const std::string& id, const KinematicBox& box) {
+    KinematicBox b = box;
+    b.half = glm::max(b.half, glm::vec3(0.01f));          // a degenerate box collides with nothing
+    b.ttl  = std::clamp(b.ttl, 0.0f, 10.0f);              // a forgotten box must not live forever
+    m_kinematicBoxes[id] = b;
+    writeColliderBuffer();
+}
+
+bool GpuParticlePhysics::removeKinematicBox(const std::string& id) {
+    const bool had = m_kinematicBoxes.erase(id) > 0;
+    writeColliderBuffer();
+    return had;
+}
+
+void GpuParticlePhysics::writeColliderBuffer() {
     if (!m_characterMapped) return;
     CharacterCollider* cc = static_cast<CharacterCollider*>(m_characterMapped);
 
-    uint32_t n = static_cast<uint32_t>(boxes.size());
+    std::vector<std::pair<glm::vec3, glm::vec3>> all = m_charBoxes;
+    glm::vec3 velocity = m_charVelocity;
+    for (const auto& [id, b] : m_kinematicBoxes) {
+        all.emplace_back(b.center, b.half);
+        velocity = b.velocity;    // one shared velocity until Phase 2: the scripted box wins
+    }
+    uint32_t n = static_cast<uint32_t>(all.size());
+    m_kinematicOverflow = n > MAX_CHAR_SEGMENTS ? n - MAX_CHAR_SEGMENTS : 0u;
     if (n > MAX_CHAR_SEGMENTS) n = MAX_CHAR_SEGMENTS;
     if (n == 0) {
         cc->segmentCount = 0.0f;
@@ -1363,8 +1411,8 @@ void GpuParticlePhysics::setCharacterColliders(
     glm::vec3 mn( 1e30f);
     glm::vec3 mx(-1e30f);
     for (uint32_t i = 0; i < n; ++i) {
-        const glm::vec3& c = boxes[i].first;
-        const glm::vec3& h = boxes[i].second;
+        const glm::vec3& c = all[i].first;
+        const glm::vec3& h = all[i].second;
         cc->segments[i].center      = glm::vec4(c, 0.0f);
         cc->segments[i].halfExtents = glm::vec4(h, 0.0f);
         mn = glm::min(mn, c - h);
@@ -1375,17 +1423,6 @@ void GpuParticlePhysics::setCharacterColliders(
     cc->velocity     = velocity;
     cc->segmentCount = static_cast<float>(n);
     cc->legacyActive = static_cast<float>(n);
-}
-
-void GpuParticlePhysics::setCharacterAABB(const glm::vec3& center, const glm::vec3& halfExtents, const glm::vec3& velocity) {
-    setCharacterColliders({ { center, halfExtents } }, velocity);
-}
-
-void GpuParticlePhysics::clearCharacterAABB() {
-    if (!m_characterMapped) return;
-    CharacterCollider* cc = static_cast<CharacterCollider*>(m_characterMapped);
-    cc->segmentCount = 0.0f;
-    cc->legacyActive = 0.0f;
 }
 
 // ============================================================
@@ -1565,6 +1602,8 @@ void GpuParticlePhysics::consumeProbeSlot(uint32_t slot) {
         c.hardContactMaxDepth = static_cast<float>(hdr[DebrisShared::SS_HARDCONTACT_DEPTH_UM]) * 1.0e-6f;
         c.wakeRequests        = hdr[DebrisShared::SS_WAKE_REQUESTS];
         c.frozenUnknown       = hdr[DebrisShared::SS_FROZEN_UNKNOWN];
+        c.kinematicContacts   = hdr[DebrisShared::SS_KINEMATIC_CONTACTS];
+        c.impulsesApplied     = hdr[DebrisShared::SS_IMPULSES_APPLIED];
         c.maxColors           = MAX_COLORS;
         c.uncoloredSolved     = true;   // recordComputeCommandsNew's final UNCOLORED sweep
         m_settle.addTick(samples, c);

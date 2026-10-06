@@ -1,7 +1,7 @@
 # Debris Interaction Plan — everything that moves can push GPU debris
 
-**Status:** rev 4.7, 2026-10-06. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
-**Phase 1 in progress** (pushed to main through 1d - 1c and 1d DONE):
+**Status:** rev 4.8, 2026-10-06. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
+**Phase 1 DONE** (pushed to main through 1f):
 - 1a build safety ✅ · 1b `shaders/solver_shared.h` ✅
 - 1c one occupancy: steps 1–4 ✅ (tri-state query, edit-first repack, debris reads the shared
   pool, old bitfield deleted) · step 5 writer audit ✅ (7 of 8 gaps closed, red→green,
@@ -11,7 +11,8 @@
   `despawnAll`, warm-start hash never re-cleared); the blast "shift" was that leak — leak-free
   blast is 86.2 mm and a warm session now matches a fresh engine (details under 1c).
 - 1d all break debris on the GPU: part 1 one spawn helper + `break_voxel` hook, part 2 texture
-  parity (pixel red -0.183 -> green 0.969), part 3 CPU debris path deleted. Next: 1e.
+  parity (pixel red -0.183 -> green 0.969), part 3 CPU debris path deleted.
+- 1e driven-input counters + analyzer window, 1f scripted kinematic box. Next: Phase 2.
 - Still open, minor: 1c step 5 gap 8 (incremental add does not filter broken/invisible
   sub-voxels); drop_pile varies run to run (GPU nondeterminism, not session state).
 - 1d–1f not started. Phases 2–6 not started (Phase 4 holds the user's "spells don't hit debris").
@@ -654,6 +655,32 @@ commit: build, unit suite, `shader_manifest --check`, and the settle bench.
 
 **1f. Scripted kinematic test box** (`POST /api/debug/gpu_kinematic_box`) isolates solver tests
 from NPC AI.
+
+**DONE 2026-10-06 — 1e + 1f.**
+- **1e counters:** `HASH_BASE` 8 → 16 (room to grow); `SS_KINEMATIC_CONTACTS` (8, counted where
+  the character-collider push moves a body) and `SS_IMPULSES_APPLIED` (9, 0 until Phase 4).
+  `PROBE_HDR_UINTS` was a hand-synced `= 8 // == HASH_BASE` mirror — now `DebrisShared::HASH_BASE`.
+  SPIR-V: only the five users of the hash base / wake bits / the counter changed (integrate,
+  sync_in, narrowphase, voxel, warmstart_save).
+- **1e analyzer:** the judged window starts at the latest of `settleWindow`, impact end + 0.5 s
+  and **last external input + 0.5 s**; the all-asleep deadline also moves to last input + 3 s.
+  `summary()["driven"]` reports `kinematic_contacts`, `impulses_applied`,
+  `last_external_input_s`, `hardcontact_fires_while_driven`, `rebounds_while_driven`; the bench
+  table shows `driven kin/hc`. Red→green: `ExternalInputDelaysTheJudgedWindowAndIsReportedAsDriven`
+  (red: judged from 1.0 s, the in-pile push failed the run, no `driven`); control
+  `ControlWithoutExternalInputThePushIsStillAFailure` (the same push with no input still fails).
+- **1f box:** `GpuParticlePhysics::KinematicBox` (id, centre, half, velocity, ttl ≤ 10 s), moved
+  and aged by SIMULATED time (stepped solver = deterministic). Until Phase 2 the boxes join the
+  character-collider buffer: axis-aligned, one shared velocity, ≤ 12 boxes with the player's
+  (rest counted as `overflow`); the endpoint echoes the box, `kinematic_boxes`, `overflow`,
+  the backend and any ignored `rotation`/`angular_velocity`. `gpu_physics` status adds
+  `kinematic_boxes` and `kinematic_overflow`.
+- **Bench:** opt-in `box_through_pile` (`--only box_through_pile`, ≥ 10 s; not in the default
+  band until Phase 2). `phase1f-box` on the shove path: 294 driven contacts, last input 5.87 s
+  (box exit ≈ 5.75 s), 74 hard-contact fires + 204 rebounds reported as driven, judged from
+  7.62 s, post-window clean, 12 forced sleeps — the shove's violence (bodies flung to 5.9 m/s),
+  which is what Phase 2 replaces. Default bench `phase1e` in band, driven 0/0 everywhere,
+  drop_layer still 11.2 mm.
 
 ## Phase 2 — Kinematic colliders as real AVBD contacts
 

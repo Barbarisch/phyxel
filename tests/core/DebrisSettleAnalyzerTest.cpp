@@ -135,3 +135,41 @@ TEST(DebrisSettleAnalyzerTest, PerfectPileVerdictSettles) {
     auto s = a.summary();
     EXPECT_EQ(s["verdict"].get<std::string>(), "SETTLES") << s.dump(2);
 }
+
+// DebrisInteractionPlan 1e: motion an EXTERNAL input causes (a mover pushing, an impulse) is
+// driven, not bubbling. A pile a box drives through until t = 3 s, with the hard-contact pass
+// firing at 2.5 s while the box is still in it, must be judged from 3.5 s on - and the push is
+// reported as driven. The control is the same series with no external-input counters: the
+// 2.5 s push is then a post-window failure, exactly what the analyzer must still catch.
+namespace {
+void drivenPile(DebrisSettleAnalyzer& a, bool reportExternal) {
+    for (uint32_t t = 1; t <= 300; ++t) {           // 5 s, resting, asleep from 4 s
+        const float time = t * kDt;
+        SettleSolverCounters c;
+        if (t <= 180 && reportExternal) c.kinematicContacts = 2;   // through t = 3.0 s (tick-exact)
+        if (t == 150) c.hardContactFires = 1;        // 2.5 s: the box shoves a body out
+        a.addTick({body({0, 1, 0}, {0, 1, 0}, t, time >= 4.0f)}, c);
+    }
+}
+} // namespace
+
+TEST(DebrisSettleAnalyzerTest, ExternalInputDelaysTheJudgedWindowAndIsReportedAsDriven) {
+    DebrisSettleAnalyzer a;
+    drivenPile(a, /*reportExternal=*/true);
+    auto s = a.summary();
+    EXPECT_NEAR(s["criteria"]["judged_from_s"].get<double>(), 3.5, 0.05) << s["criteria"].dump();
+    EXPECT_TRUE(s["checks"]["hardcontact_after_window"]["pass"].get<bool>())
+        << "a push while the box is still in the pile is driven, not a settle failure";
+    ASSERT_TRUE(s.contains("driven")) << "the summary must report the driven phase";
+    EXPECT_NEAR(s["driven"]["last_external_input_s"].get<double>(), 3.0, 0.05);
+    EXPECT_EQ(s["driven"]["kinematic_contacts"].get<uint64_t>(), 2u * 180u);
+    EXPECT_EQ(s["driven"]["hardcontact_fires_while_driven"].get<uint64_t>(), 1u);
+}
+
+TEST(DebrisSettleAnalyzerTest, ControlWithoutExternalInputThePushIsStillAFailure) {
+    DebrisSettleAnalyzer a;
+    drivenPile(a, /*reportExternal=*/false);
+    auto s = a.summary();
+    EXPECT_FALSE(s["checks"]["hardcontact_after_window"]["pass"].get<bool>())
+        << "with no external input, a 2.5 s push-out is bubbling and must fail";
+}

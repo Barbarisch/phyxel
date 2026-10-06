@@ -50,7 +50,7 @@ PHX_CONST int SCAN_BLOCK  = PHX_SCAN_BLOCK;
 PHX_CONST int SCAN_BLOCKS = GRID_CELLS / SCAN_BLOCK;             // 1024
 
 // ---- Solver state buffer: header counters, warm-start hash, wake bits ----------------------
-PHX_CONST uint HASH_BASE  = 8u;        // header counters live in [0, HASH_BASE)
+PHX_CONST uint HASH_BASE  = 16u;       // header counters live in [0, HASH_BASE) (room to grow, 1e)
 PHX_CONST uint HASH_CAP   = 131072u;   // power of two, >= 2 * MAX_CONSTRAINTS
 PHX_CONST uint WAKE_WORDS = 320u;      // one bit per body: 320 * 32 = 10240 >= MAX_PARTICLES
 // Header counter slots (the settle probe reads these back).
@@ -62,6 +62,8 @@ PHX_CONST uint SS_HARDCONTACT_FIRES    = 4u;   // bodies the post-solve push-out
 PHX_CONST uint SS_HARDCONTACT_DEPTH_UM = 5u;   // deepest push-out this tick, micrometres (atomicMax)
 PHX_CONST uint SS_WAKE_REQUESTS        = 6u;   // wake bits set this tick (impact + character)
 PHX_CONST uint SS_FROZEN_UNKNOWN       = 7u;   // bodies HELD this tick: a contact sample needed occupancy the pool does not have (1c)
+PHX_CONST uint SS_KINEMATIC_CONTACTS   = 8u;   // bodies a mover (character collider / scripted box) pushed this tick (1e)
+PHX_CONST uint SS_IMPULSES_APPLIED     = 9u;   // bodies an impulse reached this tick (Phase 4; 0 until then)
 
 // ---- GpuParticle.flags bits ------------------------------------------------------------------
 PHX_CONST uint PARTICLE_ACTIVE       = 1u;

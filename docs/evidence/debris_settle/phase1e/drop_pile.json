@@ -1,0 +1,245 @@
+{
+  "awake_bodies": [],
+  "csv": "G:\\github\\phyxel\\docs\\evidence\\debris_settle\\phase1e\\drop_pile.csv",
+  "csv_written": true,
+  "running": false,
+  "success": true,
+  "summary": {
+    "bodies": 150,
+    "checks": {
+      "all_asleep_s": {
+        "limit": 7.083333492279053,
+        "pass": true,
+        "value": 4.816667079925537
+      },
+      "color_skipped": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "constraints_dropped_ticks": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "forced_sleeps": {
+        "limit": 0,
+        "pass": false,
+        "value": 14
+      },
+      "hardcontact_after_window": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "held_unknown_occupancy": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      },
+      "injected_lift_after_window_m": {
+        "limit": 0.0010000000474974513,
+        "pass": true,
+        "value": 8.874781913040707e-07
+      },
+      "rebounds_after_window": {
+        "limit": 0.009999999776482582,
+        "pass": true,
+        "value": 0.0
+      },
+      "tunnelled_through_floor": {
+        "limit": 0,
+        "pass": true,
+        "value": 0
+      }
+    },
+    "criteria": {
+      "impact_phase_end_s": 4.083333492279053,
+      "judged_from_s": 4.583333492279053,
+      "settle_window_min_s": 1.0
+    },
+    "driven": {
+      "hardcontact_fires_while_driven": 0,
+      "impulses_applied": 0,
+      "kinematic_contacts": 0,
+      "last_external_input_s": null,
+      "rebounds_while_driven": 0
+    },
+    "duration_s": 8.0,
+    "energy": {
+      "final_J": 162149.8517355498,
+      "initial_J": 196817.39124418897,
+      "injected_after_window_J": 0.007835545286184242,
+      "injected_after_window_lift_m": 8.874781913040707e-07,
+      "injected_total_J": 0.44961743483145256,
+      "injected_total_lift_m": 5.0925066893118694e-05
+    },
+    "kicks_after_settle_window": 0,
+    "rebounds": {
+      "after_settle_window": 0,
+      "bodies_over_3": 0,
+      "per_body_after_mean": 0.0,
+      "per_body_max": 3,
+      "per_body_mean": 0.58,
+      "total": 87
+    },
+    "sleep": {
+      "awake_at_end": 0,
+      "clean": 157,
+      "creep_before_sleep_mm": {
+        "clean": {
+          "max": 34.97063064575195,
+          "median": 5.230734825134277,
+          "n": 157,
+          "p90": 18.75139808654785
+        },
+        "forced": {
+          "max": 35.49925231933594,
+          "median": 19.96623420715332,
+          "n": 14,
+          "p90": 33.627559661865234
+        }
+      },
+      "forced": 14,
+      "forced_fraction": 0.08187134502923976,
+      "peak_speed_before_sleep": {
+        "clean": {
+          "max": 0.4728248417377472,
+          "median": 0.1634969264268875,
+          "n": 157,
+          "p90": 0.23265884816646576
+        },
+        "forced": {
+          "max": 0.20458340644836426,
+          "median": 0.14096929132938385,
+          "n": 14,
+          "p90": 0.14852216839790344
+        }
+      },
+      "woke": 21
+    },
+    "solver": {
+      "constraint_cap": 60000,
+      "hardcontact_fires_after_window": 0,
+      "hardcontact_max_depth_m": 0.02611600048840046,
+      "hardcontact_max_depth_tick": 48,
+      "max_color_skipped": 0,
+      "max_constraints": 894,
+      "max_uncolored_jacobi": 0,
+      "ticks_dropping_constraints": 0
+    },
+    "ticks": 480,
+    "time_95_asleep_s": 4.583333492279053,
+    "time_all_asleep_s": 4.816667079925537,
+    "tunnelled": {
+      "bodies_below_floor_at_end": 0,
+      "floor_y": 16.0,
+      "lowest_y": 16.493772506713867,
+      "max_bodies_below_floor": 0
+    },
+    "verdict": "FAILS",
+    "windows": [
+      {
+        "awake_at_end": 150,
+        "from_s": 0.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 150,
+        "max_color_skipped": 0,
+        "max_speed": 4.7422404289245605,
+        "rebounds": 0,
+        "to_s": 0.5,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 150,
+        "from_s": 0.5,
+        "hardcontact_fires": 12,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 4,
+        "max_churning": 150,
+        "max_color_skipped": 0,
+        "max_speed": 7.316059589385986,
+        "rebounds": 77,
+        "to_s": 1.0,
+        "woke": 0
+      },
+      {
+        "awake_at_end": 92,
+        "from_s": 1.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 0,
+        "max_churning": 142,
+        "max_color_skipped": 0,
+        "max_speed": 4.762030601501465,
+        "rebounds": 5,
+        "to_s": 2.0,
+        "woke": 1
+      },
+      {
+        "awake_at_end": 26,
+        "from_s": 2.0,
+        "hardcontact_fires": 6,
+        "injected_J": 0.0,
+        "injected_lift_m": 0.0,
+        "kicks": 1,
+        "max_churning": 46,
+        "max_color_skipped": 0,
+        "max_speed": 9.233622550964355,
+        "rebounds": 5,
+        "to_s": 4.0,
+        "woke": 20
+      },
+      {
+        "awake_at_end": 0,
+        "from_s": 4.0,
+        "hardcontact_fires": 0,
+        "injected_J": 0.44961743483145256,
+        "injected_lift_m": 5.0925066893118694e-05,
+        "kicks": 0,
+        "max_churning": 9,
+        "max_color_skipped": 0,
+        "max_speed": 2.3005404472351074,
+        "rebounds": 0,
+        "to_s": 8.0,
+        "woke": 0
+      }
+    ],
+    "scenario": "drop_pile",
+    "setup": "5x6x5 cubes, gap 0.1, spin<=3 rad/s, dropped 3 m",
+    "site": {
+      "x": 45,
+      "z": 13,
+      "ground_top": 16
+    },
+    "sim_seconds": 8.0,
+    "occupancy_diff": {
+      "agrees": true,
+      "cell_mismatches": 0,
+      "cells_checked": 32768,
+      "cells_no_chunk": 0,
+      "cells_pool_unknown": 0,
+      "first_mismatches": [],
+      "grid_mismatches": 0,
+      "region": {
+        "max": [
+          63,
+          31,
+          31
+        ],
+        "min": [
+          32,
+          0,
+          0
+        ]
+      },
+      "subcube_mismatches": 0
+    }
+  },
+  "ticks": 480
+}

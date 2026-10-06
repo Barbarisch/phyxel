@@ -50,6 +50,10 @@ struct SettleSolverCounters {
     float    hardContactMaxDepth  = 0;  // metres, deepest push-out this tick
     uint32_t wakeRequests         = 0;  // wake bits set this tick (narrowphase + character)
     uint32_t frozenUnknown        = 0;  // bodies HELD this tick: contact needed occupancy the pool lacks (1c)
+    // External inputs this tick (DebrisInteractionPlan 1e). Motion they cause is DRIVEN, not
+    // bubbling: the judged window starts 0.5 s after the last tick with either.
+    uint32_t kinematicContacts    = 0;  // SS_KINEMATIC_CONTACTS: bodies a mover (character/box) pushed
+    uint32_t impulsesApplied      = 0;  // SS_IMPULSES_APPLIED: bodies an impulse reached (Phase 4)
     uint32_t warmstartHits        = 0;
     uint32_t maxColors            = 12; // colours the primal loop dispatches
     bool     uncoloredSolved      = false; // true: UNCOLORED bodies get a Jacobi fallback sweep

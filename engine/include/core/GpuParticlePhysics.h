@@ -8,6 +8,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <vector>
+#include <map>
 #include <string>
 #include <cstdint>
 #include <functional>
@@ -163,6 +164,23 @@ public:
 
     /** Disable character collision (no character active). */
     void clearCharacterAABB();
+
+    /** Scripted kinematic test box (DebrisInteractionPlan 1f): a mover the solver tests can drive
+     *  without NPC AI. It advances by SIMULATED time (ticks x FIXED_DT, so a frozen, stepped solver
+     *  moves it deterministically) and expires after `ttl` seconds. Until Phase 2 replaces the
+     *  backend with real AVBD contacts, boxes join the character collider buffer: axis-aligned
+     *  (rotation ignored), one shared velocity (a box's, while any exist), and at most
+     *  MAX_CHAR_SEGMENTS boxes in total with the player's (the rest are counted as overflow). */
+    struct KinematicBox {
+        glm::vec3 center{0.0f};
+        glm::vec3 half{0.5f};
+        glm::vec3 velocity{0.0f};
+        float     ttl = 5.0f;   // seconds left, <= 10
+    };
+    void setKinematicBox(const std::string& id, const KinematicBox& box);
+    bool removeKinematicBox(const std::string& id);
+    const std::map<std::string, KinematicBox>& kinematicBoxes() const { return m_kinematicBoxes; }
+    uint32_t kinematicOverflow() const { return m_kinematicOverflow; }
 
     // GPU-side per-material physics (32 bytes, std430).
     // Populated at init from MaterialRegistry, indexed by GpuParticle::materialIndex.
@@ -394,6 +412,13 @@ private:
     // order follows slots: the same scenario gave 11.2 / 81.4 / 47.1 mm hard-contact depth on its
     // 1st/2nd/3rd run in one session (DebrisInteractionPlan 1c, session-state dependence).
     std::vector<uint32_t> m_freeSlots;
+    // Collider feed: the player's boxes (setCharacterColliders) + the scripted boxes (1f), merged
+    // into the collider buffer by writeColliderBuffer().
+    std::vector<std::pair<glm::vec3, glm::vec3>> m_charBoxes;
+    glm::vec3 m_charVelocity{0.0f};
+    std::map<std::string, KinematicBox> m_kinematicBoxes;
+    uint32_t m_kinematicOverflow = 0;   // boxes the 12-segment buffer could not take (last write)
+    void writeColliderBuffer();
     void releaseSlot(uint32_t slot);
     LightSampler          m_lightSampler;  // Phase 4c: baked-light sampler for spawned debris (null = full sky)
     uint32_t              m_activeCount = 0;
@@ -437,7 +462,7 @@ private:
     //           | constraintCount uint[MAX_PARTICLES]. Only `count` entries of each array are copied.
     static constexpr uint32_t PROBE_FRAMES     = 2;  // == MAX_FRAMES_IN_FLIGHT
     static constexpr uint32_t PROBE_MAX_TICKS  = 4;  // == physics tick cap per frame
-    static constexpr uint32_t PROBE_HDR_UINTS  = 8;  // == HASH_BASE (solver-state header)
+    static constexpr uint32_t PROBE_HDR_UINTS  = DebrisShared::HASH_BASE;  // the whole solver-state header
     static constexpr VkDeviceSize PROBE_PARTICLES_OFF = 0;
     static constexpr VkDeviceSize PROBE_HDR_OFF   = static_cast<VkDeviceSize>(MAX_PARTICLES) * sizeof(GpuParticle);
     static constexpr VkDeviceSize PROBE_COLOR_OFF = PROBE_HDR_OFF + PROBE_HDR_UINTS * sizeof(uint32_t);

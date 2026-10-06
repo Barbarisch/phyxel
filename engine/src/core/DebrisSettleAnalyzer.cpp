@@ -286,12 +286,27 @@ nlohmann::json DebrisSettleAnalyzer::summary() const {
     float lastImpact = 0.0f;
     for (const auto& s : m_ticks)
         if (s.maxSpeed > m_cfg.impactSpeed) lastImpact = s.t;
-    const float windowStart = std::max(m_cfg.settleWindow, lastImpact + 0.5f);
+    // External inputs (DebrisInteractionPlan 1e): a mover pushing bodies or an impulse reaching
+    // them makes the motion DRIVEN. The window starts 0.5 s after the last such tick too, and
+    // what happened while driven is reported separately instead of counted as bubbling.
+    float lastExternal = -1.0f;
+    uint64_t kinematicTotal = 0, impulseTotal = 0;
+    for (const auto& s : m_ticks) {
+        kinematicTotal += s.solver.kinematicContacts;
+        impulseTotal   += s.solver.impulsesApplied;
+        if (s.solver.kinematicContacts > 0 || s.solver.impulsesApplied > 0) lastExternal = s.t;
+    }
+    const float drivenUntil = lastExternal >= 0.0f ? lastExternal + 0.5f : 0.0f;
+    const float windowStart = std::max({m_cfg.settleWindow, lastImpact + 0.5f, drivenUntil});
+    uint64_t hcDriven = 0, rebDriven = 0;
     for (const auto& s : m_ticks) {
         rebSeries += s.rebounds;
         if (s.t >= windowStart) {
             rebSeriesAfter += s.rebounds; kicksAfter += s.kicks;
             injAfter += s.injected; hcAfter += s.solver.hardContactFires;
+        }
+        if (lastExternal >= 0.0f && s.t <= drivenUntil) {
+            hcDriven += s.solver.hardContactFires; rebDriven += s.rebounds;
         }
         frozenUnknownTotal += s.solver.frozenUnknown;
         maxSkipped = std::max(maxSkipped, s.colorSkipped);
@@ -352,6 +367,10 @@ nlohmann::json DebrisSettleAnalyzer::summary() const {
 
     // ---- verdict (docs/DebrisSettlingPlan.md §3 A2 invariants) ----
     const json tAll = out["time_all_asleep_s"];
+    // 3 s after the impact phase AND after the last external input (a pile a box drove through
+    // gets 3 s from when the box left, 1e) - never earlier than allAsleepBy.
+    const float asleepLimit = std::max({m_cfg.allAsleepBy, lastImpact + 3.0f,
+                                        lastExternal >= 0.0f ? lastExternal + 3.0f : 0.0f});
     const double rebAfterMean = n ? double(rebSeriesAfter) / n : 0.0;
     const double liftAfter = m_totalMassG > 0 ? injAfter / m_totalMassG : 0.0;
     json checks = {
@@ -361,9 +380,8 @@ nlohmann::json DebrisSettleAnalyzer::summary() const {
                                           {"pass", liftAfter <= m_cfg.maxInjectedLiftAfter}}},
         // Plan §3: "100 % SLEEPING by t0 + 3 s" — within 3 s of the impact phase ending
         // (never later-judged than allAsleepBy for a scene with no impact phase).
-        {"all_asleep_s", {{"value", tAll}, {"limit", std::max(m_cfg.allAsleepBy, lastImpact + 3.0f)},
-                          {"pass", !tAll.is_null() &&
-                                   tAll.get<double>() <= std::max(m_cfg.allAsleepBy, lastImpact + 3.0f)}}},
+        {"all_asleep_s", {{"value", tAll}, {"limit", asleepLimit},
+                          {"pass", !tAll.is_null() && tAll.get<double>() <= asleepLimit}}},
         {"forced_sleeps", {{"value", m_sleptForcedTotal}, {"limit", 0},
                            {"pass", m_sleptForcedTotal == 0}}},
         {"color_skipped", {{"value", maxSkipped}, {"limit", 0}, {"pass", maxSkipped == 0}}},
@@ -382,6 +400,11 @@ nlohmann::json DebrisSettleAnalyzer::summary() const {
     out["criteria"] = {{"settle_window_min_s", m_cfg.settleWindow},
                        {"impact_phase_end_s", lastImpact},
                        {"judged_from_s", windowStart}};
+    out["driven"] = {{"kinematic_contacts", kinematicTotal},
+                     {"impulses_applied", impulseTotal},
+                     {"last_external_input_s", lastExternal >= 0.0f ? json(lastExternal) : json(nullptr)},
+                     {"hardcontact_fires_while_driven", hcDriven},
+                     {"rebounds_while_driven", rebDriven}};
     return out;
 }
 

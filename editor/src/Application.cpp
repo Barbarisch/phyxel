@@ -7929,7 +7929,50 @@ static bool handleDebugDynamicSpawnCommand(
                     {"cold_scale", gpuParticles->coldPenaltyScale()},
                     {"pending_steps", gpuParticles->pendingStepTicks()},
                     {"total_ticks", gpuParticles->totalTicks()},
-                    {"active", gpuParticles->getActiveParticleCount()}};
+                    {"active", gpuParticles->getActiveParticleCount()},
+                    {"kinematic_boxes", gpuParticles->kinematicBoxes().size()},
+                    {"kinematic_overflow", gpuParticles->kinematicOverflow()}};
+        return true;
+    }
+    if (cmd.action == "gpu_kinematic_box") {
+        // DebrisInteractionPlan 1f: a scripted mover for solver tests (no NPC AI). Omitted fields
+        // keep the stored box's value; `remove:true` deletes it. Until Phase 2 the box is
+        // axis-aligned and shares the collider buffer's single velocity - the echo says so.
+        if (!gpuParticles || !gpuParticles->isInitialized()) {
+            response = {{"error", "GPU particle physics not available"}};
+            return true;
+        }
+        const std::string id = cmd.params.value("id", std::string("box"));
+        if (cmd.params.value("remove", false)) {
+            response = {{"removed", gpuParticles->removeKinematicBox(id)}, {"id", id},
+                        {"kinematic_boxes", gpuParticles->kinematicBoxes().size()}};
+            return true;
+        }
+        auto vec3Of = [&](const char* k, glm::vec3 def) {
+            if (!cmd.params.contains(k)) return def;
+            const auto& a = cmd.params[k];
+            if (a.is_array() && a.size() == 3) return glm::vec3(a[0].get<float>(), a[1].get<float>(), a[2].get<float>());
+            return glm::vec3(a.value("x", def.x), a.value("y", def.y), a.value("z", def.z));
+        };
+        GpuParticlePhysics::KinematicBox b;
+        if (auto it = gpuParticles->kinematicBoxes().find(id); it != gpuParticles->kinematicBoxes().end())
+            b = it->second;
+        b.center   = vec3Of("center", b.center);
+        b.half     = vec3Of("half", b.half);
+        b.velocity = vec3Of("velocity", b.velocity);
+        b.ttl      = cmd.params.value("ttl", b.ttl);
+        gpuParticles->setKinematicBox(id, b);
+        const auto& stored = gpuParticles->kinematicBoxes().at(id);
+        response = {{"id", id},
+                    {"center", {stored.center.x, stored.center.y, stored.center.z}},
+                    {"half", {stored.half.x, stored.half.y, stored.half.z}},
+                    {"velocity", {stored.velocity.x, stored.velocity.y, stored.velocity.z}},
+                    {"ttl", stored.ttl},
+                    {"kinematic_boxes", gpuParticles->kinematicBoxes().size()},
+                    {"overflow", gpuParticles->kinematicOverflow()},
+                    {"backend", "character-collider (axis-aligned, shared velocity) until Phase 2"}};
+        if (cmd.params.contains("rotation") || cmd.params.contains("angular_velocity"))
+            response["ignored"] = {"rotation", "angular_velocity"};
         return true;
     }
     if (cmd.action == "settle_probe") {

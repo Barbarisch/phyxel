@@ -184,6 +184,8 @@ void main() {
                     b.inertial     = b.pos + b.vel * pc.dt;
                     b.inertialQuat = quatIntegrate(b.quat, b.angVel * pc.dt);
                     b.cumAng       = angDispFromInitial(b.inertialQuat, b.initialQuat);
+                    // External input (1e): the settle analyzer judges motion it causes as DRIVEN.
+                    atomicAdd(solverState[SS_KINEMATIC_CONTACTS], 1u);
                     break;
                 }
             }

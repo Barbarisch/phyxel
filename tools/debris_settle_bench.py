@@ -269,6 +269,18 @@ def s_blast(api, x, z):
     return f"/api/damage/apply r=3.5 e=600 at ground -> {json.dumps(r)[:140]}"
 
 
+def s_box_through_pile(api, x, z):
+    # DebrisInteractionPlan 1f/Phase 2: a settled 6x3x6 pile; a scripted 1x2x1 box (half 0.5,1,0.5)
+    # starts 3 m short of it and crosses at 2 m/s through the bottom two layers, then leaves.
+    # Box motion is SIMULATED time, so the stepped solver drives it exactly. Until Phase 2 the box
+    # rides the character-collider push (shove) path; the analyzer reports its pushes as DRIVEN.
+    lattice(api, x=x, y=GROUND + 0.002, z=z, nx=6, ny=3, nz=6, scale=1.0, gap=0.0, seed=6)
+    api.post("/api/debug/gpu_kinematic_box", {"id": "bench_box", "center": [x - 3.0, GROUND + 1.0, z + 3.0],
+                                              "half": [0.5, 1.0, 0.5], "velocity": [2.0, 0.0, 0.0],
+                                              "ttl": 6.0})
+    return "6x3x6 touching pile; 1x2x1 kinematic box crosses at 2 m/s (enters ~1.25 s, leaves ~5.75 s)"
+
+
 SCENARIOS = {
     "drop_layer":     (0, s_drop_layer, GROUND),
     "drop_pile":      (1, s_drop_pile, GROUND),
@@ -276,12 +288,18 @@ SCENARIOS = {
     "crater":         (3, s_crater, GROUND - CRATER["depth"]),
     "crater_subcube": (4, s_crater_subcube, GROUND - CRATER_SUB["depth"]),
     "blast":          (5, s_blast, GROUND - 5),
+    # Opt-in (--only box_through_pile): not in the default regression band until Phase 2 gives
+    # the box real AVBD contacts. Reuses the packed site (chunk 2); needs >= 10 s of sim time.
+    "box_through_pile": (2, s_box_through_pile, GROUND),
 }
+OPT_IN = {"box_through_pile"}
+MIN_SECONDS = {"box_through_pile": 10.0}
 FRAME_TICKS = [0, 20, 60, 120, 240, 480]
 
 
 def run(api, name, seconds, outdir, frames):
     chunk, setup, floor_y = SCENARIOS[name]
+    seconds = max(seconds, MIN_SECONDS.get(name, 0.0))
     x, z = site_x(chunk), SITE_Z
     api.post("/api/debug/clear_dynamics", {})
     physics(api, frozen=True)
@@ -331,6 +349,7 @@ def run(api, name, seconds, outdir, frames):
     with open(os.path.join(outdir, f"{name}.json"), "w") as f:
         json.dump(st, f, indent=2)
     api.post("/api/debug/clear_dynamics", {})
+    api.post("/api/debug/gpu_kinematic_box", {"id": "bench_box", "remove": True})
     physics(api, frozen=False)
     if name == "blast":
         restore_blast_site(api)
@@ -360,7 +379,7 @@ def occ_cell(s):
 def table(results):
     hdr = ["scenario", "bodies", "verdict", "judged from s", "reb/body>win", "max reb", "inj>win mm",
            "t_all s", "forced", "forced creep p90/max mm", "woke", "skipColor", "hc>1s",
-           "hc max mm", "tunnelled", "occ diff"]
+           "hc max mm", "tunnelled", "occ diff", "driven kin/hc"]
     rows = []
     for s in results:
         e, r, sl, so = s["energy"], s["rebounds"], s["sleep"], s["solver"]
@@ -370,7 +389,9 @@ def table(results):
                      fmt(s["time_all_asleep_s"]), f'{sl["forced"]}/{sl["clean"] + sl["forced"]}',
                      creep(sl), sl["woke"], so["max_color_skipped"], so["hardcontact_fires_after_window"],
                      fmt(so["hardcontact_max_depth_m"] * 1000, 1),
-                     s["tunnelled"]["max_bodies_below_floor"], occ_cell(s)])
+                     s["tunnelled"]["max_bodies_below_floor"], occ_cell(s),
+                     f'{(s.get("driven") or {}).get("kinematic_contacts", 0)}/'
+                     f'{(s.get("driven") or {}).get("hardcontact_fires_while_driven", 0)}'])
     w = [max(len(str(x)) for x in col) for col in zip(hdr, *rows)]
     line = lambda r: "  ".join(str(c).ljust(n) for c, n in zip(r, w))
     print("\n" + line(hdr))
@@ -406,7 +427,7 @@ def main():
     verify_lab(api)
     outdir = os.path.join(ROOT, "docs", "evidence", "debris_settle", args.tag)
     os.makedirs(outdir, exist_ok=True)
-    results = [run(api, n, args.seconds, outdir, args.frames) for n in (args.only or list(SCENARIOS))]
+    results = [run(api, n, args.seconds, outdir, args.frames) for n in (args.only or [k for k in SCENARIOS if k not in OPT_IN])]
     with open(os.path.join(outdir, "summary.json"), "w") as f:
         json.dump(results, f, indent=2)
     table(results)
