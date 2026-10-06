@@ -105,7 +105,13 @@ public:
                           const VisibleSolidFunc& visibleSolidAt);
 
     bool isInBulkOperation() const       { return m_isInBulkOperation; }
-    void setInBulkOperation(bool inBulk) { m_isInBulkOperation = inBulk; }
+    /// Entering bulk mode defers every per-voxel grid write, so it also marks a rebuild as OWED:
+    /// batchUpdateCollisions() (the template paths' exit) rebuilds only when that flag is set, and
+    /// nothing else set it in bulk mode, so spawned templates never reached the grid (1c step 5).
+    void setInBulkOperation(bool inBulk) {
+        m_isInBulkOperation = inBulk;
+        if (inBulk) collisionNeedsUpdate = true;
+    }
 
     bool  getCollisionNeedsUpdate() const              { return collisionNeedsUpdate; }
     void  setCollisionNeedsUpdate(bool needsUpdate)    { collisionNeedsUpdate = needsUpdate; }

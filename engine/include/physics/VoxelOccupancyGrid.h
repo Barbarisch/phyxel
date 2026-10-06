@@ -66,6 +66,8 @@ public:
                    std::vector<OccupiedBox>& results) const;
 
     void clear();
+    /// Every cube solid, nothing subdivided — the grid side of a uniform store fill.
+    void fillSolid();
 
     // Bumped by every mutation. A consumer that mirrors this grid elsewhere (the GPU light
     // occupancy) polls it to rebuild only the chunks that actually changed, instead of rebuilding
@@ -81,6 +83,7 @@ public:
 private:
     glm::ivec3 m_origin{0};
     uint32_t m_revision = 0;
+    void bumpRevision();   // unique across ALL grids, see the .cpp
 
     // Dense cube-level bitsets: 32³ = 32768 bits = 4 KB each
     std::bitset<32*32*32> m_cubes;

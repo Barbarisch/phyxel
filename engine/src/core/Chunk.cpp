@@ -220,6 +220,10 @@ void Chunk::clearAll() {
 void Chunk::fillAllCubes(const std::string& material) {
     unsealForEdit();
     voxelManager.fillAllVoxels(material);
+    // The grid must follow the store (1c step 5, OccupancyCoverageTest): this wrote only the store,
+    // so outside bulk mode (/api generate_world's deep chunks) a solid chunk was air to collision,
+    // lighting and debris. In bulk mode the owed rebuild covers it.
+    if (!physicsManager.isInBulkOperation()) physicsManager.getOccupancyGrid().fillSolid();
 }
 
 // ── Phase 4.4 seal state ──

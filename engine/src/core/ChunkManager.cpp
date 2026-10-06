@@ -106,6 +106,10 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
             // Mark pristine: generated terrain + flora regenerate deterministically,
             // so only player edits should hit the DB.
             chunk.markClean();
+            // Out of loading bulk mode before anything else (the worker's forcePhysicsRebuild ends
+            // it too; this covers air chunks and any path that skipped the rebuild): in bulk mode
+            // every later edit skips the occupancy grid (1c step 5, OccupancyCoverageTest).
+            chunk.setPhysicsBulkMode(false);
             if (!chunk.hasAnySolidVoxel()) return;  // pure air: nothing to collide/mesh
             if (physicsWorld) {
                 chunk.setPhysicsWorld(physicsWorld);
@@ -1129,7 +1133,9 @@ void ChunkManager::finalizeLoadedChunk(Chunk& chunk, bool syncMesh) {
     // finalize entirely. Most streamed chunks at flight altitude ARE pure air (the
     // load sphere spans ~10 vertical chunk bands, terrain occupies ~2), so this
     // cuts the remesh flood (and its ~50ms-per-chunk drain frames) by that factor.
-    if (!chunk.hasAnySolidVoxel()) return;
+    // ...but it must leave bulk mode FIRST (see below): an air chunk kept the flag, so the first
+    // cube a player placed in open air never collided (1c step 5, OccupancyCoverageTest).
+    if (!chunk.hasAnySolidVoxel()) { chunk.setPhysicsBulkMode(false); return; }
     // Static collision: a DB-loaded chunk has NO physics world (Chunk ctor), so
     // forcePhysicsRebuild alone registers nothing - the farm's NPCs fell to y -910
     // after a "faces + physics built" load (editor, 2026-09-11).

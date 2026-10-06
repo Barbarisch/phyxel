@@ -235,6 +235,15 @@ void ChunkPhysicsManager::buildInitialCollisionShapes(const CubesArrayAccessFunc
             vw->registerGrid(&m_occupancyGrid);
     }
 
+    // A full rebuild makes the grid authoritative from the store — exactly what bulk mode was
+    // deferring to. Leaving the flag set afterwards made every later per-voxel edit skip the grid:
+    // the streaming worker builds chunks via initializeForLoading (bulk) + forcePhysicsRebuild and
+    // nothing on the async path ever cleared it, so in a streamed world a player break, a blast's
+    // cube breaks, clear_region and undo never reached collision, lighting or debris
+    // (DebrisInteractionPlan 1c step 5, OccupancyCoverageTest).
+    m_isInBulkOperation = false;
+    collisionNeedsUpdate = false;   // ...and settles any rebuild bulk mode owed
+
     LOG_TRACE("ChunkPhysicsManager", "Built occupancy grid for chunk");
 }
 

@@ -1,10 +1,11 @@
 # Debris Interaction Plan — everything that moves can push GPU debris
 
-**Status:** rev 4.3, 2026-10-05. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
-**Phase 1 in progress** (pushed to main through 1c step 4):
+**Status:** rev 4.4, 2026-10-05. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
+**Phase 1 in progress** (pushed to main through 1c step 5):
 - 1a build safety ✅ · 1b `shaders/solver_shared.h` ✅
 - 1c one occupancy: steps 1–4 ✅ (tri-state query, edit-first repack, debris reads the shared
-  pool, old bitfield deleted) · **step 5 writer audit — NEXT** · step 6 `occupancy_diff`
+  pool, old bitfield deleted) · step 5 writer audit ✅ (7 of 8 gaps closed, red→green,
+  `OccupancyCoverageTest`; bench `phase1c5` in band) · **step 6 `occupancy_diff` — NEXT**
 - **Open before 1c is called done:** the blast hard-contact shift (88.1 → 118.8 mm) and the
   bench's session-state dependence — both under 1c below.
 - 1d–1f not started. Phases 2–6 not started (Phase 4 holds the user's "spells don't hit debris").
@@ -388,6 +389,59 @@ commit: build, unit suite, `shader_manifest --check`, and the settle bench.
     the bench does not control — next step: diff the blast scenario's spawn set (debris count,
     positions) between an 88.1 and a 118.8 run, and test the session-state leak (warm-start hash
     surviving `clear_dynamics`) noted under step 3.
+  - **1c step 5 — writer inventory (2026-10-05, IN PROGRESS).** A read-only audit of every
+    static-voxel writer against `VoxelOccupancyGrid` (the single full rebuild is
+    `ChunkPhysicsManager::buildInitialCollisionShapes`; incremental `add/removeCollisionEntity`;
+    remeshing does NOT rebuild the grid; `addCube`/`removeCube`/`removeCubesBatch`/`addSubcube`/
+    `addMicrocube` SKIP the grid while the chunk is in physics "bulk mode"). Gaps, by impact:
+    1. **Streamed chunks stay in bulk mode forever** — VERIFIED in code: the async worker builds
+       chunks with `initializeForLoading()` (sets bulk), and neither the drain, the finalize
+       lambda (`registerPrebuiltPhysics`, early return for air) nor `Chunk::initialize` clears
+       it. So in every streamed chunk (and the deferred part of a DB boot) player place/break,
+       `DamageSystem` cube breaks, `clear_region`/undo/redo/snapshot/`move_region` cube writes and
+       `addSubcube`/`addMicrocube` leave the grid stale — wrong for debris, lighting AND CPU
+       character collision. **FIXED 2026-10-05:** a full rebuild (`buildInitialCollisionShapes`)
+       now ends bulk mode (the grid is authoritative from the store, which is what bulk mode
+       defers to), and both finalize paths clear it before the air-chunk early return.
+       Red→green: `OccupancyCoverage.EditsToAStreamedChunkReachTheGrid` (break/place cube,
+       subcube, microcube in a worker-built chunk) failed every assertion before, passes after;
+       control `ControlEditsToAnOrdinaryChunkReachTheGrid` passes both ways.
+    2. Template spawn (`ObjectTemplateManager::spawnTemplate` / `spawnOrEraseMicro` add) adds in
+       bulk mode, then rebuilds only if a stale `collisionNeedsUpdate` happens to be set — so
+       placed objects, flora, StructureForge fixtures, placed-object move/rotate are missing from
+       the grid (only `/api spawn_template` heals itself). **FIXED 2026-10-05:** entering bulk
+       mode marks a rebuild OWED (`setInBulkOperation(true)` sets `collisionNeedsUpdate`), a full
+       rebuild settles it. Red→green: `TemplateSpawnsReachTheGrid` (cube/subcube/micro via
+       `spawnTemplate` and `spawnTemplateMicro`) failed all 5 assertions before.
+    3. `DynamicFurnitureManager::deactivate` rebake: goes through `placeTemplate`/
+       `spawnTemplate` — CLOSED by the fix for 2 (same code path, same test).
+    4. `fillAllCubes`/`fillAllVoxels` never touch the grid: `/api generate_world` (sync + job)
+       deep-uniform chunks are invisible to debris/lighting. **FIXED 2026-10-05:** outside bulk
+       mode the uniform fill also fills the grid (`VoxelOccupancyGrid::fillSolid`); in bulk mode
+       the owed rebuild covers it. Red→green: `UniformFillReachesTheGrid`.
+    5. Main-thread flora fallback writes after the grid is built (only without a worker
+       decorator). CLOSED by the fix for 1: the worker's rebuild now ends bulk mode, so the
+       fallback's adds reach the grid incrementally (the lifecycle the GAP-1 test pins).
+    6. Async fill/clear/generate jobs mutate grids off the main thread under the chunk WRITE
+       lock, and NOTHING on the main thread takes the read lock. CONFIRMED. Fixed for the
+       occupancy repack only: `updateLightOccupancy` try-locks shared and skips the frame while a
+       job holds the write lock (revisions repack everything afterwards); counted as
+       `occupancy_job_skips` on `/api/debug/light_occupancy`. No deterministic red test (a
+       race); live L4 instead — a 11,760-voxel `fill_region` JOB on DebrisLab: 8 frames
+       skipped, then 5/5 sampled cells 729/729 CPU = GPU, the clear 0/0. **Still open, outside
+       1c:** meshing and CPU physics read the same grids/stores unlocked during these jobs.
+    7. Light-pack cache keyed by (origin, revision): every grid counted from 0, so an evicted
+       and re-created chunk could match the cached revision with different contents. CONFIRMED
+       and FIXED: revisions come from one atomic source across all grids. Red→green:
+       `RevisionsDoNotRepeatAcrossGridObjects` ("two different grid states share revision 1").
+    8. Minor, OPEN: incremental add does not filter broken/invisible sub-voxels like the full
+       rebuild; `spawn_template` heal region ignores rotation.
+    Live L4 for 1 (2026-10-05, DebrisLab): break (170,15,16) via `/api/world/voxel/remove` →
+    the probe read 729/729 before, 0/0 after, agrees. Settle bench, fresh engine first run
+    (`docs/evidence/debris_settle/phase1c5`): drop_layer/packed/crater/crater_subcube settle,
+    drop_pile 15 forced (≤ 20), blast 0 forced (≤ 6); post-window 0 rebounds / 0 injected /
+    0 hc>1s / 0 tunnelled / 0 held_unknown everywhere. Blast hc max still 118.8 mm — the open
+    shift is unchanged by step 5, so it is not a grid-coverage effect.
   - Test-world footgun hit twice this session: `restore_blast_site` only refilled y 8..15, so a
     test structure on the blast chunk's SURFACE survived into later runs. It now clears above the
     slab too; `debris_subvoxel_rest_check.py` removes its slab when done.

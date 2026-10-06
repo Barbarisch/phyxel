@@ -438,6 +438,8 @@ public:
     // Lock helpers for background job system
     std::unique_lock<std::shared_mutex> acquireWriteLock() { return std::unique_lock(m_chunkAccessMutex); }
     std::shared_lock<std::shared_mutex> acquireReadLock() const { return std::shared_lock(m_chunkAccessMutex); }
+    /// For try-lock readers (the light/debris occupancy repack skips a frame instead of waiting).
+    std::shared_mutex& chunkAccessMutex() const { return m_chunkAccessMutex; }
     
 private:
     size_t m_borderRippleCount = 0;   // see borderRippleCount()

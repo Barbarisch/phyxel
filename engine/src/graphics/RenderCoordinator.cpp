@@ -834,6 +834,13 @@ void RenderCoordinator::setGpuParticlePhysics(GpuParticlePhysics* gpp) {
 void RenderCoordinator::updateLightOccupancy() {
     if (!chunkManager || !vulkanDevice || !m_lightOccupancy) return;
 
+    // Async fill/clear/generate jobs write chunk grids off the main thread under the chunk WRITE
+    // lock; this pass read them with no lock and could pack a grid mid-write (1c step 5, GAP 6).
+    // Skip the whole pass while a job holds it: nothing is lost, because every grid the job
+    // touched carries a new revision and is repacked on the first frame after the job finishes.
+    std::shared_lock<std::shared_mutex> jobGuard(chunkManager->chunkAccessMutex(), std::try_to_lock);
+    if (!jobGuard.owns_lock()) { ++m_lightOccJobSkips; return; }
+
     // The covered box follows the viewer. Chunk-quantised, so this is a no-op until the camera
     // crosses a chunk boundary. Done BEFORE the residency scan so this frame's scan is measured
     // against the box the flush will actually pack with.

@@ -8748,6 +8748,7 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
             // than the per-frame budget -- GPU debris may briefly collide with stale cells there.
             {"occupancy_edit_backlog",      renderCoordinator->lightOccupancyEditBacklog()},
             {"occupancy_residency_backlog", renderCoordinator->lightOccupancyResidencyBacklog()},
+            {"occupancy_job_skips", renderCoordinator->lightOccupancyJobSkips()},
             // The box's own position, so "the box did not follow the camera" is distinguishable
             // from "the camera did not move" without guessing between them.
             {"box_min_chunk",       {box.x, box.y, box.z}},

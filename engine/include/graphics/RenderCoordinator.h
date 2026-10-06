@@ -369,6 +369,7 @@ public:
     /// chunks were edited in one frame than the per-frame budget.
     size_t lightOccupancyEditBacklog() const { return m_lightOccEditBacklog; }
     size_t lightOccupancyResidencyBacklog() const { return m_lightOccResidencyBacklog; }
+    uint64_t lightOccupancyJobSkips() const { return m_lightOccJobSkips; }
     /// Query the LAST FLUSHED pool with the shader's own addressing. `worldMicro` = world unit * 9.
     bool lightOccupancySolidAt(const glm::ivec3& worldMicro) const {
         return m_lightOccupancy && m_lightOccupancy->solidAtMicro(worldMicro);
@@ -1017,6 +1018,7 @@ private:
     size_t m_lightOccOutOfBox = 0;       ///< loaded but outside the directory box -> NOT occluding
     size_t m_lightOccEditBacklog = 0;      ///< edited resident chunks still waiting for a repack
     size_t m_lightOccResidencyBacklog = 0; ///< newly loaded chunks still waiting for first residency
+    uint64_t m_lightOccJobSkips = 0;       ///< repack passes skipped while an async job held the chunk write lock
     glm::vec3 m_lightOccCentreSource{0.0f};   ///< what was fed to setViewCentre last frame
     // U1: the frame's sun and atmosphere-ambient colours, cached for CPU-side consumers that shade
     // outside a scene shader (currently the debris particle sampler). Kept here rather than
