@@ -124,36 +124,8 @@ public:
 
     // ---- Character collision interface ----
 
-    // Max per-limb segment boxes uploaded per frame. Must cover the character's full
-    // segment set — 12 boxes (4 torso + 4 arm + 4 leg). Setting this too low silently
-    // drops the trailing boxes (e.g. the legs), leaving floor-height debris uncovered.
-    static constexpr uint32_t MAX_CHAR_SEGMENTS = DebrisShared::MAX_CHAR_SEGMENTS;  // sizes charSeg[] in solver_integrate.comp
-
-    // One body-part box (std430: two vec4s = 32 bytes).
-    struct CharSegmentGpu {
-        glm::vec4 center;       // xyz = world center
-        glm::vec4 halfExtents;  // xyz = world half-extents
-    };
-    static_assert(sizeof(CharSegmentGpu) == 32, "CharSegmentGpu must be 32 bytes");
-
-    // std430 layout uploaded each frame for particle-vs-character collision (the player
-    // "shove", solver_integrate.comp): union AABB for a cheap early-out, then the per-limb
-    // segments[]. The whole struct is retired by real kinematic contacts
-    // (docs/DebrisInteractionPlan.md D7, Phase 2) — until then its layout stays fixed.
-    struct CharacterCollider {
-        glm::vec3 center;       // union AABB center (broadphase)
-        float     segmentCount; // number of active segments (0 = disabled)
-        glm::vec3 halfExtents;  // union AABB half-extents
-        float     pad0;
-        glm::vec3 velocity;     // character velocity (imparted to pushed debris)
-        float     legacyActive; // unused padding since D4 (its only reader, particle_collide.comp, is deleted)
-        CharSegmentGpu segments[MAX_CHAR_SEGMENTS];
-    };
-    static_assert(sizeof(CharacterCollider) == 48 + 32 * MAX_CHAR_SEGMENTS,
-                  "CharacterCollider layout mismatch");
-
-    /** Update per-limb character colliders for the live solver. `boxes` = (center,
-     *  halfExtents) of each body segment; the union AABB is computed internally.
+    /** The player's body-part boxes for this frame: each becomes a kinematic (mover) body
+     *  carrying `velocity` (Phase 2 - the D7 shove buffer they used to fill is deleted).
      *  Empty disables character collision. Called each frame from Application. */
     void setCharacterColliders(const std::vector<std::pair<glm::vec3, glm::vec3>>& boxes,
                                const glm::vec3& velocity);
@@ -167,10 +139,9 @@ public:
 
     /** Scripted kinematic test box (DebrisInteractionPlan 1f): a mover the solver tests can drive
      *  without NPC AI. It advances by SIMULATED time (ticks x FIXED_DT, so a frozen, stepped solver
-     *  moves it deterministically) and expires after `ttl` seconds. Until Phase 2 replaces the
-     *  backend with real AVBD contacts, boxes join the character collider buffer: axis-aligned
-     *  (rotation ignored), one shared velocity (a box's, while any exist), and at most
-     *  MAX_CHAR_SEGMENTS boxes in total with the player's (the rest are counted as overflow). */
+     *  moves it deterministically) and expires after `ttl` seconds. It is a kinematic AVBD body
+     *  (Phase 2): axis-aligned for now, its own velocity, at most MAX_KINEMATIC movers in total
+     *  with the player's boxes (the rest are counted as overflow). */
     struct KinematicBox {
         glm::vec3 center{0.0f};
         glm::vec3 half{0.5f};
@@ -299,10 +270,6 @@ private:
     VkBuffer         m_matTexBuffer   = VK_NULL_HANDLE;
     VkDeviceMemory   m_matTexMem      = VK_NULL_HANDLE;
 
-    // Character collider AABB — host-coherent, persistently mapped, 48 bytes
-    VkBuffer         m_characterBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory   m_characterMem    = VK_NULL_HANDLE;
-    void*            m_characterMapped = nullptr;
 
     // Kinematic (mover) boxes for the AVBD solver, Phase 2 - host-coherent, persistently mapped,
     // KinematicBoxGpu[MAX_KINEMATIC]. solver_kinematic_sync turns entry k into SolverBody
@@ -430,7 +397,7 @@ private:
     std::vector<std::pair<glm::vec3, glm::vec3>> m_charBoxes;
     glm::vec3 m_charVelocity{0.0f};
     std::map<std::string, KinematicBox> m_kinematicBoxes;
-    uint32_t m_kinematicOverflow = 0;   // boxes the 12-segment buffer could not take (last write)
+    uint32_t m_kinematicOverflow = 0;   // movers past MAX_KINEMATIC (last write), counted not dropped silently
     void writeColliderBuffer();
     void releaseSlot(uint32_t slot);
     LightSampler          m_lightSampler;  // Phase 4c: baked-light sampler for spawned debris (null = full sky)

@@ -281,6 +281,16 @@ def s_box_through_pile(api, x, z):
     return "6x3x6 touching pile; 1x2x1 kinematic box crosses at 2 m/s (enters ~1.25 s, leaves ~5.75 s)"
 
 
+def s_box_single_straddle(api, x, z):
+    # One cube straddling the box's side edge (centre 0.5 off the box's path): the isolated-body
+    # case, where the user-accepted criterion is <= 2 cm penetration (DebrisInteractionPlan Phase 2).
+    lattice(api, x=x + 1.0, y=GROUND + 0.002, z=z + 2.0, nx=1, ny=1, nz=1, scale=1.0, gap=0.0, seed=8)
+    api.post("/api/debug/gpu_kinematic_box", {"id": "bench_box", "center": [x - 2.0, GROUND + 1.0, z + 3.0],
+                                              "half": [0.5, 1.0, 0.5], "velocity": [2.0, 0.0, 0.0],
+                                              "ttl": 4.0})
+    return "1 cube straddling the edge of a 1x2x1 kinematic box crossing at 2 m/s"
+
+
 SCENARIOS = {
     "drop_layer":     (0, s_drop_layer, GROUND),
     "drop_pile":      (1, s_drop_pile, GROUND),
@@ -288,18 +298,29 @@ SCENARIOS = {
     "crater":         (3, s_crater, GROUND - CRATER["depth"]),
     "crater_subcube": (4, s_crater_subcube, GROUND - CRATER_SUB["depth"]),
     "blast":          (5, s_blast, GROUND - 5),
-    # Opt-in (--only box_through_pile): not in the default regression band until Phase 2 gives
-    # the box real AVBD contacts. Reuses the packed site (chunk 2); needs >= 10 s of sim time.
-    "box_through_pile": (2, s_box_through_pile, GROUND),
+    # Phase 2 movers (default since flags 55): a scripted box through a packed pile (reuses the
+    # packed site, chunk 2) and through one cube straddling its edge (reuses the drop_layer site).
+    "box_through_pile":    (2, s_box_through_pile, GROUND),
+    "box_single_straddle": (0, s_box_single_straddle, GROUND),
 }
-OPT_IN = {"box_through_pile"}
+OPT_IN = set()
 
 # box_through_pile's mover, in site coordinates (x, z = the site's min corner): it starts at
 # (x - 3, GROUND + 1, z + 3), half extents (0.5, 1, 0.5), moves +x at 2 m/s for 6 s (12 m).
 BOX_START_DX, BOX_HALF, BOX_SPEED, BOX_TTL = -3.0, (0.5, 1.0, 0.5), 2.0, 6.0
 
 
-def judge_box(summ, x, z):
+def depth_series(csv_path):
+    """Per-tick deepest penetration into a mover (m), ticks with mover contacts only."""
+    import csv as _csv
+    try:
+        with open(csv_path) as f:
+            return [float(r["kinematic_depth"]) for r in _csv.DictReader(f) if int(r["kinematic_contacts"]) > 0]
+    except (OSError, KeyError, ValueError):
+        return []
+
+
+def judge_box(summ, x, z, csv_path=None):
     """Phase 2 'works': >= 80 % of the bodies in the box's swept volume end >= 0.2 m from where
     they started, and no body is ever deeper than 2 cm into the box at a tick start."""
     paths = summ.get("body_paths") or []
@@ -315,13 +336,18 @@ def judge_box(summ, x, z):
             if ((ex - sx) ** 2 + (ey - sy) ** 2 + (ez - sz) ** 2) ** 0.5 >= 0.2:
                 displaced += 1
     depth = (summ.get("driven") or {}).get("kinematic_max_depth_m", 0.0) or 0.0
+    series = sorted(depth_series(csv_path)) if csv_path else []
+    median = series[len(series) // 2] if series else 0.0
     frac = displaced / swept if swept else 0.0
+    # User decision 2026-10-06: a packed pile may overlap a mover by a few cm for a moment (the
+    # solver's 8-iteration budget; isolated bodies stay <= 2 cm). Pinned so a regression shows:
+    # typical (median) <= 5 cm, worst tick <= 20 cm.
     box = {"swept": swept, "displaced": displaced, "displaced_fraction": frac,
-           "kinematic_max_depth_m": depth,
-           "pass": swept > 0 and frac >= 0.8 and depth <= 0.02}
+           "kinematic_max_depth_m": depth, "kinematic_median_depth_m": median,
+           "pass": swept > 0 and frac >= 0.8 and median <= 0.05 and depth <= 0.20}
     summ["box"] = box
     return box
-MIN_SECONDS = {"box_through_pile": 10.0}
+MIN_SECONDS = {"box_through_pile": 10.0, "box_single_straddle": 6.0}
 FRAME_TICKS = [0, 20, 60, 120, 240, 480]
 
 
@@ -364,10 +390,22 @@ def run(api, name, seconds, outdir, frames):
     summ.update(scenario=name, setup=desc, site={"x": x, "z": z, "ground_top": GROUND},
                 sim_seconds=seconds)
     if name == "box_through_pile":
-        box = judge_box(summ, x, z)
+        box = judge_box(summ, x, z, csv)
         print(f"   box: {box['displaced']}/{box['swept']} swept bodies displaced >= 0.2 m "
-              f"({100 * box['displaced_fraction']:.0f} %), max depth into the box "
-              f"{1000 * box['kinematic_max_depth_m']:.1f} mm -> {'PASS' if box['pass'] else 'FAIL'}")
+              f"({100 * box['displaced_fraction']:.0f} %), depth into the box median "
+              f"{1000 * box['kinematic_median_depth_m']:.1f} / max {1000 * box['kinematic_max_depth_m']:.1f} mm"
+              f" -> {'PASS' if box['pass'] else 'FAIL'}")
+        if not box["pass"]:
+            summ["verdict"] = "FAILS(box)"
+    if name == "box_single_straddle":
+        depth = (summ.get("driven") or {}).get("kinematic_max_depth_m", 1.0)
+        paths = summ.get("body_paths") or []
+        moved = bool(paths) and ((paths[0][3] - paths[0][0]) ** 2 + (paths[0][5] - paths[0][2]) ** 2) ** 0.5 >= 0.2
+        summ["box"] = {"kinematic_max_depth_m": depth, "moved": moved, "pass": moved and depth <= 0.02}
+        print(f"   box: cube moved={moved}, max depth into the box {1000 * depth:.1f} mm (limit 20)"
+              f" -> {'PASS' if summ['box']['pass'] else 'FAIL'}")
+        if not summ["box"]["pass"]:
+            summ["verdict"] = "FAILS(box)"
     # 1c step 6: the scenario's chunk must agree across store / physics grid / packed pool
     # (what debris collided with must be what was placed). Judged BEFORE the blast-site restore.
     x0 = 32 * chunk

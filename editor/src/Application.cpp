@@ -7919,7 +7919,7 @@ static bool handleDebugDynamicSpawnCommand(
         }
         if (cmd.params.contains("frozen")) gpuParticles->setFrozen(cmd.params.value("frozen", false));
         if (cmd.params.contains("step"))   gpuParticles->stepTicks(cmd.params.value("step", 0u));
-        if (cmd.params.contains("flags"))  gpuParticles->setSolverFlags(cmd.params.value("flags", 23u));
+        if (cmd.params.contains("flags"))  gpuParticles->setSolverFlags(cmd.params.value("flags", 55u));
         if (cmd.params.contains("cold_scale"))
             gpuParticles->setColdPenaltyScale(cmd.params.value("cold_scale", 1.0f));
         response = {{"success", true}, {"enabled", true},
@@ -7936,8 +7936,8 @@ static bool handleDebugDynamicSpawnCommand(
     }
     if (cmd.action == "gpu_kinematic_box") {
         // DebrisInteractionPlan 1f: a scripted mover for solver tests (no NPC AI). Omitted fields
-        // keep the stored box's value; `remove:true` deletes it. Until Phase 2 the box is
-        // axis-aligned and shares the collider buffer's single velocity - the echo says so.
+        // keep the stored box's value; `remove:true` deletes it. The box is a kinematic AVBD body
+        // (Phase 2), axis-aligned for now - the echo says so.
         if (!gpuParticles || !gpuParticles->isInitialized()) {
             response = {{"error", "GPU particle physics not available"}};
             return true;
@@ -7970,7 +7970,7 @@ static bool handleDebugDynamicSpawnCommand(
                     {"ttl", stored.ttl},
                     {"kinematic_boxes", gpuParticles->kinematicBoxes().size()},
                     {"overflow", gpuParticles->kinematicOverflow()},
-                    {"backend", "character-collider (axis-aligned, shared velocity) until Phase 2"}};
+                    {"backend", "kinematic AVBD body (axis-aligned)"}};
         if (cmd.params.contains("rotation") || cmd.params.contains("angular_velocity"))
             response["ignored"] = {"rotation", "angular_velocity"};
         return true;

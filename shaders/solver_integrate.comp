@@ -9,57 +9,10 @@ layout(std430, set=0, binding=0) buffer SolverBodyBuffer        { SolverBody  bo
 layout(std430, set=0, binding=1) readonly buffer MaterialBuffer { MaterialPhysics materials[]; };
 layout(std430, set=0, binding=2) readonly buffer ParticleBuffer { GpuParticle particles[]; };
 
-// Player character collider — uploaded each frame from the CPU (setCharacterColliders).
-// Header = broadphase union AABB + velocity (48 bytes). charSeg[] holds the per-limb
-// body-part boxes; debris
-// overlapping a segment is shoved out + inherits the character's velocity, letting the
-// player plow through debris piles with arms/legs, not just the torso. This is the
-// AVBD-pipeline equivalent of the legacy XPBD character collision (no longer dispatched).
-struct CharSegment {
-    vec4 center;       // xyz = world center
-    vec4 halfExtents;  // xyz = world half-extents
-};
-layout(std430, set=0, binding=3) readonly buffer CharacterBuffer {
-    vec3  charUnionCenter;       float charSegCount;   // # active segments (0 = disabled)
-    vec3  charUnionHalfExtents;  float charPad0;
-    vec3  charVelocity;          float charPad1;
-    CharSegment charSeg[MAX_CHAR_SEGMENTS];   // solver_shared.h
-};
-
-// Wake bits live in the solver state buffer (Phase 2 sleep) — a moving character
-// overlapping a sleeping body requests a wake, consumed by sync_in next tick.
-layout(std430, set=0, binding=4) buffer SolverStateBuffer { uint solverState[]; };
-
-// AABB overlap + shortest-axis push-out. Returns true if the body AABB (bpos +/- bhe)
-// overlaps the box (cpos +/- che); if so, outDisp = displacement that moves the body
-// out of the box along the axis of least penetration.
-bool aabbPushOut(vec3 bpos, vec3 bhe, vec3 cpos, vec3 che, out vec3 outDisp) {
-    outDisp = vec3(0.0);
-    vec3 pMin = bpos - bhe;  vec3 pMax = bpos + bhe;
-    vec3 cMin = cpos - che;  vec3 cMax = cpos + che;
-    if (!(pMin.x < cMax.x && pMax.x > cMin.x &&
-          pMin.y < cMax.y && pMax.y > cMin.y &&
-          pMin.z < cMax.z && pMax.z > cMin.z)) return false;
-
-    float penPX = cMax.x - pMin.x;  float penNX = pMax.x - cMin.x;
-    float penPY = cMax.y - pMin.y;  float penNY = pMax.y - cMin.y;
-    float penPZ = cMax.z - pMin.z;  float penNZ = pMax.z - cMin.z;
-
-    float minPen = penPX;  int axis = 0;
-    if (penNX < minPen) { minPen = penNX; axis = 1; }
-    if (penPY < minPen) { minPen = penPY; axis = 2; }
-    if (penNY < minPen) { minPen = penNY; axis = 3; }
-    if (penPZ < minPen) { minPen = penPZ; axis = 4; }
-    if (penNZ < minPen) { minPen = penNZ; axis = 5; }
-
-    if      (axis == 0) outDisp.x =  minPen;
-    else if (axis == 1) outDisp.x = -minPen;
-    else if (axis == 2) outDisp.y =  minPen;
-    else if (axis == 3) outDisp.y = -minPen;
-    else if (axis == 4) outDisp.z =  minPen;
-    else                outDisp.z = -minPen;
-    return true;
-}
+// Movers (the player, scripted boxes, later every character) are AVBD bodies since Phase 2:
+// narrowphase contacts against kinematic bodies push debris, and its impact wake wakes it.
+// The old per-limb shove that lived here (D7: push-out + velocity copy + a +0.5 m/s pop,
+// flinging bodies to ~6 m/s) is deleted (DebrisInteractionPlan Phase 2).
 
 layout(push_constant) uniform PC { PHX_PC_INTEGRATE } pc;  // shaders/solver_shared.h
 
@@ -68,23 +21,6 @@ void main() {
     if (i >= pc.count) return;
 
     SolverBody b = bodies[i];
-
-    // ---- Sleep (Phase 2): a MOVING character overlapping a sleeping body wakes it.
-    // Sleeping bodies take the static path below (invMass 0 from sync_in), which skips
-    // the per-limb shove — so without this a player could never plow through a slept
-    // debris pile. Union-AABB test only (cheap); the wake bit is consumed next tick.
-    // Both this wake and the shove below are the OLD mover path (D7). With
-    // SOLVER_FLAG_KINEMATIC_CONTACTS the movers are AVBD bodies instead (narrowphase contacts +
-    // impact wake), and this pass leaves debris alone (Phase 2).
-    const bool oldShove = (pc.flags & SOLVER_FLAG_KINEMATIC_CONTACTS) == 0u;
-    if (oldShove && (b.flags & PARTICLE_SLEEPING) != 0u && charSegCount > 0.5 &&
-        dot(charVelocity, charVelocity) > 0.01) {
-        vec3 disp;
-        if (aabbPushOut(b.pos, b.halfExt, charUnionCenter, charUnionHalfExtents, disp)) {
-            atomicOr(solverState[WAKE_BITS_BASE + (i >> 5u)], 1u << (i & 31u));
-            atomicAdd(solverState[SS_WAKE_REQUESTS], 1u);
-        }
-    }
 
     if ((b.flags & PARTICLE_ACTIVE) == 0u || b.invMass == 0.0) {
         // Static/inactive: save initial, stay in place
@@ -157,42 +93,6 @@ void main() {
             b.pos    = b.initial;
             b.quat   = b.initialQuat;
             b.cumAng = vec3(0.0);
-        }
-    }
-
-    // ---- Character per-limb push (external influence, applied after prediction) ----
-    // A shove, not a contact (retired by real kinematic contacts, DebrisInteractionPlan D7).
-    // Treats the body's OBB as an AABB for a cheap shove. We first
-    // test the broadphase union AABB so the common case (debris far from the player)
-    // costs a single test; only on a union hit do we scan the per-limb segment boxes.
-    // On the first overlapping segment we push the body out along the shortest exit
-    // axis, give it the character's velocity (boosted for a lively shove) + a small
-    // upward pop, and RE-ANCHOR the AVBD inertial target to the pushed state —
-    // otherwise the solver pulls the body straight back. The later voxel-contact pass
-    // still resolves any push-into-floor, so debris can't sink.
-    if (oldShove && charSegCount > 0.5) {
-        vec3 he = b.halfExt;
-        vec3 disp;
-        if (aabbPushOut(b.pos, he, charUnionCenter, charUnionHalfExtents, disp)) {
-            int n = int(charSegCount);
-            for (int s = 0; s < n && s < int(MAX_CHAR_SEGMENTS); ++s) {
-                vec3 segDisp;
-                if (aabbPushOut(b.pos, he, charSeg[s].center.xyz, charSeg[s].halfExtents.xyz, segDisp)) {
-                    b.pos += segDisp;
-
-                    vec3 pushVel = charVelocity * 1.25;
-                    pushVel.y   += 0.5;
-                    b.vel        = pushVel;
-                    b.angVel    += vec3(-charVelocity.z, 0.0, charVelocity.x);
-
-                    b.inertial     = b.pos + b.vel * pc.dt;
-                    b.inertialQuat = quatIntegrate(b.quat, b.angVel * pc.dt);
-                    b.cumAng       = angDispFromInitial(b.inertialQuat, b.initialQuat);
-                    // External input (1e): the settle analyzer judges motion it causes as DRIVEN.
-                    atomicAdd(solverState[SS_KINEMATIC_CONTACTS], 1u);
-                    break;
-                }
-            }
         }
     }
 

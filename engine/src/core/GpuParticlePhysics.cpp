@@ -89,9 +89,6 @@ bool GpuParticlePhysics::initialize(Vulkan::VulkanDevice* vulkanDevice, const st
         vkFreeMemory(m_device, stageMem, nullptr);
     }
 
-    // Initialize character collider: disabled (active = 0)
-    memset(m_characterMapped, 0, sizeof(CharacterCollider));
-
     m_initialized = true;
     LOG_INFO_FMT("GpuParticlePhysics", "Initialized: MAX_PARTICLES=" << MAX_PARTICLES
         << " particleBuffer=" << (MAX_PARTICLES * sizeof(GpuParticle) / 1024) << "KB"
@@ -159,49 +156,6 @@ bool GpuParticlePhysics::createBuffers(Vulkan::VulkanDevice* dev) {
             LOG_ERROR("GpuParticlePhysics", "Failed to allocate/bind indirect draw memory");
             return false;
         }
-    }
-
-    // 6. Character collider AABB (host-coherent SSBO, persistent map, 48 bytes)
-    {
-        VkDeviceSize charSize = static_cast<VkDeviceSize>(sizeof(CharacterCollider));
-        VkBufferCreateInfo bi{};
-        bi.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bi.size        = charSize;
-        bi.usage       = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
-        bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        if (vkCreateBuffer(m_device, &bi, nullptr, &m_characterBuffer) != VK_SUCCESS) {
-            LOG_ERROR("GpuParticlePhysics", "Failed to create character buffer");
-            return false;
-        }
-        VkMemoryRequirements req;
-        vkGetBufferMemoryRequirements(m_device, m_characterBuffer, &req);
-        VkMemoryAllocateInfo ai{};
-        ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        ai.allocationSize = req.size;
-        VkPhysicalDeviceMemoryProperties props;
-        vkGetPhysicalDeviceMemoryProperties(m_physDevice, &props);
-        uint32_t memType = UINT32_MAX;
-        for (uint32_t j = 0; j < props.memoryTypeCount; ++j) {
-            if ((req.memoryTypeBits & (1u << j)) &&
-                ((props.memoryTypes[j].propertyFlags &
-                  (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) ==
-                  (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))) {
-                memType = j; break;
-            }
-        }
-        if (memType == UINT32_MAX) {
-            LOG_ERROR("GpuParticlePhysics", "No host-coherent memory for character buffer");
-            return false;
-        }
-        ai.memoryTypeIndex = memType;
-        if (vkAllocateMemory(m_device, &ai, nullptr, &m_characterMem) != VK_SUCCESS ||
-            vkBindBufferMemory(m_device, m_characterBuffer, m_characterMem, 0) != VK_SUCCESS ||
-            vkMapMemory(m_device, m_characterMem, 0, charSize, 0, &m_characterMapped) != VK_SUCCESS) {
-            LOG_ERROR("GpuParticlePhysics", "Failed to create/map character buffer");
-            return false;
-        }
-        // Initialize to inactive
-        std::memset(m_characterMapped, 0, sizeof(CharacterCollider));
     }
 
     // 6b. Kinematic (mover) boxes (host-coherent SSBO, persistent map, one per frame slot), Phase 2
@@ -620,12 +574,10 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     m_solverSyncInPass.updateDescriptors();
 
     // solver_integrate: bodies, materials, particles, character collider, state (wake bits)
-    if (!m_solverIntegratePass.create(m_device, shader("solver_integrate.comp.spv"), 5, sizeof(IntegratePC))) return false;
+    if (!m_solverIntegratePass.create(m_device, shader("solver_integrate.comp.spv"), 3, sizeof(IntegratePC))) return false;
     m_solverIntegratePass.bindBuffer(0, m_solverBodyBuffer,   bodySize);
     m_solverIntegratePass.bindBuffer(1, m_materialPhysBuffer, matPhysSize);
     m_solverIntegratePass.bindBuffer(2, m_particleBuffer,     particleSize);
-    m_solverIntegratePass.bindBuffer(3, m_characterBuffer,    static_cast<VkDeviceSize>(sizeof(CharacterCollider)));
-    m_solverIntegratePass.bindBuffer(4, m_solverStateBuffer,  stateSize);
     m_solverIntegratePass.updateDescriptors();
 
     // solver_narrowphase: bodies, constraints, state, gridCount, gridOffset, sortedIndices, warmstarts
@@ -1096,8 +1048,6 @@ void GpuParticlePhysics::update(float dt) {
     if (m_readbackPending && m_positionLogging && m_posLogFile.is_open()) {
         m_readbackPending = false;
         const GpuParticle* particles = static_cast<const GpuParticle*>(m_readbackMapped);
-        const CharacterCollider* cc = m_characterMapped ?
-            static_cast<const CharacterCollider*>(m_characterMapped) : nullptr;
 
         // Frame header: F,frame,dt,ticks,alpha,activeCount,char_cx,char_cy,char_cz,char_vx,char_vy,char_vz,char_active
         m_posLogFile << "F," << m_posLogFrameCounter
@@ -1105,10 +1055,12 @@ void GpuParticlePhysics::update(float dt) {
                      << "," << m_physicsTicks
                      << "," << (m_timeAccumulator / FIXED_DT)
                      << "," << m_activeCount;
-        if (cc) {
-            m_posLogFile << "," << cc->center.x << "," << cc->center.y << "," << cc->center.z
-                         << "," << cc->velocity.x << "," << cc->velocity.y << "," << cc->velocity.z
-                         << "," << cc->segmentCount;
+        // Character columns: the player's first body-part box and its velocity (the movers).
+        if (!m_charBoxes.empty()) {
+            const glm::vec3& c = m_charBoxes.front().first;
+            m_posLogFile << "," << c.x << "," << c.y << "," << c.z
+                         << "," << m_charVelocity.x << "," << m_charVelocity.y << "," << m_charVelocity.z
+                         << "," << m_charBoxes.size();
         } else {
             m_posLogFile << ",0,0,0,0,0,0,0";
         }
@@ -1455,60 +1407,23 @@ bool GpuParticlePhysics::removeKinematicBox(const std::string& id) {
 }
 
 void GpuParticlePhysics::writeColliderBuffer() {
-    if (!m_characterMapped) return;
-    CharacterCollider* cc = static_cast<CharacterCollider*>(m_characterMapped);
-
-    std::vector<std::pair<glm::vec3, glm::vec3>> all = m_charBoxes;
-    glm::vec3 velocity = m_charVelocity;
-    for (const auto& [id, b] : m_kinematicBoxes) {
-        all.emplace_back(b.center, b.half);
-        velocity = b.velocity;    // one shared velocity until Phase 2: the scripted box wins
-    }
-    // Phase 2: every mover box is also an AVBD body (used when SOLVER_FLAG_KINEMATIC_CONTACTS is
-    // set; the collider buffer below stays the flag-off shove's input). Player boxes carry the
-    // controller velocity, scripted boxes their own; all axis-aligned for now.
-    // Staged here, copied into the frame slot's buffer in recordComputeCommands (after its fence).
-    {
-        m_kinematicStage.clear();
-        auto put = [&](const glm::vec3& c, const glm::vec3& h, const glm::vec3& v) {
-            if (m_kinematicStage.size() >= DebrisShared::MAX_KINEMATIC) return;
-            DebrisShared::KinematicBoxGpu kb{};
-            kb.center   = { c.x, c.y, c.z, 0.0f };
-            kb.halfExt  = { h.x, h.y, h.z, 0.0f };
-            kb.rotation = { 0.0f, 0.0f, 0.0f, 1.0f };
-            kb.velocity = { v.x, v.y, v.z, 0.0f };
-            m_kinematicStage.push_back(kb);
-        };
-        for (const auto& [c, h] : m_charBoxes) put(c, h, m_charVelocity);
-        for (const auto& [id, b] : m_kinematicBoxes) put(b.center, b.half, b.velocity);
-        m_kinematicCount = static_cast<uint32_t>(m_kinematicStage.size());
-    }
-
-    uint32_t n = static_cast<uint32_t>(all.size());
-    m_kinematicOverflow = n > MAX_CHAR_SEGMENTS ? n - MAX_CHAR_SEGMENTS : 0u;
-    if (n > MAX_CHAR_SEGMENTS) n = MAX_CHAR_SEGMENTS;
-    if (n == 0) {
-        cc->segmentCount = 0.0f;
-        cc->legacyActive = 0.0f;
-        return;
-    }
-
-    // Write segments and accumulate the union AABB (the solver's broadphase box).
-    glm::vec3 mn( 1e30f);
-    glm::vec3 mx(-1e30f);
-    for (uint32_t i = 0; i < n; ++i) {
-        const glm::vec3& c = all[i].first;
-        const glm::vec3& h = all[i].second;
-        cc->segments[i].center      = glm::vec4(c, 0.0f);
-        cc->segments[i].halfExtents = glm::vec4(h, 0.0f);
-        mn = glm::min(mn, c - h);
-        mx = glm::max(mx, c + h);
-    }
-    cc->center       = (mn + mx) * 0.5f;
-    cc->halfExtents  = (mx - mn) * 0.5f;
-    cc->velocity     = velocity;
-    cc->segmentCount = static_cast<float>(n);
-    cc->legacyActive = static_cast<float>(n);
+    // Every mover - the player's boxes (controller velocity) and the scripted boxes (their own) -
+    // is a kinematic AVBD body (Phase 2). Staged here, copied into the frame slot's buffer in
+    // recordComputeCommands after that slot's fence. Axis-aligned for now.
+    m_kinematicStage.clear();
+    m_kinematicOverflow = 0;
+    auto put = [&](const glm::vec3& c, const glm::vec3& h, const glm::vec3& v) {
+        if (m_kinematicStage.size() >= DebrisShared::MAX_KINEMATIC) { ++m_kinematicOverflow; return; }
+        DebrisShared::KinematicBoxGpu kb{};
+        kb.center   = { c.x, c.y, c.z, 0.0f };
+        kb.halfExt  = { h.x, h.y, h.z, 0.0f };
+        kb.rotation = { 0.0f, 0.0f, 0.0f, 1.0f };
+        kb.velocity = { v.x, v.y, v.z, 0.0f };
+        m_kinematicStage.push_back(kb);
+    };
+    for (const auto& [c, h] : m_charBoxes) put(c, h, m_charVelocity);
+    for (const auto& [id, b] : m_kinematicBoxes) put(b.center, b.half, b.velocity);
+    m_kinematicCount = static_cast<uint32_t>(m_kinematicStage.size());
 }
 
 // ============================================================
@@ -1743,7 +1658,6 @@ void GpuParticlePhysics::cleanup() {
 
     // Unmap before freeing
     if (m_stagingMapped)       { vkUnmapMemory(m_device, m_stagingMem);       m_stagingMapped      = nullptr; }
-    if (m_characterMapped)     { vkUnmapMemory(m_device, m_characterMem);     m_characterMapped    = nullptr; }
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
         if (m_kinematicBoxMapped[slot]) { vkUnmapMemory(m_device, m_kinematicBoxMem[slot]); m_kinematicBoxMapped[slot] = nullptr; }
     if (m_materialPhysMapped)  { vkUnmapMemory(m_device, m_materialPhysMem);  m_materialPhysMapped = nullptr; }
@@ -1753,7 +1667,6 @@ void GpuParticlePhysics::cleanup() {
     destroyBuf(m_faceBuffer,          m_faceMem);
     destroyBuf(m_stagingBuffer,       m_stagingMem);
     destroyBuf(m_indirectDrawBuffer,  m_indirectDrawMem);
-    destroyBuf(m_characterBuffer,     m_characterMem);
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_kinematicBoxBuffer[slot], m_kinematicBoxMem[slot]);
     destroyBuf(m_materialPhysBuffer,  m_materialPhysMem);
     destroyBuf(m_gridCellCountBuffer,  m_gridCellCountMem);

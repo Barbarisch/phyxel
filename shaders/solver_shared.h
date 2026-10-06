@@ -42,7 +42,6 @@ PHX_CONST uint WORKGROUP  = PHX_WORKGROUP;
 PHX_CONST uint MAX_PARTICLES     = 10000u;
 PHX_CONST uint MAX_CONSTRAINTS   = 60000u;
 PHX_CONST uint MAX_COLORS        = 32u;   // was 12: packed piles need up to ~27 colours (26-neighbourhood); bodies past the cap were SKIPPED by primal (audit D1)
-PHX_CONST uint MAX_CHAR_SEGMENTS = 12u;
 PHX_CONST uint MAX_KINEMATIC     = 512u;  // kinematic bodies (movers), Phase 2
 // Kinematic bodies live at FIXED body indices [KINEMATIC_BASE, KINEMATIC_BASE + MAX_KINEMATIC):
 // never inside the particle range, so count/grid/integrate/sync never see them (Phase 2).
@@ -95,8 +94,8 @@ PHX_CONST uint SOLVER_FLAG_START_AT_REST   = 2u;   // slow bodies start the solv
 PHX_CONST uint SOLVER_FLAG_HC_NEUTRAL      = 4u;   // hard-contact push-out adds no velocity
 PHX_CONST uint SOLVER_FLAG_POST_STAB       = 8u;   // alpha=1 solve + one alpha=0 pass; measured WORSE, off
 PHX_CONST uint SOLVER_FLAG_STATIC_FRICTION = 16u;  // stiff cold friction rows + anchored static friction
-PHX_CONST uint SOLVER_FLAG_KINEMATIC_CONTACTS = 32u; // movers are AVBD bodies (Phase 2); OFF = the old integrate-pass shove
-PHX_CONST uint SOLVER_FLAGS_DEFAULT        = 23u;  // all but POST_STAB
+PHX_CONST uint SOLVER_FLAG_KINEMATIC_CONTACTS = 32u; // movers are AVBD bodies (Phase 2); OFF = movers touch nothing (the D7 shove is deleted)
+PHX_CONST uint SOLVER_FLAGS_DEFAULT        = 55u;  // all but POST_STAB; movers are AVBD bodies (Phase 2)
 PHX_CONST float SOLVER_ALPHA               = 0.99f; // error-correction alpha (Shallot canonical)
 PHX_CONST uint PRIMAL_STORE_VELOCITY       = 0xFFFFFFFEu;  // PrimalPC.targetColor sentinel
 
@@ -166,8 +165,9 @@ static_assert((GRID_SIZE & (GRID_SIZE - 1)) == 0,      "GRID_SIZE must be a powe
 static_assert(GRID_CELLS % SCAN_BLOCK == 0,            "the parallel scan covers whole blocks");
 static_assert(SCAN_BLOCK == PHX_WORKGROUP,             "scan_block uses one thread per cell");
 static_assert(SOLVER_FLAGS_DEFAULT == (SOLVER_FLAG_MASS_PENALTY | SOLVER_FLAG_START_AT_REST |
-                                       SOLVER_FLAG_HC_NEUTRAL | SOLVER_FLAG_STATIC_FRICTION),
-              "default = every shipped fix, POST_STAB off");
+                                       SOLVER_FLAG_HC_NEUTRAL | SOLVER_FLAG_STATIC_FRICTION |
+                                       SOLVER_FLAG_KINEMATIC_CONTACTS),
+              "default = every shipped fix incl. kinematic contacts, POST_STAB off");
 }}  // namespace Phyxel::DebrisShared
 #endif
 

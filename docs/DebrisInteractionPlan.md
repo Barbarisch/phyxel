@@ -1,6 +1,6 @@
 # Debris Interaction Plan — everything that moves can push GPU debris
 
-**Status:** rev 4.8, 2026-10-06. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
+**Status:** rev 4.9, 2026-10-06. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
 **Phase 1 DONE** (pushed to main through 1f):
 - 1a build safety ✅ · 1b `shaders/solver_shared.h` ✅
 - 1c one occupancy: steps 1–4 ✅ (tri-state query, edit-first repack, debris reads the shared
@@ -12,7 +12,9 @@
   blast is 86.2 mm and a warm session now matches a fresh engine (details under 1c).
 - 1d all break debris on the GPU: part 1 one spawn helper + `break_voxel` hook, part 2 texture
   parity (pixel red -0.183 -> green 0.969), part 3 CPU debris path deleted.
-- 1e driven-input counters + analyzer window, 1f scripted kinematic box. Next: Phase 2.
+- 1e driven-input counters + analyzer window, 1f scripted kinematic box.
+- **Phase 2 DONE**: movers are AVBD bodies, default flags 55, the D7 shove deleted (user accepted a
+  few-cm transient overlap in packed piles; isolated bodies <= 2 cm). Next: Phase 3a.
 - Still open, minor: 1c step 5 gap 8 (incremental add does not filter broken/invisible
   sub-voxels); drop_pile varies run to run (GPU nondeterminism, not session state).
 - 1d–1f not started. Phases 2–6 not started (Phase 4 holds the user's "spells don't hit debris").
@@ -761,6 +763,29 @@ flipped, D7 not deleted). Waiting on a user decision (below).**
   (b) buy iterations (16 doubles solver cost for ALL debris; measure in Release first); or
   (c) extra iterations only on ticks with mover contacts. Until then the shipped default is
   unchanged (flag 32 off = the old shove).
+- **DECIDED by the user 2026-10-06: (a).** Before switching, the per-tick depth distribution was
+  measured and reported: on the final code median 17 mm / p95 63 mm / max 71 mm, but an earlier
+  run of the same configuration peaked at 157 mm (p90 121 mm) — the pile run is nondeterministic,
+  so "never over 10 cm" does not hold reliably. The bench therefore pins what is true:
+  `box_single_straddle` max ≤ 2 cm (measured 1.1 mm); `box_through_pile` ≥ 80 % displaced, per-tick
+  median ≤ 5 cm, max ≤ 20 cm (measured 16.4 / 73.9 mm).
+- **DONE 2026-10-06 — Phase 2 shipped.** `SOLVER_FLAGS_DEFAULT` 23 → 55 (static_assert updated).
+  **D7 deleted:** the integrate-pass shove, its union-AABB wake, the character collider buffer
+  (`CharacterCollider`, `CharSegmentGpu`, `MAX_CHAR_SEGMENTS`) and integrate's bindings 3/4.
+  `setCharacterColliders` now only feeds the mover list (player boxes carry the controller
+  velocity); overflow is counted against `MAX_KINEMATIC`. Both box scenarios are in the default
+  bench.
+  - Default bench `phase2-default55`: drop_layer / packed / crater / crater_subcube SETTLE and are
+    bit-identical to `phase1e` (drop_layer 11.2 mm); drop_pile 9 forced (≤ 20); both box
+    scenarios PASS; blast 10 forced — outside its ≤ 6 band once; three reruns gave 1 / 5 / 1 with
+    0 mover contacts and hc max 76–86 mm, so blast is nondeterministic like drop_pile (logged).
+  - **L4, a real character:** an `animated` entity spawned on the blast chunk and walked by
+    injected W presses into a 4×2×4 pile → 1,689 mover contacts, 25/32 pieces moved ≥ 0.2 m,
+    peak penetration 195 mm (packed-pile regime); control with no input: 0 contacts, 0 moved.
+    Characters still walk THROUGH debris (debris pushing back is 6a).
+  - Units 87/87 debris-related; integration 90/91 (the pre-existing scene failure).
+- Next: **Phase 3a** — one feed for every `AnimatedVoxelCharacter` (NPCs, monsters, fauna),
+  rotated limb boxes, per-limb velocity, fed after NPC updates.
 
 ## Phase 3 — Feed every mover
 
