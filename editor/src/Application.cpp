@@ -3541,31 +3541,8 @@ void Application::update(float deltaTime) {
 
     // Update GPU particle physics (CPU-side slot tracking + staging upload)
     if (gpuParticlePhysics) {
-        // Feed per-limb character colliders to the GPU so debris collides with the
-        // player's body parts (not just the torso capsule). These are the same segment
-        // boxes used for CPU kinematic-obstacle collision; fall back to the controller
-        // capsule if they haven't been built yet.
-        if (animatedCharacter) {
-            glm::vec3 vel = animatedCharacter->getControllerVelocity();
-            auto segs = animatedCharacter->getSegmentBoxInfo();
-            std::vector<std::pair<glm::vec3, glm::vec3>> boxes;
-            boxes.reserve(segs.size());
-            for (const auto& s : segs) {
-                if (s.worldHalfExtents.x <= 0.0f) continue; // skip un-refit/degenerate
-                boxes.emplace_back(s.position, s.worldHalfExtents);
-            }
-            if (!boxes.empty()) {
-                gpuParticlePhysics->setCharacterColliders(boxes, vel);
-            } else {
-                glm::vec3 pos = animatedCharacter->getPosition(); // feet position
-                float halfH   = animatedCharacter->getControllerHalfHeight();
-                float halfW   = animatedCharacter->getControllerHalfWidth();
-                gpuParticlePhysics->setCharacterAABB(pos + glm::vec3(0.0f, halfH, 0.0f),
-                                                     glm::vec3(halfW, halfH, halfW), vel);
-            }
-        } else {
-            gpuParticlePhysics->clearCharacterAABB();
-        }
+        // Character movers are fed AFTER the NPC/entity updates below (Phase 3a: every animated
+        // character, this frame's pose - the old player-only feed here was one frame stale).
         gpuParticlePhysics->update(deltaTime);
     }
 
@@ -3906,6 +3883,34 @@ void Application::update(float deltaTime) {
         for (auto& entity : entities) {
             entity->update(deltaTime);
         }
+        // ---- GPU debris movers (DebrisInteractionPlan Phase 3a): EVERY animated character - the
+        // player, spawned entities, NPCs, monsters, fauna - as oriented limb boxes with per-limb
+        // velocity, fed after all of them updated this frame. A character that skipped its tick
+        // (update-LOD) or is derezzing feeds nothing; nearest the camera first, so the
+        // MAX_KINEMATIC overflow (counted) drops the farthest.
+        if (gpuParticlePhysics && gpuParticlePhysics->isInitialized()) {
+            std::vector<std::pair<float, Scene::AnimatedVoxelCharacter*>> movers;
+            std::unordered_set<Scene::AnimatedVoxelCharacter*> seen;
+            const glm::vec3 eye = camera ? camera->getPosition() : glm::vec3(0.0f);
+            auto consider = [&](Scene::AnimatedVoxelCharacter* c) {
+                if (!c || !seen.insert(c).second) return;
+                const glm::vec3 d = c->getPosition() - eye;
+                movers.push_back({glm::dot(d, d), c});
+            };
+            consider(animatedCharacter);
+            for (auto& e : entities) consider(dynamic_cast<Scene::AnimatedVoxelCharacter*>(e.get()));
+            if (npcManager)
+                npcManager->forEachNPC([&](Scene::NPCEntity& npc) { consider(npc.getAnimatedCharacter()); });
+            std::sort(movers.begin(), movers.end(),
+                      [](const auto& x, const auto& y) { return x.first < y.first; });
+            std::vector<Scene::AnimatedVoxelCharacter::MoverBox> limbs;
+            for (auto& [d2, c] : movers) c->collectMoverBoxes(limbs);
+            std::vector<GpuParticlePhysics::MoverBox> boxes;
+            boxes.reserve(limbs.size());
+            for (const auto& l : limbs) boxes.push_back({l.center, l.halfExtents, l.rotation, l.velocity});
+            gpuParticlePhysics->setMoverBoxes(std::move(boxes));
+        }
+
         // If animated character just finished standing up, release its seat claim
         if (wasAnimCharSitting && animatedCharacter && !animatedCharacter->isSitting()) {
             if (interactionManager) interactionManager->releaseSeat("player");

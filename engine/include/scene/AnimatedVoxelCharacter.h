@@ -15,6 +15,7 @@
 #include <string>
 #include <functional>
 #include <vector>
+#include <glm/gtc/quaternion.hpp>
 #include <optional>
 #include <memory>
 #include <unordered_set>
@@ -122,6 +123,8 @@ namespace Scene {
         // once per frame before updating characters; near characters (incl. the
         // controlled player, which sits at the camera) always run every frame.
         static void setViewerPosition(const glm::vec3& p) { s_viewerPos = p; s_viewerValid = true; }
+        /// Forget the viewer (update-LOD then never defers) - the boot state; tests restore it.
+        static void clearViewerPosition() { s_viewerValid = false; }
         static void setLODEnabled(bool e) { s_lodEnabled = e; }
 
         /// How many characters passed the update-LOD gate (ran a FULL update) since the
@@ -164,6 +167,21 @@ namespace Scene {
             bool colliding;
         };
         std::vector<SegmentBoxInfo> getSegmentBoxInfo() const;
+
+        /// One limb as a GPU-debris mover (DebrisInteractionPlan Phase 3a): an ORIENTED box
+        /// (bind-pose half extents + world rotation, not the inflated AABB refit) with its own
+        /// velocity from this tick's pose delta.
+        struct MoverBox {
+            glm::vec3 center{0.0f};
+            glm::vec3 halfExtents{0.0f};
+            glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+            glm::vec3 velocity{0.0f};
+        };
+        /// Appends this character's limbs (once per frame, by the mover feed). A tick deferred by
+        /// update-LOD is extrapolated along each limb's velocity by the banked time (the character
+        /// really advances that far when the banked time folds in); a derezzing character, or one
+        /// whose limbs were never posed, appends nothing. Returns whether anything was appended.
+        bool collectMoverBoxes(std::vector<MoverBox>& out);
 
         // Test-only introspection: force foot-IK bone resolution and expose the
         // resolved ids. The golden regression (CharacterGoldenPoseTest) pins these
@@ -1013,6 +1031,11 @@ namespace Scene {
 
         // Kinematic controller state (replaces Bullet controllerBody)
         glm::vec3 m_kinVelocity{0.0f};
+        // Phase 3a mover feed: the last full tick's dt and whether it is yet to be collected.
+        float m_moverTickDt = 0.0f;
+        bool  m_moverFresh  = false;
+        bool  m_moverHasPrev = false;   // the snapshot holds real centres (not the first tick)
+        bool  m_segCentersValid = false; // updateSegmentBoxes has run at least once
         bool      m_kinGrounded = false;
         // Water/wading state (Phase 4.3)
         WaterHooks m_water;
@@ -1376,6 +1399,10 @@ namespace Scene {
             glm::vec3 worldHalfExtents{0.0f}; // AABB refit each frame from rotated corners
             bool isArm = false;
             bool colliding = false;
+            // Phase 3a movers (kept LAST: segment boxes are built by positional aggregate init).
+            glm::quat worldRotation{1.0f, 0.0f, 0.0f, 0.0f};   // bone rotation
+            glm::vec3 prevCenter{0.0f};       // centre at the start of the current full tick
+            glm::vec3 velocity{0.0f};         // per-limb velocity from the pose delta
         };
         std::vector<SegmentBox> m_segmentBoxes;
         bool m_limbBlocked = false;  // true this frame if any arm segment overlaps a voxel

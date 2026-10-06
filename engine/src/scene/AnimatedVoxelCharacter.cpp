@@ -3864,6 +3864,11 @@ static constexpr float kControllerHeadClearance = 0.05f;
 
         ++s_fullUpdates;   // passed the LOD gate — this is a full tick
         m_totalTime += deltaTime;
+        // Phase 3a mover feed: limb centres at the start of this full tick, for per-limb velocity.
+        for (auto& seg : m_segmentBoxes) seg.prevCenter = seg.center;
+        m_moverHasPrev = m_segCentersValid;   // first tick: centres not computed yet
+        m_moverTickDt  = deltaTime;
+        m_moverFresh   = true;
 
         // --- Derez drain: spawn voxels whose detach time has arrived ---
         if (m_derezState && m_derezState->active && m_gpuPhysics) {
@@ -5763,7 +5768,22 @@ static constexpr float kControllerHeadClearance = 0.05f;
                         refitHE = glm::max(refitHE, glm::abs(corner));
                     }
             seg.worldHalfExtents = refitHE;
+            // Oriented-box rotation for the GPU mover (columns normalised: bone matrices may scale).
+            glm::mat3 rn(glm::normalize(rotMat[0]), glm::normalize(rotMat[1]), glm::normalize(rotMat[2]));
+            seg.worldRotation = glm::normalize(glm::quat_cast(rn));
+            // Per-limb velocity from this tick's pose delta (a swinging arm moves faster than the
+            // body). Clamped: a teleport between ticks must not fling debris (Phase 3a).
+            if (m_moverHasPrev && m_moverTickDt > 1e-4f) {
+                glm::vec3 v = (seg.center - seg.prevCenter) / m_moverTickDt;
+                const float sp = glm::length(v);
+                if (sp > 20.0f) v *= 20.0f / sp;
+                seg.velocity = v;
+            } else {
+                seg.velocity = m_kinVelocity;
+            }
         }
+
+        m_segCentersValid = true;
 
         // Push updated segment boxes to voxel world as kinematic obstacles.
         // Pass m_kinVelocity so the solver generates speed-proportional push impulses.
@@ -5774,11 +5794,29 @@ static constexpr float kControllerHeadClearance = 0.05f;
                 Physics::VoxelDynamicsWorld::KinematicObstacle ob;
                 ob.center      = seg.center;
                 ob.halfExtents = seg.worldHalfExtents;
-                ob.velocity    = m_kinVelocity;
+                ob.velocity    = seg.velocity;   // per-limb (Phase 3a), was the whole-body velocity
                 obstacles.push_back(ob);
             }
             vw->setKinematicObstacles(this, std::move(obstacles));
         }
+    }
+
+    bool AnimatedVoxelCharacter::collectMoverBoxes(std::vector<MoverBox>& out) {
+        if (!m_segCentersValid || isDerezzing() || m_segmentBoxes.empty()) return false;
+        // A tick deferred by update-LOD (m_lodAccum banked) is EXTRAPOLATED along each limb's
+        // velocity: the banked time is folded into the next tick, so the character really does
+        // advance that far. Feeding only on full ticks made the boxes vanish between ticks and
+        // reappear a whole banked interval further on - deep inside a pile (Phase 3a: 547 mm
+        // peak for a far NPC vs 199 mm ticking every frame).
+        const float ahead = m_lodAccum;
+        m_moverFresh = false;
+        bool any = false;
+        for (const auto& seg : m_segmentBoxes) {
+            if (seg.boneId < 0 || seg.halfExtents.x <= 0.0f) continue;   // unresolved / degenerate
+            out.push_back({seg.center + seg.velocity * ahead, seg.halfExtents, seg.worldRotation, seg.velocity});
+            any = true;
+        }
+        return any;
     }
 
     void AnimatedVoxelCharacter::checkSegmentVoxelOverlap() {

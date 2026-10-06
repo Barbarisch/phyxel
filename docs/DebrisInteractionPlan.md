@@ -1,6 +1,6 @@
 # Debris Interaction Plan — everything that moves can push GPU debris
 
-**Status:** rev 4.9, 2026-10-06. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
+**Status:** rev 4.10, 2026-10-06. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
 **Phase 1 DONE** (pushed to main through 1f):
 - 1a build safety ✅ · 1b `shaders/solver_shared.h` ✅
 - 1c one occupancy: steps 1–4 ✅ (tri-state query, edit-first repack, debris reads the shared
@@ -14,7 +14,9 @@
   parity (pixel red -0.183 -> green 0.969), part 3 CPU debris path deleted.
 - 1e driven-input counters + analyzer window, 1f scripted kinematic box.
 - **Phase 2 DONE**: movers are AVBD bodies, default flags 55, the D7 shove deleted (user accepted a
-  few-cm transient overlap in packed piles; isolated bodies <= 2 cm). Next: Phase 3a.
+  few-cm transient overlap in packed piles; isolated bodies <= 2 cm).
+- **Phase 3a DONE**: every animated character (player, entities, NPCs) pushes debris; far
+  (update-LOD) characters are extrapolated. Next: 3c (CPU bodies), then 3b (held items, doors).
 - Still open, minor: 1c step 5 gap 8 (incremental add does not filter broken/invisible
   sub-voxels); drop_pile varies run to run (GPU nondeterminism, not session state).
 - 1d–1f not started. Phases 2–6 not started (Phase 4 holds the user's "spells don't hit debris").
@@ -804,6 +806,36 @@ flipped, D7 not deleted). Waiting on a user decision (below).**
   ones are included as supports.
 - **Budget:** at most 512 boxes per tick, by distance to awake debris and then to the camera.
   Overflow is **counted and logged once**.
+
+**DONE 2026-10-06 — Phase 3a: every animated character pushes debris.**
+- One feed (`Application`, right after the entity update loop, so this frame's pose — the old
+  player-only feed ran BEFORE NPC/entity updates, one frame stale): the player, every
+  `AnimatedVoxelCharacter` entity and every NPC's character (monsters, fauna, residents),
+  de-duplicated, nearest the camera first (the `MAX_KINEMATIC` overflow drops the farthest).
+  Budgeting by distance to awake debris is not done yet (camera distance only).
+- `AnimatedVoxelCharacter::collectMoverBoxes`: ORIENTED limb boxes (bind-pose half extents + the
+  bone's world rotation, not the ~1.4× inflated AABB refit) with **per-limb velocity** from the
+  pose delta across a full tick, clamped to 20 m/s (a teleport must not fling debris). The CPU
+  kinematic obstacles get the per-limb velocity too (was the whole-body velocity).
+  `GpuParticlePhysics::setMoverBoxes` takes the oriented boxes; scripted boxes use a frame-start
+  snapshot so a late-frame feed cannot shift them a frame ahead.
+- **Changed from the plan, with evidence:** the plan said characters skipped by update-LOD "are
+  not fed". Live, a far NPC (camera ~115 m away, reduced tick rate) then fed only on its ticks:
+  its boxes vanished between ticks and reappeared a whole banked interval further on — **547 mm**
+  peak penetration vs **199 mm** for the same NPC with the camera beside it. A deferred
+  character is now EXTRAPOLATED along each limb's velocity by the banked time (it really advances
+  that far when the banked time folds in): far camera **183.5 mm**. Derezzing characters feed
+  nothing.
+- Unit `CharacterMoverFeedTest` (3): every frame feeds the same limbs when no time is banked;
+  oriented bind-pose extents, finite velocity, a teleport clamped; a deferred tick is the last
+  pose moved along limb velocity. A first version leaked update-LOD state (a viewer 5 km away)
+  into 9 later character tests — the guard now restores the switch AND the viewer
+  (`AnimatedVoxelCharacter::clearViewerPosition`, new). Character suites 363/365 (2 skipped).
+- **L4 `npc_walk`:** an NPC patrolling (`/api/npc/spawn`, behavior patrol, 2 m/s) through a 4×2×4
+  pile → 1,447–2,075 mover contacts, 22–25/32 pieces moved, peak 183–199 mm; control patrol
+  4 m beside the pile → 0 contacts, 0 moved.
+- Bench `phase3a` in band; `box_through_pile`'s own band written down: forced sleeps ≤ 12
+  (observed 4–11; the push wakes 100+ bodies), box checks as above (median 27 / max 134 mm).
 
 ## Phase 4 — Impulses (both worlds)
 

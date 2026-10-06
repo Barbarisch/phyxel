@@ -137,6 +137,18 @@ public:
     /** Disable character collision (no character active). */
     void clearCharacterAABB();
 
+    /** Every character mover for this frame (Phase 3a): oriented limb boxes, each with its own
+     *  velocity. Replaces whatever setCharacterColliders/setMoverBoxes set before. The caller
+     *  orders them by priority (nearest first): past MAX_KINEMATIC they are counted as overflow. */
+    struct MoverBox {
+        glm::vec3 center{0.0f};
+        glm::vec3 halfExtents{0.0f};
+        glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+        glm::vec3 velocity{0.0f};
+    };
+    void setMoverBoxes(std::vector<MoverBox> movers);
+    uint32_t moverCount() const { return static_cast<uint32_t>(m_movers.size()); }
+
     /** Scripted kinematic test box (DebrisInteractionPlan 1f): a mover the solver tests can drive
      *  without NPC AI. It advances by SIMULATED time (ticks x FIXED_DT, so a frozen, stepped solver
      *  moves it deterministically) and expires after `ttl` seconds. It is a kinematic AVBD body
@@ -394,8 +406,10 @@ private:
     std::vector<uint32_t> m_freeSlots;
     // Collider feed: the player's boxes (setCharacterColliders) + the scripted boxes (1f), merged
     // into the collider buffer by writeColliderBuffer().
-    std::vector<std::pair<glm::vec3, glm::vec3>> m_charBoxes;
-    glm::vec3 m_charVelocity{0.0f};
+    std::vector<MoverBox> m_movers;   // character limbs (setMoverBoxes / setCharacterColliders)
+    // Scripted boxes at the START of this frame: the feed can arrive after update() has advanced
+    // m_kinematicBoxes to the frame-end pose, and the GPU ticks start from the frame-start pose.
+    std::map<std::string, KinematicBox> m_kinematicBoxesFrameStart;
     std::map<std::string, KinematicBox> m_kinematicBoxes;
     uint32_t m_kinematicOverflow = 0;   // movers past MAX_KINEMATIC (last write), counted not dropped silently
     void writeColliderBuffer();

@@ -1056,11 +1056,12 @@ void GpuParticlePhysics::update(float dt) {
                      << "," << (m_timeAccumulator / FIXED_DT)
                      << "," << m_activeCount;
         // Character columns: the player's first body-part box and its velocity (the movers).
-        if (!m_charBoxes.empty()) {
-            const glm::vec3& c = m_charBoxes.front().first;
+        if (!m_movers.empty()) {
+            const glm::vec3& c = m_movers.front().center;
+            const glm::vec3& v = m_movers.front().velocity;
             m_posLogFile << "," << c.x << "," << c.y << "," << c.z
-                         << "," << m_charVelocity.x << "," << m_charVelocity.y << "," << m_charVelocity.z
-                         << "," << m_charBoxes.size();
+                         << "," << v.x << "," << v.y << "," << v.z
+                         << "," << m_movers.size();
         } else {
             m_posLogFile << ",0,0,0,0,0,0,0";
         }
@@ -1115,7 +1116,9 @@ void GpuParticlePhysics::update(float dt) {
     // tick by tick drives them deterministically.
     // The GPU ticks of THIS frame start from the frame-start pose (solver_kinematic_sync adds
     // velocity*dt*tick), so upload first, then advance the CPU copy to the frame-end pose.
-    // Unconditional: a box that expired last frame must also leave the GPU buffer.
+    // Frame-start snapshot of the scripted boxes (the mover feed may stage after the advance
+    // below), then the unconditional upload: a box that expired last frame must also leave.
+    m_kinematicBoxesFrameStart = m_kinematicBoxes;
     writeColliderBuffer();
     if (!m_kinematicBoxes.empty()) {
         const float simDt = static_cast<float>(m_physicsTicks) * FIXED_DT;
@@ -1378,8 +1381,14 @@ void GpuParticlePhysics::despawnAll() {
 
 void GpuParticlePhysics::setCharacterColliders(
     const std::vector<std::pair<glm::vec3, glm::vec3>>& boxes, const glm::vec3& velocity) {
-    m_charBoxes = boxes;
-    m_charVelocity = velocity;
+    std::vector<MoverBox> movers;
+    movers.reserve(boxes.size());
+    for (const auto& [c, h] : boxes) movers.push_back({c, h, glm::quat(1.0f, 0.0f, 0.0f, 0.0f), velocity});
+    setMoverBoxes(std::move(movers));
+}
+
+void GpuParticlePhysics::setMoverBoxes(std::vector<MoverBox> movers) {
+    m_movers = std::move(movers);
     writeColliderBuffer();
 }
 
@@ -1388,7 +1397,7 @@ void GpuParticlePhysics::setCharacterAABB(const glm::vec3& center, const glm::ve
 }
 
 void GpuParticlePhysics::clearCharacterAABB() {
-    m_charBoxes.clear();
+    m_movers.clear();
     writeColliderBuffer();
 }
 
@@ -1397,11 +1406,13 @@ void GpuParticlePhysics::setKinematicBox(const std::string& id, const KinematicB
     b.half = glm::max(b.half, glm::vec3(0.01f));          // a degenerate box collides with nothing
     b.ttl  = std::clamp(b.ttl, 0.0f, 10.0f);              // a forgotten box must not live forever
     m_kinematicBoxes[id] = b;
+    m_kinematicBoxesFrameStart[id] = b;   // visible from the next GPU tick on
     writeColliderBuffer();
 }
 
 bool GpuParticlePhysics::removeKinematicBox(const std::string& id) {
     const bool had = m_kinematicBoxes.erase(id) > 0;
+    m_kinematicBoxesFrameStart.erase(id);
     writeColliderBuffer();
     return had;
 }
@@ -1412,17 +1423,19 @@ void GpuParticlePhysics::writeColliderBuffer() {
     // recordComputeCommands after that slot's fence. Axis-aligned for now.
     m_kinematicStage.clear();
     m_kinematicOverflow = 0;
-    auto put = [&](const glm::vec3& c, const glm::vec3& h, const glm::vec3& v) {
+    auto put = [&](const glm::vec3& c, const glm::vec3& h, const glm::quat& r, const glm::vec3& v) {
         if (m_kinematicStage.size() >= DebrisShared::MAX_KINEMATIC) { ++m_kinematicOverflow; return; }
         DebrisShared::KinematicBoxGpu kb{};
         kb.center   = { c.x, c.y, c.z, 0.0f };
         kb.halfExt  = { h.x, h.y, h.z, 0.0f };
-        kb.rotation = { 0.0f, 0.0f, 0.0f, 1.0f };
+        kb.rotation = { r.x, r.y, r.z, r.w };   // GLSL quat convention: xyzw
         kb.velocity = { v.x, v.y, v.z, 0.0f };
         m_kinematicStage.push_back(kb);
     };
-    for (const auto& [c, h] : m_charBoxes) put(c, h, m_charVelocity);
-    for (const auto& [id, b] : m_kinematicBoxes) put(b.center, b.half, b.velocity);
+    // Scripted boxes first: they are test instruments and must never be the overflow.
+    for (const auto& [id, b] : m_kinematicBoxesFrameStart)
+        put(b.center, b.half, glm::quat(1.0f, 0.0f, 0.0f, 0.0f), b.velocity);
+    for (const auto& m : m_movers) put(m.center, m.halfExtents, m.rotation, m.velocity);
     m_kinematicCount = static_cast<uint32_t>(m_kinematicStage.size());
 }
 
