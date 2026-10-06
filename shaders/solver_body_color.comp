@@ -41,7 +41,7 @@ void main() {
         if (ci >= constraintCount) continue;
         GPUConstraint con = constraints[ci];
         uint other = (con.bodyA == bi) ? con.bodyB : con.bodyA;
-        if (other == SOLVER_STATIC) continue;
+        if (other == SOLVER_STATIC || isKinematicBody(other)) continue;   // movers: never coloured (Phase 2)
         if (bodyColor[other] == UNCOLORED && hashPriority(other) > myPri) return;
     }
 
@@ -52,7 +52,7 @@ void main() {
         if (ci >= constraintCount) continue;
         GPUConstraint con = constraints[ci];
         uint other = (con.bodyA == bi) ? con.bodyB : con.bodyA;
-        if (other == SOLVER_STATIC) continue;
+        if (other == SOLVER_STATIC || isKinematicBody(other)) continue;   // movers: never coloured (Phase 2)
         uint nc = bodyColor[other];
         if (nc < MAX_COLORS) usedColors |= (1u << nc);
     }

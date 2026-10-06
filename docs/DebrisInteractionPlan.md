@@ -694,6 +694,74 @@ from NPC AI.
 - **Delete the player shove hack (D7)** once `box_through_pile` passes.
 - **Flag:** `SOLVER_FLAG_KINEMATIC_CONTACTS = 32`. Defaults 23 → 55, pinned by the bench.
 
+**Phase 2 design, concrete (2026-10-06, from reading the passes):**
+- **Where they live:** kinematic bodies occupy FIXED body indices `[MAX_PARTICLES,
+  MAX_PARTICLES + MAX_KINEMATIC)` (MAX_KINEMATIC = 512) in the SolverBody buffer — never inside
+  the particle range, so `count`, grid, integrate, sync_in/out and the settle probe are untouched.
+  The body buffer grows by 512 × 208 B.
+- **Who writes them:** a host-mapped `KinematicBoxBuffer` (layout as field macros in
+  `solver_shared.h` — no C++ mirror of SolverBody) holds, per box: frame-start centre, half
+  extents, rotation, velocity. A new pass `solver_kinematic_sync.comp` runs at the start of EVERY
+  tick and writes body `MAX_PARTICLES + k`: `initial = c0 + v·dt·tick`, `pos = initial + v·dt`,
+  `quat = initialQuat = rot`, `cumAng = 0`, `invMass = 0`, flags `ACTIVE | PARTICLE_KINEMATIC`,
+  `vel = v`, friction 0.6. Multi-tick frames therefore advance the box exactly. The CPU writes the
+  buffer BEFORE it advances its own box centres for the frame.
+- **Contacts:** `solver_narrowphase` gains a second loop: each awake (or sleeping) debris body
+  tests every kinematic body after an AABB reject, at the box's TICK-START pose (`initial`), and
+  emits through the same face/edge manifold code (`bodyB = MAX_PARTICLES + k`). Dual and primal
+  already read `bodies[bodyB].pos - .initial` and `.cumAng` for a non-static B, so the box's
+  motion this tick enters `C` as `J·Δq_B` — the push — with no new constraint type.
+- **Passes that index per-body arrays through a constraint** (`csr_count`, `csr_scatter`,
+  `body_color`) treat `bodyB >= MAX_PARTICLES` exactly like `SOLVER_STATIC` (never solved,
+  never coloured). Wake: the existing impact-wake test wakes a sleeper when the box speed exceeds
+  `WAKE_IMPACT_SPEED`.
+- **Telemetry:** `SS_KINEMATIC_CONTACTS` counts kinematic constraints emitted;
+  `SS_KINEMATIC_DEPTH_UM` (new) the deepest tick-start penetration into any box (the plan's
+  "≤ 2 cm every tick" check). The analyzer reports `kinematic_max_depth_m`.
+- **The player** joins the same path: its segment boxes become kinematic boxes (velocity =
+  controller velocity). With flag 32 ON the integrate-pass shove (D7) and its union-AABB wake are
+  skipped; flag OFF keeps the old shove — the control. D7's code is deleted after
+  `box_through_pile` passes.
+- **Measured displacement:** the analyzer exposes each body's start/end centre
+  (`summary()["body_paths"]`, runs ≤ 2,000 bodies) so the bench computes "swept bodies displaced
+  ≥ 0.2 m" from the box path.
+- **Red first:** `box_through_pile` with flag 32 ON before the narrowphase loop exists → 0 %
+  displaced (the shove is off and nothing replaces it). Controls: box path 3 m beside the pile
+  (0 displaced) and flag 32 OFF (the old shove).
+
+**Phase 2 STATUS (2026-10-06): mover contacts BUILT, behind flag 32 (default still 23 — not
+flipped, D7 not deleted). Waiting on a user decision (below).**
+- Red (`phase2-red`, flags 55, no narrowphase loop): 0/24 swept bodies displaced, 0 mm.
+- Three bugs found on the way, each measured, each fixed:
+  1. *Corrected design note above:* measuring the box at its TICK-START pose was wrong. `emitCon`
+     converts the measured depth back to tick start by subtracting BOTH bodies' motion, so the
+     box's motion was subtracted twice and every mover contact looked one box-step shallower.
+     Movers are now measured at `pos` like every other body.
+  2. **Frames-in-flight:** one host-mapped box buffer rewritten in `update()` was read by the
+     previous frame's still-running ticks — the box jumped one frame (4 × 33 mm = 133 mm, the
+     exact reading) ahead. Now one buffer per frame slot, written in `recordComputeCommands`
+     after the slot's fence (the occupancy pool's pattern). The old shove's character buffer has
+     the same race — pre-existing, logged, not fixed here.
+  3. A sleeping body is static for the tick it is hit, and alpha = 0.99 recovers only 1 % of an
+     overlap per tick. Mover pairs get a speculative margin of twice the box's step, so they are
+     contacted — and woken — a tick early (`faceManifold` takes the margin too).
+- Cold mover contacts start ×100 stiffer (`KINEMATIC_COLD_PENALTY_SCALE`): it did not change the
+  depth, but driven hard-contact fires 3 → 0 and driven rebounds 16 → 6 (`phase2-kpen100`).
+- **Result, one isolated body** (one-variable probe, the box through 1/3/6 cubes in a row, and a
+  single cube centred / quarter-off / straddling the box edge): max penetration **0.0–4.2 mm**
+  — the ≤ 2 cm criterion holds.
+- **Result, the packed 6×3×6 pile** (`box_through_pile`): 24/24 swept bodies displaced (100 %),
+  post-window clean, but **3–10 cm transient overlap** for the bodies wedged in the pile
+  (geometric, from dumped positions; the SAT telemetry reads up to 133–157 mm on yawed bodies).
+  Doubling `SOLVE_ITERATIONS` 8 → 16 halves it (2.5–4.7 cm, telemetry 64 mm): it is the solver's
+  iteration budget propagating an unstoppable push through a zero-gap pile in one tick, not the
+  contact. Reverted to 8.
+- **Decision needed (user):** (a) accept a few-cm transient overlap when a mover plows a packed
+  pile (criterion: isolated ≤ 2 cm, pile ≤ 10 cm) and flip the defaults to 55 + delete D7; or
+  (b) buy iterations (16 doubles solver cost for ALL debris; measure in Release first); or
+  (c) extra iterations only on ticks with mover contacts. Until then the shipped default is
+  unchanged (flag 32 off = the old shove).
+
 ## Phase 3 — Feed every mover
 
 - **3a. Characters**: one feed for **all** `AnimatedVoxelCharacter`s (`NPCManager` plus entities

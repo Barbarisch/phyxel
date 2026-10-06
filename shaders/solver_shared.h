@@ -26,6 +26,7 @@
 namespace Phyxel { namespace DebrisShared {
 typedef uint32_t uint;
 struct ivec4 { int32_t x, y, z, w; };   // GLSL ivec4 (16-byte aligned in push constants)
+struct vec4  { float x, y, z, w; };     // GLSL vec4 (std430 storage layouts, e.g. PHX_KINEMATIC_BOX)
 #define PHX_CONST constexpr
 #else
 #define PHX_CONST const
@@ -41,7 +42,11 @@ PHX_CONST uint WORKGROUP  = PHX_WORKGROUP;
 PHX_CONST uint MAX_PARTICLES     = 10000u;
 PHX_CONST uint MAX_CONSTRAINTS   = 60000u;
 PHX_CONST uint MAX_COLORS        = 32u;   // was 12: packed piles need up to ~27 colours (26-neighbourhood); bodies past the cap were SKIPPED by primal (audit D1)
-PHX_CONST uint MAX_CHAR_SEGMENTS = 12u;   // character collider boxes: 4 torso + 4 arm + 4 leg
+PHX_CONST uint MAX_CHAR_SEGMENTS = 12u;
+PHX_CONST uint MAX_KINEMATIC     = 512u;  // kinematic bodies (movers), Phase 2
+// Kinematic bodies live at FIXED body indices [KINEMATIC_BASE, KINEMATIC_BASE + MAX_KINEMATIC):
+// never inside the particle range, so count/grid/integrate/sync never see them (Phase 2).
+PHX_CONST uint KINEMATIC_BASE    = MAX_PARTICLES;   // character collider boxes: 4 torso + 4 arm + 4 leg
 
 // ---- Broadphase grid (cell = floor(position) wrapped to a 64³ torus) -----------------------
 PHX_CONST int GRID_SIZE   = 64;
@@ -64,6 +69,7 @@ PHX_CONST uint SS_WAKE_REQUESTS        = 6u;   // wake bits set this tick (impac
 PHX_CONST uint SS_FROZEN_UNKNOWN       = 7u;   // bodies HELD this tick: a contact sample needed occupancy the pool does not have (1c)
 PHX_CONST uint SS_KINEMATIC_CONTACTS   = 8u;   // bodies a mover (character collider / scripted box) pushed this tick (1e)
 PHX_CONST uint SS_IMPULSES_APPLIED     = 9u;   // bodies an impulse reached this tick (Phase 4; 0 until then)
+PHX_CONST uint SS_KINEMATIC_DEPTH_UM   = 10u;  // deepest tick-start penetration into a kinematic body, micrometres (Phase 2)
 
 // ---- GpuParticle.flags bits ------------------------------------------------------------------
 PHX_CONST uint PARTICLE_ACTIVE       = 1u;
@@ -72,6 +78,7 @@ PHX_CONST uint PARTICLE_TYPE_CUBE    = 0u << 2;   // type bits [3:2]
 PHX_CONST uint PARTICLE_TYPE_SUBCUBE = 1u << 2;
 PHX_CONST uint PARTICLE_TYPE_MICRO   = 2u << 2;
 PHX_CONST uint PARTICLE_TYPE_MASK    = 3u << 2;
+PHX_CONST uint PARTICLE_KINEMATIC    = 1u << 4;   // a mover body (invMass 0, moved by the CPU), Phase 2
 
 // ---- GpuParticle.materialIndex packing (DebrisInteractionPlan 1d texture parity) -------------
 // Bits 0-15: material index (~102 materials). Bits 16-25: the piece's micro position INSIDE its
@@ -88,6 +95,7 @@ PHX_CONST uint SOLVER_FLAG_START_AT_REST   = 2u;   // slow bodies start the solv
 PHX_CONST uint SOLVER_FLAG_HC_NEUTRAL      = 4u;   // hard-contact push-out adds no velocity
 PHX_CONST uint SOLVER_FLAG_POST_STAB       = 8u;   // alpha=1 solve + one alpha=0 pass; measured WORSE, off
 PHX_CONST uint SOLVER_FLAG_STATIC_FRICTION = 16u;  // stiff cold friction rows + anchored static friction
+PHX_CONST uint SOLVER_FLAG_KINEMATIC_CONTACTS = 32u; // movers are AVBD bodies (Phase 2); OFF = the old integrate-pass shove
 PHX_CONST uint SOLVER_FLAGS_DEFAULT        = 23u;  // all but POST_STAB
 PHX_CONST float SOLVER_ALPHA               = 0.99f; // error-correction alpha (Shallot canonical)
 PHX_CONST uint PRIMAL_STORE_VELOCITY       = 0xFFFFFFFEu;  // PrimalPC.targetColor sentinel
@@ -107,6 +115,11 @@ PHX_CONST uint PRIMAL_STORE_VELOCITY       = 0xFFFFFFFEu;  // PrimalPC.targetCol
 #define PHX_PC_HARDCONTACT uint count; uint flags; float pad1; float pad2; ivec4 occBox;
 #define PHX_PC_SYNC_OUT    uint count; float dt; float lifetimeDt; uint flags;
 #define PHX_PC_EXPAND      uint count; uint maxFaceSlots; float interpAlpha;              /* interpAlpha: fraction of FIXED_DT since the last tick */
+#define PHX_PC_KINEMATIC   uint boxCount; uint tick; float dt; uint pad0;                 /* kinematic_sync: tick = sub-step index in this frame */
+
+// One kinematic box as the CPU uploads it (host-mapped, std430). The kinematic_sync pass turns
+// it into SolverBody KINEMATIC_BASE + k each tick: initial = center + velocity*dt*tick.
+#define PHX_KINEMATIC_BOX  vec4 center; vec4 halfExt; vec4 rotation; vec4 velocity;     /* .w unused; rotation = quat xyzw */
 
 #ifdef __cplusplus
 struct GridCountPC      { PHX_PC_COUNT };
@@ -123,6 +136,8 @@ struct PrimalPC         { PHX_PC_PRIMAL };
 struct HardContactPC    { PHX_PC_HARDCONTACT };
 struct SyncOutPC        { PHX_PC_SYNC_OUT };
 struct ExpandPC         { PHX_PC_EXPAND };
+struct KinematicPC      { PHX_PC_KINEMATIC };
+struct KinematicBoxGpu  { PHX_KINEMATIC_BOX };
 
 // Sizes as the shaders see them (std430 push-constant packing of 4-byte scalars).
 static_assert(sizeof(GridCountPC)   == 4,  "PHX_PC_COUNT");
@@ -139,12 +154,14 @@ static_assert(sizeof(PrimalPC)      == 16, "PHX_PC_PRIMAL");
 static_assert(sizeof(HardContactPC) == 32, "PHX_PC_HARDCONTACT");
 static_assert(sizeof(SyncOutPC)     == 16, "PHX_PC_SYNC_OUT");
 static_assert(sizeof(ExpandPC)      == 12, "PHX_PC_EXPAND");
+static_assert(sizeof(KinematicPC)   == 16, "PHX_PC_KINEMATIC");
+static_assert(sizeof(KinematicBoxGpu) == 64, "PHX_KINEMATIC_BOX");
 
 // Invariants the shaders rely on.
 static_assert((HASH_CAP & (HASH_CAP - 1u)) == 0u,      "HASH_CAP must be a power of two (HASH_MASK)");
 static_assert(HASH_CAP >= 2u * MAX_CONSTRAINTS,        "warm-start hash load factor must stay <= 0.5");
 static_assert(WAKE_WORDS * 32u >= MAX_PARTICLES,       "one wake bit per body");
-static_assert(SS_FROZEN_UNKNOWN < HASH_BASE,           "header counters must fit before the hash table");
+static_assert(SS_KINEMATIC_DEPTH_UM < HASH_BASE,       "header counters must fit before the hash table");
 static_assert((GRID_SIZE & (GRID_SIZE - 1)) == 0,      "GRID_SIZE must be a power of two (cells wrap with &)");
 static_assert(GRID_CELLS % SCAN_BLOCK == 0,            "the parallel scan covers whole blocks");
 static_assert(SCAN_BLOCK == PHX_WORKGROUP,             "scan_block uses one thread per cell");

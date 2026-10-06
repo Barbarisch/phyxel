@@ -24,7 +24,7 @@ void main() {
     uint idxA = atomicAdd(bodyConstraintCursor[c.bodyA], 1u);
     bodyConstraintList[idxA] = ci;
 
-    if (c.bodyB != SOLVER_STATIC) {
+    if (c.bodyB != SOLVER_STATIC && !isKinematicBody(c.bodyB)) {   // movers are never solved (Phase 2)
         uint idxB = atomicAdd(bodyConstraintCursor[c.bodyB], 1u);
         bodyConstraintList[idxB] = ci;
     }

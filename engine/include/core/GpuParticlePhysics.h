@@ -304,6 +304,18 @@ private:
     VkDeviceMemory   m_characterMem    = VK_NULL_HANDLE;
     void*            m_characterMapped = nullptr;
 
+    // Kinematic (mover) boxes for the AVBD solver, Phase 2 - host-coherent, persistently mapped,
+    // KinematicBoxGpu[MAX_KINEMATIC]. solver_kinematic_sync turns entry k into SolverBody
+    // KINEMATIC_BASE + k each tick. Filled by writeColliderBuffer (player boxes + scripted boxes).
+    // ONE BUFFER PER FRAME SLOT: the CPU writes slot s only in recordComputeCommands, after that
+    // slot's fence (a single buffer rewritten in update() was read by the previous frame's
+    // still-running ticks - the box jumped a whole frame ahead, 4 x 33 mm, frames-in-flight).
+    VkBuffer         m_kinematicBoxBuffer[OCC_FRAME_SLOTS] = {};
+    VkDeviceMemory   m_kinematicBoxMem[OCC_FRAME_SLOTS]    = {};
+    void*            m_kinematicBoxMapped[OCC_FRAME_SLOTS] = {};
+    std::vector<DebrisShared::KinematicBoxGpu> m_kinematicStage;   // this frame's frame-start poses
+    uint32_t         m_kinematicCount     = 0;
+
     // Per-material physics properties — host-coherent, persistently mapped
     VkBuffer         m_materialPhysBuffer = VK_NULL_HANDLE;
     VkDeviceMemory   m_materialPhysMem    = VK_NULL_HANDLE;
@@ -387,6 +399,7 @@ private:
     // Compute pipelines for new solver
     Vulkan::ComputePipeline m_solverSyncInPass;
     Vulkan::ComputePipeline m_solverIntegratePass;
+    Vulkan::ComputePipeline m_solverKinematicSyncPass;   // movers -> SolverBody (Phase 2)
     Vulkan::ComputePipeline m_solverNarrowphasePass;
     Vulkan::ComputePipeline m_solverVoxelPass;
     Vulkan::ComputePipeline m_solverDualPass;
@@ -509,7 +522,7 @@ private:
     bool createSolverPipelines(const std::string& shaderDir);
     void uploadMatTexTable(Vulkan::VulkanDevice* vulkanDevice, const std::vector<uint32_t>& table);
     void recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t count, float lifetimeDt,
-                                  GpuProfiler* profiler, bool instrument);
+                                  GpuProfiler* profiler, bool instrument, uint32_t tick);
 
     static void insertBarrier(VkCommandBuffer cmd,
                               VkPipelineStageFlags src, VkPipelineStageFlags dst,

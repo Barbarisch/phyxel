@@ -168,37 +168,37 @@
     },
     "particle_expand.comp": {
       "built": true,
-      "sources": "cac89a96a3c8f68580946daef237abbfd626df61c2e4801c0f245fa3d71d9734",
+      "sources": "eb2f98953810190d8a3aaac90b905e24b5eeab3acc8f385b32b86608fb974d88",
       "spv_present": true
     },
     "particle_grid_build.comp": {
       "built": true,
-      "sources": "4360bc7c890bf566ca6dd135b4ccf8b911cacb5bc00183bacef0323ae0b87a0a",
+      "sources": "8ef24508a95da7a5a517579fac5b0967a59db89d551942c8a8de5d4d974d999d",
       "spv_present": true
     },
     "particle_grid_clear.comp": {
       "built": true,
-      "sources": "7926ad5e7160291c149f2146ec1a8e0255dd8e625410cc5a518d3642506c4ce0",
+      "sources": "feb5ab7eda493153a7cc82bf5616fc953effa86b8851f09e28acffb52a3c2442",
       "spv_present": true
     },
     "particle_scan_add.comp": {
       "built": true,
-      "sources": "810bb6ff580049e36261ed5986721cdea47bc9f137062e7c711058296a14fd5e",
+      "sources": "d489418ae632b52456f607cdda408a37c8c2e3be512bdacbdc2b1c1b7c8b719b",
       "spv_present": true
     },
     "particle_scan_block.comp": {
       "built": true,
-      "sources": "b6bb87b975fb6c7df0227c1c19c28e1d48fa1e57855dfb2e3cedf8a1a5522f68",
+      "sources": "b1fdb7a9523711f69ca5653ba20ce2aeead491a6babf8ec33ccfbebd377cde91",
       "spv_present": true
     },
     "particle_scan_blocksums.comp": {
       "built": true,
-      "sources": "a9c53fd0c887d08d308ce7dc2bb80f05eda6be174f4c94a838c7fe864a203489",
+      "sources": "238fc0ff9e6d7721ef95b8274483034ce8ad9c2f0f1b0149fa82c7ec3b33f631",
       "spv_present": true
     },
     "particle_sort_scatter.comp": {
       "built": true,
-      "sources": "32cb14ef3f9c3ff01442d07186d43be0194cae972df2db8b1552e4e56ec5a2ac",
+      "sources": "eb670e68cb0dc021f75468b56baa2b072be7441d78f11075c52ca3e8f2b99fd3",
       "spv_present": true
     },
     "post_process.frag": {
@@ -233,72 +233,77 @@
     },
     "solver_body_color.comp": {
       "built": true,
-      "sources": "83b831784e9aa67b8cb290d50e56c697c8dd1cabad94d4238f7c21b049c6adff",
+      "sources": "a38d8d6ee521ab92a01c8f5e5685e2448c2b852157ed51a9cfc80bb38bfaad20",
       "spv_present": true
     },
     "solver_csr_clear.comp": {
       "built": true,
-      "sources": "5e3a8a12dfe0c10810a7ec6831042cf4838f425cbe182dd5473ecfebc2cfe6c1",
+      "sources": "0d6b8648c27a316bc4d44752ad752e7d67b1a2fc48155b6c9165da31bc3f1c1e",
       "spv_present": true
     },
     "solver_csr_count.comp": {
       "built": true,
-      "sources": "2e08a25d357a1a150f692a99c61e6d6d3c5a44208b3399ddd74df50916b1de85",
+      "sources": "1ce32920aff18acf0461d3e6a164a84a335774bb44e2163fcc80ce260c45d7cf",
       "spv_present": true
     },
     "solver_csr_scatter.comp": {
       "built": true,
-      "sources": "659efdd09325ed1b9b2b8b11c6193d0daa15d0fb46230603d4601a03ccc2b562",
+      "sources": "371eafc57a6604329421378997aeddff7ce7db7facb33d6e9409ed9db6848175",
       "spv_present": true
     },
     "solver_dual.comp": {
       "built": true,
-      "sources": "f0274ae2029ab0e2462408eb9c4dcebd122260fdded4bd1fd13ec5c8d7c2a156",
+      "sources": "a325e489e2ec4f2e21b35e992146347a662d430c85f68d58ddf5b52a88f03a37",
       "spv_present": true
     },
     "solver_hardcontact.comp": {
       "built": true,
-      "sources": "ca04cd439774e5119e9cf1d45297e18fdfbfdd6afbc09bb4ea521eea5fc1e0db",
+      "sources": "7e9f7989844c67328dc7b1d3d9feac40a116f22b4eb4c34b5defa78fc19375fb",
       "spv_present": true
     },
     "solver_integrate.comp": {
       "built": true,
-      "sources": "5c5a2b517bd4ade6a9384239f20fd9d92d94019a29ace49ac8e045832ca0a345",
+      "sources": "10593e3c04e6c3bd298a834306808343736bf94246c1eb50cea81824cf7a784c",
+      "spv_present": true
+    },
+    "solver_kinematic_sync.comp": {
+      "built": true,
+      "sources": "7d22a0fd4825bc387195789b7ceac911131fd644b746e16e4365213c0a074530",
       "spv_present": true
     },
     "solver_narrowphase.comp": {
       "built": true,
-      "sources": "4a82a9e9dc2a748e9e2cd184bc99e8923c42822edf28cfdf03396c79e9a7ad2a",
+      "sources": "a87384f93e3ae9252039ca89c6f54eb00e4f6412466049ecf0717a764e21f28a",
       "spv_present": true
     },
     "solver_prefix_sum.comp": {
       "built": true,
-      "sources": "0e0f0bfb253222eeddc1bf3375e68ecfcae510b7ec846208b722c2a77d35b726",
+      "sources": "30c34eb4511b22b18ce33e7fb790289ad08ba4c608b0dc31714db85215a38f2c",
       "spv_present": true
     },
     "solver_primal.comp": {
       "built": true,
-      "sources": "517229652f58a21acce169ecb85059ead2cb26e364598dc11dc716a962dc9cea",
+      "sources": "9daee10a5f976652ffb22a2b1bca33f2d8f94e499a462c4ff1ea51d437b0484f",
       "spv_present": true
     },
     "solver_sync_in.comp": {
       "built": true,
-      "sources": "1cb6a775f798dc87986a8c1718019a6d3ddcc2778e92f0bc81b13d9e74f2f345",
+      "sources": "4736460b8436e5aae0ba98e39dce2781a4298ba281112a2f52c99f27e5b0e078",
       "spv_present": true
     },
     "solver_sync_out.comp": {
       "built": true,
-      "sources": "f85256b15e6fc9e395b886a543ac71481be3b3b35f3d909c0058857eac2ba147",
+      "sources": "96e4742b5220303bc97f2323d056fcd2a7486abc5d2beb48b1e1c2dfd774bed7",
       "spv_present": true
     },
     "solver_voxel.comp": {
       "built": true,
-      "sources": "681ee5437cae14ab33dd4aaabc28bf904d8e79b7f205402204342466024a1af3",
+      "sources": "9f4fad9ef2094b46640f35a8fb1bd2a76701357be841a4723fe0b452fe523bfd",
       "spv_present": true
     },
     "solver_warmstart_save.comp": {
       "built": true,
-      "sources": "2fd50dba014f363e9a0e0c8ac2fab1165b4faff0b7ef7e05c616556bc4660f1d",
+      "sources": "8a3af4134ed5d4ca21ee939910670b92c5f9e18e7b0eaa183581810f816ea1a5",
       "spv_present": true
     },
     "ssao.frag": {

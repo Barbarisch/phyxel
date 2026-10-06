@@ -61,11 +61,17 @@ struct WarmstartEntry {
 
 #include "solver_shared.h"   // MAX_COLORS, HASH_*, WAKE_WORDS, SS_*, SOLVER_FLAG_*, SOLVER_ALPHA (1b)
 
+// One CPU-uploaded mover box (Phase 2); layout shared with C++ via PHX_KINEMATIC_BOX.
+struct KinematicBox { PHX_KINEMATIC_BOX };
+
+
 const uint SOLVER_STATIC    = 0xFFFFFFFFu;
 const uint UNCOLORED        = 0xFFFFFFFFu;
 const uint HASH_EMPTY       = 0xFFFFFFFFu;
 const uint FEATURE_KEY_NONE = 0xFFFFFFFFu;
 const uint MAX_PROBE        = 128u;
+// A mover body (Phase 2): never solved or coloured, read only as constraint body B.
+bool isKinematicBody(uint idx) { return idx >= KINEMATIC_BASE && idx != SOLVER_STATIC; }
 
 // Solver state buffer layout:
 //   [0]              SS_CONSTRAINT_COUNT
@@ -106,6 +112,7 @@ const float ALPHA            = SOLVER_ALPHA;  // 0.99, solver_shared.h. Shallot 
 const float BETA             = 100000.0;
 const float PENALTY_MIN      = 1.0;       // Shallot default; warm-start drives to M/dt² in 1-2 frames
 const float PENALTY_MAX      = 1e10;
+const float KINEMATIC_COLD_PENALTY_SCALE = 100.0;   // cold mover contacts start this much stiffer (Phase 2)
 const float STICK_THRESH     = 1e-5;
 const float COLLISION_MARGIN = 0.02;     // speculative band: contacts persist this far apart (rest is FLUSH, C = 0 at touching)
 const float GAMMA            = 0.999;

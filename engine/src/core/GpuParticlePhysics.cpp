@@ -204,6 +204,46 @@ bool GpuParticlePhysics::createBuffers(Vulkan::VulkanDevice* dev) {
         std::memset(m_characterMapped, 0, sizeof(CharacterCollider));
     }
 
+    // 6b. Kinematic (mover) boxes (host-coherent SSBO, persistent map, one per frame slot), Phase 2
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
+        const VkDeviceSize kinSize = static_cast<VkDeviceSize>(DebrisShared::MAX_KINEMATIC) *
+                                     sizeof(DebrisShared::KinematicBoxGpu);
+        VkBufferCreateInfo bi{};
+        bi.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bi.size        = kinSize;
+        bi.usage       = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        if (vkCreateBuffer(m_device, &bi, nullptr, &m_kinematicBoxBuffer[slot]) != VK_SUCCESS) {
+            LOG_ERROR("GpuParticlePhysics", "Failed to create kinematic box buffer");
+            return false;
+        }
+        VkMemoryRequirements req;
+        vkGetBufferMemoryRequirements(m_device, m_kinematicBoxBuffer[slot], &req);
+        VkMemoryAllocateInfo ai{};
+        ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        ai.allocationSize = req.size;
+        VkPhysicalDeviceMemoryProperties props;
+        vkGetPhysicalDeviceMemoryProperties(m_physDevice, &props);
+        uint32_t memType = UINT32_MAX;
+        for (uint32_t j = 0; j < props.memoryTypeCount; ++j) {
+            if ((req.memoryTypeBits & (1u << j)) &&
+                ((props.memoryTypes[j].propertyFlags &
+                  (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT)) ==
+                  (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))) {
+                memType = j; break;
+            }
+        }
+        ai.memoryTypeIndex = memType;
+        if (memType == UINT32_MAX ||
+            vkAllocateMemory(m_device, &ai, nullptr, &m_kinematicBoxMem[slot]) != VK_SUCCESS ||
+            vkBindBufferMemory(m_device, m_kinematicBoxBuffer[slot], m_kinematicBoxMem[slot], 0) != VK_SUCCESS ||
+            vkMapMemory(m_device, m_kinematicBoxMem[slot], 0, kinSize, 0, &m_kinematicBoxMapped[slot]) != VK_SUCCESS) {
+            LOG_ERROR("GpuParticlePhysics", "Failed to create/map kinematic box buffer");
+            return false;
+        }
+        std::memset(m_kinematicBoxMapped[slot], 0, static_cast<size_t>(kinSize));
+    }
+
     // 7. Material physics properties (host-coherent SSBO, 32 bytes × material count)
     {
         VkDeviceSize matPhysSize = static_cast<VkDeviceSize>(Core::MaterialRegistry::instance().getMaterialCount()) * sizeof(MaterialPhysicsGpu);
@@ -496,7 +536,7 @@ bool GpuParticlePhysics::createPipelines(const std::string& /*shaderDir*/) {
 bool GpuParticlePhysics::createSolverBuffers(Vulkan::VulkanDevice* dev) {
     // SolverBody: 208 bytes per particle (AVBD primal solver fields)
     dev->createStorageBuffer(
-        static_cast<VkDeviceSize>(MAX_PARTICLES) * 208,
+        static_cast<VkDeviceSize>(MAX_PARTICLES + DebrisShared::MAX_KINEMATIC) * 208,   // + mover slots (Phase 2)
         m_solverBodyBuffer, m_solverBodyMem);
 
     // Constraints: 128 bytes each (AVBD + warmstart fields: featureKey, wsKey, isNew, stick, C_init_t1/2)
@@ -561,7 +601,7 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
 
     uint32_t     matCount       = static_cast<uint32_t>(Core::MaterialRegistry::instance().getMaterialCount());
     VkDeviceSize particleSize   = static_cast<VkDeviceSize>(MAX_PARTICLES)   * sizeof(GpuParticle);
-    VkDeviceSize bodySize       = static_cast<VkDeviceSize>(MAX_PARTICLES)   * 208;
+    VkDeviceSize bodySize       = static_cast<VkDeviceSize>(MAX_PARTICLES + MAX_KINEMATIC) * 208;  // + movers
     VkDeviceSize constrSize     = static_cast<VkDeviceSize>(MAX_CONSTRAINTS) * 128;
     VkDeviceSize stateSize      = static_cast<VkDeviceSize>(SOLVER_STATE_UINTS) * sizeof(uint32_t);
     VkDeviceSize warmstartSize  = static_cast<VkDeviceSize>(HASH_CAP)        * 64;
@@ -637,6 +677,15 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     m_solverSyncOutPass.bindBuffer(1, m_particleBuffer,   particleSize);
     m_solverSyncOutPass.updateDescriptors();
 
+    // solver_kinematic_sync: kinematic boxes(ro), bodies(rw) - movers become SolverBodies (Phase 2)
+    if (!m_solverKinematicSyncPass.create(m_device, shader("solver_kinematic_sync.comp.spv"), 2,
+                                          sizeof(KinematicPC), OCC_FRAME_SLOTS)) return false;
+    m_solverKinematicSyncPass.bindBuffer(1, m_solverBodyBuffer, bodySize);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
+        m_solverKinematicSyncPass.bindBufferInSet(slot, 0, m_kinematicBoxBuffer[slot],
+            static_cast<VkDeviceSize>(MAX_KINEMATIC) * sizeof(KinematicBoxGpu));
+    m_solverKinematicSyncPass.updateDescriptors();
+
     // solver_warmstart_save: constraints(ro), warmstarts(rw), state(rw)
     if (!m_solverWarmstartSavePass.create(m_device, shader("solver_warmstart_save.comp.spv"), 3, sizeof(ConstraintsPC))) return false;
     m_solverWarmstartSavePass.bindBuffer(0, m_constraintBuffer,  constrSize);
@@ -701,7 +750,7 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
 // ============================================================
 
 void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t count, float lifetimeDt,
-                                                  GpuProfiler* profiler, bool instrument) {
+                                                  GpuProfiler* profiler, bool instrument, uint32_t tick) {
     const uint32_t groups        = (count + DebrisShared::WORKGROUP - 1u) / DebrisShared::WORKGROUP;
     const uint32_t maxConstrGrps = (MAX_CONSTRAINTS + DebrisShared::WORKGROUP - 1u) / DebrisShared::WORKGROUP;
 
@@ -765,6 +814,15 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     }
     ssBarrier(m_solverBodyBuffer);
     ssBarrier(m_solverStateBuffer);   // character-shove wake bits (Phase 2 sleep)
+
+    // ---- 2b. Movers -> SolverBody KINEMATIC_BASE + k at this sub-step's pose (Phase 2) ----
+    {
+        KinematicPC kp{ m_kinematicCount, tick, FIXED_DT, 0u };
+        m_solverKinematicSyncPass.bind(cmd, m_frameSlot);
+        m_solverKinematicSyncPass.pushConstants(cmd, &kp, sizeof(kp));
+        m_solverKinematicSyncPass.dispatch(cmd, (MAX_KINEMATIC + DebrisShared::WORKGROUP - 1u) / DebrisShared::WORKGROUP);
+    }
+    ssBarrier(m_solverBodyBuffer);
 
     // ---- 3. Grid sort (reads m_particleBuffer — previous-tick positions for broadphase) ----
     {
@@ -1103,6 +1161,10 @@ void GpuParticlePhysics::update(float dt) {
 
     // Scripted kinematic boxes (1f) move and age by SIMULATED time, so a frozen solver stepped
     // tick by tick drives them deterministically.
+    // The GPU ticks of THIS frame start from the frame-start pose (solver_kinematic_sync adds
+    // velocity*dt*tick), so upload first, then advance the CPU copy to the frame-end pose.
+    // Unconditional: a box that expired last frame must also leave the GPU buffer.
+    writeColliderBuffer();
     if (!m_kinematicBoxes.empty()) {
         const float simDt = static_cast<float>(m_physicsTicks) * FIXED_DT;
         for (auto it = m_kinematicBoxes.begin(); it != m_kinematicBoxes.end(); ) {
@@ -1110,7 +1172,6 @@ void GpuParticlePhysics::update(float dt) {
             it->second.ttl    -= simDt;
             it = (it->second.ttl <= 0.0f) ? m_kinematicBoxes.erase(it) : std::next(it);
         }
-        writeColliderBuffer();
     }
 
     // Age CPU-side slots using real elapsed time (frame-rate independent).
@@ -1199,6 +1260,11 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
     }
     // The shared occupancy's slot for this frame (uploaded after this slot's fence, before now).
     m_frameSlot = frameIndex % OCC_FRAME_SLOTS;
+    // Movers for this frame's ticks into THIS slot's buffer: its fence has retired, so no
+    // in-flight frame reads it (Phase 2, frames-in-flight).
+    if (m_kinematicBoxMapped[m_frameSlot] && !m_kinematicStage.empty())
+        std::memcpy(m_kinematicBoxMapped[m_frameSlot], m_kinematicStage.data(),
+                    m_kinematicStage.size() * sizeof(DebrisShared::KinematicBoxGpu));
 
     // Enter if anything is alive, spawning, or being retired this frame. The
     // deactivation check is required: when the last particles die, activeCount
@@ -1270,7 +1336,7 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
     for (uint32_t tick = 0; tick < m_physicsTicks; ++tick) {
         const float lifetimeDtThisTick = (tick == 0) ? m_lastRealDt : 0.0f;
         // Per-pass GPU timing only on the first tick (query-budget safe).
-        recordComputeCommandsNew(cmd, count, lifetimeDtThisTick, profiler, tick == 0);
+        recordComputeCommandsNew(cmd, count, lifetimeDtThisTick, profiler, tick == 0, tick);
         if (m_probeActive) recordProbeCopy(cmd, count, tick);
     }
 
@@ -1398,6 +1464,26 @@ void GpuParticlePhysics::writeColliderBuffer() {
         all.emplace_back(b.center, b.half);
         velocity = b.velocity;    // one shared velocity until Phase 2: the scripted box wins
     }
+    // Phase 2: every mover box is also an AVBD body (used when SOLVER_FLAG_KINEMATIC_CONTACTS is
+    // set; the collider buffer below stays the flag-off shove's input). Player boxes carry the
+    // controller velocity, scripted boxes their own; all axis-aligned for now.
+    // Staged here, copied into the frame slot's buffer in recordComputeCommands (after its fence).
+    {
+        m_kinematicStage.clear();
+        auto put = [&](const glm::vec3& c, const glm::vec3& h, const glm::vec3& v) {
+            if (m_kinematicStage.size() >= DebrisShared::MAX_KINEMATIC) return;
+            DebrisShared::KinematicBoxGpu kb{};
+            kb.center   = { c.x, c.y, c.z, 0.0f };
+            kb.halfExt  = { h.x, h.y, h.z, 0.0f };
+            kb.rotation = { 0.0f, 0.0f, 0.0f, 1.0f };
+            kb.velocity = { v.x, v.y, v.z, 0.0f };
+            m_kinematicStage.push_back(kb);
+        };
+        for (const auto& [c, h] : m_charBoxes) put(c, h, m_charVelocity);
+        for (const auto& [id, b] : m_kinematicBoxes) put(b.center, b.half, b.velocity);
+        m_kinematicCount = static_cast<uint32_t>(m_kinematicStage.size());
+    }
+
     uint32_t n = static_cast<uint32_t>(all.size());
     m_kinematicOverflow = n > MAX_CHAR_SEGMENTS ? n - MAX_CHAR_SEGMENTS : 0u;
     if (n > MAX_CHAR_SEGMENTS) n = MAX_CHAR_SEGMENTS;
@@ -1604,6 +1690,7 @@ void GpuParticlePhysics::consumeProbeSlot(uint32_t slot) {
         c.frozenUnknown       = hdr[DebrisShared::SS_FROZEN_UNKNOWN];
         c.kinematicContacts   = hdr[DebrisShared::SS_KINEMATIC_CONTACTS];
         c.impulsesApplied     = hdr[DebrisShared::SS_IMPULSES_APPLIED];
+        c.kinematicMaxDepth   = static_cast<float>(hdr[DebrisShared::SS_KINEMATIC_DEPTH_UM]) * 1.0e-6f;
         c.maxColors           = MAX_COLORS;
         c.uncoloredSolved     = true;   // recordComputeCommandsNew's final UNCOLORED sweep
         m_settle.addTick(samples, c);
@@ -1635,6 +1722,7 @@ void GpuParticlePhysics::cleanup() {
 
     m_solverSyncInPass.cleanup();
     m_solverIntegratePass.cleanup();
+    m_solverKinematicSyncPass.cleanup();
     m_solverNarrowphasePass.cleanup();
     m_solverVoxelPass.cleanup();
     m_solverDualPass.cleanup();
@@ -1656,6 +1744,8 @@ void GpuParticlePhysics::cleanup() {
     // Unmap before freeing
     if (m_stagingMapped)       { vkUnmapMemory(m_device, m_stagingMem);       m_stagingMapped      = nullptr; }
     if (m_characterMapped)     { vkUnmapMemory(m_device, m_characterMem);     m_characterMapped    = nullptr; }
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
+        if (m_kinematicBoxMapped[slot]) { vkUnmapMemory(m_device, m_kinematicBoxMem[slot]); m_kinematicBoxMapped[slot] = nullptr; }
     if (m_materialPhysMapped)  { vkUnmapMemory(m_device, m_materialPhysMem);  m_materialPhysMapped = nullptr; }
     if (m_readbackMapped)      { vkUnmapMemory(m_device, m_readbackMem);      m_readbackMapped     = nullptr; }
 
@@ -1664,6 +1754,7 @@ void GpuParticlePhysics::cleanup() {
     destroyBuf(m_stagingBuffer,       m_stagingMem);
     destroyBuf(m_indirectDrawBuffer,  m_indirectDrawMem);
     destroyBuf(m_characterBuffer,     m_characterMem);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_kinematicBoxBuffer[slot], m_kinematicBoxMem[slot]);
     destroyBuf(m_materialPhysBuffer,  m_materialPhysMem);
     destroyBuf(m_gridCellCountBuffer,  m_gridCellCountMem);
     destroyBuf(m_gridCellOffsetBuffer, m_gridCellOffsetMem);

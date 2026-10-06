@@ -73,7 +73,11 @@ void main() {
     // Sleeping bodies take the static path below (invMass 0 from sync_in), which skips
     // the per-limb shove — so without this a player could never plow through a slept
     // debris pile. Union-AABB test only (cheap); the wake bit is consumed next tick.
-    if ((b.flags & PARTICLE_SLEEPING) != 0u && charSegCount > 0.5 &&
+    // Both this wake and the shove below are the OLD mover path (D7). With
+    // SOLVER_FLAG_KINEMATIC_CONTACTS the movers are AVBD bodies instead (narrowphase contacts +
+    // impact wake), and this pass leaves debris alone (Phase 2).
+    const bool oldShove = (pc.flags & SOLVER_FLAG_KINEMATIC_CONTACTS) == 0u;
+    if (oldShove && (b.flags & PARTICLE_SLEEPING) != 0u && charSegCount > 0.5 &&
         dot(charVelocity, charVelocity) > 0.01) {
         vec3 disp;
         if (aabbPushOut(b.pos, b.halfExt, charUnionCenter, charUnionHalfExtents, disp)) {
@@ -166,7 +170,7 @@ void main() {
     // upward pop, and RE-ANCHOR the AVBD inertial target to the pushed state —
     // otherwise the solver pulls the body straight back. The later voxel-contact pass
     // still resolves any push-into-floor, so debris can't sink.
-    if (charSegCount > 0.5) {
+    if (oldShove && charSegCount > 0.5) {
         vec3 he = b.halfExt;
         vec3 disp;
         if (aabbPushOut(b.pos, he, charUnionCenter, charUnionHalfExtents, disp)) {

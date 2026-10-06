@@ -17,6 +17,8 @@ void main() {
 
     GPUConstraint c = constraints[ci];
     atomicAdd(bodyConstraintCount[c.bodyA], 1u);
-    if (c.bodyB != SOLVER_STATIC)
+    // A mover body (Phase 2) is never solved: like a static B it gets no adjacency entry
+    // (and its index lies beyond the per-body arrays, which cover only the particle range).
+    if (c.bodyB != SOLVER_STATIC && !isKinematicBody(c.bodyB))
         atomicAdd(bodyConstraintCount[c.bodyB], 1u);
 }

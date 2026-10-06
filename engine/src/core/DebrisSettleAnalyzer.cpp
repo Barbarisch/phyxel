@@ -72,6 +72,7 @@ void DebrisSettleAnalyzer::addTick(const std::vector<SettleBodySample>& bodies,
             tr = BodyTrack{};
             tr.present   = true;
             tr.firstSeen = st.t;
+            tr.startPos  = s.position;
             m_totalMassG += double(s.mass) * double(g);
             ++m_bodiesSeen;
         } else {
@@ -127,6 +128,7 @@ void DebrisSettleAnalyzer::addTick(const std::vector<SettleBodySample>& bodies,
             }
         }
 
+        tr.lastPos   = s.position;
         tr.strictRun = (!asleep && speed < m_cfg.strictSpeed) ? tr.strictRun + 1 : 0;
         tr.histPos[tr.histHead]   = s.position;
         tr.histSpeed[tr.histHead] = speed;
@@ -204,7 +206,9 @@ nlohmann::json DebrisSettleAnalyzer::series(uint32_t lastN) const {
             {"hardcontact", s.solver.hardContactFires},
             {"hardcontact_max_depth", s.solver.hardContactMaxDepth},
             {"wake_requests", s.solver.wakeRequests},
-            {"frozen_unknown", s.solver.frozenUnknown}});
+            {"frozen_unknown", s.solver.frozenUnknown},
+            {"kinematic_contacts", s.solver.kinematicContacts},
+            {"kinematic_depth", s.solver.kinematicMaxDepth}});
     }
     return rows;
 }
@@ -291,7 +295,9 @@ nlohmann::json DebrisSettleAnalyzer::summary() const {
     // what happened while driven is reported separately instead of counted as bubbling.
     float lastExternal = -1.0f;
     uint64_t kinematicTotal = 0, impulseTotal = 0;
+    float kinematicMaxDepth = 0.0f;
     for (const auto& s : m_ticks) {
+        kinematicMaxDepth = std::max(kinematicMaxDepth, s.solver.kinematicMaxDepth);
         kinematicTotal += s.solver.kinematicContacts;
         impulseTotal   += s.solver.impulsesApplied;
         if (s.solver.kinematicContacts > 0 || s.solver.impulsesApplied > 0) lastExternal = s.t;
@@ -404,7 +410,18 @@ nlohmann::json DebrisSettleAnalyzer::summary() const {
                      {"impulses_applied", impulseTotal},
                      {"last_external_input_s", lastExternal >= 0.0f ? json(lastExternal) : json(nullptr)},
                      {"hardcontact_fires_while_driven", hcDriven},
-                     {"rebounds_while_driven", rebDriven}};
+                     {"rebounds_while_driven", rebDriven},
+                     // Deepest tick-start penetration into any mover (Phase 2: "<= 2 cm every tick").
+                     {"kinematic_max_depth_m", kinematicMaxDepth}};
+    // Start/end centre of every body (Phase 2: "swept bodies displaced >= 0.2 m" is computed by
+    // the bench from the mover's path). Small runs only: it is one entry per body.
+    if (m_bodies.size() <= 2000) {
+        json paths = json::array();
+        for (const auto& b : m_bodies)
+            if (b.present)
+                paths.push_back({b.startPos.x, b.startPos.y, b.startPos.z, b.lastPos.x, b.lastPos.y, b.lastPos.z});
+        out["body_paths"] = paths;
+    }
     return out;
 }
 
@@ -413,7 +430,8 @@ bool DebrisSettleAnalyzer::writeCsv(const std::string& path) const {
     if (!f) return false;
     f << "tick,t,active,awake,asleep,energy,kinetic,injected,cum_injected,max_speed,p95_speed,"
          "churning,rebounds,kicks,launches,slept_clean,slept_forced,woke,color_skipped,"
-         "constraints,hardcontact,hardcontact_max_depth,wake_requests,frozen_unknown,below_floor,min_y\n";
+         "constraints,hardcontact,hardcontact_max_depth,wake_requests,frozen_unknown,below_floor,min_y,"
+         "kinematic_contacts,kinematic_depth\n";
     for (const auto& s : m_ticks) {
         f << s.tick << ',' << s.t << ',' << s.active << ',' << s.awake << ',' << s.asleep << ','
           << s.energy << ',' << s.kinetic << ',' << s.injected << ',' << s.cumInjected << ','
@@ -422,7 +440,8 @@ bool DebrisSettleAnalyzer::writeCsv(const std::string& path) const {
           << s.woke << ',' << s.colorSkipped << ',' << s.solver.constraintsEmitted << ','
           << s.solver.hardContactFires << ',' << s.solver.hardContactMaxDepth << ','
           << s.solver.wakeRequests << ',' << s.solver.frozenUnknown << ','
-          << s.belowFloor << ',' << s.minY << '\n';
+          << s.belowFloor << ',' << s.minY << ','
+          << s.solver.kinematicContacts << ',' << s.solver.kinematicMaxDepth << '\n';
     }
     return true;
 }

@@ -54,6 +54,7 @@ struct SettleSolverCounters {
     // bubbling: the judged window starts 0.5 s after the last tick with either.
     uint32_t kinematicContacts    = 0;  // SS_KINEMATIC_CONTACTS: bodies a mover (character/box) pushed
     uint32_t impulsesApplied      = 0;  // SS_IMPULSES_APPLIED: bodies an impulse reached (Phase 4)
+    float    kinematicMaxDepth    = 0;  // SS_KINEMATIC_DEPTH_UM in metres: deepest penetration into a mover (Phase 2)
     uint32_t warmstartHits        = 0;
     uint32_t maxColors            = 12; // colours the primal loop dispatches
     bool     uncoloredSolved      = false; // true: UNCOLORED bodies get a Jacobi fallback sweep
@@ -139,6 +140,7 @@ private:
         uint32_t  strictRun = 0;
         uint32_t  rebounds = 0, reboundsAfter = 0, kicks = 0;
         float     firstSeen = 0.0f;
+        glm::vec3 startPos{0.0f}, lastPos{0.0f};   // body_paths (Phase 2 displacement)
         // Last kHist ticks (ring): to measure how far / how fast a body was still moving in
         // the half-second before it was frozen — the visible meaning of a "forced" sleep.
         static constexpr uint32_t kHist = 30;

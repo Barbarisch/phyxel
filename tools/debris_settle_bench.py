@@ -293,6 +293,34 @@ SCENARIOS = {
     "box_through_pile": (2, s_box_through_pile, GROUND),
 }
 OPT_IN = {"box_through_pile"}
+
+# box_through_pile's mover, in site coordinates (x, z = the site's min corner): it starts at
+# (x - 3, GROUND + 1, z + 3), half extents (0.5, 1, 0.5), moves +x at 2 m/s for 6 s (12 m).
+BOX_START_DX, BOX_HALF, BOX_SPEED, BOX_TTL = -3.0, (0.5, 1.0, 0.5), 2.0, 6.0
+
+
+def judge_box(summ, x, z):
+    """Phase 2 'works': >= 80 % of the bodies in the box's swept volume end >= 0.2 m from where
+    they started, and no body is ever deeper than 2 cm into the box at a tick start."""
+    paths = summ.get("body_paths") or []
+    x0 = x + BOX_START_DX - BOX_HALF[0]
+    x1 = x + BOX_START_DX + BOX_SPEED * BOX_TTL + BOX_HALF[0]
+    y0, y1 = GROUND, GROUND + 2.0 * BOX_HALF[1]
+    z0, z1 = z + 3.0 - BOX_HALF[2], z + 3.0 + BOX_HALF[2]
+    swept = displaced = 0
+    for sx, sy, sz, ex, ey, ez in paths:
+        # a unit body overlaps the swept box if its centre is within half a unit of it
+        if x0 - 0.5 < sx < x1 + 0.5 and y0 - 0.5 < sy < y1 + 0.5 and z0 - 0.5 < sz < z1 + 0.5:
+            swept += 1
+            if ((ex - sx) ** 2 + (ey - sy) ** 2 + (ez - sz) ** 2) ** 0.5 >= 0.2:
+                displaced += 1
+    depth = (summ.get("driven") or {}).get("kinematic_max_depth_m", 0.0) or 0.0
+    frac = displaced / swept if swept else 0.0
+    box = {"swept": swept, "displaced": displaced, "displaced_fraction": frac,
+           "kinematic_max_depth_m": depth,
+           "pass": swept > 0 and frac >= 0.8 and depth <= 0.02}
+    summ["box"] = box
+    return box
 MIN_SECONDS = {"box_through_pile": 10.0}
 FRAME_TICKS = [0, 20, 60, 120, 240, 480]
 
@@ -335,6 +363,11 @@ def run(api, name, seconds, outdir, frames):
     summ = st["summary"]
     summ.update(scenario=name, setup=desc, site={"x": x, "z": z, "ground_top": GROUND},
                 sim_seconds=seconds)
+    if name == "box_through_pile":
+        box = judge_box(summ, x, z)
+        print(f"   box: {box['displaced']}/{box['swept']} swept bodies displaced >= 0.2 m "
+              f"({100 * box['displaced_fraction']:.0f} %), max depth into the box "
+              f"{1000 * box['kinematic_max_depth_m']:.1f} mm -> {'PASS' if box['pass'] else 'FAIL'}")
     # 1c step 6: the scenario's chunk must agree across store / physics grid / packed pool
     # (what debris collided with must be what was placed). Judged BEFORE the blast-site restore.
     x0 = 32 * chunk
@@ -410,7 +443,8 @@ def main():
     ap.add_argument("--tag", default=time.strftime("%Y%m%d-%H%M%S"))
     ap.add_argument("--flags", type=int, default=None,
                     help="solver fix switches for A/B (GpuParticlePhysics SOLVER_FLAG_*): "
-                         "1 massPenalty, 2 startAtRest, 4 hard-contact neutral, 8 post-stab")
+                         "1 massPenalty, 2 startAtRest, 4 hard-contact neutral, 8 post-stab, "
+                         "16 static friction, 32 kinematic contacts (Phase 2)")
     ap.add_argument("--cold-scale", type=float, default=None,
                     help="cold-contact stiffness multiplier (x m/dt^2) for A/B")
     args = ap.parse_args()
