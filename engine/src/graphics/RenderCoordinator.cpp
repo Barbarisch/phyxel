@@ -2333,35 +2333,6 @@ void RenderCoordinator::renderDynamicSubcubes() {
         vulkanDevice->bindDescriptorSets(currentFrame, dynamicRenderPipeline->getGraphicsLayout());
 
         vkCmdDrawIndirect(cmd, m_gpuParticles->getIndirectDrawBuffer(), 0, 1, 16);
-        // Fall through to also render Bullet dynamic objects (hybrid mode)
-    }
-
-    // ---------------------------------------------------------------------------
-    // CPU Bullet path: dynamic cubes managed by DynamicObjectManager.
-    // In hybrid mode this renders alongside the GPU path above.
-    // ---------------------------------------------------------------------------
-    const auto& allDynamicSubcubeFaces = chunkManager->getGlobalDynamicSubcubeFaces();
-    if (!allDynamicSubcubeFaces.empty()) {
-        vulkanDevice->updateDynamicSubcubeBuffer(allDynamicSubcubeFaces);
-
-        VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(currentFrame);
-
-        vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                         dynamicRenderPipeline->getGraphicsPipeline());
-
-        vulkanDevice->bindDynamicSubcubeBuffer(currentFrame);
-        vulkanDevice->bindDescriptorSets(currentFrame, dynamicRenderPipeline->getGraphicsLayout());
-
-        // Non-indexed draw: vertexID 0-5 procedurally, matching GPU path and
-        // dynamic_voxel.vert's cornerRemap[6] expectations.
-        // Clamp instance count to the buffer capacity: if face data exceeds the buffer,
-        // updateDynamicSubcubeBuffer silently truncates the write, and drawing more
-        // instances than were written causes the GPU to read stale buffer data,
-        // producing ghost voxels at expired cube positions.
-        uint32_t drawCount = static_cast<uint32_t>(
-            std::min(allDynamicSubcubeFaces.size(),
-                     static_cast<size_t>(vulkanDevice->getMaxDynamicSubcubes())));
-        vkCmdDraw(cmd, 6, drawCount, 0, 0);
     }
 }
 

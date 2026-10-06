@@ -387,7 +387,7 @@ TEST(CharacterStandingTest, TheShippedBarrowFloorIsSolidThroughTheRealLoader) {
     ChunkManager cm;
     cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
     cm.setPhysicsWorld(&physics);
-    Phyxel::ObjectTemplateManager templates(&cm, nullptr);
+    Phyxel::ObjectTemplateManager templates(&cm);
     templates.loadTemplates("resources/templates");
     Phyxel::Core::GameSubsystems subs; subs.chunkManager = &cm; subs.templateManager = &templates;
     const auto r = Phyxel::Core::GameDefinitionLoader::load(def, subs);

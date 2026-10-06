@@ -11,7 +11,6 @@
 namespace Phyxel {
 
 class ChunkManager;
-class DynamicObjectManager;
 class WorldGenerator;
 class Chunk;
 namespace Core { class KinematicVoxelManager; }
@@ -33,7 +32,7 @@ struct PendingSpawn {
 
 class ObjectTemplateManager {
 public:
-    ObjectTemplateManager(ChunkManager* chunkMgr, DynamicObjectManager* dynamicMgr);
+    explicit ObjectTemplateManager(ChunkManager* chunkMgr);
     ObjectTemplateManager(const ObjectTemplateManager&) = delete;
     ObjectTemplateManager& operator=(const ObjectTemplateManager&) = delete;
     ~ObjectTemplateManager() = default;
@@ -179,7 +178,6 @@ public:
 
 private:
     ChunkManager* m_chunkManager;
-    DynamicObjectManager* m_dynamicObjectManager;
     Core::KinematicVoxelManager* m_kinematicManager = nullptr;  // optional, Phase C0b
     Core::KinematicAnimator*     m_animator         = nullptr;  // optional, Phase C
     std::unordered_map<std::string, std::unique_ptr<VoxelTemplate>> m_templates;

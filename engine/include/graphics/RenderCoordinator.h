@@ -40,6 +40,7 @@ namespace Phyxel {
         class UISystem;
     }
     namespace Input { class InputManager; }
+    namespace Scene { class RagdollCharacter; }   // was reached only transitively (via the deleted DynamicObjectManager.h)
     namespace Vulkan { 
         class VulkanDevice;
         class RenderPipeline;

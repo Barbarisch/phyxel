@@ -1,7 +1,7 @@
 # Debris Interaction Plan — everything that moves can push GPU debris
 
-**Status:** rev 4.6, 2026-10-05. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
-**Phase 1 in progress** (pushed to main through 1c — 1c DONE):
+**Status:** rev 4.7, 2026-10-06. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
+**Phase 1 in progress** (pushed to main through 1d - 1c and 1d DONE):
 - 1a build safety ✅ · 1b `shaders/solver_shared.h` ✅
 - 1c one occupancy: steps 1–4 ✅ (tri-state query, edit-first repack, debris reads the shared
   pool, old bitfield deleted) · step 5 writer audit ✅ (7 of 8 gaps closed, red→green,
@@ -10,6 +10,8 @@
 - 1c blockers CLOSED: the session-state dependence was two solver leaks (slot order after
   `despawnAll`, warm-start hash never re-cleared); the blast "shift" was that leak — leak-free
   blast is 86.2 mm and a warm session now matches a fresh engine (details under 1c).
+- 1d all break debris on the GPU: part 1 one spawn helper + `break_voxel` hook, part 2 texture
+  parity (pixel red -0.183 -> green 0.969), part 3 CPU debris path deleted. Next: 1e.
 - Still open, minor: 1c step 5 gap 8 (incremental add does not filter broken/invisible
   sub-voxels); drop_pile varies run to run (GPU nondeterminism, not session state).
 - 1d–1f not started. Phases 2–6 not started (Phase 4 holds the user's "spells don't hit debris").
@@ -624,6 +626,27 @@ commit: build, unit suite, `shader_manifest --check`, and the settle bench.
     test and the shared decode only.
   - Bench `phase1d2`: in band (drop_layer 11.2 mm bit-identical — the mask changed no physics;
     drop_pile 12 forced, blast 2; post-window 0 everywhere; occ diff 0).
+- **DONE 2026-10-06 — 1d part 3: the CPU single-box debris path is deleted (~1,650 lines).**
+  - Deleted: `DynamicObjectManager` (class + per-frame update/position-sync calls),
+    `ChunkVoxelBreaker` (+ `Chunk::breakSubcube`), the `ChunkManager` global-dynamic lists and
+    wrappers, `FaceUpdateCoordinator::rebuildGlobalDynamicFaces`, the CPU draw block in
+    `RenderCoordinator::renderDynamicSubcubes`, `VulkanDevice`'s 1,800-face dynamic subcube
+    buffer, `POST /api/debug/spawn_bullet_cube`, the `cpu_dynamic`/`cpu_dynamic_cap` stats
+    fields and `clear_dynamics`'s `cpu_cleared`, `perf_stress_test.py`'s `cpu` and `mixed`
+    modes, `DynamicObjectBodyReleaseTest` (it pinned a leak in the deleted class).
+    `ObjectTemplateManager` lost its unused `DynamicObjectManager*` parameter (30 call sites).
+  - `MAX_DYNAMIC_OBJECTS` (the unenforced 300 render budget, Phase 0 finding) is gone with it.
+  - `ChunkManagerIntegrationTest.DynamicSubcubePhysics` (asserted a CPU subcube joined the
+    deleted list) → `BreakingASubcubeRemovesItAndHandsThePieceToGpuDebris` (the B-key break
+    through `VoxelManipulationSystem` removes the subcube and, with no GPU solver, counts the
+    refused piece).
+  - Verified: 748/752 related unit tests (4 skipped), integration 90/91 (the pre-existing scene
+    failure), `debris_break_voxel_check.py` PASS on the new build, `spawn_bullet_cube` → 404,
+    `dynamic_stats` = `{gpu_active, gpu_cap}`, bench `phase1d3` in band (drop_pile 6 forced,
+    blast 2, post-window 0, occ 0).
+  - Build footgun hit: `RenderCoordinator.h` used `Scene::RagdollCharacter` with no declaration —
+    it arrived transitively through the deleted `DynamicObjectManager.h` → `Cube.h`. Now
+    forward-declared.
 
 **1e. Analyzer: external-input window.**
 - Add `KINEMATIC_CONTACTS` and `IMPULSES_APPLIED` header counters.

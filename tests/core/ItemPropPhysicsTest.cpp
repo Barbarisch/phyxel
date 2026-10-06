@@ -64,7 +64,7 @@ std::string buildRodBody() {
 
 // Test harness: real managers, no chunks (props spawn in mid-air).
 struct Rig {
-    ObjectTemplateManager templates{nullptr, nullptr};
+    ObjectTemplateManager templates{nullptr};
     KinematicVoxelManager kinematic;
     PlacedObjectManager placed{nullptr, &templates, nullptr};
     Physics::VoxelDynamicsWorld world;
@@ -263,7 +263,7 @@ TEST(ItemPropPhysics, PathQualifiedResolutionDefeatsStemShadowing) {
     // items/ subdirectory remodels — the "giant blocky lantern"). Contract:
     // resolveItemTemplate resolves by the RELATIVE PATH key, so a template
     // registered under the bare stem never shadows "items/<stem>".
-    ObjectTemplateManager mgr(nullptr, nullptr);
+    ObjectTemplateManager mgr(nullptr);
     KinematicVoxelManager kvm;
     PlacedObjectManager placed(nullptr, &mgr, nullptr);
     ItemPropManager props;
@@ -373,7 +373,7 @@ TEST(ItemPropPhysics, ShippedItemColliderWithinBudget) {
     // Uses the REAL shipped longsword template; skips if not run from repo root.
     if (!fs::exists("resources/templates/weapons/sword_long.voxel"))
         GTEST_SKIP() << "repo-root CWD required";
-    ObjectTemplateManager mgr(nullptr, nullptr);
+    ObjectTemplateManager mgr(nullptr);
     KinematicVoxelManager kvm;
     PlacedObjectManager placed(nullptr, &mgr, nullptr);
     Physics::VoxelDynamicsWorld world;

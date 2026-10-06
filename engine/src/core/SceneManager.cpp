@@ -276,9 +276,6 @@ void SceneManager::executeLoad() {
             !scene->resolvedWorldPath.empty()) {
             auto* cm = subsystems_->chunkManager;
             cm->saveDirtyChunks();
-            cm->clearAllGlobalDynamicSubcubes();
-            cm->clearAllGlobalDynamicCubes();
-            cm->clearAllGlobalDynamicMicrocubes();
             cm->cleanup();
             cm->disconnectWorldStorage();
             if (cm->initializeWorldStorage(scene->resolvedWorldPath)) {
@@ -326,11 +323,6 @@ void SceneManager::executeLoad() {
             if (ws) subsystems_->placedObjectManager->saveToDb(ws->getDb());
         }
         cm->saveDirtyChunks();
-
-        // Clear dynamic physics objects before destroying chunks
-        cm->clearAllGlobalDynamicSubcubes();
-        cm->clearAllGlobalDynamicCubes();
-        cm->clearAllGlobalDynamicMicrocubes();
 
         cm->cleanup();             // Clear all chunk data from memory
         cm->disconnectWorldStorage();

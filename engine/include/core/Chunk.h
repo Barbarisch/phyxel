@@ -7,7 +7,6 @@
 #include "graphics/ChunkRenderManager.h"
 #include "physics/ChunkPhysicsManager.h"
 #include "core/ChunkVoxelManager.h"
-#include "core/ChunkVoxelBreaker.h"
 #include <vector>
 #include <unordered_map>
 #include <unordered_set>
@@ -34,8 +33,8 @@ class ChunkManager;   // m_owner (GlassTransparency.md §6)
  *   - Hash map management for O(1) lookups
  *   - Subdivision logic and voxel type resolution
  *   - Callback pattern for clean separation
- * ✓ Phase 21 Complete: Voxel breaking extracted to ChunkVoxelBreaker (~120 lines)
- *   - breakSubcube logic for static→dynamic conversion
+ * (Phase 21's ChunkVoxelBreaker - static to CPU-dynamic subcube breaking - was deleted with
+ *  the CPU debris path, DebrisInteractionPlan 1d; breaks are GPU debris via DamageSystem.)
  *   - Physics body creation and force application
  *   - Global dynamic object transfer
  * 
@@ -83,7 +82,6 @@ private:
     Graphics::ChunkRenderManager renderManager;    // Manages face generation and Vulkan buffers
     Physics::ChunkPhysicsManager physicsManager;   // Manages collision shapes and physics bodies
     ChunkVoxelManager voxelManager;                // Manages voxel hierarchy and hash maps
-    ChunkVoxelBreaker voxelBreaker;                // Manages breaking voxels to dynamic physics objects
     
     // Vulkan device handles (set by ChunkManager)
     VkDevice device = VK_NULL_HANDLE;
@@ -365,11 +363,6 @@ public:
     bool removeMicrocube(const glm::ivec3& parentCubePos, const glm::ivec3& subcubePos, const glm::ivec3& microcubePos);
     bool clearMicrocubesAt(const glm::ivec3& cubePos, const glm::ivec3& subcubePos);  // Remove all microcubes at subcube position (leaves empty space)
     
-    // Physics-related subcube manipulation
-    bool breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos,  // Move subcube from static to global dynamic system
-                     class Physics::PhysicsWorld* physicsWorld = nullptr, 
-                     class ChunkManager* chunkManager = nullptr,
-                     const glm::vec3& impulseForce = glm::vec3(0.0f));
     
     // Chunk operations
     void clearAll();                                   // Bulk clear: remove all voxels, rebuild once

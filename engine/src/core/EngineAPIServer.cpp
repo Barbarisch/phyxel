@@ -2006,24 +2006,6 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
-    // POST /api/debug/spawn_bullet_cube — Spawn a Bullet-physics dynamic cube
-    // Body: { "x":10, "y":20, "z":10, "material":"Stone",
-    //         "velocity":{"x":0,"y":0,"z":0}, "count":1, "scale":1.0 }
-    // scale: 1.0=full cube, 0.333=subcube, 0.111=microcube
-    // ====================================================================
-    srv.Post("/api/debug/spawn_bullet_cube", [this](const httplib::Request& req, httplib::Response& res) {
-        try {
-            json params = json::parse(req.body);
-            json result = queueAndWait("spawn_bullet_cube", params);
-            res.set_content(result.dump(), "application/json");
-        } catch (const json::exception& e) {
-            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
-            res.status = 400;
-            res.set_content(err.dump(), "application/json");
-        }
-    });
-
-    // ====================================================================
     // POST /api/debug/spawn_gpu_particle — Spawn a GPU-physics particle
     // Body: { "x":10, "y":20, "z":10, "material":"Stone",
     //         "velocity":{"x":0,"y":0,"z":0}, "count":1,
@@ -2113,7 +2095,7 @@ void EngineAPIServer::setupRoutes() {
 
     // ====================================================================
     // GET /api/debug/dynamic_stats — CPU dynamic objects + GPU debris counts
-    // Returns: cpu_dynamic, cpu_dynamic_cap, gpu_active, gpu_cap
+    // Returns: gpu_active, gpu_cap (CPU debris and cpu_dynamic deleted, DebrisInteractionPlan 1d)
     // ====================================================================
     srv.Get("/api/debug/dynamic_stats", [this](const httplib::Request& req, httplib::Response& res) {
         if (!m_dynamicStatsHandler) {

@@ -321,12 +321,6 @@ public:
     void cleanupReflectionBuffers();
     void updateInstanceBuffer(const std::vector<InstanceData>& instances);
     
-    // Dynamic subcube buffer management
-    bool createDynamicSubcubeBuffer(uint32_t maxDynamicSubcubes);
-    void updateDynamicSubcubeBuffer(const std::vector<DynamicSubcubeInstanceData>& dynamicSubcubes);
-    void bindDynamicSubcubeBuffer(uint32_t frameIndex);
-    void cleanupDynamicSubcubeBuffer();
-    uint32_t getMaxDynamicSubcubes() const { return maxDynamicSubcubes; }
 
     // Character instance buffer management
     bool createCharacterInstanceBuffer(uint32_t maxInstances);
@@ -632,10 +626,6 @@ private:
     VkBuffer instanceBuffer = VK_NULL_HANDLE;
     VkDeviceMemory instanceBufferMemory = VK_NULL_HANDLE;
     
-    // Dynamic subcube buffer
-    VkBuffer dynamicSubcubeBuffer = VK_NULL_HANDLE;
-    VkDeviceMemory dynamicSubcubeBufferMemory = VK_NULL_HANDLE;
-    uint32_t maxDynamicSubcubes = 0;
 
     // Character instance buffer
     VkBuffer characterInstanceBuffer = VK_NULL_HANDLE;

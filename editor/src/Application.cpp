@@ -290,10 +290,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     voxelInteractionSystem->setGpuDebrisProvider([this]() { return gpuParticlePhysics.get(); });
 
     // STEP 4.5: CREATE ObjectTemplateManager
-    objectTemplateManager = std::make_unique<ObjectTemplateManager>(
-        chunkManager,
-        &chunkManager->m_dynamicObjectManager
-    );
+    objectTemplateManager = std::make_unique<ObjectTemplateManager>(chunkManager);
     objectTemplateManager->loadTemplates(assets.templatesDir());
     LOG_INFO("Application", "ObjectTemplateManager initialized successfully!");
 
@@ -1181,7 +1178,6 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             };
         }
 
-        size_t cpuDynamic = chunkManager ? chunkManager->m_dynamicObjectManager.getDynamicObjectCount() : 0;
         uint32_t gpuActive = (gpuParticlePhysics && gpuParticlePhysics->isInitialized())
             ? gpuParticlePhysics->getActiveParticleCount() : 0;
 
@@ -1206,22 +1202,18 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             {"frustumCulled", ft.frustumCulledInstances},
             {"occlusionCulled", ft.occlusionCulledInstances},
             {"faceCulledFaces", ft.faceCulledFaces},
-            {"cpuDynamic", cpuDynamic},
-            {"cpuDynamicCap", DynamicObjectManager::MAX_DYNAMIC_OBJECTS},
             {"gpuActive", gpuActive},
             {"gpuCap", GpuParticlePhysics::MAX_PARTICLES},
             {"detailed", detail}
         };
     });
 
-    // Dynamic object stats: CPU dynamic objects and GPU debris counts/caps
+    // Debris stats: GPU debris count/cap. (The CPU single-box debris path and its cpu_dynamic
+    // count were deleted in DebrisInteractionPlan 1d - every broken piece is GPU debris.)
     apiServer->setDynamicStatsHandler([this]() -> nlohmann::json {
-        size_t cpuDynamic = chunkManager ? chunkManager->m_dynamicObjectManager.getDynamicObjectCount() : 0;
         uint32_t gpuActive = (gpuParticlePhysics && gpuParticlePhysics->isInitialized())
             ? gpuParticlePhysics->getActiveParticleCount() : 0;
         return nlohmann::json{
-            {"cpu_dynamic", cpuDynamic},
-            {"cpu_dynamic_cap", DynamicObjectManager::MAX_DYNAMIC_OBJECTS},
             {"gpu_active", gpuActive},
             {"gpu_cap", GpuParticlePhysics::MAX_PARTICLES}
         };
@@ -4242,9 +4234,8 @@ void Application::update(float deltaTime) {
             chunkManager->pumpDeferredDbLoads(camera->getPosition());
         }
         auto tChunk2 = std::chrono::steady_clock::now();
-        // Bullet dynamic object update  --  always runs in hybrid mode since
-        // nearby cubes use Bullet while mass debris uses GPU particles.
-        chunkManager->m_dynamicObjectManager.updateAllDynamicObjects(deltaTime);
+        // (The CPU debris update that ran here was deleted with the CPU debris path,
+        //  DebrisInteractionPlan 1d; dynMs below stays as the slot it used to time.)
         auto tChunk3 = std::chrono::steady_clock::now();
         const double dirtyMs  = std::chrono::duration<double, std::milli>(tChunk1 - tChunk0).count();
         const double streamMs = std::chrono::duration<double, std::milli>(tChunk2 - tChunk1).count();
@@ -4290,12 +4281,6 @@ void Application::update(float deltaTime) {
     if (renderCoordinator) {
         renderCoordinator->setPhysicsFrameMs(
             std::chrono::duration<double, std::milli>(physicsEnd - physicsStart).count());
-    }
-    
-    // Update dynamic subcube positions from physics bodies (batched + throttled)
-    // In hybrid mode, Bullet objects need position sync alongside GPU particles.
-    if (chunkManager) {
-        chunkManager->m_dynamicObjectManager.updateAllDynamicObjectPositions();
     }
     
     static int frameCount = 0;
@@ -7807,51 +7792,6 @@ static bool handleDebugDynamicSpawnCommand(
     GpuParticlePhysics* gpuParticles,
     const std::string& gpuDisabledReason)
 {
-    if (cmd.action == "spawn_bullet_cube") {
-        float x = cmd.params.value("x", 0.0f);
-        float y = cmd.params.value("y", 20.0f);
-        float z = cmd.params.value("z", 0.0f);
-        std::string material = cmd.params.value("material", "Stone");
-        float scale = cmd.params.value("scale", 1.0f);
-        float lifetime = cmd.params.value("lifetime", 30.0f);
-        int count = std::clamp(cmd.params.value("count", 1), 1, 300);
-        glm::vec3 vel(0.0f);
-        if (cmd.params.contains("velocity")) {
-            vel.x = cmd.params["velocity"].value("x", 0.0f);
-            vel.y = cmd.params["velocity"].value("y", 0.0f);
-            vel.z = cmd.params["velocity"].value("z", 0.0f);
-        }
-        if (!chunkManager || !chunkManager->physicsWorld) {
-            response = {{"error", "ChunkManager or PhysicsWorld not available"}};
-            return true;
-        }
-        glm::vec3 cubeSize(scale);
-        float spacing = scale * 1.1f;
-        int gridSize = static_cast<int>(std::ceil(std::cbrt(static_cast<float>(count))));
-        int spawned = 0;
-        for (int i = 0; i < count; ++i) {
-            int gx = i % gridSize;
-            int gy = (i / gridSize) % gridSize;
-            int gz = i / (gridSize * gridSize);
-            glm::vec3 pos(x + gx * spacing, y + gy * spacing, z + gz * spacing);
-            glm::vec3 center = pos + glm::vec3(scale * 0.5f);
-            auto cube = std::make_unique<Cube>(glm::ivec3(pos), material);
-            if (auto* vw = chunkManager->physicsWorld->getVoxelWorld()) {
-                auto* body = vw->createVoxelBody(center, cubeSize * 0.5f, 1.0f);
-                if (body) body->linearVelocity = vel;
-                cube->setVoxelBody(body);
-            }
-            cube->setPhysicsPosition(center);
-            cube->setDynamicScale(cubeSize);
-            cube->setLifetime(lifetime);
-            cube->breakApart();
-            chunkManager->m_dynamicObjectManager.addGlobalDynamicCube(std::move(cube));
-            ++spawned;
-        }
-        response = {{"success", true}, {"spawned", spawned}, {"system", "voxel"},
-                    {"scale", scale}, {"position", {{"x", x}, {"y", y}, {"z", z}}}};
-        return true;
-    }
     if (cmd.action == "spawn_gpu_particle") {
         float x = cmd.params.value("x", 0.0f);
         float y = cmd.params.value("y", 20.0f);
@@ -8086,21 +8026,12 @@ static bool handleDebugDynamicSpawnCommand(
         return true;
     }
     if (cmd.action == "clear_dynamics") {
-        size_t cpuCleared = 0;
         uint32_t gpuCleared = 0;
-        if (chunkManager) {
-            cpuCleared = chunkManager->m_dynamicObjectManager.getDynamicObjectCount();
-            chunkManager->m_dynamicObjectManager.clearAllGlobalDynamicCubes();
-            chunkManager->m_dynamicObjectManager.clearAllGlobalDynamicSubcubes();
-            chunkManager->m_dynamicObjectManager.clearAllGlobalDynamicMicrocubes();
-        }
         if (gpuParticles && gpuParticles->isInitialized()) {
             gpuCleared = gpuParticles->getActiveParticleCount();
             gpuParticles->despawnAll();
         }
-        response = {{"success", true},
-                    {"cpu_cleared", cpuCleared},
-                    {"gpu_cleared", gpuCleared}};
+        response = {{"success", true}, {"gpu_cleared", gpuCleared}};
         return true;
     }
     return false;

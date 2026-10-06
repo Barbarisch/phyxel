@@ -28,7 +28,7 @@ fs::path writeTempTemplate(const std::string& name, const std::string& body) {
 }
 
 VoxelTemplate loadOne(const fs::path& path) {
-    ObjectTemplateManager mgr(nullptr, nullptr);
+    ObjectTemplateManager mgr(nullptr);
     EXPECT_TRUE(mgr.loadTemplate(path.string()));
     auto stem = path.stem().string();
     const auto* tmpl = mgr.getTemplate(stem);
@@ -146,7 +146,7 @@ TEST(VoxelTemplatePartSpawn, FullyMovableTemplateRoutesToKinematic) {
         "C 1 0 0 Wood\n"
         "C 2 0 0 Wood\n");
 
-    ObjectTemplateManager mgr(nullptr, nullptr);
+    ObjectTemplateManager mgr(nullptr);
     Core::KinematicVoxelManager kvm;
     mgr.setKinematicVoxelManager(&kvm);
     ASSERT_TRUE(mgr.loadTemplate(path.string()));
@@ -171,7 +171,7 @@ TEST(VoxelTemplatePartSpawn, NoKinematicManagerKeepsBackwardCompat) {
     // are movable.
     auto path = writeTempTemplate("phasec0b_no_kvm",
         "# part: lid hinge=back axis=x\n");  // no voxels => safe to spawn
-    ObjectTemplateManager mgr(nullptr, nullptr);
+    ObjectTemplateManager mgr(nullptr);
     ASSERT_TRUE(mgr.loadTemplate(path.string()));
     ASSERT_TRUE(mgr.spawnTemplate("phasec0b_no_kvm", glm::vec3(0), true, 0));
     EXPECT_TRUE(mgr.lastSpawnedKinematicIds().empty());
@@ -185,7 +185,7 @@ TEST(VoxelTemplatePartSpawn, ExplicitHingeIsHonored) {
         "# part: lid hinge=2,0,0 axis=x\n"
         "C 0 0 0 Wood\n"
         "C 1 0 0 Wood\n");
-    ObjectTemplateManager mgr(nullptr, nullptr);
+    ObjectTemplateManager mgr(nullptr);
     Core::KinematicVoxelManager kvm;
     mgr.setKinematicVoxelManager(&kvm);
     ASSERT_TRUE(mgr.loadTemplate(path.string()));
@@ -222,7 +222,7 @@ TEST(VoxelTemplatePartSpawn, MultipleMovablePartsEachGetTheirOwnKinematic) {
         "C 0 0 0 Wood\n"
         "# part: lid_right hinge=right_top axis=x\n"
         "C 5 0 0 Wood\n");
-    ObjectTemplateManager mgr(nullptr, nullptr);
+    ObjectTemplateManager mgr(nullptr);
     Core::KinematicVoxelManager kvm;
     mgr.setKinematicVoxelManager(&kvm);
     ASSERT_TRUE(mgr.loadTemplate(path.string()));

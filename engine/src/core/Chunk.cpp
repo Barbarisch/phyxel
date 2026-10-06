@@ -110,18 +110,6 @@ void Chunk::initialize(VkDevice dev, VkPhysicalDevice physDev) {
     physicsManager.initialize(nullptr, worldOrigin); // physicsWorld set separately via setPhysicsWorld
     physicsManager.setVoxelStore(&voxelManager.getVoxelStore());   // 4.2b: occupancy reads the store
     
-    // Initialize voxelBreaker with callbacks
-    voxelBreaker.setCallbacks(
-        [this]() -> std::vector<std::unique_ptr<Subcube>>& { return staticSubcubes; },
-        [this](const glm::ivec3& parent, const glm::ivec3& sub) { return removeSubcube(parent, sub); },
-        [this]() { rebuildFaces(); },
-        [this]() { batchUpdateCollisions(); },
-        [this](const glm::ivec3& p, const glm::ivec3& s) { return getMicrocubesAt(p, s); },
-        [this](const glm::ivec3& p) { return getSubcubesAt(p); },
-        [this](bool v) { renderManager.setNeedsUpdate(v); },
-        [this]() -> const glm::ivec3& { return worldOrigin; }
-    );
-
     // Initialize voxelManager with callbacks (stored once, not per-call)
     wireVoxelManagerCallbacks();
 }
@@ -881,11 +869,6 @@ bool Chunk::isValidLocalPosition(const glm::ivec3& localPos) const {
 // =============================================================================
 // PHYSICS-RELATED METHODS
 // =============================================================================
-
-bool Chunk::breakSubcube(const glm::ivec3& parentPos, const glm::ivec3& subcubePos, 
-                        Physics::PhysicsWorld* physicsWorld, ChunkManager* chunkManager, const glm::vec3& impulseForce) {
-    return voxelBreaker.breakSubcube(parentPos, subcubePos, physicsWorld, chunkManager, impulseForce);
-}
 
 // =============================================================================
 // Physics Management - Delegated to ChunkPhysicsManager

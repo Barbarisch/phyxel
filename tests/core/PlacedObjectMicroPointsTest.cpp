@@ -44,7 +44,7 @@ TEST(PlacedObjectMicroPoints, MicroPlacementCarriesItsSeatAtTheRealOriginNotTheF
     ChunkManager cm;
     cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
     cm.createChunk(glm::ivec3(0, 0, 0), /*populate=*/false);
-    ObjectTemplateManager otm(&cm, nullptr);
+    ObjectTemplateManager otm(&cm);
     ASSERT_TRUE(otm.loadTemplate(writeTempSeat().string()));
     const VoxelTemplate* tmpl = otm.getTemplate("test_micro_seat");
     ASSERT_NE(tmpl, nullptr);
@@ -72,7 +72,7 @@ TEST(PlacedObjectMicroPoints, PlacementAndReloadAgreeBitForBit) {
     ChunkManager cm;
     cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
     cm.createChunk(glm::ivec3(0, 0, 0), false);
-    ObjectTemplateManager otm(&cm, nullptr);
+    ObjectTemplateManager otm(&cm);
     ASSERT_TRUE(otm.loadTemplate(writeTempSeat().string()));
     const VoxelTemplate* tmpl = otm.getTemplate("test_micro_seat");
     ASSERT_NE(tmpl, nullptr);

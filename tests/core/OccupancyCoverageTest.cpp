@@ -120,7 +120,7 @@ TEST(OccupancyCoverage, RevisionsDoNotRepeatAcrossGridObjects) {
 TEST(OccupancyCoverage, TemplateSpawnsReachTheGrid) {
     ChunkManager cm;
     cm.initialize(VK_NULL_HANDLE, VK_NULL_HANDLE);
-    ObjectTemplateManager otm(&cm, nullptr);
+    ObjectTemplateManager otm(&cm);
     ASSERT_TRUE(otm.loadTemplate(writeCoverageTemplate()));
 
     // Cube-resolution path, into a chunk that already exists in its played state.

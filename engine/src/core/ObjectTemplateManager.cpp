@@ -2,7 +2,6 @@
 #include "core/WorldGenerator.h"
 #include "core/ProceduralTree.h"
 #include "core/ChunkManager.h"
-#include "core/DynamicObjectManager.h"
 #include "core/PlacedObjectManager.h"
 #include "core/KinematicVoxelManager.h"
 #include "core/KinematicAnimator.h"
@@ -24,8 +23,8 @@ namespace Phyxel {
 
 namespace fs = std::filesystem;
 
-ObjectTemplateManager::ObjectTemplateManager(ChunkManager* chunkMgr, DynamicObjectManager* dynamicMgr)
-    : m_chunkManager(chunkMgr), m_dynamicObjectManager(dynamicMgr) {
+ObjectTemplateManager::ObjectTemplateManager(ChunkManager* chunkMgr)
+    : m_chunkManager(chunkMgr) {
 }
 
 void ObjectTemplateManager::loadTemplates(const std::string& directoryPath) {

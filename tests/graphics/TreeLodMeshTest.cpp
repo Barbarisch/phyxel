@@ -231,7 +231,7 @@ int countTJunctions(const TreeLodMeshRegistry::CpuMesh& m) {
 
 TEST(ProxyMeshMergeTest, MergedCoversExactlyTheSameFaces) {
     expectSameCoverage(steppedBuilding(), "stepped building");
-    ObjectTemplateManager otm(nullptr, nullptr);
+    ObjectTemplateManager otm(nullptr);
     const VoxelTemplate* tree = realTree(otm);
     if (!tree) GTEST_SKIP() << "forge_oak_m.voxel not reachable from CWD";
     const auto chain = TemplateLodChain::build(*tree);
@@ -248,7 +248,7 @@ TEST(ProxyMeshMergeTest, NoTJunctions) {
     EXPECT_GT(countTJunctions(TreeLodMeshRegistry::buildLevelMesh(b, multiResolver(), glm::vec3(-0.5f, 0, -0.5f), plain)), 0);
     EXPECT_EQ(countTJunctions(TreeLodMeshRegistry::buildLevelMesh(b, multiResolver(), glm::vec3(-0.5f, 0, -0.5f), opt)), 0)
         << "stepped building";
-    ObjectTemplateManager otm(nullptr, nullptr);
+    ObjectTemplateManager otm(nullptr);
     const VoxelTemplate* tree = realTree(otm);
     if (!tree) GTEST_SKIP() << "forge_oak_m.voxel not reachable from CWD";
     const auto chain = TemplateLodChain::build(*tree);

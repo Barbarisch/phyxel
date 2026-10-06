@@ -79,7 +79,7 @@ TEST(ItemPlacement, RugRecipeRealizesAsItemForm) {
 TEST(ItemPlacement, MeasuredSurfaceHeightNotFloorPlusOne) {
     if (!fs::exists("resources/templates/furniture/tavern_table.voxel"))
         GTEST_SKIP() << "repo-root CWD required";
-    ObjectTemplateManager mgr(nullptr, nullptr);
+    ObjectTemplateManager mgr(nullptr);
     ASSERT_TRUE(mgr.loadTemplate("resources/templates/furniture/tavern_table.voxel"));
     const auto* table = mgr.getTemplate("tavern_table");
     ASSERT_NE(table, nullptr);
@@ -95,7 +95,7 @@ TEST(ItemPlacement, StructureRemovalCascadesItemProps) {
     // Cascade mechanics control: an item prop PARENTED to another placed
     // object dies with it (registry entry, kinematic render, manager entry).
     // This is what makes structure rebuilds idempotent for their items.
-    ObjectTemplateManager templates(nullptr, nullptr);
+    ObjectTemplateManager templates(nullptr);
     KinematicVoxelManager kvm;
     PlacedObjectManager placed(nullptr, &templates, nullptr);
     Physics::VoxelDynamicsWorld world;
@@ -135,7 +135,7 @@ TEST(ItemPlacement, StructureRemovalCascadesItemProps) {
 // float. Static props have no body — nothing to keep contact-free — so only a
 // hairline anti-z-fight lift remains.
 TEST(ItemPlacement, StaticSpawnRestsOnRequestedSurface) {
-    ObjectTemplateManager templates(nullptr, nullptr);
+    ObjectTemplateManager templates(nullptr);
     KinematicVoxelManager kvm;
     PlacedObjectManager placed(nullptr, &templates, nullptr);
     ItemPropManager props;

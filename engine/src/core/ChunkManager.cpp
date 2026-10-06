@@ -127,30 +127,8 @@ void ChunkManager::initialize(VkDevice dev, VkPhysicalDevice physDev) {
             }
         });
 
-    // Setup dynamic object manager callbacks
-    m_dynamicObjectManager.setCallbacks(
-        // PhysicsWorldAccessFunc: Access physics world
-        [this]() { return physicsWorld; },
-        // DynamicSubcubeVectorAccessFunc: Access subcube vector
-        [this]() -> auto& { return globalDynamicSubcubes; },
-        // DynamicCubeVectorAccessFunc: Access cube vector
-        [this]() -> auto& { return globalDynamicCubes; },
-        // DynamicMicrocubeVectorAccessFunc: Access microcube vector
-        [this]() -> auto& { return globalDynamicMicrocubes; },
-        // RebuildFacesFunc: Rebuild faces when objects change
-        [this]() { rebuildGlobalDynamicFaces(); }
-    );
-    
     // Setup face update coordinator callbacks
     m_faceUpdateCoordinator.setCallbacks(
-        // DynamicSubcubeVectorAccessFunc: Access subcube vector
-        [this]() -> auto& { return globalDynamicSubcubes; },
-        // DynamicCubeVectorAccessFunc: Access cube vector
-        [this]() -> auto& { return globalDynamicCubes; },
-        // DynamicMicrocubeVectorAccessFunc: Access microcube vector
-        [this]() -> auto& { return globalDynamicMicrocubes; },
-        // FaceDataAccessFunc: Access face data
-        [this]() -> auto& { return globalDynamicSubcubeFaces; },
         // ChunkLookupFunc: Get chunk at position
         [this](const glm::ivec3& pos) { return getChunkAt(pos); },
         // MarkChunkDirtyFunc: Mark chunk dirty
@@ -982,70 +960,6 @@ void ChunkManager::markChunkForRemeshIdle(Chunk* chunk) {
 
 void ChunkManager::clearDirtyChunkList() {
     m_dirtyChunkTracker.clearDirtyChunkList();
-}
-
-void ChunkManager::addGlobalDynamicSubcube(std::unique_ptr<Subcube> subcube) {
-    if (!subcube) return;
-    m_dynamicObjectManager.addGlobalDynamicSubcube(std::move(subcube));
-}
-
-void ChunkManager::rebuildGlobalDynamicSubcubeFaces() {
-    // Legacy function - now calls the combined function that handles both subcubes and cubes
-    rebuildGlobalDynamicFaces();
-}
-
-void ChunkManager::updateGlobalDynamicSubcubes(float deltaTime) {
-    m_dynamicObjectManager.updateGlobalDynamicSubcubes(deltaTime);
-}
-
-void ChunkManager::updateGlobalDynamicSubcubePositions() {
-    m_dynamicObjectManager.updateGlobalDynamicSubcubePositions();
-}
-
-void ChunkManager::clearAllGlobalDynamicSubcubes() {
-    m_dynamicObjectManager.clearAllGlobalDynamicSubcubes();
-}
-
-// ===============================================================
-// GLOBAL DYNAMIC CUBE MANAGEMENT
-// ===============================================================
-
-void ChunkManager::addGlobalDynamicCube(std::unique_ptr<Cube> cube) {
-    if (!cube) return;
-    m_dynamicObjectManager.addGlobalDynamicCube(std::move(cube));
-}
-
-void ChunkManager::updateGlobalDynamicCubes(float deltaTime) {
-    m_dynamicObjectManager.updateGlobalDynamicCubes(deltaTime);
-}
-
-void ChunkManager::updateGlobalDynamicCubePositions() {
-    m_dynamicObjectManager.updateGlobalDynamicCubePositions();
-}
-
-void ChunkManager::clearAllGlobalDynamicCubes() {
-    m_dynamicObjectManager.clearAllGlobalDynamicCubes();
-}
-
-// ===============================================================
-// GLOBAL DYNAMIC MICROCUBE MANAGEMENT
-// ===============================================================
-
-void ChunkManager::addGlobalDynamicMicrocube(std::unique_ptr<Microcube> microcube) {
-    if (!microcube) return;
-    m_dynamicObjectManager.addGlobalDynamicMicrocube(std::move(microcube));
-}
-
-void ChunkManager::clearAllGlobalDynamicMicrocubes() {
-    m_dynamicObjectManager.clearAllGlobalDynamicMicrocubes();   // releases the bodies too
-}
-
-// ===============================================================
-// COMBINED DYNAMIC OBJECT MANAGEMENT (SUBCUBES + CUBES)
-// ===============================================================
-
-void ChunkManager::rebuildGlobalDynamicFaces() {
-    m_faceUpdateCoordinator.rebuildGlobalDynamicFaces();
 }
 
 size_t ChunkManager::getChunkIndex(const Chunk* chunk) const {

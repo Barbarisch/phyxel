@@ -5,11 +5,11 @@ Drives POST /api/debug/break_voxel (the B-key break, no cursor hover) at all thr
 DebrisLab blast chunk (x 160..191, restored afterwards) and asserts, per break:
   * the voxel is removed (store) and the store / physics grid / packed pool agree (occupancy_diff);
   * exactly ONE GPU piece is queued and none refused;
-  * no CPU dynamic object is created (cpu_dynamic stays 0 — the CPU single-box path is gone);
-and finally that every piece settles (no body left awake after the settle window).
+and finally that every piece settles (no body left awake after the settle window). (Until 1d
+part 3 it also asserted cpu_dynamic stayed 0; the CPU single-box path is now deleted.)
 
-Prediction written before the run: removed=True, gpu_pieces=1, refused=0, cpu_dynamic=0 for each
-level; occ diff 0; all pieces asleep within 6 s.
+Prediction written before the run: removed=True, gpu_pieces=1, refused=0 for each level;
+occ diff 0; all pieces asleep within 6 s.
 
   python tools/debris_break_voxel_check.py --url http://localhost:8097
 """
@@ -27,10 +27,6 @@ def occ_ok(api):
     x0 = 32 * bench.BLAST_CHUNK
     d = api.post("/api/debug/occupancy_diff", {"x1": x0, "y1": 0, "z1": 0, "x2": x0 + 31, "y2": 31, "z2": 31})
     return d.get("agrees") is True, d
-
-
-def cpu_dynamic(api):
-    return api.get("/api/debug/dynamic_stats").get("cpu_dynamic", -1)
 
 
 def main():
@@ -82,10 +78,9 @@ def main():
         fails += 1
         print("FAIL: expected 3 pieces, all asleep, none below the slab")
 
-    cpu = cpu_dynamic(api)
     ok, d = occ_ok(api)
-    print(f"cpu_dynamic={cpu} (must be 0: no CPU single-box debris) occupancy agrees={ok}")
-    if cpu != 0 or not ok:
+    print(f"occupancy agrees={ok}")
+    if not ok:
         fails += 1
         print("   ", {k: d.get(k) for k in ("cell_mismatches", "grid_mismatches", "first_mismatches")})
 

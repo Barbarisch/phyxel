@@ -376,13 +376,6 @@ bool WorldInitializer::initializeVulkan() {
         return false;
     }
 
-    // Create dynamic subcube buffer. MAX_DYNAMIC_OBJECTS=300 Bullet objects (cubes+subcubes),
-    // each with 6 faces = 1800 face slots needed. Use 1800 to exactly match the cap.
-    if (!vulkanDevice->createDynamicSubcubeBuffer(1800)) {
-        LOG_ERROR("WorldInitializer", "Failed to create dynamic subcube buffer!");
-        return false;
-    }
-
     // TODO: Frustum culling buffers functionality (experimental/incomplete)
     /*
     // Create frustum culling buffers (support up to 35,000 instances)

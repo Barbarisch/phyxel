@@ -8,9 +8,7 @@ rendered CPU dynamic cubes (B-key break debris), and bare VoxelDynamicsWorld bod
 Usage:
     python tools/perf_stress_test.py                    # Run all tests
     python tools/perf_stress_test.py --mode gpu         # GPU-only ramp
-    python tools/perf_stress_test.py --mode cpu         # CPU dynamic-cube ramp (rendered, cap 300)
     python tools/perf_stress_test.py --mode voxel       # bare VoxelDynamicsWorld bodies (unrendered)
-    python tools/perf_stress_test.py --mode mixed       # Mixed ramp
     python tools/perf_stress_test.py --mode scale       # Scale comparison
     python tools/perf_stress_test.py --mode sustained   # Sustained max load
     python tools/perf_stress_test.py --quick            # Fewer steps, faster
@@ -87,23 +85,6 @@ def spawn_gpu(count, scale=1.0, x=None, y=None, z=None):
         y = py if y is None else y
         z = pz if z is None else z
     return api_post("/api/debug/spawn_gpu_particle", {
-        "x": x, "y": y, "z": z,
-        "material": "Stone",
-        "scale": scale,
-        "count": count,
-        "lifetime": 120.0,  # long lifetime so they don't expire during test
-    })
-
-
-def spawn_cpu(count, scale=1.0, x=None, y=None, z=None):
-    """Spawn rendered CPU dynamic cubes (VoxelDynamicsWorld) above the player entity.
-    The endpoint keeps its Bullet-era name until DebrisInteractionPlan D1 retires it."""
-    if x is None or y is None or z is None:
-        px, py, pz = get_player_pos()
-        x = px if x is None else x
-        y = py if y is None else y
-        z = pz if z is None else z
-    return api_post("/api/debug/spawn_bullet_cube", {
         "x": x, "y": y, "z": z,
         "material": "Stone",
         "scale": scale,
@@ -287,47 +268,6 @@ def test_gpu_ramp(quick=False, settle_time=SETTLE_TIME):
     return rows
 
 
-def test_cpu_ramp(quick=False, settle_time=SETTLE_TIME):
-    """Ramp up rendered CPU dynamic cubes and measure FPS at each level."""
-    if quick:
-        steps = [25, 50, 100, 200, 300]
-    else:
-        steps = [25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300]
-
-    print("\n=== CPU DYNAMIC CUBE RAMP TEST ===\n")
-    print_header()
-
-    clear_dynamics()
-    time.sleep(1)
-
-    rows = []
-    total_spawned = 0
-
-    # Baseline
-    m = measure(settle_time)
-    if m:
-        row = {"step": 0, "system": "cpu", "count": 0, "scale": 1.0, **m}
-        rows.append(row)
-        print_row(0, "cpu", 0, 1.0, m)
-
-    for i, target in enumerate(steps, 1):
-        to_spawn = target - total_spawned
-        if to_spawn <= 0:
-            continue
-
-        spawn_cpu(to_spawn)
-        total_spawned = target
-
-        m = measure(settle_time)
-        if m:
-            row = {"step": i, "system": "cpu", "count": target, "scale": 1.0, **m}
-            rows.append(row)
-            print_row(i, "cpu", target, 1.0, m)
-
-    clear_dynamics()
-    return rows
-
-
 def test_voxel_ramp(quick=False, settle_time=SETTLE_TIME):
     """Ramp up VoxelDynamicsWorld body count and measure FPS at each level."""
     if quick:
@@ -376,56 +316,6 @@ def test_voxel_ramp(quick=False, settle_time=SETTLE_TIME):
             print_row(i, "voxel", target, 1.0, m)
 
     clear_voxel_bodies()
-    return rows
-
-
-def test_mixed_ramp(quick=False, settle_time=SETTLE_TIME):
-    """Fill CPU dynamic cubes to 50% of their cap, then ramp GPU particles."""
-    if quick:
-        gpu_steps = [100, 500, 1000, 2000, 5000]
-    else:
-        gpu_steps = [100, 250, 500, 1000, 2000, 3000, 5000, 7500, 10000]
-
-    cpu_count = 150  # 50% of the 300 cap
-
-    print("\n=== MIXED RAMP TEST (CPU=%d + GPU ramp) ===\n" % cpu_count)
-    print_header()
-
-    clear_dynamics()
-    time.sleep(1)
-
-    rows = []
-
-    # Spawn CPU dynamic cubes first
-    spawn_cpu(cpu_count)
-    m = measure(settle_time)
-    if m:
-        row = {"step": 0, "system": "mixed", "count": cpu_count, "scale": 1.0, **m}
-        rows.append(row)
-        print_row(0, "mixed", cpu_count, 1.0, m)
-
-    total_gpu = 0
-    for i, target in enumerate(gpu_steps, 1):
-        to_spawn = target - total_gpu
-        if to_spawn <= 0:
-            continue
-
-        remaining = to_spawn
-        while remaining > 0:
-            batch = min(remaining, 2000)
-            spawn_gpu(batch)
-            remaining -= batch
-            total_gpu += batch
-
-        m = measure(settle_time)
-        if m:
-            label = f"C{cpu_count}+G{target}"
-            row = {"step": i, "system": "mixed", "count": cpu_count + target,
-                   "scale": 1.0, **m}
-            rows.append(row)
-            print_row(i, "mixed", cpu_count + target, 1.0, m)
-
-    clear_dynamics()
     return rows
 
 
@@ -616,7 +506,7 @@ def print_breakpoint_summary(all_rows):
 def main():
     global BASE_URL
     parser = argparse.ArgumentParser(description="Phyxel GPU/CPU physics performance stress tester")
-    parser.add_argument("--mode", choices=["all", "gpu", "cpu", "voxel", "mixed", "scale", "sustained"],
+    parser.add_argument("--mode", choices=["all", "gpu", "voxel", "scale", "sustained"],
                         default="all", help="Test mode (default: all)")
     parser.add_argument("--quick", action="store_true",
                         help="Fewer test steps for faster results")
@@ -657,15 +547,13 @@ def main():
 
     modes = {
         "gpu": lambda: test_gpu_ramp(args.quick, args.settle),
-        "cpu": lambda: test_cpu_ramp(args.quick, args.settle),
         "voxel": lambda: test_voxel_ramp(args.quick, args.settle),
-        "mixed": lambda: test_mixed_ramp(args.quick, args.settle),
         "scale": lambda: test_scale_comparison(args.quick, args.settle),
         "sustained": lambda: test_sustained(args.settle),
     }
 
     if args.mode == "all":
-        for name in ["gpu", "cpu", "voxel", "mixed", "scale", "sustained"]:
+        for name in ["gpu", "voxel", "scale", "sustained"]:
             try:
                 rows = modes[name]()
                 all_rows.extend(rows)

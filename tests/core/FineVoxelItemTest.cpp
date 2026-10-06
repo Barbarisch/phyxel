@@ -51,7 +51,7 @@ fs::path writeTempTemplate(const std::string& name, const std::string& body) {
 
 // Load and expect success; returns the registered template.
 VoxelTemplate loadOk(const fs::path& path) {
-    ObjectTemplateManager mgr(nullptr, nullptr);
+    ObjectTemplateManager mgr(nullptr);
     EXPECT_TRUE(mgr.loadTemplate(path.string())) << path;
     const auto* tmpl = mgr.getTemplate(path.stem().string());
     EXPECT_NE(tmpl, nullptr);
@@ -60,7 +60,7 @@ VoxelTemplate loadOk(const fs::path& path) {
 
 // Load and expect the template to be REJECTED (returns false, not registered).
 void expectRejected(const fs::path& path) {
-    ObjectTemplateManager mgr(nullptr, nullptr);
+    ObjectTemplateManager mgr(nullptr);
     EXPECT_FALSE(mgr.loadTemplate(path.string()))
         << path << " should have been rejected";
     EXPECT_EQ(mgr.getTemplate(path.stem().string()), nullptr)
@@ -361,7 +361,7 @@ TEST(FineGridStaticBake, FineTemplateRefusedForChunkBake) {
     // The chunk-bake path expands templates onto a hard 9-per-cube micro grid
     // (ObjectTemplateManager.cpp addBox) and cannot represent 1/27 cells; it
     // must refuse a fine template loudly instead of silently degrading.
-    ObjectTemplateManager mgr(nullptr, nullptr);
+    ObjectTemplateManager mgr(nullptr);
     auto path = writeTempTemplate("fine_bake_refusal",
         "# grid: 27\n"
         "V 0 0 0 Wood\n");
