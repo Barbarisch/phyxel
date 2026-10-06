@@ -2,10 +2,12 @@
 #include "core/MaterialRegistry.h"
 #include "core/Types.h"
 #include "physics/PhysicsWorld.h"
+#include "physics/VoxelDynamicsWorld.h"
 #include "utils/Logger.h"
 
 #include <algorithm>
 #include <climits>
+#include <cmath>
 #include <cfloat>
 #include <limits>
 #include <numeric>
@@ -18,11 +20,14 @@ namespace Core {
 // Construction / destruction
 // ============================================================================
 
-KinematicVoxelManager::KinematicVoxelManager(Physics::PhysicsWorld* /*physicsWorld*/)
+KinematicVoxelManager::KinematicVoxelManager(Physics::PhysicsWorld* physicsWorld)
+    : m_physicsWorld(physicsWorld)
 {}
 
 KinematicVoxelManager::~KinematicVoxelManager() {
     clear();
+    if (m_obstaclesRegistered && m_physicsWorld && m_physicsWorld->getVoxelWorld())
+        m_physicsWorld->getVoxelWorld()->removeKinematicObstacles(this);
 }
 
 // ============================================================================
@@ -76,6 +81,8 @@ std::string KinematicVoxelManager::add(const std::string& idHint,
         }
         obj.localCenter    = (mn + mx) * 0.5f;
         obj.boundingRadius = glm::length(mx - mn) * 0.5f;
+        obj.localMin = mn;
+        obj.localMax = mx;
     }
 
     LOG_INFO_FMT("KinematicVoxelManager", "Added '" << id << "': "
@@ -101,6 +108,84 @@ void KinematicVoxelManager::setTransform(const std::string& id, const glm::mat4&
     auto it = m_objects.find(id);
     if (it != m_objects.end()) {
         it->second.currentTransform = transform;
+    }
+}
+
+void KinematicVoxelManager::setPushesDebris(const std::string& id, bool on) {
+    auto it = m_objects.find(id);
+    if (it == m_objects.end()) return;
+    it->second.pushesDebris = on;
+    it->second.moverHasPrev = false;   // no velocity from a pose taken before it was a mover
+}
+
+namespace {
+// The sub-box grid of one object: per axis, cells no longer than kMoverCell in WORLD units (the
+// transform may scale, e.g. a held item), at most kMoverMaxSplit cells.
+glm::ivec3 moverSplit(const KinematicVoxelObject& o, const glm::vec3& axisScale) {
+    glm::ivec3 n(1);
+    const glm::vec3 ext = (o.localMax - o.localMin) * axisScale;
+    for (int a = 0; a < 3; ++a)
+        n[a] = std::clamp(static_cast<int>(std::ceil(ext[a] / KinematicVoxelManager::kMoverCell - 1e-4f)),
+                          1, KinematicVoxelManager::kMoverMaxSplit);
+    return n;
+}
+glm::vec3 axisScales(const glm::mat4& m) {
+    return glm::vec3(glm::length(glm::vec3(m[0])), glm::length(glm::vec3(m[1])), glm::length(glm::vec3(m[2])));
+}
+}  // namespace
+
+size_t KinematicVoxelManager::moverBoxCountFor(const std::string& id) const {
+    auto it = m_objects.find(id);
+    if (it == m_objects.end() || !it->second.pushesDebris || it->second.voxels.empty()) return 0;
+    const glm::ivec3 n = moverSplit(it->second, axisScales(it->second.currentTransform));
+    return static_cast<size_t>(n.x) * n.y * n.z;
+}
+
+void KinematicVoxelManager::syncCollidersToPhysics(float dt) {
+    m_lastMovers.clear();
+    std::vector<Physics::VoxelDynamicsWorld::KinematicObstacle> obstacles;
+    for (auto& [id, o] : m_objects) {
+        if (!o.pushesDebris || o.voxels.empty()) continue;
+        const glm::mat4& T = o.currentTransform;
+        const glm::vec3 sc = axisScales(T);
+        if (!(sc.x > 1e-6f && sc.y > 1e-6f && sc.z > 1e-6f)) continue;   // degenerate transform
+        const glm::mat3 R(glm::vec3(T[0]) / sc.x, glm::vec3(T[1]) / sc.y, glm::vec3(T[2]) / sc.z);
+        const glm::quat q = glm::normalize(glm::quat_cast(R));
+        const glm::ivec3 n = moverSplit(o, sc);
+        const glm::vec3 cell = (o.localMax - o.localMin) / glm::vec3(n);
+        const glm::vec3 half = cell * sc * 0.5f;
+        const bool velocityValid = o.moverHasPrev && dt > 0.0f;
+        for (int i = 0; i < n.x; ++i)
+            for (int j = 0; j < n.y; ++j)
+                for (int k = 0; k < n.z; ++k) {
+                    const glm::vec4 local(o.localMin + cell * (glm::vec3(i, j, k) + 0.5f), 1.0f);
+                    MoverBox m;
+                    m.center      = glm::vec3(T * local);
+                    m.halfExtents = half;
+                    m.rotation    = q;
+                    if (velocityValid) {
+                        glm::vec3 v = (m.center - glm::vec3(o.moverPrevTransform * local)) / dt;
+                        const float s = glm::length(v);
+                        if (!std::isfinite(s)) v = glm::vec3(0.0f);
+                        else if (s > kMoverMaxSpeed) v *= kMoverMaxSpeed / s;
+                        m.velocity = v;
+                    }
+                    m_lastMovers.push_back(m);
+                    // CPU world: axis-aligned obstacles, the AABB of the oriented sub-box.
+                    const glm::mat3 aR(glm::abs(R[0]), glm::abs(R[1]), glm::abs(R[2]));
+                    obstacles.push_back({m.center, aR * half, m.velocity});
+                }
+        o.moverPrevTransform = T;
+        o.moverHasPrev = true;
+    }
+    auto* vw = m_physicsWorld ? m_physicsWorld->getVoxelWorld() : nullptr;
+    if (!vw) return;
+    if (!obstacles.empty()) {
+        vw->setKinematicObstacles(this, std::move(obstacles));
+        m_obstaclesRegistered = true;
+    } else if (m_obstaclesRegistered) {
+        vw->removeKinematicObstacles(this);   // the last mover went away: leave no ghost
+        m_obstaclesRegistered = false;
     }
 }
 

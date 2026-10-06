@@ -897,6 +897,7 @@ bool ObjectTemplateManager::spawnTemplate(const std::string& name, const glm::ve
                 xform,
                 "",      // placedObjectId — wired by the caller via PlacedObject metadata
                 false);
+            m_kinematicManager->setPushesDebris(kinematicId, true);   // animated part pushes debris (3b)
             m_lastSpawnedKinematicIds.push_back(kinematicId);
 
             // Phase C: auto-register with the animator (if wired) so callers can

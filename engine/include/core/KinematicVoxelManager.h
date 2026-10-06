@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <climits>
 #include <glm/glm.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include "core/Types.h"   // FoliageInstanceData (kinematic foliage, F3)
 
 namespace Phyxel {
@@ -98,6 +99,14 @@ struct KinematicVoxelObject {
     /// felled tree keeps its card-rendered canopy while falling.
     std::vector<FoliageInstanceData> foliage;
     glm::vec3   foliageOrigin{0.0f};
+
+    /// DebrisInteractionPlan 3b: this object pushes GPU debris and CPU bodies (doors, animated
+    /// template parts, held items). OFF for visuals that mirror a CPU body (furniture, item props,
+    /// fragments): 3c already feeds the body, feeding the visual too would double the push.
+    bool        pushesDebris = false;
+    glm::vec3   localMin{0.0f}, localMax{0.0f};   ///< voxel AABB in hinge-local space (at add())
+    glm::mat4   moverPrevTransform{1.0f};         ///< transform at the previous syncCollidersToPhysics
+    bool        moverHasPrev = false;
 };
 
 /// Owns all KinematicVoxelObjects in the scene.
@@ -109,7 +118,7 @@ public:
     explicit KinematicVoxelManager(Physics::PhysicsWorld* physicsWorld = nullptr);
     ~KinematicVoxelManager();
 
-    void setPhysicsWorld(Physics::PhysicsWorld* pw) { (void)pw; }
+    void setPhysicsWorld(Physics::PhysicsWorld* pw) { m_physicsWorld = pw; }
 
     /// Register a new object for rendering. Builds the face buffer.
     /// skipCollider is accepted for API compatibility but has no effect.
@@ -134,8 +143,28 @@ public:
 
     glm::mat4 getTransform(const std::string& id) const;
 
-    /// No-op — retained for API compatibility.
-    void syncCollidersToPhysics() {}
+    /// DebrisInteractionPlan 3b: the movers of every pushesDebris object, rebuilt once per frame by
+    /// syncCollidersToPhysics. Each object is split into oriented sub-boxes no longer than
+    /// kMoverCell per axis (at most kMoverMaxSplit per axis), each with the velocity of ITS centre
+    /// from this frame's transform delta - a swinging door's free edge outruns its hinge edge.
+    struct MoverBox {
+        glm::vec3 center{0.0f};
+        glm::vec3 halfExtents{0.0f};
+        glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+        glm::vec3 velocity{0.0f};
+    };
+    static constexpr float kMoverCell     = 0.6f;
+    static constexpr int   kMoverMaxSplit = 4;
+    static constexpr float kMoverMaxSpeed = 20.0f;   // a teleport must not fling debris
+
+    void setPushesDebris(const std::string& id, bool on);
+
+    /// Once per frame, after every owner set its transform and before the CPU physics step:
+    /// rebuilds lastMoverBoxes() and registers the same boxes (as AABBs) as CPU kinematic
+    /// obstacles, so doors also block furniture. dt = the frame's time step (for velocity).
+    void syncCollidersToPhysics(float dt);
+    const std::vector<MoverBox>& lastMoverBoxes() const { return m_lastMovers; }
+    size_t moverBoxCountFor(const std::string& id) const;
 
     const std::unordered_map<std::string, KinematicVoxelObject>& getObjects() const {
         return m_objects;
@@ -171,6 +200,9 @@ private:
     std::unordered_map<std::string, KinematicVoxelObject> m_objects;
     std::unordered_map<std::string, int> m_idCounters;
     bool m_bufferDirty = false;
+    Physics::PhysicsWorld* m_physicsWorld = nullptr;
+    std::vector<MoverBox>  m_lastMovers;
+    bool                   m_obstaclesRegistered = false;
 };
 
 } // namespace Core

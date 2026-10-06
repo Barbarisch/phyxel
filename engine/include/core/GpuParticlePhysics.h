@@ -152,9 +152,18 @@ public:
      *  CPU physics step. Staged AFTER the character limbs: the overflow drops bodies first. */
     void setBodyMoverBoxes(std::vector<MoverBox> movers);
     uint32_t bodyMoverCount() const { return static_cast<uint32_t>(m_bodyMovers.size()); }
+    /** Doors, animated template parts and held items (Phase 3b, KinematicVoxelManager), staged
+     *  after the character limbs and before the CPU bodies. */
+    void setObjectMoverBoxes(std::vector<MoverBox> movers);
+    uint32_t objectMoverCount() const { return static_cast<uint32_t>(m_objectMovers.size()); }
+    /** Kinematic slots left for objects once the scripted boxes and character limbs are staged. */
+    uint32_t objectMoverBudget() const {
+        const size_t used = m_kinematicBoxesFrameStart.size() + m_movers.size();
+        return used >= DebrisShared::MAX_KINEMATIC ? 0u : static_cast<uint32_t>(DebrisShared::MAX_KINEMATIC - used);
+    }
     /** Kinematic slots left for bodies once the scripted boxes and character limbs are staged. */
     uint32_t bodyMoverBudget() const {
-        const size_t used = m_kinematicBoxesFrameStart.size() + m_movers.size();
+        const size_t used = m_kinematicBoxesFrameStart.size() + m_movers.size() + m_objectMovers.size();
         return used >= DebrisShared::MAX_KINEMATIC ? 0u : static_cast<uint32_t>(DebrisShared::MAX_KINEMATIC - used);
     }
 
@@ -416,6 +425,7 @@ private:
     // Collider feed: the player's boxes (setCharacterColliders) + the scripted boxes (1f), merged
     // into the collider buffer by writeColliderBuffer().
     std::vector<MoverBox> m_movers;   // character limbs (setMoverBoxes / setCharacterColliders)
+    std::vector<MoverBox> m_objectMovers; // doors / animated parts / held items (setObjectMoverBoxes, 3b)
     std::vector<MoverBox> m_bodyMovers;   // CPU rigid-body boxes (setBodyMoverBoxes, Phase 3c)
     // Scripted boxes at the START of this frame: the feed can arrive after update() has advanced
     // m_kinematicBoxes to the frame-end pose, and the GPU ticks start from the frame-start pose.

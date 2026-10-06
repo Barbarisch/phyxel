@@ -18,10 +18,13 @@
 - **Phase 3a DONE**: every animated character (player, entities, NPCs) pushes debris; far
   (update-LOD) characters are extrapolated.
 - **Phase 3c DONE**: CPU rigid bodies (furniture, fragments, trees, item props) push debris,
-  one-way, whole bodies within the 512-box budget. Next: 3b (held items, doors), then Phase 4.
+  one-way, whole bodies within the 512-box budget.
+- **Phase 3b DONE** (except the `sword_swat` demo): doors, animated parts and held items push
+  debris, and doors block CPU bodies. Open: angular velocity for GPU movers (door overlap median
+  37 mm). Next: Phase 4 (impulses).
 - Still open, minor: 1c step 5 gap 8 (incremental add does not filter broken/invisible
   sub-voxels); drop_pile varies run to run (GPU nondeterminism, not session state).
-- Not started: 3b (held items, doors), Phase 4 (impulses; holds the user's "spells don't hit
+- Not started: Phase 4 (impulses; holds the user's "spells don't hit
   debris"), Phases 5–6. Phase 3 budget orders by camera distance only (no host-side debris
   positions without a readback).
 - Rev 2 rewrote the phases after a four-way code inventory (§Inventory).
@@ -138,7 +141,7 @@ fill/clear/generate commands, game-definition loads, scene transitions and settl
   and legacy cubes. They collide with each other and with characters, but **GPU debris passes
   through them**. *(Fixed one-way in 3c, 2026-10-06; debris → body coupling is Phase 4.)*
 - **Touch NEITHER world:** doors and `KinematicAnimator` parts (`syncCollidersToPhysics()` is an
-  empty stub), held weapons and items, all VFX, CombatSystem melee and knockback, wind, triggers,
+  empty stub), held weapons and items *(these three fixed in 3b, 2026-10-06)*, all VFX, CombatSystem melee and knockback, wind, triggers,
   the never-wired `RangedCasterBehavior` cast hook.
 - **Force sources never push EXISTING bodies in either world:** `applyDamage`, chop, spells and
   melee only create new bodies or debris. Water pushes CPU bodies but not debris. There is no
@@ -803,7 +806,8 @@ flipped, D7 not deleted). Waiting on a user decision (below).**
   - Fed **after** NPC and entity updates (fixes the one-frame staleness).
   - Characters skipped by update-LOD or derezzing are not fed.
   - Body plans with more than 12 segments are allowed.
-- **3b. Held items and doors.** Weapons as kinematic boxes from their bone attachment. Doors and
+- **3b. Held items and doors** — ✅ DONE 2026-10-06 (see below; `sword_swat` demo still open).
+  Weapons as kinematic boxes from their bone attachment. Doors and
   `KinematicAnimator` parts as kinematic boxes, **and** implement the empty
   `KinematicVoxelManager::syncCollidersToPhysics()` stub so doors block CPU bodies too.
 - **3c. CPU bodies** — ✅ DONE 2026-10-06 (see below; one-way, whole bodies only). Every `VoxelDynamicsWorld` body near awake debris (furniture including
@@ -891,7 +895,67 @@ flipped, D7 not deleted). Waiting on a user decision (below).**
   - `occ diff`: 0 everywhere;
   - blast hard-contact maximum: 86.2 mm, identical to `phase3a`.
 
-## Phase 4 — Impulses (both worlds)
+**DONE 2026-10-06 — Phase 3b: doors, animated template parts and held items push debris; doors
+block CPU bodies.** (`sword_swat` is NOT demonstrated yet — see the last bullet.)
+- `KinematicVoxelObject.pushesDebris` (opt-in): set by `DoorManager` (doors),
+  `ObjectTemplateManager` (animated template parts), and `Application` (the player's and NPCs'
+  held items). OFF for the visuals of CPU bodies (furniture, item props, fragments): 3c already
+  feeds the body, so feeding its visual too would double the push.
+- `KinematicVoxelManager::syncCollidersToPhysics(dt)` — was an empty stub. Once per frame, after
+  every owner set its transform and before the CPU step:
+  - splits each flagged object's voxel AABB into oriented sub-boxes of at most `kMoverCell`
+    (0.6 m) per axis, at most 4 per axis — so a door's free edge gets its own, faster box;
+  - each sub-box's velocity comes from ITS centre's transform delta this frame (clamped to 20 m/s;
+    the first frame is 0);
+  - the same boxes go to the GPU as movers (`setObjectMoverBoxes`) and to the CPU world as
+    kinematic obstacles (their AABBs), so **doors now block furniture**. A removed object leaves
+    no ghost obstacle.
+- **Budget:** staging order is scripted → limbs → objects → CPU bodies. Objects are sorted by
+  camera distance and trimmed to the slots the limbs left (`objectMoverBudget()`); the overflow is
+  logged once.
+- Unit `KinematicMoverFeedTest` (4), red first on a no-op stub (3 failed; the 4th passed 0 = 0, so
+  it now asserts boxes exist first):
+  - only flagged objects are fed;
+  - sub-boxes tile the object exactly and carry its rotation;
+  - per-box swing velocity, free edge faster than the hinge edge, teleport clamped;
+  - the same boxes become CPU obstacles, and a removed door leaves none.
+- **L4 `door_swing`** (`door_wood` through the real `/api/world/template` + `/api/door/register`
+  path, 120°/s; 3×2×3 piles of 1/3 cubes against both faces):
+
+  | Run | Contacts | Swing side moved | Other side moved |
+  |---|---|---|---|
+  | Red (flags 23, bit 32 off — what doors got before 3b) | 0 | 0/18 | 0/18 |
+  | With 3b | 419–425 | **18/18** | 0/18 (the control) |
+
+  0 rebounds. **Overlap is worse than the scripted box:** per tick median 36.8 / p90 127 / max
+  138 mm (box_through_pile: median 15–27). That is inside the accepted packed-pile band (median
+  ≤ 50, max ≤ 200) but large against 1/3 m cubes. **Untested hypothesis:** GPU movers have no
+  angular velocity, and their rotation steps once per frame (coarse at Debug frame rates).
+  Angular velocity on kinematic bodies would help limbs (3a), doors and swings alike; open item.
+- **L4 `door_blocks_crate`:** a 0.5 m crate sliding at 2 m/s at a closed door stops against it
+  (z 15.30, door plane 15). The same crate 2 m to the side passes the plane (z 14.17). Before 3b
+  the stub registered nothing (the unit red).
+- **Stress (count past the budget):** 70 registered doors (560 boxes) plus one player →
+  `object_mover_boxes` exactly 500 (512 − 12 limbs), limbs kept, `kinematic_overflow` 0, one WARN
+  (first logged at 4 boxes over); after unregistering every door: 0.
+- **Held items, live:** an `iron_sword` in the player's hand is 3 mover boxes. Unequipping drops
+  them to 0 and re-equipping brings them back.
+- Bench `phase3b`: drop_pile 7 forced, blast 4, straddle 1.1 mm, every other scenario 0 forced,
+  `occ diff` 0, blast hard-contact maximum 86.2 mm (unchanged). **`box_through_pile` exceeded its
+  written band:**
+  - 13 forced sleeps against ≤ 12, with the box checks passing (24/24 displaced, median 14.4,
+    max 69.5 mm);
+  - three clean-engine reruns (`phase3b-btp-rep1..3`) gave **4 / 13 / 11** forced sleeps, box
+    medians 14.7–23.2 mm and maxima 67.7–137.5 mm, all box checks passing;
+  - so 13 recurs on a clean engine. The ≤ 12 band was set from six earlier runs (4–11), and the
+    scenario is nondeterministic (255–281 bodies woken). 3b adds nothing to the GPU path when no
+    object is flagged (it stages an empty list), but no A/B against the 3c binary was run;
+  - **the band is NOT widened here.** Deciding the band (or making the scenario deterministic)
+    is open for the user.
+- **`sword_swat` is still open.** Swings sweep chest height, but the lab's debris lies on the
+  floor; a weapon-height rig (debris on a pedestal at sword reach, beyond the bare arm's reach as
+  the control) is not built. The held-item boxes use the same feed as the door, which is proven
+  with contacts above.
 
 **User report (2026-10-04, live): "I cast a spell at broken dynamic voxels and it didn't hit
 them."** Pre-existing, not a Phase 0 regression. Two separate gaps, both confirmed in code:

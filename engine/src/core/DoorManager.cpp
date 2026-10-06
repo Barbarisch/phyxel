@@ -80,6 +80,7 @@ bool DoorManager::registerDoor(const std::string& placedObjectId,
         initialTransform,
         placedObjectId
     );
+    m_kinematic->setPushesDebris(door.kineticObjId, true);   // a swinging door shoves debris (3b)
 
     // Remove static chunk voxels (kinematic object renders in their place)
     m_placedObjects->clearVoxelsOnly(placedObjectId);

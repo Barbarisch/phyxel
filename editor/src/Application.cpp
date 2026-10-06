@@ -4264,9 +4264,38 @@ void Application::update(float deltaTime) {
     float frameTime = std::min(deltaTime, MAX_DELTA);
     physicsDeltaAccumulator += frameTime;
     
-    // Sync kinematic door/platform colliders into Bullet before physics step
+    // Kinematic movers (DebrisInteractionPlan 3b): doors, animated template parts and held items -
+    // every KinematicVoxelObject flagged pushesDebris - as oriented sub-boxes with per-box velocity
+    // from this frame's transform delta. The same boxes become CPU kinematic obstacles (doors now
+    // block furniture) and GPU debris movers, staged after the character limbs. Runs after every
+    // owner set its transform this frame (held items, doors, animator) and before the CPU step.
     if (kinematicVoxelManager) {
-        kinematicVoxelManager->syncCollidersToPhysics();
+        kinematicVoxelManager->syncCollidersToPhysics(deltaTime);
+        if (gpuParticlePhysics && gpuParticlePhysics->isInitialized()) {
+            // Nearest the camera first, trimmed to the slots the limbs left (a settlement has
+            // ~100 doors x 8 boxes): the far ones are dropped, counted and logged once.
+            const auto& km = kinematicVoxelManager->lastMoverBoxes();
+            const glm::vec3 eye = camera ? camera->getPosition() : glm::vec3(0.0f);
+            std::vector<std::pair<float, const Core::KinematicVoxelManager::MoverBox*>> order;
+            order.reserve(km.size());
+            for (const auto& m : km) order.push_back({glm::dot(m.center - eye, m.center - eye), &m});
+            std::sort(order.begin(), order.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+            const uint32_t budget = gpuParticlePhysics->objectMoverBudget();
+            std::vector<GpuParticlePhysics::MoverBox> boxes;
+            boxes.reserve(std::min<size_t>(order.size(), budget));
+            for (const auto& [d2, m] : order) {
+                if (boxes.size() >= budget) break;
+                boxes.push_back({m->center, m->halfExtents, m->rotation, m->velocity});
+            }
+            static bool loggedObjectSkip = false;
+            if (order.size() > boxes.size() && !loggedObjectSkip) {
+                loggedObjectSkip = true;
+                LOG_WARN("GpuParticlePhysics", "debris movers: {} door/part/held-item boxes past the {}-box budget "
+                         "were not fed (the farthest from the camera); logged once",
+                         order.size() - boxes.size(), DebrisShared::MAX_KINEMATIC);
+            }
+            gpuParticlePhysics->setObjectMoverBoxes(std::move(boxes));
+        }
     }
 
     // Run physics in fixed timesteps — CAPPED per frame. Uncapped, a slow
@@ -7961,6 +7990,7 @@ static bool handleDebugDynamicSpawnCommand(
                     {"active", gpuParticles->getActiveParticleCount()},
                     {"kinematic_boxes", gpuParticles->kinematicBoxes().size()},
                     {"character_mover_boxes", gpuParticles->moverCount()},
+                    {"object_mover_boxes", gpuParticles->objectMoverCount()},
                     {"body_mover_boxes", gpuParticles->bodyMoverCount()},
                     {"kinematic_overflow", gpuParticles->kinematicOverflow()}};
         return true;
@@ -9854,6 +9884,7 @@ void Application::updateHeldItem() {
             if (tmpl) {
                 auto voxels = Core::ItemPropManager::voxelsFromTemplate(*tmpl);
                 m_heldKinId = kinematicVoxelManager->add("held_" + itemId, std::move(voxels));
+                kinematicVoxelManager->setPushesDebris(m_heldKinId, true);   // a swung weapon shoves debris (3b)
                 m_heldAnchorId = animatedCharacter->attachToBone(
                     def->held.gripBone, glm::vec3(0.02f), def->held.gripOffset,
                     glm::vec4(0.0f), "held_anchor");
@@ -10142,6 +10173,7 @@ void Application::updateNpcHeldItems() {
                 if (tmpl) {
                     auto voxels = Core::ItemPropManager::voxelsFromTemplate(*tmpl);
                     held.kinId = kinematicVoxelManager->add("npcheld_" + name, std::move(voxels));
+                    kinematicVoxelManager->setPushesDebris(held.kinId, true);   // 3b
                     held.anchorId = character->attachToBone(def->held.gripBone, glm::vec3(0.02f),
                                         def->held.gripOffset, glm::vec4(0.0f), "npc_held_anchor");
                     if (held.anchorId < 0) { kinematicVoxelManager->remove(held.kinId); held.kinId.clear(); }

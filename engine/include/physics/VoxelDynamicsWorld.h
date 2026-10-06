@@ -165,6 +165,10 @@ public:
     // not just the last one to update. Owners must removeKinematicObstacles() on destruction.
     void setKinematicObstacles(const void* owner, std::vector<KinematicObstacle> obstacles);
     void removeKinematicObstacles(const void* owner);
+    size_t kinematicObstacleCount(const void* owner) const {
+        auto it = m_obstaclesByOwner.find(owner);
+        return it == m_obstaclesByOwner.end() ? 0u : it->second.size();
+    }
 
 private:
     std::vector<std::unique_ptr<VoxelRigidBody>> m_bodies;
