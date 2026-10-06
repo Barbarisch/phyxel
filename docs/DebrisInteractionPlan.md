@@ -1,11 +1,12 @@
 # Debris Interaction Plan — everything that moves can push GPU debris
 
-**Status:** rev 4.4, 2026-10-05. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
-**Phase 1 in progress** (pushed to main through 1c step 5):
+**Status:** rev 4.5, 2026-10-05. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
+**Phase 1 in progress** (pushed to main through 1c step 6):
 - 1a build safety ✅ · 1b `shaders/solver_shared.h` ✅
 - 1c one occupancy: steps 1–4 ✅ (tri-state query, edit-first repack, debris reads the shared
   pool, old bitfield deleted) · step 5 writer audit ✅ (7 of 8 gaps closed, red→green,
-  `OccupancyCoverageTest`; bench `phase1c5` in band) · **step 6 `occupancy_diff` — NEXT**
+  `OccupancyCoverageTest`; bench `phase1c5` in band) · step 6 ✅ (`DebrisContactOccupancyTest`,
+  `occupancy_diff`, asserted by every bench scenario)
 - **Open before 1c is called done:** the blast hard-contact shift (88.1 → 118.8 mm) and the
   bench's session-state dependence — both under 1c below.
 - 1d–1f not started. Phases 2–6 not started (Phase 4 holds the user's "spells don't hit debris").
@@ -442,6 +443,28 @@ commit: build, unit suite, `shader_manifest --check`, and the settle bench.
     drop_pile 15 forced (≤ 20), blast 0 forced (≤ 6); post-window 0 rebounds / 0 injected /
     0 hc>1s / 0 tunnelled / 0 held_unknown everywhere. Blast hc max still 118.8 mm — the open
     shift is unchanged by step 5, so it is not a grid-coverage effect.
+  - **1c step 6 — equality test + live instrument (2026-10-05, DONE).**
+    - `DebrisContactOccupancyTest` (3 cases): a 2×2×2-chunk world around the origin (every
+      axis crosses 0 and a chunk seam; one chunk ABSENT) with full cubes, 1/3 slabs, 2-micro
+      fences and lattice cubes. Cell states and every micro of every mixed cube match through
+      the pool and through the grids; 6,000 random points × 2 margins give the SAME contact
+      (hit, unknown, micro, dirIdx, pen, normal — exact). The oracle answers from the grid's own
+      physics query (`queryAABB`), never from the packing code. Control: a pool packed from a
+      different world disagrees. Green on first run — an equality pin, not a bug fix; the
+      control is what shows it can fail.
+    - `POST /api/debug/occupancy_diff {x1..z2}` (world cubes, ≤ 64³; refuses larger with the
+      count): store vs physics grid vs packed pool at micro resolution — `cell_mismatches`,
+      `subcube_mismatches`, `grid_mismatches`, `cells_pool_unknown`, first 20 mismatches with
+      the micro count of each copy. `agrees` requires 0 unknown (a loaded chunk not yet in the
+      pool is not agreement — seen once at boot, gone within seconds).
+    - The bench now asserts it per scenario over the scenario's chunk (column `occ diff`;
+      non-zero → `FAILS(occupancy)`). `phase1c6`: 0 in all six scenarios, blast included
+      (judged after the blast, before the site restore).
+    - `phase1c6` otherwise in band EXCEPT drop_pile `hc>1s` = 1 (first non-zero across
+      phase1b..1c5). Step 6 changed no solver or grid-writing code, so it was re-run as the
+      FIRST scenario on two fresh engines: `phase1c6-droppile-fresh1/2` = 0 pushes, 0 rebounds,
+      10 / 7 forced, occ 0. In the full bench drop_pile runs SECOND (after drop_layer): this is
+      the open session-state dependence, now with a reproducible-ish trigger to chase.
   - Test-world footgun hit twice this session: `restore_blast_site` only refilled y 8..15, so a
     test structure on the blast chunk's SURFACE survived into later runs. It now clears above the
     slab too; `debris_subvoxel_rest_check.py` removes its slab when done.

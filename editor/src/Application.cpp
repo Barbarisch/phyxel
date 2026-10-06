@@ -8976,6 +8976,102 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
         response = {{"cell", {wp.x, wp.y, wp.z}}, {"grid", g}, {"content", c}};
         return true;
 
+    } else if (action == "occupancy_diff") {
+        // DebrisInteractionPlan 1c step 6: the three copies of static occupancy, compared over a
+        // region at micro resolution — the chunk STORE (what was placed), the physics GRID (what
+        // characters/furniture collide with) and the packed POOL (what lighting and GPU debris
+        // see). Every settle-bench scenario asserts 0 mismatches. Region in world cubes, <= 64^3.
+        // The store side counts what the grid's full rebuild counts: visible cubes, and sub-voxels
+        // that are neither broken nor invisible.
+        if (!chunkManager || !renderCoordinator) { response = {{"error", "no world"}}; return true; }
+        const glm::ivec3 a(cmd.params.value("x1", 0), cmd.params.value("y1", 0), cmd.params.value("z1", 0));
+        const glm::ivec3 b(cmd.params.value("x2", 0), cmd.params.value("y2", 0), cmd.params.value("z2", 0));
+        const glm::ivec3 lo = glm::min(a, b), hi = glm::max(a, b);
+        const glm::ivec3 ext = hi - lo + 1;
+        if (static_cast<int64_t>(ext.x) * ext.y * ext.z > 64LL * 64 * 64) {
+            response = {{"error", "region larger than 64^3 cubes"}, {"cubes", static_cast<int64_t>(ext.x) * ext.y * ext.z}};
+            return true;
+        }
+        using Bits = std::bitset<729>;
+        auto microIdx = [](const glm::ivec3& sp, const glm::ivec3& mp) {
+            const glm::ivec3 m = sp * 3 + mp;
+            return m.x * 81 + m.y * 9 + m.z;
+        };
+        int cells = 0, absent = 0, unknown = 0, cellMis = 0, subMis = 0, gridMis = 0;
+        json bad = json::array();
+        for (int x = lo.x; x <= hi.x; ++x) for (int y = lo.y; y <= hi.y; ++y) for (int z = lo.z; z <= hi.z; ++z) {
+            const glm::ivec3 wc(x, y, z);
+            Chunk* ch = chunkManager->getChunkAtCoord(ChunkManager::worldToChunkCoord(wc));
+            if (!ch) { ++absent; continue; }
+            ++cells;
+            const glm::ivec3 lp = ChunkManager::worldToLocalCoord(wc);
+            // STORE.
+            Bits store;
+            if (ch->visibleSolidCubeAt(lp)) store.set();
+            else {
+                for (Subcube* sc : ch->getStaticSubcubesAt(lp)) {
+                    if (!sc || sc->isBroken() || !sc->isVisible()) continue;
+                    for (int m = 0; m < 27; ++m)
+                        store.set(microIdx(sc->getLocalPosition(), {m / 9, (m / 3) % 3, m % 3}));
+                }
+                for (int s = 0; s < 27; ++s) {
+                    const glm::ivec3 sp(s / 9, (s / 3) % 3, s % 3);
+                    for (Microcube* mc : ch->getMicrocubesAt(lp, sp))
+                        if (mc && !mc->isBroken() && mc->isVisible())
+                            store.set(microIdx(sp, mc->getMicrocubeLocalPosition()));
+                }
+            }
+            // GRID (the same walk buildLightOccupancy and the cell probe use).
+            const auto& grid = ch->getOccupancyGrid();
+            Bits gridBits;
+            if (grid.isCubeFilled(lp)) {
+                if (!grid.isSubdivided(lp)) gridBits.set();
+                else for (int m = 0; m < 729; ++m) {
+                    const int mx = m / 81, my = (m / 9) % 9, mz = m % 9;
+                    const glm::ivec3 s(mx / 3, my / 3, mz / 3), mm(mx % 3, my % 3, mz % 3);
+                    if (grid.isSubcubeFilled(lp, s) &&
+                        (!grid.isSubcubeSubdivided(lp, s) || grid.isMicrocubeFilled(lp, s, mm)))
+                        gridBits.set(m);
+                }
+            }
+            // POOL.
+            if (!renderCoordinator->lightOccupancyKnownAt(wc * 9)) { ++unknown; continue; }
+            Bits pool;
+            const auto pc = renderCoordinator->lightOccupancyCubeAt(wc);
+            if (pc == Graphics::CubeOccupancy::Solid) pool.set();
+            else if (pc == Graphics::CubeOccupancy::Mixed)
+                for (int m = 0; m < 729; ++m)
+                    if (renderCoordinator->lightOccupancySolidAt(wc * 9 + glm::ivec3(m / 81, (m / 9) % 9, m % 9)))
+                        pool.set(m);
+
+            const bool poolOk = pool == store, gridOk = gridBits == store;
+            if (!gridOk) ++gridMis;
+            if (poolOk && gridOk) continue;
+            if (!poolOk) {
+                ++cellMis;
+                const Bits diff = pool ^ store;
+                for (int s = 0; s < 27; ++s) {
+                    const glm::ivec3 sp(s / 9, (s / 3) % 3, s % 3);
+                    bool any = false;
+                    for (int m = 0; m < 27 && !any; ++m) any = diff.test(microIdx(sp, {m / 9, (m / 3) % 3, m % 3}));
+                    subMis += any;
+                }
+            }
+            if (bad.size() < 20)
+                bad.push_back({{"cell", {x, y, z}}, {"store", store.count()}, {"grid", gridBits.count()},
+                               {"pool", pool.count()}});
+        }
+        response = {{"region", {{"min", {lo.x, lo.y, lo.z}}, {"max", {hi.x, hi.y, hi.z}}}},
+                    {"cells_checked", cells}, {"cells_no_chunk", absent},
+                    {"cells_pool_unknown", unknown},       // not resident in the pool: debris HOLDS there
+                    {"cell_mismatches", cellMis},          // store vs pool, cube cells
+                    {"subcube_mismatches", subMis},        // store vs pool, 1/3 cells
+                    {"grid_mismatches", gridMis},          // store vs physics grid, cube cells
+                    // A loaded chunk not yet in the pool is NOT agreement (debris holds there).
+                    {"agrees", cellMis == 0 && gridMis == 0 && unknown == 0},
+                    {"first_mismatches", bad}};             // micro counts out of 729 per copy
+        return true;
+
     } else if (action == "debug_body_boxes") {
         // Dump every rigid body's collision boxes in WORLD space (the same
         // conservative per-box AABB the character queries use) plus each

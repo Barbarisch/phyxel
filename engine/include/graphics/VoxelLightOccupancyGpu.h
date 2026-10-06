@@ -132,6 +132,11 @@ public:
         return packedPoolCubeOccupancy(m_packed, worldCube);
     }
 
+    /// Tri-state at one micro cell (unknown = no resident chunk / outside the box): what debris sees.
+    OccupancyState stateAtMicro(const glm::ivec3& worldMicro) const {
+        return packedPoolOccupancyState(m_packed, worldMicro);
+    }
+
     /// The M2 visibility march against the last flushed pool — the CPU mirror of the shader's.
     LightVisibility visibility(const glm::vec3& surfaceWorld, const glm::vec3& geomNormal,
                                const glm::vec3& lightWorld) const {

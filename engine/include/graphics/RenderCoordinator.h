@@ -374,6 +374,13 @@ public:
     bool lightOccupancySolidAt(const glm::ivec3& worldMicro) const {
         return m_lightOccupancy && m_lightOccupancy->solidAtMicro(worldMicro);
     }
+    /// For /api/debug/occupancy_diff: residency and cube-level state of the last flushed pool.
+    bool lightOccupancyKnownAt(const glm::ivec3& worldMicro) const {
+        return m_lightOccupancy && m_lightOccupancy->stateAtMicro(worldMicro) != OccupancyState::Unknown;
+    }
+    CubeOccupancy lightOccupancyCubeAt(const glm::ivec3& worldCube) const {
+        return m_lightOccupancy ? m_lightOccupancy->cubeOccupancy(worldCube) : CubeOccupancy::Empty;
+    }
 
     // Render distance management
     void setMaxChunkRenderDistance(float distance);

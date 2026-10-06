@@ -1652,6 +1652,22 @@ void EngineAPIServer::setupRoutes() {
     });
 
     // ====================================================================
+    // POST /api/debug/occupancy_diff {x1,y1,z1,x2,y2,z2} (world cubes, <= 64^3) — store vs
+    // physics grid vs packed pool at micro resolution (DebrisInteractionPlan 1c step 6).
+    // ====================================================================
+    srv.Post("/api/debug/occupancy_diff", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json body = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("occupancy_diff", body, 60000);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
+    // ====================================================================
     // GET /api/debug/chunk_faces?cx=&cy=&cz=[&x1=&y1=&z1=&x2=&y2=&z2=]
     // docs/GlassTransparency.md §7. A chunk's emitted faces expanded to COVERED UNIT FACES at
     // microcube resolution (graphics/FaceCoverage.h — the same decoder the unit tests use), so the

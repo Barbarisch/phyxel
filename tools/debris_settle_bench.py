@@ -317,6 +317,17 @@ def run(api, name, seconds, outdir, frames):
     summ = st["summary"]
     summ.update(scenario=name, setup=desc, site={"x": x, "z": z, "ground_top": GROUND},
                 sim_seconds=seconds)
+    # 1c step 6: the scenario's chunk must agree across store / physics grid / packed pool
+    # (what debris collided with must be what was placed). Judged BEFORE the blast-site restore.
+    x0 = 32 * chunk
+    occ = api.post("/api/debug/occupancy_diff", {"x1": x0, "y1": 0, "z1": 0,
+                                                 "x2": x0 + 31, "y2": 31, "z2": 31})
+    summ["occupancy_diff"] = occ
+    occ_bad = (occ.get("cell_mismatches", 1) + occ.get("grid_mismatches", 1) +
+               occ.get("cells_pool_unknown", 1))
+    if occ_bad:
+        summ["verdict"] = "FAILS(occupancy)"
+        print(f"   occupancy_diff: {json.dumps({k: occ.get(k) for k in ('cell_mismatches', 'grid_mismatches', 'cells_pool_unknown', 'first_mismatches', 'error')})}")
     with open(os.path.join(outdir, f"{name}.json"), "w") as f:
         json.dump(st, f, indent=2)
     api.post("/api/debug/clear_dynamics", {})
@@ -339,10 +350,17 @@ def creep(sl):
     return "-" if not f else f'{f["p90"]:.1f}/{f["max"]:.1f}'
 
 
+def occ_cell(s):
+    o = s.get("occupancy_diff") or {}
+    if "cell_mismatches" not in o:
+        return "ERR"
+    return o["cell_mismatches"] + o["grid_mismatches"] + o["cells_pool_unknown"]
+
+
 def table(results):
     hdr = ["scenario", "bodies", "verdict", "judged from s", "reb/body>win", "max reb", "inj>win mm",
            "t_all s", "forced", "forced creep p90/max mm", "woke", "skipColor", "hc>1s",
-           "hc max mm", "tunnelled"]
+           "hc max mm", "tunnelled", "occ diff"]
     rows = []
     for s in results:
         e, r, sl, so = s["energy"], s["rebounds"], s["sleep"], s["solver"]
@@ -352,7 +370,7 @@ def table(results):
                      fmt(s["time_all_asleep_s"]), f'{sl["forced"]}/{sl["clean"] + sl["forced"]}',
                      creep(sl), sl["woke"], so["max_color_skipped"], so["hardcontact_fires_after_window"],
                      fmt(so["hardcontact_max_depth_m"] * 1000, 1),
-                     s["tunnelled"]["max_bodies_below_floor"]])
+                     s["tunnelled"]["max_bodies_below_floor"], occ_cell(s)])
     w = [max(len(str(x)) for x in col) for col in zip(hdr, *rows)]
     line = lambda r: "  ".join(str(c).ljust(n) for c, n in zip(r, w))
     print("\n" + line(hdr))
