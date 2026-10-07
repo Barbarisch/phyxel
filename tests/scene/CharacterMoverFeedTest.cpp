@@ -133,3 +133,32 @@ TEST(CharacterMoverFeed, ATickDeferredByUpdateLodIsExtrapolatedAlongLimbVelocity
         EXPECT_LT(glm::length(after[i].center - (before[i].center + before[i].velocity * kDt)), 1e-4f)
             << "limb " << i << ": the deferred pose is the last one moved along its velocity";
 }
+
+// Phase 6a: debris push-back on a character. A 150 N*s shove on the 75 kg reference body is 2 m/s,
+// decaying at DEBRIS_PUSH_DECAY (6/s): an idle character drifts 2/6 * (1 - e^-3) = 0.317 m in 0.5 s,
+// horizontally only. Per-call and total speeds are clamped (a debris spike must not launch anyone).
+TEST(CharacterMoverFeed, DebrisPushDriftsTheCharacterByTheImpulseAndDecays) {
+    FloorWorld w;
+    LodGuard lod;
+    AnimatedVoxelCharacter::setLODEnabled(false);
+    AnimatedVoxelCharacter ch(w.physics.get(), glm::vec3(16, 16.05f, 16));
+    if (!ch.loadModel(kHumanoid)) GTEST_SKIP() << "repo-root CWD required for the rig";
+    ch.setChunkManager(&w.cm);
+    for (int i = 0; i < 30; ++i) ch.update(kDt);   // settle onto the floor, idle
+    const glm::vec3 p0 = ch.getPosition();
+
+    ch.applyDebrisPush(glm::vec3(150.0f, 900.0f, 0.0f));   // +x shove; the vertical part is ignored
+    EXPECT_NEAR(ch.debrisPushVelocity().x, 2.0f, 1e-4f);
+    EXPECT_FLOAT_EQ(ch.debrisPushVelocity().y, 0.0f);
+    for (int i = 0; i < 30; ++i) ch.update(kDt);           // 0.5 s
+    const glm::vec3 p1 = ch.getPosition();
+    EXPECT_NEAR(p1.x - p0.x, 2.0f / 6.0f * (1.0f - std::exp(-3.0f)), 0.04f) << "drift = integral of the decaying push";
+    EXPECT_NEAR(p1.z, p0.z, 0.02f);
+    EXPECT_NEAR(p1.y, p0.y, 0.05f) << "a grounded character is not lifted";
+    EXPECT_LT(glm::length(ch.debrisPushVelocity()), 2.0f * std::exp(-3.0f) + 0.01f) << "decayed";
+
+    ch.applyDebrisPush(glm::vec3(0.0f, 0.0f, 1.0e6f));     // a spike
+    EXPECT_LE(glm::length(ch.debrisPushVelocity()), AnimatedVoxelCharacter::DEBRIS_PUSH_MAX_DV + 0.11f);
+    for (int k = 0; k < 5; ++k) ch.applyDebrisPush(glm::vec3(0.0f, 0.0f, 1.0e6f));
+    EXPECT_LE(glm::length(ch.debrisPushVelocity()), AnimatedVoxelCharacter::DEBRIS_PUSH_MAX_SPEED + 1e-4f);
+}

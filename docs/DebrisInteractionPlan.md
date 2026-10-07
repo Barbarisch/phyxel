@@ -1472,6 +1472,66 @@ Test plan:
     too tight for the GPU's run-to-run nondeterminism; 6c is not the cause.** Widening the band
     is the user's call (it sits alongside the open box_through_pile band question).
 
+### 6a — DONE 2026-10-07: debris pushes back on characters (resistance + knockback)
+
+- **GPU side:**
+  - `solver_warmstart_save.comp` sums each mover contact's force on its kinematic body into a
+    per-slot `ivec4` buffer (x, y, z in 1 mN fixed point `MOVER_PUSH_SCALE`, plus a contact count).
+  - The buffer is zeroed and the owner snapshot taken at the frame's first tick.
+  - It is read in `consumeEventSlot` two frames late, as impulse = force × `FIXED_DT`.
+  - `MoverBox::owner` tags each limb box with its character, and
+    `GpuParticlePhysics::takeMoverImpulses()` returns owner → N·s.
+- **The impulse measure (two live defects found on the way, both fixed):**
+  1. **The raw λ over-read the momentum ~200×.** Mover contacts start at ×100 cold penalty, so ONE
+     frame of an NPC walking into a pile reported 2485 N·s.
+     - **Fix:** each contact's per-tick impulse is capped at what its debris body can absorb:
+       `j ≤ m_debris·(closing + |g|·dt)` (`solver_shared.h`, `SOLVER_TICK_DT` static_asserted to
+       `FIXED_DT`).
+  2. **Impacts read ~0.** A thrown piece's contact λ relaxes to 0 by the end of the solve, so the
+     knock probe read 0 / 5.9 / 1.0 N·s and moved the NPC 1.3 cm.
+     - **Fix:** the per-contact impulse is the larger of λ·dt and the body's momentum change along
+       n this tick, still under the cap. The `λ < 0` gate that kept blocking it is removed.
+     - **After the fix:** 744–779 N·s read per throw. The bound for 18 Stone pieces at 8 m/s is
+       864 N·s.
+- **CPU side:**
+  - `DebrisRuntime::beginFrame` takes the impulses. `feedCharacters` applies them only to
+    characters still in the fed list (`dropped_not_live` counts the rest), through
+    `AnimatedVoxelCharacter::applyDebrisPush`.
+  - **`applyDebrisPush`:**
+    - horizontal only;
+    - 75 kg body;
+    - ≤ 3 m/s per call, ≤ 4 m/s total;
+    - decays at 6/s;
+    - added inside `resolveKinematicMovement`, so walls still stop it; removed on any axis the
+      resolve blocked.
+  - Unit test: `CharacterMoverFeedTest.DebrisPushDriftsTheCharacterByTheImpulseAndDecays`
+    (150 N·s → 2 m/s, drift 0.317 m ± 0.04, clamps hold).
+- **API:**
+  - `debris_events` accepts `{"push_back": bool}`, default ON, the control switch.
+  - It echoes `push_back{enabled, applied, read_owners, read_impulse_total, dropped_not_live,
+    last_owners, last_max_impulse, max_impulse}`.
+- **L3/L4 (`pushback_6a`, DebrisLab editor, Debug):** predictions written first.
+
+  | Case | Prediction | Result |
+  |---|---|---|
+  | Walk at 2 m/s through a settled 4×2×4 Stone pile, push-back ON | speed in the pile ≤ 0.85 × outside | **0.42** (0.85 vs 2.00 m/s) |
+  | Same, OFF (control) | ≥ 0.95 | **1.00** |
+  | 3×2×3 block of ⅓ Stone thrown at 8 m/s at an idle NPC, ON | shoved ≥ 3 cm | **72 cm** (probe repeats: 85 / 91 / 85 cm) |
+  | Same, OFF (control) | < 1 cm | **0.0 cm** |
+
+  - Red, before the measure fix: walk 0.92 with the raw cap only, and knock 1.3 cm.
+- **Open: the cap is per CONTACT, not per debris body.**
+  - A body touching several limb boxes, or touching one at several points, is counted once per
+    contact. The walk's largest single read was 497 N·s.
+  - The character clamps (3 m/s per call, 4 m/s total) bound what that does on screen.
+  - The 0.42 walk ratio is therefore an upper estimate of how strong the resistance is.
+  - A per-(body, owner) dedupe is the fix if resistance reads too strong in play.
+- **Bench `6a_pushback`:** drop_pile 8 forced (≤ 20), blast 2 (≤ 6), box_through_pile 12 / 5 / 4
+  over three runs (≤ 12). packed / crater / crater_subcube / drop_layer are clean. The pass only
+  adds a read and a separate output buffer; the solver state is unchanged.
+- **Not done:** the player character is fed like any AnimatedVoxelCharacter but was not exercised
+  separately; NPCs were the rig.
+
 ---
 
 ## §API (`/api/debug/*` convention: an omitted field means unchanged; responses echo the resulting state; clamps at entry with the reason in code)

@@ -9,6 +9,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include <vector>
 #include <map>
+#include <unordered_map>
 #include <string>
 #include <cstdint>
 #include <functional>
@@ -158,6 +159,7 @@ public:
         glm::vec3 halfExtents{0.0f};
         glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
         glm::vec3 velocity{0.0f};
+        uint32_t  owner = 0;   // Phase 6a: whose push-back this box's contacts feed (0 = nobody)
     };
     void setMoverBoxes(std::vector<MoverBox> movers);
     uint32_t moverCount() const { return static_cast<uint32_t>(m_movers.size()); }
@@ -193,6 +195,11 @@ public:
         uint32_t    serial = 0;          // slotSerial(slot) when the event was READ
     };
     std::vector<DebrisEvent> takeEvents() { std::vector<DebrisEvent> out; out.swap(m_events); return out; }
+    /** Phase 6a: per owner tag, the impulse (N*s) debris contacts put on its mover boxes, summed
+     *  over the frames read back since the last call (two frames late). Normal force only. */
+    std::unordered_map<uint32_t, glm::vec3> takeMoverImpulses() {
+        std::unordered_map<uint32_t, glm::vec3> out; out.swap(m_moverImpulses); return out;
+    }
     uint64_t eventsTotal()   const { return m_eventsTotal; }
     uint64_t eventsDropped() const { return m_eventsDropped; }
     /** Bumped every time `slot` is spawned into (0 = never used). */
@@ -390,6 +397,14 @@ private:
     void*            m_eventMapped[OCC_FRAME_SLOTS] = {};
     bool             m_eventsWritten[OCC_FRAME_SLOTS] = {};   // ticks ran into this slot; read after its fence
     std::vector<DebrisEvent> m_events;
+    // Phase 6a push-back readback: per frame slot, with the owner tag of every kinematic body as
+    // staged for that slot (the order changes every frame).
+    VkBuffer         m_pushBuffer[OCC_FRAME_SLOTS] = {};
+    VkDeviceMemory   m_pushMem[OCC_FRAME_SLOTS]    = {};
+    void*            m_pushMapped[OCC_FRAME_SLOTS] = {};
+    std::vector<uint32_t> m_pushOwners[OCC_FRAME_SLOTS];
+    std::vector<uint32_t> m_kinematicOwnerStage;    // parallel to m_kinematicStage
+    std::unordered_map<uint32_t, glm::vec3> m_moverImpulses;
     uint64_t         m_eventsTotal = 0, m_eventsDropped = 0;
     std::vector<uint32_t> m_slotSerial;
     void consumeEventSlot(uint32_t slot);
@@ -546,6 +561,7 @@ private:
     // Fixed-timestep accumulator: physics runs at exactly FIXED_DT intervals
     // regardless of render frame rate. Prevents speed-up at high FPS.
     static constexpr float FIXED_DT = 1.0f / 60.0f;
+    static_assert(FIXED_DT == DebrisShared::SOLVER_TICK_DT, "the shaders' tick length (6a push cap) must match");
     float    m_timeAccumulator = 0.0f;  // accumulated real time awaiting physics steps
     uint32_t m_physicsTicks    = 0;     // number of physics steps to run this frame
     float    m_lastRealDt      = 0.0f;  // real elapsed time for lifetime drain

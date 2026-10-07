@@ -362,6 +362,13 @@ void registerDebrisCommands(Core::CommandRegistry& reg, std::function<DebrisApiC
              {"sounds_impact", st.soundsImpact}, {"sounds_settle", st.soundsSettle},
              {"gpu_events_total", gpu->eventsTotal()}, {"gpu_events_dropped", gpu->eventsDropped()},
              {"settled", c.debris->settledCount()}};
+        // Phase 6a push-back ({"push_back": bool} toggles it: the control for the walk test).
+        if (cmd.params.contains("push_back")) c.debris->setPushBack(cmd.params.value("push_back", true));
+        const auto& ps = c.debris->pushStats();
+        r["push_back"] = {{"enabled", c.debris->pushBack()}, {"applied", ps.applied},
+                          {"last_owners", ps.lastOwners}, {"last_max_impulse", ps.lastMaxImpulse},
+                          {"max_impulse", ps.maxImpulse}, {"read_owners", ps.readOwners},
+                          {"read_impulse_total", ps.readImpulseTotal}, {"dropped_not_live", ps.droppedNotLive}};
         // Phase 6c water tiles (the water directory covers the occupancy window's XZ).
         const auto& ws = c.debris->waterStats();
         r["water"] = {{"ready", ws.ready}, {"tiles_uploaded", ws.tilesUploaded}, {"tiles_cached", ws.tilesCached},

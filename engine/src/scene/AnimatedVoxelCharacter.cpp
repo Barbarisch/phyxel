@@ -83,7 +83,34 @@ static constexpr float kControllerHeadClearance = 0.05f;
         return m_chunkManager->getChunkAtCoord(cc + glm::ivec3(0, -1, 0)) == nullptr;
     }
 
+    void AnimatedVoxelCharacter::applyDebrisPush(const glm::vec3& impulse) {
+        glm::vec2 dv(impulse.x, impulse.z);
+        dv /= DEBRIS_PUSH_MASS;
+        const float l = glm::length(dv);
+        if (!std::isfinite(l)) return;
+        if (l > DEBRIS_PUSH_MAX_DV) dv *= DEBRIS_PUSH_MAX_DV / l;
+        m_pushVel += dv;
+        const float s = glm::length(m_pushVel);
+        if (s > DEBRIS_PUSH_MAX_SPEED) m_pushVel *= DEBRIS_PUSH_MAX_SPEED / s;
+    }
+
+    // Phase 6a: the debris push rides on the character's own horizontal velocity for this resolve
+    // (so terrain and bodies still block it), then is taken back out - except on an axis the
+    // resolve changed (a wall zeroed it), which keeps the resolved value. The push then decays.
     void AnimatedVoxelCharacter::resolveKinematicMovement(float dt) {
+        const bool pushing = (m_pushVel.x != 0.0f || m_pushVel.y != 0.0f) && !m_kinFrozen;
+        if (!pushing) { resolveKinematicMovementImpl(dt); return; }
+        m_kinVelocity.x += m_pushVel.x;
+        m_kinVelocity.z += m_pushVel.y;
+        const float vx = m_kinVelocity.x, vz = m_kinVelocity.z;
+        resolveKinematicMovementImpl(dt);
+        if (m_kinVelocity.x == vx) m_kinVelocity.x -= m_pushVel.x;
+        if (m_kinVelocity.z == vz) m_kinVelocity.z -= m_pushVel.y;
+        m_pushVel *= std::exp(-DEBRIS_PUSH_DECAY * std::max(dt, 0.0f));
+        if (glm::length(m_pushVel) < 1e-3f) m_pushVel = glm::vec2(0.0f);
+    }
+
+    void AnimatedVoxelCharacter::resolveKinematicMovementImpl(float dt) {
         if (m_kinFrozen) return;  // anim editor: position is set externally
         // A long frame is integrated as several short ones. The axis-separated resolve
         // only tests the END of each step, so a step longer than the body (a 7 s frame
@@ -95,7 +122,7 @@ static constexpr float kControllerHeadClearance = 0.05f;
         if (dt > kMaxKinStep * 1.001f) {
             const int n = static_cast<int>(std::ceil(dt / kMaxKinStep));
             const float sub = dt / static_cast<float>(n);
-            for (int i = 0; i < n; ++i) resolveKinematicMovement(sub);
+            for (int i = 0; i < n; ++i) resolveKinematicMovementImpl(sub);
             return;
         }
         auto* voxelWorld = physicsWorld ? physicsWorld->getVoxelWorld() : nullptr;

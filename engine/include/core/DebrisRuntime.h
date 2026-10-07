@@ -165,6 +165,16 @@ public:
                                   const std::vector<uint32_t>& cells, bool implicitSea, float seaLevel,
                                   glm::vec2* flow = nullptr);
 
+    // ---- Phase 6a: debris pushes back on characters -----------------------------------------------
+    // The contacts' force on a character's limb boxes (read back two frames late) is applied to that
+    // character (AnimatedVoxelCharacter::applyDebrisPush) the next time it is fed - only if it is
+    // still in the fed list, so a character removed meanwhile is never touched. On by default.
+    void setPushBack(bool on) { m_pushBack = on; }
+    bool pushBack() const { return m_pushBack; }
+    struct PushStats { uint64_t applied = 0; float lastMaxImpulse = 0.0f; float maxImpulse = 0.0f; int lastOwners = 0;
+                       uint64_t readOwners = 0; double readImpulseTotal = 0.0; uint64_t droppedNotLive = 0; };
+    const PushStats& pushStats() const { return m_pushStats; }
+
     struct EventStats { uint64_t sleep = 0, wake = 0, impact = 0, soundsImpact = 0, soundsSettle = 0; };
     const EventStats& eventStats() const { return m_stats; }
     /// The last few hundred events (newest last) for the API / tests.
@@ -186,6 +196,12 @@ private:
     std::map<std::string, float> m_gatherRemainder;
     EventStats m_stats;
     std::deque<GpuParticlePhysics::DebrisEvent> m_recent;
+    // Phase 6a
+    bool m_pushBack = true;
+    PushStats m_pushStats;
+    std::unordered_map<const Scene::AnimatedVoxelCharacter*, uint32_t> m_ownerIds;
+    uint32_t m_nextOwnerId = 1;
+    std::unordered_map<uint32_t, glm::vec3> m_pendingPush;   // owner id -> impulse (N*s)
     // Phase 6c
     void updateWater();
     struct CachedWaterTile { bool background = true; std::vector<uint32_t> cells; uint64_t builtFrame = 0; };

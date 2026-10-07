@@ -246,6 +246,12 @@ bool GpuParticlePhysics::createBuffers(Vulkan::VulkanDevice* dev) {
         std::memset(m_waterDirMapped[slot], 0xFF, static_cast<size_t>(dirBytes));   // all WATER_TILE_NONE
     }
 
+    // 6f. Mover push-back accumulator (host-coherent, one per frame slot), Phase 6a
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
+        if (!createHostBuffer(static_cast<VkDeviceSize>(DebrisShared::MAX_KINEMATIC) * 4u * sizeof(int32_t),
+                              m_pushBuffer[slot], m_pushMem[slot], m_pushMapped[slot], "mover push-back"))
+            return false;
+
     // 6d. Debris event readback (host-coherent SSBO, persistent map, one per frame slot), Phase 6
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
         const VkDeviceSize evSize = static_cast<VkDeviceSize>(DebrisShared::EVENT_HEADER_UINTS) * 4u +
@@ -743,10 +749,16 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     m_solverKinematicSyncPass.updateDescriptors();
 
     // solver_warmstart_save: constraints(ro), warmstarts(rw), state(rw)
-    if (!m_solverWarmstartSavePass.create(m_device, shader("solver_warmstart_save.comp.spv"), 3, sizeof(ConstraintsPC))) return false;
+    // + binding 3: this frame slot's mover push-back accumulator (Phase 6a).
+    if (!m_solverWarmstartSavePass.create(m_device, shader("solver_warmstart_save.comp.spv"), 5, sizeof(ConstraintsPC),
+                                          OCC_FRAME_SLOTS)) return false;
     m_solverWarmstartSavePass.bindBuffer(0, m_constraintBuffer,  constrSize);
     m_solverWarmstartSavePass.bindBuffer(1, m_warmstartBuffer,   warmstartSize);
     m_solverWarmstartSavePass.bindBuffer(2, m_solverStateBuffer, stateSize);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
+        m_solverWarmstartSavePass.bindBufferInSet(slot, 3, m_pushBuffer[slot],
+            static_cast<VkDeviceSize>(MAX_KINEMATIC) * 4u * sizeof(int32_t));
+    m_solverWarmstartSavePass.bindBuffer(4, m_solverBodyBuffer, bodySize);   // 6a push cap: masses, velocities
     m_solverWarmstartSavePass.updateDescriptors();
 
     // solver_hardcontact: bodies(rw), occupancy(ro)
@@ -1096,7 +1108,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     // Must run AFTER the dual+primal converge so that the persisted values are post-solve.
     {
         ConstraintsPC pc{ MAX_CONSTRAINTS };
-        m_solverWarmstartSavePass.bind(cmd);
+        m_solverWarmstartSavePass.bind(cmd, m_frameSlot);
         m_solverWarmstartSavePass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverWarmstartSavePass.dispatch(cmd, maxConstrGrps);
     }
@@ -1424,6 +1436,13 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
     if (m_physicsTicks > 0 && m_eventBuffer[m_frameSlot] != VK_NULL_HANDLE) {
         // Phase 6: this frame's ticks append to this slot's event buffer from count 0.
         vkCmdFillBuffer(cmd, m_eventBuffer[m_frameSlot], 0, DebrisShared::EVENT_HEADER_UINTS * 4u, 0u);
+        if (m_pushBuffer[m_frameSlot] != VK_NULL_HANDLE) {
+            vkCmdFillBuffer(cmd, m_pushBuffer[m_frameSlot], 0, VK_WHOLE_SIZE, 0u);   // Phase 6a
+            insertBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                          VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                          m_pushBuffer[m_frameSlot]);
+            m_pushOwners[m_frameSlot] = m_kinematicOwnerStage;   // whose box is which, THIS frame
+        }
         insertBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                       VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
                       m_eventBuffer[m_frameSlot]);
@@ -1438,6 +1457,9 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
     if (m_physicsTicks > 0 && m_eventBuffer[m_frameSlot] != VK_NULL_HANDLE)
         insertBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
                       VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT, m_eventBuffer[m_frameSlot]);
+    if (m_physicsTicks > 0 && m_pushBuffer[m_frameSlot] != VK_NULL_HANDLE)
+        insertBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+                      VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT, m_pushBuffer[m_frameSlot]);
 
     // ---- 4. Reset instanceCount in indirect draw buffer ----
     // Always expand for rendering (even if 0 physics ticks — new spawns need faces)
@@ -1506,6 +1528,17 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
 void GpuParticlePhysics::consumeEventSlot(uint32_t slot) {
     if (slot >= OCC_FRAME_SLOTS || !m_eventsWritten[slot] || !m_eventMapped[slot]) return;
     m_eventsWritten[slot] = false;
+    // Phase 6a: mover push-back (same slot, same fence). Force sums over the frame's ticks x the
+    // tick length = the impulse the debris put on each owner's boxes.
+    if (m_pushMapped[slot]) {
+        const auto* fp = static_cast<const int32_t*>(m_pushMapped[slot]);
+        const auto& owners = m_pushOwners[slot];
+        for (size_t k = 0; k < owners.size() && k < DebrisShared::MAX_KINEMATIC; ++k) {
+            if (owners[k] == 0 || fp[k * 4 + 3] == 0) continue;
+            const glm::vec3 f(fp[k * 4 + 0], fp[k * 4 + 1], fp[k * 4 + 2]);
+            m_moverImpulses[owners[k]] += f * (FIXED_DT / DebrisShared::MOVER_PUSH_SCALE);
+        }
+    }
     const auto* words = static_cast<const uint32_t*>(m_eventMapped[slot]);
     const uint32_t count  = words[0];
     const uint32_t stored = std::min(count, DebrisShared::MAX_DEBRIS_EVENTS);
@@ -1549,7 +1582,7 @@ bool GpuParticlePhysics::createHostBuffer(VkDeviceSize size, VkBuffer& buf, VkDe
     VkBufferCreateInfo bi{};
     bi.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bi.size        = size;
-    bi.usage       = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    bi.usage       = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;   // fill-cleared (6a)
     bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     VkMemoryRequirements req{};
     uint32_t memType = UINT32_MAX;
@@ -1699,9 +1732,11 @@ void GpuParticlePhysics::writeColliderBuffer() {
     // (Phase 2). Staged here, in that priority order, copied into the frame slot's buffer in
     // recordComputeCommands after that slot's fence.
     m_kinematicStage.clear();
+    m_kinematicOwnerStage.clear();
     m_kinematicOverflow = 0;
-    auto put = [&](const glm::vec3& c, const glm::vec3& h, const glm::quat& r, const glm::vec3& v) {
+    auto put = [&](const glm::vec3& c, const glm::vec3& h, const glm::quat& r, const glm::vec3& v, uint32_t owner = 0u) {
         if (m_kinematicStage.size() >= DebrisShared::MAX_KINEMATIC) { ++m_kinematicOverflow; return; }
+        m_kinematicOwnerStage.push_back(owner);
         DebrisShared::KinematicBoxGpu kb{};
         kb.center   = { c.x, c.y, c.z, 0.0f };
         kb.halfExt  = { h.x, h.y, h.z, 0.0f };
@@ -1712,7 +1747,7 @@ void GpuParticlePhysics::writeColliderBuffer() {
     // Scripted boxes first: they are test instruments and must never be the overflow.
     for (const auto& [id, b] : m_kinematicBoxesFrameStart)
         put(b.center, b.half, glm::quat(1.0f, 0.0f, 0.0f, 0.0f), b.velocity);
-    for (const auto& m : m_movers) put(m.center, m.halfExtents, m.rotation, m.velocity);
+    for (const auto& m : m_movers) put(m.center, m.halfExtents, m.rotation, m.velocity, m.owner);
     for (const auto& m : m_objectMovers) put(m.center, m.halfExtents, m.rotation, m.velocity);
     for (const auto& m : m_bodyMovers) put(m.center, m.halfExtents, m.rotation, m.velocity);
     m_kinematicCount = static_cast<uint32_t>(m_kinematicStage.size());
@@ -1956,6 +1991,8 @@ void GpuParticlePhysics::cleanup() {
         if (m_impulseMapped[slot]) { vkUnmapMemory(m_device, m_impulseMem[slot]); m_impulseMapped[slot] = nullptr; }
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
         if (m_eventMapped[slot]) { vkUnmapMemory(m_device, m_eventMem[slot]); m_eventMapped[slot] = nullptr; }
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
+        if (m_pushMapped[slot]) { vkUnmapMemory(m_device, m_pushMem[slot]); m_pushMapped[slot] = nullptr; }
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
         if (m_waterDirMapped[slot])  { vkUnmapMemory(m_device, m_waterDirMem[slot]);  m_waterDirMapped[slot]  = nullptr; }
         if (m_waterTileMapped[slot]) { vkUnmapMemory(m_device, m_waterTileMem[slot]); m_waterTileMapped[slot] = nullptr; }
@@ -1970,6 +2007,7 @@ void GpuParticlePhysics::cleanup() {
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_kinematicBoxBuffer[slot], m_kinematicBoxMem[slot]);
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_impulseBuffer[slot], m_impulseMem[slot]);
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_eventBuffer[slot], m_eventMem[slot]);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_pushBuffer[slot], m_pushMem[slot]);
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
         destroyBuf(m_waterDirBuffer[slot],  m_waterDirMem[slot]);
         destroyBuf(m_waterTileBuffer[slot], m_waterTileMem[slot]);

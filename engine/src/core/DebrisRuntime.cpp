@@ -99,6 +99,13 @@ void DebrisRuntime::beginFrame(float dt) {
     m_gpu->update(dt);
     pumpEvents();
     updateWater();
+    // Phase 6a: the push-back read back this frame waits for the next feedCharacters (which has
+    // the live character list to apply it to).
+    for (const auto& [owner, j] : m_gpu->takeMoverImpulses()) {
+        m_pendingPush[owner] += j;
+        ++m_pushStats.readOwners;
+        m_pushStats.readImpulseTotal += glm::length(j);
+    }
 }
 
 bool DebrisRuntime::buildWaterTile(int chunkX, int chunkZ, const WaterColumnFn& column, bool implicitSea,
@@ -342,11 +349,44 @@ void DebrisRuntime::feedCharacters(const std::vector<Scene::AnimatedVoxelCharact
         movers.push_back({glm::dot(d, d), c});
     }
     std::sort(movers.begin(), movers.end(), [](const auto& x, const auto& y) { return x.first < y.first; });
+
+    // Phase 6a: apply the push-back read back since the last feed - to LIVE characters only (this
+    // list); an owner that is no longer fed is dropped with its push.
+    m_pushStats.lastOwners = 0;
+    m_pushStats.lastMaxImpulse = 0.0f;
+    std::unordered_map<const Scene::AnimatedVoxelCharacter*, uint32_t> liveIds;
+    for (auto& [d2, c] : movers) {
+        auto it = m_ownerIds.find(c);
+        const uint32_t id = (it != m_ownerIds.end()) ? it->second : m_nextOwnerId++;
+        liveIds[c] = id;
+        if (!m_pushBack) continue;
+        auto p = m_pendingPush.find(id);
+        if (p == m_pendingPush.end()) continue;
+        const float mag = glm::length(glm::vec2(p->second.x, p->second.z));
+        if (mag > 1e-4f) {
+            c->applyDebrisPush(p->second);
+            ++m_pushStats.applied;
+            ++m_pushStats.lastOwners;
+            m_pushStats.lastMaxImpulse = std::max(m_pushStats.lastMaxImpulse, mag);
+            m_pushStats.maxImpulse     = std::max(m_pushStats.maxImpulse, mag);
+        }
+    }
+    for (const auto& [id, j] : m_pendingPush) {
+        bool live = false;
+        for (const auto& [c, lid] : liveIds) if (lid == id) { live = true; break; }
+        if (!live) ++m_pushStats.droppedNotLive;
+    }
+    m_pendingPush.clear();
+    m_ownerIds.swap(liveIds);   // forget characters no longer fed (their ids are never reused)
+
     std::vector<Scene::AnimatedVoxelCharacter::MoverBox> limbs;
-    for (auto& [d2, c] : movers) c->collectMoverBoxes(limbs);
     std::vector<GpuParticlePhysics::MoverBox> boxes;
-    boxes.reserve(limbs.size());
-    for (const auto& l : limbs) boxes.push_back({l.center, l.halfExtents, l.rotation, l.velocity});
+    for (auto& [d2, c] : movers) {
+        limbs.clear();
+        c->collectMoverBoxes(limbs);
+        const uint32_t owner = m_ownerIds[c];
+        for (const auto& l : limbs) boxes.push_back({l.center, l.halfExtents, l.rotation, l.velocity, owner});
+    }
     m_gpu->setMoverBoxes(std::move(boxes));
 }
 

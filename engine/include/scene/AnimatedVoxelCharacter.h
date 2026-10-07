@@ -183,6 +183,21 @@ namespace Scene {
         /// whose limbs were never posed, appends nothing. Returns whether anything was appended.
         bool collectMoverBoxes(std::vector<MoverBox>& out);
 
+        // ---- Phase 6a: debris pushes back --------------------------------------------------------
+        /// The impulse (N*s) debris contacts put on this character's limbs (read back two frames
+        /// late). Horizontal only: a grounded character is not lifted or driven into the floor.
+        /// Becomes a push velocity dv = J / DEBRIS_PUSH_MASS (per call |dv| <= DEBRIS_PUSH_MAX_DV,
+        /// total <= DEBRIS_PUSH_MAX_SPEED) that rides on the character's own movement - through the
+        /// same collision-checked resolve - and decays like ground friction (DEBRIS_PUSH_DECAY).
+        /// Walking into a pile: the contacts oppose the walk, so the net speed drops (resistance);
+        /// a fast piece: a short shove (knockback).
+        void applyDebrisPush(const glm::vec3& impulse);
+        glm::vec2 debrisPushVelocity() const { return m_pushVel; }
+        static constexpr float DEBRIS_PUSH_MASS      = 75.0f;   // kg - an average adult
+        static constexpr float DEBRIS_PUSH_MAX_DV    = 3.0f;    // m/s per frame (a debris spike must not launch you)
+        static constexpr float DEBRIS_PUSH_MAX_SPEED = 4.0f;    // m/s
+        static constexpr float DEBRIS_PUSH_DECAY     = 6.0f;    // 1/s (feet on the ground)
+
         // Test-only introspection: force foot-IK bone resolution and expose the
         // resolved ids. The golden regression (CharacterGoldenPoseTest) pins these
         // to the legacy mixamorig:* lookups so the body-plan refactor cannot
@@ -1308,6 +1323,8 @@ namespace Scene {
         void rebuildCompoundShape();       // no-op: compound was for Bullet terrain, replaced by occupancy grid
         void updateCompoundTransforms();   // no-op
         void resolveKinematicMovement(float dt);
+        void resolveKinematicMovementImpl(float dt);
+        glm::vec2 m_pushVel{0.0f};   // Phase 6a debris push velocity (x, z)
         bool kinematicResidencyHold() const;  // streaming world + unstreamed ground below
                                               // -> hold in place instead of free-falling
         void updateStateMachine(float deltaTime);

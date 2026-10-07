@@ -100,6 +100,22 @@ PHX_FN int phxWaterCellIndex(int x, int z) {
     return lz * WATER_TILE_CELLS + lx;
 }
 
+// ---- Mover push-back (Phase 6a): debris pushes on the movers that push it ----------------------
+// solver_warmstart_save adds each final debris-vs-mover contact's NORMAL force on the mover
+// (lambdaN * n, newtons; n points mover -> debris, lambdaN <= 0) into that mover's slot, as fixed
+// point, summed over the frame's ticks: ivec4 {fx, fy, fz, contacts} per kinematic body. The host
+// multiplies by the tick length for the impulse. Friction rows are not included (normal only).
+PHX_CONST float MOVER_PUSH_SCALE = 1000.0f;   // fixed point: 1 unit = 1 mN
+PHX_CONST float SOLVER_TICK_DT   = 1.0f / 60.0f;   // == GpuParticlePhysics::FIXED_DT (static_asserted there)
+PHX_CONST float SOLVER_GRAVITY_ABS = 9.81f;       // |g| for the support term of the push cap
+// The contact force lambda over-reads the momentum a debris piece actually exchanges with a mover
+// (mover contacts start at x100 cold penalty): measured live, ONE frame of an NPC walking into a
+// pile reported 2485 N*s, ~200x what the pile could take. Each contact's per-tick impulse is
+// capped at the most its debris body can absorb - stopping dead against the mover:
+//   j <= m_debris * (closing speed along n + |g| * dt)
+// and taken as the larger of lambda*dt (a sustained push) and the debris' momentum change along n
+// over the tick (an impact, whose final lambda has already relaxed to 0).
+
 // ---- Debris events (Phase 6): the small production GPU->CPU readback ---------------------------
 // The solver APPENDS events to a per-frame-slot host-visible buffer: [0] = event count (atomic,
 // may exceed the cap - the excess is the dropped count), [1..3] pad, then MAX_DEBRIS_EVENTS

@@ -17,6 +17,9 @@ layout(local_size_x = WORKGROUP_SOLVER) in;
 layout(std430, set=0, binding=0) readonly buffer ConstraintBuffer { GPUConstraint constraints[]; };
 layout(std430, set=0, binding=1) buffer WarmstartBuffer           { WarmstartEntry warmstarts[]; };
 layout(std430, set=0, binding=2) buffer SolverStateBuffer         { uint solverState[]; };
+// Phase 6a: this frame slot's mover push-back accumulator (MAX_KINEMATIC x ivec4, solver_shared.h).
+layout(std430, set=0, binding=3) buffer MoverPushBuffer           { int moverPush[]; };
+layout(std430, set=0, binding=4) readonly buffer SolverBodyBuffer { SolverBody bodies[]; };
 
 layout(push_constant) uniform PC { PHX_PC_CONSTRAINTS } pc;  // shaders/solver_shared.h
 
@@ -38,6 +41,35 @@ void main() {
     if (ci >= constraintCount || ci >= pc.maxConstraints) return;
 
     GPUConstraint con = constraints[ci];
+
+    // Phase 6a: the final normal force this contact puts on a mover (body B), per tick, capped at
+    // the momentum its debris body (A) can absorb this tick (solver_shared.h MOVER_PUSH_*).
+    // (No lambdaN < 0 gate: an impact's lambda has already relaxed to 0 - the momentum term below
+    // is what sees it.)
+    if (isKinematicBody(con.bodyB) && con.bodyA < KINEMATIC_BASE) {
+        const uint k = con.bodyB - KINEMATIC_BASE;
+        const SolverBody A = bodies[con.bodyA];
+        const SolverBody B = bodies[con.bodyB];
+        const float mA = (A.invMass > 0.0) ? 1.0 / A.invMass : 0.0;    // a sleeper (static) takes none
+        const float closing = max(0.0, dot(B.vel - A.prevVel, con.n));  // n: mover -> debris
+        const float jCap = mA * (closing + SOLVER_GRAVITY_ABS * SOLVER_TICK_DT);
+        // Two measures of the same push, take the larger: the final multiplier (a SUSTAINED
+        // contact - walking into a pile) and the debris' momentum change along n this tick (an
+        // IMPACT - a thrown piece bounces off within the tick's iterations, its constraint
+        // separates and the final lambda relaxes to 0: measured live, 36-65 deep contacts from
+        // a block thrown at an NPC read back as zero push).
+        const vec3  vAfter    = (A.pos - A.initial) / SOLVER_TICK_DT;
+        const float jMomentum = mA * max(0.0, dot(vAfter - A.prevVel, con.n));
+        const float j    = min(max(-con.lambdaN * SOLVER_TICK_DT, jMomentum), jCap);
+        const float fMag = j / SOLVER_TICK_DT;
+        const vec3 f = -con.n * fMag * MOVER_PUSH_SCALE;              // force on the mover
+        if (fMag > 0.0) {
+            atomicAdd(moverPush[k * 4u + 0u], int(clamp(f.x, -2.0e9, 2.0e9)));
+            atomicAdd(moverPush[k * 4u + 1u], int(clamp(f.y, -2.0e9, 2.0e9)));
+            atomicAdd(moverPush[k * 4u + 2u], int(clamp(f.z, -2.0e9, 2.0e9)));
+            atomicAdd(moverPush[k * 4u + 3u], 1);
+        }
+    }
     if (con.wsKey == HASH_EMPTY) return;
 
     uint idx = hashInsert(con.wsKey);
