@@ -12,7 +12,6 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #endif
 #include "Application.h"
 #include "core/PerfCapture.h"
-#include "core/DebrisMoverFeed.h"
 #include <cmath>
 #include <cstdlib>
 #include "graphics/FarTerrainManager.h"
@@ -288,7 +287,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         return "";
     });
     // B key / break_hovered_*: pieces become GPU debris (1d). Lazy: the solver is created below.
-    voxelInteractionSystem->setGpuDebrisProvider([this]() { return gpuParticlePhysics.get(); });
+    voxelInteractionSystem->setGpuDebrisProvider([this]() { return gpuParticlePhysics; });
 
     // STEP 4.5: CREATE ObjectTemplateManager
     objectTemplateManager = std::make_unique<ObjectTemplateManager>(chunkManager);
@@ -388,26 +387,12 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // echoed by /api/debug/gpu_physics, and every refused piece counted
     // (DamageSystem::refusedDebrisTotal). PHYXEL_DISABLE_GPU_DEBRIS=1 / --disable-gpu-debris
     // force this path for tests.
-    const char* gpuDebrisOff = std::getenv("PHYXEL_DISABLE_GPU_DEBRIS");
-    if (gpuDebrisOff && *gpuDebrisOff && std::string(gpuDebrisOff) != "0") {
-        m_gpuDebrisDisabledReason = "disabled by PHYXEL_DISABLE_GPU_DEBRIS";
-    } else {
-        gpuParticlePhysics = std::make_unique<GpuParticlePhysics>();
-    }
-    if (gpuParticlePhysics && gpuParticlePhysics->initialize(vulkanDevice, "")) {
-        // Wire to RenderCoordinator (for compute dispatch + GPU draw)
-        renderCoordinator->setGpuParticlePhysics(gpuParticlePhysics.get());
-        // Wire to ChunkManager (the debris light sampler; static collision comes from the
-        // shared occupancy pool wired through RenderCoordinator above)
-        chunkManager->setGpuParticlePhysics(gpuParticlePhysics.get());
-        LOG_INFO("Application", "GpuParticlePhysics initialized successfully!");
-    } else {
-        if (m_gpuDebrisDisabledReason.empty())
-            m_gpuDebrisDisabledReason = "GpuParticlePhysics::initialize failed";
-        gpuParticlePhysics.reset();
-        LOG_ERROR("Application", "GPU debris DISABLED (" + m_gpuDebrisDisabledReason +
-                  "): breaks, blasts and derez will produce NO debris");
-    }
+    // DebrisRuntime (Phase 5) does exactly this for the editor and shipped games alike: create
+    // unless disabled, wire RenderCoordinator + ChunkManager, ERROR loudly when off.
+    debrisRuntime = std::make_unique<DebrisRuntime>();
+    debrisRuntime->initialize(vulkanDevice, renderCoordinator.get(), chunkManager, physicsWorld);
+    gpuParticlePhysics       = debrisRuntime->gpu();
+    m_gpuDebrisDisabledReason = debrisRuntime->disabledReason();
 
     // STEP 6c: INITIALIZE CPU WATER SIMULATION (cellular automaton over a world region).
     // Solidity is synced from chunks after the world loads (autoLoadGameDefinition).
@@ -1825,7 +1810,7 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     dynamicFurnitureManager->setKinematicVoxelManager(kinematicVoxelManager.get());
     dynamicFurnitureManager->setPhysicsWorld(physicsWorld);
     dynamicFurnitureManager->setChunkManager(chunkManager);
-    dynamicFurnitureManager->setGpuParticlePhysics(gpuParticlePhysics.get());
+    dynamicFurnitureManager->setGpuParticlePhysics(gpuParticlePhysics);
 
     // Initialize Item Prop Manager (holdable items lying in the world)
     itemPropManager = std::make_unique<Core::ItemPropManager>();
@@ -3541,11 +3526,9 @@ void Application::update(float deltaTime) {
     if (gamePaused) return;
 
     // Update GPU particle physics (CPU-side slot tracking + staging upload)
-    if (gpuParticlePhysics) {
-        // Character movers are fed AFTER the NPC/entity updates below (Phase 3a: every animated
-        // character, this frame's pose - the old player-only feed here was one frame stale).
-        gpuParticlePhysics->update(deltaTime);
-    }
+    // Character movers are fed AFTER the NPC/entity updates below (Phase 3a: every animated
+    // character, this frame's pose - the old player-only feed here was one frame stale).
+    if (debrisRuntime) debrisRuntime->beginFrame(deltaTime);
 
     // Update-LOD: tell characters where the viewer is so distant ones can tick
     // at a reduced rate. Set before NPC/entity updates this frame.
@@ -3889,27 +3872,13 @@ void Application::update(float deltaTime) {
         // velocity, fed after all of them updated this frame. A character that skipped its tick
         // (update-LOD) or is derezzing feeds nothing; nearest the camera first, so the
         // MAX_KINEMATIC overflow (counted) drops the farthest.
-        if (gpuParticlePhysics && gpuParticlePhysics->isInitialized()) {
-            std::vector<std::pair<float, Scene::AnimatedVoxelCharacter*>> movers;
-            std::unordered_set<Scene::AnimatedVoxelCharacter*> seen;
-            const glm::vec3 eye = camera ? camera->getPosition() : glm::vec3(0.0f);
-            auto consider = [&](Scene::AnimatedVoxelCharacter* c) {
-                if (!c || !seen.insert(c).second) return;
-                const glm::vec3 d = c->getPosition() - eye;
-                movers.push_back({glm::dot(d, d), c});
-            };
-            consider(animatedCharacter);
-            for (auto& e : entities) consider(dynamic_cast<Scene::AnimatedVoxelCharacter*>(e.get()));
+        if (debrisRuntime && debrisRuntime->enabled()) {
+            std::vector<Scene::AnimatedVoxelCharacter*> chars;
+            chars.push_back(animatedCharacter);
+            for (auto& e : entities) chars.push_back(dynamic_cast<Scene::AnimatedVoxelCharacter*>(e.get()));
             if (npcManager)
-                npcManager->forEachNPC([&](Scene::NPCEntity& npc) { consider(npc.getAnimatedCharacter()); });
-            std::sort(movers.begin(), movers.end(),
-                      [](const auto& x, const auto& y) { return x.first < y.first; });
-            std::vector<Scene::AnimatedVoxelCharacter::MoverBox> limbs;
-            for (auto& [d2, c] : movers) c->collectMoverBoxes(limbs);
-            std::vector<GpuParticlePhysics::MoverBox> boxes;
-            boxes.reserve(limbs.size());
-            for (const auto& l : limbs) boxes.push_back({l.center, l.halfExtents, l.rotation, l.velocity});
-            gpuParticlePhysics->setMoverBoxes(std::move(boxes));
+                npcManager->forEachNPC([&](Scene::NPCEntity& npc) { chars.push_back(npc.getAnimatedCharacter()); });
+            debrisRuntime->feedCharacters(chars, camera ? camera->getPosition() : glm::vec3(0.0f));
         }
 
         // If animated character just finished standing up, release its seat claim
@@ -4269,34 +4238,9 @@ void Application::update(float deltaTime) {
     // from this frame's transform delta. The same boxes become CPU kinematic obstacles (doors now
     // block furniture) and GPU debris movers, staged after the character limbs. Runs after every
     // owner set its transform this frame (held items, doors, animator) and before the CPU step.
-    if (kinematicVoxelManager) {
-        kinematicVoxelManager->syncCollidersToPhysics(deltaTime);
-        if (gpuParticlePhysics && gpuParticlePhysics->isInitialized()) {
-            // Nearest the camera first, trimmed to the slots the limbs left (a settlement has
-            // ~100 doors x 8 boxes): the far ones are dropped, counted and logged once.
-            const auto& km = kinematicVoxelManager->lastMoverBoxes();
-            const glm::vec3 eye = camera ? camera->getPosition() : glm::vec3(0.0f);
-            std::vector<std::pair<float, const Core::KinematicVoxelManager::MoverBox*>> order;
-            order.reserve(km.size());
-            for (const auto& m : km) order.push_back({glm::dot(m.center - eye, m.center - eye), &m});
-            std::sort(order.begin(), order.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
-            const uint32_t budget = gpuParticlePhysics->objectMoverBudget();
-            std::vector<GpuParticlePhysics::MoverBox> boxes;
-            boxes.reserve(std::min<size_t>(order.size(), budget));
-            for (const auto& [d2, m] : order) {
-                if (boxes.size() >= budget) break;
-                boxes.push_back({m->center, m->halfExtents, m->rotation, m->velocity});
-            }
-            static bool loggedObjectSkip = false;
-            if (order.size() > boxes.size() && !loggedObjectSkip) {
-                loggedObjectSkip = true;
-                LOG_WARN("GpuParticlePhysics", "debris movers: {} door/part/held-item boxes past the {}-box budget "
-                         "were not fed (the farthest from the camera); logged once",
-                         order.size() - boxes.size(), DebrisShared::MAX_KINEMATIC);
-            }
-            gpuParticlePhysics->setObjectMoverBoxes(std::move(boxes));
-        }
-    }
+    if (kinematicVoxelManager && debrisRuntime)
+        debrisRuntime->feedKinematicObjects(kinematicVoxelManager.get(), deltaTime,
+                                            camera ? camera->getPosition() : glm::vec3(0.0f));
 
     // Run physics in fixed timesteps — CAPPED per frame. Uncapped, a slow
     // frame demanded proportionally more physics next frame (60fps→1 step,
@@ -4317,23 +4261,7 @@ void Application::update(float deltaTime) {
     // compound boxes with point velocities; sleepers too, as supports. One-way: debris does not
     // push them back (Phase 4). Nearest the camera first, whole bodies only, in the slots the
     // character limbs left; a body that does not fit is counted and logged once.
-    if (gpuParticlePhysics && gpuParticlePhysics->isInitialized()) {
-        auto* vw = physicsWorld ? physicsWorld->getVoxelWorld() : nullptr;
-        if (vw && gpuParticlePhysics->getActiveParticleCount() > 0) {
-            std::vector<GpuParticlePhysics::MoverBox> boxes;
-            const glm::vec3 eye = camera ? camera->getPosition() : glm::vec3(0.0f);
-            const auto fed = DebrisMoverFeed::appendRigidBodies(*vw, eye, gpuParticlePhysics->bodyMoverBudget(), boxes);
-            static bool loggedSkip = false;
-            if (fed.bodiesSkipped > 0 && !loggedSkip) {
-                loggedSkip = true;
-                LOG_WARN("GpuParticlePhysics", "debris movers: {} CPU bodies past the {}-box budget were not fed "
-                         "(debris passes through them); logged once", fed.bodiesSkipped, DebrisShared::MAX_KINEMATIC);
-            }
-            gpuParticlePhysics->setBodyMoverBoxes(std::move(boxes));
-        } else if (gpuParticlePhysics->bodyMoverCount() > 0) {
-            gpuParticlePhysics->setBodyMoverBoxes({});   // no debris to push: free the slots
-        }
-    }
+    if (debrisRuntime) debrisRuntime->feedRigidBodies(camera ? camera->getPosition() : glm::vec3(0.0f));
 
     auto physicsEnd = std::chrono::high_resolution_clock::now();
     if (renderCoordinator) {
@@ -4876,7 +4804,7 @@ void Application::updatePendingSpellHits(float dt) {
     for (auto it = m_pendingSpellHits.begin(); it != m_pendingSpellHits.end();) {
         it->delay -= dt;
         if (it->delay <= 0.0f) {
-            Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
+            Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics);
             // U0: opt into COHERENT collapse so a spell blast at a trunk topples the
             // tree as one rigid body instead of scattering it into voxels (the "fireball
             // exploded the tree" report). Same lazy fragment-manager wiring the
@@ -6091,7 +6019,7 @@ void Application::derezCharacter(float duration) {
 
     if (gpuParticlePhysics && gpuParticlePhysics->isInitialized()) {
         // GPU path: staggered voxel-by-voxel falling apart
-        animatedCharacter->beginDerez(gpuParticlePhysics.get(), duration,
+        animatedCharacter->beginDerez(gpuParticlePhysics, duration,
                                       Scene::DerezPattern::Wave);
     } else {
         // No GPU debris solver: the character is removed without debris (all debris is
@@ -10103,7 +10031,7 @@ bool Application::tryAxeChopOnHitFrame(const Core::ItemDefinition* heldDef, floa
     const float chopPower = heldDef->damage > 0.0f ? heldDef->damage : 4.0f;
     const float kDepthPerChopPoint = 0.06f;   // axe damage 6 → ~0.36 m bite per swing
 
-    Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
+    Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics);
     if (physicsWorld && physicsWorld->getVoxelWorld() && kinematicVoxelManager) {
         coherentFragmentManager.setDeps(physicsWorld->getVoxelWorld(), kinematicVoxelManager.get());
         dmg.setFragmentManager(&coherentFragmentManager);
@@ -14995,7 +14923,7 @@ void Application::registerEffectsCommands() {
             else if (shape == "line") radii = glm::vec3(radius, th,     th);
             // "sphere" (or anything else) leaves radii {0,0,0} -> scalar radius.
         }
-        Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
+        Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics);
         // Coherent collapse: a severed component topples as ONE rigid slab via the
         // persistent CoherentFragmentManager (docs/DestructionSystemV2.md P1.2b). Wire
         // its deps lazily — the voxel world is live by the time damage is applied.
@@ -16371,7 +16299,7 @@ void Application::processAPICommands() {
 
             // Handle debug dynamic spawn commands early (avoids nesting depth limit)
             if (handleDebugDynamicSpawnCommand(cmd, response, chunkManager,
-                    gpuParticlePhysics.get(), m_gpuDebrisDisabledReason)) {
+                    gpuParticlePhysics, m_gpuDebrisDisabledReason)) {
                 if (cmd.onComplete) cmd.onComplete(response);
                 continue;
             }
@@ -16451,7 +16379,7 @@ void Application::processAPICommands() {
                         auto* d = renderCoordinator ? renderCoordinator->getVfxDirector() : nullptr;
                         if (d) d->cast(Phyxel::resolveSpellVfx(spellId, mods), ctx);
                         if (destroy && chunkManager) {
-                            Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics.get());
+                            Phyxel::DamageSystem dmg(chunkManager, gpuParticlePhysics);
                             // U0: coherent collapse so a destructive spell fells a struck tree/
                             // structure as a rigid body instead of scattering it (see the pending-
                             // spell-hits path). Lazy fragment-manager wiring.

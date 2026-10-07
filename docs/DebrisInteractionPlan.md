@@ -1100,6 +1100,83 @@ the mover feed (3) and the impulse hooks (4). The `create_project.py` scaffold a
   `settle_probe`).
 - The demolition makes this much smaller: there is only one debris world to port.
 
+**Design check, 2026-10-07 (`/design-check`), verdict NEEDS WORK → resolved by the user's
+decisions below.**
+
+What exists:
+- `RenderCoordinator` is SHARED engine code: debris compute/draw/shadow and the occupancy upload
+  already run in standalone games. Only `setGpuParticlePhysics` (`RenderCoordinator.cpp:830`) is
+  never called, because no standalone code creates the solver.
+- EDITOR-ONLY (`Application.cpp`):
+  - solver creation and kill switch (391–409), `update` (3544);
+  - the three mover feeds (3892 / 4274 / 4320);
+  - the break provider (`setGpuDebrisProvider`, 291) and 4 ad-hoc `DamageSystem`s;
+  - every debris API handler (`apply_damage`, `gpu_physics`, `settle_probe`, `spawn_gpu_lattice`,
+    `occupancy_diff`, `physics_impulse`).
+- `GameApiService` serves the same routes through its own `CommandRegistry`, which lacks those
+  actions, so the packaged exe answers `unknown action`.
+- Nothing in a standalone game breaks voxels (the scaffold's `applyDamage` is combat HP).
+
+User decisions (2026-10-07):
+1. **Shared `DebrisRuntime`** (engine class): solver creation + kill switch, `update`, the three
+   feeds, the `DamageSystem` entry and impulses. `Application` is refactored onto it and the debris
+   API handlers are registered from ONE place for both the editor and `GameApiService`. This
+   avoids two hand-synced copies.
+2. **Break hook = engine API + scaffold spells**: games call `DebrisRuntime::applyDamage`; the
+   `create_project.py` scaffold's spell/blast impacts call it, so a scaffolded game breaks voxels
+   out of the box.
+3. **On by default**, off via `game.json` `debris.enabled:false` or `--disable-gpu-debris` /
+   `PHYXEL_DISABLE_GPU_DEBRIS`. The default is pinned by a unit test; GPU memory is measured.
+
+Gate answers:
+- **Aesthetic:** no new assets.
+- **Chunks:** the occupancy window and the budget order bound cost; holding bodies next to
+  unloaded chunks is the defined 1c behaviour; `DebrisContactOccupancyTest` still covers seams.
+- **Generation:** none (runtime simulation; the switch lives in `game.json`, not the world recipe).
+- **API:** no new routes; shared handlers.
+
+Test plan:
+- The packaged Release exe with `--test` on a test project whose `default.db` is a one-chunk flat
+  Stone slab (the bench's `--build-lab` needs world fill, which the test API lacks).
+- **Red:** today `apply_damage` → `unknown action`.
+- **Works:** debris > 0 with `debris_refused` 0; the bench scenarios run against the packaged
+  exe stay inside the editor's bands; `occupancy_diff` 0.
+- **Control:** `--disable-gpu-debris` → one ERROR log, `debris_refused` = N, no crash.
+- **Rig vs shipped:** editor Debug vs packaged Release; the bench steps a fixed tick, so per-tick
+  metrics are comparable, but wall-clock ones are not.
+
+Build steps:
+- **5a.** Extract `DebrisRuntime` from `Application` with no behaviour change. Proof: the editor
+  bench stays in band, and the existing mover/impulse L4 scripts give the same results.
+- **5b.** Shared debris API handlers (editor + `GameApiService`).
+- **5c.** Scaffold + `minimal_game` wiring, including `game.json` `debris.enabled`, the spell hook
+  and the pinned default.
+- **5d.** Packaged-binary L4 (red → green + control) and the bench parity run.
+
+**DONE 2026-10-07 — 5a: `DebrisRuntime` (`engine/{include,src}/core/DebrisRuntime.*`).**
+- Moved out of `Application`, unchanged: solver creation + kill switch (now also
+  `Config::enabled`), wiring to `RenderCoordinator` / `ChunkManager`, `beginFrame` (= `update`),
+  and the three feeds (`feedCharacters`, `feedKinematicObjects`, `feedRigidBodies`).
+- `Application` keeps a non-owning `gpuParticlePhysics` alias in the same member slot (teardown
+  order unchanged) and gathers its own character list (player, entities, NPCs) for
+  `feedCharacters`. The "logged once" flags became members instead of function statics.
+- No behaviour change, measured on the rebuilt editor (Debug, DebrisLab):
+  - units: 51/51 (the mover, impulse, debris, damage and VoxelDynamics suites);
+  - `npc_walk`: 26/32 moved, control 0;
+  - `crate_walk`: 14/16 moved, control 0 / red 0;
+  - `impulse_law`: 5.798 / 0.829 m/s, identical to before;
+  - `spell_on_pile`: 32/32 moved;
+  - `door_swing`: swing side 18/18, other side 0/18.
+- **Door overlap varies widely between live runs:**
+  - median 36.8 → 85.2 mm, max 138 → 159 mm; the 85 mm median is above the ≤ 50 mm packed-pile
+    band. The object feed is code-identical before and after 5a, so this is the existing open
+    item, not a regression;
+  - the swing is wall-clock driven at Debug frame rates and GPU movers have no angular velocity.
+    **This makes "angular velocity for GPU movers" a real open item, not a nicety.**
+  - One 5a regression run read 3,016 door contacts / 1,324 contact ticks at median depth 0. It
+    did not reproduce standalone (480 contacts / 54 ticks) and is unexplained; it is suspected to
+    be a leftover from the `crate_walk` script run just before it, whose lane crosses the door.
+
 ## Phase 6 (optional, separate design check) — small readbacks and water
 
 - **6a.** Debris pushes back on characters (per-owner summed force, about 2 frames latency, L3).

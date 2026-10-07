@@ -97,6 +97,7 @@
 #include "core/EngineRuntime.h"
 #include "core/SceneManager.h"
 #include "core/GpuParticlePhysics.h"
+#include "core/DebrisRuntime.h"
 #include "core/WaterManager.h"
 #include "scene/NPCEntity.h"
 #include "scene/Entity.h"
@@ -273,7 +274,10 @@ private:
     Core::LocationRegistry* locationRegistry = nullptr;
 
     // Game-specific subsystems (still owned by Application)
-    std::unique_ptr<GpuParticlePhysics> gpuParticlePhysics;            // GPU-accelerated debris physics
+    // GPU debris (DebrisInteractionPlan Phase 5): DebrisRuntime owns the solver and the mover feeds
+    // (shared with shipped games); gpuParticlePhysics is a non-owning alias (null = disabled).
+    std::unique_ptr<DebrisRuntime> debrisRuntime;
+    GpuParticlePhysics* gpuParticlePhysics = nullptr;
     std::unique_ptr<Core::WaterManager> waterManager;                  // CPU water cellular-automaton sim
     std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;    // Coordinates all rendering
     std::unique_ptr<RaycastVisualizer> raycastVisualizer;              // Raycast debug visualization
