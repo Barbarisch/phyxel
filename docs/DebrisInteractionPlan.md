@@ -1,6 +1,6 @@
 # Debris Interaction Plan — everything that moves can push GPU debris
 
-**Status:** rev 4.12, 2026-10-06. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
+**Status:** rev 4.13, 2026-10-07. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
 **Phase 1 DONE** (pushed to main through 1f):
 - 1a build safety ✅ · 1b `shaders/solver_shared.h` ✅
 - 1c one occupancy: steps 1–4 ✅ (tri-state query, edit-first repack, debris reads the shared
@@ -24,12 +24,16 @@
   37 mm).
 - **Phase 4 core DONE**: one impulse law for both worlds, `POST /api/physics/impulse`, and every
   blast or spell pushes existing debris and CPU bodies (the user's spell scenario passes live).
-  Open: `CombatSystem` swing cones, `try_push`, angular kicks. Next: Phase 5 (design check first).
+  Open: `CombatSystem` swing cones, `try_push`, angular kicks.
+- **Phase 5 DONE** (2026-10-07): shared `DebrisRuntime` + shared debris API handlers; shipped
+  games (scaffold, `minimal_game`) run GPU debris on by default, and scaffold spells blast.
+  Verified in a PACKAGED Release game: bench parity with the editor, the blast's exact numbers,
+  and the loud-off control. Next: Phase 6 (optional; separate design check).
 - Still open, minor: 1c step 5 gap 8 (incremental add does not filter broken/invisible
   sub-voxels); drop_pile varies run to run (GPU nondeterminism, not session state).
 - Fixed in Phase 4: the bench's blast-site restore kept damaged floor cubes, so back-to-back
   blast runs differed (now `replace: true`).
-- Not started: Phases 5–6. Phase 3 budget orders by camera distance only (no host-side debris
+- Not started: Phase 6. Phase 3 budget orders by camera distance only (no host-side debris
   positions without a readback).
 - Rev 2 rewrote the phases after a four-way code inventory (§Inventory).
 - Rev 3 (user direction) puts simplification first: delete the old systems before new work.
@@ -1176,6 +1180,107 @@ Build steps:
   - One 5a regression run read 3,016 door contacts / 1,324 contact ticks at median depth 0. It
     did not reproduce standalone (480 contacts / 54 ticks) and is unexplained; it is suspected to
     be a leftover from the `crate_walk` script run just before it, whose lane crosses the door.
+
+**BUILT 2026-10-07 — 5b: shared debris API handlers (`engine/{include,src}/core/DebrisApiCommands.*`).**
+- `registerDebrisCommands(reg, contextProvider)` registers:
+  - `apply_damage`, `physics_impulse`, `occupancy_diff`;
+  - the debug debris set: `spawn_gpu_particle`, `spawn_gpu_lattice`, `particle_log`,
+    `gpu_physics`, `gpu_kinematic_box`, `settle_probe`, `spawn_voxel_body`, `clear_voxel_bodies`,
+    `clear_dynamics`.
+- The code moved VERBATIM out of `Application.cpp` by a script: the 301-line debug dispatcher,
+  `occupancy_diff` (95 lines), `apply_damage` (56), `physics_impulse` (37). Only the host members
+  were rebound to `DebrisApiContext`; `break_voxel` stays editor-only (it needs the editor's
+  interaction system).
+- The editor registers it in `registerEffectsCommands`. `GameApiService` always registers it
+  through a `debrisContext` provider, and `GameShell::startTestApi` wires that provider (chunks,
+  physics, renderer, its own `DebrisRuntime`). A game without debris answers "not available"
+  instead of "unknown action".
+- Editor parity after the move (bench `phase5b`): drop_layer 11.2 mm, packed 0 forced, blast
+  14/59/86.2 mm with 3 forced, straddle 1.1 mm, occ diff 0; `impulse_law` 5.798 m/s.
+
+**BUILT 2026-10-07 — 5c: shipped-game wiring.**
+- `GameShell` owns a `DebrisRuntime` (`initDebris`, `debris()`).
+- `DebrisRuntime` gains:
+  - `shutdown()`, because a game's member outlives the Vulkan device; games call it first in
+    `onShutdown`;
+  - `applyDamage` (the game-code break entry);
+  - `spellBlast(SpellDefinition)`: damaging spells only; area size ft→m, else 1 m; energy
+    12 × average base damage, so a fireball 8d6 → 336, the scale of the editor's test-spell
+    blast (350);
+  - `handleArg` (`--disable-gpu-debris`, now shared by the editor main, the scaffold main and
+    `minimal_game`).
+- Scaffold (`tools/create_project.py`):
+  - `game.json` `"debris": {"enabled", "spellsBreakVoxels"}`, both default true;
+  - `initDebris` after the definition loads;
+  - `beginFrame` before the CPU step; the three feeds at the end of `onUpdate`;
+  - `shutdown` first in `onShutdown`;
+  - every damaging spell's release frame blasts its target point (`playCastVisualFor`'s `fire`);
+  - held NPC weapons are flagged `pushesDebris`.
+- `minimal_game`: `initDebris`, `beginFrame`, `feedRigidBodies`, `shutdown`.
+- Unit `DebrisRuntimeTest` (3): the shipped default pinned ON; disabled/deviceless is loud with no
+  solver and safe no-ops; the `spellBlast` table. These tests have no stub-red: the API did not
+  exist, and the default is a contract pin. The behavioural red is 5d's packaged
+  `unknown action`.
+- Bench gains `--no-verify` for a packaged game's test API, which serves the debris actions but
+  not world queries. It refuses `blast`, whose site restore needs `/api/world/fill`.
+
+**DONE 2026-10-07 — 5d: GPU debris verified in a PACKAGED Release game.**
+Test game `DebrisShip` (`tools/produce_game.py`: scaffold → Release build → package → smoke, all
+green), with DebrisLab's `game.json` + a fresh copy of its `worlds/default.db`, run as
+`DebrisShip.exe --test 18097`.
+- **Regression found and fixed on the way:** since 1d (`ObjectTemplateManager(ChunkManager*)`),
+  the scaffold template still passed a second `nullptr`, so EVERY scaffolded game failed to
+  compile. Fixed in `tools/create_project.py`. Projects generated before today carry the old line
+  and need the same one-word fix when rebuilt.
+- **Red (by inspection, no pre-Phase-5 package exists):** `GameApiService` had no `apply_damage`
+  / `gpu_physics` handler, so they fell through to `unknown action`.
+- **Green, the solver:** `gpu_physics` → `enabled:true`, flags 55, ticks running.
+- **Green, blast parity:** the bench's blast through the shipped `apply_damage` gave the editor's
+  canonical numbers exactly. 14 broken / 59 debris / 94 grazed / 33 stage-changed; hard-contact
+  maximum 86.2 mm; 2 forced sleeps; 0 rebounds / 0 tunnelled / all asleep; `occupancy_diff`
+  agrees.
+- **Green, bench parity** (`phase5d-packaged`, `--no-verify`):
+
+  | Scenario | Packaged result |
+  |---|---|
+  | drop_layer | 11.2 mm, identical to the editor |
+  | drop_pile | 10 forced (band ≤ 20) |
+  | packed / crater / crater_subcube | 0 forced |
+  | box_through_pile | 8 forced (≤ 12); box 24/24, median 16.9 / max 72.4 mm |
+  | box_single_straddle | 1.1 mm |
+
+  `occ diff` 0 everywhere. Release matches Debug per tick, as predicted for the stepped bench.
+- **Control, `--disable-gpu-debris`:**
+  - one `[ERROR] [DebrisRuntime] GPU debris DISABLED` line;
+  - `gpu_physics` reports the reason;
+  - `apply_damage` broke the same 14 voxels and returned `debris` 0 / `debris_refused` 59;
+  - the process stayed up.
+- **Spell hook, end to end** (`game.spelltest.json`: a level-1 wizard knowing fire_bolt and
+  burning_hands, a target NPC on the Stone slab, a settled 18-piece pile beside it; cast through
+  the game's own `combat/player_cast` in turn-based mode):
+
+  | Run | `impulses_applied` | New debris |
+  |---|---|---|
+  | Control, no cast | 0 | 0 |
+  | Fire Bolt | 12 | 0 |
+  | Burning Hands | 12 | 0 |
+
+  So the cast → release frame → `spellBlast` → `DebrisRuntime::applyDamage` chain runs in the
+  shipped game. **Two predictions were wrong, recorded as such:**
+  - Fire Bolt moved 0 pieces ≥ 0.1 m: w ≤ 0.33 at 1.0–1.5 m gives dv ≤ 1 m/s on 6 kg Stone,
+    which floor friction stops within ~6 cm. Burning Hands moved 3.
+  - Burning Hands broke nothing. Its 1 m single-target blast is centred on the surface, so the
+    nearest Stone voxel centre is at half the radius and receives 126 × 0.5^1.5 ≈ 45 < 110.
+    Gameplay reading: level-1 spells do not dig stone, while a fireball reaches
+    336 × 0.918^1.5 ≈ 296 at the nearest voxel and does. The scaffold's player is fixed at
+    level 1, so a spell-driven break was not shown live; the break path is shown by the packaged
+    `apply_damage` above.
+- **Phase 5 DONE** (5a–5d).
+  - Open: a spell-driven break live (needs a higher-level caster in the scaffold);
+    `occupancy_diff`'s `break_voxel` sibling stays editor-only.
+  - The scaffold feeds held items one frame late (`updateHeldWeapons` runs before the feeds at
+    the end of `onUpdate`, which is fine) and runs its CPU step before the character update, so
+    CPU-body obstacles reach the CPU world one step late.
 
 ## Phase 6 (optional, separate design check) — small readbacks and water
 

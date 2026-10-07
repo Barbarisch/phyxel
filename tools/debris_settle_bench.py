@@ -480,6 +480,10 @@ def main():
     ap.add_argument("--url", default=os.environ.get("PHYXEL_API_URL", "http://localhost:8090"))
     ap.add_argument("--build-lab", action="store_true", help="author + save the DebrisLab terrain")
     ap.add_argument("--only", nargs="*", choices=list(SCENARIOS))
+    ap.add_argument("--no-verify", action="store_true",
+                    help="skip verify_lab: for a packaged game's --test API, which serves the debris "
+                         "actions but not world queries (terrain_height/scan). Only valid on a fresh "
+                         "copy of the lab DB; never use blast there (its site restore needs world fill)")
     ap.add_argument("--seconds", type=float, default=8.0, help="SIM seconds per scenario")
     ap.add_argument("--frames", action="store_true", help="capture frames at fixed ticks")
     ap.add_argument("--tag", default=time.strftime("%Y%m%d-%H%M%S"))
@@ -500,7 +504,12 @@ def main():
     if args.build_lab:
         build_lab(api)
         return 0
-    verify_lab(api)
+    if args.no_verify:
+        if "blast" in (args.only or list(SCENARIOS)):
+            raise SystemExit("--no-verify cannot run blast (its site restore needs /api/world/fill)")
+        print("verify_lab SKIPPED (--no-verify): the lab DB must be a fresh copy")
+    else:
+        verify_lab(api)
     outdir = os.path.join(ROOT, "docs", "evidence", "debris_settle", args.tag)
     os.makedirs(outdir, exist_ok=True)
     results = [run(api, n, args.seconds, outdir, args.frames) for n in (args.only or [k for k in SCENARIOS if k not in OPT_IN])]

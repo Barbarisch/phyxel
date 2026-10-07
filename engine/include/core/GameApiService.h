@@ -1,4 +1,5 @@
 #pragma once
+#include "core/DebrisApiCommands.h"
 #include <nlohmann/json.hpp>
 
 #include <functional>
@@ -95,6 +96,10 @@ public:
     CharacterSheet*       playerSheet = nullptr;   // progression: /api/rpg/sheet command
     Inventory*            inventory = nullptr;     // loot: /api/rpg/inventory command
     std::string projectName;  // reported by project_info (identifies the running game)
+    /// GPU debris (DebrisInteractionPlan Phase 5b): apply_damage, physics_impulse, occupancy_diff,
+    /// settle_probe, gpu_physics, spawn_gpu_lattice, ... - the SAME handlers the editor uses
+    /// (registerDebrisCommands). Null or an empty context: they answer "not available".
+    std::function<DebrisApiContext()> debrisContext;
 
     // Construct the queue+server, wire handlers, and start listening on `port`.
     // Returns false if already running or the port is unavailable.

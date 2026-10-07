@@ -168,6 +168,9 @@ bool GameApiService::start(int port) {
 void GameApiService::registerCommands() {
     auto& reg = *registry_;
 
+    // GPU debris: the editor's handlers, shared (Phase 5b). Resolved per command.
+    registerDebrisCommands(reg, [this]() { return debrisContext ? debrisContext() : DebrisApiContext{}; });
+
     reg.on("get_render_stats", [this](const APICommand&, json& r) {
         if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
         const auto& s = renderCoordinator->getLastFrameStats();

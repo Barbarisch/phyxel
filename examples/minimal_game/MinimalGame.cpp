@@ -80,6 +80,9 @@ bool MinimalGame::onInitialize(Phyxel::Core::EngineRuntime& engine) {
         nullptr,  // No raycast visualizer
         nullptr   // No scripting system
     );
+    // GPU debris (DebrisInteractionPlan Phase 5): the engine's shared DebrisRuntime - breaks and
+    // blasts (debris().applyDamage) make physical debris. Off: Config{false} / --disable-gpu-debris.
+    initDebris(engine, renderCoordinator.get());
 
     // Populate inventory with some starter items
     inventory_.addItem("Stone", 32);
@@ -159,11 +162,15 @@ void MinimalGame::onUpdate(Phyxel::Core::EngineRuntime& engine, float dt) {
 
     elapsed_ += dt;
 
+    debris().beginFrame(dt);   // GPU debris CPU-side work
+
     // Update physics at fixed step
     auto* physics = engine.getPhysicsWorld();
     if (physics) {
         physics->stepSimulation(dt);
     }
+    // CPU bodies push debris (this game has no characters or kinematic objects to feed).
+    debris().feedRigidBodies(engine.getCamera() ? engine.getCamera()->getPosition() : glm::vec3(0.0f));
 }
 
 void MinimalGame::onRender(Phyxel::Core::EngineRuntime& engine) {
@@ -289,6 +296,7 @@ void MinimalGame::onRender(Phyxel::Core::EngineRuntime& engine) {
 
 void MinimalGame::onShutdown() {
     LOG_INFO("MinimalGame", "Shutting down minimal game...");
+    debris().shutdown();   // while the Vulkan device is alive
     stopTestApi();
     settings_.saveToFile("settings.json");
     renderCoordinator.reset();

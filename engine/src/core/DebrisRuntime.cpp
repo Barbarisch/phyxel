@@ -2,6 +2,7 @@
 #include "core/ChunkManager.h"
 #include "core/DebrisMoverFeed.h"
 #include "core/KinematicVoxelManager.h"
+#include "core/SpellDefinition.h"
 #include "graphics/RenderCoordinator.h"
 #include "physics/PhysicsWorld.h"
 #include "physics/VoxelDynamicsWorld.h"
@@ -17,9 +18,21 @@ namespace Phyxel {
 
 DebrisRuntime::~DebrisRuntime() = default;
 
+bool DebrisRuntime::handleArg(const std::string& arg) {
+    if (arg != "--disable-gpu-debris") return false;
+#ifdef _WIN32
+    _putenv_s("PHYXEL_DISABLE_GPU_DEBRIS", "1");
+#else
+    setenv("PHYXEL_DISABLE_GPU_DEBRIS", "1", 1);
+#endif
+    return true;
+}
+
 bool DebrisRuntime::initialize(Vulkan::VulkanDevice* device, Graphics::RenderCoordinator* renderer,
                                ChunkManager* chunks, Physics::PhysicsWorld* physics, const Config& cfg) {
-    m_physics = physics;
+    m_physics  = physics;
+    m_renderer = renderer;
+    m_chunks   = chunks;
     m_gpu.reset();
     m_disabledReason.clear();
     // All debris lives in the GPU solver. Without it breaks, blasts and derez make NO debris, so a
@@ -47,6 +60,33 @@ bool DebrisRuntime::initialize(Vulkan::VulkanDevice* device, Graphics::RenderCoo
     LOG_ERROR("DebrisRuntime", "GPU debris DISABLED (" + m_disabledReason +
               "): breaks, blasts and derez will produce NO debris");
     return false;
+}
+
+void DebrisRuntime::shutdown() {
+    if (!m_gpu) return;
+    if (m_renderer) m_renderer->setGpuParticlePhysics(nullptr);
+    if (m_chunks)   m_chunks->setGpuParticlePhysics(nullptr);
+    m_gpu.reset();
+    if (m_disabledReason.empty()) m_disabledReason = "shut down";
+}
+
+DamageResult DebrisRuntime::applyDamage(const glm::vec3& center, float radius, float energy,
+                                        const glm::vec3& direction) {
+    if (!m_chunks) return {};
+    DamageSystem dmg(m_chunks, m_gpu.get());
+    return dmg.applyDamage(center, radius, energy, "force", direction);
+}
+
+DebrisRuntime::SpellBlast DebrisRuntime::spellBlast(const Core::SpellDefinition& spell) {
+    SpellBlast b;
+    if (spell.baseDamage.count <= 0) return b;   // heals / buffs / utility: no blast
+    const float avgDie = (static_cast<float>(static_cast<int>(spell.baseDamage.die)) + 1.0f) * 0.5f;
+    const float avg = spell.baseDamage.count * avgDie + static_cast<float>(spell.baseDamage.modifier);
+    if (avg <= 0.0f) return b;
+    b.blast  = true;
+    b.radius = spell.isAreaSpell() ? spell.areaSizeFeet * 0.3048f : SPELL_SINGLE_TARGET_RADIUS;
+    b.energy = SPELL_ENERGY_PER_DAMAGE * avg;
+    return b;
 }
 
 void DebrisRuntime::beginFrame(float dt) {

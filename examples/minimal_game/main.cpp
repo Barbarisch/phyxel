@@ -29,6 +29,7 @@ int main(int argc, char* argv[]) {
                 config.apiPort = std::atoi(argv[++i]);
             }
         }
+        Phyxel::DebrisRuntime::handleArg(arg);   // --disable-gpu-debris
     }
 
     // Create the engine runtime

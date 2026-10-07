@@ -18,6 +18,12 @@
 namespace Phyxel {
 namespace Core {
 
+bool GameShell::initDebris(EngineRuntime& engine, Graphics::RenderCoordinator* renderer,
+                           const DebrisRuntime::Config& config) {
+    return debris_.initialize(engine.getVulkanDevice(), renderer, engine.getChunkManager(),
+                              engine.getPhysicsWorld(), config);
+}
+
 void GameShell::startTestApi(EngineRuntime& engine, int port, const std::string& name) {
     gameApi_.runtime          = &engine;
     gameApi_.renderCoordinator = apiRenderCoordinator();
@@ -47,6 +53,15 @@ void GameShell::startTestApi(EngineRuntime& engine, int port, const std::string&
     gameApi_.inventory        = apiInventory();
     gameApi_.dialogueSystem   = apiDialogueSystem();
     gameApi_.projectName      = name;
+    gameApi_.debrisContext    = [this, eng = &engine]() {
+        DebrisApiContext c;
+        c.chunks   = eng->getChunkManager();
+        c.debris   = &debris_;
+        c.physics  = eng->getPhysicsWorld();
+        c.renderer = apiRenderCoordinator();
+        c.kvm      = apiKinematicVoxelManager();
+        return c;
+    };
     if (gameApi_.start(port))
         LOG_WARN("GameShell", "*** TEST API ENABLED on 127.0.0.1:{} — dev/test build, do NOT ship ***", port);
 }
