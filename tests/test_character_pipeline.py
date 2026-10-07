@@ -440,3 +440,26 @@ def test_a_biped_spine_follows_a_hunched_torso():
         sl = c[(np.abs(c[:, 1] - g[j][1, 3]) < 1.5 * v.pitch) & (np.abs(c[:, 0]) < 0.15 * H)]
         dz = g[j][2, 3] - np.median(sl[:, 2])
         assert abs(dz) < 2 * v.pitch, f"{nm} {dz:+.3f} u off the torso centre at its height"
+
+
+def test_a_missing_source_is_re_downloaded_from_its_meshy_task_without_spending(tmp_path, monkeypatch):
+    # 2026-10-07: the local repo was lost; manifests' task ids are how the models come back
+    calls = []
+
+    def fake_meshy(method, url, body=None):
+        calls.append((method, url))
+        return {"status": "SUCCEEDED", "model_urls": {"glb": "https://example.invalid/m.glb"}}
+
+    class FakeResp:
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+        def read(self): return b"glTF-bytes"
+
+    monkeypatch.setattr(character_add, "_meshy", fake_meshy)
+    monkeypatch.setattr(character_add.urllib.request, "urlopen", lambda *a, **k: FakeResp())
+    monkeypatch.setattr(character_add, "SOURCE_DIR", tmp_path)
+    monkeypatch.setattr(character_add, "fetch_meshy", lambda *a, **k: (_ for _ in ()).throw(AssertionError("spent credits")))
+    m = {"id": "x", "source": {"meshy": {"prompt": "p", "task_ids": ["pre", "ref"]}}}
+    path, credits = character_add.resolve_source(m, allow_spend=True, needs=set())
+    assert path.read_bytes() == b"glTF-bytes" and credits["consumed"] == 0
+    assert calls == [("GET", character_add.MESHY_T23D + "/ref")], "the REFINE task, read-only"

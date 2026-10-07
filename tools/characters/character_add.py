@@ -218,6 +218,26 @@ def fetch_meshy(m: dict, dest: Path, needs: set) -> dict:
             "balance_after": after, "below_10pct": low_after}
 
 
+def redownload_meshy(m: dict, dest: Path) -> dict | None:
+    """Re-fetch a source model from the Meshy task that made it (the last recorded task id is the
+    refine). Spends NO credits. Returns None when there is no task id or Meshy no longer has it.
+    Added 2026-10-07 after a local repo loss: the manifests' task ids made recovery possible."""
+    ids = (m["source"].get("meshy") or {}).get("task_ids") or []
+    if not ids:
+        return None
+    try:
+        task = _meshy("GET", f"{MESHY_T23D}/{ids[-1]}")
+        url = (task.get("model_urls") or {}).get("glb")
+        if task.get("status") != "SUCCEEDED" or not url:
+            return None
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        with urllib.request.urlopen(url, timeout=300) as r:
+            dest.write_bytes(r.read())
+    except Exception as e:  # noqa: BLE001 - reported, then the caller decides (spend or refuse)
+        return {"consumed": 0, "note": f"re-download failed: {type(e).__name__}: {e}"}
+    return {"consumed": 0, "task_ids": ids, "note": f"re-downloaded from Meshy task {ids[-1]} (no credits)"}
+
+
 def resolve_source(m: dict, allow_spend: bool, needs: set):
     src = m["source"]
     if "file" in src:
@@ -225,6 +245,9 @@ def resolve_source(m: dict, allow_spend: bool, needs: set):
     dest = SOURCE_DIR / f"{m['id']}.glb"
     if dest.exists():
         return dest, {"consumed": 0, "note": "committed source reused"}
+    got = redownload_meshy(m, dest)
+    if got and dest.exists():
+        return dest, got
     if not allow_spend:
         raise RuntimeError(f"{_rel(dest)} missing and spending is not allowed (--spend)")
     return dest, fetch_meshy(m, dest, needs)
