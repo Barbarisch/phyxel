@@ -236,7 +236,7 @@ def create_project(
     extra_members.append("    std::string preCombatRig_;      // rig to restore when the encounter ends")
     extra_members.append("    bool wasInCombat_ = false;      // combat camera edge detection")
     # menuWorld: menu scenes with an authored world get a looping CameraPath
-    # orbit behind their UI (PresentationPolish.md §3 Tier 1).
+    # orbit behind their UI (docs/game-production/recipes/menus-and-style.md).
     extra_includes.append('#include "graphics/CameraManager.h"')
     extra_includes.append('#include "graphics/CameraRig.h"')  # TacticalRig focus framing
     extra_members.append("    Phyxel::Graphics::CameraPath menuCamPath_;  // drives the menuWorld orbit while a menu scene is up")

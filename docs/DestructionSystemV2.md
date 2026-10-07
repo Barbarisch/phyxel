@@ -1,13 +1,15 @@
 # Destruction System v2 — Breakable Objects (design)
 
-> Status: **design, awaiting build-order approval** (2026-07-14). Supersedes and continues the
+> Status (corrected 2026-10-07): **partly built.** Shipped: Phase 0 (material break model), P2.1–P2.3,
+> U0, U1, U2 (analyzer), U4 v1, U6 v1, anti-tunneling, anisotropic blast, Phase 5 damage visualization;
+> each carries a SHIPPED note in its section. Read a section's own status before assuming. Supersedes and continues the
 > original v1 design (the P1–P5 roadmap; P1–P3 shipped), which now lives in this file as
 > **Appendix A**. This
 > document extends that energy/toughness core into a **general, tactile breakable-objects system**
 > spanning trees, structures, furniture, and terrain — the four "feel" qualities the user asked for:
 > **coherent fracture/topple · progressive damage · tool-driven impact · gatherable aftermath.**
 >
-> **Nothing here is built yet.** This is the plan we review before writing code. Numbers marked
+> (Original 2026-07-14 framing: the plan reviewed before writing code.) Numbers marked
 > *(needs grounding)* are placeholders to be set by the grounding-auditor, not decisions.
 
 ---

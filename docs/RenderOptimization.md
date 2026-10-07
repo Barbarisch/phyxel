@@ -61,7 +61,7 @@ design below in a focused session.
 
 ## Baseline 2026-07-03 — shader-math + greedy-mesh campaigns (Increment 0)
 
-Fresh capture for [`ShaderMathRedundancyPlan.md`](ShaderMathRedundancyPlan.md) +
+Fresh capture for the shader-math pass +
 [`BinaryGreedyMeshingPlan.md`](BinaryGreedyMeshingPlan.md). **DEBUG build @ commit `6e9f55e`
 (main) + Phase 1 culling**, StructGenTest flat world (pristine reset), one v2 tavern built by the
 engine generator: `POST /api/structure/build {"schema":"v2","typology":"tavern","function":"tavern",
@@ -94,7 +94,7 @@ placed 0 skipped, sign hung. Structure AABB (8,17,8)–(23,27,14).
    chunk voxels are NOT auto-persisted by the structure build; a force-killed engine loses them.
    Rebuilding the same payload at the same position is deterministic: 51,258 faces every time).
 
-**Shader-math A/B result (2026-07-03, `ShaderMathRedundancyPlan.md` executed):** old vs new
+**Shader-math A/B result (2026-07-03, shader-math pass executed):** old vs new
 shaders (same binary, same DB world, verified poses): A 142.4→140.4 FPS, C 75.7→72.8 FPS —
 **no measurable difference** (within noise). The NVIDIA driver on the RTX 4090 was already
 hoisting the per-vertex uniform mat4×mat4 products (the plan's documented caveat). The changes

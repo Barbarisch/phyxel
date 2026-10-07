@@ -91,6 +91,21 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   approved; adoption is not. See `docs/MotionBricksIntegrationPlan.md` for the locked architecture,
   M0 first slice, quality/performance gates, and permanent clip fallback.
 
+- **World-setup gotchas (folded from the retired ProvingGrounds.md, 2026-10-07):**
+  - The recipe is persisted into `world.db` on FIRST boot and then WINS over `game.json`. To
+    change seed/params/sea level, delete `default.db` AND its `-wal` AND `-shm` siblings — a `.db`
+    removed without its WAL leaves a valid-looking, stale database.
+  - Measure sea level; don't assume it (`seaLevel: 62` over a y=51 surface drowned a whole region).
+  - The legacy Perlin knobs (`heightScale`/`octaves`/`persistence`) fight terrain-v2's relief;
+    leave them out. `climateFrequency` is the biome-size knob (0.004 ≈ 250 u biomes reads varied;
+    0.0022 put one biome in the whole view). `type: "Mountains"` spawns in the alpine band.
+  - Route names: `/api/render/stats` (not `render_stats`), `/api/world/terrain_height`,
+    `/api/screenshot` is a GET. A wrong path returns an empty body that reads as "no geometry".
+    Far-CHUNK counters are on `/api/debug/far_lod`, not in render stats.
+  - A high camera reads as an empty world: streaming clamps to ±2 chunk bands around the camera.
+- **A timed-out background build KEEPS RUNNING** and holds file locks: stop it and kill orphaned
+  `cl.exe` before regenerating, or the regen silently leaves stale files.
+
 ---
 
 ## Engine ground truth (supersedes older docs/comments)

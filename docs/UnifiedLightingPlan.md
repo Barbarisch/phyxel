@@ -1,6 +1,8 @@
 # Unified Lighting — one emitter model, real geometry, no flood fill
 
-> **Status: M0 DONE on branch `lighting-rebuild` (2026-08-29). The flood is deleted.**
+> **HISTORY / decision record** (header corrected 2026-10-07). The CURRENT lighting state is
+> [`LightingPipeline.md`](LightingPipeline.md); code comments cite this doc's decision IDs (D0, D14, U7, M3…).
+> Original status: M0 DONE on branch `lighting-rebuild` (2026-08-29). The flood is deleted.
 > Opened 2026-08-28 after a long debugging session on "interior lights shine through walls"
 > turned up a deeper problem than the bug being chased. The approved milestone plan lives in
 > `~/.claude/plans/floating-painting-bird.md`; this document holds the diagnosis and evidence.

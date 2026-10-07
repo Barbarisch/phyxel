@@ -301,3 +301,23 @@ Convert one domain at a time; `Application` thins as each manager becomes a feat
 - The hot loop, GPU, and chunk store stay a **shared substrate**, not features — don't
   decompose the performance path chasing purity.
 - Prefer compile-time wiring (the explicit list) over runtime magic.
+
+## Folded from the 2026-08-29 health audit (that doc was retired 2026-10-07)
+
+**Public dependency surface.** `phyxel_core` exposes Vulkan, GLFW, ImGui, pybind11, JSON, HTTP, and
+multiple include directories as PUBLIC dependencies. This makes standalone consumers inherit
+editor-adjacent and implementation dependencies, slows rebuilds, and weakens the claimed
+engine/editor boundary. Audit every PUBLIC link/include and make it PRIVATE where public headers do
+not require it. A clean minimal-game build is the acceptance test.
+
+**Dead-code policy — classify before deleting:**
+- **Proven orphan:** no build rule, runtime load, include, generated binary, or documented future
+  owner. Delete source plus manifest/docs in one change.
+- **Test-only legacy twin:** production has a replacement but the old API exists solely for its own
+  tests. Migrate/remove together after confirming no external API promise. Open candidate:
+  `planParcelFence` (`SettlementLayout.h`) — production uses `planParcelFenceRuns`/`fenceGateWindowAt`.
+- **Dormant capability:** tested public API awaiting integration. Track as a feature gap; do not
+  call it dead.
+- **Conditional backend:** compiled only without an optional dependency. Keep and test that build.
+
+Wiring gaps from that audit live in `FunctionalWiringBacklog.md`.

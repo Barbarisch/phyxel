@@ -567,8 +567,41 @@ Core::CampaignJournal m_rpgJournal;
 ```
 
 The single `RpgHandler` lambda in `Application::initAPIServer()` dispatches all
-`/api/rpg/*` sub-actions to these members. See `docs/MCPIntegration.md` for
-the full HTTP API reference and MCP tool listing.
+`/api/rpg/*` sub-actions to these members. The MCP tools are defined in
+`scripts/mcp/phyxel_mcp_server.py` (each tool's docstring is its reference).
+
+### HTTP API: D&D RPG endpoints (moved here from the retired MCPIntegration.md)
+
+All RPG state is accessible directly via the `/api/rpg/<action>` endpoint:
+
+```bash
+# Party
+GET  /api/rpg/party
+POST /api/rpg/party/add       {"entity_id":"hero","name":"Aldric","level":5}
+POST /api/rpg/party/remove    {"entity_id":"hero"}
+POST /api/rpg/party/set_alive {"entity_id":"hero","alive":false}
+
+# Combat / Initiative
+GET  /api/rpg/combat/state
+POST /api/rpg/combat/start    {"participants":[{"entity_id":"hero","initiative_bonus":3},{"entity_id":"goblin","initiative_bonus":1}]}
+POST /api/rpg/combat/next_turn {}
+POST /api/rpg/combat/end      {}
+POST /api/rpg/combat/set_initiative {"entity_id":"hero","value":18}
+
+# Fantasy Calendar
+GET  /api/rpg/world/date
+POST /api/rpg/world/advance_date {"days":7}
+POST /api/rpg/world/set_date     {"total_days":365}
+
+# Campaign Journal
+POST /api/rpg/journal/entries {"type":"QuestUpdate"}        # filter by type
+POST /api/rpg/journal/entries {"tag":"dragon"}              # filter by tag
+POST /api/rpg/journal/entries {"search":"tavern"}           # full-text search
+POST /api/rpg/journal/entries {}                            # all entries
+POST /api/rpg/journal/add     {"title":"Dragon spotted","type":"WorldEvent","tags":["dragon","danger"],"content":"..."}
+POST /api/rpg/journal/remove  {"id":3}
+```
+
 
 ### Stateless tools (no engine required)
 

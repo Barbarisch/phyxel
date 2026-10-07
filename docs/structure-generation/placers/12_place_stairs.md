@@ -8,7 +8,7 @@
 > emits GUARD CURBS on the stairwell perimeter (drop-invariant, entry-gated at stacked flight
 > mouths). Still unmet from this spec: mid-flight handrails/newel, spiral/L forms, cellar
 > down-stair, IRC-floor tread depth (MIN_TREAD 2 micro ≈ 0.22 m is below R311.7.5; period figure
-> unsourced). Ledger row 12 is the live status. Schema: [`README.md`](README.md).
+> unsourced). Ledger row 12 is the live status. Index: [`StructureGenerationPlacers.md`](../StructureGenerationPlacers.md).
 
 ## Job
 Build the **vertical circulation** — stairs between stories and down to a cellar — cutting the stairwell and

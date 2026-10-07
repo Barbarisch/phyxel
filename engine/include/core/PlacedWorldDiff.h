@@ -13,7 +13,7 @@
 //
 // That seam is the root of a whole defect family: silent placement drops, the
 // mixed-resolution overwrite problem (a finer voxel refusing to replace a coarser
-// one, docs/MixedResolutionVoxelComposition.md), and every "OWED: an L2 scan of
+// one, now implemented in ChunkVoxelManager::addMicrocube), and every "OWED: an L2 scan of
 // the PLACED chunk voxels" note left on the chimney, roof and signage placers.
 // The world side was also unreadable at the right resolution: `scan_region` is
 // CUBE-only, and `scan_region_micro` reports material COUNTS per cube, not which

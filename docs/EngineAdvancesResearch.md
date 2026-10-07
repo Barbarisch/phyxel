@@ -1,7 +1,7 @@
 # Engine Advances Research Digest
 
 > Web research sweep, 2026-07-02 — modern game-engine techniques evaluated for applicability to
-> Phyxel. Companion to [`ShaderMathRedundancyPlan.md`](ShaderMathRedundancyPlan.md) (the immediately
+> Phyxel. Companion to the shader-math pass (executed 2026-07-03; result in `RenderOptimization.md`) (the immediately
 > actionable item). Ordered by (relevance to current pain × maturity). Each entry says what it is,
 > why Phyxel specifically, and the adoption cost. These are **candidates**, not commitments — each
 > would need its own grounded plan + stress test before any code.
@@ -69,7 +69,7 @@ low-risk first increment.**
 
 ## 3. AVBD — SIGGRAPH 2025 paper vs Phyxel's implementation
 
-> **➡ EXECUTED 2026-07-02:** audit complete — [`AvbdSolverAudit.md`](AvbdSolverAudit.md).
+> **➡ EXECUTED 2026-07-02:** audit complete (doc retired 2026-10-07; open items in `DynamicVoxelPhysics.md`).
 > Verdict: Phyxel already implements genuine AVBD (primal-dual, warm-started λ/κ); no formulation
 > rewrite needed. Found: iteration headroom (8 vs the paper's 3-4) and **two silent-failure
 > defects** in dense piles (bodies with graph color ≥ 12 skip the primal solve; constraints past
@@ -352,12 +352,12 @@ Footguns for whoever re-runs it: `download.blender.org` 403s (portable Blender f
 
 ## Suggested sequencing
 
-1. **Now (separate session, no source conflict):** `ShaderMathRedundancyPlan.md`.
+1. **Now (separate session, no source conflict):** the shader-math pass (done; see `RenderOptimization.md`).
 2. **Next render campaign:** binary greedy meshing for sub/micro (#1) — ✅ plan written
    (`BinaryGreedyMeshingPlan.md`), ready to execute. **Stale note: this has since SHIPPED**
    (`s_fineGreedyMerge`, ON by default 2026-07-07 — see the item #1 update above).
 3. **Cheap parallel audit:** AVBD paper vs `GpuParticlePhysics` (#3) — ✅ done
-   (`AvbdSolverAudit.md`). Its R1 (silent-failure defects) was **done 2026-10-03** as part of
+   (the AVBD audit, retired). Its R1 (silent-failure defects) was **done 2026-10-03** as part of
    the debris-settling fix ([DebrisSettlingPlan.md §R](DebrisSettlingPlan.md)): D1 fixed, D2 counted.
 4. **After meshing lands:** GPU frustum culling → occlusion culling (#2).
 5. **Visual-quality leap, after perf headroom exists:** radiance cascades (#4).

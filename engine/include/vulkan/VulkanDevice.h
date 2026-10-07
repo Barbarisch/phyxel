@@ -105,7 +105,7 @@ struct UniformBufferObject {
     alignas(16) glm::mat4 reflectedViewProj; // Reflected camera VP matrix (identity if no mirrors)
     alignas(4) float elapsedTime; // Seconds since engine start — drives grass wind + growth. Trailing field: safe to append.
     // Precombined per-frame products so vertex shaders do one mat4*vec4 instead of a
-    // per-vertex mat4*mat4 (docs/ShaderMathRedundancyPlan.md Increment 1). GLSL UBO
+    // per-vertex mat4*mat4 (shader-math pass 2026-07-03, RenderOptimization.md). GLSL UBO
     // blocks must declare fields in this exact order for std140 offsets to match.
     alignas(16) glm::mat4 viewProj;         // proj * view
     alignas(16) glm::mat4 biasedLightSpace; // clip->UV bias * lightSpaceMatrix (shadow sampling)

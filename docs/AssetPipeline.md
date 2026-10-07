@@ -52,6 +52,10 @@ python tools/asset_pipeline/obj_to_template.py <input_file> <output_file> [optio
 python tools/asset_pipeline/obj_to_template.py models/castle.obj resources/templates/castle.voxel --size 20 --optimize --fill-threshold 0.95
 ```
 
+**Spawning a template** (engine side): `ObjectTemplateManager::spawnTemplateSequentially(name,
+position, isStatic)` streams the voxels in over several frames (default 200 voxels/frame; `[` / `]`
+change the speed). MCP: `spawn_template`.
+
 #### `bbmodel_to_template.py`
 Converts a Blockbench model directly to a voxel template.
 

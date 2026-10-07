@@ -29,11 +29,8 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 
 - **[GameCreationGuide.md](GameCreationGuide.md)** — AI-driven game creation workflow (MCP / Claude Code)
 - **[GameDevWorkflow.md](GameDevWorkflow.md)** — per-project session workflow, the `phyxel` CLI, per-machine setup
-- **[GameDevPromptCatalog.md](GameDevPromptCatalog.md)** — ready-to-use game-creation & feature-testing prompts
-- **[GameMechanicsRoadmap.md](GameMechanicsRoadmap.md)** — gameplay systems status (lights, cameras, NPCs, dialogue — all shipped)
 - **[Multiplayer.md](Multiplayer.md)** — server-authoritative co-op for **shipped games** (designed 2026-07-07; the editor API is explicitly NOT the network protocol)
 - **[StandaloneGameTesting.md](StandaloneGameTesting.md)** — manual standalone-game test checklist
-- **[MCPIntegration.md](MCPIntegration.md)** — MCP server + ~280 AI-agent tools (authoritative per-tool docs live in each tool's own description)
 
 ## World & Structure Generation
 
@@ -53,12 +50,10 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 
 - **[VoxelSystem.md](VoxelSystem.md)** — voxel sizes (cube/subcube/microcube) + static/kinematic/dynamic lifecycle
 - **[VoxelRenderPipelines.md](VoxelRenderPipelines.md)** — three Vulkan voxel pipelines (static / kinematic / GPU particle)
-- **[ChunkUpdateOptimization.md](ChunkUpdateOptimization.md)** — face culling, instance batching, dirty-chunk tracking
 - **[LightingPipeline.md](LightingPipeline.md)** — THE lighting reference: the atmosphere model (sun,
   moon, sky, haze), the baked per-voxel light field, the three shadow cascades, exposure + AgX, and
   the known gaps
 - **[GlassTransparency.md](GlassTransparency.md)** — current-state reference for transparent materials (glass): the WBOIT pass, material/texture and the T ≈ 0.80 target, no shadow, frosted cracks, face culling around glass, and the chunk-border ripple that keeps every edit route's borders correct
-- **[ObjectTemplateSystem.md](ObjectTemplateSystem.md)** — voxel object import & spawning
 - **[TextureSystemOverhaul.md](TextureSystemOverhaul.md)** — PBR texture-array system (Phases 1–2 merged)
 - **[LargeWorldScalePlan.md](LargeWorldScalePlan.md)** — active workstream: chunk RAM (`ChunkVoxelStore` palette storage), region GPU buffer arenas, sealed/uniform chunks
 - **[RegionArenaPlan.md](RegionArenaPlan.md)** — region-keyed GPU buffer arena suballocation (`ChunkArenaAllocator`/`ChunkArenaSystem`), shipped/default-on
@@ -68,7 +63,6 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 
 - **[TerrainGenerationBiomes.md](TerrainGenerationBiomes.md)** — streaming + data-driven biomes (implemented on main)
 - **[WorldModel.md](WorldModel.md)** — world semantics + the per-world recipe (flora decoration details: TerrainGenerationBiomes.md)
-- **[structure-generation/StructureGenerationPipeline.md](structure-generation/StructureGenerationPipeline.md)** — LLM-architect → deterministic C++ realizer for buildings
 - **[StructurePipelineGaps.md](StructurePipelineGaps.md)** — running log of pipeline gaps to implement
 - **[AssetPipeline.md](AssetPipeline.md)** — importing 3D models / animations into voxel templates
 - **[MaterialTextureNeeds.md](MaterialTextureNeeds.md)** — standing list of missing materials/textures
@@ -76,7 +70,6 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 ## Coordinates & math
 
 - **[CoordinateSystem.md](CoordinateSystem.md)** — world/chunk/local transforms, indexing, bit-packing (the comprehensive doc)
-- **[CoordinateQuickRef.md](CoordinateQuickRef.md)** — one-page conversion-formula lookup
 
 ## Physics
 
@@ -84,12 +77,10 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 - **[DebrisSettlingPlan.md](DebrisSettlingPlan.md)** — GPU debris settling: §R = what was wrong, what fixed it, the measurement (DebrisLab + `tools/debris_settle_bench.py`), before/after evidence, and why it took six months. READ before touching `solver_*.comp`
 - **[DebrisInteractionPlan.md](DebrisInteractionPlan.md)** — **COMPLETE 2026-10-07 (phases 0–6 on main; open items in its status header).** PLAN rev 4 (2026-10-04): full code inventory of every debris system / collision writer / mover / shader; simplification FIRST (delete legacy XPBD, CPU DebrisSystem, ForceSystem, dead paths), then build-script & constant hygiene, debris adopts the lighting occupancy (one occupancy for physics/lighting/debris), all break debris on GPU with texture parity, all movers as real contacts, impulses in both worlds, debris in shipped games
 - **[PhysicsRestOverhaul.md](PhysicsRestOverhaul.md)** — CPU `VoxelDynamicsWorld` Box3D-style rest (current); its GPU Phase-2 claims are corrected by DebrisSettlingPlan.md
-- **[AvbdSolverAudit.md](AvbdSolverAudit.md)** — AVBD paper vs the GPU solver (2026-07); status banner lists what is fixed / still open
 - **[DestructionSystemV2.md](DestructionSystemV2.md)** — THE destruction doc (active workstream: coherent fracture/topple, tool-driven impact, gatherable aftermath). Absorbed the v1 design as its **Appendix A** on 2026-09-22 (`DestructionSystem.md` deleted; git-hash ledger in that appendix)
 - **[VoxelDamageVisualization.md](VoxelDamageVisualization.md)** — current-state reference for damage cracks on damaged-but-unbroken voxels (7 world-seeded stages, per-material style, debug view 19). ⚠️ **Full cubes only — generated buildings have sub-voxel walls and cannot crack until V2** (see its §5 / §9)
 - **[Water.md](Water.md)** — THE water doc (single consolidated design + status + traps; supersedes WaterSystem v1/v2/v3, PhysicalFeelPlan, AppearanceV4, WaterAsWorldData)
 - **[SubcubeCollisionPlan.md](SubcubeCollisionPlan.md)** — subcube-resolution character collision (user directive 2026-07-16: collision shape must match what you see)
-- **[GpuCompoundBodies.md](GpuCompoundBodies.md)** — GPU compound rigid bodies (**PLANNED, not built** — user-approved "plan now, build later"; destruction-scale follow-up to GPU item physics)
 - **[PhysicsCharacter.md](PhysicsCharacter.md)** — ⚠️ deprecated (Bullet character fully removed, git-history-only; see EntitySystem.md)
 
 ## Characters & animation
@@ -104,7 +95,6 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 ## Story, RPG & combat
 
 - **[StoryEngineDesign.md](StoryEngineDesign.md)** — story arcs, character agents, narrative system design
-- **[StoryEngineProgress.md](StoryEngineProgress.md)** — story engine implementation log (S1–S5 complete)
 - **[DnDRPGSystem.md](DnDRPGSystem.md)** — D&D ruleset (dice, attributes, classes, spells, items)
 - **[TurnBasedCombat.md](TurnBasedCombat.md)** — BG3-style turn-based combat (HUD via UISystem)
 - **[RealTimeCombatAI.md](RealTimeCombatAI.md)** — real-time combat stack (`CombatBehavior` melee, `RangedCasterBehavior` casters): cover, chain of command, per-combatant intelligence
@@ -113,16 +103,13 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 ## Cameras, UI & debug
 
 - **[CameraControlSystem.md](CameraControlSystem.md)** — camera rigs + control schemes (implemented; live switching)
-- **[DebugVisualizationGuide.md](DebugVisualizationGuide.md)** — debug-vis buffer architecture & rules
 - **[Keybindings.md](Keybindings.md)** — full keybinding reference (authoritative)
 
 ## Integration, AI & testing
 
 - **[GooseIntegration.md](GooseIntegration.md)** — Goose AI NPC integration (Phase 1 + parts of 2/3 shipped and live-wired)
 - **[IntegrationTesting.md](IntegrationTesting.md)** — integration-test fixtures & patterns
-- **[ProvingGrounds.md](ProvingGrounds.md)** — the showcase/regression world (built 2026-08-01): one streaming terrain-v2 world exercising every distance-scaling system, with `tools/proving_grounds_probe.py`
 - **[LoggingSystem.md](LoggingSystem.md)** — logging system internals + migration guide
-- **[LoggingReference.md](LoggingReference.md)** — logging quick-reference card
 
 ---
 

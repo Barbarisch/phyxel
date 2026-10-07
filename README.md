@@ -107,7 +107,7 @@ git submodule update --init --recursive
 
 Manual build: `cmake -B build -S . && cmake --build build --config Debug`.
 
-Test suites (`-UnitOnly` / `-IntegrationOnly` / `-BenchmarkOnly` / `-StressOnly` / `-E2EOnly`) are discovered from the current build; use `--gtest_list_tests` for an exact count. Live LLM tests are opt-in with `PHYXEL_RUN_LIVE_AI_TESTS=1`. See [docs/GoogleTestIntegration.md](docs/GoogleTestIntegration.md).
+Test suites (`-UnitOnly` / `-IntegrationOnly` / `-BenchmarkOnly` / `-StressOnly` / `-E2EOnly`) are discovered from the current build; use `--gtest_list_tests` for an exact count. Live LLM tests are opt-in with `PHYXEL_RUN_LIVE_AI_TESTS=1`. See [tests/README.md](tests/README.md).
 
 ## Controls
 

@@ -50,7 +50,8 @@ bodies. It does not handle break debris, which has been GPU-only since Plan 1d.
 - **World**: `VoxelDynamicsWorld` in `engine/src/physics/VoxelDynamicsWorld.cpp`
 - **Bodies**: `VoxelRigidBody` — compound OBB rigid body with sleeping, damping, restitution, friction
 - **Terrain**: `VoxelOccupancyGrid` registered per-chunk; queried via AABB each substep
-- **Contact solver**: Sequential impulse (PGS), 10 iterations per substep
+- **Contact solver**: soft-step sequential impulse (Box3D-style, warm-started, island sleep; see
+  [PhysicsRestOverhaul.md](PhysicsRestOverhaul.md) Phase 1)
 - **Threading**: Integrate, contact generation (terrain phase), and contact prepare run in parallel via `std::async` on `hardware_concurrency` threads; PGS solve is sequential
 - **Debris coupling**:
   - CPU bodies push GPU debris one-way (Plan 3c, `DebrisMoverFeed`).
@@ -210,6 +211,15 @@ gravity −18) and the orphaned `solver_jacobi/apply/graph_color.comp` shaders w
 | Default lifetime | 30 s (debris from `DamageSystem`: 25 s) |
 | Friction | Coulomb μ = the material's `friction` (Stone 0.8, Ice 0.1) |
 | Static collision | the shared micro occupancy pool (1c): 1024×512×1024 box following the viewer |
+
+**Known open solver items** (from the retired AVBD audit vs. Giles, Diaz, Yuksel, *Augmented
+Vertex Block Descent*, SIGGRAPH 2025, DOI 10.1145/3731195): P3 restitution is plumbed but no solve
+pass reads it; P6 `GAMMA` doubles as damping (`solver_integrate.comp`); R2 the iteration count
+(`SOLVE_ITERATIONS` 8) was never tuned.
+
+**Not built: GPU compound bodies** (user-approved plan, 2026-08-07, in git history as
+`docs/GpuCompoundBodies.md`). Blocker: `SolverBody` is ONE OBB with a scalar `invInertia`;
+compounds need an inertia tensor, pair-expansion narrowphase, persistent manifolds and pose readback.
 
 ### Runtime switches (A/B only; defaults are the shipped behaviour)
 

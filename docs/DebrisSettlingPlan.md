@@ -266,7 +266,7 @@ path blast/break debris takes (`DamageSystem::spawnDebris` → `queueSpawn`). Th
 and is out of scope unless the harness shows otherwise.
 
 Prior reading (all still accurate unless noted): `docs/PhysicsRestOverhaul.md` (Phase 2 = GPU
-sleep), `docs/AvbdSolverAudit.md` (R1–R5; R1 was never done).
+sleep), the AVBD audit (retired; its open items are in DynamicVoxelPhysics.md).
 
 ---
 

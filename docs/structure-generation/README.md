@@ -37,12 +37,13 @@ has a validator/gate; nothing physical is invented by the LLM.
 6. **[GroundingGaps.md](GroundingGaps.md)** — dimensions still needing a real-world source.
 7. **[BuildKnownIssues.md](BuildKnownIssues.md)** — honest tracker of issues found during runtime
    verification (KI-0…KI-4 history; KI-4 = the stairs-walkability saga).
-8. **[StructureGenerationPipeline.md](StructureGenerationPipeline.md)** — *superseded* by V2; kept for
    history.
 
 ### Depth sheets (subdirectories)
-- **[`placers/`](placers/)** — per-placer specs (one file per pipeline step, the HOW).
-- **[`rooms/`](rooms/)** — per-room data sheets (the interior layer).
+- **[`placers/`](placers/)** — the two placer specs code cites (12 stairs, 14 chimney). The other 57
+  draft specs were retired 2026-10-07 (git history); the per-placer index is
+  `StructureGenerationPlacers.md`, live status is `ValidationLedger.md`. Room data lives in
+  `resources/room_program.json` (the draft `rooms/` sheets were retired the same day).
 - **[`archetypes/`](archetypes/)** — per-building-type data sheets (the building layer). *No archetype
   is built in 3D until its sheet exists.*
 

@@ -293,4 +293,3 @@ and the in-flight sweep state if any.
 - `/generate` — produce a `.voxel` template before validating it
 - `/visual-test` — generic visual regression skill
 - [docs/CharacterAnimationGuide.md](CharacterAnimationGuide.md)
-- [docs/MCPIntegration.md](MCPIntegration.md)

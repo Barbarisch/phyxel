@@ -1,7 +1,7 @@
 # Structure Generation v2 — Settlements, Parcels & Ground-Up Buildings
 
-> **This is the canonical design for structure generation.** It supersedes
-> [`StructureGenerationPipeline.md`](StructureGenerationPipeline.md) (kept for history). The live
+> **This is the canonical design for structure generation.** It supersedes the v1
+> `StructureGenerationPipeline.md` (retired 2026-10-07; in git history). The live
 > capability-gap logs — [`StructurePipelineGaps.md`](StructurePipelineGaps.md) and
 > [`MaterialTextureNeeds.md`](../MaterialTextureNeeds.md) — stay current and apply to v2.
 

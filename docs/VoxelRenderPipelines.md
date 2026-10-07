@@ -66,7 +66,11 @@ Three separate Vulkan pipelines render voxels. All three share the same fragment
 ### Vertex + Index Buffers (Binding 0)
 
 - **Vertex buffer**: 8 vertices, each containing a single `uint32_t vertexID` (0–7).
-- **Index buffer**: 36 × `uint16_t` indices defining 12 triangles (2 per face, 6 faces).
+- **Index buffer**: 36 × `uint16_t` indices defining 12 triangles (2 per face, 6 faces). The MAIN
+  opaque pass draws a 6-index quad per face instead (`VulkanDevice::s_quadDraw`, default ON since
+  2026-08: 4.7 → 3.0 ms). The shadow pass must stay 36-index (see CLAUDE.md). Lesson from that
+  change: a timing-null is not an output-null — pixel-diff render changes
+  (`tools/render_pixel_diff.py`) with grass/foliage off and day-night paused.
 
 The static vertex shader (`static_voxel.vert`) uses `vertexID` to index into hard-coded corner positions for the unit cube. The index buffer selects which corners form each triangle.
 

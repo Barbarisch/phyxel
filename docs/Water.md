@@ -219,7 +219,7 @@ they cannot drift apart).
 ⚑Every earlier water testbed is DELETED (2026-08-04, user decision — they predated
 water-as-world-data and carried stale engine state): WaterTableTest, WaterBasinTest, WaterLab,
 CreekLab, RiverLab, RiverDemo. Numbers measured in them remain in this doc as history; the
-reference screenshots in `docs/water-refs/` are historical evidence. Recreating a small bounded
+reference screenshots (`docs/water-refs/`) were retired 2026-10-07; they are in git history. Recreating a small bounded
 basin world takes two commands (generate Flat 4×4 + carve — see the WaterBasinTest recipe in
 git history) and should be done fresh when needed rather than kept.
 
