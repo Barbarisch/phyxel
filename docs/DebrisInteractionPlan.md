@@ -1288,6 +1288,71 @@ green), with DebrisLab's `game.json` + a fresh copy of its `worlds/default.db`, 
 - **6b.** Sleep events (gatherable settle, audio).
 - **6c.** Debris buoyancy and drag.
 
+**Design check, 2026-10-07 (`/design-check`), verdict NEEDS WORK → resolved by the user's
+decisions below.**
+
+What exists:
+- **No production readback.** The only GPU→CPU path is the debug settle probe: ~1 MB per tick,
+  2-frame latency, copied after the slot's fence (`GpuParticlePhysics.cpp:1637-1723`).
+- **6a has no plumbing yet:**
+  - the solver already computes the contact force on mover bodies (`lambdaN`,
+    `solver_dual.comp:78,106`) and discards it;
+  - movers carry no owner id (`feedCharacters` flattens every limb into one list);
+  - characters have no force/impulse API: knockback is a one-frame `setMoveVelocity`
+    (`CombatSystem.cpp:128`).
+- **6b has nothing yet:** sleep happens in `solver_sync_out.comp:83` and is invisible to the host
+  outside the probe; there are no debris impact/break sound events and no debris pickup path
+  (`ItemPropManager::spawnProp` + `Inventory::addItem` exist).
+- **6c has no GPU water:** water is CPU-authoritative (`WaterManager`; `submergedFraction` and
+  `flowAtWorld` are thread-safe reads) and nothing on the GPU holds a surface; CPU bodies float
+  with an artistic `buoyancy` factor (1.6, item props 1.2).
+- **Pre-existing bug spotted:** the position-log readback reads the buffer a frame later without
+  that slot's fence (`cpp:1085-1110`). It runs only while logging; it gets fixed with the shared
+  readback.
+- **Physics-model trap for 6c:** GPU debris mass is a per-material CONSTANT, independent of piece
+  size (a 1 m and a 1/3 m Stone piece both weigh 6 kg), so density × volume buoyancy would be
+  wrong without changing masses, which re-baselines every bench band.
+
+User decisions (2026-10-07):
+1. **6c buoyancy = per-material ratio** in `materials.json` (Wood floats, Stone sinks), as CPU
+   bodies already work. Masses unchanged, bench unchanged.
+2. **6a = both:** piles RESIST walking through them (speed reduction from the summed contact
+   force) AND fast debris KNOCKS characters (impulse), with a per-character force cap.
+3. **6b consumers = impact/settle audio AND gatherable rubble.** Audio needs CC0 sound assets in
+   `sounds.json`. Settled pieces become pickable material items (finite physical items, the
+   user's standing rule); picking one up adds it to the inventory.
+4. **Order:** the shared small readback path first, then 6b, 6c, 6a (6a also needs a character
+   push API).
+
+Gate answers:
+- **Aesthetic:** no new assets; rubble keeps its material and texture slice.
+- **Chunks:** 6a/6b follow world position only. 6c's water grid is a window around the debris; it
+  must cover the SAME window as the static occupancy, so a body beyond it is already held and the
+  water edge is never the visible boundary. Equality test: the grid uploaded window-by-window
+  equals `sampleWater`/`flowAtWorld` evaluated column-by-column across the window seam
+  (`FloraMarginTest` shape).
+- **Generation:** none. The buoyancy ratio is per material (global `materials.json`), not world
+  recipe.
+- **API:**
+  - 6a per-owner push-force readout (N, two frames late);
+  - 6b events endpoint (sleep/impact since last call, capped, drop count echoed);
+  - 6c water stats in `gpu_physics`;
+  - new solver flag bits for 6a/6c: the pinned `SOLVER_FLAGS_DEFAULT` static_assert changes in
+    the same commit;
+  - clamps: per-character force cap, event caps (overflow counted), minimum impact speed for
+    audio.
+
+Test plan:
+- **6a, L3:** a character walking through a settled 4×2×4 pile vs open air is measurably slowed,
+  and a falling debris "rain" displaces a standing character by ≥ the momentum-transfer
+  prediction. Control: flag off. Red: today full speed, no nudge.
+- **6b, L4:** sleep events equal the probe's independent count of sleep transitions (the probe is
+  the oracle); impact events equal the probe-derived impacts above the threshold; N settled
+  pieces → N pickable items → +N inventory. Red: no endpoint today.
+- **6c, L4:** a one-chunk pool; Wood debris floats at the depth its ratio predicts (±0.1 m),
+  Stone sinks to the floor, terminal speed in water is lower, and debris drifts at the flow speed
+  ±20 %. Control: the same drop with no water.
+
 ---
 
 ## §API (`/api/debug/*` convention: an omitted field means unchanged; responses echo the resulting state; clamps at entry with the reason in code)
