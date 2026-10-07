@@ -1,6 +1,23 @@
 # Debris Interaction Plan — everything that moves can push GPU debris
 
-**Status:** rev 4.13, 2026-10-07. **Phase 0 DONE** (main `ed924498`; results under Phase 0).
+**Status:** rev 4.14, 2026-10-07. **PLAN COMPLETE: phases 0–6 are on main** (6a = `8bce3e69`).
+The sections below are the build ledger: the §Inventory and design-check text describe the code
+AS IT WAS before each phase, so read a phase's DONE entry for the current state.
+Current-state reference: [DynamicVoxelPhysics.md](DynamicVoxelPhysics.md) §Interaction.
+
+**Open items, collected (none blocks shipping):**
+- Bench bands: blast ≤ 6 and box_through_pile ≤ 12 forced sleeps are tighter than the GPU's
+  run-to-run spread (blast measured 1–9 on one binary; box_through_pile 4–12). The user decides
+  whether to widen them.
+- Push-back (6a) is capped per contact, not per debris body, so the 0.42× walk resistance is an
+  upper estimate. The fix, if it plays too strong: dedupe per (body, owner).
+- No angular velocity for GPU movers (door overlap median 37 mm, 3b).
+- `CombatSystem` swing cones, `try_push`, angular kicks are not wired to impulses (4).
+- The 6c water current is unit-tested but not shown live.
+- 1c step 5 gap 8: incremental add does not filter broken/invisible sub-voxels.
+- The Phase 3 mover budget orders by camera distance only.
+
+**Phase 0 DONE** (main `ed924498`; results under Phase 0).
 **Phase 1 DONE** (pushed to main through 1f):
 - 1a build safety ✅ · 1b `shaders/solver_shared.h` ✅
 - 1c one occupancy: steps 1–4 ✅ (tri-state query, edit-first repack, debris reads the shared
@@ -28,13 +45,15 @@
 - **Phase 5 DONE** (2026-10-07): shared `DebrisRuntime` + shared debris API handlers; shipped
   games (scaffold, `minimal_game`) run GPU debris on by default, and scaffold spells blast.
   Verified in a PACKAGED Release game: bench parity with the editor, the blast's exact numbers,
-  and the loud-off control. Next: Phase 6 (optional; separate design check).
+  and the loud-off control.
+- **Phase 6 DONE** (2026-10-07): 6.0 event readback, 6b impact/settle audio and gatherable
+  rubble, 6c water (buoyancy/drag/current), 6a push-back on characters. Details under Phase 6.
 - Still open, minor: 1c step 5 gap 8 (incremental add does not filter broken/invisible
   sub-voxels); drop_pile varies run to run (GPU nondeterminism, not session state).
 - Fixed in Phase 4: the bench's blast-site restore kept damaged floor cubes, so back-to-back
   blast runs differed (now `replace: true`).
-- Not started: Phase 6. Phase 3 budget orders by camera distance only (no host-side debris
-  positions without a readback).
+- Phase 3 budget orders by camera distance only (no host-side debris positions without a
+  readback).
 - Rev 2 rewrote the phases after a four-way code inventory (§Inventory).
 - Rev 3 (user direction) puts simplification first: delete the old systems before new work.
 - **Rev 4 folds in the second design check:**
@@ -93,7 +112,7 @@ project) and headless tests.
 - The only consumers of CPU debris bodies are `try_push`, three tests and
   `tools/perf_stress_test.py`.
 
-### B. Runtimes: GPU debris is EDITOR-ONLY
+### B. Runtimes: GPU debris is EDITOR-ONLY *(as of 2026-10-04; fixed by Phase 5, `DebrisRuntime`)*
 `GpuParticlePhysics` is created only by `editor/src/Application.cpp`. None of these has GPU
 debris or a voxel `DamageSystem`:
 - `EngineRuntime`, `GameShell` and `GameApiService` (the shipped-game host);
@@ -1294,7 +1313,7 @@ decisions below.**
 What exists:
 - **No production readback.** The only GPU→CPU path is the debug settle probe: ~1 MB per tick,
   2-frame latency, copied after the slot's fence (`GpuParticlePhysics.cpp:1637-1723`).
-- **6a has no plumbing yet:**
+- **6a has no plumbing yet** *(as of the design check; built 2026-10-07, see 6a DONE)*:
   - the solver already computes the contact force on mover bodies (`lambdaN`,
     `solver_dual.comp:78,106`) and discards it;
   - movers carry no owner id (`feedCharacters` flattens every limb into one list);
@@ -1541,8 +1560,10 @@ Test plan:
 | `POST /api/debug/gpu_kinematic_box` | `id`, `center`, `half` (m), `rotation` (quat), `velocity` (m/s), `angular_velocity` (rad/s), `ttl` (s, ≤10), `remove` | the box as stored, `kinematic_boxes`, `overflow` |
 | `POST /api/debug/occupancy_diff` | `x1,y1,z1,x2,y2,z2` (world voxels, ≤ 64³) | `cell_mismatches`, `subcube_mismatches`, the first 20 mismatching cells with grid vs. world |
 | `POST /api/debug/gpu_physics` (extended) | existing fields, plus `kinematic_range` (m, 4–128) | adds `kinematic_boxes`, `kinematic_overflow`, `impulses_applied`, `frozen_out_of_window`, `window_origin` |
+| `POST /api/debug/debris_events` (6.0/6a/6b/6c) | `push_back` (bool), `recent` (N) | counters, settled count, `recent`, `water{}`, `push_back{enabled, applied, read_owners, read_impulse_total, dropped_not_live, max_impulse}` |
+| `POST /api/debug/debris_gather` (6b) | `x,y,z`, `radius` (m, <= 16), `max` (<= 256), `inventory` (bool) | `pieces`, `items` (whole units credited), `carried` (fractional remainder) |
 
-**Defaults pinned:** flags 55, `kinematicRange` 48 m, 512 kinematic boxes, 64 impulses per tick,
+**Defaults pinned:** flags 119 (55 after Phase 2, + water 64 in 6c), `kinematicRange` 48 m, 512 kinematic boxes, 64 impulses per tick,
 window recentre at 64 m. The settle bench is the pin; a deliberate change updates its
 expectations in the same commit.
 

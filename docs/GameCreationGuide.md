@@ -454,7 +454,7 @@ Standalone games use the standard `GameSettings::defaultKeybindings()`:
 | Space | Jump |
 | Shift | Sprint |
 | Ctrl | Crouch |
-| E | Interact (talk to NPC) |
+| E | Interact (talk to NPC; with nothing else in range, gather settled rubble) |
 | Left Click | Attack |
 | V | Toggle camera mode (1st/3rd/free) |
 | Tab | Inventory |
@@ -490,6 +490,18 @@ These can be rebound in the Settings → Keybindings screen (once wired to gamep
 
 > **Editor-only controls** (not available in standalone games):
 > K = toggle character, T = spawn template, F1-F7 = debug overlays
+
+### Breakable voxels and debris (DebrisInteractionPlan Phase 5-6)
+
+Scaffolded games run the same GPU debris as the editor (`DebrisRuntime`), **on by default**:
+broken voxels fall as physical pieces that characters push and are pushed by. Blasts and
+damaging spells push existing debris. Pieces float or sink in water and make impact/settle
+sounds, and settled rubble can be gathered into the inventory, credited by volume.
+
+- `game.json` `"debris": {"enabled": false}` turns it off. `"spellsBreakVoxels": false` keeps
+  spells from blasting voxels.
+- `--disable-gpu-debris` forces it off for one run. When off, the game logs ONE error; voxels
+  still break, but no debris spawns.
 
 ## Iterating on a Live Game
 

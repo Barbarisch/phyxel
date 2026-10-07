@@ -124,7 +124,10 @@ What the CA has (all shipped, commits in git history; compressed from the small-
 - **RippleField** — 128×128 half-voxel damped wave heightfield, player-following;
   displaces per-cell water; `addRipple` on disturbances.
 - **Entity coupling** — `sampleWater`/`submergedFraction` (the one shared query),
-  buoyancy + drag on rigid bodies (wet bodies never sleep; slept bodies re-check ~1 Hz),
+  buoyancy + drag on rigid bodies (wet bodies never sleep; slept bodies re-check ~1 Hz).
+  GPU debris gets the same coupling on the GPU (DebrisInteractionPlan 6c): per-material
+  `physics.buoyancy` in materials.json, plus drag and current from `WaterManager::columnWater`
+  through a sparse per-chunk-column tile upload, solver flag 64;
   wading slowdown + stride rings + entry splash, currents push entities (`flowAtWorld`).
 - **Persistence of deviations** — poured ponds survive recenter + restart
   (`world_meta["water_overrides"]`); edge-outflow banks (window edge is not a wall).

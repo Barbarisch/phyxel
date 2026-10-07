@@ -2,59 +2,48 @@
 
 ## Overview
 
-When voxels are broken (left-click), they become physics-driven **dynamic voxels** that fall, bounce, and collide with the world and each other. The engine uses a **two-tier architecture**:
+> **Current state (2026-10-07, [DebrisInteractionPlan.md](DebrisInteractionPlan.md) complete).**
+> Every broken piece is **GPU debris**. There is no CPU debris path and no FPS-based routing: the
+> CPU single-box path (`DynamicObjectManager`, `addGlobalDynamicCube`) was deleted in Plan 1d.
+> Debris collides with everything that moves (characters, CPU bodies, doors, held items):
+> - blasts and spells push it;
+> - it pushes characters back;
+> - it floats or sinks in water;
+> - it emits sleep/impact events, which drive audio and gatherable rubble;
+> - it runs in shipped games.
 
-- **VoxelDynamicsWorld** (CPU) — Custom sequential-impulse rigid body engine. Handles all broken voxels, furniture, and compound physics objects with full OBB collision. This is the **sole CPU physics backend** — Bullet Physics has been removed from active builds.
-- **GPU Compute** (Vulkan) — Massively parallel AVBD rigid-body debris physics via `GpuParticlePhysics` (the XPBD pipeline it replaced was deleted 2026-10-04). Lower per-particle cost, scales to 5000+ particles with minimal FPS impact.
+The engine has two physics worlds, split by role:
 
-Both systems render through the same dynamic voxel pipeline (see [VoxelRenderPipelines.md](VoxelRenderPipelines.md)).
+- **GPU AVBD debris** (`GpuParticlePhysics`, Vulkan compute) simulates every broken voxel.
+  - Every break goes through `DamageSystem::spawnBreakDebris`: the B key, Python breaks,
+    `/api/damage/apply` blasts, spells, chops and derez.
+  - The solver is owned by `DebrisRuntime`, the same class in the editor and in shipped games.
+- **CPU `VoxelDynamicsWorld`** (sequential impulse) holds furniture, fragments, trees and item
+  props (whole compound bodies), plus the static-terrain occupancy grids that characters ground
+  against. It does NOT simulate break debris any more.
 
 ```
-          Player breaks voxel
-                  │
-                  ▼
-    ┌─────────────────────────┐
-    │ VoxelManipulationSystem │
-    │    breakCube()          │
-    └───────────┬─────────────┘
-                │
-        ┌───────┴──────────┐
-        │  Routing Decision│
-        │  (FPS-based)     │
-        ├──────────┬───────┤
-        ▼          ▼
-┌──────────────┐  ┌──────────┐
-│VoxelDynamics │  │ GPU AVBD │
-│   World      │  │(Compute) │
-│   (CPU)      │  │          │
-└──────┬───────┘  └────┬─────┘
-       │               │
-       ▼               ▼
- DynamicObject    ParticleBuffer
-  Manager          (SSBO)
-       │               │
-       ▼               ▼
-  CPU face buf    GPU face buf
-       │               │
-       └──────┬────────┘
-              ▼
-     Dynamic Render Pipeline
-      (dynamic_voxel.vert)
+  break (B key / Python / blast / spell / derez)
+        |
+        v
+  DamageSystem::spawnBreakDebris --> GpuParticlePhysics (AVBD, owned by DebrisRuntime)
+                                          |  movers in: characters, CPU bodies, doors, held items
+                                          |  (kinematic AVBD bodies, one-way into the GPU)
+                                          |  readback out: sleep/wake/impact events, push on characters
+                                          v
+                                   particle_expand.comp --> dynamic_voxel.vert
 ```
 
 ## Routing
 
-When a voxel breaks, `VoxelManipulationSystem` decides which backend to use via **FPS-based fallback** — VoxelDynamicsWorld is always preferred for its realistic rigid body simulation, and GPU particles are only used when performance demands it:
-
-1. **FPS check**: If the smoothed FPS is at or above the threshold (`GPU_FALLBACK_FPS_THRESHOLD`, default 30 FPS), use VoxelDynamicsWorld.
-2. **Per-frame budget**: At most `MAX_VOXEL_BREAKS_PER_FRAME` new CPU objects per frame to avoid spikes.
-3. **FPS below threshold**: Route to GPU compute to avoid further frame rate degradation.
-
-The smoothed FPS uses an exponential moving average (~20-frame window) to avoid jitter from single-frame spikes.
+There is none. `VoxelManipulationSystem::breakCube` hands the piece to
+`DamageSystem::spawnBreakDebris` through a GPU-solver provider. If the GPU solver is missing, it
+fails LOUD (see "All debris is GPU debris" below): voxels still break, but no debris spawns.
 
 ## VoxelDynamicsWorld (CPU Physics)
 
-A purpose-built sequential-impulse physics engine for all CPU-side dynamic voxels, furniture, and compound rigid bodies.
+A purpose-built sequential-impulse physics engine for furniture, fragments and compound rigid
+bodies. It does not handle break debris, which has been GPU-only since Plan 1d.
 
 ### Architecture
 
@@ -63,7 +52,9 @@ A purpose-built sequential-impulse physics engine for all CPU-side dynamic voxel
 - **Terrain**: `VoxelOccupancyGrid` registered per-chunk; queried via AABB each substep
 - **Contact solver**: Sequential impulse (PGS), 10 iterations per substep
 - **Threading**: Integrate, contact generation (terrain phase), and contact prepare run in parallel via `std::async` on `hardware_concurrency` threads; PGS solve is sequential
-- **Manager**: `DynamicObjectManager` — wraps VoxelDynamicsWorld, handles lifecycle (spawn, expire, position sync, face generation)
+- **Debris coupling**:
+  - CPU bodies push GPU debris one-way (Plan 3c, `DebrisMoverFeed`).
+  - A blast or `POST /api/physics/impulse` pushes both worlds with the same impulse law (Plan 4).
 - **PhysicsWorld**: Thin wrapper around `VoxelDynamicsWorld`; provides `stepSimulation`, `setGravity`, `getVoxelWorld()`
 
 ### Contact Generation Pipeline
@@ -74,20 +65,12 @@ Each substep:
 3. **Body vs kinematic obstacles** (sequential) — character segment boxes; wakes sleeping bodies on overlap
 4. **Body vs body** (spatial hash broadphase) — bodies bucketed into 2-unit 3D cells; only pairs sharing a cell are narrowphase-tested, reducing average complexity from O(N²) to O(N) for sparse scenes
 
-### Lifecycle
-
-1. **Spawn**: `addGlobalDynamicCube/Subcube/Microcube()` → `VoxelDynamicsWorld::createVoxelBody()`
-2. **Update**: `updateGlobalDynamicCubes(dt)` — decrements lifetime, removes expired cubes, cleans up physics bodies
-3. **Position sync**: reads `VoxelRigidBody::position` and `orientation`, writes to cube's physics position
-4. **Face generation**: `FaceUpdateCoordinator` generates `DynamicSubcubeInstanceData` per visible face
-5. **Render**: CPU-side face buffer uploaded to Vulkan, drawn via `vkCmdDrawIndexed` (6 indices per face)
-
 ### Properties
 
 | Property | Value |
 |----------|-------|
 | Max bodies | Unlimited (soft limit ~500 active before perf degrades) |
-| Default lifetime | 30s for debris, `FLT_MAX` for furniture |
+| Lifetime | `FLT_MAX` for furniture |
 | Collision | OBB–OBB and OBB–AABB (terrain) via SAT |
 | Substeps | 3 per frame (configurable) |
 | Gravity | -9.81 m/s² |
@@ -95,14 +78,6 @@ Each substep:
 | Sleep delay | 1.2 seconds below threshold |
 | Broadphase | Spatial hash, 2-unit cells |
 | Thread count | `hardware_concurrency` (configurable via `setThreadCount`) |
-
-### Scale Support
-
-| Scale | Size | Type |
-|-------|------|------|
-| 1.0 | Full cube | `Cube` via `addGlobalDynamicCube()` |
-| 0.333 | Subcube (1/3) | `Subcube` via `addGlobalDynamicSubcube()` |
-| 0.111 | Microcube (1/9) | `Microcube` via `addGlobalDynamicMicrocube()` |
 
 ### Body Creation API
 
@@ -130,7 +105,7 @@ body->applyImpulse(impulse, worldPoint);
 
 ### Performance Characteristics (Debug Build)
 
-Measured with `tools/perf_stress_test.py --mode voxel` — all bodies spawned at a single point (worst case: all bodies piled and awake).
+Measured with `tools/perf_stress_test.py --mode voxel` (bare, unrendered bodies) — all bodies spawned at a single point (worst case: all bodies piled and awake).
 
 | Count | FPS avg | CPU ms | Notes |
 |-------|---------|--------|-------|
@@ -192,7 +167,7 @@ gravity −18) and the orphaned `solver_jacobi/apply/graph_color.comp` shaders w
 | # | Shader | Purpose |
 |---|--------|---------|
 | 1 | `solver_sync_in.comp` | GpuParticle → SolverBody. Velocity = (pos − prevPos)/dt. Consumes wake bits |
-| 2 | `solver_integrate.comp` | Gravity and damping, inertial prediction. `startAtRest`: slow bodies start from x⁻. Character shove |
+| 2 | `solver_integrate.comp` | Gravity and damping, inertial prediction. `startAtRest`: slow bodies start from x⁻. Water buoyancy, drag and current (flag 64). The old character shove (D7) is deleted: movers are kinematic AVBD bodies |
 | 3 | `particle_grid_*`, `particle_scan_*`, `particle_sort_*` | Spatial hash broadphase (parallel prefix sum) |
 | 4a | `solver_narrowphase.comp` | Box-box SAT with clipped face manifolds (≤4 points) or an edge contact |
 | 4b | `solver_voxel.comp` | Box vs static voxels: 26 surface samples, `voxel_contact.glsl` (≤6 contacts) |
@@ -200,8 +175,8 @@ gravity −18) and the orphaned `solver_jacobi/apply/graph_color.comp` shaders w
 | 6 | `solver_body_color.comp` ×32 | Jones-Plassmann graph colouring (32 colours) |
 | 7 | (`solver_dual.comp` → `solver_primal.comp` ×33) ×8 | AVBD: per-constraint dual update, then per-colour 6×6 LDL body solves. The 33rd sweep solves UNCOLORED bodies Jacobi-style |
 | 7b | `solver_hardcontact.comp` | Safety projection out of static voxels when overlap exceeds 1 cm. Velocity-neutral |
-| 8 | `solver_sync_out.comp` | SolverBody → GpuParticle. Velocity from displacement. Sleep counter / freeze |
-| 9 | `solver_warmstart_save.comp` | Persist λ, κ, stick flag and friction anchors per contact feature |
+| 8 | `solver_sync_out.comp` | SolverBody → GpuParticle. Velocity from displacement. Sleep counter / freeze. Writes SLEEP/WAKE/IMPACT events |
+| 9 | `solver_warmstart_save.comp` | Persist λ, κ, stick flag and friction anchors per contact feature. Sums each mover's push (6a) |
 | — | `particle_expand.comp` | Six face instances per active particle |
 
 ### Contact model (what makes debris settle; do not regress)
@@ -240,7 +215,9 @@ gravity −18) and the orphaned `solver_jacobi/apply/graph_color.comp` shaders w
 
 `POST /api/debug/gpu_physics {"flags": N, "cold_scale": s}`. Bits: 1 = cold normal rows at
 m/dt², 2 = startAtRest, 4 = velocity-neutral hard contact, 8 = post-stabilisation (rejected:
-measured worse), 16 = static friction. **Default 23.** `cold_scale` multiplies cold-contact
+measured worse), 16 = static friction, 32 = kinematic contacts (movers are AVBD bodies; off =
+movers touch nothing), 64 = water. **Default 119** (`SOLVER_FLAGS_DEFAULT` in
+`shaders/solver_shared.h`, static_asserted). `cold_scale` multiplies cold-contact
 stiffness (default 1; 10× fixes stacks but makes impacts violent).
 
 ### Particle Sleep and Wake
@@ -255,6 +232,20 @@ craters, and on 2–12 % in collapsing towers or blasts.
 
 Sleepers stay in the broadphase as static supports. An awake body hitting one faster than
 0.5 m/s, or a moving character overlapping one, sets a wake bit.
+
+### Interaction (DebrisInteractionPlan, all phases done 2026-10-07)
+
+The plan doc holds the design, the measurements and the open items. In short:
+
+| What | How | API / switch |
+|------|-----|--------------|
+| Movers push debris | Character limb boxes (3a), CPU bodies (3c), and doors, animated parts and held items (3b) are kinematic AVBD bodies: at most 512 boxes, nearest the camera first | `gpu_kinematic_box` (scripted box), the `gpu_physics` kinematic counters; flag 32 |
+| Impulses | One law for both worlds; blasts and spells push existing debris | `POST /api/physics/impulse` |
+| Debris pushes characters | Per-character summed contact impulse, read back 2 frames late, applied by `AnimatedVoxelCharacter::applyDebrisPush` (75 kg, ≤ 3 m/s per call, ≤ 4 m/s, decays) | `debris_events {"push_back": bool}` |
+| Events | SLEEP / WAKE / IMPACT, ≤ 1024 per frame (overflow counted), driving the `debris.impact` / `debris.settle` sounds | `POST /api/debug/debris_events` |
+| Gather rubble | Settled pieces near a point go to the inventory by VOLUME (a ⅓ piece = 1/27 cube). G key | `POST /api/debug/debris_gather` |
+| Water | Per-material `physics.buoyancy` (materials.json, default 0.38); drag; current from `WaterManager::columnWater` | `debris_events` → `water{}`; flag 64 |
+| Shipped games | `DebrisRuntime` and `registerDebrisCommands` are shared by the editor and `GameShell`; ON by default | off: game.json `debris.enabled=false` or `--disable-gpu-debris` |
 
 ### Testing (the settling gate)
 
@@ -300,15 +291,19 @@ Sleepers stay in the broadphase as static supports. An awake body hitting one fa
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/debug/engine_timing` | GET | FPS, CPU/GPU frame time, draw calls, culling stats, detailed subsystem timings |
-| `/api/debug/dynamic_stats` | GET | `cpu_dynamic` (CPU dynamic cubes+subcubes+microcubes, sleeping included) / `cpu_dynamic_cap`, `gpu_active` / `gpu_cap` (the Bullet-era `bullet_*` keys always read 0 and were removed 2026-10-04) |
+| `/api/debug/dynamic_stats` | GET | `gpu_active` / `gpu_cap` (the CPU debris counters were deleted with the CPU debris path, Plan 1d) |
 | `/api/debug/spawn_voxel_body` / `clear_voxel_bodies` | POST | Bare, unrendered `VoxelDynamicsWorld` bodies — the only headless CPU-solver benchmark harness (`perf_stress_test.py --mode voxel`). `clear_voxel_bodies` removes EVERY body in that world, furniture included |
 | `/api/debug/particle_timing` | GET | GPU physics timing ring buffer (300 frames) |
-| `/api/debug/spawn_bullet_cube` | POST | Spawn VoxelDynamicsWorld dynamic cubes (count, scale, material, lifetime, velocity) |
 | `/api/debug/spawn_gpu_particle` | POST | Spawn GPU particles (count, scale, material, lifetime, velocity) |
-| `/api/debug/clear_dynamics` | POST | Remove all CPU dynamic objects and GPU particles instantly; echoes `cpu_cleared`, `gpu_cleared` |
+| `/api/debug/clear_dynamics` | POST | Remove all GPU debris instantly; echoes `gpu_cleared` |
 | `/api/debug/spawn_gpu_lattice` | POST | Deterministic grid of GPU debris (nx/ny/nz, scale, gap — 0 = touching, spin, jitter, seed) |
 | `/api/debug/gpu_physics` | POST | Freeze / single-step the GPU solver (`frozen`, `step`), solver fix switches (`flags`, `cold_scale`) |
 | `/api/debug/settle_probe` | POST | Per-tick settling analysis (`op` start/stop/status, `floor_y`, `series_last`, `bodies`, `csv`) → SETTLES/FAILS verdict |
+| `/api/debug/gpu_kinematic_box` | POST | Scripted kinematic mover box (`id`, `center`, `half`, `rotation`, `velocity`, `angular_velocity`, `ttl`, `remove`) |
+| `/api/debug/occupancy_diff` | POST | Store = grid = pool check over a ≤ 64³ box |
+| `/api/debug/debris_events` | POST | Event counters plus `recent`, settled count, `water{}`, `push_back{}`; `{"push_back": bool}` toggles push-back |
+| `/api/debug/debris_gather` | POST | Gather settled rubble (`x,y,z`, `radius` ≤ 16, `max` ≤ 256, `inventory`) |
+| `/api/physics/impulse` | POST | Push existing debris and CPU bodies (`x,y,z`, `radius`, `impulse` N·s, `up_bias`, optional cone, `worlds`) |
 
 ### Spawn Parameters
 
@@ -361,7 +356,6 @@ Sleepers stay in the broadphase as static supports. An awake body hitting one fa
 ```bash
 python tools/perf_stress_test.py --mode gpu --quick --settle 2
 python tools/perf_stress_test.py --mode voxel --quick --settle 2
-python tools/perf_stress_test.py --mode mixed --settle 3
 python tools/perf_stress_test.py --mode all
 ```
 
@@ -370,9 +364,7 @@ python tools/perf_stress_test.py --mode all
 | Mode | Description |
 |------|-------------|
 | `gpu` | Ramp GPU particles: 100→10,000 (quick: 100→5,000) |
-| `cpu` | Ramp rendered CPU dynamic cubes (`spawn_bullet_cube`): 25→300 (the `MAX_DYNAMIC_OBJECTS` cap); was `bullet` before 2026-10-04 |
 | `voxel` | Ramp bare, unrendered VoxelDynamicsWorld bodies (`spawn_voxel_body`): 50→5,000 |
-| `mixed` | Fill CPU dynamic cubes to 50% of their cap, then ramp GPU |
 | `scale` | Compare full/subcube/microcube performance |
 | `sustained` | Hold 10,000 GPU particles for 30 seconds |
 | `all` | Run all modes sequentially |
@@ -389,16 +381,18 @@ python tools/perf_stress_test.py --mode all
 | `engine/src/physics/VoxelContactSolver.cpp` | OBB–OBB, OBB–AABB, face clipping, impulse solve |
 | `engine/include/core/GpuParticlePhysics.h` | GPU particle system header (spawn API, constants) |
 | `engine/src/core/GpuParticlePhysics.cpp` | GPU compute pipeline setup, dispatch, spawn queue |
-| `engine/include/core/DynamicObjectManager.h` | CPU dynamic object manager (lifecycle, rendering) |
-| `engine/src/core/DynamicObjectManager.cpp` | Spawn, expire, position sync — reads VoxelRigidBody state |
-| `engine/src/scene/VoxelManipulationSystem.cpp` | Hybrid routing (break → VoxelDynamicsWorld or GPU) |
+| `engine/{include,src}/core/DebrisRuntime.*` | Owns the GPU solver in the editor AND in shipped games: mover feeds, events/audio, water tiles, push-back |
+| `engine/{include,src}/core/DebrisApiCommands.*` | The shared debris API handlers (`registerDebrisCommands`) |
+| `engine/include/core/DebrisMoverFeed.h` | CPU bodies / doors / held items → kinematic mover boxes |
+| `engine/src/scene/VoxelManipulationSystem.cpp` | Break → `DamageSystem::spawnBreakDebris` (GPU only) |
+| `shaders/solver_shared.h` | Constants and flag bits shared by C++ and GLSL (one file, no mirror) |
 | `editor/src/Application.cpp` | Debug spawn handlers, timing API handlers |
 | `engine/src/core/EngineAPIServer.cpp` | HTTP route registration for debug endpoints |
 | `shaders/solver_*.comp`, `shaders/voxel_contact.glsl` | The AVBD solver passes and the shared voxel-contact model |
 | `shaders/particle_expand.comp` | Face instance generation compute shader |
 | `shaders/particle_types.glsl` | Shared particle struct definition |
 | `tools/perf_stress_test.py` | Automated performance stress tester |
-| `engine/deprecated/bullet/` | Archived Bullet-dependent classes (not compiled) |
+| `tools/debris_settle_bench.py` | The settling gate (DebrisLab) |
 
 ---
 

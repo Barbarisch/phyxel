@@ -106,18 +106,26 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
       orphaned `solver_jacobi/graph_color/apply.comp` were DELETED 2026-10-04
       (`docs/DebrisInteractionPlan.md` Phase 0). `particle_expand.comp` and the grid-sort
       passes feed the solver. Any change here must pass `tools/debris_settle_bench.py`
-      on DebrisLab. The character shove lives in `solver_integrate.comp` (a push, not a
-      contact — replaced by kinematic contacts in Plan Phase 2).
+      on DebrisLab. Movers (characters, CPU bodies, doors, held items) are kinematic AVBD
+      bodies since Plan Phase 2; the old shove in `solver_integrate.comp` is deleted.
     - **All debris is GPU debris** (the CPU `DebrisSystem` was deleted in Phase 0 D2). A
       missing GPU solver is LOUD: one ERROR, `gpu_physics` echoes `disabled_reason`,
       refused pieces are counted (`tools/gpu_debris_disabled_check.py`).
-  - **`VoxelDynamicsWorld`** (custom CPU sequential-impulse rigid-body world) — furniture,
-    the **static-terrain occupancy grids characters ground against**, and the **left-click
-    break-debris path** (`breakCube` → `addGlobalDynamicCube` → `DynamicObjectManager`).
-  - **Break routing** (`VoxelManipulationSystem`, see `docs/DynamicVoxelPhysics.md`): a
-    left-click break PREFERS CPU `VoxelDynamicsWorld` and only falls back to GPU particles
-    when smoothed FPS drops below a threshold. So "GPU is primary" is true for
-    destruction/scale, NOT for every single break — it's genuinely hybrid. Don't overstate it.
+  - **`VoxelDynamicsWorld`** (custom CPU sequential-impulse rigid-body world) holds furniture,
+    fragments, trees and item props, plus the **static-terrain occupancy grids characters
+    ground against**. It has NO break debris any more.
+  - **Break routing: there is none.** Every break goes through
+    `DamageSystem::spawnBreakDebris` to the GPU (B key, Python, blasts, spells, derez). The
+    CPU single-box path (`addGlobalDynamicCube` → `DynamicObjectManager`) and the FPS-based
+    CPU/GPU routing were DELETED in DebrisInteractionPlan 1d (2026-10-06).
+  - **Debris interaction (DebrisInteractionPlan, all phases done 2026-10-07)** — see
+    `docs/DynamicVoxelPhysics.md` §Interaction:
+    - everything that moves pushes debris;
+    - blasts and spells push existing debris (`/api/physics/impulse`);
+    - debris pushes characters back;
+    - debris floats or sinks per material;
+    - sleep/impact events drive audio and gatherable rubble (G key);
+    - `DebrisRuntime` runs it in shipped games too (on by default).
   - Each GPU particle is one independent body; constraints are contacts only (no welds → no
     coherent rigid multi-voxel fragments yet — that's the destruction P5 idea).
 - **Static collision = per-chunk `VoxelOccupancyGrid`** (sub-voxel: cube→subcube→microcube,
@@ -1038,7 +1046,9 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   coherent breakable fragments; bedrock/anchor pin flags.
 - **Character grounding robustness:** fall-through root cause fixed (DB-load paths now build
   + register physics) with fail-loud + auto-register invariant. Done + committed.
-- **Character ↔ debris interaction:** the character now PUSHES GPU debris (one-way). The push
+- **Character ↔ debris interaction** *(HISTORICAL: superseded by DebrisInteractionPlan 2/3a/6a.
+  The shove and `MAX_CHAR_SEGMENTS` below are deleted; read the last sub-bullet)*: the
+  character PUSHED GPU debris (one-way). The push
   lives in the live AVBD `solver_integrate.comp` (NOT the dead legacy `particle_collide.comp`).
   It uses the character's **12 per-limb segment boxes** (4 torso + 4 arm + 4 leg) uploaded each
   frame via `setCharacterColliders` (same boxes fed to the CPU `setKinematicObstacles` path),
@@ -1053,7 +1063,14 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   - **Known gap:** the lowest boxes are the shins (`mixamorig:LeftLeg`/`RightLeg`) — there is
     NO dedicated foot box, so debris directly under the foot tip can slip the shin box. Fix if
     it matters: also upload the controller capsule (reaches the floor) as an extra collider.
-  - GPU debris does NOT push the character back (would need a GPU→CPU readback) — out of scope.
+  - *Superseded 2026-10-06/07:*
+    - The per-limb shove is deleted; every limb box is now a kinematic AVBD body
+      (DebrisInteractionPlan 2/3a).
+    - The live feed is `DebrisRuntime::feedCharacters` → `GpuParticlePhysics::setMoverBoxes`
+      (oriented boxes, every character, ≤ 512 nearest the camera).
+    - `setCharacterColliders` survives only as a legacy single-character entry point, and it also
+      creates mover bodies.
+    - Debris DOES push the character back since 6a (`AnimatedVoxelCharacter::applyDebrisPush`).
 - **Spell VFX system:** 3-layer architecture (dumb archetypes → per-spell composition →
   gameplay modifiers) implemented. `VfxSystem`/`VfxDirector`/`SpellVfxMapper` +
   `VfxRenderPipeline`. Done + committed.

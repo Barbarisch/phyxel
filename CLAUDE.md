@@ -147,7 +147,7 @@ When starting a new conversation in the engine terminal, **proactively check eng
 
 ## Project Overview
 
-Phyxel is a voxel game engine built with C++17 and Vulkan. Physics is an in-house stack — a GPU compute solver (`GpuParticlePhysics`, Vulkan AVBD, primary for large-scale debris/destruction) plus a custom CPU rigid-body world (`VoxelDynamicsWorld`, used for furniture, character grounding, and left-click break debris). **Bullet Physics has been removed** entirely (the `external/bullet3` submodule was dropped; the `stb_image`/`stb_truetype` headers it used to provide are now vendored at `external/stb`). It features a 32³ chunk system, animated voxel characters, GPU/CPU voxel physics, embedded Python scripting, and an MCP server for AI agent integration.
+Phyxel is a voxel game engine built with C++17 and Vulkan. Physics is an in-house stack — a GPU compute solver (`GpuParticlePhysics`, Vulkan AVBD, primary for large-scale debris/destruction) plus a custom CPU rigid-body world (`VoxelDynamicsWorld`, used for furniture, fragments/props and character grounding; it has no break debris — every broken piece is GPU debris). **Bullet Physics has been removed** entirely (the `external/bullet3` submodule was dropped; the `stb_image`/`stb_truetype` headers it used to provide are now vendored at `external/stb`). It features a 32³ chunk system, animated voxel characters, GPU/CPU voxel physics, embedded Python scripting, and an MCP server for AI agent integration.
 
 ## Build & Test Pipeline (REQUIRED)
 
