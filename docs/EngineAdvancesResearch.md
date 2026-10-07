@@ -188,7 +188,18 @@ so this item is now unblocked by that dependency (still not started itself).**
   64 B `DynamicSubcubeInstanceData` likely compresses (quantized rotation, half-float scale) →
   less bandwidth on the debris path at high particle counts.
 
-## 8. MotionBricks — generative character motion (re-evaluated 2026-09-04) — 🧪 PROTOTYPE
+## 8. MotionBricks — generative character motion (re-evaluated 2026-09-04) — ❌ RUNTIME REJECTED · ✅ OFFLINE CAPTURE ADOPTED 2026-10-01
+
+> **2026-10-01 verdict (owner-directed roadmap review):** rejected as the runtime locomotion
+> source. The prototype measured 2.43 s to the first window at 10 agents and 18.5 s at 100, it
+> only knows the 34-joint G1 robot skeleton, the Vulkan build failed on this toolchain, and
+> locomotion is now covered by clips + the A3 transition graph + A5 grounding. Kept as a DESIGN
+> DRIVER (intent in / pose out, style as a coordinate, a measured oracle) and the `IMotionSource`
+> seam stays. **Owner, same day:** keep it as an OFFLINE generator ("capture mode": drive a
+> character with scripted intent, record, retarget G1 → humanoid, write reviewed clips) —
+> roadmap R3. Reopen the runtime question if a humanoid-skeleton model ships with crowd-scale latency. Plan:
+> [`CharacterAnimationRoadmap.md`](CharacterAnimationRoadmap.md) §3; code removal is an open
+> owner decision there.
 
 > **2026-09-04 superseding update:** the rejection below correctly describes NVIDIA's original
 > preview as inspected on 2026-08-10, but a new third-party project now changes two decisive facts.
@@ -199,7 +210,7 @@ so this item is now unblocked by that dependency (still not started itself).**
 > but it does **not** remove the G1-to-humanoid retargeting, runtime cost, maturity, or model-license
 > risks. Decision: build a bounded, optional locomotion prototype behind a permanent clip fallback;
 > do not adopt as a required engine dependency. Canonical implementation plan and gates:
-> [`MotionBricksIntegrationPlan.md`](MotionBricksIntegrationPlan.md).
+> [`MotionBricksIntegrationPlan.md`](CharacterAnimationRoadmap.md).
 
 ### Original 2026-08-10 evaluation (historical evidence)
 
@@ -242,7 +253,7 @@ generated locomotion/interaction variety for NPCs. Three blockers:
    bent knees, restricted ankles, no spine or finger detail — that read badly on stylized characters.
 3. **Design-key tension** ([`FeatureDesignKeys.md`](FeatureDesignKeys.md)): production mocap realism
    fights the voxel aesthetic that the FSM + procedural approach
-   ([`CharacterAnimationV2.md`](CharacterAnimationV2.md),
+   ([`CharacterAnimationV2.md`](CharacterAnimationRoadmap.md),
    [`LessonsLearned_ProceduralAnimation.md`](LessonsLearned_ProceduralAnimation.md)) deliberately targets.
 
 **What IS worth taking — free, no dependency:** the **smart-primitive interface contract** as an API
@@ -350,6 +361,24 @@ Footguns for whoever re-runs it: `download.blender.org` 403s (portable Blender f
 `--python-use-system-env`); UniMate's UTF-8 progress glyphs kill a cp1252 console driver;
 `extract_animation.py` already strips root X/Z into a Speed line.
 
+## 11. kimodo.cpp — text-to-motion in C++/GGML (evaluated 2026-10-01) — ⏸ SUPERSEDED BY UNIMATE
+
+**What** (from the repo README, 2026-10-01; the repo itself was not built or run):
+[`localai-org/kimodo.cpp`](https://github.com/localai-org/kimodo.cpp), from the same group as
+`motion-bricks.cpp`. Text prompt (or a precomputed LLM2Vec embedding) in, local joint rotations +
+root translation out, skeleton-only GLB export. C++23/GGML, CPU + Vulkan, quantized models
+(BF16 … Q4_K_M), a C API (`kimodo_capi.h`). Skeletons: SMPL-X (22 joints), SOMA (30), Unitree G1
+(34). Licence: code Apache-2.0; SOMA and G1 checkpoints under NVIDIA's Open Model License
+(commercial use allowed); SMPL-X restricted to internal R&D.
+
+**Why not adopted:** it is humanoid-only text-to-motion, the same job UniMate (§10) already does
+offline — and UniMate also animates arbitrary skeletons, which is where the engine's gap is
+(203 of 336 monsters on rigs with ≤ 5 clips, almost all non-humanoid). Runtime use would hit the
+same objection as §8. **Reopen if:** UniMate's humanoid drafts fail the M1b review, or the editor
+needs text-to-motion without a Python toolchain (kimodo's C API is the candidate; SOMA is the
+closest skeleton to ours; it would still need a retarget stage). Plan:
+[`CharacterAnimationRoadmap.md`](CharacterAnimationRoadmap.md) §3.
+
 ## Suggested sequencing
 
 1. **Now (separate session, no source conflict):** the shader-math pass (done; see `RenderOptimization.md`).
@@ -364,7 +393,7 @@ Footguns for whoever re-runs it: `download.blender.org` 403s (portable Blender f
 6. **Hold:** render graph (#5) until pass count forces it.
 7. **Slated (2026-07-09):** ray tracing (#6) — plan in `RayTracingPlan.md`; vegetation wind
    realism — plan in `VegetationWindPlan.md`.
-8. **Prototype planned (re-evaluated 2026-09-04):** MotionBricks (#8) — a third-party native
+8. **Runtime REJECTED, offline capture ADOPTED 2026-10-01** (roadmap R3): MotionBricks (#8) — a third-party native
    C++/GGML port now supplies a stable pose-output ABI. Implement the optional provider/retarget
    seam first; runtime adoption still depends on quality, scale, Vulkan-contention, and license
    gates in `MotionBricksIntegrationPlan.md`.
@@ -372,7 +401,8 @@ Footguns for whoever re-runs it: `download.blender.org` 403s (portable Blender f
    `tools/creature_forge/` (spec → voxel `.anim` rigs); first species `forge_ibex` live as
    Tundra/Snow fauna. Possible follow-up: a silhouette-recognition gate skill on top of
    `orbit_screenshots`.
-10. **Planned, gate NEEDS WORK (2026-09-29):** UniMate (#10) — offline text-to-motion clip
+10. **Adopted as the generative drafting lane (roadmap R3, 2026-10-01):** UniMate (#10) — offline text-to-motion clip
     authoring for arbitrary skeletons; humanoid proof first, creatures re-gated separately. Plan +
     folded design-check in `UniMateIntegrationPlan.md`. If M1 quality holds, re-check whether the
     MotionBricks (#8) retarget stage is still the cheapest path to varied locomotion.
+11. **Superseded by UniMate (2026-10-01):** kimodo.cpp (#11) — humanoid-only text-to-motion.

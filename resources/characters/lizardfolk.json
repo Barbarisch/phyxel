@@ -1,0 +1,21 @@
+{
+  "id": "lizardfolk",
+  "serves": [
+    "lizardfolk"
+  ],
+  "size": "Medium",
+  "height_u": 1.9,
+  "body": "humanoid",
+  "source": {
+    "meshy": {
+      "prompt": "a lizardfolk warrior: upright reptilian humanoid with green scales, crested head, long snout, short thick tail, wearing a bone-and-hide loincloth and shoulder strap, empty hands",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0fef3-f45a-718f-a40e-225126ac315c",
+        "01a0fef5-8dd2-71cc-8573-0f171f503d83"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "monsters"
+}

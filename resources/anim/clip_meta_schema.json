@@ -38,6 +38,8 @@
     "cfg":                { "type": "string", "toolOnly": true },
     "rep":                { "type": "string", "toolOnly": true },
     "promoted_from":      { "type": "string", "toolOnly": true },
+    "action":             { "type": "string", "toolOnly": true, "_comment": "Roadmap R1 decision 6: a class/creature signature action this clip performs (rage, sneak, unarmed_combo, wild_shape, perform, lay_on_hands, second_wind, turn_undead, channel_divinity, deflect). Read by the coverage report via resources/anim/class_actions.json." },
+    "review":             { "type": "enum", "toolOnly": true, "values": ["approved", "shipped", "draft", "rejected"], "_comment": "Roadmap R1 decision 5: the clip's review STATUS. Absent = shipped (existed before review). Promotions write draft; the owner's panel verdict writes approved/rejected. unimate_review.json is the workflow log, this is the status." },
 
     "gait":      { "type": "enum", "factor": true, "values": ["biped", "quadruped", "hexapod", "serpentine", "avian", "amorphous"] },
     "state":     { "type": "string", "factor": true, "_comment": "FSM state name, lower-case (walk, run, idle, ...)" },
@@ -47,6 +49,7 @@
     "mood":      { "type": "enum", "factor": true, "values": ["neutral", "alert", "hostile", "sneak"] },
     "role":      { "type": "enum", "factor": true, "values": ["base", "layer"] },
     "mask":      { "type": "enum", "factor": true, "values": ["none", "upper", "arms", "head", "legs"] },
-    "additive":  { "type": "bool", "factor": true }
+    "additive":  { "type": "bool", "factor": true },
+    "attackKind":{ "type": "enum", "factor": true, "values": ["bite", "claw", "tail", "slam", "gore", "sting", "beak", "talons", "hooves", "tentacle", "touch", "breath", "spit", "constrict", "weapon_melee", "weapon_ranged", "spell", "aura"], "_comment": "Roadmap R1 decision 2: what kind of D&D attack/action this clip performs. Stat-block attack names map to kinds via resources/anim/attack_kinds.json. Humanoid weapon clips need no tag (derived from meleeFamily/weaponFamily)." }
   }
 }

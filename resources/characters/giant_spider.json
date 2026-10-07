@@ -1,0 +1,21 @@
+{
+  "id": "giant_spider",
+  "serves": [
+    "giant-spider"
+  ],
+  "size": "Large",
+  "height_u": 3.0,
+  "body": "giant_spider",
+  "source": {
+    "meshy": {
+      "prompt": "a giant spider: enormous hairy black spider with eight long legs, bulbous abdomen with red markings, cluster of eyes, fangs",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0ff09-a49d-760f-8ff9-c0ab7b026bfb",
+        "01a0ff0d-1f99-706c-b3f0-113b403bd3fd"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "beasts"
+}

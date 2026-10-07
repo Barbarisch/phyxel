@@ -76,7 +76,7 @@ The base abstract class defining the interface for all game objects.
 > commit (`c8803a2`, "Remove Bullet Physics and dead/stale files") — it is **not** on disk today,
 > only recoverable from git history. The active character is `AnimatedVoxelCharacter` (kinematic
 > capsule; grounds against `VoxelDynamicsWorld` occupancy grids). The Bullet-based descriptions
-> below are historical. See [PhysicsCharacter.md](PhysicsCharacter.md) (which has the same stale
+> below are historical. See `PhysicsCharacter.md` (deleted 2026-10-01; git history) (which has the same stale
 > "archived in engine/deprecated/bullet/" framing).
 
 A (deprecated) active-ragdoll based character controller.

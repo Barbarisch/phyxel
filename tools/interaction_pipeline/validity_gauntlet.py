@@ -1,6 +1,6 @@
 """Interaction Validity Gauntlet — instrument #1: transition penetration trace.
 
-Measures where the body ACTUALLY is (docs/CharacterLibraryPlan.md, mandated
+Measures where the body ACTUALLY is (docs/CharacterLibraryPlan.md (retired 2026-10-01; see docs/CharacterAnimationRoadmap.md), mandated
 2026-07-22): for each (preset x seat) pair the fit gate allows, run the full
 sit -> settle -> stand cycle while sampling world-space bone AABBs, and
 measure per-sample interpenetration of the body vs the seat's SOLID voxel

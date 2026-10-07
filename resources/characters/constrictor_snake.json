@@ -1,0 +1,21 @@
+{
+  "id": "constrictor_snake",
+  "serves": [
+    "constrictor-snake"
+  ],
+  "size": "Large",
+  "height_u": 3.5,
+  "body": "serpent",
+  "source": {
+    "meshy": {
+      "prompt": "a constrictor snake: thick python with tan and brown blotched patterned scales, lying stretched out flat on the ground in a gentle S curve, head raised slightly",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0ff0f-df49-7189-b99a-4d6687a5cd82",
+        "01a0ff11-045e-777c-a644-28bf13aa5e90"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "beasts"
+}

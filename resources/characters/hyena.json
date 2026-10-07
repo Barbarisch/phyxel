@@ -1,0 +1,21 @@
+{
+  "id": "hyena",
+  "serves": [
+    "hyena"
+  ],
+  "size": "Medium",
+  "height_u": 1.4,
+  "body": "dire_wolf",
+  "source": {
+    "meshy": {
+      "prompt": "a spotted hyena: sloped back, short spotted tan fur, rounded ears, heavy neck and jaws, short tail",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0fefa-e945-7100-b459-4676cca1c71f",
+        "01a0fefc-3702-77d2-8320-a433571afe81"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "beasts"
+}

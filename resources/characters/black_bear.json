@@ -1,0 +1,21 @@
+{
+  "id": "black_bear",
+  "serves": [
+    "black-bear"
+  ],
+  "size": "Medium",
+  "height_u": 1.7,
+  "body": "bear",
+  "source": {
+    "meshy": {
+      "prompt": "a black bear: medium black bear with glossy black fur, tan muzzle, rounded ears, short claws",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0ff04-3743-70d3-b2bb-b8ee6bb5a7c3",
+        "01a0ff05-2ed4-7408-8e05-78dd0ac43a70"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "beasts"
+}

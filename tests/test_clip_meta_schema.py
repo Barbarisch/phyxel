@@ -60,3 +60,37 @@ def test_every_shipped_rig_validates_without_errors(rig):
     findings = cms.validate_file(rig)
     errors = [m for s, m in findings if s == "ERROR"]
     assert errors == [], errors
+
+
+# ---------------------------------------------------------------------------------------------
+# Roadmap R1 decisions 2 and 5 (docs/CharacterAnimationRoadmap.md): creature attack kinds and the
+# per-clip review status are typed schema keys. RED 2026-10-01: neither key exists.
+# ---------------------------------------------------------------------------------------------
+ATTACK_KINDS = ["bite", "claw", "tail", "slam", "gore", "sting", "beak", "talons", "hooves",
+                "tentacle", "touch", "breath", "spit", "constrict", "weapon_melee", "weapon_ranged", "spell", "aura"]
+
+
+def test_attack_kind_is_a_factor_enum_with_the_roadmap_kinds():
+    schema = json.loads((ROOT / "resources/anim/clip_meta_schema.json").read_text(encoding="utf-8"))
+    spec = schema["keys"]["attackKind"]
+    assert spec["type"] == "enum" and spec.get("factor") is True
+    assert spec["values"] == ATTACK_KINDS
+    assert cms.validate_meta({"attackKind": "bite"}) == []
+    assert "ERROR" in _sev(cms.validate_meta({"attackKind": "nibble"}))
+
+
+def test_action_is_a_tool_only_string():
+    schema = json.loads((ROOT / "resources/anim/clip_meta_schema.json").read_text(encoding="utf-8"))
+    spec = schema["keys"]["action"]
+    assert spec["type"] == "string" and spec.get("toolOnly") is True
+    assert cms.validate_meta({"action": "rage"}) == []
+
+
+def test_review_is_a_tool_only_status_enum():
+    schema = json.loads((ROOT / "resources/anim/clip_meta_schema.json").read_text(encoding="utf-8"))
+    spec = schema["keys"]["review"]
+    assert spec["type"] == "enum" and spec.get("toolOnly") is True and not spec.get("factor")
+    assert spec["values"] == ["approved", "shipped", "draft", "rejected"]
+    assert cms.validate_meta({"review": "draft"}) == []
+    assert "ERROR" in _sev(cms.validate_meta({"review": "maybe"}))
+

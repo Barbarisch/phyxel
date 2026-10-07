@@ -10,7 +10,7 @@
 namespace Phyxel {
 namespace Scene {
 
-/// Creature-agnostic rig descriptor (docs/CharacterAnimationV2.md §4 item 0,
+/// Creature-agnostic rig descriptor (docs/CharacterAnimationV2.md (retired 2026-10-01; see docs/CharacterAnimationRoadmap.md) §4 item 0,
 /// docs/BodyPlan.md): names the bones and clips a body needs — root, leg
 /// chains, collision segments, default clip vocabulary — so the character
 /// runtime consumes plan data instead of hardcoded mixamorig:* / humanoid

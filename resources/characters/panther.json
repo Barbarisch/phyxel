@@ -1,0 +1,21 @@
+{
+  "id": "panther",
+  "serves": [
+    "panther"
+  ],
+  "size": "Medium",
+  "height_u": 2.0,
+  "body": "feline",
+  "source": {
+    "meshy": {
+      "prompt": "a black panther: sleek big cat with glossy black fur, long tail, green eyes, muscular shoulders",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0ff06-2ecb-76e9-80c5-96582c85a8ec",
+        "01a0ff07-02a1-736c-ae95-f1390e7eea63"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "beasts"
+}

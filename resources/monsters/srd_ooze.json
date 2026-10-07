@@ -11,6 +11,7 @@
     "hitPointDice": "3d8+9",
     "averageHP": 22,
     "speed": 10,
+    "movementModes": {"walk": 10, "climb": 10},
     "attributes": {
       "scores": [
         {
@@ -131,6 +132,7 @@
     "hitPointDice": "8d10+40",
     "averageHP": 84,
     "speed": 15,
+    "movementModes": {"walk": 15},
     "attributes": {
       "scores": [
         {
@@ -258,6 +260,7 @@
     "hitPointDice": "6d10+12",
     "averageHP": 45,
     "speed": 10,
+    "movementModes": {"walk": 10, "climb": 10},
     "attributes": {
       "scores": [
         {
@@ -373,6 +376,7 @@
     "hitPointDice": "10d10+30",
     "averageHP": 85,
     "speed": 20,
+    "movementModes": {"walk": 20, "climb": 20},
     "attributes": {
       "scores": [
         {

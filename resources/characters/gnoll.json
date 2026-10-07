@@ -1,0 +1,21 @@
+{
+  "id": "gnoll",
+  "serves": [
+    "gnoll"
+  ],
+  "size": "Medium",
+  "height_u": 2.2,
+  "body": "humanoid",
+  "source": {
+    "meshy": {
+      "prompt": "a gnoll: tall lanky humanoid with a hyena head, spotted tan fur, mane down the back, wearing ragged leather armour and bone trinkets, digitigrade legs, empty hands",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0fef0-ee43-71cc-be6b-a2f293b56f55",
+        "01a0fef3-043f-731e-b526-c9fa82291efa"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "monsters"
+}

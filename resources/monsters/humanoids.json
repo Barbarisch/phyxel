@@ -11,6 +11,7 @@
     "hitPointDice": "2d8",
     "averageHP": 11,
     "speed": 30,
+    "movementModes": {"walk": 30},
     "attributes": {
       "scores": [
         { "type": "Strength",     "base": 11, "racial": 0, "equipment": 0, "temporary": 0 },
@@ -62,6 +63,7 @@
     "hitPointDice": "2d8+2",
     "averageHP": 11,
     "speed": 30,
+    "movementModes": {"walk": 30},
     "attributes": {
       "scores": [
         { "type": "Strength",     "base": 13, "racial": 0, "equipment": 0, "temporary": 0 },
@@ -105,6 +107,7 @@
     "hitPointDice": "2d6",
     "averageHP": 7,
     "speed": 30,
+    "movementModes": {"walk": 30},
     "attributes": {
       "scores": [
         { "type": "Strength",     "base": 8,  "racial": 0, "equipment": 0, "temporary": 0 },
@@ -158,6 +161,7 @@
     "hitPointDice": "2d8+2",
     "averageHP": 11,
     "speed": 30,
+    "movementModes": {"walk": 30},
     "attributes": {
       "scores": [
         { "type": "Strength",     "base": 13, "racial": 0, "equipment": 0, "temporary": 0 },
@@ -210,6 +214,7 @@
     "hitPointDice": "2d8+6",
     "averageHP": 15,
     "speed": 30,
+    "movementModes": {"walk": 30},
     "attributes": {
       "scores": [
         { "type": "Strength",     "base": 16, "racial": 0, "equipment": 0, "temporary": 0 },
@@ -262,6 +267,7 @@
     "hitPointDice": "7d10+21",
     "averageHP": 59,
     "speed": 40,
+    "movementModes": {"walk": 40},
     "attributes": {
       "scores": [
         { "type": "Strength",     "base": 19, "racial": 0, "equipment": 0, "temporary": 0 },

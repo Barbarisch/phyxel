@@ -1,0 +1,21 @@
+{
+  "id": "worg",
+  "serves": [
+    "worg"
+  ],
+  "size": "Large",
+  "height_u": 2.6,
+  "body": "dire_wolf",
+  "source": {
+    "meshy": {
+      "prompt": "a worg: huge evil wolf with matted black fur, glowing yellow eyes, scarred muzzle, oversized jaws, ragged tail",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0fefd-2e04-741c-be4b-950e97dc0650",
+        "01a0fefe-55a6-72ea-ab86-993ed8c68e47"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "beasts"
+}

@@ -1,0 +1,21 @@
+{
+  "id": "wolf",
+  "serves": [
+    "wolf"
+  ],
+  "size": "Medium",
+  "height_u": 1.5,
+  "body": "dire_wolf",
+  "source": {
+    "meshy": {
+      "prompt": "a grey wolf: lean wild wolf with grey and tan fur, pale underbelly, pointed ears, long snout, bushy tail",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0fef8-ee67-74cb-b6a1-4b083b6ffb7f",
+        "01a0fefa-610f-73fd-b994-090d8df3d7bf"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "beasts"
+}

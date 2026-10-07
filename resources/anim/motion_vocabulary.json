@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "_comment": "Roadmap R1 decision 4 (docs/CharacterAnimationRoadmap.md): the BASE list of states every character of a gait class must be able to play, keyed by BodyPlan.gaitClass. Values are the variant target (outcome G2: >= 3 reviewed variants for high-frequency states; 1 = one clip suffices). Everything else a character needs (attack kinds, movement modes, class actions) is derived from its own D&D data by tools/anim_pipeline/coverage_report.py, so a new species costs no edits here. A plan may add plan-only needs with a 'vocabularyExtra' object of the same shape in its body_plans/*.json.",
+  "attackVariantTarget": 3,
+  "gaitClasses": {
+    "biped_fsm": {
+      "Idle": 3, "Walk": 3, "Run": 1, "Jump": 1, "Fall": 1, "Land": 1,
+      "TurnLeft": 1, "TurnRight": 1, "StrafeLeft": 1, "StrafeRight": 1,
+      "CrouchIdle": 1, "CrouchWalk": 1, "SitDown": 1, "SittingIdle": 1, "SitStandUp": 1,
+      "ClimbStairs": 1, "DescendStairs": 1, "HitReact": 3, "Death": 3
+    },
+    "quadruped_clips": { "Idle": 3, "Walk": 3, "Run": 1, "TurnLeft": 1, "TurnRight": 1, "HitReact": 3, "Death": 3 },
+    "dragon_clips":    { "Idle": 3, "Walk": 3, "Run": 1, "TurnLeft": 1, "TurnRight": 1, "HitReact": 3, "Death": 3 },
+    "arachnid_clips":  { "Idle": 3, "Walk": 3, "Run": 1, "TurnLeft": 1, "TurnRight": 1, "HitReact": 3, "Death": 3 },
+    "flying_clips":    { "Idle": 3, "Walk": 3, "Run": 1, "TurnLeft": 1, "TurnRight": 1, "HitReact": 3, "Death": 3 }
+  }
+}

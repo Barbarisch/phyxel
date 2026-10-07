@@ -1,0 +1,21 @@
+{
+  "id": "brown_bear",
+  "serves": [
+    "brown-bear"
+  ],
+  "size": "Large",
+  "height_u": 2.6,
+  "body": "bear",
+  "source": {
+    "meshy": {
+      "prompt": "a brown bear: large grizzly bear with thick brown fur, shoulder hump, broad head, heavy claws",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0ff01-eb3c-71c1-be94-6eedcd173c56",
+        "01a0ff03-adb3-70da-993c-281ea5b6d93f"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "beasts"
+}

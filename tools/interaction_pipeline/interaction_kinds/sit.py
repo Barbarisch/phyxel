@@ -35,7 +35,7 @@ from ..detectors import detect_seated_posture as posture_detector  # noqa: F401
 # Margins for compatibility checks (metres).
 # MUST stay in sync with runSitCompatChecks in editor/src/Application.cpp
 # (rule set, thresholds, AND severities — the runtime matrix asserts parity).
-# Seat-fit policy (docs/CharacterLibraryPlan.md): fit failures are HARD errors
+# Seat-fit policy (docs/CharacterLibraryPlan.md (retired 2026-10-01; see docs/CharacterAnimationRoadmap.md)): fit failures are HARD errors
 # — accuracy over coverage, a character never sits where it doesn't fit.
 _HIP_CLEARANCE = 0.05      # seat must exceed hip width by at least this.
 _DEPTH_CLEARANCE = 0.10    # buttock-to-knee depth headroom.

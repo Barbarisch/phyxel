@@ -4,7 +4,7 @@
 
 using namespace Phyxel::Scene;
 
-// Phase B (docs/CharacterLibraryPlan.md): collision must match the body.
+// Phase B (docs/CharacterLibraryPlan.md (retired 2026-10-01; see docs/CharacterAnimationRoadmap.md)): collision must match the body.
 // Capsule half-width was hardcoded 0.25 and step height fixed at 4/9 for every
 // character regardless of proportions — a goliath collided like a halfling.
 // These tests pin the scaled behavior. Characters are constructed without a

@@ -1,5 +1,9 @@
 # Character Animation Guide
 
+> ⚠️ **STALE (2026-10-01).** Predates body plans and the typed `clip_meta` schema
+> (`resources/anim/clip_meta_schema.json`). To be replaced in
+> [`CharacterAnimationRoadmap.md`](CharacterAnimationRoadmap.md) phase R6.
+
 This document outlines the standard animation states supported by the `AnimatedVoxelCharacter` system and the naming conventions required for animation files to be correctly recognized by the engine.
 
 ## Animation Pipeline Overview

@@ -1,0 +1,21 @@
+{
+  "id": "bugbear",
+  "serves": [
+    "bugbear"
+  ],
+  "size": "Medium",
+  "height_u": 2.1,
+  "body": "humanoid",
+  "source": {
+    "meshy": {
+      "prompt": "a bugbear: tall hairy goblinoid with coarse brown fur, bear-like snout and long ears, long arms, wearing patched hide armour and a leather belt, empty hands",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0feed-0fa3-73a5-bd1d-7c60dc63fd7f",
+        "01a0feef-9f63-75da-b0a9-e081980c4c44"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "monsters"
+}

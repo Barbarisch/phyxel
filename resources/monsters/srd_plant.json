@@ -11,6 +11,7 @@
     "hitPointDice": "3d6",
     "averageHP": 10,
     "speed": 20,
+    "movementModes": {"walk": 20},
     "attributes": {
       "scores": [
         {
@@ -114,6 +115,7 @@
     "hitPointDice": "3d8",
     "averageHP": 13,
     "speed": 0,
+    "movementModes": {},
     "attributes": {
       "scores": [
         {
@@ -199,6 +201,7 @@
     "hitPointDice": "4d8",
     "averageHP": 18,
     "speed": 5,
+    "movementModes": {"walk": 5},
     "attributes": {
       "scores": [
         {
@@ -303,6 +306,7 @@
     "hitPointDice": "7d12+14",
     "averageHP": 59,
     "speed": 20,
+    "movementModes": {"walk": 20},
     "attributes": {
       "scores": [
         {
@@ -407,6 +411,7 @@
     "hitPointDice": "16d10+48",
     "averageHP": 136,
     "speed": 20,
+    "movementModes": {"walk": 20, "swim": 20},
     "attributes": {
       "scores": [
         {
@@ -517,6 +522,7 @@
     "hitPointDice": "12d12+60",
     "averageHP": 138,
     "speed": 30,
+    "movementModes": {"walk": 30},
     "attributes": {
       "scores": [
         {

@@ -1,5 +1,9 @@
 # Animated Character State Machine Documentation
 
+> ⚠️ **STALE (2026-10-01).** Written before Animation System v3 A2–A5 (body plans, clip_meta schema,
+> transitions, layers, seats, grounding). To be replaced by one developer guide in
+> [`CharacterAnimationRoadmap.md`](CharacterAnimationRoadmap.md) phase R6. Treat as history.
+
 ## Overview
 The `AnimatedVoxelCharacter` uses a finite state machine (FSM) to manage its behavior, movement, and animation playback. This document describes the available states, transitions, and how input affects the character.
 

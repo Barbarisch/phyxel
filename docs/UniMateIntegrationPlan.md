@@ -1,5 +1,10 @@
 # UniMate Integration Plan — offline text-to-motion clip authoring
 
+> **2026-10-01:** this is now the detailed sub-plan for phase **R3** of
+> [`CharacterAnimationRoadmap.md`](CharacterAnimationRoadmap.md). UniMate is the generative
+> drafting lane for humanoids AND creatures (M3 is in scope); kimodo.cpp was evaluated and
+> superseded by it (`EngineAdvancesResearch.md` §11).
+>
 > **Status:** APPROVED 2026-09-29 for M0–M2 (re-gate verdict READY, scoped; M3 creatures re-gates
 > separately). **M0 DONE, M1 in progress** (18 clips generated + evaluated, 4 viewed in-engine).
 > **Next: M1b manual review loop — awaiting its own `/design-check`** (§5 M1b). Design-check items

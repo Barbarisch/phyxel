@@ -1,0 +1,21 @@
+{
+  "id": "giant_poisonous_snake",
+  "serves": [
+    "giant-poisonous-snake"
+  ],
+  "size": "Medium",
+  "height_u": 2.4,
+  "body": "serpent",
+  "source": {
+    "meshy": {
+      "prompt": "a giant poisonous snake: slender green viper with yellow banding, triangular head, lying stretched out flat on the ground in a gentle S curve",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0ff11-acbb-7189-a636-12186214dad9",
+        "01a0ff12-f60c-74fd-8dbf-34304eba801d"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "beasts"
+}

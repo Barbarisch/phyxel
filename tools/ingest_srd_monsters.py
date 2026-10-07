@@ -56,6 +56,18 @@ def feet(s):
     return int(m.group(1)) if m else 0
 
 
+def movement_modes(sp: dict) -> dict:
+    """API speed table -> {walk, fly, swim, climb, burrow: feet, hover: bool}; absent modes omitted."""
+    out = {}
+    for k in ("walk", "fly", "swim", "climb", "burrow"):
+        v = feet(sp.get(k))
+        if v > 0:
+            out[k] = v
+    if sp.get("hover"):
+        out["hover"] = True
+    return out
+
+
 def pick_rig(name, mtype):
     hay = (name + " " + mtype).lower()
     for kw, rig in RIG_MAP:
@@ -136,6 +148,9 @@ def map_monster(m):
         "armorClass": ac0.get("value", 10), "armorSource": armor_src,
         "hitPointDice": m.get("hit_points_roll") or m.get("hit_dice", ""),
         "averageHP": m.get("hit_points", 0), "speed": feet(sp.get("walk")),
+        # Roadmap R1 decision 1: every movement mode, in feet; `speed` stays the walk int so
+        # existing loaders are untouched. hover is a flag in the API ("hover": true).
+        "movementModes": movement_modes(sp),
         "attributes": {"scores": scores},
         "savingThrowProficiencies": [s for s in saves if s],
         "skillProficiencies": skills,
@@ -180,7 +195,7 @@ def main():
 
     skip = existing_ids()
     print(f"{len(skip)} ids already in curated files (will skip): {sorted(skip)[:8]}...")
-    index = get("/api/monsters")["results"]
+    index = get("/api/2014/monsters")["results"]
     if args.limit:
         index = index[: args.limit]
     print(f"fetching {len(index)} SRD monsters...")
@@ -191,7 +206,7 @@ def main():
         if idx in skip:
             continue
         try:
-            mon = map_monster(get("/api/monsters/" + idx))
+            mon = map_monster(get("/api/2014/monsters/" + idx))
         except Exception as e:
             print(f"  FAIL {idx}: {e}")
             failed += 1

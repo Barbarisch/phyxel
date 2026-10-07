@@ -1,0 +1,21 @@
+{
+  "id": "winter_wolf",
+  "serves": [
+    "winter-wolf"
+  ],
+  "size": "Large",
+  "height_u": 2.6,
+  "body": "dire_wolf",
+  "source": {
+    "meshy": {
+      "prompt": "a winter wolf: huge arctic wolf with thick white fur tinged icy blue, frost on its muzzle, pale blue eyes",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0feff-9d10-72cd-9668-6707eac79995",
+        "01a0ff01-61cd-75da-93d3-d507b53eeeda"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "beasts"
+}

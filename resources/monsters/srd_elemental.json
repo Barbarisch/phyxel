@@ -11,6 +11,7 @@
     "hitPointDice": "6d6",
     "averageHP": 21,
     "speed": 30,
+    "movementModes": {"walk": 30, "fly": 30},
     "attributes": {
       "scores": [
         {
@@ -139,6 +140,7 @@
     "hitPointDice": "5d6",
     "averageHP": 17,
     "speed": 30,
+    "movementModes": {"walk": 30, "fly": 30},
     "attributes": {
       "scores": [
         {
@@ -269,6 +271,7 @@
     "hitPointDice": "6d6",
     "averageHP": 21,
     "speed": 30,
+    "movementModes": {"walk": 30, "fly": 30},
     "attributes": {
       "scores": [
         {
@@ -404,6 +407,7 @@
     "hitPointDice": "5d6+5",
     "averageHP": 22,
     "speed": 30,
+    "movementModes": {"walk": 30, "fly": 30},
     "attributes": {
       "scores": [
         {
@@ -538,6 +542,7 @@
     "hitPointDice": "2d6+2",
     "averageHP": 9,
     "speed": 30,
+    "movementModes": {"walk": 30},
     "attributes": {
       "scores": [
         {
@@ -647,6 +652,7 @@
     "hitPointDice": "6d8+12",
     "averageHP": 39,
     "speed": 30,
+    "movementModes": {"walk": 30},
     "attributes": {
       "scores": [
         {
@@ -763,6 +769,7 @@
     "hitPointDice": "7d8+21",
     "averageHP": 52,
     "speed": 30,
+    "movementModes": {"walk": 30, "fly": 60},
     "attributes": {
       "scores": [
         {
@@ -889,6 +896,7 @@
     "hitPointDice": "12d10+24",
     "averageHP": 90,
     "speed": 0,
+    "movementModes": {"fly": 90, "hover": true},
     "attributes": {
       "scores": [
         {
@@ -1005,6 +1013,7 @@
     "hitPointDice": "12d10+60",
     "averageHP": 126,
     "speed": 30,
+    "movementModes": {"walk": 30, "burrow": 30},
     "attributes": {
       "scores": [
         {
@@ -1120,6 +1129,7 @@
     "hitPointDice": "12d10+36",
     "averageHP": 102,
     "speed": 50,
+    "movementModes": {"walk": 50},
     "attributes": {
       "scores": [
         {
@@ -1243,6 +1253,7 @@
     "hitPointDice": "12d10+24",
     "averageHP": 90,
     "speed": 30,
+    "movementModes": {"walk": 30},
     "attributes": {
       "scores": [
         {
@@ -1352,6 +1363,7 @@
     "hitPointDice": "12d10+48",
     "averageHP": 114,
     "speed": 30,
+    "movementModes": {"walk": 30, "swim": 90},
     "attributes": {
       "scores": [
         {
@@ -1488,6 +1500,7 @@
     "hitPointDice": "7d8+42",
     "averageHP": 73,
     "speed": 20,
+    "movementModes": {"walk": 20, "burrow": 20},
     "attributes": {
       "scores": [
         {
@@ -1619,6 +1632,7 @@
     "hitPointDice": "16d8+32",
     "averageHP": 104,
     "speed": 50,
+    "movementModes": {"walk": 50, "fly": 50, "hover": true},
     "attributes": {
       "scores": [
         {
@@ -1740,6 +1754,7 @@
     "hitPointDice": "14d10+84",
     "averageHP": 161,
     "speed": 30,
+    "movementModes": {"walk": 30, "fly": 90},
     "attributes": {
       "scores": [
         {
@@ -1869,6 +1884,7 @@
     "hitPointDice": "16d10+112",
     "averageHP": 200,
     "speed": 40,
+    "movementModes": {"walk": 40, "fly": 60},
     "attributes": {
       "scores": [
         {

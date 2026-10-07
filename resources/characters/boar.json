@@ -1,0 +1,21 @@
+{
+  "id": "boar",
+  "serves": [
+    "boar"
+  ],
+  "size": "Medium",
+  "height_u": 1.5,
+  "body": "boar",
+  "source": {
+    "meshy": {
+      "prompt": "a wild boar: stocky bristly dark brown boar with a ridge of coarse hair along the spine, curved tusks, small eyes",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0ff07-8200-77ae-b1c2-9e50c92f1340",
+        "01a0ff08-f447-7443-b1b3-3aa0b49f890c"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "beasts"
+}

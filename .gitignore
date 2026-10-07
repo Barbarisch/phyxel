@@ -296,3 +296,11 @@ build_mb_*/
 # Crash reports. The .txt is small and useful, the .dmp is tens of MB of process image;
 # copy the report you actually cite into docs/evidence/ instead of committing the folder.
 crashes/
+
+# Meshy credit watcher state (tools/meshy_credits.py) - local only
+tools/meshy_credits.local.json
+# Meshy API key (tools/meshy_credits.py api_key) - NEVER commit
+tools/meshy.local.json
+
+# SRD API response cache (tools/backfill_monster_movement.py)
+tools/.cache/

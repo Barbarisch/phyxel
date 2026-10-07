@@ -1,0 +1,21 @@
+{
+  "id": "orc",
+  "serves": [
+    "orc"
+  ],
+  "size": "Medium",
+  "height_u": 1.9,
+  "body": "humanoid",
+  "source": {
+    "meshy": {
+      "prompt": "a fantasy orc warrior: muscular grey-green skin, small tusks, black hair in a topknot, scarred face, wearing rough leather armour with fur shoulder pads, a belt with pouches, leather boots, empty hands",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0fc5a-3c33-7623-875d-8af2e05a396f",
+        "01a0fc5b-da53-74e8-b0db-34fe56cae21d"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "monsters"
+}

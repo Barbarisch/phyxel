@@ -8,7 +8,7 @@
   "languages": ["Common", "Draconic"],
   "proficiencies": [],
   "visual": {
-    "_comment": "Humanoid-approx on the shared rig for now; a true draconic rig (tail, snout) is a Phase C/E upgrade — see docs/CharacterLibraryPlan.md.",
+    "_comment": "Humanoid-approx on the shared rig for now; a true draconic rig (tail, snout) is a Phase C/E upgrade — see docs/CharacterLibraryPlan.md (retired 2026-10-01; see docs/CharacterAnimationRoadmap.md).",
     "appearancePreset": "dragonborn",
     "palette": {
       "skinTones": [

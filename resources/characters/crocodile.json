@@ -1,0 +1,21 @@
+{
+  "id": "crocodile",
+  "serves": [
+    "crocodile"
+  ],
+  "size": "Large",
+  "height_u": 4.0,
+  "body": "reptile",
+  "source": {
+    "meshy": {
+      "prompt": "a crocodile: long armoured reptile with dark olive scaly hide, ridged back, long toothy snout, thick tail, short sprawling legs",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0ff14-148a-7574-b9a8-0661d7f2663d",
+        "01a0ff14-e7cb-7456-8c3e-c6c179b70c7e"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "beasts"
+}

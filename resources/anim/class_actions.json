@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "_comment": "Roadmap R1 decision 6: what each D&D class needs to be able to animate, derived from resources/classes/*.json. spellcastingType (non-empty) -> the 'cast' action. weaponProficiencies -> weapon_melee / weapon_ranged via the two lists below. Features -> signature actions via 'features'; a feature mapped to null needs no animation of its own (passive or covered by another action). A feature in NEITHER map is reported as UNMAPPED, never dropped.",
+  "weaponProficiency": {
+    "melee":  ["simple", "martial", "longswords", "rapiers", "shortswords", "clubs", "daggers", "maces", "quarterstaffs", "scimitars", "sickles", "spears"],
+    "ranged": ["simple", "martial", "hand_crossbows", "light_crossbows", "slings", "darts", "javelins"]
+  },
+  "features": {
+    "Rage": "rage", "Relentless Rage": null, "Persistent Rage": null, "Reckless Attack": null,
+    "Unarmored Defense": null, "Danger Sense": null, "Primal Path": null, "Extra Attack": null,
+    "Extra Attack (3)": null, "Extra Attack (4)": null, "Fast Movement": null, "Feral Instinct": null,
+    "Brutal Critical": null, "Primal Champion": null,
+    "Spellcasting": "cast", "Pact Magic": "cast", "Bardic Inspiration": "perform", "Jack of All Trades": null,
+    "Song of Rest": "perform", "Bard College": null, "Expertise": null, "Expertise (2nd)": null,
+    "Font of Inspiration": null, "Countercharm": "perform", "Magical Secrets": null, "Superior Inspiration": null,
+    "Divine Domain": null, "Channel Divinity": "channel_divinity", "Turn Undead": "turn_undead",
+    "Destroy Undead": null, "Divine Intervention": "channel_divinity",
+    "Druidic": null, "Wild Shape": "wild_shape", "Druid Circle": null, "Timeless Body": null,
+    "Beast Spells": null, "Archdruid": null,
+    "Fighting Style": null, "Second Wind": "second_wind", "Action Surge": null, "Martial Archetype": null,
+    "Indomitable": null,
+    "Martial Arts": "unarmed_combo", "Ki": null, "Unarmored Movement": null, "Monastic Tradition": null,
+    "Deflect Missiles": "deflect", "Slow Fall": null, "Stunning Strike": "unarmed_combo",
+    "Ki-Empowered Strikes": null, "Evasion": null, "Stillness of Mind": null, "Diamond Soul": null,
+    "Empty Body": null, "Perfect Self": null,
+    "Divine Sense": null, "Lay on Hands": "lay_on_hands", "Divine Smite": null, "Divine Health": null,
+    "Sacred Oath": null, "Aura of Protection": null, "Aura of Courage": null,
+    "Improved Divine Smite": null, "Cleansing Touch": "lay_on_hands",
+    "Favored Enemy": null, "Natural Explorer": null, "Ranger Archetype": null, "Primeval Awareness": null,
+    "Land's Stride": null, "Hide in Plain Sight": "sneak", "Vanish": "sneak", "Feral Senses": null,
+    "Foe Slayer": null,
+    "Sneak Attack": "sneak", "Thieves' Cant": null, "Cunning Action": "sneak", "Roguish Archetype": null,
+    "Uncanny Dodge": null, "Reliable Talent": null, "Slippery Mind": null, "Elusive": null,
+    "Stroke of Luck": null,
+    "Sorcerous Origin": null, "Font of Magic": null, "Metamagic": null, "Sorcerous Restoration": null,
+    "Otherworldly Patron": null, "Eldritch Invocations": null, "Pact Boon": null, "Mystic Arcanum": null,
+    "Eldritch Master": null,
+    "Arcane Recovery": null, "Arcane Tradition": null, "Spell Mastery": null, "Signature Spells": null
+  }
+}

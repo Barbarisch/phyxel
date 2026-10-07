@@ -1,0 +1,21 @@
+{
+  "id": "giant_lizard",
+  "serves": [
+    "giant-lizard"
+  ],
+  "size": "Large",
+  "height_u": 3.0,
+  "body": "reptile",
+  "source": {
+    "meshy": {
+      "prompt": "a giant lizard: huge monitor lizard with mottled grey-green scales, forked tongue, long tail, sprawling legs",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0ff15-70ee-70ac-a979-c3bcfaf1c48d",
+        "01a0ff16-44e8-7016-8844-546bb88efd3a"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "beasts"
+}

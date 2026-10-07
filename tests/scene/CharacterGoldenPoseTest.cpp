@@ -12,7 +12,7 @@ using namespace Phyxel;
 using Phyxel::Scene::AnimatedVoxelCharacter;
 using Phyxel::Scene::AppearancePresetRegistry;
 
-// Golden regression for the body-plan refactor (docs/CharacterLibraryPlan.md
+// Golden regression for the body-plan refactor (docs/CharacterLibraryPlan.md (retired 2026-10-01; see docs/CharacterAnimationRoadmap.md)
 // Phase D): pins the ENGINE-POSED character — bone global transforms across
 // representative clips, derived controller scalars, the segment-box table, and
 // the foot-IK bone identity — against checked-in baselines. Any refactor of

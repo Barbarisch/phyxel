@@ -128,6 +128,11 @@ Write-Host "========================================" -ForegroundColor Cyan
 # multiplies a sky gate outside phxSunGate (the G-135 defect) fails here.
 & python (Join-Path $ScriptDir "tools/lighting_doc_check.py") --check
 if ($LASTEXITCODE -ne 0) { Write-Host "lighting_doc_check failed - update docs/LightingPipeline.md" -ForegroundColor Red; exit 1 }
+# Character checklist (docs/CharacterAnimationRoadmap.md R1): docs/CharacterChecklist.md is generated
+# from rigs, clip_meta, body plans and the D&D data; a change to any of them without regenerating it
+# fails here (regenerate: python tools/anim_pipeline/coverage_report.py).
+& python (Join-Path $ScriptDir "tools/anim_pipeline/coverage_report.py") --check
+if ($LASTEXITCODE -ne 0) { Write-Host "docs/CharacterChecklist.md is stale - run tools/anim_pipeline/coverage_report.py" -ForegroundColor Red; exit 1 }
 if ($LASTEXITCODE -ne 0) {
     Write-Host "WARNING: compiled shaders are STALE -- run build_shaders.bat and commit the .spv" -ForegroundColor Red
 }

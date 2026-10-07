@@ -81,12 +81,15 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 - **[VoxelDamageVisualization.md](VoxelDamageVisualization.md)** — current-state reference for damage cracks on damaged-but-unbroken voxels (7 world-seeded stages, per-material style, debug view 19). ⚠️ **Full cubes only — generated buildings have sub-voxel walls and cannot crack until V2** (see its §5 / §9)
 - **[Water.md](Water.md)** — THE water doc (single consolidated design + status + traps; supersedes WaterSystem v1/v2/v3, PhysicalFeelPlan, AppearanceV4, WaterAsWorldData)
 - **[SubcubeCollisionPlan.md](SubcubeCollisionPlan.md)** — subcube-resolution character collision (user directive 2026-07-16: collision shape must match what you see)
-- **[PhysicsCharacter.md](PhysicsCharacter.md)** — ⚠️ deprecated (Bullet character fully removed, git-history-only; see EntitySystem.md)
 
 ## Characters & animation
 
-- **[AnimatedCharacter.md](AnimatedCharacter.md)** — `AnimatedVoxelCharacter` (.anim FSM, the primary character)
-- **[CharacterAnimationGuide.md](CharacterAnimationGuide.md)** — animation states, naming, offsets
+- **[CharacterAnimationRoadmap.md](CharacterAnimationRoadmap.md)** — THE forward plan (R0–R6): every D&D character, variations, Meshy → voxel models, generative drafting, developer path. Replaces CharacterLibraryPlan / CharacterAnimationV2 / MotionBricksIntegrationPlan (retired 2026-10-01)
+- **[AnimationSystemV3Plan.md](AnimationSystemV3Plan.md)** — closed build ledger for A0–A5 (body plans, clip_meta schema, transitions, layers, seats, grounding)
+- **[UniMateIntegrationPlan.md](UniMateIntegrationPlan.md)** — sub-plan for roadmap R3: offline text-to-motion drafting for any skeleton
+- **[MotionBricks.md](MotionBricks.md)** — optional provider; runtime use rejected, offline capture adopted 2026-10-01 (roadmap R3)
+- **[AnimatedCharacter.md](AnimatedCharacter.md)** — ⚠️ stale (pre-A2); `AnimatedVoxelCharacter` FSM, replaced in roadmap R6
+- **[CharacterAnimationGuide.md](CharacterAnimationGuide.md)** — ⚠️ stale (pre-A2); clip naming/import, replaced in roadmap R6
 - **[InteractionPipeline.md](InteractionPipeline.md)** — character ↔ object interaction (sitting, etc.) tuning pipeline
 - **[LessonsLearned_ProceduralAnimation.md](LessonsLearned_ProceduralAnimation.md)** — why the current animation approach won (history)
 - **[HumanoidAnimationMigration.md](HumanoidAnimationMigration.md)** — live review ledger for replacing combat/gathering clips in `humanoid.anim`

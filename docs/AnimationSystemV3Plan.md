@@ -1,6 +1,10 @@
 # Animation System v3 — the plan for "the animation system of my dreams"
 
-> **Status:** proposal, 2026-09-29. **Nothing here is built.** Every phase goes through
+> **CLOSED AS A PLAN 2026-10-01 — this is now the BUILD LEDGER for A0–A5.** Forward work (A6,
+> A7, T2, T3, §8, §9) moved to [`CharacterAnimationRoadmap.md`](CharacterAnimationRoadmap.md)
+> (phases R1–R6; T2/T3 rejected there with reopen triggers). Read §4b for what was built.
+>
+> **Status (historical):** proposal, 2026-09-29. **Nothing here is built.** Every phase goes through
 > `/design-check` before a line of code, and the owner picks the forks in §9.
 > **Gate log:** 2026-09-29 slice A0+A1 — **A0 READY**, **A1 NEEDS WORK** (three items designed
 > into A1's preamble); **A1 re-gated READY** the same day. Owner: "lets get going on A0 and
@@ -13,12 +17,12 @@
 > masks/layers, grip derivation, modifiers, sword/hammer pair, off-hand pin — ledger in §4b).
 > **A4 (the chair) gated READY, BUILT and CLOSED 2026-09-30** (SeatFit engine-side, v2 sidecars,
 > W1, one seated origin + per-frame seated solve, 102-cell matrix, live gauntlet 21/21; the
-> approach walk is DEFERRED to its own gate; ledger in §4b). A5 gated 2026-09-30: NEEDS WORK (5 items) → folded → re-gated READY → **BUILT the same day** (items 1–5, default ON; the float bar is the one unmet number — ledger in §4b).
-> **Supersedes nothing, extends everything:** [`CharacterAnimationV2.md`](CharacterAnimationV2.md)
+> approach walk is DEFERRED to its own gate; ledger in §4b). A5 gated 2026-09-30: NEEDS WORK (5 items) → folded → re-gated READY → BUILT → **CLOSED 2026-10-01** (owner: "closing A5 for now seems fine"; still-foot float 0.147 u on 1/3 u risers vs the flat + 0.03 bar is accepted as the residual; ledger in §4b).
+> **Supersedes nothing, extends everything:** [`CharacterAnimationV2.md`](CharacterAnimationRoadmap.md)
 > (2026-07-09) remains the paradigm analysis this builds on; its rules are restated in §2, not
 > re-argued. Companion facts: [`LessonsLearned_ProceduralAnimation.md`](LessonsLearned_ProceduralAnimation.md),
-> [`MotionBricksIntegrationPlan.md`](MotionBricksIntegrationPlan.md),
-> [`UniMateIntegrationPlan.md`](UniMateIntegrationPlan.md), [`CharacterLibraryPlan.md`](CharacterLibraryPlan.md),
+> [`MotionBricksIntegrationPlan.md`](CharacterAnimationRoadmap.md),
+> [`UniMateIntegrationPlan.md`](UniMateIntegrationPlan.md), [`CharacterLibraryPlan.md`](CharacterAnimationRoadmap.md),
 > [`InteractionPipeline.md`](InteractionPipeline.md), [`FunctionalWiringBacklog.md`](FunctionalWiringBacklog.md)
 > (the USER DIRECTION block on seating).
 >

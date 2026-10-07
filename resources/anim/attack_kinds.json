@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "_comment": "Roadmap R1 decision 2 (docs/CharacterAnimationRoadmap.md): stat-block attack/action name -> attackKind (the enum in clip_meta_schema.json). Rules are tried IN ORDER; the first whose case-insensitive regex matches the name wins, so specific rules come before general ones. Weapon names use the attack's isRanged flag to choose weapon_melee vs weapon_ranged. A name no rule matches is reported as UNCLASSIFIED by coverage_report.py, never dropped.",
+  "rules": [
+    { "match": "tail sting|stinger|^sting",                          "kind": "sting" },
+    { "match": "tentacle",                                           "kind": "tentacle" },
+    { "match": "tail",                                               "kind": "tail" },
+    { "match": "breath",                                             "kind": "breath" },
+    { "match": "spittle|spray|^web$|spores|fetid cloud",             "kind": "spit" },
+    { "match": "constrict|engulf|swallow|whelm",                     "kind": "constrict" },
+    { "match": "blood drain|snake hair|^bites?$|bite",               "kind": "bite" },
+    { "match": "^claws?|pincer|rake",                                "kind": "claw" },
+    { "match": "talons",                                             "kind": "talons" },
+    { "match": "^beaks?$",                                           "kind": "beak" },
+    { "match": "hooves",                                             "kind": "hooves" },
+    { "match": "gore|horns?$|^tusks?$|^ram$|^beard$",                "kind": "gore" },
+    { "match": "touch|drain|kiss",                                   "kind": "touch" },
+    { "match": "slam|pseudopod|crush|stomp|fist|unarmed strike",      "kind": "slam" },
+    { "match": "frightful presence|visage|glare|moan|scare|charm|enslave|possession|screech|heart sight|horror nimbus|create whirlwind|^slow$", "kind": "aura" },
+    { "match": "hurl flame|lightning|shock",                         "kind": "spell" },
+    { "match": "^rock$|javelin|harpoon|bow|crossbow|sling|dart",     "kind": "weapon", "_comment": "thrown/projectile: isRanged picks ranged" },
+    { "match": "sword|axe|club|mace|maul|morningstar|dagger|glaive|pike|spear|rapier|scimitar|warhammer|war pick|whip|chain|fork|shield bash|spiked shield|trident|halberd|flail|lance|sickle|quarterstaff", "kind": "weapon" }
+  ]
+}

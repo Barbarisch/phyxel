@@ -1,5 +1,9 @@
 # MotionBricks locomotion provider
 
+> ⚠️ **2026-10-01: runtime use REJECTED, offline capture ADOPTED** — see
+> [`CharacterAnimationRoadmap.md`](CharacterAnimationRoadmap.md) §3 and R3. The provider code below
+> stays (off at runtime) and becomes the engine side of a capture tool that writes reviewed clips.
+
 Phyxel now has an optional MotionBricks ABI-v1 locomotion provider. It is off by default and the
 existing `.anim` clips remain the deterministic fallback. Learned output supplies local joint
 rotations only: the capsule, collision, attack hit frames, blocks, casts, reactions, and root

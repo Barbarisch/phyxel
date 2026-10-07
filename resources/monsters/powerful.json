@@ -10,6 +10,7 @@
     "hitPointDice": "8d10+40",
     "averageHP": 84,
     "speed": 30,
+    "movementModes": {"walk": 30},
     "attributes": {
       "scores": [
         { "type": "Strength",     "base": 18, "racial": 0, "equipment": 0, "temporary": 0 },
@@ -62,6 +63,7 @@
     "hitPointDice": "17d10+85",
     "averageHP": 178,
     "speed": 40,
+    "movementModes": {"walk": 40, "fly": 80, "climb": 40},
     "attributes": {
       "scores": [
         { "type": "Strength",     "base": 23, "racial": 0, "equipment": 0, "temporary": 0 },

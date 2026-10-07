@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """character_import.py — one importer for ALL external character content.
 
-Phase C durable deliverable (docs/CharacterLibraryPlan.md): whatever lane the
+Phase C durable deliverable (docs/CharacterLibraryPlan.md (retired 2026-10-01; see docs/CharacterAnimationRoadmap.md)): whatever lane the
 content comes from (Mixamo free, local open-weight models, paid services),
 it enters the engine through THIS tool, which enforces the rules the old
 ad-hoc importers didn't:

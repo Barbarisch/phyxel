@@ -1,0 +1,21 @@
+{
+  "id": "giant_eagle",
+  "serves": [
+    "giant-eagle"
+  ],
+  "size": "Large",
+  "height_u": 2.6,
+  "body": "raptor",
+  "source": {
+    "meshy": {
+      "prompt": "a giant eagle: enormous golden-brown eagle with a white head, hooked yellow beak, large talons",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0ff17-1cd1-774e-a785-feb80ffc68d5",
+        "01a0ff18-dfcc-7568-beb5-63effc9d5f75"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "beasts"
+}

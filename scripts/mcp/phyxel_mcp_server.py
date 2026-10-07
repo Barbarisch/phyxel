@@ -1687,6 +1687,19 @@ async def list_tools() -> list[Tool]:
             }
         ),
         Tool(
+            name="add_character",
+            description="Import a character from a manifest (resources/characters/<id>.json): Meshy/GLB model -> shell voxels at the D&D-size pitch under the part budget -> palette -> bound onto OUR skeleton (humanoid or a creature-forge species, completed with the parts its stat blocks need) -> writes resources/animated_characters/<id>.anim and the bindings for the ids it serves. Offline, no engine needed. Echoes rig, pitch, parts vs budget, palette, binder metrics (pass bar within_frac>=0.98, side_violations 0), steps, credits, warnings. A Meshy source reuses the committed resources/characters/source/<id>.glb; generating a new one spends credits only with spend=true and refuses below 10% of the allotment. Roadmap: docs/CharacterAnimationRoadmap.md R2.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "manifest": {"type": "string", "description": "Manifest path, e.g. resources/characters/dire_wolf.json"},
+                    "dry_run": {"type": "boolean", "description": "Measure and report, write nothing", "default": False},
+                    "spend": {"type": "boolean", "description": "Allow Meshy credit spend when the source GLB is missing", "default": False}
+                },
+                "required": ["manifest"]
+            }
+        ),
+        Tool(
             name="search_templates",
             description="Search the generated template catalog by name or prompt keyword. Returns matching templates with their metadata (prompt, material, size, primitive counts). Only searches AI-generated templates, not hand-crafted ones.",
             inputSchema={
@@ -4773,7 +4786,7 @@ _NO_PROJECT_TOOLS = {
     "screenshot", "get_visual_diagnostic", "get_engine_logs",
     "get_render_stats", "set_log_level", "set_debug_overlay", "orbit_screenshots",
     # Asset generation pipeline — purely Python-side or uses asset editor (port 8091), no project needed
-    "generate_template", "generate_asset",
+    "generate_template", "generate_asset", "add_character",
     "launch_asset_editor", "close_asset_editor", "reload_asset_editor",
     "inspect_template", "critique_template", "refine_template",
     "list_generated_templates", "search_templates",
@@ -5382,6 +5395,24 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         return await submit_job_and_wait("generate_world", body)
 
     # --- Template Generation (BlockSmith) ---
+    elif name == "add_character":
+        import subprocess as _sp
+        _repo = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        cmd = [sys.executable, os.path.join(_repo, "tools", "character_add.py"), args["manifest"]]
+        if args.get("dry_run", False):
+            cmd.append("--dry-run")
+        if args.get("spend", False):
+            cmd.append("--spend")
+        result = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: _sp.run(cmd, capture_output=True, text=True, timeout=3600, cwd=_repo))
+        out = result.stdout.strip()
+        try:
+            report = json.loads(out[out.index("{"):]) if "{" in out else None
+        except (ValueError, json.JSONDecodeError):
+            report = None
+        return {"success": result.returncode == 0, "report": report,
+                "error": None if result.returncode == 0 else (result.stderr.strip()[-2000:] or out[-2000:])}
+
     elif name == "generate_template":
         import subprocess as _sp
         # Enhance prompt in-process (avoids litellm hanging in child process)

@@ -1,0 +1,21 @@
+{
+  "id": "giant_wolf_spider",
+  "serves": [
+    "giant-wolf-spider"
+  ],
+  "size": "Medium",
+  "height_u": 1.6,
+  "body": "giant_spider",
+  "source": {
+    "meshy": {
+      "prompt": "a giant wolf spider: large brown and grey striped hairy spider with eight legs, low body, large front eyes",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0ff0d-f123-715f-874c-d15531b56dea",
+        "01a0ff0f-3888-736d-9270-b82ab16c6e7b"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "beasts"
+}

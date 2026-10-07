@@ -1,0 +1,21 @@
+{
+  "id": "tribal_warrior",
+  "serves": [
+    "tribal-warrior"
+  ],
+  "size": "Medium",
+  "height_u": 1.75,
+  "body": "humanoid",
+  "source": {
+    "meshy": {
+      "prompt": "a tribal warrior: lean human hunter with tanned skin, black braided hair, face paint, wearing a fur cloak, leather wraps and sandals, empty hands",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0fef6-5520-7582-9060-12ef63452a6b",
+        "01a0fef8-1782-763f-adab-d81f7565e941"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "monsters"
+}

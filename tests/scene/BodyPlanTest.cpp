@@ -12,7 +12,7 @@ using Phyxel::Scene::BodyPlan;
 using Phyxel::Scene::BodyPlanRegistry;
 using Phyxel::Scene::MorphologyType;
 
-// Phase D (docs/CharacterLibraryPlan.md, CharacterAnimationV2.md §10 P0b):
+// Phase D (docs/CharacterLibraryPlan.md (retired 2026-10-01; see docs/CharacterAnimationRoadmap.md), CharacterAnimationV2.md (retired 2026-10-01; see docs/CharacterAnimationRoadmap.md) §10 P0b):
 // the BodyPlan descriptor replaces the humanoid hardcodes. These tests pin
 // the NEUTRALITY CONTRACT — the humanoid plan resolves to the exact bone ids
 // the legacy mixamorig:* literals produce — and prove the creature plans
@@ -355,7 +355,7 @@ TEST(BodyPlan, AllMeshyCreaturesLoadAndResolve) {
 }
 
 // ---------------------------------------------------------------------------
-// Stress (CharacterAnimationV2.md §10 P0b acceptance): all four rig families
+// Stress (CharacterAnimationV2.md (retired 2026-10-01; see docs/CharacterAnimationRoadmap.md) §10 P0b acceptance): all four rig families
 // load into the real character class without crashing.
 // ---------------------------------------------------------------------------
 

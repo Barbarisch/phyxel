@@ -103,6 +103,7 @@ def apply(af: AnimFile, ledger: dict, actions: list) -> None:
             clip.name = to
             af.set_clip(clip)
             meta["promoted_from"] = name
+            meta["review"] = "approved"      # roadmap R1 decision 5: promotion IS the owner's approval
             af.set_clip_meta(to, meta)
             if prompt:
                 af.header_comments.append(prompt.replace(f"{PROMPT_HEADER} {name} ",

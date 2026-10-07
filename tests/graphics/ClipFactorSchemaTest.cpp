@@ -130,3 +130,22 @@ TEST(ClipFactorSchema, SelectsNearestBaseAndEveryMatchingLayer) {
     EXPECT_EQ(c.base, -1);
     EXPECT_EQ(c.layers, (std::vector<int>{5})) << "layers do not depend on the state unless they declare one";
 }
+
+// Roadmap R1 (docs/CharacterAnimationRoadmap.md decisions 2 + 5): the engine reads the two new
+// keys from the shared file — attackKind as a factor coordinate, review as a tool-only key it never
+// applies. RED 2026-10-01: both keys are unknown.
+TEST(ClipFactorSchema, AttackKindIsAFactorAndReviewIsToolOnly) {
+    ASSERT_TRUE(schemaLoadedFromFile());
+    const auto& s = schema();
+    ASSERT_TRUE(s.count("attackKind"));
+    EXPECT_EQ(s.at("attackKind").type, ValueType::Enum);
+    EXPECT_TRUE(s.at("attackKind").factor);
+    ASSERT_TRUE(s.count("review"));
+    EXPECT_TRUE(s.at("review").toolOnly);
+    EXPECT_FALSE(s.at("review").factor);
+    const auto p = parseFields("attackKind=bite review=draft");
+    EXPECT_TRUE(p.issues.empty());
+    EXPECT_EQ(p.factors.at("attackKind"), "bite");
+    EXPECT_EQ(p.factors.count("review"), 0u) << "review is status, not a composition coordinate";
+}
+

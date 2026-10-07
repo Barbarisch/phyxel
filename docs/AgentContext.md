@@ -85,11 +85,11 @@ Absolute paths below (e.g. `C:\Users\<you>\...`) are machine-specific — adjust
   first** — it is the standing home for external technique/model/library evaluations (what it is,
   why Phyxel, adoption cost, verdict), and the candidate may already have one. Record new
   evaluations there as a dated entry, **including rejections and the reason** — a written "no"
-  stops the next session re-deriving it. **MotionBricks was re-evaluated 2026-09-04:** NVIDIA's
-  original Python/robot-only preview remains unsuitable directly, but `localai-org/motion-bricks.cpp`
-  now provides a native C++/GGML C ABI and pose output. A bounded optional-locomotion prototype is
-  approved; adoption is not. See `docs/MotionBricksIntegrationPlan.md` for the locked architecture,
-  M0 first slice, quality/performance gates, and permanent clip fallback.
+  stops the next session re-deriving it. **Characters & animation (2026-10-01):** ONE forward plan,
+  [`CharacterAnimationRoadmap.md`](CharacterAnimationRoadmap.md) (phases R0–R6). MotionBricks is an
+  OFFLINE capture tool only (never runtime), kimodo.cpp is superseded by UniMate,
+  `AnimationSystemV3Plan.md` is the closed A0–A5 build ledger, and **Meshy credits are watched with
+  `tools/meshy_credits.py` — warn the owner below 10 %**.
 
 - **World-setup gotchas (folded from the retired ProvingGrounds.md, 2026-10-07):**
   - The recipe is persisted into `world.db` on FIRST boot and then WINS over `game.json`. To

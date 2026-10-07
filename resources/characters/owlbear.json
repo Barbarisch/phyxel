@@ -1,0 +1,21 @@
+{
+  "id": "owlbear",
+  "serves": [
+    "owlbear"
+  ],
+  "size": "Large",
+  "height_u": 2.8,
+  "body": "bear",
+  "source": {
+    "meshy": {
+      "prompt": "an owlbear: a large bear-like beast with the head, hooked beak and feathered face of a great horned owl, thick brown fur on the body, tawny feathers on the head and shoulders, heavy claws",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0fa40-06d4-70eb-ba88-a440dbe2b47b",
+        "01a0fa42-1845-739f-90b3-f6fb7aadc7e5"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "beasts"
+}

@@ -1,0 +1,21 @@
+{
+  "id": "hobgoblin",
+  "serves": [
+    "hobgoblin"
+  ],
+  "size": "Medium",
+  "height_u": 1.8,
+  "body": "humanoid",
+  "source": {
+    "meshy": {
+      "prompt": "a hobgoblin soldier: disciplined goblinoid with dark orange skin, flat nose, red-brown hair, wearing a dented steel breastplate over a dark red tunic, leather bracers and boots, empty hands",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0feea-842a-73c6-a066-c503b09d5160",
+        "01a0feeb-a809-7687-bd6b-ea4df462eedd"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "monsters"
+}

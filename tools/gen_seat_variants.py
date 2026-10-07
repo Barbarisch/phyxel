@@ -1,6 +1,6 @@
 """Generate size-variant seat templates for the seat-fit policy.
 
-Seat-fit enforcement (docs/CharacterLibraryPlan.md) refuses any sit where the
+Seat-fit enforcement (docs/CharacterLibraryPlan.md (retired 2026-10-01; see docs/CharacterAnimationRoadmap.md)) refuses any sit where the
 character doesn't fit — which means every body size needs LEGAL seating:
 
   stool_low   — seat top 0.333 (1 subcube): halfling/gnome/goblin/dwarf.

@@ -3,6 +3,31 @@
 Standing log of engine limitations hit during content/tool work. Each entry: what was needed,
 what the engine did instead, the workaround used, and what a real fix looks like.
 
+## 2026-10-02 — the character part build silently drops boxes on finger/toe/eye/"end" bones (OPEN)
+`AnimatedVoxelCharacter.cpp` (part build) skips every box whose bone name contains `thumb`,
+`index`, `middle`, `ring`, `pinky`, `eye`, `toe` or `end` — no log, no count. Measured over
+`resources/animated_characters/`: **31 rigs** lose boxes this way. The 14 Quaternius monsters lose
+94–713 boxes each (their whole hands: `monster_orc` 713 of 3,500); every Mixamo-skeleton humanoid
+loses 92 finger boxes (and `humanoid.anim`'s 48 pelvis boxes bound to `LeftHandPinky4` /
+`RightToe_End`, logged 2026-10-01 as "riding the hand", are in fact never drawn — L4 2026-10-02:
+hips intact while waving; the earlier entry is withdrawn). No forge rig is affected.
+Also: substring `end` matches any bone named like `Tendril` or `Pendant`.
+Workaround in the R2 binder: `binder.ENGINE_SKIPPED` mirrors the list (a test reads the engine
+source to keep it in sync) and never binds a voxel to those bones.
+Real fix: decide what the skip is for (it predates the forge; likely "don't animate fingers
+individually"), then either re-parent skipped boxes to the nearest rendered ancestor at load, or
+log a per-rig count — silently invisible geometry is the defect.
+
+## 2026-10-02 — MotionOracle's knee and planting metrics are scale-dependent (OPEN)
+Found by the R2 import oracle gate (`tests/stress/ImportedRigOracleTest.cpp`). `maxKneeInversion`
+is a DISTANCE (knee behind the hip–ankle midpoint, world units), not an angle, and
+`OracleOptions::plantedWindow` defaults to an absolute 3 cm. Comparing a rig with a scaled copy of
+itself therefore reports differences that are only scale: the owlbear read knee inversion 0.2758 =
+the bear's 0.1726 × leg scale 1.598, and the black bear (scale 0.69) a 0.72 walk-speed mismatch from
+the window alone. Workaround in the gate: divide by body height and scale the window per rig.
+Real fix: make both metrics scale-free in `MotionOracle.cpp` (normalise by leg length; window as a
+fraction of it), then drop the workaround — and re-check the A1 calibration pins.
+
 ## 2026-09-22 — ~~`build_shaders.bat` alone does NOT change what the engine renders~~ **RETRACTED, THIS ENTRY WAS WRONG**
 
 > ⚠️ **RETRACTED the same day, by direct experiment.** The engine renders `shaders/*.spv` from
@@ -1056,3 +1081,25 @@ the screenshot is not conclusive in tall grass. Hypothesis: the model-to-capsule
 `heightScale` but not `legLengthScale`. **Not chased in A4** - the matrix test judges feet against the
 floor band instead of the standing reference because of this. Worth one FloorWorld test: standing
 sole height vs `worldPosition.y` per preset.
+
+## 2026-10-01 - Meshy-backed monsters die playing IDLE; 203 monsters have no playable hit reaction (found by the R1 scoreboard)
+
+**Found by** `docs/CharacterChecklist.md` / `tests/stress/ClipResolutionFixtureTest.cpp` (roadmap R1).
+`AnimatedVoxelCharacter::die()` picks the death clip by literal name (`death_front` /
+`death_back`); `selectHitClip()` likewise (`hit_head` / `hit_stomach` / `hit_rib`). The five Meshy
+rigs name their clip `death` and `meshy_quadruped.json` has no `clipDefaults` / `clipFallbacks`
+entry, so `clipForState(Death)` falls through to the legacy switch's `"idle"`: **all 31 Meshy-backed
+monsters play their idle when killed.** 203 monsters (every non-humanoid rig without those three
+literal hit names) have no hit reaction at all. Both violate the A2 rule that nothing keys on names.
+**Fix direction:** resolve Death/HitReact through the body plan (plan `clipDefaults` / tagged
+`clip_meta state=death|hitreact`), keep the literal names only as the humanoid plan's entries.
+Owned by roadmap R5 (or a small fix item before R3); the checklist turns these rows green when fixed.
+
+## 2026-10-01 - Body-plan resolution picks near-miss plans for forge rigs
+
+`forge_spider_giant.anim` resolves to the `forge_cephalopod` plan; `forge_dragon_young`,
+`forge_dragon_ancient`, `forge_dragon_wyrmling` and `forge_griffon` resolve to
+`forge_dragon_adult` (from `tests/fixtures/clip_resolution.json`). Harmless for clip NAMES today
+(shared clip tables) but a plan also carries legs, masks and the R1 vocabulary key. Check
+`planForSkeleton` scoring before roadmap R3 builds per-plan clip libraries.
+

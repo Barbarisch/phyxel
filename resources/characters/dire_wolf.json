@@ -1,0 +1,21 @@
+{
+  "id": "dire_wolf",
+  "serves": [
+    "dire-wolf"
+  ],
+  "size": "Large",
+  "height_u": 2.6,
+  "body": "dire_wolf",
+  "source": {
+    "meshy": {
+      "prompt": "a dire wolf: a huge, heavily muscled prehistoric wolf with a broad head, long snout, thick shaggy dark grey fur with a lighter grey underbelly, bushy tail",
+      "target_polycount": 30000,
+      "task_ids": [
+        "01a0fc58-0a16-75db-b7f8-82e2b6edce1e",
+        "01a0fc59-b01e-74ec-bd59-572866f7777a"
+      ]
+    }
+  },
+  "palette": 24,
+  "faction": "beasts"
+}
