@@ -65,6 +65,41 @@ PHX_CONST float IMPULSE_RADIAL    = -2.0f;    // dirCos.w marker: radial push (n
 // pile gave the near pieces ~4.5 m/s yet moved the pile at most 15 cm.
 PHX_CONST float IMPULSE_WAKE_SCALE = 2.0f;
 
+// ---- Water (Phase 6c): one law for both worlds ---------------------------------------------
+// The CPU half is VoxelDynamicsWorld's integrate (furniture, item props); the GPU half is
+// solver_integrate. Per tick, with f = submerged fraction and b = the material's buoyancy ratio
+// (water density / material density, materials.json "buoyancy"):
+//   v.y -= g * f * b * dt                 anti-gravity: b > 1 floats, b < 1 sinks slower
+//   v   *= (1 - WATER_LINEAR_DRAG)^(f dt),  w *= (1 - WATER_ANGULAR_DRAG)^(f dt)
+//   v.xz += (flow - v.xz) * min(1, WATER_CURRENT_COUPLE * f * dt)
+PHX_CONST float WATER_LINEAR_DRAG    = 0.90f;   // strong - water is thick (kills the bob into rest)
+PHX_CONST float WATER_ANGULAR_DRAG   = 0.85f;
+PHX_CONST float WATER_CURRENT_COUPLE = 3.0f;    // drift converges to ~ the current's own speed
+// GPU water: a sparse table of per-chunk-column TILES over the same XZ window as the static
+// occupancy directory (32 x 32 chunk columns, recentred on the viewer). A tile = 32 x 32 cells of
+// {top water surface Y, flow xz (half2)}; columns whose water is just the background (the implicit
+// sea, or dry) have no tile - the directory says WATER_TILE_NONE and the shader uses the background.
+PHX_CONST int   WATER_DIR_CHUNKS     = 32;      // == PackedOccupancyPool::kDirChunksX / kDirChunksZ
+PHX_CONST int   WATER_TILE_CELLS     = 32;      // == chunk size
+PHX_CONST uint  WATER_MAX_TILES      = 256u;    // 2 MB per frame slot; more are counted, treated as background
+PHX_CONST uint  WATER_TILE_NONE      = 0xFFFFFFFFu;
+PHX_CONST float WATER_DRY            = -1.0e30f; // a cell's surface when it has no water
+// Floor division (GLSL % and / truncate toward zero; a world column west of x = 0 must not fold).
+PHX_FN int phxWaterFloorDiv(int a, int b) { return (a >= 0) ? (a / b) : -((-a + b - 1) / b); }
+// Directory slot of world column (x, z) given the directory's min chunk, or -1 outside it.
+PHX_FN int phxWaterDirIndex(int x, int z, int minChunkX, int minChunkZ) {
+    const int cx = phxWaterFloorDiv(x, WATER_TILE_CELLS) - minChunkX;
+    const int cz = phxWaterFloorDiv(z, WATER_TILE_CELLS) - minChunkZ;
+    if (cx < 0 || cz < 0 || cx >= WATER_DIR_CHUNKS || cz >= WATER_DIR_CHUNKS) return -1;
+    return cz * WATER_DIR_CHUNKS + cx;
+}
+// Cell index inside a tile.
+PHX_FN int phxWaterCellIndex(int x, int z) {
+    const int lx = x - phxWaterFloorDiv(x, WATER_TILE_CELLS) * WATER_TILE_CELLS;
+    const int lz = z - phxWaterFloorDiv(z, WATER_TILE_CELLS) * WATER_TILE_CELLS;
+    return lz * WATER_TILE_CELLS + lx;
+}
+
 // ---- Debris events (Phase 6): the small production GPU->CPU readback ---------------------------
 // The solver APPENDS events to a per-frame-slot host-visible buffer: [0] = event count (atomic,
 // may exceed the cap - the excess is the dropped count), [1..3] pad, then MAX_DEBRIS_EVENTS
@@ -131,7 +166,8 @@ PHX_CONST uint SOLVER_FLAG_HC_NEUTRAL      = 4u;   // hard-contact push-out adds
 PHX_CONST uint SOLVER_FLAG_POST_STAB       = 8u;   // alpha=1 solve + one alpha=0 pass; measured WORSE, off
 PHX_CONST uint SOLVER_FLAG_STATIC_FRICTION = 16u;  // stiff cold friction rows + anchored static friction
 PHX_CONST uint SOLVER_FLAG_KINEMATIC_CONTACTS = 32u; // movers are AVBD bodies (Phase 2); OFF = movers touch nothing (the D7 shove is deleted)
-PHX_CONST uint SOLVER_FLAGS_DEFAULT        = 55u;  // all but POST_STAB; movers are AVBD bodies (Phase 2)
+PHX_CONST uint SOLVER_FLAG_WATER           = 64u;  // debris floats / drags / drifts in water (Phase 6c)
+PHX_CONST uint SOLVER_FLAGS_DEFAULT        = 119u; // all but POST_STAB; movers are AVBD bodies (Phase 2); water (6c)
 PHX_CONST float SOLVER_ALPHA               = 0.99f; // error-correction alpha (Shallot canonical)
 PHX_CONST uint PRIMAL_STORE_VELOCITY       = 0xFFFFFFFEu;  // PrimalPC.targetColor sentinel
 
@@ -143,7 +179,7 @@ PHX_CONST uint PRIMAL_STORE_VELOCITY       = 0xFFFFFFFEu;  // PrimalPC.targetCol
 #define PHX_PC_CONSTRAINTS uint maxConstraints;                         /* csr_count, csr_scatter, warmstart_save */
 #define PHX_PC_CSR_CLEAR   uint bodyCount; uint maxConstraints;
 #define PHX_PC_SYNC_IN     uint count; float dt; uint impulseCount; uint pad0;   /* impulseCount: 0 except on the frame's first tick (Phase 4) */
-#define PHX_PC_INTEGRATE   uint count; float dt; float gravity; uint flags;
+#define PHX_PC_INTEGRATE   uint count; float dt; float gravity; uint flags; ivec4 water;   /* water: xy = water-directory min chunk (x,z), z bit0 = implicit sea, w = floatBitsToInt(sea level) (6c) */
 #define PHX_PC_CONTACTS    uint count; uint maxConstraints; uint flags; float coldScale; ivec4 occBox;  /* narrowphase, voxel; coldScale x m/dt² = cold stiffness; occBox = occupancy box min chunk + bit0 ready (1c) */
 #define PHX_PC_DUAL        uint maxConstraints; float dt; uint pad0; float alpha;         /* alpha: ALPHA, or 1 under post-stab */
 #define PHX_PC_PRIMAL      uint bodyCount; float dt; uint targetColor; float alpha;       /* targetColor: a colour, or PRIMAL_STORE_VELOCITY */
@@ -194,7 +230,7 @@ static_assert(sizeof(BodiesPC)      == 4,  "PHX_PC_BODIES");
 static_assert(sizeof(ConstraintsPC) == 4,  "PHX_PC_CONSTRAINTS");
 static_assert(sizeof(CsrClearPC)    == 8,  "PHX_PC_CSR_CLEAR");
 static_assert(sizeof(SyncInPC)      == 16, "PHX_PC_SYNC_IN");
-static_assert(sizeof(IntegratePC)   == 16, "PHX_PC_INTEGRATE");
+static_assert(sizeof(IntegratePC)   == 32, "PHX_PC_INTEGRATE");
 static_assert(sizeof(ContactsPC)    == 32, "PHX_PC_CONTACTS");
 static_assert(sizeof(DualPC)        == 16, "PHX_PC_DUAL");
 static_assert(sizeof(PrimalPC)      == 16, "PHX_PC_PRIMAL");
@@ -217,7 +253,7 @@ static_assert(GRID_CELLS % SCAN_BLOCK == 0,            "the parallel scan covers
 static_assert(SCAN_BLOCK == PHX_WORKGROUP,             "scan_block uses one thread per cell");
 static_assert(SOLVER_FLAGS_DEFAULT == (SOLVER_FLAG_MASS_PENALTY | SOLVER_FLAG_START_AT_REST |
                                        SOLVER_FLAG_HC_NEUTRAL | SOLVER_FLAG_STATIC_FRICTION |
-                                       SOLVER_FLAG_KINEMATIC_CONTACTS),
+                                       SOLVER_FLAG_KINEMATIC_CONTACTS | SOLVER_FLAG_WATER),
               "default = every shipped fix incl. kinematic contacts, POST_STAB off");
 }}  // namespace Phyxel::DebrisShared
 #endif

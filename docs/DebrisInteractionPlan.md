@@ -1403,6 +1403,75 @@ Test plan:
   4 (box 24/24, median 16.6 / max 74.7 mm), straddle pass, occ diff 0. Integration 90/91 (the
   pre-existing scene test).
 
+**DONE 2026-10-07 — 6c: GPU debris floats, sinks, drags (and drifts) in water.**
+- **One water law for both worlds** (`solver_shared.h`): anti-gravity g·f·b, drag
+  (1 − 0.90)^(f·dt) linear and (1 − 0.85)^(f·dt) angular, current coupling 3·f·dt.
+  `VoxelDynamicsWorld` (CPU) now reads the same constants; `solver_integrate` (GPU) applies them.
+  The at-rest back-off uses gravity + buoyancy, so a floater at equilibrium does not start each
+  solve displaced. New flag `SOLVER_FLAG_WATER` = 64, so the default flags are now **119** (the
+  pinned static_assert was updated).
+- **Per-material buoyancy ratio** (user decision): `materials.json` `physics.buoyancy` = 1000 /
+  typical density for 55 materials, e.g.:
+
+  | Material | Buoyancy | | Material | Buoyancy |
+  |---|---|---|---|---|
+  | Wood | 1.43 | | Stone | 0.385 |
+  | LogSpruce | 2.22 | | Bricks | 0.53 |
+  | Leaf | 2.0 | | Dirt | 0.67 |
+  | Ice | 1.09 | | Metal | 0.127 |
+  | | | | Gold | 0.052 |
+
+  The default (unlisted materials) is 0.38, i.e. rock. GPU masses are unchanged (bench intact).
+  The GPU field is the former `MaterialPhysics.pad0`, renamed `buoyancy` (same layout).
+- **GPU water = sparse per-chunk-column tiles over the occupancy window's XZ** (the design
+  check's "same window" rule):
+  - a 32×32 directory, each tile 32×32 cells of {top surface Y, half2 flow};
+  - columns that are just the background (the implicit sea, or dry) have no tile; the shader
+    falls back to the background;
+  - `WATER_MAX_TILES` 256 (2 MB per slot), overflow counted and logged once.
+  - **Built by `DebrisRuntime::updateWater`:** sim-region tiles every frame; table/sea tiles
+    nearest-first at 16 per frame, then re-checked in rotation (4 per frame); evicted when the
+    window moves.
+  - The source is the new `WaterManager::columnWater` (top surface: the sim inside its footprint,
+    else the table / sea), with the flow from `flowAtWorld`, the same current CPU bodies feel.
+  - **Approximation stated:** stacked water (a pond above a flooded cave) reports the top body
+    only.
+  - Uploaded after the slot's fence; the integrate pass has per-slot sets.
+- **The chunk-independence test the design check named** (`DebrisWaterTilesTest`, `FloraMarginTest`
+  shape): the lookup through directory + tiles (`sampleWaterTiles`, the CPU mirror of the
+  shader's `waterSurface`, with the same `phxWaterDirIndex`/`phxWaterCellIndex`) equals the
+  column source for every column of a 6×5-chunk window crossing seams at x = −1|0, 31|32 and
+  z = −33|−32, −1|0. Also: pure-background tiles are omitted, a dry island in a sea keeps its
+  tile, and outside the window reads the background. Also green: the CPU buoyancy tests (7,
+  including floater drift with a current).
+- API: `set_sea_level` gains `implicit` (echoed `implicit_sea`); `debris_events` reports
+  `water{ready, tiles_uploaded, tiles_cached, tiles_pending, overflow, min_chunk}`. The editor
+  wires `setWaterSource(waterManager)`. Shipped games have no `WaterManager` yet, so they get water
+  debris when they get water.
+- **L4 (`water_6c`, DebrisLab, blast chunk outside the sim region):** implicit sea at y 17 = 1 m
+  over the floor (top 16); 3×3 drops of 1/3-scale cubes from 3 m, stepped 10 s. Predictions
+  written first:
+
+  | Case | Prediction | Result |
+  |---|---|---|
+  | Wood (b 1.43) floats | centre 16.933 ± 0.1 | **16.952** |
+  | Stone (b 0.385) sinks | floor 16.167 | **16.164** |
+  | Wood, sea off (control) | floor | **16.167** |
+  | Drag on Stone | water landing \|dv\| < 0.5 × dry | **2.41 vs 6.22 m/s** |
+
+  9 water tiles were uploaded with the sea on: the dry sim-region columns inside a sea world
+  need tiles.
+- **Not shown live:** the CURRENT. The implicit sea has no flow, and a flowing sim stream is a
+  larger rig. Flow transport through the tiles is unit-tested (half precision ±2e-3) and the
+  coupling law is shared with the CPU, whose drift test passes.
+- **Bench `phase6c`:** drop_layer 11.2 mm and blast 86.2 mm unchanged; flags 119.
+  - Blast had 9 forced sleeps vs the ≤ 6 band. Same-binary A/B (3 runs each): water OFF (flags 55)
+    gave blast 4 / 7 / 1 and drop_pile 11 / 14 / 9; water ON (119) gave blast 2 / 8 / 4 and
+    drop_pile 2 / 9 / 7.
+  - The distributions overlap and water-off also breaks the band (7), so **the blast ≤ 6 band is
+    too tight for the GPU's run-to-run nondeterminism; 6c is not the cause.** Widening the band
+    is the user's call (it sits alongside the open box_through_pile band question).
+
 ---
 
 ## §API (`/api/debug/*` convention: an omitted field means unchanged; responses echo the resulting state; clamps at entry with the reason in code)

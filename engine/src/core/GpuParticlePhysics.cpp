@@ -233,6 +233,19 @@ bool GpuParticlePhysics::createBuffers(Vulkan::VulkanDevice* dev) {
         std::memset(m_impulseMapped[slot], 0, static_cast<size_t>(impSize));
     }
 
+    // 6e. Water directory + tile pool (host-coherent SSBOs, persistent map, one per frame slot), 6c
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
+        const VkDeviceSize dirBytes  = static_cast<VkDeviceSize>(DebrisShared::WATER_DIR_CHUNKS) *
+                                       DebrisShared::WATER_DIR_CHUNKS * sizeof(uint32_t);
+        const VkDeviceSize tileBytes = static_cast<VkDeviceSize>(DebrisShared::WATER_MAX_TILES) *
+                                       DebrisShared::WATER_TILE_CELLS * DebrisShared::WATER_TILE_CELLS *
+                                       2u * sizeof(uint32_t);
+        if (!createHostBuffer(dirBytes, m_waterDirBuffer[slot], m_waterDirMem[slot], m_waterDirMapped[slot], "water directory") ||
+            !createHostBuffer(tileBytes, m_waterTileBuffer[slot], m_waterTileMem[slot], m_waterTileMapped[slot], "water tiles"))
+            return false;
+        std::memset(m_waterDirMapped[slot], 0xFF, static_cast<size_t>(dirBytes));   // all WATER_TILE_NONE
+    }
+
     // 6d. Debris event readback (host-coherent SSBO, persistent map, one per frame slot), Phase 6
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
         const VkDeviceSize evSize = static_cast<VkDeviceSize>(DebrisShared::EVENT_HEADER_UINTS) * 4u +
@@ -443,6 +456,7 @@ bool GpuParticlePhysics::initMaterialPhysicsTable() {
             gpu.linearDamp      = std::max(0.9f, 1.0f - mp.linearDamping * 0.05f);
             gpu.angularDamp     = std::max(0.97f, 1.0f - mp.angularDamping * 0.03f);
             gpu.breakForceScale = mp.breakForceMultiplier;
+            gpu.buoyancy        = std::max(0.0f, mp.buoyancy);
         } else {
             gpu.mass            = 1.0f;
             gpu.restitution     = 0.3f;
@@ -450,8 +464,8 @@ bool GpuParticlePhysics::initMaterialPhysicsTable() {
             gpu.linearDamp      = 0.995f;
             gpu.angularDamp     = 0.97f;
             gpu.breakForceScale = 1.0f;
+            gpu.buoyancy        = Core::MaterialPhysics{}.buoyancy;
         }
-        gpu.pad0 = 0.0f;
         gpu.pad1 = 0.0f;
         dst[i] = gpu;
         if (m_materialMassCpu.size() <= static_cast<size_t>(i)) m_materialMassCpu.resize(i + 1, 1.0f);
@@ -652,10 +666,18 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     m_solverSyncInPass.updateDescriptors();
 
     // solver_integrate: bodies, materials, particles, character collider, state (wake bits)
-    if (!m_solverIntegratePass.create(m_device, shader("solver_integrate.comp.spv"), 3, sizeof(IntegratePC))) return false;
+    // + bindings 3/4: this frame slot's water directory + tiles (Phase 6c).
+    if (!m_solverIntegratePass.create(m_device, shader("solver_integrate.comp.spv"), 5, sizeof(IntegratePC),
+                                      OCC_FRAME_SLOTS)) return false;
     m_solverIntegratePass.bindBuffer(0, m_solverBodyBuffer,   bodySize);
     m_solverIntegratePass.bindBuffer(1, m_materialPhysBuffer, matPhysSize);
     m_solverIntegratePass.bindBuffer(2, m_particleBuffer,     particleSize);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
+        m_solverIntegratePass.bindBufferInSet(slot, 3, m_waterDirBuffer[slot],
+            static_cast<VkDeviceSize>(WATER_DIR_CHUNKS) * WATER_DIR_CHUNKS * sizeof(uint32_t));
+        m_solverIntegratePass.bindBufferInSet(slot, 4, m_waterTileBuffer[slot],
+            static_cast<VkDeviceSize>(WATER_MAX_TILES) * WATER_TILE_CELLS * WATER_TILE_CELLS * 2u * sizeof(uint32_t));
+    }
     m_solverIntegratePass.updateDescriptors();
 
     // solver_narrowphase: bodies, constraints, state, gridCount, gridOffset, sortedIndices, warmstarts
@@ -841,8 +863,8 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
 
     // ---- 2. Integrate: apply gravity + damping, predict position ----
     {
-        IntegratePC pc{ count, FIXED_DT, GRAVITY, m_solverFlags };
-        m_solverIntegratePass.bind(cmd);
+        IntegratePC pc{ count, FIXED_DT, GRAVITY, m_solverFlags, m_waterPC };
+        m_solverIntegratePass.bind(cmd, m_frameSlot);
         m_solverIntegratePass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverIntegratePass.dispatch(cmd, groups);
     }
@@ -1308,6 +1330,17 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
     if (m_kinematicBoxMapped[m_frameSlot] && !m_kinematicStage.empty())
         std::memcpy(m_kinematicBoxMapped[m_frameSlot], m_kinematicStage.data(),
                     m_kinematicStage.size() * sizeof(DebrisShared::KinematicBoxGpu));
+    // Water (6c): this frame's directory + tiles into THIS slot (its fence has retired).
+    if (m_waterDirMapped[m_frameSlot]) {
+        const size_t dirN = static_cast<size_t>(DebrisShared::WATER_DIR_CHUNKS) * DebrisShared::WATER_DIR_CHUNKS;
+        if (m_waterDirStage.size() == dirN)
+            std::memcpy(m_waterDirMapped[m_frameSlot], m_waterDirStage.data(), dirN * sizeof(uint32_t));
+        else
+            std::memset(m_waterDirMapped[m_frameSlot], 0xFF, dirN * sizeof(uint32_t));   // no water data
+        if (!m_waterCellStage.empty() && m_waterTileMapped[m_frameSlot])
+            std::memcpy(m_waterTileMapped[m_frameSlot], m_waterCellStage.data(),
+                        m_waterCellStage.size() * sizeof(uint32_t));
+    }
 
     // Enter if anything is alive, spawning, or being retired this frame. The
     // deactivation check is required: when the last particles die, activeCount
@@ -1497,6 +1530,50 @@ void GpuParticlePhysics::consumeEventSlot(uint32_t slot) {
         m_eventsDropped += m_events.size() - kMaxQueued;
         m_events.erase(m_events.begin(), m_events.begin() + (m_events.size() - kMaxQueued));
     }
+}
+
+void GpuParticlePhysics::setWater(const glm::ivec2& dirMinChunkXZ, bool implicitSea, float seaLevel,
+                                  std::vector<uint32_t> dir, std::vector<uint32_t> cells) {
+    const size_t tileWords = static_cast<size_t>(DebrisShared::WATER_TILE_CELLS) * DebrisShared::WATER_TILE_CELLS * 2u;
+    const size_t maxWords  = DebrisShared::WATER_MAX_TILES * tileWords;
+    if (cells.size() > maxWords) cells.resize(maxWords);   // the builder caps first (and counts)
+    m_waterDirStage  = std::move(dir);
+    m_waterCellStage = std::move(cells);
+    int seaBits = 0;
+    std::memcpy(&seaBits, &seaLevel, sizeof(int));
+    m_waterPC = DebrisShared::ivec4{dirMinChunkXZ.x, dirMinChunkXZ.y, implicitSea ? 1 : 0, seaBits};
+}
+
+bool GpuParticlePhysics::createHostBuffer(VkDeviceSize size, VkBuffer& buf, VkDeviceMemory& mem, void*& mapped,
+                                          const char* what) {
+    VkBufferCreateInfo bi{};
+    bi.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bi.size        = size;
+    bi.usage       = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+    bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    VkMemoryRequirements req{};
+    uint32_t memType = UINT32_MAX;
+    if (vkCreateBuffer(m_device, &bi, nullptr, &buf) == VK_SUCCESS) {
+        vkGetBufferMemoryRequirements(m_device, buf, &req);
+        VkPhysicalDeviceMemoryProperties props;
+        vkGetPhysicalDeviceMemoryProperties(m_physDevice, &props);
+        const VkMemoryPropertyFlags want = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+        for (uint32_t j = 0; j < props.memoryTypeCount; ++j)
+            if ((req.memoryTypeBits & (1u << j)) && (props.memoryTypes[j].propertyFlags & want) == want) { memType = j; break; }
+    }
+    VkMemoryAllocateInfo ai{};
+    ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    ai.allocationSize  = req.size;
+    ai.memoryTypeIndex = memType;
+    if (buf == VK_NULL_HANDLE || memType == UINT32_MAX ||
+        vkAllocateMemory(m_device, &ai, nullptr, &mem) != VK_SUCCESS ||
+        vkBindBufferMemory(m_device, buf, mem, 0) != VK_SUCCESS ||
+        vkMapMemory(m_device, mem, 0, size, 0, &mapped) != VK_SUCCESS) {
+        LOG_ERROR("GpuParticlePhysics", std::string("Failed to create/map ") + what + " buffer");
+        return false;
+    }
+    std::memset(mapped, 0, static_cast<size_t>(size));
+    return true;
 }
 
 bool GpuParticlePhysics::despawnSlot(uint32_t slot) {
@@ -1879,6 +1956,10 @@ void GpuParticlePhysics::cleanup() {
         if (m_impulseMapped[slot]) { vkUnmapMemory(m_device, m_impulseMem[slot]); m_impulseMapped[slot] = nullptr; }
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
         if (m_eventMapped[slot]) { vkUnmapMemory(m_device, m_eventMem[slot]); m_eventMapped[slot] = nullptr; }
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
+        if (m_waterDirMapped[slot])  { vkUnmapMemory(m_device, m_waterDirMem[slot]);  m_waterDirMapped[slot]  = nullptr; }
+        if (m_waterTileMapped[slot]) { vkUnmapMemory(m_device, m_waterTileMem[slot]); m_waterTileMapped[slot] = nullptr; }
+    }
     if (m_materialPhysMapped)  { vkUnmapMemory(m_device, m_materialPhysMem);  m_materialPhysMapped = nullptr; }
     if (m_readbackMapped)      { vkUnmapMemory(m_device, m_readbackMem);      m_readbackMapped     = nullptr; }
 
@@ -1889,6 +1970,10 @@ void GpuParticlePhysics::cleanup() {
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_kinematicBoxBuffer[slot], m_kinematicBoxMem[slot]);
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_impulseBuffer[slot], m_impulseMem[slot]);
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_eventBuffer[slot], m_eventMem[slot]);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
+        destroyBuf(m_waterDirBuffer[slot],  m_waterDirMem[slot]);
+        destroyBuf(m_waterTileBuffer[slot], m_waterTileMem[slot]);
+    }
     destroyBuf(m_materialPhysBuffer,  m_materialPhysMem);
     destroyBuf(m_gridCellCountBuffer,  m_gridCellCountMem);
     destroyBuf(m_gridCellOffsetBuffer, m_gridCellOffsetMem);

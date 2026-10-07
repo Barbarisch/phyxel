@@ -8,6 +8,12 @@ layout(local_size_x = WORKGROUP_SOLVER) in;
 layout(std430, set=0, binding=0) buffer SolverBodyBuffer        { SolverBody  bodies[]; };
 layout(std430, set=0, binding=1) readonly buffer MaterialBuffer { MaterialPhysics materials[]; };
 layout(std430, set=0, binding=2) readonly buffer ParticleBuffer { GpuParticle particles[]; };
+// Phase 6c water: this frame slot's tile directory (WATER_DIR_CHUNKS^2 entries, a tile index or
+// WATER_TILE_NONE) and tile pool (WATER_TILE_CELLS^2 cells per tile: x = surface Y bits, y = flow
+// xz as half2). Everything else (no tile) is the background: the implicit sea, or dry.
+layout(std430, set=0, binding=3) readonly buffer WaterDirBuffer  { uint waterDir[]; };
+layout(std430, set=0, binding=4) readonly buffer WaterTileBuffer { uvec2 waterCells[]; };
+
 
 // Movers (the player, scripted boxes, later every character) are AVBD bodies since Phase 2:
 // narrowphase contacts against kinematic bodies push debris, and its impact wake wakes it.
@@ -15,6 +21,21 @@ layout(std430, set=0, binding=2) readonly buffer ParticleBuffer { GpuParticle pa
 // flinging bodies to ~6 m/s) is deleted (DebrisInteractionPlan Phase 2).
 
 layout(push_constant) uniform PC { PHX_PC_INTEGRATE } pc;  // shaders/solver_shared.h
+
+// Top water surface Y over world column (x, z) and its flow; WATER_DRY when dry.
+float waterSurface(vec3 p, out vec2 flow) {
+    flow = vec2(0.0);
+    const int x = int(floor(p.x)), z = int(floor(p.z));
+    const int d = phxWaterDirIndex(x, z, pc.water.x, pc.water.y);
+    const bool sea = (pc.water.z & 1) != 0;
+    const float seaY = intBitsToFloat(pc.water.w);
+    if (d < 0) return sea ? seaY : WATER_DRY;          // outside the window: the background
+    const uint t = waterDir[d];
+    if (t == WATER_TILE_NONE) return sea ? seaY : WATER_DRY;
+    const uvec2 c = waterCells[t * uint(WATER_TILE_CELLS * WATER_TILE_CELLS) + uint(phxWaterCellIndex(x, z))];
+    flow = unpackHalf2x16(c.y);
+    return uintBitsToFloat(c.x);
+}
 
 void main() {
     uint i = gl_GlobalInvocationID.x;
@@ -62,6 +83,26 @@ void main() {
     b.vel     *= mat.linearDamp  * GAMMA;
     b.angVel  *= mat.angularDamp * GAMMA;
 
+    // ---- Water (Phase 6c): the same law VoxelDynamicsWorld applies to CPU bodies
+    // (solver_shared.h). f = submerged fraction of the body's vertical extent (bounding radius),
+    // b = the material's buoyancy ratio. buoyAccY joins gravity in the at-rest back-off below, so a
+    // floater at equilibrium does not start each solve displaced upward.
+    float buoyAccY = 0.0;
+    if ((pc.flags & SOLVER_FLAG_WATER) != 0u) {
+        vec2 flow;
+        const float surf = waterSurface(b.pos, flow);
+        const float r = max(b.radius, 1e-3);
+        const float f = clamp((surf - (b.pos.y - r)) / (2.0 * r), 0.0, 1.0);
+        if (f > 0.0) {
+            buoyAccY = -pc.gravity * f * mat.buoyancy;
+            b.vel.y  += buoyAccY * pc.dt;
+            b.vel    *= pow(1.0 - WATER_LINEAR_DRAG,  pc.dt * f);
+            b.angVel *= pow(1.0 - WATER_ANGULAR_DRAG, pc.dt * f);
+            const float k = min(1.0, WATER_CURRENT_COUPLE * f * pc.dt);
+            b.vel.xz += (flow - b.vel.xz) * k;
+        }
+    }
+
     // Inertial (unconstrained) prediction: where the body goes with no contacts.
     // Used as the energy minimum in primal/dual — solver pulls body toward it.
     b.inertial     = b.pos + b.vel * pc.dt;
@@ -73,7 +114,7 @@ void main() {
     // bodies, so narrowphase sees the same position as last frame → no fresh
     // penetration → λ stays steady. In free-fall (accelWeight=1) this collapses
     // to the full inertial prediction.
-    float gravBackoff = (1.0 - accelWeight) * pc.gravity * pc.dt * pc.dt;
+    float gravBackoff = (1.0 - accelWeight) * (pc.gravity + buoyAccY) * pc.dt * pc.dt;
     b.pos  = b.inertial - vec3(0.0, gravBackoff, 0.0);
     b.quat = b.inertialQuat;
 

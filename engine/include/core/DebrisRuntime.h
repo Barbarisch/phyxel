@@ -3,6 +3,7 @@
 #include "core/DamageSystem.h"
 #include "core/GpuParticlePhysics.h"
 #include <glm/glm.hpp>
+#include <climits>
 #include <deque>
 #include <functional>
 #include <map>
@@ -17,7 +18,7 @@ namespace Vulkan   { class VulkanDevice; }
 namespace Graphics { class RenderCoordinator; }
 namespace Physics  { class PhysicsWorld; }
 namespace Scene    { class AnimatedVoxelCharacter; }
-namespace Core     { class KinematicVoxelManager; struct SpellDefinition; }
+namespace Core     { class KinematicVoxelManager; struct SpellDefinition; class WaterManager; }
 
 // DebrisInteractionPlan Phase 5: everything a host (the editor's Application, or a shipped game)
 // does to run GPU debris, in ONE place - so the editor and shipped games run the same code path
@@ -137,6 +138,33 @@ public:
     /// summation error: 27 x (1/3)^3 sums to 0.99999... and is ONE cube.
     static int takeWholeUnits(float& owed);
 
+    // ---- Phase 6c: water for GPU debris ---------------------------------------------------------
+    // The water source (null = no water: debris stays dry). beginFrame builds per-chunk-column water
+    // tiles over the occupancy window (solver_shared.h WATER_*): sim-region tiles every frame,
+    // table/sea tiles once (nearest first, WATER_TILE_BUILD_BUDGET per frame) then refreshed in
+    // rotation. A column with no tile reads the background (implicit sea level, or dry).
+    void setWaterSource(Core::WaterManager* water) { m_water = water; }
+    static constexpr int WATER_TILE_BUILD_BUDGET   = 16;   // new static tiles per frame
+    static constexpr int WATER_TILE_REFRESH_BUDGET = 4;    // old static tiles re-checked per frame
+    struct WaterStats {
+        bool ready = false; int tilesUploaded = 0, tilesCached = 0, tilesPending = 0;
+        uint64_t overflow = 0; glm::ivec2 minChunk{0};
+    };
+    const WaterStats& waterStats() const { return m_waterStats; }
+
+    /// One column's water: true + surface Y + flow (m/s) when wet (WaterManager::columnWater).
+    using WaterColumnFn = std::function<bool(int wx, int wz, float& surfaceY, glm::vec2& flow)>;
+    /// Build chunk column (chunkX, chunkZ)'s tile (WATER_TILE_CELLS^2 cells x 2 words: surface-Y
+    /// bits, packHalf2x16(flow)). Returns false - and leaves `out` empty - when every cell is just
+    /// the background (implicit sea at seaLevel with no flow, or dry), so it needs no tile.
+    static bool buildWaterTile(int chunkX, int chunkZ, const WaterColumnFn& column, bool implicitSea,
+                               float seaLevel, std::vector<uint32_t>& out);
+    /// CPU mirror of solver_integrate's waterSurface() lookup (same phxWaterDirIndex /
+    /// phxWaterCellIndex): the surface over world column (x, z) through the directory + tiles.
+    static float sampleWaterTiles(int x, int z, const glm::ivec2& dirMinChunk, const std::vector<uint32_t>& dir,
+                                  const std::vector<uint32_t>& cells, bool implicitSea, float seaLevel,
+                                  glm::vec2* flow = nullptr);
+
     struct EventStats { uint64_t sleep = 0, wake = 0, impact = 0, soundsImpact = 0, soundsSettle = 0; };
     const EventStats& eventStats() const { return m_stats; }
     /// The last few hundred events (newest last) for the API / tests.
@@ -158,6 +186,18 @@ private:
     std::map<std::string, float> m_gatherRemainder;
     EventStats m_stats;
     std::deque<GpuParticlePhysics::DebrisEvent> m_recent;
+    // Phase 6c
+    void updateWater();
+    struct CachedWaterTile { bool background = true; std::vector<uint32_t> cells; uint64_t builtFrame = 0; };
+    Core::WaterManager* m_water = nullptr;
+    std::unordered_map<uint64_t, CachedWaterTile> m_waterCache;
+    std::vector<int> m_waterOrder;           // directory slots, nearest the window centre first
+    glm::ivec2 m_waterMinChunk{INT32_MIN, INT32_MIN};
+    size_t     m_waterRefreshCursor = 0;
+    uint64_t   m_waterFrame = 0;
+    bool       m_waterUploaded = false;
+    bool       m_waterOverflowLogged = false;
+    WaterStats m_waterStats;
 };
 
 }  // namespace Phyxel

@@ -55,7 +55,8 @@
           0.22
         ],
         "metallic": 0.0,
-        "roughness": 0.8
+        "roughness": 0.8,
+        "buoyancy": 0.667
       },
       "break": {
         "toughness": 45.0,
@@ -92,7 +93,8 @@
           0.2
         ],
         "metallic": 0.0,
-        "roughness": 0.9
+        "roughness": 0.9,
+        "buoyancy": 0.667
       },
       "textures": {
         "side_n": "grass_side_n.png",
@@ -123,7 +125,8 @@
           0.4
         ],
         "metallic": 0.0,
-        "roughness": 0.8
+        "roughness": 0.8,
+        "buoyancy": 0.385
       },
       "break": {
         "toughness": 110.0,
@@ -161,7 +164,8 @@
           0.5
         ],
         "metallic": 0.0,
-        "roughness": 0.95
+        "roughness": 0.95,
+        "buoyancy": 0.385
       },
       "textures": {
         "side_n": "cobblestone_side_n.png",
@@ -193,7 +197,8 @@
           0.45
         ],
         "metallic": 0.0,
-        "roughness": 0.75
+        "roughness": 0.75,
+        "buoyancy": 0.385
       },
       "textures": {
         "side_n": "stonebricks_side_n.png",
@@ -223,7 +228,8 @@
           0.65
         ],
         "metallic": 0.0,
-        "roughness": 0.95
+        "roughness": 0.95,
+        "buoyancy": 0.625
       },
       "textures": {
         "side_n": "sand_side_n.png",
@@ -254,7 +260,8 @@
           0.5
         ],
         "metallic": 0.0,
-        "roughness": 0.95
+        "roughness": 0.95,
+        "buoyancy": 0.588
       },
       "textures": {
         "side_n": "gravel_side_n.png",
@@ -286,7 +293,8 @@
           0.3
         ],
         "metallic": 0.0,
-        "roughness": 0.7
+        "roughness": 0.7,
+        "buoyancy": 1.429
       },
       "break": {
         "toughness": 70.0,
@@ -322,7 +330,8 @@
           0.18
         ],
         "metallic": 0.0,
-        "roughness": 0.85
+        "roughness": 0.85,
+        "buoyancy": 1.429
       },
       "textures": {
         "side_n": "log_side_n.png",
@@ -354,7 +363,8 @@
           0.54
         ],
         "metallic": 0.0,
-        "roughness": 0.8
+        "roughness": 0.8,
+        "buoyancy": 1.333
       },
       "break": {
         "toughness": 70.0,
@@ -391,7 +401,8 @@
           0.25
         ],
         "metallic": 0.0,
-        "roughness": 0.85
+        "roughness": 0.85,
+        "buoyancy": 0.526
       },
       "textures": {
         "side_n": "bricks_side_n.png",
@@ -421,7 +432,8 @@
           0.55
         ],
         "metallic": 0.0,
-        "roughness": 0.8
+        "roughness": 0.8,
+        "buoyancy": 0.435
       },
       "textures": {
         "side_n": "sandstone_side_n.png",
@@ -453,7 +465,8 @@
           1.0
         ],
         "metallic": 0.0,
-        "roughness": 0.05
+        "roughness": 0.05,
+        "buoyancy": 0.4
       },
       "break": {
         "toughness": 35.0,
@@ -490,7 +503,8 @@
           0.8
         ],
         "metallic": 0.8,
-        "roughness": 0.4
+        "roughness": 0.4,
+        "buoyancy": 0.127
       },
       "break": {
         "toughness": 200.0,
@@ -527,7 +541,8 @@
           0.9
         ],
         "metallic": 0.85,
-        "roughness": 0.35
+        "roughness": 0.35,
+        "buoyancy": 0.127
       },
       "break": {
         "toughness": 220.0,
@@ -563,7 +578,8 @@
           0.2
         ],
         "metallic": 0.9,
-        "roughness": 0.2
+        "roughness": 0.2,
+        "buoyancy": 0.052
       },
       "textures": {
         "side_n": "gold_side_n.png",
@@ -594,7 +610,8 @@
           1.0
         ],
         "metallic": 0.0,
-        "roughness": 0.05
+        "roughness": 0.05,
+        "buoyancy": 1.091
       },
       "textures": {
         "side_n": "ice_side_n.png",
@@ -626,7 +643,8 @@
           0.2
         ],
         "metallic": 0.0,
-        "roughness": 0.9
+        "roughness": 0.9,
+        "buoyancy": 2.0
       },
       "textures": {
         "side_n": "leaf_side_n.png",
@@ -739,7 +757,8 @@
       "physics": {
         "mass": 2.5,
         "friction": 0.4,
-        "restitution": 0.1
+        "restitution": 0.1,
+        "buoyancy": 0.4
       },
       "textures": {
         "side_n": "mirror_side_n.png",
@@ -770,7 +789,8 @@
           0.72
         ],
         "metallic": 0.0,
-        "roughness": 0.85
+        "roughness": 0.85,
+        "buoyancy": 1.493
       },
       "textures": {
         "side_n": "log_birch_side_n.png",
@@ -801,7 +821,8 @@
           0.12
         ],
         "metallic": 0.0,
-        "roughness": 0.85
+        "roughness": 0.85,
+        "buoyancy": 2.222
       },
       "textures": {
         "side_n": "log_spruce_side_n.png",
@@ -832,7 +853,8 @@
           0.33
         ],
         "metallic": 0.0,
-        "roughness": 0.9
+        "roughness": 0.9,
+        "buoyancy": 2.0
       },
       "textures": {
         "side_n": "leaf_birch_side_n.png",
@@ -863,7 +885,8 @@
           0.28
         ],
         "metallic": 0.0,
-        "roughness": 0.9
+        "roughness": 0.9,
+        "buoyancy": 2.0
       },
       "textures": {
         "side_n": "leaf_spruce_side_n.png",
@@ -894,7 +917,8 @@
           0.18
         ],
         "metallic": 0.0,
-        "roughness": 0.9
+        "roughness": 0.9,
+        "buoyancy": 2.0
       },
       "textures": {
         "side_n": "leaf_jungle_side_n.png",
@@ -925,7 +949,8 @@
           0.13
         ],
         "metallic": 0.0,
-        "roughness": 0.9
+        "roughness": 0.9,
+        "buoyancy": 2.0
       },
       "textures": {
         "side_n": "leaf_autumn_side_n.png",
@@ -956,7 +981,8 @@
           0.18
         ],
         "metallic": 0.0,
-        "roughness": 0.9
+        "roughness": 0.9,
+        "buoyancy": 0.667
       },
       "textures": {
         "side_n": "grass_forest_side_n.png",
@@ -987,7 +1013,8 @@
           0.26
         ],
         "metallic": 0.0,
-        "roughness": 0.9
+        "roughness": 0.9,
+        "buoyancy": 0.667
       },
       "textures": {
         "side_n": "grass_savanna_side_n.png",
@@ -1018,7 +1045,8 @@
           0.27
         ],
         "metallic": 0.0,
-        "roughness": 0.95
+        "roughness": 0.95,
+        "buoyancy": 4.0
       },
       "textures": {
         "side_n": "thatch_side_n.png",
@@ -1049,7 +1077,8 @@
           0.26
         ],
         "metallic": 0.0,
-        "roughness": 0.85
+        "roughness": 0.85,
+        "buoyancy": 0.526
       },
       "textures": {
         "side_n": "clay_tile_side_n.png",
@@ -1080,7 +1109,8 @@
           0.25
         ],
         "metallic": 0.0,
-        "roughness": 0.8
+        "roughness": 0.8,
+        "buoyancy": 2.0
       },
       "textures": {
         "side_n": "wood_shingle_side_n.png",
@@ -1111,7 +1141,8 @@
           0.4
         ],
         "metallic": 0.0,
-        "roughness": 0.6
+        "roughness": 0.6,
+        "buoyancy": 0.357
       },
       "textures": {
         "side_n": "slate_side_n.png",
@@ -1142,7 +1173,8 @@
           0.46
         ],
         "metallic": 0.0,
-        "roughness": 0.9
+        "roughness": 0.9,
+        "buoyancy": 0.385
       },
       "textures": {
         "side_n": "stone_slab_side_n.png",
@@ -2614,7 +2646,8 @@
           0.12
         ],
         "metallic": 0.0,
-        "roughness": 0.85
+        "roughness": 0.85,
+        "buoyancy": 1.667
       },
       "textures": {
         "side_n": "burning_wood.png",
@@ -2674,7 +2707,8 @@
           1.0
         ],
         "metallic": 0.0,
-        "roughness": 0.7
+        "roughness": 0.7,
+        "buoyancy": 1.667
       },
       "textures": {
         "side_n": "rug_oriental.png",
@@ -2704,7 +2738,8 @@
           1.0
         ],
         "metallic": 0.0,
-        "roughness": 0.7
+        "roughness": 0.7,
+        "buoyancy": 1.538
       },
       "textures": {
         "side_n": "sign_prancing_pony.png",
@@ -2734,7 +2769,8 @@
           1.0
         ],
         "metallic": 0.0,
-        "roughness": 0.7
+        "roughness": 0.7,
+        "buoyancy": 1.538
       },
       "textures": {
         "side_n": "sign_blacksmith.png",
@@ -2764,7 +2800,8 @@
           1.0
         ],
         "metallic": 0.0,
-        "roughness": 0.7
+        "roughness": 0.7,
+        "buoyancy": 1.538
       },
       "textures": {
         "side_n": "sign_bakery.png",
@@ -2794,7 +2831,8 @@
           1.0
         ],
         "metallic": 0.0,
-        "roughness": 0.7
+        "roughness": 0.7,
+        "buoyancy": 1.538
       },
       "textures": {
         "side_n": "sign_general_store.png",
@@ -2824,7 +2862,8 @@
           1.0
         ],
         "metallic": 0.0,
-        "roughness": 0.7
+        "roughness": 0.7,
+        "buoyancy": 1.538
       },
       "textures": {
         "side_n": "sign_apothecary.png",
@@ -2854,7 +2893,8 @@
           1.0
         ],
         "metallic": 0.0,
-        "roughness": 0.7
+        "roughness": 0.7,
+        "buoyancy": 1.538
       },
       "textures": {
         "side_n": "sign_butcher.png",
@@ -2884,7 +2924,8 @@
           1.0
         ],
         "metallic": 0.0,
-        "roughness": 0.7
+        "roughness": 0.7,
+        "buoyancy": 1.25
       },
       "textures": {
         "side_n": "tome_arcane.png",
@@ -2914,7 +2955,8 @@
           1.0
         ],
         "metallic": 0.0,
-        "roughness": 0.7
+        "roughness": 0.7,
+        "buoyancy": 1.25
       },
       "textures": {
         "side_n": "tome_necromantic.png",
@@ -2944,7 +2986,8 @@
           1.0
         ],
         "metallic": 0.0,
-        "roughness": 0.7
+        "roughness": 0.7,
+        "buoyancy": 1.25
       },
       "textures": {
         "side_n": "tome_fire.png",
@@ -2975,7 +3018,8 @@
           0.1
         ],
         "metallic": 0.0,
-        "roughness": 0.6
+        "roughness": 0.6,
+        "buoyancy": 1.538
       },
       "textures": {
         "side_n": "wood_walnut_side_n.png",
@@ -3008,7 +3052,8 @@
           0.45
         ],
         "metallic": 0.0,
-        "roughness": 0.85
+        "roughness": 0.85,
+        "buoyancy": 1.429
       },
       "textures": {
         "side_n": "enchanted_log_side_n.png",
@@ -3039,7 +3084,8 @@
           0.56
         ],
         "metallic": 0.0,
-        "roughness": 0.55
+        "roughness": 0.55,
+        "buoyancy": 0.385
       },
       "textures": {
         "side_n": "stone_tiles_side_n.png",
@@ -3069,7 +3115,8 @@
           0.35
         ],
         "metallic": 0.0,
-        "roughness": 0.85
+        "roughness": 0.85,
+        "buoyancy": 2.0
       },
       "textures": {
         "side_n": "log_pine_side_n.png",
@@ -3100,7 +3147,8 @@
           0.45
         ],
         "metallic": 0.0,
-        "roughness": 0.85
+        "roughness": 0.85,
+        "buoyancy": 1.25
       },
       "textures": {
         "side_n": "log_jungle_side_n.png",
@@ -3131,7 +3179,8 @@
           0.5
         ],
         "metallic": 0.0,
-        "roughness": 0.85
+        "roughness": 0.85,
+        "buoyancy": 1.818
       },
       "textures": {
         "side_n": "log_palm_side_n.png",
@@ -3162,7 +3211,8 @@
           0.22
         ],
         "metallic": 0.0,
-        "roughness": 0.85
+        "roughness": 0.85,
+        "buoyancy": 2.381
       },
       "textures": {
         "side_n": "log_redwood_side_n.png",
@@ -3193,7 +3243,8 @@
           0.3
         ],
         "metallic": 0.0,
-        "roughness": 0.75
+        "roughness": 0.75,
+        "buoyancy": 1.538
       },
       "textures": {
         "side_n": "wood_planks_side_n.png",
@@ -3224,7 +3275,8 @@
           0.78
         ],
         "metallic": 0.0,
-        "roughness": 0.9
+        "roughness": 0.9,
+        "buoyancy": 2.0
       },
       "textures": {
         "side_n": "linen_side_n.png",
@@ -3255,7 +3307,8 @@
           0.22
         ],
         "metallic": 0.0,
-        "roughness": 0.95
+        "roughness": 0.95,
+        "buoyancy": 2.5
       },
       "textures": {
         "side_n": "wool_side_n.png",
@@ -3286,7 +3339,8 @@
           0.99
         ],
         "metallic": 0.0,
-        "roughness": 0.95
+        "roughness": 0.95,
+        "buoyancy": 3.333
       },
       "textures": {
         "side_n": "snow_side_n.png",
@@ -3317,7 +3371,8 @@
           0.96
         ],
         "metallic": 0.0,
-        "roughness": 0.9
+        "roughness": 0.9,
+        "buoyancy": 0.667
       },
       "textures": {
         "side_n": "snowgrass_side_n.png",

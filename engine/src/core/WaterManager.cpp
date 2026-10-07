@@ -1201,6 +1201,32 @@ WaterManager::WaterSample WaterManager::sampleWater(const glm::vec3& worldPos) c
     return s;
 }
 
+bool WaterManager::columnWater(int wx, int wz, float& surfaceY, glm::vec2& flow) const {
+    flow = glm::vec2(0.0f);
+    const int lx = wx - m_origin.x, lz = wz - m_origin.z;
+    if (lx >= 0 && lz >= 0 && lx < m_dims.x && lz < m_dims.z) {
+        // Inside the footprint: the topmost wet cell's surface (sampleWater's formula).
+        for (int ly = m_dims.y - 1; ly >= 0; --ly) {
+            const float m = m_sim.massAt(lx, ly, lz);
+            if (m <= 0.0f) continue;
+            const float f = m_sim.floorAt(lx, ly, lz);
+            surfaceY = static_cast<float>(m_origin.y + ly) + f + std::min(m, 1.0f) * (1.0f - f);
+            const glm::vec3 fv = flowAtWorld(glm::vec3(wx + 0.5f, surfaceY - 0.25f, wz + 0.5f));
+            flow = glm::vec2(fv.x, fv.z);
+            return true;
+        }
+        return false;
+    }
+    // Outside: the 2D table / implicit sea (sampleWater's out-of-region branch, at the bottom of
+    // the world so any level above reads wet).
+    const WaterSample s = sampleWater(glm::vec3(wx + 0.5f, -1.0e6f, wz + 0.5f));
+    if (!s.inWater) return false;
+    surfaceY = s.surfaceY;
+    const glm::vec3 fv = flowAtWorld(glm::vec3(wx + 0.5f, surfaceY - 0.25f, wz + 0.5f));
+    flow = glm::vec2(fv.x, fv.z);
+    return true;
+}
+
 float WaterManager::submergedFraction(const glm::vec3& aabbMin, const glm::vec3& aabbMax) const {
     const float height = std::max(aabbMax.y - aabbMin.y, 1e-4f);
     const glm::vec2 c(0.5f * (aabbMin.x + aabbMax.x), 0.5f * (aabbMin.z + aabbMax.z));

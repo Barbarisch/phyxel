@@ -436,6 +436,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     // Create GPU compute resources for the water flow (off by default; toggle with the
     // water_gpu debug command). Falls back to CPU if creation fails.
     if (vulkanDevice) waterManager->enableGpu(vulkanDevice);
+    // GPU debris floats / drags / drifts in this water (DebrisInteractionPlan 6c).
+    if (debrisRuntime) debrisRuntime->setWaterSource(waterManager.get());
 
     // STEP 7: REGISTER INPUT ACTIONS
     // Create InputController to handle input bindings
@@ -12888,7 +12890,11 @@ void Application::registerWaterCommands() {
         // Keep the flat sea-plane renderer at the same height as the sim — these two
         // drifting apart is exactly the bug the shared kSeaLevelY default fixed.
         if (renderCoordinator) renderCoordinator->setSeaLevel(level);
-        r = {{"success", true}, {"sea_level", waterManager->seaLevel()}};
+        // "implicit": the flat sea everywhere outside the sim region / water table (game.json
+        // water.enabled) - omitted = unchanged. The debris water test (DebrisInteractionPlan 6c)
+        // floods a lab world with it.
+        if (cmd.params.contains("implicit")) waterManager->setImplicitSea(cmd.params.value("implicit", false));
+        r = {{"success", true}, {"sea_level", waterManager->seaLevel()}, {"implicit_sea", waterManager->implicitSea()}};
     });
     // Gerstner swell on the sea sheet (WaterSystemV3 Phase 2). Setting amplitude 0 flattens the
     // sheet back to the pre-Phase-2 plane — the A/B control for before/after captures.

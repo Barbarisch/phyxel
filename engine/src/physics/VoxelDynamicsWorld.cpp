@@ -391,8 +391,9 @@ void VoxelDynamicsWorld::integrateVelocities(float dt) {
                 wet = m_waterQuery(mn, mx);
                 if (wet > 0.0f) {
                     body->linearVelocity -= m_gravity * (wet * body->buoyancy) * dt;
-                    constexpr float kWaterLinearDrag  = 0.90f;   // strong — water is thick
-                    constexpr float kWaterAngularDrag = 0.85f;
+                    // One water law for both worlds (solver_shared.h, Phase 6c).
+                    constexpr float kWaterLinearDrag  = Phyxel::DebrisShared::WATER_LINEAR_DRAG;
+                    constexpr float kWaterAngularDrag = Phyxel::DebrisShared::WATER_ANGULAR_DRAG;
                     body->linearVelocity  *= std::pow(1.0f - kWaterLinearDrag,  dt * wet);
                     body->angularVelocity *= std::pow(1.0f - kWaterAngularDrag, dt * wet);
                     // Current force (tangible-water Phase E): moving water carries what floats
@@ -403,7 +404,7 @@ void VoxelDynamicsWorld::integrateVelocities(float dt) {
                     if (m_waterFlowQuery) {
                         const glm::vec3 flow = m_waterFlowQuery(0.5f * (mn + mx));
                         if (flow.x != 0.0f || flow.z != 0.0f) {
-                            constexpr float kCurrentCouple = 3.0f;
+                            constexpr float kCurrentCouple = Phyxel::DebrisShared::WATER_CURRENT_COUPLE;
                             const float k = std::min(1.0f, kCurrentCouple * wet * dt);
                             body->linearVelocity.x += (flow.x - body->linearVelocity.x) * k;
                             body->linearVelocity.z += (flow.z - body->linearVelocity.z) * k;

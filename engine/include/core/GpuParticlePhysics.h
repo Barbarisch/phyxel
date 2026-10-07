@@ -120,6 +120,19 @@ public:
     /// Every frame, before recordComputeCommands: the box the slot's pack was built with, and
     /// whether the pool is readable. Not ready = every sample UNKNOWN = every body held (counted).
     void setStaticOccupancyBox(const glm::ivec3& boxMinChunk, bool ready);
+    /** The occupancy box's min chunk (the water directory covers its XZ); false until readable. */
+    bool occupancyBoxMinChunk(glm::ivec3& out) const {
+        out = glm::ivec3(m_occBox.x, m_occBox.y, m_occBox.z);
+        return (m_occBox.w & 1) != 0;
+    }
+    /** Phase 6c water for the integrate pass (built by DebrisRuntime). `dir` has
+     *  WATER_DIR_CHUNKS^2 entries (a tile index or WATER_TILE_NONE) for the window whose min chunk
+     *  column is `dirMinChunkXZ`; `cells` holds the tiles (WATER_TILE_CELLS^2 cells of 2 uints:
+     *  surface-Y bits, packHalf2x16(flow)). Columns with no tile read the background: `seaLevel`
+     *  when `implicitSea`, else dry. Uploaded after the frame slot's fence like the impulses. */
+    void setWater(const glm::ivec2& dirMinChunkXZ, bool implicitSea, float seaLevel,
+                  std::vector<uint32_t> dir, std::vector<uint32_t> cells);
+    uint32_t waterTiles() const { return static_cast<uint32_t>(m_waterCellStage.size() / (2u * 32u * 32u)); }
     bool staticOccupancyWired() const { return m_staticOccWired; }
 
     // ---- Character collision interface ----
@@ -235,7 +248,7 @@ public:
         float linearDamp;      // Per-frame velocity damping
         float angularDamp;     // Per-frame spin damping
         float breakForceScale; // Break impulse multiplier
-        float pad0;
+        float buoyancy;        // water density / material density (Phase 6c; > 1 floats)
         float pad1;
     };
     static_assert(sizeof(MaterialPhysicsGpu) == 32, "MaterialPhysicsGpu must be 32 bytes");
@@ -360,6 +373,17 @@ private:
     VkDeviceMemory   m_impulseMem[OCC_FRAME_SLOTS]    = {};
     void*            m_impulseMapped[OCC_FRAME_SLOTS] = {};
     std::vector<DebrisShared::ImpulseGpu> m_impulseStage;
+    // Phase 6c water: per frame slot, host-visible (directory + tile pool), read by integrate.
+    VkBuffer         m_waterDirBuffer[OCC_FRAME_SLOTS]  = {};
+    VkDeviceMemory   m_waterDirMem[OCC_FRAME_SLOTS]     = {};
+    void*            m_waterDirMapped[OCC_FRAME_SLOTS]  = {};
+    VkBuffer         m_waterTileBuffer[OCC_FRAME_SLOTS] = {};
+    VkDeviceMemory   m_waterTileMem[OCC_FRAME_SLOTS]    = {};
+    void*            m_waterTileMapped[OCC_FRAME_SLOTS] = {};
+    std::vector<uint32_t> m_waterDirStage;    // empty = no water (all columns background)
+    std::vector<uint32_t> m_waterCellStage;
+    DebrisShared::ivec4   m_waterPC{0, 0, 0, 0};
+    bool createHostBuffer(VkDeviceSize size, VkBuffer& buf, VkDeviceMemory& mem, void*& mapped, const char* what);
     // Phase 6 event readback: per frame slot, host-visible, written by sync_in / sync_out.
     VkBuffer         m_eventBuffer[OCC_FRAME_SLOTS] = {};
     VkDeviceMemory   m_eventMem[OCC_FRAME_SLOTS]    = {};

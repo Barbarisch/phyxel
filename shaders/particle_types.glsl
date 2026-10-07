@@ -51,7 +51,7 @@ struct MaterialPhysics {
     float linearDamp;     // Air drag on velocity per frame (~0.98–0.999)
     float angularDamp;    // Air drag on spin per frame (~0.95–0.99)
     float breakForceScale;// Impulse multiplier at spawn
-    float pad0;
+    float buoyancy;       // water density / material density (Phase 6c; > 1 floats)
     float pad1;
 };
 

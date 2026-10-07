@@ -167,7 +167,7 @@ bool handleDebugDynamicSpawnCommand(
         }
         if (cmd.params.contains("frozen")) gpuParticles->setFrozen(cmd.params.value("frozen", false));
         if (cmd.params.contains("step"))   gpuParticles->stepTicks(cmd.params.value("step", 0u));
-        if (cmd.params.contains("flags"))  gpuParticles->setSolverFlags(cmd.params.value("flags", 55u));
+        if (cmd.params.contains("flags"))  gpuParticles->setSolverFlags(cmd.params.value("flags", DebrisShared::SOLVER_FLAGS_DEFAULT));
         if (cmd.params.contains("cold_scale"))
             gpuParticles->setColdPenaltyScale(cmd.params.value("cold_scale", 1.0f));
         response = {{"success", true}, {"enabled", true},
@@ -362,6 +362,11 @@ void registerDebrisCommands(Core::CommandRegistry& reg, std::function<DebrisApiC
              {"sounds_impact", st.soundsImpact}, {"sounds_settle", st.soundsSettle},
              {"gpu_events_total", gpu->eventsTotal()}, {"gpu_events_dropped", gpu->eventsDropped()},
              {"settled", c.debris->settledCount()}};
+        // Phase 6c water tiles (the water directory covers the occupancy window's XZ).
+        const auto& ws = c.debris->waterStats();
+        r["water"] = {{"ready", ws.ready}, {"tiles_uploaded", ws.tilesUploaded}, {"tiles_cached", ws.tilesCached},
+                      {"tiles_pending", ws.tilesPending}, {"overflow", ws.overflow},
+                      {"min_chunk", {ws.minChunk.x, ws.minChunk.y}}};
         const int n = std::clamp(cmd.params.value("recent", 0), 0, 512);
         if (n > 0) {
             json list = json::array();
