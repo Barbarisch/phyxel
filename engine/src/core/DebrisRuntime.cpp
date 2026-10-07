@@ -10,6 +10,7 @@
 #include "utils/Logger.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <unordered_set>
 #include <utility>
@@ -90,7 +91,105 @@ DebrisRuntime::SpellBlast DebrisRuntime::spellBlast(const Core::SpellDefinition&
 }
 
 void DebrisRuntime::beginFrame(float dt) {
-    if (m_gpu) m_gpu->update(dt);
+    if (!m_gpu) return;
+    m_gpu->update(dt);
+    pumpEvents();
+}
+
+bool DebrisRuntime::settledValid(const SettledPiece& p) const {
+    return m_gpu && m_gpu->slotActive(p.slot) && m_gpu->slotSerial(p.slot) == p.serial;
+}
+
+void DebrisRuntime::pumpEvents() {
+    auto events = m_gpu->takeEvents();
+    if (events.empty()) return;
+    std::vector<const GpuParticlePhysics::DebrisEvent*> impacts, settles;
+    for (const auto& e : events) {
+        switch (e.type) {
+        case DebrisShared::DEBRIS_EVENT_SLEEP:
+            ++m_stats.sleep;
+            // The serial is the slot's CURRENT one; a slot recycled between the event and now
+            // would hold a fresh body that cannot be asleep yet (SLEEP_GRACE), so a stale entry
+            // is caught by the WAKE/despawn path or by settledValid() at gather time.
+            m_settled[e.slot] = SettledPiece{e.slot, e.serial, e.materialIndex, e.position, e.scale};
+            settles.push_back(&e);
+            break;
+        case DebrisShared::DEBRIS_EVENT_WAKE:
+            ++m_stats.wake;
+            m_settled.erase(e.slot);
+            break;
+        case DebrisShared::DEBRIS_EVENT_IMPACT:
+            ++m_stats.impact;
+            impacts.push_back(&e);
+            break;
+        default: break;
+        }
+        m_recent.push_back(e);
+        if (m_recent.size() > 512) m_recent.pop_front();
+    }
+    if (!m_sound) return;
+    // Loudest impacts first; volume from the hit speed (1.5 m/s threshold .. ~8 m/s full) and the
+    // piece size (a 1/9 microcube ticks, a full cube thuds).
+    std::sort(impacts.begin(), impacts.end(), [](auto* a, auto* b) { return a->speed > b->speed; });
+    for (int k = 0; k < static_cast<int>(impacts.size()) && k < MAX_IMPACT_SOUNDS_PER_FRAME; ++k) {
+        const auto* e = impacts[k];
+        const float speedVol = std::clamp((e->speed - DebrisShared::IMPACT_EVENT_DV) / 6.5f, 0.15f, 1.0f);
+        const float sizeVol  = std::clamp(std::sqrt(std::max(e->scale, 0.0f)), 0.25f, 1.0f);
+        m_sound(SOUND_IMPACT, e->position, speedVol * sizeVol);
+        ++m_stats.soundsImpact;
+    }
+    for (int k = 0; k < static_cast<int>(settles.size()) && k < MAX_SETTLE_SOUNDS_PER_FRAME; ++k) {
+        const auto* e = settles[k];
+        m_sound(SOUND_SETTLE, e->position, std::clamp(std::sqrt(std::max(e->scale, 0.0f)), 0.2f, 0.6f));
+        ++m_stats.soundsSettle;
+    }
+}
+
+size_t DebrisRuntime::settledCount() const {
+    size_t n = 0;
+    for (const auto& [slot, p] : m_settled) n += settledValid(p) ? 1u : 0u;
+    return n;
+}
+
+std::vector<DebrisRuntime::SettledPiece> DebrisRuntime::settledNear(const glm::vec3& center, float radius) const {
+    std::vector<SettledPiece> out;
+    for (const auto& [slot, p] : m_settled)
+        if (settledValid(p) && glm::length(p.position - center) <= radius) out.push_back(p);
+    std::sort(out.begin(), out.end(), [&](const SettledPiece& a, const SettledPiece& b) {
+        return glm::length(a.position - center) < glm::length(b.position - center);
+    });
+    return out;
+}
+
+DebrisRuntime::GatherResult DebrisRuntime::gather(const glm::vec3& center, float radius, int maxPieces) {
+    GatherResult r;
+    if (!m_gpu) return r;
+    // Drop stale entries first (despawned / recycled slots).
+    for (auto it = m_settled.begin(); it != m_settled.end();)
+        it = settledValid(it->second) ? std::next(it) : m_settled.erase(it);
+    const auto near = settledNear(center, std::clamp(radius, 0.0f, 16.0f));
+    for (const auto& p : near) {
+        if (r.pieces >= std::max(maxPieces, 0)) break;
+        if (!m_gpu->despawnSlot(p.slot)) continue;
+        m_settled.erase(p.slot);
+        ++r.pieces;
+        const float volume = p.scale * p.scale * p.scale;   // in full-cube units
+        m_gatherRemainder[GpuParticlePhysics::materialNameOf(p.materialIndex)] += volume;
+    }
+    for (auto& [mat, owed] : m_gatherRemainder) {
+        const int whole = takeWholeUnits(owed);
+        if (whole > 0) r.items[mat] += whole;
+        if (owed > 1e-4f) r.carried[mat] = owed;
+    }
+    return r;
+}
+
+int DebrisRuntime::takeWholeUnits(float& owed) {
+    // 1e-4: a cube shattered into 27 subcubes sums to 0.99999 in float; it is one cube.
+    const int whole = static_cast<int>(std::floor(owed + 1e-4f));
+    if (whole <= 0) return 0;
+    owed = std::max(owed - static_cast<float>(whole), 0.0f);
+    return whole;
 }
 
 void DebrisRuntime::feedCharacters(const std::vector<Scene::AnimatedVoxelCharacter*>& characters,

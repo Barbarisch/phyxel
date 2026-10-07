@@ -87,6 +87,7 @@
 - **Ctrl**: Crouch (Animated Character)
 - **E**: Interact / Grab Furniture (talk to NPC, or grab/release active furniture at the crosshair)
 - **X**: Derez Character (Explode into physics objects)
+- **G**: Gather Rubble: settled GPU debris within 2.5 m goes into the inventory, credited by volume (a shattered cube is still one cube). Shipped games: the interact key does this when nothing else is in range.
 - **N**: Next Animation (only when controlling the animated character, camera not in Free mode,
   and not in anim-editor mode)
 - **B**: Previous Animation (same conditions as N — see the World Interaction note above about

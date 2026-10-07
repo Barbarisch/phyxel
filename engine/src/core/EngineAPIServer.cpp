@@ -2035,7 +2035,8 @@ void EngineAPIServer::setupRoutes() {
     // ====================================================================
     // POST /api/debug/gpu_physics {"frozen":bool, "step":N} — hold the debris solver / advance
     //      exactly N ticks (exact-time captures; lifetimes do not drain while frozen).
-    for (const char* action : {"settle_probe", "spawn_gpu_lattice", "gpu_physics", "gpu_kinematic_box"}) {
+    for (const char* action : {"settle_probe", "spawn_gpu_lattice", "gpu_physics", "gpu_kinematic_box",
+                               "debris_events", "debris_gather"}) {   // the last two: DebrisInteractionPlan 6b
         const std::string route = std::string("/api/debug/") + action;
         const std::string act = action;
         srv.Post(route.c_str(), [this, act](const httplib::Request& req, httplib::Response& res) {

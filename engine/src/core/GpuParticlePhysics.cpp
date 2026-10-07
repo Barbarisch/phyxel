@@ -31,6 +31,7 @@ uint32_t GpuParticlePhysics::materialNameToIndex(const std::string& name) {
 
 GpuParticlePhysics::GpuParticlePhysics() {
     m_slots.resize(MAX_PARTICLES);
+    m_slotSerial.assign(MAX_PARTICLES, 0u);
     m_freeSlots.reserve(MAX_PARTICLES);
     for (uint32_t i = 0; i < MAX_PARTICLES; ++i) m_freeSlots.push_back(i);
     std::make_heap(m_freeSlots.begin(), m_freeSlots.end(), std::greater<uint32_t>());
@@ -230,6 +231,40 @@ bool GpuParticlePhysics::createBuffers(Vulkan::VulkanDevice* dev) {
             return false;
         }
         std::memset(m_impulseMapped[slot], 0, static_cast<size_t>(impSize));
+    }
+
+    // 6d. Debris event readback (host-coherent SSBO, persistent map, one per frame slot), Phase 6
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
+        const VkDeviceSize evSize = static_cast<VkDeviceSize>(DebrisShared::EVENT_HEADER_UINTS) * 4u +
+                                    static_cast<VkDeviceSize>(DebrisShared::MAX_DEBRIS_EVENTS) *
+                                    sizeof(DebrisShared::DebrisEventGpu);
+        VkBufferCreateInfo bi{};
+        bi.sType       = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bi.size        = evSize;
+        bi.usage       = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        bi.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        VkMemoryRequirements req{};
+        uint32_t memType = UINT32_MAX;
+        if (vkCreateBuffer(m_device, &bi, nullptr, &m_eventBuffer[slot]) == VK_SUCCESS) {
+            vkGetBufferMemoryRequirements(m_device, m_eventBuffer[slot], &req);
+            VkPhysicalDeviceMemoryProperties props;
+            vkGetPhysicalDeviceMemoryProperties(m_physDevice, &props);
+            const VkMemoryPropertyFlags want = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+            for (uint32_t j = 0; j < props.memoryTypeCount; ++j)
+                if ((req.memoryTypeBits & (1u << j)) && (props.memoryTypes[j].propertyFlags & want) == want) { memType = j; break; }
+        }
+        VkMemoryAllocateInfo ai{};
+        ai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        ai.allocationSize  = req.size;
+        ai.memoryTypeIndex = memType;
+        if (m_eventBuffer[slot] == VK_NULL_HANDLE || memType == UINT32_MAX ||
+            vkAllocateMemory(m_device, &ai, nullptr, &m_eventMem[slot]) != VK_SUCCESS ||
+            vkBindBufferMemory(m_device, m_eventBuffer[slot], m_eventMem[slot], 0) != VK_SUCCESS ||
+            vkMapMemory(m_device, m_eventMem[slot], 0, evSize, 0, &m_eventMapped[slot]) != VK_SUCCESS) {
+            LOG_ERROR("GpuParticlePhysics", "Failed to create/map debris event buffer");
+            return false;
+        }
+        std::memset(m_eventMapped[slot], 0, static_cast<size_t>(evSize));
     }
 
     // 7. Material physics properties (host-coherent SSBO, 32 bytes × material count)
@@ -601,15 +636,19 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
 
     // solver_sync_in: particles(ro), bodies(rw), state(rw), materials(ro)
     // + binding 4: this frame slot's impulses (Phase 4), so one descriptor set per frame slot.
-    if (!m_solverSyncInPass.create(m_device, shader("solver_sync_in.comp.spv"), 5, sizeof(SyncInPC),
+    if (!m_solverSyncInPass.create(m_device, shader("solver_sync_in.comp.spv"), 6, sizeof(SyncInPC),
                                    OCC_FRAME_SLOTS)) return false;
     m_solverSyncInPass.bindBuffer(0, m_particleBuffer,     particleSize);
     m_solverSyncInPass.bindBuffer(1, m_solverBodyBuffer,   bodySize);
     m_solverSyncInPass.bindBuffer(2, m_solverStateBuffer,  stateSize);
     m_solverSyncInPass.bindBuffer(3, m_materialPhysBuffer, matPhysSize);
-    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
+    const VkDeviceSize eventBytes = static_cast<VkDeviceSize>(EVENT_HEADER_UINTS) * 4u +
+                                    static_cast<VkDeviceSize>(MAX_DEBRIS_EVENTS) * sizeof(DebrisEventGpu);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
         m_solverSyncInPass.bindBufferInSet(slot, 4, m_impulseBuffer[slot],
             static_cast<VkDeviceSize>(MAX_IMPULSES) * sizeof(ImpulseGpu));
+        m_solverSyncInPass.bindBufferInSet(slot, 5, m_eventBuffer[slot], eventBytes);   // Phase 6 wake events
+    }
     m_solverSyncInPass.updateDescriptors();
 
     // solver_integrate: bodies, materials, particles, character collider, state (wake bits)
@@ -663,9 +702,13 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
     m_solverPrimalPass.updateDescriptors();
 
     // solver_sync_out: bodies, particles
-    if (!m_solverSyncOutPass.create(m_device, shader("solver_sync_out.comp.spv"), 2, sizeof(SyncOutPC))) return false;
+    // + binding 2: this frame slot's debris events (Phase 6: sleep + impact).
+    if (!m_solverSyncOutPass.create(m_device, shader("solver_sync_out.comp.spv"), 3, sizeof(SyncOutPC),
+                                    OCC_FRAME_SLOTS)) return false;
     m_solverSyncOutPass.bindBuffer(0, m_solverBodyBuffer, bodySize);
     m_solverSyncOutPass.bindBuffer(1, m_particleBuffer,   particleSize);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
+        m_solverSyncOutPass.bindBufferInSet(slot, 2, m_eventBuffer[slot], eventBytes);
     m_solverSyncOutPass.updateDescriptors();
 
     // solver_kinematic_sync: kinematic boxes(ro), bodies(rw) - movers become SolverBodies (Phase 2)
@@ -1021,7 +1064,7 @@ void GpuParticlePhysics::recordComputeCommandsNew(VkCommandBuffer cmd, uint32_t 
     // ---- 8. Sync out: SolverBody → GpuParticle ----
     {
         SyncOutPC pc{ count, FIXED_DT, lifetimeDt, m_solverFlags };
-        m_solverSyncOutPass.bind(cmd);
+        m_solverSyncOutPass.bind(cmd, m_frameSlot);
         m_solverSyncOutPass.pushConstants(cmd, &pc, sizeof(pc));
         m_solverSyncOutPass.dispatch(cmd, groups);
     }
@@ -1056,6 +1099,7 @@ void GpuParticlePhysics::queueSpawn(const SpawnParams& p) {
 
     m_slots[slot].lifetimeRemaining = p.lifetime;
     m_slots[slot].active            = true;
+    ++m_slotSerial[slot];   // Phase 6: a consumer holding (slot, serial) sees the recycle
     ++m_activeCount;
     if (slot + 1 > m_highWaterSlot) m_highWaterSlot = slot + 1;
 
@@ -1084,8 +1128,9 @@ void GpuParticlePhysics::queueSpawn(const SpawnParams& p) {
 
 void GpuParticlePhysics::update(float dt) {
     // ---- Position logging: read back previous frame's particle data ----
-    if (m_readbackPending && m_positionLogging && m_posLogFile.is_open()) {
+    if (m_readbackPending && m_readbackReady && m_positionLogging && m_posLogFile.is_open()) {
         m_readbackPending = false;
+        m_readbackReady   = false;
         const GpuParticle* particles = static_cast<const GpuParticle*>(m_readbackMapped);
 
         // Frame header: F,frame,dt,ticks,alpha,activeCount,char_cx,char_cy,char_cz,char_vx,char_vy,char_vz,char_active
@@ -1254,6 +1299,10 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
     }
     // The shared occupancy's slot for this frame (uploaded after this slot's fence, before now).
     m_frameSlot = frameIndex % OCC_FRAME_SLOTS;
+    // Phase 6: events this slot's ticks wrote two frames ago are readable now (its fence retired).
+    if (m_initialized) consumeEventSlot(m_frameSlot);
+    // Position log: its single buffer was copied by THIS slot; readable now, never earlier.
+    if (m_readbackPending && m_readbackSlot == m_frameSlot) m_readbackReady = true;
     // Movers for this frame's ticks into THIS slot's buffer: its fence has retired, so no
     // in-flight frame reads it (Phase 2, frames-in-flight).
     if (m_kinematicBoxMapped[m_frameSlot] && !m_kinematicStage.empty())
@@ -1339,12 +1388,23 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
 
     // ---- Fixed-timestep physics loop (AVBD — the only pipeline; the legacy XPBD
     //      particle_integrate/collide path was deleted 2026-10-04, DebrisInteractionPlan D4) ----
+    if (m_physicsTicks > 0 && m_eventBuffer[m_frameSlot] != VK_NULL_HANDLE) {
+        // Phase 6: this frame's ticks append to this slot's event buffer from count 0.
+        vkCmdFillBuffer(cmd, m_eventBuffer[m_frameSlot], 0, DebrisShared::EVENT_HEADER_UINTS * 4u, 0u);
+        insertBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                      VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                      m_eventBuffer[m_frameSlot]);
+        m_eventsWritten[m_frameSlot] = true;
+    }
     for (uint32_t tick = 0; tick < m_physicsTicks; ++tick) {
         const float lifetimeDtThisTick = (tick == 0) ? m_lastRealDt : 0.0f;
         // Per-pass GPU timing only on the first tick (query-budget safe).
         recordComputeCommandsNew(cmd, count, lifetimeDtThisTick, profiler, tick == 0, tick);
         if (m_probeActive) recordProbeCopy(cmd, count, tick);
     }
+    if (m_physicsTicks > 0 && m_eventBuffer[m_frameSlot] != VK_NULL_HANDLE)
+        insertBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+                      VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT, m_eventBuffer[m_frameSlot]);
 
     // ---- 4. Reset instanceCount in indirect draw buffer ----
     // Always expand for rendering (even if 0 physics ticks — new spawns need faces)
@@ -1386,7 +1446,11 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
         m_indirectDrawBuffer, 16);
 
     // ---- 7. Position logging readback (if active) ----
-    if (m_positionLogging && m_readbackBuffer != VK_NULL_HANDLE) {
+    if (m_positionLogging && m_readbackBuffer != VK_NULL_HANDLE && !m_readbackPending) {
+        // One buffer, so one copy in flight: it is read in update() only after THIS slot's fence
+        // (m_readbackReady, set when this slot records again). Before 2026-10-07 the next frame
+        // read it while the frame that wrote it could still be in flight (2 frames in flight).
+        m_readbackSlot = m_frameSlot;
         // Barrier: particle buffer COMPUTE_WRITE → TRANSFER_READ
         insertBarrier(cmd,
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -1404,6 +1468,47 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
         }
         m_readbackPending = true;
     }
+}
+
+void GpuParticlePhysics::consumeEventSlot(uint32_t slot) {
+    if (slot >= OCC_FRAME_SLOTS || !m_eventsWritten[slot] || !m_eventMapped[slot]) return;
+    m_eventsWritten[slot] = false;
+    const auto* words = static_cast<const uint32_t*>(m_eventMapped[slot]);
+    const uint32_t count  = words[0];
+    const uint32_t stored = std::min(count, DebrisShared::MAX_DEBRIS_EVENTS);
+    m_eventsTotal   += count;
+    m_eventsDropped += count - stored;
+    const auto* ev = reinterpret_cast<const DebrisShared::DebrisEventGpu*>(words + DebrisShared::EVENT_HEADER_UINTS);
+    m_events.reserve(m_events.size() + stored);
+    for (uint32_t k = 0; k < stored; ++k) {
+        DebrisEvent e;
+        e.slot          = ev[k].info.x;
+        e.type          = ev[k].info.y;
+        e.materialIndex = ev[k].info.z;
+        std::memcpy(&e.speed, &ev[k].info.w, sizeof(float));
+        e.position      = glm::vec3(ev[k].posScale.x, ev[k].posScale.y, ev[k].posScale.z);
+        e.scale         = ev[k].posScale.w;
+        e.serial        = slotSerial(e.slot);
+        m_events.push_back(e);
+    }
+    // A consumer that never drains (no DebrisRuntime) must not grow without bound.
+    constexpr size_t kMaxQueued = 8u * DebrisShared::MAX_DEBRIS_EVENTS;
+    if (m_events.size() > kMaxQueued) {
+        m_eventsDropped += m_events.size() - kMaxQueued;
+        m_events.erase(m_events.begin(), m_events.begin() + (m_events.size() - kMaxQueued));
+    }
+}
+
+bool GpuParticlePhysics::despawnSlot(uint32_t slot) {
+    if (slot >= m_slots.size() || !m_slots[slot].active) return false;
+    m_slots[slot].lifetimeRemaining = 0.0f;   // retired by the next update(), like any expiry
+    return true;
+}
+
+std::string GpuParticlePhysics::materialNameOf(uint32_t materialIndex) {
+    const auto* def = Core::MaterialRegistry::instance().getMaterial(
+        static_cast<int>(materialIndex & DebrisShared::MATERIAL_MASK));
+    return def ? def->name : std::string("Default");
 }
 
 void GpuParticlePhysics::despawnAll() {
@@ -1772,6 +1877,8 @@ void GpuParticlePhysics::cleanup() {
         if (m_kinematicBoxMapped[slot]) { vkUnmapMemory(m_device, m_kinematicBoxMem[slot]); m_kinematicBoxMapped[slot] = nullptr; }
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
         if (m_impulseMapped[slot]) { vkUnmapMemory(m_device, m_impulseMem[slot]); m_impulseMapped[slot] = nullptr; }
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot)
+        if (m_eventMapped[slot]) { vkUnmapMemory(m_device, m_eventMem[slot]); m_eventMapped[slot] = nullptr; }
     if (m_materialPhysMapped)  { vkUnmapMemory(m_device, m_materialPhysMem);  m_materialPhysMapped = nullptr; }
     if (m_readbackMapped)      { vkUnmapMemory(m_device, m_readbackMem);      m_readbackMapped     = nullptr; }
 
@@ -1781,6 +1888,7 @@ void GpuParticlePhysics::cleanup() {
     destroyBuf(m_indirectDrawBuffer,  m_indirectDrawMem);
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_kinematicBoxBuffer[slot], m_kinematicBoxMem[slot]);
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_impulseBuffer[slot], m_impulseMem[slot]);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_eventBuffer[slot], m_eventMem[slot]);
     destroyBuf(m_materialPhysBuffer,  m_materialPhysMem);
     destroyBuf(m_gridCellCountBuffer,  m_gridCellCountMem);
     destroyBuf(m_gridCellOffsetBuffer, m_gridCellOffsetMem);

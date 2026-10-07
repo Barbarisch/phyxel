@@ -11,6 +11,8 @@
 #include "graphics/CameraRig.h"
 #include "input/ControlScheme.h"
 #include "core/ChunkManager.h"
+#include "core/Inventory.h"
+#include "core/SoundRegistry.h"
 #include "core/PerfCapture.h"
 #include <GLFW/glfw3.h>
 #include <nlohmann/json.hpp>
@@ -20,8 +22,13 @@ namespace Core {
 
 bool GameShell::initDebris(EngineRuntime& engine, Graphics::RenderCoordinator* renderer,
                            const DebrisRuntime::Config& config) {
-    return debris_.initialize(engine.getVulkanDevice(), renderer, engine.getChunkManager(),
-                              engine.getPhysicsWorld(), config);
+    const bool ok = debris_.initialize(engine.getVulkanDevice(), renderer, engine.getChunkManager(),
+                                       engine.getPhysicsWorld(), config);
+    // Phase 6b: impacts / settles through the game's sound catalog.
+    debris_.setSoundCallback([eng = &engine](const std::string& ev, const glm::vec3& pos, float vol) {
+        if (auto* reg = eng->getSoundRegistry()) reg->playEvent(ev, pos, vol);
+    });
+    return ok;
 }
 
 void GameShell::startTestApi(EngineRuntime& engine, int port, const std::string& name) {
@@ -60,6 +67,7 @@ void GameShell::startTestApi(EngineRuntime& engine, int port, const std::string&
         c.physics  = eng->getPhysicsWorld();
         c.renderer = apiRenderCoordinator();
         c.kvm      = apiKinematicVoxelManager();
+        c.addToInventory = [this](const std::string& mat, int n) { if (auto* inv = apiInventory()) inv->addItem(mat, n); };
         return c;
     };
     if (gameApi_.start(port))

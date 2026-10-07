@@ -535,6 +535,7 @@ In `resources/animated_characters/`:
 | Ctrl | Crouch (Animated) |
 | Left Click | Attack / Cast / Furniture Throw+Activate (Animated) |
 | X | Derez character |
+| G | Gather settled rubble into the inventory (by volume) |
 | N/B | Next/Prev Animation (Preview Mode only — B breaks voxels outside preview mode) |
 
 > Full, authoritative keybinding list (incl. F2/Shift+F5, asset- and anim-editor modes): [`docs/Keybindings.md`](docs/Keybindings.md).

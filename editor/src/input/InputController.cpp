@@ -136,6 +136,11 @@ void InputController::setupKeyboardBindings() {
         m_app->derezCharacter();
     });
 
+    // G - Gather settled rubble (GPU debris) around the player into the inventory (6b)
+    m_inputManager->registerAction(GLFW_KEY_G, "Gather Rubble", [this]() {
+        m_app->gatherRubble();
+    });
+
     // ` (Grave Accent) - Toggle Scripting Console
     m_inputManager->registerAction(GLFW_KEY_GRAVE_ACCENT, "Toggle Scripting Console", [this]() {
         m_app->toggleScriptingConsole();

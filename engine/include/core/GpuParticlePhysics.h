@@ -166,6 +166,31 @@ public:
     ImpulseQueued applyRadialImpulse(const glm::vec3& center, float radius, float impulse, float upBias = 0.0f);
     ImpulseQueued applyConeImpulse(const glm::vec3& origin, const glm::vec3& dir, float halfAngleDeg,
                                    float range, float impulse, float upBias = 0.0f);
+    /** Phase 6: debris events read back from the GPU (sleep / wake / impact), two frames after the
+     *  ticks that produced them. takeEvents() drains what arrived since the last call. A slot is
+     *  identified by `slot` + `serial` (the serial changes whenever the slot is (re)spawned, so a
+     *  consumer can tell a recycled slot from the body an event described). */
+    struct DebrisEvent {
+        uint32_t    slot = 0;
+        uint32_t    type = 0;            // DebrisShared::DEBRIS_EVENT_*
+        uint32_t    materialIndex = 0;   // incl. the texture-slice bits
+        float       speed = 0.0f;        // impact |dv| (m/s), 0 otherwise
+        glm::vec3   position{0.0f};
+        float       scale = 1.0f;        // largest axis (1, 1/3, 1/9 ...)
+        uint32_t    serial = 0;          // slotSerial(slot) when the event was READ
+    };
+    std::vector<DebrisEvent> takeEvents() { std::vector<DebrisEvent> out; out.swap(m_events); return out; }
+    uint64_t eventsTotal()   const { return m_eventsTotal; }
+    uint64_t eventsDropped() const { return m_eventsDropped; }
+    /** Bumped every time `slot` is spawned into (0 = never used). */
+    uint32_t slotSerial(uint32_t slot) const { return slot < m_slotSerial.size() ? m_slotSerial[slot] : 0u; }
+    bool     slotActive(uint32_t slot) const { return slot < m_slots.size() && m_slots[slot].active; }
+    /** Remove one body (gathered rubble): it retires on the next update(), exactly like a lifetime
+     *  expiry (GPU ACTIVE flag cleared, slot freed). False if the slot is not active. */
+    bool     despawnSlot(uint32_t slot);
+    /** Material name of a GPU material index (the low MATERIAL_MASK bits). */
+    static std::string materialNameOf(uint32_t materialIndex);
+
     uint32_t pendingImpulses() const { return static_cast<uint32_t>(m_impulseStage.size()); }
     uint32_t impulseOverflow() const { return m_impulseOverflow; }
     uint64_t impulsesSubmitted() const { return m_impulsesSubmitted; }   // reached a GPU tick
@@ -335,6 +360,18 @@ private:
     VkDeviceMemory   m_impulseMem[OCC_FRAME_SLOTS]    = {};
     void*            m_impulseMapped[OCC_FRAME_SLOTS] = {};
     std::vector<DebrisShared::ImpulseGpu> m_impulseStage;
+    // Phase 6 event readback: per frame slot, host-visible, written by sync_in / sync_out.
+    VkBuffer         m_eventBuffer[OCC_FRAME_SLOTS] = {};
+    VkDeviceMemory   m_eventMem[OCC_FRAME_SLOTS]    = {};
+    void*            m_eventMapped[OCC_FRAME_SLOTS] = {};
+    bool             m_eventsWritten[OCC_FRAME_SLOTS] = {};   // ticks ran into this slot; read after its fence
+    std::vector<DebrisEvent> m_events;
+    uint64_t         m_eventsTotal = 0, m_eventsDropped = 0;
+    std::vector<uint32_t> m_slotSerial;
+    void consumeEventSlot(uint32_t slot);
+    // Position-log readback: one buffer, so one copy in flight; read only after ITS slot's fence.
+    uint32_t         m_readbackSlot  = 0;
+    bool             m_readbackReady = false;
     uint32_t         m_impulseCountThisFrame = 0;
     uint32_t         m_impulseOverflow       = 0;   // dropped past MAX_IMPULSES (lifetime count)
     uint64_t         m_impulsesSubmitted     = 0;

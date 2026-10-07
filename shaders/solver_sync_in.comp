@@ -12,6 +12,16 @@ layout(std430, set=0, binding=3) readonly buffer MaterialBuffer  { MaterialPhysi
 // Phase 4: this frame's impulses (host-mapped, one buffer per frame slot; solver_shared.h).
 struct Impulse { PHX_IMPULSE };
 layout(std430, set=0, binding=4) readonly buffer ImpulseBuffer   { Impulse impulses[]; };
+// Phase 6: this frame slot's event readback (solver_shared.h, DEBRIS_EVENT_*).
+struct DebrisEvent { PHX_DEBRIS_EVENT };
+layout(std430, set=0, binding=5) buffer EventBuffer { uint eventCount; uint ePad0, ePad1, ePad2; DebrisEvent events[]; };
+
+void emitWake(uint slot, GpuParticle p) {
+    uint k = atomicAdd(eventCount, 1u);
+    if (k >= MAX_DEBRIS_EVENTS) return;
+    events[k].info     = uvec4(slot, DEBRIS_EVENT_WAKE, p.materialIndex, 0u);
+    events[k].posScale = vec4(p.position, max(p.scale.x, max(p.scale.y, p.scale.z)));
+}
 
 layout(push_constant) uniform PC { PHX_PC_SYNC_IN } pc;  // shaders/solver_shared.h
 
@@ -89,6 +99,7 @@ void main() {
         b.flags &= ~PARTICLE_SLEEPING;            // an impulse wakes the body it reaches, and the
                                                   // pile around it, so contacts carry the push
         b.flags &= ~SLEEP_CTR_MASK;
+        emitWake(i, p);
     } else if ((p.flags & PARTICLE_SLEEPING) != 0u) {
         uint word = WAKE_BITS_BASE + (i >> 5u);
         uint bit  = 1u << (i & 31u);
@@ -96,6 +107,7 @@ void main() {
             atomicAnd(solverState[word], ~bit);   // consume the wake request
             b.flags &= ~PARTICLE_SLEEPING;        // dynamic again from this tick on
             b.flags &= ~SLEEP_CTR_MASK;           // sleep counter restarts
+            emitWake(i, p);                       // Phase 6: no longer settled
         } else {
             // Frozen: static for every downstream pass. Narrowphase still pairs it
             // with awake bodies (they rest on it / wake it); integrate holds the pose;

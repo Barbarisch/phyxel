@@ -1353,6 +1353,56 @@ Test plan:
   Stone sinks to the floor, terminal speed in water is lower, and debris drifts at the flow speed
   ±20 %. Control: the same drop with no water.
 
+**DONE 2026-10-07 — 6.0 shared readback + 6b debris events, audio and gatherable rubble.**
+- **Readback** (`solver_shared.h` `PHX_DEBRIS_EVENT`, `MAX_DEBRIS_EVENTS` 1024 per frame, 32 B
+  records):
+  - per-frame-slot host-visible buffers; the solver APPENDS sleep events (`sync_out`, at the
+    freeze), wake events (`sync_in`, wake bit or impulse wake) and impact events (`sync_out`, a
+    one-tick |dv| ≥ `IMPACT_EVENT_DV` = 1.5 m/s; gravity alone is 0.16);
+  - the count is cleared before the frame's first tick, and the slot is read after its fence,
+    two frames later (`GpuParticlePhysics::takeEvents`, overflow counted);
+  - slots carry a spawn serial so a consumer detects recycling; `despawnSlot` and
+    `materialNameOf` were added.
+- **Fixed on the way:** the position-log readback read its buffer the frame after the copy
+  without that slot's fence. It now keeps one copy in flight and reads it only after its own
+  slot's fence.
+- **`DebrisRuntime` is the single consumer (`beginFrame` → `pumpEvents`):**
+  - a SLEEP enters the settled registry, a WAKE leaves it, and stale slots are pruned by serial;
+  - `gather(center, radius, max)` despawns settled pieces and credits their VOLUME per material
+    (`takeWholeUnits`; 27 subcubes = 1 cube, the fraction carries over), so it is finite physical
+    items, never inflation;
+  - impacts and settles call the host's sound callback: loudest first, at most 3 impacts and 2
+    settles per frame, volume from |dv| and piece size.
+- **Sounds:** `debris.impact` (4 variants) and `debris.settle` (2) in `resources/sounds/sounds.json`.
+  - Synthesized by `tools/gen_debris_sounds.py` (rock clack: inharmonic damped modes plus a noise
+    transient; seeded and byte-deterministic, md5-verified in `SOURCES.json`).
+  - **Not CC0 recordings:** no `FREESOUND_API_KEY` was available. `tools/fetch_cc0_sounds.py` can
+    replace them under the same event names when a key exists.
+  - The audio catalog tests pass (25).
+- **Hooks:**
+  - editor: **G** gathers within 2.5 m of the player into the inventory;
+  - scaffold: the interact key gathers when nothing else is in range;
+  - API: `POST /api/debug/debris_events` (counters, live settled count, `recent`: N events) and
+    `POST /api/debug/debris_gather` (`x,y,z`, `radius` ≤ 16, `max` ≤ 256, `inventory`),
+    registered from the shared `DebrisApiCommands`; `GameShell` credits `apiInventory()`.
+- Unit `GatheredRubbleIsCreditedByVolumeNotByPieceCount` (26 subcubes = 0 + 26/27 carried, 27 =
+  1, 729 microcubes = 1). It has no stub-red (pure arithmetic); the behavioural red is that no
+  events endpoint existed.
+- **L4 (`events_6b`, DebrisLab, editor Debug):**
+
+  | Check | Prediction | Result |
+  |---|---|---|
+  | A. Control: frozen solver, lattice spawned | 0 events | 0 sleep / 0 wake / 0 impact |
+  | B. 36 cubes dropped 2 m, probe as independent oracle | sleep events = probe sleep transitions; impacts > 0 | **36 = 36**; 68 impacts; 6 impact + 4 settle sounds played (caps held); 0 dropped |
+  | C. Gather a settled 3×3×3 block of 1/3 Stone (1 cube of volume) | 27 pieces → `{Stone: 1}`, nothing carried, pool empty | **27 → `{Stone: 1}`**, nothing carried, pool emptied |
+
+  A first run counted stale settled entries (pieces `clear_dynamics` had removed). Fixed:
+  `settledCount` counts live pieces only.
+- Bench `phase6b`: drop_layer 11.2 mm and the blast hard-contact maximum 86.2 mm are unchanged
+  (the event emission does not perturb the solver). drop_pile 5 forced, blast 3, box_through_pile
+  4 (box 24/24, median 16.6 / max 74.7 mm), straddle pass, occ diff 0. Integration 90/91 (the
+  pre-existing scene test).
+
 ---
 
 ## §API (`/api/debug/*` convention: an omitted field means unchanged; responses echo the resulting state; clamps at entry with the reason in code)

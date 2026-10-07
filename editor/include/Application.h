@@ -190,6 +190,7 @@ public:
     Scene::AnimatedVoxelCharacter* createAnimatedCharacter(const glm::vec3& pos, const std::string& animFile);
     void setControlTarget(const std::string& targetName);
     void derezCharacter(float duration = 2.0f);
+    void gatherRubble();   // G: settled debris near the player -> inventory (DebrisInteractionPlan 6b)
     /// Unregister + erase the animated character (both derez completion paths use this).
     void removeAnimatedCharacterFromScene();
 

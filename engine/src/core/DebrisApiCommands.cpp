@@ -350,6 +350,50 @@ void registerDebrisCommands(Core::CommandRegistry& reg, std::function<DebrisApiC
         });
     }
 
+    // Phase 6b: what the GPU reported (sleep / wake / impact) and what the runtime made of it.
+    // {"recent": N} also returns the last N events (newest last, N <= 512).
+    reg.on("debris_events", [context](const Core::APICommand& cmd, json& r) {
+        const DebrisApiContext c = context();
+        if (!c.debris || !c.debris->gpu()) { r = {{"error", "GPU debris not available"}}; return; }
+        const auto& st = c.debris->eventStats();
+        auto* gpu = c.debris->gpu();
+        r = {{"success", true},
+             {"sleep", st.sleep}, {"wake", st.wake}, {"impact", st.impact},
+             {"sounds_impact", st.soundsImpact}, {"sounds_settle", st.soundsSettle},
+             {"gpu_events_total", gpu->eventsTotal()}, {"gpu_events_dropped", gpu->eventsDropped()},
+             {"settled", c.debris->settledCount()}};
+        const int n = std::clamp(cmd.params.value("recent", 0), 0, 512);
+        if (n > 0) {
+            json list = json::array();
+            const auto& rec = c.debris->recentEvents();
+            const size_t first = rec.size() > static_cast<size_t>(n) ? rec.size() - n : 0;
+            for (size_t k = first; k < rec.size(); ++k) {
+                const auto& e = rec[k];
+                list.push_back({{"slot", e.slot}, {"type", e.type == DebrisShared::DEBRIS_EVENT_SLEEP ? "sleep" :
+                                                           e.type == DebrisShared::DEBRIS_EVENT_WAKE  ? "wake" : "impact"},
+                                {"pos", {e.position.x, e.position.y, e.position.z}}, {"scale", e.scale},
+                                {"speed", e.speed}, {"material", GpuParticlePhysics::materialNameOf(e.materialIndex)}});
+            }
+            r["recent"] = list;
+        }
+    });
+
+    // Phase 6b: gather settled rubble near a point (finite physical items: credited by VOLUME, a
+    // 1/3 piece is 1/27 of a cube). {x,y,z, radius (m, <= 16, default 2.5), max (pieces, <= 256,
+    // default 64), inventory (bool, default true: credit the host inventory)}.
+    reg.on("debris_gather", [context](const Core::APICommand& cmd, json& r) {
+        const DebrisApiContext c = context();
+        if (!c.debris || !c.debris->gpu()) { r = {{"error", "GPU debris not available"}}; return; }
+        const glm::vec3 at(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f));
+        const float radius = std::clamp(cmd.params.value("radius", 2.5f), 0.0f, 16.0f);
+        const int   maxP   = std::clamp(cmd.params.value("max", 64), 0, 256);
+        const auto g = c.debris->gather(at, radius, maxP);
+        const bool credit = cmd.params.value("inventory", true) && static_cast<bool>(c.addToInventory);
+        if (credit) for (const auto& [mat, n] : g.items) c.addToInventory(mat, n);
+        r = {{"success", true}, {"pieces", g.pieces}, {"items", g.items}, {"carried", g.carried},
+             {"radius", radius}, {"credited_inventory", credit}};
+    });
+
     reg.on("apply_damage", [context](const Core::APICommand& cmd, nlohmann::json& r) {
     const DebrisApiContext ctx = context();
     ChunkManager* chunkManager = ctx.chunks;

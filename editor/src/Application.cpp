@@ -394,6 +394,11 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     debrisRuntime->initialize(vulkanDevice, renderCoordinator.get(), chunkManager, physicsWorld);
     gpuParticlePhysics       = debrisRuntime->gpu();
     m_gpuDebrisDisabledReason = debrisRuntime->disabledReason();
+    // Phase 6b: debris impacts / settles are heard through the sound catalog (debris.impact,
+    // debris.settle in resources/sounds/sounds.json).
+    debrisRuntime->setSoundCallback([this](const std::string& ev, const glm::vec3& pos, float vol) {
+        if (auto* reg = runtime ? runtime->getSoundRegistry() : nullptr) reg->playEvent(ev, pos, vol);
+    });
 
     // STEP 6c: INITIALIZE CPU WATER SIMULATION (cellular automaton over a world region).
     // Solidity is synced from chunks after the world loads (autoLoadGameDefinition).
@@ -9385,6 +9390,21 @@ static nlohmann::json collectFittingSeats(Core::PlacedObjectManager& pom,
 // The held visual is a kinematic voxel group (same rendering as world item
 // props) whose transform follows an invisible grip-bone attachment each frame.
 // ============================================================================
+// Phase 6b: G gathers settled rubble around the player (finite physical items - credited by
+// volume, see DebrisRuntime::gather) into the inventory.
+void Application::gatherRubble() {
+    if (!debrisRuntime || !debrisRuntime->enabled()) return;
+    const glm::vec3 at = animatedCharacter ? animatedCharacter->getPosition()
+                                           : (camera ? camera->getPosition() : glm::vec3(0.0f));
+    const auto g = debrisRuntime->gather(at, 2.5f, 64);
+    for (const auto& [mat, n] : g.items) if (inventory) inventory->addItem(mat, n);
+    std::string got;
+    for (const auto& [mat, n] : g.items) got += (got.empty() ? "" : ", ") + std::to_string(n) + " " + mat;
+    LOG_INFO("Application", "Gathered {} rubble piece(s){}", g.pieces, got.empty() ? "" : " -> " + got);
+    if (g.pieces > 0)
+        if (auto* reg = runtime ? runtime->getSoundRegistry() : nullptr) reg->playEvent("debris.settle", at, 0.8f);
+}
+
 void Application::updateHeldItem() {
     if (!inventory || !kinematicVoxelManager || !itemPropManager) return;
 
@@ -14496,6 +14516,7 @@ void Application::registerEffectsCommands() {
         c.renderer  = renderCoordinator.get();
         c.kvm       = kinematicVoxelManager.get();
         c.fragments = &coherentFragmentManager;
+        c.addToInventory = [this](const std::string& mat, int n) { if (inventory) inventory->addItem(mat, n); };
         return c;
     });
 

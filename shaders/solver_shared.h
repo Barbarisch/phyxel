@@ -27,6 +27,7 @@ namespace Phyxel { namespace DebrisShared {
 typedef uint32_t uint;
 struct ivec4 { int32_t x, y, z, w; };   // GLSL ivec4 (16-byte aligned in push constants)
 struct vec4  { float x, y, z, w; };     // GLSL vec4 (std430 storage layouts, e.g. PHX_KINEMATIC_BOX)
+struct uvec4 { uint32_t x, y, z, w; };  // GLSL uvec4 (PHX_DEBRIS_EVENT)
 #define PHX_CONST constexpr
 #define PHX_FN    inline
 #else
@@ -63,6 +64,20 @@ PHX_CONST float IMPULSE_RADIAL    = -2.0f;    // dirCos.w marker: radial push (n
 // before the pile could move. Measured live: a 600-energy blast 1 m beside a settled 4x2x4 Stone
 // pile gave the near pieces ~4.5 m/s yet moved the pile at most 15 cm.
 PHX_CONST float IMPULSE_WAKE_SCALE = 2.0f;
+
+// ---- Debris events (Phase 6): the small production GPU->CPU readback ---------------------------
+// The solver APPENDS events to a per-frame-slot host-visible buffer: [0] = event count (atomic,
+// may exceed the cap - the excess is the dropped count), [1..3] pad, then MAX_DEBRIS_EVENTS
+// records. The host clears the count before the frame's first tick and reads the slot back after
+// its fence (2 frames later), like the impulse/kinematic uploads in reverse.
+PHX_CONST uint  MAX_DEBRIS_EVENTS   = 1024u;  // per frame; more are counted, not stored
+PHX_CONST uint  EVENT_HEADER_UINTS  = 4u;
+PHX_CONST uint  DEBRIS_EVENT_SLEEP  = 1u;     // a body froze (sync_out): settled, gatherable
+PHX_CONST uint  DEBRIS_EVENT_WAKE   = 2u;     // a sleeper woke (sync_in): no longer settled
+PHX_CONST uint  DEBRIS_EVENT_IMPACT = 3u;     // |dv| in one tick >= IMPACT_EVENT_DV (sync_out): audio
+// Velocity change in ONE tick that counts as an impact. Gravity alone is g*dt = 0.16 m/s and a
+// resting pile's solver jitter stays under SLEEP_LAX_SPEED (0.15 m/s), so 1.5 m/s is a real hit.
+PHX_CONST float IMPACT_EVENT_DV     = 1.5f;
 // Linear falloff: full impulse at the centre, none at the radius.
 PHX_FN float phxImpulseWeight(float d, float radius) {
     return (radius <= 0.0f || d >= radius) ? 0.0f : 1.0f - d / radius;
@@ -146,6 +161,11 @@ PHX_CONST uint PRIMAL_STORE_VELOCITY       = 0xFFFFFFFEu;  // PrimalPC.targetCol
 // (0..1, blends the push direction toward +Y), zw unused.
 #define PHX_IMPULSE        vec4 centerRadius; vec4 dirCos; vec4 params;
 
+// One debris event (Phase 6). info: x = body slot, y = DEBRIS_EVENT_*, z = materialIndex (incl.
+// the texture-slice bits), w = floatBitsToUint(impact |dv| in m/s, 0 otherwise).
+// posScale: xyz = world position, w = the body's largest scale (1, 1/3, 1/9 ...).
+#define PHX_DEBRIS_EVENT   uvec4 info; vec4 posScale;
+
 #ifdef __cplusplus
 struct GridCountPC      { PHX_PC_COUNT };
 struct GridCellsPC      { PHX_PC_CELLS };
@@ -164,6 +184,7 @@ struct ExpandPC         { PHX_PC_EXPAND };
 struct KinematicPC      { PHX_PC_KINEMATIC };
 struct KinematicBoxGpu  { PHX_KINEMATIC_BOX };
 struct ImpulseGpu       { PHX_IMPULSE };
+struct DebrisEventGpu   { PHX_DEBRIS_EVENT };
 
 // Sizes as the shaders see them (std430 push-constant packing of 4-byte scalars).
 static_assert(sizeof(GridCountPC)   == 4,  "PHX_PC_COUNT");
@@ -183,6 +204,8 @@ static_assert(sizeof(ExpandPC)      == 12, "PHX_PC_EXPAND");
 static_assert(sizeof(KinematicPC)   == 16, "PHX_PC_KINEMATIC");
 static_assert(sizeof(KinematicBoxGpu) == 64, "PHX_KINEMATIC_BOX");
 static_assert(sizeof(ImpulseGpu)    == 48, "PHX_IMPULSE");
+static_assert(sizeof(DebrisEventGpu) == 32, "PHX_DEBRIS_EVENT");
+static_assert(EVENT_HEADER_UINTS * 4u == 16u, "event records start 16-byte aligned (std430 uvec4)");
 
 // Invariants the shaders rely on.
 static_assert((HASH_CAP & (HASH_CAP - 1u)) == 0u,      "HASH_CAP must be a power of two (HASH_MASK)");

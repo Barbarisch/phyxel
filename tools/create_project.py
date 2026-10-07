@@ -2547,6 +2547,16 @@ def _generate_game_cpp(class_name: str, game_def: dict | None) -> str:
                 if (dialogueSystem_ && dialogueSystem_->isActive()) {{
                     dialogueSystem_->advanceDialogue();
                 }} else {{
+                    // Nothing interactable in range (no prompt showing): the press gathers
+                    // settled rubble around the player instead (DebrisInteractionPlan 6b) -
+                    // credited by volume, so a shattered cube is still one cube of material.
+                    const bool somethingInRange = interactionManager_ && interactionManager_->shouldShowPrompt();
+                    if (!somethingInRange && playerCharacter_) {{
+                        const auto g = debris().gather(playerCharacter_->getPosition(), 2.5f, 64);
+                        for (const auto& [mat, n] : g.items) inventory_.addItem(mat, n);
+                        if (g.pieces > 0)
+                            LOG_INFO("{class_name}", "Gathered {{}} rubble piece(s)", g.pieces);
+                    }}
                     if (interactionManager_) interactionManager_->tryInteract(playerCharacter_);
                     // Interact-gated scene transitions (TransitionMarkers.h): the E press at
                     // a trapdoor/ladder/waystone site fires its trigger.

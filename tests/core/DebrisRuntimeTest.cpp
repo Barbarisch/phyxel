@@ -65,3 +65,24 @@ TEST(DebrisRuntime, SpellBlastSizesFromTheSpellDefinition) {
     EXPECT_FLOAT_EQ(f.energy, DebrisRuntime::SPELL_ENERGY_PER_DAMAGE * 28.0f);
     EXPECT_NEAR(f.energy, 350.0f, 20.0f) << "a fireball sits at the editor's test-spell blast scale";
 }
+
+// Phase 6b: gathered rubble is credited by VOLUME (finite physical items): shattering a cube into
+// 27 subcubes or 729 microcubes and gathering every piece yields exactly ONE cube - never 27.
+TEST(DebrisRuntime, GatheredRubbleIsCreditedByVolumeNotByPieceCount) {
+    float owed = 0.0f;
+    const float sub = (1.0f / 3.0f) * (1.0f / 3.0f) * (1.0f / 3.0f);
+    for (int k = 0; k < 26; ++k) owed += sub;
+    EXPECT_EQ(DebrisRuntime::takeWholeUnits(owed), 0) << "26 subcubes are not a cube yet";
+    EXPECT_NEAR(owed, 26.0f / 27.0f, 1e-4f) << "the fraction carries over";
+    owed += sub;
+    EXPECT_EQ(DebrisRuntime::takeWholeUnits(owed), 1) << "the 27th completes one cube (float sum 0.99999...)";
+    EXPECT_NEAR(owed, 0.0f, 1e-4f);
+
+    float micro = 0.0f;
+    for (int k = 0; k < 729; ++k) micro += 1.0f / 729.0f;
+    EXPECT_EQ(DebrisRuntime::takeWholeUnits(micro), 1) << "729 microcubes = one cube";
+
+    float many = 3.5f;
+    EXPECT_EQ(DebrisRuntime::takeWholeUnits(many), 3);
+    EXPECT_NEAR(many, 0.5f, 1e-6f);
+}

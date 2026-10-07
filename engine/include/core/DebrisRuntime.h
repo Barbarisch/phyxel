@@ -3,8 +3,12 @@
 #include "core/DamageSystem.h"
 #include "core/GpuParticlePhysics.h"
 #include <glm/glm.hpp>
+#include <deque>
+#include <functional>
+#include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace Phyxel {
@@ -92,6 +96,52 @@ public:
     static constexpr float SPELL_SINGLE_TARGET_RADIUS = 1.0f;
     static SpellBlast spellBlast(const Core::SpellDefinition& spell);
 
+    // ---- Phase 6b: debris events (sleep / wake / impact, read back from the GPU) --------------
+    // beginFrame drains them: a SLEEP adds the piece to the settled registry (gatherable rubble),
+    // a WAKE removes it; impacts and settles become sounds through the host's sound callback.
+
+    /// The host's positional one-shot (e.g. SoundRegistry::playEvent): event name, world position,
+    /// volume scale 0..1. Unset = silent (the events are still counted).
+    using SoundCallback = std::function<void(const std::string& event, const glm::vec3& pos, float volume)>;
+    void setSoundCallback(SoundCallback cb) { m_sound = std::move(cb); }
+    static constexpr const char* SOUND_IMPACT = "debris.impact";
+    static constexpr const char* SOUND_SETTLE = "debris.settle";
+    // Per-frame caps: a collapsing wall produces hundreds of impacts in a frame; the loudest few
+    // carry the sound, the rest would only stack into noise (and voices).
+    static constexpr int MAX_IMPACT_SOUNDS_PER_FRAME = 3;
+    static constexpr int MAX_SETTLE_SOUNDS_PER_FRAME = 2;
+
+    struct SettledPiece {
+        uint32_t  slot = 0, serial = 0, materialIndex = 0;
+        glm::vec3 position{0.0f};
+        float     scale = 1.0f;
+    };
+    /// Settled (asleep) pieces still alive in their slot. Pieces whose slot was despawned or
+    /// recycled are dropped lazily (slot serial check).
+    /// Settled pieces still alive (despawned / recycled slots are not counted, even before the
+    /// registry prunes them - measured: a cleared pool left 9 stale entries counted as settled).
+    size_t settledCount() const;
+    std::vector<SettledPiece> settledNear(const glm::vec3& center, float radius) const;
+
+    /// Gather settled rubble (finite physical items): every settled piece within `radius` (up to
+    /// maxPieces, nearest first) is removed from the world and its VOLUME is credited to its
+    /// material - a full cube is 1 unit, a 1/3 piece 1/27, a 1/9 piece 1/729 - so shattering a
+    /// cube cannot multiply it. Whole units are returned; the fraction carries over per material.
+    struct GatherResult {
+        int pieces = 0;
+        std::map<std::string, int> items;      // material -> whole units gained now
+        std::map<std::string, float> carried;  // material -> fraction still owed (< 1)
+    };
+    GatherResult gather(const glm::vec3& center, float radius, int maxPieces = 64);
+    /// The whole units in `owed` (full-cube volume); leaves the fraction. Tolerates float
+    /// summation error: 27 x (1/3)^3 sums to 0.99999... and is ONE cube.
+    static int takeWholeUnits(float& owed);
+
+    struct EventStats { uint64_t sleep = 0, wake = 0, impact = 0, soundsImpact = 0, soundsSettle = 0; };
+    const EventStats& eventStats() const { return m_stats; }
+    /// The last few hundred events (newest last) for the API / tests.
+    const std::deque<GpuParticlePhysics::DebrisEvent>& recentEvents() const { return m_recent; }
+
 private:
     std::unique_ptr<GpuParticlePhysics> m_gpu;
     std::string             m_disabledReason;
@@ -100,6 +150,14 @@ private:
     ChunkManager*           m_chunks = nullptr;
     bool m_loggedObjectSkip = false;
     bool m_loggedBodySkip   = false;
+    // Phase 6b
+    void pumpEvents();
+    bool settledValid(const SettledPiece& p) const;
+    SoundCallback m_sound;
+    std::unordered_map<uint32_t, SettledPiece> m_settled;
+    std::map<std::string, float> m_gatherRemainder;
+    EventStats m_stats;
+    std::deque<GpuParticlePhysics::DebrisEvent> m_recent;
 };
 
 }  // namespace Phyxel

@@ -7,6 +7,16 @@ layout(local_size_x = WORKGROUP_SOLVER) in;
 
 layout(std430, set=0, binding=0) readonly buffer SolverBodyBuffer { SolverBody bodies[]; };
 layout(std430, set=0, binding=1) buffer ParticleBuffer            { GpuParticle particles[]; };
+// Phase 6: this frame slot's event readback (solver_shared.h, DEBRIS_EVENT_*).
+struct DebrisEvent { PHX_DEBRIS_EVENT };
+layout(std430, set=0, binding=2) buffer EventBuffer { uint eventCount; uint ePad0, ePad1, ePad2; DebrisEvent events[]; };
+
+void emitEvent(uint slot, uint type, uint material, float speed, vec3 pos, vec3 scale) {
+    uint k = atomicAdd(eventCount, 1u);
+    if (k >= MAX_DEBRIS_EVENTS) return;   // counted as dropped by the host
+    events[k].info     = uvec4(slot, type, material, floatBitsToUint(speed));
+    events[k].posScale = vec4(pos, max(scale.x, max(scale.y, scale.z)));
+}
 
 layout(push_constant) uniform PC { PHX_PC_SYNC_OUT } pc;  // shaders/solver_shared.h
 
@@ -60,6 +70,12 @@ void main() {
     p.angularVel  = solvedAngVel;
     p.flags       = b.flags;
 
+    // Phase 6 impact event: a velocity change of IMPACT_EVENT_DV or more in this one tick (b.prevVel
+    // is the velocity integrate started from, impulses included, so a push is not an impact).
+    const float dvImpact = length(solvedVel - b.prevVel);
+    if (dvImpact >= IMPACT_EVENT_DV)
+        emitEvent(i, DEBRIS_EVENT_IMPACT, p.materialIndex, dvImpact, b.pos, p.scale);
+
     // Increment spawn age (saturates at 255)
     uint age = (p.flags >> SPAWN_AGE_SHIFT) & 0xFFu;
     if (age < 255u) {
@@ -84,6 +100,7 @@ void main() {
             p.flags       |= PARTICLE_SLEEPING;
             p.prevPosition = p.position;      // encoded velocity → exactly zero
             p.angularVel   = vec3(0.0);
+            emitEvent(i, DEBRIS_EVENT_SLEEP, p.materialIndex, 0.0, p.position, p.scale);   // settled
         }
     } else {
         ctr = 0u;
