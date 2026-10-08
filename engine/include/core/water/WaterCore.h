@@ -115,6 +115,10 @@ struct SolverParams {
     double maxDeltaFQuiet = 1e-5;    ///< ... and when max |delta f| per tick is below this
     int    restTicks = 30;           ///< consecutive quiet ticks before sleeping
     float  restDamping = 0.5f;       ///< 1/s, applied to velocity ONLY while quiet (never to moving water)
+    /// DIAGNOSTIC ONLY (bisecting a measured defect, never shipped on): bits disable a stage of
+    /// the substep. 1 compaction · 2 thin-film slope · 4 thin-film settle · 8 "first halo layer only"
+    /// (all three layers overwrite thin faces, the pre-#11 behaviour) · 16 residue sweep · 32 rest damping.
+    uint32_t debugDisableStages = 0;
     float  filmHoldDepth = 0.01f;    ///< m: a film this thin or thinner is pinned (contact-angle stand-in); only the depth above it flows under its own slope (S1: puddles hold)
     int    pcgMaxIters = 400;
     double pcgTolerance = 1e-6;      ///< relative residual

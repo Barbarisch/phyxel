@@ -263,6 +263,38 @@ TEST(WaterCoreTest, SubmergedPumpDelivers) {
     EXPECT_LT(src.pending, 0.5) << "the owed backlog stays under one second of rate";
 }
 
+// Discharge over a broad-crested sill converges on the weir law at BOTH resolutions. Reservoir
+// 15 m x 3 m, 4 m deep over a 3 m sill (1 m head), sill 5 m long, free fall beyond. Prediction:
+// Q = 1.705 b H^1.5 (SI, critical flow on the crest; Henderson 1966), integrated with the reservoir
+// drawdown (area 45 m^2) - 23.8 m^3 leaves in 8 s. Red first at h = 1/3: 18.9 m^3 (-20 %) while
+// h = 1 gave 25.4 (+7 %) - compaction was squashing the sloping free surface of the streaming
+// sheet cell by cell (bisected with SolverParams::debugDisableStages, 2026-10-08); gated on cell
+// speed the two resolutions read +3 % and -2 %. Gate: within 10 % of the weir integral.
+static double weirReservoirLoss(float h) {
+    const int per = static_cast<int>(std::lround(1.0f / h));
+    const int nx = 30 * per, ny = 7 * per, nz = 3 * per;
+    Tank t(nx, ny, nz, h);
+    t.extra = [per](const glm::ivec3& c) {   // the sill block x 15..19 m, y 0..2 m
+        return (c.x >= 15 * per && c.x < 20 * per && c.y < 3 * per) ? Occ::Solid : Occ::Air; };
+    t.grid.fillBox({0, 0, 0}, {15 * per - 1, 4 * per - 1, nz - 1}, 1.0f);   // 15 x 4 x 3 = 180 m^3
+    WaterSolver s(t.grid, t.query());
+    runTicks(s, 8 * 60);
+    double m = 0.0;
+    for (int z = 0; z < nz; ++z) for (int y = 0; y < ny; ++y) for (int x = 0; x < 15 * per; ++x) m += t.grid.f(x, y, z);
+    return 180.0 - m * h * h * h;
+}
+static double weirIntegral(double seconds) {
+    double H = 1.0, out = 0.0;
+    for (int k = 0; k < static_cast<int>(seconds / kDt); ++k) { const double q = 1.705 * 3.0 * std::pow(std::max(H, 0.0), 1.5); out += q * kDt; H -= q * kDt / 45.0; }
+    return out;
+}
+TEST(WaterCoreTest, WeirDischargeMatchesAtBothResolutions) {
+    const double weir = weirIntegral(8.0);
+    const double coarse = weirReservoirLoss(1.0f), fine = weirReservoirLoss(1.0f / 3.0f);
+    EXPECT_NEAR(coarse, weir, 0.10 * weir) << "h = 1 reservoir loss vs the weir integral";
+    EXPECT_NEAR(fine, weir, 0.10 * weir) << "h = 1/3 reservoir loss vs the weir integral";
+}
+
 // The solver-only S3: a dam break front runs at the Ritter speed on a dry bed (frictionless bound).
 TEST(WaterCoreTest, DamBreakFrontWithinRitter) {
     Tank t(60, 6, 3);

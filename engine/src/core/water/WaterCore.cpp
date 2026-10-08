@@ -643,9 +643,11 @@ void WaterSolver::extrapolateVelocity() {
     extrapolateLattice(m_grid.uData(), ku, nx + 1, ny, nz, kLayers - 1);
     extrapolateLattice(m_grid.vData(), kv, nx, ny + 1, nz, kLayers - 1);
     extrapolateLattice(m_grid.wData(), kw, nx, ny, nz + 1, kLayers - 1);
-    for (size_t i = 0; i < ku.size(); ++i) if (wu[i] && !firstU[i]) m_grid.uData()[i] = origU[i];
-    for (size_t i = 0; i < kw.size(); ++i) if (ww[i] && !firstW[i]) m_grid.wData()[i] = origW[i];
-    for (size_t i = 0; i < kv.size(); ++i) if (wv[i] && !firstV[i]) m_grid.vData()[i] = fallingV[i];
+    if (!(m_params.debugDisableStages & 8u)) {
+        for (size_t i = 0; i < ku.size(); ++i) if (wu[i] && !firstU[i]) m_grid.uData()[i] = origU[i];
+        for (size_t i = 0; i < kw.size(); ++i) if (ww[i] && !firstW[i]) m_grid.wData()[i] = origW[i];
+        for (size_t i = 0; i < kv.size(); ++i) if (wv[i] && !firstV[i]) m_grid.vData()[i] = fallingV[i];
+    }
     // A drop's face integrates gravity for as long as water keeps trickling onto it; bound it by a
     // three-cell free fall (a face at -43.7 m/s under a 1e-6 trickle drove the CFL substep count
     // and the back-traces around it, S3 Basin 2026-10-08). Droplets proper are the §12 pool.
@@ -697,6 +699,15 @@ void WaterSolver::compactSubmergedPartials(float dt) {
         const float vFace = m_grid.v(x, y + 1, z);
         const float already = std::abs(vFace) * dt / h;
         if (vFace > 0.0f || already > 0.1f * cap) continue;
+        // ... and only in water that is not streaming past: in a sheet flowing over a sill the
+        // "partial cell with thin water above" is the free surface crossing the cell diagonally,
+        // not a void, and squashing it per cell cost the fine-grid weir 15 % of its discharge
+        // (DiagWeirFine: 18.9 -> 22.2 m^3 of 23.8 with compaction off, 2026-10-08). A resting
+        // pool's lateral jitter is ~0.1 m/s; the gate is a tenth of the one-cell free-fall speed.
+        const float uc = 0.5f * (m_grid.u(x, y, z) + m_grid.u(x + 1, y, z));
+        const float wc = 0.5f * (m_grid.w(x, y, z) + m_grid.w(x, y, z + 1));
+        const float vFree = static_cast<float>(std::sqrt(2.0 * m_params.gravity * h));
+        if (uc * uc + wc * wc > 0.01f * vFree * vFree) continue;
         const float moved = std::min({fa, 1.0f - fb, cap});
         m_grid.f(x, y, z) = fb + moved;
         m_grid.f(x, y + 1, z) = fa - moved;
@@ -763,22 +774,23 @@ StepReport WaterSolver::step(float dt) {
     // transport time (g dt = 0.16 m/s at 60 Hz) and the pump delivered nothing into a full
     // trough (S2 Small and the DiagSubmergedPump reference, 2026-10-08). Thin films keep their
     // own faces between substeps, so a falling drop still integrates gravity across substeps.
+    const uint32_t off = m_params.debugDisableStages;
     for (int s = 0; s < n; ++s) {
         applySources(ds, r);
         enforceSolidFaces();
         m_transport->advect(m_grid, ds);
         enforceSolidFaces();
-        compactSubmergedPartials(ds);
+        if (!(off & 1u)) compactSubmergedPartials(ds);
         applyGravity(ds);
-        applyThinFilmGradient(ds);
-        settleThinFilmTopFaces();
+        if (!(off & 2u)) applyThinFilmGradient(ds);
+        if (!(off & 4u)) settleThinFilmTopFaces();
         enforceSolidFaces();
         project(ds, r);
         extrapolateVelocity();
-        settleThinFilmTopFaces();
-        if (quietBefore) applyRestDamping(ds);
+        if (!(off & 4u)) settleThinFilmTopFaces();
+        if (quietBefore && !(off & 32u)) applyRestDamping(ds);
     }
-    sweepResidue(r);
+    if (!(off & 16u)) sweepResidue(r);
     r.substeps = n;
     r.totalMass = m_grid.totalMass();
     r.kineticEnergy = m_grid.kineticEnergy();
