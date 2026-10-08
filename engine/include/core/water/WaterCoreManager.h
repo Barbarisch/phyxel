@@ -94,6 +94,9 @@ public:
     std::vector<std::array<float, 6>> particleSample(int id, int max) const;
     /// Phase B2: force the rest conversion (particles -> fills); returns false for a fill volume.
     bool settle(int id);
+    /// Phase B2 debug draw: every particle of every particle volume as (x, y, z, cell size) in world
+    /// metres, in the deterministic list order (subsampled by the renderer when over its cap).
+    const std::vector<glm::vec4>& particleDrawList();
     bool addImpulse(const glm::vec3& world, float radius, float deltaSpeed, const glm::vec3& dir);
 
     ProbeResult probe(const glm::vec3& world);   // refreshes the solids cache first
@@ -136,6 +139,7 @@ private:
     int m_nextId = 1;
     bool m_realtime = false;
     std::vector<WaterSurfaceCell> m_surface;
+    std::vector<glm::vec4> m_particleDraw;
 };
 
 } // namespace Water

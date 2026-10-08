@@ -752,6 +752,13 @@ record, harness `--transport flip`.
 | 21 | `FlipSubBoxIdenticalToWholeBox` compared particle positions and failed by whole cells after 90 ticks | a 1e-7 difference in the pressure residual flips a quiet-cell gate and two particles swap: positions are chaotic | the test compares the WATER — particle count, mass, mass per column (worst difference measured 0.00 m³) — which is the design key's actual claim |
 | 22 | S1 on FLIP still never slept with the particle KE threshold (KE 2e-3 → 1e-5 over 12 s) | the second quiet criterion, max fill change per tick < 1e-5, is unreachable for particles: one particle crossing a cell face moves 1/8 of a fill, and a four-particle puddle crosses now and then | `maxDeltaFQuietParticles` = 0.2 (a crossing allowed): quiet for particles is the KE criterion; S1 sleeps at 7.5 s and the rest conversion hands a still puddle to fills |
 
+**Debug draw (the last §15.9 deliverable, built):** `WaterCoreManager::particleDrawList()` →
+`RenderCoordinator::renderFlipParticlesDebug()`: a host-visible buffer in the
+`DynamicSubcubeInstanceData` stride, six faces per particle (cap 32 768 particles, subsampled
+above), drawn with the existing dynamic voxel pipeline; the Ice material stands in for water
+until Phase F. L4 capture: `docs/evidence/water_feel/S3_basin_core_h1_flip_20261008_173528.png`
+(2 016 particles of the 1 m S3 block, 1.2 s after release, east_wall vantage, 209 FPS).
+
 **Unit results:** 24/24 WaterCore (16 fills + 8 FLIP). The deciding gate
 `FlipWallRunupMatchesLiterature`: fills **1.22 h₀**, FLIP **1.94 h₀** on the 20 m channel at ⅓ m
 (literature 2.1–2.3; gate ≥ 1.65), the control in the same test.

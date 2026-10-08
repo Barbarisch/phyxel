@@ -3580,6 +3580,7 @@ void Application::update(float deltaTime) {
             waterCore->update(std::min(deltaTime, 0.05f));
             if (renderCoordinator)
                 renderCoordinator->setWaterCoreSurfaceCells(waterCore->totalCells() ? &waterCore->surfaceCells() : nullptr);
+                renderCoordinator->setWaterCoreParticles(waterCore->totalCells() ? &waterCore->particleDrawList() : nullptr);   // Phase B2 debug draw
         }
     }
 

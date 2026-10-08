@@ -555,6 +555,9 @@ public:
     const VoxelLightOccupancyGpu* lightOccupancy() const { return m_lightOccupancy.get(); }
     /// WaterCore Phase B debug feed: extra surface cells drawn by the cell pipeline (null = none).
     void setWaterCoreSurfaceCells(const std::vector<Core::WaterSurfaceCell>* cells) { m_waterCoreCells = cells; }
+    /// Phase B2 debug draw: FLIP particles as water-shaded cubes of their cell size through the dynamic
+    /// voxel pipeline (docs/WaterCore.md §15.9). Null or empty = nothing drawn.
+    void setWaterCoreParticles(const std::vector<glm::vec4>* particles) { m_waterCoreParticles = particles; }
 
     // Gerstner swell on the sea sheet (WaterSystemV3 Phase 2). Amplitude 0 = flat, which restores
     // the pre-Phase-2 look and is the A/B control for "the waves are what changed".
@@ -1377,6 +1380,12 @@ private:
     // definition ("water": { "enabled": true, "seaLevel": N }), applied on load.
     std::unique_ptr<WaterRenderPipeline> waterPipeline;
     const std::vector<Core::WaterSurfaceCell>* m_waterCoreCells = nullptr;   // WaterCore debug feed
+    const std::vector<glm::vec4>* m_waterCoreParticles = nullptr;        // WaterCore Phase B2 debug draw (x, y, z, size)
+    VkBuffer       m_flipDebugBuffer = VK_NULL_HANDLE;                   // CPU-fed DynamicSubcubeInstanceData, 6 faces per particle
+    VkDeviceMemory m_flipDebugMemory = VK_NULL_HANDLE;
+    void*          m_flipDebugMapped = nullptr;
+    static constexpr uint32_t kFlipDebugMaxParticles = 32768;            // 12.6 MB of faces; the draw subsamples above it
+    void renderFlipParticlesDebug();
     bool  m_waterEnabled = false;
     float m_seaLevel = Core::kSeaLevelY; // shared default (WorldConstants.h) — must match the
                                          // water sim or the plane draws where no water is

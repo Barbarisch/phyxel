@@ -211,6 +211,21 @@ std::vector<std::array<float, 6>> WaterCoreManager::particleSample(int id, int m
     return out;
 }
 
+const std::vector<glm::vec4>& WaterCoreManager::particleDrawList() {
+    m_particleDraw.clear();
+    for (const auto& av : m_avs) {
+        if (!av->solver->transport().ownsMass()) continue;
+        const auto* flip = dynamic_cast<const FlipTransport*>(&av->solver->transport());
+        if (!flip) continue;
+        const glm::vec3 origin = glm::vec3(av->grid->spec().origin);
+        for (const FlipParticle& p : flip->particles()) {
+            const glm::vec3 w = (origin + p.pos) * av->h;
+            m_particleDraw.emplace_back(w.x, w.y, w.z, av->h);
+        }
+    }
+    return m_particleDraw;
+}
+
 bool WaterCoreManager::settle(int id) {
     for (auto& av : m_avs) {
         if (av->id != id) continue;

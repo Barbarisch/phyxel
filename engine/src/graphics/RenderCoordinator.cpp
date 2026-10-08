@@ -801,6 +801,11 @@ RenderCoordinator::~RenderCoordinator() {
     // Explicit, not `= default`: the light-occupancy buffers must be released while the Vulkan
     // device is still alive.
     if (m_lightOccupancy) m_lightOccupancy->cleanup();
+    if (m_flipDebugBuffer != VK_NULL_HANDLE && vulkanDevice) {   // WaterCore Phase B2 debug draw buffer
+        vkUnmapMemory(vulkanDevice->getDevice(), m_flipDebugMemory);
+        vkDestroyBuffer(vulkanDevice->getDevice(), m_flipDebugBuffer, nullptr);
+        vkFreeMemory(vulkanDevice->getDevice(), m_flipDebugMemory, nullptr);
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -2334,6 +2339,53 @@ void RenderCoordinator::renderDynamicSubcubes() {
 
         vkCmdDrawIndirect(cmd, m_gpuParticles->getIndirectDrawBuffer(), 0, 1, 16);
     }
+    renderFlipParticlesDebug();
+}
+
+// WaterCore Phase B2 debug draw (docs/WaterCore.md §15.9): the FLIP particle list, uploaded once per
+// frame into a host-visible buffer in the DynamicSubcubeInstanceData stride, drawn as six faces per
+// particle with the same dynamic voxel pipeline the GPU debris uses (vertexID 0-5 per face, one
+// instance per face). Debug only: a particle is a cube of its cell size in the engine's water
+// material; the surface proper still comes from the cell feed. Same single-buffer map/memcpy
+// pattern as WaterCellRenderPipeline::render; the buffer is created on first use and sized for
+// kFlipDebugMaxParticles (the list is subsampled above that, never truncated to one corner).
+void RenderCoordinator::renderFlipParticlesDebug() {
+    if (!m_waterCoreParticles || m_waterCoreParticles->empty() || !dynamicRenderPipeline || !vulkanDevice) return;
+    const auto& list = *m_waterCoreParticles;
+    const size_t stride = std::max<size_t>(1, (list.size() + kFlipDebugMaxParticles - 1) / kFlipDebugMaxParticles);
+    const uint32_t particles = static_cast<uint32_t>(std::min<size_t>(kFlipDebugMaxParticles, (list.size() + stride - 1) / stride));
+    if (particles == 0) return;
+    const VkDeviceSize capacityBytes = static_cast<VkDeviceSize>(kFlipDebugMaxParticles) * 6 * sizeof(Phyxel::DynamicSubcubeInstanceData);
+    if (m_flipDebugBuffer == VK_NULL_HANDLE) {
+        vulkanDevice->createBuffer(capacityBytes, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                                   VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                   m_flipDebugBuffer, m_flipDebugMemory);
+        vkMapMemory(vulkanDevice->getDevice(), m_flipDebugMemory, 0, capacityBytes, 0, &m_flipDebugMapped);
+    }
+    static const uint16_t texWater = Core::MaterialRegistry::instance().getTextureIndex("Ice", 0);   // the closest translucent-blue material the voxel shader has; Phase F brings water shading
+    auto* faces = static_cast<Phyxel::DynamicSubcubeInstanceData*>(m_flipDebugMapped);
+    uint32_t n = 0;
+    for (size_t i = 0; i < list.size() && n < particles; i += stride, ++n) {
+        const glm::vec4& p = list[i];
+        for (uint32_t f = 0; f < 6; ++f) {
+            Phyxel::DynamicSubcubeInstanceData& d = faces[n * 6 + f];
+            d.worldPosition = glm::vec3(p);
+            d.textureIndex = texWater; d.reserved1 = 0;
+            d.faceID = f;
+            d.scale = glm::vec3(p.w);
+            d.rotation = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+            d.localPosition = glm::ivec3(0);
+            d.reserved2 = 3u;   // full skylight
+        }
+    }
+    VkCommandBuffer cmd = vulkanDevice->getCommandBuffer(currentFrame);
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, dynamicRenderPipeline->getGraphicsPipeline());
+    vulkanDevice->bindVertexBuffers(currentFrame);
+    VkDeviceSize off = 0;
+    vkCmdBindVertexBuffers(cmd, 1, 1, &m_flipDebugBuffer, &off);
+    vulkanDevice->bindIndexBuffer(currentFrame);
+    vulkanDevice->bindDescriptorSets(currentFrame, dynamicRenderPipeline->getGraphicsLayout());
+    vkCmdDraw(cmd, 6, n * 6, 0, 0);
 }
 
 // Occlusion culling via the per-chunk visibility graph ("cave culling"). BFS from
