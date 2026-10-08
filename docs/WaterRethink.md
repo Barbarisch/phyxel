@@ -523,3 +523,98 @@ way proving_grounds does.
 World-scale Navier-Stokes, FFT oceans, volumetric 3-D fluid everywhere, bulk water as particles —
 still out of scope, permanently (Water.md §6). It also does not promise swimming, boats, or
 erosion; those are regimes the shallow-water engine makes *possible* and are listed, not planned.
+
+---
+
+## 8. Feature Design Keys gate (run 2026-10-07, `/design-check` against this plan)
+
+Verdict: **NEEDS WORK** — no key is violated in a way tuning cannot fix, but six items were
+unresolved in §4 as first written. They are resolved here and bind the packages.
+
+### 8.1 Voxel aesthetic
+Water is the engine's standing exception to the cubic look (the sea sheet and sloped cell tops
+already are smooth surfaces). The shallow-water grid is **1 cell = 1 voxel column**, bed height a
+float, so creeks on the ⅓ shelf and basins with subcube floors are represented exactly and waves
+meet voxel faces at voxel resolution. Spray/mist stay particles (the standing rule). **Tiers bound
+the simulated band's radius, never what happens inside it**: the shoreline collision, run-up and
+pile-up are unconditional wherever the sim runs. Risk accepted and tested (8.5): the sim↔analytic
+hand-off at the region edge is the water equivalent of a LOD seam and gets a crossfade band +
+an equality-at-rest test, not a hard edge.
+
+### 8.2 Chunk independence — every chunk-derived quantity, classified
+| Quantity | Derived from | Affects | Ruling |
+|---|---|---|---|
+| Span storage per chunk | chunk identity | storage only | OK — written by a padded, step-bounded flood (`BatchFloodIsIndependentOfTheWindowItWasComputedIn` already pins window-independence). River/creek spans MUST come from `channelHitAt`/`creekBed`, pure functions of world position — never from a neighbour chunk's spans. |
+| Span render grid bounds | resident chunk bbox | coverage | OK — same rule terrain obeys (water visible where its ground is). **Defect fixed by WP1 step 6:** rebuild keyed on `chunkMap.size()` misses same-count residency changes → key on a residency content hash. |
+| **Lake level after a rim breach** | a body spans many chunks | appearance + behaviour | **Was a hidden cross-chunk dependence.** Resolution (binding): the *level* of a Lake/Pond is a property of a **world-level body record** (`WaterBodyTable` in `world_meta`: id, class, level, recharge rate, mass delta), not of any chunk. Spans reference the body id; a column's surface = min(body level, local span top). Inside the active region the sim moves the water and writes back the body's new level; outside it, the table is the truth. No chunk reads a neighbour chunk. |
+| Far-tile river ribbons | tile step (distance ring) | resolution | OK as a **conservative** cost bound: a tile column is wet if ANY span in its footprint is wet (max-over-footprint, the `bladesForDistance` shape), so nothing wider than the step is ever clipped. |
+| Active sim region | camera | motion only | OK by the §3 contract; at rest sim == spans (8.5 test). |
+| Fine-pond discovery window (64², ±16) | generator window | existence | Pre-existing; already order-independent by construction (bounded fill, border discard). Becomes spans in WP1 step 2 and inherits the seam test. |
+
+**Chunked-vs-whole-region equality tests (named, must exist before each package ships):**
+`WaterSpanSeamTest.RiverAndPondSpansIndependentOfChunking` (union of per-chunk `generateChunk`
+spans == whole-region `waterSpansForBlock`, fixture with two bodies at DIFFERENT levels so
+equal-by-coincidence cannot pass) — WP1; `FarTerrainMesherTest.WaterShowsInFarTiles` (tile wet set
+== span wet set at tile resolution, same shape as `RoadsShowInFarTiles`) — WP2;
+`WaterSimRegionTest.SettledRegionEqualsSpansAndIsRecentreInvariant` (after settle, |sim − span| < ε
+at every column, and recentring the region by (17, 0, 23) changes no column) — WP4.
+
+### 8.3 Procedural generation
+Stage: **hydrology** (after terrain carve, before biome/material). Consumes `surfaceY`, `creekBed`,
+`riverOrder`, `channelHitAt`, the bake's lake/ocean levels. Later stages: flora/fauna gates read
+the BAKE's wetness and stay on it (switching them to spans would change existing worlds' flora —
+explicitly not done); structures keep the pier rule (piers emit no span) and WP8 generalises it;
+WorldForge siting unchanged. Order-independence: river spans are per-column pure functions
+(`channelHitAt` is already pinned by `RuntimeChannelQueryFollowsTheMeanderedCarve`); lake spans
+keep the step-bounded flood. **Recipe persistence:** sea level already in the recipe; new persisted
+per-world state = `WaterBodyTable` (world_meta) and lake `rechargeRate` default (recipe). Weather is
+runtime state with game.json defaults, deliberately NOT in the recipe (it changes).
+
+### 8.4 API surface (binds WP9; aliases keep old routes one release)
+| Route | Fields (units) | Unchanged | Echo | Clamp (and why) |
+|---|---|---|---|---|
+| `POST /api/water/sim` | `tier` (low/med/high), `regionCells` (columns, square), `hz` (ticks/s) | omitted | full resulting config | `regionCells` ≤ tier max (GPU buffers are allocated per tier — oversizing would realloc mid-frame); `hz` ∈ [10, 60] (CFL: cell/√(g·hmax)·hz ≥ 1 or the SWE blows up — the clamp names hmax) |
+| `POST /api/water/weather` | `windDeg` (deg, 0=+X CCW to +Z), `windSpeed` (m s⁻¹), `seaState` (0-9 override, −1 = derive) | omitted / −1 | resulting `WeatherState` + derived per-body energy at the camera | `windSpeed` ≤ 30 (above it SMB energy exceeds the Gerstner steepness Σ ≤ 1 cap → self-intersecting sheet) |
+| `POST /api/water/body` | `id`, `level` (world Y), `rechargeRate` (voxels/s) | omitted | the body record | `level` ≥ body's lowest bed (floating water is unrepresentable); rate ≥ 0 |
+| `POST /api/water/place` · `scoop` | `x,y,z` (world), `amount` (voxel-volumes) | n/a | mass before/after, body delta | amount ≤ 1 per cell × cap 4096 per request (one oversized pour minted a flood in the CA era) |
+| `GET /api/water/probe?x&z` | — | — | span top, body id/class, sim h/vel if active, tile level | — |
+| `POST /api/water/validate` | rect (world XZ), `maxY` | — | `rim_leaks`, `worst`, `wet`, `unloaded` | returns `unloaded` so a zero cannot pass as a result (Water.md §8 #1) |
+
+**Defaults that change** (pinned tests updated in the same commit): `water.enabled` no longer means
+"implicit flat sea" (WaterManagerTest implicit-sea cases → rewritten against spans);
+`evaporation` / `edgeOutflow` retire with the CA (their WaterSimulationTest cases become SWE sink
+tests); `bakedTable` retires (spans always). `kSeaLevelY` unchanged.
+
+### 8.5 Visual test plan — per package
+**WP1 spans.** Works = `water_validate` on the Coast shore rect returns `rim_leaks 0, unloaded 0,
+wet > 50 000` (today's red: 257/257) and a known order-3 river column holds a span (today: 0). L2
++ L4 camera probe. Rig: Coast bench rect (37,708)–(293,964) and the River bench gorge; control = a
+dry highland rect that must read `wet 0, rim_leaks 0`.
+**WP2 far tiles.** Works = tile wet set ⊇ span wet set at tile resolution (L2 test) and the
+camera probe far↔near diff = 0 columns (L4). Control: far terrain OFF must show the same near
+water.
+**WP3 SWE (the one-chunk rig).** `WaterBench_Basin` is a Flat world but **the rig sits inside ONE
+chunk** (x,z ∈ 0..31): a 20×12 basin 6 deep with a vertical wall on one side and a 1:10 ramp on
+the other, plus a 2-wide channel out of a notch. Predictions written here, before the run: dam
+break from a 3-deep column reaches the far wall in L/√(g·h) = 20/√(9.81·3) ≈ 3.7 s ± 10 %;
+mass after 60 s = initial ± 1e-4 relative; still-water surface tilt < 1e-3 after 10 s; wall
+reflection: first reflected crest ≥ 0.8× incident amplitude; ramp run-up ≈ Hunt's formula ± 20 %.
+Control: the same rig with the sim disabled (spans only) must show zero motion, and a dry sibling
+basin must stay at 0 mass. Rig vs defaults: no hydrology bake, `high` tier, 60 Hz for the physics
+checks then re-run at the shipped 30 Hz to record the delta; the Flat world's y=16 surface cap
+(Water.md §8 #2) is carved away so the basin is open-sky.
+**WP4 integration.** Works = crate drifts downstream at sim velocity (predict ≥ 1.6 u/s in an
+order-3 reach, vs the kinematic 22 u in the old L4); breach from sea into a dry basin fills to sea
+level and stops (level within 0.1 of 16, mass stops rising); pour survives restart within 1 %.
+L3 + L4; stress 10 000 edits / 1 000 recentres with span mass tracked.
+**WP5 shoreline.** Works = look-first A/B vs the WP0 reference captures at the pinned Coast
+poses, user sign-off, plus the Hunt run-up and 2× wall antinode predictions on the Basin rig.
+**WP6 weather.** Works = same lake at U=2 vs U=20 differs by the SMB-predicted energy ratio; grass
+and sea report the same wind direction (two probes, one frame).
+**Every package:** GPU scope medians (n ≥ 30, Release) against the WP0 baseline file, and the
+`tools/water_camera_probe.py` run, both archived under `docs/evidence/`.
+
+### 8.6 Still open after this gate (tracked, not blocking)
+Sim↔analytic crossfade width (tune on the Coast bench, judged by A/B); whether `low` tier at 256²
+makes the simulated band visibly small on a 4090-class scene (measure in WP3); far-tile river
+ribbons' minimum visible width (cost rule, set from the Coast/River vantages).
