@@ -1,0 +1,2849 @@
+{
+ "scenario": "S5",
+ "bench": "basin",
+ "engine": "core",
+ "build_config": "Release",
+ "git_head": "60703113",
+ "timestamp": "20261008_171747",
+ "prediction": {
+  "engine": "core",
+  "transport": "flip",
+  "cell_size": 1.0,
+  "time_base": "simulation",
+  "duration_s": 20.0,
+  "mass_initial": 408.0,
+  "cavity_volume": 48,
+  "cavity_tolerance": 0.5,
+  "surface_before": 14.85,
+  "surface_after": 14.65,
+  "surface_drop": 0.1999999999999993,
+  "surface_tolerance": 0.01,
+  "mass_tolerance": 0.001
+ },
+ "measurement": {
+  "placed": 408.0,
+  "hole_occupancy_after_dig": 1,
+  "surface_before": 14.979779411764707,
+  "cavity_end": 11.5,
+  "t_cavity_full": null,
+  "basin_end": 395.5,
+  "surface_end": 14.83916041906959,
+  "surface_drop": 0.14215686274509842,
+  "total_end": 408.0,
+  "mass_drift": 0.0,
+  "control_cavity_end": 0.0,
+  "control_hole_occupancy": 1,
+  "control_drift": 0.0
+ },
+ "samples": [
+  {
+   "t": 0.1,
+   "cavity": 0.0,
+   "basin": 407.875,
+   "total": 408.0,
+   "A_surface_mean": 14.968137254901961
+  },
+  {
+   "t": 0.2,
+   "cavity": 0.0,
+   "basin": 407.875,
+   "total": 408.0,
+   "A_surface_mean": 14.971813725490197
+  },
+  {
+   "t": 0.3,
+   "cavity": 0.0,
+   "basin": 407.75,
+   "total": 408.0,
+   "A_surface_mean": 14.969362745098039
+  },
+  {
+   "t": 0.4,
+   "cavity": 0.0,
+   "basin": 407.625,
+   "total": 408.0,
+   "A_surface_mean": 14.96200980392157
+  },
+  {
+   "t": 0.5,
+   "cavity": 0.0,
+   "basin": 407.5,
+   "total": 408.0,
+   "A_surface_mean": 14.961397058823529
+  },
+  {
+   "t": 0.6,
+   "cavity": 0.0,
+   "basin": 407.125,
+   "total": 408.0,
+   "A_surface_mean": 14.950980392156863
+  },
+  {
+   "t": 0.7,
+   "cavity": 0.0,
+   "basin": 407.125,
+   "total": 408.0,
+   "A_surface_mean": 14.959558823529411
+  },
+  {
+   "t": 0.8,
+   "cavity": 0.0,
+   "basin": 407.125,
+   "total": 408.0,
+   "A_surface_mean": 14.969362745098039
+  },
+  {
+   "t": 0.9,
+   "cavity": 0.125,
+   "basin": 407.125,
+   "total": 408.0,
+   "A_surface_mean": 14.954656862745098
+  },
+  {
+   "t": 1.0,
+   "cavity": 0.5,
+   "basin": 407.0,
+   "total": 408.0,
+   "A_surface_mean": 14.942401960784315
+  },
+  {
+   "t": 1.1,
+   "cavity": 0.5,
+   "basin": 406.875,
+   "total": 408.0,
+   "A_surface_mean": 14.949142156862745
+  },
+  {
+   "t": 1.2,
+   "cavity": 0.625,
+   "basin": 406.75,
+   "total": 408.0,
+   "A_surface_mean": 14.943627450980392
+  },
+  {
+   "t": 1.3,
+   "cavity": 0.625,
+   "basin": 406.625,
+   "total": 408.0,
+   "A_surface_mean": 14.939338235294118
+  },
+  {
+   "t": 1.4,
+   "cavity": 0.625,
+   "basin": 406.375,
+   "total": 408.0,
+   "A_surface_mean": 14.947916666666666
+  },
+  {
+   "t": 1.5,
+   "cavity": 0.625,
+   "basin": 406.375,
+   "total": 408.0,
+   "A_surface_mean": 14.933823529411764
+  },
+  {
+   "t": 1.6,
+   "cavity": 0.625,
+   "basin": 406.375,
+   "total": 408.0,
+   "A_surface_mean": 14.933210784313726
+  },
+  {
+   "t": 1.7,
+   "cavity": 0.625,
+   "basin": 406.375,
+   "total": 408.0,
+   "A_surface_mean": 14.943014705882353
+  },
+  {
+   "t": 1.8,
+   "cavity": 0.75,
+   "basin": 406.375,
+   "total": 408.0,
+   "A_surface_mean": 14.924019607843137
+  },
+  {
+   "t": 1.9,
+   "cavity": 1.0,
+   "basin": 406.0,
+   "total": 408.0,
+   "A_surface_mean": 14.93075980392157
+  },
+  {
+   "t": 2.0,
+   "cavity": 1.125,
+   "basin": 405.875,
+   "total": 408.0,
+   "A_surface_mean": 14.924019607843137
+  },
+  {
+   "t": 2.1,
+   "cavity": 1.25,
+   "basin": 405.625,
+   "total": 408.0,
+   "A_surface_mean": 14.930147058823529
+  },
+  {
+   "t": 2.2,
+   "cavity": 1.375,
+   "basin": 405.625,
+   "total": 408.0,
+   "A_surface_mean": 14.920343137254902
+  },
+  {
+   "t": 2.3,
+   "cavity": 1.375,
+   "basin": 405.625,
+   "total": 408.0,
+   "A_surface_mean": 14.918504901960784
+  },
+  {
+   "t": 2.4,
+   "cavity": 1.375,
+   "basin": 405.625,
+   "total": 408.0,
+   "A_surface_mean": 14.925245098039216
+  },
+  {
+   "t": 2.5,
+   "cavity": 1.625,
+   "basin": 405.375,
+   "total": 408.0,
+   "A_surface_mean": 14.938725490196079
+  },
+  {
+   "t": 2.6,
+   "cavity": 1.625,
+   "basin": 405.375,
+   "total": 408.0,
+   "A_surface_mean": 14.939338235294118
+  },
+  {
+   "t": 2.7,
+   "cavity": 1.625,
+   "basin": 405.375,
+   "total": 408.0,
+   "A_surface_mean": 14.931985294117647
+  },
+  {
+   "t": 2.8,
+   "cavity": 1.75,
+   "basin": 405.25,
+   "total": 408.0,
+   "A_surface_mean": 14.931372549019608
+  },
+  {
+   "t": 2.9,
+   "cavity": 1.875,
+   "basin": 405.125,
+   "total": 408.0,
+   "A_surface_mean": 14.924632352941176
+  },
+  {
+   "t": 3.0,
+   "cavity": 1.875,
+   "basin": 405.125,
+   "total": 408.0,
+   "A_surface_mean": 14.930147058823529
+  },
+  {
+   "t": 3.1,
+   "cavity": 2.0,
+   "basin": 405.0,
+   "total": 408.0,
+   "A_surface_mean": 14.927696078431373
+  },
+  {
+   "t": 3.2,
+   "cavity": 2.0,
+   "basin": 404.75,
+   "total": 408.0,
+   "A_surface_mean": 14.909313725490197
+  },
+  {
+   "t": 3.3,
+   "cavity": 2.0,
+   "basin": 404.75,
+   "total": 408.0,
+   "A_surface_mean": 14.908088235294118
+  },
+  {
+   "t": 3.4,
+   "cavity": 2.125,
+   "basin": 404.75,
+   "total": 408.0,
+   "A_surface_mean": 14.916053921568627
+  },
+  {
+   "t": 3.5,
+   "cavity": 2.25,
+   "basin": 404.75,
+   "total": 408.0,
+   "A_surface_mean": 14.912377450980392
+  },
+  {
+   "t": 3.6,
+   "cavity": 2.25,
+   "basin": 404.75,
+   "total": 408.0,
+   "A_surface_mean": 14.904411764705882
+  },
+  {
+   "t": 3.7,
+   "cavity": 2.375,
+   "basin": 404.5,
+   "total": 408.0,
+   "A_surface_mean": 14.903799019607844
+  },
+  {
+   "t": 3.8,
+   "cavity": 2.5,
+   "basin": 404.5,
+   "total": 408.0,
+   "A_surface_mean": 14.897058823529411
+  },
+  {
+   "t": 3.9,
+   "cavity": 2.5,
+   "basin": 404.375,
+   "total": 408.0,
+   "A_surface_mean": 14.901960784313726
+  },
+  {
+   "t": 4.0,
+   "cavity": 2.875,
+   "basin": 404.375,
+   "total": 408.0,
+   "A_surface_mean": 14.897058823529411
+  },
+  {
+   "t": 4.1,
+   "cavity": 2.875,
+   "basin": 404.125,
+   "total": 408.0,
+   "A_surface_mean": 14.887867647058824
+  },
+  {
+   "t": 4.2,
+   "cavity": 2.875,
+   "basin": 404.125,
+   "total": 408.0,
+   "A_surface_mean": 14.884191176470589
+  },
+  {
+   "t": 4.3,
+   "cavity": 2.875,
+   "basin": 404.125,
+   "total": 408.0,
+   "A_surface_mean": 14.89828431372549
+  },
+  {
+   "t": 4.4,
+   "cavity": 2.875,
+   "basin": 404.125,
+   "total": 408.0,
+   "A_surface_mean": 14.89031862745098
+  },
+  {
+   "t": 4.5,
+   "cavity": 2.875,
+   "basin": 404.125,
+   "total": 408.0,
+   "A_surface_mean": 14.893382352941176
+  },
+  {
+   "t": 4.6,
+   "cavity": 2.875,
+   "basin": 404.125,
+   "total": 408.0,
+   "A_surface_mean": 14.89093137254902
+  },
+  {
+   "t": 4.7,
+   "cavity": 2.875,
+   "basin": 404.0,
+   "total": 408.0,
+   "A_surface_mean": 14.887254901960784
+  },
+  {
+   "t": 4.8,
+   "cavity": 2.875,
+   "basin": 404.0,
+   "total": 408.0,
+   "A_surface_mean": 14.896446078431373
+  },
+  {
+   "t": 4.9,
+   "cavity": 3.125,
+   "basin": 404.0,
+   "total": 408.0,
+   "A_surface_mean": 14.903186274509803
+  },
+  {
+   "t": 5.0,
+   "cavity": 3.25,
+   "basin": 403.875,
+   "total": 408.0,
+   "A_surface_mean": 14.897671568627452
+  },
+  {
+   "t": 5.1,
+   "cavity": 3.25,
+   "basin": 403.875,
+   "total": 408.0,
+   "A_surface_mean": 14.893382352941176
+  },
+  {
+   "t": 5.2,
+   "cavity": 3.25,
+   "basin": 403.875,
+   "total": 408.0,
+   "A_surface_mean": 14.89031862745098
+  },
+  {
+   "t": 5.3,
+   "cavity": 3.25,
+   "basin": 403.75,
+   "total": 408.0,
+   "A_surface_mean": 14.892769607843137
+  },
+  {
+   "t": 5.4,
+   "cavity": 3.375,
+   "basin": 403.75,
+   "total": 408.0,
+   "A_surface_mean": 14.903799019607844
+  },
+  {
+   "t": 5.5,
+   "cavity": 3.375,
+   "basin": 403.625,
+   "total": 408.0,
+   "A_surface_mean": 14.896446078431373
+  },
+  {
+   "t": 5.6,
+   "cavity": 3.625,
+   "basin": 403.5,
+   "total": 408.0,
+   "A_surface_mean": 14.895833333333334
+  },
+  {
+   "t": 5.7,
+   "cavity": 3.625,
+   "basin": 403.5,
+   "total": 408.0,
+   "A_surface_mean": 14.89093137254902
+  },
+  {
+   "t": 5.8,
+   "cavity": 3.75,
+   "basin": 403.375,
+   "total": 408.0,
+   "A_surface_mean": 14.893995098039216
+  },
+  {
+   "t": 5.9,
+   "cavity": 3.75,
+   "basin": 403.375,
+   "total": 408.0,
+   "A_surface_mean": 14.883578431372548
+  },
+  {
+   "t": 6.0,
+   "cavity": 3.75,
+   "basin": 403.125,
+   "total": 408.0,
+   "A_surface_mean": 14.891544117647058
+  },
+  {
+   "t": 6.1,
+   "cavity": 3.875,
+   "basin": 403.125,
+   "total": 408.0,
+   "A_surface_mean": 14.889093137254902
+  },
+  {
+   "t": 6.2,
+   "cavity": 4.125,
+   "basin": 403.0,
+   "total": 408.0,
+   "A_surface_mean": 14.882352941176471
+  },
+  {
+   "t": 6.3,
+   "cavity": 4.25,
+   "basin": 402.75,
+   "total": 408.0,
+   "A_surface_mean": 14.875612745098039
+  },
+  {
+   "t": 6.4,
+   "cavity": 4.25,
+   "basin": 402.75,
+   "total": 408.0,
+   "A_surface_mean": 14.86825980392157
+  },
+  {
+   "t": 6.5,
+   "cavity": 4.25,
+   "basin": 402.625,
+   "total": 408.0,
+   "A_surface_mean": 14.883578431372548
+  },
+  {
+   "t": 6.6,
+   "cavity": 4.25,
+   "basin": 402.625,
+   "total": 408.0,
+   "A_surface_mean": 14.893382352941176
+  },
+  {
+   "t": 6.7,
+   "cavity": 4.375,
+   "basin": 402.625,
+   "total": 408.0,
+   "A_surface_mean": 14.887867647058824
+  },
+  {
+   "t": 6.8,
+   "cavity": 4.375,
+   "basin": 402.5,
+   "total": 408.0,
+   "A_surface_mean": 14.888480392156863
+  },
+  {
+   "t": 6.9,
+   "cavity": 4.5,
+   "basin": 402.375,
+   "total": 408.0,
+   "A_surface_mean": 14.895833333333334
+  },
+  {
+   "t": 7.0,
+   "cavity": 4.5,
+   "basin": 402.5,
+   "total": 408.0,
+   "A_surface_mean": 14.875612745098039
+  },
+  {
+   "t": 7.1,
+   "cavity": 4.75,
+   "basin": 402.375,
+   "total": 408.0,
+   "A_surface_mean": 14.888480392156863
+  },
+  {
+   "t": 7.2,
+   "cavity": 4.875,
+   "basin": 402.25,
+   "total": 408.0,
+   "A_surface_mean": 14.887254901960784
+  },
+  {
+   "t": 7.3,
+   "cavity": 5.0,
+   "basin": 402.25,
+   "total": 408.0,
+   "A_surface_mean": 14.891544117647058
+  },
+  {
+   "t": 7.4,
+   "cavity": 5.125,
+   "basin": 402.25,
+   "total": 408.0,
+   "A_surface_mean": 14.878063725490197
+  },
+  {
+   "t": 7.5,
+   "cavity": 5.125,
+   "basin": 402.125,
+   "total": 408.0,
+   "A_surface_mean": 14.876225490196079
+  },
+  {
+   "t": 7.6,
+   "cavity": 5.125,
+   "basin": 402.125,
+   "total": 408.0,
+   "A_surface_mean": 14.869485294117647
+  },
+  {
+   "t": 7.7,
+   "cavity": 5.125,
+   "basin": 401.875,
+   "total": 408.0,
+   "A_surface_mean": 14.874387254901961
+  },
+  {
+   "t": 7.8,
+   "cavity": 5.125,
+   "basin": 401.875,
+   "total": 408.0,
+   "A_surface_mean": 14.880514705882353
+  },
+  {
+   "t": 7.9,
+   "cavity": 5.125,
+   "basin": 401.875,
+   "total": 408.0,
+   "A_surface_mean": 14.879289215686274
+  },
+  {
+   "t": 8.0,
+   "cavity": 5.25,
+   "basin": 401.75,
+   "total": 408.0,
+   "A_surface_mean": 14.876225490196079
+  },
+  {
+   "t": 8.1,
+   "cavity": 5.375,
+   "basin": 401.5,
+   "total": 408.0,
+   "A_surface_mean": 14.878063725490197
+  },
+  {
+   "t": 8.2,
+   "cavity": 5.5,
+   "basin": 401.5,
+   "total": 408.0,
+   "A_surface_mean": 14.871936274509803
+  },
+  {
+   "t": 8.3,
+   "cavity": 5.625,
+   "basin": 401.375,
+   "total": 408.0,
+   "A_surface_mean": 14.870098039215685
+  },
+  {
+   "t": 8.4,
+   "cavity": 5.625,
+   "basin": 401.25,
+   "total": 408.0,
+   "A_surface_mean": 14.871936274509803
+  },
+  {
+   "t": 8.5,
+   "cavity": 5.875,
+   "basin": 401.125,
+   "total": 408.0,
+   "A_surface_mean": 14.873161764705882
+  },
+  {
+   "t": 8.6,
+   "cavity": 6.0,
+   "basin": 401.125,
+   "total": 408.0,
+   "A_surface_mean": 14.881127450980392
+  },
+  {
+   "t": 8.7,
+   "cavity": 6.0,
+   "basin": 401.125,
+   "total": 408.0,
+   "A_surface_mean": 14.878063725490197
+  },
+  {
+   "t": 8.8,
+   "cavity": 6.0,
+   "basin": 401.0,
+   "total": 408.0,
+   "A_surface_mean": 14.870098039215685
+  },
+  {
+   "t": 8.9,
+   "cavity": 6.0,
+   "basin": 401.0,
+   "total": 408.0,
+   "A_surface_mean": 14.863357843137255
+  },
+  {
+   "t": 9.0,
+   "cavity": 6.25,
+   "basin": 400.875,
+   "total": 408.0,
+   "A_surface_mean": 14.865196078431373
+  },
+  {
+   "t": 9.1,
+   "cavity": 6.25,
+   "basin": 400.875,
+   "total": 408.0,
+   "A_surface_mean": 14.862745098039216
+  },
+  {
+   "t": 9.2,
+   "cavity": 6.5,
+   "basin": 400.625,
+   "total": 408.0,
+   "A_surface_mean": 14.865196078431373
+  },
+  {
+   "t": 9.3,
+   "cavity": 6.625,
+   "basin": 400.625,
+   "total": 408.0,
+   "A_surface_mean": 14.85171568627451
+  },
+  {
+   "t": 9.4,
+   "cavity": 6.625,
+   "basin": 400.375,
+   "total": 408.0,
+   "A_surface_mean": 14.857843137254902
+  },
+  {
+   "t": 9.5,
+   "cavity": 6.625,
+   "basin": 400.375,
+   "total": 408.0,
+   "A_surface_mean": 14.871323529411764
+  },
+  {
+   "t": 9.6,
+   "cavity": 6.625,
+   "basin": 400.375,
+   "total": 408.0,
+   "A_surface_mean": 14.869485294117647
+  },
+  {
+   "t": 9.7,
+   "cavity": 6.625,
+   "basin": 400.375,
+   "total": 408.0,
+   "A_surface_mean": 14.860294117647058
+  },
+  {
+   "t": 9.8,
+   "cavity": 6.75,
+   "basin": 400.375,
+   "total": 408.0,
+   "A_surface_mean": 14.853553921568627
+  },
+  {
+   "t": 9.9,
+   "cavity": 6.875,
+   "basin": 400.125,
+   "total": 408.0,
+   "A_surface_mean": 14.864583333333334
+  },
+  {
+   "t": 10.0,
+   "cavity": 6.875,
+   "basin": 400.125,
+   "total": 408.0,
+   "A_surface_mean": 14.856004901960784
+  },
+  {
+   "t": 10.1,
+   "cavity": 6.875,
+   "basin": 400.125,
+   "total": 408.0,
+   "A_surface_mean": 14.863970588235293
+  },
+  {
+   "t": 10.2,
+   "cavity": 6.875,
+   "basin": 400.125,
+   "total": 408.0,
+   "A_surface_mean": 14.865196078431373
+  },
+  {
+   "t": 10.3,
+   "cavity": 6.875,
+   "basin": 400.125,
+   "total": 408.0,
+   "A_surface_mean": 14.861519607843137
+  },
+  {
+   "t": 10.4,
+   "cavity": 7.0,
+   "basin": 400.0,
+   "total": 408.0,
+   "A_surface_mean": 14.865808823529411
+  },
+  {
+   "t": 10.5,
+   "cavity": 7.0,
+   "basin": 400.0,
+   "total": 408.0,
+   "A_surface_mean": 14.862132352941176
+  },
+  {
+   "t": 10.6,
+   "cavity": 7.125,
+   "basin": 400.0,
+   "total": 408.0,
+   "A_surface_mean": 14.863970588235293
+  },
+  {
+   "t": 10.7,
+   "cavity": 7.25,
+   "basin": 400.0,
+   "total": 408.0,
+   "A_surface_mean": 14.857843137254902
+  },
+  {
+   "t": 10.8,
+   "cavity": 7.375,
+   "basin": 399.875,
+   "total": 408.0,
+   "A_surface_mean": 14.856617647058824
+  },
+  {
+   "t": 10.9,
+   "cavity": 7.625,
+   "basin": 399.625,
+   "total": 408.0,
+   "A_surface_mean": 14.849264705882353
+  },
+  {
+   "t": 11.0,
+   "cavity": 7.625,
+   "basin": 399.625,
+   "total": 408.0,
+   "A_surface_mean": 14.857230392156863
+  },
+  {
+   "t": 11.1,
+   "cavity": 7.625,
+   "basin": 399.625,
+   "total": 408.0,
+   "A_surface_mean": 14.848651960784315
+  },
+  {
+   "t": 11.2,
+   "cavity": 7.875,
+   "basin": 399.625,
+   "total": 408.0,
+   "A_surface_mean": 14.840686274509803
+  },
+  {
+   "t": 11.3,
+   "cavity": 7.875,
+   "basin": 399.625,
+   "total": 408.0,
+   "A_surface_mean": 14.848039215686274
+  },
+  {
+   "t": 11.4,
+   "cavity": 7.875,
+   "basin": 399.625,
+   "total": 408.0,
+   "A_surface_mean": 14.860294117647058
+  },
+  {
+   "t": 11.5,
+   "cavity": 7.875,
+   "basin": 399.625,
+   "total": 408.0,
+   "A_surface_mean": 14.843137254901961
+  },
+  {
+   "t": 11.6,
+   "cavity": 7.875,
+   "basin": 399.625,
+   "total": 408.0,
+   "A_surface_mean": 14.856617647058824
+  },
+  {
+   "t": 11.7,
+   "cavity": 7.875,
+   "basin": 399.5,
+   "total": 408.0,
+   "A_surface_mean": 14.862745098039216
+  },
+  {
+   "t": 11.8,
+   "cavity": 7.875,
+   "basin": 399.5,
+   "total": 408.0,
+   "A_surface_mean": 14.856004901960784
+  },
+  {
+   "t": 11.9,
+   "cavity": 7.875,
+   "basin": 399.5,
+   "total": 408.0,
+   "A_surface_mean": 14.855392156862745
+  },
+  {
+   "t": 12.0,
+   "cavity": 7.875,
+   "basin": 399.5,
+   "total": 408.0,
+   "A_surface_mean": 14.85968137254902
+  },
+  {
+   "t": 12.1,
+   "cavity": 7.875,
+   "basin": 399.5,
+   "total": 408.0,
+   "A_surface_mean": 14.85906862745098
+  },
+  {
+   "t": 12.2,
+   "cavity": 8.0,
+   "basin": 399.375,
+   "total": 408.0,
+   "A_surface_mean": 14.857230392156863
+  },
+  {
+   "t": 12.3,
+   "cavity": 8.0,
+   "basin": 399.375,
+   "total": 408.0,
+   "A_surface_mean": 14.857230392156863
+  },
+  {
+   "t": 12.4,
+   "cavity": 8.125,
+   "basin": 399.25,
+   "total": 408.0,
+   "A_surface_mean": 14.857843137254902
+  },
+  {
+   "t": 12.5,
+   "cavity": 8.25,
+   "basin": 399.125,
+   "total": 408.0,
+   "A_surface_mean": 14.85906862745098
+  },
+  {
+   "t": 12.6,
+   "cavity": 8.25,
+   "basin": 399.125,
+   "total": 408.0,
+   "A_surface_mean": 14.85171568627451
+  },
+  {
+   "t": 12.7,
+   "cavity": 8.25,
+   "basin": 399.0,
+   "total": 408.0,
+   "A_surface_mean": 14.85906862745098
+  },
+  {
+   "t": 12.8,
+   "cavity": 8.25,
+   "basin": 398.625,
+   "total": 408.0,
+   "A_surface_mean": 14.849877450980392
+  },
+  {
+   "t": 12.9,
+   "cavity": 8.375,
+   "basin": 398.75,
+   "total": 408.0,
+   "A_surface_mean": 14.848651960784315
+  },
+  {
+   "t": 13.0,
+   "cavity": 8.375,
+   "basin": 398.5,
+   "total": 408.0,
+   "A_surface_mean": 14.85049019607843
+  },
+  {
+   "t": 13.1,
+   "cavity": 8.375,
+   "basin": 398.5,
+   "total": 408.0,
+   "A_surface_mean": 14.85171568627451
+  },
+  {
+   "t": 13.2,
+   "cavity": 8.375,
+   "basin": 398.5,
+   "total": 408.0,
+   "A_surface_mean": 14.855392156862745
+  },
+  {
+   "t": 13.3,
+   "cavity": 8.5,
+   "basin": 398.375,
+   "total": 408.0,
+   "A_surface_mean": 14.855392156862745
+  },
+  {
+   "t": 13.4,
+   "cavity": 8.5,
+   "basin": 398.375,
+   "total": 408.0,
+   "A_surface_mean": 14.843137254901961
+  },
+  {
+   "t": 13.5,
+   "cavity": 8.625,
+   "basin": 398.375,
+   "total": 408.0,
+   "A_surface_mean": 14.847426470588236
+  },
+  {
+   "t": 13.6,
+   "cavity": 8.625,
+   "basin": 398.25,
+   "total": 408.0,
+   "A_surface_mean": 14.854166666666666
+  },
+  {
+   "t": 13.7,
+   "cavity": 8.625,
+   "basin": 398.25,
+   "total": 408.0,
+   "A_surface_mean": 14.865808823529411
+  },
+  {
+   "t": 13.8,
+   "cavity": 8.625,
+   "basin": 398.375,
+   "total": 408.0,
+   "A_surface_mean": 14.849877450980392
+  },
+  {
+   "t": 13.9,
+   "cavity": 8.625,
+   "basin": 398.25,
+   "total": 408.0,
+   "A_surface_mean": 14.848651960784315
+  },
+  {
+   "t": 14.0,
+   "cavity": 8.75,
+   "basin": 398.25,
+   "total": 408.0,
+   "A_surface_mean": 14.854166666666666
+  },
+  {
+   "t": 14.1,
+   "cavity": 8.75,
+   "basin": 398.25,
+   "total": 408.0,
+   "A_surface_mean": 14.851102941176471
+  },
+  {
+   "t": 14.2,
+   "cavity": 8.75,
+   "basin": 398.25,
+   "total": 408.0,
+   "A_surface_mean": 14.846200980392156
+  },
+  {
+   "t": 14.3,
+   "cavity": 8.75,
+   "basin": 398.25,
+   "total": 408.0,
+   "A_surface_mean": 14.849877450980392
+  },
+  {
+   "t": 14.4,
+   "cavity": 8.75,
+   "basin": 398.25,
+   "total": 408.0,
+   "A_surface_mean": 14.849877450980392
+  },
+  {
+   "t": 14.5,
+   "cavity": 8.75,
+   "basin": 398.25,
+   "total": 408.0,
+   "A_surface_mean": 14.838848039215685
+  },
+  {
+   "t": 14.6,
+   "cavity": 8.75,
+   "basin": 398.25,
+   "total": 408.0,
+   "A_surface_mean": 14.848039215686274
+  },
+  {
+   "t": 14.7,
+   "cavity": 8.75,
+   "basin": 398.25,
+   "total": 408.0,
+   "A_surface_mean": 14.854166666666666
+  },
+  {
+   "t": 14.8,
+   "cavity": 8.875,
+   "basin": 398.25,
+   "total": 408.0,
+   "A_surface_mean": 14.855392156862745
+  },
+  {
+   "t": 14.9,
+   "cavity": 8.875,
+   "basin": 398.25,
+   "total": 408.0,
+   "A_surface_mean": 14.854779411764707
+  },
+  {
+   "t": 15.0,
+   "cavity": 8.875,
+   "basin": 398.125,
+   "total": 408.0,
+   "A_surface_mean": 14.838848039215685
+  },
+  {
+   "t": 15.1,
+   "cavity": 9.125,
+   "basin": 398.125,
+   "total": 408.0,
+   "A_surface_mean": 14.841299019607844
+  },
+  {
+   "t": 15.2,
+   "cavity": 9.125,
+   "basin": 398.0,
+   "total": 408.0,
+   "A_surface_mean": 14.846813725490197
+  },
+  {
+   "t": 15.3,
+   "cavity": 9.125,
+   "basin": 398.0,
+   "total": 408.0,
+   "A_surface_mean": 14.844362745098039
+  },
+  {
+   "t": 15.4,
+   "cavity": 9.125,
+   "basin": 397.875,
+   "total": 408.0,
+   "A_surface_mean": 14.852941176470589
+  },
+  {
+   "t": 15.5,
+   "cavity": 9.125,
+   "basin": 397.875,
+   "total": 408.0,
+   "A_surface_mean": 14.852328431372548
+  },
+  {
+   "t": 15.6,
+   "cavity": 9.25,
+   "basin": 397.75,
+   "total": 408.0,
+   "A_surface_mean": 14.849877450980392
+  },
+  {
+   "t": 15.7,
+   "cavity": 9.25,
+   "basin": 397.75,
+   "total": 408.0,
+   "A_surface_mean": 14.82843137254902
+  },
+  {
+   "t": 15.8,
+   "cavity": 9.375,
+   "basin": 397.75,
+   "total": 408.0,
+   "A_surface_mean": 14.832720588235293
+  },
+  {
+   "t": 15.9,
+   "cavity": 9.375,
+   "basin": 397.75,
+   "total": 408.0,
+   "A_surface_mean": 14.844975490196079
+  },
+  {
+   "t": 16.0,
+   "cavity": 9.5,
+   "basin": 397.625,
+   "total": 408.0,
+   "A_surface_mean": 14.837622549019608
+  },
+  {
+   "t": 16.1,
+   "cavity": 9.625,
+   "basin": 397.625,
+   "total": 408.0,
+   "A_surface_mean": 14.842524509803921
+  },
+  {
+   "t": 16.2,
+   "cavity": 9.875,
+   "basin": 397.5,
+   "total": 408.0,
+   "A_surface_mean": 14.85171568627451
+  },
+  {
+   "t": 16.3,
+   "cavity": 9.875,
+   "basin": 397.375,
+   "total": 408.0,
+   "A_surface_mean": 14.840073529411764
+  },
+  {
+   "t": 16.4,
+   "cavity": 9.875,
+   "basin": 397.125,
+   "total": 408.0,
+   "A_surface_mean": 14.84375
+  },
+  {
+   "t": 16.5,
+   "cavity": 9.875,
+   "basin": 397.125,
+   "total": 408.0,
+   "A_surface_mean": 14.831495098039216
+  },
+  {
+   "t": 16.6,
+   "cavity": 9.875,
+   "basin": 397.125,
+   "total": 408.0,
+   "A_surface_mean": 14.841911764705882
+  },
+  {
+   "t": 16.7,
+   "cavity": 10.0,
+   "basin": 396.75,
+   "total": 408.0,
+   "A_surface_mean": 14.852941176470589
+  },
+  {
+   "t": 16.8,
+   "cavity": 10.0,
+   "basin": 397.0,
+   "total": 408.0,
+   "A_surface_mean": 14.84375
+  },
+  {
+   "t": 16.9,
+   "cavity": 10.0,
+   "basin": 397.0,
+   "total": 408.0,
+   "A_surface_mean": 14.848651960784315
+  },
+  {
+   "t": 17.0,
+   "cavity": 10.0,
+   "basin": 397.0,
+   "total": 408.0,
+   "A_surface_mean": 14.852328431372548
+  },
+  {
+   "t": 17.1,
+   "cavity": 10.0,
+   "basin": 396.875,
+   "total": 408.0,
+   "A_surface_mean": 14.851102941176471
+  },
+  {
+   "t": 17.2,
+   "cavity": 10.0,
+   "basin": 397.0,
+   "total": 408.0,
+   "A_surface_mean": 14.841299019607844
+  },
+  {
+   "t": 17.3,
+   "cavity": 10.25,
+   "basin": 396.625,
+   "total": 408.0,
+   "A_surface_mean": 14.844975490196079
+  },
+  {
+   "t": 17.4,
+   "cavity": 10.25,
+   "basin": 396.875,
+   "total": 408.0,
+   "A_surface_mean": 14.849264705882353
+  },
+  {
+   "t": 17.5,
+   "cavity": 10.25,
+   "basin": 396.625,
+   "total": 408.0,
+   "A_surface_mean": 14.846200980392156
+  },
+  {
+   "t": 17.6,
+   "cavity": 10.25,
+   "basin": 396.625,
+   "total": 408.0,
+   "A_surface_mean": 14.846813725490197
+  },
+  {
+   "t": 17.7,
+   "cavity": 10.25,
+   "basin": 396.625,
+   "total": 408.0,
+   "A_surface_mean": 14.844975490196079
+  },
+  {
+   "t": 17.8,
+   "cavity": 10.25,
+   "basin": 396.625,
+   "total": 408.0,
+   "A_surface_mean": 14.832107843137255
+  },
+  {
+   "t": 17.9,
+   "cavity": 10.375,
+   "basin": 396.625,
+   "total": 408.0,
+   "A_surface_mean": 14.827205882352942
+  },
+  {
+   "t": 18.0,
+   "cavity": 10.375,
+   "basin": 396.5,
+   "total": 408.0,
+   "A_surface_mean": 14.83578431372549
+  },
+  {
+   "t": 18.1,
+   "cavity": 10.625,
+   "basin": 396.5,
+   "total": 408.0,
+   "A_surface_mean": 14.833333333333334
+  },
+  {
+   "t": 18.2,
+   "cavity": 10.625,
+   "basin": 396.5,
+   "total": 408.0,
+   "A_surface_mean": 14.847426470588236
+  },
+  {
+   "t": 18.3,
+   "cavity": 10.625,
+   "basin": 396.5,
+   "total": 408.0,
+   "A_surface_mean": 14.848651960784315
+  },
+  {
+   "t": 18.4,
+   "cavity": 10.625,
+   "basin": 396.375,
+   "total": 408.0,
+   "A_surface_mean": 14.833946078431373
+  },
+  {
+   "t": 18.5,
+   "cavity": 10.75,
+   "basin": 396.375,
+   "total": 408.0,
+   "A_surface_mean": 14.833333333333334
+  },
+  {
+   "t": 18.6,
+   "cavity": 10.875,
+   "basin": 396.375,
+   "total": 408.0,
+   "A_surface_mean": 14.844975490196079
+  },
+  {
+   "t": 18.7,
+   "cavity": 10.875,
+   "basin": 396.375,
+   "total": 408.0,
+   "A_surface_mean": 14.826593137254902
+  },
+  {
+   "t": 18.8,
+   "cavity": 10.875,
+   "basin": 396.375,
+   "total": 408.0,
+   "A_surface_mean": 14.83700980392157
+  },
+  {
+   "t": 18.9,
+   "cavity": 10.875,
+   "basin": 396.25,
+   "total": 408.0,
+   "A_surface_mean": 14.832720588235293
+  },
+  {
+   "t": 19.0,
+   "cavity": 11.0,
+   "basin": 396.125,
+   "total": 408.0,
+   "A_surface_mean": 14.821078431372548
+  },
+  {
+   "t": 19.1,
+   "cavity": 11.0,
+   "basin": 396.125,
+   "total": 408.0,
+   "A_surface_mean": 14.818014705882353
+  },
+  {
+   "t": 19.2,
+   "cavity": 11.125,
+   "basin": 396.125,
+   "total": 408.0,
+   "A_surface_mean": 14.81924019607843
+  },
+  {
+   "t": 19.3,
+   "cavity": 11.125,
+   "basin": 395.875,
+   "total": 408.0,
+   "A_surface_mean": 14.834558823529411
+  },
+  {
+   "t": 19.4,
+   "cavity": 11.25,
+   "basin": 395.75,
+   "total": 408.0,
+   "A_surface_mean": 14.82781862745098
+  },
+  {
+   "t": 19.5,
+   "cavity": 11.25,
+   "basin": 395.75,
+   "total": 408.0,
+   "A_surface_mean": 14.829044117647058
+  },
+  {
+   "t": 19.6,
+   "cavity": 11.25,
+   "basin": 395.75,
+   "total": 408.0,
+   "A_surface_mean": 14.833333333333334
+  },
+  {
+   "t": 19.7,
+   "cavity": 11.375,
+   "basin": 395.625,
+   "total": 408.0,
+   "A_surface_mean": 14.826593137254902
+  },
+  {
+   "t": 19.8,
+   "cavity": 11.375,
+   "basin": 395.625,
+   "total": 408.0,
+   "A_surface_mean": 14.836397058823529
+  },
+  {
+   "t": 19.9,
+   "cavity": 11.375,
+   "basin": 395.625,
+   "total": 408.0,
+   "A_surface_mean": 14.836397058823529
+  },
+  {
+   "t": 20.0,
+   "cavity": 11.5,
+   "basin": 395.5,
+   "total": 408.0,
+   "A_surface_mean": 14.837622549019608
+  }
+ ],
+ "control_samples": [
+  {
+   "t": 0.1,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.965073529411764
+  },
+  {
+   "t": 0.2,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.966911764705882
+  },
+  {
+   "t": 0.3,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.959558823529411
+  },
+  {
+   "t": 0.4,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.955269607843137
+  },
+  {
+   "t": 0.5,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.969975490196079
+  },
+  {
+   "t": 0.6,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.96200980392157
+  },
+  {
+   "t": 0.7,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.96078431372549
+  },
+  {
+   "t": 0.8,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.94424019607843
+  },
+  {
+   "t": 0.9,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.950367647058824
+  },
+  {
+   "t": 1.0,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.956495098039216
+  },
+  {
+   "t": 1.1,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.95281862745098
+  },
+  {
+   "t": 1.2,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.949754901960784
+  },
+  {
+   "t": 1.3,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.940563725490197
+  },
+  {
+   "t": 1.4,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.92953431372549
+  },
+  {
+   "t": 1.5,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.940563725490197
+  },
+  {
+   "t": 1.6,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.931372549019608
+  },
+  {
+   "t": 1.7,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.960171568627452
+  },
+  {
+   "t": 1.8,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.950980392156863
+  },
+  {
+   "t": 1.9,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.946078431372548
+  },
+  {
+   "t": 2.0,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.94546568627451
+  },
+  {
+   "t": 2.1,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.943627450980392
+  },
+  {
+   "t": 2.2,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.9375
+  },
+  {
+   "t": 2.3,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.934436274509803
+  },
+  {
+   "t": 2.4,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.933210784313726
+  },
+  {
+   "t": 2.5,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.928921568627452
+  },
+  {
+   "t": 2.6,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.934436274509803
+  },
+  {
+   "t": 2.7,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.918504901960784
+  },
+  {
+   "t": 2.8,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.92218137254902
+  },
+  {
+   "t": 2.9,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.925857843137255
+  },
+  {
+   "t": 3.0,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.924019607843137
+  },
+  {
+   "t": 3.1,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.933823529411764
+  },
+  {
+   "t": 3.2,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.934436274509803
+  },
+  {
+   "t": 3.3,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.925857843137255
+  },
+  {
+   "t": 3.4,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.928308823529411
+  },
+  {
+   "t": 3.5,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.925245098039216
+  },
+  {
+   "t": 3.6,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.934436274509803
+  },
+  {
+   "t": 3.7,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.927696078431373
+  },
+  {
+   "t": 3.8,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.92218137254902
+  },
+  {
+   "t": 3.9,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.927696078431373
+  },
+  {
+   "t": 4.0,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.916666666666666
+  },
+  {
+   "t": 4.1,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.920955882352942
+  },
+  {
+   "t": 4.2,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.919730392156863
+  },
+  {
+   "t": 4.3,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.927083333333334
+  },
+  {
+   "t": 4.4,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.910539215686274
+  },
+  {
+   "t": 4.5,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.898897058823529
+  },
+  {
+   "t": 4.6,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.920343137254902
+  },
+  {
+   "t": 4.7,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.919117647058824
+  },
+  {
+   "t": 4.8,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.918504901960784
+  },
+  {
+   "t": 4.9,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.89828431372549
+  },
+  {
+   "t": 5.0,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.902573529411764
+  },
+  {
+   "t": 5.1,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.911151960784315
+  },
+  {
+   "t": 5.2,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.917279411764707
+  },
+  {
+   "t": 5.3,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.915441176470589
+  },
+  {
+   "t": 5.4,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.918504901960784
+  },
+  {
+   "t": 5.5,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.902573529411764
+  },
+  {
+   "t": 5.6,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.924019607843137
+  },
+  {
+   "t": 5.7,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.918504901960784
+  },
+  {
+   "t": 5.8,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.909926470588236
+  },
+  {
+   "t": 5.9,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.897058823529411
+  },
+  {
+   "t": 6.0,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.917892156862745
+  },
+  {
+   "t": 6.1,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.908700980392156
+  },
+  {
+   "t": 6.2,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.911764705882353
+  },
+  {
+   "t": 6.3,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.917279411764707
+  },
+  {
+   "t": 6.4,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.917279411764707
+  },
+  {
+   "t": 6.5,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.907475490196079
+  },
+  {
+   "t": 6.6,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.913602941176471
+  },
+  {
+   "t": 6.7,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.89828431372549
+  },
+  {
+   "t": 6.8,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.909926470588236
+  },
+  {
+   "t": 6.9,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.903799019607844
+  },
+  {
+   "t": 7.0,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.89950980392157
+  },
+  {
+   "t": 7.1,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.911151960784315
+  },
+  {
+   "t": 7.2,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.896446078431373
+  },
+  {
+   "t": 7.3,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.901960784313726
+  },
+  {
+   "t": 7.4,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.908088235294118
+  },
+  {
+   "t": 7.5,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.894607843137255
+  },
+  {
+   "t": 7.6,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.903186274509803
+  },
+  {
+   "t": 7.7,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.89950980392157
+  },
+  {
+   "t": 7.8,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.901960784313726
+  },
+  {
+   "t": 7.9,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.900735294117647
+  },
+  {
+   "t": 8.0,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.89950980392157
+  },
+  {
+   "t": 8.1,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.884803921568627
+  },
+  {
+   "t": 8.2,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.896446078431373
+  },
+  {
+   "t": 8.3,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.904411764705882
+  },
+  {
+   "t": 8.4,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.89950980392157
+  },
+  {
+   "t": 8.5,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.887254901960784
+  },
+  {
+   "t": 8.6,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.894607843137255
+  },
+  {
+   "t": 8.7,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.891544117647058
+  },
+  {
+   "t": 8.8,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.88174019607843
+  },
+  {
+   "t": 8.9,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.891544117647058
+  },
+  {
+   "t": 9.0,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.889093137254902
+  },
+  {
+   "t": 9.1,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.894607843137255
+  },
+  {
+   "t": 9.2,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.903186274509803
+  },
+  {
+   "t": 9.3,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.89828431372549
+  },
+  {
+   "t": 9.4,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.90625
+  },
+  {
+   "t": 9.5,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.893382352941176
+  },
+  {
+   "t": 9.6,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.89950980392157
+  },
+  {
+   "t": 9.7,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.904411764705882
+  },
+  {
+   "t": 9.8,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.903186274509803
+  },
+  {
+   "t": 9.9,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.908088235294118
+  },
+  {
+   "t": 10.0,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.896446078431373
+  },
+  {
+   "t": 10.1,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.89093137254902
+  },
+  {
+   "t": 10.2,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.883578431372548
+  },
+  {
+   "t": 10.3,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.893382352941176
+  },
+  {
+   "t": 10.4,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.887254901960784
+  },
+  {
+   "t": 10.5,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.889705882352942
+  },
+  {
+   "t": 10.6,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.892156862745098
+  },
+  {
+   "t": 10.7,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.889705882352942
+  },
+  {
+   "t": 10.8,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.889705882352942
+  },
+  {
+   "t": 10.9,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.879901960784315
+  },
+  {
+   "t": 11.0,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.883578431372548
+  },
+  {
+   "t": 11.1,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.892156862745098
+  },
+  {
+   "t": 11.2,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.895833333333334
+  },
+  {
+   "t": 11.3,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.908700980392156
+  },
+  {
+   "t": 11.4,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.897058823529411
+  },
+  {
+   "t": 11.5,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.894607843137255
+  },
+  {
+   "t": 11.6,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.88174019607843
+  },
+  {
+   "t": 11.7,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.869485294117647
+  },
+  {
+   "t": 11.8,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.875612745098039
+  },
+  {
+   "t": 11.9,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.883578431372548
+  },
+  {
+   "t": 12.0,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.884191176470589
+  },
+  {
+   "t": 12.1,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.889093137254902
+  },
+  {
+   "t": 12.2,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.878063725490197
+  },
+  {
+   "t": 12.3,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.885416666666666
+  },
+  {
+   "t": 12.4,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.896446078431373
+  },
+  {
+   "t": 12.5,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.902573529411764
+  },
+  {
+   "t": 12.6,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.905024509803921
+  },
+  {
+   "t": 12.7,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.902573529411764
+  },
+  {
+   "t": 12.8,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.892156862745098
+  },
+  {
+   "t": 12.9,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.897671568627452
+  },
+  {
+   "t": 13.0,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.89950980392157
+  },
+  {
+   "t": 13.1,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.893995098039216
+  },
+  {
+   "t": 13.2,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.895220588235293
+  },
+  {
+   "t": 13.3,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.893382352941176
+  },
+  {
+   "t": 13.4,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.900735294117647
+  },
+  {
+   "t": 13.5,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.897058823529411
+  },
+  {
+   "t": 13.6,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.896446078431373
+  },
+  {
+   "t": 13.7,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.88296568627451
+  },
+  {
+   "t": 13.8,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.886642156862745
+  },
+  {
+   "t": 13.9,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.875
+  },
+  {
+   "t": 14.0,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.879289215686274
+  },
+  {
+   "t": 14.1,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.889705882352942
+  },
+  {
+   "t": 14.2,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.887254901960784
+  },
+  {
+   "t": 14.3,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.886642156862745
+  },
+  {
+   "t": 14.4,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.892156862745098
+  },
+  {
+   "t": 14.5,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.888480392156863
+  },
+  {
+   "t": 14.6,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.884803921568627
+  },
+  {
+   "t": 14.7,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.892769607843137
+  },
+  {
+   "t": 14.8,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.886029411764707
+  },
+  {
+   "t": 14.9,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.895833333333334
+  },
+  {
+   "t": 15.0,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.88174019607843
+  },
+  {
+   "t": 15.1,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.893382352941176
+  },
+  {
+   "t": 15.2,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.879289215686274
+  },
+  {
+   "t": 15.3,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.885416666666666
+  },
+  {
+   "t": 15.4,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.881127450980392
+  },
+  {
+   "t": 15.5,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.891544117647058
+  },
+  {
+   "t": 15.6,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.88174019607843
+  },
+  {
+   "t": 15.7,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.887254901960784
+  },
+  {
+   "t": 15.8,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.895220588235293
+  },
+  {
+   "t": 15.9,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.889705882352942
+  },
+  {
+   "t": 16.0,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.897058823529411
+  },
+  {
+   "t": 16.1,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.893382352941176
+  },
+  {
+   "t": 16.2,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.89828431372549
+  },
+  {
+   "t": 16.3,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.882352941176471
+  },
+  {
+   "t": 16.4,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.881127450980392
+  },
+  {
+   "t": 16.5,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.881127450980392
+  },
+  {
+   "t": 16.6,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.873774509803921
+  },
+  {
+   "t": 16.7,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.894607843137255
+  },
+  {
+   "t": 16.8,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.880514705882353
+  },
+  {
+   "t": 16.9,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.887254901960784
+  },
+  {
+   "t": 17.0,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.89031862745098
+  },
+  {
+   "t": 17.1,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.893382352941176
+  },
+  {
+   "t": 17.2,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.88296568627451
+  },
+  {
+   "t": 17.3,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.886029411764707
+  },
+  {
+   "t": 17.4,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.892156862745098
+  },
+  {
+   "t": 17.5,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.893382352941176
+  },
+  {
+   "t": 17.6,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.89828431372549
+  },
+  {
+   "t": 17.7,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.898897058823529
+  },
+  {
+   "t": 17.8,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.887254901960784
+  },
+  {
+   "t": 17.9,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.886642156862745
+  },
+  {
+   "t": 18.0,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.893995098039216
+  },
+  {
+   "t": 18.1,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.875612745098039
+  },
+  {
+   "t": 18.2,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.886642156862745
+  },
+  {
+   "t": 18.3,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.88296568627451
+  },
+  {
+   "t": 18.4,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.901960784313726
+  },
+  {
+   "t": 18.5,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.88296568627451
+  },
+  {
+   "t": 18.6,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.889705882352942
+  },
+  {
+   "t": 18.7,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.892769607843137
+  },
+  {
+   "t": 18.8,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.896446078431373
+  },
+  {
+   "t": 18.9,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.895833333333334
+  },
+  {
+   "t": 19.0,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.884191176470589
+  },
+  {
+   "t": 19.1,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.887867647058824
+  },
+  {
+   "t": 19.2,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.880514705882353
+  },
+  {
+   "t": 19.3,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.893995098039216
+  },
+  {
+   "t": 19.4,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.883578431372548
+  },
+  {
+   "t": 19.5,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.887254901960784
+  },
+  {
+   "t": 19.6,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.886642156862745
+  },
+  {
+   "t": 19.7,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.889705882352942
+  },
+  {
+   "t": 19.8,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.880514705882353
+  },
+  {
+   "t": 19.9,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.883578431372548
+  },
+  {
+   "t": 20.0,
+   "cavity": 0.0,
+   "basin": 408.0,
+   "total": 408.0,
+   "A_surface_mean": 14.887254901960784
+  }
+ ],
+ "verdict": {
+  "cavity_fills": "FAIL",
+  "surface_ends_at_level_minus_48": "FAIL",
+  "mass": "PASS",
+  "control_sealed_cavity_dry": "PASS"
+ },
+ "capture": "G:\\Github\\phyxel\\docs\\evidence\\water_feel\\S5_basin_core_h1_flip_20261008_171747.png"
+}

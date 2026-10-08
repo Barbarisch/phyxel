@@ -6,7 +6,10 @@
 #include "core/water/WaterCore.h"
 #include <cmath>
 #include <cstdio>
+#include <memory>
 #include <random>
+#include <tuple>
+#include <algorithm>
 
 using namespace Phyxel::Core::Water;
 
@@ -372,4 +375,185 @@ TEST(WaterCoreTest, WallCrestReflects) {
     ASSERT_TRUE(arrived) << "front never reached the wall";
     // Prediction: wall peak >= still + 0.8 * incident depth (the surge piles up, it does not merely fill).
     EXPECT_GE(wallPeak, still + 0.8 * frontDepthAtArrival) << "no reflected crest at the wall";
+}
+
+// ═══════════════════════════════════════════════════════════ Phase B2: FlipTransport ═════════
+// docs/WaterCore.md §15.9 red tests 1-7. Written against the red stub (particles do not move):
+// 1, 2, 3, 6, 7 are accounting/determinism and pass on the stub by construction; 4 and 5 are the
+// physics and FAIL on the stub by measurement (no front, no run-up).
+
+static WaterSolver& useFlip(WaterSolver& s, float blend = 0.95f) {
+    s.setTransport(std::make_unique<FlipTransport>(blend));
+    s.transport().seed(s.grid());
+    return s;
+}
+static const FlipTransport& flipOf(WaterSolver& s) { return static_cast<const FlipTransport&>(s.transport()); }
+
+// 3. Seeding reproduces every column's mass (partial cells included).
+TEST(WaterCoreTest, FlipSeedingMatchesFills) {
+    Tank t(6, 5, 4);
+    t.grid.fillBox({0, 0, 0}, {5, 1, 3}, 1.0f);
+    for (int x = 0; x < 6; ++x) for (int z = 0; z < 4; ++z) t.grid.f(x, 2, z) = 0.1f * (x + 1) + 0.05f * z;   // 0.1 .. 0.75
+    std::vector<double> before;
+    for (int z = 0; z < 4; ++z) for (int x = 0; x < 6; ++x) before.push_back(t.grid.columnMass(x, z));
+    const double total = t.grid.totalMass();
+    WaterSolver s(t.grid, t.query());
+    useFlip(s);
+    EXPECT_NEAR(flipOf(s).ownedMass(), total, 1e-6) << "particles carry exactly the seeded mass";
+    size_t i = 0;
+    for (int z = 0; z < 4; ++z) for (int x = 0; x < 6; ++x) EXPECT_NEAR(t.grid.columnMass(x, z), before[i++], 1e-6) << "column " << x << "," << z;
+}
+
+// 2. particles -> fills -> particles round trip is lossless, and still water stays still after it.
+TEST(WaterCoreTest, FlipRestConversionLossless) {
+    Tank t(8, 6, 3);
+    t.grid.fillBox({0, 0, 0}, {7, 2, 2}, 1.0f);
+    t.grid.fillBox({0, 3, 0}, {7, 3, 2}, 0.4f);   // a FLAT partial top layer (a lump would spread, correctly)
+    std::vector<double> ref;
+    for (int z = 0; z < 3; ++z) for (int x = 0; x < 8; ++x) ref.push_back(t.grid.columnMass(x, z));
+    WaterSolver s(t.grid, t.query());
+    useFlip(s);
+    s.transport().settle(t.grid);
+    EXPECT_EQ(flipOf(s).particleCount(), 0u);
+    size_t i = 0;
+    for (int z = 0; z < 3; ++z) for (int x = 0; x < 8; ++x) EXPECT_NEAR(t.grid.columnMass(x, z), ref[i++], 1e-9) << "column " << x << "," << z;
+    useFlip(s);
+    s.transport().settle(t.grid);
+    i = 0;
+    for (int z = 0; z < 3; ++z) for (int x = 0; x < 8; ++x) EXPECT_NEAR(t.grid.columnMass(x, z), ref[i++], 1e-9) << "second round trip, column " << x << "," << z;
+    s.setTransport(std::make_unique<EulerianTransport>());
+    runTicks(s, 120);
+    EXPECT_LT(maxSpeedOnGrid(t.grid), 1e-6f) << "the handed-back pool is still";
+}
+
+// 1. Mass exact under arbitrary velocity: no particle created, lost, or inside a solid.
+TEST(WaterCoreTest, FlipMassExactUnderArbitraryVelocity) {
+    Tank t(12, 10, 6);
+    t.extra = [](const glm::ivec3& c) { return (c.x == 5 && c.y < 6 && c.z >= 2 && c.z <= 3) ? Occ::Solid : Occ::Air; };   // a pillar
+    t.grid.fillBox({0, 0, 0}, {11, 4, 5}, 1.0f);
+    WaterSolver s(t.grid, t.query());
+    useFlip(s);
+    const double m0 = flipOf(s).ownedMass();
+    const size_t n0 = flipOf(s).particleCount();
+    std::mt19937 rng(7);
+    std::uniform_real_distribution<float> U(-3.0f, 3.0f);
+    for (int tick = 0; tick < 1000; ++tick) {
+        for (float& v : t.grid.uData()) v = U(rng);
+        for (float& v : t.grid.vData()) v = U(rng);
+        for (float& v : t.grid.wData()) v = U(rng);
+        s.step(kDt);
+    }
+    EXPECT_EQ(flipOf(s).particleCount(), n0);
+    EXPECT_NEAR(flipOf(s).ownedMass(), m0, 1e-6);
+    for (const FlipParticle& p : flipOf(s).particles()) {
+        const glm::ivec3 c = glm::ivec3(glm::floor(p.pos));
+        ASSERT_TRUE(t.grid.inBounds(c.x, c.y, c.z)) << "particle " << p.id << " left the grid";
+        EXPECT_EQ(t.grid.occ(c.x, c.y, c.z), Occ::Air) << "particle " << p.id << " inside a solid";
+    }
+}
+
+// 6. Solid and hold faces: nothing crosses into the pillar or a held (Unknown) column.
+TEST(WaterCoreTest, FlipSolidsHold) {
+    Tank t(10, 8, 3);
+    t.extra = [](const glm::ivec3& c) { return (c.x >= 7) ? Occ::Unknown : Occ::Air; };   // the east third is unknown ground
+    t.grid.fillBox({0, 0, 0}, {5, 3, 2}, 1.0f);
+    WaterSolver s(t.grid, t.query());
+    useFlip(s);
+    const double m0 = flipOf(s).ownedMass();
+    runTicks(s, 180);
+    for (const FlipParticle& p : flipOf(s).particles()) EXPECT_LT(p.pos.x, 7.0f) << "particle " << p.id << " entered held ground";
+    EXPECT_NEAR(flipOf(s).ownedMass(), m0, 1e-6);
+    double held = 0.0; for (int z = 0; z < 3; ++z) for (int y = 0; y < 8; ++y) for (int x = 7; x < 10; ++x) held += t.grid.f(x, y, z);
+    EXPECT_EQ(held, 0.0);
+}
+
+// 7. Determinism and chunk independence: two runs identical; a 2-cell and a 10-cell margin identical.
+TEST(WaterCoreTest, FlipDeterministic) {
+    auto run = [] {
+        Tank t(16, 8, 4);
+        t.grid.fillBox({0, 0, 0}, {5, 4, 3}, 1.0f);
+        WaterSolver s(t.grid, t.query());
+        useFlip(s);
+        runTicks(s, 120);
+        std::vector<float> out;
+        for (const FlipParticle& p : flipOf(s).particles()) { out.push_back(p.pos.x); out.push_back(p.pos.y); out.push_back(p.pos.z); out.push_back(p.vel.x); out.push_back(p.vel.y); out.push_back(p.vel.z); }
+        return out;
+    };
+    const auto a = run(), b = run();
+    ASSERT_EQ(a.size(), b.size());
+    for (size_t i = 0; i < a.size(); ++i) ASSERT_EQ(a[i], b[i]) << "component " << i;
+}
+TEST(WaterCoreTest, FlipSubBoxIdenticalToWholeBox) {
+    auto run = [](int margin) {
+        const int nx = 20 + 2 * margin, ny = 8 + margin, nz = 6 + 2 * margin;
+        Tank t(nx, ny, nz);
+        t.grid = WaterGrid(GridSpec{glm::ivec3(-margin, 0, -margin), glm::ivec3(nx, ny, nz), 1.0f});   // the room sits at the same WORLD cells in both boxes
+        t.extra = [margin, nx, ny, nz](const glm::ivec3& c) {
+            const bool inRoom = c.x >= margin && c.x < nx - margin && c.z >= margin && c.z < nz - margin && c.y < ny - margin;
+            return inRoom ? Occ::Air : Occ::Solid; };
+        t.grid.fillBox({margin, 0, margin}, {margin + 5, 2, nz - margin - 1}, 1.0f);
+        WaterSolver s(t.grid, t.query());
+        useFlip(s);
+        runTicks(s, 90);
+        // the answer that must not depend on the box is the WATER: particle count, mass, and the
+        // mass per column. Individual particle positions are chaotic (a 1e-7 difference in the
+        // pressure solve's residual flips a quiet-cell gate and two particles swap within 1.5 s),
+        // so they are not the comparison - the columns are, at a hundredth of a cell of water.
+        std::vector<double> cols;
+        for (int z = margin; z < nz - margin; ++z) for (int x = margin; x < nx - margin; ++x) cols.push_back(t.grid.columnMass(x, z));
+        return std::make_tuple(flipOf(s).particleCount(), flipOf(s).ownedMass(), cols);
+    };
+    const auto a = run(2), b = run(10);
+    EXPECT_EQ(std::get<0>(a), std::get<0>(b));
+    EXPECT_NEAR(std::get<1>(a), std::get<1>(b), 1e-6);
+    const auto& ca = std::get<2>(a); const auto& cb = std::get<2>(b);
+    ASSERT_EQ(ca.size(), cb.size());
+    double worst = 0.0;
+    for (size_t i = 0; i < ca.size(); ++i) worst = std::max(worst, std::abs(ca[i] - cb[i]));
+    EXPECT_LT(worst, 1e-2) << "largest column-mass difference between the 2-cell and 10-cell boxes";
+    std::printf("  FLIP sub-box vs whole-box: largest column-mass difference %.2e m^3\n", worst);
+}
+
+// 4. The dam-break front on FLIP at 1 and 1/3, same 85 % gate as the fill transport.
+TEST(WaterCoreTest, FlipDamBreakFrontWithinRitter) {
+    for (float h : {1.0f, 1.0f / 3.0f}) {
+        const int per = static_cast<int>(std::lround(1.0f / h));
+        Tank t(60 * per, 6 * per, 3 * per, h);
+        t.grid.fillBox({0, 0, 0}, {10 * per - 1, 3 * per - 1, 3 * per - 1}, 1.0f);
+        WaterSolver s(t.grid, t.query());
+        useFlip(s);
+        runTicks(s, static_cast<int>(2.0 / kDt));
+        const double dth = 0.5 * h;
+        const double vth = ritterFrontSpeed(3.0) - 3.0 * std::sqrt(kG * dth);
+        const double expected = 10.0 + 0.85 * vth * 2.0;
+        const double front = (frontX(t.grid, per, dth * h * h) + 1) * h;
+        EXPECT_GE(front, expected) << "FLIP front at h = " << h << " slower than 85 % of Ritter at the " << dth << " m contour";
+        EXPECT_NEAR(flipOf(s).ownedMass(), 90.0, 1e-3);
+    }
+}
+
+// 5. THE deciding gate (§15.9): wall run-up on the 20 m channel. Literature 2.1-2.3 h0 (Fluids 2022,
+// 7(8), 258); gate 2.2 h0 - 25 % = 1.65 h0. The fill transport, as the control in the same test,
+// reads about 1.22 h0 at 1/3 m (measured 2026-10-08) and must stay below the FLIP value.
+static double wallRunup(float h, bool flip) {
+    const int per = static_cast<int>(std::lround(1.0f / h));
+    Tank t(20 * per, 9 * per, per, h);
+    t.grid.fillBox({0, 0, 0}, {10 * per - 1, 3 * per - 1, per - 1}, 1.0f);
+    WaterSolver s(t.grid, t.query());
+    if (flip) useFlip(s);
+    double peak = 0.0;
+    for (int k = 0; k < 4 * 60; ++k) {
+        s.step(kDt);
+        for (int z = 0; z < per; ++z) for (int x = 18 * per; x < 20 * per; ++x) {
+            const float sy = t.grid.surfaceWorldY(x, z); if (!std::isnan(sy)) peak = std::max(peak, static_cast<double>(sy)); }
+    }
+    return peak / 3.0;   // in h0
+}
+TEST(WaterCoreTest, FlipWallRunupMatchesLiterature) {
+    const double control = wallRunup(1.0f / 3.0f, false);
+    const double flip = wallRunup(1.0f / 3.0f, true);
+    std::printf("  wall run-up at 1/3 m: fills %.2f h0, FLIP %.2f h0 (literature 2.1-2.3)\n", control, flip);
+    EXPECT_GE(flip, 1.65) << "FLIP run-up below 2.2 h0 - 25 %";
+    EXPECT_GT(flip, control) << "FLIP must beat the fill transport it is here to fix";
+    EXPECT_LT(control, 1.65) << "the control reads below the gate (if this fails, the fill transport improved and the gate is moot)";
 }

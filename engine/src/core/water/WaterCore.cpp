@@ -218,6 +218,200 @@ void EulerianTransport::advect(WaterGrid& g, float dt) {
     g.uData().swap(m_uNew); g.vData().swap(m_vNew); g.wData().swap(m_wNew);
 }
 
+// ─────────────────────────────────────────────────────────────────── FlipTransport ───────────
+// Phase B2 red stub (2026-10-08): seeding, settling and accounting are real; advect does NOTHING
+// yet, so the dam-break front, the run-up and the pump tests fail against it by measurement.
+
+namespace {
+inline uint32_t flipHash(uint32_t a, uint32_t b, uint32_t c) {
+    uint32_t h = a * 0x9E3779B1u ^ (b + 0x7F4A7C15u) * 0x85EBCA77u ^ (c + 0x165667B1u) * 0xC2B2AE3Du;
+    h ^= h >> 15; h *= 0x2C1B3C6Du; h ^= h >> 12; h *= 0x297A2D39u; h ^= h >> 15;
+    return h;
+}
+inline float flipJitter(uint32_t a, uint32_t b, uint32_t c) { return (flipHash(a, b, c) & 0xFFFFu) / 65536.0f; }
+} // namespace
+
+void FlipTransport::sortParticles(const WaterGrid& g) {
+    std::sort(m_particles.begin(), m_particles.end(), [&](const FlipParticle& p, const FlipParticle& q) {
+        const glm::ivec3 cp = glm::ivec3(glm::floor(p.pos)), cq = glm::ivec3(glm::floor(q.pos));
+        const size_t ip = g.inBounds(cp.x, cp.y, cp.z) ? g.idx(cp.x, cp.y, cp.z) : ~size_t(0);
+        const size_t iq = g.inBounds(cq.x, cq.y, cq.z) ? g.idx(cq.x, cq.y, cq.z) : ~size_t(0);
+        return ip != iq ? ip < iq : p.id < q.id;
+    });
+}
+
+void FlipTransport::seed(WaterGrid& g) {
+    m_particles.clear();
+    const float V = g.cellVolume();
+    const float mp = V / static_cast<float>(kParticlesPerCell);
+    for (int z = 0; z < g.nz(); ++z) for (int y = 0; y < g.ny(); ++y) for (int x = 0; x < g.nx(); ++x) {
+        const float fc = g.f(x, y, z);
+        if (fc <= 0.0f || g.occ(x, y, z) != Occ::Air) continue;
+        const double cellMass = static_cast<double>(fc) * V;
+        int n = static_cast<int>(std::floor(cellMass / mp + 1e-6));
+        n = std::min(n, kParticlesPerCell);
+        const double remainder = cellMass - static_cast<double>(n) * mp;
+        const glm::ivec3 wc = g.spec().origin + glm::ivec3(x, y, z);
+        const uint32_t cellIdx = flipHash(static_cast<uint32_t>(wc.x), static_cast<uint32_t>(wc.y), static_cast<uint32_t>(wc.z));   // WORLD cell: the sub-box and the whole box seed identically
+        auto place = [&](int i, float mass) {
+            // 2x2x2 jittered sites inside the WET part of the cell (water lies on the cell floor)
+            const int sx = i & 1, sy = (i >> 1) & 1, sz = (i >> 2) & 1;
+            FlipParticle p;
+            p.pos = glm::vec3(x + 0.5f * sx + 0.5f * flipJitter(cellIdx, i, 1),
+                              y + fc * (0.5f * sy + 0.5f * flipJitter(cellIdx, i, 2)),
+                              z + 0.5f * sz + 0.5f * flipJitter(cellIdx, i, 3));
+            p.vel = glm::vec3(0.5f * (g.u(x, y, z) + g.u(x + 1, y, z)), 0.5f * (g.v(x, y, z) + g.v(x, y + 1, z)), 0.5f * (g.w(x, y, z) + g.w(x, y, z + 1)));
+            p.mass = mass; p.id = m_nextId++;
+            m_particles.push_back(p);
+        };
+        for (int i = 0; i < n; ++i) place(i, mp);
+        if (remainder > 1e-9 * V) place(n, static_cast<float>(remainder));
+    }
+    sortParticles(g);
+    m_haveOldGrid = false;
+    particlesToGrid(g);
+}
+
+void FlipTransport::settle(WaterGrid& g) {
+    std::fill(g.fData().begin(), g.fData().end(), 0.0f);
+    const float V = g.cellVolume();
+    for (const FlipParticle& p : m_particles) {
+        glm::ivec3 c = glm::ivec3(glm::floor(p.pos));
+        c = glm::clamp(c, glm::ivec3(0), glm::ivec3(g.nx() - 1, g.ny() - 1, g.nz() - 1));
+        g.f(c.x, c.y, c.z) += p.mass / V;
+    }
+    m_particles.clear();
+    m_haveOldGrid = false;
+}
+
+double FlipTransport::ownedMass() const {
+    double m = 0.0;
+    for (const FlipParticle& p : m_particles) m += p.mass;
+    return m;
+}
+
+double FlipTransport::addVolume(WaterGrid& g, const glm::ivec3& cell, double m3, const glm::vec3& vel) {
+    if (!g.inBounds(cell.x, cell.y, cell.z) || g.occ(cell.x, cell.y, cell.z) != Occ::Air || m3 <= 0.0) return 0.0;
+    const float mp = g.cellVolume() / static_cast<float>(kParticlesPerCell);
+    double placed = 0.0;
+    const glm::ivec3 wc = g.spec().origin + cell;
+    const uint32_t cellIdx = flipHash(static_cast<uint32_t>(wc.x), static_cast<uint32_t>(wc.y), static_cast<uint32_t>(wc.z));
+    while (m3 - placed >= mp && m_particles.size() < kMaxParticlesPerVolume) {
+        FlipParticle p;
+        const uint32_t k = m_nextId;
+        p.pos = glm::vec3(cell.x + 0.1f + 0.8f * flipJitter(cellIdx, k, 4), cell.y + 0.1f + 0.8f * flipJitter(cellIdx, k, 5), cell.z + 0.1f + 0.8f * flipJitter(cellIdx, k, 6));
+        p.vel = vel; p.mass = mp; p.id = m_nextId++;
+        m_particles.push_back(p);
+        placed += mp;
+    }
+    return placed;   // whole particles only; the remainder is owed (SourceSpec::pending)
+}
+
+double FlipTransport::removeVolume(WaterGrid& g, const glm::ivec3& cell, double m3) {
+    if (!g.inBounds(cell.x, cell.y, cell.z) || m3 <= 0.0) return 0.0;
+    double removed = 0.0;
+    // lowest creation index in the cell first (the list is sorted by cell, then id)
+    for (size_t i = 0; i < m_particles.size() && removed < m3;) {
+        const glm::ivec3 c = glm::ivec3(glm::floor(m_particles[i].pos));
+        if (c == cell) { removed += m_particles[i].mass; m_particles.erase(m_particles.begin() + static_cast<std::ptrdiff_t>(i)); }
+        else ++i;
+    }
+    return removed;
+}
+
+namespace {
+// Trilinear scatter of (weight, weight*value) onto a lattice of size (sx, sy, sz) at lattice
+// position q; nodes outside the lattice are skipped (their share is lost to the wall, as a
+// particle pressed against a boundary has no face beyond it).
+inline void scatterLattice(std::vector<float>& acc, std::vector<float>& wacc, int sx, int sy, int sz, const glm::vec3& q, float w, float value) {
+    const int x0 = static_cast<int>(std::floor(q.x)), y0 = static_cast<int>(std::floor(q.y)), z0 = static_cast<int>(std::floor(q.z));
+    const float tx = q.x - x0, ty = q.y - y0, tz = q.z - z0;
+    for (int dz = 0; dz < 2; ++dz) for (int dy = 0; dy < 2; ++dy) for (int dx = 0; dx < 2; ++dx) {
+        const int x = x0 + dx, y = y0 + dy, z = z0 + dz;
+        if (x < 0 || y < 0 || z < 0 || x >= sx || y >= sy || z >= sz) continue;
+        const float wt = w * (dx ? tx : 1 - tx) * (dy ? ty : 1 - ty) * (dz ? tz : 1 - tz);
+        if (wt <= 0.0f) continue;
+        const size_t i = static_cast<size_t>(x) + static_cast<size_t>(sx) * (static_cast<size_t>(y) + static_cast<size_t>(sy) * z);
+        acc[i] += wt * value; wacc[i] += wt;
+    }
+}
+// Face-sampled velocity (m/s) of three lattices at a cell-space position.
+inline glm::vec3 sampleFaces(const std::vector<float>& u, const std::vector<float>& v, const std::vector<float>& w, int nx, int ny, int nz, const glm::vec3& p) {
+    return glm::vec3(sampleLattice(u, nx + 1, ny, nz, glm::vec3(p.x, p.y - 0.5f, p.z - 0.5f)),
+                     sampleLattice(v, nx, ny + 1, nz, glm::vec3(p.x - 0.5f, p.y, p.z - 0.5f)),
+                     sampleLattice(w, nx, ny, nz + 1, glm::vec3(p.x - 0.5f, p.y - 0.5f, p.z)));
+}
+} // namespace
+
+void FlipTransport::particlesToGrid(WaterGrid& g) {
+    const int nx = g.nx(), ny = g.ny(), nz = g.nz();
+    std::vector<float>& f = g.fData();
+    std::fill(f.begin(), f.end(), 0.0f);
+    const float V = g.cellVolume();
+    std::vector<float>& u = g.uData(); std::vector<float>& v = g.vData(); std::vector<float>& w = g.wData();
+    std::fill(u.begin(), u.end(), 0.0f); std::fill(v.begin(), v.end(), 0.0f); std::fill(w.begin(), w.end(), 0.0f);
+    m_uW.assign(u.size(), 0.0f); m_vW.assign(v.size(), 0.0f); m_wW.assign(w.size(), 0.0f);
+    for (const FlipParticle& p : m_particles) {   // sorted order: deterministic accumulation
+        const glm::ivec3 c = glm::ivec3(glm::floor(p.pos));
+        if (g.inBounds(c.x, c.y, c.z)) f[g.idx(c.x, c.y, c.z)] += p.mass / V;
+        scatterLattice(u, m_uW, nx + 1, ny, nz, glm::vec3(p.pos.x, p.pos.y - 0.5f, p.pos.z - 0.5f), p.mass, p.vel.x);
+        scatterLattice(v, m_vW, nx, ny + 1, nz, glm::vec3(p.pos.x - 0.5f, p.pos.y, p.pos.z - 0.5f), p.mass, p.vel.y);
+        scatterLattice(w, m_wW, nx, ny, nz + 1, glm::vec3(p.pos.x - 0.5f, p.pos.y - 0.5f, p.pos.z), p.mass, p.vel.z);
+    }
+    for (size_t i = 0; i < u.size(); ++i) u[i] = m_uW[i] > 0.0f ? u[i] / m_uW[i] : 0.0f;
+    for (size_t i = 0; i < v.size(); ++i) v[i] = m_vW[i] > 0.0f ? v[i] / m_vW[i] : 0.0f;
+    for (size_t i = 0; i < w.size(); ++i) w[i] = m_wW[i] > 0.0f ? w[i] / m_wW[i] : 0.0f;
+    m_uOld = u; m_vOld = v; m_wOld = w;   // the FLIP delta base for the next substep
+    m_haveOldGrid = true;
+}
+
+void FlipTransport::advect(WaterGrid& g, float dt) {
+    const int nx = g.nx(), ny = g.ny(), nz = g.nz();
+    const float h = g.h();
+    const float eps = 1e-4f;
+    auto blockedCell = [&](int x, int y, int z) { return !g.inBounds(x, y, z) || g.occ(x, y, z) != Occ::Air; };
+    // 1. grid -> particle: the projected grid (left by the last projection, extrapolated into its
+    //    halo) vs the p2g base of the last substep. FLIP keeps the particle's own velocity plus the
+    //    grid's CHANGE; the PIC share damps the noise FLIP is known for.
+    if (m_haveOldGrid) {
+        for (FlipParticle& p : m_particles) {
+            const glm::vec3 vNew = sampleFaces(g.uData(), g.vData(), g.wData(), nx, ny, nz, p.pos);
+            const glm::vec3 vOld = sampleFaces(m_uOld, m_vOld, m_wOld, nx, ny, nz, p.pos);
+            p.vel = m_flipBlend * (p.vel + (vNew - vOld)) + (1.0f - m_flipBlend) * vNew;
+        }
+    }
+    // 2. move: RK2 in the grid field (cells/s), then axis-split placement against solids and the
+    //    hold boundary - a blocked axis loses its velocity component, the others keep theirs.
+    for (FlipParticle& p : m_particles) {
+        const glm::vec3 k1 = sampleFaces(g.uData(), g.vData(), g.wData(), nx, ny, nz, p.pos) / h;
+        const glm::vec3 mid = p.pos + 0.5f * dt * k1;
+        glm::vec3 k2 = sampleFaces(g.uData(), g.vData(), g.wData(), nx, ny, nz, mid) / h;
+        // a particle the grid does not reach (no wet face around it) moves by its own velocity
+        if (glm::dot(k2, k2) == 0.0f) k2 = p.vel / h;
+        glm::vec3 target = p.pos + dt * k2;
+        glm::vec3 pos = p.pos;
+        for (int axis = 0; axis < 3; ++axis) {
+            glm::vec3 trial = pos; trial[axis] = target[axis];
+            const glm::ivec3 c = glm::ivec3(glm::floor(trial));
+            if (!blockedCell(c.x, c.y, c.z)) { pos = trial; continue; }
+            // stop at the face of the blocked cell, drop the component into it
+            const int here = static_cast<int>(std::floor(pos[axis]));
+            pos[axis] = target[axis] > pos[axis] ? static_cast<float>(here + 1) - eps : static_cast<float>(here) + eps;
+            p.vel[axis] = 0.0f;
+        }
+        // the particle's current cell may itself have become solid (a block placed on water): lift it
+        const glm::ivec3 cc = glm::ivec3(glm::floor(pos));
+        if (blockedCell(cc.x, cc.y, cc.z)) {
+            for (int up = 1; up < ny; ++up) { if (!blockedCell(cc.x, cc.y + up, cc.z)) { pos.y = static_cast<float>(cc.y + up) + 0.5f; break; } }
+            p.vel = glm::vec3(0.0f);
+        }
+        p.pos = glm::clamp(pos, glm::vec3(eps), glm::vec3(nx - eps, ny - eps, nz - eps));
+    }
+    // 3. particle -> grid in sorted order (the mass field and the velocity the solver projects)
+    sortParticles(g);
+    particlesToGrid(g);
+}
+
 // ─────────────────────────────────────────────────────────────────── WaterSolver ─────────────
 WaterSolver::WaterSolver(WaterGrid& grid, SolidQuery solids, SolverParams params)
     : m_grid(grid), m_solids(std::move(solids)), m_params(params),
@@ -277,6 +471,23 @@ void WaterSolver::applySources(float dt, StepReport& r) {
     for (SourceSpec& s : m_sources) {
         if (!m_grid.inBounds(s.cell.x, s.cell.y, s.cell.z) || m_grid.occ(s.cell.x, s.cell.y, s.cell.z) != Occ::Air) continue;
         float& fc = m_grid.f(s.cell.x, s.cell.y, s.cell.z);
+        if (m_transport->ownsMass()) {   // Phase B2: the particle transport takes or gives the volume itself
+            const double owedT = std::min(s.pending, static_cast<double>(std::abs(s.rate)));
+            const double wantT = static_cast<double>(s.rate) * dt + (s.rate >= 0.0f ? owedT : -owedT);
+            if (wantT >= 0.0) {
+                const glm::vec3 outletVel(0.5f * (m_grid.u(s.cell.x, s.cell.y, s.cell.z) + m_grid.u(s.cell.x + 1, s.cell.y, s.cell.z)),
+                                          0.5f * (m_grid.v(s.cell.x, s.cell.y, s.cell.z) + m_grid.v(s.cell.x, s.cell.y + 1, s.cell.z)),
+                                          0.5f * (m_grid.w(s.cell.x, s.cell.y, s.cell.z) + m_grid.w(s.cell.x, s.cell.y, s.cell.z + 1)));
+                const double placed = m_transport->addVolume(m_grid, s.cell, wantT, outletVel);
+                s.placedTotal += placed; s.unplaced = wantT - placed; s.pending = wantT - placed;
+                r.sourceAdded += placed; r.sourceUnplaced += wantT - placed;
+            } else {
+                const double take = m_transport->removeVolume(m_grid, s.cell, -wantT);
+                s.placedTotal -= take; s.pending = -wantT - take;
+                r.sinkRemoved += take;
+            }
+            continue;
+        }
         // A pump at a fixed rate owes what the outlet could not take: carry it (bounded to one
         // second of rate, so a long blockage releases as a short surge, not a flood) - without
         // this the S2 pump delivered 93 % of 0.1 m^3/s and the ledger could not close on the rate.
@@ -473,6 +684,30 @@ void WaterSolver::project(float dt, StepReport& r) {
                 const double q = (static_cast<double>(src.rate) + (src.rate >= 0.0f ? owedRate : -owedRate)) / m_grid.cellVolume();
                 rhs[i] += q / dt;
             }
+        // Particle transport only: an over-full cell (clustered particles, f > 1 after p2g) is asked
+        // to push outward at no more than the one-cell free-fall rate per substep (§15.9 volume
+        // control; fills never exceed 1 so this is inert for them).
+        if (m_transport->ownsMass()) {
+            const float fc2 = m_grid.f(x, y, z);
+            const double vfall = std::sqrt(2.0 * static_cast<double>(m_params.gravity) * h);
+            if (fc2 > 1.0f) {
+                const double df = std::min<double>(fc2 - 1.0, vfall * dt / h);
+                rhs[i] += df / (static_cast<double>(dt) * dt);
+            } else if (fc2 < 1.0f && y + 1 < ny && !blocked(m_grid, x, y + 1, z) && m_grid.f(x, y + 1, z) > 0.0f
+                       && std::abs(m_grid.v(x, y + 1, z)) * dt / h < 0.1 * vfall * dt / h
+                       && (0.25 * std::pow(static_cast<double>(m_grid.u(x, y, z) + m_grid.u(x + 1, y, z)), 2)
+                         + 0.25 * std::pow(static_cast<double>(m_grid.w(x, y, z) + m_grid.w(x, y, z + 1)), 2)) < 0.01 * vfall * vfall) {
+                // ... in a QUIET cell only (lateral and vertical speed under a tenth of the one-cell
+                // free fall): on a climbing sheet or a streaming front the under-full cells are
+                // the surface in motion, and pulling them cost the run-up (2.06 -> 1.42 h0)
+                // SYMMETRIC density control: a submerged under-full cell pulls. One-sided pushing
+                // alone let the column's mean density drift below 1 and the trough spilled at 74 %
+                // full (S2 Small on FLIP, 2026-10-08). The free-surface cell (nothing above) is left
+                // to transport, as for fills.
+                const double df = std::min<double>(1.0 - fc2, vfall * dt / h);
+                rhs[i] -= df / (static_cast<double>(dt) * dt);
+            }
+        }
         // A partial liquid cell under a SOLID ceiling has no face its surface could rise through:
         // projected as full and divergence-free it can never take the water that would fill it, so
         // a sealed cavity filling through a hole stalled with its top layer at ~0.5 (41.9 of 48 m^3,
@@ -482,7 +717,7 @@ void WaterSolver::project(float dt, StepReport& r) {
         // compactSubmergedPartials.
         {
             const float fc = m_grid.f(x, y, z);
-            if (fc < 1.0f && blocked(m_grid, x, y + 1, z)) {
+            if (fc < 1.0f && blocked(m_grid, x, y + 1, z) && !m_transport->ownsMass()) {
                 const double vfall = std::sqrt(2.0 * static_cast<double>(m_params.gravity) * h);
                 const double df = std::min<double>(1.0 - fc, vfall * dt / h);
                 rhs[i] -= df / (static_cast<double>(dt) * dt);
@@ -652,7 +887,8 @@ void WaterSolver::extrapolateVelocity() {
     // three-cell free fall (a face at -43.7 m/s under a 1e-6 trickle drove the CFL substep count
     // and the back-traces around it, S3 Basin 2026-10-08). Droplets proper are the §12 pool.
     const float vFallMax = static_cast<float>(std::sqrt(2.0 * m_params.gravity * 3.0 * m_grid.h()));
-    for (size_t i = 0; i < keepV.size(); ++i) if (keepV[i]) { m_grid.vData()[i] = std::max(fallingV[i], -vFallMax); kv[i] = 1; }
+    const bool clampFall = !m_transport->ownsMass();   // a particle falling five metres is allowed its 10 m/s
+    for (size_t i = 0; i < keepV.size(); ++i) if (keepV[i]) { m_grid.vData()[i] = clampFall ? std::max(fallingV[i], -vFallMax) : fallingV[i]; kv[i] = 1; }
     auto finish = [](std::vector<float>& a, const std::vector<uint8_t>& reached, const std::vector<uint8_t>& wetFace) {
         for (size_t i = 0; i < a.size(); ++i) if (!reached[i] && !wetFace[i]) a[i] = 0.0f;
     };
@@ -767,7 +1003,8 @@ StepReport WaterSolver::step(float dt) {
     m_fPrev.assign(m_grid.fData().begin(), m_grid.fData().end());
     const int n = substepsFor(dt);
     const float ds = dt / static_cast<float>(n);
-    const bool quietBefore = m_grid.kineticEnergy() / std::max(m_grid.totalMass(), 1e-9) < m_params.keWake;
+    const double keWake = m_transport->ownsMass() ? m_params.keWakeParticles : m_params.keWake;
+    const bool quietBefore = m_grid.kineticEnergy() / std::max(m_grid.totalMass(), 1e-9) < keWake;
     // Substep order: TRANSPORT with the divergence-free field the last projection left, THEN body
     // forces, THEN project. Adding gravity before the advection moved water with u* = u + g dt: a
     // free-surface face rising at the 0.08 m/s a submerged pump demands read -0.08 m/s at
@@ -780,7 +1017,7 @@ StepReport WaterSolver::step(float dt) {
         enforceSolidFaces();
         m_transport->advect(m_grid, ds);
         enforceSolidFaces();
-        if (!(off & 1u)) compactSubmergedPartials(ds);
+        if (!(off & 1u) && !m_transport->ownsMass()) compactSubmergedPartials(ds);
         applyGravity(ds);
         if (!(off & 2u)) applyThinFilmGradient(ds);
         if (!(off & 4u)) settleThinFilmTopFaces();
@@ -790,18 +1027,26 @@ StepReport WaterSolver::step(float dt) {
         if (!(off & 4u)) settleThinFilmTopFaces();
         if (quietBefore && !(off & 32u)) applyRestDamping(ds);
     }
-    if (!(off & 16u)) sweepResidue(r);
+    if (!(off & 16u) && !m_transport->ownsMass()) sweepResidue(r);
     r.substeps = n;
-    r.totalMass = m_grid.totalMass();
+    r.totalMass = m_transport->ownsMass() ? m_transport->ownedMass() : m_grid.totalMass();
     r.kineticEnergy = m_grid.kineticEnergy();
     double maxD = 0.0;
     const std::vector<float>& f = m_grid.fData();
     for (size_t i = 0; i < f.size(); ++i) maxD = std::max(maxD, static_cast<double>(std::abs(f[i] - m_fPrev[i])));
     r.maxDeltaF = maxD;
     const double specificKE = r.kineticEnergy / std::max(r.totalMass, 1e-9);   // m^2/s^2 per unit mass
-    const bool quiet = specificKE < m_params.keWake && maxD < m_params.maxDeltaFQuiet && r.sourceAdded == 0.0 && r.sinkRemoved == 0.0;
+    const double maxDQuiet = m_transport->ownsMass() ? m_params.maxDeltaFQuietParticles : m_params.maxDeltaFQuiet;
+    const bool quiet = specificKE < keWake && maxD < maxDQuiet && r.sourceAdded == 0.0 && r.sinkRemoved == 0.0;
     m_quietTicks = quiet ? m_quietTicks + 1 : 0;
-    if (m_quietTicks >= m_params.restTicks) { m_asleep = true; }
+    if (m_quietTicks >= m_params.restTicks) {
+        if (m_transport->ownsMass()) {   // §15.9 rest conversion: particles -> fills, then the fill transport sleeps as usual
+            m_transport->settle(m_grid);
+            setTransport(std::make_unique<EulerianTransport>());
+            r.restConverted = true;
+        }
+        m_asleep = true;
+    }
     r.quietTicks = m_quietTicks; r.asleep = m_asleep;
     m_last = r;
     return r;

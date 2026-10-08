@@ -9,6 +9,7 @@
 #include "core/water/WaterCore.h"
 #include "core/WaterManager.h"   // WaterSurfaceCell (the debug feed's struct)
 #include <glm/glm.hpp>
+#include <array>
 #include <climits>
 #include <functional>
 #include <memory>
@@ -28,7 +29,8 @@ struct AvRecord {
     int id = 0;
     glm::ivec3 minVoxel{0}, maxVoxel{0};   ///< world voxel box, inclusive
     float cellSize = 1.0f;
-    std::string transport;
+    std::string transport;                 ///< the solver's CURRENT transport (a FLIP volume reads "eulerian" after its rest conversion)
+    size_t particles = 0;                  ///< Phase B2: FLIP particles alive (0 for fills)
     size_t cells = 0;
     bool asleep = false;
     double mass = 0.0;                     ///< m^3
@@ -87,6 +89,11 @@ public:
     long placeBox(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float fill, long* outsideCells);
     bool addSource(int id, const glm::vec3& world, float rate, std::string* err);
     bool clearSources(int id);   ///< stop every source on the volume (the pump is switched off)
+    /// Phase B2: a deterministic sample of up to `max` particles as (x, y, z, vx, vy, vz) in world
+    /// metres and m/s (every k-th of the sorted list); empty for a fill volume.
+    std::vector<std::array<float, 6>> particleSample(int id, int max) const;
+    /// Phase B2: force the rest conversion (particles -> fills); returns false for a fill volume.
+    bool settle(int id);
     bool addImpulse(const glm::vec3& world, float radius, float deltaSpeed, const glm::vec3& dir);
 
     ProbeResult probe(const glm::vec3& world);   // refreshes the solids cache first

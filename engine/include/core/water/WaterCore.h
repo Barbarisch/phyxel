@@ -112,6 +112,8 @@ struct SolverParams {
     /// donor-cell flux carries the DONOR's fill: a half-full cell fed by a full one gains.
     float  liquidThreshold = 0.5f;
     double keWake = 1e-6;            ///< SPECIFIC kinetic energy (m^2/s^2, i.e. |v| ~ 1.4 mm/s) below which the volume counts as quiet
+    double maxDeltaFQuietParticles = 0.2;    ///< one particle crossing a cell face moves 1/8 of a fill in a tick; a four-particle puddle at rest still crosses now and then (S1 Small on FLIP never slept at 1e-3), so quiet for particles is the KE criterion with a crossing allowed
+    double keWakeParticles = 1e-3;   ///< the same for a PARTICLE volume (|v| ~ 4.5 cm/s): particles jostle at rest and never reach 1e-6 on their own; below this the rest damping takes them down and the volume settles into fills (Phase B2, S1 Small never slept at 1e-6)
     double maxDeltaFQuiet = 1e-5;    ///< ... and when max |delta f| per tick is below this
     int    restTicks = 30;           ///< consecutive quiet ticks before sleeping
     float  restDamping = 0.5f;       ///< 1/s, applied to velocity ONLY while quiet (never to moving water)
@@ -145,6 +147,7 @@ struct StepReport {
     int    quietTicks = 0;
     bool   asleep = false;
     double residueDropped = 0.0;   ///< m^3 of sub-epsilon residue with nowhere to merge this tick (sweepResidue)
+    bool   restConverted = false;  ///< this tick the particle transport settled into fills (Phase B2)
 };
 
 /// How water POSITION moves (docs/WaterCore.md §4.7): Eulerian fill fractions (Phase B) or FLIP
@@ -158,6 +161,67 @@ public:
     /// across a face whose other cell is Solid or Unknown.
     virtual void advect(WaterGrid& g, float dt) = 0;
     virtual void setLiquidThreshold(float) {}   ///< SolverParams::liquidThreshold, forwarded by the solver
+    // ── Phase B2 (docs/WaterCore.md §15.9): what a particle transport needs beyond fills ──
+    /// True when the transport, not the grid's f, is the mass ledger (f is then a derived field
+    /// rebuilt every substep; the Eulerian-only passes - compaction, residue sweep, ceiling target -
+    /// must not touch it).
+    virtual bool ownsMass() const { return false; }
+    /// Build the transport's state from the grid's fills (no-op for fills themselves).
+    virtual void seed(WaterGrid&) {}
+    /// Hand the mass back to the grid's fills (rest conversion); afterwards the transport is empty.
+    virtual void settle(WaterGrid&) {}
+    /// Sources/sinks for a transport that owns mass: add up to m3 at the cell (returns what was
+    /// taken, the rest is owed), remove up to m3 (returns what was removed). The fill transport
+    /// returns a negative number: "not mine, fill the cell".
+    virtual double addVolume(WaterGrid&, const glm::ivec3& /*cell*/, double /*m3*/, const glm::vec3& /*vel*/) { return -1.0; }
+    virtual double removeVolume(WaterGrid&, const glm::ivec3& /*cell*/, double /*m3*/) { return -1.0; }
+    virtual size_t particleCount() const { return 0; }
+    /// Total mass the transport holds (m^3); 0 for fills.
+    virtual double ownedMass() const { return 0.0; }
+};
+
+/// One FLIP particle (docs/WaterCore.md §15.9). Positions are grid-local in CELL units (a cell
+/// spans [i, i+1)), velocities in m/s, mass in m^3 (fixed h^3/8 except one lighter remainder per
+/// seeded cell so column mass is exact). `id` is the creation index: the deterministic sort key.
+struct FlipParticle {
+    glm::vec3 pos{0.0f};
+    glm::vec3 vel{0.0f};
+    float mass = 0.0f;
+    uint32_t id = 0;
+};
+
+/// Particle transport on the shared grid: particles carry mass and momentum; the grid is rebuilt
+/// from them every substep (p2g), the solver projects it as for fills, and the projected change
+/// goes back to the particles (FLIP/PIC blend) before they move. Deterministic: the particle list
+/// is kept sorted by (cell, id), p2g accumulates in that order, jitter is a hash.
+class FlipTransport final : public IWaterTransport {
+public:
+    static constexpr int    kParticlesPerCell = 8;
+    static constexpr size_t kMaxParticlesPerVolume = 2000000;   ///< 250 k cells of water at 8 each (§15.9)
+    explicit FlipTransport(float flipBlend = 0.95f) : m_flipBlend(flipBlend) {}
+    const char* name() const override { return "flip"; }
+    bool ownsMass() const override { return true; }
+    void advect(WaterGrid& g, float dt) override;
+    void setLiquidThreshold(float thr) override { m_liquidThreshold = thr; }
+    void seed(WaterGrid& g) override;
+    void settle(WaterGrid& g) override;
+    double addVolume(WaterGrid& g, const glm::ivec3& cell, double m3, const glm::vec3& vel) override;
+    double removeVolume(WaterGrid& g, const glm::ivec3& cell, double m3) override;
+    size_t particleCount() const override { return m_particles.size(); }
+    double ownedMass() const override;
+    const std::vector<FlipParticle>& particles() const { return m_particles; }
+    float flipBlend() const { return m_flipBlend; }
+    /// Rebuild f (mass) and the face velocities from the particles (particle -> grid).
+    void particlesToGrid(WaterGrid& g);
+private:
+    void sortParticles(const WaterGrid& g);
+    float m_flipBlend;
+    float m_liquidThreshold = 0.5f;
+    uint32_t m_nextId = 0;
+    bool m_haveOldGrid = false;
+    std::vector<FlipParticle> m_particles;
+    std::vector<float> m_uOld, m_vOld, m_wOld;      // the p2g velocities of the last substep (FLIP delta base)
+    std::vector<float> m_uW, m_vW, m_wW;            // p2g weight accumulators
 };
 
 class EulerianTransport final : public IWaterTransport {

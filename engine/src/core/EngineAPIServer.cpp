@@ -2188,6 +2188,8 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_av_source",      waterEndpoint("water_av_source"));
     srv.Post("/api/debug/water_av_impulse",     waterEndpoint("water_av_impulse"));
     srv.Post("/api/debug/water_av_realtime",    waterEndpoint("water_av_realtime"));
+    srv.Post("/api/debug/water_av_particles",   waterEndpoint("water_av_particles"));   // Phase B2
+    srv.Post("/api/debug/water_av_settle",      waterEndpoint("water_av_settle"));      // Phase B2
     srv.Post("/api/debug/water_cell_render",    waterEndpoint("water_cell_render"));  // camera-invariant gate A/B
     srv.Post("/api/debug/water_validate",       waterEndpoint("water_validate"));
     srv.Post("/api/debug/water_find_river",     waterEndpoint("water_find_river"));

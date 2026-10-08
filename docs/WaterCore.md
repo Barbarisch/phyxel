@@ -731,6 +731,44 @@ damps the run-up and the test will say so).
 **Deliberately not in B2:** the 20 k droplet pool (§12; droplets that leave the AV), rendering
 beyond the debug draw, GPU particles (Phase C), two-way coupling (Phase E).
 
+### 15.10 Phase B2 build ledger — `FlipTransport` red → green (2026-10-08)
+
+Built as §15.9 prescribes: the interface widened (`ownsMass`, `seed`, `settle`, `addVolume`,
+`removeVolume`, `particleCount`, `ownedMass`), a red stub whose particles did not move (the front
+and run-up tests failed by measurement), then the transport: FLIP/PIC blend 0.95 against the
+last substep's p2g base, RK2 motion in the projected field, axis-split placement against solids
+and held ground (a blocked axis loses its component), deterministic sorted lists with world-keyed
+jitter, mass-weighted trilinear p2g. The solver gates its fill-only passes on `ownsMass()`
+(compaction, residue sweep, ceiling target, the fall clamp) and converts a quiet particle volume
+back to fills before it sleeps. Engine: `transport:"flip"` accepted at create with a 2 M-particle
+cap, placement re-seeds, `water_av_particles` and `water_av_settle`, `particles` on every volume
+record, harness `--transport flip`.
+
+| # | Symptom (measured) | Cause | Fix |
+|---|---|---|---|
+| 18 | S1 on FLIP never slept (12 s); the rest conversion never fired | particles jostle at rest at a few cm/s; the fill threshold (1.4 mm/s) is unreachable for them | `keWakeParticles` = 1e-3 (4.5 cm/s): below it the existing rest damping takes the particles down through the FLIP delta, then settle → fills → sleep |
+| 19 | S2 on FLIP: the 2 m³ trough spilled at 1.48 m³ (74 % full) while the 6 m³ control held 4.0 exactly | one-sided volume control (over-full cells push, under-full never pull) let the column's mean density drift below 1, so the particle surface sat above the fill level | symmetric density control: a submerged under-full cell pulls at ≤ the free-fall rate |
+| 20 | …which cost the run-up (2.06 → 1.42 h₀) | the pull also acted on the climbing sheet, where under-full cells are the surface in motion | the pull applies in QUIET cells only (lateral and vertical speed < 0.1 × √(2gh)) — the same discrimination that fixed compaction for fills (#17); run-up 1.94 h₀ |
+| 21 | `FlipSubBoxIdenticalToWholeBox` compared particle positions and failed by whole cells after 90 ticks | a 1e-7 difference in the pressure residual flips a quiet-cell gate and two particles swap: positions are chaotic | the test compares the WATER — particle count, mass, mass per column (worst difference measured 0.00 m³) — which is the design key's actual claim |
+| 22 | S1 on FLIP still never slept with the particle KE threshold (KE 2e-3 → 1e-5 over 12 s) | the second quiet criterion, max fill change per tick < 1e-5, is unreachable for particles: one particle crossing a cell face moves 1/8 of a fill, and a four-particle puddle crosses now and then | `maxDeltaFQuietParticles` = 0.2 (a crossing allowed): quiet for particles is the KE criterion; S1 sleeps at 7.5 s and the rest conversion hands a still puddle to fills |
+
+**Unit results:** 24/24 WaterCore (16 fills + 8 FLIP). The deciding gate
+`FlipWallRunupMatchesLiterature`: fills **1.22 h₀**, FLIP **1.94 h₀** on the 20 m channel at ⅓ m
+(literature 2.1–2.3; gate ≥ 1.65), the control in the same test.
+
+**Scenario rows on FLIP (harness `--transport flip`, simulation time):**
+
+| Gate | h | Result | Verdict |
+|---|---|---|---|
+| S3 wall run-up (2.2 h₀ ± 25 %) | ⅓ | **1.71 h₀** (fills 1.11) | PASS |
+| S3 front, seiche, envelope, mass | ⅓ | 1.3 s (ratio 1.10, inside the envelope); 9.05 s (Merian 9.8); 0.057; +2.7e-5 | PASS ×4 |
+| S1 pour on FLIP | ⅓ | mass on pad 0.02 + 1.5e-9, pit control exact, film holds (9.6 mm, area stable); never asleep in 12 s: KE falls 2e-3 → 1e-5 but a resting particle pool moves 1/8 of a cell's fill per tick, so the fill criterion `maxDeltaFQuiet` = 1e-5 is never met | mass/control PASS; after #22: asleep at **7.5 s** (fills: 3.5 s; gate 3 s) and the puddle settles into fills at 11.9 mm max depth (hold 10 mm) — rest and film FAIL by the margins stated; a pour is not FLIP's regime and the per-AV choice (§4.7) stands |
+| S2 trough on FLIP | ⅓ | pumped 3.995 (ledger 0.0), B control 3.995 exact and dry pad; trough A reaches 1.95 at 20 s then holds 1.84–1.90 with 2.16 on the pad: the particle surface sits ~6 % below the fill rim | ledgers + control PASS; full-at-20 s and overflow FAIL by 0.1–0.2 m³ — FLIP's resting free surface, as §4.7 predicted; not a target regime |
+| S4 spill on FLIP | 1 | 6.5 m³ of 79 — eight particles in a 1 m cell cannot form a 1-cell-deep channel flow | FAIL: coarse FLIP is not a hydraulics transport (the fill transport reads −5 % here); the regime split in §4.7 stands |
+| S4 spill on FLIP | ⅓ | 74 k cells → 590 k particles; the harness's 600 s step budget expired before the row | not measured: cost (see the cost rows) |
+| S5 drain on FLIP | 1 | cavity 11.5 of 48 in 20 s, sealed control dry, mass exact | FAIL: as S4 — the 1 m² hole is one particle-cell wide |
+| Cost (Release, S3 block collapse, 60 ticks, idle engine; `docs/evidence/water_feel/B2_cost_rows_20261008.json`) | 1 / ⅓ | fills **1.1 ms** / **30 ms** per tick (2 808 / 75 816 cells); FLIP **1.6 ms** / **53 ms** per tick (2 016 / 54 432 particles, i.e. ~4 ms per 10 k particles on top of the shared grid) | the particle layer costs ~1.7× the fill layer at ⅓ on this rig; the grid (PCG 67–76 iterations) is the larger share at both |
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

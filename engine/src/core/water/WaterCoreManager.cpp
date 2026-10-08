@@ -1,5 +1,6 @@
 // WaterCoreManager — docs/WaterCore.md §5, §15.1 (Phase B engine integration).
 #include "core/water/WaterCoreManager.h"
+#include <array>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -34,7 +35,11 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
     const glm::ivec3 dims = (hi - lo + glm::ivec3(1)) * per;
     const size_t cells = static_cast<size_t>(dims.x) * dims.y * dims.z;
     if (cells > kMaxCellsPerVolume) { if (err) *err = "volume would be " + std::to_string(cells) + " cells; the CPU reference caps at " + std::to_string(kMaxCellsPerVolume); return 0; }
-    if (transport != "eulerian") { if (err) *err = "transport must be 'eulerian' in Phase B (FLIP arrives in Phase B2)"; return 0; }
+    if (transport != "eulerian" && transport != "flip") { if (err) *err = "transport must be 'eulerian' or 'flip'"; return 0; }
+    if (transport == "flip" && cells * static_cast<size_t>(FlipTransport::kParticlesPerCell) > FlipTransport::kMaxParticlesPerVolume) {
+        if (err) *err = "a FLIP volume of " + std::to_string(cells) + " cells could hold " + std::to_string(cells * FlipTransport::kParticlesPerCell) + " particles; the CPU reference caps at " + std::to_string(FlipTransport::kMaxParticlesPerVolume);
+        return 0;
+    }
     auto av = std::make_unique<Av>();
     av->id = m_nextId++;
     av->h = h; av->per = per; av->minVoxel = lo; av->maxVoxel = hi; av->transport = transport;
@@ -48,6 +53,7 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
         return raw->occCache[raw->grid->idx(c.x, c.y, c.z)];
     };
     av->solver = std::make_unique<WaterSolver>(*av->grid, q);
+    if (transport == "flip") av->solver->setTransport(std::make_unique<FlipTransport>());   // empty until water is placed
     av->occDirty = true;
     refreshOccupancy(*av);
     av->solver->refreshSolids();
@@ -64,8 +70,10 @@ bool WaterCoreManager::destroy(int id) {
 
 AvRecord WaterCoreManager::record(const Av& av) const {
     AvRecord r;
-    r.id = av.id; r.minVoxel = av.minVoxel; r.maxVoxel = av.maxVoxel; r.cellSize = av.h; r.transport = av.transport;
-    r.cells = av.grid->cellCount(); r.asleep = av.solver->asleep(); r.mass = av.grid->totalMass();
+    r.id = av.id; r.minVoxel = av.minVoxel; r.maxVoxel = av.maxVoxel; r.cellSize = av.h; r.transport = av.solver->transport().name();
+    r.particles = av.solver->transport().particleCount();
+    r.cells = av.grid->cellCount(); r.asleep = av.solver->asleep();
+    r.mass = av.solver->transport().ownsMass() ? av.solver->transport().ownedMass() : av.grid->totalMass();
     r.kineticEnergy = av.grid->kineticEnergy(); r.lastSubsteps = av.last.substeps; r.lastPcgIterations = av.last.pcgIterations;
     r.lastPcgResidual = av.last.pcgResidual; r.quietTicks = av.last.quietTicks; r.sourceUnplaced = av.last.sourceUnplaced; r.residueDropped = av.residueDropped;
     for (const auto& src : av.solver->sources()) { r.sourcePlaced += src.placedTotal; ++r.sourceCount; }
@@ -176,10 +184,43 @@ long WaterCoreManager::placeBox(const glm::ivec3& minVoxel, const glm::ivec3& ma
             av->grid->f(cx, cy, cz) = std::clamp(fill, 0.0f, 1.0f);
             ++set;
         }
+        // Phase B2: a particle volume is re-seeded from the fills it now shows (its own p2g field
+        // plus the box just written) - mass-exact, positions re-jittered; placement is not motion
+        if (av->solver->transport().ownsMass()) av->solver->transport().seed(*av->grid);
         av->solver->wake();
     }
     if (outsideCells) *outsideCells = outside;
     return set;
+}
+
+std::vector<std::array<float, 6>> WaterCoreManager::particleSample(int id, int max) const {
+    std::vector<std::array<float, 6>> out;
+    for (const auto& av : m_avs) {
+        if (av->id != id || !av->solver->transport().ownsMass()) continue;
+        const auto* flip = dynamic_cast<const FlipTransport*>(&av->solver->transport());
+        if (!flip) break;
+        const auto& ps = flip->particles();
+        const size_t stride = std::max<size_t>(1, ps.size() / static_cast<size_t>(std::max(1, max)));
+        const glm::vec3 origin = glm::vec3(av->grid->spec().origin);
+        for (size_t i = 0; i < ps.size() && out.size() < static_cast<size_t>(max); i += stride) {
+            const glm::vec3 w = (origin + ps[i].pos) * av->h;
+            out.push_back({w.x, w.y, w.z, ps[i].vel.x, ps[i].vel.y, ps[i].vel.z});
+        }
+        break;
+    }
+    return out;
+}
+
+bool WaterCoreManager::settle(int id) {
+    for (auto& av : m_avs) {
+        if (av->id != id) continue;
+        if (!av->solver->transport().ownsMass()) return false;
+        av->solver->transport().settle(*av->grid);
+        av->solver->setTransport(std::make_unique<EulerianTransport>());
+        av->solver->wake();
+        return true;
+    }
+    return false;
 }
 
 bool WaterCoreManager::clearSources(int id) {

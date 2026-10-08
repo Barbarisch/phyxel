@@ -13481,7 +13481,7 @@ void Application::registerWaterCommands() {
     auto noCore = [](nlohmann::json& r) { r = {{"error", "WaterCore not available"}}; };
     auto avJson = [](const Core::Water::AvRecord& a) {
         return nlohmann::json{{"id", a.id}, {"box", {{"min", {a.minVoxel.x, a.minVoxel.y, a.minVoxel.z}}, {"max", {a.maxVoxel.x, a.maxVoxel.y, a.maxVoxel.z}}}},
-                              {"cellSize", a.cellSize}, {"transport", a.transport}, {"cells", a.cells}, {"asleep", a.asleep},
+                              {"cellSize", a.cellSize}, {"transport", a.transport}, {"particles", a.particles}, {"cells", a.cells}, {"asleep", a.asleep},
                               {"mass", a.mass}, {"kinetic_energy", a.kineticEnergy}, {"quiet_ticks", a.quietTicks},
                               {"last", {{"substeps", a.lastSubsteps}, {"pcg_iterations", a.lastPcgIterations}, {"pcg_residual", a.lastPcgResidual}, {"source_unplaced", a.sourceUnplaced}}}, {"residue_dropped_m3", a.residueDropped},
                               {"source_placed_m3", a.sourcePlaced}, {"source_count", a.sourceCount}};
@@ -13516,6 +13516,25 @@ void Application::registerWaterCommands() {
         Core::Water::AvRecord rec;
         if (!waterCore->step(cmd.params.value("id", 0), ticks, dt, &rec)) { r = {{"error", "no such volume"}}; return; }
         r = {{"success", true}, {"ticks", ticks}, {"dt", dt}, {"sim_time_advanced", ticks * dt}, {"volume", avJson(rec)}};
+    });
+    // Phase B2: {id, max?} -> a deterministic sample of particles [x, y, z, vx, vy, vz] (m, m/s);
+    // `max` is clamped to 4096 so a typo cannot stall the game loop (same reason as the probe rect cap)
+    reg.on("water_av_particles", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        const int max = std::clamp(cmd.params.value("max", 256), 1, 4096);
+        const auto ps = waterCore->particleSample(cmd.params.value("id", 0), max);
+        nlohmann::json arr = nlohmann::json::array();
+        for (const auto& p : ps) arr.push_back({p[0], p[1], p[2], p[3], p[4], p[5]});
+        r = {{"particles", arr}, {"count", ps.size()}, {"format", "[x, y, z, vx, vy, vz] world metres, m/s"}};
+    });
+    // Phase B2: force the rest conversion; echoes the volume so the caller can assert transport == "eulerian"
+    reg.on("water_av_settle", [this, noCore, avJson](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        const int id = cmd.params.value("id", 0);
+        const double before = waterCore->totalMass();
+        if (!waterCore->settle(id)) { r = {{"error", "no such volume, or it is not a particle volume"}}; return; }
+        for (const auto& a : waterCore->list()) if (a.id == id) { r = {{"success", true}, {"mass_before", before}, {"mass_after", waterCore->totalMass()}, {"volume", avJson(a)}}; return; }
+        r = {{"error", "volume vanished"}};
     });
     reg.on("water_av_probe", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);
