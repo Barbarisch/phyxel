@@ -15,7 +15,7 @@
     }
   },
   "water": {
-    "_comment": "seaLevel is MEASURED, never assumed \u2014 see CLAUDE.md and WaterLab. It is written into the world recipe on FIRST boot and the stored recipe then WINS over this file (GameDefinitionLoader warns and keeps the recipe), so changing it later requires deleting worlds/default.db and regenerating. The value here was set from a get_terrain_height survey; if you regenerate with a new seed you MUST re-measure.",
+    "_comment": "seaLevel is MEASURED, never assumed \u2014 see CLAUDE.md and docs/Water.md (the WaterLab project that first hit this was deleted 2026-10-07). It is written into the world recipe on FIRST boot and the stored recipe then WINS over this file (GameDefinitionLoader warns and keeps the recipe), so changing it later requires deleting worlds/default.db and regenerating. The value here was set from a get_terrain_height survey; if you regenerate with a new seed you MUST re-measure.",
     "enabled": true,
     "seaLevel": 16,
     "oceanBoundary": true,
