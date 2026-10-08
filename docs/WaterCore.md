@@ -158,14 +158,67 @@ Chentanez & Müller 2011 (tall cells).
   tolerance on every §3 scenario (the AVBD solver's `debris_settle_bench` pattern).
 
 ### 4.5 Resolution policy (P4, and the "chunks must not be visible" rule)
-AV cell size is chosen by the AV's extent, never by the camera: ≤ 8 m span → **⅑ voxel**
-(containers, fountain bowls — if §12 decides containers are simulated at all), ≤ 32 m span → **⅓
-voxel** (ponds, troughs, moats, doorways, streams), larger → **1 voxel** (shoreline bands, river
-reaches). Mass and existence are identical across resolutions (an AV re-sampled at a coarser
-resolution holds the same total mass per column); only motion detail differs — the same contract
-the engine's own voxel tiers make. Cost: a 32×16×32 m AV at ⅓ = 442 k cells; the pressure solve
-(40 red-black sweeps) ≈ 18 M cell-updates per tick ≈ 1 G/s at 60 Hz — well inside a 4090's
-budget and the §10 envelope, and the Basin floor (1.0 ms) is the measured baseline to add to.
+**Decision (user, 2026-10-08): the design centre is ⅑ voxel — the microvoxel tier (11.1 cm cells,
+729 per voxel).** That is the scale the brief is about: a bucket (3 cells across), a trough, a
+doorway, a well, a garden pond. AV cell size is still chosen by the AV's **extent**, never by the
+camera, because the pressure solve is memory-bound and its cost is per cell:
+
+| AV extent (longest axis) | Cell | Cells (cube of that extent) | Pressure traffic / tick (40 sweeps × ~16 B) | At 60 Hz |
+|---|---|---|---|---|
+| ≤ 8 m | **⅑** | 373 k | ~0.24 GB | ~0.25 ms on a 1 TB/s GPU |
+| 8–12 m | ⅑ (cap) | 1.26 M | ~0.8 GB | ~0.8 ms — the ⅑ ceiling |
+| 12–40 m | ⅓ | ≤ 1.7 M (40 m) | ~1.1 GB | ~1.1 ms |
+| > 40 m (shore bands, reaches) | 1 | bounded by `maxCells` | — | — |
+
+So ⅑ carries everything up to a 12 m pond; a 30 m moat runs at ⅓; a shoreline band at 1. Mass and
+existence are identical across resolutions (a re-sampled AV holds the same mass per column); only
+motion detail differs — the same contract the engine's own voxel tiers make. **Multigrid** for the
+pressure solve (≈ 5× fewer sweep-equivalents) is the lever that would push the ⅑ ceiling toward
+20 m; it is planned as the first optimisation after parity (Phase C), not assumed. Every number in
+this table is a pre-run estimate to be replaced by `perf_harness` rows on the rigs.
+
+### 4.6a Containers are simulated (user decision 3)
+A bucket must hold a meaningful amount of water, so **containers are real water**: a container is
+an AV at ⅑ bound to the object's frame (a 0.3 m bucket = 3×3×3 cells, 27 cells; a trough 2×1×1 m =
+18×9×9 = 1 458 cells). Placed or stationary, it simulates like any AV (fills from a pump, overflows
+at the rim, pours when tipped — S1, S2). **Carried**, v1 holds the mass and fill level (no slosh)
+and pours as a source when tipped; **carried slosh** (the AV in the item's moving frame with the
+inertial force −a_frame added in tick step 3) is a listed feel feature for Phase E once the static
+case is right. Capacity is the geometry: a bigger bucket holds more. Test cases: **C1** bucket under
+a pump fills to the rim then overflows (ledger: pumped = bucket + overflow); **C2** tipped bucket =
+S1; **C3** a carried bucket keeps its mass across a 50 m walk and a save/load; **C4** trough = S2.
+Gameplay (what a character can carry) is a later layer on the same mass.
+
+### 4.7 Method primer — what the two candidates are, in plain terms (for decision 1)
+Both candidates share **the grid**: the active volume is cut into cells; each cell face carries a
+velocity; every tick the solver asks "where does the water want to go under gravity and its own
+momentum?", then **fixes the result so water does not compress** (the pressure solve: the water
+in a sealed bucket cannot shrink, so pushing on it pushes the whole column, which is what makes a
+breach jet and a slosh behave). Solids are cells water cannot enter. That grid is 80 % of the work
+and it is identical in both candidates. They differ only in **how the water's position is tracked**:
+
+- **Eulerian (fill fractions, VOF).** Each cell stores how full it is, 0..1. Water moves by
+  transferring fractions between neighbours along the velocities. Strengths: exact accounting (a
+  number per cell, trivially summed), a surface that rests perfectly flat and still, cheap, no
+  particle budget. Weakness: thin sheets and droplets smear (a splash becomes a lump unless the
+  grid is fine, which at ⅑ it is), and the surface position inside a cell has to be reconstructed.
+- **FLIP (particles carry the water).** The water is tens of thousands of particles that carry
+  mass and momentum; the grid is used once per tick to enforce incompressibility, then velocities
+  go back to the particles. Strengths: splashes, crowns, sheets and droplets come for free, nothing
+  is smeared, feel is excellent while water moves. Weaknesses: resting water is noisy (particles
+  jostle; the surface never goes perfectly flat without extra machinery), cost scales with the
+  number of particles (~8 per cell: a ⅑-resolution pond is millions), and persistence means
+  converting particles back to spans anyway.
+
+**Why the recommendation is Eulerian-with-a-droplet-layer:** at ⅑ resolution the Eulerian
+surface is fine enough that smearing is below what the eye sees in a bucket or a trough, it rests
+exactly flat (P7), and the accounting is the ledger by construction (P1); the one thing it does
+badly — airborne water — is exactly what a bounded particle layer does well. The reverse (FLIP as
+the primary) spends its budget on the resting state we do not want to simulate. **The decision is
+reversible at low cost:** both run on the same grid and pressure solve, so if the Eulerian free
+surface disappoints on S6/S9 after Phase B, FLIP's particle transport is an addition, not a
+rewrite. That is also the proposed way to decide: Phase B builds the grid and the Eulerian
+surface; S3–S5 are the judge; the user watches S6 and S9 captures before Phase E.
 
 ### 4.6 Deep still water (compression, later)
 Below the top K cells of a column with f = 1 and no motion, cells are not stored: the column is a
@@ -201,8 +254,13 @@ An AV face that borders a large body is a **Dirichlet level + flux ledger**: cel
 held at the body's level (their f set from the level each tick, velocity free); the net mass that
 crosses the face is debited/credited to the body record each tick. The body's level is
 `f(mass, bathymetry)` — flat-body invariant — and the face level follows it. Oceans have an infinite
-reservoir flag (mass unbounded, level fixed); lakes recharge at their rate (decision §12); ponds are
-finite. **Swell** (S12) is a prescribed surface motion on an ocean face: the Gerstner field's height
+reservoir flag (mass unbounded, level fixed). **Lakes are conserved bodies with a water balance**
+(user decision 6): mass changes by inflow (the FlowField's accumulated discharge into the lake's
+cells × a rainfall rate), minus outflow at the outlet while above the spill, minus evaporation
+(area × a climate rate from the biome moisture field). So a lake in a dry climate can **dry up**,
+and a wet one overflows — an emergent world-generation feature rather than a knob. Rates need
+grounding before Phase G (a simple P − E balance; Thornthwaite-class evaporation from temperature;
+rainfall from the climate field) — listed as Phase G grounding work. Ponds are finite. **Swell** (S12) is a prescribed surface motion on an ocean face: the Gerstner field's height
 and horizontal velocity at the face drive the AV, so waves enter the simulated band physically.
 
 ---
@@ -265,21 +323,28 @@ AV is real (S10).
 
 ---
 
-## 9. What exists: keep, re-point, replace, delete
+## 9. What exists: keep, re-point, replace, delete — THE DELETE LEDGER
 
-| Component | Fate | Why |
-|---|---|---|
-| `Chunk::WaterSpanLocal` + ChunkBlobCodec v2 + `waterSpansForBlock` | **Keep** (Tier B) | Correct data model; hydraulic-flood fix is additive |
-| `HydrologyMap`, `FlowField`, `PriorityFlood`, `WaterBodyIndex` | **Keep** (feeds Tier A) | Correct coarse model; gains `filledAt` and outlets |
-| `WaterOccupancy` (`buildOpenWaterSpan`, `floodBodiesOverGrid`) | **Keep + fix 1b** | Tested, window-independent |
-| `WaterSimulation` (mass CA, momentum bias, MIN_HOLD, evaporation, pins) + `water_flow.comp` | **Replace** by the core; keep as the conservation reference in tests until the core passes S1–S5, then delete | No inertia — the root of "feels wrong" |
-| `WaterManager` window (64×32×64 camera-following), overrides/bank/deltas stores, `kinematicRiverFlow`, pinned rivers | **Delete** | Camera-following existence; fake transport; three persistence hacks replaced by Tier A/B |
-| `RippleField` | **Delete** | The AV surface is the ripple |
-| `WaterCellRenderPipeline` (per-cell quads) | **Replace** by the AV surface mesh | Hard-coded 1×1 cells, instance buffer rewritten under the GPU |
-| `WaterRenderPipeline` sheet + `water_common.glsl` | **Keep**, flat-sea and bake placement deleted | Span renderer + the one shading model |
-| Buoyancy/drag/wading tables, `WaterHooks`, debris water tiles | **Re-point** at the AV; tables retire when S6/S7 pass with integrated forces | Interface shape is right |
-| Debug routes (30) + 13 MCP tools + `water_render_grid` + probes | **Keep**, extend with `water_mass_ledger`, `water_av_list`, `water_av_probe` | Verification surface |
-| Benches: Basin, Coast, River + reference captures | **Keep**; add `WaterBench_Small` (one chunk per rig along +X, DebrisLab pattern) | §3 rigs |
+User decision 7: delete rather than keep dead code, and be very careful. Rules: (1) nothing is
+deleted until its replacement has passed the scenarios named in its row; (2) every deletion is one
+commit, listing the files and the consumers it re-pointed, so it is one revert away; (3) the
+reference tests that pin a behaviour we still want are MOVED to the new core before the old file
+goes; (4) everything stays in git history (`git show <hash>:<path>`). Sizes are today's line counts.
+
+| Component | Files (lines) | Consumers today | Replacement | Delete when | Risk / care |
+|---|---|---|---|---|---|
+| **`WaterSimulation`** — the mass CA (gravity split, 0.25 horizontal rate, compression, MIN_HOLD, evaporation, sources/pins, channel mask, flow proxy) + **`water_flow.comp`** (the opt-in GPU port) | `engine/{include,src}/core/WaterSimulation.{h,cpp}` (290 + 588), `shaders/water_flow.comp` (111, + .spv), `tests/core/WaterSimulationTest.cpp` (986, 38 tests) | `WaterManager` only; tests | `WaterCore` solver (Phase B/C) | **After Phase B** passes S1–S5 on the CPU reference. The 38 tests are triaged first: conservation / no-leak / basin-leveling / sealed-pit tests are re-expressed against `WaterCore` (they pin behaviour we keep); the CA-specific ones (MIN_HOLD donor gate, momentum bias, evaporation thresholds, GPU parity of the CA) go with the file | The `enableGpu` resources are allocated at boot unconditionally (WaterManager.cpp:1248) — remove with the manager, not before |
+| **`WaterManager`** — the 64×32×64 camera-following window, recentre/shift, `rebuildOcean` + shoreline snap + `fillWaterTable`, river pins (`applyRiverInflows`), `kinematicRiverFlow`, overrides store (`water_overrides`), outflow bank, finite-body deltas, `rebuildSurface` (cell surface build), waterfall lips/mist, `sampleWater`/`columnWater`/`flowAtWorld`/`submergedFraction` | `engine/{include,src}/core/WaterManager.{h,cpp}` (465 + 1 328), `tests/core/WaterManagerTest.cpp` (1 461, 55 tests), `tests/core/WaterBuoyancyTest.cpp` (147) | `Application` (construction, `followTo`/`update`, 30 debug commands, game.json wiring 6417–6687, save/load of `water_overrides` at 6682/16785), `RenderCoordinator` (cell surface, submergence, hydro upload), `DebrisRuntime` (`columnWater` tiles), `VoxelDynamicsWorld` (query callbacks), `AnimatedVoxelCharacter` + `NPCManager` (`WaterHooks`), `EngineAPIServer` (routes) | `WaterCore` AV manager (lifecycle §5) exposing the SAME query names (`sampleWater`, `columnWater`, `flowAtWorld`, `submergedFraction`) so consumers re-point by one include; Tier A/B replace the three stores; the debug commands are rewritten over the AV manager one by one | **After Phase D** (rest/persistence/world data) — the last consumer to move is `DebrisRuntime`'s tile build (Phase E). The `water_overrides` world_meta key is read once by a migration (writes body records) and then ignored | Largest blast radius in the engine. Consumers are re-pointed in Phase D/E commits BEFORE the file is removed; `WaterManagerTest`'s 55 tests are triaged like the CA's (query semantics kept: "+1 cell over naive seaLevel−y" fill semantic, Water.md §… memory, is a candidate to KEEP and re-pin) |
+| **`RippleField`** — 128² half-voxel damped wave field, `addRipple`, player-following | `engine/{include,src}/core/RippleField.{h,cpp}` (91 + 161), `tests/core/RippleFieldTest.cpp` (117) | `WaterManager` (tick, follow), `WaterCellRenderPipeline` (R32F texture, set-1 b2), `AnimatedVoxelCharacter` via `WaterHooks.addRipple`, `water_ripple` debug route + MCP tool | The AV surface itself (a wake, a splash ring and a footfall ripple are height in the simulated surface) | **After Phase F** (the AV surface mesh renders and S7's wake is judged) | The `water_ripple` MCP tool and route are deleted in the same commit (an orphan tool that 404s is worse than none). `WaterHooks.addRipple` becomes "add impulse" on the AV |
+| **`WaterCellRenderPipeline`** — instanced 30-vertex cell quads + skirts, per-draw host-coherent instance buffer, ripple sampling | `engine/{include,src}/graphics/WaterCellRenderPipeline.{h,cpp}` (100 + 515), `shaders/water_cell.{vert,frag}` (106 + 138, + .spv) | `RenderCoordinator` (creation, `WaterCells` scope, `rebuildSurface` feed), `water_cell_render` A/B route | AV surface mesh pipeline (Phase F) | **After Phase F** sign-off on the rest-state captures | Delete the two `.spv` and update `tools/shader_manifest.py`'s list in the same commit (the manifest check fails otherwise) |
+| **Flat-sea mode and bake-as-placement** in `WaterRenderPipeline` / `RenderCoordinator` (`invCellSize == 0`, the `buildHydroUpload` placement upload at RC.cpp:3395–3419, the `m_lastHydroUploaded` reset hazard in `setWaterLook`/`setWindSpeed`/`setWaves`) | parts of `RenderCoordinator.cpp` (~60 lines), `water.vert`/`water.frag` branches (`basinLevelAt`), `WaterRenderPipeline` sentinel upload | the sheet draw; `water_look`/`water_waves` routes | Span placement only (grounded mode becomes the only mode); look changes re-pack G/B/A into the span grid | **Phase D** (with WP1 step 5/6) — the camera-walk probe self-test must then be re-pointed at a different injectable violation, or retired with a note | This is the "universal water level" the user's rule forbids; its removal is a rule, not a cleanup. `water.enabled` semantics change (pinned tests updated) |
+| **`kinematicRiverFlow`**, river pins, `setRiverQuery`/`setRiverOrderQuery`/`setRiverFlowQuery` bindings | inside `WaterManager` + `Application.cpp:6615–6656` | `Application`, `WaterManagerTest` | River reaches as bodies with discharge; real transport inside AVs (Phase G) | with `WaterManager` | None beyond the manager's |
+| **Debris water tiles' source** (`DebrisRuntime::updateWater` reading `WaterManager::columnWater`) | `engine/src/core/DebrisRuntime.cpp:157–232` (kept), `shaders/solver_shared.h` tile format (kept) | GPU debris solver (`solver_integrate.comp` buoyancy/drag/current — kept) | Same tiles fed from the AV surface + velocity (Phase E) | not deleted — re-pointed | The Phase 6c bench (`tools/debris_settle_bench.py`) is the regression gate for the re-point |
+| **Keep unchanged:** `Chunk::WaterSpanLocal` + codec v2 + `waterSpansForBlock`; `HydrologyMap`/`FlowField`/`PriorityFlood`/`WaterBodyIndex` (gain `filledAt`, outlets); `WaterOccupancy` (+1b); `WaterProfile`; `WaterRenderPipeline` sheet + `water_common.glsl` + `water_underwater.frag`; `SeaMesh`; buoyancy/drag/wading **interfaces** (`setWaterQuery`, `WaterHooks`); the 30 routes + 13 MCP tools + `water_render_grid` + probes (extended with `water_mass_ledger`, `water_av_list`, `water_av_probe`); benches + references | — | — | — | — | Drag/buoyancy *tables* (VoxelDynamicsWorld.cpp:381–412 constants, `buoyancy` 1.6 default) retire only when S6 passes with integrated forces |
+
+**Order of removal, for the record:** CA + `water_flow.comp` (after B) → flat-sea/bake placement
+(D) → `WaterManager` (after D/E) → `RippleField` and the cell renderer (after F). Each is its own
+commit, each names its consumers, each leaves the benches and the camera probe green.
 
 ---
 
@@ -311,24 +376,22 @@ nothing is "done" without its evidence row and a same-vantage capture where look
 
 ---
 
-## 12. Decisions needed before anything starts
+## 12. Decisions — status after the 2026-10-08 round
 
-1. **The method** (§4.2): 3-D Eulerian voxel liquid with VOF + pressure projection, droplets as a
-   layer, spans as compression. Alternative on the table: FLIP as the primary (better splashes,
-   worse rest). Recommendation: Eulerian core, FLIP-style particles only for spray.
-2. **Resolution policy** (§4.5): ⅓ voxel for small AVs, 1 voxel for bands, ⅑ reserved. Alternative:
-   ⅓ everywhere (simpler, 27× cells on shore bands). Recommendation: as written.
-3. **Containers** (§2.3): gameplay volumes with capacity (not simulated inside) that pour as sources
-   — or simulate inside buckets at ⅑. Recommendation: gameplay volumes; simulate only on pour.
-4. **Shorelines are small-scale** (§8.3): confirm the band-AV model, with the analytic sheet beyond.
-5. **Droplet budget**: share the 10 000 GPU particle cap with debris, or a separate pool.
-   Recommendation: separate 20 k droplet pool (they are not rigid bodies).
-6. **Big lakes recharge** (WaterRethink decision 2, kept): slowly recharging conserved. Confirm the
-   rate is a per-world recipe knob.
-7. **Delete list** (§9): the CA, the camera window, override stores, `RippleField`, the cell
-   renderer. Confirm we blow these away rather than keep them "just in case" (they stay in git).
-8. **Phase A scope**: is `WaterBench_Small` (one chunk per rig) the right bench shape, and are the
-   §3 rates (pump 0.1 m³/s, bucket 0.02 m³, blast 2 m) the ones you want to see?
+| # | Decision | Status |
+|---|---|---|
+| 1 | **The method** | **OPEN — to be discussed.** The primer in §4.7 explains both candidates in plain terms and why the recommendation is the Eulerian core with a droplet layer, and why the choice is reversible (same grid, same pressure solve). Proposed way to decide: Phase B builds the shared grid + the Eulerian surface; S3–S5 judge the physics; the user judges S6/S9 captures before Phase E, and FLIP transport is added then if the Eulerian surface disappoints. |
+| 2 | **Resolution** | **SETTLED: ⅑ voxel is the design centre** (microvoxel tier). Policy and cost table in §4.5: ⅑ up to ~12 m extent, ⅓ to 40 m, 1 for bands — a budget consequence, not a preference; multigrid is the lever to widen ⅑. To confirm: that the ⅓ tier for 12–40 m bodies is acceptable until multigrid is measured. |
+| 3 | **Containers** | **SETTLED: simulated** (§4.6a). Static/placed containers are ⅑ AVs; carried v1 holds mass and pours; carried slosh is a Phase E feel item. Test cases C1–C4. |
+| 4 | **Shorelines** | **SETTLED: small-scale bands on the ocean boundary** (§5.3, §8.3). |
+| 5 | **Droplets** | **SETTLED: separate pool**, 20 k, ledger-exact re-absorption. |
+| 6 | **Lakes** | **SETTLED: conserved bodies with a water balance** — inflow from the river network, outflow at the spill, evaporation from climate; lakes can dry up or overflow as an emergent world feature (§5.3). Grounding of the rates is Phase G work. |
+| 7 | **Delete list** | **SETTLED: delete, carefully.** §9 is now a ledger with files, consumers, replacement, the phase after which each goes, and the risk — one commit per removal, nothing removed before its replacement passes its scenarios. |
+| 8 | **Rigs** | **SETTLED:** `WaterBench_Small`, one chunk per rig; the §3 rates stand until a rig says otherwise. |
+
+**Still open before Phase B starts:** decision 1 (method) — discussion; and the ⅓-tier
+confirmation under decision 2. Phase A (rigs + harness + the CA's red) can start on the settled
+decisions alone, since it builds no solver.
 
 ---
 
