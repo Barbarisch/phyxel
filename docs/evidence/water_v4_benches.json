@@ -326,5 +326,127 @@
     "ok": true,
     "timestamp": "2026-10-07T23:14:54",
     "git_head": "e5abb42f"
+  },
+  "small": {
+    "rigs": {
+      "pad": {
+        "columns": 1024,
+        "wrong": 0,
+        "samples": []
+      },
+      "trough": {
+        "columns": 1024,
+        "wrong": 0,
+        "samples": []
+      },
+      "channel": {
+        "columns": 1024,
+        "wrong": 0,
+        "samples": []
+      },
+      "pond": {
+        "columns": 1024,
+        "wrong": 0,
+        "samples": []
+      },
+      "ledge": {
+        "columns": 1024,
+        "wrong": 0,
+        "samples": []
+      },
+      "pipes": {
+        "columns": 1024,
+        "wrong": 0,
+        "samples": []
+      },
+      "bucket": {
+        "columns": 1024,
+        "wrong": 0,
+        "samples": []
+      }
+    },
+    "total_mass": 0.0,
+    "vantages": {
+      "pad": {
+        "ok": true,
+        "got": {
+          "x": 16.0,
+          "y": 30.0,
+          "z": -8.0,
+          "yaw": 90.0,
+          "pitch": -40.0
+        }
+      },
+      "trough": {
+        "ok": true,
+        "got": {
+          "x": 48.0,
+          "y": 26.0,
+          "z": -4.0,
+          "yaw": 90.0,
+          "pitch": -38.0
+        }
+      },
+      "channel": {
+        "ok": true,
+        "got": {
+          "x": 80.0,
+          "y": 30.0,
+          "z": -8.0,
+          "yaw": 90.0,
+          "pitch": -40.0
+        }
+      },
+      "pond": {
+        "ok": true,
+        "got": {
+          "x": 112.0,
+          "y": 26.0,
+          "z": -4.0,
+          "yaw": 90.0,
+          "pitch": -40.0
+        }
+      },
+      "ledge": {
+        "ok": true,
+        "got": {
+          "x": 146.0,
+          "y": 36.0,
+          "z": -14.0,
+          "yaw": 90.0,
+          "pitch": -35.0
+        }
+      },
+      "pipes": {
+        "ok": true,
+        "got": {
+          "x": 176.0,
+          "y": 26.0,
+          "z": -4.0,
+          "yaw": 90.0,
+          "pitch": -40.0
+        }
+      },
+      "bucket": {
+        "ok": true,
+        "got": {
+          "x": 208.0,
+          "y": 24.0,
+          "z": -2.0,
+          "yaw": 90.0,
+          "pitch": -42.0
+        }
+      }
+    },
+    "status": {
+      "api_version": "1.0",
+      "build_config": "Release",
+      "engine": "phyxel",
+      "port": 8111,
+      "status": "ok"
+    },
+    "ok": true,
+    "timestamp": "2026-10-08T12:11:50",
+    "git_head": "9b40eb98"
   }
 }

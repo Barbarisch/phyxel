@@ -27,7 +27,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PROJECTS = Path(os.environ.get("USERPROFILE", os.path.expanduser("~"))) / "Documents" / "PhyxelProjects"
-BENCHES = {"basin": "WaterBench_Basin", "coast": "WaterBench_Coast", "river": "WaterBench_River"}
+BENCHES = {"basin": "WaterBench_Basin", "coast": "WaterBench_Coast", "river": "WaterBench_River",
+           "small": "WaterBench_Small"}
 EVIDENCE = ROOT / "docs" / "evidence" / "water_v4_benches.json"
 
 
@@ -268,6 +269,102 @@ def verify_basin(api, gdef):
     return result, bad
 
 
+# ---------------------------------------------------------------- generic RIGS (WaterBench_Small) -
+# game.json waterBench.rigs = [{name, chunk:[cx,cz], slab:{y:[y0,y1], material}, fills:[box...],
+# carves:[box...], ...}], box = {x:[a,b], y:[a,b], z:[a,b], material?} in WORLD coordinates.
+# Applied in order: slab fill, then fills, then carves. Expected solid tops are derived the same way.
+
+def rig_boxes(rig):
+    cx, cz = rig["chunk"]
+    sy = rig["slab"]["y"]
+    slab = {"x": [cx * 32, cx * 32 + 31], "z": [cz * 32, cz * 32 + 31], "y": sy, "material": rig["slab"].get("material", "Stone")}
+    return slab, rig.get("fills", []), rig.get("carves", [])
+
+
+def rig_expected_tops(rig):
+    """Solid top per column of the rig's chunk after slab + fills + carves (max solid y, or None)."""
+    slab, fills, carves = rig_boxes(rig)
+    cx, cz = rig["chunk"]
+    # per column, a set of solid ys limited to the slab + fill ranges; carves remove
+    tops = {}
+    solid = {}
+    def cols(box):
+        return [(x, z) for x in range(box["x"][0], box["x"][1] + 1) for z in range(box["z"][0], box["z"][1] + 1)]
+    for box in [slab] + fills:
+        for (x, z) in cols(box):
+            solid.setdefault((x, z), set()).update(range(box["y"][0], box["y"][1] + 1))
+    for box in carves:
+        for (x, z) in cols(box):
+            if (x, z) in solid:
+                solid[(x, z)].difference_update(range(box["y"][0], box["y"][1] + 1))
+    for x in range(cx * 32, cx * 32 + 32):
+        for z in range(cz * 32, cz * 32 + 32):
+            ys = solid.get((x, z), set())
+            tops[(x, z)] = max(ys) if ys else None
+    return tops
+
+
+def build_rigs(api, gdef, force, only=None):
+    for rig in gdef["waterBench"]["rigs"]:
+        if only and rig["name"] != only:
+            continue
+        slab, fills, carves = rig_boxes(rig)
+        existing = solid_top_set(api, slab["x"][0], slab["z"][0], slab["x"][1], slab["z"][1], slab["y"][1])
+        if existing and not force:
+            print(f"[{rig['name']}] already built ({len(existing)} slab-top cells) - skipping (use --force)")
+            continue
+        if existing:
+            world_job(api, "/api/world/clear", {"x1": slab["x"][0], "y1": 0, "z1": slab["z"][0], "x2": slab["x"][1], "y2": 63, "z2": slab["z"][1]})
+        print(f"[{rig['name']}] slab ...", end=" ", flush=True)
+        r = world_job(api, "/api/world/fill", {"x1": slab["x"][0], "y1": slab["y"][0], "z1": slab["z"][0],
+                                               "x2": slab["x"][1], "y2": slab["y"][1], "z2": slab["z"][1]}, material=slab["material"])
+        print(r.get("placed", r))
+        for box in fills:
+            r = world_job(api, "/api/world/fill", {"x1": box["x"][0], "y1": box["y"][0], "z1": box["z"][0],
+                                                   "x2": box["x"][1], "y2": box["y"][1], "z2": box["z"][1]},
+                          material=box.get("material", "Stone"), replace=True)
+            print(f"   fill {box.get('note', '')} placed={r.get('placed')}")
+        for box in carves:
+            r = world_job(api, "/api/world/clear", {"x1": box["x"][0], "y1": box["y"][0], "z1": box["z"][0],
+                                                    "x2": box["x"][1], "y2": box["y"][1], "z2": box["z"][1]})
+            print(f"   carve {box.get('note', '')} removed={r.get('removed')}")
+    print("saving ...", api.post("/api/world/save", {"all": True}, timeout=300))
+
+
+def verify_rigs(api, gdef):
+    bad, per_rig = [], {}
+    for rig in gdef["waterBench"]["rigs"]:
+        tops = rig_expected_tops(rig)
+        slab, _, _ = rig_boxes(rig)
+        ys = sorted({y for y in tops.values() if y is not None})
+        lowest, highest = (ys[0], ys[-1]) if ys else (slab["y"][1], slab["y"][1])
+        layers = {y: solid_top_set(api, slab["x"][0], slab["z"][0], slab["x"][1], slab["z"][1], y) for y in range(lowest, highest + 1)}
+        wrong = []
+        for (x, z), want in sorted(tops.items()):
+            got = max((y for y in layers if (x, z) in layers[y]), default=None)
+            if got != want:
+                wrong.append(((x, z), want, got))
+                continue
+            if want is not None:
+                for y in range(want + 1, highest + 1):
+                    if (x, z) in layers[y]:
+                        wrong.append(((x, z), want, f"solid at y={y}")); break
+        per_rig[rig["name"]] = {"columns": len(tops), "wrong": len(wrong), "samples": wrong[:4]}
+        if wrong:
+            bad.append(f"{rig['name']}: {len(wrong)} wrong columns (first {wrong[:3]})")
+    ws = api.debug("water_stats")
+    mass = ws.get("total_mass", 0.0) if "error" not in ws else 0.0
+    if mass > 0:
+        bad.append(f"water present at boot: total_mass {mass}")
+    poses = {}
+    for v in gdef["testVantages"]["vantages"]:
+        got = camera_set(api, v)
+        poses[v["name"]] = {"ok": pose_ok(v, got), "got": got}
+        if not poses[v["name"]]["ok"]:
+            bad.append(f"vantage {v['name']} did not take: {got}")
+    return {"rigs": per_rig, "total_mass": mass, "vantages": poses, "status": api.get("/api/status"), "ok": not bad}, bad
+
+
 # ---------------------------------------------------------------- streaming benches ----------
 def wait_spans_stable(api, rect, max_s=240):
     """Spans exist only in RESIDENT chunks; after posing the camera, wait for the count to settle."""
@@ -369,7 +466,8 @@ def verify_streaming(api, gdef, bench):
 # ---------------------------------------------------------------- main -----------------------
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", choices=["build-basin", "verify", "vantage", "shot", "refshots"])
+    ap.add_argument("cmd", choices=["build-basin", "build-rigs", "verify", "vantage", "shot", "refshots"])
+    ap.add_argument("--only", help="build-rigs: only this rig name")
     ap.add_argument("bench", nargs="?", help="basin | coast | river (implied for build-basin)")
     ap.add_argument("name", nargs="?", help="vantage name (vantage/shot)")
     ap.add_argument("dst", nargs="?", help="destination png (shot)")
@@ -394,8 +492,19 @@ def main():
             raise SystemExit("BASIN RIG WRONG: " + "; ".join(bad))
         print(f"basin rig verified: {result['columns_checked']} columns, slab top exact, dry, "
               f"{sum(p['ok'] for p in result['vantages'].values())}/{len(result['vantages'])} vantages")
+    elif args.cmd == "build-rigs":
+        build_rigs(api, gdef, args.force, args.only)
+        result, bad = verify_rigs(api, gdef)
+        record_evidence(bench, result)
+        if bad:
+            raise SystemExit("RIGS WRONG: " + "; ".join(bad))
+        print(f"{bench}: {len(result['rigs'])} rigs verified, dry, "
+              f"{sum(p['ok'] for p in result['vantages'].values())}/{len(result['vantages'])} vantages")
     elif args.cmd == "verify":
-        result, bad = verify_basin(api, gdef) if bench == "basin" else verify_streaming(api, gdef, bench)
+        if "rigs" in gdef.get("waterBench", {}):
+            result, bad = verify_rigs(api, gdef)
+        else:
+            result, bad = verify_basin(api, gdef) if bench == "basin" else verify_streaming(api, gdef, bench)
         record_evidence(bench, result)
         print(json.dumps({k: v for k, v in result.items() if k not in ("status", "water_stats")}, indent=1)[:4000])
         if bad:

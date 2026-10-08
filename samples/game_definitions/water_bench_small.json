@@ -1,0 +1,59 @@
+{
+  "name": "WaterBench_Small",
+  "version": "1.0",
+  "description": "WATER CORE bench (docs/WaterCore.md sec. 3, Phase A): the small-scale feel rigs, ONE CHUNK PER RIG along +X (z 0..31), DebrisLab pattern. NO world block on purpose (a world block would regenerate terrain every launch and refill the carves). Terrain lives only in worlds/default.db, authored by `python tools/water_bench.py build-rigs small` from the `waterBench.rigs` list below and verified against the world by layer scans. Each rig: an 8-thick Stone slab (top solid y=16) plus fills and carves applied in that order. No hydrology bake, no water at boot. Rigs: pad (S1 pour), trough (S2/C4), channel (S7 wading + S10 stream v1 with cube rocks), pond (S8 push, S13 scoop), ledge (S9 waterfall), pipes (S14 pump/pipe), bucket (C1-C5 containers). The dam break / breach / drain / splash scenarios (S3-S6) run on WaterBench_Basin.",
+  "water": { "enabled": false, "_comment": "OFF: no implicit sea; the harness places water explicitly." },
+  "camera": { "position": { "x": 16, "y": 30, "z": -8 }, "yaw": 90, "pitch": -40 },
+  "waterBench": {
+    "rig": "small",
+    "rigs": [
+      { "name": "pad", "chunk": [0, 0], "slab": { "y": [9, 16], "material": "Stone" },
+        "carves": [ { "x": [20, 23], "y": [16, 16], "z": [20, 23], "note": "S1 control pit, 1 deep (floor top 15)" } ],
+        "scenarios": { "S1": { "pour_at": [8, 17, 8], "pit": [20, 20, 23, 23] } } },
+      { "name": "trough", "chunk": [1, 0], "slab": { "y": [9, 16], "material": "Stone" },
+        "carves": [ { "x": [36, 37], "y": [16, 16], "z": [10, 10], "note": "trough A: 2x1x1 (2 m^3, floor top 15, rim 16)" },
+                    { "x": [36, 37], "y": [14, 16], "z": [20, 20], "note": "trough B (control): 2x1x3 (6 m^3) - a 0.1 m^3/s pump cannot overflow it in 20 s" } ],
+        "scenarios": { "S2": { "trough": [36, 10, 37, 10], "control": [36, 20, 37, 20], "pump_rate": 0.1 } } },
+      { "name": "channel", "chunk": [2, 0], "slab": { "y": [9, 16], "material": "Stone" },
+        "carves": [ { "x": [66, 77], "y": [16, 16], "z": [14, 15], "note": "S7 wading channel: 2 wide x 1 deep x 12 long (floor 15)" },
+                    { "x": [66, 69], "y": [16, 16], "z": [24, 24], "note": "S10 stream v1 seg 1" },
+                    { "x": [71, 75], "y": [16, 16], "z": [24, 24], "note": "S10 seg 2 (rock at x 70 left standing)" },
+                    { "x": [77, 81], "y": [16, 16], "z": [24, 24], "note": "S10 seg 3 (rock at 76)" },
+                    { "x": [83, 85], "y": [16, 16], "z": [24, 24], "note": "S10 seg 4 (rock at 82)" } ],
+        "_comment": "S10 v1 is FLAT with full-cube rocks; the 1:20 slope and subcube rocks need sub-voxel carving the API lacks today - listed in WaterCore sec. 3 as a v1 deviation.",
+        "scenarios": { "S7": { "channel": [66, 14, 77, 15], "walk": [[66, 17, 14.5], [77, 17, 14.5]] },
+                       "S10": { "channel": [66, 24, 85, 24], "rocks": [[70, 16, 24], [76, 16, 24], [82, 16, 24]], "inflow": [66, 16, 24], "outflow": [85, 16, 24], "rate": 0.05 } } },
+      { "name": "pond", "chunk": [3, 0], "slab": { "y": [9, 16], "material": "Stone" },
+        "carves": [ { "x": [100, 103], "y": [15, 16], "z": [12, 15], "note": "S8/S13 pond: 4x4x2 (32 m^3, floor top 14)" } ],
+        "scenarios": { "S8": { "pond": [100, 12, 103, 15], "blast_near": [106, 17, 13.5], "blast_far": [124, 17, 13.5] },
+                       "S13": { "pond": [100, 12, 103, 15], "scoop_at": [101, 15, 13], "pour_at": [110, 17, 13], "amount": 0.02 } } },
+      { "name": "ledge", "chunk": [4, 0], "slab": { "y": [9, 16], "material": "Stone" },
+        "fills":  [ { "x": [128, 143], "y": [17, 22], "z": [0, 31], "material": "Stone", "note": "S9 ledge: 6 high (top 22) on the west half" } ],
+        "carves": [ { "x": [150, 157], "y": [12, 16], "z": [10, 17], "note": "S9 pit: 8x8x5 (320 m^3, floor top 11)" } ],
+        "scenarios": { "S9": { "source": [143, 23, 14], "rate": 0.3, "pit": [150, 10, 157, 17], "drop": 6 } } },
+      { "name": "pipes", "chunk": [5, 0], "slab": { "y": [9, 16], "material": "Stone" },
+        "carves": [ { "x": [164, 165], "y": [15, 16], "z": [10, 10], "note": "S14 trough A: 2x1x2 (4 m^3, floor 14)" },
+                    { "x": [164, 165], "y": [15, 16], "z": [20, 20], "note": "S14 trough B" },
+                    { "x": [165, 165], "y": [15, 15], "z": [11, 14], "note": "pipe, covered (y 16 solid above)" },
+                    { "x": [165, 165], "y": [14, 14], "z": [14, 16], "note": "pipe dip (face-connected via z 14 and z 16 at both heights)" },
+                    { "x": [165, 165], "y": [15, 15], "z": [16, 19], "note": "pipe, covered" } ],
+        "scenarios": { "S14": { "a": [164, 10, 165, 10], "b": [164, 20, 165, 20], "pipe_block_cell": [165, 15, 12], "rate": 0.05 } } },
+      { "name": "bucket", "chunk": [6, 0], "slab": { "y": [9, 16], "material": "Stone" },
+        "carves": [ { "x": [196, 196], "y": [16, 16], "z": [10, 10], "note": "bucket 1: 1 m^3 (C1-C5 at cube scale; the 1/9 bucket item comes with Phase E)" },
+                    { "x": [200, 201], "y": [15, 16], "z": [10, 11], "note": "bucket 2: 8 m^3" } ],
+        "scenarios": { "C1": { "bucket": [196, 10, 196, 10], "pump_rate": 0.1 }, "C5": { "bucket": [196, 10, 196, 10], "reserve": 1.0, "pump_rate": 0.1 } } }
+    ]
+  },
+  "testVantages": {
+    "_comment": "One overview per rig, south of it looking north (+Z), plus a low pose for the ledge. yaw 90 = +Z.",
+    "vantages": [
+      { "name": "pad",     "x": 16,  "y": 30, "z": -8,  "yaw": 90, "pitch": -40, "tests": "S1 pour pad + control pit" },
+      { "name": "trough",  "x": 48,  "y": 26, "z": -4,  "yaw": 90, "pitch": -38, "tests": "S2 trough A (near) and deep control trough B" },
+      { "name": "channel", "x": 80,  "y": 30, "z": -8,  "yaw": 90, "pitch": -40, "tests": "S7 wading channel and the S10 rock channel" },
+      { "name": "pond",    "x": 112, "y": 26, "z": -4,  "yaw": 90, "pitch": -40, "tests": "S8/S13 pond" },
+      { "name": "ledge",   "x": 146, "y": 36, "z": -14, "yaw": 90, "pitch": -35, "tests": "S9 ledge and pit" },
+      { "name": "pipes",   "x": 176, "y": 26, "z": -4,  "yaw": 90, "pitch": -40, "tests": "S14 two troughs; the pipe is buried" },
+      { "name": "bucket",  "x": 208, "y": 24, "z": -2,  "yaw": 90, "pitch": -42, "tests": "C1-C5 buckets" }
+    ]
+  }
+}

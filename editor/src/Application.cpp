@@ -13358,6 +13358,80 @@ void Application::registerWaterCommands() {
     // sea-level configuration.
 
     // Full per-cell sim state at one world cell — mass, floor, solid, channel tag, source pin, flow.
+    // ── WaterCore Phase A harness routes (docs/WaterCore.md §14.4/§14.5) ─────────────────────
+    // These read TODAY's water (the CA + chunk spans) so the scenario harness can record the
+    // current engine's behaviour as the red baseline. They keep their names when WaterCore lands.
+
+    // water_ledger: Σ mass by representation. `drift` is reported by the harness against a
+    // baseline it captures itself (the engine has no notion of "initial" yet).
+    reg.on("water_ledger", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        (void)cmd;
+        double spans = 0.0; long spanCount = 0;
+        if (chunkManager) {
+            for (auto& [cc, chunk] : chunkManager->chunkMap) {
+                if (!chunk) continue;
+                for (const auto& s : chunk->getWaterSpans()) { spans += s.top - s.bottom; ++spanCount; }
+            }
+        }
+        const double cells = waterManager ? waterManager->totalMass() : 0.0;
+        r = {{"cells", cells}, {"spans", spans}, {"span_count", spanCount},
+             {"bodies", 0.0}, {"reserves", 0.0}, {"droplets", 0.0},
+             {"total", cells + spans},
+             {"units", "m^3 (voxel-volumes); cells = the CA's mass field, spans = chunk-resident span depth"},
+             {"sim_region", waterManager ? nlohmann::json{{"origin", {waterManager->origin().x, waterManager->origin().y, waterManager->origin().z}},
+                                                           {"dims", {waterManager->dims().x, waterManager->dims().y, waterManager->dims().z}}}
+                                         : nlohmann::json(nullptr)}};
+    });
+
+    // water_probe_rect {x1,z1,x2,z2, y1?, y2?}: per column the surface (highest cell with mass >
+    // 0.05 plus its fill) and the column mass, in ONE call — the harness samples a dam-break front
+    // at ~10 Hz over HTTP, which per-cell probes cannot do. Columns outside the sim region read
+    // null. Capped at 4096 columns so a typo cannot stall the game loop.
+    reg.on("water_probe_rect", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        const int x1 = cmd.params.value("x1", 0), z1 = cmd.params.value("z1", 0);
+        const int x2 = cmd.params.value("x2", 0), z2 = cmd.params.value("z2", 0);
+        const int lx = std::min(x1, x2), hx = std::max(x1, x2), lz = std::min(z1, z2), hz = std::max(z1, z2);
+        const glm::ivec3 o = waterManager->origin(), d = waterManager->dims();
+        const int y1 = cmd.params.value("y1", o.y), y2 = cmd.params.value("y2", o.y + d.y - 1);
+        if (static_cast<long long>(hx - lx + 1) * (hz - lz + 1) > 4096) { r = {{"error", "rect too large (max 4096 columns)"}}; return; }
+        nlohmann::json cols = nlohmann::json::array();
+        double total = 0.0;
+        for (int z = lz; z <= hz; ++z) for (int x = lx; x <= hx; ++x) {
+            if (x < o.x || x >= o.x + d.x || z < o.z || z >= o.z + d.z) { cols.push_back({x, z, nullptr, 0.0}); continue; }
+            double colMass = 0.0; float surface = -1e30f;
+            for (int y = std::max(y1, o.y); y <= std::min(y2, o.y + d.y - 1); ++y) {
+                const float m = waterManager->massAtWorld(glm::vec3(x + 0.5f, y + 0.5f, z + 0.5f));
+                if (m > 0.05f) surface = static_cast<float>(y) + std::min(m, 1.0f);
+                colMass += m;
+            }
+            total += colMass;
+            cols.push_back({x, z, surface > -1e29f ? nlohmann::json(surface) : nlohmann::json(nullptr), colMass});
+        }
+        r = {{"columns", cols}, {"total_mass", total}, {"format", "[x, z, surface_y|null, column_mass]"},
+             {"sim_origin", {o.x, o.y, o.z}}, {"sim_dims", {d.x, d.y, d.z}}};
+    });
+
+    // place_water_box {x1,y1,z1,x2,y2,z2, mass=1.0}: fill every cell of a box with `mass` in one
+    // command (a dam-break block is ~250 cells; 250 HTTP round-trips would let the CA spread for
+    // seconds during placement). Reports placed cells and the resulting total.
+    reg.on("place_water_box", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterManager) return noWater(r);
+        const int x1 = cmd.params.value("x1", 0), y1 = cmd.params.value("y1", 0), z1 = cmd.params.value("z1", 0);
+        const int x2 = cmd.params.value("x2", 0), y2 = cmd.params.value("y2", 0), z2 = cmd.params.value("z2", 0);
+        const float mass = cmd.params.value("mass", 1.0f);
+        const long long n = static_cast<long long>(std::abs(x2 - x1) + 1) * (std::abs(y2 - y1) + 1) * (std::abs(z2 - z1) + 1);
+        if (n > 100000) { r = {{"error", "box too large (max 100000 cells)"}}; return; }
+        long placed = 0;
+        for (int y = std::min(y1, y2); y <= std::max(y1, y2); ++y)
+            for (int z = std::min(z1, z2); z <= std::max(z1, z2); ++z)
+                for (int x = std::min(x1, x2); x <= std::max(x1, x2); ++x) {
+                    waterManager->placeWater(glm::vec3(x + 0.5f, y + 0.5f, z + 0.5f), mass);
+                    ++placed;
+                }
+        r = {{"success", true}, {"placed", placed}, {"mass_each", mass}, {"total_mass", waterManager->totalMass()}};
+    });
+
     reg.on("water_probe", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterManager) return noWater(r);
         const glm::ivec3 w(cmd.params.value("x", 0), cmd.params.value("y", 0), cmd.params.value("z", 0));

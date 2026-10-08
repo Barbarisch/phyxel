@@ -2177,6 +2177,9 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_ground_sync",    waterEndpoint("water_ground_sync"));  // grounded grid (un-baked worlds)
     srv.Post("/api/debug/water_spans_stored",   waterEndpoint("water_spans_stored")); // chunk-resident span readback
     srv.Post("/api/debug/water_render_grid",    waterEndpoint("water_render_grid"));  // what the sheet would DRAW per column (camera-walk probe)
+    srv.Post("/api/debug/water_ledger",         waterEndpoint("water_ledger"));       // WaterCore Phase A: Σ mass by representation
+    srv.Post("/api/debug/water_probe_rect",     waterEndpoint("water_probe_rect"));   // WaterCore Phase A: per-column surface + mass over a rect
+    srv.Post("/api/debug/place_water_box",      waterEndpoint("place_water_box"));    // WaterCore Phase A: fill a box of cells in one command
     srv.Post("/api/debug/water_cell_render",    waterEndpoint("water_cell_render"));  // camera-invariant gate A/B
     srv.Post("/api/debug/water_validate",       waterEndpoint("water_validate"));
     srv.Post("/api/debug/water_find_river",     waterEndpoint("water_find_river"));
