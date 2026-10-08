@@ -574,6 +574,12 @@ Ritter at the resolvable contour at both h = 1 and h = ⅓ (the fine run acceler
 toward the 10.85 tip); wall crest above still + 0.8 × incident. Scenario gates S1–S5 on the
 benches are the next step (Phase B engine integration, §15.1).
 
+Full unit suite from the repo root after the green commit (Release): **4 138 / 4 160 pass**; the
+two failures are `FineFaceMerge` and `AtlasManagerTest` cases that touch no file this work changed
+(last modified 2026-09) and are not water; a run of the same binary from a scratch directory
+reports hundreds of failures because resource-loading tests resolve paths from the working
+directory — run the suite from the repo root, as `build_and_test.ps1` does.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
