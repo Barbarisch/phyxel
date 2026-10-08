@@ -337,9 +337,12 @@ tier, so the real question is what *scales down*. Hypotheses to be measured, not
 512² region = 262 k columns × 3 passes at 30 Hz ≈ 0.1-0.3 ms GPU on this card; 1024² ≈ 1 ms. The
 CPU CA's whole 64×32×64 window is 131 k cells for ~0.2 ms *active* on one core. **Target budget for
 all water (sim + every draw, SSR excluded)** ≤ 1.5 ms GPU at 1440p on the 4090, with quality tiers
-`low` (256² region, no SSR, 2 Gerstner components), `medium` (512², SSR 12 steps), `high` (1024²,
-SSR 24, spray). Tiers bound *cost* only: the region size changes where motion is simulated, never
-where water exists (spans). Measured per-tier numbers go in the baseline file.
+`low` (256² region, SSR 8 steps, spray cap 12), `medium` (512², SSR 12, spray cap 24), `high`
+(1024², SSR 24, spray cap 48). Tiers bound *cost* only — region size, SSR step count, particle
+caps. **A tier never changes the wave spectrum, removes spray, or alters any look at a fixed
+world point** (design key: detail is unconditional; gate §8.7 corrected an earlier draft that
+dropped Gerstner components and spray at `low`). Where motion is simulated moves with tier; where
+water exists (spans) and how it is shaded do not. Measured per-tier numbers go in the baseline file.
 
 Validation: L3 (predictions above hit on the bench), L2 conservation, perf per tier. **Decision
 gate:** the user picks SWE / layered SWE / CA-GPU-done-properly from the measured table. Nothing
@@ -596,7 +599,10 @@ water.
 **WP3 SWE (the one-chunk rig).** `WaterBench_Basin` is a Flat world but **the rig sits inside ONE
 chunk** (x,z ∈ 0..31): a 20×12 basin 6 deep with a vertical wall on one side and a 1:10 ramp on
 the other, plus a 2-wide channel out of a notch. Predictions written here, before the run: dam
-break from a 3-deep column reaches the far wall in L/√(g·h) = 20/√(9.81·3) ≈ 3.7 s ± 10 %;
+break from a 3-deep column onto the dry bed reaches the far wall at the Ritter front speed
+2·√(g·h₀) = 2·√(9.81·3) ≈ 10.8 u/s, so L/(2√(g·h₀)) = 20/10.8 ≈ **1.8 s** (frictionless bound;
+a bed-friction run must be slower, never faster — an earlier draft wrote 3.7 s using the wave
+celerity √(g·h), which is the wrong quantity for a dam-break front and was caught by gate §8.7);
 mass after 60 s = initial ± 1e-4 relative; still-water surface tilt < 1e-3 after 10 s; wall
 reflection: first reflected crest ≥ 0.8× incident amplitude; ramp run-up ≈ Hunt's formula ± 20 %.
 Control: the same rig with the sim disabled (spans only) must show zero motion, and a dry sibling
@@ -618,3 +624,33 @@ and sea report the same wind direction (two probes, one frame).
 Sim↔analytic crossfade width (tune on the Coast bench, judged by A/B); whether `low` tier at 256²
 makes the simulated band visibly small on a 4090-class scene (measure in WP3); far-tile river
 ribbons' minimum visible width (cost rule, set from the Coast/River vantages).
+
+### 8.7 Second pass (same day) — four defects found in the first pass's own answers
+
+1. **Tiers changed the look (design-key violation, fixed).** WP3's first tier table gave `low`
+   "2 Gerstner components" and reserved spray for `high` — appearance at a fixed world point would
+   have depended on a quality setting. Reclassified: tiers bound region size, SSR steps and
+   particle *caps* only. The wave spectrum and the presence of spray are unconditional.
+2. **Big-lake mass accounting across the region boundary (missing design, now binding on WP4).**
+   A lake larger than the active region is only partly simulated. If a rim is breached inside the
+   region, the region's columns would drain while the rest of the lake outside stayed at the body
+   level — a step at the region edge. Rule: the region's boundary columns are held at the **body
+   level**, and every unit of mass that crosses that boundary is **debited/credited to the body
+   record**; the body's level drops or rises uniformly (flat-body invariant) and the boundary
+   condition tracks it. This is the column-total deficit accounting that already exists for finite
+   ponds (`WaterManager::applyFiniteBodies`, WaterManager.cpp:920) lifted to the body table.
+   Red test: breach a 1 000-column lake with a 512² region; predict the body level after 60 s from
+   outflow volume ÷ lake area; outside-region columns must read that level, and total mass
+   (region + body record) is conserved to 1e-3.
+3. **Far tiles are edit-blind (named, accepted, probed).** WP2 derives far water from the
+   generator, so a dug canal or a filled bay shows at distance only once its chunks are resident —
+   exactly terrain's own documented limitation (`FarRepresentationProviders.md` §"generator-derived
+   vs storage-derived"; the `StorageFarProvider` fixes both at once). Accepted for v4 because it
+   matches terrain and the alternative is the DB LOD pyramid. Consequence for tooling: the camera
+   probe reports edited columns separately (spans ≠ generator) so an expected far/near difference on
+   edited ground is not misread as a camera-existence violation.
+4. **A grounded prediction was wrong.** The WP3 dam-break time used wave celerity √(g·h); the
+   dry-bed front moves at the Ritter speed 2√(g·h₀). Corrected in 8.5 (≈1.8 s, not 3.7 s). The
+   point of writing predictions first is that this gets caught before the run, not after.
+
+**Verdict after the second pass: READY to begin WP0**, with items 2 and 3 binding on WP4 and WP2.
