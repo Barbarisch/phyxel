@@ -631,10 +631,105 @@ fixed at its cause and commented at the line:
 | S5 cavity 48 ± 0.5 by 20 s; basin ends at the still level of 408 − 48 | 1 | 41.9 before #16; **48.0 at 8.9 s** after (Torricelli through 1 m² at ~2.8 m head: ~8 s); basin surface ends at 14.654 vs 14.65 predicted (the first gate measured a 'drop' from a start that had not equalised over the ramp — rewritten to the end level) | **PASS 4/4** (cavity 48.0 at 8.9-10.1 s, end level 14.656 as the mean of the last 5 s - one sample reads +-1 cm because the basin still sloshes - vs 14.65, mass -4.7e-5 of 408, sealed control 0.0) |
 | S5 mass, sealed control | 1 | drift −1.5e-6 of 408; sealed cavity 0.0 | PASS |
 
-Full unit suite after these fixes (Release, repo root): **4 139 / 4 161**, the same two non-water
-failures as §15.7 (`AtlasManagerTest`, `FineFaceMerge`). The WaterCore suite is 15 (the pump
+Full unit suite after these fixes (Release, repo root): **4 140 / 4 162**, the same two non-water
+failures as §15.7 (`AtlasManagerTest`, `FineFaceMerge`). **Debug timings** (the owed after-numbers,
+2026-10-08, `python312.dll` dir on PATH or the exe does not start): `WaterOccupancyTest` 25 cases
+in 93 s, the two formerly slow ones at 26.7 s (`GeneratedChunksHoldTheirWaterSpans`) and 56.3 s
+(`StoredSpansAgreeWithThePerColumnQueryAcrossAWholeChunk`); `WaterCoreTest` 16 cases in 211 s, of
+which `WeirDischargeMatchesAtBothResolutions` 109 s and `OpenHoleDrainsAtTorricelli` 66 s (both
+under 2 s in Release). Debug is for stepping through a defect, not for the gate; the gate runs
+Release. The WaterCore suite is 15 (the pump
 test was added red). The coarse-front and fine-convergence tests caught three of the fixes above
 as regressions before they shipped — what the red-first suite is for.
+
+### 15.9 Phase B2 design — `FlipTransport` (the second transport, same grid) — design-check 2026-10-08: NEEDS WORK → the three items below added → READY
+
+**Why now, with numbers.** The Eulerian core passes S1, S2, S4, S5 and the S3 front and seiche,
+and fails exactly the regime the §4.7 primer predicted it would: airborne and sheet water. The S3
+wall run-up reads **1.33 h₀ at 1 m and 1.11 h₀ at ⅓ m** against the literature 2.1–2.3 h₀ (§15.8);
+the CPU reference on a clean 20 m channel reads 1.67 / 1.22 h₀. The climbing sheet is thin water,
+moved by donor-cell fractions (a cell empties exponentially instead of translating) and steered by
+the first halo layer, so its momentum leaks every substep. Particles carry momentum exactly. That
+is the §12 decision ("both transports") coming due, and B2's red test is this very number.
+
+**Shape — what changes, what does not.** `WaterCore` keeps the grid, solids (hold boundary),
+sources/sinks, the pressure projection, rest detection and the manager; B2 adds
+`FlipTransport : IWaterTransport` and widens the interface by what particles need:
+
+| Interface call | Eulerian (exists) | FLIP (B2) |
+|---|---|---|
+| `advect(grid, dt)` | donor-cell fill transfer + semi-Lagrangian face velocities | **particle → grid** (mass to `f`, momentum to faces, APIC-weighted), the solver projects the grid as today, **grid → particle** (FLIP/PIC blend, then APIC affine matrices), particles move by their velocity (RK2 in the projected field), solids push particles out along the nearest free axis |
+| `seed(grid)` (new) | no-op | `8` equal-mass particles per cell at 2×2×2 jittered sites, `n = round(8 f)` plus one lighter remainder particle so column mass is exact; deterministic jitter (hash of cell + index) |
+| `settle(grid)` (new) | no-op | **rest conversion**: when the solver reports quiet (same `keWake`), particles are summed back to fills — lossless by construction — and the AV continues on `EulerianTransport` (sleep, spans, write-back unchanged) |
+| `source(cell, m³)` (new) | fill the cell (exists in the solver) | emit `m³ / m_p` particles at the outlet with the outlet's face velocity; sinks remove the nearest particles and return the exact mass |
+| `massPerColumn` (exists on the grid) | from `f` | from particles (the grid's `f` is rebuilt every substep by p2g, so the same query works) |
+
+**P1 by construction.** Particles are never created or destroyed by motion; each carries a fixed
+mass `m_p = h³ / 8` (plus one remainder particle per seeded cell). The ledger is Σ m_p. The grid's
+`f` is a derived field (classification + surface + the Eulerian hand-off), never the ledger while
+particles exist. Overfilled cells (`f > 1` after p2g, the known FLIP clustering) are not clamped:
+the projection sees `f ≥ 0.5` as liquid as today, and a **volume-control term** on cells with
+`f > 1` (the one place a divergence target is right, because the excess is measured, not guessed:
+`rhs −= (f − 1) / dt²`, bounded) pushes particles apart over a few substeps (Kugelstadt-style
+density correction, measured in the unit tests, not assumed).
+
+**Solids and the hold boundary.** A particle that ends a step inside a Solid or Unknown cell is
+moved back along its step to the last free position and its normal velocity is zeroed; the grid's
+`enforceSolidFaces` already zeroes the face flux. Unknown = wall, exactly as for fills (P-hold).
+
+**Determinism (the §4.4 rule, executable).** Particle arrays are stored sorted by (cell index,
+creation index) after every advect; p2g accumulates in that order; the jitter is a hash. **Sources
+emit and sinks remove in that same order** (emission appends with the next creation index at the
+outlet cell; a sink removes the lowest creation indices in its cell first), so a pumped or drained
+volume stays bit-identical between runs and between the sub-box and the whole box. The same
+`Deterministic` and `SubBoxIdenticalToWholeBox` tests run on FLIP with the particle list compared
+after sorting, not the grid alone.
+
+**Resolution and the particle cap.** Particles per cell is a constant (8), so B2 cost follows the
+§4.5 policy through the cell count; the budget coarsens and logs exactly as for Eulerian. The CPU
+reference refuses a FLIP volume above `kMaxParticlesPerVolume` = 2 M particles (250 k cells of
+water at 8 each) with the would-be count in the message, because the 2 M-CELL cap at create would
+otherwise admit 16 M particles; the refusal is pinned by a test, like the cell cap. B2 is **per-AV opt-in**
+(`transport:"flip"` already exists on `water_av_create`) for the regimes it is for — plunge pools,
+breaches, pours, the shoreline band — never the default for a resting trough (§4.7 stands).
+
+**Red tests (all synthetic, one grid, written before the transport):**
+1. `FlipMassExactUnderArbitraryVelocity` — 1 000 ticks of random faces, Σ m_p and particle count unchanged, no particle inside a solid (the particle twin of #1 in §15.2).
+2. `FlipRestConversionLossless` — particles → fills → particles round trip: mass per column identical to 1e-9, and `StillWaterStaysStill` holds after the hand-off.
+3. `FlipSeedingMatchesFills` — seeding a partially filled grid reproduces every column's mass.
+4. `FlipDamBreakFrontWithinRitter` — the §15.2 front test on FLIP at 1 and ⅓ (same 85 % gate).
+5. **`FlipWallRunupMatchesLiterature`** — the 20 m channel of the CPU reference (block 10 m × 3 m, wall at 10 m, ceiling 9 m): peak surface at the wall **≥ 1.65 h₀** at ⅓ (2.2 h₀ − 25 %), where Eulerian reads 1.22 h₀ today. This is the test that decides whether B2 earns its place.
+6. `FlipSolidsHold` — the §15.2 solid/hold-face tests on FLIP.
+7. `FlipDeterministic` + `FlipSubBoxIdenticalToWholeBox`.
+
+**Scenario gates (harness `--transport flip`):** S3 at ⅓ with run-up inside 2.2 h₀ ± 25 % and the
+front and seiche rows unchanged within their tolerances; S1 (a pour must still rest ≤ 3 s after the
+hand-off); S4 and S5 within the Eulerian tolerances; every row on both transports side by side,
+plus the cost row (ms per tick per 10 k particles, Release) — B2 is accepted only if S3 run-up
+passes AND nothing else regresses.
+
+**Debug API.** `water_av_list` gains `particles` (count) and `transport`; new
+`water_av_particles {id, max}` returns a deterministic sample of positions/velocities for the
+harness (never for rendering). `water_av_settle {id}` forces the rest conversion (for the
+round-trip gate in the engine).
+
+**Visual test.** Particles render through the engine's existing dynamic voxel instance path as
+**water-shaded microcubes** (the §14.1 droplet idiom) while the grid surface keeps the cell feed.
+That path is written today by `particle_expand.comp` from the GPU debris solver, so B2 **delivers a
+CPU-fed instance buffer** in the `DynamicSubcubeInstanceData` stride (engine/include/core/Types.h),
+uploaded once per frame from the sorted particle list, drawn with the existing `dynamic_voxel`
+pipeline and water material; no new shader. The claim for
+the user's eyes is one capture pair at the `east_wall` vantage: Eulerian vs FLIP at the run-up
+peak frame, same pose, with the measured peak heights in the caption. **Chunks must not be
+visible**: particles live in world space inside the AV and the AV is residency-bounded exactly as
+before (§5.1); the equality test is #7.
+
+**Rig vs shipped defaults.** Same Basin and Small rigs; FLIP at 8 particles per cell on ⅓ cells
+(default); the only new knob is the FLIP/PIC blend (0.95 FLIP; pinned by test 5 — a lower blend
+damps the run-up and the test will say so).
+
+**Deliberately not in B2:** the 20 k droplet pool (§12; droplets that leave the AV), rendering
+beyond the debug draw, GPU particles (Phase C), two-way coupling (Phase E).
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
