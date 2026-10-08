@@ -58,14 +58,24 @@ the spans (A)** — out of the window `sampleWater` falls back to the 128 m bake
 reads DRY the moment the camera leaves (WaterManager.cpp:1192). Voxel edits update the sim's solid
 mask but **never the spans** — the only post-generation span writer is `water_ground_sync`.
 
-### 1.2 Rivers are invisible in baked worlds
+### 1.2 Rivers are either dry or drowned in baked worlds
 
-Rivers and creeks are **never written into spans** (`waterSpansForBlock` seeds only from bake lake/
-ocean levels, WorldGenerator.cpp:808-877). They exist only as pinned CA cells, and cell rendering is
-**disabled wherever a baked table is bound** (WaterManager.cpp:213, the 2026-08-04 camera-invariant
-deletion). Net effect, confirmed by both inventories: in every streaming world, river carves render
-dry, and splashes, pours and waterfall mist are invisible. Rivers "work" only in the sense that
-`water_find_river` finds them and a crate drifts in the gorge.
+Rivers and creeks are **never written into spans as rivers** (`waterSpansForBlock` seeds only from
+bake lake/ocean levels, WorldGenerator.cpp:808-877). They exist only as pinned CA cells, and cell
+rendering is **disabled wherever a baked table is bound** (WaterManager.cpp:213, the 2026-08-04
+camera-invariant deletion). So a river far from any lake renders dry, and splashes, pours and
+waterfall mist are invisible everywhere streaming.
+
+**Measured on the River bench 2026-10-07 — the other half, worse:** a river valley NEAR a lake is
+**drowned**. A perched bake lake (level 107.8) sits beside the order-5 trunk valley (bed 19). The
+fine flood (`floodBodiesOverGrid`) fills every connected column lower than the body level, and
+nothing but the 256-step budget stops it walking downhill out of the lake's outlet — so the whole
+valley within the budget frontier gets spans topped at the lake level: **42,924 spans, tops 32–108.6,
+over 18,189 columns of which the bake marks 512 wet; the valley renders as a 90-deep lake with tree
+tops poking through.** The same mechanism overfilled the RiverLab-era chasm at (704,−1152) by 51
+voxels. `water_span_scan`'s disagreement metric reads **0.0 %** on this rect because it only counts
+bake-wet-and-terrain-dry columns; it is blind to span-wet-where-bake-dry. WP1's red metric is the
+missing direction: **span-wet ∧ ¬bake-wet ∧ ¬river-channel must be 0 columns (today 17,677)**.
 
 ### 1.3 The motion layer has no motion
 
@@ -267,8 +277,17 @@ representation either derives from spans or is deleted.
 1. **River and creek spans at generation.** `waterSpansForBlock` consults `channelHitAt` and emits
    a span per river/creek column with top = bed + channel depth (sloped along the carve, so the
    per-column representation holds a sloping channel — this is what the flat 128 m grid could not
-   do). Creeks get fractional tops on the ⅔ shelf. Red test: a known order-3 column in
-   `WaterBench_River` holds zero spans today.
+   do). Creeks get fractional tops on the ⅔ shelf. Red test: the River bench trunk rect — today
+   42,924 lake-level spans, afterwards one span per river column at bed + depth (20.0).
+1b. **The lake flood must stop at the lake's outlet.** `floodBodiesOverGrid` floods every connected
+   column below the body level and relies on the step budget to stop — which is why a perched lake
+   drowns the valley below it (§1.2, measured). The flood must be **hydraulic**: a column joins the
+   body only if it is below the level AND is not downhill of the body's spill (equivalently, the
+   fine flood is a Priority-Flood basin fill from the seed with the bake level as the cap, so the
+   outlet column — at the spill level — is the boundary, and nothing beyond it is wet). Red metric
+   (new route or extension of `water_span_scan`): **span-wet ∧ ¬bake-wet ∧ ¬river-channel = 0**;
+   today 17,677 of 18,189 columns in the River bench rect. The step budget then returns to being a
+   cost bound, not the thing that shapes water.
 2. **Fine-pond spans at generation** (`finePondsForCell` → spans), with a body id so finiteness
    survives.
 3. **Edits update spans.** Break/place/blast → re-flood the affected column stack locally
@@ -463,6 +482,27 @@ Validation: L4 per feature on the benches; stress: 100 NPCs wading, 1000 debris 
   rows, StructurePipelineGaps river items at the package that closes each.
 
 ---
+
+### WP0 ledger (2026-10-07, evening — benches)
+
+| Bench | State | Facts measured on this engine (Release `fb641dfe`+) |
+|---|---|---|
+| **WaterBench_Basin** (port 8108) | **DONE** | One-chunk rig authored by `tools/water_bench.py build-basin`, verified by layer scans: 1024/1024 column tops exact, slab top intact, 0 solids above, 0 water, 4/4 vantages read back; identical after a cold relaunch from `default.db`. Capture: `docs/evidence/water_v4_basin_rig_overview.png`. Dam-break rig constants as in game.json: h₀ 3, L 10 (x 22→12), stepped ~1:3 ramp. |
+| **WaterBench_Coast** (8109) | poses measured, verify re-running | Bake = WaterTest's (outlet TRUE, drainage complete, order 5, min −24). The documented "shore rect" (37,708)–(293,964) is **all seabed** (surface 3–15, ~1 voxel per 20–25 u). Waterline at x=165 is z≈676; sand sits AT sea level (surface 16) z 656–672. **The Water.md §5 red baseline reproduces exactly: rim_leaks 257/257, worst 6 at (59,767)**; 66,004 spans / 81 chunks, all tops 16.0 when the rect is fully resident. |
+| **WaterBench_River** (8110) | **DONE** (red baseline recorded) | The RiverLab-era "order-3 gorge (704,−1152)" is an **alpine spill lake (277.56) pouring into a chasm** (bed 185–226 under 290 banks) — unusable as a flow reach; a 9×9 rect there holds **204 spans with tops 192–325** (overfill 51). **Bench reach = the order-5 trunk** near x≈−1728, z −1800..−500: bed y≈19 flat over 1 200 u, width 14, 60–80 u valley, banks 80–100; bake table DRY there (river_channel, order 5). **Its 140×128 rect holds 42,924 spans with tops 32–108.6 — the valley is DROWNED by a perched lake's (107.8) fine flood escaping its outlet** (§1.2). Captures `trunk_down`/`trunk_top` are solid water. WP1 red metric: span-wet ∧ ¬bake-wet ∧ ¬river = 17,677 columns today, must be 0. |
+
+Traps found building them (each cost real time; now in memory `reference_bench_engine_on_project_port`):
+- **Port 8090 is held by an unrelated server** (`taba-server`, another workspace) → MCP engine
+  tools unusable; benches run on their project ports via `phyxel up`, driven over HTTP.
+- **`python312.dll` is not on a CLI-spawned process's PATH** → the engine dies with no log.
+- **`terrain_height` defaults to `max_y` 255** → Mountains terrain above 255 reads `None`, which
+  looks exactly like "unloaded". Always pass the range.
+- **`water_spans_stored` counts only RESIDENT chunks** → a span count depends on where the camera
+  is unless the rect is posed-to and `water_validate.unloaded == 0` first (verify now does this).
+- **Three engines at once halve each other's frame rate** (24–42 FPS on the Mountains world) —
+  fine for authoring, never for a perf number.
+- The editor's Item Equipper panel is open in every capture; look captures (WP0 reference set)
+  need it closed or a HUD-free capture path.
 
 ## 5. Order and parallelism
 

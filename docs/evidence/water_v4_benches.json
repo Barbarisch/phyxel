@@ -79,5 +79,252 @@
     "ok": true,
     "timestamp": "2026-10-07T22:38:49",
     "git_head": "fb641dfe"
+  },
+  "coast": {
+    "status": {
+      "api_version": "1.0",
+      "build_config": "Release",
+      "engine": "phyxel",
+      "port": 8109,
+      "status": "ok"
+    },
+    "bake_info": {
+      "bake_sea_level": 16.0,
+      "drainage_complete": true,
+      "generator_sea_level": 16.0,
+      "has_outlet": true,
+      "hydro_cell_size": 128.0,
+      "hydro_cells": {
+        "x": 256,
+        "z": 256
+      },
+      "max_order": 5,
+      "min_terrain": -24.0
+    },
+    "vantages": {
+      "shore_eye": {
+        "ok": true,
+        "got": {
+          "x": 165.0,
+          "y": 18.5,
+          "z": 664.0,
+          "yaw": 90.0,
+          "pitch": -8.0
+        }
+      },
+      "shore_elevated": {
+        "ok": true,
+        "got": {
+          "x": 165.0,
+          "y": 50.0,
+          "z": 600.0,
+          "yaw": 90.0,
+          "pitch": -28.0
+        }
+      },
+      "horizon": {
+        "ok": true,
+        "got": {
+          "x": 165.0,
+          "y": 170.0,
+          "z": 480.0,
+          "yaw": 90.0,
+          "pitch": -18.0
+        }
+      }
+    },
+    "surface_y": {
+      "shore_eye": 16,
+      "shore_elevated": 19,
+      "horizon": 44
+    },
+    "spans_stored": {
+      "chunks_loaded": 577,
+      "chunks_with_spans": 81,
+      "max_top": 16.0,
+      "min_top": 16.0,
+      "source": "chunk-resident (world data, not a derivation)",
+      "spans": 66004,
+      "total_depth": 413258.0
+    },
+    "water_validate": {
+      "columns": 66049,
+      "rim": 257,
+      "rim_leaks": 257,
+      "unloaded": 0,
+      "wet": 50629,
+      "worst_leak_at": {
+        "x": 59,
+        "z": 767
+      },
+      "worst_leak_depth": 6.0
+    },
+    "player_table": {
+      "level": 0.0,
+      "river_channel": false,
+      "river_order": 1,
+      "table_bound": true,
+      "wet": false,
+      "x": 165.0,
+      "z": 660.0
+    },
+    "ok": true,
+    "timestamp": "2026-10-07T23:08:19",
+    "git_head": "e5abb42f"
+  },
+  "river": {
+    "status": {
+      "api_version": "1.0",
+      "build_config": "Release",
+      "engine": "phyxel",
+      "port": 8110,
+      "status": "ok"
+    },
+    "bake_info": {
+      "bake_sea_level": 16.0,
+      "drainage_complete": true,
+      "generator_sea_level": 16.0,
+      "has_outlet": true,
+      "hydro_cell_size": 128.0,
+      "hydro_cells": {
+        "x": 256,
+        "z": 256
+      },
+      "max_order": 5,
+      "min_terrain": -14.131568908691406
+    },
+    "vantages": {
+      "trunk_down": {
+        "ok": true,
+        "got": {
+          "x": -1728.0,
+          "y": 115.0,
+          "z": -1320.0,
+          "yaw": 90.0,
+          "pitch": -28.0
+        }
+      },
+      "trunk_bank": {
+        "ok": true,
+        "got": {
+          "x": -1716.0,
+          "y": 29.0,
+          "z": -1140.0,
+          "yaw": -90.0,
+          "pitch": -6.0
+        }
+      },
+      "trunk_top": {
+        "ok": true,
+        "got": {
+          "x": -1722.0,
+          "y": 110.0,
+          "z": -1152.0,
+          "yaw": 90.0,
+          "pitch": -89.0
+        }
+      }
+    },
+    "surface_y": {
+      "trunk_down": 19,
+      "trunk_bank": 19,
+      "trunk_top": 19
+    },
+    "spans_stored": {
+      "chunks_loaded": 237,
+      "chunks_with_spans": 90,
+      "max_top": 108.5890121459961,
+      "min_top": 32.0,
+      "source": "chunk-resident (world data, not a derivation)",
+      "spans": 42924,
+      "total_depth": 590801.4681930542
+    },
+    "water_validate": {
+      "columns": 18189,
+      "rim": 72,
+      "rim_leaks": 72,
+      "unloaded": 0,
+      "wet": 512,
+      "worst_leak_at": {
+        "x": -1792,
+        "z": -1191
+      },
+      "worst_leak_depth": 17.0
+    },
+    "find_river": {
+      "columns_scanned": 121,
+      "max_order_in_world": 5,
+      "min_order": 5,
+      "river_columns_seen": 101,
+      "rivers": [
+        {
+          "carve_depth": 1.0,
+          "carves_bed": true,
+          "order": 5,
+          "surface_y": 19,
+          "water_level": 0.0,
+          "wet": false,
+          "width": 14.0,
+          "x": -1722.0,
+          "z": -1152.0
+        },
+        {
+          "carve_depth": 1.0,
+          "carves_bed": false,
+          "order": 5,
+          "surface_y": 89,
+          "water_level": 0.0,
+          "wet": false,
+          "width": 14.0,
+          "x": -1754.0,
+          "z": -1152.0
+        },
+        {
+          "carve_depth": 1.0,
+          "carves_bed": false,
+          "order": 5,
+          "surface_y": 53,
+          "water_level": 0.0,
+          "wet": false,
+          "width": 14.0,
+          "x": -1722.0,
+          "z": -1184.0
+        },
+        {
+          "carve_depth": 1.0,
+          "carves_bed": false,
+          "order": 5,
+          "surface_y": 33,
+          "water_level": 0.0,
+          "wet": false,
+          "width": 14.0,
+          "x": -1722.0,
+          "z": -1120.0
+        },
+        {
+          "carve_depth": 1.0,
+          "carves_bed": false,
+          "order": 5,
+          "surface_y": 89,
+          "water_level": 0.0,
+          "wet": false,
+          "width": 14.0,
+          "x": -1690.0,
+          "z": -1152.0
+        }
+      ]
+    },
+    "river_column_spans": {
+      "chunks_loaded": 32,
+      "chunks_with_spans": 16,
+      "max_top": 107.79756927490234,
+      "min_top": 32.0,
+      "source": "chunk-resident (world data, not a derivation)",
+      "spans": 603,
+      "total_depth": 12903.028099060059
+    },
+    "ok": true,
+    "timestamp": "2026-10-07T23:14:54",
+    "git_head": "e5abb42f"
   }
 }

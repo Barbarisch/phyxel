@@ -81,7 +81,9 @@ def world_job(api, path, box, **extra):
 
 
 def surface_y(api, x, z):
-    r = api.get(f"/api/world/terrain_height?x={x}&z={z}")
+    # max_y defaults to 255 and Mountains terrain exceeds it: a None here then means "higher than
+    # 255", not "unloaded" (cost an hour on the River bench, 2026-10-07). Ask for the full range.
+    r = api.get(f"/api/world/terrain_height?x={x}&z={z}&min_y=-64&max_y=1024")
     return r.get("surface_y")
 
 
@@ -308,26 +310,51 @@ def verify_streaming(api, gdef, bench):
         heights[v["name"]] = sy
         if sy is not None and v["y"] <= sy:
             bad.append(f"vantage {v['name']} is underground (y {v['y']} <= surface {sy})")
+    # Spans live only in RESIDENT chunks, so a count taken from a vantage elsewhere depends on
+    # where the camera happens to be (2026-10-07: the Coast rect read 66,004 from one pose and
+    # 44,335 with 21,669 columns unloaded from another). Pose at the rect's centre, high enough to
+    # clear the terrain, wait for residency, and only then count — and refuse a count with
+    # unloaded columns (Water.md sec. 8 #1: a zero over unloaded ground is not a result).
+    x1, z1, x2, z2 = spec["spanRect"]
+    cx, cz = (x1 + x2) // 2, (z1 + z2) // 2
+    sy_c = surface_y(api, cx, cz)
+    camera_set(api, {"x": cx, "y": (sy_c if sy_c is not None else 16) + 60, "z": cz, "yaw": 90, "pitch": -60})
+    validate = {}
+    t0 = time.time()
+    while time.time() - t0 < 300:
+        validate = api.debug("water_validate", {"x1": x1, "z1": z1, "x2": x2, "z2": z2, "maxY": 400})
+        if validate.get("unloaded", 1) == 0:
+            break
+        time.sleep(5.0)
+    if validate.get("unloaded", 1) != 0:
+        bad.append(f"span rect {spec['spanRect']} never became fully resident: unloaded {validate.get('unloaded')}")
     spans = wait_spans_stable(api, spec["spanRect"])
     n = spans.get("count", spans.get("spans", 0)) or 0
     exp = spec.get("expectSpans", {})
     if n < exp.get("min", 0):
         bad.append(f"spans in rect {spec['spanRect']}: {n} < expected min {exp.get('min')}")
-    if "topEquals" in exp and spans.get("max_top") is not None:
+    if "max" in exp and n > exp["max"]:
+        bad.append(f"spans in rect {spec['spanRect']}: {n} > expected max {exp['max']}")
+    if "topEquals" in exp and n and spans.get("max_top") is not None:
         if abs(spans["max_top"] - exp["topEquals"]) > 1e-3 or abs(spans.get("min_top", spans["max_top"]) - exp["topEquals"]) > 1e-3:
             bad.append(f"span tops {spans.get('min_top')}..{spans.get('max_top')} != {exp['topEquals']}")
-    x1, z1, x2, z2 = spec["spanRect"]
-    validate = api.debug("water_validate", {"x1": x1, "z1": z1, "x2": x2, "z2": z2, "maxY": 400})
     result = {"status": status, "bake_info": bake, "vantages": poses, "surface_y": heights,
               "spans_stored": spans, "water_validate": validate}
     if bench == "river":
-        g = spec["gorge"]
+        g = spec.get("trunk") or spec["gorge"]
         riv = api.debug("water_find_river", {"x": g["x"], "z": g["z"], "radius": g["searchRadius"],
                                               "step": 32, "min_order": g["minOrder"], "count": 5})
         result["find_river"] = riv
-        sites = riv.get("sites") or riv.get("results") or []
+        sites = riv.get("rivers") or []  # water_find_river returns {"rivers": [...]} (2026-10-07)
         if not sites:
             bad.append(f"no order>={g['minOrder']} river within {g['searchRadius']} of ({g['x']},{g['z']}): {riv}")
+        if "riverColumnRect" in spec:
+            # WP1's red baseline: spans on the river column itself (the big rect also holds lakes).
+            rx1, rz1, rx2, rz2 = spec["riverColumnRect"]
+            rc = api.debug("water_spans_stored", {"x1": rx1, "z1": rz1, "x2": rx2, "z2": rz2})
+            result["river_column_spans"] = rc
+            print(f"river column rect {spec['riverColumnRect']}: spans = {rc.get('spans')} "
+                  f"(expected today: {spec.get('expectRiverColumnSpans', {}).get('today')})")
     if bench == "coast":
         p = gdef.get("player", {}).get("position")
         if p:

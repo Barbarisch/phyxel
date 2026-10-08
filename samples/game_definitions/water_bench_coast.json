@@ -1,0 +1,51 @@
+{
+  "name": "WaterBench_Coast",
+  "version": "1.0",
+  "description": "WATER v4 bench #2 (docs/WaterRethink.md WP0-WP2, WP5). A streaming Perlin coastline at the engine-default sea level 16 - the ocean, the shore band, far water and the camera-walk probe. Recipe = the old WaterTest world (Water.md sec. 5): seed 20260804, whose documented shore rect (37,708)-(293,964) held 62,965 chunk-resident spans with every top at 16.0, and whose nearest sea from the dry highland spawn was at (165,16,890). Camera and player are placed AT THE SHORE, not the highland; poses marked PROVISIONAL are re-measured by `python tools/water_bench.py verify coast` and written back.",
+  "world": {
+    "type": "Perlin",
+    "seed": 20260804,
+    "streaming": true,
+    "loadRadius": 7,
+    "unloadRadius": 10,
+    "renderDistance": 512,
+    "farTerrain": { "enabled": true, "maxDistance": 2048 },
+    "_comment": "streaming:true is required for the hydrology bake (lakes/rivers/sea levels) and for generation-time water spans. Radii as proving_grounds (224 u resident / 320 u unload)."
+  },
+  "water": {
+    "enabled": true,
+    "bakedTable": true,
+    "oceanBoundary": true,
+    "_comment": "Default sea level 16 is MEASURED-correct for this seed (WaterTest: outlet TRUE, drainage complete, min terrain -24). Do not set seaLevel here; the recipe in world.db owns it after first boot."
+  },
+  "camera": {
+    "position": { "x": 165, "y": 50, "z": 600 },
+    "yaw": 90,
+    "pitch": -28,
+    "_comment": "MEASURED 2026-10-07 on this engine (terrain_height lines at x=100/165/230): the sand sits AT sea level (surface_y 16) from z~656 to z~672 and the seabed drops below 16 from z~676 northward, falling ~1 voxel per 20-25 u to y=3 at z=964 - a very gentle beach. The whole documented rect (37,708)-(293,964) is seabed. Spawn vantage looks north (+Z) over the beach to the sea."
+  },
+  "player": {
+    "type": "animated",
+    "position": { "x": 165, "y": 18, "z": 660 },
+    "_comment": "On the sand at sea level (surface_y 16), 16 u south of the waterline (z~676)."
+  },
+  "waterBench": {
+    "rig": "coast",
+    "waterline": { "x": 165, "z": 676, "_comment": "First column north of which surface_y < 16 at x=165 (measured 2026-10-07). Trees stand on the beach at z 668-676 (surface_y 26-30 spikes)." },
+    "spanRect": [37, 708, 293, 964],
+    "expectSpans": { "min": 60000, "topEquals": 16.0, "_comment": "All-seabed rect, counted with the camera posed at the rect centre and unloaded == 0 (the count is residency-dependent otherwise: 66,004 vs 44,335 from two poses, 2026-10-07). Measured fully resident 2026-10-07: 66,004 spans / 81 chunks, every top 16.0; water_validate rim_leaks 257/257, worst 6 at (59,767) = the Water.md sec. 5 RED baseline reproduced exactly." },
+    "cameraProbe": {
+      "far":  { "x": 165, "y": 170, "z": 480, "yaw": 90, "pitch": -18 },
+      "near": { "x": 165, "y": 18.5, "z": 664, "yaw": 90, "pitch": -8 },
+      "_comment": "The two vantages the camera-walk probe diffs (Water.md sec. 8 #8b): far = horizon, near = shore_eye."
+    }
+  },
+  "testVantages": {
+    "_comment": "Poses measured against terrain_height on 2026-10-07; a screenshot per pose is owed before they are called final.",
+    "vantages": [
+      { "name": "shore_eye", "x": 165, "y": 18.5, "z": 664, "yaw": 90, "pitch": -8, "tests": "Eye-level on the sand 12 u from the waterline: surf band, run-up, rim foam, the pull-away defect." },
+      { "name": "shore_elevated", "x": 165, "y": 50, "z": 600, "yaw": 90, "pitch": -28, "tests": "Beach + shallows + open sea in one frame; the reference look capture." },
+      { "name": "horizon", "x": 165, "y": 170, "z": 480, "yaw": 90, "pitch": -18, "tests": "Far water to the horizon: residency edge today (water stops where chunks stop), far-water tiles after WP2." }
+    ]
+  }
+}
