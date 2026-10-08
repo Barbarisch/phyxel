@@ -462,6 +462,92 @@ opens with its design-check.
 
 ---
 
+## 15. Phase B design — the `WaterCore` CPU reference (gated 2026-10-08, READY)
+
+### 15.1 Shape
+- **Library:** `engine/{include,src}/core/water/` — `WaterGrid` (one active volume's arrays),
+  `WaterSolver` (the tick), `IWaterTransport` + `EulerianTransport` (Phase B) / `FlipTransport`
+  (B2), `WaterSources` (sources/sinks/impulses), `WaterRest` (sleep detection). No engine
+  dependencies beyond glm: solids arrive through a `SolidQuery` callback
+  (`std::function<OccupancyState(const glm::ivec3& cellWorld)>` returning Solid / Air / Unknown),
+  so unit tests use synthetic lambdas and the engine binds `packedPoolSolidAt` + the pool's
+  `OccupancyState` (VoxelLightOccupancy.h:253-258) through a new `occupancyPool()` accessor.
+- **Grid (SoA, one AV):** cell size `h = 1/3^k` m (k from `water.core.cellSize`, 1 ≤ 3^k ≤ 81);
+  box origin in world cells (`ivec3`, cells of size h, world = origin·h); dims `nx,ny,nz`; index
+  `i = x + nx·(y + ny·z)`. Arrays: `f` (fill 0..1, float), `u,v,w` MAC face velocities (float,
+  sized `(nx+1)·ny·nz` etc.), `solid` (uint8: Air/Solid/Hold), `p` (double for the solve),
+  `div`, `fNext` (ping-pong), `kind` (Liquid f ≥ 0.999 / Surface 0 < f < 0.999 / Empty).
+  Memory: 1.7 M cells ≈ 7 floats × 4 B + 8 B ≈ 61 MB at the ⅓ 40 m ceiling — fine.
+- **Tick (fixed Δt = 1/60 s, substeps so max|v|·Δt_sub ≤ 0.5 h — the count is computed and
+  reported, never discovered):** (1) solids refresh (every tick; Unknown → Hold, which is a wall
+  for flux) · (2) sources/sinks (`f += rate·Δt/h³`, clamped to free capacity; the unplaced
+  remainder is kept in the source's own buffer and reported) · (3) gravity `v -= g Δt`, impulses ·
+  (4) **transport**: `EulerianTransport` = conservative donor-cell VOF: per face, flux
+  `F = u_face · h² · Δt · f_donor`; outflows of a cell are scaled so Σoutflow ≤ f_cell·h³ (the CA's
+  clamp rule, which is what makes Σf exact), inflows take what was actually sent; velocity by
+  semi-Lagrangian back-trace with clamping · (5) **projection**: solve ∇·(1/ρ ∇p) = ∇·u/Δt on
+  Liquid cells; Surface cells p = 0 (ghost-fluid weighted by f so the free surface sits inside the
+  cell); Solid/Hold faces: Neumann (zero normal velocity). CPU: PCG with incomplete-Cholesky(0),
+  deterministic ordering, tolerance 1e-6 relative, max 400 iterations (reported) · (6) velocity
+  extrapolation into Empty cells within 2 cells of Surface · (7) rest damping (`v *= 1 − c Δt`
+  only when KE < ε_wake, so moving water is never damped) · (8) rest detection (§5.2) · (9) surface
+  extraction: per column, the top Surface cell's y + f, plus lateral faces where a Surface cell
+  has an Empty neighbour sideways.
+- **Engine integration (Phase B minimum):** `WaterCoreManager` owned by `Application`, stepped in
+  the existing "Water" profile scope (Application.cpp:3550) beside the CA (both exist until the CA's
+  §9 row); one or more AVs created by **debug routes** (§15.4) over a rig box; solids from the pool
+  via `occupancyPool()`; **eyes-on without new rendering**: the AV's surface is aggregated to
+  1-voxel columns into `WaterSurfaceCell`s (WaterManager.h:23-31) and appended to the cell renderer's
+  list on authored worlds (Basin/Small have no table, so cells draw) — a debug feed, replaced in
+  Phase F.
+- **Time base:** the CPU reference is **stepped explicitly** by the harness (`water_av_step
+  {ticks}`) and every Phase B measurement is in **simulation time** (ticks × Δt), never wall time —
+  at ⅓ on the Basin (≈ 104 k cells) PCG costs tens of ms per tick on one core, so real-time is not
+  promised for the reference and is not what it is for. (The CA red used wall time because the CA
+  runs real-time; the rows say which.)
+
+### 15.2 Unit tests (red first, all synthetic, inside one grid — the §4.4 rules made executable)
+`WaterCoreTest.ConservationUnderArbitraryVelocity` (random divergence-free u, 1000 ticks, Σf
+drift ≤ 1e-4) · `StillWaterStaysStill` (hydrostatic column, 100 ticks, max|v| < 1e-6, surface
+unchanged) · `HydrostaticPressure` (p at depth d = ρ g d ± 1 %) · `SealedCavityGainsNothing` ·
+`OpenHoleDrainsAtTorricelli` (tank 10×10 h, hole 1 cell: h(t) = (√h₀ − (A_h/A_t)√(g/2)·t)² ±
+20 %) · `SolidFacesCarryNoFlux` (every face of a Solid cell, every resolution 1/⅓/⅑) ·
+`HoldFacesCarryNoFluxAndRelease` (§14 test 3) · `SubstepCountMatchesCFL` · `Deterministic` (two
+runs bit-identical) · `MassPerColumnInvariantAcrossResolution` (⅓ grid re-sampled to 1: same mass
+per voxel column) · `SubBoxIdenticalToWholeBox` (the §14 residency test's solver form: a 2-cell
+margin vs a 10-cell margin, identical interior) · `DamBreakFrontWithinRitter` (the solver-only S3:
+1-D-like channel 60×6×3 cells at h = 1, h₀ = 3, front ≤ 15 % slower than 2√(g h₀)) ·
+`WallCrestReflects` (after the front hits the wall, the wall column peaks ≥ still + 0.8·incident).
+
+### 15.3 Scenario gates (engine, via the harness, sim time)
+S3, S4, S5 on the Basin at h = 1 and ⅓ (⅑ would be 2.8 M cells on the CPU reference — the
+budget coarsens it and the row must say so); S1, S2 on the Small bench at ⅓ and ⅑. Controls as in
+§3. Predictions as in §3; the CA red row is the comparison.
+
+### 15.4 Debug API (Phase B; the `/api/water/*` namespace arrives with Phase D)
+| Route | Fields | Unchanged | Echo | Clamp |
+|---|---|---|---|---|
+| `water_av_create` | `x1,y1,z1,x2,y2,z2` (world voxels), `cellSize` (1, 1/3, 1/9), `transport` | — | the AV record (id, box, cells, cellSize) | cells ≤ 2 M (CPU reference memory/time; refused with the count); `cellSize` ∈ the power-of-three set (refused otherwise) |
+| `water_av_destroy` | `id` | — | remaining list | — |
+| `water_av_step` | `id`, `ticks` (int), `dt` (default 1/60) | — | ticks run, substeps used, PCG iterations (max/mean), KE, Σf | `ticks` ≤ 6000 per call (100 s of sim; the game loop blocks for the call — stated) |
+| `water_av_list` / `water_av_probe` | as §14.4 | — | — | — |
+| `water_ledger` | gains `core_cells` | — | — | — |
+| `place_water_box` / `water_probe_rect` | gain `target: "ca"\|"core"` (default `ca` until the CA's §9 row) | omitted = ca | echoes target | — |
+No shipped default changes in Phase B.
+
+### 15.5 Chunk independence, restated for the solver
+The solver reads nothing chunk-shaped: a box in world cells, a solid query by world position, and
+sources by world position. Hold faces (Unknown occupancy) are the only residency effect and are a
+flux wall, not a shape (§14 tests 2–3). The debug feed to the cell renderer aggregates by world
+column. Equality test: `SubBoxIdenticalToWholeBox` (§15.2) plus the §14 three.
+
+### 15.6 Rig vs shipped defaults
+CPU, explicit stepping, tier `high`, no coarsening on the Basin at 1 and ⅓; the Basin is a Flat
+world with no bake and water disabled, so no table, no sea, no spans interact. Numbers from this
+phase are correctness numbers; none is a performance claim.
+
+**Verdict: READY** — the first commit of Phase B is the failing `WaterCoreTest` suite.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
