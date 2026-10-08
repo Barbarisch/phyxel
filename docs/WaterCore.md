@@ -187,6 +187,17 @@ inertial force −a_frame added in tick step 3) is a listed feel feature for Pha
 case is right. Capacity is the geometry: a bigger bucket holds more. Test cases: **C1** bucket under
 a pump fills to the rim then overflows (ledger: pumped = bucket + overflow); **C2** tipped bucket =
 S1; **C3** a carried bucket keeps its mass across a 50 m walk and a save/load; **C4** trough = S2.
+**Containers can hold more than their geometry (user, 2026-10-08 — a future gameplay feature).** A
+container is therefore two things with one ledger entry: a **physical volume** (the ⅑ AV, what you
+see sloshing and what overflows at the rim) and a **reserve** (a logical mass with a capacity knob,
+default = 0 extra). Filling: water enters the physical volume; when it reaches the rim, further
+inflow goes to the reserve instead of overflowing, until the reserve's capacity is reached, then it
+overflows. Pouring: the physical volume empties as a source; the reserve refills it as it drains, so
+a "bottomless" bucket pours for as long as its reserve lasts. Mass in the reserve is real mass in
+the ledger (P1) — it just has no position until it leaves. Test case **C5**: a bucket with reserve
+capacity 1.0 m³ under a 0.1 m³/s pump: rim reached at ~0.2 s, overflow begins only after 10.2 s;
+tipped, it pours for ~10 s and the ledger stays exact throughout. The default-zero reserve keeps
+ordinary buckets physical; the knob is the gameplay hook (magic vessels, bags, tanks).
 Gameplay (what a character can carry) is a later layer on the same mass.
 
 ### 4.7 Method primer — what the two candidates are, in plain terms (for decision 1)
@@ -210,7 +221,16 @@ and it is identical in both candidates. They differ only in **how the water's po
   number of particles (~8 per cell: a ⅑-resolution pond is millions), and persistence means
   converting particles back to spans anyway.
 
-**Why the recommendation is Eulerian-with-a-droplet-layer:** at ⅑ resolution the Eulerian
+**Decision (user, 2026-10-08): both.** The core is built so the water's transport is a
+**selectable mode behind one interface**: `WaterCore` owns the grid, the solids, the sources/sinks,
+the pressure solve, rest detection and write-back (the shared 80 %); a `SurfaceTransport` strategy
+owns how water position moves — `Eulerian` (fill fractions) is the default and is built first
+(Phase B); `FLIP` (particle transport) is built second against the same grid (Phase B2, after S1–S5
+are green on Eulerian) and must pass the same scenarios. Per-AV selection is allowed (a trough on
+Eulerian, a waterfall plunge pool on FLIP) because mass accounting is identical through the
+interface (P1). The harness runs every scenario on both so the comparison is evidence, not taste.
+
+**Why Eulerian is the default and goes first:** at ⅑ resolution the Eulerian
 surface is fine enough that smearing is below what the eye sees in a bucket or a trough, it rests
 exactly flat (P7), and the accounting is the ledger by construction (P1); the one thing it does
 badly — airborne water — is exactly what a bounded particle layer does well. The reverse (FLIP as
@@ -364,7 +384,8 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | Phase | Deliverable | Gate before | Gate after (red first) |
 |---|---|---|---|
 | **A. Spec & rigs** | This document settled (§12); `WaterBench_Small` with rigs for S1, S2, S5, S7/S10 channel, S8 pond, S9 ledge, S14 troughs; `water_mass_ledger` route; scenario harness `tools/water_feel.py` that runs a scenario, records predictions vs measurements, and captures | — | Rigs verified like the Basin (layer scans, cold restart); harness runs S3 against today's CA and records its failure (no reflected crest, front speed wrong) as the RED |
-| **B. The core, CPU reference** | `WaterCore` library: MAC grid, VOF, projection, solids from the micro pool, sources/sinks, rest detection; deterministic; unit tests for §4.4; S3, S4, S5, S1, S2 pass on the CPU at ⅓ res | **/design-check** | §4.4 rules green; S1–S5 predictions met; mass ledger exact |
+| **B. The core, CPU reference** | `WaterCore` library: MAC grid, `SurfaceTransport::Eulerian` (VOF), projection, solids from the micro pool, sources/sinks, rest detection; deterministic; unit tests for §4.4; S3, S4, S5, S1, S2 pass on the CPU at ⅑ res | **/design-check** | §4.4 rules green; S1–S5 predictions met; mass ledger exact |
+| **B2. FLIP transport** | `SurfaceTransport::FLIP` against the same grid (particles carry f and momentum; grid projection; particle↔grid transfer; re-seeding; rest conversion); harness runs S1–S5 on both modes and records the comparison | /design-check | Same scenarios green on FLIP; a written comparison (rest flatness, splash shape, cost) the user reads before Phase E chooses the default per scenario |
 | **C. GPU core** | Same solver on compute (`water_core_*.comp`), ping-pong, no readback except the surface/queries; parity with CPU on S1–S5 within tolerance; perf rows | /design-check (dispatch, buffers, tiers) | parity + ≤ 2 ms at `high` with all §3 rigs awake |
 | **D. Rest, persistence, world data** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | — | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
 | **E. Coupling** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
@@ -380,18 +401,17 @@ nothing is "done" without its evidence row and a same-vantage capture where look
 
 | # | Decision | Status |
 |---|---|---|
-| 1 | **The method** | **OPEN — to be discussed.** The primer in §4.7 explains both candidates in plain terms and why the recommendation is the Eulerian core with a droplet layer, and why the choice is reversible (same grid, same pressure solve). Proposed way to decide: Phase B builds the shared grid + the Eulerian surface; S3–S5 judge the physics; the user judges S6/S9 captures before Phase E, and FLIP transport is added then if the Eulerian surface disappoints. |
+| 1 | **The method** | **SETTLED: both, Eulerian first.** One core, a selectable transport mode (`Eulerian` default, built in Phase B; `FLIP` built in Phase B2 against the same grid), same scenarios run on both, per-AV selection allowed (§4.7). |
 | 2 | **Resolution** | **SETTLED: ⅑ voxel is the design centre** (microvoxel tier). Policy and cost table in §4.5: ⅑ up to ~12 m extent, ⅓ to 40 m, 1 for bands — a budget consequence, not a preference; multigrid is the lever to widen ⅑. To confirm: that the ⅓ tier for 12–40 m bodies is acceptable until multigrid is measured. |
-| 3 | **Containers** | **SETTLED: simulated** (§4.6a). Static/placed containers are ⅑ AVs; carried v1 holds mass and pours; carried slosh is a Phase E feel item. Test cases C1–C4. |
+| 3 | **Containers** | **SETTLED: simulated, with a reserve** (§4.6a). Static/placed containers are ⅑ AVs; a container may hold more than its geometry through a logical reserve with a capacity knob (default 0) — the future gameplay hook; carried v1 holds mass and pours; carried slosh is a Phase E feel item. Test cases C1–C5. |
 | 4 | **Shorelines** | **SETTLED: small-scale bands on the ocean boundary** (§5.3, §8.3). |
 | 5 | **Droplets** | **SETTLED: separate pool**, 20 k, ledger-exact re-absorption. |
 | 6 | **Lakes** | **SETTLED: conserved bodies with a water balance** — inflow from the river network, outflow at the spill, evaporation from climate; lakes can dry up or overflow as an emergent world feature (§5.3). Grounding of the rates is Phase G work. |
 | 7 | **Delete list** | **SETTLED: delete, carefully.** §9 is now a ledger with files, consumers, replacement, the phase after which each goes, and the risk — one commit per removal, nothing removed before its replacement passes its scenarios. |
 | 8 | **Rigs** | **SETTLED:** `WaterBench_Small`, one chunk per rig; the §3 rates stand until a rig says otherwise. |
 
-**Still open before Phase B starts:** decision 1 (method) — discussion; and the ⅓-tier
-confirmation under decision 2. Phase A (rigs + harness + the CA's red) can start on the settled
-decisions alone, since it builds no solver.
+**Still open:** only the ⅓-tier confirmation under decision 2 (12–40 m bodies run at ⅓ until
+multigrid is measured; ⅑ otherwise). Everything Phase A and Phase B need is settled.
 
 ---
 
