@@ -826,3 +826,69 @@ ribbons' minimum visible width (cost rule, set from the Coast/River vantages).
    point of writing predictions first is that this gets caught before the run, not after.
 
 **Verdict after the second pass: READY to begin WP0**, with items 2 and 3 binding on WP4 and WP2.
+
+### 8.8 Gate on WP1 steps 1 + 1b — river spans and the hydraulic lake flood (2026-10-08)
+
+**The change, concretely.** (1) `waterSpansForBlock` (WorldGenerator.cpp:808-877) seeds only from
+`m_hydro->waterLevelAt` (line 52 of that block) and never consults the channel; it gains a per-column
+river span: `channelHitAt(x,z)` (pure, meander-warped — pinned by
+`RuntimeChannelQueryFollowsTheMeanderedCarve`) hit with `depth` → span `[bed, bed + depth]` where
+bed = the carved `surfaceY` (orders ≥ 3) or the ⅔ shelf (`creekBed`, orders 1-2). (1b)
+`floodBodiesOverGrid` (WaterOccupancy.cpp:27-69) spreads a seed's level into any 4-neighbour with
+`groundTop < level`, bounded only by `maxSteps` — so it walks downhill out of a lake's outlet
+(the drowned valley, §1.2). The hydraulic rule adds ONE test to that neighbour check: a column
+may join a body only if its **coarse cell's depression-filled elevation ≥ the body level**
+(`PriorityFlood::fill` already computes `filled[i]` for every cell — HydrologyMap.h:14-15 — the bake
+just drops it for dry cells; HydrologyMap keeps it as `filledAt(x,z)`). Uphill rim cells have
+`filled ≥ ground ≥ L` → the shoreline still conforms; the outlet's downstream cells have
+`filled < L` (water drains there by Priority-Flood's own definition) → never entered. The step
+bound stays, as a cost bound. River columns are excluded from lake floods (they get their river
+span instead), so a lake can never over-paint a channel either.
+
+**1. Voxel aesthetic.** No new geometry; spans are per voxel column with float tops (creeks keep
+the ⅓-shelf fractional top). Unconditional: no flag, no tier.
+
+**2. Chunk independence.** Quantities used: the padded block (cost: the 544² sample window and
+`kColumnCacheMax`, both bounds, Water.md §6 #0); `kWaterExtentSteps` 256 (cost bound — after 1b
+it no longer shapes water, which was the defect); coarse-cell `filled` and `level` (world-position
+functions of the bake, identical from every chunk); `channelHitAt` (pure). No chunk reads a
+neighbour chunk. **Equality test:** `WaterSpanSeamTest.LakeOutletAndRiverSpansIndependentOfChunking`
+— a synthetic grid with a perched lake (L = 40) whose outlet notch drops into a valley floor at 10,
+plus an order-3 channel through the valley; per-chunk union == whole-region result; the lake and
+the river are at DIFFERENT levels so equal-by-coincidence cannot pass. A second fixture,
+`DownhillOfTheOutletStaysDryHoweverLargeTheBudget`, raises `maxSteps` 16→4096 and asserts the wet
+set is unchanged (today it grows with the budget — the measured red).
+
+**3. Procedural generation.** Hydrology stage, after carve. Consumes `surfaceY`/`creekBed`/
+`channelHitAt`, bake `level` + new `filled`. Later stages: flora/fauna gates read the bake's
+wetness (unchanged); structures' pier rule unchanged; WorldForge siting unchanged. Order-independence
+holds for the same reason as today (bounded flood from world-position seeds + per-column pure
+channel query) plus the new per-column coarse-cell test. **Existing worlds change** — intentionally
+(their valleys are drowned); spans regenerate from the recipe, saved chunks keep stale spans until
+regenerated (edits-win), which the Water.md 2b-FIX already documents as the regen rule. No new recipe
+field; `filled` is derived at bake time from seed + recipe.
+
+**4. API surface.** No new mutating route. `water_span_scan` gains the missing direction:
+`span_wet_bake_dry_nonriver` (columns, the §1.2 red metric) alongside its existing
+`bake_wet_terrain_dry`; `water_spans_stored` unchanged. `water_table_level` gains `filled`
+(world Y). Defaults unchanged; `kWaterExtentSteps` stays 256 (its pinned tests
+`BatchFloodRespectsItsStepBudget` / `BatchFloodIsIndependentOfTheWindowItWasComputedIn` keep passing
+— the step bound is still enforced, it just stops being load-bearing for shape).
+
+**5. Test plan.** Works = (a) River bench trunk rect: `span_wet ∧ ¬bake_wet ∧ ¬river` **17,677 →
+0**; river columns hold exactly one span each with top = bed + depth (order 5: bed 19 → 20.0,
+within 0.01); the valley renders as a river ribbon, not a lake (capture vs `river_trunk_down.png`
+reference); (b) the chasm rect: 204 spans with tops 192-325 → river spans at bed + 1.0 only;
+(c) Coast shore rect: **unchanged** (66,004 spans, all tops 16.0, rim_leaks 257 — the ocean has no
+outlet to walk out of, so 1b must not touch it: the control); (d) camera-walk probe passes on all
+three. Depth L2 (span scan + seam tests) + L4 (benches). Red shown first: the two new unit
+fixtures fail on today's `floodBodiesOverGrid`; the trunk rect reads 17,677. Rig vs defaults: none —
+generation runs at shipped parameters; the unit fixtures use `maxSteps` sweeps that production never
+does, which is the point. Perf gate: generation ≤ +15 % per chunk-equivalent over 7.9 ms (the
+`filled` test is one array read per neighbour; river spans one `channelHitAt` per column, already
+paid by the carve).
+
+**Verdict: READY** (no key violated; the fix removes a chunk-shape dependence rather than adding
+one). Open, non-blocking: whether the fine spill should also CAP the level below the bake's L when
+the fine rim is lower than the coarse one (a second-order shoreline correction; measure the residual
+rim leaks after 1b before deciding).
