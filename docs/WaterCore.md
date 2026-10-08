@@ -158,10 +158,26 @@ Chentanez & Müller 2011 (tall cells).
   tolerance on every §3 scenario (the AVBD solver's `debris_settle_bench` pattern).
 
 ### 4.5 Resolution policy (P4, and the "chunks must not be visible" rule)
-**Decision (user, 2026-10-08): the design centre is ⅑ voxel — the microvoxel tier (11.1 cm cells,
-729 per voxel).** That is the scale the brief is about: a bucket (3 cells across), a trough, a
-doorway, a well, a garden pond. AV cell size is still chosen by the AV's **extent**, never by the
-camera, because the pressure solve is memory-bound and its cost is per cell:
+**Decision (user, 2026-10-08, final form): resolution is a developer-tunable parameter, not a
+constant.** The core supports every power-of-three fraction of a voxel — **1, ⅓, ⅑, 1/27, 1/81**
+(the fine-item grid, 1.23 cm) — chosen per game in `game.json` (`water.core.cellSize`, **default
+⅓**), overridable per active volume (a container may ask for ⅑ or finer; a shore band for 1).
+Powers of three only, because the solid mask comes from the micro occupancy pool at ⅑ and the
+engine's static tiers are 1/⅓/⅑: a cell size that does not divide those evenly would put a water
+cell half inside a microcube. Below ⅑ the solids are still ⅑-resolved (a water cell of 1/27 sees
+microcube-aligned walls; fine items at 1/81 are kinematic bodies, not static occupancy — stated so
+nobody expects a 1/81 sim to resolve the fluting on a goblet). The solver code is written once,
+parameterised by cell size; the scenario harness runs every §3 scenario at ⅓ (default), ⅑ and 1 so
+the resolution dependence of each prediction is measured, not assumed, and a game that tunes finer
+inherits the same tests.
+
+**Cost is per cell and memory-bound, so the budget — not the knob — decides what fits.** An AV
+whose extent at the configured resolution would exceed the tier's `maxCells` is coarsened one
+power of three at a time (never finer than the game's floor, never coarser than 1) and the
+coarsening is logged, so a developer who sets 1/27 for a 40 m moat learns the cost rather than
+getting silent slowness. Mass and existence are identical across resolutions (a re-sampled AV holds
+the same mass per column — a pinned test); only motion detail differs — the same contract the
+engine's own voxel tiers make. Reference points, pre-run estimates until `perf_harness` rows exist:
 
 | AV extent (longest axis) | Cell | Cells (cube of that extent) | Pressure traffic / tick (40 sweeps × ~16 B) | At 60 Hz |
 |---|---|---|---|---|
@@ -170,12 +186,13 @@ camera, because the pressure solve is memory-bound and its cost is per cell:
 | 12–40 m | ⅓ | ≤ 1.7 M (40 m) | ~1.1 GB | ~1.1 ms |
 | > 40 m (shore bands, reaches) | 1 | bounded by `maxCells` | — | — |
 
-So ⅑ carries everything up to a 12 m pond; a 30 m moat runs at ⅓; a shoreline band at 1. Mass and
-existence are identical across resolutions (a re-sampled AV holds the same mass per column); only
-motion detail differs — the same contract the engine's own voxel tiers make. **Multigrid** for the
-pressure solve (≈ 5× fewer sweep-equivalents) is the lever that would push the ⅑ ceiling toward
-20 m; it is planned as the first optimisation after parity (Phase C), not assumed. Every number in
-this table is a pre-run estimate to be replaced by `perf_harness` rows on the rigs.
+| any (1/27, default-⅓ game asking finer per AV) | 1/27 | 27× the ⅑ count | — | only small containers; the budget coarsens anything larger and says so |
+
+At the ⅓ default a 40 m pond is ~1.7 M cells (≈ 1 ms at 60 Hz); at ⅑ the same budget reaches a
+12 m pond; at 1, shore bands and reaches. **Multigrid** for the pressure solve (≈ 5× fewer
+sweep-equivalents) is the lever that widens every tier; it is planned as the first optimisation
+after parity (Phase C), not assumed. Every number here is a pre-run estimate to be replaced by
+`perf_harness` rows on the rigs, at each of the three harness resolutions.
 
 ### 4.6a Containers are simulated (user decision 3)
 A bucket must hold a meaningful amount of water, so **containers are real water**: a container is
@@ -384,7 +401,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | Phase | Deliverable | Gate before | Gate after (red first) |
 |---|---|---|---|
 | **A. Spec & rigs** | This document settled (§12); `WaterBench_Small` with rigs for S1, S2, S5, S7/S10 channel, S8 pond, S9 ledge, S14 troughs; `water_mass_ledger` route; scenario harness `tools/water_feel.py` that runs a scenario, records predictions vs measurements, and captures | — | Rigs verified like the Basin (layer scans, cold restart); harness runs S3 against today's CA and records its failure (no reflected crest, front speed wrong) as the RED |
-| **B. The core, CPU reference** | `WaterCore` library: MAC grid, `SurfaceTransport::Eulerian` (VOF), projection, solids from the micro pool, sources/sinks, rest detection; deterministic; unit tests for §4.4; S3, S4, S5, S1, S2 pass on the CPU at ⅑ res | **/design-check** | §4.4 rules green; S1–S5 predictions met; mass ledger exact |
+| **B. The core, CPU reference** | `WaterCore` library: MAC grid, `SurfaceTransport::Eulerian` (VOF), projection, solids from the micro pool, sources/sinks, rest detection; deterministic; unit tests for §4.4; S3, S4, S5, S1, S2 pass on the CPU at ⅓ (default), ⅑ and 1 | **/design-check** | §4.4 rules green; S1–S5 predictions met; mass ledger exact |
 | **B2. FLIP transport** | `SurfaceTransport::FLIP` against the same grid (particles carry f and momentum; grid projection; particle↔grid transfer; re-seeding; rest conversion); harness runs S1–S5 on both modes and records the comparison | /design-check | Same scenarios green on FLIP; a written comparison (rest flatness, splash shape, cost) the user reads before Phase E chooses the default per scenario |
 | **C. GPU core** | Same solver on compute (`water_core_*.comp`), ping-pong, no readback except the surface/queries; parity with CPU on S1–S5 within tolerance; perf rows | /design-check (dispatch, buffers, tiers) | parity + ≤ 2 ms at `high` with all §3 rigs awake |
 | **D. Rest, persistence, world data** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | — | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
@@ -402,7 +419,7 @@ nothing is "done" without its evidence row and a same-vantage capture where look
 | # | Decision | Status |
 |---|---|---|
 | 1 | **The method** | **SETTLED: both, Eulerian first.** One core, a selectable transport mode (`Eulerian` default, built in Phase B; `FLIP` built in Phase B2 against the same grid), same scenarios run on both, per-AV selection allowed (§4.7). |
-| 2 | **Resolution** | **SETTLED: ⅑ voxel is the design centre** (microvoxel tier). Policy and cost table in §4.5: ⅑ up to ~12 m extent, ⅓ to 40 m, 1 for bands — a budget consequence, not a preference; multigrid is the lever to widen ⅑. To confirm: that the ⅓ tier for 12–40 m bodies is acceptable until multigrid is measured. |
+| 2 | **Resolution** | **SETTLED: a developer-tunable parameter.** Any power-of-three fraction of a voxel from 1 to 1/81, `game.json` `water.core.cellSize` default **⅓**, per-AV override; the cell budget (not the knob) coarsens oversize volumes and logs it; the harness runs every scenario at ⅓, ⅑ and 1 (§4.5). |
 | 3 | **Containers** | **SETTLED: simulated, with a reserve** (§4.6a). Static/placed containers are ⅑ AVs; a container may hold more than its geometry through a logical reserve with a capacity knob (default 0) — the future gameplay hook; carried v1 holds mass and pours; carried slosh is a Phase E feel item. Test cases C1–C5. |
 | 4 | **Shorelines** | **SETTLED: small-scale bands on the ocean boundary** (§5.3, §8.3). |
 | 5 | **Droplets** | **SETTLED: separate pool**, 20 k, ledger-exact re-absorption. |
@@ -410,8 +427,8 @@ nothing is "done" without its evidence row and a same-vantage capture where look
 | 7 | **Delete list** | **SETTLED: delete, carefully.** §9 is now a ledger with files, consumers, replacement, the phase after which each goes, and the risk — one commit per removal, nothing removed before its replacement passes its scenarios. |
 | 8 | **Rigs** | **SETTLED:** `WaterBench_Small`, one chunk per rig; the §3 rates stand until a rig says otherwise. |
 
-**Still open:** only the ⅓-tier confirmation under decision 2 (12–40 m bodies run at ⅓ until
-multigrid is measured; ⅑ otherwise). Everything Phase A and Phase B need is settled.
+**All eight decisions are settled (2026-10-08).** Phase A may start on the user's go; Phase B
+opens with its design-check.
 
 ---
 
