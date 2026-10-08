@@ -491,6 +491,37 @@ Validation: L4 per feature on the benches; stress: 100 NPCs wading, 1000 debris 
 | **WaterBench_Coast** (8109) | poses measured, verify re-running | Bake = WaterTest's (outlet TRUE, drainage complete, order 5, min −24). The documented "shore rect" (37,708)–(293,964) is **all seabed** (surface 3–15, ~1 voxel per 20–25 u). Waterline at x=165 is z≈676; sand sits AT sea level (surface 16) z 656–672. **The Water.md §5 red baseline reproduces exactly: rim_leaks 257/257, worst 6 at (59,767)**; 66,004 spans / 81 chunks, all tops 16.0 when the rect is fully resident. |
 | **WaterBench_River** (8110) | **DONE** (red baseline recorded) | The RiverLab-era "order-3 gorge (704,−1152)" is an **alpine spill lake (277.56) pouring into a chasm** (bed 185–226 under 290 banks) — unusable as a flow reach; a 9×9 rect there holds **204 spans with tops 192–325** (overfill 51). **Bench reach = the order-5 trunk** near x≈−1728, z −1800..−500: bed y≈19 flat over 1 200 u, width 14, 60–80 u valley, banks 80–100; bake table DRY there (river_channel, order 5). **Its 140×128 rect holds 42,924 spans with tops 32–108.6 — the valley is DROWNED by a perched lake's (107.8) fine flood escaping its outlet** (§1.2). Captures `trunk_down`/`trunk_top` are solid water. WP1 red metric: span-wet ∧ ¬bake-wet ∧ ¬river = 17,677 columns today, must be 0. |
 
+**WP0 tooling (2026-10-08, built — verification pending the rebuild):**
+- `POST /api/debug/water_render_grid {x1,z1,x2,z2, columns?, max_columns?}` — what the sea sheet
+  would DRAW per column, from a CPU shadow of the last uploaded level grid read through the same
+  rules as `basinLevelAt()` in `water.vert`/`water.frag` (`WaterRenderPipeline::renderWaterAt`).
+  Echoes source (`flat`/`bake`/`grounded`), grid origin/cells/cell size, wet/dry/off-grid counts,
+  level range, optional wet-column list. Rect capped at 2048² (the span grid's own ceiling).
+- `tools/water_camera_probe.py <bench>` — the §8 #8b walk, automated: far pose → settle → read
+  render grid + stored spans; near pose → same; VIOLATION = on-grid at both poses with different
+  wet/dry or level, or rendered ≠ spans where resident; COVERAGE = residency moved (allowed,
+  counted); SOURCE = placement source changed. `--inject-water-look` is the self-test: the
+  `water_look` override resets the upload memo and the next frame re-uploads the coarse bake, so
+  the probe MUST fail on it. Evidence: `docs/evidence/water_v4_camera_probe.jsonl`.
+- GPU baseline: `tools/perf_harness.py sample` (the perf program's harness: Release-only, settled,
+  pose-verified, history-based) over each bench's `testVantages`, 240 frames × 4 repeats, into
+  `docs/evidence/water_v4_baseline.jsonl`.
+
+**GPU baseline — Coast (2026-10-08, Release `1e1728c4`, RTX 4090, IMMEDIATE, single engine,
+n = 4 × 240 frames per pose, medians):**
+
+| Pose | GPU frame | `Water` (sea sheet) | `WaterRefractCapture` | Cells / Underwater | Dominant scopes |
+|---|---|---|---|---|---|
+| shore_eye | 16.58 ms | **0.200 ms** | 0.007 ms | not drawn (baked world; camera above water) | Shadow Mid 8.4 · GI Probes 4.1 · Scene 2.9 |
+| shore_elevated | 57.36 ms | **0.239 ms** | 0.012 ms | — | **Foliage 34.6** · Shadow Mid 12.8 · GI 3.8 · Far Terrain 2.6 |
+| horizon | 24.58 ms | **0.177 ms** | 0.007 ms | — | — |
+
+Reading: today's water is **~0.2 ms, about 1 % of the frame** at every Coast vantage — the
+v4 budget (≤ 1.5 ms all-in) has ~1.3 ms of headroom for the sim, far tiles and shoreline work
+before SSR tiers even matter. The 57 ms elevated frame is **foliage on the forested beach**
+(34.6 ms), a vegetation/perf-program finding, not a water one; it is logged here so a later
+"water got slower" reading is not confused with it. `visible_instances` 24.8–30.2 M.
+
 Traps found building them (each cost real time; now in memory `reference_bench_engine_on_project_port`):
 - **Port 8090 is held by an unrelated server** (`taba-server`, another workspace) → MCP engine
   tools unusable; benches run on their project ports via `phyxel up`, driven over HTTP.
