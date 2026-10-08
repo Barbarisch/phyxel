@@ -99,6 +99,7 @@
 #include "core/GpuParticlePhysics.h"
 #include "core/DebrisRuntime.h"
 #include "core/WaterManager.h"
+#include "core/water/WaterCoreManager.h"
 #include "scene/NPCEntity.h"
 #include "scene/Entity.h"
 #include "scene/AnimatedVoxelCharacter.h"
@@ -279,7 +280,8 @@ private:
     // (shared with shipped games); gpuParticlePhysics is a non-owning alias (null = disabled).
     std::unique_ptr<DebrisRuntime> debrisRuntime;
     GpuParticlePhysics* gpuParticlePhysics = nullptr;
-    std::unique_ptr<Core::WaterManager> waterManager;                  // CPU water cellular-automaton sim
+    std::unique_ptr<Core::WaterManager> waterManager;                  // CPU water cellular-automaton sim (retires per WaterCore.md sec. 9)
+    std::unique_ptr<Core::Water::WaterCoreManager> waterCore;          // WaterCore active volumes (Phase B; docs/WaterCore.md)
     std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;    // Coordinates all rendering
     std::unique_ptr<RaycastVisualizer> raycastVisualizer;              // Raycast debug visualization
     std::unique_ptr<VoxelInteractionSystem> voxelInteractionSystem;    // Cube/subcube interaction

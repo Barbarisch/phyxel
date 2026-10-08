@@ -2180,6 +2180,14 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_ledger",         waterEndpoint("water_ledger"));       // WaterCore Phase A: Σ mass by representation
     srv.Post("/api/debug/water_probe_rect",     waterEndpoint("water_probe_rect"));   // WaterCore Phase A: per-column surface + mass over a rect
     srv.Post("/api/debug/place_water_box",      waterEndpoint("place_water_box"));    // WaterCore Phase A: fill a box of cells in one command
+    srv.Post("/api/debug/water_av_create",      waterEndpoint("water_av_create"));    // WaterCore Phase B: active volumes (docs/WaterCore.md sec. 15.4)
+    srv.Post("/api/debug/water_av_destroy",     waterEndpoint("water_av_destroy"));
+    srv.Post("/api/debug/water_av_step",        waterEndpoint("water_av_step"));
+    srv.Post("/api/debug/water_av_list",        waterEndpoint("water_av_list"));
+    srv.Post("/api/debug/water_av_probe",       waterEndpoint("water_av_probe"));
+    srv.Post("/api/debug/water_av_source",      waterEndpoint("water_av_source"));
+    srv.Post("/api/debug/water_av_impulse",     waterEndpoint("water_av_impulse"));
+    srv.Post("/api/debug/water_av_realtime",    waterEndpoint("water_av_realtime"));
     srv.Post("/api/debug/water_cell_render",    waterEndpoint("water_cell_render"));  // camera-invariant gate A/B
     srv.Post("/api/debug/water_validate",       waterEndpoint("water_validate"));
     srv.Post("/api/debug/water_find_river",     waterEndpoint("water_find_river"));

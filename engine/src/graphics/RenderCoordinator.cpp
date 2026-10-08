@@ -4269,8 +4269,9 @@ void RenderCoordinator::drawFrame() {
     // rebuilt.
     // ---------------------------------------------------------------------------------------
     const bool drawWaterPlane = m_waterEnabled && waterPipeline;
-    const bool drawWaterCells = m_waterManager && waterCellPipeline &&
-                                !m_waterManager->surfaceCells().empty();
+    const bool drawCoreCells  = waterCellPipeline && m_waterCoreCells && !m_waterCoreCells->empty();   // WaterCore Phase B debug feed
+    const bool drawWaterCells = (m_waterManager && waterCellPipeline &&
+                                 !m_waterManager->surfaceCells().empty()) || drawCoreCells;
     if (drawWaterPlane || drawWaterCells || m_uiSystem) {
         // Snapshot the scene colour for refraction BEFORE the pass begins (outside any pass).
         if (drawWaterPlane || drawWaterCells) {
@@ -4300,14 +4301,24 @@ void RenderCoordinator::drawFrame() {
         }
         if (drawWaterCells) {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterCells");
-            waterCellPipeline->render(
-                vulkanDevice->getCommandBuffer(currentFrame),
-                vulkanDevice->getDescriptorSet(currentFrame),
-                *camera,
-                cachedProjectionMatrix,
-                m_waterManager->surfaceCells(),
-                vulkanDevice->getSwapChainExtent()
-            );
+            if (m_waterManager && !m_waterManager->surfaceCells().empty())
+                waterCellPipeline->render(
+                    vulkanDevice->getCommandBuffer(currentFrame),
+                    vulkanDevice->getDescriptorSet(currentFrame),
+                    *camera,
+                    cachedProjectionMatrix,
+                    m_waterManager->surfaceCells(),
+                    vulkanDevice->getSwapChainExtent()
+                );
+            if (drawCoreCells)
+                waterCellPipeline->render(
+                    vulkanDevice->getCommandBuffer(currentFrame),
+                    vulkanDevice->getDescriptorSet(currentFrame),
+                    *camera,
+                    cachedProjectionMatrix,
+                    *m_waterCoreCells,
+                    vulkanDevice->getSwapChainExtent()
+                );
         }
 
         // Underwater fog (WaterSystemV3 Phase 1 item 5) — AFTER the surfaces so it also fogs the

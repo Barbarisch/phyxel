@@ -130,7 +130,7 @@ def project_url(bench, override):
         return override
     cfg = project_dir(bench) / ".phyxel" / "config.json"
     port = json.loads(cfg.read_text(encoding="utf-8")).get("apiPort", 8090) if cfg.is_file() else 8090
-    return f"http://localhost:{port}"
+    return f"http://127.0.0.1:{port}"   # not localhost: ::1 is tried first on Windows and costs ~2 s per request
 
 
 def load_def(bench):

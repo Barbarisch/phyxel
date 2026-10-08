@@ -429,10 +429,25 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
     waterManager = std::make_unique<Core::WaterManager>(
         chunkManager, glm::ivec3(0, 8, 0), kWaterRegionDims);
     renderCoordinator->setWaterManager(waterManager.get());
+    // WaterCore (docs/WaterCore.md Phase B): active volumes created by debug routes, solids from
+    // the micro occupancy pool's three-state query (Unknown = hold), stepped explicitly by the
+    // harness or every frame when realtime is on. The debug feed draws its surface through the
+    // existing cell pipeline on authored worlds.
+    waterCore = std::make_unique<Core::Water::WaterCoreManager>(
+        [this](const glm::ivec3& worldMicro) -> int {
+            const auto* occ = renderCoordinator ? renderCoordinator->lightOccupancy() : nullptr;
+            if (!occ) return 2;   // nothing known: hold
+            return static_cast<int>(occ->stateAtMicro(worldMicro));
+        },
+        [this]() -> uint64_t {
+            const auto* occ = renderCoordinator ? renderCoordinator->lightOccupancy() : nullptr;
+            return occ ? occ->packRevision() : 0;
+        });
     // Keep the water sim's solid mask in sync with terrain edits so water flows into
     // newly-removed voxels (break / spell / blast) without a manual water_sync.
     chunkManager->setVoxelOccupancyCallback([this](int x, int y, int z, bool solid) {
         if (waterManager) waterManager->setSolidWorld(x, y, z, solid);
+        if (waterCore) waterCore->markSolidsDirty();
     });
     // Create GPU compute resources for the water flow (off by default; toggle with the
     // water_gpu debug command). Falls back to CPU if creation fails.
@@ -3559,6 +3574,13 @@ void Application::update(float deltaTime) {
 
         // Tick the CPU water cellular automaton (fixed-rate internally).
         if (waterManager) waterManager->update(deltaTime);
+        // WaterCore active volumes: realtime stepping is opt-in (water_av_realtime); the harness
+        // steps explicitly. The debug feed is rebuilt every frame while any volume exists.
+        if (waterCore) {
+            waterCore->update(std::min(deltaTime, 0.05f));
+            if (renderCoordinator)
+                renderCoordinator->setWaterCoreSurfaceCells(waterCore->totalCells() ? &waterCore->surfaceCells() : nullptr);
+        }
     }
 
     // Waterfall mist: emit soft rising spray at the base of each detected fall lip.
@@ -13374,9 +13396,10 @@ void Application::registerWaterCommands() {
             }
         }
         const double cells = waterManager ? waterManager->totalMass() : 0.0;
-        r = {{"cells", cells}, {"spans", spans}, {"span_count", spanCount},
+        const double coreCells = waterCore ? waterCore->totalMass() : 0.0;
+        r = {{"cells", cells}, {"core_cells", coreCells}, {"spans", spans}, {"span_count", spanCount},
              {"bodies", 0.0}, {"reserves", 0.0}, {"droplets", 0.0},
-             {"total", cells + spans},
+             {"total", cells + coreCells + spans},
              {"units", "m^3 (voxel-volumes); cells = the CA's mass field, spans = chunk-resident span depth"},
              {"sim_region", waterManager ? nlohmann::json{{"origin", {waterManager->origin().x, waterManager->origin().y, waterManager->origin().z}},
                                                            {"dims", {waterManager->dims().x, waterManager->dims().y, waterManager->dims().z}}}
@@ -13388,10 +13411,24 @@ void Application::registerWaterCommands() {
     // at ~10 Hz over HTTP, which per-cell probes cannot do. Columns outside the sim region read
     // null. Capped at 4096 columns so a typo cannot stall the game loop.
     reg.on("water_probe_rect", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
-        if (!waterManager) return noWater(r);
         const int x1 = cmd.params.value("x1", 0), z1 = cmd.params.value("z1", 0);
         const int x2 = cmd.params.value("x2", 0), z2 = cmd.params.value("z2", 0);
         const int lx = std::min(x1, x2), hx = std::max(x1, x2), lz = std::min(z1, z2), hz = std::max(z1, z2);
+        if (cmd.params.value("target", std::string("ca")) == "core") {
+            // WaterCore active volumes: per world column, the highest surface and the mass.
+            if (!waterCore) { r = {{"error", "WaterCore not available"}}; return; }
+            if (static_cast<long long>(hx - lx + 1) * (hz - lz + 1) > 4096) { r = {{"error", "rect too large (max 4096 columns)"}}; return; }
+            nlohmann::json cols = nlohmann::json::array();
+            double total = 0.0;
+            const int cy1 = cmd.params.value("y1", INT_MIN), cy2 = cmd.params.value("y2", INT_MAX);
+            for (const auto& c : waterCore->probeColumns(lx, lz, hx, hz, std::min(cy1, cy2), std::max(cy1, cy2))) {
+                total += c.mass;
+                cols.push_back({c.x, c.z, (c.inVolume && !std::isnan(c.surfaceY)) ? nlohmann::json(c.surfaceY) : nlohmann::json(nullptr), c.mass});
+            }
+            r = {{"target", "core"}, {"columns", cols}, {"total_mass", total}, {"format", "[x, z, surface_y|null, column_mass]"}};
+            return;
+        }
+        if (!waterManager) return noWater(r);
         const glm::ivec3 o = waterManager->origin(), d = waterManager->dims();
         const int y1 = cmd.params.value("y1", o.y), y2 = cmd.params.value("y2", o.y + d.y - 1);
         if (static_cast<long long>(hx - lx + 1) * (hz - lz + 1) > 4096) { r = {{"error", "rect too large (max 4096 columns)"}}; return; }
@@ -13416,10 +13453,18 @@ void Application::registerWaterCommands() {
     // command (a dam-break block is ~250 cells; 250 HTTP round-trips would let the CA spread for
     // seconds during placement). Reports placed cells and the resulting total.
     reg.on("place_water_box", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {
-        if (!waterManager) return noWater(r);
         const int x1 = cmd.params.value("x1", 0), y1 = cmd.params.value("y1", 0), z1 = cmd.params.value("z1", 0);
         const int x2 = cmd.params.value("x2", 0), y2 = cmd.params.value("y2", 0), z2 = cmd.params.value("z2", 0);
         const float mass = cmd.params.value("mass", 1.0f);
+        if (cmd.params.value("target", std::string("ca")) == "core") {
+            if (!waterCore) { r = {{"error", "WaterCore not available"}}; return; }
+            long outside = 0;
+            const long set = waterCore->placeBox(glm::ivec3(x1, y1, z1), glm::ivec3(x2, y2, z2), mass, &outside);
+            r = {{"success", true}, {"target", "core"}, {"cells_set", set}, {"voxels_outside_any_volume", outside},
+                 {"fill_each", mass}, {"core_total_mass", waterCore->totalMass()}};
+            return;
+        }
+        if (!waterManager) return noWater(r);
         const long long n = static_cast<long long>(std::abs(x2 - x1) + 1) * (std::abs(y2 - y1) + 1) * (std::abs(z2 - z1) + 1);
         if (n > 100000) { r = {{"error", "box too large (max 100000 cells)"}}; return; }
         long placed = 0;
@@ -13430,6 +13475,80 @@ void Application::registerWaterCommands() {
                     ++placed;
                 }
         r = {{"success", true}, {"placed", placed}, {"mass_each", mass}, {"total_mass", waterManager->totalMass()}};
+    });
+
+    // ── WaterCore Phase B active-volume routes (docs/WaterCore.md §15.4) ───────────────────────
+    auto noCore = [](nlohmann::json& r) { r = {{"error", "WaterCore not available"}}; };
+    auto avJson = [](const Core::Water::AvRecord& a) {
+        return nlohmann::json{{"id", a.id}, {"box", {{"min", {a.minVoxel.x, a.minVoxel.y, a.minVoxel.z}}, {"max", {a.maxVoxel.x, a.maxVoxel.y, a.maxVoxel.z}}}},
+                              {"cellSize", a.cellSize}, {"transport", a.transport}, {"cells", a.cells}, {"asleep", a.asleep},
+                              {"mass", a.mass}, {"kinetic_energy", a.kineticEnergy}, {"quiet_ticks", a.quietTicks},
+                              {"last", {{"substeps", a.lastSubsteps}, {"pcg_iterations", a.lastPcgIterations}, {"pcg_residual", a.lastPcgResidual}, {"source_unplaced", a.sourceUnplaced}}}, {"residue_dropped_m3", a.residueDropped},
+                              {"source_placed_m3", a.sourcePlaced}, {"source_count", a.sourceCount}};
+    };
+    reg.on("water_av_create", [this, noCore, avJson](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        const glm::ivec3 lo(cmd.params.value("x1", 0), cmd.params.value("y1", 0), cmd.params.value("z1", 0));
+        const glm::ivec3 hi(cmd.params.value("x2", 0), cmd.params.value("y2", 0), cmd.params.value("z2", 0));
+        std::string err;
+        const int id = waterCore->create(lo, hi, cmd.params.value("cellSize", 1.0f / 3.0f), cmd.params.value("transport", std::string("eulerian")), &err);
+        if (!id) { r = {{"error", err}}; return; }
+        r = {{"success", true}, {"volume", avJson(*waterCore->find(id))}};
+    });
+    reg.on("water_av_destroy", [this, noCore, avJson](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        const bool ok = waterCore->destroy(cmd.params.value("id", 0));
+        nlohmann::json list = nlohmann::json::array();
+        for (const auto& a : waterCore->list()) list.push_back(avJson(a));
+        r = {{"success", ok}, {"volumes", list}};
+    });
+    reg.on("water_av_list", [this, noCore, avJson](const Core::APICommand& cmd, nlohmann::json& r) {
+        (void)cmd;
+        if (!waterCore) return noCore(r);
+        nlohmann::json list = nlohmann::json::array();
+        for (const auto& a : waterCore->list()) list.push_back(avJson(a));
+        r = {{"volumes", list}, {"total_mass", waterCore->totalMass()}, {"total_cells", waterCore->totalCells()}, {"realtime", waterCore->realtime()}};
+    });
+    reg.on("water_av_step", [this, noCore, avJson](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        const int ticks = std::clamp(cmd.params.value("ticks", 1), 1, 6000);   // <= 100 s of sim: the game loop blocks for this call
+        const float dt = cmd.params.value("dt", 1.0f / 60.0f);
+        Core::Water::AvRecord rec;
+        if (!waterCore->step(cmd.params.value("id", 0), ticks, dt, &rec)) { r = {{"error", "no such volume"}}; return; }
+        r = {{"success", true}, {"ticks", ticks}, {"dt", dt}, {"sim_time_advanced", ticks * dt}, {"volume", avJson(rec)}};
+    });
+    reg.on("water_av_probe", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        const auto p = waterCore->probe(glm::vec3(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f)));
+        r = {{"in_volume", p.inVolume}, {"volume_id", p.avId}, {"fill", p.fill},
+             {"velocity", {p.velocity.x, p.velocity.y, p.velocity.z}},
+             {"surface_y", std::isnan(p.surfaceY) ? nlohmann::json(nullptr) : nlohmann::json(p.surfaceY)},
+             {"pressure", p.pressure}, {"occupancy", p.occupancy}};
+    });
+    reg.on("water_av_source", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        std::string err;
+        if (cmd.params.value("clear", false)) {   // {"id", "clear": true}: every source on the volume is removed
+            const bool ok = waterCore->clearSources(cmd.params.value("id", 0));
+            r = ok ? nlohmann::json{{"success", true}, {"cleared", true}} : nlohmann::json{{"error", "no such volume"}};
+            return;
+        }
+        const float rate = std::clamp(cmd.params.value("rate", 0.0f), -10.0f, 10.0f);   // |rate| <= 10 m^3/s: above it one cell cannot accept the inflow per tick at 1/9
+        const bool ok = waterCore->addSource(cmd.params.value("id", 0), glm::vec3(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f)), rate, &err);
+        r = ok ? nlohmann::json{{"success", true}, {"rate", rate}} : nlohmann::json{{"error", err}};
+    });
+    reg.on("water_av_impulse", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        const float strength = std::clamp(cmd.params.value("strength", 1.0f), -20.0f, 20.0f);   // CFL at the finest cell and 60 Hz
+        const bool ok = waterCore->addImpulse(glm::vec3(cmd.params.value("x", 0.0f), cmd.params.value("y", 0.0f), cmd.params.value("z", 0.0f)),
+                                              cmd.params.value("radius", 1.0f), strength,
+                                              glm::vec3(cmd.params.value("dx", 0.0f), cmd.params.value("dy", 0.0f), cmd.params.value("dz", 0.0f)));
+        r = {{"success", ok}, {"strength", strength}};
+    });
+    reg.on("water_av_realtime", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        if (cmd.params.contains("on")) waterCore->setRealtime(cmd.params.value("on", false));
+        r = {{"realtime", waterCore->realtime()}};
     });
 
     reg.on("water_probe", [this, noWater](const Core::APICommand& cmd, nlohmann::json& r) {

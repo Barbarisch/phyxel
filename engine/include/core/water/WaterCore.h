@@ -78,7 +78,8 @@ public:
     double columnMass(int x, int z) const;            ///< m^3 in grid column (x, z)
     /// World Y of the free surface in column (x, z): the top-most non-empty cell's bottom + fill,
     /// or NaN when the column holds no water.
-    float surfaceWorldY(int x, int z) const;
+    static constexpr float kSurfaceMinDepth = 1e-3f;   ///< m: thinner water is not a surface (S11 writes spans +- 1 mm)
+    float surfaceWorldY(int x, int z) const;          ///< world y of the surface (NaN when the column holds no surface)
     glm::vec3 cellCenterWorld(int x, int y, int z) const;
     glm::ivec3 worldToCell(const glm::vec3& world) const;  ///< grid-local cell (may be out of bounds)
     double kineticEnergy() const;                     ///< sum 1/2 f h^3 |v_cell|^2 (density 1)
@@ -114,6 +115,7 @@ struct SolverParams {
     double maxDeltaFQuiet = 1e-5;    ///< ... and when max |delta f| per tick is below this
     int    restTicks = 30;           ///< consecutive quiet ticks before sleeping
     float  restDamping = 0.5f;       ///< 1/s, applied to velocity ONLY while quiet (never to moving water)
+    float  filmHoldDepth = 0.01f;    ///< m: a film this thin or thinner is pinned (contact-angle stand-in); only the depth above it flows under its own slope (S1: puddles hold)
     int    pcgMaxIters = 400;
     double pcgTolerance = 1e-6;      ///< relative residual
 };
@@ -123,6 +125,7 @@ struct SourceSpec {
     float  rate = 0.0f;              ///< m^3/s; negative = sink
     double placedTotal = 0.0;        ///< m^3 actually added (or removed, negative)
     double unplaced = 0.0;           ///< m^3 the cell could not accept this tick (reported, not lost)
+    double pending = 0.0;            ///< m^3 owed by the pump and placed as soon as the outlet has room (capped at one second of rate)
 };
 
 struct StepReport {
@@ -137,6 +140,7 @@ struct StepReport {
     double sourceUnplaced = 0.0;
     int    quietTicks = 0;
     bool   asleep = false;
+    double residueDropped = 0.0;   ///< m^3 of sub-epsilon residue with nowhere to merge this tick (sweepResidue)
 };
 
 /// How water POSITION moves (docs/WaterCore.md §4.7): Eulerian fill fractions (Phase B) or FLIP
@@ -149,13 +153,16 @@ public:
     /// exactly: a cell's outflow never exceeds its content; inflow receives what was sent; no flux
     /// across a face whose other cell is Solid or Unknown.
     virtual void advect(WaterGrid& g, float dt) = 0;
+    virtual void setLiquidThreshold(float) {}   ///< SolverParams::liquidThreshold, forwarded by the solver
 };
 
 class EulerianTransport final : public IWaterTransport {
 public:
     const char* name() const override { return "eulerian"; }
     void advect(WaterGrid& g, float dt) override;
+    void setLiquidThreshold(float thr) override { m_liquidThreshold = thr; }
 private:
+    float m_liquidThreshold = 0.5f;   // a donor below it is a thin film: falls as a block through its floor face
     std::vector<float> m_scratch;
     std::vector<float> m_uNew, m_vNew, m_wNew;
 };
@@ -200,6 +207,8 @@ private:
     void extrapolateVelocity();
     void enforceSolidFaces();
     void applyRestDamping(float dt);
+    void compactSubmergedPartials(float dt);   // water above a partial liquid cell falls into it (free-fall capped)
+    void sweepResidue(StepReport& r);   // merge sub-epsilon films, count what cannot be merged
     int  substepsFor(float dt) const;
     double thetaToAir(int x, int y, int z, int dir) const;
     double maxSpeed() const;

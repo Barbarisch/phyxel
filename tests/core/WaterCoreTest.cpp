@@ -245,6 +245,24 @@ TEST(WaterCoreTest, SubBoxIdenticalToWholeBox) {
     for (size_t i = 0; i < a.size(); ++i) EXPECT_NEAR(a[i], b[i], 1e-5f) << "cell " << i;
 }
 
+// A submerged pump in a FULL box keeps delivering: the outlet is an inflow boundary (div u = q in
+// the projection), the surface above rises by transport, and compaction must not undo a rising
+// face. Red first (0 of 4 m^3 delivered: gravity was added before the advection, and compaction
+// pulled each substep's rise straight back down), green at 0.5 m^3/s (2026-10-08, S2 Small).
+TEST(WaterCoreTest, SubmergedPumpDelivers) {
+    Tank t(6, 8, 1);
+    t.grid.fillBox({0, 0, 0}, {5, 2, 0}, 1.0f);            // 18 m^3, surface at y = 3
+    WaterSolver s(t.grid, t.query());
+    s.addSource({3, 1, 0}, 0.5f);                           // 0.5 m^3/s two cells under the surface
+    runTicks(s, 8 * 60);
+    const auto& src = s.sources()[0];
+    EXPECT_NEAR(src.placedTotal, 4.0, 0.1) << "the pump must deliver its rate into a full box";
+    EXPECT_NEAR(t.grid.totalMass(), 18.0 + src.placedTotal, 1e-5) << "delivered water is in the grid";   // float32 fills summed over 48 cells x 480 ticks: ~4e-6 of 22 m^3
+    // the pump carries what the outlet could not take (SourceSpec::pending) and places it as room
+    // appears; the backlog is bounded to one second of rate by design
+    EXPECT_LT(src.pending, 0.5) << "the owed backlog stays under one second of rate";
+}
+
 // The solver-only S3: a dam break front runs at the Ritter speed on a dry bed (frictionless bound).
 TEST(WaterCoreTest, DamBreakFrontWithinRitter) {
     Tank t(60, 6, 3);

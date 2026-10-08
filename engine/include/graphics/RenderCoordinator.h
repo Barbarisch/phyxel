@@ -20,6 +20,7 @@
 #include "graphics/TreeLodRenderPipeline.h"
 #include "graphics/FarTerrainRenderPipeline.h"   // TileDraw (far-cascade caster cache)
 #include "graphics/VoxelLightOccupancyGpu.h"     // M1b: sub-voxel occupancy on the GPU
+#include "core/WaterManager.h"               // WaterSurfaceCell (WaterCore debug feed)
 #include <functional>
 #include <future>
 #include <memory>
@@ -550,6 +551,10 @@ public:
     // Read-only view of the sea-sheet pipeline for the `water_render_grid` probe (what the renderer
     // would draw per column). Null before Vulkan init / without a water pipeline.
     const WaterRenderPipeline* waterRenderPipeline() const { return waterPipeline.get(); }
+    /// The micro occupancy object (three-state query) for the WaterCore solid binding (§15.1).
+    const VoxelLightOccupancyGpu* lightOccupancy() const { return m_lightOccupancy.get(); }
+    /// WaterCore Phase B debug feed: extra surface cells drawn by the cell pipeline (null = none).
+    void setWaterCoreSurfaceCells(const std::vector<Core::WaterSurfaceCell>* cells) { m_waterCoreCells = cells; }
 
     // Gerstner swell on the sea sheet (WaterSystemV3 Phase 2). Amplitude 0 = flat, which restores
     // the pre-Phase-2 look and is the A/B control for "the waves are what changed".
@@ -1371,6 +1376,7 @@ private:
     // Water surface. Default OFF; enabled + sea level come from the per-world game
     // definition ("water": { "enabled": true, "seaLevel": N }), applied on load.
     std::unique_ptr<WaterRenderPipeline> waterPipeline;
+    const std::vector<Core::WaterSurfaceCell>* m_waterCoreCells = nullptr;   // WaterCore debug feed
     bool  m_waterEnabled = false;
     float m_seaLevel = Core::kSeaLevelY; // shared default (WorldConstants.h) — must match the
                                          // water sim or the plane draws where no water is

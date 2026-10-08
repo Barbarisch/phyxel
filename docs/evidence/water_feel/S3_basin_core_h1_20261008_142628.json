@@ -1,0 +1,1012 @@
+{
+ "scenario": "S3",
+ "bench": "basin",
+ "engine": "core",
+ "build_config": "Release",
+ "git_head": "e4117108",
+ "timestamp": "20261008_142628",
+ "prediction": {
+  "engine": "core",
+  "cell_size": 1.0,
+  "time_base": "simulation",
+  "front_depth_threshold_m": 0.5,
+  "front_speed_mps": 4.2057144149100445,
+  "front_time_s": 2.377717318263011,
+  "L": 10,
+  "h0": 3.0,
+  "mass_expected": 252.0,
+  "still_level_over_flat_floor": 14.235294117647058,
+  "reflected_crest_min_ratio": 0.8,
+  "flat_after_s": 10.0,
+  "flat_tolerance": 0.001,
+  "mass_tolerance": 0.0001
+ },
+ "measurement": {
+  "placed": 252,
+  "mass_after_place": 252.0,
+  "front_hit_time_s": 1.6000000000000003,
+  "front_speed_ratio_vs_ritter": 1.4860733239143817,
+  "west_surface_peak": 17.177671432495117,
+  "east_surface_peak_after_1s": 17.078779220581055,
+  "final_surface_spread": 1.0265922546386719,
+  "final_mass": 252.00000617278533,
+  "mass_drift": 6.172785333546926e-06
+ },
+ "samples": [
+  {
+   "t": 0.1,
+   "front_x": 18,
+   "west_max_surface": 15.998892784118652,
+   "east_max_surface": null,
+   "row_mass": 20.999999932682424,
+   "total_mass": 251.99999920011103
+  },
+  {
+   "t": 0.2,
+   "front_x": 18,
+   "west_max_surface": 15.992634773254395,
+   "east_max_surface": null,
+   "row_mass": 20.99999994484684,
+   "total_mass": 251.99999947607841
+  },
+  {
+   "t": 0.3,
+   "front_x": 19,
+   "west_max_surface": 15.975564956665039,
+   "east_max_surface": null,
+   "row_mass": 20.999999852349923,
+   "total_mass": 251.9999988453214
+  },
+  {
+   "t": 0.4,
+   "front_x": 19,
+   "west_max_surface": 15.922005653381348,
+   "east_max_surface": null,
+   "row_mass": 21.00000012214446,
+   "total_mass": 251.9999998498179
+  },
+  {
+   "t": 0.5,
+   "front_x": 20,
+   "west_max_surface": 15.830534934997559,
+   "east_max_surface": null,
+   "row_mass": 21.00000010203911,
+   "total_mass": 251.99999816764716
+  },
+  {
+   "t": 0.6,
+   "front_x": 20,
+   "west_max_surface": 15.712325096130371,
+   "east_max_surface": null,
+   "row_mass": 21.000000263108628,
+   "total_mass": 252.00000088138495
+  },
+  {
+   "t": 0.7,
+   "front_x": 21,
+   "west_max_surface": 15.59873104095459,
+   "east_max_surface": 13.0,
+   "row_mass": 21.000000244873082,
+   "total_mass": 251.99999980387446
+  },
+  {
+   "t": 0.8,
+   "front_x": 22,
+   "west_max_surface": 17.00335693359375,
+   "east_max_surface": 13.0,
+   "row_mass": 21.000000640583217,
+   "total_mass": 252.00000184878735
+  },
+  {
+   "t": 0.9,
+   "front_x": 22,
+   "west_max_surface": 17.018291473388672,
+   "east_max_surface": 13.0,
+   "row_mass": 21.000000614171814,
+   "total_mass": 252.00000093258558
+  },
+  {
+   "t": 1.0,
+   "front_x": 23,
+   "west_max_surface": 17.04415512084961,
+   "east_max_surface": 13.0,
+   "row_mass": 21.00000049591331,
+   "total_mass": 252.00000009195904
+  },
+  {
+   "t": 1.1,
+   "front_x": 24,
+   "west_max_surface": 17.077133178710938,
+   "east_max_surface": 13.0008544921875,
+   "row_mass": 21.000000766733184,
+   "total_mass": 252.0000012172247
+  },
+  {
+   "t": 1.2,
+   "front_x": 25,
+   "west_max_surface": 17.113563537597656,
+   "east_max_surface": 13.013858795166016,
+   "row_mass": 21.000001352141275,
+   "total_mass": 252.00000618131997
+  },
+  {
+   "t": 1.3,
+   "front_x": 26,
+   "west_max_surface": 17.144813537597656,
+   "east_max_surface": 16.0,
+   "row_mass": 21.000001170345705,
+   "total_mass": 252.00000400326644
+  },
+  {
+   "t": 1.4,
+   "front_x": 26,
+   "west_max_surface": 17.165027618408203,
+   "east_max_surface": 17.0,
+   "row_mass": 21.00000120687908,
+   "total_mass": 252.00000666051665
+  },
+  {
+   "t": 1.5,
+   "front_x": 27,
+   "west_max_surface": 17.17485809326172,
+   "east_max_surface": 17.0,
+   "row_mass": 21.000001194703778,
+   "total_mass": 252.0000078329849
+  },
+  {
+   "t": 1.6,
+   "front_x": 28,
+   "west_max_surface": 17.177671432495117,
+   "east_max_surface": 17.0,
+   "row_mass": 21.00000088787738,
+   "total_mass": 252.00000266045896
+  },
+  {
+   "t": 1.7,
+   "front_x": 28,
+   "west_max_surface": 17.171361923217773,
+   "east_max_surface": 17.000062942504883,
+   "row_mass": 21.000000768978975,
+   "total_mass": 252.00000111766306
+  },
+  {
+   "t": 1.8,
+   "front_x": 28,
+   "west_max_surface": 17.16582489013672,
+   "east_max_surface": 17.000207901000977,
+   "row_mass": 21.000000564962107,
+   "total_mass": 251.99999864488328
+  },
+  {
+   "t": 1.9,
+   "front_x": 28,
+   "west_max_surface": 17.164857864379883,
+   "east_max_surface": 17.00064468383789,
+   "row_mass": 21.000000334862946,
+   "total_mass": 251.99999562471692
+  },
+  {
+   "t": 2.0,
+   "front_x": 28,
+   "west_max_surface": 17.161720275878906,
+   "east_max_surface": 17.001628875732422,
+   "row_mass": 21.00000007529841,
+   "total_mass": 251.9999925523658
+  },
+  {
+   "t": 2.1,
+   "front_x": 28,
+   "west_max_surface": 17.154356002807617,
+   "east_max_surface": 17.003616333007812,
+   "row_mass": 21.0000002509822,
+   "total_mass": 251.99999343436025
+  },
+  {
+   "t": 2.2,
+   "front_x": 28,
+   "west_max_surface": 17.14335060119629,
+   "east_max_surface": 17.00725555419922,
+   "row_mass": 21.000000320946327,
+   "total_mass": 251.99999471051623
+  },
+  {
+   "t": 2.3,
+   "front_x": 28,
+   "west_max_surface": 17.129003524780273,
+   "east_max_surface": 17.013370513916016,
+   "row_mass": 21.000000355252773,
+   "total_mass": 251.99999810088178
+  },
+  {
+   "t": 2.4,
+   "front_x": 28,
+   "west_max_surface": 17.113868713378906,
+   "east_max_surface": 17.023561477661133,
+   "row_mass": 21.000000426732466,
+   "total_mass": 252.00000115975416
+  },
+  {
+   "t": 2.5,
+   "front_x": 28,
+   "west_max_surface": 17.09896469116211,
+   "east_max_surface": 17.032880783081055,
+   "row_mass": 21.00000047203915,
+   "total_mass": 251.99999960382388
+  },
+  {
+   "t": 2.6,
+   "front_x": 28,
+   "west_max_surface": 17.0853328704834,
+   "east_max_surface": 17.041847229003906,
+   "row_mass": 21.00000054255515,
+   "total_mass": 252.00000185167875
+  },
+  {
+   "t": 2.7,
+   "front_x": 28,
+   "west_max_surface": 17.073097229003906,
+   "east_max_surface": 17.049774169921875,
+   "row_mass": 21.000000204342335,
+   "total_mass": 251.9999984033619
+  },
+  {
+   "t": 2.8,
+   "front_x": 28,
+   "west_max_surface": 17.062164306640625,
+   "east_max_surface": 17.05791473388672,
+   "row_mass": 21.000000606428998,
+   "total_mass": 252.0000020241645
+  },
+  {
+   "t": 2.9,
+   "front_x": 28,
+   "west_max_surface": 17.05287742614746,
+   "east_max_surface": 17.065025329589844,
+   "row_mass": 21.000000272559582,
+   "total_mass": 251.99999823166564
+  },
+  {
+   "t": 3.0,
+   "front_x": 28,
+   "west_max_surface": 17.044893264770508,
+   "east_max_surface": 17.070505142211914,
+   "row_mass": 21.00000016092244,
+   "total_mass": 251.99999966206138
+  },
+  {
+   "t": 3.1,
+   "front_x": 28,
+   "west_max_surface": 17.037376403808594,
+   "east_max_surface": 17.075010299682617,
+   "row_mass": 21.00000059097368,
+   "total_mass": 252.0000016789393
+  },
+  {
+   "t": 3.2,
+   "front_x": 28,
+   "west_max_surface": 17.029586791992188,
+   "east_max_surface": 17.078779220581055,
+   "row_mass": 21.000000794233223,
+   "total_mass": 252.00000424986177
+  },
+  {
+   "t": 3.3,
+   "front_x": 28,
+   "west_max_surface": 17.027528762817383,
+   "east_max_surface": 17.078548431396484,
+   "row_mass": 21.000000858918245,
+   "total_mass": 252.0000049112423
+  },
+  {
+   "t": 3.4,
+   "front_x": 28,
+   "west_max_surface": 17.027088165283203,
+   "east_max_surface": 17.076047897338867,
+   "row_mass": 21.00000030035595,
+   "total_mass": 252.00000086696278
+  },
+  {
+   "t": 3.5,
+   "front_x": 28,
+   "west_max_surface": 17.026782989501953,
+   "east_max_surface": 17.07296371459961,
+   "row_mass": 21.000000126726306,
+   "total_mass": 251.9999985700293
+  },
+  {
+   "t": 3.6,
+   "front_x": 28,
+   "west_max_surface": 17.026485443115234,
+   "east_max_surface": 17.069530487060547,
+   "row_mass": 20.999999804412816,
+   "total_mass": 251.99999636257672
+  },
+  {
+   "t": 3.7,
+   "front_x": 28,
+   "west_max_surface": 17.02619171142578,
+   "east_max_surface": 17.065832138061523,
+   "row_mass": 20.999999677509077,
+   "total_mass": 251.99999554974778
+  },
+  {
+   "t": 3.8,
+   "front_x": 28,
+   "west_max_surface": 17.025907516479492,
+   "east_max_surface": 17.061901092529297,
+   "row_mass": 21.000000107836073,
+   "total_mass": 251.99999826060287
+  },
+  {
+   "t": 3.9,
+   "front_x": 28,
+   "west_max_surface": 17.02562713623047,
+   "east_max_surface": 17.057668685913086,
+   "row_mass": 21.000000087723834,
+   "total_mass": 251.9999992311109
+  },
+  {
+   "t": 4.0,
+   "front_x": 28,
+   "west_max_surface": 17.025354385375977,
+   "east_max_surface": 17.053396224975586,
+   "row_mass": 20.99999994624556,
+   "total_mass": 251.99999731345437
+  },
+  {
+   "t": 4.1,
+   "front_x": 28,
+   "west_max_surface": 17.02508544921875,
+   "east_max_surface": 17.049089431762695,
+   "row_mass": 20.999999624494755,
+   "total_mass": 251.9999936587096
+  },
+  {
+   "t": 4.2,
+   "front_x": 28,
+   "west_max_surface": 17.024824142456055,
+   "east_max_surface": 17.044822692871094,
+   "row_mass": 20.99999976033633,
+   "total_mass": 251.99999519195632
+  },
+  {
+   "t": 4.3,
+   "front_x": 28,
+   "west_max_surface": 17.024566650390625,
+   "east_max_surface": 17.040925979614258,
+   "row_mass": 20.999999176505575,
+   "total_mass": 251.99999020818694
+  },
+  {
+   "t": 4.4,
+   "front_x": 28,
+   "west_max_surface": 17.024314880371094,
+   "east_max_surface": 17.03705596923828,
+   "row_mass": 20.9999989687849,
+   "total_mass": 251.99998923579196
+  },
+  {
+   "t": 4.5,
+   "front_x": 28,
+   "west_max_surface": 17.02406883239746,
+   "east_max_surface": 17.032878875732422,
+   "row_mass": 20.999998943955156,
+   "total_mass": 251.9999894530008
+  },
+  {
+   "t": 4.6,
+   "front_x": 28,
+   "west_max_surface": 17.023828506469727,
+   "east_max_surface": 17.028776168823242,
+   "row_mass": 20.999999226371383,
+   "total_mass": 251.9999914085466
+  },
+  {
+   "t": 4.7,
+   "front_x": 28,
+   "west_max_surface": 17.023591995239258,
+   "east_max_surface": 17.025455474853516,
+   "row_mass": 20.999999442336787,
+   "total_mass": 251.9999912666315
+  },
+  {
+   "t": 4.8,
+   "front_x": 28,
+   "west_max_surface": 17.023359298706055,
+   "east_max_surface": 17.024730682373047,
+   "row_mass": 20.99999979198867,
+   "total_mass": 251.99999502351926
+  },
+  {
+   "t": 4.9,
+   "front_x": 28,
+   "west_max_surface": 17.02313232421875,
+   "east_max_surface": 17.0246524810791,
+   "row_mass": 20.99999993203428,
+   "total_mass": 251.99999554499203
+  },
+  {
+   "t": 5.0,
+   "front_x": 28,
+   "west_max_surface": 17.02290916442871,
+   "east_max_surface": 17.024534225463867,
+   "row_mass": 21.000000020043053,
+   "total_mass": 251.99999732885308
+  },
+  {
+   "t": 5.1,
+   "front_x": 28,
+   "west_max_surface": 17.022689819335938,
+   "east_max_surface": 17.024572372436523,
+   "row_mass": 21.000000211423966,
+   "total_mass": 251.99999936708107
+  },
+  {
+   "t": 5.2,
+   "front_x": 28,
+   "west_max_surface": 17.022476196289062,
+   "east_max_surface": 17.024517059326172,
+   "row_mass": 20.99999995521261,
+   "total_mass": 251.99999807726394
+  },
+  {
+   "t": 5.3,
+   "front_x": 28,
+   "west_max_surface": 17.02226448059082,
+   "east_max_surface": 17.024686813354492,
+   "row_mass": 20.99999936017264,
+   "total_mass": 251.9999917156358
+  },
+  {
+   "t": 5.4,
+   "front_x": 28,
+   "west_max_surface": 17.022058486938477,
+   "east_max_surface": 17.02484130859375,
+   "row_mass": 20.999998781183645,
+   "total_mass": 251.99998642174592
+  },
+  {
+   "t": 5.5,
+   "front_x": 28,
+   "west_max_surface": 17.021854400634766,
+   "east_max_surface": 17.024978637695312,
+   "row_mass": 20.999998670564338,
+   "total_mass": 251.9999859284955
+  },
+  {
+   "t": 5.6,
+   "front_x": 28,
+   "west_max_surface": 17.021656036376953,
+   "east_max_surface": 17.025096893310547,
+   "row_mass": 20.999998736328703,
+   "total_mass": 251.99998682087744
+  },
+  {
+   "t": 5.7,
+   "front_x": 28,
+   "west_max_surface": 17.021459579467773,
+   "east_max_surface": 17.025196075439453,
+   "row_mass": 20.99999940812548,
+   "total_mass": 251.999993363986
+  },
+  {
+   "t": 5.8,
+   "front_x": 28,
+   "west_max_surface": 17.021268844604492,
+   "east_max_surface": 17.025270462036133,
+   "row_mass": 20.999999414833947,
+   "total_mass": 251.99999170483795
+  },
+  {
+   "t": 5.9,
+   "front_x": 28,
+   "west_max_surface": 17.021080017089844,
+   "east_max_surface": 17.02532196044922,
+   "row_mass": 20.999999647085993,
+   "total_mass": 251.99999277400175
+  },
+  {
+   "t": 6.0,
+   "front_x": 28,
+   "west_max_surface": 17.02089500427246,
+   "east_max_surface": 17.025348663330078,
+   "row_mass": 20.999999974179552,
+   "total_mass": 251.99999618250325
+  },
+  {
+   "t": 6.1,
+   "front_x": 28,
+   "west_max_surface": 17.02071189880371,
+   "east_max_surface": 17.02535057067871,
+   "row_mass": 20.999999630476445,
+   "total_mass": 251.9999948087895
+  },
+  {
+   "t": 6.2,
+   "front_x": 28,
+   "west_max_surface": 17.020532608032227,
+   "east_max_surface": 17.025327682495117,
+   "row_mass": 20.999999746318228,
+   "total_mass": 251.9999967180488
+  },
+  {
+   "t": 6.3,
+   "front_x": 28,
+   "west_max_surface": 17.020357131958008,
+   "east_max_surface": 17.025278091430664,
+   "row_mass": 20.999999669450283,
+   "total_mass": 251.99999678934267
+  },
+  {
+   "t": 6.4,
+   "front_x": 28,
+   "west_max_surface": 17.020183563232422,
+   "east_max_surface": 17.025203704833984,
+   "row_mass": 20.99999950314822,
+   "total_mass": 251.99999474902256
+  },
+  {
+   "t": 6.5,
+   "front_x": 28,
+   "west_max_surface": 17.0200138092041,
+   "east_max_surface": 17.025104522705078,
+   "row_mass": 20.999999415865275,
+   "total_mass": 251.99999335840042
+  },
+  {
+   "t": 6.6,
+   "front_x": 28,
+   "west_max_surface": 17.019847869873047,
+   "east_max_surface": 17.024982452392578,
+   "row_mass": 20.99999930599119,
+   "total_mass": 251.9999925871734
+  },
+  {
+   "t": 6.7,
+   "front_x": 28,
+   "west_max_surface": 17.019681930541992,
+   "east_max_surface": 17.02483367919922,
+   "row_mass": 20.99999929583166,
+   "total_mass": 251.9999930543646
+  },
+  {
+   "t": 6.8,
+   "front_x": 28,
+   "west_max_surface": 17.019521713256836,
+   "east_max_surface": 17.024654388427734,
+   "row_mass": 20.99999935075917,
+   "total_mass": 251.99999389228094
+  },
+  {
+   "t": 6.9,
+   "front_x": 28,
+   "west_max_surface": 17.01936149597168,
+   "east_max_surface": 17.024444580078125,
+   "row_mass": 20.999999353864773,
+   "total_mass": 251.99999529045016
+  },
+  {
+   "t": 7.0,
+   "front_x": 28,
+   "west_max_surface": 17.01920509338379,
+   "east_max_surface": 17.024202346801758,
+   "row_mass": 20.99999903741181,
+   "total_mass": 251.99999529176796
+  },
+  {
+   "t": 7.1,
+   "front_x": 28,
+   "west_max_surface": 17.01905059814453,
+   "east_max_surface": 17.023929595947266,
+   "row_mass": 20.999998551207604,
+   "total_mass": 251.9999929622626
+  },
+  {
+   "t": 7.2,
+   "front_x": 28,
+   "west_max_surface": 17.01889991760254,
+   "east_max_surface": 17.023632049560547,
+   "row_mass": 20.99999853313685,
+   "total_mass": 251.99999375190407
+  },
+  {
+   "t": 7.3,
+   "front_x": 28,
+   "west_max_surface": 17.01875114440918,
+   "east_max_surface": 17.023311614990234,
+   "row_mass": 20.99999840938296,
+   "total_mass": 251.99999362985892
+  },
+  {
+   "t": 7.4,
+   "front_x": 28,
+   "west_max_surface": 17.018604278564453,
+   "east_max_surface": 17.022977828979492,
+   "row_mass": 20.99999836247326,
+   "total_mass": 251.99999273141543
+  },
+  {
+   "t": 7.5,
+   "front_x": 28,
+   "west_max_surface": 17.01865577697754,
+   "east_max_surface": 17.02263832092285,
+   "row_mass": 20.99999837281763,
+   "total_mass": 251.99999249342432
+  },
+  {
+   "t": 7.6,
+   "front_x": 28,
+   "west_max_surface": 17.018774032592773,
+   "east_max_surface": 17.02229881286621,
+   "row_mass": 20.999998685572272,
+   "total_mass": 251.99999403626612
+  },
+  {
+   "t": 7.7,
+   "front_x": 28,
+   "west_max_surface": 17.018892288208008,
+   "east_max_surface": 17.021970748901367,
+   "row_mass": 20.999999047404643,
+   "total_mass": 251.99999688580832
+  },
+  {
+   "t": 7.8,
+   "front_x": 28,
+   "west_max_surface": 17.019006729125977,
+   "east_max_surface": 17.02165412902832,
+   "row_mass": 20.99999929162429,
+   "total_mass": 252.00000063495645
+  },
+  {
+   "t": 7.9,
+   "front_x": 28,
+   "west_max_surface": 17.01911735534668,
+   "east_max_surface": 17.021358489990234,
+   "row_mass": 20.99999934236039,
+   "total_mass": 252.0000020223153
+  },
+  {
+   "t": 8.0,
+   "front_x": 28,
+   "west_max_surface": 17.019227981567383,
+   "east_max_surface": 17.02107810974121,
+   "row_mass": 20.99999927446403,
+   "total_mass": 252.00000085457694
+  },
+  {
+   "t": 8.1,
+   "front_x": 28,
+   "west_max_surface": 17.01933479309082,
+   "east_max_surface": 17.020814895629883,
+   "row_mass": 20.99999898974476,
+   "total_mass": 252.0000000182585
+  },
+  {
+   "t": 8.2,
+   "front_x": 28,
+   "west_max_surface": 17.019439697265625,
+   "east_max_surface": 17.02056312561035,
+   "row_mass": 20.999998912021322,
+   "total_mass": 251.99999878655348
+  },
+  {
+   "t": 8.3,
+   "front_x": 28,
+   "west_max_surface": 17.019542694091797,
+   "east_max_surface": 17.02031898498535,
+   "row_mass": 20.99999896857532,
+   "total_mass": 252.0000010102329
+  },
+  {
+   "t": 8.4,
+   "front_x": 28,
+   "west_max_surface": 17.019643783569336,
+   "east_max_surface": 17.020076751708984,
+   "row_mass": 20.999998941711382,
+   "total_mass": 251.99999937059357
+  },
+  {
+   "t": 8.5,
+   "front_x": 28,
+   "west_max_surface": 17.019742965698242,
+   "east_max_surface": 17.01983070373535,
+   "row_mass": 20.999998950217844,
+   "total_mass": 251.99999913864644
+  },
+  {
+   "t": 8.6,
+   "front_x": 28,
+   "west_max_surface": 17.019838333129883,
+   "east_max_surface": 17.019577026367188,
+   "row_mass": 20.99999849549478,
+   "total_mass": 251.99999432034045
+  },
+  {
+   "t": 8.7,
+   "front_x": 28,
+   "west_max_surface": 17.019933700561523,
+   "east_max_surface": 17.019311904907227,
+   "row_mass": 20.99999847004827,
+   "total_mass": 251.99999767039424
+  },
+  {
+   "t": 8.8,
+   "front_x": 28,
+   "west_max_surface": 17.02002716064453,
+   "east_max_surface": 17.019031524658203,
+   "row_mass": 20.999998149692207,
+   "total_mass": 251.99999812723112
+  },
+  {
+   "t": 8.9,
+   "front_x": 28,
+   "west_max_surface": 17.020116806030273,
+   "east_max_surface": 17.018733978271484,
+   "row_mass": 20.999997922086116,
+   "total_mass": 251.99999861583856
+  },
+  {
+   "t": 9.0,
+   "front_x": 28,
+   "west_max_surface": 17.020206451416016,
+   "east_max_surface": 17.01841926574707,
+   "row_mass": 20.99999749666511,
+   "total_mass": 251.99999418332507
+  },
+  {
+   "t": 9.1,
+   "front_x": 28,
+   "west_max_surface": 17.020526885986328,
+   "east_max_surface": 17.018089294433594,
+   "row_mass": 20.99999742150004,
+   "total_mass": 251.99999301333438
+  },
+  {
+   "t": 9.2,
+   "front_x": 28,
+   "west_max_surface": 17.021013259887695,
+   "east_max_surface": 17.017745971679688,
+   "row_mass": 20.99999744804192,
+   "total_mass": 251.99999383120775
+  },
+  {
+   "t": 9.3,
+   "front_x": 28,
+   "west_max_surface": 17.021484375,
+   "east_max_surface": 17.01738929748535,
+   "row_mass": 20.999997697364936,
+   "total_mass": 251.99999663281042
+  },
+  {
+   "t": 9.4,
+   "front_x": 28,
+   "west_max_surface": 17.021923065185547,
+   "east_max_surface": 17.01702308654785,
+   "row_mass": 20.999997545571517,
+   "total_mass": 251.99999463289032
+  },
+  {
+   "t": 9.5,
+   "front_x": 28,
+   "west_max_surface": 17.022314071655273,
+   "east_max_surface": 17.016651153564453,
+   "row_mass": 20.9999973585499,
+   "total_mass": 251.999993407869
+  },
+  {
+   "t": 9.6,
+   "front_x": 28,
+   "west_max_surface": 17.022645950317383,
+   "east_max_surface": 17.016273498535156,
+   "row_mass": 20.999997069832197,
+   "total_mass": 251.99999058664048
+  },
+  {
+   "t": 9.7,
+   "front_x": 28,
+   "west_max_surface": 17.022918701171875,
+   "east_max_surface": 17.01589584350586,
+   "row_mass": 20.99999667522,
+   "total_mass": 251.99998669483963
+  },
+  {
+   "t": 9.8,
+   "front_x": 28,
+   "west_max_surface": 17.023117065429688,
+   "east_max_surface": 17.01551628112793,
+   "row_mass": 20.999996868461995,
+   "total_mass": 251.99998917059145
+  },
+  {
+   "t": 9.9,
+   "front_x": 28,
+   "west_max_surface": 17.02324676513672,
+   "east_max_surface": 17.0151424407959,
+   "row_mass": 20.99999651096614,
+   "total_mass": 251.99998700876438
+  },
+  {
+   "t": 10.0,
+   "front_x": 28,
+   "west_max_surface": 17.02332305908203,
+   "east_max_surface": 17.0147705078125,
+   "row_mass": 20.99999676491072,
+   "total_mass": 251.9999900602978
+  },
+  {
+   "t": 10.1,
+   "front_x": 28,
+   "west_max_surface": 17.02336311340332,
+   "east_max_surface": 17.014406204223633,
+   "row_mass": 20.99999673296636,
+   "total_mass": 251.99999065001575
+  },
+  {
+   "t": 10.2,
+   "front_x": 28,
+   "west_max_surface": 17.02338218688965,
+   "east_max_surface": 17.014049530029297,
+   "row_mass": 20.999996768307476,
+   "total_mass": 251.99998754717618
+  },
+  {
+   "t": 10.3,
+   "front_x": 28,
+   "west_max_surface": 17.023399353027344,
+   "east_max_surface": 17.013702392578125,
+   "row_mass": 20.99999746569579,
+   "total_mass": 251.9999906770886
+  },
+  {
+   "t": 10.4,
+   "front_x": 28,
+   "west_max_surface": 17.023426055908203,
+   "east_max_surface": 17.013362884521484,
+   "row_mass": 20.999998159443344,
+   "total_mass": 251.99999227365402
+  },
+  {
+   "t": 10.5,
+   "front_x": 28,
+   "west_max_surface": 17.023473739624023,
+   "east_max_surface": 17.01303482055664,
+   "row_mass": 20.999998508762545,
+   "total_mass": 251.99999041626825
+  },
+  {
+   "t": 10.6,
+   "front_x": 28,
+   "west_max_surface": 17.02355194091797,
+   "east_max_surface": 17.01271629333496,
+   "row_mass": 20.999999069745485,
+   "total_mass": 251.99999165179463
+  },
+  {
+   "t": 10.7,
+   "front_x": 28,
+   "west_max_surface": 17.02366065979004,
+   "east_max_surface": 17.012407302856445,
+   "row_mass": 20.999999655430145,
+   "total_mass": 251.9999953534941
+  },
+  {
+   "t": 10.8,
+   "front_x": 28,
+   "west_max_surface": 17.023807525634766,
+   "east_max_surface": 17.012107849121094,
+   "row_mass": 21.000000013236146,
+   "total_mass": 251.99999424983233
+  },
+  {
+   "t": 10.9,
+   "front_x": 28,
+   "west_max_surface": 17.023988723754883,
+   "east_max_surface": 17.01181983947754,
+   "row_mass": 21.0000000550107,
+   "total_mass": 251.99999233015853
+  },
+  {
+   "t": 11.0,
+   "front_x": 28,
+   "west_max_surface": 17.024206161499023,
+   "east_max_surface": 17.011539459228516,
+   "row_mass": 21.000000450949813,
+   "total_mass": 251.99999437785385
+  },
+  {
+   "t": 11.1,
+   "front_x": 28,
+   "west_max_surface": 17.024456024169922,
+   "east_max_surface": 17.011268615722656,
+   "row_mass": 21.00000086407198,
+   "total_mass": 251.99999675920282
+  },
+  {
+   "t": 11.2,
+   "front_x": 28,
+   "west_max_surface": 17.024734497070312,
+   "east_max_surface": 17.01100730895996,
+   "row_mass": 21.000001044107222,
+   "total_mass": 251.99999894583095
+  },
+  {
+   "t": 11.3,
+   "front_x": 28,
+   "west_max_surface": 17.025026321411133,
+   "east_max_surface": 17.010751724243164,
+   "row_mass": 21.000001089543957,
+   "total_mass": 252.00000042660838
+  },
+  {
+   "t": 11.4,
+   "front_x": 28,
+   "west_max_surface": 17.025320053100586,
+   "east_max_surface": 17.01050567626953,
+   "row_mass": 21.000000887364422,
+   "total_mass": 251.99999906203254
+  },
+  {
+   "t": 11.5,
+   "front_x": 28,
+   "west_max_surface": 17.025606155395508,
+   "east_max_surface": 17.01026725769043,
+   "row_mass": 21.000000875852663,
+   "total_mass": 251.99999816189347
+  },
+  {
+   "t": 11.6,
+   "front_x": 28,
+   "west_max_surface": 17.025876998901367,
+   "east_max_surface": 17.010034561157227,
+   "row_mass": 21.000001114055465,
+   "total_mass": 252.0000003711309
+  },
+  {
+   "t": 11.7,
+   "front_x": 28,
+   "west_max_surface": 17.026123046875,
+   "east_max_surface": 17.009809494018555,
+   "row_mass": 21.00000175485559,
+   "total_mass": 252.000006841051
+  },
+  {
+   "t": 11.8,
+   "front_x": 28,
+   "west_max_surface": 17.02632713317871,
+   "east_max_surface": 17.00958824157715,
+   "row_mass": 21.00000194993538,
+   "total_mass": 252.00000786826809
+  },
+  {
+   "t": 11.9,
+   "front_x": 28,
+   "west_max_surface": 17.026477813720703,
+   "east_max_surface": 17.009374618530273,
+   "row_mass": 21.00000190769765,
+   "total_mass": 252.00000757986618
+  },
+  {
+   "t": 12.0,
+   "front_x": 28,
+   "west_max_surface": 17.026567459106445,
+   "east_max_surface": 17.009166717529297,
+   "row_mass": 21.00000206058769,
+   "total_mass": 252.00000793881554
+  },
+  {
+   "t": 12.1,
+   "front_x": 28,
+   "west_max_surface": 17.026594161987305,
+   "east_max_surface": 17.008962631225586,
+   "row_mass": 21.00000194195934,
+   "total_mass": 252.00000617278533
+  }
+ ],
+ "verdict": {
+  "front_speed": "PASS",
+  "reflected_crest": "PASS",
+  "flat_at_rest": "FAIL",
+  "mass": "PASS"
+ },
+ "capture": "G:\\Github\\phyxel\\docs\\evidence\\water_feel\\S3_basin_core_h1_20261008_142628.png"
+}

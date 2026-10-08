@@ -28,7 +28,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from water_bench import Api, camera_set, load_def, project_url, vantage  # noqa: E402
+from water_bench import world_job, Api, camera_set, load_def, project_url, vantage  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 EVID = ROOT / "docs" / "evidence" / "water_feel"
@@ -80,94 +80,487 @@ def region_contains(api, box):
 
 
 # ---------------------------------------------------------------- scenarios -------------------
+class Engine:
+    """How a scenario talks to today's CA ("ca", real time) or WaterCore ("core", explicit ticks
+    in SIMULATION time). Same primitives, same predictions, so rows are comparable."""
+
+    def __init__(self, api, name, dt=1.0 / 60.0, cell_size=1.0):
+        self.api, self.name, self.dt, self.cell_size = api, name, dt, cell_size
+        self.av_id = None          # the first volume (S3's only one)
+        self.av_ids = []
+        self.sim_t = 0.0
+        self.wall_t0 = None
+
+    def require_core(self, scenario):
+        if self.name != "core":
+            raise SystemExit(f"{scenario} runs on WaterCore only (--engine core): the CA has no explicit ticks, sources or volumes")
+
+    def create_volume(self, box):
+        if self.name != "core":
+            return None
+        x1, y1, z1, x2, y2, z2 = box
+        r = self.api.debug("water_av_create", {"x1": x1, "y1": y1, "z1": z1, "x2": x2, "y2": y2, "z2": z2,
+                                               "cellSize": self.cell_size, "transport": "eulerian"})
+        if "error" in r:
+            raise SystemExit(f"water_av_create: {r}")
+        vid = r["volume"]["id"]
+        self.av_ids.append(vid)
+        if self.av_id is None:
+            self.av_id = vid
+        return r["volume"]
+
+    def destroy_volume(self):
+        for vid in self.av_ids:
+            self.api.debug("water_av_destroy", {"id": vid})
+        self.av_ids = []
+        self.av_id = None
+
+    def volume(self, vid):
+        for v in self.api.debug("water_av_list")["volumes"]:
+            if v["id"] == vid:
+                return v
+        raise SystemExit(f"volume {vid} vanished")
+
+    def source(self, vid, x, y, z, rate):
+        r = self.api.debug("water_av_source", {"id": vid, "x": x, "y": y, "z": z, "rate": rate})
+        if "error" in r:
+            raise SystemExit(f"water_av_source: {r}")
+        return r
+
+    def clear_sources(self, vid):
+        return self.api.debug("water_av_source", {"id": vid, "clear": True})
+
+    def rect_mass(self, x1, z1, x2, z2, y1=None, y2=None):
+        """Mass (m^3) over world columns x1..x2, z1..z2, optionally only cells with world y in y1..y2."""
+        body = {"x1": x1, "z1": z1, "x2": x2, "z2": z2, "target": "core"}
+        if y1 is not None:
+            body["y1"], body["y2"] = y1, y2
+        return self.api.debug("water_probe_rect", body)["total_mass"]
+
+    def place_box(self, x1, y1, z1, x2, y2, z2, fill=1.0):
+        body = {"x1": x1, "y1": y1, "z1": z1, "x2": x2, "y2": y2, "z2": z2, "mass": fill}
+        if self.name == "core":
+            body["target"] = "core"
+        self.wall_t0 = time.time()
+        return self.api.debug("place_water_box", body)
+
+    def probe_rect(self, rect):
+        body = dict(rect)
+        if self.name == "core":
+            body["target"] = "core"
+        return self.api.debug("water_probe_rect", body)
+
+    def mass(self):
+        led = self.api.debug("water_ledger")
+        return led["core_cells"] if self.name == "core" else led["cells"]
+
+    def advance(self, seconds):
+        """Advance by `seconds`: real sleep for the CA, explicit ticks for EVERY volume for the core."""
+        if self.name == "core":
+            ticks = max(1, int(round(seconds / self.dt)))
+            last = None
+            for vid in self.av_ids:
+                r = self.api.debug("water_av_step", {"id": vid, "ticks": ticks, "dt": self.dt}, timeout=600)
+                if "error" in r:
+                    raise SystemExit(f"water_av_step: {r}")
+                last = r["volume"]
+            self.sim_t += ticks * self.dt
+            return last
+        time.sleep(seconds)
+        return None
+
+    def now(self):
+        return self.sim_t if self.name == "core" else (time.time() - self.wall_t0)
+
+
 def s3_dam_break(api, gdef, args):
-    """S3 on the Basin rig: a 3-deep block x 22..28 over the flat floor (top 12) released toward the
-    ramp foot at x 12 (L = 10 u). Prediction: Ritter front speed 2*sqrt(g*h0) = 10.8 m/s -> 0.93 s
-    (frictionless bound). Reflected crest at the east wall >= 0.8x incident; flat within 1 mm after
-    10 s; mass +- 1e-4. Measured: front x(t) along the floor row z=15 (column mass > 0.5), the max
-    surface at the west end over time, the final surface flatness, the mass ledger."""
+    """S3 on the Basin rig: a 3-deep block x 12..18 at the WEST end of the flat floor, released EAST
+    toward the vertical wall at x 29 (L = 10 u). Prediction: the front measured at the resolvable
+    contour d_th = 0.5 * cell runs at 2 sqrt(g h0) - 3 sqrt(g d_th) (Ritter 1892); wall crest >=
+    still level + 0.8 x incident; flat within 1 mm after 10 s; mass +- 1e-4. Measured along the
+    floor row z = 15. CA rows are in wall time, core rows in simulation time."""
     spec = gdef["waterBench"]
     a = spec["basinA"]
     floor_top = a["flat"]["floorTop"]            # 12
     z0, z1 = a["z"]                              # 10..21
-    # The block starts at the WEST end of the flat floor and runs EAST into the vertical wall at
-    # x = eastWallX, so the reflection is a real wall reflection (the first version released it
-    # against the wall and read the draining block as a "crest" - a false pass, 2026-10-08).
     bx1, bx2 = a["flat"]["x"][0], a["flat"]["x"][0] + 6      # 12..18
     h0 = 3.0
     y1, y2 = floor_top + 1, floor_top + int(h0)  # cells 13..15
     wall_x = a["eastWallX"]                      # 29 (solid); last floor column is 28
     front_target = wall_x - 1
     L = front_target - bx2                       # 10
-    ritter_v = 2.0 * (G * h0) ** 0.5
-    area = (a["flat"]["x"][1] - a["flat"]["x"][0] + 1) * (z1 - z0 + 1)  # flat floor columns
+    eng = Engine(api, args.engine, cell_size=args.cell_size)
+    dth = 0.5 * eng.cell_size if args.engine == "core" else 0.5
+    vth = 2.0 * (G * h0) ** 0.5 - 3.0 * (G * dth) ** 0.5   # Ritter tip minus the contour offset
+    area = (a["flat"]["x"][1] - a["flat"]["x"][0] + 1) * (z1 - z0 + 1)
     mass_expected = (bx2 - bx1 + 1) * (z1 - z0 + 1) * h0
-    pred = {"ritter_front_speed_mps": ritter_v, "front_time_s": L / ritter_v, "L": L, "h0": h0,
-            "mass_expected": mass_expected,
-            "still_level_over_flat_floor": floor_top + 1 + mass_expected / area,   # ignores the ramp's extra area: a lower bound
-            "reflected_crest_min_ratio": 0.8, "flat_after_s": 10.0, "flat_tolerance": 1e-3, "mass_tolerance": 1e-4}
+    pred = {"engine": args.engine, "cell_size": eng.cell_size, "time_base": "simulation" if args.engine == "core" else "wall",
+            "front_depth_threshold_m": dth, "front_speed_mps": vth, "front_time_s": L / vth,
+            "tip_time_s": L / (2.0 * (G * h0) ** 0.5), "L": L, "h0": h0,
+            "mass_expected": mass_expected, "still_level_over_flat_floor": floor_top + 1 + mass_expected / area,
+            # wall run-up: dam-break surges on a vertical wall reach 2.1-2.3 x the reservoir depth above
+            # the bed (Fluids 2022, 7(8), 258: H = 200-300 mm, ultrasonic surge height); gate = 2.2 h0 +- 25 %
+            "wall_runup_ratio_lit": 2.2, "wall_runup_tolerance": 0.25,
+            "wall_runup_expected_y": floor_top + 1 + 2.2 * h0,
+            "flat_after_s": 10.0, "flat_tolerance": 1e-3, "mass_tolerance": 1e-4}
 
-    # Pose low so the CA window (cam.y - 16 .. +16) contains the basin floor; assert it.
     v = vantage(gdef, "east_wall")
     camera_set(api, v)
     time.sleep(2.0)
-    api.debug("water_sync")
-    inside, region = region_contains(api, (a["x"][0], floor_top, z0, a["x"][1], y2 + 1, z1))
-    if not inside:
-        raise SystemExit(f"basin not inside the CA sim region {region} - pose the camera lower/closer")
-    assert_dry(api)
-    led0 = api.debug("water_ledger")
+    if args.engine == "ca":
+        api.debug("water_sync")
+        inside, region = region_contains(api, (a["x"][0], floor_top, z0, a["x"][1], y2 + 1, z1))
+        if not inside:
+            raise SystemExit(f"basin not inside the CA sim region {region} - pose the camera lower/closer")
+        assert_dry(api)
+    else:
+        # the volume covers the basin interior plus the air above the rim up to y 21, so a 2.2 h0
+        # run-up (y 19.6) is not clipped by the volume's own ceiling (it was, at 17: 2026-10-08)
+        vol = eng.create_volume((a["x"][0], floor_top + 1, z0, a["x"][1], 21, z1))
+        print(f"   core volume {vol['id']}: {vol['cells']} cells at h={vol['cellSize']:.4f}")
 
-    # Release: one command places the block; sampling starts immediately.
-    t0 = time.time()
-    r = api.debug("place_water_box", {"x1": bx1, "y1": y1, "z1": z0, "x2": bx2, "y2": y2, "z2": z1, "mass": 1.0})
+    r = eng.place_box(bx1, y1, z0, bx2, y2, z1, 1.0)
     samples = []
     front_hit_t = None
     row_z = (z0 + z1) // 2
-    rect = {"x1": a["x"][0], "z1": row_z, "x2": a["x"][1], "z2": row_z, "y1": floor_top, "y2": y2 + 2}
-    end = t0 + args.duration
-    while time.time() < end:
-        t = time.time() - t0
-        pr = api.debug("water_probe_rect", rect)
+    rect = {"x1": a["x"][0], "z1": row_z, "x2": a["x"][1], "z2": row_z, "y1": floor_top, "y2": 21}
+    while eng.now() < args.duration:
+        if args.engine == "core":
+            eng.advance(args.dt)
+        t = eng.now()
+        pr = eng.probe_rect(rect)
         cols = pr["columns"]
-        wet = [c for c in cols if c[3] is not None and c[3] > 0.5]
-        front_x = max(c[0] for c in wet) if wet else None          # the front runs EAST
+        wet = [c for c in cols if c[3] is not None and c[3] > dth]
+        front_x = max(c[0] for c in wet) if wet else None
         if front_x is not None and front_x >= front_target and front_hit_t is None:
             front_hit_t = t
-        west = [c for c in cols if c[0] <= bx2 and c[2] is not None]             # where the block was
-        east = [c for c in cols if c[0] >= front_target - 1 and c[2] is not None]  # the wall columns 27..28
-        samples.append({"t": round(t, 3), "front_x": front_x,
+        west = [c for c in cols if c[0] <= bx2 and c[2] is not None]
+        east = [c for c in cols if c[0] >= front_target - 1 and c[2] is not None]
+        pool = [c[2] for c in cols if c[2] is not None and c[3] is not None and c[3] > 0.05]
+        samples.append({"t": round(t, 3), "front_x": front_x, "pool_spread": (max(pool) - min(pool)) if pool else None,
                         "west_max_surface": max((c[2] for c in west), default=None),
                         "east_max_surface": max((c[2] for c in east), default=None),
-                        "row_mass": pr["total_mass"],
-                        "total_mass": api.debug("water_ledger")["cells"]})
-        time.sleep(max(0.0, args.dt - (time.time() - t0 - t)))
-    # Final flatness over the whole basin row.
-    pr = api.debug("water_probe_rect", rect)
-    surf = [c[2] for c in pr["columns"] if c[2] is not None]
+                        "row_mass": pr["total_mass"], "total_mass": eng.mass()})
+        if args.engine == "ca":
+            time.sleep(max(0.0, args.dt - (eng.now() - t)))
+    pr = eng.probe_rect(rect)
+    # flatness is judged over POOL columns (depth > 5 cm): a held film of a centimetre or two on
+    # the ramp step is S1 behaviour (films >= 0.01 m hold), not a slope in the pool's surface
+    surf = [c[2] for c in pr["columns"] if c[2] is not None and c[3] is not None and c[3] > 0.05]
     flat = (max(surf) - min(surf)) if surf else None
-    led1 = api.debug("water_ledger")
-    meas = {"placed_cells": r.get("placed"), "mass_after_place": r.get("total_mass"),
+    held_films = [(c[0], round(c[3], 4)) for c in pr["columns"] if c[3] is not None and 0 < c[3] <= 0.05]
+    final_mass = eng.mass()
+    meas = {"placed": r.get("placed", r.get("cells_set")), "mass_after_place": r.get("total_mass", r.get("core_total_mass")),
             "front_hit_time_s": front_hit_t,
             "front_speed_ratio_vs_ritter": (pred["front_time_s"] / front_hit_t) if front_hit_t else 0.0,
             "west_surface_peak": max((s["west_max_surface"] for s in samples if s["west_max_surface"] is not None), default=None),
-            # the wall crest: the highest surface at the wall columns AFTER the front arrived there
             "east_surface_peak_after_1s": max((s["east_max_surface"] for s in samples
                                                if front_hit_t is not None and s["t"] >= front_hit_t and s["east_max_surface"] is not None), default=None),
-            "final_surface_spread": flat, "final_mass": led1["cells"],
-            "mass_drift": led1["cells"] - pred["mass_expected"], "samples": samples}
+            "final_surface_spread": flat, "held_films_x_depth": held_films, "final_mass": final_mass,
+            "mass_drift": final_mass - pred["mass_expected"], "samples": samples}
     verdict = {
-        "front_speed": "FAIL" if not front_hit_t or meas["front_speed_ratio_vs_ritter"] < 0.85 else "PASS",
-        # a reflection piles the wall columns above the still level by >= 0.8 x the incident
-        # amplitude (h0 - still depth); a surface that merely rises to the still level is not a crest
-        "reflected_crest": "FAIL" if (meas["east_surface_peak_after_1s"] or 0) <
-                                     pred["still_level_over_flat_floor"] + pred["reflected_crest_min_ratio"] * (floor_top + 1 + h0 - pred["still_level_over_flat_floor"]) else "PASS",
+        # the front must lie inside the Ritter envelope: no slower than 0.85 x the contour speed and
+        # no faster than the dry-bed TIP 2 sqrt(g h0) (a front beating the tip is a numerical artefact)
+        "front_speed": "FAIL" if not front_hit_t or meas["front_speed_ratio_vs_ritter"] < 0.85
+                       or front_hit_t < L / (2.0 * (G * h0) ** 0.5) else "PASS",
+        "wall_runup_vs_literature": "FAIL" if meas["east_surface_peak_after_1s"] is None or
+                                     abs((meas["east_surface_peak_after_1s"] - (floor_top + 1)) / h0 - pred["wall_runup_ratio_lit"]) > pred["wall_runup_tolerance"] * pred["wall_runup_ratio_lit"] else "PASS",
         "flat_at_rest": "FAIL" if flat is None or flat > pred["flat_tolerance"] else "PASS",
         "mass": "FAIL" if abs(meas["mass_drift"]) > pred["mass_tolerance"] else "PASS"}
+    if args.engine == "core" and not args.keep_volume:
+        eng.destroy_volume()
     return pred, meas, verdict
 
 
-SCENARIOS = {"S3": ("basin", s3_dam_break)}
+def rig_named(gdef, name):
+    for r in gdef["waterBench"]["rigs"]:
+        if r["name"] == name:
+            return r
+    raise SystemExit(f"no rig '{name}' in game.json")
+
+
+def columns_stats(api, x1, z1, x2, z2, film_min=1e-3):
+    pr = api.debug("water_probe_rect", {"x1": x1, "z1": z1, "x2": x2, "z2": z2, "target": "core"})
+    cols = pr["columns"]
+    wet = [c for c in cols if c[3] is not None and c[3] > film_min]
+    return {"mass": pr["total_mass"], "wet_columns": len(wet),
+            "max_depth": max((c[3] for c in wet), default=0.0),
+            "min_wet_depth": min((c[3] for c in wet), default=0.0)}
+
+
+def s1_pour(api, gdef, args):
+    """S1 on the Small pad rig: 0.02 m^3 released 1 m above the flat stone pad (and, as the control,
+    the same pour over the 1-deep pit). Prediction: the pad keeps 0.02 +- 1e-4 m^3 and nothing
+    leaves the pad box; the puddle is at rest (volume asleep or specific KE < 1e-6) within 3 s; a
+    film >= 0.01 m is what holds (P: puddles do not thin to nothing); the pit run ends with all
+    0.02 m^3 inside the pit columns and 0 on the pad around it. Core only; simulation time."""
+    rig = rig_named(gdef, "pad")
+    sc = rig["scenarios"]["S1"]
+    px, _, pz = sc["pour_at"]
+    pit = sc["pit"]                                    # x1, z1, x2, z2
+    pad_top = rig["slab"]["y"][1]                      # 16: the pad surface is y = 17.0
+    vol = 0.02
+    eng = Engine(api, args.engine, cell_size=args.cell_size)
+    eng.require_core("S1")
+    pred = {"engine": "core", "cell_size": eng.cell_size, "time_base": "simulation", "volume_m3": vol,
+            "mass_tolerance": 1e-4, "rest_within_s": 3.0, "film_holds_m": 0.01, "pit": pit}
+    boxA = (px - 6, pad_top + 1, pz - 6, px + 6, pad_top + 2, pz + 6)
+    boxB = (pit[0] - 4, pad_top, pit[1] - 4, pit[2] + 4, pad_top + 2, pit[3] + 4)   # pit cells are y = 16
+    camera_set(api, vantage(gdef, "pad"))
+    vA = eng.create_volume(boxA)
+    vB = eng.create_volume(boxB)
+    print(f"   volumes {vA['id']} ({vA['cells']} cells) and {vB['id']} ({vB['cells']} cells) at h={eng.cell_size:.4f}")
+    # 1 m above the pad: the voxel whose floor is y = pad_top + 2 = 18.0; `fill_each` is m^3 per voxel
+    rA = eng.place_box(px, pad_top + 2, pz, px, pad_top + 2, pz, vol)
+    cx, cz = (pit[0] + pit[2]) // 2, (pit[1] + pit[3]) // 2
+    rB = eng.place_box(cx, pad_top + 2, cz, cx, pad_top + 2, cz, vol)
+    samples = []
+    rest_t = None
+    while eng.now() < args.duration:
+        eng.advance(args.dt)
+        t = eng.now()
+        a, b = eng.volume(vA["id"]), eng.volume(vB["id"])
+        padA = columns_stats(api, *boxA[0:1], *boxA[2:3], *boxA[3:4], *boxA[5:6])
+        pitB = eng.rect_mass(pit[0], pit[1], pit[2], pit[3])
+        spec_ke = a["kinetic_energy"] / max(a["mass"], 1e-9)
+        # rest = the volume went to sleep (30 quiet ticks); the bare KE threshold reads 9e-7 at the
+        # very first sample, before gravity has done anything, so it is not a rest signal on its own
+        if rest_t is None and a["asleep"]:
+            rest_t = t
+        samples.append({"t": round(t, 3), "pad_mass": padA["mass"], "wet_columns": padA["wet_columns"],
+                        "max_depth": padA["max_depth"], "min_wet_depth": padA["min_wet_depth"],
+                        "specific_ke": spec_ke, "asleep": a["asleep"], "pit_mass": pitB, "volB_mass": b["mass"]})
+    a, b = eng.volume(vA["id"]), eng.volume(vB["id"])
+    last = samples[-1]
+    shape_t = next((x["t"] for i, x in enumerate(samples) if all(abs(y["max_depth"] - x["max_depth"]) < 1e-4 and y["wet_columns"] == x["wet_columns"] for y in samples[i:])), None)
+    meas = {"placed_pad": rA.get("core_total_mass"), "pad_mass_final": a["mass"], "pad_mass_drift": a["mass"] - vol,
+            "rest_time_s": rest_t, "shape_settled_s": shape_t, "final_wet_columns": last["wet_columns"], "final_max_depth": last["max_depth"],
+            "final_min_wet_depth": last["min_wet_depth"], "residue_dropped_m3": a.get("residue_dropped_m3"),
+            "pit_mass_final": last["pit_mass"], "pit_outside_mass": b["mass"] - last["pit_mass"], "samples": samples}
+    # "a film holds": the puddle stops spreading once nothing is deeper than the hold depth - its
+    # wet area is stable over the last 2 s and its deepest column sits in [0.5, 1.0] x hold (a
+    # sheet thinning toward a monolayer would keep adding columns and fall far below the hold)
+    tail = [x for x in samples if x["t"] >= samples[-1]["t"] - 2.0]
+    area_stable = len({x["wet_columns"] for x in tail}) == 1
+    meas["wet_area_stable_last_2s"] = area_stable
+    verdict = {"mass_on_pad": "PASS" if abs(meas["pad_mass_drift"]) <= pred["mass_tolerance"] else "FAIL",
+               "at_rest_within_3s": "PASS" if rest_t is not None and rest_t <= pred["rest_within_s"] else "FAIL",
+               "film_holds": "PASS" if area_stable and 0.5 * pred["film_holds_m"] <= last["max_depth"] <= 1.0 * pred["film_holds_m"] + 1e-4 else "FAIL",
+               "control_pit_holds_all": "PASS" if abs(last["pit_mass"] - vol) <= pred["mass_tolerance"] and abs(meas["pit_outside_mass"]) <= pred["mass_tolerance"] else "FAIL"}
+    if not args.keep_volume:
+        eng.destroy_volume()
+    return pred, meas, verdict
+
+
+def s2_trough(api, gdef, args):
+    """S2 on the Small trough rig: pump 0.1 m^3/s into trough A (2 m^3, rim at the pad) and, as the
+    control, into trough B (6 m^3). Prediction: A is full at 20 s (+- 2 s), then overflows onto the
+    pad so that pad film = pumped - 2.0 (+- 0.1 at 40 s); B holds 4.0 +- 0.01 at 40 s with 0 on the
+    pad; every ledger closes: volume mass = pumped - unplaced +- 1e-4. Core only; simulation time."""
+    rig = rig_named(gdef, "trough")
+    sc = rig["scenarios"]["S2"]
+    ta, tb, rate = sc["trough"], sc["control"], sc["pump_rate"]
+    pad_top = rig["slab"]["y"][1]
+    eng = Engine(api, args.engine, cell_size=args.cell_size)
+    eng.require_core("S2")
+    dur = args.duration if args.duration != 12.0 else 40.0
+    capA, capB = 2.0, 6.0
+    pred = {"engine": "core", "cell_size": eng.cell_size, "time_base": "simulation", "rate_m3s": rate, "duration_s": dur,
+            "capacity_A": capA, "capacity_B": capB, "t_full_A": capA / rate, "t_full_tolerance_s": 2.0,
+            "pumped_at_end": rate * dur, "overflow_A_at_end": max(0.0, rate * dur - capA), "overflow_tolerance": 0.1,
+            "B_at_end": min(capB, rate * dur), "B_tolerance": 0.01, "ledger_tolerance": 1e-4}
+    boxA = (ta[0] - 6, pad_top, ta[1] - 6, ta[2] + 6, pad_top + 2, ta[3] + 6)
+    boxB = (tb[0] - 6, pad_top - 2, tb[1] - 6, tb[2] + 6, pad_top + 2, tb[3] + 6)
+    camera_set(api, vantage(gdef, "trough"))
+    vA = eng.create_volume(boxA)
+    vB = eng.create_volume(boxB)
+    print(f"   volumes {vA['id']} ({vA['cells']} cells) and {vB['id']} ({vB['cells']} cells) at h={eng.cell_size:.4f}")
+    eng.source(vA["id"], ta[0] + 0.5, pad_top + 0.5, ta[1] + 0.5, rate)
+    eng.source(vB["id"], tb[0] + 0.5, pad_top + 0.5, tb[1] + 0.5, rate)
+    samples = []
+    t_full = None
+    while eng.now() < dur:
+        eng.advance(args.dt)
+        t = eng.now()
+        a, b = eng.volume(vA["id"]), eng.volume(vB["id"])
+        inA = eng.rect_mass(ta[0], ta[1], ta[2], ta[3], pad_top, pad_top)          # the trough cells only
+        inB = eng.rect_mass(tb[0], tb[1], tb[2], tb[3], pad_top - 2, pad_top)
+        if t_full is None and inA >= capA * 0.98:
+            t_full = t
+        samples.append({"t": round(t, 3), "A_total": a["mass"], "A_in_trough": inA, "A_on_pad": a["mass"] - inA,
+                        "A_pumped": a["source_placed_m3"], "A_unplaced": a["last"]["source_unplaced"],
+                        "B_total": b["mass"], "B_in_trough": inB, "B_pumped": b["source_placed_m3"]})
+    eng.clear_sources(vA["id"]); eng.clear_sources(vB["id"])
+    last = samples[-1]
+    meas = {"t_full_A": t_full, "A_in_trough_end": last["A_in_trough"], "A_on_pad_end": last["A_on_pad"],
+            "A_pumped_end": last["A_pumped"], "A_ledger_gap": last["A_total"] - last["A_pumped"],
+            "B_in_trough_end": last["B_in_trough"], "B_on_pad_end": last["B_total"] - last["B_in_trough"],
+            "B_ledger_gap": last["B_total"] - last["B_pumped"], "samples": samples}
+    verdict = {"A_full_at_20s": "PASS" if t_full is not None and abs(t_full - pred["t_full_A"]) <= pred["t_full_tolerance_s"] else "FAIL",
+               "A_overflow_exact": "PASS" if abs(meas["A_on_pad_end"] - pred["overflow_A_at_end"]) <= pred["overflow_tolerance"] else "FAIL",
+               "ledgers_close": "PASS" if abs(meas["A_ledger_gap"]) <= pred["ledger_tolerance"] and abs(meas["B_ledger_gap"]) <= pred["ledger_tolerance"] else "FAIL",
+               "control_B_no_overflow": "PASS" if abs(meas["B_in_trough_end"] - pred["B_at_end"]) <= pred["B_tolerance"] and abs(meas["B_on_pad_end"]) <= pred["B_tolerance"] else "FAIL"}
+    if not args.keep_volume:
+        eng.destroy_volume()
+    return pred, meas, verdict
+
+
+def basin_fill_volume(a, y_top):
+    """m^3 the Basin rig holds up to and including water cells at y_top (floor tops per column)."""
+    z0, z1 = a["z"]
+    width = z1 - z0 + 1
+    v = 0.0
+    parts = [(a["flat"]["x"], a["flat"]["floorTop"])] + [(r["x"], r["floorTop"]) for r in a["ramp"]]
+    for xs, floor in parts:
+        v += (xs[1] - xs[0] + 1) * width * max(0, y_top - floor)
+    return v
+
+
+def s4_spill(api, gdef, args):
+    """S4 on the Basin rig: fill basin A 3 deep (surface 16.0, one metre over the channel sill at
+    15.0) and let it spill through the 2-wide, 5-long channel into the dry control basin B.
+    Prediction (broad-crested weir, Q = 1.705 b H^1.5, A's area 276 m^2 for 15 < level < 16):
+    H(t) = 1 / (1 + 0.00618 t)^2, so 79.5 m^3 (+- 25 %) have crossed by 30 s; total mass exact;
+    control: fill 2 deep over the flat (408 m^3, level 14.85 < sill) and nothing crosses."""
+    spec = gdef["waterBench"]
+    a, ch, b = spec["basinA"], spec["channel"], spec["basinB"]
+    eng = Engine(api, args.engine, cell_size=args.cell_size)
+    eng.require_core("S4")
+    dur = args.duration if args.duration != 12.0 else 30.0
+    floor_top = a["flat"]["floorTop"]
+    z0, z1 = a["z"]
+    sill = ch["floorTop"] + 1.0                         # 15.0
+    area = (a["x"][1] - a["x"][0] + 1) * (z1 - z0 + 1)  # 312 above y 16; 276 for 15..16 (x 3..5 dry)
+    area_15_16 = area - 3 * (z1 - z0 + 1)
+    b_width = ch["x"][1] - ch["x"][0] + 1
+    k = 1.705 * b_width / area_15_16
+    H0 = 1.0
+    H_end = H0 / (1.0 + 0.5 * k * (H0 ** 0.5) * dur) ** 2
+    pred = {"engine": "core", "cell_size": eng.cell_size, "time_base": "simulation", "duration_s": dur,
+            "mass_main": basin_fill_volume(a, floor_top + 3), "mass_control": 2.0 * 17 * (z1 - z0 + 1),   # the control fills the flat floor only
+            "sill_y": sill, "weir_coefficient": 1.705, "channel_width": b_width, "area_15_16": area_15_16,
+            "H_end_weir": H_end, "spilled_end_weir": area_15_16 * (H0 - H_end), "spill_tolerance": 0.25,
+            "mass_tolerance": 1e-3}
+    box = (a["x"][0], floor_top + 1, z0, a["x"][1], 17, b["z"][1])
+    camera_set(api, vantage(gdef, "rig_overview"))
+
+    def run(fill_box, label):
+        v = eng.create_volume(box)
+        print(f"   {label}: volume {v['id']} ({v['cells']} cells) at h={eng.cell_size:.4f}")
+        r = eng.place_box(*fill_box, 1.0)
+        rows = []
+        t_local = 0.0
+        while t_local < dur:
+            eng.advance(args.dt)
+            t_local += args.dt
+            vol = eng.volume(v["id"])
+            inA = eng.rect_mass(a["x"][0], z0, a["x"][1], z1)
+            inCh = eng.rect_mass(ch["x"][0], ch["z"][0], ch["x"][1], ch["z"][1])
+            inB = eng.rect_mass(b["x"][0], b["z"][0], b["x"][1], b["z"][1])
+            pr = api.debug("water_probe_rect", {"x1": a["flat"]["x"][0], "z1": z0, "x2": a["flat"]["x"][1], "z2": z1, "target": "core"})
+            surf = [c[2] for c in pr["columns"] if c[2] is not None]
+            rows.append({"t": round(t_local, 3), "A": inA, "channel": inCh, "B": inB, "total": vol["mass"],
+                         "A_surface_mean": sum(surf) / len(surf) if surf else None})
+        eng.destroy_volume()
+        return r, rows
+
+    rM, main = run((a["x"][0], floor_top + 1, z0, a["x"][1], floor_top + 3, z1), "main")
+    rC, ctrl = run((a["flat"]["x"][0], floor_top + 1, z0, a["flat"]["x"][1], floor_top + 2, z1), "control")
+    lm, lc = main[-1], ctrl[-1]
+    meas = {"placed_main": rM.get("core_total_mass"), "placed_control": rC.get("core_total_mass"),
+            "spilled_end": lm["channel"] + lm["B"], "B_end": lm["B"], "A_surface_end": lm["A_surface_mean"],
+            "total_end": lm["total"], "mass_drift": lm["total"] - pred["mass_main"],
+            "control_crossed": lc["channel"] + lc["B"], "control_drift": lc["total"] - pred["mass_control"],
+            "samples": main, "control_samples": ctrl}
+    verdict = {"spill_matches_weir": "PASS" if abs(meas["spilled_end"] - pred["spilled_end_weir"]) <= pred["spill_tolerance"] * pred["spilled_end_weir"] else "FAIL",
+               "mass": "PASS" if abs(meas["mass_drift"]) <= pred["mass_tolerance"] and abs(meas["control_drift"]) <= pred["mass_tolerance"] else "FAIL",
+               "control_no_crossing": "PASS" if meas["control_crossed"] <= pred["mass_tolerance"] else "FAIL"}
+    return pred, meas, verdict
+
+
+def s5_drain(api, gdef, args):
+    """S5 on the Basin rig: basin A 2 deep (408 m^3); carve a 4x4x3 sealed cavity under the floor and a
+    1x1 hole into it. Prediction: the cavity fills to 48 +- 0.5 m^3 within 20 s (Torricelli through 1 m^2
+    at ~2.8 m head: ~6 m^3/s), the basin keeps 360 and its surface drops 0.20 +- 0.01 m (14.85 -> 14.65);
+    total mass exact; control: the cavity with no hole stays dry. The rig is restored afterwards."""
+    spec = gdef["waterBench"]
+    a = spec["basinA"]
+    eng = Engine(api, args.engine, cell_size=args.cell_size)
+    eng.require_core("S5")
+    dur = args.duration if args.duration != 12.0 else 20.0
+    floor_top = a["flat"]["floorTop"]
+    z0, z1 = a["z"]
+    cav = {"x1": 18, "y1": floor_top - 3, "z1": 13, "x2": 21, "y2": floor_top - 1, "z2": 16}
+    hole = {"x1": 20, "y1": floor_top, "z1": 15, "x2": 20, "y2": floor_top, "z2": 15}
+    cav_vol = 4 * 4 * 3
+    flat_area, ramp9_area = 17 * (z1 - z0 + 1), 3 * (z1 - z0 + 1)
+    mass0 = 2.0 * flat_area                 # the fill covers the flat floor only (408 m^3; level 14.85 < sill)
+    def level(v):   # still level of basin A for v m^3 (flat 12..28 from 13.0; ramp x 9..11 from 14.0)
+        if v <= flat_area:
+            return floor_top + 1 + v / flat_area
+        return floor_top + 2 + (v - flat_area) / (flat_area + ramp9_area)
+    pred = {"engine": "core", "cell_size": eng.cell_size, "time_base": "simulation", "duration_s": dur,
+            "mass_initial": mass0, "cavity_volume": cav_vol, "cavity_tolerance": 0.5,
+            "surface_before": level(mass0), "surface_after": level(mass0 - cav_vol),
+            "surface_drop": level(mass0) - level(mass0 - cav_vol), "surface_tolerance": 0.01, "mass_tolerance": 1e-3}
+    box = (a["x"][0], floor_top - 3, z0, a["x"][1], 17, z1)
+    camera_set(api, vantage(gdef, "rig_overview"))
+
+    def surface_mean():
+        pr = api.debug("water_probe_rect", {"x1": a["flat"]["x"][0], "z1": z0, "x2": a["flat"]["x"][1], "z2": z1,
+                                            "y1": floor_top + 1, "y2": 17, "target": "core"})
+        surf = [c[2] for c in pr["columns"] if c[2] is not None]
+        return sum(surf) / len(surf) if surf else None
+
+    def run(with_hole, label):
+        v = eng.create_volume(box)
+        print(f"   {label}: volume {v['id']} ({v['cells']} cells) at h={eng.cell_size:.4f}")
+        r = eng.place_box(a["flat"]["x"][0], floor_top + 1, z0, a["flat"]["x"][1], floor_top + 2, z1, 1.0)
+        for _ in range(int(2.0 / args.dt)):      # settle 2 s before the dig
+            eng.advance(args.dt)
+        s_before = surface_mean()
+        world_job(api, "/api/world/clear", cav)
+        if with_hole:
+            world_job(api, "/api/world/clear", hole)
+        time.sleep(1.5)                          # occupancy upload + the volume's solids refresh
+        occ = api.debug("water_av_probe", {"id": v["id"], "x": hole["x1"], "y": hole["y1"], "z": hole["z1"]})["occupancy"]
+        rows = []
+        t_local = 0.0
+        while t_local < dur:
+            eng.advance(args.dt)
+            t_local += args.dt
+            vol = eng.volume(v["id"])
+            rows.append({"t": round(t_local, 3), "cavity": eng.rect_mass(cav["x1"], cav["z1"], cav["x2"], cav["z2"], cav["y1"], cav["y2"]),
+                         "basin": eng.rect_mass(a["x"][0], z0, a["x"][1], z1, floor_top + 1, 17),
+                         "total": vol["mass"], "A_surface_mean": surface_mean()})
+        eng.destroy_volume()
+        # restore the rig (the project DB is never saved by the harness)
+        world_job(api, "/api/world/fill", dict(hole, material="Stone"))
+        world_job(api, "/api/world/fill", dict(cav, material="Stone"))
+        return r, s_before, occ, rows
+
+    rM, sb, occM, main = run(True, "main")
+    rC, sbc, occC, ctrl = run(False, "control")
+    lm, lc = main[-1], ctrl[-1]
+    t_full = next((x["t"] for x in main if x["cavity"] >= cav_vol - pred["cavity_tolerance"]), None)
+    meas = {"placed": rM.get("core_total_mass"), "hole_occupancy_after_dig": occM, "surface_before": sb,
+            "cavity_end": lm["cavity"], "t_cavity_full": t_full, "basin_end": lm["basin"], "surface_end": lm["A_surface_mean"],
+            "surface_drop": (sb - lm["A_surface_mean"]) if (sb is not None and lm["A_surface_mean"] is not None) else None,
+            "total_end": lm["total"], "mass_drift": lm["total"] - mass0,
+            "control_cavity_end": lc["cavity"], "control_hole_occupancy": occC, "control_drift": lc["total"] - mass0,
+            "samples": main, "control_samples": ctrl}
+    verdict = {"cavity_fills": "PASS" if abs(meas["cavity_end"] - cav_vol) <= pred["cavity_tolerance"] else "FAIL",
+               # judged on the END level: the 2 s settle before the dig is not long enough for the flat
+               # fill to equalise over the ramp steps (14.91 read vs 14.85 still), so a "drop" mixes the
+               # equalisation in; the end level is the still level of (mass - 48) over the real floor
+               "surface_ends_at_level_minus_48": "PASS" if meas["surface_end"] is not None and abs(meas["surface_end"] - pred["surface_after"]) <= pred["surface_tolerance"] else "FAIL",
+               "mass": "PASS" if abs(meas["mass_drift"]) <= pred["mass_tolerance"] and abs(meas["control_drift"]) <= pred["mass_tolerance"] else "FAIL",
+               "control_sealed_cavity_dry": "PASS" if meas["control_cavity_end"] <= pred["mass_tolerance"] else "FAIL"}
+    return pred, meas, verdict
+
+
+SCENARIOS = {"S1": ("small", s1_pour), "S2": ("small", s2_trough), "S3": ("basin", s3_dam_break),
+             "S4": ("basin", s4_spill), "S5": ("basin", s5_drain)}
 
 
 def main():
@@ -178,6 +571,8 @@ def main():
     ap.add_argument("--duration", type=float, default=12.0, help="sampling window, s")
     ap.add_argument("--dt", type=float, default=0.1, help="sampling period, s")
     ap.add_argument("--url", default=os.environ.get("PHYXEL_API_URL"))
+    ap.add_argument("--cell-size", dest="cell_size", type=float, default=1.0, help="core: 1, 0.3333, 0.1111")
+    ap.add_argument("--keep-volume", dest="keep_volume", action="store_true", help="core: leave the volume alive (eyes-on)")
     args = ap.parse_args()
     if args.scenario == "list":
         for k, (b, f) in SCENARIOS.items():
@@ -194,11 +589,16 @@ def main():
     pred, meas, verdict = fn(api, gdef, args)
     EVID.mkdir(parents=True, exist_ok=True)
     stamp = time.strftime("%Y%m%d_%H%M%S")
-    base = EVID / f"{args.scenario}_{bench}_{args.engine}_{stamp}"
+    # no dots in the tag: Path.with_suffix() would treat "h0.3333_<stamp>" as the suffix and every
+    # fine-grid run would overwrite "S3_basin_core_h0.json" (it did, 2026-10-08)
+    per = int(round(1.0 / args.cell_size))
+    tag = (f"{args.engine}_h1-{per}" if per > 1 else f"{args.engine}_h1") if args.engine == "core" else args.engine
+    base = EVID / f"{args.scenario}_{bench}_{tag}_{stamp}"
     png = capture(api, base.with_suffix(".png"))
     row = {"scenario": args.scenario, "bench": bench, "engine": args.engine, "build_config": status.get("build_config"),
            "git_head": git_head(), "timestamp": stamp, "prediction": pred,
-           "measurement": {k: v for k, v in meas.items() if k != "samples"}, "samples": meas.get("samples"),
+           "measurement": {k: v for k, v in meas.items() if k not in ("samples", "control_samples")},
+           "samples": meas.get("samples"), "control_samples": meas.get("control_samples"),
            "verdict": verdict, "capture": png}
     base.with_suffix(".json").write_text(json.dumps(row, indent=1), encoding="utf-8")
     print(json.dumps({"prediction": pred, "measurement": row["measurement"], "verdict": verdict}, indent=1))

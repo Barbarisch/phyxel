@@ -1,0 +1,2759 @@
+{
+ "scenario": "S3",
+ "bench": "basin",
+ "engine": "core",
+ "build_config": "Release",
+ "git_head": "e4117108",
+ "timestamp": "20261008_145012",
+ "prediction": {
+  "engine": "core",
+  "cell_size": 1.0,
+  "time_base": "simulation",
+  "front_depth_threshold_m": 0.5,
+  "front_speed_mps": 4.2057144149100445,
+  "front_time_s": 2.377717318263011,
+  "tip_time_s": 0.9216687726822184,
+  "L": 10,
+  "h0": 3.0,
+  "mass_expected": 252.0,
+  "still_level_over_flat_floor": 14.235294117647058,
+  "reflected_crest_min_ratio": 0.8,
+  "flat_after_s": 10.0,
+  "flat_tolerance": 0.001,
+  "mass_tolerance": 0.0001
+ },
+ "measurement": {
+  "placed": 252,
+  "mass_after_place": 252.0,
+  "front_hit_time_s": 1.7000000000000004,
+  "front_speed_ratio_vs_ritter": 1.398657246037065,
+  "west_surface_peak": 17.001052856445312,
+  "east_surface_peak_after_1s": 17.007686614990234,
+  "final_surface_spread": 0.8674478530883789,
+  "held_films_x_depth": [
+   [
+    6,
+    0.0117
+   ],
+   [
+    7,
+    0.0121
+   ],
+   [
+    8,
+    0.0109
+   ]
+  ],
+  "final_mass": 251.9999738724963,
+  "mass_drift": -2.6127503701900423e-05
+ },
+ "samples": [
+  {
+   "t": 0.1,
+   "front_x": 18,
+   "pool_spread": 0.9966983795166016,
+   "west_max_surface": 15.998893737792969,
+   "east_max_surface": null,
+   "row_mass": 20.99999987559613,
+   "total_mass": 251.99999896155214
+  },
+  {
+   "t": 0.2,
+   "front_x": 18,
+   "pool_spread": 0.9885101318359375,
+   "west_max_surface": 15.992660522460938,
+   "east_max_surface": null,
+   "row_mass": 20.999999884122644,
+   "total_mass": 251.9999983939697
+  },
+  {
+   "t": 0.3,
+   "front_x": 19,
+   "pool_spread": 0.9754085540771484,
+   "west_max_surface": 15.975447654724121,
+   "east_max_surface": null,
+   "row_mass": 20.999999874651166,
+   "total_mass": 251.99999846122046
+  },
+  {
+   "t": 0.4,
+   "front_x": 19,
+   "pool_spread": 1.9240036010742188,
+   "west_max_surface": 15.924019813537598,
+   "east_max_surface": null,
+   "row_mass": 20.99999987610363,
+   "total_mass": 251.9999989635985
+  },
+  {
+   "t": 0.5,
+   "front_x": 20,
+   "pool_spread": 2.7881107330322266,
+   "west_max_surface": 15.843961715698242,
+   "east_max_surface": null,
+   "row_mass": 21.00000002916977,
+   "total_mass": 252.00000025723693
+  },
+  {
+   "t": 0.6,
+   "front_x": 20,
+   "pool_spread": 1.7611446380615234,
+   "west_max_surface": 15.761153221130371,
+   "east_max_surface": null,
+   "row_mass": 21.000000117251602,
+   "total_mass": 252.00000195475786
+  },
+  {
+   "t": 0.7,
+   "front_x": 21,
+   "pool_spread": 2.5002059936523438,
+   "west_max_surface": 15.686100006103516,
+   "east_max_surface": null,
+   "row_mass": 21.00000006873779,
+   "total_mass": 252.000000024771
+  },
+  {
+   "t": 0.8,
+   "front_x": 23,
+   "pool_spread": 3.000216484069824,
+   "west_max_surface": 17.000221252441406,
+   "east_max_surface": null,
+   "row_mass": 20.999999932720584,
+   "total_mass": 251.99999953752013
+  },
+  {
+   "t": 0.9,
+   "front_x": 23,
+   "pool_spread": 3.4484176635742188,
+   "west_max_surface": 17.000442504882812,
+   "east_max_surface": null,
+   "row_mass": 20.999999875049753,
+   "total_mass": 252.00000083434043
+  },
+  {
+   "t": 1.0,
+   "front_x": 23,
+   "pool_spread": 2.215590476989746,
+   "west_max_surface": 15.407126426696777,
+   "east_max_surface": 13.000053405761719,
+   "row_mass": 20.999999958165063,
+   "total_mass": 252.0000015434598
+  },
+  {
+   "t": 1.1,
+   "front_x": 23,
+   "pool_spread": 3.5890884399414062,
+   "west_max_surface": 17.001052856445312,
+   "east_max_surface": 13.001005172729492,
+   "row_mass": 21.000000009603127,
+   "total_mass": 252.00000202983165
+  },
+  {
+   "t": 1.2,
+   "front_x": 25,
+   "pool_spread": 3.4533252716064453,
+   "west_max_surface": 17.000003814697266,
+   "east_max_surface": 14.000041007995605,
+   "row_mass": 20.999999865316568,
+   "total_mass": 252.00000043654518
+  },
+  {
+   "t": 1.3,
+   "front_x": 25,
+   "pool_spread": 3.393972396850586,
+   "west_max_surface": 17.000110626220703,
+   "east_max_surface": 15.000028610229492,
+   "row_mass": 21.00000013102317,
+   "total_mass": 252.0000035934554
+  },
+  {
+   "t": 1.4,
+   "front_x": 25,
+   "pool_spread": 3.360377311706543,
+   "west_max_surface": 17.000473022460938,
+   "east_max_surface": 15.000044822692871,
+   "row_mass": 21.000000164078415,
+   "total_mass": 252.0000023152088
+  },
+  {
+   "t": 1.5,
+   "front_x": 26,
+   "pool_spread": 2.5001401901245117,
+   "west_max_surface": 16.03287696838379,
+   "east_max_surface": 14.000008583068848,
+   "row_mass": 21.0000001810904,
+   "total_mass": 252.00000084318026
+  },
+  {
+   "t": 1.6,
+   "front_x": 26,
+   "pool_spread": 2.678399085998535,
+   "west_max_surface": 16.002187728881836,
+   "east_max_surface": 13.462090492248535,
+   "row_mass": 21.0000002749548,
+   "total_mass": 252.0000005128045
+  },
+  {
+   "t": 1.7,
+   "front_x": 28,
+   "pool_spread": 3.4652042388916016,
+   "west_max_surface": 17.000003814697266,
+   "east_max_surface": 15.003442764282227,
+   "row_mass": 21.000000430233513,
+   "total_mass": 252.00000203615127
+  },
+  {
+   "t": 1.8,
+   "front_x": 28,
+   "pool_spread": 3.3873395919799805,
+   "west_max_surface": 17.000001907348633,
+   "east_max_surface": 17.00064468383789,
+   "row_mass": 21.00007434090105,
+   "total_mass": 252.00000058797036
+  },
+  {
+   "t": 1.9,
+   "front_x": 28,
+   "pool_spread": 3.3921022415161133,
+   "west_max_surface": 16.0000057220459,
+   "east_max_surface": 17.003450393676758,
+   "row_mass": 21.000050875315083,
+   "total_mass": 252.0000017734974
+  },
+  {
+   "t": 2.0,
+   "front_x": 28,
+   "pool_spread": 3.3936967849731445,
+   "west_max_surface": 16.00057601928711,
+   "east_max_surface": 17.006200790405273,
+   "row_mass": 21.00002650903025,
+   "total_mass": 252.0000016299291
+  },
+  {
+   "t": 2.1,
+   "front_x": 28,
+   "pool_spread": 3.3871870040893555,
+   "west_max_surface": 16.000469207763672,
+   "east_max_surface": 17.001745223999023,
+   "row_mass": 21.00000387030559,
+   "total_mass": 252.00000162746255
+  },
+  {
+   "t": 2.2,
+   "front_x": 28,
+   "pool_spread": 3.3819313049316406,
+   "west_max_surface": 16.00037956237793,
+   "east_max_surface": 17.002012252807617,
+   "row_mass": 20.999984460767223,
+   "total_mass": 252.00000310083055
+  },
+  {
+   "t": 2.3,
+   "front_x": 28,
+   "pool_spread": 3.380596160888672,
+   "west_max_surface": 16.00029945373535,
+   "east_max_surface": 17.007686614990234,
+   "row_mass": 20.999969939705807,
+   "total_mass": 252.00000291992774
+  },
+  {
+   "t": 2.4,
+   "front_x": 28,
+   "pool_spread": 3.3630762100219727,
+   "west_max_surface": 16.000205993652344,
+   "east_max_surface": 17.000003814697266,
+   "row_mass": 20.99993048116812,
+   "total_mass": 252.0000018849678
+  },
+  {
+   "t": 2.5,
+   "front_x": 28,
+   "pool_spread": 2.3483314514160156,
+   "west_max_surface": 16.000038146972656,
+   "east_max_surface": 15.566692352294922,
+   "row_mass": 20.999866893977014,
+   "total_mass": 252.00000073898264
+  },
+  {
+   "t": 2.6,
+   "front_x": 28,
+   "pool_spread": 2.331173896789551,
+   "west_max_surface": 15.25809383392334,
+   "east_max_surface": 15.54196548461914,
+   "row_mass": 20.999870443443797,
+   "total_mass": 251.99999979031782
+  },
+  {
+   "t": 2.7,
+   "front_x": 28,
+   "pool_spread": 2.3280811309814453,
+   "west_max_surface": 15.245696067810059,
+   "east_max_surface": 16.000017166137695,
+   "row_mass": 20.99988768566618,
+   "total_mass": 251.99999955456224
+  },
+  {
+   "t": 2.8,
+   "front_x": 28,
+   "pool_spread": 3.3299646377563477,
+   "west_max_surface": 15.232001304626465,
+   "east_max_surface": 16.000001907348633,
+   "row_mass": 20.99991406055051,
+   "total_mass": 251.9999990396027
+  },
+  {
+   "t": 2.9,
+   "front_x": 28,
+   "pool_spread": 3.331655502319336,
+   "west_max_surface": 15.217230796813965,
+   "east_max_surface": 15.078083992004395,
+   "row_mass": 20.999943930552035,
+   "total_mass": 251.99999860677872
+  },
+  {
+   "t": 3.0,
+   "front_x": 28,
+   "pool_spread": 3.331104278564453,
+   "west_max_surface": 15.155112266540527,
+   "east_max_surface": 16.000001907348633,
+   "row_mass": 20.99995586548539,
+   "total_mass": 251.99999969896749
+  },
+  {
+   "t": 3.1,
+   "front_x": 28,
+   "pool_spread": 1.403524398803711,
+   "west_max_surface": 15.073370933532715,
+   "east_max_surface": 15.021394729614258,
+   "row_mass": 20.999972836871166,
+   "total_mass": 251.99999852781184
+  },
+  {
+   "t": 3.2,
+   "front_x": 28,
+   "pool_spread": 2.3289432525634766,
+   "west_max_surface": 15.024407386779785,
+   "east_max_surface": 14.982010841369629,
+   "row_mass": 20.999992820587067,
+   "total_mass": 252.0000007378585
+  },
+  {
+   "t": 3.3,
+   "front_x": 28,
+   "pool_spread": 3.3313941955566406,
+   "west_max_surface": 15.02347183227539,
+   "east_max_surface": 14.938865661621094,
+   "row_mass": 21.000006113509812,
+   "total_mass": 251.99999917063963
+  },
+  {
+   "t": 3.4,
+   "front_x": 28,
+   "pool_spread": 3.3294286727905273,
+   "west_max_surface": 15.022599220275879,
+   "east_max_surface": 14.894078254699707,
+   "row_mass": 21.000005589900752,
+   "total_mass": 251.9999979662706
+  },
+  {
+   "t": 3.5,
+   "front_x": 28,
+   "pool_spread": 3.3158702850341797,
+   "west_max_surface": 15.021784782409668,
+   "east_max_surface": 14.850645065307617,
+   "row_mass": 21.000109720120804,
+   "total_mass": 251.99999630780997
+  },
+  {
+   "t": 3.6,
+   "front_x": 28,
+   "pool_spread": 2.3122377395629883,
+   "west_max_surface": 15.021136283874512,
+   "east_max_surface": 14.812442779541016,
+   "row_mass": 20.999126625072336,
+   "total_mass": 251.99999383754596
+  },
+  {
+   "t": 3.7,
+   "front_x": 28,
+   "pool_spread": 1.3566312789916992,
+   "west_max_surface": 15.021162033081055,
+   "east_max_surface": 14.777603149414062,
+   "row_mass": 20.996006117982347,
+   "total_mass": 251.99999199986303
+  },
+  {
+   "t": 3.8,
+   "front_x": 28,
+   "pool_spread": 2.2783546447753906,
+   "west_max_surface": 15.02110767364502,
+   "east_max_surface": 14.749177932739258,
+   "row_mass": 20.999434258544966,
+   "total_mass": 251.9999899407677
+  },
+  {
+   "t": 3.9,
+   "front_x": 28,
+   "pool_spread": 3.2335386276245117,
+   "west_max_surface": 15.02098274230957,
+   "east_max_surface": 14.741852760314941,
+   "row_mass": 21.013368078803524,
+   "total_mass": 251.99998959317554
+  },
+  {
+   "t": 4.0,
+   "front_x": 28,
+   "pool_spread": 1.2202301025390625,
+   "west_max_surface": 15.020795822143555,
+   "east_max_surface": 14.725529670715332,
+   "row_mass": 21.02563951510365,
+   "total_mass": 251.99999040749435
+  },
+  {
+   "t": 4.1,
+   "front_x": 28,
+   "pool_spread": 3.165217399597168,
+   "west_max_surface": 15.020554542541504,
+   "east_max_surface": 14.67355728149414,
+   "row_mass": 21.028748651385285,
+   "total_mass": 251.99999068985426
+  },
+  {
+   "t": 4.2,
+   "front_x": 28,
+   "pool_spread": 2.1163101196289062,
+   "west_max_surface": 15.020263671875,
+   "east_max_surface": 14.655058860778809,
+   "row_mass": 21.01944063587507,
+   "total_mass": 251.99999029534956
+  },
+  {
+   "t": 4.3,
+   "front_x": 28,
+   "pool_spread": 2.0924577713012695,
+   "west_max_surface": 15.019926071166992,
+   "east_max_surface": 14.610870361328125,
+   "row_mass": 21.01110584295202,
+   "total_mass": 251.99999100858986
+  },
+  {
+   "t": 4.4,
+   "front_x": 28,
+   "pool_spread": 1.0883827209472656,
+   "west_max_surface": 15.019546508789062,
+   "east_max_surface": 14.573076248168945,
+   "row_mass": 21.004599109648552,
+   "total_mass": 251.9999929986958
+  },
+  {
+   "t": 4.5,
+   "front_x": 28,
+   "pool_spread": 3.013683319091797,
+   "west_max_surface": 15.019133567810059,
+   "east_max_surface": 14.540366172790527,
+   "row_mass": 21.005185023994272,
+   "total_mass": 251.9999919625402
+  },
+  {
+   "t": 4.6,
+   "front_x": 28,
+   "pool_spread": 1.0091056823730469,
+   "west_max_surface": 15.018698692321777,
+   "east_max_surface": 14.51352596282959,
+   "row_mass": 20.995541774361755,
+   "total_mass": 251.99999198266096
+  },
+  {
+   "t": 4.7,
+   "front_x": 28,
+   "pool_spread": 2.017618179321289,
+   "west_max_surface": 15.018251419067383,
+   "east_max_surface": 16.00002670288086,
+   "row_mass": 21.003930395208045,
+   "total_mass": 251.99999182850854
+  },
+  {
+   "t": 4.8,
+   "front_x": 28,
+   "pool_spread": 1.0231399536132812,
+   "west_max_surface": 15.017802238464355,
+   "east_max_surface": 15.003416061401367,
+   "row_mass": 21.027193197402084,
+   "total_mass": 251.99998990647418
+  },
+  {
+   "t": 4.9,
+   "front_x": 28,
+   "pool_spread": 3.030329704284668,
+   "west_max_surface": 15.017355918884277,
+   "east_max_surface": 14.50097942352295,
+   "row_mass": 21.061760374792925,
+   "total_mass": 251.99998931288064
+  },
+  {
+   "t": 5.0,
+   "front_x": 28,
+   "pool_spread": 2.0556182861328125,
+   "west_max_surface": 15.01691722869873,
+   "east_max_surface": 16.000015258789062,
+   "row_mass": 21.093888865959343,
+   "total_mass": 251.99998915881042
+  },
+  {
+   "t": 5.1,
+   "front_x": 28,
+   "pool_spread": 2.084573745727539,
+   "west_max_surface": 15.016490936279297,
+   "east_max_surface": 15.00283432006836,
+   "row_mass": 21.10465929089969,
+   "total_mass": 251.9999890115007
+  },
+  {
+   "t": 5.2,
+   "front_x": 28,
+   "pool_spread": 1.094386100769043,
+   "west_max_surface": 15.016118049621582,
+   "east_max_surface": 15.001093864440918,
+   "row_mass": 21.113710566077316,
+   "total_mass": 251.99999071466527
+  },
+  {
+   "t": 5.3,
+   "front_x": 28,
+   "pool_spread": 1.0864601135253906,
+   "west_max_surface": 15.016695022583008,
+   "east_max_surface": 15.00455093383789,
+   "row_mass": 21.140649846511224,
+   "total_mass": 251.99998967120462
+  },
+  {
+   "t": 5.4,
+   "front_x": 28,
+   "pool_spread": 2.0297622680664062,
+   "west_max_surface": 15.017244338989258,
+   "east_max_surface": 16.000076293945312,
+   "row_mass": 21.119154807777704,
+   "total_mass": 251.99998765387306
+  },
+  {
+   "t": 5.5,
+   "front_x": 28,
+   "pool_spread": 1.0094900131225586,
+   "west_max_surface": 15.017766952514648,
+   "east_max_surface": 15.003241539001465,
+   "row_mass": 21.06436804624991,
+   "total_mass": 251.99998855932552
+  },
+  {
+   "t": 5.6,
+   "front_x": 28,
+   "pool_spread": 2.0071773529052734,
+   "west_max_surface": 15.018261909484863,
+   "east_max_surface": 16.00010108947754,
+   "row_mass": 20.995814465625244,
+   "total_mass": 251.99998912292517
+  },
+  {
+   "t": 5.7,
+   "front_x": 28,
+   "pool_spread": 2.0073471069335938,
+   "west_max_surface": 15.018731117248535,
+   "east_max_surface": 16.00005531311035,
+   "row_mass": 20.93190854760519,
+   "total_mass": 251.999988400064
+  },
+  {
+   "t": 5.8,
+   "front_x": 28,
+   "pool_spread": 1.0042486190795898,
+   "west_max_surface": 15.01917552947998,
+   "east_max_surface": 14.52861213684082,
+   "row_mass": 20.90046144007465,
+   "total_mass": 251.99998685047933
+  },
+  {
+   "t": 5.9,
+   "front_x": 28,
+   "pool_spread": 1.015101432800293,
+   "west_max_surface": 15.019594192504883,
+   "east_max_surface": 15.001436233520508,
+   "row_mass": 20.856416085021465,
+   "total_mass": 251.99998588919163
+  },
+  {
+   "t": 6.0,
+   "front_x": 28,
+   "pool_spread": 2.504849433898926,
+   "west_max_surface": 15.019989967346191,
+   "east_max_surface": 15.001527786254883,
+   "row_mass": 20.784537509141046,
+   "total_mass": 251.9999853313741
+  },
+  {
+   "t": 6.1,
+   "front_x": 28,
+   "pool_spread": 1.0656852722167969,
+   "west_max_surface": 15.02036190032959,
+   "east_max_surface": 14.50468635559082,
+   "row_mass": 20.77796629468321,
+   "total_mass": 251.9999850822711
+  },
+  {
+   "t": 6.2,
+   "front_x": 28,
+   "pool_spread": 1.4611806869506836,
+   "west_max_surface": 15.020710945129395,
+   "east_max_surface": 14.510228157043457,
+   "row_mass": 20.80303031313906,
+   "total_mass": 251.99998490764983
+  },
+  {
+   "t": 6.3,
+   "front_x": 28,
+   "pool_spread": 1.4306659698486328,
+   "west_max_surface": 15.021039009094238,
+   "east_max_surface": 14.512994766235352,
+   "row_mass": 20.861658487538648,
+   "total_mass": 251.99998449537065
+  },
+  {
+   "t": 6.4,
+   "front_x": 28,
+   "pool_spread": 2.2903366088867188,
+   "west_max_surface": 16.000001907348633,
+   "east_max_surface": 14.514413833618164,
+   "row_mass": 20.868593222165146,
+   "total_mass": 251.99998427567186
+  },
+  {
+   "t": 6.5,
+   "front_x": 28,
+   "pool_spread": 2.370281219482422,
+   "west_max_surface": 15.021634101867676,
+   "east_max_surface": 14.513598442077637,
+   "row_mass": 20.86305861806045,
+   "total_mass": 251.9999841265951
+  },
+  {
+   "t": 6.6,
+   "front_x": 28,
+   "pool_spread": 2.348114013671875,
+   "west_max_surface": 15.02190113067627,
+   "east_max_surface": 14.510950088500977,
+   "row_mass": 20.88180350496441,
+   "total_mass": 251.99998407930127
+  },
+  {
+   "t": 6.7,
+   "front_x": 28,
+   "pool_spread": 1.345454216003418,
+   "west_max_surface": 15.022150993347168,
+   "east_max_surface": 14.50560474395752,
+   "row_mass": 20.85001495184406,
+   "total_mass": 251.99998427574747
+  },
+  {
+   "t": 6.8,
+   "front_x": 28,
+   "pool_spread": 1.3339729309082031,
+   "west_max_surface": 15.022381782531738,
+   "east_max_surface": 14.501587867736816,
+   "row_mass": 20.86161221439488,
+   "total_mass": 251.99998405846327
+  },
+  {
+   "t": 6.9,
+   "front_x": 28,
+   "pool_spread": 2.3086605072021484,
+   "west_max_surface": 15.022595405578613,
+   "east_max_surface": 15.001131057739258,
+   "row_mass": 20.91201879337632,
+   "total_mass": 251.99998367189198
+  },
+  {
+   "t": 7.0,
+   "front_x": 28,
+   "pool_spread": 1.290236473083496,
+   "west_max_surface": 15.02279281616211,
+   "east_max_surface": 14.505146980285645,
+   "row_mass": 20.99851154574617,
+   "total_mass": 251.9999835210748
+  },
+  {
+   "t": 7.1,
+   "front_x": 28,
+   "pool_spread": 1.281580924987793,
+   "west_max_surface": 15.02297306060791,
+   "east_max_surface": 14.506573677062988,
+   "row_mass": 21.039262438032438,
+   "total_mass": 251.99998370987282
+  },
+  {
+   "t": 7.2,
+   "front_x": 28,
+   "pool_spread": 1.2872285842895508,
+   "west_max_surface": 15.023138046264648,
+   "east_max_surface": 14.505971908569336,
+   "row_mass": 21.085642448854287,
+   "total_mass": 251.99998397300783
+  },
+  {
+   "t": 7.3,
+   "front_x": 28,
+   "pool_spread": 2.278292655944824,
+   "west_max_surface": 15.023286819458008,
+   "east_max_surface": 15.000873565673828,
+   "row_mass": 21.14352890773216,
+   "total_mass": 251.9999843030845
+  },
+  {
+   "t": 7.4,
+   "front_x": 28,
+   "pool_spread": 2.2630138397216797,
+   "west_max_surface": 15.023421287536621,
+   "east_max_surface": 14.503518104553223,
+   "row_mass": 21.165787866569644,
+   "total_mass": 251.99998534361066
+  },
+  {
+   "t": 7.5,
+   "front_x": 28,
+   "pool_spread": 1.2519941329956055,
+   "west_max_surface": 15.023539543151855,
+   "east_max_surface": 14.50757884979248,
+   "row_mass": 21.1932652806604,
+   "total_mass": 251.9999849687058
+  },
+  {
+   "t": 7.6,
+   "front_x": 28,
+   "pool_spread": 1.2535285949707031,
+   "west_max_surface": 15.02364444732666,
+   "east_max_surface": 14.508443832397461,
+   "row_mass": 21.202534740353258,
+   "total_mass": 251.99998438842772
+  },
+  {
+   "t": 7.7,
+   "front_x": 28,
+   "pool_spread": 1.2495059967041016,
+   "west_max_surface": 15.023735046386719,
+   "east_max_surface": 14.506590843200684,
+   "row_mass": 21.175047536108195,
+   "total_mass": 251.99998438371745
+  },
+  {
+   "t": 7.8,
+   "front_x": 28,
+   "pool_spread": 1.2372827529907227,
+   "west_max_surface": 15.023810386657715,
+   "east_max_surface": 14.503593444824219,
+   "row_mass": 21.15068465929471,
+   "total_mass": 251.9999834709622
+  },
+  {
+   "t": 7.9,
+   "front_x": 28,
+   "pool_spread": 1.2225723266601562,
+   "west_max_surface": 15.023872375488281,
+   "east_max_surface": 14.505388259887695,
+   "row_mass": 21.12269844997752,
+   "total_mass": 251.9999829853839
+  },
+  {
+   "t": 8.0,
+   "front_x": 28,
+   "pool_spread": 1.2039728164672852,
+   "west_max_surface": 15.023921012878418,
+   "east_max_surface": 15.000624656677246,
+   "row_mass": 21.10359729246875,
+   "total_mass": 251.99998313058677
+  },
+  {
+   "t": 8.1,
+   "front_x": 28,
+   "pool_spread": 1.1779403686523438,
+   "west_max_surface": 15.023954391479492,
+   "east_max_surface": 14.503242492675781,
+   "row_mass": 21.082775569176647,
+   "total_mass": 251.99998299031222
+  },
+  {
+   "t": 8.2,
+   "front_x": 28,
+   "pool_spread": 1.172011375427246,
+   "west_max_surface": 15.023975372314453,
+   "east_max_surface": 14.502732276916504,
+   "row_mass": 21.076981648795936,
+   "total_mass": 251.9999829182634
+  },
+  {
+   "t": 8.3,
+   "front_x": 28,
+   "pool_spread": 1.1666984558105469,
+   "west_max_surface": 15.023981094360352,
+   "east_max_surface": 14.501008987426758,
+   "row_mass": 21.050755381852014,
+   "total_mass": 251.99998312024866
+  },
+  {
+   "t": 8.4,
+   "front_x": 28,
+   "pool_spread": 1.1530370712280273,
+   "west_max_surface": 15.023964881896973,
+   "east_max_surface": 14.501073837280273,
+   "row_mass": 21.054201163987273,
+   "total_mass": 251.99998338540513
+  },
+  {
+   "t": 8.5,
+   "front_x": 28,
+   "pool_spread": 1.2733345031738281,
+   "west_max_surface": 15.023918151855469,
+   "east_max_surface": 14.50036334991455,
+   "row_mass": 21.04074668101248,
+   "total_mass": 251.9999828271258
+  },
+  {
+   "t": 8.6,
+   "front_x": 28,
+   "pool_spread": 1.2022409439086914,
+   "west_max_surface": 15.02384090423584,
+   "east_max_surface": 14.500205993652344,
+   "row_mass": 21.013631213827466,
+   "total_mass": 251.99998270709136
+  },
+  {
+   "t": 8.7,
+   "front_x": 28,
+   "pool_spread": 1.1268692016601562,
+   "west_max_surface": 15.023736000061035,
+   "east_max_surface": 14.501354217529297,
+   "row_mass": 20.982465127310206,
+   "total_mass": 251.99998317444317
+  },
+  {
+   "t": 8.8,
+   "front_x": 28,
+   "pool_spread": 1.107919692993164,
+   "west_max_surface": 15.023602485656738,
+   "east_max_surface": 14.500290870666504,
+   "row_mass": 20.969689232973906,
+   "total_mass": 251.9999841667435
+  },
+  {
+   "t": 8.9,
+   "front_x": 28,
+   "pool_spread": 1.0931339263916016,
+   "west_max_surface": 15.023443222045898,
+   "east_max_surface": 14.501076698303223,
+   "row_mass": 20.958202403533505,
+   "total_mass": 251.99998361399958
+  },
+  {
+   "t": 9.0,
+   "front_x": 28,
+   "pool_spread": 1.0718269348144531,
+   "west_max_surface": 15.023259162902832,
+   "east_max_surface": 14.500222206115723,
+   "row_mass": 20.9445268898437,
+   "total_mass": 251.99998368753643
+  },
+  {
+   "t": 9.1,
+   "front_x": 28,
+   "pool_spread": 1.0398988723754883,
+   "west_max_surface": 15.023053169250488,
+   "east_max_surface": 14.499760627746582,
+   "row_mass": 20.934704421994297,
+   "total_mass": 251.99998315236292
+  },
+  {
+   "t": 9.2,
+   "front_x": 28,
+   "pool_spread": 1.495574951171875,
+   "west_max_surface": 15.022826194763184,
+   "east_max_surface": 14.497573852539062,
+   "row_mass": 20.920744029321668,
+   "total_mass": 251.99998301429684
+  },
+  {
+   "t": 9.3,
+   "front_x": 28,
+   "pool_spread": 1.4620962142944336,
+   "west_max_surface": 15.02258014678955,
+   "east_max_surface": 14.490717887878418,
+   "row_mass": 20.914171222018922,
+   "total_mass": 251.99998273407653
+  },
+  {
+   "t": 9.4,
+   "front_x": 28,
+   "pool_spread": 1.0107555389404297,
+   "west_max_surface": 15.022317886352539,
+   "east_max_surface": 14.478489875793457,
+   "row_mass": 20.933578777513958,
+   "total_mass": 251.999982380421
+  },
+  {
+   "t": 9.5,
+   "front_x": 28,
+   "pool_spread": 2.008392333984375,
+   "west_max_surface": 16.000001907348633,
+   "east_max_surface": 14.460953712463379,
+   "row_mass": 20.95782252983713,
+   "total_mass": 251.99998202425138
+  },
+  {
+   "t": 9.6,
+   "front_x": 28,
+   "pool_spread": 2.005974769592285,
+   "west_max_surface": 16.000001907348633,
+   "east_max_surface": 14.438648223876953,
+   "row_mass": 20.974976319096186,
+   "total_mass": 251.99998248482598
+  },
+  {
+   "t": 9.7,
+   "front_x": 28,
+   "pool_spread": 1.0042753219604492,
+   "west_max_surface": 15.021453857421875,
+   "east_max_surface": 14.412500381469727,
+   "row_mass": 20.9960456852034,
+   "total_mass": 251.9999821987792
+  },
+  {
+   "t": 9.8,
+   "front_x": 28,
+   "pool_spread": 1.0008354187011719,
+   "west_max_surface": 15.021147727966309,
+   "east_max_surface": 14.383691787719727,
+   "row_mass": 21.017072331503186,
+   "total_mass": 251.99998098009064
+  },
+  {
+   "t": 9.9,
+   "front_x": 28,
+   "pool_spread": 1.9993104934692383,
+   "west_max_surface": 16.000001907348633,
+   "east_max_surface": 14.353517532348633,
+   "row_mass": 21.035158160255378,
+   "total_mass": 251.99998038177569
+  },
+  {
+   "t": 10.0,
+   "front_x": 28,
+   "pool_spread": 0.9986162185668945,
+   "west_max_surface": 15.020519256591797,
+   "east_max_surface": 14.323241233825684,
+   "row_mass": 21.05300727587837,
+   "total_mass": 251.99998090853524
+  },
+  {
+   "t": 10.1,
+   "front_x": 28,
+   "pool_spread": 0.9662513732910156,
+   "west_max_surface": 15.020201683044434,
+   "east_max_surface": 14.309916496276855,
+   "row_mass": 21.073671692823268,
+   "total_mass": 251.99998079384557
+  },
+  {
+   "t": 10.2,
+   "front_x": 28,
+   "pool_spread": 1.8468971252441406,
+   "west_max_surface": 16.000001907348633,
+   "east_max_surface": 14.306685447692871,
+   "row_mass": 21.081006550324446,
+   "total_mass": 251.9999810012705
+  },
+  {
+   "t": 10.3,
+   "front_x": 28,
+   "pool_spread": 1.9528579711914062,
+   "west_max_surface": 16.000001907348633,
+   "east_max_surface": 14.299372673034668,
+   "row_mass": 21.08951246971253,
+   "total_mass": 251.99998150816202
+  },
+  {
+   "t": 10.4,
+   "front_x": 28,
+   "pool_spread": 1.942464828491211,
+   "west_max_surface": 16.000003814697266,
+   "east_max_surface": 14.2913179397583,
+   "row_mass": 21.096126410470333,
+   "total_mass": 251.99998121492342
+  },
+  {
+   "t": 10.5,
+   "front_x": 28,
+   "pool_spread": 0.9317865371704102,
+   "west_max_surface": 15.018935203552246,
+   "east_max_surface": 14.286508560180664,
+   "row_mass": 21.100722277040404,
+   "total_mass": 251.9999812159282
+  },
+  {
+   "t": 10.6,
+   "front_x": 28,
+   "pool_spread": 1.9263639450073242,
+   "west_max_surface": 16.000001907348633,
+   "east_max_surface": 14.281291961669922,
+   "row_mass": 21.104307338112676,
+   "total_mass": 251.99998215207063
+  },
+  {
+   "t": 10.7,
+   "front_x": 28,
+   "pool_spread": 0.90936279296875,
+   "west_max_surface": 15.01832389831543,
+   "east_max_surface": 14.275749206542969,
+   "row_mass": 21.10571608172836,
+   "total_mass": 251.99998144912365
+  },
+  {
+   "t": 10.8,
+   "front_x": 28,
+   "pool_spread": 0.8984060287475586,
+   "west_max_surface": 15.018026351928711,
+   "east_max_surface": 14.262903213500977,
+   "row_mass": 21.107709796769996,
+   "total_mass": 251.99998152029207
+  },
+  {
+   "t": 10.9,
+   "front_x": 28,
+   "pool_spread": 0.8885421752929688,
+   "west_max_surface": 15.017735481262207,
+   "east_max_surface": 14.24303913116455,
+   "row_mass": 21.11227544984922,
+   "total_mass": 251.99998234030636
+  },
+  {
+   "t": 11.0,
+   "front_x": 28,
+   "pool_spread": 0.8805742263793945,
+   "west_max_surface": 15.017451286315918,
+   "east_max_surface": 14.221242904663086,
+   "row_mass": 21.10908062117187,
+   "total_mass": 251.99998259650647
+  },
+  {
+   "t": 11.1,
+   "front_x": 28,
+   "pool_spread": 1.8719778060913086,
+   "west_max_surface": 16.000003814697266,
+   "east_max_surface": 14.210783004760742,
+   "row_mass": 21.091534309277222,
+   "total_mass": 251.99998289646123
+  },
+  {
+   "t": 11.2,
+   "front_x": 28,
+   "pool_spread": 1.8655195236206055,
+   "west_max_surface": 16.0000057220459,
+   "east_max_surface": 14.195420265197754,
+   "row_mass": 21.06794857838031,
+   "total_mass": 251.99998318853795
+  },
+  {
+   "t": 11.3,
+   "front_x": 28,
+   "pool_spread": 1.8602819442749023,
+   "west_max_surface": 16.00001335144043,
+   "east_max_surface": 14.178050994873047,
+   "row_mass": 21.03915517370342,
+   "total_mass": 251.9999826097552
+  },
+  {
+   "t": 11.4,
+   "front_x": 28,
+   "pool_spread": 1.8569698333740234,
+   "west_max_surface": 16.00001335144043,
+   "east_max_surface": 14.171295166015625,
+   "row_mass": 21.0119453692555,
+   "total_mass": 251.9999821095521
+  },
+  {
+   "t": 11.5,
+   "front_x": 28,
+   "pool_spread": 0.8608617782592773,
+   "west_max_surface": 15.016769409179688,
+   "east_max_surface": 14.164517402648926,
+   "row_mass": 20.985318470560287,
+   "total_mass": 251.99998275940675
+  },
+  {
+   "t": 11.6,
+   "front_x": 28,
+   "pool_spread": 0.8612728118896484,
+   "west_max_surface": 15.016756057739258,
+   "east_max_surface": 14.15744686126709,
+   "row_mass": 20.973086243148373,
+   "total_mass": 251.9999839938505
+  },
+  {
+   "t": 11.7,
+   "front_x": 28,
+   "pool_spread": 1.8612241744995117,
+   "west_max_surface": 16.0000057220459,
+   "east_max_surface": 14.154732704162598,
+   "row_mass": 20.95069921304821,
+   "total_mass": 251.99998373543417
+  },
+  {
+   "t": 11.8,
+   "front_x": 28,
+   "pool_spread": 1.8625373840332031,
+   "west_max_surface": 16.000009536743164,
+   "east_max_surface": 14.15223503112793,
+   "row_mass": 20.930883172975427,
+   "total_mass": 251.9999841257818
+  },
+  {
+   "t": 11.9,
+   "front_x": 28,
+   "pool_spread": 1.8637428283691406,
+   "west_max_surface": 16.00001335144043,
+   "east_max_surface": 14.15011978149414,
+   "row_mass": 20.917780395179307,
+   "total_mass": 251.9999837780481
+  },
+  {
+   "t": 12.0,
+   "front_x": 28,
+   "pool_spread": 0.8670024871826172,
+   "west_max_surface": 15.016528129577637,
+   "east_max_surface": 14.146600723266602,
+   "row_mass": 20.89971657660908,
+   "total_mass": 251.99998337669876
+  },
+  {
+   "t": 12.1,
+   "front_x": 28,
+   "pool_spread": 0.8672447204589844,
+   "west_max_surface": 15.016433715820312,
+   "east_max_surface": 14.14257526397705,
+   "row_mass": 20.880731344212563,
+   "total_mass": 251.9999828327335
+  },
+  {
+   "t": 12.2,
+   "front_x": 28,
+   "pool_spread": 1.8664798736572266,
+   "west_max_surface": 16.0000057220459,
+   "east_max_surface": 14.140785217285156,
+   "row_mass": 20.87188674298841,
+   "total_mass": 251.99998318765302
+  },
+  {
+   "t": 12.3,
+   "front_x": 28,
+   "pool_spread": 1.8670663833618164,
+   "west_max_surface": 16.000009536743164,
+   "east_max_surface": 14.139103889465332,
+   "row_mass": 20.86490097260912,
+   "total_mass": 251.9999819112154
+  },
+  {
+   "t": 12.4,
+   "front_x": 28,
+   "pool_spread": 0.8694057464599609,
+   "west_max_surface": 15.016083717346191,
+   "east_max_surface": 14.137533187866211,
+   "row_mass": 20.859852265433346,
+   "total_mass": 251.99998130731
+  },
+  {
+   "t": 12.5,
+   "front_x": 28,
+   "pool_spread": 0.8676948547363281,
+   "west_max_surface": 15.015948295593262,
+   "east_max_surface": 14.136061668395996,
+   "row_mass": 20.85666291197913,
+   "total_mass": 251.9999816058803
+  },
+  {
+   "t": 12.6,
+   "front_x": 28,
+   "pool_spread": 0.8694868087768555,
+   "west_max_surface": 15.015806198120117,
+   "east_max_surface": 14.134709358215332,
+   "row_mass": 20.855481069524558,
+   "total_mass": 251.99998176002987
+  },
+  {
+   "t": 12.7,
+   "front_x": 28,
+   "pool_spread": 1.8675117492675781,
+   "west_max_surface": 16.00000762939453,
+   "east_max_surface": 14.133967399597168,
+   "row_mass": 20.856450419588782,
+   "total_mass": 251.999982557007
+  },
+  {
+   "t": 12.8,
+   "front_x": 28,
+   "pool_spread": 1.8676471710205078,
+   "west_max_surface": 16.00001335144043,
+   "east_max_surface": 14.133415222167969,
+   "row_mass": 20.859257950758092,
+   "total_mass": 251.99998233027884
+  },
+  {
+   "t": 12.9,
+   "front_x": 28,
+   "pool_spread": 0.8712396621704102,
+   "west_max_surface": 15.015350341796875,
+   "east_max_surface": 14.132983207702637,
+   "row_mass": 20.863740559485905,
+   "total_mass": 251.99998174322025
+  },
+  {
+   "t": 13.0,
+   "front_x": 28,
+   "pool_spread": 0.869532585144043,
+   "west_max_surface": 15.015192031860352,
+   "east_max_surface": 14.132659912109375,
+   "row_mass": 20.86970952135016,
+   "total_mass": 251.99998112442222
+  },
+  {
+   "t": 13.1,
+   "front_x": 28,
+   "pool_spread": 0.8724660873413086,
+   "west_max_surface": 15.015031814575195,
+   "east_max_surface": 14.132437705993652,
+   "row_mass": 20.87695711207016,
+   "total_mass": 251.9999816205218
+  },
+  {
+   "t": 13.2,
+   "front_x": 28,
+   "pool_spread": 1.870870590209961,
+   "west_max_surface": 16.000009536743164,
+   "east_max_surface": 14.132303237915039,
+   "row_mass": 20.885336225198444,
+   "total_mass": 251.99998169157925
+  },
+  {
+   "t": 13.3,
+   "front_x": 28,
+   "pool_spread": 1.8713817596435547,
+   "west_max_surface": 16.000015258789062,
+   "east_max_surface": 14.132245063781738,
+   "row_mass": 20.89464179180777,
+   "total_mass": 251.9999816152581
+  },
+  {
+   "t": 13.4,
+   "front_x": 28,
+   "pool_spread": 1.8718385696411133,
+   "west_max_surface": 16.00000762939453,
+   "east_max_surface": 14.132246971130371,
+   "row_mass": 20.908394871408746,
+   "total_mass": 251.99998162829195
+  },
+  {
+   "t": 13.5,
+   "front_x": 28,
+   "pool_spread": 1.8722047805786133,
+   "west_max_surface": 16.000017166137695,
+   "east_max_surface": 14.132288932800293,
+   "row_mass": 20.941598748870092,
+   "total_mass": 251.99998077819737
+  },
+  {
+   "t": 13.6,
+   "front_x": 28,
+   "pool_spread": 0.8825502395629883,
+   "west_max_surface": 15.015156745910645,
+   "east_max_surface": 14.132353782653809,
+   "row_mass": 20.966969898141542,
+   "total_mass": 251.99998100280357
+  },
+  {
+   "t": 13.7,
+   "front_x": 28,
+   "pool_spread": 0.8817739486694336,
+   "west_max_surface": 15.015358924865723,
+   "east_max_surface": 14.132424354553223,
+   "row_mass": 20.97532260882508,
+   "total_mass": 251.9999802399052
+  },
+  {
+   "t": 13.8,
+   "front_x": 28,
+   "pool_spread": 0.8837528228759766,
+   "west_max_surface": 15.015552520751953,
+   "east_max_surface": 14.132488250732422,
+   "row_mass": 20.983160441512155,
+   "total_mass": 251.99997950204943
+  },
+  {
+   "t": 13.9,
+   "front_x": 28,
+   "pool_spread": 1.8825044631958008,
+   "west_max_surface": 16.00000762939453,
+   "east_max_surface": 14.132532119750977,
+   "row_mass": 20.99040664993845,
+   "total_mass": 251.99997980011494
+  },
+  {
+   "t": 14.0,
+   "front_x": 28,
+   "pool_spread": 1.8830232620239258,
+   "west_max_surface": 16.000009536743164,
+   "east_max_surface": 14.132545471191406,
+   "row_mass": 20.99706259643699,
+   "total_mass": 251.99997975274653
+  },
+  {
+   "t": 14.1,
+   "front_x": 28,
+   "pool_spread": 1.8833160400390625,
+   "west_max_surface": 16.000003814697266,
+   "east_max_surface": 14.13252067565918,
+   "row_mass": 21.0032197279736,
+   "total_mass": 251.99997991963278
+  },
+  {
+   "t": 14.2,
+   "front_x": 28,
+   "pool_spread": 0.8834352493286133,
+   "west_max_surface": 15.016236305236816,
+   "east_max_surface": 14.132448196411133,
+   "row_mass": 21.008853774739464,
+   "total_mass": 251.99997999259404
+  },
+  {
+   "t": 14.3,
+   "front_x": 28,
+   "pool_spread": 0.8833913803100586,
+   "west_max_surface": 15.016385078430176,
+   "east_max_surface": 14.132323265075684,
+   "row_mass": 21.014086707980823,
+   "total_mass": 251.99997968321998
+  },
+  {
+   "t": 14.4,
+   "front_x": 28,
+   "pool_spread": 0.8847131729125977,
+   "west_max_surface": 15.016524314880371,
+   "east_max_surface": 14.1321382522583,
+   "row_mass": 21.018937731813367,
+   "total_mass": 251.99997947890893
+  },
+  {
+   "t": 14.5,
+   "front_x": 28,
+   "pool_spread": 1.8829574584960938,
+   "west_max_surface": 16.00000762939453,
+   "east_max_surface": 14.131889343261719,
+   "row_mass": 21.035955646292678,
+   "total_mass": 251.99997994121907
+  },
+  {
+   "t": 14.6,
+   "front_x": 28,
+   "pool_spread": 1.8826627731323242,
+   "west_max_surface": 16.000015258789062,
+   "east_max_surface": 14.131545066833496,
+   "row_mass": 21.063830990780843,
+   "total_mass": 251.99998025741684
+  },
+  {
+   "t": 14.7,
+   "front_x": 28,
+   "pool_spread": 0.8848228454589844,
+   "west_max_surface": 15.016887664794922,
+   "east_max_surface": 14.131107330322266,
+   "row_mass": 21.065872541883436,
+   "total_mass": 251.99998034160012
+  },
+  {
+   "t": 14.8,
+   "front_x": 28,
+   "pool_spread": 0.8836641311645508,
+   "west_max_surface": 15.016990661621094,
+   "east_max_surface": 14.130576133728027,
+   "row_mass": 21.067105284362697,
+   "total_mass": 251.9999797000762
+  },
+  {
+   "t": 14.9,
+   "front_x": 28,
+   "pool_spread": 0.8859214782714844,
+   "west_max_surface": 15.017085075378418,
+   "east_max_surface": 14.129952430725098,
+   "row_mass": 21.06767018190112,
+   "total_mass": 251.99997905763348
+  },
+  {
+   "t": 15.0,
+   "front_x": 28,
+   "pool_spread": 1.8846254348754883,
+   "west_max_surface": 16.00000762939453,
+   "east_max_surface": 14.129241943359375,
+   "row_mass": 21.06570772928353,
+   "total_mass": 251.99997882084926
+  },
+  {
+   "t": 15.1,
+   "front_x": 28,
+   "pool_spread": 1.8852510452270508,
+   "west_max_surface": 16.000009536743164,
+   "east_max_surface": 14.12844181060791,
+   "row_mass": 21.065048764930907,
+   "total_mass": 251.99997847827854
+  },
+  {
+   "t": 15.2,
+   "front_x": 28,
+   "pool_spread": 0.887110710144043,
+   "west_max_surface": 15.017316818237305,
+   "east_max_surface": 14.12756061553955,
+   "row_mass": 21.064519555904553,
+   "total_mass": 251.99997872682445
+  },
+  {
+   "t": 15.3,
+   "front_x": 28,
+   "pool_spread": 0.8874387741088867,
+   "west_max_surface": 15.017377853393555,
+   "east_max_surface": 14.126608848571777,
+   "row_mass": 21.063604811684854,
+   "total_mass": 251.99997803294025
+  },
+  {
+   "t": 15.4,
+   "front_x": 28,
+   "pool_spread": 1.8869247436523438,
+   "west_max_surface": 16.000003814697266,
+   "east_max_surface": 14.125593185424805,
+   "row_mass": 21.062373251555755,
+   "total_mass": 251.99997767700006
+  },
+  {
+   "t": 15.5,
+   "front_x": 28,
+   "pool_spread": 1.8877086639404297,
+   "west_max_surface": 16.0000057220459,
+   "east_max_surface": 14.12451457977295,
+   "row_mass": 21.060978943296504,
+   "total_mass": 251.99997811718572
+  },
+  {
+   "t": 15.6,
+   "front_x": 28,
+   "pool_spread": 0.8896942138671875,
+   "west_max_surface": 15.017512321472168,
+   "east_max_surface": 14.123381614685059,
+   "row_mass": 21.059480297880327,
+   "total_mass": 251.99997825509024
+  },
+  {
+   "t": 15.7,
+   "front_x": 28,
+   "pool_spread": 0.8896951675415039,
+   "west_max_surface": 15.017541885375977,
+   "east_max_surface": 14.122390747070312,
+   "row_mass": 21.058016265660626,
+   "total_mass": 251.99997789358088
+  },
+  {
+   "t": 15.8,
+   "front_x": 28,
+   "pool_spread": 0.8945732116699219,
+   "west_max_surface": 15.017563819885254,
+   "east_max_surface": 14.120625495910645,
+   "row_mass": 21.05922409532468,
+   "total_mass": 251.99997774949804
+  },
+  {
+   "t": 15.9,
+   "front_x": 28,
+   "pool_spread": 1.8965492248535156,
+   "west_max_surface": 16.000009536743164,
+   "east_max_surface": 14.116862297058105,
+   "row_mass": 21.051567468980465,
+   "total_mass": 251.9999782777777
+  },
+  {
+   "t": 16.0,
+   "front_x": 28,
+   "pool_spread": 1.8976974487304688,
+   "west_max_surface": 16.00001335144043,
+   "east_max_surface": 14.115592956542969,
+   "row_mass": 21.048941652220492,
+   "total_mass": 251.9999773979241
+  },
+  {
+   "t": 16.1,
+   "front_x": 28,
+   "pool_spread": 0.9004926681518555,
+   "west_max_surface": 15.017586708068848,
+   "east_max_surface": 14.115057945251465,
+   "row_mass": 21.04856006231239,
+   "total_mass": 251.9999768693707
+  },
+  {
+   "t": 16.2,
+   "front_x": 28,
+   "pool_spread": 0.8998136520385742,
+   "west_max_surface": 15.017580032348633,
+   "east_max_surface": 14.114562034606934,
+   "row_mass": 21.048547595701166,
+   "total_mass": 251.99997674141855
+  },
+  {
+   "t": 16.3,
+   "front_x": 28,
+   "pool_spread": 1.9007654190063477,
+   "west_max_surface": 16.000001907348633,
+   "east_max_surface": 14.114105224609375,
+   "row_mass": 21.04887375540443,
+   "total_mass": 251.9999770758351
+  },
+  {
+   "t": 16.4,
+   "front_x": 28,
+   "pool_spread": 1.9016637802124023,
+   "west_max_surface": 16.000003814697266,
+   "east_max_surface": 14.113683700561523,
+   "row_mass": 21.049519645817327,
+   "total_mass": 251.99997696547973
+  },
+  {
+   "t": 16.5,
+   "front_x": 28,
+   "pool_spread": 0.9029941558837891,
+   "west_max_surface": 15.017520904541016,
+   "east_max_surface": 14.113292694091797,
+   "row_mass": 21.05039808408037,
+   "total_mass": 251.9999768731882
+  },
+  {
+   "t": 16.6,
+   "front_x": 28,
+   "pool_spread": 0.9044866561889648,
+   "west_max_surface": 15.017488479614258,
+   "east_max_surface": 14.112922668457031,
+   "row_mass": 21.051436198013107,
+   "total_mass": 251.99997602388078
+  },
+  {
+   "t": 16.7,
+   "front_x": 28,
+   "pool_spread": 0.9057588577270508,
+   "west_max_surface": 15.017449378967285,
+   "east_max_surface": 14.112563133239746,
+   "row_mass": 21.052547207846146,
+   "total_mass": 251.99997627462176
+  },
+  {
+   "t": 16.8,
+   "front_x": 28,
+   "pool_spread": 1.9045829772949219,
+   "west_max_surface": 16.00000762939453,
+   "east_max_surface": 14.112199783325195,
+   "row_mass": 21.05360490766452,
+   "total_mass": 251.99997630088978
+  },
+  {
+   "t": 16.9,
+   "front_x": 28,
+   "pool_spread": 1.9051475524902344,
+   "west_max_surface": 16.0000057220459,
+   "east_max_surface": 14.11181926727295,
+   "row_mass": 21.054513912889888,
+   "total_mass": 251.99997650036073
+  },
+  {
+   "t": 17.0,
+   "front_x": 28,
+   "pool_spread": 1.9056529998779297,
+   "west_max_surface": 16.000003814697266,
+   "east_max_surface": 14.111407279968262,
+   "row_mass": 21.055155519052278,
+   "total_mass": 251.99997660113638
+  },
+  {
+   "t": 17.1,
+   "front_x": 28,
+   "pool_spread": 1.906102180480957,
+   "west_max_surface": 16.000001907348633,
+   "east_max_surface": 14.110952377319336,
+   "row_mass": 21.05540884864797,
+   "total_mass": 251.99997590820215
+  },
+  {
+   "t": 17.2,
+   "front_x": 28,
+   "pool_spread": 0.9066276550292969,
+   "west_max_surface": 15.017167091369629,
+   "east_max_surface": 14.110440254211426,
+   "row_mass": 21.055144499332528,
+   "total_mass": 251.9999762908867
+  },
+  {
+   "t": 17.3,
+   "front_x": 28,
+   "pool_spread": 0.9086399078369141,
+   "west_max_surface": 15.017093658447266,
+   "east_max_surface": 14.109862327575684,
+   "row_mass": 21.054209766987697,
+   "total_mass": 251.99997634374313
+  },
+  {
+   "t": 17.4,
+   "front_x": 28,
+   "pool_spread": 1.9083662033081055,
+   "west_max_surface": 16.000003814697266,
+   "east_max_surface": 14.109209060668945,
+   "row_mass": 21.052526833155298,
+   "total_mass": 251.99997668515698
+  },
+  {
+   "t": 17.5,
+   "front_x": 28,
+   "pool_spread": 1.9091424942016602,
+   "west_max_surface": 16.0000057220459,
+   "east_max_surface": 14.108477592468262,
+   "row_mass": 21.05001283083493,
+   "total_mass": 251.99997621188936
+  },
+  {
+   "t": 17.6,
+   "front_x": 28,
+   "pool_spread": 0.9098577499389648,
+   "west_max_surface": 15.016827583312988,
+   "east_max_surface": 14.107664108276367,
+   "row_mass": 21.046596973704936,
+   "total_mass": 251.9999763569433
+  },
+  {
+   "t": 17.7,
+   "front_x": 28,
+   "pool_spread": 0.9107837677001953,
+   "west_max_surface": 15.016725540161133,
+   "east_max_surface": 14.106768608093262,
+   "row_mass": 21.042235548266035,
+   "total_mass": 251.9999765061666
+  },
+  {
+   "t": 17.8,
+   "front_x": 28,
+   "pool_spread": 1.9117536544799805,
+   "west_max_surface": 16.000001907348633,
+   "east_max_surface": 14.105794906616211,
+   "row_mass": 21.03694085249242,
+   "total_mass": 251.9999762398636
+  },
+  {
+   "t": 17.9,
+   "front_x": 28,
+   "pool_spread": 0.9135255813598633,
+   "west_max_surface": 15.016502380371094,
+   "east_max_surface": 14.104745864868164,
+   "row_mass": 21.030724909198398,
+   "total_mass": 251.99997619787666
+  },
+  {
+   "t": 18.0,
+   "front_x": 28,
+   "pool_spread": 1.9134721755981445,
+   "west_max_surface": 15.016383171081543,
+   "east_max_surface": 14.103630065917969,
+   "row_mass": 21.023633588432403,
+   "total_mass": 251.99997552640923
+  },
+  {
+   "t": 18.1,
+   "front_x": 28,
+   "pool_spread": 0.9143199920654297,
+   "west_max_surface": 15.016258239746094,
+   "east_max_surface": 14.102455139160156,
+   "row_mass": 21.01577149199693,
+   "total_mass": 251.99997628492656
+  },
+  {
+   "t": 18.2,
+   "front_x": 28,
+   "pool_spread": 1.9148693084716797,
+   "west_max_surface": 15.016130447387695,
+   "east_max_surface": 14.10123062133789,
+   "row_mass": 21.00721552936716,
+   "total_mass": 251.99997632164332
+  },
+  {
+   "t": 18.3,
+   "front_x": 28,
+   "pool_spread": 0.9154539108276367,
+   "west_max_surface": 15.015997886657715,
+   "east_max_surface": 14.099966049194336,
+   "row_mass": 20.998055999973076,
+   "total_mass": 251.99997627899188
+  },
+  {
+   "t": 18.4,
+   "front_x": 28,
+   "pool_spread": 1.9159412384033203,
+   "west_max_surface": 15.015862464904785,
+   "east_max_surface": 14.098673820495605,
+   "row_mass": 20.988380292364127,
+   "total_mass": 251.99997624130845
+  },
+  {
+   "t": 18.5,
+   "front_x": 28,
+   "pool_spread": 0.9168605804443359,
+   "west_max_surface": 15.015725135803223,
+   "east_max_surface": 14.097362518310547,
+   "row_mass": 20.97828200335789,
+   "total_mass": 251.9999762102159
+  },
+  {
+   "t": 18.6,
+   "front_x": 28,
+   "pool_spread": 0.9174137115478516,
+   "west_max_surface": 15.015584945678711,
+   "east_max_surface": 14.096044540405273,
+   "row_mass": 20.96783087926633,
+   "total_mass": 251.99997576887802
+  },
+  {
+   "t": 18.7,
+   "front_x": 28,
+   "pool_spread": 1.9169340133666992,
+   "west_max_surface": 15.015442848205566,
+   "east_max_surface": 14.094728469848633,
+   "row_mass": 20.957081273956078,
+   "total_mass": 251.99997626088816
+  },
+  {
+   "t": 18.8,
+   "front_x": 28,
+   "pool_spread": 0.917231559753418,
+   "west_max_surface": 15.015299797058105,
+   "east_max_surface": 14.093425750732422,
+   "row_mass": 20.946108938769612,
+   "total_mass": 251.99997629522466
+  },
+  {
+   "t": 18.9,
+   "front_x": 28,
+   "pool_spread": 1.9171667098999023,
+   "west_max_surface": 15.015155792236328,
+   "east_max_surface": 14.09214973449707,
+   "row_mass": 20.935000828890907,
+   "total_mass": 251.9999763680588
+  },
+  {
+   "t": 19.0,
+   "front_x": 28,
+   "pool_spread": 0.9171533584594727,
+   "west_max_surface": 15.015010833740234,
+   "east_max_surface": 14.091277122497559,
+   "row_mass": 20.92385541299916,
+   "total_mass": 251.99997551601166
+  },
+  {
+   "t": 19.1,
+   "front_x": 28,
+   "pool_spread": 1.9170255661010742,
+   "west_max_surface": 15.014866828918457,
+   "east_max_surface": 14.090413093566895,
+   "row_mass": 20.912769695309066,
+   "total_mass": 251.99997495093578
+  },
+  {
+   "t": 19.2,
+   "front_x": 28,
+   "pool_spread": 0.9168081283569336,
+   "west_max_surface": 15.01472282409668,
+   "east_max_surface": 14.089563369750977,
+   "row_mass": 20.901853618715904,
+   "total_mass": 251.999974305891
+  },
+  {
+   "t": 19.3,
+   "front_x": 28,
+   "pool_spread": 0.9164676666259766,
+   "west_max_surface": 15.014578819274902,
+   "east_max_surface": 14.08873462677002,
+   "row_mass": 20.891223952101427,
+   "total_mass": 251.99997348757404
+  },
+  {
+   "t": 19.4,
+   "front_x": 28,
+   "pool_spread": 0.9160261154174805,
+   "west_max_surface": 15.014436721801758,
+   "east_max_surface": 14.087931632995605,
+   "row_mass": 20.881001175683537,
+   "total_mass": 251.99997330869098
+  },
+  {
+   "t": 19.5,
+   "front_x": 28,
+   "pool_spread": 0.9161615371704102,
+   "west_max_surface": 15.01429557800293,
+   "east_max_surface": 14.087160110473633,
+   "row_mass": 20.871310475633436,
+   "total_mass": 251.99997416832446
+  },
+  {
+   "t": 19.6,
+   "front_x": 28,
+   "pool_spread": 0.9165830612182617,
+   "west_max_surface": 15.014156341552734,
+   "east_max_surface": 14.086424827575684,
+   "row_mass": 20.862284590639547,
+   "total_mass": 251.99997363544458
+  },
+  {
+   "t": 19.7,
+   "front_x": 28,
+   "pool_spread": 0.9174318313598633,
+   "west_max_surface": 15.014018058776855,
+   "east_max_surface": 14.085728645324707,
+   "row_mass": 20.854047634293238,
+   "total_mass": 251.99997402008466
+  },
+  {
+   "t": 19.8,
+   "front_x": 28,
+   "pool_spread": 0.9181346893310547,
+   "west_max_surface": 15.013882637023926,
+   "east_max_surface": 14.085077285766602,
+   "row_mass": 20.84672463602874,
+   "total_mass": 251.99997371981658
+  },
+  {
+   "t": 19.9,
+   "front_x": 28,
+   "pool_spread": 0.9189577102661133,
+   "west_max_surface": 15.013749122619629,
+   "east_max_surface": 14.08447265625,
+   "row_mass": 20.84043398036124,
+   "total_mass": 251.99997410293713
+  },
+  {
+   "t": 20.0,
+   "front_x": 28,
+   "pool_spread": 0.9187765121459961,
+   "west_max_surface": 15.013627052307129,
+   "east_max_surface": 14.083918571472168,
+   "row_mass": 20.835279132290452,
+   "total_mass": 251.99997409132425
+  },
+  {
+   "t": 20.1,
+   "front_x": 28,
+   "pool_spread": 0.9194259643554688,
+   "west_max_surface": 15.013648986816406,
+   "east_max_surface": 14.083416938781738,
+   "row_mass": 20.831351445338896,
+   "total_mass": 251.99997439901585
+  },
+  {
+   "t": 20.2,
+   "front_x": 28,
+   "pool_spread": 0.9206705093383789,
+   "west_max_surface": 15.013665199279785,
+   "east_max_surface": 14.082971572875977,
+   "row_mass": 20.828726511314017,
+   "total_mass": 251.99997407600608
+  },
+  {
+   "t": 20.3,
+   "front_x": 28,
+   "pool_spread": 0.9205284118652344,
+   "west_max_surface": 15.01367473602295,
+   "east_max_surface": 14.082582473754883,
+   "row_mass": 20.827463680868732,
+   "total_mass": 251.9999734483829
+  },
+  {
+   "t": 20.4,
+   "front_x": 28,
+   "pool_spread": 0.9209909439086914,
+   "west_max_surface": 15.013678550720215,
+   "east_max_surface": 14.082253456115723,
+   "row_mass": 20.827604420235957,
+   "total_mass": 251.99997352330058
+  },
+  {
+   "t": 20.5,
+   "front_x": 28,
+   "pool_spread": 0.9214611053466797,
+   "west_max_surface": 15.013675689697266,
+   "east_max_surface": 14.081984519958496,
+   "row_mass": 20.829185688545294,
+   "total_mass": 251.99997349369607
+  },
+  {
+   "t": 20.6,
+   "front_x": 28,
+   "pool_spread": 0.9218778610229492,
+   "west_max_surface": 15.013668060302734,
+   "east_max_surface": 14.081777572631836,
+   "row_mass": 20.832214752724212,
+   "total_mass": 251.99997342985364
+  },
+  {
+   "t": 20.7,
+   "front_x": 28,
+   "pool_spread": 1.9213638305664062,
+   "west_max_surface": 15.013653755187988,
+   "east_max_surface": 14.081632614135742,
+   "row_mass": 20.83669649149988,
+   "total_mass": 251.99997301600524
+  },
+  {
+   "t": 20.8,
+   "front_x": 28,
+   "pool_spread": 0.9225006103515625,
+   "west_max_surface": 15.013633728027344,
+   "east_max_surface": 14.08155345916748,
+   "row_mass": 20.842619851042627,
+   "total_mass": 251.99997279715956
+  },
+  {
+   "t": 20.9,
+   "front_x": 28,
+   "pool_spread": 0.92230224609375,
+   "west_max_surface": 15.0136079788208,
+   "east_max_surface": 14.081538200378418,
+   "row_mass": 20.84995172156414,
+   "total_mass": 251.99997270262554
+  },
+  {
+   "t": 21.0,
+   "front_x": 28,
+   "pool_spread": 0.9223718643188477,
+   "west_max_surface": 15.013577461242676,
+   "east_max_surface": 14.081589698791504,
+   "row_mass": 20.858650843854775,
+   "total_mass": 251.9999725309392
+  },
+  {
+   "t": 21.1,
+   "front_x": 28,
+   "pool_spread": 1.9212818145751953,
+   "west_max_surface": 15.013541221618652,
+   "east_max_surface": 14.081707000732422,
+   "row_mass": 20.86868443899857,
+   "total_mass": 251.9999723996193
+  },
+  {
+   "t": 21.2,
+   "front_x": 28,
+   "pool_spread": 0.9214954376220703,
+   "west_max_surface": 15.013501167297363,
+   "east_max_surface": 14.081893920898438,
+   "row_mass": 20.879988081964257,
+   "total_mass": 251.9999728815452
+  },
+  {
+   "t": 21.3,
+   "front_x": 28,
+   "pool_spread": 0.9214029312133789,
+   "west_max_surface": 15.013455390930176,
+   "east_max_surface": 14.082148551940918,
+   "row_mass": 20.892489283528448,
+   "total_mass": 251.99997290435317
+  },
+  {
+   "t": 21.4,
+   "front_x": 28,
+   "pool_spread": 0.9212579727172852,
+   "west_max_surface": 15.013406753540039,
+   "east_max_surface": 14.082475662231445,
+   "row_mass": 20.90610511628256,
+   "total_mass": 251.99997288496866
+  },
+  {
+   "t": 21.5,
+   "front_x": 28,
+   "pool_spread": 1.9201107025146484,
+   "west_max_surface": 15.01335334777832,
+   "east_max_surface": 14.082874298095703,
+   "row_mass": 20.920758799121586,
+   "total_mass": 251.99997378714818
+  },
+  {
+   "t": 21.6,
+   "front_x": 28,
+   "pool_spread": 0.9205045700073242,
+   "west_max_surface": 15.013296127319336,
+   "east_max_surface": 14.083349227905273,
+   "row_mass": 20.936359959478978,
+   "total_mass": 251.99997396380104
+  },
+  {
+   "t": 21.7,
+   "front_x": 28,
+   "pool_spread": 0.9200029373168945,
+   "west_max_surface": 15.013236999511719,
+   "east_max_surface": 14.083901405334473,
+   "row_mass": 20.952799575922654,
+   "total_mass": 251.99997419843214
+  },
+  {
+   "t": 21.8,
+   "front_x": 28,
+   "pool_spread": 0.9194889068603516,
+   "west_max_surface": 15.01317310333252,
+   "east_max_surface": 14.084537506103516,
+   "row_mass": 20.969963320248098,
+   "total_mass": 251.9999742344629
+  },
+  {
+   "t": 21.9,
+   "front_x": 28,
+   "pool_spread": 0.9188728332519531,
+   "west_max_surface": 15.013108253479004,
+   "east_max_surface": 14.085265159606934,
+   "row_mass": 20.987735977425473,
+   "total_mass": 251.99997412842026
+  },
+  {
+   "t": 22.0,
+   "front_x": 28,
+   "pool_spread": 0.9180908203125,
+   "west_max_surface": 15.013039588928223,
+   "east_max_surface": 14.086091995239258,
+   "row_mass": 21.005975190827485,
+   "total_mass": 251.99997416185215
+  },
+  {
+   "t": 22.1,
+   "front_x": 28,
+   "pool_spread": 0.9172992706298828,
+   "west_max_surface": 15.012969970703125,
+   "east_max_surface": 14.08702278137207,
+   "row_mass": 21.024518061544768,
+   "total_mass": 251.9999738336718
+  },
+  {
+   "t": 22.2,
+   "front_x": 28,
+   "pool_spread": 0.9156599044799805,
+   "west_max_surface": 15.012898445129395,
+   "east_max_surface": 14.088068962097168,
+   "row_mass": 21.04320467530124,
+   "total_mass": 251.99997381789296
+  },
+  {
+   "t": 22.3,
+   "front_x": 28,
+   "pool_spread": 0.914790153503418,
+   "west_max_surface": 15.012825965881348,
+   "east_max_surface": 14.089255332946777,
+   "row_mass": 21.06185938381259,
+   "total_mass": 251.9999734928797
+  },
+  {
+   "t": 22.4,
+   "front_x": 28,
+   "pool_spread": 0.9140586853027344,
+   "west_max_surface": 15.012751579284668,
+   "east_max_surface": 14.09061336517334,
+   "row_mass": 21.0803164091285,
+   "total_mass": 251.9999736399036
+  },
+  {
+   "t": 22.5,
+   "front_x": 28,
+   "pool_spread": 1.9125823974609375,
+   "west_max_surface": 15.012838363647461,
+   "east_max_surface": 14.092177391052246,
+   "row_mass": 21.09840710745823,
+   "total_mass": 251.99997359791325
+  },
+  {
+   "t": 22.6,
+   "front_x": 28,
+   "pool_spread": 0.9117679595947266,
+   "west_max_surface": 15.012941360473633,
+   "east_max_surface": 14.09399700164795,
+   "row_mass": 21.11595292880247,
+   "total_mass": 251.99997329323287
+  },
+  {
+   "t": 22.7,
+   "front_x": 28,
+   "pool_spread": 0.9111785888671875,
+   "west_max_surface": 15.013043403625488,
+   "east_max_surface": 14.096138954162598,
+   "row_mass": 21.132782621194565,
+   "total_mass": 251.99997362333988
+  },
+  {
+   "t": 22.8,
+   "front_x": 28,
+   "pool_spread": 0.9096355438232422,
+   "west_max_surface": 15.013143539428711,
+   "east_max_surface": 14.098689079284668,
+   "row_mass": 21.148728479484816,
+   "total_mass": 251.9999739460136
+  },
+  {
+   "t": 22.9,
+   "front_x": 28,
+   "pool_spread": 0.8987960815429688,
+   "west_max_surface": 15.0132417678833,
+   "east_max_surface": 15.000001907348633,
+   "row_mass": 21.16362889883999,
+   "total_mass": 251.99997373565725
+  },
+  {
+   "t": 23.0,
+   "front_x": 28,
+   "pool_spread": 0.8951530456542969,
+   "west_max_surface": 15.013337135314941,
+   "east_max_surface": 15.000020027160645,
+   "row_mass": 21.177332292035317,
+   "total_mass": 251.99997378553007
+  },
+  {
+   "t": 23.1,
+   "front_x": 28,
+   "pool_spread": 0.8907251358032227,
+   "west_max_surface": 15.01343059539795,
+   "east_max_surface": 15.000041961669922,
+   "row_mass": 21.18970734742379,
+   "total_mass": 251.99997365635727
+  },
+  {
+   "t": 23.2,
+   "front_x": 28,
+   "pool_spread": 0.8260097503662109,
+   "west_max_surface": 15.013521194458008,
+   "east_max_surface": 15.000067710876465,
+   "row_mass": 21.200617411976964,
+   "total_mass": 251.99997325098275
+  },
+  {
+   "t": 23.3,
+   "front_x": 28,
+   "pool_spread": 0.8151092529296875,
+   "west_max_surface": 15.013609886169434,
+   "east_max_surface": 15.000346183776855,
+   "row_mass": 21.20994315931057,
+   "total_mass": 251.999973538027
+  },
+  {
+   "t": 23.4,
+   "front_x": 28,
+   "pool_spread": 0.8113241195678711,
+   "west_max_surface": 15.013694763183594,
+   "east_max_surface": 15.000445365905762,
+   "row_mass": 21.21758905718798,
+   "total_mass": 251.99997311448988
+  },
+  {
+   "t": 23.5,
+   "front_x": 28,
+   "pool_spread": 0.8120574951171875,
+   "west_max_surface": 15.013777732849121,
+   "east_max_surface": 15.00053882598877,
+   "row_mass": 21.22348090790365,
+   "total_mass": 251.99997293172237
+  },
+  {
+   "t": 23.6,
+   "front_x": 28,
+   "pool_spread": 0.8127956390380859,
+   "west_max_surface": 15.013856887817383,
+   "east_max_surface": 15.000617980957031,
+   "row_mass": 21.22756906435825,
+   "total_mass": 251.9999728435448
+  },
+  {
+   "t": 23.7,
+   "front_x": 28,
+   "pool_spread": 0.8136987686157227,
+   "west_max_surface": 15.013933181762695,
+   "east_max_surface": 15.00067138671875,
+   "row_mass": 21.22982250276891,
+   "total_mass": 251.99997286396
+  },
+  {
+   "t": 23.8,
+   "front_x": 28,
+   "pool_spread": 0.8148002624511719,
+   "west_max_surface": 15.014005661010742,
+   "east_max_surface": 15.000685691833496,
+   "row_mass": 21.230233182048323,
+   "total_mass": 251.99997290746887
+  },
+  {
+   "t": 23.9,
+   "front_x": 28,
+   "pool_spread": 0.8158845901489258,
+   "west_max_surface": 15.01407527923584,
+   "east_max_surface": 15.000657081604004,
+   "row_mass": 21.228806935117063,
+   "total_mass": 251.99997286583994
+  },
+  {
+   "t": 24.0,
+   "front_x": 28,
+   "pool_spread": 0.8169431686401367,
+   "west_max_surface": 15.014141082763672,
+   "east_max_surface": 15.000577926635742,
+   "row_mass": 21.225573958680798,
+   "total_mass": 251.999973081578
+  },
+  {
+   "t": 24.1,
+   "front_x": 28,
+   "pool_spread": 0.8181324005126953,
+   "west_max_surface": 15.014204025268555,
+   "east_max_surface": 15.000604629516602,
+   "row_mass": 21.220583326169617,
+   "total_mass": 251.99997377099862
+  },
+  {
+   "t": 24.2,
+   "front_x": 28,
+   "pool_spread": 0.8507566452026367,
+   "west_max_surface": 15.014263153076172,
+   "east_max_surface": 15.000395774841309,
+   "row_mass": 21.21389989009731,
+   "total_mass": 251.99997410095602
+  },
+  {
+   "t": 24.3,
+   "front_x": 28,
+   "pool_spread": 1.8199186325073242,
+   "west_max_surface": 15.014318466186523,
+   "east_max_surface": 16.000001907348633,
+   "row_mass": 21.205606414572003,
+   "total_mass": 251.99997394380534
+  },
+  {
+   "t": 24.4,
+   "front_x": 28,
+   "pool_spread": 0.8302040100097656,
+   "west_max_surface": 15.01436996459961,
+   "east_max_surface": 15.000178337097168,
+   "row_mass": 21.195804734936246,
+   "total_mass": 251.99997421327373
+  },
+  {
+   "t": 24.5,
+   "front_x": 28,
+   "pool_spread": 0.8224353790283203,
+   "west_max_surface": 15.014418601989746,
+   "east_max_surface": 15.0000581741333,
+   "row_mass": 21.1821587292236,
+   "total_mass": 251.99997399599272
+  },
+  {
+   "t": 24.6,
+   "front_x": 28,
+   "pool_spread": 0.8236351013183594,
+   "west_max_surface": 15.0144624710083,
+   "east_max_surface": 15.000005722045898,
+   "row_mass": 21.162125048565485,
+   "total_mass": 251.99997345403324
+  },
+  {
+   "t": 24.7,
+   "front_x": 28,
+   "pool_spread": 0.8248958587646484,
+   "west_max_surface": 15.014503479003906,
+   "east_max_surface": 14.208438873291016,
+   "row_mass": 21.142125993021182,
+   "total_mass": 251.99997311354673
+  },
+  {
+   "t": 24.8,
+   "front_x": 28,
+   "pool_spread": 0.8274106979370117,
+   "west_max_surface": 15.01453971862793,
+   "east_max_surface": 15.001248359680176,
+   "row_mass": 21.12621508576558,
+   "total_mass": 251.99997285779182
+  },
+  {
+   "t": 24.9,
+   "front_x": 28,
+   "pool_spread": 1.8274421691894531,
+   "west_max_surface": 15.014572143554688,
+   "east_max_surface": 16.000003814697266,
+   "row_mass": 21.110850295675846,
+   "total_mass": 251.9999729038036
+  },
+  {
+   "t": 25.0,
+   "front_x": 28,
+   "pool_spread": 1.8287229537963867,
+   "west_max_surface": 15.014601707458496,
+   "east_max_surface": 16.000003814697266,
+   "row_mass": 21.095860195939167,
+   "total_mass": 251.99997265824254
+  },
+  {
+   "t": 25.1,
+   "front_x": 28,
+   "pool_spread": 0.8300065994262695,
+   "west_max_surface": 15.014626502990723,
+   "east_max_surface": 15.000006675720215,
+   "row_mass": 21.080601861500327,
+   "total_mass": 251.99997273170584
+  },
+  {
+   "t": 25.2,
+   "front_x": 28,
+   "pool_spread": 0.8312845230102539,
+   "west_max_surface": 15.014647483825684,
+   "east_max_surface": 14.254935264587402,
+   "row_mass": 21.06523624676811,
+   "total_mass": 251.99997271900122
+  },
+  {
+   "t": 25.3,
+   "front_x": 28,
+   "pool_spread": 0.8338241577148438,
+   "west_max_surface": 15.014664649963379,
+   "east_max_surface": 15.001267433166504,
+   "row_mass": 21.04992808928182,
+   "total_mass": 251.9999724344384
+  },
+  {
+   "t": 25.4,
+   "front_x": 28,
+   "pool_spread": 1.8338308334350586,
+   "west_max_surface": 15.014678001403809,
+   "east_max_surface": 16.000001907348633,
+   "row_mass": 21.034835272517512,
+   "total_mass": 251.9999727391754
+  },
+  {
+   "t": 25.5,
+   "front_x": 28,
+   "pool_spread": 0.8353271484375,
+   "west_max_surface": 15.014687538146973,
+   "east_max_surface": 15.000234603881836,
+   "row_mass": 21.02009948722116,
+   "total_mass": 251.9999722950074
+  },
+  {
+   "t": 25.6,
+   "front_x": 28,
+   "pool_spread": 0.8373775482177734,
+   "west_max_surface": 15.014692306518555,
+   "east_max_surface": 15.001017570495605,
+   "row_mass": 21.005848199473803,
+   "total_mass": 251.99997310635126
+  },
+  {
+   "t": 25.7,
+   "front_x": 28,
+   "pool_spread": 0.8377981185913086,
+   "west_max_surface": 15.014694213867188,
+   "east_max_surface": 14.296327590942383,
+   "row_mass": 20.99220910164513,
+   "total_mass": 251.9999724027757
+  },
+  {
+   "t": 25.8,
+   "front_x": 28,
+   "pool_spread": 0.8391914367675781,
+   "west_max_surface": 15.014690399169922,
+   "east_max_surface": 14.302872657775879,
+   "row_mass": 20.97928443540968,
+   "total_mass": 251.9999730166469
+  },
+  {
+   "t": 25.9,
+   "front_x": 28,
+   "pool_spread": 0.8405399322509766,
+   "west_max_surface": 15.014681816101074,
+   "east_max_surface": 14.30880069732666,
+   "row_mass": 20.967158635291526,
+   "total_mass": 251.99997273264034
+  },
+  {
+   "t": 26.0,
+   "front_x": 28,
+   "pool_spread": 0.8418874740600586,
+   "west_max_surface": 15.014667510986328,
+   "east_max_surface": 15.000046730041504,
+   "row_mass": 20.955905691247608,
+   "total_mass": 251.99997303733835
+  },
+  {
+   "t": 26.1,
+   "front_x": 28,
+   "pool_spread": 0.8432149887084961,
+   "west_max_surface": 15.0146484375,
+   "east_max_surface": 15.000115394592285,
+   "row_mass": 20.94558192529621,
+   "total_mass": 251.99997365803256
+  },
+  {
+   "t": 26.2,
+   "front_x": 28,
+   "pool_spread": 0.8444995880126953,
+   "west_max_surface": 15.01462459564209,
+   "east_max_surface": 15.000186920166016,
+   "row_mass": 20.936230527869157,
+   "total_mass": 251.99997329264897
+  },
+  {
+   "t": 26.3,
+   "front_x": 28,
+   "pool_spread": 0.8457393646240234,
+   "west_max_surface": 15.014595031738281,
+   "east_max_surface": 15.000260353088379,
+   "row_mass": 20.927881136971337,
+   "total_mass": 251.99997276005763
+  },
+  {
+   "t": 26.4,
+   "front_x": 28,
+   "pool_spread": 0.8469352722167969,
+   "west_max_surface": 15.01456069946289,
+   "east_max_surface": 15.000335693359375,
+   "row_mass": 20.920547495356914,
+   "total_mass": 251.9999736129389
+  },
+  {
+   "t": 26.5,
+   "front_x": 28,
+   "pool_spread": 0.84808349609375,
+   "west_max_surface": 15.014521598815918,
+   "east_max_surface": 15.000409126281738,
+   "row_mass": 20.91422678165327,
+   "total_mass": 251.99997387054896
+  },
+  {
+   "t": 26.6,
+   "front_x": 28,
+   "pool_spread": 0.8491859436035156,
+   "west_max_surface": 15.014477729797363,
+   "east_max_surface": 15.000480651855469,
+   "row_mass": 20.90890679632048,
+   "total_mass": 251.9999729819051
+  },
+  {
+   "t": 26.7,
+   "front_x": 28,
+   "pool_spread": 0.8502378463745117,
+   "west_max_surface": 15.014430046081543,
+   "east_max_surface": 15.000544548034668,
+   "row_mass": 20.90456081541288,
+   "total_mass": 251.9999724804377
+  },
+  {
+   "t": 26.8,
+   "front_x": 28,
+   "pool_spread": 0.8512344360351562,
+   "west_max_surface": 15.01437759399414,
+   "east_max_surface": 15.000595092773438,
+   "row_mass": 20.9011466371594,
+   "total_mass": 251.99997214482642
+  },
+  {
+   "t": 26.9,
+   "front_x": 28,
+   "pool_spread": 0.8521718978881836,
+   "west_max_surface": 15.014320373535156,
+   "east_max_surface": 15.000628471374512,
+   "row_mass": 20.89863912799592,
+   "total_mass": 251.99997248985073
+  },
+  {
+   "t": 27.0,
+   "front_x": 28,
+   "pool_spread": 0.8530473709106445,
+   "west_max_surface": 15.014260292053223,
+   "east_max_surface": 15.000638008117676,
+   "row_mass": 20.89699105140153,
+   "total_mass": 251.99997277246337
+  },
+  {
+   "t": 27.1,
+   "front_x": 28,
+   "pool_spread": 0.8533191680908203,
+   "west_max_surface": 15.014196395874023,
+   "east_max_surface": 15.000001907348633,
+   "row_mass": 20.89611515436536,
+   "total_mass": 251.99997334626732
+  },
+  {
+   "t": 27.2,
+   "front_x": 28,
+   "pool_spread": 0.8545818328857422,
+   "west_max_surface": 15.014128684997559,
+   "east_max_surface": 15.000553131103516,
+   "row_mass": 20.89598117069727,
+   "total_mass": 251.9999739800205
+  },
+  {
+   "t": 27.3,
+   "front_x": 28,
+   "pool_spread": 0.855560302734375,
+   "west_max_surface": 15.014058113098145,
+   "east_max_surface": 15.00045394897461,
+   "row_mass": 20.896513997314287,
+   "total_mass": 251.99997382446395
+  },
+  {
+   "t": 27.4,
+   "front_x": 28,
+   "pool_spread": 0.8565301895141602,
+   "west_max_surface": 15.013983726501465,
+   "east_max_surface": 15.000316619873047,
+   "row_mass": 20.89765023785185,
+   "total_mass": 251.9999735571339
+  },
+  {
+   "t": 27.5,
+   "front_x": 28,
+   "pool_spread": 0.8574466705322266,
+   "west_max_surface": 15.013907432556152,
+   "east_max_surface": 15.00014591217041,
+   "row_mass": 20.899296895136104,
+   "total_mass": 251.9999730729171
+  },
+  {
+   "t": 27.6,
+   "front_x": 28,
+   "pool_spread": 0.8582992553710938,
+   "west_max_surface": 15.01382827758789,
+   "east_max_surface": 15.000003814697266,
+   "row_mass": 20.90138569459714,
+   "total_mass": 251.99997313029803
+  },
+  {
+   "t": 27.7,
+   "front_x": 28,
+   "pool_spread": 0.8590793609619141,
+   "west_max_surface": 15.013747215270996,
+   "east_max_surface": 15.000003814697266,
+   "row_mass": 20.90383997948038,
+   "total_mass": 251.99997373433598
+  },
+  {
+   "t": 27.8,
+   "front_x": 28,
+   "pool_spread": 0.8597688674926758,
+   "west_max_surface": 15.013664245605469,
+   "east_max_surface": 15.000003814697266,
+   "row_mass": 20.906568637153214,
+   "total_mass": 251.9999736079037
+  },
+  {
+   "t": 27.9,
+   "front_x": 28,
+   "pool_spread": 0.8603534698486328,
+   "west_max_surface": 15.013579368591309,
+   "east_max_surface": 15.000003814697266,
+   "row_mass": 20.909483778536924,
+   "total_mass": 251.99997383624031
+  },
+  {
+   "t": 28.0,
+   "front_x": 28,
+   "pool_spread": 0.8606109619140625,
+   "west_max_surface": 15.013492584228516,
+   "east_max_surface": 15.00000286102295,
+   "row_mass": 20.912493541682352,
+   "total_mass": 251.9999741633129
+  },
+  {
+   "t": 28.1,
+   "front_x": 28,
+   "pool_spread": 0.8612966537475586,
+   "west_max_surface": 15.013404846191406,
+   "east_max_surface": 15.000001907348633,
+   "row_mass": 20.91551612453509,
+   "total_mass": 251.9999735185463
+  },
+  {
+   "t": 28.2,
+   "front_x": 28,
+   "pool_spread": 0.8619451522827148,
+   "west_max_surface": 15.01331615447998,
+   "east_max_surface": 15.000001907348633,
+   "row_mass": 20.91850320453807,
+   "total_mass": 251.99997367803917
+  },
+  {
+   "t": 28.3,
+   "front_x": 28,
+   "pool_spread": 0.8625545501708984,
+   "west_max_surface": 15.013226509094238,
+   "east_max_surface": 14.310495376586914,
+   "row_mass": 20.92139663730768,
+   "total_mass": 251.99997366782657
+  },
+  {
+   "t": 28.4,
+   "front_x": 28,
+   "pool_spread": 0.8631191253662109,
+   "west_max_surface": 15.013136863708496,
+   "east_max_surface": 14.305541038513184,
+   "row_mass": 20.924172994733453,
+   "total_mass": 251.99997401744952
+  },
+  {
+   "t": 28.5,
+   "front_x": 28,
+   "pool_spread": 0.8636322021484375,
+   "west_max_surface": 15.013045310974121,
+   "east_max_surface": 14.300142288208008,
+   "row_mass": 20.926805386377964,
+   "total_mass": 251.99997460409827
+  },
+  {
+   "t": 28.6,
+   "front_x": 28,
+   "pool_spread": 0.8640871047973633,
+   "west_max_surface": 15.012954711914062,
+   "east_max_surface": 14.294453620910645,
+   "row_mass": 20.92926995720518,
+   "total_mass": 251.99997492883233
+  },
+  {
+   "t": 28.7,
+   "front_x": 28,
+   "pool_spread": 0.8644800186157227,
+   "west_max_surface": 15.012864112854004,
+   "east_max_surface": 14.288615226745605,
+   "row_mass": 20.931553898381026,
+   "total_mass": 251.99997502287488
+  },
+  {
+   "t": 28.8,
+   "front_x": 28,
+   "pool_spread": 0.8648061752319336,
+   "west_max_surface": 15.012772560119629,
+   "east_max_surface": 14.282742500305176,
+   "row_mass": 20.933653618941207,
+   "total_mass": 251.9999748147602
+  },
+  {
+   "t": 28.9,
+   "front_x": 28,
+   "pool_spread": 0.8651456832885742,
+   "west_max_surface": 15.012682914733887,
+   "east_max_surface": 14.276933670043945,
+   "row_mass": 20.93557763989884,
+   "total_mass": 251.99997463707132
+  },
+  {
+   "t": 29.0,
+   "front_x": 28,
+   "pool_spread": 0.8655529022216797,
+   "west_max_surface": 15.012592315673828,
+   "east_max_surface": 14.271265029907227,
+   "row_mass": 20.937334574648958,
+   "total_mass": 251.99997409001207
+  },
+  {
+   "t": 29.1,
+   "front_x": 28,
+   "pool_spread": 0.8659229278564453,
+   "west_max_surface": 15.012502670288086,
+   "east_max_surface": 14.265798568725586,
+   "row_mass": 20.938939904040126,
+   "total_mass": 251.99997388791326
+  },
+  {
+   "t": 29.2,
+   "front_x": 28,
+   "pool_spread": 0.8662519454956055,
+   "west_max_surface": 15.01241397857666,
+   "east_max_surface": 14.260579109191895,
+   "row_mass": 20.940414389475336,
+   "total_mass": 251.99997419293777
+  },
+  {
+   "t": 29.3,
+   "front_x": 28,
+   "pool_spread": 0.8665332794189453,
+   "west_max_surface": 15.01232624053955,
+   "east_max_surface": 14.25563907623291,
+   "row_mass": 20.941792662442822,
+   "total_mass": 251.99997398084997
+  },
+  {
+   "t": 29.4,
+   "front_x": 28,
+   "pool_spread": 0.8667640686035156,
+   "west_max_surface": 15.012239456176758,
+   "east_max_surface": 14.251019477844238,
+   "row_mass": 20.94311038473643,
+   "total_mass": 251.9999741727861
+  },
+  {
+   "t": 29.5,
+   "front_x": 28,
+   "pool_spread": 0.866938591003418,
+   "west_max_surface": 15.012153625488281,
+   "east_max_surface": 14.246752738952637,
+   "row_mass": 20.944401994736836,
+   "total_mass": 251.99997393437388
+  },
+  {
+   "t": 29.6,
+   "front_x": 28,
+   "pool_spread": 0.8670587539672852,
+   "west_max_surface": 15.01213264465332,
+   "east_max_surface": 14.245831489562988,
+   "row_mass": 20.945698691789403,
+   "total_mass": 251.9999740189487
+  },
+  {
+   "t": 29.7,
+   "front_x": 28,
+   "pool_spread": 0.8671255111694336,
+   "west_max_surface": 15.012138366699219,
+   "east_max_surface": 14.246179580688477,
+   "row_mass": 20.94703186278275,
+   "total_mass": 251.99997396582876
+  },
+  {
+   "t": 29.8,
+   "front_x": 28,
+   "pool_spread": 0.8671445846557617,
+   "west_max_surface": 15.012140274047852,
+   "east_max_surface": 14.24656867980957,
+   "row_mass": 20.948430162333352,
+   "total_mass": 251.9999741240872
+  },
+  {
+   "t": 29.9,
+   "front_x": 28,
+   "pool_spread": 0.8672676086425781,
+   "west_max_surface": 15.012139320373535,
+   "east_max_surface": 14.246967315673828,
+   "row_mass": 20.94991888349705,
+   "total_mass": 251.9999745839459
+  },
+  {
+   "t": 30.0,
+   "front_x": 28,
+   "pool_spread": 0.8674478530883789,
+   "west_max_surface": 15.01213550567627,
+   "east_max_surface": 14.24734878540039,
+   "row_mass": 20.951515764205965,
+   "total_mass": 251.9999738724963
+  }
+ ],
+ "verdict": {
+  "front_speed": "PASS",
+  "reflected_crest": "PASS",
+  "flat_at_rest": "FAIL",
+  "mass": "PASS"
+ },
+ "capture": "G:\\Github\\phyxel\\docs\\evidence\\water_feel\\S3_basin_core_h1_20261008_145012.png"
+}

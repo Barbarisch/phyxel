@@ -1,7 +1,12 @@
 # Water — the single defining document
 
 > **2026-10-08 — [`WaterCore.md`](WaterCore.md) is the DESIGN OF RECORD** (small-scale function and
-> feel as the core; large bodies on top; nothing starts until its §12 decisions are settled).
+> feel as the core; large bodies on top). Its §12 decisions are settled and **Phase B is live on
+> `feat/water-rethink`**: the `WaterCore` CPU reference (`engine/{include,src}/core/water/`, 15 unit
+> tests) runs inside the editor as active volumes (`WaterCoreManager`, routes `water_av_*`,
+> `target:"core"` on `water_probe_rect`/`place_water_box`), driven by `tools/water_feel.py --engine
+> core` in simulation time; the defect ledgers are WaterCore.md §15.7–15.8. The CA described below
+> is still what ships; it is reference material for the delete ledger (WaterCore.md §9).
 > **2026-10-07 — [`WaterRethink.md`](WaterRethink.md)** is the full stock-take of
 > every water representation, draw and query in the engine, the root-cause diagnosis of why the
 > system has not hit the brief, and the v4 work-package plan (WP0–WP9) that **replaces §6 below as
@@ -413,6 +418,11 @@ Debug API: `water_stats` · `water_probe` · `water_footprint` · `water_validat
 `water_table_level` · `water_scoop` · `water_ocean_boundary` · `water_gpu` · `water_save`.
 Tests: `WaterOccupancyTest` (25) · `WaterManagerTest` · `WaterProfileTest` · `SeaMeshTest` ·
 `RippleFieldTest` · water+hydrology suites ~200 green as of 2026-08-04.
+**WaterCore (Phase B, 2026-10-08):** `engine/{include,src}/core/water/WaterCore.*` (grid, solver,
+Eulerian transport) · `WaterCoreManager.*` (active volumes in the editor; solids from the micro
+occupancy pool keyed to `packRevision()`) · routes `water_av_{create,destroy,list,step,probe,source,
+impulse,realtime}` · `tests/core/WaterCoreTest.cpp` (15) · harness `tools/water_feel.py` S1–S5 ·
+evidence `docs/evidence/water_feel/`.
 
 ---
 

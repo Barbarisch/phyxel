@@ -411,7 +411,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | Phase | Deliverable | Gate before | Gate after (red first) |
 |---|---|---|---|
 | **A. Spec & rigs** — **DONE 2026-10-08** | §12 settled; `WaterBench_Small` (port 8111) with 7 one-chunk rigs (pad S1 · trough S2/C4 · channel S7+S10-v1 · pond S8/S13 · ledge S9 · pipes S14 · bucket C1–C5) authored from a generic rigs spec, verified by layer scans (7/7, dry), reference captures in `docs/evidence/water_v4_refs/small_*.png`; routes `water_ledger`, `water_probe_rect`, `place_water_box`; harness `tools/water_feel.py` (S3 implemented; the others are added as the core makes them runnable) | — | **RED recorded:** `docs/evidence/water_feel/S3_basin_ca_20261008_121725.json` — the CA's front reaches the wall in 6.26 s vs Ritter 0.92 s (ratio 0.147), wall crest 13.91 vs still level 14.24 (no reflection at all), surface spread 0.42 after 15 s (not flat), mass drift −6e-5 (conserved). The first run's crest metric read the draining block as a crest (false pass) and was fixed before the row was kept. |
-| **B. The core, CPU reference** | `WaterCore` library: MAC grid, `SurfaceTransport::Eulerian` (VOF), projection, solids from the micro pool, sources/sinks, rest detection; deterministic; unit tests for §4.4; S3, S4, S5, S1, S2 pass on the CPU at ⅓ (default), ⅑ and 1 | **/design-check** | §4.4 rules green; S1–S5 predictions met; mass ledger exact |
+| **B. The core, CPU reference** — **BUILT + IN THE ENGINE 2026-10-08** (ledgers §15.7–15.8; S5 4/4, S2 4/4, S1 3/4, S4 1 m PASS / ⅓ OPEN, S3 front PASS / run-up + rest gates to re-base) | `WaterCore` library: MAC grid, `SurfaceTransport::Eulerian` (VOF), projection, solids from the micro pool, sources/sinks, rest detection; deterministic; unit tests for §4.4; S3, S4, S5, S1, S2 pass on the CPU at ⅓ (default), ⅑ and 1 | **/design-check** | §4.4 rules green; S1–S5 predictions met; mass ledger exact |
 | **B2. FLIP transport** | `SurfaceTransport::FLIP` against the same grid (particles carry f and momentum; grid projection; particle↔grid transfer; re-seeding; rest conversion); harness runs S1–S5 on both modes and records the comparison | /design-check | Same scenarios green on FLIP; a written comparison (rest flatness, splash shape, cost) the user reads before Phase E chooses the default per scenario |
 | **C. GPU core** | Same solver on compute (`water_core_*.comp`), ping-pong, no readback except the surface/queries; parity with CPU on S1–S5 within tolerance; perf rows | /design-check (dispatch, buffers, tiers) | parity + ≤ 2 ms at `high` with all §3 rigs awake |
 | **D. Rest, persistence, world data** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | — | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
@@ -579,6 +579,59 @@ two failures are `FineFaceMerge` and `AtlasManagerTest` cases that touch no file
 (last modified 2026-09) and are not water; a run of the same binary from a scratch directory
 reports hundreds of failures because resource-loading tests resolve paths from the working
 directory — run the suite from the repo root, as `build_and_test.ps1` does.
+
+### 15.8 Phase B engine integration ledger — the reference meets the world (2026-10-08)
+
+`WaterCoreManager` (engine/src/core/water/) hosts active volumes in the editor: solids come from
+the micro occupancy pool's three-state query (Unknown = hold), re-sampled whenever the pool's
+`packRevision()` changes; routes `water_av_{create,destroy,list,step,probe,source,impulse,realtime}`
+plus `target:"core"` on `water_probe_rect` / `place_water_box` and `core_cells` in `water_ledger`;
+the surface is drawn through the existing cell pipeline as a debug feed. `tools/water_feel.py
+--engine core` runs S1–S5 in **simulation time** (explicit ticks; the CA rows stay wall time).
+Two harness traps cost real minutes and are now pinned in the tools: `localhost` resolves to
+`::1` first on this machine and costs **2 s per request** (use `127.0.0.1`); `Path.with_suffix`
+ate the `h0.3333_<stamp>` tag, so fine-grid rows overwrote one file.
+
+The world found eight defects the synthetic suite could not, each measured on a live rig, each
+fixed at its cause and commented at the line:
+
+| # | Symptom (live rig, measured) | Cause | Fix |
+|---|---|---|---|
+| 8 | S3 at rest: stacks of thin cells hung at the volume ceiling (y 15–17) above a 14.2 m pool; surface spread 1.03 m | `settleThinFilmTopFaces` copied the floor velocity into every face of a thin stack, and the halo extrapolation overwrote a drop's falling velocity with the pool's ~0 every substep | a face with WET above belongs to gravity; a drop's bottom face keeps its accumulated fall (clamped to a 3-cell free fall — a 1e-6 trickle had driven one to −43.7 m/s) |
+| 9 | Residue of 1e-10…1e-22 hung everywhere and every "f > 0" reader (probe, renderer, flat gate) saw water at the rim | donor-cell drains a drop proportionally — a falling drop halves per substep forever | thin film falls as a block through its floor face: `min(f, |v|dt/h)`; `sweepResidue` merges < 1e-6 of a cell downward/sideways and COUNTS what it cannot (`residue_dropped_m3`) |
+| 10 | The pool settled as two half layers (y13 0.53–0.90 under y14 0.33–0.50), KE never quiet | a liquid cell is projected as full, so the face above a partial liquid cell is made divergence-free — it can never take the water above it | `compactSubmergedPartials`: water above a partial liquid cell falls into it at ≤ √(2gh), only through a QUIET face (|v|·dt/h < 0.1 cap). A divergence-target version perturbed every transient partial cell (fine front −4 %, Torricelli drain 28 % fast) and was dropped |
+| 11 | A 2 cm film on the ramp step three cells from the pool never drained | all thin faces within 3 layers were overwritten by the domain each substep, so the film's own slope term could not accumulate | only the FIRST halo layer of thin faces is dictated by the domain (the tongue the front pushes); farther films own their velocity |
+| 12 | S3 "not flat": 0.85 m spread read off a pool flat to 0.15 m | a 5e-6 trickle crossing a step edge counted as a surface | the surface is the highest cell with ≥ 1 mm of depth (`WaterGrid::kSurfaceMinDepth`; S11 writes spans ± 1 mm) |
+| 13 | S1: 0.02 m³ spread to a 1.5 mm sheet over 8 m² and never slept | nothing pins a film — real puddles stop at a contact-angle thickness | `SolverParams::filmHoldDepth` = 0.01 m: only the depth above it flows under its own slope; two pinned sides carry no slope flow |
+| 14 | S2: the pump stopped at 2/3 of the trough, then again at the rim; the CPU reference `SubmergedPumpDelivers` placed 0 of 4 m³ into a full box | three causes, each measured: the outlet cell saturates; gravity was added BEFORE the advection, so a surface face rising at the 0.08 m/s a pump demands read −0.08 m/s at transport time (g·dt = 0.16 m/s at 60 Hz); and compaction pulled each substep's rise straight back down through the 'quiet' face | `applySources` spills into the six neighbours and carries the rest as `pending` (≤ 1 s of rate); the projection enforces div(u) = q at the outlet (inflow boundary) with q raised by the owed backlog (≤ 2× rate) so room appears for it (at the bare rate 7 % stayed owed forever); **substep order is now advect → forces → project** (the textbook MAC order); compaction skips faces flowing UP. Pinned by `SubmergedPumpDelivers` (red 0 → green 0.5 m³/s) |
+| 15 | S5: the live volume never saw the dug hole; the probe answered from a stale cache | bulk `/api/world/clear` does not fire the per-voxel occupancy callback | occupancy cache keyed to `VoxelLightOccupancyGpu::packRevision()`; `probe()` refreshes first |
+| 16 | S5: the cavity stalled at 41.9 of 48 m³ — its top layer at ~0.5 | a partial liquid cell under a SOLID ceiling has no face its surface can rise through, and div = 0 forbids filling | projection inflow target for partial liquid cells with a solid above, capped at the one-cell free-fall rate (cells with a free surface above keep div = 0) |
+
+**Scenario rows (simulation time; evidence `docs/evidence/water_feel/`):**
+
+| Gate | h | Result | Verdict |
+|---|---|---|---|
+| S3 front at the d = 0.5h contour | 1 | wall at 1.5–1.7 s vs contour 2.38 s / tip 0.92 s: inside the Ritter envelope | PASS |
+| S3 front | ⅓ | 1.5 s vs contour 1.43 s (ratio 0.95) — converging on Ritter | PASS |
+| S3 wall run-up vs literature (2.2 h₀ ± 25 %, ceiling at y 21) | 1 / ⅓ | 1.67 h₀ / 0.78 h₀ above the floor. The grounded prediction was found after the first gate was written: surges on a vertical wall reach **2.1–2.3 h₀** (Fluids 2022, 7(8), 258) | PASS (just) / **FAIL — OPEN**: the ⅓ grid carries a thin climbing sheet as film physics, not as a projected jet; the droplet pool (§12) and Phase B2 FLIP are the candidates, measured, not guessed |
+| S3 flat at rest (10 s, 1 mm) | 1 / ⅓ | pool-column spread 1.17 / 1.19 m at 12 s, 0.15 m at 24 s, 0.043 m at 120 s (1 m); the CPU tilt diagnostic relaxes the same way, as a damped seiche (period ≈ 2L/√(gD) ≈ 15 s) | **FAIL as written** — the gate assumed CA-style damping; an inviscid 26 m basin sloshes for minutes. Proposal for the user: judge rest on the Small bench (S1) and judge the Basin on seiche period ± 20 % and a monotone envelope |
+| S3 mass | 1 / ⅓ | drift −3e-5 / +2e-5 of 252 m³ | PASS |
+| S4 spill vs broad-crested weir (±25 %) | 1 | 69.5 m³ by 30 s vs 79.5 (−13 %) before the order/compaction fixes; **75.7 (−5 %)** after | PASS |
+| S4 spill | ⅓ | 45.1 m³ (−43 %) — finer is WORSE | **FAIL / OPEN** — channel flow 2–3 cells deep is under-resolved by the thin-layer treatment; investigate before Phase C |
+| S4 control (2 deep, level 14.85 < sill 15.0) | 1 / ⅓ | 0 / 4e-7 m³ crossed | PASS |
+| S4 mass | 1 / ⅓ | +7e-5 of 720 | PASS |
+| S1 mass on pad / control pit | ⅓ | 0.02 ± 1e-9 on the pad; pit holds 0.02, 4e-10 outside | PASS |
+| S1 at rest ≤ 3 s | ⅓ | shape settled at 2.9 s; volume asleep at 3.5 s (sleep = 30 ticks under keWake 1e-6 after rest damping 0.5/s) | FAIL by 0.5 s — the sleep tunables, not the motion; left as measured, not tuned to pass |
+| S1 film holds | ⅓ | puddle stops at 5 columns, 2.6–9.4 mm deep (hold 10 mm) | PASS under the rewritten gate (stops at ≤ hold); the first gate (max depth ≥ hold) was the wrong reading of "holds" |
+| S2 trough A full at 20 ± 2 s; overflow = pumped − 2.0 | ⅓ | first: 22.6 s and the pump stalled at the rim (2.00 of 4.0 m³); after the #14 fixes: 23.1 s, 3.73 delivered (93 %), 1.76 on the pad = pumped − 1.97; with `pending` carried AND the owed backlog raising the outlet's demanded outflow: **full at 21.1 s, 3.9997 of 4.0 delivered, 2.04 on the pad (= pumped − 1.96 in the trough), ledgers 5e-7 — PASS 4/4** |
+| S2 ledgers, control B | ⅓ | gaps 1e-8; B holds 4.0 ± 4e-7, 7e-8 on the pad | PASS |
+| S5 cavity 48 ± 0.5 by 20 s; basin ends at the still level of 408 − 48 | 1 | 41.9 before #16; **48.0 at 8.9 s** after (Torricelli through 1 m² at ~2.8 m head: ~8 s); basin surface ends at 14.654 vs 14.65 predicted (the first gate measured a 'drop' from a start that had not equalised over the ramp — rewritten to the end level) | **PASS 4/4** (cavity 48.0, end level 14.654, mass -4.7e-5 of 408, sealed control 0.0) |
+| S5 mass, sealed control | 1 | drift −1.5e-6 of 408; sealed cavity 0.0 | PASS |
+
+Full unit suite after these fixes (Release, repo root): **4 139 / 4 161**, the same two non-water
+failures as §15.7 (`AtlasManagerTest`, `FineFaceMerge`). The WaterCore suite is 15 (the pump
+test was added red). The coarse-front and fine-convergence tests caught three of the fixes above
+as regressions before they shipped — what the red-first suite is for.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

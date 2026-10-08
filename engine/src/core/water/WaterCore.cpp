@@ -56,9 +56,14 @@ double WaterGrid::columnMass(int x, int z) const {
 }
 
 float WaterGrid::surfaceWorldY(int x, int z) const {
+    // The surface is the top of the highest cell holding at least a millimetre of depth: a
+    // trickle in transit (5e-6 of a cell crossing a step edge) is not a surface, and reporting it
+    // as one put a 0.85 m "spread" on a pool that was flat to 15 cm (S3 Basin, 2026-10-08). S11
+    // writes spans to the surface +- 1 mm, so 1 mm is the resolution the surface is defined at.
+    const float fMin = kSurfaceMinDepth / m_spec.h;
     for (int y = ny() - 1; y >= 0; --y) {
         const float fv = m_f[idx(x, y, z)];
-        if (fv > 0.0f) return (static_cast<float>(m_spec.origin.y + y) + std::min(fv, 1.0f)) * m_spec.h;
+        if (fv > fMin) return (static_cast<float>(m_spec.origin.y + y) + std::min(fv, 1.0f)) * m_spec.h;
     }
     return std::numeric_limits<float>::quiet_NaN();
 }
@@ -154,10 +159,19 @@ void EulerianTransport::advect(WaterGrid& g, float dt) {
     // Faces are visited bottom-up along y so a draining cell frees room before it receives.
     m_scratch.assign(f.begin(), f.end());
     std::vector<float>& g_ = m_scratch;
-    auto moveFace = [&](size_t ia, size_t ib, float vel, float fDonorOrig) {
+    // A thin cell's water lies on its FLOOR (gravity), so a downward face sweeping |v| dt of the
+    // cell height takes the whole film once that exceeds the film depth - min(f, |v| dt / h) -
+    // not the continuum fraction f * |v| dt / h, which halves a falling drop per substep forever
+    // (CFL caps the fraction at 1/2) while its face keeps integrating gravity to -5.7 m/s and
+    // poisons the semi-Lagrangian back-traces around it (dam-break front 18 -> 15 cells once
+    // drops were allowed to fall at all, 2026-10-08). Lateral films keep the continuum flux
+    // (depth x velocity). `thin` is evaluated on the ORIGINAL fills, like the donor fraction.
+    const float thr = m_liquidThreshold;
+    auto moveFace = [&](size_t ia, size_t ib, float vel, float fDonorOrig, bool downward = false) {
         if (vel == 0.0f || fDonorOrig <= 0.0f) return;
         const size_t from = vel > 0.0f ? ia : ib, to = vel > 0.0f ? ib : ia;
-        const float desired = std::abs(vel) * dt / h * fDonorOrig;
+        const float sweep = std::abs(vel) * dt / h;
+        const float desired = (downward && fDonorOrig < thr) ? std::min(fDonorOrig, sweep) : sweep * fDonorOrig;
         const float moved = std::min({desired, g_[from], 1.0f - g_[to]});
         if (moved <= 0.0f) return;
         g_[from] -= moved;
@@ -177,7 +191,7 @@ void EulerianTransport::advect(WaterGrid& g, float dt) {
         if (y >= 1) for (int z = 0; z < nz; ++z) for (int x = 0; x < nx; ++x) {
             if (blocked(g, x, y - 1, z) || blocked(g, x, y, z)) continue;
             const float vel = g.v(x, y, z);
-            moveFace(g.idx(x, y - 1, z), g.idx(x, y, z), vel, vel > 0.0f ? f[g.idx(x, y - 1, z)] : f[g.idx(x, y, z)]);
+            moveFace(g.idx(x, y - 1, z), g.idx(x, y, z), vel, vel > 0.0f ? f[g.idx(x, y - 1, z)] : f[g.idx(x, y, z)], vel < 0.0f);
         }
     }
     f.swap(m_scratch);
@@ -208,10 +222,11 @@ void EulerianTransport::advect(WaterGrid& g, float dt) {
 WaterSolver::WaterSolver(WaterGrid& grid, SolidQuery solids, SolverParams params)
     : m_grid(grid), m_solids(std::move(solids)), m_params(params),
       m_transport(std::make_unique<EulerianTransport>()) {
+    m_transport->setLiquidThreshold(m_params.liquidThreshold);
     refreshSolids();
 }
 
-void WaterSolver::setTransport(std::unique_ptr<IWaterTransport> t) { if (t) m_transport = std::move(t); }
+void WaterSolver::setTransport(std::unique_ptr<IWaterTransport> t) { if (t) { m_transport = std::move(t); m_transport->setLiquidThreshold(m_params.liquidThreshold); } }
 
 void WaterSolver::refreshSolids() {
     const glm::ivec3 o = m_grid.spec().origin;
@@ -262,17 +277,38 @@ void WaterSolver::applySources(float dt, StepReport& r) {
     for (SourceSpec& s : m_sources) {
         if (!m_grid.inBounds(s.cell.x, s.cell.y, s.cell.z) || m_grid.occ(s.cell.x, s.cell.y, s.cell.z) != Occ::Air) continue;
         float& fc = m_grid.f(s.cell.x, s.cell.y, s.cell.z);
-        const double want = static_cast<double>(s.rate) * dt / vol;     // fill units this substep
+        // A pump at a fixed rate owes what the outlet could not take: carry it (bounded to one
+        // second of rate, so a long blockage releases as a short surge, not a flood) - without
+        // this the S2 pump delivered 93 % of 0.1 m^3/s and the ledger could not close on the rate.
+        const double owed = std::min(s.pending, static_cast<double>(std::abs(s.rate))) / vol;
+        const double want = static_cast<double>(s.rate) * dt / vol + (s.rate >= 0.0f ? owed : -owed);   // fill units this substep
         if (want >= 0.0) {
-            const double room = std::max(0.0, 1.0 - static_cast<double>(fc));
-            const double placed = std::min(want, room);
-            fc = static_cast<float>(fc + placed);
-            s.placedTotal += placed * vol; s.unplaced = (want - placed) * vol;
-            r.sourceAdded += placed * vol; r.sourceUnplaced += (want - placed) * vol;
+            // The outlet cell first; what it cannot hold spills into its non-solid neighbours
+            // (a submerged hose pushes water out around itself). A pump whose cell was full
+            // simply stopped at 2/3 of the trough (S2 Small, 2026-10-08); the projection's
+            // source term (project()) is what carries the inflow away between substeps.
+            double left = want;
+            auto pour = [&](int x, int y, int z) {
+                if (left <= 0.0 || !m_grid.inBounds(x, y, z) || m_grid.occ(x, y, z) != Occ::Air) return;
+                float& f = m_grid.f(x, y, z);
+                const double room = std::max(0.0, 1.0 - static_cast<double>(f));
+                const double placed = std::min(left, room);
+                f = static_cast<float>(f + placed);
+                left -= placed;
+            };
+            pour(s.cell.x, s.cell.y, s.cell.z);
+            pour(s.cell.x, s.cell.y + 1, s.cell.z);
+            pour(s.cell.x - 1, s.cell.y, s.cell.z); pour(s.cell.x + 1, s.cell.y, s.cell.z);
+            pour(s.cell.x, s.cell.y, s.cell.z - 1); pour(s.cell.x, s.cell.y, s.cell.z + 1);
+            pour(s.cell.x, s.cell.y - 1, s.cell.z);
+            const double placed = want - left;
+            (void)fc;
+            s.placedTotal += placed * vol; s.unplaced = left * vol; s.pending = left * vol;
+            r.sourceAdded += placed * vol; r.sourceUnplaced += left * vol;
         } else {
             const double take = std::min(-want, static_cast<double>(fc));
             fc = static_cast<float>(fc - take);
-            s.placedTotal -= take * vol;
+            s.placedTotal -= take * vol; s.pending = (-want - take) * vol;
             r.sinkRemoved += take * vol;
         }
     }
@@ -311,6 +347,11 @@ void WaterSolver::settleThinFilmTopFaces() {
                 const bool upperIsDomain = (y + 1 < m_grid.ny()) && m_grid.occ(x, y + 1, z) == Occ::Air && m_grid.f(x, y + 1, z) >= thr;
                 if (upperIsDomain) continue;
                 if (y + 1 < m_grid.ny() && blocked(m_grid, x, y + 1, z)) continue;   // solid above: face is already forced to 0
+                // wet above (a drop or a residue cell sitting on this film): that face is the pair's
+                // own dynamics - gravity drains the upper cell into this one. Copying the floor
+                // velocity into it froze whole stacks of thin cells above a resting pool (the S3
+                // Basin run at h = 1 ended with a 1.03 m surface spread, films at the rim, 2026-10-08).
+                if (y + 1 < m_grid.ny() && m_grid.f(x, y + 1, z) > 0.0f) continue;
                 const bool solidBelow = blocked(m_grid, x, y - 1, z);
                 const float vBottom = solidBelow ? 0.0f : m_grid.v(x, y, z);
                 m_grid.v(x, y + 1, z) = vBottom;   // y ascends in the loop, so a stack of thin cells copies the floor upward
@@ -336,7 +377,14 @@ void WaterSolver::applyThinFilmGradient(float dt) {
         const bool restsA = ya == 0 || blocked(m_grid, xa, ya - 1, za) || m_grid.f(xa, ya - 1, za) >= thr;
         const bool restsB = yb == 0 || blocked(m_grid, xb, yb - 1, zb) || m_grid.f(xb, yb - 1, zb) >= thr;
         if (!restsA && !restsB) return;
-        vel -= g * dt * (fb - fa);                   // d(depth)/dx with depth = f*h over dx = h
+        // Only the depth above the hold depth is mobile: without a pinning depth a 0.02 m^3 pour
+        // spread to a 1.5 mm sheet over 8 m^2 and never came to rest (S1 Small, h = 1/3,
+        // 2026-10-08). Real puddles stop at a contact-angle-set thickness; 1 cm is the design's
+        // "film >= 0.01 m holds" (docs/WaterCore.md S1).
+        const float hold = m_params.filmHoldDepth / m_grid.h();
+        const float ma = std::max(0.0f, fa - hold), mb = std::max(0.0f, fb - hold);
+        if (ma <= 0.0f && mb <= 0.0f) { vel = 0.0f; return; }   // pinned on both sides: no slope flow
+        vel -= g * dt * (mb - ma);                   // d(depth)/dx with depth = f*h over dx = h
     };
     for (int z = 0; z < nz; ++z) for (int y = 0; y < ny; ++y) for (int x = 1; x < nx; ++x)
         slope(x - 1, y, z, x, y, z, m_grid.u(x, y, z));
@@ -413,6 +461,33 @@ void WaterSolver::project(float dt, StepReport& r) {
         // rhs = −div(u)/dt
         const double div = (static_cast<double>(m_grid.u(x + 1, y, z)) - m_grid.u(x, y, z) + m_grid.v(x, y + 1, z) - m_grid.v(x, y, z) + m_grid.w(x, y, z + 1) - m_grid.w(x, y, z)) / h;
         rhs[i] = -div / dt;
+        // A pump outlet is an inflow boundary: the projection enforces div(u) = q there, q = rate /
+        // cell volume, so the velocity field carries the added water away each substep instead of
+        // the outlet cell saturating (S2 Small: the trough stopped at 2/3, 2026-10-08).
+        // The owed backlog raises the demanded outflow (by at most the rate itself) so room appears
+        // for it: at the fixed rate alone the outlet in a full trough kept 7 % owed forever (S2
+        // Small, 93 % delivered, 2026-10-08).
+        for (const SourceSpec& src : m_sources)
+            if (src.cell.x == x && src.cell.y == y && src.cell.z == z) {
+                const double owedRate = std::min(src.pending / dt, static_cast<double>(std::abs(src.rate)));
+                const double q = (static_cast<double>(src.rate) + (src.rate >= 0.0f ? owedRate : -owedRate)) / m_grid.cellVolume();
+                rhs[i] += q / dt;
+            }
+        // A partial liquid cell under a SOLID ceiling has no face its surface could rise through:
+        // projected as full and divergence-free it can never take the water that would fill it, so
+        // a sealed cavity filling through a hole stalled with its top layer at ~0.5 (41.9 of 48 m^3,
+        // S5 Basin, 2026-10-08). Ask the projection for a net inflow that closes the void at no more
+        // than the free-fall rate across one cell. Cells with a free surface above keep div = 0
+        // (their surface rises by transport); water-above voids are closed by
+        // compactSubmergedPartials.
+        {
+            const float fc = m_grid.f(x, y, z);
+            if (fc < 1.0f && blocked(m_grid, x, y + 1, z)) {
+                const double vfall = std::sqrt(2.0 * static_cast<double>(m_params.gravity) * h);
+                const double df = std::min<double>(1.0 - fc, vfall * dt / h);
+                rhs[i] -= df / (static_cast<double>(dt) * dt);
+            }
+        }
     }
     // CG with Jacobi preconditioner
     auto applyA = [&](const std::vector<double>& p, std::vector<double>& out) {
@@ -537,10 +612,45 @@ void WaterSolver::extrapolateVelocity() {
         kw[i] = (dom(x, y, z - 1) || dom(x, y, z)) ? 1 : 0;
         ww[i] = (wet(x, y, z - 1) || wet(x, y, z)) ? 1 : 0;
     }
+    // A vertical face with water above it and room below it (air or a partial cell, not solid)
+    // that is not a domain face is a DROP's bottom face: it keeps the gravity it has accumulated,
+    // otherwise the halo overwrites it with the resting pool's ~0 every substep and the drop
+    // hangs in the air forever (S3 Basin, h = 1: residue stacks at y 15..17 above a 14.2 m
+    // surface, 2026-10-08). Lateral faces of thin water stay extrapolated (the fine dam-break
+    // tongue needs the front's velocity, see above).
+    std::vector<float> fallingV;
+    std::vector<uint8_t> keepV(kv.size(), 0);
+    for (int z = 0; z < nz; ++z) for (int y = 1; y < ny; ++y) for (int x = 0; x < nx; ++x) {
+        const size_t i = m_grid.vIdx(x, y, z);
+        if (kv[i]) continue;
+        const bool aboveWet = m_grid.f(x, y, z) > 0.0f;
+        const bool roomBelow = !blocked(m_grid, x, y - 1, z) && m_grid.f(x, y - 1, z) < 1.0f;
+        if (aboveWet && roomBelow) keepV[i] = 1;
+    }
+    fallingV = m_grid.vData();
+    // Only the FIRST layer of thin-film faces is overwritten by the domain: that is the tongue the
+    // front is pushing (the 0.35 m/s tip beside a 5 m/s front, above). Thin water farther out owns
+    // its velocity - the explicit film physics (gravity, surface slope, advection) must be allowed
+    // to accumulate there, or a 2 cm film on a ramp step three cells from the pool is reset to the
+    // pool's ~0 every substep and never drains (S3 Basin, h = 1: films at x 6..8 y 15 after 12 s,
+    // 2026-10-08). Dry faces take the band value out to kLayers as before.
+    const std::vector<float> origU = m_grid.uData(), origW = m_grid.wData();
     constexpr int kLayers = 3;
-    extrapolateLattice(m_grid.uData(), ku, nx + 1, ny, nz, kLayers);
-    extrapolateLattice(m_grid.vData(), kv, nx, ny + 1, nz, kLayers);
-    extrapolateLattice(m_grid.wData(), kw, nx, ny, nz + 1, kLayers);
+    extrapolateLattice(m_grid.uData(), ku, nx + 1, ny, nz, 1);
+    extrapolateLattice(m_grid.vData(), kv, nx, ny + 1, nz, 1);
+    extrapolateLattice(m_grid.wData(), kw, nx, ny, nz + 1, 1);
+    const std::vector<uint8_t> firstU = ku, firstV = kv, firstW = kw;
+    extrapolateLattice(m_grid.uData(), ku, nx + 1, ny, nz, kLayers - 1);
+    extrapolateLattice(m_grid.vData(), kv, nx, ny + 1, nz, kLayers - 1);
+    extrapolateLattice(m_grid.wData(), kw, nx, ny, nz + 1, kLayers - 1);
+    for (size_t i = 0; i < ku.size(); ++i) if (wu[i] && !firstU[i]) m_grid.uData()[i] = origU[i];
+    for (size_t i = 0; i < kw.size(); ++i) if (ww[i] && !firstW[i]) m_grid.wData()[i] = origW[i];
+    for (size_t i = 0; i < kv.size(); ++i) if (wv[i] && !firstV[i]) m_grid.vData()[i] = fallingV[i];
+    // A drop's face integrates gravity for as long as water keeps trickling onto it; bound it by a
+    // three-cell free fall (a face at -43.7 m/s under a 1e-6 trickle drove the CFL substep count
+    // and the back-traces around it, S3 Basin 2026-10-08). Droplets proper are the §12 pool.
+    const float vFallMax = static_cast<float>(std::sqrt(2.0 * m_params.gravity * 3.0 * m_grid.h()));
+    for (size_t i = 0; i < keepV.size(); ++i) if (keepV[i]) { m_grid.vData()[i] = std::max(fallingV[i], -vFallMax); kv[i] = 1; }
     auto finish = [](std::vector<float>& a, const std::vector<uint8_t>& reached, const std::vector<uint8_t>& wetFace) {
         for (size_t i = 0; i < a.size(); ++i) if (!reached[i] && !wetFace[i]) a[i] = 0.0f;
     };
@@ -553,6 +663,74 @@ void WaterSolver::applyRestDamping(float dt) {
     for (float& x : m_grid.uData()) x *= k;
     for (float& x : m_grid.vData()) x *= k;
     for (float& x : m_grid.wData()) x *= k;
+}
+
+// A liquid cell is projected as if FULL, so the projection can never pull water down into a
+// partial liquid cell: the face above it is made divergence-free for a full cell. Left alone, a
+// settling pool freezes as two half layers (S3 Basin, h = 1: y13 at 0.53-0.90 under y14 at
+// 0.33-0.50, kinetic energy never quiet, 2026-10-08). A void under water is unphysical, so close it
+// explicitly: water directly above a partial liquid cell falls into it, at no more than the
+// free-fall rate across one cell (sqrt(2 g h)). Thin cells below thin cells are NOT touched - their
+// faces carry gravity themselves (see extrapolateVelocity) - and the true free surface (air above)
+// is left to the projection. A first attempt did this through the pressure solve as a divergence
+// target; the 1/dt^2 right-hand side perturbed every transient partial cell in a collapsing dam
+// (fine front 15.3 m vs 16.0 m, Torricelli drain 30 % fast) and was replaced by this transport.
+void WaterSolver::compactSubmergedPartials(float dt) {
+    const float thr = m_params.liquidThreshold;
+    const float h = m_grid.h();
+    const float cap = static_cast<float>(std::sqrt(2.0 * m_params.gravity * h) * dt / h);   // cell fraction per substep
+    const int nx = m_grid.nx(), ny = m_grid.ny(), nz = m_grid.nz();
+    for (int z = 0; z < nz; ++z) for (int y = 0; y + 1 < ny; ++y) for (int x = 0; x < nx; ++x) {
+        const float fb = m_grid.f(x, y, z);
+        if (fb < thr || fb >= 1.0f || blocked(m_grid, x, y, z) || blocked(m_grid, x, y + 1, z)) continue;
+        const float fa = m_grid.f(x, y + 1, z);
+        if (fa <= 0.0f) continue;
+        // only a QUIET face is a void under water: a draining column over a hole or a sheet
+        // climbing a wall is moving water through this face already (Torricelli drain ran 28 %
+        // fast and the wall crest fell 0.4 % short with the cap added on top of the flow), and
+        // even a "top-up to the cap" on moving faces thinned the fine dam-break tongue (front
+        // 15.3 m vs 16.0 m required, 2026-10-08). A resting pool's surface faces jitter at
+        // ~0.1 m/s = 0.003 of a cell per substep, far under a tenth of the free-fall cap.
+        // ... and never through a face that is flowing UP: a surface rising at the 0.08 m/s a
+        // submerged pump demands is quieter than a tenth of the cap, and compaction undid each
+        // substep's rise exactly (DiagSubmergedPump: 0.0017 up, 0.0017 back, 2026-10-08)
+        const float vFace = m_grid.v(x, y + 1, z);
+        const float already = std::abs(vFace) * dt / h;
+        if (vFace > 0.0f || already > 0.1f * cap) continue;
+        const float moved = std::min({fa, 1.0f - fb, cap});
+        m_grid.f(x, y, z) = fb + moved;
+        m_grid.f(x, y + 1, z) = fa - moved;
+    }
+}
+
+// Sub-epsilon residue (f < kResidueFill, i.e. under a cubic centimetre in a 1 m cell) drains out of
+// a drop only asymptotically - the donor-cell move is proportional to what is left - and every
+// probe, renderer and "is the pool flat" gate that asks "f > 0" would see 1e-20 of water hanging
+// at the rim forever (S3 Basin, h = 1, 2026-10-08). Merge it into the cell below, else a wet
+// lateral neighbour with room, else drop it and COUNT it (StepReport::residueDropped) so the mass
+// ledger stays honest.
+void WaterSolver::sweepResidue(StepReport& r) {
+    constexpr float kResidueFill = 1e-6f;
+    const int nx = m_grid.nx(), ny = m_grid.ny(), nz = m_grid.nz();
+    for (int z = 0; z < nz; ++z) for (int y = ny - 1; y >= 0; --y) for (int x = 0; x < nx; ++x) {
+        const float fc = m_grid.f(x, y, z);
+        if (fc <= 0.0f || fc >= kResidueFill) continue;
+        auto tryInto = [&](int xn, int yn, int zn, bool needWet) {
+            if (!m_grid.inBounds(xn, yn, zn) || blocked(m_grid, xn, yn, zn)) return false;
+            const float fn = m_grid.f(xn, yn, zn);
+            if (needWet && fn <= 0.0f) return false;
+            if (fn + fc > 1.0f) return false;
+            m_grid.f(xn, yn, zn) = fn + fc;
+            return true;
+        };
+        bool placed = tryInto(x, y - 1, z, false)
+                   || tryInto(x - 1, y, z, true) || tryInto(x + 1, y, z, true)
+                   || tryInto(x, y, z - 1, true) || tryInto(x, y, z + 1, true);
+        if (!placed) r.residueDropped += fc * static_cast<double>(m_grid.h()) * m_grid.h() * m_grid.h();
+        m_grid.f(x, y, z) = 0.0f;
+        m_grid.v(x, y, z) = 0.0f;
+        if (y + 1 <= ny) m_grid.v(x, y + 1, z) = 0.0f;
+    }
 }
 
 double WaterSolver::maxSpeed() const {
@@ -579,19 +757,28 @@ StepReport WaterSolver::step(float dt) {
     const int n = substepsFor(dt);
     const float ds = dt / static_cast<float>(n);
     const bool quietBefore = m_grid.kineticEnergy() / std::max(m_grid.totalMass(), 1e-9) < m_params.keWake;
+    // Substep order: TRANSPORT with the divergence-free field the last projection left, THEN body
+    // forces, THEN project. Adding gravity before the advection moved water with u* = u + g dt: a
+    // free-surface face rising at the 0.08 m/s a submerged pump demands read -0.08 m/s at
+    // transport time (g dt = 0.16 m/s at 60 Hz) and the pump delivered nothing into a full
+    // trough (S2 Small and the DiagSubmergedPump reference, 2026-10-08). Thin films keep their
+    // own faces between substeps, so a falling drop still integrates gravity across substeps.
     for (int s = 0; s < n; ++s) {
         applySources(ds, r);
+        enforceSolidFaces();
+        m_transport->advect(m_grid, ds);
+        enforceSolidFaces();
+        compactSubmergedPartials(ds);
         applyGravity(ds);
         applyThinFilmGradient(ds);
         settleThinFilmTopFaces();
-        enforceSolidFaces();
-        m_transport->advect(m_grid, ds);
         enforceSolidFaces();
         project(ds, r);
         extrapolateVelocity();
         settleThinFilmTopFaces();
         if (quietBefore) applyRestDamping(ds);
     }
+    sweepResidue(r);
     r.substeps = n;
     r.totalMass = m_grid.totalMass();
     r.kineticEnergy = m_grid.kineticEnergy();
