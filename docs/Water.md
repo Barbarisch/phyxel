@@ -1,6 +1,8 @@
 # Water — the single defining document
 
-> **2026-10-07 — READ [`WaterRethink.md`](WaterRethink.md) FIRST.** It is the full stock-take of
+> **2026-10-08 — [`WaterCore.md`](WaterCore.md) is the DESIGN OF RECORD** (small-scale function and
+> feel as the core; large bodies on top; nothing starts until its §12 decisions are settled).
+> **2026-10-07 — [`WaterRethink.md`](WaterRethink.md)** is the full stock-take of
 > every water representation, draw and query in the engine, the root-cause diagnosis of why the
 > system has not hit the brief, and the v4 work-package plan (WP0–WP9) that **replaces §6 below as
 > the ordering of record**. This document stays the current-state reference for the code as it

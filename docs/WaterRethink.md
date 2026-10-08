@@ -1,5 +1,14 @@
 # Water Rethink — full stock-take and the v4 plan (2026-10-07)
 
+> **2026-10-08 — SUPERSEDED IN PART by [`WaterCore.md`](WaterCore.md), the design of record.**
+> The user reprioritised: small-scale function and feel are the core, large bodies sit on top of
+> it. WaterCore.md replaces this document's §3 (frame), §4 (work packages), §5 (order) and §6
+> (decisions) with a feel specification (14 measured scenarios), a simulation method decision
+> (3-D Eulerian voxel liquid in sub-voxel active volumes), and a slower, gated phase order. What
+> remains authoritative here: §1–§2 (the stock-take and root causes), §7 (out of scope), §8 (the
+> design-keys gates already run — the WP1 1b gate stays valid for WaterCore Phase D) and the WP0
+> ledger (benches, tooling, baselines, findings). Nothing starts until WaterCore §12 is settled.
+>
 > **Status: PLAN, nothing built.** `docs/Water.md` remains the current-state reference for the
 > code as it exists today (layers, constants, traps, history). This document is the honest audit of
 > that code against the goal, the diagnosis of why four months of work did not hit the mark, and the

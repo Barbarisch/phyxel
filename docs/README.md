@@ -79,7 +79,8 @@ materials, coordinate system, MCP overview). When in doubt, it wins over any doc
 - **[PhysicsRestOverhaul.md](PhysicsRestOverhaul.md)** — CPU `VoxelDynamicsWorld` Box3D-style rest (current); its GPU Phase-2 claims are corrected by DebrisSettlingPlan.md
 - **[DestructionSystemV2.md](DestructionSystemV2.md)** — THE destruction doc (active workstream: coherent fracture/topple, tool-driven impact, gatherable aftermath). Absorbed the v1 design as its **Appendix A** on 2026-09-22 (`DestructionSystem.md` deleted; git-hash ledger in that appendix)
 - **[VoxelDamageVisualization.md](VoxelDamageVisualization.md)** — current-state reference for damage cracks on damaged-but-unbroken voxels (7 world-seeded stages, per-material style, debug view 19). ⚠️ **Full cubes only — generated buildings have sub-voxel walls and cannot crack until V2** (see its §5 / §9)
-- **[WaterRethink.md](WaterRethink.md)** — 2026-10-07 full stock-take + root causes + the v4 work-package plan (WP0–WP9); the ordering of record for water work
+- **[WaterCore.md](WaterCore.md)** — 2026-10-08 THE design of record for water: small-scale function/feel as the core (14 measured scenarios), 3-D Eulerian voxel liquid in sub-voxel active volumes, large bodies on top; gated phases A–G; decisions pending in §12
+- **[WaterRethink.md](WaterRethink.md)** — 2026-10-07 full stock-take + root causes + the design-keys gates + the WP0 ledger (benches, tooling, baselines); its work-package ordering is superseded by WaterCore.md
 - **[Water.md](Water.md)** — THE water current-state doc (layers, constants, traps, history; supersedes WaterSystem v1/v2/v3, PhysicalFeelPlan, AppearanceV4, WaterAsWorldData)
 - **[SubcubeCollisionPlan.md](SubcubeCollisionPlan.md)** — subcube-resolution character collision (user directive 2026-07-16: collision shape must match what you see)
 - **[PhysicsCharacter.md](PhysicsCharacter.md)** — ⚠️ deprecated (Bullet character fully removed, git-history-only; see EntitySystem.md)
