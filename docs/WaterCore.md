@@ -548,6 +548,32 @@ phase are correctness numbers; none is a performance claim.
 
 **Verdict: READY** — the first commit of Phase B is the failing `WaterCoreTest` suite.
 
+### 15.7 Phase B ledger — the CPU reference, red → green (2026-10-08)
+
+Red commit `af1ac49d`: 11 of 13 tests failed against the strawman (gravity + naive flux). Green:
+**15 of 15** after seven iterations, every one driven by a measured failure, not a guess. Each
+defect below is now a comment at the line that fixes it, because each is the kind of thing a
+later "simplification" would silently reintroduce:
+
+| # | Symptom (measured) | Cause | Fix |
+|---|---|---|---|
+| 1 | Still water kept g·Δt of velocity; hydrostatic pressure carried a +4.5 Pa offset; nothing flowed | The pressure→velocity update at free-surface faces used a different distance than the matrix row (×2) — an inconsistent projection | One `thetaToAir()` for the row and the update |
+| 2 | 832 → 825.5 m³ in 1 000 ticks; cavity lost 52 m³; a drain "finished" in 11 s | A two-pass scaled limiter let a receiver assume its own outflow, then a final clamp destroyed the overshoot | Sequential face application: one amount per face = min(desired, donor has, receiver can take), no clamp anywhere |
+| 3 | Dam-break front at a fifth of Ritter | Only f ≥ 0.999 cells in the pressure domain; the collapsing front felt no horizontal gradient | Domain = cell centre submerged (f ≥ 0.5); filling still works because donor-cell flux carries the donor's fill |
+| 4 | 80–130 Pa pressure spikes each time a cell joined the domain; the front stalled per cell | Gravity accumulated on faces of thin (non-domain) cells that nothing projected or reset | `settleThinFilmTopFaces()`: a thin cell's upper face takes its lower face's velocity (rest on floor = 0, falling drop keeps falling) |
+| 5 | Fine-grid tongue stopped dead at the 0.5 m contour; tip faces at 0.35 m/s beside a 5 m/s front | "Known" faces for extrapolation included thin-film faces, which were never projected — orphans with stale values | The DOMAIN dictates its 3-cell halo (air and thin faces alike); unreached thin water keeps its own motion |
+| 6 | Tongue cells all reported the same surface height | Ghost-fluid distance 0.5 for every partially filled cell with air above | Surface inside the cell: θ = clamp(f − 0.5, 0.1, 0.5); full cells unchanged |
+| 7 | Test predictions themselves | Ritter's dry tip vs the resolvable contour; thin-plate orifice vs a 1-cell short tube; a convergence test at 1/3 | Front measured at the d = 0.5 h contour (10.85 − 3√(g·d)); c_d 0.8; `DamBreakFrontConvergesWithResolution` |
+
+What the reference solver now does, measured: conservation to 1e-4 over 1 000 ticks of random
+flow; still water < 1e-6 m/s; hydrostatic pressure within 1 %; sealed cavity exactly dry;
+Torricelli drain (c_d 0.8) within 20 %; zero flux through solid and hold faces at 1, ⅓, ⅑;
+hold releases with mass intact; CFL substeps as stated; bit-deterministic; mass per column
+invariant across resolution; 2-cell vs 10-cell margin identical; dam-break front ≥ 85 % of
+Ritter at the resolvable contour at both h = 1 and h = ⅓ (the fine run accelerates to 9.3 m/s
+toward the 10.85 tip); wall crest above still + 0.8 × incident. Scenario gates S1–S5 on the
+benches are the next step (Phase B engine integration, §15.1).
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

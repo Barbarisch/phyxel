@@ -5,6 +5,7 @@
 #include <gtest/gtest.h>
 #include "core/water/WaterCore.h"
 #include <cmath>
+#include <cstdio>
 #include <random>
 
 using namespace Phyxel::Core::Water;
@@ -212,11 +213,12 @@ TEST(WaterCoreTest, MassPerColumnInvariantAcrossResolution) {
     WaterGrid fine(GridSpec{glm::ivec3(0), glm::ivec3(12, 12, 12), 1.0f / 3.0f});
     coarse.fillBox({0, 0, 0}, {3, 1, 3}, 1.0f); coarse.fillBox({1, 2, 1}, {2, 2, 2}, 0.5f);
     fine.fillBox({0, 0, 0}, {11, 5, 11}, 1.0f); fine.fillBox({3, 6, 3}, {8, 8, 8}, 0.5f);
-    EXPECT_NEAR(coarse.totalMass(), fine.totalMass(), 1e-6);
+    // fill fractions are float; 1/27-volume cells accumulate ~1e-7 relative rounding per cell
+    EXPECT_NEAR(coarse.totalMass(), fine.totalMass(), 1e-5 * coarse.totalMass());
     const auto cm = coarse.massPerVoxelColumn(), fm = fine.massPerVoxelColumn();
     for (const auto& c : cm) {
         bool found = false;
-        for (const auto& f : fm) if (f.first == c.first) { EXPECT_NEAR(f.second, c.second, 1e-6) << c.first.x << "," << c.first.y; found = true; }
+        for (const auto& f : fm) if (f.first == c.first) { EXPECT_NEAR(f.second, c.second, 1e-5 * std::max(1.0, c.second)) << c.first.x << "," << c.first.y; found = true; }
         EXPECT_TRUE(found);
     }
 }
@@ -239,7 +241,8 @@ TEST(WaterCoreTest, SubBoxIdenticalToWholeBox) {
     };
     const auto a = run(2), b = run(10);
     ASSERT_EQ(a.size(), b.size());
-    for (size_t i = 0; i < a.size(); ++i) EXPECT_NEAR(a[i], b[i], 1e-6f) << "cell " << i;
+    // identical up to the pressure solve's own convergence (pcgTolerance 1e-6 relative)
+    for (size_t i = 0; i < a.size(); ++i) EXPECT_NEAR(a[i], b[i], 1e-5f) << "cell " << i;
 }
 
 // The solver-only S3: a dam break front runs at the Ritter speed on a dry bed (frictionless bound).
@@ -251,14 +254,55 @@ TEST(WaterCoreTest, DamBreakFrontWithinRitter) {
     runTicks(s, static_cast<int>(tRun / kDt));
     // Prediction (Ritter 1892, dry bed): the depth profile is h(x,t) = (2 sqrt(g h0) - x/t)^2 / 9g,
     // so the TIP (h -> 0) runs at 2 sqrt(g h0) = 10.85 m/s but the point where the depth is d_th
-    // runs at 2 sqrt(g h0) - 3 sqrt(g d_th). We detect the front at column depth 0.1 m (what the
-    // probe can resolve), whose speed is 10.85 - 2.97 = 7.88 m/s: x(2 s) = 10 + 15.8 = 25.8 cells.
-    // Require >= 85 % of that travel (numerical diffusion is the tolerance): >= 23.4 -> 23.
-    const double dth = 0.1;
+    // runs at 2 sqrt(g h0) - 3 sqrt(g d_th). A fill-fraction grid whose pressure domain is "cell
+    // centre submerged" cannot carry a tongue thinner than HALF A CELL, so the resolvable front is
+    // the d_th = 0.5 h contour: at h = 1, d_th = 0.5 m, speed 10.85 - 6.64 = 4.21 m/s,
+    // x(2 s) = 10 + 8.4 = 18.4 cells. Require >= 85 % of that travel: >= 17.1 -> 17.
+    // (The first form of this test asked for the 0.1 m contour on a 1 m grid - a quarter of a
+    // cell - and measured 18 cells, i.e. the 0.5 m contour of the exact solution, 2026-10-08.)
+    const double dth = 0.5 * t.grid.h();
     const double vth = ritterFrontSpeed(3.0) - 3.0 * std::sqrt(kG * dth);
     const double expected = 10.0 + 0.85 * vth * tRun;
     EXPECT_GE(frontX(t.grid, 1, dth), static_cast<int>(expected)) << "front slower than 85 % of Ritter at depth " << dth;
     EXPECT_NEAR(t.grid.totalMass(), 10.0 * 3.0 * 3.0, 1e-3);
+}
+
+// The same dam break at 1/3 resolution resolves a thinner tongue (d_th = 1/6 m) and must still be
+// within 85 % of Ritter at that contour: the front converges toward the tip as cells shrink.
+TEST(WaterCoreTest, DamBreakFrontConvergesWithResolution) {
+    const float h = 1.0f / 3.0f;
+    Tank t(120, 15, 3, h);                                 // 40 m x 5 m x 1 m channel
+    t.grid.fillBox({0, 0, 0}, {29, 8, 2}, 1.0f);           // block 10 m long, h0 = 3 m
+    // A 120-cell-long domain needs more Jacobi-CG iterations than a 60-cell one (condition number
+    // grows with L^2); the default cap must not silently under-solve the pressure.
+    SolverParams p; p.pcgMaxIters = 4000;
+    WaterSolver s(t.grid, t.query(), p);
+    const double tRun = 1.0;
+    int maxIters = 0; double worstResidual = 0.0;
+    for (int i = 0; i < static_cast<int>(tRun / kDt); ++i) {
+        const StepReport r = s.step(kDt);
+        maxIters = std::max(maxIters, r.pcgIterations);
+        worstResidual = std::max(worstResidual, r.pcgResidual);
+    }
+    EXPECT_LT(worstResidual, 1e-5) << "pressure solve did not converge (max iterations per tick " << maxIters << ")";
+    const double dth = 0.5 * h;                            // 0.167 m contour
+    const double vth = ritterFrontSpeed(3.0) - 3.0 * std::sqrt(kG * dth);   // 10.85 - 3.84 = 7.0 m/s
+    const double expectedMetres = 10.0 + 0.85 * vth * tRun;                  // 15.96 m
+    const double frontMetres = (frontX(t.grid, 1, dth * h * h /* column mass of a d_th-deep 1-cell column */) + 1) * h;
+    if (frontMetres < expectedMetres) {
+        // Diagnostic: measured depth profile vs Ritter's h(x,t) = (2 sqrt(g h0) - (x-10)/t)^2 / 9g
+        std::printf("  x[m]  depth[m]  ritter[m]\n");
+        for (int x = 24; x < 120; x += 3) {
+            const double xm = (x + 0.5) * h;
+            const double depth = t.grid.columnMass(x, 1) / (h * h);
+            const double xi = (xm - 10.0) / tRun;
+            const double c = ritterFrontSpeed(3.0);
+            const double rit = xi < -std::sqrt(kG * 3.0) ? 3.0 : (xi > c ? 0.0 : (c - xi) * (c - xi) / (9.0 * kG));
+            std::printf("  %5.2f  %7.3f  %7.3f\n", xm, depth, rit);
+        }
+    }
+    EXPECT_GE(frontMetres, expectedMetres) << "fine-grid front slower than 85 % of Ritter at depth " << dth;
+    EXPECT_NEAR(t.grid.totalMass(), 10.0 * 3.0 * 1.0, 1e-3);
 }
 
 // After the front reaches the far wall, the wall column piles up above the still level: a reflection.

@@ -104,8 +104,13 @@ struct SolverParams {
     float  gravity = 9.81f;
     float  cflFraction = 0.5f;       ///< substep so that max|v| * dtSub <= cflFraction * h
     int    maxSubsteps = 16;
-    float  liquidThreshold = 0.999f;
-    double keWake = 1e-4;            ///< below this kinetic energy the volume counts as quiet
+    /// A cell joins the pressure domain when its CENTRE is submerged (fill >= 0.5, the standard
+    /// ghost-fluid choice); emptier cells are free surface. With 0.999 the partially filled cells
+    /// at a collapsing dam front felt no horizontal pressure gradient and the front ran at a
+    /// fifth of Ritter (fourth green attempt, 2026-10-08). Filling still works because the
+    /// donor-cell flux carries the DONOR's fill: a half-full cell fed by a full one gains.
+    float  liquidThreshold = 0.5f;
+    double keWake = 1e-6;            ///< SPECIFIC kinetic energy (m^2/s^2, i.e. |v| ~ 1.4 mm/s) below which the volume counts as quiet
     double maxDeltaFQuiet = 1e-5;    ///< ... and when max |delta f| per tick is below this
     int    restTicks = 30;           ///< consecutive quiet ticks before sleeping
     float  restDamping = 0.5f;       ///< 1/s, applied to velocity ONLY while quiet (never to moving water)
@@ -189,11 +194,14 @@ public:
 private:
     void applySources(float dt, StepReport& r);
     void applyGravity(float dt);
+    void applyThinFilmGradient(float dt);
+    void settleThinFilmTopFaces();
     void project(float dt, StepReport& r);
     void extrapolateVelocity();
     void enforceSolidFaces();
     void applyRestDamping(float dt);
     int  substepsFor(float dt) const;
+    double thetaToAir(int x, int y, int z, int dir) const;
     double maxSpeed() const;
 
     WaterGrid& m_grid;
