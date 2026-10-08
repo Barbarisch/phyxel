@@ -2,6 +2,7 @@
 
 #include "core/WaterOccupancy.h"
 #include "core/WorldGenerator.h"
+#include "core/HydrologyMap.h"
 #include "core/Chunk.h"
 
 #include <cmath>
@@ -412,13 +413,33 @@ TEST(WaterOccupancyTest, BatchFloodLeavesADryWorldDry) {
 
 namespace {
 
-// First baked-wet column with a real span, scanned coarsely from the origin outward.
+// First baked-wet column with a real span, found THROUGH THE BAKE, not by probing blind.
+//
+// ⚑The previous version ring-walked waterSpanAt() at 100 u spacing out to r = 3000 — up to
+// ~3 600 probes, each a full padded-block flood (544² columns since kWaterExtentSteps went to
+// 256) with no locality between consecutive probes, so the column cache never helped. The two
+// tests built on it took 410.9 s + 427.9 s in Debug and doubled the whole unit run
+// (docs/Water.md §6 #0). The bake already knows which 128 m cells are wet; ask it first, then
+// probe the fine query only inside wet cells. Same answer (a column the bake marks wet AND the
+// fine flood confirms), a handful of probes instead of thousands.
 bool findWetColumn(WorldGenerator& g, int& outX, int& outZ, WaterSpan& outSpan) {
-    for (int r = 0; r <= 3000; r += 100)
-        for (int x = -r; x <= r; x += 100)
-            for (int z = -r; z <= r; z += 100) {
-                if (std::abs(x) != r && std::abs(z) != r) continue;
-                if (g.waterSpanAt(x, z, outSpan)) { outX = x; outZ = z; return true; }
+    const HydrologyMap* hydro = g.hydrology();
+    if (!hydro) return false;
+    // Walk cells outward from the origin so the fixture stays "near the origin" as before.
+    for (int r = 0; r <= 24; ++r)
+        for (int cx = -r; cx <= r; ++cx)
+            for (int cz = -r; cz <= r; ++cz) {
+                if (std::abs(cx) != r && std::abs(cz) != r) continue;
+                const float wx = (static_cast<float>(cx) + 0.5f) * 128.0f;
+                const float wz = (static_cast<float>(cz) + 0.5f) * 128.0f;
+                if (!hydro->hasWater(wx, wz)) continue;
+                // The cell centre plus a few offsets inside the cell: the coarse level can sit
+                // above a fine ridge at the exact centre, so try a small cross before moving on.
+                static const int kOff[5][2] = {{0, 0}, {32, 0}, {-32, 0}, {0, 32}, {0, -32}};
+                for (const auto& o : kOff) {
+                    const int x = static_cast<int>(wx) + o[0], z = static_cast<int>(wz) + o[1];
+                    if (g.waterSpanAt(x, z, outSpan)) { outX = x; outZ = z; return true; }
+                }
             }
     return false;
 }

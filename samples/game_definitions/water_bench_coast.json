@@ -35,9 +35,10 @@
     "spanRect": [37, 708, 293, 964],
     "expectSpans": { "min": 60000, "topEquals": 16.0, "_comment": "All-seabed rect, counted with the camera posed at the rect centre and unloaded == 0 (the count is residency-dependent otherwise: 66,004 vs 44,335 from two poses, 2026-10-07). Measured fully resident 2026-10-07: 66,004 spans / 81 chunks, every top 16.0; water_validate rim_leaks 257/257, worst 6 at (59,767) = the Water.md sec. 5 RED baseline reproduced exactly." },
     "cameraProbe": {
-      "far":  { "x": 165, "y": 170, "z": 480, "yaw": 90, "pitch": -18 },
+      "far":  { "x": 165, "y": 170, "z": 540, "yaw": 90, "pitch": -18 },
       "near": { "x": 165, "y": 18.5, "z": 664, "yaw": 90, "pitch": -8 },
-      "_comment": "The two vantages the camera-walk probe diffs (Water.md sec. 8 #8b): far = horizon, near = shore_eye."
+      "rect": [37, 640, 293, 896],
+      "_comment": "The two vantages the camera-walk probe diffs (Water.md sec. 8 #8b). The probe rect STRADDLES the waterline (dry sand z 640-672, sea beyond) - the shore bands are where every historical violation lived. far at z=540 keeps the rect's southern ~200 rows resident (loadRadius 7 chunks = 224 u) so the two poses overlap on tens of thousands of columns; the first far pose (z=480) left only 896 columns resident at both, too thin to mean anything."
     }
   },
   "testVantages": {

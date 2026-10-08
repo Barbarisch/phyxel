@@ -3,6 +3,7 @@
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #include <chrono>
+#include <vector>
 
 namespace Phyxel {
 namespace Graphics {
@@ -105,6 +106,20 @@ public:
                                float originX, float originZ, float cellSize);
     bool hydrologyBound() const { return m_hydroBound; }
 
+    // What the RENDERER holds for a column — the observable the camera-walk probe diffs
+    // (docs/Water.md §8 #8b; docs/WaterRethink.md WP0). It mirrors basinLevelAt() in water.vert /
+    // water.frag EXACTLY (same texel index, same dry sentinel, same off-grid rule per mode) from a
+    // CPU shadow of the last grid uploaded, so a caller can ask "would the sheet draw water here?"
+    // without a screenshot. It answers for the sheet's PLACEMENT source only: the fragment stage's
+    // depth-based dry-land gate and rim-wall kill are per-pixel and not reproduced here.
+    // `seaLevel` is the push-constant value the shaders receive (RenderCoordinator::getSeaLevel()).
+    struct ColumnWater { bool onGrid; bool wet; float level; };
+    ColumnWater renderWaterAt(float worldX, float worldZ, float seaLevel) const;
+    const char* hydroModeName() const;   // "unbound" | "flat" | "bake" | "grounded"
+    int hydroCellsX() const { return m_hydroCellsX; }
+    int hydroCellsZ() const { return m_hydroCellsZ; }
+    glm::vec3 hydroParams() const { return m_hydroParams; }
+
     void recreatePipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent);
 
 private:
@@ -145,6 +160,7 @@ private:
     int            m_hydroCellsX = 0, m_hydroCellsZ = 0;
     bool           m_hydroBound = false;                 // no draw until binding 3 is valid
     glm::vec3      m_hydroParams{0.0f, 0.0f, 0.0f};      // originX, originZ, invCellSize (0 = flat)
+    std::vector<float> m_hydroShadowLevels;              // R channel of the last upload (renderWaterAt)
     float          m_waveRadius = 700.0f;      // world units; set from the render distance
     float          m_seaOuterExtent = 0.0f;    // reach the clipmap actually achieved
 

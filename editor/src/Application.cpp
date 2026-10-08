@@ -18,6 +18,7 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #include "graphics/FarTerrainManager.h"
 #include "graphics/FaceCoverage.h"         // chunk_faces debug route (docs/GlassTransparency.md §7)
 #include "graphics/GrassRenderPipeline.h"   // s_castShadows A/B toggle
+#include "graphics/WaterRenderPipeline.h"   // water_render_grid probe (renderWaterAt)
 #include "graphics/ChunkUpdatePerf.h"   // B0 chunk-update sub-cost timers (docs/ChunkUpdateHitchPlan.md)
 #include "graphics/DeferredBufferReclaim.h"  // B1 deferred buffer free (docs/ChunkUpdateHitchPlan.md)
 #include "graphics/ChunkArenaSystem.h"       // Phase 4.3 region arenas (docs/RegionArenaPlan.md)
@@ -12846,11 +12847,23 @@ void Application::registerWaterCommands() {
         long chunksLoaded = 0, chunksWithSpans = 0, spanCount = 0;
         double sumDepth = 0.0;
         float minTop = 1e30f, maxTop = -1e30f;
+        // {"columns": true} lists every span as [x, z, topWorld] (several per column where a tall
+        // water column is clipped across vertical chunks) so the camera-walk probe can diff the
+        // stored truth against what the renderer draws, column by column. Capped by max_columns.
+        const bool listCols = cmd.params.value("columns", false);
+        const size_t maxList = static_cast<size_t>(std::max(0, cmd.params.value("max_columns", 65536)));
+        nlohmann::json cols = nlohmann::json::array();
+        bool truncated = false;
+        // Resident chunk COLUMNS (x,z chunk coords) touching the rect, so a caller can tell "dry
+        // because no water" from "dry because not loaded" without a second route.
+        nlohmann::json residentCols = nlohmann::json::array();
+        std::set<std::pair<int, int>> seenCols;
         for (auto& [cc, chunk] : chunkManager->chunkMap) {
             if (!chunk) continue;
             if (hasRect && (cc.x * 32 > hx || cc.x * 32 + 31 < lx ||
                             cc.z * 32 > hz || cc.z * 32 + 31 < lz)) continue;
             ++chunksLoaded;
+            if (seenCols.insert({cc.x, cc.z}).second) residentCols.push_back({cc.x, cc.z});
             const auto& ws = chunk->getWaterSpans();
             if (ws.empty()) continue;
             ++chunksWithSpans;
@@ -12862,12 +12875,67 @@ void Application::registerWaterCommands() {
                 const float topWorld = cc.y * 32.0f + s.top;
                 minTop = std::min(minTop, topWorld);
                 maxTop = std::max(maxTop, topWorld);
+                if (listCols) {
+                    if (cols.size() < maxList) cols.push_back({wx, wz, topWorld});
+                    else truncated = true;
+                }
             }
         }
         r = {{"chunks_loaded", chunksLoaded}, {"chunks_with_spans", chunksWithSpans},
              {"spans", spanCount}, {"total_depth", sumDepth},
              {"min_top", spanCount ? minTop : 0.0f}, {"max_top", spanCount ? maxTop : 0.0f},
+             {"resident_chunk_columns", residentCols},
+             {"span_columns", cols}, {"span_columns_truncated", truncated},
              {"source", "chunk-resident (world data, not a derivation)"}};
+    });
+
+    // What the RENDERER holds per column over a world-XZ rect — the camera-walk probe's observable
+    // (Water.md §8 #8b, WaterRethink.md WP0). Reads the sea sheet's CPU shadow of the uploaded
+    // level grid through the same lookup rules as water.vert/water.frag, so "wet here?" is
+    // answered without a screenshot. Diffing this from two vantages, and against
+    // `water_spans_stored`, is how a camera-existence violation is caught automatically.
+    // {x1,z1,x2,z2, "columns": bool (list wet columns), "max_columns": N (default 65536)}
+    reg.on("water_render_grid", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        const auto* wp = renderCoordinator ? renderCoordinator->waterRenderPipeline() : nullptr;
+        if (!wp) { r = {{"error", "water render pipeline not available"}}; return; }
+        const int x1 = cmd.params.value("x1", 0), z1 = cmd.params.value("z1", 0);
+        const int x2 = cmd.params.value("x2", 0), z2 = cmd.params.value("z2", 0);
+        const int lx = std::min(x1, x2), hx = std::max(x1, x2);
+        const int lz = std::min(z1, z2), hz = std::max(z1, z2);
+        const long long cols = static_cast<long long>(hx - lx + 1) * (hz - lz + 1);
+        // Bounded so a typo cannot stall the game loop: 2048² is the span grid's own ceiling.
+        if (cols > 2048LL * 2048LL) { r = {{"error", "rect too large (max 2048x2048 columns)"}}; return; }
+        const bool listWet = cmd.params.value("columns", false);
+        const size_t maxList = static_cast<size_t>(std::max(0, cmd.params.value("max_columns", 65536)));
+        const float seaLevel = renderCoordinator->getSeaLevel();
+        long wet = 0, dry = 0, offGrid = 0;
+        float minLv = 1e30f, maxLv = -1e30f;
+        nlohmann::json list = nlohmann::json::array();
+        bool truncated = false;
+        for (int z = lz; z <= hz; ++z) {
+            for (int x = lx; x <= hx; ++x) {
+                const auto c = wp->renderWaterAt(static_cast<float>(x) + 0.5f, static_cast<float>(z) + 0.5f, seaLevel);
+                if (!c.onGrid) ++offGrid;
+                if (!c.wet) { ++dry; continue; }
+                ++wet;
+                minLv = std::min(minLv, c.level); maxLv = std::max(maxLv, c.level);
+                if (listWet) {
+                    if (list.size() < maxList) list.push_back({x, z, c.level});
+                    else truncated = true;
+                }
+            }
+        }
+        const glm::vec3 hp = wp->hydroParams();
+        r = {{"source", wp->hydroModeName()},
+             {"water_enabled", renderCoordinator->isWaterEnabled()},
+             {"sea_level", seaLevel},
+             {"cells", {{"x", wp->hydroCellsX()}, {"z", wp->hydroCellsZ()}}},
+             {"origin", {{"x", hp.x}, {"z", hp.y}}},
+             {"cell_size", hp.z != 0.0f ? 1.0f / hp.z : 0.0f},
+             {"columns", cols}, {"wet", wet}, {"dry", dry}, {"off_grid", offGrid},
+             {"min_level", wet ? minLv : 0.0f}, {"max_level", wet ? maxLv : 0.0f},
+             {"wet_columns", list}, {"wet_columns_truncated", truncated},
+             {"note", "sheet PLACEMENT source only: per-pixel depth gates (dry-land, rim-wall) are not reproduced; cell water (authored worlds) is a separate source"}};
     });
 
     // A/B toggle for the camera-invariant cell-render gate: {"mode": -1|0|1}.

@@ -3881,11 +3881,106 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "x": {"type": "integer", "description": "World X coordinate"},
                     "z": {"type": "integer", "description": "World Z coordinate"},
-                    "max_y": {"type": "integer", "description": "Maximum Y to search (default: 255)"},
+                    "max_y": {"type": "integer", "description": "Maximum Y to search (default: 255 — terrain above 255 reads as missing; pass a larger value on Mountains worlds)"},
                     "min_y": {"type": "integer", "description": "Minimum Y to search (default: 0)"},
                 },
                 "required": ["x", "z"]
             }
+        ),
+
+        # ================================================================
+        # Water (docs/WaterRethink.md WP0 — the debug routes, exposed; none were before 2026-10-08)
+        # ================================================================
+        Tool(
+            name="water_stats",
+            description="Water system state: sim total_mass, region origin/dims, table/overrides/outflow, render sea level, camera submergence, surface_cells. Optional x,y,z adds mass_at that cell. Tip: right after launch total_mass is still RISING for ~1 min — do not judge water from the first frames.",
+            inputSchema={"type": "object", "properties": {
+                "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}},
+        ),
+        Tool(
+            name="water_probe",
+            description="Per-cell water sim probe at world (x,y,z): mass, solid, sub-voxel floor, channel tag, source pin, flow vector. Only meaningful inside the camera-following sim region (64x32x64).",
+            inputSchema={"type": "object", "properties": {
+                "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"}}, "required": ["x", "y", "z"]},
+        ),
+        Tool(
+            name="water_spans_stored",
+            description="Chunk-resident water spans (world data) over an optional world-XZ rect: count, chunks, min/max top, total depth. Counts only RESIDENT chunks, so pose the camera at the rect first and confirm water_validate.unloaded == 0 before trusting a count.",
+            inputSchema={"type": "object", "properties": {
+                "x1": {"type": "integer"}, "z1": {"type": "integer"}, "x2": {"type": "integer"}, "z2": {"type": "integer"}}},
+        ),
+        Tool(
+            name="water_render_grid",
+            description="What the sea sheet would DRAW per column over a world-XZ rect (the camera-walk probe's observable): placement source (flat/bake/grounded), grid origin/cells/cell size, wet/dry/off-grid counts, level range, optional wet-column list. Diff this from two vantages and against water_spans_stored to catch a camera-existence violation (docs/Water.md sec. 8 #8b). Rect max 2048x2048.",
+            inputSchema={"type": "object", "properties": {
+                "x1": {"type": "integer"}, "z1": {"type": "integer"}, "x2": {"type": "integer"}, "z2": {"type": "integer"},
+                "columns": {"type": "boolean", "description": "Also list wet columns as [x,z,level] (default false)"},
+                "max_columns": {"type": "integer", "description": "Cap on the listed wet columns (default 65536)"}},
+                "required": ["x1", "z1", "x2", "z2"]},
+        ),
+        Tool(
+            name="water_validate",
+            description="L2 bake-vs-terrain rim-leak check over a world-XZ rect: rim, rim_leaks, worst leak, wet, unloaded. A zero is NOT a pass unless unloaded == 0 and wet > 0.",
+            inputSchema={"type": "object", "properties": {
+                "x1": {"type": "integer"}, "z1": {"type": "integer"}, "x2": {"type": "integer"}, "z2": {"type": "integer"},
+                "maxY": {"type": "integer", "description": "Highest Y to scan (default 200; raise on Mountains worlds)"}},
+                "required": ["x1", "z1", "x2", "z2"]},
+        ),
+        Tool(
+            name="water_find_river",
+            description="Locate procedural rivers: ring search from (x,z) out to radius for river columns of Strahler order >= min_order; returns sites sorted by order then distance with surface_y, width, carve_depth, wet. Rivers are procedural — never guess their coordinates. Needs a streaming world (hydrology bake).",
+            inputSchema={"type": "object", "properties": {
+                "x": {"type": "number"}, "z": {"type": "number"},
+                "radius": {"type": "number", "description": "Search radius in world units (default 3000)"},
+                "step": {"type": "integer", "description": "Sample spacing (default 64)"},
+                "min_order": {"type": "integer", "description": "Minimum Strahler order (default 3; 5 = trunk rivers)"},
+                "count": {"type": "integer", "description": "Max sites returned (default 5)"}}, "required": ["x", "z"]},
+        ),
+        Tool(
+            name="water_table_level",
+            description="Baked hydrology table at world column (x,z): level, wet, river_order (the 128 m CELL's label), river_channel (whether the meandered channel line actually passes here).",
+            inputSchema={"type": "object", "properties": {"x": {"type": "number"}, "z": {"type": "number"}}, "required": ["x", "z"]},
+        ),
+        Tool(
+            name="water_bake_info",
+            description="Hydrology bake summary: generator vs bake sea level, has_outlet, drainage_complete, max_order, cell grid, min terrain. WARNs when the world has no outlet.",
+            inputSchema={"type": "object", "properties": {}},
+        ),
+        Tool(
+            name="water_ripple",
+            description="Inject a ripple into the RippleField at world (x,z). A ring lives ~4-6 s — pump repeatedly while capturing.",
+            inputSchema={"type": "object", "properties": {
+                "x": {"type": "number"}, "z": {"type": "number"},
+                "radius": {"type": "number", "description": "default 1.5"}, "strength": {"type": "number", "description": "default 0.35"}},
+                "required": ["x", "z"]},
+        ),
+        Tool(
+            name="place_water",
+            description="Add water mass at sim cell (x,y,z) (amount in voxel-volumes, default 1). Only inside the sim region; returns total_mass.",
+            inputSchema={"type": "object", "properties": {
+                "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"},
+                "amount": {"type": "number", "description": "default 1.0"}}, "required": ["x", "y", "z"]},
+        ),
+        Tool(
+            name="water_scoop",
+            description="Bucket semantics: remove up to `amount` water from the column at (x,y,z); returns removed + per-body deltas. Finite ponds stay lowered; pinned bodies refill.",
+            inputSchema={"type": "object", "properties": {
+                "x": {"type": "number"}, "y": {"type": "number"}, "z": {"type": "number"},
+                "amount": {"type": "number", "description": "default 1.0"}}, "required": ["x", "y", "z"]},
+        ),
+        Tool(
+            name="water_waves",
+            description="Sea-state knobs: Gerstner amplitude (u), wavelength (u), wind direction (radians) and wind speed (m/s). Omitted fields are unchanged; echoes the resulting state. amplitude 0 = flat sheet (the A/B control).",
+            inputSchema={"type": "object", "properties": {
+                "amplitude": {"type": "number"}, "wavelength": {"type": "number"},
+                "wind": {"type": "number", "description": "direction, radians"}, "speed": {"type": "number", "description": "wind speed m/s"}}},
+        ),
+        Tool(
+            name="water_look",
+            description="Force a water appearance profile (turbidity 0..1, roughness) onto every wet column as a positive control, or probe the derived profile at (x,z). WARNING: activating it resets the level-grid upload memo — in a baked world the next frame re-uploads the coarse bake as placement (the camera-walk probe's injectable violation).",
+            inputSchema={"type": "object", "properties": {
+                "active": {"type": "boolean"}, "turbidity": {"type": "number"}, "roughness": {"type": "number"},
+                "x": {"type": "number"}, "z": {"type": "number"}}},
         ),
 
         # ================================================================
@@ -6121,6 +6216,12 @@ async def _dispatch_tool(name: str, args: dict) -> dict:
         if "min_y" in args:
             params["min_y"] = str(args["min_y"])
         return await api_get("/api/world/terrain_height", params)
+
+    # --- Water (every water debug route is POST /api/debug/<name> with the args as the body) ---
+    elif name in ("water_stats", "water_probe", "water_spans_stored", "water_render_grid",
+                  "water_validate", "water_find_river", "water_table_level", "water_bake_info",
+                  "water_ripple", "place_water", "water_scoop", "water_waves", "water_look"):
+        return await api_post(f"/api/debug/{name}", dict(args), timeout=300)
 
     # --- Animation Control ---
     elif name == "list_entity_animations":

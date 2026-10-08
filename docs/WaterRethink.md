@@ -29,6 +29,29 @@ Think about water as **several independent aspects, each across many scenarios**
 The earlier standing directives (Water.md §1 — water only in terrain basins, basin-first, no floating
 water, camera-independent existence) all still hold; nothing here relaxes them.
 
+**Added 2026-10-08 (user, verbatim intent — a HARD RULE for every package):** *"I don't want water
+to just be rendered for looks when possible. Ideally water would exist as a physical entity. The
+idea of a universal water level pisses me off, and I have repeatedly said not to do that. Obviously
+some optimizations need to be done for larger bodies of water, but there is no reason why digging
+down in the world voxels would just hit a wavy style of beach water."* Consequences, binding:
+
+1. **There is no universal water level.** Water exists only where a body physically is — chunk spans
+   and body records written by generation and the simulation, each with its own level and mass. The
+   sea is one body with one level; it is not a plane the world sits under. The implicit flat-sea
+   mode (`invCellSize == 0`) and the bake mode's off-grid "open ocean" fallback are that universal
+   level and are **retired in WP1, not kept as fallbacks**.
+2. **The sheet draws water that exists; it is never a source of water.** Every renderer reads spans
+   (near/mid) or generator-derived tiles (far); the far tiles are the ocean *body* extended to the
+   horizon, not a sea-level plane — an inland depression below 16 that the hydrology says is dry
+   stays dry at every distance.
+3. **Digging never reveals water.** A pit below sea level is dry until water physically flows into
+   it, which it can only do from a connected body through the motion layer (WP4). **Edits never
+   create water** — WP1 step 3 is corrected accordingly: an edit updates the solid mask and may
+   *remove* span water the ground no longer holds (or it drains via the sim), but never adds any.
+4. **Large bodies are optimised, not faked:** the ocean and big lakes are bodies with a level and
+   a boundary condition; their interior is not simulated because nothing moves there, which is a
+   cost decision — their existence, mass accounting and edges are still physical.
+
 ---
 
 ## 1. Stock-take — what exists today
@@ -290,9 +313,15 @@ representation either derives from spans or is deleted.
    cost bound, not the thing that shapes water.
 2. **Fine-pond spans at generation** (`finePondsForCell` → spans), with a body id so finiteness
    survives.
-3. **Edits update spans.** Break/place/blast → re-flood the affected column stack locally
-   (`buildOpenWaterSpan` against the new surface, bounded) and mark the chunk dirty. Red test: dig
-   below a lake rim, `water_spans_stored` still reports the old top.
+3. **Edits update spans — and NEVER create water** (§0 rule 3, 2026-10-08). Break/place/blast →
+   update the solid mask; if the edit removed ground under a span, the span is clipped to what the
+   ground still holds (and the sim, where active, drains the rest); if the edit dug a pit, the pit
+   gets NO span — water reaches it only by flowing in from a connected body through WP4's motion
+   layer, after which the settled state is written back as spans. Mark the chunk dirty. Red tests:
+   (a) dig a pit on the dry beach 2 below sea level → `water_spans_stored` on the pit = 0 and the
+   render grid reads dry (today's flat-sea/bake fallbacks would draw the sheet in it); (b) breach a
+   lake rim → the lake's span tops drop (WP4 makes the water actually leave; until then the breach
+   column is clipped, never refilled from the bake).
 4. **Queries read spans.** `sampleWater`/`columnWater` out of the active region read spans, not the
    bake. Fine ponds stop reading DRY when the camera leaves.
 5. **Retire** the implicit flat sea (`invCellSize == 0`), the bake-as-placement upload path, and the
@@ -498,11 +527,53 @@ Validation: L4 per feature on the benches; stress: 100 NPCs wading, 1000 debris 
   Echoes source (`flat`/`bake`/`grounded`), grid origin/cells/cell size, wet/dry/off-grid counts,
   level range, optional wet-column list. Rect capped at 2048² (the span grid's own ceiling).
 - `tools/water_camera_probe.py <bench>` — the §8 #8b walk, automated: far pose → settle → read
-  render grid + stored spans; near pose → same; VIOLATION = on-grid at both poses with different
-  wet/dry or level, or rendered ≠ spans where resident; COVERAGE = residency moved (allowed,
-  counted); SOURCE = placement source changed. `--inject-water-look` is the self-test: the
-  `water_look` override resets the upload memo and the next frame re-uploads the coarse bake, so
-  the probe MUST fail on it. Evidence: `docs/evidence/water_v4_camera_probe.jsonl`.
+  render grid + stored spans (`water_spans_stored {columns:true}` now lists spans per column AND
+  the resident chunk columns, so "dry" is never confused with "not loaded"); near pose → same;
+  VIOLATION = resident at both poses with different rendered wet/dry or level, OR rendered ≠
+  stored spans on a resident column at either pose; COVERAGE = resident at one pose only
+  (allowed, counted); SOURCE = placement source changed. `--inject-water-look` is the self-test:
+  after a clean far read, the `water_look` override resets the upload memo and the next frame
+  re-uploads the coarse bake as placement — the probe re-reads the SAME pose and must see the
+  source change or rendered≠spans, else it is blind and the run fails. (First version got both
+  wrong: it used the grid's bounding box as "resident", so residency moving read as 6 784
+  violations, and its self-test moved the camera, which triggered the span-grid rebuild that
+  hides the transient reversion. Fixed 2026-10-08 before any number was recorded.)
+  Evidence: `docs/evidence/water_v4_camera_probe.jsonl`.
+  **Live findings 2026-10-08 (Coast, Release):** (a) normal run PASSES — rendered == stored spans
+  column-for-column at both poses, 0 violations; (b) **the `water_look` upload-memo hazard is
+  REAL**: 0.25 s after `water_look {active:true}` the placement source flips `grounded → bake`
+  (cell 128 m), wet columns in the probe rect jump **13,711 → 33,153** (the bake over-claims the
+  shore 2.4×, the old 606-rim-leak look), and it STAYS on the bake after `{active:false}` until a
+  residency change rebuilds the span grid. The probe's self-test now catches it (static residency,
+  then poll): source `grounded → bake` on the first 0.25 s poll, rendered wet 15,232 → 50,629,
+  **9,280 columns rendered ≠ stored spans** — the probe is not blind. `setWindSpeed` and a wind-direction change in `setWaves`
+  share the reset (RenderCoordinator.cpp:1036-1063) — WP6's weather driver would trigger it every
+  gust. Fix belongs to WP1 step 5 (retire the bake as placement; look changes re-pack the span
+  grid's G/B/A, never the bake). (c) **Pit red test (§0 rule 3):** a 3×3×3 pit dug 3 below the
+  sand surface (y 14–16 at (165,660)) reads **0 spans, render grid dry, sim mass 0** — correct
+  today in a baked world because the pit's columns are bake-dry; the universal-level failure this
+  rule targets lives in the flat-sea mode and the bake's off-grid "open ocean" fallback (both
+  retired by WP1 step 5), and the test is kept so they cannot come back. (d) **A real latent
+  violation, caught on the clean run (WP1 step 6 red, with numbers):** at the near pose the
+  probe rect had 56 resident chunk columns holding 34,063 spans, but the renderer drew the same
+  28,943 wet columns it drew at the far pose — **5,120 columns of resident ground with stored
+  water and no rendered water** (five chunks' worth, e.g. the row z=800, x 96–100). The span grid
+  rebuild keys on `chunkMap.size()` (plus a 30-frame cooldown), so residency can change while the
+  count lands on the same value and the grid never catches up. Gate for step 6: this run reads 0.
+- **MCP water tools (2026-10-08):** 13 tools added to `scripts/mcp/phyxel_mcp_server.py` — `water_stats`,
+  `water_probe`, `water_spans_stored`, `water_render_grid`, `water_validate`, `water_find_river`,
+  `water_table_level`, `water_bake_info`, `water_ripple`, `place_water`, `water_scoop`, `water_waves`,
+  `water_look` — each a thin POST to its `/api/debug/<name>` route with the traps in the description
+  (residency-dependent counts, the `water_look` upload-memo reversion, rivers are procedural). Zero
+  existed before. Takes effect when the MCP server is restarted.
+- **The two 14-minute tests:** `findWetColumn` in `WaterOccupancyTest` ring-walked `waterSpanAt` at
+  100 u spacing out to r = 3000 (up to ~3 600 full padded-block floods with no locality). It now
+  asks the bake (`HydrologyMap::hasWater`) which 128 m cells are wet and probes the fine query only
+  there — same fixture semantics, a handful of probes. **Measured 2026-10-08: both tests pass in
+  13.1 s total (Release, fresh build)** against the documented 838.9 s (Debug, before). Not the
+  same configuration — the Debug after-number is owed at the next Debug test build; the before
+  number in Release was never recorded. The fixture is unchanged (Mountains seed 7: 2 758 bodies,
+  max order 6, drainage complete).
 - GPU baseline: `tools/perf_harness.py sample` (the perf program's harness: Release-only, settled,
   pose-verified, history-based) over each bench's `testVantages`, 240 frames × 4 repeats, into
   `docs/evidence/water_v4_baseline.jsonl`.

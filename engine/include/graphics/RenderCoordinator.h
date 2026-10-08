@@ -547,6 +547,9 @@ public:
     bool  isWaterEnabled() const { return m_waterEnabled; }
     void  setSeaLevel(float y) { m_seaLevel = y; }
     float getSeaLevel() const { return m_seaLevel; }
+    // Read-only view of the sea-sheet pipeline for the `water_render_grid` probe (what the renderer
+    // would draw per column). Null before Vulkan init / without a water pipeline.
+    const WaterRenderPipeline* waterRenderPipeline() const { return waterPipeline.get(); }
 
     // Gerstner swell on the sea sheet (WaterSystemV3 Phase 2). Amplitude 0 = flat, which restores
     // the pre-Phase-2 look and is the A/B control for "the waves are what changed".

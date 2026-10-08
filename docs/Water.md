@@ -362,11 +362,14 @@ everywhere; bulk water as particles (particles = splash/spray only).
    impulses while capturing); Σ|h| is not monotone for waves; multiplicative verlet damping
    needs `exp(−2k·dt)`.
 
-8b. **The camera-walk probe** (the user's manual detection of the camera invariant, encoded):
-   from a vantage far from a shoreline, record wet/dry for a fixed rect (`water_spans_stored`
-   is camera-independent; the RENDERED extent needs a screenshot or pixel probe); teleport
-   close; diff. Any column that changed is a camera-existence violation. Run it on every
-   placement/render change — three shipped bugs would each have failed it.
+8b. **The camera-walk probe — AUTOMATED 2026-10-08: `python tools/water_camera_probe.py <bench>`**
+   (WaterRethink.md WP0). It poses far, settles, reads `water_render_grid` (what the sheet would
+   DRAW per column, from the pipeline's CPU shadow of the uploaded grid) + `water_spans_stored
+   {columns:true}` (what chunks HOLD + resident chunk columns), poses near, reads again, and
+   reports VIOLATION (resident at both poses, rendered wet/dry or level differs; or rendered ≠
+   spans on a resident column) / COVERAGE (residency moved — allowed) / SOURCE (placement
+   source changed). `--inject-water-look` is its self-test against the real upload-memo hazard.
+   Run it on every placement/render change — three shipped bugs would each have failed it.
 
 **Operational traps:**
 8. `build_shaders.bat` does NOT track `#include` deps — after editing `water_common.glsl`,

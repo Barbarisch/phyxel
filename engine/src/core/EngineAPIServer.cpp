@@ -2162,6 +2162,7 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_span_scan",      waterEndpoint("water_span_scan"));  // occupancy §5.2
     srv.Post("/api/debug/water_ground_sync",    waterEndpoint("water_ground_sync"));  // grounded grid (un-baked worlds)
     srv.Post("/api/debug/water_spans_stored",   waterEndpoint("water_spans_stored")); // chunk-resident span readback
+    srv.Post("/api/debug/water_render_grid",    waterEndpoint("water_render_grid"));  // what the sheet would DRAW per column (camera-walk probe)
     srv.Post("/api/debug/water_cell_render",    waterEndpoint("water_cell_render"));  // camera-invariant gate A/B
     srv.Post("/api/debug/water_validate",       waterEndpoint("water_validate"));
     srv.Post("/api/debug/water_find_river",     waterEndpoint("water_find_river"));

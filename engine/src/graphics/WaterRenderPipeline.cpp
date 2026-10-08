@@ -106,6 +106,12 @@ void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float
     static const float sentinel[4] = {kNoWater, 0.0f, 0.0f, 1.0f};
     if (!levels) { levels = sentinel; cellsX = cellsZ = 1; cellSize = 0.0f; }
 
+    // CPU shadow of the R channel (the per-column level) so renderWaterAt() can answer what the
+    // shaders will see without a readback. Row-major, index = z * cellsX + x, exactly as
+    // texelFetch(ivec2(cellF)) addresses the image below.
+    m_hydroShadowLevels.resize(static_cast<size_t>(cellsX) * static_cast<size_t>(cellsZ));
+    for (size_t i = 0; i < m_hydroShadowLevels.size(); ++i) m_hydroShadowLevels[i] = levels[i * 4];
+
     // (Re)create the image when the grid size changes. The caller guarantees device idleness when
     // replacing a live grid (world change) — documented on the declaration.
     if (cellsX != m_hydroCellsX || cellsZ != m_hydroCellsZ) {
@@ -234,6 +240,39 @@ void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float
     m_hydroBound = true;
     LOG_INFO("WaterPipeline", "Water-layer levels bound: {}x{} cells, origin ({}, {}), cell {} "
              "(invCell 0 = flat-sea; negative = grounded/off-grid-dry)", cellsX, cellsZ, originX, originZ, cellSize);
+}
+
+const char* WaterRenderPipeline::hydroModeName() const {
+    if (!m_hydroBound) return "unbound";
+    if (m_hydroParams.z == 0.0f) return "flat";
+    return m_hydroParams.z > 0.0f ? "bake" : "grounded";
+}
+
+WaterRenderPipeline::ColumnWater WaterRenderPipeline::renderWaterAt(float worldX, float worldZ,
+                                                                     float seaLevel) const {
+    // Keep this in lock-step with basinLevelAt() in water.vert and water.frag: any divergence makes
+    // the camera-walk probe lie about what is on screen.
+    ColumnWater r{false, false, seaLevel};
+    if (!m_hydroBound) return r;
+    const float invRaw = m_hydroParams.z;
+    if (invRaw == 0.0f) { r.wet = true; return r; }                 // flat-sea: implicit sea everywhere
+    const bool  dryBeyond = invRaw < 0.0f;                           // grounded grid: no implicit ocean
+    const float inv = invRaw < 0.0f ? -invRaw : invRaw;
+    const float cx = (worldX - m_hydroParams.x) * inv;
+    const float cz = (worldZ - m_hydroParams.y) * inv;
+    if (cx < 0.0f || cz < 0.0f || cx >= static_cast<float>(m_hydroCellsX) || cz >= static_cast<float>(m_hydroCellsZ)) {
+        r.wet = !dryBeyond;                                          // bake: open ocean · grounded: DRY
+        return r;
+    }
+    const int ix = static_cast<int>(cx), iz = static_cast<int>(cz); // ivec2(cellF): truncation, cellF >= 0
+    r.onGrid = true;
+    const size_t idx = static_cast<size_t>(iz) * static_cast<size_t>(m_hydroCellsX) + static_cast<size_t>(ix);
+    if (idx >= m_hydroShadowLevels.size()) return r;
+    const float lv = m_hydroShadowLevels[idx];
+    if (lv < -1e5f) return r;                                        // dry-column sentinel: NO water
+    r.wet = true;
+    r.level = lv;
+    return r;
 }
 
 void WaterRenderPipeline::initialize(VkDevice device, VkPhysicalDevice physicalDevice,
