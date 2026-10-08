@@ -587,7 +587,19 @@ n = 4 × 240 frames per pose, medians):**
 | shore_elevated | 57.36 ms | **0.239 ms** | 0.012 ms | — | **Foliage 34.6** · Shadow Mid 12.8 · GI 3.8 · Far Terrain 2.6 |
 | horizon | 24.58 ms | **0.177 ms** | 0.007 ms | — | — |
 
-Reading: today's water is **~0.2 ms, about 1 % of the frame** at every Coast vantage — the
+**GPU baseline — River (same run conditions, `fe5a1618`):**
+
+| Pose | GPU frame | `Water` | `WaterRefractCapture` | Note |
+|---|---|---|---|---|
+| trunk_down | 35.54 ms | **0.234 ms** | 0.007 ms | the drowned valley drawn as a lake to the horizon |
+| trunk_bank | 31.98 ms | **0.146 ms** | 0.007 ms | camera at y 29 is UNDER the drawn surface (108) yet **no `WaterUnderwater` pass ran** — sim and table both call the column dry; the sheet and the submergence query disagree (one more face of the §1.2 overfill) |
+| trunk_top | 23.58 ms | **0.182 ms** | 0.006 ms | top-down |
+
+**GPU baseline — Basin (same conditions; water disabled, nothing drawn):** 0.96–1.06 ms GPU frame
+at all four vantages, CPU 1.6 ms. This is the **cost floor for WP3**: the shallow-water prototype's
+sim + draw on this rig is measured as the delta above ~1.0 ms.
+
+Reading: today's water is **~0.2 ms, about 1 % of the frame** at every Coast and River vantage — the
 v4 budget (≤ 1.5 ms all-in) has ~1.3 ms of headroom for the sim, far tiles and shoreline work
 before SSR tiers even matter. The 57 ms elevated frame is **foliage on the forested beach**
 (34.6 ms), a vegetation/perf-program finding, not a water one; it is logged here so a later
