@@ -502,6 +502,11 @@ private:
 
     // Item Equipper panel — GUI equip/give/spawn for registered items
     bool showItemEquipper = true;
+    // `POST /api/debug/editor_panels {"tool_panels": false}`: hides EVERY floating ImGui tool
+    // panel over the viewport (customizer, tuner, spawner, click actions, spell caster, item
+    // equipper) for reference captures. The individual show* flags are untouched, so restoring
+    // brings back exactly what was open.
+    bool m_hideToolPanels = false;
     char m_itemFilter[64] = {0};
     bool m_itemHoldableOnly = true;
     void renderItemEquipper();

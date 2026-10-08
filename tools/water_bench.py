@@ -369,7 +369,7 @@ def verify_streaming(api, gdef, bench):
 # ---------------------------------------------------------------- main -----------------------
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", choices=["build-basin", "verify", "vantage", "shot"])
+    ap.add_argument("cmd", choices=["build-basin", "verify", "vantage", "shot", "refshots"])
     ap.add_argument("bench", nargs="?", help="basin | coast | river (implied for build-basin)")
     ap.add_argument("name", nargs="?", help="vantage name (vantage/shot)")
     ap.add_argument("dst", nargs="?", help="destination png (shot)")
@@ -401,11 +401,41 @@ def main():
         if bad:
             raise SystemExit("VERIFY FAILED: " + "; ".join(bad))
         print(f"{bench}: definition of done MET")
+    elif args.cmd == "refshots":
+        # The look-first rule's reference set: one HUD-free capture per pinned vantage, named
+        # <bench>_<vantage>.png in `name` (a directory). Re-taken only deliberately; every later
+        # visual change is judged against these at the same pose ("is it prettier than this?").
+        outdir = Path(args.name or (ROOT / "docs" / "evidence" / "water_v4_refs"))
+        outdir.mkdir(parents=True, exist_ok=True)
+        try:
+            api.debug("editor_panels", {"item_equipper": False, "tool_panels": False})
+        except Exception as e:
+            print(f"   (editor_panels unavailable on this engine: {e})")
+        for v in gdef["testVantages"]["vantages"]:
+            got = camera_set(api, v)
+            if not pose_ok(v, got):
+                raise SystemExit(f"vantage {v['name']} did not take: {got}")
+            time.sleep(8.0)                                   # let streaming/remesh settle a little
+            r = api.get("/api/screenshot", timeout=90)
+            path = r.get("path") or next((s.get("path") for s in r.get("screenshots", [])), None)
+            if path and not os.path.isabs(path):
+                path = os.path.join(ROOT, path)
+            if not path or not os.path.exists(path):
+                raise SystemExit(f"no screenshot at {v['name']}: {r}")
+            dst = outdir / f"{bench}_{v['name']}.png"
+            shutil.copy(path, dst)
+            print("->", dst.relative_to(ROOT) if str(dst).startswith(str(ROOT)) else dst)
     elif args.cmd in ("vantage", "shot"):
         v = vantage(gdef, args.name)
         got = camera_set(api, v)
         print(json.dumps({"want": v, "got": got, "ok": pose_ok(v, got)}, indent=1))
         if args.cmd == "shot":
+            # Reference captures must not carry editor panels (the Item Equipper sat over every
+            # 2026-10-07 capture). The route exists from 2026-10-08; older engines just skip it.
+            try:
+                api.debug("editor_panels", {"item_equipper": False, "tool_panels": False})
+            except Exception as e:
+                print(f"   (editor_panels unavailable on this engine: {e})")
             time.sleep(1.0)
             r = api.get("/api/screenshot", timeout=90)
             path = r.get("path") or next((s.get("path") for s in r.get("screenshots", [])), None)

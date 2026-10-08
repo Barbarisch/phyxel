@@ -971,6 +971,20 @@ void EngineAPIServer::setupRoutes() {
         res.set_content(result.dump(), "application/json");
     });
 
+    // POST /api/debug/editor_panels {"item_equipper": bool} — hide/show editor ImGui panels that
+    // overlay the viewport (reference captures must be taken with them hidden). Omitted = unchanged.
+    srv.Post("/api/debug/editor_panels", [this](const httplib::Request& req, httplib::Response& res) {
+        try {
+            json params = req.body.empty() ? json::object() : json::parse(req.body);
+            json result = queueAndWait("editor_panels", params);
+            res.set_content(result.dump(), "application/json");
+        } catch (const json::exception& e) {
+            json err = {{"error", "Invalid JSON"}, {"detail", e.what()}};
+            res.status = 400;
+            res.set_content(err.dump(), "application/json");
+        }
+    });
+
     srv.Post("/api/debug/overlay", [this](const httplib::Request& req, httplib::Response& res) {
         try {
             json params = json::parse(req.body);

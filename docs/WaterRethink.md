@@ -560,6 +560,13 @@ Validation: L4 per feature on the benches; stress: 100 NPCs wading, 1000 debris 
   water and no rendered water** (five chunks' worth, e.g. the row z=800, x 96–100). The span grid
   rebuild keys on `chunkMap.size()` (plus a 30-frame cooldown), so residency can change while the
   count lands on the same value and the grid never catches up. Gate for step 6: this run reads 0.
+- **Reference captures (look-first rule, Water.md §8 #6):** `POST /api/debug/editor_panels
+  {"tool_panels": false}` hides every floating editor panel over the viewport (the first attempt
+  hid only the Item Equipper and the Spell Caster underneath it showed instead; `item_equipper`
+  remains as a single toggle);
+  `tools/water_bench.py refshots <bench>` takes one HUD-free capture per pinned vantage into
+  `docs/evidence/water_v4_refs/<bench>_<vantage>.png` (Basin 4, Coast 3, River 3). These are the
+  "is it prettier than this?" baseline for WP5/WP7; re-taken only deliberately.
 - **MCP water tools (2026-10-08):** 13 tools added to `scripts/mcp/phyxel_mcp_server.py` — `water_stats`,
   `water_probe`, `water_spans_stored`, `water_render_grid`, `water_validate`, `water_find_river`,
   `water_table_level`, `water_bake_info`, `water_ripple`, `place_water`, `water_scoop`, `water_waves`,
@@ -604,6 +611,17 @@ v4 budget (≤ 1.5 ms all-in) has ~1.3 ms of headroom for the sim, far tiles and
 before SSR tiers even matter. The 57 ms elevated frame is **foliage on the forested beach**
 (34.6 ms), a vegetation/perf-program finding, not a water one; it is logged here so a later
 "water got slower" reading is not confused with it. `visible_instances` 24.8–30.2 M.
+
+**WP0 status (2026-10-08 10:05): COMPLETE except one owed number.** Done: three benches (verified,
+cold-restart checked, red baselines recorded) · GPU baseline on all three (water ≈ 0.2 ms; Basin
+floor 1.0 ms) · `water_render_grid` route + `tools/water_camera_probe.py` (self-test passes against
+the real reversion; clean run exposed the 5,120-column stale-grid defect for WP1 step 6) · 13 MCP
+water tools · the two 14-minute tests fixed (13 s Release) · HUD-free reference set (10 captures,
+`docs/evidence/water_v4_refs/`; the game HUD bar and the cube-mode strip remain in frame — editor
+chrome, not water, acceptable for same-vantage A/B). **Owed:** the Debug after-number for the two
+tests (next Debug test build). Next: **WP1 step 1 + 1b** (river spans; hydraulic flood that stops at
+the spill) — **run `/design-check` on 1b first** (generation semantics change); WP3 can start in
+parallel on the Basin bench.
 
 Traps found building them (each cost real time; now in memory `reference_bench_engine_on_project_port`):
 - **Port 8090 is held by an unrelated server** (`taba-server`, another workspace) → MCP engine

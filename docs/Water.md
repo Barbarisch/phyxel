@@ -357,7 +357,9 @@ everywhere; bulk water as particles (particles = splash/spray only).
 6. **Look-first rule for visuals**: keep a reference screenshot at a fixed camera; every
    visual change gets a same-vantage A/B; **a metric improving is not evidence it looks
    better**. Slope (amp×freq), not amplitude, is what the eye sees — corduroy comes from
-   adding octaves without holding slope sum.
+   adding octaves without holding slope sum. The reference set lives in
+   `docs/evidence/water_v4_refs/` (one HUD-free capture per pinned bench vantage,
+   `tools/water_bench.py refshots <bench>`, 2026-10-08).
 7. **Screenshot latency can miss transient effects** (a ripple ring lives 4–6 s — pump
    impulses while capturing); Σ|h| is not monotone for waves; multiplicative verlet damping
    needs `exp(−2k·dt)`.

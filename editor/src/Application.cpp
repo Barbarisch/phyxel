@@ -3196,17 +3196,19 @@ void Application::run() {
         // Render Scripting Console
         imguiRenderer->renderScriptingConsole(showScriptingConsole, scriptingSystem.get());
 
-        // Render Character Customizer
-        renderCharacterCustomizer();
+        if (!m_hideToolPanels) {   // editor_panels {"tool_panels": false} clears the viewport
+            // Render Character Customizer
+            renderCharacterCustomizer();
 
-        // Render Interaction Point Tuner
-        renderInteractionTuner();
+            // Render Interaction Point Tuner
+            renderInteractionTuner();
 
-        // Render Template Spawner
-        renderTemplateSpawner();
-        renderClickActions();
-        renderSpellCaster();
-        renderItemEquipper();
+            // Render Template Spawner
+            renderTemplateSpawner();
+            renderClickActions();
+            renderSpellCaster();
+            renderItemEquipper();
+        }
 
         // Render Texture Editor
         if (m_textureEditor && m_showTextureEditor) {
@@ -8783,6 +8785,17 @@ bool Application::dispatchDebugAPICommand(const Core::APICommand& cmd, nlohmann:
                 {"mode_name", modeName}
             };
         }
+        return true;
+
+    } else if (action == "editor_panels") {
+        // Editor-only ImGui panels that sit over the viewport and spoil reference captures (every
+        // 2026-10-07 water bench capture had the Item Equipper open). Omitted = unchanged; echoes
+        // the resulting state so a capture script can assert the viewport is clear.
+        if (cmd.params.contains("item_equipper")) showItemEquipper = cmd.params.value("item_equipper", true);
+        // "tool_panels": false hides ALL floating tool panels (the Spell Caster sat under the
+        // Item Equipper in the first HUD-free captures); true restores whatever was open.
+        if (cmd.params.contains("tool_panels")) m_hideToolPanels = !cmd.params.value("tool_panels", true);
+        response = {{"success", true}, {"item_equipper", showItemEquipper}, {"tool_panels", !m_hideToolPanels}};
         return true;
 
     } else if (action == "set_face_dir_cull") {
