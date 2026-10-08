@@ -90,14 +90,21 @@ def s3_dam_break(api, gdef, args):
     a = spec["basinA"]
     floor_top = a["flat"]["floorTop"]            # 12
     z0, z1 = a["z"]                              # 10..21
-    bx1, bx2 = 22, 28
+    # The block starts at the WEST end of the flat floor and runs EAST into the vertical wall at
+    # x = eastWallX, so the reflection is a real wall reflection (the first version released it
+    # against the wall and read the draining block as a "crest" - a false pass, 2026-10-08).
+    bx1, bx2 = a["flat"]["x"][0], a["flat"]["x"][0] + 6      # 12..18
     h0 = 3.0
     y1, y2 = floor_top + 1, floor_top + int(h0)  # cells 13..15
-    front_target = a["flat"]["x"][0]             # 12
-    L = bx1 - front_target
+    wall_x = a["eastWallX"]                      # 29 (solid); last floor column is 28
+    front_target = wall_x - 1
+    L = front_target - bx2                       # 10
     ritter_v = 2.0 * (G * h0) ** 0.5
+    area = (a["flat"]["x"][1] - a["flat"]["x"][0] + 1) * (z1 - z0 + 1)  # flat floor columns
+    mass_expected = (bx2 - bx1 + 1) * (z1 - z0 + 1) * h0
     pred = {"ritter_front_speed_mps": ritter_v, "front_time_s": L / ritter_v, "L": L, "h0": h0,
-            "mass_expected": (bx2 - bx1 + 1) * (z1 - z0 + 1) * h0,
+            "mass_expected": mass_expected,
+            "still_level_over_flat_floor": floor_top + 1 + mass_expected / area,   # ignores the ramp's extra area: a lower bound
             "reflected_crest_min_ratio": 0.8, "flat_after_s": 10.0, "flat_tolerance": 1e-3, "mass_tolerance": 1e-4}
 
     # Pose low so the CA window (cam.y - 16 .. +16) contains the basin floor; assert it.
@@ -124,11 +131,11 @@ def s3_dam_break(api, gdef, args):
         pr = api.debug("water_probe_rect", rect)
         cols = pr["columns"]
         wet = [c for c in cols if c[3] is not None and c[3] > 0.5]
-        front_x = min(c[0] for c in wet) if wet else None
-        if front_x is not None and front_x <= front_target and front_hit_t is None:
+        front_x = max(c[0] for c in wet) if wet else None          # the front runs EAST
+        if front_x is not None and front_x >= front_target and front_hit_t is None:
             front_hit_t = t
-        west = [c for c in cols if c[0] <= front_target + 2 and c[2] is not None]
-        east = [c for c in cols if c[0] >= bx2 - 1 and c[2] is not None]
+        west = [c for c in cols if c[0] <= bx2 and c[2] is not None]             # where the block was
+        east = [c for c in cols if c[0] >= front_target - 1 and c[2] is not None]  # the wall columns 27..28
         samples.append({"t": round(t, 3), "front_x": front_x,
                         "west_max_surface": max((c[2] for c in west), default=None),
                         "east_max_surface": max((c[2] for c in east), default=None),
@@ -144,12 +151,17 @@ def s3_dam_break(api, gdef, args):
             "front_hit_time_s": front_hit_t,
             "front_speed_ratio_vs_ritter": (pred["front_time_s"] / front_hit_t) if front_hit_t else 0.0,
             "west_surface_peak": max((s["west_max_surface"] for s in samples if s["west_max_surface"] is not None), default=None),
-            "east_surface_peak_after_1s": max((s["east_max_surface"] for s in samples if s["t"] > 1.0 and s["east_max_surface"] is not None), default=None),
+            # the wall crest: the highest surface at the wall columns AFTER the front arrived there
+            "east_surface_peak_after_1s": max((s["east_max_surface"] for s in samples
+                                               if front_hit_t is not None and s["t"] >= front_hit_t and s["east_max_surface"] is not None), default=None),
             "final_surface_spread": flat, "final_mass": led1["cells"],
             "mass_drift": led1["cells"] - pred["mass_expected"], "samples": samples}
     verdict = {
         "front_speed": "FAIL" if not front_hit_t or meas["front_speed_ratio_vs_ritter"] < 0.85 else "PASS",
-        "reflected_crest": "FAIL" if (meas["east_surface_peak_after_1s"] or 0) < floor_top + h0 * pred["reflected_crest_min_ratio"] else "PASS",
+        # a reflection piles the wall columns above the still level by >= 0.8 x the incident
+        # amplitude (h0 - still depth); a surface that merely rises to the still level is not a crest
+        "reflected_crest": "FAIL" if (meas["east_surface_peak_after_1s"] or 0) <
+                                     pred["still_level_over_flat_floor"] + pred["reflected_crest_min_ratio"] * (floor_top + 1 + h0 - pred["still_level_over_flat_floor"]) else "PASS",
         "flat_at_rest": "FAIL" if flat is None or flat > pred["flat_tolerance"] else "PASS",
         "mass": "FAIL" if abs(meas["mass_drift"]) > pred["mass_tolerance"] else "PASS"}
     return pred, meas, verdict
