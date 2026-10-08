@@ -1,0 +1,83 @@
+{
+  "basin": {
+    "columns_checked": 1024,
+    "wrong_columns": 0,
+    "slab_top_ok": true,
+    "above_slab": 0,
+    "total_mass": 0.0,
+    "water_stats": {
+      "camera_depth_below": 0.0,
+      "camera_submergence": 0.0,
+      "dims": {
+        "x": 64,
+        "y": 32,
+        "z": 64
+      },
+      "edge_outflow": false,
+      "origin": {
+        "x": -16,
+        "y": 18,
+        "z": -42
+      },
+      "outflow_bank": 0.0,
+      "overrides": 0,
+      "plane_enabled": false,
+      "render_sea_level": 16.0,
+      "surface_cells": 0,
+      "total_mass": 0.0,
+      "water_table": false
+    },
+    "vantages": {
+      "rig_overview": {
+        "ok": true,
+        "got": {
+          "x": 16.0,
+          "y": 34.0,
+          "z": -10.0,
+          "yaw": 90.0,
+          "pitch": -40.0
+        }
+      },
+      "east_wall": {
+        "ok": true,
+        "got": {
+          "x": 10.0,
+          "y": 19.0,
+          "z": 15.5,
+          "yaw": 0.0,
+          "pitch": -12.0
+        }
+      },
+      "ramp_runup": {
+        "ok": true,
+        "got": {
+          "x": 26.0,
+          "y": 19.0,
+          "z": 15.5,
+          "yaw": 180.0,
+          "pitch": -12.0
+        }
+      },
+      "channel_top": {
+        "ok": true,
+        "got": {
+          "x": 14.5,
+          "y": 26.0,
+          "z": 24.0,
+          "yaw": 90.0,
+          "pitch": -75.0
+        }
+      }
+    },
+    "status": {
+      "api_version": "1.0",
+      "build_config": "Release",
+      "engine": "phyxel",
+      "port": 8108,
+      "status": "ok"
+    },
+    "ok": true,
+    "timestamp": "2026-10-07T22:38:49",
+    "git_head": "fb641dfe"
+  }
+}
