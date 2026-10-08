@@ -278,6 +278,16 @@ not the core**; the core is small enough to be fully 3-D.
 - **Merge** two AVs whose boxes touch and share water.
 - **Sleep** (§5.2): write back to spans and body records, free.
 - **Multiple AVs** are the norm (a pond here, a trough there); total cell budget per tier (§10).
+- **An AV lives inside chunk residency and the occupancy window** (gate §14 finding). Solids come
+  from `PackedOccupancyPool`, a 32×32 chunk-column directory recentred on the viewer
+  (`solver_shared.h:79`), and spans can only be written to resident chunks. So an AV box is clipped
+  to the intersection of the resident chunk set and the occupancy window; a face that would cross
+  that boundary is a **hold boundary** (no flux, like the debris solver's `SS_FROZEN_UNKNOWN`:
+  bodies are HELD when a contact sample needs occupancy the pool lacks, `solver_shared.h:155`).
+  Water never flows into ground it cannot see. This bounds where MOTION happens by residency —
+  the rule terrain already obeys — and never where water EXISTS (spans/bodies). When residency
+  grows, the hold boundary moves and the water resumes; a pinned test asserts the result is
+  identical to having had the larger residency from the start (§14 test 2).
 
 ### 5.2 Rest and write-back (P7)
 Sleep when kinetic energy < ε_K and max |Δf| < ε_f for N = 30 ticks. Write-back: per column, the
@@ -449,3 +459,84 @@ opens with its design-check.
   before save (or save its cells); decided in Phase D's design-check.
 - **Determinism across CPU/GPU**: tolerance-based parity like the debris bench; exact equality is
   not promised.
+
+---
+
+## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
+
+**Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
+their own gates (§11). Four gaps were real and are closed below; the rest holds.
+
+### 14.1 Voxel aesthetic
+Water is the engine's standing exception to the cubic look: the AV surface is a smooth sub-cell
+height field, as the sea sheet and cell tops already are. **Gap found: droplets.** The droplet
+layer had no stated idiom. Decision: droplets render as **water-shaded microcubes** (the engine's
+particle idiom, the size of one AV cell at ⅑ or the configured cell), not smooth sprites — in a
+voxel world a splash is a burst of tiny cubes, and that matches debris. Detail is unconditional:
+resolution is an authoring parameter of the game, not a runtime quality tier; the budget
+coarsening (§4.5) is a cost gate that changes motion detail only, is logged, and must never fire
+on the shipped-default §3 rigs (asserted by the harness: `coarsened == 0` on every scenario row).
+
+### 14.2 Chunk independence — every chunk-derived quantity
+| Quantity | Derived from | Affects | Ruling |
+|---|---|---|---|
+| AV box | connected water around the trigger (world positions) | where motion is simulated | OK — world-derived, camera-independent |
+| **Solid mask** | `PackedOccupancyPool`, 32×32 chunk columns recentred on the VIEWER | behaviour | **Was a hidden camera dependence** (water would flow into unknown ground differently depending on where the viewer stood). Fixed (§5.1): AVs are clipped to the resident ∩ occupancy window, unknown ground is a hold boundary. Motion is bounded by residency (like terrain); existence is not. |
+| Span write-back target | chunk residency | persistence | OK by the same rule: an AV never extends over non-resident chunks, so every column it writes is resident |
+| Span storage per chunk; vertical chunk clipping of tall columns | chunk identity | storage | OK (Tier B, exists, pinned) |
+| Span render grid bounds + rebuild trigger | resident set | coverage | the count-vs-set defect (WaterRethink WP1 step 6) is fixed in Phase D |
+| Debris water tiles directory | same 32×32 window | debris coupling | OK — already residency-bounded by the debris solver's own design |
+| Cell budget per tier | tier | cost only | OK; coarsening logged, never on default rigs |
+
+No cross-chunk lookup is introduced: an AV reads world positions and the pool. **Equality tests
+(must exist before each phase ships):** (1) `WaterCoreSeamTest.WriteBackIdenticalAcrossChunkSeams`
+— an AV straddling a chunk boundary writes column tops that are identical on both sides and equal
+to a whole-region reference (two bodies at different levels in the fixture); (2)
+`WaterCoreResidencyTest.LargerResidencyChangesNothingInsideTheBox` — the same scenario with the
+resident set grown by one chunk ring produces bit-identical cells inside the original box (the
+hold boundary is a cost bound, not a shape); (3) `WaterCoreSolidsTest.UnknownOccupancyHolds` — a
+column whose pool entry is absent is a wall for flux this tick and releases exactly when the entry
+appears, mass unchanged.
+
+### 14.3 Procedural generation
+The core is runtime; it touches generation only through Tier B/A (spans and bodies, hydrology
+stage, already gated in WaterRethink §8.8). `water.core.cellSize` is a **game** setting (game.json),
+not world recipe, because spans store float tops independent of cell size, so a world generated
+under one resolution reloads correctly under another (pinned: write-back → reload at a different
+cell size → same mass per column). Lake water-balance rates (Phase G) are recipe fields. Order-
+independence of the runtime does not arise (it is a time integration, deterministic per the CPU
+reference); of generation it is inherited.
+
+### 14.4 API surface — the Phase A/B routes, specified now
+| Route | Fields (units) | Unchanged | Echo | Clamp (and why) |
+|---|---|---|---|---|
+| `GET /api/water/ledger` | — | — | `cells` (Σ awake AV mass, m³), `spans` (Σ Tier B), `bodies` (Σ Tier A), `reserves` (containers), `droplets`, `total`, `sources_since_boot`, `sinks_since_boot`, `drift` (= total − initial − sources + sinks) | — (a read; `drift` is the invariant, expected 0 ± 1e-4) |
+| `POST /api/water/core` | `cellSize` (fraction of a voxel: 1, 1/3, 1/9, 1/27, 1/81), `transport` (`eulerian`\|`flip`), `hz` (ticks/s), `maxCellsPerAv`, `maxCellsTotal`, `dropletCap` | omitted | full config in effect | `cellSize` ∈ the power-of-three set (a non-divisor puts a cell half inside a microcube — refused, not rounded); `hz` ∈ [20, 120] (CFL substeps derive from it); `maxCells*` ≤ tier ceiling (GPU buffers are sized at tier allocation); `dropletCap` ≤ pool size |
+| `GET /api/water/av` | — | — | list: id, box (world voxels), cellSize, transport, cells, awake/asleep, KE, mass, resolution-coarsened flag, hold faces | — |
+| `POST /api/water/av/probe` | `x,y,z` (world) or `x,z` (surface) | — | `f`, velocity (m/s), surface Y at the column, body id, pressure (Pa) | — |
+| `POST /api/water/source` | `x,y,z`, `rate` (m³/s, negative = sink), `id` | omitted | the source record | `|rate|` ≤ 10 m³/s per source (above it a single cell cannot accept the inflow per tick at ⅑ and the solver would mint pressure — the limit is derived from cell volume × hz and stated in the response) |
+| `POST /api/water/impulse` | `x,y,z`, `radius` (m), `strength` (m/s added) | — | affected cells | `strength` ≤ 20 m/s (CFL at the finest cell and `hz`) |
+| `POST /api/water/container` | `id`, `reserveCapacity` (m³) | omitted | the container record (physical mass, reserve mass, capacity) | `reserveCapacity` ≥ 0 |
+Defaults: none of today's defaults change in Phase A/B (the CA keeps running until its §9 row);
+`water.enabled` semantics change in Phase D with the flat-sea deletion (WaterRethink §8.4).
+
+### 14.5 Visual test plan — measurement primitives (gap found: §3 stated predictions but not
+how each number is read)
+- **Surface height at a column:** `water/av/probe {x,z}` → surface Y (sub-cell, from f).
+- **Front position (S3):** per tick, the first column along +x with f > 0.5 at the floor layer;
+  speed = Δx/Δt over the 10 u run; compared to Ritter as a ratio.
+- **Flow rate (S4, S10, S14):** `ledger` deltas per second on the two sides of the notch/pipe,
+  plus the sink's own counter; compared to Torricelli/inflow as a ratio.
+- **Draft (S6):** the floating body's y from `get_entity` minus the surface Y at its column.
+- **Rest (S11):** max |surface Y − written span top| over the AV's columns after sleep; AV cost
+  from `gpu_timing` scope `WaterCore` = 0 when asleep.
+- **Look (S6, S7, S9, S12):** `water_bench.py refshots` at the rig's pinned vantage vs the
+  reference; user sign-off recorded in the evidence row.
+- **Controls** are in every §3 row; the harness refuses to record a row without its control.
+Rigs run at the shipped default (⅓) plus ⅑ and 1; the rig deltas from shipped defaults are: no
+hydrology bake (Small bench is Flat with no world block), fixed 60 Hz, tier `high` — all stated in
+each evidence row.
+
+**Red test for Phase A (the first thing built):** the harness runs S3 against today's CA on the
+Basin bench and records: no reflected crest (the CA has no momentum), front speed far below Ritter,
+and the sloshing-vs-settling profile — the baseline every later row is compared to.
