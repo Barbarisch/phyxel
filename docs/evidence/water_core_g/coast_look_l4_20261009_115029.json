@@ -1,0 +1,269 @@
+{
+ "pose": {
+  "x": 165,
+  "y": 40,
+  "z": 650,
+  "yaw": 90,
+  "pitch": -35
+ },
+ "regions": {
+  "band": [
+   [
+    850,
+    160,
+    1150,
+    240
+   ],
+   [
+    250,
+    160,
+    450,
+    230
+   ]
+  ],
+  "sheet": [
+   [
+    250,
+    50,
+    560,
+    110
+   ],
+   [
+    880,
+    50,
+    1150,
+    110
+   ]
+  ],
+  "control_sand": [
+   [
+    880,
+    300,
+    1050,
+    360
+   ]
+  ]
+ },
+ "look": {
+  "clarity": 2.0,
+  "tint": [
+   0.2,
+   0.13,
+   0.04
+  ]
+ },
+ "band": {
+  "active": true,
+  "centre": [
+   163.3134765625,
+   673.940673828125
+  ],
+  "n": 96,
+  "still": 16.0
+ },
+ "before_png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_g\\coast_look_before.png",
+ "before": {
+  "band": [
+   0.6694,
+   0.766,
+   0.7349
+  ],
+  "sheet": [
+   0.6046,
+   0.7876,
+   0.7818
+  ],
+  "control_sand": [
+   0.7752,
+   0.7543,
+   0.7071
+  ]
+ },
+ "set": {
+  "bbox": [
+   32,
+   666,
+   319,
+   863
+  ],
+  "body": -1,
+  "clamped": [],
+  "cls": "sea",
+  "derived": {
+   "clarity_m": 10.8,
+   "note": "unset knobs keep these derived values (turbidity/roughness: per body from depth and wind)",
+   "tint": [
+    0.04,
+    0.18,
+    0.24
+   ]
+  },
+  "level": 16.0,
+  "look": {
+   "clarity": 2.0,
+   "tint": [
+    0.20000000298023224,
+    0.12999999523162842,
+    0.03999999910593033
+   ]
+  },
+  "origin": "region",
+  "packed": {
+   "look0": [
+    0.20000000298023224,
+    0.12999999523162842,
+    0.03999999910593033,
+    2.0
+   ],
+   "look1": [
+    -1.0,
+    -1.0
+   ]
+  },
+  "persisted": "with save_world (world_meta water_bodies)",
+  "success": true
+ },
+ "after_png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_g\\coast_look_after.png",
+ "after": {
+  "band": [
+   0.817,
+   0.7724,
+   0.6288
+  ],
+  "sheet": [
+   0.8145,
+   0.7529,
+   0.6164
+  ],
+  "control_sand": [
+   0.7752,
+   0.7543,
+   0.7071
+  ]
+ },
+ "cleared": {
+  "bbox": [
+   32,
+   666,
+   319,
+   863
+  ],
+  "body": -1,
+  "clamped": [],
+  "cls": "sea",
+  "derived": {
+   "clarity_m": 10.8,
+   "note": "unset knobs keep these derived values (turbidity/roughness: per body from depth and wind)",
+   "tint": [
+    0.04,
+    0.18,
+    0.24
+   ]
+  },
+  "level": 16.0,
+  "look": {},
+  "origin": "region",
+  "packed": {
+   "look0": [
+    -1.0,
+    -1.0,
+    -1.0,
+    0.0
+   ],
+   "look1": [
+    -1.0,
+    -1.0
+   ]
+  },
+  "persisted": "with save_world (world_meta water_bodies)",
+  "success": true
+ },
+ "restored_png": "G:\\Github\\phyxel\\docs\\evidence\\water_core_g\\coast_look_restored.png",
+ "restored": {
+  "band": [
+   0.6683,
+   0.7657,
+   0.7346
+  ],
+  "sheet": [
+   0.6036,
+   0.7882,
+   0.7832
+  ],
+  "control_sand": [
+   0.7752,
+   0.7543,
+   0.7071
+  ]
+ },
+ "distance_after": {
+  "band": 0.1819,
+  "sheet": 0.2695,
+  "control_sand": 0.0
+ },
+ "distance_restored": {
+  "band": 0.0012,
+  "sheet": 0.0018,
+  "control_sand": 0.0
+ },
+ "save": {
+  "mode": "dirty",
+  "success": true
+ },
+ "after_restart": {
+  "bbox": [
+   32,
+   666,
+   319,
+   863
+  ],
+  "body": -1,
+  "clamped": [],
+  "cls": "sea",
+  "derived": {
+   "clarity_m": 10.8,
+   "note": "unset knobs keep these derived values (turbidity/roughness: per body from depth and wind)",
+   "tint": [
+    0.04,
+    0.18,
+    0.24
+   ]
+  },
+  "level": 16.0,
+  "look": {
+   "clarity": 2.0,
+   "tint": [
+    0.20000000298023224,
+    0.12999999523162842,
+    0.03999999910593033
+   ]
+  },
+  "origin": "region",
+  "packed": {
+   "look0": [
+    0.20000000298023224,
+    0.12999999523162842,
+    0.03999999910593033,
+    2.0
+   ],
+   "look1": [
+    -1.0,
+    -1.0
+   ]
+  },
+  "persisted": "with save_world (world_meta water_bodies)",
+  "success": true
+ },
+ "cleanup_save": {
+  "mode": "dirty",
+  "success": true
+ },
+ "verdict": {
+  "band_changed": true,
+  "sheet_changed": true,
+  "control_still": true,
+  "band_restored": true,
+  "persisted": true
+ },
+ "pass": true
+}

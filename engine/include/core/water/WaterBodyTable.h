@@ -1,8 +1,10 @@
 #pragma once
 
 #include "core/water/WaterCore.h"
+#include "core/water/WaterLook.h"
 
 #include <functional>
+#include <limits>
 #include <glm/glm.hpp>
 #include <string>
 #include <vector>
@@ -23,7 +25,8 @@ struct WaterBodyRecord {
     double      mass = 0.0;          ///< m^3 (an ESTIMATE for generation bodies, exact for av ponds)
     double      displaced = 0.0;     ///< m^3 debited by solids placed into this body's spans
     glm::ivec2  bboxMin{0}, bboxMax{0};   ///< world voxel columns, inclusive
-    std::string origin = "av";       ///< generation | av
+    std::string origin = "av";       ///< generation | av | region (G3: stored water named for its look - no mass role, never credited)
+    WaterLook   look;                ///< G3: the body's look profile (unset knobs = derived); persisted only when set
 };
 
 class WaterBodyTable {
@@ -49,6 +52,17 @@ public:
     const std::vector<WaterBodyRecord>& records() const { return m_records; }
     std::vector<WaterBodyRecord>& recordsMutable() { return m_records; }   ///< the reconcile route (A.mass := sum of B)
     const WaterBodyRecord* find(int id) const;
+    WaterBodyRecord* findMutable(int id);
+    /// G3: the body that owns a world column - the generation body under it (`bakeBodyAt`), else the
+    /// av pond whose box holds it; kNoBody when neither. A pure function of the column and the table.
+    static constexpr int kNoBody = -2147483647;
+    /// `topY` (optional): the column's stored surface; a box-matched av/region record must sit within
+    /// 5 cm of it, so a pond behind a beach (another level, inside the sea's box) is not the sea.
+    int bodyAt(int x, int z, const std::function<int(int, int)>& bakeBodyAt, float topY = std::numeric_limits<float>::quiet_NaN()) const;
+    /// G3: the look of the body that owns a column (all unset when no body or no record).
+    WaterLook lookAt(int x, int z, const std::function<int(int, int)>& bakeBodyAt, float topY = std::numeric_limits<float>::quiet_NaN()) const;
+    /// G3: name a region of stored water (origin "region", a fresh negative id). Returns the id.
+    int addRegion(WaterBodyRecord r);
     double avMass() const;            ///< sum of av-origin masses (the ledger's `bodies`)
     double displacedTotal() const;    ///< sum of displaced over every record + orphan
 

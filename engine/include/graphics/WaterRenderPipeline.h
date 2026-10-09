@@ -63,7 +63,7 @@ public:
     void renderUnderwater(VkCommandBuffer commandBuffer, VkDescriptorSet uboSet,
                           const Camera& camera, const glm::mat4& projectionMatrix,
                           float submergence, float depthBelow, VkExtent2D screenExtent,
-                          float turbidity = 0.0f);
+                          float turbidity = 0.0f, float clarity = 0.0f);   ///< clarity (G3): the body's Secchi depth, m; 0 = derived
 
     // Gerstner swell controls (WaterSystemV3 Phase 2). amplitude 0 disables the displacement
     // entirely, which restores the pre-Phase-2 flat sheet — that is the A/B used to prove the
@@ -105,8 +105,11 @@ public:
     // that form once right after initialize() so the binding is always valid.
     // REPLACING a previously-uploaded grid re-writes the descriptor — the caller must ensure the
     // device is idle (vkDeviceWaitIdle) when swapping mid-session (world change).
+    /// `looks` (G3, optional): 4 floats per cell = (tint.r, tint.g, tint.b, clarity), tint.r < 0 =
+    /// unset, clarity 0 = unset; nullptr = all neutral. The image holds TWO texels per cell along x:
+    /// (2 cx) = level/energy/turbidity/roughness, (2 cx + 1) = the look (water.vert/frag read both).
     void recordHydrologyUpload(VkCommandBuffer cmd, const float* levels, int cellsX, int cellsZ,
-                               float originX, float originZ, float cellSize);
+                               float originX, float originZ, float cellSize, const float* looks = nullptr);
     bool hydrologyBound() const { return m_hydroBound; }
 
     // What the RENDERER holds for a column — the observable the camera-walk probe diffs

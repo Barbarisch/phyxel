@@ -464,6 +464,11 @@ struct WaterSurfaceInput {
     // pre-change capture.
     float turbidity;   // 0 = clear (Pope & Fry constants), 1 = fully turbid
     float roughness;   // multiplier on the fine ripple slope; 1 = shipped detail, 0 = mirror
+    // ── PER-BODY LOOK (WaterCore G3, docs/WaterCore.md 18.7) ──────────────────────────
+    // Callers set tintSet 0 and clarity 0 for the derived look (exactly the pre-G3 pixels).
+    vec3  tint;        // the colour deep water glows with, in WATER_SCATTER's units (0.04, 0.18, 0.24)
+    float tintSet;     // 1 = tint is set
+    float clarity;     // Secchi depth in m; 0 = derived (Pope & Fry clear water ~ 10.8 m)
     // ── SCREEN-SPACE REFLECTION (v4 W4) ───────────────────────────────────────────────────────
     // The water's OWN absolute-world-space viewProj. NOT ubo.viewProj, which is camera-relative
     // (see the SSR block above) — passing it explicitly keeps this file independent of each
@@ -544,6 +549,21 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // single-constant version this replaces — which is what the W1 no-regression capture asserts.
     vec3 extinction = mix(WATER_EXTINCTION, WATER_EXTINCTION_TURBID, inp.turbidity);
     vec3 scatter    = mix(WATER_SCATTER,    WATER_SCATTER_TURBID,    inp.turbidity);
+    // G3 per-body look. TINT: the water's own colour replaces the in-scatter hue at the brightness
+    // turbidity already gives it (tint == WATER_SCATTER at turbidity 0 is today's scatter), and the
+    // absorption tilts toward its complement - water looks green because it absorbs red and blue
+    // (a judgement for the shape, 1.05 - 0.85 x normalised tint; the magnitude is kept).
+    // CLARITY: Secchi depth Z -> Kd = 1.7 / Z (Poole & Atkins 1929, the relation the underwater fog
+    // uses); the extinction is rescaled so its luminance-weighted mean is Kd. The derived clear
+    // water's mean is 0.157 / m, i.e. Z ~ 10.8 m.
+    const vec3 WATER_LUM = vec3(0.2126, 0.7152, 0.0722);
+    if (inp.tintSet > 0.5) {
+        vec3 tn = inp.tint / max(max(inp.tint.r, inp.tint.g), max(inp.tint.b, 1e-4));
+        vec3 shape = vec3(1.05) - 0.85 * tn;
+        extinction = shape * (dot(extinction, WATER_LUM) / max(dot(shape, WATER_LUM), 1e-4));
+        scatter = inp.tint * (dot(scatter, WATER_LUM) / dot(WATER_SCATTER, WATER_LUM));
+    }
+    if (inp.clarity > 0.0) extinction *= (1.7 / inp.clarity) / max(dot(extinction, WATER_LUM), 1e-4);
     vec3 transmit = exp(-extinction * thickness);
     vec3 body = behind * transmit + scatter * (1.0 - transmit);
 

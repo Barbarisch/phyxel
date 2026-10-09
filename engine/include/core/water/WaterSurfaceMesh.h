@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <glm/glm.hpp>
+#include "core/water/WaterLook.h"
 #include <vector>
 
 // WaterCore Phase F (docs/WaterCore.md 17): the simulated water's own surface, at the volume's own
@@ -44,6 +45,7 @@ struct WaterSurfaceField {
     int   nx = 0, nz = 0;
     float h = 1.0f;
     std::vector<SurfaceColumn> cols;   ///< nx * nz, index x + nx * z
+    WaterLookPacked look;              ///< G3: the body's look, resolved at the field's centre by its producer
     const SurfaceColumn& at(int x, int z) const { return cols[static_cast<size_t>(x) + static_cast<size_t>(nx) * z]; }
 };
 
@@ -63,15 +65,21 @@ struct WaterSurfaceVertex {
 };
 static_assert(sizeof(WaterSurfaceVertex) == 48, "water_surface.vert expects 48-byte vertices");
 
+/// G3: one draw per field, so each body's look reaches the shader in the push block.
+struct WaterSurfaceRange { uint32_t firstIndex = 0, indexCount = 0; WaterLookPacked look; };
+
 struct WaterSurfaceMesh {
     std::vector<WaterSurfaceVertex> vertices;
     std::vector<uint32_t> indices;
     long topQuads = 0, sideQuads = 0;
-    void clear() { vertices.clear(); indices.clear(); topQuads = sideQuads = 0; }
+    std::vector<WaterSurfaceRange> ranges;   ///< G3: one per appended field (its look)
+    void clear() { vertices.clear(); indices.clear(); ranges.clear(); topQuads = sideQuads = 0; }
 };
 
 /// Pure. Appends the volume's mesh to `out`.
 void buildWaterSurfaceMesh(const WaterSurfaceField& field, WaterSurfaceMesh& out);
+/// G3: appends the field's mesh AND a draw range carrying the field's look (empty fields add no range).
+void appendFieldToMesh(const WaterSurfaceField& field, WaterSurfaceMesh& out);
 
 /// Phase F render mode of the simulated water (docs/WaterCore.md 17.2 key 4).
 enum class WaterCoreRenderMode : int { Off = 0, Cells = 1, Mesh = 2 };

@@ -3,20 +3,52 @@
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <map>
 
 namespace Phyxel::Core::Water {
 
 void WaterBodyTable::importGeneration(const std::vector<WaterBodyRecord>& bodies) {
     std::vector<WaterBodyRecord> keep;
-    for (const auto& r : m_records) if (r.origin != "generation") keep.push_back(r);
-    for (auto b : bodies) { b.origin = "generation"; keep.push_back(b); }
+    std::map<int, WaterLook> looks;   // G3: a re-import keeps the looks the world set on its bodies
+    for (const auto& r : m_records) { if (r.origin != "generation") keep.push_back(r); else if (r.look.any()) looks[r.id] = r.look; }
+    for (auto b : bodies) { b.origin = "generation"; if (looks.count(b.id) && !b.look.any()) b.look = looks[b.id]; keep.push_back(b); }
     m_records.swap(keep);
 }
 
 const WaterBodyRecord* WaterBodyTable::find(int id) const {
     for (const auto& r : m_records) if (r.id == id) return &r;
     return nullptr;
+}
+
+WaterBodyRecord* WaterBodyTable::findMutable(int id) {
+    for (auto& r : m_records) if (r.id == id) return &r;
+    return nullptr;
+}
+
+int WaterBodyTable::bodyAt(int x, int z, const std::function<int(int, int)>& bakeBodyAt, float topY) const {
+    const int g = bakeBodyAt ? bakeBodyAt(x, z) : -1;
+    if (g >= 0) return g;
+    for (const auto& r : m_records) {
+        if (r.origin != "av" && r.origin != "region") continue;
+        if (x < r.bboxMin.x || x > r.bboxMax.x || z < r.bboxMin.y || z > r.bboxMax.y) continue;
+        if (!std::isnan(topY) && std::abs(topY - r.level) > 0.05f) continue;   // another level: another body
+        return r.id;
+    }
+    return kNoBody;
+}
+
+int WaterBodyTable::addRegion(WaterBodyRecord r) {
+    r.id = m_nextAvId--; r.origin = "region"; r.mass = 0.0; r.displaced = 0.0;
+    m_records.push_back(r);
+    return r.id;
+}
+
+WaterLook WaterBodyTable::lookAt(int x, int z, const std::function<int(int, int)>& bakeBodyAt, float topY) const {
+    const int id = bodyAt(x, z, bakeBodyAt, topY);
+    if (id == kNoBody) return WaterLook{};
+    const WaterBodyRecord* r = find(id);
+    return r ? r->look : WaterLook{};
 }
 
 WaterBodyRecord* WaterBodyTable::avPondAt(int x, int z) {
@@ -97,8 +129,12 @@ double WaterBodyTable::displacedTotal() const {
 std::string WaterBodyTable::serialize() const {
     nlohmann::json j = nlohmann::json::array();
     for (const auto& r : m_records)
-        j.push_back({{"id", r.id}, {"cls", r.cls}, {"level", r.level}, {"mass", r.mass}, {"displaced", r.displaced},
-                     {"bbox", {r.bboxMin.x, r.bboxMin.y, r.bboxMax.x, r.bboxMax.y}}, {"origin", r.origin}});
+    {
+        nlohmann::json row = {{"id", r.id}, {"cls", r.cls}, {"level", r.level}, {"mass", r.mass}, {"displaced", r.displaced},
+                              {"bbox", {r.bboxMin.x, r.bboxMin.y, r.bboxMax.x, r.bboxMax.y}}, {"origin", r.origin}};
+        if (r.look.any()) row["look"] = nlohmann::json::parse(lookToJson(r.look));   // G3: only when set (old worlds stay byte-identical)
+        j.push_back(row);
+    }
     return nlohmann::json{{"version", 1}, {"next_av_id", m_nextAvId}, {"orphan_displaced", m_orphanDisplaced}, {"bodies", j}}.dump();
 }
 
@@ -110,6 +146,7 @@ bool WaterBodyTable::load(const std::string& text) {
         WaterBodyRecord r;
         r.id = b.value("id", 0); r.cls = b.value("cls", std::string("pond")); r.level = b.value("level", 0.0f);
         r.mass = b.value("mass", 0.0); r.displaced = b.value("displaced", 0.0); r.origin = b.value("origin", std::string("av"));
+        if (b.contains("look") && b["look"].is_object()) r.look = clampLook(lookFromJson(b["look"].dump()));
         if (b.contains("bbox") && b["bbox"].is_array() && b["bbox"].size() == 4) {
             r.bboxMin = glm::ivec2(b["bbox"][0].get<int>(), b["bbox"][1].get<int>());
             r.bboxMax = glm::ivec2(b["bbox"][2].get<int>(), b["bbox"][3].get<int>());

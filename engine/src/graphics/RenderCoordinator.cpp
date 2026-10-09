@@ -1206,6 +1206,25 @@ void RenderCoordinator::updateSpanWaterGrid() {
         }
     }
 
+    // G3: the per-body look, one texel per column beside the data texel (neutral = unset). Turbidity
+    // and roughness a body sets replace the derived B/A unless the W1 positive control is active.
+    std::vector<float> lookTex(static_cast<size_t>(w) * d * 4);
+    for (size_t i = 0; i < lookTex.size(); i += 4) { lookTex[i] = -1.0f; lookTex[i + 1] = -1.0f; lookTex[i + 2] = -1.0f; lookTex[i + 3] = 0.0f; }
+    long lookColumns = 0;
+    if (m_waterLookResolver) {
+        for (int gz = 0; gz < d; ++gz) for (int gx = 0; gx < w; ++gx) {
+            float* px = &rgba[(static_cast<size_t>(gz) * w + gx) * 4];
+            if (px[0] < -1e5f) continue;   // dry: nothing to look at
+            const Core::Water::WaterLook lk = m_waterLookResolver(minX + gx, minZ + gz, px[0]);
+            if (!lk.any()) continue;
+            const Core::Water::WaterLookPacked pk = Core::Water::packLook(lk);
+            float* lt = &lookTex[(static_cast<size_t>(gz) * w + gx) * 4];
+            lt[0] = pk.look0.x; lt[1] = pk.look0.y; lt[2] = pk.look0.z; lt[3] = pk.look0.w;
+            if (!m_waterLookActive) { if (lk.hasTurbidity()) px[2] = lk.turbidity; if (lk.hasRoughness()) px[3] = lk.roughness; }
+            ++lookColumns;
+        }
+    }
+
     // Same swap discipline as the grounded path: the image size can change between rebuilds
     // (residency bounds move), which recreates the image + rewrites the descriptor — idle first.
     const auto tIdle0 = std::chrono::steady_clock::now();
@@ -1213,14 +1232,14 @@ void RenderCoordinator::updateSpanWaterGrid() {
     const double idleMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tIdle0).count();
     VkCommandBuffer oneShot = vulkanDevice->beginSingleTimeCommands();
     waterPipeline->recordHydrologyUpload(oneShot, rgba.data(), w, d,
-                                         static_cast<float>(minX), static_cast<float>(minZ), -1.0f);
+                                         static_cast<float>(minX), static_cast<float>(minZ), -1.0f, lookTex.data());
     vulkanDevice->endSingleTimeCommands(oneShot);
     m_spanGridKey = key; m_spanGridBuilt = true;
     m_spanGridCooldown = 30;
     char timing[96];
     std::snprintf(timing, sizeof timing, "key %.3f ms, idle wait %.2f ms", keyMs, idleMs);   // LOG_* takes bare {} only
-    LOG_INFO("RenderCoordinator", "Span water grid: {}x{} at ({}, {}), {} wet columns, {} masked by volumes, {} chunks ({})",
-             w, d, minX, minZ, wet, masked, chunkCount, timing);
+    LOG_INFO("RenderCoordinator", "Span water grid: {}x{} at ({}, {}), {} wet columns, {} masked by volumes, {} with a body look, {} chunks ({})",
+             w, d, minX, minZ, wet, masked, lookColumns, chunkCount, timing);
 }
 
 glm::vec3 RenderCoordinator::waterLook() const {
@@ -4346,8 +4365,8 @@ void RenderCoordinator::drawFrame() {
     const bool anyField = (m_waterCoreFields && !m_waterCoreFields->empty()) || (m_waterShoreField && m_waterShoreField->nx > 0);
     if (waterSurfacePipeline && m_waterCoreMode == WaterCoreRenderMode::Mesh && anyField) {
         const auto tm0 = std::chrono::steady_clock::now();
-        if (m_waterCoreFields) for (const auto& f : *m_waterCoreFields) Core::Water::buildWaterSurfaceMesh(f, m_waterCoreMesh);
-        if (m_waterShoreField && m_waterShoreField->nx > 0) Core::Water::buildWaterSurfaceMesh(*m_waterShoreField, m_waterCoreMesh);   // Phase G: the shore band
+        if (m_waterCoreFields) for (const auto& f : *m_waterCoreFields) Core::Water::appendFieldToMesh(f, m_waterCoreMesh);   // G3: one draw range (look) per field
+        if (m_waterShoreField && m_waterShoreField->nx > 0) Core::Water::appendFieldToMesh(*m_waterShoreField, m_waterCoreMesh);   // Phase G: the shore band
         m_waterCoreMeshMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tm0).count();
         drawCoreMesh = !m_waterCoreMesh.indices.empty();
     }
@@ -4432,12 +4451,19 @@ void RenderCoordinator::drawFrame() {
                                                              hyd->cellSize(), w).turbidity;
                     }
                 }
+                float uwClarity = 0.0f;   // G3: the eye's body sets the fog distance and murkiness
+                if (m_waterLookResolver) {
+                    const glm::vec3 eye = camera->getPosition();
+                    const Core::Water::WaterLook lk = m_waterLookResolver(static_cast<int>(std::floor(eye.x)), static_cast<int>(std::floor(eye.z)), std::numeric_limits<float>::quiet_NaN());
+                    if (lk.hasClarity()) uwClarity = lk.clarity;
+                    if (lk.hasTurbidity() && !m_waterLookActive) uwTurbidity = lk.turbidity;
+                }
                 waterPipeline->renderUnderwater(
                     vulkanDevice->getCommandBuffer(currentFrame),
                     vulkanDevice->getDescriptorSet(currentFrame),
                     *camera, cachedProjectionMatrix,
                     submergence, depthBelow,
-                    vulkanDevice->getSwapChainExtent(), uwTurbidity);
+                    vulkanDevice->getSwapChainExtent(), uwTurbidity, uwClarity);
             }
         }
 

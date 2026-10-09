@@ -1092,3 +1092,14 @@ Also open: creek spans (orders 1-2 on the 2/3 shelf) need a float-bottom WaterSp
 - **(G2) The volumes' surface field carries foam 0 / velocity 0.** `wc_surface.comp` and
   `extractSurfaceField` write zeros for the new fields; the 3-D core has face velocities and could
   export the top liquid cell's — until then a pond's ripples do not travel and a pour makes no foam.
+- **(G3) A named region's box is fixed when named.** `water_look {at}` floods the RESIDENT stored
+  water; an open sea's region stops at the resident edge, so water that streams in later beyond its
+  box renders with the derived look until the region is named again. Fix: grow the region's box when
+  its level-matched water streams in adjacent to it (cheap: the span-grid rebuild already visits
+  every wet column).
+- **(G3) The underwater overlay resolves the eye's body by box only** (no stored top at the eye), so
+  inside a region's box a pond at another level gets the sea's fog. The fix is the camera
+  submergence query returning the column's top.
+- **(G3) The Coast sea is in no generation body.** The coarse map's 9 oceans miss the bench's sea;
+  `water_bodies` and the look both had to fall back to stored water. Another reason the coarse map
+  should not be the authority on what water exists.

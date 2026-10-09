@@ -119,4 +119,11 @@ void buildWaterSurfaceMesh(const WaterSurfaceField& f, WaterSurfaceMesh& out) {
         }
 }
 
+void appendFieldToMesh(const WaterSurfaceField& field, WaterSurfaceMesh& out) {
+    const uint32_t first = static_cast<uint32_t>(out.indices.size());
+    buildWaterSurfaceMesh(field, out);
+    const uint32_t count = static_cast<uint32_t>(out.indices.size()) - first;
+    if (count > 0) out.ranges.push_back({first, count, field.look});
+}
+
 }  // namespace Phyxel::Core::Water

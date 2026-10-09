@@ -112,6 +112,9 @@ public:
     // ── Phase D (16.2): rest, write-back, wake ────────────────────────────────────────────
     void setSpanIo(SpanWriter writer, SpanReader reader) { m_spanWriter = std::move(writer); m_spanReader = std::move(reader); }
     void setBakeBodyQuery(BakeBodyQuery q) { m_bakeBodyAt = std::move(q); }
+    /// G3: the look of the body owning a world column (generation body, else av pond; unset = derived).
+    WaterLook lookAt(int x, int z, float topY = std::numeric_limits<float>::quiet_NaN()) const { return m_bodies.lookAt(x, z, m_bakeBodyAt, topY); }
+    int bodyAt(int x, int z, float topY = std::numeric_limits<float>::quiet_NaN()) const { return m_bodies.bodyAt(x, z, m_bakeBodyAt, topY); }
     WaterBodyTable& bodies() { return m_bodies; }
     const WaterBodyTable& bodies() const { return m_bodies; }
     /// Phase D2: rule 3 - a solid displaced `m3` of span water in column (x, z); debit its body.

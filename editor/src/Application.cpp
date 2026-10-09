@@ -524,6 +524,9 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         const WaterBodyIndex* idx = sg ? sg->waterBodies() : nullptr;
         return idx ? idx->bodyIdAt(static_cast<float>(x) + 0.5f, static_cast<float>(z) + 0.5f) : -1;
     });
+    // G3 (docs/WaterCore.md 18.7): one look resolver for every renderer - the span grid, the underwater
+    // overlay (and, inside the manager, the volumes' fields; the band below) all ask the body records.
+    if (renderCoordinator) renderCoordinator->setWaterLookResolver([this](int x, int z, float top) { return waterCore ? waterCore->lookAt(x, z, top) : Core::Water::WaterLook{}; });
     // Phase C: hand the water core a device so volumes can be created with backend:"gpu" (parity-gated;
     // the CPU reference stays the default). A failure is logged, never silent: the create route refuses.
     if (vulkanDevice) {
@@ -3692,6 +3695,10 @@ void Application::update(float deltaTime) {
                     Core::Water::SeaSwellParams sw;
                     if (wp) { sw.amplitude = wp->waveAmplitude(); sw.wavelength = wp->waveLength(); sw.windRad = wp->windDirection(); }
                     shoreBand->tick(std::min(deltaTime, 0.05f), wp ? wp->waveTime() : 0.0f, sw);
+                    {   // G3: the band's look = the body under its centre (the ocean it is driven by)
+                        const glm::vec2 bc = shoreBand->record().centreXZ;
+                        shoreBand->setLook(Core::Water::packLook(waterCore->lookAt(static_cast<int>(std::floor(bc.x)), static_cast<int>(std::floor(bc.y)), shoreBand->record().still)));
+                    }
                 }
             }
             if (renderCoordinator) {
@@ -13274,6 +13281,106 @@ void Application::registerWaterCommands() {
     });
     reg.on("water_look", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!renderCoordinator) { r = {{"error", "RenderCoordinator not available"}}; return; }
+        // ── G3 (docs/WaterCore.md 18.7): a BODY's look - {body | at:[x,z], clarity, tint:[r,g,b], turbidity,
+        //    roughness, clear}. A knob given as null unsets it; `clear` unsets all. Stored on the body record
+        //    (persisted by save_world), echoed back with what was clamped. Without body/at the route keeps
+        //    its W1 positive-control behaviour below, unchanged.
+        if (cmd.params.contains("body") || cmd.params.contains("at")) {
+            using namespace Core::Water;
+            if (!waterCore) { r = {{"error", "no water core"}}; return; }
+            int id = WaterBodyTable::kNoBody;
+            if (cmd.params.contains("body")) id = cmd.params.value("body", WaterBodyTable::kNoBody);
+            else {
+                const auto& at = cmd.params["at"];
+                if (!at.is_array() || at.size() != 2) { r = {{"error", "at must be [x, z] (world voxel column)"}}; return; }
+                const int ax = static_cast<int>(std::floor(at[0].get<float>())), az = static_cast<int>(std::floor(at[1].get<float>()));
+                // the stored tops of the resident chunks (max over the vertical chunks of a column)
+                std::unordered_map<long long, float> tops;
+                auto key = [](int x, int z) { return (static_cast<long long>(x) << 32) ^ static_cast<long long>(static_cast<unsigned int>(z)); };
+                int rx0 = INT_MAX, rz0 = INT_MAX, rx1 = INT_MIN, rz1 = INT_MIN;
+                if (chunkManager) for (const auto& [cc, ch] : chunkManager->chunkMap) {
+                    if (!ch) continue;
+                    rx0 = std::min(rx0, cc.x * 32); rz0 = std::min(rz0, cc.z * 32); rx1 = std::max(rx1, cc.x * 32 + 31); rz1 = std::max(rz1, cc.z * 32 + 31);
+                    for (const auto& sp : ch->getWaterSpans()) {
+                        const float t = static_cast<float>(cc.y) * 32.0f + sp.top;
+                        auto it = tops.find(key(cc.x * 32 + sp.x, cc.z * 32 + sp.z));
+                        if (it == tops.end()) tops[key(cc.x * 32 + sp.x, cc.z * 32 + sp.z)] = t; else it->second = std::max(it->second, t);
+                    }
+                }
+                const auto seed = tops.find(key(ax, az));
+                id = waterCore->bodyAt(ax, az, seed == tops.end() ? std::numeric_limits<float>::quiet_NaN() : seed->second);
+                if (id == WaterBodyTable::kNoBody) {
+                    if (seed == tops.end()) { r = {{"error", "no stored water in that column (dry, or its chunks are not resident)"}}; return; }
+                    // flood the connected stored water at the seed's level (5 cm), capped at 1 M columns
+                    const float level = seed->second;
+                    std::unordered_set<long long> seen{key(ax, az)};
+                    std::vector<std::pair<int, int>> stack{{ax, az}};
+                    int bx0 = ax, bz0 = az, bx1 = ax, bz1 = az; long cols = 0; bool open = false;
+                    constexpr long kCap = 1000000;
+                    while (!stack.empty() && cols < kCap) {
+                        auto [x, z] = stack.back(); stack.pop_back(); ++cols;
+                        bx0 = std::min(bx0, x); bz0 = std::min(bz0, z); bx1 = std::max(bx1, x); bz1 = std::max(bz1, z);
+                        if (x <= rx0 || z <= rz0 || x >= rx1 || z >= rz1) open = true;   // reaches the edge of what is resident
+                        const int dx[4] = {1, -1, 0, 0}, dz[4] = {0, 0, 1, -1};
+                        for (int k = 0; k < 4; ++k) {
+                            const long long kk = key(x + dx[k], z + dz[k]);
+                            if (seen.count(kk)) continue;
+                            const auto it = tops.find(kk);
+                            if (it == tops.end() || std::abs(it->second - level) > 0.05f) continue;
+                            seen.insert(kk); stack.emplace_back(x + dx[k], z + dz[k]);
+                        }
+                    }
+                    if (cols >= kCap) open = true;
+                    WaterBodyRecord nr; nr.cls = open ? "sea" : "pond"; nr.level = level;
+                    nr.bboxMin = glm::ivec2(bx0, bz0); nr.bboxMax = glm::ivec2(bx1, bz1);
+                    id = waterCore->bodies().addRegion(nr);
+                    r["named_region"] = {{"columns", cols}, {"open", open}, {"level", level}, {"bbox", {bx0, bz0, bx1, bz1}},
+                                          {"note", "stored water no body owned, named by flooding the resident spans at its level; an open region reaches the resident edge, so its box grows only when named again"}};
+                }
+            }
+            WaterBodyRecord* rec = waterCore->bodies().findMutable(id);
+            if (!rec && id >= 0) {   // a generation body with no record yet: import it from the bake's index
+                const WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+                const WaterBodyIndex* idx = g ? g->waterBodies() : nullptr;
+                const WaterBodyIndex::Body* b = idx ? idx->body(id) : nullptr;
+                if (b) {
+                    WaterBodyRecord nr; nr.id = b->id; nr.origin = "generation"; nr.level = b->level; nr.mass = b->volumeEst;
+                    nr.cls = b->cls == WaterBodyIndex::Class::Ocean ? "ocean" : (b->cls == WaterBodyIndex::Class::Lake ? "lake" : "pond");
+                    const HydrologyMap* h = g->hydrology();
+                    if (h) { nr.bboxMin = glm::ivec2(static_cast<int>(h->originX() + b->bboxMin.x * h->cellSize()), static_cast<int>(h->originZ() + b->bboxMin.y * h->cellSize()));
+                             nr.bboxMax = glm::ivec2(static_cast<int>(h->originX() + (b->bboxMax.x + 1) * h->cellSize()) - 1, static_cast<int>(h->originZ() + (b->bboxMax.y + 1) * h->cellSize()) - 1); }
+                    waterCore->bodies().recordsMutable().push_back(nr);
+                    rec = waterCore->bodies().findMutable(id);
+                }
+            }
+            if (!rec) {
+                nlohmann::json ids = nlohmann::json::array();
+                for (const auto& b : waterCore->bodies().records()) ids.push_back({{"id", b.id}, {"cls", b.cls}});
+                r = {{"error", "no body record " + std::to_string(id)}, {"bodies", ids}}; return;
+            }
+            WaterLook lk = cmd.params.value("clear", false) ? WaterLook{} : rec->look;
+            auto knob = [&](const char* k, float& dst) { if (cmd.params.contains(k)) dst = cmd.params[k].is_null() ? -1.0f : cmd.params[k].get<float>(); };
+            knob("clarity", lk.clarity); knob("turbidity", lk.turbidity); knob("roughness", lk.roughness);
+            if (cmd.params.contains("tint")) {
+                const auto& t = cmd.params["tint"];
+                if (t.is_null()) lk.tint = glm::vec3(-1.0f);
+                else if (t.is_array() && t.size() == 3) lk.tint = glm::vec3(t[0].get<float>(), t[1].get<float>(), t[2].get<float>());
+                else { r = {{"error", "tint must be [r, g, b] (linear 0..1, today's colour is [0.04, 0.18, 0.24]) or null"}}; return; }
+            }
+            std::vector<std::string> notes;
+            rec->look = clampLook(lk, &notes);
+            renderCoordinator->bumpWaterLookRevision();   // the span grid re-packs the per-column look
+            const WaterLookPacked pk = packLook(rec->look);
+            const nlohmann::json named = r.contains("named_region") ? r["named_region"] : nlohmann::json();
+            r = {{"success", true}, {"body", rec->id}, {"cls", rec->cls}, {"origin", rec->origin}, {"level", rec->level},
+                 {"bbox", {rec->bboxMin.x, rec->bboxMin.y, rec->bboxMax.x, rec->bboxMax.y}},
+                 {"look", nlohmann::json::parse(lookToJson(rec->look))}, {"clamped", notes},
+                 {"packed", {{"look0", {pk.look0.x, pk.look0.y, pk.look0.z, pk.look0.w}}, {"look1", {pk.look1.x, pk.look1.y}}}},
+                 {"persisted", "with save_world (world_meta water_bodies)"},
+                 {"derived", {{"clarity_m", 10.8}, {"tint", {0.04, 0.18, 0.24}}, {"note", "unset knobs keep these derived values (turbidity/roughness: per body from depth and wind)"}}}};
+            if (!named.is_null()) r["named_region"] = named;
+            return;
+        }
         const glm::vec3 cur = renderCoordinator->waterLook();
         renderCoordinator->setWaterLook(cmd.params.value("active", cur.x > 0.5f),
                                         cmd.params.value("turbidity", cur.y),

@@ -70,7 +70,7 @@ layout(set = 1, binding = 2) uniform sampler2D reflectionTex;
 layout(push_constant) uniform PushConstants {
     mat4 viewProj;
     vec4 camPosTime; // xyz = camera world position, w = time (seconds)
-    vec4 params;     // x = seaLevel, y = quad size, z = submergence 0..1, w = depth below surface
+    vec4 params;     // x = G3 clarity (Secchi m, 0 = derived), y unused, z = submergence 0..1, w = depth below surface
     vec4 params2;    // x = screen width, y = screen height, z = reflectionEnabled, w = turbidity
 } pc;
 
@@ -111,6 +111,9 @@ void main() {
     const float VIS_TURBID = 2.0;
     float turbidity = clamp(pc.params2.w, 0.0, 1.0);
     float VISIBILITY = mix(VIS_CLEAR, VIS_TURBID, turbidity);
+    // G3: a body's clarity sets the fog distance through the same ratio rule - VIS_CLEAR belongs to the
+    // derived clear water (Secchi ~ 10.8 m, see water_common.glsl), so the body scales it by Z / 10.8.
+    if (pc.params.x > 0.0) VISIBILITY = VIS_CLEAR * (pc.params.x / 10.8);
     float fog = 1.0 - exp(-dist / VISIBILITY);
 
     // Depth below the surface darkens and blues the water — sunlight is absorbed on the way down.

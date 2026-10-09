@@ -94,7 +94,8 @@ void WaterRenderPipeline::destroyHydrologyResources() {
 
 void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float* levels,
                                                 int cellsX, int cellsZ,
-                                                float originX, float originZ, float cellSize) {
+                                                float originX, float originZ, float cellSize,
+                                                const float* looks) {
     if (m_device == VK_NULL_HANDLE || m_descriptorSet == VK_NULL_HANDLE) return;
 
     // The "no layer" sentinel: a 1×1 dry texel, per-column lookup disabled — the shaders take
@@ -104,7 +105,7 @@ void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float
     // values matter even here: a world with no bake still samples this texel on any code path that
     // reads the profile, and neutral is defined as "exactly today's look" (v4 W1).
     static const float sentinel[4] = {kNoWater, 0.0f, 0.0f, 1.0f};
-    if (!levels) { levels = sentinel; cellsX = cellsZ = 1; cellSize = 0.0f; }
+    if (!levels) { levels = sentinel; cellsX = cellsZ = 1; cellSize = 0.0f; looks = nullptr; }
 
     // CPU shadow of the R channel (the per-column level) so renderWaterAt() can answer what the
     // shaders will see without a readback. Row-major, index = z * cellsX + x, exactly as
@@ -117,11 +118,12 @@ void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float
     if (cellsX != m_hydroCellsX || cellsZ != m_hydroCellsZ) {
         destroyHydrologyResources();
         m_hydroCellsX = cellsX; m_hydroCellsZ = cellsZ;
+        const int texX = cellsX * 2;   // G3: two texels per cell (data, look)
 
         VkImageCreateInfo ii{};
         ii.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         ii.imageType = VK_IMAGE_TYPE_2D;
-        ii.extent = { static_cast<uint32_t>(cellsX), static_cast<uint32_t>(cellsZ), 1 };
+        ii.extent = { static_cast<uint32_t>(texX), static_cast<uint32_t>(cellsZ), 1 };
         ii.mipLevels = 1; ii.arrayLayers = 1;
         // R = level (water-layer P1), G = body wave energy (tangible-water F),
         // B = turbidity, A = roughness (Water Appearance v4 W1). Widened from RG32F because the
@@ -179,7 +181,7 @@ void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float
     // Stage + record the copy into the caller's one-shot command buffer. The staging buffer is
     // transient: freed by the caller's queue-idle boundary… we cannot free it here safely, so use
     // a small persistent member sized to the largest grid seen.
-    const VkDeviceSize bytes = VkDeviceSize(cellsX) * cellsZ * 4 * sizeof(float);   // RGBA
+    const VkDeviceSize bytes = VkDeviceSize(cellsX) * 2 * cellsZ * 4 * sizeof(float);   // RGBA x 2 texels per cell (G3)
     if (bytes > m_hydroStagingBytes) {
         if (m_hydroStagingMapped) vkUnmapMemory(m_device, m_hydroStagingMemory);
         if (m_hydroStaging != VK_NULL_HANDLE) vkDestroyBuffer(m_device, m_hydroStaging, nullptr);
@@ -205,7 +207,15 @@ void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float
         vkMapMemory(m_device, m_hydroStagingMemory, 0, bytes, 0, &m_hydroStagingMapped);
         m_hydroStagingBytes = bytes;
     }
-    memcpy(m_hydroStagingMapped, levels, static_cast<size_t>(bytes));
+    {   // interleave: texel 2 cx = the data, texel 2 cx + 1 = the look (neutral when none given)
+        float* dst = static_cast<float*>(m_hydroStagingMapped);
+        const size_t n = static_cast<size_t>(cellsX) * cellsZ;
+        for (size_t i = 0; i < n; ++i) {
+            memcpy(dst + i * 8, levels + i * 4, 4 * sizeof(float));
+            if (looks) memcpy(dst + i * 8 + 4, looks + i * 4, 4 * sizeof(float));
+            else { dst[i * 8 + 4] = -1.0f; dst[i * 8 + 5] = -1.0f; dst[i * 8 + 6] = -1.0f; dst[i * 8 + 7] = 0.0f; }
+        }
+    }
 
     VkImageMemoryBarrier b{};
     b.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -220,7 +230,7 @@ void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float
                          0, 0, nullptr, 0, nullptr, 1, &b);
     VkBufferImageCopy region{};
     region.imageSubresource = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1 };
-    region.imageExtent = { static_cast<uint32_t>(cellsX), static_cast<uint32_t>(cellsZ), 1 };
+    region.imageExtent = { static_cast<uint32_t>(cellsX * 2), static_cast<uint32_t>(cellsZ), 1 };
     vkCmdCopyBufferToImage(cmd, m_hydroStaging, m_hydroImage,
                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
     b.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
@@ -738,7 +748,7 @@ void WaterRenderPipeline::render(VkCommandBuffer commandBuffer, VkDescriptorSet 
 void WaterRenderPipeline::renderUnderwater(VkCommandBuffer commandBuffer, VkDescriptorSet uboSet,
                                            const Camera& camera, const glm::mat4& projectionMatrix,
                                            float submergence, float depthBelow,
-                                           VkExtent2D screenExtent, float turbidity) {
+                                           VkExtent2D screenExtent, float turbidity, float clarity) {
     if (!m_sceneBound || !m_reflectionBound || uboSet == VK_NULL_HANDLE) return;
     if (m_underwaterPipeline == VK_NULL_HANDLE || submergence <= 0.0f) return;
 
@@ -751,7 +761,7 @@ void WaterRenderPipeline::renderUnderwater(VkCommandBuffer commandBuffer, VkDesc
     WaterPushConstants pc{};
     pc.viewProj   = projectionMatrix * camera.getViewMatrix();
     pc.camPosTime = glm::vec4(camera.getPosition(), t);
-    pc.params     = glm::vec4(0.0f, 0.0f, submergence, depthBelow);
+    pc.params     = glm::vec4(clarity, 0.0f, submergence, depthBelow);   // x: G3 clarity (m, 0 = derived) - the lane was unused
     // params2.w was the one free slot in this 128-byte block (v4 W2): the turbidity of the body the
     // camera is INSIDE. The surface samples its profile per pixel from the hydrology texture, but a
     // fullscreen overlay has no per-pixel body — without this the same lake reads murky from above

@@ -105,24 +105,28 @@ layout(push_constant) uniform PushConstants {
 // water is representable there, and falling back to "open ocean" re-creates the exact defect the
 // grid exists to kill (an infinite sheet in all directions, drawn through solid rock). A NEGATIVE
 // invCellSize marks such a grounded grid: same lookup, but off-grid means DRY.
-float basinLevelAt(vec2 worldXZ, out float turbidity, out float roughness, out float noWater) {
+float basinLevelAt(vec2 worldXZ, out float turbidity, out float roughness, out float noWater, out vec4 look) {
     turbidity = 0.0;
     roughness = 1.0;
     noWater   = 0.0;
+    look      = vec4(-1.0, -1.0, -1.0, 0.0);   // G3 neutral: tint unset, clarity derived
     float invCellRaw = pc.params3.w;
     if (invCellRaw == 0.0) { noWater = 1.0; return pc.params.x; }   // nothing bound: nothing drawn
     float dryBeyond = 1.0;                                            // off-grid is dry in every mode
     float invCell   = abs(invCellRaw);
     vec2 cellF = (worldXZ - vec2(pc.params.y, pc.params3.z)) * invCell;
     ivec2 sz = textureSize(hydroLevelTex, 0);
+    sz.x /= 2;   // G3: two texels per cell (data, look)
     if (cellF.x < 0.0 || cellF.y < 0.0 || cellF.x >= float(sz.x) || cellF.y >= float(sz.y)) {
         noWater = dryBeyond;                                 // baked: open ocean · grounded: DRY
         return pc.params.x;
     }
-    vec4 t = texelFetch(hydroLevelTex, ivec2(cellF), 0);
+    ivec2 cell = ivec2(cellF);
+    vec4 t = texelFetch(hydroLevelTex, ivec2(cell.x * 2, cell.y), 0);
     if (t.r < -1e5) { noWater = 1.0; return pc.params.x; }   // dry land inside the grid: NO water
     turbidity = t.b;
     roughness = t.a;
+    look      = texelFetch(hydroLevelTex, ivec2(cell.x * 2 + 1, cell.y), 0);
     return t.r;
 }
 
@@ -165,7 +169,11 @@ void main() {
     // own column's level and vanish — a divide's terrain sits above both basins' levels by
     // definition (water-layer P1).
     float noWaterHere;
-    inp.restLevelY   = basinLevelAt(fragWorldPos.xz, inp.turbidity, inp.roughness, noWaterHere);
+    vec4 bodyLook;
+    inp.restLevelY   = basinLevelAt(fragWorldPos.xz, inp.turbidity, inp.roughness, noWaterHere, bodyLook);
+    inp.tint         = max(bodyLook.rgb, vec3(0.0));   // G3: the body's look (per-column, second texel)
+    inp.tintSet      = bodyLook.r >= 0.0 ? 1.0 : 0.0;
+    inp.clarity      = max(bodyLook.a, 0.0);
     // Dry land inside the baked region has NO water, so nothing is drawn — full stop, and without
     // consulting the depth buffer. This is the terrain deciding, which is the whole governing rule:
     // the bake says this column holds nothing, so nothing is rendered, whether or not any geometry

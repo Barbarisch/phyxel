@@ -86,6 +86,8 @@ public:
     /// An edit under the band: the column's bed is re-queried at the next tick and the surface follows
     /// (never below the bed; water over a new hole falls to it). Outside the box: ignored.
     void noteEdit(int worldX, int worldZ);
+    /// G3: the body's look for the band's surface (resolved by the caller at the band's centre).
+    void setLook(const WaterLookPacked& look) { m_field.look = look; }
     void clear();
 
     bool active() const { return m_solver != nullptr; }

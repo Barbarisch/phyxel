@@ -52,9 +52,11 @@ float basinLevelAt(vec2 worldXZ, out float valid, out float energy) {
     float invCell = abs(invCellRaw);
     vec2 cellF = (worldXZ - vec2(pc.params.y, pc.params3.z)) * invCell;
     ivec2 sz = textureSize(hydroLevelTex, 0);
+    sz.x /= 2;   // G3: two texels per cell (data, look) - the data texel is 2 cx
     if (cellF.x < 0.0 || cellF.y < 0.0 || cellF.x >= float(sz.x) || cellF.y >= float(sz.y))
         return pc.params.x;
-    vec2 le = texelFetch(hydroLevelTex, ivec2(cellF), 0).rg;
+    ivec2 cell = ivec2(cellF);
+    vec2 le = texelFetch(hydroLevelTex, ivec2(cell.x * 2, cell.y), 0).rg;
     if (le.r < -1e5) return pc.params.x;   // dry column sentinel
     valid = 1.0;
     energy = le.g;

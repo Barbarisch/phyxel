@@ -126,6 +126,9 @@ void main() {
     // own profile, this is where it arrives (per-instance, alongside fragFlow).
     inp.turbidity    = 0.0;
     inp.roughness    = 1.0;
+    inp.tint         = vec3(0.0);   // G3: derived look (the CA cells are retiring, F3)
+    inp.tintSet      = 0.0;
+    inp.clarity      = 0.0;
     // SSR is OFF for cell water in v1 (v4 W4): the coverage decision is oceans + lakes, which the
     // sea clipmap draws. Rivers and creeks are narrow, close-range and often overhung, which is the
     // worst case for a screen-space march (most rays leave the screen or hit the bank), so they keep

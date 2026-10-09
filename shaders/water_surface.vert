@@ -12,11 +12,13 @@ layout(location = 3) in float inSide;     // 0 = top face, 1 = lateral face
 layout(location = 4) in float inFoam;     // G2: 0..1 whitewater from the solver
 layout(location = 5) in vec2  inFlow;     // G2: surface velocity x, z (m/s) from the solver
 
-// Must match water_surface.frag's block exactly (one push-constant range, both stages). 96 bytes.
+// Must match water_surface.frag's block exactly (one push-constant range, both stages). 128 bytes.
 layout(push_constant) uniform PushConstants {
     mat4 viewProj;
     vec4 camPosTime; // xyz = camera world position, w = time (seconds)
-    vec4 screen;     // xy = screen size (px), zw unused
+    vec4 screen;     // xy = screen size (px), z = debug tap, w unused
+    vec4 look0;      // G3: tint.rgb (x < 0 = unset), clarity m (0 = derived)
+    vec4 look1;      // G3: turbidity (< 0 = derived), roughness (< 0 = derived)
 } pc;
 
 layout(location = 0) out vec3  fragWorldPos;

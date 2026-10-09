@@ -417,7 +417,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **D. Rest, persistence, world data** — **design §16; D3 + D1 + D2 + D4 + D5 BUILT 2026-10-09 (ledger §16.9; D4 halves the River trunk defect, residual is the bake's cell resolution)** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | /design-check on §16 | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
 | **E. Coupling** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
 | **F. Rendering the core** — **design §17; F1 + F2 first pass BUILT 2026-10-09 (ledger §17.3), sign-off pending; F3 open** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
-| **G. Large bodies on top** — **design §18; G1 + G2 BUILT 2026-10-09 (§18.5–18.6: column solver + band + solver foam/flow, S12 PASS on Coast; foam present but sparse at 1 m columns — G3 + ⅓ m band next)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
+| **G. Large bodies on top** — **design §18; G1 + G2 + G3 BUILT 2026-10-09 (§18.5–18.7: column solver + band, solver foam/flow, per-body look profile; S12 + look L4 PASS on Coast; foam sparse at 1 m columns — ⅓ m inner band next)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
 
 Rule for every phase: the previous phase's scenarios stay green (the harness runs them all);
 nothing is "done" without its evidence row and a same-vantage capture where look is claimed.
@@ -1839,6 +1839,89 @@ riser. The sheet's own whitecaps beyond the band still look richer. Next levers,
 ⅓ m columns for the band nearest the camera (9× the columns; 1 m stays the outer band), foam that
 rides the flow (advected, not only made and decayed), and the G3 look profile so band and sheet
 share one colour/clarity. The sheet/band height seam (§18.5 gaps) is unchanged.
+
+### 18.7 G3 design: the per-body look profile (2026-10-09, before building)
+
+**The ask (owner, 2026-10-09):** change the water's colour shade, murkiness and clarity. **What
+exists:** per-column `turbidity` (W2, derived from the body's mean depth) and `roughness` (W3,
+Cox-Munk from the wind) reach the sheet through the hydrology grid's B/A channels; the simulated
+water's mesh (volumes + shore band) hard-codes the neutral profile; a global debug override
+(`water_look {active, turbidity, roughness}`) is the W1 positive control. Nothing is per body and
+nothing persists.
+
+**The profile — four knobs, each optional (unset = today's derived value, so no default changes):**
+
+| knob | unit / range (clamped at the route, said so in the echo) | what it does in `water_common.glsl` |
+|---|---|---|
+| `clarity` | metres, 0.1–100 — the Secchi depth (how far down you can see a white disc) | extinction rescaled so its luminance-weighted mean is Kd = 1.7 / clarity (Poole & Atkins 1929, the relation the underwater fog already uses) |
+| `tint` | linear RGB 0–1 — the colour deep water glows with (today's is (0.04, 0.18, 0.24)) | replaces the in-scatter colour and tilts absorption toward its complement (water looks green because it absorbs red and blue) |
+| `turbidity` | 0–1 — murkiness | overrides the derived value: the existing clear→turbid mix |
+| `roughness` | 0–2 — ripple strength | overrides the derived value: the existing ripple-slope scale |
+
+**Where it lives.** `WaterLook` on `WaterBodyRecord` (persisted with the record in world_meta
+`water_bodies` — the world owns it, like the recipe; an unset look serialises to nothing, so old
+worlds are byte-identical). One resolver, `WaterBodyTable::lookAt(x, z)`: the generation body under
+the column (the same bake-body query the write-back uses), else an av pond whose box holds it.
+**Applied identically** to: the sheet (a second texel per grid column: tint + clarity; turbidity /
+roughness overrides replace the derived B/A), the simulated mesh (per-field draw ranges, the look in
+the push block — volumes resolve at their box centre, the band at its centre), and the underwater
+overlay (clarity sets the fog distance). Sheet and band resolve the same body at the shore, so they
+cannot disagree.
+
+**Design keys.** (1) Aesthetic: optics only, no geometry. (2) Chunks: the look is a function of the
+body under a world column; the band/volume use one look per field, resolved from world position —
+no chunk quantity. Equality: `WaterLookTest.ResolverIsAFunctionOfTheColumn` (same answer whatever
+order and from either table copy). (3) Generation: none; the per-world values persist in the world
+DB, never global JSON. (4) API: `water_look {body | at:[x,z], clarity, tint:[r,g,b], turbidity,
+roughness, clear}` echoes the stored look, the resolved packed values, the body's class and what was
+clamped; without `body`/`at` the route keeps its W1 positive-control behaviour unchanged. (5) Test:
+red unit tests (record round-trip with and without a look, clamps, the resolver, mesh draw ranges);
+L4 on the Coast at the elevated pose: set the ocean to clarity 2 m + a brown tint → the band region
+AND the sheet region both shift toward brown (mean colour distance > 0.05), the sand control region
+stays within 0.01; `clear` restores the band region to within 0.02 of the before capture;
+`save_world` + cold restart → the look echoes back identical. Rig = the shipped Coast bench, one
+variable (the look), defaults untouched.
+
+**G3 built (2026-10-09) — ledger.** As designed, with one finding that changed the resolver:
+
+- **Finding: the Coast sea is no body.** `water_look {at:[165, 720]}` found nothing: the sea there
+  exists only as stored water in the chunks; the coarse generation map has no body under it (its 9
+  "oceans" are elsewhere). A look keyed only to that map would miss the very water the owner looks
+  at. So `at` on stored water that no body owns **names it**: a flood over the resident stored tops
+  at the seed's level (±5 cm, capped at 1 M columns) becomes a `region` record — box + level + look,
+  **no mass role** (never credited, not in the av ledger; pinned by
+  `RegionsMatchByBoxAndLevelAndStayOutOfTheMassLedger`). Box-matched records now also match the
+  column's stored LEVEL when it is known, so a pond behind the beach inside the sea's box is not the
+  sea. Coast: region −1, `sea` (open: it reaches the resident edge), level 16.
+- **Built:** `WaterLook` (+ clamps that report, JSON, the shader packing) on `WaterBodyRecord`
+  (persisted only when set); `WaterBodyTable::bodyAt/lookAt/addRegion`; the sheet's grid holds two
+  texels per column (data, look) and `water.vert/frag` read both; the mesh draws one range per field
+  with the look in a 128-byte push block; volumes resolve at their box centre, the band at its centre
+  and still level; the underwater fog takes the eye's clarity (VIS_CLEAR × Z / 10.8); route
+  `water_look {body | at, clarity, tint, turbidity, roughness, clear}` (the W1 control unchanged
+  without `body`/`at`). Unset knobs = derived, so defaults are unchanged (the derived clear water's
+  clarity is 10.8 m, its tint (0.04, 0.18, 0.24) — both echoed by the route).
+- **Unit (red first — the API did not exist):** `WaterLookTest` 6/6; all water tests 236/236; GPU
+  parity 13/13; full unit suite 4200 passed, 2 failed = the two standing failures recorded in
+  AnimationSystemV3Plan / DebrisInteractionPlan (`AtlasManagerTest.BuildAtlasFromSourcePNGs`,
+  `FineFaceMerge.SubcubeMerge_CrossCubeSplitsOnLightBoundaryBetweenCubes`), neither in a touched file.
+- **L4 (Coast, Release, `tools/water_look_l4.py --restart-cmd …`, evidence
+  `docs/evidence/water_core_g/coast_look_l4_20261009_115029.json`, captures `coast_look_before /
+  after / restored.png`), PASS on every row:**
+
+| row | measured | gate |
+|---|---|---|
+| band region colour change (clarity 2 m, tint [0.20, 0.13, 0.04]) | 0.182 | > 0.05 |
+| sheet region colour change | 0.270 | > 0.05 |
+| sand control | 0.000 | < 0.01 |
+| `clear` restores the band | 0.0012 (sheet 0.0018) | < 0.02 |
+| save_world + cold restart | look echoed identical (clarity 2.0, tint [0.20, 0.13, 0.04]) | identical |
+
+  The capture shows the band and the sheet turning the same murky brown with no seam between them.
+  The bench was left as found (look cleared and saved).
+- **Gaps (logged):** an open region's box is fixed when named (water that streams in later outside
+  it takes the derived look until named again); the underwater overlay resolves by box only (no
+  stored top at the eye); a region is not re-derived when the stored water changes level.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

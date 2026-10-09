@@ -57,11 +57,13 @@ layout(set = 0, binding = 0) uniform UniformBufferObject {
 layout(set = 1, binding = 0) uniform sampler2D refractionTex;
 layout(set = 1, binding = 1) uniform sampler2D sceneDepthTex;
 
-// Must match water_surface.vert's block exactly. 96 bytes.
+// Must match water_surface.vert's block exactly. 128 bytes.
 layout(push_constant) uniform PushConstants {
     mat4 viewProj;
     vec4 camPosTime;
     vec4 screen;
+    vec4 look0;      // G3: tint.rgb (x < 0 = unset), clarity m (0 = derived)
+    vec4 look1;      // G3: turbidity (< 0 = derived), roughness (< 0 = derived)
 } pc;
 
 #include "water_common.glsl"
@@ -93,8 +95,12 @@ void main() {
     inp.wavePhase    = 0.0;
     inp.breakDepth   = 0.0;
     inp.restLevelY   = -1e9;               // the solver decides the level per sub-column
-    inp.turbidity    = 0.0;                // neutral profile (per-body profiles arrive with F2)
-    inp.roughness    = 0.35 + 0.45 * inp.flowStrength;   // fine ripple amplitude: a pond is calmer than the sea's shipped detail (17.3); moving water is choppier (G2)
+    // G3: the body's look (one draw per field). Unset knobs keep the derived values below.
+    inp.turbidity    = pc.look1.x >= 0.0 ? pc.look1.x : 0.0;
+    inp.roughness    = (pc.look1.y >= 0.0 ? pc.look1.y : 0.35) + 0.45 * inp.flowStrength;   // base: a pond is calmer than the sea's shipped detail (17.3); moving water is choppier (G2)
+    inp.tint         = max(pc.look0.rgb, vec3(0.0));
+    inp.tintSet      = pc.look0.r >= 0.0 ? 1.0 : 0.0;
+    inp.clarity      = max(pc.look0.a, 0.0);
     inp.viewProj     = pc.viewProj;
     inp.ssr          = 0.0;
     inp.debugMode    = dbg;
