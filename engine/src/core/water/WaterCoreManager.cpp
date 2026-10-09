@@ -80,6 +80,7 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
         av->gpuDirty = false;
     }
     m_avs.push_back(std::move(av));
+    refreshBoxes();
     return raw->id;
 }
 
@@ -88,7 +89,14 @@ bool WaterCoreManager::destroy(int id) {
     if (it == m_avs.end()) return false;
     if ((*it)->gpuVol && m_gpu) m_gpu->destroyVolume((*it)->gpuVol);
     m_avs.erase(it);
+    refreshBoxes();
     return true;
+}
+
+void WaterCoreManager::refreshBoxes() {
+    m_boxes.clear();
+    for (const auto& av : m_avs) m_boxes.emplace_back(av->minVoxel, av->maxVoxel);
+    ++m_avRevision;
 }
 
 AvRecord WaterCoreManager::record(const Av& av) const {
@@ -97,6 +105,7 @@ AvRecord WaterCoreManager::record(const Av& av) const {
     r.particles = av.solver->transport().particleCount();
     r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs;
     r.cells = av.grid->cellCount();
+    r.autoSleep = av.autoSleep; r.seededMass = av.seededMass;
     // a GPU volume's sleep lives in WaterCoreGpu::Volume (the solver never stepped): this line used to
     // sit BEFORE the GPU override and overwrote it, so S1 on the GPU read asleep=false for ever with
     // quiet_ticks at 30 and no substeps (2026-10-08)
@@ -194,6 +203,97 @@ void WaterCoreManager::update(float dt) {
         if (av->backend == "gpu") { if (!av->gpuLast.asleep) stepGpu(*av, 1, dt); }
         else if (!av->solver->asleep()) { av->last = av->solver->step(dt); av->residueDropped += av->last.residueDropped; }
     }
+    // Phase D (16.2): a volume that slept this tick writes back and frees itself (auto_sleep). Ids
+    // first - sleep() destroys. A refused write-back (held or non-resident columns) leaves the
+    // volume alive and is reported through the drained records, never silent.
+    std::vector<int> slept;
+    for (const auto& av : m_avs) if (av->autoSleep && isAsleep(*av)) slept.push_back(av->id);
+    for (int id : slept) {
+        WriteBackRecord rec = sleep(id, false);
+        if (!rec.ok) { for (auto& av : m_avs) if (av->id == id) av->autoSleep = false; }   // once: do not retry every tick
+        m_autoSlept.push_back(std::move(rec));
+    }
+}
+
+bool WaterCoreManager::setAutoSleep(int id, bool on) {
+    for (auto& av : m_avs) if (av->id == id) { av->autoSleep = on; return true; }
+    return false;
+}
+
+double WaterCoreManager::seedFromSpans(int id) {
+    if (!m_spanReader) return -1.0;
+    for (auto& av : m_avs) {
+        if (av->id != id) continue;
+        std::vector<ColumnRuns> runs;
+        m_spanReader(av->minVoxel, av->maxVoxel, runs);
+        const double placed = seedGridFromRuns(*av->grid, runs);
+        av->seededMass = placed;
+        av->seededColumns.clear();
+        for (const auto& c : runs) { WaterBodyTable::ColumnMass m; m.x = c.x; m.z = c.z; for (const auto& r : c.runs) { m.mass += r.mass; m.top = std::max(m.top, r.topY); } av->seededColumns.push_back(m); }
+        av->solver->wake();
+        av->gpuDirty = true; av->gpuStale = false;
+        if (av->gpuVol) av->gpuLast = GpuStepStats{};
+        return placed;
+    }
+    return -1.0;
+}
+
+WriteBackRecord WaterCoreManager::sleep(int id, bool force) {
+    WriteBackRecord rec; rec.id = id; rec.forced = force;
+    Av* av = nullptr;
+    for (auto& a : m_avs) if (a->id == id) av = a.get();
+    if (!av) { rec.error = "no such volume"; return rec; }
+    if (!m_spanWriter) { rec.error = "no span writer installed (the application owns the chunks)"; return rec; }
+    refreshOccupancy(*av);
+    syncFromGpu(*av, false);   // forced: never the rate-limited mirror, or the record is a second old
+    if (!isAsleep(*av) && !force) {
+        const int q = av->backend == "gpu" ? av->gpuLast.quietTicks : av->last.quietTicks;
+        rec.error = "volume is awake (quiet_ticks " + std::to_string(q) + "/" + std::to_string(av->solver->params().restTicks) + "); force:true writes a snapshot";
+        return rec;
+    }
+    // held columns: any Unknown occupancy in the column's cells (the 5.1 hold boundary)
+    std::vector<uint8_t> heldCol(static_cast<size_t>((av->maxVoxel.x - av->minVoxel.x + 1) * (av->maxVoxel.z - av->minVoxel.z + 1)), 0);
+    const int cw = av->maxVoxel.x - av->minVoxel.x + 1;
+    for (int z = 0; z < av->grid->nz(); ++z) for (int y = 0; y < av->grid->ny(); ++y) for (int x = 0; x < av->grid->nx(); ++x)
+        if (av->occCache[av->grid->idx(x, y, z)] == Occ::Unknown) heldCol[static_cast<size_t>((z / av->per) * cw + (x / av->per))] = 1;
+    auto held = [&](int vx, int vz) { return heldCol[static_cast<size_t>((vz - av->minVoxel.z) * cw + (vx - av->minVoxel.x))] != 0; };
+    std::vector<ColumnRuns> runs;
+    const WriteBackStats st = columnRunsFromGrid(*av->grid, held, runs);
+    rec.columns = st.columns; rec.runs = st.runs; rec.heldColumns = st.heldColumns; rec.heldMass = st.heldMass;
+    rec.massWritten = st.mass; rec.thinDropped = st.thinDropped; rec.surfaceVsMassMm = st.surfaceVsMassMmMax; rec.spreadMm = st.spreadMmMax; rec.massSeeded = av->seededMass;
+    long unwritten = 0, chunks = 0;
+    const float yLo = static_cast<float>(av->minVoxel.y), yHi = static_cast<float>(av->maxVoxel.y + 1);
+    if (st.heldColumns > 0 && !force) {
+        rec.unwrittenColumns = st.heldColumns;
+        rec.error = std::to_string(st.heldColumns) + " column(s) hold Unknown occupancy (chunk not resident / outside the occupancy window): nothing written, volume kept; force:true writes the rest";
+        return rec;
+    }
+    // what the written columns held before (span unit), for the body delta
+    std::vector<WaterBodyTable::ColumnMass> before;
+    if (m_spanReader) {
+        std::vector<ColumnRuns> prior;
+        m_spanReader(av->minVoxel, av->maxVoxel, prior);
+        for (const auto& c : prior) { WaterBodyTable::ColumnMass m; m.x = c.x; m.z = c.z; for (const auto& r : c.runs) m.mass += static_cast<double>(r.topY - r.bottomY); before.push_back(m); }
+    }
+    m_spanWriter(runs, yLo, yHi, &unwritten, &chunks);
+    rec.unwrittenColumns = st.heldColumns + unwritten; rec.chunksTouched = chunks;
+    if (unwritten > 0 && !force) {
+        // the writer refuses whole columns atomically (a non-resident vertical chunk): nothing of
+        // those columns was written; the rest was. Report, keep the volume so nothing is lost.
+        rec.error = std::to_string(unwritten) + " column(s) could not be written (non-resident chunk); the others were; volume kept";
+        return rec;
+    }
+    // Tier A credit, per column
+    std::vector<WaterBodyTable::ColumnMass> written;
+    // the record is credited in the SPANS' unit (float32 top - bottom, what the chunk stores), not the
+    // cells' double mass: P3 says A.mass = sum of B over the body's columns, and the seed side (the
+    // reader) is in that unit too, so a wake -> sleep round trip books exactly zero (S11's restart
+    // leg read a -2.5e-6 drift from mixing the units, 2026-10-08)
+    for (const auto& c : runs) { if (c.held || c.runs.empty()) continue; WaterBodyTable::ColumnMass m; m.x = c.x; m.z = c.z; for (const auto& r : c.runs) { m.mass += static_cast<double>(r.topY - r.bottomY); m.top = std::max(m.top, r.topY); } written.push_back(m); rec.massStored += m.mass; }
+    rec.bodyId = m_bodies.credit(written, before, m_bakeBodyAt);
+    rec.ok = true;
+    destroy(id);
+    return rec;
 }
 
 const WaterCoreManager::Av* WaterCoreManager::volumeAtVoxel(int x, int y, int z) const {

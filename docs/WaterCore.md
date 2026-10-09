@@ -414,7 +414,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **B. The core, CPU reference** — **BUILT + IN THE ENGINE 2026-10-08** (ledgers §15.7–15.8; S5 4/4, S2 4/4, S1 3/4, S4 1 m PASS / ⅓ OPEN, S3 front PASS / run-up + rest gates to re-base) | `WaterCore` library: MAC grid, `SurfaceTransport::Eulerian` (VOF), projection, solids from the micro pool, sources/sinks, rest detection; deterministic; unit tests for §4.4; S3, S4, S5, S1, S2 pass on the CPU at ⅓ (default), ⅑ and 1 | **/design-check** | §4.4 rules green; S1–S5 predictions met; mass ledger exact |
 | **B2. FLIP transport** | `SurfaceTransport::FLIP` against the same grid (particles carry f and momentum; grid projection; particle↔grid transfer; re-seeding; rest conversion); harness runs S1–S5 on both modes and records the comparison | /design-check | Same scenarios green on FLIP; a written comparison (rest flatness, splash shape, cost) the user reads before Phase E chooses the default per scenario |
 | **C. GPU core** | Same solver on compute (`water_core_*.comp`), ping-pong, no readback except the surface/queries; parity with CPU on S1–S5 within tolerance; perf rows | /design-check (dispatch, buffers, tiers) | parity + ≤ 2 ms at `high` with all §3 rigs awake |
-| **D. Rest, persistence, world data** — **design §16 (2026-10-08)** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | /design-check on §16 | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
+| **D. Rest, persistence, world data** — **design §16; D3 + D1 + D2 BUILT 2026-10-09 (ledger §16.9); D4, D5 open** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | /design-check on §16 | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
 | **E. Coupling** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
 | **F. Rendering the core** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
 | **G. Large bodies on top** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
@@ -1311,6 +1311,97 @@ defaults: none.
 
 **Verdict: READY** (after the three fold-ins). Build order D3 → D1 → D2 → D4 → D5, each slice its
 own commit with its ledger entry under §16.9.
+
+### 16.9 Phase D build ledger
+
+**D3 — the span grid follows residency content (built 2026-10-08).** `core/WaterSpanGridKey.h`
+(FNV-1a per chunk coordinate + splitmix finaliser, summed order-independently, mixed with the
+count; `SpanGridKey {residency, spanRevision, awakeRevision}`), `ChunkManager::waterSpanRevision()`
+bumped by every runtime span writer, `WaterCoreManager::volumeBoxes()/avRevision()` fed to the
+renderer each frame; `updateSpanWaterGrid` keys on the triple, masks columns inside a live volume
+(`masked by volumes` in the log line), and times both the key hash and the `vkDeviceWaitIdle`.
+Red first: `WaterSpanGridKeyTest` (4 tests) did not compile; green after. Live:
+
+| Probe run (Release, rect = the bench's) | Violations | Note |
+|---|---|---|
+| Coast, WP0 baseline (count key) | **5,120** | the stale-grid defect |
+| Coast, this build, probe as it was | 2,752 (pose 1,888 + near 864) | two PROBE defects, found by this run: (a) residency was 2-D — at the far pose (y 170) the sea-level chunk of a column is not loaded while a higher chunk of the same column is, so "resident, dry far, wet near" was flagged (1,888); (b) the near read happened while chunks were still landing (864; three re-reads at the same pose 4 s later read 0/0/0) |
+| Coast, probe fixed (3-D residency at the stored level band via `water_spans_stored.resident_chunks`; settle waits for the resident set to hold still + the 0.5 s cooldown) | **0** (44,000 resident at both poses, 17,472 coverage-only) | — |
+| River (poses added to its game.json: far = `trunk_down`, near = `trunk_bank`; band 32–108.6) | **0** (13,005 resident at both, 0 coverage) | — |
+| Coast `--inject-water-look` self-test, run last | **detected** | the probe is not blind after the residency change |
+
+Cost (log lines, River bench while streaming): key hash 0.03–0.23 ms at 722–1,287 chunks per
+rebuild; idle wait 0.06–79 ms — the `vkDeviceWaitIdle` is the open perf item (a per-frame-in-flight
+upload), bounded today by the 30-frame cooldown. Defect **#27** found reading ground truth:
+`Chunk::setWaterSpans` never marked the chunk dirty, so `water_ground_sync` spans were lost on a
+dirty-only save; runtime writers now `setDirty(true)` (the write-back inherits the rule). Basin is
+not probed: its bench runs with water disabled (nothing to draw).
+
+**D1 — write-back, wake, the body table (built 2026-10-08/09).** `columnRunsFromGrid` /
+`seedGridFromRuns` (WaterCore.h; mass-exact runs, `surfaceVsMassMm`, `spreadMm`, held columns
+counted, sub-millimetre layers folded into the top run, residue-only columns counted in
+`thinDropped`), `core/water/WaterSpanWriteBack.{h,cpp}` (clip / assemble / merge in world space,
+the §14.2 seam test), `core/water/WaterBodyTable.{h,cpp}` (`world_meta["water_bodies"]`, per-column
+crediting: the record moves by stored-after − stored-before over the written columns, in the
+SPANS' float32 unit so A.mass = Σ B exactly), `WaterCoreManager::sleep/seedFromSpans/setAutoSleep/
+setSpanIo/setBakeBodyQuery`, realtime auto-sleep with drained records, routes `water_av_sleep`,
+`water_av_wake` (flood over stored runs, `maxCells`, `truncated`), `water_av_create {seed, auto_sleep}`,
+`water_body_table {verify, rebuild}`, ledger `bodies` / `displaced`. Unit: 6 write-back tests, 4
+span tests + the seam test, 3 body-table tests, all red (did not compile) then green. Live:
+
+| Row (Release, Small bench, ⅓ m, GPU fills) | Result |
+|---|---|
+| **S11** pad: 0.02 m³ poured, rested, slept | asleep **3.6 s**; 169 columns / 5 runs written, `surface_vs_mass_mm` **0.0**, spread 2.2 mm; `mass_written` = poured − residue to 3e-9; 0 volumes after; stored depth = written; control column dry; re-wake from spans + 60 ticks: Δmass −1.1e-9, second write-back identical (Δdepth 0.0); **save → cold restart → spans identical (Δ 0.0) and body mass identical**. Verdicts: 10/10 PASS (asleep 3.6 s; body mass = sum of spans exactly after the one-time reconcile; restart identical) |
+| S1, S2 (Small), S3, S4, S5 (Basin) re-run on the changed solver | S1 mass/film/control PASS, rest 3.6 s (the 3 s gate stays FAIL as before); S2 full at 21.1 s, 3.9997 delivered, ledger gap −8.4e-5 (tick-scaled gate); S3 front PASS, seiche 11.5 s PASS, envelope PASS, run-up + flat-at-rest FAIL as before (final spread 0.37 m at 60 s on the 26 m basin: a large-basin seiche is above the settle band and physical — Phase G); S4 PASS (109.6 m³ at 60 s); S5 48.0 / 14.65 PASS |
+
+Two bookkeeping defects found by S11's cold-restart leg and fixed: (a) the record was credited
+in the cells' double mass while the spans store float32 tops (−2.5e-6 drift per round trip) →
+credit in the spans' unit; (b) the delta was taken against the volume's SEED, so a hand-placed
+volume over existing spans doubled the record (0.02 → 0.04) → the delta is stored-after minus
+stored-before, read from the chunks right before writing. Records written by the pre-fix engine
+are reconciled once with `water_body_table {rebuild:true}` (A.mass := Σ B over the bbox columns the
+bake assigns to no body; refused when a column is not resident).
+
+**D2 — edits never create water (built 2026-10-09).** `core/water/WaterSpanEdit.{h,cpp}` (pure
+column rules: a placed solid splits the run and displaces the overlap; a removed floor voxel lets a
+run resting on it fall one voxel; any other dig changes nothing; `spanEditHeld` when a run reaches
+into a non-resident chunk), `ChunkManager::setVoxelEditCallback` (fired by place / break / damage
+breaks only — the streamed-chunk occupancy sync fires `solid = true` for every voxel of a chunk and
+would have displaced every span in it), `Application::applyWaterSpanEdit` (volume-owned columns
+skipped; `clearRegion` applies it per cell), `WaterCoreManager::displaceAt`, ledger `held_edits`.
+Unit: `WaterSpanEditTest` (4). Live (`R3` on the Small pond, `coast_pit` on Coast):
+
+| Row | Result |
+|---|---|
+| (b) Stone cube into a pond column at y 15 | depth 1.4978 → 0.4978 (−1.000), top unchanged, ledger total −1.000, body `displaced` 1.0 |
+| (c) floor voxel removed under a pond column | top 16.508 → 15.508, depth unchanged (mass exact) |
+| (d) pit dug in the dry slab 3 voxels from the pond | 0 spans, ledger unchanged, `held_edits` 0 |
+| control column | identical tops and depth throughout |
+| (e) `water_av_wake` over the edited pond | 16 columns flooded, seeded = stored to 1e-6, not truncated; forced sleep after 60 ticks stores the moving state mass-exact (the first run lost 2.9e-3 m³ of sub-millimetre layers to the 1 mm surface rule → folded since) |
+| (a) Coast beach pit to two voxels below sea level (16) at a dry column | 0 spans before and after, renderer dry, ledger total unchanged, control column 0 |
+| R3 verdicts | 9/9 PASS |
+
+**Solver findings on the way (both pinned):** **#28** the ghost-fluid θ of a partial liquid cell's
+top face jumped from (f − 0.5) to (0.5 + f_above) on a 1e-9 residue above it — a 0.4-cell surface
+error on a trace of water; neighbouring columns disagreed and a FLAT pool with its top cell 0.5–0.6
+full never slept (ke/mass 1e-4..1e-3 and rising; 0.49 slept in 30 ticks). Fixed with one continuous
+expression `clamp(f − 0.5 + f_above, θmin 0.1, 1.5)` on the CPU and in `wc_classify.comp`
+(GPU parity 12/12). Test `StillWaterStaysStillWhateverTheTopFill` (7 top fills × 2 cell sizes, red
+for every fill ≥ 0.5). Side effect: the fills run-up at ⅓ m moved 1.22 → 1.89 h₀ and FLIP to 2.15
+(in the 2.1–2.3 band); the fills number is **chaotic** (1.89 / 2.51 / 2.56 from sub-percent
+first-tick differences — the sheet tip is a thin-film quantity), so the test records it and gates
+FLIP only. **#29** nothing with a lateral slosh rested in a sealed 3 m tank at ⅓ m: a poured
+column, a dropped block, a bumped pool, a dam break all held ke/mass 1e-4..1e-3 for 100 s (rest
+damping applied only under keWake, which a slosh never reaches; real seiches damp over minutes).
+The **settle band**: `keSettle` 1e-3 m²/s² (|v| ~ 3 cm/s rms) below which `restDamping` (now
+1.0 /s) stands in for the viscous + bottom-friction dissipation the inviscid solver lacks (CPU +
+GPU). Measured: pour 19 s, dropped block 25 s, bumped pool 14 s, ⅓ m dam break 55 s; the violent
+1 m dam break in the 3 m tank is still above the band at 100 s. Tried and reverted: compacting
+through faces rising slower than 1 cm/s (the projection pushed back up what compaction pulled
+down: ke 6e-6 → 2e-4). ⚠️ A decision for the owner: the settle band is a feel knob standing in for
+physics; its two numbers are in `SolverParams` with the measurements that set them.
+
+Suite after D1/D2: 4,166 passed, the same two non-water failures (AtlasManager, FineFaceMerge).
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

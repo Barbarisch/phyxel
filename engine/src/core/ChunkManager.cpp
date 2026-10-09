@@ -979,15 +979,18 @@ size_t ChunkManager::getChunkIndex(const Chunk* chunk) const {
 void ChunkManager::updateAfterCubeBreak(const glm::ivec3& worldPos) {
     m_faceUpdateCoordinator.updateAfterCubeBreak(worldPos);
     if (m_voxelOccupancyCallback) m_voxelOccupancyCallback(worldPos.x, worldPos.y, worldPos.z, false);
+    if (m_voxelEditCallback) m_voxelEditCallback(worldPos.x, worldPos.y, worldPos.z, false);
 }
 
 void ChunkManager::updateAfterCubePlace(const glm::ivec3& worldPos) {
     m_faceUpdateCoordinator.updateAfterCubePlace(worldPos);
     if (m_voxelOccupancyCallback) m_voxelOccupancyCallback(worldPos.x, worldPos.y, worldPos.z, true);
+    if (m_voxelEditCallback) m_voxelEditCallback(worldPos.x, worldPos.y, worldPos.z, true);
 }
 
 void ChunkManager::updateOccupancyVoxel(int worldX, int worldY, int worldZ, bool solid) {
     if (m_voxelOccupancyCallback) m_voxelOccupancyCallback(worldX, worldY, worldZ, solid);
+    if (m_voxelEditCallback) m_voxelEditCallback(worldX, worldY, worldZ, solid);   // damage/blast breaks are edits
 }
 
 void ChunkManager::syncChunkToOccupancy(const glm::ivec3& chunkWorldOrigin) {

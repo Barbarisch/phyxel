@@ -282,6 +282,8 @@ private:
     GpuParticlePhysics* gpuParticlePhysics = nullptr;
     std::unique_ptr<Core::WaterManager> waterManager;                  // CPU water cellular-automaton sim (retires per WaterCore.md sec. 9)
     std::unique_ptr<Core::Water::WaterCoreManager> waterCore;          // WaterCore active volumes (Phase B; docs/WaterCore.md)
+    void applyWaterSpanEdit(int x, int y, int z, bool solid);          // Phase D2: edits never create water (docs/WaterCore.md 16.3)
+    long m_waterHeldEdits = 0;                                          // Phase D2: edits held because a run reaches into a non-resident chunk
     std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;    // Coordinates all rendering
     std::unique_ptr<RaycastVisualizer> raycastVisualizer;              // Raycast debug visualization
     std::unique_ptr<VoxelInteractionSystem> voxelInteractionSystem;    // Cube/subcube interaction

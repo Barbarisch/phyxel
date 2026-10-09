@@ -25,8 +25,8 @@ bool isLiqCell(int x, int y, int z) { return inBounds(x, y, z) && occ[cellIdx(x,
 float thetaToAir(int x, int y, int z, int dir) {
     if (dir == 3) {
         const float fa = inBounds(x, y + 1, z) ? min(1.0, f[cellIdx(x, y + 1, z)]) : 0.0;
-        if (fa > 0.0) return 0.5 + fa;
-        return clamp(f[cellIdx(x, y, z)] - 0.5, 0.1, 0.5);
+        // one continuous expression: (f - 0.5) above the centre plus the thin layer above (defect #28)
+        return clamp(f[cellIdx(x, y, z)] - 0.5 + fa, 0.1, 1.5);
     }
     return 0.5;
 }

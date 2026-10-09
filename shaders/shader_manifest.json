@@ -388,7 +388,7 @@
     },
     "wc_classify.comp": {
       "built": true,
-      "sources": "c93c09522f579ba93040403317fabc46b634fbf589a834cf845a28688e22cdc3",
+      "sources": "11d91719e076993a8c1668f8319f94142cbe02cfd6dd2ed3bfc238cb8c2dfbc8",
       "spv_present": true
     },
     "wc_column_ops.comp": {

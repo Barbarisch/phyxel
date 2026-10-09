@@ -8,6 +8,7 @@
 // per world micro cell, 9 per voxel per axis); Unknown is a hold wall (§5.1).
 #include "core/water/WaterCore.h"
 #include "core/water/WaterCoreGpu.h"   // Phase C backend (optional; CPU reference without it)
+#include "core/water/WaterBodyTable.h"   // Phase D Tier A records
 #include "core/WaterManager.h"   // WaterSurfaceCell (the debug feed's struct)
 #include <glm/glm.hpp>
 #include <array>
@@ -48,6 +49,21 @@ struct AvRecord {
     double residueDropped = 0.0;           ///< m^3 dropped by the residue sweep over the volume's life
     double sourcePlaced = 0.0;             ///< m^3 all sources actually added (negative = removed) over the volume's life
     int    sourceCount = 0;
+    bool   autoSleep = true;               ///< Phase D: in realtime the volume writes back and frees itself when it sleeps
+    double seededMass = 0.0;               ///< Phase D: m^3 the volume was seeded with from spans (0 = placed by hand)
+};
+
+/// Phase D (docs/WaterCore.md 16.2): the record of a write-back.
+struct WriteBackRecord {
+    bool ok = false; std::string error;
+    int  id = 0;
+    long columns = 0, runs = 0, heldColumns = 0, unwrittenColumns = 0, chunksTouched = 0;
+    double massWritten = 0.0, massSeeded = 0.0, heldMass = 0.0;
+    double thinDropped = 0.0;   ///< m^3 of sub-millimetre-only columns not stored (residue, counted)
+    double massStored = 0.0;   ///< sum of the written runs' depths as the chunks STORE them (float32 tops) - the body record's unit, so A.mass = sum of B exactly; differs from massWritten by float rounding (~2e-6 per column at Y 17)
+    float surfaceVsMassMm = 0.0f, spreadMm = 0.0f;
+    bool forced = false;
+    int bodyId = 0;
 };
 
 struct ProbeResult {
@@ -67,6 +83,15 @@ struct ColumnSample {
     double mass = 0.0;                     ///< m^3 in this 1x1 world column
 };
 
+/// Phase D: the application's chunk I/O. The writer receives world-column runs (held columns
+/// carry `held = true` and must be skipped), replaces the spans intersecting [yLo, yHi) in
+/// RESIDENT chunks, marks them dirty, and reports how many non-held columns it could not write
+/// (a non-resident chunk) and how many chunks it touched. The reader returns the stored runs of
+/// the box's columns clipped to [yLo, yHi) from resident chunks.
+using SpanWriter = std::function<void(const std::vector<ColumnRuns>& runs, float yLo, float yHi, long* unwritten, long* chunksTouched)>;
+using SpanReader = std::function<void(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, std::vector<ColumnRuns>& out)>;
+using BakeBodyQuery = std::function<int(int x, int z)>;   ///< bake body id of a world column, -1 = none
+
 class WaterCoreManager {
 public:
     explicit WaterCoreManager(MicroStateQuery state, SolidsRevisionQuery revision = nullptr);
@@ -82,6 +107,24 @@ public:
     static constexpr int kGpuSweeps = 40;   ///< default red-black SOR sweeps per projection (docs/WaterCore.md 15.12: omega 1.85, measured)
     static constexpr int kGpuSweepsMin = 8, kGpuSweepsMax = 160;   ///< fewer never converges a 26 m basin; more is the whole dispatch budget (15.11)
     bool destroy(int id);
+    // ── Phase D (16.2): rest, write-back, wake ────────────────────────────────────────────
+    void setSpanIo(SpanWriter writer, SpanReader reader) { m_spanWriter = std::move(writer); m_spanReader = std::move(reader); }
+    void setBakeBodyQuery(BakeBodyQuery q) { m_bakeBodyAt = std::move(q); }
+    WaterBodyTable& bodies() { return m_bodies; }
+    const WaterBodyTable& bodies() const { return m_bodies; }
+    /// Phase D2: rule 3 - a solid displaced `m3` of span water in column (x, z); debit its body.
+    void displaceAt(int x, int z, double m3) { m_bodies.displace(x, z, m3, m_bakeBodyAt); }
+    /// Phase D2: does a live volume own column (x, z) at height y (then IT applies the edit)?
+    bool volumeOwns(int x, int y, int z) const { for (const auto& b : m_boxes) if (x >= b.first.x && x <= b.second.x && y >= b.first.y && y <= b.second.y && z >= b.first.z && z <= b.second.z) return true; return false; }
+    /// Write the volume back to spans + body records and destroy it. Refuses an awake volume
+    /// unless `force` (then the record says so), and refuses - keeping the volume - when any
+    /// column could not be written (Unknown occupancy or a non-resident chunk) unless `force`.
+    WriteBackRecord sleep(int id, bool force);
+    /// Fill the volume from the chunk spans of its box (replace); returns m^3 seeded, < 0 without a reader.
+    double seedFromSpans(int id);
+    bool setAutoSleep(int id, bool on);
+    /// Realtime auto-sleep records since the last drain (the application logs them).
+    std::vector<WriteBackRecord> drainAutoSleepRecords() { std::vector<WriteBackRecord> r; r.swap(m_autoSlept); return r; }
     std::vector<AvRecord> list() const;
     const AvRecord* find(int id) const;
 
@@ -122,6 +165,11 @@ public:
 
     static constexpr size_t kMaxCellsPerVolume = 2'000'000;   ///< CPU reference ceiling (§15.4)
     static bool snapCellSize(float requested, float* snapped);  ///< power-of-three fractions only
+    /// Phase D (16.4): the world voxel boxes of every live volume (awake or not - a volume draws its
+    /// own surface until it is destroyed), and a revision that changes on create/destroy, so the
+    /// span render grid can leave those columns to the volume and rebuild when the set changes.
+    const std::vector<std::pair<glm::ivec3, glm::ivec3>>& volumeBoxes() const { return m_boxes; }
+    uint64_t avRevision() const { return m_avRevision; }
 
 private:
     struct Av {
@@ -144,7 +192,11 @@ private:
         int gpuSweeps = kGpuSweeps;
         bool gpuStale = false;         // the GPU copy is newer than the grid (a step ran, no download yet)
         double gpuLastDownloadSec = -1.0;
+        bool autoSleep = true;         // Phase D
+        double seededMass = 0.0;
+        std::vector<WaterBodyTable::ColumnMass> seededColumns;   // per-column seed for the body credit
     };
+    bool isAsleep(const Av& av) const { return av.backend == "gpu" ? av.gpuLast.asleep : av.solver->asleep(); }
     void refreshOccupancy(Av& av);
     Occ sampleOccupancy(const Av& av, const glm::ivec3& cellLocal) const;
     AvRecord record(const Av& av) const;
@@ -157,7 +209,13 @@ private:
     bool pushSourcesToGpu(Av& av, std::string* err);
     void syncFromGpu(Av& av, bool rateLimited = false);   // download when stale (realtime: at most once a second unless forced)
     std::vector<std::unique_ptr<Av>> m_avs;
+    SpanWriter m_spanWriter; SpanReader m_spanReader; BakeBodyQuery m_bakeBodyAt;
+    WaterBodyTable m_bodies;
+    std::vector<WriteBackRecord> m_autoSlept;
     int m_nextId = 1;
+    uint64_t m_avRevision = 0;
+    std::vector<std::pair<glm::ivec3, glm::ivec3>> m_boxes;   // mirrors m_avs (16.4)
+    void refreshBoxes();
     bool m_realtime = false;
     std::vector<WaterSurfaceCell> m_surface;
     std::vector<glm::vec4> m_particleDraw;

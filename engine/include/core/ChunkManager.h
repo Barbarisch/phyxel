@@ -71,9 +71,11 @@ public:
 
     // GPU particle physics — receives height map updates when voxels change
     std::function<void(int, int, int, bool)> m_voxelOccupancyCallback;
+    std::function<void(int, int, int, bool)> m_voxelEditCallback;   // WaterCore Phase D2: fired for EDITS only (place/break/damage), never by syncChunkToOccupancy
     
     // Chunk streaming manager (handles chunk loading/unloading/saving)
     ChunkStreamingManager m_streamingManager;
+    uint64_t m_waterSpanRevision = 0;
 
     // In-memory LOD blobs for evicted-but-never-saved chunks (see getEvictedLodCache)
     Core::EvictedLodCache m_evictedLodCache;
@@ -129,6 +131,11 @@ public:
     // Notified (worldX, worldY, worldZ, solid) whenever a single voxel's occupancy
     // changes (break/place/occupancy update). Used to keep the water sim's solid mask
     // in sync so water flows into newly-removed cells.
+    /// Phase D2 (docs/WaterCore.md 16.3): called with (x, y, z, solid) when a voxel is PLACED or
+    /// REMOVED by an edit. Unlike the occupancy callback it is NOT fired when a streamed chunk
+    /// syncs its solids (that fires `solid = true` for every voxel of the chunk, which an edit
+    /// rule would read as thousands of placed cubes displacing every span in the chunk).
+    void setVoxelEditCallback(std::function<void(int, int, int, bool)> cb) { m_voxelEditCallback = std::move(cb); }
     void setVoxelOccupancyCallback(std::function<void(int, int, int, bool)> cb) {
         m_voxelOccupancyCallback = std::move(cb);
     }
@@ -206,6 +213,12 @@ public:
     bool saveChunk(Chunk* chunk);
     bool saveAllChunks();
     bool saveDirtyChunks();  // Save only chunks that have been modified
+    // WaterCore Phase D (docs/WaterCore.md 16.4): every RUNTIME span writer (AV write-back, an
+    // edit under rule 3, water_ground_sync) bumps this so the span render grid re-reads the
+    // resident chunks without a residency change. Generation-time spans arrive with the chunk
+    // itself (the residency hash covers them).
+    uint64_t waterSpanRevision() const { return m_waterSpanRevision; }
+    void bumpWaterSpanRevision() { ++m_waterSpanRevision; }
     bool loadChunk(const glm::ivec3& chunkCoord);
     std::vector<glm::ivec3> loadAllChunksFromDatabase();  // Load all chunks that exist in the database
     bool generateOrLoadChunk(const glm::ivec3& chunkCoord); // Generate if doesn't exist, load if it does

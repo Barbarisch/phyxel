@@ -339,6 +339,8 @@ representation either derives from spans or is deleted.
    columns ≤ seaLevel is just `buildOpenWaterSpan`).
 6. **Span grid rebuild** keys on residency *content* (chunk set hash), not `chunkMap.size()`, and
    the `vkDeviceWaitIdle` per rebuild is measured and replaced by a per-frame-in-flight upload.
+   **BUILT 2026-10-08 as WaterCore Phase D3 (WaterCore.md §16.9): key = resident-set hash ⊕ span
+   revision ⊕ AV set; the idle wait is measured (0.06–79 ms), its replacement stays open.**
 
 Validation: L2 — `water_validate` rim leaks **0** on the WaterBench_Coast shore rect (today's red:
 257/257) and on a river rect; L4 — camera probe passes at coast, lake, river, pond. Stress: a

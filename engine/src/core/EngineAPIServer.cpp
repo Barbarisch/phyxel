@@ -2190,6 +2190,9 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_av_realtime",    waterEndpoint("water_av_realtime"));
     srv.Post("/api/debug/water_av_particles",   waterEndpoint("water_av_particles"));   // Phase B2
     srv.Post("/api/debug/water_av_settle",      waterEndpoint("water_av_settle"));      // Phase B2
+    srv.Post("/api/debug/water_av_sleep",       waterEndpoint("water_av_sleep"));       // Phase D: write-back + free
+    srv.Post("/api/debug/water_av_wake",        waterEndpoint("water_av_wake"));        // Phase D: flood over spans -> volume
+    srv.Post("/api/debug/water_body_table",     waterEndpoint("water_body_table"));     // Phase D: Tier A records
     srv.Post("/api/debug/water_cell_render",    waterEndpoint("water_cell_render"));  // camera-invariant gate A/B
     srv.Post("/api/debug/water_validate",       waterEndpoint("water_validate"));
     srv.Post("/api/debug/water_find_river",     waterEndpoint("water_find_river"));

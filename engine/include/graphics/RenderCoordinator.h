@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/WaterSpanGridKey.h"
 #include "core/Types.h"
 #include "core/LodService.h"
 #include "core/WorldConstants.h"
@@ -555,6 +556,8 @@ public:
     const VoxelLightOccupancyGpu* lightOccupancy() const { return m_lightOccupancy.get(); }
     /// WaterCore Phase B debug feed: extra surface cells drawn by the cell pipeline (null = none).
     void setWaterCoreSurfaceCells(const std::vector<Core::WaterSurfaceCell>* cells) { m_waterCoreCells = cells; }
+    /// Phase D (16.4): the live volumes' world boxes + their revision; the span grid masks those columns.
+    void setWaterCoreVolumeBoxes(const std::vector<std::pair<glm::ivec3, glm::ivec3>>* boxes, uint64_t revision) { m_waterCoreBoxes = boxes; m_waterCoreBoxRevision = revision; }
     /// Phase B2 debug draw: FLIP particles as water-shaded cubes of their cell size through the dynamic
     /// voxel pipeline (docs/WaterCore.md §15.9). Null or empty = nothing drawn.
     void setWaterCoreParticles(const std::vector<glm::vec4>* particles) { m_waterCoreParticles = particles; }
@@ -1052,7 +1055,10 @@ private:
     // at a sentinel (not nullptr) so the FIRST frame always uploads — the no-bake form binds the
     // 1×1 dry dummy that keeps the sea drawing in flat mode on non-procedural worlds.
     const void* m_lastHydroUploaded = reinterpret_cast<const void*>(~uintptr_t(0));
-    size_t m_spanGridChunkCount = 0;   // rebuild the span water grid when residency changes
+    Core::SpanGridKey m_spanGridKey;    // rebuild the span water grid when the RESIDENT SET, the span revision or the AV set changes (WaterCore.md 16.4)
+    bool   m_spanGridBuilt = false;
+    const std::vector<std::pair<glm::ivec3, glm::ivec3>>* m_waterCoreBoxes = nullptr;   // live AV boxes: their columns are the AV's, not the grid's
+    uint64_t m_waterCoreBoxRevision = 0;
     int    m_spanGridCooldown = 0;
     // v4 W1 water-look override (see setWaterLook). Neutral values = today's look exactly.
     bool  m_waterLookActive = false;

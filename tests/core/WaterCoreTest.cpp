@@ -90,6 +90,30 @@ TEST(WaterCoreTest, StillWaterStaysStill) {
     EXPECT_NEAR(t.grid.totalMass(), 8.0 * 8.0 * 4.0, 1e-6);
 }
 
+// Phase D (docs/WaterCore.md 16.9, defect #28): a flat pool must rest WHATEVER the fill of its
+// top cell. Found by the write-back round trip: a seeded pool whose top layer is 0.5-0.6 full
+// never slept (ke/mass 1e-4..1e-3 and rising for 100 s in a sealed tank) while 0.49 slept in 30
+// ticks. Cause: the ghost-fluid theta of a partial liquid cell's top face jumped from (f - 0.5)
+// to (0.5 + f_above) the moment a 1e-9 residue appeared in the cell above, i.e. the surface
+// height estimate moved by 0.4 cells on a trace of water; neighbouring columns disagreed and the
+// pressure solve pumped the difference into motion every tick.
+TEST(WaterCoreTest, StillWaterStaysStillWhateverTheTopFill) {
+    for (float h : {1.0f / 3.0f, 1.0f}) {
+        for (float top : {0.1f, 0.3f, 0.5f, 0.55f, 0.6f, 0.8f, 0.95f}) {
+            Tank t(9, 9, 9, h);
+            t.grid.fillBox({0, 0, 0}, {8, 4, 8}, 1.0f);
+            t.grid.fillBox({0, 5, 0}, {8, 5, 8}, top);
+            WaterSolver s(t.grid, t.query());
+            runTicks(s, 100);
+            EXPECT_LT(maxSpeedOnGrid(t.grid), 1e-4f) << "h " << h << " top " << top << ": still water acquired velocity";
+            EXPECT_TRUE(s.asleep()) << "h " << h << " top " << top << ": not asleep after 100 ticks";
+            const float expect = (5.0f + top) * h;
+            for (int z = 0; z < 9; ++z) for (int x = 0; x < 9; ++x)
+                EXPECT_NEAR(t.grid.surfaceWorldY(x, z), expect, 1e-4f) << "h " << h << " top " << top;
+        }
+    }
+}
+
 // P2 — the pressure in a resting column is hydrostatic: p(depth d) = rho g d (rho = 1).
 TEST(WaterCoreTest, HydrostaticPressure) {
     Tank t(4, 12, 4);
@@ -554,6 +578,14 @@ TEST(WaterCoreTest, FlipWallRunupMatchesLiterature) {
     const double flip = wallRunup(1.0f / 3.0f, true);
     std::printf("  wall run-up at 1/3 m: fills %.2f h0, FLIP %.2f h0 (literature 2.1-2.3)\n", control, flip);
     EXPECT_GE(flip, 1.65) << "FLIP run-up below 2.2 h0 - 25 %";
-    EXPECT_GT(flip, control) << "FLIP must beat the fill transport it is here to fix";
-    EXPECT_LT(control, 1.65) << "the control reads below the gate (if this fails, the fill transport improved and the gate is moot)";
+    // (no fills-vs-FLIP ordering is asserted: the fills number is CHAOTIC at this resolution -
+    // 1.89, 2.51 and 2.56 h0 from sub-percent differences in the first tick's damping - the
+    // climbing sheet's tip is a thin-film quantity. FLIP reads 2.15 in every one of those runs.)
+    // The control read 1.22 h0 until the continuous ghost-fluid theta (defect #28, Phase D,
+    // 2026-10-08): the old theta jumped by 0.4 cells on a trace of water above a partial cell and
+    // stalled the climbing sheet. It now reads ~1.89 h0 - inside the band FLIP was adopted for.
+    // Recorded, not gated: the number is printed above and in the WaterCore.md 16.9 ledger.
+    EXPECT_GE(control, 1.0) << "the fill control collapsed";
+    RecordProperty("runup_fills_h0", control);
+    RecordProperty("runup_flip_h0", flip);
 }

@@ -413,6 +413,180 @@ def s1_pour(api, gdef, args):
     return pred, meas, verdict
 
 
+def s11_rest_persist(api, gdef, args):
+    """S11 on the Small pad rig (WaterCore Phase D, docs/WaterCore.md 16.7): 0.02 m^3 poured onto the
+    pad rests, the volume SLEEPS (write-back to chunk spans + body record, volume freed), the stored
+    spans equal the record, the pad is re-woken from spans and 60 ticks change nothing, and after
+    save -> cold restart the spans and the body mass are identical. Predictions: asleep <= 10 s;
+    surface_vs_mass_mm <= 1; mass_written = poured - residue_dropped (tick-scaled gate); volumes 0
+    after sleep; stored span depth over the pad = mass_written +- 1e-4; re-wake delta mass <= 1e-6;
+    restart spans identical +- 1e-4. Control: a column 1 voxel outside the pour box has no span
+    before and after. Core only; the cold-restart leg needs --restart-cmd (the bench's `phyxel up`)."""
+    rig = rig_named(gdef, "pad")
+    sc = rig["scenarios"]["S1"]
+    px, _, pz = sc["pour_at"]
+    pad_top = rig["slab"]["y"][1]
+    vol = 0.02
+    eng = Engine(api, args.engine, cell_size=args.cell_size, transport=args.transport, backend=args.backend, sweeps=args.sweeps)
+    eng.require_core("S11")
+    pred = {"engine": "core", "transport": eng.transport, "backend": eng.backend, "cell_size": eng.cell_size, "time_base": "simulation",
+            "asleep_within_s": 10.0, "surface_vs_mass_mm_max": 1.0, "mass_gate": "max(1e-4, 1e-9*mass*ticks)", "volumes_after_sleep": 0,
+            "stored_depth_equals_written_tol": 1e-4, "rewake_delta_mass_tol": 1e-6, "restart_span_tol": 1e-4}
+    box = (px - 6, pad_top + 1, pz - 6, px + 6, pad_top + 2, pz + 6)
+    rect = {"x1": box[0], "z1": box[2], "x2": box[3], "z2": box[5]}
+    ctrl = (box[3] + 1, pz)   # one voxel east of the box
+    camera_set(api, vantage(gdef, "pad"))
+    # control + baseline: no stored water on the pad or the control column before the pour
+    before = api.debug("water_spans_stored", rect)
+    ctrl_before = api.debug("water_spans_stored", {"x1": ctrl[0], "z1": ctrl[1], "x2": ctrl[0], "z2": ctrl[1]})
+    v = eng.create_volume(box)
+    eng.place_box(px, pad_top + 2, pz, px, pad_top + 2, pz, vol)
+    rest_t = None; ticks = 0
+    while eng.now() < args.duration:
+        last = eng.advance(args.dt); ticks += max(1, int(round(args.dt / eng.dt)))
+        if last and last["asleep"]:
+            rest_t = eng.now(); break
+    a = eng.volume(v["id"])
+    sl = api.debug("water_av_sleep", {"id": v["id"]})
+    after = api.debug("water_spans_stored", rect)
+    ctrl_after = api.debug("water_spans_stored", {"x1": ctrl[0], "z1": ctrl[1], "x2": ctrl[0], "z2": ctrl[1]})
+    vols = api.debug("water_av_list")["volumes"]
+    table = api.debug("water_body_table", {"verify": True})
+    led = api.debug("water_ledger")
+    # re-wake from the spans and step 60 ticks: nothing changes
+    w = api.debug("water_av_create", {"x1": box[0], "y1": box[1], "z1": box[2], "x2": box[3], "y2": box[4], "z2": box[5],
+                                      "cellSize": eng.cell_size, "transport": "eulerian", "backend": eng.backend, "seed": "spans", "auto_sleep": False})
+    rewake = {}
+    if "error" in w:
+        rewake["error"] = w["error"]
+    else:
+        m0 = w["seeded_mass"]
+        st = api.debug("water_av_step", {"id": w["volume"]["id"], "ticks": 60, "dt": eng.dt}, timeout=600)["volume"]
+        sl2 = api.debug("water_av_sleep", {"id": w["volume"]["id"], "force": True})
+        after2 = api.debug("water_spans_stored", rect)
+        table = api.debug("water_body_table", {"verify": True})   # the table the save will persist
+        rewake = {"seeded_mass": m0, "mass_after_60": st["mass"], "delta_mass": st["mass"] - m0, "asleep_after_60": st["asleep"],
+                  "written_again": sl2.get("mass_written"), "stored_again": sl2.get("mass_stored"), "depth_after_second_sleep": after2.get("total_depth"), "depth_delta_second_sleep": after2.get("total_depth", 0) - after.get("total_depth", 0),
+                  "body_table_after": table.get("table")}
+    meas = {"rest_time_s": rest_t, "ticks_run": ticks, "sleep": {k: sl.get(k) for k in ("success", "error", "columns", "runs", "held_columns", "unwritten_columns", "chunks_touched", "mass_written", "surface_vs_mass_mm", "spread_mm", "body_id")},
+            "residue_dropped_m3": a.get("residue_dropped_m3"), "placed": vol,
+            "spans_before": before.get("spans"), "spans_after": after.get("spans"), "stored_depth_after": after.get("total_depth"),
+            "control_spans_before": ctrl_before.get("spans"), "control_spans_after": ctrl_after.get("spans"),
+            "volumes_after_sleep": len(vols), "ledger_after": {k: led.get(k) for k in ("core_cells", "spans", "bodies", "total")},
+            "body_table": table.get("table"), "rewake": rewake}
+    gate = max(1e-4, 1e-9 * vol * ticks)
+    written = sl.get("mass_written") or 0.0
+    expected = vol - (a.get("residue_dropped_m3") or 0.0)
+    verdict = {"asleep_within_10s": "PASS" if rest_t is not None and rest_t <= pred["asleep_within_s"] else "FAIL",
+               "write_back_ok": "PASS" if sl.get("success") else "FAIL",
+               "surface_vs_mass_1mm": "PASS" if sl.get("success") and sl["surface_vs_mass_mm"] <= pred["surface_vs_mass_mm_max"] else "FAIL",
+               "mass_written_equals_poured": "PASS" if abs(written - expected) <= gate else "FAIL",
+               "volume_freed": "PASS" if len(vols) == 0 else "FAIL",
+               "stored_depth_equals_written": "PASS" if after.get("total_depth") is not None and abs(after["total_depth"] - written) <= pred["stored_depth_equals_written_tol"] else "FAIL",
+               "control_column_dry": "PASS" if ctrl_before.get("spans") == 0 and ctrl_after.get("spans") == 0 else "FAIL",
+               "rewake_changes_nothing": "PASS" if rewake and "error" not in rewake and abs(rewake["delta_mass"]) <= pred["rewake_delta_mass_tol"] and abs(rewake["depth_delta_second_sleep"]) <= pred["restart_span_tol"] else "FAIL",
+               "body_mass_equals_spans": "PASS" if table.get("table") and all(abs(b.get("diff", 1e9)) <= 1e-9 for b in table["table"] if b["origin"] == "av") else "FAIL"}
+    # cold restart leg: save, restart the engine, re-read the spans and the table
+    if getattr(args, "restart_cmd", None):
+        api.debug("water_save", {})
+        save = api.post("/api/world/save", {})
+        import subprocess, shlex
+        subprocess.run(shlex.split(args.restart_cmd), check=False)
+        api.wait_status(300)
+        after_restart = api.debug("water_spans_stored", rect)
+        table_restart = api.debug("water_body_table", {})
+        meas["restart"] = {"save": save, "spans": after_restart.get("spans"), "stored_depth": after_restart.get("total_depth"),
+                           "depth_delta": (after_restart.get("total_depth") or 0.0) - (after.get("total_depth") or 0.0),
+                           "body_table": table_restart.get("table")}
+        same_mass = table.get("table") and table_restart.get("table") and abs(sum(b["mass"] for b in table["table"] if b["origin"] == "av") - sum(b["mass"] for b in table_restart["table"] if b["origin"] == "av")) <= 1e-9
+        verdict["restart_identical"] = "PASS" if abs(meas["restart"]["depth_delta"]) <= pred["restart_span_tol"] and same_mass else "FAIL"
+    else:
+        verdict["restart_identical"] = "SKIPPED (no --restart-cmd)"
+    return pred, meas, verdict
+
+
+def r3_edits_never_create(api, gdef, args):
+    """R3 on the Small pond rig (WaterCore Phase D2, docs/WaterCore.md 16.3): edits never create water.
+    The pond (4x4, floor top 14) is filled to 16.5 through a volume, rested and SLEPT (spans
+    stored). Then, with no volume awake: (b) a Stone cube placed into a pond column at y 15 clips
+    that column's span to [16, 16.5], displaces exactly 1.0 m^3 (ledger total -1.0, body displaced
+    1.0); (c) the floor voxel under another pond column is removed: its span falls one voxel
+    (mass unchanged); (d) a pit dug in the dry slab 3 voxels from the pond stays DRY; (e) a wake
+    over the pond seeds exactly the stored mass and sleeps back to the same spans. Control: an
+    untouched pond column's span is identical throughout. Core only; simulation time."""
+    rig = rig_named(gdef, "pond")
+    pond = rig["scenarios"]["S13"]["pond"]           # x1, z1, x2, z2 = 100, 12, 103, 15
+    x1, z1, x2, z2 = pond
+    eng = Engine(api, args.engine, cell_size=args.cell_size, transport=args.transport, backend=args.backend, sweeps=args.sweeps)
+    eng.require_core("R3")
+    pred = {"engine": "core", "cell_size": eng.cell_size, "backend": eng.backend, "fill_top": 16.5,
+            "cube_displaces_m3": 1.0, "undercut_shift": -1.0, "pit_spans": 0, "wake_seed_equals_stored_tol": 1e-4}
+    box = (x1 - 1, 14, z1 - 1, x2 + 1, 18, z2 + 1)
+    camera_set(api, vantage(gdef, "pond"))
+    def spans_at(x, z):
+        r = api.debug("water_spans_stored", {"x1": x, "z1": z, "x2": x, "z2": z, "columns": True})
+        return sorted((c[2] for c in r.get("span_columns", [])))   # tops (one per vertical clip)
+    def depth_at(x, z):
+        return api.debug("water_spans_stored", {"x1": x, "z1": z, "x2": x, "z2": z}).get("total_depth")
+    v = eng.create_volume(box)
+    eng.place_box(x1, 15, z1, x2, 15, z2, 1.0)
+    eng.place_box(x1, 16, z1, x2, 16, z2, 0.5)
+    rest_t = None
+    while eng.now() < args.duration:
+        last = eng.advance(args.dt)
+        if last and last["asleep"]:
+            rest_t = eng.now(); break
+    sl = api.debug("water_av_sleep", {"id": v["id"], "force": rest_t is None})
+    eng.av_ids = []; eng.av_id = None
+    led0 = api.debug("water_ledger")
+    ctrl = (x1, z1)                                   # the pond's corner column, never edited
+    ctrl0 = spans_at(*ctrl); d_ctrl0 = depth_at(*ctrl)
+    # (b) a cube into (x1+1, 15, z1+1)
+    cube = (x1 + 1, 15, z1 + 1)
+    before_b = depth_at(cube[0], cube[2])
+    pb = api.post("/api/world/voxel", {"x": cube[0], "y": cube[1], "z": cube[2], "material": "Stone"})
+    after_b = depth_at(cube[0], cube[2]); tops_b = spans_at(cube[0], cube[2])
+    led_b = api.debug("water_ledger"); table_b = api.debug("water_body_table", {})
+    # (c) the floor voxel under (x1+2, z1+1): y 14
+    under = (x1 + 2, 14, z1 + 1)
+    before_c = depth_at(under[0], under[2]); tops_c0 = spans_at(under[0], under[2])
+    pc = api.post("/api/world/voxel/remove", {"x": under[0], "y": under[1], "z": under[2]})
+    after_c = depth_at(under[0], under[2]); tops_c = spans_at(under[0], under[2])
+    # (d) a pit in the dry slab 3 voxels east of the pond: (x2+3, 16, z1+1)
+    pit = (x2 + 3, 16, z1 + 1)
+    pd = api.post("/api/world/voxel/remove", {"x": pit[0], "y": pit[1], "z": pit[2]})
+    pit_spans = api.debug("water_spans_stored", {"x1": pit[0], "z1": pit[2], "x2": pit[0], "z2": pit[2]}).get("spans")
+    led_d = api.debug("water_ledger")
+    ctrl1 = spans_at(*ctrl); d_ctrl1 = depth_at(*ctrl)
+    # (e) wake the pond and sleep it back
+    stored_before_wake = api.debug("water_spans_stored", {"x1": x1, "z1": z1, "x2": x2, "z2": z2}).get("total_depth")
+    w = api.debug("water_av_wake", {"x": x2, "y": 16, "z": z2, "cellSize": eng.cell_size, "backend": eng.backend, "auto_sleep": False})
+    wake = {"error": w.get("error")} if "error" in w else {"seeded_mass": w["seeded_mass"], "flood_columns": w["flood_columns"], "truncated": w["truncated"], "box": w["box"]}
+    if "error" not in w:
+        st = api.debug("water_av_step", {"id": w["volume"]["id"], "ticks": 60, "dt": eng.dt}, timeout=600)["volume"]
+        sl2 = api.debug("water_av_sleep", {"id": w["volume"]["id"], "force": True})
+        wake.update({"mass_after_60": st["mass"], "asleep_after_60": st["asleep"], "stored_again": sl2.get("mass_stored"), "sleep_ok": sl2.get("success"), "sleep_error": sl2.get("error")})
+        wake["stored_after"] = api.debug("water_spans_stored", {"x1": x1, "z1": z1, "x2": x2, "z2": z2}).get("total_depth")
+    meas = {"rest_time_s": rest_t, "sleep": {k: sl.get(k) for k in ("success", "error", "columns", "mass_written", "mass_stored", "surface_vs_mass_mm")},
+            "cube": {"at": cube, "placed": pb, "depth_before": before_b, "depth_after": after_b, "tops_after": tops_b,
+                     "ledger_total_before": led0.get("total"), "ledger_total_after": led_b.get("total"), "displaced_ledger": led_b.get("displaced"),
+                     "body_displaced": [b.get("displaced") for b in table_b.get("table", []) if b["origin"] == "av"]},
+            "undercut": {"at": under, "removed": pc, "depth_before": before_c, "depth_after": after_c, "tops_before": tops_c0, "tops_after": tops_c},
+            "pit": {"at": pit, "removed": pd, "spans": pit_spans, "ledger_total_after": led_d.get("total"), "held_edits": led_d.get("held_edits")},
+            "control": {"at": ctrl, "tops_before": ctrl0, "tops_after": ctrl1, "depth_before": d_ctrl0, "depth_after": d_ctrl1},
+            "wake": wake, "stored_before_wake": stored_before_wake}
+    verdict = {"pond_slept": "PASS" if sl.get("success") else "FAIL",
+               "cube_displaces_exactly_1": "PASS" if before_b is not None and after_b is not None and abs((before_b - after_b) - 1.0) <= 1e-4 and abs((led0.get("total", 0) - led_b.get("total", 0)) - 1.0) <= 1e-4 else "FAIL",
+               "cube_span_top_unchanged": "PASS" if tops_b and before_b is not None and after_b is not None and abs(after_b - (before_b - 1.0)) <= 1e-6 and abs(tops_b[-1] - (15.0 + before_b)) <= 1e-4 else "FAIL",
+               "body_debited": "PASS" if any(abs((d or 0) - 1.0) <= 1e-6 for d in meas["cube"]["body_displaced"]) else "FAIL",
+               "undercut_falls_one_voxel_mass_exact": "PASS" if before_c is not None and after_c is not None and abs(after_c - before_c) <= 1e-6 and tops_c and tops_c0 and abs((tops_c[-1] - tops_c0[-1]) + 1.0) <= 1e-4 else "FAIL",
+               "pit_stays_dry": "PASS" if pit_spans == 0 and abs(led_d.get("total", 0) - led_b.get("total", 0)) <= 1e-6 else "FAIL",
+               "control_unchanged": "PASS" if ctrl0 == ctrl1 and d_ctrl0 == d_ctrl1 else "FAIL",
+               "wake_seeds_stored_mass": "PASS" if "error" not in wake and abs(wake["seeded_mass"] - stored_before_wake) <= pred["wake_seed_equals_stored_tol"] else "FAIL",
+               "wake_sleep_round_trip": "PASS" if "error" not in wake and wake.get("sleep_ok") and abs((wake.get("stored_after") or 0) - stored_before_wake) <= 1e-4 else "FAIL"}
+    return pred, meas, verdict
+
+
 def s2_trough(api, gdef, args):
     """S2 on the Small trough rig: pump 0.1 m^3/s into trough A (2 m^3, rim at the pad) and, as the
     control, into trough B (6 m^3). Prediction: A is full at 20 s (+- 2 s), then overflows onto the
@@ -624,7 +798,8 @@ def s5_drain(api, gdef, args):
 
 
 SCENARIOS = {"S1": ("small", s1_pour), "S2": ("small", s2_trough), "S3": ("basin", s3_dam_break),
-             "S4": ("basin", s4_spill), "S5": ("basin", s5_drain)}
+             "S4": ("basin", s4_spill), "S5": ("basin", s5_drain), "S11": ("small", s11_rest_persist),
+             "R3": ("small", r3_edits_never_create)}
 
 
 def main():
@@ -640,6 +815,7 @@ def main():
     ap.add_argument("--transport", default="eulerian", choices=["eulerian", "flip"], help="core: fill fractions (Phase B) or FLIP particles (Phase B2)")
     ap.add_argument("--backend", default="auto", choices=["auto", "cpu", "gpu"], help="core: auto = the engine's default (gpu for fills when ready), cpu = the reference, gpu = forced (parity rows)")
     ap.add_argument("--sweeps", type=int, default=0, help="gpu: red-black SOR sweeps per projection (0 = auto, 1.5 x the longest dimension; else 8-160)")
+    ap.add_argument("--restart-cmd", dest="restart_cmd", default=None, help="S11: a shell command that stops and relaunches the bench engine (the cold-restart leg)")
     args = ap.parse_args()
     if args.scenario == "list":
         for k, (b, f) in SCENARIOS.items():

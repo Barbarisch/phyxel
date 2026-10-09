@@ -518,7 +518,7 @@ GpuStepStats WaterCoreGpu::step(Volume& vol, const SolverParams& params, float d
     const double specificKE = st.kineticEnergy / std::max(static_cast<double>(out[2]), 1e-9);
     const bool quiet = specificKE < params.keWake && st.maxDeltaF < params.maxDeltaFQuiet;
     vol.quietTicks = quiet ? vol.quietTicks + ticks : 0;
-    vol.quietBefore = specificKE < params.keWake;
+    vol.quietBefore = specificKE < params.keSettle;   // the settle band (SolverParams::keSettle), as on the CPU: damping below 3 cm/s rms, never above
     if (vol.quietTicks >= params.restTicks) vol.asleep = true;
     st.quietTicks = vol.quietTicks; st.asleep = vol.asleep;
     return st;

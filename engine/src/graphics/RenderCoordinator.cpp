@@ -1,3 +1,4 @@
+#include <chrono>
 #include "graphics/DepthConvention.h"
 #include "graphics/RenderCoordinator.h"
 
@@ -1101,12 +1102,20 @@ void RenderCoordinator::updateSpanWaterGrid() {
     if (!hydro) return;
     if (chunkManager->chunkMap.empty()) return;
 
-    // Rebuild when chunks stream in/out, rate-limited (the fine-window lesson: a stride-only or
-    // build-once grid captures an empty post-teleport chunk map as "all dry" forever).
-    const size_t chunkCount = chunkManager->chunkMap.size();
+    // Rebuild when the RESIDENT SET changes (not its count: streaming swaps N chunks for N others
+    // along a walk and the count-keyed grid drew dry water over 5,120 columns - WaterRethink WP1
+    // step 6), when a runtime span writer bumped the span revision, or when an active volume was
+    // created/destroyed (its columns are masked out below). Rate-limited by the cooldown - a cost
+    // bound only (the fine-window lesson: a build-once grid captures an empty post-teleport chunk
+    // map as "all dry" forever).
     if (m_spanGridCooldown > 0) --m_spanGridCooldown;
-    if (m_spanGridChunkCount == chunkCount) return;
+    const auto tKey0 = std::chrono::steady_clock::now();
+    const Core::SpanGridKey key = Core::makeSpanGridKey(chunkManager->chunkMap.begin(), chunkManager->chunkMap.end(),
+                                                        chunkManager->waterSpanRevision(), m_waterCoreBoxRevision);
+    const double keyMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tKey0).count();
+    if (m_spanGridBuilt && key == m_spanGridKey) return;
     if (m_spanGridCooldown > 0) return;
+    const size_t chunkCount = chunkManager->chunkMap.size();
 
     // Bounds of resident chunks, clamped to a hard cap. ⚑No silent caps: if residency outruns the
     // cap the excess is logged — those chunks' terrain renders with dry water, which is exactly
@@ -1148,7 +1157,15 @@ void RenderCoordinator::updateSpanWaterGrid() {
     for (size_t i = 0; i < rgba.size(); i += 4) {
         rgba[i] = -1e30f; rgba[i + 1] = 1.0f; rgba[i + 2] = 0.0f; rgba[i + 3] = 1.0f;
     }
-    long wet = 0;
+    // Columns owned by a live active volume are the volume's to draw (its surface feed), not the
+    // grid's: drawing both is double water. Existence is unchanged - the spans stay in the chunk.
+    auto inVolume = [this](int wx, int wz) {
+        if (!m_waterCoreBoxes) return false;
+        for (const auto& b : *m_waterCoreBoxes)
+            if (wx >= b.first.x && wx <= b.second.x && wz >= b.first.z && wz <= b.second.z) return true;
+        return false;
+    };
+    long wet = 0, masked = 0;
     for (const auto& [cc, chunk] : chunkManager->chunkMap) {
         if (!chunk) continue;
         const int bx = cc.x * 32, bz = cc.z * 32;
@@ -1156,6 +1173,7 @@ void RenderCoordinator::updateSpanWaterGrid() {
         for (const auto& s : chunk->getWaterSpans()) {
             const int gx = bx + s.x - minX, gz = bz + s.z - minZ;
             if (gx < 0 || gx >= w || gz < 0 || gz >= d) continue;
+            if (inVolume(bx + s.x, bz + s.z)) { ++masked; continue; }
             float* px = &rgba[(static_cast<size_t>(gz) * w + gx) * 4];
             const float top = static_cast<float>(cc.y) * 32.0f + s.top;
             if (px[0] < -1e5f) {
@@ -1174,17 +1192,21 @@ void RenderCoordinator::updateSpanWaterGrid() {
 
     // Same swap discipline as the grounded path: the image size can change between rebuilds
     // (residency bounds move), which recreates the image + rewrites the descriptor — idle first.
-    vkDeviceWaitIdle(vulkanDevice->getDevice());
+    const auto tIdle0 = std::chrono::steady_clock::now();
+    vkDeviceWaitIdle(vulkanDevice->getDevice());   // measured and logged below; a per-frame-in-flight upload is the open perf item (16.4)
+    const double idleMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tIdle0).count();
     VkCommandBuffer oneShot = vulkanDevice->beginSingleTimeCommands();
     waterPipeline->recordHydrologyUpload(oneShot, rgba.data(), w, d,
                                          static_cast<float>(minX), static_cast<float>(minZ), -1.0f);
     vulkanDevice->endSingleTimeCommands(oneShot);
     // Pin the per-frame bake rebind guard so it never overwrites this grid.
     m_lastHydroUploaded = hydro;
-    m_spanGridChunkCount = chunkCount;
+    m_spanGridKey = key; m_spanGridBuilt = true;
     m_spanGridCooldown = 30;
-    LOG_INFO("RenderCoordinator", "Span water grid: {}x{} at ({}, {}), {} wet columns, {} chunks",
-             w, d, minX, minZ, wet, chunkCount);
+    char timing[96];
+    std::snprintf(timing, sizeof timing, "key %.3f ms, idle wait %.2f ms", keyMs, idleMs);   // LOG_* takes bare {} only
+    LOG_INFO("RenderCoordinator", "Span water grid: {}x{} at ({}, {}), {} wet columns, {} masked by volumes, {} chunks ({})",
+             w, d, minX, minZ, wet, masked, chunkCount, timing);
 }
 
 glm::vec3 RenderCoordinator::waterLook() const {

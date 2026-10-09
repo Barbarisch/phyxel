@@ -11,7 +11,12 @@ human found it by walking toward the water. This encodes the walk:
                                   set of RESIDENT chunk columns, so "dry" can be told from
                                   "not loaded";
   2. pose the camera NEAR the same rect, settle, read both again;
-  3. classify every column of the rect:
+  3. classify every column of the rect. "Resident" is judged in 3-D (WaterCore Phase D3,
+     2026-10-08): the chunk(s) at the rect's water LEVEL BAND must be loaded in that column - at a
+     high far pose the sea-level chunk of a column is often absent while a higher chunk of the
+     same column is present, and the 2-D column list called that "resident" (1,888 false
+     violations on Coast). Reads happen only after residency has held still for 2 s plus the
+     span grid's 0.5 s cooldown (864 false near-pose mismatches came from reading mid-landing):
        VIOLATION  resident at BOTH poses, rendered wet/dry differs, or level differs by > eps;
        VIOLATION  at either pose, resident, and rendered wet/dry disagrees with the stored spans
                   (the sheet must show span truth; a disagreement is the bake-upload reversion
@@ -35,11 +40,10 @@ which is exactly why the re-read happens without moving.)
     python tools/water_camera_probe.py coast --inject-water-look   # run LAST (see below)
 
 ⚑ The self-test POLLUTES the engine: `water_look {active:false}` re-uploads the bake too, and the
-placement stays on the bake until a residency change whose chunk COUNT differs from the last
-rebuild's (the span grid keys on count, not set - WaterRethink.md WP1 step 6). A normal run right
-after a self-test reports tens of thousands of real violations against that polluted state (seen
-2026-10-08: 50,787). Run the self-test last, or move the camera far away and back before the next
-normal run.
+placement stays on the bake until the next span-grid rebuild (since Phase D3 the grid keys on the
+resident SET + span revision + AV set, so any residency change rebuilds it; before, a same-count
+change did not - WaterRethink.md WP1 step 6, 50,787 violations seen 2026-10-08). Run the self-test
+last, or move the camera far away and back before the next normal run.
 
 Evidence: docs/evidence/water_v4_camera_probe.jsonl (one row per run, git head + timestamp).
 Engine: the bench project's port (.phyxel/config.json) unless --url.
@@ -59,8 +63,11 @@ ROOT = Path(__file__).resolve().parent.parent
 EVIDENCE = ROOT / "docs" / "evidence" / "water_v4_camera_probe.jsonl"
 
 
-def settle(api, max_s=240):
-    """Wait for streaming + remesh to go idle (the perf harness's settle keys), bounded."""
+def settle(api, max_s=240, rect=None):
+    """Wait for streaming + remesh to go idle (the perf harness's settle keys), then - when a rect
+    is given - for the RESIDENT CHUNK SET touching it to hold still across two reads 2 s apart,
+    then the span grid's 30-frame cooldown. Bounded. (Reading while chunks were still landing
+    produced 864 rendered!=spans false mismatches at the Coast near pose, 2026-10-08.)"""
     t0 = time.time()
     last = None
     while time.time() - t0 < max_s:
@@ -70,9 +77,19 @@ def settle(api, max_s=240):
             st = {}
         pend = sum(int(st.get(k, 0) or 0) for k in ("generation_pending", "remesh_pending", "remesh_idle_pending"))
         if pend == 0 and last == 0:
-            return time.time() - t0
+            break
         last = pend
         time.sleep(2.0)
+    if rect is not None:
+        x1, z1, x2, z2 = rect
+        prev = None
+        while time.time() - t0 < max_s:
+            n = api.debug("water_spans_stored", {"x1": x1, "z1": z1, "x2": x2, "z2": z2}).get("chunks_loaded")
+            if n == prev:
+                break
+            prev = n
+            time.sleep(2.0)
+        time.sleep(1.0)   # the span grid rebuilds at most every 30 frames after the last change
     return time.time() - t0
 
 
@@ -93,10 +110,21 @@ class Read:
             if k not in self.stored or c[2] > self.stored[k]:
                 self.stored[k] = c[2]
         self.resident = {(c[0], c[1]) for c in self.spans.get("resident_chunk_columns", [])}
+        self.resident3 = {(c[0], c[1], c[2]) for c in self.spans.get("resident_chunks", [])}
         self.source = self.grid.get("source")
+        n = self.spans.get("spans") or 0
+        # the world-data level band of this read (stored span tops), for the vertical residency test
+        self.band = (self.spans["min_top"], self.spans["max_top"]) if n else None
 
-    def is_resident(self, x, z):
-        return (x // 32, z // 32) in self.resident
+    def is_resident(self, x, z, band=None):
+        """band = (minLevel, maxLevel) world Y: every vertical chunk from floor((min-1)/32) to
+        floor(max/32) must be loaded in this column. Without a band (no water seen at either pose)
+        the 2-D column test is all there is."""
+        cx, cz = x // 32, z // 32
+        if band is None or not self.resident3:
+            return (cx, cz) in self.resident
+        lo, hi = int((band[0] - 1.0) // 32), int(band[1] // 32)
+        return all((cx, cy, cz) in self.resident3 for cy in range(lo, hi + 1))
 
     def summary(self):
         return {"source": self.source, "rendered_wet": self.grid["wet"], "rendered_dry": self.grid["dry"],
@@ -107,13 +135,18 @@ class Read:
                 "wet_columns_truncated": self.grid.get("wet_columns_truncated")}
 
 
-def rendered_vs_spans(read, rect, eps):
+def union_band(*reads):
+    bands = [r.band for r in reads if r.band]
+    return (min(b[0] for b in bands), max(b[1] for b in bands)) if bands else None
+
+
+def rendered_vs_spans(read, rect, eps, band=None):
     """Resident columns where the renderer and the stored spans disagree."""
     x1, z1, x2, z2 = rect
     out = []
     for z in range(z1, z2 + 1):
         for x in range(x1, x2 + 1):
-            if not read.is_resident(x, z):
+            if not read.is_resident(x, z, band):
                 continue
             r, s = read.rendered.get((x, z)), read.stored.get((x, z))
             if (r is None) != (s is None):
@@ -123,12 +156,12 @@ def rendered_vs_spans(read, rect, eps):
     return out
 
 
-def far_vs_near(rect, far, near, eps):
+def far_vs_near(rect, far, near, eps, band=None):
     x1, z1, x2, z2 = rect
     viol, cover, both = [], 0, 0
     for z in range(z1, z2 + 1):
         for x in range(x1, x2 + 1):
-            rf, rn = far.is_resident(x, z), near.is_resident(x, z)
+            rf, rn = far.is_resident(x, z, band), near.is_resident(x, z, band)
             if rf != rn:
                 cover += 1
                 continue
@@ -168,9 +201,9 @@ def main():
 
     def observe(name, pose):
         got = camera_set(api, pose)
-        waited = settle(api)
+        waited = settle(api, rect=rect)
         rd = Read(api, rect)
-        mism = rendered_vs_spans(rd, rect, args.eps)
+        mism = rendered_vs_spans(rd, rect, args.eps, rd.band)
         row[name] = dict(rd.summary(), pose=got, settle_s=round(waited, 1), rendered_vs_spans=len(mism),
                          rendered_vs_spans_samples=mism[:5])
         print(f"[{name}] source={rd.source} rendered wet={rd.grid['wet']} spans={rd.spans.get('spans')} "
@@ -221,7 +254,11 @@ def main():
         return
 
     near, near_mism = observe("near", probe["near"])
-    viol, cover, both = far_vs_near(rect, far, near, args.eps)
+    band = union_band(far, near)                       # one vertical residency test for both poses
+    far_mism = rendered_vs_spans(far, rect, args.eps, band)
+    near_mism = rendered_vs_spans(near, rect, args.eps, band)
+    viol, cover, both = far_vs_near(rect, far, near, args.eps, band)
+    row["level_band"] = band
     all_viol = viol + far_mism + near_mism
     source_changed = far.source != near.source
     ok = not all_viol and not source_changed

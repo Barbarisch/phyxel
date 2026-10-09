@@ -12,6 +12,8 @@ extern "C" __declspec(dllimport) unsigned long __stdcall GetCurrentProcessId(voi
 #endif
 #include "Application.h"
 #include "core/PerfCapture.h"
+#include "core/water/WaterSpanWriteBack.h"   // Phase D: span clip/assemble/merge
+#include "core/water/WaterSpanEdit.h"        // Phase D2: edits never create water
 #include "core/DebrisApiCommands.h"
 #include <cmath>
 #include <cstdlib>
@@ -443,6 +445,85 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
             const auto* occ = renderCoordinator ? renderCoordinator->lightOccupancy() : nullptr;
             return occ ? occ->packRevision() : 0;
         });
+    // Phase D (docs/WaterCore.md 16.2): the chunk I/O of the write-back. A column's water is ONE
+    // world-space object stored as clips in every vertical chunk it crosses: the writer assembles
+    // the chunk column, merges the volume's runs in world space, clips back, marks dirty, bumps the
+    // span revision. Columns whose vertical chunks are not all resident are refused whole (counted),
+    // never half-written.
+    waterCore->setSpanIo(
+        [this](const std::vector<Core::Water::ColumnRuns>& runs, float yLo, float yHi, long* unwritten, long* chunksTouched) {
+            using namespace Core::Water;
+            long unw = 0, touched = 0;
+            if (!chunkManager) { if (unwritten) *unwritten = static_cast<long>(runs.size()); return; }
+            auto floorDiv32 = [](int a) { return (a >= 0) ? (a / 32) : -(((-a) + 31) / 32); };
+            const int cyLo = floorDiv32(static_cast<int>(std::floor(yLo))), cyHi = floorDiv32(static_cast<int>(std::ceil(yHi)) - 1);
+            // group the runs per chunk column
+            std::map<std::pair<int, int>, std::vector<const ColumnRuns*>> perChunkCol;
+            for (const auto& c : runs) { if (c.held) continue; perChunkCol[{floorDiv32(c.x), floorDiv32(c.z)}].push_back(&c); }
+            for (auto& [cc, cols] : perChunkCol) {
+                const int cx = cc.first, cz = cc.second;
+                std::map<int, Chunk*> resident;
+                bool allResident = true;
+                for (int cy = cyLo; cy <= cyHi; ++cy) {
+                    Chunk* ch = chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz));
+                    if (!ch) { allResident = false; break; }
+                    resident[cy] = ch;
+                }
+                if (!allResident) { unw += static_cast<long>(cols.size()); continue; }
+                // every vertical chunk that holds part of these columns' spans takes part in the assembly
+                std::map<int, const std::vector<Chunk::WaterSpanLocal>*> have;
+                for (auto& [cy, ch] : resident) have[cy] = &ch->getWaterSpans();
+                // chunks above/below the box range that are resident contribute their spans too (kept untouched)
+                for (int cy = cyLo - 4; cy <= cyHi + 4; ++cy) {
+                    if (have.count(cy)) continue;
+                    if (Chunk* ch = chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz))) have[cy] = &ch->getWaterSpans();
+                }
+                std::vector<WorldSpan> world = assembleColumnSpans(have, cx, cz);
+                std::vector<WorldSpan> result;
+                std::set<std::pair<int, int>> written;
+                for (const ColumnRuns* c : cols) written.insert({c->x, c->z});
+                for (const auto& w : world) if (!written.count({w.x, w.z})) result.push_back(w);
+                for (const ColumnRuns* c : cols) { auto m = mergeColumnRuns(world, c->x, c->z, yLo, yHi, c->runs); result.insert(result.end(), m.begin(), m.end()); }
+                // clip back into the resident chunks of this column (only those; others keep their clips)
+                int cyMin = INT_MAX, cyMax = INT_MIN;
+                for (auto& [cy, l] : have) { cyMin = std::min(cyMin, cy); cyMax = std::max(cyMax, cy); }
+                std::map<int, std::vector<Chunk::WaterSpanLocal>> clips;
+                clipSpansToChunks(result, cx, cz, cyMin, cyMax, clips);
+                for (auto& [cy, list] : clips) {
+                    Chunk* ch = chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz));
+                    if (!ch) continue;   // a span clip aimed at a non-resident chunk outside the box range: it keeps what it had (assembled from nothing, so nothing changes there)
+                    ch->setWaterSpans(std::move(list));
+                    ch->setDirty(true);
+                    ++touched;
+                }
+            }
+            chunkManager->bumpWaterSpanRevision();
+            if (unwritten) *unwritten = unw;
+            if (chunksTouched) *chunksTouched = touched;
+        },
+        [this](const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, std::vector<Core::Water::ColumnRuns>& out) {
+            using namespace Core::Water;
+            out.clear();
+            if (!chunkManager) return;
+            auto floorDiv32 = [](int a) { return (a >= 0) ? (a / 32) : -(((-a) + 31) / 32); };
+            const float yLo = static_cast<float>(minVoxel.y), yHi = static_cast<float>(maxVoxel.y + 1);
+            std::vector<WorldSpan> all;
+            for (int cz = floorDiv32(minVoxel.z); cz <= floorDiv32(maxVoxel.z); ++cz)
+                for (int cx = floorDiv32(minVoxel.x); cx <= floorDiv32(maxVoxel.x); ++cx) {
+                    std::map<int, const std::vector<Chunk::WaterSpanLocal>*> have;
+                    for (int cy = floorDiv32(minVoxel.y) - 1; cy <= floorDiv32(maxVoxel.y) + 1; ++cy)
+                        if (const Chunk* ch = chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz))) have[cy] = &ch->getWaterSpans();
+                    for (const auto& w : assembleColumnSpans(have, cx, cz))
+                        if (w.x >= minVoxel.x && w.x <= maxVoxel.x && w.z >= minVoxel.z && w.z <= maxVoxel.z) all.push_back(w);
+                }
+            std::sort(all.begin(), all.end(), [](const WorldSpan& a, const WorldSpan& b) { return a.x != b.x ? a.x < b.x : (a.z != b.z ? a.z < b.z : a.bottomY < b.bottomY); });
+            spansToColumnRuns(all, yLo, yHi, out);
+        });
+    waterCore->setBakeBodyQuery([this](int x, int z) -> int {
+        const WorldGenerator* sg = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+        const WaterBodyIndex* idx = sg ? sg->waterBodies() : nullptr;
+        return idx ? idx->bodyIdAt(static_cast<float>(x) + 0.5f, static_cast<float>(z) + 0.5f) : -1;
+    });
     // Phase C: hand the water core a device so volumes can be created with backend:"gpu" (parity-gated;
     // the CPU reference stays the default). A failure is logged, never silent: the create route refuses.
     if (vulkanDevice) {
@@ -460,6 +541,8 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         if (waterManager) waterManager->setSolidWorld(x, y, z, solid);
         if (waterCore) waterCore->markSolidsDirty();
     });
+    // Phase D2 (docs/WaterCore.md 16.3): edits never create water - the stored spans follow rule 3.
+    chunkManager->setVoxelEditCallback([this](int x, int y, int z, bool solid) { applyWaterSpanEdit(x, y, z, solid); });
     // Create GPU compute resources for the water flow (off by default; toggle with the
     // water_gpu debug command). Falls back to CPU if creation fails.
     if (vulkanDevice) waterManager->enableGpu(vulkanDevice);
@@ -3589,9 +3672,15 @@ void Application::update(float deltaTime) {
         // steps explicitly. The debug feed is rebuilt every frame while any volume exists.
         if (waterCore) {
             waterCore->update(std::min(deltaTime, 0.05f));
-            if (renderCoordinator)
+            if (renderCoordinator) {
                 renderCoordinator->setWaterCoreSurfaceCells(waterCore->totalCells() ? &waterCore->surfaceCells() : nullptr);
                 renderCoordinator->setWaterCoreParticles(waterCore->totalCells() ? &waterCore->particleDrawList() : nullptr);   // Phase B2 debug draw
+                renderCoordinator->setWaterCoreVolumeBoxes(&waterCore->volumeBoxes(), waterCore->avRevision());   // Phase D: the span grid leaves these columns to the volumes
+            }
+            for (const auto& rec : waterCore->drainAutoSleepRecords()) {
+                if (rec.ok) LOG_INFO("WaterCore", "volume {} slept: {} columns / {} runs written ({} m^3, seeded {} m^3), surface-vs-mass {} mm, spread {} mm, {} chunks, body {}", rec.id, rec.columns, rec.runs, rec.massWritten, rec.massSeeded, rec.surfaceVsMassMm, rec.spreadMm, rec.chunksTouched, rec.bodyId);
+                else LOG_WARN("WaterCore", "volume {} could not write back: {} (held {}, unwritten {}); auto_sleep is off for it", rec.id, rec.error, rec.heldColumns, rec.unwrittenColumns);
+            }
         }
     }
 
@@ -6719,6 +6808,11 @@ void Application::autoLoadGameDefinition() {
                             const std::string ov = ws->getMeta("water_overrides");
                             if (!ov.empty() && !waterManager->loadOverrides(ov))
                                 LOG_WARN("Application", "world_meta water_overrides failed to parse — pours not restored");
+                            if (waterCore) {   // Phase D: Tier A records
+                                const std::string wb = ws->getMeta("water_bodies");
+                                if (!wb.empty() && !waterCore->bodies().load(wb))
+                                    LOG_WARN("Application", "world_meta water_bodies failed to parse - body records not restored");
+                            }
                         }
                     }
                 }
@@ -12857,7 +12951,9 @@ void Application::registerWaterCommands() {
         for (auto& [cc, chunk] : chunkManager->chunkMap) {
             if (!chunk) continue;
             auto it = chunkSpans.find(cc);
-            if (it == chunkSpans.end()) { chunk->clearWaterSpans(); continue; }
+            // Phase D: a runtime span write must survive a dirty-only save (setWaterSpans itself does
+            // not mark the chunk - generation's chunks are saved whole).
+            if (it == chunkSpans.end()) { if (!chunk->getWaterSpans().empty()) { chunk->clearWaterSpans(); chunk->setDirty(true); } continue; }
             // The scan runs z-outer, so per-chunk vectors arrive out of (x,z) order — sort to the
             // storage contract rather than weakening the contract.
             std::sort(it->second.begin(), it->second.end(),
@@ -12869,7 +12965,9 @@ void Application::registerWaterCommands() {
             spansStored += static_cast<long>(it->second.size());
             ++spanChunks;
             chunk->setWaterSpans(std::move(it->second));
+            chunk->setDirty(true);
         }
+        chunkManager->bumpWaterSpanRevision();
 
         // Render THROUGH the chunks: the one derivation, shared with the boot-load path.
         const long boundWet = rebuildGroundedWaterFromSpans();
@@ -12904,6 +13002,11 @@ void Application::registerWaterCommands() {
         // Resident chunk COLUMNS (x,z chunk coords) touching the rect, so a caller can tell "dry
         // because no water" from "dry because not loaded" without a second route.
         nlohmann::json residentCols = nlohmann::json::array();
+        // Phase D3: the full 3-D resident set touching the rect. A column is only meaningfully
+        // "resident" for water at level L when the chunk at floor(L/32) is loaded - at a high far
+        // pose the sea-level chunk of a column can be absent while a higher chunk of the same
+        // column is present, which the 2-D list cannot express (Coast probe, 2026-10-08).
+        nlohmann::json residentChunks = nlohmann::json::array();
         std::set<std::pair<int, int>> seenCols;
         for (auto& [cc, chunk] : chunkManager->chunkMap) {
             if (!chunk) continue;
@@ -12911,6 +13014,7 @@ void Application::registerWaterCommands() {
                             cc.z * 32 > hz || cc.z * 32 + 31 < lz)) continue;
             ++chunksLoaded;
             if (seenCols.insert({cc.x, cc.z}).second) residentCols.push_back({cc.x, cc.z});
+            residentChunks.push_back({cc.x, cc.y, cc.z});
             const auto& ws = chunk->getWaterSpans();
             if (ws.empty()) continue;
             ++chunksWithSpans;
@@ -12931,7 +13035,7 @@ void Application::registerWaterCommands() {
         r = {{"chunks_loaded", chunksLoaded}, {"chunks_with_spans", chunksWithSpans},
              {"spans", spanCount}, {"total_depth", sumDepth},
              {"min_top", spanCount ? minTop : 0.0f}, {"max_top", spanCount ? maxTop : 0.0f},
-             {"resident_chunk_columns", residentCols},
+             {"resident_chunk_columns", residentCols}, {"resident_chunks", residentChunks},
              {"span_columns", cols}, {"span_columns_truncated", truncated},
              {"source", "chunk-resident (world data, not a derivation)"}};
     });
@@ -13409,8 +13513,10 @@ void Application::registerWaterCommands() {
         }
         const double cells = waterManager ? waterManager->totalMass() : 0.0;
         const double coreCells = waterCore ? waterCore->totalMass() : 0.0;
+        const double bodies = waterCore ? waterCore->bodies().avMass() : 0.0;   // Phase D: av-origin records (exact); generation rows are estimates and stay out of the sum
+        const double displaced = waterCore ? waterCore->bodies().displacedTotal() : 0.0;
         r = {{"cells", cells}, {"core_cells", coreCells}, {"spans", spans}, {"span_count", spanCount},
-             {"bodies", 0.0}, {"reserves", 0.0}, {"droplets", 0.0},
+             {"bodies", bodies}, {"displaced", displaced}, {"held_edits", m_waterHeldEdits}, {"reserves", 0.0}, {"droplets", 0.0},
              {"total", cells + coreCells + spans},
              {"units", "m^3 (voxel-volumes); cells = the CA's mass field, spans = chunk-resident span depth"},
              {"sim_region", waterManager ? nlohmann::json{{"origin", {waterManager->origin().x, waterManager->origin().y, waterManager->origin().z}},
@@ -13496,7 +13602,7 @@ void Application::registerWaterCommands() {
                               {"cellSize", a.cellSize}, {"transport", a.transport}, {"backend", a.backend}, {"rbgs_residual", a.rbgsResidual}, {"gpu_sweeps", a.gpuSweeps}, {"gpu_ms_last_call", a.gpuMs}, {"particles", a.particles}, {"cells", a.cells}, {"asleep", a.asleep},
                               {"mass", a.mass}, {"kinetic_energy", a.kineticEnergy}, {"quiet_ticks", a.quietTicks},
                               {"last", {{"substeps", a.lastSubsteps}, {"pcg_iterations", a.lastPcgIterations}, {"pcg_residual", a.lastPcgResidual}, {"source_unplaced", a.sourceUnplaced}}}, {"residue_dropped_m3", a.residueDropped},
-                              {"source_placed_m3", a.sourcePlaced}, {"source_count", a.sourceCount}};
+                              {"source_placed_m3", a.sourcePlaced}, {"source_count", a.sourceCount}, {"auto_sleep", a.autoSleep}, {"seeded_mass", a.seededMass}};
     };
     reg.on("water_av_create", [this, noCore, avJson](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);
@@ -13505,7 +13611,86 @@ void Application::registerWaterCommands() {
         std::string err;
         const int id = waterCore->create(lo, hi, cmd.params.value("cellSize", 1.0f / 3.0f), cmd.params.value("transport", std::string("eulerian")), &err, cmd.params.value("backend", std::string("auto")), cmd.params.value("sweeps", 0));   // auto = gpu for fills when the device is ready, else cpu; echoed as backend   // 0 = auto (1.5 x the longest dimension), else clamped 8-160 and echoed
         if (!id) { r = {{"error", err}}; return; }
-        r = {{"success", true}, {"volume", avJson(*waterCore->find(id))}};
+        // Phase D: seed:"spans" fills the volume from the chunk spans of its box (a flat start, cell
+        // size free); auto_sleep (default true) writes back + frees in realtime when it sleeps.
+        waterCore->setAutoSleep(id, cmd.params.value("auto_sleep", true));
+        double seeded = 0.0;
+        const std::string seed = cmd.params.value("seed", std::string("none"));
+        if (seed == "spans") {
+            seeded = waterCore->seedFromSpans(id);
+            if (seeded < 0.0) { waterCore->destroy(id); r = {{"error", "no span reader installed"}}; return; }
+            if (seeded == 0.0) { waterCore->destroy(id); r = {{"error", "seed:\"spans\" found no stored water in the box (dry, or its chunks are not resident)"}}; return; }
+        } else if (seed != "none") { waterCore->destroy(id); r = {{"error", "seed must be 'none' or 'spans'"}}; return; }
+        r = {{"success", true}, {"volume", avJson(*waterCore->find(id))}, {"seeded_mass", seeded}};
+    });
+    // Phase D (16.2): write the volume back to spans + body records and free it. {id, force?}
+    reg.on("water_av_sleep", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) return noCore(r);
+        const auto rec = waterCore->sleep(cmd.params.value("id", 0), cmd.params.value("force", false));
+        r = {{"success", rec.ok}, {"id", rec.id}, {"columns", rec.columns}, {"runs", rec.runs}, {"held_columns", rec.heldColumns},
+             {"unwritten_columns", rec.unwrittenColumns}, {"chunks_touched", rec.chunksTouched}, {"mass_written", rec.massWritten},
+             {"mass_seeded", rec.massSeeded}, {"mass_stored", rec.massStored}, {"thin_dropped_m3", rec.thinDropped}, {"held_mass", rec.heldMass}, {"surface_vs_mass_mm", rec.surfaceVsMassMm},
+             {"spread_mm", rec.spreadMm}, {"forced", rec.forced}, {"body_id", rec.bodyId}};
+        if (!rec.ok) r["error"] = rec.error;
+    });
+    // Phase D (16.2): wake the stored water around a column into a volume. {x, y, z, cellSize?, maxCells?, pad?}
+    // Floods 4-neighbour columns whose stored runs overlap in Y with the frontier run, bounded by
+    // maxCells; the box is the flooded columns' bbox + `pad` voxels of air; seeded from the spans.
+    reg.on("water_av_wake", [this, noCore, avJson](const Core::APICommand& cmd, nlohmann::json& r) {
+        using namespace Core::Water;
+        if (!waterCore) return noCore(r);
+        if (!chunkManager) { r = {{"error", "no chunk manager"}}; return; }
+        const int x0 = cmd.params.value("x", 0), y0 = cmd.params.value("y", 0), z0 = cmd.params.value("z", 0);
+        const float cellSize = cmd.params.value("cellSize", 1.0f / 3.0f);
+        const long maxCells = std::clamp<long>(cmd.params.value("maxCells", 500000L), 1000L, static_cast<long>(WaterCoreManager::kMaxCellsPerVolume));
+        const int pad = std::clamp(cmd.params.value("pad", 2), 0, 8);
+        auto floorDiv32 = [](int a) { return (a >= 0) ? (a / 32) : -(((-a) + 31) / 32); };
+        // runs of one column from the resident chunks
+        auto columnRuns = [&](int x, int z, std::vector<std::pair<float, float>>& out) {
+            out.clear();
+            const int cx = floorDiv32(x), cz = floorDiv32(z);
+            std::map<int, const std::vector<Chunk::WaterSpanLocal>*> have;
+            for (const auto& [cc, ch] : chunkManager->chunkMap) if (ch && cc.x == cx && cc.z == cz) have[cc.y] = &ch->getWaterSpans();
+            for (const auto& w : assembleColumnSpans(have, cx, cz)) if (w.x == x && w.z == z) out.push_back({w.bottomY, w.topY});
+        };
+        std::vector<std::pair<float, float>> seedRuns;
+        columnRuns(x0, z0, seedRuns);
+        std::pair<float, float> start{0.0f, 0.0f}; bool found = false;
+        for (const auto& rn : seedRuns) if (static_cast<float>(y0) + 1.0f > rn.first && static_cast<float>(y0) < rn.second) { start = rn; found = true; }
+        if (!found && !seedRuns.empty()) { start = seedRuns.back(); found = true; }   // the column's top run
+        if (!found) { r = {{"error", "no stored water in that column (dry, or its chunks are not resident)"}}; return; }
+        const int per = static_cast<int>(std::lround(1.0f / cellSize));
+        std::set<std::pair<int, int>> visited; std::vector<std::tuple<int, int, float, float>> frontier{{x0, z0, start.first, start.second}};
+        visited.insert({x0, z0});
+        glm::ivec3 lo(x0, static_cast<int>(std::floor(start.first)), z0), hi(x0, static_cast<int>(std::ceil(start.second)) - 1, z0);
+        bool truncated = false; long flooded = 0;
+        auto cellsOf = [&](const glm::ivec3& a, const glm::ivec3& b) { return static_cast<long>(b.x - a.x + 1 + 2 * pad) * (b.y - a.y + 1 + pad + 1) * (b.z - a.z + 1 + 2 * pad) * per * per * per; };
+        while (!frontier.empty() && !truncated) {
+            auto [fx, fz, fb, ft] = frontier.back(); frontier.pop_back(); ++flooded;
+            const int dx[4] = {1, -1, 0, 0}, dz[4] = {0, 0, 1, -1};
+            for (int k = 0; k < 4; ++k) {
+                const int nx = fx + dx[k], nz = fz + dz[k];
+                if (visited.count({nx, nz})) continue;
+                std::vector<std::pair<float, float>> rs; columnRuns(nx, nz, rs);
+                for (const auto& rn : rs) {
+                    if (rn.second <= fb - 1.0f || rn.first >= ft + 1.0f) continue;   // no vertical overlap (one voxel of tolerance: a step)
+                    const glm::ivec3 nlo = glm::min(lo, glm::ivec3(nx, static_cast<int>(std::floor(rn.first)), nz));
+                    const glm::ivec3 nhi = glm::max(hi, glm::ivec3(nx, static_cast<int>(std::ceil(rn.second)) - 1, nz));
+                    if (cellsOf(nlo, nhi) > maxCells) { truncated = true; break; }
+                    lo = nlo; hi = nhi; visited.insert({nx, nz}); frontier.emplace_back(nx, nz, rn.first, rn.second);
+                    break;
+                }
+                if (truncated) break;
+            }
+        }
+        const glm::ivec3 boxLo = lo - glm::ivec3(pad, 1, pad), boxHi = hi + glm::ivec3(pad, pad, pad);
+        std::string err;
+        const int id = waterCore->create(boxLo, boxHi, cellSize, "eulerian", &err, cmd.params.value("backend", std::string("auto")), 0);
+        if (!id) { r = {{"error", err}, {"flood_columns", static_cast<long>(visited.size())}}; return; }
+        const double seeded = waterCore->seedFromSpans(id);
+        waterCore->setAutoSleep(id, cmd.params.value("auto_sleep", true));
+        r = {{"success", true}, {"volume", avJson(*waterCore->find(id))}, {"seeded_mass", seeded}, {"flood_columns", static_cast<long>(visited.size())},
+             {"truncated", truncated}, {"box", {{"min", {boxLo.x, boxLo.y, boxLo.z}}, {"max", {boxHi.x, boxHi.y, boxHi.z}}}}};
     });
     reg.on("water_av_destroy", [this, noCore, avJson](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);
@@ -13687,6 +13872,42 @@ void Application::registerWaterCommands() {
     // Water BODY table (tangible-water Phase A): every labeled body with class/area/level/volume
     // + world-space bbox. THE scouting tool for finding a scoopable pond or checking what class a
     // body resolved to. Optional filters: {"class":"pond|lake|ocean", "max": N}.
+    // Phase D (16.2): the body table (Tier A). {verify?: bool} sums the stored spans of every
+    // av-origin record's bbox columns (resident chunks, columns the bake assigns to no body) and
+    // reports the difference from the record's mass - exact by construction, so any gap is a defect.
+    reg.on("water_body_table", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!waterCore) { r = {{"error", "WaterCore not available"}}; return; }
+        auto& table = waterCore->bodies();
+        nlohmann::json rows = nlohmann::json::array();
+        const bool verify = cmd.params.value("verify", false) || cmd.params.value("rebuild", false);
+        const WorldGenerator* sg = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
+        const WaterBodyIndex* idx = sg ? sg->waterBodies() : nullptr;
+        auto floorDiv32 = [](int a) { return (a >= 0) ? (a / 32) : -(((-a) + 31) / 32); };
+        for (auto& b : table.recordsMutable()) {
+            nlohmann::json row = {{"id", b.id}, {"cls", b.cls}, {"level", b.level}, {"mass", b.mass}, {"displaced", b.displaced},
+                                  {"bbox", {b.bboxMin.x, b.bboxMin.y, b.bboxMax.x, b.bboxMax.y}}, {"origin", b.origin}};
+            if (verify && b.origin == "av" && chunkManager) {
+                double spanSum = 0.0; long cols = 0, missing = 0;
+                for (int z = b.bboxMin.y; z <= b.bboxMax.y; ++z) for (int x = b.bboxMin.x; x <= b.bboxMax.x; ++x) {
+                    if (idx && idx->bodyIdAt(static_cast<float>(x) + 0.5f, static_cast<float>(z) + 0.5f) >= 0) continue;
+                    bool any = false;
+                    for (const auto& [cc, ch] : chunkManager->chunkMap) {
+                        if (!ch || cc.x != floorDiv32(x) || cc.z != floorDiv32(z)) continue;
+                        any = true;
+                        for (const auto& s : ch->getWaterSpans()) if (cc.x * 32 + s.x == x && cc.z * 32 + s.z == z) spanSum += s.top - s.bottom;
+                    }
+                    if (any) ++cols; else ++missing;
+                }
+                row["span_sum"] = spanSum; row["diff"] = spanSum - b.mass; row["columns_checked"] = cols; row["columns_not_resident"] = missing;
+                if (cmd.params.value("rebuild", false) && missing == 0) {   // reconcile: A.mass := sum of B (only when every column was readable)
+                    b.mass = spanSum;
+                    row["mass"] = spanSum; row["diff"] = 0.0; row["rebuilt"] = true;
+                }
+            }
+            rows.push_back(row);
+        }
+        r = {{"table", rows}, {"av_mass", table.avMass()}, {"displaced", table.displacedTotal()}, {"orphan_displaced", table.orphanDisplaced()}};
+    });
     reg.on("water_bodies", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         WorldGenerator* g = chunkManager ? chunkManager->getStreamingGenerator() : nullptr;
         const WaterBodyIndex* wb = g ? g->waterBodies() : nullptr;
@@ -14478,6 +14699,43 @@ void Application::renderWorldMapPanel() {
     ImGui::End();
 }
 
+// WaterCore Phase D2 (docs/WaterCore.md 16.3): edits never create water. The column's stored runs
+// are one world-space object (assembled from every resident vertical chunk), the rule is applied
+// there, and the result is clipped back - so the two clips of a run never disagree. A live
+// volume's columns are left to the volume (it re-samples solids and writes the truth back); a run
+// that reaches into a non-resident chunk HOLDS the edit (counted), because a shift-down applied to
+// one clip alone would mint a cell of water.
+void Application::applyWaterSpanEdit(int x, int y, int z, bool solid) {
+    using namespace Core::Water;
+    if (!chunkManager || !waterCore) return;
+    if (waterCore->volumeOwns(x, y, z)) return;
+    auto floorDiv32 = [](int a) { return (a >= 0) ? (a / 32) : -(((-a) + 31) / 32); };
+    const int cx = floorDiv32(x), cz = floorDiv32(z);
+    std::map<int, const std::vector<Chunk::WaterSpanLocal>*> have;
+    for (const auto& [cc, ch] : chunkManager->chunkMap) if (ch && cc.x == cx && cc.z == cz) have[cc.y] = &ch->getWaterSpans();
+    if (have.empty()) return;
+    std::vector<WorldSpan> spans = assembleColumnSpans(have, cx, cz);
+    bool any = false;
+    for (const auto& s : spans) if (s.x == x && s.z == z) { any = true; break; }
+    if (!any) return;   // a dry column: a pit stays dry, a placed cube displaces nothing
+    if (spanEditHeld(spans, x, z, [&](int cy) { return have.count(cy) > 0; })) { ++m_waterHeldEdits; return; }
+    const SpanEditResult r = solid ? spanSolidPlaced(spans, x, y, z) : spanSolidRemoved(spans, x, y, z);
+    if (!r.changed) return;
+    int cyMin = INT_MAX, cyMax = INT_MIN;
+    for (const auto& [cy, l] : have) { cyMin = std::min(cyMin, cy); cyMax = std::max(cyMax, cy); }
+    std::map<int, std::vector<Chunk::WaterSpanLocal>> clips;
+    clipSpansToChunks(spans, cx, cz, cyMin, cyMax, clips);
+    for (auto& [cy, list] : clips) {
+        if (!have.count(cy)) continue;
+        Chunk* ch = chunkManager->getChunkAtCoord(glm::ivec3(cx, cy, cz));
+        if (!ch) continue;
+        ch->setWaterSpans(std::move(list));
+        ch->setDirty(true);
+    }
+    chunkManager->bumpWaterSpanRevision();
+    if (r.displaced > 0.0) waterCore->displaceAt(x, z, r.displaced);
+}
+
 // Door management commands, migrated from the static handleDoorCommand() helper onto the
 // CommandRegistry. Handlers read doorManager/placedObjectManager lazily at dispatch.
 void Application::registerDoorCommands() {
@@ -14702,6 +14960,7 @@ void Application::registerSnapshotCommands() {
             cleared += chunk->removeCubesBatch(positions);
             for (const auto& p : positions)
                 if (chunk->clearSubdivisionAt(p)) ++cleared;
+            for (const auto& p : positions) applyWaterSpanEdit(cc.x * 32 + p.x, cc.y * 32 + p.y, cc.z * 32 + p.z, false);   // Phase D2: a bulk clear is an edit per cell
         }
         return cleared;
     };
@@ -17088,6 +17347,7 @@ void Application::processAPICommands() {
                             if (ws && ws->getDb()) {
                                 waterManager->captureOverridesInWindow();
                                 ws->setMeta("water_overrides", waterManager->serializeOverrides());
+                                if (waterCore) ws->setMeta("water_bodies", waterCore->bodies().serialize());   // Phase D
                             }
                         }
                         LOG_INFO("Application", "World saved via API (mode: {})", saveAll ? "all" : "dirty");

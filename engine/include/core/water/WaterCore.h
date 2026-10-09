@@ -116,11 +116,13 @@ struct SolverParams {
     double keWakeParticles = 1e-3;   ///< the same for a PARTICLE volume (|v| ~ 4.5 cm/s): particles jostle at rest and never reach 1e-6 on their own; below this the rest damping takes them down and the volume settles into fills (Phase B2, S1 Small never slept at 1e-6)
     double maxDeltaFQuiet = 1e-5;    ///< ... and when max |delta f| per tick is below this
     int    restTicks = 30;           ///< consecutive quiet ticks before sleeping
-    float  restDamping = 0.5f;       ///< 1/s, applied to velocity ONLY while quiet (never to moving water)
+    float  restDamping = 1.0f;       ///< 1/s, applied to velocity while the volume is in the SETTLE band (below keSettle), never to moving water. 0.5 took a poured column from the band edge to sleep in 16 s (KE decays at the velocity rate, half the energy is potential); 1.0 is the S11 budget (Phase D, 2026-10-08)
+    double keSettle = 1e-3;          ///< m^2/s^2 (|v| ~ 3 cm/s rms): below this the volume is settling and restDamping stands in for the viscous + bottom-friction dissipation the inviscid solver lacks. Measured need (Phase D, 2026-10-08): with damping only under keWake, a poured column, a bumped pool and a dam break in a sealed 3 m tank at 1/3 m all sloshed at 1e-4..1e-3 for 100 s and never slept; real basins still within seconds to tens of seconds. From 3 cm/s to the 1.4 mm/s sleep line takes ln(23)/0.5 = 6 s: "asleep within 10 s of the last motion" (S11).
     /// DIAGNOSTIC ONLY (bisecting a measured defect, never shipped on): bits disable a stage of
     /// the substep. 1 compaction · 2 thin-film slope · 4 thin-film settle · 8 "first halo layer only"
     /// (all three layers overwrite thin faces, the pre-#11 behaviour) · 16 residue sweep · 32 rest damping.
     uint32_t debugDisableStages = 0;
+    double thetaMin = 0.1;           ///< ghost-fluid clamp: the surface is never closer than this fraction of a cell to a liquid cell's centre (1/theta stays finite); see thetaToAir
     float  filmHoldDepth = 0.01f;    ///< m: a film this thin or thinner is pinned (contact-angle stand-in); only the depth above it flows under its own slope (S1: puddles hold)
     int    pcgMaxIters = 400;
     double pcgTolerance = 1e-6;      ///< relative residual
@@ -236,6 +238,51 @@ private:
     std::vector<float> m_uNew, m_vNew, m_wNew;
 };
 
+// ── Phase D write-back (docs/WaterCore.md 16.2) ──────────────────────────────────────────────
+// The world keeps water as COLUMN SPANS (Chunk::WaterSpanLocal, float tops). An active volume
+// writes itself back as RUNS per world voxel column, a pure function of its cells:
+//   * the per^2 sub-columns of each cell layer are averaged to one fill per layer, f̄(y);
+//   * a layer is wet iff f̄·h >= WaterGrid::kSurfaceMinDepth (1 mm);
+//   * a run is a maximal vertical sequence of wet layers; bottom = world Y of its lowest layer,
+//     top = bottom + Σ f̄·h over the run; sub-millimetre layers (films in transit above a surface, a
+//     forced snapshot of moving water) are folded into the column's top run, so the column is
+//     MASS-EXACT by definition (Σ run depth × 1 m² = Σ f over the column, to float rounding); a
+//     column with nothing but sub-millimetre water is residue, counted in `thinDropped`;
+//   * the run's GEOMETRIC surface (highest wet layer's y + f̄·h) is reported against the mass top
+//     as `surfaceVsMassMm`, and the sub-columns' surface spread as `spreadMm` — S11's "spans equal
+//     the surface ± 1 mm" is this number, measured; an interior layer short of full shows here.
+// Columns the caller marks HELD (Unknown occupancy anywhere in the column, or a non-resident
+// chunk) are not written: they come back with `held = true`, no runs, and their mass counted
+// separately — never a silent drop.
+struct ColumnRun {
+    float  bottomY = 0.0f;   ///< world Y (voxel units) of the run's base
+    float  topY = 0.0f;      ///< world Y of the surface = bottomY + mass depth
+    double mass = 0.0;       ///< m^3 in this run (depth × 1 m²)
+};
+struct ColumnRuns {
+    int x = 0, z = 0;                ///< world voxel column
+    std::vector<ColumnRun> runs;     ///< bottom-up
+    float surfaceVsMassMm = 0.0f;    ///< max over runs |geometric surface − mass top|, mm
+    float spreadMm = 0.0f;           ///< max − min sub-column surface over the column, mm (0 for per = 1)
+    bool  held = false;              ///< not written (see above)
+    double heldMass = 0.0;           ///< m^3 in a held column (reported, not written)
+};
+struct WriteBackStats {
+    long   columns = 0, runs = 0, heldColumns = 0;
+    double mass = 0.0;               ///< m^3 written (Σ run masses)
+    double heldMass = 0.0;           ///< m^3 in held columns (stays in the volume)
+    double thinDropped = 0.0;        ///< m^3 of columns holding only sub-millimetre water (no run to fold into): residue, counted, not stored
+    float  surfaceVsMassMmMax = 0.0f, spreadMmMax = 0.0f;
+};
+/// Pure. `held(x, z)` (world voxel column) may be null = nothing held. The grid's box must be
+/// voxel-aligned (every WaterCoreManager volume is).
+WriteBackStats columnRunsFromGrid(const WaterGrid& grid, const std::function<bool(int, int)>& held,
+                                  std::vector<ColumnRuns>& out);
+/// The inverse: set every cell of `grid` from the runs (replace, not add; columns absent from
+/// `runs` are cleared; runs are clipped to the grid's box; every sub-column of a voxel column
+/// gets the same fill, a flat start). Velocities are zeroed. Returns the m^3 placed.
+double seedGridFromRuns(WaterGrid& grid, const std::vector<ColumnRuns>& runs);
+
 class WaterSolver {
 public:
     WaterSolver(WaterGrid& grid, SolidQuery solids, SolverParams params = SolverParams{});
@@ -263,6 +310,7 @@ public:
     const StepReport& lastReport() const { return m_last; }
 
     bool asleep() const { return m_asleep; }
+    double pressureAt(int x, int y, int z) const { return m_p.empty() ? 0.0 : m_p[m_grid.idx(x, y, z)]; }   ///< last projection's pressure (Pa, rho = 1), diagnostics
     void wake() { m_asleep = false; m_quietTicks = 0; }
 
     /// Pressure from the last projection (Pa with density 1, i.e. m^2/s^2); 0 outside liquid.

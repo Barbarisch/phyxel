@@ -14,11 +14,124 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <functional>
 #include <limits>
 
 namespace Phyxel {
 namespace Core {
 namespace Water {
+
+// ── Phase D write-back (docs/WaterCore.md 16.2) ─────────────────────────────────────────────
+WriteBackStats columnRunsFromGrid(const WaterGrid& grid, const std::function<bool(int, int)>& held,
+                                  std::vector<ColumnRuns>& out) {
+    out.clear();
+    WriteBackStats st;
+    const GridSpec& sp = grid.spec();
+    const float h = sp.h;
+    const int per = std::max(1, static_cast<int>(std::lround(1.0f / h)));
+    const float fMin = WaterGrid::kSurfaceMinDepth / h;
+    const double h3 = static_cast<double>(h) * h * h;
+    // voxel columns covered by the grid (aligned boxes: exact; otherwise the partial edge columns
+    // aggregate the sub-columns that exist, which keeps mass exact per column either way)
+    const int vx0 = static_cast<int>(std::floor(static_cast<float>(sp.origin.x) / per));
+    const int vx1 = static_cast<int>(std::floor(static_cast<float>(sp.origin.x + sp.dims.x - 1) / per));
+    const int vz0 = static_cast<int>(std::floor(static_cast<float>(sp.origin.z) / per));
+    const int vz1 = static_cast<int>(std::floor(static_cast<float>(sp.origin.z + sp.dims.z - 1) / per));
+    std::vector<float> layer(static_cast<size_t>(grid.ny()));
+    for (int vz = vz0; vz <= vz1; ++vz)
+        for (int vx = vx0; vx <= vx1; ++vx) {
+            ColumnRuns col; col.x = vx; col.z = vz;
+            const int gx0 = std::max(0, vx * per - sp.origin.x), gx1 = std::min(grid.nx() - 1, (vx + 1) * per - 1 - sp.origin.x);
+            const int gz0 = std::max(0, vz * per - sp.origin.z), gz1 = std::min(grid.nz() - 1, (vz + 1) * per - 1 - sp.origin.z);
+            const int nsub = (gx1 - gx0 + 1) * (gz1 - gz0 + 1);
+            if (nsub <= 0) continue;
+            double colMass = 0.0;
+            for (int gy = 0; gy < grid.ny(); ++gy) {
+                double sum = 0.0;
+                for (int gz = gz0; gz <= gz1; ++gz) for (int gx = gx0; gx <= gx1; ++gx) sum += grid.f(gx, gy, gz);
+                layer[static_cast<size_t>(gy)] = static_cast<float>(sum / nsub);
+                colMass += sum * h3;
+            }
+            if (held && held(vx, vz)) {
+                col.held = true; col.heldMass = colMass;
+                ++st.heldColumns; st.heldMass += colMass;
+                out.push_back(std::move(col));
+                continue;
+            }
+            // sub-column surface spread (geometric, per sub-column)
+            float sMin = 1e30f, sMax = -1e30f;
+            for (int gz = gz0; gz <= gz1; ++gz) for (int gx = gx0; gx <= gx1; ++gx) {
+                const float sy = grid.surfaceWorldY(gx, gz);
+                if (std::isnan(sy)) continue;
+                sMin = std::min(sMin, sy); sMax = std::max(sMax, sy);
+            }
+            col.spreadMm = (sMax >= sMin) ? (sMax - sMin) * 1000.0f : 0.0f;
+            // runs
+            int gy = 0;
+            while (gy < grid.ny()) {
+                if (layer[static_cast<size_t>(gy)] < fMin) { ++gy; continue; }
+                const int start = gy;
+                double depth = 0.0;   // m, = Σ f̄·h
+                int top = gy;
+                while (gy < grid.ny() && layer[static_cast<size_t>(gy)] >= fMin) { depth += static_cast<double>(layer[static_cast<size_t>(gy)]) * h; top = gy; ++gy; }
+                ColumnRun run;
+                run.bottomY = static_cast<float>(sp.origin.y + start) * h;
+                run.topY = static_cast<float>(run.bottomY + depth);
+                run.mass = depth * (static_cast<double>(nsub) * h * h);   // × the column area actually covered (1 m² when aligned)
+                const float geom = (static_cast<float>(sp.origin.y + top) + std::min(layer[static_cast<size_t>(top)], 1.0f)) * h;
+                col.surfaceVsMassMm = std::max(col.surfaceVsMassMm, std::abs(geom - run.topY) * 1000.0f);
+                col.runs.push_back(run);
+            }
+            // fold whatever the 1 mm surface rule left out into the top run: the stored column is
+            // the cells' mass exactly (a forced snapshot of a moving pond lost 2.9e-3 m^3 of thin
+            // layers to this rule, R3 Small 2026-10-09)
+            {
+                double inRuns = 0.0;
+                for (const auto& r : col.runs) inRuns += r.mass;
+                const double leftover = colMass - inRuns;
+                if (leftover > 0.0) {
+                    if (!col.runs.empty()) { col.runs.back().topY += static_cast<float>(leftover / (static_cast<double>(nsub) * h * h)); col.runs.back().mass += leftover; }
+                    else st.thinDropped += leftover;
+                }
+            }
+            st.columns += 1; st.runs += static_cast<long>(col.runs.size());
+            for (const auto& r : col.runs) st.mass += r.mass;
+            st.surfaceVsMassMmMax = std::max(st.surfaceVsMassMmMax, col.surfaceVsMassMm);
+            st.spreadMmMax = std::max(st.spreadMmMax, col.spreadMm);
+            out.push_back(std::move(col));
+        }
+    return st;
+}
+
+double seedGridFromRuns(WaterGrid& grid, const std::vector<ColumnRuns>& runs) {
+    const GridSpec& sp = grid.spec();
+    const float h = sp.h;
+    const int per = std::max(1, static_cast<int>(std::lround(1.0f / h)));
+    std::fill(grid.fData().begin(), grid.fData().end(), 0.0f);
+    std::fill(grid.uData().begin(), grid.uData().end(), 0.0f);
+    std::fill(grid.vData().begin(), grid.vData().end(), 0.0f);
+    std::fill(grid.wData().begin(), grid.wData().end(), 0.0f);
+    double placed = 0.0;
+    const double h3 = static_cast<double>(h) * h * h;
+    for (const auto& col : runs) {
+        if (col.held) continue;
+        const int gx0 = std::max(0, col.x * per - sp.origin.x), gx1 = std::min(grid.nx() - 1, (col.x + 1) * per - 1 - sp.origin.x);
+        const int gz0 = std::max(0, col.z * per - sp.origin.z), gz1 = std::min(grid.nz() - 1, (col.z + 1) * per - 1 - sp.origin.z);
+        if (gx1 < gx0 || gz1 < gz0) continue;
+        for (const auto& r : col.runs) {
+            for (int gy = 0; gy < grid.ny(); ++gy) {
+                const double yb = static_cast<double>(sp.origin.y + gy) * h, yt = yb + h;
+                const double ov = std::min(static_cast<double>(r.topY), yt) - std::max(static_cast<double>(r.bottomY), yb);
+                if (ov <= 0.0) continue;
+                const float f = static_cast<float>(std::min(1.0, ov / h));
+                for (int gz = gz0; gz <= gz1; ++gz) for (int gx = gx0; gx <= gx1; ++gx) { grid.f(gx, gy, gz) += f; placed += f * h3; }
+            }
+        }
+    }
+    for (float& f : grid.fData()) f = std::min(f, 1.0f);
+    grid.classify();
+    return placed;
+}
 
 // ─────────────────────────────────────────────────────────────────── WaterGrid ──────────────
 WaterGrid::WaterGrid(const GridSpec& spec) : m_spec(spec) {
@@ -624,14 +737,17 @@ void WaterSolver::enforceSolidFaces() {
 double WaterSolver::thetaToAir(int x, int y, int z, int dir) const {
     if (dir == 3) {
         const double fa = m_grid.inBounds(x, y + 1, z) ? std::min(1.0, static_cast<double>(m_grid.f(x, y + 1, z))) : 0.0;
-        if (fa > 0.0) return 0.5 + fa;                        // a thin cell above lifts the surface
-        // Air above: the surface is INSIDE this cell at its fill height, (f - 0.5) above the centre.
-        // With a fixed 0.5 every partially filled cell of a thinning tongue reported the same
-        // surface height, the solver saw a flat tongue with no horizontal gradient, and the fine
-        // dam break stopped dead at the 0.5 contour (profile, 2026-10-08). Clamped away from zero:
-        // theta -> 0 is the correct limit (p -> 0 at the centre) but 1/theta must stay finite.
+        // The surface sits (f - 0.5) above this cell's centre, plus whatever thin layer lies in the
+        // cell above: ONE continuous expression. With a fixed 0.5 every partially filled cell of a
+        // thinning tongue reported the same surface height, the solver saw a flat tongue with no
+        // horizontal gradient, and the fine dam break stopped dead at the 0.5 contour (profile,
+        // 2026-10-08). Then "0.5 + f_above whenever f_above > 0" assumed THIS cell full: a 1e-9
+        // residue above a 0.6 cell moved its surface estimate by 0.4 cells, neighbouring columns
+        // disagreed, and a flat pool with a 0.5-0.6 top layer never slept (defect #28, Phase D
+        // write-back round trip, 2026-10-08). Clamped away from zero: theta -> 0 is the correct
+        // limit (p -> 0 at the centre) but 1/theta must stay finite.
         const double fc = static_cast<double>(m_grid.f(x, y, z));
-        return std::clamp(fc - 0.5, 0.1, 0.5);
+        return std::clamp(fc - 0.5 + fa, m_params.thetaMin, 1.5);
     }
     return 0.5;
 }
@@ -934,6 +1050,9 @@ void WaterSolver::compactSubmergedPartials(float dt) {
         // substep's rise exactly (DiagSubmergedPump: 0.0017 up, 0.0017 back, 2026-10-08)
         const float vFace = m_grid.v(x, y + 1, z);
         const float already = std::abs(vFace) * dt / h;
+        // (Tried 2026-10-08, Phase D: letting faces rising slower than 1 cm/s compact, to close the
+        // residue sheet that keeps a bumped pool awake. It made the pool WORSE - ke 6e-6 -> 2e-4 -
+        // the projection pushes back up what compaction pulls down. Defect #29 stays open.)
         if (vFace > 0.0f || already > 0.1f * cap) continue;
         // ... and only in water that is not streaming past: in a sheet flowing over a sill the
         // "partial cell with thin water above" is the free surface crossing the cell diagonally,
@@ -1004,7 +1123,9 @@ StepReport WaterSolver::step(float dt) {
     const int n = substepsFor(dt);
     const float ds = dt / static_cast<float>(n);
     const double keWake = m_transport->ownsMass() ? m_params.keWakeParticles : m_params.keWake;
-    const bool quietBefore = m_grid.kineticEnergy() / std::max(m_grid.totalMass(), 1e-9) < keWake;
+    const double keBefore = m_grid.kineticEnergy() / std::max(m_grid.totalMass(), 1e-9);
+    const double keSettle = m_transport->ownsMass() ? std::max(m_params.keSettle, m_params.keWakeParticles) : m_params.keSettle;
+    const bool settleBefore = keBefore < keSettle;   // the settle band (see SolverParams::keSettle): damping stands in for dissipation here, never above it
     // Substep order: TRANSPORT with the divergence-free field the last projection left, THEN body
     // forces, THEN project. Adding gravity before the advection moved water with u* = u + g dt: a
     // free-surface face rising at the 0.08 m/s a submerged pump demands read -0.08 m/s at
@@ -1025,7 +1146,7 @@ StepReport WaterSolver::step(float dt) {
         project(ds, r);
         extrapolateVelocity();
         if (!(off & 4u)) settleThinFilmTopFaces();
-        if (quietBefore && !(off & 32u)) applyRestDamping(ds);
+        if (settleBefore && !(off & 32u)) applyRestDamping(ds);
     }
     if (!(off & 16u) && !m_transport->ownsMass()) sweepResidue(r);
     r.substeps = n;
