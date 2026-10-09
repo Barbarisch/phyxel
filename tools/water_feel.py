@@ -638,7 +638,7 @@ def main():
     ap.add_argument("--cell-size", dest="cell_size", type=float, default=1.0, help="core: 1, 0.3333, 0.1111")
     ap.add_argument("--keep-volume", dest="keep_volume", action="store_true", help="core: leave the volume alive (eyes-on)")
     ap.add_argument("--transport", default="eulerian", choices=["eulerian", "flip"], help="core: fill fractions (Phase B) or FLIP particles (Phase B2)")
-    ap.add_argument("--backend", default="cpu", choices=["cpu", "gpu"], help="core: the CPU reference or the Phase C compute backend (parity rows)")
+    ap.add_argument("--backend", default="auto", choices=["auto", "cpu", "gpu"], help="core: auto = the engine's default (gpu for fills when ready), cpu = the reference, gpu = forced (parity rows)")
     ap.add_argument("--sweeps", type=int, default=0, help="gpu: red-black SOR sweeps per projection (0 = auto, 1.5 x the longest dimension; else 8-160)")
     args = ap.parse_args()
     if args.scenario == "list":
@@ -663,7 +663,7 @@ def main():
     if args.engine == "core" and args.transport != "eulerian":
         tag += f"_{args.transport}"
     if args.engine == "core" and args.backend != "cpu":
-        tag += f"_{args.backend}"
+        tag += f"_{args.backend}"   # "auto" rows are tagged _auto: the record's backend field says what ran
         if args.sweeps > 0:
             tag += f"_s{args.sweeps}"
     base = EVID / f"{args.scenario}_{bench}_{tag}_{stamp}"

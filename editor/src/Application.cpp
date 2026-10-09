@@ -13503,7 +13503,7 @@ void Application::registerWaterCommands() {
         const glm::ivec3 lo(cmd.params.value("x1", 0), cmd.params.value("y1", 0), cmd.params.value("z1", 0));
         const glm::ivec3 hi(cmd.params.value("x2", 0), cmd.params.value("y2", 0), cmd.params.value("z2", 0));
         std::string err;
-        const int id = waterCore->create(lo, hi, cmd.params.value("cellSize", 1.0f / 3.0f), cmd.params.value("transport", std::string("eulerian")), &err, cmd.params.value("backend", std::string("cpu")), cmd.params.value("sweeps", 0));   // 0 = auto (1.5 x the longest dimension), else clamped 8-160 and echoed
+        const int id = waterCore->create(lo, hi, cmd.params.value("cellSize", 1.0f / 3.0f), cmd.params.value("transport", std::string("eulerian")), &err, cmd.params.value("backend", std::string("auto")), cmd.params.value("sweeps", 0));   // auto = gpu for fills when the device is ready, else cpu; echoed as backend   // 0 = auto (1.5 x the longest dimension), else clamped 8-160 and echoed
         if (!id) { r = {{"error", err}}; return; }
         r = {{"success", true}, {"volume", avJson(*waterCore->find(id))}};
     });

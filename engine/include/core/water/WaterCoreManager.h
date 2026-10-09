@@ -75,7 +75,7 @@ public:
     /// fraction of a voxel (1, 1/3, 1/9, 1/27, 1/81); `transport` is "eulerian" (Phase B).
     /// Refuses (returns 0, fills `err`) when the cell count would exceed `maxCells`.
     int create(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float cellSize,
-               const std::string& transport, std::string* err, const std::string& backend = "cpu", int gpuSweeps = 0 /* <= 0: auto, 1.5 x the longest dimension */);
+               const std::string& transport, std::string* err, const std::string& backend = "auto" /* auto: gpu for fills when ready, else cpu */, int gpuSweeps = 0 /* <= 0: auto, 1.5 x the longest dimension */);
     /// Phase C: give the manager a device; GPU volumes are refused until this succeeds (loudly).
     bool initGpu(VkDevice device, VkPhysicalDevice physical, VkQueue queue, uint32_t queueFamily, const std::string& shaderDir, std::string* err);
     bool gpuReady() const { return m_gpu && m_gpu->ready(); }

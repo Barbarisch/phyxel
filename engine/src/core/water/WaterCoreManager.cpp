@@ -37,8 +37,10 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
     const size_t cells = static_cast<size_t>(dims.x) * dims.y * dims.z;
     if (cells > kMaxCellsPerVolume) { if (err) *err = "volume would be " + std::to_string(cells) + " cells; the CPU reference caps at " + std::to_string(kMaxCellsPerVolume); return 0; }
     if (transport != "eulerian" && transport != "flip") { if (err) *err = "transport must be 'eulerian' or 'flip'"; return 0; }
-    if (backend != "cpu" && backend != "gpu") { if (err) *err = "backend must be 'cpu' or 'gpu'"; return 0; }
-    if (backend == "gpu" && !gpuReady()) { if (err) *err = "no GPU backend: WaterCoreGpu was not initialised (no device, or a kernel failed to load) - the CPU reference is the fallback, say so"; return 0; }
+    std::string be = backend;
+    if (be.empty() || be == "auto") be = (gpuReady() && transport == "eulerian") ? "gpu" : "cpu";   // the default: fills on the device once their parity rows passed (15.13-15.15); particles stay on the CPU until the splash row closes
+    if (be != "cpu" && be != "gpu") { if (err) *err = "backend must be 'cpu', 'gpu' or 'auto'"; return 0; }
+    if (be == "gpu" && !gpuReady()) { if (err) *err = "no GPU backend: WaterCoreGpu was not initialised (no device, or a kernel failed to load) - the CPU reference is the fallback, say so"; return 0; }
 
     if (transport == "flip" && cells * static_cast<size_t>(FlipTransport::kParticlesPerCell) > FlipTransport::kMaxParticlesPerVolume) {
         if (err) *err = "a FLIP volume of " + std::to_string(cells) + " cells could hold " + std::to_string(cells * FlipTransport::kParticlesPerCell) + " particles; the CPU reference caps at " + std::to_string(FlipTransport::kMaxParticlesPerVolume);
@@ -59,7 +61,7 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
     av->solver = std::make_unique<WaterSolver>(*av->grid, q);
     if (transport == "flip") av->solver->setTransport(std::make_unique<FlipTransport>());   // empty until water is placed
     av->occDirty = true;
-    av->backend = backend;
+    av->backend = be;
     // SOR needs O(N) sweeps for a Poisson problem N cells across: 1.5 x the longest grid dimension
     // (40 on the 1 m Basin, 117 at 1/3 m where 40 left a residual of 0.48 and 100 gave 5e-4 for
     // +0.2 ms, 2026-10-08). An explicit `sweeps` overrides; both are clamped and echoed.
@@ -68,7 +70,7 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
     av->gpuSweeps = std::clamp(gpuSweeps > 0 ? gpuSweeps : autoSweeps, kGpuSweepsMin, kGpuSweepsMax);
     refreshOccupancy(*av);
     av->solver->refreshSolids();
-    if (backend == "gpu") {
+    if (be == "gpu") {
         // the grid's occupancy must hold the hold boundary the GPU reads (it is the solver's query on the CPU)
         for (int z = 0; z < av->grid->nz(); ++z) for (int y = 0; y < av->grid->ny(); ++y) for (int x = 0; x < av->grid->nx(); ++x)
             av->grid->occ(x, y, z) = av->occCache[av->grid->idx(x, y, z)];
@@ -94,8 +96,11 @@ AvRecord WaterCoreManager::record(const Av& av) const {
     r.id = av.id; r.minVoxel = av.minVoxel; r.maxVoxel = av.maxVoxel; r.cellSize = av.h; r.transport = av.solver->transport().name();
     r.particles = av.solver->transport().particleCount();
     r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs;
-    if (av.backend == "gpu") r.asleep = av.gpuLast.asleep;
-    r.cells = av.grid->cellCount(); r.asleep = av.solver->asleep();
+    r.cells = av.grid->cellCount();
+    // a GPU volume's sleep lives in WaterCoreGpu::Volume (the solver never stepped): this line used to
+    // sit BEFORE the GPU override and overwrote it, so S1 on the GPU read asleep=false for ever with
+    // quiet_ticks at 30 and no substeps (2026-10-08)
+    r.asleep = av.backend == "gpu" ? av.gpuLast.asleep : av.solver->asleep();
     r.mass = av.solver->transport().ownsMass() ? av.solver->transport().ownedMass() : ((av.backend == "gpu" && av.gpuStale) ? av.gpuLast.totalMass : av.grid->totalMass());
     r.kineticEnergy = av.grid->kineticEnergy(); r.lastSubsteps = av.last.substeps; r.lastPcgIterations = av.last.pcgIterations;
     r.lastPcgResidual = av.last.pcgResidual; r.quietTicks = av.last.quietTicks; r.sourceUnplaced = av.last.sourceUnplaced; r.residueDropped = av.residueDropped;

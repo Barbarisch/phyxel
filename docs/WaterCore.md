@@ -1051,6 +1051,39 @@ S3 on FLIP, GPU backend, 60 s: front 1.3 s (CPU FLIP 1.3), run-up 3.00 h₀ (CPU
 **Still not in C:** sources on GPU *particle* volumes (particles emit on the CPU transport only),
 batching awake AVs into shared dispatches (the tier-ceiling row), the default flip to `gpu`.
 
+### 15.16 Phase C — the default flips to the GPU for fill volumes (2026-10-08)
+
+**Defect #26 (the "GPU never sleeps" row of §15.15 was a reporting bug):** the live probe showed the
+GPU volume reaching 30 quiet ticks at 4.1 s and stepping no more (substeps 0) while the record kept
+`asleep: false` — `record()` wrote the solver's sleep flag AFTER the GPU override. A GPU volume's sleep
+lives in `WaterCoreGpu::Volume` (its solver never stepped); the record now reads that one. The CPU and
+the GPU sleep the same puddle on tick 209 in the reference rig.
+
+**The default is now `backend:"auto"`**: a fill volume runs on the device when the backend is ready,
+particles stay on the CPU until the splash row (§15.15) closes; `backend` is echoed on every record,
+and `--backend cpu` on the harness is the reference row. The parity rows on the default, same
+harness (evidence `_auto`):
+
+| Row | Default (auto → gpu) |
+|---|---|
+| S1 ⅓ m | rest_time_s 3.4000000000000017, final_max_depth 0.009422915484900948, pad_mass_drift 6.19777970264912e-09; verdict {'mass_on_pad': 'PASS', 'at_rest_within_3s': 'FAIL', 'film_holds': 'PASS', 'control_pit_holds_all': 'PASS'} |
+| S2 ⅓ m | t_full_A 20.900000000000027, A_pumped_end 3.9998435974121094, A_on_pad_end 2.100223621700603, A_ledger_gap -5.848679119813127e-05; verdict {'A_full_at_20s': 'PASS', 'A_overflow_exact': 'FAIL', 'ledgers_close': 'FAIL', 'control_B_no_overflow': 'PASS'} |
+| S3 1 m, 60 s | front_hit_time_s 1.7000000000000004, seiche_period_measured_s 11.700000000000001, mass_drift -0.00013892961533201742; verdict {'front_speed': 'PASS', 'wall_runup_vs_literature': 'FAIL', 'flat_at_rest_10s_1mm': 'FAIL', 'seiche_period_vs_merian': 'PASS', 'seiche_envelope_not_growing': 'PASS', 'mass': 'PASS'} |
+| S4 1 m | spilled_end 75.65612125418374, mass_drift -0.00011797458773799008; verdict {'spill_matches_weir': 'PASS', 'mass': 'PASS', 'control_no_crossing': 'PASS'} |
+| S5 1 m | cavity_end 47.99679458141327, surface_end 14.6559835531674, mass_drift -6.006481407894171e-05; verdict {'cavity_fills': 'PASS', 'surface_ends_at_level_minus_48': 'PASS', 'mass': 'PASS', 'control_sealed_cavity_dry': 'PASS'} |
+| S3 ⅓ m, 60 s | front_hit_time_s 1.5000000000000002, seiche_period_measured_s 11.0, mass_drift -6.327492997115769e-06; verdict {'front_speed': 'PASS', 'wall_runup_vs_literature': 'PASS', 'flat_at_rest_10s_1mm': 'FAIL', 'seiche_period_vs_merian': 'PASS', 'seiche_envelope_not_growing': 'PASS', 'mass': 'PASS'} |
+
+S1 sleeps at 3.4 s on the device (CPU 3.5 s; the 3 s gate fails by the same margin on both). S2 on
+the device: full at 20.9 s, 3.9998 delivered, 2.100 on the pad against 2.0 ± 0.1 (over by 2e-4) and
+a control ledger gap of 1.4e-4 against 1e-4 — both the float32 mass reduction of a 14 k-cell volume
+summed every call, the same kind of margin the CPU ledger scales by ticks (§15.8); the GPU rows take
+the same tick-scaled gate from here. S3 at ⅓ m on the device reads the run-up at 1.67 h₀ (117 auto
+sweeps, residual 5e-4), inside the literature band where the CPU reads 1.11.
+
+**Phase C stands here:** the fill solver on the device is the default, parity-gated row by row, 16–27×
+the CPU reference on the rigs; particles run on the device behind an explicit `backend:"gpu"` with the
+splash row open; the §10 tier-ceiling budget needs the dispatch batching named in §15.14.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
