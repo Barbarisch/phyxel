@@ -24,15 +24,20 @@ namespace Phyxel::Core::Water {
 
 constexpr int kSurfaceMaxRuns = 4;
 
-/// One sub-column of the field. Matches wc_surface.comp's layout exactly (12 floats = 48 B).
+/// One sub-column of the field. Matches wc_surface.comp's layout exactly (16 floats = 64 B).
+/// Phase G2: foam (0..1) and the depth-averaged surface velocity (m/s) ride along - the band fills
+/// them from its solver; the 3-D volumes' kernel writes zeros until their surface velocity is
+/// exported (WaterCore.md 18.6).
 struct SurfaceColumn {
     float top[kSurfaceMaxRuns] = {0, 0, 0, 0};      ///< world Y of each run's surface (bottom-up)
     float bottom[kSurfaceMaxRuns] = {0, 0, 0, 0};   ///< world Y of each run's base
     float solidTopY = -1e30f;                        ///< top face of the highest solid cell in the column (-1e30 = none)
     float runs = 0.0f;                               ///< run count (float for the GPU layout)
-    float pad0 = 0.0f, pad1 = 0.0f;
+    float foam = 0.0f;                               ///< 0..1 whitewater on the top run (G2)
+    float u = 0.0f, w = 0.0f;                        ///< surface velocity, x and z (m/s) (G2)
+    float pad0 = 0.0f, pad1 = 0.0f, pad2 = 0.0f;
 };
-static_assert(sizeof(SurfaceColumn) == 48, "wc_surface.comp writes 12 floats per column");
+static_assert(sizeof(SurfaceColumn) == 64, "wc_surface.comp writes 16 floats per column");
 
 struct WaterSurfaceField {
     glm::ivec3 origin{0};     ///< grid origin in cells (world = origin * h)
@@ -52,8 +57,11 @@ struct WaterSurfaceVertex {
     float     depth;     ///< the run's thickness (m), the shader's thickness floor
     glm::vec3 normal;    ///< world
     float     side;      ///< 0 = top face, 1 = lateral face
+    float     foam;      ///< 0..1 whitewater (G2)
+    glm::vec2 flow;      ///< surface velocity, x and z (m/s) (G2)
+    float     pad = 0.0f;
 };
-static_assert(sizeof(WaterSurfaceVertex) == 32, "water_surface.vert expects 32-byte vertices");
+static_assert(sizeof(WaterSurfaceVertex) == 48, "water_surface.vert expects 48-byte vertices");
 
 struct WaterSurfaceMesh {
     std::vector<WaterSurfaceVertex> vertices;

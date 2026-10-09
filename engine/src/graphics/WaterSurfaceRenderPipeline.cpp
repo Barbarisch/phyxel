@@ -137,13 +137,15 @@ void WaterSurfaceRenderPipeline::createPipeline(VkRenderPass renderPass, VkExten
     VkPipelineShaderStageCreateInfo stages[] = {vss, fss};
 
     VkVertexInputBindingDescription bind{}; bind.binding = 0; bind.stride = sizeof(Core::Water::WaterSurfaceVertex); bind.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-    VkVertexInputAttributeDescription attrs[4];
+    VkVertexInputAttributeDescription attrs[6];
     attrs[0] = {0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Core::Water::WaterSurfaceVertex, pos)};
     attrs[1] = {1, 0, VK_FORMAT_R32_SFLOAT,       offsetof(Core::Water::WaterSurfaceVertex, depth)};
     attrs[2] = {2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Core::Water::WaterSurfaceVertex, normal)};
     attrs[3] = {3, 0, VK_FORMAT_R32_SFLOAT,       offsetof(Core::Water::WaterSurfaceVertex, side)};
+    attrs[4] = {4, 0, VK_FORMAT_R32_SFLOAT,       offsetof(Core::Water::WaterSurfaceVertex, foam)};   // G2
+    attrs[5] = {5, 0, VK_FORMAT_R32G32_SFLOAT,    offsetof(Core::Water::WaterSurfaceVertex, flow)};   // G2
     VkPipelineVertexInputStateCreateInfo vi{}; vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vi.vertexBindingDescriptionCount = 1; vi.pVertexBindingDescriptions = &bind; vi.vertexAttributeDescriptionCount = 4; vi.pVertexAttributeDescriptions = attrs;
+    vi.vertexBindingDescriptionCount = 1; vi.pVertexBindingDescriptions = &bind; vi.vertexAttributeDescriptionCount = 6; vi.pVertexAttributeDescriptions = attrs;
     VkPipelineInputAssemblyStateCreateInfo ia{}; ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO; ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     VkViewport vp{}; vp.width = (float)swapChainExtent.width; vp.height = (float)swapChainExtent.height; vp.minDepth = 0.0f; vp.maxDepth = 1.0f;
     VkRect2D sc{}; sc.extent = swapChainExtent;

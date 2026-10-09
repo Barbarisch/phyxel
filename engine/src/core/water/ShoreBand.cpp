@@ -196,6 +196,7 @@ void ShoreBand::rebuildField() {
         const float d = static_cast<float>(c.eta - c.bed);
         if (d < kDrawDepth) continue;
         s.runs = 1.0f; s.bottom[0] = c.bed; s.top[0] = static_cast<float>(c.eta);
+        s.foam = c.foam; s.u = c.u; s.w = c.w;   // G2
         ++wet;
         foam = std::max(foam, c.foam);
         if (m_roles[i] == ShoreColumnRole::Free && c.bed > m_rec.still) runUp = std::max(runUp, c.bed - m_rec.still);

@@ -43,6 +43,7 @@ TEST(ShoreSolverTest, StillWaterOnASlopeStaysStill) {
     EXPECT_LT(r.maxSpeed, 1e-6f);
     EXPECT_NEAR(s.totalMass(), m0, 1e-9 * m0);
     for (int x = 0; x < 60; ++x) EXPECT_NEAR(s.col(x, 1).eta, std::max(3.0f, x / 30.0f), 1e-6f);
+    for (int z = 0; z < 4; ++z) for (int x = 0; x < 60; ++x) EXPECT_EQ(s.col(x, z).foam, 0.0f) << "no motion, no foam (G2)";
 }
 
 TEST(ShoreSolverTest, CarriesTheSwell) {
@@ -90,8 +91,14 @@ TEST(ShoreSolverTest, MassExactWithWetDry) {
         if (x == 89) s.col(x, z).wall = 1;
     }
     const double m0 = s.totalMass();
-    double clamped = 0.0; float vmax = 0.0f;
-    for (int k = 0; k < 1200; ++k) { const ShoreStepReport r = s.step(kDt); clamped += r.clamped; vmax = std::max(vmax, r.maxSpeed); }
+    double clamped = 0.0; float vmax = 0.0f; float foamPeak = 0.0f; int foamPeakTick = -1;
+    for (int k = 0; k < 1200; ++k) {
+        const ShoreStepReport r = s.step(kDt); clamped += r.clamped; vmax = std::max(vmax, r.maxSpeed);
+        for (int z = 0; z < 3; ++z) for (int x = 0; x < 90; ++x) if (s.col(x, z).foam > foamPeak) { foamPeak = s.col(x, z).foam; foamPeakTick = k; }
+    }
+    // G2: the released pile's bore front over the dry slope foams (the tongue + the converging front)
+    std::printf("  wet/dry foam: peak %.2f at tick %d\n", foamPeak, foamPeakTick);
+    EXPECT_GT(foamPeak, 0.5f) << "a dam-break bore running onto a dry slope must foam";
     std::printf("  wet/dry: mass %.9f -> %.9f m^3, clamped %.3g, vmax %.2f\n", m0, s.totalMass(), clamped, vmax);
     EXPECT_NEAR(s.totalMass(), m0, 1e-9 * m0) << "exact: double surfaces, conservative fluxes";
     EXPECT_EQ(clamped, 0.0) << "no depth was ever clamped from negative";

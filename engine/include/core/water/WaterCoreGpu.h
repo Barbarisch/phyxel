@@ -112,7 +112,7 @@ public:
     bool setSources(Volume& vol, const std::vector<GpuSource>& sources, std::string* err);
     void readSources(Volume& vol, std::vector<GpuSource>& out) const;         ///< placedTotal/pending after a step (fenced)
     /// Phase F: the surface field as the last step() left it in the staging ring (no submission: a memcpy).
-    /// `out` must hold columns * 12 floats. Returns false when no step has run since the upload.
+    /// `out` must hold columns * 16 floats (SurfaceColumn). Returns false when no step has run since the upload.
     bool readSurface(const Volume& vol, float* out) const;
     bool surfaceReady(const Volume& vol) const { return vol.surfaceValid; }
     /// Phase B2: replace the volume's particles (fenced) and rebuild the grid's f and faces from them.

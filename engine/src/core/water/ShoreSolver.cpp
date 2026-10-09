@@ -242,13 +242,23 @@ void ShoreSolver::substep(float dt, ShoreStepReport& r) {
         else { c.u = 0.0f; c.w = 0.0f; }
     }
     r.exchanged += exch;
-    // breaking marker: a steep front (surface slope > 0.3) in shallow water (d < 1.5 m) is a bore;
-    // decays per substep (foam for G2)
+    // ── foam (G2, WaterCore.md 18.6): whitewater is made where the water BREAKS, three ways, all in
+    //    shallow water (d < 1.5 m): (a) a bore front - the surface steps up beyond what the bed
+    //    explains (a voxel riser is a fall, not a breaker); (b) converging flow - the surface velocity
+    //    collapses into a front (div < -0.3 / s); (c) the swash tongue - a column that was dry this
+    //    substep and is wet now, foaming with its speed (0.3..1 m/s; a creeping film does not foam);
+    //    (d) supercritical flow (Froude > 0.8: the uprush, the bore). Decays with a 0.46 s half-life.
+    //    No motion, no foam (still water: 0); films under 2 cm make none.
     for (int z = 0; z < m_nz; ++z) for (int x = 0; x < m_nx; ++x) {
         ShoreColumn& c = col(x, z);
         c.foam *= std::max(0.0f, 1.0f - 1.5f * dt);
         const float d = static_cast<float>(c.eta - c.bed);
         if (c.wall || d <= dry) { c.foam = 0.0f; continue; }
+        const size_t i = idx(x, z);
+        if (m_eta0[i] - c.bed <= dry && d > 0.005) {   // (c) the tongue's edge: a FAST tongue foams, a creeping film (the Coast shelf's calm spread) does not
+            const float speed = std::sqrt(c.u * c.u + c.w * c.w);
+            c.foam = std::max(c.foam, 0.6f * std::clamp((speed - 0.3f) / 0.7f, 0.0f, 1.0f));
+        }
         auto wetN = [&](int xx, int zz) { return !col(xx, zz).wall && col(xx, zz).eta - col(xx, zz).bed > dry; };
         float slope = 0.0f;
         // the surface step beyond what the bed explains: a bore on a flat bed foams, water pouring
@@ -258,7 +268,22 @@ void ShoreSolver::substep(float dt, ShoreStepReport& r) {
         if (x + 1 < m_nx && wetN(x + 1, z)) slope = std::max(slope, rise(x + 1, z));
         if (z > 0 && wetN(x, z - 1)) slope = std::max(slope, rise(x, z - 1));
         if (z + 1 < m_nz && wetN(x, z + 1)) slope = std::max(slope, rise(x, z + 1));
-        if (slope > 0.3f && d < 1.5f) c.foam = std::min(1.0f, c.foam + 2.0f * dt * (slope - 0.3f) / 0.3f);
+        float src = 0.0f;
+        // whitewater needs water: a film under 2 cm (the Coast shelf's creeping sheet, a trickle over a
+        // riser) makes none and counts as no flow for its neighbours
+        auto deepN = [&](int xx, int zz) { return wetN(xx, zz) && col(xx, zz).eta - col(xx, zz).bed > 0.02; };
+        if (d >= 0.02f && d < 1.5f) {
+            if (slope > 0.12f) src += (slope - 0.12f) / 0.12f;                                   // (a) the bore front
+            const float uL = (x > 0 && deepN(x - 1, z)) ? col(x - 1, z).u : c.u, uR = (x + 1 < m_nx && deepN(x + 1, z)) ? col(x + 1, z).u : c.u;
+            const float wL = (z > 0 && deepN(x, z - 1)) ? col(x, z - 1).w : c.w, wR = (z + 1 < m_nz && deepN(x, z + 1)) ? col(x, z + 1).w : c.w;
+            const float div = (uR - uL + wR - wL) / (2.0f * m_h);
+            if (div < -0.3f) src += (-div - 0.3f) / 0.5f;                                        // (b) converging flow
+            // (d) supercritical flow: the uprush and the bore run faster than their own shallow-water
+            //     wave speed (Froude > 0.8) - the continuous white front of a surf zone
+            const float froude = std::sqrt(c.u * c.u + c.w * c.w) / std::sqrt(g * d);
+            if (d >= 0.08f && froude > 0.8f) src += (froude - 0.8f) / 0.4f;   // a draining film is supercritical too; a bore is deeper than 8 cm
+        }
+        if (src > 0.0f) c.foam = std::min(1.0f, c.foam + 2.0f * dt * src);
     }
 }
 

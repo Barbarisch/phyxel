@@ -1,12 +1,14 @@
 #version 450
 #extension GL_GOOGLE_include_directive : require
 // WaterCore Phase F (docs/WaterCore.md 17): the SURFACE FIELD of a volume, one thread per (x, z)
-// sub-column, written in the exact layout of Core::Water::SurfaceColumn (12 floats):
-//   top[4] | bottom[4] | solidTopY | runs | pad | pad      (world units)
+// sub-column, written in the exact layout of Core::Water::SurfaceColumn (16 floats):
+//   top[4] | bottom[4] | solidTopY | runs | foam | u | w | pad | pad | pad      (world units)
+// foam / u / w are G2's (the shore band fills them on the CPU); this kernel writes zeros until the
+// volumes export their surface velocity (WaterCore.md 18.6).
 // A run is a maximal vertical stretch of cells with f * h >= 1 mm that are not solid; its top is the
 // highest wet cell's bottom + min(f, 1) * h; solidTopY is the top face of the highest solid cell in
 // the column. Mirrors extractSurfaceField (WaterSurfaceMesh.cpp) - the parity test holds them equal.
-// Only this field crosses back to the host each step (nx * nz * 48 B), never the grid.
+// Only this field crosses back to the host each step (nx * nz * 64 B), never the grid.
 #include "water_core.glsl"
 layout(local_size_x = 64) in;
 layout(std430, set = 0, binding = 0) readonly buffer F   { float f[]; };
@@ -35,10 +37,9 @@ void main() {
         if (runs < 4) { bottom[runs] = (oy + float(start)) * pc.h; top[runs] = tTop; ++runs; }
         else top[3] = tTop;
     }
-    const uint base = id * 12u;
+    const uint base = id * 16u;
     for (int r = 0; r < 4; ++r) { surf[base + uint(r)] = top[r]; surf[base + 4u + uint(r)] = bottom[r]; }
     surf[base + 8u] = solidTop;
     surf[base + 9u] = float(runs);
-    surf[base + 10u] = 0.0;
-    surf[base + 11u] = 0.0;
+    for (uint k = 10u; k < 16u; ++k) surf[base + k] = 0.0;
 }

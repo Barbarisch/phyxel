@@ -41,7 +41,7 @@ public:
     int  debugMode() const { return m_debugMode; }
     uint32_t lastVertices() const { return m_lastVertices; }
     static constexpr uint32_t kFrames = 2;
-    static constexpr size_t   kMaxVertices = 1u << 20;   ///< 1 M vertices x 32 B = 32 MB per slot
+    static constexpr size_t   kMaxVertices = 1u << 19;   ///< 512 k vertices x 48 B = 24 MB per slot (a 96 x 96 band is ~17 k)
     static constexpr size_t   kMaxIndices  = kMaxVertices * 3 / 2;
 
 private:

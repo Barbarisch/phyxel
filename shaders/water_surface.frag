@@ -14,6 +14,8 @@ layout(location = 0) in vec3  fragWorldPos;
 layout(location = 1) in float fragDepth;
 layout(location = 2) in float fragSide;
 layout(location = 3) in vec3  fragNormal;
+layout(location = 4) in float fragFoam;   // G2
+layout(location = 5) in vec2  fragFlow;   // G2
 layout(location = 0) out vec4 outColor;
 
 // Shared scene UBO — declared as a std140 PREFIX (only the fields we use, in order).
@@ -74,21 +76,25 @@ void main() {
     inp.fragCoord    = gl_FragCoord.xy;
     inp.sideFace     = fragSide;
     inp.minThickness = fragDepth;          // the solver knows how deep this run is
-    inp.flowDir      = vec2(0.0);          // F2: surface velocity from the solver
-    inp.flowStrength = 0.0;
-    inp.foam         = 0.0;                // F2: divergence of the surface velocity
+    // G2: the solver's surface velocity drives the ripple advection and the whitewater streaks, its
+    // foam field (bore fronts, convergence, the swash tongue) the whitewater itself.
+    const float speed = length(fragFlow);
+    inp.flowDir      = speed > 1e-3 ? fragFlow / speed : vec2(0.0);
+    inp.flowStrength = clamp(speed / 2.0, 0.0, 1.0);   // 2 m/s = full streaking
+    inp.foam         = clamp(fragFoam, 0.0, 1.0);
     // The mesh normal is the water's real shape. A lateral face is a vertical wall of water; its
     // normal points out of the water.
     vec3 n = normalize(fragNormal);
     if (dot(n, pc.camPosTime.xyz - fragWorldPos) < 0.0) n = -n;   // face the viewer (an underwater camera sees the underside)
     const int dbg = int(pc.screen.z + 0.5);   // water_render_core {debug: 0..5}
     if (dbg == 1) { outColor = vec4(n * 0.5 + 0.5, 1.0); return; }   // the mesh normal as colour: shape only
+    if (dbg == 6) { outColor = vec4(inp.foam, inp.flowStrength, 0.0, 1.0); return; }   // G2 tap: foam (red) and flow strength (green) as fed by the solver
     inp.baseNormal   = n;
     inp.wavePhase    = 0.0;
     inp.breakDepth   = 0.0;
     inp.restLevelY   = -1e9;               // the solver decides the level per sub-column
     inp.turbidity    = 0.0;                // neutral profile (per-body profiles arrive with F2)
-    inp.roughness    = 0.35;                // fine ripple amplitude: a pond is calmer than the sea's shipped detail (a judgement, recorded in 17.3)
+    inp.roughness    = 0.35 + 0.45 * inp.flowStrength;   // fine ripple amplitude: a pond is calmer than the sea's shipped detail (17.3); moving water is choppier (G2)
     inp.viewProj     = pc.viewProj;
     inp.ssr          = 0.0;
     inp.debugMode    = dbg;

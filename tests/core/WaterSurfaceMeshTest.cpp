@@ -138,6 +138,37 @@ TEST(WaterSurfaceMeshTest, NormalsPointOutOfTheWater) {
     EXPECT_GT(tops, 0); EXPECT_GT(sides, 0);
 }
 
+TEST(WaterSurfaceMeshTest, FoamAndFlowReachTheTopRunsVertices) {
+    // G2: a 3 x 3 field, every column one run 0..1; the centre column foams (1) and flows (+0.5, 0):
+    // its top quad's four vertices carry exactly that, the neighbours' carry zero, and a second
+    // (lower) run in the centre carries none (foam lives on the free surface)
+    WaterSurfaceField f; f.origin = glm::ivec3(0); f.nx = 3; f.nz = 3; f.h = 1.0f;
+    f.cols.assign(9, SurfaceColumn{});
+    for (auto& c : f.cols) { c.runs = 1.0f; c.bottom[0] = 0.0f; c.top[0] = 1.0f; }
+    SurfaceColumn& m = f.cols[4];
+    m.runs = 2.0f; m.bottom[0] = -2.0f; m.top[0] = -1.0f; m.bottom[1] = 0.0f; m.top[1] = 1.0f;
+    m.foam = 1.0f; m.u = 0.5f; m.w = 0.0f;
+    WaterSurfaceMesh mesh; buildWaterSurfaceMesh(f, mesh);
+    // quads come in fours; classify each TOP quad by its centroid (a vertex on a shared edge belongs to two columns)
+    int centreTop = 0, centreLow = 0, others = 0;
+    ASSERT_EQ(mesh.vertices.size() % 4, 0u);
+    for (size_t q = 0; q < mesh.vertices.size(); q += 4) {
+        if (mesh.vertices[q].side != 0.0f) continue;
+        glm::vec3 cen(0.0f);
+        for (size_t k = 0; k < 4; ++k) cen += mesh.vertices[q + k].pos;
+        cen *= 0.25f;
+        const bool centre = cen.x > 1.0f && cen.x < 2.0f && cen.z > 1.0f && cen.z < 2.0f;
+        for (size_t k = 0; k < 4; ++k) {
+            const auto& v = mesh.vertices[q + k];
+            if (centre && cen.y > 0.5f) { EXPECT_FLOAT_EQ(v.foam, 1.0f); EXPECT_FLOAT_EQ(v.flow.x, 0.5f); EXPECT_FLOAT_EQ(v.flow.y, 0.0f); }
+            else { EXPECT_FLOAT_EQ(v.foam, 0.0f); EXPECT_FLOAT_EQ(v.flow.x, 0.0f); }
+        }
+        if (centre && cen.y > 0.5f) ++centreTop; else if (centre) ++centreLow; else ++others;
+    }
+    EXPECT_EQ(centreTop, 1); EXPECT_EQ(centreLow, 1); EXPECT_EQ(others, 8);
+    EXPECT_EQ(sizeof(WaterSurfaceVertex), 48u);
+}
+
 TEST(WaterSurfaceMeshTest, DefaultModeIsMesh) {
     EXPECT_EQ(kWaterCoreRenderModeDefault, WaterCoreRenderMode::Mesh);
     EXPECT_STREQ(waterCoreRenderModeName(kWaterCoreRenderModeDefault), "mesh");

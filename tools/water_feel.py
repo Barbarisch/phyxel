@@ -803,7 +803,7 @@ def s12_shore(api, gdef, args):
     within 5 s (swash columns > 0), the swash surface peaks between 0.05 and 0.6 m above still, the
     band's mean level stays within 5 cm of still (no pump), speeds stay under 5 m/s, a 96x96 band
     steps in under 4 ms at the 95th percentile (the max is reported); (b) calm control - amplitude 0 for 20 s: foam dies (< 0.02), the swash
-    surface falls to under half its swell-time peak; (c) persistence - with the band off the stored
+    surface falls to under half its swell-time peak (and foam appeared during the swell: G2); (c) persistence - with the band off the stored
     spans over the shelf are what they were before (the band writes nothing; nothing stays above the
     still line in the world). The Coast beach is a 1 m staircase with a 24 m shelf AT sea level, so
     the Hunt run-up comparison lives in the unit tests (ShoreSolverTest, ShoreBandTest), not here."""
@@ -812,14 +812,14 @@ def s12_shore(api, gdef, args):
     waves0 = api.debug("water_waves", {})
     radius = 48.0
     pred = {"swash_within_s": 5.0, "swash_eta_peak_range_m": [0.05, 0.6], "mean_free_rise_max_m": 0.05, "max_speed_max": 5.0,
-            "step_ms_p95_max": 4.0, "calm_foam_max": 0.02, "calm_swash_fraction_max": 0.5, "spans_unchanged_tol": 1e-4, "radius": radius}
+            "step_ms_p95_max": 4.0, "swell_foam_min": 0.3, "calm_foam_max": 0.02, "calm_swash_fraction_max": 0.5, "spans_unchanged_tol": 1e-4, "radius": radius}
     shelf = {"x1": 150, "z1": 674, "x2": 180, "z2": 697}
     api.debug("water_shore", {"on": False})
     spans_before = api.debug("water_spans_stored", shelf)
     on = api.debug("water_shore", {"on": True, "radius": radius})
     if not on.get("active"):
         return pred, {"error": on.get("error", "band not active"), "status": on}, "FAIL"
-    samples = []; first_swash = None; peak_eta = 0.0; rise_max = 0.0; speed_max = 0.0; step_max = 0.0
+    samples = []; first_swash = None; peak_eta = 0.0; rise_max = 0.0; speed_max = 0.0; step_max = 0.0; foam_peak = 0.0
     t0 = time.time()
     while time.time() - t0 < 20.0:
         time.sleep(0.25)
@@ -828,7 +828,7 @@ def s12_shore(api, gdef, args):
         samples.append({"t": round(t, 2), **{k: st.get(k) for k in ("swash_columns", "swash_eta_m", "wet", "mass_m3", "exchanged_m3", "foam_max", "max_speed", "mean_free_rise_m", "step_ms", "substeps")}})
         if first_swash is None and st.get("swash_columns", 0) > 0: first_swash = t
         peak_eta = max(peak_eta, st.get("swash_eta_m", 0.0)); rise_max = max(rise_max, abs(st.get("mean_free_rise_m", 0.0)))
-        speed_max = max(speed_max, st.get("max_speed", 0.0)); step_max = max(step_max, st.get("step_ms", 0.0))
+        speed_max = max(speed_max, st.get("max_speed", 0.0)); step_max = max(step_max, st.get("step_ms", 0.0)); foam_peak = max(foam_peak, st.get("foam_max", 0.0))
     swell = api.debug("water_shore", {})
     api.debug("water_waves", {"amplitude": 0.0}); time.sleep(20.0)
     calm = api.debug("water_shore", {})
@@ -838,7 +838,7 @@ def s12_shore(api, gdef, args):
     steps = sorted(x["step_ms"] for x in samples if x.get("step_ms") is not None)
     step_p95 = steps[min(len(steps) - 1, int(0.95 * len(steps)))] if steps else 0.0
     meas = {"band": {k: on.get(k) for k in ("n", "columns", "prescribed", "sponge", "walls", "free", "still", "centre", "box", "site_ms")},
-            "first_swash_s": first_swash, "swash_eta_peak_m": peak_eta, "mean_free_rise_max_m": rise_max, "max_speed": speed_max, "step_ms_max": step_max, "step_ms_p95": step_p95,
+            "first_swash_s": first_swash, "swash_eta_peak_m": peak_eta, "mean_free_rise_max_m": rise_max, "max_speed": speed_max, "step_ms_max": step_max, "step_ms_p95": step_p95, "foam_peak": foam_peak,
             "swell_end": {k: swell.get(k) for k in ("swash_columns", "swash_eta_m", "wet", "exchanged_m3", "foam_max", "runup_peak_m")},
             "calm_end": {k: calm.get(k) for k in ("swash_columns", "swash_eta_m", "wet", "exchanged_m3", "foam_max", "mean_free_rise_m")},
             "spans_before": {k: spans_before.get(k) for k in ("total_depth", "columns", "wet_columns", "max_top") if k in spans_before},
@@ -847,7 +847,7 @@ def s12_shore(api, gdef, args):
     ok = (first_swash is not None and first_swash <= pred["swash_within_s"]
           and pred["swash_eta_peak_range_m"][0] <= peak_eta <= pred["swash_eta_peak_range_m"][1]
           and rise_max <= pred["mean_free_rise_max_m"] and speed_max <= pred["max_speed_max"] and step_p95 <= pred["step_ms_p95_max"]
-          and calm.get("foam_max", 1.0) <= pred["calm_foam_max"] and calm.get("swash_eta_m", 1.0) <= pred["calm_swash_fraction_max"] * max(peak_eta, 1e-6)
+          and foam_peak >= pred["swell_foam_min"] and calm.get("foam_max", 1.0) <= pred["calm_foam_max"] and calm.get("swash_eta_m", 1.0) <= pred["calm_swash_fraction_max"] * max(peak_eta, 1e-6)
           and abs((spans_after.get("total_depth") or 0.0) - (spans_before.get("total_depth") or 0.0)) <= pred["spans_unchanged_tol"])
     return pred, meas, "PASS" if ok else "FAIL"
 

@@ -1085,3 +1085,10 @@ Also open: creek spans (orders 1-2 on the 2/3 shelf) need a float-bottom WaterSp
   band fires one edit per cell (fine) but a streamed-in chunk does not (the bed query runs at siting).
 - **The foam marker** (surface step beyond the bed step, > 0.3) misses a 20 cm bore spread over a 1 m
   column; G2 replaces it with the velocity-convergence foam.
+- **(G2) Foam is one block per column at 1 m.** A 20 cm bore occupies one 1 m column, so its
+  whitewater is a 1 m square; the fbm mask tears the edge but the patch is still a block. The band
+  needs ⅓ m columns near the camera (9× columns, ~20 ms at radius 48 — so a two-ring band: fine
+  inner, coarse outer) and foam that is advected with the flow instead of only made and decayed.
+- **(G2) The volumes' surface field carries foam 0 / velocity 0.** `wc_surface.comp` and
+  `extractSurfaceField` write zeros for the new fields; the 3-D core has face velocities and could
+  export the top liquid cell's — until then a pond's ripples do not travel and a pour makes no foam.

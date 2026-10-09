@@ -69,13 +69,13 @@ void buildWaterSurfaceMesh(const WaterSurfaceField& f, WaterSurfaceMesh& out) {
         }
         return n ? sum / static_cast<float>(n) : ownTop;
     };
-    auto quad = [&](const glm::vec3& a, const glm::vec3& b, const glm::vec3& c, const glm::vec3& d, float depth, float side, const glm::vec3& outward) {
+    auto quad = [&](const glm::vec3& a, const glm::vec3& b, const glm::vec3& c, const glm::vec3& d, float depth, float side, const glm::vec3& outward, float foam, const glm::vec2& flow) {
         glm::vec3 nrm = glm::cross(c - a, b - d);
         if (glm::dot(nrm, outward) < 0.0f) nrm = -nrm;   // the geometric normal, oriented out of the water
         const float len = glm::length(nrm);
         nrm = len > 1e-12f ? nrm / len : outward;
         const uint32_t base = static_cast<uint32_t>(out.vertices.size());
-        for (const glm::vec3& p : {a, b, c, d}) out.vertices.push_back({p, depth, nrm, side});
+        for (const glm::vec3& p : {a, b, c, d}) out.vertices.push_back({p, depth, nrm, side, foam, flow, 0.0f});
         out.indices.insert(out.indices.end(), {base, base + 1, base + 2, base, base + 2, base + 3});
     };
     for (int z = 0; z < f.nz; ++z)
@@ -87,10 +87,13 @@ void buildWaterSurfaceMesh(const WaterSurfaceField& f, WaterSurfaceMesh& out) {
                 const float lo = c.bottom[r], hi = c.top[r] + h;   // a neighbour's run within one cell above still shares the surface
                 const float top = c.top[r];
                 const float depth = top - c.bottom[r];
+                // G2: foam and flow belong to the TOP run (the free surface); deeper runs are still
+                const float foam = (r == n - 1) ? c.foam : 0.0f;
+                const glm::vec2 flow = (r == n - 1) ? glm::vec2(c.u, c.w) : glm::vec2(0.0f);
                 // corners: (-x,-z) (+x,-z) (+x,+z) (-x,+z)
                 const float y00 = cornerY(x, z, 0, 0, lo, hi, top), y10 = cornerY(x, z, 1, 0, lo, hi, top);
                 const float y11 = cornerY(x, z, 1, 1, lo, hi, top), y01 = cornerY(x, z, 0, 1, lo, hi, top);
-                quad({x0, y00, z0}, {x0, y01, z1}, {x1, y11, z1}, {x1, y10, z0}, depth, 0.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+                quad({x0, y00, z0}, {x0, y01, z1}, {x1, y11, z1}, {x1, y10, z0}, depth, 0.0f, glm::vec3(0.0f, 1.0f, 0.0f), foam, flow);
                 ++out.topQuads;
                 // lateral faces: -x, +x, -z, +z
                 struct Side { int dx, dz; glm::vec3 a, b; float ya, yb; };
@@ -109,7 +112,7 @@ void buildWaterSurfaceMesh(const WaterSurfaceField& f, WaterSurfaceMesh& out) {
                     if (std::max(s.ya, s.yb) - floorY < 1e-4f) continue;
                     glm::vec3 a = s.a, b = s.b; a.y = s.ya; b.y = s.yb;
                     glm::vec3 c2 = b, d = a; c2.y = floorY; d.y = floorY;
-                    quad(a, b, c2, d, depth, 1.0f, glm::vec3(static_cast<float>(s.dx), 0.0f, static_cast<float>(s.dz)));
+                    quad(a, b, c2, d, depth, 1.0f, glm::vec3(static_cast<float>(s.dx), 0.0f, static_cast<float>(s.dz)), foam, flow);
                     ++out.sideQuads;
                 }
             }

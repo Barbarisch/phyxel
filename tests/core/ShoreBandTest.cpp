@@ -109,11 +109,12 @@ TEST(ShoreBandTest, SwellRunsUpTheSandAndDrainsBack) {
     std::string err;
     ASSERT_TRUE(band.site(glm::vec2(50.0f, 216.0f), p, beachBed(), beachStored(), &err)) << err;
     SeaSwellParams sw; sw.amplitude = 0.45f; sw.wavelength = 14.0f; sw.windRad = 1.5707963f;   // shoreward (+z)
-    float peak = 0.0f; double exch = 0.0; float wetLandMax = 0.0f; float riseMax = 0.0f;
+    float peak = 0.0f; double exch = 0.0; float wetLandMax = 0.0f; float riseMax = 0.0f; float foamPeak = 0.0f;
     for (int k = 1; k <= 1800; ++k) {
         band.tick(kDt, k * kDt, sw);
         peak = std::max(peak, band.record().runUpMax);
         riseMax = std::max(riseMax, band.record().meanFreeRise);
+        foamPeak = std::max(foamPeak, band.record().foamMax);
     }
     exch = band.record().exchanged;
     // drains back: with the swell off, after 20 s nothing stays above the still line + 1 cm of film
@@ -137,6 +138,9 @@ TEST(ShoreBandTest, SwellRunsUpTheSandAndDrainsBack) {
     std::printf("  band swell: peak run-up %.3f m (Hunt on H = %.2f m: %.3f), exchanged %.3f m^3 over 30 s, wet land after calm %.4f m, step %.2f ms (%ld columns), max speed %.2f, mean rise peak %.3f m / after calm %.3f m\n",
                 peak, H, hunt, exch, wetLandMax, r.stepMs, r.columns, r.maxSpeed, riseMax, r.meanFreeRise);
     EXPECT_LT(riseMax, 0.08f) << "the ocean ring must not pump the band up (Stokes transport compensated, return flow absorbed)";
+    std::printf("  band foam: peak %.2f during the swell, %.3f after calm\n", foamPeak, r.foamMax);
+    EXPECT_GT(foamPeak, 0.5f) << "the swash must foam (G2)";
+    EXPECT_LT(r.foamMax, 0.05f) << "calm water carries no foam (G2)";
     RecordProperty("runup_peak_m", peak); RecordProperty("hunt_m", hunt);
     EXPECT_GT(peak, 0.02f) << "the swell must climb the sand";
     EXPECT_LT(peak, 2.0f * hunt + 0.1f);

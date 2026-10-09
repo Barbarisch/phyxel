@@ -13851,9 +13851,9 @@ void Application::registerWaterCommands() {
             else if (m == "off") renderCoordinator->setWaterCoreRenderMode(WaterCoreRenderMode::Off);
             else { r = {{"error", "mode must be mesh, cells or off"}}; return; }
         }
-        if (cmd.params.contains("debug")) {   // 0 off, 1 normals, 2 body, 3 reflection, 4 thickness, 5 fresnel (water_common.glsl taps)
+        if (cmd.params.contains("debug")) {   // 0 off, 1 normals, 2 body, 3 reflection, 4 thickness, 5 fresnel (water_common.glsl taps), 6 foam/flow (G2)
             const auto& d = cmd.params["debug"];
-            renderCoordinator->setWaterCoreDebugMode(d.is_boolean() ? (d.get<bool>() ? 1 : 0) : std::clamp(d.get<int>(), 0, 5));
+            renderCoordinator->setWaterCoreDebugMode(d.is_boolean() ? (d.get<bool>() ? 1 : 0) : std::clamp(d.get<int>(), 0, 6));
         }
         r = {{"mode", Core::Water::waterCoreRenderModeName(renderCoordinator->waterCoreRenderMode())},
              {"mesh_vertices", renderCoordinator->waterCoreMeshVertices()}, {"top_quads", renderCoordinator->waterCoreMeshTopQuads()},

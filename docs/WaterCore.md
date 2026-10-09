@@ -417,7 +417,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **D. Rest, persistence, world data** — **design §16; D3 + D1 + D2 + D4 + D5 BUILT 2026-10-09 (ledger §16.9; D4 halves the River trunk defect, residual is the bake's cell resolution)** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | /design-check on §16 | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
 | **E. Coupling** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
 | **F. Rendering the core** — **design §17; F1 + F2 first pass BUILT 2026-10-09 (ledger §17.3), sign-off pending; F3 open** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
-| **G. Large bodies on top** — **design §18; G1 BUILT 2026-10-09 (§18.5: column solver + band, S12 PASS on Coast, not yet visibly right — G2 next)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
+| **G. Large bodies on top** — **design §18; G1 + G2 BUILT 2026-10-09 (§18.5–18.6: column solver + band + solver foam/flow, S12 PASS on Coast; foam present but sparse at 1 m columns — G3 + ⅓ m band next)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
 
 Rule for every phase: the previous phase's scenarios stay green (the harness runs them all);
 nothing is "done" without its evidence row and a same-vantage capture where look is claimed.
@@ -1800,6 +1800,45 @@ the solver's own velocity), and the honest verdict is that G1 is measurably righ
 visibly right.** Logged gaps: the sheet draws the un-limited swell beside a band whose ring is
 depth-limited (a height seam at the band edge in shallow water); a shelf exactly at sea level is
 awash by construction; the band's seaward edge face is a vertical water wall under the sheet.
+
+### 18.6 G2 built: surf foam and surface flow from the solver (2026-10-09)
+
+**What was built.** The surface field carries two more things per column — `foam` (0..1) and the
+depth-averaged surface velocity `(u, w)` — so `SurfaceColumn` is 16 floats (`wc_surface.comp`
+writes the layout; the 3-D volumes' kernel writes zeros for the new three until their surface
+velocity is exported; GPU parity 13/13 unchanged). The mesh vertex grows to 48 B with `foam` and
+`flow` on the TOP run's vertices only (deeper runs are still), `water_surface.vert/frag` hand them
+to the shared shading library, which already knew what to do with them: `flowDir`/`flowStrength`
+advect the ripple normal and streak the whitewater, `foam` is the whitewater, and roughness rises
+with the flow (0.35 → 0.80 at 2 m/s). A debug tap `water_render_core {debug: 6}` paints foam red
+and flow strength green — the deterministic check that the solver's fields reach the pixels.
+
+**Where foam is made (the solver, in water under 1.5 m):** (a) a bore front — the surface steps up
+beyond what the bed explains; (b) converging flow (div < −0.3 /s); (c) the swash tongue — a column
+dry this substep and wet now, foaming with its speed (0.3–1 m/s); (d) supercritical flow (Froude
+> 0.8) deeper than 8 cm. Half-life 0.46 s; still water makes none; films under 2 cm make none and
+count as no flow for their neighbours. Each gate was forced by a measurement on the Coast's
+sea-level shelf: the first tongue rule foamed the creeping calm-water film (calm foam 0.21), the
+ungated Froude rule foamed every draining trickle over a riser (calm foam 1.0), the first marker
+read every 1 m voxel step as a breaker (0.085). Pinned: `StillWaterOnASlopeStaysStill` (foam 0),
+`MassExactWithWetDry` (the dam-break bore foams to 1.0), `SwellRunsUpTheSandAndDrainsBack` (1.0
+during the swell, 0.000 after calm), `FoamAndFlowReachTheTopRunsVertices`.
+
+**L4 on the Coast (`S12`, evidence `S12_coast_core_h1_auto_20261009_110714.json`, PASS):** foam
+peak 1.0 during the swell, 0.0001 after 20 s of calm; every G1 row unchanged (swash 0.25 s / 0.199 m,
+mean rise 0.020 m, p95 2.35 ms for 9216 columns). Captures `coast_shore_elevated_g2_foamtap.png`
+(the tap: flow green over the whole band, foam as orange patches along the shelf and the riser),
+`coast_shore_elevated_g2.png` and `coast_shore_eye_g2.png` (the look).
+
+**Honest visual verdict.** The band's water now moves (the ripple detail travels with the flow and
+the surface is choppier where it runs) and whitewater appears where the solver breaks — but as
+scattered 1 m patches, not the continuous white line a surf zone draws. Two causes, both real: the
+band runs at 1 m columns, so a 20 cm bore is one column wide and its foam is one block; and the
+Coast shelf is flat at sea level, so there is no steady breaker line, only spill-overs at the
+riser. The sheet's own whitecaps beyond the band still look richer. Next levers, in order:
+⅓ m columns for the band nearest the camera (9× the columns; 1 m stays the outer band), foam that
+rides the flow (advected, not only made and decayed), and the G3 look profile so band and sheet
+share one colour/clarity. The sheet/band height seam (§18.5 gaps) is unchanged.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
