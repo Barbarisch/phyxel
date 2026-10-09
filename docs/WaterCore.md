@@ -417,7 +417,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **D. Rest, persistence, world data** — **design §16; D3 + D1 + D2 + D4 + D5 BUILT 2026-10-09 (ledger §16.9; D4 halves the River trunk defect, residual is the bake's cell resolution)** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | /design-check on §16 | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
 | **E. Coupling** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
 | **F. Rendering the core** — **design §17; F1 + F2 first pass BUILT 2026-10-09 (ledger §17.3), sign-off pending; F3 open** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
-| **G. Large bodies on top** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
+| **G. Large bodies on top** — **design §18 (2026-10-09, READY; the shoreline band pulled ahead, after F1)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
 
 Rule for every phase: the previous phase's scenarios stay green (the harness runs them all);
 nothing is "done" without its evidence row and a same-vantage capture where look is claimed.
@@ -1587,6 +1587,82 @@ an overhang run (no bottom face yet), SSR for the mesh (off, as for the cells), 
 sign-off. Footgun found: a `glslangValidator` error line starts with `ERROR:` and the chain's
 `grep -v "^shaders"` hid it — a stale `.spv` ran for one capture round; and `--target phyxel` does
 not refresh `build/shaders/`, copy the `.spv` there (or build everything).
+
+## 18. Phase G design — the shoreline band (2026-10-09, before building)
+
+**Why now:** after Phase F the owner looked at the Coast and said what the plan always said in §8.3:
+a shoreline must be simulated water. Today the coast is the analytic Gerstner sheet lit properly;
+nothing there moves against the voxels. Phase G puts an active volume along the shore, driven at
+its seaward edge by the ocean body and the swell, so waves shoal, break, run up the sand and drain
+back because they are solved against the voxels. The sheet stays as the far look and must agree
+with the band at its edge. The per-body look profile the owner asked for (shade, clarity,
+murkiness, roughness) lands here too, because the band and the sheet must share one profile.
+
+**Ground truth read.** The sheet's swell is four Gerstner components in `water.vert` (wind
+direction w0 and three spread directions; wavelengths λ, 0.61λ, 0.33λ, 5λ; amplitudes a, 0.52a,
+0.28a, 0.70a; steepness 0.38/0.24/0.13/0.12; deep-water phase speed √(g/k); time = the pipeline's
+own clock `m_startTime`), parameters `amplitude 0.45 m, wavelength 14 m, wind 0.6 rad` on Coast
+(`water_waves`). The ocean body is `WaterBodyIndex` class ocean, level 16, infinite. The core has
+sources (pumps) but no boundary condition; the GPU step is one fenced submission per call with a
+staging ring; the span grid masks a live volume's columns (D3) and the mesh draws them (F1).
+
+### 18.1 Slices
+
+| Slice | Deliverable |
+|---|---|
+| **G1** the band + the ocean boundary | `SeaSwell` (a C++ port of the four-component height, same clock as the sheet, exposed as `WaterRenderPipeline::waveTime()`); `BoundaryColumn` on a volume: a sub-column whose SURFACE is prescribed every tick (fills set to the level, velocity left to the solver) with the mass it exchanged counted per column (`boundaryExchange`, the §5.3 flux ledger; the ocean is infinite so its record gains `exchanged`, never `mass`); CPU `applyBoundaries` + GPU `wc_boundary` (per-column target heights uploaded through the staging ring each call, per-column Δ read back with the surface field); `ShoreBand` (engine core): on a baked world with an ocean body, in realtime, one volume over the resident shore columns within `radius` of the camera (shore = a column whose stored span top is the ocean level within `inner` voxels of a dry column, plus a `runUp` margin of dry columns landward), seeded from the stored spans, every wet column farther than `inner` from the waterline prescribed to `level + swell(x, z, t)` as the ocean, the inner columns simulated; re-sited when the camera moves `radius / 2` (sleep → write-back → new band). Cell size **1 voxel** first (§8.3; cost measured), ⅓ m if the budget allows. |
+| **G2** surf | surface velocity in the surface field (two floats per column) → foam where the surface breaks (steep slope + converging velocity), the sheet's crest-gated surf retired for columns the band owns; droplets stay §12's pool. |
+| **G3** the look profile | `WaterProfile` gains `clarity` (absorption distance, m), `tint` (absorption colour), beside `turbidity` (scatter) and `roughness`; grounded defaults per body class; persisted in the body record; set live through `water_look {body, …}`; applied identically to the mesh (per-volume push) and to the sheet (span grid channels). |
+
+### 18.2 The boundary, concretely
+A prescribed column at target height H: for its cells, f = 1 below ⌊H⌋, the fractional cell at
+⌊H⌋ gets frac(H), everything above 0 — written at the START of each tick, before advection. The
+projection then sees the surface gradient between a raised boundary column and its interior
+neighbour and moves water in: a wave enters the band physically (the test below measures it). The
+exchange that tick = Σ (f_after − f_before)·h³ over the column, counted per tick into the volume's
+`boundaryExchange` and, at sleep, into the ocean record's `exchanged`. Velocity is never
+prescribed: the solver owns it, so the boundary cannot pump energy in without a surface gradient.
+Boundary columns are never meshed as edges (they are the ocean), and the sheet masks them like
+every live column; at the band's seaward face the sheet draws `level + swell` and the band holds
+`level + swell` — the same function at the same time.
+
+### 18.3 Design keys, answered
+**1. Voxel aesthetic.** The band is the same lattice as every volume; its surface mesh and lateral
+faces at the sand are Phase F's; nothing smooth is imported — the swell enters a voxel grid and is
+shaped by it. Unconditional.
+**2. Chunk independence.** Band siting uses the camera radius (cost / coverage, the rule terrain
+obeys) and the stored spans (world data); the boundary height is a pure function of world position
+and time; no chunk quantity decides anything. Residency: the band is clipped to resident chunks by
+the §5.1 hold rule like every volume. **Equality test:** `ShoreBandTest.InteriorIndependentOfOuterWidth`
+— the same shore simulated with the prescribed region 12 and 24 columns wide gives the same inner
+10 columns (height per column within 1 cm after 10 s): the prescribed columns ARE the ocean, so the
+box's outer extent is a cost bound only. Cross-chunk lookups: none beyond the span reads D1 already
+makes.
+**3. Procedural generation.** None at runtime; the swell parameters are the game's `water` block
+(wind, amplitude, wavelength) as today. The profile defaults per body class are code; a game can
+override per body through the record (persisted) — no recipe field.
+**4. API.** `water_shore {on, radius (m, default 24), inner (voxels, 12), runUp (voxels, 4),
+cellSize (1), status}` echoes the band record (box, columns, boundary columns, cells, cost ms,
+`boundary_exchange_m3`); `water_av_list` shows the band like any volume (`role: "shore"`);
+`water_look {body, clarity, tint, turbidity, roughness}` echoes the stored profile. Clamps: `radius`
+≤ 64 (the cell ceiling at 1 voxel over a 128 m band is 128·128·8 = 131 k cells; ⅓ m multiplies by
+27 — refused above `kMaxCellsPerVolume`, loudly); `inner` ≥ 4. Defaults changing: none (the band
+is on only where a game enables it; the Coast bench enables it).
+**5. Visual test plan.** Works = (L2) `WaterCoreBoundaryTest.PrescribedColumnDrivesAWave` (a 60-cell
+channel at 1 m, end column oscillated ±0.3 m at T = 4 s: a wave of amplitude ≥ 0.6 × 0.3 arrives
+10 cells in within √(g·d)-travel time + 1 s; the mass ledger equals Σ boundary exchange to 1e-6) ·
+`BoundaryExchangeIsExact` · `GpuBoundaryMatchesCpu` (parity on the channel) · `SeaSwellTest`
+(the port's height at a point equals the explicit four-term sum; period and amplitude per
+component) · the equality test above; (L4) **S12 on the Coast bench**: swell enters, shoals and
+breaks (foam where the solver says), run-up on the 1:20 beach measured as the farthest wet column
+landward of the still waterline vs Hunt's formula (R = H·ξ, ξ = tanβ/√(H/L₀)) ± 20 %, retreat, the
+band's spans after sleep equal sea level (nothing persists above the swash line), ocean exchange
+reported, cost ≤ 2 ms/tick at 1 voxel (§10). Red first: every unit test fails to compile; the L4
+red is today's shore-eye capture (the sheet through the sand). Rig: Coast shore-eye vantage, one
+variable = the swell amplitude (0.45 m, then 0 as the calm-weather control: no run-up, static
+waterline). Rig vs defaults: none.
+
+**Verdict: READY.** Build order G1 (boundary + port + band, red tests) → G2 → G3. Ledger §18.4.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
