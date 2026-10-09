@@ -2,6 +2,7 @@
 #include "core/water/WaterCoreManager.h"
 #include <array>
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <limits>
 
@@ -27,7 +28,7 @@ bool WaterCoreManager::snapCellSize(float requested, float* snapped) {
 }
 
 int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float cellSize,
-                             const std::string& transport, std::string* err, const std::string& backend) {
+                             const std::string& transport, std::string* err, const std::string& backend, int gpuSweeps) {
     float h = 1.0f;
     if (!snapCellSize(cellSize, &h)) { if (err) *err = "cellSize must be 1, 1/3, 1/9, 1/27 or 1/81 (a cell that does not divide a microcube would sit half inside a wall)"; return 0; }
     const int per = static_cast<int>(std::lround(1.0f / h));
@@ -59,6 +60,12 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
     if (transport == "flip") av->solver->setTransport(std::make_unique<FlipTransport>());   // empty until water is placed
     av->occDirty = true;
     av->backend = backend;
+    // SOR needs O(N) sweeps for a Poisson problem N cells across: 1.5 x the longest grid dimension
+    // (40 on the 1 m Basin, 117 at 1/3 m where 40 left a residual of 0.48 and 100 gave 5e-4 for
+    // +0.2 ms, 2026-10-08). An explicit `sweeps` overrides; both are clamped and echoed.
+    const int longest = std::max({dims.x, dims.y, dims.z});
+    const int autoSweeps = static_cast<int>(std::lround(1.5 * longest));
+    av->gpuSweeps = std::clamp(gpuSweeps > 0 ? gpuSweeps : autoSweeps, kGpuSweepsMin, kGpuSweepsMax);
     refreshOccupancy(*av);
     av->solver->refreshSolids();
     if (backend == "gpu") {
@@ -85,10 +92,10 @@ AvRecord WaterCoreManager::record(const Av& av) const {
     AvRecord r;
     r.id = av.id; r.minVoxel = av.minVoxel; r.maxVoxel = av.maxVoxel; r.cellSize = av.h; r.transport = av.solver->transport().name();
     r.particles = av.solver->transport().particleCount();
-    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? kGpuSweeps : 0;
+    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs;
     if (av.backend == "gpu") r.asleep = av.gpuLast.asleep;
     r.cells = av.grid->cellCount(); r.asleep = av.solver->asleep();
-    r.mass = av.solver->transport().ownsMass() ? av.solver->transport().ownedMass() : av.grid->totalMass();
+    r.mass = av.solver->transport().ownsMass() ? av.solver->transport().ownedMass() : ((av.backend == "gpu" && av.gpuStale) ? av.gpuLast.totalMass : av.grid->totalMass());
     r.kineticEnergy = av.grid->kineticEnergy(); r.lastSubsteps = av.last.substeps; r.lastPcgIterations = av.last.pcgIterations;
     r.lastPcgResidual = av.last.pcgResidual; r.quietTicks = av.last.quietTicks; r.sourceUnplaced = av.last.sourceUnplaced; r.residueDropped = av.residueDropped;
     for (const auto& src : av.solver->sources()) { r.sourcePlaced += src.placedTotal; ++r.sourceCount; }
@@ -198,6 +205,7 @@ long WaterCoreManager::placeBox(const glm::ivec3& minVoxel, const glm::ivec3& ma
         if (!cav) { ++outside; continue; }
         Av* av = const_cast<Av*>(cav);
         refreshOccupancy(*av);
+        syncFromGpu(*av);   // a placement writes fills over the CURRENT state
         const glm::ivec3 base = (glm::ivec3(vx, vy, vz) * av->per) - av->grid->spec().origin;
         for (int k = 0; k < av->per; ++k) for (int j = 0; j < av->per; ++j) for (int i = 0; i < av->per; ++i) {
             const int cx = base.x + i, cy = base.y + j, cz = base.z + k;
@@ -271,11 +279,19 @@ bool WaterCoreManager::initGpu(VkDevice device, VkPhysicalDevice physical, VkQue
 // Phase C slice 2: the grid is the interface. Upload when it is newer than the GPU copy, run the
 // ticks on the device (fenced), download so probes, the surface feed and the ledger keep reading
 // the grid exactly as they do for the CPU reference. StepReport mirrors the GPU reductions.
+void WaterCoreManager::syncFromGpu(Av& av, bool rateLimited) {
+    if (!av.gpuVol || !m_gpu || !av.gpuStale) return;
+    const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    if (rateLimited && av.gpuLastDownloadSec >= 0.0 && now - av.gpuLastDownloadSec < 1.0) return;   // §15.11: realtime readers see the grid once a second
+    m_gpu->download(*av.gpuVol, *av.grid);
+    av.gpuStale = false; av.gpuLastDownloadSec = now;
+}
+
 void WaterCoreManager::stepGpu(Av& av, int ticks, float dt) {
     if (!av.gpuVol || !m_gpu) return;
-    if (av.gpuDirty) { m_gpu->upload(*av.gpuVol, *av.grid); av.gpuDirty = false; }
-    const GpuStepStats st = m_gpu->step(*av.gpuVol, av.solver->params(), dt, ticks, kGpuSweeps);
-    m_gpu->download(*av.gpuVol, *av.grid);
+    if (av.gpuDirty) { syncFromGpu(av); m_gpu->upload(*av.gpuVol, *av.grid); av.gpuDirty = false; }
+    const GpuStepStats st = m_gpu->step(*av.gpuVol, av.solver->params(), dt, ticks, av.gpuSweeps);
+    av.gpuStale = true;
     av.gpuLast = st;
     av.last.substeps = st.substepsLast; av.last.totalMass = st.totalMass; av.last.kineticEnergy = st.kineticEnergy;
     av.last.maxDeltaF = st.maxDeltaF; av.last.quietTicks = st.quietTicks; av.last.asleep = st.asleep;
@@ -309,6 +325,7 @@ bool WaterCoreManager::addImpulse(const glm::vec3& world, float radius, float de
 
 ProbeResult WaterCoreManager::probe(const glm::vec3& world) {
     for (auto& av : m_avs) refreshOccupancy(*av);   // a probe right after a dig must see the dig (S5)
+    for (auto& av : m_avs) syncFromGpu(*av);
     ProbeResult r;
     r.surfaceY = std::numeric_limits<float>::quiet_NaN();
     const glm::ivec3 v(static_cast<int>(std::floor(world.x)), static_cast<int>(std::floor(world.y)), static_cast<int>(std::floor(world.z)));
@@ -329,6 +346,7 @@ ProbeResult WaterCoreManager::probe(const glm::vec3& world) {
 
 std::vector<ColumnSample> WaterCoreManager::probeColumns(int x1, int z1, int x2, int z2, int yMin, int yMax) const {
     std::vector<ColumnSample> out;
+    for (const auto& av : m_avs) const_cast<WaterCoreManager*>(this)->syncFromGpu(*av);   // the probe is the reader the design names
     const int lx = std::min(x1, x2), hx = std::max(x1, x2), lz = std::min(z1, z2), hz = std::max(z1, z2);
     for (int z = lz; z <= hz; ++z) for (int x = lx; x <= hx; ++x) {
         ColumnSample c; c.x = x; c.z = z; c.surfaceY = std::numeric_limits<float>::quiet_NaN();
@@ -359,6 +377,7 @@ std::vector<ColumnSample> WaterCoreManager::probeColumns(int x1, int z1, int x2,
 }
 
 double WaterCoreManager::totalMass() const {
+    for (const auto& av : m_avs) const_cast<WaterCoreManager*>(this)->syncFromGpu(*av, m_realtime);
     double m = 0.0;
     for (const auto& av : m_avs) m += av->grid->totalMass();
     return m;
@@ -371,6 +390,7 @@ size_t WaterCoreManager::totalCells() const {
 }
 
 const std::vector<WaterSurfaceCell>& WaterCoreManager::surfaceCells() {
+    for (auto& av : m_avs) syncFromGpu(*av, m_realtime);   // the renderer: once a second in realtime, every step otherwise
     m_surface.clear();
     for (const auto& av : m_avs) {
         for (int vz = av->minVoxel.z; vz <= av->maxVoxel.z; ++vz) for (int vx = av->minVoxel.x; vx <= av->maxVoxel.x; ++vx) {

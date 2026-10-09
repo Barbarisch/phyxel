@@ -84,8 +84,8 @@ class Engine:
     """How a scenario talks to today's CA ("ca", real time) or WaterCore ("core", explicit ticks
     in SIMULATION time). Same primitives, same predictions, so rows are comparable."""
 
-    def __init__(self, api, name, dt=1.0 / 60.0, cell_size=1.0, transport="eulerian", backend="cpu"):
-        self.api, self.name, self.dt, self.cell_size, self.transport, self.backend = api, name, dt, cell_size, transport, backend
+    def __init__(self, api, name, dt=1.0 / 60.0, cell_size=1.0, transport="eulerian", backend="cpu", sweeps=40):
+        self.api, self.name, self.dt, self.cell_size, self.transport, self.backend, self.sweeps = api, name, dt, cell_size, transport, backend, sweeps
         self.av_id = None          # the first volume (S3's only one)
         self.av_ids = []
         self.sim_t = 0.0
@@ -100,7 +100,7 @@ class Engine:
             return None
         x1, y1, z1, x2, y2, z2 = box
         r = self.api.debug("water_av_create", {"x1": x1, "y1": y1, "z1": z1, "x2": x2, "y2": y2, "z2": z2,
-                                               "cellSize": self.cell_size, "transport": self.transport, "backend": self.backend})
+                                               "cellSize": self.cell_size, "transport": self.transport, "backend": self.backend, "sweeps": self.sweeps})
         if "error" in r:
             raise SystemExit(f"water_av_create: {r}")
         vid = r["volume"]["id"]
@@ -201,13 +201,13 @@ def s3_dam_break(api, gdef, args):
     wall_x = a["eastWallX"]                      # 29 (solid); last floor column is 28
     front_target = wall_x - 1
     L = front_target - bx2                       # 10
-    eng = Engine(api, args.engine, cell_size=args.cell_size, transport=args.transport, backend=args.backend)
+    eng = Engine(api, args.engine, cell_size=args.cell_size, transport=args.transport, backend=args.backend, sweeps=args.sweeps)
     dth = 0.5 * eng.cell_size if args.engine == "core" else 0.5
     vth = 2.0 * (G * h0) ** 0.5 - 3.0 * (G * dth) ** 0.5   # Ritter tip minus the contour offset
     area = (a["flat"]["x"][1] - a["flat"]["x"][0] + 1) * (z1 - z0 + 1)
     mass_expected = (bx2 - bx1 + 1) * (z1 - z0 + 1) * h0
     pred_still_level = floor_top + 1 + mass_expected / area
-    pred = {"engine": args.engine, "transport": eng.transport, "backend": eng.backend, "cell_size": eng.cell_size, "time_base": "simulation" if args.engine == "core" else "wall",
+    pred = {"engine": args.engine, "transport": eng.transport, "backend": eng.backend, "gpu_sweeps": eng.sweeps, "cell_size": eng.cell_size, "time_base": "simulation" if args.engine == "core" else "wall",
             "front_depth_threshold_m": dth, "front_speed_mps": vth, "front_time_s": L / vth,
             "tip_time_s": L / (2.0 * (G * h0) ** 0.5), "L": L, "h0": h0,
             "mass_expected": mass_expected, "still_level_over_flat_floor": floor_top + 1 + mass_expected / area,
@@ -280,17 +280,20 @@ def s3_dam_break(api, gdef, args):
         if len(raw) < 10:
             return None, None
         mean = sum(v for _, v in raw) / len(raw)
-        # the see-saw about its own mean (the floor is not symmetric), smoothed with a 1 s moving
-        # average so cell-scale jitter at 1/3 m (it read a 0.95 s "period") does not count as crossings
-        win = max(1, int(round(1.0 / args.dt)))
-        vals = [v - mean for _, v in raw]
-        sm = [sum(vals[max(0, i - win + 1):i + 1]) / len(vals[max(0, i - win + 1):i + 1]) for i in range(len(vals))]
-        pts = [(raw[i][0], sm[i]) for i in range(len(raw))]
-        crossings = [pts[i][0] for i in range(1, len(pts)) if (pts[i - 1][1] < 0) != (pts[i][1] < 0)]
+        vals = [v - mean for _, v in raw]                  # the see-saw about its own mean (the floor is not symmetric)
+        # the period is the lag of the first autocorrelation maximum beyond 3 s: zero crossings of a
+        # smoothed signal counted a secondary wobble at 1/3 m and read half-periods (4.8 s and 5.4 s for
+        # the same water whose autocorrelation reads 11.6 s and 10.9 s, 2026-10-08)
+        n = len(vals); lag0 = sum(a * a for a in vals)
         period = None
-        if len(crossings) >= 3:
-            gaps = [b - a for a, b in zip(crossings, crossings[1:])]
-            period = 2.0 * sum(gaps) / len(gaps)          # two crossings per period
+        if lag0 > 0:
+            best, best_lag = -2.0, None
+            for lag in range(int(3.0 / args.dt), n // 2):
+                c = sum(vals[i] * vals[i + lag] for i in range(n - lag)) / lag0
+                if c > best:
+                    best, best_lag = c, lag
+            period = best_lag * args.dt if best_lag else None
+        pts = [(raw[i][0], vals[i]) for i in range(n)]
         half = len(pts) // 2
         env_first = max(abs(v) for _, v in pts[:half]); env_second = max(abs(v) for _, v in pts[half:])
         return period, (env_second / env_first) if env_first > 0 else None
@@ -358,9 +361,9 @@ def s1_pour(api, gdef, args):
     pit = sc["pit"]                                    # x1, z1, x2, z2
     pad_top = rig["slab"]["y"][1]                      # 16: the pad surface is y = 17.0
     vol = 0.02
-    eng = Engine(api, args.engine, cell_size=args.cell_size, transport=args.transport, backend=args.backend)
+    eng = Engine(api, args.engine, cell_size=args.cell_size, transport=args.transport, backend=args.backend, sweeps=args.sweeps)
     eng.require_core("S1")
-    pred = {"engine": "core", "transport": eng.transport, "backend": eng.backend, "cell_size": eng.cell_size, "time_base": "simulation", "volume_m3": vol,
+    pred = {"engine": "core", "transport": eng.transport, "backend": eng.backend, "gpu_sweeps": eng.sweeps, "cell_size": eng.cell_size, "time_base": "simulation", "volume_m3": vol,
             "mass_tolerance": 1e-4, "rest_within_s": 3.0, "film_holds_m": 0.01, "pit": pit}
     boxA = (px - 6, pad_top + 1, pz - 6, px + 6, pad_top + 2, pz + 6)
     boxB = (pit[0] - 4, pad_top, pit[1] - 4, pit[2] + 4, pad_top + 2, pit[3] + 4)   # pit cells are y = 16
@@ -419,11 +422,11 @@ def s2_trough(api, gdef, args):
     sc = rig["scenarios"]["S2"]
     ta, tb, rate = sc["trough"], sc["control"], sc["pump_rate"]
     pad_top = rig["slab"]["y"][1]
-    eng = Engine(api, args.engine, cell_size=args.cell_size, transport=args.transport, backend=args.backend)
+    eng = Engine(api, args.engine, cell_size=args.cell_size, transport=args.transport, backend=args.backend, sweeps=args.sweeps)
     eng.require_core("S2")
     dur = args.duration if args.duration != 12.0 else 40.0
     capA, capB = 2.0, 6.0
-    pred = {"engine": "core", "transport": eng.transport, "backend": eng.backend, "cell_size": eng.cell_size, "time_base": "simulation", "rate_m3s": rate, "duration_s": dur,
+    pred = {"engine": "core", "transport": eng.transport, "backend": eng.backend, "gpu_sweeps": eng.sweeps, "cell_size": eng.cell_size, "time_base": "simulation", "rate_m3s": rate, "duration_s": dur,
             "capacity_A": capA, "capacity_B": capB, "t_full_A": capA / rate, "t_full_tolerance_s": 2.0,
             "pumped_at_end": rate * dur, "overflow_A_at_end": max(0.0, rate * dur - capA), "overflow_tolerance": 0.1,
             "B_at_end": min(capB, rate * dur), "B_tolerance": 0.01, "ledger_tolerance": 1e-4}
@@ -482,7 +485,7 @@ def s4_spill(api, gdef, args):
     control: fill 2 deep over the flat (408 m^3, level 14.85 < sill) and nothing crosses."""
     spec = gdef["waterBench"]
     a, ch, b = spec["basinA"], spec["channel"], spec["basinB"]
-    eng = Engine(api, args.engine, cell_size=args.cell_size, transport=args.transport, backend=args.backend)
+    eng = Engine(api, args.engine, cell_size=args.cell_size, transport=args.transport, backend=args.backend, sweeps=args.sweeps)
     eng.require_core("S4")
     dur = args.duration if args.duration != 12.0 else 30.0
     floor_top = a["flat"]["floorTop"]
@@ -494,7 +497,7 @@ def s4_spill(api, gdef, args):
     k = 1.705 * b_width / area_15_16
     H0 = 1.0
     H_end = H0 / (1.0 + 0.5 * k * (H0 ** 0.5) * dur) ** 2
-    pred = {"engine": "core", "transport": eng.transport, "backend": eng.backend, "cell_size": eng.cell_size, "time_base": "simulation", "duration_s": dur,
+    pred = {"engine": "core", "transport": eng.transport, "backend": eng.backend, "gpu_sweeps": eng.sweeps, "cell_size": eng.cell_size, "time_base": "simulation", "duration_s": dur,
             "mass_main": basin_fill_volume(a, floor_top + 3), "mass_control": 2.0 * 17 * (z1 - z0 + 1),   # the control fills the flat floor only
             "sill_y": sill, "weir_coefficient": 1.705, "channel_width": b_width, "area_15_16": area_15_16,
             "H_end_weir": H_end, "spilled_end_weir": area_15_16 * (H0 - H_end), "spill_tolerance": 0.25,
@@ -543,7 +546,7 @@ def s5_drain(api, gdef, args):
     total mass exact; control: the cavity with no hole stays dry. The rig is restored afterwards."""
     spec = gdef["waterBench"]
     a = spec["basinA"]
-    eng = Engine(api, args.engine, cell_size=args.cell_size, transport=args.transport, backend=args.backend)
+    eng = Engine(api, args.engine, cell_size=args.cell_size, transport=args.transport, backend=args.backend, sweeps=args.sweeps)
     eng.require_core("S5")
     dur = args.duration if args.duration != 12.0 else 20.0
     floor_top = a["flat"]["floorTop"]
@@ -557,7 +560,7 @@ def s5_drain(api, gdef, args):
         if v <= flat_area:
             return floor_top + 1 + v / flat_area
         return floor_top + 2 + (v - flat_area) / (flat_area + ramp9_area)
-    pred = {"engine": "core", "transport": eng.transport, "backend": eng.backend, "cell_size": eng.cell_size, "time_base": "simulation", "duration_s": dur,
+    pred = {"engine": "core", "transport": eng.transport, "backend": eng.backend, "gpu_sweeps": eng.sweeps, "cell_size": eng.cell_size, "time_base": "simulation", "duration_s": dur,
             "mass_initial": mass0, "cavity_volume": cav_vol, "cavity_tolerance": 0.5,
             "surface_before": level(mass0), "surface_after": level(mass0 - cav_vol),
             "surface_drop": level(mass0) - level(mass0 - cav_vol), "surface_tolerance": 0.01, "mass_tolerance": 1e-3}
@@ -636,6 +639,7 @@ def main():
     ap.add_argument("--keep-volume", dest="keep_volume", action="store_true", help="core: leave the volume alive (eyes-on)")
     ap.add_argument("--transport", default="eulerian", choices=["eulerian", "flip"], help="core: fill fractions (Phase B) or FLIP particles (Phase B2)")
     ap.add_argument("--backend", default="cpu", choices=["cpu", "gpu"], help="core: the CPU reference or the Phase C compute backend (parity rows)")
+    ap.add_argument("--sweeps", type=int, default=0, help="gpu: red-black SOR sweeps per projection (0 = auto, 1.5 x the longest dimension; else 8-160)")
     args = ap.parse_args()
     if args.scenario == "list":
         for k, (b, f) in SCENARIOS.items():
@@ -660,6 +664,8 @@ def main():
         tag += f"_{args.transport}"
     if args.engine == "core" and args.backend != "cpu":
         tag += f"_{args.backend}"
+        if args.sweeps > 0:
+            tag += f"_s{args.sweeps}"
     base = EVID / f"{args.scenario}_{bench}_{tag}_{stamp}"
     png = capture(api, base.with_suffix(".png"))
     row = {"scenario": args.scenario, "bench": bench, "engine": args.engine, "build_config": status.get("build_config"),

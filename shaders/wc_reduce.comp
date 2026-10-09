@@ -6,6 +6,8 @@
 //           (velocity at the cell centre from its faces, as WaterGrid::kineticEnergy)
 //   mode 1: per workgroup of 256 faces of lattice iparam (0 u, 1 v, 2 w) -> partialMax[wg] = max |vel|
 //   mode 2: fold `param0` partials of binding 5 into binding 7 (one per workgroup) - or, when
+//   mode 4: per workgroup of 256 cells -> partial.w = max residual (binding 8)
+//   mode 5: per workgroup of 256 columns -> partial.x = sum of dropped residue (binding 9)
 //           param1 == 1, into out[iparam] (the final fold). mode 3: the same from binding 7 into
 //           binding 5. The host alternates 2/3 until one workgroup remains: a fixed tree, no atomics.
 #include "water_core.glsl"
@@ -18,6 +20,8 @@ layout(std430, set = 0, binding = 4) readonly buffer W     { float w[]; };
 layout(std430, set = 0, binding = 5)          buffer Part  { vec4 part[]; };   // per workgroup partials
 layout(std430, set = 0, binding = 6)          buffer Out   { vec4 outv[]; };
 layout(std430, set = 0, binding = 7)          buffer Part2 { vec4 part2[]; };
+layout(std430, set = 0, binding = 8) readonly buffer Res   { float res[]; };      // RBGS residual per cell
+layout(std430, set = 0, binding = 9) readonly buffer Drop  { float dropped[]; };  // residue dropped per column
 
 shared vec4 sh[256];
 
@@ -40,6 +44,10 @@ void main() {
     } else if (pc.mode == 1) {
         const int n = pc.iparam == 0 ? (pc.nx + 1) * pc.ny * pc.nz : (pc.iparam == 1 ? pc.nx * (pc.ny + 1) * pc.nz : pc.nx * pc.ny * (pc.nz + 1));
         if (int(gid) < n) mine.w = abs(pc.iparam == 0 ? u[gid] : (pc.iparam == 1 ? v[gid] : w[gid]));
+    } else if (pc.mode == 4) {
+        if (int(gid) < pc.nx * pc.ny * pc.nz) mine.w = res[gid];
+    } else if (pc.mode == 5) {
+        if (int(gid) < pc.nx * pc.nz) mine.x = dropped[gid];
     } else if (pc.mode == 2) {
         const uint n = uint(pc.param0);
         if (gid < n) mine = part[gid];
@@ -54,7 +62,7 @@ void main() {
         barrier();
     }
     if (lid == 0u) {
-        if (pc.mode <= 1) part[wg] = sh[0];
+        if (pc.mode <= 1 || pc.mode >= 4) part[wg] = sh[0];
         else if (pc.param1 == 1.0) outv[uint(pc.iparam)] = sh[0];
         else if (pc.mode == 2) part2[wg] = sh[0];
         else part[wg] = sh[0];

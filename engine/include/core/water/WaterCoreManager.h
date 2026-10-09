@@ -34,6 +34,7 @@ struct AvRecord {
     std::string backend = "cpu";          ///< Phase C: "cpu" (the reference) or "gpu" (WaterCoreGpu, parity-gated)
     float rbgsResidual = 0.0f;             ///< GPU backend: max |A p - b| after the last substep's sweeps (0 on the CPU)
     int   gpuSweeps = 0;
+    double gpuMs = 0.0;                    ///< wall time of the last GPU step call (all its ticks)
     size_t particles = 0;                  ///< Phase B2: FLIP particles alive (0 for fills)
     size_t cells = 0;
     bool asleep = false;
@@ -74,11 +75,12 @@ public:
     /// fraction of a voxel (1, 1/3, 1/9, 1/27, 1/81); `transport` is "eulerian" (Phase B).
     /// Refuses (returns 0, fills `err`) when the cell count would exceed `maxCells`.
     int create(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float cellSize,
-               const std::string& transport, std::string* err, const std::string& backend = "cpu");
+               const std::string& transport, std::string* err, const std::string& backend = "cpu", int gpuSweeps = 0 /* <= 0: auto, 1.5 x the longest dimension */);
     /// Phase C: give the manager a device; GPU volumes are refused until this succeeds (loudly).
     bool initGpu(VkDevice device, VkPhysicalDevice physical, VkQueue queue, uint32_t queueFamily, const std::string& shaderDir, std::string* err);
     bool gpuReady() const { return m_gpu && m_gpu->ready(); }
-    static constexpr int kGpuSweeps = 40;   ///< red-black SOR sweeps per projection (docs/WaterCore.md 15.12: omega 1.85, measured)
+    static constexpr int kGpuSweeps = 40;   ///< default red-black SOR sweeps per projection (docs/WaterCore.md 15.12: omega 1.85, measured)
+    static constexpr int kGpuSweepsMin = 8, kGpuSweepsMax = 160;   ///< fewer never converges a 26 m basin; more is the whole dispatch budget (15.11)
     bool destroy(int id);
     std::vector<AvRecord> list() const;
     const AvRecord* find(int id) const;
@@ -139,6 +141,9 @@ private:
         WaterCoreGpu::Volume* gpuVol = nullptr;
         bool gpuDirty = true;          // the grid (fills, velocities or occupancy) is newer than the GPU copy
         GpuStepStats gpuLast;
+        int gpuSweeps = kGpuSweeps;
+        bool gpuStale = false;         // the GPU copy is newer than the grid (a step ran, no download yet)
+        double gpuLastDownloadSec = -1.0;
     };
     void refreshOccupancy(Av& av);
     Occ sampleOccupancy(const Av& av, const glm::ivec3& cellLocal) const;
@@ -149,6 +154,7 @@ private:
     SolidsRevisionQuery m_revision;
     std::unique_ptr<WaterCoreGpu> m_gpu;
     void stepGpu(Av& av, int ticks, float dt);
+    void syncFromGpu(Av& av, bool rateLimited = false);   // download when stale (realtime: at most once a second unless forced)
     std::vector<std::unique_ptr<Av>> m_avs;
     int m_nextId = 1;
     bool m_realtime = false;

@@ -2,10 +2,10 @@
 //
 // The CPU reference (WaterSolver, WaterCore.h) stays the oracle; this class runs the SAME rules as
 // kernels (shaders/wc_*.comp) on a grid uploaded from a WaterGrid and is accepted on parity rows,
-// never on looks. Slice 1 (fills only): host-visible, persistently mapped buffers; one command
-// buffer per step() call (ticks x substeps of dispatches), submitted and fenced; the answer is
-// read back into the WaterGrid by download(). Raw Vulkan handles so the same class runs under the
-// integration test fixture and under the engine's VulkanDevice.
+// never on looks. Slice 3: device-local buffers behind one host-visible staging buffer, ONE fenced
+// submission per step() call (all ticks, all substeps), reductions (rest, residual, residue) folded
+// on the device, and the grid downloaded only when the caller asks (download()). Raw Vulkan handles
+// so the same class runs under the integration test fixture and under the engine's VulkanDevice.
 #pragma once
 
 #include "core/water/WaterCore.h"
@@ -29,16 +29,17 @@ static_assert(sizeof(WcPush) == 48, "WcPush must match the GLSL push block");
 
 struct GpuStepStats {
     int    ticks = 0;
-    int    substepsLast = 0;
+    int    substepsLast = 0;         ///< the substep count used for every tick of the call (CFL from the last known max speed, see step())
     int    sweeps = 0;
     float  rbgsResidualMax = 0.0f;   ///< max |A p - b| over liquid cells after the last substep's sweeps
     double kineticEnergy = 0.0;
-    double maxDeltaF = 0.0;
+    double maxDeltaF = 0.0;          ///< over the LAST tick of the call
     double totalMass = 0.0;          ///< m^3 (from the fill reduction)
     double maxSpeed = 0.0;
-    double residueDropped = 0.0;     ///< m^3 (sweep; downward merge only on the GPU, see wc_column_ops)
+    double residueDropped = 0.0;     ///< m^3 this call (sweep; downward merge only on the GPU, see wc_column_ops)
     int    quietTicks = 0;
     bool   asleep = false;
+    double gpuMs = 0.0;              ///< wall time of the fenced submission (GPU time + submit/fence overhead)
 };
 
 class WaterCoreGpu {
@@ -47,17 +48,20 @@ public:
         VkBuffer       buf = VK_NULL_HANDLE;
         VkDeviceMemory mem = VK_NULL_HANDLE;
         VkDeviceSize   bytes = 0;
-        void*          mapped = nullptr;
+        void*          mapped = nullptr;   // staging only
     };
     struct Volume {
         GridSpec spec;
         size_t cells = 0, nu = 0, nv = 0, nw = 0, latticeMax = 0, columns = 0, groups = 0;
         Buffer f, fOrig, fPrev, u, v, w, uOld, vOld, wOld, occ, src, liq, diag, rhs, p, res;
         Buffer valA, valB, knownA, knownB, first, keep, dropped, part, part2, out;
-        std::array<std::unique_ptr<Vulkan::ComputePipeline>, 16> pipes;   // see Kernel
+        Buffer staging;                  ///< host-visible: [f | u | v | w | occ | src | out | p]
+        VkDeviceSize offU = 0, offV = 0, offW = 0, offOcc = 0, offSrc = 0, offOut = 0, offP = 0;
+        std::array<std::unique_ptr<Vulkan::ComputePipeline>, 16> pipes;
         int quietTicks = 0;
         bool asleep = false;
         bool quietBefore = false;
+        double lastMaxSpeed = 0.0;       ///< from the last call's reduction (or the upload), drives the CFL count
     };
     enum Kernel : int { FillAdvect = 0, VelAdvectU, VelAdvectV, VelAdvectW, FaceOpsU, FaceOpsV, FaceOpsW,
                         ColumnOps, Classify, Rbgs, ExtrapU, ExtrapV, ExtrapW, Reduce, KernelCount };
@@ -67,41 +71,40 @@ public:
     WaterCoreGpu(const WaterCoreGpu&) = delete;
     WaterCoreGpu& operator=(const WaterCoreGpu&) = delete;
 
-    /// `shaderDir` holds the wc_*.comp.spv files. Returns false with `err` when the device or a
-    /// pipeline cannot be created (the caller falls back to the CPU solver, loudly).
     bool init(VkDevice device, VkPhysicalDevice physical, VkQueue queue, uint32_t queueFamily,
               const std::string& shaderDir, std::string* err);
     void shutdown();
     bool ready() const { return m_device != VK_NULL_HANDLE && m_pool != VK_NULL_HANDLE; }
-    /// Red-black SOR relaxation factor (1 = Gauss-Seidel). Measured, not assumed: see the parity rows.
     void setOmega(float w) { m_omega = w; }
     float omega() const { return m_omega; }
 
-    /// Allocates the volume's buffers (refusing with the byte count when the allocation fails) and
-    /// uploads f, u, v, w and the occupancy from the grid.
     Volume* createVolume(const WaterGrid& g, std::string* err);
     void destroyVolume(Volume* vol);
-    void upload(Volume& vol, const WaterGrid& g);          ///< f, u, v, w, occ -> GPU
-    void uploadSources(Volume& vol, const std::vector<float>& ratePerCell);   ///< m^3/s per cell (0 = none)
-    void download(Volume& vol, WaterGrid& g) const;        ///< f, u, v, w -> grid (occ is the grid's own)
+    void upload(Volume& vol, const WaterGrid& g);                              ///< f, u, v, w, occ -> GPU (fenced)
+    void uploadSources(Volume& vol, const std::vector<float>& ratePerCell);    ///< m^3/s per cell (fenced)
+    void download(Volume& vol, WaterGrid& g) const;                            ///< f, u, v, w -> grid (fenced)
+    void readPressure(Volume& vol, std::vector<float>& p) const;               ///< the last projection's pressure (fenced; tests)
 
-    /// Runs `ticks` ticks of `dt`, each with the CFL substep count the CPU would pick (max speed is
-    /// reduced on the GPU before each tick), `sweeps` red-black Gauss-Seidel sweeps per projection.
-    /// Returns the last tick's reductions; mass and the residual are read from the fenced copy.
+    /// Runs `ticks` ticks of `dt` in ONE submission. The CFL substep count is taken from the last
+    /// known max speed plus the gravity this call can add (ticks x g x dt), so it is conservative
+    /// rather than per-tick exact; rest bookkeeping advances by `ticks` when the final state is
+    /// quiet (exact for realtime's one tick per call).
     GpuStepStats step(Volume& vol, const SolverParams& params, float dt, int ticks, int sweeps);
 
 private:
-    bool createBuffer(Buffer& b, VkDeviceSize bytes, std::string* err);
+    bool createBuffer(Buffer& b, VkDeviceSize bytes, bool hostVisible, std::string* err);
     void destroyBuffer(Buffer& b);
     bool createPipelines(Volume& vol, std::string* err);
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags props) const;
     void barrier(VkCommandBuffer cmd) const;
+    void dispatchNoBarrier(VkCommandBuffer cmd, Vulkan::ComputePipeline& pipe, const WcPush& push, size_t threads, uint32_t local = 64) const;
     void dispatch(VkCommandBuffer cmd, Vulkan::ComputePipeline& pipe, const WcPush& push, size_t threads, uint32_t local = 64) const;
-    void copy(VkCommandBuffer cmd, const Buffer& from, const Buffer& to) const;
+    void copy(VkCommandBuffer cmd, const Buffer& from, const Buffer& to, VkDeviceSize bytes, VkDeviceSize srcOff = 0, VkDeviceSize dstOff = 0) const;
     void recordSubstep(VkCommandBuffer cmd, Volume& vol, WcPush push, const SolverParams& params, int sweeps, bool quietBefore);
     void recordExtrapolate(VkCommandBuffer cmd, Volume& vol, WcPush push, bool particles);
-    void recordReductions(VkCommandBuffer cmd, Volume& vol, WcPush push, bool speedOnly);
-    void submitAndWait(VkCommandBuffer cmd);
+    void recordReductions(VkCommandBuffer cmd, Volume& vol, WcPush push);
+    VkCommandBuffer beginCommands() const;
+    void submitAndWait(VkCommandBuffer cmd) const;
 
     VkDevice         m_device = VK_NULL_HANDLE;
     VkPhysicalDevice m_physical = VK_NULL_HANDLE;

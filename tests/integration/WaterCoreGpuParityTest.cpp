@@ -126,7 +126,7 @@ TEST_F(WaterCoreGpuParityTest, GpuHydrostaticPressureParity) {
     auto* vol = make(t); ASSERT_NE(vol, nullptr);
     SolverParams prm;
     const auto st = gpu.step(*vol, prm, kDt, 5, 40);
-    const float* p = static_cast<const float*>(vol->p.mapped);
+    std::vector<float> p; gpu.readPressure(*vol, p);
     for (int y = 0; y < 9; ++y) {
         const double depth = 10.0 - (y + 0.5);
         EXPECT_NEAR(p[t.grid.idx(1, y, 1)], kG * depth, 0.01 * kG * depth) << "y=" << y << " (RBGS residual " << st.rbgsResidualMax << ")";
@@ -170,7 +170,7 @@ TEST_F(WaterCoreGpuParityTest, GpuRbgsConvergenceScan) {
         gpu.setOmega(omega);
         SolverParams prm;
         const auto st = gpu.step(*vol, prm, kDt, 5, sweeps);
-        const float* p = static_cast<const float*>(vol->p.mapped);
+        std::vector<float> p; gpu.readPressure(*vol, p);
         double worst = 0.0;
         for (int y = 0; y < 9; ++y) { const double depth = 10.0 - (y + 0.5); worst = std::max(worst, std::abs(p[t.grid.idx(1, y, 1)] - kG * depth) / (kG * depth)); }
         std::printf("  %.2f   %4d    %.4f                 %.3e\n", omega, sweeps, worst, st.rbgsResidualMax);

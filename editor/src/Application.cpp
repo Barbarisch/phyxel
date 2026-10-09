@@ -13493,7 +13493,7 @@ void Application::registerWaterCommands() {
     auto noCore = [](nlohmann::json& r) { r = {{"error", "WaterCore not available"}}; };
     auto avJson = [](const Core::Water::AvRecord& a) {
         return nlohmann::json{{"id", a.id}, {"box", {{"min", {a.minVoxel.x, a.minVoxel.y, a.minVoxel.z}}, {"max", {a.maxVoxel.x, a.maxVoxel.y, a.maxVoxel.z}}}},
-                              {"cellSize", a.cellSize}, {"transport", a.transport}, {"backend", a.backend}, {"rbgs_residual", a.rbgsResidual}, {"gpu_sweeps", a.gpuSweeps}, {"particles", a.particles}, {"cells", a.cells}, {"asleep", a.asleep},
+                              {"cellSize", a.cellSize}, {"transport", a.transport}, {"backend", a.backend}, {"rbgs_residual", a.rbgsResidual}, {"gpu_sweeps", a.gpuSweeps}, {"gpu_ms_last_call", a.gpuMs}, {"particles", a.particles}, {"cells", a.cells}, {"asleep", a.asleep},
                               {"mass", a.mass}, {"kinetic_energy", a.kineticEnergy}, {"quiet_ticks", a.quietTicks},
                               {"last", {{"substeps", a.lastSubsteps}, {"pcg_iterations", a.lastPcgIterations}, {"pcg_residual", a.lastPcgResidual}, {"source_unplaced", a.sourceUnplaced}}}, {"residue_dropped_m3", a.residueDropped},
                               {"source_placed_m3", a.sourcePlaced}, {"source_count", a.sourceCount}};
@@ -13503,7 +13503,7 @@ void Application::registerWaterCommands() {
         const glm::ivec3 lo(cmd.params.value("x1", 0), cmd.params.value("y1", 0), cmd.params.value("z1", 0));
         const glm::ivec3 hi(cmd.params.value("x2", 0), cmd.params.value("y2", 0), cmd.params.value("z2", 0));
         std::string err;
-        const int id = waterCore->create(lo, hi, cmd.params.value("cellSize", 1.0f / 3.0f), cmd.params.value("transport", std::string("eulerian")), &err, cmd.params.value("backend", std::string("cpu")));
+        const int id = waterCore->create(lo, hi, cmd.params.value("cellSize", 1.0f / 3.0f), cmd.params.value("transport", std::string("eulerian")), &err, cmd.params.value("backend", std::string("cpu")), cmd.params.value("sweeps", 0));   // 0 = auto (1.5 x the longest dimension), else clamped 8-160 and echoed
         if (!id) { r = {{"error", err}}; return; }
         r = {{"success", true}, {"volume", avJson(*waterCore->find(id))}};
     });

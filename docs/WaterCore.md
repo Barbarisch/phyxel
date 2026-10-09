@@ -974,6 +974,51 @@ buffers, batching every awake AV into one submission, and the realtime once-per-
 (the §10 ≤ 2 ms row comes after those); `GpuRestDecisionDeterministic` and the one-byte-over
 refusal test.
 
+### 15.14 Phase C build ledger — slice 3, the speed (2026-10-08)
+
+**Built:** every solver buffer device-local behind one host-visible staging buffer (upload, download
+and `readPressure` are fenced copies); **one submission per `step()` call** (all ticks, all
+substeps, the sweep, the reductions, and a 128-byte copy of the reduction slots out); the RBGS
+residual max and the residue sum folded on the device (`wc_reduce` modes 4/5) so nothing per-cell
+is read back; barriers only where a hazard exists (the three lattices of a face pass share one);
+the manager downloads **only when a reader asks** — probes and the harness at once, the renderer and
+the ledger at most once a second in realtime — and reads mass from the reduction meanwhile. The CFL
+substep count comes from the last known max speed plus at most six ticks of gravity (a 60-tick
+benchmark call otherwise carried +9.8 m/s and doubled its substeps). The sweep count is
+**O(N) by rule**: 1.5 × the longest grid dimension (40 at 1 m, 117 at ⅓ m), clamped 8–160, an
+explicit `sweeps` overriding, both echoed as `gpu_sweeps` — at ⅓ m 40 sweeps left a residual of
+0.48 and 100 gave 5e-4 for +0.2 ms.
+
+**Cost, measured (`docs/evidence/water_feel/C3_cost_rows_20261008.json`, S3 block collapse, 60 ticks,
+Release, wall ms per tick over HTTP, auto sweeps):**
+
+| Cells | CPU reference | GPU slice 2 (host-visible, 2 submissions, download each tick) | **GPU slice 3** |
+|---|---|---|---|
+| 2 808 (1 m) | 1.11 ms | 2.2 ms | **0.75 ms** (39 sweeps, residual 0.078) |
+| 75 816 (⅓ m) | 29.83 ms | 33.1 ms | **1.86 ms** (117 sweeps, residual 4.6e-04) |
+
+The slice-2 number was the bus and the fence, not the kernels: the same dispatches on device-local
+memory in one submission are **16×** the CPU reference at ⅓ m.
+**Against the §10 budget** (≤ 2 ms at `high` = 2 M cells, all rigs awake): 0.0 µs per
+1 000 cells per tick is ~49 ms at the full `high` tier — met for the §3 rigs (a few
+10⁴–10⁵ cells awake), **not at the tier ceiling**. The next levers, in order of measured cost:
+the ~100 dispatches per substep (launch overhead dominates below 10⁵ cells; batch the awake AVs
+into shared dispatches), then the O(N) sweep passes (a two-level V-cycle makes them O(log N)),
+then fusing the small face passes.
+
+**Parity (device-local memory changed nothing in the arithmetic — slice 2's rows to the digit):**
+S3 front 1.7 s, run-up 17.0076, S4 spilled 75.7385 m³, S5 cavity 47.9966 m³ / end level 14.6536 at
+1 m. **Seiche, 60 s, now by autocorrelation** (the zero-crossing detector counted a secondary wobble
+at ⅓ m and read half-periods — 4.8 s and 5.4 s for water whose autocorrelation reads 11.6 s and
+10.9 s; defect #23, fixed in the harness): CPU 11.7 s / GPU 11.7 s at 1 m; CPU 10.3 s / GPU 10.7 s
+at ⅓ m (Merian 9.8); envelopes decaying on all four. **Open parity miss:** the ⅓ m run-up reads
+1.67 h₀ on the GPU (converged, residual 5e-4) against 1.11 h₀ on the CPU — the thin climbing sheet
+again, the quantity every other row has shown to be the most solver-sensitive; it stays on the
+B2/FLIP side of the ledger and is not a fill-parity gate. WaterCoreGpuParityTest 6/6.
+
+**Still not in C:** sources on GPU volumes, the FLIP kernels, `GpuRestDecisionDeterministic`, the
+one-byte-over refusal test, batching awake AVs, and the default flip to `gpu`.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
