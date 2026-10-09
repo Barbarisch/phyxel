@@ -13046,6 +13046,17 @@ void Application::registerWaterCommands() {
     // answered without a screenshot. Diffing this from two vantages, and against
     // `water_spans_stored`, is how a camera-existence violation is caught automatically.
     // {x1,z1,x2,z2, "columns": bool (list wet columns), "max_columns": N (default 65536)}
+    // Phase D5: the camera-walk probe's self-test injection. {"dry": true} uploads an all-dry grid and
+    // freezes the span grid (the renderer now disagrees with the stored spans everywhere there is
+    // water); {"dry": false} restores by forcing a rebuild. Replaces the bake-upload reversion the
+    // self-test used to provoke through water_look, which no longer exists.
+    reg.on("water_render_inject", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (!renderCoordinator) { r = {{"error", "no render coordinator"}}; return; }
+        const bool on = cmd.params.value("dry", true);
+        renderCoordinator->injectDrySpanGrid(on);
+        const auto* wp = renderCoordinator->waterRenderPipeline();
+        r = {{"success", true}, {"dry_injected", on}, {"source", wp ? wp->hydroModeName() : "n/a"}};
+    });
     reg.on("water_render_grid", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         const auto* wp = renderCoordinator ? renderCoordinator->waterRenderPipeline() : nullptr;
         if (!wp) { r = {{"error", "water render pipeline not available"}}; return; }

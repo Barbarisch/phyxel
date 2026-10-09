@@ -62,18 +62,20 @@ struct SpanGridKey {
     uint64_t residency = 0;      ///< residentSetHash over the resident chunk set
     uint64_t spanRevision = 0;   ///< ChunkManager::waterSpanRevision(): runtime span writes
     uint64_t awakeRevision = 0;  ///< WaterCoreManager::avRevision(): AVs waking/sleeping
+    uint64_t lookRevision = 0;   ///< RenderCoordinator: look / wind / wave changes re-pack the grid's G/B/A (Phase D5)
     bool operator==(const SpanGridKey& o) const {
-        return residency == o.residency && spanRevision == o.spanRevision && awakeRevision == o.awakeRevision;
+        return residency == o.residency && spanRevision == o.spanRevision && awakeRevision == o.awakeRevision && lookRevision == o.lookRevision;
     }
     bool operator!=(const SpanGridKey& o) const { return !(*this == o); }
 };
 
 template <typename It>
-SpanGridKey makeSpanGridKey(It begin, It end, uint64_t spanRevision, uint64_t awakeRevision) {
+SpanGridKey makeSpanGridKey(It begin, It end, uint64_t spanRevision, uint64_t awakeRevision, uint64_t lookRevision = 0) {
     SpanGridKey k;
     k.residency = residentSetHash(begin, end);
     k.spanRevision = spanRevision;
     k.awakeRevision = awakeRevision;
+    k.lookRevision = lookRevision;
     return k;
 }
 

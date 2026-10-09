@@ -27,23 +27,20 @@ human found it by walking toward the water. This encodes the walk:
 
 A run passes only with zero VIOLATION columns and an unchanged source.
 
-Self-test (`--inject-water-look`): at the far pose, after the clean read, POST water_look
-{active:true}. That resets the level-grid upload memo and the NEXT frame re-uploads the coarse
-128 m bake as placement (rendering audit, WaterRethink.md 1.4) - a placement change under a
-STILL camera. The probe re-reads the SAME pose and must report a source change and/or
-rendered-vs-spans disagreements; if it reports a clean read, the probe is blind and the run
-fails. (The reversion is transient - a later span-grid rebuild on residency change hides it -
-which is exactly why the re-read happens without moving.)
+Self-test (`--inject-water-look`, name kept): at the far pose, after the clean read, POST
+water_render_inject {dry:true} - the renderer uploads an all-dry grid and holds it, a placement
+change under a STILL camera. The probe re-reads the SAME pose and must report a source change
+and/or rendered-vs-spans disagreements; if it reports a clean read, the probe is blind and the
+run fails. (Until WaterCore Phase D5 the injection was water_look, which reverted the sheet to
+the coarse bake upload; that upload - the universal water level - is deleted.)
 
     python tools/water_camera_probe.py coast                 # poses from game.json waterBench.cameraProbe
     python tools/water_camera_probe.py coast --rect 37 708 293 964 --eps 0.01
     python tools/water_camera_probe.py coast --inject-water-look   # run LAST (see below)
 
-⚑ The self-test POLLUTES the engine: `water_look {active:false}` re-uploads the bake too, and the
-placement stays on the bake until the next span-grid rebuild (since Phase D3 the grid keys on the
-resident SET + span revision + AV set, so any residency change rebuilds it; before, a same-count
-change did not - WaterRethink.md WP1 step 6, 50,787 violations seen 2026-10-08). Run the self-test
-last, or move the camera far away and back before the next normal run.
+⚑ The self-test leaves the engine clean since Phase D5: the restore forces a span-grid rebuild. (Before
+D5 the water_look reversion polluted the placement until the next residency change - 50,787
+violations seen 2026-10-08 - and the self-test had to run last.)
 
 Evidence: docs/evidence/water_v4_camera_probe.jsonl (one row per run, git head + timestamp).
 Engine: the bench project's port (.phyxel/config.json) unless --url.
@@ -227,7 +224,7 @@ def main():
             time.sleep(1.0)
         far = Read(api, rect)                             # re-baseline on the static residency
         far_mism = rendered_vs_spans(far, rect, args.eps)
-        api.debug("water_look", {"active": True, "turbidity": 0.5, "roughness": 1.0})
+        api.debug("water_render_inject", {"dry": True})   # Phase D5: an all-dry grid held under a still camera
         seen = []
         rd2, mism2 = far, far_mism
         for _ in range(12):                               # the flip lands within a frame; poll 3 s
@@ -237,7 +234,7 @@ def main():
             seen.append(rd2.source)
             if rd2.source != far.source or len(mism2) > len(far_mism):
                 break
-        api.debug("water_look", {"active": False})
+        api.debug("water_render_inject", {"dry": False})
         detected = (rd2.source != far.source) or len(mism2) > len(far_mism)
         row["self_test"] = {"chunk_count_static": last, "source_before": far.source, "source_after": rd2.source,
                             "sources_seen": seen, "rendered_wet_before": far.grid["wet"], "rendered_wet_after": rd2.grid["wet"],

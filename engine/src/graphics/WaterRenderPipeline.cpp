@@ -244,7 +244,7 @@ void WaterRenderPipeline::recordHydrologyUpload(VkCommandBuffer cmd, const float
 
 const char* WaterRenderPipeline::hydroModeName() const {
     if (!m_hydroBound) return "unbound";
-    if (m_hydroParams.z == 0.0f) return "flat";
+    if (m_hydroParams.z == 0.0f) return "none";   // Phase D5: the sentinel draws nothing
     return m_hydroParams.z > 0.0f ? "bake" : "grounded";
 }
 
@@ -255,8 +255,8 @@ WaterRenderPipeline::ColumnWater WaterRenderPipeline::renderWaterAt(float worldX
     ColumnWater r{false, false, seaLevel};
     if (!m_hydroBound) return r;
     const float invRaw = m_hydroParams.z;
-    if (invRaw == 0.0f) { r.wet = true; return r; }                 // flat-sea: implicit sea everywhere
-    const bool  dryBeyond = invRaw < 0.0f;                           // grounded grid: no implicit ocean
+    if (invRaw == 0.0f) return r;                                    // nothing bound: nothing drawn (Phase D5)
+    const bool  dryBeyond = true;                                    // off-grid is dry in every mode (Phase D5)
     const float inv = invRaw < 0.0f ? -invRaw : invRaw;
     const float cx = (worldX - m_hydroParams.x) * inv;
     const float cz = (worldZ - m_hydroParams.y) * inv;

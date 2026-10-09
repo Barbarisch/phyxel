@@ -111,7 +111,7 @@ commit `e643a814`, 25 unit tests, mutation-checked):
 
 | Path | Worlds | State |
 |---|---|---|
-| Implicit flat sea (`invCellSize == 0`) | Authored, `water.enabled` | Kept deliberately; retire when spans render. |
+| Implicit flat sea (`invCellSize == 0`) | — | **DELETED 2026-10-09 (WaterCore Phase D5):** nothing bound draws nothing; off-grid is dry in every mode. Authored worlds show water only where spans exist (`water_ground_sync`). |
 | Coarse 128 m hydrology bake | Streaming/baked | **Defective as placement**: `water_validate` measured 606/606 rim leaks, worst 38 voxels. Kills it: rendering from spans. |
 | **Grounded grid** (`invCellSize < 0` = off-grid DRY) | Un-baked/editor | Shipped `7cd72001`. `water_ground_sync` builds per-voxel-column grid from live terrain via `buildOpenWaterSpan`; water cannot draw over void or through rock. Red/green at a camera inside rock; exact-count prediction (1,681) hit. |
 

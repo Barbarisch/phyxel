@@ -1038,15 +1038,14 @@ void RenderCoordinator::setWaves(float amplitude, float wavelength, float windDi
     // v4 W3: wave energy is now FETCH-limited, and fetch depends on the wind HEADING — so changing
     // direction changes every body's sea and the hydrology texture must be rebuilt. Before W3 the
     // direction only rotated the swell in the vertex shader and no CPU state depended on it.
-    if (oldDir != waterPipeline->windDirection())
-        m_lastHydroUploaded = reinterpret_cast<const void*>(~uintptr_t(0));
+    if (oldDir != waterPipeline->windDirection()) ++m_waterLookRevision;   // the span grid re-packs G/B/A (Phase D5)
 }
 
 void RenderCoordinator::setWindSpeed(float metresPerSecond) {
     if (!waterPipeline) return;
     waterPipeline->setWindSpeed(metresPerSecond);
-    // Speed drives both fetch-limited energy and Cox-Munk roughness, both baked into the texture.
-    m_lastHydroUploaded = reinterpret_cast<const void*>(~uintptr_t(0));
+    // Speed drives both fetch-limited energy and Cox-Munk roughness, both packed into the span grid.
+    ++m_waterLookRevision;
 }
 
 float RenderCoordinator::windSpeed() const {
@@ -1063,10 +1062,10 @@ void RenderCoordinator::setWaterLook(bool active, float turbidity, float roughne
     m_waterLookActive = active;
     m_waterLookTurbidity = turbidity;
     m_waterLookRoughness = roughness;
-    // Force the hydrology texture to be rebuilt on the next frame. Reusing the "never uploaded"
-    // sentinel (not nullptr — a null bake is a real, uploadable state: the 1×1 dry dummy) is what
-    // makes the override travel the SAME path a real per-body profile will.
-    m_lastHydroUploaded = reinterpret_cast<const void*>(~uintptr_t(0));
+    // The span grid re-packs its G/B/A from the override on its next rebuild (Phase D5: there is
+    // no bake upload to revert to - the reversion the camera-walk probe's self-test used to inject
+    // no longer exists; it injects a dry grid instead, see injectDrySpanGrid).
+    ++m_waterLookRevision;
 }
 
 void RenderCoordinator::uploadGroundedWaterGrid(const std::vector<float>& rgba, int cellsX,
@@ -1081,9 +1080,20 @@ void RenderCoordinator::uploadGroundedWaterGrid(const std::vector<float>& rgba, 
     waterPipeline->recordHydrologyUpload(oneShot, rgba.data(), cellsX, cellsZ,
                                          originX, originZ, -1.0f);
     vulkanDevice->endSingleTimeCommands(oneShot);
-    // Pin the per-frame rebind guard to "null bake already uploaded" so the next frame does NOT
-    // overwrite this grid with the 1×1 dry sentinel (worlds using this path have hydro == null).
-    m_lastHydroUploaded = nullptr;
+}
+
+void RenderCoordinator::injectDrySpanGrid(bool on) {
+    if (!waterPipeline || !vulkanDevice) return;
+    m_spanGridFrozen = on;
+    if (on) {
+        vkDeviceWaitIdle(vulkanDevice->getDevice());
+        VkCommandBuffer oneShot = vulkanDevice->beginSingleTimeCommands();
+        waterPipeline->recordHydrologyUpload(oneShot, nullptr, 0, 0, 0.0f, 0.0f, 0.0f);   // the 1x1 dry sentinel: nothing drawn
+        vulkanDevice->endSingleTimeCommands(oneShot);
+    } else {
+        ++m_waterLookRevision;   // forces the next rebuild
+        m_spanGridCooldown = 0;
+    }
 }
 
 void RenderCoordinator::updateSpanWaterGrid() {
@@ -1108,10 +1118,11 @@ void RenderCoordinator::updateSpanWaterGrid() {
     // created/destroyed (its columns are masked out below). Rate-limited by the cooldown - a cost
     // bound only (the fine-window lesson: a build-once grid captures an empty post-teleport chunk
     // map as "all dry" forever).
+    if (m_spanGridFrozen) return;   // the probe's injected dry grid holds until restore
     if (m_spanGridCooldown > 0) --m_spanGridCooldown;
     const auto tKey0 = std::chrono::steady_clock::now();
     const Core::SpanGridKey key = Core::makeSpanGridKey(chunkManager->chunkMap.begin(), chunkManager->chunkMap.end(),
-                                                        chunkManager->waterSpanRevision(), m_waterCoreBoxRevision);
+                                                        chunkManager->waterSpanRevision(), m_waterCoreBoxRevision, m_waterLookRevision);
     const double keyMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tKey0).count();
     if (m_spanGridBuilt && key == m_spanGridKey) return;
     if (m_spanGridCooldown > 0) return;
@@ -1199,8 +1210,6 @@ void RenderCoordinator::updateSpanWaterGrid() {
     waterPipeline->recordHydrologyUpload(oneShot, rgba.data(), w, d,
                                          static_cast<float>(minX), static_cast<float>(minZ), -1.0f);
     vulkanDevice->endSingleTimeCommands(oneShot);
-    // Pin the per-frame bake rebind guard so it never overwrites this grid.
-    m_lastHydroUploaded = hydro;
     m_spanGridKey = key; m_spanGridBuilt = true;
     m_spanGridCooldown = 30;
     char timing[96];
@@ -3453,49 +3462,18 @@ void RenderCoordinator::drawFrame() {
         return; // Skip this frame — render cleanly on the next one
     }
 
-    // WATER LAYER (P1): (re)bind the hydrology level grid when the world's bake appears or
-    // changes (world switch). Rare — a descriptor rewrite on a possibly in-flight set, so it
-    // idles the device first (a once-per-world-load hitch, hidden by the load itself).
-    // Body-aware look: the upload is RGBA — R = level, G = per-body wave ENERGY from body size
-    // (tangible-water F: ocean 1, lakes by log-area, floor 0.15, so a mountain tarn shows a ripple
-    // where the ocean shows swell), B = turbidity and A = roughness (Water Appearance v4 W1 —
-    // NEUTRAL until W2/W3 derive them; docs/Water.md).
-    //
-    // The packing moved into Phyxel::buildHydroUpload so it is unit-testable: as an inline loop
-    // here it could only ever be checked by looking at the screen.
-    if (waterPipeline && chunkManager) {
-        const auto* gen = chunkManager->getStreamingGenerator();
-        const auto* hydro = gen ? gen->hydrology() : nullptr;
-        if (static_cast<const void*>(hydro) != m_lastHydroUploaded) {
-            vkDeviceWaitIdle(vulkanDevice->getDevice());
-            VkCommandBuffer oneShot = vulkanDevice->beginSingleTimeCommands();
-            if (hydro) {
-                Phyxel::WaterLookOverride ovr;
-                ovr.active    = m_waterLookActive;
-                ovr.turbidity = m_waterLookTurbidity;
-                ovr.roughness = m_waterLookRoughness;
-                // v4 W3: the LIVE wind, so fetch-limited energy and Cox-Munk roughness reflect the
-                // actual sea state rather than a default. Direction comes from the same value the
-                // vertex shader rotates the swell by, so the CPU and GPU cannot disagree on heading.
-                Phyxel::WaterWind wind;
-                wind.speedMs    = waterPipeline->windSpeed();
-                wind.dirRadians = waterPipeline->windDirection();
-                std::vector<float> rgba;
-                Phyxel::buildHydroUpload(*hydro, gen->waterBodies(), ovr, rgba, wind);
-                waterPipeline->recordHydrologyUpload(oneShot, rgba.data(),
-                                                     hydro->cellsX(), hydro->cellsZ(),
-                                                     hydro->originX(), hydro->originZ(),
-                                                     hydro->cellSize());
-            } else {
-                waterPipeline->recordHydrologyUpload(oneShot, nullptr, 0, 0, 0.0f, 0.0f, 0.0f);
-            }
-            vulkanDevice->endSingleTimeCommands(oneShot);
-            m_lastHydroUploaded = hydro;
-        }
+    // WATER LAYER: binding 3 must be valid before the first draw. The 1x1 dry sentinel draws
+    // NOTHING (Phase D5: the implicit flat sea and the bake-as-placement upload are deleted -
+    // they were the universal water level the user's rule forbids). Water on screen comes from
+    // the span grid (baked worlds) or the grounded grid (authored worlds) only.
+    if (waterPipeline && !waterPipeline->hydrologyBound()) {
+        vkDeviceWaitIdle(vulkanDevice->getDevice());
+        VkCommandBuffer oneShot = vulkanDevice->beginSingleTimeCommands();
+        waterPipeline->recordHydrologyUpload(oneShot, nullptr, 0, 0, 0.0f, 0.0f, 0.0f);
+        vulkanDevice->endSingleTimeCommands(oneShot);
     }
 
-    // THE SANE BASELINE: span-derived water placement for baked worlds (overrides the bake
-    // upload above once chunks are resident; see the function).
+    // Span-derived water placement for baked worlds (the only placement; see the function).
     updateSpanWaterGrid();
 
     // Wait for previous frame

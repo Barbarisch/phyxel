@@ -93,10 +93,11 @@ layout(push_constant) uniform PushConstants {
 // depth-buffer dry-land gate — and that gate cannot fire where there is no depth.
 //
 // "NOT WET" IS THREE DIFFERENT THINGS and only one of them means there is no water:
-//   * flat-sea mode (no bake at all) -> implicit sea; authored worlds depend on it.  KEEP.
-//   * outside the baked region       -> the open ocean beyond the grid's reach.      KEEP.
-//   * DRY COLUMN INSIDE THE BAKE     -> land. No water here at all.                  DISCARD.
-// Conflating the third case with the first two is what put an ocean under the world.
+//   * no grid bound (invCellSize 0) -> NOTHING (Phase D5: the implicit flat sea is gone).   DISCARD.
+//   * outside the grid               -> NOTHING (far water is Phase G's tiles, not a plane). DISCARD.
+//   * DRY COLUMN INSIDE THE GRID     -> land. No water here at all.                        DISCARD.
+// The implicit sea and the open-ocean fallback were the universal water level the user's rule
+// forbids (docs/WaterRethink.md 0, rule 1); they were deleted in WaterCore Phase D5.
 //
 // ⚑THE SIGN OF invCellSize IS A MODE (WaterAsWorldData: grounded grids). The second KEEP above is
 // only right for a 32 km baked world, where beyond-the-bake genuinely is open ocean. For a BOUNDED
@@ -109,8 +110,8 @@ float basinLevelAt(vec2 worldXZ, out float turbidity, out float roughness, out f
     roughness = 1.0;
     noWater   = 0.0;
     float invCellRaw = pc.params3.w;
-    if (invCellRaw == 0.0) return pc.params.x;               // flat-sea mode: implicit sea
-    float dryBeyond = invCellRaw < 0.0 ? 1.0 : 0.0;          // grounded grid: no implicit ocean
+    if (invCellRaw == 0.0) { noWater = 1.0; return pc.params.x; }   // nothing bound: nothing drawn
+    float dryBeyond = 1.0;                                            // off-grid is dry in every mode
     float invCell   = abs(invCellRaw);
     vec2 cellF = (worldXZ - vec2(pc.params.y, pc.params3.z)) * invCell;
     ivec2 sz = textureSize(hydroLevelTex, 0);

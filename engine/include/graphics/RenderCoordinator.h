@@ -558,6 +558,8 @@ public:
     void setWaterCoreSurfaceCells(const std::vector<Core::WaterSurfaceCell>* cells) { m_waterCoreCells = cells; }
     /// Phase D (16.4): the live volumes' world boxes + their revision; the span grid masks those columns.
     void setWaterCoreVolumeBoxes(const std::vector<std::pair<glm::ivec3, glm::ivec3>>* boxes, uint64_t revision) { m_waterCoreBoxes = boxes; m_waterCoreBoxRevision = revision; }
+    /// Phase D5 probe self-test: upload an all-dry grid and hold it (frozen) until restore(false), which rebuilds.
+    void injectDrySpanGrid(bool on);
     /// Phase B2 debug draw: FLIP particles as water-shaded cubes of their cell size through the dynamic
     /// voxel pipeline (docs/WaterCore.md §15.9). Null or empty = nothing drawn.
     void setWaterCoreParticles(const std::vector<glm::vec4>* particles) { m_waterCoreParticles = particles; }
@@ -1054,7 +1056,8 @@ private:
     // Water-layer P1: identity of the last hydrology bake uploaded to the sea pipeline. Starts
     // at a sentinel (not nullptr) so the FIRST frame always uploads — the no-bake form binds the
     // 1×1 dry dummy that keeps the sea drawing in flat mode on non-procedural worlds.
-    const void* m_lastHydroUploaded = reinterpret_cast<const void*>(~uintptr_t(0));
+    uint64_t m_waterLookRevision = 0;   // Phase D5: look / wind / wave changes re-pack the span grid (no bake upload exists any more)
+    bool     m_spanGridFrozen = false;  // the probe's self-test injects a dry grid and holds it until restore
     Core::SpanGridKey m_spanGridKey;    // rebuild the span water grid when the RESIDENT SET, the span revision or the AV set changes (WaterCore.md 16.4)
     bool   m_spanGridBuilt = false;
     const std::vector<std::pair<glm::ivec3, glm::ivec3>>* m_waterCoreBoxes = nullptr;   // live AV boxes: their columns are the AV's, not the grid's

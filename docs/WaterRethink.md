@@ -334,7 +334,9 @@ representation either derives from spans or is deleted.
 4. **Queries read spans.** `sampleWater`/`columnWater` out of the active region read spans, not the
    bake. Fine ponds stop reading DRY when the camera leaves.
 5. **Retire** the implicit flat sea (`invCellSize == 0`), the bake-as-placement upload path, and the
-   `m_lastHydroUploaded` reset hazards. Authored (un-baked) worlds get spans from `water_ground_sync`
+   `m_lastHydroUploaded` reset hazards.
+   **BUILT 2026-10-09 as WaterCore Phase D5 (WaterCore.md §16.9): all three deleted; the span grid /
+   grounded grid are the only placement.** Authored (un-baked) worlds get spans from `water_ground_sync`
    at save time and at generation for Flat worlds with `water.enabled` (sea level fill of open
    columns ≤ seaLevel is just `buildOpenWaterSpan`).
 6. **Span grid rebuild** keys on residency *content* (chunk set hash), not `chunkMap.size()`, and

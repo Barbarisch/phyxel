@@ -35,10 +35,11 @@ layout(push_constant) uniform PushConstants {
 // are piecewise-constant and filtering across a divide would tilt the surface.
 layout(set = 1, binding = 3) uniform sampler2D hydroLevelTex;
 
-// Per-column basin level + wave ENERGY at a world XZ (RG texture: R = level, G = energy from
-// body size — tangible-water F). Falls back to the flat sea level at full energy when no layer
-// is bound (invCellSize 0), outside the baked region (the open ocean beyond ±16 km), or on dry
-// columns (sentinel) — the dry-land gate in the fragment stage removes the sheet over dry land.
+// Per-column level + wave ENERGY at a world XZ (RGBA texture: R = level, G = energy from body
+// size). WaterCore Phase D5 (2026-10-09): there is NO implicit sea. Unbound (invCellSize 0),
+// off-grid and dry columns all return a placeholder height with valid = 0; the fragment stage
+// discards them. The sheet draws only what the span grid holds (docs/WaterCore.md 16, rule: no
+// universal water level).
 // NEGATIVE invCellSize = a GROUNDED grid (built from live terrain, WaterAsWorldData): same lookup,
 // but off-grid columns are DRY, not open ocean. The vertex stage only needs |invCell| — every
 // fallback here still returns a position, and the fragment stage's per-pixel gate (which does

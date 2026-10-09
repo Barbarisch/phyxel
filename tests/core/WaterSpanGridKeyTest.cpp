@@ -55,6 +55,8 @@ TEST(WaterSpanGridKeyTest, EmptySetHasItsOwnKeyAndRevisionsChangeIt) {
     // An active volume waking or sleeping changes which columns the grid must mask.
     EXPECT_NE(k1, makeSpanGridKey(a.begin(), a.end(), 0, 1));
     EXPECT_EQ(k1, makeSpanGridKey(a.begin(), a.end(), 0, 0));
+    // Phase D5: a look / wind / wave change re-packs the grid's colour channels
+    EXPECT_NE(k1, makeSpanGridKey(a.begin(), a.end(), 0, 0, 1));
 }
 
 }  // namespace
