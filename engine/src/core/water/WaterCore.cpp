@@ -173,6 +173,23 @@ float WaterGrid::surfaceWorldY(int x, int z) const {
     // trickle in transit (5e-6 of a cell crossing a step edge) is not a surface, and reporting it
     // as one put a 0.85 m "spread" on a pool that was flat to 15 cm (S3 Basin, 2026-10-08). S11
     // writes spans to the surface +- 1 mm, so 1 mm is the resolution the surface is defined at.
+    // The HEIGHT FUNCTION of the top run (docs/WaterCore.md 19.5): its bottom plus the water in it -
+    // continuous in time, unlike the fill line of the highest wet cell (which jumped by up to (1 - f) h
+    // when a film above a part-full cell crossed the threshold). Same definition as the render surface.
+    const float fMin = kSurfaceMinDepth / m_spec.h;
+    int y = ny() - 1;
+    while (y >= 0 && !(m_f[idx(x, y, z)] >= fMin && m_occ[idx(x, y, z)] != Occ::Solid)) --y;
+    if (y < 0) return std::numeric_limits<float>::quiet_NaN();
+    float sum = 0.0f;
+    while (y >= 0 && m_f[idx(x, y, z)] >= fMin && m_occ[idx(x, y, z)] != Occ::Solid) { sum += std::min(m_f[idx(x, y, z)], 1.0f); --y; }
+    return (static_cast<float>(m_spec.origin.y + y + 1) + sum) * m_spec.h;
+}
+
+float WaterGrid::wetTipWorldY(int x, int z) const {
+    // Where the water REACHES (the pre-19.5 surface rule): the fill line of the highest cell holding at
+    // least a millimetre. Right for run-up and crest heights (a thin sheet climbing a wall is a stack of
+    // part-full cells; its tip is the reach). Wrong as the drawn surface: a few mm of film crossing the
+    // threshold above a part-full cell moves it by up to (1 - f) h in one tick - the flicker of 19.4.
     const float fMin = kSurfaceMinDepth / m_spec.h;
     for (int y = ny() - 1; y >= 0; --y) {
         const float fv = m_f[idx(x, y, z)];

@@ -259,5 +259,46 @@ TEST(WaterCouplingTest, ExchangeIndependentOfOrderAndBatching) {
     EXPECT_LT(maxDiff, 1e-6f);
 }
 
+
+// The surface flicker the owner saw (docs/WaterCore.md 19.4/19.5): the surface is a function of the
+// water, so in one tick it cannot move further than the fastest water in that column travels (the
+// kinematic surface condition) plus a millimetre. The blasted pond, every column, every tick for 6 s:
+// count the ticks where the RENDERED surface (the surface field the mesh is built from) jumps further.
+// Red before 19.5: a film of a few mm crossing the 1 mm threshold in the cell above a part-full top
+// cell moved the surface by up to (1 - f) x h in one tick.
+TEST(WaterCouplingTest, SurfaceDoesNotOutrunTheWater) {
+    const float h = 1.0f / 3.0f;
+    Pond p(12, 9, 12, h, 0);
+    p.grid.fillBox({0, 0, 0}, {11, 5, 11}, 1.0f);
+    WaterSolver s(p.grid, p.query());
+    s.addRadialImpulse(glm::vec3(7.0f, 2.0f, 2.0f), 6.0f, DamageSystem::blastSpeed(62.0f), 0.3f);
+    WaterSurfaceField prev; extractSurfaceField(p.grid, prev);
+    long checks = 0, violations = 0; float worst = 0.0f, worstBound = 0.0f;
+    for (int k = 0; k < 6 * 60; ++k) {
+        s.step(kDt);
+        WaterSurfaceField cur; extractSurfaceField(p.grid, cur);
+        for (int z = 0; z < 12; ++z) for (int x = 0; x < 12; ++x) {
+            const SurfaceColumn& a = prev.at(x, z); const SurfaceColumn& b = cur.at(x, z);
+            if (a.runs < 0.5f || b.runs < 0.5f) continue;
+            const float ta = a.top[static_cast<int>(a.runs + 0.5f) - 1], tb = b.top[static_cast<int>(b.runs + 0.5f) - 1];
+            // what the water can do to this column in one tick: rise at the fastest vertical face speed, plus
+            // whatever flows in through its four side faces (a side face of area h^2 moving |u| changes the
+            // column's height by |u| dt per cell layer) - the kinematic bound, x2 because speeds change mid-tick
+            float vmax = 0.0f, side = 0.0f;
+            for (int y = 0; y <= 9; ++y) vmax = std::max(vmax, std::abs(p.grid.v(x, y, z)));
+            for (int y = 0; y < 9; ++y) side += std::abs(p.grid.u(x, y, z)) + std::abs(p.grid.u(x + 1, y, z)) + std::abs(p.grid.w(x, y, z)) + std::abs(p.grid.w(x, y, z + 1));
+            const float bound = (vmax + side) * kDt * 2.0f + 0.002f;
+            ++checks;
+            const float jump = std::abs(tb - ta);
+            if (jump > bound) {
+                ++violations; if (jump > worst) { worst = jump; worstBound = bound; }
+            }
+        }
+        prev = cur;
+    }
+    std::printf("  surface vs water: %ld column-ticks, %ld where the surface outran the water (worst jump %.4f m vs bound %.4f m)\n", checks, violations, worst, worstBound);
+    EXPECT_EQ(violations, 0) << "the rendered surface jumped further in one tick than the water could move";
+}
+
 }  // namespace
 }  // namespace Phyxel::Core::Water

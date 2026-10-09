@@ -569,7 +569,8 @@ static double wallRunup(float h, bool flip) {
     for (int k = 0; k < 4 * 60; ++k) {
         s.step(kDt);
         for (int z = 0; z < per; ++z) for (int x = 18 * per; x < 20 * per; ++x) {
-            const float sy = t.grid.surfaceWorldY(x, z); if (!std::isnan(sy)) peak = std::max(peak, static_cast<double>(sy)); }
+            // run-up is how high the water REACHES (the climbing sheet's tip), not the drawn surface (19.5)
+            const float sy = t.grid.wetTipWorldY(x, z); if (!std::isnan(sy)) peak = std::max(peak, static_cast<double>(sy)); }
     }
     return peak / 3.0;   // in h0
 }

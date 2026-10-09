@@ -22,14 +22,20 @@ void extractSurfaceField(const WaterGrid& g, WaterSurfaceField& out) {
                 if (g.f(x, y, z) < fMin || g.occ(x, y, z) == Occ::Solid) { ++y; continue; }
                 const int start = y;
                 int top = y;
-                while (y < g.ny() && g.f(x, y, z) >= fMin && g.occ(x, y, z) != Occ::Solid) { top = y; ++y; }
+                // the HEIGHT FUNCTION (docs/WaterCore.md 19.5): the run's surface is its bottom plus the
+                // water actually in it (sum of f), not the fill line of its highest wet cell - a few mm of
+                // film crossing the 1 mm threshold in the cell above a part-full top cell used to move the
+                // surface by up to (1 - f) h in one tick (measured: 0.32 m, the flicker the owner saw)
+                float sum = 0.0f;
+                while (y < g.ny() && g.f(x, y, z) >= fMin && g.occ(x, y, z) != Occ::Solid) { top = y; sum += std::min(g.f(x, y, z), 1.0f); ++y; }
+                const float runTop = static_cast<float>(sp.origin.y + start) * h + sum * h;
                 if (runs < kSurfaceMaxRuns) {
                     c.bottom[runs] = static_cast<float>(sp.origin.y + start) * h;
-                    c.top[runs] = (static_cast<float>(sp.origin.y + top) + std::min(g.f(x, top, z), 1.0f)) * h;
+                    c.top[runs] = runTop;
                     ++runs;
                 } else {
-                    // more than kMaxRuns runs: fold the extra into the top run (mass is the solver's business; this is the picture)
-                    c.top[kSurfaceMaxRuns - 1] = (static_cast<float>(sp.origin.y + top) + std::min(g.f(x, top, z), 1.0f)) * h;
+                    // more than kMaxRuns runs: the extra run's water stacks on the top run (the picture; mass is the solver's)
+                    c.top[kSurfaceMaxRuns - 1] += sum * h;
                 }
                 topCell = top;
             }

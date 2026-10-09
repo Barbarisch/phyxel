@@ -309,7 +309,7 @@ TEST_F(WaterCoreGpuParityTest, GpuFlipBulkParityAndRunup) {
     for (int k = 0; k < 4 * 60; ++k) {
         cs.step(kDt);
         if (k == 59) cpuFront1s = frontX(c.grid, 1, 0.5 * h * h);
-        for (int z = 0; z < per; ++z) for (int x = 18 * per; x < 20 * per; ++x) { const float sy = c.grid.surfaceWorldY(x, z); if (!std::isnan(sy)) cpuPeak = std::max(cpuPeak, static_cast<double>(sy)); }
+        for (int z = 0; z < per; ++z) for (int x = 18 * per; x < 20 * per; ++x) { const float sy = c.grid.wetTipWorldY(x, z); if (!std::isnan(sy)) cpuPeak = std::max(cpuPeak, static_cast<double>(sy)); }
     }
     Tank t(20 * per, 9 * per, per, h);
     t.grid.fillBox({0, 0, 0}, {10 * per - 1, 3 * per - 1, per - 1}, 1.0f);
@@ -320,7 +320,7 @@ TEST_F(WaterCoreGpuParityTest, GpuFlipBulkParityAndRunup) {
         gpu.step(*vol, prm, kDt, 6, 90);
         gpu.download(*vol, t.grid);
         if (k + 6 == 60) gpuFront1s = frontX(t.grid, 1, 0.5 * h * h);
-        for (int z = 0; z < per; ++z) for (int x = 18 * per; x < 20 * per; ++x) { const float sy = t.grid.surfaceWorldY(x, z); if (!std::isnan(sy)) gpuPeak = std::max(gpuPeak, static_cast<double>(sy)); }
+        for (int z = 0; z < per; ++z) for (int x = 18 * per; x < 20 * per; ++x) { const float sy = t.grid.wetTipWorldY(x, z); if (!std::isnan(sy)) gpuPeak = std::max(gpuPeak, static_cast<double>(sy)); }
     }
     std::vector<FlipParticle> ps; gpu.readParticles(*vol, ps);
     double m = 0.0; for (const auto& q : ps) m += q.mass;

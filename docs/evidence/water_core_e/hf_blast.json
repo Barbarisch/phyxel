@@ -1,0 +1,211 @@
+{
+ "scenario": "blast",
+ "pose": {
+  "x": 109.5,
+  "y": 20.5,
+  "z": 13.5,
+  "yaw": 180,
+  "pitch": -38
+ },
+ "video": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\hf_blast.mp4",
+ "frames_dir": "G:\\Github\\phyxel\\docs\\evidence\\water_core_e\\hf_blast_frames",
+ "frame_pacing": {
+  "clock": "steady_clock (CPU wall time on the main thread)",
+  "frames_accepted": 44140,
+  "frames_held": 240,
+  "frames_requested": 240,
+  "frames_used": 240,
+  "scopes": [
+   {
+    "depth": 0,
+    "key": "Frame",
+    "last_ms": 3.1126,
+    "max_ms": 7.0059,
+    "mean_ms": 3.4948304166666664,
+    "median_ms": 3.2989,
+    "n": 240,
+    "name": "Frame",
+    "p90_ms": 4.3272,
+    "p99_ms": 6.4163
+   },
+   {
+    "depth": 1,
+    "key": "Frame/API Drain",
+    "last_ms": 0.0009,
+    "max_ms": 0.0102,
+    "mean_ms": 0.001835416666666668,
+    "median_ms": 0.0016,
+    "n": 240,
+    "name": "API Drain",
+    "p90_ms": 0.0027,
+    "p99_ms": 0.0063
+   },
+   {
+    "depth": 1,
+    "key": "Frame/input",
+    "last_ms": 0.0026,
+    "max_ms": 0.0101,
+    "mean_ms": 0.003658749999999998,
+    "median_ms": 0.0035,
+    "n": 240,
+    "name": "input",
+    "p90_ms": 0.0055,
+    "p99_ms": 0.0097
+   },
+   {
+    "depth": 1,
+    "key": "Frame/update",
+    "last_ms": 2.0022,
+    "max_ms": 3.7083,
+    "mean_ms": 1.8633383333333338,
+    "median_ms": 1.7514500000000002,
+    "n": 240,
+    "name": "update",
+    "p90_ms": 2.188,
+    "p99_ms": 3.3008
+   },
+   {
+    "depth": 2,
+    "key": "Frame/update/Update",
+    "last_ms": 2.001,
+    "max_ms": 3.7047,
+    "mean_ms": 1.8621816666666668,
+    "median_ms": 1.75055,
+    "n": 240,
+    "name": "Update",
+    "p90_ms": 2.1859,
+    "p99_ms": 3.2981
+   },
+   {
+    "depth": 3,
+    "key": "Frame/update/Update/Water",
+    "last_ms": 1.2129,
+    "max_ms": 2.5477,
+    "mean_ms": 0.9873554166666663,
+    "median_ms": 0.9142,
+    "n": 240,
+    "name": "Water",
+    "p90_ms": 1.2482,
+    "p99_ms": 2.0909
+   },
+   {
+    "depth": 3,
+    "key": "Frame/update/Update/Scripting",
+    "last_ms": 0.0007,
+    "max_ms": 0.0082,
+    "mean_ms": 0.0012820833333333339,
+    "median_ms": 0.001,
+    "n": 240,
+    "name": "Scripting",
+    "p90_ms": 0.0021,
+    "p99_ms": 0.0044
+   },
+   {
+    "depth": 3,
+    "key": "Frame/update/Update/AI",
+    "last_ms": 0.0012,
+    "max_ms": 0.007,
+    "mean_ms": 0.0016774999999999997,
+    "median_ms": 0.0016,
+    "n": 240,
+    "name": "AI",
+    "p90_ms": 0.0025,
+    "p99_ms": 0.006
+   },
+   {
+    "depth": 3,
+    "key": "Frame/update/Update/NPCs",
+    "last_ms": 0.0014,
+    "max_ms": 0.0124,
+    "mean_ms": 0.002274583333333333,
+    "median_ms": 0.0021,
+    "n": 240,
+    "name": "NPCs",
+    "p90_ms": 0.0031,
+    "p99_ms": 0.0083
+   },
+   {
+    "depth": 3,
+    "key": "Frame/update/Update/Entities",
+    "last_ms": 0.0022,
+    "max_ms": 0.0198,
+    "mean_ms": 0.004444999999999998,
+    "median_ms": 0.0041,
+    "n": 240,
+    "name": "Entities",
+    "p90_ms": 0.0062,
+    "p99_ms": 0.018
+   },
+   {
+    "depth": 3,
+    "key": "Frame/update/Update/Camera Sync",
+    "last_ms": 0.0012,
+    "max_ms": 0.0979,
+    "mean_ms": 0.0027949999999999993,
+    "median_ms": 0.0015,
+    "n": 240,
+    "name": "Camera Sync",
+    "p90_ms": 0.0025,
+    "p99_ms": 0.0578
+   },
+   {
+    "depth": 3,
+    "key": "Frame/update/Update/Input Controller",
+    "last_ms": 0.0009,
+    "max_ms": 0.0045,
+    "mean_ms": 0.0013379166666666674,
+    "median_ms": 0.0012,
+    "n": 240,
+    "name": "Input Controller",
+    "p90_ms": 0.002,
+    "p99_ms": 0.0044
+   },
+   {
+    "depth": 3,
+    "key": "Frame/update/Update/Voxel Interaction",
+    "last_ms": 0.0153,
+    "max_ms": 0.0735,
+    "mean_ms": 0.021010000000000008,
+    "median_ms": 0.0201,
+    "n": 240,
+    "name": "Voxel Interaction",
+    "p90_ms": 0.0296,
+    "p99_ms": 0.0686
+   },
+   {
+    "depth": 1,
+    "key": "Frame/render",
+    "last_ms": 0.719,
+    "max_ms": 3.8075,
+    "mean_ms": 1.0793616666666672,
+    "median_ms": 0.9444,
+    "n": 240,
+    "name": "render",
+    "p90_ms": 1.5492,
+    "p99_ms": 2.647
+   },
+   {
+    "depth": 0,
+    "key": "Frame Interval",
+    "last_ms": 3.1254,
+    "max_ms": 7.0314,
+    "mean_ms": 3.507465833333334,
+    "median_ms": 3.311,
+    "n": 240,
+    "name": "Frame Interval",
+    "p90_ms": 4.3446,
+    "p99_ms": 6.4457
+   }
+  ],
+  "success": true
+ },
+ "flicker": {
+  "samples": 77,
+  "largest_jump_m": 0.0139,
+  "jumps_over_5cm": 0,
+  "surface_range": [
+   16.4729,
+   16.5785
+  ]
+ }
+}

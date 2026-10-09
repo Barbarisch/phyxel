@@ -2193,6 +2193,34 @@ Measured afterwards on the Small bench (Release, GPU volume, nothing changed in 
 - **Proposed order:** the surface flicker (it causes the popping and hides any splash), then a finer,
   damped water reading for floating debris, then impacts that make visible ripples.
 
+### 19.5 The surface flicker fixed: the height function (2026-10-09) - not signed off
+
+**Cause (proven):** the drawn surface (and the probe) was "the fill line of the highest cell holding
+>= 1 mm". With a part-full top cell (f 0.3) and a few mm of film in the cell above, the surface sat at
+the 0.3 line until the film crossed 1 mm, then jumped a whole cell up - up to (1 - f) x h in one tick.
+**Fix:** the standard VOF height function - a run's surface is its bottom plus the water in it
+(sum of f x h), in `extractSurfaceField`, `wc_surface.comp` and `WaterGrid::surfaceWorldY`; a film adds
+only its own millimetres. `WaterGrid::wetTipWorldY` keeps the old rule for what it is right for - how
+high the water REACHES (run-up, crest gates): a sheet climbing a wall is a stack of part-full cells.
+
+**Red -> green:** `SurfaceDoesNotOutrunTheWater` - on the blasted pond, every column, every tick for
+6 s, the drawn surface may not move further in one tick than the water can (vertical speed + inflow
+through the four side faces, x2): old rule 1951 / 51840 column-ticks violated, worst 0.318 m in a tick;
+height function 0. (The first bound counted vertical speed only and flagged real sideways inflow - the
+remaining jumps were all single-run columns whose surface moved exactly with their water; the bound was
+corrected, and the old rule re-run against the corrected bound to keep the red honest.) Run-up re-pointed
+to the tip query (fills 2.56 h0, FLIP 2.15 h0, as before). 288 water + debris unit tests, 15 GPU tests.
+
+**Live (Small pond, GPU, `tools/water_motion_check.py`):** surface at a fixed point after a blast,
+sampled every 33 ms for 3 s: largest jump 17.25 cm -> **1.39 cm**, jumps > 5 cm 3 -> **0**.
+**Watched in motion** (ffmpeg recording of the engine window from outside the engine - no screenshot
+stalls; `docs/evidence/water_core_e/hf_blast.mp4`): frame interval median 3.3 ms, worst 7.0 ms (only
+the last 240 frames are held - not the blast moment itself). **Finding: the motion barely shows.** In
+the pond region consecutive frames differ by under 1.2 grey levels (of 255) on average during the slosh
+- the surface tilts ~25 cm over 4 m but the milky, uniformly-lit water reflecting a uniform sky gives
+almost no visual cue that it moved. The look of moving water is its own problem (logged, next to the
+ripples).
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

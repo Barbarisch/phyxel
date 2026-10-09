@@ -79,7 +79,8 @@ public:
     /// World Y of the free surface in column (x, z): the top-most non-empty cell's bottom + fill,
     /// or NaN when the column holds no water.
     static constexpr float kSurfaceMinDepth = 1e-3f;   ///< m: thinner water is not a surface (S11 writes spans +- 1 mm)
-    float surfaceWorldY(int x, int z) const;          ///< world y of the surface (NaN when the column holds no surface)
+    float surfaceWorldY(int x, int z) const;          ///< world y of the surface: the top run's HEIGHT FUNCTION, bottom + the water in it (NaN when dry) - what is drawn (WaterCore.md 19.5)
+    float wetTipWorldY(int x, int z) const;           ///< world y the water REACHES: the fill line of the highest cell holding >= 1 mm (a climbing sheet's tip; run-up, crest gates)
     glm::vec3 cellCenterWorld(int x, int y, int z) const;
     glm::ivec3 worldToCell(const glm::vec3& world) const;  ///< grid-local cell (may be out of bounds)
     double kineticEnergy() const;                     ///< sum 1/2 f h^3 |v_cell|^2 (density 1)

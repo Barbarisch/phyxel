@@ -36,10 +36,11 @@ void main() {
         if (f[cellIdx(x, y, z)] < fMin || solid) { ++y; continue; }
         const int start = y;
         int t = y;
-        while (y < pc.ny && f[cellIdx(x, y, z)] >= fMin && occ[cellIdx(x, y, z)] != 1u) { t = y; ++y; }
-        const float tTop = (oy + float(t) + min(f[cellIdx(x, t, z)], 1.0)) * pc.h;
+        float sum = 0.0;   // the height function (WaterCore.md 19.5): bottom + the water in the run
+        while (y < pc.ny && f[cellIdx(x, y, z)] >= fMin && occ[cellIdx(x, y, z)] != 1u) { t = y; sum += min(f[cellIdx(x, y, z)], 1.0); ++y; }
+        const float tTop = (oy + float(start)) * pc.h + sum * pc.h;
         if (runs < 4) { bottom[runs] = (oy + float(start)) * pc.h; top[runs] = tTop; ++runs; }
-        else top[3] = tTop;
+        else top[3] += sum * pc.h;
         topCell = t;
     }
     const uint base = id * 16u;
