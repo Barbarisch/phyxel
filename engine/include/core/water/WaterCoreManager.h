@@ -9,6 +9,7 @@
 #include "core/water/WaterCore.h"
 #include "core/water/WaterCoreGpu.h"   // Phase C backend (optional; CPU reference without it)
 #include "core/water/WaterBodyTable.h"   // Phase D Tier A records
+#include "core/water/WaterSurfaceMesh.h"   // Phase F surface field
 #include "core/WaterManager.h"   // WaterSurfaceCell (the debug feed's struct)
 #include <glm/glm.hpp>
 #include <array>
@@ -36,6 +37,7 @@ struct AvRecord {
     float rbgsResidual = 0.0f;             ///< GPU backend: max |A p - b| after the last substep's sweeps (0 on the CPU)
     int   gpuSweeps = 0;
     double gpuMs = 0.0;                    ///< wall time of the last GPU step call (all its ticks)
+    double surfaceAgeMs = -1.0;            ///< Phase F: age of the surface field the renderer last read (ms since the step that produced it; -1 = never)
     size_t particles = 0;                  ///< Phase B2: FLIP particles alive (0 for fills)
     size_t cells = 0;
     bool asleep = false;
@@ -162,6 +164,10 @@ public:
 
     /// Debug feed: one WaterSurfaceCell per wet world column (1 x 1), rebuilt on demand.
     const std::vector<WaterSurfaceCell>& surfaceCells();
+    /// Phase F (17.1): one surface field per volume, from the last step (GPU: the field the step
+    /// wrote into its staging ring, a memcpy; CPU: extracted from the grid). Rebuilt on every call
+    /// that follows a step; a volume that did not step since the last call keeps its field.
+    const std::vector<WaterSurfaceField>& surfaceFields();
 
     static constexpr size_t kMaxCellsPerVolume = 2'000'000;   ///< CPU reference ceiling (§15.4)
     static bool snapCellSize(float requested, float* snapped);  ///< power-of-three fractions only
@@ -195,6 +201,10 @@ private:
         bool autoSleep = true;         // Phase D
         double seededMass = 0.0;
         std::vector<WaterBodyTable::ColumnMass> seededColumns;   // per-column seed for the body credit
+        WaterSurfaceField field;        // Phase F: the last surface field
+        uint64_t fieldStep = ~0ull;     // the step counter the field was built from
+        uint64_t stepCount = 0;         // steps taken (CPU ticks or GPU calls)
+        double fieldStepSec = -1.0;     // wall time of that step
     };
     bool isAsleep(const Av& av) const { return av.backend == "gpu" ? av.gpuLast.asleep : av.solver->asleep(); }
     void refreshOccupancy(Av& av);
@@ -218,6 +228,7 @@ private:
     void refreshBoxes();
     bool m_realtime = false;
     std::vector<WaterSurfaceCell> m_surface;
+    std::vector<WaterSurfaceField> m_fields;   // Phase F, parallel to m_avs
     std::vector<glm::vec4> m_particleDraw;
 };
 

@@ -1,0 +1,75 @@
+#pragma once
+
+#include <vulkan/vulkan.h>
+#include <glm/glm.hpp>
+#include <chrono>
+#include <vector>
+
+#include "core/water/WaterSurfaceMesh.h"
+
+namespace Phyxel {
+namespace Graphics {
+
+class Camera;
+
+// WaterCore Phase F (docs/WaterCore.md 17): draws the simulated water's own surface mesh
+// (Core::Water::WaterSurfaceMesh, rebuilt on the CPU every frame from the volumes' surface fields).
+// Same render pass, scene taps (refraction + depth) and blend state as the sea sheet and the old
+// cell renderer; no ripple heightfield (the mesh IS the disturbance). Vertex + index buffers are
+// host-visible rings indexed by frame-in-flight, so a frame's upload never overwrites what the
+// previous frame's command buffer is still reading.
+class WaterSurfaceRenderPipeline {
+public:
+    WaterSurfaceRenderPipeline();
+    ~WaterSurfaceRenderPipeline();
+
+    void initialize(VkDevice device, VkPhysicalDevice physicalDevice,
+                    VkRenderPass renderPass, VkExtent2D swapChainExtent,
+                    VkDescriptorSetLayout uboLayout);
+    void cleanup();
+    void setSceneTextures(VkImageView refractionView, VkSampler refractionSampler,
+                          VkImageView sceneDepthView, VkSampler sceneDepthSampler);
+    /// Upload + draw. `frame` selects the ring slot (0..kFrames-1). A mesh larger than the ring slot is
+    /// drawn truncated and reported through `lastTruncated()` - never silently.
+    void render(VkCommandBuffer commandBuffer, VkDescriptorSet uboSet, const Camera& camera,
+                const glm::mat4& projectionMatrix, const Core::Water::WaterSurfaceMesh& mesh,
+                VkExtent2D screenExtent, uint32_t frame);
+    void recreatePipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent);
+
+    bool lastTruncated() const { return m_lastTruncated; }
+    void setDebugMode(int m) { m_debugMode = m; }
+    int  debugMode() const { return m_debugMode; }
+    uint32_t lastVertices() const { return m_lastVertices; }
+    static constexpr uint32_t kFrames = 2;
+    static constexpr size_t   kMaxVertices = 1u << 20;   ///< 1 M vertices x 32 B = 32 MB per slot
+    static constexpr size_t   kMaxIndices  = kMaxVertices * 3 / 2;
+
+private:
+    void createDescriptorSetLayout(VkDescriptorSetLayout uboLayout);
+    void createDescriptorPool();
+    void createPipeline(VkRenderPass renderPass, VkExtent2D swapChainExtent);
+    void createBuffers();
+
+    VkDevice         m_device = VK_NULL_HANDLE;
+    VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
+    VkPipelineLayout      m_pipelineLayout = VK_NULL_HANDLE;
+    VkPipeline            m_pipeline = VK_NULL_HANDLE;
+    VkDescriptorSetLayout m_descriptorSetLayout = VK_NULL_HANDLE;
+    VkDescriptorPool      m_descriptorPool = VK_NULL_HANDLE;
+    VkDescriptorSet       m_descriptorSet = VK_NULL_HANDLE;
+    bool                  m_texturesBound = false;
+
+    VkBuffer       m_vertexBuffer[kFrames] = {};
+    VkDeviceMemory m_vertexMemory[kFrames] = {};
+    void*          m_vertexMapped[kFrames] = {};
+    VkBuffer       m_indexBuffer[kFrames] = {};
+    VkDeviceMemory m_indexMemory[kFrames] = {};
+    void*          m_indexMapped[kFrames] = {};
+    bool     m_lastTruncated = false;
+    int      m_debugMode = 0;
+    uint32_t m_lastVertices = 0;
+    std::chrono::high_resolution_clock::time_point m_startTime;
+};
+
+} // namespace Graphics
+} // namespace Phyxel

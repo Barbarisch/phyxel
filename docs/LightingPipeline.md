@@ -43,7 +43,7 @@ those are narratives with superseded sections. **This file states only what is t
 | `foliage.frag` — leaf cards | probe field per fragment (up) | `phxAmbient` (up) | `0.7 × shadow × phxSunGate` + backlit translucency × (0.25+0.75·phxSunGate) | **Fast 4-tap**, mid ∪ near | no | yes, with visibility trace | no | — |
 | `character.frag` — animated characters | probe field per fragment, vertex normal | `phxAmbient` (N) | Blinn-Phong × shadow × `phxSunGate` | PCSS, mid ∪ near | yes, × enclosure gate | yes, with visibility trace | no | block-light term from the bake is 0 |
 | `far_terrain.frag`, `far_tree_mesh.frag` — far LOD | open sky (outside the probe grid by definition) | `phxAmbientAtmos(N, 1.0, …)` = the field's own fallback | `ndl × shadow` | Fast 4-tap, **far cascade only** | no | no | yes | — |
-| `water.frag`, `water_cell.frag`, `water_underwater.frag` | none | own constants | unshadowed | none | — | — | — | own model |
+| `water.frag`, `water_cell.frag`, `water_surface.frag`, `water_underwater.frag` | none | own constants | unshadowed | none | — | — | — | own model |
 | `sky.frag` | — | — | — | — | — | — | — | emits the atmosphere |
 
 **Not a receiver:** `voxel_depth.frag` — the static depth prepass (P-DP, `docs/PerfProgram2026-09.md`),
@@ -576,6 +576,7 @@ before the tone map); full moon 0.0094 > first quarter 0.0053 > new moon 0.0043.
 
 ## 9. Change log (append a line per lighting/shadow change; the fingerprint line is written by `tools/lighting_doc_check.py --update`)
 
+- 2026-10-09 - **water reflects the atmosphere** (`water_common.glsl` `waterSkyReflection`: `phxSkyRadiance` + `phxSunDisc` along the reflected ray, replacing a hardcoded daylight gradient that read white after exposure; WaterCore Phase F2, docs/WaterCore.md 17.3). New receiver `water_surface.frag` (the simulated water's own surface mesh) shares the water model; `shoreFoam` input gates the sheet's waterline/surf foam off for simulated water. Ambient/sun/shadow model unchanged.
 - 2026-10-05 — **`occupancy.glsl` gains `phxOccupancyState` (empty / solid / UNKNOWN) and overridable
   binding slots** (`docs/DebrisInteractionPlan.md` 1c, step 1). GPU debris is about to read this
   occupancy, and for debris "not solid" outside the box or in a non-resident chunk means falling

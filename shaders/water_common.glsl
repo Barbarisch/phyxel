@@ -1,3 +1,4 @@
+#include "atmosphere.glsl"   // the sky the water reflects is the sky the dome draws (Phase F2)
 //
 // water_common.glsl — shading shared by the flat sea plane (water.frag) and the per-cell sim
 // surface (water_cell.frag), so the two renderers cannot drift apart visually.
@@ -231,27 +232,16 @@ vec3 waterFlowNormal(vec2 p, float t, vec2 flowDir, float strength, float pixelW
 
 // Sky/sun reflection driven by the SCENE's sun, not a hardcoded one. `toSun` is the direction TO
 // the sun (= -ubo.sunDirection, matching voxel.frag's `sunL`).
-vec3 waterSkyReflection(vec3 R, vec3 toSun, vec3 sunColor, float ambient) {
-    // Daylight factor: 1 with the sun overhead, 0 once it is at/below the horizon. This is what
-    // makes water go dark at night — the pre-V3 shader kept a midday glint at midnight.
-    float daylight = clamp(toSun.y * 1.5 + 0.15, 0.0, 1.0);
-
-    vec3 dayHorizon = vec3(0.72, 0.82, 0.95);
-    vec3 dayZenith  = vec3(0.24, 0.46, 0.80);
-    vec3 nightHorizon = vec3(0.05, 0.07, 0.12);
-    vec3 nightZenith  = vec3(0.01, 0.02, 0.05);
-
-    float up = clamp(R.y, 0.0, 1.0);
-    vec3 horizonCol = mix(nightHorizon, dayHorizon, daylight);
-    vec3 zenithCol  = mix(nightZenith,  dayZenith,  daylight);
-    vec3 sky = mix(horizonCol, zenithCol, pow(up, 0.6));
-
-    // Sun disc + halo, only while the sun is actually up, tinted by its live colour.
-    float sd = pow(max(dot(R, toSun), 0.0), 900.0);   // tight bright disc
-    float sg = pow(max(dot(R, toSun), 0.0), 40.0);    // soft halo
-    vec3  sunCol = sunColor * daylight;
-
-    return sky * max(ambient, 0.35) + sunCol * (sd * 2.0 + sg * 0.12);
+vec3 waterSkyReflection(vec3 R, vec3 toSun, vec3 sunColor, float ambient, float altitudeM) {
+    // WaterCore Phase F2 (docs/WaterCore.md 17.3): the reflected sky is the SAME single-scattered
+    // radiance the sky dome draws (atmosphere.glsl), plus the sun disc - so a pond reflects the sky
+    // that is actually overhead, at the scene's exposure. The hardcoded daylight gradient this
+    // replaces (0.72,0.82,0.95 x ambient) was far above the atmosphere's radiance and read as a
+    // white sheet after the x8 exposure - the "white water" on every bench (Fresnel tap, 2026-10-09).
+    // Below-horizon directions get the short near-ground scatter (the model's own rule).
+    // sunColor / ambient are kept in the signature for the callers; the atmosphere carries both
+    vec3 dir = normalize(R);
+    return phxSkyRadiance(dir, toSun, altitudeM) + phxSunDisc(dir, toSun, altitudeM);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -480,6 +470,8 @@ struct WaterSurfaceInput {
     // includer's push-constant layout.
     mat4  viewProj;
     float ssr;         // 0 = sky reflection only (the pre-W4 look), 1 = march the depth buffer
+    int   debugMode;   // Phase F taps: 0 off, 2 body, 3 reflection, 4 thickness, 5 fresnel (callers set 0)
+    float shoreFoam;   // 1 = the sheet's waterline rim + breaking surf model; 0 = none (simulated water: foam comes from the solver)
 };
 
 vec4 shadeWaterSurface(WaterSurfaceInput inp) {
@@ -559,7 +551,7 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     float ndv  = clamp(dot(V, N), 0.0, 1.0);
     float fres = clamp(0.02 + 0.98 * pow(1.0 - ndv, 5.0), 0.0, 1.0);
     vec3  R    = reflect(-V, N);
-    vec3  refl = waterSkyReflection(R, toSun, ubo.sunColor, ubo.ambientLight);
+    vec3  refl = waterSkyReflection(R, toSun, ubo.sunColor, ubo.ambientLight, max(inp.worldPos.y, 1.0));
 
     // SCREEN-SPACE REFLECTION (v4 W4). The sky stays the FALLBACK, never the loser: where the ray
     // leaves the screen, finds no geometry, or lands on a surface too far behind, the water keeps
@@ -577,6 +569,11 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     }
 
     vec3 color = mix(body, refl, fres);
+    // WaterCore Phase F debug taps (water_surface.frag sets inp.debugMode; 0 = off)
+    if (inp.debugMode == 2) return vec4(body, 1.0);
+    if (inp.debugMode == 3) return vec4(refl, 1.0);
+    if (inp.debugMode == 4) return vec4(vec3(clamp(thickness / 2.0, 0.0, 1.0)), 1.0);
+    if (inp.debugMode == 5) return vec4(vec3(fres), 1.0);
 
     // Specular glint off the ripples, using the LIVE sun (gone at night, warm at sunset).
     vec3  H = normalize(toSun + V);
@@ -621,7 +618,7 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     float foamDepth = max(verticalDepth + wob, 0.0);
 
     float surfFoam = 0.0;
-    if (inp.breakDepth > 0.0001 && hasSeabed) {
+    if (inp.shoreFoam > 0.5 && inp.breakDepth > 0.0001 && hasSeabed) {
         // Shoaling: 0 offshore, 1 at the waterline. Squared — cubed collapsed the band to nothing
         // once the swell was scaled down to the voxel world (breakDepth 2.56*0.30 = 0.77 voxels,
         // which is sub-voxel and simply invisible). The band has to be a WIDTH you can see.
@@ -639,7 +636,7 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     }
     // The waterline itself always carries foam, wave or not — the line that makes a coast read as a
     // coast even on flat calm water (and what lakes and rivers get).
-    float rim = hasSeabed ? (1.0 - smoothstep(0.0, 0.55, foamDepth)) : 0.0;
+    float rim = (hasSeabed && inp.shoreFoam > 0.5) ? (1.0 - smoothstep(0.0, 0.55, foamDepth)) : 0.0;
     inp.foam = max(inp.foam, max(surfFoam, rim * 0.7));
     inp.foam *= WATER_FOAM_DEBUG_SCALE;   // A/B probe: 0 disables all foam
 
@@ -677,6 +674,11 @@ vec4 shadeWaterSurface(WaterSurfaceInput inp) {
     // background through, so full alpha is correct — this is a compositing surface, not a tint).
     float alpha = smoothstep(0.0, SHORE_FADE, thickness);
     alpha = max(alpha, inp.sideFace * 0.85);   // curtains stay visible even where thin
+    // Simulated water (Phase F2): a 2 cm puddle on stone is seen by its REFLECTION, not its depth, so a
+    // thin film keeps at least its Fresnel share plus a floor instead of fading to nothing (the pad
+    // puddle vanished at thickness 0.02 against SHORE_FADE 0.4, 2026-10-09). The sea keeps the fade:
+    // its thin edge is the shoreline model's job.
+    if (inp.shoreFoam < 0.5) alpha = max(alpha, 0.25 + 0.75 * fres);
     // Foam is opaque spray: it should stay visible even where the water itself is fading out at a
     // shoreline, which is exactly where a stream's whitewater lives.
     alpha = max(alpha, inp.foam * 0.6);

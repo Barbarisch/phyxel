@@ -69,6 +69,9 @@ namespace Phyxel {
         class VfxRenderPipeline;
         class WaterRenderPipeline;
         class WaterCellRenderPipeline;
+}}
+#include "graphics/WaterSurfaceRenderPipeline.h"
+namespace Phyxel { namespace Graphics {
         class FireEmitterManager;
     }
     namespace Core {
@@ -556,6 +559,17 @@ public:
     const VoxelLightOccupancyGpu* lightOccupancy() const { return m_lightOccupancy.get(); }
     /// WaterCore Phase B debug feed: extra surface cells drawn by the cell pipeline (null = none).
     void setWaterCoreSurfaceCells(const std::vector<Core::WaterSurfaceCell>* cells) { m_waterCoreCells = cells; }
+    /// Phase F (17): the volumes' surface fields; the mesh is rebuilt from them every frame.
+    void setWaterCoreSurfaceFields(const std::vector<Core::Water::WaterSurfaceField>* fields) { m_waterCoreFields = fields; }
+    void setWaterCoreRenderMode(Core::Water::WaterCoreRenderMode m) { m_waterCoreMode = m; }
+    Core::Water::WaterCoreRenderMode waterCoreRenderMode() const { return m_waterCoreMode; }
+    size_t waterCoreMeshVertices() const { return m_waterCoreMesh.vertices.size(); }
+    long waterCoreMeshTopQuads() const { return m_waterCoreMesh.topQuads; }
+    long waterCoreMeshSideQuads() const { return m_waterCoreMesh.sideQuads; }
+    double waterCoreMeshMs() const { return m_waterCoreMeshMs; }
+    bool waterCoreMeshTruncated() const { return waterSurfacePipeline && waterSurfacePipeline->lastTruncated(); }
+    void setWaterCoreDebugMode(int m) { if (waterSurfacePipeline) waterSurfacePipeline->setDebugMode(m); }
+    int  waterCoreDebugMode() const { return waterSurfacePipeline ? waterSurfacePipeline->debugMode() : 0; }
     /// Phase D (16.4): the live volumes' world boxes + their revision; the span grid masks those columns.
     void setWaterCoreVolumeBoxes(const std::vector<std::pair<glm::ivec3, glm::ivec3>>* boxes, uint64_t revision) { m_waterCoreBoxes = boxes; m_waterCoreBoxRevision = revision; }
     /// Phase D5 probe self-test: upload an all-dry grid and hold it (frozen) until restore(false), which rebuilds.
@@ -1389,6 +1403,10 @@ private:
     // definition ("water": { "enabled": true, "seaLevel": N }), applied on load.
     std::unique_ptr<WaterRenderPipeline> waterPipeline;
     const std::vector<Core::WaterSurfaceCell>* m_waterCoreCells = nullptr;   // WaterCore debug feed
+    const std::vector<Core::Water::WaterSurfaceField>* m_waterCoreFields = nullptr;   // Phase F: the volumes' surface fields
+    Core::Water::WaterCoreRenderMode m_waterCoreMode = Core::Water::kWaterCoreRenderModeDefault;
+    Core::Water::WaterSurfaceMesh m_waterCoreMesh;   // rebuilt every frame from the fields
+    double m_waterCoreMeshMs = 0.0;
     const std::vector<glm::vec4>* m_waterCoreParticles = nullptr;        // WaterCore Phase B2 debug draw (x, y, z, size)
     VkBuffer       m_flipDebugBuffer = VK_NULL_HANDLE;                   // CPU-fed DynamicSubcubeInstanceData, 6 faces per particle
     VkDeviceMemory m_flipDebugMemory = VK_NULL_HANDLE;
@@ -1401,6 +1419,7 @@ private:
 
     // Per-cell water surface rendering (the CPU sim's actual field).
     std::unique_ptr<WaterCellRenderPipeline> waterCellPipeline;
+    std::unique_ptr<WaterSurfaceRenderPipeline> waterSurfacePipeline;   // WaterCore Phase F
     Core::WaterManager* m_waterManager = nullptr;
     // True for frames where the reflection pass was rendered for the water plane
     // (decided before the scene pass, consumed when the water surface is drawn).

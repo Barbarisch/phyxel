@@ -5,6 +5,7 @@
 #include "IntegrationTestFixture.h"
 #include "core/water/WaterCore.h"
 #include "core/water/WaterCoreGpu.h"
+#include "core/water/WaterSurfaceMesh.h"
 #include <cmath>
 #include <functional>
 
@@ -349,5 +350,39 @@ TEST_F(WaterCoreGpuParityTest, GpuFillsMatchCpuElementwise) {
     std::printf("  fills after 60 ticks: max|df| %.2e, max|dvel| %.2e m/s\n", df, dv);
     EXPECT_LT(df, 5e-3);
     EXPECT_LT(dv, 5e-3);
+    gpu.destroyVolume(vol);
+}
+
+// Phase F (docs/WaterCore.md 17.1): the surface field the GPU writes at the end of every step equals
+// the CPU extraction of the downloaded grid, column for column - including a wall column and an
+// overhang (two runs). The renderer reads only this field, never the grid.
+TEST_F(WaterCoreGpuParityTest, GpuSurfaceFieldMatchesCpu) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    Tank g(12, 9, 6, 1.0f / 3.0f);
+    g.extra = [](const glm::ivec3& c) { return (c.x == 5 && c.y < 6) ? Occ::Solid : Occ::Air; };   // a wall mid-tank
+    g.grid.fillBox({0, 0, 0}, {4, 3, 5}, 1.0f);   // a pool west of the wall
+    g.grid.fillBox({0, 4, 0}, {4, 4, 5}, 0.3f);
+    g.grid.fillBox({7, 6, 0}, {11, 7, 5}, 1.0f);  // water held up east of the wall (it will fall)
+    auto* vol = make(g); ASSERT_NE(vol, nullptr);
+    SolverParams prm;
+    gpu.step(*vol, prm, kDt, 20, 40);
+    gpu.download(*vol, g.grid);
+    WaterSurfaceField cpu; extractSurfaceField(g.grid, cpu);
+    WaterSurfaceField dev; dev.origin = g.grid.spec().origin; dev.nx = g.grid.nx(); dev.nz = g.grid.nz(); dev.h = g.grid.h();
+    dev.cols.resize(cpu.cols.size());
+    ASSERT_TRUE(gpu.readSurface(*vol, reinterpret_cast<float*>(dev.cols.data())));
+    int runsTotal = 0, multi = 0; float maxDiff = 0.0f;
+    for (size_t i = 0; i < cpu.cols.size(); ++i) {
+        const SurfaceColumn& a = cpu.cols[i]; const SurfaceColumn& b = dev.cols[i];
+        EXPECT_EQ(static_cast<int>(a.runs), static_cast<int>(b.runs)) << "column " << i;
+        EXPECT_NEAR(a.solidTopY, b.solidTopY, 1e-6f) << "column " << i;
+        for (int r = 0; r < static_cast<int>(a.runs) && r < kSurfaceMaxRuns; ++r) {
+            maxDiff = std::max(maxDiff, std::max(std::abs(a.top[r] - b.top[r]), std::abs(a.bottom[r] - b.bottom[r])));
+        }
+        runsTotal += static_cast<int>(a.runs); if (a.runs > 1.5f) ++multi;
+    }
+    std::printf("  surface field: %d runs over %zu columns (%d multi-run), max |CPU - GPU| %.2e\n", runsTotal, cpu.cols.size(), multi, maxDiff);
+    EXPECT_LT(maxDiff, 1e-5f);
+    EXPECT_GT(runsTotal, 0);
     gpu.destroyVolume(vol);
 }

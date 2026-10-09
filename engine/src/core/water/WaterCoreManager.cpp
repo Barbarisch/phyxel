@@ -106,6 +106,7 @@ AvRecord WaterCoreManager::record(const Av& av) const {
     r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? av.gpuSweeps : 0; r.gpuMs = av.gpuLast.gpuMs;
     r.cells = av.grid->cellCount();
     r.autoSleep = av.autoSleep; r.seededMass = av.seededMass;
+    r.surfaceAgeMs = av.fieldStepSec < 0.0 ? -1.0 : (std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() - av.fieldStepSec) * 1000.0;
     // a GPU volume's sleep lives in WaterCoreGpu::Volume (the solver never stepped): this line used to
     // sit BEFORE the GPU override and overwrote it, so S1 on the GPU read asleep=false for ever with
     // quiet_ticks at 30 and no substeps (2026-10-08)
@@ -173,11 +174,10 @@ void WaterCoreManager::refreshOccupancy(Av& av) {
             for (int x = 0; x < g.nx(); ++x)
                 av.occCache[g.idx(x, y, z)] = sampleOccupancy(av, glm::ivec3(x, y, z));
     av.occDirty = false;
-    if (av.gpuVol) {   // the GPU reads occupancy from the grid: mirror the cache and mark the copy stale
-        for (int z = 0; z < av.grid->nz(); ++z) for (int y = 0; y < av.grid->ny(); ++y) for (int x = 0; x < av.grid->nx(); ++x)
-            av.grid->occ(x, y, z) = av.occCache[av.grid->idx(x, y, z)];
-        av.gpuDirty = true;
-    }
+    // the GPU reads occupancy from the grid, and so does the Phase F surface extraction: mirror the cache
+    for (int z = 0; z < av.grid->nz(); ++z) for (int y = 0; y < av.grid->ny(); ++y) for (int x = 0; x < av.grid->nx(); ++x)
+        av.grid->occ(x, y, z) = av.occCache[av.grid->idx(x, y, z)];
+    if (av.gpuVol) av.gpuDirty = true;
 }
 
 void WaterCoreManager::markSolidsDirty() {
@@ -190,6 +190,7 @@ bool WaterCoreManager::step(int id, int ticks, float dt, AvRecord* out) {
         refreshOccupancy(*av);
         if (av->backend == "gpu") stepGpu(*av, ticks, dt);
         else for (int i = 0; i < ticks; ++i) { av->last = av->solver->step(dt); av->residueDropped += av->last.residueDropped; }
+        ++av->stepCount;
         if (out) *out = record(*av);
         return true;
     }
@@ -200,8 +201,8 @@ void WaterCoreManager::update(float dt) {
     if (!m_realtime) return;
     for (auto& av : m_avs) {
         refreshOccupancy(*av);
-        if (av->backend == "gpu") { if (!av->gpuLast.asleep) stepGpu(*av, 1, dt); }
-        else if (!av->solver->asleep()) { av->last = av->solver->step(dt); av->residueDropped += av->last.residueDropped; }
+        if (av->backend == "gpu") { if (!av->gpuLast.asleep) { stepGpu(*av, 1, dt); ++av->stepCount; } }
+        else if (!av->solver->asleep()) { av->last = av->solver->step(dt); av->residueDropped += av->last.residueDropped; ++av->stepCount; }
     }
     // Phase D (16.2): a volume that slept this tick writes back and frees itself (auto_sleep). Ids
     // first - sleep() destroys. A refused write-back (held or non-resident columns) leaves the
@@ -533,6 +534,26 @@ size_t WaterCoreManager::totalCells() const {
     size_t n = 0;
     for (const auto& av : m_avs) n += av->grid->cellCount();
     return n;
+}
+
+const std::vector<WaterSurfaceField>& WaterCoreManager::surfaceFields() {
+    m_fields.clear();
+    for (auto& av : m_avs) {
+        if (av->fieldStep != av->stepCount) {
+            bool got = false;
+            if (av->gpuVol && m_gpu && m_gpu->surfaceReady(*av->gpuVol)) {
+                WaterSurfaceField& f = av->field;
+                f.origin = av->grid->spec().origin; f.nx = av->grid->nx(); f.nz = av->grid->nz(); f.h = av->h;
+                f.cols.resize(static_cast<size_t>(f.nx) * f.nz);
+                got = m_gpu->readSurface(*av->gpuVol, reinterpret_cast<float*>(f.cols.data()));
+            }
+            if (!got) { syncFromGpu(*av, false); extractSurfaceField(*av->grid, av->field); }
+            av->fieldStep = av->stepCount;
+            av->fieldStepSec = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        }
+        m_fields.push_back(av->field);
+    }
+    return m_fields;
 }
 
 const std::vector<WaterSurfaceCell>& WaterCoreManager::surfaceCells() {

@@ -131,6 +131,8 @@ void main() {
     // worst case for a screen-space march (most rays leave the screen or hit the bank), so they keep
     // the sky reflection until there is a reason and a measurement to change it.
     inp.viewProj     = pc.viewProj;
+    inp.debugMode    = 0;
+    inp.shoreFoam    = 1.0;
     inp.ssr          = 0.0;
 
     outColor = shadeWaterSurface(inp);

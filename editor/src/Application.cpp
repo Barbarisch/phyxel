@@ -3676,6 +3676,7 @@ void Application::update(float deltaTime) {
                 renderCoordinator->setWaterCoreSurfaceCells(waterCore->totalCells() ? &waterCore->surfaceCells() : nullptr);
                 renderCoordinator->setWaterCoreParticles(waterCore->totalCells() ? &waterCore->particleDrawList() : nullptr);   // Phase B2 debug draw
                 renderCoordinator->setWaterCoreVolumeBoxes(&waterCore->volumeBoxes(), waterCore->avRevision());   // Phase D: the span grid leaves these columns to the volumes
+                renderCoordinator->setWaterCoreSurfaceFields(waterCore->totalCells() ? &waterCore->surfaceFields() : nullptr);   // Phase F: the surface mesh feed
             }
             for (const auto& rec : waterCore->drainAutoSleepRecords()) {
                 if (rec.ok) LOG_INFO("WaterCore", "volume {} slept: {} columns / {} runs written ({} m^3, seeded {} m^3), surface-vs-mass {} mm, spread {} mm, {} chunks, body {}", rec.id, rec.columns, rec.runs, rec.massWritten, rec.massSeeded, rec.surfaceVsMassMm, rec.spreadMm, rec.chunksTouched, rec.bodyId);
@@ -13616,7 +13617,7 @@ void Application::registerWaterCommands() {
                               {"cellSize", a.cellSize}, {"transport", a.transport}, {"backend", a.backend}, {"rbgs_residual", a.rbgsResidual}, {"gpu_sweeps", a.gpuSweeps}, {"gpu_ms_last_call", a.gpuMs}, {"particles", a.particles}, {"cells", a.cells}, {"asleep", a.asleep},
                               {"mass", a.mass}, {"kinetic_energy", a.kineticEnergy}, {"quiet_ticks", a.quietTicks},
                               {"last", {{"substeps", a.lastSubsteps}, {"pcg_iterations", a.lastPcgIterations}, {"pcg_residual", a.lastPcgResidual}, {"source_unplaced", a.sourceUnplaced}}}, {"residue_dropped_m3", a.residueDropped},
-                              {"source_placed_m3", a.sourcePlaced}, {"source_count", a.sourceCount}, {"auto_sleep", a.autoSleep}, {"seeded_mass", a.seededMass}};
+                              {"source_placed_m3", a.sourcePlaced}, {"source_count", a.sourceCount}, {"auto_sleep", a.autoSleep}, {"seeded_mass", a.seededMass}, {"surface_age_ms", a.surfaceAgeMs}};
     };
     reg.on("water_av_create", [this, noCore, avJson](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);
@@ -13774,6 +13775,28 @@ void Application::registerWaterCommands() {
                                               cmd.params.value("radius", 1.0f), strength,
                                               glm::vec3(cmd.params.value("dx", 0.0f), cmd.params.value("dy", 0.0f), cmd.params.value("dz", 0.0f)));
         r = {{"success", ok}, {"strength", strength}};
+    });
+    // WaterCore Phase F (17.2 key 4): {mode: "mesh"|"cells"|"off"} - the simulated water's renderer.
+    // "cells" is the Phase B debug feed kept as the A/B control until F3 deletes it. Echoes the mode
+    // and the last frame's mesh statistics.
+    reg.on("water_render_core", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        using Core::Water::WaterCoreRenderMode;
+        if (!renderCoordinator) { r = {{"error", "no render coordinator"}}; return; }
+        if (cmd.params.contains("mode")) {
+            const std::string m = cmd.params.value("mode", std::string("mesh"));
+            if (m == "mesh") renderCoordinator->setWaterCoreRenderMode(WaterCoreRenderMode::Mesh);
+            else if (m == "cells") renderCoordinator->setWaterCoreRenderMode(WaterCoreRenderMode::Cells);
+            else if (m == "off") renderCoordinator->setWaterCoreRenderMode(WaterCoreRenderMode::Off);
+            else { r = {{"error", "mode must be mesh, cells or off"}}; return; }
+        }
+        if (cmd.params.contains("debug")) {   // 0 off, 1 normals, 2 body, 3 reflection, 4 thickness, 5 fresnel (water_common.glsl taps)
+            const auto& d = cmd.params["debug"];
+            renderCoordinator->setWaterCoreDebugMode(d.is_boolean() ? (d.get<bool>() ? 1 : 0) : std::clamp(d.get<int>(), 0, 5));
+        }
+        r = {{"mode", Core::Water::waterCoreRenderModeName(renderCoordinator->waterCoreRenderMode())},
+             {"mesh_vertices", renderCoordinator->waterCoreMeshVertices()}, {"top_quads", renderCoordinator->waterCoreMeshTopQuads()},
+             {"side_quads", renderCoordinator->waterCoreMeshSideQuads()}, {"mesh_build_ms", renderCoordinator->waterCoreMeshMs()},
+             {"truncated", renderCoordinator->waterCoreMeshTruncated()}, {"debug", renderCoordinator->waterCoreDebugMode()}};
     });
     reg.on("water_av_realtime", [this, noCore](const Core::APICommand& cmd, nlohmann::json& r) {
         if (!waterCore) return noCore(r);

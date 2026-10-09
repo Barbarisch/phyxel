@@ -2194,6 +2194,7 @@ void EngineAPIServer::setupRoutes() {
     srv.Post("/api/debug/water_av_wake",        waterEndpoint("water_av_wake"));        // Phase D: flood over spans -> volume
     srv.Post("/api/debug/water_body_table",     waterEndpoint("water_body_table"));     // Phase D: Tier A records
     srv.Post("/api/debug/water_render_inject",  waterEndpoint("water_render_inject"));  // Phase D5: probe self-test injection
+    srv.Post("/api/debug/water_render_core",    waterEndpoint("water_render_core"));    // Phase F: mesh | cells | off
     srv.Post("/api/debug/water_cell_render",    waterEndpoint("water_cell_render"));  // camera-invariant gate A/B
     srv.Post("/api/debug/water_validate",       waterEndpoint("water_validate"));
     srv.Post("/api/debug/water_find_river",     waterEndpoint("water_find_river"));

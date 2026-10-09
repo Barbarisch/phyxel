@@ -416,7 +416,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **C. GPU core** | Same solver on compute (`water_core_*.comp`), ping-pong, no readback except the surface/queries; parity with CPU on S1–S5 within tolerance; perf rows | /design-check (dispatch, buffers, tiers) | parity + ≤ 2 ms at `high` with all §3 rigs awake |
 | **D. Rest, persistence, world data** — **design §16; D3 + D1 + D2 + D4 + D5 BUILT 2026-10-09 (ledger §16.9; D4 halves the River trunk defect, residual is the bake's cell resolution)** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | /design-check on §16 | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
 | **E. Coupling** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
-| **F. Rendering the core** — **design §17 (2026-10-09, READY; pulled ahead of E)** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
+| **F. Rendering the core** — **design §17; F1 + F2 first pass BUILT 2026-10-09 (ledger §17.3), sign-off pending; F3 open** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
 | **G. Large bodies on top** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
 
 Rule for every phase: the previous phase's scenarios stay green (the harness runs them all);
@@ -1538,6 +1538,55 @@ nothing. Rig vs defaults: none (⅓ m is the Small default).
 
 **Verdict: READY.** Build order F1 (field + mesh + cadence, red tests first) → F2 (look, sign-off)
 → F3 (deletions, own commit). Ledger goes in §17.3.
+
+### 17.3 Phase F build ledger
+
+**F1 — the surface, every frame (built 2026-10-09).** `core/water/WaterSurfaceMesh.{h,cpp}`:
+`SurfaceColumn` (48 B: four run tops, four bottoms, the top solid, the run count),
+`extractSurfaceField` (CPU) and `wc_surface.comp` (GPU, dispatched at the end of every step and
+copied into the staging ring in the same submission — `GpuSurfaceFieldMatchesCpu`: 66 runs over
+72 columns, max |CPU − GPU| 0.00), `buildWaterSurfaceMesh` (pure: corner heights averaged over
+neighbouring sub-columns holding an overlapping run, lateral faces where water meets air and not
+a wall), `graphics/WaterSurfaceRenderPipeline` (host-visible vertex + index rings per frame in
+flight; a mesh over the ring reports `truncated`), `water_surface.vert/frag`,
+`RenderCoordinator` mode mesh | cells | off (default **mesh**, pinned by `DefaultModeIsMesh`;
+cells = the Phase B debug feed kept as the A/B control until F3), route `water_render_core {mode,
+debug}` echoing `mesh_vertices / top_quads / side_quads / mesh_build_ms / truncated`,
+`surface_age_ms` on every volume record. Unit: `WaterSurfaceMeshTest` ×5 (top = corner mean of the
+touching sub-columns' surfaces; lateral faces only at water edges; two abutting volumes mesh like
+one, seam 0.0 mm; normals out of the water; the default). Red: the mesh tests were green on first
+compile (the behavioural red was the live feed rate below); `NormalsPointOutOfTheWater` was red on
+the first mesh (the quad winding gave −y).
+
+| Row (Small bench, ⅓ m, GPU fills, Release) | Before | After |
+|---|---|---|
+| surface feed rate, realtime | once a second (`syncFromGpu` rate-limited) | **1.4 ms** old (`surface_age_ms`), i.e. every frame |
+| pond 4×4×1.5 m mesh | 1×1 voxel quads + skirts | 972 vertices, 207 top / 36 side quads, **0.03 ms** build |
+| pad pour, 1 s in | stair-stepped voxel slabs | a ⅓ m-lattice film with lateral faces at its edge (normals view `pad_pour_normals_1s.png`) |
+
+**F2 — the look (first pass, 2026-10-09; owner sign-off pending).** The debug taps
+(`water_render_core {debug: 1 normals, 2 body, 3 reflection, 4 thickness, 5 fresnel}`) found two
+things in one afternoon: (1) the Fresnel tap was pure white — the mesh normal came out −y from the
+quad winding, every pixel read as grazing and took 100 % of the reflection; fixed by orienting
+normals out of the water and facing them to the viewer in the shader (an underwater camera sees the
+underside). (2) The reflection tap was white on its own: `waterSkyReflection` returned a hardcoded
+daylight gradient (0.72, 0.82, 0.95 × ambient) that sits far above the atmosphere's radiance and
+saturated after the ×8 exposure — **the white water on every bench, the sea sheet included**. It now
+returns `phxSkyRadiance + phxSunDisc` along the reflected ray, the same radiance the sky dome draws
+(shared `water_common.glsl`, so the Coast sea changed too: `coast_shore_eye_after2.png` vs
+`coast_shore_eye_before`). Simulated water gets no shoreline-foam model (`shoreFoam` input: the
+sheet's rim/surf foam painted a 2 cm film as white blotches), keeps thin films visible through
+their Fresnel share (a 2 cm puddle on stone is seen by its reflection, not its depth), and uses
+roughness 0.35 (a judgement: a pond calmer than the sea's shipped ripple detail). Lighting doc:
+`water_surface.frag` added to the receiver matrix, §9 change-log line. Captures for sign-off in
+`docs/evidence/water_core_f/`: `pond_still_before/after4`, `pond_pour2s_*`, `pad_puddle_*`,
+`trough_full_*`, `pond_tap_*`, `coast_shore_eye_before/after2`.
+
+Open in F: foam and ripple detail from the solver's surface velocity (F2 proper), the underside of
+an overhang run (no bottom face yet), SSR for the mesh (off, as for the cells), F3 deletions after
+sign-off. Footgun found: a `glslangValidator` error line starts with `ERROR:` and the chain's
+`grep -v "^shaders"` hid it — a stale `.spv` ran for one capture round; and `--target phyxel` does
+not refresh `build/shaders/`, copy the `.spv` there (or build everything).
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

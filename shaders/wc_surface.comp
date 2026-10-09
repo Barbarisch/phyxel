@@ -1,0 +1,44 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore Phase F (docs/WaterCore.md 17): the SURFACE FIELD of a volume, one thread per (x, z)
+// sub-column, written in the exact layout of Core::Water::SurfaceColumn (12 floats):
+//   top[4] | bottom[4] | solidTopY | runs | pad | pad      (world units)
+// A run is a maximal vertical stretch of cells with f * h >= 1 mm that are not solid; its top is the
+// highest wet cell's bottom + min(f, 1) * h; solidTopY is the top face of the highest solid cell in
+// the column. Mirrors extractSurfaceField (WaterSurfaceMesh.cpp) - the parity test holds them equal.
+// Only this field crosses back to the host each step (nx * nz * 48 B), never the grid.
+#include "water_core.glsl"
+layout(local_size_x = 64) in;
+layout(std430, set = 0, binding = 0) readonly buffer F   { float f[]; };
+layout(std430, set = 0, binding = 1) readonly buffer Occ { uint occ[]; };
+layout(std430, set = 0, binding = 2) writeonly buffer Surf { float surf[]; };
+
+void main() {
+    const uint id = gl_GlobalInvocationID.x;
+    const int x = int(id % uint(pc.nx)), z = int(id / uint(pc.nx));
+    if (z >= pc.nz) return;
+    const float fMin = pc.param0;   // kSurfaceMinDepth / h
+    const float oy = float(pc.iparam);   // origin.y in cells
+    float top[4], bottom[4];
+    for (int r = 0; r < 4; ++r) { top[r] = 0.0; bottom[r] = 0.0; }
+    float solidTop = -1e30;
+    int runs = 0;
+    int y = 0;
+    while (y < pc.ny) {
+        const bool solid = occ[cellIdx(x, y, z)] == 1u;
+        if (solid) solidTop = (oy + float(y) + 1.0) * pc.h;
+        if (f[cellIdx(x, y, z)] < fMin || solid) { ++y; continue; }
+        const int start = y;
+        int t = y;
+        while (y < pc.ny && f[cellIdx(x, y, z)] >= fMin && occ[cellIdx(x, y, z)] != 1u) { t = y; ++y; }
+        const float tTop = (oy + float(t) + min(f[cellIdx(x, t, z)], 1.0)) * pc.h;
+        if (runs < 4) { bottom[runs] = (oy + float(start)) * pc.h; top[runs] = tTop; ++runs; }
+        else top[3] = tTop;
+    }
+    const uint base = id * 12u;
+    for (int r = 0; r < 4; ++r) { surf[base + uint(r)] = top[r]; surf[base + 4u + uint(r)] = bottom[r]; }
+    surf[base + 8u] = solidTop;
+    surf[base + 9u] = float(runs);
+    surf[base + 10u] = 0.0;
+    surf[base + 11u] = 0.0;
+}

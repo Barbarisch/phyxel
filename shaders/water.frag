@@ -177,6 +177,8 @@ void main() {
     // displaced water. viewProj is the water's own ABSOLUTE-space matrix (ubo.viewProj is
     // camera-relative and would march the ray in the wrong frame).
     inp.viewProj     = pc.viewProj;
+    inp.debugMode    = 0;
+    inp.shoreFoam    = 1.0;
     inp.ssr          = pc.params2.z;
 
     // RIM-WALL KILL (water-layer P1). Where adjacent clipmap vertices land in basins at

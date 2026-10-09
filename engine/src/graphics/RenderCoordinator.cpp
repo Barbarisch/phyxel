@@ -19,6 +19,7 @@
 #include "graphics/VfxRenderPipeline.h"
 #include "graphics/WaterRenderPipeline.h"
 #include "graphics/WaterCellRenderPipeline.h"
+#include "graphics/WaterSurfaceRenderPipeline.h"
 #include "core/WaterManager.h"
 #include "core/VfxSystem.h"
 #include "core/VfxDirector.h"
@@ -312,6 +313,10 @@ RenderCoordinator::RenderCoordinator(
     waterCellPipeline->setSceneTextures(
         postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
         postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
+    // WaterCore Phase F: the simulated water's own surface mesh.
+    waterSurfacePipeline = std::make_unique<WaterSurfaceRenderPipeline>();
+    waterSurfacePipeline->initialize(vulkanDevice->getDevice(), vulkanDevice->getPhysicalDevice(), postProcessor->getWaterRenderPass(), vulkanDevice->getSwapChainExtent(), vulkanDevice->getDescriptorSetLayout());
+    waterSurfacePipeline->setSceneTextures(postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(), postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
 
     // Initialize Kinematic Voxel Pipeline (doors, rotating platforms, etc.)
     kinematicPipeline = std::make_unique<KinematicVoxelPipeline>();
@@ -3455,6 +3460,10 @@ void RenderCoordinator::drawFrame() {
                 postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
                 postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
         }
+        if (waterSurfacePipeline) {
+            waterSurfacePipeline->recreatePipeline(postProcessor->getWaterRenderPass(), vulkanDevice->getSwapChainExtent());
+            waterSurfacePipeline->setSceneTextures(postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(), postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
+        }
         dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
 
         windowManager->acknowledgeResize();
@@ -3532,6 +3541,10 @@ void RenderCoordinator::drawFrame() {
                 postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
                 postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
         }
+        if (waterSurfacePipeline) {
+            waterSurfacePipeline->recreatePipeline(postProcessor->getWaterRenderPass(), vulkanDevice->getSwapChainExtent());
+            waterSurfacePipeline->setSceneTextures(postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(), postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
+        }
         dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
 
         return; // Skip this frame and try again
@@ -3570,6 +3583,10 @@ void RenderCoordinator::drawFrame() {
             waterCellPipeline->setSceneTextures(
                 postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(),
                 postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
+        }
+        if (waterSurfacePipeline) {
+            waterSurfacePipeline->recreatePipeline(postProcessor->getWaterRenderPass(), vulkanDevice->getSwapChainExtent());
+            waterSurfacePipeline->setSceneTextures(postProcessor->getRefractionImageView(), postProcessor->getRefractionSampler(), postProcessor->getSceneDepthImageView(), postProcessor->getSceneDepthSampler());
         }
         dynamicRenderPipeline->createGraphicsPipelineForDynamicSubcubes();
         return; // Skip this frame, try again next frame
@@ -4321,12 +4338,22 @@ void RenderCoordinator::drawFrame() {
     // rebuilt.
     // ---------------------------------------------------------------------------------------
     const bool drawWaterPlane = m_waterEnabled && waterPipeline;
-    const bool drawCoreCells  = waterCellPipeline && m_waterCoreCells && !m_waterCoreCells->empty();   // WaterCore Phase B debug feed
+    using Core::Water::WaterCoreRenderMode;
+    const bool drawCoreCells  = waterCellPipeline && m_waterCoreMode == WaterCoreRenderMode::Cells && m_waterCoreCells && !m_waterCoreCells->empty();   // the A/B control (17.2 key 4)
+    // Phase F: the mesh, rebuilt from the volumes' surface fields every frame (a pure function of them)
+    bool drawCoreMesh = false;
+    m_waterCoreMesh.clear(); m_waterCoreMeshMs = 0.0;
+    if (waterSurfacePipeline && m_waterCoreMode == WaterCoreRenderMode::Mesh && m_waterCoreFields && !m_waterCoreFields->empty()) {
+        const auto tm0 = std::chrono::steady_clock::now();
+        for (const auto& f : *m_waterCoreFields) Core::Water::buildWaterSurfaceMesh(f, m_waterCoreMesh);
+        m_waterCoreMeshMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tm0).count();
+        drawCoreMesh = !m_waterCoreMesh.indices.empty();
+    }
     const bool drawWaterCells = (m_waterManager && waterCellPipeline &&
                                  !m_waterManager->surfaceCells().empty()) || drawCoreCells;
-    if (drawWaterPlane || drawWaterCells || m_uiSystem) {
+    if (drawWaterPlane || drawWaterCells || drawCoreMesh || m_uiSystem) {
         // Snapshot the scene colour for refraction BEFORE the pass begins (outside any pass).
-        if (drawWaterPlane || drawWaterCells) {
+        if (drawWaterPlane || drawWaterCells || drawCoreMesh) {
             GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterRefractCapture");
             postProcessor->captureRefraction(vulkanDevice->getCommandBuffer(currentFrame));
         }
@@ -4371,6 +4398,10 @@ void RenderCoordinator::drawFrame() {
                     *m_waterCoreCells,
                     vulkanDevice->getSwapChainExtent()
                 );
+        }
+        if (drawCoreMesh) {
+            GPU_PROFILE_SCOPE(gpuProfiler.get(), cmd, "WaterSurface");
+            waterSurfacePipeline->render(vulkanDevice->getCommandBuffer(currentFrame), vulkanDevice->getDescriptorSet(currentFrame), *camera, cachedProjectionMatrix, m_waterCoreMesh, vulkanDevice->getSwapChainExtent(), static_cast<uint32_t>(currentFrame));
         }
 
         // Underwater fog (WaterSystemV3 Phase 1 item 5) — AFTER the surfaces so it also fogs the
