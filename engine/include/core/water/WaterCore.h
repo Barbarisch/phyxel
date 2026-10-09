@@ -136,6 +136,19 @@ struct SourceSpec {
     double pending = 0.0;            ///< m^3 owed by the pump and placed as soon as the outlet has room (capped at one second of rate)
 };
 
+/// Phase G (docs/WaterCore.md 18.2): a sub-column whose SURFACE is prescribed at the start of
+/// every tick - the ocean body boundary. Fills are written to the target height, velocity is left
+/// to the solver (a wave enters only through the surface gradient), and the mass the write
+/// exchanged is counted: the flux ledger of 5.3.
+struct BoundarySpec {
+    glm::ivec2 column{0, 0};         ///< grid-local (x, z)
+    float  targetY = 0.0f;           ///< world Y of the prescribed surface
+    glm::vec2 uSurface{0.0f, 0.0f};  ///< horizontal orbital velocity at the surface (m/s), Airy theory; decays with depth by cosh(k(y - bed)) / cosh(k d)
+    float  wSurface = 0.0f;          ///< vertical orbital velocity at the surface (m/s); decays by sinh(k(y - bed)) / sinh(k d)
+    float  k = 0.0f;                 ///< wavenumber of the dominant component (1/m); 0 = uniform profile
+    double exchanged = 0.0;          ///< m^3 written into (+) or taken out of (-) the volume over its life
+};
+
 struct StepReport {
     int    substeps = 0;
     int    pcgIterations = 0;        ///< total over the tick's substeps
@@ -145,6 +158,7 @@ struct StepReport {
     double maxDeltaF = 0.0;
     double sourceAdded = 0.0;
     double sinkRemoved = 0.0;
+    double boundaryExchange = 0.0;   ///< m^3 the prescribed columns exchanged this tick (+ into the volume)
     double sourceUnplaced = 0.0;
     int    quietTicks = 0;
     bool   asleep = false;
@@ -297,6 +311,13 @@ public:
     void refreshSolids();
 
     SourceSpec& addSource(const glm::ivec3& cellLocal, float rate);
+    /// Phase G: set (or update) the prescribed surface of a sub-column; targetY in world units.
+    BoundarySpec& setBoundary(const glm::ivec2& columnLocal, float targetY);
+    void clearBoundaries() { m_boundaries.clear(); }
+    const std::vector<BoundarySpec>& boundaries() const { return m_boundaries; }
+    std::vector<BoundarySpec>& boundariesMutable() { return m_boundaries; }
+    /// Write every prescribed column's fills to its target (the CPU form of wc_boundary); returns the m^3 exchanged.
+    double applyBoundaries();
     void clearSources();
     const std::vector<SourceSpec>& sources() const { return m_sources; }
     std::vector<SourceSpec>& sourcesMutable() { return m_sources; }   ///< the GPU backend writes placedTotal/pending back (WaterCoreManager::stepGpu)
@@ -336,6 +357,7 @@ private:
     SolverParams m_params;
     std::unique_ptr<IWaterTransport> m_transport;
     std::vector<SourceSpec> m_sources;
+    std::vector<BoundarySpec> m_boundaries;   // Phase G
     std::vector<double> m_p, m_rhs, m_z, m_s, m_r, m_diag;   // projection scratch (double)
     std::vector<float> m_fPrev;
     StepReport m_last;

@@ -579,6 +579,51 @@ double WaterSolver::pressure(int x, int y, int z) const {
     return m_p[m_grid.idx(x, y, z)];
 }
 
+BoundarySpec& WaterSolver::setBoundary(const glm::ivec2& columnLocal, float targetY) {
+    for (BoundarySpec& b : m_boundaries) if (b.column == columnLocal) { b.targetY = targetY; return b; }
+    BoundarySpec b; b.column = columnLocal; b.targetY = targetY;
+    m_boundaries.push_back(b);
+    return m_boundaries.back();
+}
+
+double WaterSolver::applyBoundaries() {
+    double total = 0.0;
+    const float h = m_grid.h();
+    const double h3 = m_grid.cellVolume();
+    for (BoundarySpec& b : m_boundaries) {
+        const int x = b.column.x, z = b.column.y;
+        if (x < 0 || z < 0 || x >= m_grid.nx() || z >= m_grid.nz()) continue;
+        const float yTarget = b.targetY / h - static_cast<float>(m_grid.spec().origin.y);   // in cell rows above the grid floor
+        double d = 0.0;
+        int bed = 0;   // the first air cell above the highest solid under the surface
+        for (int y = 0; y < m_grid.ny(); ++y) if (m_grid.occ(x, y, z) != Occ::Air && static_cast<float>(y) < yTarget) bed = y + 1;
+        const float depth = std::max(yTarget - static_cast<float>(bed), 0.5f) * h;   // m
+        for (int y = 0; y < m_grid.ny(); ++y) {
+            if (m_grid.occ(x, y, z) != Occ::Air) continue;   // the seabed stays the seabed
+            const float want = std::clamp(yTarget - static_cast<float>(y), 0.0f, 1.0f);
+            float& fc = m_grid.f(x, y, z);
+            d += static_cast<double>(want - fc) * h3;
+            fc = want;
+            // Airy orbital velocity profile over the wet cells (the wavemaker): horizontal decays as
+            // cosh, vertical as sinh, both 1 at the surface; uniform when k = 0
+            if (want > 0.0f) {
+                const float zc = (static_cast<float>(y) + 0.5f - static_cast<float>(bed)) * h;   // height above the bed, m
+                float cu = 1.0f, cw = 1.0f;
+                if (b.k > 0.0f) { const float kd = b.k * depth; cu = std::cosh(b.k * zc) / std::cosh(kd); cw = std::sinh(b.k * zc) / std::max(std::sinh(kd), 1e-6f); }
+                const float ux = b.uSurface.x * cu, uz = b.uSurface.y * cu, wy = b.wSurface * cw;
+                if (!blocked(m_grid, x - 1, y, z)) m_grid.u(x, y, z) = ux;
+                if (!blocked(m_grid, x + 1, y, z)) m_grid.u(x + 1, y, z) = ux;
+                if (!blocked(m_grid, x, y, z - 1)) m_grid.w(x, y, z) = uz;
+                if (!blocked(m_grid, x, y, z + 1)) m_grid.w(x, y, z + 1) = uz;
+                m_grid.v(x, y, z) = wy;
+                if (y + 1 < m_grid.ny() && !blocked(m_grid, x, y + 1, z)) m_grid.v(x, y + 1, z) = wy;
+            }
+        }
+        b.exchanged += d; total += d;
+    }
+    return total;
+}
+
 void WaterSolver::applySources(float dt, StepReport& r) {
     const float vol = m_grid.cellVolume();
     for (SourceSpec& s : m_sources) {
@@ -1119,6 +1164,7 @@ StepReport WaterSolver::step(float dt) {
     StepReport r;
     if (m_asleep) { r.asleep = true; r.totalMass = m_grid.totalMass(); r.quietTicks = m_quietTicks; m_last = r; return r; }
     refreshSolids();
+    r.boundaryExchange = applyBoundaries();   // Phase G: the ocean boundary, before anything moves
     m_fPrev.assign(m_grid.fData().begin(), m_grid.fData().end());
     const int n = substepsFor(dt);
     const float ds = dt / static_cast<float>(n);
@@ -1158,7 +1204,7 @@ StepReport WaterSolver::step(float dt) {
     r.maxDeltaF = maxD;
     const double specificKE = r.kineticEnergy / std::max(r.totalMass, 1e-9);   // m^2/s^2 per unit mass
     const double maxDQuiet = m_transport->ownsMass() ? m_params.maxDeltaFQuietParticles : m_params.maxDeltaFQuiet;
-    const bool quiet = specificKE < keWake && maxD < maxDQuiet && r.sourceAdded == 0.0 && r.sinkRemoved == 0.0;
+    const bool quiet = specificKE < keWake && maxD < maxDQuiet && r.sourceAdded == 0.0 && r.sinkRemoved == 0.0 && std::abs(r.boundaryExchange) < 1e-9;
     m_quietTicks = quiet ? m_quietTicks + 1 : 0;
     if (m_quietTicks >= m_params.restTicks) {
         if (m_transport->ownsMass()) {   // §15.9 rest conversion: particles -> fills, then the fill transport sleeps as usual

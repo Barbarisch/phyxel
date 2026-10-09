@@ -1691,16 +1691,63 @@ those stay the 3-D core's, which the band hands a splash region to when somethin
 (Phase E). The band's output is a height per column: the F1 surface field directly, so it renders
 through the same mesh, and at rest it writes the same spans.
 
-**G1 (re-scoped):** `ShoreSolver` (pure, testable): columns `nx × nz` at `h`, bed `b` per column
-from the voxels, surface `η`, face velocities `u, w`; per tick: momentum (surface gradient +
-upwind advection + a bed-friction term grounded on Manning n for sand), continuity with upwind
-depth, wet/dry at 1 mm, prescribed outer columns from `seaSwellSample`, CFL substeps
-`dt ≤ h / √(g d_max)`, breaking marked where H/d > 0.78 (McCowan) or the front steepens past a
-slope threshold (foam for G2). Red tests: `ShoreSolverTest.StillWaterOnASlopeStaysStill`,
+**G1 (re-scoped, then re-scoped again by §18.5):** `ShoreSolver` (pure, testable): columns
+`nx × nz` at `h`, bed `b` per column from the voxels, surface `η` and depth-averaged velocity
+`(u, w)` per column; **conservative finite volume in (depth, discharge)** — second-order MUSCL with
+the monotonized-central limiter on `η`, `d`, `u`, `w`, hydrostatic reconstruction at the faces
+(Audusse et al. 2004: still water on any bed is exact, a wet/dry front never goes negative), HLL
+fluxes with the dry-bed wave speeds, Heun time stepping under a CFL bound, semi-implicit Manning
+friction (n = 0.025, sand); wet/dry at 1 mm, prescribed outer columns from `seaSwellSample`,
+breaking marked where the front steepens past a slope threshold in shallow water (foam for G2). Red tests: `ShoreSolverTest.StillWaterOnASlopeStaysStill`,
 `CarriesTheSwell` (≥ 0.8 × a at 12 columns in, ≥ 0.6 × a at 24 — the rows the 3-D core failed),
 `MassExactWithWetDry`, `WallReflects`, `RunUpOnTheBeachVsHunt` (1:20 beach, R = H·ξ ± 20 %,
 reported). The 3-D `BoundarySpec` stays as a pump/inlet primitive (its exchange ledger test passes).
 
+
+### 18.5 G1 built: the velocity form fails at the bore; the band is a conservative solver (2026-10-09)
+
+The first `ShoreSolver` was the §18.4 sketch literally: surface per column, velocities on the
+faces, upwind advection, donor-cell continuity (the staggered "velocity form"). Measured on the
+`RunUpOnTheBeachVsHunt` rig (120 m, 3 m deep, a 1:20 beach from 20 m, a 0.3 m / 14 m swell
+prescribed over the first 12 m, 1/3 m columns, 60 Hz):
+
+| scheme | amplitude 24 m / 36 m (driven 0.30) | surface at 78 m (6 cm seaward of the still line) | highest wet bed | Hunt R = H·ξ |
+|---|---|---|---|---|
+| velocity form, first-order upwind | 0.255 / 0.299 | **−0.04 .. −0.06 m** (the shore drains) | **−0.025 m** (never above still) | 0.145 m |
+| velocity form, limited second-order advection + face-mean depth | 0.261 / 0.356 | **−0.05 .. −0.09 m** | **−0.042 .. −0.142 m** (worse) | 0.145 m |
+| **conservative FV (MUSCL-MC + hydrostatic reconstruction + HLL, Heun)** | 0.274 / 0.271 | **+0.04 .. +0.13 m** (set-up) | **+0.175 m** | 0.145 m (+21 %, inside ±20 % + 2 cm) |
+
+The velocity form carried the swell fine in the channel (that was the §18.4 row) and then lost it
+on the slope: the wave broke into a bore at d ≈ 0.7 m and the non-conservative momentum equation
+has no correct jump condition at a bore — the shoreward momentum flux vanished at the shock, so
+instead of the surf-zone set-up (+0.1 m at the shoreline for γ = 0.78 on this beach, Longuet-Higgins
+& Stewart) the shallows DREW DOWN 8 cm and the wet front retreated. Making the advection second
+order made it worse (sharper bore, same wrong jump). The conservative form in (d, q) conserves the
+momentum flux across the bore by construction, and run-up and set-up appear with no tuning. The
+cost is one HLL flux per face per stage (two stages), ~2× the velocity form — fine for a band.
+
+Also found on the way: (1) `float` surfaces walk the mass ledger off by 1e-6 relative over a
+thousand steps (rounding of `bed + d` per column per step, 270 columns): the surface is a `double`
+and the ledger is now exact to 1e-9 with zero clamps (`MassExactWithWetDry` prints both); (2)
+`prescribe()` itself is an exchange (the ocean raising its own surface between steps) and is
+counted into the next step's `exchanged`, so `Σ exchanged == mass_after − mass_before` closes;
+(3) minmod lost 20 % of the swell over 36 m and reached 1.54 a at the wall — the MC limiter keeps
+0.27 of 0.30 and reaches 1.75 a (theory 2 a for a perfect standing wave).
+
+**G1 ledger (all red-before-green, Release):**
+
+| test | measured | gate |
+|---|---|---|
+| `StillWaterOnASlopeStaysStill` | max speed 0 after 600 ticks, mass exact, every column at its still level | < 1e-6 m/s, 1e-9 |
+| `CarriesTheSwell` | 0.274 at 24 m, 0.271 at 36 m, arrival 2.25 s (c 4.68 m/s), ledger closes to 1e-5 | ≥ 0.24 / ≥ 0.18, < 3.56 s |
+| `MassExactWithWetDry` | 20.000001192 → 20.000001192 m³, clamped 0, slope wet below the final line | 1e-9, 0 |
+| `WallReflects` | 0.349 at the wall for a 0.20 incident | ≥ 0.32 |
+| `RunUpOnTheBeachVsHunt` | 0.175 m, Hunt 0.145 m | ±20 % + 2 cm |
+
+Next: the band itself (siting from the stored spans around the camera, bed from the voxel
+occupancy, prescribed ocean columns from the sheet's own swell clock, the band's `η` as an F1
+surface field so it renders through the same mesh, the sheet masked under the band), then the
+Coast L4 rows (S12) and the shore-eye captures.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
