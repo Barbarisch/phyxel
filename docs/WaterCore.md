@@ -940,6 +940,40 @@ volume, the manager stepping it and downloading for probes), the harness `--back
 DOWNWARD (lateral neighbours belong to other column threads) — a documented parity tolerance,
 counted in `residueDropped`.
 
+### 15.13 Phase C build ledger — slice 2, the backend in the engine (2026-10-08)
+
+**Built:** `WaterCoreManager::initGpu` (the editor hands it `VulkanDevice`'s device, physical device,
+graphics queue and family, and the shader directory resolved through `AssetManager`); a volume is
+created with `backend:"gpu"` (refused loudly without a device, with a non-fill transport, or when
+its buffers cannot be allocated — the message carries the byte count); the manager uploads the grid
+when it is newer than the GPU copy (placement, occupancy refresh), runs the ticks on the device
+with `kGpuSweeps` = 40 SOR sweeps at ω 1.85, and downloads after every `water_av_step` so probes,
+the surface feed and the ledger read the grid exactly as for the CPU. Every record carries
+`backend`, `rbgs_residual`, `gpu_sweeps`. Harness: `--backend gpu` (evidence tag `_gpu`). Sources
+on a GPU volume are refused in this slice (the fill placement of a source is host-side).
+
+**Parity rows (Basin, 1 m, same harness, same ticks; CPU row → GPU row):**
+
+| Row | CPU | GPU | Parity gate (§15.11) |
+|---|---|---|---|
+| S3 front at the 0.5 m contour | 1.7 s | 1.7 s | ± 1 sample — **PASS** |
+| S3 wall run-up | 1.33 h₀ | 1.34 h₀ | ± 10 % of h₀ — **PASS** |
+| S3 pool spread at 12 s | 1.118 m | 1.144 m | (not a gate; the seiche row is) |
+| S3 mass over 12 s | +2.2e-5 | −9.5e-5 (residue counted 6.2e-5: the GPU sweep merges downward only) | both inside the tick-scaled gate — **PASS** |
+| S4 spilled by 30 s | 75.49 m³ (−5.1 %) | 75.74 m³ (−4.8 %) | ± 10 % — **PASS**; mass −1.1e-4 |
+| S5 cavity | 48.0 at 8.9–10.1 s | 47.997 at 9.3 s | ± 10 % — **PASS** |
+| S5 end level | 14.656 | 14.654 | 1 cm — **PASS**; sealed control dry on both |
+| S3 seiche, 60 s (the sweep-count judge) | 11.4 s, envelope 0.21 | 11.175 s (CPU 11.4 s; Merian 9.8), envelope 0.35 (CPU 0.21) | ± 10 % period, non-growing envelope |
+| S3 at ⅓ m | front 1.5 s, run-up 1.11 h₀ | front 1.5000000000000002 s (CPU 1.5), run-up 1.22 h₀ (CPU 1.11), mass -2.5e-06 | ± 1 sample, ± 10 % |
+
+**Cost (`docs/evidence/water_feel/C2_cost_rows_20261008.json`, S3 block collapse, 60 ticks):**
+1 m: cpu 1.13 ms / gpu 2.2 ms per tick; ⅓ m (75816 cells): cpu 30.0 ms / gpu 33.06 ms (host-visible buffers, two fenced submissions and a full download per tick: the slice-3 optimisation targets, not the §10 number yet).
+
+**Not in slice 2:** FLIP kernels (F1–F3) and sources on GPU volumes (slice 3); device-local
+buffers, batching every awake AV into one submission, and the realtime once-per-second download
+(the §10 ≤ 2 ms row comes after those); `GpuRestDecisionDeterministic` and the one-byte-over
+refusal test.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

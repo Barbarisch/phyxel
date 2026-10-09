@@ -7,6 +7,7 @@
 // Solids come from a three-state micro-occupancy query the engine binds (Empty / Solid / Unknown
 // per world micro cell, 9 per voxel per axis); Unknown is a hold wall (§5.1).
 #include "core/water/WaterCore.h"
+#include "core/water/WaterCoreGpu.h"   // Phase C backend (optional; CPU reference without it)
 #include "core/WaterManager.h"   // WaterSurfaceCell (the debug feed's struct)
 #include <glm/glm.hpp>
 #include <array>
@@ -30,6 +31,9 @@ struct AvRecord {
     glm::ivec3 minVoxel{0}, maxVoxel{0};   ///< world voxel box, inclusive
     float cellSize = 1.0f;
     std::string transport;                 ///< the solver's CURRENT transport (a FLIP volume reads "eulerian" after its rest conversion)
+    std::string backend = "cpu";          ///< Phase C: "cpu" (the reference) or "gpu" (WaterCoreGpu, parity-gated)
+    float rbgsResidual = 0.0f;             ///< GPU backend: max |A p - b| after the last substep's sweeps (0 on the CPU)
+    int   gpuSweeps = 0;
     size_t particles = 0;                  ///< Phase B2: FLIP particles alive (0 for fills)
     size_t cells = 0;
     bool asleep = false;
@@ -70,7 +74,11 @@ public:
     /// fraction of a voxel (1, 1/3, 1/9, 1/27, 1/81); `transport` is "eulerian" (Phase B).
     /// Refuses (returns 0, fills `err`) when the cell count would exceed `maxCells`.
     int create(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float cellSize,
-               const std::string& transport, std::string* err);
+               const std::string& transport, std::string* err, const std::string& backend = "cpu");
+    /// Phase C: give the manager a device; GPU volumes are refused until this succeeds (loudly).
+    bool initGpu(VkDevice device, VkPhysicalDevice physical, VkQueue queue, uint32_t queueFamily, const std::string& shaderDir, std::string* err);
+    bool gpuReady() const { return m_gpu && m_gpu->ready(); }
+    static constexpr int kGpuSweeps = 40;   ///< red-black SOR sweeps per projection (docs/WaterCore.md 15.12: omega 1.85, measured)
     bool destroy(int id);
     std::vector<AvRecord> list() const;
     const AvRecord* find(int id) const;
@@ -127,6 +135,10 @@ private:
         uint64_t occRevision = ~0ull;   // pack revision the cache was sampled at
         StepReport last;
         double residueDropped = 0.0;   // cumulative
+        std::string backend = "cpu";
+        WaterCoreGpu::Volume* gpuVol = nullptr;
+        bool gpuDirty = true;          // the grid (fills, velocities or occupancy) is newer than the GPU copy
+        GpuStepStats gpuLast;
     };
     void refreshOccupancy(Av& av);
     Occ sampleOccupancy(const Av& av, const glm::ivec3& cellLocal) const;
@@ -135,6 +147,8 @@ private:
 
     MicroStateQuery m_state;
     SolidsRevisionQuery m_revision;
+    std::unique_ptr<WaterCoreGpu> m_gpu;
+    void stepGpu(Av& av, int ticks, float dt);
     std::vector<std::unique_ptr<Av>> m_avs;
     int m_nextId = 1;
     bool m_realtime = false;

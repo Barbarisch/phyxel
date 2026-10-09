@@ -27,7 +27,7 @@ bool WaterCoreManager::snapCellSize(float requested, float* snapped) {
 }
 
 int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVoxel, float cellSize,
-                             const std::string& transport, std::string* err) {
+                             const std::string& transport, std::string* err, const std::string& backend) {
     float h = 1.0f;
     if (!snapCellSize(cellSize, &h)) { if (err) *err = "cellSize must be 1, 1/3, 1/9, 1/27 or 1/81 (a cell that does not divide a microcube would sit half inside a wall)"; return 0; }
     const int per = static_cast<int>(std::lround(1.0f / h));
@@ -36,6 +36,9 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
     const size_t cells = static_cast<size_t>(dims.x) * dims.y * dims.z;
     if (cells > kMaxCellsPerVolume) { if (err) *err = "volume would be " + std::to_string(cells) + " cells; the CPU reference caps at " + std::to_string(kMaxCellsPerVolume); return 0; }
     if (transport != "eulerian" && transport != "flip") { if (err) *err = "transport must be 'eulerian' or 'flip'"; return 0; }
+    if (backend != "cpu" && backend != "gpu") { if (err) *err = "backend must be 'cpu' or 'gpu'"; return 0; }
+    if (backend == "gpu" && !gpuReady()) { if (err) *err = "no GPU backend: WaterCoreGpu was not initialised (no device, or a kernel failed to load) - the CPU reference is the fallback, say so"; return 0; }
+    if (backend == "gpu" && transport != "eulerian") { if (err) *err = "the GPU backend runs the fill transport only in this slice (FLIP kernels are Phase C slice 3)"; return 0; }
     if (transport == "flip" && cells * static_cast<size_t>(FlipTransport::kParticlesPerCell) > FlipTransport::kMaxParticlesPerVolume) {
         if (err) *err = "a FLIP volume of " + std::to_string(cells) + " cells could hold " + std::to_string(cells * FlipTransport::kParticlesPerCell) + " particles; the CPU reference caps at " + std::to_string(FlipTransport::kMaxParticlesPerVolume);
         return 0;
@@ -55,8 +58,17 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
     av->solver = std::make_unique<WaterSolver>(*av->grid, q);
     if (transport == "flip") av->solver->setTransport(std::make_unique<FlipTransport>());   // empty until water is placed
     av->occDirty = true;
+    av->backend = backend;
     refreshOccupancy(*av);
     av->solver->refreshSolids();
+    if (backend == "gpu") {
+        // the grid's occupancy must hold the hold boundary the GPU reads (it is the solver's query on the CPU)
+        for (int z = 0; z < av->grid->nz(); ++z) for (int y = 0; y < av->grid->ny(); ++y) for (int x = 0; x < av->grid->nx(); ++x)
+            av->grid->occ(x, y, z) = av->occCache[av->grid->idx(x, y, z)];
+        av->gpuVol = m_gpu->createVolume(*av->grid, err);
+        if (!av->gpuVol) return 0;   // the refusal carries the byte count
+        av->gpuDirty = false;
+    }
     m_avs.push_back(std::move(av));
     return raw->id;
 }
@@ -64,6 +76,7 @@ int WaterCoreManager::create(const glm::ivec3& minVoxel, const glm::ivec3& maxVo
 bool WaterCoreManager::destroy(int id) {
     auto it = std::find_if(m_avs.begin(), m_avs.end(), [id](const std::unique_ptr<Av>& a) { return a->id == id; });
     if (it == m_avs.end()) return false;
+    if ((*it)->gpuVol && m_gpu) m_gpu->destroyVolume((*it)->gpuVol);
     m_avs.erase(it);
     return true;
 }
@@ -72,6 +85,8 @@ AvRecord WaterCoreManager::record(const Av& av) const {
     AvRecord r;
     r.id = av.id; r.minVoxel = av.minVoxel; r.maxVoxel = av.maxVoxel; r.cellSize = av.h; r.transport = av.solver->transport().name();
     r.particles = av.solver->transport().particleCount();
+    r.backend = av.backend; r.rbgsResidual = av.gpuLast.rbgsResidualMax; r.gpuSweeps = av.backend == "gpu" ? kGpuSweeps : 0;
+    if (av.backend == "gpu") r.asleep = av.gpuLast.asleep;
     r.cells = av.grid->cellCount(); r.asleep = av.solver->asleep();
     r.mass = av.solver->transport().ownsMass() ? av.solver->transport().ownedMass() : av.grid->totalMass();
     r.kineticEnergy = av.grid->kineticEnergy(); r.lastSubsteps = av.last.substeps; r.lastPcgIterations = av.last.pcgIterations;
@@ -136,6 +151,11 @@ void WaterCoreManager::refreshOccupancy(Av& av) {
             for (int x = 0; x < g.nx(); ++x)
                 av.occCache[g.idx(x, y, z)] = sampleOccupancy(av, glm::ivec3(x, y, z));
     av.occDirty = false;
+    if (av.gpuVol) {   // the GPU reads occupancy from the grid: mirror the cache and mark the copy stale
+        for (int z = 0; z < av.grid->nz(); ++z) for (int y = 0; y < av.grid->ny(); ++y) for (int x = 0; x < av.grid->nx(); ++x)
+            av.grid->occ(x, y, z) = av.occCache[av.grid->idx(x, y, z)];
+        av.gpuDirty = true;
+    }
 }
 
 void WaterCoreManager::markSolidsDirty() {
@@ -146,7 +166,8 @@ bool WaterCoreManager::step(int id, int ticks, float dt, AvRecord* out) {
     for (auto& av : m_avs) {
         if (av->id != id) continue;
         refreshOccupancy(*av);
-        for (int i = 0; i < ticks; ++i) { av->last = av->solver->step(dt); av->residueDropped += av->last.residueDropped; }
+        if (av->backend == "gpu") stepGpu(*av, ticks, dt);
+        else for (int i = 0; i < ticks; ++i) { av->last = av->solver->step(dt); av->residueDropped += av->last.residueDropped; }
         if (out) *out = record(*av);
         return true;
     }
@@ -157,7 +178,8 @@ void WaterCoreManager::update(float dt) {
     if (!m_realtime) return;
     for (auto& av : m_avs) {
         refreshOccupancy(*av);
-        if (!av->solver->asleep()) { av->last = av->solver->step(dt); av->residueDropped += av->last.residueDropped; }
+        if (av->backend == "gpu") { if (!av->gpuLast.asleep) stepGpu(*av, 1, dt); }
+        else if (!av->solver->asleep()) { av->last = av->solver->step(dt); av->residueDropped += av->last.residueDropped; }
     }
 }
 
@@ -188,6 +210,7 @@ long WaterCoreManager::placeBox(const glm::ivec3& minVoxel, const glm::ivec3& ma
         // plus the box just written) - mass-exact, positions re-jittered; placement is not motion
         if (av->solver->transport().ownsMass()) av->solver->transport().seed(*av->grid);
         av->solver->wake();
+        av->gpuDirty = true; av->gpuLast.asleep = false;
     }
     if (outsideCells) *outsideCells = outside;
     return set;
@@ -238,6 +261,28 @@ bool WaterCoreManager::settle(int id) {
     return false;
 }
 
+bool WaterCoreManager::initGpu(VkDevice device, VkPhysicalDevice physical, VkQueue queue, uint32_t queueFamily, const std::string& shaderDir, std::string* err) {
+    auto gpu = std::make_unique<WaterCoreGpu>();
+    if (!gpu->init(device, physical, queue, queueFamily, shaderDir, err)) return false;
+    m_gpu = std::move(gpu);
+    return true;
+}
+
+// Phase C slice 2: the grid is the interface. Upload when it is newer than the GPU copy, run the
+// ticks on the device (fenced), download so probes, the surface feed and the ledger keep reading
+// the grid exactly as they do for the CPU reference. StepReport mirrors the GPU reductions.
+void WaterCoreManager::stepGpu(Av& av, int ticks, float dt) {
+    if (!av.gpuVol || !m_gpu) return;
+    if (av.gpuDirty) { m_gpu->upload(*av.gpuVol, *av.grid); av.gpuDirty = false; }
+    const GpuStepStats st = m_gpu->step(*av.gpuVol, av.solver->params(), dt, ticks, kGpuSweeps);
+    m_gpu->download(*av.gpuVol, *av.grid);
+    av.gpuLast = st;
+    av.last.substeps = st.substepsLast; av.last.totalMass = st.totalMass; av.last.kineticEnergy = st.kineticEnergy;
+    av.last.maxDeltaF = st.maxDeltaF; av.last.quietTicks = st.quietTicks; av.last.asleep = st.asleep;
+    av.last.pcgIterations = st.sweeps; av.last.pcgResidual = st.rbgsResidualMax; av.last.residueDropped = st.residueDropped;
+    av.residueDropped += st.residueDropped;
+}
+
 bool WaterCoreManager::clearSources(int id) {
     for (auto& av : m_avs) if (av->id == id) { av->solver->clearSources(); return true; }
     return false;
@@ -246,6 +291,7 @@ bool WaterCoreManager::clearSources(int id) {
 bool WaterCoreManager::addSource(int id, const glm::vec3& world, float rate, std::string* err) {
     for (auto& av : m_avs) {
         if (av->id != id) continue;
+        if (av->backend == "gpu") { if (err) *err = "sources on a GPU volume arrive with Phase C slice 3 (the fill placement of a source is host-side); use the cpu backend"; return false; }
         const glm::ivec3 c = av->grid->worldToCell(world);
         if (!av->grid->inBounds(c.x, c.y, c.z)) { if (err) *err = "source position is outside the volume"; return false; }
         av->solver->addSource(c, rate);
