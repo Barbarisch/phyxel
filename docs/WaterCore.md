@@ -414,7 +414,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **B. The core, CPU reference** — **BUILT + IN THE ENGINE 2026-10-08** (ledgers §15.7–15.8; S5 4/4, S2 4/4, S1 3/4, S4 1 m PASS / ⅓ OPEN, S3 front PASS / run-up + rest gates to re-base) | `WaterCore` library: MAC grid, `SurfaceTransport::Eulerian` (VOF), projection, solids from the micro pool, sources/sinks, rest detection; deterministic; unit tests for §4.4; S3, S4, S5, S1, S2 pass on the CPU at ⅓ (default), ⅑ and 1 | **/design-check** | §4.4 rules green; S1–S5 predictions met; mass ledger exact |
 | **B2. FLIP transport** | `SurfaceTransport::FLIP` against the same grid (particles carry f and momentum; grid projection; particle↔grid transfer; re-seeding; rest conversion); harness runs S1–S5 on both modes and records the comparison | /design-check | Same scenarios green on FLIP; a written comparison (rest flatness, splash shape, cost) the user reads before Phase E chooses the default per scenario |
 | **C. GPU core** | Same solver on compute (`water_core_*.comp`), ping-pong, no readback except the surface/queries; parity with CPU on S1–S5 within tolerance; perf rows | /design-check (dispatch, buffers, tiers) | parity + ≤ 2 ms at `high` with all §3 rigs awake |
-| **D. Rest, persistence, world data** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | — | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
+| **D. Rest, persistence, world data** — **design §16 (2026-10-08)** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | /design-check on §16 | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
 | **E. Coupling** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
 | **F. Rendering the core** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
 | **G. Large bodies on top** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
@@ -1083,6 +1083,234 @@ sweeps, residual 5e-4), inside the literature band where the CPU reads 1.11.
 **Phase C stands here:** the fill solver on the device is the default, parity-gated row by row, 16–27×
 the CPU reference on the rigs; particles run on the device behind an explicit `backend:"gpu"` with the
 splash row open; the §10 tier-ceiling budget needs the dispatch batching named in §15.14.
+
+## 16. Phase D design — rest, persistence, world data (2026-10-08, before building)
+
+Phase D is where the core stops being a harness toy: water that settles in an active volume becomes
+**world data** (Tier B spans in chunks, Tier A body records in `world_meta`), water that is world
+data can be woken back into a volume, edits touch that data under rule 3 (never create), and the
+renderer's span grid follows residency *content*. The generation items WaterRethink WP1 steps 1 and
+1b were gated READY in WaterRethink §8.8 and are built here as specified there. Ground truth read
+before this design (file:line as of this commit):
+
+| What exists | Where | Reading |
+|---|---|---|
+| `Chunk::WaterSpanLocal {x, z, bottom, top}` float tops, (x,z)-sorted, multi-run per column allowed, clipped per vertical chunk (`top == 32` continues above) | `Chunk.h:60-70`, `Chunk.cpp:157` (debug-asserts the order), `ChunkBlobCodec.cpp:366-396` (refuses malformed blobs) | Tier B storage exists and is pinned; **nothing at runtime writes it except `water_ground_sync`** (authored worlds) and generation. |
+| `setWaterSpans` does **not** mark the chunk dirty; `ChunkStreamingManager::saveDirtyChunks` saves only dirty chunks | `Chunk.cpp:157-172`, `ChunkStreamingManager.cpp:559-583` | A runtime span write can be lost on a dirty-only save — the write-back marks dirty itself, and D1's cold-restart row is the test. |
+| Span render grid rebuild keyed on `chunkMap.size()` + 30-frame cooldown; `vkDeviceWaitIdle` per rebuild | `RenderCoordinator.cpp:1106-1185` | WP1 step 6's defect (5,120 stale columns measured in WP0). |
+| `WaterBodyIndex::Body {id, cls Ocean/Lake/Pond, areaCells, level, volumeEst, bbox}` built beside the bake; the CA's finite-body deltas + pours persist as `world_meta["water_overrides"]` | `WaterBodyIndex.h`, `WaterManager.h:178-190,286-302`, `Application.cpp:6719,17090` | Tier A exists only as the bake's labelling plus the CA's private store; `WaterBodyTable` replaces the store. |
+| `floodBodiesOverGrid` spreads a seed level into any neighbour with `groundTop < level`, bounded by `maxSteps` only; `waterSpansForBlock` seeds from `waterLevelAt` and never consults the channel | `WaterOccupancy.cpp:27-69`, `WorldGenerator.cpp` | Steps 1 and 1b are **not built**; the River trunk rect reads 17,677 span-wet ∧ bake-dry ∧ non-river columns. |
+| AV solids = `VoxelLightOccupancyGpu::stateAtMicro`, `Unknown` outside the pool window or a non-resident chunk | `Application.cpp:436-445`, `VoxelLightOccupancy.h:256-260` | The hold boundary of §5.1 is already the query's answer; D makes it a tested rule. |
+| Voxel edits reach water through `setVoxelOccupancyCallback` (CA solid mask + `waterCore->markSolidsDirty()`) | `Application.cpp:459-462` | No span is touched by an edit today. |
+| AVs are created only by an explicit box; nothing seeds from spans; a sleeping AV keeps its cells and costs nothing but never frees | `WaterCoreManager.cpp:30-60,190-197` | D1 adds wake-from-spans, sleep → write-back → free. |
+
+### 16.1 Slices, in build order
+
+| Slice | Deliverable | Why this order |
+|---|---|---|
+| **D3** span grid on residency content | rebuild key = hash of the resident chunk set ⊕ span revision ⊕ awake-AV set; awake-AV columns masked out of the grid (the AV draws them) | Smallest; the camera-walk probe is the L4 gate for every later slice and it is blind until this lands. |
+| **D1** rest → spans + bodies; wake from spans | `WaterCoreManager::writeBack`, the `SpanWriter` callback, `water_av_sleep`, `seed:"spans"`, `water_av_wake`, `WaterBodyTable` in `world_meta` | The phase's core; S11. |
+| **D2** edits never create water | the occupancy callback clips/shifts spans per rule 3; wake-on-edit in realtime | Needs D1's wake + write-back. |
+| **D4** generation: hydraulic flood + river spans | WaterRethink §8.8 as gated: `HydrologyMap::filledAt`, the `filled ≥ level` neighbour test, one river span per channel column | Independent of the runtime; last because its red metric (River trunk 17,677 → 0) needs the probe green to be trusted. |
+| **D5** delete-ledger commit | retire the implicit flat sea (`invCellSize == 0`) and the bake-as-placement upload + `m_lastHydroUploaded` reset hazards (§9 row "Flat-sea mode", order "(D)") | Only after D3+D4 leave the probe at 0 violations on Coast, River, Basin; its own commit, one revert away. |
+
+### 16.2 D1 — write-back, wake, the body table
+
+**Write-back is a pure function of the AV's cells.** For each world voxel column (x, z) inside the
+box, the `per²` sub-columns of each cell layer are averaged to one fill per layer, `f̄(y)`. A layer
+is wet iff `f̄·h ≥ kSurfaceMinDepth` (1 mm, §15.8 #12). A **run** is a maximal vertical sequence of
+wet layers; its bottom is the world Y of its lowest layer, its top is `bottom + Σ f̄·h` over the run
+— **mass-exact by definition** (Σ run depths × 1 m² = Σ f over the column, to float rounding). The
+run's *geometric* surface (the highest wet layer's `y + f̄·h`) is also computed and the write-back
+record reports `surface_vs_mass_mm` = max over columns of the difference, and `spread_mm` = max over
+columns of (max − min) sub-column surface. S11's "spans equal the surface ± 1 mm" is this number,
+measured, not assumed: an interior layer short of full by more than 1 mm shows up here (compaction's
+job, §15.8 #10). Runs that already lie wholly outside the box's Y range in the chunk are kept; runs
+intersecting it are replaced. A column whose box holds any `Unknown` occupancy is **not written**:
+`unwritten_columns` counts it and the AV stays alive — never a silent drop (rule from §5.1: the AV
+should not exist there; the count is the tripwire).
+
+**Who writes chunks.** `WaterCoreManager` knows no chunks; it hands a `std::vector<ColumnRuns>`
+(world coordinates) to a `SpanWriter` callback the application installs. The application clips each
+run to the vertical chunks it crosses, merges with that chunk's untouched spans, sorts to the storage
+contract, `setWaterSpans`, **`setDirty(true)`** (today's runtime writer forgets this), bumps
+`ChunkManager::waterSpanRevision()`. Columns in non-resident chunks are refused back to the manager
+(counted in `unwritten_columns`), the same answer as `Unknown` occupancy.
+
+**Sleep.** A GPU volume is downloaded first (`syncFromGpu` forced, never the rate-limited copy — a stale mirror would write the last second's surface). `water_av_sleep {id, force:false}`: refuses while awake (`error: "volume is awake
+(quiet_ticks k/30)"`) unless `force`, which writes a snapshot and flags `forced:true` in the record;
+on success it writes back, credits the body table, destroys the AV, and returns the record. In
+realtime, `auto_sleep` (default **on**, echoed on create) does the same the tick the solver reports
+asleep. The explicit harness is unaffected: it never enables realtime.
+
+**Wake.** `water_av_create {..., seed:"spans"}` fills the new grid from the chunk spans of its box
+(each run → full layers between, the top layer `f̄ = frac`; sub-columns identical — a flat start) and
+masks those columns in the span grid while awake. `water_av_wake {x, y, z, cellSize, maxCells}`
+floods over spans from the column (4-neighbour columns whose runs overlap in Y with the frontier
+run), stops at `maxCells` (§5.1; beyond it the box face is a hold boundary, reported as
+`truncated:true` with the cell count), pads 2 cells of air, and creates with `seed:"spans"`. Rule 3
+holds trivially: a wake reads spans, it never writes them.
+
+**Round trip.** After write-back, `seed:"spans"` of the same box and 60 ticks must change nothing
+(§5.2): `max |Δf| ≤ 1e-6`, mass equal to float rounding, and the next write-back produces identical
+runs. This is the equality test that makes B and C "the same water".
+
+**`WaterBodyTable`** (`engine/{include,src}/core/water/WaterBodyTable.{h,cpp}`): records
+`{id, cls (ocean|lake|pond|river|puddle), level, mass, displaced, bboxMin, bboxMax, origin
+(generation|av)}` in `world_meta["water_bodies"]` (JSON, one key, same transport as the recipe).
+Generation bodies are imported from `WaterBodyIndex` at boot (`origin:generation`, `mass` =
+`volumeEst` labelled an estimate); an AV write-back credits **per column**: each written column's `written − seeded` goes to
+the bake body `WaterBodyIndex::bodyIdAt` names for that column; the columns that belong to no bake
+body form (or extend, by bbox overlap and level within 1 cell) one `origin:av` pond with `mass =
+Σ runs`, `level` = mean run top (spread reported), bbox = those columns. An AV straddling two bodies
+is therefore split exactly, never credited to the larger one. The P3 check "A.mass = Σ B over
+the body's columns" is `water_bodies {verify:true}`: for every `origin:av` body, Σ span depth over
+its bbox columns in resident chunks vs `mass` — exact by construction, so any difference is a
+defect. `water_ledger.bodies` = Σ `origin:av` masses (today the field reads 0.0 by construction).
+The CA's `water_overrides` store stays until the CA's own §9 row; the table does not read it.
+
+### 16.3 D2 — edits never create water (rule 3, WP1 step 3 corrected)
+
+The occupancy callback at `Application.cpp:459` gains the span rule, applied only when **no awake
+AV owns the column** (an awake AV re-samples solids and writes the truth back itself):
+
+| Edit | Span rule | Mass |
+|---|---|---|
+| Solid **placed** inside a run | the run is split around the cell (the parts shorter than 1 mm are dropped) | the overlap (≤ 1 m³) is **displaced**: `body.displaced += v`, `body.mass −= v`; it is never re-minted anywhere (the ledger's `total` drops by exactly v — honest, and the S11-class row asserts it) |
+| Solid **removed** directly under a run's bottom | the run shifts down one cell (bottom − 1, top − 1) — the water falls into the hole | unchanged (mass-exact) |
+| Solid removed anywhere else (a pit, a side wall, a rim) | **nothing**: no span is created or extended; sideways flow needs the motion layer | unchanged |
+| Bulk clear (`clear_region`, `/api/world/clear`) | the same rules per cell, in one pass per chunk | as above |
+| Any of the above on a run that **continues into a vertical neighbour chunk that is not resident** (`top == 32` / `bottom == 0` clip) | the edit is **held**: the span is left as it is and `held_edits` is counted on the ledger; the next wake over the column (D1, both chunks resident by the §5.1 rule) resolves it physically | unchanged — a shift-down applied to one clip alone would extend the lower clip without lowering the top, i.e. mint a cell of water; holding is the only rule-3-safe answer |
+
+A rim breach therefore does **not** drain the lake by itself (WP1 step 3b) — the water leaves only
+through an awake AV. **Wake-on-edit** (realtime only, `water.core.autoWake`, default on): an edit
+whose cell is within 1 cell of a span run wakes `water_av_wake` at that column (D1), so in the game
+a breach drains physically and writes back at rest; the harness stays explicit. Rule 3 red rows
+(Coast bench, L4): (a) dig a pit 2 below sea level on the dry beach → `water_spans_stored` on the
+pit 0, `water_render_grid` dry (today's flat-sea/bake fallbacks draw the sheet in it); (b) place a
+Stone cube into a pond span → the stored span is clipped, `water_bodies` shows `displaced 1.0` and
+the ledger total drops by 1.0; (c) remove the voxel under a 1-deep pond column → the span reads one
+lower, same depth.
+
+### 16.4 D3 — the span grid follows residency content
+
+Key = FNV-1a over the resident chunk coordinates combined order-independently (sum of per-coord
+hashes, so the unordered map's iteration order cannot matter) ⊕ `waterSpanRevision` ⊕ the awake-AV
+set revision. The 30-frame cooldown stays (a cost bound). Columns inside an awake AV's box are
+skipped in the grid (the AV's own surface feed draws them — today both draw, which is the double
+water of §15.8 #15's class). `vkDeviceWaitIdle` per rebuild is **measured** and logged with the
+rebuild line; replacing it with a per-frame-in-flight upload is a perf item for the gaps ledger, not
+this phase. Pinned: `WaterSpanGridKeyTest.SameCountDifferentSetRebuilds` (two sets of equal size
+hash differently; the same set in two orders hashes equal).
+
+### 16.5 D4 — generation (as gated in WaterRethink §8.8)
+
+Built exactly as specified there; nothing is re-designed: `HydrologyMap::filledAt(x,z)` keeps
+Priority-Flood's `filled[i]`; `floodBodiesOverGrid` gains the `filled ≥ level` neighbour test and
+river columns are excluded from lake floods; `waterSpansForBlock` emits one river span per channel
+column (`channelHitAt`, bed + depth, ⅔ shelf for creeks). Red fixtures:
+`WaterSpanSeamTest.LakeOutletAndRiverSpansIndependentOfChunking` and
+`DownhillOfTheOutletStaysDryHoweverLargeTheBudget`; `water_span_scan` gains
+`span_wet_bake_dry_nonriver`. Gate after: River trunk rect **17,677 → 0**, Coast shore rect
+**unchanged** (66,004 spans, all tops 16.0 — the control), generation ≤ +15 % per chunk.
+
+### 16.6 API (units: m³, world Y in voxel units)
+
+| Route | Fields | Echo | Clamp / refusal |
+|---|---|---|---|
+| `water_av_sleep` | `id`, `force` (default false) | the write-back record: `columns`, `runs`, `mass_written`, `mass_seeded`, `surface_vs_mass_mm`, `spread_mm`, `unwritten_columns`, `chunks_touched`, `body_id`, `forced` | refuses an awake volume unless `force`; refuses (keeps the AV) when `unwritten_columns > 0` and `force` is false |
+| `water_av_create` | + `seed` (`none`\|`spans`, default `none`), `auto_sleep` (default true) | both echoed on the volume record; `seeded_mass` | `seed:"spans"` on a box with no resident chunk → error |
+| `water_av_wake` | `x, y, z`, `cellSize`, `maxCells` (≤ tier ceiling) | the volume record + `truncated`, `flood_columns` | a dry column → error "no span at column" |
+| `water_bodies` | + `verify` | `table` rows; with verify: per body `span_sum`, `mass`, `diff` | — |
+| `water_ledger` | — | `bodies` now Σ av-origin masses; `displaced` added | — |
+| `water_span_scan` | — | + `span_wet_bake_dry_nonriver` | — |
+
+Defaults changing: none for the explicit harness. Realtime gains auto-sleep (no pinned test exists
+on realtime sleep; `WaterCoreTest.RealtimeAutoSleepWritesBack` is added with it).
+
+### 16.7 Tests (red first) and the L4 rows
+
+Unit (`tests/core/WaterCoreWriteBackTest.cpp`, grid-only, no engine):
+`ColumnRunsAreMassExact` (a pool with an overhang → two runs per column under the shelf, Σ depth
+= Σ f·h to 1e-6; `surface_vs_mass_mm` reported) · `ReWakeFromSpansChangesNothing` (§5.2) ·
+`ReloadAtDifferentCellSizeKeepsColumnMass` (write at ⅓, seed at 1 and ⅑: column masses equal, §14.3)
+· the three §14.2 equality tests `WaterCoreSeamTest.WriteBackIdenticalAcrossChunkSeams`,
+`WaterCoreResidencyTest.LargerResidencyChangesNothingInsideTheBox`,
+`WaterCoreSolidsTest.UnknownOccupancyHolds` · `WaterBodyTableTest.{RoundTripsThroughMeta,
+MassEqualsSpansOverColumns}` · `WaterSpanEditTest.{PlacedSolidDisplacesNeverCreates,
+DugCellBelowRunShiftsItDown, PitAwayFromWaterStaysDry}` · `WaterSpanGridKeyTest` · the two D4
+fixtures. Each is shown failing on today's code first (most fail to compile — the red is the
+missing function; the behavioural reds are `DownhillOfTheOutlet…` and `SameCountDifferentSet…`).
+
+L4 (benches, `tools/water_feel.py` gains S11 and `tools/water_camera_probe.py` is the step-6 gate):
+
+| Row | Rig | Prediction | Control |
+|---|---|---|---|
+| **S11** | Small pad (S1 rig, one chunk, ⅓ m): pour 4 m³, rest, `water_av_sleep` | asleep ≤ 10 s; `surface_vs_mass_mm ≤ 1`; `mass_written = poured − residue_dropped` within the tick-scaled gate; AV count 0 and cost 0 ms after; `water_spans_stored` on the pad = the record's columns; **save → cold restart → identical spans (± 1e-4) and `water_bodies` mass**; `seed:"spans"` + 60 ticks → Δmass 0 | a column one voxel outside the pour reads no span before and after |
+| probe | Coast, River, Basin far/near poses | 0 VIOLATION columns on all three (today: River fails by construction) | the `--inject-water-look` self-test still trips |
+| rule 3 | Coast beach pit / pond cube / pond undercut | §16.3 (a)(b)(c) | an untouched pond column 3 away: span unchanged |
+| D4 | River trunk rect; Coast shore rect | 17,677 → 0; Coast unchanged | — |
+
+Rig vs shipped defaults: none — write-back runs at the volume's own cell size; S11 at ⅓ m is the
+Small bench default; realtime off in the harness (explicit ticks), on in the game.
+
+### 16.8 Feature Design Keys gate on §16 (run 2026-10-08, before building)
+
+Run against `docs/FeatureDesignKeys.md` in full. First pass: **NEEDS WORK** on three items —
+(1) an edit on a run clipped across a vertical chunk border whose other clip is not resident had no
+rule, and the naive shift-down mints a cell of water; (2) a GPU volume's write-back read the
+rate-limited mirror; (3) an AV straddling two bake bodies credited one body. All three are folded
+into §16.2/§16.3 above (the held-edit row, the forced download, per-column crediting). Second read:
+
+**1. Voxel aesthetic.** No new geometry. Spans keep float tops at the AV's own cell size (⅓ or ⅑ of
+a voxel — sub-voxel by construction), the surface is the solver's, nothing is behind a flag or tier.
+Unconditional.
+
+**2. Chunk independence.** Every chunk-derived quantity in the phase:
+
+| Quantity | Derived from | Affects | Ruling |
+|---|---|---|---|
+| Column runs at write-back | the AV's cells (world positions), averaged per voxel column | persistence (what the world holds) | OK — a pure function of the cells; the chunk only decides which blob stores which clip (storage, pinned by the codec) |
+| `unwritten_columns` (Unknown occupancy or a non-resident chunk) | residency | where persistence can happen | OK — the §5.1 hold rule; counted and refused loudly, never dropped; `LargerResidencyChangesNothingInsideTheBox` pins that residency moves the hold face, not the water |
+| Span grid key | resident set + span revision + awake AVs | coverage only (terrain's rule) | OK — the fix for the count-key defect |
+| Edit rules on a run crossing a vertical border | both clips, merged in world space | persistence | OK when both chunks are resident (a world-space column is one object stored twice); **held** when the other is not (fold-in 1) — no stale-neighbour answer is ever written |
+| Wake flood over spans | resident chunks' spans | where motion is simulated | OK — motion bounded by residency, existence untouched (the flood reads, never writes) |
+| D4 (`filled`, river spans) | world-position functions of the bake | generation | gated in WaterRethink §8.8 |
+
+No cross-chunk lookup decides appearance; the one cross-chunk read (the vertical clip pair) is
+storage of a single world-space object. Equality tests: `WaterCoreSeamTest.WriteBackIdenticalAcrossChunkSeams`
+(two bodies at different levels, box straddling a chunk border in X and a vertical border in Y;
+per-chunk clips merged == whole-region runs) and the two §8.8 generation fixtures.
+
+**3. Procedural generation.** D4 is the hydrology stage, after carve, consuming `surfaceY` /
+`creekBed` / `channelHitAt` / bake `level` + `filled`; later stages (flora gates, piers, siting)
+read the bake's wetness, unchanged. D1–D3 are runtime. Order-independence of the runtime is the
+deterministic time integration (CPU reference; GPU pinned by `GpuDeterministic`); the write-back is
+per column and pure. Persistence: `WaterBodyTable` is per-world **state**, not tuning, and lives in
+`world_meta` beside the recipe; `cellSize` stays a game setting (§14.3, spans are cell-size-free —
+pinned by `ReloadAtDifferentCellSizeKeepsColumnMass`). No recipe field changes.
+
+**4. API surface.** §16.6: units named (m³, voxel-unit Y, mm for the two rest numbers); omitted =
+default on every create field; every route echoes the resulting record (the write-back record IS
+the state); clamps: `maxCells ≤ kMaxCellsPerVolume` (2 M, the only ceiling that exists until the
+tier config lands — stated, not hidden), `force` flags the record, a non-resident or dry seed is an
+error not a silent empty volume. Defaults changing: realtime `auto_sleep` on — new behaviour with a
+new pinned test in the same commit; the explicit harness path is byte-identical.
+
+**5. Visual test plan.** "Works" = the §16.7 S11 row: asleep ≤ 10 s, `surface_vs_mass_mm ≤ 1`,
+`mass_written = poured − residue_dropped` (tick-scaled gate), zero volumes and 0 ms after, spans
+stored = record, cold restart identical, re-wake + 60 ticks Δmass 0; plus the probe at 0 violations
+on three benches and the River 17,677 → 0 with the Coast control unchanged. Depth L2 (the unit
+fixtures on the grid and on synthetic chunk sets) + L4 (the rows). Red first: the behavioural reds
+are `DownhillOfTheOutletStaysDryHoweverLargeTheBudget` (wet set grows with the budget today),
+`SameCountDifferentSetRebuilds` (equal counts collide today), and the River rect number; the rest
+fail to compile until their function exists and are shown red by that. Rig: the Small bench pad,
+one chunk, ⅓ m, the pour volume the one variable, prediction written in the row, control = the
+column outside the pour (no span before/after) and the Coast shore rect (unchanged by D4). Rig vs
+defaults: none.
+
+**Verdict: READY** (after the three fold-ins). Build order D3 → D1 → D2 → D4 → D5, each slice its
+own commit with its ledger entry under §16.9.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
