@@ -415,7 +415,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **B2. FLIP transport** | `SurfaceTransport::FLIP` against the same grid (particles carry f and momentum; grid projection; particle↔grid transfer; re-seeding; rest conversion); harness runs S1–S5 on both modes and records the comparison | /design-check | Same scenarios green on FLIP; a written comparison (rest flatness, splash shape, cost) the user reads before Phase E chooses the default per scenario |
 | **C. GPU core** | Same solver on compute (`water_core_*.comp`), ping-pong, no readback except the surface/queries; parity with CPU on S1–S5 within tolerance; perf rows | /design-check (dispatch, buffers, tiers) | parity + ≤ 2 ms at `high` with all §3 rigs awake |
 | **D. Rest, persistence, world data** — **design §16; D3 + D1 + D2 + D4 + D5 BUILT 2026-10-09 (ledger §16.9; D4 halves the River trunk defect, residual is the bake's cell resolution)** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | /design-check on §16 | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
-| **E. Coupling** — **IN PROGRESS: design §19; E1 (blasts) + E2 (debris both ways: floats/sinks from the pond, momentum back) BUILT 2026-10-09 (§19.2-19.3); splash not yet visible** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
+| **E. Coupling** — **IN PROGRESS: design §19; E1 (blasts) + E2 (debris both ways) BUILT 2026-10-09 (§19.2-19.3) — NOT SIGNED OFF: the owner ran it and saw bad frame pacing, no ripples, surface flicker, endlessly bobbing debris (§19.4)** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
 | **F. Rendering the core** — **design §17; F1 + F2 first pass BUILT 2026-10-09 (ledger §17.3), sign-off pending; F3 open** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
 | **G. Large bodies on top** — **PAUSED 2026-10-09 by the owner: small bodies first (E, then F finish, then B's open gates).** Design §18; G1–G4 BUILT 2026-10-09 (§18.5–18.8: column solver + band, solver foam/flow, per-body look profile; G4 fine ⅓ m nested band built, OFF by default — the Coast's sea-level shelf, not resolution, is what stops a surf line (§18.8); next: a sloped-beach rig)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
 
@@ -2169,6 +2169,29 @@ discarded and re-run.
   momentum over ~1 s instead of at impact - real entry drag is quadratic, 1/2 rho C_d A v^2, a = 1/2 C_d b
   v^2 / s ~ 34 m/s^2 for a stone subcube at 7.7 m/s; (2) sub-cell debris displaces no water; (3) the 3.5 cm
   noise floor hides small disturbances.
+
+### 19.4 The owner's look at E1/E2 (2026-10-09): not signed off - what was measured after
+
+The owner ran the demos and reported: bad FPS, no ripples, jitter - and asked whether anything was
+tested before it was handed over. It had not been tested the way the owner looks at it (in motion).
+Measured afterwards on the Small bench (Release, GPU volume, nothing changed in code):
+- **Frame cost is not the water:** the engine's frame time is 2.9-3.7 ms (280-350 fps) in every state -
+  still pond, probed at 30 Hz, 10 wood floating, after a blast; the water's share is ~0.8 ms. Each
+  `/api/screenshot` round trip takes ~0.8 s and the demo scripts take ~8 of them (plus 16-32 probes per
+  sample) - the likely source of the choppy picture and of the 16-64 fps the status bar showed in the
+  captures. Likely, not proven: the engine counter does not see what the owner's screen showed.
+- **No ripples:** the 1/3 m surface cannot carry waves shorter than ~2/3 m; 10 wood pieces moved the
+  surface at most 2.4 cm (a blast: 20 cm) because the debris -> water transfer is spread over ~1 s by the
+  linear drag; the old RippleField is wired to the old water only.
+- **Jitter, two causes:** (1) the surface at a fixed point jumped up to 17 cm between samples 33 ms apart
+  after a blast (3 jumps > 5 cm in 3 s) - half-cell film flicker (19.2 defect 1) popping the mesh;
+  (2) floating wood never rests - 9 of 10 pieces still awake, bobbing at up to 0.38 m/s - debris reads
+  the surface per 1 m column (the max of 3 x 3 sub-columns, which steps as the water moves) and nothing
+  damps the bob.
+- **Standing rule from here:** nothing is called done until the owner signs off; before handing anything
+  over, watch it in motion without screenshot stalls and measure frame pacing, flicker and settling.
+- **Proposed order:** the surface flicker (it causes the popping and hides any splash), then a finer,
+  damped water reading for floating debris, then impacts that make visible ripples.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
