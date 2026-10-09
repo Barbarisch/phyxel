@@ -1697,14 +1697,15 @@ void GpuParticlePhysics::setBodyMoverBoxes(std::vector<MoverBox> movers) {
 }
 
 GpuParticlePhysics::ImpulseQueued GpuParticlePhysics::queueImpulse(const glm::vec3& c, float radius,
-        const glm::vec3& axis, float cosHalf, float impulse, float upBias, float halfAngleDeg) {
+        const glm::vec3& axis, float cosHalf, float impulse, float upBias, float halfAngleDeg, bool wakeOnly) {
     ImpulseQueued q;
     // Clamps at entry (the reasons live with the constants in solver_shared.h).
     q.radius       = std::clamp(std::isfinite(radius) ? radius : 0.0f, 0.1f, DebrisShared::IMPULSE_MAX_RADIUS);
     q.impulse      = std::max(std::isfinite(impulse) ? impulse : 0.0f, 0.0f);
     q.upBias       = std::clamp(std::isfinite(upBias) ? upBias : 0.0f, 0.0f, 1.0f);
     q.halfAngleDeg = halfAngleDeg;
-    if (!std::isfinite(c.x) || !std::isfinite(c.y) || !std::isfinite(c.z) || q.impulse <= 0.0f) return q;
+    if (wakeOnly) q.impulse = 0.0f;   // strength 0 is legal only as an explicit wake (wakeSphere)
+    if (!std::isfinite(c.x) || !std::isfinite(c.y) || !std::isfinite(c.z) || (q.impulse <= 0.0f && !wakeOnly)) return q;
     if (m_activeCount == 0) return q;   // no debris to push: nothing is queued (would be stale later)
     if (m_impulseStage.size() >= DebrisShared::MAX_IMPULSES) { ++m_impulseOverflow; return q; }
     DebrisShared::ImpulseGpu g{};
@@ -1719,6 +1720,10 @@ GpuParticlePhysics::ImpulseQueued GpuParticlePhysics::queueImpulse(const glm::ve
 GpuParticlePhysics::ImpulseQueued GpuParticlePhysics::applyRadialImpulse(const glm::vec3& center, float radius,
                                                                          float impulse, float upBias) {
     return queueImpulse(center, radius, glm::vec3(0.0f), DebrisShared::IMPULSE_RADIAL, impulse, upBias, 0.0f);
+}
+
+GpuParticlePhysics::ImpulseQueued GpuParticlePhysics::wakeSphere(const glm::vec3& center, float radius) {
+    return queueImpulse(center, radius / DebrisShared::IMPULSE_WAKE_SCALE, glm::vec3(0.0f), DebrisShared::IMPULSE_RADIAL, 0.0f, 0.0f, 0.0f, true);
 }
 
 GpuParticlePhysics::ImpulseQueued GpuParticlePhysics::applyConeImpulse(const glm::vec3& origin, const glm::vec3& dir,

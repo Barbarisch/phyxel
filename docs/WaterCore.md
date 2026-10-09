@@ -2221,6 +2221,40 @@ the pond region consecutive frames differ by under 1.2 grey levels (of 255) on a
 almost no visual cue that it moved. The look of moving water is its own problem (logged, next to the
 ripples).
 
+### 19.6 Floaters follow moving water, then rest (2026-10-09) - built, not signed off
+
+**Defect (measured):** resting wood is put to sleep by the debris solver; pushing ONLY the water
+(`water_av_impulse` 3 m/s beside the pond) swung the surface +-40 cm while **0 of 10 floaters woke** -
+frozen pieces hung in air or sat buried. A blast woke them only because the blast pushed the debris too.
+
+**Fix:** each frame `WaterCoreManager::takeMotion()` reports, per volume, one sphere around the columns
+whose surface moved more than 1.5 cm from where it last counted as moved (a held reference per
+column: sub-mm jitter never adds up, any real slosh does, calm water goes silent), and Application
+wakes the sleeping debris inside it with `GpuParticlePhysics::wakeSphere` - a strength-0 impulse
+(the solver wakes sleepers within IMPULSE_WAKE_SCALE x an impulse's radius; dv stays 0). Two traps
+found on the way:
+- `queueImpulse` silently drops strength-0 impulses, so the first build sent **0 wakes** (that run is the
+  red: 0 woke, unchanged). `wakeSphere` is an explicit wake-only path; every other caller still needs > 0.
+- **Surface flow is not a motion signal:** on a still GPU pond with no debris the top-cell surface velocity
+  reads 0.08-0.10 m/s while no column moves 1 mm (OPEN defect - debris also reads that flow as current).
+  A 5 mm cutoff tripped forever on the floaters' own stirring (0-2 columns per sample for 20 s); 1.5 cm
+  (~5 % of a subcube - a frozen piece off by less is not visible) does not.
+
+**Test:** `MotionIsReportedWhereTheWaterMoves` - a rested pond reports nothing (floaters may sleep); the
+pushed pond reports one sphere covering the push. **OPEN, not asserted:** that small CPU pond never fully
+calms - columns against the walls keep trading 2-4 cm per tick 10 s after the push (same family as the
+SloshEnvelope holes), so on CPU it keeps waking debris. 298 water/debris/shore unit tests, 16 GPU tests.
+
+**Live (Small pond, GPU):** water-only push, 10 wood resting: all 10 wake at once, piece-minus-surface
+gaps shrink from -0.36..+0.29 m to within about +-0.1 m by 1.5 s, and 10 awake -> 1-3 by 5 s; a trickle of
+wakes continues (a few columns rock +-7 mm). **Watched in motion** (`tools/water_motion_check.py
+--scenario floaters`, `docs/evidence/water_core_e/floaters_follow.mp4`, ffmpeg from outside the engine):
+pond region mean frame change 0.03-0.08 grey levels before the push, 1.1-2.5 while riding (1.5-5 s),
+decaying to 0.03-0.06 by 13-16 s - they ride and come back to rest. Engine frame 3.8 ms mean, p99 7.1 ms.
+Still open from this run: some pieces sit 10-20 cm above the surface (stacked on a neighbour, or the
+known floats-high bounding-sphere law); the fixed-point probe saw a splash run 1.2 m above the pond
+(the probe reports the top run - not a drawn flicker, but unverified in the video).
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

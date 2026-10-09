@@ -3,7 +3,9 @@ with ffmpeg from OUTSIDE the engine (no screenshot stalls), fires one stimulus d
 single API call, then reads the engine's true frame pacing for that window. Separately (not while
 recording), samples the surface at a fixed point ~30x a second to count flicker jumps.
 
-Usage: python tools/water_motion_check.py --scenario blast|debris [--seconds 10] [--tag T]
+Usage: python tools/water_motion_check.py --scenario blast|debris|floaters [--seconds 10] [--tag T]
+floaters: 10 wood pieces rest on the pond first, then ONLY the water is pushed (nothing touches the wood) -
+they must wake, ride the slosh and come back to rest (docs/WaterCore.md 19.6).
 Writes docs/evidence/water_core_e/<tag>.mp4, <tag>_frames/ (10 fps stills of the action), <tag>.json."""
 import argparse, json, os, shutil, subprocess, sys, time
 from pathlib import Path
@@ -15,7 +17,7 @@ EV = ROOT / "docs" / "evidence" / "water_core_e"
 ap = argparse.ArgumentParser()
 ap.add_argument("--url", default="http://127.0.0.1:8111")
 ap.add_argument("--window", default="WaterBench_Small")
-ap.add_argument("--scenario", default="blast", choices=["blast", "debris", "rest"])
+ap.add_argument("--scenario", default="blast", choices=["blast", "debris", "rest", "floaters"])
 ap.add_argument("--seconds", type=float, default=10.0)
 ap.add_argument("--tag", default=None)
 args = ap.parse_args()
@@ -42,6 +44,8 @@ def make_pond():
 def stimulus():
     if args.scenario == "blast":
         api.post("/api/damage/apply", {"x": 106, "y": 17, "z": 13.5, "radius": 4.0, "energy": 62.0})
+    elif args.scenario == "floaters":   # push only the water
+        api.debug("water_av_impulse", {"x": 103, "y": 16, "z": 13.5, "radius": 1.5, "strength": 3, "dx": -1, "dy": 0.3})
     elif args.scenario == "debris":
         for i in range(10):   # one call per piece: 20 calls in a burst (~20-40 ms), then nothing
             x, z = 100.35 + (i % 2) * 0.9, 12.4 + (i // 2) * 0.7
@@ -51,6 +55,10 @@ def stimulus():
 camera_set(api, POSE)
 make_pond()
 time.sleep(8)
+if args.scenario == "floaters":   # the wood settles (asleep) before the recording starts
+    for i in range(10):
+        api.debug("spawn_gpu_particle", {"x": 100.35 + (i % 4) * 0.9, "y": 19.5, "z": 12.4 + (i // 4) * 1.1, "material": "Wood", "scale": 1.0 / 3.0, "lifetime": 120.0})
+    time.sleep(14)
 mp4 = EV / f"{tag}.mp4"
 rec = subprocess.Popen([ffmpeg, "-y", "-loglevel", "error", "-f", "gdigrab", "-framerate", "30", "-t", str(args.seconds),
                         "-i", f"title={args.window}", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(mp4)])

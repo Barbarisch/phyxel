@@ -615,6 +615,42 @@ const std::vector<WaterSurfaceField>& WaterCoreManager::surfaceFields() {
     return m_fields;
 }
 
+std::vector<std::pair<glm::vec3, float>> WaterCoreManager::takeMotion(float moveM) {
+    std::vector<std::pair<glm::vec3, float>> out;
+    m_motionStats = MotionStats{};
+    if (m_motionPrevTops.size() != m_fields.size()) m_motionPrevTops.assign(m_fields.size(), {});
+    for (size_t fi = 0; fi < m_fields.size(); ++fi) {
+        const WaterSurfaceField& f = m_fields[fi];
+        std::vector<float>& prev = m_motionPrevTops[fi];
+        const bool havePrev = prev.size() == f.cols.size();
+        std::vector<float> cur(f.cols.size(), std::numeric_limits<float>::quiet_NaN());
+        glm::vec2 lo(1e30f), hi(-1e30f); float yLo = 1e30f, yHi = -1e30f; bool any = false;
+        for (int z = 0; z < f.nz; ++z) for (int x = 0; x < f.nx; ++x) {
+            const size_t i = static_cast<size_t>(x) + static_cast<size_t>(f.nx) * z;
+            const SurfaceColumn& c = f.cols[i];
+            const int runs = static_cast<int>(c.runs + 0.5f);
+            if (runs <= 0) continue;
+            const float top = c.top[std::min(runs, kSurfaceMaxRuns) - 1];
+            const bool haveRef = havePrev && !std::isnan(prev[i]);
+            const float dTop = haveRef ? std::abs(top - prev[i]) : 0.0f;
+            cur[i] = (haveRef && dTop <= moveM) ? prev[i] : top;   // the reference moves only when the surface did
+            const float flow = std::sqrt(c.u * c.u + c.w * c.w);
+            m_motionStats.maxRise = std::max(m_motionStats.maxRise, dTop); m_motionStats.maxFlow = std::max(m_motionStats.maxFlow, flow);
+            const bool rose = dTop > moveM;
+            m_motionStats.riseCols += rose; m_motionStats.flowCols += flow > 0.08f;
+            if (!rose) continue;
+            const glm::vec2 wc((f.origin.x + x + 0.5f) * f.h, (f.origin.z + z + 0.5f) * f.h);
+            lo = glm::min(lo, wc); hi = glm::max(hi, wc); yLo = std::min(yLo, top); yHi = std::max(yHi, top); any = true;
+        }
+        prev.swap(cur);
+        if (!any) continue;
+        const glm::vec3 c(0.5f * (lo.x + hi.x), 0.5f * (yLo + yHi), 0.5f * (lo.y + hi.y));
+        const float r = 0.5f * glm::length(glm::vec3(hi.x - lo.x, yHi - yLo, hi.y - lo.y)) + f.h;
+        out.push_back({c, r}); ++m_motionStats.spheres; m_motionStats.lastRadius = r;
+    }
+    return out;
+}
+
 bool WaterCoreManager::columnWater(int wx, int wz, float& surfaceY, glm::vec2& flow) const {
     for (const auto& f : m_fields) {
         const int per = std::max(1, static_cast<int>(std::lround(1.0f / f.h)));

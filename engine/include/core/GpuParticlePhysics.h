@@ -181,6 +181,10 @@ public:
     ImpulseQueued applyRadialImpulse(const glm::vec3& center, float radius, float impulse, float upBias = 0.0f);
     ImpulseQueued applyConeImpulse(const glm::vec3& origin, const glm::vec3& dir, float halfAngleDeg,
                                    float range, float impulse, float upBias = 0.0f);
+    /** Wake every SLEEPING body within `radius` of `center` without pushing it (dv = 0). A zero-strength
+     *  impulse - the solver wakes sleepers within IMPULSE_WAKE_SCALE x an impulse's radius. Used by water
+     *  that moves under resting floaters (docs/WaterCore.md 19.6). Shares the MAX_IMPULSES budget. */
+    ImpulseQueued wakeSphere(const glm::vec3& center, float radius);
     /** Phase 6: debris events read back from the GPU (sleep / wake / impact), two frames after the
      *  ticks that produced them. takeEvents() drains what arrived since the last call. A slot is
      *  identified by `slot` + `serial` (the serial changes whenever the slot is (re)spawned, so a
@@ -427,7 +431,7 @@ private:
     uint32_t         m_impulseOverflow       = 0;   // dropped past MAX_IMPULSES (lifetime count)
     uint64_t         m_impulsesSubmitted     = 0;
     ImpulseQueued    queueImpulse(const glm::vec3& c, float radius, const glm::vec3& axis, float cosHalf,
-                                  float impulse, float upBias, float halfAngleDeg);
+                                  float impulse, float upBias, float halfAngleDeg, bool wakeOnly = false);
     uint32_t         m_kinematicCount     = 0;
 
     // Per-material physics properties — host-coherent, persistently mapped

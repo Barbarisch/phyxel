@@ -183,6 +183,19 @@ public:
     /// E2: one world voxel column's water from the last surface fields - the highest top over the
     /// column's sub-columns and the mean surface velocity of the wet ones (what GPU debris reads).
     bool columnWater(int wx, int wz, float& surfaceY, glm::vec2& flow) const;
+    /// E2 (docs/WaterCore.md 19.6): where the water is still MOVING since the last call - per volume, a
+    /// sphere (world centre, radius) around the columns whose surface has moved more than `moveM` from
+    /// where it last counted as moved (a held reference: sub-mm jitter never adds up, a real slosh does,
+    /// and calm water stops reporting). Sleeping debris inside it must wake (a floater frozen while its
+    /// water moves hangs in air or sinks into the water). Reads the last surfaceFields(). Surface FLOW is
+    /// reported in the stats but does not count: the top-cell velocity of a still pond reads 0.08-0.10
+    /// m/s on GPU (19.6, logged) while its surface moves < 1 mm.
+    /// moveM 1.5 cm: a piece frozen while its water moves less than that is off by ~5 % of a subcube - not
+    /// visible; 5 mm tripped forever on the floaters' own stirring (live: 0-2 columns per sample, 20 s).
+    std::vector<std::pair<glm::vec3, float>> takeMotion(float moveM = 0.015f);
+    /// The last takeMotion(): largest per-column rise/fall (m) and surface flow (m/s), columns over each bar.
+    struct MotionStats { float maxRise = 0.0f, maxFlow = 0.0f; int riseCols = 0, flowCols = 0, spheres = 0; float lastRadius = 0.0f; };
+    const MotionStats& motionStats() const { return m_motionStats; }
 
     static constexpr size_t kMaxCellsPerVolume = 2'000'000;   ///< CPU reference ceiling (§15.4)
     static bool snapCellSize(float requested, float* snapped);  ///< power-of-three fractions only
@@ -245,6 +258,8 @@ private:
     bool m_realtime = false;
     std::vector<WaterSurfaceCell> m_surface;
     std::vector<WaterSurfaceField> m_fields;   // Phase F, parallel to m_avs
+    MotionStats m_motionStats;
+    std::vector<std::vector<float>> m_motionPrevTops;   // E2: per field, the held reference top per column (NaN = dry)
     std::vector<glm::vec4> m_particleDraw;
 };
 

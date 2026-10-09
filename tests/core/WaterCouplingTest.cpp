@@ -4,6 +4,7 @@
 #include "core/DebrisRuntime.h"
 #include "core/water/WaterCore.h"
 #include "core/water/WaterSurfaceMesh.h"
+#include "core/water/WaterCoreManager.h"
 
 #include <cmath>
 #include <cstdio>
@@ -298,6 +299,37 @@ TEST(WaterCouplingTest, SurfaceDoesNotOutrunTheWater) {
     }
     std::printf("  surface vs water: %ld column-ticks, %ld where the surface outran the water (worst jump %.4f m vs bound %.4f m)\n", checks, violations, worst, worstBound);
     EXPECT_EQ(violations, 0) << "the rendered surface jumped further in one tick than the water could move";
+}
+
+
+// 19.6: sleeping debris must wake where the water moves. The manager reports motion only where the
+// surface rose/fell or flows: a still pond -> nothing (so floaters CAN sleep); the same pond pushed on
+// its east side -> one sphere that covers the moving water.
+TEST(WaterCouplingTest, MotionIsReportedWhereTheWaterMoves) {
+    auto state = [](const glm::ivec3& m) -> int { return (m.y < 0 || m.x < 0 || m.z < 0 || m.x >= 36 || m.z >= 36) ? 1 : 0; };
+    WaterCoreManager mgr(state);
+    std::string err;
+    const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(3, 2, 3), 1.0f / 3.0f, "eulerian", &err, "cpu");
+    ASSERT_NE(id, 0) << err;
+    mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(3, 1, 3), 1.0f, nullptr);
+    AvRecord rec;
+    for (int k = 0; k < 30; ++k) { mgr.step(id, 1, kDt, &rec); mgr.surfaceFields(); mgr.takeMotion(); }
+    mgr.step(id, 1, kDt, &rec); mgr.surfaceFields();
+    EXPECT_TRUE(mgr.takeMotion().empty()) << "a still pond reports no motion - floaters may sleep";
+    mgr.addImpulse(glm::vec3(3.5f, 1.5f, 2.0f), 1.0f, 2.0f, glm::vec3(-1.0f, 0.0f, 0.0f));
+    std::vector<std::pair<glm::vec3, float>> m;
+    for (int k = 0; k < 5 && m.empty(); ++k) { mgr.step(id, 1, kDt, &rec); mgr.surfaceFields(); m = mgr.takeMotion(); }
+    ASSERT_EQ(m.size(), 1u) << "the pushed pond reports where it moves";
+    const glm::vec3 c = m[0].first; const float r = m[0].second;
+    std::printf("  motion sphere: centre (%.2f, %.2f, %.2f), radius %.2f m\n", c.x, c.y, c.z, r);
+    EXPECT_LT(glm::distance(glm::vec2(c.x, c.z), glm::vec2(3.5f, 2.0f)), r + 0.01f) << "the sphere covers the push";
+    EXPECT_GT(r, 0.3f);
+    // ... and once it calms it should stop reporting, so the floaters can go back to sleep (diagnostic)
+    int lastMoving = -1;
+    for (int k = 0; k < 600; ++k) { mgr.step(id, 1, kDt, &rec); mgr.surfaceFields(); if (!mgr.takeMotion().empty()) lastMoving = k; if (k % 60 == 59) std::printf("  t %4.1f s: moved cols %d, max %.1f mm" "%c", (k + 1) * kDt, mgr.motionStats().riseCols, 1000.0f * mgr.motionStats().maxRise, 10); }
+    std::printf("  last tick that reported motion: %d of 600 (%.1f s)\n", lastMoving, (lastMoving + 1) * kDt);
+    // NOT asserted (open, docs/WaterCore.md 19.6): this small CPU pond never fully calms - wall columns keep
+    // trading 2-4 cm per tick 10 s after the push, so it keeps waking debris. The live GPU pond does calm.
 }
 
 }  // namespace

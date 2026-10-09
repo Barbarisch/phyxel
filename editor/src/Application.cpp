@@ -3741,10 +3741,17 @@ void Application::update(float deltaTime) {
                 renderCoordinator->setWaterShoreField(m_shoreOn && shoreBand && shoreBand->active() ? &shoreBand->field() : nullptr);
                 renderCoordinator->setWaterFineField(m_shoreOn && m_fineOn && fineBand && fineBand->active() ? &fineBand->field() : nullptr);   // G4
             }
+            // E2 (docs/WaterCore.md 19.6): sleeping debris over MOVING water wakes - a floater frozen while
+            // the water swings under it hangs in air or sinks into the water (measured: 40 cm swings, 0 woke)
+            if (debrisRuntime && debrisRuntime->gpu() && m_waterCouplingOn && waterCore->totalCells()) {
+                for (const auto& [c, r] : waterCore->takeMotion()) {
+                    if (debrisRuntime->gpu()->wakeSphere(c, r).queued) ++m_waterWakes;
+                }
+            }
             // E2 (docs/WaterCore.md 19): wet debris gives the water the momentum the water took from it
             if (debrisRuntime) {
                 auto ex = debrisRuntime->takeWaterExchange();
-                if (!ex.empty() && m_waterCouplingOn) {
+                if (!ex.empty() && m_waterCouplingOn && m_waterExchangeOn) {
                     std::vector<Core::Water::WaterCoreManager::MomentumRecord> recs;
                     recs.reserve(ex.size());
                     for (const auto& e : ex) recs.push_back({e.position, e.radius, -e.mass * e.dv});   // Newton's third law
@@ -14021,15 +14028,19 @@ void Application::registerWaterCommands() {
     // Phase E (docs/WaterCore.md 19): coupling status + the A/B control. {enabled?} -> the echo.
     reg.on("water_coupling", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         if (cmd.params.contains("enabled")) m_waterCouplingOn = cmd.params.value("enabled", true);
+        if (cmd.params.contains("exchange")) m_waterExchangeOn = cmd.params.value("exchange", true);   // debris -> water only
         const auto& k = m_lastKick;
-        r = {{"enabled", m_waterCouplingOn},
+        r = {{"enabled", m_waterCouplingOn}, {"exchange", m_waterExchangeOn},
              {"debris_exchange", {{"frames", m_exchangeStats.frames}, {"records", m_exchangeStats.records}, {"applied", m_exchangeStats.applied},
                                   {"outside_volumes", m_exchangeStats.outside}, {"dry", m_exchangeStats.dry}, {"clamped", m_exchangeStats.clamped},
                                   {"momentum_to_water_total", m_exchangeStats.totalMagnitude},
                                   {"last_frame_momentum", {m_exchangeStats.lastTotal.x, m_exchangeStats.lastTotal.y, m_exchangeStats.lastTotal.z}},
                                   {"gpu_records_total", debrisRuntime && debrisRuntime->gpu() ? debrisRuntime->gpu()->waterExchangeTotal() : 0},
                                   {"gpu_records_dropped", debrisRuntime && debrisRuntime->gpu() ? debrisRuntime->gpu()->waterExchangeDropped() : 0}}},
-             {"debris_water_tiles", debrisRuntime ? debrisRuntime->waterStats().volumeTiles : 0},
+             {"debris_water_tiles", debrisRuntime ? debrisRuntime->waterStats().volumeTiles : 0}, {"water_wakes_sent", m_waterWakes},
+             {"water_motion", waterCore ? nlohmann::json{{"max_rise_m", waterCore->motionStats().maxRise}, {"max_flow_ms", waterCore->motionStats().maxFlow},
+                 {"rise_cols", waterCore->motionStats().riseCols}, {"flow_cols", waterCore->motionStats().flowCols}, {"spheres", waterCore->motionStats().spheres},
+                 {"radius_m", waterCore->motionStats().lastRadius}} : nlohmann::json()},
              {"last_blast", {{"blasts_total", k.blasts}, {"volumes", k.volumes}, {"faces", k.faces}, {"clamped", k.clamped},
                              {"speed_at_centre_ms", k.speed}, {"reach_m", k.reach}, {"centre", {k.centre.x, k.centre.y, k.centre.z}}}}};
     });
