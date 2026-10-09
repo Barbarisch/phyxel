@@ -1066,3 +1066,22 @@ The residual sits INSIDE wet 128 m bake cells that the order-5 carve runs throug
 so the coarse cell is 'lake at 108' while the fine valley floor is at 20. Fix is bake-side: a carved channel
 drains the basin it crosses (the basin's level becomes its outlet bed), or the bake re-floods after the carve.
 Also open: creek spans (orders 1-2 on the 2/3 shelf) need a float-bottom WaterSpan.
+
+## 2026-10-09 — WaterCore Phase G1, the shoreline band (docs/WaterCore.md 18.5)
+- **Sheet/band height seam in shallow water.** The sea sheet draws the full Gerstner swell (0.45 m,
+  four components) right up to the waterline; the band's ring prescribes a depth-limited wave
+  (total height ≤ 0.78 d). Where the ring sits in 1–2 m of water the sheet beside it is taller than
+  the band's edge. Fix: depth-limit the sheet too (it needs the terrain depth per vertex — the
+  hydrology texture carries the level, not the bed), or let the band own a wider margin.
+- **A shelf exactly at sea level is awash by construction.** The Coast beach has a 24 m shelf whose
+  bed equals the still level (full-cube terrain); every swash leaves a film that cannot drain, so
+  the wet area grows for as long as the swell runs. Physically right, visually a glassy shelf. The
+  terrain generator could avoid a flat at sea level (a sub-voxel step), or the look could darken
+  wet sand under films (F2 leftover).
+- **The band's seaward edge is a vertical water face under the sheet.** The F1 mesh draws no face at
+  the field's edge (the sheet continues the water), but the ring's prescribed columns end at the box
+  edge where the sheet's masked columns begin; from under water the band's edge is a wall of water.
+- **Edits under the band re-bed one column at a time** (`noteEdit`); a bulk clear of a chunk under the
+  band fires one edit per cell (fine) but a streamed-in chunk does not (the bed query runs at siting).
+- **The foam marker** (surface step beyond the bed step, > 0.3) misses a 20 cm bore spread over a 1 m
+  column; G2 replaces it with the velocity-convergence foam.

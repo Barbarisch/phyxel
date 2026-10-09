@@ -4343,9 +4343,11 @@ void RenderCoordinator::drawFrame() {
     // Phase F: the mesh, rebuilt from the volumes' surface fields every frame (a pure function of them)
     bool drawCoreMesh = false;
     m_waterCoreMesh.clear(); m_waterCoreMeshMs = 0.0;
-    if (waterSurfacePipeline && m_waterCoreMode == WaterCoreRenderMode::Mesh && m_waterCoreFields && !m_waterCoreFields->empty()) {
+    const bool anyField = (m_waterCoreFields && !m_waterCoreFields->empty()) || (m_waterShoreField && m_waterShoreField->nx > 0);
+    if (waterSurfacePipeline && m_waterCoreMode == WaterCoreRenderMode::Mesh && anyField) {
         const auto tm0 = std::chrono::steady_clock::now();
-        for (const auto& f : *m_waterCoreFields) Core::Water::buildWaterSurfaceMesh(f, m_waterCoreMesh);
+        if (m_waterCoreFields) for (const auto& f : *m_waterCoreFields) Core::Water::buildWaterSurfaceMesh(f, m_waterCoreMesh);
+        if (m_waterShoreField && m_waterShoreField->nx > 0) Core::Water::buildWaterSurfaceMesh(*m_waterShoreField, m_waterCoreMesh);   // Phase G: the shore band
         m_waterCoreMeshMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tm0).count();
         drawCoreMesh = !m_waterCoreMesh.indices.empty();
     }

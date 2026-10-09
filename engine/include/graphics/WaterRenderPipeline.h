@@ -72,6 +72,9 @@ public:
         m_waveAmplitude = amplitude; m_waveLength = wavelength; m_windDirection = windDirectionRadians;
     }
     float waveAmplitude() const { return m_waveAmplitude; }
+    /// The sheet's own clock (s since construction) - what water.vert displaces with. The shore
+    /// band prescribes its ocean ring at THIS time so band and sheet hold the same surface (Phase G).
+    float waveTime() const { return std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - m_startTime).count(); }
     float waveLength() const { return m_waveLength; }
     float windDirection() const { return m_windDirection; }
 

@@ -57,20 +57,19 @@ ShoreSolver::ShoreSolver(const glm::vec2& originXZ, int nx, int nz, float h, Sho
     const size_t n = static_cast<size_t>(nx) * nz;
     m_cols.assign(n, ShoreColumn{});
     m_prescribedVel.assign(n, glm::vec2(0.0f));
+    m_prescribedEta.assign(n, 0.0);
     m_etaPrev.assign(n, 0.0f);
     m_eta0.assign(n, 0.0f); m_u0.assign(n, 0.0f); m_w0.assign(n, 0.0f);
     m_eta1.assign(n, 0.0f); m_u1.assign(n, 0.0f); m_w1.assign(n, 0.0f);
     m_dEta.assign(n, 0.0); m_dQx.assign(n, 0.0); m_dQz.assign(n, 0.0);
 }
 
-void ShoreSolver::prescribe(int x, int z, double eta, const glm::vec2& velocity) {
+void ShoreSolver::prescribe(int x, int z, double eta, const glm::vec2& velocity, float weight) {
     ShoreColumn& c = col(x, z);
     c.prescribed = 1;
-    const double before = c.eta;
-    c.eta = std::max(eta, static_cast<double>(c.bed));
-    m_pendingExchange += (c.eta - before) * m_h * m_h;   // the ocean raised or lowered itself: counted
+    c.weight = std::clamp(weight, 0.0f, 1.0f);
+    m_prescribedEta[idx(x, z)] = std::max(eta, static_cast<double>(c.bed));
     m_prescribedVel[idx(x, z)] = velocity;
-    c.u = velocity.x; c.w = velocity.y;
 }
 
 void ShoreSolver::clearPrescriptions() {
@@ -94,7 +93,6 @@ ShoreStepReport ShoreSolver::step(float dt) {
     const int n = std::clamp(static_cast<int>(std::ceil(cmax * dt / (m_params.cflFraction * m_h))), 1, m_params.maxSubsteps);
     const float ds = dt / static_cast<float>(n);
     for (size_t i = 0; i < m_cols.size(); ++i) m_etaPrev[i] = m_cols[i].eta;
-    r.exchanged += m_pendingExchange; m_pendingExchange = 0.0;
     for (int s = 0; s < n; ++s) substep(ds, r);
     r.substeps = n;
     r.mass = totalMass();
@@ -228,16 +226,20 @@ void ShoreSolver::substep(float dt, ShoreStepReport& r) {
         } else { c.u = 0.0f; c.w = 0.0f; }
         c.eta = c.bed + d;
     }
-    // the prescribed columns are the ocean: reset to the prescription; the difference is the
-    // ocean's supply (the flux ledger closes: fluxes are conservative, resets are counted)
+    // the prescribed columns are the ocean: a relaxation zone - each moves `weight` of the way to the
+    // prescription; the difference is the ocean's supply (the flux ledger closes: fluxes are
+    // conservative, relaxations are counted). weight 1 = set exactly (the edge).
     double exch = 0.0;
     for (size_t i = 0; i < n; ++i) {
         ShoreColumn& c = m_cols[i];
         if (!c.prescribed) continue;
-        const double target = std::max(m_etaPrev[i], static_cast<double>(c.bed));   // what prescribe() set before this tick
-        exch += (target - c.eta) * m_h * m_h;
-        c.eta = target;
-        c.u = m_prescribedVel[i].x; c.w = m_prescribedVel[i].y;
+        const double target = std::max(m_prescribedEta[i], static_cast<double>(c.bed));
+        const double w = c.weight;
+        const double before = c.eta;
+        c.eta = before + w * (target - before);
+        exch += (c.eta - before) * m_h * m_h;
+        if (c.eta - c.bed > dry) { c.u += static_cast<float>(w * (m_prescribedVel[i].x - c.u)); c.w += static_cast<float>(w * (m_prescribedVel[i].y - c.w)); }
+        else { c.u = 0.0f; c.w = 0.0f; }
     }
     r.exchanged += exch;
     // breaking marker: a steep front (surface slope > 0.3) in shallow water (d < 1.5 m) is a bore;
@@ -249,7 +251,9 @@ void ShoreSolver::substep(float dt, ShoreStepReport& r) {
         if (c.wall || d <= dry) { c.foam = 0.0f; continue; }
         auto wetN = [&](int xx, int zz) { return !col(xx, zz).wall && col(xx, zz).eta - col(xx, zz).bed > dry; };
         float slope = 0.0f;
-        auto rise = [&](int xx, int zz) { return static_cast<float>(std::abs(c.eta - col(xx, zz).eta)) / m_h; };
+        // the surface step beyond what the bed explains: a bore on a flat bed foams, water pouring
+        // over a voxel step (the Coast's 1 m risers) does not - that is a fall, not a breaker
+        auto rise = [&](int xx, int zz) { return std::max(0.0f, static_cast<float>(std::abs(c.eta - col(xx, zz).eta)) - std::abs(c.bed - col(xx, zz).bed)) / m_h; };
         if (x > 0 && wetN(x - 1, z)) slope = std::max(slope, rise(x - 1, z));
         if (x + 1 < m_nx && wetN(x + 1, z)) slope = std::max(slope, rise(x + 1, z));
         if (z > 0 && wetN(x, z - 1)) slope = std::max(slope, rise(x, z - 1));

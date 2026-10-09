@@ -50,4 +50,36 @@ SeaSwellSample seaSwellSample(const SeaSwellParams& p, float x, float z, float t
     return s;
 }
 
+SeaSwellColumn seaSwellColumn(const SeaSwellParams& p, float x, float z, float t, float depth) {
+    SeaSwellColumn s;
+    if (p.amplitude <= 0.0f || p.wavelength <= 0.0f) return s;
+    SeaSwellComponent c[4];
+    seaSwellComponents(p, c);
+    const float d = std::max(depth, 0.05f);
+    // depth-limited: the four components' total height 2 sum(a_i) may not exceed gamma d (McCowan,
+    // gamma 0.78) - beyond that the wave has broken and linear theory has nothing to say; the ring
+    // then prescribes the saturated wave the shallows can hold (the sheet beside it still draws the
+    // full swell: the documented seam, WaterCore.md 18.5)
+    // on the four components' TOTAL height (the rms height was tried: the near-breaking crests then
+    // ran the Froude clamp and the ring pumped 0.125 m of set-up into the band test)
+    float total = 0.0f;
+    for (int i = 0; i < 4; ++i) total += c[i].amplitude;
+    const float scale = std::min(1.0f, 0.78f * d / std::max(2.0f * total, 1e-6f));
+    s.depthScale = scale;
+    for (int i = 0; i < 4; ++i) {
+        const float k = 6.28318530718f / c[i].wavelength;
+        const float cph = std::sqrt(9.81f / k);                           // the sheet's deep-water phase: the SURFACE it draws
+        const float f = k * (c[i].dir.x * x + c[i].dir.y * z - cph * t);
+        const float a = c[i].amplitude * scale;
+        const float eta = a * std::sin(f);
+        s.height += eta;
+        const float cd = std::sqrt(9.81f / k * std::tanh(k * d));        // Airy at this depth: the transport belongs to the depth
+        s.uAvg += c[i].dir * (eta * cd / d);
+        s.uAvg -= c[i].dir * (a * a * cd / (2.0f * d * d));   // minus the Stokes transport: the ring pumps no net mass
+    }
+    const float froude = std::sqrt(9.81f * d), speed = glm::length(s.uAvg);   // never faster than the shallow-water wave: linear theory ends where the wave breaks
+    if (speed > froude) s.uAvg *= froude / speed;
+    return s;
+}
+
 }  // namespace Phyxel::Core::Water

@@ -3675,8 +3675,31 @@ void Application::update(float deltaTime) {
             if (renderCoordinator) {
                 renderCoordinator->setWaterCoreSurfaceCells(waterCore->totalCells() ? &waterCore->surfaceCells() : nullptr);
                 renderCoordinator->setWaterCoreParticles(waterCore->totalCells() ? &waterCore->particleDrawList() : nullptr);   // Phase B2 debug draw
-                renderCoordinator->setWaterCoreVolumeBoxes(&waterCore->volumeBoxes(), waterCore->avRevision());   // Phase D: the span grid leaves these columns to the volumes
                 renderCoordinator->setWaterCoreSurfaceFields(waterCore->totalCells() ? &waterCore->surfaceFields() : nullptr);   // Phase F: the surface mesh feed
+            }
+            // Phase G: the shore band follows the camera along the shore and is stepped every frame at the
+            // sheet's clock; its box joins the volumes' in the span-grid mask (D3) and its surface is meshed (F1)
+            if (m_shoreOn && shoreBand && camera) {
+                const glm::vec3 cp = camera->getPosition();
+                const glm::vec2 cxz(cp.x, cp.z);
+                const bool moved = std::max(std::abs(cxz.x - m_shoreLastTry.x), std::abs(cxz.y - m_shoreLastTry.y)) > 0.5f * shoreParams.radius;
+                if ((shoreBand->active() && shoreBand->needsResite(cxz)) || (!shoreBand->active() && moved)) {
+                    std::string serr;
+                    if (!siteShoreBand(&serr)) { LOG_INFO("WaterCore", "shore band inactive here: {} (retries after half a radius of walking)", serr); shoreBand->clear(); }
+                }
+                if (shoreBand->active()) {
+                    const auto* wp = renderCoordinator ? renderCoordinator->waterRenderPipeline() : nullptr;
+                    Core::Water::SeaSwellParams sw;
+                    if (wp) { sw.amplitude = wp->waveAmplitude(); sw.wavelength = wp->waveLength(); sw.windRad = wp->windDirection(); }
+                    shoreBand->tick(std::min(deltaTime, 0.05f), wp ? wp->waveTime() : 0.0f, sw);
+                }
+            }
+            if (renderCoordinator) {
+                m_waterMaskBoxes = waterCore->volumeBoxes();
+                uint64_t maskRev = waterCore->avRevision() * 1000003ull;
+                if (m_shoreOn && shoreBand && shoreBand->active()) { m_waterMaskBoxes.push_back(shoreBand->maskBox()); maskRev ^= shoreBand->record().revision; }
+                renderCoordinator->setWaterCoreVolumeBoxes(&m_waterMaskBoxes, maskRev);   // Phase D: the span grid leaves these columns to the volumes (+ the band)
+                renderCoordinator->setWaterShoreField(m_shoreOn && shoreBand && shoreBand->active() ? &shoreBand->field() : nullptr);
             }
             for (const auto& rec : waterCore->drainAutoSleepRecords()) {
                 if (rec.ok) LOG_INFO("WaterCore", "volume {} slept: {} columns / {} runs written ({} m^3, seeded {} m^3), surface-vs-mass {} mm, spread {} mm, {} chunks, body {}", rec.id, rec.columns, rec.runs, rec.massWritten, rec.massSeeded, rec.surfaceVsMassMm, rec.spreadMm, rec.chunksTouched, rec.bodyId);
@@ -13779,6 +13802,45 @@ void Application::registerWaterCommands() {
     // WaterCore Phase F (17.2 key 4): {mode: "mesh"|"cells"|"off"} - the simulated water's renderer.
     // "cells" is the Phase B debug feed kept as the A/B control until F3 deletes it. Echoes the mode
     // and the last frame's mesh statistics.
+    // Phase G (docs/WaterCore.md 18.5): the shoreline band. {on, radius, inner, cellSize, runUp, resite, status}
+    // echoes the band record: box, columns by role, mass, the ocean's exchange, run-up, cost.
+    reg.on("water_shore", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        using namespace Core::Water;
+        if (!shoreBand) shoreBand = std::make_unique<ShoreBand>();
+        bool changed = false;
+        if (cmd.params.contains("radius")) { shoreParams.radius = std::clamp(cmd.params.value("radius", 24.0f), 4.0f, 64.0f); changed = true; }   // <= 64: the column cap (18.3 key 4)
+        if (cmd.params.contains("inner")) { shoreParams.inner = std::max(cmd.params.value("inner", 12), 4); changed = true; }
+        if (cmd.params.contains("cellSize")) { shoreParams.cellSize = cmd.params.value("cellSize", 1.0f) < 0.5f ? 1.0f / 3.0f : 1.0f; changed = true; }
+        if (cmd.params.contains("runUp")) { shoreParams.runUp = std::clamp(cmd.params.value("runUp", 4.0f), 1.0f, 16.0f); changed = true; }
+        if (cmd.params.contains("ramp")) { shoreParams.ramp = std::clamp(cmd.params.value("ramp", 8.0f), 1.0f, 32.0f); changed = true; }
+        if (cmd.params.contains("minOceanDepth")) { shoreParams.minOceanDepth = std::clamp(cmd.params.value("minOceanDepth", 1.0f), 0.2f, 8.0f); changed = true; }
+        if (cmd.params.contains("manningN")) { shoreParams.solver.manningN = std::clamp(cmd.params.value("manningN", 0.025f), 0.0f, 0.2f); changed = true; }
+        if (cmd.params.contains("on")) { const bool on = cmd.params.value("on", false); if (on != m_shoreOn) { m_shoreOn = on; changed = true; } if (!on) shoreBand->clear(); }
+        if (m_shoreOn && (changed || cmd.params.value("resite", false) || !shoreBand->active())) {
+            std::string err;
+            if (!siteShoreBand(&err)) { shoreBand->clear(); r = {{"error", err}, {"on", m_shoreOn}, {"active", false}}; return; }
+        }
+        const ShoreBandRecord& b = shoreBand->record();
+        const auto* wp = renderCoordinator ? renderCoordinator->waterRenderPipeline() : nullptr;
+        const auto box = shoreBand->maskBox();
+        r = {{"on", m_shoreOn}, {"active", shoreBand->active()}, {"radius", shoreParams.radius}, {"inner", shoreParams.inner}, {"cellSize", shoreParams.cellSize}, {"runUp", shoreParams.runUp},
+             {"ramp", shoreParams.ramp}, {"manningN", shoreParams.solver.manningN},
+             {"box", {{"min", {box.first.x, box.first.z}}, {"max", {box.second.x, box.second.z}}}}, {"origin", {b.originXZ.x, b.originXZ.y}}, {"n", b.n}, {"h", b.h}, {"still", b.still},
+             {"columns", b.columns}, {"prescribed", b.prescribed}, {"sponge", b.sponge}, {"walls", b.walls}, {"free", b.free}, {"wet", b.wet}, {"minOceanDepth", shoreParams.minOceanDepth},
+             {"max_speed", b.maxSpeed}, {"mean_free_rise_m", b.meanFreeRise}, {"swash_columns", b.swashColumns}, {"swash_eta_m", b.swashEtaMax}, {"centre", {b.centreXZ.x, b.centreXZ.y}},
+             {"mass_m3", b.mass}, {"exchanged_m3", b.exchanged}, {"runup_m", b.runUpMax}, {"runup_peak_m", b.runUpPeak}, {"foam_max", b.foamMax},
+             {"step_ms", b.stepMs}, {"field_ms", b.fieldMs}, {"site_ms", b.siteMs}, {"substeps", b.substeps}, {"sitings", b.sitings}, {"bed_updates", b.bedUpdates},
+             {"swell", {{"amplitude", wp ? wp->waveAmplitude() : 0.0f}, {"wavelength", wp ? wp->waveLength() : 0.0f}, {"wind", wp ? wp->windDirection() : 0.0f}, {"time", wp ? wp->waveTime() : 0.0f}}}};
+        if (cmd.params.contains("probe") && shoreBand->active()) {   // [x, z] world -> that column
+            const auto& pr = cmd.params["probe"];
+            const float px = pr.at(0).get<float>(), pz = pr.at(1).get<float>();
+            const int cx = static_cast<int>(std::floor((px - b.originXZ.x) / b.h)), cz = static_cast<int>(std::floor((pz - b.originXZ.y) / b.h));
+            if (cx >= 0 && cz >= 0 && cx < b.n && cz < b.n) {
+                const ShoreColumn& c = shoreBand->solver()->col(cx, cz);
+                r["column"] = {{"x", cx}, {"z", cz}, {"bed", c.bed}, {"eta", c.eta}, {"u", c.u}, {"w", c.w}, {"foam", c.foam}, {"role", static_cast<int>(shoreBand->role(cx, cz))}};
+            } else r["column"] = {{"error", "outside the band"}};
+        }
+    });
     reg.on("water_render_core", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         using Core::Water::WaterCoreRenderMode;
         if (!renderCoordinator) { r = {{"error", "no render coordinator"}}; return; }
@@ -14743,6 +14805,7 @@ void Application::renderWorldMapPanel() {
 // that reaches into a non-resident chunk HOLDS the edit (counted), because a shift-down applied to
 // one clip alone would mint a cell of water.
 void Application::applyWaterSpanEdit(int x, int y, int z, bool solid) {
+    if (m_shoreOn && shoreBand && shoreBand->active()) shoreBand->noteEdit(x, z);   // Phase G: the band re-beds that column next tick
     using namespace Core::Water;
     if (!chunkManager || !waterCore) return;
     if (waterCore->volumeOwns(x, y, z)) return;
@@ -23391,6 +23454,61 @@ void Application::setupDefaultDockLayout(unsigned int dockSpaceId) {
     ImGui::DockBuilderDockWindow("Performance Overlay", dockRight);
 
     ImGui::DockBuilderFinish(dockSpaceId);
+}
+
+// Phase G (docs/WaterCore.md 18.5): site the shore band at the camera. The bed is the micro
+// occupancy's highest solid in the column (Unknown = a wall: the 5.1 hold rule), the stored top is
+// the chunk spans' top run (max over the vertical chunks of the column); both are world data.
+bool Application::siteShoreBand(std::string* err) {
+    using namespace Core::Water;
+    if (!shoreBand) shoreBand = std::make_unique<ShoreBand>();
+    if (!camera) { if (err) *err = "no camera"; return false; }
+    if (!chunkManager) { if (err) *err = "no chunk manager"; return false; }
+    const glm::vec3 cp = camera->getPosition();
+    const glm::vec2 centre(cp.x, cp.z);
+    m_shoreLastTry = centre;
+    // the stored tops over the box (+ the bias search), one pass over the resident chunks
+    const float R = 2.0f * shoreParams.radius + 2.0f;
+    const int x0 = static_cast<int>(std::floor(centre.x - R)), x1 = static_cast<int>(std::ceil(centre.x + R));
+    const int z0 = static_cast<int>(std::floor(centre.y - R)), z1 = static_cast<int>(std::ceil(centre.y + R));
+    auto tops = std::make_shared<std::unordered_map<long long, float>>();
+    auto key = [](int x, int z) { return (static_cast<long long>(x) << 32) ^ static_cast<long long>(static_cast<unsigned int>(z)); };
+    for (const auto& [cc, chunk] : chunkManager->chunkMap) {
+        if (!chunk) continue;
+        const int bx = cc.x * 32, bz = cc.z * 32;
+        if (bx + 31 < x0 || bx > x1 || bz + 31 < z0 || bz > z1) continue;
+        for (const auto& sp : chunk->getWaterSpans()) {
+            const int wx = bx + sp.x, wz = bz + sp.z;
+            if (wx < x0 || wx > x1 || wz < z0 || wz > z1) continue;
+            const float top = static_cast<float>(cc.y) * 32.0f + sp.top;
+            auto it = tops->find(key(wx, wz));
+            if (it == tops->end()) (*tops)[key(wx, wz)] = top; else it->second = std::max(it->second, top);
+        }
+    }
+    StoredTopQuery stored = [tops, key](int wx, int wz) -> StoredTop {
+        const auto it = tops->find(key(wx, wz));
+        return it == tops->end() ? StoredTop{false, 0.0f} : StoredTop{true, it->second};
+    };
+    BedQuery bed = [this](float wx, float wz, float yLo, float yHi) -> BedSample {
+        const auto* occ = renderCoordinator ? renderCoordinator->lightOccupancy() : nullptr;
+        if (!occ) return BedSample{false, 0.0f};
+        const int mx = static_cast<int>(std::floor(wx * 9.0f)), mz = static_cast<int>(std::floor(wz * 9.0f));
+        const int myHi = static_cast<int>(std::ceil(yHi * 9.0f)) - 1, myLo = static_cast<int>(std::floor(yLo * 9.0f));
+        for (int my = myHi; my >= myLo; --my) {
+            const Graphics::OccupancyState st = occ->stateAtMicro(glm::ivec3(mx, my, mz));
+            if (st == Graphics::OccupancyState::Unknown) return BedSample{false, 0.0f};
+            if (st == Graphics::OccupancyState::Solid) return BedSample{true, static_cast<float>(my + 1) / 9.0f};
+        }
+        return BedSample{true, yLo};
+    };
+    Core::Water::ShoreBandParams p = shoreParams; p.seawardBias = true;
+    const bool ok = shoreBand->site(centre, p, std::move(bed), std::move(stored), err);
+    if (ok) {
+        const auto& b = shoreBand->record();
+        LOG_INFO("WaterCore", "shore band sited at ({}, {}): {}x{} columns of {} m, still {}, {} prescribed / {} free / {} walls, {} wet, {} m^3, {} ms",
+                 centre.x, centre.y, b.n, b.n, b.h, b.still, b.prescribed, b.free, b.walls, b.wet, b.mass, b.siteMs);
+    }
+    return ok;
 }
 
 } // namespace Phyxel

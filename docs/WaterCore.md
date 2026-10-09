@@ -417,7 +417,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **D. Rest, persistence, world data** — **design §16; D3 + D1 + D2 + D4 + D5 BUILT 2026-10-09 (ledger §16.9; D4 halves the River trunk defect, residual is the bake's cell resolution)** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | /design-check on §16 | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
 | **E. Coupling** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
 | **F. Rendering the core** — **design §17; F1 + F2 first pass BUILT 2026-10-09 (ledger §17.3), sign-off pending; F3 open** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
-| **G. Large bodies on top** — **design §18 (2026-10-09, READY; the shoreline band pulled ahead, after F1)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
+| **G. Large bodies on top** — **design §18; G1 BUILT 2026-10-09 (§18.5: column solver + band, S12 PASS on Coast, not yet visibly right — G2 next)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
 
 Rule for every phase: the previous phase's scenarios stay green (the harness runs them all);
 nothing is "done" without its evidence row and a same-vantage capture where look is claimed.
@@ -1744,10 +1744,62 @@ counted into the next step's `exchanged`, so `Σ exchanged == mass_after − mas
 | `WallReflects` | 0.349 at the wall for a 0.20 incident | ≥ 0.32 |
 | `RunUpOnTheBeachVsHunt` | 0.175 m, Hunt 0.145 m | ±20 % + 2 cm |
 
-Next: the band itself (siting from the stored spans around the camera, bed from the voxel
-occupancy, prescribed ocean columns from the sheet's own swell clock, the band's `η` as an F1
-surface field so it renders through the same mesh, the sheet masked under the band), then the
-Coast L4 rows (S12) and the shore-eye captures.
+**The band (`ShoreBand`, built the same day).** A camera-following square of solver columns:
+the box is centred on the camera pulled up to R/2 toward the centroid of the stored water within
+2 R (so a camera on the sand gets its ring in deeper water), the bed per column is the micro
+occupancy's highest solid (Unknown = a wall, the §5.1 hold rule), the still level is the ring's
+most common stored top, the ring (`inner` columns from the box edge) is the ocean: prescribed
+from `seaSwellColumn` at the sheet's own clock (`WaterRenderPipeline::waveTime()`), ring columns
+shallower than `minOceanDepth` are a sponge, dry ones are free. The ring is a **relaxation zone**
+(Larsen & Dancy 1983) with the weight `(q / ramp)²` anchored at the free region in METRES — so
+the ring's extent beyond the ramp is hard ocean and a pure cost bound
+(`ShoreBandTest.InteriorIndependentOfOuterWidth`: 1144 free columns, 0.0000 m difference between
+rings 6 and 12 wide). Three things the band tests caught before any capture, each measured:
+
+| finding | measured | fix |
+|---|---|---|
+| a hard-reset ring pumps mass: the prescribed progressive wave carries the Stokes transport a²c/2d shoreward and the reset lets nothing back | 940 m³ into a 48 m band in 30 s, the sand 0.4 m under water | relaxation zone + the ring's velocity carries the compensating mean current −a²c(d)/2d² per component (the undertow a closed beach needs): 28 m³ / 30 s, mean rise 5.6 cm (set-up), −0.6 cm after calm |
+| the deep-water `η c / d` blows up in the shallows (a 0.45 m swell in 5 cm of water = 42 m/s) | max speed 108 m/s, a 17 m surface | Airy at the column's depth, `c(d) = √(g tanh(kd)/k)`, Froude-limited, and the prescribed height depth-limited to γ d (McCowan 0.78) on the four components' total; ring columns under 1 m are a sponge |
+| the foam marker read every 1 m voxel step as a breaking front | calm Coast foam 0.085 | the surface step beyond what the bed explains |
+
+The band writes nothing: its water is the stored ocean's (`exchanged` is the ledger) and the stored
+spans under it are untouched (S12 row c: 172.0 → 172.0 m total depth over the shelf). An edit under
+the band re-beds that column next tick (`noteEdit`; water over a new hole falls to it, ground
+rising through water buries it — an edit never creates water). Unit rig (a 1:20 beach toward +z,
+the sheet's Coast swell blowing shoreward, 48 m band at 1 m columns): peak run-up **0.275 m vs Hunt
+0.281 m** on the spectrum's total height, 0.5 ms per tick for 2304 columns.
+
+**L4 on the Coast bench (Release, `tools/water_feel.py S12`, evidence
+`docs/evidence/water_feel/S12_coast_core_h1_auto_20261009_104243.json`, captures
+`docs/evidence/water_core_g/`):** the band is sited from the shore_eye vantage (camera at z 664
+on the sand, box 115..210 × 639..734, centre pulled 24 m seaward), 96 × 96 columns = 9216,
+1767 prescribed / 141 walls / 7308 free, still 16.0. Rows, all PASS:
+
+| row | measured | gate |
+|---|---|---|
+| swell: rest-dry sand wet | first swash column 0.28 s after siting | ≤ 5 s |
+| swash surface over rest-dry columns | peak 0.199 m above still, 352 columns awash at 20 s | 0.05–0.6 m |
+| no pump | mean free rise ≤ 0.020 m | ≤ 0.05 |
+| stability | max speed 2.08 m/s | ≤ 5 |
+| cost | step p95 2.35 ms, max 2.50 ms (+ mesh 0.49 ms for 4095 top quads) | p95 ≤ 4 ms |
+| calm control (amplitude 0, 20 s) | foam 0, swash surface 0.053 m (27 % of the swell peak) | foam < 0.02, < 50 % |
+| persistence | stored spans over the shelf 172.0 → 172.0 m, max top 16.0 → 16.0 | unchanged |
+
+**What the Coast terrain is, and what that means for the look.** The beach there is a staircase of
+full cubes: bed 17 south of z 674, a **24 m shelf at bed 16 = exactly the still level** (z 674–697),
+then bed 15 from z 698 (profile `tools/water_shore_profile.py`). So the "1:20 beach" is a 1 m riser every
+~22 m, the swell meets a vertical step, and the swash is a bore that spills over a flat shelf at
+sea level — a 5–20 cm sheet that cannot drain (the shelf is at the still level; it is awash) and
+keeps spreading (wet columns 3782 → 4135 in 20 s). Hunt's formula has no meaning on that profile,
+which is why the run-up gate lives in the unit tests. Visually (`coast_shore_eye_before/after/
+calm.png`, one stated pose): the sheet is masked under the band and the band's mesh draws the
+shelf sheet and the ring's swell, but it reads as a flat pale surface against the sheet's big swell
+beyond the band — the simulated water lacks the sheet's ripple detail and has no foam, so a 20 cm
+bore on a 14 m wave is invisible from eye height. **That is G2's job (foam + surface detail from
+the solver's own velocity), and the honest verdict is that G1 is measurably right and not yet
+visibly right.** Logged gaps: the sheet draws the un-limited swell beside a band whose ring is
+depth-limited (a height seam at the band edge in shallow water); a shelf exactly at sea level is
+awash by construction; the band's seaward edge face is a vertical water wall under the sheet.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

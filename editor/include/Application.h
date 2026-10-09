@@ -100,6 +100,7 @@
 #include "core/DebrisRuntime.h"
 #include "core/WaterManager.h"
 #include "core/water/WaterCoreManager.h"
+#include "core/water/ShoreBand.h"
 #include "scene/NPCEntity.h"
 #include "scene/Entity.h"
 #include "scene/AnimatedVoxelCharacter.h"
@@ -284,6 +285,13 @@ private:
     std::unique_ptr<Core::Water::WaterCoreManager> waterCore;          // WaterCore active volumes (Phase B; docs/WaterCore.md)
     void applyWaterSpanEdit(int x, int y, int z, bool solid);          // Phase D2: edits never create water (docs/WaterCore.md 16.3)
     long m_waterHeldEdits = 0;                                          // Phase D2: edits held because a run reaches into a non-resident chunk
+    // Phase G (docs/WaterCore.md 18.5): the shoreline band - solved water along the shore around the camera
+    std::unique_ptr<Core::Water::ShoreBand> shoreBand;
+    Core::Water::ShoreBandParams shoreParams;
+    bool m_shoreOn = false;
+    glm::vec2 m_shoreLastTry{0.0f};                                      // where the last siting was attempted (retry after half a radius)
+    std::vector<std::pair<glm::ivec3, glm::ivec3>> m_waterMaskBoxes;  // live volumes + the band: columns the span grid / sheet leave alone
+    bool siteShoreBand(std::string* err);                               // (re)site the band at the camera from the voxels + stored spans
     std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;    // Coordinates all rendering
     std::unique_ptr<RaycastVisualizer> raycastVisualizer;              // Raycast debug visualization
     std::unique_ptr<VoxelInteractionSystem> voxelInteractionSystem;    // Cube/subcube interaction

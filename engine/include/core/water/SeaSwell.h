@@ -29,6 +29,16 @@ float seaSwellHeight(const SeaSwellParams& p, float x, float z, float t);
 struct SeaSwellSample { float height = 0.0f; glm::vec2 uSurface{0.0f, 0.0f}; float wSurface = 0.0f; float k = 0.0f; };
 SeaSwellSample seaSwellSample(const SeaSwellParams& p, float x, float z, float t, float depth);
 
+/// The shore band's wavemaker sample: the surface offset and the DEPTH-AVERAGED horizontal
+/// velocity of the progressive wave in water of depth `depth` - linear theory's mass transport,
+/// u_avg = eta_i c_i(d) / d per component along its direction, c_i(d) = sqrt(g tanh(k d) / k) the
+/// Airy phase speed AT THAT DEPTH (the surface keeps the sheet's deep-water phase, so band and sheet
+/// agree; the transport is the depth's own), minus each component's Stokes transport a_i^2 c_i / (2 d^2)
+/// so the ring's time-mean mass flux is zero (a closed beach returns what the waves bring), the sum
+/// limited to the shallow-water speed sqrt(g d).
+struct SeaSwellColumn { float height = 0.0f; glm::vec2 uAvg{0.0f, 0.0f}; float depthScale = 1.0f; };   ///< depthScale < 1: the swell was depth-limited (gamma 0.78) at this column
+SeaSwellColumn seaSwellColumn(const SeaSwellParams& p, float x, float z, float t, float depth);
+
 /// The four components' (direction, amplitude, wavelength) for tests and tools.
 struct SeaSwellComponent { glm::vec2 dir; float amplitude; float wavelength; };
 void seaSwellComponents(const SeaSwellParams& p, SeaSwellComponent out[4]);

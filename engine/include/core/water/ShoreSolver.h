@@ -36,7 +36,8 @@ struct ShoreColumn {
     double eta = 0.0;            ///< world Y of the surface (== bed when dry); double so the mass ledger is exact
     float u = 0.0f, w = 0.0f;    ///< depth-averaged velocity (m/s), x and z; 0 when dry
     uint8_t wall = 0;            ///< 1 = solid above the water range (reflects, never wets)
-    uint8_t prescribed = 0;      ///< 1 = the ocean: eta and the velocity are set each tick
+    uint8_t prescribed = 0;      ///< 1 = the ocean: eta and the velocity relax to the prescription each substep
+    float weight = 1.0f;         ///< relaxation weight per substep: 1 = hard reset at the edge, -> 0 at the zone's inner boundary
     float foam = 0.0f;           ///< 0..1 breaking indicator (decays)
 };
 
@@ -62,8 +63,9 @@ public:
     const ShoreColumn& col(int x, int z) const { return m_cols[idx(x, z)]; }
     double depth(int x, int z) const { const ShoreColumn& c = m_cols[idx(x, z)]; return c.eta - c.bed; }
 
-    /// Prescribe a column this tick: surface and depth-averaged velocity (m/s).
-    void prescribe(int x, int z, double eta, const glm::vec2& velocity);
+    /// Prescribe a column this tick: the ocean's surface and depth-averaged velocity (m/s), and the
+    /// relaxation weight (1 = set exactly; a relaxation zone ramps it toward 0 inward, absorbing).
+    void prescribe(int x, int z, double eta, const glm::vec2& velocity, float weight = 1.0f);
     void clearPrescriptions();
 
     ShoreStepReport step(float dt);
@@ -81,8 +83,8 @@ private:
     ShoreParams m_params;
     std::vector<ShoreColumn> m_cols;
     std::vector<glm::vec2> m_prescribedVel;   // per column, valid where prescribed
+    std::vector<double> m_prescribedEta;      // per column, valid where prescribed
     std::vector<double> m_etaPrev;
-    double m_pendingExchange = 0.0;   // surface changes made by prescribe() since the last step
     // scratch (kept to avoid per-step allocation)
     std::vector<double> m_eta0, m_eta1;
     std::vector<float> m_u0, m_w0, m_u1, m_w1;
