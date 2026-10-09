@@ -11,6 +11,7 @@
 // not touched (P7). Numbers that are approximations (PCG tolerance, ghost-fluid θ, CFL fraction)
 // are parameters with their trade-off stated at the parameter.
 #include "core/water/WaterCore.h"
+#include "core/water/WaterSurfaceMesh.h"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -180,9 +181,15 @@ float WaterGrid::surfaceWorldY(int x, int z) const {
     int y = ny() - 1;
     while (y >= 0 && !(m_f[idx(x, y, z)] >= fMin && m_occ[idx(x, y, z)] != Occ::Solid)) --y;
     if (y < 0) return std::numeric_limits<float>::quiet_NaN();
-    float sum = 0.0f;
-    while (y >= 0 && m_f[idx(x, y, z)] >= fMin && m_occ[idx(x, y, z)] != Occ::Solid) { sum += std::min(m_f[idx(x, y, z)], 1.0f); --y; }
-    return (static_cast<float>(m_spec.origin.y + y + 1) + sum) * m_spec.h;
+    // 19.7: + air trapped under water drawn as water, weighted by the fill of the cell above (surfacePocketWeight)
+    float sum = 0.0f, pockets = 0.0f, fAbove = 0.0f;   // fAbove 0 for the run's top cell
+    while (y >= 0 && m_f[idx(x, y, z)] >= fMin && m_occ[idx(x, y, z)] != Occ::Solid) {
+        const float fv = std::min(m_f[idx(x, y, z)], 1.0f);
+        pockets += (1.0f - fv) * surfacePocketWeight(fAbove);
+        sum += fv; fAbove = fv;
+        --y;
+    }
+    return (static_cast<float>(m_spec.origin.y + y + 1) + sum + pockets) * m_spec.h;
 }
 
 float WaterGrid::wetTipWorldY(int x, int z) const {

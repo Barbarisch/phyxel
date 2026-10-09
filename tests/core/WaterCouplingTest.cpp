@@ -267,6 +267,10 @@ TEST(WaterCouplingTest, ExchangeIndependentOfOrderAndBatching) {
 // count the ticks where the RENDERED surface (the surface field the mesh is built from) jumps further.
 // Red before 19.5: a film of a few mm crossing the 1 mm threshold in the cell above a part-full top
 // cell moved the surface by up to (1 - f) x h in one tick.
+// 19.7: the drawn surface also counts air pockets under water as water, weighted by the fill of the cell
+// above (surfacePocketWeight, slope 1 / (A1 - A0)); that term moves by (missing water) x slope x (the change
+// of the cell above) <= slope x the water's own bound, so the bound is (1 + slope) x the kinematic one. The
+// CONTROL keeps the test sharp: the pre-19.5 rule (the wet-tip fill line) must still fail it widely.
 TEST(WaterCouplingTest, SurfaceDoesNotOutrunTheWater) {
     const float h = 1.0f / 3.0f;
     Pond p(12, 9, 12, h, 0);
@@ -274,7 +278,10 @@ TEST(WaterCouplingTest, SurfaceDoesNotOutrunTheWater) {
     WaterSolver s(p.grid, p.query());
     s.addRadialImpulse(glm::vec3(7.0f, 2.0f, 2.0f), 6.0f, DamageSystem::blastSpeed(62.0f), 0.3f);
     WaterSurfaceField prev; extractSurfaceField(p.grid, prev);
-    long checks = 0, violations = 0; float worst = 0.0f, worstBound = 0.0f;
+    long checks = 0, violations = 0, oldRule = 0; float worst = 0.0f, worstBound = 0.0f;
+    const float pocketSlope = 1.0f / (kSurfacePocketA1 - kSurfacePocketA0);
+    std::vector<float> prevTip(144);
+    for (int z = 0; z < 12; ++z) for (int x = 0; x < 12; ++x) prevTip[x + 12 * z] = p.grid.wetTipWorldY(x, z);
     for (int k = 0; k < 6 * 60; ++k) {
         s.step(kDt);
         WaterSurfaceField cur; extractSurfaceField(p.grid, cur);
@@ -288,7 +295,10 @@ TEST(WaterCouplingTest, SurfaceDoesNotOutrunTheWater) {
             float vmax = 0.0f, side = 0.0f;
             for (int y = 0; y <= 9; ++y) vmax = std::max(vmax, std::abs(p.grid.v(x, y, z)));
             for (int y = 0; y < 9; ++y) side += std::abs(p.grid.u(x, y, z)) + std::abs(p.grid.u(x + 1, y, z)) + std::abs(p.grid.w(x, y, z)) + std::abs(p.grid.w(x, y, z + 1));
-            const float bound = (vmax + side) * kDt * 2.0f + 0.002f;
+            const float bound = (vmax + side) * kDt * 2.0f * (1.0f + pocketSlope) + 0.002f;
+            const float tip = p.grid.wetTipWorldY(x, z);
+            if (!std::isnan(tip) && !std::isnan(prevTip[x + 12 * z]) && std::abs(tip - prevTip[x + 12 * z]) > bound) ++oldRule;
+            prevTip[x + 12 * z] = tip;
             ++checks;
             const float jump = std::abs(tb - ta);
             if (jump > bound) {
@@ -297,7 +307,8 @@ TEST(WaterCouplingTest, SurfaceDoesNotOutrunTheWater) {
         }
         prev = cur;
     }
-    std::printf("  surface vs water: %ld column-ticks, %ld where the surface outran the water (worst jump %.4f m vs bound %.4f m)\n", checks, violations, worst, worstBound);
+    std::printf("  surface vs water: %ld column-ticks, %ld where the surface outran the water (worst jump %.4f m vs bound %.4f m); control (old fill-line rule): %ld\n", checks, violations, worst, worstBound, oldRule);
+    EXPECT_GT(oldRule, 250) << "control: the old fill-line rule must still fail this bound (the test can still see flicker) - measured 524";
     EXPECT_EQ(violations, 0) << "the rendered surface jumped further in one tick than the water could move";
 }
 
@@ -330,6 +341,34 @@ TEST(WaterCouplingTest, MotionIsReportedWhereTheWaterMoves) {
     std::printf("  last tick that reported motion: %d of 600 (%.1f s)\n", lastMoving, (lastMoving + 1) * kDt);
     // NOT asserted (open, docs/WaterCore.md 19.6): this small CPU pond never fully calms - wall columns keep
     // trading 2-4 cm per tick 10 s after the push, so it keeps waking debris. The live GPU pond does calm.
+}
+
+
+// Diagnostic (19.7): after a blast, which compaction gate leaves each submerged partial cell (an air
+// pocket under water: f < 1 with water above) alone. Printed only.
+TEST(WaterCouplingTest, DiagPockets) {
+    const float h = 1.0f / 3.0f;
+    Pond p(12, 9, 12, h, 0);
+    p.grid.fillBox({0, 0, 0}, {11, 5, 11}, 1.0f);
+    WaterSolver s(p.grid, p.query());
+    s.addRadialImpulse(glm::vec3(7.0f, 2.0f, 2.0f), 6.0f, DamageSystem::blastSpeed(62.0f), 0.3f);
+    const float vFree = std::sqrt(2.0f * 9.81f * h);
+    for (int sec = 1; sec <= 30; ++sec) {
+        for (int k = 0; k < 60; ++k) s.step(kDt);
+        if (sec % 5) continue;
+        int n = 0, belowThr = 0, upFace = 0, fastFace = 0, lateral = 0, open = 0; double deficit = 0;
+        for (int z = 0; z < 12; ++z) for (int x = 0; x < 12; ++x) for (int y = 0; y + 1 < 9; ++y) {
+            const float fb = p.grid.f(x, y, z), fa = p.grid.f(x, y + 1, z);
+            if (fb >= 0.999f || fb <= 0.01f || fa <= 0.01f) continue;
+            ++n; deficit += (1.0f - fb) * h * h * h;
+            const float vF = p.grid.v(x, y + 1, z);
+            const float uc = 0.5f * (p.grid.u(x, y, z) + p.grid.u(x + 1, y, z)), wc = 0.5f * (p.grid.w(x, y, z) + p.grid.w(x, y, z + 1));
+            if (fb < 0.5f) ++belowThr; else if (vF > 0.0f) ++upFace; else if (std::abs(vF) * (kDt / 2) / h > 0.1f * vFree * (kDt / 2) / h) ++fastFace;
+            else if (uc * uc + wc * wc > 0.01f * vFree * vFree) ++lateral; else ++open;
+        }
+        std::printf("  t %2d s: pockets %d (%.3f m^3 of air): f<thr %d, face rising %d, face fast %d, lateral %d, ungated %d\n",
+                    sec, n, deficit, belowThr, upFace, fastFace, lateral, open);
+    }
 }
 
 }  // namespace

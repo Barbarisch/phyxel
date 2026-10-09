@@ -38,7 +38,11 @@ void main() {
         int t = y;
         float sum = 0.0;   // the height function (WaterCore.md 19.5): bottom + the water in the run
         while (y < pc.ny && f[cellIdx(x, y, z)] >= fMin && occ[cellIdx(x, y, z)] != 1u) { t = y; sum += min(f[cellIdx(x, y, z)], 1.0); ++y; }
-        const float tTop = (oy + float(start)) * pc.h + sum * pc.h;
+        // + air trapped under water drawn as water, weighted by the fill of the cell above (19.7;
+        // surfacePocketWeight in WaterSurfaceMesh.h: 0 below 0.2, 1 from 0.7)
+        float pockets = 0.0;
+        for (int k = start; k < t; ++k) pockets += (1.0 - min(f[cellIdx(x, k, z)], 1.0)) * clamp((min(f[cellIdx(x, k + 1, z)], 1.0) - 0.2) / 0.5, 0.0, 1.0);
+        const float tTop = (oy + float(start)) * pc.h + (sum + pockets) * pc.h;
         if (runs < 4) { bottom[runs] = (oy + float(start)) * pc.h; top[runs] = tTop; ++runs; }
         else top[3] += sum * pc.h;
         topCell = t;

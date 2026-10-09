@@ -24,6 +24,19 @@
 namespace Phyxel::Core::Water {
 
 constexpr int kSurfaceMaxRuns = 4;
+/// 19.7: a part-full cell UNDER water is an air pocket the projection keeps (a liquid cell is projected as
+/// full, so nothing closes it) - the plain height function (19.5) drew each one as a 16 cm dip, with the
+/// displaced water piled +3.5 cm elsewhere. A run's surface = its bottom + the water in it + each cell's
+/// missing water x pocketWeight(fill of the cell directly ABOVE it): 0 up to kSurfacePocketA0 (a film or a
+/// thin sheet over a part-full cell - that cell IS the surface, or a sheet climbing a wall), 1 from
+/// kSurfacePocketA1 (a liquid cell sits on it - it is a pocket), linear between, so the surface stays
+/// continuous in time (a hard 'highest cell >= 0.5' rule jumped 23 cm; weighting by ALL the water above
+/// drew wall sheets as +12 cm bumps). Same rule in wc_surface.comp and WaterGrid::surfaceWorldY.
+constexpr float kSurfacePocketA0 = 0.2f, kSurfacePocketA1 = 0.7f;
+inline float surfacePocketWeight(float fillAbove) {
+    const float t = (fillAbove - kSurfacePocketA0) / (kSurfacePocketA1 - kSurfacePocketA0);
+    return t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
+}
 
 /// One sub-column of the field. Matches wc_surface.comp's layout exactly (16 floats = 64 B).
 /// Phase G2: foam (0..1) and the surface velocity (m/s) ride along - the band fills both from its

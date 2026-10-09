@@ -2255,6 +2255,43 @@ Still open from this run: some pieces sit 10-20 cm above the surface (stacked on
 known floats-high bounding-sphere law); the fixed-point probe saw a splash run 1.2 m above the pond
 (the probe reports the top run - not a drawn flicker, but unverified in the video).
 
+### 19.7 Edge dips after a slosh: air pockets drawn as holes (2026-10-09) - built, not signed off
+
+**Owner's look (19.6 recording):** "really close" - but the water does not settle flat afterwards; dips
+near the edges look off.
+
+**Measured (live Small pond, every 1/3 m column, `flat_after_push.json`):** rested pond flat to +-3 cm;
+20 and 40 s after a water-only push, scattered columns 15-25 cm LOW with large patches +3.5 cm high, the
+dips wandering, never closing. Cells up a dip column: `1.00 1.00 0.50 1.00 0.50` - a half-empty cell
+UNDER water. The real top is level with the neighbours; the 19.5 height function (bottom + all the water)
+drew the pocket's missing water as a 16 cm hole.
+
+**Why the pockets live (CPU `DiagPockets`):** `compactSubmergedPartials` closes voids under water but
+skips faces flowing up; 443 of 446 pockets 30 s after a blast sat under faces creeping up at the
+resting-pool jitter. Tried: let BURIED pockets compact through rising faces - REVERTED: trapped air rose
+from 0.36 to 0.79-0.88 m^3 (a pocket moved up one cell per pass and stalled under the surface), the
+submerged pump delivered 3.5 of 4 m^3, the blasted pond stopped settling.
+
+**Fix (drawing, CPU = GPU = probe):** a run's surface = bottom + water + each cell's missing water x
+`surfacePocketWeight(fill of the cell above)`: 0 below 0.2 (a film or a thin sheet over a part-full
+cell - that cell is the surface), 1 from 0.7 (a liquid cell sits on it - a pocket), linear between.
+A hard "highest cell >= 0.5" rule jumped 23 cm when it switched; weighting by ALL the water above drew
+wall sheets as +12 cm bumps; the ramp was picked from a sweep (0.1-0.5: 76 jumps over the bound, bumps
+to 12 cm; 0.2-0.7: 47 / 7.7 cm; 0.3-0.9: 23 / 4.7 cm but most live pockets would show again).
+`SurfaceDoesNotOutrunTheWater`: the pocket term moves at most (slope = 2) x the water's own bound, so the
+bound is (1 + slope) x the kinematic one - 0 violations; a CONTROL in the test keeps it sharp: the old
+fill-line rule still fails 524 times. CPU blasted pond at 30 s: surface spread 4.4 -> 1.5 cm, deepest
+column -16 -> -2.7 cm. 299 water/debris/shore unit tests, 16 GPU tests (surface parity included).
+
+**Live after the fix:** 40 s after the push, deepest column -23 -> **-7.9 cm**, most columns within +-2 cm.
+**Still open - the real cause, one level down:** many cells sit at EXACTLY f = 0.500 and top cells
+settle anywhere in 0.50-0.61. The projection treats every cell >= liquidThreshold (0.5) as FULL with
+the free surface at its top face, so two columns whose water differs by 3.6 cm are identical to it -
+nothing drives them level. That leaves +-2 cm terraces (on the rested pond too), the stuck pockets, and
+the remaining -6..-8 cm dips (pockets of 0.50 under a 0.51 top cell, half forgiven). The standard
+remedy is a sub-cell free-surface (ghost-fluid) pressure condition: p = 0 at the interface height
+inside the top cell, not at its face. Next step; CPU + GPU, with the drain/weir/dam/pump regressions.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
