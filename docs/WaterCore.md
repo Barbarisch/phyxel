@@ -776,6 +776,123 @@ until Phase F. L4 capture: `docs/evidence/water_feel/S3_basin_core_h1_flip_20261
 | S5 drain on FLIP | 1 | cavity 11.5 of 48 in 20 s, sealed control dry, mass exact | FAIL: as S4 — the 1 m² hole is one particle-cell wide |
 | Cost (Release, S3 block collapse, 60 ticks, idle engine; `docs/evidence/water_feel/B2_cost_rows_20261008.json`) | 1 / ⅓ | fills **1.1 ms** / **30 ms** per tick (2 808 / 75 816 cells); FLIP **1.6 ms** / **53 ms** per tick (2 016 / 54 432 particles, i.e. ~4 ms per 10 k particles on top of the shared grid) | the particle layer costs ~1.7× the fill layer at ⅓ on this rig; the grid (PCG 67–76 iterations) is the larger share at both |
 
+### 15.11 Phase C design — the GPU core (`water_core_*.comp`) — design-check 2026-10-08: NEEDS WORK → four items folded in → READY
+
+**What Phase C is, and is not.** The same solver the CPU reference runs — the grid, both
+transports, the projection, the thin-film rules, rest detection — as Vulkan compute, so that the
+§10 budget holds: **≤ 2.0 ms GPU at `high` with every §3 rig awake, 0.000 ms at rest.** The CPU
+reference stays the oracle: Phase C is accepted on **parity rows**, never on "it looks the same".
+Not in C: rendering the core (F), coupling (E), large bodies (G). The manager, routes, harness
+and the AV lifecycle are unchanged; a volume gains `backend:"cpu"|"gpu"` and the default flips
+to `gpu` only once the parity rows pass.
+
+**Infrastructure already in the engine (reused, not invented):** `Vulkan::ComputePipeline`
+(descriptor sets of SSBO bindings, push constants, dispatch — the debris solver's
+`solver_*.comp` and the CA's `m_flowPipe` use it); the particle grid build / scan / sort kernels
+(`particle_grid_build.comp`, `particle_scan_*.comp`, `particle_sort_scatter.comp`: a counting sort
+by cell with a block prefix sum) which is exactly the cell sort FLIP needs; the frames-in-flight
+discipline (the comment block in `RenderCoordinator::renderDynamicSubcubes`) and the two device losses in
+[`reference_frames_in_flight_buffers`] (occupancy memcpy before the fence; a cached draw list
+replaying freed buffers) — every Phase C buffer is per-slot and every CPU write waits on the
+slot's fence.
+
+**Kernels, one dispatch each unless stated (per substep, per AV):**
+
+| # | Kernel | Does | Parallel form of the CPU rule |
+|---|---|---|---|
+| 1 | `wc_solids.comp` | occupancy cache → `occ` (runs only when the pack revision changed) | same table |
+| 2a | `wc_fill_advect.comp` ×12 | donor-cell fill transport | the CPU applies faces sequentially so no two moves touch one cell at once; on the GPU the same exactness comes from **12 checkerboard passes** (6 directions × red/black): within a pass no cell is both donor and receiver, so each move is `min(desired, donor has, receiver can take)` exactly as on the CPU, no atomics, no clamp. The fixed pass order is the same kind of bias the CPU's loop order is |
+| 2b | `wc_vel_advect.comp` | semi-Lagrangian face velocities | embarrassingly parallel, bit-equal in form |
+| 3 | `wc_forces.comp` | gravity, thin-film slope and settle, solid faces | per-face; the settle's "y ascends so a stack copies the floor upward" becomes a per-column loop inside one thread (a column is short: ≤ `ny`) |
+| 4 | `wc_classify.comp` | liquid rows, θ, RHS, source and volume-control terms | per-cell |
+| 5 | `wc_pressure_rbgs.comp` ×(2 × sweeps) | **red-black Gauss-Seidel**, the §10 "40 sweeps" | the CPU's PCG is the oracle; RBGS is what fits a dispatch budget. The residual after the sweeps is written out and READ by the parity rows (it is the one number that says whether 40 was enough on a rig) |
+| 6 | `wc_vel_update.comp` | u −= dt ∇p with θ distances | per-face, same `thetaToAir` |
+| 7 | `wc_extrapolate.comp` ×3 | the halo, first-layer rule, drop faces kept | per-face, three dispatches = three layers |
+| 8 | `wc_compact.comp` + `wc_sweep.comp` | compaction (quiet cells) and the residue sweep | per-column threads (both walk a column) |
+| 9 | `wc_rest.comp` | KE, max Δf, quiet counter | a reduction (subgroup add → one atomic per workgroup → one value) |
+| F1 | `wc_p2g.comp` | FLIP particle → grid | **gather, not scatter**: a face thread loops the particles of its 8 neighbouring cells from the cell-sorted list, so there are no float atomics and the sum order is fixed — deterministic, like the CPU's sorted accumulation |
+| F2 | `wc_g2p_move.comp` | FLIP/PIC update, RK2 move, axis-split solids | per-particle |
+| F3 | sort | counting sort by cell (the existing scan/scatter kernels) | the CPU's `sortParticles` |
+
+Substep count comes from the CFL bound as on the CPU; max speed is a reduction (kernel 9's shape).
+A frame therefore dispatches roughly `substeps × (12 + 2·sweeps + 12)` kernels per awake AV;
+with one substep and 40 sweeps that is ~100 dispatches, which is the cost the §10 budget was
+written for. AVs are batched: one dispatch covers every awake AV through an AV table (offset,
+dims, h, params), so the dispatch count does not grow with the number of volumes.
+
+**Buffers (per AV, all device-local, double-buffered where ping-pong is needed):** `f` ×2, `u v w`
+×2, `occ`, `p`, `rhs`, `kind`, `theta` (6 per cell, packed), the particle SoA (`pos`, `vel`,
+`mass`, `id`) ×2 for the sort, cell ranges, and a 64-byte AV header. At `high` (2 M cells) that is
+~120 MB for fills and ~130 MB per million particles. Allocation is by tier (`maxCells`), never
+per frame. **A GPU volume refuses at create when its buffers cannot be allocated** (the cell and
+particle caps come first, as today; then `vkAllocateMemory` failure or a device-local budget check)
+with the byte count and the budget in the message — never a failure inside a dispatch — and the
+refusal is pinned by a test that asks for a volume one byte over the budget.
+
+**Readback — the only place the GPU talks to the CPU, and why the harness still works.** The
+renderer takes the surface straight from `f` (a `wc_surface.comp` writes the cell feed / the
+particle instance buffer into the slot's instance buffers; no readback). Probes, the ledger and
+the harness read a **fenced copy of `f` (and the particle SoA)** made once per `water_av_step`
+call or once per second in realtime — `water_av_step {ticks}` on the GPU backend runs its ticks,
+waits the fence, copies, and answers; sim time stays exact, wall time is honest. Rest detection
+reads kernel 9's one value the same way. At rest nothing is dispatched (P7).
+
+**Parity — the acceptance.** Same rigs, same harness, `--backend gpu`:
+
+| Row | Tolerance vs the CPU reference (same transport, same h, same ticks) |
+|---|---|
+| mass | identical to 1e-6 relative (both float32; the transport is exact by construction on both) |
+| S3 front time | ± 1 sample (0.1 s) |
+| S3 run-up (FLIP) | ± 10 % of h₀ |
+| S3 seiche period | ± 10 % |
+| S4 spilled by 30 s, S5 cavity time | ± 10 % |
+| S1 rest time, S2 full time | ± 1 s |
+| column masses after 10 s on S3 (1 m) | max ‖Δ‖ ≤ 0.05 m³ (RBGS residual vs PCG) |
+| `FlipSubBoxIdenticalToWholeBox` on the GPU | the same column test, 0.01 m³ |
+
+Each row is a red test first: `WaterCoreGpuParityTest` runs the CPU and GPU solvers on the same
+synthetic grids (needs a device; `GTEST_SKIP`, never a pass, without one) and the harness rows run on
+the live benches. Two more red tests sit beside the rows: **`GpuDeterministic`** — two runs of the
+S3 grid on the same device are bit-identical in `f`, the faces and the particle list, which is what
+the 12-pass checkerboard order and the gather p2g buy and the only way to know they bought it; and
+**`GpuRestDecisionDeterministic`** — the rest flag flips on the same tick in both runs. For that,
+kernel 9's reductions (KE, max Δf, max speed) are NOT one float atomic per workgroup (atomic order is
+not fixed): each workgroup writes its partial to a slot indexed by workgroup id and a second, tiny
+dispatch sums the partials in a fixed tree. Same shape as `particle_scan_block.comp` →
+`particle_scan_blocksums.comp` → `particle_scan_add.comp` already in the tree. **Perf rows** come from `tools/perf_harness.py` GPU timing on the Basin, Small and
+Coast rigs with every AV awake: the gate is ≤ 2.0 ms at `high`; the row must also show the RBGS
+residual so a cheap pass cannot hide behind an unconverged solve.
+
+**Resolution and tiers.** Unchanged (§4.5, §10): tiers bound `maxCells` and particles per AV and
+in total; coarsening is logged and never fires on the §3 rigs (the harness asserts it).
+
+**Chunk independence.** Unchanged: AV boxes are world positions; solids come from the same
+occupancy pool (already on the GPU — `VoxelLightOccupancyGpu`'s pool buffer can be bound directly,
+removing the CPU cache for the GPU backend). **Slot discipline:** a dispatch binds the pool buffer of
+the slot whose pack revision it was given with the AV header (`VoxelLightOccupancyGpu::poolBuffer(slot)`,
+the slot the renderer itself is reading this frame), and it is recorded after that slot's fence has
+been waited — the same rule the renderer follows, and the exact footgun of the two CityBench device
+losses (`reference_frames_in_flight_buffers`: an upload before the fence; a draw list replaying a
+freed buffer). A kernel never reads a slot the CPU may still be writing. The equality test is the GPU
+run of `SubBoxIdenticalToWholeBox` for both transports.
+
+**API.** `water_av_create {backend:"cpu"|"gpu"}` (default `cpu` until parity passes, then
+`gpu`; echoed in every record); `water_av_list` gains `backend`, `gpu_ms_last_tick`,
+`rbgs_residual`; `water_av_step` is identical in semantics (ticks, dt) and its answer carries the
+fenced copy's values. Clamps: `sweeps` 8–160 (fewer never converges a 26 m basin, more is the
+budget's whole allowance), echoed.
+
+**Visual test.** Parity captures: the same S3 vantage on CPU and GPU at the same tick, side by
+side, with the measured front/run-up in the caption. The look is the same cell feed and particle
+draw as B/B2, so the only visual claim is "identical to the CPU within the rows above".
+
+**Risks named up front.** RBGS at 40 sweeps on a 26 m × 1.24 m pool may not reach the PCG's
+1e-6: the seiche row is the one that will say so (a stiffer, under-converged solve shows as a
+faster-damped seiche) — the mitigation is a two-level V-cycle (restrict/prolong kernels, the
+usual fix), designed only if the row demands it. Gather p2g is O(particles per cell × 8) per
+face; at 8 per cell that is 64 reads per face, fine; a clustered cell of 200 particles is the
+volume-control pathology, not a budget case.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
