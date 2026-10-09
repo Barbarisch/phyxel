@@ -1664,6 +1664,44 @@ waterline). Rig vs defaults: none.
 
 **Verdict: READY.** Build order G1 (boundary + port + band, red tests) → G2 → G3. Ledger §18.4.
 
+### 18.4 Finding before building: the 3-D core cannot carry a swell (2026-10-09)
+
+The G1 red tests measured it. A 60-cell channel, 3 m deep, with the first 12 columns prescribed as
+the ocean (Airy elevation + orbital velocity of a 0.3 m, 14 m wave; `WaterCoreBoundaryTest`):
+
+| Cells | Liquid threshold | Amplitude 12 columns in | 24 in | Note |
+|---|---|---|---|---|
+| 1 m | 0.5 / 0.3 / 0.2 / 0.1 | 0.025 / 0.030 / 0.016 / 0.017 | ~0.01 | dead within 12 columns at every threshold |
+| ⅓ m | 0.5 / 0.3 | 0.033 / 0.172 | 0.015 / 0.016 | — |
+| ⅓ m | 0.2 / 0.1 | 0.186 / 0.222 | 0.162 / 0.387 | carries, but the surface STEPS in whole cells (profile plateaus at 0.34) and at 0.1 it grows past the driver |
+| ⅑ m | 0.5 / 0.3 | 0.117 / 0.167 | 0.110 / 0.119 | half the amplitude, noisy; 350 k cells, 672 s for two 8 s runs on the CPU |
+
+A fill-fraction free surface represents the water level inside a cell by one number that the
+projection sees as "liquid above the threshold or thin film below it"; a wave whose height is about
+one cell is forced to live across that switch and is quantised. No threshold or clamp changes that,
+and ⅑ m costs ~700 k cells for a 24 m band — out of budget by an order of magnitude. This is the
+"known-hard part: free-surface advection" of §4.2 made concrete. **Decision (in the plan's own
+table): the shore band is a column solver** — nonlinear shallow-water on the ⅓ m column lattice
+(a continuous surface height per column, depth-averaged momentum on the faces, wet/dry front for
+run-up, the voxel surface as the bed, dry columns above the surface as walls), the standard physical
+model for the surf zone (e.g. Kobayashi et al. 1987; Titov & Synolakis 1995 run-up). It is physical
+water in the sense that matters here: the wave moves against the voxels, climbs the sand, drains
+back, conserves mass exactly, and breaks as a bore. It cannot do overhangs, falls or 3-D splash —
+those stay the 3-D core's, which the band hands a splash region to when something hits the water
+(Phase E). The band's output is a height per column: the F1 surface field directly, so it renders
+through the same mesh, and at rest it writes the same spans.
+
+**G1 (re-scoped):** `ShoreSolver` (pure, testable): columns `nx × nz` at `h`, bed `b` per column
+from the voxels, surface `η`, face velocities `u, w`; per tick: momentum (surface gradient +
+upwind advection + a bed-friction term grounded on Manning n for sand), continuity with upwind
+depth, wet/dry at 1 mm, prescribed outer columns from `seaSwellSample`, CFL substeps
+`dt ≤ h / √(g d_max)`, breaking marked where H/d > 0.78 (McCowan) or the front steepens past a
+slope threshold (foam for G2). Red tests: `ShoreSolverTest.StillWaterOnASlopeStaysStill`,
+`CarriesTheSwell` (≥ 0.8 × a at 12 columns in, ≥ 0.6 × a at 24 — the rows the 3-D core failed),
+`MassExactWithWetDry`, `WallReflects`, `RunUpOnTheBeachVsHunt` (1:20 beach, R = H·ξ ± 20 %,
+reported). The 3-D `BoundarySpec` stays as a pump/inlet primitive (its exchange ledger test passes).
+
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep
