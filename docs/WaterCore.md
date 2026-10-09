@@ -416,7 +416,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **C. GPU core** | Same solver on compute (`water_core_*.comp`), ping-pong, no readback except the surface/queries; parity with CPU on S1–S5 within tolerance; perf rows | /design-check (dispatch, buffers, tiers) | parity + ≤ 2 ms at `high` with all §3 rigs awake |
 | **D. Rest, persistence, world data** — **design §16; D3 + D1 + D2 + D4 + D5 BUILT 2026-10-09 (ledger §16.9; D4 halves the River trunk defect, residual is the bake's cell resolution)** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | /design-check on §16 | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
 | **E. Coupling** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
-| **F. Rendering the core** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
+| **F. Rendering the core** — **design §17 (2026-10-09, READY; pulled ahead of E)** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
 | **G. Large bodies on top** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
 
 Rule for every phase: the previous phase's scenarios stay green (the harness runs them all);
@@ -1445,6 +1445,99 @@ the bake reversion through `water_look`, now injects an all-dry grid through
 `water_render_inject {dry}` and restores it (the engine stays clean afterwards). `buildHydroUpload`
 itself stays: the span grid reads the per-body look from it. Consumers re-pointed: the sheet
 draw, `water_look` / `water_waves` routes, the probe. Measured: Small bench (no bake): the render grid reads 4,091 of 4,096 columns dry, the 5 wet ones are the pad's stored S11 puddle at 17.00 (grounded grid, cell size -1) - no sheet anywhere else; Coast probe 0 violations (18,432 resident at both poses), River 0 (18,125); self-test detected the injected dry grid; a normal Coast run right after the self-test is clean (44,000 resident, 0 violations) - the pollution the old self-test left is gone. 211 water unit tests green.
+
+## 17. Phase F design — rendering the simulated water (2026-10-09, before building)
+
+**Why now, out of §11 order:** the owner looked at the benches after Phase D and saw the same sea
+sheet waving through voxels. Phase D was world-data plumbing; nothing on screen changed, and the
+simulated water itself is still drawn by the Phase B DEBUG feed. Small-scale feel is the core
+(§1), so what the core looks like comes before coupling (Phase E). Phase G (the shoreline band)
+stays after F.
+
+**What exists (ground truth).** `WaterCoreManager::surfaceCells()` (WaterCoreManager.cpp:538)
+collapses each volume to ONE cell per world voxel column: top = the highest sub-column surface,
+`corners` all equal to that top (so a ⅓ m volume renders as 1 m stair steps), `skirt` = the lowest
+wet cell of the column, `flow` = 0. `RenderCoordinator` hands that list to the old
+`WaterCellRenderPipeline` (`water_cell.vert/frag`: instanced 1×1 translucent quads + side skirts,
+the CA's ripple heightfield sampled by world XZ, scene refraction + depth taps). For a GPU volume
+the feed is a copy downloaded **once a second** (`syncFromGpu(rateLimited)`), so a moving pond on
+the device updates at 1 Hz on screen. None of this was ever meant to be looked at.
+
+### 17.1 The deliverable
+
+**F1 — the surface mesh at the volume's own resolution, every frame.**
+- Per volume, a height per SUB-COLUMN (the ⅓ m or ⅑ m cell column): `surfaceWorldY` of that
+  sub-column (the highest cell ≥ 1 mm, its fill height). Corner heights are the mean of the four
+  sub-columns sharing the corner, so the top is C0-continuous inside the volume (the sheet's rule,
+  §14.1 of the old plan, kept). A wet sub-column beside a DRY sub-column (air, not solid) gets a
+  **lateral face** from its top down to the dry neighbour's floor: the water's edge at a step, an
+  overhang, the lip of a fall. Beside a SOLID the top edge ends at the solid: no face (the voxel is
+  the wall). Below the surface, water that sits under an overhang (a second run in the column) gets
+  its own top the same way: runs, not columns, are meshed.
+- **GPU volumes:** a per-frame download of the SURFACE field only (one float per sub-column plus
+  one byte of run count; `nx·nz` of the volume, 216 KB at ⅓ m on the Basin, 1.3 MB at ⅑ m on a
+  pond), produced by a new kernel `wc_surface.comp` into a device buffer and copied to a staging
+  ring (frames-in-flight, the §15.11 slot discipline) — no full-grid readback. The CPU path builds
+  the same field from the grid. Multi-run columns (overhangs) carry up to 4 runs in the field.
+- **The mesh is a pure function of the surface field** (`buildWaterSurfaceMesh(field) → vertices`),
+  unit-testable without a device, and goes through the existing cell pipeline's render pass and
+  scene taps with a new vertex layout (`water_surface.vert/frag`), **not** instanced 1×1 quads.
+- **Cadence:** every frame while the volume is awake; a sleeping volume is freed (D1) and its
+  columns draw from the span grid, which by construction holds the same surface (S11).
+
+**F2 — the look.** `water_common.glsl` unchanged in model (Beer-Lambert absorption through the
+scene depth tap, Fresnel, refraction, SSR as today); the normal is the mesh's own (height field
+gradient) plus the solver's surface velocity curl for fine ripples; foam from surface velocity
+divergence (whitewater where the solver says so). Thickness for absorption = the run's depth. No
+ripple heightfield: a wake, a splash ring, a slosh ARE the mesh. Per-body turbidity from the
+profile as today.
+
+**F3 — deletions (own commit, §9 rule):** `RippleField` + `updateRipple`, the instanced cell path
+(`water_cell.vert/frag`, `WaterSurfaceCell` as a render input) once the Small rigs sign off; the CA
+feed with them is already dead on `--engine core` benches.
+
+### 17.2 Design keys, answered
+
+**1. Voxel aesthetic.** The surface is sampled on the volume's cell lattice (⅓ or ⅑ voxel), the
+same sub-voxel grid the world's subcubes and microcubes live on; a lateral face is axis-aligned at
+a cell boundary; the top is a height field over that lattice — the water reads as water sitting IN
+voxels, not a smooth blob over them. Unconditional: the mesh is the only renderer for a volume; no
+tier changes its resolution (§4.5: resolution is per volume, chosen by the solver's own rule, never
+by a quality setting).
+
+**2. Chunk independence.** Quantities used: the volume's cells (world positions) → appearance, OK;
+the volume's box edge → where the mesh STOPS and the span grid takes over → appearance at the seam
+— the two agree at rest by construction (S11: written spans = surface ± 1 mm) and while awake the
+span grid masks the volume's columns (D3), so the only visible seam is a moving volume against
+still spans, which is real (that is where the motion stops). No chunk quantity anywhere. **Equality
+test:** `WaterSurfaceMeshTest.TwoAbuttingVolumesMeshLikeOne` — the same pool meshed as one volume
+and as two abutting volumes gives identical vertex heights on every shared sub-column (the §14.2
+shape). Cross-chunk lookups: none.
+
+**3. Procedural generation.** None; runtime only. Nothing persists (the look settings already live
+in the water profile).
+
+**4. API.** `water_render_core {mode: "mesh"|"cells"|"off"}` (default `mesh`; `cells` stays as the
+A/B control until F3 deletes it; echoed with `surface_columns`, `surface_download_ms`,
+`mesh_vertices`); `water_av_list` gains `surface_hz` per volume (the measured feed rate, 60 =
+every frame). `water_render_grid` unchanged. Clamps: a volume over `kMaxCellsPerVolume` is already
+refused at create (the field is bounded by it); the staging ring refuses a field larger than its
+slot and the volume keeps the 1 Hz full download, loudly in the record. Default changing: the
+core feed goes from cells to mesh — pinned by `WaterSurfaceMeshTest.DefaultModeIsMesh`.
+
+**5. Visual test plan.** Works = (L2) every mesh top vertex equals the sub-column surface within
+1 mm (`WaterSurfaceMeshTest.TopEqualsSurfaceEverywhere`), lateral faces exactly where a wet
+sub-column meets a dry one (`LateralFacesOnlyAtWaterEdges`, a pond with a step), the two-volume
+equality test; (L4) on the Small pond rig at ⅓ m, `surface_hz` reads 60 for a GPU volume (red
+today: the feed is 1 Hz) and `surface_download_ms` ≤ 0.3 ms; **look sign-off by the owner** on
+three captures at the `pond`, `pad` and `trough` vantages against today's debug-cube captures
+taken at the same poses first (the red). Red tests: the three unit tests fail to compile; the
+`surface_hz` row reads 1. Rig: the Small pond (one chunk, 4×4×2), one variable = the water (a
+still pond, then the same pond 2 s after a 0.5 m³ pour), control = the dry pad beside it draws
+nothing. Rig vs defaults: none (⅓ m is the Small default).
+
+**Verdict: READY.** Build order F1 (field + mesh + cadence, red tests first) → F2 (look, sign-off)
+→ F3 (deletions, own commit). Ledger goes in §17.3.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
