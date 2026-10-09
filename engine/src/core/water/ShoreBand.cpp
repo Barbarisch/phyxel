@@ -105,6 +105,7 @@ bool ShoreBand::site(const glm::vec2& centreXZ, const ShoreBandParams& pIn, BedQ
     m_stillOfColumn = std::move(stillOf);
     m_weights = std::move(weights);
     m_bed = std::move(bed);
+    m_outer = nullptr;
     m_centre = centreXZ;   // the CAMERA's position at siting: the resite trigger measures from it
     m_dirty.clear();
     const double exch = m_rec.exchanged; const int sit = m_rec.sitings; const uint64_t rev = m_rec.revision; const float peak = m_rec.runUpPeak;
@@ -157,9 +158,20 @@ void ShoreBand::tick(float dt, float waveTime, const SeaSwellParams& swell) {
         }
         m_dirty.clear();
     }
-    // the ocean ring: the sheet's swell about the still level, the depth-averaged Airy velocity
     const int n = m_rec.n;
-    for (int z = 0; z < n; ++z) for (int x = 0; x < n; ++x) {
+    if (m_outer) {   // G4: the ring follows the outer band's solution (one-way nesting)
+        m_solver->clearPrescriptions();   // a ring column the outer is dry at THIS tick runs free (no stale target)
+        for (int z = 0; z < n; ++z) for (int x = 0; x < n; ++x) {
+            const size_t i = static_cast<size_t>(x) + static_cast<size_t>(n) * z;
+            if (m_roles[i] != ShoreColumnRole::Prescribed) continue;
+            const glm::vec2 wc = columnCentre(x, z);
+            double eta; glm::vec2 vel;
+            if (!m_outer->sample(wc.x, wc.y, eta, vel)) continue;   // the outer is dry here this tick: the column runs free
+            m_solver->prescribe(x, z, eta, vel, m_weights[i]);
+        }
+    }
+    // the ocean ring: the sheet's swell about the still level, the depth-averaged Airy velocity
+    for (int z = 0; z < n && !m_outer; ++z) for (int x = 0; x < n; ++x) {
         const size_t i = static_cast<size_t>(x) + static_cast<size_t>(n) * z;
         if (m_roles[i] == ShoreColumnRole::Sponge) { m_solver->prescribe(x, z, m_stillOfColumn[i], glm::vec2(0.0f), m_weights[i]); continue; }
         if (m_roles[i] != ShoreColumnRole::Prescribed) continue;
@@ -186,14 +198,25 @@ void ShoreBand::rebuildField() {
     m_field.nx = n; m_field.nz = n; m_field.h = h;
     m_field.cols.assign(static_cast<size_t>(n) * n, SurfaceColumn{});
     long wet = 0; float runUp = 0.0f, foam = 0.0f; double riseSum = 0.0; long riseN = 0; long swash = 0; float swashEta = 0.0f;
+    long edge = 0, edgeFoam = 0, hidden = 0;
     constexpr float kDrawDepth = 0.005f;   // thinner than 5 mm is a film the mesh does not draw
+    const double dry = m_params.solver.dryDepth;
+    auto wetAt = [&](int xx, int zz) { if (xx < 0 || zz < 0 || xx >= n || zz >= n) return true; const ShoreColumn& o = m_solver->col(xx, zz); return o.wall || o.eta - o.bed > 0.01; };
     for (int z = 0; z < n; ++z) for (int x = 0; x < n; ++x) {
         const size_t i = static_cast<size_t>(x) + static_cast<size_t>(n) * z;
         const ShoreColumn& c = m_solver->col(x, z);
         SurfaceColumn& s = m_field.cols[i];
         s.solidTopY = c.bed;
+        if (m_hide) {   // G4: a nested band draws these columns; no top here, and a 'wall' so no lateral faces at the hole's edge
+            const glm::vec2 wc = columnCentre(x, z);
+            if (wc.x >= m_hideMin.x && wc.x <= m_hideMax.x && wc.y >= m_hideMin.y && wc.y <= m_hideMax.y) { s.solidTopY = 1e30f; ++hidden; continue; }
+        }
         if (m_roles[i] == ShoreColumnRole::Wall) continue;
         const float d = static_cast<float>(c.eta - c.bed);
+        if (m_roles[i] == ShoreColumnRole::Free && d > 0.01f && (!wetAt(x - 1, z) || !wetAt(x + 1, z) || !wetAt(x, z - 1) || !wetAt(x, z + 1))) {
+            ++edge; if (c.foam > 0.2f) ++edgeFoam;   // the swash edge and its whitewater
+        }
+        (void)dry;
         if (d < kDrawDepth) continue;
         s.runs = 1.0f; s.bottom[0] = c.bed; s.top[0] = static_cast<float>(c.eta);
         s.foam = c.foam; s.u = c.u; s.w = c.w;   // G2
@@ -203,17 +226,155 @@ void ShoreBand::rebuildField() {
         if (m_roles[i] == ShoreColumnRole::Free && c.bed >= m_rec.still - 1e-3f) { ++swash; swashEta = std::max(swashEta, static_cast<float>(c.eta - m_rec.still)); }
         if (m_roles[i] == ShoreColumnRole::Free && c.bed < m_rec.still) { riseSum += c.eta - m_rec.still; ++riseN; }
     }
+    m_rec.edgeColumns = edge; m_rec.edgeFoamColumns = edgeFoam; m_rec.hidden = hidden;
     m_rec.wet = wet; m_rec.runUpMax = runUp; m_rec.swashColumns = swash; m_rec.swashEtaMax = swashEta; m_rec.meanFreeRise = riseN ? static_cast<float>(riseSum / riseN) : 0.0f; m_rec.runUpPeak = std::max(m_rec.runUpPeak, runUp); m_rec.foamMax = foam;
     m_rec.fieldMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 }
 
 void ShoreBand::clear() {
     m_solver.reset();
+    m_outer = nullptr;
     m_roles.clear(); m_stillOfColumn.clear(); m_weights.clear(); m_dirty.clear();
     m_field = WaterSurfaceField{};
     const uint64_t rev = m_rec.revision;
     m_rec = ShoreBandRecord{};
     m_rec.revision = rev + 1;
+}
+
+bool ShoreBand::sample(float wx, float wz, double& eta, glm::vec2& vel) const {
+    if (!m_solver) return false;
+    const float h = m_rec.h;
+    const float fx = (wx - m_rec.originXZ.x) / h - 0.5f, fz = (wz - m_rec.originXZ.y) / h - 0.5f;   // column-centre coordinates
+    const int x0 = floorToInt(fx), z0 = floorToInt(fz);
+    const float tx = fx - static_cast<float>(x0), tz = fz - static_cast<float>(z0);
+    double se = 0.0, sw = 0.0; glm::vec2 sv(0.0f);
+    for (int dz = 0; dz <= 1; ++dz) for (int dx = 0; dx <= 1; ++dx) {
+        const int x = x0 + dx, z = z0 + dz;
+        if (x < 0 || z < 0 || x >= m_rec.n || z >= m_rec.n) continue;
+        const ShoreColumn& c = m_solver->col(x, z);
+        if (c.wall || c.eta - c.bed <= m_params.solver.dryDepth) continue;   // dry neighbours do not drag the surface down to their bed
+        const double w = (dx ? tx : 1.0f - tx) * (dz ? tz : 1.0f - tz) + 1e-6;
+        se += w * c.eta; sv += static_cast<float>(w) * glm::vec2(c.u, c.w); sw += w;
+    }
+    if (sw <= 0.0) return false;
+    eta = se / sw; vel = sv / static_cast<float>(sw);
+    return true;
+}
+
+bool ShoreBand::siteNested(const ShoreBand& outer, const glm::vec2& centreXZ, const ShoreBandParams& pIn, BedQuery bed, std::string* err) {
+    const auto t0 = std::chrono::steady_clock::now();
+    if (!outer.active()) { if (err) *err = "no outer band to nest in"; return false; }
+    if (!bed) { if (err) *err = "no bed query installed"; return false; }
+    ShoreBandParams p = pIn;
+    p.radius = std::clamp(p.radius, 4.0f, 16.0f);
+    p.inner = std::max(p.inner, 6);
+    p.cellSize = 1.0f / 3.0f;
+    const float h = p.cellSize;
+    const int n = static_cast<int>(std::ceil(2.0f * p.radius / h));
+    // the outer's free region (inside its ring) is where the nest may sit
+    const ShoreBandRecord& o = outer.record();
+    const float still0 = o.still;
+    const float oRing = static_cast<float>(outer.m_params.inner) * o.h;
+    const glm::vec2 fMin = o.originXZ + glm::vec2(oRing), fMax = o.originXZ + glm::vec2(o.n * o.h - oRing);
+    if (fMax.x - fMin.x < 2.0f * p.radius || fMax.y - fMin.y < 2.0f * p.radius) {
+        if (err) *err = "the fine band (radius " + std::to_string(p.radius) + " m) does not fit inside the 1 m band's free region"; return false;
+    }
+    // pull toward the outer's wet columns within 2 R (the swash is at the waterline), then clamp inside
+    glm::vec2 centre = centreXZ;
+    if (p.seawardBias) {
+        // centre on the RESTING waterline nearest the camera: an outer column submerged at rest (bed more
+        // than 5 cm below still) beside one that is not. That is where the swell shoals, breaks and runs
+        // up - the near field the fine columns are for. Measured on the Coast (18.8): a pull of R/2 toward
+        // the wet centroid left the fine band on dry sand 17 m short of the riser, holding no water.
+        // The rest state is static (bed vs still), so the siting does not flicker with the waves.
+        float best = 1e30f; glm::vec2 bestP = centreXZ;
+        auto submerged = [&](int x, int z) { if (x < 0 || z < 0 || x >= o.n || z >= o.n) return true; const ShoreColumn& c = outer.solver()->col(x, z); return !c.wall && c.bed < still0 - 0.05f; };
+        // only the OCEAN's waterline: submerged columns connected to the outer's driven ring (a pond near the
+        // camera has a waterline too - measured on the Coast, it captured the first waterline siting)
+        std::vector<uint8_t> sea(static_cast<size_t>(o.n) * o.n, 0);
+        std::vector<std::pair<int, int>> stack;
+        for (int z = 0; z < o.n; ++z) for (int x = 0; x < o.n; ++x)
+            if (outer.role(x, z) == ShoreColumnRole::Prescribed && submerged(x, z)) { sea[static_cast<size_t>(x) + static_cast<size_t>(o.n) * z] = 1; stack.emplace_back(x, z); }
+        while (!stack.empty()) {
+            auto [x, z] = stack.back(); stack.pop_back();
+            const int dx[4] = {1, -1, 0, 0}, dz[4] = {0, 0, 1, -1};
+            for (int k = 0; k < 4; ++k) {
+                const int nx2 = x + dx[k], nz2 = z + dz[k];
+                if (nx2 < 0 || nz2 < 0 || nx2 >= o.n || nz2 >= o.n) continue;
+                uint8_t& m = sea[static_cast<size_t>(nx2) + static_cast<size_t>(o.n) * nz2];
+                if (m || !submerged(nx2, nz2)) continue;
+                m = 1; stack.emplace_back(nx2, nz2);
+            }
+        }
+        auto isSea = [&](int x, int z) { return x < 0 || z < 0 || x >= o.n || z >= o.n || sea[static_cast<size_t>(x) + static_cast<size_t>(o.n) * z]; };
+        for (int z = 0; z < o.n; ++z) for (int x = 0; x < o.n; ++x) {
+            if (!sea[static_cast<size_t>(x) + static_cast<size_t>(o.n) * z]) continue;
+            if (isSea(x - 1, z) && isSea(x + 1, z) && isSea(x, z - 1) && isSea(x, z + 1)) continue;
+            const glm::vec2 wc = outer.columnCentre(x, z);
+            const float d2 = glm::dot(wc - centreXZ, wc - centreXZ);
+            if (d2 < best) { best = d2; bestP = wc; }
+        }
+        if (best < 1e29f) centre = bestP;
+    }
+    centre = glm::clamp(centre, fMin + glm::vec2(p.radius), fMax - glm::vec2(p.radius));
+    const glm::vec2 origin(std::floor((centre.x - p.radius) / h) * h, std::floor((centre.y - p.radius) / h) * h);
+    const float still = o.still;
+    auto solver = std::make_unique<ShoreSolver>(origin, n, n, h, p.solver);
+    std::vector<ShoreColumnRole> roles(static_cast<size_t>(n) * n, ShoreColumnRole::Free);
+    std::vector<float> weights(roles.size(), 1.0f);
+    auto edgeDistance = [&](int x, int z) { return std::min(std::min(x, z), std::min(n - 1 - x, n - 1 - z)); };
+    long walls = 0, prescribed = 0, wet = 0;
+    const float yLo = still - p.maxDepth, yHi = still + p.runUp + 1.0f;
+    for (int z = 0; z < n; ++z) for (int x = 0; x < n; ++x) {
+        const size_t i = static_cast<size_t>(x) + static_cast<size_t>(n) * z;
+        ShoreColumn& c = solver->col(x, z);
+        const glm::vec2 wc = origin + glm::vec2((x + 0.5f) * h, (z + 0.5f) * h);
+        const BedSample b = bed(wc.x, wc.y, yLo, yHi);
+        if (!b.known || b.top > still + p.runUp) { c.wall = 1; c.bed = b.known ? b.top : yHi; c.eta = c.bed; roles[i] = ShoreColumnRole::Wall; ++walls; continue; }
+        c.bed = b.top; c.eta = c.bed;
+        double eta; glm::vec2 vel;
+        if (outer.sample(wc.x, wc.y, eta, vel) && eta > c.bed + p.solver.dryDepth) { c.eta = eta; c.u = vel.x; c.w = vel.y; }   // start from the outer's state
+        if (edgeDistance(x, z) < p.inner) {   // the ring: driven wherever the outer has water (a dry outer column leaves it free)
+            c.prescribed = 1; roles[i] = ShoreColumnRole::Prescribed; ++prescribed;
+            const float q = static_cast<float>(p.inner - edgeDistance(x, z)) * h;
+            const float rr = std::min(q / std::max(p.ramp, h), 1.0f);
+            c.weight = rr * rr; weights[i] = c.weight;
+        }
+        if (c.eta - c.bed > p.solver.dryDepth) ++wet;
+    }
+    // carry the overlapping columns over from the previous nested siting (same h)
+    if (m_solver && m_outer && m_rec.h == h) {
+        for (int z = 0; z < n; ++z) for (int x = 0; x < n; ++x) {
+            const size_t i = static_cast<size_t>(x) + static_cast<size_t>(n) * z;
+            if (roles[i] != ShoreColumnRole::Free) continue;
+            const glm::vec2 wc = origin + glm::vec2((x + 0.5f) * h, (z + 0.5f) * h);
+            const int ox = floorToInt((wc.x - m_rec.originXZ.x) / h), oz = floorToInt((wc.y - m_rec.originXZ.y) / h);
+            if (ox < 0 || oz < 0 || ox >= m_rec.n || oz >= m_rec.n || role(ox, oz) == ShoreColumnRole::Wall) continue;
+            const ShoreColumn& prev = m_solver->col(ox, oz);
+            ShoreColumn& c = solver->col(x, z);
+            if (std::abs(prev.bed - c.bed) > 1e-3f) continue;
+            c.eta = std::max(prev.eta, static_cast<double>(c.bed)); c.u = prev.u; c.w = prev.w; c.foam = prev.foam;
+        }
+    }
+    m_solver = std::move(solver);
+    m_params = p;
+    m_roles = std::move(roles);
+    m_stillOfColumn.assign(m_roles.size(), still);
+    m_weights = std::move(weights);
+    m_bed = std::move(bed);
+    m_outer = &outer;
+    m_centre = centreXZ;
+    m_dirty.clear();
+    const int sit = m_rec.sitings; const uint64_t rev = m_rec.revision; const float peak = m_rec.runUpPeak;
+    m_rec = ShoreBandRecord{};
+    m_rec.on = true; m_rec.nested = true; m_rec.originXZ = origin; m_rec.n = n; m_rec.h = h; m_rec.still = still; m_rec.centreXZ = centre;
+    m_rec.columns = static_cast<long>(n) * n; m_rec.prescribed = prescribed; m_rec.walls = walls; m_rec.wet = wet;
+    m_rec.free = m_rec.columns - prescribed - walls;
+    m_rec.sitings = sit + 1; m_rec.revision = rev + 1; m_rec.runUpPeak = peak;
+    m_rec.mass = m_solver->totalMass();
+    m_rec.siteMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+    rebuildField();
+    return true;
 }
 
 std::pair<glm::ivec3, glm::ivec3> ShoreBand::maskBox() const {

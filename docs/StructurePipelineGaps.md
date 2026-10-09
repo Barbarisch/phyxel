@@ -1103,3 +1103,11 @@ Also open: creek spans (orders 1-2 on the 2/3 shelf) need a float-bottom WaterSp
 - **(G3) The Coast sea is in no generation body.** The coarse map's 9 oceans miss the bench's sea;
   `water_bodies` and the look both had to fall back to stored water. Another reason the coarse map
   should not be the authority on what water exists.
+- **(G4) The generated coast cannot make surf.** The Coast bench's beach is a full-cube staircase with
+  a 24 m shelf exactly at sea level, then a 1 m riser. Waves spill over the riser as a thin sheet; a
+  breaking line needs a shoaling slope below sea level. Both the 1 m and the ⅓ m shore band showed
+  it (WaterCore.md 18.8). Fix in the terrain: a coastal profile that descends below sea level in
+  subcube steps (Dean's equilibrium profile h = A x^(2/3) is the standard shape), not a flat at the
+  waterline.
+- **(G4) Two bands cost 5.65 ms p95 together on the CPU** (single thread). The solver's rates loop is
+  embarrassingly parallel per line; threading or a GPU port is the cost lever if the fine band ships.

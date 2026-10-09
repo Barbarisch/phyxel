@@ -417,7 +417,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **D. Rest, persistence, world data** — **design §16; D3 + D1 + D2 + D4 + D5 BUILT 2026-10-09 (ledger §16.9; D4 halves the River trunk defect, residual is the bake's cell resolution)** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | /design-check on §16 | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
 | **E. Coupling** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
 | **F. Rendering the core** — **design §17; F1 + F2 first pass BUILT 2026-10-09 (ledger §17.3), sign-off pending; F3 open** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
-| **G. Large bodies on top** — **design §18; G1 + G2 + G3 BUILT 2026-10-09 (§18.5–18.7: column solver + band, solver foam/flow, per-body look profile; S12 + look L4 PASS on Coast; foam sparse at 1 m columns — ⅓ m inner band next)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
+| **G. Large bodies on top** — **design §18; G1–G4 BUILT 2026-10-09 (§18.5–18.8: column solver + band, solver foam/flow, per-body look profile; G4 fine ⅓ m nested band built, OFF by default — the Coast's sea-level shelf, not resolution, is what stops a surf line (§18.8); next: a sloped-beach rig)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
 
 Rule for every phase: the previous phase's scenarios stay green (the harness runs them all);
 nothing is "done" without its evidence row and a same-vantage capture where look is claimed.
@@ -1922,6 +1922,67 @@ variable (the look), defaults untouched.
 - **Gaps (logged):** an open region's box is fixed when named (water that streams in later outside
   it takes the derived look until named again); the underwater overlay resolves by box only (no
   stored top at the eye); a region is not re-derived when the stored water changes level.
+
+### 18.8 G4 design: the fine band (⅓ m near the camera) (2026-10-09, before building)
+
+**Why.** §18.6's honest verdict: at 1 m columns a 20 cm bore is one column wide, so its foam is a
+1 m block and the swash edge is a staircase. The whole band at ⅓ m is 9× the columns (82 k at
+radius 48 — over the 64 k cap and ~20 ms); the near field is where the eye resolves it.
+
+**Design: one-way nesting** (the standard way coastal models refine a region). A second
+`ShoreBand` at ⅓ m, radius 12 m by default, sited near the camera (pulled up to R/2 toward the
+1 m band's wet columns, clamped inside the 1 m band's free region). Its ring is a relaxation zone
+like the outer's, but driven by the **1 m band's own solution** — surface and velocity sampled
+bilinearly at each ring column, every tick, after the 1 m band steps — instead of the sea's swell.
+Ring columns where the 1 m band is dry are free (the land edge). Its bed is the micro occupancy at
+⅓ m column centres, so subcube terrain finally shapes the swash. The 1 m band keeps running
+everywhere (it is the fine band's boundary condition) and **hides its columns under the fine box**
+when it builds its surface field (no top, no lateral faces), so exactly one surface is drawn
+there. One-way: the fine band does not feed back; mass is the 1 m band's (the fine band's
+`exchanged` is reported, not added to any ledger — it is a refined view, like a zoom).
+
+**Design keys.** (1) Same lattice idiom, finer: ⅓ m is the subcube size. (2) The fine box is
+camera-derived (cost/coverage); its interior must be independent of the fine ring's width (the
+§18.3 test, repeated for the nest); bed and driver are world data. (3) No generation. (4) API:
+`water_shore {fine, fineRadius (m, 4–16), fineInner (columns, ≥ 6), fineRamp (m)}` echoes a `fine`
+record (box, columns by role, cost). Clamp: fineRadius ≤ 16 (96 × 96 = 9216 columns, the 1 m
+band's own size). Defaults: `fine` OFF until measured, then decided. (5) Tests, red first:
+`ShoreBandTest.NestedStillStaysStill` (calm: nothing moves, foam 0), `NestedFollowsTheOuter`
+(time-mean surface over the shared free region within 2 cm; run-up within ±30 % of the 1 m band's on
+the smooth synthetic beach), `NestedInteriorIndependentOfRingWidth` (1 cm), `HiddenColumnsDrawNothing`
+(mesh: no quads under the hidden box, no lateral faces at its edge). L4 on the Coast (S12 rows with
+the fine band on): every G1/G2 row still passes, the fine band's swash-edge foam fraction (wet free
+columns next to a dry one carrying foam > 0.2, time-averaged) is reported beside the 1 m band's,
+cost p95 of both bands together ≤ 6 ms, and shore-eye captures before/after at one pose.
+
+**G4 built (2026-10-09) — ledger.** One-way nesting as designed (`ShoreBand::siteNested`, `sample`,
+`setHiddenBox`; route `water_shore {fine, fineRadius, fineInner, fineRamp}`, a `fine` record in the
+echo; harness `water_feel.py S12 --shore-fine`; captures `tools/water_fine_captures.py`).
+
+- **Unit (red first):** `NestedStillStaysStill` (calm: speed 0, foam 0, every column at rest),
+  `NestedFollowsTheOuter` (2304 free columns: time-mean |fine − 1 m| 3.0 mm mean, 7.9 mm max; run-up
+  0.325 m fine vs 0.275 m 1 m band; swash-edge foam 1.0 % vs 1.1 %), `NestedInteriorIndependentOfRingWidth`
+  (0.0000 m), `HiddenColumnsDrawNothing` — 10/10 band tests.
+- **Two siting findings on the Coast.** (1) A pull of R/2 toward the wet centroid left the fine band
+  on dry sand 17 m short of the riser, holding no water at all. (2) "The nearest resting waterline"
+  then found a pond beside the camera. The fine band is now centred on the nearest resting waterline
+  **of the ocean** — submerged-at-rest columns flooded from the 1 m band's driven ring — and it sits
+  on the shelf and the riser (box 159–191 × 669–701).
+- **L4 (`S12_coast_core_h1_fine_auto_20261009_143919.json`, PASS):** every G1/G2 row holds with the
+  fine band on (swash 0.28 s / 0.199 m, mean rise 0.021 m, max speed 1.85 m/s, calm foam 0). Fine band
+  96 × 96 = 9216 columns at ⅓ m (2152 ring / 7032 free / 32 walls). **Both bands together: step p95
+  5.65 ms** (1 m band alone: 2.30 ms) — inside the 6 ms gate, but 2.4× the cost. Swash-edge foam
+  fraction 0.65 % fine vs 0.74 % 1 m band (the fine band sees 4.5× more edge columns).
+- **Honest visual verdict (`g4_eye_*`, `g4_elevated_*`, `_foamtap` captures).** The fine band is
+  there — the foam tap shows ⅓ m cells over the shelf and riser — but the look barely changes and the
+  foam is still scattered patches. **Resolution was not the limit.** The Coast shelf is flat AT sea
+  level (full-cube terrain), so the swell never breaks on a slope; it spills over a 1 m riser as a
+  5–20 cm sheet, and no column size makes a surf line out of that. A surf line needs a beach that
+  shoals: a slope below sea level. **Decision: `fine` stays OFF by default** (2.4× the cost for no
+  visible gain on the bench we have); it is kept, tested and one flag away for a sloped beach.
+- **Next lever, therefore, is the terrain, not the water:** a shore test with a real sub-voxel slope
+  (a hand-built rig on the Small bench, ⅓ m steps from 2 m deep to dry over 20–40 m), then — if the
+  surf line appears there — the generator's coastal profile (logged in StructurePipelineGaps).
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

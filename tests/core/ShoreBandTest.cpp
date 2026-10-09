@@ -212,5 +212,132 @@ TEST(ShoreBandTest, ResiteCarriesTheStateAndAnEditLowersTheBed) {
     EXPECT_GE(band.solver()->col(cx, cz).eta, band.solver()->col(cx, cz).bed);
 }
 
+
+// G4 (docs/WaterCore.md 18.8): the fine band nested in the 1 m band
+ShoreBand siteOuter(const glm::vec2& c) {
+    ShoreBand outer;
+    ShoreBandParams p; p.radius = 24.0f; p.inner = 8; p.cellSize = 1.0f;
+    std::string err;
+    EXPECT_TRUE(outer.site(c, p, beachBed(), beachStored(), &err)) << err;
+    return outer;
+}
+
+TEST(ShoreBandTest, NestedStillStaysStill) {
+    ShoreBand outer = siteOuter(glm::vec2(50.0f, 216.0f));
+    ShoreBand fine;
+    ShoreBandParams fp; fp.radius = 8.0f; fp.inner = 6; fp.ramp = 2.0f; fp.seawardBias = false;
+    std::string err;
+    ASSERT_TRUE(fine.siteNested(outer, glm::vec2(50.0f, 220.0f), fp, beachBed(), &err)) << err;
+    EXPECT_EQ(fine.record().n, 48);
+    EXPECT_TRUE(fine.record().nested);
+    EXPECT_GT(fine.record().prescribed, 0);
+    SeaSwellParams calm;
+    for (int k = 0; k < 300; ++k) { outer.tick(kDt, k * kDt, calm); fine.tick(kDt, 0.0f, calm); }
+    EXPECT_LT(fine.record().maxSpeed, 1e-6f);
+    EXPECT_EQ(fine.record().foamMax, 0.0f);
+    for (int z = 0; z < 48; ++z) for (int x = 0; x < 48; ++x) {
+        const ShoreColumn& c = fine.solver()->col(x, z);
+        EXPECT_NEAR(c.eta, std::max(16.0, static_cast<double>(c.bed)), 1e-6) << x << "," << z;
+    }
+}
+
+TEST(ShoreBandTest, NestedFollowsTheOuter) {
+    // the swell: over the fine band's free columns the time-mean surface agrees with the 1 m band's
+    // at the same points (mean |difference| < 2 cm), the run-up agrees within +-30 %, and the swash
+    // edge foam is reported for both (the point of the fine band: more of the edge carries foam)
+    ShoreBand outer = siteOuter(glm::vec2(50.0f, 216.0f));
+    ShoreBand fine;
+    ShoreBandParams fp; fp.radius = 10.0f; fp.inner = 6; fp.ramp = 2.0f; fp.seawardBias = false;
+    std::string err;
+    ASSERT_TRUE(fine.siteNested(outer, glm::vec2(50.0f, 220.0f), fp, beachBed(), &err)) << err;
+    SeaSwellParams sw; sw.amplitude = 0.45f; sw.wavelength = 14.0f; sw.windRad = 1.5707963f;
+    const int n = fine.record().n;
+    std::vector<double> sumFine(static_cast<size_t>(n) * n, 0.0), sumOuter(static_cast<size_t>(n) * n, 0.0);
+    long samples = 0; float peakOuter = 0.0f, peakFine = 0.0f;
+    long edgeO = 0, edgeFoamO = 0, edgeF = 0, edgeFoamF = 0; double msFine = 0.0, msOuter = 0.0;
+    for (int k = 1; k <= 1800; ++k) {
+        outer.tick(kDt, k * kDt, sw); fine.tick(kDt, 0.0f, sw);
+        msOuter += outer.record().stepMs; msFine += fine.record().stepMs;
+        if (k < 300) continue;
+        peakOuter = std::max(peakOuter, outer.record().runUpMax); peakFine = std::max(peakFine, fine.record().runUpMax);
+        edgeO += outer.record().edgeColumns; edgeFoamO += outer.record().edgeFoamColumns;
+        edgeF += fine.record().edgeColumns; edgeFoamF += fine.record().edgeFoamColumns;
+        ++samples;
+        for (int z = 0; z < n; ++z) for (int x = 0; x < n; ++x) {
+            if (fine.role(x, z) != ShoreColumnRole::Free) continue;
+            const glm::vec2 c = fine.columnCentre(x, z);
+            double eo; glm::vec2 vo;
+            const ShoreColumn& fc = fine.solver()->col(x, z);
+            sumFine[static_cast<size_t>(x) + static_cast<size_t>(n) * z] += fc.eta;
+            sumOuter[static_cast<size_t>(x) + static_cast<size_t>(n) * z] += outer.sample(c.x, c.y, eo, vo) ? std::max(eo, static_cast<double>(fc.bed)) : static_cast<double>(fc.bed);
+        }
+    }
+    double diffSum = 0.0, diffMax = 0.0; long cols = 0;
+    for (int z = 0; z < n; ++z) for (int x = 0; x < n; ++x) {
+        if (fine.role(x, z) != ShoreColumnRole::Free) continue;
+        const size_t i = static_cast<size_t>(x) + static_cast<size_t>(n) * z;
+        const double d = std::abs(sumFine[i] - sumOuter[i]) / samples;
+        diffSum += d; diffMax = std::max(diffMax, d); ++cols;
+    }
+    const double fracO = edgeO ? static_cast<double>(edgeFoamO) / edgeO : 0.0, fracF = edgeF ? static_cast<double>(edgeFoamF) / edgeF : 0.0;
+    std::printf("  nest: %ld free columns, time-mean |fine - outer| mean %.4f max %.4f m; run-up outer %.3f fine %.3f; edge foam fraction outer %.3f (%ld) fine %.3f (%ld); step outer %.2f fine %.2f ms\n",
+                cols, diffSum / cols, diffMax, peakOuter, peakFine, fracO, edgeO, fracF, edgeF, msOuter / 1800.0, msFine / 1800.0);
+    RecordProperty("edge_foam_outer", static_cast<int>(fracO * 1000)); RecordProperty("edge_foam_fine", static_cast<int>(fracF * 1000));
+    EXPECT_GT(cols, 1000);
+    EXPECT_LT(diffSum / cols, 0.02);
+    ASSERT_GT(peakOuter, 0.02f);
+    EXPECT_NEAR(peakFine, peakOuter, 0.3f * peakOuter + 0.05f);
+}
+
+TEST(ShoreBandTest, NestedInteriorIndependentOfRingWidth) {
+    // the fine ring's width is a cost bound: ring 2 m (radius 8) vs 4 m (radius 10), the same 12 m
+    // free square at the same centre, the ramp the same in metres -> the free columns agree within 1 cm
+    auto run = [](float radius, int inner, ShoreBand& outer, ShoreBand& fine) {
+        ShoreBandParams fp; fp.radius = radius; fp.inner = inner; fp.ramp = 1.5f; fp.seawardBias = false;
+        std::string err;
+        ASSERT_TRUE(fine.siteNested(outer, glm::vec2(50.0f, 220.0f), fp, beachBed(), &err)) << err;
+        SeaSwellParams sw; sw.amplitude = 0.45f; sw.wavelength = 14.0f; sw.windRad = 1.5707963f;
+        for (int k = 1; k <= 600; ++k) { outer.tick(kDt, k * kDt, sw); fine.tick(kDt, 0.0f, sw); }
+    };
+    ShoreBand oa = siteOuter(glm::vec2(50.0f, 216.0f)), ob = siteOuter(glm::vec2(50.0f, 216.0f));
+    ShoreBand a, b;
+    run(8.0f, 6, oa, a); run(10.0f, 12, ob, b);
+    float maxDiff = 0.0f; long compared = 0;
+    for (int z = 0; z < a.record().n; ++z) for (int x = 0; x < a.record().n; ++x) {
+        if (a.role(x, z) != ShoreColumnRole::Free) continue;
+        const glm::vec2 c = a.columnCentre(x, z);
+        const int bx = static_cast<int>(std::floor((c.x - b.record().originXZ.x) / b.record().h)), bz = static_cast<int>(std::floor((c.y - b.record().originXZ.y) / b.record().h));
+        ASSERT_EQ(b.role(bx, bz), ShoreColumnRole::Free);
+        maxDiff = std::max(maxDiff, static_cast<float>(std::abs(a.solver()->col(x, z).eta - b.solver()->col(bx, bz).eta)));
+        ++compared;
+    }
+    std::printf("  nest ring-width independence: %ld columns, max difference %.4f m\n", compared, maxDiff);
+    EXPECT_GT(compared, 1000);
+    EXPECT_LT(maxDiff, 0.01f);
+}
+
+TEST(ShoreBandTest, HiddenColumnsDrawNothing) {
+    // the 1 m band hides its columns under the fine band's box: no top or lateral quad there, and
+    // none along the hole's edge; outside it the mesh is unchanged
+    ShoreBand outer = siteOuter(glm::vec2(50.0f, 216.0f));
+    WaterSurfaceMesh full; buildWaterSurfaceMesh(outer.field(), full);
+    const glm::vec2 hMin(40.0f, 210.0f), hMax(60.0f, 230.0f);
+    outer.setHiddenBox(true, hMin, hMax);
+    outer.tick(kDt, 0.0f, SeaSwellParams{});
+    WaterSurfaceMesh m; buildWaterSurfaceMesh(outer.field(), m);
+    EXPECT_GT(outer.record().hidden, 300);
+    long inside = 0;
+    for (size_t q = 0; q < m.vertices.size(); q += 4) {
+        glm::vec3 c(0.0f); for (size_t k = 0; k < 4; ++k) c += m.vertices[q + k].pos; c *= 0.25f;
+        if (c.x > hMin.x - 0.5f && c.x < hMax.x + 0.5f && c.z > hMin.y - 0.5f && c.z < hMax.y + 0.5f) {
+            const bool outside = c.x < hMin.x || c.x > hMax.x || c.z < hMin.y || c.z > hMax.y;
+            if (!(outside && m.vertices[q].side == 0.0f)) ++inside;
+        }
+    }
+    EXPECT_EQ(inside, 0) << "no quad under the hidden box, no lateral face at its edge";
+    EXPECT_LT(m.topQuads, full.topQuads);
+    EXPECT_EQ(m.sideQuads, full.sideQuads) << "the hole adds no lateral faces";
+}
+
 }  // namespace
 }  // namespace Phyxel::Core::Water

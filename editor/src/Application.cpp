@@ -3699,6 +3699,21 @@ void Application::update(float deltaTime) {
                         const glm::vec2 bc = shoreBand->record().centreXZ;
                         shoreBand->setLook(Core::Water::packLook(waterCore->lookAt(static_cast<int>(std::floor(bc.x)), static_cast<int>(std::floor(bc.y)), shoreBand->record().still)));
                     }
+                    // G4: the fine band, driven by the 1 m band's fresh state; resited when the camera walks half its
+                    // radius or the 1 m band resited (its box moved)
+                    if (m_fineOn) {
+                        if (!fineBand) fineBand = std::make_unique<Core::Water::ShoreBand>();
+                        const bool stale = fineBand->active() && (fineBand->needsResite(cxz) || shoreBand->record().revision != m_fineOuterRev);
+                        const bool retry = !fineBand->active() && (std::max(std::abs(cxz.x - m_fineLastTry.x), std::abs(cxz.y - m_fineLastTry.y)) > 0.5f * fineParams.radius || shoreBand->record().revision != m_fineOuterRev);
+                        if (stale || retry) {
+                            std::string ferr;
+                            if (!siteFineBand(&ferr)) { LOG_INFO("WaterCore", "fine band inactive here: {}", ferr); fineBand->clear(); m_fineOuterRev = shoreBand->record().revision; }
+                        }
+                        if (fineBand->active()) {
+                            fineBand->tick(std::min(deltaTime, 0.05f), 0.0f, sw);
+                            fineBand->setLook(Core::Water::packLook(waterCore->lookAt(static_cast<int>(std::floor(fineBand->record().centreXZ.x)), static_cast<int>(std::floor(fineBand->record().centreXZ.y)), shoreBand->record().still)));
+                        }
+                    }
                 }
             }
             if (renderCoordinator) {
@@ -3707,6 +3722,7 @@ void Application::update(float deltaTime) {
                 if (m_shoreOn && shoreBand && shoreBand->active()) { m_waterMaskBoxes.push_back(shoreBand->maskBox()); maskRev ^= shoreBand->record().revision; }
                 renderCoordinator->setWaterCoreVolumeBoxes(&m_waterMaskBoxes, maskRev);   // Phase D: the span grid leaves these columns to the volumes (+ the band)
                 renderCoordinator->setWaterShoreField(m_shoreOn && shoreBand && shoreBand->active() ? &shoreBand->field() : nullptr);
+                renderCoordinator->setWaterFineField(m_shoreOn && m_fineOn && fineBand && fineBand->active() ? &fineBand->field() : nullptr);   // G4
             }
             for (const auto& rec : waterCore->drainAutoSleepRecords()) {
                 if (rec.ok) LOG_INFO("WaterCore", "volume {} slept: {} columns / {} runs written ({} m^3, seeded {} m^3), surface-vs-mass {} mm, spread {} mm, {} chunks, body {}", rec.id, rec.columns, rec.runs, rec.massWritten, rec.massSeeded, rec.surfaceVsMassMm, rec.spreadMm, rec.chunksTouched, rec.bodyId);
@@ -13922,11 +13938,24 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("ramp")) { shoreParams.ramp = std::clamp(cmd.params.value("ramp", 8.0f), 1.0f, 32.0f); changed = true; }
         if (cmd.params.contains("minOceanDepth")) { shoreParams.minOceanDepth = std::clamp(cmd.params.value("minOceanDepth", 1.0f), 0.2f, 8.0f); changed = true; }
         if (cmd.params.contains("manningN")) { shoreParams.solver.manningN = std::clamp(cmd.params.value("manningN", 0.025f), 0.0f, 0.2f); changed = true; }
-        if (cmd.params.contains("on")) { const bool on = cmd.params.value("on", false); if (on != m_shoreOn) { m_shoreOn = on; changed = true; } if (!on) shoreBand->clear(); }
+        if (cmd.params.contains("on")) { const bool on = cmd.params.value("on", false); if (on != m_shoreOn) { m_shoreOn = on; changed = true; } if (!on) { shoreBand->clear(); if (fineBand) fineBand->clear(); } }
+        // G4: the fine band {fine, fineRadius (m, 4..16: 96 x 96 columns at 16), fineInner (columns >= 6), fineRamp (m)}
+        bool fineChanged = false;
+        if (cmd.params.contains("fineRadius")) { fineParams.radius = std::clamp(cmd.params.value("fineRadius", 12.0f), 4.0f, 16.0f); fineChanged = true; }
+        if (cmd.params.contains("fineInner")) { fineParams.inner = std::max(cmd.params.value("fineInner", 6), 6); fineChanged = true; }
+        if (cmd.params.contains("fineRamp")) { fineParams.ramp = std::clamp(cmd.params.value("fineRamp", 1.5f), 0.34f, 8.0f); fineChanged = true; }
+        if (cmd.params.contains("fine")) { const bool f = cmd.params.value("fine", false); if (f != m_fineOn) { m_fineOn = f; fineChanged = true; } }
         if (m_shoreOn && (changed || cmd.params.value("resite", false) || !shoreBand->active())) {
             std::string err;
             if (!siteShoreBand(&err)) { shoreBand->clear(); r = {{"error", err}, {"on", m_shoreOn}, {"active", false}}; return; }
         }
+        if (!fineBand) fineBand = std::make_unique<ShoreBand>();
+        if (!m_fineOn) { fineBand->clear(); shoreBand->setHiddenBox(false); }
+        else if (m_shoreOn && shoreBand->active() && (fineChanged || changed || !fineBand->active())) {
+            std::string ferr;
+            if (!siteFineBand(&ferr)) { fineBand->clear(); r["fine_error"] = ferr; }
+        }
+        const nlohmann::json fineErr = r.contains("fine_error") ? r["fine_error"] : nlohmann::json();
         const ShoreBandRecord& b = shoreBand->record();
         const auto* wp = renderCoordinator ? renderCoordinator->waterRenderPipeline() : nullptr;
         const auto box = shoreBand->maskBox();
@@ -13938,6 +13967,17 @@ void Application::registerWaterCommands() {
              {"mass_m3", b.mass}, {"exchanged_m3", b.exchanged}, {"runup_m", b.runUpMax}, {"runup_peak_m", b.runUpPeak}, {"foam_max", b.foamMax},
              {"step_ms", b.stepMs}, {"field_ms", b.fieldMs}, {"site_ms", b.siteMs}, {"substeps", b.substeps}, {"sitings", b.sitings}, {"bed_updates", b.bedUpdates},
              {"swell", {{"amplitude", wp ? wp->waveAmplitude() : 0.0f}, {"wavelength", wp ? wp->waveLength() : 0.0f}, {"wind", wp ? wp->windDirection() : 0.0f}, {"time", wp ? wp->waveTime() : 0.0f}}}};
+        r["edge_columns"] = b.edgeColumns; r["edge_foam_columns"] = b.edgeFoamColumns; r["hidden"] = b.hidden;
+        {
+            const ShoreBandRecord& f = fineBand->record();
+            const auto fb = fineBand->worldBox();
+            r["fine"] = {{"on", m_fineOn}, {"active", fineBand->active()}, {"radius", fineParams.radius}, {"inner", fineParams.inner}, {"ramp", fineParams.ramp},
+                         {"box", {fb.first.x, fb.first.y, fb.second.x, fb.second.y}}, {"n", f.n}, {"h", f.h}, {"prescribed", f.prescribed}, {"free", f.free}, {"walls", f.walls},
+                         {"wet", f.wet}, {"foam_max", f.foamMax}, {"max_speed", f.maxSpeed}, {"runup_m", f.runUpMax}, {"runup_peak_m", f.runUpPeak},
+                         {"swash_columns", f.swashColumns}, {"swash_eta_m", f.swashEtaMax}, {"edge_columns", f.edgeColumns}, {"edge_foam_columns", f.edgeFoamColumns},
+                         {"step_ms", f.stepMs}, {"field_ms", f.fieldMs}, {"site_ms", f.siteMs}, {"substeps", f.substeps}, {"sitings", f.sitings}};
+            if (!fineErr.is_null()) r["fine"]["error"] = fineErr;
+        }
         if (cmd.params.contains("probe") && shoreBand->active()) {   // [x, z] world -> that column
             const auto& pr = cmd.params["probe"];
             const float px = pr.at(0).get<float>(), pz = pr.at(1).get<float>();
@@ -14913,6 +14953,7 @@ void Application::renderWorldMapPanel() {
 // one clip alone would mint a cell of water.
 void Application::applyWaterSpanEdit(int x, int y, int z, bool solid) {
     if (m_shoreOn && shoreBand && shoreBand->active()) shoreBand->noteEdit(x, z);   // Phase G: the band re-beds that column next tick
+    if (m_fineOn && fineBand && fineBand->active()) fineBand->noteEdit(x, z);        // G4
     using namespace Core::Water;
     if (!chunkManager || !waterCore) return;
     if (waterCore->volumeOwns(x, y, z)) return;
@@ -23563,6 +23604,42 @@ void Application::setupDefaultDockLayout(unsigned int dockSpaceId) {
     ImGui::DockBuilderFinish(dockSpaceId);
 }
 
+// The bed of a shore column: the micro occupancy's highest solid in [yLo, yHi) at the column centre
+// (Unknown = a wall: the 5.1 hold rule). At 1/3 m columns this is what lets subcube terrain shape the swash.
+Core::Water::BedQuery Application::shoreBedQuery() {
+    using namespace Core::Water;
+    return [this](float wx, float wz, float yLo, float yHi) -> BedSample {
+        const auto* occ = renderCoordinator ? renderCoordinator->lightOccupancy() : nullptr;
+        if (!occ) return BedSample{false, 0.0f};
+        const int mx = static_cast<int>(std::floor(wx * 9.0f)), mz = static_cast<int>(std::floor(wz * 9.0f));
+        const int myHi = static_cast<int>(std::ceil(yHi * 9.0f)) - 1, myLo = static_cast<int>(std::floor(yLo * 9.0f));
+        for (int my = myHi; my >= myLo; --my) {
+            const Graphics::OccupancyState st = occ->stateAtMicro(glm::ivec3(mx, my, mz));
+            if (st == Graphics::OccupancyState::Unknown) return BedSample{false, 0.0f};
+            if (st == Graphics::OccupancyState::Solid) return BedSample{true, static_cast<float>(my + 1) / 9.0f};
+        }
+        return BedSample{true, yLo};
+    };
+}
+
+// G4: nest the fine band in the 1 m band near the camera; the 1 m band hides its columns under it.
+bool Application::siteFineBand(std::string* err) {
+    using namespace Core::Water;
+    if (!fineBand) fineBand = std::make_unique<ShoreBand>();
+    if (!camera || !shoreBand || !shoreBand->active()) { if (err) *err = "the 1 m band is not active"; return false; }
+    const glm::vec3 cp = camera->getPosition();
+    m_fineLastTry = glm::vec2(cp.x, cp.z);
+    ShoreBandParams p = fineParams; p.seawardBias = true;
+    if (!fineBand->siteNested(*shoreBand, glm::vec2(cp.x, cp.z), p, shoreBedQuery(), err)) { shoreBand->setHiddenBox(false); return false; }
+    m_fineOuterRev = shoreBand->record().revision;
+    const auto box = fineBand->worldBox();
+    shoreBand->setHiddenBox(true, box.first, box.second);
+    const auto& b = fineBand->record();
+    LOG_INFO("WaterCore", "fine band nested at ({}, {}): {}x{} columns of 1/3 m, {} ring / {} free / {} walls, {} wet, {} ms",
+             b.centreXZ.x, b.centreXZ.y, b.n, b.n, b.prescribed, b.free, b.walls, b.wet, b.siteMs);
+    return true;
+}
+
 // Phase G (docs/WaterCore.md 18.5): site the shore band at the camera. The bed is the micro
 // occupancy's highest solid in the column (Unknown = a wall: the 5.1 hold rule), the stored top is
 // the chunk spans' top run (max over the vertical chunks of the column); both are world data.
@@ -23596,18 +23673,7 @@ bool Application::siteShoreBand(std::string* err) {
         const auto it = tops->find(key(wx, wz));
         return it == tops->end() ? StoredTop{false, 0.0f} : StoredTop{true, it->second};
     };
-    BedQuery bed = [this](float wx, float wz, float yLo, float yHi) -> BedSample {
-        const auto* occ = renderCoordinator ? renderCoordinator->lightOccupancy() : nullptr;
-        if (!occ) return BedSample{false, 0.0f};
-        const int mx = static_cast<int>(std::floor(wx * 9.0f)), mz = static_cast<int>(std::floor(wz * 9.0f));
-        const int myHi = static_cast<int>(std::ceil(yHi * 9.0f)) - 1, myLo = static_cast<int>(std::floor(yLo * 9.0f));
-        for (int my = myHi; my >= myLo; --my) {
-            const Graphics::OccupancyState st = occ->stateAtMicro(glm::ivec3(mx, my, mz));
-            if (st == Graphics::OccupancyState::Unknown) return BedSample{false, 0.0f};
-            if (st == Graphics::OccupancyState::Solid) return BedSample{true, static_cast<float>(my + 1) / 9.0f};
-        }
-        return BedSample{true, yLo};
-    };
+    BedQuery bed = shoreBedQuery();
     Core::Water::ShoreBandParams p = shoreParams; p.seawardBias = true;
     const bool ok = shoreBand->site(centre, p, std::move(bed), std::move(stored), err);
     if (ok) {

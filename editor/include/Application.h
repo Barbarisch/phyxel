@@ -292,6 +292,14 @@ private:
     glm::vec2 m_shoreLastTry{0.0f};                                      // where the last siting was attempted (retry after half a radius)
     std::vector<std::pair<glm::ivec3, glm::ivec3>> m_waterMaskBoxes;  // live volumes + the band: columns the span grid / sheet leave alone
     bool siteShoreBand(std::string* err);                               // (re)site the band at the camera from the voxels + stored spans
+    // G4 (docs/WaterCore.md 18.8): the fine band - 1/3 m columns near the camera, nested in the 1 m band
+    std::unique_ptr<Core::Water::ShoreBand> fineBand;
+    Core::Water::ShoreBandParams fineParams = [] { Core::Water::ShoreBandParams q; q.radius = 16.0f; q.inner = 6; q.ramp = 1.5f; q.cellSize = 1.0f / 3.0f; return q; }();   // 96 x 96 columns, a 2 m ring
+    bool m_fineOn = false;
+    uint64_t m_fineOuterRev = 0;                                         // the 1 m band's siting the fine band was nested in
+    glm::vec2 m_fineLastTry{0.0f};
+    bool siteFineBand(std::string* err);
+    Core::Water::BedQuery shoreBedQuery();                              // the micro-occupancy bed both bands use
     std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;    // Coordinates all rendering
     std::unique_ptr<RaycastVisualizer> raycastVisualizer;              // Raycast debug visualization
     std::unique_ptr<VoxelInteractionSystem> voxelInteractionSystem;    // Cube/subcube interaction

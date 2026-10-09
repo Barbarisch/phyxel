@@ -561,6 +561,7 @@ public:
     void setWaterCoreSurfaceCells(const std::vector<Core::WaterSurfaceCell>* cells) { m_waterCoreCells = cells; }
     /// Phase F (17): the volumes' surface fields; the mesh is rebuilt from them every frame.
     void setWaterCoreSurfaceFields(const std::vector<Core::Water::WaterSurfaceField>* fields) { m_waterCoreFields = fields; }
+    void setWaterFineField(const Core::Water::WaterSurfaceField* field) { m_waterFineField = field; }   // G4: the nested fine band
     void setWaterShoreField(const Core::Water::WaterSurfaceField* field) { m_waterShoreField = field; }   // Phase G: the shore band's surface, meshed with the volumes'
     /// G3: the per-body look of a world column (the span grid packs it per column, the underwater overlay
     /// reads it at the eye). Unset = the derived look everywhere.
@@ -1081,6 +1082,7 @@ private:
     bool   m_spanGridBuilt = false;
     const std::vector<std::pair<glm::ivec3, glm::ivec3>>* m_waterCoreBoxes = nullptr;   // live AV boxes (+ the shore band's): their columns are the AV's, not the grid's
     const Core::Water::WaterSurfaceField* m_waterShoreField = nullptr;   // Phase G
+    const Core::Water::WaterSurfaceField* m_waterFineField = nullptr;    // G4
     std::function<Core::Water::WaterLook(int, int, float)> m_waterLookResolver;   // G3
     uint64_t m_waterCoreBoxRevision = 0;
     int    m_spanGridCooldown = 0;

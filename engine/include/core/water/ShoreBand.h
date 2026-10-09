@@ -69,6 +69,9 @@ struct ShoreBandRecord {
     int   sitings = 0;
     uint64_t revision = 0;           ///< bumps on every siting (the mask key)
     long  bedUpdates = 0;            ///< columns re-queried after an edit
+    bool  nested = false;            ///< G4: driven by an outer band, not the swell
+    long  edgeColumns = 0, edgeFoamColumns = 0;   ///< G4: wet free columns beside a dry one, and those carrying foam > 0.2 (this tick)
+    long  hidden = 0;                ///< G4: columns hidden under a nested band's box
 };
 
 class ShoreBand {
@@ -83,6 +86,18 @@ public:
     /// One tick: the ring prescribed from the swell at the sheet's time, the solver stepped, the
     /// surface field rebuilt. `waveTime` is the sheet's clock (WaterRenderPipeline::waveTime()).
     void tick(float dt, float waveTime, const SeaSwellParams& swell);
+    /// G4 (WaterCore.md 18.8): site a NESTED band inside `outer`'s free region, its ring driven by the
+    /// outer's solution (one-way nesting). With seawardBias the centre is the resting waterline nearest
+    /// `centreXZ`; it is clamped inside the outer's free region; refuses when it cannot fit. `outer` must
+    /// outlive this band (the caller owns both); tick() then reads its driver from it.
+    bool siteNested(const ShoreBand& outer, const glm::vec2& centreXZ, const ShoreBandParams& p, BedQuery bed, std::string* err);
+    /// G4: the outer's surface and depth-averaged velocity at a world point, bilinear over the wet
+    /// column centres around it; false when outside the band or no wet column is near.
+    bool sample(float wx, float wz, double& eta, glm::vec2& vel) const;
+    /// G4: columns whose centres fall in this world box draw nothing (a nested band draws them).
+    void setHiddenBox(bool on, const glm::vec2& minXZ = glm::vec2(0.0f), const glm::vec2& maxXZ = glm::vec2(0.0f)) { m_hide = on; m_hideMin = minXZ; m_hideMax = maxXZ; }
+    /// G4: the world box this band covers (min corner, max corner).
+    std::pair<glm::vec2, glm::vec2> worldBox() const { return {m_rec.originXZ, m_rec.originXZ + glm::vec2(m_rec.n * m_rec.h)}; }
     /// An edit under the band: the column's bed is re-queried at the next tick and the surface follows
     /// (never below the bed; water over a new hole falls to it). Outside the box: ignored.
     void noteEdit(int worldX, int worldZ);
@@ -112,6 +127,8 @@ private:
     std::vector<std::pair<int, int>> m_dirty;   // columns to re-bed at the next tick
     BedQuery m_bed;
     glm::vec2 m_centre{0.0f};
+    const ShoreBand* m_outer = nullptr;   // G4: the driver of a nested band
+    bool m_hide = false; glm::vec2 m_hideMin{0.0f}, m_hideMax{0.0f};
 };
 
 }  // namespace Phyxel::Core::Water

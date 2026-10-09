@@ -816,16 +816,27 @@ def s12_shore(api, gdef, args):
     shelf = {"x1": 150, "z1": 674, "x2": 180, "z2": 697}
     api.debug("water_shore", {"on": False})
     spans_before = api.debug("water_spans_stored", shelf)
-    on = api.debug("water_shore", {"on": True, "radius": radius})
+    fine = bool(getattr(args, "shore_fine", False))
+    if fine:   # G4 (WaterCore.md 18.8): the 1/3 m band nested near the camera; both bands step together
+        pred["fine"] = True; pred["step_ms_p95_max"] = 6.0
+    on = api.debug("water_shore", {"on": True, "radius": radius, "fine": fine})
     if not on.get("active"):
         return pred, {"error": on.get("error", "band not active"), "status": on}, "FAIL"
     samples = []; first_swash = None; peak_eta = 0.0; rise_max = 0.0; speed_max = 0.0; step_max = 0.0; foam_peak = 0.0
+    edge = {"band": [0, 0], "fine": [0, 0]}
     t0 = time.time()
     while time.time() - t0 < 20.0:
         time.sleep(0.25)
         st = api.debug("water_shore", {})
         t = time.time() - t0
-        samples.append({"t": round(t, 2), **{k: st.get(k) for k in ("swash_columns", "swash_eta_m", "wet", "mass_m3", "exchanged_m3", "foam_max", "max_speed", "mean_free_rise_m", "step_ms", "substeps")}})
+        fs = st.get("fine") or {}
+        step_total = (st.get("step_ms") or 0.0) + ((fs.get("step_ms") or 0.0) if fine and fs.get("active") else 0.0)
+        samples.append({"t": round(t, 2), **{k: st.get(k) for k in ("swash_columns", "swash_eta_m", "wet", "mass_m3", "exchanged_m3", "foam_max", "max_speed", "mean_free_rise_m", "step_ms", "substeps")},
+                        "step_ms_total": step_total, "fine": {k: fs.get(k) for k in ("active", "wet", "foam_max", "max_speed", "step_ms", "edge_columns", "edge_foam_columns", "swash_eta_m")} if fine else None})
+        edge["band"][0] += st.get("edge_columns", 0); edge["band"][1] += st.get("edge_foam_columns", 0)
+        if fine and fs.get("active"):
+            edge["fine"][0] += fs.get("edge_columns", 0); edge["fine"][1] += fs.get("edge_foam_columns", 0)
+            speed_max = max(speed_max, fs.get("max_speed", 0.0))
         if first_swash is None and st.get("swash_columns", 0) > 0: first_swash = t
         peak_eta = max(peak_eta, st.get("swash_eta_m", 0.0)); rise_max = max(rise_max, abs(st.get("mean_free_rise_m", 0.0)))
         speed_max = max(speed_max, st.get("max_speed", 0.0)); step_max = max(step_max, st.get("step_ms", 0.0)); foam_peak = max(foam_peak, st.get("foam_max", 0.0))
@@ -835,10 +846,12 @@ def s12_shore(api, gdef, args):
     api.debug("water_waves", {"amplitude": waves0.get("amplitude", 0.45)})
     api.debug("water_shore", {"on": False})
     spans_after = api.debug("water_spans_stored", shelf)
-    steps = sorted(x["step_ms"] for x in samples if x.get("step_ms") is not None)
+    steps = sorted(x["step_ms_total"] for x in samples if x.get("step_ms_total") is not None)
     step_p95 = steps[min(len(steps) - 1, int(0.95 * len(steps)))] if steps else 0.0
     meas = {"band": {k: on.get(k) for k in ("n", "columns", "prescribed", "sponge", "walls", "free", "still", "centre", "box", "site_ms")},
             "first_swash_s": first_swash, "swash_eta_peak_m": peak_eta, "mean_free_rise_max_m": rise_max, "max_speed": speed_max, "step_ms_max": step_max, "step_ms_p95": step_p95, "foam_peak": foam_peak,
+            "edge_foam_fraction": {k: (round(v[1] / v[0], 4) if v[0] else None) for k, v in edge.items()}, "edge_columns": {k: v[0] for k, v in edge.items()},
+            "fine_band": {k: (on.get("fine") or {}).get(k) for k in ("active", "n", "box", "prescribed", "free", "walls", "site_ms", "error")} if fine else None,
             "swell_end": {k: swell.get(k) for k in ("swash_columns", "swash_eta_m", "wet", "exchanged_m3", "foam_max", "runup_peak_m")},
             "calm_end": {k: calm.get(k) for k in ("swash_columns", "swash_eta_m", "wet", "exchanged_m3", "foam_max", "mean_free_rise_m")},
             "spans_before": {k: spans_before.get(k) for k in ("total_depth", "columns", "wet_columns", "max_top") if k in spans_before},
@@ -846,6 +859,7 @@ def s12_shore(api, gdef, args):
             "samples": samples}
     ok = (first_swash is not None and first_swash <= pred["swash_within_s"]
           and pred["swash_eta_peak_range_m"][0] <= peak_eta <= pred["swash_eta_peak_range_m"][1]
+          and (not fine or (on.get("fine") or {}).get("active"))
           and rise_max <= pred["mean_free_rise_max_m"] and speed_max <= pred["max_speed_max"] and step_p95 <= pred["step_ms_p95_max"]
           and foam_peak >= pred["swell_foam_min"] and calm.get("foam_max", 1.0) <= pred["calm_foam_max"] and calm.get("swash_eta_m", 1.0) <= pred["calm_swash_fraction_max"] * max(peak_eta, 1e-6)
           and abs((spans_after.get("total_depth") or 0.0) - (spans_before.get("total_depth") or 0.0)) <= pred["spans_unchanged_tol"])
@@ -870,6 +884,7 @@ def main():
     ap.add_argument("--transport", default="eulerian", choices=["eulerian", "flip"], help="core: fill fractions (Phase B) or FLIP particles (Phase B2)")
     ap.add_argument("--backend", default="auto", choices=["auto", "cpu", "gpu"], help="core: auto = the engine's default (gpu for fills when ready), cpu = the reference, gpu = forced (parity rows)")
     ap.add_argument("--sweeps", type=int, default=0, help="gpu: red-black SOR sweeps per projection (0 = auto, 1.5 x the longest dimension; else 8-160)")
+    ap.add_argument("--shore-fine", dest="shore_fine", action="store_true", help="S12: also run the 1/3 m fine band nested near the camera (G4)")
     ap.add_argument("--restart-cmd", dest="restart_cmd", default=None, help="S11: a shell command that stops and relaunches the bench engine (the cold-restart leg)")
     args = ap.parse_args()
     if args.scenario == "list":
@@ -893,6 +908,8 @@ def main():
     tag = (f"{args.engine}_h1-{per}" if per > 1 else f"{args.engine}_h1") if args.engine == "core" else args.engine
     if args.engine == "core" and args.transport != "eulerian":
         tag += f"_{args.transport}"
+    if getattr(args, "shore_fine", False):
+        tag += "_fine"
     if args.engine == "core" and args.backend != "cpu":
         tag += f"_{args.backend}"   # "auto" rows are tagged _auto: the record's backend field says what ran
         if args.sweeps > 0:
