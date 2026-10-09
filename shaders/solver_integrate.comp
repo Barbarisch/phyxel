@@ -13,6 +13,10 @@ layout(std430, set=0, binding=2) readonly buffer ParticleBuffer { GpuParticle pa
 // xz as half2). Everything else (no tile) is the background: the implicit sea, or dry.
 layout(std430, set=0, binding=3) readonly buffer WaterDirBuffer  { uint waterDir[]; };
 layout(std430, set=0, binding=4) readonly buffer WaterTileBuffer { uvec2 waterCells[]; };
+// WaterCore E2: the water's share of each wet body's drag + current, appended per tick (host-visible,
+// per frame slot, read back after its fence - the event-buffer pattern).
+struct WaterExchange { PHX_WATER_EXCHANGE };
+layout(std430, set=0, binding=5) buffer WaterExchangeBuffer { uint exchangeCount; uint xPad0, xPad1, xPad2; WaterExchange exchanges[]; };
 
 
 // Movers (the player, scripted boxes, later every character) are AVBD bodies since Phase 2:
@@ -96,10 +100,20 @@ void main() {
         if (f > 0.0) {
             buoyAccY = -pc.gravity * f * mat.buoyancy;
             b.vel.y  += buoyAccY * pc.dt;
+            const vec3 vBeforeWater = b.vel;   // E2: the exchange is drag + current only (buoyancy is static pressure)
             b.vel    *= pow(1.0 - WATER_LINEAR_DRAG,  pc.dt * f);
             b.angVel *= pow(1.0 - WATER_ANGULAR_DRAG, pc.dt * f);
             const float k = min(1.0, WATER_CURRENT_COUPLE * f * pc.dt);
             b.vel.xz += (flow - b.vel.xz) * k;
+            const vec3 dv = b.vel - vBeforeWater;
+            if (dot(dv, dv) > WATER_EXCHANGE_MIN_DV * WATER_EXCHANGE_MIN_DV) {
+                const uint slot = atomicAdd(exchangeCount, 1u);
+                if (slot < MAX_WATER_EXCHANGE) {
+                    const float vol = 8.0 * b.halfExt.x * b.halfExt.y * b.halfExt.z;
+                    exchanges[slot].posMass  = vec4(b.pos, vol / max(mat.buoyancy, 0.05));
+                    exchanges[slot].dvRadius = vec4(dv, r);
+                }
+            }
         }
     }
 

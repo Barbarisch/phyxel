@@ -1,7 +1,9 @@
 #include <gtest/gtest.h>
 
 #include "core/DamageSystem.h"
+#include "core/DebrisRuntime.h"
 #include "core/water/WaterCore.h"
+#include "core/water/WaterSurfaceMesh.h"
 
 #include <cmath>
 #include <cstdio>
@@ -157,6 +159,104 @@ TEST(WaterCouplingTest, SloshEnvelope) {
             if (odd) std::printf("   cell (%d,%d,%d) f %.4f\n", x, y, z, f);
         }
     }
+}
+
+
+// E2: the volume's surface field exports the top cell's horizontal velocity (what debris drifts with
+// and what the shading advects ripples along). A pond with a uniform flow (u 1.5, w -0.5 m/s on every
+// face) exports exactly that on every wet column; a dry column exports 0. Red before E2: 0 everywhere.
+TEST(WaterCouplingTest, SurfaceFieldCarriesVelocity) {
+    Pond p(6, 6, 6, 1.0f / 3.0f, 0);
+    p.grid.fillBox({0, 0, 0}, {3, 2, 5}, 1.0f);   // wet columns x 0..3; x 4..5 dry
+    for (float& u : p.grid.uData()) u = 1.5f;
+    for (float& w : p.grid.wData()) w = -0.5f;
+    WaterSurfaceField f; extractSurfaceField(p.grid, f);
+    for (int z = 0; z < 6; ++z) for (int x = 0; x < 6; ++x) {
+        const SurfaceColumn& c = f.at(x, z);
+        if (x <= 3) { EXPECT_NEAR(c.u, 1.5f, 1e-6f) << x << "," << z; EXPECT_NEAR(c.w, -0.5f, 1e-6f); }
+        else { EXPECT_EQ(c.u, 0.0f); EXPECT_EQ(c.w, 0.0f); }
+    }
+}
+
+
+// E2: debris reads the volume ahead of the old water. A volume holds a pond at 16.5 flowing (+0.4, 0)
+// over x 100..103; the old water says a sea at 10 everywhere. The tile built for the chunk column
+// carries the volume's surface and flow inside the pond and the old water outside it. Red before E2:
+// the tile carried 10 everywhere (debris could not see the pond).
+TEST(WaterCouplingTest, DebrisTileReadsTheVolume) {
+    DebrisRuntime::WaterColumnFn volume = [](int wx, int wz, float& s, glm::vec2& f) {
+        if (wx < 100 || wx > 103 || wz < 12 || wz > 15) return false;
+        s = 16.5f; f = glm::vec2(0.4f, 0.0f); return true;
+    };
+    DebrisRuntime::WaterColumnFn ca = [](int, int, float& s, glm::vec2& f) { s = 10.0f; f = glm::vec2(0.0f); return true; };
+    std::vector<uint32_t> tile;
+    ASSERT_TRUE(DebrisRuntime::buildWaterTile(3, 0, DebrisRuntime::composeColumn(volume, ca), false, 0.0f, tile));
+    std::vector<uint32_t> dir(32 * 32, 0xFFFFFFFFu); dir[0 * 32 + 3] = 0;
+    glm::vec2 flow;
+    EXPECT_FLOAT_EQ(DebrisRuntime::sampleWaterTiles(101, 13, glm::ivec2(0, 0), dir, tile, false, 0.0f, &flow), 16.5f);
+    EXPECT_NEAR(flow.x, 0.4f, 1e-3f);
+    EXPECT_FLOAT_EQ(DebrisRuntime::sampleWaterTiles(110, 13, glm::ivec2(0, 0), dir, tile, false, 0.0f), 10.0f);
+    // seam: a volume straddling the chunk seam at x = 128 answers the same per column through either tile
+    DebrisRuntime::WaterColumnFn seamVol = [](int wx, int, float& s, glm::vec2& f) { if (wx < 126 || wx > 129) return false; s = 15.0f + 0.25f * (wx - 126); f = glm::vec2(0.1f * wx, 0.0f); return true; };
+    std::vector<uint32_t> t3, t4;
+    ASSERT_TRUE(DebrisRuntime::buildWaterTile(3, 0, seamVol, false, 0.0f, t3));
+    ASSERT_TRUE(DebrisRuntime::buildWaterTile(4, 0, seamVol, false, 0.0f, t4));
+    std::vector<uint32_t> d2(32 * 32, 0xFFFFFFFFu); d2[3] = 0; d2[4] = 1;
+    std::vector<uint32_t> both(t3); both.insert(both.end(), t4.begin(), t4.end());
+    for (int wx = 126; wx <= 129; ++wx) {
+        float s = 0.0f; glm::vec2 f(0.0f); seamVol(wx, 0, s, f);
+        EXPECT_FLOAT_EQ(DebrisRuntime::sampleWaterTiles(wx, 5, glm::ivec2(0, 0), d2, both, false, 0.0f), s) << "column " << wx;
+    }
+}
+
+
+// E2: a debris piece's exchange gives the water exactly the momentum it names: the cell-centred
+// momentum sum (sum f h^3 * cell velocity) of the still pond rises by `momentum` within 2 % (face
+// averaging at the edge of the chosen cells), mass unchanged; no water within the radius -> nothing.
+TEST(WaterCouplingTest, MomentumIsGivenExactly) {
+    const float h = 1.0f / 3.0f;
+    Pond p(12, 9, 12, h, 0);
+    p.grid.fillBox({0, 0, 0}, {11, 5, 11}, 1.0f);
+    WaterSolver s(p.grid, p.query());
+    const double m0 = p.grid.totalMass();
+    const glm::vec3 J(0.02f, -0.05f, 0.01f);   // a falling subcube's share
+    const auto k = s.addMomentum(glm::vec3(2.0f, 1.5f, 2.0f), 0.2f, J);
+    EXPECT_GT(k.faces, 0);
+    glm::dvec3 sum(0.0);
+    for (int z = 0; z < 12; ++z) for (int y = 0; y < 9; ++y) for (int x = 0; x < 12; ++x) {
+        const double f = std::min(p.grid.f(x, y, z), 1.0f) * h * h * h;
+        sum += f * glm::dvec3(0.5 * (p.grid.u(x, y, z) + p.grid.u(x + 1, y, z)), 0.5 * (p.grid.v(x, y, z) + p.grid.v(x, y + 1, z)), 0.5 * (p.grid.w(x, y, z) + p.grid.w(x, y, z + 1)));
+    }
+    std::printf("  momentum given %.5f %.5f %.5f, measured %.5f %.5f %.5f\n", J.x, J.y, J.z, sum.x, sum.y, sum.z);
+    EXPECT_NEAR(sum.x, J.x, 0.02 * glm::length(J));
+    EXPECT_NEAR(sum.y, J.y, 0.02 * glm::length(J));
+    EXPECT_NEAR(sum.z, J.z, 0.02 * glm::length(J));
+    EXPECT_EQ(p.grid.totalMass(), m0);
+    const auto dry = s.addMomentum(glm::vec3(2.0f, 2.9f, 2.0f), 0.1f, J);   // 0.9 m above the surface: no water near
+    EXPECT_EQ(dry.faces, 0);
+}
+
+// E2 equality: impulses are additive - the same exchange records applied in any order, or split across
+// two calls, give the same velocity field (to float rounding). Pins "the frame a record lands in and the
+// order the GPU appended it do not change the water".
+TEST(WaterCouplingTest, ExchangeIndependentOfOrderAndBatching) {
+    const float h = 1.0f / 3.0f;
+    struct Rec { glm::vec3 pos; float r; glm::vec3 j; };
+    std::vector<Rec> recs;
+    for (int i = 0; i < 12; ++i) recs.push_back({glm::vec3(0.5f + 0.25f * i, 1.2f + 0.05f * (i % 3), 1.0f + 0.2f * (i % 5)), 0.15f, glm::vec3(0.01f * (i - 6), -0.02f, 0.005f * i)});
+    auto run = [&](const std::vector<int>& order) {
+        Pond p(12, 9, 12, h, 0);
+        p.grid.fillBox({0, 0, 0}, {11, 5, 11}, 1.0f);
+        WaterSolver s(p.grid, p.query());
+        for (int i : order) s.addMomentum(recs[i].pos, recs[i].r, recs[i].j);
+        return p.grid.uData();
+    };
+    std::vector<int> fwd, rev;
+    for (int i = 0; i < 12; ++i) { fwd.push_back(i); rev.push_back(11 - i); }
+    const auto a = run(fwd), b = run(rev);
+    float maxDiff = 0.0f;
+    for (size_t i = 0; i < a.size(); ++i) maxDiff = std::max(maxDiff, std::abs(a[i] - b[i]));
+    EXPECT_LT(maxDiff, 1e-6f);
 }
 
 }  // namespace

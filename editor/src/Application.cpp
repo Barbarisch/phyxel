@@ -536,6 +536,11 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         m_lastKick.volumes = k.volumes; m_lastKick.faces = k.faces; m_lastKick.clamped = k.clamped;
         m_lastKick.speed = speed; m_lastKick.reach = reach; m_lastKick.centre = c;
     });
+    // E2 (docs/WaterCore.md 19): debris reads the active volumes ahead of the old water (coupling off =
+    // the A/B control: debris then ignores the volumes)
+    if (debrisRuntime) debrisRuntime->setVolumeWater(
+        [this](int wx, int wz, float& s, glm::vec2& f) { return waterCore && m_waterCouplingOn && waterCore->columnWater(wx, wz, s, f); },
+        &waterCore->volumeBoxes());
     // G3 (docs/WaterCore.md 18.7): one look resolver for every renderer - the span grid, the underwater
     // overlay (and, inside the manager, the volumes' fields; the band below) all ask the body records.
     if (renderCoordinator) renderCoordinator->setWaterLookResolver([this](int x, int z, float top) { return waterCore ? waterCore->lookAt(x, z, top) : Core::Water::WaterLook{}; });
@@ -3735,6 +3740,19 @@ void Application::update(float deltaTime) {
                 renderCoordinator->setWaterCoreVolumeBoxes(&m_waterMaskBoxes, maskRev);   // Phase D: the span grid leaves these columns to the volumes (+ the band)
                 renderCoordinator->setWaterShoreField(m_shoreOn && shoreBand && shoreBand->active() ? &shoreBand->field() : nullptr);
                 renderCoordinator->setWaterFineField(m_shoreOn && m_fineOn && fineBand && fineBand->active() ? &fineBand->field() : nullptr);   // G4
+            }
+            // E2 (docs/WaterCore.md 19): wet debris gives the water the momentum the water took from it
+            if (debrisRuntime) {
+                auto ex = debrisRuntime->takeWaterExchange();
+                if (!ex.empty() && m_waterCouplingOn) {
+                    std::vector<Core::Water::WaterCoreManager::MomentumRecord> recs;
+                    recs.reserve(ex.size());
+                    for (const auto& e : ex) recs.push_back({e.position, e.radius, -e.mass * e.dv});   // Newton's third law
+                    const auto rep = waterCore->applyMomentum(recs);
+                    ++m_exchangeStats.frames; m_exchangeStats.records += rep.records; m_exchangeStats.applied += rep.applied;
+                    m_exchangeStats.outside += rep.outside; m_exchangeStats.dry += rep.dry; m_exchangeStats.clamped += rep.clamped;
+                    m_exchangeStats.lastTotal = rep.total; m_exchangeStats.totalMagnitude += glm::length(rep.total);
+                }
             }
             for (const auto& rec : waterCore->drainAutoSleepRecords()) {
                 if (rec.ok) LOG_INFO("WaterCore", "volume {} slept: {} columns / {} runs written ({} m^3, seeded {} m^3), surface-vs-mass {} mm, spread {} mm, {} chunks, body {}", rec.id, rec.columns, rec.runs, rec.massWritten, rec.massSeeded, rec.surfaceVsMassMm, rec.spreadMm, rec.chunksTouched, rec.bodyId);
@@ -14005,6 +14023,13 @@ void Application::registerWaterCommands() {
         if (cmd.params.contains("enabled")) m_waterCouplingOn = cmd.params.value("enabled", true);
         const auto& k = m_lastKick;
         r = {{"enabled", m_waterCouplingOn},
+             {"debris_exchange", {{"frames", m_exchangeStats.frames}, {"records", m_exchangeStats.records}, {"applied", m_exchangeStats.applied},
+                                  {"outside_volumes", m_exchangeStats.outside}, {"dry", m_exchangeStats.dry}, {"clamped", m_exchangeStats.clamped},
+                                  {"momentum_to_water_total", m_exchangeStats.totalMagnitude},
+                                  {"last_frame_momentum", {m_exchangeStats.lastTotal.x, m_exchangeStats.lastTotal.y, m_exchangeStats.lastTotal.z}},
+                                  {"gpu_records_total", debrisRuntime && debrisRuntime->gpu() ? debrisRuntime->gpu()->waterExchangeTotal() : 0},
+                                  {"gpu_records_dropped", debrisRuntime && debrisRuntime->gpu() ? debrisRuntime->gpu()->waterExchangeDropped() : 0}}},
+             {"debris_water_tiles", debrisRuntime ? debrisRuntime->waterStats().volumeTiles : 0},
              {"last_blast", {{"blasts_total", k.blasts}, {"volumes", k.volumes}, {"faces", k.faces}, {"clamped", k.clamped},
                              {"speed_at_centre_ms", k.speed}, {"reach_m", k.reach}, {"centre", {k.centre.x, k.centre.y, k.centre.z}}}}};
     });

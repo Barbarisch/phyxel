@@ -331,6 +331,11 @@ public:
     /// CFL step and the projection) and the clamps are counted. Returns the number of faces kicked.
     struct RadialKick { long faces = 0; long clamped = 0; };
     RadialKick addRadialImpulse(const glm::vec3& centre, float reach, float speedAtCentre, float upBias, float maxSpeed = 20.0f);
+    /// Phase E2: give the water `momentum` (m^3 * m/s, density 1) near `pos`: the water volume V of
+    /// the liquid cells within `radius` gets du = momentum / V on every face bordering them (so the
+    /// cell-centred momentum sum rises by `momentum`); |du| clamped to `maxSpeed`, counted. Returns the
+    /// faces touched (0 when no water is within the radius - the momentum is then not applied).
+    RadialKick addMomentum(const glm::vec3& pos, float radius, const glm::vec3& momentum, float maxSpeed = 20.0f);
 
     /// One engine tick of `dt` seconds, substepped internally to honour the CFL fraction.
     /// A sleeping volume returns immediately (asleep = true, nothing touched).

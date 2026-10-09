@@ -15,6 +15,7 @@ void extractSurfaceField(const WaterGrid& g, WaterSurfaceField& out) {
         for (int x = 0; x < g.nx(); ++x) {
             SurfaceColumn& c = out.cols[static_cast<size_t>(x) + static_cast<size_t>(out.nx) * z];
             int runs = 0;
+            int topCell = -1;   // the top run's top cell (E2)
             int y = 0;
             while (y < g.ny()) {
                 if (g.occ(x, y, z) == Occ::Solid) c.solidTopY = static_cast<float>(sp.origin.y + y + 1) * h;
@@ -30,8 +31,14 @@ void extractSurfaceField(const WaterGrid& g, WaterSurfaceField& out) {
                     // more than kMaxRuns runs: fold the extra into the top run (mass is the solver's business; this is the picture)
                     c.top[kSurfaceMaxRuns - 1] = (static_cast<float>(sp.origin.y + top) + std::min(g.f(x, top, z), 1.0f)) * h;
                 }
+                topCell = top;
             }
             c.runs = static_cast<float>(runs);
+            if (topCell >= 0) {   // E2: the surface velocity (mirrors wc_surface.comp)
+                WaterGrid& gm = const_cast<WaterGrid&>(g);
+                c.u = 0.5f * (gm.u(x, topCell, z) + gm.u(x + 1, topCell, z));
+                c.w = 0.5f * (gm.w(x, topCell, z) + gm.w(x, topCell, z + 1));
+            }
         }
 }
 

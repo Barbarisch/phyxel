@@ -304,6 +304,8 @@ private:
     bool m_waterCouplingOn = true;
     struct WaterKickStats { long blasts = 0; int volumes = 0; long faces = 0; long clamped = 0; float speed = 0.0f, reach = 0.0f; glm::vec3 centre{0.0f}; };
     WaterKickStats m_lastKick;
+    struct WaterExchangeStats { long frames = 0, records = 0, applied = 0, outside = 0, dry = 0, clamped = 0; glm::vec3 lastTotal{0.0f}; double totalMagnitude = 0.0; };
+    WaterExchangeStats m_exchangeStats;   // E2
     Core::Water::BedQuery shoreBedQuery();                              // the micro-occupancy bed both bands use
     std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;    // Coordinates all rendering
     std::unique_ptr<RaycastVisualizer> raycastVisualizer;              // Raycast debug visualization

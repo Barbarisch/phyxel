@@ -26,9 +26,9 @@ namespace Phyxel::Core::Water {
 constexpr int kSurfaceMaxRuns = 4;
 
 /// One sub-column of the field. Matches wc_surface.comp's layout exactly (16 floats = 64 B).
-/// Phase G2: foam (0..1) and the depth-averaged surface velocity (m/s) ride along - the band fills
-/// them from its solver; the 3-D volumes' kernel writes zeros until their surface velocity is
-/// exported (WaterCore.md 18.6).
+/// Phase G2: foam (0..1) and the surface velocity (m/s) ride along - the band fills both from its
+/// solver; the 3-D volumes export their top cell's horizontal velocity (E2, WaterCore.md 19) and
+/// foam 0.
 struct SurfaceColumn {
     float top[kSurfaceMaxRuns] = {0, 0, 0, 0};      ///< world Y of each run's surface (bottom-up)
     float bottom[kSurfaceMaxRuns] = {0, 0, 0, 0};   ///< world Y of each run's base

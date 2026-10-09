@@ -195,6 +195,12 @@ public:
         uint32_t    serial = 0;          // slotSerial(slot) when the event was READ
     };
     std::vector<DebrisEvent> takeEvents() { std::vector<DebrisEvent> out; out.swap(m_events); return out; }
+    /** WaterCore E2: the water's share of wet bodies' drag + current since the last call (two frames
+     *  late, like events). mass = the body's mass in water units (m^3); the water receives -mass*dv. */
+    struct WaterExchange { glm::vec3 position{0.0f}; float mass = 0.0f; glm::vec3 dv{0.0f}; float radius = 0.0f; };
+    std::vector<WaterExchange> takeWaterExchange() { std::vector<WaterExchange> out; out.swap(m_waterExchange); return out; }
+    uint64_t waterExchangeTotal() const { return m_exchangeTotal; }
+    uint64_t waterExchangeDropped() const { return m_exchangeDropped; }
     /** Phase 6a: per owner tag, the impulse (N*s) debris contacts put on its mover boxes, summed
      *  over the frames read back since the last call (two frames late). Normal force only. */
     std::unordered_map<uint32_t, glm::vec3> takeMoverImpulses() {
@@ -397,6 +403,12 @@ private:
     void*            m_eventMapped[OCC_FRAME_SLOTS] = {};
     bool             m_eventsWritten[OCC_FRAME_SLOTS] = {};   // ticks ran into this slot; read after its fence
     std::vector<DebrisEvent> m_events;
+    // WaterCore E2: the water-exchange readback, per frame slot (written by solver_integrate)
+    VkBuffer         m_exchangeBuffer[OCC_FRAME_SLOTS] = {};
+    VkDeviceMemory   m_exchangeMem[OCC_FRAME_SLOTS]    = {};
+    void*            m_exchangeMapped[OCC_FRAME_SLOTS] = {};
+    std::vector<WaterExchange> m_waterExchange;
+    uint64_t         m_exchangeTotal = 0, m_exchangeDropped = 0;
     // Phase 6a push-back readback: per frame slot, with the owner tag of every kinematic body as
     // staged for that slot (the order changes every frame).
     VkBuffer         m_pushBuffer[OCC_FRAME_SLOTS] = {};

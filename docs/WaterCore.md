@@ -415,7 +415,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **B2. FLIP transport** | `SurfaceTransport::FLIP` against the same grid (particles carry f and momentum; grid projection; particle↔grid transfer; re-seeding; rest conversion); harness runs S1–S5 on both modes and records the comparison | /design-check | Same scenarios green on FLIP; a written comparison (rest flatness, splash shape, cost) the user reads before Phase E chooses the default per scenario |
 | **C. GPU core** | Same solver on compute (`water_core_*.comp`), ping-pong, no readback except the surface/queries; parity with CPU on S1–S5 within tolerance; perf rows | /design-check (dispatch, buffers, tiers) | parity + ≤ 2 ms at `high` with all §3 rigs awake |
 | **D. Rest, persistence, world data** — **design §16; D3 + D1 + D2 + D4 + D5 BUILT 2026-10-09 (ledger §16.9; D4 halves the River trunk defect, residual is the bake's cell resolution)** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | /design-check on §16 | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
-| **E. Coupling** — **IN PROGRESS: design §19, E1 (blasts reach the water) BUILT 2026-10-09 (§19.2), E2 debris next** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
+| **E. Coupling** — **IN PROGRESS: design §19; E1 (blasts) + E2 (debris both ways: floats/sinks from the pond, momentum back) BUILT 2026-10-09 (§19.2-19.3); splash not yet visible** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
 | **F. Rendering the core** — **design §17; F1 + F2 first pass BUILT 2026-10-09 (ledger §17.3), sign-off pending; F3 open** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted (D5) | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
 | **G. Large bodies on top** — **PAUSED 2026-10-09 by the owner: small bodies first (E, then F finish, then B's open gates).** Design §18; G1–G4 BUILT 2026-10-09 (§18.5–18.8: column solver + band, solver foam/flow, per-body look profile; G4 fine ⅓ m nested band built, OFF by default — the Coast's sea-level shelf, not resolution, is what stops a surf line (§18.8); next: a sloped-beach rig)** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
 
@@ -2122,6 +2122,53 @@ control blast kicked 0 faces and moved nothing. Frames: a ragged crest piles aga
    GPU's auto sweep count (27) leaves residual 2.4 and acts as extra damping. A Phase C row.
 3. The GPU volume record's `kineticEnergy` is stale (constant 6.42 across steps in the test) - the
    field cannot be trusted on the GPU backend.
+
+### 19.3 E2 built: debris and the pond, both ways (2026-10-09) - ledger
+
+**Built:**
+1. **The pond exports its surface velocity** - `wc_surface.comp` (bindings + u, w) and
+   `extractSurfaceField` write the top run's top cell's horizontal velocity into `SurfaceColumn.u/w`
+   (the F2 leftover: a pond's own ripples now drift with its flow too). GPU = CPU exactly (parity 0).
+2. **Debris reads the pond** - `DebrisRuntime::setVolumeWater` + `composeColumn`: a column an active
+   volume holds water in reads the volume (`WaterCoreManager::columnWater`: the highest top over the
+   voxel's 1/3 m sub-columns, the mean surface velocity of the wet ones) ahead of the old water; tiles
+   under a volume box rebuild every frame; a volume alone is a water source (the Small bench has the old
+   water off).
+3. **Debris writes back** - `solver_integrate.comp` appends, per wet body per tick, the velocity change
+   the water's drag + current gave it (buoyancy excluded) and its mass in water units (volume / the
+   material's buoyancy ratio) into a host-visible per-slot buffer (`PHX_WATER_EXCHANGE`, cap 4096 per
+   frame, overflow counted - the event-readback pattern); `WaterCoreManager::applyMomentum` gives the
+   water -mass x dv near each piece (`WaterSolver::addMomentum`: per-axis face weights so the
+   cell-centred momentum rises by EXACTLY the record - the first version gave 1.17-1.5x and the unit test
+   caught it); one GPU sync + one upload per touched volume per frame. `water_coupling` echoes the
+   exchange (records, applied, outside, dry, clamped, momentum) and the volume tiles.
+
+**Unit / integration (Release, red first):** `SurfaceFieldCarriesVelocity` (0 before), `DebrisTileReadsTheVolume`
+(the CA's 10 m before; + the seam check), `MomentumIsGivenExactly` (given 0.020 / -0.050 / 0.010,
+measured the same), `ExchangeIndependentOfOrderAndBatching` (< 1e-6) - 10/10 coupling tests; GPU
+surface parity incl. velocity 0.0; 285 debris + water unit tests pass. **Debris settle bench on DebrisLab
+(the standing gate for `solver_integrate.comp`, on the E2 build):** same verdicts as the 2026-10-05
+baseline (drop_pile and blast FAIL on forced sleeps as before; box_through_pile the known open band);
+blast's forced sleeps 6 / 4 / 3 over three runs vs 3 at baseline = the bench's run-to-run spread; the
+exchange cannot run there (no water). A first bench run was INVALID - it ran the stale root exe (E1);
+discarded and re-run.
+
+**L4 live (Small pond, Release, GPU default, `tools/water_e2_demo.py`, evidence
+`docs/evidence/water_core_e/e2_*`):** 10 Stone + 10 Wood subcubes dropped from 3 m into the 1.5 m pond.
+- **Stone sinks, Wood floats - from the pond itself.** All 10 Stone sleep on the floor (y 15.167); 8 of 10
+  Wood sleep floating at y 16.45-16.57 (surface 16.5) - the capture at 12 s shows the wood blocks on the
+  water. The prediction was 16.43 +- 0.05 (70 % draft): they float HIGHER than predicted (the debris law
+  takes the submerged fraction of the bounding SPHERE, not the cube) - recorded as measured.
+  Control (coupling off): every Wood piece sinks to the floor (debris cannot see the pond).
+- **Momentum reaches the water:** 4015 exchange records applied, 0 dropped, 0 outside, 0 clamped, total
+  4.92 m^3 m/s; mass 24.000000 throughout.
+- **The splash is NOT visible.** At 0.9 s the pieces are already under the surface and the surface shows
+  no crater or ring. The surface metric could not tell either: the pond's resting noise (films over
+  0.996 cells, 19.2 defect 1) spikes 0.168 m in the control as well. Causes (inferred, to be measured
+  next): (1) the debris water drag is LINEAR (90 % per second), so a piece entering at 7.7 m/s hands its
+  momentum over ~1 s instead of at impact - real entry drag is quadratic, 1/2 rho C_d A v^2, a = 1/2 C_d b
+  v^2 / s ~ 34 m/s^2 for a stone subcube at 7.7 m/s; (2) sub-cell debris displaces no water; (3) the 3.5 cm
+  noise floor hides small disturbances.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

@@ -286,6 +286,14 @@ bool GpuParticlePhysics::createBuffers(Vulkan::VulkanDevice* dev) {
         std::memset(m_eventMapped[slot], 0, static_cast<size_t>(evSize));
     }
 
+    // 6e. WaterCore E2: the water-exchange readback (host-coherent, persistent map, one per frame slot)
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
+        const VkDeviceSize xs = static_cast<VkDeviceSize>(DebrisShared::EVENT_HEADER_UINTS) * 4u +
+                                static_cast<VkDeviceSize>(DebrisShared::MAX_WATER_EXCHANGE) * sizeof(DebrisShared::WaterExchangeGpu);
+        if (!createHostBuffer(xs, m_exchangeBuffer[slot], m_exchangeMem[slot], m_exchangeMapped[slot], "water exchange")) return false;
+        std::memset(m_exchangeMapped[slot], 0, static_cast<size_t>(xs));
+    }
+
     // 7. Material physics properties (host-coherent SSBO, 32 bytes × material count)
     {
         VkDeviceSize matPhysSize = static_cast<VkDeviceSize>(Core::MaterialRegistry::instance().getMaterialCount()) * sizeof(MaterialPhysicsGpu);
@@ -673,7 +681,7 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
 
     // solver_integrate: bodies, materials, particles, character collider, state (wake bits)
     // + bindings 3/4: this frame slot's water directory + tiles (Phase 6c).
-    if (!m_solverIntegratePass.create(m_device, shader("solver_integrate.comp.spv"), 5, sizeof(IntegratePC),
+    if (!m_solverIntegratePass.create(m_device, shader("solver_integrate.comp.spv"), 6, sizeof(IntegratePC),
                                       OCC_FRAME_SLOTS)) return false;
     m_solverIntegratePass.bindBuffer(0, m_solverBodyBuffer,   bodySize);
     m_solverIntegratePass.bindBuffer(1, m_materialPhysBuffer, matPhysSize);
@@ -683,6 +691,8 @@ bool GpuParticlePhysics::createSolverPipelines(const std::string& /*shaderDir*/)
             static_cast<VkDeviceSize>(WATER_DIR_CHUNKS) * WATER_DIR_CHUNKS * sizeof(uint32_t));
         m_solverIntegratePass.bindBufferInSet(slot, 4, m_waterTileBuffer[slot],
             static_cast<VkDeviceSize>(WATER_MAX_TILES) * WATER_TILE_CELLS * WATER_TILE_CELLS * 2u * sizeof(uint32_t));
+        m_solverIntegratePass.bindBufferInSet(slot, 5, m_exchangeBuffer[slot],   // WaterCore E2
+            static_cast<VkDeviceSize>(EVENT_HEADER_UINTS) * 4u + static_cast<VkDeviceSize>(MAX_WATER_EXCHANGE) * sizeof(WaterExchangeGpu));
     }
     m_solverIntegratePass.updateDescriptors();
 
@@ -1436,6 +1446,12 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
     if (m_physicsTicks > 0 && m_eventBuffer[m_frameSlot] != VK_NULL_HANDLE) {
         // Phase 6: this frame's ticks append to this slot's event buffer from count 0.
         vkCmdFillBuffer(cmd, m_eventBuffer[m_frameSlot], 0, DebrisShared::EVENT_HEADER_UINTS * 4u, 0u);
+        if (m_exchangeBuffer[m_frameSlot] != VK_NULL_HANDLE) {   // WaterCore E2: this frame's exchange appends from 0
+            vkCmdFillBuffer(cmd, m_exchangeBuffer[m_frameSlot], 0, DebrisShared::EVENT_HEADER_UINTS * 4u, 0u);
+            insertBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                          VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                          m_exchangeBuffer[m_frameSlot]);
+        }
         if (m_pushBuffer[m_frameSlot] != VK_NULL_HANDLE) {
             vkCmdFillBuffer(cmd, m_pushBuffer[m_frameSlot], 0, VK_WHOLE_SIZE, 0u);   // Phase 6a
             insertBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -1460,6 +1476,9 @@ void GpuParticlePhysics::recordComputeCommands(VkCommandBuffer cmd, uint32_t fra
     if (m_physicsTicks > 0 && m_pushBuffer[m_frameSlot] != VK_NULL_HANDLE)
         insertBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
                       VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT, m_pushBuffer[m_frameSlot]);
+    if (m_physicsTicks > 0 && m_exchangeBuffer[m_frameSlot] != VK_NULL_HANDLE)   // WaterCore E2
+        insertBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+                      VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT, m_exchangeBuffer[m_frameSlot]);
 
     // ---- 4. Reset instanceCount in indirect draw buffer ----
     // Always expand for rendering (even if 0 physics ticks — new spawns need faces)
@@ -1538,6 +1557,20 @@ void GpuParticlePhysics::consumeEventSlot(uint32_t slot) {
             const glm::vec3 f(fp[k * 4 + 0], fp[k * 4 + 1], fp[k * 4 + 2]);
             m_moverImpulses[owners[k]] += f * (FIXED_DT / DebrisShared::MOVER_PUSH_SCALE);
         }
+    }
+    if (m_exchangeMapped[slot]) {   // WaterCore E2: same slot, same fence
+        const auto* xw = static_cast<const uint32_t*>(m_exchangeMapped[slot]);
+        const uint32_t xc = xw[0], xs = std::min(xc, DebrisShared::MAX_WATER_EXCHANGE);
+        m_exchangeTotal += xc; m_exchangeDropped += xc - xs;
+        const auto* xr = reinterpret_cast<const DebrisShared::WaterExchangeGpu*>(xw + DebrisShared::EVENT_HEADER_UINTS);
+        m_waterExchange.reserve(m_waterExchange.size() + xs);
+        for (uint32_t k = 0; k < xs; ++k) {
+            WaterExchange e;
+            e.position = glm::vec3(xr[k].posMass.x, xr[k].posMass.y, xr[k].posMass.z); e.mass = xr[k].posMass.w;
+            e.dv = glm::vec3(xr[k].dvRadius.x, xr[k].dvRadius.y, xr[k].dvRadius.z); e.radius = xr[k].dvRadius.w;
+            m_waterExchange.push_back(e);
+        }
+        if (m_waterExchange.size() > 4 * DebrisShared::MAX_WATER_EXCHANGE) m_waterExchange.clear();   // nobody drains: bounded
     }
     const auto* words = static_cast<const uint32_t*>(m_eventMapped[slot]);
     const uint32_t count  = words[0];
@@ -2007,6 +2040,10 @@ void GpuParticlePhysics::cleanup() {
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_kinematicBoxBuffer[slot], m_kinematicBoxMem[slot]);
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_impulseBuffer[slot], m_impulseMem[slot]);
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_eventBuffer[slot], m_eventMem[slot]);
+    for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {   // WaterCore E2
+        if (m_exchangeMapped[slot]) { vkUnmapMemory(m_device, m_exchangeMem[slot]); m_exchangeMapped[slot] = nullptr; }
+        destroyBuf(m_exchangeBuffer[slot], m_exchangeMem[slot]);
+    }
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) destroyBuf(m_pushBuffer[slot], m_pushMem[slot]);
     for (uint32_t slot = 0; slot < OCC_FRAME_SLOTS; ++slot) {
         destroyBuf(m_waterDirBuffer[slot],  m_waterDirMem[slot]);

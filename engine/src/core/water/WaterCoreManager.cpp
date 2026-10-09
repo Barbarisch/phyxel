@@ -492,6 +492,29 @@ bool WaterCoreManager::addImpulse(const glm::vec3& world, float radius, float de
     return any;
 }
 
+WaterCoreManager::MomentumReport WaterCoreManager::applyMomentum(const std::vector<MomentumRecord>& records) {
+    MomentumReport rep;
+    rep.records = static_cast<long>(records.size());
+    std::vector<char> synced(m_avs.size(), 0), touched(m_avs.size(), 0);
+    for (const auto& rec : records) {
+        const glm::ivec3 v(static_cast<int>(std::floor(rec.pos.x)), static_cast<int>(std::floor(rec.pos.y)), static_cast<int>(std::floor(rec.pos.z)));
+        int which = -1;
+        for (size_t i = 0; i < m_avs.size(); ++i) {
+            const Av& av = *m_avs[i];
+            if (v.x >= av.minVoxel.x && v.x <= av.maxVoxel.x && v.y >= av.minVoxel.y && v.y <= av.maxVoxel.y && v.z >= av.minVoxel.z && v.z <= av.maxVoxel.z) { which = static_cast<int>(i); break; }
+        }
+        if (which < 0) { ++rep.outside; continue; }
+        Av& av = *m_avs[which];
+        if (!synced[which]) { syncFromGpu(av); synced[which] = 1; }
+        const WaterSolver::RadialKick k = av.solver->addMomentum(rec.pos, rec.radius, rec.momentum);
+        if (k.faces == 0) { ++rep.dry; continue; }
+        ++rep.applied; rep.clamped += k.clamped; rep.total += rec.momentum;
+        touched[which] = 1;
+    }
+    for (size_t i = 0; i < m_avs.size(); ++i) if (touched[i]) { markWritten(*m_avs[i]); ++rep.volumes; }
+    return rep;
+}
+
 WaterCoreManager::KickReport WaterCoreManager::addRadialImpulse(const glm::vec3& centre, float reach, float speedAtCentre, float upBias) {
     KickReport rep;
     for (auto& av : m_avs) {
@@ -590,6 +613,26 @@ const std::vector<WaterSurfaceField>& WaterCoreManager::surfaceFields() {
         m_fields.push_back(av->field);
     }
     return m_fields;
+}
+
+bool WaterCoreManager::columnWater(int wx, int wz, float& surfaceY, glm::vec2& flow) const {
+    for (const auto& f : m_fields) {
+        const int per = std::max(1, static_cast<int>(std::lround(1.0f / f.h)));
+        const int bx = wx * per - f.origin.x, bz = wz * per - f.origin.z;
+        if (bx < 0 || bz < 0 || bx + per > f.nx || bz + per > f.nz) continue;
+        float top = -1e30f; glm::vec2 sum(0.0f); int wet = 0;
+        for (int k = 0; k < per; ++k) for (int i = 0; i < per; ++i) {
+            const SurfaceColumn& c = f.at(bx + i, bz + k);
+            const int runs = static_cast<int>(c.runs + 0.5f);
+            if (runs <= 0) continue;
+            top = std::max(top, c.top[std::min(runs, kSurfaceMaxRuns) - 1]);
+            sum += glm::vec2(c.u, c.w); ++wet;
+        }
+        if (wet == 0) return false;   // the volume owns this column and it is dry
+        surfaceY = top; flow = sum / static_cast<float>(wet);
+        return true;
+    }
+    return false;
 }
 
 const std::vector<WaterSurfaceCell>& WaterCoreManager::surfaceCells() {

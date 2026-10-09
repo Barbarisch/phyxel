@@ -605,6 +605,52 @@ WaterSolver::RadialKick WaterSolver::addRadialImpulse(const glm::vec3& centre, f
     return k;
 }
 
+WaterSolver::RadialKick WaterSolver::addMomentum(const glm::vec3& pos, float radius, const glm::vec3& momentum, float maxSpeed) {
+    RadialKick k;
+    const float h = m_grid.h();
+    const glm::vec3 o(m_grid.spec().origin);
+    const float r = std::max(radius, 1.5f * h);   // at least the cells around the body
+    const float wet = WaterGrid::kSurfaceMinDepth / h;
+    const glm::ivec3 lo = glm::max(glm::ivec3(glm::floor(pos / h - o - r / h)) - 1, glm::ivec3(0));
+    const glm::ivec3 hi = glm::min(glm::ivec3(glm::floor(pos / h - o + r / h)) + 1, glm::ivec3(m_grid.nx() - 1, m_grid.ny() - 1, m_grid.nz() - 1));
+    double vol = 0.0;
+    std::vector<glm::ivec3> cells;
+    for (int z = lo.z; z <= hi.z; ++z) for (int y = lo.y; y <= hi.y; ++y) for (int x = lo.x; x <= hi.x; ++x) {
+        const glm::vec3 c = (o + glm::vec3(x + 0.5f, y + 0.5f, z + 0.5f)) * h;
+        if (glm::dot(c - pos, c - pos) > r * r || m_grid.f(x, y, z) < wet || m_grid.occ(x, y, z) == Occ::Solid) continue;
+        vol += static_cast<double>(std::min(m_grid.f(x, y, z), 1.0f)) * h * h * h;
+        cells.push_back({x, y, z});
+    }
+    if (vol <= 0.0 || cells.empty()) return k;
+    // the face set: every face of every chosen cell (once). The water's momentum (density 1) is the
+    // cell-centred sum  sum_cells f h^3 * (mean of the cell's two faces per axis)  =  per axis,
+    // sum_faces du * h^3 * (f_left + f_right) / 2  - a face shared with an UNCHOSEN water cell moves that
+    // cell too, so each axis is normalised by its own face weight W and du = momentum / W is exact
+    // (measured: normalising by the chosen cells' volume gave 1.17-1.5x the momentum).
+    std::vector<char> uSet(m_grid.uData().size(), 0), vSet(m_grid.vData().size(), 0), wSet(m_grid.wData().size(), 0);
+    std::vector<size_t> uF, vF, wF;
+    auto fAt = [&](int x, int y, int z) -> double { return m_grid.inBounds(x, y, z) ? std::min(m_grid.f(x, y, z), 1.0f) : 0.0f; };
+    double Wu = 0.0, Wv = 0.0, Ww = 0.0;
+    const double h3 = static_cast<double>(h) * h * h;
+    auto takeU = [&](int x, int y, int z) { const size_t i = m_grid.uIdx(x, y, z); if (uSet[i]) return; uSet[i] = 1; uF.push_back(i); Wu += 0.5 * (fAt(x - 1, y, z) + fAt(x, y, z)) * h3; };
+    auto takeV = [&](int x, int y, int z) { const size_t i = m_grid.vIdx(x, y, z); if (vSet[i]) return; vSet[i] = 1; vF.push_back(i); Wv += 0.5 * (fAt(x, y - 1, z) + fAt(x, y, z)) * h3; };
+    auto takeW = [&](int x, int y, int z) { const size_t i = m_grid.wIdx(x, y, z); if (wSet[i]) return; wSet[i] = 1; wF.push_back(i); Ww += 0.5 * (fAt(x, y, z - 1) + fAt(x, y, z)) * h3; };
+    for (const auto& c : cells) {
+        takeU(c.x, c.y, c.z); takeU(c.x + 1, c.y, c.z);
+        takeV(c.x, c.y, c.z); takeV(c.x, c.y + 1, c.z);
+        takeW(c.x, c.y, c.z); takeW(c.x, c.y, c.z + 1);
+    }
+    glm::vec3 du(Wu > 0.0 ? static_cast<float>(momentum.x / Wu) : 0.0f, Wv > 0.0 ? static_cast<float>(momentum.y / Wv) : 0.0f, Ww > 0.0 ? static_cast<float>(momentum.z / Ww) : 0.0f);
+    const float sp = glm::length(du);
+    if (sp > maxSpeed) { du *= maxSpeed / sp; ++k.clamped; }
+    for (size_t i : uF) m_grid.uData()[i] += du.x;
+    for (size_t i : vF) m_grid.vData()[i] += du.y;
+    for (size_t i : wF) m_grid.wData()[i] += du.z;
+    k.faces = static_cast<long>(uF.size() + vF.size() + wF.size());
+    wake();
+    return k;
+}
+
 double WaterSolver::pressure(int x, int y, int z) const {
     if (!m_grid.inBounds(x, y, z) || m_p.empty()) return 0.0;
     return m_p[m_grid.idx(x, y, z)];

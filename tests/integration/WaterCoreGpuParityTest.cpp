@@ -380,6 +380,7 @@ TEST_F(WaterCoreGpuParityTest, GpuSurfaceFieldMatchesCpu) {
         for (int r = 0; r < static_cast<int>(a.runs) && r < kSurfaceMaxRuns; ++r) {
             maxDiff = std::max(maxDiff, std::max(std::abs(a.top[r] - b.top[r]), std::abs(a.bottom[r] - b.bottom[r])));
         }
+        maxDiff = std::max(maxDiff, std::max(std::abs(a.u - b.u), std::abs(a.w - b.w)));   // E2: the surface velocity too
         runsTotal += static_cast<int>(a.runs); if (a.runs > 1.5f) ++multi;
     }
     std::printf("  surface field: %d runs over %zu columns (%d multi-run), max |CPU - GPU| %.2e\n", runsTotal, cpu.cols.size(), multi, maxDiff);

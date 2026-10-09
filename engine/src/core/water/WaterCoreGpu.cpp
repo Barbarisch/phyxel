@@ -16,7 +16,7 @@ const char* kKernelFiles[WaterCoreGpu::KernelCount] = {
     "wc_column_ops.comp.spv", "wc_classify.comp.spv", "wc_rbgs.comp.spv",
     "wc_extrap.comp.spv", "wc_extrap.comp.spv", "wc_extrap.comp.spv", "wc_reduce.comp.spv", "wc_sources.comp.spv", "wc_surface.comp.spv",
     "wc_flip_sort.comp.spv", "wc_flip_p2g.comp.spv", "wc_flip_g2p.comp.spv"};
-const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {6, 4, 4, 4, 5, 5, 5, 6, 10, 5, 9, 9, 9, 10, 4, 3, 7, 6, 9};   // Surface (3) sits before the FLIP kernels
+const uint32_t kKernelBindings[WaterCoreGpu::KernelCount] = {6, 4, 4, 4, 5, 5, 5, 6, 10, 5, 9, 9, 9, 10, 4, 5, 7, 6, 9};   // Surface (5: f, occ, surf, u, w - E2) sits before the FLIP kernels
 constexpr int kOutSlots = 8;   // vec4 slots: 0 cells (ke, maxDeltaF, mass), 1-3 max speed per lattice, 4 residual max, 5 residue sum
 } // namespace
 
@@ -97,7 +97,7 @@ bool WaterCoreGpu::createPipelines(Volume& vol, std::string* err) {
     bindAll(*vol.pipes[FaceOpsV],   {&vol.f, &vol.occ, &vol.v, &vol.p, &vol.liq});
     bindAll(*vol.pipes[FaceOpsW],   {&vol.f, &vol.occ, &vol.w, &vol.p, &vol.liq});
     bindAll(*vol.pipes[ColumnOps],  {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, &vol.dropped});
-    bindAll(*vol.pipes[Surface],    {&vol.f, &vol.occ, &vol.surf});   // Phase F
+    bindAll(*vol.pipes[Surface],    {&vol.f, &vol.occ, &vol.surf, &vol.u, &vol.w});   // Phase F (+ u, w: E2 surface velocity)
     bindAll(*vol.pipes[Classify],   {&vol.f, &vol.occ, &vol.u, &vol.v, &vol.w, &vol.src, &vol.liq, &vol.diag, &vol.rhs, &vol.p});
     bindAll(*vol.pipes[Rbgs],       {&vol.liq, &vol.diag, &vol.rhs, &vol.p, &vol.res});
     // binding 8 = the lattice before the halo pass: a dedicated scratch, because uOld/vOld/wOld are

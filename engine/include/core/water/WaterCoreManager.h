@@ -159,6 +159,12 @@ public:
     /// Phase E1: a blast's radial kick into every volume its reach touches (both backends).
     struct KickReport { int volumes = 0; long faces = 0; long clamped = 0; };
     KickReport addRadialImpulse(const glm::vec3& centre, float reach, float speedAtCentre, float upBias);
+    /// Phase E2: a frame's momentum exchange from wet debris. Each record gives the water `momentum`
+    /// (m^3 * m/s) near `pos`; records outside every volume are counted, not applied. One GPU sync and
+    /// one upload per touched volume.
+    struct MomentumRecord { glm::vec3 pos{0.0f}; float radius = 0.0f; glm::vec3 momentum{0.0f}; };
+    struct MomentumReport { long records = 0, applied = 0, outside = 0, dry = 0, clamped = 0; int volumes = 0; glm::vec3 total{0.0f}; };
+    MomentumReport applyMomentum(const std::vector<MomentumRecord>& records);
 
     ProbeResult probe(const glm::vec3& world);   // refreshes the solids cache first
     /// Per world column (x, z): the highest surface and the mass over cells whose world y lies in
@@ -174,6 +180,9 @@ public:
     /// wrote into its staging ring, a memcpy; CPU: extracted from the grid). Rebuilt on every call
     /// that follows a step; a volume that did not step since the last call keeps its field.
     const std::vector<WaterSurfaceField>& surfaceFields();
+    /// E2: one world voxel column's water from the last surface fields - the highest top over the
+    /// column's sub-columns and the mean surface velocity of the wet ones (what GPU debris reads).
+    bool columnWater(int wx, int wz, float& surfaceY, glm::vec2& flow) const;
 
     static constexpr size_t kMaxCellsPerVolume = 2'000'000;   ///< CPU reference ceiling (§15.4)
     static bool snapCellSize(float requested, float* snapped);  ///< power-of-three fractions only

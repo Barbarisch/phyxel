@@ -149,11 +149,20 @@ public:
     struct WaterStats {
         bool ready = false; int tilesUploaded = 0, tilesCached = 0, tilesPending = 0;
         uint64_t overflow = 0; glm::ivec2 minChunk{0};
+        int volumeTiles = 0;   ///< E2: chunk columns under an active volume (rebuilt every frame)
     };
     const WaterStats& waterStats() const { return m_waterStats; }
 
     /// One column's water: true + surface Y + flow (m/s) when wet (WaterManager::columnWater).
     using WaterColumnFn = std::function<bool(int wx, int wz, float& surfaceY, glm::vec2& flow)>;
+    /// WaterCore E2 (docs/WaterCore.md 19): the active volumes are a water source AHEAD of the old one -
+    /// a column a volume holds water in reads the volume's surface + surface velocity; tiles under a
+    /// volume box are rebuilt every frame (the volume moves). `boxes` = WaterCoreManager::volumeBoxes().
+    void setVolumeWater(WaterColumnFn column, const std::vector<std::pair<glm::ivec3, glm::ivec3>>* boxes) { m_volumeColumn = std::move(column); m_volumeBoxes = boxes; }
+    /// The column source debris reads: the volume where it answers, else the fallback. Pure.
+    static WaterColumnFn composeColumn(WaterColumnFn volume, WaterColumnFn fallback);
+    /// E2: the water's share of wet debris' drag + current since the last call (from the GPU readback).
+    std::vector<GpuParticlePhysics::WaterExchange> takeWaterExchange() { return m_gpu ? m_gpu->takeWaterExchange() : std::vector<GpuParticlePhysics::WaterExchange>{}; }
     /// Build chunk column (chunkX, chunkZ)'s tile (WATER_TILE_CELLS^2 cells x 2 words: surface-Y
     /// bits, packHalf2x16(flow)). Returns false - and leaves `out` empty - when every cell is just
     /// the background (implicit sea at seaLevel with no flow, or dry), so it needs no tile.
@@ -206,6 +215,8 @@ private:
     void updateWater();
     struct CachedWaterTile { bool background = true; std::vector<uint32_t> cells; uint64_t builtFrame = 0; };
     Core::WaterManager* m_water = nullptr;
+    WaterColumnFn m_volumeColumn;                                              // E2
+    const std::vector<std::pair<glm::ivec3, glm::ivec3>>* m_volumeBoxes = nullptr;   // E2
     std::unordered_map<uint64_t, CachedWaterTile> m_waterCache;
     std::vector<int> m_waterOrder;           // directory slots, nearest the window centre first
     glm::ivec2 m_waterMinChunk{INT32_MIN, INT32_MIN};
