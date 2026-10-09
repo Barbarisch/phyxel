@@ -324,6 +324,13 @@ public:
 
     /// Add `deltaSpeed` along `dir` to every face within `radius` of `worldPos`.
     void addImpulse(const glm::vec3& worldPos, float radius, float deltaSpeed, const glm::vec3& dir);
+    /// Phase E1 (docs/WaterCore.md 19): a blast's shock. Every face within `reach` of `centre` gains
+    /// speed s(r) = speedAtCentre * (1 - r / reach) along the outward radial direction blended
+    /// `upBias` toward +Y (DamageSystem's push law: linear falloff, blasts throw things up). Each
+    /// face's added speed is clamped to `maxSpeed` (a near-dry cell given an unbounded speed blows the
+    /// CFL step and the projection) and the clamps are counted. Returns the number of faces kicked.
+    struct RadialKick { long faces = 0; long clamped = 0; };
+    RadialKick addRadialImpulse(const glm::vec3& centre, float reach, float speedAtCentre, float upBias, float maxSpeed = 20.0f);
 
     /// One engine tick of `dt` seconds, substepped internally to honour the CFL fraction.
     /// A sleeping volume returns immediately (asleep = true, nothing touched).

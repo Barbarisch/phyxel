@@ -524,6 +524,18 @@ bool Application::initialize(const std::string& gameDefinitionPath) {
         const WaterBodyIndex* idx = sg ? sg->waterBodies() : nullptr;
         return idx ? idx->bodyIdAt(static_cast<float>(x) + 0.5f, static_cast<float>(z) + 0.5f) : -1;
     });
+    // Phase E1 (docs/WaterCore.md 19.1): every blast reaches the water. Water at r gets the speed a
+    // loose reference piece at r gets from the same blast (DamageSystem's push law: linear falloff to
+    // 1.5 x the radius, 0.3 up-bias), clamped per face at 20 m/s inside the solver.
+    DamageSystem::setBlastListener([this](const glm::vec3& c, float radius, float energy) {
+        if (!waterCore || !m_waterCouplingOn) return;
+        const float reach = DamageSystem::IMPULSE_RADIUS_SCALE * radius;
+        const float speed = DamageSystem::blastSpeed(energy);
+        const auto k = waterCore->addRadialImpulse(c, reach, speed, DamageSystem::IMPULSE_UP_BIAS);
+        ++m_lastKick.blasts;
+        m_lastKick.volumes = k.volumes; m_lastKick.faces = k.faces; m_lastKick.clamped = k.clamped;
+        m_lastKick.speed = speed; m_lastKick.reach = reach; m_lastKick.centre = c;
+    });
     // G3 (docs/WaterCore.md 18.7): one look resolver for every renderer - the span grid, the underwater
     // overlay (and, inside the manager, the volumes' fields; the band below) all ask the body records.
     if (renderCoordinator) renderCoordinator->setWaterLookResolver([this](int x, int z, float top) { return waterCore ? waterCore->lookAt(x, z, top) : Core::Water::WaterLook{}; });
@@ -13987,6 +13999,14 @@ void Application::registerWaterCommands() {
                 r["column"] = {{"x", cx}, {"z", cz}, {"bed", c.bed}, {"eta", c.eta}, {"u", c.u}, {"w", c.w}, {"foam", c.foam}, {"role", static_cast<int>(shoreBand->role(cx, cz))}};
             } else r["column"] = {{"error", "outside the band"}};
         }
+    });
+    // Phase E (docs/WaterCore.md 19): coupling status + the A/B control. {enabled?} -> the echo.
+    reg.on("water_coupling", [this](const Core::APICommand& cmd, nlohmann::json& r) {
+        if (cmd.params.contains("enabled")) m_waterCouplingOn = cmd.params.value("enabled", true);
+        const auto& k = m_lastKick;
+        r = {{"enabled", m_waterCouplingOn},
+             {"last_blast", {{"blasts_total", k.blasts}, {"volumes", k.volumes}, {"faces", k.faces}, {"clamped", k.clamped},
+                             {"speed_at_centre_ms", k.speed}, {"reach_m", k.reach}, {"centre", {k.centre.x, k.centre.y, k.centre.z}}}}};
     });
     reg.on("water_render_core", [this](const Core::APICommand& cmd, nlohmann::json& r) {
         using Core::Water::WaterCoreRenderMode;

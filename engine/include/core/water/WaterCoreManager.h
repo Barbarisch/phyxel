@@ -156,6 +156,9 @@ public:
     /// metres, in the deterministic list order (subsampled by the renderer when over its cap).
     const std::vector<glm::vec4>& particleDrawList();
     bool addImpulse(const glm::vec3& world, float radius, float deltaSpeed, const glm::vec3& dir);
+    /// Phase E1: a blast's radial kick into every volume its reach touches (both backends).
+    struct KickReport { int volumes = 0; long faces = 0; long clamped = 0; };
+    KickReport addRadialImpulse(const glm::vec3& centre, float reach, float speedAtCentre, float upBias);
 
     ProbeResult probe(const glm::vec3& world);   // refreshes the solids cache first
     /// Per world column (x, z): the highest surface and the mass over cells whose world y lies in
@@ -221,6 +224,7 @@ private:
     void stepGpu(Av& av, int ticks, float dt);
     bool pushSourcesToGpu(Av& av, std::string* err);
     void syncFromGpu(Av& av, bool rateLimited = false);   // download when stale (realtime: at most once a second unless forced)
+    void markWritten(Av& av);   // Phase E1: a CPU-side write to a volume's grid: upload it, wake it
     std::vector<std::unique_ptr<Av>> m_avs;
     SpanWriter m_spanWriter; SpanReader m_spanReader; BakeBodyQuery m_bakeBodyAt;
     WaterBodyTable m_bodies;

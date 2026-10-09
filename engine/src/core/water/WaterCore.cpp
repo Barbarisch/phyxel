@@ -574,6 +574,37 @@ void WaterSolver::addImpulse(const glm::vec3& worldPos, float radius, float delt
     wake();
 }
 
+WaterSolver::RadialKick WaterSolver::addRadialImpulse(const glm::vec3& centre, float reach, float speedAtCentre, float upBias, float maxSpeed) {
+    RadialKick k;
+    if (!(reach > 0.0f) || speedAtCentre == 0.0f) return k;
+    const float h = m_grid.h();
+    const glm::vec3 o(m_grid.spec().origin);
+    auto kick = [&](const glm::vec3& p, int axis) -> float {
+        const glm::vec3 d = p - centre;
+        const float r = glm::length(d);
+        if (r >= reach) return 0.0f;
+        const glm::vec3 radial = r > 1e-6f ? d / r : glm::vec3(0.0f, 1.0f, 0.0f);
+        const glm::vec3 dir = glm::normalize(glm::mix(radial, glm::vec3(0.0f, 1.0f, 0.0f), upBias));
+        float s = speedAtCentre * (1.0f - r / reach);
+        if (std::abs(s) > maxSpeed) { s = std::copysign(maxSpeed, s); ++k.clamped; }
+        ++k.faces;
+        return s * dir[axis];
+    };
+    // only faces that border WATER: a shock travels through the liquid, and air faces carry no mass -
+    // kicking them (the up-bias lifts every air face above the surface) only feeds the extrapolation,
+    // which the CPU and GPU rebuild differently (measured: |dv| 0.94 m/s apart after 20 ticks)
+    const float wet = WaterGrid::kSurfaceMinDepth / h;
+    auto liquid = [&](int x, int y, int z) { return m_grid.inBounds(x, y, z) && m_grid.f(x, y, z) >= wet; };
+    for (int z = 0; z < m_grid.nz(); ++z) for (int y = 0; y < m_grid.ny(); ++y) for (int x = 0; x <= m_grid.nx(); ++x)
+        if (liquid(x - 1, y, z) || liquid(x, y, z)) m_grid.u(x, y, z) += kick((o + glm::vec3(x, y + 0.5f, z + 0.5f)) * h, 0);
+    for (int z = 0; z < m_grid.nz(); ++z) for (int y = 0; y <= m_grid.ny(); ++y) for (int x = 0; x < m_grid.nx(); ++x)
+        if (liquid(x, y - 1, z) || liquid(x, y, z)) m_grid.v(x, y, z) += kick((o + glm::vec3(x + 0.5f, y, z + 0.5f)) * h, 1);
+    for (int z = 0; z <= m_grid.nz(); ++z) for (int y = 0; y < m_grid.ny(); ++y) for (int x = 0; x < m_grid.nx(); ++x)
+        if (liquid(x, y, z - 1) || liquid(x, y, z)) m_grid.w(x, y, z) += kick((o + glm::vec3(x + 0.5f, y + 0.5f, z)) * h, 2);
+    if (k.faces > 0) wake();
+    return k;
+}
+
 double WaterSolver::pressure(int x, int y, int z) const {
     if (!m_grid.inBounds(x, y, z) || m_p.empty()) return 0.0;
     return m_p[m_grid.idx(x, y, z)];

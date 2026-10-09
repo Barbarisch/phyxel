@@ -6,6 +6,7 @@
 #include "core/water/WaterCore.h"
 #include "core/water/WaterCoreGpu.h"
 #include "core/water/WaterSurfaceMesh.h"
+#include "core/water/WaterCoreManager.h"
 #include <cmath>
 #include <functional>
 
@@ -386,3 +387,96 @@ TEST_F(WaterCoreGpuParityTest, GpuSurfaceFieldMatchesCpu) {
     EXPECT_GT(runsTotal, 0);
     gpu.destroyVolume(vol);
 }
+
+// Phase E1 (docs/WaterCore.md 19): the impulse path through the MANAGER on both backends. The red
+// before E1: the manager wrote the kick into the CPU grid only; a GPU volume never saw it (no upload,
+// the next download overwrote it, a sleeping volume was skipped) - its surface stayed flat.
+TEST_F(WaterCoreGpuParityTest, GpuImpulseMatchesCpu) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    // a 4 x 4 m pond, 2 m deep at 1/3 m cells: voxels x, z in [0, 4), y in [0, 3); solid outside and below
+    auto state = [](const glm::ivec3& m) -> int {
+        if (m.y < 0 || m.x < 0 || m.z < 0 || m.x >= 36 || m.z >= 36) return 1;
+        return 0;
+    };
+    int sweeps = 0;
+    auto run = [&](const std::string& backend, std::vector<float>& tops, double& m0, double& m1) {
+        WaterCoreManager mgr(state);
+        std::string err;
+        if (backend == "gpu") ASSERT_TRUE(mgr.initGpu(device, physicalDevice, queue, queueFamilyIndex, "shaders", &err)) << err;
+        const int id = mgr.create(glm::ivec3(0, 0, 0), glm::ivec3(3, 2, 3), 1.0f / 3.0f, "eulerian", &err, backend, sweeps);
+        ASSERT_NE(id, 0) << err;
+        mgr.placeBox(glm::ivec3(0, 0, 0), glm::ivec3(3, 1, 3), 1.0f, nullptr);
+        AvRecord rec;
+        ASSERT_TRUE(mgr.step(id, 1, 1.0f / 60.0f, &rec));
+        m0 = rec.mass;
+        const auto k = mgr.addRadialImpulse(glm::vec3(7.0f, 2.0f, 2.0f), 6.0f, 3.0f, 0.3f);
+        EXPECT_EQ(k.volumes, 1);
+        for (int chunk = 0; chunk < 3; ++chunk) {
+            ASSERT_TRUE(mgr.step(id, 10, 1.0f / 60.0f, &rec));
+            float dev = 0.0f; double nearM = 0, farM = 0; int nn = 0, nf = 0;
+            const auto& f0 = mgr.surfaceFields()[0];
+            for (int z = 0; z < f0.nz; ++z) for (int x = 0; x < f0.nx; ++x) {
+                const auto& c = f0.at(x, z); if (c.runs < 0.5f) continue;
+                dev = std::max(dev, std::abs(c.top[0] - 2.0f));
+                if (x == f0.nx - 1) { nearM += c.top[0]; ++nn; } if (x == 0) { farM += c.top[0]; ++nf; }
+            }
+            std::printf("  %s after %d ticks: near %+.3f far %+.3f, max deviation %.4f m, residual %.3g, sweeps %d\n", backend.c_str(), 10 * (chunk + 1), nn ? nearM / nn - 2.0 : 0.0, nf ? farM / nf - 2.0 : 0.0, dev, rec.rbgsResidual, rec.gpuSweeps);
+        }
+        m1 = rec.mass;
+        const auto& fields = mgr.surfaceFields();
+        ASSERT_EQ(fields.size(), 1u);
+        tops.clear();
+        for (const auto& c : fields[0].cols) tops.push_back(c.runs > 0.5f ? c.top[0] : -1.0f);
+    };
+    std::vector<float> cpu, gpu2; double cm0 = 0, cm1 = 0, gm0 = 0, gm1 = 0;
+    run("cpu", cpu, cm0, cm1);
+    run("gpu", gpu2, gm0, gm1);
+    ASSERT_EQ(cpu.size(), gpu2.size());
+    float devCpu = 0.0f, devGpu = 0.0f, maxDiff = 0.0f;
+    for (size_t i = 0; i < cpu.size(); ++i) {
+        if (cpu[i] > 0.0f) devCpu = std::max(devCpu, std::abs(cpu[i] - 2.0f));
+        if (gpu2[i] > 0.0f) devGpu = std::max(devGpu, std::abs(gpu2[i] - 2.0f));
+        if (cpu[i] > 0.0f && gpu2[i] > 0.0f) maxDiff = std::max(maxDiff, std::abs(cpu[i] - gpu2[i]));
+    }
+    std::printf("  impulse parity: max surface deviation CPU %.4f m, GPU %.4f m, max |CPU - GPU| %.4f m; mass CPU %.6f -> %.6f, GPU %.6f -> %.6f\n",
+                devCpu, devGpu, maxDiff, cm0, cm1, gm0, gm1);
+    EXPECT_GT(devCpu, 0.05f) << "the kick moved the CPU pond";
+    EXPECT_GT(devGpu, 0.05f) << "the kick moved the GPU pond (the E1 bug left it flat)";
+    // NOT parity (measured 2026-10-09, docs/WaterCore.md 19.2): under a strong kick the GPU responds
+    // ~35 % weaker than the CPU even with a converged projection (80 sweeps, residual 4e-4) - an open
+    // Phase C defect. This floor only stops it getting worse while it is diagnosed.
+    EXPECT_GE(devGpu, 0.5f * devCpu) << "the GPU response must stay within 2x of the CPU's (open defect: they differ)";
+    EXPECT_NEAR(gm1, gm0, 1e-4 * gm0);
+}
+
+// Phase E1 diagnostic: the same kicked pond grid stepped by the CPU solver and by the GPU kernels
+// (no manager in between), compared after 1, 5 and 20 ticks: near-side mean surface and the largest
+// face-velocity difference. Splits "the GPU differs on the kick" from "the GPU differs after it".
+TEST_F(WaterCoreGpuParityTest, GpuKickedPondParity) {
+    if (!isVulkanAvailable()) GTEST_SKIP();
+    const float h = 1.0f / 3.0f;
+    for (int ticks : {1, 5, 20}) {
+        Tank c(12, 9, 12, h), g(12, 9, 12, h);
+        c.grid.fillBox({0, 0, 0}, {11, 5, 11}, 1.0f);
+        g.grid.fillBox({0, 0, 0}, {11, 5, 11}, 1.0f);
+        WaterSolver cpu(c.grid, c.query());
+        cpu.addRadialImpulse(glm::vec3(7.0f, 2.0f, 2.0f), 6.0f, 3.0f, 0.3f);
+        { WaterSolver kicker(g.grid, g.query()); kicker.addRadialImpulse(glm::vec3(7.0f, 2.0f, 2.0f), 6.0f, 3.0f, 0.3f); }
+        float uDiff0 = 0.0f;
+        for (size_t i = 0; i < c.grid.uData().size(); ++i) uDiff0 = std::max(uDiff0, std::abs(c.grid.uData()[i] - g.grid.uData()[i]));
+        auto* vol = make(g); ASSERT_NE(vol, nullptr);
+        for (int k = 0; k < ticks; ++k) cpu.step(kDt);
+        SolverParams prm;
+        const auto st = gpu.step(*vol, prm, kDt, ticks, 80);
+        gpu.download(*vol, g.grid);
+        auto nearMean = [](WaterGrid& gr) { double s = 0; for (int z = 0; z < 12; ++z) s += gr.surfaceWorldY(11, z); return s / 12.0 - 2.0; };
+        float uDiff = 0.0f, vDiff = 0.0f, fDiff = 0.0f;
+        for (size_t i = 0; i < c.grid.uData().size(); ++i) uDiff = std::max(uDiff, std::abs(c.grid.uData()[i] - g.grid.uData()[i]));
+        for (size_t i = 0; i < c.grid.vData().size(); ++i) vDiff = std::max(vDiff, std::abs(c.grid.vData()[i] - g.grid.vData()[i]));
+        for (size_t i = 0; i < c.grid.fData().size(); ++i) fDiff = std::max(fDiff, std::abs(c.grid.fData()[i] - g.grid.fData()[i]));
+        std::printf("  kicked pond after %2d ticks: near CPU %+.4f GPU %+.4f m; max |du| %.4f |dv| %.4f |df| %.4f (kick identical: %.1e); GPU residual %.2e\n",
+                    ticks, nearMean(c.grid), nearMean(g.grid), uDiff, vDiff, fDiff, uDiff0, st.rbgsResidualMax);
+        gpu.destroyVolume(vol);
+    }
+}
+

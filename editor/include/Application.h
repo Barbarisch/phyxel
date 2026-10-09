@@ -299,6 +299,11 @@ private:
     uint64_t m_fineOuterRev = 0;                                         // the 1 m band's siting the fine band was nested in
     glm::vec2 m_fineLastTry{0.0f};
     bool siteFineBand(std::string* err);
+    // Phase E (docs/WaterCore.md 19): coupling - small bodies that respond. ON by default; the route's
+    // {enabled:false} is the A/B control.
+    bool m_waterCouplingOn = true;
+    struct WaterKickStats { long blasts = 0; int volumes = 0; long faces = 0; long clamped = 0; float speed = 0.0f, reach = 0.0f; glm::vec3 centre{0.0f}; };
+    WaterKickStats m_lastKick;
     Core::Water::BedQuery shoreBedQuery();                              // the micro-occupancy bed both bands use
     std::unique_ptr<Graphics::RenderCoordinator> renderCoordinator;    // Coordinates all rendering
     std::unique_ptr<RaycastVisualizer> raycastVisualizer;              // Raycast debug visualization

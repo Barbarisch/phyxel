@@ -464,10 +464,45 @@ bool WaterCoreManager::addSource(int id, const glm::vec3& world, float rate, std
     return false;
 }
 
+void WaterCoreManager::markWritten(Av& av) {
+    av.solver->wake();
+    av.gpuDirty = true; av.gpuLast.asleep = false;
+    if (av.gpuVol) { av.gpuVol->asleep = false; av.gpuVol->quietTicks = 0; }
+}
+
+namespace {
+bool sphereTouchesBox(const glm::vec3& c, float r, const glm::ivec3& lo, const glm::ivec3& hi) {
+    const glm::vec3 q = glm::clamp(c, glm::vec3(lo), glm::vec3(hi) + glm::vec3(1.0f));
+    return glm::dot(q - c, q - c) <= r * r;
+}
+}
+
 bool WaterCoreManager::addImpulse(const glm::vec3& world, float radius, float deltaSpeed, const glm::vec3& dir) {
+    // Phase E1 fix: the impulse was written to the CPU grid only - a GPU volume never saw it (no
+    // upload, the next download overwrote it, a sleeping volume was skipped). Now: the current state
+    // first, the write, then upload + wake - the placeBox discipline.
     bool any = false;
-    for (auto& av : m_avs) { av->solver->addImpulse(world, radius, deltaSpeed, dir); any = true; }
+    for (auto& av : m_avs) {
+        if (!sphereTouchesBox(world, radius, av->minVoxel, av->maxVoxel)) continue;
+        syncFromGpu(*av);
+        av->solver->addImpulse(world, radius, deltaSpeed, dir);
+        markWritten(*av);
+        any = true;
+    }
     return any;
+}
+
+WaterCoreManager::KickReport WaterCoreManager::addRadialImpulse(const glm::vec3& centre, float reach, float speedAtCentre, float upBias) {
+    KickReport rep;
+    for (auto& av : m_avs) {
+        if (!sphereTouchesBox(centre, reach, av->minVoxel, av->maxVoxel)) continue;
+        syncFromGpu(*av);
+        const WaterSolver::RadialKick k = av->solver->addRadialImpulse(centre, reach, speedAtCentre, upBias);
+        if (k.faces == 0) continue;
+        markWritten(*av);
+        ++rep.volumes; rep.faces += k.faces; rep.clamped += k.clamped;
+    }
+    return rep;
 }
 
 ProbeResult WaterCoreManager::probe(const glm::vec3& world) {
