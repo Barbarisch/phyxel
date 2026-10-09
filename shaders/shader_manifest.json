@@ -385,6 +385,46 @@
       "built": true,
       "sources": "e129417933c9955eb80254ce44f9e05ed1b543c0720053a828000117d44214c6",
       "spv_present": true
+    },
+    "wc_classify.comp": {
+      "built": true,
+      "sources": "54d6f5e79dcc81f4e7eb350c4831ef23535147e63e02b67fe0ccc15446c0003b",
+      "spv_present": true
+    },
+    "wc_column_ops.comp": {
+      "built": true,
+      "sources": "2b1c1fabef67fa54a616389af98e00d388aef3df98934488400dd06d9be3b8e8",
+      "spv_present": true
+    },
+    "wc_extrap.comp": {
+      "built": true,
+      "sources": "cd0be84cdf8fdf23ea67e48d66765535fcad71f6958be9772a5e82199d3f3939",
+      "spv_present": true
+    },
+    "wc_face_ops.comp": {
+      "built": true,
+      "sources": "406858511eb15c0545732a04a3a334fb9a3c674574ca963cca5432c5d7f833dd",
+      "spv_present": true
+    },
+    "wc_fill_advect.comp": {
+      "built": true,
+      "sources": "cc67088eeee59b2d809f3179ac28e15a862804f2c8bbc0281353b9481e3d6235",
+      "spv_present": true
+    },
+    "wc_rbgs.comp": {
+      "built": true,
+      "sources": "485818f3380364afaebc13d9bf47b0fa8ad60af86c7189ae7ff16963b7f96391",
+      "spv_present": true
+    },
+    "wc_reduce.comp": {
+      "built": true,
+      "sources": "55f50689ecfe801c7b6c0071fbfb2a75763d22f54863c566e3fd2a412daffd09",
+      "spv_present": true
+    },
+    "wc_vel_advect.comp": {
+      "built": true,
+      "sources": "e79b1e870052541d048233f99ba5c2f6d0b3baa8072a56e952b3686a20dbbc08",
+      "spv_present": true
     }
   }
 }

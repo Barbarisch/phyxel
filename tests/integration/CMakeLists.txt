@@ -14,6 +14,7 @@ set(INTEGRATION_TEST_SOURCES
     PhysicsIntegrationTest.cpp
     SceneIntegrationTest.cpp
     VulkanIntegrationTest.cpp
+    WaterCoreGpuParityTest.cpp
 )
 
 # Create integration test executable

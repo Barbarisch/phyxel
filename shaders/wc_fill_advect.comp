@@ -1,0 +1,52 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore GPU kernel 2a: donor-cell fill transport (docs/WaterCore.md §15.11).
+// The CPU applies faces one at a time so no two moves touch one cell at once. Here the same
+// exactness comes from CHECKERBOARD passes: mode = direction (0 x, 1 y, 2 z); iparam = parity.
+// A pass handles the faces of one direction whose index along that axis has the given parity:
+// cell c is touched by faces c and c+1, never both in one pass, so every move is
+//   min(desired, donor has, receiver can take)
+// read-modify-write on cells no other thread touches. desired uses the fill at the start of the
+// whole advect (fOrig), the limits use the running f, exactly as the CPU's scratch copy does.
+// Downward moves out of a THIN donor take min(f, |v| dt / h): a film lies on its cell floor and
+// falls as a block (WaterCore.cpp, EulerianTransport::advect).
+#include "water_core.glsl"
+layout(local_size_x = 64) in;
+layout(std430, set = 0, binding = 0)          buffer F     { float f[]; };
+layout(std430, set = 0, binding = 1) readonly buffer FOrig { float fo[]; };
+layout(std430, set = 0, binding = 2) readonly buffer U     { float u[]; };
+layout(std430, set = 0, binding = 3) readonly buffer V     { float v[]; };
+layout(std430, set = 0, binding = 4) readonly buffer W     { float w[]; };
+layout(std430, set = 0, binding = 5) readonly buffer Occ   { uint occ[]; };
+
+bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u; }
+
+void main() {
+    const uint id = gl_GlobalInvocationID.x;
+    ivec3 a, b; float vel; bool downward = false;
+    if (pc.mode == 0) {                       // u faces: lattice (nx+1, ny, nz), interior x in 1..nx-1
+        ivec3 c = decode(id, pc.nx + 1, pc.ny);
+        if (c.z >= pc.nz || c.x < 1 || c.x >= pc.nx || (c.x & 1) != pc.iparam) return;
+        a = ivec3(c.x - 1, c.y, c.z); b = c; vel = u[uIdx(c.x, c.y, c.z)];
+    } else if (pc.mode == 1) {                // v faces: lattice (nx, ny+1, nz), interior y in 1..ny-1
+        ivec3 c = decode(id, pc.nx, pc.ny + 1);
+        if (c.z >= pc.nz || c.y < 1 || c.y >= pc.ny || (c.y & 1) != pc.iparam) return;
+        a = ivec3(c.x, c.y - 1, c.z); b = c; vel = v[vIdx(c.x, c.y, c.z)]; downward = vel < 0.0;
+    } else {                                  // w faces: lattice (nx, ny, nz+1), interior z in 1..nz-1
+        ivec3 c = decode(id, pc.nx, pc.ny);
+        if (c.z < 1 || c.z >= pc.nz || (c.z & 1) != pc.iparam) return;
+        a = ivec3(c.x, c.y, c.z - 1); b = c; vel = w[wIdx(c.x, c.y, c.z)];
+    }
+    if (vel == 0.0) return;
+    if (blocked(a.x, a.y, a.z) || blocked(b.x, b.y, b.z)) return;
+    const uint ia = cellIdx(a.x, a.y, a.z), ib = cellIdx(b.x, b.y, b.z);
+    const uint from = vel > 0.0 ? ia : ib, to = vel > 0.0 ? ib : ia;
+    const float fDonorOrig = fo[from];
+    if (fDonorOrig <= 0.0) return;
+    const float sweep = abs(vel) * pc.dt / pc.h;
+    const float desired = (downward && fDonorOrig < pc.thr) ? min(fDonorOrig, sweep) : sweep * fDonorOrig;
+    const float moved = min(min(desired, f[from]), 1.0 - f[to]);
+    if (moved <= 0.0) return;
+    f[from] -= moved;
+    f[to]   += moved;
+}

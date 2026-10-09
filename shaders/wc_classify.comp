@@ -1,0 +1,60 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore GPU kernel 4: per cell, the pressure row. liq = 1 for a liquid cell (f >= thr, Air);
+// diag = (sum over 6 neighbours: liquid 1, air 1/theta, solid 0) / h^2; rhs = -div(u)/dt plus the
+// pump source term (sources buffer, m^3/s per cell, 0 elsewhere) and the ceiling target for a partial
+// liquid cell under a solid; p = 0 (RBGS starts from zero, as the CPU's CG does).
+#include "water_core.glsl"
+layout(local_size_x = 64) in;
+layout(std430, set = 0, binding = 0) readonly buffer F    { float f[]; };
+layout(std430, set = 0, binding = 1) readonly buffer Occ  { uint occ[]; };
+layout(std430, set = 0, binding = 2) readonly buffer U    { float u[]; };
+layout(std430, set = 0, binding = 3) readonly buffer V    { float v[]; };
+layout(std430, set = 0, binding = 4) readonly buffer W    { float w[]; };
+layout(std430, set = 0, binding = 5) readonly buffer Src  { float src[]; };    // m^3/s per cell
+layout(std430, set = 0, binding = 6)          buffer Liq  { uint liq[]; };
+layout(std430, set = 0, binding = 7)          buffer Diag { float diag[]; };
+layout(std430, set = 0, binding = 8)          buffer Rhs  { float rhs[]; };
+layout(std430, set = 0, binding = 9)          buffer P    { float p[]; };
+
+bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u; }
+bool isLiqCell(int x, int y, int z) { return inBounds(x, y, z) && occ[cellIdx(x, y, z)] == 0u && f[cellIdx(x, y, z)] >= pc.thr; }
+float thetaToAir(int x, int y, int z, int dir) {
+    if (dir == 3) {
+        const float fa = inBounds(x, y + 1, z) ? min(1.0, f[cellIdx(x, y + 1, z)]) : 0.0;
+        if (fa > 0.0) return 0.5 + fa;
+        return clamp(f[cellIdx(x, y, z)] - 0.5, 0.1, 0.5);
+    }
+    return 0.5;
+}
+
+void main() {
+    const uint id = gl_GlobalInvocationID.x;
+    const ivec3 c = decode(id, pc.nx, pc.ny);
+    if (c.z >= pc.nz) return;
+    p[id] = 0.0;
+    const bool liquid = isLiqCell(c.x, c.y, c.z);
+    liq[id] = liquid ? 1u : 0u;
+    if (!liquid) { diag[id] = 0.0; rhs[id] = 0.0; return; }
+    const ivec3 d[6] = ivec3[6](ivec3(-1,0,0), ivec3(1,0,0), ivec3(0,-1,0), ivec3(0,1,0), ivec3(0,0,-1), ivec3(0,0,1));
+    float dsum = 0.0;
+    for (int k = 0; k < 6; ++k) {
+        const ivec3 n = c + d[k];
+        if (blocked(n.x, n.y, n.z)) continue;
+        if (isLiqCell(n.x, n.y, n.z)) dsum += 1.0;
+        else dsum += 1.0 / thetaToAir(c.x, c.y, c.z, k);
+    }
+    const float invh2 = 1.0 / (pc.h * pc.h);
+    diag[id] = dsum * invh2;
+    const float div = (u[uIdx(c.x + 1, c.y, c.z)] - u[uIdx(c.x, c.y, c.z)] + v[vIdx(c.x, c.y + 1, c.z)] - v[vIdx(c.x, c.y, c.z)] + w[wIdx(c.x, c.y, c.z + 1)] - w[wIdx(c.x, c.y, c.z)]) / pc.h;
+    float r = -div / pc.dt;
+    const float q = src[id];
+    if (q != 0.0) r += (q / (pc.h * pc.h * pc.h)) / pc.dt;
+    const float fc = f[id];
+    if (fc < 1.0 && blocked(c.x, c.y + 1, c.z)) {   // ceiling void closes at the free-fall rate
+        const float vfall = sqrt(2.0 * pc.gravity * pc.h);
+        const float df = min(1.0 - fc, vfall * pc.dt / pc.h);
+        r -= df / (pc.dt * pc.dt);
+    }
+    rhs[id] = r;
+}

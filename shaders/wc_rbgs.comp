@@ -1,0 +1,31 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore GPU kernel 5: one red-black Gauss-Seidel half-sweep of the pressure Poisson system on
+// liquid cells (iparam = colour 0/1 by (x+y+z)&1). p_c = (rhs_c + sum_liquid_nb p_n / h^2) / diag_c.
+// Neighbours of the other colour are read, never written, in this pass: no races, fixed order.
+// mode 1: write the residual |diag p - rhs - sum nb p/h^2| per cell into binding 4 (read by the
+// parity rows: the one number that says whether the sweep count was enough on a rig).
+#include "water_core.glsl"
+layout(local_size_x = 64) in;
+layout(std430, set = 0, binding = 0) readonly buffer Liq  { uint liq[]; };
+layout(std430, set = 0, binding = 1) readonly buffer Diag { float diag[]; };
+layout(std430, set = 0, binding = 2) readonly buffer Rhs  { float rhs[]; };
+layout(std430, set = 0, binding = 3)          buffer P    { float p[]; };
+layout(std430, set = 0, binding = 4)          buffer Res  { float res[]; };
+
+float pn(int x, int y, int z) { return (inBounds(x, y, z) && liq[cellIdx(x, y, z)] != 0u) ? p[cellIdx(x, y, z)] : 0.0; }
+
+void main() {
+    const uint id = gl_GlobalInvocationID.x;
+    const ivec3 c = decode(id, pc.nx, pc.ny);
+    if (c.z >= pc.nz) return;
+    if (liq[id] == 0u) { if (pc.mode == 1) res[id] = 0.0; return; }
+    const float invh2 = 1.0 / (pc.h * pc.h);
+    const float nb = (pn(c.x - 1, c.y, c.z) + pn(c.x + 1, c.y, c.z) + pn(c.x, c.y - 1, c.z) + pn(c.x, c.y + 1, c.z) + pn(c.x, c.y, c.z - 1) + pn(c.x, c.y, c.z + 1)) * invh2;
+    if (pc.mode == 1) { res[id] = abs(diag[id] * p[id] - nb - rhs[id]); return; }
+    if (((c.x + c.y + c.z) & 1) != pc.iparam) return;
+    // successive over-relaxation: omega (param1) in (1, 2) cuts the sweep count from O(N^2) to O(N)
+    // for a Poisson column (plain GS at 40 sweeps left a residual of 8 on a 10-cell column, 2026-10-08)
+    const float gs = (rhs[id] + nb) / diag[id];
+    p[id] = mix(p[id], gs, pc.param1);
+}

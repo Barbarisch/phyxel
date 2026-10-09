@@ -1,0 +1,69 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore GPU kernel 7: velocity extrapolation into the halo, one lattice per dispatch, one
+// layer per dispatch pair (ping-pong: reads val/known, writes valOut/knownOut).
+//   mode 0/1/2: build the known/wet masks for u/v/w (known = a face touching a liquid cell; wet = a
+//               face touching a wet cell); copies val -> valOut unchanged. Also records the
+//               drop-face keep flag (binding 7): v faces with water above, room below, not known.
+//   mode 3/4/5: one extrapolation layer for u/v/w: an unknown face takes the mean of its known
+//               6-neighbours (on its lattice) and becomes known.
+//   mode 6/7/8: finish u/v/w: wet faces NOT reached in the first layer (binding 6 = known after
+//               layer 1) take back their original value (binding 8); dry unreached faces -> 0;
+//               kept drop faces (v only) take their original value (no fall clamp when iparam = 1,
+//               i.e. a particle transport owns the mass; else clamped to -sqrt(2 g 3h)).
+#include "water_core.glsl"
+layout(local_size_x = 64) in;
+layout(std430, set = 0, binding = 0) readonly buffer F      { float f[]; };
+layout(std430, set = 0, binding = 1) readonly buffer Occ    { uint occ[]; };
+layout(std430, set = 0, binding = 2) readonly buffer Val    { float val[]; };
+layout(std430, set = 0, binding = 3) readonly buffer Known  { uint known[]; };
+layout(std430, set = 0, binding = 4)          buffer ValOut { float valOut[]; };
+layout(std430, set = 0, binding = 5)          buffer KnownOut { uint knownOut[]; };
+layout(std430, set = 0, binding = 6)          buffer First  { uint first[]; };   // known after layer 1 (written by mode 3-5 when iparam==100, read by finish)
+layout(std430, set = 0, binding = 7)          buffer Keep   { uint keep[]; };    // drop faces (v lattice only) + wet flags: bit0 wet, bit1 keep
+layout(std430, set = 0, binding = 8) readonly buffer Orig   { float orig[]; };   // the lattice before extrapolation
+
+bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u; }
+bool dom(int x, int y, int z) { return inBounds(x, y, z) && f[cellIdx(x, y, z)] >= pc.thr && occ[cellIdx(x, y, z)] == 0u; }
+bool wet(int x, int y, int z) { return inBounds(x, y, z) && f[cellIdx(x, y, z)] > 0.0; }
+
+void main() {
+    const uint id = gl_GlobalInvocationID.x;
+    const int lattice = pc.mode % 3;
+    const int sx = lattice == 0 ? pc.nx + 1 : pc.nx, sy = lattice == 1 ? pc.ny + 1 : pc.ny, sz = lattice == 2 ? pc.nz + 1 : pc.nz;
+    const ivec3 c = decode(id, sx, sy);
+    if (c.z >= sz) return;
+    if (pc.mode < 3) {
+        bool k, wt, kp = false;
+        if (lattice == 0)      { k = dom(c.x - 1, c.y, c.z) || dom(c.x, c.y, c.z); wt = wet(c.x - 1, c.y, c.z) || wet(c.x, c.y, c.z); }
+        else if (lattice == 1) { k = dom(c.x, c.y - 1, c.z) || dom(c.x, c.y, c.z); wt = wet(c.x, c.y - 1, c.z) || wet(c.x, c.y, c.z);
+                                 if (!k && c.y >= 1 && c.y < pc.ny) { const bool aboveWet = f[cellIdx(c.x, c.y, c.z)] > 0.0; const bool roomBelow = !blocked(c.x, c.y - 1, c.z) && f[cellIdx(c.x, c.y - 1, c.z)] < 1.0; kp = aboveWet && roomBelow; } }
+        else                   { k = dom(c.x, c.y, c.z - 1) || dom(c.x, c.y, c.z); wt = wet(c.x, c.y, c.z - 1) || wet(c.x, c.y, c.z); }
+        knownOut[id] = k ? 1u : 0u;
+        keep[id] = (wt ? 1u : 0u) | (kp ? 2u : 0u);
+        valOut[id] = val[id];
+    } else if (pc.mode < 6) {
+        if (known[id] != 0u) { valOut[id] = val[id]; knownOut[id] = 1u; if (pc.iparam == 100) first[id] = 1u; return; }
+        float sum = 0.0; int n = 0;
+        const ivec3 d[6] = ivec3[6](ivec3(-1,0,0), ivec3(1,0,0), ivec3(0,-1,0), ivec3(0,1,0), ivec3(0,0,-1), ivec3(0,0,1));
+        for (int i = 0; i < 6; ++i) {
+            const ivec3 q = c + d[i];
+            if (q.x < 0 || q.y < 0 || q.z < 0 || q.x >= sx || q.y >= sy || q.z >= sz) continue;
+            const uint j = uint(q.x) + uint(sx) * (uint(q.y) + uint(sy) * uint(q.z));
+            if (known[j] != 0u) { sum += val[j]; ++n; }
+        }
+        if (n > 0) { valOut[id] = sum / float(n); knownOut[id] = 1u; if (pc.iparam == 100) first[id] = 1u; }
+        else { valOut[id] = val[id]; knownOut[id] = 0u; if (pc.iparam == 100) first[id] = 0u; }
+    } else {
+        const bool reached = known[id] != 0u;
+        const bool isWet = (keep[id] & 1u) != 0u;
+        float res = val[id];
+        if (isWet && first[id] == 0u) res = orig[id];        // thin water beyond the first layer owns its velocity
+        if (!reached && !isWet) res = 0.0;
+        if (lattice == 1 && (keep[id] & 2u) != 0u) {         // a drop's bottom face keeps its fall
+            res = orig[id];
+            if (pc.iparam == 0) res = max(res, -sqrt(2.0 * pc.gravity * 3.0 * pc.h));
+        }
+        valOut[id] = res;
+    }
+}

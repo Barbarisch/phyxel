@@ -1,0 +1,88 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore GPU kernel 3 (part): per-face operations, one lattice per dispatch.
+//   mode 0: gravity on v faces that carry water on either side (applyGravity)
+//   mode 1: thin-film surface slope on u faces   (applyThinFilmGradient, x pairs)
+//   mode 2: thin-film surface slope on w faces   (applyThinFilmGradient, z pairs)
+//   mode 3/4/5: zero u/v/w faces touching a Solid or Unknown cell (enforceSolidFaces)
+//   mode 6/7/8: velocity update u/v/w -= dt (p_b - p_a) / dist with the ghost-fluid distance
+//               (project's faceUpdate); binding 4 = pressure, binding 5 = liquid flag per cell
+//   mode 9: vel *= param0 (rest damping, applyRestDamping) - the lattice length is iparam
+#include "water_core.glsl"
+layout(local_size_x = 64) in;
+layout(std430, set = 0, binding = 0) readonly buffer F   { float f[]; };
+layout(std430, set = 0, binding = 1) readonly buffer Occ { uint occ[]; };
+layout(std430, set = 0, binding = 2)          buffer Vel { float vel[]; };   // the lattice being written (u, v or w)
+layout(std430, set = 0, binding = 3) readonly buffer P   { float p[]; };
+layout(std430, set = 0, binding = 4) readonly buffer Liq { uint liq[]; };
+
+bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u; }
+float fAt(int x, int y, int z) { return inBounds(x, y, z) ? f[cellIdx(x, y, z)] : 0.0; }
+bool isLiq(int x, int y, int z) { return inBounds(x, y, z) && liq[cellIdx(x, y, z)] != 0u; }
+
+// thetaToAir: dir 3 (+y) looks at the cell above; every other direction is 0.5 (WaterSolver::thetaToAir)
+float thetaToAir(int x, int y, int z, int dir) {
+    if (dir == 3) {
+        const float fa = inBounds(x, y + 1, z) ? min(1.0, f[cellIdx(x, y + 1, z)]) : 0.0;
+        if (fa > 0.0) return 0.5 + fa;
+        return clamp(f[cellIdx(x, y, z)] - 0.5, 0.1, 0.5);
+    }
+    return 0.5;
+}
+
+// explicit slope on a pair of cells (a, b) with the hold depth; returns the velocity delta
+float slopeDelta(ivec3 a, ivec3 b) {
+    if (blocked(a.x, a.y, a.z) || blocked(b.x, b.y, b.z)) return 0.0;
+    const float fa = f[cellIdx(a.x, a.y, a.z)], fb = f[cellIdx(b.x, b.y, b.z)];
+    if (fa >= pc.thr || fb >= pc.thr) return 0.0;
+    if (fa <= 0.0 && fb <= 0.0) return 0.0;
+    const bool restsA = a.y == 0 || blocked(a.x, a.y - 1, a.z) || fAt(a.x, a.y - 1, a.z) >= pc.thr;
+    const bool restsB = b.y == 0 || blocked(b.x, b.y - 1, b.z) || fAt(b.x, b.y - 1, b.z) >= pc.thr;
+    if (!restsA && !restsB) return 0.0;
+    const float ma = max(0.0, fa - pc.filmHold), mb = max(0.0, fb - pc.filmHold);
+    if (ma <= 0.0 && mb <= 0.0) return -1e30;   // sentinel: pinned on both sides -> zero the face
+    return -pc.gravity * pc.dt * (mb - ma);
+}
+
+void main() {
+    const uint id = gl_GlobalInvocationID.x;
+    if (pc.mode == 0) {
+        ivec3 c = decode(id, pc.nx, pc.ny + 1); if (c.z >= pc.nz) return;
+        const bool below = c.y > 0 && f[cellIdx(c.x, c.y - 1, c.z)] > 0.0;
+        const bool above = c.y < pc.ny && f[cellIdx(c.x, c.y, c.z)] > 0.0;
+        if (below || above) vel[id] -= pc.gravity * pc.dt;
+    } else if (pc.mode == 1) {
+        ivec3 c = decode(id, pc.nx + 1, pc.ny); if (c.z >= pc.nz || c.x < 1 || c.x >= pc.nx) return;
+        const float d = slopeDelta(ivec3(c.x - 1, c.y, c.z), c);
+        if (d == -1e30) vel[id] = 0.0; else vel[id] += d;
+    } else if (pc.mode == 2) {
+        ivec3 c = decode(id, pc.nx, pc.ny); if (c.z < 1 || c.z >= pc.nz) return;
+        const float d = slopeDelta(ivec3(c.x, c.y, c.z - 1), c);
+        if (d == -1e30) vel[id] = 0.0; else vel[id] += d;
+    } else if (pc.mode == 3) {
+        ivec3 c = decode(id, pc.nx + 1, pc.ny); if (c.z >= pc.nz) return;
+        if (blocked(c.x - 1, c.y, c.z) || blocked(c.x, c.y, c.z)) vel[id] = 0.0;
+    } else if (pc.mode == 4) {
+        ivec3 c = decode(id, pc.nx, pc.ny + 1); if (c.z >= pc.nz) return;
+        if (blocked(c.x, c.y - 1, c.z) || blocked(c.x, c.y, c.z)) vel[id] = 0.0;
+    } else if (pc.mode == 5) {
+        ivec3 c = decode(id, pc.nx, pc.ny); if (c.z > pc.nz) return;
+        if (blocked(c.x, c.y, c.z - 1) || blocked(c.x, c.y, c.z)) vel[id] = 0.0;
+    } else if (pc.mode == 9) {
+        if (id < uint(pc.iparam)) vel[id] *= pc.param0;
+    } else {
+        // velocity update: face between a (lower index) and b; dirAtoB: 1 (+x), 3 (+y), 5 (+z)
+        ivec3 a, b; int dirAB;
+        if (pc.mode == 6)      { ivec3 c = decode(id, pc.nx + 1, pc.ny); if (c.z >= pc.nz) return; a = ivec3(c.x - 1, c.y, c.z); b = c; dirAB = 1; }
+        else if (pc.mode == 7) { ivec3 c = decode(id, pc.nx, pc.ny + 1); if (c.z >= pc.nz) return; a = ivec3(c.x, c.y - 1, c.z); b = c; dirAB = 3; }
+        else                   { ivec3 c = decode(id, pc.nx, pc.ny);     if (c.z > pc.nz)  return; a = ivec3(c.x, c.y, c.z - 1); b = c; dirAB = 5; }
+        const bool la = isLiq(a.x, a.y, a.z), lb = isLiq(b.x, b.y, b.z);
+        if (!la && !lb) return;
+        if (blocked(a.x, a.y, a.z) || blocked(b.x, b.y, b.z)) { vel[id] = 0.0; return; }   // no update on solid faces
+        const float pa = la ? p[cellIdx(a.x, a.y, a.z)] : 0.0, pb = lb ? p[cellIdx(b.x, b.y, b.z)] : 0.0;
+        float dist = pc.h;
+        if (la && !lb) dist = pc.h * thetaToAir(a.x, a.y, a.z, dirAB);
+        else if (lb && !la) dist = pc.h * thetaToAir(b.x, b.y, b.z, dirAB ^ 1);
+        vel[id] -= pc.dt * (pb - pa) / dist;
+    }
+}

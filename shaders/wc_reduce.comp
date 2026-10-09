@@ -1,0 +1,62 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore GPU kernel 9: rest-detection reductions with a FIXED order (no float atomics - the rest
+// decision must be deterministic, docs/WaterCore.md §15.11).
+//   mode 0: per workgroup of 256 cells -> partial[wg] = (sum f*|v_c|^2/2, max |f - fPrev|, sum f)
+//           (velocity at the cell centre from its faces, as WaterGrid::kineticEnergy)
+//   mode 1: per workgroup of 256 faces of lattice iparam (0 u, 1 v, 2 w) -> partialMax[wg] = max |vel|
+//   mode 2: fold `param0` partials of binding 5 into binding 7 (one per workgroup) - or, when
+//           param1 == 1, into out[iparam] (the final fold). mode 3: the same from binding 7 into
+//           binding 5. The host alternates 2/3 until one workgroup remains: a fixed tree, no atomics.
+#include "water_core.glsl"
+layout(local_size_x = 256) in;
+layout(std430, set = 0, binding = 0) readonly buffer F     { float f[]; };
+layout(std430, set = 0, binding = 1) readonly buffer FPrev { float fp[]; };
+layout(std430, set = 0, binding = 2) readonly buffer U     { float u[]; };
+layout(std430, set = 0, binding = 3) readonly buffer V     { float v[]; };
+layout(std430, set = 0, binding = 4) readonly buffer W     { float w[]; };
+layout(std430, set = 0, binding = 5)          buffer Part  { vec4 part[]; };   // per workgroup partials
+layout(std430, set = 0, binding = 6)          buffer Out   { vec4 outv[]; };
+layout(std430, set = 0, binding = 7)          buffer Part2 { vec4 part2[]; };
+
+shared vec4 sh[256];
+
+void main() {
+    const uint lid = gl_LocalInvocationID.x, gid = gl_GlobalInvocationID.x, wg = gl_WorkGroupID.x;
+    vec4 mine = vec4(0.0);
+    if (pc.mode == 0) {
+        const ivec3 c = decode(gid, pc.nx, pc.ny);
+        if (c.z < pc.nz) {
+            const float fc = f[gid];
+            if (fc > 0.0) {
+                const float ux = 0.5 * (u[uIdx(c.x, c.y, c.z)] + u[uIdx(c.x + 1, c.y, c.z)]);
+                const float vy = 0.5 * (v[vIdx(c.x, c.y, c.z)] + v[vIdx(c.x, c.y + 1, c.z)]);
+                const float wz = 0.5 * (w[wIdx(c.x, c.y, c.z)] + w[wIdx(c.x, c.y, c.z + 1)]);
+                mine.x = 0.5 * fc * (ux * ux + vy * vy + wz * wz);
+            }
+            mine.y = abs(fc - fp[gid]);
+            mine.z = fc;
+        }
+    } else if (pc.mode == 1) {
+        const int n = pc.iparam == 0 ? (pc.nx + 1) * pc.ny * pc.nz : (pc.iparam == 1 ? pc.nx * (pc.ny + 1) * pc.nz : pc.nx * pc.ny * (pc.nz + 1));
+        if (int(gid) < n) mine.w = abs(pc.iparam == 0 ? u[gid] : (pc.iparam == 1 ? v[gid] : w[gid]));
+    } else if (pc.mode == 2) {
+        const uint n = uint(pc.param0);
+        if (gid < n) mine = part[gid];
+    } else {
+        const uint n = uint(pc.param0);
+        if (gid < n) mine = part2[gid];
+    }
+    sh[lid] = mine;
+    barrier();
+    for (uint s = 128u; s > 0u; s >>= 1u) {
+        if (lid < s) { sh[lid].x += sh[lid + s].x; sh[lid].y = max(sh[lid].y, sh[lid + s].y); sh[lid].z += sh[lid + s].z; sh[lid].w = max(sh[lid].w, sh[lid + s].w); }
+        barrier();
+    }
+    if (lid == 0u) {
+        if (pc.mode <= 1) part[wg] = sh[0];
+        else if (pc.param1 == 1.0) outv[uint(pc.iparam)] = sh[0];
+        else if (pc.mode == 2) part2[wg] = sh[0];
+        else part[wg] = sh[0];
+    }
+}

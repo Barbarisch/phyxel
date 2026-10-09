@@ -1,0 +1,69 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore GPU kernel 2b: semi-Lagrangian back-trace of one face lattice (mode 0 u, 1 v, 2 w),
+// reading the three OLD lattices (copies taken before this kernel runs) and writing the new one.
+// Same sampling as WaterCore.cpp sampleLattice/velocityAt: u lives at (i, j+0.5, k+0.5) etc.
+#include "water_core.glsl"
+layout(local_size_x = 64) in;
+layout(std430, set = 0, binding = 0) readonly buffer UOld { float uo[]; };
+layout(std430, set = 0, binding = 1) readonly buffer VOld { float vo[]; };
+layout(std430, set = 0, binding = 2) readonly buffer WOld { float wo[]; };
+layout(std430, set = 0, binding = 3)          buffer Out  { float outv[]; };
+
+float sampleU(vec3 p) {   // p in u-lattice coords
+    const int sx = pc.nx + 1, sy = pc.ny, sz = pc.nz;
+    p = clamp(p, vec3(0.0), vec3(float(sx - 1), float(sy - 1), float(sz - 1)));
+    const ivec3 c0 = ivec3(floor(p)); const ivec3 c1 = min(c0 + 1, ivec3(sx - 1, sy - 1, sz - 1));
+    const vec3 t = p - vec3(c0);
+    #define AT(x, y, z) uo[uint(x) + uint(sx) * (uint(y) + uint(sy) * uint(z))]
+    const float c00 = mix(AT(c0.x, c0.y, c0.z), AT(c1.x, c0.y, c0.z), t.x), c10 = mix(AT(c0.x, c1.y, c0.z), AT(c1.x, c1.y, c0.z), t.x);
+    const float c01 = mix(AT(c0.x, c0.y, c1.z), AT(c1.x, c0.y, c1.z), t.x), c11 = mix(AT(c0.x, c1.y, c1.z), AT(c1.x, c1.y, c1.z), t.x);
+    #undef AT
+    return mix(mix(c00, c10, t.y), mix(c01, c11, t.y), t.z);
+}
+float sampleV(vec3 p) {
+    const int sx = pc.nx, sy = pc.ny + 1, sz = pc.nz;
+    p = clamp(p, vec3(0.0), vec3(float(sx - 1), float(sy - 1), float(sz - 1)));
+    const ivec3 c0 = ivec3(floor(p)); const ivec3 c1 = min(c0 + 1, ivec3(sx - 1, sy - 1, sz - 1));
+    const vec3 t = p - vec3(c0);
+    #define AT(x, y, z) vo[uint(x) + uint(sx) * (uint(y) + uint(sy) * uint(z))]
+    const float c00 = mix(AT(c0.x, c0.y, c0.z), AT(c1.x, c0.y, c0.z), t.x), c10 = mix(AT(c0.x, c1.y, c0.z), AT(c1.x, c1.y, c0.z), t.x);
+    const float c01 = mix(AT(c0.x, c0.y, c1.z), AT(c1.x, c0.y, c1.z), t.x), c11 = mix(AT(c0.x, c1.y, c1.z), AT(c1.x, c1.y, c1.z), t.x);
+    #undef AT
+    return mix(mix(c00, c10, t.y), mix(c01, c11, t.y), t.z);
+}
+float sampleW(vec3 p) {
+    const int sx = pc.nx, sy = pc.ny, sz = pc.nz + 1;
+    p = clamp(p, vec3(0.0), vec3(float(sx - 1), float(sy - 1), float(sz - 1)));
+    const ivec3 c0 = ivec3(floor(p)); const ivec3 c1 = min(c0 + 1, ivec3(sx - 1, sy - 1, sz - 1));
+    const vec3 t = p - vec3(c0);
+    #define AT(x, y, z) wo[uint(x) + uint(sx) * (uint(y) + uint(sy) * uint(z))]
+    const float c00 = mix(AT(c0.x, c0.y, c0.z), AT(c1.x, c0.y, c0.z), t.x), c10 = mix(AT(c0.x, c1.y, c0.z), AT(c1.x, c1.y, c0.z), t.x);
+    const float c01 = mix(AT(c0.x, c0.y, c1.z), AT(c1.x, c0.y, c1.z), t.x), c11 = mix(AT(c0.x, c1.y, c1.z), AT(c1.x, c1.y, c1.z), t.x);
+    #undef AT
+    return mix(mix(c00, c10, t.y), mix(c01, c11, t.y), t.z);
+}
+// cell-space velocity (cells/s) at a cell-space position
+vec3 velocityAt(vec3 p) {
+    return vec3(sampleU(vec3(p.x, p.y - 0.5, p.z - 0.5)), sampleV(vec3(p.x - 0.5, p.y, p.z - 0.5)), sampleW(vec3(p.x - 0.5, p.y - 0.5, p.z))) / pc.h;
+}
+
+void main() {
+    const uint id = gl_GlobalInvocationID.x;
+    if (pc.mode == 0) {
+        ivec3 c = decode(id, pc.nx + 1, pc.ny); if (c.z >= pc.nz) return;
+        const vec3 p = vec3(float(c.x), float(c.y) + 0.5, float(c.z) + 0.5);
+        const vec3 vel = velocityAt(p);
+        outv[id] = sampleU(vec3(p.x - vel.x * pc.dt, p.y - 0.5 - vel.y * pc.dt, p.z - 0.5 - vel.z * pc.dt));
+    } else if (pc.mode == 1) {
+        ivec3 c = decode(id, pc.nx, pc.ny + 1); if (c.z >= pc.nz) return;
+        const vec3 p = vec3(float(c.x) + 0.5, float(c.y), float(c.z) + 0.5);
+        const vec3 vel = velocityAt(p);
+        outv[id] = sampleV(vec3(p.x - 0.5 - vel.x * pc.dt, p.y - vel.y * pc.dt, p.z - 0.5 - vel.z * pc.dt));
+    } else {
+        ivec3 c = decode(id, pc.nx, pc.ny); if (c.z > pc.nz) return;
+        const vec3 p = vec3(float(c.x) + 0.5, float(c.y) + 0.5, float(c.z));
+        const vec3 vel = velocityAt(p);
+        outv[id] = sampleW(vec3(p.x - 0.5 - vel.x * pc.dt, p.y - 0.5 - vel.y * pc.dt, p.z - vel.z * pc.dt));
+    }
+}

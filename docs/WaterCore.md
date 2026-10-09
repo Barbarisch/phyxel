@@ -893,6 +893,53 @@ usual fix), designed only if the row demands it. Gather p2g is O(particles per c
 face; at 8 per cell that is 64 reads per face, fine; a clustered cell of 200 particles is the
 volume-control pathology, not a budget case.
 
+### 15.12 Phase C build ledger — slice 1, the fill solver as compute (2026-10-08)
+
+**Built:** `engine/{include,src}/core/water/WaterCoreGpu.*` on raw Vulkan handles (so it runs under
+the integration fixture and the engine alike) and eight kernels in `shaders/wc_*.comp` sharing
+`shaders/water_core.glsl`: `wc_fill_advect` (6 checkerboard passes: 3 directions × 2 parities —
+one pass per direction handles both flow signs, so 6 not 12), `wc_vel_advect`, `wc_face_ops`
+(gravity, film slope, solid faces, velocity update, rest-damping scale), `wc_column_ops` (settle,
+compaction, residue sweep — one thread per column), `wc_classify`, `wc_rbgs` (red-black SOR + a
+residual pass), `wc_extrap` (masks, three layers, the first-layer rule, drop faces), `wc_reduce`
+(per-workgroup partials folded in a fixed ping-pong tree into `out[slot]` — no float atomics).
+Slice 1 buffers are host-visible and persistently mapped; a tick is two fenced submissions (the
+CFL max-speed reduction, then the substeps + sweep + reductions). Registered in
+`build_shaders.bat` and the shader manifest.
+
+**Red → green (`tests/integration/WaterCoreGpuParityTest`, skips without a device):**
+
+| Test | First reading | Cause | Fix | Now |
+|---|---|---|---|---|
+| `GpuMassExactUnderArbitraryVelocity` | PASS at once | the checkerboard passes are the CPU's one-amount-per-face rule | — | mass to 1e-6 relative over 300 ticks |
+| `GpuDeterministic` | PASS at once | fixed pass order, no atomics | — | bit-identical fills over 60 ticks |
+| `GpuDamBreakFrontParity` | PASS at once | — | — | CPU front 20, GPU 21 at 2 s; mass 90.0000 |
+| `GpuStillWaterStaysStill` | **FAIL**: 2.1 mm/s residual motion, RBGS residual 0.125 | plain Gauss-Seidel at 40 sweeps does not converge a Poisson column (the §15.11 risk, on a 3-cell-deep pool) | successive over-relaxation in the sweep (`param1` = ω) | PASS, max speed < 1e-3 |
+| `GpuHydrostaticPressureParity` (the CPU test's exact form: 10 m column, 5 ticks, 1 %) | **FAIL**: pressure 11 % low, residual 8.2 | same | same | PASS |
+| `GpuRbgsConvergenceScan` (new) | — | — | — | the table below; ω = 1.85 ships |
+
+**Convergence, measured (10 m column, worst hydrostatic error / RBGS residual):**
+
+| ω | 40 sweeps | 100 sweeps | 200 sweeps |
+|---|---|---|---|
+| 1.00 (Gauss-Seidel) | 16 % / 8.2 | 0.75 % / 2.6 | 0 / 0.69 |
+| 1.50 | 0.24 % / 3.9 | 0 / 0.44 | 0 / 0.018 |
+| 1.70 | 0 / 1.6 | 0 / 0.032 | 0 / 1.2e-4 |
+| **1.85** | **0 / 0.14** | 0 / 1.1e-4 | 0 / 1.7e-4 |
+| 1.95 | 0 / 6.6 | 0.01 % / 0.26 | 0 / 2.2e-3 |
+
+Plain GS at the §10 "40 sweeps" was never going to converge; SOR at 1.85 reaches the 1 % gate at
+40 and 1e-4 at 100 on this column. The seiche row on the 26 m Basin is the next judge of the
+sweep count (a stiffer, under-converged solve shows as faster damping); the two-level V-cycle
+stays the fallback.
+
+**Not in slice 1 (next commits):** the FLIP kernels (F1–F3), device-local buffers + staging (the
+§10 ≤ 2 ms budget is measured only after that), the engine backend wiring (`backend:"gpu"` on a
+volume, the manager stepping it and downloading for probes), the harness `--backend gpu` rows,
+`GpuRestDecisionDeterministic`, the device-memory refusal test. The GPU residue sweep merges only
+DOWNWARD (lateral neighbours belong to other column threads) — a documented parity tolerance,
+counted in `residueDropped`.
+
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 
 **Verdict: NEEDS WORK → fixed in this revision → READY for Phase A.** Phase B, C, E, F and G keep

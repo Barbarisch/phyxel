@@ -1,0 +1,76 @@
+#version 450
+#extension GL_GOOGLE_include_directive : require
+// WaterCore GPU kernel 3/8 (column part): one thread per (x, z) column walks y, which is how the
+// CPU rules are written (y ascends so a stack copies the floor upward; compaction and the residue
+// sweep move water between vertically adjacent cells).
+//   mode 0: settleThinFilmTopFaces   (writes v)
+//   mode 1: compactSubmergedPartials (writes f; reads u, v, w for the quiet gates)
+//   mode 2: sweepResidue             (writes f, v; param0 = residue threshold; drops are counted into binding 6)
+#include "water_core.glsl"
+layout(local_size_x = 64) in;
+layout(std430, set = 0, binding = 0)          buffer F   { float f[]; };
+layout(std430, set = 0, binding = 1) readonly buffer Occ { uint occ[]; };
+layout(std430, set = 0, binding = 2) readonly buffer U   { float u[]; };
+layout(std430, set = 0, binding = 3)          buffer V   { float v[]; };
+layout(std430, set = 0, binding = 4) readonly buffer W   { float w[]; };
+layout(std430, set = 0, binding = 5)          buffer Dropped { float dropped[]; };   // one slot per column thread
+
+bool blocked(int x, int y, int z) { return !inBounds(x, y, z) || occ[cellIdx(x, y, z)] != 0u; }
+
+void main() {
+    const uint id = gl_GlobalInvocationID.x;
+    const int x = int(id % uint(pc.nx)), z = int(id / uint(pc.nx));
+    if (z >= pc.nz) return;
+    if (pc.mode == 0) {
+        for (int y = 0; y < pc.ny; ++y) {
+            const float fc = f[cellIdx(x, y, z)];
+            if (fc <= 0.0 || fc >= pc.thr) continue;
+            const bool upperIsDomain = (y + 1 < pc.ny) && occ[cellIdx(x, y + 1, z)] == 0u && f[cellIdx(x, y + 1, z)] >= pc.thr;
+            if (upperIsDomain) continue;
+            if (y + 1 < pc.ny && blocked(x, y + 1, z)) continue;
+            if (y + 1 < pc.ny && f[cellIdx(x, y + 1, z)] > 0.0) continue;   // wet above: that face is gravity's
+            const bool solidBelow = blocked(x, y - 1, z);
+            const float vBottom = solidBelow ? 0.0 : v[vIdx(x, y, z)];
+            v[vIdx(x, y + 1, z)] = vBottom;
+        }
+    } else if (pc.mode == 1) {
+        const float vfall = sqrt(2.0 * pc.gravity * pc.h);
+        const float cap = vfall * pc.dt / pc.h;
+        for (int y = 0; y + 1 < pc.ny; ++y) {
+            const float fb = f[cellIdx(x, y, z)];
+            if (fb < pc.thr || fb >= 1.0 || blocked(x, y, z) || blocked(x, y + 1, z)) continue;
+            const float fa = f[cellIdx(x, y + 1, z)];
+            if (fa <= 0.0) continue;
+            const float vFace = v[vIdx(x, y + 1, z)];
+            const float already = abs(vFace) * pc.dt / pc.h;
+            if (vFace > 0.0 || already > 0.1 * cap) continue;
+            const float uc = 0.5 * (u[uIdx(x, y, z)] + u[uIdx(x + 1, y, z)]);
+            const float wc = 0.5 * (w[wIdx(x, y, z)] + w[wIdx(x, y, z + 1)]);
+            if (uc * uc + wc * wc > 0.01 * vfall * vfall) continue;
+            const float moved = min(min(fa, 1.0 - fb), cap);
+            if (moved <= 0.0) continue;
+            f[cellIdx(x, y, z)] = fb + moved;
+            f[cellIdx(x, y + 1, z)] = fa - moved;
+        }
+    } else {
+        float drop = 0.0;
+        const float eps = pc.param0;
+        for (int y = pc.ny - 1; y >= 0; --y) {
+            const float fc = f[cellIdx(x, y, z)];
+            if (fc <= 0.0 || fc >= eps) continue;
+            bool placed = false;
+            // below first (the column is ours), then lateral wet neighbours - those belong to other
+            // threads, so the GPU sweep only merges DOWNWARD and otherwise counts the drop (the
+            // difference is a documented parity tolerance: residue below 1e-6 of a cell)
+            if (y > 0 && !blocked(x, y - 1, z)) {
+                const float fn = f[cellIdx(x, y - 1, z)];
+                if (fn + fc <= 1.0) { f[cellIdx(x, y - 1, z)] = fn + fc; placed = true; }
+            }
+            if (!placed) drop += fc * pc.h * pc.h * pc.h;
+            f[cellIdx(x, y, z)] = 0.0;
+            v[vIdx(x, y, z)] = 0.0;
+            v[vIdx(x, y + 1, z)] = 0.0;
+        }
+        dropped[id] = drop;
+    }
+}
