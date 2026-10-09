@@ -525,6 +525,72 @@ TEST(WaterOccupancyTest, StoredSpansAgreeWithThePerColumnQueryAcrossAWholeChunk)
     EXPECT_GT(wetCols, 0) << "chunk chosen has no wet columns — the agreement above is vacuous";
 }
 
+// ── WaterCore Phase D4 (WaterRethink 8.8 1b): the hydraulic flood ───────────────────────────
+// A perched lake (level 40) with an outlet notch at x = 10 and a valley floor at 10 beyond it.
+// `filled` (Priority-Flood's depression-filled elevation) is 40 over the lake, 40 at the notch
+// (it IS the spill) and the ground itself in the valley (it drains). The old rule "neighbour
+// ground < level" walked the lake's level down the valley to the step budget.
+namespace {
+struct Perched {
+    int w = 40, d = 8;
+    std::vector<float> ground, baked, filled, level;
+    std::vector<uint8_t> river;
+    Perched(int maxSteps, bool useFilled, bool withRiver = false) {
+        ground.resize(static_cast<size_t>(w) * d); baked.assign(ground.size(), kNoBody); filled.resize(ground.size()); level.resize(ground.size()); river.assign(ground.size(), 0);
+        for (int z = 0; z < d; ++z) for (int x = 0; x < w; ++x) {
+            const size_t i = static_cast<size_t>(z) * w + x;
+            float g = x < 10 ? 30.0f : (x == 10 ? 39.0f : 10.0f);
+            ground[i] = g; filled[i] = x <= 10 ? 40.0f : g;
+            if (x < 10 && z >= 2 && z <= 5) baked[i] = 40.0f;   // the bake's lake cells (its seeds)
+            if (withRiver && z == 4 && x > 10) river[i] = 1;    // an order-3 channel down the valley
+        }
+        floodBodiesOverGrid(w, d, ground.data(), baked.data(), level.data(), maxSteps, useFilled ? filled.data() : nullptr, withRiver ? river.data() : nullptr);
+    }
+    long wet() const { long n = 0; for (float l : level) if (l > kNoBody * 0.5f) ++n; return n; }
+    long wetValley() const { long n = 0; for (int z = 0; z < d; ++z) for (int x = 11; x < w; ++x) if (level[static_cast<size_t>(z) * w + x] > kNoBody * 0.5f) ++n; return n; }
+};
+}  // namespace
+
+TEST(WaterOccupancyTest, DownhillOfTheOutletStaysDryHoweverLargeTheBudget) {
+    // RED on today's rule: the wet set grows with the budget (the valley drowns); with the
+    // hydraulic rule the wet set is the lake + its notch, identical at every budget.
+    const Perched small(16, true), large(4096, true);
+    EXPECT_EQ(small.wet(), large.wet()) << "the step budget is a cost bound, not the lake's shape";
+    EXPECT_EQ(small.wetValley(), 0) << "downhill of the spill is dry";
+    EXPECT_EQ(large.wetValley(), 0);
+    EXPECT_EQ(large.wet(), 10 * 8 + 8) << "the lake bed (every z, ground 30 < 40) plus the notch row (ground 39 < 40, filled 40)";
+    // the control: the unguarded flood DOES drown the valley with a large budget (the measured defect)
+    const Perched unguarded(4096, false);
+    EXPECT_GT(unguarded.wetValley(), 0) << "without the rule the valley floods - the fixture is live";
+}
+
+TEST(WaterOccupancyTest, RiverColumnsAreNeverPaintedByALake) {
+    const Perched withRiver(4096, false, true);   // even without the hydraulic rule, the channel is excluded
+    for (int x = 11; x < withRiver.w; ++x) EXPECT_LE(withRiver.level[static_cast<size_t>(4) * withRiver.w + x], kNoBody * 0.5f) << "x " << x;
+    const Perched both(4096, true, true);
+    EXPECT_EQ(both.wetValley(), 0);
+}
+
+TEST(WaterSpanSeamTest, LakeOutletIndependentOfChunking) {
+    // per-chunk union == whole region, with the hydraulic rule: 32-wide windows padded by the
+    // budget give the same wet set the whole 40 x 8 grid gives (two bodies would need two levels;
+    // here the one lake plus the dry valley is the regression this fixture guards)
+    const Perched whole(16, true);
+    for (int z = 0; z < whole.d; ++z) for (int x = 0; x < whole.w; ++x) {
+        // a window of width 1 padded by the budget, exactly what waterSpanAt does
+        const int px = std::max(0, x - 16), pw = std::min(whole.w, x + 17) - px;
+        std::vector<float> g(static_cast<size_t>(pw) * whole.d), b(g.size()), f(g.size()), l(g.size());
+        for (int zz = 0; zz < whole.d; ++zz) for (int xx = 0; xx < pw; ++xx) {
+            const size_t src = static_cast<size_t>(zz) * whole.w + (px + xx), dst = static_cast<size_t>(zz) * pw + xx;
+            g[dst] = whole.ground[src]; b[dst] = whole.baked[src]; f[dst] = whole.filled[src];
+        }
+        floodBodiesOverGrid(pw, whole.d, g.data(), b.data(), l.data(), 16, f.data(), nullptr);
+        const float lw = whole.level[static_cast<size_t>(z) * whole.w + x], lp = l[static_cast<size_t>(z) * pw + (x - px)];
+        EXPECT_EQ(lw > kNoBody * 0.5f, lp > kNoBody * 0.5f) << "column " << x << "," << z;
+        if (lw > kNoBody * 0.5f) EXPECT_FLOAT_EQ(lw, lp);
+    }
+}
+
 TEST(WaterOccupancyTest, BatchFloodHandlesDegenerateGrids) {
     // Null pointers and non-positive extents must return rather than walk off memory — the caller
     // sizes these grids from chunk arithmetic, and a zero-size region is a legal thing to ask for.

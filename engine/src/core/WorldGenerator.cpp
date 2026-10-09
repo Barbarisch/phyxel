@@ -819,8 +819,9 @@ void WorldGenerator::waterSpansForBlock(int minX, int minZ, int w, int d,
     const int px = minX - kWaterBlockMargin, pz = minZ - kWaterBlockMargin;
     const size_t pn = static_cast<size_t>(pw) * static_cast<size_t>(pd);
 
-    std::vector<float> ground(pn), baked(pn), level(pn);
+    std::vector<float> ground(pn), baked(pn), level(pn), filled(pn), rdepth(pn);
     std::vector<int>   surf(pn);
+    std::vector<uint8_t> river(pn, 0);
 
     // ⚑SAMPLED THROUGH THE CHUNK COLUMN CACHE, NOT COLUMN-BY-COLUMN. The margin is a real tax —
     // resolving one 32x32 chunk means sampling a 128x128 padded area, 16x more columns than the
@@ -854,20 +855,35 @@ void WorldGenerator::waterSpansForBlock(int minX, int minZ, int w, int d,
                     const int gx = cx * 32 + lx - px, gz = cz * 32 + lz - pz;   // into the padded grid
                     if (gx < 0 || gz < 0 || gx >= pw || gz >= pd) continue;
                     const size_t i = static_cast<size_t>(gz) * pw + gx;
-                    surf[i]   = (*cols)[static_cast<size_t>(lx) * 32 + lz].surfaceY;  // x-major, z-minor
+                    const ColumnSample& cs = (*cols)[static_cast<size_t>(lx) * 32 + lz];
+                    surf[i]   = cs.surfaceY;  // x-major, z-minor
+                    river[i]  = cs.riverOrder >= 3 ? 1 : 0;   // Phase D4: a carved channel column holds its river span
+                    rdepth[i] = cs.channelDepth;
+                    filled[i] = m_hydro->filledAt(static_cast<float>(cx * 32 + lx) + 0.5f,
+                                                  static_cast<float>(cz * 32 + lz) + 0.5f);
                     ground[i] = static_cast<float>(surf[i]) + 1.0f;   // top face of the solid voxel
                     baked[i]  = m_hydro->waterLevelAt(static_cast<float>(cx * 32 + lx) + 0.5f,
                                                       static_cast<float>(cz * 32 + lz) + 0.5f);
                 }
         }
 
-    floodBodiesOverGrid(pw, pd, ground.data(), baked.data(), level.data(), kWaterExtentSteps);
+    floodBodiesOverGrid(pw, pd, ground.data(), baked.data(), level.data(), kWaterExtentSteps, filled.data(), river.data());
 
     // Keep only the requested block; the margin's answers are under-resolved by construction.
     for (int z = 0; z < d; ++z)
         for (int x = 0; x < w; ++x) {
             const size_t src = static_cast<size_t>(z + kWaterBlockMargin) * pw + (x + kWaterBlockMargin);
             const size_t dst = static_cast<size_t>(z) * w + x;
+            // Phase D4 (WaterRethink 8.8 step 1): a carved channel column holds ONE river span, bed
+            // (the top face of the carved bed voxel) to bed + the parabolic carve depth - the
+            // water that fills the carve back to the valley floor, sloping along the reach as the
+            // per-column representation allows and the flat 128 m grid could not. Orders 1-2
+            // (creek shelves at 2/3) need a float bottom in WaterSpan and stay a logged gap.
+            if (river[src]) {
+                WaterSpan rs; rs.bottomY = surf[src] + 1; rs.topY = static_cast<float>(rs.bottomY) + rdepth[src];
+                if (rs.depth() >= kMinSpanDepthFwd) { spans[dst] = rs; hasSpan[dst] = 1; }
+                continue;
+            }
             if (level[src] <= kNoBody * 0.5f) continue;
             // Containment is still decided by buildOpenWaterSpan against the column's REAL surface,
             // exactly as in the single-column path. The batch pass changes how the LEVEL is found,
@@ -1005,6 +1021,7 @@ WorldGenerator::ColumnSample WorldGenerator::sampleColumn(int wx, int wz) {
                 // flora gate both consume it (no trees standing in the creek line).
                 if (ch.order >= 3) col.surfaceY -= static_cast<int>(std::lround(ch.depth));
                 col.riverOrder = ch.order;
+                col.channelDepth = ch.depth;
                 // Creek BED RECESS (water-as-terrain-stage P2): the inner band of an order 1-2
                 // channel — same 0.15 depth threshold the runtime pin uses (WaterManager::
                 // applyRiverInflows), so every pinned ribbon cell gets a recess and the parabolic

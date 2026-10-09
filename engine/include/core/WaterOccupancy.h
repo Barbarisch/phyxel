@@ -167,8 +167,15 @@ float connectedBodyLevel(int worldX, int worldZ, const ColumnTerrain& terrain, i
 // otherwise. Callers must pad the region they care about by at least `maxSteps` and discard the
 // padding's answers — with that padding, the two properties above combine to give an answer
 // identical to a whole-world flood bounded the same way.
+// WaterCore Phase D4 (WaterRethink 8.8 1b, gated READY): `filled` (nullable) is the per-column
+// depression-filled elevation (HydrologyMap::filledAt); a column joins a body only if
+// filled >= level - 1e-3: uphill rim cells pass (filled >= ground >= level, the shoreline still
+// conforms), the outlet's downstream cells fail (water drains there) - the step bound goes back
+// to being a cost bound. `river` (nullable, 1 = an order >= 3 channel column) columns never join a
+// lake flood: they get their river span instead (step 1), so a lake can never over-paint a channel.
 void floodBodiesOverGrid(int w, int d, const float* groundTop, const float* bakedLevel,
-                         float* outLevel, int maxSteps);
+                         float* outLevel, int maxSteps,
+                         const float* filled = nullptr, const uint8_t* river = nullptr);
 
 // Minimum depth (world units) for a column to be considered water at all. Below this a "body" is a
 // film thinner than the sim's own MIN_HOLD and would render as z-fighting shimmer on the ground

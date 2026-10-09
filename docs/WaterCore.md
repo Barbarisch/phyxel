@@ -414,7 +414,7 @@ ends with `tools/perf_harness.py` rows on the rigs; the CPU reference is for cor
 | **B. The core, CPU reference** — **BUILT + IN THE ENGINE 2026-10-08** (ledgers §15.7–15.8; S5 4/4, S2 4/4, S1 3/4, S4 1 m PASS / ⅓ OPEN, S3 front PASS / run-up + rest gates to re-base) | `WaterCore` library: MAC grid, `SurfaceTransport::Eulerian` (VOF), projection, solids from the micro pool, sources/sinks, rest detection; deterministic; unit tests for §4.4; S3, S4, S5, S1, S2 pass on the CPU at ⅓ (default), ⅑ and 1 | **/design-check** | §4.4 rules green; S1–S5 predictions met; mass ledger exact |
 | **B2. FLIP transport** | `SurfaceTransport::FLIP` against the same grid (particles carry f and momentum; grid projection; particle↔grid transfer; re-seeding; rest conversion); harness runs S1–S5 on both modes and records the comparison | /design-check | Same scenarios green on FLIP; a written comparison (rest flatness, splash shape, cost) the user reads before Phase E chooses the default per scenario |
 | **C. GPU core** | Same solver on compute (`water_core_*.comp`), ping-pong, no readback except the surface/queries; parity with CPU on S1–S5 within tolerance; perf rows | /design-check (dispatch, buffers, tiers) | parity + ≤ 2 ms at `high` with all §3 rigs awake |
-| **D. Rest, persistence, world data** — **design §16; D3 + D1 + D2 BUILT 2026-10-09 (ledger §16.9); D4, D5 open** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | /design-check on §16 | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
+| **D. Rest, persistence, world data** — **design §16; D3 + D1 + D2 + D4 BUILT 2026-10-09 (ledger §16.9; D4 halves the River trunk defect, residual is the bake's cell resolution); D5 open** | AV sleep/write-back to spans and body records; `WaterBodyTable`; edits-never-create-water; span-grid rebuild on residency set (WP1 step 6); hydraulic flood (WP1 step 1b, gated READY); river spans (step 1) | /design-check on §16 | S11; camera-walk probe 0 violations on all benches; River trunk rect 17,677 → 0 |
 | **E. Coupling** | Moving solids (debris, furniture, characters) two-way; impulses; pump/pipe/scoop/pour/containers | /design-check | S6, S7, S8, S13, S14; drag/buoyancy tables retired on measured parity |
 | **F. Rendering the core** | AV surface mesh + shading; droplets; `RippleField` and cell renderer deleted; flat-sea/bake placement deleted | /design-check (aesthetic + camera invariant) | Look sign-off on S6/S7/S9 rest states vs refs; probe clean |
 | **G. Large bodies on top** | Shoreline AV band with swell (S12); river reaches; far tiles; weather driver; tall-cell compression | /design-check | S12; WaterRethink WP2/WP6 gates |
@@ -1402,6 +1402,34 @@ down: ke 6e-6 → 2e-4). ⚠️ A decision for the owner: the settle band is a f
 physics; its two numbers are in `SolverParams` with the measurements that set them.
 
 Suite after D1/D2: 4,166 passed, the same two non-water failures (AtlasManager, FineFaceMerge).
+
+**D4 — generation: the hydraulic flood + river spans (built 2026-10-09, as gated in WaterRethink
+§8.8; PARTIAL on the measured rect).** `HydrologyMap::filledAt` (the Priority-Flood
+depression-filled elevation, floored at sea level so sub-sea cells stay sea-connected),
+`floodBodiesOverGrid(…, filled, river)` (a column joins a body only if `filled ≥ level`; channel
+columns never join), `ColumnSample::channelDepth`, river spans in `waterSpansForBlock` (one span per
+order ≥ 3 column: bed top face → bed + carve depth; creeks need a float-bottom `WaterSpan` and stay a
+logged gap), `water_span_scan.span_wet_bake_dry_nonriver` + `river_columns`. Red first: the
+fixtures did not compile; `DownhillOfTheOutletStaysDryHoweverLargeTheBudget` keeps the unguarded
+flood as its live control (the valley does drown without the rule). Unit: 35 occupancy tests green.
+Live (Release):
+
+| Rect | Before (WP0, 2026-10-07) | After |
+|---|---|---|
+| River trunk 140×128 (`span_wet ∧ ¬bake_wet ∧ ¬river`) | **17,677** of 18,189 span-wet | **8,562**; span-wet 10,522; river columns 1,483 hold river spans; batch 3.6 s |
+| River channel rect 17×9, batch vs per-column query | — | 22 checked, 0 mismatches; 128 river columns, mean depth 3.1 |
+| River chasm 9×9 | 204 spans, tops 192–325 | span-wet 58 of 81, 12 river columns, 31 lake-painted |
+| Coast shore rect (control) | 66,004 spans, tops 16.0 | **66,004**, max depth 12.0, unchanged (its `span_wet_bake_dry_nonriver` 15,375 is the legitimate sub-cell shoreline refinement beside wet sea cells, not a defect — the metric means "zero" only where the bake has no body nearby, as on the trunk) |
+
+**Why not zero (gap, logged):** the rule is evaluated at the bake's 128 m cell. The trunk rect's
+wet cells (512 columns) are lake cells the river's carve runs THROUGH — the carve post-dates the
+bake and cut a fine outlet the coarse sampling never saw — so the valley strip inside the same
+coarse cell has `filled = level` and still floods to the lake's level; only the cells beyond the
+outlet dry out (hence halved, not zero). The physical fix is bake-side: a carved channel drains the
+basin it crosses (the lake's level becomes its outlet's bed), i.e. the bake must see the carve.
+Logged in `docs/StructurePipelineGaps.md`. The saved River chunks keep their pre-D4 spans until
+regenerated (edits-win), so `water_spans_stored` on that bench reads the old 143-span column rect;
+`water_span_scan` reads the generator.
 
 ## 14. Feature Design Keys gate on this design (run 2026-10-08, before Phase A)
 

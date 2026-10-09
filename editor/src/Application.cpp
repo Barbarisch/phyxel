@@ -13166,7 +13166,7 @@ void Application::registerWaterCommands() {
         const double elapsedMs =
             std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 
-        long columns = 0, bakeWet = 0, spanWet = 0, bakeWetTerrainDry = 0;
+        long columns = 0, bakeWet = 0, spanWet = 0, bakeWetTerrainDry = 0, spanWetBakeDryNonRiver = 0, riverColumns = 0;
         double sumDepth = 0.0; float maxDepth = 0.0f;
         float worstOverhang = 0.0f; int worstX = 0, worstZ = 0;
         for (int z = 0; z < d; ++z)
@@ -13177,9 +13177,12 @@ void Application::registerWaterCommands() {
                 const float lvl = g->hydrology()->waterLevelAt(wx + 0.5f, wz + 0.5f);
                 const bool baked = lvl > Phyxel::HydrologyMap::NO_WATER * 0.5f;
                 if (baked) ++bakeWet;
+                const bool riverCol = g->sampleSurface(wx, wz).riverOrder >= 3;
+                if (riverCol) ++riverColumns;
                 if (hasSpan[i]) {
                     ++spanWet; sumDepth += spans[i].depth();
                     if (spans[i].depth() > maxDepth) maxDepth = spans[i].depth();
+                    if (!baked && !riverCol) ++spanWetBakeDryNonRiver;   // Phase D4 red metric (WaterRethink 1.2 / 8.8)
                 } else if (baked) {
                     ++bakeWetTerrainDry;
                     // How far the ground stands ABOVE the level the renderer would draw at.
@@ -13189,7 +13192,7 @@ void Application::registerWaterCommands() {
             }
 
         r = {{"columns", columns}, {"bake_wet", bakeWet}, {"span_wet", spanWet},
-             {"bake_wet_terrain_dry", bakeWetTerrainDry},
+             {"bake_wet_terrain_dry", bakeWetTerrainDry}, {"span_wet_bake_dry_nonriver", spanWetBakeDryNonRiver}, {"river_columns", riverColumns},
              {"disagreement_pct", bakeWet ? (100.0 * bakeWetTerrainDry / bakeWet) : 0.0},
              {"mean_depth", spanWet ? (sumDepth / spanWet) : 0.0}, {"max_depth", maxDepth},
              {"worst_overhang", worstOverhang},

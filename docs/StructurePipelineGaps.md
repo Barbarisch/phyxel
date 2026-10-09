@@ -1056,3 +1056,13 @@ the screenshot is not conclusive in tall grass. Hypothesis: the model-to-capsule
 `heightScale` but not `legLengthScale`. **Not chased in A4** - the matrix test judges feet against the
 floor band instead of the standing reference because of this. Worth one FloorWorld test: standing
 sole height vs `worldPosition.y` per preset.
+
+
+## 2026-10-09 — water: the hydraulic lake flood cannot see a carved river inside a bake cell
+
+WaterCore Phase D4 (WaterCore.md 16.9) built the WaterRethink 8.8 rule: a column joins a lake flood only where the
+bake's depression-filled elevation is >= the lake level. River trunk rect: 17,677 -> 8,562 lake-painted columns.
+The residual sits INSIDE wet 128 m bake cells that the order-5 carve runs through: the carve post-dates the bake,
+so the coarse cell is 'lake at 108' while the fine valley floor is at 20. Fix is bake-side: a carved channel
+drains the basin it crosses (the basin's level becomes its outlet bed), or the bake re-floods after the carve.
+Also open: creek spans (orders 1-2 on the 2/3 shelf) need a float-bottom WaterSpan.

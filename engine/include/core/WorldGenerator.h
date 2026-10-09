@@ -151,6 +151,8 @@ public:
         float continentalness = 0.5f; // [0,1] large-scale land elevation
         int   biomeIndex  = 0;        // dominant biome (index into m_biomes)
         std::string surfaceMat = "Grass"; // resolved surface material (biome surface or scatter)
+        float channelDepth = 0.0f;    // parabolic carve depth at this column (voxels; orders >= 3 carve it,
+                                      // orders 1-2 report it) - the river span's depth (Phase D4)
         int   riverOrder  = 0;        // Strahler order of the river carved here (0 = no channel);
                                       // >0 marks a carved riverbed (for the flora gate + water runtime)
         bool  creekBed    = false;    // order 1-2 inner channel band (depth >= the runtime pin
